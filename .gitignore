@@ -1,0 +1,23 @@
+﻿# Secrets / keys (NEVER commit)
+*.p8
+*.pub
+*.pem
+*.key
+*-key.json
+*credentials*.json
+service-account*.json
+.env
+
+# Local data & logs
+chunks/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# OS / editor
+.DS_Store
+Thumbs.db

@@ -1,0 +1,4 @@
+snowflake-connector-python[pandas]
+google-cloud-bigquery
+google-cloud-storage
+cryptography
