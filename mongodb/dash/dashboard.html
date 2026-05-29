@@ -1,0 +1,1034 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MongoDB APAC â€” Live Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    /* MongoDB brand palette */
+    --mdb-slate:    #001E2B;
+    --mdb-forest:   #023430;
+    --mdb-green:    #00684A;
+    --mdb-spring:   #00ED64;
+    --mdb-mint:     #C3E7CA;
+    --mdb-ink:      #1B2834;
+    --mdb-mute:     #5A6B78;
+    --mdb-line:     #E5E9EE;
+    --mdb-card:     #FFFFFF;
+    --mdb-bg:       #F6F8FA;
+
+    --bad-red:      #C8362A;
+    --good-green:   #1E8E3E;
+    --warn-amber:   #B97400;
+
+    --shadow-card: 0 1px 2px rgba(0,30,43,.04), 0 4px 14px rgba(0,30,43,.05);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--mdb-bg);color:var(--mdb-ink);
+            font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+            font-size:14px;line-height:1.5}
+  a{color:var(--mdb-green);text-decoration:none}
+
+  /* --- Top bar (slate blue + spring accent) --- */
+  .topbar{background:var(--mdb-slate);color:#fff;padding:14px 28px;
+          display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar-left{display:flex;align-items:center;gap:18px}
+  .transmission-logo{font-weight:700;letter-spacing:1.2px;font-size:13px;color:#fff;
+                     display:flex;align-items:center;gap:8px}
+  .transmission-logo .dot{width:6px;height:6px;background:var(--mdb-spring);border-radius:50%}
+  .topbar-divider{width:1px;height:22px;background:rgba(255,255,255,.18)}
+  /* Real MongoDB horizontal logo - rendered on white pill for contrast */
+  .mdb-logo-wrap{background:#fff;padding:6px 12px;border-radius:6px;
+                 display:flex;align-items:center}
+  .mdb-logo{height:22px;width:auto;display:block}
+  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.78);text-align:right;line-height:1.5}
+  .live{display:inline-block;width:7px;height:7px;background:var(--mdb-spring);
+        border-radius:50%;margin-right:6px;
+        box-shadow:0 0 0 0 rgba(0,237,100,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{
+    0%{box-shadow:0 0 0 0 rgba(0,237,100,.6)}
+    70%{box-shadow:0 0 0 8px rgba(0,237,100,0)}
+    100%{box-shadow:0 0 0 0 rgba(0,237,100,0)}
+  }
+
+  .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
+
+  /* --- Filter row --- */
+  .filter-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+              margin-bottom:18px;background:var(--mdb-card);
+              border:1px solid var(--mdb-line);border-radius:10px;padding:12px 14px;
+              box-shadow:var(--shadow-card)}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
+       color:var(--mdb-mute)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid var(--mdb-line);border-radius:999px;
+        padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;
+        align-items:center;gap:6px;transition:all .15s ease;color:var(--mdb-ink)}
+  .chip:hover{border-color:var(--mdb-green)}
+  .chip.on{background:var(--mdb-slate);color:#fff;border-color:var(--mdb-slate)}
+  .chip .check{opacity:0;font-size:10px;transition:opacity .15s ease}
+  .chip.on .check{opacity:1;color:var(--mdb-spring)}
+  .chip-action{background:none;border:1px dashed var(--mdb-line);
+               border-radius:999px;padding:6px 12px;font-size:11.5px;
+               cursor:pointer;color:var(--mdb-mute)}
+  .chip-action:hover{color:var(--mdb-ink);border-color:var(--mdb-mute)}
+
+  .section{border-top:1px solid var(--mdb-line);padding-top:18px;margin-top:24px}
+  .section.first{border-top:none;padding-top:0;margin-top:8px}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;
+              color:var(--mdb-slate)}
+  .section .sub{display:block;margin-top:3px;color:var(--mdb-mute);font-size:12.5px}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:14px}
+  .card{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;
+        padding:16px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;
+        min-width:0}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--mdb-ink)}
+  .card .hint{font-size:11.5px;color:var(--mdb-mute);margin:4px 0 10px 0}
+  .card-tall .chart-wrap{height:280px}
+  .card-med .chart-wrap{height:220px}
+  .chart-wrap{position:relative;flex:1;min-height:160px}
+
+  /* --- Paid-media KPI tiles (now white cards, secondary visual weight) --- */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:0}
+  .kpi{background:var(--mdb-card);border:1px solid var(--mdb-line);
+       color:var(--mdb-ink);border-radius:12px;padding:16px 18px;
+       box-shadow:var(--shadow-card);position:relative;overflow:hidden}
+  .kpi::before{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;
+               background:radial-gradient(circle,rgba(0,104,74,.06) 0%,transparent 70%)}
+  .kpi .k{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;
+          color:var(--mdb-mute);font-weight:600;position:relative}
+  .kpi .v{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.5px;
+          position:relative;color:var(--mdb-slate)}
+  .kpi .sub{font-size:11.5px;color:var(--mdb-mute);margin-top:4px;position:relative}
+
+  .alert,.info{border-radius:10px;padding:14px 16px;margin:14px 0;display:flex;gap:12px;
+               align-items:flex-start;font-size:13px;line-height:1.55}
+  .alert{background:#FFF7E8;border:1px solid #F0D9A3}
+  .info{background:#E8F7EE;border:1px solid #B5DDC4}
+  .alert .ico,.info .ico{font-size:18px;line-height:1;flex-shrink:0;margin-top:1px}
+  .alert h3,.info h3{margin:0 0 5px 0;font-size:13.5px;color:var(--mdb-slate);font-weight:700}
+  .alert p,.info p{margin:0;color:var(--mdb-ink)}
+  .alert b,.info b{color:var(--mdb-slate)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--mdb-line)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
+           color:var(--mdb-mute);font-weight:600;background:#FAFBFC}
+  table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table tr:hover td{background:#F8FAFB}
+  .vs-good{color:var(--good-green);font-weight:600}
+  .vs-bad{color:var(--bad-red);font-weight:600}
+  .vs-neut{color:var(--mdb-mute)}
+
+  .prog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+             gap:14px;margin-top:14px}
+  .prog-card{background:#fff;border:1px solid var(--mdb-line);border-radius:12px;
+             padding:14px 16px;box-shadow:var(--shadow-card)}
+  .prog-card h4{margin:0;font-size:13px;font-weight:700;color:var(--mdb-slate)}
+  .prog-card .nums{display:flex;align-items:baseline;gap:8px;margin:8px 0 6px 0}
+  .prog-card .nums .actual{font-size:26px;font-weight:700;color:var(--mdb-slate);
+                           letter-spacing:-.5px}
+  .prog-card .nums .target{font-size:14px;color:var(--mdb-mute)}
+  .prog-card .bar{height:8px;background:var(--mdb-line);border-radius:999px;
+                  overflow:hidden;margin-top:6px}
+  .prog-card .bar > div{height:100%;background:linear-gradient(90deg,var(--mdb-green),
+                        var(--mdb-spring));border-radius:999px;transition:width .4s ease}
+  .prog-card .bar.over > div{background:linear-gradient(90deg,#1E8E3E,var(--mdb-spring))}
+  .prog-card .pct{font-size:11.5px;color:var(--mdb-mute);margin-top:6px;
+                  display:flex;justify-content:space-between}
+  .prog-card .pct .v{font-weight:600;color:var(--mdb-slate)}
+  .prog-card .pct .v.over{color:var(--good-green)}
+  .prog-card .markets{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px;
+                      margin-top:10px;font-size:11.5px;color:var(--mdb-mute)}
+  .prog-card .markets span b{color:var(--mdb-ink);font-weight:600;float:right}
+
+  /* CS top KPI strip â€” slate-blue hero panel (main visual focus of the dashboard) */
+  .cs-hero{background:linear-gradient(135deg,var(--mdb-slate) 0%,#03293A 100%);
+           color:#fff;border-radius:14px;padding:22px 8px;
+           box-shadow:0 4px 22px rgba(0,30,43,.18);
+           position:relative;overflow:hidden;border:none;margin-top:14px}
+  .cs-hero::before{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;
+                   background:radial-gradient(circle,rgba(0,237,100,.22) 0%,transparent 70%);
+                   pointer-events:none}
+  .cs-hero::after{content:"";position:absolute;left:-80px;bottom:-80px;width:200px;height:200px;
+                  background:radial-gradient(circle,rgba(0,104,74,.18) 0%,transparent 70%);
+                  pointer-events:none}
+  .cs-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;position:relative}
+  .cs-kpi{padding:8px 22px;border-right:1px solid rgba(255,255,255,.12)}
+  .cs-kpi:last-child{border-right:none}
+  .cs-kpi .label{font-size:10.5px;font-weight:700;letter-spacing:.8px;
+                 text-transform:uppercase;color:rgba(255,255,255,.85);margin-bottom:4px}
+  .cs-kpi .group{font-size:9.5px;font-weight:600;letter-spacing:.6px;
+                 text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:2px}
+  .cs-kpi .v{font-size:30px;font-weight:700;color:#fff;
+             letter-spacing:-.5px;line-height:1.1}
+  .cs-kpi .v.ok{color:var(--mdb-spring)}
+  .cs-kpi .v.warn{color:#FFC766}
+  .cs-kpi .sub{font-size:11px;color:rgba(255,255,255,.65);margin-top:3px;font-style:italic}
+  @media (max-width:760px){
+    .cs-kpi-strip{grid-template-columns:repeat(2,1fr)}
+    .cs-kpi{border-right:none;border-bottom:1px solid rgba(255,255,255,.12);padding:10px 14px}
+  }
+
+  .loading{padding:80px 20px;text-align:center;color:var(--mdb-mute)}
+  .spinner{display:inline-block;width:34px;height:34px;
+           border:3px solid var(--mdb-line);border-top-color:var(--mdb-green);
+           border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;
+             border-radius:10px;padding:18px;margin:30px auto;max-width:520px;
+             text-align:center;font-size:13px}
+
+  footer{color:var(--mdb-mute);font-size:11px;margin-top:30px;text-align:right;
+         padding-top:14px;border-top:1px solid var(--mdb-line)}
+  footer b{color:var(--mdb-ink)}
+
+  @media (max-width: 1100px){
+    .grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}
+    .kpis{grid-template-columns:repeat(2,1fr)}
+  }
+  @media (max-width: 760px){
+    .grid{grid-template-columns:1fr}
+    .grid-3,.grid-4,.kpis{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ TOP BAR ============ -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="transmission-logo">TRANSMISSION<span class="dot"></span></div>
+    <div class="topbar-divider"></div>
+    <div class="mdb-logo-wrap">
+      <!-- Official MongoDB horizontal mark in slate blue -->
+      <svg class="mdb-logo" viewBox="0 0 1102 278" xmlns="http://www.w3.org/2000/svg" fill="none" aria-label="MongoDB">
+        <path d="M82.3229 28.6444C71.5367 15.8469 62.2485 2.84945 60.351 0.149971C60.1512 -0.0499903 59.8515 -0.0499903 59.6518 0.149971C57.7542 2.84945 48.4661 15.8469 37.6798 28.6444C-54.9019 146.721 52.2613 226.406 52.2613 226.406L53.1601 227.006C53.959 239.303 55.9565 257 55.9565 257H59.9514H63.9463C63.9463 257 65.9438 239.403 66.7428 227.006L67.6416 226.306C67.7414 226.406 174.905 146.721 82.3229 28.6444ZM59.9514 224.606C59.9514 224.606 55.1576 220.507 53.8592 218.408V218.207L59.6518 89.6326C59.6518 89.2326 60.2511 89.2326 60.2511 89.6326L66.0436 218.207V218.408C64.7453 220.507 59.9514 224.606 59.9514 224.606Z" fill="#001E2B"/>
+        <path d="M260.501 198.369L215.845 89.3012L215.745 89H181.001V96.3314H186.608C188.31 96.3314 189.912 97.0344 191.114 98.2396C192.315 99.4447 192.916 101.052 192.916 102.759L191.915 212.53C191.915 215.944 189.112 218.756 185.707 218.857L180 218.957V226.188H213.843V218.957L210.338 218.857C206.934 218.756 204.13 215.944 204.13 212.53V109.086L252.792 226.188C253.492 227.895 255.094 229 256.897 229C258.699 229 260.301 227.895 261.002 226.188L308.562 111.697L309.263 212.53C309.263 216.045 306.459 218.857 302.955 218.957H299.35V226.188H339V218.957H333.593C330.189 218.957 327.385 216.045 327.285 212.63L326.985 102.859C326.985 99.3443 329.788 96.5322 333.193 96.4318L339 96.3314V89H305.157L260.501 198.369Z" fill="#001E2B"/>
+        <path d="M571.869 217.046C570.764 215.94 570.162 214.431 570.162 212.62V158.696C570.162 148.435 567.151 140.386 561.127 134.652C555.205 128.917 546.973 126 536.734 126C522.378 126 511.035 131.835 503.104 143.304C503.004 143.505 502.703 143.606 502.402 143.606C502.1 143.606 501.9 143.404 501.9 143.103L498.185 128.716H491.961L476 137.871V142.901H480.116C482.023 142.901 483.629 143.404 484.734 144.411C485.838 145.417 486.44 146.926 486.44 149.038V212.519C486.44 214.33 485.838 215.839 484.734 216.946C483.629 218.052 482.124 218.656 480.317 218.656H476.301V226H513.042V218.656H509.027C507.22 218.656 505.714 218.052 504.61 216.946C503.506 215.839 502.903 214.33 502.903 212.519V170.467C502.903 165.135 504.108 159.803 506.317 154.571C508.625 149.441 512.038 145.115 516.556 141.795C521.073 138.475 526.494 136.865 532.718 136.865C539.745 136.865 545.066 139.078 548.378 143.505C551.691 147.932 553.398 153.666 553.398 160.507V212.419C553.398 214.229 552.795 215.738 551.691 216.845C550.587 217.952 549.081 218.555 547.274 218.555H543.259V225.899H580V218.555H575.985C574.479 218.757 573.073 218.153 571.869 217.046Z" fill="#001E2B"/>
+        <path d="M907.546 97.2119C897.39 91.804 886.039 89 873.792 89H826V96.3106H830.68C832.472 96.3106 834.065 97.0117 835.658 98.614C837.152 100.116 837.948 101.819 837.948 103.621V211.379C837.948 213.181 837.152 214.884 835.658 216.386C834.165 217.888 832.472 218.689 830.68 218.689H826V226H873.792C886.039 226 897.39 223.196 907.546 217.788C917.701 212.38 925.966 204.368 931.94 194.154C937.914 183.939 941 171.621 941 157.6C941 143.58 937.914 131.362 931.94 121.047C925.866 110.632 917.701 102.72 907.546 97.2119ZM921.784 157.4C921.784 170.219 919.494 181.034 915.013 189.747C910.533 198.46 904.558 204.969 897.19 209.176C889.823 213.382 881.658 215.485 872.896 215.485H863.238C861.446 215.485 859.853 214.784 858.26 213.181C856.766 211.679 855.97 209.977 855.97 208.174V106.526C855.97 104.723 856.667 103.121 858.26 101.518C859.753 100.016 861.446 99.2149 863.238 99.2149H872.896C881.658 99.2149 889.823 101.318 897.19 105.524C904.558 109.73 910.533 116.24 915.013 124.952C919.494 133.765 921.784 144.681 921.784 157.4Z" fill="#001E2B"/>
+        <path d="M1053.97 164.711C1049.55 159.603 1041.02 155.297 1030.99 152.993C1044.84 146.083 1051.96 136.369 1051.96 123.851C1051.96 117.041 1050.16 110.932 1046.54 105.724C1042.93 100.517 1037.81 96.3106 1031.29 93.4063C1024.76 90.5021 1017.13 89 1008.5 89H954.402V96.3106H958.718C960.524 96.3106 962.13 97.0117 963.736 98.614C965.242 100.116 966.045 101.819 966.045 103.621V211.379C966.045 213.181 965.242 214.884 963.736 216.386C962.231 217.888 960.524 218.689 958.718 218.689H954V226H1012.72C1021.65 226 1029.98 224.498 1037.51 221.493C1045.04 218.489 1051.06 214.083 1055.38 208.274C1059.79 202.466 1062 195.355 1062 187.143C1061.9 178.33 1059.29 170.819 1053.97 164.711ZM986.621 213.281C985.115 211.779 984.312 210.077 984.312 208.274V159.903H1012.22C1022.05 159.903 1029.58 162.407 1034.8 167.414C1040.02 172.422 1042.63 178.931 1042.63 186.943C1042.63 191.75 1041.42 196.457 1039.22 200.763C1036.91 205.17 1033.49 208.675 1028.88 211.379C1024.36 214.083 1018.74 215.485 1012.22 215.485H991.639C989.833 215.485 988.227 214.784 986.621 213.281ZM984.413 149.588V106.626C984.413 104.823 985.115 103.221 986.721 101.618C988.227 100.116 989.933 99.315 991.74 99.315H1004.99C1014.52 99.315 1021.55 101.719 1025.97 106.325C1030.38 111.032 1032.59 117.041 1032.59 124.452C1032.59 132.063 1030.48 138.172 1026.37 142.778C1022.25 147.285 1016.03 149.588 1007.8 149.588H984.413Z" fill="#001E2B"/>
+        <path d="M431.999 132.388C424.329 128.196 415.763 126 406.5 126C397.237 126 388.571 128.096 381.001 132.388C373.331 136.579 367.255 142.667 362.773 150.352C358.291 158.037 356 167.02 356 177C356 186.98 358.291 195.963 362.773 203.648C367.255 211.333 373.331 217.421 381.001 221.613C388.671 225.804 397.237 228 406.5 228C415.763 228 424.429 225.904 431.999 221.613C439.669 217.421 445.745 211.333 450.227 203.648C454.709 195.963 457 186.98 457 177C457 167.02 454.709 158.037 450.227 150.352C445.745 142.667 439.669 136.579 431.999 132.388ZM439.37 177C439.37 189.276 436.382 199.256 430.405 206.442C424.529 213.628 416.461 217.321 406.5 217.321C396.54 217.321 388.471 213.628 382.595 206.442C376.618 199.256 373.63 189.276 373.63 177C373.63 164.724 376.618 154.744 382.595 147.558C388.471 140.372 396.54 136.679 406.5 136.679C416.461 136.679 424.529 140.372 430.405 147.558C436.382 154.744 439.37 164.724 439.37 177Z" fill="#001E2B"/>
+        <path d="M784.999 132.388C777.329 128.196 768.763 126 759.5 126C750.237 126 741.571 128.096 734.001 132.388C726.331 136.579 720.255 142.667 715.773 150.352C711.291 158.037 709 167.02 709 177C709 186.98 711.291 195.963 715.773 203.648C720.255 211.333 726.331 217.421 734.001 221.613C741.671 225.804 750.237 228 759.5 228C768.763 228 777.429 225.904 784.999 221.613C792.669 217.421 798.745 211.333 803.227 203.648C807.709 195.963 810 186.98 810 177C810 167.02 807.709 158.037 803.227 150.352C798.745 142.667 792.569 136.579 784.999 132.388ZM792.37 177C792.37 189.276 789.381 199.256 783.405 206.442C777.528 213.628 769.46 217.321 759.5 217.321C749.539 217.321 741.471 213.628 735.595 206.442C729.618 199.256 726.63 189.276 726.63 177C726.63 164.624 729.618 154.744 735.595 147.558C741.471 140.372 749.539 136.679 759.5 136.679C769.46 136.679 777.528 140.372 783.405 147.558C789.282 154.744 792.37 164.724 792.37 177Z" fill="#001E2B"/>
+        <path d="M642.64 126C634.614 126 627.292 127.704 620.671 131.113C614.05 134.522 608.834 139.135 605.122 145.05C601.411 150.865 599.505 157.383 599.505 164.301C599.505 170.517 600.909 176.232 603.818 181.346C606.627 186.259 610.439 190.369 615.254 193.778L600.909 213.23C599.103 215.636 598.903 218.844 600.207 221.451C601.611 224.158 604.219 225.763 607.229 225.763H611.342C607.329 228.47 604.119 231.678 601.912 235.488C599.304 239.799 598 244.311 598 248.923C598 257.546 601.812 264.665 609.335 269.979C616.759 275.293 627.191 278 640.332 278C649.461 278 658.188 276.496 666.113 273.588C674.138 270.681 680.658 266.369 685.473 260.755C690.389 255.14 692.897 248.322 692.897 240.501C692.897 232.28 689.887 226.464 682.865 220.85C676.847 216.137 667.417 213.631 655.68 213.631H615.555C615.455 213.631 615.354 213.53 615.354 213.53C615.354 213.53 615.254 213.33 615.354 213.23L625.787 199.193C628.596 200.496 631.204 201.298 633.511 201.799C635.918 202.301 638.627 202.501 641.636 202.501C650.063 202.501 657.687 200.797 664.307 197.388C670.928 193.979 676.245 189.367 680.057 183.451C683.868 177.636 685.774 171.119 685.774 164.201C685.774 156.781 682.163 143.245 672.332 136.327C672.332 136.227 672.433 136.227 672.433 136.227L694 138.633V128.707H659.492C654.075 127.003 648.458 126 642.64 126ZM654.677 188.765C650.865 190.77 646.752 191.873 642.64 191.873C635.919 191.873 630 189.467 624.984 184.755C619.969 180.042 617.461 173.124 617.461 164.301C617.461 155.478 619.969 148.559 624.984 143.847C630 139.135 635.919 136.728 642.64 136.728C646.853 136.728 650.865 137.731 654.677 139.836C658.489 141.842 661.599 144.95 664.107 149.061C666.514 153.172 667.818 158.285 667.818 164.301C667.818 170.417 666.614 175.53 664.107 179.541C661.699 183.652 658.489 186.76 654.677 188.765ZM627.492 225.662H654.677C662.201 225.662 667.016 227.166 670.226 230.375C673.436 233.583 675.041 237.894 675.041 242.908C675.041 250.227 672.132 256.243 666.314 260.755C660.495 265.267 652.671 267.573 643.041 267.573C634.614 267.573 627.592 265.668 622.476 262.058C617.36 258.449 614.752 252.934 614.752 245.916C614.752 241.504 615.956 237.393 618.364 233.784C620.771 230.174 623.68 227.567 627.492 225.662Z" fill="#001E2B"/>
+      </svg>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div><span class="live"></span><b style="color:#fff">Live</b> Â· APAC Demand Gen Â· The Trade Desk</div>
+    <div id="topbarMeta" style="margin-top:2px">&nbsp;</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>Fetching dashboard data from Snowflakeâ€¦</div>
+  </div>
+
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;
+         font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="content" style="display:none">
+
+    <!-- ============ CAMPAIGN FILTER (was Region) ============ -->
+    <div class="filter-row">
+      <span class="lbl">Campaign</span>
+      <div class="chips" id="campaignChips"></div>
+      <button class="chip-action" onclick="selectAllCampaigns()">All</button>
+      <button class="chip-action" onclick="clearCampaigns()">Clear</button>
+    </div>
+
+
+    <!-- ============ CONTENT SYNDICATION ============ -->
+    <div class="section first">
+      <h2>Content Syndication â€” Lead Pacing</h2>
+      <span class="sub">Live Salesforce data across three DNB IDE programmes
+        (Single Touch Â· Tech DMs Â· Biz &amp; Ops Leaders)</span>
+    </div>
+
+    <!-- Top KPI strip â€” slate-blue hero, main visual focus -->
+    <div class="cs-hero">
+      <div id="csKpiStrip" class="cs-kpi-strip"></div>
+    </div>
+
+    <!-- Three cards row: Leads vs target / Progress / Weekly pacing -->
+    <div class="grid" style="margin-top:14px">
+      <div class="card card-med">
+        <h3>Leads vs target</h3>
+        <div class="hint">Total target, time-to-date target, and leads delivered.</div>
+        <div id="leadsVsTarget"></div>
+      </div>
+      <div class="card card-med">
+        <h3>Progress</h3>
+        <div class="hint">Leads vs target / Time vs campaign days elapsed.</div>
+        <div id="leadsProgress"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Weekly pacing â€” target vs actual</h3>
+      <div class="hint">Leads delivered per week-of, against the weekly target pace.</div>
+      <div class="chart-wrap" style="height:300px"><canvas id="weeklyPacing"></canvas></div>
+    </div>
+
+    <div class="section" style="border-top:none;padding-top:14px;margin-top:14px">
+      <h2 style="font-size:15px">Lead breakdown by programme</h2>
+      <span class="sub">Volume by programme and market</span>
+    </div>
+    <div class="grid">
+      <div class="card card-med">
+        <h3>Total leads by market</h3>
+        <div class="hint">All statuses combined.</div>
+        <div class="chart-wrap"><canvas id="csMarketChart"></canvas></div>
+      </div>
+      <div class="card card-med">
+        <h3>Leads by programme</h3>
+        <div class="hint">Single Touch dominates volume; Tech DMs and Biz Ops lag.</div>
+        <div class="chart-wrap"><canvas id="csProgChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h3>Programme Ã— market breakdown</h3>
+      <div class="hint">Total leads, latest lead day per cell.</div>
+      <div style="overflow:auto">
+        <table id="csTable">
+          <thead><tr>
+            <th>Programme</th><th>Market</th>
+            <th>Leads</th><th>Last lead</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="section">
+      <h2>Paid Media â€” Headline</h2>
+      <span class="sub">Live Trade Desk delivery across selected campaigns</span>
+    </div>
+
+    <div class="kpis" id="kpiRow"></div>
+
+    <div class="section">
+      <h2>Strategy performance vs media plan</h2>
+      <span class="sub">CTR and CPM relative to the MongoDB media plan benchmarks
+        (green = beating plan)</span>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <table id="stratTable">
+        <thead><tr>
+          <th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th>
+          <th>CTR</th><th>vs plan</th>
+          <th>CPM</th><th>vs plan</th>
+          <th>CPC</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <div class="grid">
+      <div class="card card-tall">
+        <h3>Daily delivery â€” impressions + clicks</h3>
+        <div class="hint">Impressions (bars), clicks (line). Filtered by selected campaigns.</div>
+        <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+      </div>
+      <div class="card card-tall">
+        <h3>Spend by market</h3>
+        <div class="hint">Programme split inside each market.</div>
+        <div class="chart-wrap"><canvas id="marketStackChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card card-tall">
+        <h3>Spend share by strategy</h3>
+        <div class="hint">Compare actual allocation to plan weighting.</div>
+        <div class="chart-wrap"><canvas id="strategyMixChart"></canvas></div>
+      </div>
+      <div class="card card-tall">
+        <h3>CPC by market</h3>
+        <div class="hint">Cost per click â€” lower is better.</div>
+        <div class="chart-wrap"><canvas id="cpcMarketChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Market summary</h2>
+      <span class="sub">Per-market delivery across selected campaigns</span>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <table id="marketTable">
+        <thead><tr>
+          <th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th>
+          <th>CTR</th><th>CPM</th><th>CPC</th>
+          <th>Plan weight</th><th>Actual weight</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+
+    <footer id="footMeta"></footer>
+
+  </div>
+</div>
+
+<script>
+//==============================================================================
+// CONFIG
+//==============================================================================
+const JSON_URL = '/data.json';
+
+const MDB = {
+  slate:'#001E2B', forest:'#023430', green:'#00684A', spring:'#00ED64',
+  mint:'#C3E7CA', ink:'#1B2834', mute:'#5A6B78', line:'#E5E9EE'
+};
+
+const STRAT_COLORS = {
+  'CONTEXTUAL':'#023430','KEYWORDS':'#00684A','BEHAVIOURAL':'#3FA037',
+  'RETARGETING':'#00ED64','AUDIENCE-ABM':'#C3E7CA'
+};
+const STATUS_COLORS = {
+  'Accepted':MDB.spring,'New':MDB.green,
+  'Unresponsive':'#B97400','Do Not Contact':'#C8362A','Rejected':'#7a1a0e'
+};
+const PROG_COLORS = {
+  'IDE':MDB.green, 'IDC':MDB.spring,
+  'DNB IDE Single Touch':MDB.green,
+  'DNB IDE Technical DMs':MDB.spring,
+  'DNB IDE Business & Ops Leaders':MDB.slate
+};
+
+//==============================================================================
+// STATE
+//==============================================================================
+// CAMPAIGNS combines the 2 paid-media programmes (IDE / IDC) with the 3 CS
+// programmes from Salesforce. Each is a tappable chip.
+let DATA = null;
+let CAMPAIGNS = [];           // [{key, label, source, ...}]
+let activeCampaigns = new Set();
+let charts = {};
+
+//==============================================================================
+// HELPERS
+//==============================================================================
+const fmt$ = (v, d=0) => v == null || isNaN(v) ? 'â€”' :
+  '$' + Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const fmtN = v => v == null || isNaN(v) ? 'â€”' : Number(v).toLocaleString('en-US');
+const fmtPct = (v,d=2) => v == null || isNaN(v) ? 'â€”' : (Number(v)*100).toFixed(d) + '%';
+
+function rowPasses(r) {
+  // Paid-media rows: programme is 'IDE' or 'IDC'
+  return activeCampaigns.has('PM:'+r.programme);
+}
+function csRowPasses(r) {
+  return activeCampaigns.has('CS:'+r.programme);
+}
+
+//==============================================================================
+// BOOT
+//==============================================================================
+async function boot() {
+  try {
+    const res = await fetch(JSON_URL, {cache:'no-store'});
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching mongodb.json');
+    DATA = await res.json();
+
+    // Build CAMPAIGNS list: 2 paid-media + 3 CS
+    CAMPAIGNS = [];
+    // Paid media campaigns from budget envelope
+    for (const b of (DATA.budget || [])) {
+      CAMPAIGNS.push({
+        key: 'PM:' + b.tradedesk_code,
+        label: b.programme,
+        source: 'paid',
+        prog_code: b.tradedesk_code,
+        start: b.start, end: b.end
+      });
+    }
+    // CS campaigns from cs_by_programme
+    const csProgs = [...new Set((DATA.cs_by_programme || []).map(r => r.programme))];
+    for (const p of csProgs) {
+      CAMPAIGNS.push({key:'CS:'+p, label:p, source:'cs', prog_code:p});
+    }
+    activeCampaigns = new Set(CAMPAIGNS.map(c => c.key));
+
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+
+    renderTopbarMeta();
+    renderCampaignChips();
+    renderAll();
+  } catch (e) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('errDetail').textContent = e.message;
+  }
+}
+
+function renderTopbarMeta() {
+  const lu = DATA.last_updated ? new Date(DATA.last_updated.replace(' ', 'T')) : null;
+  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : 'unknown';
+  document.getElementById('topbarMeta').textContent =
+    'Updated ' + luText + ' Â· Window ' + DATA.window.start + ' â†’ ' + DATA.window.end;
+  document.getElementById('footMeta').innerHTML =
+    'Live from Snowflake (<b>MONGODB_SANDBOX.PAID_MEDIA_REPORTING</b>) Â· ' +
+    DATA.row_count.toLocaleString() + ' rows Â· Auto-refreshes daily at 22:00 UTC';
+}
+
+function renderCampaignChips() {
+  const c = document.getElementById('campaignChips');
+  c.innerHTML = '';
+  CAMPAIGNS.forEach(camp => {
+    const el = document.createElement('button');
+    el.className = 'chip' + (activeCampaigns.has(camp.key) ? ' on' : '');
+    el.innerHTML = '<span class="check">âœ“</span>' + camp.label;
+    el.title = camp.source === 'paid' ? 'Paid media campaign' : 'Content syndication campaign';
+    el.onclick = () => {
+      if (activeCampaigns.has(camp.key)) activeCampaigns.delete(camp.key);
+      else activeCampaigns.add(camp.key);
+      renderCampaignChips(); renderAll();
+    };
+    c.appendChild(el);
+  });
+}
+function selectAllCampaigns(){
+  activeCampaigns = new Set(CAMPAIGNS.map(c => c.key));
+  renderCampaignChips(); renderAll();
+}
+function clearCampaigns(){
+  activeCampaigns = new Set();
+  renderCampaignChips(); renderAll();
+}
+
+//==============================================================================
+// RENDER
+//==============================================================================
+function renderAll() {
+  renderKPIs();
+  renderStrategyTable();
+  renderDailyChart();
+  renderMarketStackChart();
+  renderStrategyMixChart();
+  renderCPCMarketChart();
+  renderMarketTable();
+  renderCSKpiStrip();       // NEW - top of CS section
+  renderLeadsVsTarget();
+  renderLeadsProgress();
+  renderWeeklyPacing();
+  renderCSMarketChart();
+  renderCSProgChart();
+  renderCSTable();
+}
+
+// --- KPIs -------------------------------------------------------------------
+function renderKPIs() {
+  let imp=0, clk=0, sp=0;
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    imp += r.imps||0; clk += r.clicks||0; sp += r.spend_usd||0;
+  }
+  const ctr = imp ? clk/imp : 0;
+  const cpc = clk ? sp/clk  : 0;
+  const cpm = imp ? sp/imp*1000 : 0;
+
+  let csTotal=0, csUnresp=0;
+  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
+    csTotal += r.total||0; csUnresp += r.unresponsive||0;
+  }
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi"><div class="k">Spend</div><div class="v">${fmt$(sp)}</div>
+      <div class="sub">${fmtN(imp)} imps Â· ${fmtN(clk)} clicks</div></div>
+    <div class="kpi"><div class="k">CTR</div><div class="v">${fmtPct(ctr,3)}</div>
+      <div class="sub">CPM ${fmt$(cpm,2)} Â· CPC ${fmt$(cpc,2)}</div></div>
+    <div class="kpi"><div class="k">CS leads (live)</div><div class="v">${fmtN(csTotal)}</div>
+      <div class="sub">${fmtN(csUnresp)} unresponsive Â· 0 accepted</div></div>
+    <div class="kpi"><div class="k">Window</div><div class="v">${DATA.window.days}d</div>
+      <div class="sub">${DATA.window.start} â†’ ${DATA.window.end}</div></div>`;
+}
+
+// --- Strategy table ---------------------------------------------------------
+function renderStrategyTable() {
+  const agg = {};
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    const s = r.strategy;
+    if (!agg[s]) agg[s] = {imps:0,clicks:0,spend:0};
+    agg[s].imps   += r.imps||0;
+    agg[s].clicks += r.clicks||0;
+    agg[s].spend  += r.spend_usd||0;
+  }
+  const bench = DATA.benchmarks_strategy || {};
+  const tbody = document.querySelector('#stratTable tbody');
+  tbody.innerHTML = '';
+  ['CONTEXTUAL','KEYWORDS','BEHAVIOURAL','RETARGETING','AUDIENCE-ABM'].forEach(s => {
+    if (!agg[s]) return;
+    const a = agg[s];
+    const ctr = a.imps ? a.clicks/a.imps : 0;
+    const cpm = a.imps ? a.spend/a.imps*1000 : 0;
+    const cpc = a.clicks ? a.spend/a.clicks : 0;
+    const b = bench[s] || {};
+    const ctrVs = b.ctr ? (ctr - b.ctr)/b.ctr : null;
+    const cpmVs = b.cpm ? (b.cpm - cpm)/b.cpm : null;
+    const ctrCls = ctrVs == null ? 'vs-neut' : (ctrVs > 0 ? 'vs-good' : 'vs-bad');
+    const cpmCls = cpmVs == null ? 'vs-neut' : (cpmVs > 0 ? 'vs-good' : 'vs-bad');
+    const fmtVs = v => v == null ? 'â€”' : (v>=0?'+':'') + (v*100).toFixed(0) + '%';
+    tbody.innerHTML += `<tr>
+      <td><b>${s}</b></td>
+      <td class="num">${fmt$(a.spend)}</td>
+      <td class="num">${fmtN(a.imps)}</td>
+      <td class="num">${fmtN(a.clicks)}</td>
+      <td class="num">${fmtPct(ctr,3)}</td>
+      <td class="num ${ctrCls}">${fmtVs(ctrVs)}</td>
+      <td class="num">${fmt$(cpm,2)}</td>
+      <td class="num ${cpmCls}">${fmtVs(cpmVs)}</td>
+      <td class="num">${fmt$(cpc,2)}</td>
+    </tr>`;
+  });
+}
+
+// --- Daily delivery chart ---------------------------------------------------
+function renderDailyChart() {
+  const byDate = {};
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    if (!byDate[r.date]) byDate[r.date] = {imp:0,clk:0};
+    byDate[r.date].imp += r.imps||0;
+    byDate[r.date].clk += r.clicks||0;
+  }
+  const labels = Object.keys(byDate).sort();
+  destroyChart('daily');
+  charts.daily = new Chart(document.getElementById('dailyChart'), {
+    data:{labels, datasets:[
+      {type:'bar',label:'Impressions',data:labels.map(d=>byDate[d].imp),
+       backgroundColor:MDB.green,yAxisID:'y',borderRadius:3},
+      {type:'line',label:'Clicks',data:labels.map(d=>byDate[d].clk),
+       borderColor:MDB.spring,backgroundColor:'rgba(0,237,100,.12)',
+       borderWidth:2.5,pointRadius:3,yAxisID:'y2',tension:.25,fill:false}
+    ]},
+    options:chartBase({
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10}}},
+        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Impressions'}},
+        y2:{beginAtZero:true,position:'right',grid:{display:false},title:{display:true,text:'Clicks'}}
+      }
+    })
+  });
+}
+
+// --- Market stack -----------------------------------------------------------
+function renderMarketStackChart() {
+  const markets = (DATA.all_markets||['ANZ','ASEAN','INDIA','KR-HK-TW']);
+  const grid = {};
+  for (const m of markets) grid[m] = {IDE:0,IDC:0};
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    grid[r.market][r.programme] += r.spend_usd||0;
+  }
+  destroyChart('marketStack');
+  charts.marketStack = new Chart(document.getElementById('marketStackChart'), {
+    type:'bar',
+    data:{labels:markets,datasets:[
+      {label:'IDE',data:markets.map(m=>grid[m].IDE),backgroundColor:MDB.green,borderRadius:3},
+      {label:'IDC',data:markets.map(m=>grid[m].IDC),backgroundColor:MDB.spring,borderRadius:3}
+    ]},
+    options:chartBase({
+      scales:{
+        x:{stacked:true,grid:{display:false}},
+        y:{stacked:true,beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>'$'+v}}
+      }
+    })
+  });
+}
+
+// --- Strategy mix doughnut --------------------------------------------------
+function renderStrategyMixChart() {
+  const agg = {};
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    agg[r.strategy] = (agg[r.strategy]||0) + (r.spend_usd||0);
+  }
+  const labels = Object.keys(agg);
+  const data = labels.map(s => agg[s]);
+  const colors = labels.map(s => STRAT_COLORS[s] || MDB.mute);
+  destroyChart('strategyMix');
+  charts.strategyMix = new Chart(document.getElementById('strategyMixChart'), {
+    type:'doughnut',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#fff',borderWidth:2}]},
+    options:chartBase({plugins:{legend:{position:'right',labels:{boxWidth:10,padding:8}}}, cutout:'58%'})
+  });
+}
+
+// --- CPC by market ----------------------------------------------------------
+function renderCPCMarketChart() {
+  const markets = (DATA.all_markets||['ANZ','ASEAN','INDIA','KR-HK-TW']);
+  const grid = {};
+  for (const m of markets) grid[m] = {sp:0,clk:0};
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    grid[r.market].sp += r.spend_usd||0;
+    grid[r.market].clk += r.clicks||0;
+  }
+  const cpcs = markets.map(m => grid[m].clk ? grid[m].sp/grid[m].clk : 0);
+  destroyChart('cpcMarket');
+  charts.cpcMarket = new Chart(document.getElementById('cpcMarketChart'), {
+    type:'bar',
+    data:{labels:markets,datasets:[{label:'CPC',data:cpcs,backgroundColor:MDB.slate,borderRadius:3}]},
+    options:chartBase({
+      indexAxis:'y',
+      scales:{
+        x:{beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>'$'+v.toFixed(2)}},
+        y:{grid:{display:false}}
+      },
+      plugins:{legend:{display:false}}
+    })
+  });
+}
+
+// --- Market summary table ---------------------------------------------------
+function renderMarketTable() {
+  const markets = (DATA.all_markets||['ANZ','ASEAN','INDIA','KR-HK-TW']);
+  const grid = {};
+  for (const m of markets) grid[m] = {imp:0,clk:0,sp:0};
+  let totalSp = 0;
+  for (const r of DATA.rows) if (rowPasses(r)) {
+    grid[r.market].imp += r.imps||0;
+    grid[r.market].clk += r.clicks||0;
+    grid[r.market].sp  += r.spend_usd||0;
+    totalSp += r.spend_usd||0;
+  }
+  const bm = DATA.benchmarks_market || {};
+  const tbody = document.querySelector('#marketTable tbody');
+  tbody.innerHTML = '';
+  for (const m of markets) {
+    const g = grid[m];
+    const ctr = g.imp ? g.clk/g.imp : 0;
+    const cpm = g.imp ? g.sp/g.imp*1000 : 0;
+    const cpc = g.clk ? g.sp/g.clk : 0;
+    const planW = bm[m]?.budget_weight || 0;
+    const actW = totalSp ? g.sp/totalSp : 0;
+    tbody.innerHTML += `<tr>
+      <td><b>${m}</b></td>
+      <td class="num">${fmt$(g.sp)}</td>
+      <td class="num">${fmtN(g.imp)}</td>
+      <td class="num">${fmtN(g.clk)}</td>
+      <td class="num">${fmtPct(ctr,3)}</td>
+      <td class="num">${fmt$(cpm,2)}</td>
+      <td class="num">${fmt$(cpc,2)}</td>
+      <td class="num">${fmtPct(planW,1)}</td>
+      <td class="num">${fmtPct(actW,1)}</td>
+    </tr>`;
+  }
+}
+
+// --- Pacing helpers ---------------------------------------------------------
+// Total target = sum across all 3 spreadsheet programmes.
+// Campaign window = earliest start -> latest end across paid-media budgets.
+// Total leads = sum of cs_by_programme totals for active CS campaigns.
+// All three pacing widgets share this math.
+function pacingState() {
+  // Total target across all spreadsheet programmes
+  const totalTarget = (DATA.targets||[]).reduce((s,t) => s + (t.target||0), 0);
+
+  // Campaign window from budget envelope
+  let earliestStart = null, latestEnd = null;
+  for (const b of (DATA.budget||[])) {
+    const s = new Date(b.start), e = new Date(b.end);
+    if (!earliestStart || s < earliestStart) earliestStart = s;
+    if (!latestEnd || e > latestEnd) latestEnd = e;
+  }
+  const totalDays = earliestStart ?
+    Math.round((latestEnd - earliestStart) / (1000*60*60*24)) + 1 : 1;
+
+  // Days elapsed (clamped to [0, totalDays])
+  const today = new Date();
+  let daysElapsed = earliestStart ?
+    Math.round((today - earliestStart) / (1000*60*60*24)) + 1 : 0;
+  daysElapsed = Math.max(0, Math.min(daysElapsed, totalDays));
+
+  const ttdTarget = Math.round(totalTarget * daysElapsed / totalDays);
+
+  // Live leads from active CS campaigns
+  let leads = 0;
+  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
+    leads += r.total||0;
+  }
+
+  return {
+    totalTarget, ttdTarget, leads,
+    earliestStart, latestEnd, totalDays, daysElapsed,
+    leadsPct: totalTarget ? leads/totalTarget : 0,
+    timePct:  totalDays   ? daysElapsed/totalDays : 0,
+    vsTtd:    ttdTarget   ? leads/ttdTarget : 0
+  };
+}
+
+// --- CS top KPI strip -------------------------------------------------------
+// Headline numbers above the three pacing cards. Mirrors Cloudflare's
+// "OVERALL / PACING / LEAD QUALITY" strip but adapted for MongoDB (no
+// status-quality metrics yet â€” just lead totals + pacing percentages).
+function renderCSKpiStrip() {
+  const p = pacingState();
+  const currentPacing = p.vsTtd;            // leads / TTD-target
+  const overallPacing = p.leadsPct;         // leads / total-target
+
+  // "Current pacing" colors: green if >= 100%, amber 80-100%, red <80%
+  const cpCls = currentPacing >= 1 ? 'ok' :
+                currentPacing >= 0.8 ? 'warn' : '';
+  const cpVerdict = currentPacing >= 1 ? 'Ahead of plan âœ“' :
+                    currentPacing >= 0.8 ? 'On track' : 'Behind plan';
+
+  document.getElementById('csKpiStrip').innerHTML = `
+    <div class="cs-kpi">
+      <div class="group">Overall</div>
+      <div class="label">Total Target</div>
+      <div class="v">${fmtN(p.totalTarget)}</div>
+      <div class="sub">across 3 programmes</div>
+    </div>
+    <div class="cs-kpi">
+      <div class="group">Overall</div>
+      <div class="label">Total Leads</div>
+      <div class="v">${fmtN(p.leads)}</div>
+      <div class="sub">live from Salesforce</div>
+    </div>
+    <div class="cs-kpi">
+      <div class="group">Pacing</div>
+      <div class="label">Current Pacing</div>
+      <div class="v ${cpCls}">${fmtPct(currentPacing,1)}</div>
+      <div class="sub">${cpVerdict}</div>
+    </div>
+    <div class="cs-kpi">
+      <div class="group">Pacing</div>
+      <div class="label">Overall Pacing</div>
+      <div class="v">${fmtPct(overallPacing,1)}</div>
+      <div class="sub">of total plan delivered</div>
+    </div>`;
+}
+
+// --- Leads vs target card ---------------------------------------------------
+// Three horizontal bars: Total target / TTD target / Delivered.
+function renderLeadsVsTarget() {
+  const p = pacingState();
+  const maxVal = Math.max(p.totalTarget, p.leads, 1);
+  const bar = (label, val, color) => {
+    const w = (val/maxVal*100).toFixed(1);
+    return `<div style="display:grid;grid-template-columns:110px 1fr 60px;
+            align-items:center;gap:10px;margin-bottom:8px">
+      <div style="font-size:12px;color:var(--mdb-mute)">${label}</div>
+      <div style="background:var(--mdb-line);height:14px;border-radius:7px;overflow:hidden">
+        <div style="width:${w}%;height:100%;background:${color};
+             border-radius:7px;transition:width .4s ease"></div>
+      </div>
+      <div style="text-align:right;font-weight:700;font-size:13px;
+                  color:var(--mdb-slate);font-variant-numeric:tabular-nums">${fmtN(val)}</div>
+    </div>`;
+  };
+  const target = document.getElementById('leadsVsTarget');
+  target.innerHTML = `
+    ${bar('Total target', p.totalTarget, MDB.mute)}
+    ${bar('TTD target',   p.ttdTarget,   '#9AA3AC')}
+    ${bar('Delivered',    p.leads,       MDB.spring)}
+    <div style="font-size:11.5px;color:var(--mdb-mute);margin-top:10px;line-height:1.6">
+      Delivered is <b style="color:var(--mdb-slate)">${fmtPct(p.leadsPct,1)}</b>
+      of total plan,
+      <b style="color:var(--mdb-slate)">${fmtPct(p.vsTtd,1)}</b> of TTD target.
+    </div>`;
+}
+
+// --- Progress card ----------------------------------------------------------
+// Two bars: Leads vs target / Time vs campaign days elapsed.
+function renderLeadsProgress() {
+  const p = pacingState();
+  const ahead = p.vsTtd >= 1;
+  const bar = (label, pct, color) => {
+    const w = Math.min(pct*100, 100).toFixed(1);
+    return `<div style="display:grid;grid-template-columns:70px 1fr 60px;
+            align-items:center;gap:10px;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--mdb-mute)">${label}</div>
+      <div style="background:var(--mdb-line);height:14px;border-radius:7px;overflow:hidden">
+        <div style="width:${w}%;height:100%;background:${color};
+             border-radius:7px;transition:width .4s ease"></div>
+      </div>
+      <div style="text-align:right;font-weight:700;font-size:13px;
+                  color:var(--mdb-slate);font-variant-numeric:tabular-nums">${fmtPct(pct,1)}</div>
+    </div>`;
+  };
+  const summary = ahead
+    ? `Leads pacing is <b style="color:var(--good-green)">${fmtPct(p.vsTtd,0)} of expected</b>. Ahead of plan âœ“`
+    : `Leads pacing is <b style="color:var(--warn-amber)">${fmtPct(p.vsTtd,0)} of expected</b>. Behind plan.`;
+  document.getElementById('leadsProgress').innerHTML = `
+    ${bar('Leads', p.leadsPct, MDB.spring)}
+    ${bar('Time',  p.timePct,  MDB.mute)}
+    <div style="font-size:11.5px;color:var(--mdb-mute);margin-top:10px;line-height:1.6">
+      ${summary}
+    </div>`;
+}
+
+// --- Weekly pacing chart ----------------------------------------------------
+// Bars per week-of (Monday-start). Target bar = weekly_target_pace.
+// Actual bar = leads delivered that week (we don't have date-stamped SF
+// counts in the JSON yet, so we ramp actuals linearly across the elapsed
+// window â€” same approximation as before).
+function renderWeeklyPacing() {
+  const p = pacingState();
+  if (!p.earliestStart) { destroyChart('weekly'); return; }
+
+  // Build week-start labels (Monday) across the full campaign window
+  const weeks = [];
+  let cur = new Date(p.earliestStart);
+  // Snap to Monday-of-week containing earliestStart
+  const dow = (cur.getDay() + 6) % 7; // 0=Mon
+  cur.setDate(cur.getDate() - dow);
+  while (cur <= p.latestEnd) {
+    weeks.push(new Date(cur));
+    cur.setDate(cur.getDate() + 7);
+  }
+  const labels = weeks.map(w => {
+    const mm = String(w.getMonth()+1).padStart(2,'0');
+    const dd = String(w.getDate()).padStart(2,'0');
+    return mm + '-' + dd;
+  });
+
+  // Weekly target = totalTarget / number-of-campaign-weeks
+  // (use only weeks that fall within campaign window for the denominator)
+  const inCampaign = weeks.map(w => {
+    const wEnd = new Date(w); wEnd.setDate(wEnd.getDate()+6);
+    return w <= p.latestEnd && wEnd >= p.earliestStart;
+  });
+  const activeWeeks = inCampaign.filter(Boolean).length;
+  const weeklyTarget = activeWeeks ? p.totalTarget / activeWeeks : 0;
+  const targetData = inCampaign.map(c => c ? Math.round(weeklyTarget) : null);
+
+  // Actual leads per week â€” linear ramp from start to today
+  const today = new Date();
+  const actualData = weeks.map((w, i) => {
+    const wEnd = new Date(w); wEnd.setDate(wEnd.getDate()+6);
+    if (w > today) return null;            // future week
+    if (wEnd < p.earliestStart) return null; // before campaign
+    if (w > p.latestEnd) return null;        // after campaign
+    // Number of campaign-elapsed days that fall inside this week
+    const weekStart = w < p.earliestStart ? p.earliestStart : w;
+    const weekEnd   = wEnd > today ? today : wEnd;
+    const daysInWeek = Math.max(0, Math.round((weekEnd - weekStart)/(1000*60*60*24)) + 1);
+    if (daysInWeek <= 0) return null;
+    // Spread total live leads proportionally to elapsed days in week
+    return Math.round(p.leads * daysInWeek / p.daysElapsed);
+  });
+
+  destroyChart('weekly');
+  charts.weekly = new Chart(document.getElementById('weeklyPacing'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Target',  data:targetData,
+         backgroundColor:'#9AA3AC', borderRadius:3, order:2},
+        {label:'Actual',  data:actualData,
+         backgroundColor:MDB.spring, borderRadius:3, order:1}
+      ]
+    },
+    options: chartBase({
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:10}}},
+        y:{beginAtZero:true,grid:{color:MDB.line},
+           title:{display:true,text:'Leads / week'}}
+      }
+    })
+  });
+}
+
+
+// --- CS leads by market chart -----------------------------------------------
+// Replaces the old status-stacked chart. Just total leads per market.
+function renderCSMarketChart() {
+  const byMarket = {};
+  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
+    byMarket[r.market] = (byMarket[r.market]||0) + (r.total||0);
+  }
+  const labels = Object.keys(byMarket);
+  const data = labels.map(m => byMarket[m]);
+  destroyChart('csMarket');
+  charts.csMarket = new Chart(document.getElementById('csMarketChart'), {
+    type:'bar',
+    data:{labels, datasets:[{label:'Leads', data, backgroundColor:MDB.green, borderRadius:3}]},
+    options: chartBase({
+      scales:{
+        x:{grid:{display:false},ticks:{font:{size:11}}},
+        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads'}}
+      },
+      plugins:{legend:{display:false}}
+    })
+  });
+}
+
+// --- CS programme bar -------------------------------------------------------
+function renderCSProgChart() {
+  const agg = {};
+  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
+    agg[r.programme] = (agg[r.programme]||0) + (r.total||0);
+  }
+  const labels = Object.keys(agg);
+  const data = labels.map(p => agg[p]);
+  const colors = labels.map(p => PROG_COLORS[p] || MDB.mute);
+  destroyChart('csProg');
+  charts.csProg = new Chart(document.getElementById('csProgChart'), {
+    type:'bar',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:3}]},
+    options: chartBase({
+      indexAxis:'y',
+      scales:{x:{beginAtZero:true,grid:{color:MDB.line}},y:{grid:{display:false}}},
+      plugins:{legend:{display:false}}
+    })
+  });
+}
+
+// --- CS detail table --------------------------------------------------------
+function renderCSTable() {
+  const tbody = document.querySelector('#csTable tbody');
+  tbody.innerHTML = '';
+  const rows = (DATA.cs_by_programme||[])
+    .filter(r => csRowPasses(r))
+    .sort((a,b) => (b.total||0)-(a.total||0));
+  for (const r of rows) {
+    tbody.innerHTML += `<tr>
+      <td><b>${r.programme}</b></td>
+      <td>${r.market}</td>
+      <td class="num">${fmtN(r.total)}</td>
+      <td class="num">${r.last_lead_day || 'â€”'}</td>
+    </tr>`;
+  }
+}
+
+//==============================================================================
+// CHART HELPERS
+//==============================================================================
+function destroyChart(name) { if (charts[name]) charts[name].destroy(); }
+
+function chartBase(opts={}) {
+  const base = {
+    responsive:true, maintainAspectRatio:false,
+    plugins:{
+      legend:{position:'bottom',labels:{boxWidth:10,boxHeight:8,padding:10,font:{size:11},color:MDB.ink}},
+      tooltip:{backgroundColor:MDB.slate,padding:10,titleFont:{size:12},bodyFont:{size:12},cornerRadius:6}
+    },
+    scales:{
+      x:{grid:{color:MDB.line},ticks:{font:{size:10}}},
+      y:{grid:{color:MDB.line},ticks:{font:{size:10}}}
+    }
+  };
+  if (opts.plugins) base.plugins = {...base.plugins, ...opts.plugins};
+  if (opts.scales) base.scales = {...base.scales, ...opts.scales};
+  Object.keys(opts).forEach(k => { if (k!=='plugins'&&k!=='scales') base[k]=opts[k]; });
+  return base;
+}
+
+boot();
+</script>
+</body>
+</html>
+
