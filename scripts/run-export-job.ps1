@@ -51,17 +51,22 @@ Write-Host "[OK] Env set: project=$($env:GCP_PROJECT) dataset=$($env:BQ_DATASET)
 Write-Host "            snowflake account=$($env:SF_ACCOUNT) user=$($env:SF_USER) warehouse=$($env:SF_WAREHOUSE)" -ForegroundColor DarkGray
 
 # --- 2. Snowflake key from Secret Manager (captured so it never prints) -------
-# Out-String preserves the PEM's newlines; a bare assignment would flatten the
-# multi-line key into spaces and load_pem_private_key() would reject it.
 Write-Host "[*] Fetching Snowflake key from Secret Manager ($SECRET)..." -ForegroundColor Yellow
-$key = (gcloud secrets versions access latest --secret $SECRET --project $PROJECT 2>$null | Out-String)
-if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($key)) {
+$raw = (gcloud secrets versions access latest --secret $SECRET --project $PROJECT 2>$null | Out-String)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($raw)) {
     Write-Host "[X] Could not read secret '$SECRET'." -ForegroundColor Red
     Write-Host "    If you weren't prompted to reauth, you likely lack Secret Manager" -ForegroundColor Red
     Write-Host "    accessor on it (roles/secretmanager.secretAccessor) - an IAM grant," -ForegroundColor Red
     Write-Host "    not a code problem. Run .\scripts\start_day.ps1 to refresh creds first." -ForegroundColor Red
     exit 1
 }
+# Normalize line endings before handing the PEM to Python. gcloud on Windows
+# emits CRLF and the pipeline can double them, leaving a blank line after the
+# header that load_pem_private_key() misreads as an RFC-1421 header
+# (ValueError: InvalidHeader). Collapse CR/CRLF -> LF and drop blank lines so
+# the key is clean single-LF PEM, exactly as Cloud Run mounts the secret.
+$key = ($raw -replace "`r`n", "`n" -replace "`r", "`n")
+$key = (($key -split "`n" | Where-Object { $_.Trim() -ne "" }) -join "`n") + "`n"
 $env:SNOWFLAKE_KEY = $key
 Write-Host "[OK] Snowflake key loaded into `$env:SNOWFLAKE_KEY (not printed)." -ForegroundColor Green
 
