@@ -1,3 +1,12 @@
+"""MongoDB APAC dashboard web app (Cloud Run service).
+
+Thin password gate + static server. It renders a login screen, and once a
+session is authenticated it serves `dashboard.html` and proxies the private
+`<client>.json` from GCS at `/data.json`. All presentation logic — the
+Paid Media / Content Syndication tabs, the DNB vs KGA(IDC) campaign toggle,
+and the regional filter — lives in `dashboard.html`; this file only decides
+*who* may see it, not *what* it shows.
+"""
 import os
 import hmac
 from pathlib import Path
@@ -79,7 +88,10 @@ def home():
         return render_template_string(LOGIN_HTML, error=None)
     if DASHBOARD_HTML is None:
         return Response("dashboard.html is missing from the deploy.", status=500)
-    return Response(DASHBOARD_HTML, mimetype="text/html")
+    # no-store so a redeploy of the tabbed dashboard is picked up immediately,
+    # never served stale from the browser or the Cloudflare proxy (matches /data.json).
+    return Response(DASHBOARD_HTML, mimetype="text/html",
+                    headers={"Cache-Control": "no-store"})
 
 
 @app.post("/login")

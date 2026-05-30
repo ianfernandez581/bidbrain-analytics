@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MongoDB APAC — Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <style>
@@ -55,13 +56,36 @@
 
   .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
 
-  /* --- Filter row --- */
-  .filter-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-              margin-bottom:18px;background:var(--mdb-card);
-              border:1px solid var(--mdb-line);border-radius:10px;padding:12px 14px;
-              box-shadow:var(--shadow-card)}
+  /* --- Control bar: tabs + campaign + region (sticky) --- */
+  .control-bar{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:10px;
+               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;
+               position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;
+                flex-wrap:wrap;border-bottom:1px solid var(--mdb-line)}
+  .tabs{display:flex;gap:2px}
+  .tab{padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;
+       background:none;color:var(--mdb-mute);border-bottom:2.5px solid transparent;
+       margin-bottom:-1px}
+  .tab:hover{color:var(--mdb-ink)}
+  .tab.on{color:var(--mdb-slate);border-bottom-color:var(--mdb-spring)}
+  .ctrl-note{font-size:11px;color:var(--mdb-mute);padding-right:2px}
+  .control-filters{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 0 14px}
+  .filter-grp{display:flex;align-items:center;gap:9px}
   .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
        color:var(--mdb-mute)}
+
+  /* segmented control (campaign toggle) */
+  .seg{display:inline-flex;border:1px solid var(--mdb-line);border-radius:999px;overflow:hidden;
+       background:#fff}
+  .seg-btn{padding:7px 15px;font-size:12.5px;cursor:pointer;border:none;background:#fff;
+           color:var(--mdb-ink);display:inline-flex;align-items:center;gap:7px;
+           border-right:1px solid var(--mdb-line);transition:background .15s ease}
+  .seg-btn:last-child{border-right:none}
+  .seg-btn:hover{background:#F2F5F7}
+  .seg-btn.on{background:var(--mdb-slate);color:#fff}
+  .seg-btn .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+
+  /* region chips */
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{background:#fff;border:1px solid var(--mdb-line);border-radius:999px;
         padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;
@@ -75,45 +99,42 @@
                cursor:pointer;color:var(--mdb-mute)}
   .chip-action:hover{color:var(--mdb-ink);border-color:var(--mdb-mute)}
 
+  .tabpane{display:none}
+
   .section{border-top:1px solid var(--mdb-line);padding-top:18px;margin-top:24px}
-  .section.first{border-top:none;padding-top:0;margin-top:8px}
+  .section.first{border-top:none;padding-top:0;margin-top:4px}
   .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;
               color:var(--mdb-slate)}
   .section .sub{display:block;margin-top:3px;color:var(--mdb-mute);font-size:12.5px}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
-  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
-  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:14px}
   .card{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;
         padding:16px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;
         min-width:0}
   .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--mdb-ink)}
   .card .hint{font-size:11.5px;color:var(--mdb-mute);margin:4px 0 10px 0}
   .card-tall .chart-wrap{height:280px}
-  .card-med .chart-wrap{height:220px}
   .chart-wrap{position:relative;flex:1;min-height:160px}
 
-  /* --- Paid-media KPI tiles (now white cards, secondary visual weight) --- */
-  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:0}
-  .kpi{background:var(--mdb-card);border:1px solid var(--mdb-line);
-       color:var(--mdb-ink);border-radius:12px;padding:16px 18px;
-       box-shadow:var(--shadow-card);position:relative;overflow:hidden}
-  .kpi::before{content:"";position:absolute;right:-30px;top:-30px;width:120px;height:120px;
-               background:radial-gradient(circle,rgba(0,104,74,.06) 0%,transparent 70%)}
-  .kpi .k{font-size:10.5px;letter-spacing:.8px;text-transform:uppercase;
-          color:var(--mdb-mute);font-weight:600;position:relative}
-  .kpi .v{font-size:26px;font-weight:700;margin-top:6px;letter-spacing:-.5px;
-          position:relative;color:var(--mdb-slate)}
-  .kpi .sub{font-size:11.5px;color:var(--mdb-mute);margin-top:4px;position:relative}
-
-  .alert,.info{border-radius:10px;padding:14px 16px;margin:14px 0;display:flex;gap:12px;
-               align-items:flex-start;font-size:13px;line-height:1.55}
-  .alert{background:#FFF7E8;border:1px solid #F0D9A3}
-  .info{background:#E8F7EE;border:1px solid #B5DDC4}
-  .alert .ico,.info .ico{font-size:18px;line-height:1;flex-shrink:0;margin-top:1px}
-  .alert h3,.info h3{margin:0 0 5px 0;font-size:13.5px;color:var(--mdb-slate);font-weight:700}
-  .alert p,.info p{margin:0;color:var(--mdb-ink)}
-  .alert b,.info b{color:var(--mdb-slate)}
+  /* --- Per-campaign KPI cards (no cumulative cross-campaign totals) --- */
+  .camp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+              gap:14px;margin-top:16px}
+  .camp-card{background:var(--mdb-card);border:1px solid var(--mdb-line);
+             border-left:4px solid var(--mdb-green);border-radius:12px;
+             padding:16px 18px;box-shadow:var(--shadow-card)}
+  .camp-card .camp-name{font-size:13px;font-weight:700;color:var(--mdb-slate);
+                        display:flex;align-items:center;gap:8px;margin-bottom:13px}
+  .camp-card .camp-name .dot{width:10px;height:10px;border-radius:50%}
+  .camp-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .camp-kpis .k{font-size:10px;letter-spacing:.6px;text-transform:uppercase;
+                color:var(--mdb-mute);font-weight:600}
+  .camp-kpis .v{font-size:23px;font-weight:700;color:var(--mdb-slate);
+                letter-spacing:-.5px;margin-top:3px}
+  .camp-sub{font-size:11.5px;color:var(--mdb-mute);margin-top:13px}
+  .camp-pace{font-size:12px;font-weight:600;margin-top:6px}
+  .camp-pace.ok{color:var(--good-green)} .camp-pace.warn{color:var(--warn-amber)}
+  .camp-pace.bad{color:var(--bad-red)} .camp-pace.neutral{color:var(--mdb-mute)}
+  .no-data{color:var(--mdb-mute);font-style:italic;font-size:12px;padding:8px 0 2px}
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--mdb-line)}
@@ -124,56 +145,8 @@
   .vs-good{color:var(--good-green);font-weight:600}
   .vs-bad{color:var(--bad-red);font-weight:600}
   .vs-neut{color:var(--mdb-mute)}
-
-  .prog-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-             gap:14px;margin-top:14px}
-  .prog-card{background:#fff;border:1px solid var(--mdb-line);border-radius:12px;
-             padding:14px 16px;box-shadow:var(--shadow-card)}
-  .prog-card h4{margin:0;font-size:13px;font-weight:700;color:var(--mdb-slate)}
-  .prog-card .nums{display:flex;align-items:baseline;gap:8px;margin:8px 0 6px 0}
-  .prog-card .nums .actual{font-size:26px;font-weight:700;color:var(--mdb-slate);
-                           letter-spacing:-.5px}
-  .prog-card .nums .target{font-size:14px;color:var(--mdb-mute)}
-  .prog-card .bar{height:8px;background:var(--mdb-line);border-radius:999px;
-                  overflow:hidden;margin-top:6px}
-  .prog-card .bar > div{height:100%;background:linear-gradient(90deg,var(--mdb-green),
-                        var(--mdb-spring));border-radius:999px;transition:width .4s ease}
-  .prog-card .bar.over > div{background:linear-gradient(90deg,#1E8E3E,var(--mdb-spring))}
-  .prog-card .pct{font-size:11.5px;color:var(--mdb-mute);margin-top:6px;
-                  display:flex;justify-content:space-between}
-  .prog-card .pct .v{font-weight:600;color:var(--mdb-slate)}
-  .prog-card .pct .v.over{color:var(--good-green)}
-  .prog-card .markets{display:grid;grid-template-columns:repeat(2,1fr);gap:4px 12px;
-                      margin-top:10px;font-size:11.5px;color:var(--mdb-mute)}
-  .prog-card .markets span b{color:var(--mdb-ink);font-weight:600;float:right}
-
-  /* CS top KPI strip — slate-blue hero panel (main visual focus of the dashboard) */
-  .cs-hero{background:linear-gradient(135deg,var(--mdb-slate) 0%,#03293A 100%);
-           color:#fff;border-radius:14px;padding:22px 8px;
-           box-shadow:0 4px 22px rgba(0,30,43,.18);
-           position:relative;overflow:hidden;border:none;margin-top:14px}
-  .cs-hero::before{content:"";position:absolute;right:-60px;top:-60px;width:240px;height:240px;
-                   background:radial-gradient(circle,rgba(0,237,100,.22) 0%,transparent 70%);
-                   pointer-events:none}
-  .cs-hero::after{content:"";position:absolute;left:-80px;bottom:-80px;width:200px;height:200px;
-                  background:radial-gradient(circle,rgba(0,104,74,.18) 0%,transparent 70%);
-                  pointer-events:none}
-  .cs-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;position:relative}
-  .cs-kpi{padding:8px 22px;border-right:1px solid rgba(255,255,255,.12)}
-  .cs-kpi:last-child{border-right:none}
-  .cs-kpi .label{font-size:10.5px;font-weight:700;letter-spacing:.8px;
-                 text-transform:uppercase;color:rgba(255,255,255,.85);margin-bottom:4px}
-  .cs-kpi .group{font-size:9.5px;font-weight:600;letter-spacing:.6px;
-                 text-transform:uppercase;color:rgba(255,255,255,.55);margin-bottom:2px}
-  .cs-kpi .v{font-size:30px;font-weight:700;color:#fff;
-             letter-spacing:-.5px;line-height:1.1}
-  .cs-kpi .v.ok{color:var(--mdb-spring)}
-  .cs-kpi .v.warn{color:#FFC766}
-  .cs-kpi .sub{font-size:11px;color:rgba(255,255,255,.65);margin-top:3px;font-style:italic}
-  @media (max-width:760px){
-    .cs-kpi-strip{grid-template-columns:repeat(2,1fr)}
-    .cs-kpi{border-right:none;border-bottom:1px solid rgba(255,255,255,.12);padding:10px 14px}
-  }
+  .camp-tag{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+  .camp-tag .dot{width:8px;height:8px;border-radius:50%}
 
   .loading{padding:80px 20px;text-align:center;color:var(--mdb-mute)}
   .spinner{display:inline-block;width:34px;height:34px;
@@ -188,13 +161,9 @@
          padding-top:14px;border-top:1px solid var(--mdb-line)}
   footer b{color:var(--mdb-ink)}
 
-  @media (max-width: 1100px){
-    .grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}
-    .kpis{grid-template-columns:repeat(2,1fr)}
-  }
   @media (max-width: 760px){
     .grid{grid-template-columns:1fr}
-    .grid-3,.grid-4,.kpis{grid-template-columns:1fr}
+    .camp-kpis{grid-template-columns:repeat(3,1fr)}
   }
 </style>
 </head>
@@ -220,7 +189,7 @@
     </div>
   </div>
   <div class="topbar-right">
-    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC Demand Gen · The Trade Desk</div>
+    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC Demand Gen · DNB &amp; KGA (IDC)</div>
     <div id="topbarMeta" style="margin-top:2px">&nbsp;</div>
   </div>
 </div>
@@ -240,143 +209,135 @@
 
   <div id="content" style="display:none">
 
-    <!-- ============ CAMPAIGN FILTER (was Region) ============ -->
-    <div class="filter-row">
-      <span class="lbl">Campaign</span>
-      <div class="chips" id="campaignChips"></div>
-      <button class="chip-action" onclick="selectAllCampaigns()">All</button>
-      <button class="chip-action" onclick="clearCampaigns()">Clear</button>
-    </div>
-
-
-    <!-- ============ CONTENT SYNDICATION ============ -->
-    <div class="section first">
-      <h2>Content Syndication — Lead Pacing</h2>
-      <span class="sub">Live Salesforce data across three DNB IDE programmes
-        (Single Touch · Tech DMs · Biz &amp; Ops Leaders)</span>
-    </div>
-
-    <!-- Top KPI strip — slate-blue hero, main visual focus -->
-    <div class="cs-hero">
-      <div id="csKpiStrip" class="cs-kpi-strip"></div>
-    </div>
-
-    <!-- Three cards row: Leads vs target / Progress / Weekly pacing -->
-    <div class="grid" style="margin-top:14px">
-      <div class="card card-med">
-        <h3>Leads vs target</h3>
-        <div class="hint">Total target, time-to-date target, and leads delivered.</div>
-        <div id="leadsVsTarget"></div>
+    <!-- ============ CONTROL BAR: tabs + campaign + region ============ -->
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs">
+          <button class="tab" id="tabPaid" onclick="setTab('paid')">Paid Media</button>
+          <button class="tab" id="tabCS"   onclick="setTab('cs')">Content Syndication</button>
+        </div>
+        <div class="ctrl-note" id="ctrlNote">&nbsp;</div>
       </div>
-      <div class="card card-med">
-        <h3>Progress</h3>
-        <div class="hint">Leads vs target / Time vs campaign days elapsed.</div>
-        <div id="leadsProgress"></div>
+      <div class="control-filters">
+        <div class="filter-grp">
+          <span class="lbl">Campaign</span>
+          <div class="seg" id="campSeg"></div>
+        </div>
+        <div class="filter-grp">
+          <span class="lbl">Region</span>
+          <div class="chips" id="regionChips"></div>
+          <button class="chip-action" onclick="allRegions()">All</button>
+          <button class="chip-action" onclick="clearRegions()">Clear</button>
+        </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <h3>Weekly pacing — target vs actual</h3>
-      <div class="hint">Leads delivered per week-of, against the weekly target pace.</div>
-      <div class="chart-wrap" style="height:300px"><canvas id="weeklyPacing"></canvas></div>
-    </div>
-
-    <div class="section" style="border-top:none;padding-top:14px;margin-top:14px">
-      <h2 style="font-size:15px">Lead breakdown by programme</h2>
-      <span class="sub">Volume by programme and market</span>
-    </div>
-    <div class="grid">
-      <div class="card card-med">
-        <h3>Total leads by market</h3>
-        <div class="hint">All statuses combined.</div>
-        <div class="chart-wrap"><canvas id="csMarketChart"></canvas></div>
+    <!-- ============ PAID MEDIA TAB ============ -->
+    <div id="tab-paid" class="tabpane">
+      <div class="section first">
+        <h2>Paid Media — Delivery</h2>
+        <span class="sub">Live Trade Desk delivery: spend, impressions, CTR. Shown per campaign
+          (DNB vs KGA/IDC) — no cumulative cross-campaign totals.</span>
       </div>
-      <div class="card card-med">
-        <h3>Leads by programme</h3>
-        <div class="hint">Single Touch dominates volume; Tech DMs and Biz Ops lag.</div>
-        <div class="chart-wrap"><canvas id="csProgChart"></canvas></div>
-      </div>
-    </div>
 
-    <div class="card" style="margin-top:14px">
-      <h3>Programme × market breakdown</h3>
-      <div class="hint">Total leads, latest lead day per cell.</div>
-      <div style="overflow:auto">
-        <table id="csTable">
+      <div class="camp-cards" id="pmCards"></div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Spend by market</h3>
+          <div class="hint">DNB and KGA/IDC shown side by side per market (never summed together).</div>
+          <div class="chart-wrap"><canvas id="pmSpendMarket"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>CTR by market</h3>
+          <div class="hint">Click-through rate per market, per campaign.</div>
+          <div class="chart-wrap"><canvas id="pmCtrMarket"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Daily impressions</h3>
+        <div class="hint">Impressions per day, per campaign. Reflects the selected region(s).</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="pmDaily"></canvas></div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Strategy performance vs media plan</h2>
+        <span class="sub">CTR &amp; CPM against the MongoDB plan benchmarks, broken out per campaign
+          &amp; strategy across the selected region(s) — green beats plan. Every row is a single
+          campaign; nothing is combined across campaigns.</span>
+      </div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="stratTable">
           <thead><tr>
-            <th>Programme</th><th>Market</th>
-            <th>Leads</th><th>Last lead</th>
+            <th>Campaign</th><th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th>
+            <th>CTR</th><th>vs plan</th><th>CPM</th><th>vs plan</th><th>CPC</th>
           </tr></thead>
           <tbody></tbody>
         </table>
+      </div></div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Campaign × market summary</h2>
+        <span class="sub">Per-campaign delivery by market — every row is a single campaign, so
+          nothing is combined across campaigns.</span>
       </div>
-    </div>
-    <div class="section">
-      <h2>Paid Media — Headline</h2>
-      <span class="sub">Live Trade Desk delivery across selected campaigns</span>
-    </div>
-
-    <div class="kpis" id="kpiRow"></div>
-
-    <div class="section">
-      <h2>Strategy performance vs media plan</h2>
-      <span class="sub">CTR and CPM relative to the MongoDB media plan benchmarks
-        (green = beating plan)</span>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="pmMarketTable">
+          <thead><tr>
+            <th>Campaign</th><th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th>
+            <th>CTR</th><th>CPM</th><th>CPC</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
     </div>
 
-    <div class="card" style="margin-top:14px">
-      <table id="stratTable">
-        <thead><tr>
-          <th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th>
-          <th>CTR</th><th>vs plan</th>
-          <th>CPM</th><th>vs plan</th>
-          <th>CPC</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-
-    <div class="grid">
-      <div class="card card-tall">
-        <h3>Daily delivery — impressions + clicks</h3>
-        <div class="hint">Impressions (bars), clicks (line). Filtered by selected campaigns.</div>
-        <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
+    <!-- ============ CONTENT SYNDICATION TAB ============ -->
+    <div id="tab-cs" class="tabpane">
+      <div class="section first">
+        <h2>Content Syndication — Lead Pacing</h2>
+        <span class="sub">Live Salesforce leads vs target. Shown per campaign (DNB vs KGA/IDC) —
+          no cumulative cross-campaign totals.</span>
       </div>
-      <div class="card card-tall">
-        <h3>Spend by market</h3>
-        <div class="hint">Programme split inside each market.</div>
-        <div class="chart-wrap"><canvas id="marketStackChart"></canvas></div>
-      </div>
-    </div>
 
-    <div class="grid">
-      <div class="card card-tall">
-        <h3>Spend share by strategy</h3>
-        <div class="hint">Compare actual allocation to plan weighting.</div>
-        <div class="chart-wrap"><canvas id="strategyMixChart"></canvas></div>
-      </div>
-      <div class="card card-tall">
-        <h3>CPC by market</h3>
-        <div class="hint">Cost per click — lower is better.</div>
-        <div class="chart-wrap"><canvas id="cpcMarketChart"></canvas></div>
-      </div>
-    </div>
+      <div class="camp-cards" id="csCards"></div>
 
-    <div class="section">
-      <h2>Market summary</h2>
-      <span class="sub">Per-market delivery across selected campaigns</span>
-    </div>
-    <div class="card" style="margin-top:14px">
-      <table id="marketTable">
-        <thead><tr>
-          <th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th>
-          <th>CTR</th><th>CPM</th><th>CPC</th>
-          <th>Plan weight</th><th>Actual weight</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
+      <div class="grid" style="margin-top:16px">
+        <div class="card card-tall">
+          <h3>Leads vs target</h3>
+          <div class="hint">Each campaign's target vs leads delivered — compared, not summed.</div>
+          <div class="chart-wrap"><canvas id="csTargetActual"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Leads by market</h3>
+          <div class="hint">DNB and KGA/IDC shown side by side per market.</div>
+          <div class="chart-wrap"><canvas id="csMarket"></canvas></div>
+        </div>
+      </div>
 
+      <div class="card" style="margin-top:16px">
+        <h3>Weekly pacing — target vs actual</h3>
+        <div class="hint">Leads delivered per week (bars) vs each campaign's weekly target pace
+          (dashed line). Actuals are ramped across the elapsed window — Salesforce leads aren't
+          date-stamped in the feed yet.</div>
+        <div class="chart-wrap" style="height:320px"><canvas id="csWeekly"></canvas></div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Programme × market breakdown</h2>
+        <span class="sub">Underlying Salesforce programmes, tagged by campaign. Filtered by the
+          selected campaign(s) &amp; region(s).</span>
+      </div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="csTable">
+          <thead><tr>
+            <th>Campaign</th><th>Programme</th><th>Market</th><th>Leads</th><th>Last lead</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+    </div>
 
     <footer id="footMeta"></footer>
 
@@ -398,41 +359,64 @@ const STRAT_COLORS = {
   'CONTEXTUAL':'#023430','KEYWORDS':'#00684A','BEHAVIOURAL':'#3FA037',
   'RETARGETING':'#00ED64','AUDIENCE-ABM':'#C3E7CA'
 };
-const STATUS_COLORS = {
-  'Accepted':MDB.spring,'New':MDB.green,
-  'Unresponsive':'#B97400','Do Not Contact':'#C8362A','Rejected':'#7a1a0e'
+const STRAT_ORDER = ['CONTEXTUAL','KEYWORDS','BEHAVIOURAL','RETARGETING','AUDIENCE-ABM'];
+
+// The two top-level campaigns discussed with the client. Everything on the
+// dashboard is shown per-campaign and colour-coded by these.
+//   DNB        -> paid-media programme 'IDE', Salesforce 'DNB IDE …' programmes
+//   KGA (IDC)  -> paid-media programme 'IDC', Salesforce IDC programme
+const CAMP = {
+  DNB: {id:'DNB', label:'DNB',       color:MDB.green},
+  IDC: {id:'IDC', label:'KGA (IDC)', color:MDB.spring}
 };
-const PROG_COLORS = {
-  'IDE':MDB.green, 'IDC':MDB.spring,
-  'DNB IDE Single Touch':MDB.green,
-  'DNB IDE Technical DMs':MDB.spring,
-  'DNB IDE Business & Ops Leaders':MDB.slate
-};
+const CAMP_OPTS = [
+  {k:'DNB',  label:'DNB',       color:MDB.green},
+  {k:'IDC',  label:'KGA (IDC)', color:MDB.spring},
+  {k:'BOTH', label:'Both',      color:null}
+];
 
 //==============================================================================
 // STATE
 //==============================================================================
-// CAMPAIGNS combines the 2 paid-media programmes (IDE / IDC) with the 3 CS
-// programmes from Salesforce. Each is a tappable chip.
 let DATA = null;
-let CAMPAIGNS = [];           // [{key, label, source, ...}]
-let activeCampaigns = new Set();
 let charts = {};
+let activeTab = 'paid';            // 'paid' | 'cs'
+let activeCampaign = 'BOTH';       // 'DNB' | 'IDC' | 'BOTH'
+let activeMarkets = new Set();     // region filter (markets)
 
 //==============================================================================
 // HELPERS
 //==============================================================================
+const el = id => document.getElementById(id);
 const fmt$ = (v, d=0) => v == null || isNaN(v) ? '—' :
   '$' + Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 const fmtN = v => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('en-US');
 const fmtPct = (v,d=2) => v == null || isNaN(v) ? '—' : (Number(v)*100).toFixed(d) + '%';
 
-function rowPasses(r) {
-  // Paid-media rows: programme is 'IDE' or 'IDC'
-  return activeCampaigns.has('PM:'+r.programme);
+// Classify any programme value into one of the two campaigns. The per-programme
+// labels (targets / budget / cs_by_programme) are long PROGRAMME_LABELs whose exact
+// text for the new IDC campaign isn't guaranteed to contain "IDC", so we WHITELIST
+// the known DNB markers — the 'IDE' paid code and the 'DNB …' Salesforce labels —
+// and treat everything else as KGA/IDC. Defaulting unknowns to IDC is the safe
+// direction: it can never silently fold new KGA leads into the established DNB
+// numbers the client already trusts. (Robust long-term fix: have the export job
+// emit an explicit `campaign` field once the BQ views expose the short code.)
+function campaignOf(programme){
+  const p = String(programme||'').toUpperCase();
+  return (p.includes('IDE') || p.includes('DNB')) ? 'DNB' : 'IDC';
 }
-function csRowPasses(r) {
-  return activeCampaigns.has('CS:'+r.programme);
+function selectedCampaigns(){
+  return activeCampaign === 'BOTH' ? ['DNB','IDC'] : [activeCampaign];
+}
+function marketOk(m){ return activeMarkets.has(m); }
+function activeMarketList(){ return (DATA.all_markets||[]).filter(m => activeMarkets.has(m)); }
+
+// Does the feed contain ANY data for a campaign? (ignores filters — used to
+// show a friendly "no data yet" note while IDC is still being wired up.)
+function campHasData(c){
+  return (DATA.rows||[]).some(r => campaignOf(r.programme) === c)
+      || (DATA.cs_by_programme||[]).some(r => campaignOf(r.programme) === c)
+      || (DATA.targets||[]).some(t => campaignOf(t.programme) === c);
 }
 
 //==============================================================================
@@ -441,573 +425,482 @@ function csRowPasses(r) {
 async function boot() {
   try {
     const res = await fetch(JSON_URL, {cache:'no-store'});
-    if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching mongodb.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching data.json');
     DATA = await res.json();
 
-    // Build CAMPAIGNS list: 2 paid-media + 3 CS
-    CAMPAIGNS = [];
-    // Paid media campaigns from budget envelope
-    for (const b of (DATA.budget || [])) {
-      CAMPAIGNS.push({
-        key: 'PM:' + b.tradedesk_code,
-        label: b.programme,
-        source: 'paid',
-        prog_code: b.tradedesk_code,
-        start: b.start, end: b.end
-      });
-    }
-    // CS campaigns from cs_by_programme
-    const csProgs = [...new Set((DATA.cs_by_programme || []).map(r => r.programme))];
-    for (const p of csProgs) {
-      CAMPAIGNS.push({key:'CS:'+p, label:p, source:'cs', prog_code:p});
-    }
-    activeCampaigns = new Set(CAMPAIGNS.map(c => c.key));
+    activeMarkets = new Set(DATA.all_markets || []);
+    const h = (location.hash || '').replace('#','');
+    if (h === 'paid' || h === 'cs') activeTab = h;
 
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
+    el('loading').style.display = 'none';
+    el('content').style.display = 'block';
 
     renderTopbarMeta();
-    renderCampaignChips();
-    renderAll();
+    renderControls();
+    renderActive();
   } catch (e) {
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('error').style.display = 'block';
-    document.getElementById('errDetail').textContent = e.message;
+    el('loading').style.display = 'none';
+    el('error').style.display = 'block';
+    el('errDetail').textContent = e.message;
   }
 }
 
 function renderTopbarMeta() {
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : 'unknown';
-  document.getElementById('topbarMeta').textContent =
+  el('topbarMeta').textContent =
     'Updated ' + luText + ' · Window ' + DATA.window.start + ' → ' + DATA.window.end;
-  document.getElementById('footMeta').innerHTML =
-    'Live from BigQuery (<b>client_mongodb.paid_media_model</b>) · ' +
-    DATA.row_count.toLocaleString() + ' rows · Auto-refreshes daily at 22:00 UTC';
+  el('footMeta').innerHTML =
+    'Live from BigQuery (<b>client_mongodb</b>: paid_media_model + cs_leads_by_programme) · ' +
+    Number(DATA.row_count||0).toLocaleString() + ' paid-media rows · Auto-refreshes daily at 22:00 UTC';
 }
 
-function renderCampaignChips() {
-  const c = document.getElementById('campaignChips');
-  c.innerHTML = '';
-  CAMPAIGNS.forEach(camp => {
-    const el = document.createElement('button');
-    el.className = 'chip' + (activeCampaigns.has(camp.key) ? ' on' : '');
-    el.innerHTML = '<span class="check">✓</span>' + camp.label;
-    el.title = camp.source === 'paid' ? 'Paid media campaign' : 'Content syndication campaign';
-    el.onclick = () => {
-      if (activeCampaigns.has(camp.key)) activeCampaigns.delete(camp.key);
-      else activeCampaigns.add(camp.key);
-      renderCampaignChips(); renderAll();
-    };
-    c.appendChild(el);
+//==============================================================================
+// CONTROLS (tabs + campaign toggle + region toggle)
+//==============================================================================
+function renderControls() {
+  el('tabPaid').className = 'tab' + (activeTab === 'paid' ? ' on' : '');
+  el('tabCS').className   = 'tab' + (activeTab === 'cs'   ? ' on' : '');
+
+  // Campaign segmented control
+  const seg = el('campSeg'); seg.innerHTML = '';
+  CAMP_OPTS.forEach(o => {
+    const b = document.createElement('button');
+    b.className = 'seg-btn' + (activeCampaign === o.k ? ' on' : '');
+    b.innerHTML = (o.color ? `<span class="dot" style="background:${o.color}"></span>` : '') + o.label;
+    b.onclick = () => { activeCampaign = o.k; renderControls(); renderActive(); };
+    seg.appendChild(b);
   });
+
+  // Region chips (the regional toggle)
+  const reg = el('regionChips'); reg.innerHTML = '';
+  (DATA.all_markets || []).forEach(m => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (activeMarkets.has(m) ? ' on' : '');
+    b.innerHTML = '<span class="check">✓</span>' + m;
+    b.onclick = () => {
+      activeMarkets.has(m) ? activeMarkets.delete(m) : activeMarkets.add(m);
+      renderControls(); renderActive();
+    };
+    reg.appendChild(b);
+  });
+
+  const camps = selectedCampaigns().map(c => CAMP[c].label).join(' + ');
+  const regs = activeMarketList();
+  el('ctrlNote').textContent =
+    `Showing ${camps} · ${regs.length === (DATA.all_markets||[]).length ? 'all regions' :
+      (regs.length ? regs.join(', ') : 'no region selected')}`;
 }
-function selectAllCampaigns(){
-  activeCampaigns = new Set(CAMPAIGNS.map(c => c.key));
-  renderCampaignChips(); renderAll();
-}
-function clearCampaigns(){
-  activeCampaigns = new Set();
-  renderCampaignChips(); renderAll();
+
+function setTab(t){ activeTab = t; location.hash = t; renderControls(); renderActive(); }
+function allRegions(){ activeMarkets = new Set(DATA.all_markets || []); renderControls(); renderActive(); }
+function clearRegions(){ activeMarkets = new Set(); renderControls(); renderActive(); }
+
+//==============================================================================
+// RENDER DISPATCH
+//==============================================================================
+function renderActive() {
+  el('tab-paid').style.display = activeTab === 'paid' ? 'block' : 'none';
+  el('tab-cs').style.display   = activeTab === 'cs'   ? 'block' : 'none';
+  destroyAllCharts();
+  if (activeTab === 'paid') {
+    renderPMCards();
+    renderPMSpendMarket();
+    renderPMCtrMarket();
+    renderPMDaily();
+    renderStrategyTable();
+    renderPMMarketTable();
+  } else {
+    renderCSCards();
+    renderCSTargetActual();
+    renderCSMarket();
+    renderCSWeekly();
+    renderCSTable();
+  }
 }
 
 //==============================================================================
-// RENDER
+// PAID MEDIA
 //==============================================================================
-function renderAll() {
-  renderKPIs();
-  renderStrategyTable();
-  renderDailyChart();
-  renderMarketStackChart();
-  renderStrategyMixChart();
-  renderCPCMarketChart();
-  renderMarketTable();
-  renderCSKpiStrip();       // NEW - top of CS section
-  renderLeadsVsTarget();
-  renderLeadsProgress();
-  renderWeeklyPacing();
-  renderCSMarketChart();
-  renderCSProgChart();
-  renderCSTable();
-}
-
-// --- KPIs -------------------------------------------------------------------
-function renderKPIs() {
+function pmAgg(c, market){
   let imp=0, clk=0, sp=0;
-  for (const r of DATA.rows) if (rowPasses(r)) {
+  for (const r of (DATA.rows||[])) {
+    if (campaignOf(r.programme) !== c) continue;
+    if (market != null ? r.market !== market : !marketOk(r.market)) continue;
     imp += r.imps||0; clk += r.clicks||0; sp += r.spend_usd||0;
   }
-  const ctr = imp ? clk/imp : 0;
-  const cpc = clk ? sp/clk  : 0;
-  const cpm = imp ? sp/imp*1000 : 0;
-
-  let csTotal=0, csUnresp=0;
-  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
-    csTotal += r.total||0; csUnresp += r.unresponsive||0;
-  }
-
-  document.getElementById('kpiRow').innerHTML = `
-    <div class="kpi"><div class="k">Spend</div><div class="v">${fmt$(sp)}</div>
-      <div class="sub">${fmtN(imp)} imps · ${fmtN(clk)} clicks</div></div>
-    <div class="kpi"><div class="k">CTR</div><div class="v">${fmtPct(ctr,3)}</div>
-      <div class="sub">CPM ${fmt$(cpm,2)} · CPC ${fmt$(cpc,2)}</div></div>
-    <div class="kpi"><div class="k">CS leads (live)</div><div class="v">${fmtN(csTotal)}</div>
-      <div class="sub">${fmtN(csUnresp)} unresponsive · 0 accepted</div></div>
-    <div class="kpi"><div class="k">Window</div><div class="v">${DATA.window.days}d</div>
-      <div class="sub">${DATA.window.start} → ${DATA.window.end}</div></div>`;
+  return {imp, clk, sp, ctr: imp?clk/imp:0, cpm: imp?sp/imp*1000:0, cpc: clk?sp/clk:0};
 }
 
-// --- Strategy table ---------------------------------------------------------
+function renderPMCards() {
+  const host = el('pmCards'); host.innerHTML = '';
+  selectedCampaigns().forEach(c => {
+    const col = CAMP[c].color;
+    const a = pmAgg(c);
+    if (!a.imp && !a.sp) {
+      // Distinguish "campaign not wired up at all" from "nothing under the current region(s)".
+      const msg = campHasData(c)
+        ? `No paid-media delivery for ${CAMP[c].label} in the selected region(s).`
+        : `No paid-media data yet for ${CAMP[c].label}.`;
+      host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
+        <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
+        <div class="no-data">${msg}</div></div>`;
+      return;
+    }
+    host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
+      <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
+      <div class="camp-kpis">
+        <div><div class="k">Spend</div><div class="v">${fmt$(a.sp)}</div></div>
+        <div><div class="k">Impressions</div><div class="v">${fmtN(a.imp)}</div></div>
+        <div><div class="k">CTR</div><div class="v">${fmtPct(a.ctr,3)}</div></div>
+      </div>
+      <div class="camp-sub">CPM ${fmt$(a.cpm,2)} · CPC ${fmt$(a.cpc,2)} · ${fmtN(a.clk)} clicks</div>
+    </div>`;
+  });
+}
+
+function renderPMSpendMarket() {
+  const markets = activeMarketList();
+  const datasets = selectedCampaigns().map(c => ({
+    label: CAMP[c].label,
+    data: markets.map(m => pmAgg(c, m).sp),
+    backgroundColor: CAMP[c].color, borderRadius:3
+  }));
+  charts.pmSpendMarket = new Chart(el('pmSpendMarket'), {
+    type:'bar', data:{labels:markets, datasets},
+    options: chartBase({
+      scales:{ x:{grid:{display:false}},
+        y:{beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>'$'+Number(v).toLocaleString()}} }
+    })
+  });
+}
+
+function renderPMCtrMarket() {
+  const markets = activeMarketList();
+  const datasets = selectedCampaigns().map(c => ({
+    label: CAMP[c].label,
+    data: markets.map(m => pmAgg(c, m).ctr),
+    backgroundColor: CAMP[c].color, borderRadius:3
+  }));
+  charts.pmCtrMarket = new Chart(el('pmCtrMarket'), {
+    type:'bar', data:{labels:markets, datasets},
+    options: chartBase({
+      scales:{ x:{grid:{display:false}},
+        y:{beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>(v*100).toFixed(2)+'%'}} },
+      plugins:{ tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+(ctx.parsed.y*100).toFixed(3)+'%'}} }
+    })
+  });
+}
+
+function renderPMDaily() {
+  const sel = new Set(selectedCampaigns());
+  const dates = [...new Set((DATA.rows||[])
+    .filter(r => sel.has(campaignOf(r.programme)) && marketOk(r.market))
+    .map(r => r.date))].sort();
+  const datasets = selectedCampaigns().map(c => {
+    const byDate = {};
+    for (const r of (DATA.rows||[])) {
+      if (campaignOf(r.programme) !== c || !marketOk(r.market)) continue;
+      byDate[r.date] = (byDate[r.date]||0) + (r.imps||0);
+    }
+    return {label:CAMP[c].label, data:dates.map(d=>byDate[d]||0),
+            backgroundColor:CAMP[c].color, borderRadius:2};
+  });
+  charts.pmDaily = new Chart(el('pmDaily'), {
+    type:'bar', data:{labels:dates, datasets},
+    options: chartBase({
+      scales:{ x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14}},
+        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Impressions'}} }
+    })
+  });
+}
+
 function renderStrategyTable() {
-  const agg = {};
-  for (const r of DATA.rows) if (rowPasses(r)) {
-    const s = r.strategy;
-    if (!agg[s]) agg[s] = {imps:0,clicks:0,spend:0};
-    agg[s].imps   += r.imps||0;
-    agg[s].clicks += r.clicks||0;
-    agg[s].spend  += r.spend_usd||0;
-  }
-  const bench = DATA.benchmarks_strategy || {};
+  // Per-campaign × strategy — one row per campaign so DNB and IDC are never merged.
+  // Normalise benchmark keys so case/whitespace drift can't silently drop the vs-plan column.
+  const bench = {};
+  for (const [k,v] of Object.entries(DATA.benchmarks_strategy || {})) bench[String(k||'').trim().toUpperCase()] = v;
   const tbody = document.querySelector('#stratTable tbody');
   tbody.innerHTML = '';
-  ['CONTEXTUAL','KEYWORDS','BEHAVIOURAL','RETARGETING','AUDIENCE-ABM'].forEach(s => {
-    if (!agg[s]) return;
-    const a = agg[s];
-    const ctr = a.imps ? a.clicks/a.imps : 0;
-    const cpm = a.imps ? a.spend/a.imps*1000 : 0;
-    const cpc = a.clicks ? a.spend/a.clicks : 0;
-    const b = bench[s] || {};
-    const ctrVs = b.ctr ? (ctr - b.ctr)/b.ctr : null;
-    const cpmVs = b.cpm ? (b.cpm - cpm)/b.cpm : null;
-    const ctrCls = ctrVs == null ? 'vs-neut' : (ctrVs > 0 ? 'vs-good' : 'vs-bad');
-    const cpmCls = cpmVs == null ? 'vs-neut' : (cpmVs > 0 ? 'vs-good' : 'vs-bad');
-    const fmtVs = v => v == null ? '—' : (v>=0?'+':'') + (v*100).toFixed(0) + '%';
-    tbody.innerHTML += `<tr>
-      <td><b>${s}</b></td>
-      <td class="num">${fmt$(a.spend)}</td>
-      <td class="num">${fmtN(a.imps)}</td>
-      <td class="num">${fmtN(a.clicks)}</td>
-      <td class="num">${fmtPct(ctr,3)}</td>
-      <td class="num ${ctrCls}">${fmtVs(ctrVs)}</td>
-      <td class="num">${fmt$(cpm,2)}</td>
-      <td class="num ${cpmCls}">${fmtVs(cpmVs)}</td>
-      <td class="num">${fmt$(cpc,2)}</td>
-    </tr>`;
+  const fmtVs = v => v == null ? '—' : (v>=0?'+':'') + (v*100).toFixed(0) + '%';
+  let any = false;
+  selectedCampaigns().forEach(c => {
+    const agg = {};
+    for (const r of (DATA.rows||[])) {
+      if (campaignOf(r.programme) !== c || !marketOk(r.market)) continue;
+      const s = String(r.strategy||'').trim().toUpperCase(); if (!s) continue;
+      if (!agg[s]) agg[s] = {imps:0,clicks:0,spend:0};
+      agg[s].imps += r.imps||0; agg[s].clicks += r.clicks||0; agg[s].spend += r.spend_usd||0;
+    }
+    const ordered = [...STRAT_ORDER, ...Object.keys(agg).filter(s => !STRAT_ORDER.includes(s))];
+    ordered.forEach(s => {
+      if (!agg[s]) return;
+      any = true;
+      const a = agg[s];
+      const ctr = a.imps ? a.clicks/a.imps : 0;
+      const cpm = a.imps ? a.spend/a.imps*1000 : 0;
+      const cpc = a.clicks ? a.spend/a.clicks : 0;
+      const b = bench[s] || {};
+      const ctrVs = b.ctr ? (ctr - b.ctr)/b.ctr : null;
+      const cpmVs = b.cpm ? (b.cpm - cpm)/b.cpm : null;
+      const ctrCls = ctrVs == null ? 'vs-neut' : (ctrVs > 0 ? 'vs-good' : 'vs-bad');
+      const cpmCls = cpmVs == null ? 'vs-neut' : (cpmVs > 0 ? 'vs-good' : 'vs-bad');
+      tbody.innerHTML += `<tr>
+        <td><span class="camp-tag"><span class="dot" style="background:${CAMP[c].color}"></span>${CAMP[c].label}</span></td>
+        <td><b>${s}</b></td>
+        <td class="num">${fmt$(a.spend)}</td>
+        <td class="num">${fmtN(a.imps)}</td>
+        <td class="num">${fmtN(a.clicks)}</td>
+        <td class="num">${fmtPct(ctr,3)}</td>
+        <td class="num ${ctrCls}">${fmtVs(ctrVs)}</td>
+        <td class="num">${fmt$(cpm,2)}</td>
+        <td class="num ${cpmCls}">${fmtVs(cpmVs)}</td>
+        <td class="num">${fmt$(cpc,2)}</td>
+      </tr>`;
+    });
   });
+  if (!any) tbody.innerHTML = `<tr><td colspan="10" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`;
 }
 
-// --- Daily delivery chart ---------------------------------------------------
-function renderDailyChart() {
-  const byDate = {};
-  for (const r of DATA.rows) if (rowPasses(r)) {
-    if (!byDate[r.date]) byDate[r.date] = {imp:0,clk:0};
-    byDate[r.date].imp += r.imps||0;
-    byDate[r.date].clk += r.clicks||0;
-  }
-  const labels = Object.keys(byDate).sort();
-  destroyChart('daily');
-  charts.daily = new Chart(document.getElementById('dailyChart'), {
-    data:{labels, datasets:[
-      {type:'bar',label:'Impressions',data:labels.map(d=>byDate[d].imp),
-       backgroundColor:MDB.green,yAxisID:'y',borderRadius:3},
-      {type:'line',label:'Clicks',data:labels.map(d=>byDate[d].clk),
-       borderColor:MDB.spring,backgroundColor:'rgba(0,237,100,.12)',
-       borderWidth:2.5,pointRadius:3,yAxisID:'y2',tension:.25,fill:false}
-    ]},
-    options:chartBase({
-      scales:{
-        x:{grid:{display:false},ticks:{font:{size:10}}},
-        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Impressions'}},
-        y2:{beginAtZero:true,position:'right',grid:{display:false},title:{display:true,text:'Clicks'}}
-      }
-    })
-  });
-}
-
-// --- Market stack -----------------------------------------------------------
-function renderMarketStackChart() {
-  const markets = (DATA.all_markets||['ANZ','ASEAN','INDIA','KR-HK-TW']);
-  const grid = {};
-  for (const m of markets) grid[m] = {IDE:0,IDC:0};
-  for (const r of DATA.rows) if (rowPasses(r)) {
-    grid[r.market][r.programme] += r.spend_usd||0;
-  }
-  destroyChart('marketStack');
-  charts.marketStack = new Chart(document.getElementById('marketStackChart'), {
-    type:'bar',
-    data:{labels:markets,datasets:[
-      {label:'IDE',data:markets.map(m=>grid[m].IDE),backgroundColor:MDB.green,borderRadius:3},
-      {label:'IDC',data:markets.map(m=>grid[m].IDC),backgroundColor:MDB.spring,borderRadius:3}
-    ]},
-    options:chartBase({
-      scales:{
-        x:{stacked:true,grid:{display:false}},
-        y:{stacked:true,beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>'$'+v}}
-      }
-    })
-  });
-}
-
-// --- Strategy mix doughnut --------------------------------------------------
-function renderStrategyMixChart() {
-  const agg = {};
-  for (const r of DATA.rows) if (rowPasses(r)) {
-    agg[r.strategy] = (agg[r.strategy]||0) + (r.spend_usd||0);
-  }
-  const labels = Object.keys(agg);
-  const data = labels.map(s => agg[s]);
-  const colors = labels.map(s => STRAT_COLORS[s] || MDB.mute);
-  destroyChart('strategyMix');
-  charts.strategyMix = new Chart(document.getElementById('strategyMixChart'), {
-    type:'doughnut',
-    data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#fff',borderWidth:2}]},
-    options:chartBase({plugins:{legend:{position:'right',labels:{boxWidth:10,padding:8}}}, cutout:'58%'})
-  });
-}
-
-// --- CPC by market ----------------------------------------------------------
-function renderCPCMarketChart() {
-  const markets = (DATA.all_markets||['ANZ','ASEAN','INDIA','KR-HK-TW']);
-  const grid = {};
-  for (const m of markets) grid[m] = {sp:0,clk:0};
-  for (const r of DATA.rows) if (rowPasses(r)) {
-    grid[r.market].sp += r.spend_usd||0;
-    grid[r.market].clk += r.clicks||0;
-  }
-  const cpcs = markets.map(m => grid[m].clk ? grid[m].sp/grid[m].clk : 0);
-  destroyChart('cpcMarket');
-  charts.cpcMarket = new Chart(document.getElementById('cpcMarketChart'), {
-    type:'bar',
-    data:{labels:markets,datasets:[{label:'CPC',data:cpcs,backgroundColor:MDB.slate,borderRadius:3}]},
-    options:chartBase({
-      indexAxis:'y',
-      scales:{
-        x:{beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>'$'+v.toFixed(2)}},
-        y:{grid:{display:false}}
-      },
-      plugins:{legend:{display:false}}
-    })
-  });
-}
-
-// --- Market summary table ---------------------------------------------------
-function renderMarketTable() {
-  const markets = (DATA.all_markets||['ANZ','ASEAN','INDIA','KR-HK-TW']);
-  const grid = {};
-  for (const m of markets) grid[m] = {imp:0,clk:0,sp:0};
-  let totalSp = 0;
-  for (const r of DATA.rows) if (rowPasses(r)) {
-    grid[r.market].imp += r.imps||0;
-    grid[r.market].clk += r.clicks||0;
-    grid[r.market].sp  += r.spend_usd||0;
-    totalSp += r.spend_usd||0;
-  }
-  const bm = DATA.benchmarks_market || {};
-  const tbody = document.querySelector('#marketTable tbody');
+function renderPMMarketTable() {
+  const markets = activeMarketList();
+  const tbody = document.querySelector('#pmMarketTable tbody');
   tbody.innerHTML = '';
-  for (const m of markets) {
-    const g = grid[m];
-    const ctr = g.imp ? g.clk/g.imp : 0;
-    const cpm = g.imp ? g.sp/g.imp*1000 : 0;
-    const cpc = g.clk ? g.sp/g.clk : 0;
-    const planW = bm[m]?.budget_weight || 0;
-    const actW = totalSp ? g.sp/totalSp : 0;
-    tbody.innerHTML += `<tr>
-      <td><b>${m}</b></td>
-      <td class="num">${fmt$(g.sp)}</td>
-      <td class="num">${fmtN(g.imp)}</td>
-      <td class="num">${fmtN(g.clk)}</td>
-      <td class="num">${fmtPct(ctr,3)}</td>
-      <td class="num">${fmt$(cpm,2)}</td>
-      <td class="num">${fmt$(cpc,2)}</td>
-      <td class="num">${fmtPct(planW,1)}</td>
-      <td class="num">${fmtPct(actW,1)}</td>
-    </tr>`;
-  }
+  let any = false;
+  selectedCampaigns().forEach(c => {
+    for (const m of markets) {
+      const a = pmAgg(c, m);
+      if (!a.imp && !a.sp) continue;           // skip empty campaign×market cells
+      any = true;
+      tbody.innerHTML += `<tr>
+        <td><span class="camp-tag"><span class="dot" style="background:${CAMP[c].color}"></span>${CAMP[c].label}</span></td>
+        <td>${m}</td>
+        <td class="num">${fmt$(a.sp)}</td>
+        <td class="num">${fmtN(a.imp)}</td>
+        <td class="num">${fmtN(a.clk)}</td>
+        <td class="num">${fmtPct(a.ctr,3)}</td>
+        <td class="num">${fmt$(a.cpm,2)}</td>
+        <td class="num">${fmt$(a.cpc,2)}</td>
+      </tr>`;
+    }
+  });
+  if (!any) tbody.innerHTML = `<tr><td colspan="8" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`;
 }
 
-// --- Pacing helpers ---------------------------------------------------------
-// Total target = sum across all 3 spreadsheet programmes.
-// Campaign window = earliest start -> latest end across paid-media budgets.
-// Total leads = sum of cs_by_programme totals for active CS campaigns.
-// All three pacing widgets share this math.
-function pacingState() {
-  // Total target across all spreadsheet programmes
-  const totalTarget = (DATA.targets||[]).reduce((s,t) => s + (t.target||0), 0);
+//==============================================================================
+// CONTENT SYNDICATION
+//==============================================================================
+// Parse a bare 'YYYY-MM-DD' as a LOCAL date. (new Date('YYYY-MM-DD') parses as UTC
+// midnight, which then mismatches the LOCAL getDay/getDate accessors used for the
+// Monday-snap and week labels below — shifting the grid a day for non-UTC viewers.)
+function parseDate(s){
+  if (s == null) return new Date(NaN);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
+  return m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(s);
+}
 
-  // Campaign window from budget envelope
-  let earliestStart = null, latestEnd = null;
+// Per-campaign window from the budget envelope (falls back to the global
+// reporting window if a campaign has no budget rows yet).
+function campaignWindow(c) {
+  let s = null, e = null;
   for (const b of (DATA.budget||[])) {
-    const s = new Date(b.start), e = new Date(b.end);
-    if (!earliestStart || s < earliestStart) earliestStart = s;
-    if (!latestEnd || e > latestEnd) latestEnd = e;
+    if (campaignOf(b.programme) !== c) continue;
+    const bs = parseDate(b.start), be = parseDate(b.end);
+    if (!s || bs < s) s = bs;
+    if (!e || be > e) e = be;
   }
-  const totalDays = earliestStart ?
-    Math.round((latestEnd - earliestStart) / (1000*60*60*24)) + 1 : 1;
+  if (!s || isNaN(s) || !e || isNaN(e)) { s = parseDate(DATA.window.start); e = parseDate(DATA.window.end); }
+  return {start:s, end:e};
+}
 
-  // Days elapsed (clamped to [0, totalDays])
+// Per-campaign pacing. Target & live leads are region-filtered (both carry a
+// market), so the regional toggle flows through cleanly. No cross-campaign sums.
+function pacing(c) {
+  const w = campaignWindow(c);
+  const totalDays = Math.max(1, Math.round((w.end - w.start)/86400000) + 1);
   const today = new Date();
-  let daysElapsed = earliestStart ?
-    Math.round((today - earliestStart) / (1000*60*60*24)) + 1 : 0;
-  daysElapsed = Math.max(0, Math.min(daysElapsed, totalDays));
+  let elapsed = Math.round((today - w.start)/86400000) + 1;
+  elapsed = Math.max(0, Math.min(elapsed, totalDays));
 
-  const ttdTarget = Math.round(totalTarget * daysElapsed / totalDays);
+  const target = (DATA.targets||[])
+    .filter(t => campaignOf(t.programme) === c && marketOk(t.market))
+    .reduce((s,t) => s + (t.target||0), 0);
+  // "Delivered" intentionally uses the LIVE cs_by_programme totals (fresher than the
+  // targets[].delivered snapshot the job also emits, which the dashboard does not read).
+  const leads = (DATA.cs_by_programme||[])
+    .filter(r => campaignOf(r.programme) === c && marketOk(r.market))
+    .reduce((s,r) => s + (r.total||0), 0);
+  const ttd = Math.round(target * elapsed / totalDays);
 
-  // Live leads from active CS campaigns
-  let leads = 0;
-  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
-    leads += r.total||0;
-  }
-
-  return {
-    totalTarget, ttdTarget, leads,
-    earliestStart, latestEnd, totalDays, daysElapsed,
-    leadsPct: totalTarget ? leads/totalTarget : 0,
-    timePct:  totalDays   ? daysElapsed/totalDays : 0,
-    vsTtd:    ttdTarget   ? leads/ttdTarget : 0
-  };
+  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, ttd,
+          hasTarget: target > 0,
+          leadsPct: target?leads/target:0,
+          vsTtd: ttd ? leads/ttd : null,    // null = no target set yet → not "behind plan"
+          timePct: totalDays?elapsed/totalDays:0};
 }
 
-// --- CS top KPI strip -------------------------------------------------------
-// Headline numbers above the three pacing cards. Mirrors Cloudflare's
-// "OVERALL / PACING / LEAD QUALITY" strip but adapted for MongoDB (no
-// status-quality metrics yet — just lead totals + pacing percentages).
-function renderCSKpiStrip() {
-  const p = pacingState();
-  const currentPacing = p.vsTtd;            // leads / TTD-target
-  const overallPacing = p.leadsPct;         // leads / total-target
-
-  // "Current pacing" colors: green if >= 100%, amber 80-100%, red <80%
-  const cpCls = currentPacing >= 1 ? 'ok' :
-                currentPacing >= 0.8 ? 'warn' : '';
-  const cpVerdict = currentPacing >= 1 ? 'Ahead of plan ✓' :
-                    currentPacing >= 0.8 ? 'On track' : 'Behind plan';
-
-  document.getElementById('csKpiStrip').innerHTML = `
-    <div class="cs-kpi">
-      <div class="group">Overall</div>
-      <div class="label">Total Target</div>
-      <div class="v">${fmtN(p.totalTarget)}</div>
-      <div class="sub">across 3 programmes</div>
-    </div>
-    <div class="cs-kpi">
-      <div class="group">Overall</div>
-      <div class="label">Total Leads</div>
-      <div class="v">${fmtN(p.leads)}</div>
-      <div class="sub">live from Salesforce</div>
-    </div>
-    <div class="cs-kpi">
-      <div class="group">Pacing</div>
-      <div class="label">Current Pacing</div>
-      <div class="v ${cpCls}">${fmtPct(currentPacing,1)}</div>
-      <div class="sub">${cpVerdict}</div>
-    </div>
-    <div class="cs-kpi">
-      <div class="group">Pacing</div>
-      <div class="label">Overall Pacing</div>
-      <div class="v">${fmtPct(overallPacing,1)}</div>
-      <div class="sub">of total plan delivered</div>
-    </div>`;
+function paceVerdict(vsTtd){
+  if (vsTtd == null)  return {cls:'neutral', txt:'Target not set yet'};
+  if (vsTtd > 1)      return {cls:'ok',   txt:'Ahead of plan ✓'};
+  if (vsTtd >= 0.98)  return {cls:'ok',   txt:'On plan ✓'};
+  if (vsTtd >= 0.8)   return {cls:'warn', txt:'On track'};
+  return {cls:'bad', txt:'Behind plan'};
 }
 
-// --- Leads vs target card ---------------------------------------------------
-// Three horizontal bars: Total target / TTD target / Delivered.
-function renderLeadsVsTarget() {
-  const p = pacingState();
-  const maxVal = Math.max(p.totalTarget, p.leads, 1);
-  const bar = (label, val, color) => {
-    const w = (val/maxVal*100).toFixed(1);
-    return `<div style="display:grid;grid-template-columns:110px 1fr 60px;
-            align-items:center;gap:10px;margin-bottom:8px">
-      <div style="font-size:12px;color:var(--mdb-mute)">${label}</div>
-      <div style="background:var(--mdb-line);height:14px;border-radius:7px;overflow:hidden">
-        <div style="width:${w}%;height:100%;background:${color};
-             border-radius:7px;transition:width .4s ease"></div>
+function renderCSCards() {
+  const host = el('csCards'); host.innerHTML = '';
+  selectedCampaigns().forEach(c => {
+    const col = CAMP[c].color;
+    const p = pacing(c);
+    if (!p.leads) {
+      // No leads under the current region(s). Message distinguishes a not-yet-live
+      // campaign from one that simply has nothing in the selected region(s).
+      const anyLeads = (DATA.cs_by_programme||[]).some(r => campaignOf(r.programme) === c);
+      const msg = anyLeads
+        ? `No content-syndication leads for ${CAMP[c].label} in the selected region(s).`
+        : `No content-syndication leads yet for ${CAMP[c].label}.`;
+      host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
+        <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
+        <div class="no-data">${msg}</div></div>`;
+      return;
+    }
+    const v = paceVerdict(p.vsTtd);
+    host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
+      <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
+      <div class="camp-kpis">
+        <div><div class="k">Leads</div><div class="v">${fmtN(p.leads)}</div></div>
+        <div><div class="k">Target</div><div class="v">${p.hasTarget ? fmtN(p.target) : '—'}</div></div>
+        <div><div class="k">Pacing</div><div class="v">${p.vsTtd == null ? '—' : fmtPct(p.vsTtd,0)}</div></div>
       </div>
-      <div style="text-align:right;font-weight:700;font-size:13px;
-                  color:var(--mdb-slate);font-variant-numeric:tabular-nums">${fmtN(val)}</div>
+      <div class="camp-pace ${v.cls}">${v.txt}</div>
+      <div class="camp-sub">${p.hasTarget
+        ? fmtPct(p.leadsPct,1) + ' of total target · TTD target ' + fmtN(p.ttd)
+        : 'No target set yet'} · day ${p.elapsed}/${p.totalDays}</div>
     </div>`;
-  };
-  const target = document.getElementById('leadsVsTarget');
-  target.innerHTML = `
-    ${bar('Total target', p.totalTarget, MDB.mute)}
-    ${bar('TTD target',   p.ttdTarget,   '#9AA3AC')}
-    ${bar('Delivered',    p.leads,       MDB.spring)}
-    <div style="font-size:11.5px;color:var(--mdb-mute);margin-top:10px;line-height:1.6">
-      Delivered is <b style="color:var(--mdb-slate)">${fmtPct(p.leadsPct,1)}</b>
-      of total plan,
-      <b style="color:var(--mdb-slate)">${fmtPct(p.vsTtd,1)}</b> of TTD target.
-    </div>`;
+  });
 }
 
-// --- Progress card ----------------------------------------------------------
-// Two bars: Leads vs target / Time vs campaign days elapsed.
-function renderLeadsProgress() {
-  const p = pacingState();
-  const ahead = p.vsTtd >= 1;
-  const bar = (label, pct, color) => {
-    const w = Math.min(pct*100, 100).toFixed(1);
-    return `<div style="display:grid;grid-template-columns:70px 1fr 60px;
-            align-items:center;gap:10px;margin-bottom:10px">
-      <div style="font-size:12px;color:var(--mdb-mute)">${label}</div>
-      <div style="background:var(--mdb-line);height:14px;border-radius:7px;overflow:hidden">
-        <div style="width:${w}%;height:100%;background:${color};
-             border-radius:7px;transition:width .4s ease"></div>
-      </div>
-      <div style="text-align:right;font-weight:700;font-size:13px;
-                  color:var(--mdb-slate);font-variant-numeric:tabular-nums">${fmtPct(pct,1)}</div>
-    </div>`;
-  };
-  const summary = ahead
-    ? `Leads pacing is <b style="color:var(--good-green)">${fmtPct(p.vsTtd,0)} of expected</b>. Ahead of plan ✓`
-    : `Leads pacing is <b style="color:var(--warn-amber)">${fmtPct(p.vsTtd,0)} of expected</b>. Behind plan.`;
-  document.getElementById('leadsProgress').innerHTML = `
-    ${bar('Leads', p.leadsPct, MDB.spring)}
-    ${bar('Time',  p.timePct,  MDB.mute)}
-    <div style="font-size:11.5px;color:var(--mdb-mute);margin-top:10px;line-height:1.6">
-      ${summary}
-    </div>`;
+function renderCSTargetActual() {
+  const camps = selectedCampaigns();
+  const labels = camps.map(c => CAMP[c].label);
+  const targetData = camps.map(c => pacing(c).target);
+  const deliveredData = camps.map(c => pacing(c).leads);
+  charts.csTargetActual = new Chart(el('csTargetActual'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'Target',    data:targetData,    backgroundColor:'#9AA3AC', borderRadius:3},
+      {label:'Delivered', data:deliveredData, backgroundColor:camps.map(c=>CAMP[c].color), borderRadius:3}
+    ]},
+    options: chartBase({
+      scales:{ x:{grid:{display:false}},
+        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads'}} }
+    })
+  });
 }
 
-// --- Weekly pacing chart ----------------------------------------------------
-// Bars per week-of (Monday-start). Target bar = weekly_target_pace.
-// Actual bar = leads delivered that week (we don't have date-stamped SF
-// counts in the JSON yet, so we ramp actuals linearly across the elapsed
-// window — same approximation as before).
-function renderWeeklyPacing() {
-  const p = pacingState();
-  if (!p.earliestStart) { destroyChart('weekly'); return; }
+function renderCSMarket() {
+  const markets = activeMarketList();
+  const datasets = selectedCampaigns().map(c => {
+    const byMarket = {};
+    for (const r of (DATA.cs_by_programme||[])) {
+      if (campaignOf(r.programme) !== c) continue;
+      byMarket[r.market] = (byMarket[r.market]||0) + (r.total||0);
+    }
+    return {label:CAMP[c].label, data:markets.map(m=>byMarket[m]||0),
+            backgroundColor:CAMP[c].color, borderRadius:3};
+  });
+  charts.csMarket = new Chart(el('csMarket'), {
+    type:'bar', data:{labels:markets, datasets},
+    options: chartBase({
+      scales:{ x:{grid:{display:false}},
+        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads'}} }
+    })
+  });
+}
 
-  // Build week-start labels (Monday) across the full campaign window
+function renderCSWeekly() {
+  const camps = selectedCampaigns();
+  // Union window across selected campaigns, snapped to Monday.
+  let minStart = null, maxEnd = null;
+  camps.forEach(c => {
+    const w = campaignWindow(c);
+    if (!minStart || w.start < minStart) minStart = w.start;
+    if (!maxEnd   || w.end   > maxEnd)   maxEnd   = w.end;
+  });
+  if (!minStart || isNaN(minStart)) { return; }
+
   const weeks = [];
-  let cur = new Date(p.earliestStart);
-  // Snap to Monday-of-week containing earliestStart
-  const dow = (cur.getDay() + 6) % 7; // 0=Mon
-  cur.setDate(cur.getDate() - dow);
-  while (cur <= p.latestEnd) {
-    weeks.push(new Date(cur));
-    cur.setDate(cur.getDate() + 7);
-  }
-  const labels = weeks.map(w => {
-    const mm = String(w.getMonth()+1).padStart(2,'0');
-    const dd = String(w.getDate()).padStart(2,'0');
-    return mm + '-' + dd;
-  });
+  let cur = new Date(minStart);
+  cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));   // snap to Monday
+  while (cur <= maxEnd) { weeks.push(new Date(cur)); cur.setDate(cur.getDate() + 7); }
+  const labels = weeks.map(w =>
+    String(w.getMonth()+1).padStart(2,'0') + '-' + String(w.getDate()).padStart(2,'0'));
 
-  // Weekly target = totalTarget / number-of-campaign-weeks
-  // (use only weeks that fall within campaign window for the denominator)
-  const inCampaign = weeks.map(w => {
-    const wEnd = new Date(w); wEnd.setDate(wEnd.getDate()+6);
-    return w <= p.latestEnd && wEnd >= p.earliestStart;
-  });
-  const activeWeeks = inCampaign.filter(Boolean).length;
-  const weeklyTarget = activeWeeks ? p.totalTarget / activeWeeks : 0;
-  const targetData = inCampaign.map(c => c ? Math.round(weeklyTarget) : null);
-
-  // Actual leads per week — linear ramp from start to today
   const today = new Date();
-  const actualData = weeks.map((w, i) => {
-    const wEnd = new Date(w); wEnd.setDate(wEnd.getDate()+6);
-    if (w > today) return null;            // future week
-    if (wEnd < p.earliestStart) return null; // before campaign
-    if (w > p.latestEnd) return null;        // after campaign
-    // Number of campaign-elapsed days that fall inside this week
-    const weekStart = w < p.earliestStart ? p.earliestStart : w;
-    const weekEnd   = wEnd > today ? today : wEnd;
-    const daysInWeek = Math.max(0, Math.round((weekEnd - weekStart)/(1000*60*60*24)) + 1);
-    if (daysInWeek <= 0) return null;
-    // Spread total live leads proportionally to elapsed days in week
-    return Math.round(p.leads * daysInWeek / p.daysElapsed);
+  const datasets = [];
+  camps.forEach(c => {
+    const p = pacing(c);
+    // weekly target pace (target spread over the campaign's own weeks)
+    const inC = weeks.map(w => { const e=new Date(w); e.setDate(e.getDate()+6); return w <= p.end && e >= p.start; });
+    const activeWeeks = inC.filter(Boolean).length || 1;
+    const weeklyTarget = p.target / activeWeeks;
+    const targetData = inC.map(ok => ok ? Math.round(weeklyTarget) : null);
+    // actual leads per week — ramp live leads across elapsed days (no date-stamped feed yet)
+    const actualData = weeks.map(w => {
+      const e = new Date(w); e.setDate(e.getDate()+6);
+      if (w > today || e < p.start || w > p.end) return null;
+      const ws = w < p.start ? p.start : w;
+      const we = e > today ? today : e;
+      const days = Math.max(0, Math.round((we - ws)/86400000) + 1);
+      if (days <= 0) return null;
+      return p.elapsed ? Math.round(p.leads * days / p.elapsed) : 0;
+    });
+    datasets.push({type:'bar', label:CAMP[c].label+' actual', data:actualData,
+                   backgroundColor:CAMP[c].color, borderRadius:3, order:2});
+    datasets.push({type:'line', label:CAMP[c].label+' target', data:targetData,
+                   borderColor:'#9AA3AC', borderDash:[5,4], borderWidth:2, pointRadius:0,
+                   tension:.2, fill:false, order:1});
   });
 
-  destroyChart('weekly');
-  charts.weekly = new Chart(document.getElementById('weeklyPacing'), {
-    type:'bar',
-    data:{
-      labels,
-      datasets:[
-        {label:'Target',  data:targetData,
-         backgroundColor:'#9AA3AC', borderRadius:3, order:2},
-        {label:'Actual',  data:actualData,
-         backgroundColor:MDB.spring, borderRadius:3, order:1}
-      ]
-    },
+  charts.csWeekly = new Chart(el('csWeekly'), {
+    type:'bar',                      // base type; the 'target' datasets override to 'line' (mixed chart)
+    data:{labels, datasets},
     options: chartBase({
-      scales:{
-        x:{grid:{display:false},ticks:{font:{size:10}}},
-        y:{beginAtZero:true,grid:{color:MDB.line},
-           title:{display:true,text:'Leads / week'}}
-      }
+      // spanGaps stays false so the dashed target line BREAKS on out-of-window (null)
+      // weeks instead of bridging across them and implying a target where there is none.
+      scales:{ x:{grid:{display:false},ticks:{font:{size:10}}},
+        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads / week'}} }
     })
   });
 }
 
-
-// --- CS leads by market chart -----------------------------------------------
-// Replaces the old status-stacked chart. Just total leads per market.
-function renderCSMarketChart() {
-  const byMarket = {};
-  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
-    byMarket[r.market] = (byMarket[r.market]||0) + (r.total||0);
-  }
-  const labels = Object.keys(byMarket);
-  const data = labels.map(m => byMarket[m]);
-  destroyChart('csMarket');
-  charts.csMarket = new Chart(document.getElementById('csMarketChart'), {
-    type:'bar',
-    data:{labels, datasets:[{label:'Leads', data, backgroundColor:MDB.green, borderRadius:3}]},
-    options: chartBase({
-      scales:{
-        x:{grid:{display:false},ticks:{font:{size:11}}},
-        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads'}}
-      },
-      plugins:{legend:{display:false}}
-    })
-  });
-}
-
-// --- CS programme bar -------------------------------------------------------
-function renderCSProgChart() {
-  const agg = {};
-  for (const r of (DATA.cs_by_programme||[])) if (csRowPasses(r)) {
-    agg[r.programme] = (agg[r.programme]||0) + (r.total||0);
-  }
-  const labels = Object.keys(agg);
-  const data = labels.map(p => agg[p]);
-  const colors = labels.map(p => PROG_COLORS[p] || MDB.mute);
-  destroyChart('csProg');
-  charts.csProg = new Chart(document.getElementById('csProgChart'), {
-    type:'bar',
-    data:{labels,datasets:[{data,backgroundColor:colors,borderRadius:3}]},
-    options: chartBase({
-      indexAxis:'y',
-      scales:{x:{beginAtZero:true,grid:{color:MDB.line}},y:{grid:{display:false}}},
-      plugins:{legend:{display:false}}
-    })
-  });
-}
-
-// --- CS detail table --------------------------------------------------------
 function renderCSTable() {
+  const sel = new Set(selectedCampaigns());
   const tbody = document.querySelector('#csTable tbody');
   tbody.innerHTML = '';
   const rows = (DATA.cs_by_programme||[])
-    .filter(r => csRowPasses(r))
-    .sort((a,b) => (b.total||0)-(a.total||0));
+    .filter(r => sel.has(campaignOf(r.programme)) && marketOk(r.market))
+    .sort((a,b) => (b.total||0) - (a.total||0));
   for (const r of rows) {
+    const c = campaignOf(r.programme);
     tbody.innerHTML += `<tr>
+      <td><span class="camp-tag"><span class="dot" style="background:${CAMP[c].color}"></span>${CAMP[c].label}</span></td>
       <td><b>${r.programme}</b></td>
       <td>${r.market}</td>
       <td class="num">${fmtN(r.total)}</td>
       <td class="num">${r.last_lead_day || '—'}</td>
     </tr>`;
   }
+  if (!rows.length) tbody.innerHTML = `<tr><td colspan="5" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
 }
 
 //==============================================================================
 // CHART HELPERS
 //==============================================================================
-function destroyChart(name) { if (charts[name]) charts[name].destroy(); }
+function destroyAllCharts() {
+  for (const k in charts) { if (charts[k]) charts[k].destroy(); }
+  charts = {};
+}
 
 function chartBase(opts={}) {
   const base = {
@@ -1022,8 +915,8 @@ function chartBase(opts={}) {
     }
   };
   if (opts.plugins) base.plugins = {...base.plugins, ...opts.plugins};
-  if (opts.scales) base.scales = {...base.scales, ...opts.scales};
-  Object.keys(opts).forEach(k => { if (k!=='plugins'&&k!=='scales') base[k]=opts[k]; });
+  if (opts.scales)  base.scales  = {...base.scales,  ...opts.scales};
+  Object.keys(opts).forEach(k => { if (k!=='plugins' && k!=='scales') base[k]=opts[k]; });
   return base;
 }
 
@@ -1031,4 +924,3 @@ boot();
 </script>
 </body>
 </html>
-
