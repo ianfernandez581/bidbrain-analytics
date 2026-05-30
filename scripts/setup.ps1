@@ -45,6 +45,25 @@ function Update-SessionPath {
     $env:Path = ($machine, $user | Where-Object { $_ }) -join ";"
 }
 
+# --- Helper: run a probe command whose failure is EXPECTED and handled here. ----
+# With $ErrorActionPreference = "Stop", redirecting a native command's stderr
+# (2>$null) turns its error output into a terminating NativeCommandError, which
+# would abort the whole script. We drop to "Continue" for the probe and report
+# success purely from the exit code, so a failed check just returns $false.
+function Test-Probe {
+    param([scriptblock]$Command)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & $Command 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    } finally {
+        $ErrorActionPreference = $prev
+    }
+}
+
 # --- 1. Python ----------------------------------------------------------------
 if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
     Write-Host "[*] Python not found - installing Python 3.12 via winget..." -ForegroundColor Yellow
@@ -99,30 +118,35 @@ Write-Host "[OK] Dependencies installed into .venv" -ForegroundColor Green
 
 # --- 5. Authenticate (the one manual step - a browser will open) --------------
 Write-Host "[*] Checking gcloud CLI credentials..." -ForegroundColor Yellow
-if (-not (gcloud auth print-access-token 2>$null)) {
+if (-not (Test-Probe { gcloud auth print-access-token })) {
     Write-Host "    Opening browser for gcloud login..." -ForegroundColor Yellow
     gcloud auth login
 }
-gcloud config set project $PROJECT 2>$null | Out-Null
+Test-Probe { gcloud config set project $PROJECT } | Out-Null
 
 Write-Host "[*] Checking application-default credentials..." -ForegroundColor Yellow
-if (-not (gcloud auth application-default print-access-token 2>$null)) {
+if (-not (Test-Probe { gcloud auth application-default print-access-token })) {
     Write-Host "    Opening browser for application-default login..." -ForegroundColor Yellow
     gcloud auth application-default login
 }
-gcloud auth application-default set-quota-project $PROJECT 2>$null | Out-Null
-Write-Host "[OK] Authenticated as $(gcloud config get-value account 2>$null)" -ForegroundColor Green
+Test-Probe { gcloud auth application-default set-quota-project $PROJECT } | Out-Null
+$account = (& gcloud config get-value account 2>$null)
+Write-Host "[OK] Authenticated as $account" -ForegroundColor Green
 
 # --- 6. Verify secret + BigQuery ---------------------------------------------
 Write-Host "[*] Verifying Windsor secret access..." -ForegroundColor Yellow
-$null = gcloud secrets versions access latest --secret windsor-api-key --project $PROJECT 2>$null
-if ($LASTEXITCODE -eq 0) { Write-Host "[OK] Windsor secret readable" -ForegroundColor Green }
-else { Write-Host "[!] Could not read windsor-api-key (check IAM / secret name)" -ForegroundColor Yellow }
+if (Test-Probe { gcloud secrets versions access latest --secret windsor-api-key --project $PROJECT }) {
+    Write-Host "[OK] Windsor secret readable" -ForegroundColor Green
+} else {
+    Write-Host "[!] Could not read windsor-api-key (check IAM / secret name)" -ForegroundColor Yellow
+}
 
 Write-Host "[*] Verifying BigQuery (raw_windsor)..." -ForegroundColor Yellow
-& $venvPy -c "from google.cloud import bigquery; bigquery.Client(project='$PROJECT', location='australia-southeast1').get_dataset('raw_windsor'); print('ok')" 2>$null | Out-Null
-if ($LASTEXITCODE -eq 0) { Write-Host "[OK] BigQuery reachable, raw_windsor found" -ForegroundColor Green }
-else { Write-Host "[!] Could not reach raw_windsor via Python (check creds / dataset)" -ForegroundColor Yellow }
+if (Test-Probe { & $venvPy -c "from google.cloud import bigquery; bigquery.Client(project='$PROJECT', location='australia-southeast1').get_dataset('raw_windsor'); print('ok')" }) {
+    Write-Host "[OK] BigQuery reachable, raw_windsor found" -ForegroundColor Green
+} else {
+    Write-Host "[!] Could not reach raw_windsor via Python (check creds / dataset)" -ForegroundColor Yellow
+}
 
 # --- Done ---------------------------------------------------------------------
 Write-Host ""

@@ -540,6 +540,7 @@ Hard-won, in no particular order. These will save the next build hours.
 - You **can't rename a folder you're standing in** — `cd` out first.
 - **Variables don't survive a new terminal.** Re-set `$repo`, `$app`, etc. each session.
 - Writing secrets: use a temp file with `[IO.File]::WriteAllText` (no trailing newline) so the password is exact.
+- **`$ErrorActionPreference = "Stop"` + a redirected native stderr = silent script death.** Under `Stop`, redirecting a native command's stderr (e.g. `gcloud … 2>$null`) wraps each stderr line in a *terminating* `NativeCommandError` — so an "expected to fail" probe like the not-logged-in `gcloud auth print-access-token` check aborts the whole script instead of falling through to the login step. Run such probes through the `Test-Probe` helper in `scripts/setup.ps1` (drops to `Continue`, judges success by `$LASTEXITCODE`) rather than testing the redirected output directly.
 
 **BigQuery / Snowflake**
 - `bq` and BigQuery jobs need an explicit `--location=australia-southeast1` (defaults to US otherwise).
