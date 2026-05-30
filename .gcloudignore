@@ -1,0 +1,24 @@
+# What gcloud must NOT upload during `gcloud builds submit` or
+# `gcloud run deploy --source`. Keeps source uploads clean and secret-free.
+.git/
+.gitignore
+.gcloudignore
+
+# Python / venv / caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Loader runtime caches, logs, temp data (never deployed)
+windsor_data_pull/*/_run/
+*.log
+*.ndjson
+
+# Local-only secrets vault + any stray secret material (defense in depth)
+bidbrain-vault/
+*.p8
+*.pem
+*.key
+*credentials*.json
+.env

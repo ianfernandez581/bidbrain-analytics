@@ -1,5 +1,6 @@
 import os
 import hmac
+from pathlib import Path
 from flask import (
     Flask, request, redirect, session, Response, render_template_string, abort
 )
@@ -21,10 +22,10 @@ DATA_OBJECT = os.environ.get("DATA_OBJECT", "mongodb.json")  # object inside it
 
 _storage = storage.Client()
 
-# Dashboard HTML is baked into the container at build time.
+# Dashboard HTML is baked into the container at build time, next to this file.
+# Anchor to __file__ so it loads regardless of the process working directory.
 try:
-    with open("dashboard.html", "r", encoding="utf-8") as _f:
-        DASHBOARD_HTML = _f.read()
+    DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html").read_text(encoding="utf-8")
 except FileNotFoundError:
     DASHBOARD_HTML = None
 

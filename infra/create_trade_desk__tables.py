@@ -1,6 +1,7 @@
 from google.cloud import bigquery
+from _config import PROJECT, RAW_DATASET
 
-client = bigquery.Client(project="bidbrain-analytics")
+client = bigquery.Client(project=PROJECT)
 
 # Main fact table
 schema = [
@@ -45,7 +46,7 @@ schema = [
         description="Full original row from Windsor for fidelity"),
 ]
 
-table_id = "bidbrain-analytics.reports.perf_the_trade_desk"
+table_id = f"{PROJECT}.{RAW_DATASET}.perf_the_trade_desk"
 table = bigquery.Table(table_id, schema=schema)
 table.time_partitioning = bigquery.TimePartitioning(
     type_=bigquery.TimePartitioningType.DAY,

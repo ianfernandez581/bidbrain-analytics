@@ -1,8 +1,8 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>MongoDB APAC â€” Live Dashboard</title>
+<title>MongoDB APAC — Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <style>
   :root{
@@ -147,7 +147,7 @@
                       margin-top:10px;font-size:11.5px;color:var(--mdb-mute)}
   .prog-card .markets span b{color:var(--mdb-ink);font-weight:600;float:right}
 
-  /* CS top KPI strip â€” slate-blue hero panel (main visual focus of the dashboard) */
+  /* CS top KPI strip — slate-blue hero panel (main visual focus of the dashboard) */
   .cs-hero{background:linear-gradient(135deg,var(--mdb-slate) 0%,#03293A 100%);
            color:#fff;border-radius:14px;padding:22px 8px;
            box-shadow:0 4px 22px rgba(0,30,43,.18);
@@ -220,7 +220,7 @@
     </div>
   </div>
   <div class="topbar-right">
-    <div><span class="live"></span><b style="color:#fff">Live</b> Â· APAC Demand Gen Â· The Trade Desk</div>
+    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC Demand Gen · The Trade Desk</div>
     <div id="topbarMeta" style="margin-top:2px">&nbsp;</div>
   </div>
 </div>
@@ -229,7 +229,7 @@
 
   <div id="loading" class="loading">
     <div class="spinner"></div>
-    <div>Fetching dashboard data from Snowflakeâ€¦</div>
+    <div>Fetching dashboard data from BigQuery…</div>
   </div>
 
   <div id="error" class="error-box" style="display:none">
@@ -251,12 +251,12 @@
 
     <!-- ============ CONTENT SYNDICATION ============ -->
     <div class="section first">
-      <h2>Content Syndication â€” Lead Pacing</h2>
+      <h2>Content Syndication — Lead Pacing</h2>
       <span class="sub">Live Salesforce data across three DNB IDE programmes
-        (Single Touch Â· Tech DMs Â· Biz &amp; Ops Leaders)</span>
+        (Single Touch · Tech DMs · Biz &amp; Ops Leaders)</span>
     </div>
 
-    <!-- Top KPI strip â€” slate-blue hero, main visual focus -->
+    <!-- Top KPI strip — slate-blue hero, main visual focus -->
     <div class="cs-hero">
       <div id="csKpiStrip" class="cs-kpi-strip"></div>
     </div>
@@ -276,7 +276,7 @@
     </div>
 
     <div class="card" style="margin-top:14px">
-      <h3>Weekly pacing â€” target vs actual</h3>
+      <h3>Weekly pacing — target vs actual</h3>
       <div class="hint">Leads delivered per week-of, against the weekly target pace.</div>
       <div class="chart-wrap" style="height:300px"><canvas id="weeklyPacing"></canvas></div>
     </div>
@@ -299,7 +299,7 @@
     </div>
 
     <div class="card" style="margin-top:14px">
-      <h3>Programme Ã— market breakdown</h3>
+      <h3>Programme × market breakdown</h3>
       <div class="hint">Total leads, latest lead day per cell.</div>
       <div style="overflow:auto">
         <table id="csTable">
@@ -312,7 +312,7 @@
       </div>
     </div>
     <div class="section">
-      <h2>Paid Media â€” Headline</h2>
+      <h2>Paid Media — Headline</h2>
       <span class="sub">Live Trade Desk delivery across selected campaigns</span>
     </div>
 
@@ -338,7 +338,7 @@
 
     <div class="grid">
       <div class="card card-tall">
-        <h3>Daily delivery â€” impressions + clicks</h3>
+        <h3>Daily delivery — impressions + clicks</h3>
         <div class="hint">Impressions (bars), clicks (line). Filtered by selected campaigns.</div>
         <div class="chart-wrap"><canvas id="dailyChart"></canvas></div>
       </div>
@@ -357,7 +357,7 @@
       </div>
       <div class="card card-tall">
         <h3>CPC by market</h3>
-        <div class="hint">Cost per click â€” lower is better.</div>
+        <div class="hint">Cost per click — lower is better.</div>
         <div class="chart-wrap"><canvas id="cpcMarketChart"></canvas></div>
       </div>
     </div>
@@ -422,10 +422,10 @@ let charts = {};
 //==============================================================================
 // HELPERS
 //==============================================================================
-const fmt$ = (v, d=0) => v == null || isNaN(v) ? 'â€”' :
+const fmt$ = (v, d=0) => v == null || isNaN(v) ? '—' :
   '$' + Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
-const fmtN = v => v == null || isNaN(v) ? 'â€”' : Number(v).toLocaleString('en-US');
-const fmtPct = (v,d=2) => v == null || isNaN(v) ? 'â€”' : (Number(v)*100).toFixed(d) + '%';
+const fmtN = v => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('en-US');
+const fmtPct = (v,d=2) => v == null || isNaN(v) ? '—' : (Number(v)*100).toFixed(d) + '%';
 
 function rowPasses(r) {
   // Paid-media rows: programme is 'IDE' or 'IDC'
@@ -477,13 +477,13 @@ async function boot() {
 }
 
 function renderTopbarMeta() {
-  const lu = DATA.last_updated ? new Date(DATA.last_updated.replace(' ', 'T')) : null;
+  const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : 'unknown';
   document.getElementById('topbarMeta').textContent =
-    'Updated ' + luText + ' Â· Window ' + DATA.window.start + ' â†’ ' + DATA.window.end;
+    'Updated ' + luText + ' · Window ' + DATA.window.start + ' → ' + DATA.window.end;
   document.getElementById('footMeta').innerHTML =
-    'Live from Snowflake (<b>MONGODB_SANDBOX.PAID_MEDIA_REPORTING</b>) Â· ' +
-    DATA.row_count.toLocaleString() + ' rows Â· Auto-refreshes daily at 22:00 UTC';
+    'Live from BigQuery (<b>client_mongodb.paid_media_model</b>) · ' +
+    DATA.row_count.toLocaleString() + ' rows · Auto-refreshes daily at 22:00 UTC';
 }
 
 function renderCampaignChips() {
@@ -492,7 +492,7 @@ function renderCampaignChips() {
   CAMPAIGNS.forEach(camp => {
     const el = document.createElement('button');
     el.className = 'chip' + (activeCampaigns.has(camp.key) ? ' on' : '');
-    el.innerHTML = '<span class="check">âœ“</span>' + camp.label;
+    el.innerHTML = '<span class="check">✓</span>' + camp.label;
     el.title = camp.source === 'paid' ? 'Paid media campaign' : 'Content syndication campaign';
     el.onclick = () => {
       if (activeCampaigns.has(camp.key)) activeCampaigns.delete(camp.key);
@@ -548,13 +548,13 @@ function renderKPIs() {
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="k">Spend</div><div class="v">${fmt$(sp)}</div>
-      <div class="sub">${fmtN(imp)} imps Â· ${fmtN(clk)} clicks</div></div>
+      <div class="sub">${fmtN(imp)} imps · ${fmtN(clk)} clicks</div></div>
     <div class="kpi"><div class="k">CTR</div><div class="v">${fmtPct(ctr,3)}</div>
-      <div class="sub">CPM ${fmt$(cpm,2)} Â· CPC ${fmt$(cpc,2)}</div></div>
+      <div class="sub">CPM ${fmt$(cpm,2)} · CPC ${fmt$(cpc,2)}</div></div>
     <div class="kpi"><div class="k">CS leads (live)</div><div class="v">${fmtN(csTotal)}</div>
-      <div class="sub">${fmtN(csUnresp)} unresponsive Â· 0 accepted</div></div>
+      <div class="sub">${fmtN(csUnresp)} unresponsive · 0 accepted</div></div>
     <div class="kpi"><div class="k">Window</div><div class="v">${DATA.window.days}d</div>
-      <div class="sub">${DATA.window.start} â†’ ${DATA.window.end}</div></div>`;
+      <div class="sub">${DATA.window.start} → ${DATA.window.end}</div></div>`;
 }
 
 // --- Strategy table ---------------------------------------------------------
@@ -581,7 +581,7 @@ function renderStrategyTable() {
     const cpmVs = b.cpm ? (b.cpm - cpm)/b.cpm : null;
     const ctrCls = ctrVs == null ? 'vs-neut' : (ctrVs > 0 ? 'vs-good' : 'vs-bad');
     const cpmCls = cpmVs == null ? 'vs-neut' : (cpmVs > 0 ? 'vs-good' : 'vs-bad');
-    const fmtVs = v => v == null ? 'â€”' : (v>=0?'+':'') + (v*100).toFixed(0) + '%';
+    const fmtVs = v => v == null ? '—' : (v>=0?'+':'') + (v*100).toFixed(0) + '%';
     tbody.innerHTML += `<tr>
       <td><b>${s}</b></td>
       <td class="num">${fmt$(a.spend)}</td>
@@ -771,7 +771,7 @@ function pacingState() {
 // --- CS top KPI strip -------------------------------------------------------
 // Headline numbers above the three pacing cards. Mirrors Cloudflare's
 // "OVERALL / PACING / LEAD QUALITY" strip but adapted for MongoDB (no
-// status-quality metrics yet â€” just lead totals + pacing percentages).
+// status-quality metrics yet — just lead totals + pacing percentages).
 function renderCSKpiStrip() {
   const p = pacingState();
   const currentPacing = p.vsTtd;            // leads / TTD-target
@@ -780,7 +780,7 @@ function renderCSKpiStrip() {
   // "Current pacing" colors: green if >= 100%, amber 80-100%, red <80%
   const cpCls = currentPacing >= 1 ? 'ok' :
                 currentPacing >= 0.8 ? 'warn' : '';
-  const cpVerdict = currentPacing >= 1 ? 'Ahead of plan âœ“' :
+  const cpVerdict = currentPacing >= 1 ? 'Ahead of plan ✓' :
                     currentPacing >= 0.8 ? 'On track' : 'Behind plan';
 
   document.getElementById('csKpiStrip').innerHTML = `
@@ -859,7 +859,7 @@ function renderLeadsProgress() {
     </div>`;
   };
   const summary = ahead
-    ? `Leads pacing is <b style="color:var(--good-green)">${fmtPct(p.vsTtd,0)} of expected</b>. Ahead of plan âœ“`
+    ? `Leads pacing is <b style="color:var(--good-green)">${fmtPct(p.vsTtd,0)} of expected</b>. Ahead of plan ✓`
     : `Leads pacing is <b style="color:var(--warn-amber)">${fmtPct(p.vsTtd,0)} of expected</b>. Behind plan.`;
   document.getElementById('leadsProgress').innerHTML = `
     ${bar('Leads', p.leadsPct, MDB.spring)}
@@ -873,7 +873,7 @@ function renderLeadsProgress() {
 // Bars per week-of (Monday-start). Target bar = weekly_target_pace.
 // Actual bar = leads delivered that week (we don't have date-stamped SF
 // counts in the JSON yet, so we ramp actuals linearly across the elapsed
-// window â€” same approximation as before).
+// window — same approximation as before).
 function renderWeeklyPacing() {
   const p = pacingState();
   if (!p.earliestStart) { destroyChart('weekly'); return; }
@@ -904,7 +904,7 @@ function renderWeeklyPacing() {
   const weeklyTarget = activeWeeks ? p.totalTarget / activeWeeks : 0;
   const targetData = inCampaign.map(c => c ? Math.round(weeklyTarget) : null);
 
-  // Actual leads per week â€” linear ramp from start to today
+  // Actual leads per week — linear ramp from start to today
   const today = new Date();
   const actualData = weeks.map((w, i) => {
     const wEnd = new Date(w); wEnd.setDate(wEnd.getDate()+6);
@@ -999,7 +999,7 @@ function renderCSTable() {
       <td><b>${r.programme}</b></td>
       <td>${r.market}</td>
       <td class="num">${fmtN(r.total)}</td>
-      <td class="num">${r.last_lead_day || 'â€”'}</td>
+      <td class="num">${r.last_lead_day || '—'}</td>
     </tr>`;
   }
 }

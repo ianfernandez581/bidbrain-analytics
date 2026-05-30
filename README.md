@@ -10,6 +10,32 @@ This README is written to do two jobs at once:
 
 ---
 
+## Quickstart (clone & run)
+
+Everything in the repo is portable — nothing machine-specific is baked into the code. You only need the **gcloud CLI authenticated** as a member of the `bidbrain-analytics` project, with `secretmanager.secretAccessor` on the `windsor-api-key` secret.
+
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/Bidbrain/bidbrain-analytics.git
+cd bidbrain-analytics
+.\scripts\setup.ps1            # one-time: installs Python 3.12 + gcloud if missing, makes .venv, installs deps, logs in
+.\scripts\start_day.ps1        # each session: verifies gcloud + ADC creds
+.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py
+```
+
+**macOS / Linux (no setup.ps1 needed — the code is cross-platform):**
+```bash
+git clone https://github.com/Bidbrain/bidbrain-analytics.git && cd bidbrain-analytics
+gcloud auth login && gcloud auth application-default login   # one-time; ADC powers the client libs
+python3 -m venv .venv && . .venv/bin/activate
+pip install -r requirements.txt
+python windsor_data_pull/meta/meta_loader.py
+```
+
+Secrets are read at runtime from Secret Manager via Application Default Credentials — no key files, no gcloud-path hardcoding.
+
+---
+
 ## Table of contents
 
 1. [What this is (start here — no tech background needed)](#1-what-this-is)
@@ -120,7 +146,7 @@ If you've just been handed this repo and asked to extend it, here's your orienta
 
 We use a standard multi-tenant layout:
 
-- **`raw_<source>`** — shared raw data from a single upstream source, used by multiple clients. Example: **`raw_windsor`** holds Trade Desk performance data loaded by `loader.py` (Windsor.ai → BigQuery). Shared data is exposed to client datasets via *authorized views*.
+- **`raw_<source>`** — shared raw data from a single upstream source, used by multiple clients. Example: **`raw_windsor`** holds Trade Desk (`perf_the_trade_desk`) and Meta/Facebook (`perf_meta`) performance data, loaded by the two Windsor loaders in `windsor_data_pull/` (Windsor.ai → BigQuery). Shared data is exposed to client datasets via *authorized views*.
 - **`client_<client>`** — one dataset per client, holding everything specific to that client:
   - **`src_*` tables** — raw per-client feeds landed straight from Snowflake (single-consumer, so they live inside the client dataset). Example: `client_mongodb.src_tradedesk`, `client_mongodb.src_salesforce`.
   - **views** — the calculations that shape raw data into dashboard-ready numbers (staging → model → rollups).
@@ -142,7 +168,7 @@ For MongoDB, `client_mongodb` contains:
 | `benchmarks_market` | view | budget-weight benchmarks per market |
 | `budget` | view | programme budget envelopes |
 
-> **Note:** these view definitions currently live *only inside BigQuery*, not in the repo. See [TODO](#13-current-status--todo) — they should be saved as `.sql` files so the data model is version-controlled.
+> **Note:** these view definitions still need to be exported from BigQuery into version control. The folder (`client_mongodb/sql/`) and an apply-runner (`infra/create_views.py`) now exist — export the live DDL per [`client_mongodb/sql/README.md`](client_mongodb/sql/README.md) so the data model is fully reproducible. See [TODO](#13-current-status--todo).
 
 ### 4.2 The two moving parts: the Job and the Web App
 
@@ -153,7 +179,7 @@ Each client has **two** Cloud Run pieces. They are different things and easy to 
 | Cloud Run type | **Job** (runs, finishes, stops) | **Service** (always-on, answers web requests) |
 | What it does | pulls data → BigQuery → builds `<client>.json` → saves to private bucket | shows password screen, serves the dashboard + data to logged-in users |
 | When it runs | on a daily schedule (and on demand) | whenever someone visits the URL |
-| Source folder | `<client>-job/` | `<client>-dash/` |
+| Source folder | `client_<client>/job/` | `client_<client>/dash/` |
 | Talks to | Snowflake + BigQuery + GCS | GCS (read-only) + Secret Manager |
 
 **In plain terms:** the Job is the *kitchen* (makes the dish once a day); the Web App is the *waiter behind a locked door* (checks your password, then brings you the dish).
@@ -175,6 +201,7 @@ Each client has **two** Cloud Run pieces. They are different things and easy to 
 | `snowflake-bq-key` | the export job | private key to read Snowflake (key-pair auth) |
 | `<client>-dash-password` | the web app | the dashboard password (e.g. `mongodb-dash-password`) |
 | `<client>-dash-session-key` | the web app | random key used to sign login sessions |
+| `windsor-api-key` | the Windsor loaders (`windsor_data_pull/*`) | API key for Windsor.ai. The identity running the loaders (your ADC locally, or the CI/Cloud Build SA) needs `secretmanager.secretAccessor` on it. |
 
 **Service accounts (the "ID badges"):**
 
@@ -229,40 +256,47 @@ Real protection, because authentication sits in front of **both** the page and t
 ## 6. Repository structure
 
 ```
-bidbrain-analytics/                 ← the git repo (== GitHub, nothing secret)
-├── README.md                       ← this file
-├── .gitignore
-│
-├── create_dataset.py               ← one-time BigQuery dataset setup
-├── create_tables.py                ← one-time BigQuery table setup
-├── loader.py                       ← Windsor.ai → BigQuery loader (fills raw_windsor)
-│
-├── mongodb-job/                    ← MongoDB Export Job (Cloud Run job)
-│   ├── main.py                     ← Snowflake → BigQuery → builds mongodb.json → GCS
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-├── mongodb-dash/                   ← MongoDB Web App (Cloud Run service)
-│   ├── main.py                     ← password gate + serves dashboard + /data.json proxy
-│   ├── dashboard.html              ← the actual dashboard (Chart.js); data URL = /data.json
-│   ├── requirements.txt
-│   └── Dockerfile
-│
-└── cloudflare/                     ← placeholder for the next client (currently empty)
+bidbrain-analytics/                   <- the git repo (== GitHub, nothing secret)
+|- README.md                          <- this file
+|- .gitignore
+|- .gcloudignore                      <- what gcloud must NOT upload on source deploys
+|- requirements.txt                   <- deps for the loaders + infra scripts (pinned)
+|
+|- scripts/                           <- clone-and-run entrypoint (Windows)
+|   |- setup.ps1 / setup.cmd          <- one-time machine setup (Python, gcloud, .venv, login)
+|   \- start_day.ps1 / start_day.cmd  <- each-session credential preflight
+|
+|- infra/                             <- one-time BigQuery provisioning (idempotent)
+|   |- _config.py                     <- shared PROJECT / LOCATION / RAW_DATASET constants
+|   |- create_dataset.py              <- creates the raw_windsor dataset
+|   |- create_trade_desk__tables.py   <- creates raw_windsor.perf_the_trade_desk
+|   |- create_meta_table.py           <- creates raw_windsor.perf_meta
+|   \- create_views.py                <- applies client_mongodb view DDL from sql/
+|
+|- windsor_data_pull/                 <- Windsor.ai -> BigQuery loaders (fill raw_windsor)
+|   |- meta/meta_loader.py            <- Meta/Facebook -> raw_windsor.perf_meta  (+ _run/, gitignored)
+|   \- tradedesk/tradedesk_loader.py  <- Trade Desk   -> raw_windsor.perf_the_trade_desk  (+ _run/)
+|
+|- client_mongodb/                    <- the MongoDB client (template for new clients)
+|   |- job/                           <- Export Job (Cloud Run JOB)
+|   |   \- main.py, requirements.txt, Dockerfile, cloudbuild.yaml, .dockerignore
+|   |- dash/                          <- Web App (Cloud Run SERVICE)
+|   |   \- main.py, dashboard.html, requirements.txt, Dockerfile, cloudbuild.yaml, .dockerignore
+|   \- sql/                           <- version-controlled BigQuery view DDL (see its README)
+|
+\- client_cloudflare/                 <- placeholder for the next client (.gitkeep)
 ```
 
-**Naming convention for new clients:** each client gets `<client>-job/` and `<client>-dash/` at the repo root. (If the root gets crowded after many clients, these can be grouped under a `clients/<client>/` folder later — but keep it consistent.)
+**Naming convention for new clients:** each client gets a `client_<client>/` folder containing `job/` and `dash/`. The MongoDB build is the template — see the [Playbook](#10-playbook-add-a-new-client-dashboard).
 
-**Lives OUTSIDE the repo (local only, never committed)** — kept in a sibling folder `bidbrain-vault/`:
+**Lives OUTSIDE the repo (local only, never committed)** — the Snowflake private key, kept in a sibling folder `bidbrain-vault/`:
 
 ```
 bidbrain-vault/          (NOT in git)
-├── keys/                ← snowflake_bq_key.p8 + .pub (the Snowflake private key)
-├── chunks/              ← cached Windsor data the loader uses
-└── loader.log
+\- keys/                 <- snowflake_bq_key.p8 + .pub (the Snowflake private key)
 ```
 
-The `.gitignore` enforces this (ignores `*.p8 *.pub *.pem *.key *credentials*.json .env chunks/ *.log` and Python/OS junk).
+Loader runtime artifacts (cached Windsor chunk JSON, logs, temp NDJSON) live in a `_run/` folder **next to each loader**, anchored to the script via `__file__` — not in a vault, not in the repo root. `.gitignore` covers all of it (`*.p8 *.pem *.key *credentials*.json .env _run/ chunks/ *.log *.ndjson __pycache__ .venv`; see the file for the full list).
 
 ---
 
@@ -271,7 +305,7 @@ The `.gitignore` enforces this (ignores `*.p8 *.pub *.pem *.key *credentials*.js
 Exact names of everything that exists today (project `bidbrain-analytics`, region `australia-southeast1`):
 
 **BigQuery datasets**
-- `raw_windsor` — table `perf_the_trade_desk` (shared Windsor data)
+- `raw_windsor` — tables `perf_the_trade_desk`, `perf_meta` (shared Windsor data; the `*_staging` tables are transient MERGE scratch)
 - `client_mongodb` — tables `src_tradedesk`, `src_salesforce` + the 10 views in [4.1](#41-the-layered-data-model-bigquery)
 - `client_cloudflare` — empty (next client)
 
@@ -280,7 +314,7 @@ Exact names of everything that exists today (project `bidbrain-analytics`, regio
 - `bidbrain-analytics-staging` — Windsor loader staging
 
 **Secret Manager**
-- `snowflake-bq-key`, `mongodb-dash-password`, `mongodb-dash-session-key`
+- `snowflake-bq-key`, `mongodb-dash-password`, `mongodb-dash-session-key`, `windsor-api-key`
 
 **Service accounts**
 - `mongodb-dash-job@bidbrain-analytics.iam.gserviceaccount.com`
@@ -309,18 +343,18 @@ The export job writes one JSON object (`<client>.json`) with this envelope. The 
 
 ```jsonc
 {
-  "last_updated": "2026-05-29 22:00:00",   // timestamp string
+  "last_updated": "2026-05-29T22:00:00Z",  // UTC ISO-8601 (Z-suffixed)
   "row_count": 1234,
   "window": { "start": "2026-04-01", "end": "2026-06-30", "days": 91 },
   "all_markets":    ["ANZ", "ASEAN", "INDIA", "KR-HK-TW"],
   "all_programmes": ["IDE", "IDC"],
-  "rows": [ /* per-day paid-media delivery: channel, date, programme, market, strategy, imps, clicks, spend_usd, ... */ ],
+  "rows": [ /* per-day paid-media: channel, date, week_start, programme, market, strategy, objective, imps, clicks, spend_usd, conversions, leads */ ],
   "targets": [ /* programme, market, target, delivered */ ],
   "benchmarks_strategy": { /* keyed by strategy: { cpm, ctr, frequency, weight } */ },
   "benchmarks_market":   { /* keyed by market:   { budget_weight } */ },
   "budget": [ /* programme, tradedesk_code, gross_usd, net_usd, start, end */ ],
-  "cs": [ /* lead totals by market */ ],
-  "cs_by_programme": [ /* lead totals by programme × market */ ]
+  "cs": [ /* market, total, accepted, rejected, new_pending, unresponsive, do_not_contact, last_lead_day */ ],
+  "cs_by_programme": [ /* programme, market, total, accepted, new_pending, unresponsive, do_not_contact, last_lead_day (note: no 'rejected') */ ]
 }
 ```
 
@@ -348,7 +382,7 @@ Follow these exactly so every client looks the same.
 | Password secret | `<client>-dash-password` | `mongodb-dash-password` |
 | Session secret | `<client>-dash-session-key` | `mongodb-dash-session-key` |
 | Subdomain | `<client>.bidbrain.ai` | `mongodb.bidbrain.ai` |
-| Repo folders | `<client>-job/`, `<client>-dash/` | `mongodb-job/`, `mongodb-dash/` |
+| Repo folders | `client_<client>/job/`, `client_<client>/dash/` | `client_mongodb/job/`, `client_mongodb/dash/` |
 
 Other rules: everything in `australia-southeast1`; `snake_case` for BigQuery objects; secrets only in Secret Manager + `bidbrain-vault/`.
 
@@ -393,9 +427,9 @@ gcloud secrets add-iam-policy-binding acme-dash-password    --member="serviceAcc
 gcloud secrets add-iam-policy-binding acme-dash-session-key --member="serviceAccount:acme-dash-web@$P.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
 ```
 
-**4. Export job** — copy `mongodb-job/` → `acme-job/`, adjust the Snowflake queries, the BigQuery dataset, and the JSON assembly. Deploy:
+**4. Export job** — copy `client_mongodb/job/` → `client_acme/job/`, adjust the Snowflake queries, the BigQuery dataset, and the JSON assembly. Deploy:
 ```powershell
-cd acme-job
+cd client_acme/job
 gcloud run jobs deploy acme-export --source . --region australia-southeast1 `
   --service-account acme-dash-job@bidbrain-analytics.iam.gserviceaccount.com `
   --set-secrets "SNOWFLAKE_KEY=snowflake-bq-key:latest" `
@@ -404,12 +438,14 @@ gcloud run jobs deploy acme-export --source . --region australia-southeast1 `
 gcloud run jobs execute acme-export --region australia-southeast1   # run it once; confirm acme.json lands in the bucket
 ```
 
-**5. Web app** — copy `mongodb-dash/` → `acme-dash/`, drop in the client's `dashboard.html` (set its data URL to `/data.json`). Deploy + make public + check:
+**5. Web app** — copy `client_mongodb/dash/` → `client_acme/dash/`, drop in the client's `dashboard.html` (set its data URL to `/data.json`). Deploy + make public + check:
 ```powershell
-cd acme-dash
+cd client_acme/dash
+# NOTE: do NOT pass --allow-unauthenticated -- the org's Domain Restricted Sharing
+# rejects it (see gotchas, section 12). The app does its own password auth, and the
+# services-update below removes the conflicting invoker gate.
 gcloud run deploy acme-dash --source . --region australia-southeast1 `
   --service-account acme-dash-web@bidbrain-analytics.iam.gserviceaccount.com `
-  --allow-unauthenticated `
   --set-env-vars "GCS_BUCKET=bidbrain-analytics-acme-dash,DATA_OBJECT=acme.json" `
   --set-secrets "DASH_PASSWORD=acme-dash-password:latest,SESSION_SECRET=acme-dash-session-key:latest" `
   --memory 512Mi
@@ -450,9 +486,9 @@ gcloud storage ls -l gs://bidbrain-analytics-mongodb-dash/mongodb.json   # check
 gcloud logging read "resource.labels.job_name=mongodb-export" --project=bidbrain-analytics --limit=20 --freshness=1d --format="value(textPayload)" --order=asc
 ```
 
-**Update the dashboard or app code** — edit files in `mongodb-dash/`, then redeploy:
+**Update the dashboard or app code** — edit files in `client_mongodb/dash/`, then redeploy:
 ```powershell
-cd mongodb-dash ; gcloud run deploy mongodb-dash --source . --region australia-southeast1
+cd client_mongodb/dash ; gcloud run deploy mongodb-dash --source . --region australia-southeast1
 ```
 (Existing env vars/secrets/SA stick across redeploys.)
 
@@ -466,6 +502,31 @@ gcloud secrets versions add mongodb-dash-password --data-file="$t"; Remove-Item 
 ```powershell
 git add . ; git commit -m "what changed" ; git push
 ```
+
+### Continuous deployment (GitHub → Cloud Build → Cloud Run)
+
+The manual `gcloud run deploy --source .` above is fine for one-offs. For push-to-deploy, each deployable unit ships a `cloudbuild.yaml`:
+
+- `client_mongodb/dash/cloudbuild.yaml` — builds the image, deploys the **service** `mongodb-dash`, and re-applies `--no-invoker-iam-check` (so a redeploy never silently drops public reachability under the org policy).
+- `client_mongodb/job/cloudbuild.yaml` — builds the image and deploys the **job** `mongodb-export` (`gcloud run jobs deploy`, which the console's Service-only wizard cannot do).
+
+**One-time wiring:**
+```powershell
+# 1. Artifact Registry repo the builds push to
+gcloud artifacts repositories create bidbrain --repository-format=docker `
+  --location=australia-southeast1 --project bidbrain-analytics
+
+# 2. Connect the GitHub repo, then create ONE trigger per unit (push to main),
+#    each scoped by included-files so only the changed unit rebuilds:
+gcloud builds triggers create github --name=deploy-mongodb-dash `
+  --repo-name=bidbrain-analytics --repo-owner=Bidbrain --branch-pattern=^main$ `
+  --included-files="client_mongodb/dash/**" --build-config=client_mongodb/dash/cloudbuild.yaml
+gcloud builds triggers create github --name=deploy-mongodb-export `
+  --repo-name=bidbrain-analytics --repo-owner=Bidbrain --branch-pattern=^main$ `
+  --included-files="client_mongodb/job/**" --build-config=client_mongodb/job/cloudbuild.yaml
+```
+
+**Trigger service-account roles** (grant once): `roles/run.admin`, `roles/artifactregistry.writer`, `roles/cloudbuild.builds.builder`, and `roles/iam.serviceAccountUser` on the two runtime SAs (`mongodb-dash-web@…`, `mongodb-dash-job@…`). The daily data refresh is a separate **Cloud Scheduler** trigger on the job (section 10 step 7), independent of CD.
 
 ---
 
@@ -511,11 +572,11 @@ Hard-won, in no particular order. These will save the next build hours.
 
 **🚧 In progress / pending**
 - **Custom domain** `mongodb.bidbrain.ai` (Cloudflare CNAME + Host Header Override) — finishing.
-- **Daily auto-refresh** (Cloud Scheduler trigger on the job) — **not set up yet**; the job has only been run manually. Add via the job's Triggers tab (`0 22 * * *`).
+- **Daily auto-refresh** (Cloud Scheduler trigger on the `mongodb-export` job, `0 22 * * *`) — **not set up yet**; the job has only been run manually. Add via the job's Triggers tab.
 - **Retire the legacy MongoDB path:** turn off the old Snowflake `DAILY_MONGODB_EXPORT` task and delete the public R2 `mongodb.json` so the old public link goes dead. **Rotate the leaked R2 keys.** (Other clients' `dashboards-unlock` dashboards are untouched.)
-- **Windsor `loader.py` fixes:** set `bigquery.Client(location="australia-southeast1")`, `DATASET="raw_windsor"`, point the chunks path at `bidbrain-vault/chunks`, and run `gcloud auth application-default set-quota-project bidbrain-analytics` to clear the ADC quota warning.
-- **Version-control the BigQuery view SQL** (save under `mongodb-job/sql/` or `client_mongodb/sql/`) — currently the views live only inside BigQuery.
-- **Cosmetic:** `dashboard.html` still says "Snowflake" / "Fetching from Snowflake" in a couple of spots — should read BigQuery.
+- **Export the BigQuery view DDL:** the runner (`infra/create_views.py`) and folder (`client_mongodb/sql/`) now exist, but the actual `CREATE OR REPLACE VIEW` files still need to be exported from the live project (steps in `client_mongodb/sql/README.md`). Until then a from-scratch rebuild can't recreate the views.
+
+> **Already done** (previously listed here): the Windsor loaders are on `raw_windsor` + `australia-southeast1`, read secrets via ADC (no gcloud-path hardcoding), and cache to `_run/`; `infra/` provisions `raw_windsor` consistently; CD configs (`cloudbuild.yaml`) exist for both units; and `dashboard.html` now reads "BigQuery", not "Snowflake".
 
 ---
 

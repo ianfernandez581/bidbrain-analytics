@@ -11,13 +11,13 @@
   Steps:
     1. Install Python 3.12 if missing (winget)
     2. Install Google Cloud SDK if missing (winget)
-    3. Create requirements.txt if missing
+    3. Verify the committed requirements.txt is present
     4. Create an isolated .venv and install dependencies into it
-    5. De-hardcode the machine-specific paths in the loaders + start_day.ps1
-       (only touches files that still contain the old C:\Users\ianfe paths;
-        review the changes afterwards with `git diff`)
-    6. Log in to gcloud (CLI creds + application-default) - the one manual step
-    7. Verify it can read the Windsor secret and reach BigQuery
+    5. Log in to gcloud (CLI creds + application-default) - the one manual step
+    6. Verify it can read the Windsor secret and reach BigQuery
+
+  NOTE: the committed source is portable as-is (loaders read secrets via ADC,
+  start_day.ps1 auto-resolves Python). This script never edits tracked files.
 
   After this, run a loader with the venv's python:
       .\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py
@@ -77,19 +77,14 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
 }
 Write-Host "[OK] gcloud: $((Get-Command gcloud).Source)" -ForegroundColor Green
 
-# --- 3. requirements.txt (create if missing) ----------------------------------
+# --- 3. requirements.txt (must be committed in the repo) ----------------------
 $reqPath = Join-Path $REPO "requirements.txt"
 if (-not (Test-Path $reqPath)) {
-    @(
-        "google-cloud-bigquery",
-        "google-cloud-storage",
-        "google-cloud-secret-manager",
-        "requests"
-    ) | Set-Content -Path $reqPath -Encoding ascii
-    Write-Host "[OK] Created requirements.txt (commit this to the repo)" -ForegroundColor Green
-} else {
-    Write-Host "[OK] requirements.txt present" -ForegroundColor DarkGray
+    Write-Host "[X] requirements.txt is missing from the repo root. It is version-" -ForegroundColor Red
+    Write-Host "    controlled -- restore it with 'git checkout -- requirements.txt' and re-run." -ForegroundColor Red
+    exit 1
 }
+Write-Host "[OK] requirements.txt present" -ForegroundColor Green
 
 # --- 4. venv + dependencies ---------------------------------------------------
 $venvPy = Join-Path $REPO ".venv\Scripts\python.exe"
@@ -102,44 +97,7 @@ Write-Host "[*] Installing dependencies into .venv..." -ForegroundColor Yellow
 & $venvPy -m pip install -r requirements.txt
 Write-Host "[OK] Dependencies installed into .venv" -ForegroundColor Green
 
-# --- 5. De-hardcode machine-specific paths (idempotent) -----------------------
-# 5a. The two loaders: replace the hardcoded gcloud.cmd path with a PATH lookup.
-foreach ($loader in @("windsor_data_pull\meta\meta_loader.py",
-                      "windsor_data_pull\tradedesk\tradedesk_loader.py")) {
-    if (-not (Test-Path $loader)) { continue }
-    $c = Get-Content $loader -Raw
-    if ($c -match 'GCLOUD\s*=\s*r?"[^"]*gcloud[^"]*"') {
-        $c = $c -replace 'GCLOUD\s*=\s*r?"[^"]*gcloud[^"]*"',
-                         'GCLOUD = shutil.which("gcloud") or shutil.which("gcloud.cmd")'
-        if ($c -notmatch '(?m)^\s*import\s+shutil\b') {
-            if ($c -match '(?m)^import\s+sys\s*$') {
-                $c = $c -replace '(?m)^(import\s+sys\s*)$', "`$1`nimport shutil"
-            } else {
-                $c = "import shutil`n" + $c
-            }
-        }
-        [System.IO.File]::WriteAllText((Resolve-Path $loader), $c)
-        Write-Host "[OK] De-hardcoded gcloud path in $loader" -ForegroundColor Green
-    } else {
-        Write-Host "[OK] $loader already clean" -ForegroundColor DarkGray
-    }
-}
-
-# 5b. start_day.ps1: point $PY at the venv instead of the hardcoded Python314 path.
-$sd = "scripts\start_day.ps1"
-if (Test-Path $sd) {
-    $c = Get-Content $sd -Raw
-    if ($c -match '\$PY\s*=\s*"[^"]*Python314[^"]*"') {
-        $repl = '$$PY = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe" } else { "python" }'
-        $c = $c -replace '\$PY\s*=\s*"[^"]*Python314[^"]*"', $repl
-        [System.IO.File]::WriteAllText((Resolve-Path $sd), $c)
-        Write-Host "[OK] start_day.ps1 now uses the venv python" -ForegroundColor Green
-    } else {
-        Write-Host "[OK] start_day.ps1 already clean" -ForegroundColor DarkGray
-    }
-}
-
-# --- 6. Authenticate (the one manual step - a browser will open) --------------
+# --- 5. Authenticate (the one manual step - a browser will open) --------------
 Write-Host "[*] Checking gcloud CLI credentials..." -ForegroundColor Yellow
 if (-not (gcloud auth print-access-token 2>$null)) {
     Write-Host "    Opening browser for gcloud login..." -ForegroundColor Yellow
@@ -155,7 +113,7 @@ if (-not (gcloud auth application-default print-access-token 2>$null)) {
 gcloud auth application-default set-quota-project $PROJECT 2>$null | Out-Null
 Write-Host "[OK] Authenticated as $(gcloud config get-value account 2>$null)" -ForegroundColor Green
 
-# --- 7. Verify secret + BigQuery ---------------------------------------------
+# --- 6. Verify secret + BigQuery ---------------------------------------------
 Write-Host "[*] Verifying Windsor secret access..." -ForegroundColor Yellow
 $null = gcloud secrets versions access latest --secret windsor-api-key --project $PROJECT 2>$null
 if ($LASTEXITCODE -eq 0) { Write-Host "[OK] Windsor secret readable" -ForegroundColor Green }
@@ -172,6 +130,5 @@ Write-Host "Setup complete. Run a loader:" -ForegroundColor Cyan
 Write-Host "  .\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py"
 Write-Host "  .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py"
 Write-Host ""
-Write-Host "One-time housekeeping: add '.venv/' to .gitignore, then commit" -ForegroundColor DarkGray
-Write-Host "requirements.txt and the de-hardcoded files so the next clone is clean." -ForegroundColor DarkGray
+Write-Host "Each new session, run the preflight first:  .\scripts\start_day.ps1" -ForegroundColor DarkGray
 Write-Host ""

@@ -23,3 +23,6 @@ venv/
 Thumbs.db
 *.ndjson
 _run/
+
+# Claude Code harness / session state (not part of the project)
+.claude/

@@ -25,13 +25,14 @@ TWO MODES
 
 --force re-fetches even cached chunks (MERGE is idempotent on ad_id+date).
 
-RETRIES: transient errors (timeouts, 429, 5xx) retried FOREVER with capped
-backoff. Permanent 4xx (bad field / auth) fails fast with the response body.
+RETRIES: transient errors (timeouts, 429, 5xx) retried with capped backoff up
+to MAX_ATTEMPTS times, then the chunk fails loudly (so an unattended/scheduled
+run can't hang forever). Permanent 4xx (bad field / auth) fails fast with the
+response body.
 """
 import json
 import logging
 import re
-import subprocess
 import sys
 import time
 import uuid
@@ -39,7 +40,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
-from google.cloud import bigquery, storage
+from google.cloud import bigquery, secretmanager, storage
 
 # ---------- Config ----------
 PROJECT_ID = "bidbrain-analytics"
@@ -96,8 +97,8 @@ MIN_DATE = date(2015, 1, 1)
 TIMEOUT_SEC = 120
 RETRY_SLEEP_BASE = 5
 RETRY_SLEEP_MAX = 60
+MAX_ATTEMPTS = 30          # per-chunk retry cap; then fail loudly instead of hanging forever
 INTER_CHUNK_SLEEP = 1
-GCLOUD = r"C:\Users\ianfe\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
 
 # All runtime artifacts live under _run/ next to THIS script (not the cwd), so
 # nothing ever lands in the repo root. _run/ is gitignored.
@@ -140,15 +141,15 @@ log = logging.getLogger("meta_loader")
 
 # ---------- Helpers ----------
 def get_secret(name):
+    """Read the latest version of a Secret Manager secret via Application
+    Default Credentials -- the same ADC the BigQuery/Storage clients use. No
+    gcloud CLI or machine-specific path required, so this runs identically on
+    Windows/macOS/Linux locally (after `gcloud auth application-default login`)
+    and on Cloud Run/Cloud Build under a service account."""
     log.info(f"Fetching secret '{name}' from Secret Manager...")
-    r = subprocess.run(
-        [GCLOUD, "secrets", "versions", "access", "latest",
-         "--secret", name, "--project", PROJECT_ID],
-        capture_output=True, text=True,
-    )
-    if r.returncode != 0:
-        raise RuntimeError(f"gcloud secret fetch failed for '{name}':\n{r.stderr.strip()}")
-    val = r.stdout.strip()
+    client = secretmanager.SecretManagerServiceClient()
+    path = f"projects/{PROJECT_ID}/secrets/{name}/versions/latest"
+    val = client.access_secret_version(name=path).payload.data.decode("utf-8").strip()
     log.info(f"  got secret (length {len(val)})")
     return val
 
@@ -207,8 +208,13 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
         except requests.exceptions.HTTPError as e:
             status = e.response.status_code if e.response is not None else None
             if status == 429 or (status is not None and status >= 500):
+                if attempt >= MAX_ATTEMPTS:
+                    raise RuntimeError(
+                        f"Chunk {d_from}..{d_to}: gave up after {attempt} attempts on "
+                        f"transient HTTP {status} (Windsor still failing)."
+                    )
                 sleep = min(RETRY_SLEEP_BASE * attempt, RETRY_SLEEP_MAX)
-                log.warning(f"    attempt {attempt} transient HTTP {status}; retrying in {sleep}s")
+                log.warning(f"    attempt {attempt}/{MAX_ATTEMPTS} transient HTTP {status}; retrying in {sleep}s")
                 time.sleep(sleep)
                 continue
             body = (e.response.text[:500] if e.response is not None else "")
@@ -217,8 +223,13 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
                 f"recover by retrying -- likely a bad field name or auth. Body:\n{body}"
             )
         except requests.exceptions.RequestException as e:
+            if attempt >= MAX_ATTEMPTS:
+                raise RuntimeError(
+                    f"Chunk {d_from}..{d_to}: gave up after {attempt} attempts "
+                    f"({type(e).__name__}: {e})."
+                )
             sleep = min(RETRY_SLEEP_BASE * attempt, RETRY_SLEEP_MAX)
-            log.warning(f"    attempt {attempt} FAILED ({type(e).__name__}); retrying in {sleep}s")
+            log.warning(f"    attempt {attempt}/{MAX_ATTEMPTS} FAILED ({type(e).__name__}); retrying in {sleep}s")
             time.sleep(sleep)
 
 def to_int(v):

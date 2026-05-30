@@ -1,0 +1,14 @@
+# Normalize line endings: store LF in the repo, check out native per-OS.
+* text=auto
+
+# These run inside Linux containers / Cloud Build -- force LF so a Windows
+# checkout can't bake CRLF into the image (a classic "works locally, breaks in
+# the container" bug).
+Dockerfile  text eol=lf
+*.yaml      text eol=lf
+*.yml       text eol=lf
+*.sh        text eol=lf
+
+# Windows-only launchers stay CRLF.
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf

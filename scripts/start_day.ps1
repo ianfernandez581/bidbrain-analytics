@@ -12,9 +12,11 @@
 # Or double-click:   scripts\start_day.cmd
 
 $PROJECT = "bidbrain-analytics"
-$PY = "C:\Users\ianfe\AppData\Local\Programs\Python\Python314\python.exe"
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
+
+# Prefer the repo's .venv (created by scripts\setup.ps1); fall back to PATH python.
+$PY = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe" } else { "python" }
 
 Write-Host ""
 Write-Host "=== bidbrain-analytics :: start of day ===" -ForegroundColor Cyan

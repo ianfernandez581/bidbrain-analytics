@@ -1,0 +1,13 @@
+# Root dependencies for the Windsor -> BigQuery loaders (windsor_data_pull/*)
+# and the one-time BigQuery infra scripts (infra/*). Pinned for reproducible
+# installs on any machine / OS.
+#
+# The two Cloud Run units pin their own dependencies separately:
+#   client_mongodb/job/requirements.txt   (export job)
+#   client_mongodb/dash/requirements.txt  (web app)
+#
+# Install:  python -m pip install -r requirements.txt
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1
+google-cloud-secret-manager==2.28.0
+requests==2.34.2
