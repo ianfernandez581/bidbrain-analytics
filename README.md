@@ -1,19 +1,545 @@
-﻿# bidbrain-analytics
+﻿# Bidbrain Analytics — Client Reporting Platform
 
-Data pipelines for Bidbrain client reporting (Google Cloud + BigQuery).
-Project: bidbrain-analytics  |  Region: australia-southeast1 (Sydney)
+> Secure, self-hosted marketing dashboards for Bidbrain clients, running entirely on Google Cloud.
+> **One repository, one repeatable pattern, many client dashboards.**
 
-## Layout
-- mongodb-job/   - Cloud Run job: Snowflake -> BigQuery -> builds mongodb.json in GCS
-- cloudflare/    - Cloudflare client reporting pipeline
-- loader.py      - Windsor.ai -> BigQuery loader (raw_windsor)
-- create_dataset.py / create_tables.py - one-time BigQuery setup
+This README is written to do two jobs at once:
 
-## BigQuery datasets
-- raw_windsor        - shared raw Windsor.ai data
-- client_mongodb     - MongoDB client tables + views
-- client_cloudflare  - Cloudflare client data
+1. **Get anyone up to speed fast** — including an AI assistant (Claude, etc.) handed this repo cold. If that's you, read sections **3, 9, and 10** first.
+2. **Be understandable by non-technical people.** Every technical section starts with a plain-English summary, and there's a [Glossary](#14-glossary-plain-english) at the bottom that explains every term.
 
-## Secrets
-Credentials + cached data live OUTSIDE this repo (local bidbrain-vault/, and GCP Secret Manager).
-Nothing sensitive belongs in git.
+---
+
+## Table of contents
+
+1. [What this is (start here — no tech background needed)](#1-what-this-is)
+2. [How it works (the 60-second version)](#2-how-it-works)
+3. [For an AI or engineer picking this up](#3-for-an-ai-or-engineer-picking-this-up)
+4. [Architecture in detail](#4-architecture-in-detail)
+5. [Security model — old vs new](#5-security-model)
+6. [Repository structure](#6-repository-structure)
+7. [GCP resource inventory (exact names)](#7-gcp-resource-inventory)
+8. [The data contract (the JSON file the dashboard reads)](#8-the-data-contract)
+9. [Conventions & naming rules](#9-conventions--naming-rules)
+10. [Playbook: add a new client dashboard](#10-playbook-add-a-new-client-dashboard)
+11. [Operating it: deploy, update, run, debug](#11-operating-it)
+12. [Gotchas & lessons learned](#12-gotchas--lessons-learned)
+13. [Current status & TODO](#13-current-status--todo)
+14. [Glossary (plain English)](#14-glossary-plain-english)
+
+---
+
+## 1. What this is
+
+**In one sentence:** this project takes a client's raw marketing data, tidies it up, and serves it as a private, password-protected web dashboard that only the right people can see.
+
+Think of it like a **vending machine for reports**. Behind the scenes, ingredients (raw data) get pulled in, processed into a finished product (a tidy data file), and put behind glass. Out front, a customer has to enter a code (password) before the machine will hand them anything. No code, nothing comes out — and you can't reach around the back to grab the product either.
+
+We built the first one for **MongoDB (APAC)**. The whole point of this repo is that **every future client dashboard follows the exact same pattern**, so building the next one is mostly copy-and-adjust, not start-from-scratch.
+
+Everything lives on **Google Cloud** (one platform), under the GCP project **`bidbrain-analytics`**, in the **Sydney region (`australia-southeast1`)**. The domain stays on Cloudflare (just for DNS — pointing the web address at Google).
+
+---
+
+## 2. How it works
+
+**In plain terms:** data flows left to right, gets locked down at the end, and a person needs a password to see it.
+
+```
+  RAW DATA SOURCES                 PROCESS (Google Cloud)                 WHO SEES IT
+ ┌────────────────┐
+ │ Snowflake      │ ─┐
+ │ (ad + lead     │  │     ┌─────────────┐     ┌──────────────┐
+ │  data)         │  ├──▶  │  Export Job │ ──▶ │  BigQuery    │ ──┐
+ └────────────────┘  │     │ (Cloud Run) │     │ (warehouse)  │   │
+ ┌────────────────┐  │     └─────────────┘     └──────────────┘   │
+ │ Windsor.ai     │ ─┘            │                               │  builds one
+ │ (shared perf)  │               │                               │  tidy file
+ └────────────────┘               ▼                               ▼
+                          ┌──────────────────┐          ┌────────────────────┐
+                          │ Private GCS bucket│ ◀─────── │  mongodb.json      │
+                          │ (locked storage)  │          │ (the finished data)│
+                          └──────────────────┘          └────────────────────┘
+                                   │
+                                   │ served ONLY to a logged-in user
+                                   ▼
+                          ┌──────────────────┐          ┌────────────────────┐
+                          │ Dashboard Web App │  ◀────── │  Password screen   │
+                          │   (Cloud Run)     │          │  (no password =    │
+                          │  mongodb.bidbrain │          │   no access)       │
+                          │       .ai         │          └────────────────────┘
+                          └──────────────────┘
+                                   │
+                                   ▼
+                              👤 The team / client (after entering the password)
+```
+
+**The journey:**
+
+1. Raw data lives in **Snowflake** (each client's ad + lead data) and **Windsor.ai** (shared Trade Desk performance data).
+2. A scheduled **Export Job** pulls that data, lands it in **BigQuery** (Google's data warehouse), runs calculations, and packages the result into a single tidy file called `mongodb.json`.
+3. That file is saved to a **private** storage bucket — not reachable by anyone on the internet.
+4. A small **Web App** shows a password screen. Enter the password and you see the dashboard; the app fetches the data file *on your behalf* from the private bucket. No password → you see nothing, and the data file can't be grabbed directly.
+5. It's reachable at a friendly web address (e.g. `mongodb.bidbrain.ai`).
+
+---
+
+## 3. For an AI or engineer picking this up
+
+If you've just been handed this repo and asked to extend it, here's your orientation.
+
+**Fixed facts (memorize these):**
+
+| Thing | Value |
+|---|---|
+| GCP project | `bidbrain-analytics` (project number `516554645957`) |
+| Region (everything) | `australia-southeast1` (Sydney) |
+| GitHub repo | `Bidbrain/bidbrain-analytics` (private) |
+| Local dev machine | Windows + **PowerShell** (commands below are PowerShell) |
+| Secrets store | GCP **Secret Manager** + a local-only folder `bidbrain-vault/` (never in git) |
+| Data warehouse | **BigQuery**, layered: shared `raw_*` datasets + per-client `client_*` datasets |
+| Dashboard hosting | One **Cloud Run service per client** (a tiny password-gated web app) |
+| Data refresh | One **Cloud Run job per client** (pulls data → builds the JSON) |
+
+**To add a new client dashboard:** follow the [Playbook in section 10](#10-playbook-add-a-new-client-dashboard). It generalizes everything we did for MongoDB.
+
+**Golden rules (do not break these):**
+
+- **Never commit secrets.** No private keys, passwords, or API tokens in the repo. They live in Secret Manager (cloud) and `bidbrain-vault/` (local). See [.gitignore](#6-repository-structure).
+- **Never make the data file public.** The whole security model depends on the JSON staying in a private bucket, served only by the authenticated web app. (The *old* system exposed it publicly — see [section 5](#5-security-model). Don't regress.)
+- **Everything in `australia-southeast1`.** Mixed regions cause "missing resource" confusion and cross-region cost.
+- **One client = its own dataset, job, bucket object, web app, password, and subdomain.** Full isolation between clients.
+
+---
+
+## 4. Architecture in detail
+
+### 4.1 The layered data model (BigQuery)
+
+**In plain terms:** we keep each client's data in its own labelled drawer, plus a shared drawer for data that everyone uses.
+
+We use a standard multi-tenant layout:
+
+- **`raw_<source>`** — shared raw data from a single upstream source, used by multiple clients. Example: **`raw_windsor`** holds Trade Desk performance data loaded by `loader.py` (Windsor.ai → BigQuery). Shared data is exposed to client datasets via *authorized views*.
+- **`client_<client>`** — one dataset per client, holding everything specific to that client:
+  - **`src_*` tables** — raw per-client feeds landed straight from Snowflake (single-consumer, so they live inside the client dataset). Example: `client_mongodb.src_tradedesk`, `client_mongodb.src_salesforce`.
+  - **views** — the calculations that shape raw data into dashboard-ready numbers (staging → model → rollups).
+
+For MongoDB, `client_mongodb` contains:
+
+| Object | Type | Purpose |
+|---|---|---|
+| `src_tradedesk` | table | raw TradeDesk rows pulled from Snowflake (filtered to MongoDB) |
+| `src_salesforce` | table | raw Salesforce lead rows (3 campaign IDs) |
+| `stg_tradedesk` | view | parses campaign names into programme / market / strategy |
+| `stg_salesforce` | view | maps countries to the 4-market bucket, labels programmes |
+| `paid_media_model` | view | unified paid-media delivery model |
+| `cs_leads` | view | lead counts by market |
+| `cs_leads_by_programme` | view | lead counts by programme × market |
+| `targets` | view | lead targets (from a spreadsheet snapshot) |
+| `targets_by_programme` | view | target rollups |
+| `benchmarks_strategy` | view | CPM/CTR plan benchmarks |
+| `benchmarks_market` | view | budget-weight benchmarks per market |
+| `budget` | view | programme budget envelopes |
+
+> **Note:** these view definitions currently live *only inside BigQuery*, not in the repo. See [TODO](#13-current-status--todo) — they should be saved as `.sql` files so the data model is version-controlled.
+
+### 4.2 The two moving parts: the Job and the Web App
+
+Each client has **two** Cloud Run pieces. They are different things and easy to confuse:
+
+| | **Export Job** (`<client>-export`) | **Web App** (`<client>-dash`) |
+|---|---|---|
+| Cloud Run type | **Job** (runs, finishes, stops) | **Service** (always-on, answers web requests) |
+| What it does | pulls data → BigQuery → builds `<client>.json` → saves to private bucket | shows password screen, serves the dashboard + data to logged-in users |
+| When it runs | on a daily schedule (and on demand) | whenever someone visits the URL |
+| Source folder | `<client>-job/` | `<client>-dash/` |
+| Talks to | Snowflake + BigQuery + GCS | GCS (read-only) + Secret Manager |
+
+**In plain terms:** the Job is the *kitchen* (makes the dish once a day); the Web App is the *waiter behind a locked door* (checks your password, then brings you the dish).
+
+### 4.3 Storage
+
+- **`bidbrain-analytics-<client>-dash`** — a **private** GCS bucket holding the finished JSON for that client. For MongoDB: `bidbrain-analytics-mongodb-dash`, object `mongodb.json`.
+- **`bidbrain-analytics-staging`** — shared bucket used by the Windsor loader.
+- Buckets are **private** (no public access). Only the relevant service accounts can read/write them.
+
+### 4.4 Secrets & identities (IAM)
+
+**In plain terms:** every automated piece has its own "ID badge" (service account) with the *minimum* keys it needs, and all passwords/keys are kept in a locked safe (Secret Manager).
+
+**Secrets (in Secret Manager — names only, values never in this repo):**
+
+| Secret | Used by | What it is |
+|---|---|---|
+| `snowflake-bq-key` | the export job | private key to read Snowflake (key-pair auth) |
+| `<client>-dash-password` | the web app | the dashboard password (e.g. `mongodb-dash-password`) |
+| `<client>-dash-session-key` | the web app | random key used to sign login sessions |
+
+**Service accounts (the "ID badges"):**
+
+| Service account | Used by | Permissions |
+|---|---|---|
+| `<client>-dash-job@…` | export job | `secretAccessor` (Snowflake key), `bigquery.dataEditor`, `bigquery.jobUser`, `storage.objectAdmin` on the client bucket |
+| `<client>-dash-web@…` | web app | `storage.objectViewer` on the client bucket, `secretAccessor` on the two dashboard secrets |
+
+(For MongoDB these are `mongodb-dash-job@bidbrain-analytics.iam.gserviceaccount.com` and `mongodb-dash-web@bidbrain-analytics.iam.gserviceaccount.com`.)
+
+### 4.5 The custom domain
+
+**In plain terms:** the friendly web address points at the app; Cloudflare just does the pointing.
+
+- `bidbrain.ai` DNS is hosted on **Cloudflare**. We add one subdomain per client (e.g. `mongodb.bidbrain.ai`).
+- Because Cloud Run services answer at an ugly `…run.app` URL and route by hostname, a plain DNS record returns a **404**. The fix is a **Cloudflare "Host Header Override"** (Origin Rule) that rewrites the host to the `…run.app` name. The DNS record is **Proxied (orange cloud)**, SSL mode **Full (strict)**, and Cloudflare provides the HTTPS certificate for free.
+- This is **DNS/proxy only** — no compute, no cost beyond the existing Cloudflare plan. (The alternative, a GCP load balancer, costs ~$18/mo and is only worth it at larger scale; documented but not used.)
+
+---
+
+## 5. Security model
+
+**This is the most important section. Read it before changing anything about hosting or data access.**
+
+### The OLD system (legacy, being retired)
+
+The previous dashboards (hosted on Cloudflare, gated by a `dashboards-unlock` Worker) used **security by obscurity**:
+
+- The password screen didn't actually guard the data — it just handed back a hard-to-guess "slug" (a secret URL).
+- The dashboard and its **data file sat at a public link** (`pub-….r2.dev/mongodb.json`). Anyone who had the link — or who opened the dashboard once and copied it — could grab the raw data **without any password**.
+- The "lock" was really just a hidden address. Hidden ≠ protected.
+
+### The NEW system (this repo)
+
+Real protection, because authentication sits in front of **both** the page and the data:
+
+- The dashboard is a **Cloud Run web app** with a real password check. **No valid password → HTTP 401 → nothing**, not the page and not the data.
+- The data file lives in a **private bucket**. The browser never touches it directly. The app reads it server-side (with its own ID badge) and only returns it to a request that already passed the password.
+- The app's public `…run.app` URL is harmless: hitting it just shows the password screen.
+- Cloudflare is only DNS/proxy.
+
+**Why we disabled Cloud Run's built-in IAM check (`--no-invoker-iam-check`):** the org enforces *Domain Restricted Sharing*, which blocks the usual "allow public" (`allUsers`) setting. Disabling the invoker IAM check is Google's recommended way to make a service publicly reachable under that policy. It's safe here **because our app does its own password auth** — we're removing a duplicate, conflicting gate, not the protection.
+
+### Non-negotiables
+
+- ❌ Never publish the JSON to a public URL or public bucket.
+- ❌ Never rely on "the link is hard to guess" as protection.
+- ✅ Data is always served by the authenticated app from a private bucket.
+
+---
+
+## 6. Repository structure
+
+```
+bidbrain-analytics/                 ← the git repo (== GitHub, nothing secret)
+├── README.md                       ← this file
+├── .gitignore
+│
+├── create_dataset.py               ← one-time BigQuery dataset setup
+├── create_tables.py                ← one-time BigQuery table setup
+├── loader.py                       ← Windsor.ai → BigQuery loader (fills raw_windsor)
+│
+├── mongodb-job/                    ← MongoDB Export Job (Cloud Run job)
+│   ├── main.py                     ← Snowflake → BigQuery → builds mongodb.json → GCS
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── mongodb-dash/                   ← MongoDB Web App (Cloud Run service)
+│   ├── main.py                     ← password gate + serves dashboard + /data.json proxy
+│   ├── dashboard.html              ← the actual dashboard (Chart.js); data URL = /data.json
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+└── cloudflare/                     ← placeholder for the next client (currently empty)
+```
+
+**Naming convention for new clients:** each client gets `<client>-job/` and `<client>-dash/` at the repo root. (If the root gets crowded after many clients, these can be grouped under a `clients/<client>/` folder later — but keep it consistent.)
+
+**Lives OUTSIDE the repo (local only, never committed)** — kept in a sibling folder `bidbrain-vault/`:
+
+```
+bidbrain-vault/          (NOT in git)
+├── keys/                ← snowflake_bq_key.p8 + .pub (the Snowflake private key)
+├── chunks/              ← cached Windsor data the loader uses
+└── loader.log
+```
+
+The `.gitignore` enforces this (ignores `*.p8 *.pub *.pem *.key *credentials*.json .env chunks/ *.log` and Python/OS junk).
+
+---
+
+## 7. GCP resource inventory
+
+Exact names of everything that exists today (project `bidbrain-analytics`, region `australia-southeast1`):
+
+**BigQuery datasets**
+- `raw_windsor` — table `perf_the_trade_desk` (shared Windsor data)
+- `client_mongodb` — tables `src_tradedesk`, `src_salesforce` + the 10 views in [4.1](#41-the-layered-data-model-bigquery)
+- `client_cloudflare` — empty (next client)
+
+**Cloud Storage buckets** (both private)
+- `bidbrain-analytics-mongodb-dash` — holds `mongodb.json`
+- `bidbrain-analytics-staging` — Windsor loader staging
+
+**Secret Manager**
+- `snowflake-bq-key`, `mongodb-dash-password`, `mongodb-dash-session-key`
+
+**Service accounts**
+- `mongodb-dash-job@bidbrain-analytics.iam.gserviceaccount.com`
+- `mongodb-dash-web@bidbrain-analytics.iam.gserviceaccount.com`
+
+**Cloud Run**
+- Job: `mongodb-export`
+- Service: `mongodb-dash` (deployed with `--no-invoker-iam-check`)
+
+**Snowflake (read-only source — for the MongoDB pipeline)**
+- Account `ZGKGHOH-ISA98947`, warehouse `APAC_IN_WH`
+- User `BQ_SYNC_USER`, role `BQ_SYNC_ROLE` (key-pair auth; SELECT on the two source tables)
+- Source tables: `APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"` (filtered to `ADVERTISER_NAME = 'MongoDB'`) and `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` (3 campaign IDs; ~354 leads)
+
+**Cloudflare**
+- Account `Admin@100.digital`, zone `bidbrain.ai`
+- (Legacy, to retire for MongoDB: the `dashboards-unlock` Worker + R2 bucket `cf-apac-dashboard`)
+
+---
+
+## 8. The data contract
+
+**In plain terms:** the dashboard expects the data file to be shaped a very specific way. If you change the shape, you must change the dashboard too.
+
+The export job writes one JSON object (`<client>.json`) with this envelope. The dashboard reads it from `/data.json`:
+
+```jsonc
+{
+  "last_updated": "2026-05-29 22:00:00",   // timestamp string
+  "row_count": 1234,
+  "window": { "start": "2026-04-01", "end": "2026-06-30", "days": 91 },
+  "all_markets":    ["ANZ", "ASEAN", "INDIA", "KR-HK-TW"],
+  "all_programmes": ["IDE", "IDC"],
+  "rows": [ /* per-day paid-media delivery: channel, date, programme, market, strategy, imps, clicks, spend_usd, ... */ ],
+  "targets": [ /* programme, market, target, delivered */ ],
+  "benchmarks_strategy": { /* keyed by strategy: { cpm, ctr, frequency, weight } */ },
+  "benchmarks_market":   { /* keyed by market:   { budget_weight } */ },
+  "budget": [ /* programme, tradedesk_code, gross_usd, net_usd, start, end */ ],
+  "cs": [ /* lead totals by market */ ],
+  "cs_by_programme": [ /* lead totals by programme × market */ ]
+}
+```
+
+The dashboard (`dashboard.html`) is the client's existing design with a **single change**: its data URL is set to `/data.json` (same origin), so the logged-in user's session is automatically used to fetch the data.
+
+---
+
+## 9. Conventions & naming rules
+
+Follow these exactly so every client looks the same.
+
+| Resource | Pattern | MongoDB example |
+|---|---|---|
+| Client key | lowercase, short | `mongodb` |
+| BigQuery dataset | `client_<client>` | `client_mongodb` |
+| Shared source dataset | `raw_<source>` | `raw_windsor` |
+| Per-client source table | `src_<source>` | `src_tradedesk` |
+| Views | `snake_case`, no prefixes | `paid_media_model` |
+| GCS bucket | `bidbrain-analytics-<client>-dash` | `bidbrain-analytics-mongodb-dash` |
+| Data object | `<client>.json` | `mongodb.json` |
+| Export job (Cloud Run job) | `<client>-export` | `mongodb-export` |
+| Web app (Cloud Run service) | `<client>-dash` | `mongodb-dash` |
+| Job service account | `<client>-dash-job@…` | `mongodb-dash-job@…` |
+| Web service account | `<client>-dash-web@…` | `mongodb-dash-web@…` |
+| Password secret | `<client>-dash-password` | `mongodb-dash-password` |
+| Session secret | `<client>-dash-session-key` | `mongodb-dash-session-key` |
+| Subdomain | `<client>.bidbrain.ai` | `mongodb.bidbrain.ai` |
+| Repo folders | `<client>-job/`, `<client>-dash/` | `mongodb-job/`, `mongodb-dash/` |
+
+Other rules: everything in `australia-southeast1`; `snake_case` for BigQuery objects; secrets only in Secret Manager + `bidbrain-vault/`.
+
+---
+
+## 10. Playbook: add a new client dashboard
+
+This is the reusable recipe. It generalizes the MongoDB build. Replace `acme` with the client key. (Commands are PowerShell.)
+
+> **0. Prereqs:** the client's source data must be reachable — either a Snowflake feed (like MongoDB) or already in `raw_windsor`. Decide the client key and confirm the names from [section 9](#9-conventions--naming-rules).
+
+**1. BigQuery — dataset + views**
+- Create `client_acme`.
+- Build the `src_*` tables (the export job will populate them) and the views that produce the [JSON envelope](#8-the-data-contract) inputs.
+- Port any Snowflake SQL to BigQuery dialect (see [gotchas](#12-gotchas--lessons-learned)).
+
+**2. Private bucket**
+```powershell
+gcloud storage buckets create gs://bidbrain-analytics-acme-dash --location=australia-southeast1 --uniform-bucket-level-access
+```
+
+**3. Service accounts + secrets + permissions**
+```powershell
+$P="bidbrain-analytics"
+gcloud iam service-accounts create acme-dash-job --display-name="ACME export job"
+gcloud iam service-accounts create acme-dash-web --display-name="ACME dashboard web app"
+
+# password + session key (prompted / random — never typed into history)
+$pw = Read-Host "ACME dashboard password"
+$t=New-TemporaryFile; [IO.File]::WriteAllText($t,$pw); gcloud secrets create acme-dash-password --data-file="$t" --replication-policy="automatic"; Remove-Item $t
+$k = -join ((1..64)|%{'{0:x}' -f (Get-Random -Max 16)}); $t=New-TemporaryFile; [IO.File]::WriteAllText($t,$k); gcloud secrets create acme-dash-session-key --data-file="$t" --replication-policy="automatic"; Remove-Item $t
+
+# job badge: read Snowflake key, write BigQuery + bucket
+gcloud secrets add-iam-policy-binding snowflake-bq-key --member="serviceAccount:acme-dash-job@$P.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud projects add-iam-policy-binding $P --member="serviceAccount:acme-dash-job@$P.iam.gserviceaccount.com" --role="roles/bigquery.dataEditor"
+gcloud projects add-iam-policy-binding $P --member="serviceAccount:acme-dash-job@$P.iam.gserviceaccount.com" --role="roles/bigquery.jobUser"
+gcloud storage buckets add-iam-policy-binding gs://bidbrain-analytics-acme-dash --member="serviceAccount:acme-dash-job@$P.iam.gserviceaccount.com" --role="roles/storage.objectAdmin"
+
+# web badge: read bucket + the two dashboard secrets
+gcloud storage buckets add-iam-policy-binding gs://bidbrain-analytics-acme-dash --member="serviceAccount:acme-dash-web@$P.iam.gserviceaccount.com" --role="roles/storage.objectViewer"
+gcloud secrets add-iam-policy-binding acme-dash-password    --member="serviceAccount:acme-dash-web@$P.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+gcloud secrets add-iam-policy-binding acme-dash-session-key --member="serviceAccount:acme-dash-web@$P.iam.gserviceaccount.com" --role="roles/secretmanager.secretAccessor"
+```
+
+**4. Export job** — copy `mongodb-job/` → `acme-job/`, adjust the Snowflake queries, the BigQuery dataset, and the JSON assembly. Deploy:
+```powershell
+cd acme-job
+gcloud run jobs deploy acme-export --source . --region australia-southeast1 `
+  --service-account acme-dash-job@bidbrain-analytics.iam.gserviceaccount.com `
+  --set-secrets "SNOWFLAKE_KEY=snowflake-bq-key:latest" `
+  --set-env-vars "GCP_PROJECT=bidbrain-analytics,BQ_DATASET=client_acme,GCS_BUCKET=bidbrain-analytics-acme-dash,SF_ACCOUNT=ZGKGHOH-ISA98947,SF_USER=BQ_SYNC_USER,SF_WAREHOUSE=APAC_IN_WH" `
+  --memory 1Gi
+gcloud run jobs execute acme-export --region australia-southeast1   # run it once; confirm acme.json lands in the bucket
+```
+
+**5. Web app** — copy `mongodb-dash/` → `acme-dash/`, drop in the client's `dashboard.html` (set its data URL to `/data.json`). Deploy + make public + check:
+```powershell
+cd acme-dash
+gcloud run deploy acme-dash --source . --region australia-southeast1 `
+  --service-account acme-dash-web@bidbrain-analytics.iam.gserviceaccount.com `
+  --allow-unauthenticated `
+  --set-env-vars "GCS_BUCKET=bidbrain-analytics-acme-dash,DATA_OBJECT=acme.json" `
+  --set-secrets "DASH_PASSWORD=acme-dash-password:latest,SESSION_SECRET=acme-dash-session-key:latest" `
+  --memory 512Mi
+gcloud run services update acme-dash --region=australia-southeast1 --no-invoker-iam-check   # public reach under org policy
+```
+Test the `…run.app` URL: password page appears, password loads the dashboard, `/data.json` returns 401 without a session.
+
+**6. Custom domain (Cloudflare, free)**
+- DNS → CNAME `acme` → the service's `…run.app` host, **Proxied (orange)**.
+- SSL/TLS → **Full (strict)**.
+- Rules → Origin Rules → when hostname = `acme.bidbrain.ai`, set **Host header** → the `…run.app` host.
+
+**7. Daily refresh (Cloud Scheduler)** — in the Cloud Run **job → Triggers tab → Add Scheduler Trigger** (it creates the schedule and enables the API). Standard cadence: `0 22 * * *` (22:00 UTC).
+
+**8. Commit**
+```powershell
+git add . ; git commit -m "Add ACME client dashboard" ; git push
+```
+
+---
+
+## 11. Operating it
+
+**In plain terms:** how to run, update, and troubleshoot the existing pieces.
+
+**Run the data refresh now (don't wait for the schedule):**
+```powershell
+gcloud run jobs execute mongodb-export --region australia-southeast1
+```
+
+**Confirm the data file updated:**
+```powershell
+gcloud storage ls -l gs://bidbrain-analytics-mongodb-dash/mongodb.json   # check the timestamp
+```
+
+**See the job's logs (what happened during a run):**
+```powershell
+gcloud logging read "resource.labels.job_name=mongodb-export" --project=bidbrain-analytics --limit=20 --freshness=1d --format="value(textPayload)" --order=asc
+```
+
+**Update the dashboard or app code** — edit files in `mongodb-dash/`, then redeploy:
+```powershell
+cd mongodb-dash ; gcloud run deploy mongodb-dash --source . --region australia-southeast1
+```
+(Existing env vars/secrets/SA stick across redeploys.)
+
+**Change the password:** add a new version of the secret, then redeploy (or it picks up `:latest` on next start):
+```powershell
+$pw = Read-Host "New password"; $t=New-TemporaryFile; [IO.File]::WriteAllText($t,$pw)
+gcloud secrets versions add mongodb-dash-password --data-file="$t"; Remove-Item $t
+```
+
+**The everyday git loop:**
+```powershell
+git add . ; git commit -m "what changed" ; git push
+```
+
+---
+
+## 12. Gotchas & lessons learned
+
+Hard-won, in no particular order. These will save the next build hours.
+
+**PowerShell**
+- No `grep`/`tr`/`sed` — use `Select-String`, `Where-Object`, `-replace`.
+- Comma-separated `gcloud` flag values **must be quoted**, or PowerShell splits them: `--set-env-vars "A=1,B=2"` (a missing env var → `KeyError`).
+- You **can't rename a folder you're standing in** — `cd` out first.
+- **Variables don't survive a new terminal.** Re-set `$repo`, `$app`, etc. each session.
+- Writing secrets: use a temp file with `[IO.File]::WriteAllText` (no trailing newline) so the password is exact.
+
+**BigQuery / Snowflake**
+- `bq` and BigQuery jobs need an explicit `--location=australia-southeast1` (defaults to US otherwise).
+- Snowflake → BigQuery SQL dialect ports: `SPLIT_PART(x,'_',3)` → `SPLIT(x,'_')[SAFE_OFFSET(2)]`; `(VALUES …) AS t(...)` → `UNNEST([STRUCT(...)])`; `TRUNC(d,'WEEK')` → `DATE_TRUNC(d, WEEK(MONDAY))`; `SUM(CASE WHEN … )` → `COUNTIF(…)`; `::STRING` → `CAST(... AS STRING)`. Snowflake's `OBJECT_CONSTRUCT`/`OBJECT_AGG` JSON builders → build the JSON **in Python** in the job instead (cleaner than BigQuery `EXPORT DATA`, which shards files and forces a different shape).
+
+**Cloud Run**
+- Source deploys build via the **compute default service account**, which needs `roles/cloudbuild.builds.builder` (one-time grant per project).
+- The org enforces **Domain Restricted Sharing**, so `--allow-unauthenticated` (which sets `allUsers`) is rejected with *"do not belong to a permitted customer."* Fix: `gcloud run services update <svc> --no-invoker-iam-check` (the app does its own auth).
+
+**Cloudflare + custom domain**
+- A plain CNAME to a `…run.app` URL returns a **404** (Cloud Run routes by Host header). Fix: **Host Header Override** (Origin Rule) + **Proxied (orange)** + SSL **Full (strict)**.
+- The web app's session cookie is intentionally **not pinned to a domain**, so login works through the Cloudflare proxy.
+
+**Security**
+- Don't reintroduce a public data URL. The old `pub-….r2.dev` link and the `dashboards-unlock` slug system were obscurity, not security.
+- The legacy Snowflake build script (`CREATE_MONGO_DB_DASH`) contained **live R2 credentials** in plaintext — keep that file out of git and **rotate those keys** when retiring R2.
+
+---
+
+## 13. Current status & TODO
+
+**This first dashboard was built fast to prove the pattern works.** Status:
+
+**✅ Done**
+- BigQuery layered model + MongoDB views
+- Snowflake read-only sync user (key-pair)
+- Export job (`mongodb-export`) — builds `mongodb.json`, ran successfully
+- Private bucket + secrets + service accounts
+- Gated web app (`mongodb-dash`) deployed, public-reachable, password-protected
+
+**🚧 In progress / pending**
+- **Custom domain** `mongodb.bidbrain.ai` (Cloudflare CNAME + Host Header Override) — finishing.
+- **Daily auto-refresh** (Cloud Scheduler trigger on the job) — **not set up yet**; the job has only been run manually. Add via the job's Triggers tab (`0 22 * * *`).
+- **Retire the legacy MongoDB path:** turn off the old Snowflake `DAILY_MONGODB_EXPORT` task and delete the public R2 `mongodb.json` so the old public link goes dead. **Rotate the leaked R2 keys.** (Other clients' `dashboards-unlock` dashboards are untouched.)
+- **Windsor `loader.py` fixes:** set `bigquery.Client(location="australia-southeast1")`, `DATASET="raw_windsor"`, point the chunks path at `bidbrain-vault/chunks`, and run `gcloud auth application-default set-quota-project bidbrain-analytics` to clear the ADC quota warning.
+- **Version-control the BigQuery view SQL** (save under `mongodb-job/sql/` or `client_mongodb/sql/`) — currently the views live only inside BigQuery.
+- **Cosmetic:** `dashboard.html` still says "Snowflake" / "Fetching from Snowflake" in a couple of spots — should read BigQuery.
+
+---
+
+## 14. Glossary (plain English)
+
+- **GCP / Google Cloud** — Google's cloud platform; where all of this runs.
+- **Project (`bidbrain-analytics`)** — the container that holds all our Google Cloud resources and billing.
+- **Region (`australia-southeast1`)** — the physical location (Sydney) where our resources live.
+- **BigQuery** — Google's data warehouse; a giant, fast database where we store and crunch data.
+- **Dataset** — a labelled folder of tables/views inside BigQuery.
+- **Table / View** — a table holds data; a view is a saved query that *calculates* a result from tables on demand.
+- **Cloud Run** — a service that runs your code in the cloud without managing servers. A **job** runs and stops; a **service** stays on and answers web requests.
+- **GCS bucket (Cloud Storage)** — cloud file storage. "Private" means not reachable from the internet.
+- **Secret Manager** — a locked safe for passwords and keys, kept out of the code.
+- **Service account** — a robot "user" with an ID badge and limited permissions, used by automated pieces.
+- **IAM** — the system that controls who/what is allowed to do what.
+- **Snowflake** — a separate data warehouse where the client's raw ad/lead data originates.
+- **Windsor.ai** — a tool that pulls marketing data and loads it into BigQuery.
+- **JSON file** — a plain-text data file; here it's the finished, tidy dataset the dashboard reads.
+- **Cloudflare** — manages the `bidbrain.ai` web address (DNS) and proxies traffic to our app.
+- **DNS** — the internet's address book; turns a name like `mongodb.bidbrain.ai` into the right destination.
+- **Basic Auth / password gate** — the login screen that blocks access until you enter the password.
+- **Security by obscurity** — "protection" that only relies on something being hard to find (a hidden link). Not real protection — what the old system did, and what we replaced.
+
+---
+
+*Maintained by the Bidbrain team. When in doubt: follow the [MongoDB example](#10-playbook-add-a-new-client-dashboard), keep secrets out of git, and never make the data public.*
