@@ -21,3 +21,5 @@ venv/
 # OS / editor
 .DS_Store
 Thumbs.db
+*.ndjson
+_run/

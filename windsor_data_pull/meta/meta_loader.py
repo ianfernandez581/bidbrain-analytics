@@ -1,35 +1,32 @@
 """
 Windsor -> BigQuery loader for Meta / Facebook Ads performance data.
 
-Same per-chunk pipeline as tradedesk_loader.py: each date chunk is fetched,
-uploaded to GCS, loaded to staging, and MERGEd into the main table
-independently. Verbose logging, on-disk chunk cache so re-runs skip
-already-fetched chunks. Grain: one row per (ad_id x date). MERGE key =
-ad_id + metric_date.
+Lives in:  windsor_data_pull/meta/meta_loader.py
+All runtime artifacts (chunk cache, log, temp NDJSON) are written to _run/
+NEXT TO THIS SCRIPT -- anchored to the file, not the working directory -- so
+they never scatter into the repo root no matter where you launch from. _run/
+is gitignored.
+
+Same per-chunk pipeline as tradedesk_loader.py. Grain: one row per (ad_id x
+date). MERGE key = ad_id + metric_date.
 
 TWO MODES
 ---------
-1. BACKWARD WALK (no date args) -- for the initial backfill when you DON'T
-   know when the account started. Walks from yesterday backwards in CHUNK_DAYS
-   windows, loading as it goes, and auto-discovers how far back data exists.
-   Stops after STOP_AFTER_EMPTY_CHUNKS *consecutive* empty chunks (so short
-   gaps in activity don't end it early), or when it hits the MIN_DATE floor.
+1. BACKWARD WALK (no date args) -- initial backfill when you DON'T know when
+   the account started. Walks from yesterday backwards in CHUNK_DAYS windows,
+   loading as it goes, until STOP_AFTER_EMPTY_CHUNKS consecutive empty chunks
+   (so short activity gaps don't end it early) or the MIN_DATE floor.
 
-       python meta_loader.py
+       python windsor_data_pull/meta/meta_loader.py
 
-2. FIXED RANGE (two date args) -- for daily / targeted runs.
+2. FIXED RANGE (two date args) -- daily / targeted runs.
 
-       python meta_loader.py 2026-05-25 2026-05-30
+       python windsor_data_pull/meta/meta_loader.py 2026-05-25 2026-05-30
 
---force on either mode re-fetches even cached chunks (use to backfill a newly
-onboarded client's history; the MERGE is idempotent on ad_id+date).
+--force re-fetches even cached chunks (MERGE is idempotent on ad_id+date).
 
-RETRIES
--------
-Transient errors (timeouts, connection drops, HTTP 429/5xx) are retried
-FOREVER with capped backoff -- this is happy to run for hours. A permanent
-HTTP 4xx (bad field name, auth) is NOT retried: it fails fast and logs the
-response body, because retrying it would loop indefinitely.
+RETRIES: transient errors (timeouts, 429, 5xx) retried FOREVER with capped
+backoff. Permanent 4xx (bad field / auth) fails fast with the response body.
 """
 import json
 import logging
@@ -63,60 +60,52 @@ SELECT_ACCOUNTS = [
     "facebook__927205350157043",
 ]
 
-# Final field set: your working URL, minus deprecated frequency_value, plus
-# ad_name / shares / ad-recall / IG visits / unique leads / pixel ROAS.
 WINDSOR_FIELDS = (
-    # identifiers + attributes
     "account_id,account_name,campaign_id,campaign,objective,"
     "adset_id,adset_name,ad_id,ad_name,effective_status,date,account_currency,"
     "campaign_spend_cap,"
-    # delivery + cost
     "impressions,reach,frequency,spend,cpc,cpm,cpp,"
-    # clicks: all
     "clicks,unique_clicks,"
-    # clicks: link
     "link_clicks,actions_link_click,unique_actions_link_click,unique_link_clicks_ctr,"
     "cost_per_action_type_link_click,cost_per_unique_action_type_link_click,"
-    # clicks: outbound
     "outbound_clicks_outbound_click,unique_outbound_clicks_outbound_click,"
     "outbound_clicks_ctr_outbound_click,unique_outbound_clicks_ctr_outbound_click,"
     "cost_per_outbound_click_outbound_click,cost_per_unique_outbound_click_outbound_click,"
-    # engagement
     "actions_post_engagement,unique_actions_post_engagement,actions_page_engagement,"
     "actions_post_reaction,actions_comment,actions_post,"
     "actions_onsite_conversion_post_save,actions_video_view,"
-    # awareness / brand
     "estimated_ad_recallers,estimated_ad_recall_rate,instagram_profile_visits,"
-    # leads
     "actions_lead,actions_offsite_conversion_fb_pixel_lead,"
     "actions_onsite_conversion_lead_grouped,unique_actions_lead,cost_per_action_type_lead,"
-    # conversions + value
     "actions_landing_page_view,actions_add_to_cart,actions_initiate_checkout,"
     "actions_omni_purchase,actions_complete_registration,action_values_omni_purchase,"
     "purchase_roas_omni_purchase,website_purchase_roas_offsite_conversion_fb_pixel_purchase,"
-    # video funnel
     "video_play_actions_video_view,video_p25_watched_actions_video_view,"
     "video_p50_watched_actions_video_view,video_p75_watched_actions_video_view,"
     "video_p95_watched_actions_video_view,video_p100_watched_actions_video_view,"
     "video_thruplay_watched_actions_video_view,video_avg_time_watched_actions_video_view,"
-    # optimization signals
     "quality_ranking,engagement_rate_ranking,conversion_rate_ranking,"
-    # creative metadata
     "creative_id,thumbnail_url,effective_instagram_media__thumbnail_url,"
     "placement_ad_thumbnail_url,title,body,link_url,link,"
-    # provenance
     "datasource,source"
 )
 
 CHUNK_DAYS = 3
-STOP_AFTER_EMPTY_CHUNKS = 5        # consecutive empties before assuming "start of history"
-MIN_DATE = date(2015, 1, 1)        # safety floor for the backward walk
-TIMEOUT_SEC = 120                  # ad-level payloads are large; give Windsor time
-RETRY_SLEEP_BASE = 5               # backoff grows base*attempt, capped at MAX
+STOP_AFTER_EMPTY_CHUNKS = 5
+MIN_DATE = date(2015, 1, 1)
+TIMEOUT_SEC = 120
+RETRY_SLEEP_BASE = 5
 RETRY_SLEEP_MAX = 60
-INTER_CHUNK_SLEEP = 1              # be polite between chunks
-CHUNKS_DIR = Path("chunks/meta")
+INTER_CHUNK_SLEEP = 1
 GCLOUD = r"C:\Users\ianfe\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\gcloud.cmd"
+
+# All runtime artifacts live under _run/ next to THIS script (not the cwd), so
+# nothing ever lands in the repo root. _run/ is gitignored.
+BASE_DIR = Path(__file__).resolve().parent
+WORK_DIR = BASE_DIR / "_run"
+WORK_DIR.mkdir(parents=True, exist_ok=True)
+CHUNKS_DIR = WORK_DIR / "chunks"
+LOG_FILE = WORK_DIR / "meta_loader.log"
 
 CLIENT_TO_AGENCY = {
     "wehi": "ad-assembly",
@@ -143,7 +132,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
     handlers=[
-        logging.FileHandler("meta_loader.log", mode="a", encoding="utf-8"),
+        logging.FileHandler(str(LOG_FILE), mode="a", encoding="utf-8"),
         FlushingStreamHandler(sys.stdout),
     ],
 )
@@ -153,9 +142,12 @@ log = logging.getLogger("meta_loader")
 def get_secret(name):
     log.info(f"Fetching secret '{name}' from Secret Manager...")
     r = subprocess.run(
-        [GCLOUD, "secrets", "versions", "access", "latest", "--secret", name],
-        capture_output=True, text=True, check=True,
+        [GCLOUD, "secrets", "versions", "access", "latest",
+         "--secret", name, "--project", PROJECT_ID],
+        capture_output=True, text=True,
     )
+    if r.returncode != 0:
+        raise RuntimeError(f"gcloud secret fetch failed for '{name}':\n{r.stderr.strip()}")
     val = r.stdout.strip()
     log.info(f"  got secret (length {len(val)})")
     return val
@@ -207,8 +199,7 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
             payload = r.json()
             rows = payload.get("data", [])
             if "data" not in payload:
-                log.warning(f"    no 'data' key in response (keys: {list(payload)[:5]}) "
-                            f"-- treating as 0 rows")
+                log.warning(f"    no 'data' key (keys: {list(payload)[:5]}) -- treating as 0 rows")
             total_elapsed = time.monotonic() - start
             log.info(f"  [{tag}] SUCCESS: {len(rows)} rows in {total_elapsed:.1f}s")
             cache_file.write_text(json.dumps(rows), encoding="utf-8")
@@ -217,23 +208,18 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
             status = e.response.status_code if e.response is not None else None
             if status == 429 or (status is not None and status >= 500):
                 sleep = min(RETRY_SLEEP_BASE * attempt, RETRY_SLEEP_MAX)
-                log.warning(f"    attempt {attempt} transient HTTP {status}; "
-                            f"retrying in {sleep}s")
+                log.warning(f"    attempt {attempt} transient HTTP {status}; retrying in {sleep}s")
                 time.sleep(sleep)
                 continue
-            # Permanent 4xx -- retrying won't help. Fail fast with the body.
             body = (e.response.text[:500] if e.response is not None else "")
             raise RuntimeError(
-                f"Chunk {d_from}..{d_to} got permanent HTTP {status}. "
-                f"This will NOT recover by retrying -- likely a bad field name "
-                f"or auth. Response body:\n{body}"
+                f"Chunk {d_from}..{d_to} got permanent HTTP {status}. This will NOT "
+                f"recover by retrying -- likely a bad field name or auth. Body:\n{body}"
             )
         except requests.exceptions.RequestException as e:
             sleep = min(RETRY_SLEEP_BASE * attempt, RETRY_SLEEP_MAX)
-            log.warning(f"    attempt {attempt} FAILED ({type(e).__name__}); "
-                        f"retrying in {sleep}s")
+            log.warning(f"    attempt {attempt} FAILED ({type(e).__name__}); retrying in {sleep}s")
             time.sleep(sleep)
-            # loop forever -- never give up on transient failures
 
 def to_int(v):
     if v in (None, "", "null"): return None
@@ -265,7 +251,6 @@ def transform(row, ingested_at_iso):
         "metric_date": g("date"),
         "currency": g("account_currency"),
         "campaign_spend_cap": to_num(g("campaign_spend_cap")),
-        # delivery & cost
         "impressions": to_int(g("impressions")) or 0,
         "reach": to_int(g("reach")),
         "frequency": to_num(g("frequency")),
@@ -273,24 +258,20 @@ def transform(row, ingested_at_iso):
         "cpc": to_num(g("cpc")),
         "cpm": to_num(g("cpm")),
         "cpp": to_num(g("cpp")),
-        # clicks: all
         "clicks": to_int(g("clicks")) or 0,
         "unique_clicks": to_int(g("unique_clicks")),
-        # clicks: link
         "link_clicks": to_int(g("link_clicks")),
         "link_clicks_actions": to_int(g("actions_link_click")),
         "unique_link_clicks": to_int(g("unique_actions_link_click")),
         "unique_link_clicks_ctr": to_num(g("unique_link_clicks_ctr")),
         "cost_per_link_click": to_num(g("cost_per_action_type_link_click")),
         "cost_per_unique_link_click": to_num(g("cost_per_unique_action_type_link_click")),
-        # clicks: outbound
         "outbound_clicks": to_int(g("outbound_clicks_outbound_click")),
         "unique_outbound_clicks": to_int(g("unique_outbound_clicks_outbound_click")),
         "outbound_ctr": to_num(g("outbound_clicks_ctr_outbound_click")),
         "unique_outbound_ctr": to_num(g("unique_outbound_clicks_ctr_outbound_click")),
         "cost_per_outbound_click": to_num(g("cost_per_outbound_click_outbound_click")),
         "cost_per_unique_outbound_click": to_num(g("cost_per_unique_outbound_click_outbound_click")),
-        # engagement
         "post_engagement": to_int(g("actions_post_engagement")),
         "unique_post_engagement": to_int(g("unique_actions_post_engagement")),
         "page_engagement": to_int(g("actions_page_engagement")),
@@ -299,17 +280,14 @@ def transform(row, ingested_at_iso):
         "shares": to_int(g("actions_post")),
         "saves": to_int(g("actions_onsite_conversion_post_save")),
         "video_3s_views": to_int(g("actions_video_view")),
-        # awareness / brand
         "est_ad_recall_lift": to_num(g("estimated_ad_recallers")),
         "est_ad_recall_rate": to_num(g("estimated_ad_recall_rate")),
         "instagram_profile_visits": to_int(g("instagram_profile_visits")),
-        # leads
         "leads": to_int(g("actions_lead")),
         "leads_website": to_int(g("actions_offsite_conversion_fb_pixel_lead")),
         "leads_onfacebook": to_int(g("actions_onsite_conversion_lead_grouped")),
         "unique_leads": to_int(g("unique_actions_lead")),
         "cost_per_lead": to_num(g("cost_per_action_type_lead")),
-        # conversions & value
         "landing_page_views": to_int(g("actions_landing_page_view")),
         "add_to_cart": to_int(g("actions_add_to_cart")),
         "initiate_checkout": to_int(g("actions_initiate_checkout")),
@@ -318,7 +296,6 @@ def transform(row, ingested_at_iso):
         "purchase_value": to_num(g("action_values_omni_purchase")),
         "purchase_roas": to_num(g("purchase_roas_omni_purchase")),
         "purchase_roas_website": to_num(g("website_purchase_roas_offsite_conversion_fb_pixel_purchase")),
-        # video funnel
         "video_starts": to_int(g("video_play_actions_video_view")),
         "video_25": to_int(g("video_p25_watched_actions_video_view")),
         "video_50": to_int(g("video_p50_watched_actions_video_view")),
@@ -327,11 +304,9 @@ def transform(row, ingested_at_iso):
         "video_completes": to_int(g("video_p100_watched_actions_video_view")),
         "thruplays": to_int(g("video_thruplay_watched_actions_video_view")),
         "video_avg_watch_time": to_num(g("video_avg_time_watched_actions_video_view")),
-        # optimization signals
         "quality_ranking": g("quality_ranking"),
         "engagement_rate_ranking": g("engagement_rate_ranking"),
         "conversion_rate_ranking": g("conversion_rate_ranking"),
-        # creative metadata
         "creative_id": g("creative_id"),
         "creative_thumbnail_url": g("thumbnail_url"),
         "ig_thumbnail_url": g("effective_instagram_media__thumbnail_url"),
@@ -340,13 +315,11 @@ def transform(row, ingested_at_iso):
         "creative_body": g("body"),
         "creative_link_url": g("link_url"),
         "destination_url": g("link"),
-        # provenance
         "ingested_at": ingested_at_iso,
         "source": "windsor.facebook",
         "raw_row": json.dumps(row),
     }
 
-# Non-key columns updated on MERGE match (everything except ad_id, metric_date)
 _MERGE_SET_COLS = [
     "platform","account_id","account_name","campaign_id","campaign_name","objective",
     "adset_id","adset_name","ad_name","effective_status","client_slug","agency_slug",
@@ -366,16 +339,14 @@ _MERGE_SET_COLS = [
     "creative_body","creative_link_url","destination_url","ingested_at","source","raw_row",
 ]
 
-def load_chunk_to_bq(bq, storage_client, main_table_schema, rows, ingested_at,
-                     d_from, d_to):
-    """Upload one chunk's rows to GCS, load to staging, MERGE into main, cleanup."""
+def load_chunk_to_bq(bq, storage_client, main_table_schema, rows, ingested_at, d_from, d_to):
     if not rows:
         log.info(f"  (no rows for {d_from}..{d_to}, skipping BQ load)")
         return 0, 0
 
     transformed = [transform(r, ingested_at) for r in rows]
     run_id = uuid.uuid4().hex[:8]
-    local_path = Path(f"load_meta_{run_id}.ndjson")
+    local_path = WORK_DIR / f"load_{run_id}.ndjson"
     with local_path.open("w", encoding="utf-8") as f:
         for row in transformed:
             f.write(json.dumps(row) + "\n")
@@ -431,14 +402,13 @@ def main():
     if fixed_range:
         start_d = date.fromisoformat(pos[0])
         end_d = date.fromisoformat(pos[1])
-        log.info(f"META LOADER START (fixed range): {start_d} to {end_d}"
-                 f"{'  (FORCE)' if force else ''}")
+        log.info(f"META LOADER START (fixed range): {start_d} to {end_d}{'  (FORCE)' if force else ''}")
     else:
         end_d = date.today() - timedelta(days=1)
-        log.info(f"META LOADER START (backward walk): from {end_d} going back "
-                 f"until {STOP_AFTER_EMPTY_CHUNKS} consecutive empty chunks "
-                 f"(floor {MIN_DATE}){'  (FORCE)' if force else ''}")
-    log.info("Per-chunk pipeline: each chunk loads to BQ before next fetch.")
+        log.info(f"META LOADER START (backward walk): from {end_d} back until "
+                 f"{STOP_AFTER_EMPTY_CHUNKS} consecutive empty chunks (floor {MIN_DATE})"
+                 f"{'  (FORCE)' if force else ''}")
+    log.info(f"Artifacts dir: {WORK_DIR}")
     log.info(f"Accounts: {len(SELECT_ACCOUNTS)} | chunk size: {CHUNK_DAYS}d")
     log.info("=" * 60)
 
@@ -466,11 +436,10 @@ def main():
             grand_updated += upd
         except Exception as e:
             log.error(f"  BQ LOAD FAILED for {d_from}..{d_to}: {type(e).__name__}: {e}")
-            log.error("  Chunk JSON is cached on disk; re-run to retry just the BQ side.")
+            log.error("  Chunk JSON is cached; re-run to retry just the BQ side.")
         elapsed_min = (time.monotonic() - overall_start) / 60
         log.info(f"  RUNNING TOTAL: fetched={grand_rows_fetched}, "
-                 f"inserted={grand_inserted}, updated={grand_updated}, "
-                 f"elapsed={elapsed_min:.1f} min")
+                 f"inserted={grand_inserted}, updated={grand_updated}, elapsed={elapsed_min:.1f} min")
         return len(rows)
 
     if fixed_range:
@@ -480,14 +449,13 @@ def main():
             ce = min(cur + timedelta(days=CHUNK_DAYS - 1), end_d)
             chunks.append((cur, ce))
             cur = ce + timedelta(days=1)
-        chunks.reverse()  # newest first
+        chunks.reverse()
         total = len(chunks)
         log.info(f"Will process {total} chunks (newest first)")
         for i, (d_from, d_to) in enumerate(chunks, start=1):
             run_chunk(d_from, d_to, i, total)
             time.sleep(INTER_CHUNK_SLEEP)
     else:
-        # Backward walk: from end_d going back, stop on consecutive empties / floor.
         consecutive_empty = 0
         idx = 0
         cur_to = end_d
@@ -501,11 +469,10 @@ def main():
 
             if n == 0:
                 consecutive_empty += 1
-                log.info(f"  empty chunk #{consecutive_empty} of "
-                         f"{STOP_AFTER_EMPTY_CHUNKS} before stopping")
+                log.info(f"  empty chunk #{consecutive_empty} of {STOP_AFTER_EMPTY_CHUNKS} before stopping")
                 if consecutive_empty >= STOP_AFTER_EMPTY_CHUNKS:
-                    log.info(f"  >>> {STOP_AFTER_EMPTY_CHUNKS} consecutive empty "
-                             f"chunks. Assuming start of history. Stopping.")
+                    log.info(f"  >>> {STOP_AFTER_EMPTY_CHUNKS} consecutive empty chunks. "
+                             f"Assuming start of history. Stopping.")
                     break
             else:
                 consecutive_empty = 0

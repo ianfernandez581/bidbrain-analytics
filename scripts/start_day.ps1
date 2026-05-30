@@ -1,18 +1,19 @@
 # start_day.ps1  -  bidbrain-analytics morning preflight
-# Refreshes Google auth (the thing that expires overnight), sets the quota
-# project, and pings BigQuery so you know you're good before running anything.
+# Verifies BOTH credential systems gcloud uses, plus that the loaders can
+# actually read the Windsor key, so nothing surprises you mid-task.
+#
+#   gcloud CLI creds      -> used by `gcloud secrets ...` (the loaders' key fetch)
+#   application-default   -> used by Python client libs (BigQuery)
+# These expire independently and your org enforces periodic reauth, so both
+# are checked here.
 #
 # Lives in:  bidbrain-analytics/scripts/
-# Run:               .\scripts\start_day.ps1   (from the project folder)
-# Or double-click:   scripts\start_day.cmd     (no execution-policy fuss)
+# Run:               .\scripts\start_day.ps1
+# Or double-click:   scripts\start_day.cmd
 
 $PROJECT = "bidbrain-analytics"
-# The interpreter that has the google-cloud libs installed (same one that runs
-# your loaders). Matches the hardcoded-path convention already used in the loaders.
 $PY = "C:\Users\ianfe\AppData\Local\Programs\Python\Python314\python.exe"
 
-# This script lives in <repo>/scripts/. Hop up to the repo root so the python
-# commands below resolve no matter where you launched it from.
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
 Write-Host ""
@@ -25,27 +26,49 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# 2. Are application-default credentials still valid?
-#    print-access-token succeeds only if ADC is good; otherwise we re-auth.
-Write-Host "[*] Checking Google credentials..." -ForegroundColor Yellow
-$token = gcloud auth application-default print-access-token 2>$null
-if (-not $token) {
-    Write-Host "[!] Credentials expired - opening browser to log in." -ForegroundColor Yellow
-    gcloud auth application-default login | Out-Null
+# 2. gcloud CLI credentials (used by `gcloud secrets` in the loaders).
+#    Handle this FIRST so later gcloud calls don't pop a reauth prompt.
+Write-Host "[*] Checking gcloud CLI credentials..." -ForegroundColor Yellow
+$cliToken = gcloud auth print-access-token 2>$null
+if (-not $cliToken) {
+    Write-Host "[!] gcloud CLI needs reauth (org session policy). Opening browser..." -ForegroundColor Yellow
+    gcloud auth login
 } else {
-    Write-Host "[OK] Credentials valid." -ForegroundColor Green
+    Write-Host "[OK] gcloud CLI credentials valid." -ForegroundColor Green
 }
 
-# 3. Quota project (silences the 'no quota project' warning + avoids quota errors)
-gcloud auth application-default set-quota-project $PROJECT 2>$null | Out-Null
-Write-Host "[OK] Quota project = $PROJECT" -ForegroundColor Green
+# 3. Pin the CLI project so `gcloud secrets` looks in the right place.
+gcloud config set project $PROJECT 2>$null | Out-Null
+Write-Host "[OK] CLI project = $PROJECT" -ForegroundColor Green
 
-# 4. Eyeball the active account
+# 4. Application-default credentials (used by the Python client libs).
+Write-Host "[*] Checking application-default credentials..." -ForegroundColor Yellow
+$adcToken = gcloud auth application-default print-access-token 2>$null
+if (-not $adcToken) {
+    Write-Host "[!] ADC expired - opening browser to log in." -ForegroundColor Yellow
+    gcloud auth application-default login | Out-Null
+} else {
+    Write-Host "[OK] ADC valid." -ForegroundColor Green
+}
+gcloud auth application-default set-quota-project $PROJECT 2>$null | Out-Null
+Write-Host "[OK] ADC quota project = $PROJECT" -ForegroundColor Green
+
+# 5. Eyeball the active account
 $account = (gcloud config get-value account 2>$null)
 Write-Host "[OK] Active account: $account" -ForegroundColor Green
 
-# 5. BigQuery ping via the Python client -- the SAME path your loaders use,
-#    so a green light here means the real pipeline will work.
+# 6. Verify the loaders can read the Windsor key (the exact op they do first).
+#    Captured to $null so the secret never prints to screen.
+Write-Host "[*] Checking Secret Manager (windsor-api-key)..." -ForegroundColor Yellow
+$null = gcloud secrets versions access latest --secret windsor-api-key --project $PROJECT 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "[OK] Windsor key readable - loaders can authenticate." -ForegroundColor Green
+} else {
+    Write-Host "[!] Couldn't read windsor-api-key. If you weren't prompted to reauth," -ForegroundColor Yellow
+    Write-Host "    check the secret name / your IAM access to it." -ForegroundColor Yellow
+}
+
+# 7. BigQuery ping via the Python client (same path your loaders use).
 Write-Host "[*] Pinging BigQuery (raw_windsor)..." -ForegroundColor Yellow
 & $PY -c "from google.cloud import bigquery; bigquery.Client(project='$PROJECT').get_dataset('raw_windsor'); print('ok')" 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) {
@@ -56,7 +79,7 @@ if ($LASTEXITCODE -eq 0) {
 
 Write-Host ""
 Write-Host "Ready to go. Common commands:" -ForegroundColor Cyan
-Write-Host "  $PY infra/create_meta_table.py"
-Write-Host "  $PY windsor_data_pull/facebook_ads_loader.py"
+Write-Host "  $PY windsor_data_pull/meta/meta_loader.py"
 Write-Host "  $PY windsor_data_pull/tradedesk_loader.py"
+Write-Host "  $PY infra/create_meta_table.py"
 Write-Host ""
