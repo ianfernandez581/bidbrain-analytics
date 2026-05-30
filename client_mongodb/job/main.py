@@ -4,10 +4,28 @@ from google.cloud import bigquery, storage
 import snowflake.connector
 from cryptography.hazmat.primitives import serialization
 
-PROJECT = os.environ["GCP_PROJECT"]
-DATASET = os.environ["BQ_DATASET"]
-BUCKET  = os.environ["GCS_BUCKET"]
-LOC     = "australia-southeast1"
+# --- Project-wide constants ---------------------------------------------------
+# One GCP project, one Snowflake account -> these are identical for EVERY client,
+# so they're hardcoded here (same pattern as the Windsor loaders, which each
+# hardcode their own PROJECT_ID / dataset / bucket rather than sharing a module).
+# A shared module can't be imported here anyway: the Dockerfile copies only
+# main.py, so anything outside this folder isn't in the container.
+PROJECT      = "bidbrain-analytics"
+LOC          = "australia-southeast1"
+SF_ACCOUNT   = "ZGKGHOH-ISA98947"
+SF_USER      = "BQ_SYNC_USER"
+SF_WAREHOUSE = "APAC_IN_WH"
+
+# --- The ONE line that differs per client -------------------------------------
+# Copy this folder for a new client and change ONLY this (e.g. "acme").
+# Dataset / bucket / output object all follow from it via the naming convention
+# (README section 9), so they can never drift or be pointed at the wrong client
+# by a stale shell variable.
+CLIENT = "mongodb"
+
+DATASET     = f"client_{CLIENT}"                    # client_mongodb
+BUCKET      = f"bidbrain-analytics-{CLIENT}-dash"   # bidbrain-analytics-mongodb-dash
+DATA_OBJECT = f"{CLIENT}.json"                      # mongodb.json
 
 TD_SQL = """
 SELECT DAY, CAMPAIGN_NAME, AD_GROUP_NAME,
@@ -30,15 +48,34 @@ WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrD
                       '701RG00001NKKwQYAX')
 """
 
+def _snowflake_key_bytes():
+    """Snowflake private key (PEM) as bytes for cryptography.
+
+    Cloud Run injects it as the SNOWFLAKE_KEY env var (--set-secrets), so in prod
+    this just reads the env var -- byte-identical to before. Locally, when that
+    env var is absent, fall back to reading the secret from Secret Manager via
+    ADC -- the same pattern the Windsor loaders use -- so `python main.py` runs
+    with no env setup. Reading through the client library (not gcloud) returns
+    the raw stored bytes, so the CRLF mangling that run-export-job.ps1 guards
+    against (a gcloud-on-Windows / PowerShell-pipeline artefact) doesn't occur.
+    """
+    pem = os.environ.get("SNOWFLAKE_KEY")
+    if pem is None:
+        from google.cloud import secretmanager
+        sm = secretmanager.SecretManagerServiceClient()
+        name = f"projects/{PROJECT}/secrets/snowflake-bq-key/versions/latest"
+        pem = sm.access_secret_version(name=name).payload.data.decode("utf-8")
+    return pem.encode()
+
 def sf_connect():
-    pkey = serialization.load_pem_private_key(os.environ["SNOWFLAKE_KEY"].encode(), password=None)
+    pkey = serialization.load_pem_private_key(_snowflake_key_bytes(), password=None)
     der = pkey.private_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PrivateFormat.PKCS8,
         encryption_algorithm=serialization.NoEncryption())
     return snowflake.connector.connect(
-        account=os.environ["SF_ACCOUNT"], user=os.environ["SF_USER"],
-        private_key=der, warehouse=os.environ["SF_WAREHOUSE"])
+        account=SF_ACCOUNT, user=SF_USER,
+        private_key=der, warehouse=SF_WAREHOUSE)
 
 def iso(v):
     if v is None: return None
@@ -127,9 +164,10 @@ def main():
                 "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
     }
 
-    storage.Client(project=PROJECT).bucket(BUCKET).blob("mongodb.json").upload_from_string(
+    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
-    print(f"wrote gs://{BUCKET}/mongodb.json | {len(env['rows'])} rows, {sum(c['total'] for c in env['cs'])} leads")
+    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['rows'])} rows, "
+          f"{sum(c['total'] for c in env['cs'])} leads")
 
 if __name__ == "__main__":
     main()
