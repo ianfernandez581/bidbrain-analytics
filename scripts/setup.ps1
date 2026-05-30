@@ -11,7 +11,7 @@
   Steps:
     1. Install Python 3.12 if missing (winget)
     2. Install Google Cloud SDK if missing (winget)
-    3. Verify the committed requirements.txt is present
+    3. Verify the committed requirements files are present (root + export job)
     4. Create an isolated .venv and install dependencies into it
     5. Log in to gcloud (CLI creds + application-default) - the one manual step
     6. Verify it can read the Windsor secret and reach BigQuery
@@ -96,14 +96,29 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
 }
 Write-Host "[OK] gcloud: $((Get-Command gcloud).Source)" -ForegroundColor Green
 
-# --- 3. requirements.txt (must be committed in the repo) ----------------------
-$reqPath = Join-Path $REPO "requirements.txt"
-if (-not (Test-Path $reqPath)) {
-    Write-Host "[X] requirements.txt is missing from the repo root. It is version-" -ForegroundColor Red
-    Write-Host "    controlled -- restore it with 'git checkout -- requirements.txt' and re-run." -ForegroundColor Red
-    exit 1
+# --- 3. requirements files (must be committed in the repo) --------------------
+# The local .venv is a convenience superset for running everything locally:
+#   - requirements.txt                    -> Windsor loaders + infra scripts
+#   - client_mongodb/job/requirements.txt -> the MongoDB export job (main.py:
+#                                            pandas / pyarrow / snowflake)
+# Both pin google-cloud-bigquery/storage to the SAME versions, so they coexist
+# in one venv (verified with `pip check`). The dash web app is deliberately
+# EXCLUDED: it pins google-cloud-storage==2.18.2, which conflicts with the
+# 3.10.1 used here. Each Cloud Run unit still builds its own container from its
+# own requirements.txt, so this dev-only superset never affects image builds.
+$reqFiles = @(
+    (Join-Path $REPO "requirements.txt"),
+    (Join-Path $REPO "client_mongodb\job\requirements.txt")
+)
+foreach ($r in $reqFiles) {
+    if (-not (Test-Path $r)) {
+        Write-Host "[X] Missing committed requirements file:" -ForegroundColor Red
+        Write-Host "    $r" -ForegroundColor Red
+        Write-Host "    It is version-controlled -- restore it with 'git checkout -- <path>' and re-run." -ForegroundColor Red
+        exit 1
+    }
 }
-Write-Host "[OK] requirements.txt present" -ForegroundColor Green
+Write-Host "[OK] requirements files present (root + export job)" -ForegroundColor Green
 
 # --- 4. venv + dependencies ---------------------------------------------------
 $venvPy = Join-Path $REPO ".venv\Scripts\python.exe"
@@ -113,8 +128,11 @@ if (-not (Test-Path $venvPy)) {
 }
 Write-Host "[*] Installing dependencies into .venv..." -ForegroundColor Yellow
 & $venvPy -m pip install --upgrade pip | Out-Null
-& $venvPy -m pip install -r requirements.txt
-Write-Host "[OK] Dependencies installed into .venv" -ForegroundColor Green
+foreach ($r in $reqFiles) {
+    Write-Host "    pip install -r $r" -ForegroundColor DarkGray
+    & $venvPy -m pip install -r $r
+}
+Write-Host "[OK] Dependencies installed into .venv (loaders + export job)" -ForegroundColor Green
 
 # --- 5. Authenticate (the one manual step - a browser will open) --------------
 Write-Host "[*] Checking gcloud CLI credentials..." -ForegroundColor Yellow
@@ -153,6 +171,10 @@ Write-Host ""
 Write-Host "Setup complete. Run a loader:" -ForegroundColor Cyan
 Write-Host "  .\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py"
 Write-Host "  .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py"
+Write-Host ""
+Write-Host "Run the MongoDB export job locally (sets env + pulls the Snowflake key):" -ForegroundColor DarkGray
+Write-Host "  .\scripts\run-export-job.ps1 -DryRun   (verify env, no prod write)" -ForegroundColor DarkGray
+Write-Host "  .\scripts\run-export-job.ps1           (runs it; prompts first)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Each new session, run the preflight first:  .\scripts\start_day.ps1" -ForegroundColor DarkGray
 Write-Host ""
