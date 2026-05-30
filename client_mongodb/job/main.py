@@ -18,10 +18,16 @@ FROM APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"
 WHERE ADVERTISER_NAME = 'MongoDB'
 """
 
+# Salesforce content-syndication leads, by campaign:
+#   DNB IDE programmes -> 701RG00001DtQczYAF, 701RG00001HcDIVYA3, 701RG00001GvvrDYAR
+#   KGA / IDC programme -> 701RG00001NKKwQYAX  (added once Ankit made IDC data live in Snowflake)
+# NOTE: the BigQuery `stg_salesforce` view must map 701RG00001NKKwQYAX -> programme 'IDC'
+# so these leads roll up under IDC (not IDE) in cs_leads / cs_leads_by_programme.
 SF_SQL = """
 SELECT DAY, COUNTRY_NAME, CAMPAIGN_ID, LEAD_STATUS
 FROM APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"
-WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR')
+WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR',
+                      '701RG00001NKKwQYAX')
 """
 
 def sf_connect():

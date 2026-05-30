@@ -156,9 +156,9 @@ For MongoDB, `client_mongodb` contains:
 | Object | Type | Purpose |
 |---|---|---|
 | `src_tradedesk` | table | raw TradeDesk rows pulled from Snowflake (filtered to MongoDB) |
-| `src_salesforce` | table | raw Salesforce lead rows (3 campaign IDs) |
+| `src_salesforce` | table | raw Salesforce lead rows (4 campaign IDs: 3 DNB IDE + 1 KGA/IDC) |
 | `stg_tradedesk` | view | parses campaign names into programme / market / strategy |
-| `stg_salesforce` | view | maps countries to the 4-market bucket, labels programmes |
+| `stg_salesforce` | view | maps countries to the 4-market bucket, labels programmes (DNB IDE ×3 → `IDE`; KGA campaign `701RG00001NKKwQYAX` → `IDC`) |
 | `paid_media_model` | view | unified paid-media delivery model |
 | `cs_leads` | view | lead counts by market |
 | `cs_leads_by_programme` | view | lead counts by programme × market |
@@ -333,7 +333,7 @@ Exact names of everything that exists today (project `bidbrain-analytics`, regio
 **Snowflake (read-only source — for the MongoDB pipeline)**
 - Account `ZGKGHOH-ISA98947`, warehouse `APAC_IN_WH`
 - User `BQ_SYNC_USER`, role `BQ_SYNC_ROLE` (key-pair auth; SELECT on the two source tables)
-- Source tables: `APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"` (filtered to `ADVERTISER_NAME = 'MongoDB'`) and `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` (3 campaign IDs; ~354 leads)
+- Source tables: `APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"` (filtered to `ADVERTISER_NAME = 'MongoDB'`) and `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` (4 campaign IDs: 3 DNB IDE + the KGA/IDC programme `701RG00001NKKwQYAX`, live in Snowflake since May 2026)
 
 **Cloudflare**
 - Account `Admin@100.digital`, zone `bidbrain.ai`
@@ -582,6 +582,7 @@ Hard-won, in no particular order. These will save the next build hours.
 - **Daily auto-refresh** (Cloud Scheduler trigger on the `mongodb-export` job, `0 22 * * *`) — **not set up yet**; the job has only been run manually. Add via the job's Triggers tab.
 - **Retire the legacy MongoDB path:** turn off the old Snowflake `DAILY_MONGODB_EXPORT` task and delete the public R2 `mongodb.json` so the old public link goes dead. **Rotate the leaked R2 keys.** (Other clients' `dashboards-unlock` dashboards are untouched.)
 - **Export the BigQuery view DDL:** the runner (`infra/create_views.py`) and folder (`client_mongodb/sql/`) now exist, but the actual `CREATE OR REPLACE VIEW` files still need to be exported from the live project (steps in `client_mongodb/sql/README.md`). Until then a from-scratch rebuild can't recreate the views.
+- **Finish the KGA/IDC content-syndication integration:** the export job now pulls the IDC campaign `701RG00001NKKwQYAX` from Snowflake into `src_salesforce`. Still pending in BigQuery (views are not yet in the repo): update `stg_salesforce` to map this campaign ID to programme `IDC`, and confirm `cs_leads` / `cs_leads_by_programme` split DNB vs IDC correctly. Then build out the dashboard per the latest direction — separate **Paid Media** and **Content Syndication** tabs, each with a DNB↔IDC toggle and no cumulative cross-campaign totals (the CS section currently reads "three DNB IDE programmes"). Paid-media metrics (spend / impressions / CTR, excluding CS leads) to be confirmed with Calvin; the Cloudflare `Rig` (regulated + iGaming) industry scope with Surabhi/Jade.
 
 > **Already done** (previously listed here): the Windsor loaders are on `raw_windsor` + `australia-southeast1`, read secrets via ADC (no gcloud-path hardcoding), and cache to `_run/`; `infra/` provisions `raw_windsor` consistently; CD configs (`cloudbuild.yaml`) exist for both units; and `dashboard.html` now reads "BigQuery", not "Snowflake".
 
