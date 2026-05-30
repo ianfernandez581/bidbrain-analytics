@@ -269,7 +269,7 @@ def main():
     api_key = get_secret("windsor-api-key")
     ingested_at = datetime.now(timezone.utc).isoformat()
 
-    bq = bigquery.Client(project=PROJECT_ID, location="asia-southeast1")
+    bq = bigquery.Client(project=PROJECT_ID, location="australia-southeast1")
     storage_client = storage.Client(project=PROJECT_ID)
     main_table = bq.get_table(f"{PROJECT_ID}.{DATASET}.{MAIN_TABLE}")
     main_table_schema = main_table.schema
