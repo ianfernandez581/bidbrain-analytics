@@ -7,6 +7,9 @@
 # Or double-click:   scripts\start_day.cmd     (no execution-policy fuss)
 
 $PROJECT = "bidbrain-analytics"
+# The interpreter that has the google-cloud libs installed (same one that runs
+# your loaders). Matches the hardcoded-path convention already used in the loaders.
+$PY = "C:\Users\ianfe\AppData\Local\Programs\Python\Python314\python.exe"
 
 # This script lives in <repo>/scripts/. Hop up to the repo root so the python
 # commands below resolve no matter where you launched it from.
@@ -41,18 +44,19 @@ Write-Host "[OK] Quota project = $PROJECT" -ForegroundColor Green
 $account = (gcloud config get-value account 2>$null)
 Write-Host "[OK] Active account: $account" -ForegroundColor Green
 
-# 5. Soft BigQuery ping (won't block the day if it hiccups)
+# 5. BigQuery ping via the Python client -- the SAME path your loaders use,
+#    so a green light here means the real pipeline will work.
 Write-Host "[*] Pinging BigQuery (raw_windsor)..." -ForegroundColor Yellow
-bq ls --project_id=$PROJECT raw_windsor 2>$null | Out-Null
+& $PY -c "from google.cloud import bigquery; bigquery.Client(project='$PROJECT').get_dataset('raw_windsor'); print('ok')" 2>$null | Out-Null
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "[OK] BigQuery reachable." -ForegroundColor Green
+    Write-Host "[OK] BigQuery reachable, raw_windsor found." -ForegroundColor Green
 } else {
-    Write-Host "[!] Couldn't list raw_windsor (auth ok; check dataset / run 'bq init')." -ForegroundColor Yellow
+    Write-Host "[!] Couldn't reach raw_windsor via Python (check creds / dataset name)." -ForegroundColor Yellow
 }
 
 Write-Host ""
 Write-Host "Ready to go. Common commands:" -ForegroundColor Cyan
-Write-Host "  python infra/create_meta_table.py"
-Write-Host "  python windsor_data_pull/facebook_ads_loader.py"
-Write-Host "  python windsor_data_pull/tradedesk_loader.py"
+Write-Host "  $PY infra/create_meta_table.py"
+Write-Host "  $PY windsor_data_pull/facebook_ads_loader.py"
+Write-Host "  $PY windsor_data_pull/tradedesk_loader.py"
 Write-Host ""
