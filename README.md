@@ -274,7 +274,7 @@ bidbrain-analytics/                   <- the git repo (== GitHub, nothing secret
 |   \- create_views.py                <- applies client_mongodb view DDL from sql/
 |
 |- windsor_data_pull/                 <- Windsor.ai -> BigQuery loaders (fill raw_windsor)
-|   |- meta/meta_loader.py            <- Meta/Facebook -> raw_windsor.perf_meta  (+ _run/, gitignored)
+|   |- meta/meta_loader.py            <- Meta/Facebook -> raw_windsor.perf_meta  (incremental per-account; + _run/, gitignored)
 |   \- tradedesk/tradedesk_loader.py  <- Trade Desk   -> raw_windsor.perf_the_trade_desk  (+ _run/)
 |
 |- client_mongodb/                    <- the MongoDB client (template for new clients)
@@ -297,6 +297,12 @@ bidbrain-vault/          (NOT in git)
 ```
 
 Loader runtime artifacts (cached Windsor chunk JSON, logs, temp NDJSON) live in a `_run/` folder **next to each loader**, anchored to the script via `__file__` — not in a vault, not in the repo root. `.gitignore` covers all of it (`*.p8 *.pem *.key *credentials*.json .env _run/ chunks/ *.log *.ndjson __pycache__ .venv`; see the file for the full list).
+
+**Windsor loader run modes** (both loaders, run with the `.venv` Python):
+
+- **`meta_loader.py` with no args — incremental per-account (the normal/scheduled run).** For each configured Facebook account it reads `MAX(metric_date)` already in `perf_meta` and only fetches forward from there to yesterday (re-pulling the boundary day so Meta's metric revisions are caught — duplicates are absorbed by the staging table + MERGE on `ad_id + metric_date`). An account with **no** rows yet is backfilled from scratch via a backward walk, so adding a new account never re-pulls history for accounts that are already current. Widen the re-pull window for late conversions by setting `INCREMENTAL_LOOKBACK_DAYS` in the script (default `0`).
+- **`tradedesk_loader.py` with no args — backward walk.** Auto-discovers how far back data exists, walking from yesterday until several consecutive empty chunks.
+- **Either loader with two date args — fixed range**, all accounts together, e.g. `… meta\meta_loader.py 2026-05-25 2026-05-30`. Append `--force` to re-fetch even cached chunks (the MERGE stays idempotent).
 
 ---
 

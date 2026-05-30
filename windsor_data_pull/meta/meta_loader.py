@@ -10,16 +10,25 @@ is gitignored.
 Same per-chunk pipeline as tradedesk_loader.py. Grain: one row per (ad_id x
 date). MERGE key = ad_id + metric_date.
 
-TWO MODES
----------
-1. BACKWARD WALK (no date args) -- initial backfill when you DON'T know when
-   the account started. Walks from yesterday backwards in CHUNK_DAYS windows,
-   loading as it goes, until STOP_AFTER_EMPTY_CHUNKS consecutive empty chunks
-   (so short activity gaps don't end it early) or the MIN_DATE floor.
+MODES
+-----
+1. INCREMENTAL PER-ACCOUNT (no date args) -- the normal / scheduled run. For
+   each account in SELECT_ACCOUNTS it looks up MAX(metric_date) already in
+   BigQuery and acts per account:
+     * has data -> forward-loads from that last day (minus
+                   INCREMENTAL_LOOKBACK_DAYS) up to yesterday. Re-pulling the
+                   boundary day(s) is deliberate -- Meta revises recent metrics;
+                   the duplicates are absorbed by the staging table + MERGE
+                   (idempotent on ad_id + metric_date).
+     * no data  -> full backfill via a backward walk from yesterday until
+                   STOP_AFTER_EMPTY_CHUNKS consecutive empty chunks (or the
+                   MIN_DATE floor). So a brand-new account is discovered from
+                   scratch WITHOUT re-pulling history for accounts already
+                   current.
 
        python windsor_data_pull/meta/meta_loader.py
 
-2. FIXED RANGE (two date args) -- daily / targeted runs.
+2. FIXED RANGE (two date args) -- all accounts together, targeted re-pull.
 
        python windsor_data_pull/meta/meta_loader.py 2026-05-25 2026-05-30
 
@@ -99,6 +108,10 @@ RETRY_SLEEP_BASE = 5
 RETRY_SLEEP_MAX = 60
 MAX_ATTEMPTS = 30          # per-chunk retry cap; then fail loudly instead of hanging forever
 INTER_CHUNK_SLEEP = 1
+# Incremental mode re-pulls this many days BEFORE each account's last BQ day, to
+# recapture late-arriving Meta conversions / metric revisions. 0 = re-pull only
+# the last day itself (the staging + MERGE dedups either way).
+INCREMENTAL_LOOKBACK_DAYS = 0
 
 # All runtime artifacts live under _run/ next to THIS script (not the cwd), so
 # nothing ever lands in the repo root. _run/ is gitignored.
@@ -166,17 +179,46 @@ def infer_slugs(row):
             return keyword, agency
     return slugify(row.get("account_name") or "unknown"), "unknown"
 
-def chunk_filename(d_from, d_to):
-    return CHUNKS_DIR / f"{d_from.isoformat()}_to_{d_to.isoformat()}.json"
+def account_key(connector_or_id):
+    """Bare numeric Facebook account id from a connector string like
+    'facebook__1126027130805483' (or an already-bare id). Used to match
+    SELECT_ACCOUNTS entries against the account_id values stored in BigQuery,
+    independent of any connector prefix."""
+    return re.sub(r"\D", "", str(connector_or_id or ""))
 
-def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
-    """Fetch one chunk. Retries transient errors forever; fails fast on 4xx.
-    total may be None (backward-walk mode where the count is unknown)."""
-    tag = f"chunk {idx}/{total}" if total else f"chunk {idx}"
-    cache_file = chunk_filename(d_from, d_to)
+def latest_dates_per_account(bq):
+    """MAX(metric_date) already in the main table, keyed by numeric account id.
+    Accounts with no rows are simply absent from the returned dict."""
+    sql = f"""
+        SELECT account_id, MAX(metric_date) AS max_date
+        FROM `{PROJECT_ID}.{DATASET}.{MAIN_TABLE}`
+        WHERE account_id IS NOT NULL
+        GROUP BY account_id
+    """
+    out = {}
+    for r in bq.query(sql).result():
+        md = r["max_date"]
+        if md is None:
+            continue
+        if isinstance(md, str):          # column may be DATE or STRING; normalise
+            md = date.fromisoformat(md[:10])
+        out[account_key(r["account_id"])] = md
+    return out
+
+def chunk_filename(d_from, d_to, cache_tag):
+    return CHUNKS_DIR / f"{cache_tag}_{d_from.isoformat()}_to_{d_to.isoformat()}.json"
+
+def fetch_chunk(api_key, d_from, d_to, idx, total, select_accounts, cache_tag, force=False):
+    """Fetch one chunk for the given accounts. Retries transient errors forever;
+    fails fast on 4xx. total may be None (backward-walk mode, count unknown).
+    cache_tag isolates the on-disk cache per account ('all' for blended runs)."""
+    label = f"chunk {idx}/{total}" if total else f"chunk {idx}"
+    if cache_tag != "all":
+        label = f"{cache_tag} {label}"
+    cache_file = chunk_filename(d_from, d_to, cache_tag)
     if cache_file.exists() and not force:
         rows = json.loads(cache_file.read_text(encoding="utf-8"))
-        log.info(f"  [{tag}] CACHED {d_from}..{d_to}: {len(rows)} rows")
+        log.info(f"  [{label}] CACHED {d_from}..{d_to}: {len(rows)} rows")
         return rows
 
     params = {
@@ -184,9 +226,9 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
         "date_from": d_from.isoformat(),
         "date_to": d_to.isoformat(),
         "fields": WINDSOR_FIELDS,
-        "select_accounts": ",".join(SELECT_ACCOUNTS),
+        "select_accounts": ",".join(select_accounts),
     }
-    log.info(f"  [{tag}] Fetching {d_from}..{d_to}{' (FORCE)' if force else ''}")
+    log.info(f"  [{label}] Fetching {d_from}..{d_to}{' (FORCE)' if force else ''}")
     start = time.monotonic()
     attempt = 0
     while True:
@@ -202,7 +244,7 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, force=False):
             if "data" not in payload:
                 log.warning(f"    no 'data' key (keys: {list(payload)[:5]}) -- treating as 0 rows")
             total_elapsed = time.monotonic() - start
-            log.info(f"  [{tag}] SUCCESS: {len(rows)} rows in {total_elapsed:.1f}s")
+            log.info(f"  [{label}] SUCCESS: {len(rows)} rows in {total_elapsed:.1f}s")
             cache_file.write_text(json.dumps(rows), encoding="utf-8")
             return rows
         except requests.exceptions.HTTPError as e:
@@ -416,8 +458,9 @@ def main():
         log.info(f"META LOADER START (fixed range): {start_d} to {end_d}{'  (FORCE)' if force else ''}")
     else:
         end_d = date.today() - timedelta(days=1)
-        log.info(f"META LOADER START (backward walk): from {end_d} back until "
-                 f"{STOP_AFTER_EMPTY_CHUNKS} consecutive empty chunks (floor {MIN_DATE})"
+        log.info(f"META LOADER START (incremental per-account): refresh each account "
+                 f"from its last BQ day (lookback {INCREMENTAL_LOOKBACK_DAYS}d) up to {end_d}; "
+                 f"accounts with no data get a full backward-walk backfill"
                  f"{'  (FORCE)' if force else ''}")
     log.info(f"Artifacts dir: {WORK_DIR}")
     log.info(f"Accounts: {len(SELECT_ACCOUNTS)} | chunk size: {CHUNK_DAYS}d")
@@ -435,10 +478,10 @@ def main():
 
     grand_inserted = grand_updated = grand_rows_fetched = 0
 
-    def run_chunk(d_from, d_to, idx, total):
+    def run_chunk(d_from, d_to, idx, total, select, cache_tag):
         nonlocal grand_inserted, grand_updated, grand_rows_fetched
         log.info("-" * 60)
-        rows = fetch_chunk(api_key, d_from, d_to, idx, total, force=force)
+        rows = fetch_chunk(api_key, d_from, d_to, idx, total, select, cache_tag, force=force)
         grand_rows_fetched += len(rows)
         try:
             ins, upd = load_chunk_to_bq(bq, storage_client, schema, rows,
@@ -453,30 +496,31 @@ def main():
                  f"inserted={grand_inserted}, updated={grand_updated}, elapsed={elapsed_min:.1f} min")
         return len(rows)
 
-    if fixed_range:
+    def process_forward_range(d_start, d_end, select, cache_tag):
         chunks = []
-        cur = start_d
-        while cur <= end_d:
-            ce = min(cur + timedelta(days=CHUNK_DAYS - 1), end_d)
+        cur = d_start
+        while cur <= d_end:
+            ce = min(cur + timedelta(days=CHUNK_DAYS - 1), d_end)
             chunks.append((cur, ce))
             cur = ce + timedelta(days=1)
         chunks.reverse()
         total = len(chunks)
-        log.info(f"Will process {total} chunks (newest first)")
+        log.info(f"  {total} chunk(s), newest first: {d_start}..{d_end}")
         for i, (d_from, d_to) in enumerate(chunks, start=1):
-            run_chunk(d_from, d_to, i, total)
+            run_chunk(d_from, d_to, i, total, select, cache_tag)
             time.sleep(INTER_CHUNK_SLEEP)
-    else:
+
+    def process_backward_walk(d_end, select, cache_tag):
         consecutive_empty = 0
         idx = 0
-        cur_to = end_d
+        cur_to = d_end
         while True:
             idx += 1
             cur_from = cur_to - timedelta(days=CHUNK_DAYS - 1)
             floor_hit = cur_from <= MIN_DATE
             if floor_hit:
                 cur_from = MIN_DATE
-            n = run_chunk(cur_from, cur_to, idx, None)
+            n = run_chunk(cur_from, cur_to, idx, None, select, cache_tag)
 
             if n == 0:
                 consecutive_empty += 1
@@ -493,6 +537,28 @@ def main():
                 break
             cur_to = cur_from - timedelta(days=1)
             time.sleep(INTER_CHUNK_SLEEP)
+
+    if fixed_range:
+        log.info(f"Forward-loading {start_d}..{end_d} (all {len(SELECT_ACCOUNTS)} accounts together)")
+        process_forward_range(start_d, end_d, SELECT_ACCOUNTS, "all")
+    else:
+        last_dates = latest_dates_per_account(bq)
+        log.info(f"Existing data in {MAIN_TABLE} for {len(last_dates)}/{len(SELECT_ACCOUNTS)} configured account(s)")
+        for account in SELECT_ACCOUNTS:
+            key = account_key(account)
+            last = last_dates.get(key)
+            log.info("=" * 60)
+            if last is None:
+                log.info(f"ACCOUNT {account}: no rows in BQ -> full backfill (backward walk)")
+                process_backward_walk(end_d, [account], key)
+            else:
+                start = last - timedelta(days=INCREMENTAL_LOOKBACK_DAYS)
+                if start < MIN_DATE:
+                    start = MIN_DATE
+                if start > end_d:          # account already current; still re-pull its last day
+                    start = end_d
+                log.info(f"ACCOUNT {account}: last BQ day {last} -> incremental {start}..{end_d}")
+                process_forward_range(start, end_d, [account], key)
 
     overall = (time.monotonic() - overall_start) / 60
     log.info("=" * 60)
