@@ -1,6 +1,7 @@
 # Root dependencies for the Windsor -> BigQuery loaders (windsor_data_pull/*)
-# and the one-time BigQuery infra scripts (infra/*). Pinned for reproducible
-# installs on any machine / OS.
+# and the one-time BigQuery setup scripts (create_dataset.py / create_*table*.py
+# beside the loaders, plus client_mongodb/create_views.py). Pinned for
+# reproducible installs on any machine / OS.
 #
 # The two Cloud Run units pin their own dependencies separately:
 #   client_mongodb/job/requirements.txt   (export job)

@@ -168,7 +168,7 @@ For MongoDB, `client_mongodb` contains:
 | `benchmarks_market` | view | budget-weight benchmarks per market |
 | `budget` | view | programme budget envelopes |
 
-> **Note:** these view definitions still need to be exported from BigQuery into version control. The folder (`client_mongodb/sql/`) and an apply-runner (`infra/create_views.py`) now exist — export the live DDL per [`client_mongodb/sql/README.md`](client_mongodb/sql/README.md) so the data model is fully reproducible. See [TODO](#13-current-status--todo).
+> **Note:** these view definitions still need to be exported from BigQuery into version control. The folder (`client_mongodb/sql/`) and an apply-runner (`client_mongodb/create_views.py`) now exist — export the live DDL per [`client_mongodb/sql/README.md`](client_mongodb/sql/README.md) so the data model is fully reproducible. See [TODO](#13-current-status--todo).
 
 ### 4.2 The two moving parts: the Job and the Web App
 
@@ -260,24 +260,21 @@ bidbrain-analytics/                   <- the git repo (== GitHub, nothing secret
 |- README.md                          <- this file
 |- .gitignore
 |- .gcloudignore                      <- what gcloud must NOT upload on source deploys
-|- requirements.txt                   <- deps for the loaders + infra scripts (pinned)
+|- requirements.txt                   <- deps for the loaders + BigQuery setup scripts (pinned)
 |
 |- scripts/                           <- clone-and-run entrypoint (Windows)
 |   |- setup.ps1 / setup.cmd          <- one-time machine setup (Python, gcloud, .venv, login)
 |   \- start_day.ps1 / start_day.cmd  <- each-session credential preflight
 |
-|- infra/                             <- one-time BigQuery provisioning (idempotent)
-|   |- _config.py                     <- shared PROJECT / LOCATION / RAW_DATASET constants
-|   |- create_dataset.py              <- creates the raw_windsor dataset
-|   |- create_trade_desk__tables.py   <- creates raw_windsor.perf_the_trade_desk
-|   |- create_meta_table.py           <- creates raw_windsor.perf_meta
-|   \- create_views.py                <- applies client_mongodb view DDL from sql/
-|
 |- windsor_data_pull/                 <- Windsor.ai -> BigQuery loaders (fill raw_windsor)
+|   |- create_dataset.py              <- one-time: creates the shared raw_windsor dataset (run FIRST)
 |   |- meta/meta_loader.py            <- Meta/Facebook -> raw_windsor.perf_meta  (incremental per-account; + _run/, gitignored)
-|   \- tradedesk/tradedesk_loader.py  <- Trade Desk   -> raw_windsor.perf_the_trade_desk  (+ _run/)
+|   |- meta/create_meta_table.py      <- one-time: creates raw_windsor.perf_meta
+|   |- tradedesk/tradedesk_loader.py  <- Trade Desk   -> raw_windsor.perf_the_trade_desk  (+ _run/)
+|   \- tradedesk/create_trade_desk__tables.py  <- one-time: creates raw_windsor.perf_the_trade_desk
 |
 |- client_mongodb/                    <- the MongoDB client (template for new clients)
+|   |- create_views.py                <- one-time: applies the BigQuery view DDL from sql/
 |   |- job/                           <- Export Job (Cloud Run JOB)
 |   |   \- main.py, requirements.txt, Dockerfile, cloudbuild.yaml, .dockerignore
 |   |- dash/                          <- Web App (Cloud Run SERVICE)
@@ -581,10 +578,10 @@ Hard-won, in no particular order. These will save the next build hours.
 - **Custom domain** `mongodb.bidbrain.ai` (Cloudflare CNAME + Host Header Override) — finishing.
 - **Daily auto-refresh** (Cloud Scheduler trigger on the `mongodb-export` job, `0 22 * * *`) — **not set up yet**; the job has only been run manually. Add via the job's Triggers tab.
 - **Retire the legacy MongoDB path:** turn off the old Snowflake `DAILY_MONGODB_EXPORT` task and delete the public R2 `mongodb.json` so the old public link goes dead. **Rotate the leaked R2 keys.** (Other clients' `dashboards-unlock` dashboards are untouched.)
-- **Export the BigQuery view DDL:** the runner (`infra/create_views.py`) and folder (`client_mongodb/sql/`) now exist, but the actual `CREATE OR REPLACE VIEW` files still need to be exported from the live project (steps in `client_mongodb/sql/README.md`). Until then a from-scratch rebuild can't recreate the views.
+- **Export the BigQuery view DDL:** the runner (`client_mongodb/create_views.py`) and folder (`client_mongodb/sql/`) now exist, but the actual `CREATE OR REPLACE VIEW` files still need to be exported from the live project (steps in `client_mongodb/sql/README.md`). Until then a from-scratch rebuild can't recreate the views.
 - **Finish the KGA/IDC content-syndication integration:** the export job now pulls the IDC campaign `701RG00001NKKwQYAX` from Snowflake into `src_salesforce`. Still pending in BigQuery (views are not yet in the repo): update `stg_salesforce` to map this campaign ID to programme `IDC`, and confirm `cs_leads` / `cs_leads_by_programme` split DNB vs IDC correctly. Then build out the dashboard per the latest direction — separate **Paid Media** and **Content Syndication** tabs, each with a DNB↔IDC toggle and no cumulative cross-campaign totals (the CS section currently reads "three DNB IDE programmes"). Paid-media metrics (spend / impressions / CTR, excluding CS leads) to be confirmed with Calvin; the Cloudflare `Rig` (regulated + iGaming) industry scope with Surabhi/Jade.
 
-> **Already done** (previously listed here): the Windsor loaders are on `raw_windsor` + `australia-southeast1`, read secrets via ADC (no gcloud-path hardcoding), and cache to `_run/`; `infra/` provisions `raw_windsor` consistently; CD configs (`cloudbuild.yaml`) exist for both units; and `dashboard.html` now reads "BigQuery", not "Snowflake".
+> **Already done** (previously listed here): the Windsor loaders are on `raw_windsor` + `australia-southeast1`, read secrets via ADC (no gcloud-path hardcoding), and cache to `_run/`; the one-time setup scripts provision `raw_windsor` consistently; CD configs (`cloudbuild.yaml`) exist for both units; and `dashboard.html` now reads "BigQuery", not "Snowflake".
 
 ---
 

@@ -9,7 +9,8 @@ Each view is one file: `NN_<view>.sql` containing a single
 `CREATE OR REPLACE VIEW`. The `NN_` prefix sets apply order — staging views
 (`stg_*`) before the models and rollups that read them.
 
-Apply them with: `python infra/create_views.py`
+Apply them with: `python client_mongodb/create_views.py` (the runner lives one
+level up, in [../create_views.py](../create_views.py)).
 
 ## Views the job depends on (dependency order)
 
@@ -39,5 +40,6 @@ foreach ($v in $views) {
 ```
 
 Commit the generated `.sql` files. After that, a from-scratch rebuild is:
-`create_dataset.py` → `create_*_tables.py` → run export job once (lands `src_*`)
-→ `create_views.py` → re-run export job.
+`windsor_data_pull/create_dataset.py` → `windsor_data_pull/*/create_*table*.py`
+→ run export job once (lands `src_*`) → `client_mongodb/create_views.py`
+→ re-run export job.

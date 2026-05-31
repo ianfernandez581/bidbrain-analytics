@@ -11,14 +11,16 @@ Platform/demographic splits go in a separate table later.
 
 Lives in raw_windsor alongside perf_the_trade_desk.
 
-Run:  python infra/create_meta_table.py   (after create_dataset.py)
+Run:  python windsor_data_pull/meta/create_meta_table.py   (after create_dataset.py)
 Idempotent (exists_ok=True) -- but note it CREATES, it does not ALTER. If the
 table already exists from an earlier (narrower) version, drop it first (it's
 empty) so the new columns take effect:
     bq rm -f -t bidbrain-analytics:raw_windsor.perf_meta
 """
 from google.cloud import bigquery
-from _config import PROJECT, RAW_DATASET
+
+PROJECT = "bidbrain-analytics"
+RAW_DATASET = "raw_windsor"
 
 client = bigquery.Client(project=PROJECT)
 

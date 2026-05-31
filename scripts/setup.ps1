@@ -98,7 +98,7 @@ Write-Host "[OK] gcloud: $((Get-Command gcloud).Source)" -ForegroundColor Green
 
 # --- 3. requirements files (must be committed in the repo) --------------------
 # The local .venv is a convenience superset for running everything locally:
-#   - requirements.txt                    -> Windsor loaders + infra scripts
+#   - requirements.txt                    -> Windsor loaders + BigQuery setup scripts
 #   - client_mongodb/job/requirements.txt -> the MongoDB export job (main.py:
 #                                            pandas / pyarrow / snowflake)
 # Both pin google-cloud-bigquery/storage to the SAME versions, so they coexist
