@@ -42,6 +42,17 @@
   .tab:hover{color:var(--mdb-ink)}
   .tab.on{color:var(--mdb-slate);border-bottom-color:var(--mdb-spring)}
   .ctrl-note{font-size:11px;color:var(--mdb-mute);padding-right:2px}
+  .tabs-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0}
+  .exports{display:flex;gap:8px;align-items:center}
+  .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
+              padding:7px 12px;border-radius:7px;border:1px solid var(--mdb-line);background:#fff;color:var(--mdb-ink);
+              transition:border-color .15s ease,color .15s ease,background .15s ease;white-space:nowrap}
+  .export-btn:hover{border-color:var(--mdb-green);color:var(--mdb-green)}
+  .export-btn:disabled{opacity:.65;cursor:default;border-color:var(--mdb-line);color:var(--mdb-mute)}
+  .export-btn.primary{background:var(--mdb-slate);color:#fff;border-color:var(--mdb-slate)}
+  .export-btn.primary:hover{background:var(--mdb-forest);color:#fff;border-color:var(--mdb-forest)}
+  .export-btn.primary:disabled{background:var(--mdb-slate);color:rgba(255,255,255,.7)}
+  .export-btn svg{width:14px;height:14px;flex:none}
   .control-filters{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 0 14px}
   .filter-grp{display:flex;align-items:center;gap:9px}
   .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--mdb-mute)}
@@ -204,7 +215,21 @@
           <button class="tab" id="tabCS"      onclick="setTab('cs')">Content Syndication</button>
           <button class="tab" id="tabCompare" onclick="setTab('compare')">CS Comparison</button>
         </div>
-        <div class="ctrl-note" id="ctrlNote">&nbsp;</div>
+        <div class="tabs-right">
+          <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
+          <div class="exports">
+            <button class="export-btn" id="exportTabBtn" onclick="exportThisTab()"
+                    title="Download the source rows behind this tab (honors the campaign &amp; region filters) as CSV — so the figures can be re-summed and verified">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export this tab</span>
+            </button>
+            <button class="export-btn primary" id="exportAllBtn" onclick="exportAllData()"
+                    title="Download the complete dataset — every campaign, region and table (paid delivery, CS leads, targets, benchmarks) — as one CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export all data</span>
+            </button>
+          </div>
+        </div>
       </div>
       <div class="control-filters">
         <div class="filter-grp">
@@ -1167,6 +1192,123 @@ function chartBase(opts={}) {
   if (opts.scales)  base.scales  = {...base.scales,  ...opts.scales};
   Object.keys(opts).forEach(k => { if (k!=='plugins' && k!=='scales') base[k]=opts[k]; });
   return base;
+}
+
+//==============================================================================
+// DATA EXPORT  (client-side CSV — lets the client tie the on-screen figures
+// back to the underlying source rows and verify them in Excel / Sheets.)
+//==============================================================================
+const campLabel = p => (CAMP[campaignOf(p)] ? CAMP[campaignOf(p)].label : campaignOf(p));
+
+// Each column is [header, valueFn]. We export the GRANULAR rows (not the
+// computed aggregates) so totals/CTR/CPM/CPC can be independently recomputed.
+const EXPORT_COLS = {
+  paid: [
+    ['campaign',    r => campLabel(r.programme)],
+    ['programme',   r => r.programme],
+    ['market',      r => r.market],
+    ['strategy',    r => r.strategy],
+    ['date',        r => r.date],
+    ['impressions', r => r.imps],
+    ['clicks',      r => r.clicks],
+    ['spend_usd',   r => r.spend_usd],
+    ['leads',       r => r.leads]
+  ],
+  cs: [
+    ['campaign',      r => campLabel(r.programme)],
+    ['programme',     r => r.programme],
+    ['market',        r => r.market],
+    ['leads',         r => r.total],
+    ['last_lead_day', r => r.last_lead_day]
+  ],
+  targets: [
+    ['campaign',  r => campLabel(r.programme)],
+    ['programme', r => r.programme],
+    ['market',    r => r.market],
+    ['target',    r => r.target]
+  ]
+};
+
+function csvCell(v){
+  if (v == null) return '';
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function toCSV(cols, rows){
+  const head = cols.map(c => csvCell(c[0])).join(',');
+  if (!rows.length) return head;
+  return head + '\r\n' + rows.map(r => cols.map(c => csvCell(c[1](r))).join(',')).join('\r\n');
+}
+function exportStamp(){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+}
+function downloadCSV(name, text){
+  // Lead BOM (﻿) so Excel reads it as UTF-8.
+  const blob = new Blob(['﻿' + text], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+function flashBtn(btn, msg){
+  if (!btn) return;
+  const lbl = btn.querySelector('span'); if (!lbl) return;
+  const orig = lbl.textContent;
+  lbl.textContent = msg; btn.disabled = true;
+  setTimeout(() => { lbl.textContent = orig; btn.disabled = false; }, 1400);
+}
+
+// The source rows behind the current tab, honoring the active filters.
+function tabExport(){
+  if (activeTab === 'paid'){
+    const rows = (DATA.rows||[]).filter(r => campaignOf(r.programme)===activeCampaign && marketOk(r.market));
+    return {key:'paid-media', cols:EXPORT_COLS.paid, rows};
+  }
+  if (activeTab === 'cs'){
+    const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign && marketOk(r.market));
+    return {key:'content-syndication', cols:EXPORT_COLS.cs, rows};
+  }
+  // CS Comparison compares regions side by side, so export every region for the campaign.
+  const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign);
+  return {key:'cs-comparison', cols:EXPORT_COLS.cs, rows};
+}
+
+function exportThisTab(){
+  const {key, cols, rows} = tabExport();
+  if (!rows.length){ alert('No data to export for the current campaign / region selection.'); return; }
+  downloadCSV(`mongodb_${key}_${activeCampaign}_${exportStamp()}.csv`, toCSV(cols, rows));
+  flashBtn(el('exportTabBtn'), 'Exported ✓');
+}
+
+function exportAllData(){
+  const parts = [
+    'MongoDB APAC dashboard — full data export',
+    `Generated,${exportStamp()}`,
+    `Source feed last updated,${csvCell(DATA.last_updated || 'unknown')}`,
+    ''
+  ];
+  const sections = [
+    ['PAID MEDIA DELIVERY',       EXPORT_COLS.paid,    DATA.rows || []],
+    ['CONTENT SYNDICATION LEADS', EXPORT_COLS.cs,      DATA.cs_by_programme || []],
+    ['CS TARGETS',                EXPORT_COLS.targets, DATA.targets || []]
+  ];
+  for (const [title, cols, rows] of sections){
+    parts.push(`# ${title} (${rows.length} rows)`, toCSV(cols, rows), '');
+  }
+  const bench = DATA.benchmarks_strategy || {};
+  const benchKeys = Object.keys(bench);
+  if (benchKeys.length){
+    parts.push(`# STRATEGY BENCHMARKS (${benchKeys.length} rows)`, 'strategy,ctr,cpm');
+    for (const k of benchKeys){
+      const b = bench[k] || {};
+      parts.push([csvCell(k), csvCell(b.ctr), csvCell(b.cpm)].join(','));
+    }
+    parts.push('');
+  }
+  downloadCSV(`mongodb_all-data_${exportStamp()}.csv`, parts.join('\r\n'));
+  flashBtn(el('exportAllBtn'), 'Exported ✓');
 }
 
 boot();
