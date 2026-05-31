@@ -1,5 +1,15 @@
+"""
+One-time setup: create the Trade Desk performance table (perf_the_trade_desk).
+
+Lives in raw_windsor alongside perf_meta.
+
+Run:  python windsor_data_pull/tradedesk/create_trade_desk__tables.py   (after create_dataset.py)
+Idempotent (exists_ok=True).
+"""
 from google.cloud import bigquery
-from _config import PROJECT, RAW_DATASET
+
+PROJECT = "bidbrain-analytics"
+RAW_DATASET = "raw_windsor"
 
 client = bigquery.Client(project=PROJECT)
 
