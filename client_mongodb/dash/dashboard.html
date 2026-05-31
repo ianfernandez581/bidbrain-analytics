@@ -243,7 +243,7 @@
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="stratTable">
           <thead><tr>
-            <th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>CPM</th><th>vs plan</th><th>CPC</th><th>vs plan</th><th>Leads</th>
+            <th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>CPM</th><th>vs plan</th><th>CPC</th><th>vs plan</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -696,7 +696,7 @@ function renderStrategyTable(rows) {
   const keys = Object.keys(agg).sort(stratSort);
   const tbody = document.querySelector('#stratTable tbody');
   tbody.innerHTML = '';
-  if (!keys.length){ tbody.innerHTML = `<tr><td colspan="11" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`; return; }
+  if (!keys.length){ tbody.innerHTML = `<tr><td colspan="10" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`; return; }
   let tSp=0, tImp=0, tClk=0, tLeads=0;
   keys.forEach(s => {
     const a = agg[s];
@@ -716,7 +716,6 @@ function renderStrategyTable(rows) {
       <td class="num">${vsCell(cpm, b.cpm, true)}</td>
       <td class="num">${fmt$(cpc,2)}</td>
       <td class="num"><span class="vs-neut">—</span></td>
-      <td class="num">${fmtN(a.leads)}</td>
     </tr>`);
   });
   const tCtr = tImp?tClk/tImp:0, tCpm = tImp?tSp/tImp*1000:0, tCpc = tClk?tSp/tClk:0;
@@ -724,7 +723,7 @@ function renderStrategyTable(rows) {
     <td>Total</td><td class="num">${fmt$(tSp)}</td><td class="num">${fmtN(tImp)}</td><td class="num">${fmtN(tClk)}</td>
     <td class="num">${fmtPct(tCtr,3)}</td><td class="num">—</td>
     <td class="num">${fmt$(tCpm,2)}</td><td class="num">—</td>
-    <td class="num">${fmt$(tCpc,2)}</td><td class="num">—</td><td class="num">${fmtN(tLeads)}</td>
+    <td class="num">${fmt$(tCpc,2)}</td><td class="num">—</td>
   </tr>`);
 }
 
