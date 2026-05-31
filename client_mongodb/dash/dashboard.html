@@ -181,8 +181,7 @@
     </div>
   </div>
   <div class="topbar-right">
-    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC Demand Gen · DNB &amp; KGA (IDC)</div>
-    <div id="topbarMeta" style="margin-top:2px">&nbsp;</div>
+    <div><span class="live"></span><b style="color:#fff">Live</b></div>
   </div>
 </div>
 
@@ -338,11 +337,11 @@
           </div>
         </div>
         <div class="group">
-          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· in progress = awaiting triage</span></div>
+          <div class="glbl">Outlook <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· what's left to hit target</span></div>
           <div class="pair triple">
-            <div class="stat"><div class="k">Accepted</div><div class="v" id="cs_acc">—</div><div class="cnt" id="cs_acc_cnt">—</div></div>
-            <div class="stat"><div class="k">In progress</div><div class="v" id="cs_unproc">—</div><div class="cnt" id="cs_unproc_cnt">—</div></div>
-            <div class="stat"><div class="k">Do not contact</div><div class="v" id="cs_dnc">—</div><div class="cnt" id="cs_dnc_cnt">—</div></div>
+            <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">—</div><div class="cnt" id="cs_remaining_cnt">—</div></div>
+            <div class="stat"><div class="k">Days left</div><div class="v" id="cs_daysleft">—</div><div class="cnt" id="cs_daysleft_cnt">—</div></div>
+            <div class="stat"><div class="k">Pace needed</div><div class="v" id="cs_needpace">—</div><div class="cnt" id="cs_needpace_cnt">—</div></div>
           </div>
         </div>
       </div>
@@ -373,8 +372,8 @@
           <div class="chart-wrap"><canvas id="csMarket"></canvas></div>
         </div>
         <div class="card card-tall">
-          <h3>Leads by programme</h3>
-          <div class="hint">Share of leads across the campaign's Salesforce programmes.</div>
+          <h3 id="csProgTitle">Leads by programme</h3>
+          <div class="hint" id="csProgHint">Share of leads across the campaign's Salesforce programmes.</div>
           <div class="chart-wrap"><canvas id="csProgramme"></canvas></div>
         </div>
       </div>
@@ -417,11 +416,11 @@
                 <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">—</div></div>
               </div>
             </div>
-            <div class="compare-kpi-group"><div class="grp-lbl">Lead quality</div>
+            <div class="compare-kpi-group"><div class="grp-lbl">Outlook</div>
               <div class="compare-kpis triple">
-                <div class="compare-kpi"><div class="k">Accepted</div><div class="v" id="A_acc">—</div><div class="cnt" id="A_acc_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">In progress</div><div class="v" id="A_unproc">—</div><div class="cnt" id="A_unproc_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">Do not contact</div><div class="v" id="A_dnc">—</div><div class="cnt" id="A_dnc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Leads remaining</div><div class="v" id="A_remaining">—</div></div>
+                <div class="compare-kpi"><div class="k">Days left</div><div class="v" id="A_daysleft">—</div></div>
+                <div class="compare-kpi"><div class="k">Pace needed</div><div class="v" id="A_needpace">—</div></div>
               </div>
             </div>
             <div class="compare-chart"><h4>Leads vs target</h4><div class="compare-chart-wrap"><canvas id="A_targets"></canvas></div></div>
@@ -441,11 +440,11 @@
                 <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">—</div></div>
               </div>
             </div>
-            <div class="compare-kpi-group"><div class="grp-lbl">Lead quality</div>
+            <div class="compare-kpi-group"><div class="grp-lbl">Outlook</div>
               <div class="compare-kpis triple">
-                <div class="compare-kpi"><div class="k">Accepted</div><div class="v" id="B_acc">—</div><div class="cnt" id="B_acc_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">In progress</div><div class="v" id="B_unproc">—</div><div class="cnt" id="B_unproc_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">Do not contact</div><div class="v" id="B_dnc">—</div><div class="cnt" id="B_dnc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Leads remaining</div><div class="v" id="B_remaining">—</div></div>
+                <div class="compare-kpi"><div class="k">Days left</div><div class="v" id="B_daysleft">—</div></div>
+                <div class="compare-kpi"><div class="k">Pace needed</div><div class="v" id="B_needpace">—</div></div>
               </div>
             </div>
             <div class="compare-chart"><h4>Leads vs target</h4><div class="compare-chart-wrap"><canvas id="B_targets"></canvas></div></div>
@@ -573,12 +572,8 @@ async function boot() {
 
 function renderTopbarMeta() {
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
-  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : 'unknown';
-  const w = DATA.window || {};
-  el('topbarMeta').textContent = 'Updated ' + luText + ' · Window ' + (w.start||'?') + ' → ' + (w.end||'?');
-  el('footMeta').innerHTML =
-    'Live from BigQuery (<b>client_mongodb</b>: paid_media_model + cs_leads_by_programme) · ' +
-    Number(DATA.row_count||0).toLocaleString() + ' paid-media rows · Auto-refreshes daily at 22:00 UTC';
+  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace(/ GMT$/,'') : 'unknown';
+  el('footMeta').textContent = 'Updated ' + luText;
 }
 
 //==============================================================================
@@ -899,19 +894,8 @@ function campaignWindow(c) {
   return {start:s, end:e};
 }
 
-// Region-scoped lead quality + pacing. mPred(market) decides inclusion (defaults
-// to the global region toggle). Campaign is always the active one.
-function csQuality(mPred) {
-  const pred = mPred || marketOk;
-  let total=0, acc=0, np=0, unres=0, dnc=0;
-  for (const r of (DATA.cs_by_programme||[])) {
-    if (campaignOf(r.programme) !== activeCampaign || !pred(r.market)) continue;
-    total += r.total||0; acc += r.accepted||0; np += r.new_pending||0; unres += r.unresponsive||0; dnc += r.do_not_contact||0;
-  }
-  const unprocessed = np + unres;
-  return {total, accepted:acc, unprocessed, dnc,
-    accRate: total?acc/total:0, unprocRate: total?unprocessed/total:0, dncRate: total?dnc/total:0};
-}
+// Region-scoped pacing. mPred(market) decides inclusion (defaults to the global
+// region toggle). Campaign is always the active one.
 function csPacing(mPred) {
   const pred = mPred || marketOk;
   const c = activeCampaign;
@@ -982,17 +966,21 @@ function renderCSAll() {
 }
 
 function renderCSSnap(p) {
-  const q = csQuality();
   el('cs_target').textContent  = p.hasTarget ? fmtN(p.target) : '—';
   el('cs_total').textContent   = fmtN(p.leads);
   el('cs_current').textContent = p.vsTtd == null ? '—' : fmtPct(p.vsTtd,0);
   el('cs_overall').textContent = p.hasTarget ? fmtPct(p.leadsPct,1) : '—';
-  el('cs_acc').textContent     = q.total ? fmtPct(q.accRate,1) : '—';
-  el('cs_unproc').textContent  = q.total ? fmtPct(q.unprocRate,1) : '—';
-  el('cs_dnc').textContent     = q.total ? fmtPct(q.dncRate,1) : '—';
-  el('cs_acc_cnt').textContent    = fmtN(q.accepted) + ' leads';
-  el('cs_unproc_cnt').textContent = fmtN(q.unprocessed) + ' leads';
-  el('cs_dnc_cnt').textContent    = fmtN(q.dnc) + ' leads';
+
+  const remaining = Math.max(0, p.target - p.leads);
+  const daysLeft  = Math.max(0, p.totalDays - p.elapsed);
+  const needPace  = daysLeft > 0 ? remaining / daysLeft : remaining;
+  const curPace   = p.elapsed > 0 ? p.leads / p.elapsed : 0;
+  el('cs_remaining').textContent     = p.hasTarget ? fmtN(remaining) : '—';
+  el('cs_remaining_cnt').textContent = p.hasTarget ? fmtPct(p.leadsPct,0) + ' delivered' : '—';
+  el('cs_daysleft').textContent      = fmtN(daysLeft);
+  el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
+  el('cs_needpace').textContent      = (p.hasTarget && daysLeft > 0) ? Math.ceil(needPace) + '/day' : '—';
+  el('cs_needpace_cnt').textContent  = p.elapsed ? 'now ' + curPace.toFixed(1) + '/day' : '—';
 }
 
 function renderCSLeadsTarget(p) {
@@ -1019,9 +1007,10 @@ function renderCSWeekly() {
   const c = activeCampaign;
   const W = buildWeekly(marketOk);
   charts.csWeekly = new Chart(el('csWeekly'), {
+    type:'bar',
     data:{ labels: W.labels, datasets:[
-      {type:'bar',  label:CAMP[c].label+' actual', data:W.actualData, backgroundColor:CAMP[c].color, borderRadius:3, order:2},
-      {type:'line', label:CAMP[c].label+' target', data:W.targetData, borderColor:MDB.target, borderDash:[5,4], borderWidth:2, pointRadius:0, tension:.2, fill:false, order:1}
+      {label:CAMP[c].label+' target', data:W.targetData, backgroundColor:MDB.target, borderRadius:3, order:1},
+      {label:CAMP[c].label+' actual', data:W.actualData, backgroundColor:CAMP[c].color, borderRadius:3, order:2}
     ]},
     options: chartBase({ scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:MDB.line}, title:{display:true, text:'Leads / week'}} } })
   });
@@ -1040,11 +1029,28 @@ function renderCSMarket() {
 function renderCSProgramme() {
   const byProg = {};
   for (const r of (DATA.cs_by_programme||[])){ if (campaignOf(r.programme)!==activeCampaign || !marketOk(r.market)) continue; byProg[r.programme]=(byProg[r.programme]||0)+(r.total||0); }
-  const pairs = Object.entries(byProg).sort((a,b)=>b[1]-a[1]);
+  const progPairs = Object.entries(byProg).filter(p=>p[1]>0).sort((a,b)=>b[1]-a[1]);
   const pal = ['#023430','#00684A','#3FA037','#00ED64','#C3E7CA','#0E6B57','#7FD1A8'];
+
+  // A doughnut of a single programme (e.g. KGA / IDC, which has only one) is just
+  // one solid ring — not useful. In that case fall back to a share-of-leads-by-
+  // market view, which is the meaningful split for a single-programme campaign.
+  let labels, data;
+  if (progPairs.length <= 1) {
+    el('csProgTitle').textContent = 'Leads by market — share';
+    el('csProgHint').textContent  = 'Share of delivered leads across the selected regions.';
+    const byMkt = {};
+    for (const r of (DATA.cs_by_programme||[])){ if (campaignOf(r.programme)!==activeCampaign || !marketOk(r.market)) continue; byMkt[r.market]=(byMkt[r.market]||0)+(r.total||0); }
+    const mPairs = Object.entries(byMkt).filter(p=>p[1]>0).sort((a,b)=>b[1]-a[1]);
+    labels = mPairs.map(p=>p[0]); data = mPairs.map(p=>p[1]);
+  } else {
+    el('csProgTitle').textContent = 'Leads by programme';
+    el('csProgHint').textContent  = "Share of leads across the campaign's Salesforce programmes.";
+    labels = progPairs.map(p=>p[0]); data = progPairs.map(p=>p[1]);
+  }
   charts.csProgramme = new Chart(el('csProgramme'), {
     type:'doughnut',
-    data:{ labels: pairs.map(p=>p[0]), datasets:[{ data: pairs.map(p=>p[1]), backgroundColor: pairs.map((_,i)=>pal[i%pal.length]), borderColor:'#fff', borderWidth:2 }]},
+    data:{ labels, datasets:[{ data, backgroundColor: labels.map((_,i)=>pal[i%pal.length]), borderColor:'#fff', borderWidth:2 }]},
     options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
       plugins:{ legend:{position:'bottom', labels:{boxWidth:8,boxHeight:8,font:{size:10},padding:6}}, tooltip:{ callbacks:{ label:c=>` ${c.label}: ${fmtN(c.parsed)}` } } } }
   });
@@ -1109,17 +1115,16 @@ function renderComparePanel(side) {
   }
   const mPred = m => m === region;
   const p = csPacing(mPred);
-  const q = csQuality(mPred);
   el('empty'+side).style.display = 'none';
   el('content'+side).style.display = 'block';
   el(side+'_target').textContent = p.hasTarget ? fmtN(p.target) : '—';
   el(side+'_total').textContent  = fmtN(p.leads);
-  el(side+'_acc').textContent    = q.total ? fmtPct(q.accRate,1) : '—';
-  el(side+'_unproc').textContent = q.total ? fmtPct(q.unprocRate,1) : '—';
-  el(side+'_dnc').textContent    = q.total ? fmtPct(q.dncRate,1) : '—';
-  el(side+'_acc_cnt').textContent    = fmtN(q.accepted) + ' leads';
-  el(side+'_unproc_cnt').textContent = fmtN(q.unprocessed) + ' leads';
-  el(side+'_dnc_cnt').textContent    = fmtN(q.dnc) + ' leads';
+  const remaining = Math.max(0, p.target - p.leads);
+  const daysLeft  = Math.max(0, p.totalDays - p.elapsed);
+  const needPace  = daysLeft > 0 ? remaining / daysLeft : remaining;
+  el(side+'_remaining').textContent = p.hasTarget ? fmtN(remaining) : '—';
+  el(side+'_daysleft').textContent  = fmtN(daysLeft);
+  el(side+'_needpace').textContent  = (p.hasTarget && daysLeft > 0) ? Math.ceil(needPace) + '/day' : '—';
 
   destroy(side+'_targets');
   charts[side+'_targets'] = new Chart(el(side+'_targets'), {
@@ -1132,9 +1137,10 @@ function renderComparePanel(side) {
   destroy(side+'_weekly');
   const W = buildWeekly(mPred);
   charts[side+'_weekly'] = new Chart(el(side+'_weekly'), {
+    type:'bar',
     data:{ labels:W.labels, datasets:[
-      {type:'bar',  label:'Actual', data:W.actualData, backgroundColor:CAMP[activeCampaign].color, borderRadius:2, order:2},
-      {type:'line', label:'Target', data:W.targetData, borderColor:MDB.target, borderDash:[5,4], borderWidth:2, pointRadius:0, tension:.2, fill:false, order:1}
+      {label:'Target', data:W.targetData, backgroundColor:MDB.target, borderRadius:2, order:1},
+      {label:'Actual', data:W.actualData, backgroundColor:CAMP[activeCampaign].color, borderRadius:2, order:2}
     ]},
     options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10,boxHeight:8,font:{size:10},padding:6}}},
       scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{font:{size:10}}} } }
