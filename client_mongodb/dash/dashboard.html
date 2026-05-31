@@ -233,7 +233,6 @@
         <div class="kpi accent"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
         <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
         <div class="kpi"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
-        <div class="kpi alt"><span class="stripe"></span><div class="label">Paid leads</div><div class="value" id="pm_leads">—</div><div class="delta" id="pm_leads_sub">—</div></div>
         <div class="kpi accent"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
       </div>
 
@@ -681,8 +680,6 @@ function renderPMKPIs(rows) {
   el('pm_cpm').textContent       = t.imp ? `${fmt$(t.cpm,2)} blended CPM` : '—';
   el('pm_clk').textContent       = fmtN(t.clk);
   el('pm_ctr').textContent       = t.imp ? `${fmtPct(t.ctr,3)} blended CTR` : '—';
-  el('pm_leads').textContent     = fmtN(t.leads);
-  el('pm_leads_sub').textContent = 'Content-syndication leads shown in the CS tab';
   el('pm_cpc').textContent       = t.clk ? fmt$(t.cpc,2) : '—';
   el('pm_cpc_sub').textContent   = 'Blended across strategies';
 }
