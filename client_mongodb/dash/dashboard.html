@@ -8,23 +8,11 @@
 <style>
   :root{
     color-scheme: light;
-    /* MongoDB brand palette */
-    --mdb-slate:    #001E2B;
-    --mdb-forest:   #023430;
-    --mdb-green:    #00684A;
-    --mdb-spring:   #00ED64;
-    --mdb-mint:     #C3E7CA;
-    --mdb-ink:      #1B2834;
-    --mdb-mute:     #5A6B78;
-    --mdb-line:     #E5E9EE;
-    --mdb-card:     #FFFFFF;
-    --mdb-bg:       #F6F8FA;
-
-    --bad-red:      #C8362A;
-    --good-green:   #1E8E3E;
-    --warn-amber:   #B97400;
-
-    --shadow-card: 0 1px 2px rgba(0,30,43,.04), 0 4px 14px rgba(0,30,43,.05);
+    --mdb-slate:#001E2B; --mdb-forest:#023430; --mdb-green:#00684A; --mdb-spring:#00ED64;
+    --mdb-mint:#C3E7CA; --mdb-ink:#1B2834; --mdb-mute:#5A6B78; --mdb-line:#E5E9EE;
+    --mdb-card:#FFFFFF; --mdb-bg:#F6F8FA; --mdb-target:#9AA3AC;
+    --bad-red:#C8362A; --good-green:#1E8E3E; --warn-amber:#B97400;
+    --shadow-card:0 1px 2px rgba(0,30,43,.04),0 4px 14px rgba(0,30,43,.05);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--mdb-bg);color:var(--mdb-ink);
@@ -32,150 +20,154 @@
             font-size:14px;line-height:1.5}
   a{color:var(--mdb-green);text-decoration:none}
 
-  /* --- Top bar (slate blue + spring accent) --- */
-  .topbar{background:var(--mdb-slate);color:#fff;padding:14px 28px;
-          display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar{background:var(--mdb-slate);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
   .topbar-left{display:flex;align-items:center;gap:18px}
-  .transmission-logo{font-weight:700;letter-spacing:1.2px;font-size:13px;color:#fff;
-                     display:flex;align-items:center;gap:8px}
+  .transmission-logo{font-weight:700;letter-spacing:1.2px;font-size:13px;color:#fff;display:flex;align-items:center;gap:8px}
   .transmission-logo .dot{width:6px;height:6px;background:var(--mdb-spring);border-radius:50%}
   .topbar-divider{width:1px;height:22px;background:rgba(255,255,255,.18)}
-  /* Real MongoDB horizontal logo - rendered on white pill for contrast */
-  .mdb-logo-wrap{background:#fff;padding:6px 12px;border-radius:6px;
-                 display:flex;align-items:center}
+  .mdb-logo-wrap{background:#fff;padding:6px 12px;border-radius:6px;display:flex;align-items:center}
   .mdb-logo{height:22px;width:auto;display:block}
   .topbar-right{font-size:11.5px;color:rgba(255,255,255,.78);text-align:right;line-height:1.5}
-  .live{display:inline-block;width:7px;height:7px;background:var(--mdb-spring);
-        border-radius:50%;margin-right:6px;
+  .live{display:inline-block;width:7px;height:7px;background:var(--mdb-spring);border-radius:50%;margin-right:6px;
         box-shadow:0 0 0 0 rgba(0,237,100,.5);animation:pulse 2.2s infinite}
-  @keyframes pulse{
-    0%{box-shadow:0 0 0 0 rgba(0,237,100,.6)}
-    70%{box-shadow:0 0 0 8px rgba(0,237,100,0)}
-    100%{box-shadow:0 0 0 0 rgba(0,237,100,0)}
-  }
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,237,100,.6)}70%{box-shadow:0 0 0 8px rgba(0,237,100,0)}100%{box-shadow:0 0 0 0 rgba(0,237,100,0)}}
 
   .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
 
-  /* --- Control bar: tabs + campaign + region (sticky) --- */
   .control-bar{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:10px;
-               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;
-               position:sticky;top:0;z-index:30}
-  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;
-                flex-wrap:wrap;border-bottom:1px solid var(--mdb-line)}
+               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--mdb-line)}
   .tabs{display:flex;gap:2px}
-  .tab{padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;
-       background:none;color:var(--mdb-mute);border-bottom:2.5px solid transparent;
-       margin-bottom:-1px}
+  .tab{padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--mdb-mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
   .tab:hover{color:var(--mdb-ink)}
   .tab.on{color:var(--mdb-slate);border-bottom-color:var(--mdb-spring)}
   .ctrl-note{font-size:11px;color:var(--mdb-mute);padding-right:2px}
   .control-filters{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 0 14px}
   .filter-grp{display:flex;align-items:center;gap:9px}
-  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;
-       color:var(--mdb-mute)}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--mdb-mute)}
 
-  /* segmented control (campaign toggle) */
-  .seg{display:inline-flex;border:1px solid var(--mdb-line);border-radius:999px;overflow:hidden;
-       background:#fff}
-  .seg-btn{padding:7px 15px;font-size:12.5px;cursor:pointer;border:none;background:#fff;
-           color:var(--mdb-ink);display:inline-flex;align-items:center;gap:7px;
-           border-right:1px solid var(--mdb-line);transition:background .15s ease}
+  .seg{display:inline-flex;border:1px solid var(--mdb-line);border-radius:999px;overflow:hidden;background:#fff}
+  .seg-btn{padding:7px 15px;font-size:12.5px;cursor:pointer;border:none;background:#fff;color:var(--mdb-ink);
+           display:inline-flex;align-items:center;gap:7px;border-right:1px solid var(--mdb-line);transition:background .15s ease}
   .seg-btn:last-child{border-right:none}
   .seg-btn:hover{background:#F2F5F7}
   .seg-btn.on{background:var(--mdb-slate);color:#fff}
   .seg-btn .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
 
-  /* region chips */
   .chips{display:flex;gap:6px;flex-wrap:wrap}
-  .chip{background:#fff;border:1px solid var(--mdb-line);border-radius:999px;
-        padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;
-        align-items:center;gap:6px;transition:all .15s ease;color:var(--mdb-ink)}
+  .chip{background:#fff;border:1px solid var(--mdb-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;
+        display:inline-flex;align-items:center;gap:6px;transition:all .15s ease;color:var(--mdb-ink)}
   .chip:hover{border-color:var(--mdb-green)}
   .chip.on{background:var(--mdb-slate);color:#fff;border-color:var(--mdb-slate)}
   .chip .check{opacity:0;font-size:10px;transition:opacity .15s ease}
   .chip.on .check{opacity:1;color:var(--mdb-spring)}
-  .chip-action{background:none;border:1px dashed var(--mdb-line);
-               border-radius:999px;padding:6px 12px;font-size:11.5px;
-               cursor:pointer;color:var(--mdb-mute)}
+  .chip-action{background:none;border:1px dashed var(--mdb-line);border-radius:999px;padding:6px 12px;font-size:11.5px;cursor:pointer;color:var(--mdb-mute)}
   .chip-action:hover{color:var(--mdb-ink);border-color:var(--mdb-mute)}
 
   .tabpane{display:none}
 
   .section{border-top:1px solid var(--mdb-line);padding-top:18px;margin-top:24px}
   .section.first{border-top:none;padding-top:0;margin-top:4px}
-  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;
-              color:var(--mdb-slate)}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--mdb-slate)}
   .section .sub{display:block;margin-top:3px;color:var(--mdb-mute);font-size:12.5px}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
-  .card{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;
-        padding:16px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;
-        min-width:0}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .grid-2-1{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:14px}
+  .card{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;padding:16px;
+        box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
   .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--mdb-ink)}
   .card .hint{font-size:11.5px;color:var(--mdb-mute);margin:4px 0 10px 0}
   .card-tall .chart-wrap{height:280px}
+  .card-med{min-height:262px}
   .chart-wrap{position:relative;flex:1;min-height:160px}
 
-  /* --- Per-campaign KPI cards (no cumulative cross-campaign totals) --- */
-  .camp-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-              gap:14px;margin-top:16px}
-  .camp-card{background:var(--mdb-card);border:1px solid var(--mdb-line);
-             border-left:4px solid var(--mdb-green);border-radius:12px;
-             padding:16px 18px;box-shadow:var(--shadow-card)}
-  .camp-card .camp-name{font-size:13px;font-weight:700;color:var(--mdb-slate);
-                        display:flex;align-items:center;gap:8px;margin-bottom:13px}
-  .camp-card .camp-name .dot{width:10px;height:10px;border-radius:50%}
-  .camp-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-  .camp-kpis .k{font-size:10px;letter-spacing:.6px;text-transform:uppercase;
-                color:var(--mdb-mute);font-weight:600}
-  .camp-kpis .v{font-size:23px;font-weight:700;color:var(--mdb-slate);
-                letter-spacing:-.5px;margin-top:3px}
-  .camp-sub{font-size:11.5px;color:var(--mdb-mute);margin-top:13px}
-  .camp-pace{font-size:12px;font-weight:600;margin-top:6px}
-  .camp-pace.ok{color:var(--good-green)} .camp-pace.warn{color:var(--warn-amber)}
-  .camp-pace.bad{color:var(--bad-red)} .camp-pace.neutral{color:var(--mdb-mute)}
-  .no-data{color:var(--mdb-mute);font-style:italic;font-size:12px;padding:8px 0 2px}
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}
+  .kpi{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:11px;color:var(--mdb-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .value{font-size:23px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--mdb-slate)}
+  .kpi .delta{font-size:11.5px;margin-top:4px;color:var(--mdb-mute)}
+  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#F1FBF4 100%);border-color:#BFE6CB}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--mdb-green)}
+  .kpi.alt .stripe{background:var(--mdb-spring)}
+
+  .cs-snap{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;padding:18px 20px;margin-top:16px;
+           display:grid;grid-template-columns:repeat(3,1fr);gap:32px;box-shadow:var(--shadow-card)}
+  .cs-snap .group .glbl{font-size:11px;color:var(--mdb-mute);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
+  .cs-snap .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cs-snap .pair.triple{grid-template-columns:repeat(3,1fr);gap:10px}
+  .cs-snap .stat .k{font-size:10.5px;color:var(--mdb-mute);text-transform:uppercase;letter-spacing:.4px}
+  .cs-snap .stat .v{font-size:21px;font-weight:700;letter-spacing:-.4px;margin-top:2px;color:var(--mdb-slate)}
+  .cs-snap .stat .cnt{font-size:11px;color:var(--mdb-mute);font-style:italic;margin-top:2px}
+
+  .progress-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:10px;margin:8px 0;font-size:13px}
+  .pbar{height:10px;background:#EEF2F4;border-radius:6px;overflow:hidden}
+  .pbar .fill{height:100%;background:var(--mdb-green);border-radius:6px}
+  .pbar.gray .fill{background:var(--mdb-target)}
+  .prog-note{font-size:12px;color:var(--mdb-mute);margin-top:14px}
+  .prog-note b{color:var(--mdb-ink)}
+
+  .reg-row{display:grid;grid-template-columns:96px 1fr 60px;align-items:center;gap:10px;margin:6px 0;font-size:11.5px}
+  .reg-lbl{color:var(--mdb-mute);font-size:11px}
+  .reg-bar{height:8px;background:#EEF2F4;border-radius:4px;overflow:hidden}
+  .reg-bar .reg-fill{height:100%;background:var(--mdb-target);border-radius:4px}
+  .reg-bar .reg-fill.green{background:var(--mdb-green)}
+  .reg-num{text-align:right;font-weight:600;color:var(--mdb-ink)}
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--mdb-line)}
-  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;
-           color:var(--mdb-mute);font-weight:600;background:#FAFBFC}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mdb-mute);font-weight:600;background:#FAFBFC}
   table td.num{text-align:right;font-variant-numeric:tabular-nums}
   table tr:hover td{background:#F8FAFB}
+  table tr.total td{font-weight:700;background:#F6FAF8;border-bottom:none}
+  table tr.total:hover td{background:#F6FAF8}
   .vs-good{color:var(--good-green);font-weight:600}
   .vs-bad{color:var(--bad-red);font-weight:600}
   .vs-neut{color:var(--mdb-mute)}
-  .camp-tag{display:inline-flex;align-items:center;gap:6px;font-weight:600}
-  .camp-tag .dot{width:8px;height:8px;border-radius:50%}
+  td.bench,.bench{color:var(--mdb-mute);font-size:10.5px;font-style:italic}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F6;color:var(--mdb-slate)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+
+  .info-note{background:#EAF6FB;border:1px solid #BFE0EF;border-left:4px solid #2E86AB;border-radius:10px;padding:12px 16px;margin-top:16px;font-size:13px;color:#1B4B5A}
+
+  .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .compare-panel{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;padding:18px;box-shadow:var(--shadow-card)}
+  .compare-filters{display:flex;gap:10px;margin-bottom:14px}
+  .compare-select{flex:1;padding:9px 12px;border:1px solid var(--mdb-line);border-radius:8px;font-size:13px;background:#fff;cursor:pointer;color:var(--mdb-ink);outline:none}
+  .compare-select:focus{border-color:var(--mdb-green)}
+  .compare-empty{padding:60px 20px;text-align:center;color:var(--mdb-mute);background:#F6F8FA;border-radius:8px;font-size:13px;border:2px dashed var(--mdb-line)}
+  .compare-kpi-group{margin-bottom:14px}
+  .compare-kpi-group .grp-lbl{font-size:10.5px;color:var(--mdb-mute);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:8px}
+  .compare-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .compare-kpis.triple{grid-template-columns:repeat(3,1fr);gap:8px}
+  .compare-kpi{background:#F6F8FA;border-radius:8px;padding:12px 14px}
+  .compare-kpi .k{font-size:10px;color:var(--mdb-mute);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .compare-kpi .v{font-size:19px;font-weight:700;margin-top:2px;letter-spacing:-.4px;color:var(--mdb-slate)}
+  .compare-kpi .cnt{font-size:10px;color:var(--mdb-mute);font-style:italic;margin-top:2px}
+  .compare-chart{margin-top:12px;border:1px solid var(--mdb-line);border-radius:8px;padding:12px}
+  .compare-chart h4{margin:0 0 8px 0;font-size:13px;font-weight:600;color:var(--mdb-ink)}
+  .compare-chart-wrap{position:relative;height:180px}
 
   .loading{padding:80px 20px;text-align:center;color:var(--mdb-mute)}
-  .spinner{display:inline-block;width:34px;height:34px;
-           border:3px solid var(--mdb-line);border-top-color:var(--mdb-green);
-           border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--mdb-line);border-top-color:var(--mdb-green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;
-             border-radius:10px;padding:18px;margin:30px auto;max-width:520px;
-             text-align:center;font-size:13px}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
 
-  footer{color:var(--mdb-mute);font-size:11px;margin-top:30px;text-align:right;
-         padding-top:14px;border-top:1px solid var(--mdb-line)}
+  footer{color:var(--mdb-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--mdb-line)}
   footer b{color:var(--mdb-ink)}
 
-  @media (max-width: 760px){
-    .grid{grid-template-columns:1fr}
-    .camp-kpis{grid-template-columns:repeat(3,1fr)}
-  }
+  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}}
+  @media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.cs-snap{grid-template-columns:1fr;gap:18px}.compare-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
 
-<!-- ============ TOP BAR ============ -->
 <div class="topbar">
   <div class="topbar-left">
     <div class="transmission-logo">TRANSMISSION<span class="dot"></span></div>
     <div class="topbar-divider"></div>
     <div class="mdb-logo-wrap">
-      <!-- Official MongoDB horizontal mark in slate blue -->
       <svg class="mdb-logo" viewBox="0 0 1102 278" xmlns="http://www.w3.org/2000/svg" fill="none" aria-label="MongoDB">
         <path d="M82.3229 28.6444C71.5367 15.8469 62.2485 2.84945 60.351 0.149971C60.1512 -0.0499903 59.8515 -0.0499903 59.6518 0.149971C57.7542 2.84945 48.4661 15.8469 37.6798 28.6444C-54.9019 146.721 52.2613 226.406 52.2613 226.406L53.1601 227.006C53.959 239.303 55.9565 257 55.9565 257H59.9514H63.9463C63.9463 257 65.9438 239.403 66.7428 227.006L67.6416 226.306C67.7414 226.406 174.905 146.721 82.3229 28.6444ZM59.9514 224.606C59.9514 224.606 55.1576 220.507 53.8592 218.408V218.207L59.6518 89.6326C59.6518 89.2326 60.2511 89.2326 60.2511 89.6326L66.0436 218.207V218.408C64.7453 220.507 59.9514 224.606 59.9514 224.606Z" fill="#001E2B"/>
         <path d="M260.501 198.369L215.845 89.3012L215.745 89H181.001V96.3314H186.608C188.31 96.3314 189.912 97.0344 191.114 98.2396C192.315 99.4447 192.916 101.052 192.916 102.759L191.915 212.53C191.915 215.944 189.112 218.756 185.707 218.857L180 218.957V226.188H213.843V218.957L210.338 218.857C206.934 218.756 204.13 215.944 204.13 212.53V109.086L252.792 226.188C253.492 227.895 255.094 229 256.897 229C258.699 229 260.301 227.895 261.002 226.188L308.562 111.697L309.263 212.53C309.263 216.045 306.459 218.857 302.955 218.957H299.35V226.188H339V218.957H333.593C330.189 218.957 327.385 216.045 327.285 212.63L326.985 102.859C326.985 99.3443 329.788 96.5322 333.193 96.4318L339 96.3314V89H305.157L260.501 198.369Z" fill="#001E2B"/>
@@ -195,26 +187,23 @@
 </div>
 
 <div class="container">
-
   <div id="loading" class="loading">
     <div class="spinner"></div>
     <div>Fetching dashboard data from BigQuery…</div>
   </div>
-
   <div id="error" class="error-box" style="display:none">
     <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
-    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;
-         font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
   </div>
 
   <div id="content" style="display:none">
 
-    <!-- ============ CONTROL BAR: tabs + campaign + region ============ -->
     <div class="control-bar">
       <div class="control-tabs">
         <div class="tabs">
-          <button class="tab" id="tabPaid" onclick="setTab('paid')">Paid Media</button>
-          <button class="tab" id="tabCS"   onclick="setTab('cs')">Content Syndication</button>
+          <button class="tab" id="tabPaid"    onclick="setTab('paid')">Paid Media</button>
+          <button class="tab" id="tabCS"      onclick="setTab('cs')">Content Syndication</button>
+          <button class="tab" id="tabCompare" onclick="setTab('compare')">CS Comparison</button>
         </div>
         <div class="ctrl-note" id="ctrlNote">&nbsp;</div>
       </div>
@@ -236,107 +225,234 @@
     <div id="tab-paid" class="tabpane">
       <div class="section first">
         <h2>Paid Media — Delivery</h2>
-        <span class="sub">Live Trade Desk delivery: spend, impressions, CTR. Shown per campaign
-          (DNB vs KGA/IDC) — no cumulative cross-campaign totals.</span>
+        <span class="sub">Live Trade Desk &amp; social delivery for the selected campaign: spend, impressions, clicks, CTR. Reflects the selected region(s).</span>
       </div>
 
-      <div class="camp-cards" id="pmCards"></div>
+      <div id="pmNote" class="info-note" style="display:none"></div>
 
-      <div class="grid">
-        <div class="card card-tall">
-          <h3>Spend by market</h3>
-          <div class="hint">DNB and KGA/IDC shown side by side per market (never summed together).</div>
-          <div class="chart-wrap"><canvas id="pmSpendMarket"></canvas></div>
-        </div>
-        <div class="card card-tall">
-          <h3>CTR by market</h3>
-          <div class="hint">Click-through rate per market, per campaign.</div>
-          <div class="chart-wrap"><canvas id="pmCtrMarket"></canvas></div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>Daily impressions</h3>
-        <div class="hint">Impressions per day, per campaign. Reflects the selected region(s).</div>
-        <div class="chart-wrap" style="height:300px"><canvas id="pmDaily"></canvas></div>
+      <div class="kpis">
+        <div class="kpi accent"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
+        <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
+        <div class="kpi"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
+        <div class="kpi alt"><span class="stripe"></span><div class="label">Paid leads</div><div class="value" id="pm_leads">—</div><div class="delta" id="pm_leads_sub">—</div></div>
+        <div class="kpi accent"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
       </div>
 
       <div class="section">
-        <h2 style="font-size:15px">Strategy performance vs media plan</h2>
-        <span class="sub">CTR &amp; CPM against the MongoDB plan benchmarks, broken out per campaign
-          &amp; strategy across the selected region(s) — green beats plan. Every row is a single
-          campaign; nothing is combined across campaigns.</span>
+        <h2 style="font-size:15px">Strategy performance vs media plan benchmarks</h2>
+        <span class="sub">Δ vs the MongoDB media-plan benchmarks (CPM &amp; CTR). Green beats plan. CPC has no plan benchmark in the feed, so its Δ shows &ldquo;—&rdquo;.</span>
       </div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="stratTable">
           <thead><tr>
-            <th>Campaign</th><th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th>
-            <th>CTR</th><th>vs plan</th><th>CPM</th><th>vs plan</th><th>CPC</th>
+            <th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>CPM</th><th>vs plan</th><th>CPC</th><th>vs plan</th><th>Leads</th>
           </tr></thead>
           <tbody></tbody>
         </table>
       </div></div>
 
       <div class="section">
-        <h2 style="font-size:15px">Campaign × market summary</h2>
-        <span class="sub">Per-campaign delivery by market — every row is a single campaign, so
-          nothing is combined across campaigns.</span>
+        <h2 style="font-size:15px">Programmatic delivery</h2>
+        <span class="sub">Daily impressions, clicks &amp; CTR, with the spend mix by strategy.</span>
       </div>
-      <div class="card" style="margin-top:14px"><div style="overflow:auto">
-        <table id="pmMarketTable">
-          <thead><tr>
-            <th>Campaign</th><th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th>
-            <th>CTR</th><th>CPM</th><th>CPC</th>
-          </tr></thead>
-          <tbody></tbody>
-        </table>
-      </div></div>
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Daily — impressions, clicks, CTR</h3>
+          <div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes.</div>
+          <div class="chart-wrap"><canvas id="pmDaily"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Spend by strategy</h3>
+          <div class="hint">Share of media budget across the five strategies.</div>
+          <div class="chart-wrap"><canvas id="pmSpendStrat"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Daily spend — stacked by strategy</h3>
+          <div class="hint">Per-day spend split across strategies.</div>
+          <div class="chart-wrap"><canvas id="pmDailyStack"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Spend by market</h3>
+          <div class="hint">Breakdown across the selected regions.</div>
+          <div class="chart-wrap"><canvas id="pmSpendMarket"></canvas></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Daily efficiency — CTR · Clicks · CPC by strategy</h2>
+        <span class="sub">Same date axis. Hover for daily values.</span>
+      </div>
+      <div class="grid-3">
+        <div class="card card-med"><h3>CTR (%)</h3><div class="chart-wrap"><canvas id="pmCtr"></canvas></div></div>
+        <div class="card card-med"><h3>Clicks per day</h3><div class="chart-wrap"><canvas id="pmClk"></canvas></div></div>
+        <div class="card card-med"><h3>CPC ($)</h3><div class="chart-wrap"><canvas id="pmCpc"></canvas></div></div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Market breakdown</h2>
+        <span class="sub">Stacked spend by region with a full delivery summary table.</span>
+      </div>
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Market spend — stacked by strategy</h3>
+          <div class="chart-wrap"><canvas id="pmMarketStack"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Market summary table</h3>
+          <div class="hint" style="margin-bottom:6px">Live values — refresh on campaign / region change.</div>
+          <div style="overflow:auto;flex:1">
+            <table id="pmMarketTable">
+              <thead><tr><th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- ============ CONTENT SYNDICATION TAB ============ -->
     <div id="tab-cs" class="tabpane">
       <div class="section first">
         <h2>Content Syndication — Lead Pacing</h2>
-        <span class="sub">Live Salesforce leads vs target. Shown per campaign (DNB vs KGA/IDC) —
-          no cumulative cross-campaign totals.</span>
+        <span class="sub">Live Salesforce leads vs target for the selected campaign. Reflects the selected region(s).</span>
       </div>
 
-      <div class="camp-cards" id="csCards"></div>
+      <div id="csNote" class="info-note" style="display:none"></div>
 
-      <div class="grid" style="margin-top:16px">
-        <div class="card card-tall">
-          <h3>Leads vs target</h3>
-          <div class="hint">Each campaign's target vs leads delivered — compared, not summed.</div>
-          <div class="chart-wrap"><canvas id="csTargetActual"></canvas></div>
+      <div class="cs-snap">
+        <div class="group">
+          <div class="glbl">Overall</div>
+          <div class="pair">
+            <div class="stat"><div class="k">Target</div><div class="v" id="cs_target">—</div></div>
+            <div class="stat"><div class="k">Total leads</div><div class="v" id="cs_total">—</div></div>
+          </div>
         </div>
-        <div class="card card-tall">
-          <h3>Leads by market</h3>
-          <div class="hint">DNB and KGA/IDC shown side by side per market.</div>
-          <div class="chart-wrap"><canvas id="csMarket"></canvas></div>
+        <div class="group">
+          <div class="glbl">Pacing</div>
+          <div class="pair">
+            <div class="stat"><div class="k">Current pacing</div><div class="v" id="cs_current">—</div></div>
+            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cs_overall">—</div></div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· in progress = awaiting triage</span></div>
+          <div class="pair triple">
+            <div class="stat"><div class="k">Accepted</div><div class="v" id="cs_acc">—</div><div class="cnt" id="cs_acc_cnt">—</div></div>
+            <div class="stat"><div class="k">In progress</div><div class="v" id="cs_unproc">—</div><div class="cnt" id="cs_unproc_cnt">—</div></div>
+            <div class="stat"><div class="k">Do not contact</div><div class="v" id="cs_dnc">—</div><div class="cnt" id="cs_dnc_cnt">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Leads vs target</h3>
+          <div class="hint">Total target, time-to-date target, and leads delivered.</div>
+          <div id="csLeadsTarget"></div>
+        </div>
+        <div class="card">
+          <h3>Progress</h3>
+          <div class="hint">Leads vs target / time elapsed in the campaign window.</div>
+          <div id="csProgress"></div>
         </div>
       </div>
 
       <div class="card" style="margin-top:16px">
         <h3>Weekly pacing — target vs actual</h3>
-        <div class="hint">Leads delivered per week (bars) vs each campaign's weekly target pace
-          (dashed line). Actuals are ramped across the elapsed window — Salesforce leads aren't
-          date-stamped in the feed yet.</div>
+        <div class="hint">Leads per week (bars) vs the weekly target pace (dashed). Actuals are ramped across the elapsed window — Salesforce leads aren't date-stamped in the feed yet.</div>
         <div class="chart-wrap" style="height:320px"><canvas id="csWeekly"></canvas></div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Leads by market</h3>
+          <div class="hint">Delivered leads per region for the selected campaign.</div>
+          <div class="chart-wrap"><canvas id="csMarket"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Leads by programme</h3>
+          <div class="hint">Share of leads across the campaign's Salesforce programmes.</div>
+          <div class="chart-wrap"><canvas id="csProgramme"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>By-region summary</h3>
+        <div class="hint">Three bars per region, scaled to the region's target.</div>
+        <div id="csRegionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
       </div>
 
       <div class="section">
         <h2 style="font-size:15px">Programme × market breakdown</h2>
-        <span class="sub">Underlying Salesforce programmes, tagged by campaign. Filtered by the
-          selected campaign(s) &amp; region(s).</span>
+        <span class="sub">Underlying Salesforce programmes for the selected campaign &amp; region(s).</span>
       </div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="csTable">
-          <thead><tr>
-            <th>Campaign</th><th>Programme</th><th>Market</th><th>Leads</th><th>Last lead</th>
-          </tr></thead>
+          <thead><tr><th>Programme</th><th>Market</th><th>Leads</th><th>Last lead</th></tr></thead>
           <tbody></tbody>
         </table>
       </div></div>
+    </div>
+
+    <!-- ============ CS COMPARISON TAB ============ -->
+    <div id="tab-compare" class="tabpane">
+      <div class="section first">
+        <h2>Side-by-side comparison</h2>
+        <span class="sub" id="compareSub">Pick a region in each panel to compare them directly, for the selected campaign.</span>
+      </div>
+
+      <div class="compare-grid">
+        <div class="compare-panel">
+          <div class="compare-filters">
+            <select class="compare-select" id="regionA" onchange="renderComparePanel('A')"><option value="">Select region</option></select>
+          </div>
+          <div class="compare-empty" id="emptyA">Select a region to view data</div>
+          <div id="contentA" style="display:none">
+            <div class="compare-kpi-group"><div class="grp-lbl">Overall</div>
+              <div class="compare-kpis">
+                <div class="compare-kpi"><div class="k">Target</div><div class="v" id="A_target">—</div></div>
+                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">—</div></div>
+              </div>
+            </div>
+            <div class="compare-kpi-group"><div class="grp-lbl">Lead quality</div>
+              <div class="compare-kpis triple">
+                <div class="compare-kpi"><div class="k">Accepted</div><div class="v" id="A_acc">—</div><div class="cnt" id="A_acc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">In progress</div><div class="v" id="A_unproc">—</div><div class="cnt" id="A_unproc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Do not contact</div><div class="v" id="A_dnc">—</div><div class="cnt" id="A_dnc_cnt">—</div></div>
+              </div>
+            </div>
+            <div class="compare-chart"><h4>Leads vs target</h4><div class="compare-chart-wrap"><canvas id="A_targets"></canvas></div></div>
+            <div class="compare-chart"><h4>Weekly pacing</h4><div class="compare-chart-wrap"><canvas id="A_weekly"></canvas></div></div>
+          </div>
+        </div>
+
+        <div class="compare-panel">
+          <div class="compare-filters">
+            <select class="compare-select" id="regionB" onchange="renderComparePanel('B')"><option value="">Select region</option></select>
+          </div>
+          <div class="compare-empty" id="emptyB">Select a region to view data</div>
+          <div id="contentB" style="display:none">
+            <div class="compare-kpi-group"><div class="grp-lbl">Overall</div>
+              <div class="compare-kpis">
+                <div class="compare-kpi"><div class="k">Target</div><div class="v" id="B_target">—</div></div>
+                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">—</div></div>
+              </div>
+            </div>
+            <div class="compare-kpi-group"><div class="grp-lbl">Lead quality</div>
+              <div class="compare-kpis triple">
+                <div class="compare-kpi"><div class="k">Accepted</div><div class="v" id="B_acc">—</div><div class="cnt" id="B_acc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">In progress</div><div class="v" id="B_unproc">—</div><div class="cnt" id="B_unproc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Do not contact</div><div class="v" id="B_dnc">—</div><div class="cnt" id="B_dnc_cnt">—</div></div>
+              </div>
+            </div>
+            <div class="compare-chart"><h4>Leads vs target</h4><div class="compare-chart-wrap"><canvas id="B_targets"></canvas></div></div>
+            <div class="compare-chart"><h4>Weekly pacing</h4><div class="compare-chart-wrap"><canvas id="B_weekly"></canvas></div></div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <footer id="footMeta"></footer>
@@ -352,27 +468,37 @@ const JSON_URL = '/data.json';
 
 const MDB = {
   slate:'#001E2B', forest:'#023430', green:'#00684A', spring:'#00ED64',
-  mint:'#C3E7CA', ink:'#1B2834', mute:'#5A6B78', line:'#E5E9EE'
+  mint:'#C3E7CA', soft:'#3FA037', ink:'#1B2834', mute:'#5A6B78',
+  line:'#E5E9EE', target:'#9AA3AC'
 };
 
-const STRAT_COLORS = {
-  'CONTEXTUAL':'#023430','KEYWORDS':'#00684A','BEHAVIOURAL':'#3FA037',
-  'RETARGETING':'#00ED64','AUDIENCE-ABM':'#C3E7CA'
-};
-const STRAT_ORDER = ['CONTEXTUAL','KEYWORDS','BEHAVIOURAL','RETARGETING','AUDIENCE-ABM'];
+// Strategy ordering + colour mapping (robust to the exact strategy spelling in the feed)
+const STRAT_RANK = [
+  {test:k=>k.startsWith('CONTEXT'),                                             rank:0, color:'#023430'},
+  {test:k=>k.startsWith('KEYWORD'),                                             rank:1, color:'#00684A'},
+  {test:k=>k.includes('ABM')||k.includes('ACCOUNT')||k.startsWith('AUDIENCE'),  rank:2, color:'#C3E7CA'},
+  {test:k=>k.startsWith('BEHAV'),                                               rank:3, color:'#3FA037'},
+  {test:k=>k.startsWith('RETARGET'),                                            rank:4, color:'#00ED64'}
+];
+const STRAT_FALLBACK = ['#0E6B57','#7FD1A8','#39A06B','#06402B','#9AD4B5','#1F8E6B'];
+function stratMeta(raw){
+  const k = String(raw||'').trim().toUpperCase();
+  for (const m of STRAT_RANK) if (m.test(k)) return {rank:m.rank, color:m.color};
+  let h=0; for (let i=0;i<k.length;i++) h=(h*31+k.charCodeAt(i))>>>0;
+  return {rank:9, color:STRAT_FALLBACK[h % STRAT_FALLBACK.length]};
+}
+function stratColor(raw){ return stratMeta(raw).color; }
+function stratSort(a,b){ const ra=stratMeta(a).rank, rb=stratMeta(b).rank; return ra!==rb ? ra-rb : a.localeCompare(b); }
 
-// The two top-level campaigns discussed with the client. Everything on the
-// dashboard is shown per-campaign and colour-coded by these.
-//   DNB        -> paid-media programme 'IDE', Salesforce 'DNB IDE …' programmes
-//   KGA (IDC)  -> paid-media programme 'IDC', Salesforce IDC programme
+// The two top-level campaigns. Everything is scoped to ONE of these at a time
+// (the "Both" view was removed at the client's request).
 const CAMP = {
   DNB: {id:'DNB', label:'DNB',       color:MDB.green},
   IDC: {id:'IDC', label:'KGA (IDC)', color:MDB.spring}
 };
 const CAMP_OPTS = [
-  {k:'DNB',  label:'DNB',       color:MDB.green},
-  {k:'IDC',  label:'KGA (IDC)', color:MDB.spring},
-  {k:'BOTH', label:'Both',      color:null}
+  {k:'DNB', label:'DNB',       color:MDB.green},
+  {k:'IDC', label:'KGA (IDC)', color:MDB.spring}
 ];
 
 //==============================================================================
@@ -380,9 +506,10 @@ const CAMP_OPTS = [
 //==============================================================================
 let DATA = null;
 let charts = {};
-let activeTab = 'paid';            // 'paid' | 'cs'
-let activeCampaign = 'BOTH';       // 'DNB' | 'IDC' | 'BOTH'
-let activeMarkets = new Set();     // region filter (markets)
+let activeTab = 'paid';            // 'paid' | 'cs' | 'compare'
+let activeCampaign = 'DNB';        // 'DNB' | 'IDC'
+let activeMarkets = new Set();
+let compareReady = false;
 
 //==============================================================================
 // HELPERS
@@ -391,32 +518,30 @@ const el = id => document.getElementById(id);
 const fmt$ = (v, d=0) => v == null || isNaN(v) ? '—' :
   '$' + Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 const fmtN = v => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('en-US');
+const fmtN_M = v => v == null || isNaN(v) ? '—' :
+  (v>=1e6 ? (v/1e6).toFixed(2)+'M' : v>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
 const fmtPct = (v,d=2) => v == null || isNaN(v) ? '—' : (Number(v)*100).toFixed(d) + '%';
 
-// Classify any programme value into one of the two campaigns. The per-programme
-// labels (targets / budget / cs_by_programme) are long PROGRAMME_LABELs whose exact
-// text for the new IDC campaign isn't guaranteed to contain "IDC", so we WHITELIST
-// the known DNB markers — the 'IDE' paid code and the 'DNB …' Salesforce labels —
-// and treat everything else as KGA/IDC. Defaulting unknowns to IDC is the safe
-// direction: it can never silently fold new KGA leads into the established DNB
-// numbers the client already trusts. (Robust long-term fix: have the export job
-// emit an explicit `campaign` field once the BQ views expose the short code.)
 function campaignOf(programme){
   const p = String(programme||'').toUpperCase();
   return (p.includes('IDE') || p.includes('DNB')) ? 'DNB' : 'IDC';
 }
-function selectedCampaigns(){
-  return activeCampaign === 'BOTH' ? ['DNB','IDC'] : [activeCampaign];
-}
 function marketOk(m){ return activeMarkets.has(m); }
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m => activeMarkets.has(m)); }
 
-// Does the feed contain ANY data for a campaign? (ignores filters — used to
-// show a friendly "no data yet" note while IDC is still being wired up.)
 function campHasData(c){
   return (DATA.rows||[]).some(r => campaignOf(r.programme) === c)
       || (DATA.cs_by_programme||[]).some(r => campaignOf(r.programme) === c)
       || (DATA.targets||[]).some(t => campaignOf(t.programme) === c);
+}
+
+// Δ-vs-plan cell. lower=true means a smaller actual is better (CPM/CPC).
+function vsCell(actual, plan, lower){
+  if (!plan || !actual) return '<span class="vs-neut">—</span>';
+  const d = (actual - plan) / plan;
+  const good = lower ? d < 0 : d > 0;
+  const cls = Math.abs(d) < 0.05 ? 'vs-neut' : (good ? 'vs-good' : 'vs-bad');
+  return `<span class="${cls}">${d>0?'+':''}${(d*100).toFixed(0)}%</span>`;
 }
 
 //==============================================================================
@@ -430,12 +555,13 @@ async function boot() {
 
     activeMarkets = new Set(DATA.all_markets || []);
     const h = (location.hash || '').replace('#','');
-    if (h === 'paid' || h === 'cs') activeTab = h;
+    if (h === 'paid' || h === 'cs' || h === 'compare') activeTab = h;
 
     el('loading').style.display = 'none';
     el('content').style.display = 'block';
 
     renderTopbarMeta();
+    populateRegionSelects();
     renderControls();
     renderActive();
   } catch (e) {
@@ -448,31 +574,30 @@ async function boot() {
 function renderTopbarMeta() {
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : 'unknown';
-  el('topbarMeta').textContent =
-    'Updated ' + luText + ' · Window ' + DATA.window.start + ' → ' + DATA.window.end;
+  const w = DATA.window || {};
+  el('topbarMeta').textContent = 'Updated ' + luText + ' · Window ' + (w.start||'?') + ' → ' + (w.end||'?');
   el('footMeta').innerHTML =
     'Live from BigQuery (<b>client_mongodb</b>: paid_media_model + cs_leads_by_programme) · ' +
     Number(DATA.row_count||0).toLocaleString() + ' paid-media rows · Auto-refreshes daily at 22:00 UTC';
 }
 
 //==============================================================================
-// CONTROLS (tabs + campaign toggle + region toggle)
+// CONTROLS
 //==============================================================================
 function renderControls() {
-  el('tabPaid').className = 'tab' + (activeTab === 'paid' ? ' on' : '');
-  el('tabCS').className   = 'tab' + (activeTab === 'cs'   ? ' on' : '');
+  el('tabPaid').className    = 'tab' + (activeTab === 'paid'    ? ' on' : '');
+  el('tabCS').className      = 'tab' + (activeTab === 'cs'      ? ' on' : '');
+  el('tabCompare').className = 'tab' + (activeTab === 'compare' ? ' on' : '');
 
-  // Campaign segmented control
   const seg = el('campSeg'); seg.innerHTML = '';
   CAMP_OPTS.forEach(o => {
     const b = document.createElement('button');
     b.className = 'seg-btn' + (activeCampaign === o.k ? ' on' : '');
-    b.innerHTML = (o.color ? `<span class="dot" style="background:${o.color}"></span>` : '') + o.label;
+    b.innerHTML = `<span class="dot" style="background:${o.color}"></span>` + o.label;
     b.onclick = () => { activeCampaign = o.k; renderControls(); renderActive(); };
     seg.appendChild(b);
   });
 
-  // Region chips (the regional toggle)
   const reg = el('regionChips'); reg.innerHTML = '';
   (DATA.all_markets || []).forEach(m => {
     const b = document.createElement('button');
@@ -485,11 +610,13 @@ function renderControls() {
     reg.appendChild(b);
   });
 
-  const camps = selectedCampaigns().map(c => CAMP[c].label).join(' + ');
   const regs = activeMarketList();
+  const allCount = (DATA.all_markets||[]).length;
   el('ctrlNote').textContent =
-    `Showing ${camps} · ${regs.length === (DATA.all_markets||[]).length ? 'all regions' :
+    `Showing ${CAMP[activeCampaign].label} · ${regs.length === allCount ? 'all regions' :
       (regs.length ? regs.join(', ') : 'no region selected')}`;
+  el('compareSub').textContent =
+    `Pick a region in each panel to compare them directly, for ${CAMP[activeCampaign].label}.`;
 }
 
 function setTab(t){ activeTab = t; location.hash = t; renderControls(); renderActive(); }
@@ -500,207 +627,266 @@ function clearRegions(){ activeMarkets = new Set(); renderControls(); renderActi
 // RENDER DISPATCH
 //==============================================================================
 function renderActive() {
-  el('tab-paid').style.display = activeTab === 'paid' ? 'block' : 'none';
-  el('tab-cs').style.display   = activeTab === 'cs'   ? 'block' : 'none';
+  el('tab-paid').style.display    = activeTab === 'paid'    ? 'block' : 'none';
+  el('tab-cs').style.display      = activeTab === 'cs'      ? 'block' : 'none';
+  el('tab-compare').style.display = activeTab === 'compare' ? 'block' : 'none';
   destroyAllCharts();
-  if (activeTab === 'paid') {
-    renderPMCards();
-    renderPMSpendMarket();
-    renderPMCtrMarket();
-    renderPMDaily();
-    renderStrategyTable();
-    renderPMMarketTable();
-  } else {
-    renderCSCards();
-    renderCSTargetActual();
-    renderCSMarket();
-    renderCSWeekly();
-    renderCSTable();
-  }
+  if (activeTab === 'paid')      renderPaidAll();
+  else if (activeTab === 'cs')   renderCSAll();
+  else                           renderCompareAll();
 }
 
 //==============================================================================
 // PAID MEDIA
 //==============================================================================
-function pmAgg(c, market){
-  let imp=0, clk=0, sp=0;
-  for (const r of (DATA.rows||[])) {
-    if (campaignOf(r.programme) !== c) continue;
-    if (market != null ? r.market !== market : !marketOk(r.market)) continue;
-    imp += r.imps||0; clk += r.clicks||0; sp += r.spend_usd||0;
+function pmCampRows(){
+  return (DATA.rows||[]).filter(r => campaignOf(r.programme) === activeCampaign && marketOk(r.market));
+}
+function sumRows(rows){
+  let imp=0, clk=0, sp=0, leads=0;
+  for (const r of rows){ imp+=r.imps||0; clk+=r.clicks||0; sp+=r.spend_usd||0; leads+=r.leads||0; }
+  return {imp, clk, sp, leads, ctr: imp?clk/imp:0, cpm: imp?sp/imp*1000:0, cpc: clk?sp/clk:0};
+}
+function stratKeys(rows){
+  const set = new Set();
+  for (const r of rows){ const s = String(r.strategy||'').trim().toUpperCase(); if (s) set.add(s); }
+  return [...set].sort(stratSort);
+}
+
+function renderPaidAll() {
+  const rows = pmCampRows();
+  const note = el('pmNote');
+  if (rows.length === 0) {
+    note.style.display = 'block';
+    note.textContent = campHasData(activeCampaign)
+      ? `No paid-media delivery for ${CAMP[activeCampaign].label} in the selected region(s).`
+      : `No paid-media data yet for ${CAMP[activeCampaign].label}. The charts below will populate once the feed includes it.`;
+  } else {
+    note.style.display = 'none';
   }
-  return {imp, clk, sp, ctr: imp?clk/imp:0, cpm: imp?sp/imp*1000:0, cpc: clk?sp/clk:0};
+  renderPMKPIs(rows);
+  renderStrategyTable(rows);
+  renderPMDaily(rows);
+  renderPMSpendStrat(rows);
+  renderPMDailyStack(rows);
+  renderPMSpendMarket(rows);
+  renderPMEffTrio(rows);
+  renderPMMarketStack(rows);
+  renderPMMarketTable(rows);
 }
 
-function renderPMCards() {
-  const host = el('pmCards'); host.innerHTML = '';
-  selectedCampaigns().forEach(c => {
-    const col = CAMP[c].color;
-    const a = pmAgg(c);
-    if (!a.imp && !a.sp) {
-      // Distinguish "campaign not wired up at all" from "nothing under the current region(s)".
-      const msg = campHasData(c)
-        ? `No paid-media delivery for ${CAMP[c].label} in the selected region(s).`
-        : `No paid-media data yet for ${CAMP[c].label}.`;
-      host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
-        <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
-        <div class="no-data">${msg}</div></div>`;
-      return;
-    }
-    host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
-      <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
-      <div class="camp-kpis">
-        <div><div class="k">Spend</div><div class="v">${fmt$(a.sp)}</div></div>
-        <div><div class="k">Impressions</div><div class="v">${fmtN(a.imp)}</div></div>
-        <div><div class="k">CTR</div><div class="v">${fmtPct(a.ctr,3)}</div></div>
-      </div>
-      <div class="camp-sub">CPM ${fmt$(a.cpm,2)} · CPC ${fmt$(a.cpc,2)} · ${fmtN(a.clk)} clicks</div>
-    </div>`;
-  });
+function renderPMKPIs(rows) {
+  const t = sumRows(rows);
+  const byCh = {};
+  for (const r of rows){ const ch = r.channel || 'Other'; byCh[ch] = (byCh[ch]||0) + (r.spend_usd||0); }
+  const split = Object.entries(byCh).sort((a,b)=>b[1]-a[1]).map(([ch,v])=>`${fmt$(v)} ${ch}`).join(' · ');
+  el('pm_spend').textContent     = fmt$(t.sp);
+  el('pm_spend_sub').textContent = split || '—';
+  el('pm_imp').textContent       = fmtN_M(t.imp);
+  el('pm_cpm').textContent       = t.imp ? `${fmt$(t.cpm,2)} blended CPM` : '—';
+  el('pm_clk').textContent       = fmtN(t.clk);
+  el('pm_ctr').textContent       = t.imp ? `${fmtPct(t.ctr,3)} blended CTR` : '—';
+  el('pm_leads').textContent     = fmtN(t.leads);
+  el('pm_leads_sub').textContent = 'Content-syndication leads shown in the CS tab';
+  el('pm_cpc').textContent       = t.clk ? fmt$(t.cpc,2) : '—';
+  el('pm_cpc_sub').textContent   = 'Blended across strategies';
 }
 
-function renderPMSpendMarket() {
-  const markets = activeMarketList();
-  const datasets = selectedCampaigns().map(c => ({
-    label: CAMP[c].label,
-    data: markets.map(m => pmAgg(c, m).sp),
-    backgroundColor: CAMP[c].color, borderRadius:3
-  }));
-  charts.pmSpendMarket = new Chart(el('pmSpendMarket'), {
-    type:'bar', data:{labels:markets, datasets},
-    options: chartBase({
-      scales:{ x:{grid:{display:false}},
-        y:{beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>'$'+Number(v).toLocaleString()}} }
-    })
-  });
-}
-
-function renderPMCtrMarket() {
-  const markets = activeMarketList();
-  const datasets = selectedCampaigns().map(c => ({
-    label: CAMP[c].label,
-    data: markets.map(m => pmAgg(c, m).ctr),
-    backgroundColor: CAMP[c].color, borderRadius:3
-  }));
-  charts.pmCtrMarket = new Chart(el('pmCtrMarket'), {
-    type:'bar', data:{labels:markets, datasets},
-    options: chartBase({
-      scales:{ x:{grid:{display:false}},
-        y:{beginAtZero:true,grid:{color:MDB.line},ticks:{callback:v=>(v*100).toFixed(2)+'%'}} },
-      plugins:{ tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+(ctx.parsed.y*100).toFixed(3)+'%'}} }
-    })
-  });
-}
-
-function renderPMDaily() {
-  const sel = new Set(selectedCampaigns());
-  const dates = [...new Set((DATA.rows||[])
-    .filter(r => sel.has(campaignOf(r.programme)) && marketOk(r.market))
-    .map(r => r.date))].sort();
-  const datasets = selectedCampaigns().map(c => {
-    const byDate = {};
-    for (const r of (DATA.rows||[])) {
-      if (campaignOf(r.programme) !== c || !marketOk(r.market)) continue;
-      byDate[r.date] = (byDate[r.date]||0) + (r.imps||0);
-    }
-    return {label:CAMP[c].label, data:dates.map(d=>byDate[d]||0),
-            backgroundColor:CAMP[c].color, borderRadius:2};
-  });
-  charts.pmDaily = new Chart(el('pmDaily'), {
-    type:'bar', data:{labels:dates, datasets},
-    options: chartBase({
-      scales:{ x:{grid:{display:false},ticks:{font:{size:9},maxRotation:0,autoSkip:true,maxTicksLimit:14}},
-        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Impressions'}} }
-    })
-  });
-}
-
-function renderStrategyTable() {
-  // Per-campaign × strategy — one row per campaign so DNB and IDC are never merged.
-  // Normalise benchmark keys so case/whitespace drift can't silently drop the vs-plan column.
+function renderStrategyTable(rows) {
   const bench = {};
   for (const [k,v] of Object.entries(DATA.benchmarks_strategy || {})) bench[String(k||'').trim().toUpperCase()] = v;
+  const agg = {};
+  for (const r of rows){
+    const s = String(r.strategy||'').trim().toUpperCase(); if (!s) continue;
+    if (!agg[s]) agg[s] = {imp:0, clk:0, sp:0, leads:0};
+    agg[s].imp += r.imps||0; agg[s].clk += r.clicks||0; agg[s].sp += r.spend_usd||0; agg[s].leads += r.leads||0;
+  }
+  const keys = Object.keys(agg).sort(stratSort);
   const tbody = document.querySelector('#stratTable tbody');
   tbody.innerHTML = '';
-  const fmtVs = v => v == null ? '—' : (v>=0?'+':'') + (v*100).toFixed(0) + '%';
-  let any = false;
-  selectedCampaigns().forEach(c => {
-    const agg = {};
-    for (const r of (DATA.rows||[])) {
-      if (campaignOf(r.programme) !== c || !marketOk(r.market)) continue;
-      const s = String(r.strategy||'').trim().toUpperCase(); if (!s) continue;
-      if (!agg[s]) agg[s] = {imps:0,clicks:0,spend:0};
-      agg[s].imps += r.imps||0; agg[s].clicks += r.clicks||0; agg[s].spend += r.spend_usd||0;
-    }
-    const ordered = [...STRAT_ORDER, ...Object.keys(agg).filter(s => !STRAT_ORDER.includes(s))];
-    ordered.forEach(s => {
-      if (!agg[s]) return;
-      any = true;
-      const a = agg[s];
-      const ctr = a.imps ? a.clicks/a.imps : 0;
-      const cpm = a.imps ? a.spend/a.imps*1000 : 0;
-      const cpc = a.clicks ? a.spend/a.clicks : 0;
-      const b = bench[s] || {};
-      const ctrVs = b.ctr ? (ctr - b.ctr)/b.ctr : null;
-      const cpmVs = b.cpm ? (b.cpm - cpm)/b.cpm : null;
-      const ctrCls = ctrVs == null ? 'vs-neut' : (ctrVs > 0 ? 'vs-good' : 'vs-bad');
-      const cpmCls = cpmVs == null ? 'vs-neut' : (cpmVs > 0 ? 'vs-good' : 'vs-bad');
-      tbody.innerHTML += `<tr>
-        <td><span class="camp-tag"><span class="dot" style="background:${CAMP[c].color}"></span>${CAMP[c].label}</span></td>
-        <td><b>${s}</b></td>
-        <td class="num">${fmt$(a.spend)}</td>
-        <td class="num">${fmtN(a.imps)}</td>
-        <td class="num">${fmtN(a.clicks)}</td>
-        <td class="num">${fmtPct(ctr,3)}</td>
-        <td class="num ${ctrCls}">${fmtVs(ctrVs)}</td>
-        <td class="num">${fmt$(cpm,2)}</td>
-        <td class="num ${cpmCls}">${fmtVs(cpmVs)}</td>
-        <td class="num">${fmt$(cpc,2)}</td>
-      </tr>`;
-    });
+  if (!keys.length){ tbody.innerHTML = `<tr><td colspan="11" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`; return; }
+  let tSp=0, tImp=0, tClk=0, tLeads=0;
+  keys.forEach(s => {
+    const a = agg[s];
+    const ctr = a.imp ? a.clk/a.imp : 0;
+    const cpm = a.imp ? a.sp/a.imp*1000 : 0;
+    const cpc = a.clk ? a.sp/a.clk : 0;
+    const b = bench[s] || {};
+    tSp+=a.sp; tImp+=a.imp; tClk+=a.clk; tLeads+=a.leads;
+    tbody.insertAdjacentHTML('beforeend', `<tr>
+      <td><span class="pill"><span class="dot" style="background:${stratColor(s)}"></span>${s}</span></td>
+      <td class="num">${fmt$(a.sp)}</td>
+      <td class="num">${fmtN(a.imp)}</td>
+      <td class="num">${fmtN(a.clk)}</td>
+      <td class="num">${fmtPct(ctr,3)} <span class="bench">vs ${b.ctr!=null?fmtPct(b.ctr,3):'—'}</span></td>
+      <td class="num">${vsCell(ctr, b.ctr, false)}</td>
+      <td class="num">${fmt$(cpm,2)} <span class="bench">vs ${b.cpm!=null?fmt$(b.cpm,2):'—'}</span></td>
+      <td class="num">${vsCell(cpm, b.cpm, true)}</td>
+      <td class="num">${fmt$(cpc,2)}</td>
+      <td class="num"><span class="vs-neut">—</span></td>
+      <td class="num">${fmtN(a.leads)}</td>
+    </tr>`);
   });
-  if (!any) tbody.innerHTML = `<tr><td colspan="10" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`;
+  const tCtr = tImp?tClk/tImp:0, tCpm = tImp?tSp/tImp*1000:0, tCpc = tClk?tSp/tClk:0;
+  tbody.insertAdjacentHTML('beforeend', `<tr class="total">
+    <td>Total</td><td class="num">${fmt$(tSp)}</td><td class="num">${fmtN(tImp)}</td><td class="num">${fmtN(tClk)}</td>
+    <td class="num">${fmtPct(tCtr,3)}</td><td class="num">—</td>
+    <td class="num">${fmt$(tCpm,2)}</td><td class="num">—</td>
+    <td class="num">${fmt$(tCpc,2)}</td><td class="num">—</td><td class="num">${fmtN(tLeads)}</td>
+  </tr>`);
 }
 
-function renderPMMarketTable() {
+function renderPMDaily(rows) {
+  const days = {};
+  for (const r of rows){ const d = String(r.date||'').slice(0,10); if (!d) continue;
+    if (!days[d]) days[d] = {imp:0, clk:0}; days[d].imp += r.imps||0; days[d].clk += r.clicks||0; }
+  const dates = Object.keys(days).sort();
+  charts.pmDaily = new Chart(el('pmDaily'), {
+    data:{ labels: dates.map(d=>d.slice(5)), datasets:[
+      {type:'bar',  label:'Impressions', data: dates.map(d=>days[d].imp), backgroundColor:MDB.mint, borderColor:MDB.green, borderWidth:1, yAxisID:'y', order:3, borderRadius:2},
+      {type:'line', label:'Clicks',      data: dates.map(d=>days[d].clk), borderColor:MDB.forest, backgroundColor:MDB.forest, tension:.25, pointRadius:2, borderWidth:2, yAxisID:'yClk', order:1},
+      {type:'line', label:'CTR (%)',     data: dates.map(d=>days[d].imp ? days[d].clk/days[d].imp*100 : 0), borderColor:MDB.slate, backgroundColor:MDB.slate, tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:'yCtr', order:2}
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, color:MDB.ink}}, tooltip:{backgroundColor:MDB.slate, padding:10, cornerRadius:6} },
+      scales:{
+        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:MDB.green, callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:MDB.green}},
+        yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:MDB.forest}, title:{display:true, text:'Clicks', color:MDB.forest}},
+        yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:MDB.slate, callback:v=>v.toFixed(2)+'%'}, title:{display:true, text:'CTR', color:MDB.slate}, offset:true, afterFit:a=>{a.width=46}},
+        x:    {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}}
+      } }
+  });
+}
+
+function renderPMSpendStrat(rows) {
+  const keys = stratKeys(rows);
+  const byStrat = {};
+  for (const r of rows){ const s = String(r.strategy||'').trim().toUpperCase(); if (!s) continue; byStrat[s] = (byStrat[s]||0) + (r.spend_usd||0); }
+  const pairs = keys.map(k => [k, byStrat[k]||0]);
+  charts.pmSpendStrat = new Chart(el('pmSpendStrat'), {
+    type:'doughnut',
+    data:{ labels: pairs.map(p=>p[0]), datasets:[{ data: pairs.map(p=>p[1]), backgroundColor: keys.map(stratColor), borderColor:'#fff', borderWidth:2 }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'60%',
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:8, boxHeight:8, font:{size:10}, padding:6}},
+        tooltip:{ callbacks:{ label: c => { const tot = pairs.reduce((s,p)=>s+p[1],0); return ` ${c.label}: ${fmt$(c.parsed)} (${tot?(c.parsed/tot*100).toFixed(1):0}%)`; } } } } }
+  });
+}
+
+function renderPMDailyStack(rows) {
+  const keys = stratKeys(rows);
+  const dates = [...new Set(rows.map(r=>String(r.date||'').slice(0,10)).filter(Boolean))].sort();
+  const byDateStrat = {};
+  for (const r of rows){
+    const d = String(r.date||'').slice(0,10); const s = String(r.strategy||'').trim().toUpperCase();
+    if (!d || !s) continue;
+    if (!byDateStrat[s]) byDateStrat[s] = {};
+    byDateStrat[s][d] = (byDateStrat[s][d]||0) + (r.spend_usd||0);
+  }
+  const datasets = keys.map(s => ({ label:s, data: dates.map(d => (byDateStrat[s] && byDateStrat[s][d]) || 0), backgroundColor: stratColor(s), borderRadius:2 }));
+  charts.pmDailyStack = new Chart(el('pmDailyStack'), {
+    type:'bar', data:{ labels: dates.map(d=>d.slice(5)), datasets },
+    options: chartBase({
+      plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.y)}` } } },
+      scales:{ x:{stacked:true, grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}},
+        y:{stacked:true, beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+Number(v).toLocaleString()}} }
+    })
+  });
+}
+
+function renderPMSpendMarket(rows) {
+  const markets = activeMarketList();
+  const byMkt = {}; for (const m of markets) byMkt[m] = 0;
+  for (const r of rows){ if (byMkt[r.market] != null) byMkt[r.market] += r.spend_usd||0; }
+  charts.pmSpendMarket = new Chart(el('pmSpendMarket'), {
+    type:'bar', data:{ labels: markets, datasets:[{ label:'Spend', data: markets.map(m=>byMkt[m]||0), backgroundColor: MDB.green, borderRadius:4 }] },
+    options: chartBase({
+      indexAxis:'y',
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ${fmt$(c.parsed.x)}` } } },
+      scales:{ x:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+Number(v).toLocaleString()}}, y:{grid:{display:false}} }
+    })
+  });
+}
+
+function renderPMEffTrio(rows) {
+  const keys = stratKeys(rows);
+  const dates = [...new Set(rows.map(r=>String(r.date||'').slice(0,10)).filter(Boolean))].sort();
+  const agg = {};
+  for (const r of rows){
+    const d = String(r.date||'').slice(0,10); const s = String(r.strategy||'').trim().toUpperCase();
+    if (!d || !s) continue;
+    if (!agg[s]) agg[s] = {};
+    if (!agg[s][d]) agg[s][d] = {imp:0, clk:0, sp:0};
+    agg[s][d].imp += r.imps||0; agg[s][d].clk += r.clicks||0; agg[s][d].sp += r.spend_usd||0;
+  }
+  const mk = (s, fn) => ({ label:s, data: dates.map(d => { const o = agg[s] && agg[s][d]; return o ? fn(o) : 0; }),
+    borderColor: stratColor(s), backgroundColor: stratColor(s)+'22', tension:.25, pointRadius:2, borderWidth:2, fill:false });
+  charts.pmCtr = new Chart(el('pmCtr'), {
+    type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets: keys.map(s => mk(s, o => o.imp ? o.clk/o.imp*100 : 0)) },
+    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(3)}%` } } },
+      scales:{ x:{grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>v.toFixed(2)+'%'}} } })
+  });
+  charts.pmClk = new Chart(el('pmClk'), {
+    type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets: keys.map(s => mk(s, o => o.clk)) },
+    options: chartBase({ scales:{ x:{grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}}, y:{beginAtZero:true, grid:{color:MDB.line}} } })
+  });
+  charts.pmCpc = new Chart(el('pmCpc'), {
+    type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets: keys.map(s => mk(s, o => o.clk ? o.sp/o.clk : 0)) },
+    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: $${c.parsed.y.toFixed(2)}` } } },
+      scales:{ x:{grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+v.toFixed(2)}} } })
+  });
+}
+
+function renderPMMarketStack(rows) {
+  const markets = activeMarketList();
+  const keys = stratKeys(rows);
+  const agg = {};
+  for (const r of rows){
+    const s = String(r.strategy||'').trim().toUpperCase();
+    if (!s || !markets.includes(r.market)) continue;
+    if (!agg[r.market]) agg[r.market] = {};
+    agg[r.market][s] = (agg[r.market][s]||0) + (r.spend_usd||0);
+  }
+  const datasets = keys.map(s => ({ label:s, data: markets.map(m => (agg[m] && agg[m][s]) || 0), backgroundColor: stratColor(s), borderRadius:2 }));
+  charts.pmMarketStack = new Chart(el('pmMarketStack'), {
+    type:'bar', data:{ labels: markets, datasets },
+    options: chartBase({
+      indexAxis:'y',
+      plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.x)}` } } },
+      scales:{ x:{stacked:true, beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+Number(v).toLocaleString()}}, y:{stacked:true, grid:{display:false}} }
+    })
+  });
+}
+
+function renderPMMarketTable(rows) {
   const markets = activeMarketList();
   const tbody = document.querySelector('#pmMarketTable tbody');
   tbody.innerHTML = '';
   let any = false;
-  selectedCampaigns().forEach(c => {
-    for (const m of markets) {
-      const a = pmAgg(c, m);
-      if (!a.imp && !a.sp) continue;           // skip empty campaign×market cells
-      any = true;
-      tbody.innerHTML += `<tr>
-        <td><span class="camp-tag"><span class="dot" style="background:${CAMP[c].color}"></span>${CAMP[c].label}</span></td>
-        <td>${m}</td>
-        <td class="num">${fmt$(a.sp)}</td>
-        <td class="num">${fmtN(a.imp)}</td>
-        <td class="num">${fmtN(a.clk)}</td>
-        <td class="num">${fmtPct(a.ctr,3)}</td>
-        <td class="num">${fmt$(a.cpm,2)}</td>
-        <td class="num">${fmt$(a.cpc,2)}</td>
-      </tr>`;
-    }
-  });
-  if (!any) tbody.innerHTML = `<tr><td colspan="8" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`;
+  for (const m of markets) {
+    const a = sumRows(rows.filter(r => r.market === m));
+    if (!a.imp && !a.sp) continue;
+    any = true;
+    tbody.insertAdjacentHTML('beforeend', `<tr>
+      <td><b>${m}</b></td>
+      <td class="num">${fmt$(a.sp)}</td>
+      <td class="num">${fmtN(a.imp)}</td>
+      <td class="num">${fmtN(a.clk)}</td>
+      <td class="num">${fmtPct(a.ctr,3)}</td>
+      <td class="num">${fmt$(a.cpm,2)}</td>
+      <td class="num">${fmt$(a.cpc,2)}</td>
+    </tr>`);
+  }
+  if (!any) tbody.innerHTML = `<tr><td colspan="7" style="color:var(--mdb-mute)">No paid-media delivery for the selected filters.</td></tr>`;
 }
 
 //==============================================================================
 // CONTENT SYNDICATION
 //==============================================================================
-// Parse a bare 'YYYY-MM-DD' as a LOCAL date. (new Date('YYYY-MM-DD') parses as UTC
-// midnight, which then mismatches the LOCAL getDay/getDate accessors used for the
-// Monday-snap and week labels below — shifting the grid a day for non-UTC viewers.)
 function parseDate(s){
   if (s == null) return new Date(NaN);
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s));
   return m ? new Date(+m[1], +m[2]-1, +m[3]) : new Date(s);
 }
-
-// Per-campaign window from the budget envelope (falls back to the global
-// reporting window if a campaign has no budget rows yet).
 function campaignWindow(c) {
   let s = null, e = null;
   for (const b of (DATA.budget||[])) {
@@ -713,205 +899,266 @@ function campaignWindow(c) {
   return {start:s, end:e};
 }
 
-// Per-campaign pacing. Target & live leads are region-filtered (both carry a
-// market), so the regional toggle flows through cleanly. No cross-campaign sums.
-function pacing(c) {
+// Region-scoped lead quality + pacing. mPred(market) decides inclusion (defaults
+// to the global region toggle). Campaign is always the active one.
+function csQuality(mPred) {
+  const pred = mPred || marketOk;
+  let total=0, acc=0, np=0, unres=0, dnc=0;
+  for (const r of (DATA.cs_by_programme||[])) {
+    if (campaignOf(r.programme) !== activeCampaign || !pred(r.market)) continue;
+    total += r.total||0; acc += r.accepted||0; np += r.new_pending||0; unres += r.unresponsive||0; dnc += r.do_not_contact||0;
+  }
+  const unprocessed = np + unres;
+  return {total, accepted:acc, unprocessed, dnc,
+    accRate: total?acc/total:0, unprocRate: total?unprocessed/total:0, dncRate: total?dnc/total:0};
+}
+function csPacing(mPred) {
+  const pred = mPred || marketOk;
+  const c = activeCampaign;
   const w = campaignWindow(c);
   const totalDays = Math.max(1, Math.round((w.end - w.start)/86400000) + 1);
   const today = new Date();
   let elapsed = Math.round((today - w.start)/86400000) + 1;
   elapsed = Math.max(0, Math.min(elapsed, totalDays));
-
-  const target = (DATA.targets||[])
-    .filter(t => campaignOf(t.programme) === c && marketOk(t.market))
-    .reduce((s,t) => s + (t.target||0), 0);
-  // "Delivered" intentionally uses the LIVE cs_by_programme totals (fresher than the
-  // targets[].delivered snapshot the job also emits, which the dashboard does not read).
-  const leads = (DATA.cs_by_programme||[])
-    .filter(r => campaignOf(r.programme) === c && marketOk(r.market))
-    .reduce((s,r) => s + (r.total||0), 0);
+  const target = (DATA.targets||[]).filter(t => campaignOf(t.programme) === c && pred(t.market)).reduce((s,t) => s + (t.target||0), 0);
+  const leads = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme) === c && pred(r.market)).reduce((s,r) => s + (r.total||0), 0);
   const ttd = Math.round(target * elapsed / totalDays);
-
   return {start:w.start, end:w.end, totalDays, elapsed, target, leads, ttd,
-          hasTarget: target > 0,
-          leadsPct: target?leads/target:0,
-          vsTtd: ttd ? leads/ttd : null,    // null = no target set yet → not "behind plan"
-          timePct: totalDays?elapsed/totalDays:0};
+    hasTarget: target > 0, leadsPct: target?leads/target:0, vsTtd: ttd ? leads/ttd : null, timePct: totalDays?elapsed/totalDays:0};
 }
-
 function paceVerdict(vsTtd){
-  if (vsTtd == null)  return {cls:'neutral', txt:'Target not set yet'};
-  if (vsTtd > 1)      return {cls:'ok',   txt:'Ahead of plan ✓'};
-  if (vsTtd >= 0.98)  return {cls:'ok',   txt:'On plan ✓'};
-  if (vsTtd >= 0.8)   return {cls:'warn', txt:'On track'};
-  return {cls:'bad', txt:'Behind plan'};
+  if (vsTtd == null)  return {cls:'vs-neut', txt:'Target not set yet'};
+  if (vsTtd > 1)      return {cls:'vs-good', txt:'Ahead of plan ✓'};
+  if (vsTtd >= 0.98)  return {cls:'vs-good', txt:'On plan ✓'};
+  if (vsTtd >= 0.8)   return {cls:'vs-neut', txt:'On track'};
+  return {cls:'vs-bad', txt:'Behind plan'};
 }
 
-function renderCSCards() {
-  const host = el('csCards'); host.innerHTML = '';
-  selectedCampaigns().forEach(c => {
-    const col = CAMP[c].color;
-    const p = pacing(c);
-    if (!p.leads) {
-      // No leads under the current region(s). Message distinguishes a not-yet-live
-      // campaign from one that simply has nothing in the selected region(s).
-      const anyLeads = (DATA.cs_by_programme||[]).some(r => campaignOf(r.programme) === c);
-      const msg = anyLeads
-        ? `No content-syndication leads for ${CAMP[c].label} in the selected region(s).`
-        : `No content-syndication leads yet for ${CAMP[c].label}.`;
-      host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
-        <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
-        <div class="no-data">${msg}</div></div>`;
-      return;
-    }
-    const v = paceVerdict(p.vsTtd);
-    host.innerHTML += `<div class="camp-card" style="border-left-color:${col}">
-      <div class="camp-name"><span class="dot" style="background:${col}"></span>${CAMP[c].label}</div>
-      <div class="camp-kpis">
-        <div><div class="k">Leads</div><div class="v">${fmtN(p.leads)}</div></div>
-        <div><div class="k">Target</div><div class="v">${p.hasTarget ? fmtN(p.target) : '—'}</div></div>
-        <div><div class="k">Pacing</div><div class="v">${p.vsTtd == null ? '—' : fmtPct(p.vsTtd,0)}</div></div>
-      </div>
-      <div class="camp-pace ${v.cls}">${v.txt}</div>
-      <div class="camp-sub">${p.hasTarget
-        ? fmtPct(p.leadsPct,1) + ' of total target · TTD target ' + fmtN(p.ttd)
-        : 'No target set yet'} · day ${p.elapsed}/${p.totalDays}</div>
-    </div>`;
+// Ramped weekly target vs actual for the active campaign, scoped by mPred.
+function buildWeekly(mPred){
+  const p = csPacing(mPred);
+  if (!p.start || isNaN(p.start)) return {labels:[], targetData:[], actualData:[]};
+  const weeks = [];
+  let cur = new Date(p.start);
+  cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));   // snap to Monday
+  while (cur <= p.end) { weeks.push(new Date(cur)); cur.setDate(cur.getDate() + 7); }
+  const labels = weeks.map(x => String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0'));
+  const today = new Date();
+  const inC = weeks.map(x => { const e=new Date(x); e.setDate(e.getDate()+6); return x <= p.end && e >= p.start; });
+  const activeWeeks = inC.filter(Boolean).length || 1;
+  const weeklyTarget = p.target / activeWeeks;
+  const targetData = inC.map(ok => ok ? Math.round(weeklyTarget) : null);
+  const actualData = weeks.map(x => {
+    const e = new Date(x); e.setDate(e.getDate()+6);
+    if (x > today || e < p.start || x > p.end) return null;
+    const ws = x < p.start ? p.start : x;
+    const we = e > today ? today : e;
+    const days = Math.max(0, Math.round((we - ws)/86400000) + 1);
+    if (days <= 0) return null;
+    return p.elapsed ? Math.round(p.leads * days / p.elapsed) : 0;
   });
+  return {labels, targetData, actualData};
 }
 
-function renderCSTargetActual() {
-  const camps = selectedCampaigns();
-  const labels = camps.map(c => CAMP[c].label);
-  const targetData = camps.map(c => pacing(c).target);
-  const deliveredData = camps.map(c => pacing(c).leads);
-  charts.csTargetActual = new Chart(el('csTargetActual'), {
-    type:'bar',
-    data:{ labels, datasets:[
-      {label:'Target',    data:targetData,    backgroundColor:'#9AA3AC', borderRadius:3},
-      {label:'Delivered', data:deliveredData, backgroundColor:camps.map(c=>CAMP[c].color), borderRadius:3}
+function renderCSAll() {
+  const p = csPacing();
+  const note = el('csNote');
+  if (!(p.leads > 0 || p.hasTarget)) {
+    note.style.display = 'block';
+    note.textContent = campHasData(activeCampaign)
+      ? `No content-syndication leads for ${CAMP[activeCampaign].label} in the selected region(s).`
+      : `No content-syndication leads yet for ${CAMP[activeCampaign].label}.`;
+  } else {
+    note.style.display = 'none';
+  }
+  renderCSSnap(p);
+  renderCSLeadsTarget(p);
+  renderCSProgress(p);
+  renderCSWeekly();
+  renderCSMarket();
+  renderCSProgramme();
+  renderCSRegionGrid();
+  renderCSTable();
+}
+
+function renderCSSnap(p) {
+  const q = csQuality();
+  el('cs_target').textContent  = p.hasTarget ? fmtN(p.target) : '—';
+  el('cs_total').textContent   = fmtN(p.leads);
+  el('cs_current').textContent = p.vsTtd == null ? '—' : fmtPct(p.vsTtd,0);
+  el('cs_overall').textContent = p.hasTarget ? fmtPct(p.leadsPct,1) : '—';
+  el('cs_acc').textContent     = q.total ? fmtPct(q.accRate,1) : '—';
+  el('cs_unproc').textContent  = q.total ? fmtPct(q.unprocRate,1) : '—';
+  el('cs_dnc').textContent     = q.total ? fmtPct(q.dncRate,1) : '—';
+  el('cs_acc_cnt').textContent    = fmtN(q.accepted) + ' leads';
+  el('cs_unproc_cnt').textContent = fmtN(q.unprocessed) + ' leads';
+  el('cs_dnc_cnt').textContent    = fmtN(q.dnc) + ' leads';
+}
+
+function renderCSLeadsTarget(p) {
+  const maxV = Math.max(p.target, p.ttd, p.leads, 1);
+  const w = v => (v/maxV*100).toFixed(1);
+  el('csLeadsTarget').innerHTML = `
+    <div class="progress-row"><div>Total target</div><div class="pbar gray"><div class="fill" style="width:${w(p.target)}%"></div></div><div style="text-align:right">${p.hasTarget?fmtN(p.target):'—'}</div></div>
+    <div class="progress-row"><div>TTD target</div><div class="pbar gray"><div class="fill" style="width:${w(p.ttd)}%"></div></div><div style="text-align:right">${fmtN(p.ttd)}</div></div>
+    <div class="progress-row"><div>Delivered</div><div class="pbar"><div class="fill" style="width:${w(p.leads)}%"></div></div><div style="text-align:right">${fmtN(p.leads)}</div></div>
+    <div class="prog-note">Delivered is <b>${p.hasTarget?fmtPct(p.leadsPct,1):'—'}</b> of total target, <b>${p.vsTtd==null?'—':fmtPct(p.vsTtd,1)}</b> of the time-to-date target.</div>`;
+}
+
+function renderCSProgress(p) {
+  const lp = p.hasTarget ? p.leadsPct : 0;
+  const tp = p.timePct;
+  const v = paceVerdict(p.vsTtd);
+  el('csProgress').innerHTML = `
+    <div class="progress-row"><div>Leads</div><div class="pbar"><div class="fill" style="width:${Math.min(100,lp*100).toFixed(1)}%"></div></div><div style="text-align:right">${(lp*100).toFixed(1)}%</div></div>
+    <div class="progress-row"><div>Time</div><div class="pbar gray"><div class="fill" style="width:${Math.min(100,tp*100).toFixed(1)}%"></div></div><div style="text-align:right">${(tp*100).toFixed(1)}%</div></div>
+    <div class="prog-note">Day <b>${p.elapsed}</b> of <b>${p.totalDays}</b> · <span class="${v.cls}">${v.txt}</span></div>`;
+}
+
+function renderCSWeekly() {
+  const c = activeCampaign;
+  const W = buildWeekly(marketOk);
+  charts.csWeekly = new Chart(el('csWeekly'), {
+    data:{ labels: W.labels, datasets:[
+      {type:'bar',  label:CAMP[c].label+' actual', data:W.actualData, backgroundColor:CAMP[c].color, borderRadius:3, order:2},
+      {type:'line', label:CAMP[c].label+' target', data:W.targetData, borderColor:MDB.target, borderDash:[5,4], borderWidth:2, pointRadius:0, tension:.2, fill:false, order:1}
     ]},
-    options: chartBase({
-      scales:{ x:{grid:{display:false}},
-        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads'}} }
-    })
+    options: chartBase({ scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:MDB.line}, title:{display:true, text:'Leads / week'}} } })
   });
 }
 
 function renderCSMarket() {
   const markets = activeMarketList();
-  const datasets = selectedCampaigns().map(c => {
-    const byMarket = {};
-    for (const r of (DATA.cs_by_programme||[])) {
-      if (campaignOf(r.programme) !== c) continue;
-      byMarket[r.market] = (byMarket[r.market]||0) + (r.total||0);
-    }
-    return {label:CAMP[c].label, data:markets.map(m=>byMarket[m]||0),
-            backgroundColor:CAMP[c].color, borderRadius:3};
-  });
+  const byMkt = {}; for (const m of markets) byMkt[m]=0;
+  for (const r of (DATA.cs_by_programme||[])){ if (campaignOf(r.programme)!==activeCampaign) continue; if (byMkt[r.market]!=null) byMkt[r.market]+= r.total||0; }
   charts.csMarket = new Chart(el('csMarket'), {
-    type:'bar', data:{labels:markets, datasets},
-    options: chartBase({
-      scales:{ x:{grid:{display:false}},
-        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads'}} }
-    })
+    type:'bar', data:{ labels:markets, datasets:[{ label:'Leads', data:markets.map(m=>byMkt[m]||0), backgroundColor:CAMP[activeCampaign].color, borderRadius:3 }]},
+    options: chartBase({ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:MDB.line}, title:{display:true,text:'Leads'}} } })
   });
 }
 
-function renderCSWeekly() {
-  const camps = selectedCampaigns();
-  // Union window across selected campaigns, snapped to Monday.
-  let minStart = null, maxEnd = null;
-  camps.forEach(c => {
-    const w = campaignWindow(c);
-    if (!minStart || w.start < minStart) minStart = w.start;
-    if (!maxEnd   || w.end   > maxEnd)   maxEnd   = w.end;
+function renderCSProgramme() {
+  const byProg = {};
+  for (const r of (DATA.cs_by_programme||[])){ if (campaignOf(r.programme)!==activeCampaign || !marketOk(r.market)) continue; byProg[r.programme]=(byProg[r.programme]||0)+(r.total||0); }
+  const pairs = Object.entries(byProg).sort((a,b)=>b[1]-a[1]);
+  const pal = ['#023430','#00684A','#3FA037','#00ED64','#C3E7CA','#0E6B57','#7FD1A8'];
+  charts.csProgramme = new Chart(el('csProgramme'), {
+    type:'doughnut',
+    data:{ labels: pairs.map(p=>p[0]), datasets:[{ data: pairs.map(p=>p[1]), backgroundColor: pairs.map((_,i)=>pal[i%pal.length]), borderColor:'#fff', borderWidth:2 }]},
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:8,boxHeight:8,font:{size:10},padding:6}}, tooltip:{ callbacks:{ label:c=>` ${c.label}: ${fmtN(c.parsed)}` } } } }
   });
-  if (!minStart || isNaN(minStart)) { return; }
+}
 
-  const weeks = [];
-  let cur = new Date(minStart);
-  cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));   // snap to Monday
-  while (cur <= maxEnd) { weeks.push(new Date(cur)); cur.setDate(cur.getDate() + 7); }
-  const labels = weeks.map(w =>
-    String(w.getMonth()+1).padStart(2,'0') + '-' + String(w.getDate()).padStart(2,'0'));
-
-  const today = new Date();
-  const datasets = [];
-  camps.forEach(c => {
-    const p = pacing(c);
-    // weekly target pace (target spread over the campaign's own weeks)
-    const inC = weeks.map(w => { const e=new Date(w); e.setDate(e.getDate()+6); return w <= p.end && e >= p.start; });
-    const activeWeeks = inC.filter(Boolean).length || 1;
-    const weeklyTarget = p.target / activeWeeks;
-    const targetData = inC.map(ok => ok ? Math.round(weeklyTarget) : null);
-    // actual leads per week — ramp live leads across elapsed days (no date-stamped feed yet)
-    const actualData = weeks.map(w => {
-      const e = new Date(w); e.setDate(e.getDate()+6);
-      if (w > today || e < p.start || w > p.end) return null;
-      const ws = w < p.start ? p.start : w;
-      const we = e > today ? today : e;
-      const days = Math.max(0, Math.round((we - ws)/86400000) + 1);
-      if (days <= 0) return null;
-      return p.elapsed ? Math.round(p.leads * days / p.elapsed) : 0;
-    });
-    datasets.push({type:'bar', label:CAMP[c].label+' actual', data:actualData,
-                   backgroundColor:CAMP[c].color, borderRadius:3, order:2});
-    datasets.push({type:'line', label:CAMP[c].label+' target', data:targetData,
-                   borderColor:'#9AA3AC', borderDash:[5,4], borderWidth:2, pointRadius:0,
-                   tension:.2, fill:false, order:1});
+function renderCSRegionGrid() {
+  const grid = el('csRegionGrid'); grid.innerHTML='';
+  activeMarketList().forEach(m => {
+    const p = csPacing(x => x === m);
+    if (!p.hasTarget && !p.leads) return;
+    const pace = p.ttd ? (p.leads/p.ttd*100) : 0;
+    const paceColor = !p.ttd ? 'var(--mdb-mute)' : (p.leads/p.ttd>=1 ? 'var(--good-green)' : (p.leads/p.ttd>=0.7 ? 'var(--warn-amber)' : 'var(--bad-red)'));
+    const denom = Math.max(p.target, p.leads, 1);
+    const wT=(p.target/denom*100).toFixed(1), wTd=(p.ttd/denom*100).toFixed(1), wA=(p.leads/denom*100).toFixed(1);
+    grid.insertAdjacentHTML('beforeend', `
+      <div style="border:1px solid var(--mdb-line);border-radius:10px;padding:14px 16px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <div style="font-weight:700;font-size:14px">${m}</div>
+          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${p.ttd ? pace.toFixed(0)+'% pace' : '—'}</div>
+        </div>
+        <div class="reg-row"><div class="reg-lbl">Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wT}%"></div></div><div class="reg-num">${p.hasTarget?fmtN(p.target):'—'}</div></div>
+        <div class="reg-row"><div class="reg-lbl">TTD target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(p.ttd)}</div></div>
+        <div class="reg-row"><div class="reg-lbl">Delivered</div><div class="reg-bar"><div class="reg-fill green" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(p.leads)}</div></div>
+      </div>`);
   });
-
-  charts.csWeekly = new Chart(el('csWeekly'), {
-    type:'bar',                      // base type; the 'target' datasets override to 'line' (mixed chart)
-    data:{labels, datasets},
-    options: chartBase({
-      // spanGaps stays false so the dashed target line BREAKS on out-of-window (null)
-      // weeks instead of bridging across them and implying a target where there is none.
-      scales:{ x:{grid:{display:false},ticks:{font:{size:10}}},
-        y:{beginAtZero:true,grid:{color:MDB.line},title:{display:true,text:'Leads / week'}} }
-    })
-  });
+  if (!grid.innerHTML) grid.innerHTML = `<div style="color:var(--mdb-mute);font-style:italic;font-size:12px">No leads or targets for the selected region(s).</div>`;
 }
 
 function renderCSTable() {
-  const sel = new Set(selectedCampaigns());
-  const tbody = document.querySelector('#csTable tbody');
-  tbody.innerHTML = '';
-  const rows = (DATA.cs_by_programme||[])
-    .filter(r => sel.has(campaignOf(r.programme)) && marketOk(r.market))
-    .sort((a,b) => (b.total||0) - (a.total||0));
-  for (const r of rows) {
-    const c = campaignOf(r.programme);
-    tbody.innerHTML += `<tr>
-      <td><span class="camp-tag"><span class="dot" style="background:${CAMP[c].color}"></span>${CAMP[c].label}</span></td>
-      <td><b>${r.programme}</b></td>
-      <td>${r.market}</td>
-      <td class="num">${fmtN(r.total)}</td>
-      <td class="num">${r.last_lead_day || '—'}</td>
-    </tr>`;
+  const tbody = document.querySelector('#csTable tbody'); tbody.innerHTML='';
+  const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign && marketOk(r.market)).sort((a,b)=>(b.total||0)-(a.total||0));
+  for (const r of rows){
+    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${r.programme}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${r.last_lead_day||'—'}</td></tr>`);
   }
-  if (!rows.length) tbody.innerHTML = `<tr><td colspan="5" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
+  if (!rows.length) tbody.innerHTML = `<tr><td colspan="4" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
+}
+
+//==============================================================================
+// CS COMPARISON (two regions, for the selected campaign)
+//==============================================================================
+function populateRegionSelects() {
+  if (compareReady) return;
+  ['A','B'].forEach(side => {
+    const sel = el('region'+side);
+    (DATA.all_markets||[]).forEach(m => { const o=document.createElement('option'); o.value=m; o.textContent=m; sel.appendChild(o); });
+  });
+  compareReady = true;
+}
+
+function renderCompareAll() {
+  renderComparePanel('A');
+  renderComparePanel('B');
+}
+
+function renderComparePanel(side) {
+  const region = el('region'+side).value;
+  if (!region) {
+    el('empty'+side).style.display = 'block';
+    el('content'+side).style.display = 'none';
+    destroy(side+'_targets'); destroy(side+'_weekly');
+    return;
+  }
+  const mPred = m => m === region;
+  const p = csPacing(mPred);
+  const q = csQuality(mPred);
+  el('empty'+side).style.display = 'none';
+  el('content'+side).style.display = 'block';
+  el(side+'_target').textContent = p.hasTarget ? fmtN(p.target) : '—';
+  el(side+'_total').textContent  = fmtN(p.leads);
+  el(side+'_acc').textContent    = q.total ? fmtPct(q.accRate,1) : '—';
+  el(side+'_unproc').textContent = q.total ? fmtPct(q.unprocRate,1) : '—';
+  el(side+'_dnc').textContent    = q.total ? fmtPct(q.dncRate,1) : '—';
+  el(side+'_acc_cnt').textContent    = fmtN(q.accepted) + ' leads';
+  el(side+'_unproc_cnt').textContent = fmtN(q.unprocessed) + ' leads';
+  el(side+'_dnc_cnt').textContent    = fmtN(q.dnc) + ' leads';
+
+  destroy(side+'_targets');
+  charts[side+'_targets'] = new Chart(el(side+'_targets'), {
+    type:'bar',
+    data:{ labels:['TTD target','Delivered'], datasets:[{ data:[p.ttd, p.leads], backgroundColor:[MDB.target, CAMP[activeCampaign].color], borderRadius:3 }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmtN(c.parsed.y)}}},
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:MDB.line}} } }
+  });
+
+  destroy(side+'_weekly');
+  const W = buildWeekly(mPred);
+  charts[side+'_weekly'] = new Chart(el(side+'_weekly'), {
+    data:{ labels:W.labels, datasets:[
+      {type:'bar',  label:'Actual', data:W.actualData, backgroundColor:CAMP[activeCampaign].color, borderRadius:2, order:2},
+      {type:'line', label:'Target', data:W.targetData, borderColor:MDB.target, borderDash:[5,4], borderWidth:2, pointRadius:0, tension:.2, fill:false, order:1}
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10,boxHeight:8,font:{size:10},padding:6}}},
+      scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{font:{size:10}}} } }
+  });
 }
 
 //==============================================================================
 // CHART HELPERS
 //==============================================================================
+function destroy(id){ if (charts[id]) { charts[id].destroy(); charts[id] = null; } }
 function destroyAllCharts() {
   for (const k in charts) { if (charts[k]) charts[k].destroy(); }
   charts = {};
 }
-
 function chartBase(opts={}) {
   const base = {
     responsive:true, maintainAspectRatio:false,
     plugins:{
-      legend:{position:'bottom',labels:{boxWidth:10,boxHeight:8,padding:10,font:{size:11},color:MDB.ink}},
-      tooltip:{backgroundColor:MDB.slate,padding:10,titleFont:{size:12},bodyFont:{size:12},cornerRadius:6}
+      legend:{position:'bottom', labels:{boxWidth:10, boxHeight:8, padding:10, font:{size:11}, color:MDB.ink}},
+      tooltip:{backgroundColor:MDB.slate, padding:10, titleFont:{size:12}, bodyFont:{size:12}, cornerRadius:6}
     },
     scales:{
-      x:{grid:{color:MDB.line},ticks:{font:{size:10}}},
-      y:{grid:{color:MDB.line},ticks:{font:{size:10}}}
+      x:{grid:{color:MDB.line}, ticks:{font:{size:10}}},
+      y:{grid:{color:MDB.line}, ticks:{font:{size:10}}}
     }
   };
   if (opts.plugins) base.plugins = {...base.plugins, ...opts.plugins};
