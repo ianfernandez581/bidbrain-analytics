@@ -41,11 +41,14 @@ WHERE ADVERTISER_NAME = 'MongoDB'
 #   KGA / IDC programme -> 701RG00001NKKwQYAX  (added once Ankit made IDC data live in Snowflake)
 # NOTE: the BigQuery `stg_salesforce` view must map 701RG00001NKKwQYAX -> programme 'IDC'
 # so these leads roll up under IDC (not IDE) in cs_leads / cs_leads_by_programme.
+# LEAD_STATUS != 'New' excludes not-yet-actioned leads at the source, so they drop
+# out of every downstream bucket (total / new_pending / rollups) automatically.
 SF_SQL = """
 SELECT DAY, COUNTRY_NAME, CAMPAIGN_ID, LEAD_STATUS
 FROM APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"
 WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR',
                       '701RG00001NKKwQYAX')
+  AND LEAD_STATUS != 'New'
 """
 
 def _snowflake_key_bytes():
