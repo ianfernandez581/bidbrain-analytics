@@ -1,71 +1,143 @@
-# client_STT/ — ST Telemedia GDC (intake only, on hold)
+# client_STT/ — ST Telemedia GDC (APAC) · **LIVE**
 
-> A prospective client folder. **No dashboard is built yet.** This holds the pre-build research
-> so the build can start the moment the agency confirms scope.
+> The effect of paid media on STT GDC website traffic. Built on the
+> [`client_mongodb`](../client_mongodb/README.md) template: filter the shared raw layers down to
+> STT's slice, model it in BigQuery views, export one JSON, serve it from a password-gated web app.
 
-**Plain English:** STT GDC (ST Telemedia Global Data Centres), via the agency Transmission, is a
-client we're getting ready to build a dashboard for. The good news: their advertising data is
-**already flowing** into our shared warehouse. The hold-up isn't technical — we're waiting on a
-few **business decisions** from the agency (which accounts/currency count, where leads come
-from, etc.) before we can correctly slice the data. Until then, this folder is just notes.
+**Plain English:** STT GDC (ST Telemedia Global Data Centres), via the agency **Transmission**, runs
+an FY25-26 "Always On" campaign across APAC on **LinkedIn** (paid social) and **DV360** (programmatic
+display). This dashboard puts that ad spend next to what actually happened on the STT GDC **websites**
+(Google Analytics 4) — so stakeholders can see the campaign lifting site traffic, not just ad metrics.
 
-**Status:** ⏸️ **On hold** — data is in `raw_snowflake`; waiting on Transmission to confirm
-scope. See the full breakdown and the ready-to-send message in [`INTAKE.md`](INTAKE.md).
-
----
-
-## What's in here
-
-| File | What it does |
-|---|---|
-| [`INTAKE.md`](INTAKE.md) | The complete intake analysis: which media-plan channel maps to which `raw_snowflake` table + STT identifier, what's already resolved, the open scoping questions, and a ready-to-send message to Transmission. |
-| `README.md` | This file (status + orientation). |
+**Status:** ✅ **Live** (password-gated). See [`dash/LIVE_URL.md`](dash/LIVE_URL.md) for the URL + password.
 
 ---
 
-## Where this will sit when it's built
+## The story it tells
 
-STT will follow the [`client_mongodb/`](../client_mongodb/README.md) template: filter the shared
-[`raw_snowflake`](../snowflake_data_pull/README.md) tables down to STT's slice, derive
-market/phase/objective from the campaign-naming convention, then job → JSON → gated web app.
+Three live sources, joined into one "ads → traffic" narrative:
 
-The data is already mirrored — STT's slice spans:
+| Source | Raw table (shared) | STT filter | What it contributes |
+|---|---|---|---|
+| **GA4** website analytics | `raw_windsor.perf_ga4` | the 11 `STT GDC Web *` properties | sessions / users / engagement, split by channel — **the outcome** |
+| **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD'` | awareness delivery (USD) |
+| **DV360** programmatic display | `raw_snowflake.dv360_apac` | `CAMPAIGN_NAME = '(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)'` | prospecting delivery (SGD) |
 
-| Plan channel | `raw_snowflake` table | Notes |
+Headline (campaign window from 2025-06-01): **~1.48M website sessions**, **520k ad-driven**, with
+**~S$109k** of LinkedIn + DV360 media behind **8.5M** impressions. Programmatic-display sessions rose
+~5× after the DV360 flight launched (Nov 2025) — the dashboard's **Ads → Traffic** tab makes that link
+explicit (Display ← DV360, Paid Social ← LinkedIn; weekly correlation + before/during lift).
+
+**Reporting currency is SGD.** LinkedIn is billed in USD and converted at a fixed
+`FX_USD_SGD = 1.34` (set once in the views — `sql/04_kpi.sql`, `05_monthly.sql`, `12_weekly.sql`).
+Paid Search in GA4 is Google Ads, which is **not** in this spend dataset — so the spend-matched
+"Ads → Traffic" view deliberately uses only Display + Paid Social.
+
+---
+
+## The 4 dashboard tabs (`dash/dashboard.html`)
+
+1. **Overview** — media spend / impressions / clicks vs website sessions; the monthly hero chart, the
+   channel-mix donut, paid-vs-rest stacked sessions, and spend-by-platform.
+2. **Paid Media** — LinkedIn + DV360 delivery: monthly impressions & spend, platform comparison table,
+   DV360 by market, LinkedIn creative mix + campaigns.
+3. **Website Traffic** — GA4: sessions by channel, total-vs-ad-driven trend, sessions by market
+   (paid overlaid), top sources/mediums (the ad platforms flagged `AD`).
+4. **Ads → Traffic** — the connection: weekly ad-impressions-vs-sessions, a correlation scatter (Pearson r),
+   and the before-vs-during display-session lift.
+
+---
+
+## How it works (3 stages — same shape as every client)
+
+```
+ (1) SOURCE → RAW (shared)            (2) RAW → VIEWS → JSON            (3) JSON → FRONTEND
+ ───────────────────────             ─────────────────────             ──────────────────
+ windsor_data_pull  fills             client_STT/sql/*.sql filter        stt-dash (Cloud Run service)
+ raw_windsor.perf_ga4                 STT's slice + roll it up;          shows a login page, then
+ snowflake_data_pull fills            stt-export (Cloud Run JOB)         dashboard.html, which fetches
+ raw_snowflake.{linkedin,dv360}_apac  reads the views → writes           /data.json and draws the charts
+                                      stt.json to the private bucket
+```
+
+**Divergence from the template:** STT reads its three sources straight from the shared raw layers, so
+there is **no `src_*` landing step** and **no bootstrap-first-failure** (unlike `client_cloudflare`).
+The job is read-only on BigQuery — it only `SELECT`s the views and writes JSON to GCS.
+
+| What to change | Edit | Stage |
 |---|---|---|
-| Search | `google_ads_apac` | USD account → SGD account mid-campaign |
-| Social (Awareness + Lead Gen) | `linkedin_ads_apac` | USD → SGD account; naming inconsistent |
-| Programmatic Display | `dv360_apac` | DV360 only — **no Trade Desk activity for STT** |
-
-Already resolved by the data (no need to ask): TradeDesk has no STT rows; the Salesforce CS
-leads table has **zero** STT rows (that feed is MongoDB-specific).
+| STT's filter (accounts / campaign IDs) | `sql/01_stg_ga4.sql` · `02_stg_linkedin.sql` · `03_stg_dv360.sql` | 2 |
+| FX rate / campaign window | the `1.34` / `DATE '2025-06-01'` constants in `sql/04,05,12` | 2 |
+| Roll-ups / new metrics | the relevant `sql/*.sql` view | 2 |
+| JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
+| Charts / tabs / branding | `dash/dashboard.html` | 3 |
+| Login / how JSON is served | `dash/main.py` (rarely) | 3 |
 
 ---
 
-## What's blocking the build
+## Deploy / refresh (copy-paste, PowerShell)
 
-Scoping decisions only Transmission/the client can confirm (full detail in
-[`INTAKE.md`](INTAKE.md)):
+Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv`
+(`.\.venv\Scripts\python.exe`). **First-time stand-up:** run [`deploy_stt.ps1`](deploy_stt.ps1) once
+(idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the daily scheduler). After that:
 
-1. **Dual account / currency** — each platform flips from a USD account to an SGD account
-   ~Sept 2025; confirm both are in scope, the reporting currency, and the FX rate.
-2. **SOW 2 boundary** — which POs/campaigns are SOW 2 vs older FY24 / "Organic Boosting".
-3. **Leads / conversions source** — platform-native vs a CRM/Salesforce export.
-4. **"Data Center Map" USA line** — in scope for this APAC dashboard?
-5. **Targets** — confirm the approved plan; ideally the source spreadsheet, not a PDF.
+**① Refresh the data now** (a daily Cloud Scheduler `stt-export-daily` already runs 22:00 UTC):
+```powershell
+# (optional) refresh the shared raw layers first if you want the very latest source data:
+.\.venv\Scripts\python.exe windsor_data_pull\ga4\ga4_loader.py
+.\.venv\Scripts\python.exe snowflake_data_pull\loader.py
+gcloud run jobs execute stt-export --region australia-southeast1 --wait    # views -> stt.json
+```
 
-## When unblocked
+**② You edited a view (`sql/*.sql`)** — apply, then re-run the job:
+```powershell
+.\.venv\Scripts\python.exe client_STT\create_views.py
+gcloud run jobs execute stt-export --region australia-southeast1 --wait
+```
 
-1. Copy [`client_mongodb/`](../client_mongodb/README.md) → `client_STT/` (job/, dash/, sql/),
-   set `CLIENT = "stt"`.
-2. Write the `sql/` filter views against the three `raw_snowflake` tables above, using the STT
-   identifiers in [`INTAKE.md`](INTAKE.md), and derive market/phase from the campaign names.
-3. Provision GCP + deploy per the [root playbook](../README.md#10-playbook-add-a-new-client)
-   (Cloudflare's [`deploy_cloudflare.ps1`](../client_cloudflare/deploy_cloudflare.ps1) is a good
-   one-shot template to copy).
+**③ You edited `job/main.py`** (the JSON shape) — build, deploy, run:
+```powershell
+$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/stt-export:$(git rev-parse --short HEAD)"
+gcloud builds submit client_STT/job --tag $IMG --region australia-southeast1
+gcloud run jobs deploy stt-export --image $IMG --region australia-southeast1 --service-account stt-dash-job@bidbrain-analytics.iam.gserviceaccount.com --memory 1Gi
+gcloud run jobs execute stt-export --region australia-southeast1 --wait
+```
+
+**④ You edited `dash/dashboard.html` or `dash/main.py`** — build + redeploy the service:
+```powershell
+$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/stt-dash:$(git rev-parse --short HEAD)"
+gcloud builds submit client_STT/dash --tag $IMG --region australia-southeast1
+gcloud run services update stt-dash --image $IMG --region australia-southeast1
+```
+The service goes live as soon as the new revision is ready; it reads whatever JSON is in the bucket.
+
+> Don't use `gcloud builds submit --config cloudbuild.yaml` from a laptop — its deploy step fails on
+> `iam.serviceaccounts.actAs` (Cloud Build's SA can't act as the runtime SA). Build the image, deploy
+> as yourself (above). The `cloudbuild.yaml` files are for a future push-to-main trigger.
+
+---
+
+## Coordinates
+
+| | |
+|---|---|
+| GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
+| BigQuery dataset | `client_stt` (12 views) |
+| Data bucket / object | `bidbrain-analytics-stt-dash` / `stt.json` |
+| Export job | `stt-export` (runtime SA `stt-dash-job@…`, read-only BigQuery + bucket write) |
+| Web service | `stt-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `stt-dash-web@…`) |
+| Secrets | `stt-dash-password` · `stt-dash-session-key` |
+| Daily refresh | Cloud Scheduler `stt-export-daily` (22:00 UTC) |
+
+## Files
+
+- [`sql/`](sql/README.md) — the 12 BigQuery views (filter + model); `create_views.py` applies them.
+- [`job/`](job/README.md) — the export job (stage 2): views → `stt.json`.
+- [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
+- [`INTAKE.md`](INTAKE.md) — the original pre-build scoping notes (historical).
 
 ## See also
 
-- [Root README](../README.md) — the platform map and the add-a-client playbook.
-- [`../client_mongodb/`](../client_mongodb/README.md) — the template STT will follow.
-- [`../snowflake_data_pull/`](../snowflake_data_pull/README.md) — the shared raw layer STT will filter.
+- [Root README](../README.md) — platform map, security model, naming, add-a-client playbook.
+- [`../client_mongodb/`](../client_mongodb/README.md) — the template this follows.
+- [`../windsor_data_pull/ga4/`](../windsor_data_pull/ga4/README.md) — where `raw_windsor.perf_ga4` comes from.

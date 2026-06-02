@@ -1,0 +1,207 @@
+"""STT GDC APAC dashboard export job (Cloud Run job).
+
+Stage 2 of the standard pattern (mirrors client_mongodb/job/main.py): read the
+BigQuery views in client_STT/sql/ and write a single stt.json to the private GCS
+bucket. The gated web app (client_STT/dash) serves that JSON at /data.json.
+
+The STT story is "what the ads did to website traffic", so the payload pairs
+three sources the views already filtered + rolled up:
+  * GA4   (raw_windsor.perf_ga4)            -> website sessions / users / channels
+  * LinkedIn (raw_snowflake.linkedin_ads_apac) -> paid-social delivery (USD)
+  * DV360 (raw_snowflake.dv360_apac)        -> programmatic display delivery (SGD)
+
+This job does NOT touch Snowflake or Windsor directly — the shared raw layers are
+filled by snowflake_data_pull/ and windsor_data_pull/, and the client_STT views
+read their STT slice. So the refresh is just: (re)run those loaders if needed,
+then run this job.
+"""
+import os
+import json
+import datetime
+from decimal import Decimal
+
+from google.cloud import bigquery, storage
+
+# --- Project-wide constants (identical for every client) ----------------------
+PROJECT = "bidbrain-analytics"
+LOC = "australia-southeast1"
+
+# --- The ONE line that differs per client -------------------------------------
+# Dataset / bucket / output object all follow from it via the naming convention.
+CLIENT = "stt"
+
+DATASET = f"client_{CLIENT}"                    # client_stt
+BUCKET = f"bidbrain-analytics-{CLIENT}-dash"    # bidbrain-analytics-stt-dash
+DATA_OBJECT = f"{CLIENT}.json"                  # stt.json
+
+
+def num(v):
+    """JSON-safe number: NUMERIC/Decimal -> float, leave ints/None alone."""
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def iso(v):
+    if v is None:
+        return None
+    if isinstance(v, (datetime.date, datetime.datetime)):
+        return v.isoformat()
+    return str(v)
+
+
+def ymd(v):
+    if v is None:
+        return None
+    if isinstance(v, (datetime.date, datetime.datetime)):
+        return v.isoformat()[:10]
+    return str(v)[:10]
+
+
+def rows(bq, name):
+    sql = f"SELECT * FROM `{PROJECT}.{DATASET}.{name}`"
+    return [dict(r) for r in bq.query(sql, location=LOC).result()]
+
+
+def main():
+    bq = bigquery.Client(project=PROJECT)
+
+    kpi = rows(bq, "kpi")[0]
+    monthly = rows(bq, "monthly")
+    ga4_channels = rows(bq, "ga4_channels")
+    ga4_markets = rows(bq, "ga4_markets")
+    ga4_sources = rows(bq, "ga4_sources")
+    li_creative = rows(bq, "li_creative")
+    li_campaigns = rows(bq, "li_campaigns")
+    dv_markets = rows(bq, "dv_markets")
+    weekly = rows(bq, "weekly")
+
+    env = {
+        "last_updated": datetime.datetime.now(datetime.timezone.utc)
+        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fx_usd_sgd": num(kpi["fx_usd_sgd"]),
+        "window": {
+            "start": ymd(kpi["campaign_start"]),
+            "end": ymd(kpi["campaign_end"]),
+            "days": kpi["campaign_days"],
+        },
+        "li_window": {"start": ymd(kpi["li_start"]), "end": ymd(kpi["li_end"])},
+        "dv_window": {"start": ymd(kpi["dv_start"]), "end": ymd(kpi["dv_end"])},
+        "kpi": {
+            "sessions": num(kpi["sessions"]),
+            "engaged_sessions": num(kpi["engaged_sessions"]),
+            "users": num(kpi["users"]),
+            "new_users": num(kpi["new_users"]),
+            "page_views": num(kpi["page_views"]),
+            "eng_duration": num(kpi["eng_duration"]),
+            "conversions": num(kpi["conversions"]),
+            "paid_sessions": num(kpi["paid_sessions"]),
+            "display_sessions": num(kpi["display_sessions"]),
+            "social_sessions": num(kpi["social_sessions"]),
+            "prior_sessions": num(kpi["prior_sessions"]),
+            "prior_paid_sessions": num(kpi["prior_paid_sessions"]),
+            "li_imps": num(kpi["li_imps"]),
+            "li_clicks": num(kpi["li_clicks"]),
+            "li_cost_usd": num(kpi["li_cost_usd"]),
+            "dv_imps": num(kpi["dv_imps"]),
+            "dv_clicks": num(kpi["dv_clicks"]),
+            "dv_spend_sgd": num(kpi["dv_spend_sgd"]),
+            "ad_imps": num(kpi["ad_imps"]),
+            "ad_clicks": num(kpi["ad_clicks"]),
+            "ad_spend_sgd": num(kpi["ad_spend_sgd"]),
+        },
+        "monthly": [{
+            "month": r["month"],
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+            "li_imps": num(r["li_imps"]),
+            "li_clicks": num(r["li_clicks"]),
+            "li_cost_usd": num(r["li_cost_usd"]),
+            "dv_imps": num(r["dv_imps"]),
+            "dv_clicks": num(r["dv_clicks"]),
+            "dv_spend_sgd": num(r["dv_spend_sgd"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_sgd": num(r["ad_spend_sgd"]),
+        } for r in monthly],
+        "ga4_channels": [{
+            "channel": r["channel_group"],
+            "bucket": r["channel_bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_channels],
+        "ga4_markets": [{
+            "market": r["market"],
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "engaged": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_markets],
+        "ga4_sources": [{
+            "source_medium": r["source_medium"],
+            "channel": r["channel_group"],
+            "bucket": r["channel_bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged_sessions"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_sources],
+        "li_creative": [{
+            "creative_type": r["creative_type"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "cost_usd": num(r["cost_usd"]),
+            "video_views": num(r["video_views"]),
+            "engagements": num(r["engagements"]),
+        } for r in li_creative],
+        "li_campaigns": [{
+            "campaign": r["campaign_name"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "cost_usd": num(r["cost_usd"]),
+            "video_views": num(r["video_views"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in li_campaigns],
+        "dv_markets": [{
+            "market": r["market"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+            "conversions": num(r["conversions"]),
+        } for r in dv_markets],
+        "weekly": [{
+            "week_start": ymd(r["week_start"]),
+            "ga4_sessions": num(r["ga4_sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "li_imps": num(r["li_imps"]),
+            "dv_imps": num(r["dv_imps"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_sgd": num(r["ad_spend_sgd"]),
+        } for r in weekly],
+    }
+
+    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
+        json.dumps(env), content_type="application/json")
+    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
+          f"{len(env['weekly'])} weeks, {env['kpi']['sessions']:,} sessions, "
+          f"S${env['kpi']['ad_spend_sgd']:,.0f} ad spend")
+
+
+if __name__ == "__main__":
+    main()

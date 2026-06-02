@@ -1,0 +1,832 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>STT GDC APAC — Live Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --stt-red:#D62828; --stt-red2:#DC4033; --stt-red-deep:#9F1D1D;
+    --stt-dark:#23272E; --stt-dark2:#191C21; --stt-ink:#1F2933; --stt-mute:#6B7480;
+    --stt-line:#E6E9ED; --stt-card:#FFFFFF; --stt-bg:#F5F6F8; --stt-grey:#5A5A5A;
+    --teal:#0E7C86; --teal-soft:#5FB0B6; --slate:#5A6B78; --amber:#B97400;
+    --li-blue:#2867B2;
+    --good-green:#1E8E3E; --bad-red:#C8362A;
+    --shadow-card:0 1px 2px rgba(20,24,28,.04),0 4px 16px rgba(20,24,28,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--stt-bg);color:var(--stt-ink);
+            font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+            font-size:14px;line-height:1.5}
+  a{color:var(--stt-red);text-decoration:none}
+
+  /* ---- topbar ---- */
+  .topbar{background:linear-gradient(100deg,var(--stt-dark2) 0%,var(--stt-dark) 60%);color:#fff;
+          padding:13px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar-left{display:flex;align-items:center;gap:18px}
+  .agency{font-weight:700;letter-spacing:1.3px;font-size:12px;color:#fff;display:flex;align-items:center;gap:8px}
+  .agency .dot{width:7px;height:7px;background:var(--stt-red2);border-radius:50%}
+  .topbar-divider{width:1px;height:26px;background:rgba(255,255,255,.18)}
+  .logo-chip{background:#fff;padding:7px 13px;border-radius:7px;display:flex;align-items:center}
+  .logo-chip svg{height:24px;width:auto;display:block}
+  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.78);text-align:right;line-height:1.55}
+  .live{display:inline-block;width:7px;height:7px;background:#3FD07A;border-radius:50%;margin-right:6px;
+        box-shadow:0 0 0 0 rgba(63,208,122,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,208,122,.6)}70%{box-shadow:0 0 0 8px rgba(63,208,122,0)}100%{box-shadow:0 0 0 0 rgba(63,208,122,0)}}
+
+  .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
+
+  /* ---- control bar ---- */
+  .control-bar{background:var(--stt-card);border:1px solid var(--stt-line);border-radius:10px;
+               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--stt-line)}
+  .tabs{display:flex;gap:2px;flex-wrap:wrap}
+  .tab{padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--stt-mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--stt-ink)}
+  .tab.on{color:var(--stt-dark);border-bottom-color:var(--stt-red)}
+  .tabs-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:7px 0}
+  .ctrl-note{font-size:11.5px;color:var(--stt-mute)}
+  .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
+              padding:7px 12px;border-radius:7px;border:1px solid var(--stt-line);background:#fff;color:var(--stt-ink);
+              transition:border-color .15s ease,color .15s ease}
+  .export-btn:hover{border-color:var(--stt-red);color:var(--stt-red)}
+  .export-btn svg{width:14px;height:14px;flex:none}
+
+  .tabpane{display:none}
+
+  .section{border-top:1px solid var(--stt-line);padding-top:18px;margin-top:24px}
+  .section.first{border-top:none;padding-top:0;margin-top:4px}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--stt-dark)}
+  .section .sub{display:block;margin-top:3px;color:var(--stt-mute);font-size:12.5px;max-width:880px}
+
+  /* ---- grids + cards ---- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .grid-2-1{display:grid;grid-template-columns:1.9fr 1fr;gap:16px;margin-top:14px}
+  .card{background:var(--stt-card);border:1px solid var(--stt-line);border-radius:12px;padding:16px;
+        box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--stt-ink)}
+  .card .hint{font-size:11.5px;color:var(--stt-mute);margin:4px 0 10px 0}
+  .card-tall .chart-wrap{height:300px}
+  .card-med{min-height:262px}
+  .chart-wrap{position:relative;flex:1;min-height:170px}
+
+  /* ---- KPIs ---- */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
+  .kpis.five{grid-template-columns:repeat(5,1fr)}
+  .kpi{background:var(--stt-card);border:1px solid var(--stt-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:10.5px;color:var(--stt-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--stt-dark)}
+  .kpi .delta{font-size:11px;margin-top:4px;color:var(--stt-mute);line-height:1.35}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--stt-grey)}
+  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#FDF1F1 100%);border-color:#F3CFCF}
+  .kpi.accent .stripe{background:var(--stt-red)}
+  .kpi.web .stripe{background:var(--teal)}
+  .up{color:var(--good-green);font-weight:600}
+  .down{color:var(--bad-red);font-weight:600}
+
+  /* ---- info note ---- */
+  .info-note{background:#FDF1F1;border:1px solid #F3CFCF;border-left:4px solid var(--stt-red);border-radius:10px;
+             padding:13px 16px;margin-top:16px;font-size:13px;color:#5A2222}
+  .info-note b{color:#3F1414}
+  .info-note.neutral{background:#EEF4F5;border-color:#CFE2E4;border-left-color:var(--teal);color:#234347}
+  .info-note.neutral b{color:#16302F}
+
+  /* ---- tables ---- */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--stt-line)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--stt-mute);font-weight:600;background:#FAFBFC}
+  table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table tr:hover td{background:#FAFAFB}
+  table tr.total td{font-weight:700;background:#FBF4F4;border-bottom:none}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F6;color:var(--stt-dark)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .pill.ad{background:#FDECEC;color:var(--stt-red-deep)}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:5px;text-transform:uppercase}
+  .tag.paid{background:#FDECEC;color:var(--stt-red-deep)}
+  .tag.org{background:#E4F1EF;color:#0B5C53}
+  .tag.dir{background:#EEF1F3;color:#42525E}
+  .tag.oth{background:#F1F2F4;color:#6B7480}
+
+  /* ---- comparison strip (Ads -> Traffic) ---- */
+  .compare-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .stat-card{background:var(--stt-card);border:1px solid var(--stt-line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow-card)}
+  .stat-card .k{font-size:11px;color:var(--stt-mute);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .stat-card .v{font-size:28px;font-weight:800;letter-spacing:-.6px;margin-top:6px;color:var(--stt-dark)}
+  .stat-card .v.red{color:var(--stt-red)}
+  .stat-card .c{font-size:12px;color:var(--stt-mute);margin-top:4px}
+  .lift-badge{display:inline-block;margin-top:8px;font-size:13px;font-weight:700;padding:3px 10px;border-radius:999px;background:#E4F4EA;color:var(--good-green)}
+
+  .funnel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .funnel .step{flex:1;min-width:150px;background:#fff;border:1px solid var(--stt-line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-card)}
+  .funnel .step .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--stt-mute);font-weight:600}
+  .funnel .step .v{font-size:21px;font-weight:700;margin-top:4px;color:var(--stt-dark)}
+  .funnel .arrow{color:var(--stt-red);font-size:22px;font-weight:700;flex:none}
+
+  .loading{padding:80px 20px;text-align:center;color:var(--stt-mute)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--stt-line);border-top-color:var(--stt-red);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
+
+  footer{color:var(--stt-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--stt-line)}
+  footer b{color:var(--stt-ink)}
+
+  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.kpis.five{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.kpis,.kpis.five{grid-template-columns:repeat(2,1fr)}.compare-strip{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="agency">TRANSMISSION<span class="dot"></span></div>
+    <div class="topbar-divider"></div>
+    <div class="logo-chip">
+      <svg viewBox="0 0 513 100" xmlns="http://www.w3.org/2000/svg" aria-label="ST Telemedia Global Data Centres">
+        <g fill="#5A5A5A"><path d="M103.721 83.209v-3.705h16.077v2.394c0 10.375-5.644 17.102-15.278 17.102-10.376 0-16.817-7.867-16.817-17.843 0-10.091 6.669-17.9 17.045-17.9 8.322 0 12.085 4.504 12.085 4.504l-2.337 3.021s-3.478-3.762-9.748-3.762c-8.038 0-12.941 6.384-12.941 14.137 0 7.697 4.732 14.081 12.713 14.081 6.726 0 11.287-4.732 11.287-11.8v-.229h-12.086M124.752 98.202h3.933V63.713h-3.933zM153.499 86.288c0-5.758-3.763-9.406-8.152-9.406-4.389 0-8.152 3.648-8.152 9.406 0 5.815 3.763 9.292 8.152 9.292 4.389 0 8.152-3.477 8.152-9.292zm-8.152 12.484c-6.67 0-12.029-4.789-12.029-12.427 0-7.639 5.359-12.656 12.029-12.656 6.613 0 12.085 5.017 12.085 12.656 0 7.638-5.472 12.427-12.085 12.427zM173.818 95.466c4.504 0 7.924-3.819 7.924-9.236 0-5.472-3.42-9.234-7.924-9.234-4.389 0-8.095 3.42-8.095 9.234 0 5.815 3.706 9.236 8.095 9.236zm-7.867-31.753v14.138h.171s1.825-4.162 8.551-4.162c6.157 0 11.06 5.074 11.06 12.541 0 7.583-4.903 12.542-11.174 12.542-7.011 0-9.064-4.731-9.064-4.731h-.171l-.456 4.161h-2.85V63.713h3.933zM201.52 76.996c-4.504 0-7.981 3.762-7.981 9.234 0 5.417 3.477 9.236 7.981 9.236 4.446 0 8.152-3.421 8.152-9.236 0-5.814-3.706-9.234-8.152-9.234zm9.064-2.736h2.736v23.942h-2.736l-.57-3.819h-.171s-2.223 4.389-9.007 4.389c-6.328 0-11.288-4.959-11.288-12.542 0-7.467 4.903-12.541 11.117-12.541 6.955 0 9.178 4.39 9.178 4.39h.171l.57-3.819zM219.41 98.202h3.933V63.713h-3.933zM244.605 94.497h7.183c7.696 0 13.568-4.96 13.568-13.397 0-8.437-5.872-13.397-13.568-13.397h-7.183v26.794zm7.41 3.705h-11.401V63.998h11.401c10.377 0 17.389 6.613 17.389 17.102 0 10.49-7.012 17.102-17.389 17.102zM284.814 76.996c-4.504 0-7.982 3.762-7.982 9.234 0 5.417 3.478 9.236 7.982 9.236 4.446 0 8.151-3.421 8.151-9.236 0-5.814-3.705-9.234-8.151-9.234zm9.063-2.736h2.736v23.942h-2.736l-.569-3.819h-.172s-2.223 4.389-9.007 4.389c-6.327 0-11.287-4.959-11.287-12.542 0-7.467 4.902-12.541 11.116-12.541 6.955 0 9.178 4.39 9.178 4.39h.172l.569-3.819zM304.276 66.963h3.934v7.297h7.126v3.191h-7.126v14.081c0 2.509 1.141 3.877 3.534 3.877 1.768 0 3.535-1.083 3.535-1.083l1.311 2.85s-2.052 1.596-5.188 1.596c-4.902 0-7.126-2.793-7.126-7.296V77.451h-4.502V74.26h4.502v-7.297M329.529 76.996c-4.504 0-7.982 3.762-7.982 9.234 0 5.417 3.478 9.236 7.982 9.236 4.446 0 8.151-3.421 8.151-9.236 0-5.814-3.705-9.234-8.151-9.234zm9.063-2.736h2.736v23.942h-2.736l-.569-3.819h-.172s-2.223 4.389-9.007 4.389c-6.327 0-11.287-4.959-11.287-12.542 0-7.467 4.902-12.541 11.116-12.541 6.955 0 9.178 4.39 9.178 4.39h.172l.569-3.819zM371.937 99c-10.148 0-17.046-7.867-17.046-17.843 0-10.091 6.898-17.9 17.046-17.9 7.695 0 11.343 4.39 11.343 4.39L381 70.725s-3.42-3.705-9.007-3.705c-7.696 0-12.998 6.384-12.998 14.137 0 7.697 5.302 14.081 12.998 14.081 5.587 0 9.007-3.706 9.007-3.706l2.28 3.078S379.632 99 371.937 99M389.238 83.381h13.569c-.571-4.162-2.794-6.328-6.556-6.328-3.82 0-6.271 2.052-7.013 6.328zm7.925 15.448c-7.469 0-12.086-5.073-12.086-12.541 0-7.24 4.39-12.599 11.231-12.599 6.897 0 10.546 5.245 10.546 11.915v.968h-17.843c.114 5.872 3.705 8.894 8.38 8.894 4.389 0 6.784-2.28 6.784-2.28l1.481 2.85s-2.507 2.793-8.493 2.793zM414.005 74.26l.342 3.534h.285c1.596-2.565 4.047-4.105 8.38-4.105 6.27 0 9.919 4.503 9.919 11.002v13.511h-3.934V85.147c0-4.617-2.337-8.151-6.841-8.151-4.845 0-6.897 4.047-7.011 6.84v14.366h-3.934V74.26h2.794M439.665 66.963h3.934v7.297h7.126v3.191h-7.126v14.081c0 2.509 1.14 3.877 3.534 3.877 1.768 0 3.535-1.083 3.535-1.083l1.311 2.85s-2.052 1.596-5.188 1.596c-4.902 0-7.126-2.793-7.126-7.296V77.451h-4.503V74.26h4.503v-7.297M465.715 77.395c-3.478 0-6.441 2.85-6.441 6.669v14.138h-3.934V74.26h2.794l.342 4.218h.227c1.141-2.737 3.82-4.276 6.955-4.276h1.368v3.193h-1.311M472.668 83.381h13.568c-.57-4.162-2.794-6.328-6.555-6.328-3.821 0-6.272 2.052-7.013 6.328zm7.925 15.448c-7.469 0-12.086-5.073-12.086-12.541 0-7.24 4.39-12.599 11.23-12.599 6.898 0 10.546 5.245 10.546 11.915v.968h-17.842c.114 5.872 3.705 8.894 8.379 8.894 4.39 0 6.785-2.28 6.785-2.28l1.481 2.85s-2.508 2.793-8.493 2.793zM503.392 95.409c3.933 0 5.472-1.482 5.472-3.535 0-5.358-15.391-2.793-15.391-11.401 0-3.762 2.736-6.784 8.836-6.784 6.042 0 9.463 1.938 9.463 1.938l-1.597 3.364s-2.964-1.938-7.524-1.938c-3.706 0-5.53 1.083-5.53 3.306 0 5.13 15.392 2.166 15.392 11.344 0 3.706-2.509 7.069-9.236 7.069-6.784 0-9.804-2.964-9.804-2.964l1.766-2.737s3.25 2.338 8.153 2.338M88.316 47.713l3.997-5.689c2.406 2.511 6.154 4.67 10.866 4.67 4.06 0 5.954-1.796 5.954-3.798 0-5.941-19.69-1.799-19.69-14.663 0-5.692 4.922-10.408 12.972-10.408 5.43 0 9.939 1.639 13.334 4.772l-4.057 5.432c-2.769-2.562-6.458-3.746-9.942-3.746-3.08 0-4.816 1.335-4.816 3.385 0 5.385 19.631 1.745 19.631 14.511 0 6.258-4.516 10.977-13.691 10.977-6.609 0-11.334-2.209-14.558-5.443M128.663 52.536v-27.79h-9.998V18.34h27.28v6.406h-9.949v27.79h-7.333M159.913 52.534V24.668H149.89v-6.426h27.348v6.426h-9.968v27.866h-7.357M187.982 32.431c-4.054 0-5.813 2.827-6.069 5.294h12.243c-.21-2.362-1.855-5.294-6.174-5.294m-12.855 7.657c0-7.196 5.351-13.002 12.855-13.002 7.461 0 12.449 5.55 12.449 13.624v1.541h-18.462c.462 3.034 2.936 5.55 7.147 5.55 2.104 0 4.987-.871 6.583-2.414l2.926 4.321c-2.467 2.265-6.373 3.448-10.227 3.448-7.559 0-13.271-5.099-13.271-13.068M205.156 46.314V18.242h6.527v26.322c0 1.592.819 2.775 2.261 2.775.983 0 1.904-.357 2.264-.766l1.386 4.983c-.973.872-2.768 1.6-5.449 1.6-4.571 0-6.989-2.369-6.989-6.842M231.734 32.431c-4.06 0-5.81 2.827-6.062 5.294H237.9c-.203-2.362-1.841-5.294-6.166-5.294m-12.849 7.657c0-7.196 5.341-13.002 12.849-13.002 7.454 0 12.438 5.55 12.438 13.624v1.541h-18.451c.462 3.034 2.926 5.55 7.146 5.55 2.104 0 4.981-.871 6.58-2.414l2.936 4.321c-2.474 2.265-6.383 3.448-10.24 3.448-7.553 0-13.258-5.099-13.258-13.068M279.699 52.534v-15.68c0-2.317-1.028-3.962-3.699-3.962-2.317 0-4.214 1.544-5.142 2.884v16.758h-6.583v-15.68c0-2.317-1.025-3.962-3.702-3.962-2.261 0-4.159 1.544-5.142 2.884v16.758h-6.527V27.699h6.527v3.188c1.082-1.442 4.322-3.801 8.127-3.801 3.65 0 6.013 1.697 6.884 4.469 1.452-2.205 4.738-4.469 8.54-4.469 4.571 0 7.303 2.418 7.303 7.504v17.944h-6.586M304.019 32.431c-4.06 0-5.816 2.827-6.068 5.294h12.235c-.203-2.362-1.848-5.294-6.167-5.294m-12.857 7.657c0-7.196 5.354-13.002 12.857-13.002 7.455 0 12.439 5.55 12.439 13.624v1.541h-18.455c.469 3.034 2.933 5.55 7.14 5.55 2.111 0 4.994-.871 6.583-2.414l2.927 4.321c-2.461 2.265-6.374 3.448-10.224 3.448-7.556 0-13.267-5.099-13.267-13.068M338.255 44.512v-8.795c-1.075-1.638-3.447-2.825-5.597-2.825-3.761 0-6.327 2.929-6.327 7.196 0 4.322 2.566 7.251 6.327 7.251 2.15 0 4.522-1.179 5.597-2.827m0 8.022v-3.193c-1.953 2.472-4.627 3.815-7.661 3.815-6.219 0-10.996-4.735-10.996-13.068 0-8.068 4.672-13.002 10.996-13.002 2.93 0 5.708 1.232 7.661 3.801V18.242h6.584v34.292h-6.584M381.384 44.512v-8.736c-1.071-1.651-3.434-2.884-5.596-2.884-3.756 0-6.328 2.929-6.328 7.196 0 4.322 2.572 7.251 6.328 7.251 2.162 0 4.525-1.179 5.596-2.827m0 8.022v-3.193c-1.946 2.472-4.623 3.815-7.657 3.815-6.22 0-11.001-4.735-11.001-13.068 0-8.068 4.673-13.002 11.001-13.002 2.935 0 5.655 1.232 7.657 3.801v-3.188h6.58v24.835h-6.58M351.399 52.533h6.343V28.392h-6.343z"/></g>
+        <path d="M35.327 21.306S33.069 6.796 33.049.229a37.955 37.955 0 0 1 4.552 0c-.007 6.567-2.274 21.077-2.274 21.077M38.961 21.888C39 15.555 37.984 6.73 38.413.292c1.528.127 3.025.359 4.493.678-.419 4.414-1.677 13.215-3.945 20.918M31.696 21.888C29.432 14.185 28.177 5.384 27.751.97a34.805 34.805 0 0 1 4.496-.678c.425 6.438-.593 15.263-.551 21.596M35.327 49.672s2.267 14.513 2.284 21.073a32.75 32.75 0 0 1-2.284.073c-.754 0-1.52-.02-2.278-.073.02-6.56 2.278-21.073 2.278-21.073M31.696 49.092c-.042 6.338.976 15.152.551 21.591a34.984 34.984 0 0 1-4.496-.682c.426-4.406 1.681-13.208 3.945-20.909M38.961 49.092c2.268 7.701 3.526 16.503 3.945 20.909a34.832 34.832 0 0 1-4.493.682c-.429-6.439.587-15.253.548-21.591M25.29 25.453S13.434 16.796 8.789 12.164a33.687 33.687 0 0 1 1.556-1.656 33.741 33.741 0 0 1 1.661-1.563c4.634 4.65 13.284 16.508 13.284 16.508M28.275 23.294c-4.44-4.499-11.406-10.024-15.65-14.876a35.909 35.909 0 0 1 3.657-2.693c2.815 3.421 8.153 10.537 11.993 17.569M23.134 28.445c-7.032-3.856-14.146-9.195-17.56-12.009a33.817 33.817 0 0 1 2.69-3.657c4.85 4.254 10.375 11.213 14.87 15.666M45.367 45.524s11.849 8.654 16.498 13.288a32.505 32.505 0 0 1-1.559 1.658 35.738 35.738 0 0 1-1.658 1.559c-4.63-4.646-13.281-16.505-13.281-16.505M42.372 47.68c4.453 4.512 11.413 10.023 15.67 14.88a36.088 36.088 0 0 1-3.661 2.691c-2.815-3.421-8.149-10.532-12.009-17.571" fill="#D62828"/>
+        <path d="M47.527 42.533c7.028 3.854 14.145 9.184 17.566 12.003a33.517 33.517 0 0 1-2.703 3.653c-4.85-4.24-10.368-11.207-14.863-15.656M21.145 35.487S6.636 37.756.079 37.761A34.83 34.83 0 0 1 0 35.487c0-.767.03-1.526.079-2.274 6.557 0 21.066 2.274 21.066 2.274" fill="#DC4033"/>
+        <path d="M21.725 31.85c-6.334-.039-15.155.98-21.591.551.128-1.521.361-3.025.682-4.496 4.411.432 13.209 1.684 20.909 3.945M21.725 39.125c-7.7 2.261-16.498 3.516-20.909 3.932a34.055 34.055 0 0 1-.682-4.483c6.436-.428 15.257.59 21.591.551M49.512 35.487s14.51-2.274 21.073-2.28a37.41 37.41 0 0 1 0 4.554c-6.563-.005-21.073-2.274-21.073-2.274M48.929 39.125c6.327.039 15.161-.979 21.597-.551a34.391 34.391 0 0 1-.682 4.483c-4.407-.416-13.211-1.671-20.915-3.932M48.929 31.85c7.704-2.261 16.508-3.513 20.915-3.945.325 1.471.548 2.975.682 4.496-6.436.429-15.27-.59-21.597-.551M25.29 45.524s-8.65 11.859-13.284 16.505a37.95 37.95 0 0 1-1.661-1.559 40.831 40.831 0 0 1-1.556-1.658c4.645-4.634 16.501-13.288 16.501-13.288M23.134 42.533c-4.495 4.449-10.02 11.416-14.87 15.656a33.004 33.004 0 0 1-2.69-3.653c3.414-2.819 10.528-8.149 17.56-12.003M28.275 47.68c-3.84 7.039-9.178 14.15-11.993 17.571a36.04 36.04 0 0 1-3.657-2.691c4.244-4.857 11.21-10.368 15.65-14.88M45.367 25.453s8.651-11.858 13.281-16.508a31.98 31.98 0 0 1 1.658 1.563 27.811 27.811 0 0 1 1.559 1.656c-4.649 4.632-16.498 13.289-16.498 13.289M47.527 28.445c4.495-4.453 10.013-11.412 14.863-15.666a34.354 34.354 0 0 1 2.703 3.657c-3.421 2.814-10.538 8.153-17.566 12.009M42.372 23.294c3.86-7.032 9.194-14.148 12.009-17.569a35.957 35.957 0 0 1 3.661 2.693c-4.257 4.852-11.217 10.377-15.67 14.876" fill="#D62828"/>
+      </svg>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC Always On FY25-26</div>
+    <div id="topPeriod">&nbsp;</div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>Fetching dashboard data from BigQuery…</div>
+  </div>
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="content" style="display:none">
+
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs">
+          <button class="tab" id="tabOverview" onclick="setTab('overview')">Overview</button>
+          <button class="tab" id="tabPaid"     onclick="setTab('paid')">Paid Media</button>
+          <button class="tab" id="tabWeb"      onclick="setTab('web')">Website Traffic</button>
+          <button class="tab" id="tabLink"     onclick="setTab('link')">Ads → Traffic</button>
+        </div>
+        <div class="tabs-right">
+          <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
+          <button class="export-btn" onclick="exportAllData()" title="Download the full dataset (every channel, market, month and week) as one CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export data</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <div id="tab-overview" class="tabpane">
+      <div class="section first">
+        <h2>The effect of the campaign on website traffic</h2>
+        <span class="sub">FY25-26 Always On (SOW 2) across APAC. Paid media — LinkedIn (paid social) and DV360 (programmatic display) — set against what happened on the STT GDC websites in Google Analytics 4. Campaign window from 1 Jun 2025.</span>
+      </div>
+
+      <div class="kpis" id="ovKpis"></div>
+
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Media activity vs website sessions — monthly</h3>
+          <div class="hint">Monthly ad impressions (bars, right axis) against total website sessions (line, left axis). The shaded months are the live campaign window.</div>
+          <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Where website traffic came from</h3>
+          <div class="hint">Sessions by acquisition channel, campaign window. Paid channels in red.</div>
+          <div class="chart-wrap"><canvas id="ovDonut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Website sessions — paid vs the rest (monthly)</h3>
+          <div class="hint">Paid-channel sessions (red) stacked over organic, direct and other. Paid traffic scales up as the campaign ramps.</div>
+          <div class="chart-wrap"><canvas id="ovStack"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Media spend by platform</h3>
+          <div class="hint">Reporting currency SGD. LinkedIn billed in USD, converted at the rate below.</div>
+          <div class="chart-wrap"><canvas id="ovSpend"></canvas></div>
+        </div>
+      </div>
+
+      <div class="info-note neutral" id="ovNote"></div>
+    </div>
+
+    <!-- ============ PAID MEDIA ============ -->
+    <div id="tab-paid" class="tabpane">
+      <div class="section first">
+        <h2>Paid media — delivery</h2>
+        <span class="sub">LinkedIn paid-social and DV360 programmatic-display delivery for the Always On flight: spend, impressions, clicks and efficiency.</span>
+      </div>
+
+      <div class="kpis five" id="pmKpis"></div>
+
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Monthly delivery — impressions &amp; spend</h3>
+          <div class="hint">Impressions by platform (stacked bars) with combined spend (line, SGD).</div>
+          <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Spend share</h3>
+          <div class="hint">LinkedIn (converted to SGD) vs DV360.</div>
+          <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Platform comparison</h3>
+        <div class="hint">Whole-flight totals. LinkedIn spend is USD; the SGD column applies the reporting FX rate.</div>
+        <div style="overflow:auto">
+          <table id="pmCompare">
+            <thead><tr><th>Platform</th><th>Window</th><th>Spend (native)</th><th>Spend (SGD)</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>DV360 — programmatic display by market</h3>
+          <div class="hint">Impressions (bars) and spend (SGD) across the 9 APAC markets.</div>
+          <div class="chart-wrap"><canvas id="pmDvMarket"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>LinkedIn — creative mix</h3>
+          <div class="hint">Impressions by creative type.</div>
+          <div class="chart-wrap"><canvas id="pmLiCreative"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>LinkedIn — campaigns</h3>
+        <div class="hint">Top campaigns by impressions (whole flight, USD spend).</div>
+        <div style="overflow:auto">
+          <table id="pmLiCampaigns">
+            <thead><tr><th>Campaign</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Spend (USD)</th><th>CPC</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ WEBSITE TRAFFIC ============ -->
+    <div id="tab-web" class="tabpane">
+      <div class="section first">
+        <h2>Website traffic — GA4</h2>
+        <span class="sub">The STT GDC websites (one GA4 property per market, plus the global &amp; corporate sites), campaign window. This is the outcome the media is working toward.</span>
+      </div>
+
+      <div class="kpis" id="webKpis"></div>
+
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Sessions by channel</h3>
+          <div class="hint">All acquisition channels. Paid channels (red) — Display = DV360, Paid Social = LinkedIn, Paid Search = Google Ads.</div>
+          <div class="chart-wrap"><canvas id="webChannels"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Monthly sessions — total vs ad-driven</h3>
+          <div class="hint">Total sessions (line) with paid sessions (red) and programmatic-display sessions.</div>
+          <div class="chart-wrap"><canvas id="webTrend"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Sessions by market</h3>
+        <div class="hint">Each site, campaign window. Paid-channel sessions (red) stacked over the rest. "All Sites" is the main corporate property.</div>
+        <div class="chart-wrap" style="height:320px"><canvas id="webMarkets"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Top sources / mediums</h3>
+        <div class="hint">Where sessions originate. The ad platforms surface by name — flagged <span class="tag paid">AD</span>.</div>
+        <div style="overflow:auto">
+          <table id="webSources">
+            <thead><tr><th>Source / medium</th><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Eng. rate</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ ADS -> TRAFFIC ============ -->
+    <div id="tab-link" class="tabpane">
+      <div class="section first">
+        <h2>Ads → Traffic — did the media move the site?</h2>
+        <span class="sub">Connecting paid delivery to website sessions on the two channels the campaign maps to: <b>Display</b> (DV360) and <b>Paid Social</b> (LinkedIn). Paid Search is excluded here — it's Google Ads, which isn't in this spend dataset.</span>
+      </div>
+
+      <div class="info-note" id="linkHeadline"></div>
+
+      <div class="funnel" id="linkFunnel"></div>
+
+      <div class="card card-tall" style="margin-top:18px">
+        <h3>Weekly — ad impressions vs campaign-driven website sessions</h3>
+        <div class="hint">Weekly ad impressions (bars, right axis) against Display + Paid Social sessions on the websites (line, left axis). They move together.</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="linkWeekly"></canvas></div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Correlation — weekly ad impressions vs campaign-driven sessions</h3>
+          <div class="hint" id="linkScatterHint">Each dot is one campaign week.</div>
+          <div class="chart-wrap"><canvas id="linkScatter"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Programmatic-display sessions — before vs during the flight</h3>
+          <div class="hint">Average monthly Display sessions before vs after the DV360 Always On launch (Nov 2025).</div>
+          <div class="chart-wrap"><canvas id="linkBeforeAfter"></canvas></div>
+        </div>
+      </div>
+
+      <div class="compare-strip" id="linkStats"></div>
+    </div>
+
+    <footer id="footMeta"></footer>
+  </div>
+</div>
+
+<script>
+//==============================================================================
+// CONFIG
+//==============================================================================
+const JSON_URL = '/data.json';
+const C = {
+  red:'#D62828', red2:'#DC4033', redDeep:'#9F1D1D', redSoft:'#F0A3A3',
+  dark:'#23272E', ink:'#1F2933', mute:'#6B7480', line:'#E6E9ED',
+  teal:'#0E7C86', tealSoft:'#7FBEC3', slate:'#5A6B78', grey:'#C9CED4',
+  li:'#2867B2', amber:'#B97400'
+};
+// GA4 channel-bucket colours
+const BUCKET_COLOR = { Paid:C.red, Organic:C.teal, Direct:C.slate, Referral:C.tealSoft, Other:C.grey };
+
+//==============================================================================
+// STATE / HELPERS
+//==============================================================================
+let DATA = null, charts = {}, activeTab = 'overview';
+const el = id => document.getElementById(id);
+
+const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
+const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
+const fmtPct = (v,d=2) => v==null||isNaN(v) ? '—' : (v*100).toFixed(d)+'%';
+const money  = (v,sym='S$',d=0) => v==null||isNaN(v) ? '—' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+function dur(sec){ if(sec==null||isNaN(sec)) return '—'; const m=Math.floor(sec/60), s=Math.round(sec%60); return m? `${m}m ${s}s` : `${s}s`; }
+function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+function dayLabel(d){ const dt=new Date(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function pct(part,whole){ return whole? part/whole : 0; }
+
+function deltaHTML(now, base){
+  if(!base) return '';
+  const d = (now-base)/base;
+  const cls = d>=0 ? 'up' : 'down';
+  return `<span class="${cls}">${d>=0?'▲':'▼'} ${Math.abs(d*100).toFixed(0)}%</span>`;
+}
+
+//==============================================================================
+// BOOT
+//==============================================================================
+async function boot(){
+  try{
+    const res = await fetch(JSON_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
+    DATA = await res.json();
+    const h = (location.hash||'').replace('#','');
+    if(['overview','paid','web','link'].includes(h)) activeTab = h;
+    el('loading').style.display='none';
+    el('content').style.display='block';
+    renderMeta();
+    renderControls();
+    renderActive();
+  }catch(e){
+    el('loading').style.display='none';
+    el('error').style.display='block';
+    el('errDetail').textContent = e.message;
+  }
+}
+
+function renderMeta(){
+  const w = DATA.window||{};
+  const fmt = d => d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  el('topPeriod').textContent = `${fmt(w.start)} – ${fmt(w.end)}`;
+  const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
+  el('footMeta').innerHTML = `STT GDC APAC dashboard · data from BigQuery (GA4 · LinkedIn · DV360) · `
+    + `FX US$1 = S$${DATA.fx_usd_sgd} · Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+}
+
+function renderControls(){
+  el('tabOverview').className = 'tab'+(activeTab==='overview'?' on':'');
+  el('tabPaid').className     = 'tab'+(activeTab==='paid'?' on':'');
+  el('tabWeb').className       = 'tab'+(activeTab==='web'?' on':'');
+  el('tabLink').className     = 'tab'+(activeTab==='link'?' on':'');
+  const notes = {
+    overview:'Campaign vs website outcomes', paid:'LinkedIn + DV360 delivery',
+    web:'GA4 website analytics', link:'Connecting media to traffic'
+  };
+  el('ctrlNote').textContent = notes[activeTab]||'';
+}
+
+function setTab(t){ activeTab=t; location.hash=t; renderControls(); renderActive(); }
+
+function renderActive(){
+  ['overview','paid','web','link'].forEach(t => el('tab-'+t).style.display = (t===activeTab?'block':'none'));
+  destroyCharts();
+  if(activeTab==='overview') renderOverview();
+  else if(activeTab==='paid') renderPaid();
+  else if(activeTab==='web') renderWeb();
+  else renderLink();
+}
+
+function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
+
+//==============================================================================
+// shared chart helpers
+//==============================================================================
+const FONT = {family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
+function gridY(opts={}){ return Object.assign({grid:{color:'#EEF1F3'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
+function kpiCard(cls,label,value,delta){
+  return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
+}
+
+//==============================================================================
+// OVERVIEW
+//==============================================================================
+function renderOverview(){
+  const k = DATA.kpi, w = DATA.window;
+  const ctr = pct(k.ad_clicks, k.ad_imps);
+  const adShare = pct(k.paid_sessions, k.sessions);
+  const engRate = pct(k.engaged_sessions, k.sessions);
+  el('ovKpis').innerHTML =
+    kpiCard('accent','Media spend (SGD)', money(k.ad_spend_sgd), `${money(k.li_cost_usd,'US$')} LinkedIn · ${money(k.dv_spend_sgd)} DV360`)
+  + kpiCard('accent','Ad impressions', fmtM(k.ad_imps), `LinkedIn ${fmtM(k.li_imps)} · DV360 ${fmtM(k.dv_imps)}`)
+  + kpiCard('accent','Ad clicks', fmtN(k.ad_clicks), `${fmtPct(ctr,2)} blended CTR`)
+  + kpiCard('web','Website sessions', fmtM(k.sessions), `${deltaHTML(k.sessions,k.prior_sessions)} vs prior year`)
+  + kpiCard('web','Ad-driven sessions', fmtM(k.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(k.paid_sessions,k.prior_paid_sessions)} YoY`)
+  + kpiCard('web','Engaged sessions', fmtM(k.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`);
+
+  // Hero: ad impressions (bars, right) vs sessions (line, left)
+  const M = DATA.monthly;
+  const labels = M.map(r=>monthLabel(r.month));
+  const inWin = M.map(r => r.ad_imps>0);
+  charts.ovHero = new Chart(el('ovHero'),{
+    data:{ labels, datasets:[
+      { type:'line', label:'Website sessions', data:M.map(r=>r.sessions), yAxisID:'y',
+        borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
+        fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
+      { type:'bar', label:'Ad impressions', data:M.map(r=>r.ad_imps), yAxisID:'y1',
+        backgroundColor:inWin.map(x=>x?'rgba(214,40,40,.78)':'rgba(214,40,40,.18)'),
+        borderRadius:4, maxBarThickness:26, order:1 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):fmtN(c.parsed.y)}`}}},
+      scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+  });
+
+  // Donut: sessions by channel (campaign window) — group small ones
+  const ch = DATA.ga4_channels.slice().sort((a,b)=>b.sessions-a.sessions);
+  const donutData = ch.map(c=>({label:c.channel, v:c.sessions, color:BUCKET_COLOR[c.bucket]||C.grey}));
+  charts.ovDonut = new Chart(el('ovDonut'),{
+    type:'doughnut',
+    data:{ labels:donutData.map(d=>d.label), datasets:[{ data:donutData.map(d=>d.v),
+      backgroundColor:donutData.map((d,i)=>shade(d.color,i)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,k.sessions),1)})`}} },
+      cutoutText:{ line1:fmtM(k.sessions), line2:'sessions' } },
+    plugins:[centerText]
+  });
+
+  // Stacked monthly paid vs rest
+  charts.ovStack = new Chart(el('ovStack'),{
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Paid', data:M.map(r=>r.paid_sessions), backgroundColor:C.red, stack:'s', borderRadius:{topLeft:3,topRight:3} },
+      { label:'Organic', data:M.map(r=>r.organic_sessions), backgroundColor:C.teal, stack:'s' },
+      { label:'Direct', data:M.map(r=>r.direct_sessions), backgroundColor:C.slate, stack:'s' },
+      { label:'Other', data:M.map(r=>r.other_sessions), backgroundColor:C.grey, stack:'s' }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // Spend donut by platform
+  const liSgd = k.li_cost_usd*DATA.fx_usd_sgd;
+  charts.ovSpend = new Chart(el('ovSpend'),{
+    type:'doughnut',
+    data:{ labels:['DV360 (display)','LinkedIn (social)'], datasets:[{ data:[k.dv_spend_sgd, liSgd],
+      backgroundColor:[C.red, C.li], borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,k.ad_spend_sgd),0)})`}} },
+      cutoutText:{ line1:money(k.ad_spend_sgd), line2:'total spend' } },
+    plugins:[centerText]
+  });
+
+  el('ovNote').innerHTML = `<b>How to read this.</b> Three live sources are joined: GA4 (website sessions across `
+    + `${DATA.ga4_markets.length} STT GDC properties), LinkedIn paid-social, and DV360 programmatic display. `
+    + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}. `
+    + `Spend is reported in SGD — LinkedIn's USD is converted at US$1 = S$${DATA.fx_usd_sgd}. `
+    + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;
+}
+
+// shade a base colour for donut slices so adjacent segments differ
+function shade(hex,i){
+  const f = [0,-14,16,-26,30,-36,44,-44,52,-52,58,-58,64][i%13]||0;
+  return adjust(hex,f);
+}
+function adjust(hex,amt){
+  let h=hex.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join('');
+  let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  r=Math.max(0,Math.min(255,r+amt)); g=Math.max(0,Math.min(255,g+amt)); b=Math.max(0,Math.min(255,b+amt));
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+// center-text plugin for doughnuts
+const centerText = {
+  id:'centerText',
+  afterDraw(chart){
+    const o=chart.config.options.cutoutText; if(!o) return;
+    const {ctx,chartArea:{left,right,top,bottom}}=chart;
+    const x=(left+right)/2, y=(top+bottom)/2;
+    ctx.save(); ctx.textAlign='center';
+    ctx.fillStyle=C.dark; ctx.font=`700 22px ${FONT.family}`; ctx.fillText(o.line1,x,y-2);
+    ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+16);
+    ctx.restore();
+  }
+};
+
+//==============================================================================
+// PAID MEDIA
+//==============================================================================
+function renderPaid(){
+  const k = DATA.kpi, fx = DATA.fx_usd_sgd;
+  const liSgd = k.li_cost_usd*fx;
+  const ctr = pct(k.ad_clicks,k.ad_imps), cpm = k.ad_imps? k.ad_spend_sgd/k.ad_imps*1000:0, cpc = k.ad_clicks? k.ad_spend_sgd/k.ad_clicks:0;
+  el('pmKpis').innerHTML =
+    kpiCard('accent','Combined spend (SGD)', money(k.ad_spend_sgd), `${fmtPct(ctr,2)} CTR · ${money(cpc,'S$',2)} CPC`)
+  + kpiCard('','LinkedIn spend', money(k.li_cost_usd,'US$'), `≈ ${money(liSgd)} · paid social`)
+  + kpiCard('','DV360 spend', money(k.dv_spend_sgd), `programmatic display`)
+  + kpiCard('accent','Impressions', fmtM(k.ad_imps), `${money(cpm,'S$',2)} blended CPM`)
+  + kpiCard('','Clicks', fmtN(k.ad_clicks), `LinkedIn ${fmtN(k.li_clicks)} · DV360 ${fmtN(k.dv_clicks)}`);
+
+  const M = DATA.monthly.filter(r=>r.ad_imps>0);
+  const labels = M.map(r=>monthLabel(r.month));
+  charts.pmMonthly = new Chart(el('pmMonthly'),{
+    data:{ labels, datasets:[
+      { type:'bar', label:'DV360 impressions', data:M.map(r=>r.dv_imps), backgroundColor:C.red, stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
+      { type:'bar', label:'LinkedIn impressions', data:M.map(r=>r.li_imps), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'line', label:'Spend (SGD)', data:M.map(r=>r.ad_spend_sgd), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3, borderDash:[5,3] }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+  });
+
+  charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
+    type:'doughnut',
+    data:{ labels:['DV360','LinkedIn'], datasets:[{ data:[k.dv_spend_sgd, liSgd], backgroundColor:[C.red,C.li], borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)}`}} },
+      cutoutText:{line1:money(k.ad_spend_sgd),line2:'SGD'} }, plugins:[centerText]
+  });
+
+  // platform comparison table
+  const liCtr=pct(k.li_clicks,k.li_imps), liCpm=k.li_imps?k.li_cost_usd/k.li_imps*1000:0, liCpc=k.li_clicks?k.li_cost_usd/k.li_clicks:0;
+  const dvCtr=pct(k.dv_clicks,k.dv_imps), dvCpm=k.dv_imps?k.dv_spend_sgd/k.dv_imps*1000:0, dvCpc=k.dv_clicks?k.dv_spend_sgd/k.dv_clicks:0;
+  const win = (a,b)=>`${a} → ${b}`;
+  el('pmCompare').querySelector('tbody').innerHTML =
+    `<tr><td><span class="pill"><span class="dot" style="background:${C.li}"></span>LinkedIn</span></td><td>${win(DATA.li_window.start,DATA.li_window.end)}</td>
+      <td class="num">${money(k.li_cost_usd,'US$')}</td><td class="num">${money(liSgd)}</td><td class="num">${fmtN(k.li_imps)}</td><td class="num">${fmtN(k.li_clicks)}</td>
+      <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'US$',2)}</td><td class="num">${money(liCpc,'US$',2)}</td></tr>`
+  + `<tr><td><span class="pill"><span class="dot" style="background:${C.red}"></span>DV360</span></td><td>${win(DATA.dv_window.start,DATA.dv_window.end)}</td>
+      <td class="num">${money(k.dv_spend_sgd)}</td><td class="num">${money(k.dv_spend_sgd)}</td><td class="num">${fmtN(k.dv_imps)}</td><td class="num">${fmtN(k.dv_clicks)}</td>
+      <td class="num">${fmtPct(dvCtr,2)}</td><td class="num">${money(dvCpm,'S$',2)}</td><td class="num">${money(dvCpc,'S$',2)}</td></tr>`
+  + `<tr class="total"><td>Combined</td><td>—</td><td class="num">—</td><td class="num">${money(k.ad_spend_sgd)}</td><td class="num">${fmtN(k.ad_imps)}</td><td class="num">${fmtN(k.ad_clicks)}</td>
+      <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'S$',2)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
+
+  // DV360 by market
+  const dv = DATA.dv_markets.slice().sort((a,b)=>b.imps-a.imps);
+  charts.pmDvMarket = new Chart(el('pmDvMarket'),{
+    data:{ labels:dv.map(r=>r.market), datasets:[
+      { type:'bar', label:'Impressions', data:dv.map(r=>r.imps), backgroundColor:C.red, borderRadius:4, yAxisID:'y', maxBarThickness:22 },
+      { type:'line', label:'Spend (SGD)', data:dv.map(r=>r.spend_sgd), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, pointRadius:3, yAxisID:'y1', tension:.3 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+  });
+
+  // LinkedIn creative mix
+  const lic = DATA.li_creative;
+  charts.pmLiCreative = new Chart(el('pmLiCreative'),{
+    type:'doughnut',
+    data:{ labels:lic.map(r=>r.creative_type), datasets:[{ data:lic.map(r=>r.imps), backgroundColor:[C.li,C.tealSoft,C.amber,C.grey], borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'60%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps`}} },
+      cutoutText:{line1:fmtM(k.li_imps),line2:'imps'} }, plugins:[centerText]
+  });
+
+  // LinkedIn campaigns table (top 8)
+  const camps = DATA.li_campaigns.slice(0,8);
+  el('pmLiCampaigns').querySelector('tbody').innerHTML = camps.map(r=>{
+    const ctr=pct(r.clicks,r.imps), cpc=r.clicks?r.cost_usd/r.clicks:0;
+    return `<tr><td title="${r.campaign}">${r.campaign.length>52?r.campaign.slice(0,52)+'…':r.campaign}</td>
+      <td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(ctr,2)}</td>
+      <td class="num">${money(r.cost_usd,'US$')}</td><td class="num">${money(cpc,'US$',2)}</td></tr>`;
+  }).join('');
+}
+
+//==============================================================================
+// WEBSITE TRAFFIC
+//==============================================================================
+function renderWeb(){
+  const k = DATA.kpi;
+  const engRate=pct(k.engaged_sessions,k.sessions), avgEng=k.sessions?k.eng_duration/k.sessions:0;
+  el('webKpis').innerHTML =
+    kpiCard('web','Sessions', fmtM(k.sessions), `${deltaHTML(k.sessions,k.prior_sessions)} vs prior year`)
+  + kpiCard('web','Total users', fmtM(k.users), `${fmtM(k.new_users)} new`)
+  + kpiCard('web','Engaged sessions', fmtM(k.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
+  + kpiCard('web','Page views', fmtM(k.page_views), `${(k.page_views/k.sessions).toFixed(1)} per session`)
+  + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
+  + kpiCard('accent','Ad-driven sessions', fmtM(k.paid_sessions), `${fmtPct(pct(k.paid_sessions,k.sessions),0)} of sessions`);
+
+  // sessions by channel (horizontal bar)
+  const ch = DATA.ga4_channels.slice().filter(c=>c.sessions>0).sort((a,b)=>b.sessions-a.sessions);
+  charts.webChannels = new Chart(el('webChannels'),{
+    type:'bar',
+    data:{ labels:ch.map(c=>c.channel), datasets:[{ label:'Sessions', data:ch.map(c=>c.sessions),
+      backgroundColor:ch.map(c=> c.bucket==='Paid'?C.red : c.bucket==='Organic'?C.teal : c.bucket==='Direct'?C.slate : C.grey),
+      borderRadius:4 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} sessions · ${ch[c.dataIndex].bucket}`}} },
+      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX() } }
+  });
+
+  // monthly trend total vs paid vs display
+  const M = DATA.monthly;
+  const labels = M.map(r=>monthLabel(r.month));
+  charts.webTrend = new Chart(el('webTrend'),{
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Total sessions', data:M.map(r=>r.sessions), borderColor:C.teal, backgroundColor:'rgba(14,124,134,.08)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2 },
+      { label:'Paid sessions', data:M.map(r=>r.paid_sessions), borderColor:C.red, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
+      { label:'Display (DV360)', data:M.map(r=>r.display_sessions), borderColor:C.redDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // sessions by market (stacked: paid + rest)
+  const mk = DATA.ga4_markets.slice().sort((a,b)=>b.sessions-a.sessions);
+  charts.webMarkets = new Chart(el('webMarkets'),{
+    type:'bar',
+    data:{ labels:mk.map(r=>r.market), datasets:[
+      { label:'Ad-driven (paid)', data:mk.map(r=>r.paid_sessions), backgroundColor:C.red, stack:'s', borderRadius:{topLeft:3,bottomLeft:3} },
+      { label:'Other sessions', data:mk.map(r=>r.sessions-r.paid_sessions), backgroundColor:C.slate, stack:'s' }
+    ]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.x)}`}} },
+      scales:{ x:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX({stacked:true}) } }
+  });
+
+  // top sources table (top 15)
+  const srcs = DATA.ga4_sources.slice(0,15);
+  el('webSources').querySelector('tbody').innerHTML = srcs.map(r=>{
+    const isAd = /googledv360|dv360|linkedin|\/ cpc|\/ cpm|banner/i.test(r.source_medium) && r.bucket==='Paid';
+    const tagCls = r.bucket==='Paid'?'paid':r.bucket==='Organic'?'org':r.bucket==='Direct'?'dir':'oth';
+    const eng = pct(r.engaged,r.sessions);
+    return `<tr><td>${isAd?'<span class="tag paid">AD</span> ':''}${r.source_medium}</td>
+      <td><span class="tag ${tagCls}">${r.channel}</span></td>
+      <td class="num">${fmtN(r.sessions)}</td><td class="num">${fmtN(r.engaged)}</td><td class="num">${fmtPct(eng,0)}</td></tr>`;
+  }).join('');
+}
+
+//==============================================================================
+// ADS -> TRAFFIC
+//==============================================================================
+function renderLink(){
+  const k = DATA.kpi, M = DATA.monthly, W = DATA.weekly;
+  const campSessions = k.display_sessions + k.social_sessions;
+
+  // before vs during (DV360 launched Nov 2025)
+  const before = M.filter(r=> r.month>='2025-06' && r.month<'2025-11');
+  const during = M.filter(r=> r.month>='2025-11' && r.month<'2026-06');
+  const avg = (arr,f)=> arr.length? arr.reduce((s,r)=>s+f(r),0)/arr.length : 0;
+  const dispBefore = avg(before,r=>r.display_sessions), dispDuring = avg(during,r=>r.display_sessions);
+  const lift = dispBefore? (dispDuring-dispBefore)/dispBefore : 0;
+
+  el('linkHeadline').innerHTML = `<b>The media moved the site.</b> Programmatic-display sessions averaged `
+    + `<b>${fmtN(dispBefore)}/month</b> before the DV360 Always On flight and <b>${fmtN(dispDuring)}/month</b> during it `
+    + `— a <b>${lift>=0?'+':''}${(lift*100).toFixed(0)}%</b> lift. Across the flight, S$${fmtN(k.ad_spend_sgd)} of LinkedIn + DV360 `
+    + `media delivered <b>${fmtN(k.ad_imps)}</b> impressions and <b>${fmtN(campSessions)}</b> website sessions on the channels those ads map to.`;
+
+  // funnel
+  el('linkFunnel').innerHTML =
+    `<div class="step"><div class="k">Media spend</div><div class="v">${money(k.ad_spend_sgd)}</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Ad impressions</div><div class="v">${fmtM(k.ad_imps)}</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Ad clicks</div><div class="v">${fmtN(k.ad_clicks)}</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Campaign-driven sessions</div><div class="v">${fmtN(campSessions)}</div></div>`;
+
+  // weekly: ad impressions (bars, right) vs display+social sessions (line, left)
+  const wk = W.filter(r=> r.week_start>='2025-06-01');
+  const labels = wk.map(r=>dayLabel(r.week_start));
+  charts.linkWeekly = new Chart(el('linkWeekly'),{
+    data:{ labels, datasets:[
+      { type:'line', label:'Display + Paid-Social sessions', data:wk.map(r=>r.display_sessions+r.social_sessions),
+        borderColor:C.dark, backgroundColor:'rgba(35,39,46,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
+      { type:'bar', label:'Ad impressions', data:wk.map(r=>r.ad_imps), backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}),
+        y:gridY({title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+  });
+
+  // scatter ad impressions vs campaign sessions, weeks with delivery
+  const pts = wk.filter(r=>r.ad_imps>0).map(r=>({x:r.ad_imps, y:r.display_sessions+r.social_sessions}));
+  const r = pearson(pts.map(p=>p.x), pts.map(p=>p.y));
+  el('linkScatterHint').innerHTML = `Each dot is one campaign week with ad delivery. Correlation <b>r = ${r.toFixed(2)}</b> `
+    + `(${r>0.6?'strong':r>0.3?'moderate':'weak'} positive relationship).`;
+  charts.linkScatter = new Chart(el('linkScatter'),{
+    type:'scatter',
+    data:{ datasets:[{ label:'Campaign week', data:pts, backgroundColor:'rgba(214,40,40,.6)', borderColor:C.red, pointRadius:5, pointHoverRadius:7 }]},
+    options:{ maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} imps · ${fmtN(c.parsed.y)} sessions`}} },
+      scales:{ x:gridY({title:{display:true,text:'Ad impressions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y:gridY({title:{display:true,text:'Display + Social sessions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // before vs during bar
+  charts.linkBeforeAfter = new Chart(el('linkBeforeAfter'),{
+    type:'bar',
+    data:{ labels:['Before flight\n(Jun–Oct 25)','During flight\n(Nov 25–May 26)'],
+      datasets:[{ label:'Avg monthly Display sessions', data:[dispBefore, dispDuring],
+        backgroundColor:[C.slate, C.red], borderRadius:6, maxBarThickness:90 }]},
+    options:{ maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.y)} sessions/month`}} },
+      scales:{ x:axisX({ticks:{color:C.ink,font:{size:11},callback:function(v){return this.getLabelForValue(v).split('\n')}}}),
+        y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // stats strip
+  const per1k = k.ad_imps? campSessions/(k.ad_imps/1000) : 0;
+  el('linkStats').innerHTML =
+    `<div class="stat-card"><div class="k">Campaign-driven sessions</div><div class="v red">${fmtN(campSessions)}</div><div class="c">Display (DV360) + Paid Social (LinkedIn)</div></div>`
+  + `<div class="stat-card"><div class="k">Sessions per 1,000 impressions</div><div class="v">${per1k.toFixed(1)}</div><div class="c">on the spend-matched channels</div></div>`
+  + `<div class="stat-card"><div class="k">Display-session lift</div><div class="v red">${lift>=0?'+':''}${(lift*100).toFixed(0)}%</div><div class="lift-badge">${fmtN(dispBefore)} → ${fmtN(dispDuring)} /mo</div></div>`;
+}
+
+function pearson(xs,ys){
+  const n=xs.length; if(n<2) return 0;
+  const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+  let sxy=0,sxx=0,syy=0;
+  for(let i=0;i<n;i++){ const dx=xs[i]-mx, dy=ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+  return (sxx&&syy)? sxy/Math.sqrt(sxx*syy) : 0;
+}
+
+//==============================================================================
+// EXPORT
+//==============================================================================
+function exportAllData(){
+  const lines = [];
+  const push = (section,obj)=>{ lines.push(''); lines.push('# '+section); const keys=Object.keys(obj[0]||{}); lines.push(keys.join(',')); obj.forEach(r=>lines.push(keys.map(k=>csv(r[k])).join(','))); };
+  lines.push('# STT GDC APAC dashboard export'); lines.push('# window,'+DATA.window.start+','+DATA.window.end);
+  lines.push('# fx_usd_sgd,'+DATA.fx_usd_sgd);
+  push('monthly', DATA.monthly); push('weekly', DATA.weekly);
+  push('ga4_channels', DATA.ga4_channels); push('ga4_markets', DATA.ga4_markets); push('ga4_sources', DATA.ga4_sources);
+  push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns); push('dv_markets', DATA.dv_markets);
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='stt_gdc_dashboard.csv'; a.click();
+}
+function csv(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
+
+boot();
+</script>
+</body>
+</html>
