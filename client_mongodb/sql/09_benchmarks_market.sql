@@ -1,0 +1,3 @@
+CREATE OR REPLACE VIEW `bidbrain-analytics.client_mongodb.benchmarks_market` AS
+SELECT * FROM UNNEST([
+  STRUCT("ANZ" AS MARKET,0.15 AS BUDGET_WEIGHT),STRUCT("ASEAN",0.28),STRUCT("INDIA",0.34),STRUCT("KR-HK-TW",0.23)])

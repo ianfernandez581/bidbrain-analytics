@@ -1,18 +1,7 @@
-# Cloud Run export job: Snowflake -> BigQuery -> mongodb.json -> GCS.
-# Pinned for reproducible container builds. Versions resolved together against
-# python:3.12-slim (pandas deliberately held <3 for ecosystem compatibility).
-# pandas + pyarrow are declared explicitly because main.py imports pandas
-# directly and uses fetch_pandas_all() / load_table_from_dataframe() (pyarrow).
-# Regenerate with pip-compile inside the Linux image if you bump anything.
-snowflake-connector-python[pandas]==4.6.0
-pandas==2.3.3
-pyarrow==24.0.0
+# Cloud Run export job: BigQuery views -> mongodb.json -> GCS.
+# Pinned for reproducible container builds. This job no longer touches Snowflake
+# (the shared snowflake_data_pull/ unit mirrors the source tables into
+# raw_snowflake; this job only reads BigQuery views and writes the JSON to GCS),
+# so it needs nothing beyond the BigQuery + Storage clients.
 google-cloud-bigquery==3.41.0
 google-cloud-storage==3.10.1
-cryptography==48.0.0
-# Only used by the LOCAL key fallback in main.py (_snowflake_key_bytes): when
-# SNOWFLAKE_KEY isn't in the env, the key is read from Secret Manager via ADC.
-# Cloud Run injects SNOWFLAKE_KEY directly so it never hits this path, but the
-# dependency is declared so local runs are reproducible. Pinned to match the
-# root requirements.txt.
-google-cloud-secret-manager==2.28.0
