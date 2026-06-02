@@ -549,6 +549,17 @@ function campaignOf(programme){
   const p = String(programme||'').toUpperCase();
   return (p.includes('IDE') || p.includes('DNB')) ? 'DNB' : 'IDC';
 }
+
+// Display name for a Salesforce content-syndication programme. The raw
+// PROGRAMME_LABEL from BigQuery is "DNB IDE Single Touch" for the DNB programme
+// and null for the single KGA (IDC) programme; the client renamed both to
+// "… Multi Touch". Normalise at render time so the breakdown table, doughnut
+// and CSV export all show the current names without touching the upstream data.
+function progLabel(programme){
+  const p = String(programme||'').trim();
+  if (!p || p.toLowerCase() === 'null') return 'IDE Multi Touch';
+  return p.replace(/Single Touch/ig, 'Multi Touch');
+}
 function marketOk(m){ return activeMarkets.has(m); }
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m => activeMarkets.has(m)); }
 
@@ -1067,7 +1078,7 @@ function renderCSProgramme() {
   } else {
     el('csProgTitle').textContent = 'Leads by programme';
     el('csProgHint').textContent  = "Share of leads across the campaign's Salesforce programmes.";
-    labels = progPairs.map(p=>p[0]); data = progPairs.map(p=>p[1]);
+    labels = progPairs.map(p=>progLabel(p[0])); data = progPairs.map(p=>p[1]);
   }
   charts.csProgramme = new Chart(el('csProgramme'), {
     type:'doughnut',
@@ -1104,7 +1115,7 @@ function renderCSTable() {
   const tbody = document.querySelector('#csTable tbody'); tbody.innerHTML='';
   const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign && marketOk(r.market)).sort((a,b)=>(b.total||0)-(a.total||0));
   for (const r of rows){
-    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${r.programme}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${r.last_lead_day||'—'}</td></tr>`);
+    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${progLabel(r.programme)}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${r.last_lead_day||'—'}</td></tr>`);
   }
   if (!rows.length) tbody.innerHTML = `<tr><td colspan="4" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
 }
@@ -1216,14 +1227,14 @@ const EXPORT_COLS = {
   ],
   cs: [
     ['campaign',      r => campLabel(r.programme)],
-    ['programme',     r => r.programme],
+    ['programme',     r => progLabel(r.programme)],
     ['market',        r => r.market],
     ['leads',         r => r.total],
     ['last_lead_day', r => r.last_lead_day]
   ],
   targets: [
     ['campaign',  r => campLabel(r.programme)],
-    ['programme', r => r.programme],
+    ['programme', r => progLabel(r.programme)],
     ['market',    r => r.market],
     ['target',    r => r.target]
   ]
