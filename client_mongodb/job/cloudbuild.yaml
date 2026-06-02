@@ -14,8 +14,6 @@ substitutions:
   _REPO: bidbrain                                                   # Artifact Registry docker repo (create once, see README)
   _JOB: mongodb-export
   _RUNTIME_SA: mongodb-dash-job@bidbrain-analytics.iam.gserviceaccount.com
-  _BUCKET: bidbrain-analytics-mongodb-dash
-  _DATASET: client_mongodb
 steps:
   - id: build
     name: gcr.io/cloud-builders/docker
@@ -36,8 +34,8 @@ steps:
       - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA
       - --region=${_REGION}
       - --service-account=${_RUNTIME_SA}
-      - --set-secrets=SNOWFLAKE_KEY=snowflake-bq-key:latest
-      - --set-env-vars=GCP_PROJECT=$PROJECT_ID,BQ_DATASET=${_DATASET},GCS_BUCKET=${_BUCKET},SF_ACCOUNT=ZGKGHOH-ISA98947,SF_USER=BQ_SYNC_USER,SF_WAREHOUSE=APAC_IN_WH
+      # No secrets / env vars: this job reads BigQuery views and writes GCS only;
+      # main.py hardcodes project/dataset/bucket and no longer touches Snowflake.
       - --memory=1Gi
 options:
   logging: CLOUD_LOGGING_ONLY
