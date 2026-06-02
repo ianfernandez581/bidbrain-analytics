@@ -40,6 +40,8 @@ TABLES = {
     'APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"':      "tradedesk_apac_all",
     'APAC_ALL_PLATFORM.PUBLIC."LinkedIn Ads - APAC"':     "linkedin_ads_apac",
     'APAC_ALL_PLATFORM.PUBLIC."Reddit Ads - APAC_ALL"':   "reddit_ads_apac_all",
+    'APAC_ALL_PLATFORM.PUBLIC."DV360 - APAC"':            "dv360_apac",
+    'APAC_ALL_PLATFORM.PUBLIC."Google Ads - APAC"':       "google_ads_apac",
 }
 
 

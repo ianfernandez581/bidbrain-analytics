@@ -16,6 +16,10 @@ client.
 |---|---|
 | `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` | `raw_snowflake.salesforce_cs_apac_all` |
 | `APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"` | `raw_snowflake.tradedesk_apac_all` |
+| `APAC_ALL_PLATFORM.PUBLIC."LinkedIn Ads - APAC"` | `raw_snowflake.linkedin_ads_apac` |
+| `APAC_ALL_PLATFORM.PUBLIC."Reddit Ads - APAC_ALL"` | `raw_snowflake.reddit_ads_apac_all` |
+| `APAC_ALL_PLATFORM.PUBLIC."DV360 - APAC"` | `raw_snowflake.dv360_apac` |
+| `APAC_ALL_PLATFORM.PUBLIC."Google Ads - APAC"` | `raw_snowflake.google_ads_apac` |
 
 To add another source table, add one line to `TABLES` in `loader.py`.
 
