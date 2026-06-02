@@ -54,6 +54,18 @@
   .export-btn:hover{border-color:var(--stt-red);color:var(--stt-red)}
   .export-btn svg{width:14px;height:14px;flex:none}
 
+  /* ---- country filter chips ---- */
+  .control-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--stt-line)}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--stt-mute)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid var(--stt-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color .15s ease,background .15s ease;color:var(--stt-ink)}
+  .chip:hover{border-color:var(--stt-red)}
+  .chip.on{background:var(--stt-dark);color:#fff;border-color:var(--stt-dark)}
+  .chip .check{opacity:0;font-size:10px;color:var(--stt-red2)}
+  .chip.on .check{opacity:1}
+  .chip-action{background:none;border:1px dashed var(--stt-line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--stt-mute)}
+  .chip-action:hover{color:var(--stt-ink);border-color:var(--stt-mute)}
+
   .tabpane{display:none}
 
   .section{border-top:1px solid var(--stt-line);padding-top:18px;margin-top:24px}
@@ -185,6 +197,13 @@
             <span>Export data</span>
           </button>
         </div>
+      </div>
+      <div class="control-filters" id="countryFilterRow">
+        <span class="lbl">Country</span>
+        <div class="chips" id="countryChips"></div>
+        <button class="chip-action" onclick="allCountries()">All</button>
+        <button class="chip-action" onclick="clearCountries()">Clear</button>
+        <span class="ctrl-note" style="margin-left:6px" id="countryNote"></span>
       </div>
     </div>
 
@@ -379,6 +398,7 @@ const BUCKET_COLOR = { Paid:C.red, Organic:C.teal, Direct:C.slate, Referral:C.te
 // STATE / HELPERS
 //==============================================================================
 let DATA = null, charts = {}, activeTab = 'overview';
+let activeCountries = new Set();   // GA4 account_name -> "Country" filter (Global off by default)
 const el = id => document.getElementById(id);
 
 const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
@@ -398,6 +418,58 @@ function deltaHTML(now, base){
 }
 
 //==============================================================================
+// COUNTRY FILTER — aggregate the market-grained GA4 arrays over selected countries
+//==============================================================================
+const countryOk = m => activeCountries.has(m);
+function selCountries(){ return (DATA.countries||[]).filter(c => activeCountries.has(c)); }
+
+// Sum ga4_kpi_market over the selected countries -> one totals object.
+function ga4Kpi(){
+  const o = {sessions:0,engaged_sessions:0,users:0,new_users:0,page_views:0,eng_duration:0,
+             conversions:0,paid_sessions:0,display_sessions:0,social_sessions:0,
+             prior_sessions:0,prior_paid_sessions:0};
+  for(const r of DATA.ga4_kpi_market){ if(!countryOk(r.market)) continue; for(const k in o) o[k]+=r[k]||0; }
+  return o;
+}
+// month/week -> summed GA4 fields over selected countries.
+function ga4MonthlyMap(){
+  const m = {};
+  for(const r of DATA.ga4_monthly_market){ if(!countryOk(r.market)) continue;
+    const e = m[r.month] || (m[r.month] = {sessions:0,paid_sessions:0,organic_sessions:0,direct_sessions:0,
+      other_sessions:0,display_sessions:0,social_sessions:0,engaged_sessions:0,users:0,conversions:0});
+    for(const k in e) e[k]+=r[k]||0;
+  }
+  return m;
+}
+function ga4WeeklyMap(){
+  const m = {};
+  for(const r of DATA.ga4_weekly_market){ if(!countryOk(r.market)) continue;
+    const e = m[r.week_start] || (m[r.week_start] = {ga4_sessions:0,paid_sessions:0,display_sessions:0,social_sessions:0});
+    for(const k in e) e[k]+=r[k]||0;
+  }
+  return m;
+}
+function ga4Channels(){
+  const m = {};
+  for(const r of DATA.ga4_channels_market){ if(!countryOk(r.market)) continue;
+    const e = m[r.channel] || (m[r.channel] = {channel:r.channel,bucket:r.bucket,sessions:0,engaged:0,users:0,conversions:0});
+    e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.users+=r.users||0; e.conversions+=r.conversions||0;
+  }
+  return Object.values(m).filter(c=>c.sessions>0).sort((a,b)=>b.sessions-a.sessions);
+}
+function ga4MarketsSel(){
+  return DATA.ga4_kpi_market.filter(r=>countryOk(r.market)).slice().sort((a,b)=>b.sessions-a.sessions);
+}
+function ga4Sources(){
+  const m = {};
+  for(const r of DATA.ga4_sources_market){ if(!countryOk(r.market)) continue;
+    const e = m[r.source_medium] || (m[r.source_medium] = {source_medium:r.source_medium,channel:r.channel,bucket:r.bucket,sessions:0,engaged:0,conversions:0});
+    e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.conversions+=r.conversions||0;
+  }
+  return Object.values(m).sort((a,b)=>b.sessions-a.sessions).slice(0,15);
+}
+
+//==============================================================================
 // BOOT
 //==============================================================================
 async function boot(){
@@ -405,6 +477,8 @@ async function boot(){
     const res = await fetch(JSON_URL, {cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA = await res.json();
+    // Country filter defaults to every property EXCEPT "Global".
+    activeCountries = new Set((DATA.countries||[]).filter(c => c !== 'Global'));
     const h = (location.hash||'').replace('#','');
     if(['overview','paid','web','link'].includes(h)) activeTab = h;
     el('loading').style.display='none';
@@ -438,7 +512,25 @@ function renderControls(){
     web:'GA4 website analytics', link:'Connecting media to traffic'
   };
   el('ctrlNote').textContent = notes[activeTab]||'';
+
+  // Country chips — drive every GA4 (website-traffic) figure. Hidden on Paid Media (no GA4 there).
+  const showFilter = activeTab !== 'paid';
+  el('countryFilterRow').style.display = showFilter ? 'flex' : 'none';
+  const wrap = el('countryChips'); wrap.innerHTML = '';
+  (DATA.countries||[]).forEach(c => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (activeCountries.has(c) ? ' on' : '');
+    b.innerHTML = `<span class="check">✓</span>${c}`;
+    b.onclick = () => { activeCountries.has(c) ? activeCountries.delete(c) : activeCountries.add(c); renderControls(); renderActive(); };
+    wrap.appendChild(b);
+  });
+  const n = selCountries().length, total = (DATA.countries||[]).length;
+  el('countryNote').textContent = n === 0 ? 'Select at least one country'
+    : n === total ? 'all countries' : `${n} of ${total} countries · website-traffic figures only`;
 }
+
+function allCountries(){ activeCountries = new Set(DATA.countries||[]); renderControls(); renderActive(); }
+function clearCountries(){ activeCountries = new Set(); renderControls(); renderActive(); }
 
 function setTab(t){ activeTab=t; location.hash=t; renderControls(); renderActive(); }
 
@@ -468,25 +560,27 @@ function kpiCard(cls,label,value,delta){
 // OVERVIEW
 //==============================================================================
 function renderOverview(){
-  const k = DATA.kpi, w = DATA.window;
+  const k = DATA.kpi;            // ad + window + fx (whole campaign)
+  const g = ga4Kpi();            // GA4 totals over selected countries
+  const gm = ga4MonthlyMap();
   const ctr = pct(k.ad_clicks, k.ad_imps);
-  const adShare = pct(k.paid_sessions, k.sessions);
-  const engRate = pct(k.engaged_sessions, k.sessions);
+  const adShare = pct(g.paid_sessions, g.sessions);
+  const engRate = pct(g.engaged_sessions, g.sessions);
   el('ovKpis').innerHTML =
     kpiCard('accent','Media spend (SGD)', money(k.ad_spend_sgd), `${money(k.li_cost_usd,'US$')} LinkedIn · ${money(k.dv_spend_sgd)} DV360`)
   + kpiCard('accent','Ad impressions', fmtM(k.ad_imps), `LinkedIn ${fmtM(k.li_imps)} · DV360 ${fmtM(k.dv_imps)}`)
   + kpiCard('accent','Ad clicks', fmtN(k.ad_clicks), `${fmtPct(ctr,2)} blended CTR`)
-  + kpiCard('web','Website sessions', fmtM(k.sessions), `${deltaHTML(k.sessions,k.prior_sessions)} vs prior year`)
-  + kpiCard('web','Ad-driven sessions', fmtM(k.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(k.paid_sessions,k.prior_paid_sessions)} YoY`)
-  + kpiCard('web','Engaged sessions', fmtM(k.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`);
+  + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
+  + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
+  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`);
 
-  // Hero: ad impressions (bars, right) vs sessions (line, left)
+  // Hero: ad impressions (bars, right, whole) vs website sessions (line, left, country-filtered)
   const M = DATA.monthly;
   const labels = M.map(r=>monthLabel(r.month));
   const inWin = M.map(r => r.ad_imps>0);
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
-      { type:'line', label:'Website sessions', data:M.map(r=>r.sessions), yAxisID:'y',
+      { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
         borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
         fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
       { type:'bar', label:'Ad impressions', data:M.map(r=>r.ad_imps), yAxisID:'y1',
@@ -494,13 +588,13 @@ function renderOverview(){
         borderRadius:4, maxBarThickness:26, order:1 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):fmtN(c.parsed.y)}`}}},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}}},
       scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
         y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
   });
 
-  // Donut: sessions by channel (campaign window) — group small ones
-  const ch = DATA.ga4_channels.slice().sort((a,b)=>b.sessions-a.sessions);
+  // Donut: sessions by channel (country-filtered)
+  const ch = ga4Channels();
   const donutData = ch.map(c=>({label:c.channel, v:c.sessions, color:BUCKET_COLOR[c.bucket]||C.grey}));
   charts.ovDonut = new Chart(el('ovDonut'),{
     type:'doughnut',
@@ -508,19 +602,19 @@ function renderOverview(){
       backgroundColor:donutData.map((d,i)=>shade(d.color,i)), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,k.sessions),1)})`}} },
-      cutoutText:{ line1:fmtM(k.sessions), line2:'sessions' } },
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,g.sessions),1)})`}} },
+      cutoutText:{ line1:fmtM(g.sessions), line2:'sessions' } },
     plugins:[centerText]
   });
 
-  // Stacked monthly paid vs rest
+  // Stacked monthly paid vs rest (country-filtered)
   charts.ovStack = new Chart(el('ovStack'),{
     type:'bar',
     data:{ labels, datasets:[
-      { label:'Paid', data:M.map(r=>r.paid_sessions), backgroundColor:C.red, stack:'s', borderRadius:{topLeft:3,topRight:3} },
-      { label:'Organic', data:M.map(r=>r.organic_sessions), backgroundColor:C.teal, stack:'s' },
-      { label:'Direct', data:M.map(r=>r.direct_sessions), backgroundColor:C.slate, stack:'s' },
-      { label:'Other', data:M.map(r=>r.other_sessions), backgroundColor:C.grey, stack:'s' }
+      { label:'Paid', data:M.map(r=>(gm[r.month]||{}).paid_sessions||0), backgroundColor:C.red, stack:'s', borderRadius:{topLeft:3,topRight:3} },
+      { label:'Organic', data:M.map(r=>(gm[r.month]||{}).organic_sessions||0), backgroundColor:C.teal, stack:'s' },
+      { label:'Direct', data:M.map(r=>(gm[r.month]||{}).direct_sessions||0), backgroundColor:C.slate, stack:'s' },
+      { label:'Other', data:M.map(r=>(gm[r.month]||{}).other_sessions||0), backgroundColor:C.grey, stack:'s' }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
@@ -540,8 +634,10 @@ function renderOverview(){
     plugins:[centerText]
   });
 
-  el('ovNote').innerHTML = `<b>How to read this.</b> Three live sources are joined: GA4 (website sessions across `
-    + `${DATA.ga4_markets.length} STT GDC properties), LinkedIn paid-social, and DV360 programmatic display. `
+  const selN = selCountries().length, totN = (DATA.countries||[]).length;
+  const scope = selN===totN ? 'all STT GDC properties' : `${selN} selected ${selN===1?'country':'countries'}`;
+  el('ovNote').innerHTML = `<b>How to read this.</b> Website sessions reflect the <b>Country</b> filter above (${scope}); `
+    + `paid-media spend, impressions &amp; clicks are the whole APAC campaign (LinkedIn isn't reported by country). `
     + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}. `
     + `Spend is reported in SGD — LinkedIn's USD is converted at US$1 = S$${DATA.fx_usd_sgd}. `
     + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;
@@ -661,18 +757,18 @@ function renderPaid(){
 // WEBSITE TRAFFIC
 //==============================================================================
 function renderWeb(){
-  const k = DATA.kpi;
-  const engRate=pct(k.engaged_sessions,k.sessions), avgEng=k.sessions?k.eng_duration/k.sessions:0;
+  const g = ga4Kpi();
+  const engRate=pct(g.engaged_sessions,g.sessions), avgEng=g.sessions?g.eng_duration/g.sessions:0;
   el('webKpis').innerHTML =
-    kpiCard('web','Sessions', fmtM(k.sessions), `${deltaHTML(k.sessions,k.prior_sessions)} vs prior year`)
-  + kpiCard('web','Total users', fmtM(k.users), `${fmtM(k.new_users)} new`)
-  + kpiCard('web','Engaged sessions', fmtM(k.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard('web','Page views', fmtM(k.page_views), `${(k.page_views/k.sessions).toFixed(1)} per session`)
+    kpiCard('web','Sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
+  + kpiCard('web','Total users', fmtM(g.users), `${fmtM(g.new_users)} new`)
+  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
+  + kpiCard('web','Page views', fmtM(g.page_views), `${g.sessions?(g.page_views/g.sessions).toFixed(1):'—'} per session`)
   + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
-  + kpiCard('accent','Ad-driven sessions', fmtM(k.paid_sessions), `${fmtPct(pct(k.paid_sessions,k.sessions),0)} of sessions`);
+  + kpiCard('accent','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
 
-  // sessions by channel (horizontal bar)
-  const ch = DATA.ga4_channels.slice().filter(c=>c.sessions>0).sort((a,b)=>b.sessions-a.sessions);
+  // sessions by channel (horizontal bar, country-filtered)
+  const ch = ga4Channels();
   charts.webChannels = new Chart(el('webChannels'),{
     type:'bar',
     data:{ labels:ch.map(c=>c.channel), datasets:[{ label:'Sessions', data:ch.map(c=>c.sessions),
@@ -683,23 +779,24 @@ function renderWeb(){
       scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX() } }
   });
 
-  // monthly trend total vs paid vs display
+  // monthly trend total vs paid vs display (country-filtered)
   const M = DATA.monthly;
+  const gm = ga4MonthlyMap();
   const labels = M.map(r=>monthLabel(r.month));
   charts.webTrend = new Chart(el('webTrend'),{
     type:'line',
     data:{ labels, datasets:[
-      { label:'Total sessions', data:M.map(r=>r.sessions), borderColor:C.teal, backgroundColor:'rgba(14,124,134,.08)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2 },
-      { label:'Paid sessions', data:M.map(r=>r.paid_sessions), borderColor:C.red, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
-      { label:'Display (DV360)', data:M.map(r=>r.display_sessions), borderColor:C.redDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
+      { label:'Total sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), borderColor:C.teal, backgroundColor:'rgba(14,124,134,.08)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2 },
+      { label:'Paid sessions', data:M.map(r=>(gm[r.month]||{}).paid_sessions||0), borderColor:C.red, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
+      { label:'Display (DV360)', data:M.map(r=>(gm[r.month]||{}).display_sessions||0), borderColor:C.redDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
       scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
   });
 
-  // sessions by market (stacked: paid + rest)
-  const mk = DATA.ga4_markets.slice().sort((a,b)=>b.sessions-a.sessions);
+  // sessions by market (stacked: paid + rest) — only the selected countries
+  const mk = ga4MarketsSel();
   charts.webMarkets = new Chart(el('webMarkets'),{
     type:'bar',
     data:{ labels:mk.map(r=>r.market), datasets:[
@@ -711,8 +808,8 @@ function renderWeb(){
       scales:{ x:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX({stacked:true}) } }
   });
 
-  // top sources table (top 15)
-  const srcs = DATA.ga4_sources.slice(0,15);
+  // top sources table (top 15, country-filtered)
+  const srcs = ga4Sources();
   el('webSources').querySelector('tbody').innerHTML = srcs.map(r=>{
     const isAd = /googledv360|dv360|linkedin|\/ cpc|\/ cpm|banner/i.test(r.source_medium) && r.bucket==='Paid';
     const tagCls = r.bucket==='Paid'?'paid':r.bucket==='Organic'?'org':r.bucket==='Direct'?'dir':'oth';
@@ -728,13 +825,17 @@ function renderWeb(){
 //==============================================================================
 function renderLink(){
   const k = DATA.kpi, M = DATA.monthly, W = DATA.weekly;
-  const campSessions = k.display_sessions + k.social_sessions;
+  const g = ga4Kpi(), gm = ga4MonthlyMap(), gw = ga4WeeklyMap();   // GA4 over selected countries
+  const campSessions = g.display_sessions + g.social_sessions;
+  const dsw = r => { const e = gw[r.week_start]||{}; return (e.display_sessions||0)+(e.social_sessions||0); };
 
-  // before vs during (DV360 launched Nov 2025)
-  const before = M.filter(r=> r.month>='2025-06' && r.month<'2025-11');
-  const during = M.filter(r=> r.month>='2025-11' && r.month<'2026-06');
-  const avg = (arr,f)=> arr.length? arr.reduce((s,r)=>s+f(r),0)/arr.length : 0;
-  const dispBefore = avg(before,r=>r.display_sessions), dispDuring = avg(during,r=>r.display_sessions);
+  // before vs during (DV360 launched Nov 2025) — Display sessions for the selected countries
+  const months = M.map(r=>r.month);
+  const dispOf = mo => (gm[mo]||{}).display_sessions||0;
+  const before = months.filter(mo=> mo>='2025-06' && mo<'2025-11');
+  const during = months.filter(mo=> mo>='2025-11' && mo<'2026-06');
+  const avg = arr => arr.length? arr.reduce((s,mo)=>s+dispOf(mo),0)/arr.length : 0;
+  const dispBefore = avg(before), dispDuring = avg(during);
   const lift = dispBefore? (dispDuring-dispBefore)/dispBefore : 0;
 
   el('linkHeadline').innerHTML = `<b>The media moved the site.</b> Programmatic-display sessions averaged `
@@ -757,7 +858,7 @@ function renderLink(){
   const labels = wk.map(r=>dayLabel(r.week_start));
   charts.linkWeekly = new Chart(el('linkWeekly'),{
     data:{ labels, datasets:[
-      { type:'line', label:'Display + Paid-Social sessions', data:wk.map(r=>r.display_sessions+r.social_sessions),
+      { type:'line', label:'Display + Paid-Social sessions', data:wk.map(dsw),
         borderColor:C.dark, backgroundColor:'rgba(35,39,46,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
       { type:'bar', label:'Ad impressions', data:wk.map(r=>r.ad_imps), backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
     ]},
@@ -769,7 +870,7 @@ function renderLink(){
   });
 
   // scatter ad impressions vs campaign sessions, weeks with delivery
-  const pts = wk.filter(r=>r.ad_imps>0).map(r=>({x:r.ad_imps, y:r.display_sessions+r.social_sessions}));
+  const pts = wk.filter(r=>r.ad_imps>0).map(r=>({x:r.ad_imps, y:dsw(r)}));
   const r = pearson(pts.map(p=>p.x), pts.map(p=>p.y));
   el('linkScatterHint').innerHTML = `Each dot is one campaign week with ad delivery. Correlation <b>r = ${r.toFixed(2)}</b> `
     + `(${r>0.6?'strong':r>0.3?'moderate':'weak'} positive relationship).`;
@@ -818,8 +919,11 @@ function exportAllData(){
   const push = (section,obj)=>{ lines.push(''); lines.push('# '+section); const keys=Object.keys(obj[0]||{}); lines.push(keys.join(',')); obj.forEach(r=>lines.push(keys.map(k=>csv(r[k])).join(','))); };
   lines.push('# STT GDC APAC dashboard export'); lines.push('# window,'+DATA.window.start+','+DATA.window.end);
   lines.push('# fx_usd_sgd,'+DATA.fx_usd_sgd);
-  push('monthly', DATA.monthly); push('weekly', DATA.weekly);
-  push('ga4_channels', DATA.ga4_channels); push('ga4_markets', DATA.ga4_markets); push('ga4_sources', DATA.ga4_sources);
+  lines.push('# selected_countries,'+selCountries().join('|'));
+  push('monthly (ad delivery, whole campaign)', DATA.monthly); push('weekly (ad delivery, whole campaign)', DATA.weekly);
+  push('ga4_kpi_by_country', DATA.ga4_kpi_market); push('ga4_monthly_by_country', DATA.ga4_monthly_market);
+  push('ga4_weekly_by_country', DATA.ga4_weekly_market); push('ga4_channels_by_country', DATA.ga4_channels_market);
+  push('ga4_sources_by_country', DATA.ga4_sources_market);
   push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns); push('dv_markets', DATA.dv_markets);
   const blob = new Blob([lines.join('\n')], {type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='stt_gdc_dashboard.csv'; a.click();

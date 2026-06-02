@@ -37,6 +37,10 @@ Paid Search in GA4 is Google Ads, which is **not** in this spend dataset — so 
 
 ## The 4 dashboard tabs (`dash/dashboard.html`)
 
+A **Country** filter (top of the page) slices every website-traffic figure by GA4 property
+(`account_name` → market), with **Global deselected by default**; paid-media delivery stays
+whole-campaign (LinkedIn isn't reported by country). It's hidden on the Paid Media tab.
+
 1. **Overview** — media spend / impressions / clicks vs website sessions; the monthly hero chart, the
    channel-mix donut, paid-vs-rest stacked sessions, and spend-by-platform.
 2. **Paid Media** — LinkedIn + DV360 delivery: monthly impressions & spend, platform comparison table,

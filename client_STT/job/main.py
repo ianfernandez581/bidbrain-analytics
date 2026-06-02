@@ -68,13 +68,22 @@ def main():
 
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
-    ga4_channels = rows(bq, "ga4_channels")
-    ga4_markets = rows(bq, "ga4_markets")
-    ga4_sources = rows(bq, "ga4_sources")
+    weekly = rows(bq, "weekly")
     li_creative = rows(bq, "li_creative")
     li_campaigns = rows(bq, "li_campaigns")
     dv_markets = rows(bq, "dv_markets")
-    weekly = rows(bq, "weekly")
+    # Market-grained GA4 — the dashboard's Country filter sums the selected
+    # markets out of these client-side. Replaces the old whole-campaign GA4
+    # rollups (ga4_channels / ga4_markets / ga4_sources).
+    ga4_kpi_market = rows(bq, "ga4_kpi_market")
+    ga4_monthly_market = rows(bq, "ga4_monthly_market")
+    ga4_weekly_market = rows(bq, "ga4_weekly_market")
+    ga4_channels_market = rows(bq, "ga4_channels_market")
+    ga4_sources_market = rows(bq, "ga4_sources_market")
+
+    # Country options for the filter, ordered by total sessions desc (ga4_kpi_market
+    # is already ordered that way). "Global" is excluded by default in the frontend.
+    countries = [r["market"] for r in ga4_kpi_market]
 
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
@@ -132,32 +141,62 @@ def main():
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_sgd": num(r["ad_spend_sgd"]),
         } for r in monthly],
-        "ga4_channels": [{
-            "channel": r["channel_group"],
-            "bucket": r["channel_bucket"],
-            "sessions": num(r["sessions"]),
-            "engaged": num(r["engaged_sessions"]),
-            "users": num(r["users"]),
-            "conversions": num(r["conversions"]),
-        } for r in ga4_channels],
-        "ga4_markets": [{
+        "countries": countries,
+        "ga4_kpi_market": [{
             "market": r["market"],
             "sessions": num(r["sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "new_users": num(r["new_users"]),
+            "page_views": num(r["page_views"]),
+            "eng_duration": num(r["eng_duration"]),
+            "conversions": num(r["conversions"]),
             "paid_sessions": num(r["paid_sessions"]),
             "display_sessions": num(r["display_sessions"]),
             "social_sessions": num(r["social_sessions"]),
-            "engaged": num(r["engaged_sessions"]),
+            "prior_sessions": num(r["prior_sessions"]),
+            "prior_paid_sessions": num(r["prior_paid_sessions"]),
+        } for r in ga4_kpi_market],
+        "ga4_monthly_market": [{
+            "month": r["month"],
+            "market": r["market"],
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
             "users": num(r["users"]),
             "conversions": num(r["conversions"]),
-        } for r in ga4_markets],
-        "ga4_sources": [{
-            "source_medium": r["source_medium"],
+        } for r in ga4_monthly_market],
+        "ga4_weekly_market": [{
+            "week_start": ymd(r["week_start"]),
+            "market": r["market"],
+            "ga4_sessions": num(r["ga4_sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+        } for r in ga4_weekly_market],
+        "ga4_channels_market": [{
+            "market": r["market"],
             "channel": r["channel_group"],
             "bucket": r["channel_bucket"],
             "sessions": num(r["sessions"]),
             "engaged": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
             "conversions": num(r["conversions"]),
-        } for r in ga4_sources],
+        } for r in ga4_channels_market],
+        "ga4_sources_market": [{
+            "market": r["market"],
+            "source_medium": r["source_medium"],
+            "channel": r["channel"],
+            "bucket": r["bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_sources_market],
         "li_creative": [{
             "creative_type": r["creative_type"],
             "imps": num(r["imps"]),

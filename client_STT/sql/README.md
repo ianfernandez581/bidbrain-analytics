@@ -19,6 +19,16 @@ filter views first, then the roll-ups that read them). The export job
 | `10_li_campaigns.sql` | `li_campaigns` | LinkedIn by campaign. |
 | `11_dv_markets.sql` | `dv_markets` | DV360 by market (SGD spend). |
 | `12_weekly.sql` | `weekly` | Per-ISO-week ad delivery vs Display+Social sessions — the Ads→Traffic correlation. |
+| `13_ga4_kpi_market.sql` | `ga4_kpi_market` | GA4 headline metrics **by market** + prior-year baseline — powers the Country filter. |
+| `14_ga4_monthly_market.sql` | `ga4_monthly_market` | GA4 monthly sessions **by market** (Country-filtered trends). |
+| `15_ga4_weekly_market.sql` | `ga4_weekly_market` | GA4 weekly sessions **by market** (Country-filtered Ads→Traffic). |
+| `16_ga4_channels_market.sql` | `ga4_channels_market` | GA4 sessions by channel **by market**. |
+| `17_ga4_sources_market.sql` | `ga4_sources_market` | GA4 top source/medium **by market** (global top-60, re-ranked client-side). |
+
+The **Country filter** (dashboard) is the GA4 `account_name` → `market` label, with "Global" deselected by
+default. The `13–17` market-grained views ship the per-market GA4 data the dashboard sums over the
+selected countries; `06–08` (`ga4_channels` / `ga4_markets` / `ga4_sources`) are the whole-campaign
+equivalents, kept for reference but no longer read by the export job.
 
 **The filter + the FX/window constants are the only STT-specific bits.** The account list lives once in
 `stg_ga4`; the LinkedIn account and DV360 campaign live once in `stg_linkedin`/`stg_dv360`; everything
