@@ -139,7 +139,7 @@ METRICS_B = (
 FIELDS_GROUP_A = ",".join([METADATA_FIELDS, DIMENSIONS, METRICS_A])
 FIELDS_GROUP_B = ",".join([METADATA_FIELDS, DIMENSIONS, METRICS_B])
 
-CHUNK_DAYS = 3
+CHUNK_DAYS = 14
 STOP_AFTER_EMPTY_CHUNKS = 5
 MIN_DATE = date(2015, 1, 1)
 TIMEOUT_SEC = 120
@@ -235,23 +235,27 @@ def account_key(connector_or_id):
     property_id values stored in BigQuery."""
     return re.sub(r"\D", "", str(connector_or_id or ""))
 
-def latest_dates_per_account(bq):
-    """MAX(metric_date) already in the main table, keyed by numeric property id.
-    Properties with no rows are simply absent from the returned dict."""
+def date_bounds_per_account(bq):
+    """(MIN, MAX) metric_date per property_id in the main table. Absent if no
+    rows. MAX drives the forward incremental window; MIN lets the backfill RESUME
+    from below the earliest day we have, so an interrupted backfill continues on
+    the next run instead of needing a truncate."""
     sql = f"""
-        SELECT property_id, MAX(metric_date) AS max_date
+        SELECT property_id,
+               MIN(metric_date) AS min_date,
+               MAX(metric_date) AS max_date
         FROM `{PROJECT_ID}.{DATASET}.{MAIN_TABLE}`
         WHERE property_id IS NOT NULL
         GROUP BY property_id
     """
     out = {}
     for r in bq.query(sql).result():
-        md = r["max_date"]
-        if md is None:
+        mn, mx = r["min_date"], r["max_date"]
+        if mx is None:
             continue
-        if isinstance(md, str):          # column may be DATE or STRING; normalise
-            md = date.fromisoformat(md[:10])
-        out[account_key(r["property_id"])] = md
+        if isinstance(mn, str): mn = date.fromisoformat(mn[:10])
+        if isinstance(mx, str): mx = date.fromisoformat(mx[:10])
+        out[account_key(r["property_id"])] = (mn, mx)
     return out
 
 def chunk_filename(d_from, d_to, cache_tag, group):
@@ -605,23 +609,30 @@ def main():
         log.info(f"Forward-loading {start_d}..{end_d} (all {len(SELECT_ACCOUNTS)} properties together)")
         process_forward_range(start_d, end_d, SELECT_ACCOUNTS, "all")
     else:
-        last_dates = latest_dates_per_account(bq)
-        log.info(f"Existing data in {MAIN_TABLE} for {len(last_dates)}/{len(SELECT_ACCOUNTS)} configured property(ies)")
+        bounds = date_bounds_per_account(bq)
+        log.info(f"Existing data in {MAIN_TABLE} for {len(bounds)}/{len(SELECT_ACCOUNTS)} configured property(ies)")
         for account in SELECT_ACCOUNTS:
             key = account_key(account)
-            last = last_dates.get(key)
+            first, last = bounds.get(key, (None, None))
             log.info("=" * 60)
             if last is None:
                 log.info(f"PROPERTY {account}: no rows in BQ -> full backfill (backward walk)")
                 process_backward_walk(end_d, [account], key)
             else:
+                # 1) Forward: re-pull the trailing lookback so late/modeled conversions firm up.
                 start = last - timedelta(days=INCREMENTAL_LOOKBACK_DAYS)
                 if start < MIN_DATE:
                     start = MIN_DATE
-                if start > end_d:          # already current; still re-pull its last day
+                if start > end_d:
                     start = end_d
                 log.info(f"PROPERTY {account}: last BQ day {last} -> incremental {start}..{end_d}")
                 process_forward_range(start, end_d, [account], key)
+                # 2) Backward: continue the backfill from below the earliest day we have.
+                #    Complete history -> hits empty chunks and stops after STOP_AFTER_EMPTY_CHUNKS.
+                #    Interrupted backfill -> resumes here. No truncate needed.
+                if first is not None and first > MIN_DATE:
+                    log.info(f"PROPERTY {account}: earliest BQ day {first} -> resume backward fill below it")
+                    process_backward_walk(first - timedelta(days=1), [account], key)
 
     overall = (time.monotonic() - overall_start) / 60
     log.info("=" * 60)
