@@ -33,9 +33,13 @@ SF_WAREHOUSE = "APAC_IN_WH"
 
 # Snowflake source table (fully qualified)  ->  BigQuery table name in raw_snowflake.
 # Whole table, every client. Add a line to mirror another source table.
+# These are the SHARED APAC ad-platform tables (one per channel); each client
+# filters its own slice in its views (e.g. ACCOUNT_NAME / ADVERTISER_NAME).
 TABLES = {
     'APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"': "salesforce_cs_apac_all",
     'APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL"':      "tradedesk_apac_all",
+    'APAC_ALL_PLATFORM.PUBLIC."LinkedIn Ads - APAC"':     "linkedin_ads_apac",
+    'APAC_ALL_PLATFORM.PUBLIC."Reddit Ads - APAC_ALL"':   "reddit_ads_apac_all",
 }
 
 
