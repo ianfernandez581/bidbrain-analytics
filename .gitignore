@@ -7,6 +7,12 @@
 *credentials*.json
 service-account*.json
 .env
+# Bare-named private keys (no extension) — these slipped past *.key before
+*_key
+mirror_key
+id_rsa
+id_ecdsa
+id_ed25519
 
 # Local data & logs
 chunks/
@@ -21,6 +27,7 @@ venv/
 # OS / editor
 .DS_Store
 Thumbs.db
+desktop.ini
 *.ndjson
 _run/
 
