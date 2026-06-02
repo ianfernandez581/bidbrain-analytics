@@ -17,6 +17,18 @@ This replaces Cloudflare's current setup (Snowflake **tasks** writing
 page). The two payloads are merged into one `cloudflare.json`, served behind the
 same Flask password gate MongoDB uses.
 
+## What's in this folder
+
+| Path | What it is |
+|---|---|
+| [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): pulls Snowflake final-model views → lands `src_*` → reads thin BigQuery views → writes `cloudflare.json`. [Guide →](job/README.md) |
+| [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. [Guide →](dash/README.md) |
+| [`sql/`](sql/README.md) | The **thin** BigQuery pass-through views that lock the JSON column contract. [Guide →](sql/README.md) |
+| [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner). |
+| [`seed_static.py`](seed_static.py) | One-time copy of Cloudflare's three **static** Snowflake inputs (LINE JP spend, pacing targets, account tiers) into `src_*`. Re-run only when those manual uploads change. |
+| [`deploy_cloudflare.ps1`](deploy_cloudflare.ps1) | **One-shot, idempotent** stand-up of the entire pipeline on GCP (APIs, bucket, dataset, service accounts, secrets, bootstrap, scheduler, CD triggers). The fastest way to replicate this client. |
+| [`scheduler.ps1`](scheduler.ps1) | Creates/refreshes the daily Cloud Scheduler trigger for `cloudflare-export` (22:00 UTC). |
+
 ## Deliberate divergence from client_mongodb
 
 MongoDB does its modelling **in BigQuery** (raw Snowflake -> `src_*` ->
@@ -136,3 +148,9 @@ Then, mirroring MongoDB:
 - **Friendly URL** — Cloudflare CNAME `cloudflare.bidbrain.ai` -> the service's
   `*.run.app` host, Proxied, SSL Full (strict), Host Header Override. See
   `dash/LIVE_URL.md`.
+
+## See also
+
+- [Root README](../README.md) — the whole-platform map, security model, and naming conventions.
+- [`../client_mongodb/`](../client_mongodb/README.md) — the template this client is based on (and diverges from).
+- [`../snowflake_data_pull/`](../snowflake_data_pull/README.md) — the shared raw layer (note: this client does **not** use it; it pulls its own Snowflake schema directly — see [Deliberate divergence](#deliberate-divergence-from-client_mongodb)).

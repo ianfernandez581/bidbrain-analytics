@@ -4,6 +4,14 @@ The export job ([../job/main.py](../job/main.py)) reads these BigQuery views to
 build `cloudflare.json`. Apply them with `python client_cloudflare/create_views.py`
 (runner one level up).
 
+**Plain English:** for most clients these files hold the business logic. For Cloudflare they're
+deliberately **thin** — the real modelling already happened in Snowflake, so these views just
+re-expose the landed copy in the exact column shape the dashboard expects. Their job is to
+**lock the JSON contract**, not to compute anything.
+
+**Where this sits:** Snowflake final-model views → [`../job/`](../job/README.md) lands `src_*`
+→ **[these views]** → `cloudflare.json`.
+
 ## Why these are thin (unlike client_mongodb/sql)
 
 MongoDB's BigQuery views *derive* its model from raw `src_*` tables. Cloudflare's
@@ -44,3 +52,9 @@ Replace these pass-throughs with real BigQuery DDL ported from the four Snowflak
 `CREATE …` scripts (the `V_STG_*`, `V_PAID_ADS_FINAL_MODEL`, `V_PACING_FINAL_MODEL`
 logic), and switch the job to pull the raw `APAC_ALL_PLATFORM.PUBLIC.*` tables.
 Then BigQuery owns the model, exactly like MongoDB.
+
+## See also
+
+- [`../README.md`](../README.md) — client overview and the divergence rationale.
+- [`../job/README.md`](../job/README.md) — lands the `src_*` tables these views read; documents the JSON contract.
+- [`../../client_mongodb/sql/README.md`](../../client_mongodb/sql/README.md) — the template's views, which *do* compute the model.

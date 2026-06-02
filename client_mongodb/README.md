@@ -149,6 +149,12 @@ reads whatever JSON is currently in the bucket.
 | Service | `mongodb-dash` → https://mongodb-dash-p32gk2wuia-ts.a.run.app |
 | Data bucket / file | `bidbrain-analytics-mongodb-dash` / `mongodb.json` |
 
+## Subfolder guides (read these for detail)
+
+- [`job/`](job/README.md) — the export job (stage 2): reads BigQuery views → writes `mongodb.json`.
+- [`dash/`](dash/README.md) — the web app (stage 3): password gate + serves the dashboard UI.
+- [`sql/`](sql/README.md) — the BigQuery view DDL (the stage-2 transform) + how to apply / re-export it.
+
 ## Files in this folder
 
 | Path | What it is |
@@ -163,3 +169,9 @@ reads whatever JSON is currently in the bucket.
 
 > Stage 1 (the Snowflake → `raw_snowflake` copy) lives in `../snowflake_data_pull/`
 > because it's shared by every client, not specific to MongoDB.
+
+## See also
+
+- [Root README](../README.md) — the whole-platform map, security model, and naming conventions.
+- [`../snowflake_data_pull/`](../snowflake_data_pull/README.md) — stage 1 (fills `raw_snowflake`, shared).
+- [`../client_cloudflare/`](../client_cloudflare/README.md) — the second client, and how/why it diverges from this template.
