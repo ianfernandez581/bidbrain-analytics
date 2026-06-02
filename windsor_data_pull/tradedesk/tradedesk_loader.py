@@ -6,7 +6,19 @@ Runtime artifacts (chunk cache, log, temp NDJSON) -> _run/ next to this script
 (anchored to __file__, gitignored), so nothing scatters into the repo root.
 
 Same per-chunk pipeline + modes as meta_loader.py. Grain: one row per
-(campaign x date x ad_format). MERGE key = campaign_id + metric_date + ad_format.
+(campaign x ad_group x creative x date x ad_format).
+MERGE key = campaign_id + ad_group_id + creative_id + metric_date + ad_format.
+
+All fields below are from Windsor's "Ad Group Performance" report (verified
+against the TTD field reference), so they're all queryable in a single request.
+
+CONVERSIONS / "PIXEL FIRES": Windsor exposes TTD conversions only as anonymous
+numbered slots (click_conversion_01..12, view_through_conversion_01..12,
+conversion_touch_01..12). There is NO pixel name / pixel ID dimension in this
+connector. We pull the slots and store the populated ones as a compact JSON map
+in the `conversions` column. A "Pixel -> Event" table with real pixel names is
+NOT possible from Windsor alone -- it needs a slot->pixel mapping you maintain,
+or the TTD API directly.
 
 MODES
 -----
@@ -46,12 +58,31 @@ MAIN_TABLE = "perf_the_trade_desk"
 STAGING_TABLE = "perf_the_trade_desk_staging"
 GCS_BUCKET = "bidbrain-analytics-staging"
 WINDSOR_URL = "https://connectors.windsor.ai/tradedesk"
-WINDSOR_FIELDS = (
-    "advertiser,advertiser_id,date,campaign_id,campaign,ad_format,"
-    "impressions,clicks,advertiser_cost_adv_currency,"
-    "player_starts,player_25_complete,player_50_complete,"
-    "player_75_complete,player_completed_views"
-)
+
+# Conversion slots we pull (all in the Ad Group Performance report). These are
+# stored compactly in the `conversions` JSON column (only populated slots kept).
+# To also capture time-weighted-decay or revenue/currency variants, extend the
+# `kinds` tuple below -- they follow the same _NN naming.
+_CONVERSION_KINDS = ("click_conversion", "view_through_conversion", "conversion_touch")
+_CONVERSION_SLOTS = [
+    f"{kind}_{i:02d}" for kind in _CONVERSION_KINDS for i in range(1, 13)
+]
+
+WINDSOR_FIELDS = ",".join([
+    # Dimensions
+    "advertiser", "advertiser_id", "date",
+    "campaign_id", "campaign",
+    "ad_group_id", "ad_group_name",         # verified field IDs (no bare "ad_group")
+    "creative_id", "creative",              # "creative" = creative name in this report
+    "ad_format", "advertiser_currency_code",
+    # Core metrics
+    "impressions", "clicks", "advertiser_cost_adv_currency",
+    # Video
+    "player_starts", "player_25_complete", "player_50_complete",
+    "player_75_complete", "player_completed_views",
+    # Conversion slots (anonymous; see module docstring)
+    *_CONVERSION_SLOTS,
+])
 
 CHUNK_DAYS = 3
 STOP_AFTER_EMPTY_CHUNKS = 5
@@ -202,6 +233,17 @@ def to_num(v):
     try: return float(v)
     except (TypeError, ValueError): return None
 
+def extract_conversions(row):
+    """Collapse the numbered conversion slots into a compact dict of only the
+    populated (non-zero) slots, e.g. {"click_conversion_01": 5.0}. Returns a
+    JSON string, or None if nothing fired. Full fidelity is still in raw_row."""
+    out = {}
+    for slot in _CONVERSION_SLOTS:
+        v = to_num(row.get(slot))
+        if v:  # skip None and 0
+            out[slot] = v
+    return json.dumps(out) if out else None
+
 def transform(row, ingested_at_iso):
     client_slug, agency_slug = infer_slugs(row)
     g = row.get
@@ -211,6 +253,12 @@ def transform(row, ingested_at_iso):
         "advertiser_name": g("advertiser"),
         "campaign_id": g("campaign_id"),
         "campaign_name": g("campaign"),
+        # IDs coalesced to "unknown" so they're never NULL in the MERGE key
+        # (NULL != NULL in SQL would break idempotency) -- same as ad_format.
+        "ad_group_id": g("ad_group_id") or "unknown",
+        "ad_group_name": g("ad_group_name"),
+        "creative_id": g("creative_id") or "unknown",
+        "creative_name": g("creative"),
         "client_slug": client_slug,
         "agency_slug": agency_slug,
         "ad_format": g("ad_format") or "unknown",
@@ -218,7 +266,9 @@ def transform(row, ingested_at_iso):
         "impressions": to_int(g("impressions")) or 0,
         "clicks": to_int(g("clicks")) or 0,
         "cost": to_num(g("advertiser_cost_adv_currency")) or 0,
-        "currency": "AUD",
+        # Real per-advertiser currency now (was hardcoded "AUD").
+        "currency": g("advertiser_currency_code") or "AUD",
+        "conversions": extract_conversions(row),
         "video_starts": to_int(g("player_starts")),
         "video_25": to_int(g("player_25_complete")),
         "video_50": to_int(g("player_50_complete")),
@@ -229,10 +279,15 @@ def transform(row, ingested_at_iso):
         "raw_row": json.dumps(row),
     }
 
-# Non-key columns updated on MERGE match (keys: campaign_id, metric_date, ad_format)
+# Non-key columns updated on MERGE match.
+# Keys are: campaign_id, ad_group_id, creative_id, metric_date, ad_format
+# -- so those are NOT in this list. Names (which can change while the ID is
+# stable) ARE updated.
 _MERGE_SET_COLS = [
     "platform","advertiser_id","advertiser_name","campaign_name",
+    "ad_group_name","creative_name",
     "client_slug","agency_slug","impressions","clicks","cost","currency",
+    "conversions",
     "video_starts","video_25","video_50","video_75","video_completes",
     "ingested_at","source","raw_row",
 ]
@@ -275,6 +330,8 @@ def load_chunk_to_bq(bq, storage_client, main_table_schema, rows, ingested_at, d
     MERGE `{PROJECT_ID}.{DATASET}.{MAIN_TABLE}` T
     USING `{staging_ref}` S
     ON  T.campaign_id = S.campaign_id
+    AND T.ad_group_id = S.ad_group_id
+    AND T.creative_id = S.creative_id
     AND T.metric_date = S.metric_date
     AND T.ad_format   = S.ad_format
     WHEN MATCHED THEN UPDATE SET
@@ -309,6 +366,7 @@ def main():
                  f"{'  (FORCE)' if force else ''}")
     log.info(f"Artifacts dir: {WORK_DIR}")
     log.info(f"Chunk size: {CHUNK_DAYS}d")
+    log.info(f"Fields: {len(WINDSOR_FIELDS.split(','))} ({len(_CONVERSION_SLOTS)} conversion slots)")
     log.info("=" * 60)
 
     CHUNKS_DIR.mkdir(parents=True, exist_ok=True)

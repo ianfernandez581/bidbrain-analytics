@@ -1,7 +1,7 @@
-# deploy_cloudflare.ps1 — Windows/PowerShell equivalent of deploy_cloudflare.sh.
+# deploy_cloudflare.ps1 - Windows/PowerShell equivalent of deploy_cloudflare.sh.
 #
 # Stands up the entire client_cloudflare pipeline on GCP. Run it ONCE. It is
-# idempotent: safe to re-run — anything that already exists is left alone, so if
+# idempotent: safe to re-run - anything that already exists is left alone, so if
 # a step fails you can fix the cause and run it again.
 #
 #   HOW TO RUN (from this same PowerShell window):
@@ -9,7 +9,7 @@
 #   If you get "running scripts is disabled on this system", run this first:
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 #
-#   It uses gcloud, bq and git only — your .venv is not needed.
+#   It uses gcloud, bq and git only - your .venv is not needed.
 #   You can run it from the repo root OR from inside client_cloudflare\
 #   (it relocates itself to the repo root automatically).
 #
@@ -34,7 +34,7 @@ $WEB_SA              = "cloudflare-dash-web@${PROJECT}.iam.gserviceaccount.com"
 $SNOWFLAKE_SECRET    = "snowflake-bq-key"         # shared, must already exist
 $PW_SECRET           = "cloudflare-dash-password"
 $SESSION_SECRET_NAME = "cloudflare-dash-session-key"
-$SCHEDULE_UTC        = "0 22 * * *"               # 22:00 UTC daily — same time the old Snowflake tasks ran
+$SCHEDULE_UTC        = "0 22 * * *"               # 22:00 UTC daily - same time the old Snowflake tasks ran
 $REPO_OWNER          = "Bidbrain"
 $REPO_NAME           = "bidbrain-analytics"
 
@@ -155,7 +155,7 @@ if (-not (Exists { gcloud secrets describe $SNOWFLAKE_SECRET --project $PROJECT 
 
 # Secret accessor bindings (secrets must exist first).
 gcloud secrets add-iam-policy-binding $SNOWFLAKE_SECRET --member="serviceAccount:${JOB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT *> $null
-if ($LASTEXITCODE -ne 0) { Write-Host "  (couldn't bind $SNOWFLAKE_SECRET yet — create the secret, then re-run)" -ForegroundColor Yellow }
+if ($LASTEXITCODE -ne 0) { Write-Host "  (couldn't bind $SNOWFLAKE_SECRET yet - create the secret, then re-run)" -ForegroundColor Yellow }
 gcloud secrets add-iam-policy-binding $PW_SECRET --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT | Out-Null
 Must "bind $PW_SECRET to web SA"
 gcloud secrets add-iam-policy-binding $SESSION_SECRET_NAME --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT | Out-Null
@@ -164,7 +164,7 @@ Must "bind $SESSION_SECRET_NAME to web SA"
 # ---- Cloud Build deploy identity --------------------------------------------
 # Let the build deploy Cloud Run and "act as" the runtime SAs. run.admin /
 # artifactregistry.writer are almost certainly already present (MongoDB deploys
-# the same way) — these are idempotent. The grant that matters is
+# the same way) - these are idempotent. The grant that matters is
 # serviceAccountUser on the two NEW runtime SAs. Cover both the legacy Cloud
 # Build SA and the Compute default SA (which one a manual submit uses depends on
 # the project's age); tolerate failures.
@@ -181,7 +181,7 @@ foreach ($b in $buildSAs) {
 }
 
 # Manual `gcloud builds submit` does NOT auto-populate $SHORT_SHA (only trigger
-# builds do), and the cloudbuild.yaml tags images with it — so pass one. Use the
+# builds do), and the cloudbuild.yaml tags images with it - so pass one. Use the
 # real short commit if we're in a git checkout.
 $SHA = $null
 try { $SHA = (& git rev-parse --short HEAD 2>$null) } catch { $SHA = $null }
@@ -199,7 +199,7 @@ Write-Host "  -> first run: lands src_*, then errors on the not-yet-existing vie
 gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait   # exit code intentionally ignored
 
 if (-not (Exists { bq --project_id=$PROJECT show "${PROJECT}:${DATASET}.src_paid_media" })) {
-  Write-Host "!! src_* tables were not created — the first run failed BEFORE reaching BigQuery" -ForegroundColor Red
+  Write-Host "!! src_* tables were not created - the first run failed BEFORE reaching BigQuery" -ForegroundColor Red
   Write-Host "   (most likely Snowflake auth / the $SNOWFLAKE_SECRET secret). Check the logs:" -ForegroundColor Red
   Write-Host "   gcloud run jobs executions list --job $JOB --region $REGION --project $PROJECT"
   exit 1
@@ -271,7 +271,7 @@ if (Test-Path 'client_cloudflare/dash/dashboard.html') {
   Write-Host "============================================================"
   Write-Host "  Pipeline + data are deployed; cloudflare.json is in the bucket."
   Write-Host ""
-  Write-Host "  SKIPPED the dashboard service — client_cloudflare\dash\dashboard.html"
+  Write-Host "  SKIPPED the dashboard service - client_cloudflare\dash\dashboard.html"
   Write-Host "  doesn't exist yet. Build it from your index.html (see dash\DASHBOARD.md),"
   Write-Host "  save it into client_cloudflare\dash\, then deploy with:"
   Write-Host ""
