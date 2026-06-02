@@ -75,7 +75,7 @@ needs a password to see it.
   SHARED INGEST (once, all clients)        PER-CLIENT (one set per client)         WHO SEES IT
  ┌─────────────────────────────┐
  │ Windsor.ai  ─► raw_windsor   │ ─┐
- │ (Trade Desk, Meta perf data) │  │     ┌──────────────┐    ┌───────────────┐
+ │ (Trade Desk, Meta, GA4 data) │  │     ┌──────────────┐    ┌───────────────┐
  └─────────────────────────────┘  ├──►  │  Export Job  │ ─► │   BigQuery    │ ─┐
  ┌─────────────────────────────┐  │     │ (Cloud Run)  │    │  client views │  │ builds one
  │ Snowflake   ─► raw_snowflake │ ─┘     └──────────────┘    └───────────────┘  │ tidy file
@@ -101,7 +101,7 @@ needs a password to see it.
 **The journey:**
 
 1. **Shared ingest** pulls raw data once for everyone: [`windsor_data_pull/`](windsor_data_pull/)
-   lands ad-platform performance into BigQuery `raw_windsor`, and
+   lands ad-platform performance and GA4 web analytics into BigQuery `raw_windsor`, and
    [`snowflake_data_pull/`](snowflake_data_pull/) mirrors the Snowflake source tables into
    BigQuery `raw_snowflake`.
 2. Each client has an **Export Job** (Cloud Run) that runs the client's BigQuery **views**
@@ -174,7 +174,7 @@ Each folder has a **detailed README of its own** — start there for anything in
 
 | Folder | What it does | Open its README |
 |---|---|---|
-| [`windsor_data_pull/`](windsor_data_pull/) | Pulls ad-platform performance (Trade Desk, Meta) from **Windsor.ai** into BigQuery `raw_windsor`. Incremental, idempotent loaders. | [README](windsor_data_pull/README.md) · [meta/](windsor_data_pull/meta/README.md) · [tradedesk/](windsor_data_pull/tradedesk/README.md) |
+| [`windsor_data_pull/`](windsor_data_pull/) | Pulls ad-platform performance (Trade Desk, Meta) and GA4 web-analytics outcomes from **Windsor.ai** into BigQuery `raw_windsor`. Incremental, idempotent loaders. | [README](windsor_data_pull/README.md) · [meta/](windsor_data_pull/meta/README.md) · [tradedesk/](windsor_data_pull/tradedesk/README.md) · [ga4/](windsor_data_pull/ga4/README.md) |
 | [`snowflake_data_pull/`](snowflake_data_pull/) | Mirrors the **Snowflake** source tables (Salesforce CS + ad platforms) 1:1 into BigQuery `raw_snowflake`. Dumb full copy; clients filter in their views. | [README](snowflake_data_pull/README.md) |
 
 ### Clients — one folder per client (copy of the template)
@@ -204,8 +204,8 @@ client has its own drawer of saved calculations that pick out and reshape just t
 
 - **`raw_<source>`** — shared raw data mirrored from one upstream source, used by multiple
   clients. **Two exist:**
-  - **`raw_windsor`** — Trade Desk (`perf_the_trade_desk`) and Meta (`perf_meta`), loaded by
-    [`windsor_data_pull/`](windsor_data_pull/).
+  - **`raw_windsor`** — Trade Desk (`perf_the_trade_desk`), Meta (`perf_meta`), and GA4
+    (`perf_ga4`), loaded by [`windsor_data_pull/`](windsor_data_pull/).
   - **`raw_snowflake`** — the Snowflake APAC tables mirrored 1:1 (Salesforce CS + Trade Desk +
     LinkedIn + Reddit + DV360 + Google Ads), loaded by [`snowflake_data_pull/`](snowflake_data_pull/).
 - **`client_<client>`** — one dataset per client, holding everything specific to that client:
