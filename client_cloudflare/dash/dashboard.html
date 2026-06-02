@@ -1,0 +1,1690 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Core Demand Generation</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --cf-orange:#F38020; --cf-orange-soft:#FBAD41;
+    --cf-navy:#0E2233; --cf-ink:#1B2834; --cf-mute:#5A6B78;
+    --cf-line:#E5E9EE; --cf-card:#FFFFFF; --cf-bg:#F6F8FA;
+    --good-green:#1F9D55; --bad-red:#C8362A;
+    --target-gray:#6E7785;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:0;color:var(--cf-ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;line-height:1.45;
+    background:linear-gradient(135deg,#FBAD41 0%,#F8A035 25%,#F38020 65%,#E06820 100%);
+    background-attachment:fixed;min-height:100vh}
+
+  .topbar{background:#000;color:#fff;padding:18px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap}
+  .topbar-left{display:flex;align-items:center;gap:18px}
+  .cf-mark{display:inline-flex;align-items:center;gap:14px;color:#fff}
+  .cf-mark .cf-name{font-weight:900;font-size:22px;letter-spacing:2px;color:#fff;font-family:'Helvetica Neue',Arial,sans-serif;line-height:1}
+  .topbar-divider{width:1px;height:28px;background:#333}
+  .topbar-title{font-weight:600;font-size:15px;letter-spacing:.2px;color:#fff}
+  .topbar-right{font-size:12px;color:#bbb;text-align:right;line-height:1.6}
+  .topbar-right b{color:#fff}
+  .topbar-right .live{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--good-green);margin-right:6px;vertical-align:middle;
+              box-shadow:0 0 0 0 rgba(31,157,85,0.7);animation:pulse 2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,85,0.6)}70%{box-shadow:0 0 0 8px rgba(31,157,85,0)}100%{box-shadow:0 0 0 0 rgba(31,157,85,0)}}
+
+  .container{padding:24px;max-width:1400px;margin:0 auto}
+
+  .tabs{display:flex;gap:2px;background:#fff;border:1px solid var(--cf-line);border-radius:10px;padding:3px;margin-bottom:14px;width:fit-content}
+  .tab{padding:8px 18px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--cf-mute);font-family:inherit}
+  .tab.active{background:var(--cf-orange);color:#fff}
+  .tab:not(.active):hover{background:#F6F8FA;color:var(--cf-ink)}
+  .panel.hidden{display:none}
+
+  #loading, #error{padding:60px 20px;text-align:center;color:#fff}
+  #loading .spinner{display:inline-block;width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  #loading .msg, #error .msg{font-size:14px;letter-spacing:.3px}
+  #error{background:rgba(0,0,0,0.4);border-radius:12px;padding:32px;max-width:600px;margin:60px auto}
+  #error .err-title{font-weight:700;font-size:18px;margin-bottom:8px;color:#fff}
+  #error .err-detail{font-size:13px;color:#FFD8B8;font-family:Menlo,Monaco,Consolas,monospace;background:rgba(0,0,0,0.4);padding:10px;border-radius:6px;margin-top:14px;word-break:break-all}
+
+  .filter-row{background:#fff;border:1px solid var(--cf-line);border-radius:10px;padding:12px 14px;margin-bottom:18px;
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .filter-row .lbl{font-size:12px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--cf-line);border-radius:999px;
+    background:#fff;font-size:12.5px;font-weight:500;cursor:pointer;color:var(--cf-mute);transition:all .15s}
+  .chip.on{background:var(--cf-orange);color:#fff;border-color:var(--cf-orange)}
+  .chip:not(.on):hover{background:#F6F8FA;color:var(--cf-ink)}
+  .chip-action{font-size:11.5px;color:#0A66C2;background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
+  .chip-action:hover{text-decoration:underline}
+
+  .cs-snap{background:#fff;border:1px solid var(--cf-line);border-radius:12px;padding:18px 20px;margin-bottom:14px;
+    display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+  .cs-snap .group .lbl{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
+  .cs-snap .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .cs-snap .pair.triple{grid-template-columns:repeat(3,1fr);gap:10px}
+  .cs-snap .stat .k{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px}
+  .cs-snap .stat .v{font-size:22px;font-weight:700;letter-spacing:-.4px;margin-top:2px}
+  .cs-snap .stat .cnt{font-size:11.5px;color:var(--cf-mute);font-style:italic;margin-top:2px}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .card{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:16px}
+  .card h3{margin:0 0 6px 0;font-size:14px;letter-spacing:.2px}
+  .hint{font-size:11.5px;color:var(--cf-mute);margin-bottom:10px}
+  .chart-wrap{position:relative;height:240px}
+  .chart-wrap.tall{height:300px}
+
+  .progress-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:10px;margin:8px 0;font-size:13px}
+  .pbar{height:10px;background:#F6F8FA;border-radius:6px;overflow:hidden}
+  .pbar .fill{height:100%;background:var(--cf-orange);border-radius:6px}
+  .pbar.gray .fill{background:var(--target-gray)}
+
+  .reg-row{display:grid;grid-template-columns:96px 1fr 60px;align-items:center;gap:10px;margin:6px 0;font-size:11.5px}
+  .reg-lbl{color:var(--cf-mute);font-size:11px}
+  .reg-bar{height:8px;background:#F6F8FA;border-radius:4px;overflow:hidden}
+  .reg-bar .reg-fill{height:100%;background:var(--target-gray);border-radius:4px}
+  .reg-bar .reg-fill.orange{background:var(--cf-orange)}
+  .reg-num{text-align:right;font-weight:600;color:var(--cf-ink)}
+
+  /* Comparison tab */
+  .compare-header{margin-bottom:14px;color:#fff}
+  .compare-header h2{margin:0;font-size:18px;font-weight:700}
+  .compare-header p{margin:4px 0 0 0;font-size:13px;color:rgba(255,255,255,0.85)}
+  .compare-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .compare-panel{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:18px}
+  .compare-filters{display:flex;gap:10px;margin-bottom:14px}
+  .compare-select{flex:1;padding:9px 12px;border:1px solid var(--cf-line);border-radius:8px;font-size:13px;background:#fff;cursor:pointer;font-family:inherit;color:var(--cf-ink);outline:none}
+  .compare-select:focus{border-color:var(--cf-orange)}
+  .compare-empty{padding:80px 20px;text-align:center;color:var(--cf-mute);background:#F6F8FA;border-radius:8px;font-size:13.5px;border:2px dashed var(--cf-line)}
+  .compare-kpi-group{margin-bottom:14px}
+  .compare-kpi-group .grp-lbl{font-size:10.5px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.5px;font-weight:600;margin-bottom:8px}
+  .compare-kpis{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .compare-kpis.triple{grid-template-columns:repeat(3,1fr);gap:8px}
+  .compare-kpi{background:#F6F8FA;border-radius:8px;padding:12px 14px}
+  .compare-kpi .k{font-size:10px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  .compare-kpi .v{font-size:20px;font-weight:700;margin-top:2px;letter-spacing:-.4px}
+  .compare-kpi .cnt{font-size:10.5px;color:var(--cf-mute);font-style:italic;margin-top:2px}
+  .compare-chart{margin-top:12px;border:1px solid var(--cf-line);border-radius:8px;padding:12px}
+  .compare-chart h4{margin:0 0 8px 0;font-size:13px;font-weight:600}
+  .compare-chart-wrap{position:relative;height:180px}
+
+  footer{color:rgba(255,255,255,0.85);font-size:12px;text-align:center;padding:16px 0;margin-top:20px}
+
+  @media (max-width:900px){
+    .grid{grid-template-columns:1fr}
+    .cs-snap{grid-template-columns:1fr;gap:18px}
+    .compare-grid{grid-template-columns:1fr}
+  }
+
+  /* ============== PAID MEDIA TAB STYLES (from ORIGINAL_DASH) ============== */
+  :root{
+    --li-blue:#0A66C2; --li-blue-soft:#E5F0FA;
+    --rd-red:#FF4500; --purple:#6B3FA0;
+  }
+  .panel-paid-scope .section{margin:22px 0 10px 0;display:flex;align-items:baseline;gap:14px;border-top:2px solid rgba(255,255,255,0.25);padding-top:18px}
+  .panel-paid-scope .section h2{font-size:16px;margin:0;letter-spacing:-.2px;color:#fff}
+  .panel-paid-scope .section .sub{font-size:12px;color:rgba(255,255,255,0.85);margin:0}
+  .panel-paid-scope .section.first{border-top:none;padding-top:0;margin-top:0}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
+  .kpi{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden}
+  .kpi .label{font-size:11px;color:var(--cf-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .value{font-size:24px;font-weight:700;letter-spacing:-.5px;margin-top:6px}
+  .kpi .delta{font-size:12px;margin-top:4px;color:var(--cf-mute)}
+  .kpi.accent{background:linear-gradient(135deg,#fff 0%, #FFF8F0 100%);border-color:#F4D7B2}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--cf-orange)}
+  .kpi.li .stripe{background:var(--li-blue)}
+  .kpi.rd .stripe{background:var(--rd-red)}
+  .kpi.warn .stripe{background:var(--bad-red)}
+
+  .panel-paid-scope .grid{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+  .grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:14px;align-items:stretch}
+  .card-tall{min-height:330px;display:flex;flex-direction:column}
+  .card-med{min-height:280px;display:flex;flex-direction:column}
+  .card-tall .chart-wrap{height:280px}
+
+  /* Tables (paid media) */
+  .panel-paid-scope table{width:100%;border-collapse:collapse;font-size:13px}
+  .panel-paid-scope th,.panel-paid-scope td{padding:8px 10px;border-bottom:1px solid var(--cf-line);text-align:right}
+  .panel-paid-scope th:first-child,.panel-paid-scope td:first-child{text-align:left}
+  .panel-paid-scope th{font-weight:600;color:var(--cf-mute);font-size:11px;text-transform:uppercase;letter-spacing:.4px}
+  .panel-paid-scope tr.total td{font-weight:700;background:#FAFBFC;border-bottom:none}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600}
+  .pill.cf{background:#FFF1E0;color:#A14B00}
+  .pill.li{background:#E5F0FA;color:#0A66C2}
+  .pill.rd{background:#FFE6DD;color:#B53400}
+  .pill.ln{background:#E0F8EC;color:#017A3B}
+  .delta-pm{font-size:11px;font-weight:600;display:inline-block;margin-left:4px}
+  .delta-pm.good{color:var(--good-green)} .delta-pm.bad{color:var(--bad-red)} .delta-pm.neutral{color:var(--cf-mute)}
+  td.bench, .bench{color:var(--cf-mute);font-size:11px;font-style:italic}
+
+  /* Commentary blocks */
+  .alert{background:#FFF4E6;border:1px solid #F4C99A;border-left:5px solid var(--cf-orange);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:flex-start}
+  .alert .ico{font-size:20px;line-height:1}
+  .alert h3{margin:0 0 4px 0;font-size:13px;color:#7A3B00;letter-spacing:.2px;text-transform:uppercase}
+  .alert p{margin:0;font-size:13.5px;color:#3a2510}
+  .info{background:#F0F6FB;border:1px solid #C9DCEE;border-left:5px solid var(--li-blue);border-radius:10px;padding:14px 18px;margin-bottom:18px}
+  .info h3{margin:0 0 6px 0;font-size:13px;color:#073D75;letter-spacing:.2px;text-transform:uppercase}
+  .info p{margin:0 0 8px 0;font-size:13.5px;color:#142838}
+  .pixel-compare{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 4px 0}
+  .pix{background:#fff;border:1px solid #C9DCEE;border-radius:8px;padding:10px 12px;font-size:12.5px}
+  .pix h4{margin:0 0 4px 0;font-size:12px;color:#073D75;text-transform:uppercase;letter-spacing:.4px}
+  .pix .what{font-weight:700;color:var(--cf-ink)}
+  .pix .ok{color:var(--good-green);font-weight:600}
+  .pix .miss{color:var(--bad-red);font-weight:600}
+  .why{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:18px;margin-bottom:14px}
+  .why h2{margin:0 0 4px 0;font-size:16px}
+  .why .lede{color:var(--cf-mute);font-size:13px;margin-bottom:14px}
+  .reasons{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .reason{border:1px solid var(--cf-line);border-radius:10px;padding:12px;background:#FCFDFE}
+  .reason .num{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:6px;background:var(--cf-orange);color:#fff;font-weight:700;font-size:12px;margin-bottom:8px}
+  .reason h4{margin:0 0 4px 0;font-size:13px}
+  .reason p{margin:0;font-size:12.5px;color:var(--cf-ink)}
+  .gap-box{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-top:10px}
+  .gap-tile{border:1px dashed #E0C09A;background:#FFFCF7;border-radius:10px;padding:10px 12px;text-align:center}
+  .gap-tile .lbl{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.5px}
+  .gap-tile .val{font-size:20px;font-weight:700;color:var(--cf-ink);margin-top:2px}
+  .gap-tile.bad .val{color:var(--bad-red)}
+  .friction{background:#FFF7EE;border:1px solid #F2D2A8;border-radius:10px;padding:14px;font-size:13px;line-height:1.55;margin-top:14px}
+  .friction h4{margin:0 0 8px 0;font-size:13px;color:#7A3B00}
+  .friction .field-list{margin:8px 0;padding-left:18px}
+  .friction .field-list li{margin:2px 0}
+  .friction .req{color:var(--bad-red);font-weight:700}
+  .friction .auto{color:var(--cf-mute)}
+  .friction .smoking{display:inline-block;background:#FFE3DD;color:#7a1a0e;padding:2px 8px;border-radius:6px;font-weight:600;font-size:12px;margin-top:6px}
+
+  /* Demographics list bars */
+  .demo-list{display:flex;flex-direction:column;gap:5px}
+  .demo-row{display:grid;grid-template-columns:130px 1fr 130px;gap:10px;align-items:center;font-size:11.5px}
+  .demo-row .lbl{color:var(--cf-ink);font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .demo-row .bar{position:relative;background:#F0F4F8;height:14px;border-radius:3px;overflow:hidden}
+  .demo-row .bar > span{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--li-blue) 0%,#3B82C4 100%);border-radius:3px}
+  .demo-row .met{color:var(--cf-mute);font-size:10.5px;text-align:right;font-variant-numeric:tabular-nums}
+
+  /* Chip check mark (paid only) */
+  .panel-paid-scope .chip.on .check{display:inline-grid;place-items:center;width:12px;height:12px;border-radius:50%;background:#fff;color:var(--cf-orange);font-size:9px;font-weight:900}
+  .panel-paid-scope .chip:not(.on) .check{display:none}
+
+  @media (max-width:1100px){.reasons{grid-template-columns:1fr 1fr}.pixel-compare{grid-template-columns:1fr}.grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.panel-paid-scope .grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="cf-mark">
+      <svg class="cf-cloud" width="42" height="18" viewBox="0 0 100 42" xmlns="http://www.w3.org/2000/svg">
+        <path d="M85 28 L40 28 Q34 28 34 22 Q34 16 40 16 L45 16 Q47 8 56 8 Q66 8 68 16 L85 16 Q92 16 92 22 Q92 28 85 28 Z" fill="#F38020"/>
+      </svg>
+      <span class="cf-name">CLOUDFLARE</span>
+    </div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-title">Core Demand Generation</div>
+  </div>
+  <div class="topbar-right" style="display:flex;align-items:center;gap:14px">
+    <img src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wgARCADIAMgDASIAAhEBAxEB/8QAGQABAQEBAQEAAAAAAAAAAAAAAAUIBwQG/8QAGwEBAAIDAQEAAAAAAAAAAAAAAAMFBAYHAQL/2gAMAwEAAhADEAAAAc2I4sI4sI4sI4sI4sI4sI4sI4sI4sI4sI4sI4+mSRPAAAAAAAAAAABQBPAAAAAAAAAAABQBPAAA7Fx3RZ2R2UcadlHGuLbOzSZBAAAABQBPAAA9HnFLv2b9Cmz816UzGZZ8/lAAAAAFAE8AAADQuetCmz8x6czGZHAAAAABQBPAAAA0LnrQps/MenMxmRwAAAAAUATwAAANC560KbPzHpzMZkcB1/35O2cRdu+J+cb4cQa4ABQBPAAAA0LnrQps/MenMxmRwd2pTaVt21zzofPI6rnQreTgAUATwAAAOl80GwOT8XAHQvXzJNf9N+Z+YeQhFTAAUATwAAAAAAAAAAAUATwAAAAAAAAAAAUATwAAAAAAAAAAAUAf/8QAJhAAAAQFBAIDAQAAAAAAAAAAAAQFNAMGBxUwECA2QBc1ARYxAv/aAAgBAQABBQK8HxeD4vB8Xg+LwfF4Pi8HxeD4vB8Xg+LwfF4Pi8HxeD4vB8Xg+LwfF4Pi8HxeD4vB8Xg+LwfF4Pggrnvk92E9/wBhPf8AYT3/AGE9/wBhPf76Zy0RmdV8SS4PEkuDxJLg8SS4PEkuCp0mpksEsSe/30S99trf6zEnv98GPFL/ADczgoybjmJiFajEUuTuZwRjUYx8Yk9/hopyQVwZZE9/hopyQVwZZE9/hopyQVwZZE9/hopyQVwZZE9/hopyQVwZZE9/hopyQVwZaEEkpEI2UkLKSEykoBTenv8ADRTkgrgy0TPXaTd+bk9/hopyQVwZaJnrtJu/Nye/wyFNcKUFTzeRE/z5AnGBoVmaEXLfbIQ+2QgtK38Km9Pf9hPf9hPf9hPf9hPf9hPf/wD/xAAmEQABAwEFCQAAAAAAAAAAAAACAQMEBQAhMGFxBhExMzVQYIGx/9oACAEDAQE/AfIg2ckGKEhpfraXQ34bJPmSbkxI/JDRLVzp7nr6mINcnAKChcMktIq8uS2rTpXLl2z/xAAeEQABAwQDAAAAAAAAAAAAAAABAAIDERMwMTJQYP/aAAgBAgEBPwH0Vgp0JaK5BpTcDkvPRkc4UPWf/8QANhAAAAMGBAQCCAcBAAAAAAAAAQIEAAM0c5OxBRARMBJAdLITICEzQVGBgpHBFDE1QkNSksL/2gAIAQEABj8CjlNUzRymqZo5TVM0cpqmaOU1TNHKapmjlNUzRymqZo5TVM0cpqmaOU1TNHKapmjlNUzRymqZo5TVM0cpqmaOU1TNHKapmjlNUzRymqZo5TVM0cpqmaOU1TNHKapmTgK1QIeIX+UffzKaYW/Mpphb8ymmFvzKaYW/Mpphb7CpwvIY7t254w4TcPp1Bod9WFod9WFod9WFod9WFod9WFkTxA7OQz14JTcRxN7NtNMLfYXdN/0Hmwyca22mmFvsaunhnY+8g6NFP6gsrB6+ePA/Cj6DmEf3Fywvwnp3erw+vAbT2A0U/qCwA9fHeAH9za7aaYW+0s6Qe8uWFTD2DdTTC32lnSD3lywqYewbqaYW+0s6Qe8uWFTD2DdTTC32lnSD3lywqYewbqaYW+0s6Qe8uWFTD2DdTTC32lnSD3lywqYewbqaYW+0s6Qe8uWFTD2DNOczgomMQBEfg0OVocrJ/Bdg74uLXT4edNMLfaWdIPeXLCph7Bmmlltml+b7edNMLfaWdIPeXLCph7Bmmlltml+b7edNMLfaWdIPeXLCph7Bmmlltml+b7edNMLfafqnzg78rxz4fCQdPaA/Zv01R/sGRu3KV4n8AxhHjEB11zdOhcmESFAuureoP9W9Qf6s54SCTg1/Pzpphb8ymmFvzKaYW/Mpphb8ymmFvzKaYW/Mpphbt/8QAJhAAAQQCAgAGAwEAAAAAAAAA8AABUcERQCEwECBBYXGRgdHx4f/aAAgBAQABPyEytGVoytGVoytGVoytGVoytGVoytGVoytGVoytGVoytGVoytGVoytGVoytGVp3RGHZ+Xh77IKGyChsgobIKGyCh0YjOV93C9PnzAggggv/AFlzjNl69YKHc2Rj1godDpe9sO5c7fhBNpk63mYjP7/g/wC45JzL4UE2uWBjM7h99YKGz16gobPXqChs9eoKGz16gobPXqChs9eoKHf16u48xnl0HdDumH7sGP8AXnBQ7+vUNDqMCh39eoaHUYFDqcqIayczvnc+BF6lOLjBm4x8eLxjIxnOGwv5hfzCZPV3nnOcfrzgobIKGyChsgobIKGyChsgoL//2gAMAwEAAgADAAAAEDDDDDDDDDDDDMPPPPPPPPPPPPAPPPPPPPPPPPPAPPPLPPKPPPPPAPPPLOOPPPPPPAPPPPKKPPPPPPAPPPPKKPPPPPPAPPPPKKPMM/PPAPPPPKKPF/fPPAPPPPPLPLnPPPAPPPPPPPPPPPPAPPPPPPPPPPPPAPPPPPPPPPPPPAP/xAAfEQEAAgEDBQAAAAAAAAAAAAABEVEAITCBMUFQYPD/2gAIAQMBAT8Q9ii+QPImsQjhkJnVDuF7n2KN04wcACg4wPjFJA6ImoWeM//EAB0RAQABBAMBAAAAAAAAAAAAAAEAESEwsTFQYHH/2gAIAQIBAT8Q9EKDUjdpbJx/JpbyAFBjxLdZ/8QAJRABAAECBQQCAwAAAAAAAAAAAREAIRBAQcHwMVFwkaHRUGGB/9oACAEBAAE/EMxBgwYMGDBgwYMGDBgwYMGDBgwYMGC1EcsDMJ4F/v379+jiE5L6qlIVq4XvXC964XvXC964XvQorwAgAVrv4z9Yw/XXUsomFRJJgUgmW1RSCSYW/wC8DLeIZIBkTgUXFiI1qgmPGH6RU/SKn6RU/SKn6RU/SKn6RUvYC8MFW+rXH+1cf7UrMLq+0mXSXvM/pFRx8jMv6RUcfIyL+lh55shsiGf0wNKQXcIxoRPr3xNjOAIEnrF98AlygaHEdp+/D379+/fv37//2Q==" alt="Transmission" style="height:38px;display:block">
+  </div>
+</div>
+
+<div class="container">
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <div class="msg">Fetching live data from Snowflake…</div>
+  </div>
+
+  <div id="error" style="display:none">
+    <div class="err-title">Couldn't load dashboard data</div>
+    <div class="msg">The data feed didn't respond. The Snowflake export may not have run yet, or the data file may be unreachable.</div>
+    <div class="err-detail" id="errorDetail"></div>
+  </div>
+
+  <div id="dashboardRoot" style="display:none">
+
+    <div class="tabs">
+      <button class="tab active" data-tab="paid" onclick="switchTab('paid')">Paid Media</button>
+      <button class="tab" data-tab="main" onclick="switchTab('main')">Content Syndication</button>
+      <button class="tab" data-tab="compare" onclick="switchTab('compare')">CS Comparison</button>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- OVERVIEW TAB                                                  -->
+    <!-- ============================================================ -->
+    <div class="panel hidden" id="panel-main">
+
+      <div class="filter-row">
+        <span class="lbl">Markets</span>
+        <div class="chips" id="marketChips"></div>
+        <button class="chip-action" onclick="selectAllMarkets()">Select all</button>
+        <button class="chip-action" onclick="selectNoneMarkets()">Clear all</button>
+      </div>
+
+      <div class="cs-snap">
+        <div class="group">
+          <div class="lbl">Overall</div>
+          <div class="pair">
+            <div class="stat"><div class="k">Q2 Target</div><div class="v" id="kpi_target">—</div></div>
+            <div class="stat"><div class="k">Total leads</div><div class="v" id="kpi_total">—</div></div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="lbl">Pacing</div>
+          <div class="pair">
+            <div class="stat"><div class="k">Current pacing</div><div class="v" id="kpi_current">—</div></div>
+            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="kpi_overall">—</div></div>
+          </div>
+        </div>
+        <div class="group">
+          <div class="lbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--cf-mute);text-transform:none;letter-spacing:0">· unprocessed = manual triage backlog</span></div>
+          <div class="pair triple">
+            <div class="stat"><div class="k">Rejection rate</div><div class="v" id="kpi_rej">—</div><div class="cnt" id="kpi_rej_cnt">—</div></div>
+            <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="kpi_acc">—</div><div class="cnt" id="kpi_acc_cnt">—</div></div>
+            <div class="stat"><div class="k">Unprocessed</div><div class="v" id="kpi_unproc">—</div><div class="cnt" id="kpi_unproc_cnt">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card">
+          <h3>Leads vs target</h3>
+          <div class="hint">Q2 target, time-to-date target, and accepted leads QTD.</div>
+          <div id="leadsTarget"></div>
+        </div>
+        <div class="card">
+          <h3>Progress</h3>
+          <div class="hint">Leads vs target / Time vs Q2 days elapsed.</div>
+          <div id="progress"></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:14px">
+        <h3>Weekly pacing — target vs actual</h3>
+        <div class="hint">Accepted + unprocessed leads per week-of (stacked), against weekly target.</div>
+        <div class="chart-wrap"><canvas id="weeklyChart"></canvas></div>
+      </div>
+
+      <div class="grid">
+        <div class="card"><h3>Solutions</h3><div class="chart-wrap"><canvas id="solChart"></canvas></div></div>
+        <div class="card"><h3>Country</h3><div class="chart-wrap"><canvas id="countryChart"></canvas></div></div>
+      </div>
+
+      <div class="grid">
+        <div class="card"><h3>Job function</h3><div class="chart-wrap"><canvas id="jfChart"></canvas></div></div>
+        <div class="card"><h3>Job level</h3><div class="chart-wrap"><canvas id="jlChart"></canvas></div></div>
+      </div>
+
+      <div class="grid">
+        <div class="card"><h3>Best performing assets (top 12)</h3><div class="chart-wrap tall"><canvas id="assetsChart"></canvas></div></div>
+        <div class="card"><h3>Daily accepted leads</h3><div class="chart-wrap tall"><canvas id="dailyChart"></canvas></div></div>
+      </div>
+
+      <div class="card">
+        <h3>By-region summary</h3>
+        <div class="hint">Three bars per region, scaled to the region's Q2 target.</div>
+        <div id="regionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- COMPARISON TAB                                                -->
+    <!-- ============================================================ -->
+    <div class="panel hidden" id="panel-compare">
+      <div class="compare-header">
+        <h2>Side-by-side comparison</h2>
+        <p>Pick a region (and optionally a country) in each panel to compare them directly.</p>
+      </div>
+
+      <div class="compare-grid">
+
+        <!-- Panel A -->
+        <div class="compare-panel">
+          <div class="compare-filters">
+            <select class="compare-select" id="regionA" onchange="onCompareFilterChange('A', true)">
+              <option value="">Select Region</option>
+            </select>
+            <select class="compare-select" id="countryA" onchange="onCompareFilterChange('A', false)">
+              <option value="">All Countries</option>
+            </select>
+          </div>
+          <div class="compare-empty" id="emptyA">Select a region to view data</div>
+          <div id="contentA" style="display:none">
+            <div class="compare-kpi-group">
+              <div class="grp-lbl">Overall</div>
+              <div class="compare-kpis">
+                <div class="compare-kpi"><div class="k">Q2 Target</div><div class="v" id="A_target">—</div></div>
+                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">—</div></div>
+              </div>
+            </div>
+            <div class="compare-kpi-group">
+              <div class="grp-lbl">Lead Quality</div>
+              <div class="compare-kpis triple">
+                <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="A_rej">—</div><div class="cnt" id="A_rej_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="A_acc">—</div><div class="cnt" id="A_acc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Unprocessed %</div><div class="v" id="A_unproc">—</div><div class="cnt" id="A_unproc_cnt">—</div></div>
+              </div>
+            </div>
+            <div class="compare-chart">
+              <h4>Leads vs Targets</h4>
+              <div class="compare-chart-wrap"><canvas id="A_chartTargets"></canvas></div>
+            </div>
+            <div class="compare-chart">
+              <h4>Weekly Pacing Chart</h4>
+              <div class="compare-chart-wrap"><canvas id="A_chartWeekly"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Panel B -->
+        <div class="compare-panel">
+          <div class="compare-filters">
+            <select class="compare-select" id="regionB" onchange="onCompareFilterChange('B', true)">
+              <option value="">Select Region</option>
+            </select>
+            <select class="compare-select" id="countryB" onchange="onCompareFilterChange('B', false)">
+              <option value="">All Countries</option>
+            </select>
+          </div>
+          <div class="compare-empty" id="emptyB">Select a region to view data</div>
+          <div id="contentB" style="display:none">
+            <div class="compare-kpi-group">
+              <div class="grp-lbl">Overall</div>
+              <div class="compare-kpis">
+                <div class="compare-kpi"><div class="k">Q2 Target</div><div class="v" id="B_target">—</div></div>
+                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">—</div></div>
+              </div>
+            </div>
+            <div class="compare-kpi-group">
+              <div class="grp-lbl">Lead Quality</div>
+              <div class="compare-kpis triple">
+                <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="B_rej">—</div><div class="cnt" id="B_rej_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="B_acc">—</div><div class="cnt" id="B_acc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Unprocessed %</div><div class="v" id="B_unproc">—</div><div class="cnt" id="B_unproc_cnt">—</div></div>
+              </div>
+            </div>
+            <div class="compare-chart">
+              <h4>Leads vs Targets</h4>
+              <div class="compare-chart-wrap"><canvas id="B_chartTargets"></canvas></div>
+            </div>
+            <div class="compare-chart">
+              <h4>Weekly Pacing Chart</h4>
+              <div class="compare-chart-wrap"><canvas id="B_chartWeekly"></canvas></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- PAID MEDIA TAB                                                -->
+    <!-- ============================================================ -->
+    <div class="panel panel-paid-scope" id="panel-paid">
+
+      <div id="paid-loading" style="padding:60px 20px;text-align:center;color:#fff">
+        <div class="spinner" style="display:inline-block;width:40px;height:40px;border:3px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px"></div>
+        <div class="msg" style="font-size:14px;letter-spacing:.3px">Fetching paid media data from Snowflake…</div>
+      </div>
+
+      <div id="paid-error" style="display:none;background:rgba(0,0,0,0.4);border-radius:12px;padding:32px;max-width:600px;margin:60px auto;color:#fff;text-align:center">
+        <div class="err-title" style="font-weight:700;font-size:18px;margin-bottom:8px">Couldn't load Paid Media data</div>
+        <div class="msg" style="font-size:14px">The paid media feed didn't respond.</div>
+        <div class="err-detail" id="paidErrorDetail" style="font-size:13px;color:#FFD8B8;font-family:Menlo,Monaco,Consolas,monospace;background:rgba(0,0,0,0.4);padding:10px;border-radius:6px;margin-top:14px;word-break:break-all"></div>
+      </div>
+
+      <div id="paid-content" style="display:none">
+
+        <div class="filter-row">
+          <span class="lbl">Markets</span>
+          <div class="chips" id="paidMarketChips"></div>
+          <button class="chip-action" onclick="selectAllPaidMarkets()">Select all</button>
+          <button class="chip-action" onclick="selectNonePaidMarkets()">Clear all</button>
+        </div>
+
+        <!-- Caveat: TTD pixel -->
+        <div class="alert">
+          <div class="ico">⚠</div>
+          <div>
+            <h3>Measurement caveat: TTD has no lead-level conversion tracking</h3>
+            <p>The Trade Desk reports zero <b>leads</b> for this window because Cloudflare deployed only the <b>universal pixel</b>, not the per-event <b>image pixels</b> we supplied. The universal pixel fires on any page load and can only count generic <b>site visits</b> — it cannot isolate a lead-form submission. Lead-attribution analysis is treated separately in &ldquo;Why lead volume looks low&rdquo; below.</p>
+          </div>
+        </div>
+
+        <!-- Info: pixel comparison -->
+        <div class="info">
+          <h3>What TTD is actually measuring &mdash; and why it isn't leads</h3>
+          <p>TTD's universal pixel credits site visits via <b>view-through + click</b> attribution. Cloudflare's CRM sees only <b>post-click leads</b> arriving on TTD-tagged URLs. The two systems answer different questions, so even site-visit numbers won't reconcile &mdash; and lead numbers can't reconcile at all until the image pixels go live.</p>
+          <div class="pixel-compare">
+            <div class="pix">
+              <h4>Universal pixel <span style="color:var(--good-green)">(deployed)</span></h4>
+              <div class="what">Sitewide tag, fires on every page load.</div>
+              <p style="margin:6px 0 0 0">Counts a user as &ldquo;converted&rdquo; if they touch any Cloudflare URL after seeing/clicking a TTD ad. <span class="ok">Catches site visits</span> &mdash; <span class="miss">cannot split leads from non-lead traffic</span>.</p>
+            </div>
+            <div class="pix">
+              <h4>Image pixels <span style="color:var(--bad-red)">(supplied, not deployed)</span></h4>
+              <div class="what">Per-event tags, placed on specific pages (e.g. lead-form thank-you).</div>
+              <p style="margin:6px 0 0 0">Fire only when a user lands on the conversion page. <span class="ok">Would isolate actual leads</span> from background traffic, by ad set / region / creative. We supplied these &mdash; client opted not to implement.</p>
+            </div>
+          </div>
+          <p style="font-size:12.5px;color:var(--cf-mute);margin:8px 0 0 0"><b>Recommendation:</b> deploy the supplied image pixels on the SASE lead-form thank-you page. Until then, TTD performance has to be judged on the upper-funnel signals it does measure cleanly: impressions, reach, clicks, CTR, CPC.</p>
+        </div>
+
+        <div class="kpis">
+          <div class="kpi accent"><span class="stripe"></span>
+            <div class="label">Total spend</div><div class="value" id="k_spend">—</div>
+            <div class="delta" id="k_spend_b">—</div>
+          </div>
+          <div class="kpi"><span class="stripe"></span>
+            <div class="label">Impressions</div><div class="value" id="k_imp">—</div>
+            <div class="delta" id="k_cpm">—</div>
+          </div>
+          <div class="kpi"><span class="stripe"></span>
+            <div class="label">Clicks</div><div class="value" id="k_clk">—</div>
+            <div class="delta" id="k_ctr">—</div>
+          </div>
+          <div class="kpi warn"><span class="stripe"></span>
+            <div class="label">LinkedIn leads</div><div class="value" id="k_leads">—</div>
+            <div class="delta">TTD has no lead pixel</div>
+          </div>
+          <div class="kpi accent"><span class="stripe"></span>
+            <div class="label">Blended CPC</div><div class="value" id="k_cpc">—</div>
+            <div class="delta" id="k_cpc_b">—</div>
+          </div>
+        </div>
+
+        <div class="section" style="margin-top:18px">
+          <h2>Channel performance vs media plan benchmarks</h2>
+          <span class="sub">Δ shows actual vs planned. Green = beating plan, red = below.</span>
+        </div>
+
+        <div class="card">
+          <table id="benchmarkTable">
+            <thead><tr>
+              <th>Channel</th><th>Spend</th><th>Imps</th><th>Clicks</th>
+              <th>CTR</th><th>vs plan</th>
+              <th>CPM</th><th>vs plan</th>
+              <th>CPC</th><th>vs plan</th>
+              <th>Leads</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <div class="section first" style="border-top:none;padding-top:0;margin-top:18px">
+          <h2>TTD — Impressions, Clicks &amp; CTR</h2>
+          <span class="sub">Programmatic upper-funnel delivery</span>
+        </div>
+
+        <div class="grid">
+          <div class="card card-tall">
+            <h3>TTD daily — impressions, clicks, CTR</h3>
+            <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div>
+            <div class="chart-wrap"><canvas id="ttdImpCtr"></canvas></div>
+          </div>
+          <div class="card card-tall">
+            <h3>Spend by channel</h3>
+            <div class="hint">TTD + LinkedIn + Reddit + LINE mix.</div>
+            <div class="chart-wrap"><canvas id="channelMix"></canvas></div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="card card-tall">
+            <h3>Daily spend — all channels stacked</h3>
+            <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window.</div>
+            <div class="chart-wrap"><canvas id="dailyStack"></canvas></div>
+          </div>
+          <div class="card card-tall">
+            <h3>Spend by market</h3>
+            <div class="hint">Breakdown across selected regions.</div>
+            <div class="chart-wrap"><canvas id="marketBar"></canvas></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Daily efficiency — CTR · Clicks · CPC by channel</h2>
+          <span class="sub">Same date axis. Hover for daily values.</span>
+        </div>
+
+        <div class="grid-3">
+          <div class="card card-med">
+            <h3>CTR (%)</h3>
+            <div class="chart-wrap"><canvas id="ctrTrend"></canvas></div>
+          </div>
+          <div class="card card-med">
+            <h3>Clicks per day</h3>
+            <div class="chart-wrap"><canvas id="clkTrend"></canvas></div>
+          </div>
+          <div class="card card-med">
+            <h3>CPC ($)</h3>
+            <div class="chart-wrap"><canvas id="cpcTrend"></canvas></div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>Market breakdown — LinkedIn + TTD + Reddit + LINE</h2>
+          <span class="sub">Stacked spend by region with full-funnel summary table</span>
+        </div>
+
+        <div class="grid">
+          <div class="card card-tall">
+            <h3>Market spend — stacked by channel</h3>
+            <div class="chart-wrap"><canvas id="marketStack"></canvas></div>
+          </div>
+          <div class="card card-tall">
+            <h3>Market summary table</h3>
+            <div class="hint" style="margin-bottom:6px">Live values — toggles refresh on chip change.</div>
+            <div style="overflow:auto;flex:1">
+              <table id="marketTable">
+                <thead><tr><th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>CPC</th><th>vs plan</th><th>Leads</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <h2>LinkedIn leads vs weekly target</h2>
+          <span class="sub">13-week Q2 plan: 11 leads/wk (144 cumulative). Weekly leads aren't filterable by market — they're total program.</span>
+        </div>
+
+        <div class="card">
+          <h3>Weekly leads vs target</h3>
+          <div class="hint">Bars = weekly. Lines = cumulative actual vs cumulative target.</div>
+          <div class="chart-wrap" style="height:320px"><canvas id="weeklyTarget"></canvas></div>
+        </div>
+
+        <div class="card" style="margin-top:14px">
+          <h3>LinkedIn funnel — impressions → click → form start → submitted lead</h3>
+          <div class="hint">Lead-form-start metric (oneClickLeadFormOpens) on datastream 924; numbers populate after each fetch.</div>
+          <div id="liFunnel"></div>
+          <div class="friction" style="margin-top:14px">
+            <h4>Likely culprit on click → submit drop: required Work phone number</h4>
+            <p>The SASE 10-Steps form has two required fields and pre-fills the rest from the LinkedIn profile:</p>
+            <ul class="field-list" style="display:flex;gap:18px;flex-wrap:wrap;list-style:none;padding-left:0">
+              <li><span class="req">Work email *</span> &mdash; required, expected for a whitepaper</li>
+              <li><span class="req">Work phone number *</span> &mdash; required <b>and the friction point</b></li>
+              <li><span class="auto">First name, last name, country, job title, company &mdash; auto-filled, low friction</span></li>
+            </ul>
+            <p>B2B prospects associate giving a phone number with sales calls. For a top-of-funnel <i>downloadable guide</i>, that mental tax is high enough to abandon. <span class="smoking">Recommend: drop "Work phone number" to optional, or remove it</span></p>
+          </div>
+        </div>
+
+        <!-- Why lead volume looks low -->
+        <div class="why">
+          <h2>Why lead volume looks low &mdash; the four-part story</h2>
+          <div class="lede">Headline measured leads under-represent reality. Here is what is actually happening, ordered by impact.</div>
+          <div class="reasons">
+            <div class="reason"><div class="num">1</div><h4>TTD has no lead-level pixel</h4>
+              <p>Cloudflare deployed only the universal pixel, which counts generic site visits and can't isolate a lead-form completion. We supplied per-event <b>image pixels</b> for the lead-form thank-you page; the client opted not to implement them. Until they're live, TTD-driven leads are literally unmeasurable &mdash; not low, just invisible.</p>
+            </div>
+            <div class="reason"><div class="num">2</div><h4>The mix is upper-funnel by design</h4>
+              <p>Reading the campaign naming convention, ~78% of spend sits in MOFU/awareness ad sets (<i>AWARENESS</i>, <i>AWR-CONS</i>, <i>SHADOW-AI</i> TOFU). Only the <i>BOFU_RETARGETING_LEAD-GEN</i> slices are optimized for form fills &mdash; lead volume should be modest by construction.</p>
+            </div>
+            <div class="reason"><div class="num">3</div><h4>Reddit is on a TOFU goal, not Lead</h4>
+              <p>$2.4K of Reddit spend ran on <i>SHADOW-AI</i> awareness ad sets with goal &ldquo;-&rdquo; (no conversion goal set). Zero leads is on plan for that placement; only the small APAC-ANZ retargeting line was configured for LEAD goal and it received negligible delivery.</p>
+            </div>
+            <div class="reason"><div class="num">4</div><h4>LinkedIn form is the bottleneck</h4>
+              <p>Tracked LinkedIn leads vs clicks indicate ~1.0% click-to-lead. The form requires <b>Work phone number</b> alongside Work email &mdash; the rest of the fields are auto-filled. That single required phone field is the likely cause: prospects assume it triggers a sales call.</p>
+            </div>
+          </div>
+          <h3 style="font-size:14px;margin:18px 0 6px 0">Modeled TTD lead volume (using LinkedIn click-to-lead as the floor benchmark)</h3>
+          <div class="hint" style="margin-bottom:8px">Because the image pixel isn't deployed, we can only model the missing TTD lead count. LinkedIn click-to-lead rate is computed live from the data. Applied to TTD's measured clicks &mdash; before any view-through credit.</div>
+          <div class="gap-box">
+            <div class="gap-tile"><div class="lbl">Conservative (50% of LI rate)</div><div class="val" id="gap_low">—</div></div>
+            <div class="gap-tile bad"><div class="lbl">Mid (1× LI rate, click-only)</div><div class="val" id="gap_mid">—</div></div>
+            <div class="gap-tile"><div class="lbl">High (2× LI w/ view-through)</div><div class="val" id="gap_high">—</div></div>
+          </div>
+          <p style="font-size:12.5px;color:var(--cf-mute);margin:10px 0 0 0">Translation: TTD has likely produced a meaningful number of leads that no one is counting. The fix is to deploy the supplied image pixels on the lead-form thank-you page. Note: the LinkedIn benchmark itself is depressed by the phone-field friction &mdash; if that's fixed, the modeled TTD number grows accordingly.</p>
+        </div>
+
+        <div style="font-size:12px;color:rgba(255,255,255,0.85);text-align:center;padding:8px 0;margin-top:14px" id="paidFooter">—</div>
+
+      </div>
+
+    </div>
+
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+// ==========================================================================
+// CONFIG
+// ==========================================================================
+const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
+let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
+const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG'];
+const Q2_START = new Date('2026-04-01T00:00:00Z');
+const Q2_END   = new Date('2026-06-30T23:59:59Z');
+
+// ==========================================================================
+// STATE
+// ==========================================================================
+let rawRows = [];
+let activeMarkets = new Set(ALL_MARKETS);
+let activeTab = 'paid';
+const charts = {};
+
+// Paid Media state (read from COMBINED on first tab click)
+let paidMediaLastUpdated = null;
+let paidMediaLoaded = false;
+let paidMediaActiveMarkets = new Set();
+let paidMediaAllMarkets = [];
+
+const CF = '#F38020', TARGET = '#6E7785', LINE = '#E5E9EE';
+const colors = ['#F38020','#FBAD41','#FCD8AA','#0A66C2','#7A99C0','#1F9D55','#C8362A','#6B3FA0','#5A6B78','#2C3E50','#A14B00','#073D75'];
+
+// ==========================================================================
+// BOOT
+// ==========================================================================
+async function boot() {
+  try {
+    const res = await fetch(JSON_URL + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status + ' from /data.json');
+    COMBINED = await res.json();
+    rawRows = (COMBINED.pacing && COMBINED.pacing.rows) || [];
+    setLiveBanner(COMBINED.last_updated, rawRows.length);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('dashboardRoot').style.display = 'block';
+    renderChips();
+    populateRegionSelects();
+    renderAll();
+    if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
+  } catch (err) {
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+    document.getElementById('errorDetail').textContent = err.message || String(err);
+  }
+}
+
+function setLiveBanner(lastUpdated, rowCount) {
+  const lu = lastUpdated ? new Date(lastUpdated.replace(' ', 'T')) : null;
+  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : (lastUpdated || 'unknown');
+  // Most recent day a real lead landed — the freshness of the Content Syndication source data
+  let latestDay = null;
+  for (const r of rawRows) {
+    if (isDummy(r) || r.LEAD_STATUS == null || !r.DAY) continue;
+    const d = String(r.DAY).slice(0,10);
+    if (!latestDay || d > latestDay) latestDay = d;
+  }
+  const dataThrough = latestDay ? ` · Source data through <b style="color:#fff">${latestDay}</b>` : '';
+  document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough} · Auto-refreshes daily at 22:00 UTC`;
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  document.getElementById('panel-main').classList.toggle('hidden', tab !== 'main');
+  document.getElementById('panel-compare').classList.toggle('hidden', tab !== 'compare');
+  document.getElementById('panel-paid').classList.toggle('hidden', tab !== 'paid');
+  if (tab === 'compare') {
+    if (document.getElementById('regionA').value) renderComparePanel('A');
+    if (document.getElementById('regionB').value) renderComparePanel('B');
+  }
+  if (tab === 'paid') {
+    if (!paidMediaLoaded) loadPaidMedia();
+    else renderPaidMediaAll();
+  }
+}
+
+// ==========================================================================
+// HELPERS
+// ==========================================================================
+const fmtN = n => (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString();
+const isDummy = r => r.LEAD_ID_SF && String(r.LEAD_ID_SF).startsWith('DUMMY_');
+
+function weekStartISO(dateStr) {
+  const d = new Date(dateStr);
+  if (isNaN(d)) return null;
+  const day = d.getUTCDay();
+  const diff = (day === 0 ? -6 : 1 - day);
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d.toISOString().slice(0,10);
+}
+
+function groupCount(arr, keyFn) {
+  const map = new Map();
+  for (const r of arr) {
+    const k = keyFn(r);
+    if (k == null || k === '') continue;
+    map.set(k, (map.get(k) || 0) + 1);
+  }
+  return [...map.entries()].sort((a,b) => b[1] - a[1]);
+}
+
+function destroy(id) {
+  if (charts[id]) { charts[id].destroy(); charts[id] = null; }
+}
+
+// ==========================================================================
+// AGGREGATION (shared between Overview and Comparison)
+// ==========================================================================
+function aggregate(filterFn) {
+  const matchMarket = filterFn || (r => activeMarkets.has(r.MARKET_REGION));
+
+  const realLeads = rawRows.filter(r => !isDummy(r) && r.LEAD_STATUS != null && matchMarket(r));
+  const targetRows = rawRows.filter(r => matchMarket(r));
+
+  const accepted = realLeads.filter(r => r.LEAD_STATUS === 'Accepted');
+  const rejected = realLeads.filter(r => r.LEAD_STATUS === 'Rejected');
+
+  const q2Target = targetRows.reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
+  const now = new Date();
+  const ttdTarget = targetRows
+    .filter(r => r.DAY && new Date(r.DAY) <= now)
+    .reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
+
+  const totalMs = Q2_END - Q2_START;
+  const elapsedMs = Math.max(0, Math.min(totalMs, now - Q2_START));
+  const timePct = totalMs > 0 ? elapsedMs / totalMs : 0;
+
+  const weekMap = new Map();
+  for (const r of targetRows) {
+    const wk = weekStartISO(r.DAY);
+    if (!wk) continue;
+    if (!weekMap.has(wk)) weekMap.set(wk, {target:0, actual:0, unprocessed:0});
+    const bucket = weekMap.get(wk);
+    bucket.target += Number(r.ALLOCATED_TARGET) || 0;
+    if (!isDummy(r) && r.LEAD_STATUS === 'Accepted') bucket.actual += 1;
+    else if (!isDummy(r) && r.LEAD_STATUS != null && r.LEAD_STATUS !== 'Rejected') bucket.unprocessed += 1;
+  }
+  const weekly = [...weekMap.entries()]
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([wk, v]) => ({week: wk, target: v.target, actual: v.actual, unprocessed: v.unprocessed}));
+
+  const dailyMap = new Map();
+  for (const r of accepted) {
+    const day = r.DAY ? String(r.DAY).slice(0,10) : null;
+    if (!day) continue;
+    dailyMap.set(day, (dailyMap.get(day) || 0) + 1);
+  }
+  const daily = [...dailyMap.entries()].sort((a,b) => a[0].localeCompare(b[0]));
+
+  const solutions = groupCount(accepted, r => r.SERVICE || 'Unknown');
+  const countries = groupCount(accepted, r => r.COUNTRY_NAME);
+  const jobFunc   = groupCount(accepted, r => r.JOB_FUNCTION);
+  const jobLevel  = groupCount(accepted, r => r.JOB_LEVEL);
+
+  const assetMap = new Map();
+  for (const r of accepted) {
+    const asset = r.ASSET_1;
+    if (!asset) continue;
+    const key = asset + '||' + (r.SERVICE || 'Other');
+    assetMap.set(key, (assetMap.get(key) || 0) + 1);
+  }
+  const assets = [...assetMap.entries()]
+    .map(([k, v]) => { const [a, s] = k.split('||'); return [a, s, v]; })
+    .sort((a,b) => b[2] - a[2])
+    .slice(0, 12);
+
+  const regionRows = ALL_MARKETS.filter(m => activeMarkets.has(m)).map(m => {
+    const mTarget = targetRows.filter(r => r.MARKET_REGION === m)
+      .reduce((s,r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
+    const mTtdTarget = targetRows.filter(r => r.MARKET_REGION === m && r.DAY && new Date(r.DAY) <= now)
+      .reduce((s,r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
+    const mAccepted = accepted.filter(r => r.MARKET_REGION === m).length;
+    return {market: m, q2: mTarget, ttd: mTtdTarget, accepted: mAccepted};
+  });
+
+  return {
+    total: realLeads.length,
+    accepted: accepted.length,
+    rejected: rejected.length,
+    q2Target, ttdTarget, timePct,
+    weekly, daily, solutions, countries, jobFunc, jobLevel, assets, regionRows
+  };
+}
+
+// ==========================================================================
+// OVERVIEW TAB RENDERING
+// ==========================================================================
+function renderChips() {
+  const c = document.getElementById('marketChips');
+  c.innerHTML = '';
+  ALL_MARKETS.forEach(m => {
+    const el = document.createElement('button');
+    el.className = 'chip' + (activeMarkets.has(m) ? ' on' : '');
+    el.textContent = m;
+    el.onclick = () => {
+      if (activeMarkets.has(m)) activeMarkets.delete(m);
+      else activeMarkets.add(m);
+      if (activeMarkets.size === 0) activeMarkets.add(m);
+      renderChips();
+      renderAll();
+    };
+    c.appendChild(el);
+  });
+}
+
+function selectAllMarkets() {
+  activeMarkets = new Set(ALL_MARKETS);
+  renderChips();
+  renderAll();
+}
+
+function selectNoneMarkets() {
+  activeMarkets = new Set();
+  renderChips();
+  renderAll();
+}
+
+function renderKPIs(agg) {
+  document.getElementById('kpi_target').textContent = fmtN(agg.q2Target);
+  document.getElementById('kpi_total').textContent = fmtN(agg.total - agg.rejected);
+  document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '—';
+  document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '—';
+  // All three use total as denominator so they sum to 100%
+  const accRatio = agg.total ? agg.accepted / agg.total : 0;
+  const rejRatio = agg.total ? agg.rejected / agg.total : 0;
+  const unprocessedCount = agg.total - agg.accepted - agg.rejected;
+  const unprocessedRatio = agg.total ? unprocessedCount / agg.total : 0;
+  document.getElementById('kpi_acc').textContent = (accRatio*100).toFixed(2)+'%';
+  document.getElementById('kpi_rej').textContent = (rejRatio*100).toFixed(2)+'%';
+  document.getElementById('kpi_unproc').textContent = (unprocessedRatio*100).toFixed(2)+'%';
+  document.getElementById('kpi_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
+  document.getElementById('kpi_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
+  document.getElementById('kpi_unproc_cnt').textContent = fmtN(unprocessedCount) + ' leads';
+}
+
+function renderLeadsTarget(agg) {
+  const maxV = Math.max(agg.q2Target, agg.ttdTarget, agg.accepted, 1);
+  const w = v => (v/maxV*100).toFixed(1);
+  document.getElementById('leadsTarget').innerHTML = `
+    <div class="progress-row"><div>Q2 Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
+    <div class="progress-row"><div>TTD Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.ttdTarget)}%"></div></div><div style="text-align:right">${fmtN(agg.ttdTarget)}</div></div>
+    <div class="progress-row"><div>QTD Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
+    <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
+      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of Q2 plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
+    </div>`;
+}
+
+function renderProgress(agg) {
+  const unprocessed = agg.total - agg.accepted - agg.rejected;
+  const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;
+  const up = agg.q2Target ? unprocessed/agg.q2Target : 0;
+  const tp = agg.timePct;
+  const ratio = tp > 0 ? lp/tp : 0;
+  const lpW = Math.min(100, lp*100);
+  const upW = Math.min(Math.max(0, 100 - lpW), up*100);
+  document.getElementById('progress').innerHTML = `
+    <div class="progress-row"><div>Leads</div>
+      <div class="pbar" style="display:flex">
+        <div class="fill" style="width:${lpW}%"></div>
+        <div class="fill" style="width:${upW}%;background:var(--cf-orange-soft);border-radius:0 6px 6px 0"></div>
+      </div>
+      <div style="text-align:right">${(lp*100).toFixed(1)}%</div></div>
+    <div class="progress-row"><div>Time</div><div class="pbar gray"><div class="fill" style="width:${Math.min(100,tp*100)}%"></div></div><div style="text-align:right">${(tp*100).toFixed(1)}%</div></div>
+    <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
+      Leads pacing is <b>${(ratio*100).toFixed(0)}% of expected</b>. ${lp>tp ? 'Ahead of plan ✓' : 'Behind plan'}.
+      ${unprocessed > 0 ? `<br><span style="display:inline-block;width:9px;height:9px;background:var(--cf-orange-soft);border-radius:2px;margin-right:5px;vertical-align:middle"></span>${fmtN(unprocessed)} unprocessed leads pending triage could lift this to <b>${((lp+up)*100).toFixed(1)}%</b>.` : ''}
+    </div>`;
+}
+
+function renderWeekly(agg) {
+  destroy('weeklyChart');
+  const labels = agg.weekly.map(w => w.week.slice(5));
+  charts.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'Target', data: agg.weekly.map(w => w.target), backgroundColor:TARGET, borderRadius:3, stack:'plan'},
+      {label:'Accepted actual', data: agg.weekly.map(w => w.actual), backgroundColor:CF, borderRadius:3, stack:'actual'},
+      {label:'Unprocessed', data: agg.weekly.map(w => w.unprocessed), backgroundColor:'#FBAD41', borderRadius:3, stack:'actual'}
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom'} },
+      scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, beginAtZero:true, grid:{color:LINE}} } }
+  });
+}
+
+function donut(id, data, limit) {
+  const arr = data.slice(0, limit || 10);
+  destroy(id);
+  charts[id] = new Chart(document.getElementById(id), {
+    type:'doughnut',
+    data:{ labels: arr.map(d => d[0]),
+      datasets:[{data: arr.map(d => d[1]), backgroundColor: colors, borderColor:'#fff', borderWidth:2}] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:8, boxHeight:8, font:{size:10}, padding:6}},
+        tooltip:{ callbacks:{ label: c => ` ${c.label}: ${c.parsed.toLocaleString()}` } } } }
+  });
+}
+
+function renderAssets(agg) {
+  destroy('assetsChart');
+  const solColors = {
+    'Connectivity Cloud':'#F38020','Modernized Security':'#0A66C2',
+    'Modernized Applications':'#1F9D55','Modernized Networks':'#6B3FA0',
+    'Unknown':'#5A6B78','Other':'#5A6B78'
+  };
+  const solList = [...new Set(agg.assets.map(a => a[1]))];
+  const labels = agg.assets.map(a => a[0]);
+  const vals = agg.assets.map(a => a[2]);
+  const sols = agg.assets.map(a => a[1]);
+  charts.assetsChart = new Chart(document.getElementById('assetsChart'), {
+    type:'bar',
+    data:{ labels, datasets: solList.map(sol => ({
+      label: sol,
+      data: sols.map((s,i) => s === sol ? vals[i] : null),
+      backgroundColor: solColors[sol] || '#5A6B78', borderRadius:3, stack:'one'
+    })) },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, padding:8}},
+        tooltip:{ filter: i => i.parsed.y !== null && i.parsed.y > 0 } },
+      scales:{ x:{stacked:true, grid:{display:false}, ticks:{font:{size:11}}},
+               y:{stacked:true, beginAtZero:true, grid:{color:LINE}} } }
+  });
+}
+
+function renderDaily(agg) {
+  destroy('dailyChart');
+  charts.dailyChart = new Chart(document.getElementById('dailyChart'), {
+    type:'line',
+    data:{ labels: agg.daily.map(d => d[0].slice(5)),
+      datasets:[{label:'Accepted leads', data: agg.daily.map(d => d[1]),
+        borderColor:CF, backgroundColor:CF+'33', fill:true, tension:0.25, pointRadius:2, borderWidth:2}] },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{ x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}},
+               y:{beginAtZero:true, grid:{color:LINE}} } }
+  });
+}
+
+function renderRegionGrid(agg) {
+  const grid = document.getElementById('regionGrid');
+  grid.innerHTML = '';
+  agg.regionRows.forEach(({market, q2, ttd, accepted}) => {
+    const pace = ttd ? (accepted/ttd*100) : 0;
+    const paceColor = !ttd ? 'var(--cf-mute)'
+      : (accepted/ttd >= 1 ? 'var(--good-green)'
+      : (accepted/ttd >= 0.7 ? '#A14B00' : 'var(--bad-red)'));
+    const denom = Math.max(q2, accepted, 1);
+    const wQ2 = (q2/denom*100).toFixed(1);
+    const wTd = (ttd/denom*100).toFixed(1);
+    const wA  = (accepted/denom*100).toFixed(1);
+    grid.insertAdjacentHTML('beforeend', `
+      <div style="border:1px solid var(--cf-line);border-radius:10px;padding:14px 16px;background:#fff">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
+          <div style="font-weight:700;font-size:14px">${market}</div>
+          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '—'}</div>
+        </div>
+        <div class="reg-row"><div class="reg-lbl">Q2 Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
+        <div class="reg-row"><div class="reg-lbl">TTD Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
+        <div class="reg-row"><div class="reg-lbl">QTD Accepted</div><div class="reg-bar"><div class="reg-fill orange" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(accepted)}</div></div>
+      </div>`);
+  });
+}
+
+function renderAll() {
+  const agg = aggregate();
+  renderKPIs(agg);
+  renderLeadsTarget(agg);
+  renderProgress(agg);
+  renderWeekly(agg);
+  donut('solChart',     agg.solutions, 10);
+  donut('countryChart', agg.countries, 10);
+  donut('jfChart',      agg.jobFunc,   8);
+  donut('jlChart',      agg.jobLevel,  10);
+  renderAssets(agg);
+  renderDaily(agg);
+  renderRegionGrid(agg);
+}
+
+// ==========================================================================
+// COMPARISON TAB
+// ==========================================================================
+function populateRegionSelects() {
+  ['A', 'B'].forEach(side => {
+    const sel = document.getElementById('region' + side);
+    ALL_MARKETS.forEach(m => {
+      const opt = document.createElement('option');
+      opt.value = m; opt.textContent = m;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function populateCountryOptions(side) {
+  const region = document.getElementById('region' + side).value;
+  const sel = document.getElementById('country' + side);
+  sel.innerHTML = '<option value="">All Countries</option>';
+  if (!region) return;
+  const countries = [...new Set(
+    rawRows
+      .filter(r => !isDummy(r) && r.MARKET_REGION === region && r.COUNTRY_NAME)
+      .map(r => r.COUNTRY_NAME)
+  )].sort();
+  countries.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    sel.appendChild(opt);
+  });
+}
+
+function onCompareFilterChange(side, regionChanged) {
+  if (regionChanged) {
+    populateCountryOptions(side); // refresh country list based on new region
+  }
+  renderComparePanel(side);
+}
+
+function renderComparePanel(side) {
+  const region = document.getElementById('region' + side).value;
+  const country = document.getElementById('country' + side).value;
+
+  if (!region) {
+    document.getElementById('empty' + side).style.display = 'block';
+    document.getElementById('content' + side).style.display = 'none';
+    destroy(side + '_chartTargets');
+    destroy(side + '_chartWeekly');
+    return;
+  }
+
+  const filterFn = r => r.MARKET_REGION === region && (!country || r.COUNTRY_NAME === country);
+  const agg = aggregate(filterFn);
+
+  document.getElementById('empty' + side).style.display = 'none';
+  document.getElementById('content' + side).style.display = 'block';
+
+  document.getElementById(side + '_target').textContent = fmtN(agg.q2Target);
+  document.getElementById(side + '_total').textContent = fmtN(agg.total - agg.rejected);
+  // All three use total as denominator so they sum to 100%
+  const accRatio = agg.total ? agg.accepted / agg.total : 0;
+  const rejRatio = agg.total ? agg.rejected / agg.total : 0;
+  const unprocessedCount = agg.total - agg.accepted - agg.rejected;
+  const unprocessedRatio = agg.total ? unprocessedCount / agg.total : 0;
+  document.getElementById(side + '_rej').textContent = (rejRatio*100).toFixed(2)+'%';
+  document.getElementById(side + '_acc').textContent = (accRatio*100).toFixed(2)+'%';
+  document.getElementById(side + '_unproc').textContent = (unprocessedRatio*100).toFixed(2)+'%';
+  document.getElementById(side + '_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
+  document.getElementById(side + '_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
+  document.getElementById(side + '_unproc_cnt').textContent = fmtN(unprocessedCount) + ' leads';
+
+  destroy(side + '_chartTargets');
+  charts[side + '_chartTargets'] = new Chart(document.getElementById(side + '_chartTargets'), {
+    type:'bar',
+    data:{ labels:['QTD Target','Leads'],
+      datasets:[{
+        data:[agg.ttdTarget, agg.accepted],
+        backgroundColor:[TARGET, CF], borderRadius:3
+      }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: c => c.parsed.y.toLocaleString() } } },
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:LINE}} } }
+  });
+
+  destroy(side + '_chartWeekly');
+  charts[side + '_chartWeekly'] = new Chart(document.getElementById(side + '_chartWeekly'), {
+    type:'bar',
+    data:{ labels: agg.weekly.map(w => w.week.slice(5)),
+      datasets:[
+        {label:'Target', data: agg.weekly.map(w => w.target), backgroundColor:TARGET, borderRadius:2},
+        {label:'Leads', data: agg.weekly.map(w => w.actual), backgroundColor:CF, borderRadius:2}
+      ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10, boxHeight:8, font:{size:10}, padding:6}} },
+      scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:LINE}, ticks:{font:{size:10}}} } }
+  });
+}
+
+// ==========================================================================
+// PAID MEDIA TAB
+// ==========================================================================
+// Color palette (paid-media-specific; doesn't clash with existing CF/LINE)
+const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#0A66C2', PM_RD='#FF4500',
+      PM_LN='#06C755', PM_INK='#1B2834', PM_LINE='#E5E9EE',
+      PM_TARGET='#6E7785', PM_PURPLE='#6B3FA0';
+
+// Formatters
+const fmt$  = (n,dec=0) => '$'+ (n||0).toLocaleString(undefined,{maximumFractionDigits:dec, minimumFractionDigits:dec});
+const fmtNum = (n) => (n||0).toLocaleString();
+const fmtN_M = (n) => (n>=1_000_000) ? (n/1_000_000).toFixed(2)+'M' : (n>=1000) ? (n/1000).toFixed(1)+'K' : ''+(n||0);
+const fmtPct2 = (n,dec=2) => ((n||0)*100).toFixed(dec)+'%';
+
+// PAYLOAD assembled from the combined JSON's paid_media branch — shape matches
+// the ORIGINAL_DASH render functions. Keys: li_market_day[], ttd_market_day[],
+// rd_market_day[], line_market_day[], benchmarks{}, benchmarks_market{}, li_weekly[], window{}.
+let PAYLOAD = null;
+const PAID_ALL_MARKETS = ['ANZ','ASEAN','SAARC','KR','JP','GCR','RIG'];
+
+function loadPaidMedia() {
+  try {
+    document.getElementById('paid-loading').style.display = 'block';
+    document.getElementById('paid-content').style.display = 'none';
+    document.getElementById('paid-error').style.display = 'none';
+    const data = (COMBINED && COMBINED.paid_media) || null;
+    if (!data) throw new Error('No paid_media branch in /data.json');
+    PAYLOAD = adaptPayload(data);
+    paidMediaLastUpdated = COMBINED.last_updated || null;
+    paidMediaAllMarkets = (data.all_markets && data.all_markets.length)
+      ? data.all_markets
+      : PAID_ALL_MARKETS.filter(m => PAYLOAD.li_market_day.some(r=>r.market===m)
+                                  || PAYLOAD.ttd_market_day.some(r=>r.m===m)
+                                  || PAYLOAD.rd_market_day.some(r=>r.m===m)
+                                  || PAYLOAD.line_market_day.some(r=>r.market===m));
+    paidMediaActiveMarkets = new Set(paidMediaAllMarkets);
+    paidMediaLoaded = true;
+
+    document.getElementById('paid-loading').style.display = 'none';
+    document.getElementById('paid-content').style.display = 'block';
+    setPaidFooter(data.row_count);
+    renderPaidMediaChips();
+    renderPaidMediaAll();
+  } catch (err) {
+    document.getElementById('paid-loading').style.display = 'none';
+    document.getElementById('paid-error').style.display = 'block';
+    document.getElementById('paidErrorDetail').textContent = err.message || String(err);
+  }
+}
+
+// Adapter: turn the new unified rows[] shape into PAYLOAD-style per-channel arrays
+// so the ORIGINAL_DASH render functions can be used unchanged.
+//
+// TTD reports sub-region tokens (HKTW, SGMYID, VNPHID, IN, ALL etc.) parsed from
+// campaign names; we roll those up to the standard 7 APAC L1 buckets so the chips
+// + market table line up across channels.
+const PM_MARKET_REMAP = {
+  'HKTW':   'GCR',
+  'SGMYID': 'ASEAN',
+  'VNPHID': 'ASEAN',
+  'IN':     'SAARC',
+  'ALL':    'RIG'
+};
+function normalizeMarket(m) { return PM_MARKET_REMAP[m] || m; }
+
+function adaptPayload(data) {
+  const rows = data.rows || [];
+  const li = [], ttd = [], rd = [], line = [];
+  for (const r of rows) {
+    const ch = r.channel;
+    const date = String(r.date || '').slice(0, 10);
+    const market = normalizeMarket(r.market);
+    const imps = Number(r.imps) || 0;
+    const clk = Number(r.clicks) || 0;
+    const spend = Number(r.spend_usd) || 0;
+    const leads = Number(r.leads) || 0;
+    if (ch === 'LinkedIn' || ch === 'LI') {
+      li.push({ch:'LI', date, market, imps, clk, spend, leads,
+        formOpens: Number(r.form_opens) || 0,
+        linkClicks: Number(r.link_clicks) || 0,
+        actionClicks: Number(r.action_clicks) || 0,
+        videoStarts: Number(r.video_starts) || 0,
+        videoCompletions: Number(r.video_completions) || 0});
+    } else if (ch === 'TTD' || ch === 'TradeDesk') {
+      ttd.push({date, m: market, imps, clk, spend});
+    } else if (ch === 'Reddit') {
+      rd.push({date, m: market, imps, clk, spend});
+    } else if (ch === 'LINE') {
+      line.push({ch:'LINE', date, market, imps, clk, spend, leads,
+        spend_jpy: Number(r.spend_jpy) || 0,
+        fx_usd_jpy: Number(r.fx_usd_jpy) || 0});
+    }
+  }
+  return {
+    li_market_day: li,
+    ttd_market_day: ttd,
+    rd_market_day: rd,
+    line_market_day: line,
+    benchmarks: data.benchmarks || {
+      TTD:      {ctr:0.00112, cpm:10.07, cpc:9.02},
+      LinkedIn: {ctr:0.00488, cpm:49.48, cpc:10.13},
+      Reddit:   {ctr:0.002,   cpm:5.0,   cpc:2.0},
+      LINE:     {ctr:0.001,   cpm:0.7,   cpc:0.7}
+    },
+    benchmarks_market: data.benchmarks_market || {
+      ANZ:   {ctr:0.00179, cpm:29.06, cpc:16.27},
+      ASEAN: {ctr:0.002,   cpm:12.0,  cpc:4.0},
+      SAARC: {ctr:0.00199, cpm:8.59,  cpc:4.32},
+      RIG:   {ctr:0.00199, cpm:8.59,  cpc:4.32},
+      KR:    {ctr:0.00342, cpm:10.02, cpc:2.93},
+      JP:    {ctr:0.00339, cpm:9.9,   cpc:2.92},
+      GCR:   {ctr:0.00214, cpm:17.39, cpc:11.42}
+    },
+    li_weekly: data.li_weekly || [],
+    window: data.window || {start:'', end:'', days:0}
+  };
+}
+
+function setPaidFooter(rowCount) {
+  const lu = paidMediaLastUpdated ? new Date(paidMediaLastUpdated.replace(' ', 'T')) : null;
+  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : (paidMediaLastUpdated || 'unknown');
+  const totalRows = PAYLOAD.li_market_day.length + PAYLOAD.ttd_market_day.length
+                  + PAYLOAD.rd_market_day.length + PAYLOAD.line_market_day.length;
+  const w = PAYLOAD.window || {};
+  const winText = (w.start && w.end) ? ` · Window ${w.start} → ${w.end}` : '';
+  document.getElementById('paidFooter').innerHTML =
+    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText} · Source: Snowflake V_PAID_ADS_FINAL_MODEL · Auto-refreshes daily at 22:00 UTC`;
+}
+
+function renderPaidMediaChips() {
+  const c = document.getElementById('paidMarketChips');
+  c.innerHTML = '';
+  paidMediaAllMarkets.forEach(m => {
+    const el = document.createElement('button');
+    const on = paidMediaActiveMarkets.has(m);
+    el.className = 'chip' + (on ? ' on' : '');
+    el.innerHTML = `<span class="check">✓</span>${m}`;
+    el.onclick = () => {
+      if (paidMediaActiveMarkets.has(m)) paidMediaActiveMarkets.delete(m);
+      else paidMediaActiveMarkets.add(m);
+      renderPaidMediaChips();
+      renderPaidMediaAll();
+    };
+    c.appendChild(el);
+  });
+}
+
+function selectAllPaidMarkets() {
+  paidMediaActiveMarkets = new Set(paidMediaAllMarkets);
+  renderPaidMediaChips();
+  renderPaidMediaAll();
+}
+function selectNonePaidMarkets() {
+  paidMediaActiveMarkets = new Set();
+  renderPaidMediaChips();
+  renderPaidMediaAll();
+}
+
+// ============== Filter & aggregation helpers ==============
+function passesAll(r) {
+  const m = r.m || r.market;
+  return paidMediaActiveMarkets.has(m);
+}
+function aggregateChannel(rows) {
+  let imp=0, clk=0, sp=0, leads=0;
+  for (const r of rows) if (passesAll(r)) {
+    imp += r.imps || 0; clk += r.clk || 0; sp += r.spend || 0; leads += r.leads || 0;
+  }
+  return {imp, clk, sp, leads};
+}
+function dailyByChannel() {
+  const out = {};
+  const blank = (date) => ({date, li_imp:0, li_clk:0, li_sp:0, li_leads:0,
+                            ttd_imp:0, ttd_clk:0, ttd_sp:0,
+                            rd_imp:0, rd_clk:0, rd_sp:0,
+                            ln_imp:0, ln_clk:0, ln_sp:0});
+  for (const r of PAYLOAD.li_market_day)  if (passesAll(r)) {
+    const o = out[r.date] = out[r.date] || blank(r.date);
+    o.li_imp+=r.imps; o.li_clk+=r.clk; o.li_sp+=r.spend; o.li_leads+=r.leads;
+  }
+  for (const r of PAYLOAD.ttd_market_day) if (passesAll(r)) {
+    const o = out[r.date] = out[r.date] || blank(r.date);
+    o.ttd_imp+=r.imps; o.ttd_clk+=r.clk; o.ttd_sp+=r.spend;
+  }
+  for (const r of PAYLOAD.rd_market_day)  if (passesAll(r)) {
+    const o = out[r.date] = out[r.date] || blank(r.date);
+    o.rd_imp+=r.imps; o.rd_clk+=r.clk; o.rd_sp+=r.spend;
+  }
+  for (const r of (PAYLOAD.line_market_day||[])) if (passesAll(r)) {
+    const o = out[r.date] = out[r.date] || blank(r.date);
+    o.ln_imp+=r.imps; o.ln_clk+=r.clk; o.ln_sp+=r.spend;
+  }
+  return Object.values(out).sort((a,b)=>a.date<b.date?-1:1);
+}
+function spendByMarket() {
+  const out = {};
+  for (const m of paidMediaAllMarkets) out[m] = {li:0,ttd:0,rd:0,ln:0,imp:0,clk:0,leads:0};
+  for (const r of PAYLOAD.li_market_day)  if (passesAll(r) && out[r.market]) { out[r.market].li += r.spend; out[r.market].imp += r.imps; out[r.market].clk += r.clk; out[r.market].leads += r.leads; }
+  for (const r of PAYLOAD.ttd_market_day) if (passesAll(r) && out[r.m])      { out[r.m].ttd += r.spend; out[r.m].imp += r.imps; out[r.m].clk += r.clk; }
+  for (const r of PAYLOAD.rd_market_day)  if (passesAll(r) && out[r.m])      { out[r.m].rd  += r.spend; out[r.m].imp += r.imps; out[r.m].clk += r.clk; }
+  for (const r of (PAYLOAD.line_market_day||[])) if (passesAll(r) && out[r.market]) { out[r.market].ln += r.spend; out[r.market].imp += r.imps; out[r.market].clk += r.clk; }
+  return Object.entries(out)
+    .filter(([k,v]) => (v.li+v.ttd+v.rd+v.ln) > 0)
+    .sort(([,a],[,b]) => (b.li+b.ttd+b.rd+b.ln) - (a.li+a.ttd+a.rd+a.ln));
+}
+
+const lineDS = (label, color, data) => ({label, data,
+  borderColor: color, backgroundColor: color+'22',
+  tension: 0.25, pointRadius: 2, pointHoverRadius: 4, borderWidth: 2, fill: false});
+
+// ============== Render functions (adapted from ORIGINAL_DASH) ==============
+function renderPaidKPIs() {
+  const li = aggregateChannel(PAYLOAD.li_market_day);
+  const ttd= aggregateChannel(PAYLOAD.ttd_market_day);
+  const rd = aggregateChannel(PAYLOAD.rd_market_day);
+  const ln = aggregateChannel(PAYLOAD.line_market_day);
+  const spend = li.sp + ttd.sp + rd.sp + ln.sp;
+  const imp   = li.imp + ttd.imp + rd.imp + ln.imp;
+  const clk   = li.clk + ttd.clk + rd.clk + ln.clk;
+  document.getElementById('k_spend').textContent = fmt$(spend);
+  document.getElementById('k_spend_b').textContent =
+    `${fmt$(ttd.sp)} TTD · ${fmt$(li.sp)} LinkedIn · ${fmt$(rd.sp)} Reddit · ${fmt$(ln.sp)} LINE`;
+  document.getElementById('k_imp').textContent = fmtN_M(imp);
+  document.getElementById('k_cpm').textContent = imp ? `${fmt$(spend/imp*1000,2)} blended CPM` : '—';
+  document.getElementById('k_clk').textContent = fmtNum(clk);
+  document.getElementById('k_ctr').textContent = imp ? `${fmtPct2(clk/imp,2)} blended CTR` : '—';
+  document.getElementById('k_leads').textContent = li.leads;
+  document.getElementById('k_cpc').textContent = clk ? fmt$(spend/clk,2) : '—';
+  document.getElementById('k_cpc_b').textContent = clk
+    ? `vs plan TTD ${fmt$(PAYLOAD.benchmarks.TTD.cpc,2)} · LI ${fmt$(PAYLOAD.benchmarks.LinkedIn.cpc,2)}`
+    : '—';
+
+  // Modeled-TTD lead gap tiles
+  const liClickToLead = li.clk ? li.leads / li.clk : 0;
+  document.getElementById('gap_low').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 0.5) : '—';
+  document.getElementById('gap_mid').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 1.0) : '—';
+  document.getElementById('gap_high').textContent = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 2.0) : '—';
+}
+
+function renderTtdImpCtr() {
+  const days = {};
+  for (const r of PAYLOAD.ttd_market_day) if (passesAll(r)) {
+    const o = days[r.date] = days[r.date] || {imp:0, clk:0};
+    o.imp += r.imps; o.clk += r.clk;
+  }
+  const dates = Object.keys(days).sort();
+  destroy('ttdImpCtr');
+  charts.ttdImpCtr = new Chart(document.getElementById('ttdImpCtr'), {data:{
+    labels: dates.map(d=>d.slice(5)),
+    datasets:[
+      {type:'bar',  label:'Impressions', data: dates.map(d=>days[d].imp), backgroundColor: PM_CFs, borderColor: PM_CF, borderWidth:1, yAxisID:'y', order:3},
+      {type:'line', label:'Clicks',      data: dates.map(d=>days[d].clk), borderColor: PM_PURPLE, backgroundColor: PM_PURPLE, tension:.25, pointRadius:2, pointHoverRadius:4, borderWidth:2, yAxisID:'yClk', order:1},
+      {type:'line', label:'CTR (%)',     data: dates.map(d=>days[d].imp ? days[d].clk/days[d].imp*100 : 0), borderColor: PM_INK, backgroundColor: PM_INK, tension:.25, pointRadius:2, pointHoverRadius:4, borderWidth:2, borderDash:[4,3], yAxisID:'yCtr', order:2}
+    ]
+  }, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8}}},
+    scales:{
+      y:    {beginAtZero:true, position:'left',  grid:{color:PM_LINE}, ticks:{color: PM_CF,     callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:PM_CF}},
+      yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{color: PM_PURPLE},                                       title:{display:true, text:'Clicks',     color:PM_PURPLE}},
+      yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{color: PM_INK,    callback:v=>v.toFixed(2)+'%'},        title:{display:true, text:'CTR',        color:PM_INK}, offset:true, afterFit:a=>{a.width=50}},
+      x:    {grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:14}}
+    }}});
+}
+
+function renderChannelMix() {
+  const li = aggregateChannel(PAYLOAD.li_market_day);
+  const ttd= aggregateChannel(PAYLOAD.ttd_market_day);
+  const rd = aggregateChannel(PAYLOAD.rd_market_day);
+  const ln = aggregateChannel(PAYLOAD.line_market_day);
+  destroy('channelMix');
+  charts.channelMix = new Chart(document.getElementById('channelMix'), {type:'doughnut', data:{
+    labels:['TTD','LinkedIn','Reddit','LINE'],
+    datasets:[{data:[ttd.sp, li.sp, rd.sp, ln.sp], backgroundColor:[PM_CF, PM_LI, PM_RD, PM_LN], borderColor:'#fff', borderWidth:2}]
+  }, options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
+    plugins:{legend:{position:'bottom'},
+      tooltip:{callbacks:{label: c => {
+        const tot = ttd.sp + li.sp + rd.sp + ln.sp;
+        return `${c.label}: ${fmt$(c.parsed,0)} (${tot ? (c.parsed/tot*100).toFixed(1) : 0}%)`;
+      }}}}}});
+}
+
+function renderDailyStack() {
+  const daily = dailyByChannel();
+  const labels = daily.map(d => d.date.slice(5));
+  destroy('dailyStack');
+  charts.dailyStack = new Chart(document.getElementById('dailyStack'), {type:'bar', data:{labels, datasets:[
+    {label:'TTD',      data:daily.map(d=>d.ttd_sp), backgroundColor:PM_CF},
+    {label:'LinkedIn', data:daily.map(d=>d.li_sp),  backgroundColor:PM_LI},
+    {label:'Reddit',   data:daily.map(d=>d.rd_sp),  backgroundColor:PM_RD},
+    {label:'LINE',     data:daily.map(d=>d.ln_sp),  backgroundColor:PM_LN},
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.y,0)}`}}},
+    scales:{x:{stacked:true, grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:14}},
+            y:{stacked:true, grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v}}}}});
+}
+
+function renderMarketBar() {
+  const arr = spendByMarket();
+  destroy('marketBar');
+  charts.marketBar = new Chart(document.getElementById('marketBar'), {type:'bar', data:{
+    labels: arr.map(([m])=>m),
+    datasets:[{label:'Total spend', data: arr.map(([,v])=>v.li+v.ttd+v.rd+v.ln), backgroundColor: PM_CF, borderRadius:4}]
+  }, options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmt$(c.parsed.x)}`}}},
+    scales:{x:{grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v}}, y:{grid:{display:false}}}}});
+}
+
+function renderEffTrio() {
+  const daily = dailyByChannel();
+  const labels = daily.map(d => d.date.slice(5));
+  const ttd_ctr = daily.map(d => d.ttd_imp ? d.ttd_clk/d.ttd_imp*100 : 0);
+  const li_ctr  = daily.map(d => d.li_imp  ? d.li_clk /d.li_imp *100 : 0);
+  const rd_ctr  = daily.map(d => d.rd_imp  ? d.rd_clk /d.rd_imp *100 : 0);
+  destroy('ctrTrend');
+  charts.ctrTrend = new Chart(document.getElementById('ctrTrend'), {type:'line', data:{labels, datasets:[
+    lineDS('TTD', PM_CF, ttd_ctr), lineDS('LinkedIn', PM_LI, li_ctr), lineDS('Reddit', PM_RD, rd_ctr),
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(3)}%`}}},
+    scales:{y:{beginAtZero:true, grid:{color:PM_LINE}, ticks:{callback:v=>v.toFixed(2)+'%'}},
+            x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+
+  destroy('clkTrend');
+  charts.clkTrend = new Chart(document.getElementById('clkTrend'), {type:'line', data:{labels, datasets:[
+    lineDS('TTD',      PM_CF, daily.map(d=>d.ttd_clk)),
+    lineDS('LinkedIn', PM_LI, daily.map(d=>d.li_clk)),
+    lineDS('Reddit',   PM_RD, daily.map(d=>d.rd_clk)),
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom'}},
+    scales:{y:{beginAtZero:true, grid:{color:PM_LINE}}, x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+
+  destroy('cpcTrend');
+  charts.cpcTrend = new Chart(document.getElementById('cpcTrend'), {type:'line', data:{labels, datasets:[
+    lineDS('TTD',      PM_CF, daily.map(d=>d.ttd_clk ? d.ttd_sp/d.ttd_clk : 0)),
+    lineDS('LinkedIn', PM_LI, daily.map(d=>d.li_clk  ? d.li_sp /d.li_clk  : 0)),
+    lineDS('Reddit',   PM_RD, daily.map(d=>d.rd_clk  ? d.rd_sp /d.rd_clk  : 0)),
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}},
+    scales:{y:{beginAtZero:true, grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v.toFixed(2)}},
+            x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+}
+
+function renderMarketStack() {
+  const arr = spendByMarket();
+  destroy('marketStack');
+  charts.marketStack = new Chart(document.getElementById('marketStack'), {type:'bar', data:{
+    labels: arr.map(([m])=>m),
+    datasets:[
+      {label:'TTD',      data:arr.map(([,v])=>v.ttd), backgroundColor:PM_CF},
+      {label:'LinkedIn', data:arr.map(([,v])=>v.li),  backgroundColor:PM_LI},
+      {label:'Reddit',   data:arr.map(([,v])=>v.rd),  backgroundColor:PM_RD},
+      {label:'LINE',     data:arr.map(([,v])=>v.ln),  backgroundColor:PM_LN},
+    ]
+  }, options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom'}},
+    scales:{x:{stacked:true, grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v}},
+            y:{stacked:true, grid:{display:false}}}}});
+}
+
+function deltaCell(actual, plan, lower_is_better) {
+  if (!plan || !actual) return '<span class="delta-pm neutral">—</span>';
+  const d = (actual - plan) / plan;
+  const good = lower_is_better ? d < 0 : d > 0;
+  const cls = Math.abs(d) < 0.05 ? 'neutral' : (good ? 'good' : 'bad');
+  const sign = d > 0 ? '+' : '';
+  return `<span class="delta-pm ${cls}">${sign}${(d*100).toFixed(0)}%</span>`;
+}
+
+function renderMarketTable() {
+  const arr = spendByMarket();
+  const tbody = document.querySelector('#marketTable tbody');
+  tbody.innerHTML = '';
+  arr.forEach(([m, v]) => {
+    const spend = v.li + v.ttd + v.rd + v.ln;
+    const ctr = v.imp ? v.clk / v.imp : 0;
+    const cpc = v.clk ? spend / v.clk : 0;
+    const bm = PAYLOAD.benchmarks_market[m] || {ctr:0, cpc:0};
+    tbody.insertAdjacentHTML('beforeend', `<tr>
+      <td><b>${m}</b></td>
+      <td>${fmt$(spend)}</td>
+      <td>${fmtNum(v.imp)}</td>
+      <td>${fmtNum(v.clk)}</td>
+      <td>${fmtPct2(ctr,2)}</td>
+      <td>${deltaCell(ctr, bm.ctr, false)}</td>
+      <td>${fmt$(cpc,2)}</td>
+      <td>${deltaCell(cpc, bm.cpc, true)}</td>
+      <td>${v.leads}</td>
+    </tr>`);
+  });
+}
+
+function renderBenchmarkTable() {
+  const li = aggregateChannel(PAYLOAD.li_market_day);
+  const ttd= aggregateChannel(PAYLOAD.ttd_market_day);
+  const rd = aggregateChannel(PAYLOAD.rd_market_day);
+  const ln = aggregateChannel(PAYLOAD.line_market_day);
+  const rows = [
+    {ch:'TTD',      pill:'cf', data:ttd, bm:PAYLOAD.benchmarks.TTD,      leads:'<span class="bench">no pixel</span>'},
+    {ch:'LinkedIn', pill:'li', data:li,  bm:PAYLOAD.benchmarks.LinkedIn, leads:li.leads},
+    {ch:'Reddit',   pill:'rd', data:rd,  bm:PAYLOAD.benchmarks.Reddit,   leads:rd.leads || 0},
+    {ch:'LINE',     pill:'ln', data:ln,  bm:PAYLOAD.benchmarks.LINE,     leads:ln.leads || 0},
+  ];
+  let totSp=0, totImp=0, totClk=0, totLeads=0;
+  const tbody = document.querySelector('#benchmarkTable tbody');
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const ctr = r.data.imp ? r.data.clk/r.data.imp : 0;
+    const cpm = r.data.imp ? r.data.sp/r.data.imp*1000 : 0;
+    const cpc = r.data.clk ? r.data.sp/r.data.clk : 0;
+    totSp += r.data.sp; totImp += r.data.imp; totClk += r.data.clk;
+    if (typeof r.leads === 'number') totLeads += r.leads;
+    tbody.insertAdjacentHTML('beforeend', `<tr>
+      <td><span class="pill ${r.pill}">${r.ch}</span></td>
+      <td>${fmt$(r.data.sp)}</td>
+      <td>${fmtNum(r.data.imp)}</td>
+      <td>${fmtNum(r.data.clk)}</td>
+      <td>${fmtPct2(ctr,2)} <span class="bench">vs ${fmtPct2(r.bm.ctr,2)}</span></td>
+      <td>${deltaCell(ctr, r.bm.ctr, false)}</td>
+      <td>${fmt$(cpm,2)} <span class="bench">vs ${fmt$(r.bm.cpm,2)}</span></td>
+      <td>${deltaCell(cpm, r.bm.cpm, true)}</td>
+      <td>${fmt$(cpc,2)} <span class="bench">vs ${fmt$(r.bm.cpc,2)}</span></td>
+      <td>${deltaCell(cpc, r.bm.cpc, true)}</td>
+      <td>${r.leads}</td>
+    </tr>`);
+  });
+  tbody.insertAdjacentHTML('beforeend', `<tr class="total">
+    <td>Total</td><td>${fmt$(totSp)}</td><td>${fmtNum(totImp)}</td><td>${fmtNum(totClk)}</td>
+    <td>${totImp ? fmtPct2(totClk/totImp,2) : '—'}</td><td>—</td>
+    <td>${totImp ? fmt$(totSp/totImp*1000,2) : '—'}</td><td>—</td>
+    <td>${totClk ? fmt$(totSp/totClk,2) : '—'}</td><td>—</td>
+    <td>${totLeads}</td>
+  </tr>`);
+}
+
+function renderWeeklyTarget() {
+  destroy('weeklyTarget');
+  const w = PAYLOAD.li_weekly || [];
+  if (!w.length) return;
+  const monthMap = {Mar:'03', Apr:'04', May:'05', Jun:'06'};
+  const weekStarts = w.map(x => {
+    const start = (x.period || '').split(' - ')[0]; // "Mar 30"
+    const [mon, dd] = start.split(' ');
+    return `2026-${monthMap[mon] || '04'}-${(dd||'01').padStart(2,'0')}`;
+  });
+  function weekIndex(dateStr) {
+    for (let i = weekStarts.length - 1; i >= 0; i--) {
+      if (dateStr >= weekStarts[i]) return i;
+    }
+    return -1;
+  }
+  const isAllMarkets = paidMediaActiveMarkets.size === paidMediaAllMarkets.length;
+  const weeklyActual = w.map(_ => 0);
+  const weeklyHasData = w.map(_ => false);
+  for (const r of PAYLOAD.li_market_day) {
+    if (!paidMediaActiveMarkets.has(r.market)) continue;
+    const wi = weekIndex(r.date);
+    if (wi < 0) continue;
+    weeklyActual[wi] += (r.leads || 0);
+    weeklyHasData[wi] = true;
+  }
+  const actualSeries = weeklyActual.map((v, i) => weeklyHasData[i] ? v : null);
+  let cumA = 0;
+  const cumActualSeries = weeklyActual.map((v, i) => {
+    if (!weeklyHasData[i]) return null;
+    cumA += v; return cumA;
+  });
+  const targetSuffix = isAllMarkets ? '' : ' (programme)';
+  charts.weeklyTarget = new Chart(document.getElementById('weeklyTarget'), {data:{
+    labels: w.map(x => `${x.week}\n${x.period}`),
+    datasets:[
+      {type:'bar',  label:'Weekly target'+targetSuffix,     data: w.map(x=>x.target),     backgroundColor: PM_TARGET, order:3, borderRadius:3},
+      {type:'bar',  label:'Weekly actual',                  data: actualSeries,            backgroundColor: PM_LI,     order:2, borderRadius:3},
+      {type:'line', label:'Cumulative target'+targetSuffix, data: w.map(x=>x.cum_target), borderColor: PM_TARGET, borderDash:[6,4], pointRadius:0, borderWidth:2, yAxisID:'y2', fill:false, order:1},
+      {type:'line', label:'Cumulative actual',              data: cumActualSeries,         borderColor: PM_LI,     pointRadius:3, borderWidth:2.5, yAxisID:'y2', fill:false, order:0, spanGaps:false},
+    ]
+  }, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8}}},
+    scales:{x:{grid:{display:false}, ticks:{font:{size:10}}},
+            y:{beginAtZero:true, grid:{color:PM_LINE}, title:{display:true, text:'Leads / week'}},
+            y2:{beginAtZero:true, grid:{display:false}, position:'right', title:{display:true, text:'Cumulative'}}}}});
+}
+
+function renderLiFunnel() {
+  const li = aggregateChannel(PAYLOAD.li_market_day);
+  let formOpens = 0, landingPageClicks = 0, actionClicks = 0, videoStarts = 0, videoCompletions = 0;
+  for (const r of PAYLOAD.li_market_day) {
+    if (passesAll(r)) {
+      formOpens        += r.formOpens || 0;
+      landingPageClicks += r.linkClicks || 0;
+      actionClicks     += r.actionClicks || 0;
+      videoStarts      += r.videoStarts || 0;
+      videoCompletions += r.videoCompletions || 0;
+    }
+  }
+  const cpc     = li.clk   ? li.sp / li.clk    : 0;
+  const cpl     = li.leads ? li.sp / li.leads  : 0;
+  const cpStart = formOpens ? li.sp / formOpens : 0;
+  const ctr     = li.imp   ? li.clk / li.imp * 100 : 0;
+  const dr = (a, b) => (a > 0 && b !== undefined) ? ((1 - b/a) * 100) : null;
+  const d_ic = dr(li.imp, li.clk);
+  const d_cs = formOpens > 0 ? dr(li.clk, formOpens) : null;
+  const d_sl = formOpens > 0 ? dr(formOpens, li.leads) : null;
+  const formStartsTxt = formOpens > 0
+    ? formOpens.toLocaleString()
+    : '<span style="color:var(--cf-mute);font-size:13px;font-weight:600">— pending</span>';
+  const formStartsSub = formOpens > 0
+    ? `CPS ${fmt$(cpStart,2)} · click→start ${li.clk ? fmtPct2(formOpens/li.clk,2) : '—'}`
+    : 'awaiting next datastream 924 fetch';
+  const step = (label, value, sub) => `
+    <div style="flex:1 1 0;min-width:0;background:#fff;border:1px solid var(--cf-line);border-left:4px solid ${PM_LI};border-radius:8px;padding:12px 14px">
+      <div style="font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:4px">${label}</div>
+      <div style="font-size:24px;font-weight:700;color:${PM_LI};line-height:1.1">${value}</div>
+      <div style="font-size:11.5px;color:var(--cf-mute);margin-top:4px">${sub}</div>
+    </div>`;
+  const arrow = (pct, label) => `
+    <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;min-width:90px">
+      <div style="font-size:18px;color:${pct === null ? 'var(--cf-mute)' : 'var(--bad-red)'};line-height:1">▶</div>
+      <div style="font-size:11px;color:${pct === null ? 'var(--cf-mute)' : 'var(--bad-red)'};font-weight:600;margin-top:2px;text-align:center">${pct === null ? '—' : pct.toFixed(1)+'%'}</div>
+      <div style="font-size:10.5px;color:var(--cf-mute);margin-top:2px;text-align:center;line-height:1.2">${label}</div>
+    </div>`;
+  document.getElementById('liFunnel').innerHTML = `
+    <div style="display:flex;align-items:stretch;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:4px 0">
+      ${step('Impressions', li.imp.toLocaleString(), `${(PAYLOAD.window && PAYLOAD.window.days) || ''}d window · CTR ${ctr.toFixed(2)}%`)}
+      ${arrow(d_ic, 'impr → click')}
+      ${step('Clicks', li.clk.toLocaleString(), `CPC ${fmt$(cpc,2)}`)}
+      ${arrow(d_cs, 'click → start')}
+      ${step('Lead form starts', formStartsTxt, formStartsSub)}
+      ${arrow(d_sl, 'start → submit')}
+      ${step('Submitted leads', li.leads, `CPL ${fmt$(cpl,0)} · click→lead ${li.clk ? fmtPct2(li.leads/li.clk,2) : '—'}`)}
+    </div>
+    <div style="margin-top:10px;font-size:11.5px;color:var(--cf-mute);line-height:1.5">
+      <b>Other engagement signals (programme-to-date, populate after each fetch):</b>
+      action clicks ${actionClicks.toLocaleString()} ·
+      link clicks ${landingPageClicks.toLocaleString()} ·
+      video starts ${videoStarts.toLocaleString()} ·
+      video completions ${videoCompletions.toLocaleString()}.
+    </div>`;
+}
+
+function renderPaidMediaAll() {
+  if (!PAYLOAD) return;
+  renderPaidKPIs();
+  renderTtdImpCtr();
+  renderChannelMix();
+  renderDailyStack();
+  renderMarketBar();
+  renderEffTrio();
+  renderMarketStack();
+  renderMarketTable();
+  renderBenchmarkTable();
+  renderWeeklyTarget();
+  renderLiFunnel();
+}
+
+boot();
+</script>
+</body>
+</html>

@@ -28,6 +28,16 @@ from google.cloud import bigquery, storage
 import snowflake.connector
 from cryptography.hazmat.primitives import serialization
 
+from decimal import Decimal as _Decimal
+import datetime as _dt
+
+def _json_default(o):
+    if isinstance(o, _Decimal):
+        return float(o)
+    if isinstance(o, (_dt.date, _dt.datetime)):
+        return o.isoformat()
+    raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
+
 # --- Project-wide constants (identical for every client) ----------------------
 PROJECT      = "bidbrain-analytics"
 LOC          = "australia-southeast1"
@@ -223,7 +233,7 @@ def main():
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
-        json.dumps(env), content_type="application/json")
+        json.dumps(env, default=_json_default), content_type="application/json")
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows")
 
 
