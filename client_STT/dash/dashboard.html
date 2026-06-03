@@ -266,8 +266,8 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Monthly delivery — impressions &amp; spend</h3>
-          <div class="hint">Impressions by platform (stacked bars) with combined spend (line, SGD).</div>
+          <h3>Monthly delivery — spend by platform</h3>
+          <div class="hint">Spend by platform (stacked bars, SGD); dashed line = total spend.</div>
           <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -324,7 +324,7 @@
     <div id="tab-web" class="tabpane">
       <div class="section first">
         <h2>Website traffic — GA4</h2>
-        <span class="sub">The STT GDC websites (one GA4 property per market, plus the global &amp; corporate sites), campaign window. This is the outcome the media is working toward.</span>
+        <span class="sub">The STT GDC websites (one GA4 property per APAC market), campaign window. This is the outcome the media is working toward.</span>
       </div>
 
       <div class="kpis" id="webKpis"></div>
@@ -344,7 +344,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>Sessions by market</h3>
-        <div class="hint">Each site, campaign window. Paid-channel sessions (red) stacked over the rest. "All Sites" is the main corporate property.</div>
+        <div class="hint">Each APAC market, campaign window. Paid-channel sessions (red) stacked over the rest.</div>
         <div class="chart-wrap" style="height:320px"><canvas id="webMarkets"></canvas></div>
       </div>
 
@@ -415,7 +415,7 @@ const BUCKET_COLOR = { Paid:C.red, Organic:C.teal, Direct:C.slate, Referral:C.te
 // STATE / HELPERS
 //==============================================================================
 let DATA = null, charts = {}, activeTab = 'overview';
-let activeCountries = new Set();   // GA4 account_name -> "Country" filter (Global off by default)
+let activeCountries = new Set();   // GA4 account_name -> "Country" filter (APAC markets only)
 let activePlatforms = new Set();   // ad-platform filter (all on by default)
 const el = id => document.getElementById(id);
 
@@ -447,6 +447,12 @@ function deltaHTML(now, base){
 //==============================================================================
 // COUNTRY FILTER — aggregate the market-grained GA4 arrays over selected countries
 //==============================================================================
+// APAC markets only. The dashboard is APAC-scoped, so non-APAC entities are
+// filtered out everywhere they would otherwise render: the "Global" GA4 property,
+// the "All Sites" corporate aggregate, and any unmapped "Other" market.
+const APAC_MARKETS = ['Singapore','Malaysia','India','Philippines','Indonesia','Thailand','Vietnam','Japan','Korea'];
+const isApac = m => APAC_MARKETS.includes(m);
+
 const countryOk = m => activeCountries.has(m);
 function selCountries(){ return (DATA.countries||[]).filter(c => activeCountries.has(c)); }
 
@@ -517,8 +523,8 @@ async function boot(){
     const res = await fetch(JSON_URL, {cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA = await res.json();
-    // Country filter defaults to every property EXCEPT "Global".
-    activeCountries = new Set((DATA.countries||[]).filter(c => c !== 'Global'));
+    // Country filter defaults to the 9 APAC markets (non-APAC properties excluded).
+    activeCountries = new Set((DATA.countries||[]).filter(isApac));
     // Platform filter defaults to all platforms on.
     activePlatforms = new Set(PLATFORMS.map(p => p.key));
     const h = (location.hash||'').replace('#','');
@@ -565,7 +571,7 @@ function renderControls(){
   el('filterDiv').style.display    = (showCountry && showPlatform) ? 'block' : 'none';
 
   const cw = el('countryChips'); cw.innerHTML = '';
-  (DATA.countries||[]).forEach(c => {
+  (DATA.countries||[]).filter(isApac).forEach(c => {
     const b = document.createElement('button');
     b.className = 'chip' + (activeCountries.has(c) ? ' on' : '');
     b.innerHTML = `<span class="check">✓</span>${c}`;
@@ -583,7 +589,7 @@ function renderControls(){
   });
 }
 
-function allCountries(){ activeCountries = new Set(DATA.countries||[]); renderControls(); renderActive(); }
+function allCountries(){ activeCountries = new Set((DATA.countries||[]).filter(isApac)); renderControls(); renderActive(); }
 function clearCountries(){ activeCountries = new Set(); renderControls(); renderActive(); }
 function allPlatforms(){ activePlatforms = new Set(PLATFORMS.map(p=>p.key)); renderControls(); renderActive(); }
 function clearPlatforms(){ activePlatforms = new Set(); renderControls(); renderActive(); }
@@ -631,7 +637,8 @@ function renderOverview(){
   + kpiCard('accent','Ad clicks', fmtN(a.clk), `${fmtPct(ctr,2)} blended CTR`)
   + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
   + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
-  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`);
+  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
+  + kpiCard('accent','Leads', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
   // Hero: ad impressions (bars, right, selected platforms) vs website sessions (line, left, country-filtered)
   const M = DATA.monthly;
@@ -693,7 +700,7 @@ function renderOverview(){
     plugins:[centerText]
   });
 
-  const selN = selCountries().length, totN = (DATA.countries||[]).length;
+  const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
   const scope = selN===totN ? 'all STT GDC properties' : `${selN} selected ${selN===1?'country':'countries'}`;
   const plats = selPlatforms().map(p=>p.label).join(', ') || 'none';
   el('ovNote').innerHTML = `<b>How to read this.</b> Website sessions reflect the <b>Country</b> filter (${scope}); `
@@ -747,15 +754,14 @@ function renderPaid(){
   const labels = M.map(r=>monthLabel(r.month));
   charts.pmMonthly = new Chart(el('pmMonthly'),{
     data:{ labels, datasets:[
-      { type:'bar', label:'Google Ads', data:M.map(r=>r.ga_imps), backgroundColor:'#E8A33D', stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
-      { type:'bar', label:'DV360', data:M.map(r=>r.dv_imps), backgroundColor:C.red, stack:'s', yAxisID:'y', maxBarThickness:30 },
-      { type:'bar', label:'LinkedIn', data:M.map(r=>r.li_imps), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
-      { type:'line', label:'Spend (SGD)', data:M.map(r=>r.ad_spend_sgd), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3, borderDash:[5,3] }
+      { type:'bar', label:'Google Ads', data:M.map(r=>r.ga_spend_sgd), backgroundColor:'#E8A33D', stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
+      { type:'bar', label:'DV360', data:M.map(r=>r.dv_spend_sgd), backgroundColor:C.red, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'bar', label:'LinkedIn', data:M.map(r=>r.li_cost_usd), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'line', label:'Total spend (SGD)', data:M.map(r=>r.ad_spend_sgd), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2.5, tension:.3, yAxisID:'y', pointRadius:3, borderDash:[5,3] }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
   });
 
   charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
@@ -786,7 +792,7 @@ function renderPaid(){
       <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'S$',2)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
 
   // Google Ads by market
-  const gam = DATA.google_markets.slice().filter(r=>r.market!=='Other').sort((a,b)=>b.imps-a.imps);
+  const gam = DATA.google_markets.slice().filter(r=>isApac(r.market)).sort((a,b)=>b.imps-a.imps);
   charts.pmGoogleMarket = new Chart(el('pmGoogleMarket'),{
     data:{ labels:gam.map(r=>r.market), datasets:[
       { type:'bar', label:'Impressions', data:gam.map(r=>r.imps), backgroundColor:'#E8A33D', borderRadius:4, yAxisID:'y', maxBarThickness:22 },
@@ -799,7 +805,7 @@ function renderPaid(){
   });
 
   // DV360 by market
-  const dv = DATA.dv_markets.slice().sort((a,b)=>b.imps-a.imps);
+  const dv = DATA.dv_markets.slice().filter(r=>isApac(r.market)).sort((a,b)=>b.imps-a.imps);
   charts.pmDvMarket = new Chart(el('pmDvMarket'),{
     data:{ labels:dv.map(r=>r.market), datasets:[
       { type:'bar', label:'Impressions', data:dv.map(r=>r.imps), backgroundColor:C.red, borderRadius:4, yAxisID:'y', maxBarThickness:22 },
@@ -844,6 +850,7 @@ function renderWeb(){
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('web','Page views', fmtM(g.page_views), `${g.sessions?(g.page_views/g.sessions).toFixed(1):'—'} per session`)
   + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
+  + kpiCard('accent','Leads', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
   + kpiCard('accent','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
 
   // sessions by channel (horizontal bar, country-filtered)
@@ -1002,12 +1009,13 @@ function exportAllData(){
   lines.push('# STT GDC APAC dashboard export'); lines.push('# window,'+DATA.window.start+','+DATA.window.end);
   lines.push('# fx_usd_sgd,'+DATA.fx_usd_sgd);
   lines.push('# selected_countries,'+selCountries().join('|'));
+  const apac = arr => (arr||[]).filter(r=>isApac(r.market));   // APAC markets only
   push('monthly (ad delivery, whole campaign)', DATA.monthly); push('weekly (ad delivery, whole campaign)', DATA.weekly);
-  push('ga4_kpi_by_country', DATA.ga4_kpi_market); push('ga4_monthly_by_country', DATA.ga4_monthly_market);
-  push('ga4_weekly_by_country', DATA.ga4_weekly_market); push('ga4_channels_by_country', DATA.ga4_channels_market);
-  push('ga4_sources_by_country', DATA.ga4_sources_market);
+  push('ga4_kpi_by_country', apac(DATA.ga4_kpi_market)); push('ga4_monthly_by_country', apac(DATA.ga4_monthly_market));
+  push('ga4_weekly_by_country', apac(DATA.ga4_weekly_market)); push('ga4_channels_by_country', apac(DATA.ga4_channels_market));
+  push('ga4_sources_by_country', apac(DATA.ga4_sources_market));
   push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns);
-  push('dv_markets', DATA.dv_markets); push('google_markets', DATA.google_markets);
+  push('dv_markets', apac(DATA.dv_markets)); push('google_markets', apac(DATA.google_markets));
   const blob = new Blob([lines.join('\n')], {type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='stt_gdc_dashboard.csv'; a.click();
 }

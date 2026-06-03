@@ -1,53 +1,39 @@
--- STT GDC — staged GA4 website analytics (the "what happened on the site" layer).
---
--- This is the ONE place the STT GA4 filter lives: the 11 "STT GDC Web *" GA4
--- properties (one property_id each — "All" is the main corporate site, the rest
--- are the regional sites + a Global property). Everything downstream reads this
--- view, so the account list never has to be repeated.
---
--- Grain: one row per (property/market × date × session source-medium × default
--- channel group) — straight off raw_windsor.perf_ga4. Derives a clean market
--- label and a coarse channel BUCKET (Paid / Organic / Direct / Referral / Other)
--- so the "effect of ads on traffic" story can split paid from the rest.
+-- STT GDC — staged GA4 website analytics, now sourced DIRECTLY from Snowflake
+-- (raw_snowflake.google_analytics_apac_all, property 318963196 = "STT GDC Web All"),
+-- replacing the Windsor perf_ga4 source. Compatibility shim: emits the SAME column
+-- names the downstream rollups (04-17) expect, so nothing else in sql/ changes.
+-- Source is EVENT-grained (one row per day x country x channel x source x city x event),
+-- and SESSIONS repeats on every event row, so session/user metrics are taken ONLY from
+-- the per-session events (session_start / first_visit) to avoid multiplying by event count.
+-- engaged_sessions is derived from the user_engagement event (see below); engagement
+-- DURATION is still absent upstream (NULL -> dashboard "—" for avg-engagement only).
+-- "market" is now the visitor COUNTRY_NAME.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_stt.stg_ga4` AS
 SELECT
-  metric_date,
-  account_name,
-  CASE account_name
-    WHEN 'STT GDC Web All'         THEN 'All Sites'
-    WHEN 'STT GDC Web Global'      THEN 'Global'
-    WHEN 'STT GDC Web Singapore'   THEN 'Singapore'
-    WHEN 'STT GDC Web Malaysia'    THEN 'Malaysia'
-    WHEN 'STT GDC Web India'       THEN 'India'
-    WHEN 'STT GDC Web Philippines' THEN 'Philippines'
-    WHEN 'STT GDC Web Indonesia'   THEN 'Indonesia'
-    WHEN 'STT GDC Web Thailand'    THEN 'Thailand'
-    WHEN 'STT GDC Web Vietnam'     THEN 'Vietnam'
-    WHEN 'STT GDC Web Japan'       THEN 'Japan'
-    WHEN 'STT GDC Web Korea'       THEN 'Korea'
-    ELSE 'Other'
-  END AS market,
-  session_default_channel_group AS channel_group,
+  DATE(DAY) AS metric_date,
+  COALESCE(NULLIF(COUNTRY_NAME, ''), '(not set)')     AS account_name,
+  COALESCE(NULLIF(COUNTRY_NAME, ''), '(not set)')     AS market,
+  COALESCE(NULLIF(CHANNEL_GROUPING, ''), '(not set)') AS channel_group,
   CASE
-    WHEN session_default_channel_group IN
-         ('Paid Search','Paid Social','Paid Other','Cross-network','Display') THEN 'Paid'
-    WHEN session_default_channel_group LIKE 'Organic%'                         THEN 'Organic'
-    WHEN session_default_channel_group = 'Direct'                             THEN 'Direct'
-    WHEN session_default_channel_group IN ('Referral','Email')                THEN 'Referral'
+    WHEN CHANNEL_GROUPING IN ('Paid Search','Paid Social','Paid Other','Cross-network','Display') THEN 'Paid'
+    WHEN CHANNEL_GROUPING LIKE 'Organic%'      THEN 'Organic'
+    WHEN CHANNEL_GROUPING = 'Direct'           THEN 'Direct'
+    WHEN CHANNEL_GROUPING IN ('Referral','Email') THEN 'Referral'
     ELSE 'Other'
   END AS channel_bucket,
-  session_source_medium,
-  sessions,
-  engaged_sessions,
-  total_users,
-  new_users,
-  screen_page_views,
-  user_engagement_duration,
-  conversions
-FROM `bidbrain-analytics.raw_windsor.perf_ga4`
-WHERE account_name IN (
-  'STT GDC Web Japan', 'STT GDC Web Korea', 'STT GDC Web Singapore',
-  'STT GDC Web Indonesia', 'STT GDC Web Thailand', 'STT GDC Web Vietnam',
-  'STT GDC Web Global', 'STT GDC Web Malaysia', 'STT GDC Web Philippines',
-  'STT GDC Web All', 'STT GDC Web India'
-);
+  -- SESSION_SOURCES (plural) is the STRING source; SESSION_SOURCE (singular) is an
+  -- unrelated INT64 upstream, so it is NOT a usable fallback here.
+  COALESCE(NULLIF(SESSION_SOURCES, ''), '(not set)') AS session_source_medium,
+  SUM(IF(EVENT_NAME = 'session_start', SESSIONS, 0))    AS sessions,
+  -- engaged_sessions: GA4 fires a user_engagement event on engaged sessions, so the
+  -- SESSIONS value on those rows = count of sessions with engagement — the standard
+  -- proxy for GA4 "engaged sessions" (~339,921 over 2025-06-01..2026-05-30).
+  SUM(IF(EVENT_NAME = 'user_engagement', SESSIONS, 0)) AS engaged_sessions,
+  SUM(IF(EVENT_NAME = 'session_start', TOTAL_USERS, 0)) AS total_users,
+  SUM(IF(EVENT_NAME = 'first_visit',   NEW_USERS, 0))   AS new_users,
+  SUM(IF(EVENT_NAME = 'page_view',     EVENT_COUNT, 0)) AS screen_page_views,
+  CAST(NULL AS NUMERIC)                                 AS user_engagement_duration,
+  SUM(IF(EVENT_NAME IN ('contact_submit_success','generate_lead','newsletter_subscribe_success'), KEY_EVENTS, 0)) AS conversions
+FROM `bidbrain-analytics.raw_snowflake.google_analytics_apac_all`
+WHERE PROPERTY_ID = '318963196'
+GROUP BY ALL;
