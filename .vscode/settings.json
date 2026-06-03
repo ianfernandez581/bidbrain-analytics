@@ -1,0 +1,4 @@
+{
+  // Use the project virtualenv so Pylance resolves requests, google-cloud-*, etc.
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python.exe"
+}

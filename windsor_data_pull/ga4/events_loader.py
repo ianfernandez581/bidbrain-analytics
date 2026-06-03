@@ -113,7 +113,7 @@ DIMENSIONS = "date,event_name,is_conversion_event"
 METRICS = "event_count,event_value,conversions"
 FIELDS = ",".join([METADATA_FIELDS, DIMENSIONS, METRICS])
 
-CHUNK_DAYS = 100            # see docstring: safe-and-fast at the event grain (vs 14 for acquisition)
+CHUNK_DAYS = 200            # see docstring: safe-and-fast at the event grain (vs 14 for acquisition)
 STOP_AFTER_EMPTY_CHUNKS = 5
 MIN_DATE = date(2015, 1, 1)
 TIMEOUT_SEC = 120
