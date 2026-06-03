@@ -11,6 +11,7 @@ SELECT
   SUM(IF(channel_bucket NOT IN ('Paid','Organic','Direct'), sessions, 0)) AS other_sessions,
   SUM(IF(channel_group = 'Display',     sessions, 0))                     AS display_sessions,
   SUM(IF(channel_group = 'Paid Social', sessions, 0))                     AS social_sessions,
+  SUM(IF(channel_group = 'Paid Search', sessions, 0))                     AS search_sessions,
   SUM(engaged_sessions) AS engaged_sessions,
   SUM(total_users)      AS users,
   SUM(conversions)      AS conversions

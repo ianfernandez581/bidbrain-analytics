@@ -1,9 +1,10 @@
 -- STT GDC — monthly trend (Jan 2025 → now): the hero "ads vs website traffic" series.
 --
--- One row per month, GA4 sessions split by bucket (and the two ad-mapped channels
--- Display = DV360, Paid Social = LinkedIn) alongside the LinkedIn + DV360 delivery
--- for the same month. Starts at 2025-01 so the chart shows a pre-campaign baseline
--- before the paid programmatic ramp. ad_spend_sgd folds LinkedIn USD in at FX.
+-- One row per month, GA4 sessions split by bucket (and the ad-mapped channels
+-- Display = DV360, Paid Social = LinkedIn, Paid Search = Google Ads) alongside the
+-- LinkedIn + DV360 + Google Ads delivery for the same month. Starts at 2025-01 so
+-- the chart shows a pre-campaign baseline before the paid ramp. ad_* folds all
+-- three platforms in (LinkedIn USD + Google USD at FX).
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_stt.monthly` AS
 WITH
 g AS (
@@ -32,6 +33,11 @@ dv AS (
   SELECT FORMAT_DATE('%Y-%m', metric_date) AS month,
          SUM(imps) AS dv_imps, SUM(clicks) AS dv_clicks, SUM(spend_sgd) AS dv_spend_sgd
   FROM `bidbrain-analytics.client_stt.stg_dv360` GROUP BY month
+),
+ga AS (
+  SELECT FORMAT_DATE('%Y-%m', metric_date) AS month,
+         SUM(imps) AS ga_imps, SUM(clicks) AS ga_clicks, SUM(spend_sgd) AS ga_spend_sgd
+  FROM `bidbrain-analytics.client_stt.stg_google` GROUP BY month
 )
 SELECT
   g.*,
@@ -41,10 +47,14 @@ SELECT
   IFNULL(dv.dv_imps, 0)     AS dv_imps,
   IFNULL(dv.dv_clicks, 0)   AS dv_clicks,
   IFNULL(dv.dv_spend_sgd, 0) AS dv_spend_sgd,
-  IFNULL(li.li_imps, 0)   + IFNULL(dv.dv_imps, 0)               AS ad_imps,
-  IFNULL(li.li_clicks, 0) + IFNULL(dv.dv_clicks, 0)             AS ad_clicks,
-  IFNULL(dv.dv_spend_sgd, 0) + IFNULL(li.li_cost_usd, 0) * 1.34 AS ad_spend_sgd
+  IFNULL(ga.ga_imps, 0)     AS ga_imps,
+  IFNULL(ga.ga_clicks, 0)   AS ga_clicks,
+  IFNULL(ga.ga_spend_sgd, 0) AS ga_spend_sgd,
+  IFNULL(li.li_imps, 0)   + IFNULL(dv.dv_imps, 0)   + IFNULL(ga.ga_imps, 0)   AS ad_imps,
+  IFNULL(li.li_clicks, 0) + IFNULL(dv.dv_clicks, 0) + IFNULL(ga.ga_clicks, 0) AS ad_clicks,
+  IFNULL(dv.dv_spend_sgd, 0) + IFNULL(li.li_cost_usd, 0) * 1.34 + IFNULL(ga.ga_spend_sgd, 0) AS ad_spend_sgd
 FROM g
 LEFT JOIN li USING (month)
 LEFT JOIN dv USING (month)
+LEFT JOIN ga USING (month)
 ORDER BY month;

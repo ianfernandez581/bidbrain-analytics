@@ -15,7 +15,8 @@ WITH cur AS (
     SUM(conversions)              AS conversions,
     SUM(IF(channel_bucket = 'Paid', sessions, 0))        AS paid_sessions,
     SUM(IF(channel_group = 'Display', sessions, 0))      AS display_sessions,
-    SUM(IF(channel_group = 'Paid Social', sessions, 0))  AS social_sessions
+    SUM(IF(channel_group = 'Paid Social', sessions, 0))  AS social_sessions,
+    SUM(IF(channel_group = 'Paid Search', sessions, 0))  AS search_sessions
   FROM `bidbrain-analytics.client_stt.stg_ga4`
   WHERE metric_date >= DATE '2025-06-01'
   GROUP BY market

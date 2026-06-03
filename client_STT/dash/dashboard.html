@@ -54,8 +54,10 @@
   .export-btn:hover{border-color:var(--stt-red);color:var(--stt-red)}
   .export-btn svg{width:14px;height:14px;flex:none}
 
-  /* ---- country filter chips ---- */
-  .control-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--stt-line)}
+  /* ---- filter chips (Country + Platform) ---- */
+  .control-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--stt-line)}
+  .filter-grp{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .fdiv{width:1px;height:20px;background:var(--stt-line)}
   .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--stt-mute)}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{background:#fff;border:1px solid var(--stt-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color .15s ease,background .15s ease;color:var(--stt-ink)}
@@ -198,12 +200,20 @@
           </button>
         </div>
       </div>
-      <div class="control-filters" id="countryFilterRow">
-        <span class="lbl">Country</span>
-        <div class="chips" id="countryChips"></div>
-        <button class="chip-action" onclick="allCountries()">All</button>
-        <button class="chip-action" onclick="clearCountries()">Clear</button>
-        <span class="ctrl-note" style="margin-left:6px" id="countryNote"></span>
+      <div class="control-filters" id="filterRow">
+        <div class="filter-grp" id="countryGroup">
+          <span class="lbl">Country</span>
+          <div class="chips" id="countryChips"></div>
+          <button class="chip-action" onclick="allCountries()">All</button>
+          <button class="chip-action" onclick="clearCountries()">Clear</button>
+        </div>
+        <div class="fdiv" id="filterDiv"></div>
+        <div class="filter-grp" id="platformGroup">
+          <span class="lbl">Platform</span>
+          <div class="chips" id="platformChips"></div>
+          <button class="chip-action" onclick="allPlatforms()">All</button>
+          <button class="chip-action" onclick="clearPlatforms()">Clear</button>
+        </div>
       </div>
     </div>
 
@@ -249,10 +259,10 @@
     <div id="tab-paid" class="tabpane">
       <div class="section first">
         <h2>Paid media — delivery</h2>
-        <span class="sub">LinkedIn paid-social and DV360 programmatic-display delivery for the Always On flight: spend, impressions, clicks and efficiency.</span>
+        <span class="sub">Google Ads (paid search), DV360 (programmatic display) and LinkedIn (paid social) delivery for the Always On flight: spend, impressions, clicks and efficiency. Shows all three platforms regardless of the Platform filter.</span>
       </div>
 
-      <div class="kpis five" id="pmKpis"></div>
+      <div class="kpis" id="pmKpis"></div>
 
       <div class="grid-2-1">
         <div class="card card-tall">
@@ -262,7 +272,7 @@
         </div>
         <div class="card card-tall">
           <h3>Spend share</h3>
-          <div class="hint">LinkedIn (converted to SGD) vs DV360.</div>
+          <div class="hint">Google Ads · DV360 · LinkedIn (USD converted to SGD).</div>
           <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div>
         </div>
       </div>
@@ -280,25 +290,32 @@
 
       <div class="grid">
         <div class="card card-tall">
+          <h3>Google Ads — paid search by market</h3>
+          <div class="hint">Impressions (bars) and spend (SGD) across the APAC markets.</div>
+          <div class="chart-wrap"><canvas id="pmGoogleMarket"></canvas></div>
+        </div>
+        <div class="card card-tall">
           <h3>DV360 — programmatic display by market</h3>
           <div class="hint">Impressions (bars) and spend (SGD) across the 9 APAC markets.</div>
           <div class="chart-wrap"><canvas id="pmDvMarket"></canvas></div>
         </div>
+      </div>
+
+      <div class="grid">
         <div class="card card-tall">
           <h3>LinkedIn — creative mix</h3>
           <div class="hint">Impressions by creative type.</div>
           <div class="chart-wrap"><canvas id="pmLiCreative"></canvas></div>
         </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>LinkedIn — campaigns</h3>
-        <div class="hint">Top campaigns by impressions (whole flight, USD spend).</div>
-        <div style="overflow:auto">
-          <table id="pmLiCampaigns">
-            <thead><tr><th>Campaign</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Spend (USD)</th><th>CPC</th></tr></thead>
-            <tbody></tbody>
-          </table>
+        <div class="card card-tall">
+          <h3>LinkedIn — campaigns</h3>
+          <div class="hint">Top campaigns by impressions (whole flight, USD spend).</div>
+          <div style="overflow:auto;flex:1">
+            <table id="pmLiCampaigns">
+              <thead><tr><th>Campaign</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend (USD)</th><th>CPC</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -347,7 +364,7 @@
     <div id="tab-link" class="tabpane">
       <div class="section first">
         <h2>Ads → Traffic — did the media move the site?</h2>
-        <span class="sub">Connecting paid delivery to website sessions on the two channels the campaign maps to: <b>Display</b> (DV360) and <b>Paid Social</b> (LinkedIn). Paid Search is excluded here — it's Google Ads, which isn't in this spend dataset.</span>
+        <span class="sub">Connecting paid delivery to website sessions on the channels each platform maps to: <b>Paid Search</b> (Google Ads), <b>Display</b> (DV360) and <b>Paid Social</b> (LinkedIn). Use the <b>Platform</b> filter to focus on one, and <b>Country</b> to slice the website side.</span>
       </div>
 
       <div class="info-note" id="linkHeadline"></div>
@@ -399,7 +416,17 @@ const BUCKET_COLOR = { Paid:C.red, Organic:C.teal, Direct:C.slate, Referral:C.te
 //==============================================================================
 let DATA = null, charts = {}, activeTab = 'overview';
 let activeCountries = new Set();   // GA4 account_name -> "Country" filter (Global off by default)
+let activePlatforms = new Set();   // ad-platform filter (all on by default)
 const el = id => document.getElementById(id);
+
+// The three ad platforms with STT data (Meta + Trade Desk had none). Each maps to
+// the GA4 channel its clicks land on, so the Platform filter can scope both the ad
+// delivery AND the matched website sessions on the Ads → Traffic tab.
+const PLATFORMS = [
+  {key:'google',   label:'Google Ads', color:'#E8A33D', imps:'ga_imps', clk:'ga_clicks', spend:k=>k.ga_spend_sgd,                 ga4:'search_sessions', chan:'Paid Search'},
+  {key:'dv360',    label:'DV360',      color:'#D62828', imps:'dv_imps', clk:'dv_clicks', spend:k=>k.dv_spend_sgd,                 ga4:'display_sessions', chan:'Display'},
+  {key:'linkedin', label:'LinkedIn',   color:'#2867B2', imps:'li_imps', clk:'li_clicks', spend:k=>(k.li_cost_usd||0)*DATA.fx_usd_sgd, ga4:'social_sessions', chan:'Paid Social'},
+];
 
 const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
 const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
@@ -423,10 +450,23 @@ function deltaHTML(now, base){
 const countryOk = m => activeCountries.has(m);
 function selCountries(){ return (DATA.countries||[]).filter(c => activeCountries.has(c)); }
 
+// --- Platform filter (ad delivery + matched GA4 channels) ---
+const platOk = key => activePlatforms.has(key);
+function selPlatforms(){ return PLATFORMS.filter(p => activePlatforms.has(p.key)); }
+// Ad totals (spend SGD / imps / clicks) over the selected platforms, from kpi or any per-platform row.
+function adKpi(){ return adFrom(DATA.kpi, true); }
+function adFrom(row, withSpend){
+  let imps=0, clk=0, spend=0;
+  for(const p of selPlatforms()){ imps+=row[p.imps]||0; clk+=row[p.clk]||0; if(withSpend) spend+=p.spend(row)||0; }
+  return {imps, clk, spend};
+}
+// Campaign-driven GA4 sessions = sum of each selected platform's mapped channel (display/social/search).
+function campFrom(gobj){ let s=0; for(const p of selPlatforms()) s+=gobj[p.ga4]||0; return s; }
+
 // Sum ga4_kpi_market over the selected countries -> one totals object.
 function ga4Kpi(){
   const o = {sessions:0,engaged_sessions:0,users:0,new_users:0,page_views:0,eng_duration:0,
-             conversions:0,paid_sessions:0,display_sessions:0,social_sessions:0,
+             conversions:0,paid_sessions:0,display_sessions:0,social_sessions:0,search_sessions:0,
              prior_sessions:0,prior_paid_sessions:0};
   for(const r of DATA.ga4_kpi_market){ if(!countryOk(r.market)) continue; for(const k in o) o[k]+=r[k]||0; }
   return o;
@@ -436,7 +476,7 @@ function ga4MonthlyMap(){
   const m = {};
   for(const r of DATA.ga4_monthly_market){ if(!countryOk(r.market)) continue;
     const e = m[r.month] || (m[r.month] = {sessions:0,paid_sessions:0,organic_sessions:0,direct_sessions:0,
-      other_sessions:0,display_sessions:0,social_sessions:0,engaged_sessions:0,users:0,conversions:0});
+      other_sessions:0,display_sessions:0,social_sessions:0,search_sessions:0,engaged_sessions:0,users:0,conversions:0});
     for(const k in e) e[k]+=r[k]||0;
   }
   return m;
@@ -444,7 +484,7 @@ function ga4MonthlyMap(){
 function ga4WeeklyMap(){
   const m = {};
   for(const r of DATA.ga4_weekly_market){ if(!countryOk(r.market)) continue;
-    const e = m[r.week_start] || (m[r.week_start] = {ga4_sessions:0,paid_sessions:0,display_sessions:0,social_sessions:0});
+    const e = m[r.week_start] || (m[r.week_start] = {ga4_sessions:0,paid_sessions:0,display_sessions:0,social_sessions:0,search_sessions:0});
     for(const k in e) e[k]+=r[k]||0;
   }
   return m;
@@ -479,6 +519,8 @@ async function boot(){
     DATA = await res.json();
     // Country filter defaults to every property EXCEPT "Global".
     activeCountries = new Set((DATA.countries||[]).filter(c => c !== 'Global'));
+    // Platform filter defaults to all platforms on.
+    activePlatforms = new Set(PLATFORMS.map(p => p.key));
     const h = (location.hash||'').replace('#','');
     if(['overview','paid','web','link'].includes(h)) activeTab = h;
     el('loading').style.display='none';
@@ -513,24 +555,38 @@ function renderControls(){
   };
   el('ctrlNote').textContent = notes[activeTab]||'';
 
-  // Country chips — drive every GA4 (website-traffic) figure. Hidden on Paid Media (no GA4 there).
-  const showFilter = activeTab !== 'paid';
-  el('countryFilterRow').style.display = showFilter ? 'flex' : 'none';
-  const wrap = el('countryChips'); wrap.innerHTML = '';
+  // Country chips drive GA4 (website) figures; shown on every tab except Paid Media.
+  // Platform chips drive ad delivery (+ matched GA4 channels); shown on Overview + Ads → Traffic.
+  const showCountry  = activeTab !== 'paid';
+  const showPlatform = activeTab === 'overview' || activeTab === 'link';
+  el('filterRow').style.display    = (showCountry || showPlatform) ? 'flex' : 'none';
+  el('countryGroup').style.display = showCountry ? 'flex' : 'none';
+  el('platformGroup').style.display = showPlatform ? 'flex' : 'none';
+  el('filterDiv').style.display    = (showCountry && showPlatform) ? 'block' : 'none';
+
+  const cw = el('countryChips'); cw.innerHTML = '';
   (DATA.countries||[]).forEach(c => {
     const b = document.createElement('button');
     b.className = 'chip' + (activeCountries.has(c) ? ' on' : '');
     b.innerHTML = `<span class="check">✓</span>${c}`;
     b.onclick = () => { activeCountries.has(c) ? activeCountries.delete(c) : activeCountries.add(c); renderControls(); renderActive(); };
-    wrap.appendChild(b);
+    cw.appendChild(b);
   });
-  const n = selCountries().length, total = (DATA.countries||[]).length;
-  el('countryNote').textContent = n === 0 ? 'Select at least one country'
-    : n === total ? 'all countries' : `${n} of ${total} countries · website-traffic figures only`;
+
+  const pw = el('platformChips'); pw.innerHTML = '';
+  PLATFORMS.forEach(p => {
+    const b = document.createElement('button');
+    b.className = 'chip' + (activePlatforms.has(p.key) ? ' on' : '');
+    b.innerHTML = `<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>${p.label}`;
+    b.onclick = () => { activePlatforms.has(p.key) ? activePlatforms.delete(p.key) : activePlatforms.add(p.key); renderControls(); renderActive(); };
+    pw.appendChild(b);
+  });
 }
 
 function allCountries(){ activeCountries = new Set(DATA.countries||[]); renderControls(); renderActive(); }
 function clearCountries(){ activeCountries = new Set(); renderControls(); renderActive(); }
+function allPlatforms(){ activePlatforms = new Set(PLATFORMS.map(p=>p.key)); renderControls(); renderActive(); }
+function clearPlatforms(){ activePlatforms = new Set(); renderControls(); renderActive(); }
 
 function setTab(t){ activeTab=t; location.hash=t; renderControls(); renderActive(); }
 
@@ -560,30 +616,33 @@ function kpiCard(cls,label,value,delta){
 // OVERVIEW
 //==============================================================================
 function renderOverview(){
-  const k = DATA.kpi;            // ad + window + fx (whole campaign)
+  const k = DATA.kpi;            // per-platform ad fields + window + fx
   const g = ga4Kpi();            // GA4 totals over selected countries
   const gm = ga4MonthlyMap();
-  const ctr = pct(k.ad_clicks, k.ad_imps);
+  const a = adKpi();             // ad totals over selected platforms
+  const ctr = pct(a.clk, a.imps);
   const adShare = pct(g.paid_sessions, g.sessions);
   const engRate = pct(g.engaged_sessions, g.sessions);
+  const spendSub = selPlatforms().map(p=>`${money(p.spend(k))} ${p.label}`).join(' · ') || 'no platform selected';
+  const impSub   = selPlatforms().map(p=>`${p.label} ${fmtM(k[p.imps])}`).join(' · ') || '—';
   el('ovKpis').innerHTML =
-    kpiCard('accent','Media spend (SGD)', money(k.ad_spend_sgd), `${money(k.li_cost_usd,'US$')} LinkedIn · ${money(k.dv_spend_sgd)} DV360`)
-  + kpiCard('accent','Ad impressions', fmtM(k.ad_imps), `LinkedIn ${fmtM(k.li_imps)} · DV360 ${fmtM(k.dv_imps)}`)
-  + kpiCard('accent','Ad clicks', fmtN(k.ad_clicks), `${fmtPct(ctr,2)} blended CTR`)
+    kpiCard('accent','Media spend (SGD)', money(a.spend), spendSub)
+  + kpiCard('accent','Ad impressions', fmtM(a.imps), impSub)
+  + kpiCard('accent','Ad clicks', fmtN(a.clk), `${fmtPct(ctr,2)} blended CTR`)
   + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
   + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`);
 
-  // Hero: ad impressions (bars, right, whole) vs website sessions (line, left, country-filtered)
+  // Hero: ad impressions (bars, right, selected platforms) vs website sessions (line, left, country-filtered)
   const M = DATA.monthly;
   const labels = M.map(r=>monthLabel(r.month));
-  const inWin = M.map(r => r.ad_imps>0);
+  const inWin = M.map(r => adFrom(r).imps>0);
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
         borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
         fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
-      { type:'bar', label:'Ad impressions', data:M.map(r=>r.ad_imps), yAxisID:'y1',
+      { type:'bar', label:'Ad impressions', data:M.map(r=>adFrom(r).imps), yAxisID:'y1',
         backgroundColor:inWin.map(x=>x?'rgba(214,40,40,.78)':'rgba(214,40,40,.18)'),
         borderRadius:4, maxBarThickness:26, order:1 }
     ]},
@@ -621,24 +680,25 @@ function renderOverview(){
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
   });
 
-  // Spend donut by platform
-  const liSgd = k.li_cost_usd*DATA.fx_usd_sgd;
+  // Spend donut by platform (selected platforms)
+  const sp = selPlatforms();
   charts.ovSpend = new Chart(el('ovSpend'),{
     type:'doughnut',
-    data:{ labels:['DV360 (display)','LinkedIn (social)'], datasets:[{ data:[k.dv_spend_sgd, liSgd],
-      backgroundColor:[C.red, C.li], borderColor:'#fff', borderWidth:2 }]},
+    data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>p.spend(k)),
+      backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,k.ad_spend_sgd),0)})`}} },
-      cutoutText:{ line1:money(k.ad_spend_sgd), line2:'total spend' } },
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
+      cutoutText:{ line1:money(a.spend), line2:'total spend' } },
     plugins:[centerText]
   });
 
   const selN = selCountries().length, totN = (DATA.countries||[]).length;
   const scope = selN===totN ? 'all STT GDC properties' : `${selN} selected ${selN===1?'country':'countries'}`;
-  el('ovNote').innerHTML = `<b>How to read this.</b> Website sessions reflect the <b>Country</b> filter above (${scope}); `
-    + `paid-media spend, impressions &amp; clicks are the whole APAC campaign (LinkedIn isn't reported by country). `
-    + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}. `
+  const plats = selPlatforms().map(p=>p.label).join(', ') || 'none';
+  el('ovNote').innerHTML = `<b>How to read this.</b> Website sessions reflect the <b>Country</b> filter (${scope}); `
+    + `paid-media spend, impressions &amp; clicks reflect the <b>Platform</b> filter (${plats}) and are the whole APAC campaign (not split by country). `
+    + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ${DATA.dv_window.start} → ${DATA.dv_window.end}; Google Ads ${DATA.ga_window.start} → ${DATA.ga_window.end}. `
     + `Spend is reported in SGD — LinkedIn's USD is converted at US$1 = S$${DATA.fx_usd_sgd}. `
     + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;
 }
@@ -677,17 +737,19 @@ function renderPaid(){
   const ctr = pct(k.ad_clicks,k.ad_imps), cpm = k.ad_imps? k.ad_spend_sgd/k.ad_imps*1000:0, cpc = k.ad_clicks? k.ad_spend_sgd/k.ad_clicks:0;
   el('pmKpis').innerHTML =
     kpiCard('accent','Combined spend (SGD)', money(k.ad_spend_sgd), `${fmtPct(ctr,2)} CTR · ${money(cpc,'S$',2)} CPC`)
-  + kpiCard('','LinkedIn spend', money(k.li_cost_usd,'US$'), `≈ ${money(liSgd)} · paid social`)
+  + kpiCard('','Google Ads spend', money(k.ga_spend_sgd), `paid search`)
   + kpiCard('','DV360 spend', money(k.dv_spend_sgd), `programmatic display`)
+  + kpiCard('','LinkedIn spend', money(k.li_cost_usd,'US$'), `≈ ${money(liSgd)} · paid social`)
   + kpiCard('accent','Impressions', fmtM(k.ad_imps), `${money(cpm,'S$',2)} blended CPM`)
-  + kpiCard('','Clicks', fmtN(k.ad_clicks), `LinkedIn ${fmtN(k.li_clicks)} · DV360 ${fmtN(k.dv_clicks)}`);
+  + kpiCard('accent','Clicks', fmtN(k.ad_clicks), `Google ${fmtN(k.ga_clicks)} · DV360 ${fmtN(k.dv_clicks)} · LI ${fmtN(k.li_clicks)}`);
 
   const M = DATA.monthly.filter(r=>r.ad_imps>0);
   const labels = M.map(r=>monthLabel(r.month));
   charts.pmMonthly = new Chart(el('pmMonthly'),{
     data:{ labels, datasets:[
-      { type:'bar', label:'DV360 impressions', data:M.map(r=>r.dv_imps), backgroundColor:C.red, stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
-      { type:'bar', label:'LinkedIn impressions', data:M.map(r=>r.li_imps), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'bar', label:'Google Ads', data:M.map(r=>r.ga_imps), backgroundColor:'#E8A33D', stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
+      { type:'bar', label:'DV360', data:M.map(r=>r.dv_imps), backgroundColor:C.red, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'bar', label:'LinkedIn', data:M.map(r=>r.li_imps), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
       { type:'line', label:'Spend (SGD)', data:M.map(r=>r.ad_spend_sgd), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3, borderDash:[5,3] }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
@@ -698,26 +760,43 @@ function renderPaid(){
 
   charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
     type:'doughnut',
-    data:{ labels:['DV360','LinkedIn'], datasets:[{ data:[k.dv_spend_sgd, liSgd], backgroundColor:[C.red,C.li], borderColor:'#fff', borderWidth:2 }]},
+    data:{ labels:['Google Ads','DV360','LinkedIn'], datasets:[{ data:[k.ga_spend_sgd, k.dv_spend_sgd, liSgd], backgroundColor:['#E8A33D',C.red,C.li], borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)}`}} },
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,k.ad_spend_sgd),0)})`}} },
       cutoutText:{line1:money(k.ad_spend_sgd),line2:'SGD'} }, plugins:[centerText]
   });
 
   // platform comparison table
   const liCtr=pct(k.li_clicks,k.li_imps), liCpm=k.li_imps?k.li_cost_usd/k.li_imps*1000:0, liCpc=k.li_clicks?k.li_cost_usd/k.li_clicks:0;
   const dvCtr=pct(k.dv_clicks,k.dv_imps), dvCpm=k.dv_imps?k.dv_spend_sgd/k.dv_imps*1000:0, dvCpc=k.dv_clicks?k.dv_spend_sgd/k.dv_clicks:0;
+  const gaCtr=pct(k.ga_clicks,k.ga_imps), gaCpm=k.ga_imps?k.ga_spend_sgd/k.ga_imps*1000:0, gaCpc=k.ga_clicks?k.ga_spend_sgd/k.ga_clicks:0;
   const win = (a,b)=>`${a} → ${b}`;
   el('pmCompare').querySelector('tbody').innerHTML =
-    `<tr><td><span class="pill"><span class="dot" style="background:${C.li}"></span>LinkedIn</span></td><td>${win(DATA.li_window.start,DATA.li_window.end)}</td>
-      <td class="num">${money(k.li_cost_usd,'US$')}</td><td class="num">${money(liSgd)}</td><td class="num">${fmtN(k.li_imps)}</td><td class="num">${fmtN(k.li_clicks)}</td>
-      <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'US$',2)}</td><td class="num">${money(liCpc,'US$',2)}</td></tr>`
+    `<tr><td><span class="pill"><span class="dot" style="background:#E8A33D"></span>Google Ads</span></td><td>${win(DATA.ga_window.start,DATA.ga_window.end)}</td>
+      <td class="num">mixed</td><td class="num">${money(k.ga_spend_sgd)}</td><td class="num">${fmtN(k.ga_imps)}</td><td class="num">${fmtN(k.ga_clicks)}</td>
+      <td class="num">${fmtPct(gaCtr,2)}</td><td class="num">${money(gaCpm,'S$',2)}</td><td class="num">${money(gaCpc,'S$',2)}</td></tr>`
   + `<tr><td><span class="pill"><span class="dot" style="background:${C.red}"></span>DV360</span></td><td>${win(DATA.dv_window.start,DATA.dv_window.end)}</td>
       <td class="num">${money(k.dv_spend_sgd)}</td><td class="num">${money(k.dv_spend_sgd)}</td><td class="num">${fmtN(k.dv_imps)}</td><td class="num">${fmtN(k.dv_clicks)}</td>
       <td class="num">${fmtPct(dvCtr,2)}</td><td class="num">${money(dvCpm,'S$',2)}</td><td class="num">${money(dvCpc,'S$',2)}</td></tr>`
+  + `<tr><td><span class="pill"><span class="dot" style="background:${C.li}"></span>LinkedIn</span></td><td>${win(DATA.li_window.start,DATA.li_window.end)}</td>
+      <td class="num">${money(k.li_cost_usd,'US$')}</td><td class="num">${money(liSgd)}</td><td class="num">${fmtN(k.li_imps)}</td><td class="num">${fmtN(k.li_clicks)}</td>
+      <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'US$',2)}</td><td class="num">${money(liCpc,'US$',2)}</td></tr>`
   + `<tr class="total"><td>Combined</td><td>—</td><td class="num">—</td><td class="num">${money(k.ad_spend_sgd)}</td><td class="num">${fmtN(k.ad_imps)}</td><td class="num">${fmtN(k.ad_clicks)}</td>
       <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'S$',2)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
+
+  // Google Ads by market
+  const gam = DATA.google_markets.slice().filter(r=>r.market!=='Other').sort((a,b)=>b.imps-a.imps);
+  charts.pmGoogleMarket = new Chart(el('pmGoogleMarket'),{
+    data:{ labels:gam.map(r=>r.market), datasets:[
+      { type:'bar', label:'Impressions', data:gam.map(r=>r.imps), backgroundColor:'#E8A33D', borderRadius:4, yAxisID:'y', maxBarThickness:22 },
+      { type:'line', label:'Spend (SGD)', data:gam.map(r=>r.spend_sgd), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, pointRadius:3, yAxisID:'y1', tension:.3 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+  });
 
   // DV360 by market
   const dv = DATA.dv_markets.slice().sort((a,b)=>b.imps-a.imps);
@@ -826,8 +905,9 @@ function renderWeb(){
 function renderLink(){
   const k = DATA.kpi, M = DATA.monthly, W = DATA.weekly;
   const g = ga4Kpi(), gm = ga4MonthlyMap(), gw = ga4WeeklyMap();   // GA4 over selected countries
-  const campSessions = g.display_sessions + g.social_sessions;
-  const dsw = r => { const e = gw[r.week_start]||{}; return (e.display_sessions||0)+(e.social_sessions||0); };
+  const a = adKpi();                                  // ad totals over selected platforms
+  const campSessions = campFrom(g);                   // GA4 sessions on the selected platforms' channels
+  const dsw = r => campFrom(gw[r.week_start]||{});    // same, per week
 
   // before vs during (DV360 launched Nov 2025) — Display sessions for the selected countries
   const months = M.map(r=>r.month);
@@ -838,29 +918,30 @@ function renderLink(){
   const dispBefore = avg(before), dispDuring = avg(during);
   const lift = dispBefore? (dispDuring-dispBefore)/dispBefore : 0;
 
+  const platLabel = selPlatforms().map(p=>p.label).join(' + ') || 'no platform';
   el('linkHeadline').innerHTML = `<b>The media moved the site.</b> Programmatic-display sessions averaged `
     + `<b>${fmtN(dispBefore)}/month</b> before the DV360 Always On flight and <b>${fmtN(dispDuring)}/month</b> during it `
-    + `— a <b>${lift>=0?'+':''}${(lift*100).toFixed(0)}%</b> lift. Across the flight, S$${fmtN(k.ad_spend_sgd)} of LinkedIn + DV360 `
-    + `media delivered <b>${fmtN(k.ad_imps)}</b> impressions and <b>${fmtN(campSessions)}</b> website sessions on the channels those ads map to.`;
+    + `— a <b>${lift>=0?'+':''}${(lift*100).toFixed(0)}%</b> lift. Across the flight, S$${fmtN(a.spend)} of ${platLabel} `
+    + `media delivered <b>${fmtN(a.imps)}</b> impressions and <b>${fmtN(campSessions)}</b> website sessions on the channels those ads map to.`;
 
   // funnel
   el('linkFunnel').innerHTML =
-    `<div class="step"><div class="k">Media spend</div><div class="v">${money(k.ad_spend_sgd)}</div></div>`
+    `<div class="step"><div class="k">Media spend</div><div class="v">${money(a.spend)}</div></div>`
   + `<div class="arrow">→</div>`
-  + `<div class="step"><div class="k">Ad impressions</div><div class="v">${fmtM(k.ad_imps)}</div></div>`
+  + `<div class="step"><div class="k">Ad impressions</div><div class="v">${fmtM(a.imps)}</div></div>`
   + `<div class="arrow">→</div>`
-  + `<div class="step"><div class="k">Ad clicks</div><div class="v">${fmtN(k.ad_clicks)}</div></div>`
+  + `<div class="step"><div class="k">Ad clicks</div><div class="v">${fmtN(a.clk)}</div></div>`
   + `<div class="arrow">→</div>`
   + `<div class="step"><div class="k">Campaign-driven sessions</div><div class="v">${fmtN(campSessions)}</div></div>`;
 
-  // weekly: ad impressions (bars, right) vs display+social sessions (line, left)
+  // weekly: ad impressions (bars, right) vs matched-channel sessions (line, left)
   const wk = W.filter(r=> r.week_start>='2025-06-01');
   const labels = wk.map(r=>dayLabel(r.week_start));
   charts.linkWeekly = new Chart(el('linkWeekly'),{
     data:{ labels, datasets:[
-      { type:'line', label:'Display + Paid-Social sessions', data:wk.map(dsw),
+      { type:'line', label:'Campaign-driven sessions', data:wk.map(dsw),
         borderColor:C.dark, backgroundColor:'rgba(35,39,46,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
-      { type:'bar', label:'Ad impressions', data:wk.map(r=>r.ad_imps), backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
+      { type:'bar', label:'Ad impressions', data:wk.map(r=>adFrom(r).imps), backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
@@ -869,8 +950,8 @@ function renderLink(){
         y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
   });
 
-  // scatter ad impressions vs campaign sessions, weeks with delivery
-  const pts = wk.filter(r=>r.ad_imps>0).map(r=>({x:r.ad_imps, y:dsw(r)}));
+  // scatter ad impressions vs campaign sessions, weeks with delivery (selected platforms)
+  const pts = wk.map(r=>({x:adFrom(r).imps, y:dsw(r)})).filter(p=>p.x>0);
   const r = pearson(pts.map(p=>p.x), pts.map(p=>p.y));
   el('linkScatterHint').innerHTML = `Each dot is one campaign week with ad delivery. Correlation <b>r = ${r.toFixed(2)}</b> `
     + `(${r>0.6?'strong':r>0.3?'moderate':'weak'} positive relationship).`;
@@ -880,7 +961,7 @@ function renderLink(){
     options:{ maintainAspectRatio:false,
       plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} imps · ${fmtN(c.parsed.y)} sessions`}} },
       scales:{ x:gridY({title:{display:true,text:'Ad impressions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y:gridY({title:{display:true,text:'Display + Social sessions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+        y:gridY({title:{display:true,text:'Campaign-driven sessions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
   });
 
   // before vs during bar
@@ -896,9 +977,10 @@ function renderLink(){
   });
 
   // stats strip
-  const per1k = k.ad_imps? campSessions/(k.ad_imps/1000) : 0;
+  const per1k = a.imps? campSessions/(a.imps/1000) : 0;
+  const chanLabel = selPlatforms().map(p=>p.chan).join(' + ') || 'none';
   el('linkStats').innerHTML =
-    `<div class="stat-card"><div class="k">Campaign-driven sessions</div><div class="v red">${fmtN(campSessions)}</div><div class="c">Display (DV360) + Paid Social (LinkedIn)</div></div>`
+    `<div class="stat-card"><div class="k">Campaign-driven sessions</div><div class="v red">${fmtN(campSessions)}</div><div class="c">${chanLabel}</div></div>`
   + `<div class="stat-card"><div class="k">Sessions per 1,000 impressions</div><div class="v">${per1k.toFixed(1)}</div><div class="c">on the spend-matched channels</div></div>`
   + `<div class="stat-card"><div class="k">Display-session lift</div><div class="v red">${lift>=0?'+':''}${(lift*100).toFixed(0)}%</div><div class="lift-badge">${fmtN(dispBefore)} → ${fmtN(dispDuring)} /mo</div></div>`;
 }
@@ -924,7 +1006,8 @@ function exportAllData(){
   push('ga4_kpi_by_country', DATA.ga4_kpi_market); push('ga4_monthly_by_country', DATA.ga4_monthly_market);
   push('ga4_weekly_by_country', DATA.ga4_weekly_market); push('ga4_channels_by_country', DATA.ga4_channels_market);
   push('ga4_sources_by_country', DATA.ga4_sources_market);
-  push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns); push('dv_markets', DATA.dv_markets);
+  push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns);
+  push('dv_markets', DATA.dv_markets); push('google_markets', DATA.google_markets);
   const blob = new Blob([lines.join('\n')], {type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='stt_gdc_dashboard.csv'; a.click();
 }

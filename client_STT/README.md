@@ -20,8 +20,9 @@ Three live sources, joined into one "ads → traffic" narrative:
 | Source | Raw table (shared) | STT filter | What it contributes |
 |---|---|---|---|
 | **GA4** website analytics | `raw_windsor.perf_ga4` | the 11 `STT GDC Web *` properties | sessions / users / engagement, split by channel — **the outcome** |
-| **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD'` | awareness delivery (USD) |
+| **Google Ads** paid search | `raw_snowflake.google_ads_apac` | `CAMPAIGN_NAME LIKE '%STT%'` | keyword delivery (USD→SGD); market from the campaign name |
 | **DV360** programmatic display | `raw_snowflake.dv360_apac` | `CAMPAIGN_NAME = '(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)'` | prospecting delivery (SGD) |
+| **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD'` | awareness delivery (USD) |
 
 Headline (campaign window from 2025-06-01): **~1.48M website sessions**, **520k ad-driven**, with
 **~S$109k** of LinkedIn + DV360 media behind **8.5M** impressions. Programmatic-display sessions rose
@@ -37,9 +38,16 @@ Paid Search in GA4 is Google Ads, which is **not** in this spend dataset — so 
 
 ## The 4 dashboard tabs (`dash/dashboard.html`)
 
-A **Country** filter (top of the page) slices every website-traffic figure by GA4 property
-(`account_name` → market), with **Global deselected by default**; paid-media delivery stays
-whole-campaign (LinkedIn isn't reported by country). It's hidden on the Paid Media tab.
+Two filters at the top of the page:
+- **Country** — slices every website-traffic figure by GA4 property (`account_name` → market),
+  **Global deselected by default**. Shown on every tab except Paid Media.
+- **Platform** — Google Ads · DV360 · LinkedIn (the three platforms with STT data; Meta & Trade
+  Desk had none). Scopes the ad-delivery figures, and on **Ads → Traffic** also scopes the matched
+  GA4 channels (Google Ads↔Paid Search, DV360↔Display, LinkedIn↔Paid Social). Shown on Overview
+  and Ads → Traffic.
+
+Spend is reported in SGD: LinkedIn (USD) and Google Ads' USD account rows are converted at the
+fixed `FX_USD_SGD = 1.34`.
 
 1. **Overview** — media spend / impressions / clicks vs website sessions; the monthly hero chart, the
    channel-mix donut, paid-vs-rest stacked sessions, and spend-by-platform.

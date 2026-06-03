@@ -72,6 +72,7 @@ def main():
     li_creative = rows(bq, "li_creative")
     li_campaigns = rows(bq, "li_campaigns")
     dv_markets = rows(bq, "dv_markets")
+    google_markets = rows(bq, "google_markets")
     # Market-grained GA4 — the dashboard's Country filter sums the selected
     # markets out of these client-side. Replaces the old whole-campaign GA4
     # rollups (ga4_channels / ga4_markets / ga4_sources).
@@ -96,6 +97,7 @@ def main():
         },
         "li_window": {"start": ymd(kpi["li_start"]), "end": ymd(kpi["li_end"])},
         "dv_window": {"start": ymd(kpi["dv_start"]), "end": ymd(kpi["dv_end"])},
+        "ga_window": {"start": ymd(kpi["ga_start"]), "end": ymd(kpi["ga_end"])},
         "kpi": {
             "sessions": num(kpi["sessions"]),
             "engaged_sessions": num(kpi["engaged_sessions"]),
@@ -115,6 +117,10 @@ def main():
             "dv_imps": num(kpi["dv_imps"]),
             "dv_clicks": num(kpi["dv_clicks"]),
             "dv_spend_sgd": num(kpi["dv_spend_sgd"]),
+            "ga_imps": num(kpi["ga_imps"]),
+            "ga_clicks": num(kpi["ga_clicks"]),
+            "ga_spend_sgd": num(kpi["ga_spend_sgd"]),
+            "ga_conv": num(kpi["ga_conv"]),
             "ad_imps": num(kpi["ad_imps"]),
             "ad_clicks": num(kpi["ad_clicks"]),
             "ad_spend_sgd": num(kpi["ad_spend_sgd"]),
@@ -137,6 +143,9 @@ def main():
             "dv_imps": num(r["dv_imps"]),
             "dv_clicks": num(r["dv_clicks"]),
             "dv_spend_sgd": num(r["dv_spend_sgd"]),
+            "ga_imps": num(r["ga_imps"]),
+            "ga_clicks": num(r["ga_clicks"]),
+            "ga_spend_sgd": num(r["ga_spend_sgd"]),
             "ad_imps": num(r["ad_imps"]),
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_sgd": num(r["ad_spend_sgd"]),
@@ -154,6 +163,7 @@ def main():
             "paid_sessions": num(r["paid_sessions"]),
             "display_sessions": num(r["display_sessions"]),
             "social_sessions": num(r["social_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
             "prior_sessions": num(r["prior_sessions"]),
             "prior_paid_sessions": num(r["prior_paid_sessions"]),
         } for r in ga4_kpi_market],
@@ -167,6 +177,7 @@ def main():
             "other_sessions": num(r["other_sessions"]),
             "display_sessions": num(r["display_sessions"]),
             "social_sessions": num(r["social_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
             "engaged_sessions": num(r["engaged_sessions"]),
             "users": num(r["users"]),
             "conversions": num(r["conversions"]),
@@ -178,6 +189,7 @@ def main():
             "paid_sessions": num(r["paid_sessions"]),
             "display_sessions": num(r["display_sessions"]),
             "social_sessions": num(r["social_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
         } for r in ga4_weekly_market],
         "ga4_channels_market": [{
             "market": r["market"],
@@ -221,14 +233,23 @@ def main():
             "spend_sgd": num(r["spend_sgd"]),
             "conversions": num(r["conversions"]),
         } for r in dv_markets],
+        "google_markets": [{
+            "market": r["market"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+            "conversions": num(r["conversions"]),
+        } for r in google_markets],
         "weekly": [{
             "week_start": ymd(r["week_start"]),
             "ga4_sessions": num(r["ga4_sessions"]),
             "paid_sessions": num(r["paid_sessions"]),
             "display_sessions": num(r["display_sessions"]),
             "social_sessions": num(r["social_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
             "li_imps": num(r["li_imps"]),
             "dv_imps": num(r["dv_imps"]),
+            "ga_imps": num(r["ga_imps"]),
             "ad_imps": num(r["ad_imps"]),
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_sgd": num(r["ad_spend_sgd"]),
