@@ -73,6 +73,15 @@ def main():
     li_campaigns = rows(bq, "li_campaigns")
     dv_markets = rows(bq, "dv_markets")
     google_markets = rows(bq, "google_markets")
+    # Campaign-grained ad delivery — the dashboard's Campaign filter sums the
+    # selected campaigns out of these client-side, rescaling every ad-delivery
+    # figure (the GA4/website side has no campaign dimension, so it stays whole).
+    # Mirrors how the market-grained GA4 arrays power the Country filter.
+    ad_campaigns = rows(bq, "ad_campaigns")
+    ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
+    ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_market = rows(bq, "ad_campaign_market")
+    li_campaign_creative = rows(bq, "li_campaign_creative")
     # Market-grained GA4 — the dashboard's Country filter sums the selected
     # markets out of these client-side. Replaces the old whole-campaign GA4
     # rollups (ga4_channels / ga4_markets / ga4_sources).
@@ -240,6 +249,49 @@ def main():
             "spend_sgd": num(r["spend_sgd"]),
             "conversions": num(r["conversions"]),
         } for r in google_markets],
+        # --- Campaign filter: campaign-grained ad delivery (spend all SGD) --------
+        "ad_campaigns": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in ad_campaigns],
+        "ad_campaign_monthly": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "month": r["month"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+        } for r in ad_campaign_monthly],
+        "ad_campaign_weekly": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "week_start": ymd(r["week_start"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+        } for r in ad_campaign_weekly],
+        "ad_campaign_market": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "market": r["market"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+        } for r in ad_campaign_market],
+        "li_campaign_creative": [{
+            "campaign": r["campaign"],
+            "creative_type": r["creative_type"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "cost_usd": num(r["cost_usd"]),
+            "video_views": num(r["video_views"]),
+            "engagements": num(r["engagements"]),
+        } for r in li_campaign_creative],
         "weekly": [{
             "week_start": ymd(r["week_start"]),
             "ga4_sessions": num(r["ga4_sessions"]),

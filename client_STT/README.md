@@ -21,7 +21,7 @@ Three live sources, joined into one "ads → traffic" narrative:
 |---|---|---|---|
 | **GA4** website analytics | `raw_windsor.perf_ga4` | the 11 `STT GDC Web *` properties | sessions / users / engagement, split by channel — **the outcome** |
 | **Google Ads** paid search | `raw_snowflake.google_ads_apac` | `CAMPAIGN_NAME LIKE '%STT%'` | keyword delivery (USD→SGD); market from the campaign name |
-| **DV360** programmatic display | `raw_snowflake.dv360_apac` | `CAMPAIGN_NAME = '(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)'` | prospecting delivery (SGD) |
+| **DV360** programmatic display | `raw_snowflake.dv360_apac` | `ADVERTISER_ID IN ('7572338345','6466367438')` (the Always On flight — two delivering campaigns) | prospecting delivery (SGD) |
 | **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD'` | awareness delivery (USD) |
 
 Headline (campaign window from 2025-06-01): **~1.48M website sessions**, **520k ad-driven**, with
@@ -38,13 +38,20 @@ Paid Search in GA4 is Google Ads, which is **not** in this spend dataset — so 
 
 ## The 4 dashboard tabs (`dash/dashboard.html`)
 
-Two filters at the top of the page:
+Three filters at the top of the page:
 - **Country** — slices every website-traffic figure by GA4 property (`account_name` → market),
   **Global deselected by default**. Shown on every tab except Paid Media.
 - **Platform** — Google Ads · DV360 · LinkedIn (the three platforms with STT data; Meta & Trade
   Desk had none). Scopes the ad-delivery figures, and on **Ads → Traffic** also scopes the matched
   GA4 channels (Google Ads↔Paid Search, DV360↔Display, LinkedIn↔Paid Social). Shown on Overview
   and Ads → Traffic.
+- **Campaign** — a searchable multi-select dropdown of every delivering campaign (~80; grouped by
+  platform, sorted by spend), **all selected by default**. Scopes **ad delivery only** — every spend /
+  impressions / clicks figure on Overview, Paid Media and Ads → Traffic is summed over the selected
+  campaigns. The GA4/website side has no campaign dimension, so website metrics stay whole. Shown on
+  every tab except Website Traffic. Composes with Platform (a campaign counts only if its platform is
+  also selected, except on Paid Media which ignores the Platform filter). Powered by the campaign-grained
+  `ad_campaign*` views, summed client-side — the same pattern as the Country filter's market views.
 
 Spend is reported in SGD: LinkedIn (USD) and Google Ads' USD account rows are converted at the
 fixed `FX_USD_SGD = 1.34`.
