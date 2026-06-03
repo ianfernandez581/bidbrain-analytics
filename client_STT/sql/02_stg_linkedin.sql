@@ -19,10 +19,10 @@ SELECT
   END AS creative_type,
   IMPRESSIONS AS imps,
   CLICKS AS clicks,
-  COSTS AS cost_usd,
+  IF(ACCOUNT_ID = '511609128', COSTS * 1.34, COSTS) AS cost_usd,  -- 511609128 = USD acct → SGD @1.34; 515691430 = SGD acct as-is. cost_usd now holds SGD.
   VIDEO_VIEWS AS video_views,
   ENGAGEMENTS AS engagements,
   LEADS AS leads,
   LEAD_FORM_OPENS AS lead_form_opens
 FROM `bidbrain-analytics.raw_snowflake.linkedin_ads_apac`
-WHERE ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD';
+WHERE ACCOUNT_ID IN ('515691430', '511609128');

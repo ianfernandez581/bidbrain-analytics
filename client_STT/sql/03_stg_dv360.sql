@@ -25,8 +25,8 @@ SELECT
   END AS market,
   IMPRESSIONS AS imps,
   CLICKS AS clicks,
-  REVENUE_ADV_CURRENCY AS spend_sgd,
+  IF(CURRENCY = 'USD', REVENUE_ADV_CURRENCY * 1.34, REVENUE_ADV_CURRENCY) AS spend_sgd,  -- any USD advertiser → SGD @1.34
   CONVERSIONS_TOTAL AS conversions,
   CURRENCY AS currency
 FROM `bidbrain-analytics.raw_snowflake.dv360_apac`
-WHERE CAMPAIGN_NAME = '(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)';
+WHERE ADVERTISER_ID IN ('7572338345', '6466367438');

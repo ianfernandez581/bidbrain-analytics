@@ -312,7 +312,7 @@
           <div class="hint">Top campaigns by impressions (whole flight, USD spend).</div>
           <div style="overflow:auto;flex:1">
             <table id="pmLiCampaigns">
-              <thead><tr><th>Campaign</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend (USD)</th><th>CPC</th></tr></thead>
+              <thead><tr><th>Campaign</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend (SGD)</th><th>CPC</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -425,7 +425,7 @@ const el = id => document.getElementById(id);
 const PLATFORMS = [
   {key:'google',   label:'Google Ads', color:'#E8A33D', imps:'ga_imps', clk:'ga_clicks', spend:k=>k.ga_spend_sgd,                 ga4:'search_sessions', chan:'Paid Search'},
   {key:'dv360',    label:'DV360',      color:'#D62828', imps:'dv_imps', clk:'dv_clicks', spend:k=>k.dv_spend_sgd,                 ga4:'display_sessions', chan:'Display'},
-  {key:'linkedin', label:'LinkedIn',   color:'#2867B2', imps:'li_imps', clk:'li_clicks', spend:k=>(k.li_cost_usd||0)*DATA.fx_usd_sgd, ga4:'social_sessions', chan:'Paid Social'},
+  {key:'linkedin', label:'LinkedIn',   color:'#2867B2', imps:'li_imps', clk:'li_clicks', spend:k=>(k.li_cost_usd||0), ga4:'social_sessions', chan:'Paid Social'},
 ];
 
 const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
@@ -733,13 +733,13 @@ const centerText = {
 //==============================================================================
 function renderPaid(){
   const k = DATA.kpi, fx = DATA.fx_usd_sgd;
-  const liSgd = k.li_cost_usd*fx;
+  const liSgd = k.li_cost_usd;
   const ctr = pct(k.ad_clicks,k.ad_imps), cpm = k.ad_imps? k.ad_spend_sgd/k.ad_imps*1000:0, cpc = k.ad_clicks? k.ad_spend_sgd/k.ad_clicks:0;
   el('pmKpis').innerHTML =
     kpiCard('accent','Combined spend (SGD)', money(k.ad_spend_sgd), `${fmtPct(ctr,2)} CTR · ${money(cpc,'S$',2)} CPC`)
   + kpiCard('','Google Ads spend', money(k.ga_spend_sgd), `paid search`)
   + kpiCard('','DV360 spend', money(k.dv_spend_sgd), `programmatic display`)
-  + kpiCard('','LinkedIn spend', money(k.li_cost_usd,'US$'), `≈ ${money(liSgd)} · paid social`)
+  + kpiCard('','LinkedIn spend', money(k.li_cost_usd), `≈ ${money(liSgd)} · paid social`)
   + kpiCard('accent','Impressions', fmtM(k.ad_imps), `${money(cpm,'S$',2)} blended CPM`)
   + kpiCard('accent','Clicks', fmtN(k.ad_clicks), `Google ${fmtN(k.ga_clicks)} · DV360 ${fmtN(k.dv_clicks)} · LI ${fmtN(k.li_clicks)}`);
 
@@ -780,8 +780,8 @@ function renderPaid(){
       <td class="num">${money(k.dv_spend_sgd)}</td><td class="num">${money(k.dv_spend_sgd)}</td><td class="num">${fmtN(k.dv_imps)}</td><td class="num">${fmtN(k.dv_clicks)}</td>
       <td class="num">${fmtPct(dvCtr,2)}</td><td class="num">${money(dvCpm,'S$',2)}</td><td class="num">${money(dvCpc,'S$',2)}</td></tr>`
   + `<tr><td><span class="pill"><span class="dot" style="background:${C.li}"></span>LinkedIn</span></td><td>${win(DATA.li_window.start,DATA.li_window.end)}</td>
-      <td class="num">${money(k.li_cost_usd,'US$')}</td><td class="num">${money(liSgd)}</td><td class="num">${fmtN(k.li_imps)}</td><td class="num">${fmtN(k.li_clicks)}</td>
-      <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'US$',2)}</td><td class="num">${money(liCpc,'US$',2)}</td></tr>`
+      <td class="num">${money(k.li_cost_usd)}</td><td class="num">${money(liSgd)}</td><td class="num">${fmtN(k.li_imps)}</td><td class="num">${fmtN(k.li_clicks)}</td>
+      <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'S$',2)}</td><td class="num">${money(liCpc,'S$',2)}</td></tr>`
   + `<tr class="total"><td>Combined</td><td>—</td><td class="num">—</td><td class="num">${money(k.ad_spend_sgd)}</td><td class="num">${fmtN(k.ad_imps)}</td><td class="num">${fmtN(k.ad_clicks)}</td>
       <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'S$',2)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
 
@@ -828,7 +828,7 @@ function renderPaid(){
     const ctr=pct(r.clicks,r.imps), cpc=r.clicks?r.cost_usd/r.clicks:0;
     return `<tr><td title="${r.campaign}">${r.campaign.length>52?r.campaign.slice(0,52)+'…':r.campaign}</td>
       <td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(ctr,2)}</td>
-      <td class="num">${money(r.cost_usd,'US$')}</td><td class="num">${money(cpc,'US$',2)}</td></tr>`;
+      <td class="num">${money(r.cost_usd)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
   }).join('');
 }
 

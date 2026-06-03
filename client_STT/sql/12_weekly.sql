@@ -46,7 +46,7 @@ SELECT
   IFNULL(ga.ga_imps, 0)   AS ga_imps,
   IFNULL(li.li_imps, 0) + IFNULL(dv.dv_imps, 0) + IFNULL(ga.ga_imps, 0)                  AS ad_imps,
   IFNULL(li.li_clicks, 0) + IFNULL(dv.dv_clicks, 0) + IFNULL(ga.ga_clicks, 0)            AS ad_clicks,
-  IFNULL(dv.dv_spend_sgd, 0) + IFNULL(li.li_cost_usd, 0) * 1.34 + IFNULL(ga.ga_spend_sgd, 0) AS ad_spend_sgd
+  IFNULL(dv.dv_spend_sgd, 0) + IFNULL(li.li_cost_usd, 0) + IFNULL(ga.ga_spend_sgd, 0) AS ad_spend_sgd
 FROM g
 LEFT JOIN li USING (week_start)
 LEFT JOIN dv USING (week_start)

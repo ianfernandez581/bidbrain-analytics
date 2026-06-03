@@ -65,5 +65,5 @@ SELECT
   ga.conversions AS ga_conv, ga.start_date AS ga_start, ga.end_date AS ga_end,
   (li.imps + dv.imps + ga.imps)                              AS ad_imps,
   (li.clicks + dv.clicks + ga.clicks)                         AS ad_clicks,
-  (dv.spend_sgd + li.cost_usd * 1.34 + ga.spend_sgd)          AS ad_spend_sgd
+  (dv.spend_sgd + li.cost_usd + ga.spend_sgd)          AS ad_spend_sgd
 FROM g, gp, li, dv, ga;
