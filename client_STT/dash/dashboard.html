@@ -283,7 +283,7 @@
       <div class="grid-2-1">
         <div class="card card-tall">
           <h3>Media activity vs website sessions — monthly</h3>
-          <div class="hint">Monthly ad impressions (bars, right axis) against total website sessions (line, left axis). The shaded months are the live campaign window.</div>
+          <div class="hint">Monthly ad spend by platform (stacked bars, right axis, SGD) against total website sessions (line, left axis). Bars reflect the Platform &amp; Campaign filters.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -881,27 +881,30 @@ function renderOverview(){
   + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
   + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard('accent','Leads', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
+  + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
-  // Hero: ad impressions (bars, right, selected campaigns/platforms) vs website sessions (line, left, country-filtered)
+  // Hero: ad SPEND stacked by platform (bars, right, selected campaigns/platforms)
+  //       vs website sessions (line, left, country-filtered).
   const M = DATA.monthly;
-  const am = adMonthlyMap(true);
-  const monthImps = mo => (am[mo]||{}).imps||0;
+  const am = adMonthlyMap(true);                       // month -> {imps,clk,spend, <platform>:{imps,clk,spend}}
   const labels = M.map(r=>monthLabel(r.month));
-  const inWin = M.map(r => monthImps(r.month)>0);
+  const spendOf = (mo,key) => ((am[mo]||{})[key]||{}).spend||0;
+  const spendBars = selPlatforms().map(p => ({
+    type:'bar', label:p.label, yAxisID:'y1', stack:'spend',
+    data:M.map(r=>spendOf(r.month,p.key)),
+    backgroundColor:p.color, borderRadius:3, maxBarThickness:26, order:1
+  }));
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
         borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
         fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
-      { type:'bar', label:'Ad impressions', data:M.map(r=>monthImps(r.month)), yAxisID:'y1',
-        backgroundColor:inWin.map(x=>x?'rgba(214,40,40,.78)':'rgba(214,40,40,.18)'),
-        borderRadius:4, maxBarThickness:26, order:1 }
+      ...spendBars
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}}},
-      scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}}},
+      scales:{ x:axisX({stacked:true}), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}} } }
   });
 
   // Donut: sessions by channel (country-filtered)
@@ -1102,7 +1105,7 @@ function renderWeb(){
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('web','Page views', fmtM(g.page_views), `${g.sessions?(g.page_views/g.sessions).toFixed(1):'—'} per session`)
   + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
-  + kpiCard('accent','Leads', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
+  + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
   + kpiCard('accent','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
 
   // sessions by channel (horizontal bar, country-filtered)
