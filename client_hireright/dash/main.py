@@ -25,7 +25,7 @@ app.secret_key = os.environ["SESSION_SECRET"]
 app.config.update(
     SESSION_COOKIE_HTTPONLY=True,
     SESSION_COOKIE_SECURE=True,
-    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
 )
 
