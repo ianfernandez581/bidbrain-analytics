@@ -179,6 +179,18 @@
   .pace.over{background:#FBE7DB;color:#9C4314}
   .pace.under{background:#FBF1DA;color:#8A5B00}
   .pace.na{background:#F1F2F4;color:#6B7480}
+  /* Portfolio active/inactive grouping + view toggle */
+  .po-subhead{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:18px;flex-wrap:wrap}
+  .po-grouptitle{margin:0;font-size:14px;font-weight:700;color:var(--se-dark)}
+  .po-grouptitle .po-count{color:var(--se-mute);font-weight:600;font-size:12.5px}
+  .po-grouphint{display:block;color:var(--se-mute);font-size:11.5px;margin-top:2px}
+  .po-group2{margin-top:26px}
+  .seg{display:inline-flex;background:#F1F2F4;border:1px solid var(--se-line);border-radius:9px;padding:3px;gap:2px}
+  .seg-btn{appearance:none;border:0;background:transparent;color:var(--se-mute);font:inherit;font-size:12px;font-weight:600;padding:5px 12px;border-radius:7px;cursor:pointer;white-space:nowrap}
+  .seg-btn.on{background:#fff;color:var(--se-dark);box-shadow:var(--shadow-card)}
+  .pgrid.show-consumed .pc-view-plan{display:none}
+  .pgrid.show-plan .pc-view-consumed{display:none}
+  .pcard.inactive{background:#FBFBFC}
 
   .funnel{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-top:14px}
   .funnel .step{flex:1;min-width:140px;background:#fff;border:1px solid var(--se-line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-card)}
@@ -306,8 +318,19 @@
         <div class="hint">Each bar is a campaign's flight (plan window where known, else observed delivery). Overlapping flights — a brief concern for cannibalisation — are visible here.</div>
         <div class="chart-wrap" id="ganttWrap" style="height:360px"><canvas id="poGantt"></canvas></div>
       </div>
-      <div class="section"><h2>Campaigns</h2><span class="sub">One card per internal campaign in the current filter. Budget consumed (bar) with the % of flight elapsed marked; pacing vs elapsed; primary-KPI vs target where a target is set.</span></div>
-      <div class="pgrid" id="poCards"></div>
+      <div class="section"><h2>Campaigns</h2><span class="sub">Split into <b>active</b> campaigns (still delivering in the latest data) and <b>completed / paused</b> ones. Active cards toggle between budget consumed and spend-vs-plan-to-date; primary-KPI vs target shown where set.</span></div>
+      <div class="po-subhead">
+        <div><h3 class="po-grouptitle">Active campaigns <span class="po-count" id="poActiveCount"></span></h3>
+          <span class="po-grouphint">Still delivering as of the latest data window.</span></div>
+        <div class="seg" id="poViewToggle">
+          <button type="button" class="seg-btn on" data-view="consumed" onclick="setPoView('consumed')">Budget consumed</button>
+          <button type="button" class="seg-btn" data-view="plan" onclick="setPoView('plan')">Spend vs plan to date</button>
+        </div>
+      </div>
+      <div class="pgrid show-consumed" id="poActiveCards"></div>
+      <div class="po-group2"><h3 class="po-grouptitle">Completed / paused <span class="po-count" id="poInactiveCount"></span></h3>
+        <span class="po-grouphint">No delivery in the latest data window — shown for reference (budget consumed only).</span></div>
+      <div class="pgrid" id="poInactiveCards"></div>
       <div class="info-note" id="poNote"></div>
     </div>
 
@@ -329,6 +352,11 @@
           <div class="hint">Actual spend split across DV360 / TradeDesk / LinkedIn (AUD).</div>
           <div class="chart-wrap"><canvas id="spPlatform"></canvas></div>
         </div>
+      </div>
+      <div class="card card-tall" style="margin-top:16px">
+        <h3>Pacing — expected spend to-date vs actual</h3>
+        <div class="hint">Grey = budget pro-rated to today (plan budget &divide; flight days &times; days elapsed); green = actual spend. Green past grey = pacing ahead; short of grey = behind. Where plan flight dates aren't seeded yet, the observed delivery window is used as the flight.</div>
+        <div class="chart-wrap"><canvas id="spPacing"></canvas></div>
       </div>
       <div class="card" style="margin-top:16px">
         <h3>Cumulative spend vs flight</h3>
@@ -791,6 +819,13 @@ function elapsedPct(win){
 //==============================================================================
 // PORTFOLIO OVERVIEW
 //==============================================================================
+// Active-card view toggle ('consumed' | 'plan'); flips CSS classes only, no re-render.
+let poView='consumed';
+function setPoView(v){
+  poView=v;
+  const g=el('poActiveCards'); if(g){ g.classList.remove('show-consumed','show-plan'); g.classList.add('show-'+v); }
+  document.querySelectorAll('#poViewToggle .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
+}
 function renderPortfolio(){
   const rs = roster().filter(c=>idSelected(c.id));
   const a = adTotals();
@@ -827,8 +862,15 @@ function renderPortfolio(){
                y:axisX({ticks:{color:C.ink,font:{size:10.5}}}) } }
   });
 
-  // cards
-  el('poCards').innerHTML = rs.map(c=>{
+  // cards — split into ACTIVE (still delivering as of the latest data) vs COMPLETED/PAUSED.
+  // "active" = observed delivery end within GRACE of the latest end across the filtered roster.
+  const GRACE=7*DAY;   // DAY (=864e5) is already defined above in the Gantt block
+  const endTs = rs.map(c=>c.end?new Date(c.end).getTime():0).filter(Boolean);
+  const asOf = endTs.length?Math.max(...endTs):Date.now();
+  const isActive = c => !!c.end && (asOf - new Date(c.end).getTime()) <= GRACE;
+  const activeRs = rs.filter(isActive), inactiveRs = rs.filter(c=>!isActive(c));
+
+  const cardHTML = (c, active) => {
     const m=META[c.id]||{}, b=BUDGET[c.id]||{}, win=flightWindow(c.id,c), el_=elapsedPct(win);
     const consumed = (b.budget_aud!=null && b.budget_aud>0) ? c.spend/b.budget_aud : null;
     const tag=OBJ_TAG[objectiveOf(c.id)]||'un';
@@ -841,23 +883,51 @@ function renderPortfolio(){
     }
     const tgts=(TARGETS[c.id]||[]);
     const budgetBar = consumed!=null ? `<div class="bar"><span style="width:${Math.min(100,consumed*100).toFixed(0)}%;background:${OBJ_COLOR[objectiveOf(c.id)]||C.green}"></span>${el_!=null?`<span class="mark" style="left:${(el_*100).toFixed(0)}%"></span>`:''}</div>` : '';
-    return `<div class="pcard">
-      <div class="ph"><div><div class="pname">${displayOf(c.id)}</div>
-        <div class="pmeta">${m.primary_region||'—'} · ${[...c.platforms].map(p=>PLAT_LABEL[p]).join(' · ')}${m.brief_job_no&&m.brief_job_no!=='—'?' · job '+m.brief_job_no:''}</div></div>
-        <span class="tag ${tag}">${objectiveOf(c.id)}</span></div>
-      <div>
+    // view 1 — budget consumed (the original card body)
+    const consumedView = `<div class="pc-view-consumed">
         <div class="prow"><span class="k">Spend / budget</span><span>${money(c.spend)} ${b.budget_aud!=null?'/ '+money(b.budget_aud):''}</span></div>
         ${budgetBar}
         <div class="prow" style="margin-top:6px"><span class="k">${consumed!=null?fmtPct(consumed,0)+' consumed'+(b.budget_basis?' ('+b.budget_basis.replace('_',' ')+')':''):'budget TBC'}</span><span class="pace ${paceCls}">${paceTxt}</span></div>
-      </div>
+      </div>`;
+    // view 2 — spend vs plan to date (active cards only): plan budget pro-rated by elapsed flight
+    let planView='';
+    if(active){
+      if(win.planned && b.budget_aud!=null && el_!=null){
+        const planToDate=b.budget_aud*el_, d=c.spend-planToDate;
+        const deltaTxt = paceCls==='on' ? 'on pace' : (d>=0 ? 'ahead '+money(d) : 'behind '+money(-d));
+        planView = `<div class="pc-view-plan">
+          <div class="prow"><span class="k">Plan to date / actual</span><span>${money(planToDate)} / ${money(c.spend)}</span></div>
+          ${budgetBar}
+          <div class="prow" style="margin-top:6px"><span class="k">${fmtPct(el_,0)} of plan flight elapsed${b.budget_basis?' ('+b.budget_basis.replace('_',' ')+')':''}</span><span class="pace ${paceCls}">${deltaTxt}</span></div>
+        </div>`;
+      } else {
+        const why = b.budget_aud==null ? 'No plan budget seeded.' : 'Plan flight dates not set — add flight_start/flight_end to seed_plan_budget.';
+        planView = `<div class="pc-view-plan">
+          <div class="prow"><span class="k">Actual spend</span><span>${money(c.spend)}</span></div>
+          <div class="prow" style="margin-top:6px"><span class="k" style="font-style:italic">${why}</span><span class="pace na">n/a</span></div>
+        </div>`;
+      }
+    }
+    return `<div class="pcard${active?'':' inactive'}">
+      <div class="ph"><div><div class="pname">${displayOf(c.id)}</div>
+        <div class="pmeta">${m.primary_region||'—'} · ${[...c.platforms].map(p=>PLAT_LABEL[p]).join(' · ')}${m.brief_job_no&&m.brief_job_no!=='—'?' · job '+m.brief_job_no:''}</div></div>
+        <span class="tag ${tag}">${objectiveOf(c.id)}</span></div>
+      <div>${consumedView}${planView}</div>
       <div class="prow"><span class="k">Impr. / clicks</span><span>${fmtM(c.imps)} · ${fmtN(c.clicks)} (${fmtPct(pct(c.clicks,c.imps),2)})</span></div>
       <div class="prow"><span class="k">Primary KPI</span><span>${m.primary_kpi||'—'}</span></div>
       ${tgts.length?`<div class="prow"><span class="k">Targets</span><span>${tgts.map(t=>`${t.kpi.replace(/_/g,' ')}: ${t.target_value!=null?fmtN(t.target_value):'TBC'}`).join(' · ')}</span></div>`:''}
     </div>`;
-  }).join('') || `<div class="cl-empty">No campaigns in the current filter.</div>`;
+  };
+
+  el('poActiveCards').innerHTML   = activeRs.map(c=>cardHTML(c,true)).join('')   || `<div class="cl-empty">No active campaigns in the current filter.</div>`;
+  el('poInactiveCards').innerHTML = inactiveRs.map(c=>cardHTML(c,false)).join('') || `<div class="cl-empty">No completed campaigns in the current filter.</div>`;
+  el('poActiveCount').textContent   = activeRs.length   ? '· '+activeRs.length   : '';
+  el('poInactiveCount').textContent = inactiveRs.length ? '· '+inactiveRs.length : '';
+  el('poViewToggle').style.display  = activeRs.length ? 'inline-flex' : 'none';
+  setPoView(poView);
 
   const unmapped = roster().find(c=>c.id==='(unmapped)');
-  el('poNote').innerHTML = `<b>How to read this.</b> Budget &amp; targets come from the media-plan seed tables (editable in <code>sql/30–34</code>); spend &amp; delivery are live. The flight bar shows budget consumed, with a tick at the % of flight elapsed — spend well ahead of the tick is pacing fast. `
+  el('poNote').innerHTML = `<b>How to read this.</b> Budget &amp; targets come from the media-plan seed tables (editable in <code>sql/30–34</code>); spend &amp; delivery are live. <b>Active</b> = still delivering as of the latest data; <b>completed / paused</b> = no recent delivery. The bar shows budget consumed, with a tick at the % of flight elapsed — spend well ahead of the tick is pacing fast. The <b>Spend vs plan to date</b> toggle (active cards) compares actual spend with the plan budget pro-rated to today (budget &divide; flight days &times; days elapsed); it needs seeded <code>flight_start</code>/<code>flight_end</code> and shows "plan dates not set" otherwise. `
     + (anyBudget?'':'Most budgets are still TBC in the plan seeds — cards show delivery only until filled. ')
     + (unmapped?`<b>${unmapped.nCamp}</b> platform campaign(s) didn't match any <code>match_pattern</code> and are grouped as <b>(unmapped)</b> — extend <code>seed_campaign_map</code> to map them.`:'');
 }
@@ -887,6 +957,28 @@ function renderPacing(){
     ]},
     options:{ indexAxis:'y', maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money(c.parsed.x)}`}} },
+      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}), y:axisX({ticks:{font:{size:10.5}}}) } }
+  });
+
+  // pacing — expected spend to-date (budget pro-rated by % of flight elapsed) vs actual spend
+  const pc = withBudget.map(c=>{
+      const win=flightWindow(c.id,c), el_=elapsedPct(win);
+      if(el_==null) return null;                                  // no flight window → can't pro-rate
+      return {name:displayOf(c.id), expected:BUDGET[c.id].budget_aud*el_, spend:c.spend, el:el_, planned:win.planned};
+    }).filter(Boolean).sort((a,b)=>b.expected-a.expected);
+  charts.spPacing = new Chart(el('spPacing'),{
+    type:'bar',
+    data:{ labels:pc.map(r=>r.name), datasets:[
+      {label:'Expected to-date', data:pc.map(r=>r.expected), backgroundColor:C.grey, borderRadius:4, barPercentage:0.8, categoryPercentage:0.7},
+      {label:'Actual spend', data:pc.map(r=>r.spend), backgroundColor:C.green, borderRadius:4, barPercentage:0.8, categoryPercentage:0.7}
+    ]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{
+        label:c=>` ${c.dataset.label}: ${money(c.parsed.x)}`,
+        afterBody:items=>{ const r=pc[items[0].dataIndex], d=r.spend-r.expected;
+          return [`${fmtPct(r.el,0)} of ${r.planned?'plan flight':'delivery window'} elapsed`,
+                  `${d>=0?'ahead by ':'behind by '}${money(Math.abs(d))} vs pace`]; }
+      }} },
       scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}), y:axisX({ticks:{font:{size:10.5}}}) } }
   });
 
