@@ -321,7 +321,7 @@
       <div class="grid-2-1">
         <div class="card card-tall">
           <h3>Monthly delivery — spend by platform</h3>
-          <div class="hint">Spend by platform (stacked bars, SGD); dashed line = total spend.</div>
+          <div class="hint">Spend by platform (stacked bars, SGD); line = clicks to site (right axis).</div>
           <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -1129,11 +1129,12 @@ function renderPaid(){
       { type:'bar', label:'Google Ads', data:M.map(r=>mspend(r.month,'google')), backgroundColor:'#E8A33D', stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
       { type:'bar', label:'DV360', data:M.map(r=>mspend(r.month,'dv360')), backgroundColor:C.red, stack:'s', yAxisID:'y', maxBarThickness:30 },
       { type:'bar', label:'LinkedIn', data:M.map(r=>mspend(r.month,'linkedin')), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
-      { type:'line', label:'Total spend (SGD)', data:M.map(r=>(amp[r.month]||{}).spend||0), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2.5, tension:.3, yAxisID:'y', pointRadius:3, borderDash:[5,3] }
+      { type:'line', label:'Clicks to site', data:M.map(r=>(amp[r.month]||{}).clk||0), borderColor:C.teal, backgroundColor:C.teal, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money(c.parsed.y)}`}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):money(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks to site',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
   });
 
   charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
