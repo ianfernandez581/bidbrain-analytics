@@ -3,6 +3,11 @@
 > The effect of paid media on STT GDC website traffic. Built on the
 > [`client_mongodb`](../client_mongodb/README.md) template: filter the shared raw layers down to
 > STT's slice, model it in BigQuery views, export one JSON, serve it from a password-gated web app.
+>
+> **STT is itself the archetype** for the leaner paid-media clients that read straight from the
+> shared raw layers (no Snowflake final-model `src_*` step): [`client_schneider`](../client_schneider/README.md)
+> (plan-vs-actual portfolio, AUD) and [`client_hireright`](../client_hireright/README.md)
+> (delivery-only baseline, USD) were both copied from here.
 
 **Plain English:** STT GDC (ST Telemedia Global Data Centres), via the agency **Transmission**, runs
 an FY25-26 "Always On" campaign across APAC on **Google Ads** (paid search), **LinkedIn** (paid social)
@@ -161,4 +166,5 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 
 - [Root README](../README.md) — platform map, security model, naming, add-a-client playbook.
 - [`../client_mongodb/`](../client_mongodb/README.md) — the template this follows.
+- [`../client_schneider/`](../client_schneider/README.md) · [`../client_hireright/`](../client_hireright/README.md) — the lean paid-media clients copied from this one.
 - [`../snowflake_data_pull/`](../snowflake_data_pull/README.md) — where all four STT raw layers (GA4, LinkedIn, DV360, Google Ads) come from.

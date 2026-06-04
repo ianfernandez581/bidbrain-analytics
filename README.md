@@ -57,8 +57,11 @@ anything over — and you can't reach around the back to grab the product either
 
 We built the first one for **MongoDB (APAC)**. The whole point of this repo is that **every
 future client dashboard follows the exact same pattern**, so building the next one is mostly
-copy-and-adjust, not start-from-scratch. Two more have followed the same template since —
-**Cloudflare** and **STT (ST Telemedia GDC)** — and all three are now live.
+copy-and-adjust, not start-from-scratch. **Five clients are now live** on this pattern —
+**MongoDB**, **Cloudflare**, **STT (ST Telemedia GDC)**, **Schneider Electric**, and
+**HireRight**. MongoDB is the original template; the leaner paid-media clients (Schneider,
+HireRight) are copied from **STT**, which became the archetype for clients that read straight
+from the shared raw layers with no Snowflake final-model layer.
 
 Everything lives on **Google Cloud** (one platform), in the GCP project
 **`bidbrain-analytics`**, in the **Sydney region (`australia-southeast1`)**. The web
@@ -147,7 +150,9 @@ needs a password to see it.
 
 **To add a new client:** copy [`client_mongodb/`](client_mongodb/) (the template), change
 one line (`CLIENT = "..."`), point its views at the right filter, and follow the playbook in
-[§10](#10-playbook-add-a-new-client). The shared `raw_*` layers usually already have the data.
+[§10](#10-playbook-add-a-new-client). For a **lean paid-media client** with no Snowflake
+final-model layer, copy [`client_STT/`](client_STT/) instead — the archetype Schneider and
+HireRight were built from. The shared `raw_*` layers usually already have the data.
 
 ---
 
@@ -183,7 +188,9 @@ Each folder has a **detailed README of its own** — start there for anything in
 |---|---|---|---|
 | [`client_mongodb/`](client_mongodb/) | **Live** | The **template** every client copies. Models everything in BigQuery from `raw_snowflake`. Paid Media + Content Syndication (DNB / IDC). | [README](client_mongodb/README.md) · [job/](client_mongodb/job/README.md) · [dash/](client_mongodb/dash/README.md) · [sql/](client_mongodb/sql/README.md) |
 | [`client_cloudflare/`](client_cloudflare/) | **Live** | Second client. Deliberately different: its model already lives in Snowflake, so the job pulls Snowflake's *final-model* views and BigQuery views are thin pass-throughs. | [README](client_cloudflare/README.md) · [job/](client_cloudflare/job/README.md) · [dash/](client_cloudflare/dash/README.md) · [sql/](client_cloudflare/sql/README.md) |
-| [`client_STT/`](client_STT/) | **Live** | Third client (ST Telemedia GDC, via the Transmission agency). "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media, all from `raw_snowflake`. 23 BigQuery views. | [README](client_STT/README.md) · [job/](client_STT/job/README.md) · [dash/](client_STT/dash/README.md) · [sql/](client_STT/sql/README.md) · [INTAKE.md](client_STT/INTAKE.md) |
+| [`client_STT/`](client_STT/) | **Live** | Third client (ST Telemedia GDC, via the Transmission agency), and the **archetype** for the lean paid-media clients below. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media, all from `raw_snowflake`. 23 BigQuery views. | [README](client_STT/README.md) · [job/](client_STT/job/README.md) · [dash/](client_STT/dash/README.md) · [sql/](client_STT/sql/README.md) · [INTAKE.md](client_STT/INTAKE.md) |
+| [`client_schneider/`](client_schneider/) | **Live** | Fourth client (Schneider Electric APAC, via Transmission). **Plan-vs-actual** paid-media portfolio across DV360 + Trade Desk + LinkedIn; seed tables (campaign map / budget / flighting / targets / channel split) joined to live delivery. Reporting currency **AUD**. GA4 ships disabled until SE's property id is known. 26 BigQuery views. | [README](client_schneider/README.md) · [job/](client_schneider/job/README.md) · [dash/](client_schneider/dash/README.md) · [sql/](client_schneider/sql/README.md) · [INTAKE.md](client_schneider/INTAKE.md) |
+| [`client_hireright/`](client_hireright/) | **Live** | Fifth client. Pure paid-media **delivery** baseline — no GA4, no media plan — across DV360 + Trade Desk + LinkedIn. Reporting currency **USD**. 14 BigQuery views. | [README](client_hireright/README.md) · [job/](client_hireright/job/README.md) · [dash/](client_hireright/dash/README.md) · [sql/](client_hireright/sql/README.md) · [INTAKE.md](client_hireright/INTAKE.md) |
 
 ### Operations & root
 
@@ -334,9 +341,12 @@ gcloud logging read "resource.labels.job_name=mongodb-export" --project=bidbrain
 ```
 
 The everyday git loop and the full per-stage command set live in each client's README.
-STT ships a one-shot, idempotent stand-up script (provisions a whole client — bucket, dataset,
-service accounts, IAM, secrets, both Cloud Run units, the daily scheduler) — see
-[`client_STT/deploy_stt.ps1`](client_STT/deploy_stt.ps1); copy it for a new client.
+Each client ships its own one-shot, idempotent stand-up script `client_<c>/deploy_<c>.ps1`
+(provisions a whole client — bucket, dataset, service accounts, IAM, secrets, both Cloud Run
+units, the daily scheduler) — e.g. [`client_STT/deploy_stt.ps1`](client_STT/deploy_stt.ps1),
+[`client_schneider/deploy_schneider.ps1`](client_schneider/deploy_schneider.ps1),
+[`client_hireright/deploy_hireright.ps1`](client_hireright/deploy_hireright.ps1); copy the
+nearest one for a new client.
 
 ---
 
@@ -363,15 +373,21 @@ README — this is the shape:
 
 ## 11. Current status & TODO
 
+All five clients are **live** (Cloud Run service + export job + an enabled daily Cloud
+Scheduler at 22:00 UTC), each served on its `…run.app` URL pending a custom domain.
+
 | Client | State |
 |---|---|
-| **MongoDB** | ✅ Live (BigQuery model, export job, gated web app). Finishing: `mongodb.bidbrain.ai` custom domain; confirming the daily Cloud Scheduler trigger. Retiring the legacy public-R2 path (and **rotating the leaked R2 keys**). |
-| **Cloudflare** | ✅ Live (gated web app) at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. "Core Demand Generation" story across TTD/LinkedIn/Reddit/LINE paid media + content syndication. See [`dash/LIVE_URL.md`](client_cloudflare/dash/LIVE_URL.md). Finishing: `cloudflare.bidbrain.ai` custom domain; confirming the daily Cloud Scheduler trigger. |
-| **STT** | ✅ Live (gated web app). "Ads → website traffic" story: GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media — all four sources from `raw_snowflake`. 23 BigQuery views → `stt-export` job → `stt-dash` service, daily Scheduler (`stt-export-daily`, 22:00 UTC). See [`client_STT/README.md`](client_STT/README.md). |
+| **MongoDB** | ✅ Live at https://mongodb-dash-p32gk2wuia-ts.a.run.app (BigQuery model, export job, gated web app). Daily Scheduler `mongodb-export-daily` enabled. Finishing: `mongodb.bidbrain.ai` custom domain. Retiring the legacy public-R2 path (and **rotating the leaked R2 keys**). |
+| **Cloudflare** | ✅ Live at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. "Core Demand Generation" story across TTD/LinkedIn/Reddit/LINE paid media + content syndication. Daily Scheduler `cloudflare-export-daily` enabled. See [`dash/LIVE_URL.md`](client_cloudflare/dash/LIVE_URL.md). Finishing: `cloudflare.bidbrain.ai` custom domain. |
+| **STT** | ✅ Live at https://stt-dash-p32gk2wuia-ts.a.run.app. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media — all from `raw_snowflake`. 23 views → `stt-export` job → `stt-dash` service, daily `stt-export-daily` (22:00 UTC). The **archetype** for Schneider + HireRight. See [`client_STT/README.md`](client_STT/README.md). |
+| **Schneider** | ✅ Live at https://schneider-dash-p32gk2wuia-ts.a.run.app. **Plan-vs-actual** portfolio (DV360 + Trade Desk + LinkedIn), reporting in **AUD**, seed-table driven. 26 views → `schneider-export` → `schneider-dash`, daily `schneider-export-daily`. GA4 (website) ships **disabled** until SE's property id is known. See [`client_schneider/README.md`](client_schneider/README.md). |
+| **HireRight** | ✅ Live at https://hireright-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. Pure paid-media **delivery** baseline (DV360 + Trade Desk + LinkedIn), reporting in **USD**; no GA4, no media plan. 14 views → `hireright-export` → `hireright-dash`, daily `hireright-export-daily`. See [`client_hireright/README.md`](client_hireright/README.md). |
 
-**Platform-wide TODO:** activate CD triggers (currently manual deploys); set up the Cloud
-Scheduler daily run for each live client; rotate the legacy leaked credentials when retiring
-the old R2 path.
+**Platform-wide TODO:** activate CD triggers (deploys are manual today — see [§9](#9-operating-it-deploy-refresh-debug));
+wire each live client's custom domain (`<client>.bidbrain.ai` — all currently served on their
+`…run.app` URLs); rotate the legacy leaked R2 credentials when retiring the old public-R2 path.
+*(All five daily Cloud Schedulers are already enabled — that earlier TODO is done.)*
 
 ---
 
