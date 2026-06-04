@@ -145,7 +145,7 @@
            font-size:13.5px;line-height:1.6;color:#2E2A40}
   .ai-note b{color:#1F1A33}
   .ai-note .ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;
-           letter-spacing:.7px;text-transform:uppercase;color:#7C3AED;margin-bottom:5px}
+           letter-spacing:.7px;text-transform:uppercase;color:#7C3AED;margin-bottom:5px;margin-right:8px}
   .ai-note .ai-badge .dot{width:6px;height:6px;border-radius:50%;background:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
 
   /* ---- tables ---- */
@@ -1131,7 +1131,7 @@ function renderOvCommentary(){
     : '';
 
   box.innerHTML =
-    `<div class="ai-badge"><span class="dot"></span>AI commentary</div>`
+    `<div class="ai-badge"><span class="dot"></span>AI commentary </div>`
   + `<b>Contact-us submissions are the standout signal.</b> Across ${scope}, successful "Contact us" form submits climbed from `
   + `<b>${fmtN(first)}</b> in ${firstM} to <b>${fmtN(last)}</b> in ${lastM}${peakLine} — ${lift} over the campaign window, `
   + `<b>${fmtN(total)}</b> in total.${hohLine} As paid reach scaled, the websites increasingly turned visits into sales-ready enquiries — not just traffic.`;
