@@ -283,7 +283,7 @@
       <div class="grid-2-1">
         <div class="card card-tall">
           <h3>Media activity, key events &amp; website sessions — monthly</h3>
-          <div class="hint">Two stacked bars per month — ad spend by platform (SGD) and GA4 key events by type — against total website sessions (line). Three axes. Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
+          <div class="hint">Coloured lines on three axes — total website sessions, ad spend by platform (SGD), and GA4 key events by type (dashed). Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -992,38 +992,38 @@ function renderOverview(){
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
-  // Hero: TWO stacked bars per month — ad SPEND by platform (y1, SGD) and GA4 KEY EVENTS
-  //       by type (y2) — plus website sessions as a line (y, country-filtered). One chart,
-  //       three axes (like the TTD reference). Key events live on their own axis because
-  //       their scale (~2.5k) is dwarfed by sessions (~60k) and spend (~S$45k).
+  // Hero: everything as coloured LINES — website sessions (y), ad spend per platform
+  //       (y1, SGD) and GA4 key events per type (y2). Three axes because the scales
+  //       differ wildly (sessions ~60k, spend ~S$20k/platform, key events ~1.5k/type).
   const M = DATA.monthly;
   const am = adMonthlyMap(true);                       // month -> {imps,clk,spend, <platform>:{imps,clk,spend}}
   const labels = M.map(r=>monthLabel(r.month));
   const spendOf = (mo,key) => ((am[mo]||{})[key]||{}).spend||0;
-  const spendBars = selPlatforms().map(p => ({
-    type:'bar', label:p.label, yAxisID:'y1', stack:'spend',
+  const lineBase = { type:'line', borderWidth:2, tension:.35, pointRadius:2, fill:false };
+  const spendLines = selPlatforms().map(p => ({
+    ...lineBase, label:p.label, yAxisID:'y1',
     data:M.map(r=>spendOf(r.month,p.key)),
-    backgroundColor:p.color, borderRadius:3, maxBarThickness:18, order:2
+    borderColor:p.color, backgroundColor:p.color
   }));
   const ke = ga4KeyEvents();
-  const kePal = ['#6B46C1','#9F7AEA','#D6BCFA'];       // violet ramp — distinct from the spend bars + teal line
-  const keBars = ke.types.map((t,i) => ({
-    type:'bar', label:t, yAxisID:'y2', stack:'ke',
+  const kePal = ['#6B46C1','#9F7AEA','#C9A8F0'];       // violet ramp — distinct from the spend + teal lines
+  const keLines = ke.types.map((t,i) => ({
+    ...lineBase, label:t, yAxisID:'y2', borderDash:[5,3],
     data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
-    backgroundColor:kePal[i % kePal.length], borderRadius:3, maxBarThickness:18, order:2
+    borderColor:kePal[i % kePal.length], backgroundColor:kePal[i % kePal.length]
   }));
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
-        borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
-        fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
-      ...spendBars, ...keBars
+        borderColor:C.teal, backgroundColor:C.teal, borderWidth:2.5, tension:.35,
+        fill:false, pointRadius:2.5, pointBackgroundColor:C.teal },
+      ...spendLines, ...keLines
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}}},
-      scales:{ x:axisX({stacked:true}), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
-        y2:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Key events',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+      scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
+        y2:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Key events',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
   });
 
   // Donut: sessions by channel (country-filtered)
