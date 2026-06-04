@@ -1,5 +1,8 @@
 # client_cloudflare — Cloudflare APAC dashboard on the MongoDB GCP pattern
 
+**Status: LIVE.** The gated web app is deployed and serving (HTTP 200 verified
+2026-06-04). See [`dash/LIVE_URL.md`](dash/LIVE_URL.md) for the URL.
+
 This folder ports the **Cloudflare** dashboard onto the same Google Cloud
 architecture as `client_mongodb`:
 
@@ -9,8 +12,11 @@ Snowflake (CLOUDFLARE_SANDBOX.* final-model views)
   -> GCS (private)  gs://bidbrain-analytics-cloudflare-dash/cloudflare.json
   -> Cloud Run SERVICE (client_cloudflare/dash)  password gate + serves dashboard.html + proxies /data.json
   -> Cloudflare CNAME  cloudflare.bidbrain.ai (proxied) -> *.run.app
-Cloud Build = CD on push to main (one trigger per unit, like MongoDB §11).
 ```
+
+The `cloudbuild.yaml` files are a **future** push-to-main CD trigger (one per
+unit, like MongoDB §11) — **not active**. This client was stood up, and is
+redeployed, by the manual order below.
 
 This replaces Cloudflare's current setup (Snowflake **tasks** writing
 `pacing.json` + `paid_media.json` to a **public** R2 bucket, read by a static
@@ -26,8 +32,11 @@ same Flask password gate MongoDB uses.
 | [`sql/`](sql/README.md) | The **thin** BigQuery pass-through views that lock the JSON column contract. [Guide →](sql/README.md) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner). |
 | [`seed_static.py`](seed_static.py) | One-time copy of Cloudflare's three **static** Snowflake inputs (LINE JP spend, pacing targets, account tiers) into `src_*`. Re-run only when those manual uploads change. |
-| [`deploy_cloudflare.ps1`](deploy_cloudflare.ps1) | **One-shot, idempotent** stand-up of the entire pipeline on GCP (APIs, bucket, dataset, service accounts, secrets, bootstrap, scheduler, CD triggers). The fastest way to replicate this client. |
-| [`scheduler.ps1`](scheduler.ps1) | Creates/refreshes the daily Cloud Scheduler trigger for `cloudflare-export` (22:00 UTC). |
+| [`scheduler.ps1`](scheduler.ps1) | Creates/refreshes the daily Cloud Scheduler trigger for `cloudflare-export` (22:00 UTC). Idempotent. |
+
+> There is **no** one-shot `deploy_cloudflare.ps1` for this client — it was stood
+> up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
+> below. (Only STT has a one-shot stand-up script, `client_STT/deploy_stt.ps1`.)
 
 ## Deliberate divergence from client_mongodb
 
@@ -133,21 +142,36 @@ python client_cloudflare/job/main.py
 
 # 8. Build dashboard.html from your existing index.html (see dash/DASHBOARD.md)
 
-# 9. Deploy the service (build/push/deploy via Cloud Build)
-gcloud builds submit --config client_cloudflare/dash/cloudbuild.yaml --project $PROJECT .
+# 9. Deploy the SERVICE — build the image, then deploy as yourself.
+#    (Do NOT `gcloud builds submit --config .../cloudbuild.yaml` from a laptop: it fails
+#     with iam.serviceaccounts.actAs because Cloud Build's SA can't act as the runtime SA.
+#     The cloudbuild.yaml files are for a future push-to-main trigger only.)
+IMG=australia-southeast1-docker.pkg.dev/$PROJECT/bidbrain/cloudflare-dash:$(git rev-parse --short HEAD)
+gcloud builds submit client_cloudflare/dash --tag $IMG --region $REGION
+gcloud run services update cloudflare-dash --image $IMG --region $REGION \
+  --service-account cloudflare-dash-web@$PROJECT.iam.gserviceaccount.com \
+  --set-env-vars=GCS_BUCKET=bidbrain-analytics-cloudflare-dash,DATA_OBJECT=cloudflare.json \
+  --set-secrets=DASH_PASSWORD=cloudflare-dash-password:latest,SESSION_SECRET=cloudflare-dash-session-key:latest \
+  --memory=512Mi
+gcloud run services update cloudflare-dash --region $REGION --no-invoker-iam-check  # org policy: app does its own auth
 
-#10. Deploy the job the same way (or just keep running it locally while testing)
-gcloud builds submit --config client_cloudflare/job/cloudbuild.yaml --project $PROJECT .
+#10. Deploy the JOB the same way (or just keep running it locally while testing)
+IMG=australia-southeast1-docker.pkg.dev/$PROJECT/bidbrain/cloudflare-export:$(git rev-parse --short HEAD)
+gcloud builds submit client_cloudflare/job --tag $IMG --region $REGION
+gcloud run jobs deploy cloudflare-export --image $IMG --region $REGION \
+  --service-account cloudflare-dash-job@$PROJECT.iam.gserviceaccount.com --memory 1Gi
 ```
 
 Then, mirroring MongoDB:
-- **CD** — wire two Cloud Build triggers (push to `^main$`): one with included
-  files `client_cloudflare/job/**` -> `client_cloudflare/job/cloudbuild.yaml`,
-  one with `client_cloudflare/dash/**` -> `client_cloudflare/dash/cloudbuild.yaml`.
-- **Daily run** — Cloud Scheduler trigger executing the `cloudflare-export` job.
+- **Daily run** — Cloud Scheduler trigger executing the `cloudflare-export` job
+  (22:00 UTC). Run [`scheduler.ps1`](scheduler.ps1).
 - **Friendly URL** — Cloudflare CNAME `cloudflare.bidbrain.ai` -> the service's
   `*.run.app` host, Proxied, SSL Full (strict), Host Header Override. See
   `dash/LIVE_URL.md`.
+- **CD (future, not active)** — the per-unit `cloudbuild.yaml` files are wiring
+  for two push-to-`^main$` Cloud Build triggers (included files
+  `client_cloudflare/job/**` and `client_cloudflare/dash/**`). Not enabled yet;
+  redeploys today use the manual build-then-deploy steps above.
 
 ## See also
 

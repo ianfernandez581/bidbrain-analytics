@@ -65,11 +65,14 @@ branches — see the [JSON contract](../job/README.md#the-json-contract-it-produ
 
 ## Deploy
 
-The simplest path is the client's one-shot script, which builds + deploys this service (and
-everything else) — see [`../deploy_cloudflare.ps1`](../deploy_cloudflare.ps1). Or directly:
+Build the image, then deploy as yourself. **Don't** `gcloud builds submit --config
+.../cloudbuild.yaml` from a laptop — it fails with `iam.serviceaccounts.actAs` (Cloud Build's
+SA can't act as the runtime SA); that config is for a future push-to-main trigger only.
 
 ```powershell
-gcloud builds submit --config client_cloudflare/dash/cloudbuild.yaml --substitutions=SHORT_SHA=manual --project bidbrain-analytics .
+$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/cloudflare-dash:$(git rev-parse --short HEAD)"
+gcloud builds submit client_cloudflare/dash --tag $IMG --region australia-southeast1
+gcloud run services update cloudflare-dash --image $IMG --region australia-southeast1
 gcloud run services describe cloudflare-dash --region australia-southeast1 --format="value(status.url)"   # then paste into LIVE_URL.md
 ```
 

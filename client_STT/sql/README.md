@@ -7,8 +7,8 @@ filter views first, then the roll-ups that read them). The export job
 
 | File | View | What it does |
 |---|---|---|
-| `01_stg_ga4.sql` | `stg_ga4` | **GA4 filter** — the 11 `STT GDC Web *` properties. Derives `market` + a coarse `channel_bucket` (Paid/Organic/Direct/Referral/Other). |
-| `02_stg_linkedin.sql` | `stg_linkedin` | **LinkedIn filter** — `ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD'` (USD). |
+| `01_stg_ga4.sql` | `stg_ga4` | **GA4 filter** — Snowflake `google_analytics_apac_all`, `PROPERTY_ID = '318963196'` ("STT GDC Web All"). `market` = visitor `COUNTRY_NAME`; derives a coarse `channel_bucket` (Paid/Organic/Direct/Referral/Other). Event-grained source, so session/user metrics are taken from the per-session events only. |
+| `02_stg_linkedin.sql` | `stg_linkedin` | **LinkedIn filter** — `ACCOUNT_ID IN ('515691430','511609128')` (SGD + USD accounts); the USD account's spend converted to SGD @1.34. |
 | `03_stg_dv360.sql` | `stg_dv360` | **DV360 filter** — the Always On flight (`ADVERTISER_ID IN …`; two delivering campaigns, SGD). Maps `COUNTRY_NAME` → market; carries `campaign_name`. |
 | `03b_stg_google.sql` | `stg_google` | **Google Ads filter** — `CAMPAIGN_NAME LIKE '%STT%'` (mixed USD/SGD → SGD @1.34). Market parsed from the campaign name. |
 | `03c_stg_ad_delivery.sql` | `stg_ad_delivery` | **Unified ad-delivery base** — long-format union of the three platforms (platform · campaign · day · market · creative_type · imps · clicks · spend_sgd). The single source for the campaign-grained roll-ups below. |
@@ -41,9 +41,12 @@ dashboard sums the selected campaigns client-side to rescale every ad-delivery f
 campaigns (the default) reproduces the whole-flight `kpi` / `monthly` / `weekly` / market totals exactly.
 The GA4/website side has no campaign dimension, so it is untouched by this filter.
 
-**The filter + the FX/window constants are the only STT-specific bits.** The account list lives once in
-`stg_ga4`; the LinkedIn account and DV360 campaign live once in `stg_linkedin`/`stg_dv360`; everything
-downstream reads those three. To change the reporting FX or campaign-window start, edit the literals in
-`04_kpi.sql`, `05_monthly.sql`, `12_weekly.sql`.
+**The filter + the FX/window constants are the only STT-specific bits.** The GA4 property lives once in
+`stg_ga4`; the LinkedIn accounts, DV360 advertisers and Google Ads campaign filter live once in
+`stg_linkedin` / `stg_dv360` / `stg_google`; everything downstream reads those staging views. The FX
+`1.34` is applied where each USD source is staged (`02_stg_linkedin.sql`, `03_stg_dv360.sql`,
+`03b_stg_google.sql`) and surfaced as the `fx_usd_sgd` constant in `04_kpi.sql`. To change the
+campaign-window start (`DATE '2025-06-01'`), edit `04_kpi.sql`, `12_weekly.sql` and the GA4 market
+views `13–17` / `21`.
 
 Apply:  `python client_STT/create_views.py`

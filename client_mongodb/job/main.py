@@ -68,10 +68,10 @@ def main():
                     "gross_usd": r["GROSS_BUDGET_USD"], "net_usd": r["NET_BUDGET_USD"],
                     "start": iso(r["START_DATE"]), "end": iso(r["END_DATE"])} for r in bud],
         "cs": [{"market": r["MARKET"], "total": r["TOTAL_LEADS"], "accepted": r["ACCEPTED"],
-                "rejected": r["REJECTED"], "new_pending": r["NEW_PENDING"], "unresponsive": r["UNRESPONSIVE"],
+                "rejected": r["REJECTED"], "unresponsive": r["UNRESPONSIVE"],
                 "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in cso],
         "cs_by_programme": [{"programme": r["PROGRAMME_LABEL"], "market": r["MARKET"], "total": r["TOTAL_LEADS"],
-                "accepted": r["ACCEPTED"], "new_pending": r["NEW_PENDING"], "unresponsive": r["UNRESPONSIVE"],
+                "accepted": r["ACCEPTED"], "unresponsive": r["UNRESPONSIVE"],
                 "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
     }
 

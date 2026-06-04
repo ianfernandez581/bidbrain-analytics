@@ -23,7 +23,10 @@ delivery against the GA4 outcome it drove (by source / campaign / day).
 |---|---|
 | [`create_ga4_table.py`](create_ga4_table.py) | **One-time, run FIRST.** Creates `raw_windsor.perf_ga4` at the acquisition grain, partitioned by `metric_date`, clustered by `property_id, session_default_channel_group`. Idempotent — but it **creates, doesn't alter**: to change columns on an existing (empty) table, drop it first (`bq rm -f -t bidbrain-analytics:raw_windsor.perf_ga4`). |
 | [`ga4_loader.py`](ga4_loader.py) | **The loader.** Fetches from Windsor's dedicated `googleanalytics4` connector, merges the two metric-group passes, transforms, and `MERGE`s into `perf_ga4`. |
+| [`create_ga4_events_table.py`](create_ga4_events_table.py) | **One-time.** Creates the event-grain sibling `raw_windsor.perf_ga4_events` at grain (property_id × metric_date × event_name), partitioned by `metric_date`, clustered by `client_slug, event_name`. Idempotent. |
+| [`events_loader.py`](events_loader.py) | **The event-grain loader.** Single-pass fetch from the same `googleanalytics4` connector, `MERGE`s per-event-type counts/value/key-events into `perf_ga4_events`. Runtime artifacts go to `_run_events/` (separate from `ga4_loader`'s `_run/`). |
 | [`probe_ga4_fields.py`](probe_ga4_fields.py) | **Throwaway diagnostic.** Hits the connector with a handful of fields against one property and prints raw rows — how the field-name gotcha below was found. Not part of the normal run. |
+| [`probe_ga4_event_fields.py`](probe_ga4_event_fields.py) | **Throwaway diagnostic.** Same role for the event-scoped fields — confirms the event field names populate and the grain changes to one row per `event_name`. |
 | [`truncate_ga4.py`](truncate_ga4.py) | **Manual reset.** `TRUNCATE`s `perf_ga4`. Use to force a clean full backfill (rarely needed — the loader resumes backfills on its own). |
 | `README.md` | This file. |
 
@@ -56,7 +59,8 @@ want 12 metrics, so each chunk is fetched in **two passes** with identical dimen
 6-metric subset each (`FIELDS_GROUP_A` = traffic/engagement, `FIELDS_GROUP_B` = outcomes), then
 merged on the dimension key into one row *before* transform/MERGE. A dim combo with traffic but
 zero conversions/revenue may be absent from pass B — those outcome metrics default to 0 in
-transform (missing == 0 at this grain).
+transform (missing == 0 at this grain). (This loader uses `CHUNK_DAYS = 14`, not the parent
+README's shared `3` — verify against `ga4_loader.py`.)
 
 **2. ⚠️ Field-name gotcha.** Windsor's GA4 connector populates the **plain**
 `source` / `medium` / `campaign` request fields, **not** the `session_*` variants (those exist

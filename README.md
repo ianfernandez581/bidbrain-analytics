@@ -57,8 +57,8 @@ anything over — and you can't reach around the back to grab the product either
 
 We built the first one for **MongoDB (APAC)**. The whole point of this repo is that **every
 future client dashboard follows the exact same pattern**, so building the next one is mostly
-copy-and-adjust, not start-from-scratch. We're now on our second (**Cloudflare**) and have a
-third in intake (**STT**).
+copy-and-adjust, not start-from-scratch. Two more have followed the same template since —
+**Cloudflare** and **STT (ST Telemedia GDC)** — and all three are now live.
 
 Everything lives on **Google Cloud** (one platform), in the GCP project
 **`bidbrain-analytics`**, in the **Sydney region (`australia-southeast1`)**. The web
@@ -182,8 +182,8 @@ Each folder has a **detailed README of its own** — start there for anything in
 | Folder | Status | What it is | Open its README |
 |---|---|---|---|
 | [`client_mongodb/`](client_mongodb/) | **Live** | The **template** every client copies. Models everything in BigQuery from `raw_snowflake`. Paid Media + Content Syndication (DNB / IDC). | [README](client_mongodb/README.md) · [job/](client_mongodb/job/README.md) · [dash/](client_mongodb/dash/README.md) · [sql/](client_mongodb/sql/README.md) |
-| [`client_cloudflare/`](client_cloudflare/) | **Deploying** | Second client. Deliberately different: its model already lives in Snowflake, so the job pulls Snowflake's *final-model* views and BigQuery views are thin pass-throughs. | [README](client_cloudflare/README.md) · [job/](client_cloudflare/job/README.md) · [dash/](client_cloudflare/dash/README.md) · [sql/](client_cloudflare/sql/README.md) |
-| [`client_STT/`](client_STT/) | **On hold** | Intake notes for ST Telemedia GDC. Data is already in `raw_snowflake`; waiting on the agency to confirm scope before building. | [README](client_STT/README.md) · [INTAKE.md](client_STT/INTAKE.md) |
+| [`client_cloudflare/`](client_cloudflare/) | **Live** | Second client. Deliberately different: its model already lives in Snowflake, so the job pulls Snowflake's *final-model* views and BigQuery views are thin pass-throughs. | [README](client_cloudflare/README.md) · [job/](client_cloudflare/job/README.md) · [dash/](client_cloudflare/dash/README.md) · [sql/](client_cloudflare/sql/README.md) |
+| [`client_STT/`](client_STT/) | **Live** | Third client (ST Telemedia GDC, via the Transmission agency). "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media, all from `raw_snowflake`. 23 BigQuery views. | [README](client_STT/README.md) · [job/](client_STT/job/README.md) · [dash/](client_STT/dash/README.md) · [sql/](client_STT/sql/README.md) · [INTAKE.md](client_STT/INTAKE.md) |
 
 ### Operations & root
 
@@ -207,7 +207,7 @@ client has its own drawer of saved calculations that pick out and reshape just t
   - **`raw_windsor`** — Trade Desk (`perf_the_trade_desk`), Meta (`perf_meta`), and GA4
     (`perf_ga4`), loaded by [`windsor_data_pull/`](windsor_data_pull/).
   - **`raw_snowflake`** — the Snowflake APAC tables mirrored 1:1 (Salesforce CS + Trade Desk +
-    LinkedIn + Reddit + DV360 + Google Ads), loaded by [`snowflake_data_pull/`](snowflake_data_pull/).
+    LinkedIn + Reddit + DV360 + Google Ads + GA4), loaded by [`snowflake_data_pull/`](snowflake_data_pull/).
 - **`client_<client>`** — one dataset per client, holding everything specific to that client:
   - **views** that filter the shared raw tables down to this client's slice (campaign IDs,
     advertiser name, business rules) and roll them up into dashboard-ready numbers.
@@ -334,8 +334,9 @@ gcloud logging read "resource.labels.job_name=mongodb-export" --project=bidbrain
 ```
 
 The everyday git loop and the full per-stage command set live in each client's README.
-Cloudflare additionally ships a one-shot stand-up script — see
-[`client_cloudflare/deploy_cloudflare.ps1`](client_cloudflare/deploy_cloudflare.ps1).
+STT ships a one-shot, idempotent stand-up script (provisions a whole client — bucket, dataset,
+service accounts, IAM, secrets, both Cloud Run units, the daily scheduler) — see
+[`client_STT/deploy_stt.ps1`](client_STT/deploy_stt.ps1); copy it for a new client.
 
 ---
 
@@ -349,7 +350,7 @@ README — this is the shape:
 2. **Copy the template:** `client_mongodb/` → `client_acme/`. Change `CLIENT = "acme"` in
    `job/main.py`. Rewrite the filter in `sql/01_*`/`02_*` for this client's slice.
 3. **Provision GCP:** private bucket, `client_acme` dataset, two service accounts + IAM,
-   password + session secrets. (Cloudflare's [`deploy_cloudflare.ps1`](client_cloudflare/deploy_cloudflare.ps1)
+   password + session secrets. (STT's [`deploy_stt.ps1`](client_STT/deploy_stt.ps1)
    does all of this in one idempotent script — copy it.)
 4. **Bootstrap BigQuery:** run the job once (lands any `src_*`, then errors on the
    not-yet-existing views — expected), `python client_acme/create_views.py`, re-run the job.
@@ -366,7 +367,7 @@ README — this is the shape:
 |---|---|
 | **MongoDB** | ✅ Live (BigQuery model, export job, gated web app). Finishing: `mongodb.bidbrain.ai` custom domain; confirming the daily Cloud Scheduler trigger. Retiring the legacy public-R2 path (and **rotating the leaked R2 keys**). |
 | **Cloudflare** | ✅ Live (gated web app) at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. "Core Demand Generation" story across TTD/LinkedIn/Reddit/LINE paid media + content syndication. See [`dash/LIVE_URL.md`](client_cloudflare/dash/LIVE_URL.md). Finishing: `cloudflare.bidbrain.ai` custom domain; confirming the daily Cloud Scheduler trigger. |
-| **STT** | ✅ Live (gated web app). "Ads → website traffic" story: GA4 (`raw_windsor.perf_ga4`) vs LinkedIn + DV360 (`raw_snowflake`). 12 BigQuery views → `stt-export` job → `stt-dash` service, daily Scheduler. See [`client_STT/README.md`](client_STT/README.md). |
+| **STT** | ✅ Live (gated web app). "Ads → website traffic" story: GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media — all four sources from `raw_snowflake`. 23 BigQuery views → `stt-export` job → `stt-dash` service, daily Scheduler (`stt-export-daily`, 22:00 UTC). See [`client_STT/README.md`](client_STT/README.md). |
 
 **Platform-wide TODO:** activate CD triggers (currently manual deploys); set up the Cloud
 Scheduler daily run for each live client; rotate the legacy leaked credentials when retiring

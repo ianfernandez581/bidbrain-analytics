@@ -82,7 +82,8 @@ the Snowflake views — if a view emits different strings, fix the mapping in
 The thin views read **from** the `src_*` tables this job lands, so on a fresh project they don't
 exist yet. The **first run lands `src_*` and then errors on the view reads** — that's expected.
 Then `python client_cloudflare/create_views.py`, then re-run the job. (Same flow as MongoDB.)
-[`../deploy_cloudflare.ps1`](../deploy_cloudflare.ps1) automates this whole two-run dance.
+See the [client README's deploy order](../README.md#one-time-replicate--deploy-order) for the
+full two-run dance (there is no one-shot stand-up script for this client).
 
 ---
 
@@ -96,10 +97,13 @@ Then `python client_cloudflare/create_views.py`, then re-run the job. (Same flow
 gcloud run jobs execute cloudflare-export --region australia-southeast1 --wait
 ```
 
-**Config (injected by Cloud Run, see [`cloudbuild.yaml`](cloudbuild.yaml)):** secret
-`SNOWFLAKE_KEY=snowflake-bq-key:latest`; env `GCP_PROJECT`, `BQ_DATASET=client_cloudflare`,
-`GCS_BUCKET=bidbrain-analytics-cloudflare-dash`, `SF_ACCOUNT`, `SF_USER`, `SF_WAREHOUSE`.
-Locally, when `SNOWFLAKE_KEY` is absent, it falls back to Secret Manager via ADC.
+**Config:** the only runtime input `main.py` actually reads from the environment is the secret
+`SNOWFLAKE_KEY=snowflake-bq-key:latest` (and locally, when it's absent, the key is read from
+Secret Manager via ADC). Everything else — `PROJECT`, `DATASET`, `BUCKET`, `SF_ACCOUNT`,
+`SF_USER`, `SF_WAREHOUSE` — is **hardcoded as constants in `main.py`**, derived from
+`CLIENT = "cloudflare"`, so they can't drift. The `GCP_PROJECT` / `BQ_DATASET` / `GCS_BUCKET` /
+`SF_*` env vars that [`cloudbuild.yaml`](cloudbuild.yaml) sets are currently inert (the code
+ignores them); they exist for parity with the MongoDB job's env-driven config.
 
 ## See also
 

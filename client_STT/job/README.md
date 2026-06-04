@@ -10,7 +10,7 @@ by their own loaders), so it needs only the BigQuery + Storage clients.
 
 | File | What it is |
 |---|---|
-| `main.py` | The job. `CLIENT = "stt"` → dataset / bucket / object all follow. Reads 12 views → `env` dict → JSON. |
+| `main.py` | The job. `CLIENT = "stt"` → dataset / bucket / object all follow. Reads 18 roll-up views → `env` dict → JSON. |
 | `requirements.txt` | `google-cloud-bigquery`, `google-cloud-storage` (pinned). |
 | `Dockerfile` | `python:3.12-slim`, non-root, `CMD python main.py`. |
 | `cloudbuild.yaml` | Build → push → `run jobs deploy` (for a future push-to-main trigger). |

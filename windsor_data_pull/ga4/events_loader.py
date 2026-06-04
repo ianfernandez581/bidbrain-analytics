@@ -10,8 +10,8 @@ feature set -- incremental-per-property, crash-resume, retries, logging, fixed-r
      6-metric passes to clear GA4's 10-metric cap. Events need only 3 metrics
      (event_count, event_value, conversions), so it's one request per chunk -- no
      metric-group merge.
-  2. CHUNK_DAYS=50 (vs 14). event_name is low-cardinality (~60/property) and we pull a
-     single pass, so a 50-day chunk is only a few thousand rows and stays well under
+  2. CHUNK_DAYS=200 (vs 14). event_name is low-cardinality (~60/property) and we pull a
+     single pass, so even a 200-day chunk is only a few thousand rows and stays well under
      GA4's sampling threshold. The sampling / "(other)" / per-request row-cap risks that
      force ga4_loader to keep chunks small at the source x medium x campaign x channel
      grain do NOT bite at the event grain -- so bigger chunks here are free speed.

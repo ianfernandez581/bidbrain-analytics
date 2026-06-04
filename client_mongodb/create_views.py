@@ -8,13 +8,10 @@ order (use an NN_ prefix to control dependency order: stg_* before the models
 and rollups that read them).
 
 Fresh-project order:
-    1. python windsor_data_pull/create_dataset.py
-    2. python windsor_data_pull/tradedesk/create_trade_desk__tables.py
-    3. python windsor_data_pull/meta/create_meta_table.py
-    4. (create the client_mongodb dataset + run the export job once to land the
-       src_* tables -- see README section 10)
-    5. python client_mongodb/create_views.py
-    6. re-run the export job to build <client>.json
+    1. python snowflake_data_pull/create_dataset.py
+    2. python snowflake_data_pull/loader.py   (lands raw_snowflake.*, shared)
+    3. python client_mongodb/create_views.py  (these views read raw_snowflake.*)
+    4. run the export job to build <client>.json
 
 See client_mongodb/sql/README.md for how to export the live view DDL.
 

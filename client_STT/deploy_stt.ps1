@@ -73,7 +73,7 @@ function Ensure-Sa($email, $display) {
 Ensure-Sa $JOB_SA "STT dashboard export job"
 Ensure-Sa $WEB_SA "STT dashboard web service"
 
-# JOB SA: run BigQuery jobs + read-only across BigQuery (the views read raw_windsor + raw_snowflake;
+# JOB SA: run BigQuery jobs + read-only across BigQuery (the views read raw_snowflake;
 # the job writes nothing to BigQuery), and write the data bucket. Dataset-scoped grants need an
 # org allowlist this project doesn't have, so use project-scoped read-only (dataViewer).
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${JOB_SA}" --role="roles/bigquery.jobUser"   --condition=None | Out-Null; Must "grant jobUser"

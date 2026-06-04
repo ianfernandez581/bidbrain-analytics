@@ -5,8 +5,8 @@
 > STT's slice, model it in BigQuery views, export one JSON, serve it from a password-gated web app.
 
 **Plain English:** STT GDC (ST Telemedia Global Data Centres), via the agency **Transmission**, runs
-an FY25-26 "Always On" campaign across APAC on **LinkedIn** (paid social) and **DV360** (programmatic
-display). This dashboard puts that ad spend next to what actually happened on the STT GDC **websites**
+an FY25-26 "Always On" campaign across APAC on **Google Ads** (paid search), **LinkedIn** (paid social)
+and **DV360** (programmatic display). This dashboard puts that ad spend next to what actually happened on the STT GDC **websites**
 (Google Analytics 4) — so stakeholders can see the campaign lifting site traffic, not just ad metrics.
 
 **Status:** ✅ **Live** (password-gated). See [`dash/LIVE_URL.md`](dash/LIVE_URL.md) for the URL + password.
@@ -15,24 +15,26 @@ display). This dashboard puts that ad spend next to what actually happened on th
 
 ## The story it tells
 
-Three live sources, joined into one "ads → traffic" narrative:
+Four live sources — three ad platforms plus GA4 website analytics — joined into one "ads → traffic" narrative:
 
 | Source | Raw table (shared) | STT filter | What it contributes |
 |---|---|---|---|
-| **GA4** website analytics | `raw_windsor.perf_ga4` | the 11 `STT GDC Web *` properties | sessions / users / engagement, split by channel — **the outcome** |
+| **GA4** website analytics | `raw_snowflake.google_analytics_apac_all` | `PROPERTY_ID = '318963196'` (the "STT GDC Web All" roll-up property) | sessions / users / engagement, split by channel; market = visitor country — **the outcome** |
 | **Google Ads** paid search | `raw_snowflake.google_ads_apac` | `CAMPAIGN_NAME LIKE '%STT%'` | keyword delivery (USD→SGD); market from the campaign name |
 | **DV360** programmatic display | `raw_snowflake.dv360_apac` | `ADVERTISER_ID IN ('7572338345','6466367438')` (the Always On flight — two delivering campaigns) | prospecting delivery (SGD) |
-| **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_NAME = 'STTGDC_TransmissionSG_USD'` | awareness delivery (USD) |
+| **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_ID IN ('515691430','511609128')` (the SGD + USD accounts; USD spend converted @1.34) | awareness delivery |
 
-Headline (campaign window from 2025-06-01): **~1.48M website sessions**, **520k ad-driven**, with
-**~S$109k** of LinkedIn + DV360 media behind **8.5M** impressions. Programmatic-display sessions rose
-~5× after the DV360 flight launched (Nov 2025) — the dashboard's **Ads → Traffic** tab makes that link
-explicit (Display ← DV360, Paid Social ← LinkedIn; weekly correlation + before/during lift).
+Headline (campaign window 2025-06-01 → 2026-05-30, now complete): **~604k website sessions**, **~226k
+ad-driven**, with **~S$341k** of Google Ads + LinkedIn + DV360 media behind **~24.2M** impressions.
+Programmatic-display sessions rose sharply after the DV360 flight launched (Nov 2025) — the dashboard's
+**Ads → Traffic** tab makes that link explicit (Paid Search ← Google Ads, Display ← DV360, Paid Social ←
+LinkedIn; weekly correlation + before/during lift).
 
-**Reporting currency is SGD.** LinkedIn is billed in USD and converted at a fixed
-`FX_USD_SGD = 1.34` (set once in the views — `sql/04_kpi.sql`, `05_monthly.sql`, `12_weekly.sql`).
-Paid Search in GA4 is Google Ads, which is **not** in this spend dataset — so the spend-matched
-"Ads → Traffic" view deliberately uses only Display + Paid Social.
+**Reporting currency is SGD.** The USD-account rows on LinkedIn and Google Ads are converted at a fixed
+`FX_USD_SGD = 1.34`, applied where each source is staged (`sql/02_stg_linkedin.sql`, `03_stg_dv360.sql`,
+`03b_stg_google.sql`) and surfaced as the `fx_usd_sgd` constant in `sql/04_kpi.sql`; the roll-ups just
+sum the already-SGD figures. Paid Search in GA4 is Google Ads, which is now in this spend dataset, so
+the spend-matched "Ads → Traffic" view covers Paid Search + Display + Paid Social.
 
 ---
 
@@ -70,23 +72,23 @@ fixed `FX_USD_SGD = 1.34`.
 ## How it works (3 stages — same shape as every client)
 
 ```
- (1) SOURCE → RAW (shared)            (2) RAW → VIEWS → JSON            (3) JSON → FRONTEND
- ───────────────────────             ─────────────────────             ──────────────────
- windsor_data_pull  fills             client_STT/sql/*.sql filter        stt-dash (Cloud Run service)
- raw_windsor.perf_ga4                 STT's slice + roll it up;          shows a login page, then
- snowflake_data_pull fills            stt-export (Cloud Run JOB)         dashboard.html, which fetches
- raw_snowflake.{linkedin,dv360}_apac  reads the views → writes           /data.json and draws the charts
-                                      stt.json to the private bucket
+ (1) SOURCE → RAW (shared)             (2) RAW → VIEWS → JSON            (3) JSON → FRONTEND
+ ───────────────────────              ─────────────────────             ──────────────────
+ snowflake_data_pull fills             client_STT/sql/*.sql filter        stt-dash (Cloud Run service)
+ raw_snowflake.{google_analytics_apac  STT's slice + roll it up;          shows a login page, then
+ _all, linkedin_ads, dv360,            stt-export (Cloud Run JOB)         dashboard.html, which fetches
+ google_ads}_apac                      reads the views → writes           /data.json and draws the charts
+                                       stt.json to the private bucket
 ```
 
-**Divergence from the template:** STT reads its three sources straight from the shared raw layers, so
+**Divergence from the template:** STT reads its four sources straight from the shared raw layers, so
 there is **no `src_*` landing step** and **no bootstrap-first-failure** (unlike `client_cloudflare`).
 The job is read-only on BigQuery — it only `SELECT`s the views and writes JSON to GCS.
 
 | What to change | Edit | Stage |
 |---|---|---|
-| STT's filter (accounts / campaign IDs) | `sql/01_stg_ga4.sql` · `02_stg_linkedin.sql` · `03_stg_dv360.sql` | 2 |
-| FX rate / campaign window | the `1.34` / `DATE '2025-06-01'` constants in `sql/04,05,12` | 2 |
+| STT's filter (accounts / campaign IDs) | `sql/01_stg_ga4.sql` · `02_stg_linkedin.sql` · `03_stg_dv360.sql` · `03b_stg_google.sql` | 2 |
+| FX rate / campaign window | the `1.34` constant in `sql/02,03,03b,04` / the `DATE '2025-06-01'` window in `sql/04,12` (and the GA4 market views `13–17,21`) | 2 |
 | Roll-ups / new metrics | the relevant `sql/*.sql` view | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
@@ -102,8 +104,8 @@ Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv
 
 **① Refresh the data now** (a daily Cloud Scheduler `stt-export-daily` already runs 22:00 UTC):
 ```powershell
-# (optional) refresh the shared raw layers first if you want the very latest source data:
-.\.venv\Scripts\python.exe windsor_data_pull\ga4\ga4_loader.py
+# (optional) refresh the shared raw layer first if you want the very latest source data
+# (all four STT sources — GA4, LinkedIn, DV360, Google Ads — now come from Snowflake):
 .\.venv\Scripts\python.exe snowflake_data_pull\loader.py
 gcloud run jobs execute stt-export --region australia-southeast1 --wait    # views -> stt.json
 ```
@@ -141,7 +143,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_stt` (12 views) |
+| BigQuery dataset | `client_stt` (23 views) |
 | Data bucket / object | `bidbrain-analytics-stt-dash` / `stt.json` |
 | Export job | `stt-export` (runtime SA `stt-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `stt-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `stt-dash-web@…`) |
@@ -150,7 +152,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 
 ## Files
 
-- [`sql/`](sql/README.md) — the 12 BigQuery views (filter + model); `create_views.py` applies them.
+- [`sql/`](sql/README.md) — the 23 BigQuery views (filter + model); `create_views.py` applies them.
 - [`job/`](job/README.md) — the export job (stage 2): views → `stt.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the original pre-build scoping notes (historical).
@@ -159,4 +161,4 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 
 - [Root README](../README.md) — platform map, security model, naming, add-a-client playbook.
 - [`../client_mongodb/`](../client_mongodb/README.md) — the template this follows.
-- [`../windsor_data_pull/ga4/`](../windsor_data_pull/ga4/README.md) — where `raw_windsor.perf_ga4` comes from.
+- [`../snowflake_data_pull/`](../snowflake_data_pull/README.md) — where all four STT raw layers (GA4, LinkedIn, DV360, Google Ads) come from.

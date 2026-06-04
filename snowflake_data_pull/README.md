@@ -42,6 +42,7 @@ client reads this one shared raw layer and applies its own `WHERE` + rollups in 
 | `APAC_ALL_PLATFORM.PUBLIC."Reddit Ads - APAC_ALL"` | `raw_snowflake.reddit_ads_apac_all` |
 | `APAC_ALL_PLATFORM.PUBLIC."DV360 - APAC"` | `raw_snowflake.dv360_apac` |
 | `APAC_ALL_PLATFORM.PUBLIC."Google Ads - APAC"` | `raw_snowflake.google_ads_apac` |
+| `APAC_ALL_PLATFORM.PUBLIC."Google Analytics Data_APAC ALL"` | `raw_snowflake.google_analytics_apac_all` |
 
 **To add another source table:** add one line to the `TABLES` dict in [`loader.py`](loader.py).
 
@@ -81,8 +82,8 @@ Today's consumers:
   campaign IDs) — see [`client_mongodb/sql/`](../client_mongodb/sql/README.md).
 - **Cloudflare** does *not* use `raw_snowflake` — its model lives in a separate Snowflake
   schema and its job pulls that directly (see [`client_cloudflare/`](../client_cloudflare/README.md)).
-- **STT** will filter `google_ads_apac`, `linkedin_ads_apac`, and `dv360_apac` once scoped
-  (see [`client_STT/INTAKE.md`](../client_STT/INTAKE.md)).
+- **STT** filters `google_ads_apac`, `google_analytics_apac_all`, `linkedin_ads_apac`, and
+  `dv360_apac` in its staging views (see [`client_STT/sql/`](../client_STT/sql/README.md)).
 
 ---
 

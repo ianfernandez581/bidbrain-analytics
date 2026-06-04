@@ -118,8 +118,9 @@ image).
 
 ### Optional cleanups (not required)
 
-- The `?t=' + Date.now()` cache-buster is gone; the service already sends
-  `Cache-Control: no-store` on `/data.json`, so freshness is handled server-side.
+- The shipped `dashboard.html` keeps the `?t=' + Date.now()` cache-buster on the
+  `/data.json` fetch (a harmless belt-and-braces — the service already sends
+  `Cache-Control: no-store`, so freshness is handled server-side either way).
 - The two error panels (`#error`, `#paid-error`) still work — a failed
   `/data.json` fetch shows the main error box; the paid panel only renders after
   `COMBINED` is set, so its error path now effectively can't fire on its own.

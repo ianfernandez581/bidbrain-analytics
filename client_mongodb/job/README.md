@@ -44,8 +44,8 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
   "benchmarks_strategy": { /* keyed by strategy: { cpm, ctr, frequency, weight } */ },
   "benchmarks_market":   { /* keyed by market:   { budget_weight } */ },
   "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end */ ],
-  "cs":              [ /* market, total, accepted, rejected, new_pending, unresponsive, do_not_contact, last_lead_day */ ],
-  "cs_by_programme": [ /* programme, market, total, accepted, new_pending, unresponsive, do_not_contact, last_lead_day (no 'rejected') */ ]
+  "cs":              [ /* market, total, accepted, rejected, unresponsive, do_not_contact, last_lead_day */ ],
+  "cs_by_programme": [ /* programme, market, total, accepted, unresponsive, do_not_contact, last_lead_day (no 'rejected') */ ]
 }
 ```
 

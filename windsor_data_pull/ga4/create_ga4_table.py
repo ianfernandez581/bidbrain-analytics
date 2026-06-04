@@ -106,7 +106,7 @@ table.time_partitioning = bigquery.TimePartitioning(
     field="metric_date",
 )
 table.clustering_fields = ["property_id", "session_default_channel_group"]
-table.description = "GA4 Traffic Acquisition, one row per (property x date x session source/medium/campaign), via Windsor.ai"
+table.description = "GA4 Traffic Acquisition, one row per (property x date x session source/medium/campaign x default channel group), via Windsor.ai"
 
 table = client.create_table(table, exists_ok=True)
 print(f"Created {table_id}")

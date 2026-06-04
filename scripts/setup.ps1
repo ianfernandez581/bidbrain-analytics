@@ -100,7 +100,7 @@ Write-Host "[OK] gcloud: $((Get-Command gcloud).Source)" -ForegroundColor Green
 # The local .venv is a convenience superset for running everything locally:
 #   - requirements.txt                    -> Windsor loaders + BigQuery setup scripts
 #   - client_mongodb/job/requirements.txt -> the MongoDB export job (main.py:
-#                                            pandas / pyarrow / snowflake)
+#                                            BigQuery + Storage clients only)
 # Both pin google-cloud-bigquery/storage to the SAME versions, so they coexist
 # in one venv (verified with `pip check`). The dash web app is deliberately
 # EXCLUDED: it pins google-cloud-storage==2.18.2, which conflicts with the

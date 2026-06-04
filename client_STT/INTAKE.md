@@ -4,11 +4,13 @@
 **Campaign:** Always On — SOW 2 · FY25-26 (Jun 2025 → May 2026) · plan currency **SGD**
 **Status:** ✅ **BUILT & LIVE** — see [`README.md`](README.md) and [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
 
-> **Built scope (resolved with the agency):** the dashboard ships on a confirmed, focused slice —
-> GA4 website analytics (the 11 `STT GDC Web *` properties), LinkedIn `STTGDC_TransmissionSG_USD`,
-> and the DV360 `(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)` campaign. Reporting currency SGD,
-> LinkedIn USD converted at a fixed FX (1.34). The intake notes below are kept for history; the
-> dual-account/SOW-boundary questions were superseded by this agreed single-account-per-platform scope.
+> **Built scope (resolved with the agency):** the dashboard ships on a confirmed slice — GA4 website
+> analytics (Snowflake `google_analytics_apac_all`, property `318963196` = "STT GDC Web All"), the
+> LinkedIn STT accounts (`ACCOUNT_ID IN ('515691430','511609128')` — SGD + USD), the DV360 Always On
+> flight (`ADVERTISER_ID IN ('7572338345','6466367438')` — two delivering campaigns), and Google Ads
+> paid search (`CAMPAIGN_NAME LIKE '%STT%'`). Reporting currency SGD, USD account rows converted at a
+> fixed FX (1.34). The intake notes below are kept for history; the dual-account question was resolved
+> by keeping **both** the USD and SGD accounts in scope (the USD rows converted at the fixed FX).
 
 ---
 

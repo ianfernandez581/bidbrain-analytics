@@ -5,10 +5,11 @@ BigQuery views in client_STT/sql/ and write a single stt.json to the private GCS
 bucket. The gated web app (client_STT/dash) serves that JSON at /data.json.
 
 The STT story is "what the ads did to website traffic", so the payload pairs
-three sources the views already filtered + rolled up:
+four sources the views already filtered + rolled up:
   * GA4   (raw_snowflake.google_analytics_apac_all, property 318963196) -> website sessions / users / channels
-  * LinkedIn (raw_snowflake.linkedin_ads_apac) -> paid-social delivery (USD)
+  * LinkedIn (raw_snowflake.linkedin_ads_apac) -> paid-social delivery (SGD; USD account rows @1.34)
   * DV360 (raw_snowflake.dv360_apac)        -> programmatic display delivery (SGD)
+  * Google Ads (raw_snowflake.google_ads_apac) -> paid-search delivery (SGD; USD rows @1.34)
 
 This job does NOT touch Snowflake directly — the shared raw layer is filled by
 snowflake_data_pull/, and the client_STT views read their STT slice. (GA4 was
