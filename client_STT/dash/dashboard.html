@@ -403,6 +403,12 @@
       </div>
 
       <div class="card" style="margin-top:16px">
+        <h3>Key events by type</h3>
+        <div class="hint">GA4 key events per month, split by event type, summed over the selected countries. Includes every configured key event — not just contact / lead-gen / newsletter.</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="webKeyEvents"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
         <h3>Top sources / mediums</h3>
         <div class="hint">Where sessions originate. The ad platforms surface by name — flagged <span class="tag paid">AD</span>.</div>
         <div style="overflow:auto">
@@ -746,6 +752,17 @@ function ga4Sources(){
     e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.conversions+=r.conversions||0;
   }
   return Object.values(m).sort((a,b)=>b.sessions-a.sessions).slice(0,15);
+}
+// Key events by type, by month — summed over the selected countries.
+// -> {byMonth:{month:{event_name:count}}, types:[event_name] sorted by total desc}.
+function ga4KeyEvents(){
+  const byMonth = {}, totals = {};
+  for(const r of DATA.ga4_key_events_market||[]){ if(!countryOk(r.market)) continue;
+    (byMonth[r.month] || (byMonth[r.month] = {}));
+    byMonth[r.month][r.event_name] = (byMonth[r.month][r.event_name]||0) + (r.key_events||0);
+    totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
+  }
+  return { byMonth, types: Object.keys(totals).sort((a,b)=>totals[b]-totals[a]) };
 }
 
 //==============================================================================
@@ -1240,6 +1257,19 @@ function renderWeb(){
       scales:{ x:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX({stacked:true}) } }
   });
 
+  // key events by type, by month (country-filtered, stacked bars — one per event type)
+  const ke = ga4KeyEvents();
+  const kePal = [C.teal, C.red, C.amber, C.slate, C.li, C.redDeep, C.tealSoft, C.grey];
+  charts.webKeyEvents = new Chart(el('webKeyEvents'),{
+    type:'bar',
+    data:{ labels, datasets: ke.types.map((t,i)=>({
+      label:t, data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+      backgroundColor:kePal[i % kePal.length], stack:'ke', borderRadius:3, maxBarThickness:34 })) },
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
+  });
+
   // top sources table (top 15, country-filtered)
   const srcs = ga4Sources();
   el('webSources').querySelector('tbody').innerHTML = srcs.map(r=>{
@@ -1364,6 +1394,7 @@ function exportAllData(){
   push('ga4_kpi_by_country', apac(DATA.ga4_kpi_market)); push('ga4_monthly_by_country', apac(DATA.ga4_monthly_market));
   push('ga4_weekly_by_country', apac(DATA.ga4_weekly_market)); push('ga4_channels_by_country', apac(DATA.ga4_channels_market));
   push('ga4_sources_by_country', apac(DATA.ga4_sources_market));
+  push('ga4_key_events_by_country', apac(DATA.ga4_key_events_market));
   push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns);
   push('dv_markets', apac(DATA.dv_markets)); push('google_markets', apac(DATA.google_markets));
   // Campaign-grained ad delivery (full dump; the Campaign filter slices these client-side).

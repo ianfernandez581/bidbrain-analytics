@@ -24,6 +24,7 @@ filter views first, then the roll-ups that read them). The export job
 | `15_ga4_weekly_market.sql` | `ga4_weekly_market` | GA4 weekly sessions **by market** (Country-filtered Ads→Traffic). |
 | `16_ga4_channels_market.sql` | `ga4_channels_market` | GA4 sessions by channel **by market**. |
 | `17_ga4_sources_market.sql` | `ga4_sources_market` | GA4 top source/medium **by market** (global top-60, re-ranked client-side). |
+| `06_ga4_key_events.sql` | `ga4_key_events_market` | GA4 key events **by event type × month × market** — every configured key event (`KEY_EVENTS > 0`), read straight from the raw source since `stg_ga4` collapses them into one `conversions` total. Powers the Website tab's key-events breakdown. |
 | `19_ad_campaigns.sql` | `ad_campaigns` | **Campaign filter** option list + per-campaign totals (platform · campaign · imps · clicks · spend_sgd · window), delivering campaigns only. |
 | `20_ad_campaign_monthly.sql` | `ad_campaign_monthly` | Ad delivery by campaign × month (Overview hero + Paid Media monthly). |
 | `21_ad_campaign_weekly.sql` | `ad_campaign_weekly` | Ad delivery by campaign × ISO week (Ads → Traffic weekly + scatter). |

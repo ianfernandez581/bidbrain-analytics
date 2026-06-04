@@ -91,6 +91,9 @@ def main():
     ga4_weekly_market = rows(bq, "ga4_weekly_market")
     ga4_channels_market = rows(bq, "ga4_channels_market")
     ga4_sources_market = rows(bq, "ga4_sources_market")
+    # Key events by type (all GA4 key events, not just the 3 stg_ga4 folds into
+    # `conversions`) x month x market — powers the Website tab's key-events breakdown.
+    ga4_key_events_market = rows(bq, "ga4_key_events_market")
 
     # Country options for the filter, ordered by total sessions desc (ga4_kpi_market
     # is already ordered that way). "Global" is excluded by default in the frontend.
@@ -219,6 +222,12 @@ def main():
             "engaged": num(r["engaged"]),
             "conversions": num(r["conversions"]),
         } for r in ga4_sources_market],
+        "ga4_key_events_market": [{
+            "month": r["month"],
+            "market": r["market"],
+            "event_name": r["event_name"],
+            "key_events": num(r["key_events"]),
+        } for r in ga4_key_events_market],
         "li_creative": [{
             "creative_type": r["creative_type"],
             "imps": num(r["imps"]),
