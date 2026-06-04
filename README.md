@@ -365,7 +365,7 @@ README — this is the shape:
 | Client | State |
 |---|---|
 | **MongoDB** | ✅ Live (BigQuery model, export job, gated web app). Finishing: `mongodb.bidbrain.ai` custom domain; confirming the daily Cloud Scheduler trigger. Retiring the legacy public-R2 path (and **rotating the leaked R2 keys**). |
-| **Cloudflare** | 🚧 All code is in the repo (pipeline, thin views, and `dash/dashboard.html`). Remaining: run [`deploy_cloudflare.ps1`](client_cloudflare/deploy_cloudflare.ps1) (one-shot stand-up), fill in [`dash/LIVE_URL.md`](client_cloudflare/dash/LIVE_URL.md), and point `cloudflare.bidbrain.ai`. |
+| **Cloudflare** | ✅ Live (gated web app) at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. "Core Demand Generation" story across TTD/LinkedIn/Reddit/LINE paid media + content syndication. See [`dash/LIVE_URL.md`](client_cloudflare/dash/LIVE_URL.md). Finishing: `cloudflare.bidbrain.ai` custom domain; confirming the daily Cloud Scheduler trigger. |
 | **STT** | ✅ Live (gated web app). "Ads → website traffic" story: GA4 (`raw_windsor.perf_ga4`) vs LinkedIn + DV360 (`raw_snowflake`). 12 BigQuery views → `stt-export` job → `stt-dash` service, daily Scheduler. See [`client_STT/README.md`](client_STT/README.md). |
 
 **Platform-wide TODO:** activate CD triggers (currently manual deploys); set up the Cloud
