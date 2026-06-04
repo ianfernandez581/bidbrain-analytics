@@ -39,13 +39,14 @@ Renaming a key anywhere breaks the next stage — fix both ends.
 (`iam.serviceaccounts.actAs` — Cloud Build's SA can't act as the runtime SA). Those configs
 are for a future push-to-main trigger. Build the image, deploy as yourself.
 
-**Prefer the per-stage scripts** — each `client_<c>/` has three that wrap exactly the commands
-below (self-contained, run from anywhere, idempotent). Reach for the matching one by edit:
-- `deploy_dash_<c>.ps1`  — edited `dash/dashboard.html` or `dash/main.py` → rebuild + update SERVICE
-- `deploy_job_<c>.ps1`   — edited `job/main.py` (JSON shape) → rebuild + deploy + run JOB
-- `deploy_views_<c>.ps1` — edited a `sql/*.sql` view → reapply views (`create_views.py`) + run JOB
+**Prefer the per-stage scripts** — each now lives in the stage subfolder it deploys and wraps
+exactly the commands below (self-contained, paths resolve from `$PSScriptRoot`, idempotent).
+Reach for the matching one by edit:
+- `dash/deploy_dash_<c>.ps1`   — edited `dash/dashboard.html` or `dash/main.py` → rebuild + update SERVICE
+- `job/deploy_job_<c>.ps1`     — edited `job/main.py` (JSON shape) → rebuild + deploy + run JOB
+- `sql/deploy_views_<c>.ps1`   — edited a `sql/*.sql` view → reapply views (`create_views.py`) + run JOB
 
-The one-shot `deploy_<c>.ps1` is still only for first-time standup (APIs, SAs, IAM, secrets,
+The one-shot `deploy_<c>.ps1` (still at the `client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,
 scheduler). The raw commands each stage script runs, for reference:
 
     # edited dashboard.html or dash/main.py → rebuild + redeploy the SERVICE:

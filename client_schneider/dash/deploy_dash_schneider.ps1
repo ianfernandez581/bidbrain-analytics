@@ -11,7 +11,7 @@
 # For first-time standup (APIs, SAs, IAM, secrets, scheduler) use the one-shot deploy_schneider.ps1.
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
-#       .\client_schneider\deploy_dash_schneider.ps1
+#       .\client_schneider\dash\deploy_dash_schneider.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
@@ -20,7 +20,7 @@ $PROJECT  = "bidbrain-analytics"
 $REGION   = "australia-southeast1"
 $REPO     = "bidbrain"                                 # Artifact Registry docker repo (shared)
 $SERVICE  = "schneider-dash"
-$DASH_DIR = Join-Path $PSScriptRoot "dash"
+$DASH_DIR = $PSScriptRoot
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }

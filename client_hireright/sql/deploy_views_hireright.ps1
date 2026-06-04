@@ -1,23 +1,23 @@
-# deploy_views_schneider.ps1 - reapply the schneider SQL views then re-run the export JOB after
+# deploy_views_hireright.ps1 - reapply the hireright SQL views then re-run the export JOB after
 # editing sql/*.sql. Applies every sql/*.sql via create_views.py (the source-of-truth applier -
-# NEVER edit views in the BigQuery console or they drift), then runs schneider-export so
-# schneider.json reflects the new view output. Does NOT rebuild any image or redeploy the service.
+# NEVER edit views in the BigQuery console or they drift), then runs hireright-export so
+# hireright.json reflects the new view output. Does NOT rebuild any image or redeploy the service.
 #
 # Needs the repo venv (create_views.py uses the BigQuery client). Run the one-shot
-# deploy_schneider.ps1 once first if the dataset/job don't exist yet.
+# deploy_hireright.ps1 once first if the dataset/job don't exist yet.
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
-#       .\client_schneider\deploy_views_schneider.ps1
+#       .\client_hireright\sql\deploy_views_hireright.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
-# ---- config (matches deploy_schneider.ps1) ----------------------------------
+# ---- config (matches deploy_hireright.ps1) ----------------------------------
 $PROJECT   = "bidbrain-analytics"
 $REGION    = "australia-southeast1"
-$JOB       = "schneider-export"
-$REPO_ROOT = Split-Path $PSScriptRoot -Parent
+$JOB       = "hireright-export"
+$REPO_ROOT = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
-$VIEWS_PY  = Join-Path $PSScriptRoot "create_views.py"
+$VIEWS_PY  = Join-Path (Split-Path $PSScriptRoot -Parent) "create_views.py"
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
@@ -28,7 +28,7 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gclo
 
 Write-Host "Reapplying SQL views via create_views.py ..."
 & $PYTHON $VIEWS_PY; Must "apply views"
-Write-Host "Re-running $JOB so schneider.json reflects the new views ..."
+Write-Host "Re-running $JOB so hireright.json reflects the new views ..."
 gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait; Must "run job"
 
 Write-Host "`nDONE. Views reapplied and $JOB re-run. The dash service serves the new JSON immediately (no image rebuild, no service redeploy)."

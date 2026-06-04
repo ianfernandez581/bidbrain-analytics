@@ -7,7 +7,7 @@
 # once first if the dataset/job don't exist yet.
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
-#       .\client_STT\deploy_views_stt.ps1
+#       .\client_STT\sql\deploy_views_stt.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
@@ -15,9 +15,9 @@
 $PROJECT   = "bidbrain-analytics"
 $REGION    = "australia-southeast1"
 $JOB       = "stt-export"
-$REPO_ROOT = Split-Path $PSScriptRoot -Parent
+$REPO_ROOT = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
-$VIEWS_PY  = Join-Path $PSScriptRoot "create_views.py"
+$VIEWS_PY  = Join-Path (Split-Path $PSScriptRoot -Parent) "create_views.py"
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }

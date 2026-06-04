@@ -1,4 +1,4 @@
-# deploy_dash_cloudflare.ps1 - redeploy ONLY the cloudflare dashboard SERVICE after editing
+# deploy_dash_hireright.ps1 - redeploy ONLY the hireright dashboard SERVICE after editing
 # dash/dashboard.html or dash/main.py. Rebuilds the dash image and swaps it onto the running Cloud
 # Run service; leaves env vars, secrets, the export JOB, SQL views, and all IAM untouched. The
 # common, fast path.
@@ -6,20 +6,21 @@
 # Use this when your edit was purely UI/serving:
 #   - dash/dashboard.html  (colours, labels, cards, chart config)
 #   - dash/main.py         (Flask serving / login page)
-# For data-shape changes use deploy_job_cloudflare.ps1; for SQL view changes use
-# deploy_views_cloudflare.ps1.
+# For data-shape changes use deploy_job_hireright.ps1; for SQL view changes use
+# deploy_views_hireright.ps1.
+# For first-time standup (APIs, SAs, IAM, secrets, scheduler) use the one-shot deploy_hireright.ps1.
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
-#       .\client_cloudflare\deploy_dash_cloudflare.ps1
+#       .\client_hireright\dash\deploy_dash_hireright.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
-# ---- config (matches dash/cloudbuild.yaml) ----------------------------------
+# ---- config (matches deploy_hireright.ps1 + dash/cloudbuild.yaml) -----------
 $PROJECT  = "bidbrain-analytics"
 $REGION   = "australia-southeast1"
 $REPO     = "bidbrain"                                 # Artifact Registry docker repo (shared)
-$SERVICE  = "cloudflare-dash"
-$DASH_DIR = Join-Path $PSScriptRoot "dash"
+$SERVICE  = "hireright-dash"
+$DASH_DIR = $PSScriptRoot
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }

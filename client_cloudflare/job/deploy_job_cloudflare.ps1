@@ -1,25 +1,24 @@
-# deploy_job_schneider.ps1 - rebuild + redeploy + run ONLY the schneider export JOB after editing
+# deploy_job_cloudflare.ps1 - rebuild + redeploy + run ONLY the cloudflare export JOB after editing
 # job/main.py (the JSON shape the dashboard reads) or job/requirements.txt. Rebuilds the job image,
-# deploys it to the schneider-export Cloud Run job, then runs it once so a fresh schneider.json
+# deploys it to the cloudflare-export Cloud Run job, then runs it once so a fresh cloudflare.json
 # lands in the bucket. Does NOT touch the dash service, SQL views, or IAM.
 #
-# Use this when you changed which fields the job emits / how it assembles schneider.json.
-# If you ALSO edited a sql/*.sql view that feeds it, run deploy_views_schneider.ps1 first (it
+# Use this when you changed which fields the job emits / how it assembles cloudflare.json.
+# If you ALSO edited a sql/*.sql view that feeds it, run deploy_views_cloudflare.ps1 first (it
 # reapplies the views) - then this rebuild re-reads the current views.
-# For first-time standup use the one-shot deploy_schneider.ps1.
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
-#       .\client_schneider\deploy_job_schneider.ps1
+#       .\client_cloudflare\job\deploy_job_cloudflare.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
-# ---- config (matches deploy_schneider.ps1 + job/cloudbuild.yaml) ------------
+# ---- config (matches job/cloudbuild.yaml) -----------------------------------
 $PROJECT  = "bidbrain-analytics"
 $REGION   = "australia-southeast1"
 $REPO     = "bidbrain"                                 # Artifact Registry docker repo (shared)
-$JOB      = "schneider-export"
-$JOB_SA   = "schneider-dash-job@${PROJECT}.iam.gserviceaccount.com"
-$JOB_DIR  = Join-Path $PSScriptRoot "job"
+$JOB      = "cloudflare-export"
+$JOB_SA   = "cloudflare-dash-job@${PROJECT}.iam.gserviceaccount.com"
+$JOB_DIR  = $PSScriptRoot
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
@@ -36,7 +35,7 @@ Write-Host "Rebuilding $JOB image ($SHA) ..."
 gcloud builds submit $JOB_DIR --tag $IMG --region $REGION --project $PROJECT; Must "build job image"
 Write-Host "Deploying Cloud Run job $JOB ..."
 gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB_SA --memory 1Gi --project $PROJECT; Must "deploy job"
-Write-Host "Running $JOB (writes a fresh schneider.json to the bucket) ..."
+Write-Host "Running $JOB (writes a fresh cloudflare.json to the bucket) ..."
 gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait; Must "run job"
 
 Write-Host "`nDONE. $JOB rebuilt, deployed, and executed. The dash service serves the new JSON immediately (no service redeploy needed)."
