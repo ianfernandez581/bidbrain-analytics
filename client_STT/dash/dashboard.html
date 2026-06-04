@@ -282,8 +282,8 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Media activity vs website sessions — monthly</h3>
-          <div class="hint">Monthly ad spend by platform (stacked bars, right axis, SGD) against total website sessions (line, left axis). Bars reflect the Platform &amp; Campaign filters.</div>
+          <h3>Media activity, key events &amp; website sessions — monthly</h3>
+          <div class="hint">Two stacked bars per month — ad spend by platform (SGD) and GA4 key events by type — against total website sessions (line). Three axes. Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -291,12 +291,6 @@
           <div class="hint">Sessions by acquisition channel, campaign window. Paid channels in red.</div>
           <div class="chart-wrap"><canvas id="ovDonut"></canvas></div>
         </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>Key events by type — monthly</h3>
-        <div class="hint">GA4 key events per month, split by event type, summed over the selected countries. Includes every configured key event — contact, lead-gen, newsletter and file downloads.</div>
-        <div class="chart-wrap" style="height:300px"><canvas id="ovKeyEvents"></canvas></div>
       </div>
 
       <div class="grid">
@@ -764,6 +758,7 @@ function ga4Sources(){
 function ga4KeyEvents(){
   const byMonth = {}, totals = {};
   for(const r of DATA.ga4_key_events_market||[]){ if(!countryOk(r.market)) continue;
+    if(r.event_name==='generate_lead') continue;   // negligible (~80) — hidden from the charts at the client's request; still in the data + CSV export
     (byMonth[r.month] || (byMonth[r.month] = {}));
     byMonth[r.month][r.event_name] = (byMonth[r.month][r.event_name]||0) + (r.key_events||0);
     totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
@@ -997,8 +992,10 @@ function renderOverview(){
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
-  // Hero: ad SPEND stacked by platform (bars, right, selected campaigns/platforms)
-  //       vs website sessions (line, left, country-filtered).
+  // Hero: TWO stacked bars per month — ad SPEND by platform (y1, SGD) and GA4 KEY EVENTS
+  //       by type (y2) — plus website sessions as a line (y, country-filtered). One chart,
+  //       three axes (like the TTD reference). Key events live on their own axis because
+  //       their scale (~2.5k) is dwarfed by sessions (~60k) and spend (~S$45k).
   const M = DATA.monthly;
   const am = adMonthlyMap(true);                       // month -> {imps,clk,spend, <platform>:{imps,clk,spend}}
   const labels = M.map(r=>monthLabel(r.month));
@@ -1006,19 +1003,27 @@ function renderOverview(){
   const spendBars = selPlatforms().map(p => ({
     type:'bar', label:p.label, yAxisID:'y1', stack:'spend',
     data:M.map(r=>spendOf(r.month,p.key)),
-    backgroundColor:p.color, borderRadius:3, maxBarThickness:26, order:1
+    backgroundColor:p.color, borderRadius:3, maxBarThickness:18, order:2
+  }));
+  const ke = ga4KeyEvents();
+  const kePal = ['#6B46C1','#9F7AEA','#D6BCFA'];       // violet ramp — distinct from the spend bars + teal line
+  const keBars = ke.types.map((t,i) => ({
+    type:'bar', label:t, yAxisID:'y2', stack:'ke',
+    data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+    backgroundColor:kePal[i % kePal.length], borderRadius:3, maxBarThickness:18, order:2
   }));
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
         borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
         fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
-      ...spendBars
+      ...spendBars, ...keBars
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}}},
       scales:{ x:axisX({stacked:true}), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}} } }
+        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
+        y2:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Key events',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
   });
 
   // Donut: sessions by channel (country-filtered)
@@ -1060,19 +1065,6 @@ function renderOverview(){
         tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
       cutoutText:{ line1:money(a.spend), line2:'total spend' } },
     plugins:[centerText]
-  });
-
-  // Key events by type, by month (country-filtered, stacked — all key events incl. file_download)
-  const ke = ga4KeyEvents();
-  const kePal = [C.teal, C.red, C.amber, C.slate, C.li, C.redDeep, C.tealSoft, C.grey];
-  charts.ovKeyEvents = new Chart(el('ovKeyEvents'),{
-    type:'bar',
-    data:{ labels, datasets: ke.types.map((t,i)=>({
-      label:t, data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
-      backgroundColor:kePal[i % kePal.length], stack:'ke', borderRadius:3, maxBarThickness:26 })) },
-    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
   });
 
   const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
