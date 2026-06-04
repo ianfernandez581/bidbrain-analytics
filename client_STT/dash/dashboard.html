@@ -528,6 +528,97 @@ const PLAT_COLOR = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.color]));
 // (Overview + Ads → Traffic); the Paid Media tab passes false so it shows every
 // platform regardless of the Platform chips — just as it always has.
 const campOn = name => activeCampaigns.has(name);
+//==============================================================================
+// CAMPAIGN DISPLAY NAMES — raw platform strings -> stakeholder-friendly labels.
+// The raw string stays the filter KEY everywhere (campOn / activeCampaigns); this
+// map only changes what we SHOW. Unmapped campaigns fall back to a de-underscored
+// version of the raw name, so new campaigns never render blank.
+//==============================================================================
+const CAMPAIGN_LABELS = {
+  "(APAC) - STTGDC_Always On_2025-2026Q12_25 - (JN1663)": "DV360 · Always On (FY25/26 Q1–Q2)",
+  "(APAC) - STTGDC_Always On_INDO_Q1_25 - (JN1626)": "DV360 · Always On – Indonesia (Q1)",
+  "(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)": "DV360 · Always On (Nov–Feb)",
+  "(APAC) - STTGDC_Always On_VN_Q1_25 - (JN1626)": "DV360 · Always On – Vietnam (Q1)",
+  "*DO NOT ACTIVATE* DemandNurture_ID_2026_LeadGen - BFSI Focus": "LinkedIn · Demand Nurture – Indonesia (Lead Gen, BFSI) [DO NOT ACTIVATE]",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_ID_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Indonesia (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_IN_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – India (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_JP local_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Japan (local) (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_JP_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Japan (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_KR_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Korea (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_MY_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Malaysia (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_PH_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Philippines (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_SG_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Singapore (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_TH_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Thailand (FY25 Q2)",
+  "1663_GAW_STT_FY25Q2_AlwaysOn26_VN_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Vietnam (FY25 Q2)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_ID_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Indonesia (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_IN_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – India (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_JP_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Japan (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_KR_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Korea (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_MY_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Malaysia (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_PH_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Philippines (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_SG_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Singapore (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_TH_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Thailand (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_AlwaysOn26_VN_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Always On – Vietnam (FY26 Q1)",
+  "1663_GAW_STT_FY26Q1_DemandNurture_ID_Keywords_Awareness_Responsive Text_Custom Audience Segment": "Google Search · Demand Nurture – Indonesia (FY26 Q1)",
+  "DemandNurture_ID_2026_Awareness - Always On": "LinkedIn · Demand Nurture – Indonesia (Awareness, Always On)",
+  "DemandNurture_ID_2026_Awareness - BFSI Focus": "LinkedIn · Demand Nurture – Indonesia (Awareness, BFSI)",
+  "DemandNurture_ID_2026_LeadGen - Always On": "LinkedIn · Demand Nurture – Indonesia (Lead Gen, Always On)",
+  "DemandNurture_TH_2026_Awareness - Always On": "LinkedIn · Demand Nurture – Thailand (Awareness, Always On)",
+  "DemandNurture_TH_2026_Awareness - BFSI Focus": "LinkedIn · Demand Nurture – Thailand (Awareness, BFSI)",
+  "DemandNurture_TH_2026_LeadGen - Always On": "LinkedIn · Demand Nurture – Thailand (Lead Gen, Always On)",
+  "DemandNurture_VN_2026_Awareness - Always On": "LinkedIn · Demand Nurture – Vietnam (Awareness, Always On)",
+  "DemandNurture_VN_2026_Awareness - BFSI Focus": "LinkedIn · Demand Nurture – Vietnam (Awareness, BFSI)",
+  "DemandNurture_VN_2026_LeadGen - Always On": "LinkedIn · Demand Nurture – Vietnam (Lead Gen, Always On)",
+  "PO1626_Client_LI_FY24Q3_Organic Boosting_STT GDC's 2024 ESG report_SG,ID,PH,MY_Broad_Engagement_Static_Ind/JF/Sen": "LinkedIn · Boosted Post – 2024 ESG Report – SG/ID/PH/MY",
+  "PO1626_Client_LI_FY24Q3_Organic Boosting_The Growing Importance of Interconnection in a Digital-First World_Indonesia_Broad_Engagement_Static_Ind/JF": "LinkedIn · Boosted Post – Interconnection – Indonesia",
+  "PO1626_Client_LI_FY24Q3_Organic Boosting_The Growing Importance of Interconnection in a Digital-First World_Malaysia_Broad_Engagement_Static_Ind/JF": "LinkedIn · Boosted Post – Interconnection – Malaysia",
+  "PO1626_Client_LI_FY24Q3_Organic Boosting_The Growing Importance of Interconnection in a Digital-First World_Philippines_Broad_Engagement_Static_Ind/JF": "LinkedIn · Boosted Post – Interconnection – Philippines",
+  "PO1626_Client_LI_FY24Q3_Organic Boosting_The Growing Importance of Interconnection in a Digital-First World_Singapore_Broad_Engagement_Static_Ind/JF": "LinkedIn · Boosted Post – Interconnection – Singapore",
+  "PO1626_Client_LI_FY25Q3_Organic Boosting - The Backbone of AI - BD AUDIENCE": "LinkedIn · Boosted Post – Backbone of AI (BD)",
+  "PO1626_Client_LI_FY25Q3_Organic Boosting - The Backbone of AI - CORE AUDIENCE": "LinkedIn · Boosted Post – Backbone of AI (Core)",
+  "PO1626_Client_LI_FY25Q3_Organic Boosting - The Backbone of AI - DT AUDIENCE": "LinkedIn · Boosted Post – Backbone of AI (DT)",
+  "PO1626_Client_LI_FY25Q3_Organic Boosting - The Evolution of Data Centre Cooling to Support AI Workloads - BD AUDIENCE": "LinkedIn · Boosted Post – DC Cooling for AI (BD)",
+  "PO1626_Client_LI_FY25Q3_Organic Boosting - The Evolution of Data Centre Cooling to Support AI Workloads - CORE AUDIENCE": "LinkedIn · Boosted Post – DC Cooling for AI (Core)",
+  "PO1626_Client_LI_FY25Q3_Organic Boosting - The Evolution of Data Centre Cooling to Support AI Workloads - DT AUDIENCE": "LinkedIn · Boosted Post – DC Cooling for AI (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - 5Strategic - 020326_170326 - BD AUDIENCE": "LinkedIn · Boosted Post – 5 Strategic Shifts (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - 5Strategic - 020326_170326 - CORE AUDIENCE": "LinkedIn · Boosted Post – 5 Strategic Shifts (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - 5Strategic - 020326_170326 - DT AUDIENCE": "LinkedIn · Boosted Post – 5 Strategic Shifts (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - 7Warning - 170226_030326 - BD AUDIENCE": "LinkedIn · Boosted Post – 7 Warnings (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - 7Warning - 170226_030326 - CORE AUDIENCE": "LinkedIn · Boosted Post – 7 Warnings (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - 7Warning - 170226_030326 - DT AUDIENCE": "LinkedIn · Boosted Post – 7 Warnings (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - AI_at_Scale - 130426_270426 - BD AUDIENCE": "LinkedIn · Boosted Post – AI at Scale (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - AI_at_Scale - 130426_270426 - CORE AUDIENCE": "LinkedIn · Boosted Post – AI at Scale (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - AI_at_Scale - 130426_270426 - DT AUDIENCE": "LinkedIn · Boosted Post – AI at Scale (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - Infrastructure_Decision - 300326_130426 - BD AUDIENCE": "LinkedIn · Boosted Post – Infrastructure Decision (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - Infrastructure_Decision - 300326_130426 - CORE AUDIENCE": "LinkedIn · Boosted Post – Infrastructure Decision (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - Infrastructure_Decision - 300326_130426 - DT AUDIENCE": "LinkedIn · Boosted Post – Infrastructure Decision (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - LiquidImmersion - 160326_310326 - BD AUDIENCE": "LinkedIn · Boosted Post – Liquid Immersion (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - LiquidImmersion - 160326_310326 - CORE AUDIENCE": "LinkedIn · Boosted Post – Liquid Immersion (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - LiquidImmersion - 160326_310326 - DT AUDIENCE": "LinkedIn · Boosted Post – Liquid Immersion (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - STT_Jakarta - 230326_060426 - BD AUDIENCE": "LinkedIn · Boosted Post – STT Jakarta (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - STT_Jakarta - 230326_060426 - CORE AUDIENCE": "LinkedIn · Boosted Post – STT Jakarta (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - STT_Jakarta - 230326_060426 - DT AUDIENCE": "LinkedIn · Boosted Post – STT Jakarta (DT)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - Sustainability_Outcomes - 060426_200426 - BD AUDIENCE": "LinkedIn · Boosted Post – Sustainability Outcomes (BD)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - Sustainability_Outcomes - 060426_200426 - CORE AUDIENCE": "LinkedIn · Boosted Post – Sustainability Outcomes (Core)",
+  "PO1626_Client_LI_FY26Q1_Organic Boosting - Sustainability_Outcomes - 060426_200426 - DT AUDIENCE": "LinkedIn · Boosted Post – Sustainability Outcomes (DT)",
+  "PO1626_Client_LI_FY26Q2_Organic Boosting - Greening_SG - 240426_070526 - BD AUDIENCE": "LinkedIn · Boosted Post – Greening (SG) (BD)",
+  "PO1626_Client_LI_FY26Q2_Organic Boosting - Greening_SG - 240426_070526 - CORE AUDIENCE": "LinkedIn · Boosted Post – Greening (SG) (Core)",
+  "PO1626_Client_LI_FY26Q2_Organic Boosting - Greening_SG - 240426_070526 - DT AUDIENCE": "LinkedIn · Boosted Post – Greening (SG) (DT)",
+  "PO1626_Client_LI_FY26Q2_Organic Boosting - Regulatory_Alignment - 300426_130526 - BD AUDIENCE": "LinkedIn · Boosted Post – Regulatory Alignment (BD)",
+  "PO1626_Client_LI_FY26Q2_Organic Boosting - Regulatory_Alignment - 300426_130526 - CORE AUDIENCE": "LinkedIn · Boosted Post – Regulatory Alignment (Core)",
+  "PO1626_Client_LI_FY26Q2_Organic Boosting - Regulatory_Alignment - 300426_130526 - DT AUDIENCE": "LinkedIn · Boosted Post – Regulatory Alignment (DT)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_India_Broad_Awareness_Static": "LinkedIn · Always On – India (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Indonesia_Broad_Awareness_Static": "LinkedIn · Always On – Indonesia (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Japan_Broad_Awareness_Static": "LinkedIn · Always On – Japan (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Korea_Broad_Awareness_Static": "LinkedIn · Always On – Korea (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Malaysia_Broad_Awareness_Static": "LinkedIn · Always On – Malaysia (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Philippines_Broad_Awareness_Static": "LinkedIn · Always On – Philippines (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Singapore_Broad_Awareness_Static": "LinkedIn · Always On – Singapore (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Thailand_Broad_Awareness_Static": "LinkedIn · Always On – Thailand (Awareness)",
+  "POTBC_STT GDC_LI_FY25Q2_Always On 2025-2026 Q1_Vietnam_Broad_Awareness_Static": "LinkedIn · Always On – Vietnam (Awareness)"
+};
+function campLabel(raw){ return CAMPAIGN_LABELS[raw] || (raw||'').replace(/_/g,' '); }
+
 function rowOk(r, applyPlatform){ return campOn(r.campaign) && (!applyPlatform || platOk(r.platform)); }
 
 // Per-platform totals {imps,clk,spend} over the selected campaigns.
@@ -787,7 +878,7 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeCampaignMe
 function renderCampaignList(){
   const list = el('campaignList'); if(!list) return;
   const q = (el('campaignSearch').value||'').trim().toLowerCase();
-  const camps = (DATA.ad_campaigns||[]).filter(c => !q || c.campaign.toLowerCase().includes(q));
+  const camps = (DATA.ad_campaigns||[]).filter(c => !q || c.campaign.toLowerCase().includes(q) || campLabel(c.campaign).toLowerCase().includes(q));
   el('campaignCount').textContent = `${activeCampaigns.size} of ${(DATA.ad_campaigns||[]).length} selected`;
 
   // Group by platform, in the canonical platform order, each sorted by spend desc.
@@ -812,7 +903,7 @@ function renderCampaignList(){
       html += `<label class="cl-item" title="${safe}">
         <input type="checkbox" ${checked} onchange="toggleCampaign(this, '${encodeURIComponent(c.campaign).replace(/'/g,'%27')}')">
         <span class="ci-main">
-          <span class="ci-name">${c.campaign}</span>
+          <span class="ci-name">${campLabel(c.campaign)}</span>
           <span class="ci-meta">${fmtM(c.imps)} imps · ${money(c.spend_sgd)}</span>
         </span>
       </label>`;
@@ -1087,7 +1178,7 @@ function renderPaid(){
   const camps = liCampaignsSel().slice(0,8);
   el('pmLiCampaigns').querySelector('tbody').innerHTML = camps.length ? camps.map(r=>{
     const ctr=pct(r.clicks,r.imps), cpc=r.clicks?r.cost_usd/r.clicks:0;
-    return `<tr><td title="${r.campaign}">${r.campaign.length>52?r.campaign.slice(0,52)+'…':r.campaign}</td>
+    return `<tr><td title="${(r.campaign||'').replace(/"/g,'&quot;')}">${campLabel(r.campaign)}</td>
       <td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(ctr,2)}</td>
       <td class="num">${money(r.cost_usd)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
   }).join('') : `<tr><td colspan="6" style="text-align:center;color:var(--stt-mute);padding:16px">No LinkedIn campaigns in the current selection.</td></tr>`;
