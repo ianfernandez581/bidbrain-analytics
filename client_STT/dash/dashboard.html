@@ -283,7 +283,7 @@
       <div class="grid-2-1">
         <div class="card card-tall">
           <h3>Media activity, key events &amp; website sessions — monthly</h3>
-          <div class="hint">Coloured lines on three axes — total website sessions, ad spend by platform (SGD), and GA4 key events by type (dashed). Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
+          <div class="hint">Ad spend by platform (stacked bars, SGD) and total website sessions (line), with GA4 key events by type as dashed lines. Three axes. Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -336,7 +336,7 @@
         <div class="hint">Whole-flight totals. LinkedIn spend is USD; the SGD column applies the reporting FX rate.</div>
         <div style="overflow:auto">
           <table id="pmCompare">
-            <thead><tr><th>Platform</th><th>Window</th><th>Spend (native)</th><th>Spend (SGD)</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr></thead>
+            <thead><tr><th>Platform</th><th>Window</th><th>Spend (SGD)</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -432,8 +432,8 @@
       <div class="funnel" id="linkFunnel"></div>
 
       <div class="card card-tall" style="margin-top:18px">
-        <h3>Weekly — ad impressions vs campaign-driven website sessions</h3>
-        <div class="hint">Weekly ad impressions (bars, right axis) against Display + Paid Social sessions on the websites (line, left axis). They move together.</div>
+        <h3>Weekly — ad impressions vs all website sessions</h3>
+        <div class="hint">Weekly ad impressions (bars, right axis) against total website sessions on the websites (line, left axis).</div>
         <div class="chart-wrap" style="height:300px"><canvas id="linkWeekly"></canvas></div>
       </div>
 
@@ -992,37 +992,36 @@ function renderOverview(){
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
-  // Hero: everything as coloured LINES — website sessions (y), ad spend per platform
-  //       (y1, SGD) and GA4 key events per type (y2). Three axes because the scales
-  //       differ wildly (sessions ~60k, spend ~S$20k/platform, key events ~1.5k/type).
+  // Hero: ad SPEND as stacked bars by platform (y1, SGD), website sessions as a line (y),
+  //       and GA4 KEY EVENTS as dashed lines by type (y2). Three axes — scales differ
+  //       wildly (sessions ~60k, spend ~S$45k stacked, key events ~1.5k/type).
   const M = DATA.monthly;
   const am = adMonthlyMap(true);                       // month -> {imps,clk,spend, <platform>:{imps,clk,spend}}
   const labels = M.map(r=>monthLabel(r.month));
   const spendOf = (mo,key) => ((am[mo]||{})[key]||{}).spend||0;
-  const lineBase = { type:'line', borderWidth:2, tension:.35, pointRadius:2, fill:false };
-  const spendLines = selPlatforms().map(p => ({
-    ...lineBase, label:p.label, yAxisID:'y1',
+  const spendBars = selPlatforms().map(p => ({
+    type:'bar', label:p.label, yAxisID:'y1', stack:'spend',
     data:M.map(r=>spendOf(r.month,p.key)),
-    borderColor:p.color, backgroundColor:p.color
+    backgroundColor:p.color, borderRadius:3, maxBarThickness:26, order:2
   }));
   const ke = ga4KeyEvents();
-  const kePal = ['#6B46C1','#9F7AEA','#C9A8F0'];       // violet ramp — distinct from the spend + teal lines
+  const kePal = ['#6B46C1','#9F7AEA','#C9A8F0'];       // violet ramp — distinct from the spend bars + teal line
   const keLines = ke.types.map((t,i) => ({
-    ...lineBase, label:t, yAxisID:'y2', borderDash:[5,3],
+    type:'line', label:t, yAxisID:'y2', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0,
     data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
     borderColor:kePal[i % kePal.length], backgroundColor:kePal[i % kePal.length]
   }));
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
-        borderColor:C.teal, backgroundColor:C.teal, borderWidth:2.5, tension:.35,
-        fill:false, pointRadius:2.5, pointBackgroundColor:C.teal },
-      ...spendLines, ...keLines
+        borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
+        fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
+      ...spendBars, ...keLines
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}}},
-      scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
+      scales:{ x:axisX({stacked:true}), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
         y2:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Key events',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
   });
 
@@ -1154,15 +1153,15 @@ function renderPaid(){
   const win = (w,fb)=>`${w.start||fb.start} → ${w.end||fb.end}`;
   el('pmCompare').querySelector('tbody').innerHTML =
     `<tr><td><span class="pill"><span class="dot" style="background:#E8A33D"></span>Google Ads</span></td><td>${win(gw,DATA.ga_window)}</td>
-      <td class="num">mixed</td><td class="num">${money(P.google.spend)}</td><td class="num">${fmtN(P.google.imps)}</td><td class="num">${fmtN(P.google.clk)}</td>
+      <td class="num">${money(P.google.spend)}</td><td class="num">${fmtN(P.google.imps)}</td><td class="num">${fmtN(P.google.clk)}</td>
       <td class="num">${fmtPct(gaCtr,2)}</td><td class="num">${money(gaCpm,'S$',2)}</td><td class="num">${money(gaCpc,'S$',2)}</td></tr>`
   + `<tr><td><span class="pill"><span class="dot" style="background:${C.red}"></span>DV360</span></td><td>${win(dw,DATA.dv_window)}</td>
-      <td class="num">${money(P.dv360.spend)}</td><td class="num">${money(P.dv360.spend)}</td><td class="num">${fmtN(P.dv360.imps)}</td><td class="num">${fmtN(P.dv360.clk)}</td>
+      <td class="num">${money(P.dv360.spend)}</td><td class="num">${fmtN(P.dv360.imps)}</td><td class="num">${fmtN(P.dv360.clk)}</td>
       <td class="num">${fmtPct(dvCtr,2)}</td><td class="num">${money(dvCpm,'S$',2)}</td><td class="num">${money(dvCpc,'S$',2)}</td></tr>`
   + `<tr><td><span class="pill"><span class="dot" style="background:${C.li}"></span>LinkedIn</span></td><td>${win(lw,DATA.li_window)}</td>
-      <td class="num">${money(P.linkedin.spend)}</td><td class="num">${money(liSgd)}</td><td class="num">${fmtN(P.linkedin.imps)}</td><td class="num">${fmtN(P.linkedin.clk)}</td>
+      <td class="num">${money(liSgd)}</td><td class="num">${fmtN(P.linkedin.imps)}</td><td class="num">${fmtN(P.linkedin.clk)}</td>
       <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'S$',2)}</td><td class="num">${money(liCpc,'S$',2)}</td></tr>`
-  + `<tr class="total"><td>Combined</td><td>—</td><td class="num">—</td><td class="num">${money(T.spend)}</td><td class="num">${fmtN(T.imps)}</td><td class="num">${fmtN(T.clk)}</td>
+  + `<tr class="total"><td>Combined</td><td>—</td><td class="num">${money(T.spend)}</td><td class="num">${fmtN(T.imps)}</td><td class="num">${fmtN(T.clk)}</td>
       <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'S$',2)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
 
   // Google Ads by market (selected campaigns)
@@ -1304,6 +1303,7 @@ function renderLink(){
   const adImpsW = r => (aw[r.week_start]||{}).imps||0;
   const campSessions = campFrom(g);                   // GA4 sessions on the selected platforms' channels
   const dsw = r => campFrom(gw[r.week_start]||{});    // same, per week
+  const asw = r => (gw[r.week_start]||{}).ga4_sessions||0;  // ALL website sessions, per week
 
   // before vs during (DV360 launched Nov 2025) — Display sessions for the selected countries
   const months = M.map(r=>r.month);
@@ -1330,12 +1330,12 @@ function renderLink(){
   + `<div class="arrow">→</div>`
   + `<div class="step"><div class="k">Campaign-driven sessions</div><div class="v">${fmtN(campSessions)}</div></div>`;
 
-  // weekly: ad impressions (bars, right) vs matched-channel sessions (line, left)
+  // weekly: ad impressions (bars, right) vs all website sessions (line, left)
   const wk = W.filter(r=> r.week_start>='2025-06-01');
   const labels = wk.map(r=>dayLabel(r.week_start));
   charts.linkWeekly = new Chart(el('linkWeekly'),{
     data:{ labels, datasets:[
-      { type:'line', label:'Campaign-driven sessions', data:wk.map(dsw),
+      { type:'line', label:'All sessions', data:wk.map(asw),
         borderColor:C.dark, backgroundColor:'rgba(35,39,46,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
       { type:'bar', label:'Ad impressions', data:wk.map(adImpsW), backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
     ]},
