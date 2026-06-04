@@ -275,17 +275,10 @@
         </div>
       </div>
 
-      <div class="grid">
-        <div class="card card-tall">
-          <h3>Spend by platform</h3>
-          <div class="hint">Total spend (USD) per platform over the selected campaigns.</div>
-          <div class="chart-wrap"><canvas id="ovPlatform"></canvas></div>
-        </div>
-        <div class="card card-tall">
-          <h3>Spend by market</h3>
-          <div class="hint">Spend (USD) by market — DV360 carries real countries; TradeDesk + LinkedIn are <b>Global</b> air-cover. Reflects the Market &amp; Campaign filters.</div>
-          <div class="chart-wrap"><canvas id="ovMarket"></canvas></div>
-        </div>
+      <div class="card card-tall" style="margin-top:14px">
+        <h3>Spend by market</h3>
+        <div class="hint">Spend (USD) by country — DV360 programmatic display. TradeDesk &amp; LinkedIn run as <b>Global</b> air-cover and aren't broken out by country. Reflects the Market &amp; Campaign filters.</div>
+        <div class="chart-wrap"><canvas id="ovMarket"></canvas></div>
       </div>
 
       <div class="info-note" id="ovNote"></div>
@@ -762,22 +755,12 @@ function renderOverview(){
     plugins:[centerText]
   });
 
-  // Spend by platform (bar)
-  charts.ovPlatform = new Chart(el('ovPlatform'),{
-    type:'bar',
-    data:{ labels:sp.map(p=>p.label), datasets:[{ label:'Spend (USD)', data:sp.map(p=>P[p.key].spend),
-      backgroundColor:sp.map(p=>p.color), borderRadius:5, maxBarThickness:64 }]},
-    options:{ maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${money(c.parsed.y)}`}} },
-      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
-  });
-
-  // Spend by market (bar — all platforms; Global + DV360 countries)
-  const mk = adMarketArr(null);
+  // Spend by market (bar — DV360 countries; Global air-cover excluded)
+  const mk = adMarketArr(null).filter(r=>r.market!=='Global');
   charts.ovMarket = new Chart(el('ovMarket'),{
     type:'bar',
     data:{ labels:mk.map(r=>r.market), datasets:[{ label:'Spend (USD)', data:mk.map(r=>r.spend_usd),
-      backgroundColor:mk.map((r,i)=> r.market==='Global'? C.slate : shade(C.red,i)), borderRadius:4, maxBarThickness:34 }]},
+      backgroundColor:mk.map((r,i)=> shade(C.red,i)), borderRadius:4, maxBarThickness:34 }]},
     options:{ maintainAspectRatio:false,
       plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${money(c.parsed.y)}`}} },
       scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
