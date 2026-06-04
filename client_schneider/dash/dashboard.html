@@ -1,0 +1,1147 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schneider Electric APAC — Live Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --se-green:#009530; --se-green2:#007E2A; --se-green-deep:#005F20;
+    --se-dark:#1A1A1A; --se-dark2:#10240F; --se-ink:#1F2933; --se-mute:#6B7480;
+    --se-line:#E6E9ED; --se-card:#FFFFFF; --se-bg:#F5F7F5; --se-grey:#8A8F98;
+    --dv:#009530; --td:#F2A900; --li:#2867B2;
+    --teal:#0E7C86; --slate:#5A6B78; --amber:#B97400; --violet:#8E44AD;
+    --good-green:#1E8E3E; --bad-red:#C8362A;
+    --shadow-card:0 1px 2px rgba(20,24,28,.04),0 4px 16px rgba(20,24,28,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--se-bg);color:var(--se-ink);
+            font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+            font-size:14px;line-height:1.5}
+  a{color:var(--se-green2);text-decoration:none}
+
+  /* ---- topbar ---- */
+  .topbar{background:linear-gradient(100deg,var(--se-dark2) 0%,var(--se-dark) 62%);color:#fff;
+          padding:13px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar-left{display:flex;align-items:center;gap:18px}
+  .agency{font-weight:700;letter-spacing:1.3px;font-size:12px;color:#fff;display:flex;align-items:center;gap:8px}
+  .agency .dot{width:7px;height:7px;background:var(--se-green);border-radius:50%}
+  .topbar-divider{width:1px;height:26px;background:rgba(255,255,255,.18)}
+  .logo-chip{background:#fff;padding:7px 13px;border-radius:7px;display:flex;align-items:center}
+  .logo-chip .se-logo{height:24px;width:auto;display:block}
+  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.78);text-align:right;line-height:1.55}
+  .live{display:inline-block;width:7px;height:7px;background:var(--se-green);border-radius:50%;margin-right:6px;
+        box-shadow:0 0 0 0 rgba(0,149,48,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,149,48,.6)}70%{box-shadow:0 0 0 8px rgba(0,149,48,0)}100%{box-shadow:0 0 0 0 rgba(0,149,48,0)}}
+
+  .container{max-width:1340px;margin:0 auto;padding:22px 28px 60px}
+
+  /* ---- data-readiness chips ---- */
+  .readiness{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .rchip{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;background:#fff;border:1px solid var(--se-line);
+         border-radius:999px;padding:5px 12px;color:var(--se-mute)}
+  .rchip .led{width:8px;height:8px;border-radius:50%}
+  .rchip.ok .led{background:var(--se-green)} .rchip.ok{color:var(--se-ink)}
+  .rchip.wait .led{background:var(--amber)}
+  .rchip.off .led{background:var(--se-grey)}
+
+  /* ---- control bar ---- */
+  .control-bar{background:var(--se-card);border:1px solid var(--se-line);border-radius:10px;
+               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--se-line)}
+  .tabs{display:flex;gap:2px;flex-wrap:wrap}
+  .tab{padding:12px 16px;font-size:13.5px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--se-mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--se-ink)}
+  .tab.on{color:var(--se-dark);border-bottom-color:var(--se-green)}
+  .tabs-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:7px 0}
+  .ctrl-note{font-size:11.5px;color:var(--se-mute)}
+  .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
+              padding:7px 12px;border-radius:7px;border:1px solid var(--se-line);background:#fff;color:var(--se-ink)}
+  .export-btn:hover{border-color:var(--se-green);color:var(--se-green2)}
+  .export-btn svg{width:14px;height:14px;flex:none}
+
+  /* ---- filter chips ---- */
+  .control-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--se-line)}
+  .filter-grp{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .fdiv{width:1px;height:20px;background:var(--se-line)}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--se-mute)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid var(--se-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--se-ink)}
+  .chip:hover{border-color:var(--se-green)}
+  .chip.on{background:var(--se-dark);color:#fff;border-color:var(--se-dark)}
+  .chip .check{opacity:0;font-size:10px;color:var(--se-green)}
+  .chip.on .check{opacity:1}
+  .chip-action{background:none;border:1px dashed var(--se-line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--se-mute)}
+  .chip-action:hover{color:var(--se-ink);border-color:var(--se-mute)}
+
+  /* ---- campaign filter (searchable multi-select dropdown) ---- */
+  .campaign-dd{position:relative;display:inline-block}
+  .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--se-line);border-radius:999px;
+                padding:6px 12px;font-size:12.5px;cursor:pointer;color:var(--se-ink);max-width:280px}
+  .campaign-btn:hover{border-color:var(--se-green)}
+  .campaign-btn.filtered{background:var(--se-dark);color:#fff;border-color:var(--se-dark)}
+  .campaign-btn .caret{font-size:10px;color:var(--se-mute)}
+  .campaign-btn.filtered .caret{color:rgba(255,255,255,.7)}
+  .campaign-btn .lbltxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .campaign-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:440px;max-width:90vw;background:#fff;
+                 border:1px solid var(--se-line);border-radius:12px;box-shadow:0 12px 40px rgba(20,24,28,.18);overflow:hidden}
+  .campaign-menu-head{padding:10px 12px;border-bottom:1px solid var(--se-line);display:flex;flex-direction:column;gap:8px}
+  .campaign-menu-head input{width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--se-line);border-radius:8px;outline:none;color:var(--se-ink)}
+  .campaign-menu-head input:focus{border-color:var(--se-green);box-shadow:0 0 0 3px rgba(0,149,48,.12)}
+  .campaign-menu-actions{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .campaign-menu-actions .count{font-size:11px;color:var(--se-mute)}
+  .campaign-menu-actions .btns{display:flex;gap:6px}
+  .campaign-list{max-height:360px;overflow-y:auto;padding:4px 0}
+  .cl-group{padding:8px 12px 3px}
+  .cl-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+  .cl-group-title{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--se-mute)}
+  .cl-group-title .dot{width:8px;height:8px;border-radius:50%}
+  .cl-group-toggle{font-size:10.5px;color:var(--se-green2);cursor:pointer;background:none;border:none;padding:0}
+  .cl-item{display:flex;align-items:flex-start;gap:9px;padding:6px 12px;cursor:pointer;border-radius:7px}
+  .cl-item:hover{background:#F4F8F4}
+  .cl-item input{margin-top:2px;flex:none;accent-color:var(--se-green2)}
+  .cl-item .ci-main{min-width:0;flex:1}
+  .cl-item .ci-name{font-size:12px;color:var(--se-ink);line-height:1.35;word-break:break-word}
+  .cl-item .ci-meta{font-size:10.5px;color:var(--se-mute);margin-top:1px}
+  .cl-empty{padding:18px 14px;text-align:center;color:var(--se-mute);font-size:12px}
+
+  .tabpane{display:none}
+
+  .section{border-top:1px solid var(--se-line);padding-top:18px;margin-top:24px}
+  .section.first{border-top:none;padding-top:0;margin-top:4px}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--se-dark)}
+  .section .sub{display:block;margin-top:3px;color:var(--se-mute);font-size:12.5px;max-width:920px}
+
+  /* ---- grids + cards ---- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .grid-2-1{display:grid;grid-template-columns:1.9fr 1fr;gap:16px;margin-top:14px}
+  .card{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:16px;
+        box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--se-ink)}
+  .card .hint{font-size:11.5px;color:var(--se-mute);margin:4px 0 10px 0}
+  .card-tall .chart-wrap{height:300px}
+  .chart-wrap{position:relative;flex:1;min-height:170px}
+
+  /* ---- KPIs ---- */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
+  .kpis.five{grid-template-columns:repeat(5,1fr)}
+  .kpi{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:10.5px;color:var(--se-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--se-dark)}
+  .kpi .delta{font-size:11px;margin-top:4px;color:var(--se-mute);line-height:1.35}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--se-grey)}
+  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#EEFBF0 100%);border-color:#CFEFD5}
+  .kpi.accent .stripe{background:var(--se-green)}
+  .kpi.blue .stripe{background:var(--li)}
+  .up{color:var(--good-green);font-weight:600}
+  .down{color:var(--bad-red);font-weight:600}
+
+  /* ---- info note ---- */
+  .info-note{background:#EEFBF0;border:1px solid #CFEFD5;border-left:4px solid var(--se-green);border-radius:10px;
+             padding:13px 16px;margin-top:16px;font-size:13px;color:#1C3B22}
+  .info-note b{color:#10240F}
+  .info-note.warn{background:#FBF4E6;border-color:#EAD9AE;border-left-color:var(--amber);color:#5A4214}
+  .info-note.warn b{color:#3F2E08}
+
+  /* ---- tables ---- */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--se-line)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--se-mute);font-weight:600;background:#FAFBFA}
+  table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table tr:hover td{background:#FAFBFA}
+  table tr.total td{font-weight:700;background:#F1FAF2;border-bottom:none}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F2;color:var(--se-dark)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:5px;text-transform:uppercase;white-space:nowrap}
+  .tag.aw{background:#E6F6EA;color:#005F20}
+  .tag.lg{background:#E7EFFA;color:#1F4E8F}
+  .tag.abm{background:#F1E8F8;color:#6E2C91}
+  .tag.ev{background:#FBF1DA;color:#8A5B00}
+  .tag.rt{background:#FBE7DB;color:#9C4314}
+  .tag.un{background:#F1F2F4;color:#6B7480}
+
+  /* ---- portfolio cards ---- */
+  .pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:16px}
+  .pcard{background:#fff;border:1px solid var(--se-line);border-radius:12px;padding:15px 16px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;gap:10px}
+  .pcard .ph{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+  .pcard .pname{font-size:14px;font-weight:700;color:var(--se-dark);line-height:1.25}
+  .pcard .pmeta{font-size:11px;color:var(--se-mute);margin-top:2px}
+  .pcard .prow{display:flex;justify-content:space-between;font-size:12px;color:var(--se-ink)}
+  .pcard .prow .k{color:var(--se-mute)}
+  .bar{height:8px;border-radius:999px;background:#EEF1F0;overflow:hidden;position:relative;margin-top:3px}
+  .bar > span{position:absolute;left:0;top:0;bottom:0;border-radius:999px}
+  .bar .mark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--se-dark)}
+  .pace{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px}
+  .pace.on{background:#E6F6EA;color:#005F20}
+  .pace.over{background:#FBE7DB;color:#9C4314}
+  .pace.under{background:#FBF1DA;color:#8A5B00}
+  .pace.na{background:#F1F2F4;color:#6B7480}
+
+  .funnel{display:flex;align-items:stretch;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .funnel .step{flex:1;min-width:140px;background:#fff;border:1px solid var(--se-line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-card)}
+  .funnel .step .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--se-mute);font-weight:600}
+  .funnel .step .v{font-size:21px;font-weight:700;margin-top:4px;color:var(--se-dark)}
+  .funnel .step .s{font-size:11px;color:var(--se-mute);margin-top:2px}
+  .funnel .arrow{display:flex;align-items:center;color:var(--se-green);font-size:22px;font-weight:700;flex:none}
+
+  .compare-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .stat-card{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow-card)}
+  .stat-card .k{font-size:11px;color:var(--se-mute);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .stat-card .v{font-size:26px;font-weight:800;letter-spacing:-.6px;margin-top:6px;color:var(--se-dark)}
+  .stat-card .v.green{color:var(--se-green2)}
+  .stat-card .c{font-size:12px;color:var(--se-mute);margin-top:4px}
+
+  .loading{padding:80px 20px;text-align:center;color:var(--se-mute)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--se-line);border-top-color:var(--se-green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
+
+  footer{color:var(--se-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--se-line)}
+  footer b{color:var(--se-ink)}
+
+  @media (max-width:1100px){.grid-3,.pgrid{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.kpis.five{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:760px){.grid,.grid-3,.pgrid{grid-template-columns:1fr}.kpis,.kpis.five{grid-template-columns:repeat(2,1fr)}.compare-strip{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="agency">TRANSMISSION<span class="dot"></span></div>
+    <div class="topbar-divider"></div>
+    <div class="logo-chip">
+      <svg class="se-logo" viewBox="0 0 218 64" role="img" aria-label="Schneider Electric" xmlns="http://www.w3.org/2000/svg"><path fill="#009530" d="M24.7 9.47c-4.95-2.18-7.87-3.1-10.8-3.1-3.1 0-5.12 1.1-5.12 2.74 0 5.1 17.56 3.64 17.56 15.48 0 6.56-5.49 10.38-13.17 10.38-6.04 0-8.96-1.64-12.44-3.28v-7.28c4.94 3.28 7.87 4.37 11.7 4.37 3.3 0 5.13-1.1 5.13-3.1C17.56 20.04 0 22.22 0 9.84 0 4 5.12 0 12.99 0c3.84 0 7.31.73 11.7 2.73v6.74Zm24.5 24.04a21.55 21.55 0 0 1-7.86 1.64c-8.23 0-13.36-4.73-13.36-11.84 0-7.1 5.5-12.02 13.17-12.02 2.38 0 5.3.55 7.87 1.46v5.46a12.43 12.43 0 0 0-5.85-1.64c-4.4 0-7.14 2.55-7.14 6.56 0 4 2.75 6.74 6.95 6.74 1.83 0 3.3-.36 6.59-1.64v5.28m67.49-22.4c-7.13 0-12.25 5.1-12.25 12.02 0 7.1 5.3 11.84 13.35 11.84 1.83 0 6.22 0 10.24-3.1v-4.36c-3.47 2.36-5.67 3.27-8.6 3.27-4.56 0-7.3-2.36-7.67-6.37h16.64c.55-8.56-4.94-13.3-11.7-13.3Zm-4.39 9.47c.37-3.28 2.2-5.1 4.94-5.1 2.75 0 4.76 1.82 4.94 5.1h-9.88Zm26.52-9.1h-7.32V34.6h7.32V11.48ZM159.3.55v12.02a14.02 14.02 0 0 0-6.04-1.46c-6.59 0-11.16 4.92-11.16 12.02 0 6.92 4.57 12.02 10.8 12.02 2.37 0 4.38-.72 6.4-2.36v1.82h7.31V.55h-7.32Zm0 27.87c-1.47 1.27-2.75 1.82-4.4 1.82-3.47 0-5.66-2.74-5.66-6.92 0-4.56 2.19-7.3 5.85-7.3 1.28 0 3.1.56 4.02 1.28v11.12h.18Zm22.69-17.31c-7.13 0-12.25 5.1-12.25 12.02 0 7.1 5.3 11.84 13.35 11.84 1.83 0 6.22 0 10.42-3.1v-4.36c-3.47 2.36-5.67 3.27-8.6 3.27-4.57 0-7.31-2.36-7.68-6.37h16.65c.37-8.56-5.12-13.3-11.89-13.3Zm-4.57 9.47c.36-3.28 2.2-5.1 4.94-5.1s4.75 1.82 5.12 5.1h-10.06Zm27.42-2.36c2.2-4.74 4.76-7.1 7.5-7.1 1.47 0 2.75.54 4.76 2.18l-2.01 6.37c-1.83-1.27-3.11-1.64-4.4-1.64-2.74 0-4.38 2.55-6.03 6.74V34.8h-7.31V11.48h7.31v6.74m-65.11-16.4c.73 1.82-.55 4.37-2.75 5.65-2.2 1.27-4.57.9-5.12-.92-.73-1.82.55-4.37 2.75-5.64 2-1.28 4.38-.91 5.12.9Zm-64.2 18.22c0-6.2-4.2-8.74-8.41-8.74-2.93 0-5.3 1.27-7.32 3.82h-.18V.73h-7.32V34.8h7.32V20.22c1.64-2.37 3.1-3.46 4.93-3.46 2.2 0 3.85 1.64 3.85 5.1v8.2a22.9 22.9 0 0 1 7.31-2.37v-7.65m18.12-8.93c-2.93 0-5.3 1.1-7.5 3.83v-3.28h-7.32v15.66c2.56.19 5.67 1.46 7.32 3.28V19.85c1.83-2.91 3.3-3.82 5.12-3.82 2.01 0 3.66 1.27 3.66 4.55v14.03h7.32V20.04c-.19-6.92-5.13-8.93-8.6-8.93Zm12.45 30.06h-8.6v6h8.24v2.56H97.5v6.19h8.78v2.55H94.76V38.62h11.34v2.55Zm9.3-2.55h-2.55v19.85h2.56V38.62Zm9.33 13.66h9.14c0-4.92-2.2-7.1-5.67-7.1-3.66 0-6.03 2.72-6.03 6.55 0 3.64 2.2 6.92 6.4 6.92a9.9 9.9 0 0 0 5.3-1.46v-2.55a7.81 7.81 0 0 1-4.57 1.64c-2.74 0-4.2-1.27-4.57-4Zm3.65-4.92c1.83 0 2.93 1.27 3.11 3.28h-6.58c.18-2 1.46-3.28 3.47-3.28Zm22.52 1.46a5.56 5.56 0 0 0-3.67-1.28c-2.37 0-4.02 1.82-4.02 4.55 0 2.74 1.83 4.38 4.39 4.38a9 9 0 0 0 3.47-.91v2.55a12 12 0 0 1-3.84.72 6.33 6.33 0 0 1-6.58-6.55c0-4.38 2.56-7.1 6.4-7.1 1.46 0 2.56.36 3.84.9v2.74Zm11.87-3.47h4.21v2.37h-4.2v6.74c0 1.46 1.1 2 1.82 2a6.8 6.8 0 0 0 2.93-.9v2.36c-.91.55-2.38.91-3.11.91-2.74 0-4.2-1.82-4.2-4.19v-6.92h-2.2v-.18l4.94-4.74v2.55m13.73 0v3.1c1.28-2.37 2.56-3.28 3.84-3.28 1.1 0 2.01.55 3.11 1.46l-1.46 2.19c-.74-.73-1.83-1.28-2.38-1.28-1.83 0-3.11 1.82-3.11 4v6.93h-2.56V45.35h2.56Zm33.65 3.47a5.56 5.56 0 0 0-3.66-1.28c-2.38 0-4.03 1.82-4.03 4.55 0 2.74 1.83 4.38 4.4 4.38a9.1 9.1 0 0 0 3.47-.91v2.55a12 12 0 0 1-3.84.72 6.33 6.33 0 0 1-6.59-6.55c0-4.38 2.56-7.1 6.4-7.1 1.47 0 2.56.36 3.84.9v2.74Zm-17.2-3.46h-2.56v13.11h2.56V45.36Zm.18-4.74c.18.54-.18 1.46-.91 2-.74.55-1.65.37-1.83-.36-.19-.73.18-1.46.91-2 .73-.37 1.46-.19 1.83.36ZM79 47.18l.74-2.92h7.13c.91-4.19.18-8.01-2.38-10.38-5.12-5.1-15.73-3.28-23.6 4.2-1.27 1.08-2.19 2.36-3.29 3.63H62l-.92 2.92h-5.12c-.55.9-.92 1.82-1.28 2.73h6.03l-.91 2.91h-6.04c-1.1 4.38-.36 8.38 2.2 10.93 4.94 4.92 15.55 3.28 23.6-4.37a18.42 18.42 0 0 0 3.47-4.19h-5.49l.92-2.91h6.4c.55-.91.91-1.82 1.28-2.73H79v.18Zm-1.64-5.47c-.37 0-.73 0-.92.37 0 0-.18.18-.18.36l-2.2 8.75c-.54 3.1-4.38 6.19-9.32 6.19h-6.95l1.28-4.55h4.39c.36 0 .73-.19 1.1-.55.18-.18.18-.37.18-.55l1.83-7.65c.55-3.1 3.84-6.56 8.78-6.56h6.95l-.92 4.2h-4.02Z"/></svg>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC paid-media portfolio</div>
+    <div id="topPeriod">&nbsp;</div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>Fetching dashboard data from BigQuery…</div>
+  </div>
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="content" style="display:none">
+
+    <div class="readiness" id="readiness"></div>
+
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs">
+          <button class="tab" id="tabPortfolio" onclick="setTab('portfolio')">Portfolio Overview</button>
+          <button class="tab" id="tabPacing"    onclick="setTab('pacing')">Spend &amp; Pacing</button>
+          <button class="tab" id="tabFunnel"    onclick="setTab('funnel')">Delivery &amp; Funnel</button>
+          <button class="tab" id="tabChannels"  onclick="setTab('channels')">Channel Comparison</button>
+          <button class="tab" id="tabGeo"       onclick="setTab('geo')">Geography</button>
+        </div>
+        <div class="tabs-right">
+          <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
+          <button class="export-btn" onclick="exportAllData()" title="Download the full dataset as one CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export data</span>
+          </button>
+        </div>
+      </div>
+      <div class="control-filters" id="filterRow">
+        <div class="filter-grp" id="platformGroup">
+          <span class="lbl">Platform</span>
+          <div class="chips" id="platformChips"></div>
+        </div>
+        <div class="fdiv"></div>
+        <div class="filter-grp" id="objectiveGroup">
+          <span class="lbl">Objective</span>
+          <div class="chips" id="objectiveChips"></div>
+        </div>
+        <div class="fdiv" id="regionDiv"></div>
+        <div class="filter-grp" id="regionGroup">
+          <span class="lbl">Region</span>
+          <div class="chips" id="regionChips"></div>
+        </div>
+        <div class="fdiv"></div>
+        <div class="filter-grp" id="campaignGroup">
+          <span class="lbl">Campaign</span>
+          <div class="campaign-dd">
+            <button class="campaign-btn" id="campaignBtn" onclick="toggleCampaignMenu(event)" aria-haspopup="true" aria-expanded="false">
+              <span class="lbltxt" id="campaignBtnLabel">All campaigns</span>
+              <span class="caret">▾</span>
+            </button>
+            <div class="campaign-menu" id="campaignMenu" style="display:none">
+              <div class="campaign-menu-head">
+                <input type="text" id="campaignSearch" placeholder="Search campaigns…" autocomplete="off" oninput="renderCampaignList()">
+                <div class="campaign-menu-actions">
+                  <span class="count" id="campaignCount">&nbsp;</span>
+                  <div class="btns">
+                    <button class="chip-action" onclick="allCampaigns()">All</button>
+                    <button class="chip-action" onclick="clearCampaigns()">Clear</button>
+                  </div>
+                </div>
+              </div>
+              <div class="campaign-list" id="campaignList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PORTFOLIO OVERVIEW ============ -->
+    <div id="tab-portfolio" class="tabpane">
+      <div class="section first">
+        <h2>Portfolio overview</h2>
+        <span class="sub">Schneider Electric APAC paid-media portfolio (via Transmission), across DV360, The Trade Desk and LinkedIn. Budget &amp; targets are from the media plans (seed data); spend &amp; delivery are live from the platforms. Reporting currency AUD.</span>
+      </div>
+      <div class="kpis" id="poKpis"></div>
+      <div class="card" style="margin-top:16px">
+        <h3>Flight windows across the portfolio</h3>
+        <div class="hint">Each bar is a campaign's flight (plan window where known, else observed delivery). Overlapping flights — a brief concern for cannibalisation — are visible here.</div>
+        <div class="chart-wrap" id="ganttWrap" style="height:360px"><canvas id="poGantt"></canvas></div>
+      </div>
+      <div class="section"><h2>Campaigns</h2><span class="sub">One card per internal campaign in the current filter. Budget consumed (bar) with the % of flight elapsed marked; pacing vs elapsed; primary-KPI vs target where a target is set.</span></div>
+      <div class="pgrid" id="poCards"></div>
+      <div class="info-note" id="poNote"></div>
+    </div>
+
+    <!-- ============ SPEND & PACING ============ -->
+    <div id="tab-pacing" class="tabpane">
+      <div class="section first">
+        <h2>Spend &amp; pacing</h2>
+        <span class="sub">Plan budget (seed) vs actual spend (delivery), by campaign and platform. Pacing is measured against both flight-elapsed and the plan flighting weights where available. Watch the <b>budget basis</b> chip — incl-fees vs ex-fees aren't directly comparable.</span>
+      </div>
+      <div class="kpis five" id="spKpis"></div>
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Budget vs actual spend — by campaign</h3>
+          <div class="hint">Plan budget (grey) vs actual spend (green, AUD). Only campaigns with a plan budget are shown; basis labelled in the table below.</div>
+          <div class="chart-wrap"><canvas id="spBudget"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Spend share by platform</h3>
+          <div class="hint">Actual spend split across DV360 / TradeDesk / LinkedIn (AUD).</div>
+          <div class="chart-wrap"><canvas id="spPlatform"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Cumulative spend vs flight</h3>
+        <div class="hint">Monthly cumulative actual spend across the filtered portfolio (AUD). Use it to read whether delivery is pacing evenly across the flight.</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="spCumulative"></canvas></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Budget vs spend table</h3>
+        <div class="hint">Per campaign: plan budget, basis, actual spend, % consumed, flight window.</div>
+        <div style="overflow:auto"><table id="spTable">
+          <thead><tr><th>Campaign</th><th>Objective</th><th>Basis</th><th>Budget</th><th>Spend</th><th>% used</th><th>Flight</th></tr></thead>
+          <tbody></tbody></table></div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>AI &amp; Liquid Cooling (2306) — approved channel split</h3>
+        <div class="hint">The only approved channel split in the plan (AUD). <b>Search</b> &amp; <b>Reddit</b> are planned but have <b>no platform delivery</b> in the warehouse — shown as planned budget, not zero performance.</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="spChannelSplit"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ============ DELIVERY & FUNNEL ============ -->
+    <div id="tab-funnel" class="tabpane">
+      <div class="section first">
+        <h2>Delivery &amp; funnel</h2>
+        <span class="sub">Normalised delivery funnel from the metrics each platform provides: Impressions → Clicks (CTR / CPC) → Video (VCR, LinkedIn) → Conversions / Leads (DV360 + TradeDesk conversions; LinkedIn leads + lead-form opens).</span>
+      </div>
+      <div class="kpis" id="fnKpis"></div>
+      <div class="funnel" id="fnFunnel"></div>
+      <div class="grid-2-1" style="margin-top:4px">
+        <div class="card card-tall">
+          <h3>Monthly delivery — impressions &amp; spend</h3>
+          <div class="hint">Impressions by platform (stacked bars) with spend (line, AUD, right axis).</div>
+          <div class="chart-wrap"><canvas id="fnMonthly"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Engagement mix</h3>
+          <div class="hint">Where engagement comes from across the filtered portfolio.</div>
+          <div class="chart-wrap"><canvas id="fnEngage"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Funnel by campaign</h3>
+        <div class="hint">Per internal campaign: impressions, clicks, CTR, conversions/leads, and (LinkedIn) VCR. Primary KPI highlighted.</div>
+        <div style="overflow:auto"><table id="fnTable">
+          <thead><tr><th>Campaign</th><th>Primary KPI</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>VCR</th><th>Conv.</th><th>Leads</th></tr></thead>
+          <tbody></tbody></table></div>
+      </div>
+      <div class="info-note warn" id="fnNote"></div>
+    </div>
+
+    <!-- ============ CHANNEL COMPARISON ============ -->
+    <div id="tab-channels" class="tabpane">
+      <div class="section first">
+        <h2>Channel comparison</h2>
+        <span class="sub">DV360 vs The Trade Desk vs LinkedIn: efficiency side by side, plus the awareness-vs-retargeting split where the campaign name flags retargeting (RT).</span>
+      </div>
+      <div class="card">
+        <h3>Platform efficiency</h3>
+        <div class="hint">Whole-portfolio (filtered) totals. CPM / CPC in AUD. VCR is LinkedIn video completions ÷ starts.</div>
+        <div style="overflow:auto"><table id="chTable">
+          <thead><tr><th>Platform</th><th>Spend (AUD)</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th><th>VCR</th></tr></thead>
+          <tbody></tbody></table></div>
+      </div>
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>CTR &amp; CPM by platform</h3>
+          <div class="hint">CTR (bars, left) and CPM (line, AUD, right).</div>
+          <div class="chart-wrap"><canvas id="chEff"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Awareness vs retargeting — spend</h3>
+          <div class="hint">Spend split by stage, detected from the campaign name (RT / retargeting token).</div>
+          <div class="chart-wrap"><canvas id="chStage"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>LinkedIn — creative mix</h3>
+        <div class="hint">Impressions by creative type (filtered campaigns).</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="chCreative"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ============ GEOGRAPHY ============ -->
+    <div id="tab-geo" class="tabpane">
+      <div class="section first">
+        <h2>Geography</h2>
+        <span class="sub">Delivery by region and market. DV360 maps from visitor country; LinkedIn &amp; TradeDesk parse the region token from the campaign name. ANZ dominates — the AU vs NZ split is broken out below.</span>
+      </div>
+      <div class="kpis five" id="geoKpis"></div>
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Impressions &amp; spend by region</h3>
+          <div class="hint">Impressions (bars) and spend (AUD, line). Regions per the brief grouping.</div>
+          <div class="chart-wrap"><canvas id="geoRegion"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>ANZ — AU vs NZ</h3>
+          <div class="hint">Within ANZ, the Australia / New Zealand split (impressions). The brief notes a ~80/20 AU/NZ weighting.</div>
+          <div class="chart-wrap"><canvas id="geoAnz"></canvas></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Region × platform</h3>
+        <div class="hint">Which platform delivered where (impressions, AUD spend). Markets with no parseable region show as Unmapped.</div>
+        <div style="overflow:auto"><table id="geoTable">
+          <thead><tr><th>Region</th><th>DV360</th><th>TradeDesk</th><th>LinkedIn</th><th>Impr.</th><th>Spend (AUD)</th></tr></thead>
+          <tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <footer id="footMeta"></footer>
+  </div>
+</div>
+
+<script>
+//==============================================================================
+// CONFIG
+//==============================================================================
+const JSON_URL = '/data.json';
+const C = {
+  green:'#009530', green2:'#007E2A', greenDeep:'#005F20',
+  dark:'#1A1A1A', ink:'#1F2933', mute:'#6B7480', line:'#E6E9ED',
+  dv:'#009530', td:'#F2A900', li:'#2867B2',
+  teal:'#0E7C86', slate:'#5A6B78', amber:'#B97400', violet:'#8E44AD', grey:'#C9CED4'
+};
+
+// The three platforms with Schneider data (no Google Ads / Reddit / Salesforce rows).
+const PLATFORMS = [
+  {key:'dv360',     label:'DV360',      color:C.dv},
+  {key:'tradedesk', label:'TradeDesk',  color:C.td},
+  {key:'linkedin',  label:'LinkedIn',   color:C.li},
+];
+const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
+const PLAT_COLOR = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.color]));
+
+// objective_type -> CSS tag class + colour
+const OBJ_TAG = {'Awareness':'aw','LeadGen':'lg','ABM':'abm','Event':'ev','Awareness→RT':'rt','Unmapped':'un'};
+const OBJ_COLOR = {'Awareness':C.green2,'LeadGen':C.li,'ABM':C.violet,'Event':C.amber,'Awareness→RT':'#9C4314','Unmapped':C.grey};
+
+// fine market -> brief reporting region (mirrors the SQL grouping)
+const REGION_OF = {
+  'Australia':'ANZ','New Zealand':'ANZ','ANZ':'ANZ',
+  'India':'India',
+  'Singapore':'SEA','Malaysia':'SEA','Indonesia':'SEA','Thailand':'SEA','Vietnam':'SEA','Philippines':'SEA','SEA':'SEA',
+  'Japan':'Japan','Pacific':'Pacific','MEA':'MEA','South America':'South America'
+};
+const regionOf = m => REGION_OF[m] || m;   // East Asia / South Asia / Europe & C.Asia / North America / Other (RoW) / Unmapped pass through
+
+//==============================================================================
+// STATE / HELPERS
+//==============================================================================
+let DATA=null, charts={}, activeTab='portfolio';
+let activePlatforms=new Set(), activeObjectives=new Set(), activeRegions=new Set(), activeInternal=new Set();
+let campaignMenuOpen=false;
+const el = id => document.getElementById(id);
+
+const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
+const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
+const fmtPct = (v,d=2) => v==null||isNaN(v) ? '—' : (v*100).toFixed(d)+'%';
+const money  = (v,sym='A$',d=0) => v==null||isNaN(v) ? '—' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const pct = (part,whole) => whole? part/whole : 0;
+function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+function dateLabel(d){ return d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'}) : '—'; }
+
+//==============================================================================
+// DELIVERY -> INTERNAL CAMPAIGN JOIN (seed_campaign_map.match_pattern, CONTAINS)
+//==============================================================================
+let META={}, BUDGET={}, FLIGHTING={}, TARGETS={}, CHANSPLIT={}, ID_CACHE={};
+function buildSeedIndex(){
+  META={}; BUDGET={}; FLIGHTING={}; TARGETS={}; CHANSPLIT={}; ID_CACHE={};
+  (DATA.seed_campaign_map||[]).forEach(m => META[m.id]=m);
+  (DATA.seed_plan_budget||[]).forEach(b => BUDGET[b.id]=b);
+  (DATA.seed_plan_flighting||[]).forEach(f => (FLIGHTING[f.id]=FLIGHTING[f.id]||[]).push(f));
+  (DATA.seed_targets||[]).forEach(t => (TARGETS[t.id]=TARGETS[t.id]||[]).push(t));
+  (DATA.seed_channel_split||[]).forEach(s => (CHANSPLIT[s.id]=CHANSPLIT[s.id]||[]).push(s));
+}
+// raw platform campaign name -> internal id (first map row whose any '|' token is a substring)
+function idOf(name){
+  if(name in ID_CACHE) return ID_CACHE[name];
+  const n = (name||'').toLowerCase();
+  let hit='(unmapped)';
+  for(const m of (DATA.seed_campaign_map||[])){
+    const pats = (m.match_pattern||'').split('|').map(s=>s.trim().toLowerCase()).filter(Boolean);
+    if(pats.some(p => n.includes(p))){ hit=m.id; break; }
+  }
+  return (ID_CACHE[name]=hit);
+}
+const displayOf   = id => (META[id]||{}).display || (id==='(unmapped)'?'(unmapped)':id);
+const objectiveOf = id => (META[id]||{}).objective_type || 'Unmapped';
+const regionLblOf = id => (META[id]||{}).primary_region || '—';
+
+// internal-campaign roster (only ids with ≥1 delivering platform campaign, + unmapped if present)
+function roster(){
+  const by={};
+  for(const c of (DATA.ad_campaigns||[])){
+    const id=idOf(c.campaign);
+    const e = by[id] || (by[id]={id, spend:0,imps:0,clicks:0,nCamp:0,platforms:new Set(),start:null,end:null});
+    e.spend+=c.spend_aud||0; e.imps+=c.imps||0; e.clicks+=c.clicks||0; e.nCamp++; e.platforms.add(c.platform);
+    if(c.start&&(!e.start||c.start<e.start)) e.start=c.start;
+    if(c.end&&(!e.end||c.end>e.end)) e.end=c.end;
+  }
+  return Object.values(by).sort((a,b)=>b.spend-a.spend);
+}
+function rosterIds(){ return roster().map(r=>r.id); }
+
+//==============================================================================
+// FILTER PREDICATES
+//==============================================================================
+// A delivery row passes if its platform, internal id and that campaign's objective are selected.
+function rowOk(platform, campaignName){
+  if(!activePlatforms.has(platform)) return false;
+  const id=idOf(campaignName);
+  if(!activeInternal.has(id)) return false;
+  if(!activeObjectives.has(objectiveOf(id))) return false;
+  return true;
+}
+const idSelected = id => activeInternal.has(id) && activeObjectives.has(objectiveOf(id));
+
+// blended ad totals over the current filter (campaign + platform + objective)
+function adTotals(){
+  const o={imps:0,clk:0,spend:0, dv360:{imps:0,clk:0,spend:0}, tradedesk:{imps:0,clk:0,spend:0}, linkedin:{imps:0,clk:0,spend:0}};
+  for(const c of (DATA.ad_campaigns||[])){
+    if(!rowOk(c.platform,c.campaign)) continue;
+    o.imps+=c.imps||0; o.clk+=c.clicks||0; o.spend+=c.spend_aud||0;
+    const p=o[c.platform]; if(p){ p.imps+=c.imps||0; p.clk+=c.clicks||0; p.spend+=c.spend_aud||0; }
+  }
+  return o;
+}
+// funnel metrics over the current filter (+ per platform)
+function funnelTotals(){
+  const o={imps:0,clk:0,spend:0,conv:0,vstarts:0,vcompl:0,vviews:0,leads:0,lfo:0,eng:0,viewable:0,
+           dv360:{},tradedesk:{},linkedin:{}};
+  for(const k of ['dv360','tradedesk','linkedin']) o[k]={imps:0,clk:0,spend:0,conv:0,vstarts:0,vcompl:0,eng:0};
+  for(const r of (DATA.ad_campaign_metrics||[])){
+    if(!rowOk(r.platform,r.campaign)) continue;
+    o.imps+=r.imps||0; o.clk+=r.clicks||0; o.spend+=r.spend_aud||0; o.conv+=r.conversions||0;
+    o.vstarts+=r.video_starts||0; o.vcompl+=r.video_completions||0; o.vviews+=r.video_views||0;
+    o.leads+=r.leads||0; o.lfo+=r.lead_form_opens||0; o.eng+=r.engagements||0; o.viewable+=r.viewable_imps||0;
+    const p=o[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_aud||0; p.conv+=r.conversions||0; p.vstarts+=r.video_starts||0; p.vcompl+=r.video_completions||0; p.eng+=r.engagements||0; }
+  }
+  return o;
+}
+// monthly delivery (platform-pivoted) over the current filter
+function monthlyMap(){
+  const m={};
+  for(const r of (DATA.ad_campaign_monthly||[])){
+    if(!rowOk(r.platform,r.campaign)) continue;
+    const e = m[r.month] || (m[r.month]={month:r.month,imps:0,clk:0,spend:0,dv360:0,tradedesk:0,linkedin:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e[r.platform]+=r.imps||0;
+  }
+  return Object.values(m).sort((a,b)=>a.month<b.month?-1:1);
+}
+// market (fine) totals over the current filter — region filter applies HERE
+function marketRows(){
+  const m={};
+  for(const r of (DATA.ad_campaign_market||[])){
+    if(!rowOk(r.platform,r.campaign)) continue;
+    if(!activeRegions.has(regionOf(r.market))) continue;
+    const e = m[r.market] || (m[r.market]={market:r.market,region:regionOf(r.market),imps:0,clk:0,spend:0,dv360:0,tradedesk:0,linkedin:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e[r.platform]+=r.imps||0;
+  }
+  return Object.values(m);
+}
+function allRegions(){
+  const s=new Set();
+  for(const r of (DATA.ad_campaign_market||[])) s.add(regionOf(r.market));
+  // order: brief regions first, then the rest alphabetically
+  const order=['ANZ','India','SEA','MEA','South America','Japan','Pacific'];
+  return [...s].sort((a,b)=>{
+    const ia=order.indexOf(a), ib=order.indexOf(b);
+    if(ia>=0&&ib>=0) return ia-ib; if(ia>=0) return -1; if(ib>=0) return 1; return a<b?-1:1;
+  });
+}
+const isRT = name => /(^|[ _-])(RT|Retarget|Re-?targeting)/i.test(name||'');
+
+//==============================================================================
+// BOOT
+//==============================================================================
+async function boot(){
+  try{
+    const res = await fetch(JSON_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
+    DATA = await res.json();
+    buildSeedIndex();
+    activePlatforms = new Set(PLATFORMS.map(p=>p.key));
+    activeInternal  = new Set(rosterIds());
+    activeObjectives= new Set([...activeInternal].map(objectiveOf));
+    activeRegions   = new Set(allRegions());
+    const h=(location.hash||'').replace('#','');
+    if(['portfolio','pacing','funnel','channels','geo'].includes(h)) activeTab=h;
+    el('loading').style.display='none';
+    el('content').style.display='block';
+    renderReadiness();
+    renderMeta();
+    renderControls();
+    renderActive();
+  }catch(e){
+    el('loading').style.display='none';
+    el('error').style.display='block';
+    el('errDetail').textContent = e.message;
+  }
+}
+
+function renderReadiness(){
+  const lanes = [
+    {cls:'ok',   t:'DV360 · TradeDesk · LinkedIn delivery — live'},
+    {cls: DATA.ga4_enabled?'ok':'wait', t: DATA.ga4_enabled ? 'Website (GA4) — live' : 'Website (GA4) — awaiting GA4 property id'},
+    {cls:'wait', t:'Leads / ABM (CaptureIQ · Bombora · Demandbase · Sqreem) — manual feed, not yet wired'},
+    {cls:'off',  t:'Search &amp; Reddit — no platform delivery in warehouse'},
+  ];
+  el('readiness').innerHTML = lanes.map(l=>`<span class="rchip ${l.cls}"><span class="led"></span>${l.t}</span>`).join('');
+}
+
+function renderMeta(){
+  const w=DATA.window||{};
+  el('topPeriod').textContent = `${dateLabel(w.start)} – ${dateLabel(w.end)}`;
+  const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
+  el('footMeta').innerHTML = `Schneider Electric APAC portfolio · data from BigQuery (DV360 · TradeDesk · LinkedIn) · `
+    + `FX US$1=A$${DATA.fx_usd_aud} · S$1=A$${DATA.fx_sgd_aud} · Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+}
+
+//==============================================================================
+// CONTROLS
+//==============================================================================
+function renderControls(){
+  [['tabPortfolio','portfolio'],['tabPacing','pacing'],['tabFunnel','funnel'],['tabChannels','channels'],['tabGeo','geo']]
+    .forEach(([id,t])=> el(id).className='tab'+(activeTab===t?' on':''));
+  const notes={portfolio:'Budget vs spend vs target',pacing:'Plan vs actual',funnel:'Delivery funnel',channels:'Platform efficiency',geo:'Where it delivered'};
+  el('ctrlNote').textContent = notes[activeTab]||'';
+
+  // region filter is only meaningful on Geography
+  el('regionGroup').style.display = activeTab==='geo' ? 'flex' : 'none';
+  el('regionDiv').style.display   = activeTab==='geo' ? 'block' : 'none';
+
+  // platform chips
+  const pw=el('platformChips'); pw.innerHTML='';
+  PLATFORMS.forEach(p=>{
+    const b=document.createElement('button');
+    b.className='chip'+(activePlatforms.has(p.key)?' on':'');
+    b.innerHTML=`<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color}"></span>${p.label}`;
+    b.onclick=()=>{ activePlatforms.has(p.key)?activePlatforms.delete(p.key):activePlatforms.add(p.key); renderControls(); renderActive(); };
+    pw.appendChild(b);
+  });
+  // objective chips
+  const objs = [...new Set(rosterIds().map(objectiveOf))];
+  const ow=el('objectiveChips'); ow.innerHTML='';
+  objs.forEach(o=>{
+    const b=document.createElement('button');
+    b.className='chip'+(activeObjectives.has(o)?' on':'');
+    b.innerHTML=`<span class="check">✓</span>${o}`;
+    b.onclick=()=>{ activeObjectives.has(o)?activeObjectives.delete(o):activeObjectives.add(o); renderControls(); renderActive(); };
+    ow.appendChild(b);
+  });
+  // region chips
+  const rw=el('regionChips'); rw.innerHTML='';
+  allRegions().forEach(rg=>{
+    const b=document.createElement('button');
+    b.className='chip'+(activeRegions.has(rg)?' on':'');
+    b.innerHTML=`<span class="check">✓</span>${rg}`;
+    b.onclick=()=>{ activeRegions.has(rg)?activeRegions.delete(rg):activeRegions.add(rg); renderControls(); renderActive(); };
+    rw.appendChild(b);
+  });
+  renderCampaignButton();
+}
+
+//==============================================================================
+// CAMPAIGN dropdown (internal campaigns, grouped by objective)
+//==============================================================================
+function renderCampaignButton(){
+  const total=rosterIds().length, sel=[...activeInternal].filter(id=>rosterIds().includes(id)).length;
+  const btn=el('campaignBtn'), lbl=el('campaignBtnLabel');
+  if(sel>=total){ lbl.textContent='All campaigns'; btn.classList.remove('filtered'); }
+  else if(sel===0){ lbl.textContent='No campaigns'; btn.classList.add('filtered'); }
+  else { lbl.textContent=`${sel} of ${total} campaigns`; btn.classList.add('filtered'); }
+  btn.setAttribute('aria-expanded', campaignMenuOpen?'true':'false');
+}
+function toggleCampaignMenu(e){
+  if(e) e.stopPropagation();
+  campaignMenuOpen=!campaignMenuOpen;
+  el('campaignMenu').style.display = campaignMenuOpen?'block':'none';
+  if(campaignMenuOpen){ renderCampaignList(); setTimeout(()=>{const s=el('campaignSearch'); if(s) s.focus();},0); }
+}
+function closeCampaignMenu(){ if(!campaignMenuOpen) return; campaignMenuOpen=false; el('campaignMenu').style.display='none'; }
+document.addEventListener('click', e=>{ const dd=e.target.closest && e.target.closest('.campaign-dd'); if(!dd) closeCampaignMenu(); });
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeCampaignMenu(); });
+
+function renderCampaignList(){
+  const list=el('campaignList'); if(!list) return;
+  const q=(el('campaignSearch').value||'').trim().toLowerCase();
+  const r=roster().filter(c=> !q || displayOf(c.id).toLowerCase().includes(q) || c.id.toLowerCase().includes(q));
+  el('campaignCount').textContent = `${[...activeInternal].length} of ${rosterIds().length} selected`;
+  // group by objective
+  const groups={};
+  r.forEach(c=>{ const o=objectiveOf(c.id); (groups[o]=groups[o]||[]).push(c); });
+  let html='';
+  Object.keys(groups).forEach(o=>{
+    const rows=groups[o].sort((a,b)=>b.spend-a.spend);
+    const selN=rows.filter(c=>activeInternal.has(c.id)).length, allSel=selN===rows.length;
+    html+=`<div class="cl-group"><div class="cl-group-head">
+      <span class="cl-group-title"><span class="dot" style="background:${OBJ_COLOR[o]||C.grey}"></span>${o} · ${rows.length}</span>
+      <button class="cl-group-toggle" onclick="toggleObjGroup('${o.replace(/'/g,"\\'")}', ${allSel?'false':'true'})">${allSel?'Clear':'Select'} group</button>
+    </div>`;
+    rows.forEach(c=>{
+      const checked=activeInternal.has(c.id)?'checked':'';
+      html+=`<label class="cl-item" title="${c.id}">
+        <input type="checkbox" ${checked} onchange="toggleCampaign('${c.id.replace(/'/g,"\\'")}')">
+        <span class="ci-main"><span class="ci-name">${displayOf(c.id)}</span>
+        <span class="ci-meta">${regionLblOf(c.id)} · ${c.nCamp} platform camp${c.nCamp>1?'s':''} · ${fmtM(c.imps)} imps · ${money(c.spend)}</span></span></label>`;
+    });
+    html+=`</div>`;
+  });
+  list.innerHTML = html || `<div class="cl-empty">No campaigns match “${q}”.</div>`;
+}
+function toggleCampaign(id){ activeInternal.has(id)?activeInternal.delete(id):activeInternal.add(id); renderCampaignButton(); renderActive(); }
+function toggleObjGroup(obj, select){
+  roster().forEach(c=>{ if(objectiveOf(c.id)!==obj) return; select?activeInternal.add(c.id):activeInternal.delete(c.id); });
+  renderCampaignButton(); renderCampaignList(); renderActive();
+}
+function allCampaigns(){ activeInternal=new Set(rosterIds()); renderCampaignButton(); renderCampaignList(); renderActive(); }
+function clearCampaigns(){ activeInternal=new Set(); renderCampaignButton(); renderCampaignList(); renderActive(); }
+
+function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
+function renderActive(){
+  ['portfolio','pacing','funnel','channels','geo'].forEach(t=> el('tab-'+t).style.display=(t===activeTab?'block':'none'));
+  destroyCharts();
+  if(activeTab==='portfolio') renderPortfolio();
+  else if(activeTab==='pacing') renderPacing();
+  else if(activeTab==='funnel') renderFunnel();
+  else if(activeTab==='channels') renderChannels();
+  else renderGeo();
+}
+function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
+
+//==============================================================================
+// shared chart helpers
+//==============================================================================
+const FONT={family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
+function gridY(opts={}){ return Object.assign({grid:{color:'#EEF1F0'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
+function kpiCard(cls,label,value,delta){ return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`; }
+function shade(hex,i){ const f=[0,-14,16,-26,30,-36,44,-44,52,-52,58][i%11]||0; return adjust(hex,f); }
+function adjust(hex,amt){ let h=hex.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join(''); let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16); r=Math.max(0,Math.min(255,r+amt));g=Math.max(0,Math.min(255,g+amt));b=Math.max(0,Math.min(255,b+amt)); return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join(''); }
+const centerText={ id:'centerText', afterDraw(chart){ const o=chart.config.options.cutoutText; if(!o) return; const {ctx,chartArea:{left,right,top,bottom}}=chart; const x=(left+right)/2,y=(top+bottom)/2; ctx.save(); ctx.textAlign='center'; ctx.fillStyle=C.dark; ctx.font=`700 20px ${FONT.family}`; ctx.fillText(o.line1,x,y-2); ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+15); ctx.restore(); } };
+
+// flight window for an internal campaign: plan budget window if set, else observed delivery window
+function flightWindow(id, rosterRow){
+  const b=BUDGET[id]||{};
+  return { start: b.flight_start || (rosterRow&&rosterRow.start) || null,
+           end:   b.flight_end   || (rosterRow&&rosterRow.end)   || null,
+           planned: !!(b.flight_start && b.flight_end) };
+}
+function elapsedPct(win){
+  if(!win.start||!win.end) return null;
+  const s=new Date(win.start).getTime(), e=new Date(win.end).getTime(), now=Date.now();
+  if(e<=s) return 1;
+  return Math.max(0, Math.min(1, (now-s)/(e-s)));
+}
+
+//==============================================================================
+// PORTFOLIO OVERVIEW
+//==============================================================================
+function renderPortfolio(){
+  const rs = roster().filter(c=>idSelected(c.id));
+  const a = adTotals();
+  let totBudget=0, anyBudget=false;
+  rs.forEach(c=>{ const b=BUDGET[c.id]; if(b&&b.budget_aud!=null){ totBudget+=b.budget_aud; anyBudget=true; } });
+  const ctr=pct(a.clk,a.imps), cpm=a.imps?a.spend/a.imps*1000:0, cpc=a.clk?a.spend/a.clk:0;
+  el('poKpis').innerHTML =
+    kpiCard('accent','Plan budget (AUD)', anyBudget?money(totBudget):'—', anyBudget?`${rs.filter(c=>BUDGET[c.id]&&BUDGET[c.id].budget_aud!=null).length} of ${rs.length} campaigns costed`:'budget TBC')
+  + kpiCard('accent','Actual spend (AUD)', money(a.spend), anyBudget?`${fmtPct(pct(a.spend,totBudget),0)} of plan budget`:'live delivery')
+  + kpiCard('','Campaigns', fmtN(rs.length), `${[...new Set(rs.map(c=>objectiveOf(c.id)))].length} objectives`)
+  + kpiCard('','Impressions', fmtM(a.imps), `${PLATFORMS.filter(p=>activePlatforms.has(p.key)).length} platforms`)
+  + kpiCard('','Clicks', fmtN(a.clk), `${fmtPct(ctr,2)} blended CTR`)
+  + kpiCard('blue','Blended CPM / CPC', `${money(cpm,'A$',2)}`, `${money(cpc,'A$',2)} CPC`);
+
+  // Gantt of flight windows
+  const gr = rs.filter(c=>{ const w=flightWindow(c.id,c); return w.start&&w.end; })
+              .map(c=>({id:c.id, name:displayOf(c.id), obj:objectiveOf(c.id), win:flightWindow(c.id,c)}))
+              .sort((a,b)=> new Date(a.win.start)-new Date(b.win.start));
+  // Clamp the axis to the real flight range. A bar chart's linear scale auto-includes the
+  // zero baseline (= epoch, Jan 1970), which would otherwise crush every flight into the
+  // far-right edge. Pad by ~4% of the span (min one week) so bars don't touch the frame.
+  const DAY=864e5, starts=gr.map(g=>new Date(g.win.start).getTime()), ends=gr.map(g=>new Date(g.win.end).getTime());
+  const minT=gr.length?Math.min(...starts):null, maxT=gr.length?Math.max(...ends):null;
+  const pad=gr.length?Math.max((maxT-minT)*0.04, 7*DAY):0;
+  charts.poGantt = new Chart(el('poGantt'),{
+    type:'bar',
+    data:{ labels:gr.map(g=>g.name), datasets:[{
+      data:gr.map(g=>[new Date(g.win.start).getTime(), new Date(g.win.end).getTime()]),
+      backgroundColor:gr.map(g=>OBJ_COLOR[g.obj]||C.grey), borderRadius:4, barThickness:13 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>{ const g=gr[c.dataIndex]; return ` ${dateLabel(g.win.start)} → ${dateLabel(g.win.end)}${g.win.planned?' (plan)':' (delivery)'}`; }}} },
+      scales:{ x:gridY({type:'linear', min:gr.length?minT-pad:undefined, max:gr.length?maxT+pad:undefined,
+                        ticks:{color:C.mute,font:{size:10},callback:v=>new Date(v).toLocaleDateString('en-US',{month:'short',year:'2-digit'})}}),
+               y:axisX({ticks:{color:C.ink,font:{size:10.5}}}) } }
+  });
+
+  // cards
+  el('poCards').innerHTML = rs.map(c=>{
+    const m=META[c.id]||{}, b=BUDGET[c.id]||{}, win=flightWindow(c.id,c), el_=elapsedPct(win);
+    const consumed = (b.budget_aud!=null && b.budget_aud>0) ? c.spend/b.budget_aud : null;
+    const tag=OBJ_TAG[objectiveOf(c.id)]||'un';
+    let paceCls='na', paceTxt='no budget';
+    if(consumed!=null && el_!=null){
+      const diff=consumed-el_;
+      if(Math.abs(diff)<=0.1){ paceCls='on'; paceTxt='on pace'; }
+      else if(diff>0.1){ paceCls='over'; paceTxt='ahead'; }
+      else { paceCls='under'; paceTxt='behind'; }
+    }
+    const tgts=(TARGETS[c.id]||[]);
+    const budgetBar = consumed!=null ? `<div class="bar"><span style="width:${Math.min(100,consumed*100).toFixed(0)}%;background:${OBJ_COLOR[objectiveOf(c.id)]||C.green}"></span>${el_!=null?`<span class="mark" style="left:${(el_*100).toFixed(0)}%"></span>`:''}</div>` : '';
+    return `<div class="pcard">
+      <div class="ph"><div><div class="pname">${displayOf(c.id)}</div>
+        <div class="pmeta">${m.primary_region||'—'} · ${[...c.platforms].map(p=>PLAT_LABEL[p]).join(' · ')}${m.brief_job_no&&m.brief_job_no!=='—'?' · job '+m.brief_job_no:''}</div></div>
+        <span class="tag ${tag}">${objectiveOf(c.id)}</span></div>
+      <div>
+        <div class="prow"><span class="k">Spend / budget</span><span>${money(c.spend)} ${b.budget_aud!=null?'/ '+money(b.budget_aud):''}</span></div>
+        ${budgetBar}
+        <div class="prow" style="margin-top:6px"><span class="k">${consumed!=null?fmtPct(consumed,0)+' consumed'+(b.budget_basis?' ('+b.budget_basis.replace('_',' ')+')':''):'budget TBC'}</span><span class="pace ${paceCls}">${paceTxt}</span></div>
+      </div>
+      <div class="prow"><span class="k">Impr. / clicks</span><span>${fmtM(c.imps)} · ${fmtN(c.clicks)} (${fmtPct(pct(c.clicks,c.imps),2)})</span></div>
+      <div class="prow"><span class="k">Primary KPI</span><span>${m.primary_kpi||'—'}</span></div>
+      ${tgts.length?`<div class="prow"><span class="k">Targets</span><span>${tgts.map(t=>`${t.kpi.replace(/_/g,' ')}: ${t.target_value!=null?fmtN(t.target_value):'TBC'}`).join(' · ')}</span></div>`:''}
+    </div>`;
+  }).join('') || `<div class="cl-empty">No campaigns in the current filter.</div>`;
+
+  const unmapped = roster().find(c=>c.id==='(unmapped)');
+  el('poNote').innerHTML = `<b>How to read this.</b> Budget &amp; targets come from the media-plan seed tables (editable in <code>sql/30–34</code>); spend &amp; delivery are live. The flight bar shows budget consumed, with a tick at the % of flight elapsed — spend well ahead of the tick is pacing fast. `
+    + (anyBudget?'':'Most budgets are still TBC in the plan seeds — cards show delivery only until filled. ')
+    + (unmapped?`<b>${unmapped.nCamp}</b> platform campaign(s) didn't match any <code>match_pattern</code> and are grouped as <b>(unmapped)</b> — extend <code>seed_campaign_map</code> to map them.`:'');
+}
+
+//==============================================================================
+// SPEND & PACING
+//==============================================================================
+function renderPacing(){
+  const rs = roster().filter(c=>idSelected(c.id));
+  const a = adTotals();
+  const withBudget = rs.filter(c=>BUDGET[c.id]&&BUDGET[c.id].budget_aud!=null);
+  let totBudget=0; withBudget.forEach(c=>totBudget+=BUDGET[c.id].budget_aud);
+  el('spKpis').innerHTML =
+    kpiCard('accent','Actual spend (AUD)', money(a.spend), `${rs.length} campaigns`)
+  + kpiCard('accent','Plan budget (costed)', totBudget?money(totBudget):'—', `${withBudget.length} of ${rs.length} costed`)
+  + kpiCard('','% of plan consumed', totBudget?fmtPct(pct(a.spend,totBudget),0):'—', 'costed campaigns only')
+  + kpiCard('blue','DV360 / TTD / LI', `${money(a.dv360.spend,'A$',0)}`, `TTD ${money(a.tradedesk.spend)} · LI ${money(a.linkedin.spend)}`)
+  + kpiCard('','Impressions', fmtM(a.imps), `${fmtPct(pct(a.clk,a.imps),2)} CTR`);
+
+  // budget vs actual by campaign (costed only)
+  const bc = withBudget.map(c=>({name:displayOf(c.id), budget:BUDGET[c.id].budget_aud, spend:c.spend})).sort((a,b)=>b.budget-a.budget);
+  charts.spBudget = new Chart(el('spBudget'),{
+    type:'bar',
+    data:{ labels:bc.map(r=>r.name), datasets:[
+      {label:'Plan budget', data:bc.map(r=>r.budget), backgroundColor:C.grey, borderRadius:4, barPercentage:0.8, categoryPercentage:0.7},
+      {label:'Actual spend', data:bc.map(r=>r.spend), backgroundColor:C.green, borderRadius:4, barPercentage:0.8, categoryPercentage:0.7}
+    ]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money(c.parsed.x)}`}} },
+      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}), y:axisX({ticks:{font:{size:10.5}}}) } }
+  });
+
+  // spend share by platform
+  const sp=PLATFORMS.filter(p=>activePlatforms.has(p.key));
+  charts.spPlatform = new Chart(el('spPlatform'),{
+    type:'doughnut',
+    data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>a[p.key].spend), backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
+      cutoutText:{line1:money(a.spend),line2:'total spend'} }, plugins:[centerText]
+  });
+
+  // cumulative spend
+  const M=monthlyMap(); let cum=0;
+  const cumData=M.map(r=>{ cum+=r.spend; return cum; });
+  charts.spCumulative = new Chart(el('spCumulative'),{
+    type:'line',
+    data:{ labels:M.map(r=>monthLabel(r.month)), datasets:[
+      {label:'Cumulative spend', data:cumData, borderColor:C.green2, backgroundColor:'rgba(0,149,48,.10)', borderWidth:2.5, fill:true, tension:.3, pointRadius:2},
+      ...(totBudget?[{label:'Plan budget', data:M.map(()=>totBudget), borderColor:C.slate, borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false}]:[])
+    ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money(c.parsed.y)}`}}},
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
+  });
+
+  // table
+  el('spTable').querySelector('tbody').innerHTML = rs.map(c=>{
+    const b=BUDGET[c.id]||{}, win=flightWindow(c.id,c);
+    const used = (b.budget_aud!=null&&b.budget_aud>0)?pct(c.spend,b.budget_aud):null;
+    return `<tr><td>${displayOf(c.id)}</td><td><span class="tag ${OBJ_TAG[objectiveOf(c.id)]||'un'}">${objectiveOf(c.id)}</span></td>
+      <td>${b.budget_basis?b.budget_basis.replace('_',' '):'—'}</td>
+      <td class="num">${b.budget_aud!=null?money(b.budget_aud):'—'}</td>
+      <td class="num">${money(c.spend)}</td>
+      <td class="num">${used!=null?fmtPct(used,0):'—'}</td>
+      <td>${win.start?dateLabel(win.start)+' → '+dateLabel(win.end):'—'}</td></tr>`;
+  }).join('') || `<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:16px">No campaigns in the current filter.</td></tr>`;
+
+  // 2306 channel split
+  const cs = CHANSPLIT['ai_lc']||[];
+  const NO_DELIVERY = new Set(['Search','Reddit']);
+  charts.spChannelSplit = new Chart(el('spChannelSplit'),{
+    type:'bar',
+    data:{ labels:cs.map(s=>`${s.channel} (${s.stage})`), datasets:[{
+      label:'Approved budget (AUD)', data:cs.map(s=>s.budget_aud),
+      backgroundColor:cs.map(s=> NO_DELIVERY.has(s.channel)?C.grey : (s.stage==='Retargeting'?C.amber:C.green)),
+      borderRadius:4 }]},
+    options:{ maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${money(c.parsed.y)}${NO_DELIVERY.has(cs[c.dataIndex].channel)?' · planned, no warehouse delivery':''}`}} },
+      scales:{ x:axisX({ticks:{font:{size:10},maxRotation:40,minRotation:0}}), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
+  });
+}
+
+//==============================================================================
+// DELIVERY & FUNNEL
+//==============================================================================
+function renderFunnel(){
+  const f=funnelTotals();
+  const ctr=pct(f.clk,f.imps), cpc=f.clk?f.spend/f.clk:0, vcr=f.vstarts?f.vcompl/f.vstarts:0;
+  const convTot=f.conv, leadTot=f.leads+f.lfo;
+  el('fnKpis').innerHTML =
+    kpiCard('accent','Impressions', fmtM(f.imps), `${money(f.spend)} spend`)
+  + kpiCard('','Clicks', fmtN(f.clk), `${fmtPct(ctr,2)} CTR · ${money(cpc,'A$',2)} CPC`)
+  + kpiCard('blue','Video completion rate', f.vstarts?fmtPct(vcr,0):'—', `${fmtN(f.vcompl)} / ${fmtN(f.vstarts)} starts (LI)`)
+  + kpiCard('accent','Conversions', fmtN(convTot), `DV360 + TradeDesk`)
+  + kpiCard('accent','Leads', fmtN(leadTot), `${fmtN(f.leads)} leads · ${fmtN(f.lfo)} form opens (LI)`)
+  + kpiCard('','Engagements', fmtM(f.eng), `across platforms`);
+
+  el('fnFunnel').innerHTML =
+    `<div class="step"><div class="k">Impressions</div><div class="v">${fmtM(f.imps)}</div><div class="s">${fmtM(f.viewable)} viewable (DV360)</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Clicks</div><div class="v">${fmtN(f.clk)}</div><div class="s">${fmtPct(ctr,2)} CTR · ${money(cpc,'A$',2)} CPC</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Video completions</div><div class="v">${fmtN(f.vcompl)}</div><div class="s">${f.vstarts?fmtPct(vcr,0)+' VCR':'—'} (LinkedIn)</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Conversions / leads</div><div class="v">${fmtN(convTot+leadTot)}</div><div class="s">${fmtN(convTot)} conv · ${fmtN(leadTot)} leads</div></div>`;
+
+  // monthly imps + spend
+  const M=monthlyMap(), labels=M.map(r=>monthLabel(r.month));
+  charts.fnMonthly = new Chart(el('fnMonthly'),{
+    data:{ labels, datasets:[
+      {type:'bar',label:'DV360', data:M.map(r=>r.dv360), backgroundColor:C.dv, stack:'i', yAxisID:'y', maxBarThickness:30, borderRadius:{topLeft:3,topRight:3}},
+      {type:'bar',label:'TradeDesk', data:M.map(r=>r.tradedesk), backgroundColor:C.td, stack:'i', yAxisID:'y', maxBarThickness:30},
+      {type:'bar',label:'LinkedIn', data:M.map(r=>r.linkedin), backgroundColor:C.li, stack:'i', yAxisID:'y', maxBarThickness:30},
+      {type:'line',label:'Spend (AUD)', data:M.map(r=>r.spend), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, tension:.3, yAxisID:'y1', pointRadius:2}
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+  });
+
+  // engagement mix by platform (doughnut)
+  const f2=f;
+  charts.fnEngage = new Chart(el('fnEngage'),{
+    type:'doughnut',
+    data:{ labels:['DV360 engagements','LinkedIn engagements','Clicks (TTD)'],
+      datasets:[{ data:[f2.dv360.eng, f2.linkedin.eng, f2.tradedesk.clk], backgroundColor:[C.dv,C.li,C.td], borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'60%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)}`}} },
+      cutoutText:{line1:fmtM(f2.eng),line2:'engagements'} }, plugins:[centerText]
+  });
+
+  // funnel by campaign table (top 12 by imps)
+  const byId={};
+  for(const r of (DATA.ad_campaign_metrics||[])){
+    if(!rowOk(r.platform,r.campaign)) continue;
+    const id=idOf(r.campaign);
+    const e=byId[id]||(byId[id]={id,imps:0,clk:0,conv:0,vstarts:0,vcompl:0,leads:0,lfo:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.conv+=r.conversions||0; e.vstarts+=r.video_starts||0; e.vcompl+=r.video_completions||0; e.leads+=r.leads||0; e.lfo+=r.lead_form_opens||0;
+  }
+  const rows=Object.values(byId).sort((a,b)=>b.imps-a.imps).slice(0,14);
+  el('fnTable').querySelector('tbody').innerHTML = rows.map(r=>{
+    const vcr=r.vstarts?r.vcompl/r.vstarts:null;
+    return `<tr><td>${displayOf(r.id)}</td><td>${(META[r.id]||{}).primary_kpi||'—'}</td>
+      <td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clk)}</td><td class="num">${fmtPct(pct(r.clk,r.imps),2)}</td>
+      <td class="num">${vcr!=null?fmtPct(vcr,0):'—'}</td><td class="num">${fmtN(r.conv)}</td><td class="num">${fmtN(r.leads+r.lfo)}</td></tr>`;
+  }).join('') || `<tr><td colspan="8" style="text-align:center;color:var(--se-mute);padding:16px">No campaigns in the current filter.</td></tr>`;
+
+  el('fnNote').innerHTML = `<b>Lead &amp; ABM data is partial.</b> Platform leads (LinkedIn lead-gen forms) and conversions (DV360 / TradeDesk) are shown here, but the CRM / intent layer (CaptureIQ, Bombora, Demandbase, Sqreem) is a <b>manual feed not yet wired</b> — treat conversions/leads as platform-reported, not final pipeline.`;
+}
+
+//==============================================================================
+// CHANNEL COMPARISON
+//==============================================================================
+function renderChannels(){
+  const f=funnelTotals();
+  const row=(key,label)=>{
+    const p=f[key]; const ctr=pct(p.clk,p.imps), cpm=p.imps?p.spend/p.imps*1000:0, cpc=p.clk?p.spend/p.clk:0;
+    const vcr=(key==='linkedin'&&p.vstarts)?p.vcompl/p.vstarts:null;
+    return `<tr><td><span class="pill"><span class="dot" style="background:${PLAT_COLOR[key]}"></span>${label}</span></td>
+      <td class="num">${money(p.spend)}</td><td class="num">${fmtN(p.imps)}</td><td class="num">${fmtN(p.clk)}</td>
+      <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'A$',2)}</td><td class="num">${money(cpc,'A$',2)}</td>
+      <td class="num">${vcr!=null?fmtPct(vcr,0):'—'}</td></tr>`;
+  };
+  const tot={imps:f.imps,clk:f.clk,spend:f.spend};
+  el('chTable').querySelector('tbody').innerHTML =
+    PLATFORMS.filter(p=>activePlatforms.has(p.key)).map(p=>row(p.key,p.label)).join('')
+  + `<tr class="total"><td>Combined</td><td class="num">${money(tot.spend)}</td><td class="num">${fmtN(tot.imps)}</td><td class="num">${fmtN(tot.clk)}</td>
+      <td class="num">${fmtPct(pct(tot.clk,tot.imps),2)}</td><td class="num">${money(tot.imps?tot.spend/tot.imps*1000:0,'A$',2)}</td><td class="num">${money(tot.clk?tot.spend/tot.clk:0,'A$',2)}</td><td class="num">—</td></tr>`;
+
+  const sp=PLATFORMS.filter(p=>activePlatforms.has(p.key));
+  charts.chEff = new Chart(el('chEff'),{
+    data:{ labels:sp.map(p=>p.label), datasets:[
+      {type:'bar',label:'CTR', data:sp.map(p=>pct(f[p.key].clk,f[p.key].imps)*100), backgroundColor:sp.map(p=>p.color), borderRadius:4, yAxisID:'y', maxBarThickness:60},
+      {type:'line',label:'CPM (AUD)', data:sp.map(p=>f[p.key].imps?f[p.key].spend/f[p.key].imps*1000:0), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, pointRadius:4, yAxisID:'y1', tension:0}
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y,'A$',2):c.parsed.y.toFixed(2)+'%'}`}} },
+      scales:{ x:axisX(), y:gridY({title:{display:true,text:'CTR %',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v.toFixed(1)+'%'}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'CPM',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v,'A$',0)}} } }
+  });
+
+  // awareness vs RT spend (from campaign-name token)
+  let aw=0, rt=0;
+  for(const c of (DATA.ad_campaigns||[])){ if(!rowOk(c.platform,c.campaign)) continue; if(isRT(c.campaign)) rt+=c.spend_aud||0; else aw+=c.spend_aud||0; }
+  charts.chStage = new Chart(el('chStage'),{
+    type:'doughnut',
+    data:{ labels:['Prospecting / awareness','Retargeting (RT)'], datasets:[{ data:[aw,rt], backgroundColor:[C.green,C.amber], borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,aw+rt),0)})`}} },
+      cutoutText:{line1:money(aw+rt),line2:'spend'} }, plugins:[centerText]
+  });
+
+  // LinkedIn creative mix (filtered campaigns)
+  const lc={};
+  for(const r of (DATA.li_campaign_creative||[])){
+    if(!rowOk('linkedin',r.campaign)) continue;
+    const e=lc[r.creative_type]||(lc[r.creative_type]={ct:r.creative_type,imps:0}); e.imps+=r.imps||0;
+  }
+  const lcArr=Object.values(lc).filter(x=>x.imps>0).sort((a,b)=>b.imps-a.imps);
+  charts.chCreative = new Chart(el('chCreative'),{
+    type:'doughnut',
+    data:{ labels:lcArr.map(x=>x.ct), datasets:[{ data:lcArr.map(x=>x.imps), backgroundColor:lcArr.map((x,i)=>shade(C.li,i)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'60%',
+      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps`}} },
+      cutoutText:{line1:fmtM(lcArr.reduce((s,x)=>s+x.imps,0)),line2:'LI imps'} }, plugins:[centerText]
+  });
+}
+
+//==============================================================================
+// GEOGRAPHY
+//==============================================================================
+function renderGeo(){
+  const mk=marketRows();
+  // region rollup
+  const rg={};
+  mk.forEach(r=>{ const e=rg[r.region]||(rg[r.region]={region:r.region,imps:0,spend:0,dv360:0,tradedesk:0,linkedin:0}); e.imps+=r.imps; e.spend+=r.spend; e.dv360+=r.dv360; e.tradedesk+=r.tradedesk; e.linkedin+=r.linkedin; });
+  const regions=Object.values(rg).sort((a,b)=>b.imps-a.imps);
+  const totImps=regions.reduce((s,r)=>s+r.imps,0), totSpend=regions.reduce((s,r)=>s+r.spend,0);
+  const anz=regions.find(r=>r.region==='ANZ');
+  const au=mk.filter(m=>m.market==='Australia').reduce((s,m)=>s+m.imps,0);
+  const nz=mk.filter(m=>m.market==='New Zealand').reduce((s,m)=>s+m.imps,0);
+  el('geoKpis').innerHTML =
+    kpiCard('accent','Regions delivering', fmtN(regions.length), `${money(totSpend)} spend`)
+  + kpiCard('accent','Top region', regions[0]?regions[0].region:'—', regions[0]?`${fmtPct(pct(regions[0].imps,totImps),0)} of imps`:'')
+  + kpiCard('','ANZ impressions', anz?fmtM(anz.imps):'—', anz?`${fmtPct(pct(anz.imps,totImps),0)} of total`:'')
+  + kpiCard('blue','AU vs NZ', (au+nz)?`${fmtPct(pct(au,au+nz),0)} / ${fmtPct(pct(nz,au+nz),0)}`:'—', 'within ANZ (imps)')
+  + kpiCard('','Total impressions', fmtM(totImps), `${PLATFORMS.filter(p=>activePlatforms.has(p.key)).length} platforms`);
+
+  charts.geoRegion = new Chart(el('geoRegion'),{
+    data:{ labels:regions.map(r=>r.region), datasets:[
+      {type:'bar',label:'Impressions', data:regions.map(r=>r.imps), backgroundColor:C.green, borderRadius:4, yAxisID:'y', maxBarThickness:30},
+      {type:'line',label:'Spend (AUD)', data:regions.map(r=>r.spend), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, pointRadius:3, yAxisID:'y1', tension:.3}
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({ticks:{font:{size:10},maxRotation:35}}), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+  });
+
+  charts.geoAnz = new Chart(el('geoAnz'),{
+    type:'doughnut',
+    data:{ labels:['Australia','New Zealand'], datasets:[{ data:[au,nz], backgroundColor:[C.green,C.green2], borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,au+nz),0)})`}} },
+      cutoutText:{line1:fmtM(au+nz),line2:'ANZ imps'} }, plugins:[centerText]
+  });
+
+  el('geoTable').querySelector('tbody').innerHTML = regions.map(r=>
+    `<tr><td>${r.region}</td><td class="num">${fmtN(r.dv360)}</td><td class="num">${fmtN(r.tradedesk)}</td><td class="num">${fmtN(r.linkedin)}</td>
+      <td class="num">${fmtN(r.imps)}</td><td class="num">${money(r.spend)}</td></tr>`
+  ).join('') + (regions.length?`<tr class="total"><td>Total</td><td class="num">${fmtN(regions.reduce((s,r)=>s+r.dv360,0))}</td><td class="num">${fmtN(regions.reduce((s,r)=>s+r.tradedesk,0))}</td><td class="num">${fmtN(regions.reduce((s,r)=>s+r.linkedin,0))}</td><td class="num">${fmtN(totImps)}</td><td class="num">${money(totSpend)}</td></tr>`:`<tr><td colspan="6" style="text-align:center;color:var(--se-mute);padding:16px">No regions in the current filter.</td></tr>`);
+}
+
+//==============================================================================
+// EXPORT
+//==============================================================================
+function exportAllData(){
+  const lines=[];
+  const push=(section,obj)=>{ lines.push(''); lines.push('# '+section); const keys=Object.keys((obj&&obj[0])||{}); lines.push(keys.join(',')); (obj||[]).forEach(r=>lines.push(keys.map(k=>csv(r[k])).join(','))); };
+  lines.push('# Schneider Electric APAC dashboard export');
+  lines.push('# window,'+(DATA.window||{}).start+','+(DATA.window||{}).end);
+  lines.push('# currency,AUD,fx_usd_aud,'+DATA.fx_usd_aud+',fx_sgd_aud,'+DATA.fx_sgd_aud);
+  push('seed_campaign_map', DATA.seed_campaign_map);
+  push('seed_plan_budget', DATA.seed_plan_budget);
+  push('seed_plan_flighting', DATA.seed_plan_flighting);
+  push('seed_targets', DATA.seed_targets);
+  push('seed_channel_split', DATA.seed_channel_split);
+  push('monthly', DATA.monthly); push('weekly', DATA.weekly);
+  push('ad_campaigns', DATA.ad_campaigns); push('ad_campaign_monthly', DATA.ad_campaign_monthly);
+  push('ad_campaign_weekly', DATA.ad_campaign_weekly); push('ad_campaign_market', DATA.ad_campaign_market);
+  push('ad_campaign_metrics', DATA.ad_campaign_metrics);
+  push('li_creative', DATA.li_creative); push('li_campaign_creative', DATA.li_campaign_creative);
+  const blob=new Blob([lines.join('\n')],{type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='schneider_dashboard.csv'; a.click();
+}
+function csv(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
+
+boot();
+</script>
+</body>
+</html>
