@@ -139,6 +139,15 @@
   .info-note.neutral{background:#EEF4F5;border-color:#CFE2E4;border-left-color:var(--teal);color:#234347}
   .info-note.neutral b{color:#16302F}
 
+  /* ---- AI commentary callout ---- */
+  .ai-note{background:linear-gradient(100deg,#F5F1FC 0%,#EEF4F5 100%);border:1px solid #E0D7F2;
+           border-left:4px solid #7C3AED;border-radius:10px;padding:13px 16px;margin-top:16px;
+           font-size:13.5px;line-height:1.6;color:#2E2A40}
+  .ai-note b{color:#1F1A33}
+  .ai-note .ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;
+           letter-spacing:.7px;text-transform:uppercase;color:#7C3AED;margin-bottom:5px}
+  .ai-note .ai-badge .dot{width:6px;height:6px;border-radius:50%;background:#7C3AED;box-shadow:0 0 0 3px rgba(124,58,237,.18)}
+
   /* ---- tables ---- */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--stt-line)}
@@ -279,6 +288,8 @@
       </div>
 
       <div class="kpis" id="ovKpis"></div>
+
+      <div class="ai-note" id="ovCommentary"></div>
 
       <div class="grid-2-1">
         <div class="card card-tall">
@@ -766,6 +777,18 @@ function ga4KeyEvents(){
   return { byMonth, types: Object.keys(totals).sort((a,b)=>totals[b]-totals[a]) };
 }
 
+// Successful "Contact us" form submits by month (country-filtered) — drives the AI commentary callout.
+// -> {months:[...sorted], vals:[count per month]}.
+function contactSeries(){
+  const byMonth = {};
+  for(const r of DATA.ga4_key_events_market||[]){
+    if(r.event_name!=='contact_submit_success' || !countryOk(r.market)) continue;
+    byMonth[r.month] = (byMonth[r.month]||0) + (r.key_events||0);
+  }
+  const months = Object.keys(byMonth).sort();
+  return { months, vals: months.map(m=>byMonth[m]) };
+}
+
 //==============================================================================
 // BOOT
 //==============================================================================
@@ -992,6 +1015,8 @@ function renderOverview(){
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
+  renderOvCommentary();
+
   // Hero: ad SPEND as stacked bars by platform (y1, SGD), website sessions as a line (y),
   //       and GA4 KEY EVENTS as dashed lines by type (y2). Three axes — scales differ
   //       wildly (sessions ~60k, spend ~S$45k stacked, key events ~1.5k/type).
@@ -1005,7 +1030,7 @@ function renderOverview(){
     backgroundColor:p.color, borderRadius:3, maxBarThickness:26, order:2
   }));
   const ke = ga4KeyEvents();
-  const kePal = ['#6B46C1','#9F7AEA','#C9A8F0'];       // violet ramp — distinct from the spend bars + teal line
+  const kePal = ['#7C3AED','#DB2777','#15803D','#B97400','#0891B2'];   // distinct hue per key-event type (violet / magenta / green / amber / cyan) — NOT a single purple ramp; all clear of the teal sessions line + red/amber/blue spend bars
   const keLines = ke.types.map((t,i) => ({
     type:'line', label:t, yAxisID:'y2', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0,
     data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
@@ -1074,6 +1099,42 @@ function renderOverview(){
     + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ${DATA.dv_window.start} → ${DATA.dv_window.end}; Google Ads ${DATA.ga_window.start} → ${DATA.ga_window.end}. `
     + `Spend is reported in SGD — LinkedIn's USD is converted at US$1 = S$${DATA.fx_usd_sgd}. `
     + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;
+}
+
+// AI commentary — auto-generated narrative headlining the contact-form trend. Reads the same
+// country-filtered key-event data as the hero, so the numbers track the Country filter live.
+function renderOvCommentary(){
+  const box = el('ovCommentary');
+  const s = contactSeries();
+  const n = s.months.length;
+  if(n < 2){ box.style.display='none'; return; }      // nothing meaningful to say with <2 months
+  box.style.display='';
+  const first = s.vals[0],   firstM = monthLabel(s.months[0]);
+  const last  = s.vals[n-1], lastM  = monthLabel(s.months[n-1]);
+  const total = s.vals.reduce((a,b)=>a+b,0);
+  let pi=0; s.vals.forEach((v,i)=>{ if(v>s.vals[pi]) pi=i; });
+  const peakM = monthLabel(s.months[pi]), peakIsLast = pi===n-1;
+  const h = Math.floor(n/2);                            // last h months vs the prior h
+  const recent = s.vals.slice(n-h).reduce((a,b)=>a+b,0);
+  const prior  = s.vals.slice(Math.max(0,n-2*h), n-h).reduce((a,b)=>a+b,0);
+  const hoh = prior ? (recent-prior)/prior : 0;
+  const mult = first ? last/first : 0;
+  const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
+  const scope = selN===totN ? 'all STT GDC APAC properties' : `the ${selN} selected ${selN===1?'country':'countries'}`;
+
+  const lift = first
+    ? (mult>=2 ? `a <b>${mult.toFixed(1)}×</b> increase` : `${last>=first?'up':'down'} <b>${fmtPct(Math.abs((last-first)/first),0)}</b>`)
+    : 'a marked increase';
+  const peakLine = peakIsLast ? ' — its strongest month on record' : ` (peaking in ${peakM})`;
+  const hohLine = prior
+    ? ` The most recent ${h} months drove <b>${fmtN(recent)}</b> successful submits, ${hoh>=0?'up':'down'} <b>${fmtPct(Math.abs(hoh),0)}</b> on the previous ${h}.`
+    : '';
+
+  box.innerHTML =
+    `<div class="ai-badge"><span class="dot"></span>AI commentary</div>`
+  + `<b>Contact-us submissions are the standout signal.</b> Across ${scope}, successful "Contact us" form submits climbed from `
+  + `<b>${fmtN(first)}</b> in ${firstM} to <b>${fmtN(last)}</b> in ${lastM}${peakLine} — ${lift} over the campaign window, `
+  + `<b>${fmtN(total)}</b> in total.${hohLine} As paid reach scaled, the websites increasingly turned visits into sales-ready enquiries — not just traffic.`;
 }
 
 // shade a base colour for donut slices so adjacent segments differ
