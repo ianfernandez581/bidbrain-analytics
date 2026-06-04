@@ -6,14 +6,15 @@ bucket. The gated web app (client_STT/dash) serves that JSON at /data.json.
 
 The STT story is "what the ads did to website traffic", so the payload pairs
 three sources the views already filtered + rolled up:
-  * GA4   (raw_windsor.perf_ga4)            -> website sessions / users / channels
+  * GA4   (raw_snowflake.google_analytics_apac_all, property 318963196) -> website sessions / users / channels
   * LinkedIn (raw_snowflake.linkedin_ads_apac) -> paid-social delivery (USD)
   * DV360 (raw_snowflake.dv360_apac)        -> programmatic display delivery (SGD)
 
-This job does NOT touch Snowflake or Windsor directly — the shared raw layers are
-filled by snowflake_data_pull/ and windsor_data_pull/, and the client_STT views
-read their STT slice. So the refresh is just: (re)run those loaders if needed,
-then run this job.
+This job does NOT touch Snowflake directly — the shared raw layer is filled by
+snowflake_data_pull/, and the client_STT views read their STT slice. (GA4 was
+previously sourced from Windsor's perf_ga4; it now comes from Snowflake too —
+see client_STT/sql/01_stg_ga4.sql.) So the refresh is just: (re)run the loader
+if needed, then run this job.
 """
 import os
 import json
