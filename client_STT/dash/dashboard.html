@@ -293,6 +293,12 @@
         </div>
       </div>
 
+      <div class="card" style="margin-top:16px">
+        <h3>Key events by type — monthly</h3>
+        <div class="hint">GA4 key events per month, split by event type, summed over the selected countries. Includes every configured key event — contact, lead-gen, newsletter and file downloads.</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="ovKeyEvents"></canvas></div>
+      </div>
+
       <div class="grid">
         <div class="card card-tall">
           <h3>Website sessions — paid vs the rest (monthly)</h3>
@@ -1054,6 +1060,19 @@ function renderOverview(){
         tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
       cutoutText:{ line1:money(a.spend), line2:'total spend' } },
     plugins:[centerText]
+  });
+
+  // Key events by type, by month (country-filtered, stacked — all key events incl. file_download)
+  const ke = ga4KeyEvents();
+  const kePal = [C.teal, C.red, C.amber, C.slate, C.li, C.redDeep, C.tealSoft, C.grey];
+  charts.ovKeyEvents = new Chart(el('ovKeyEvents'),{
+    type:'bar',
+    data:{ labels, datasets: ke.types.map((t,i)=>({
+      label:t, data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+      backgroundColor:kePal[i % kePal.length], stack:'ke', borderRadius:3, maxBarThickness:26 })) },
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
   });
 
   const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
