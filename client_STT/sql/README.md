@@ -15,9 +15,6 @@ filter views first, then the roll-ups that read them). The export job
 | `18_google_markets.sql` | `google_markets` | Google Ads paid-search delivery by market. |
 | `04_kpi.sql` | `kpi` | One-row headline metrics for the campaign window + prior-year baseline. Holds `FX_USD_SGD = 1.34`. |
 | `05_monthly.sql` | `monthly` | Per-month GA4 (by bucket) + LinkedIn + DV360 — the hero trend (from 2025-01). |
-| `06_ga4_channels.sql` | `ga4_channels` | Sessions by default channel group (campaign window). |
-| `07_ga4_markets.sql` | `ga4_markets` | Sessions by market / property, with paid/display/social split. |
-| `08_ga4_sources.sql` | `ga4_sources` | Top 40 source/medium — where the ad platforms surface by name. |
 | `09_li_creative.sql` | `li_creative` | LinkedIn by creative type. |
 | `10_li_campaigns.sql` | `li_campaigns` | LinkedIn by campaign. |
 | `11_dv_markets.sql` | `dv_markets` | DV360 by market (SGD spend). |
@@ -35,8 +32,7 @@ filter views first, then the roll-ups that read them). The export job
 
 The **Country filter** (dashboard) is the GA4 `account_name` → `market` label, with "Global" deselected by
 default. The `13–17` market-grained views ship the per-market GA4 data the dashboard sums over the
-selected countries; `06–08` (`ga4_channels` / `ga4_markets` / `ga4_sources`) are the whole-campaign
-equivalents, kept for reference but no longer read by the export job.
+selected countries.
 
 The **Campaign filter** is the ad-delivery analogue: `stg_ad_delivery` (03c) folds the three platforms into
 one long-format fact, and `19–23` roll it up by campaign × {total, month, week, market, creative}. The
