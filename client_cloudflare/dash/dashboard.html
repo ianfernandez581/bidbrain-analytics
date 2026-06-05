@@ -69,6 +69,7 @@
   .cs-snap .stat .cnt{font-size:11.5px;color:var(--cf-mute);font-style:italic;margin-top:2px}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:14px}
   .card{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:16px}
   .card h3{margin:0 0 6px 0;font-size:14px;letter-spacing:.2px}
   .hint{font-size:11.5px;color:var(--cf-mute);margin-bottom:10px}
@@ -125,6 +126,7 @@
 
   @media (max-width:900px){
     .grid{grid-template-columns:1fr}
+    .grid3{grid-template-columns:1fr}
     .cs-snap{grid-template-columns:1fr;gap:18px}
     .compare-grid{grid-template-columns:1fr}
   }
@@ -329,9 +331,10 @@
         <div class="card"><h3>Country</h3><div class="chart-wrap"><canvas id="countryChart"></canvas></div></div>
       </div>
 
-      <div class="grid">
+      <div class="grid3">
         <div class="card"><h3>Job function</h3><div class="chart-wrap"><canvas id="jfChart"></canvas></div></div>
         <div class="card"><h3>Job level</h3><div class="chart-wrap"><canvas id="jlChart"></canvas></div></div>
+        <div class="card"><h3>Professional demographic</h3><div class="chart-wrap"><canvas id="jtChart"></canvas></div></div>
       </div>
 
       <div class="grid">
@@ -866,6 +869,7 @@ function aggregate(filterFn) {
   const countries = groupCount(accepted, r => r.COUNTRY_NAME);
   const jobFunc   = groupCount(accepted, r => r.JOB_FUNCTION);
   const jobLevel  = groupCount(accepted, r => r.JOB_LEVEL);
+  const jobTitle  = groupCount(accepted, r => r.JOB_TITLE);
 
   const assetMap = new Map();
   for (const r of accepted) {
@@ -893,7 +897,7 @@ function aggregate(filterFn) {
     accepted: accepted.length,
     rejected: rejected.length,
     q2Target, ttdTarget, timePct,
-    weekly, daily, solutions, countries, jobFunc, jobLevel, assets, regionRows
+    weekly, daily, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
   };
 }
 
@@ -1011,6 +1015,82 @@ function donut(id, data, limit) {
   });
 }
 
+// Asset ID → full asset name, from the CF Q2 Core asset list (Asset Name & ID sheets).
+// The assets chart keeps the short ID on the x-axis (the full names are far too long for
+// ticks) and surfaces the name on hover via the tooltip title. Unknown IDs fall back to
+// the bare ID, so a newly-coded asset still renders cleanly until it's added here.
+const ASSET_NAMES = {
+  'A-MAT-1':'Cloudflare for Gaming',
+  'A-MAM-3':'Gen AI use cases in Gaming',
+  'A-CCT-0':'[Whitepaper] The Digital Native Businesses Scaling Playbook',
+  'G-MST-1':'Modernizing security for the AI era ebook',
+  'G-MSM-0':'The Path to VPN Replacement',
+  'G-MST-0':'CxO Guide: AI Security: Your competitive advantage in the AI race',
+  'A-MAT-2':'2026 Cloudflare APAC App Innovation Report',
+  'MAM4':"The Buyer's Guide for Application Services",
+  'G-CCT-0':'[Position paper] The agentic AI dilemma',
+  'G-CCB-0':'2026 Forrester TEI Report: The Total Economic Impact™ Of Cloudflare',
+  'G-MNT-0':'5 critical considerations for mitigating DDoS attacks',
+  'G-MNM-1':'Whitepaper: Coffee shop networking with Cloudflare',
+  'A-MAT-3':'App Innovation survey Executive brief',
+  'MSM6':'Cloudflare Signals Report',
+  'MAB4':'[Forrester report]: Best Practices: Cloud-Native App Modernization',
+  'G-MAT-1':'[Position Paper] Four reasons to refactor your applications',
+  'G-MAM-5':'2025 Gartner CNAP MQ',
+  'MAB5':'[Analyst Report] The Forrester Wave™: Serverless Development Platforms, Q2 2025',
+  'MAT2':"[Ebook] The CXO's guide to superior application performance and UX",
+  'CCT10':'[eBook] The enterprise guide to securing and scaling AI',
+  'CCT7':'[eBook] Four steps to help you address compliance requirements',
+  'G-CCM-0':"[Solution Brief] Accelerate your AI journey with Cloudflare's connectivity cloud",
+  'MNM4':'Gartner Rethink Enterprise Networks for the Hybrid Workforce Report',
+  'G-MNM-2':'Understanding the role of cloud-delivered network protection',
+  'A-CCM-4':'Canva Case Study',
+  'A-VDNM-2':'Solution Brief: Cloudflare AI Security Suite',
+  'A-MSM-1':'Secure workforce use of generative and agentic AI',
+  'A-MSM-2':'Discover workforce use of shadow AI and IT',
+  'A-MSM-3':'Firewall for AI',
+  'A-MSM-4':'Infographic: Accelerate AI adoption with security by design',
+  'A-MAT-0':'Cyber security best practices for online gaming and igaming companies',
+  'A-MST-0':'4 Strategies for Managing Malicious Bots',
+  'A-MAM-0':'Deliver secure and immersive gaming experiences',
+  'A-MAM-1':'Volcano Studios Case Study',
+  'A-MAM-2':'Mod IO Case Study',
+  'G-MSM-4':'2026 Cloudflare Threat Report',
+  'A-MST-3':'AI use case ebook: manufacturing',
+  'MSM3':"[BUYERS GUIDE] Buyer's Guide to SASE Use Cases",
+  'A-MST-5':'Protect Everything You Connect LP',
+  'A-MST-7':'AI Security Landing Page',
+  'A-MST-6':'AI security for Apps Self Guided Tour',
+  'A-MST-8':'Email Security Self Guided Tour',
+  'A-MNT-1':'Stop web attacks guided tour',
+  'A-MST-9':'API security guided tour',
+  'A-CCT-4':'PCI compliance guided tour',
+  'A-MST-10':'AI Security Landing Page - Coles Form',
+  'G-MSM-5':'[Ebook] 5 ways DNS filtering helps your AI security strategy',
+  'A-MSM-9':'[Solution brief] Replace your VPN with Cloudflare',
+  'G-MST-5':'2026 Security Signals Report',
+  'G-VFINB-0':'Innovating securely for financial services growth',
+  'VFIN7':'[Ebook] Cloudflare APAC & Japan Banking Report 2025 — From embracing innovation to customer privacy, 6 trends to watch',
+  'VRET2':'Accelerating digital transformation in retail',
+  'MSM9':'DeNA Case Study (JP)',
+  'MSM12':'Guangzhou Lianya Network Technology Co., Ltd. [Ueeshop] Case Study (CN)',
+  'MAT3':'3 paths to modernize applications and build AI services'
+};
+// Tooltip title for the assets chart: "<ID> — <full name>", word-wrapped to readable
+// lines (Chart.js renders each array element as its own title line).
+function assetTooltipTitle(id) {
+  const name = ASSET_NAMES[id];
+  if (!name) return id;
+  const words = (id + ' — ' + name).split(' ');
+  const lines = []; let line = '';
+  for (const w of words) {
+    if (line && (line.length + 1 + w.length) > 46) { lines.push(line); line = w; }
+    else line = line ? line + ' ' + w : w;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 function renderAssets(agg) {
   destroy('assetsChart');
   const solColors = {
@@ -1031,7 +1111,8 @@ function renderAssets(agg) {
     })) },
     options:{ responsive:true, maintainAspectRatio:false,
       plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, padding:8}},
-        tooltip:{ filter: i => i.parsed.y !== null && i.parsed.y > 0 } },
+        tooltip:{ filter: i => i.parsed.y !== null && i.parsed.y > 0,
+          callbacks:{ title: items => items.length ? assetTooltipTitle(items[0].label) : '' } } },
       scales:{ x:{stacked:true, grid:{display:false}, ticks:{font:{size:11}}},
                y:{stacked:true, beginAtZero:true, grid:{color:LINE}} } }
   });
@@ -1086,6 +1167,7 @@ function renderAll() {
   donut('countryChart', agg.countries, 10);
   donut('jfChart',      agg.jobFunc,   8);
   donut('jlChart',      agg.jobLevel,  10);
+  donut('jtChart',      agg.jobTitle,  10);
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);

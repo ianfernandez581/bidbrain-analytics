@@ -40,10 +40,10 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
   "all_markets":    ["ANZ", "ASEAN", "INDIA", "KR-HK-TW"],
   "all_programmes": ["IDE", "IDC"],
   "rows":     [ /* paid-media per day: channel, date, week_start, programme, market, strategy, objective, imps, clicks, spend_usd, conversions, leads */ ],
-  "targets":  [ /* programme, market, target, delivered */ ],
-  "benchmarks_strategy": { /* keyed by strategy: { cpm, ctr, frequency, weight } */ },
+  "targets":  [ /* programme, market, target, delivered, cpl (plan cost/lead; null for KGA IDC Report) */ ],
+  "benchmarks_strategy": { /* keyed by strategy: { cpm, ctr, cpc, frequency, weight } */ },
   "benchmarks_market":   { /* keyed by market:   { budget_weight } */ },
-  "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end */ ],
+  "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end, est_cpc (committed blended CPC; null for DNB IDE) */ ],
   "cs":              [ /* market, total, accepted, rejected, unresponsive, do_not_contact, last_lead_day */ ],
   "cs_by_programme": [ /* programme, market, total, accepted, unresponsive, do_not_contact, last_lead_day (no 'rejected') */ ]
 }

@@ -263,7 +263,7 @@
 
       <div class="section">
         <h2 style="font-size:15px">Strategy performance vs media plan benchmarks</h2>
-        <span class="sub">Δ vs the MongoDB media-plan benchmarks (CPM &amp; CTR). Green beats plan. CPC has no plan benchmark in the feed, so its Δ shows &ldquo;—&rdquo;.</span>
+        <span class="sub">Δ vs the MongoDB media-plan benchmarks (CPM, CTR &amp; CPC). Green beats plan — for CPC and CPM that means coming in under the planned rate.</span>
       </div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="stratTable">
@@ -348,9 +348,10 @@
       <div class="cs-snap">
         <div class="group">
           <div class="glbl">Overall</div>
-          <div class="pair">
+          <div class="pair triple">
             <div class="stat"><div class="k">Target</div><div class="v" id="cs_target">—</div></div>
             <div class="stat"><div class="k">Total leads</div><div class="v" id="cs_total">—</div></div>
+            <div class="stat"><div class="k">CPL</div><div class="v" id="cs_cpl">—</div><div class="cnt" id="cs_cpl_cnt">—</div></div>
           </div>
         </div>
         <div class="group">
@@ -369,6 +370,8 @@
           </div>
         </div>
       </div>
+
+      <div id="csCplNote" class="info-note" style="display:none"></div>
 
       <div class="grid">
         <div class="card">
@@ -414,7 +417,7 @@
       </div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="csTable">
-          <thead><tr><th>Programme</th><th>Market</th><th>Leads</th><th>Last lead</th></tr></thead>
+          <thead><tr><th>Programme</th><th>Market</th><th>Leads</th><th>CPL</th><th>Total cost</th><th>Last lead</th></tr></thead>
           <tbody></tbody>
         </table>
       </div></div>
@@ -560,6 +563,26 @@ function progLabel(programme){
   if (!p || p.toLowerCase() === 'null') return 'IDE Multi Touch';
   return p.replace(/Single Touch/ig, 'Multi Touch');
 }
+
+// Plan CPL for a delivered Salesforce programme. The delivered programmes
+// (Multi/Single Touch, Technical DMs, Business & Ops Leaders) don't carry a
+// media model, so each maps to a plan CPL tier in the targets view:
+//   Multi-Touch            -> "DNB Multi-Touch"  ($80 Digital Model)
+//   Technical DMs          -> "DNB Pulse Survey" ($160 Digital + Tele model)
+//   Business & Ops Leaders -> "DNB Pulse Survey" ($160 Digital + Tele model)
+// KGA/IDC has no committed CPL. (Mapping confirmed by client 2026-06-05.)
+// The $ amounts are read from DATA.targets so 06_targets.sql stays the source.
+const PROG_CPL_TIER = [
+  {test:p => /SINGLE TOUCH|MULTI TOUCH/.test(p),                tier:'DNB Multi-Touch'},
+  {test:p => /TECHNICAL DM|BUSINESS & OPS|BUSINESS AND OPS/.test(p), tier:'DNB Pulse Survey'}
+];
+function progCPL(programme){
+  const p = String(programme||'').toUpperCase();
+  const m = PROG_CPL_TIER.find(x => x.test(p));
+  if (!m) return null;
+  const t = (DATA.targets||[]).find(t => t.programme === m.tier && t.cpl != null);
+  return t ? t.cpl : null;
+}
 function marketOk(m){ return activeMarkets.has(m); }
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m => activeMarkets.has(m)); }
 
@@ -576,6 +599,12 @@ function vsCell(actual, plan, lower){
   const good = lower ? d < 0 : d > 0;
   const cls = Math.abs(d) < 0.05 ? 'vs-neut' : (good ? 'vs-good' : 'vs-bad');
   return `<span class="${cls}">${d>0?'+':''}${(d*100).toFixed(0)}%</span>`;
+}
+
+// Committed blended CPC from the media plan for the active campaign (null if not seeded).
+function committedBlendedCPC(){
+  const b = (DATA.budget||[]).find(x => campaignOf(x.programme) === activeCampaign && x.est_cpc != null);
+  return b ? b.est_cpc : null;
 }
 
 //==============================================================================
@@ -717,7 +746,12 @@ function renderPMKPIs(rows) {
   el('pm_clk').textContent       = fmtN(t.clk);
   el('pm_ctr').textContent       = t.imp ? `${fmtPct(t.ctr,3)} blended CTR` : '—';
   el('pm_cpc').textContent       = t.clk ? fmt$(t.cpc,2) : '—';
-  el('pm_cpc_sub').textContent   = 'Blended across strategies';
+  const estCpc = committedBlendedCPC();
+  if (estCpc != null) {
+    el('pm_cpc_sub').innerHTML = `Plan ${fmt$(estCpc,2)} &middot; ${t.clk ? vsCell(t.cpc, estCpc, true) : '<span class="vs-neut">&mdash;</span>'}`;
+  } else {
+    el('pm_cpc_sub').textContent = 'Blended across strategies';
+  }
 }
 
 function renderStrategyTable(rows) {
@@ -750,8 +784,8 @@ function renderStrategyTable(rows) {
       <td class="num">${vsCell(ctr, b.ctr, false)}</td>
       <td class="num">${fmt$(cpm,2)} <span class="bench">vs ${b.cpm!=null?fmt$(b.cpm,2):'—'}</span></td>
       <td class="num">${vsCell(cpm, b.cpm, true)}</td>
-      <td class="num">${fmt$(cpc,2)}</td>
-      <td class="num"><span class="vs-neut">—</span></td>
+      <td class="num">${fmt$(cpc,2)} <span class="bench">vs ${b.cpc!=null?fmt$(b.cpc,2):'—'}</span></td>
+      <td class="num">${vsCell(cpc, b.cpc, true)}</td>
     </tr>`);
   });
   const tCtr = tImp?tClk/tImp:0, tCpm = tImp?tSp/tImp*1000:0, tCpc = tClk?tSp/tClk:0;
@@ -759,7 +793,7 @@ function renderStrategyTable(rows) {
     <td>Total</td><td class="num">${fmt$(tSp)}</td><td class="num">${fmtN(tImp)}</td><td class="num">${fmtN(tClk)}</td>
     <td class="num">${fmtPct(tCtr,3)}</td><td class="num">—</td>
     <td class="num">${fmt$(tCpm,2)}</td><td class="num">—</td>
-    <td class="num">${fmt$(tCpc,2)}</td><td class="num">—</td>
+    <td class="num">${fmt$(tCpc,2)}</td><td class="num">${vsCell(tCpc, committedBlendedCPC(), true)}</td>
   </tr>`);
 }
 
@@ -939,7 +973,16 @@ function csPacing(mPred) {
   const target = (DATA.targets||[]).filter(t => campaignOf(t.programme) === c && pred(t.market)).reduce((s,t) => s + (t.target||0), 0);
   const leads = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme) === c && pred(r.market)).reduce((s,r) => s + (r.total||0), 0);
   const ttd = Math.round(target * elapsed / totalDays);
-  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, ttd,
+  // Delivered media cost + leads-weighted average CPL (only leads with a plan CPL count).
+  let cost = 0, cplLeads = 0;
+  for (const r of (DATA.cs_by_programme||[])){
+    if (campaignOf(r.programme) !== c || !pred(r.market)) continue;
+    const cpl = progCPL(r.programme);
+    if (cpl == null) continue;
+    cost += (r.total||0) * cpl; cplLeads += (r.total||0);
+  }
+  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, ttd, cost, cplLeads,
+    cpl: cplLeads ? cost/cplLeads : null,
     hasTarget: target > 0, leadsPct: target?leads/target:0, vsTtd: ttd ? leads/ttd : null, timePct: totalDays?elapsed/totalDays:0};
 }
 function paceVerdict(vsTtd){
@@ -988,6 +1031,7 @@ function renderCSAll() {
     note.style.display = 'none';
   }
   renderCSSnap(p);
+  renderCSCpl();
   renderCSLeadsTarget(p);
   renderCSProgress(p);
   renderCSWeekly();
@@ -1000,6 +1044,8 @@ function renderCSAll() {
 function renderCSSnap(p) {
   el('cs_target').textContent  = p.hasTarget ? fmtN(p.target) : '—';
   el('cs_total').textContent   = fmtN(p.leads);
+  el('cs_cpl').textContent     = p.cpl == null ? '—' : fmt$(p.cpl);
+  el('cs_cpl_cnt').textContent = p.cpl == null ? '—' : 'weighted avg · ' + fmt$(p.cost) + ' spend';
   el('cs_current').textContent = p.vsTtd == null ? '—' : fmtPct(p.vsTtd,0);
   el('cs_overall').textContent = p.hasTarget ? fmtPct(p.leadsPct,1) : '—';
 
@@ -1013,6 +1059,22 @@ function renderCSSnap(p) {
   el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
   el('cs_needpace').textContent      = (p.hasTarget && daysLeft > 0) ? Math.ceil(needPace) + '/day' : '—';
   el('cs_needpace_cnt').textContent  = p.elapsed ? 'now ' + curPace.toFixed(1) + '/day' : '—';
+}
+
+function renderCSCpl(){
+  const note = el('csCplNote');
+  const seen = new Map(); let committed = 0, have = false;
+  for (const t of (DATA.targets||[])){
+    if (campaignOf(t.programme) !== activeCampaign || !marketOk(t.market) || t.cpl == null) continue;
+    have = true;
+    if (!seen.has(t.programme)) seen.set(t.programme, t.cpl);
+    committed += (t.target||0) * t.cpl;
+  }
+  if (!have){ note.style.display = 'none'; return; }
+  const tiers = [...seen.entries()].map(([p,c]) => `${progLabel(p)} ${fmt$(c)}/lead`).join(' · ');
+  note.style.display = 'block';
+  note.innerHTML = `<b>Plan cost per lead:</b> ${tiers}` +
+    (committed ? ` &nbsp;·&nbsp; <b>Committed media spend</b> (target leads × CPL): ${fmt$(committed)}` : '');
 }
 
 function renderCSLeadsTarget(p) {
@@ -1115,9 +1177,11 @@ function renderCSTable() {
   const tbody = document.querySelector('#csTable tbody'); tbody.innerHTML='';
   const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign && marketOk(r.market)).sort((a,b)=>(b.total||0)-(a.total||0));
   for (const r of rows){
-    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${progLabel(r.programme)}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${r.last_lead_day||'—'}</td></tr>`);
+    const cpl  = progCPL(r.programme);
+    const cost = cpl == null ? null : (r.total||0) * cpl;
+    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${progLabel(r.programme)}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${fmt$(cpl)}</td><td class="num">${fmt$(cost)}</td><td class="num">${r.last_lead_day||'—'}</td></tr>`);
   }
-  if (!rows.length) tbody.innerHTML = `<tr><td colspan="4" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
+  if (!rows.length) tbody.innerHTML = `<tr><td colspan="6" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
 }
 
 //==============================================================================
@@ -1230,6 +1294,8 @@ const EXPORT_COLS = {
     ['programme',     r => progLabel(r.programme)],
     ['market',        r => r.market],
     ['leads',         r => r.total],
+    ['cpl',           r => progCPL(r.programme)],
+    ['total_cost',    r => { const c = progCPL(r.programme); return c == null ? null : (r.total||0) * c; }],
     ['last_lead_day', r => r.last_lead_day]
   ],
   targets: [
