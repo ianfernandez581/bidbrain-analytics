@@ -1,4 +1,5 @@
 CREATE OR REPLACE VIEW `bidbrain-analytics.raw_ga4.perf_ga4` AS
+SELECT * FROM (
 SELECT
   'ga4'                                 AS platform,
   '254028250'                              AS property_id,
@@ -400,4 +401,11 @@ SELECT
   CURRENT_TIMESTAMP()                   AS ingested_at,
   'dts.ga4'                             AS source,
   TO_JSON(t)                            AS raw_row
-FROM `bidbrain-analytics.raw_ga4.ga4_TrafficAcquisition_516276493` t;
+FROM `bidbrain-analytics.raw_ga4.ga4_TrafficAcquisition_516276493` t
+  UNION ALL
+  SELECT * FROM `bidbrain-analytics.raw_windsor.perf_ga4`
+)
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY property_id, metric_date, session_source, session_medium, session_campaign_name, session_default_channel_group
+  ORDER BY CASE source WHEN 'dts.ga4' THEN 0 ELSE 1 END
+) = 1;

@@ -47,10 +47,14 @@ campaign×date), joined to `ads_Campaign_<mcc>` (name, channel type) and `ads_Cu
 sub-accounts (the `customer_id` column separates them).
 
 ### `raw_ga4.perf_ga4`  — property × date × session source/medium/campaign × channel group
-The native twin of `raw_windsor.perf_ga4` — **column-for-column identical** (verified: a
-`SELECT * … UNION ALL …` of the two compiles), so client views can read either source
-interchangeably. Sourced from `ga4_TrafficAcquisition_<property>` (one per property; the
-script UNIONs them).
+A **transitional bridge** (built by `build_ga4_bridge_ddl`): native DTS
+`ga4_TrafficAcquisition_<property>` rows `UNION` `raw_windsor.perf_ga4` (which already holds
+deep contiguous history — back to **2022** for some properties), deduped on the GA4 grain key
+with **native winning over Windsor**. So you get full history *immediately* while the throttled
+native backfill catches up; once native covers everything, drop the Windsor arm (revert
+`build_ga4_bridge_ddl` → `build_view_ddl`) with zero consumer impact. Windsor also covers the
+properties native can't reach. Column-for-column identical to `raw_windsor.perf_ga4` (same schema
+on both arms). ~360k rows across 20 properties today.
 
 > **GA4 grain caveat (by design):** `TrafficAcquisition` is **session-grain** and only carries
 > sessions / engaged_sessions / event_count / **key_events (= GA4's renamed "conversions")** /

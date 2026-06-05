@@ -228,6 +228,32 @@ def build_view_ddl(dataset, view, blocks):
     return f"CREATE OR REPLACE VIEW `{PROJECT_ID}.{dataset}.{view}` AS\n{body};\n"
 
 
+# Grain key for GA4 (matches raw_windsor.perf_ga4's MERGE key).
+_GA4_KEY = ("property_id, metric_date, session_source, session_medium, "
+            "session_campaign_name, session_default_channel_group")
+
+
+def build_ga4_bridge_ddl(blocks):
+    """perf_ga4 as a TRANSITIONAL BRIDGE: native DTS rows UNION raw_windsor.perf_ga4
+    (which already holds deep contiguous history -- back to 2022 for some properties),
+    deduped on the GA4 grain key with NATIVE winning over Windsor. This gives full
+    history immediately while the slow native backfill catches up; once native covers
+    everything, drop the Windsor arm (revert to build_view_ddl) with zero consumer impact.
+    Windsor also supplies the properties native can't reach (no-access ones)."""
+    native = "\nUNION ALL\n".join(blocks)
+    return f"""CREATE OR REPLACE VIEW `{PROJECT_ID}.{GA4_DATASET}.{GA4_VIEW}` AS
+SELECT * FROM (
+{native}
+  UNION ALL
+  SELECT * FROM `{PROJECT_ID}.raw_windsor.{GA4_VIEW}`
+)
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY {_GA4_KEY}
+  ORDER BY CASE source WHEN 'dts.ga4' THEN 0 ELSE 1 END
+) = 1;
+"""
+
+
 def apply_view(bq, name, ddl):
     log.info(f"Creating/replacing view {name} ...")
     bq.query(ddl).result()
@@ -252,7 +278,7 @@ def main():
     props = discover(bq, GA4_DATASET, GA4_TRAFFIC_RE)
     log.info(f"GA4 property table sets found ({len(props)}): {list(props) or 'NONE'}")
     if props:
-        ddl = build_view_ddl(GA4_DATASET, GA4_VIEW, [ga4_block(p) for p in props])
+        ddl = build_ga4_bridge_ddl([ga4_block(p) for p in props])
         (SQL_DIR / f"{GA4_VIEW}.sql").write_text(ddl, encoding="utf-8")
         apply_view(bq, f"{GA4_DATASET}.{GA4_VIEW}", ddl)
     else:
