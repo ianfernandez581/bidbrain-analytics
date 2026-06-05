@@ -22,6 +22,10 @@ $DATE_COL  = 'segments_date'
 $CHUNK     = 290   # days per backfill request (290 + <=5 inflight stays under the 300 cap)
 $INFLIGHT_OK = 5   # only submit a new chunk when inflight has dropped to/below this
 $TASK_NAME = 'BidbrainGoogleAdsBackfill'
+# 37-MONTH HARD CAP (Google policy since 2026-06-01): requesting dates older than this
+# is rejected by the Google Ads API. Floor the walk here so we stop cleanly at the cap
+# instead of looping on rejected requests. Matches FLOOR_DATE in dts_data_pull/backfill.py.
+$FLOOR     = [datetime]'2023-06-01'
 
 $StateDir  = Join-Path $env:LOCALAPPDATA 'bidbrain-gads-backfill'
 if (-not (Test-Path $StateDir)) { New-Item -ItemType Directory -Path $StateDir | Out-Null }
@@ -62,15 +66,22 @@ try {
     try { Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false } catch { Log "note: could not unregister task: $($_.Exception.Message)" }
     exit 0
   }
+  if ($floorDate -le $FLOOR) {
+    Log "BACKFILL COMPLETE. Reached the 37-month cap (floor=$floor <= $($FLOOR.ToString('yyyy-MM-dd'))). Unregistering task '$TASK_NAME'."
+    try { Unregister-ScheduledTask -TaskName $TASK_NAME -Confirm:$false } catch { Log "note: could not unregister task: $($_.Exception.Message)" }
+    exit 0
+  }
 
-  # 4. submit the next chunk backward: [floor-CHUNK, floor)
+  # 4. submit the next chunk backward: [max(floor-CHUNK, FLOOR), floor)
+  $startDate = $floorDate.AddDays(-$CHUNK)
+  if ($startDate -lt $FLOOR) { $startDate = $FLOOR }
   $end   = $floorDate.ToString('yyyy-MM-dd') + 'T00:00:00Z'
-  $start = $floorDate.AddDays(-$CHUNK).ToString('yyyy-MM-dd') + 'T00:00:00Z'
+  $start = $startDate.ToString('yyyy-MM-dd') + 'T00:00:00Z'
   Log "drained ($inflight inflight); floor=$floor. Submitting chunk start=$start end=$end ..."
   & $BQ mk --transfer_run --start_time=$start --end_time=$end $CONFIG | Out-Null
 
   @{ lastFloor = $floor; submittedAtUtc = [DateTime]::UtcNow.ToString('s') } | ConvertTo-Json | Set-Content -Path $StateFile -Encoding utf8
-  Log "submitted chunk covering $($floorDate.AddDays(-$CHUNK).ToString('yyyy-MM-dd')) -> $floor. Will resume below $floor next drain."
+  Log "submitted chunk covering $($startDate.ToString('yyyy-MM-dd')) -> $floor. Will resume below $floor next drain."
 }
 catch {
   Log "ERROR: $($_.Exception.Message)"
