@@ -4,7 +4,7 @@ SELECT
   CAST(s.customer_id AS STRING)         AS customer_id,
   cust.customer_descriptive_name        AS account_name,
   COALESCE(NULLIF(LOWER(TRIM(REGEXP_REPLACE(cust.customer_descriptive_name, r'[^A-Za-z0-9]+', '-'), '-')), ''), 'unknown') AS client_slug,
-  'unknown' AS agency_slug,
+  '100-digital' AS agency_slug,
   s.metric_date                         AS metric_date,
   CAST(s.campaign_id AS STRING)         AS campaign_id,
   c.campaign_name                       AS campaign_name,

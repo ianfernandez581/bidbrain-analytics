@@ -52,21 +52,41 @@ GA4_VIEW = "perf_ga4"
 GADS_STATS_RE = re.compile(r"^ads_CampaignBasicStats_(\d+)$")
 GA4_TRAFFIC_RE = re.compile(r"^ga4_TrafficAcquisition_(\d+)$")
 
-# --- client/agency tagging (optional but keeps the perf_* contract complete) ---
-# Google Ads: keyed by customer_id (sub-account, digits only). Fill the slugs your
-# dashboards expect; anything not listed falls back to a slug of the account name.
-# Sub-accounts under MCC 345-189-6252: 261-791-6504 City Perfume, 519-659-6415 Liberty,
-# 850-931-3407 Paradise, 105-440-7474 Reset Data, 186-974-5895 The Little Marionette.
-GADS_CLIENT = {
-    # "2617916504": ("cp", "100-digital"),
-    # "1054407474": ("resetdata", "100-digital"),
-    # "1869745895": ("tlm", "100-digital"),
+# --- client/agency tagging (keeps the perf_* contract complete) ---
+DEFAULT_AGENCY = "100-digital"   # operating agency; override per client below
+
+# GA4's TrafficAcquisition report carries NO property name, so we supply it here (a
+# one-time copy of the GA4 property display names — refresh from raw_windsor.perf_ga4
+# if a property is renamed/added). Per property: account_name = this name, client_slug
+# = a slug of it, agency_slug = DEFAULT_AGENCY (all overridable via GA4_CLIENT).
+PROPERTY_NAMES = {
+    "254028250": "City Perfume",
+    "516276493": "Reset Data",
+    "318963196": "STT GDC Web All",
+    "434839993": "STT GDC Web Global",
+    "413451542": "STT GDC Web India",
+    "413487460": "STT GDC Web Indonesia",
+    "434829327": "STT GDC Web Japan",
+    "434854278": "STT GDC Web Korea",
+    "434905821": "STT GDC Web Malaysia",
+    "413491455": "STT GDC Web Philippines",
+    "413490347": "STT GDC Web Singapore",
+    "413495845": "STT GDC Web Thailand",
+    "434852571": "STT GDC Web Vietnam",
+    "273098216": "Atlantis Reservations",
+    "506931798": "ChocolateGrove",
+    "468621509": "Sophiie",
+    "287370621": "VMCH Website - GA4",
+    "341832593": "http://atlantisevents.com - GA4",
+    "341827046": "http://rsvpvacations.com - GA4",
+    "358885683": "https://100.digital/",
 }
-# GA4: keyed by property_id -> (client_slug, agency_slug, account_name). No account name
-# exists in the TrafficAcquisition report, so set it here if you want one on the row.
-GA4_CLIENT = {
-    "318963196": ("stt", "unknown", "STT GDC Web All"),
-}
+
+# Optional explicit overrides. GA4: property_id -> (client_slug, agency_slug); wins over
+# the name-derived defaults above. Google Ads: customer_id -> (client_slug, agency_slug);
+# falls back to a slug of the account name + DEFAULT_AGENCY. Leave empty to auto-derive.
+GA4_CLIENT = {}
+GADS_CLIENT = {}
 
 BASE_DIR = Path(__file__).resolve().parent
 SQL_DIR = BASE_DIR / "sql"
@@ -79,6 +99,13 @@ log = logging.getLogger("dts_views")
 def slugify(s):
     s = re.sub(r"[^a-z0-9]+", "-", (s or "").lower()).strip("-")
     return s or "unknown"
+
+
+def sql_str(s):
+    """A SQL string literal (single-quote-escaped) or a typed NULL."""
+    if s is None:
+        return "CAST(NULL AS STRING)"
+    return "'" + str(s).replace("'", "''") + "'"
 
 
 def discover(bq, dataset, pattern):
@@ -100,11 +127,11 @@ def gads_client_case():
         "cust.customer_descriptive_name, r'[^A-Za-z0-9]+', '-'), '-')), ''), 'unknown')"
     )
     if not GADS_CLIENT:
-        return name_slug, "'unknown'"
+        return name_slug, f"'{DEFAULT_AGENCY}'"
     cwhen = "\n".join(f"      WHEN '{cid}' THEN '{cs}'" for cid, (cs, _ag) in GADS_CLIENT.items())
     awhen = "\n".join(f"      WHEN '{cid}' THEN '{ag}'" for cid, (_cs, ag) in GADS_CLIENT.items())
     client_expr = f"CASE CAST(s.customer_id AS STRING)\n{cwhen}\n      ELSE {name_slug} END"
-    agency_expr = f"CASE CAST(s.customer_id AS STRING)\n{awhen}\n      ELSE 'unknown' END"
+    agency_expr = f"CASE CAST(s.customer_id AS STRING)\n{awhen}\n      ELSE '{DEFAULT_AGENCY}' END"
     return client_expr, agency_expr
 
 
@@ -154,17 +181,22 @@ LEFT JOIN (
 
 # ---------- GA4 ----------
 def ga4_block(prop):
-    """One property's perf_ga4 SELECT block. client/agency/account_name are injected as
-    literals (we know the property id here); session-grain metrics map directly, the rest
-    are NULL (see module docstring)."""
-    cs, ag, name = GA4_CLIENT.get(prop, ("unknown", "unknown", None))
-    name_lit = "CAST(NULL AS STRING)" if name is None else f"'{name}'"
+    """One property's perf_ga4 SELECT block. session-grain metrics map directly, the rest
+    are NULL (see module docstring). account_name comes from PROPERTY_NAMES; client_slug
+    defaults to a slug of it; agency_slug defaults to DEFAULT_AGENCY (GA4_CLIENT overrides)."""
+    name = PROPERTY_NAMES.get(prop)
+    cs = slugify(name) if name else prop
+    ag = DEFAULT_AGENCY
+    if prop in GA4_CLIENT:
+        o_cs, o_ag = GA4_CLIENT[prop]
+        cs = o_cs or cs
+        ag = o_ag or ag
     return f"""SELECT
   'ga4'                                 AS platform,
   '{prop}'                              AS property_id,
-  {name_lit}                            AS account_name,
-  '{cs}'                                AS client_slug,
-  '{ag}'                                AS agency_slug,
+  {sql_str(name)}                       AS account_name,
+  {sql_str(cs)}                         AS client_slug,
+  {sql_str(ag)}                         AS agency_slug,
   t._DATA_DATE                          AS metric_date,
   COALESCE(NULLIF(t.sessionSource, ''), '(not set)')               AS session_source,
   COALESCE(NULLIF(t.sessionMedium, ''), '(not set)')               AS session_medium,
