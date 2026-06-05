@@ -27,6 +27,8 @@ GA4 ────────┘   Service (daily, free)   raw_ga4.ga4_*         
 | Path | What it does |
 |---|---|
 | [`create_views.py`](create_views.py) | **The source of truth.** Discovers every DTS table set that exists (one per Google Ads MCC, one per GA4 property), builds the UNION, and `CREATE OR REPLACE`s the two flattening views. Idempotent — **re-run it after adding more GA4 property transfers** and `perf_ga4` extends automatically. Also writes the exact applied DDL to `sql/` for review. |
+| [`backfill.py`](backfill.py) | Schedules **GA4 historical backfills** (up to Google's 37-month hard cap) across every GA4 transfer config — a fresh transfer only loads a tiny rolling window, not history. Chunks into ≤180-day requests. **Runs in waves**: DTS caps inflight runs at **300/config**, so re-run every few days until the `perf_ga4` date range stops growing. `--dry-run` to preview. Skips no-access properties (`SKIP_PROPERTIES`). |
+| [`backfill_google_ads_history.ps1`](backfill_google_ads_history.ps1) / [`register_backfill_task.ps1`](register_backfill_task.ps1) | **Google Ads** history backfill (kept separate from `backfill.py` to avoid colliding on the 300-run cap). Walks backward one ~290-day chunk per drain, driven by the daily `BidbrainGoogleAdsBackfill` scheduled task; self-unregisters when the account start is reached. |
 | [`sql/perf_google_ads.sql`](sql/perf_google_ads.sql) | The applied DDL for `raw_google_ads.perf_google_ads` (generated; for inspection/diffing). |
 | [`sql/perf_ga4.sql`](sql/perf_ga4.sql) | The applied DDL for `raw_ga4.perf_ga4` (generated; for inspection/diffing). |
 
