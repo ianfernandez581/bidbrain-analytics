@@ -1669,6 +1669,56 @@ function creativePill(ch) {
   return ch === 'TTD' ? 'cf' : ch === 'LinkedIn' ? 'li'
        : ch === 'Reddit' ? 'rd' : ch === 'LINE' ? 'ln' : 'cf';
 }
+// Decode Cloudflare's ad-naming convention into a stakeholder-friendly label.
+// Structural metadata (size / market+language / objective / version) decodes cleanly;
+// the 3-letter creative-concept codes (MSM, MAT, MNT, …) are internal series names with
+// no public key, so they're kept verbatim as "concept XXX" — that also keeps otherwise-
+// identical rows distinct. Platform (LINE/TTD) is dropped here since the pill already
+// shows it. Anything unrecognised is appended verbatim so no row collapses into another.
+// The raw name is preserved on hover (title attr) in renderCreativeTable().
+const CR_SIZE = {
+  '1200x627':'feed image', '320x480':'mobile interstitial', '120x600':'skyscraper',
+  '468x60':'full banner', '320x50':'mobile banner', '300x250':'medium rectangle',
+  '728x90':'leaderboard', '160x600':'wide skyscraper', '300x600':'half page'
+};
+const CR_MARKET = {
+  'APAC-EN':'APAC · English', 'APAC-KR':'APAC · Korean', 'APAC-JP':'APAC · Japanese',
+  'APAC-TCN':'APAC · Traditional Chinese', 'APAC-TC':'APAC · Traditional Chinese',
+  'APAC-SC':'APAC · Simplified Chinese', 'JP-JA':'Japan', 'JAPAN-JPN':'Japan',
+  'JAPAN':'Japan', 'JP':'Japan'
+};
+const CR_OBJ = { RTG:'Retargeting', LAL:'Lookalike', SEC:'Security message' };
+function prettyCreative(raw) {
+  if (!raw) return '(unnamed)';
+  const toks = String(raw).replace(/\s+/g, '_').split('_').filter(Boolean);
+  let msgAcq = false, msgCnc = false, fmt = '', size = '', sizeName = '',
+      market = '', obj = '', concept = '', ver = '';
+  const extra = [];
+  for (const t of toks) {
+    const T = t.toUpperCase();
+    if (T === 'CLOUD' || T === 'LINE' || T === 'TTD' || T === 'SI') continue; // brand/platform/constant tag
+    if (T === 'ACQ') { msgAcq = true; continue; }
+    if (T === 'CNC') { msgCnc = true; continue; }
+    if (/^\d+X\d+$/.test(T)) { size = T.toLowerCase(); sizeName = CR_SIZE[size] || ''; continue; }
+    if (CR_MARKET[T]) { if (!market) market = CR_MARKET[T]; continue; }       // first market wins (dedupe JAPAN-JPN + JP)
+    const m = t.match(/^([GAga])-([A-Za-z]{2,4})-(\d+)$/);
+    if (m) { fmt = m[1].toUpperCase() === 'A' ? 'Animated' : 'Static';
+             concept = 'concept ' + m[2].toUpperCase() + '‑' + m[3]; continue; }
+    if (/^SOC\d+$/i.test(T)) { obj = 'Social v' + T.replace('SOC', ''); continue; }
+    if (/^V\d+$/i.test(T)) { ver = 'v' + T.replace(/^V/i, ''); continue; }
+    if (CR_OBJ[T]) { obj = CR_OBJ[T]; continue; }
+    extra.push(T);                                                           // e.g. AIF, AGL — keep verbatim & distinct
+  }
+  const msg = [msgAcq ? 'Acquisition' : null, msgCnc ? 'Connectivity Cloud' : null]
+    .filter(Boolean).join(' – ');
+  let fmtPart = '';
+  if (fmt || sizeName || size) {
+    fmtPart = [fmt, sizeName].filter(Boolean).join(' ');
+    if (size) fmtPart += (fmtPart ? ' ' : '') + '(' + size.replace('x', '×') + ')';
+  }
+  const parts = [msg, fmtPart, market, obj, ...extra, concept, ver].filter(Boolean);
+  return parts.length ? parts.join(' · ') : String(raw);
+}
 function renderCreativeTables() {
   const map = new Map();
   for (const r of (PAYLOAD.creatives || [])) {
@@ -1697,7 +1747,7 @@ function renderCreativeTable(bodyId, rows) {
     return;
   }
   tbody.innerHTML = rows.map(o => `<tr>
-    <td><span class="pill ${creativePill(o.channel)}">${esc(o.channel)}</span> <span class="cr-name">${esc(o.creative)}</span></td>
+    <td><span class="pill ${creativePill(o.channel)}">${esc(o.channel)}</span> <span class="cr-name" title="${esc(o.creative)}">${esc(prettyCreative(o.creative))}</span></td>
     <td>${fmtNum(o.imp)}</td>
     <td>${fmtNum(o.clk)}</td>
     <td><b>${fmtPct2(o.ctr, 2)}</b></td>
