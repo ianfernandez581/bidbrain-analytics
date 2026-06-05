@@ -241,16 +241,32 @@ def build_ga4_bridge_ddl(blocks):
     everything, drop the Windsor arm (revert to build_view_ddl) with zero consumer impact.
     Windsor also supplies the properties native can't reach (no-access ones)."""
     native = "\nUNION ALL\n".join(blocks)
+    name_case = ("CASE property_id "
+                 + " ".join(f"WHEN '{p}' THEN {sql_str(n)}" for p, n in PROPERTY_NAMES.items())
+                 + " ELSE account_name END")
+    slug_case = ("CASE property_id "
+                 + " ".join(f"WHEN '{p}' THEN {sql_str(slugify(n))}" for p, n in PROPERTY_NAMES.items())
+                 + " ELSE client_slug END")
     return f"""CREATE OR REPLACE VIEW `{PROJECT_ID}.{GA4_DATASET}.{GA4_VIEW}` AS
-SELECT * FROM (
-{native}
-  UNION ALL
-  SELECT * FROM `{PROJECT_ID}.raw_windsor.{GA4_VIEW}`
+-- Re-derive account_name/client_slug/agency_slug from property_id so the Windsor and
+-- native arms tag CONSISTENTLY (Windsor tags per-row from its own keyword map, so the
+-- two arms otherwise disagree -- e.g. agency 'unknown' on history vs '100-digital' on native).
+SELECT * REPLACE (
+  {name_case} AS account_name,
+  {slug_case} AS client_slug,
+  '{DEFAULT_AGENCY}' AS agency_slug
 )
-QUALIFY ROW_NUMBER() OVER (
-  PARTITION BY {_GA4_KEY}
-  ORDER BY CASE source WHEN 'dts.ga4' THEN 0 ELSE 1 END
-) = 1;
+FROM (
+  SELECT * FROM (
+{native}
+    UNION ALL
+    SELECT * FROM `{PROJECT_ID}.raw_windsor.{GA4_VIEW}`
+  )
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY {_GA4_KEY}
+    ORDER BY CASE source WHEN 'dts.ga4' THEN 0 ELSE 1 END
+  ) = 1
+);
 """
 
 

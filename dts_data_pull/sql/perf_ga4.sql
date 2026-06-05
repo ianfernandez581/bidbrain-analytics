@@ -1,5 +1,14 @@
 CREATE OR REPLACE VIEW `bidbrain-analytics.raw_ga4.perf_ga4` AS
-SELECT * FROM (
+-- Re-derive account_name/client_slug/agency_slug from property_id so the Windsor and
+-- native arms tag CONSISTENTLY (Windsor tags per-row from its own keyword map, so the
+-- two arms otherwise disagree -- e.g. agency 'unknown' on history vs '100-digital' on native).
+SELECT * REPLACE (
+  CASE property_id WHEN '254028250' THEN 'City Perfume' WHEN '516276493' THEN 'Reset Data' WHEN '318963196' THEN 'STT GDC Web All' WHEN '434839993' THEN 'STT GDC Web Global' WHEN '413451542' THEN 'STT GDC Web India' WHEN '413487460' THEN 'STT GDC Web Indonesia' WHEN '434829327' THEN 'STT GDC Web Japan' WHEN '434854278' THEN 'STT GDC Web Korea' WHEN '434905821' THEN 'STT GDC Web Malaysia' WHEN '413491455' THEN 'STT GDC Web Philippines' WHEN '413490347' THEN 'STT GDC Web Singapore' WHEN '413495845' THEN 'STT GDC Web Thailand' WHEN '434852571' THEN 'STT GDC Web Vietnam' WHEN '273098216' THEN 'Atlantis Reservations' WHEN '506931798' THEN 'ChocolateGrove' WHEN '468621509' THEN 'Sophiie' WHEN '287370621' THEN 'VMCH Website - GA4' WHEN '341832593' THEN 'http://atlantisevents.com - GA4' WHEN '341827046' THEN 'http://rsvpvacations.com - GA4' WHEN '358885683' THEN 'https://100.digital/' ELSE account_name END AS account_name,
+  CASE property_id WHEN '254028250' THEN 'city-perfume' WHEN '516276493' THEN 'reset-data' WHEN '318963196' THEN 'stt-gdc-web-all' WHEN '434839993' THEN 'stt-gdc-web-global' WHEN '413451542' THEN 'stt-gdc-web-india' WHEN '413487460' THEN 'stt-gdc-web-indonesia' WHEN '434829327' THEN 'stt-gdc-web-japan' WHEN '434854278' THEN 'stt-gdc-web-korea' WHEN '434905821' THEN 'stt-gdc-web-malaysia' WHEN '413491455' THEN 'stt-gdc-web-philippines' WHEN '413490347' THEN 'stt-gdc-web-singapore' WHEN '413495845' THEN 'stt-gdc-web-thailand' WHEN '434852571' THEN 'stt-gdc-web-vietnam' WHEN '273098216' THEN 'atlantis-reservations' WHEN '506931798' THEN 'chocolategrove' WHEN '468621509' THEN 'sophiie' WHEN '287370621' THEN 'vmch-website-ga4' WHEN '341832593' THEN 'http-atlantisevents-com-ga4' WHEN '341827046' THEN 'http-rsvpvacations-com-ga4' WHEN '358885683' THEN 'https-100-digital' ELSE client_slug END AS client_slug,
+  '100-digital' AS agency_slug
+)
+FROM (
+  SELECT * FROM (
 SELECT
   'ga4'                                 AS platform,
   '254028250'                              AS property_id,
@@ -402,10 +411,11 @@ SELECT
   'dts.ga4'                             AS source,
   TO_JSON(t)                            AS raw_row
 FROM `bidbrain-analytics.raw_ga4.ga4_TrafficAcquisition_516276493` t
-  UNION ALL
-  SELECT * FROM `bidbrain-analytics.raw_windsor.perf_ga4`
-)
-QUALIFY ROW_NUMBER() OVER (
-  PARTITION BY property_id, metric_date, session_source, session_medium, session_campaign_name, session_default_channel_group
-  ORDER BY CASE source WHEN 'dts.ga4' THEN 0 ELSE 1 END
-) = 1;
+    UNION ALL
+    SELECT * FROM `bidbrain-analytics.raw_windsor.perf_ga4`
+  )
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY property_id, metric_date, session_source, session_medium, session_campaign_name, session_default_channel_group
+    ORDER BY CASE source WHEN 'dts.ga4' THEN 0 ELSE 1 END
+  ) = 1
+);
