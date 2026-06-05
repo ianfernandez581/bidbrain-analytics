@@ -69,6 +69,69 @@ BENCH_CH_SQL  = f"SELECT CHANNEL, CTR, CPM, CPC FROM {SF_PAID}.V_BENCHMARKS_CHAN
 BENCH_MKT_SQL = f"SELECT MARKET, CTR, CPM, CPC FROM {SF_PAID}.V_BENCHMARKS_MARKET"
 LI_WEEKLY_SQL = f"SELECT WEEK, PERIOD, WEEK_START, TARGET, CUM_TARGET FROM {SF_PAID}.V_LI_WEEKLY_TARGETS"
 
+# Creative-grain delivery for the "Top & bottom performing creatives" tables.
+# V_PAID_ADS_FINAL_MODEL collapses the creative dimension away, so we re-derive the
+# same per-channel union (identical campaign filters + market CASE expressions) one
+# level lower -- grouping by creative instead of date. Aggregated over the whole
+# window (no date), so each row is one channel x market x creative. The dashboard
+# normalizes MARKET (TTD L3 tokens -> 7 L1 buckets) and ranks client-side.
+PAID_CREATIVES_SQL = f"""
+WITH fx AS (SELECT 155.0::FLOAT AS USD_JPY_RATE),
+linkedin AS (
+  SELECT 'LinkedIn' AS channel,
+    CASE
+      WHEN CAMPAIGN_NAME ILIKE '%APAC-ANZ%'   THEN 'ANZ'
+      WHEN CAMPAIGN_NAME ILIKE '%APAC-ASEAN%' THEN 'ASEAN'
+      WHEN CAMPAIGN_NAME ILIKE '%APAC-IN%'    THEN 'SAARC'
+      WHEN CAMPAIGN_NAME ILIKE '%APAC-TCN%'   THEN 'GCR'
+      WHEN CAMPAIGN_NAME ILIKE '%_JP_%' OR CAMPAIGN_NAME ILIKE '%APAC-JP%' THEN 'JP'
+      WHEN CAMPAIGN_NAME ILIKE '%_KR_%' OR CAMPAIGN_NAME ILIKE '%APAC-KR%' THEN 'KR'
+      WHEN CAMPAIGN_NAME ILIKE '%RIG%'        THEN 'RIG'
+      ELSE 'UNMAPPED' END AS market,
+    COALESCE(NULLIF(TRIM(CREATIVE_NAME),''), NULLIF(TRIM(AD_TITLE),''), '(unnamed)') AS creative,
+    SUM(IMPRESSIONS) AS imps, SUM(CLICKS) AS clicks, SUM(COSTS) AS spend_usd, SUM(LEADS) AS leads
+  FROM {SF_PAID}.V_STG_LINKEDIN_CF
+  WHERE STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_')
+  GROUP BY 1, 2, 3
+),
+tradedesk AS (
+  SELECT 'TTD' AS channel, MARKET_L3 AS market,
+    COALESCE(NULLIF(TRIM(CREATIVE_NAME),''), '(unnamed)') AS creative,
+    SUM(IMPRESSIONS) AS imps, SUM(CLICKS) AS clicks, SUM(COSTS) AS spend_usd, 0 AS leads
+  FROM {SF_PAID}.V_STG_TRADEDESK_CF
+  WHERE MARKET_L3 IS NOT NULL AND MARKET_L3 <> ''
+  GROUP BY 1, 2, 3
+),
+reddit AS (
+  SELECT 'Reddit' AS channel,
+    CASE
+      WHEN CAMPAIGN_NAME ILIKE '%ANZ%'   THEN 'ANZ'
+      WHEN CAMPAIGN_NAME ILIKE '%ASEAN%' THEN 'ASEAN'
+      WHEN CAMPAIGN_NAME ILIKE '%SAARC%' OR CAMPAIGN_NAME ILIKE '%INDIA%' THEN 'SAARC'
+      WHEN CAMPAIGN_NAME ILIKE '%GCR%'   THEN 'GCR'
+      WHEN CAMPAIGN_NAME ILIKE '%JP%'    THEN 'JP'
+      WHEN CAMPAIGN_NAME ILIKE '%KR%'    THEN 'KR'
+      WHEN CAMPAIGN_NAME ILIKE '%RIG%'   THEN 'RIG'
+      ELSE 'ANZ' END AS market,
+    COALESCE(NULLIF(TRIM(AD_NAME),''), '(unnamed)') AS creative,
+    SUM(IMPRESSIONS) AS imps, SUM(CLICKS) AS clicks, SUM(COSTS) AS spend_usd, 0 AS leads
+  FROM {SF_PAID}.V_STG_REDDIT_CF
+  GROUP BY 1, 2, 3
+),
+line_jp AS (
+  SELECT 'LINE' AS channel, 'JP' AS market,
+    COALESCE(NULLIF(TRIM(AD_NAME),''), '(unnamed)') AS creative,
+    SUM(l.IMPRESSIONS) AS imps, SUM(l.CLICKS) AS clicks,
+    ROUND(SUM(l.COST) / fx.USD_JPY_RATE, 2) AS spend_usd, 0 AS leads
+  FROM {SF_PAID}.V_STG_LINE_CF l CROSS JOIN fx
+  GROUP BY 1, 2, 3, fx.USD_JPY_RATE
+)
+SELECT channel, market, creative, imps, clicks, spend_usd, leads
+FROM (SELECT * FROM linkedin UNION ALL SELECT * FROM tradedesk
+      UNION ALL SELECT * FROM reddit UNION ALL SELECT * FROM line_jp)
+WHERE imps > 0
+"""
+
 ALL_MARKETS = ["ANZ", "ASEAN", "SAARC", "RIG", "KR", "JP", "GCR"]
 
 
@@ -150,11 +213,12 @@ def main():
         bch    = cn.cursor().execute(BENCH_CH_SQL).fetch_pandas_all()
         bmkt   = cn.cursor().execute(BENCH_MKT_SQL).fetch_pandas_all()
         liw    = cn.cursor().execute(LI_WEEKLY_SQL).fetch_pandas_all()
+        creat  = cn.cursor().execute(PAID_CREATIVES_SQL).fetch_pandas_all()
     finally:
         cn.close()
 
     # Normalise column case and coerce the date columns the dashboard slices.
-    for df in (paid, pacing, bch, bmkt, liw):
+    for df in (paid, pacing, bch, bmkt, liw, creat):
         df.columns = [c.upper() for c in df.columns]
     for c in ("DATE", "WEEK_START"):
         if c in paid.columns:
@@ -170,6 +234,7 @@ def main():
     land(bq, bch,    "src_benchmarks_channel")
     land(bq, bmkt,   "src_benchmarks_market")
     land(bq, liw,    "src_li_weekly")
+    land(bq, creat,  "src_paid_creatives")
 
     # Read the thin BigQuery views (client_cloudflare/sql) to assemble the payload.
     t = lambda n: f"`{PROJECT}.{DATASET}.{n}`"
@@ -178,6 +243,7 @@ def main():
     bc  = rows(bq, f"SELECT * FROM {t('benchmarks_channel')}")
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
+    cre = rows(bq, f"SELECT * FROM {t('paid_creatives_model')}")
 
     # Window over the paid rows (min/max date + inclusive day count).
     pdates = sorted(d for d in (ymd(r.get("DATE")) for r in pm) if d)
@@ -209,6 +275,15 @@ def main():
             "spend_jpy":         jval(r.get("SPEND_JPY")),
             "fx_usd_jpy":        jval(r.get("FX_USD_JPY")),
         } for r in pm],
+        "creatives": [{
+            "channel":   r.get("CHANNEL"),
+            "market":    r.get("MARKET"),
+            "creative":  r.get("CREATIVE"),
+            "imps":      jval(r.get("IMPS")),
+            "clicks":    jval(r.get("CLICKS")),
+            "spend_usd": jval(r.get("SPEND_USD")),
+            "leads":     jval(r.get("LEADS")),
+        } for r in cre],
         "benchmarks":        {r["CHANNEL"]: {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bc},
         "benchmarks_market": {r["MARKET"]:  {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bm},
         "li_weekly": [{
@@ -234,7 +309,7 @@ def main():
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env, default=_json_default), content_type="application/json")
-    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows")
+    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows, creatives {len(cre)} rows")
 
 
 if __name__ == "__main__":
