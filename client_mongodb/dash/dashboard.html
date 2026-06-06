@@ -570,14 +570,18 @@ function progLabel(programme){
 //   Multi-Touch            -> "DNB Multi-Touch"  ($80 Digital Model)
 //   Technical DMs          -> "DNB Pulse Survey" ($160 Digital + Tele model)
 //   Business & Ops Leaders -> "DNB Pulse Survey" ($160 Digital + Tele model)
-// KGA/IDC has no committed CPL. (Mapping confirmed by client 2026-06-05.)
+// The IDC/KGA programme has a null raw label that renders as "IDE Multi Touch"
+// (see progLabel), so it counts as Multi-Touch and carries the same $80 CPL.
+// (Mapping confirmed by client 2026-06-05.)
 // The $ amounts are read from DATA.targets so 06_targets.sql stays the source.
 const PROG_CPL_TIER = [
   {test:p => /SINGLE TOUCH|MULTI TOUCH/.test(p),                tier:'DNB Multi-Touch'},
   {test:p => /TECHNICAL DM|BUSINESS & OPS|BUSINESS AND OPS/.test(p), tier:'DNB Pulse Survey'}
 ];
 function progCPL(programme){
-  const p = String(programme||'').toUpperCase();
+  // Key off the *displayed* label (progLabel) so the CPL and the programme name
+  // can never disagree: a null label shows as "IDE Multi Touch" -> Multi-Touch.
+  const p = progLabel(programme).toUpperCase();
   const m = PROG_CPL_TIER.find(x => x.test(p));
   if (!m) return null;
   const t = (DATA.targets||[]).find(t => t.programme === m.tier && t.cpl != null);
