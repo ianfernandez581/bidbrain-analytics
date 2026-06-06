@@ -105,8 +105,19 @@ from pathlib import Path
 from zoneinfo import ZoneInfo
 
 import requests
+from google.api_core import exceptions as gexc
 from google.api_core.exceptions import NotFound
 from google.cloud import bigquery, secretmanager, storage
+
+# Transient errors worth retrying on the BigQuery / GCS side (network blips, 5xx,
+# 429, deadline/retry timeouts). Permanent 4xx (BadRequest schema error, NotFound,
+# Forbidden) are deliberately NOT here -- those should fail fast, not loop.
+_TRANSIENT_BQ = (
+    gexc.RetryError, gexc.ServiceUnavailable, gexc.InternalServerError,
+    gexc.GatewayTimeout, gexc.TooManyRequests, gexc.DeadlineExceeded, gexc.BadGateway,
+    requests.exceptions.ConnectionError, requests.exceptions.Timeout,
+    ConnectionError, TimeoutError,
+)
 
 # ---------- Config ----------
 PROJECT_ID = "bidbrain-analytics"
@@ -539,10 +550,29 @@ def read_watermark(bq, table):
     row = list(bq.query(sql, location=LOCATION).result())[0]
     return row["wm"]
 
+def with_retries(what, fn):
+    """Run a BigQuery/GCS network op with exponential backoff + jitter on TRANSIENT
+    errors (network blips, 5xx, 429, retry/deadline timeouts). Permanent errors
+    (BadRequest schema, NotFound, Forbidden) propagate immediately. Safe because every
+    op we wrap is idempotent: blob upload overwrites, staging load is WRITE_TRUNCATE,
+    and the MERGE keys on order_id (a redo just re-updates, never duplicates)."""
+    attempt = 0
+    while True:
+        attempt += 1
+        try:
+            return fn()
+        except _TRANSIENT_BQ as e:
+            if attempt >= MAX_ATTEMPTS:
+                raise RuntimeError(f"{what}: gave up after {attempt} attempts ({type(e).__name__}: {e}).")
+            sleep = min(RETRY_BASE * (2 ** (attempt - 1)), RETRY_MAX) + random.uniform(0, 1)
+            log.warning(f"    {what}: attempt {attempt}/{MAX_ATTEMPTS} transient {type(e).__name__}; retrying in {sleep:.1f}s")
+            time.sleep(sleep)
+
 def load_window_to_bq(bq, storage_client, spec, schema, records, loaded_at, tag):
     """Transform -> dedup on the MERGE key -> NDJSON -> GCS -> staging (WRITE_TRUNCATE)
     -> MERGE into the main table on the key -> clean up. Idempotent: re-loading any
-    window never duplicates rows."""
+    window never duplicates rows. The GCS upload + staging load + MERGE are each
+    wrapped in with_retries so a transient network/5xx blip can't kill a long run."""
     if not records:
         log.info(f"  BQ LOAD [{tag}]: 0 records fetched -> nothing to load, skipping")
         return 0, 0
@@ -571,10 +601,12 @@ def load_window_to_bq(bq, storage_client, spec, schema, records, loaded_at, tag)
              f"to {local_path.name} in {time.monotonic()-t:.1f}s")
 
     gcs_path = f"loads/neto/{spec['table']}/{tag}_{run_id}.ndjson"
-    bucket = storage_client.bucket(GCS_BUCKET)
-    t = time.monotonic()
-    bucket.blob(gcs_path).upload_from_filename(str(local_path))
     gcs_uri = f"gs://{GCS_BUCKET}/{gcs_path}"
+    t = time.monotonic()
+    # Fresh blob handle per attempt + a generous per-request timeout (large months are
+    # tens of MB; the default 120s deadline is what bit us mid-backfill).
+    with_retries("gcs upload", lambda: storage_client.bucket(GCS_BUCKET).blob(gcs_path)
+                 .upload_from_filename(str(local_path), timeout=600))
     log.info(f"    [gcs] uploaded -> {gcs_uri} in {time.monotonic()-t:.1f}s")
 
     staging_ref = f"{PROJECT_ID}.{DATASET}.{spec['table']}_staging"
@@ -585,9 +617,12 @@ def load_window_to_bq(bq, storage_client, spec, schema, records, loaded_at, tag)
         create_disposition=bigquery.CreateDisposition.CREATE_IF_NEEDED,
     )
     t = time.monotonic()
-    load_job = bq.load_table_from_uri(gcs_uri, staging_ref, job_config=job_config, location=LOCATION)
-    log.info(f"    [staging] load job {load_job.job_id} started, waiting...")
-    load_job.result()
+    def _stage():
+        j = bq.load_table_from_uri(gcs_uri, staging_ref, job_config=job_config, location=LOCATION)
+        log.info(f"    [staging] load job {j.job_id} started, waiting...")
+        j.result()
+        return j
+    load_job = with_retries("staging load", _stage)
     log.info(f"    [staging] loaded {load_job.output_rows} rows into {spec['table']}_staging in {time.monotonic()-t:.1f}s")
 
     set_cols = [f.name for f in schema if f.name != key]
@@ -602,8 +637,11 @@ def load_window_to_bq(bq, storage_client, spec, schema, records, loaded_at, tag)
     """
     t = time.monotonic()
     log.info(f"    [merge] MERGE on {key} into {spec['table']}...")
-    job = bq.query(merge_sql, location=LOCATION)
-    job.result()
+    def _merge():
+        j = bq.query(merge_sql, location=LOCATION)
+        j.result()
+        return j
+    job = with_retries("merge", _merge)
     stats = job.dml_stats
     log.info(f"    [merge] inserted {stats.inserted_row_count}, updated {stats.updated_row_count} "
              f"in {time.monotonic()-t:.1f}s")
