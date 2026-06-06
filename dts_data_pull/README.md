@@ -26,7 +26,7 @@ GA4 ────────┘   Service (daily, free)   raw_ga4.ga4_*         
 
 | Path | What it does |
 |---|---|
-| [`create_views.py`](create_views.py) | **The source of truth.** Discovers every DTS table set that exists (one per Google Ads MCC, one per GA4 property), builds the UNION, and `CREATE OR REPLACE`s the two flattening views. Idempotent — **re-run it after adding more GA4 property transfers** and `perf_ga4` extends automatically. Also writes the exact applied DDL to `sql/` for review. |
+| [`create_views.py`](create_views.py) | **The source of truth.** Discovers every DTS table set that exists (one per Google Ads MCC, one per GA4 property), builds the UNION, and `CREATE OR REPLACE`s the three flattening views. Idempotent — **re-run it after adding more GA4 property transfers** and `perf_ga4` extends automatically. Also writes the exact applied DDL to `sql/` for review. |
 | [`backfill.py`](backfill.py) | Schedules **GA4 historical backfills** (up to Google's 37-month hard cap) across every GA4 transfer config — a fresh transfer only loads a tiny rolling window, not history. Chunks into ≤180-day requests. **Runs in waves**: DTS caps inflight runs at **300/config**, so re-run every few days until the `perf_ga4` date range stops growing. `--dry-run` to preview. Skips no-access properties (`SKIP_PROPERTIES`). |
 | [`backfill_google_ads_history.ps1`](backfill_google_ads_history.ps1) / [`register_backfill_task.ps1`](register_backfill_task.ps1) | **Google Ads** history backfill (kept separate from `backfill.py` to avoid colliding on the 300-run cap). Walks backward one ~290-day chunk per drain, driven by the daily `BidbrainGoogleAdsBackfill` scheduled task; self-unregisters when the account start is reached. |
 | [`sql/perf_google_ads.sql`](sql/perf_google_ads.sql) | The applied DDL for `raw_google_ads.perf_google_ads` (generated; for inspection/diffing). |
@@ -37,7 +37,7 @@ same as the Windsor loaders).
 
 ---
 
-## The two views
+## The views
 
 ### `raw_google_ads.perf_google_ads`  — campaign × date
 A **transitional bridge** (built by `build_gads_bridge_ddl`), mirroring the GA4 one. Native arm:
@@ -59,6 +59,15 @@ native backfill catches up; once native covers everything, drop the Windsor arm 
 `build_ga4_bridge_ddl` → `build_view_ddl`) with zero consumer impact. Windsor also covers the
 properties native can't reach. Column-for-column identical to `raw_windsor.perf_ga4` (same schema
 on both arms). ~360k rows across 20 properties today.
+
+### `raw_ga4.perf_ga4_events`  — property × date × event_name
+The event-grain sibling, same bridge pattern (`build_ga4_events_bridge_ddl`): native DTS
+`ga4_Events_<property>` (eventName → event_name, eventCount → event_count, totalRevenue →
+event_value) `UNION` `raw_windsor.perf_ga4_events` (deep history, **back to 2020**), deduped on
+`(property_id, metric_date, event_name)` with native preferred. This target schema has no `source`
+column, so a literal `_arm` rank (0 native / 1 windsor) drives the dedup and is dropped. **Caveat:**
+`is_conversion_event` and `conversions` populate only on the Windsor arm — the GA4 DTS Events report
+doesn't expose them. ~272k rows, 20 properties, 218 event types today.
 
 > **GA4 grain caveat (by design):** `TrafficAcquisition` is **session-grain** and only carries
 > sessions / engaged_sessions / event_count / **key_events (= GA4's renamed "conversions")** /

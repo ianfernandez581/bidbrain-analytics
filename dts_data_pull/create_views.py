@@ -47,10 +47,12 @@ GADS_DATASET = "raw_google_ads"
 GA4_DATASET = "raw_ga4"
 GADS_VIEW = "perf_google_ads"
 GA4_VIEW = "perf_ga4"
+GA4_EVENTS_VIEW = "perf_ga4_events"
 
 # DTS convenience-view name patterns -> the id (MCC / property) is the trailing number.
 GADS_STATS_RE = re.compile(r"^ads_CampaignBasicStats_(\d+)$")
 GA4_TRAFFIC_RE = re.compile(r"^ga4_TrafficAcquisition_(\d+)$")
+GA4_EVENTS_RE = re.compile(r"^ga4_Events_(\d+)$")
 
 # --- client/agency tagging (keeps the perf_* contract complete) ---
 DEFAULT_AGENCY = "100-digital"   # operating agency; override per client below
@@ -280,6 +282,65 @@ FROM (
 """
 
 
+def ga4_events_block(prop):
+    """One property's perf_ga4_events SELECT block (property x date x event_name). The GA4 DTS
+    Events report has no is_conversion_event / conversions metric, so those are NULL here (only the
+    Windsor arm populates them); event_value = totalRevenue. Columns/order match
+    raw_windsor.perf_ga4_events exactly."""
+    name = PROPERTY_NAMES.get(prop)
+    cs = slugify(name) if name else prop
+    ag = DEFAULT_AGENCY
+    if prop in GA4_CLIENT:
+        o_cs, o_ag = GA4_CLIENT[prop]
+        cs = o_cs or cs
+        ag = o_ag or ag
+    return f"""SELECT
+  '{prop}'                              AS property_id,
+  {sql_str(cs)}                         AS client_slug,
+  {sql_str(ag)}                         AS agency_slug,
+  t._DATA_DATE                          AS metric_date,
+  t.eventName                           AS event_name,
+  CAST(NULL AS BOOL)                    AS is_conversion_event,
+  t.eventCount                          AS event_count,
+  t.totalRevenue                        AS event_value,
+  CAST(NULL AS FLOAT64)                 AS conversions,
+  TO_JSON(t)                            AS raw_row,
+  CURRENT_TIMESTAMP()                   AS _loaded_at
+FROM `{PROJECT_ID}.{GA4_DATASET}.ga4_Events_{prop}` t"""
+
+
+def build_ga4_events_bridge_ddl(blocks):
+    """perf_ga4_events BRIDGE: native ga4_Events_* UNION raw_windsor.perf_ga4_events (deep history,
+    back to 2020), deduped on (property_id, metric_date, event_name), native preferred. This target
+    schema has NO `source` column, so a literal _arm rank (0 native / 1 windsor) drives the dedup
+    and is dropped at the end. client_slug/agency_slug re-derived from property_id for consistency.
+    NOTE: is_conversion_event + conversions populate only on the Windsor (history) arm -- the GA4
+    DTS Events report doesn't expose them. Drop the Windsor arm once native backfill completes."""
+    native = "\nUNION ALL\n".join(blocks)
+    slug_case = ("CASE property_id "
+                 + " ".join(f"WHEN '{p}' THEN {sql_str(slugify(n))}" for p, n in PROPERTY_NAMES.items())
+                 + " ELSE client_slug END")
+    return f"""CREATE OR REPLACE VIEW `{PROJECT_ID}.{GA4_DATASET}.{GA4_EVENTS_VIEW}` AS
+SELECT * EXCEPT(_arm) REPLACE (
+  {slug_case} AS client_slug,
+  '{DEFAULT_AGENCY}' AS agency_slug
+)
+FROM (
+  SELECT * FROM (
+    SELECT *, 0 AS _arm FROM (
+{native}
+    )
+    UNION ALL
+    SELECT *, 1 AS _arm FROM `{PROJECT_ID}.raw_windsor.{GA4_EVENTS_VIEW}`
+  )
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY property_id, metric_date, event_name
+    ORDER BY _arm
+  ) = 1
+);
+"""
+
+
 def build_gads_bridge_ddl(blocks):
     """perf_google_ads as a TRANSITIONAL BRIDGE: native DTS Google Ads UNION
     raw_windsor.perf_google_ads (deep history -- back to 2018 for some accounts), deduped on
@@ -347,7 +408,17 @@ def main():
     else:
         log.warning("  no ga4_TrafficAcquisition_* tables yet -- skipping perf_ga4")
 
-    log.info("Done. Re-run after adding more GA4 property transfers to extend perf_ga4.")
+    # --- GA4 events ---
+    eprops = discover(bq, GA4_DATASET, GA4_EVENTS_RE)
+    log.info(f"GA4 Events table sets found ({len(eprops)}): {list(eprops) or 'NONE'}")
+    if eprops:
+        ddl = build_ga4_events_bridge_ddl([ga4_events_block(p) for p in eprops])
+        (SQL_DIR / f"{GA4_EVENTS_VIEW}.sql").write_text(ddl, encoding="utf-8")
+        apply_view(bq, f"{GA4_DATASET}.{GA4_EVENTS_VIEW}", ddl)
+    else:
+        log.warning("  no ga4_Events_* tables yet -- skipping perf_ga4_events")
+
+    log.info("Done. Re-run after adding more GA4 property transfers to extend the perf_* views.")
 
 
 if __name__ == "__main__":
