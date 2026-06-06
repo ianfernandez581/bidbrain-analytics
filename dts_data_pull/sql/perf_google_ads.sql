@@ -1,4 +1,13 @@
 CREATE OR REPLACE VIEW `bidbrain-analytics.raw_google_ads.perf_google_ads` AS
+-- Re-derive account_name/client_slug/agency_slug from customer_id so the native and Windsor
+-- arms tag CONSISTENTLY. Windsor's customer_id is hyphenated -> normalized to bare digits.
+SELECT * REPLACE (
+  CASE customer_id WHEN '2617916504' THEN 'City Perfume' WHEN '1054407474' THEN 'Reset Data' WHEN '1869745895' THEN 'The Little Marionette' WHEN '5196596415' THEN 'Liberty' WHEN '8509313407' THEN 'Paradise' ELSE account_name END AS account_name,
+  CASE customer_id WHEN '2617916504' THEN 'city-perfume' WHEN '1054407474' THEN 'reset-data' WHEN '1869745895' THEN 'the-little-marionette' WHEN '5196596415' THEN 'liberty' WHEN '8509313407' THEN 'paradise' ELSE client_slug END AS client_slug,
+  '100-digital' AS agency_slug
+)
+FROM (
+  SELECT * FROM (
 SELECT
   'google_ads'                          AS platform,
   CAST(s.customer_id AS STRING)         AS customer_id,
@@ -37,4 +46,13 @@ LEFT JOIN (
   SELECT customer_id, customer_descriptive_name, customer_currency_code
   FROM `bidbrain-analytics.raw_google_ads.ads_Customer_3451896252`
   QUALIFY ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY _DATA_DATE DESC) = 1
-) cust USING (customer_id);
+) cust USING (customer_id)
+    UNION ALL
+    SELECT * REPLACE (REGEXP_REPLACE(customer_id, r'[^0-9]', '') AS customer_id)
+    FROM `bidbrain-analytics.raw_windsor.perf_google_ads`
+  )
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY customer_id, campaign_id, metric_date
+    ORDER BY CASE source WHEN 'dts.google_ads' THEN 0 ELSE 1 END
+  ) = 1
+);

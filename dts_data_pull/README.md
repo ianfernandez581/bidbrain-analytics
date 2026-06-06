@@ -40,11 +40,15 @@ same as the Windsor loaders).
 ## The two views
 
 ### `raw_google_ads.perf_google_ads`  — campaign × date
-Replaces the never-built Windsor `perf_google_ads`. Sourced from the DTS convenience views
-`ads_CampaignBasicStats_<mcc>` (summed over the device/network/slot segments to one row per
-campaign×date), joined to `ads_Campaign_<mcc>` (name, channel type) and `ads_Customer_<mcc>`
-(account name, currency). `spend = metrics_cost_micros / 1e6`. One MCC config pulls **all**
-sub-accounts (the `customer_id` column separates them).
+A **transitional bridge** (built by `build_gads_bridge_ddl`), mirroring the GA4 one. Native arm:
+DTS `ads_CampaignBasicStats_<mcc>` summed over device/network/slot segments to one row per
+campaign×date, joined to `ads_Campaign_<mcc>` (name, channel type) + `ads_Customer_<mcc>`
+(account name, currency); `spend = metrics_cost_micros / 1e6`; one MCC config pulls all
+sub-accounts. History arm: `raw_windsor.perf_google_ads` (now built — deep history, **back to
+2018** for some accounts). Deduped on `(customer_id, campaign_id, metric_date)` with **native
+winning**; Windsor's hyphenated `customer_id` is normalized to bare to match. Tagging re-derived
+from `customer_id` (`CUSTOMER_NAMES`). Drop the Windsor arm (revert `build_gads_bridge_ddl` →
+`build_view_ddl`) once the native backfill is complete.
 
 ### `raw_ga4.perf_ga4`  — property × date × session source/medium/campaign × channel group
 A **transitional bridge** (built by `build_ga4_bridge_ddl`): native DTS

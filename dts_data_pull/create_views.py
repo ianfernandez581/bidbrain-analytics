@@ -88,6 +88,16 @@ PROPERTY_NAMES = {
 GA4_CLIENT = {}
 GADS_CLIENT = {}
 
+# Google Ads MCC sub-account display names (BARE customer_id -> name) for consistent
+# account_name/client_slug across the native + Windsor bridge arms (mirrors PROPERTY_NAMES).
+CUSTOMER_NAMES = {
+    "2617916504": "City Perfume",
+    "1054407474": "Reset Data",
+    "1869745895": "The Little Marionette",
+    "5196596415": "Liberty",
+    "8509313407": "Paradise",
+}
+
 BASE_DIR = Path(__file__).resolve().parent
 SQL_DIR = BASE_DIR / "sql"
 
@@ -270,6 +280,43 @@ FROM (
 """
 
 
+def build_gads_bridge_ddl(blocks):
+    """perf_google_ads as a TRANSITIONAL BRIDGE: native DTS Google Ads UNION
+    raw_windsor.perf_google_ads (deep history -- back to 2018 for some accounts), deduped on
+    (customer_id, campaign_id, metric_date) with NATIVE winning. Windsor's customer_id is
+    HYPHENATED (261-791-6504) so it's normalized to bare digits to match native and the key.
+    Tagging is re-derived from customer_id (CUSTOMER_NAMES) for consistency. Drop the Windsor
+    arm (revert to build_view_ddl) once the native backfill is complete -- zero consumer impact."""
+    native = "\nUNION ALL\n".join(blocks)
+    name_case = ("CASE customer_id "
+                 + " ".join(f"WHEN '{c}' THEN {sql_str(n)}" for c, n in CUSTOMER_NAMES.items())
+                 + " ELSE account_name END")
+    slug_case = ("CASE customer_id "
+                 + " ".join(f"WHEN '{c}' THEN {sql_str(slugify(n))}" for c, n in CUSTOMER_NAMES.items())
+                 + " ELSE client_slug END")
+    return f"""CREATE OR REPLACE VIEW `{PROJECT_ID}.{GADS_DATASET}.{GADS_VIEW}` AS
+-- Re-derive account_name/client_slug/agency_slug from customer_id so the native and Windsor
+-- arms tag CONSISTENTLY. Windsor's customer_id is hyphenated -> normalized to bare digits.
+SELECT * REPLACE (
+  {name_case} AS account_name,
+  {slug_case} AS client_slug,
+  '{DEFAULT_AGENCY}' AS agency_slug
+)
+FROM (
+  SELECT * FROM (
+{native}
+    UNION ALL
+    SELECT * REPLACE (REGEXP_REPLACE(customer_id, r'[^0-9]', '') AS customer_id)
+    FROM `{PROJECT_ID}.raw_windsor.{GADS_VIEW}`
+  )
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY customer_id, campaign_id, metric_date
+    ORDER BY CASE source WHEN 'dts.google_ads' THEN 0 ELSE 1 END
+  ) = 1
+);
+"""
+
+
 def apply_view(bq, name, ddl):
     log.info(f"Creating/replacing view {name} ...")
     bq.query(ddl).result()
@@ -284,7 +331,7 @@ def main():
     mccs = discover(bq, GADS_DATASET, GADS_STATS_RE)
     log.info(f"Google Ads MCC table sets found: {list(mccs) or 'NONE'}")
     if mccs:
-        ddl = build_view_ddl(GADS_DATASET, GADS_VIEW, [gads_block(m) for m in mccs])
+        ddl = build_gads_bridge_ddl([gads_block(m) for m in mccs])
         (SQL_DIR / f"{GADS_VIEW}.sql").write_text(ddl, encoding="utf-8")
         apply_view(bq, f"{GADS_DATASET}.{GADS_VIEW}", ddl)
     else:
