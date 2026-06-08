@@ -1,0 +1,43 @@
+# Cloud Build -> Cloud Run CD for the ResetData export job (a JOB, not a service).
+#
+# Wire a Cloud Build trigger (one-time, mirrors client_STT/job/cloudbuild.yaml):
+#   repo:           Bidbrain/bidbrain-analytics
+#   event:          push to ^main$
+#   included files: client_resetdata/job/**     (only redeploy when this unit changes)
+#   config:         client_resetdata/job/cloudbuild.yaml
+#
+# The trigger's service account needs: roles/run.admin, roles/artifactregistry.writer,
+# and roles/iam.serviceAccountUser on _RUNTIME_SA.
+# The daily run is a separate Cloud Scheduler trigger on the job.
+# NOTE: do NOT run this from a laptop (`gcloud builds submit --config`) — Cloud Build's SA
+# can't actAs the runtime SA. Build the image + deploy as yourself (see README / deploy_job_resetdata.ps1).
+substitutions:
+  _REGION: australia-southeast1
+  _REPO: bidbrain                                                   # Artifact Registry docker repo (shared)
+  _JOB: resetdata-export
+  _RUNTIME_SA: resetdata-dash-job@bidbrain-analytics.iam.gserviceaccount.com
+  _BUCKET: bidbrain-analytics-resetdata-dash
+  _DATASET: client_resetdata
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    dir: client_resetdata/job
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA", "."]
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA"]
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    # `run jobs deploy` (NOT `run deploy`) creates-or-updates the Cloud Run Job.
+    args:
+      - run
+      - jobs
+      - deploy
+      - ${_JOB}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA
+      - --region=${_REGION}
+      - --service-account=${_RUNTIME_SA}
+      - --memory=1Gi
+options:
+  logging: CLOUD_LOGGING_ONLY

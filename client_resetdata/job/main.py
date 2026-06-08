@@ -1,0 +1,261 @@
+"""ResetData B2B dashboard export job (Cloud Run job).
+
+Stage 2 of the standard pattern (mirrors client_STT/job/main.py): read the BigQuery
+views in client_resetdata/sql/ and write a single resetdata.json to the private GCS
+bucket. The gated web app (client_resetdata/dash) serves that JSON at /data.json.
+
+ResetData is a B2B Australian sovereign-AI / data-centre brand, so the story is
+"ads -> website traffic / leads" (NOT e-commerce — there is no revenue/ROAS). The
+payload pairs five sources the views already filtered + rolled up, across THREE
+shared raw layers:
+  * Google Ads (raw_google_ads.perf_google_ads)   -> paid-search delivery (AUD; native DTS)
+  * Meta       (raw_windsor.perf_meta)             -> paid-social delivery (AUD)
+  * Trade Desk (raw_windsor.perf_the_trade_desk)   -> programmatic display (USD -> AUD @1.50)
+  * GA4        (raw_ga4.perf_ga4)                  -> website sessions / users / channels (the OUTCOME)
+  * GA4 events (raw_ga4.perf_ga4_events)           -> key events / leads by name
+
+This job is READ-ONLY on BigQuery — it only SELECTs the views and writes JSON to GCS.
+Currency is AUD throughout (Google spend is already AUD — NOT micros; TTD USD is
+converted to AUD at FX_USD_AUD=1.50 in stg_ttd, surfaced here as kpi.fx_usd_aud).
+"""
+import os
+import json
+import datetime
+from decimal import Decimal
+
+from google.cloud import bigquery, storage
+
+# --- Project-wide constants (identical for every client) ----------------------
+PROJECT = "bidbrain-analytics"
+LOC = "australia-southeast1"
+
+# --- The ONE line that differs per client -------------------------------------
+# Dataset / bucket / output object all follow from it via the naming convention.
+CLIENT = "resetdata"
+
+DATASET = f"client_{CLIENT}"                    # client_resetdata
+BUCKET = f"bidbrain-analytics-{CLIENT}-dash"    # bidbrain-analytics-resetdata-dash
+DATA_OBJECT = f"{CLIENT}.json"                  # resetdata.json
+
+
+def num(v):
+    """JSON-safe number: NUMERIC/Decimal -> float, leave ints/None alone."""
+    if isinstance(v, Decimal):
+        return float(v)
+    return v
+
+
+def ymd(v):
+    if v is None:
+        return None
+    if isinstance(v, (datetime.date, datetime.datetime)):
+        return v.isoformat()[:10]
+    return str(v)[:10]
+
+
+def rows(bq, name):
+    sql = f"SELECT * FROM `{PROJECT}.{DATASET}.{name}`"
+    return [dict(r) for r in bq.query(sql, location=LOC).result()]
+
+
+def main():
+    bq = bigquery.Client(project=PROJECT)
+
+    kpi = rows(bq, "kpi")[0]
+    monthly = rows(bq, "monthly")
+    weekly = rows(bq, "weekly")
+    ga4_channels = rows(bq, "ga4_channels")
+    ga4_key_events = rows(bq, "ga4_key_events")
+    ga4_sources = rows(bq, "ga4_sources")
+    google_campaigns = rows(bq, "google_campaigns")
+    meta_campaigns = rows(bq, "meta_campaigns")
+    ttd_campaigns = rows(bq, "ttd_campaigns")
+    meta_creative = rows(bq, "meta_creative")
+    # Campaign-grained ad delivery — the dashboard's Campaign filter sums the selected
+    # campaigns out of these client-side, rescaling every ad-delivery figure (the
+    # GA4/website side has no campaign dimension, so website metrics stay whole).
+    ad_campaigns = rows(bq, "ad_campaigns")
+    ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
+    ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+
+    env = {
+        "last_updated": datetime.datetime.now(datetime.timezone.utc)
+        .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "fx_usd_aud": num(kpi["fx_usd_aud"]),
+        "window": {
+            "start": ymd(kpi["campaign_start"]),
+            "end": ymd(kpi["campaign_end"]),
+            "days": kpi["campaign_days"],
+        },
+        "ga_window": {"start": ymd(kpi["ga_start"]), "end": ymd(kpi["ga_end"])},
+        "me_window": {"start": ymd(kpi["me_start"]), "end": ymd(kpi["me_end"])},
+        "td_window": {"start": ymd(kpi["td_start"]), "end": ymd(kpi["td_end"])},
+        "kpi": {
+            "sessions": num(kpi["sessions"]),
+            "engaged_sessions": num(kpi["engaged_sessions"]),
+            "users": num(kpi["users"]),
+            "new_users": num(kpi["new_users"]),
+            "page_views": num(kpi["page_views"]),
+            "eng_duration": num(kpi["eng_duration"]),
+            "conversions": num(kpi["conversions"]),
+            "paid_sessions": num(kpi["paid_sessions"]),
+            "search_sessions": num(kpi["search_sessions"]),
+            "social_sessions": num(kpi["social_sessions"]),
+            "display_sessions": num(kpi["display_sessions"]),
+            "ga_imps": num(kpi["ga_imps"]),
+            "ga_clicks": num(kpi["ga_clicks"]),
+            "ga_spend_aud": num(kpi["ga_spend_aud"]),
+            "ga_conv": num(kpi["ga_conv"]),
+            "me_imps": num(kpi["me_imps"]),
+            "me_clicks": num(kpi["me_clicks"]),
+            "me_spend_aud": num(kpi["me_spend_aud"]),
+            "me_conv": num(kpi["me_conv"]),
+            "td_imps": num(kpi["td_imps"]),
+            "td_clicks": num(kpi["td_clicks"]),
+            "td_spend_aud": num(kpi["td_spend_aud"]),
+            "ad_imps": num(kpi["ad_imps"]),
+            "ad_clicks": num(kpi["ad_clicks"]),
+            "ad_spend_aud": num(kpi["ad_spend_aud"]),
+            "ad_conv": num(kpi["ad_conv"]),
+        },
+        "monthly": [{
+            "month": r["month"],
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+            "ga_imps": num(r["ga_imps"]),
+            "ga_clicks": num(r["ga_clicks"]),
+            "ga_spend_aud": num(r["ga_spend_aud"]),
+            "me_imps": num(r["me_imps"]),
+            "me_clicks": num(r["me_clicks"]),
+            "me_spend_aud": num(r["me_spend_aud"]),
+            "td_imps": num(r["td_imps"]),
+            "td_clicks": num(r["td_clicks"]),
+            "td_spend_aud": num(r["td_spend_aud"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_aud": num(r["ad_spend_aud"]),
+        } for r in monthly],
+        "weekly": [{
+            "week_start": ymd(r["week_start"]),
+            "ga4_sessions": num(r["ga4_sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "ga_imps": num(r["ga_imps"]),
+            "me_imps": num(r["me_imps"]),
+            "td_imps": num(r["td_imps"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_aud": num(r["ad_spend_aud"]),
+        } for r in weekly],
+        "ga4_channels": [{
+            "channel": r["channel_group"],
+            "bucket": r["channel_bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_channels],
+        "ga4_key_events": [{
+            "month": r["month"],
+            "event_name": r["event_name"],
+            "is_conversion_event": bool(r["is_conversion_event"]) if r["is_conversion_event"] is not None else False,
+            "event_count": num(r["event_count"]),
+            "conversions": num(r["conversions"]),
+            "event_value": num(r["event_value"]),
+        } for r in ga4_key_events],
+        "ga4_sources": [{
+            "source_medium": r["source_medium"],
+            "channel": r["channel_group"],
+            "bucket": r["channel_bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged_sessions"]),
+            "conversions": num(r["conversions"]),
+            "is_ad": bool(r["is_ad"]),
+        } for r in ga4_sources],
+        "google_campaigns": [{
+            "campaign": r["campaign"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in google_campaigns],
+        "meta_campaigns": [{
+            "campaign": r["campaign"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "link_clicks": num(r["link_clicks"]),
+            "landing_page_views": num(r["landing_page_views"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in meta_campaigns],
+        "ttd_campaigns": [{
+            "campaign": r["campaign"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in ttd_campaigns],
+        "meta_creative": [{
+            "creative": r["creative_name"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "link_clicks": num(r["link_clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+        } for r in meta_creative],
+        # --- Campaign filter: campaign-grained ad delivery (spend all AUD) --------
+        "ad_campaigns": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in ad_campaigns],
+        "ad_campaign_monthly": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "month": r["month"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+        } for r in ad_campaign_monthly],
+        "ad_campaign_weekly": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "week_start": ymd(r["week_start"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+        } for r in ad_campaign_weekly],
+    }
+
+    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
+        json.dumps(env), content_type="application/json")
+    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
+          f"{len(env['weekly'])} weeks, {env['kpi']['sessions']:,} sessions, "
+          f"A${env['kpi']['ad_spend_aud']:,.0f} ad spend, "
+          f"{env['kpi']['conversions']:,.0f} GA4 key events")
+
+
+if __name__ == "__main__":
+    main()

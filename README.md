@@ -57,7 +57,7 @@ anything over — and you can't reach around the back to grab the product either
 
 We built the first one for **MongoDB (APAC)**. The whole point of this repo is that **every
 future client dashboard follows the exact same pattern**, so building the next one is mostly
-copy-and-adjust, not start-from-scratch. **Five clients are now live** on this pattern —
+copy-and-adjust, not start-from-scratch. **Six clients are now live** (the sixth, **ResetData**, copied from STT) on this pattern —
 **MongoDB**, **Cloudflare**, **STT (ST Telemedia GDC)**, **Schneider Electric**, and
 **HireRight**. MongoDB is the original template; the leaner paid-media clients (Schneider,
 HireRight) are copied from **STT**, which became the archetype for clients that read straight
@@ -191,6 +191,7 @@ Each folder has a **detailed README of its own** — start there for anything in
 | [`client_STT/`](client_STT/) | **Live** | Third client (ST Telemedia GDC, via the Transmission agency), and the **archetype** for the lean paid-media clients below. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media, all from `raw_snowflake`. 23 BigQuery views. | [README](client_STT/README.md) · [job/](client_STT/job/README.md) · [dash/](client_STT/dash/README.md) · [sql/](client_STT/sql/README.md) · [INTAKE.md](client_STT/INTAKE.md) |
 | [`client_schneider/`](client_schneider/) | **Live** | Fourth client (Schneider Electric APAC, via Transmission). **Plan-vs-actual** paid-media portfolio across DV360 + Trade Desk + LinkedIn; seed tables (campaign map / budget / flighting / targets / channel split) joined to live delivery. Reporting currency **AUD**. GA4 ships disabled until SE's property id is known. 26 BigQuery views. | [README](client_schneider/README.md) · [job/](client_schneider/job/README.md) · [dash/](client_schneider/dash/README.md) · [sql/](client_schneider/sql/README.md) · [INTAKE.md](client_schneider/INTAKE.md) |
 | [`client_hireright/`](client_hireright/) | **Live** | Fifth client. Pure paid-media **delivery** baseline — no GA4, no media plan — across DV360 + Trade Desk + LinkedIn. Reporting currency **USD**. 14 BigQuery views. | [README](client_hireright/README.md) · [job/](client_hireright/job/README.md) · [dash/](client_hireright/dash/README.md) · [sql/](client_hireright/sql/README.md) · [INTAKE.md](client_hireright/INTAKE.md) |
+| [`client_resetdata/`](client_resetdata/) | **Live** | Sixth client (ResetData, AU sovereign-AI / data-centre, via 100 Digital). Copied from STT: B2B "ads → traffic / leads" across **Google Ads + Meta + The Trade Desk** vs GA4 website analytics — reading three raw layers (`raw_google_ads`, `raw_windsor`, `raw_ga4`). Reporting currency **AUD** (TTD USD→AUD @1.50). No revenue/ROAS (B2B). 19 BigQuery views. | [README](client_resetdata/README.md) · [job/](client_resetdata/job/) · [dash/](client_resetdata/dash/) · [sql/](client_resetdata/sql/) |
 
 ### Operations & root
 
@@ -383,6 +384,7 @@ Scheduler at 22:00 UTC), each served on its `…run.app` URL pending a custom do
 | **STT** | ✅ Live at https://stt-dash-p32gk2wuia-ts.a.run.app. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360 paid media — all from `raw_snowflake`. 23 views → `stt-export` job → `stt-dash` service, daily `stt-export-daily` (22:00 UTC). The **archetype** for Schneider + HireRight. See [`client_STT/README.md`](client_STT/README.md). |
 | **Schneider** | ✅ Live at https://schneider-dash-p32gk2wuia-ts.a.run.app. **Plan-vs-actual** portfolio (DV360 + Trade Desk + LinkedIn), reporting in **AUD**, seed-table driven. 26 views → `schneider-export` → `schneider-dash`, daily `schneider-export-daily`. GA4 (website) ships **disabled** until SE's property id is known. See [`client_schneider/README.md`](client_schneider/README.md). |
 | **HireRight** | ✅ Live at https://hireright-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. Pure paid-media **delivery** baseline (DV360 + Trade Desk + LinkedIn), reporting in **USD**; no GA4, no media plan. 14 views → `hireright-export` → `hireright-dash`, daily `hireright-export-daily`. See [`client_hireright/README.md`](client_hireright/README.md). |
+| **ResetData** | ✅ Live at https://resetdata-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-08. B2B "ads → traffic / leads" (Google Ads + Meta + Trade Desk vs GA4), three raw layers, reporting in **AUD** (TTD USD→AUD @1.50); no revenue/ROAS. 19 views → `resetdata-export` → `resetdata-dash`, daily `resetdata-export-daily` (22:00 UTC). Placeholder branding pending final logos. See [`client_resetdata/README.md`](client_resetdata/README.md). |
 
 **Platform-wide TODO:** activate CD triggers (deploys are manual today — see [§9](#9-operating-it-deploy-refresh-debug));
 wire each live client's custom domain (`<client>.bidbrain.ai` — all currently served on their
