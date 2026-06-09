@@ -128,7 +128,8 @@
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--mdb-line)}
   table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mdb-mute);font-weight:600;background:#FAFBFC}
-  table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table td.num,table th.num{text-align:right}
+  table td.num{font-variant-numeric:tabular-nums}
   table tr:hover td{background:#F8FAFB}
   table tr.total td{font-weight:700;background:#F6FAF8;border-bottom:none}
   table tr.total:hover td{background:#F6FAF8}
@@ -268,7 +269,7 @@
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="stratTable">
           <thead><tr>
-            <th>Strategy</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>CPM</th><th>vs plan</th><th>CPC</th><th>vs plan</th>
+            <th>Strategy</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">vs plan</th><th class="num">CPM</th><th class="num">vs plan</th><th class="num">CPC</th><th class="num">vs plan</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -328,7 +329,7 @@
           <div class="hint" style="margin-bottom:6px">Live values — refresh on campaign / region change.</div>
           <div style="overflow:auto;flex:1">
             <table id="pmMarketTable">
-              <thead><tr><th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr></thead>
+              <thead><tr><th>Market</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -417,7 +418,7 @@
       </div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="csTable">
-          <thead><tr><th>Programme</th><th>Market</th><th>Leads</th><th>CPL</th><th>Total cost</th><th>Last lead</th></tr></thead>
+          <thead><tr><th>Programme</th><th>Market</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">Total cost</th><th class="num">Last lead</th></tr></thead>
           <tbody></tbody>
         </table>
       </div></div>
