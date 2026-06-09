@@ -301,15 +301,84 @@ def main():
         "rows": [{k: jval(v) for k, v in r.items()} for r in pac],
     }
 
+    # --- Extra single-campaign LinkedIn dashboards from the SHARED raw layer.
+    # raw_snowflake.linkedin_ads_apac is already in BigQuery (snowflake_data_pull),
+    # so read it directly -- no Snowflake roundtrip. Columns stored UPPERCASE.
+    # EDA-confirmed names: DAY (daily grain), IMPRESSIONS, CLICKS, COSTS (USD),
+    # LEADS (FLOAT64), LEAD_FORM_OPENS (FLOAT64, null for these AWR-CONS groups).
+    CAMPAIGN_GROUPS = {
+        "peyc":        ("ANZ PEYC",    "CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PEYC"),
+        "cf1_india":   ("CF1 India",   "CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_APAC-IN_IN_MOFU_GENERAL_X_AWR-CONS_CF1-Integrated"),
+        "coles_hyper": ("Coles Hyper", "CLOUD_ACQ_2026-Q2_MDS_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_Hyper_COLES"),
+    }
+    groups_sql = ",".join(f"'{g}'" for _, g in CAMPAIGN_GROUPS.values())
+    li_sql = f"""
+      SELECT
+        DAY                                       AS DATE,
+        CAMPAIGN_GROUP_NAME,
+        CAMPAIGN_NAME,
+        SUM(IMPRESSIONS)                          AS IMPS,
+        SUM(CLICKS)                               AS CLICKS,
+        SUM(COSTS)                                AS SPEND,
+        SUM(IFNULL(LEADS,0))                      AS LEADS,
+        SUM(IFNULL(LEAD_FORM_OPENS,0))            AS FORM_OPENS
+      FROM `{PROJECT}.raw_snowflake.linkedin_ads_apac`
+      WHERE CAMPAIGN_GROUP_NAME IN ({groups_sql})
+      GROUP BY DAY, CAMPAIGN_GROUP_NAME, CAMPAIGN_NAME
+      ORDER BY DAY
+    """
+    li_rows = rows(bq, li_sql)
+    campaigns = {}
+    for key, (label, group) in CAMPAIGN_GROUPS.items():
+        grp = [r for r in li_rows if r.get("CAMPAIGN_GROUP_NAME") == group]
+        dmap = {}
+        for r in grp:
+            d = ymd(r.get("DATE"))
+            if not d:
+                continue
+            o = dmap.setdefault(d, {"date": d, "imps": 0, "clicks": 0, "spend": 0.0, "leads": 0, "form_opens": 0})
+            o["imps"]       += int(jval(r.get("IMPS")) or 0)
+            o["clicks"]     += int(jval(r.get("CLICKS")) or 0)
+            o["spend"]      += float(jval(r.get("SPEND")) or 0)
+            o["leads"]      += int(jval(r.get("LEADS")) or 0)
+            o["form_opens"] += int(jval(r.get("FORM_OPENS")) or 0)
+        daily = [dmap[d] for d in sorted(dmap)]
+        keys = ("imps", "clicks", "spend", "leads", "form_opens")
+        tot = {k: sum(x[k] for x in daily) for k in keys} if daily else {k: 0 for k in keys}
+        cmap = {}
+        for r in grp:
+            nm = r.get("CAMPAIGN_NAME") or "(unnamed)"
+            o = cmap.setdefault(nm, {"campaign": nm, "imps": 0, "clicks": 0, "spend": 0.0, "leads": 0})
+            o["imps"]   += int(jval(r.get("IMPS")) or 0)
+            o["clicks"] += int(jval(r.get("CLICKS")) or 0)
+            o["spend"]  += float(jval(r.get("SPEND")) or 0)
+            o["leads"]  += int(jval(r.get("LEADS")) or 0)
+        dts = [x["date"] for x in daily]
+        window = ({"start": dts[0], "end": dts[-1],
+                   "days": (datetime.date.fromisoformat(dts[-1]) - datetime.date.fromisoformat(dts[0])).days + 1}
+                  if dts else {"start": None, "end": None, "days": 0})
+        campaigns[key] = {
+            "label": label, "campaign_group": group, "window": window,
+            "totals": tot, "daily": daily,
+            "by_campaign": sorted(cmap.values(), key=lambda x: x["spend"], reverse=True),
+        }
+
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "paid_media": paid_media,
         "pacing": pacing_payload,
+        "campaigns": campaigns,
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env, default=_json_default), content_type="application/json")
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows, creatives {len(cre)} rows")
+    print(f"  linkedin single-campaign rows: {len(li_rows)} total across {len(CAMPAIGN_GROUPS)} groups")
+    for key, c in campaigns.items():
+        t, w = c["totals"], c["window"]
+        print(f"    {key:12s} {c['label']:12s} days={w['days']:>3} daily={len(c['daily']):>3} "
+              f"campaigns={len(c['by_campaign']):>2} imps={t['imps']:>9} clicks={t['clicks']:>6} "
+              f"spend=${t['spend']:>11.2f} leads={t['leads']:>4} form_opens={t['form_opens']:>4}")
 
 
 if __name__ == "__main__":
