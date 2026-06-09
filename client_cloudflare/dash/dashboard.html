@@ -765,6 +765,12 @@ const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG'];
 const Q2_START = new Date('2026-04-01T00:00:00Z');
 const Q2_END   = new Date('2026-06-30T23:59:59Z');
 
+// CS lead-status buckets (Salesforce LEAD_STATUS -> dashboard category).
+// "Accepted" spans Accepted/Replied/Unresponsive (all post-acceptance states);
+// "Rejected" is its own bucket; everything else real (i.e. 'New') is the
+// untriaged "unprocessed" backlog, derived as total - accepted - rejected.
+const ACCEPTED_STATUSES = new Set(['Accepted', 'Replied', 'Unresponsive']);
+
 // ==========================================================================
 // STATE
 // ==========================================================================
@@ -874,7 +880,7 @@ function aggregate(filterFn) {
   const realLeads = rawRows.filter(r => !isDummy(r) && r.LEAD_STATUS != null && matchMarket(r));
   const targetRows = rawRows.filter(r => matchMarket(r));
 
-  const accepted = realLeads.filter(r => r.LEAD_STATUS === 'Accepted');
+  const accepted = realLeads.filter(r => ACCEPTED_STATUSES.has(r.LEAD_STATUS));
   const rejected = realLeads.filter(r => r.LEAD_STATUS === 'Rejected');
 
   const q2Target = targetRows.reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
@@ -894,8 +900,8 @@ function aggregate(filterFn) {
     if (!weekMap.has(wk)) weekMap.set(wk, {target:0, actual:0, unprocessed:0});
     const bucket = weekMap.get(wk);
     bucket.target += Number(r.ALLOCATED_TARGET) || 0;
-    if (!isDummy(r) && r.LEAD_STATUS === 'Accepted') bucket.actual += 1;
-    else if (!isDummy(r) && r.LEAD_STATUS != null && r.LEAD_STATUS !== 'Rejected') bucket.unprocessed += 1;
+    if (!isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS)) bucket.actual += 1;
+    else if (!isDummy(r) && r.LEAD_STATUS === 'New') bucket.unprocessed += 1;
   }
   const weekly = [...weekMap.entries()]
     .sort((a,b) => a[0].localeCompare(b[0]))
