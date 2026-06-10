@@ -13,11 +13,7 @@ SELECT DAY, COUNTRY_NAME, CAMPAIGN_ID, LEAD_STATUS,
     ELSE "OTHER"
   END AS MARKET
 FROM (
-  -- Was client_mongodb.src_salesforce (landed by the export job's SF_SQL).
-  -- Now reads the shared raw mirror (snowflake_data_pull) with the old SF_SQL
-  -- campaign filter + the LEAD_STATUS != 'New' business rule applied here.
   SELECT DAY, COUNTRY_NAME, CAMPAIGN_ID, LEAD_STATUS
   FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
   WHERE CAMPAIGN_ID IN ("701RG00001DtQczYAF","701RG00001HcDIVYA3","701RG00001GvvrDYAR","701RG00001NKKwQYAX")
-    AND LEAD_STATUS != "New"
 )

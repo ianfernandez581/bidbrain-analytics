@@ -103,7 +103,7 @@
   .kpi.alt .stripe{background:var(--mdb-spring)}
 
   .cs-snap{background:var(--mdb-card);border:1px solid var(--mdb-line);border-radius:12px;padding:18px 20px;margin-top:16px;
-           display:grid;grid-template-columns:repeat(3,1fr);gap:32px;box-shadow:var(--shadow-card)}
+           display:grid;grid-template-columns:repeat(4,1fr);gap:32px;box-shadow:var(--shadow-card)}
   .cs-snap .group .glbl{font-size:11px;color:var(--mdb-mute);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
   .cs-snap .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .cs-snap .pair.triple{grid-template-columns:repeat(3,1fr);gap:10px}
@@ -363,11 +363,17 @@
           </div>
         </div>
         <div class="group">
+          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· New = awaiting manual triage</span></div>
+          <div class="pair">
+            <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cs_acc">—</div><div class="cnt" id="cs_acc_cnt">—</div></div>
+            <div class="stat"><div class="k">New</div><div class="v" id="cs_new">—</div><div class="cnt" id="cs_new_cnt">—</div></div>
+          </div>
+        </div>
+        <div class="group">
           <div class="glbl">Outlook <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· what's left to hit target</span></div>
-          <div class="pair triple">
+          <div class="pair">
             <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">—</div><div class="cnt" id="cs_remaining_cnt">—</div></div>
             <div class="stat"><div class="k">Days left</div><div class="v" id="cs_daysleft">—</div><div class="cnt" id="cs_daysleft_cnt">—</div></div>
-            <div class="stat"><div class="k">Pace needed</div><div class="v" id="cs_needpace">—</div><div class="cnt" id="cs_needpace_cnt">—</div></div>
           </div>
         </div>
       </div>
@@ -976,17 +982,19 @@ function csPacing(mPred) {
   let elapsed = Math.round((today - w.start)/86400000) + 1;
   elapsed = Math.max(0, Math.min(elapsed, totalDays));
   const target = (DATA.targets||[]).filter(t => campaignOf(t.programme) === c && pred(t.market)).reduce((s,t) => s + (t.target||0), 0);
-  const leads = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme) === c && pred(r.market)).reduce((s,r) => s + (r.total||0), 0);
+  const csRows   = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme) === c && pred(r.market));
+  const leads    = csRows.reduce((s,r) => s + (r.total||0), 0);
+  const accepted = csRows.reduce((s,r) => s + (r.accepted||0), 0);
+  const newLeads = csRows.reduce((s,r) => s + (r.new||0), 0);
   const ttd = Math.round(target * elapsed / totalDays);
   // Delivered media cost + leads-weighted average CPL (only leads with a plan CPL count).
   let cost = 0, cplLeads = 0;
-  for (const r of (DATA.cs_by_programme||[])){
-    if (campaignOf(r.programme) !== c || !pred(r.market)) continue;
+  for (const r of csRows){
     const cpl = progCPL(r.programme);
     if (cpl == null) continue;
     cost += (r.total||0) * cpl; cplLeads += (r.total||0);
   }
-  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, ttd, cost, cplLeads,
+  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, accepted, newLeads, ttd, cost, cplLeads,
     cpl: cplLeads ? cost/cplLeads : null,
     hasTarget: target > 0, leadsPct: target?leads/target:0, vsTtd: ttd ? leads/ttd : null, timePct: totalDays?elapsed/totalDays:0};
 }
@@ -1056,14 +1064,18 @@ function renderCSSnap(p) {
 
   const remaining = Math.max(0, p.target - p.leads);
   const daysLeft  = Math.max(0, p.totalDays - p.elapsed);
-  const needPace  = daysLeft > 0 ? remaining / daysLeft : remaining;
-  const curPace   = p.elapsed > 0 ? p.leads / p.elapsed : 0;
   el('cs_remaining').textContent     = p.hasTarget ? fmtN(remaining) : '—';
   el('cs_remaining_cnt').textContent = p.hasTarget ? fmtPct(p.leadsPct,0) + ' delivered' : '—';
   el('cs_daysleft').textContent      = fmtN(daysLeft);
   el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
-  el('cs_needpace').textContent      = (p.hasTarget && daysLeft > 0) ? Math.ceil(needPace) + '/day' : '—';
-  el('cs_needpace_cnt').textContent  = p.elapsed ? 'now ' + curPace.toFixed(1) + '/day' : '—';
+
+  // Lead quality — acceptance vs still-New (awaiting manual triage), denom = total leads.
+  const accRatio = p.leads ? p.accepted / p.leads : 0;
+  const newRatio = p.leads ? p.newLeads / p.leads : 0;
+  el('cs_acc').textContent     = p.leads ? fmtPct(accRatio,1) : '—';
+  el('cs_acc_cnt').textContent = p.leads ? fmtN(p.accepted) + ' leads' : '—';
+  el('cs_new').textContent     = p.leads ? fmtPct(newRatio,1) : '—';
+  el('cs_new_cnt').textContent = p.leads ? fmtN(p.newLeads) + ' leads' : '—';
 }
 
 function renderCSCpl(){

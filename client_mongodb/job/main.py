@@ -73,7 +73,7 @@ def main():
                 "rejected": r["REJECTED"], "unresponsive": r["UNRESPONSIVE"],
                 "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in cso],
         "cs_by_programme": [{"programme": r["PROGRAMME_LABEL"], "market": r["MARKET"], "total": r["TOTAL_LEADS"],
-                "accepted": r["ACCEPTED"], "unresponsive": r["UNRESPONSIVE"],
+                "accepted": r["ACCEPTED"], "new": r["NEW_LEADS"], "unresponsive": r["UNRESPONSIVE"],
                 "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
     }
 

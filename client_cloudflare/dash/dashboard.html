@@ -986,7 +986,7 @@ function selectNoneMarkets() {
 
 function renderKPIs(agg) {
   document.getElementById('kpi_target').textContent = fmtN(agg.q2Target);
-  document.getElementById('kpi_total').textContent = fmtN(agg.total - agg.rejected);
+  document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
   document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '—';
   document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '—';
   // All three use total as denominator so they sum to 100%
@@ -1306,7 +1306,7 @@ function renderComparePanel(side) {
   document.getElementById('content' + side).style.display = 'block';
 
   document.getElementById(side + '_target').textContent = fmtN(agg.q2Target);
-  document.getElementById(side + '_total').textContent = fmtN(agg.total - agg.rejected);
+  document.getElementById(side + '_total').textContent = fmtN(agg.accepted);
   // All three use total as denominator so they sum to 100%
   const accRatio = agg.total ? agg.accepted / agg.total : 0;
   const rejRatio = agg.total ? agg.rejected / agg.total : 0;
