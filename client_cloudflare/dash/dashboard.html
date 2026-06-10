@@ -64,6 +64,56 @@
   .chip-action{font-size:11.5px;color:#0A66C2;background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
   .chip-action:hover{text-decoration:underline}
 
+  /* ===== Shared date-range picker (Looker-style) ===== */
+  .dp{position:relative;display:inline-block;font-size:13px;
+      --dp-accent:#3b82f6;--dp-bg:#0f1a2b;--dp-panel:#0c1524;
+      --dp-line:#25364b;--dp-ink:#e8f0fa;--dp-muted:#8ca0b8}
+  /* Cloudflare light-theme mapping; control sits in the topbar (left), popover opens leftward */
+  .dp{--dp-accent:var(--cf-orange);--dp-bg:var(--cf-card);--dp-panel:var(--cf-bg);
+      --dp-line:var(--cf-line);--dp-ink:var(--cf-ink);--dp-muted:var(--cf-mute)}
+  .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);
+      border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:8px;
+      padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
+  .dp-btn:hover{border-color:var(--dp-accent)}
+  .dp-btn svg{opacity:.75}
+  .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);
+      border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.18);overflow:hidden}
+  .dp-pop.dp-hide{display:none}
+  .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);
+      font-weight:600;font-size:12.5px;white-space:nowrap}
+  .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)}
+  .dp-presets a.dp-on{background:var(--dp-accent);color:#fff}
+  .dp-cal{padding:12px;width:264px}
+  .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
+  .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;
+      width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
+  .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)}
+  .dp-nav:disabled{opacity:.3;cursor:default}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .dp-dow{font-size:10px;font-weight:700;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;
+      color:var(--dp-ink);border:1px solid transparent;user-select:none}
+  .dp-day:hover{border-color:var(--dp-accent)}
+  .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
+  .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
+  .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 22%,transparent)}
+  .dp-day.dp-sel{background:var(--dp-accent);color:#fff;font-weight:700;border-color:transparent}
+  .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center}
+  .dp-range b{color:var(--dp-ink)}
+  .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;
+      border:1px solid var(--dp-line);font-family:inherit}
+  .dp-cancel{background:transparent;color:var(--dp-muted)}
+  .dp-cancel:hover{color:var(--dp-ink)}
+  .dp-apply{background:var(--dp-accent);color:#fff;border-color:transparent}
+  @media(max-width:560px){
+    .dp-pop{flex-direction:column}
+    .dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}
+  }
+
   .cs-snap{background:#fff;border:1px solid var(--cf-line);border-radius:12px;padding:18px 20px;margin-bottom:14px;
     display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
   .cs-snap .group .lbl{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
@@ -253,6 +303,30 @@
       <option value="cf1_india">CF1 India</option>
       <option value="coles_hyper">Coles Hyper</option>
     </select>
+    <div class="dp" id="dateRange">
+      <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        <span id="dpLabel">All time</span><span class="dp-cap">▾</span>
+      </button>
+      <div class="dp-pop dp-hide" id="dpPop">
+        <div class="dp-presets" id="dpPresets"></div>
+        <div class="dp-cal">
+          <div class="dp-cal-head">
+            <button class="dp-nav" id="dpPrev" type="button">‹</button>
+            <span id="dpMonthLbl"></span>
+            <button class="dp-nav" id="dpNext" type="button">›</button>
+          </div>
+          <div class="dp-grid" id="dpGrid"></div>
+          <div class="dp-range" id="dpRangeLbl"></div>
+          <div class="dp-actions">
+            <button class="dp-cancel" id="dpCancel" type="button">Cancel</button>
+            <button class="dp-apply" id="dpApply" type="button">Apply</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
   <div class="topbar-right" style="display:flex;align-items:center;gap:14px">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 255.629 39.901" role="img" aria-label="Transmission" style="height:38px;width:auto;display:block"><g fill-rule="evenodd"><path d="M226.901 11.201h-.116v28.253h-5.672V.444h7.908l6.359 23.35h.114V.444h5.616v39.01h-6.473zm-18.28 28.7c-6.186 0-9.568-3.567-9.568-9.808V9.807c-.004-6.242 3.381-9.806 9.568-9.806s9.57 3.566 9.57 9.808v20.283c0 6.241-3.38 9.809-9.57 9.809zm3.267-30.484c0-2.786-1.262-3.845-3.267-3.845s-3.266 1.059-3.266 3.845v21.065c0 2.786 1.263 3.845 3.266 3.845s3.267-1.059 3.267-3.845zM189.771.444h6.3v39.01h-6.3zm-2.522 29.648c0 6.241-3.208 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.266 3.789s3.265-1 3.265-3.789c0-2.842-1.261-4.96-5.385-8.471-5.271-4.514-6.933-7.746-6.933-12.2 0-6.242 3.15-9.808 9.282-9.808s9.281 3.566 9.281 9.808v1.226h-5.959V9.417c0-2.787-1.145-3.846-3.15-3.846s-3.151 1.059-3.151 3.846c0 2.842 1.261 4.959 5.385 8.47 5.279 4.514 6.94 7.746 6.94 12.205zm-20.283 0c0 6.241-3.209 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.265 3.789s3.266-1 3.266-3.789c0-2.842-1.261-4.96-5.386-8.471-5.271-4.514-6.933-7.746-6.933-12.2.012-6.243 3.158-9.807 9.289-9.807s9.282 3.566 9.282 9.808v1.226h-5.959V9.417c0-2.787-1.145-3.846-3.15-3.846s-3.15 1.059-3.15 3.846c0 2.842 1.261 4.959 5.387 8.47 5.269 4.514 6.93 7.746 6.93 12.205zM139.349.444h6.3v39.01h-6.3zm-9.455 11.035h-.114l-4.241 27.975h-5.958l-4.584-27.585h-.115v27.585h-5.5V.444h8.767l4.584 27.7h.114l4.24-27.7h8.762v39.01h-5.958zm-22.92 18.613c0 6.241-3.209 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.266 3.789s3.265-1 3.265-3.789c0-2.842-1.261-4.96-5.385-8.471-5.271-4.514-6.933-7.746-6.933-12.2.003-6.243 3.16-9.807 9.291-9.807s9.282 3.566 9.282 9.808v1.226h-5.959V9.417c0-2.787-1.146-3.846-3.151-3.846s-3.151 1.059-3.151 3.846c0 2.842 1.261 4.959 5.385 8.47 5.271 4.514 6.932 7.746 6.932 12.2zM71.508 11.201h-.114v28.253h-5.672V.444h7.907l6.36 23.35h.115V.444h5.615v39.01h-6.475zM56.549 32.376h-7.731l-1.089 7.078h-5.786L48.359.444h9.226l6.417 39.01h-6.36zM52.714 7.355h-.115l-2.98 19.728h6.073zM33.749 34.662v-6.131c0-3.622-1.261-4.959-4.125-4.959h-2.175v15.882h-6.3V.444h9.511C37.192.444 40 3.398 40 9.416v3.066c0 4.012-1.318 6.576-4.126 7.857v.112c3.145 1.281 4.175 4.179 4.175 8.25v6.018a11.2 11.2 0 0 0 .688 4.737h-6.415c-.345-1.005-.573-1.618-.573-4.794zm-.057-24.633c0-2.786-.975-4.012-3.209-4.012h-3.034v11.984h2.46c2.349 0 3.783-1 3.783-4.124zm-20.8 29.425H6.589V6.017H0V.444h19.481v5.573h-6.589z" fill="#fff"></path><path d="M244.628 39.454v-10.7h11v10.7z" fill="#e60b7f"></path></g></svg>
@@ -279,6 +353,8 @@
       <button class="tab" data-tab="main" onclick="switchTab('main')">Content Syndication</button>
       <button class="tab" data-tab="compare" onclick="switchTab('compare')">CS Comparison</button>
     </div>
+
+    <div id="dateScopeNote" style="display:none;background:#fff;border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5"></div>
 
     <!-- ============================================================ -->
     <!-- OVERVIEW TAB                                                  -->
@@ -538,7 +614,7 @@
 
         <div class="section" style="margin-top:18px">
           <h2>Channel performance vs media plan benchmarks</h2>
-          <span class="sub">Δ shows actual vs planned. Green = beating plan, red = below.</span>
+          <span class="sub">Δ shows actual vs planned. Green = beating plan, red = below. Actuals follow the date range; <b>plan benchmarks are full period</b>.</span>
         </div>
 
         <div class="card">
@@ -607,7 +683,7 @@
 
         <div class="section">
           <h2>Market breakdown — LinkedIn + TTD + Reddit + LINE</h2>
-          <span class="sub">Stacked spend by region with full-funnel summary table</span>
+          <span class="sub">Stacked spend by region with full-funnel summary table. Actuals follow the date range; the <b>"vs plan" columns are full period</b>.</span>
         </div>
 
         <div class="grid">
@@ -657,7 +733,7 @@
 
         <div class="section">
           <h2>LinkedIn leads vs weekly target</h2>
-          <span class="sub">13-week Q2 plan: 11 leads/wk (144 cumulative). Weekly leads aren't filterable by market — they're total program.</span>
+          <span class="sub">13-week Q2 plan: 11 leads/wk (144 cumulative). Actual bars/line follow the date range; the <b>target lines are the fixed Q2 plan (full period)</b>.</span>
         </div>
 
         <div class="card">
@@ -772,12 +848,159 @@ const Q2_END   = new Date('2026-06-30T23:59:59Z');
 const ACCEPTED_STATUSES = new Set(['Accepted', 'Replied', 'Unresponsive']);
 
 // ==========================================================================
+// SHARED DATE-RANGE PICKER (Looker-style). API: DateRange.init({min,max,onApply}),
+// DateRange.getRange(). onApply(startISO,endISO) fires on Apply. Default = full window.
+// ==========================================================================
+window.DateRange = (function(){
+  const PRESETS = [
+    {k:'7',  label:'Last 7 days'},  {k:'14', label:'Last 14 days'},
+    {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
+    {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
+    {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
+    {k:'all', label:'All time'},
+  ];
+  let MIN=null, MAX=null, onApply=null;
+  let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
+  let viewYear=0, viewMonth=0, open=false;
+
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => d ? d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()) : null;
+  const parse = s => { if(!s) return null; const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); return m?new Date(+m[1],+m[2]-1,+m[3]):null; };
+  const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
+  const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const $ = id => document.getElementById(id);
+
+  function presetRange(k){
+    let s, e=new Date(MAX);
+    if(/^\d+$/.test(k))            s = addDays(MAX, -(parseInt(k,10)-1));
+    else if(k==='month')          s = new Date(MAX.getFullYear(), MAX.getMonth(), 1);
+    else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
+                                  e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
+    else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else                          { s=new Date(MIN); e=new Date(MAX); }   // all
+    return [clamp(s), clamp(e)];
+  }
+  function detectPreset(s,e){
+    for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
+    return 'custom';
+  }
+
+  function init(opts){
+    opts = opts || {};
+    MIN = parse(opts.min); MAX = parse(opts.max);
+    if(!MAX) MAX = new Date();
+    if(!MIN) MIN = addDays(MAX, -364);
+    if(MIN>MAX){ const t=MIN; MIN=MAX; MAX=t; }
+    onApply = opts.onApply || null;
+    selStart = opts.initialStart ? clamp(parse(opts.initialStart)) : new Date(MIN);
+    selEnd   = opts.initialEnd   ? clamp(parse(opts.initialEnd))   : new Date(MAX);
+    draftStart = new Date(selStart); draftEnd = new Date(selEnd);
+    viewYear = draftEnd.getFullYear(); viewMonth = draftEnd.getMonth();
+    $('dpPrev').onclick   = () => { nav(-1); };
+    $('dpNext').onclick   = () => { nav(1);  };
+    $('dpCancel').onclick = () => { close(); };
+    $('dpApply').onclick  = () => { apply(); };
+    $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
+    $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
+    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); });
+    updateButton();
+  }
+
+  function toggle(ev){ if(ev) ev.stopPropagation(); open ? close() : openPop(); }
+  function openPop(){
+    open=true; draftStart=new Date(selStart); draftEnd=new Date(selEnd);
+    viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
+    $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function close(){ open=false; $('dpPop').classList.add('dp-hide'); }
+
+  function nav(delta){
+    let y=viewYear, m=viewMonth+delta;
+    if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+    const first=new Date(y,m,1);
+    if(first < new Date(MIN.getFullYear(),MIN.getMonth(),1)) return;
+    if(first > new Date(MAX.getFullYear(),MAX.getMonth(),1)) return;
+    viewYear=y; viewMonth=m; renderCal();
+  }
+  function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
+    viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+  function pickDay(d){
+    if(!draftStart || (draftStart && draftEnd)){ draftStart=d; draftEnd=null; }
+    else if(d < draftStart){ draftEnd=draftStart; draftStart=d; }
+    else { draftEnd=d; }
+    renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function apply(){ if(!draftStart) return;
+    selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
+    close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
+
+  function renderPresets(){
+    const cur = detectPreset(draftStart, draftEnd||draftStart);
+    $('dpPresets').innerHTML = PRESETS.map(p =>
+      `<a data-k="${p.k}" class="${p.k===cur?'dp-on':''}">${p.label}</a>`).join('');
+  }
+  function renderCal(){
+    $('dpMonthLbl').textContent = new Date(viewYear,viewMonth,1)
+      .toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    $('dpPrev').disabled = new Date(viewYear,viewMonth,1) <= new Date(MIN.getFullYear(),MIN.getMonth(),1);
+    $('dpNext').disabled = new Date(viewYear,viewMonth,1) >= new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    const dow=['S','M','T','W','T','F','S'];
+    let html = dow.map(d=>`<div class="dp-dow">${d}</div>`).join('');
+    const first=new Date(viewYear,viewMonth,1), lead=first.getDay();
+    const days=new Date(viewYear,viewMonth+1,0).getDate();
+    for(let i=0;i<lead;i++) html+=`<div class="dp-day dp-blank"></div>`;
+    const lo=draftStart, hi=draftEnd||draftStart;
+    for(let d=1; d<=days; d++){
+      const cur=new Date(viewYear,viewMonth,d);
+      const dis = cur<MIN || cur>MAX;
+      let cls='dp-day';
+      if(dis) cls+=' dp-disabled';
+      else {
+        if(lo && hi && cur>=lo && cur<=hi) cls+=' dp-inrange';
+        if(sameDay(cur,lo) || sameDay(cur,hi)) cls+=' dp-sel';
+      }
+      html += `<div class="${cls}" ${dis?'':`data-iso="${iso(cur)}"`}>${d}</div>`;
+    }
+    $('dpGrid').innerHTML=html;
+  }
+  function renderRangeLbl(){
+    $('dpRangeLbl').innerHTML = draftStart
+      ? `<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`
+      : 'Pick a start date';
+  }
+  function updateButton(){
+    const k = detectPreset(selStart, selEnd);
+    $('dpLabel').textContent = (k!=='custom')
+      ? PRESETS.find(p=>p.k===k).label
+      : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
+  }
+
+  return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+})();
+
+// ==========================================================================
 // STATE
 // ==========================================================================
 let rawRows = [];
 let activeMarkets = new Set(ALL_MARKETS);
 let activeTab = 'paid';
 const charts = {};
+
+// Date range (Looker-style picker). ONE shared control over the union of both
+// core windows (CS lead dates + paid-delivery dates). Daily grain, so true
+// day-level clipping. ISO 'YYYY-MM-DD' lexical compare (zero-padded → exact).
+let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;
+const narrowed = () => !!(rangeStart && rangeEnd && (rangeStart!==dateMin || rangeEnd!==dateMax));
+// Day predicate, mirroring mongodb's dateOk: lexicographic compare on d.slice(0,10).
+function dateOk(d){
+  const s = String(d||'').slice(0,10);
+  if (!s) return false;
+  if (rangeStart && s < rangeStart) return false;
+  if (rangeEnd   && s > rangeEnd)   return false;
+  return true;
+}
 
 // Paid Media state (read from COMBINED on first tab click)
 let paidMediaLastUpdated = null;
@@ -797,6 +1020,26 @@ async function boot() {
     if (!res.ok) throw new Error('HTTP ' + res.status + ' from /data.json');
     COMBINED = await res.json();
     rawRows = (COMBINED.pacing && COMBINED.pacing.rows) || [];
+
+    // Date-range picker bounds = the UNION of both core windows:
+    // CS lead dates (rawRows non-dummy DAY) ∪ paid-delivery window (paid_media.window).
+    let csMin=null, csMax=null;
+    for (const r of rawRows) {
+      if (isDummy(r) || r.LEAD_STATUS == null || !r.DAY) continue;
+      const d = String(r.DAY).slice(0,10);
+      if (!csMin || d < csMin) csMin = d;
+      if (!csMax || d > csMax) csMax = d;
+    }
+    const pmw = (COMBINED.paid_media && COMBINED.paid_media.window) || {};
+    const pmMin = pmw.start ? String(pmw.start).slice(0,10) : null;
+    const pmMax = pmw.end   ? String(pmw.end).slice(0,10)   : null;
+    const minOf = (a,b) => a && b ? (a < b ? a : b) : (a || b);
+    const maxOf = (a,b) => a && b ? (a > b ? a : b) : (a || b);
+    dateMin = minOf(csMin, pmMin);
+    dateMax = maxOf(csMax, pmMax);
+    rangeStart = dateMin; rangeEnd = dateMax;
+    DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; applyDateRange(); } });
+
     setLiveBanner(COMBINED.last_updated, rawRows.length);
     document.getElementById('loading').style.display = 'none';
     document.getElementById('dashboardRoot').style.display = 'block';
@@ -822,7 +1065,9 @@ function setLiveBanner(lastUpdated, rowCount) {
     if (!latestDay || d > latestDay) latestDay = d;
   }
   const dataThrough = latestDay ? ` · Source data through <b style="color:#fff">${latestDay}</b>` : '';
-  document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough} · Auto-refreshes daily at 22:00 UTC`;
+  // Echo the active date filter when narrowed so the banner doesn't contradict it.
+  const rangeText = narrowed() ? ` · Filtered to <b style="color:#fff">${rangeStart} → ${rangeEnd}</b>` : '';
+  document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough}${rangeText} · Auto-refreshes daily at 22:00 UTC`;
 }
 
 function switchTab(tab) {
@@ -839,6 +1084,42 @@ function switchTab(tab) {
     if (!paidMediaLoaded) loadPaidMedia();
     else renderPaidMediaAll();
   }
+  renderDateScope();
+}
+
+// Re-render whichever core tab is active after the date range changes (no single
+// global orchestrator: Overview=renderAll, Paid=renderPaidMediaAll, Comparison=panels).
+function applyDateRange(){
+  if (activeTab === 'main') {
+    renderAll();
+  } else if (activeTab === 'paid') {
+    if (paidMediaLoaded) renderPaidMediaAll();
+  } else if (activeTab === 'compare') {
+    if (document.getElementById('regionA').value) renderComparePanel('A');
+    if (document.getElementById('regionB').value) renderComparePanel('B');
+  }
+  renderDateScope();
+}
+
+// One banner (after the tab bar) that explains what the range does and doesn't
+// touch, shown only when the range is narrowed below the full union window.
+function renderDateScope(){
+  const note = document.getElementById('dateScopeNote');
+  if (!note) return;
+  if (!narrowed()) { note.style.display = 'none'; return; }
+  let scope;
+  if (activeTab === 'paid') {
+    scope = 'Spend / impressions / clicks / leads KPIs, all daily charts, the LinkedIn funnel and the market/creative actuals reflect this range. '
+      + 'The <b>media-plan benchmarks</b> ("vs plan" columns), the <b>weekly LinkedIn target</b> lines and the <b>creatives</b> table have no date dimension and stay <b>full period</b>.';
+  } else if (activeTab === 'compare') {
+    scope = 'Both comparison panels (KPIs, targets, weekly, top assets) reflect this range. '
+      + 'The <b>Q2 Target</b> figure is the full-quarter plan and is not pro-rated.';
+  } else {
+    scope = 'KPIs, donuts, weekly/daily charts and the by-region summary reflect this range. '
+      + 'The <b>Q2 Target</b> and the <b>Time %</b> bar are quarter-anchored (full Q2) and are not pro-rated to the selected range.';
+  }
+  note.style.display = 'block';
+  note.innerHTML = '📅 Filtered to <b>' + rangeStart + '</b> – <b>' + rangeEnd + '</b>. ' + scope;
 }
 
 // ==========================================================================
@@ -876,15 +1157,20 @@ function destroy(id) {
 // ==========================================================================
 function aggregate(filterFn) {
   const matchMarket = filterFn || (r => activeMarkets.has(r.MARKET_REGION));
+  // Date predicate (shared with Comparison via this same fn). dateOk uses the
+  // applied range; default = full union window so this is a no-op on load.
+  const inRange = r => dateOk(r.DAY);
 
-  const realLeads = rawRows.filter(r => !isDummy(r) && r.LEAD_STATUS != null && matchMarket(r));
-  const targetRows = rawRows.filter(r => matchMarket(r));
+  const realLeads = rawRows.filter(r => !isDummy(r) && r.LEAD_STATUS != null && matchMarket(r) && inRange(r));
+  const targetRows = rawRows.filter(r => matchMarket(r) && inRange(r));
 
   const accepted = realLeads.filter(r => ACCEPTED_STATUSES.has(r.LEAD_STATUS));
   const rejected = realLeads.filter(r => r.LEAD_STATUS === 'Rejected');
 
   const q2Target = targetRows.reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
   const now = new Date();
+  // ttdTarget = target time-to-date; targetRows are already in-range, so the
+  // <= now clip just keeps "to-date" semantics on the default full window.
   const ttdTarget = targetRows
     .filter(r => r.DAY && new Date(r.DAY) <= now)
     .reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
@@ -1221,6 +1507,7 @@ function renderAll() {
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);
+  setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);  // keep footer's range note in sync
 }
 
 // ==========================================================================
@@ -1485,8 +1772,10 @@ function setPaidFooter(rowCount) {
                   + PAYLOAD.rd_market_day.length + PAYLOAD.line_market_day.length;
   const w = PAYLOAD.window || {};
   const winText = (w.start && w.end) ? ` · Window ${w.start} → ${w.end}` : '';
+  // When the date range is narrowed, echo the active filter so the footer doesn't contradict it.
+  const rangeText = narrowed() ? ` · Filtered to ${rangeStart} → ${rangeEnd}` : '';
   document.getElementById('paidFooter').innerHTML =
-    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText} · Source: Snowflake V_PAID_ADS_FINAL_MODEL · Auto-refreshes daily at 22:00 UTC`;
+    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: Snowflake V_PAID_ADS_FINAL_MODEL · Auto-refreshes daily at 22:00 UTC`;
 }
 
 function renderPaidMediaChips() {
@@ -1521,7 +1810,8 @@ function selectNonePaidMarkets() {
 // ============== Filter & aggregation helpers ==============
 function passesAll(r) {
   const m = r.m || r.market;
-  return paidMediaActiveMarkets.has(m);
+  // r.date is already 'YYYY-MM-DD' (ymd() in main.py) — lexical compare via dateOk.
+  return paidMediaActiveMarkets.has(m) && dateOk(r.date);
 }
 function aggregateChannel(rows) {
   let imp=0, clk=0, sp=0, leads=0;
@@ -1869,7 +2159,8 @@ function renderCreativeTables() {
   const note = document.getElementById('creativeNote');
   if (note) note.textContent =
     `Ranked by CTR across ${eligible.length} creative${eligible.length === 1 ? '' : 's'} `
-    + `with ≥ ${CREATIVE_MIN_IMPS.toLocaleString()} impressions in the selected markets.`;
+    + `with ≥ ${CREATIVE_MIN_IMPS.toLocaleString()} impressions in the selected markets `
+    + `(full period — creatives have no date dimension, so the date range doesn't apply here).`;
 }
 function renderCreativeTable(bodyId, rows) {
   const tbody = document.getElementById(bodyId);
@@ -1908,7 +2199,9 @@ function renderWeeklyTarget() {
   const weeklyActual = w.map(_ => 0);
   const weeklyHasData = w.map(_ => false);
   for (const r of PAYLOAD.li_market_day) {
-    if (!paidMediaActiveMarkets.has(r.market)) continue;
+    // ACTUALS honor both market chips and the date range; TARGET/cum_target lines
+    // below come from li_weekly (fixed Q2 plan) and stay full-period by design.
+    if (!paidMediaActiveMarkets.has(r.market) || !dateOk(r.date)) continue;
     const wi = weekIndex(r.date);
     if (wi < 0) continue;
     weeklyActual[wi] += (r.leads || 0);
@@ -2007,6 +2300,7 @@ function renderPaidMediaAll() {
   renderCreativeTables();
   renderWeeklyTarget();
   renderLiFunnel();
+  setPaidFooter();   // refresh footer so its range annotation tracks the active filter
 }
 
 function switchDashboard(val){
@@ -2017,6 +2311,12 @@ function switchDashboard(val){
   document.getElementById('panel-main').classList.add('hidden');
   document.getElementById('panel-compare').classList.add('hidden');
   document.getElementById('panel-paid').classList.add('hidden');
+  // The shared date control only governs the core tabs; the single-campaign view
+  // uses precomputed whole-window totals, so hide the control there.
+  const dpEl = document.getElementById('dateRange');
+  if (dpEl) dpEl.style.display = isCore ? '' : 'none';
+  const note = document.getElementById('dateScopeNote');
+  if (note && !isCore) note.style.display = 'none';
   if (isCore) switchTab(activeTab);
   else renderCampaign(val);
 }

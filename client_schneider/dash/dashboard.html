@@ -216,6 +216,60 @@
 
   @media (max-width:1100px){.grid-3,.pgrid{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.kpis.five{grid-template-columns:repeat(3,1fr)}}
   @media (max-width:760px){.grid,.grid-3,.pgrid{grid-template-columns:1fr}.kpis,.kpis.five{grid-template-columns:repeat(2,1fr)}.compare-strip{grid-template-columns:1fr}}
+
+  /* ===== Shared date-range picker (Looker-style) ===== */
+  .dp{position:relative;display:inline-block;font-size:13px;
+      --dp-accent:#3b82f6;--dp-bg:#0f1a2b;--dp-panel:#0c1524;
+      --dp-line:#25364b;--dp-ink:#e8f0fa;--dp-muted:#8ca0b8}
+  /* Schneider light-theme mapping */
+  .dp{--dp-accent:var(--se-green);--dp-bg:var(--se-card);--dp-panel:var(--se-bg);
+      --dp-line:var(--se-line);--dp-ink:var(--se-ink);--dp-muted:var(--se-mute)}
+  .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);
+      border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:8px;
+      padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
+  .dp-btn:hover{border-color:var(--dp-accent)}
+  .dp-btn svg{opacity:.75}
+  .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);
+      border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.18);overflow:hidden}
+  .dp-pop.dp-hide{display:none}
+  .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);
+      font-weight:600;font-size:12.5px;white-space:nowrap}
+  .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)}
+  .dp-presets a.dp-on{background:var(--dp-accent);color:#fff}
+  .dp-cal{padding:12px;width:264px}
+  .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
+  .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;
+      width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
+  .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)}
+  .dp-nav:disabled{opacity:.3;cursor:default}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .dp-dow{font-size:10px;font-weight:700;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;
+      color:var(--dp-ink);border:1px solid transparent;user-select:none}
+  .dp-day:hover{border-color:var(--dp-accent)}
+  .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
+  .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
+  .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 22%,transparent)}
+  .dp-day.dp-sel{background:var(--dp-accent);color:#fff;font-weight:700;border-color:transparent}
+  .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center}
+  .dp-range b{color:var(--dp-ink)}
+  .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;
+      border:1px solid var(--dp-line);font-family:inherit}
+  .dp-cancel{background:transparent;color:var(--dp-muted)}
+  .dp-cancel:hover{color:var(--dp-ink)}
+  .dp-apply{background:var(--dp-accent);color:#fff;border-color:transparent}
+  @media(max-width:560px){
+    .dp-pop{flex-direction:column}
+    .dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}
+  }
+  /* date-scope banner — shown only when the range is narrowed below the full window */
+  .date-scope-note{display:none;margin:0 0 16px;background:#FBF4E6;border:1px solid #EAD9AE;border-left:4px solid var(--amber);
+      border-radius:10px;padding:11px 15px;font-size:12.5px;color:#5A4214}
+  .date-scope-note b{color:#3F2E08}
 </style>
 </head>
 <body>
@@ -266,6 +320,34 @@
         </div>
       </div>
       <div class="control-filters" id="filterRow">
+        <div class="filter-grp" id="dateGroup">
+          <span class="lbl">Date range</span>
+          <div class="dp" id="dateRange">
+            <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span id="dpLabel">All time</span><span class="dp-cap">▾</span>
+            </button>
+            <div class="dp-pop dp-hide" id="dpPop">
+              <div class="dp-presets" id="dpPresets"></div>
+              <div class="dp-cal">
+                <div class="dp-cal-head">
+                  <button class="dp-nav" id="dpPrev" type="button">‹</button>
+                  <span id="dpMonthLbl"></span>
+                  <button class="dp-nav" id="dpNext" type="button">›</button>
+                </div>
+                <div class="dp-grid" id="dpGrid"></div>
+                <div class="dp-range" id="dpRangeLbl"></div>
+                <div class="dp-actions">
+                  <button class="dp-cancel" id="dpCancel" type="button">Cancel</button>
+                  <button class="dp-apply" id="dpApply" type="button">Apply</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fdiv"></div>
         <div class="filter-grp" id="platformGroup">
           <span class="lbl">Platform</span>
           <div class="chips" id="platformChips"></div>
@@ -305,6 +387,8 @@
         </div>
       </div>
     </div>
+
+    <div class="date-scope-note" id="dateScopeNote"></div>
 
     <!-- ============ PORTFOLIO OVERVIEW ============ -->
     <div id="tab-portfolio" class="tabpane">
@@ -514,6 +598,14 @@ let activePlatforms=new Set(), activeObjectives=new Set(), activeRegions=new Set
 let campaignMenuOpen=false;
 const el = id => document.getElementById(id);
 
+// ---- Date range (Looker-style picker). The finest grain in this feed is month/week,
+// and only ad_campaign_monthly carries a date dimension, so ONLY the two monthly trend
+// charts (spCumulative, fnMonthly) honor the range; every KPI/Gantt/doughnut/table/funnel/
+// geo panel stays full-period (its source array has no date field). See #dateScopeNote.
+let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;   // ISO 'YYYY-MM-DD'
+const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
+const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+
 const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
 const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
 const fmtPct = (v,d=2) => v==null||isNaN(v) ? '—' : (v*100).toFixed(d)+'%';
@@ -605,6 +697,7 @@ function monthlyMap(){
   const m={};
   for(const r of (DATA.ad_campaign_monthly||[])){
     if(!rowOk(r.platform,r.campaign)) continue;
+    if(!inRangeMonth(r.month)) continue;   // date-range filter (the ONLY date-grained chokepoint)
     const e = m[r.month] || (m[r.month]={month:r.month,imps:0,clk:0,spend:0,dv360:0,tradedesk:0,linkedin:0});
     e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e[r.platform]+=r.imps||0;
   }
@@ -634,6 +727,139 @@ function allRegions(){
 const isRT = name => /(^|[ _-])(RT|Retarget|Re-?targeting)/i.test(name||'');
 
 //==============================================================================
+// shared date-range picker (Looker-style)
+// API: DateRange.init({min,max,onApply}); onApply(startISO,endISO) fires on Apply.
+//==============================================================================
+window.DateRange = (function(){
+  const PRESETS = [
+    {k:'7',  label:'Last 7 days'},  {k:'14', label:'Last 14 days'},
+    {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
+    {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
+    {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
+    {k:'all', label:'All time'},
+  ];
+  let MIN=null, MAX=null, onApply=null;
+  let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
+  let viewYear=0, viewMonth=0, open=false;
+
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => d ? d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()) : null;
+  const parse = s => { if(!s) return null; const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); return m?new Date(+m[1],+m[2]-1,+m[3]):null; };
+  const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
+  const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const $ = id => document.getElementById(id);
+
+  function presetRange(k){
+    let s, e=new Date(MAX);
+    if(/^\d+$/.test(k))            s = addDays(MAX, -(parseInt(k,10)-1));
+    else if(k==='month')          s = new Date(MAX.getFullYear(), MAX.getMonth(), 1);
+    else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
+                                  e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
+    else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else                          { s=new Date(MIN); e=new Date(MAX); }   // all
+    return [clamp(s), clamp(e)];
+  }
+  function detectPreset(s,e){
+    for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
+    return 'custom';
+  }
+
+  function init(opts){
+    opts = opts || {};
+    MIN = parse(opts.min); MAX = parse(opts.max);
+    if(!MAX) MAX = new Date();
+    if(!MIN) MIN = addDays(MAX, -364);
+    if(MIN>MAX){ const t=MIN; MIN=MAX; MAX=t; }
+    onApply = opts.onApply || null;
+    selStart = opts.initialStart ? clamp(parse(opts.initialStart)) : new Date(MIN);
+    selEnd   = opts.initialEnd   ? clamp(parse(opts.initialEnd))   : new Date(MAX);
+    draftStart = new Date(selStart); draftEnd = new Date(selEnd);
+    viewYear = draftEnd.getFullYear(); viewMonth = draftEnd.getMonth();
+    $('dpPrev').onclick   = () => { nav(-1); };
+    $('dpNext').onclick   = () => { nav(1);  };
+    $('dpCancel').onclick = () => { close(); };
+    $('dpApply').onclick  = () => { apply(); };
+    $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
+    $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
+    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); });
+    updateButton();
+  }
+
+  function toggle(ev){ if(ev) ev.stopPropagation(); open ? close() : openPop(); }
+  function openPop(){
+    open=true; draftStart=new Date(selStart); draftEnd=new Date(selEnd);
+    viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
+    $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function close(){ open=false; $('dpPop').classList.add('dp-hide'); }
+
+  function nav(delta){
+    let y=viewYear, m=viewMonth+delta;
+    if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+    const first=new Date(y,m,1);
+    if(first < new Date(MIN.getFullYear(),MIN.getMonth(),1)) return;
+    if(first > new Date(MAX.getFullYear(),MAX.getMonth(),1)) return;
+    viewYear=y; viewMonth=m; renderCal();
+  }
+  function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
+    viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+  function pickDay(d){
+    if(!draftStart || (draftStart && draftEnd)){ draftStart=d; draftEnd=null; }
+    else if(d < draftStart){ draftEnd=draftStart; draftStart=d; }
+    else { draftEnd=d; }
+    renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function apply(){ if(!draftStart) return;
+    selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
+    close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
+
+  function renderPresets(){
+    const cur = detectPreset(draftStart, draftEnd||draftStart);
+    $('dpPresets').innerHTML = PRESETS.map(p =>
+      `<a data-k="${p.k}" class="${p.k===cur?'dp-on':''}">${p.label}</a>`).join('');
+  }
+  function renderCal(){
+    $('dpMonthLbl').textContent = new Date(viewYear,viewMonth,1)
+      .toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    $('dpPrev').disabled = new Date(viewYear,viewMonth,1) <= new Date(MIN.getFullYear(),MIN.getMonth(),1);
+    $('dpNext').disabled = new Date(viewYear,viewMonth,1) >= new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    const dow=['S','M','T','W','T','F','S'];
+    let html = dow.map(d=>`<div class="dp-dow">${d}</div>`).join('');
+    const first=new Date(viewYear,viewMonth,1), lead=first.getDay();
+    const days=new Date(viewYear,viewMonth+1,0).getDate();
+    for(let i=0;i<lead;i++) html+=`<div class="dp-day dp-blank"></div>`;
+    const lo=draftStart, hi=draftEnd||draftStart;
+    for(let d=1; d<=days; d++){
+      const cur=new Date(viewYear,viewMonth,d);
+      const dis = cur<MIN || cur>MAX;
+      let cls='dp-day';
+      if(dis) cls+=' dp-disabled';
+      else {
+        if(lo && hi && cur>=lo && cur<=hi) cls+=' dp-inrange';
+        if(sameDay(cur,lo) || sameDay(cur,hi)) cls+=' dp-sel';
+      }
+      html += `<div class="${cls}" ${dis?'':`data-iso="${iso(cur)}"`}>${d}</div>`;
+    }
+    $('dpGrid').innerHTML=html;
+  }
+  function renderRangeLbl(){
+    $('dpRangeLbl').innerHTML = draftStart
+      ? `<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`
+      : 'Pick a start date';
+  }
+  function updateButton(){
+    const k = detectPreset(selStart, selEnd);
+    $('dpLabel').textContent = (k!=='custom')
+      ? PRESETS.find(p=>p.k===k).label
+      : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
+  }
+
+  return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+})();
+
+//==============================================================================
 // BOOT
 //==============================================================================
 async function boot(){
@@ -642,6 +868,14 @@ async function boot(){
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA = await res.json();
     buildSeedIndex();
+    // date-range picker bounds = dataset window; default applied range = full window (no filtering)
+    dateMin = (DATA.window && DATA.window.start) || null;
+    dateMax = (DATA.window && DATA.window.end)   || null;
+    rangeStart = dateMin; rangeEnd = dateMax;
+    DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{
+      if(s && e && s>e){ const t=s; s=e; e=t; }   // guard inverted range
+      rangeStart=s; rangeEnd=e; renderActive();
+    } });
     activePlatforms = new Set(PLATFORMS.map(p=>p.key));
     activeInternal  = new Set(rosterIds());
     activeObjectives= new Set([...activeInternal].map(objectiveOf));
@@ -782,12 +1016,28 @@ function clearCampaigns(){ activeInternal=new Set(); renderCampaignButton(); ren
 function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
 function renderActive(){
   ['portfolio','pacing','funnel','channels','geo'].forEach(t=> el('tab-'+t).style.display=(t===activeTab?'block':'none'));
+  renderDateScope();
   destroyCharts();
   if(activeTab==='portfolio') renderPortfolio();
   else if(activeTab==='pacing') renderPacing();
   else if(activeTab==='funnel') renderFunnel();
   else if(activeTab==='channels') renderChannels();
   else renderGeo();
+}
+// Banner clarifying the limited reach of the date filter. Only the two monthly trend charts
+// (Cumulative spend on Pacing, Monthly delivery on Funnel) honor the range; everything else is
+// whole-window because its source array carries no date dimension. Shown only when narrowed.
+function renderDateScope(){
+  const note=el('dateScopeNote'); if(!note) return;
+  if(narrowed()){
+    note.style.display='block';
+    note.innerHTML='📅 Date range <b>'+dateLabel(rangeStart)+' – '+dateLabel(rangeEnd)+'</b> (applied at month granularity). '
+      +'Only the two monthly trend charts — <b>Cumulative spend</b> (Spend &amp; Pacing) and <b>Monthly delivery</b> (Delivery &amp; Funnel) — '
+      +'honor this range. KPI cards, the flight-window Gantt, budget/pacing/doughnut/tables, funnel, channel and geography panels show the '
+      +'<b>full period</b> — those breakdowns aren’t available at a finer grain in the feed. The plan-budget reference line stays full-period.';
+  } else {
+    note.style.display='none';
+  }
 }
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 

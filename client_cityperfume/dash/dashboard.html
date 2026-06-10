@@ -87,6 +87,60 @@
   .chip-action:hover{text-decoration:underline}
   .fdiv{width:1px;height:24px;background:var(--line)}
 
+  /* ===== Shared date-range picker (Looker-style) ===== */
+  .dp{position:relative;display:inline-block;font-size:13px;
+      --dp-accent:#3b82f6;--dp-bg:#0f1a2b;--dp-panel:#0c1524;
+      --dp-line:#25364b;--dp-ink:#e8f0fa;--dp-muted:#8ca0b8}
+  /* City Perfume light-theme mapping; control sits at the LEFT of the filter row so the popover opens rightward (default left:0) */
+  .dp{--dp-accent:var(--gold);--dp-bg:var(--card);--dp-panel:var(--bg);
+      --dp-line:var(--line);--dp-ink:var(--ink);--dp-muted:var(--mute)}
+  .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);
+      border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:8px;
+      padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
+  .dp-btn:hover{border-color:var(--dp-accent)}
+  .dp-btn svg{opacity:.75}
+  .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);
+      border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.18);overflow:hidden}
+  .dp-pop.dp-hide{display:none}
+  .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);
+      font-weight:600;font-size:12.5px;white-space:nowrap}
+  .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)}
+  .dp-presets a.dp-on{background:var(--dp-accent);color:#fff}
+  .dp-cal{padding:12px;width:264px}
+  .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
+  .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;
+      width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
+  .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)}
+  .dp-nav:disabled{opacity:.3;cursor:default}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .dp-dow{font-size:10px;font-weight:700;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;
+      color:var(--dp-ink);border:1px solid transparent;user-select:none}
+  .dp-day:hover{border-color:var(--dp-accent)}
+  .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
+  .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
+  .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 22%,transparent)}
+  .dp-day.dp-sel{background:var(--dp-accent);color:#fff;font-weight:700;border-color:transparent}
+  .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center}
+  .dp-range b{color:var(--dp-ink)}
+  .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;
+      border:1px solid var(--dp-line);font-family:inherit}
+  .dp-cancel{background:transparent;color:var(--dp-muted)}
+  .dp-cancel:hover{color:var(--dp-ink)}
+  .dp-apply{background:var(--dp-accent);color:#fff;border-color:transparent}
+  @media(max-width:560px){
+    .dp-pop{flex-direction:column}
+    .dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}
+  }
+  /* date-scope banner (shown only when the range is narrowed) */
+  .date-scope-note{background:#FBF6EF;border:1px solid var(--line);border-left:4px solid var(--gold);border-radius:12px;
+        padding:11px 15px;margin-top:14px;font-size:12.5px;line-height:1.55;color:var(--ink2)}
+  .date-scope-note b{color:var(--ink)}
+
   /* basis toggle */
   .basis-toggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;background:#fff}
   .basis-toggle button{border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--mute);padding:5px 12px}
@@ -247,6 +301,34 @@
         </div>
       </div>
       <div class="control-filters" id="filterRow">
+        <div class="filter-grp" id="dateGroup">
+          <span class="lbl">Date range</span>
+          <div class="dp" id="dateRange">
+            <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span id="dpLabel">All time</span><span class="dp-cap">▾</span>
+            </button>
+            <div class="dp-pop dp-hide" id="dpPop">
+              <div class="dp-presets" id="dpPresets"></div>
+              <div class="dp-cal">
+                <div class="dp-cal-head">
+                  <button class="dp-nav" id="dpPrev" type="button">‹</button>
+                  <span id="dpMonthLbl"></span>
+                  <button class="dp-nav" id="dpNext" type="button">›</button>
+                </div>
+                <div class="dp-grid" id="dpGrid"></div>
+                <div class="dp-range" id="dpRangeLbl"></div>
+                <div class="dp-actions">
+                  <button class="dp-cancel" id="dpCancel" type="button">Cancel</button>
+                  <button class="dp-apply" id="dpApply" type="button">Apply</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fdiv" id="filterDiv0"></div>
         <div class="filter-grp" id="platformGroup">
           <span class="lbl">Platform</span><div class="chips" id="platformChips"></div>
           <button class="chip-action" onclick="allPlatforms()">All</button>
@@ -281,6 +363,8 @@
         </div>
       </div>
     </div>
+
+    <div id="dateScopeNote" class="date-scope-note" style="display:none"></div>
 
     <!-- ============ OVERVIEW ============ -->
     <div id="tab-overview" class="tabpane">
@@ -409,6 +493,140 @@
 
 <script>
 const JSON_URL = '/data.json';
+
+//==============================================================================
+// SHARED DATE-RANGE PICKER (Looker-style). API: DateRange.init({min,max,onApply}),
+// DateRange.getRange(). onApply(startISO,endISO) fires on Apply. Default = full window.
+//==============================================================================
+window.DateRange = (function(){
+  const PRESETS = [
+    {k:'7',  label:'Last 7 days'},  {k:'14', label:'Last 14 days'},
+    {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
+    {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
+    {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
+    {k:'all', label:'All time'},
+  ];
+  let MIN=null, MAX=null, onApply=null;
+  let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
+  let viewYear=0, viewMonth=0, open=false;
+
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => d ? d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()) : null;
+  const parse = s => { if(!s) return null; const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); return m?new Date(+m[1],+m[2]-1,+m[3]):null; };
+  const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
+  const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const $ = id => document.getElementById(id);
+
+  function presetRange(k){
+    let s, e=new Date(MAX);
+    if(/^\d+$/.test(k))            s = addDays(MAX, -(parseInt(k,10)-1));
+    else if(k==='month')          s = new Date(MAX.getFullYear(), MAX.getMonth(), 1);
+    else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
+                                  e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
+    else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else                          { s=new Date(MIN); e=new Date(MAX); }   // all
+    return [clamp(s), clamp(e)];
+  }
+  function detectPreset(s,e){
+    for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
+    return 'custom';
+  }
+
+  function init(opts){
+    opts = opts || {};
+    MIN = parse(opts.min); MAX = parse(opts.max);
+    if(!MAX) MAX = new Date();
+    if(!MIN) MIN = addDays(MAX, -364);
+    if(MIN>MAX){ const t=MIN; MIN=MAX; MAX=t; }
+    onApply = opts.onApply || null;
+    selStart = opts.initialStart ? clamp(parse(opts.initialStart)) : new Date(MIN);
+    selEnd   = opts.initialEnd   ? clamp(parse(opts.initialEnd))   : new Date(MAX);
+    draftStart = new Date(selStart); draftEnd = new Date(selEnd);
+    viewYear = draftEnd.getFullYear(); viewMonth = draftEnd.getMonth();
+    $('dpPrev').onclick   = () => { nav(-1); };
+    $('dpNext').onclick   = () => { nav(1);  };
+    $('dpCancel').onclick = () => { close(); };
+    $('dpApply').onclick  = () => { apply(); };
+    $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
+    $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
+    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); });
+    updateButton();
+  }
+
+  function toggle(ev){ if(ev) ev.stopPropagation(); open ? close() : openPop(); }
+  function openPop(){
+    open=true; draftStart=new Date(selStart); draftEnd=new Date(selEnd);
+    viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
+    $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function close(){ open=false; $('dpPop').classList.add('dp-hide'); }
+
+  function nav(delta){
+    let y=viewYear, m=viewMonth+delta;
+    if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+    const first=new Date(y,m,1);
+    if(first < new Date(MIN.getFullYear(),MIN.getMonth(),1)) return;
+    if(first > new Date(MAX.getFullYear(),MAX.getMonth(),1)) return;
+    viewYear=y; viewMonth=m; renderCal();
+  }
+  function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
+    viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+  function pickDay(d){
+    if(!draftStart || (draftStart && draftEnd)){ draftStart=d; draftEnd=null; }
+    else if(d < draftStart){ draftEnd=draftStart; draftStart=d; }
+    else { draftEnd=d; }
+    renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function apply(){ if(!draftStart) return;
+    selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
+    close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
+
+  function renderPresets(){
+    const cur = detectPreset(draftStart, draftEnd||draftStart);
+    $('dpPresets').innerHTML = PRESETS.map(p =>
+      `<a data-k="${p.k}" class="${p.k===cur?'dp-on':''}">${p.label}</a>`).join('');
+  }
+  function renderCal(){
+    $('dpMonthLbl').textContent = new Date(viewYear,viewMonth,1)
+      .toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    $('dpPrev').disabled = new Date(viewYear,viewMonth,1) <= new Date(MIN.getFullYear(),MIN.getMonth(),1);
+    $('dpNext').disabled = new Date(viewYear,viewMonth,1) >= new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    const dow=['S','M','T','W','T','F','S'];
+    let html = dow.map(d=>`<div class="dp-dow">${d}</div>`).join('');
+    const first=new Date(viewYear,viewMonth,1), lead=first.getDay();
+    const days=new Date(viewYear,viewMonth+1,0).getDate();
+    for(let i=0;i<lead;i++) html+=`<div class="dp-day dp-blank"></div>`;
+    const lo=draftStart, hi=draftEnd||draftStart;
+    for(let d=1; d<=days; d++){
+      const cur=new Date(viewYear,viewMonth,d);
+      const dis = cur<MIN || cur>MAX;
+      let cls='dp-day';
+      if(dis) cls+=' dp-disabled';
+      else {
+        if(lo && hi && cur>=lo && cur<=hi) cls+=' dp-inrange';
+        if(sameDay(cur,lo) || sameDay(cur,hi)) cls+=' dp-sel';
+      }
+      html += `<div class="${cls}" ${dis?'':`data-iso="${iso(cur)}"`}>${d}</div>`;
+    }
+    $('dpGrid').innerHTML=html;
+  }
+  function renderRangeLbl(){
+    $('dpRangeLbl').innerHTML = draftStart
+      ? `<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`
+      : 'Pick a start date';
+  }
+  function updateButton(){
+    const k = detectPreset(selStart, selEnd);
+    $('dpLabel').textContent = (k!=='custom')
+      ? PRESETS.find(p=>p.k===k).label
+      : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
+  }
+
+  return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+})();
+
 let DATA = null, charts = {}, activeTab = 'overview';
 let activePlatforms = new Set();      // ad-platform filter (defaults all)
 let activeCampaigns = new Set();      // ad-campaign filter (defaults all) — scopes AD DELIVERY only
@@ -416,6 +634,16 @@ let revenueBasis = 'all';             // 'all' (total sales) | 'online' (excl. i
 let campaignMenuOpen = false;
 let productSort = 'revenue';
 const el = id => document.getElementById(id);
+
+/* ---- date range (Looker-style picker). Finest grain is MONTH (trend/sales arrays)
+   and ISO-WEEK Monday (DATA.weekly). Trend charts honor the range; whole-window
+   KPIs/donuts/tables stay full-period. Lexical ISO compare only — never Date(). ---- */
+let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;   // ISO 'YYYY-MM-DD'
+const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
+const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
+const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+const clipMonthly  = arr => (arr||[]).filter(r=>inRangeMonth(r.month));
+const clipWeekly   = arr => (arr||[]).filter(r=>inRangeWeek(r.week_start));
 
 /* ---- palette mirror (Chart.js uses these) ---- */
 const C = { ink:'#1C1815', mute:'#8A8079', line:'#EAE2D6', gold:'#B08D57', goldDeep:'#8C6E42',
@@ -461,14 +689,14 @@ function adTotals(applyPlatform){ const p=adByPlatform(applyPlatform); let imps=
   for(const k in p){ imps+=p[k].imps; clk+=p[k].clk; spend+=p[k].spend; conv+=p[k].conv; rev+=p[k].rev; } return {imps,clk,spend,conv,rev}; }
 const adKpi = () => adTotals(true);
 function adMonthlyMap(applyPlatform){ const m={};
-  for(const r of (DATA.ad_campaign_monthly||[])){ if(!rowOk(r,applyPlatform)) continue;
+  for(const r of (DATA.ad_campaign_monthly||[])){ if(!rowOk(r,applyPlatform) || !inRangeMonth(r.month)) continue;
     const e=m[r.month]||(m[r.month]={spend:0,imps:0,clk:0,rev:0,google:0,meta:0,ttd:0});
     e.spend+=r.spend_aud||0; e.imps+=r.imps||0; e.clk+=r.clicks||0; e.rev+=r.platform_revenue||0;
     if(e[r.platform]!=null) e[r.platform]+=r.spend_aud||0; }
   return m;
 }
 function adWeeklyMap(applyPlatform){ const m={};
-  for(const r of (DATA.ad_campaign_weekly||[])){ if(!rowOk(r,applyPlatform)) continue;
+  for(const r of (DATA.ad_campaign_weekly||[])){ if(!rowOk(r,applyPlatform) || !inRangeWeek(r.week_start)) continue;
     const e=m[r.week_start]||(m[r.week_start]={spend:0,clk:0}); e.spend+=r.spend_aud||0; e.clk+=r.clicks||0; }
   return m;
 }
@@ -548,11 +776,24 @@ function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catc
 function renderActive(){
   ['overview','paid','web','sales','link'].forEach(t=>el('tab-'+t).style.display=(t===activeTab?'block':'none'));
   destroyCharts();
+  renderDateScope();
   if(activeTab==='overview') renderOverview();
   else if(activeTab==='paid') renderPaid();
   else if(activeTab==='web') renderWeb();
   else if(activeTab==='sales') renderSales();
   else renderLink();
+}
+// Banner stating what the date range does (and doesn't) touch — shown only when narrowed.
+function renderDateScope(){
+  const note=el('dateScopeNote'); if(!note) return;
+  if(narrowed()){
+    note.style.display='block';
+    note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to whole months; the weekly Ads→Revenue chart snaps to ISO weeks). '
+      +'Trend charts reflect this range; KPI cards, donuts, and campaign/creative/category/product tables show the <b>full period</b> '
+      +'(those breakdowns aren\'t available at a finer grain in the feed — distinct-customer counts and repeat-rate are non-additive across months).';
+  } else {
+    note.style.display='none';
+  }
 }
 function renderControls(){
   [['overview','tabOverview'],['paid','tabPaid'],['web','tabWeb'],['sales','tabSales'],['link','tabLink']]
@@ -560,10 +801,16 @@ function renderControls(){
   const showPlatform = activeTab==='overview'||activeTab==='link';
   const showCampaign = ['overview','paid','link'].includes(activeTab);
   const showBasis    = activeTab==='overview'||activeTab==='link';
+  // Date filtering is meaningful on EVERY tab (each has >=1 date-grained chart),
+  // so the date group is always visible — which also forces #filterRow visible on the
+  // 'web' and 'sales' tabs where the other three groups are all hidden.
+  const showDate     = true;
+  el('dateGroup').style.display=showDate?'flex':'none';
   el('platformGroup').style.display=showPlatform?'flex':'none';
   el('campaignGroup').style.display=showCampaign?'flex':'none';
   el('basisGroup').style.display=showBasis?'flex':'none';
-  el('filterRow').style.display=(showPlatform||showCampaign||showBasis)?'flex':'none';
+  el('filterRow').style.display=(showDate||showPlatform||showCampaign||showBasis)?'flex':'none';
+  el('filterDiv0').style.display=(showDate&&(showPlatform||showCampaign||showBasis))?'block':'none';
   el('filterDiv').style.display=(showPlatform&&showCampaign)?'block':'none';
   el('filterDiv2').style.display=(showCampaign&&showBasis)?'block':'none';
   // platform chips
@@ -597,7 +844,7 @@ function renderOverview(){
   renderOvCommentary();
 
   // hero: spend bars per platform + revenue line + ROAS line
-  const M=DATA.monthly, am=adMonthlyMap(true);
+  const M=clipMonthly(DATA.monthly), am=adMonthlyMap(true);
   const labels=M.map(r=>monthLabel(r.month));
   const spendBars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y1',stack:'sp',
     data:M.map(r=>(am[r.month]||{})[p.key]||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:3}));
@@ -631,7 +878,7 @@ function renderOverview(){
     +'Toggle <b>Online only</b> to exclude in-store POS from the ROAS denominator. Platform-claimed figures appear on the Paid Media tab for context and are never summed into the headline.';
 }
 function renderOvCommentary(){
-  const box=el('ovCommentary'), M=DATA.monthly; if(!M||M.length<2){ box.style.display='none'; return; } box.style.display='';
+  const box=el('ovCommentary'), M=clipMonthly(DATA.monthly); if(!M||M.length<2){ box.style.display='none'; return; } box.style.display='';
   const a=adKpi(), sk=DATA.sales_kpi, rev=basisRevTotal(), roas=a.spend?rev/a.spend:0;
   const revs=M.map(monthRev); let pi=0; revs.forEach((v,i)=>{ if(v>revs[pi]) pi=i; }); const peakM=monthLabel(M[pi].month);
   const P=adByPlatform(true); let bestK=null,bestR=-1;
@@ -655,7 +902,7 @@ function renderPaid(){
     + kpiCard('','CPC', money(a.clk?a.spend/a.clk:0,2), '')
     + kpiCard('sale','Blended ROAS', roasS(a.spend?DATA.kpi.revenue_total/a.spend:0), 'vs all sales');
   // monthly spend + roas
-  const M=DATA.monthly, am=adMonthlyMap(false), labels=M.map(r=>monthLabel(r.month));
+  const M=clipMonthly(DATA.monthly), am=adMonthlyMap(false), labels=M.map(r=>monthLabel(r.month));
   const bars=PLATFORMS.map(p=>({type:'bar',label:p.label,yAxisID:'y',stack:'sp',data:M.map(r=>(am[r.month]||{})[p.key]||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:2}));
   charts.pmMonthly=new Chart(el('pmMonthly'),{ data:{labels,datasets:[...bars,
     {type:'line',label:'Blended ROAS',yAxisID:'y1',data:M.map(r=>{const s=(am[r.month]||{}).spend||0; return s?(r.revenue_total||0)/s:0;}),borderColor:C.goldDeep,borderWidth:2,borderDash:[5,3],tension:.35,pointRadius:0,order:0}]},
@@ -726,7 +973,7 @@ function renderWeb(){
   el('webFunnel').innerHTML=steps.map((s,i)=>{ const r=i===0?'':fmtPct(pct(s[1],f.sessions),2)+' of sessions';
     return '<div class="step"><div class="k">'+s[0]+'</div><div class="v">'+fmtN(s[1])+'</div><div class="r">'+(r||'&nbsp;')+'</div></div>'+(i<steps.length-1?'<div class="arrow">→</div>':''); }).join('');
   // monthly sessions by bucket
-  const mc=DATA.ga4_monthly_channel||[]; const months=[...new Set(mc.map(r=>r.month))].sort();
+  const mc=clipMonthly(DATA.ga4_monthly_channel); const months=[...new Set(mc.map(r=>r.month))].sort();
   const buckets=[...new Set(mc.map(r=>r.channel_bucket))];
   const map={}; mc.forEach(r=>{ map[r.channel_bucket]=map[r.channel_bucket]||{}; map[r.channel_bucket][r.month]=(map[r.channel_bucket][r.month]||0)+r.sessions; });
   charts.webMonthly=new Chart(el('webMonthly'),{ type:'bar', data:{labels:months.map(monthLabel),datasets:buckets.map(b=>({label:b,data:months.map(m=>(map[b]||{})[m]||0),backgroundColor:BUCKET_COLOR[b]||C.sand,stack:'s',maxBarThickness:24,borderRadius:2}))},
@@ -758,7 +1005,7 @@ function renderSales(){
     + kpiCard('','Returning orders', fmtN(sk.returning_orders), 'of '+fmtN(sk.orders_total))
     + kpiCard('','New revenue', moneyM(sk.new_revenue), fmtN(sk.new_orders)+' orders');
   // NR monthly trend
-  const nr=DATA.sales_new_returning||[]; const labels=nr.map(r=>monthLabel(r.month));
+  const nr=clipMonthly(DATA.sales_new_returning); const labels=nr.map(r=>monthLabel(r.month));
   charts.salesNRTrend=new Chart(el('salesNRTrend'),{ data:{labels,datasets:[
     {type:'bar',label:'New',yAxisID:'y',data:nr.map(r=>r.new_revenue),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24},
     {type:'bar',label:'Returning',yAxisID:'y',data:nr.map(r=>r.returning_revenue),backgroundColor:C.rose,stack:'r',borderRadius:3,maxBarThickness:24},
@@ -767,7 +1014,7 @@ function renderSales(){
       scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},min:0,max:1,ticks:{callback:v=>fmtPct(v,0)}}}} });
   donut('salesNRDonut',['New','Returning'],[sk.new_revenue,sk.returning_revenue],[C.gold,C.rose],moneyM(sk.revenue_total),'revenue',sk.revenue_total);
   // revenue/margin/AOV monthly
-  const sm=DATA.sales_monthly||[]; const sl=sm.map(r=>monthLabel(r.month));
+  const sm=clipMonthly(DATA.sales_monthly); const sl=sm.map(r=>monthLabel(r.month));
   charts.salesTrend=new Chart(el('salesTrend'),{ data:{labels:sl,datasets:[
     {type:'bar',label:'Revenue',yAxisID:'y',data:sm.map(r=>r.revenue_total),backgroundColor:C.gold,borderRadius:3,maxBarThickness:22,order:3},
     {type:'bar',label:'Margin',yAxisID:'y',data:sm.map(r=>r.margin),backgroundColor:C.sage,borderRadius:3,maxBarThickness:22,order:2},
@@ -810,7 +1057,7 @@ function renderLink(){
   const steps=[['Ad spend',money(a.spend)],['Impressions',fmtM(a.imps)],['Clicks',fmtN(a.clk)],['Orders',fmtN(sk.orders_total)],['Sales revenue',moneyM(rev)]];
   el('linkFunnel').innerHTML=steps.map((s,i)=>'<div class="step"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div><div class="r">&nbsp;</div></div>'+(i<steps.length-1?'<div class="arrow">→</div>':'')).join('');
   // weekly
-  const W=DATA.weekly, aw=adWeeklyMap(true), labels=W.map(r=>weekLabel(r.week_start));
+  const W=clipWeekly(DATA.weekly), aw=adWeeklyMap(true), labels=W.map(r=>weekLabel(r.week_start));
   charts.linkWeekly=new Chart(el('linkWeekly'),{ data:{labels,datasets:[
     {type:'line',label:'Sales revenue',yAxisID:'y',data:W.map(r=>revenueBasis==='online'?r.revenue_online:r.revenue_total),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.10)',borderWidth:2.5,fill:true,tension:.35,pointRadius:0,order:0},
     {type:'bar',label:'Ad spend',yAxisID:'y1',data:W.map(r=>(aw[r.week_start]||{}).spend||0),backgroundColor:'rgba(176,141,87,.8)',borderRadius:2,maxBarThickness:12,order:1}]},
@@ -824,7 +1071,7 @@ function renderLink(){
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+money(c.parsed.x)+' spend · '+moneyM(c.parsed.y)+' revenue'}}},
       scales:{x:gridY({title:{display:true,text:'Ad spend / week',color:C.mute},ticks:{callback:v=>moneyM(v)}}),y:gridY({title:{display:true,text:'Sales revenue / week',color:C.mute},ticks:{callback:v=>moneyM(v)}})}} });
   // roas monthly
-  const M=DATA.monthly, am=adMonthlyMap(true), ml=M.map(r=>monthLabel(r.month));
+  const M=clipMonthly(DATA.monthly), am=adMonthlyMap(true), ml=M.map(r=>monthLabel(r.month));
   charts.linkRoas=new Chart(el('linkRoas'),{ data:{labels:ml,datasets:[
     {type:'line',label:'Blended ROAS (all sales)',data:M.map(r=>{const s=(am[r.month]||{}).spend||0;return s?(r.revenue_total||0)/s:0;}),borderColor:C.ink,borderWidth:2.5,tension:.35,pointRadius:2},
     {type:'line',label:'Online ROAS',data:M.map(r=>{const s=(am[r.month]||{}).spend||0;return s?(r.revenue_online||0)/s:0;}),borderColor:C.gold,borderWidth:2,borderDash:[5,3],tension:.35,pointRadius:0}]},
@@ -862,6 +1109,11 @@ async function boot(){
     DATA=await res.json();
     activePlatforms=new Set(PLATFORMS.map(p=>p.key));
     activeCampaigns=new Set((DATA.ad_campaigns||[]).map(c=>c.campaign));
+    // Date-range picker — bounds from the dataset window; default = full window (no behavior change).
+    dateMin=DATA.window&&DATA.window.start; dateMax=DATA.window&&DATA.window.end;
+    rangeStart=dateMin; rangeEnd=dateMax;
+    DateRange.init({ min:dateMin, max:dateMax,
+      onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });
     const h=(location.hash||'').replace('#',''); if(['overview','paid','web','sales','link'].includes(h)) activeTab=h;
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
