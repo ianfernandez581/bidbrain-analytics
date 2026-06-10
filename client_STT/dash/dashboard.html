@@ -641,7 +641,10 @@ window.DateRange = (function(){
     $('dpApply').onclick  = () => { apply(); };
     $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
     $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
-    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); });
+    // Capture phase: must run BEFORE pickDay()/choosePreset() rebuild the grid/preset
+    // innerHTML (which would detach e.target, making closest('#dateRange') return null
+    // and wrongly close the popover on every in-popover click).
+    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); }, true);
     updateButton();
   }
 
