@@ -9,7 +9,10 @@
   Run from anywhere:  .\client_cloudflare\scheduler.ps1
 #>
 param([string]$Cron = "*/10 * * * *")
-$ErrorActionPreference = "Stop"
+# Deliberately NOT ErrorActionPreference="Stop": gcloud writes progress to stderr, which
+# PowerShell 5.1 wraps as a NativeCommandError -> under Stop that throws mid-script (even
+# though gcloud succeeded), aborting before the scheduler update. The other clients' scripts
+# omit it for the same reason.
 
 $Project  = "bidbrain-analytics"
 $Region   = "australia-southeast1"
