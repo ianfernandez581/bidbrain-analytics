@@ -1,12 +1,12 @@
-# scheduler.ps1 - (re)create the daily Cloud Scheduler trigger for the Schneider export job.
+# scheduler.ps1 - (re)create the */10 self-gating Cloud Scheduler trigger for the Schneider export job.
 #
 # deploy_schneider.ps1 already wires this on first stand-up; this standalone script is for
 # re-creating or adjusting the schedule later. Idempotent.
 #
-#   .\client_schneider\scheduler.ps1                 # 22:00 UTC daily (default)
+#   .\client_schneider\scheduler.ps1                 # */10 UTC (default) -- self-gating, rebuilds only on new data
 #   .\client_schneider\scheduler.ps1 -Schedule "0 */6 * * *"   # custom cron
 
-param([string]$Schedule = "0 22 * * *")
+param([string]$Schedule = "*/10 * * * *")
 
 $PROJECT = "bidbrain-analytics"
 $REGION  = "australia-southeast1"

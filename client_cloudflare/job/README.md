@@ -23,8 +23,9 @@ publish as **two separate public files** (`pacing.json` + `paid_media.json`) int
 
 | File | What it does |
 |---|---|
-| [`main.py`](main.py) | The job. Connects to Snowflake (key-pair auth), pulls 5 final-model views, lands them as `src_*` BigQuery tables, reads the thin views, and uploads `cloudflare.json`. `CLIENT = "cloudflare"` drives all the names. |
-| [`Dockerfile`](Dockerfile) | `python:3.12-slim`, non-root, `CMD python main.py`. |
+| [`main.py`](main.py) | The job. Connects to Snowflake (key-pair auth), **gates on freshness** (see below), pulls 5 final-model views, lands them as `src_*` BigQuery tables, reads the thin views, and uploads `cloudflare.json`. `CLIENT = "cloudflare"` drives all the names. |
+| [`freshness.py`](freshness.py) | The freshness gate (vendored per job folder, like `sf_connect`). Probes `INFORMATION_SCHEMA.TABLES.LAST_ALTERED` (metadata-only — no warehouse credits, never resumes compute), reads/writes the `_freshness.json` watermark sidecar in the bucket, and answers `is_stale()`. Reusable across clients: only the bucket, watermark key, and table list differ. |
+| [`Dockerfile`](Dockerfile) | `python:3.12-slim`, non-root, `CMD python main.py`. Ships both `main.py` and `freshness.py`. |
 | [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run jobs deploy cloudflare-export` with the Snowflake secret + env vars wired in. |
 | [`requirements.txt`](requirements.txt) | `snowflake-connector-python[pandas]`, `pandas`, `pyarrow`, BigQuery, Storage, cryptography, secret-manager. (Heavier than MongoDB's job because this one talks to Snowflake.) |
 | `.dockerignore` | Keeps the build context lean. |
@@ -53,7 +54,8 @@ dashboard's `adaptPayload` / `rawRows` code is unchanged:
 
 ```jsonc
 {
-  "last_updated": "YYYY-MM-DDTHH:MM:SSZ",
+  "last_updated": "YYYY-MM-DDTHH:MM:SSZ",  // when THIS build ran (build time)
+  "data_through": "YYYY-MM-DDTHH:MM:SSZ",  // newest LAST_ALTERED across the 4 gating tables (true data instant, UTC)
   "paid_media": {                          // == the old paid_media.json
     "row_count": 0,
     "window": { "start": "…", "end": "…", "days": 0 },
@@ -77,6 +79,56 @@ the Snowflake views — if a view emits different strings, fix the mapping in
 
 ---
 
+## Freshness gate — why most runs do nothing (and that's the point)
+
+The job is scheduled **`*/10 * * * *`** (was a single daily `0 22 * * *`), but it is
+**self-gating**: each tick it only rebuilds if the upstream data actually moved. Net effect —
+the dashboard refreshes **within ~10 min of new Snowflake data** instead of lagging it up to a day.
+
+**How the gate works** ([`freshness.py`](freshness.py)):
+
+1. Probe `LAST_ALTERED` for the four dynamic PUBLIC base tables in `APAC_ALL_PLATFORM`
+   (one `INFORMATION_SCHEMA.TABLES` query). This is **metadata-only**: no warehouse credits, and
+   it does **not** resume `APAC_IN_WH`. Key-pair connect doesn't resume it either. So a
+   "nothing changed" tick costs ~nothing and never wakes compute.
+2. Compare against the watermark in `gs://…-cloudflare-dash/_freshness.json` (the last-seen
+   `LAST_ALTERED` per table). Missing object/table ⇒ cold start ⇒ rebuild.
+3. If **any** table advanced ⇒ full rebuild (this job can't rebuild one channel in isolation),
+   then — **after** a successful `cloudflare.json` upload — write the new watermark. Upload first,
+   watermark second, so a failed upload just retries next tick.
+
+**The four gating tables** (everything else the job reads is static — not a freshness driver):
+
+| PUBLIC base table | feeds | dashboard tab |
+|---|---|---|
+| `Salesforce_CS_APAC_ALL` | `V_SALESFORCE_LEADS_LIVE` → `V_PACING_FINAL_MODEL` | CS pacing |
+| `TradeDesk_APAC ALL` | `V_STG_TRADEDESK_CF` → `V_PAID_ADS_FINAL_MODEL` | Paid Media |
+| `LinkedIn Ads - APAC` | `V_STG_LINKEDIN_CF` → `V_PAID_ADS_FINAL_MODEL` | Paid Media |
+| `Reddit Ads - APAC_ALL` | `V_STG_REDDIT_CF` → `V_PAID_ADS_FINAL_MODEL` | Paid Media |
+
+These feeds land at different times each day, so the gate typically fires **~3 cheap rebuilds**
+across the early-UTC window instead of one big daily one — fine at this volume. We watch the base
+**tables**, not the model **views**: a view's `LAST_ALTERED` only moves on DDL.
+
+**`data_through`** in the payload is the newest `LAST_ALTERED` across these four (the true data
+instant); `last_updated` is the build time. The dashboard shows both.
+
+**⚠️ Static-seed caveat.** The gate watches only those four dynamic tables. If you re-run
+[`../seed_static.py`](../seed_static.py) (rare — it changes a static input like LINE spend, pacing
+targets, or tiers), that change **won't trip the gate**, so kick the job once by hand:
+
+```powershell
+gcloud run jobs execute cloudflare-export --region australia-southeast1 --wait
+```
+
+**`FORCE_REBUILD=1`** bypasses the gate for a one-off manual rebuild:
+
+```powershell
+$env:FORCE_REBUILD = "1"; .\.venv\Scripts\python.exe client_cloudflare\job\main.py; $env:FORCE_REBUILD = $null
+```
+
+---
+
 ## ⚠️ Bootstrap behaviour (first run errors — expected)
 
 The thin views read **from** the `src_*` tables this job lands, so on a fresh project they don't
@@ -97,9 +149,10 @@ full two-run dance (there is no one-shot stand-up script for this client).
 gcloud run jobs execute cloudflare-export --region australia-southeast1 --wait
 ```
 
-**Config:** the only runtime input `main.py` actually reads from the environment is the secret
+**Config:** the runtime inputs `main.py` reads from the environment are the secret
 `SNOWFLAKE_KEY=snowflake-bq-key:latest` (and locally, when it's absent, the key is read from
-Secret Manager via ADC). Everything else — `PROJECT`, `DATASET`, `BUCKET`, `SF_ACCOUNT`,
+Secret Manager via ADC) and the optional `FORCE_REBUILD=1` (bypass the freshness gate — see
+above). Everything else — `PROJECT`, `DATASET`, `BUCKET`, `SF_ACCOUNT`,
 `SF_USER`, `SF_WAREHOUSE` — is **hardcoded as constants in `main.py`**, derived from
 `CLIENT = "cloudflare"`, so they can't drift. The `GCP_PROJECT` / `BQ_DATASET` / `GCS_BUCKET` /
 `SF_*` env vars that [`cloudbuild.yaml`](cloudbuild.yaml) sets are currently inert (the code

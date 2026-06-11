@@ -93,7 +93,7 @@ Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv
 once (idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the daily scheduler; it
 prompts for the dashboard password, or set `$env:DASH_PASSWORD` first). After that:
 
-**① Refresh the data now** (a daily Cloud Scheduler `hireright-export-daily` runs 22:00 UTC):
+**① Refresh the data now** (the `hireright-export-daily` Cloud Scheduler runs `*/10` UTC, self-gating):
 ```powershell
 # (optional) refresh the shared raw layer first if you want the very latest source data:
 .\.venv\Scripts\python.exe snowflake_data_pull\loader.py
@@ -138,7 +138,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | Export job | `hireright-export` (runtime SA `hireright-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `hireright-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `hireright-dash-web@…`) |
 | Secrets | `hireright-dash-password` · `hireright-dash-session-key` |
-| Daily refresh | Cloud Scheduler `hireright-export-daily` (22:00 UTC) |
+| Refresh | Cloud Scheduler `hireright-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
 | Custom domain | `hireright.bidbrain.ai` (note only — not yet wired; see `dash/LIVE_URL.md`) |
 
 ## Files

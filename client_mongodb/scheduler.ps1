@@ -1,16 +1,20 @@
 <#
   scheduler.ps1  (MongoDB)
-  Creates/refreshes a daily Cloud Scheduler trigger that runs the
-  'mongodb-export' Cloud Run Job at 22:00 UTC. Idempotent -- safe to re-run.
+  Creates/refreshes a Cloud Scheduler trigger that runs the 'mongodb-export'
+  Cloud Run Job on a frequent cadence (default */10 min). The job is SELF-GATING:
+  each tick it cheaply checks (via BQ __TABLES__.last_modified) whether its upstream
+  raw_snowflake tables advanced and only rebuilds when they did, so most ticks are a
+  ~3s no-op. Net effect: the dashboard refreshes within ~10 min of new data.
+  Idempotent -- safe to re-run. Pass -Cron to override the cadence.
   Run from anywhere:  .\client_mongodb\scheduler.ps1
 #>
+param([string]$Cron = "*/10 * * * *")
 $ErrorActionPreference = "Stop"
 
 $Project  = "bidbrain-analytics"
 $Region   = "australia-southeast1"
 $Job      = "mongodb-export"
 $Sa       = "mongodb-dash-job@bidbrain-analytics.iam.gserviceaccount.com"
-$Cron     = "0 22 * * *"
 $TimeZone = "UTC"
 $Sched    = "$Job-daily"
 
@@ -45,5 +49,6 @@ if ($Exists) {
 }
 
 Write-Host ""
-Write-Host "Done. '$Sched' runs '$Job' daily at '$Cron' ($TimeZone)."
+Write-Host "Done. '$Sched' triggers '$Job' on '$Cron' ($TimeZone)."
+Write-Host "The job self-gates: most ticks no-op in ~3s; it rebuilds within ~10 min of new upstream data."
 Write-Host "Test now:  gcloud scheduler jobs run $Sched --location $Region --project $Project"

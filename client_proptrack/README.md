@@ -22,4 +22,4 @@ straight from the shared `raw_snowflake` layer (no `src_*` step). **Single curre
 |---|---|
 | Dataset / bucket / object | `client_proptrack` / `bidbrain-analytics-proptrack-dash` / `proptrack.json` |
 | Export job / web service | `proptrack-export` / `proptrack-dash` (SAs `proptrack-dash-job@…` / `proptrack-dash-web@…`) |
-| Secrets / scheduler | `proptrack-dash-password` · `proptrack-dash-session-key` / `proptrack-export-daily` (22:00 UTC) |
+| Secrets / scheduler | `proptrack-dash-password` · `proptrack-dash-session-key` / `proptrack-export-daily` (`*/10` UTC, self-gating) |

@@ -31,6 +31,22 @@ from decimal import Decimal
 
 from google.cloud import bigquery, storage
 
+from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
+
+# Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when an
+# upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
+# ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
+# raw_neto.orders is the first-party sales truth (via v_sales); the rest are ad feeds.
+GATING_TABLES = [
+    "raw_neto.orders",
+    "raw_google_ads.perf_google_ads",
+    "raw_windsor.perf_meta",
+    "raw_windsor.perf_the_trade_desk",
+    "raw_ga4.perf_ga4",
+    "raw_ga4.perf_ga4_events",
+]
+WATERMARK_OBJECT = "_freshness.json"
+
 # --- Project-wide constants (identical for every client) ----------------------
 PROJECT = "bidbrain-analytics"
 LOC = "australia-southeast1"
@@ -85,12 +101,28 @@ def assert_no_pii(obj, path="root"):
 def main():
     bq = bigquery.Client(project=PROJECT)
 
+    # --- Freshness gate: cheap metadata probe; skip the rebuild unless an upstream
+    # raw table advanced. Reading __TABLES__.last_modified is metadata-only.
+    observed = probe_bq_last_modified(bq, GATING_TABLES)
+    wm = read_watermark(BUCKET, WATERMARK_OBJECT)
+    times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                      for k in sorted(observed)) or "(no tables found)"
+    if os.environ.get("FORCE_REBUILD") == "1":
+        print(f"FORCE_REBUILD=1 -> rebuilding regardless of freshness | {times}")
+    elif not is_stale(observed, wm):
+        print(f"no change, skipping rebuild | {times}")
+        return
+    else:
+        print(f"upstream advanced -> rebuilding | {times}")
+
     kpi = one(bq, "kpi")
 
     env = {
         "client": "City Perfume",
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
         .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data_through": (max([v for v in observed.values() if v])
+                         .strftime("%Y-%m-%dT%H:%M:%SZ") if observed else None),
         "currency": "AUD",
         "window": {
             "start": kpi.get("window_start"),
@@ -162,6 +194,9 @@ def main():
     else:
         storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
             payload, content_type="application/json")
+        # Record the watermark only after a successful GCS upload (not on LOCAL_OUT
+        # test runs), so a failed upload simply retries on the next tick.
+        write_watermark(BUCKET, WATERMARK_OBJECT, observed)
         dest = f"gs://{BUCKET}/{DATA_OBJECT}"
 
     print(f"wrote {dest} | {len(payload):,} bytes | "

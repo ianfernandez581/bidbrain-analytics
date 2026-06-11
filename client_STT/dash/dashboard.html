@@ -397,7 +397,7 @@
         </div>
         <div class="card card-tall">
           <h3>Media spend by platform</h3>
-          <div class="hint">Reporting currency SGD. LinkedIn billed in USD, converted at the rate below.</div>
+          <div class="hint">Reflects the Country, Platform, Campaign &amp; date filters. Reporting currency SGD; LinkedIn billed in USD, converted at the rate below. LinkedIn has no per-country split, so selecting specific countries drops it.</div>
           <div class="chart-wrap"><canvas id="ovSpend"></canvas></div>
         </div>
       </div>
@@ -882,6 +882,25 @@ function adTotals(applyPlatform){
   return {imps, clk, spend};
 }
 const adKpi = () => adTotals(true);   // Overview / Ads → Traffic: campaign + platform scoped
+// Per-platform spend scoped to Campaign + Platform AND the Country filter + date
+// picker — for the Overview "Media spend by platform" donut. Reads the market×month
+// feed. LinkedIn carries no market (r.market==null), so it contributes only when the
+// Country filter is at "All" (not narrowed); selecting any country drops it, since no
+// per-country LinkedIn spend exists to attribute. Returns {google,dv360,linkedin}.
+function adSpendByPlatformScoped(){
+  const apac = (DATA.countries||[]).filter(isApac);
+  const allCountries = selCountries().length >= apac.length;   // Country filter not narrowed
+  const o = {google:{imps:0,clk:0,spend:0}, dv360:{imps:0,clk:0,spend:0}, linkedin:{imps:0,clk:0,spend:0}};
+  for(const r of (DATA.ad_campaign_market_monthly||[])){
+    if(!campOn(r.campaign) || !platOk(r.platform)) continue;
+    if(!inRangeMonth(r.month)) continue;
+    if(r.market==null){ if(!allCountries) continue; }   // LinkedIn: only when not narrowed
+    else if(!countryOk(r.market)) continue;
+    const e = o[r.platform]; if(!e) continue;
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_sgd||0;
+  }
+  return o;
+}
 // month -> {imps,clk,spend, <platform>:{imps,clk,spend}} over selected campaigns.
 function adMonthlyMap(applyPlatform){
   const m = {};
@@ -1331,16 +1350,21 @@ function renderOverview(){
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
   });
 
-  // Spend donut by platform (selected platforms, selected campaigns)
-  const sp = selPlatforms();
+  // Spend donut by platform — scoped to Platform + Campaign + Country + date range.
+  // Only platforms with spend in scope appear (so LinkedIn drops out once a country
+  // is selected — it has no market grain). Its own total drives the centre/tooltips.
+  const SP = adSpendByPlatformScoped();
+  const spendSlices = selPlatforms().map(p=>({label:p.label, color:p.color, spend:SP[p.key].spend}))
+                                    .filter(s=>s.spend>0);
+  const spendTotal = spendSlices.reduce((t,s)=>t+s.spend,0);
   charts.ovSpend = new Chart(el('ovSpend'),{
     type:'doughnut',
-    data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>P[p.key].spend),
-      backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
+    data:{ labels:spendSlices.map(s=>s.label), datasets:[{ data:spendSlices.map(s=>s.spend),
+      backgroundColor:spendSlices.map(s=>s.color), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
-      cutoutText:{ line1:money(a.spend), line2:'total spend' } },
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,spendTotal),0)})`}} },
+      cutoutText:{ line1:money(spendTotal), line2:'total spend' } },
     plugins:[centerText]
   });
 
@@ -1348,7 +1372,8 @@ function renderOverview(){
   const scope = selN===totN ? 'all STT GDC properties' : `${selN} selected ${selN===1?'country':'countries'}`;
   const plats = selPlatforms().map(p=>p.label).join(', ') || 'none';
   el('ovNote').innerHTML = `<b>How to read this.</b> Website sessions reflect the <b>Country</b> filter (${scope}); `
-    + `paid-media spend, impressions &amp; clicks reflect the <b>Platform</b> filter (${plats}) and the <b>Campaign</b> filter (${campaignScopeText()}), and are the whole APAC campaign (not split by country). `
+    + `the paid-media <b>KPI cards</b> and the hero chart reflect the <b>Platform</b> filter (${plats}) and the <b>Campaign</b> filter (${campaignScopeText()}), and are the whole APAC campaign (not split by country). `
+    + `The <b>Media spend by platform</b> donut additionally honours the Country &amp; date filters (Google Ads &amp; DV360 carry a per-country split; LinkedIn does not, so it drops out when specific countries are selected). `
     + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ${DATA.dv_window.start} → ${DATA.dv_window.end}; Google Ads ${DATA.ga_window.start} → ${DATA.ga_window.end}. `
     + `Spend is reported in SGD — LinkedIn's USD is converted at US$1 = S$${DATA.fx_usd_sgd}. `
     + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;

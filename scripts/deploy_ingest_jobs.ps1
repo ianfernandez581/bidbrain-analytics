@@ -38,9 +38,11 @@ try { $SHA = (& git rev-parse --short HEAD 2>$null) } catch { $SHA = $null }
 if (-not $SHA) { $SHA = "manual-$(Get-Date -Format 'yyyyMMddHHmmss')" }
 $SHA = "$SHA".Trim()
 
-# key -> build-context dir, Cloud Run job name, memory, cpu, daily cron (UTC, before 22:00)
+# key -> build-context dir, Cloud Run job name, memory, cpu, cron (UTC).
+# snowflake-ingest is SELF-GATING (per-table freshness gate in loader.py), so it runs */10
+# and most ticks are a ~3s no-op; the rest stay daily, just before the 22:00 client exports.
 $JOBS = @(
-  @{ key="snowflake"; dir="snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="0 21 * * *"  },
+  @{ key="snowflake"; dir="snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="*/10 * * * *" },
   @{ key="neto";      dir="neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
   @{ key="meta";      dir="windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
   @{ key="tradedesk"; dir="windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" }
@@ -90,6 +92,6 @@ foreach ($j in $JOBS) {
   if ($Run) { Write-Host "[$($j.key)] Executing once ..."; gcloud run jobs execute $j.job --region $REGION --project $PROJECT --wait }
 }
 
-Write-Host "`nDONE. Ingest jobs built, deployed, and scheduled (daily, UTC, before the 22:00 exports)."
+Write-Host "`nDONE. Ingest jobs built, deployed, and scheduled (UTC). snowflake-ingest self-gates at */10 (most ticks no-op); neto/windsor stay daily before the exports."
 Write-Host "NOTE: windsor-tradedesk-ingest will exit non-zero until the TTD connector is re-granted"
 Write-Host "      at https://onboard.windsor.ai?datasource=tradedesk (Windsor data endpoint is currently down)."

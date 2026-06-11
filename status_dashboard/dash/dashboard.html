@@ -1,0 +1,288 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bidbrain · Pipeline Status</title>
+<style>
+  :root{
+    --bg:#0B1220; --panel:#141C2E; --panel2:#1B2438; --line:rgba(255,255,255,.08);
+    --ink:#E8EDF6; --mute:#8A97AD; --faint:#64748B;
+    --ok:#34D399; --warn:#FBBF24; --bad:#F87171; --unknown:#64748B;
+    --okbg:rgba(52,211,153,.13); --warnbg:rgba(251,191,36,.13); --badbg:rgba(248,113,113,.13);
+    --transmission:#7DA3FF; --digital:#34D399;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+       font-size:14px;line-height:1.45}
+  a{color:inherit}
+  .wrap{max-width:1080px;margin:0 auto;padding:26px 20px 60px}
+  header.top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:6px}
+  .brand{font-size:12px;font-weight:700;letter-spacing:1.4px;color:var(--digital)}
+  h1{font-size:22px;font-weight:700;margin:6px 0 2px}
+  .sub{color:var(--mute);font-size:13px;margin:0}
+  .asof{color:var(--faint);font-size:12px;text-align:right;white-space:nowrap}
+  .logout{color:var(--faint);text-decoration:none;font-size:12px}
+  .logout:hover{color:var(--ink)}
+
+  .summary{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0 4px}
+  .pill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;
+        font-weight:600;font-size:13px;border:1px solid var(--line);background:var(--panel)}
+  .pill .n{font-size:15px;font-weight:800}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .dot.ok{background:var(--ok)} .dot.warn{background:var(--warn)}
+  .dot.bad{background:var(--bad)} .dot.unknown{background:var(--unknown)}
+
+  .tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin:22px 0 20px}
+  .tab{padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;
+       color:var(--mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--ink)}
+  .tab.on{color:var(--ink);border-bottom-color:var(--digital)}
+  .tabpane{display:none}
+  .tabpane.on{display:block}
+
+  .lede{color:var(--mute);font-size:13px;background:var(--panel);border:1px solid var(--line);
+        border-radius:10px;padding:13px 15px;margin-bottom:18px}
+  .lede b.t{color:var(--transmission)} .lede b.d{color:var(--digital)}
+
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:0;margin-bottom:14px;overflow:hidden}
+  .card .head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;
+              padding:15px 17px;border-bottom:1px solid var(--line)}
+  .cname{font-size:16px;font-weight:700;display:flex;align-items:center;gap:9px}
+  .cname a{color:var(--faint);font-size:12px;font-weight:500;text-decoration:none}
+  .cname a:hover{color:var(--ink)}
+  .verdict{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;
+           font-weight:700;font-size:12.5px;letter-spacing:.2px}
+  .verdict.ok{color:var(--ok);background:var(--okbg)}
+  .verdict.transmission_stale{color:var(--bad);background:var(--badbg)}
+  .verdict.digital_behind{color:var(--warn);background:var(--warnbg)}
+  .verdict.no_data{color:var(--unknown);background:rgba(100,116,139,.13)}
+
+  /* Sync chain: TRANSMISSION | 100% DIGITAL */
+  .chain{display:grid;grid-template-columns:1fr 2fr;gap:0;padding:6px 17px 4px}
+  @media(max-width:640px){.chain{grid-template-columns:1fr}}
+  .party{padding:12px 0}
+  .party .ptitle{font-size:10.5px;font-weight:800;letter-spacing:1.2px;margin-bottom:9px}
+  .party.t .ptitle{color:var(--transmission)} .party.d .ptitle{color:var(--digital)}
+  .party.t{border-right:1px dashed var(--line);padding-right:18px}
+  .party.d{padding-left:18px}
+  @media(max-width:640px){.party.t{border-right:none;border-bottom:1px dashed var(--line);padding-right:0}.party.d{padding-left:0}}
+  .stages{display:flex;gap:18px;flex-wrap:wrap}
+  .stage{min-width:120px}
+  .stage .slabel{font-size:11px;color:var(--mute);display:flex;align-items:center;gap:7px;margin-bottom:3px}
+  .stage .sval{font-size:14px;font-weight:700}
+  .stage .sage{font-size:11.5px;color:var(--faint)}
+  .why{padding:11px 17px 16px;color:var(--mute);font-size:13px}
+  .why b.t{color:var(--transmission)} .why b.d{color:var(--digital)}
+
+  /* Accuracy */
+  table.acc{width:100%;border-collapse:collapse}
+  table.acc td,table.acc th{padding:11px 17px;text-align:left;border-top:1px solid var(--line);vertical-align:top}
+  table.acc th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--mute);font-weight:600;border-top:none}
+  .num{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+  .num.sf{color:var(--transmission)} .num.dash{color:var(--digital)}
+  .mtag{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px}
+  .mtag.ok{color:var(--ok)} .mtag.bad{color:var(--bad)} .mtag.na{color:var(--unknown)}
+  details.q{margin-top:8px}
+  details.q summary{cursor:pointer;color:var(--faint);font-size:12px;list-style:none}
+  details.q summary:hover{color:var(--ink)}
+  details.q summary::-webkit-details-marker{display:none}
+  details.q summary::before{content:"▸ ";}
+  details.q[open] summary::before{content:"▾ ";}
+  pre.sql{background:#0A1426;border:1px solid var(--line);border-radius:8px;padding:11px 13px;margin:8px 0 2px;
+          overflow:auto;font-size:12px;color:#BFD0EA;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;white-space:pre}
+  .qnote{color:var(--faint);font-size:11.5px;margin-top:6px;max-width:640px}
+  .checked{color:var(--faint);font-size:11px;margin-top:4px}
+  .err{color:var(--bad);font-size:12px}
+  .loading{color:var(--mute);padding:40px 0;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <div class="brand">BIDBRAIN · PIPELINE STATUS</div>
+      <h1>Data sync &amp; accuracy</h1>
+      <p class="sub">Is a dashboard stale because of <b style="color:var(--transmission)">Transmission</b> (Snowflake source)
+         or <b style="color:var(--digital)">100% Digital</b> (our pipeline)? And does each number match Snowflake exactly?</p>
+    </div>
+    <div class="asof">
+      <div id="asof">—</div>
+      <a class="logout" href="/logout">Log out</a>
+    </div>
+  </header>
+
+  <div class="summary" id="summary"></div>
+
+  <div class="tabs">
+    <button class="tab on" id="tabSync" onclick="setTab('sync')">Data Sync Status</button>
+    <button class="tab" id="tabAcc" onclick="setTab('acc')">Data Accuracy</button>
+  </div>
+
+  <div id="pane-sync" class="tabpane on">
+    <div class="lede">
+      Each dashboard is fed in stages: <b class="t">Transmission</b> updates the Snowflake source &nbsp;→&nbsp;
+      <b class="d">100% Digital</b> mirrors it into BigQuery &nbsp;→&nbsp; builds the dashboard file.
+      When our ingest has caught up to Snowflake's latest change, <b class="d">100% Digital is green</b> — so if the
+      numbers still look old, the <b class="t">source</b> is what's behind, not us.
+    </div>
+    <div id="sync"><div class="loading">Loading…</div></div>
+  </div>
+
+  <div id="pane-acc" class="tabpane">
+    <div class="lede">
+      The number on each client dashboard vs the number pulled <b>straight from Snowflake</b>. Under healthy sync they
+      are identical. The exact Snowflake query is shown for every figure — run it yourself to confirm.
+    </div>
+    <div id="acc"><div class="loading">Loading…</div></div>
+  </div>
+</div>
+
+<script>
+"use strict";
+var DATA = null;
+
+function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+function fmtNum(n){ if(n==null||n==="") return "—"; var x=Number(n);
+  return isFinite(x) ? x.toLocaleString("en-US") : esc(n); }
+
+function ageMs(iso){ if(!iso) return null; var t=Date.parse(iso); return isNaN(t)?null:(Date.now()-t); }
+function fmtAge(iso){
+  var ms=ageMs(iso); if(ms==null) return "—";
+  if(ms<0) ms=0;
+  var s=Math.floor(ms/1000), m=Math.floor(s/60), h=Math.floor(m/60), d=Math.floor(h/24);
+  if(d>=1) return d+(d===1?" day ago":" days ago");
+  if(h>=1) return h+(h===1?" hr ago":" hrs ago");
+  if(m>=1) return m+(m===1?" min ago":" mins ago");
+  return "just now";
+}
+function dot(state){ return '<span class="dot '+esc(state||"unknown")+'"></span>'; }
+
+var VERDICT_TEXT = {
+  ok:                 "✓ Healthy",
+  transmission_stale: "⚠ Waiting on Transmission",
+  digital_behind:     "⏳ 100% Digital catching up",
+  no_data:            "• No data yet"
+};
+
+function whyText(f){
+  var src = fmtAge(f.transmission_latest);
+  if(f.verdict==="ok")
+    return 'In sync. The dashboard is as current as Snowflake provides — Snowflake source last changed <b>'+src+'</b>.';
+  if(f.verdict==="transmission_stale")
+    return '<b class="t">Transmission:</b> the Snowflake source has not updated in <b>'+src+'</b>. '+
+           '<b class="d">100% Digital is in sync</b> with it — the stale numbers are the source, not our pipeline.';
+  if(f.verdict==="digital_behind")
+    return '<b class="d">100% Digital:</b> Snowflake changed <b>'+src+'</b> but our pipeline has not ingested past it yet '+
+           '(ingest '+fmtAge(f.ingest_latest)+'). Catching up on the next run.';
+  return 'No dashboard data found for this client yet.';
+}
+
+function syncCard(c){
+  var f=c.freshness||{};
+  var v=f.verdict||"no_data";
+  var nameLink = c.url ? ' <a href="'+esc(c.url)+'" target="_blank" rel="noopener">'+esc(c.url.replace(/^https?:\/\//,""))+' ↗</a>' : '';
+  // 100% Digital stages: ingest (mirror or direct) + build
+  var ingestStage =
+      '<div class="stage"><div class="slabel">'+dot(f.digital_state)+esc(f.ingest_label||"Ingest")+'</div>'+
+        '<div class="sval">'+fmtAge(f.ingest_latest)+'</div>'+
+        '<div class="sage">'+(f.ingest_latest?esc(f.ingest_latest.replace("T"," ").replace("Z"," UTC")):"no data")+'</div></div>';
+  var buildStage =
+      '<div class="stage"><div class="slabel">'+dot(f.digital_state)+'Dashboard build</div>'+
+        '<div class="sval">'+fmtAge(f.build_at)+'</div>'+
+        '<div class="sage">'+(f.build_at?esc(f.build_at.replace("T"," ").replace("Z"," UTC")):"no data")+'</div></div>';
+  var srcStage =
+      '<div class="stage"><div class="slabel">'+dot(f.transmission_state)+'Snowflake source</div>'+
+        '<div class="sval">'+fmtAge(f.transmission_latest)+'</div>'+
+        '<div class="sage">'+(f.transmission_latest?esc(f.transmission_latest.replace("T"," ").replace("Z"," UTC")):"no data")+'</div></div>';
+  return ''+
+    '<div class="card">'+
+      '<div class="head">'+
+        '<div class="cname">'+esc(c.label)+nameLink+'</div>'+
+        '<div class="verdict '+esc(v)+'">'+esc(VERDICT_TEXT[v]||v)+'</div>'+
+      '</div>'+
+      '<div class="chain">'+
+        '<div class="party t"><div class="ptitle">TRANSMISSION</div><div class="stages">'+srcStage+'</div></div>'+
+        '<div class="party d"><div class="ptitle">100% DIGITAL</div><div class="stages">'+ingestStage+buildStage+'</div></div>'+
+      '</div>'+
+      '<div class="why">'+whyText(f)+'</div>'+
+    '</div>';
+}
+
+function accCard(c){
+  var rows = (c.accuracy||[]).map(function(chk){
+    var sf=chk.snowflake_value, dv=chk.dashboard_value, m=chk.match;
+    var tag;
+    if(chk.error) tag='<span class="mtag na">'+dot("unknown")+'query error</span>';
+    else if(m===true) tag='<span class="mtag ok">✓ MATCH</span>';
+    else if(m===false){
+      var diff=(sf!=null&&dv!=null)?Math.abs(Number(sf)-Number(dv)):null;
+      tag='<span class="mtag bad">✗ off by '+(diff!=null?fmtNum(diff):"?")+'</span>';
+    } else tag='<span class="mtag na">'+dot("unknown")+'no data</span>';
+    var note = chk.note ? '<div class="qnote">'+esc(chk.note)+'</div>' : '';
+    var errLine = chk.error ? '<div class="err">'+esc(chk.error)+'</div>' : '';
+    return ''+
+      '<tr>'+
+        '<td><div style="font-weight:600">'+esc(chk.label)+'</div>'+
+          '<details class="q"><summary>show the Snowflake query</summary>'+
+            '<pre class="sql">'+esc(chk.snowflake_query)+'</pre>'+note+
+            '<div class="checked">checked '+fmtAge(chk.computed_at)+'</div>'+errLine+
+          '</details></td>'+
+        '<td class="num sf">'+fmtNum(sf)+'</td>'+
+        '<td class="num dash">'+fmtNum(dv)+'</td>'+
+        '<td>'+tag+'</td>'+
+      '</tr>';
+  }).join("");
+  return ''+
+    '<div class="card">'+
+      '<div class="head"><div class="cname">'+esc(c.label)+'</div></div>'+
+      '<table class="acc"><thead><tr>'+
+        '<th>Metric</th><th>Snowflake</th><th>Dashboard</th><th>Match</th>'+
+      '</tr></thead><tbody>'+(rows||'<tr><td colspan="4" class="qnote">No checks.</td></tr>')+'</tbody></table>'+
+    '</div>';
+}
+
+function renderSummary(clients){
+  var n={ok:0,transmission_stale:0,digital_behind:0,no_data:0};
+  clients.forEach(function(c){ var v=(c.freshness||{}).verdict||"no_data"; n[v]=(n[v]||0)+1; });
+  var parts=[];
+  parts.push('<span class="pill">'+dot("ok")+'<span class="n">'+n.ok+'</span> healthy</span>');
+  if(n.transmission_stale) parts.push('<span class="pill">'+dot("bad")+'<span class="n">'+n.transmission_stale+'</span> waiting on Transmission</span>');
+  if(n.digital_behind) parts.push('<span class="pill">'+dot("warn")+'<span class="n">'+n.digital_behind+'</span> 100% Digital catching up</span>');
+  if(n.no_data) parts.push('<span class="pill">'+dot("unknown")+'<span class="n">'+n.no_data+'</span> no data</span>');
+  document.getElementById("summary").innerHTML=parts.join("");
+}
+
+function render(){
+  if(!DATA) return;
+  var clients=DATA.clients||[];
+  document.getElementById("asof").textContent="as of "+fmtAge(DATA.generated_at);
+  renderSummary(clients);
+  document.getElementById("sync").innerHTML = clients.length ? clients.map(syncCard).join("") : '<div class="loading">No clients.</div>';
+  document.getElementById("acc").innerHTML  = clients.length ? clients.map(accCard).join("")  : '<div class="loading">No clients.</div>';
+}
+
+function setTab(name){
+  document.getElementById("tabSync").className="tab"+(name==="sync"?" on":"");
+  document.getElementById("tabAcc").className ="tab"+(name==="acc"?" on":"");
+  document.getElementById("pane-sync").className="tabpane"+(name==="sync"?" on":"");
+  document.getElementById("pane-acc").className ="tabpane"+(name==="acc"?" on":"");
+}
+
+function load(){
+  fetch("/data.json",{cache:"no-store"})
+    .then(function(r){ if(!r.ok) throw new Error("HTTP "+r.status); return r.json(); })
+    .then(function(j){ DATA=j; render(); })
+    .catch(function(e){
+      document.getElementById("sync").innerHTML='<div class="err">Could not load status data: '+esc(e.message)+'</div>';
+      document.getElementById("acc").innerHTML='';
+    });
+}
+load();
+// Re-render every 60s so the "x ago" ages stay live without a full reload.
+setInterval(function(){ if(DATA) render(); }, 60000);
+</script>
+</body>
+</html>

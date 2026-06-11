@@ -141,7 +141,7 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 | Export job | `resetdata-export` (runtime SA `resetdata-dash-job@…`, read-only BQ + bucket write) |
 | Web service | `resetdata-dash` (runtime SA `resetdata-dash-web@…`) → [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
 | Secrets | `resetdata-dash-password` · `resetdata-dash-session-key` |
-| Daily refresh | Cloud Scheduler `resetdata-export-daily` (22:00 UTC) |
+| Refresh | Cloud Scheduler `resetdata-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
 
 ## Files
 

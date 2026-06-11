@@ -24,6 +24,19 @@ from decimal import Decimal
 
 from google.cloud import bigquery, storage
 
+from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
+
+# Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when an
+# upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
+# ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
+GATING_TABLES = [
+    "raw_snowflake.google_analytics_apac_all",
+    "raw_snowflake.google_ads_apac",
+    "raw_snowflake.linkedin_ads_apac",
+    "raw_snowflake.dv360_apac",
+]
+WATERMARK_OBJECT = "_freshness.json"
+
 # --- Project-wide constants (identical for every client) ----------------------
 PROJECT = "bidbrain-analytics"
 LOC = "australia-southeast1"
@@ -68,6 +81,20 @@ def rows(bq, name):
 def main():
     bq = bigquery.Client(project=PROJECT)
 
+    # --- Freshness gate: cheap metadata probe; skip the rebuild unless an upstream
+    # raw table advanced. Reading __TABLES__.last_modified is metadata-only.
+    observed = probe_bq_last_modified(bq, GATING_TABLES)
+    wm = read_watermark(BUCKET, WATERMARK_OBJECT)
+    times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                      for k in sorted(observed)) or "(no tables found)"
+    if os.environ.get("FORCE_REBUILD") == "1":
+        print(f"FORCE_REBUILD=1 -> rebuilding regardless of freshness | {times}")
+    elif not is_stale(observed, wm):
+        print(f"no change, skipping rebuild | {times}")
+        return
+    else:
+        print(f"upstream advanced -> rebuilding | {times}")
+
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
@@ -83,6 +110,7 @@ def main():
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
     ad_campaign_market = rows(bq, "ad_campaign_market")
+    ad_campaign_market_monthly = rows(bq, "ad_campaign_market_monthly")
     li_campaign_creative = rows(bq, "li_campaign_creative")
     # Market-grained GA4 — the dashboard's Country filter sums the selected
     # markets out of these client-side. Replaces the old whole-campaign GA4
@@ -103,6 +131,8 @@ def main():
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
         .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data_through": (max([v for v in observed.values() if v])
+                         .strftime("%Y-%m-%dT%H:%M:%SZ") if observed else None),
         "fx_usd_sgd": num(kpi["fx_usd_sgd"]),
         "window": {
             "start": ymd(kpi["campaign_start"]),
@@ -294,6 +324,17 @@ def main():
             "clicks": num(r["clicks"]),
             "spend_sgd": num(r["spend_sgd"]),
         } for r in ad_campaign_market],
+        # market×month grain (keeps LinkedIn's NULL-market rows) — powers the
+        # Overview spend donut so it honours the Country filter + date picker.
+        "ad_campaign_market_monthly": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "market": r["market"],          # null for LinkedIn (no market grain)
+            "month": r["month"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+        } for r in ad_campaign_market_monthly],
         "li_campaign_creative": [{
             "campaign": r["campaign"],
             "creative_type": r["creative_type"],
@@ -321,6 +362,9 @@ def main():
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
+    # Record the watermark only after a successful upload (upload first, watermark
+    # second), so a failed upload simply retries on the next tick.
+    write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
           f"{len(env['weekly'])} weeks, {env['kpi']['sessions']:,} sessions, "
           f"S${env['kpi']['ad_spend_sgd']:,.0f} ad spend")

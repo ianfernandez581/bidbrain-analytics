@@ -24,10 +24,27 @@ Snowflake (APAC_ALL_PLATFORM.PUBLIC.*)  ──[this unit]──►  BigQuery raw
 | File | What it does |
 |---|---|
 | [`create_dataset.py`](create_dataset.py) | **One-time.** Creates the shared `raw_snowflake` dataset in `australia-southeast1`. Idempotent (`exists_ok=True`). Run this first. |
-| [`loader.py`](loader.py) | **The refresh.** `SELECT *` from each configured Snowflake table → `WRITE_TRUNCATE` into the matching `raw_snowflake.*` table. No filter, no transform — a dumb full copy. |
+| [`loader.py`](loader.py) | **The refresh.** Per-table **freshness-gated** (see below): `SELECT *` → `WRITE_TRUNCATE` into `raw_snowflake.*`, but only for tables whose Snowflake `LAST_ALTERED` advanced. No filter, no transform on the data — a dumb full copy of whatever changed. |
+| [`freshness.py`](freshness.py) | The shared freshness gate (vendored, like `sf_connect`). Here it supplies `probe_snowflake_last_altered` for the per-table gate. See the repo `CLAUDE.md` "Freshness contract". |
 | `README.md` | This file. |
 
 ---
+
+## Freshness gate (per-table) — why it runs `*/10` but rarely pulls
+
+This unit is **self-gating** (repo `CLAUDE.md` → "Freshness contract"). It runs on a `*/10` UTC
+Cloud Scheduler tick (`snowflake-ingest`, set in [`../scripts/deploy_ingest_jobs.ps1`](../scripts/deploy_ingest_jobs.ps1)),
+but each tick it first probes `INFORMATION_SCHEMA.TABLES.LAST_ALTERED` for the source tables —
+**metadata-only, no warehouse credits, never resumes `APAC_IN_WH`** — and re-mirrors only the
+tables whose `LAST_ALTERED` advanced past the stored watermark. So a "nothing changed" tick costs
+~nothing, and the shared raw layer is fresh within ~10 min of Snowflake updating (downstream client
+dashboards then gate on these tables' BQ `last_modified`, so freshness composes down the chain).
+
+- **Watermark:** a per-table BQ table `raw_snowflake._sync_state` (`table_name`, `last_altered`).
+  Updated only **after** a table's successful re-load, so a failed load just retries next tick.
+- **`FORCE_REBUILD=1`** re-mirrors every table regardless (for manual full refreshes).
+- The watermark advances per table independently — TradeDesk landing at 02:43Z re-mirrors only
+  `tradedesk_apac_all`, not the other six.
 
 ## What it pulls
 

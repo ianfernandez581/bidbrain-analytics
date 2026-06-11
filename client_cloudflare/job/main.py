@@ -23,10 +23,20 @@ FROM the src_* tables this job lands. So the first run lands src_* and then
 client_mongodb README section 10.)
 """
 import os, json, datetime
-import pandas as pd
 from google.cloud import bigquery, storage
 import snowflake.connector
 from cryptography.hazmat.primitives import serialization
+
+from freshness import probe_snowflake_last_altered, read_watermark, write_watermark, is_stale
+
+# pandas is heavy; import it lazily so a no-op freshness tick stays a light, fast
+# container. _ensure_pandas() runs only on the rebuild path (see main()).
+pd = None
+def _ensure_pandas():
+    global pd
+    if pd is None:
+        import pandas as _pd
+        pd = _pd
 
 from decimal import Decimal as _Decimal
 import datetime as _dt
@@ -54,6 +64,23 @@ CLIENT = "cloudflare"
 DATASET     = f"client_{CLIENT}"                    # client_cloudflare
 BUCKET      = f"bidbrain-analytics-{CLIENT}-dash"   # bidbrain-analytics-cloudflare-dash
 DATA_OBJECT = f"{CLIENT}.json"                      # cloudflare.json
+
+# --- Freshness gate -----------------------------------------------------------
+# The job now runs on a frequent (*/N) schedule and only rebuilds when an
+# upstream Snowflake table has new data. These are the FOUR dynamic PUBLIC base
+# tables in APAC_ALL_PLATFORM that feed the whole Cloudflare dashboard:
+#   "Salesforce_CS_APAC_ALL" -> V_PACING_FINAL_MODEL          (CS pacing tab)
+#   "TradeDesk_APAC ALL" / "LinkedIn Ads - APAC" / "Reddit Ads - APAC_ALL"
+#                            -> V_PAID_ADS_FINAL_MODEL         (Paid Media tab)
+# This is a FULL rebuild (it can't rebuild one channel in isolation), so the
+# rule is: if ANY of the four advanced since the last successful build, rebuild
+# everything. The static inputs (REAL_TARGETS/TIERS/TARGETS/V_STG_LINE_CF and the
+# V_BENCHMARKS_*/V_LI_WEEKLY_TARGETS views) are NOT freshness drivers -- see the
+# seed_static manual-kick caveat in job/README.md. Watch base TABLES, not views:
+# a view's LAST_ALTERED only moves on DDL.
+GATING_TABLES = ["Salesforce_CS_APAC_ALL", "TradeDesk_APAC ALL",
+                 "LinkedIn Ads - APAC", "Reddit Ads - APAC_ALL"]
+WATERMARK_OBJECT = "_freshness.json"
 
 # --- Snowflake source views ---------------------------------------------------
 # Unlike the MongoDB job (which pulls raw tables and models in BigQuery), these
@@ -204,10 +231,26 @@ def land(bq, df, table):
 
 
 def main():
-    bq = bigquery.Client(project=PROJECT)
-
     cn = sf_connect()
     try:
+        # --- Freshness gate: cheap metadata probe; skip unless something changed.
+        # Metadata-only -- no warehouse, no pandas, no BigQuery client constructed yet.
+        observed = probe_snowflake_last_altered(cn, GATING_TABLES)
+        wm = read_watermark(BUCKET, WATERMARK_OBJECT)
+        times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                          for k in sorted(observed)) or "(no tables found)"
+        if os.environ.get("FORCE_REBUILD") == "1":
+            print(f"FORCE_REBUILD=1 -> rebuilding regardless of freshness | {times}")
+        elif not is_stale(observed, wm):
+            print(f"no change, skipping rebuild | {times}")
+            return
+        else:
+            print(f"upstream advanced -> rebuilding | {times}")
+
+        # Rebuild path: now pull the heavy deps + clients.
+        _ensure_pandas()
+        bq = bigquery.Client(project=PROJECT)
+
         paid   = cn.cursor().execute(PAID_SQL).fetch_pandas_all()
         pacing = cn.cursor().execute(PACING_SQL).fetch_pandas_all()
         bch    = cn.cursor().execute(BENCH_CH_SQL).fetch_pandas_all()
@@ -363,8 +406,13 @@ def main():
             "by_campaign": sorted(cmap.values(), key=lambda x: x["spend"], reverse=True),
         }
 
+    # last_updated = when THIS build ran; data_through = the true data instant, i.e.
+    # the newest LAST_ALTERED across the gating tables (UTC). The dashboard shows
+    # both so "fresh build" and "fresh data" are never conflated.
+    _dt_vals = [v for v in observed.values() if v]
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data_through": (max(_dt_vals).strftime("%Y-%m-%dT%H:%M:%SZ") if _dt_vals else None),
         "paid_media": paid_media,
         "pacing": pacing_payload,
         "campaigns": campaigns,
@@ -373,6 +421,11 @@ def main():
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env, default=_json_default), content_type="application/json")
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows, creatives {len(cre)} rows")
+
+    # Record the watermark ONLY after a successful upload, so a failed upload
+    # leaves the old watermark in place and simply retries on the next tick.
+    write_watermark(BUCKET, WATERMARK_OBJECT, observed)
+    print(f"watermark updated -> gs://{BUCKET}/{WATERMARK_OBJECT} | data_through={env['data_through']}")
     print(f"  linkedin single-campaign rows: {len(li_rows)} total across {len(CAMPAIGN_GROUPS)} groups")
     for key, c in campaigns.items():
         t, w = c["totals"], c["window"]

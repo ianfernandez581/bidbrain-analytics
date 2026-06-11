@@ -107,7 +107,7 @@ Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv
 (`.\.venv\Scripts\python.exe`). **First-time stand-up:** run [`deploy_stt.ps1`](deploy_stt.ps1) once
 (idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the daily scheduler). After that:
 
-**① Refresh the data now** (a daily Cloud Scheduler `stt-export-daily` already runs 22:00 UTC):
+**① Refresh the data now** (the `stt-export-daily` Cloud Scheduler runs `*/10` UTC, self-gating):
 ```powershell
 # (optional) refresh the shared raw layer first if you want the very latest source data
 # (all four STT sources — GA4, LinkedIn, DV360, Google Ads — now come from Snowflake):
@@ -153,7 +153,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | Export job | `stt-export` (runtime SA `stt-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `stt-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `stt-dash-web@…`) |
 | Secrets | `stt-dash-password` · `stt-dash-session-key` |
-| Daily refresh | Cloud Scheduler `stt-export-daily` (22:00 UTC) |
+| Refresh | Cloud Scheduler `stt-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
 
 ## Files
 

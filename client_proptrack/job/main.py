@@ -21,6 +21,17 @@ from decimal import Decimal
 
 from google.cloud import bigquery, storage
 
+from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
+
+# Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when an
+# upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
+# ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
+GATING_TABLES = [
+    "raw_snowflake.tradedesk_apac_all",
+    "raw_snowflake.linkedin_ads_apac",
+]
+WATERMARK_OBJECT = "_freshness.json"
+
 # --- Project-wide constants (identical for every client) ----------------------
 PROJECT = "bidbrain-analytics"
 LOC = "australia-southeast1"
@@ -57,6 +68,20 @@ def rows(bq, name):
 def main():
     bq = bigquery.Client(project=PROJECT)
 
+    # --- Freshness gate: cheap metadata probe; skip the rebuild unless an upstream
+    # raw table advanced. Reading __TABLES__.last_modified is metadata-only.
+    observed = probe_bq_last_modified(bq, GATING_TABLES)
+    wm = read_watermark(BUCKET, WATERMARK_OBJECT)
+    times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                      for k in sorted(observed)) or "(no tables found)"
+    if os.environ.get("FORCE_REBUILD") == "1":
+        print(f"FORCE_REBUILD=1 -> rebuilding regardless of freshness | {times}")
+    elif not is_stale(observed, wm):
+        print(f"no change, skipping rebuild | {times}")
+        return
+    else:
+        print(f"upstream advanced -> rebuilding | {times}")
+
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     td_media_type = rows(bq, "td_media_type")
@@ -76,6 +101,8 @@ def main():
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
         .strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data_through": (max([v for v in observed.values() if v])
+                         .strftime("%Y-%m-%dT%H:%M:%SZ") if observed else None),
         "window": {
             "start": ymd(kpi["campaign_start"]),
             "end": ymd(kpi["campaign_end"]),
@@ -206,6 +233,9 @@ def main():
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
+    # Record the watermark only after a successful upload (upload first, watermark
+    # second), so a failed upload simply retries on the next tick.
+    write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
           f"{len(env['ad_campaigns'])} campaigns, {env['kpi']['ad_imps']:,} impressions, "
           f"A${env['kpi']['ad_spend_aud']:,.0f} ad spend")

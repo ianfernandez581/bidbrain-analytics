@@ -1,16 +1,20 @@
 <#
   scheduler.ps1  (Cloudflare)
-  Creates/refreshes a daily Cloud Scheduler trigger that runs the
-  'cloudflare-export' Cloud Run Job at 22:00 UTC. Idempotent -- safe to re-run.
+  Creates/refreshes a Cloud Scheduler trigger that runs the 'cloudflare-export'
+  Cloud Run Job on a frequent cadence (default */10 min). The job is SELF-GATING:
+  each tick it cheaply probes whether its upstream Snowflake tables have new data
+  and only rebuilds when they do, so most ticks are a ~3s no-op. The net effect is
+  the dashboard refreshes within ~10 min of new data instead of once a day.
+  Idempotent -- safe to re-run. Pass -Cron to override the cadence.
   Run from anywhere:  .\client_cloudflare\scheduler.ps1
 #>
+param([string]$Cron = "*/10 * * * *")
 $ErrorActionPreference = "Stop"
 
 $Project  = "bidbrain-analytics"
 $Region   = "australia-southeast1"
 $Job      = "cloudflare-export"
 $Sa       = "cloudflare-dash-job@bidbrain-analytics.iam.gserviceaccount.com"
-$Cron     = "0 22 * * *"
 $TimeZone = "UTC"
 $Sched    = "$Job-daily"
 
@@ -45,5 +49,6 @@ if ($Exists) {
 }
 
 Write-Host ""
-Write-Host "Done. '$Sched' runs '$Job' daily at '$Cron' ($TimeZone)."
+Write-Host "Done. '$Sched' triggers '$Job' on '$Cron' ($TimeZone) -> POST $Uri"
+Write-Host "The job self-gates: most ticks no-op in ~3s; it rebuilds within ~10 min of new Snowflake data."
 Write-Host "Test now:  gcloud scheduler jobs run $Sched --location $Region --project $Project"

@@ -32,7 +32,7 @@ same Flask password gate MongoDB uses.
 | [`sql/`](sql/README.md) | The **thin** BigQuery pass-through views that lock the JSON column contract. [Guide →](sql/README.md) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner). |
 | [`seed_static.py`](seed_static.py) | One-time copy of Cloudflare's three **static** Snowflake inputs (LINE JP spend, pacing targets, account tiers) into `src_*`. Re-run only when those manual uploads change. |
-| [`scheduler.ps1`](scheduler.ps1) | Creates/refreshes the daily Cloud Scheduler trigger for `cloudflare-export` (22:00 UTC). Idempotent. |
+| [`scheduler.ps1`](scheduler.ps1) | Creates/refreshes the Cloud Scheduler trigger for `cloudflare-export` (default `*/10` UTC; pass `-Cron` to override). The job self-gates, so most ticks no-op. Idempotent. |
 
 > There is **no** one-shot `deploy_cloudflare.ps1` for this client — it was stood
 > up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
@@ -163,8 +163,17 @@ gcloud run jobs deploy cloudflare-export --image $IMG --region $REGION \
 ```
 
 Then, mirroring MongoDB:
-- **Daily run** — Cloud Scheduler trigger executing the `cloudflare-export` job
-  (22:00 UTC). Run [`scheduler.ps1`](scheduler.ps1).
+- **Freshness-gated run** — Cloud Scheduler trigger executing the `cloudflare-export`
+  job every `*/10` (UTC). Run [`scheduler.ps1`](scheduler.ps1). The job is **self-gating**:
+  each tick it cheaply probes `INFORMATION_SCHEMA.TABLES.LAST_ALTERED` for its four upstream
+  Snowflake tables (metadata-only — no warehouse credits) and only does the full rebuild +
+  upload when one advanced, recording a `_freshness.json` watermark in the bucket. So the
+  dashboard refreshes **within ~10 min of new data** instead of at a fixed 22:00 UTC, while
+  most ticks are a ~3s no-op. The payload carries both `last_updated` (build time) and
+  `data_through` (newest source `LAST_ALTERED`). Re-running [`seed_static.py`](seed_static.py)
+  changes a *static* input that the gate doesn't watch, so kick the job once by hand after it
+  (`gcloud run jobs execute cloudflare-export --region australia-southeast1 --wait`). See
+  [`job/README.md`](job/README.md#freshness-gate--why-most-runs-do-nothing-and-thats-the-point).
 - **Friendly URL** — Cloudflare CNAME `cloudflare.bidbrain.ai` -> the service's
   `*.run.app` host, Proxied, SSL Full (strict), Host Header Override. See
   `dash/LIVE_URL.md`.

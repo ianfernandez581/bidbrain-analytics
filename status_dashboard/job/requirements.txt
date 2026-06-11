@@ -1,0 +1,15 @@
+# Cloud Run export job: probes Snowflake (LAST_ALTERED metadata + COUNT/SUM truth
+# numbers) and BigQuery (__TABLES__ metadata), reads each client's <client>.json
+# from its GCS bucket, and writes status.json to the status bucket.
+#
+# No pandas/pyarrow: the accuracy numbers are scalar COUNT/SUM results read with
+# a plain cursor (fetchone), so the no-op freshness tick stays a light container.
+# Pins match client_cloudflare/job/requirements.txt so the image base is shared.
+snowflake-connector-python==4.6.0
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1
+cryptography==48.0.0
+# Local key fallback in main.py (_snowflake_key_bytes): when SNOWFLAKE_KEY isn't in
+# the env, the key is read from Secret Manager via ADC. Cloud Run injects
+# SNOWFLAKE_KEY directly (--set-secrets) so prod never hits this path.
+google-cloud-secret-manager==2.28.0

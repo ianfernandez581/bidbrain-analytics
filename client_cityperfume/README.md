@@ -9,7 +9,7 @@ web app serves it). It pairs the **STT backend + auth model** with an **e-commer
 Status: **LIVE** at https://cityperfume-dash-p32gk2wuia-ts.a.run.app (password-gated) — deployed +
 verified 2026-06-06: 25 views applied, the export job ran (PII-free `cityperfume.json` in the private
 bucket), the dashboard serves all 5 tabs, and the auth flow is confirmed (401 unauth → 200 authed).
-Daily refresh at 22:00 UTC. Both logos (100% Digital + City Perfume) are embedded in the topbar + login.
+Refreshes within ~10 min of new upstream data (self-gating `*/10` scheduler). Both logos (100% Digital + City Perfume) are embedded in the topbar + login.
 
 ## The story it tells
 
@@ -90,8 +90,8 @@ ad_campaigns = platform_summary = **A$517,729**; sales views all = **A$16,053,03
 # edited dash/dashboard.html or dash/main.py → rebuild + redeploy the service:
 .\client_cityperfume\dash\deploy_dash_cityperfume.ps1
 
-# adjust the daily refresh schedule:
-.\client_cityperfume\scheduler.ps1 -Schedule "0 22 * * *"
+# adjust the refresh cadence (the scheduler defaults to */10 UTC, self-gating):
+.\client_cityperfume\scheduler.ps1 -Schedule "*/10 * * * *"
 ```
 
 The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy shows immediately,

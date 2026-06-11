@@ -69,7 +69,7 @@ Project `bidbrain-analytics`, region `australia-southeast1`. **First-time stand-
 both Cloud Run units, daily scheduler). After that:
 
 ```powershell
-# ① refresh data now (daily scheduler schneider-export-daily runs 22:00 UTC)
+# ① refresh data now (scheduler schneider-export-daily runs */10 UTC, self-gating)
 .\.venv\Scripts\python.exe snowflake_data_pull\loader.py            # optional: refresh shared raw layer
 gcloud run jobs execute schneider-export --region australia-southeast1 --wait
 
@@ -101,7 +101,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | Export job | `schneider-export` (runtime SA `schneider-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `schneider-dash` (runtime SA `schneider-dash-web@…`) → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
 | Secrets | `schneider-dash-password` · `schneider-dash-session-key` |
-| Daily refresh | Cloud Scheduler `schneider-export-daily` (22:00 UTC) |
+| Refresh | Cloud Scheduler `schneider-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
 | Domain (later) | `schneider.bidbrain.ai` (CNAME + Host Header Override, wired later) |
 
 ## Files

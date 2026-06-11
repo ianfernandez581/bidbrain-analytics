@@ -1070,7 +1070,7 @@ function setLiveBanner(lastUpdated, rowCount) {
   const dataThrough = latestDay ? ` · Source data through <b style="color:#fff">${latestDay}</b>` : '';
   // Echo the active date filter when narrowed so the banner doesn't contradict it.
   const rangeText = narrowed() ? ` · Filtered to <b style="color:#fff">${rangeStart} → ${rangeEnd}</b>` : '';
-  document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough}${rangeText} · Auto-refreshes daily at 22:00 UTC`;
+  document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough}${rangeText} · Auto-refreshes within ~10 min of new Snowflake data`;
 }
 
 function switchTab(tab) {
@@ -1778,7 +1778,7 @@ function setPaidFooter(rowCount) {
   // When the date range is narrowed, echo the active filter so the footer doesn't contradict it.
   const rangeText = narrowed() ? ` · Filtered to ${rangeStart} → ${rangeEnd}` : '';
   document.getElementById('paidFooter').innerHTML =
-    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: Snowflake V_PAID_ADS_FINAL_MODEL · Auto-refreshes daily at 22:00 UTC`;
+    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: Snowflake V_PAID_ADS_FINAL_MODEL · Auto-refreshes within ~10 min of new Snowflake data`;
 }
 
 function renderPaidMediaChips() {
@@ -2389,8 +2389,23 @@ function renderCampaign(key){
     const rctr=r.imps?r.clicks/r.imps:0, rcpc=r.clicks?r.spend/r.clicks:0;
     tb.insertAdjacentHTML('beforeend',`<tr><td>${esc(r.campaign)}</td><td>${fmt$(r.spend)}</td><td>${fmtNum(r.imps)}</td><td>${fmtNum(r.clicks)}</td><td>${fmtPct2(rctr,2)}</td><td>${r.clicks?fmt$(rcpc,2):'—'}</td><td>${fmtNum(r.leads)}</td></tr>`);
   });
-  document.getElementById('cmpFooter').innerHTML = `Live LinkedIn delivery · Updated <b style="color:#fff">${COMBINED.last_updated||'unknown'}</b> · Source: raw_snowflake.linkedin_ads_apac · Auto-refreshes daily at 22:00 UTC`;
+  document.getElementById('cmpFooter').innerHTML = `Live LinkedIn delivery · Updated <b style="color:#fff">${COMBINED.last_updated||'unknown'}</b> · Source: raw_snowflake.linkedin_ads_apac · Auto-refreshes within ~10 min of new Snowflake data`;
 }
+
+// Live auto-refresh. The export job now rebuilds within ~10 min of new Snowflake
+// data, so an open tab polls the payload's last_updated every 5 min and reloads
+// only when it actually changes. Cheap (no-store GET against the same gated /data.json)
+// and behind a single timer -- no chart code is touched.
+setInterval(async () => {
+  try {
+    const res = await fetch(JSON_URL, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (COMBINED && data.last_updated && data.last_updated !== COMBINED.last_updated) {
+      location.reload();
+    }
+  } catch (_) { /* transient fetch error: just try again next tick */ }
+}, 5 * 60 * 1000);
 
 boot();
 </script>
