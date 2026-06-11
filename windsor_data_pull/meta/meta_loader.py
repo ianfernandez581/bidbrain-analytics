@@ -208,6 +208,12 @@ def latest_dates_per_account(bq):
 def chunk_filename(d_from, d_to, cache_tag):
     return CHUNKS_DIR / f"{cache_tag}_{d_from.isoformat()}_to_{d_to.isoformat()}.json"
 
+class AccountUnavailableError(Exception):
+    """Windsor returned a 400 saying a requested account is not available (not
+    granted / wrong id). Not retryable, but skippable: per-account runs catch this
+    and move on so one misconfigured account never aborts the whole loader."""
+
+
 def fetch_chunk(api_key, d_from, d_to, idx, total, select_accounts, cache_tag, force=False):
     """Fetch one chunk for the given accounts. Retries transient errors forever;
     fails fast on 4xx. total may be None (backward-walk mode, count unknown).
@@ -260,6 +266,13 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, select_accounts, cache_tag, f
                 time.sleep(sleep)
                 continue
             body = (e.response.text[:500] if e.response is not None else "")
+            if status == 400 and "not available" in body.lower():
+                # Windsor 400: a requested account isn't granted to this connector.
+                # Skippable (handled per-account by the caller), not a hard failure.
+                raise AccountUnavailableError(
+                    f"Account(s) {','.join(select_accounts)} not available in Windsor. "
+                    f"Body:\n{body}"
+                )
             raise RuntimeError(
                 f"Chunk {d_from}..{d_to} got permanent HTTP {status}. This will NOT "
                 f"recover by retrying -- likely a bad field name or auth. Body:\n{body}"
@@ -544,21 +557,31 @@ def main():
     else:
         last_dates = latest_dates_per_account(bq)
         log.info(f"Existing data in {MAIN_TABLE} for {len(last_dates)}/{len(SELECT_ACCOUNTS)} configured account(s)")
+        skipped = []
         for account in SELECT_ACCOUNTS:
             key = account_key(account)
             last = last_dates.get(key)
             log.info("=" * 60)
-            if last is None:
-                log.info(f"ACCOUNT {account}: no rows in BQ -> full backfill (backward walk)")
-                process_backward_walk(end_d, [account], key)
-            else:
-                start = last - timedelta(days=INCREMENTAL_LOOKBACK_DAYS)
-                if start < MIN_DATE:
-                    start = MIN_DATE
-                if start > end_d:          # account already current; still re-pull its last day
-                    start = end_d
-                log.info(f"ACCOUNT {account}: last BQ day {last} -> incremental {start}..{end_d}")
-                process_forward_range(start, end_d, [account], key)
+            try:
+                if last is None:
+                    log.info(f"ACCOUNT {account}: no rows in BQ -> full backfill (backward walk)")
+                    process_backward_walk(end_d, [account], key)
+                else:
+                    start = last - timedelta(days=INCREMENTAL_LOOKBACK_DAYS)
+                    if start < MIN_DATE:
+                        start = MIN_DATE
+                    if start > end_d:          # account already current; still re-pull its last day
+                        start = end_d
+                    log.info(f"ACCOUNT {account}: last BQ day {last} -> incremental {start}..{end_d}")
+                    process_forward_range(start, end_d, [account], key)
+            except AccountUnavailableError as e:
+                # One account not granted in Windsor must not abort the others (or the
+                # daily Cloud Run job). Log loudly and continue; grant access in Windsor
+                # or drop it from SELECT_ACCOUNTS to silence.
+                log.warning(f"SKIPPING account {account}: {e}")
+                skipped.append(account)
+        if skipped:
+            log.warning(f"{len(skipped)} account(s) skipped (unavailable in Windsor): {', '.join(skipped)}")
 
     overall = (time.monotonic() - overall_start) / 60
     log.info("=" * 60)

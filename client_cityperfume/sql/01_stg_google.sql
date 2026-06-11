@@ -18,4 +18,4 @@ SELECT
   conversions_value                 AS revenue_claimed
 FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`
 WHERE account_name = 'City Perfume'
-  AND metric_date >= DATE '2025-06-01';
+  AND metric_date >= DATE '2025-01-01';

@@ -24,4 +24,4 @@ SELECT
   COALESCE(SAFE_CAST(JSON_VALUE(SAFE.PARSE_JSON(JSON_VALUE(conversions)), '$.view_through_conversion_03') AS FLOAT64), 0) AS view_conversions
 FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`
 WHERE advertiser_name = 'City Perfume'
-  AND metric_date >= DATE '2025-06-01';
+  AND metric_date >= DATE '2025-01-01';

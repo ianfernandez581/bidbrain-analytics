@@ -111,26 +111,39 @@ def main():
         },
         # Headline + trends
         "kpi": kpi,
-        "monthly": rows(bq, "monthly"),
+        "monthly": rows(bq, "monthly"),         # kept for the CSV export
         "weekly": rows(bq, "weekly"),
-        # GA4 / Website
+        # DAY-GRAINED sources — the dashboard clips these to the exact selected date range,
+        # aggregates up for KPIs/donuts/tables, and buckets to day/week/month for trend charts
+        # by range span. The full-period arrays below stay the EXACT source when the range is
+        # NOT narrowed (so the default view is unchanged and distinct-customer counts stay exact).
+        "sales_daily": rows(bq, "sales_daily"),
+        "sales_by_channel_daily": rows(bq, "sales_by_channel_daily"),
+        "sales_category_daily": rows(bq, "sales_category_daily"),
+        "sales_products_daily": rows(bq, "sales_products_daily"),
+        "ga4_channels_daily": rows(bq, "ga4_channels_daily"),
+        "ga4_sources_daily": rows(bq, "ga4_sources_daily"),
+        "ga4_funnel_daily": rows(bq, "ga4_funnel_daily"),
+        "ad_campaign_daily": rows(bq, "ad_campaign_daily"),
+        "google_campaign_type_daily": rows(bq, "google_campaign_type_daily"),
+        "meta_creative_daily": rows(bq, "meta_creative_daily"),
+        # GA4 / Website — full-period (exact source when the range is not narrowed)
         "ga4_channels": rows(bq, "ga4_channels"),
         "ga4_monthly_channel": rows(bq, "ga4_monthly_channel"),
         "ga4_sources": rows(bq, "ga4_sources"),
         "ga4_funnel": one(bq, "ga4_funnel"),
-        # Sales & Products (first-party truth)
+        # Sales & Products (first-party truth) — full-period (exact when not narrowed)
         "sales_kpi": one(bq, "sales_kpi"),
         "sales_monthly": rows(bq, "sales_monthly"),
         "sales_products": rows(bq, "sales_products"),
         "sales_by_channel": rows(bq, "sales_by_channel"),
         "sales_category": rows(bq, "sales_category"),
         "sales_new_returning": rows(bq, "sales_new_returning"),
-        # Paid media detail
+        # Paid media detail — full-period (exact when not narrowed)
         "platform_summary": rows(bq, "platform_summary"),
         "google_campaign_type": rows(bq, "google_campaign_type"),
         "meta_creative": rows(bq, "meta_creative"),
-        # Campaign filter (the dashboard sums selected campaigns client-side to rescale
-        # every ad-delivery figure; the sales side has no campaign dimension, stays whole).
+        # Campaign filter list + whole-window per-campaign totals (the multi-select reads these).
         "ad_campaigns": rows(bq, "ad_campaigns"),
         "ad_campaign_monthly": rows(bq, "ad_campaign_monthly"),
         "ad_campaign_weekly": rows(bq, "ad_campaign_weekly"),

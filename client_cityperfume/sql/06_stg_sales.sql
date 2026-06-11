@@ -67,4 +67,4 @@ SELECT
   (seq.order_seq = 1)               AS is_new_customer_order
 FROM `bidbrain-analytics.client_cityperfume.v_sales` s
 JOIN order_seq seq USING (order_id)
-WHERE DATE(s.date_placed) >= DATE '2025-06-01';
+WHERE DATE(s.date_placed) >= DATE '2025-01-01';

@@ -17,7 +17,7 @@ ev AS (
     SUM(IF(event_name = 'purchase',       event_count, 0)) AS purchase
   FROM `bidbrain-analytics.raw_ga4.perf_ga4_events`
   WHERE client_slug = 'city-perfume'
-    AND metric_date >= DATE '2025-06-01'
+    AND metric_date >= DATE '2025-01-01'
 )
 SELECT
   s.sessions,

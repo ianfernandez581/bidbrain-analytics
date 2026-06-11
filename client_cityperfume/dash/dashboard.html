@@ -369,11 +369,11 @@
     <!-- ============ OVERVIEW ============ -->
     <div id="tab-overview" class="tabpane">
       <div class="section first"><h2>Performance overview</h2><span class="sub" id="ovSub"></span></div>
-      <div class="kpis" id="ovKpis"></div>
+      <div class="kpis six" id="ovKpis"></div>
       <div class="ai-note" id="ovCommentary"></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>Ad spend by platform vs sales revenue &amp; ROAS — monthly</h3>
-          <div class="hint">Stacked bars = ad spend by platform; line = first-party sales revenue (whole-store); dashed = blended ROAS. Spend &amp; ROAS reflect the Platform/Campaign filters; revenue is whole-store.</div>
+        <div class="card card-tall"><h3>Ad spend by platform vs sales revenue — monthly</h3>
+          <div class="hint">Stacked bars = ad spend by platform; line = first-party sales revenue (whole-store). Spend reflects the Platform/Campaign filters; revenue is whole-store.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div></div>
         <div class="card card-tall"><h3>Revenue by sales channel</h3>
           <div class="hint">First-party sales (v_sales) by channel group.</div>
@@ -392,11 +392,11 @@
 
     <!-- ============ PAID MEDIA ============ -->
     <div id="tab-paid" class="tabpane">
-      <div class="section first"><h2>Paid media delivery</h2><span class="sub">All platforms shown regardless of the Platform chips; the Campaign filter still applies. Platform-claimed revenue/ROAS are each platform's own attribution — shown for context, never the blended headline.</span></div>
-      <div class="kpis six" id="pmKpis"></div>
+      <div class="section first"><h2>Paid media delivery</h2><span class="sub">Spend &amp; delivery scoped to the Platform &amp; Campaign filters. Platform-claimed conversions/revenue are each platform's own attribution — shown for context.</span></div>
+      <div class="kpis" id="pmKpis"></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>Spend by platform &amp; blended ROAS — monthly</h3>
-          <div class="hint">Stacked spend bars + dashed blended-ROAS line (sales ÷ spend).</div>
+        <div class="card card-tall"><h3>Ad spend &amp; what it drives — monthly</h3>
+          <div class="hint">Stacked bars = ad spend by platform. Each line is an outcome on its <em>own</em> 0→max axis, so you compare shape not absolute level — click a legend item to show/hide it. Spend, impressions, clicks &amp; attributed revenue follow the Platform/Campaign filters; web traffic &amp; total revenue are whole-site.</div>
           <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div></div>
         <div class="card card-tall"><h3>Spend share</h3><div class="hint">By platform.</div>
           <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div></div>
@@ -638,15 +638,99 @@ let campaignMenuOpen = false;
 let productSort = 'revenue';
 const el = id => document.getElementById(id);
 
-/* ---- date range (Looker-style picker). Finest grain is MONTH (trend/sales arrays)
-   and ISO-WEEK Monday (DATA.weekly). Trend charts honor the range; whole-window
-   KPIs/donuts/tables stay full-period. Lexical ISO compare only — never Date(). ---- */
+/* ---- date range (Looker-style picker). Finest grain is the DAY: every *_daily array clips
+   to the exact [rangeStart, rangeEnd] and re-aggregates, so KPIs/donuts/tables/charts all honor
+   the range to the day. Trend charts bucket the clipped days to day/week/month by span. The
+   full-period arrays are the exact source when the range is NOT narrowed. ---- */
 let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;   // ISO 'YYYY-MM-DD'
-const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
+// Compare on the MONTH prefix at BOTH ends. The stored month is 'YYYY-MM-01', so the old
+// `m <= rangeEnd.slice(0,7)` test dropped the end-boundary month ('2026-06-01' > '2026-06'
+// lexically) — a month the range clearly overlaps. Slicing m too includes every touched month.
+const inRangeMonth = m => { const mm=String(m).slice(0,7); return (!rangeStart || mm >= rangeStart.slice(0,7)) && (!rangeEnd || mm <= rangeEnd.slice(0,7)); };
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
 const clipMonthly  = arr => (arr||[]).filter(r=>inRangeMonth(r.month));
 const clipWeekly   = arr => (arr||[]).filter(r=>inRangeWeek(r.week_start));
+
+/* ---- DAY-level range clipping + re-aggregation ----------------------------------
+   Every breakdown has a DAY-grained sibling (…_daily). When the range is NARROWED we clip the
+   sibling to the exact [rangeStart, rangeEnd] days and re-aggregate per dimension; when it is
+   NOT narrowed we fall back to the exact full-period array, so the default (all-time) view is
+   unchanged and distinct-customer counts stay exact. Ratios are ALWAYS derived from summed
+   numerators — never averaged. Trend charts bucket the daily rows to day / week / month by the
+   span of the range (chartGrain). Distinct-customer COUNTS can't be summed across days (a buyer
+   active on two days counts twice): new-customers IS exact (first-ever order is one day),
+   returning/total are shown as ≈ when narrowed (flagged via .approxCustomers). */
+const inRangeDay = d => (!rangeStart || d >= rangeStart) && (!rangeEnd || d <= rangeEnd);   // d = 'YYYY-MM-DD'
+const clipDaily  = arr => (arr||[]).filter(r=>inRangeDay(String(r.day).slice(0,10)));
+function fmtDay(iso){ if(!iso) return ''; const [y,m,d]=String(iso).slice(0,10).split('-'); return new Date(+y,+m-1,+d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}); }
+function scopeLabel(){ return fmtDay(rangeStart||dateMin)+' – '+fmtDay(rangeEnd||dateMax); }
+const apxN = (v,approx) => (approx?'≈ ':'')+fmtN(v);
+const APX_TIP = 'Approximate for a sub-range: sums each day’s distinct customer count, so a buyer active on multiple days is counted more than once. Exact only over the full period.';
+// Clip DAY-grained rows to the active range, group by keyFn, sum sumFields; staticFields carry
+// the first row's value (labels/colours). Returns rows in first-seen order.
+function aggRange(arr, keyFn, sumFields, staticFields){
+  staticFields = staticFields || []; const m={}, order=[];
+  for(const r of clipDaily(arr||[])){
+    const k=keyFn(r); let e=m[k];
+    if(!e){ e=m[k]={}; sumFields.forEach(f=>e[f]=0); staticFields.forEach(f=>e[f]=r[f]); order.push(k); }
+    sumFields.forEach(f=>{ e[f]+=(+r[f]||0); });
+  }
+  return order.map(k=>m[k]);
+}
+/* ---- adaptive trend bucketing (day → week → month by range span) ---- */
+function daysSpan(){ const lo=rangeStart||dateMin, hi=rangeEnd||dateMax; return Math.round((new Date(hi)-new Date(lo))/86400000)+1; }
+// day for ≤ ~6 weeks, week for ≤ ~6 months, month beyond — so the default all-time (~1yr) view
+// keeps its familiar monthly bars, while short ranges get daily/weekly detail.
+function chartGrain(){ const n=daysSpan(); return n<=45?'day': n<=183?'week':'month'; }
+function isoWeekMonday(iso){ const d=new Date(iso+'T00:00:00Z'); const wd=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-wd); return d.toISOString().slice(0,10); }
+function bucketKey(iso,grain){ iso=String(iso).slice(0,10); return grain==='month'? iso.slice(0,7)+'-01' : grain==='week'? isoWeekMonday(iso) : iso; }
+function bucketLabel(key,grain){ return grain==='month'? monthLabel(key) : weekLabel(key); }
+// Sum a *_daily array into a {bucketKey -> {sumFields}} map for the active range.
+function bucketMap(arr, sumFields, filterFn){
+  const grain=chartGrain(), m={};
+  for(const r of clipDaily(arr||[])){ if(filterFn&&!filterFn(r)) continue;
+    const k=bucketKey(r.day,grain); let e=m[k]; if(!e){ e=m[k]={}; sumFields.forEach(f=>e[f]=0); }
+    sumFields.forEach(f=>e[f]+=(+r[f]||0)); }
+  return m;
+}
+// Ordered bucket axis (sorted keys + labels) covering the union of the given maps.
+function bucketAxis(){ const grain=chartGrain(), s=new Set(); for(const mp of arguments) Object.keys(mp).forEach(k=>s.add(k)); return [...s].sort().map(k=>({key:k,label:bucketLabel(k,grain)})); }
+
+// First-party sales headline, range-aware. Full range -> exact sales_kpi; narrowed -> summed
+// sales_daily (additive metrics exact; new_customers exact, returning/total customers ≈).
+function salesTotals(){
+  const k=DATA.sales_kpi||{};
+  if(!narrowed()) return Object.assign({}, k, {approxCustomers:false});
+  const sd=clipDaily(DATA.sales_daily||[]); const s=f=>sd.reduce((a,r)=>a+(+r[f]||0),0);
+  const rev=s('revenue_total'), ord=s('orders'), mar=s('margin'), un=s('units');
+  return {
+    revenue_total:rev, revenue_online:s('revenue_online'),
+    margin_total:mar, margin_pct: rev?mar/rev:0,
+    orders_total:ord, aov: ord?rev/ord:0,
+    units:un, units_per_order: ord?un/ord:0,
+    new_orders:s('new_orders'), returning_orders:s('returning_orders'),
+    new_revenue:s('new_revenue'), returning_revenue:s('returning_revenue'),
+    returning_revenue_share: rev?s('returning_revenue')/rev:0,
+    repeat_order_rate: ord?s('returning_orders')/ord:0,
+    new_customers:s('new_customers'), returning_customers:s('returning_customers'),
+    customers_total: s('new_customers')+s('returning_customers'),
+    approxCustomers:true
+  };
+}
+// GA4 site totals, range-aware. Full range -> sum ga4_channels; narrowed -> sum ga4_channels_daily.
+function ga4Totals(){
+  const src = narrowed() ? clipDaily(DATA.ga4_channels_daily||[]) : (DATA.ga4_channels||[]);
+  const s=f=>src.reduce((a,r)=>a+(+r[f]||0),0);
+  const paid=src.filter(r=>r.channel_bucket==='Paid').reduce((a,r)=>a+(+r.sessions||0),0);
+  const ses=s('sessions'), pur=s('ecommerce_purchases');
+  return { sessions:ses, paid_sessions:paid, engaged_sessions:s('engaged_sessions'),
+    transactions:s('transactions'), purchase_revenue:s('purchase_revenue'),
+    ecommerce_purchases:pur, cvr: ses?pur/ses:0 };
+}
+// Platform-claimed revenue (range-aware): adByPlatform sources ad_campaign_daily; platform_revenue
+// IS each platform's own-claimed revenue.
+function claimedRev(){ const ap=adByPlatform(false); return { google:(ap.google||{}).rev||0, meta:(ap.meta||{}).rev||0 }; }
 
 /* ---- palette mirror (Chart.js uses these) ---- */
 const C = { ink:'#1C1815', mute:'#8A8079', line:'#EAE2D6', gold:'#B08D57', goldDeep:'#8C6E42',
@@ -684,7 +768,10 @@ function rowOk(r, applyPlatform){ return campOn(r.campaign) && (!applyPlatform |
 /* ---- AD-side aggregators (rescale to selected campaigns/platforms) ---- */
 function adByPlatform(applyPlatform){
   const o={}; PLATFORMS.forEach(p=>o[p.key]={imps:0,clk:0,spend:0,conv:0,rev:0});
-  for(const c of (DATA.ad_campaigns||[])){ if(!rowOk(c,applyPlatform)) continue; const e=o[c.platform]; if(!e) continue;
+  // Source the DAY-grained delivery clipped to the active range. At full range this sums to the
+  // same per-platform totals as the whole-period ad_campaigns array (the documented invariant),
+  // so the default view is unchanged; narrowed, every ad figure is scoped to the exact days.
+  for(const c of clipDaily(DATA.ad_campaign_daily)){ if(!rowOk(c,applyPlatform)) continue; const e=o[c.platform]; if(!e) continue;
     e.imps+=c.imps||0; e.clk+=c.clicks||0; e.spend+=c.spend_aud||0; e.conv+=c.platform_conversions||0; e.rev+=c.platform_revenue||0; }
   return o;
 }
@@ -705,7 +792,7 @@ function adWeeklyMap(applyPlatform){ const m={};
 }
 
 /* ---- revenue basis helpers (sales is whole-store; basis flips total vs online) ---- */
-const basisRevTotal = () => revenueBasis==='online' ? DATA.kpi.revenue_online : DATA.kpi.revenue_total;
+const basisRevTotal = () => { const st=salesTotals(); return revenueBasis==='online' ? st.revenue_online : st.revenue_total; };
 const basisLabel    = () => revenueBasis==='online' ? 'online' : 'all-sales';
 const monthRev = mo => revenueBasis==='online' ? (mo.revenue_online||0) : (mo.revenue_total||0);
 
@@ -755,7 +842,7 @@ function gridY(opts={}){ return Object.assign({grid:{color:'#F0EADF'},ticks:{col
 function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
 function legendRight(){ return {position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}}; }
-function kpiCard(cls,label,value,delta){ return '<div class="kpi '+cls+'"><span class="stripe"></span><div class="label">'+label+'</div><div class="value">'+value+'</div><div class="delta">'+(delta||'&nbsp;')+'</div></div>'; }
+function kpiCard(cls,label,value,delta,title){ return '<div class="kpi '+cls+'"'+(title?' title="'+String(title).replace(/"/g,'&quot;')+'"':'')+'><span class="stripe"></span><div class="label">'+label+'</div><div class="value">'+value+'</div><div class="delta">'+(delta||'&nbsp;')+'</div></div>'; }
 function adjust(hex,amt){ let n=parseInt(hex.slice(1),16); let r=Math.max(0,Math.min(255,(n>>16)+amt)),g=Math.max(0,Math.min(255,((n>>8)&255)+amt)),b=Math.max(0,Math.min(255,(n&255)+amt)); return '#'+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1); }
 function shade(hex,i){ const f=[0,22,-18,40,-34,56,-46,68][i%8]||0; return adjust(hex,f); }
 function pearson(xs,ys){ const n=xs.length; if(n<2) return 0; const mx=xs.reduce((a,b)=>a+b,0)/n,my=ys.reduce((a,b)=>a+b,0)/n; let sxy=0,sxx=0,syy=0; for(let i=0;i<n;i++){ const dx=xs[i]-mx,dy=ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; } return (sxx&&syy)?sxy/Math.sqrt(sxx*syy):0; }
@@ -791,9 +878,9 @@ function renderDateScope(){
   const note=el('dateScopeNote'); if(!note) return;
   if(narrowed()){
     note.style.display='block';
-    note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to whole months; the weekly Ads→Revenue chart snaps to ISO weeks). '
-      +'Trend charts reflect this range; KPI cards, donuts, and campaign/creative/category/product tables show the <b>full period</b> '
-      +'(those breakdowns aren\'t available at a finer grain in the feed — distinct-customer counts and repeat-rate are non-additive across months).';
+    note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (to the day; trend charts bucket by day, week, or month depending on the span). '
+      +'KPI cards, donuts, charts, and campaign/creative/category/product tables all reflect this exact range. '
+      +'The only exception is the <b>distinct-customer counts</b> (Customers / Returning), shown with a <b>≈</b> — a buyer active on more than one day is counted in each, so they are exact only over the full period (New customers stays exact).';
   } else {
     note.style.display='none';
   }
@@ -801,7 +888,7 @@ function renderDateScope(){
 function renderControls(){
   [['overview','tabOverview'],['paid','tabPaid'],['web','tabWeb'],['sales','tabSales'],['link','tabLink']]
     .forEach(([t,id])=>el(id).className='tab'+(t===activeTab?' on':''));
-  const showPlatform = activeTab==='overview'||activeTab==='link';
+  const showPlatform = ['overview','paid','link'].includes(activeTab);
   const showCampaign = ['overview','paid','link'].includes(activeTab);
   const showBasis    = activeTab==='overview'||activeTab==='link';
   // Date filtering is meaningful on EVERY tab (each has >=1 date-grained chart),
@@ -824,7 +911,7 @@ function renderControls(){
     pw.appendChild(b); });
   renderCampaignButton();
   const notes={overview:'Platform & Campaign rescale ad delivery; revenue is whole-store.',
-    paid:'All platforms shown; Campaign filter applies.', web:'GA4 — no campaign dimension.',
+    paid:'Platform & Campaign filters apply.', web:'GA4 — no campaign dimension.',
     sales:'First-party sales — whole-store, no filters.', link:'Spend rescales; sales stays whole.'};
   el('ctrlNote').textContent=notes[activeTab]||'';
 }
@@ -833,43 +920,44 @@ function clearPlatforms(){ activePlatforms=new Set(); renderControls(); renderAc
 
 /* =================== OVERVIEW =================== */
 function renderOverview(){
-  const a=adKpi(), k=DATA.kpi, sk=DATA.sales_kpi;
-  const rev=basisRevTotal(), roas=a.spend?rev/a.spend:0;
-  el('ovSub').textContent = `${monthLabel(k.window_start)} – ${monthLabel(k.window_end)} · ${basisLabel()} revenue basis · ${SYM} AUD`;
+  const a=adKpi(), sk=salesTotals(), g=ga4Totals();
+  const rev=basisRevTotal();
+  el('ovSub').textContent = `${scopeLabel()} · ${basisLabel()} revenue basis · ${SYM} AUD`;
   el('ovKpis').innerHTML =
       kpiCard('paid','Ad spend', money(a.spend), `${fmtM(a.imps)} imps · ${fmtM(a.clk)} clicks`)
     + kpiCard('sale','Revenue ('+basisLabel()+')', moneyM(rev), `${fmtN(sk.orders_total)} orders`)
-    + kpiCard('paid','Blended ROAS', roasS(roas), `${money(a.spend?a.spend/sk.orders_total:0)} cost / order`)
     + kpiCard('sale','AOV', money(sk.aov), `${fmtN(sk.units)} units`)
     + kpiCard('sale','Margin %', fmtPct(sk.margin_pct,1), `${moneyM(sk.margin_total)} margin`)
-    + kpiCard('sale','Repeat-order rate', fmtPct(sk.repeat_order_rate,1), `${fmtN(sk.returning_customers)} returning custs`)
-    + kpiCard('site','Sessions', fmtM(k.sessions), `${fmtPct(pct(k.paid_sessions,k.sessions),0)} paid`);
+    + kpiCard('sale','Repeat-order rate', fmtPct(sk.repeat_order_rate,1), `${apxN(sk.returning_customers,sk.approxCustomers)} returning custs`, sk.approxCustomers?APX_TIP:'')
+    + kpiCard('site','Sessions', fmtM(g.sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} paid`);
   renderOvCommentary();
 
-  // hero: spend bars per platform + revenue line + ROAS line
-  const M=clipMonthly(DATA.monthly), am=adMonthlyMap(true);
-  const labels=M.map(r=>monthLabel(r.month));
+  // hero: spend bars per platform + revenue line + ROAS line (day-grained, bucketed by range span)
+  const salesMap=bucketMap(DATA.sales_daily,['revenue_total','revenue_online']);
+  const spendMap=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true));
+  const platMap={}; PLATFORMS.forEach(p=>platMap[p.key]=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true)&&r.platform===p.key));
+  const AX=bucketAxis(salesMap,spendMap), labels=AX.map(b=>b.label);
+  const bRev=b=> revenueBasis==='online' ? (salesMap[b.key]||{}).revenue_online||0 : (salesMap[b.key]||{}).revenue_total||0;
   const spendBars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y1',stack:'sp',
-    data:M.map(r=>(am[r.month]||{})[p.key]||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:3}));
+    data:AX.map(b=>(platMap[p.key][b.key]||{}).spend_aud||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:3}));
   charts.ovHero=new Chart(el('ovHero'),{ data:{labels,datasets:[
-    {type:'line',label:'Sales revenue',yAxisID:'y',data:M.map(monthRev),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.12)',borderWidth:2.5,tension:.35,fill:true,pointRadius:2,order:1},
-    ...spendBars,
-    {type:'line',label:'Blended ROAS',yAxisID:'y2',data:M.map(r=>{const s=(am[r.month]||{}).spend||0; return s?monthRev(r)/s:0;}),borderColor:C.goldDeep,borderWidth:2,borderDash:[5,3],tension:.35,pointRadius:0,fill:false,order:0}]},
+    {type:'line',label:'Sales revenue',yAxisID:'y',data:AX.map(bRev),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.12)',borderWidth:2.5,tension:.35,fill:true,pointRadius:2,order:1},
+    ...spendBars]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y2'?roasS(c.parsed.y):moneyM(c.parsed.y))}}},
+      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+moneyM(c.parsed.y)}}},
       scales:{x:axisX({stacked:true}),
         y:gridY({position:'left',title:{display:true,text:'Sales revenue',color:C.mute},ticks:{callback:v=>moneyM(v)}}),
-        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}},
-        y2:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'ROAS',color:C.mute},ticks:{callback:v=>v.toFixed(0)+'×'},offset:true}}}
+        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}}}}
   });
-  // revenue by sales channel donut
-  const ch=(DATA.sales_by_channel||[]).reduce((m,r)=>{m[r.channel_group]=(m[r.channel_group]||0)+r.revenue;return m;},{});
+  // revenue by sales channel donut (range-aware: clip the monthly sibling when narrowed)
+  const chSrc = narrowed() ? aggRange(DATA.sales_by_channel_daily, r=>r.channel_group, ['revenue'], ['channel_group']) : (DATA.sales_by_channel||[]);
+  const ch=chSrc.reduce((m,r)=>{m[r.channel_group]=(m[r.channel_group]||0)+r.revenue;return m;},{});
   const cg=Object.keys(ch).sort((a,b)=>ch[b]-ch[a]);
   donut('ovDonut',cg,cg.map(g=>ch[g]),cg.map(g=>CHANNEL_COLOR[g]||C.sand),moneyM(sk.revenue_total),'revenue',sk.revenue_total);
-  // online vs in-store monthly
+  // online vs in-store (bucketed daily)
   charts.ovSplit=new Chart(el('ovSplit'),{ type:'bar', data:{labels,datasets:[
-    {label:'In-store POS',data:M.map(r=>(r.revenue_total||0)-(r.revenue_online||0)),backgroundColor:C.ink,stack:'r',borderRadius:3,maxBarThickness:24},
-    {label:'Online',data:M.map(r=>r.revenue_online||0),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24}]},
+    {label:'In-store POS',data:AX.map(b=>{const e=salesMap[b.key]||{}; return (e.revenue_total||0)-(e.revenue_online||0);}),backgroundColor:C.ink,stack:'r',borderRadius:3,maxBarThickness:24},
+    {label:'Online',data:AX.map(b=>(salesMap[b.key]||{}).revenue_online||0),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24}]},
     options:{maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+moneyM(c.parsed.y)}}},
       scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>moneyM(v)}})}} });
   // spend share donut
@@ -877,18 +965,20 @@ function renderOverview(){
   donut('ovSpendDonut',pk.map(p=>p.label),pk.map(p=>ap[p.key].spend),pk.map(p=>p.color),moneyM(a.spend),'ad spend',a.spend);
 
   el('ovNote').innerHTML='<b>How to read this.</b> Revenue, margin, orders &amp; AOV come from first-party sales (v_sales) — the source of truth. '
-    +'<b>Blended ROAS</b> = '+basisLabel()+' sales ÷ total ad spend (a marketing-efficiency ratio, no per-platform attribution). '
-    +'Toggle <b>Online only</b> to exclude in-store POS from the ROAS denominator. Platform-claimed figures appear on the Paid Media tab for context and are never summed into the headline.';
+    +'Toggle <b>Online only</b> to exclude in-store POS from the revenue shown. Platform-claimed figures appear on the Paid Media tab for context.';
 }
 function renderOvCommentary(){
-  const box=el('ovCommentary'), M=clipMonthly(DATA.monthly); if(!M||M.length<2){ box.style.display='none'; return; } box.style.display='';
-  const a=adKpi(), sk=DATA.sales_kpi, rev=basisRevTotal(), roas=a.spend?rev/a.spend:0;
-  const revs=M.map(monthRev); let pi=0; revs.forEach((v,i)=>{ if(v>revs[pi]) pi=i; }); const peakM=monthLabel(M[pi].month);
+  const box=el('ovCommentary');
+  const sMap=bucketMap(DATA.sales_daily,['revenue_total','revenue_online']); const BX=bucketAxis(sMap);
+  if(!BX||BX.length<2){ box.style.display='none'; return; } box.style.display='';
+  const a=adKpi(), sk=salesTotals(), rev=basisRevTotal();
+  const bv=b=> revenueBasis==='online'?(sMap[b.key]||{}).revenue_online||0:(sMap[b.key]||{}).revenue_total||0;
+  let pi=0; BX.forEach((b,i)=>{ if(bv(b)>bv(BX[pi])) pi=i; }); const peakM=BX[pi].label;
   const P=adByPlatform(true); let bestK=null,bestR=-1;
   selPlatforms().forEach(p=>{ const e=P[p.key]; const r=e.spend?e.rev/e.spend:0; if(e.spend>0&&p.key!=='ttd'&&r>bestR){bestR=r;bestK=p.key;} });
-  const onlineShare=pct(DATA.kpi.revenue_online,DATA.kpi.revenue_total);
+  const onlineShare=pct(sk.revenue_online,sk.revenue_total);
   box.innerHTML='<span class="ai-badge"><span class="dot"></span>AI commentary</span>'
-    +'<b>The media is paying its way.</b> '+money(a.spend)+' of working media sits against <b>'+moneyM(rev)+'</b> in '+basisLabel()+' sales — a blended <b>'+roasS(roas)+'</b> ROAS across '+fmtN(sk.orders_total)+' orders at '+money(sk.aov)+' AOV. '
+    +'<b>The media is paying its way.</b> '+money(a.spend)+' of working media sits against <b>'+moneyM(rev)+'</b> in '+basisLabel()+' sales across '+fmtN(sk.orders_total)+' orders at '+money(sk.aov)+' AOV. '
     +(bestK?('By platform-claimed efficiency, <b>'+PLAT_LABEL[bestK]+'</b> leads at '+roasS(bestR)+' (its own attribution). '):'')
     +'Online (website + marketplaces) is <b>'+fmtPct(onlineShare,0)+'</b> of sales — the rest is in-store POS that ads influence via the omnichannel halo. '
     +'Revenue peaked in <b>'+peakM+'</b>, and <b>'+fmtPct(sk.repeat_order_rate,0)+'</b> of orders came from returning customers.';
@@ -896,21 +986,43 @@ function renderOvCommentary(){
 
 /* =================== PAID MEDIA =================== */
 function renderPaid(){
-  const a=adTotals(false), ap=adByPlatform(false);
+  const a=adTotals(true), ap=adByPlatform(true);
   el('pmKpis').innerHTML =
-      kpiCard('paid','Ad spend', money(a.spend), '')
-    + kpiCard('paid','Impressions', fmtM(a.imps), '')
-    + kpiCard('paid','Clicks', fmtM(a.clk), '')
-    + kpiCard('','CTR', fmtPct(pct(a.clk,a.imps),2), '')
-    + kpiCard('','CPC', money(a.clk?a.spend/a.clk:0,2), '')
-    + kpiCard('sale','Blended ROAS', roasS(a.spend?DATA.kpi.revenue_total/a.spend:0), 'vs all sales');
-  // monthly spend + roas
-  const M=clipMonthly(DATA.monthly), am=adMonthlyMap(false), labels=M.map(r=>monthLabel(r.month));
-  const bars=PLATFORMS.map(p=>({type:'bar',label:p.label,yAxisID:'y',stack:'sp',data:M.map(r=>(am[r.month]||{})[p.key]||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:2}));
-  charts.pmMonthly=new Chart(el('pmMonthly'),{ data:{labels,datasets:[...bars,
-    {type:'line',label:'Blended ROAS',yAxisID:'y1',data:M.map(r=>{const s=(am[r.month]||{}).spend||0; return s?(r.revenue_total||0)/s:0;}),borderColor:C.goldDeep,borderWidth:2,borderDash:[5,3],tension:.35,pointRadius:0,order:0}]},
-    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?roasS(c.parsed.y):moneyM(c.parsed.y))}}},
-      scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'ROAS',color:C.mute},ticks:{callback:v=>v.toFixed(0)+'×'}}}} });
+      kpiCard('sale','Revenue attributed to ads', moneyM(a.rev), 'platform-claimed (Google + Meta)')
+    + kpiCard('paid','Ad spend', money(a.spend), `${selPlatforms().length} of ${PLATFORMS.length} platforms`)
+    + kpiCard('paid','Impressions', fmtM(a.imps), '&nbsp;')
+    + kpiCard('paid','Clicks', fmtM(a.clk), '&nbsp;')
+    + kpiCard('','CTR', fmtPct(pct(a.clk,a.imps),2), 'clicks ÷ impr.')
+    + kpiCard('','CPC', money(a.clk?a.spend/a.clk:0,2), 'cost / click')
+    + kpiCard('','CPM', money(a.imps?a.spend/a.imps*1000:0,2), 'cost / 1K impr.');
+  // spend bars + "effect of ads" lines (day-grained, bucketed). Each line rides its OWN hidden 0→max
+  // axis, so a small-magnitude series still spans the full height and you compare SHAPE not level.
+  // Spend / impressions / clicks / attributed-revenue follow the Platform & Campaign filters;
+  // web traffic & total revenue are whole-site. Click a legend entry to toggle a line.
+  const spendMapAll=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true));
+  const platMapAll={}; PLATFORMS.forEach(p=>platMapAll[p.key]=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true)&&r.platform===p.key));
+  const delivMap=bucketMap(DATA.ad_campaign_daily,['imps','clicks'], r=>rowOk(r,true));
+  const gRevMap=bucketMap(DATA.ad_campaign_daily,['platform_revenue'], r=>rowOk(r,true)&&r.platform==='google');
+  const mRevMap=bucketMap(DATA.ad_campaign_daily,['platform_revenue'], r=>rowOk(r,true)&&r.platform==='meta');
+  const revMap=bucketMap(DATA.sales_daily,['revenue_total']);
+  const sessMap=bucketMap(DATA.ga4_funnel_daily,['sessions']);
+  const AXp=bucketAxis(spendMapAll,delivMap,revMap,sessMap), labels=AXp.map(b=>b.label);
+  const bars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y',stack:'sp',data:AXp.map(b=>(platMapAll[p.key][b.key]||{}).spend_aud||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:10}));
+  const at=(mp,b,f)=>(mp[b.key]||{})[f]||0;
+  const lineDefs=[
+    {id:'yImps', label:'Impressions',          color:C.ink,      data:AXp.map(b=>at(delivMap,b,'imps')),            fmt:fmtM,   def:true},
+    {id:'yClk',  label:'Clicks',               color:'#3D7DA8',  data:AXp.map(b=>at(delivMap,b,'clicks')),          fmt:fmtM,   def:true},
+    {id:'ySess', label:'Web traffic',          color:C.sage,     data:AXp.map(b=>at(sessMap,b,'sessions')),         fmt:fmtM,   def:true},
+    {id:'yRev',  label:'Total revenue',        color:C.rose,     data:AXp.map(b=>at(revMap,b,'revenue_total')),     fmt:moneyM, def:true},
+    {id:'yGRev', label:'Google-attr. revenue', color:C.goldDeep, data:AXp.map(b=>at(gRevMap,b,'platform_revenue')), fmt:moneyM, def:false},
+    {id:'yMRev', label:'Meta-attr. revenue',   color:C.plum,     data:AXp.map(b=>at(mRevMap,b,'platform_revenue')), fmt:moneyM, def:false},
+  ];
+  const lineScales={}; lineDefs.forEach(d=>{ const mx=Math.max(0,...d.data); lineScales[d.id]={type:'linear',display:false,position:'right',min:0,max:mx>0?mx*1.08:1}; });
+  const lines=lineDefs.map((d,i)=>({type:'line',label:d.label,yAxisID:d.id,data:d.data,borderColor:d.color,backgroundColor:d.color,borderWidth:2,tension:.35,pointRadius:0,pointHoverRadius:4,spanGaps:true,fill:false,order:i,hidden:!d.def}));
+  charts.pmMonthly=new Chart(el('pmMonthly'),{ data:{labels,datasets:[...bars,...lines]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{ const d=lineDefs.find(x=>x.id===c.dataset.yAxisID); return ' '+c.dataset.label+': '+(d?d.fmt(c.parsed.y):moneyM(c.parsed.y)); }}}},
+      scales:Object.assign({x:axisX({stacked:true}),y:gridY({stacked:true,title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}})}, lineScales)}});
   const pk=PLATFORMS.filter(p=>ap[p.key].spend>0);
   donut('pmSpendDonut',pk.map(p=>p.label),pk.map(p=>ap[p.key].spend),pk.map(p=>p.color),moneyM(a.spend),'ad spend',a.spend);
   // comparison table
@@ -921,20 +1033,33 @@ function renderPaid(){
       +'<td class="num">'+fmtPct(pct(e.clk,e.imps),2)+'</td><td class="num">'+money(e.clk?e.spend/e.clk:0,2)+'</td>'
       +'<td class="num">'+fmtN(e.conv)+'</td><td class="num">'+(isTtd?'—':money(e.rev))+'</td><td class="num">'+(isTtd?'—':roasS(e.spend?e.rev/e.spend:0))+'</td></tr>'; });
   el('pmCompare').innerHTML=rows;
-  // google by campaign type
-  const gt=(DATA.google_campaign_type||[]).slice().sort((a,b)=>b.spend_aud-a.spend_aud);
+  // google by campaign type (range-aware: clip the monthly sibling, re-derive claimed ROAS)
+  const gtSrc = narrowed()
+    ? aggRange(DATA.google_campaign_type_daily, r=>r.campaign_type, ['spend_aud','revenue_claimed'], ['campaign_type'])
+        .map(r=>({campaign_type:r.campaign_type, spend_aud:r.spend_aud, roas_claimed: r.spend_aud? r.revenue_claimed/r.spend_aud : 0}))
+    : (DATA.google_campaign_type||[]);
+  const gt=gtSrc.slice().sort((a,b)=>b.spend_aud-a.spend_aud);
   charts.pmGoogleType=new Chart(el('pmGoogleType'),{ data:{labels:gt.map(r=>r.campaign_type),datasets:[
     {type:'bar',label:'Spend',yAxisID:'y',data:gt.map(r=>r.spend_aud),backgroundColor:C.gold,borderRadius:3,maxBarThickness:34,order:2},
     {type:'line',label:'Claimed ROAS',yAxisID:'y1',data:gt.map(r=>r.roas_claimed),borderColor:C.plum,borderWidth:2,pointRadius:3,tension:.3,order:0}]},
     options:{maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?roasS(c.parsed.y):moneyM(c.parsed.y))}}},
       scales:{x:axisX(),y:gridY({ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},ticks:{callback:v=>v.toFixed(0)+'×'}}}} });
-  // meta creative mix (campaign-filtered)
-  const cre=(DATA.meta_creative||[]).filter(c=>campOn(c.campaign_name));
+  // meta creative mix (campaign-filtered; range-aware: clip the monthly sibling per creative)
+  const creAll = narrowed()
+    ? aggRange(DATA.meta_creative_daily, r=>r.creative_id,
+        ['spend_aud','imps','clicks','purchases','purchase_value_claimed','thruplays'],
+        ['creative_id','creative_type','objective','creative_title','creative_thumbnail_url','ad_name','campaign_name'])
+        .map(r=>Object.assign(r,{roas_claimed: r.spend_aud? r.purchase_value_claimed/r.spend_aud : 0}))
+    : (DATA.meta_creative||[]);
+  const cre=creAll.filter(c=>campOn(c.campaign_name));
   const mix=cre.reduce((m,c)=>{const t=c.creative_type||'image';m[t]=(m[t]||0)+(c.spend_aud||0);return m;},{});
   const mk=Object.keys(mix);
   donut('pmCreativeMix',mk.map(t=>t[0].toUpperCase()+t.slice(1)),mk.map(t=>mix[t]),mk.map((t,i)=>t==='video'?C.plum:C.gold),moneyM(mk.reduce((s,t)=>s+mix[t],0)),'meta spend',mk.reduce((s,t)=>s+mix[t],0));
-  // top campaigns table
-  const camps=(DATA.ad_campaigns||[]).filter(c=>campOn(c.campaign)).sort((a,b)=>b.spend_aud-a.spend_aud).slice(0,25);
+  // top campaigns table (range-aware: clip campaign×month when narrowed)
+  const campSrc = narrowed()
+    ? aggRange(DATA.ad_campaign_daily, r=>r.platform+'|'+r.campaign, ['imps','clicks','spend_aud','platform_conversions'], ['platform','campaign'])
+    : (DATA.ad_campaigns||[]);
+  const camps=campSrc.filter(c=>campOn(c.campaign)&&platOk(c.platform)).sort((a,b)=>b.spend_aud-a.spend_aud).slice(0,25);
   let ct='<tr><th>Campaign</th><th>Platform</th><th class="num">Spend</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Claimed conv.</th></tr>';
   camps.forEach(c=>{ ct+='<tr><td>'+campLabel(c.campaign)+'</td><td><span class="pill" style="background:'+(PLAT_COLOR[c.platform]||C.sand)+'">'+(PLAT_LABEL[c.platform]||c.platform)+'</span></td>'
     +'<td class="num">'+money(c.spend_aud)+'</td><td class="num">'+fmtM(c.imps)+'</td><td class="num">'+fmtN(c.clicks)+'</td><td class="num">'+fmtPct(pct(c.clicks,c.imps),2)+'</td><td class="num">'+fmtN(c.platform_conversions)+'</td></tr>'; });
@@ -950,22 +1075,22 @@ function renderPaid(){
 
 /* =================== WEBSITE & GA4 =================== */
 function renderWeb(){
-  const k=DATA.kpi, f=DATA.ga4_funnel||{};
   el('webNote').innerHTML='<b>GA4 data-quality note.</b> '+ (DATA.notes&&DATA.notes.ga4_caveat || 'GA4 tracking degraded from ~Oct 2025; figures are directional only.');
-  const ses=(DATA.ga4_channels||[]).reduce((s,r)=>s+r.sessions,0);
-  const eng=(DATA.ga4_channels||[]).reduce((s,r)=>s+r.engaged_sessions,0);
-  const txn=(DATA.ga4_channels||[]).reduce((s,r)=>s+(r.transactions||0),0);
-  const grev=(DATA.ga4_channels||[]).reduce((s,r)=>s+(r.purchase_revenue||0),0);
-  const paid=(DATA.ga4_channels||[]).filter(r=>r.channel_bucket==='Paid').reduce((s,r)=>s+r.sessions,0);
+  const g=ga4Totals();
+  // funnel: sessions + event counts are additive, so sum the monthly sibling over the range
+  const fm = narrowed() ? clipDaily(DATA.ga4_funnel_daily||[]) : null;
+  const f = fm ? ['sessions','view_item','add_to_cart','begin_checkout','purchase'].reduce((o,kk)=>{o[kk]=fm.reduce((a,r)=>a+(+r[kk]||0),0);return o;},{}) : (DATA.ga4_funnel||{});
+  const ses=g.sessions, eng=g.engaged_sessions, txn=g.transactions, grev=g.purchase_revenue, paid=g.paid_sessions;
   el('webKpis').innerHTML =
       kpiCard('site','Sessions', fmtM(ses), '')
     + kpiCard('site','Engagement rate', fmtPct(pct(eng,ses),1), '')
     + kpiCard('site','Paid share', fmtPct(pct(paid,ses),1), 'of sessions')
     + kpiCard('site','GA4 transactions', fmtN(txn), '')
     + kpiCard('site','GA4 revenue', moneyM(grev), 'GA4-attributed')
-    + kpiCard('site','GA4 conv. rate', fmtPct(k.ga4_cvr,2), '');
-  // sessions by channel (horizontal bars)
-  const ch=(DATA.ga4_channels||[]).slice().sort((a,b)=>b.sessions-a.sessions);
+    + kpiCard('site','GA4 conv. rate', fmtPct(g.cvr,2), '');
+  // sessions by channel (horizontal bars; range-aware via the monthly sibling when narrowed)
+  const chSrc = narrowed() ? aggRange(DATA.ga4_channels_daily, r=>r.channel_group, ['sessions','engaged_sessions','transactions','purchase_revenue'], ['channel_group','channel_bucket']) : (DATA.ga4_channels||[]);
+  const ch=chSrc.slice().sort((a,b)=>b.sessions-a.sessions);
   charts.webChannels=new Chart(el('webChannels'),{ type:'bar', data:{labels:ch.map(r=>r.channel_group),datasets:[{label:'Sessions',data:ch.map(r=>r.sessions),backgroundColor:ch.map(r=>BUCKET_COLOR[r.channel_bucket]||C.sand),borderRadius:3}]},
     options:{indexAxis:'y',maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+fmtN(c.parsed.x)+' sessions'}}},scales:{x:gridY({ticks:{callback:v=>fmtM(v)}}),y:axisX({ticks:{font:{size:10.5,...FONT}}})}} });
   // ga4 revenue by channel donut
@@ -975,14 +1100,18 @@ function renderWeb(){
   const steps=[['Sessions',f.sessions],['Product views',f.view_item],['Add to cart',f.add_to_cart],['Begin checkout',f.begin_checkout],['Purchases',f.purchase]];
   el('webFunnel').innerHTML=steps.map((s,i)=>{ const r=i===0?'':fmtPct(pct(s[1],f.sessions),2)+' of sessions';
     return '<div class="step"><div class="k">'+s[0]+'</div><div class="v">'+fmtN(s[1])+'</div><div class="r">'+(r||'&nbsp;')+'</div></div>'+(i<steps.length-1?'<div class="arrow">→</div>':''); }).join('');
-  // monthly sessions by bucket
-  const mc=clipMonthly(DATA.ga4_monthly_channel); const months=[...new Set(mc.map(r=>r.month))].sort();
-  const buckets=[...new Set(mc.map(r=>r.channel_bucket))];
-  const map={}; mc.forEach(r=>{ map[r.channel_bucket]=map[r.channel_bucket]||{}; map[r.channel_bucket][r.month]=(map[r.channel_bucket][r.month]||0)+r.sessions; });
-  charts.webMonthly=new Chart(el('webMonthly'),{ type:'bar', data:{labels:months.map(monthLabel),datasets:buckets.map(b=>({label:b,data:months.map(m=>(map[b]||{})[m]||0),backgroundColor:BUCKET_COLOR[b]||C.sand,stack:'s',maxBarThickness:24,borderRadius:2}))},
+  // sessions by bucket trend (day-grained, bucketed by range span; stacked by channel bucket)
+  const wgrain=chartGrain(), wMap={}, wKeys=new Set(), wBuckets=new Set();
+  for(const r of clipDaily(DATA.ga4_channels_daily)){ const k=bucketKey(r.day,wgrain); wKeys.add(k); wBuckets.add(r.channel_bucket);
+    (wMap[k]=wMap[k]||{})[r.channel_bucket]=(wMap[k][r.channel_bucket]||0)+(+r.sessions||0); }
+  const wkeys=[...wKeys].sort(), wbk=[...wBuckets];
+  charts.webMonthly=new Chart(el('webMonthly'),{ type:'bar', data:{labels:wkeys.map(k=>bucketLabel(k,wgrain)),datasets:wbk.map(b=>({label:b,data:wkeys.map(k=>(wMap[k]||{})[b]||0),backgroundColor:BUCKET_COLOR[b]||C.sand,stack:'s',maxBarThickness:24,borderRadius:2}))},
     options:{maintainAspectRatio:false,plugins:{legend:legendTop()},scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>fmtM(v)}})}} });
-  // sources table
-  const src=(DATA.ga4_sources||[]).slice(0,20);
+  // sources table (range-aware: clip source×month, re-aggregate, re-rank to top 20)
+  const srcSrc = narrowed()
+    ? aggRange(DATA.ga4_sources_daily, r=>r.source_medium, ['sessions','engaged_sessions','transactions','purchase_revenue'], ['source_medium','is_paid']).sort((a,b)=>b.sessions-a.sessions)
+    : (DATA.ga4_sources||[]);
+  const src=srcSrc.slice(0,20);
   let st='<tr><th>Source / medium</th><th>Type</th><th class="num">Sessions</th><th class="num">Engaged</th><th class="num">Txns</th><th class="num">GA4 rev.</th></tr>';
   src.forEach(r=>{ st+='<tr><td>'+r.source_medium+'</td><td>'+(r.is_paid?'<span class="pill" style="background:'+C.gold+'">Paid</span>':'<span style="color:var(--mute)">Organic/Other</span>')+'</td>'
     +'<td class="num">'+fmtN(r.sessions)+'</td><td class="num">'+fmtN(r.engaged_sessions)+'</td><td class="num">'+fmtN(r.transactions)+'</td><td class="num">'+moneyM(r.purchase_revenue)+'</td></tr>'; });
@@ -991,7 +1120,7 @@ function renderWeb(){
 
 /* =================== SALES & PRODUCTS =================== */
 function renderSales(){
-  const sk=DATA.sales_kpi;
+  const sk=salesTotals(), ax=sk.approxCustomers;
   el('salesKpis').innerHTML =
       kpiCard('sale','Revenue', moneyM(sk.revenue_total), 'all channels')
     + kpiCard('sale','Margin', moneyM(sk.margin_total), '')
@@ -999,37 +1128,43 @@ function renderSales(){
     + kpiCard('sale','Orders', fmtN(sk.orders_total), '')
     + kpiCard('sale','AOV', money(sk.aov), '')
     + kpiCard('','Units / order', (sk.units_per_order||0).toFixed(1), fmtN(sk.units)+' units')
-    + kpiCard('','Customers', fmtN(sk.customers_total), fmtPct(sk.repeat_order_rate,0)+' repeat orders');
+    + kpiCard('','Customers', apxN(sk.customers_total,ax), fmtPct(sk.repeat_order_rate,0)+' repeat orders', ax?APX_TIP:'');
   // new vs returning cards
   el('salesNRCards').innerHTML =
-      kpiCard('sale','New customers', fmtN(sk.new_customers), money(sk.new_revenue/Math.max(sk.new_orders,1))+' AOV')
-    + kpiCard('sale','Returning customers', fmtN(sk.returning_customers), money(sk.returning_revenue/Math.max(sk.returning_orders,1))+' AOV')
+      kpiCard('sale','New customers', apxN(sk.new_customers,ax), money(sk.new_revenue/Math.max(sk.new_orders,1))+' AOV', ax?APX_TIP:'')
+    + kpiCard('sale','Returning customers', apxN(sk.returning_customers,ax), money(sk.returning_revenue/Math.max(sk.returning_orders,1))+' AOV', ax?APX_TIP:'')
     + kpiCard('','Returning revenue share', fmtPct(sk.returning_revenue_share,1), moneyM(sk.returning_revenue))
     + kpiCard('','Returning orders', fmtN(sk.returning_orders), 'of '+fmtN(sk.orders_total))
     + kpiCard('','New revenue', moneyM(sk.new_revenue), fmtN(sk.new_orders)+' orders');
-  // NR monthly trend
-  const nr=clipMonthly(DATA.sales_new_returning); const labels=nr.map(r=>monthLabel(r.month));
+  // new vs returning revenue trend (day-grained, bucketed by range span)
+  const smMap=bucketMap(DATA.sales_daily,['revenue_total','margin','orders','new_revenue','returning_revenue']);
+  const SX=bucketAxis(smMap); const labels=SX.map(b=>b.label);
   charts.salesNRTrend=new Chart(el('salesNRTrend'),{ data:{labels,datasets:[
-    {type:'bar',label:'New',yAxisID:'y',data:nr.map(r=>r.new_revenue),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24},
-    {type:'bar',label:'Returning',yAxisID:'y',data:nr.map(r=>r.returning_revenue),backgroundColor:C.rose,stack:'r',borderRadius:3,maxBarThickness:24},
-    {type:'line',label:'Returning share',yAxisID:'y1',data:nr.map(r=>r.returning_revenue_share),borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0}]},
+    {type:'bar',label:'New',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).new_revenue||0),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24},
+    {type:'bar',label:'Returning',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).returning_revenue||0),backgroundColor:C.rose,stack:'r',borderRadius:3,maxBarThickness:24},
+    {type:'line',label:'Returning share',yAxisID:'y1',data:SX.map(b=>{const e=smMap[b.key]||{};const t=(e.new_revenue||0)+(e.returning_revenue||0);return t?(e.returning_revenue||0)/t:0;}),borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0}]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?fmtPct(c.parsed.y,1):moneyM(c.parsed.y))}}},
       scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},min:0,max:1,ticks:{callback:v=>fmtPct(v,0)}}}} });
   donut('salesNRDonut',['New','Returning'],[sk.new_revenue,sk.returning_revenue],[C.gold,C.rose],moneyM(sk.revenue_total),'revenue',sk.revenue_total);
-  // revenue/margin/AOV monthly
-  const sm=clipMonthly(DATA.sales_monthly); const sl=sm.map(r=>monthLabel(r.month));
-  charts.salesTrend=new Chart(el('salesTrend'),{ data:{labels:sl,datasets:[
-    {type:'bar',label:'Revenue',yAxisID:'y',data:sm.map(r=>r.revenue_total),backgroundColor:C.gold,borderRadius:3,maxBarThickness:22,order:3},
-    {type:'bar',label:'Margin',yAxisID:'y',data:sm.map(r=>r.margin),backgroundColor:C.sage,borderRadius:3,maxBarThickness:22,order:2},
-    {type:'line',label:'AOV',yAxisID:'y1',data:sm.map(r=>r.aov),borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0,order:0}]},
+  // revenue / margin / AOV trend (day-grained, bucketed; reuses smMap/SX from above)
+  charts.salesTrend=new Chart(el('salesTrend'),{ data:{labels,datasets:[
+    {type:'bar',label:'Revenue',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).revenue_total||0),backgroundColor:C.gold,borderRadius:3,maxBarThickness:22,order:3},
+    {type:'bar',label:'Margin',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).margin||0),backgroundColor:C.sage,borderRadius:3,maxBarThickness:22,order:2},
+    {type:'line',label:'AOV',yAxisID:'y1',data:SX.map(b=>{const e=smMap[b.key]||{};return e.orders?(e.revenue_total||0)/e.orders:0;}),borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0,order:0}]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?money(c.parsed.y):moneyM(c.parsed.y))}}},
       scales:{x:axisX(),y:gridY({ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'AOV',color:C.mute},ticks:{callback:v=>money(v)}}}} });
-  // channel donut
-  const bc=DATA.sales_by_channel||[]; const cg=bc.reduce((m,r)=>{m[r.channel_group]=(m[r.channel_group]||0)+r.revenue;return m;},{});
+  // channel donut + table (range-aware: clip sales_by_channel_monthly per channel, re-derive aov/margin%)
+  const bc = narrowed()
+    ? aggRange(DATA.sales_by_channel_daily, r=>r.sales_channel, ['revenue','margin','orders','units','new_orders','returning_orders'], ['sales_channel','channel_group'])
+        .map(r=>Object.assign(r,{aov: r.orders? r.revenue/r.orders : 0, margin_pct: r.revenue? r.margin/r.revenue : 0}))
+    : (DATA.sales_by_channel||[]);
+  const cg=bc.reduce((m,r)=>{m[r.channel_group]=(m[r.channel_group]||0)+r.revenue;return m;},{});
   const cgk=Object.keys(cg).sort((a,b)=>cg[b]-cg[a]);
   donut('salesChannelDonut',cgk,cgk.map(g=>cg[g]),cgk.map(g=>CHANNEL_COLOR[g]||C.sand),moneyM(sk.revenue_total),'revenue',sk.revenue_total);
-  // category
-  const cat=(DATA.sales_category||[]).slice().sort((a,b)=>b.revenue-a.revenue);
+  // category (range-aware: clip the monthly sibling, re-derive margin%)
+  const cat=(narrowed()
+    ? aggRange(DATA.sales_category_daily, r=>r.category, ['revenue','margin','orders','units'], ['category']).map(r=>Object.assign(r,{margin_pct: r.revenue? r.margin/r.revenue : 0}))
+    : (DATA.sales_category||[])).slice().sort((a,b)=>b.revenue-a.revenue);
   charts.salesCategory=new Chart(el('salesCategory'),{ data:{labels:cat.map(r=>r.category),datasets:[
     {type:'bar',label:'Revenue',yAxisID:'y',data:cat.map(r=>r.revenue),backgroundColor:cat.map(r=>CAT_COLOR[r.category]||C.sand),borderRadius:3,maxBarThickness:40,order:2},
     {type:'line',label:'Margin %',yAxisID:'y1',data:cat.map(r=>r.margin_pct),borderColor:C.plum,borderWidth:2,pointRadius:3,order:0}]},
@@ -1043,7 +1178,10 @@ function renderSales(){
   // products
   el('sortRev').style.fontWeight=productSort==='revenue'?'800':'600';
   el('sortMargin').style.fontWeight=productSort==='margin'?'800':'600';
-  const prods=(DATA.sales_products||[]).filter(p=> productSort==='revenue'?p.rev_rank<=50:p.margin_rank<=50)
+  // range-aware: when narrowed, re-aggregate the monthly product pool and re-rank over the window
+  const prods=(narrowed()
+    ? aggRange(DATA.sales_products_daily, r=>r.product_name, ['revenue','margin','units','orders'], ['product_name','category']).map(p=>Object.assign(p,{margin_pct: p.revenue? p.margin/p.revenue : 0}))
+    : (DATA.sales_products||[]).filter(p=> productSort==='revenue'?p.rev_rank<=50:p.margin_rank<=50))
     .sort((a,b)=> productSort==='revenue'? b.revenue-a.revenue : b.margin-a.margin).slice(0,50);
   let pt='<tr><th>Product</th><th>Category</th><th class="num">Revenue</th><th class="num">Margin</th><th class="num">Margin %</th><th class="num">Units</th><th class="num">Orders</th></tr>';
   prods.forEach(p=>{ pt+='<tr><td>'+p.product_name+'</td><td><span style="color:var(--mute)">'+p.category+'</span></td>'
@@ -1053,39 +1191,44 @@ function renderSales(){
 
 /* =================== ADS → REVENUE =================== */
 function renderLink(){
-  const a=adKpi(), k=DATA.kpi, sk=DATA.sales_kpi, rev=basisRevTotal(), roas=a.spend?rev/a.spend:0;
+  const a=adKpi(), sk=salesTotals(), cr=claimedRev(), rev=basisRevTotal(), roas=a.spend?rev/a.spend:0;
   el('linkHeadline').innerHTML='<b>Blended marketing-efficiency ratio.</b> '+money(a.spend)+' of ad spend across the selected platforms/campaigns sits against <b>'+moneyM(rev)+'</b> of '+basisLabel()+' first-party sales — a blended <b>'+roasS(roas)+'</b> ROAS. '
-    +'Platform-claimed revenue (Google '+moneyM(k.google_rev_claimed)+', Meta '+moneyM(k.meta_rev_claimed)+') captures only a fraction of true sales and is never summed.';
+    +'Platform-claimed revenue (Google '+moneyM(cr.google)+', Meta '+moneyM(cr.meta)+') captures only a fraction of true sales and is never summed.';
   // funnel
   const steps=[['Ad spend',money(a.spend)],['Impressions',fmtM(a.imps)],['Clicks',fmtN(a.clk)],['Orders',fmtN(sk.orders_total)],['Sales revenue',moneyM(rev)]];
   el('linkFunnel').innerHTML=steps.map((s,i)=>'<div class="step"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div><div class="r">&nbsp;</div></div>'+(i<steps.length-1?'<div class="arrow">→</div>':'')).join('');
-  // weekly
-  const W=clipWeekly(DATA.weekly), aw=adWeeklyMap(true), labels=W.map(r=>weekLabel(r.week_start));
+  // trends (day-grained, bucketed by range span): revenue vs ad spend, scatter, ROAS
+  const grain=chartGrain();
+  const spendMapL=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true));
+  const salesMapL=bucketMap(DATA.sales_daily,['revenue_total','revenue_online']);
+  const LX=bucketAxis(spendMapL,salesMapL), labels=LX.map(b=>b.label);
+  const lRev=b=> revenueBasis==='online'?(salesMapL[b.key]||{}).revenue_online||0:(salesMapL[b.key]||{}).revenue_total||0;
+  const lSpend=b=>(spendMapL[b.key]||{}).spend_aud||0;
   charts.linkWeekly=new Chart(el('linkWeekly'),{ data:{labels,datasets:[
-    {type:'line',label:'Sales revenue',yAxisID:'y',data:W.map(r=>revenueBasis==='online'?r.revenue_online:r.revenue_total),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.10)',borderWidth:2.5,fill:true,tension:.35,pointRadius:0,order:0},
-    {type:'bar',label:'Ad spend',yAxisID:'y1',data:W.map(r=>(aw[r.week_start]||{}).spend||0),backgroundColor:'rgba(176,141,87,.8)',borderRadius:2,maxBarThickness:12,order:1}]},
+    {type:'line',label:'Sales revenue',yAxisID:'y',data:LX.map(lRev),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.10)',borderWidth:2.5,fill:true,tension:.35,pointRadius:0,order:0},
+    {type:'bar',label:'Ad spend',yAxisID:'y1',data:LX.map(lSpend),backgroundColor:'rgba(176,141,87,.8)',borderRadius:2,maxBarThickness:12,order:1}]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop()},
       scales:{x:axisX({ticks:{maxTicksLimit:14}}),y:gridY({title:{display:true,text:'Sales revenue',color:C.mute},ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}}}} });
-  // scatter
-  const pts=W.map(r=>({x:(aw[r.week_start]||{}).spend||0,y:revenueBasis==='online'?r.revenue_online:r.revenue_total})).filter(p=>p.x>0);
+  // scatter — one dot per bucket
+  const gname = grain==='day'?'day':grain==='week'?'week':'month';
+  const pts=LX.map(b=>({x:lSpend(b),y:lRev(b)})).filter(p=>p.x>0);
   const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));
-  el('linkScatterHint').innerHTML='Each dot is one week. Correlation <b>r = '+r.toFixed(2)+'</b> ('+(r>0.6?'strong':r>0.3?'moderate':'weak')+' positive). Sales are whole-store; spend reflects the filters.';
-  charts.linkScatter=new Chart(el('linkScatter'),{ type:'scatter', data:{datasets:[{label:'Week',data:pts,backgroundColor:'rgba(176,141,87,.6)',borderColor:C.gold,pointRadius:5,pointHoverRadius:7}]},
+  el('linkScatterHint').innerHTML='Each dot is one '+gname+'. Correlation <b>r = '+r.toFixed(2)+'</b> ('+(r>0.6?'strong':r>0.3?'moderate':'weak')+' positive). Sales are whole-store; spend reflects the filters.';
+  charts.linkScatter=new Chart(el('linkScatter'),{ type:'scatter', data:{datasets:[{label:'Period',data:pts,backgroundColor:'rgba(176,141,87,.6)',borderColor:C.gold,pointRadius:5,pointHoverRadius:7}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+money(c.parsed.x)+' spend · '+moneyM(c.parsed.y)+' revenue'}}},
-      scales:{x:gridY({title:{display:true,text:'Ad spend / week',color:C.mute},ticks:{callback:v=>moneyM(v)}}),y:gridY({title:{display:true,text:'Sales revenue / week',color:C.mute},ticks:{callback:v=>moneyM(v)}})}} });
-  // roas monthly
-  const M=clipMonthly(DATA.monthly), am=adMonthlyMap(true), ml=M.map(r=>monthLabel(r.month));
-  charts.linkRoas=new Chart(el('linkRoas'),{ data:{labels:ml,datasets:[
-    {type:'line',label:'Blended ROAS (all sales)',data:M.map(r=>{const s=(am[r.month]||{}).spend||0;return s?(r.revenue_total||0)/s:0;}),borderColor:C.ink,borderWidth:2.5,tension:.35,pointRadius:2},
-    {type:'line',label:'Online ROAS',data:M.map(r=>{const s=(am[r.month]||{}).spend||0;return s?(r.revenue_online||0)/s:0;}),borderColor:C.gold,borderWidth:2,borderDash:[5,3],tension:.35,pointRadius:0}]},
+      scales:{x:gridY({title:{display:true,text:'Ad spend / '+gname,color:C.mute},ticks:{callback:v=>moneyM(v)}}),y:gridY({title:{display:true,text:'Sales revenue / '+gname,color:C.mute},ticks:{callback:v=>moneyM(v)}})}} });
+  // ROAS trend (bucketed)
+  charts.linkRoas=new Chart(el('linkRoas'),{ data:{labels,datasets:[
+    {type:'line',label:'Blended ROAS (all sales)',data:LX.map(b=>{const s=lSpend(b);return s?((salesMapL[b.key]||{}).revenue_total||0)/s:0;}),borderColor:C.ink,borderWidth:2.5,tension:.35,pointRadius:2},
+    {type:'line',label:'Online ROAS',data:LX.map(b=>{const s=lSpend(b);return s?((salesMapL[b.key]||{}).revenue_online||0)/s:0;}),borderColor:C.gold,borderWidth:2,borderDash:[5,3],tension:.35,pointRadius:0}]},
     options:{maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+roasS(c.parsed.y)}}},
       scales:{x:axisX(),y:gridY({ticks:{callback:v=>v.toFixed(0)+'×'}})}} });
   // stat cards
   el('linkStats').innerHTML =
-      '<div class="stat-card"><div class="sv">'+roasS(a.spend?k.revenue_total/a.spend:0)+'</div><div class="sl">Blended ROAS (all sales)</div></div>'
-    + '<div class="stat-card"><div class="sv">'+roasS(a.spend?k.revenue_online/a.spend:0)+'</div><div class="sl">Online-only ROAS (excl. in-store)</div></div>'
+      '<div class="stat-card"><div class="sv">'+roasS(a.spend?sk.revenue_total/a.spend:0)+'</div><div class="sl">Blended ROAS (all sales)</div></div>'
+    + '<div class="stat-card"><div class="sv">'+roasS(a.spend?sk.revenue_online/a.spend:0)+'</div><div class="sl">Online-only ROAS (excl. in-store)</div></div>'
     + '<div class="stat-card"><div class="sv">'+money(sk.orders_total?a.spend/sk.orders_total:0)+'</div><div class="sl">Cost per order</div></div>'
-    + '<div class="stat-card"><div class="sv">'+fmtPct(pct(k.google_rev_claimed+k.meta_rev_claimed,k.revenue_total),0)+'</div><div class="sl">Platform-claimed rev. as % of true sales</div></div>';
+    + '<div class="stat-card"><div class="sv">'+fmtPct(pct(cr.google+cr.meta,sk.revenue_total),0)+'</div><div class="sl">Platform-claimed rev. as % of true sales</div></div>';
 }
 
 /* =================== meta / boot / export =================== */
@@ -1113,7 +1256,7 @@ async function boot(){
     activePlatforms=new Set(PLATFORMS.map(p=>p.key));
     activeCampaigns=new Set((DATA.ad_campaigns||[]).map(c=>c.campaign));
     // Date-range picker — bounds from the dataset window; default = full window (no behavior change).
-    dateMin=DATA.window&&DATA.window.start; dateMax=DATA.window&&DATA.window.end;
+    dateMin=(DATA.window&&DATA.window.start&&DATA.window.start<'2025-01-01')?DATA.window.start:'2025-01-01'; dateMax=DATA.window&&DATA.window.end;
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({ min:dateMin, max:dateMax,
       onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });

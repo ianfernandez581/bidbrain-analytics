@@ -51,9 +51,9 @@ sa AS (
   FROM `bidbrain-analytics.client_cityperfume.stg_sales`
 )
 SELECT
-  DATE '2025-06-01'                                   AS window_start,
+  DATE '2025-01-01'                                   AS window_start,
   sa.window_end,
-  DATE_DIFF(sa.window_end, DATE '2025-06-01', DAY) + 1 AS window_days,
+  DATE_DIFF(sa.window_end, DATE '2025-01-01', DAY) + 1 AS window_days,
   -- media
   ad.ad_spend, ad.google_spend, ad.meta_spend, ad.ttd_spend,
   ad.ad_imps, ad.ad_clicks,

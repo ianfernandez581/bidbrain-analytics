@@ -1,0 +1,7 @@
+# Cloud Run export job: BigQuery views -> proptrack.json -> GCS.
+# Pinned for reproducible container builds. Like client_STT/job, this job
+# only reads BigQuery views and writes JSON to GCS — it never touches Snowflake
+# (the shared raw layer is filled by snowflake_data_pull/), so it needs
+# nothing beyond the BigQuery + Storage clients.
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1

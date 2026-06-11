@@ -46,4 +46,4 @@ SELECT
   creative_body
 FROM `bidbrain-analytics.raw_windsor.perf_meta`
 WHERE account_name = 'Cityperfume.com.au'
-  AND metric_date >= DATE '2025-06-01';
+  AND metric_date >= DATE '2025-01-01';

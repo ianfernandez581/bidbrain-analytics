@@ -186,8 +186,12 @@ def get_secret_optional(name):
     the `neto-api-username` secret is absent and that must NOT be an error."""
     try:
         return get_secret(name)
-    except NotFound:
-        log.info(f"  optional secret '{name}' not found -- omitting NETOAPI_USERNAME header")
+    except (NotFound, gexc.PermissionDenied, gexc.Forbidden):
+        # Absent locally surfaces as NotFound; on Cloud Run the runtime SA has no
+        # binding on a non-existent secret, so GCP returns PermissionDenied/403 instead
+        # (it won't reveal whether the secret exists). For an OPTIONAL secret both mean
+        # the same thing: no username -> omit the header.
+        log.info(f"  optional secret '{name}' absent or no access -- omitting NETOAPI_USERNAME header")
         return None
 
 def build_headers(api_key, api_username):

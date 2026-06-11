@@ -40,4 +40,4 @@ SELECT
   ecommerce_purchases
 FROM `bidbrain-analytics.raw_ga4.perf_ga4`
 WHERE account_name = 'City Perfume'
-  AND metric_date >= DATE '2025-06-01';
+  AND metric_date >= DATE '2025-01-01';
