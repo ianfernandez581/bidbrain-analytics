@@ -7,12 +7,17 @@
 -- the per-session events (session_start / first_visit) to avoid multiplying by event count.
 -- engaged_sessions is derived from the user_engagement event (see below); engagement
 -- DURATION is still absent upstream (NULL -> dashboard "—" for avg-engagement only).
--- "market" is now the visitor COUNTRY_NAME.
+-- "market" is the visitor COUNTRY_NAME, normalized to the canonical APAC labels the
+-- paid platforms emit (stg_google / stg_dv360 map 'KR' -> 'Korea'). GA4 spells Korea
+-- "South Korea", which would otherwise fail the dashboard's APAC_MARKETS whitelist and
+-- silently drop all Korea website sessions; the other 8 APAC markets already match.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_stt.stg_ga4` AS
 SELECT
   DATE(DAY) AS metric_date,
-  COALESCE(NULLIF(COUNTRY_NAME, ''), '(not set)')     AS account_name,
-  COALESCE(NULLIF(COUNTRY_NAME, ''), '(not set)')     AS market,
+  IF(COUNTRY_NAME = 'South Korea', 'Korea',
+     COALESCE(NULLIF(COUNTRY_NAME, ''), '(not set)')) AS account_name,
+  IF(COUNTRY_NAME = 'South Korea', 'Korea',
+     COALESCE(NULLIF(COUNTRY_NAME, ''), '(not set)')) AS market,
   COALESCE(NULLIF(CHANNEL_GROUPING, ''), '(not set)') AS channel_group,
   CASE
     WHEN CHANNEL_GROUPING IN ('Paid Search','Paid Social','Paid Other','Cross-network','Display') THEN 'Paid'
