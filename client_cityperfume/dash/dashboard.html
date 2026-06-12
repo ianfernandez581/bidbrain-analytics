@@ -499,11 +499,11 @@
 
     <!-- ============ YEAR ON YEAR ============ -->
     <div id="tab-yoy" class="tabpane">
-      <div class="section first"><h2>Year on year</h2><span class="sub">Plain-dollar finance view (AUD): each month against the same month last year. Whole-store first-party revenue and total ad spend across all platforms — no filters apply. The current month is in progress, so it is shown muted in the table and left out of the year-to-date totals.</span></div>
+      <div class="section first"><h2>Year on year</h2><span class="sub">Plain-dollar finance view (AUD): each month against the same month last year. Use the <b>Date range</b> as a month filter and the <b>Sales channel</b> chips to scope revenue (ad spend is whole — ad data has no channel split). The in-progress month is compared month-to-date (same days, both years) so it stays fair.</span></div>
       <div class="info-note" id="yoyBasisNote"></div>
       <div class="kpis" id="yoyKpis"></div>
       <div class="card card-tall" style="margin-top:14px"><h3>Revenue — this year vs last year</h3>
-        <div class="hint">Monthly whole-store revenue, paired by calendar month. AUD. The in-progress current month is omitted here.</div>
+        <div class="hint">Revenue per displayed month, paired with the same month last year. AUD. The in-progress month is shown month-to-date.</div>
         <div class="chart-wrap"><canvas id="yoyRevChart"></canvas></div></div>
       <div class="grid-2-1" style="margin-top:14px">
         <div class="card card-tall"><h3>Ad spend — this year vs last year</h3><div class="hint">Total working media, all platforms. AUD.</div>
@@ -965,55 +965,72 @@ function donut(canvasId,labels,values,colors,centerL1,centerL2,total){
 function renderYoY(){
   const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const MUTE='#8A8079';
-  const rows=(DATA.yoy_monthly||[]).slice().sort((a,b)=> a.month<b.month?-1:a.month>b.month?1:0);
-  if(!rows.length){ el('yoyKpis').innerHTML='<div class="hint">No year-on-year data available.</div>';
-    el('yoyTable').innerHTML=''; el('yoyAttrib').innerHTML=''; el('yoyBasisNote').textContent=''; return; }
-  const curYear=Math.max(...rows.map(r=>r.year));
-  const partial=rows[rows.length-1].month;                 // newest month = in progress
-  const mLbl=r=>MO[r.month_num-1]+" '"+String(r.year).slice(2);
+  const clearCharts=()=>['yoyRevChart','yoySpendChart','yoyRoasChart'].forEach(id=>{ if(charts[id]){try{charts[id].destroy()}catch(e){}} });
   const yoyPct=(now,base)=> base==null||!base ? '<span style="color:'+MUTE+'">—</span>'
       : '<span class="'+(now>=base?'up':'down')+'">'+(now>=base?'▲':'▼')+' '+Math.abs((now-base)/base*100).toFixed(0)+'%</span>';
 
-  // --- MONTH-TO-DATE for the in-progress month: compare like-for-like days (1..N) on BOTH
-  // sides, so a partial month is a FAIR comparison instead of a false drop. N = the latest
-  // day-of-month present in the current data; we sum days 1..N from the daily arrays for the
-  // current year and the same month last year. Revenue = sales_daily; spend = ad_campaign_daily.
-  const pmYear=+partial.slice(0,4), pmMonth=+partial.slice(5,7);
-  const sd=DATA.sales_daily||[], adArr=DATA.ad_campaign_daily||[];
-  const dpart=r=>String(r.day).slice(0,10);
-  const curDays=sd.filter(r=>+dpart(r).slice(0,4)===pmYear && +dpart(r).slice(5,7)===pmMonth).map(r=>+dpart(r).slice(8,10));
+  // YoY is computed from the DAILY arrays so it honors the live filters:
+  //  • Sales channel filter scopes revenue & orders (from sales_by_channel_daily).
+  //  • Ad spend is whole (all platforms) — ad feeds carry NO channel dimension.
+  //  • The date range acts as a MONTH filter: only current-year months inside the range show,
+  //    each paired with the same calendar month a year earlier (which is outside the range — so
+  //    we aggregate months over ALL data, then choose which to display by the range).
+  const sbc=DATA.sales_by_channel_daily||[], adArr=DATA.ad_campaign_daily||[];
+  const ym=d=>String(d).slice(0,7), dpart=r=>String(r.day).slice(0,10);
+  const revM={}, ordM={}, spM={};
+  for(const r of sbc){ if(!chanOk(r)) continue; const k=ym(r.day); revM[k]=(revM[k]||0)+(+r.revenue||0); ordM[k]=(ordM[k]||0)+(+r.orders||0); }
+  for(const r of adArr){ const k=ym(r.day); spM[k]=(spM[k]||0)+(+r.spend_aud||0); }
+  const months=Object.keys(revM).sort();
+  if(!months.length){ el('yoyKpis').innerHTML='<div class="hint">No sales for the selected channels.</div>';
+    el('yoyTable').innerHTML=''; el('yoyAttrib').innerHTML=''; el('yoyBasisNote').textContent=''; clearCharts(); return; }
+  const latest=months[months.length-1];                    // newest month = in progress
+  const curYear=+latest.slice(0,4), pmM=+latest.slice(5,7);
+  const priorOf=k=>(+k.slice(0,4)-1)+'-'+k.slice(5,7);
+  const moLbl=k=>MO[(+k.slice(5,7))-1]+" '"+k.slice(2,4);
+
+  // MTD for the in-progress month: like-for-like days 1..N on both years.
+  const curDays=sbc.filter(r=>ym(r.day)===latest).map(r=>+dpart(r).slice(8,10));
   const N=curDays.length?Math.max(...curDays):0;
-  const sumD=(arr,f,yr,mo,lim)=>arr.reduce((s,r)=>{const d=dpart(r);
+  const sumD=(arr,f,yr,mo,lim,chan)=>arr.reduce((s,r)=>{ if(chan&&!chanOk(r)) return s; const d=dpart(r);
     return (+d.slice(0,4)===yr && +d.slice(5,7)===mo && +d.slice(8,10)<=lim) ? s+(+r[f]||0) : s;},0);
-  const mtdRevCY=sumD(sd,'revenue_total',pmYear,pmMonth,N),  mtdRevPY=sumD(sd,'revenue_total',pmYear-1,pmMonth,N);
-  const mtdSpCY =sumD(adArr,'spend_aud', pmYear,pmMonth,N),  mtdSpPY =sumD(adArr,'spend_aud', pmYear-1,pmMonth,N);
-  const mtdOrdCY=sumD(sd,'orders',pmYear,pmMonth,N),         mtdOrdPY=sumD(sd,'orders',pmYear-1,pmMonth,N);
-  const mtdRow={ month:partial, year:pmYear, month_num:pmMonth, isMTD:true,
-    revenue_total:mtdRevCY, revenue_total_py:mtdRevPY, ad_spend:mtdSpCY, ad_spend_py:mtdSpPY,
-    roas_blended: mtdSpCY?mtdRevCY/mtdSpCY:0, roas_blended_py: mtdSpPY?mtdRevPY/mtdSpPY:0 };
-  const mtdTag=' · MTD 1–'+N;
+  function metrics(k){
+    if(k===latest) return {
+      rev: sumD(sbc,'revenue',curYear,pmM,N,true),     revPY: sumD(sbc,'revenue',curYear-1,pmM,N,true),
+      sp:  sumD(adArr,'spend_aud',curYear,pmM,N,false), spPY: sumD(adArr,'spend_aud',curYear-1,pmM,N,false),
+      ord: sumD(sbc,'orders',curYear,pmM,N,true),       ordPY: sumD(sbc,'orders',curYear-1,pmM,N,true), isMTD:true };
+    const pk=priorOf(k);
+    return { rev:revM[k]||0, revPY:(revM[pk]==null?null:revM[pk]), sp:spM[k]||0, spPY:(spM[pk]==null?null:spM[pk]),
+             ord:ordM[k]||0, ordPY:(ordM[pk]==null?null:ordM[pk]), isMTD:false };
+  }
 
-  // YTD = complete months of the current year + the in-progress month as MTD (both sides use
-  // the same days), each matched to the same prior-year period.
-  const ytd=rows.filter(r=>r.year===curYear && r.month!==partial && r.revenue_total_py!=null);
-  const sum=(a,f)=>a.reduce((s,r)=>s+(+r[f]||0),0);
-  const revCY=sum(ytd,'revenue_total')+mtdRevCY, revPY=sum(ytd,'revenue_total_py')+mtdRevPY;
-  const spCY =sum(ytd,'ad_spend')+mtdSpCY,       spPY =sum(ytd,'ad_spend_py')+mtdSpPY;
-  const ordCY=sum(ytd,'orders')+mtdOrdCY,        ordPY=sum(ytd,'orders_py')+mtdOrdPY;
-  const roasCY=spCY?revCY/spCY:0,                roasPY=spPY?revPY/spPY:0;
+  // Display months = current-year months that fall inside the selected date range (so the date
+  // picker = a month filter), oldest→newest.
+  const display = months.filter(k=> +k.slice(0,4)===curYear && inRangeMonth(k)).sort();
+  if(!display.length){ el('yoyKpis').innerHTML='<div class="hint">The selected range has no '+curYear+' months to compare. Widen the date range.</div>';
+    el('yoyTable').innerHTML=''; el('yoyAttrib').innerHTML=''; el('yoyBasisNote').textContent=''; clearCharts(); return; }
+  const D = display.map(k=>{ const m=metrics(k); return Object.assign({k,label:moLbl(k)}, m,
+    {roas: m.sp?m.rev/m.sp:0, roasPY: m.spPY?m.revPY/m.spPY:0}); });
+  const hasMTD = D.some(r=>r.isMTD);
 
-  el('yoyBasisNote').innerHTML='Year-to-date compares <b>Jan–'+MO[pmMonth-1]+' '+pmYear+'</b> with the same period of '+(curYear-1)
-    +'. The in-progress month (<b>'+MO[pmMonth-1]+' '+pmYear+'</b>) uses <b>month-to-date (days 1–'+N+')</b> on both sides, so the comparison stays fair.';
+  // Period totals over the displayed months (the in-progress month already on an MTD basis).
+  const sv=f=>D.reduce((s,r)=>s+(+r[f]||0),0);
+  const revCY=sv('rev'), revPY=sv('revPY'), spCY=sv('sp'), spPY=sv('spPY'), ordCY=sv('ord'), ordPY=sv('ordPY');
+  const roasCY=spCY?revCY/spCY:0, roasPY=spPY?revPY/spPY:0;
+  const span = D.length===1 ? moLbl(D[0].k)
+             : MO[+D[0].k.slice(5,7)-1]+'–'+MO[+D[D.length-1].k.slice(5,7)-1]+" '"+String(curYear).slice(2);
+
+  el('yoyBasisNote').innerHTML='Comparing <b>'+span+'</b> with the same months of '+(curYear-1)
+    +'. Revenue &amp; orders reflect the <b>'+channelScopeLabel()+'</b> channel selection; ad spend is whole (all platforms — ad data has no channel split).'
+    + (hasMTD ? ' The in-progress month uses <b>month-to-date (days 1–'+N+')</b> on both years for a fair comparison.' : '');
 
   el('yoyKpis').innerHTML =
-      kpiCard('sale','Revenue YTD '+curYear, money(revCY), 'vs '+money(revPY)+' LY &nbsp; '+yoyPct(revCY,revPY))
-    + kpiCard('paid','Ad spend YTD '+curYear, money(spCY), 'vs '+money(spPY)+' LY &nbsp; '+yoyPct(spCY,spPY))
-    + kpiCard('sale','Blended ROAS YTD', roasS(roasCY), 'vs '+roasS(roasPY)+' last year')
-    + kpiCard('','Orders YTD', fmtN(ordCY), 'vs '+fmtN(ordPY)+' LY &nbsp; '+yoyPct(ordCY,ordPY));
+      kpiCard('sale','Revenue · '+span, money(revCY), 'vs '+money(revPY)+' LY &nbsp; '+yoyPct(revCY,revPY))
+    + kpiCard('paid','Ad spend · '+span, money(spCY), 'vs '+money(spPY)+' LY &nbsp; '+yoyPct(spCY,spPY))
+    + kpiCard('sale','Blended ROAS', roasS(roasCY), 'vs '+roasS(roasPY)+' last year')
+    + kpiCard('','Orders', fmtN(ordCY), 'vs '+fmtN(ordPY)+' LY &nbsp; '+yoyPct(ordCY,ordPY));
 
-  // Paired bar charts — complete months + the in-progress month as MTD (fair on both sides).
-  const full=rows.filter(r=>r.month!==partial && r.revenue_total_py!=null).concat([mtdRow]);
-  const labels=full.map(r=>mLbl(r)+(r.isMTD?' (MTD)':''));
+  // Paired bar charts — one pair per displayed month (in-progress month shown as MTD).
+  const labels=D.map(r=>r.label+(r.isMTD?' (MTD)':''));
   const pairBars=(cy,py,fmtTip)=>({type:'bar',
     data:{labels,datasets:[
       {label:curYear+' (this year)',     data:cy, backgroundColor:C.gold, borderRadius:3, maxBarThickness:26},
@@ -1021,20 +1038,19 @@ function renderYoY(){
     options:{maintainAspectRatio:false,plugins:{legend:legendTop(),
       tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtTip(c.parsed.y)}}},
       scales:{x:axisX(),y:gridY({ticks:{callback:fmtTip}})}}});
-  charts.yoyRevChart   = new Chart(el('yoyRevChart'),   pairBars(full.map(r=>r.revenue_total), full.map(r=>r.revenue_total_py), moneyM));
-  charts.yoySpendChart = new Chart(el('yoySpendChart'), pairBars(full.map(r=>r.ad_spend),      full.map(r=>r.ad_spend_py),      moneyM));
-  charts.yoyRoasChart  = new Chart(el('yoyRoasChart'),  pairBars(full.map(r=>r.roas_blended),  full.map(r=>r.roas_blended_py),  roasS));
+  charts.yoyRevChart   = new Chart(el('yoyRevChart'),   pairBars(D.map(r=>r.rev), D.map(r=>r.revPY), moneyM));
+  charts.yoySpendChart = new Chart(el('yoySpendChart'), pairBars(D.map(r=>r.sp),  D.map(r=>r.spPY),  moneyM));
+  charts.yoyRoasChart  = new Chart(el('yoyRoasChart'),  pairBars(D.map(r=>r.roas),D.map(r=>r.roasPY),roasS));
 
   // Monthly detail — newest first; in-progress month shown as a fair MTD (days 1..N) comparison.
   let t='<tr><th>Month</th><th class="num">Revenue</th><th class="num">LY</th><th class="num">YoY</th>'
        +'<th class="num">Ad spend</th><th class="num">LY</th><th class="num">YoY</th>'
        +'<th class="num">Blended ROAS</th><th class="num">LY</th></tr>';
-  rows.filter(r=>r.revenue_total_py!=null).reverse().forEach(orig=>{
-    const isP = orig.month===partial; const r = isP ? mtdRow : orig;
-    t+='<tr><td>'+mLbl(r)+(isP?' <span style="color:'+MUTE+'">'+mtdTag+'</span>':'')+'</td>'
-      +'<td class="num">'+money(r.revenue_total)+'</td><td class="num">'+money(r.revenue_total_py)+'</td><td class="num">'+yoyPct(r.revenue_total,r.revenue_total_py)+'</td>'
-      +'<td class="num">'+money(r.ad_spend)+'</td><td class="num">'+money(r.ad_spend_py)+'</td><td class="num">'+yoyPct(r.ad_spend,r.ad_spend_py)+'</td>'
-      +'<td class="num">'+roasS(r.roas_blended)+'</td><td class="num">'+roasS(r.roas_blended_py)+'</td></tr>';
+  D.slice().reverse().forEach(r=>{
+    t+='<tr><td>'+r.label+(r.isMTD?' <span style="color:'+MUTE+'">· MTD 1–'+N+'</span>':'')+'</td>'
+      +'<td class="num">'+money(r.rev)+'</td><td class="num">'+money(r.revPY)+'</td><td class="num">'+yoyPct(r.rev,r.revPY)+'</td>'
+      +'<td class="num">'+money(r.sp)+'</td><td class="num">'+money(r.spPY)+'</td><td class="num">'+yoyPct(r.sp,r.spPY)+'</td>'
+      +'<td class="num">'+roasS(r.roas)+'</td><td class="num">'+roasS(r.roasPY)+'</td></tr>';
   });
   el('yoyTable').innerHTML=t;
 
@@ -1080,14 +1096,12 @@ function renderControls(){
     .forEach(([t,id])=>el(id).className='tab'+(t===activeTab?' on':''));
   const showPlatform = ['overview','paid','link'].includes(activeTab);
   const showCampaign = ['overview','paid','link'].includes(activeTab);
-  // Sales-channel filter is meaningful wherever first-party sales appear (everywhere except the
-  // GA4 site tab and the fixed Year-on-Year view).
-  const showChannel  = ['overview','paid','sales','link'].includes(activeTab);
-  // Date filtering is meaningful on every tab EXCEPT Year-on-Year, which is a fixed
-  // calendar-month finance view that always spans full years (the range picker doesn't
-  // apply). Elsewhere the date group is always visible — which also forces #filterRow
-  // visible on the 'web' tab where the other groups are all hidden.
-  const showDate     = activeTab!=='yoy';
+  // Sales-channel filter is meaningful wherever first-party sales appear — every tab except the
+  // GA4 site tab. On Year-on-Year it scopes revenue/orders (ad spend stays whole).
+  const showChannel  = activeTab!=='web';
+  // Date filtering applies on every tab. On Year-on-Year the range acts as a MONTH filter
+  // (which calendar months to compare); elsewhere it clips day-grained data to the range.
+  const showDate     = true;
   el('dateGroup').style.display=showDate?'flex':'none';
   el('platformGroup').style.display=showPlatform?'flex':'none';
   el('campaignGroup').style.display=showCampaign?'flex':'none';
@@ -1112,7 +1126,7 @@ function renderControls(){
   const notes={overview:'Platform/Campaign rescale ad delivery; Sales channel rescales revenue.',
     paid:'Platform & Campaign filters apply; Sales channel scopes the revenue lines.', web:'GA4 — no campaign dimension.',
     sales:'First-party sales — scoped by the Sales channel filter.', link:'Spend rescales; Sales channel scopes the revenue side.',
-    yoy:'Full-year finance view — filters do not apply.'};
+    yoy:'Date range = month filter; Sales channel scopes revenue (ad spend is whole).'};
   el('ctrlNote').textContent=notes[activeTab]||'';
 }
 function allPlatforms(){ activePlatforms=new Set(PLATFORMS.map(p=>p.key)); renderControls(); renderActive(); }
