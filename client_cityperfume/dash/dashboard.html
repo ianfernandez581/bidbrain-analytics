@@ -109,6 +109,11 @@
   .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)}
   .dp-presets a.dp-on{background:var(--dp-accent);color:#fff}
   .dp-cal{padding:12px;width:264px}
+  .dp-months{display:flex;align-items:center;gap:6px;padding:0 0 10px;margin-bottom:8px;border-bottom:1px solid var(--dp-line)}
+  .dp-months-lbl{font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--dp-muted);margin-right:2px}
+  .dp-months-arrow{color:var(--dp-muted)}
+  .dp-msel{flex:1;min-width:0;padding:5px 6px;font-size:12px;font-family:inherit;color:var(--dp-ink);
+    background:var(--dp-panel);border:1px solid var(--dp-line);border-radius:7px;cursor:pointer;outline:none}
   .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
   .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
   .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;
@@ -314,6 +319,12 @@
             <div class="dp-pop dp-hide" id="dpPop">
               <div class="dp-presets" id="dpPresets"></div>
               <div class="dp-cal">
+                <div class="dp-months" id="dpMonths">
+                  <span class="dp-months-lbl">Months</span>
+                  <select id="dpFromMonth" class="dp-msel"></select>
+                  <span class="dp-months-arrow">&rarr;</span>
+                  <select id="dpToMonth" class="dp-msel"></select>
+                </div>
                 <div class="dp-cal-head">
                   <button class="dp-nav" id="dpPrev" type="button">‹</button>
                   <span id="dpMonthLbl"></span>
@@ -355,12 +366,10 @@
           </div>
         </div>
         <div class="fdiv" id="filterDiv2"></div>
-        <div class="filter-grp" id="basisGroup">
-          <span class="lbl">Revenue basis</span>
-          <div class="basis-toggle">
-            <button id="basisAll" class="on" onclick="setBasis('all')">All sales</button>
-            <button id="basisOnline" onclick="setBasis('online')">Online only</button>
-          </div>
+        <div class="filter-grp" id="channelGroup">
+          <span class="lbl">Sales channel</span><div class="chips" id="channelChips"></div>
+          <button class="chip-action" onclick="allChannels()">All</button>
+          <button class="chip-action" onclick="onlyOnlineChannels()">Online</button>
         </div>
       </div>
     </div>
@@ -525,7 +534,8 @@ window.DateRange = (function(){
     {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
     {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
     {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
-    {k:'all', label:'All time'},
+    {k:'6mo', label:'Last 6 months'}, {k:'12mo', label:'Last 12 months'},
+    {k:'year', label:'This year'}, {k:'all', label:'All time'},
   ];
   let MIN=null, MAX=null, onApply=null;
   let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
@@ -547,12 +557,39 @@ window.DateRange = (function(){
     else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
                                   e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
     else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else if(k==='6mo')            s = new Date(MAX.getFullYear(), MAX.getMonth()-5, 1);
+    else if(k==='12mo')           s = new Date(MAX.getFullYear(), MAX.getMonth()-11, 1);
+    else if(k==='year')           s = new Date(MAX.getFullYear(), 0, 1);
     else                          { s=new Date(MIN); e=new Date(MAX); }   // all
     return [clamp(s), clamp(e)];
   }
   function detectPreset(s,e){
     for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
     return 'custom';
+  }
+  // ----- month-range dropdowns (From / To): pick whole calendar months as a span -----
+  function monthsList(){
+    const out=[]; let y=MIN.getFullYear(), m=MIN.getMonth();
+    const ey=MAX.getFullYear(), em=MAX.getMonth();
+    while(y<ey || (y===ey && m<=em)){ out.push({v:y+'-'+pad(m+1), y, m}); m++; if(m>11){m=0;y++;} }
+    return out;
+  }
+  function renderMonths(){
+    const ml=monthsList();
+    const optsFor = sel => ml.map(o =>
+      `<option value="${o.v}"${o.v===sel?' selected':''}>`
+      + new Date(o.y,o.m,1).toLocaleDateString('en-US',{month:'short',year:'numeric'}) + '</option>').join('');
+    $('dpFromMonth').innerHTML = optsFor(iso(draftStart).slice(0,7));
+    $('dpToMonth').innerHTML   = optsFor(iso(draftEnd).slice(0,7));
+  }
+  function pickMonth(which, v){
+    const [y,m] = v.split('-').map(Number);            // m is 1-based
+    if(which==='from'){ draftStart = clamp(new Date(y, m-1, 1));
+      if(draftEnd < draftStart) draftEnd = clamp(new Date(y, m, 0)); }   // snap end to month end
+    else { draftEnd = clamp(new Date(y, m, 0));                          // last day of the to-month
+      if(draftStart > draftEnd) draftStart = clamp(new Date(y, m-1, 1)); }
+    viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
+    renderPresets(); renderCal(); renderRangeLbl(); renderMonths();
   }
 
   function init(opts){
@@ -571,6 +608,8 @@ window.DateRange = (function(){
     $('dpCancel').onclick = () => { close(); };
     $('dpApply').onclick  = () => { apply(); };
     $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
+    $('dpFromMonth').onchange = e => pickMonth('from', e.target.value);
+    $('dpToMonth').onchange   = e => pickMonth('to',   e.target.value);
     $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
     // Capture phase: must run BEFORE pickDay()/choosePreset() rebuild the grid/preset
     // innerHTML (which would detach e.target, making closest('#dateRange') return null
@@ -583,7 +622,7 @@ window.DateRange = (function(){
   function openPop(){
     open=true; draftStart=new Date(selStart); draftEnd=new Date(selEnd);
     viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
-    $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl();
+    $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl(); renderMonths();
   }
   function close(){ open=false; $('dpPop').classList.add('dp-hide'); }
 
@@ -596,12 +635,12 @@ window.DateRange = (function(){
     viewYear=y; viewMonth=m; renderCal();
   }
   function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
-    viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+    viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); renderMonths(); }
   function pickDay(d){
     if(!draftStart || (draftStart && draftEnd)){ draftStart=d; draftEnd=null; }
     else if(d < draftStart){ draftEnd=draftStart; draftStart=d; }
     else { draftEnd=d; }
-    renderPresets(); renderCal(); renderRangeLbl();
+    renderPresets(); renderCal(); renderRangeLbl(); renderMonths();
   }
   function apply(){ if(!draftStart) return;
     selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
@@ -654,7 +693,10 @@ window.DateRange = (function(){
 let DATA = null, charts = {}, activeTab = 'overview';
 let activePlatforms = new Set();      // ad-platform filter (defaults all)
 let activeCampaigns = new Set();      // ad-campaign filter (defaults all) — scopes AD DELIVERY only
-let revenueBasis = 'all';             // 'all' (total sales) | 'online' (excl. in-store POS)
+const CHANNELS = ['In-store POS','Website','Marketplace','Other'];   // channel_group values
+let activeChannels = new Set(CHANNELS);   // GLOBAL sales-channel filter (defaults all selected)
+const chanOk        = r => activeChannels.has(r.channel_group);
+const allChannelsOn = () => activeChannels.size === CHANNELS.length;
 let campaignMenuOpen = false;
 let productSort = 'revenue';
 const el = id => document.getElementById(id);
@@ -722,11 +764,22 @@ function bucketAxis(){ const grain=chartGrain(), s=new Set(); for(const mp of ar
 // sales_daily (additive metrics exact; new_customers exact, returning/total customers ≈).
 function salesTotals(){
   const k=DATA.sales_kpi||{};
-  if(!narrowed()) return Object.assign({}, k, {approxCustomers:false});
-  const sd=clipDaily(DATA.sales_daily||[]); const s=f=>sd.reduce((a,r)=>a+(+r[f]||0),0);
-  const rev=s('revenue_total'), ord=s('orders'), mar=s('margin'), un=s('units');
+  // Fast/exact path unchanged: all channels selected AND full date range -> the exact sales_kpi.
+  if(allChannelsOn() && !narrowed()) return Object.assign({}, k, {approxCustomers:false});
+  // Channel subset -> the channel-grained daily source (filtered); else the all-channel daily.
+  const useChan = !allChannelsOn();
+  const sd = useChan ? clipDaily(DATA.sales_by_channel_daily||[]).filter(chanOk)
+                     : clipDaily(DATA.sales_daily||[]);
+  const s=f=>sd.reduce((a,r)=>a+(+r[f]||0),0);
+  // sales_by_channel_daily exposes per-channel 'revenue' (+channel_group); sales_daily exposes
+  // 'revenue_total'/'revenue_online'. Normalise both to revenue_total / revenue_online.
+  const rev = useChan ? s('revenue') : s('revenue_total');
+  const revOnline = useChan
+    ? sd.reduce((a,r)=>a + (r.channel_group!=='In-store POS' ? (+r.revenue||0) : 0), 0)
+    : s('revenue_online');
+  const ord=s('orders'), mar=s('margin'), un=s('units');
   return {
-    revenue_total:rev, revenue_online:s('revenue_online'),
+    revenue_total:rev, revenue_online:revOnline,
     margin_total:mar, margin_pct: rev?mar/rev:0,
     orders_total:ord, aov: ord?rev/ord:0,
     units:un, units_per_order: ord?un/ord:0,
@@ -813,9 +866,33 @@ function adWeeklyMap(applyPlatform){ const m={};
 }
 
 /* ---- revenue basis helpers (sales is whole-store; basis flips total vs online) ---- */
-const basisRevTotal = () => { const st=salesTotals(); return revenueBasis==='online' ? st.revenue_online : st.revenue_total; };
-const basisLabel    = () => revenueBasis==='online' ? 'online' : 'all-sales';
-const monthRev = mo => revenueBasis==='online' ? (mo.revenue_online||0) : (mo.revenue_total||0);
+// "Sales narrowed" = the sales side must re-aggregate from daily rows (date range narrowed OR a
+// channel subset selected). The full-period exact arrays only apply when neither is true.
+const salesNarrowed = () => narrowed() || !allChannelsOn();
+const basisRevTotal = () => salesTotals().revenue_total;        // revenue for the selected channels
+function channelScopeLabel(){
+  if(allChannelsOn()) return 'all-sales';
+  if(activeChannels.size===3 && !activeChannels.has('In-store POS')) return 'online (excl. in-store)';
+  const sel=CHANNELS.filter(c=>activeChannels.has(c));
+  return sel.length ? sel.join(' + ') : 'no channels';
+}
+const basisLabel = () => channelScopeLabel();
+const monthRev   = mo => (mo.revenue_total||0);
+// Range- AND channel-aware per-bucket sales map. All channels -> sales_daily (unchanged numbers);
+// a channel subset -> sales_by_channel_daily filtered to the selection, normalised to the same
+// keys (revenue_total / revenue_online / margin / orders / new_revenue / returning_revenue).
+function salesBucket(){
+  if(allChannelsOn())
+    return bucketMap(DATA.sales_daily,['revenue_total','revenue_online','margin','orders','new_revenue','returning_revenue']);
+  const grain=chartGrain(), m={};
+  for(const r of clipDaily(DATA.sales_by_channel_daily||[])){ if(!chanOk(r)) continue;
+    const key=bucketKey(r.day,grain); let e=m[key];
+    if(!e){ e=m[key]={revenue_total:0,revenue_online:0,margin:0,orders:0,new_revenue:0,returning_revenue:0}; }
+    const rev=+r.revenue||0; e.revenue_total+=rev; if(r.channel_group!=='In-store POS') e.revenue_online+=rev;
+    e.margin+=+r.margin||0; e.orders+=+r.orders||0; e.new_revenue+=+r.new_revenue||0; e.returning_revenue+=+r.returning_revenue||0;
+  }
+  return m;
+}
 
 /* =================== campaign multi-select =================== */
 const allCampaignNames = () => (DATA.ad_campaigns||[]).map(c=>c.campaign);
@@ -897,18 +974,36 @@ function renderYoY(){
   const yoyPct=(now,base)=> base==null||!base ? '<span style="color:'+MUTE+'">—</span>'
       : '<span class="'+(now>=base?'up':'down')+'">'+(now>=base?'▲':'▼')+' '+Math.abs((now-base)/base*100).toFixed(0)+'%</span>';
 
-  // YTD = COMPLETE months of the current year (exclude the in-progress newest month),
-  // each matched to the same prior-year month (rows already carry the *_py columns).
+  // --- MONTH-TO-DATE for the in-progress month: compare like-for-like days (1..N) on BOTH
+  // sides, so a partial month is a FAIR comparison instead of a false drop. N = the latest
+  // day-of-month present in the current data; we sum days 1..N from the daily arrays for the
+  // current year and the same month last year. Revenue = sales_daily; spend = ad_campaign_daily.
+  const pmYear=+partial.slice(0,4), pmMonth=+partial.slice(5,7);
+  const sd=DATA.sales_daily||[], adArr=DATA.ad_campaign_daily||[];
+  const dpart=r=>String(r.day).slice(0,10);
+  const curDays=sd.filter(r=>+dpart(r).slice(0,4)===pmYear && +dpart(r).slice(5,7)===pmMonth).map(r=>+dpart(r).slice(8,10));
+  const N=curDays.length?Math.max(...curDays):0;
+  const sumD=(arr,f,yr,mo,lim)=>arr.reduce((s,r)=>{const d=dpart(r);
+    return (+d.slice(0,4)===yr && +d.slice(5,7)===mo && +d.slice(8,10)<=lim) ? s+(+r[f]||0) : s;},0);
+  const mtdRevCY=sumD(sd,'revenue_total',pmYear,pmMonth,N),  mtdRevPY=sumD(sd,'revenue_total',pmYear-1,pmMonth,N);
+  const mtdSpCY =sumD(adArr,'spend_aud', pmYear,pmMonth,N),  mtdSpPY =sumD(adArr,'spend_aud', pmYear-1,pmMonth,N);
+  const mtdOrdCY=sumD(sd,'orders',pmYear,pmMonth,N),         mtdOrdPY=sumD(sd,'orders',pmYear-1,pmMonth,N);
+  const mtdRow={ month:partial, year:pmYear, month_num:pmMonth, isMTD:true,
+    revenue_total:mtdRevCY, revenue_total_py:mtdRevPY, ad_spend:mtdSpCY, ad_spend_py:mtdSpPY,
+    roas_blended: mtdSpCY?mtdRevCY/mtdSpCY:0, roas_blended_py: mtdSpPY?mtdRevPY/mtdSpPY:0 };
+  const mtdTag=' · MTD 1–'+N;
+
+  // YTD = complete months of the current year + the in-progress month as MTD (both sides use
+  // the same days), each matched to the same prior-year period.
   const ytd=rows.filter(r=>r.year===curYear && r.month!==partial && r.revenue_total_py!=null);
   const sum=(a,f)=>a.reduce((s,r)=>s+(+r[f]||0),0);
-  const revCY=sum(ytd,'revenue_total'), revPY=sum(ytd,'revenue_total_py');
-  const spCY=sum(ytd,'ad_spend'),       spPY=sum(ytd,'ad_spend_py');
-  const ordCY=sum(ytd,'orders'),        ordPY=sum(ytd,'orders_py');
-  const roasCY=spCY?revCY/spCY:0,       roasPY=spPY?revPY/spPY:0;
+  const revCY=sum(ytd,'revenue_total')+mtdRevCY, revPY=sum(ytd,'revenue_total_py')+mtdRevPY;
+  const spCY =sum(ytd,'ad_spend')+mtdSpCY,       spPY =sum(ytd,'ad_spend_py')+mtdSpPY;
+  const ordCY=sum(ytd,'orders')+mtdOrdCY,        ordPY=sum(ytd,'orders_py')+mtdOrdPY;
+  const roasCY=spCY?revCY/spCY:0,                roasPY=spPY?revPY/spPY:0;
 
-  el('yoyBasisNote').innerHTML='Year-to-date compares the <b>'+ytd.length+'</b> complete month'+(ytd.length===1?'':'s')
-    +' of '+curYear+' with the same months of '+(curYear-1)+'. <b>'+MO[(partial.slice(5,7)|0)-1]+' '+partial.slice(0,4)
-    +'</b> is still in progress — muted in the table below and excluded from these totals.';
+  el('yoyBasisNote').innerHTML='Year-to-date compares <b>Jan–'+MO[pmMonth-1]+' '+pmYear+'</b> with the same period of '+(curYear-1)
+    +'. The in-progress month (<b>'+MO[pmMonth-1]+' '+pmYear+'</b>) uses <b>month-to-date (days 1–'+N+')</b> on both sides, so the comparison stays fair.';
 
   el('yoyKpis').innerHTML =
       kpiCard('sale','Revenue YTD '+curYear, money(revCY), 'vs '+money(revPY)+' LY &nbsp; '+yoyPct(revCY,revPY))
@@ -916,9 +1011,9 @@ function renderYoY(){
     + kpiCard('sale','Blended ROAS YTD', roasS(roasCY), 'vs '+roasS(roasPY)+' last year')
     + kpiCard('','Orders YTD', fmtN(ordCY), 'vs '+fmtN(ordPY)+' LY &nbsp; '+yoyPct(ordCY,ordPY));
 
-  // Paired bar charts — COMPLETE months only (a partial month never reads as a drop).
-  const full=rows.filter(r=>r.month!==partial && r.revenue_total_py!=null);
-  const labels=full.map(mLbl);
+  // Paired bar charts — complete months + the in-progress month as MTD (fair on both sides).
+  const full=rows.filter(r=>r.month!==partial && r.revenue_total_py!=null).concat([mtdRow]);
+  const labels=full.map(r=>mLbl(r)+(r.isMTD?' (MTD)':''));
   const pairBars=(cy,py,fmtTip)=>({type:'bar',
     data:{labels,datasets:[
       {label:curYear+' (this year)',     data:cy, backgroundColor:C.gold, borderRadius:3, maxBarThickness:26},
@@ -930,13 +1025,13 @@ function renderYoY(){
   charts.yoySpendChart = new Chart(el('yoySpendChart'), pairBars(full.map(r=>r.ad_spend),      full.map(r=>r.ad_spend_py),      moneyM));
   charts.yoyRoasChart  = new Chart(el('yoyRoasChart'),  pairBars(full.map(r=>r.roas_blended),  full.map(r=>r.roas_blended_py),  roasS));
 
-  // Monthly detail — newest first; every month that has a prior-year comparison.
+  // Monthly detail — newest first; in-progress month shown as a fair MTD (days 1..N) comparison.
   let t='<tr><th>Month</th><th class="num">Revenue</th><th class="num">LY</th><th class="num">YoY</th>'
        +'<th class="num">Ad spend</th><th class="num">LY</th><th class="num">YoY</th>'
        +'<th class="num">Blended ROAS</th><th class="num">LY</th></tr>';
-  rows.filter(r=>r.revenue_total_py!=null).reverse().forEach(r=>{
-    const muted = r.month===partial;
-    t+='<tr'+(muted?' style="opacity:.55"':'')+'><td>'+mLbl(r)+(muted?' <span style="color:'+MUTE+'">· in progress</span>':'')+'</td>'
+  rows.filter(r=>r.revenue_total_py!=null).reverse().forEach(orig=>{
+    const isP = orig.month===partial; const r = isP ? mtdRow : orig;
+    t+='<tr><td>'+mLbl(r)+(isP?' <span style="color:'+MUTE+'">'+mtdTag+'</span>':'')+'</td>'
       +'<td class="num">'+money(r.revenue_total)+'</td><td class="num">'+money(r.revenue_total_py)+'</td><td class="num">'+yoyPct(r.revenue_total,r.revenue_total_py)+'</td>'
       +'<td class="num">'+money(r.ad_spend)+'</td><td class="num">'+money(r.ad_spend_py)+'</td><td class="num">'+yoyPct(r.ad_spend,r.ad_spend_py)+'</td>'
       +'<td class="num">'+roasS(r.roas_blended)+'</td><td class="num">'+roasS(r.roas_blended_py)+'</td></tr>';
@@ -955,7 +1050,6 @@ function renderYoY(){
 
 /* =================== tab orchestration =================== */
 function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
-function setBasis(b){ revenueBasis=b; el('basisAll').classList.toggle('on',b==='all'); el('basisOnline').classList.toggle('on',b==='online'); renderActive(); }
 function setProductSort(s){ productSort=s; renderSales(); }
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 function renderActive(){
@@ -986,35 +1080,45 @@ function renderControls(){
     .forEach(([t,id])=>el(id).className='tab'+(t===activeTab?' on':''));
   const showPlatform = ['overview','paid','link'].includes(activeTab);
   const showCampaign = ['overview','paid','link'].includes(activeTab);
-  const showBasis    = activeTab==='overview'||activeTab==='link';
+  // Sales-channel filter is meaningful wherever first-party sales appear (everywhere except the
+  // GA4 site tab and the fixed Year-on-Year view).
+  const showChannel  = ['overview','paid','sales','link'].includes(activeTab);
   // Date filtering is meaningful on every tab EXCEPT Year-on-Year, which is a fixed
   // calendar-month finance view that always spans full years (the range picker doesn't
   // apply). Elsewhere the date group is always visible — which also forces #filterRow
-  // visible on the 'web'/'sales' tabs where the other three groups are all hidden.
+  // visible on the 'web' tab where the other groups are all hidden.
   const showDate     = activeTab!=='yoy';
   el('dateGroup').style.display=showDate?'flex':'none';
   el('platformGroup').style.display=showPlatform?'flex':'none';
   el('campaignGroup').style.display=showCampaign?'flex':'none';
-  el('basisGroup').style.display=showBasis?'flex':'none';
-  el('filterRow').style.display=(showDate||showPlatform||showCampaign||showBasis)?'flex':'none';
-  el('filterDiv0').style.display=(showDate&&(showPlatform||showCampaign||showBasis))?'block':'none';
+  el('channelGroup').style.display=showChannel?'flex':'none';
+  el('filterRow').style.display=(showDate||showPlatform||showCampaign||showChannel)?'flex':'none';
+  el('filterDiv0').style.display=(showDate&&(showPlatform||showCampaign||showChannel))?'block':'none';
   el('filterDiv').style.display=(showPlatform&&showCampaign)?'block':'none';
-  el('filterDiv2').style.display=(showCampaign&&showBasis)?'block':'none';
+  el('filterDiv2').style.display=((showPlatform||showCampaign)&&showChannel)?'block':'none';
   // platform chips
   const pw=el('platformChips'); pw.innerHTML='';
   PLATFORMS.forEach(p=>{ const b=document.createElement('button'); b.className='chip'+(activePlatforms.has(p.key)?' on':'');
     b.innerHTML='<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+p.color+'"></span>'+p.label;
     b.onclick=()=>{ activePlatforms.has(p.key)?activePlatforms.delete(p.key):activePlatforms.add(p.key); renderControls(); renderActive(); };
     pw.appendChild(b); });
+  // sales-channel chips
+  const cw=el('channelChips'); cw.innerHTML='';
+  CHANNELS.forEach(c=>{ const b=document.createElement('button'); b.className='chip'+(activeChannels.has(c)?' on':'');
+    b.innerHTML='<span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+(CHANNEL_COLOR[c]||C.sand)+'"></span>'+c;
+    b.onclick=()=>{ activeChannels.has(c)?activeChannels.delete(c):activeChannels.add(c); renderControls(); renderActive(); };
+    cw.appendChild(b); });
   renderCampaignButton();
-  const notes={overview:'Platform & Campaign rescale ad delivery; revenue is whole-store.',
-    paid:'Platform & Campaign filters apply.', web:'GA4 — no campaign dimension.',
-    sales:'First-party sales — whole-store, no filters.', link:'Spend rescales; sales stays whole.',
-    yoy:'Full-year finance view — date/platform filters do not apply.'};
+  const notes={overview:'Platform/Campaign rescale ad delivery; Sales channel rescales revenue.',
+    paid:'Platform & Campaign filters apply; Sales channel scopes the revenue lines.', web:'GA4 — no campaign dimension.',
+    sales:'First-party sales — scoped by the Sales channel filter.', link:'Spend rescales; Sales channel scopes the revenue side.',
+    yoy:'Full-year finance view — filters do not apply.'};
   el('ctrlNote').textContent=notes[activeTab]||'';
 }
 function allPlatforms(){ activePlatforms=new Set(PLATFORMS.map(p=>p.key)); renderControls(); renderActive(); }
 function clearPlatforms(){ activePlatforms=new Set(); renderControls(); renderActive(); }
+function allChannels(){ activeChannels=new Set(CHANNELS); renderControls(); renderActive(); }
+function onlyOnlineChannels(){ activeChannels=new Set(CHANNELS.filter(c=>c!=='In-store POS')); renderControls(); renderActive(); }
 
 /* =================== OVERVIEW =================== */
 function renderOverview(){
@@ -1031,11 +1135,11 @@ function renderOverview(){
   renderOvCommentary();
 
   // hero: spend bars per platform + revenue line + ROAS line (day-grained, bucketed by range span)
-  const salesMap=bucketMap(DATA.sales_daily,['revenue_total','revenue_online']);
+  const salesMap=salesBucket();
   const spendMap=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true));
   const platMap={}; PLATFORMS.forEach(p=>platMap[p.key]=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true)&&r.platform===p.key));
   const AX=bucketAxis(salesMap,spendMap), labels=AX.map(b=>b.label);
-  const bRev=b=> revenueBasis==='online' ? (salesMap[b.key]||{}).revenue_online||0 : (salesMap[b.key]||{}).revenue_total||0;
+  const bRev=b=> (salesMap[b.key]||{}).revenue_total||0;
   const spendBars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y1',stack:'sp',
     data:AX.map(b=>(platMap[p.key][b.key]||{}).spend_aud||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:3}));
   charts.ovHero=new Chart(el('ovHero'),{ data:{labels,datasets:[
@@ -1048,7 +1152,7 @@ function renderOverview(){
         y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}}}}
   });
   // revenue by sales channel donut (range-aware: clip the monthly sibling when narrowed)
-  const chSrc = narrowed() ? aggRange(DATA.sales_by_channel_daily, r=>r.channel_group, ['revenue'], ['channel_group']) : (DATA.sales_by_channel||[]);
+  const chSrc = salesNarrowed() ? aggRange(DATA.sales_by_channel_daily.filter(chanOk), r=>r.channel_group, ['revenue'], ['channel_group']) : (DATA.sales_by_channel||[]).filter(chanOk);
   const ch=chSrc.reduce((m,r)=>{m[r.channel_group]=(m[r.channel_group]||0)+r.revenue;return m;},{});
   const cg=Object.keys(ch).sort((a,b)=>ch[b]-ch[a]);
   donut('ovDonut',cg,cg.map(g=>ch[g]),cg.map(g=>CHANNEL_COLOR[g]||C.sand),moneyM(sk.revenue_total),'revenue',sk.revenue_total);
@@ -1063,14 +1167,14 @@ function renderOverview(){
   donut('ovSpendDonut',pk.map(p=>p.label),pk.map(p=>ap[p.key].spend),pk.map(p=>p.color),moneyM(a.spend),'ad spend',a.spend);
 
   el('ovNote').innerHTML='<b>How to read this.</b> Revenue, margin, orders &amp; AOV come from first-party sales (v_sales) — the source of truth. '
-    +'Toggle <b>Online only</b> to exclude in-store POS from the revenue shown. Platform-claimed figures appear on the Paid Media tab for context.';
+    +'Use the <b>Sales channel</b> filter to scope revenue to specific channels (e.g. Website only, or Online via the shortcut). Platform-claimed figures appear on the Paid Media tab for context.';
 }
 function renderOvCommentary(){
   const box=el('ovCommentary');
-  const sMap=bucketMap(DATA.sales_daily,['revenue_total','revenue_online']); const BX=bucketAxis(sMap);
+  const sMap=salesBucket(); const BX=bucketAxis(sMap);
   if(!BX||BX.length<2){ box.style.display='none'; return; } box.style.display='';
   const a=adKpi(), sk=salesTotals(), rev=basisRevTotal();
-  const bv=b=> revenueBasis==='online'?(sMap[b.key]||{}).revenue_online||0:(sMap[b.key]||{}).revenue_total||0;
+  const bv=b=> (sMap[b.key]||{}).revenue_total||0;
   let pi=0; BX.forEach((b,i)=>{ if(bv(b)>bv(BX[pi])) pi=i; }); const peakM=BX[pi].label;
   const P=adByPlatform(true); let bestK=null,bestR=-1;
   selPlatforms().forEach(p=>{ const e=P[p.key]; const r=e.spend?e.rev/e.spend:0; if(e.spend>0&&p.key!=='ttd'&&r>bestR){bestR=r;bestK=p.key;} });
@@ -1102,7 +1206,7 @@ function renderPaid(){
   const delivMap=bucketMap(DATA.ad_campaign_daily,['imps','clicks'], r=>rowOk(r,true));
   const gRevMap=bucketMap(DATA.ad_campaign_daily,['platform_revenue'], r=>rowOk(r,true)&&r.platform==='google');
   const mRevMap=bucketMap(DATA.ad_campaign_daily,['platform_revenue'], r=>rowOk(r,true)&&r.platform==='meta');
-  const revMap=bucketMap(DATA.sales_daily,['revenue_total']);
+  const revMap=salesBucket();
   const sessMap=bucketMap(DATA.ga4_funnel_daily,['sessions']);
   const AXp=bucketAxis(spendMapAll,delivMap,revMap,sessMap), labels=AXp.map(b=>b.label);
   const bars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y',stack:'sp',data:AXp.map(b=>(platMapAll[p.key][b.key]||{}).spend_aud||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:10}));
@@ -1235,7 +1339,7 @@ function renderSales(){
     + kpiCard('','Returning orders', fmtN(sk.returning_orders), 'of '+fmtN(sk.orders_total))
     + kpiCard('','New revenue', moneyM(sk.new_revenue), fmtN(sk.new_orders)+' orders');
   // new vs returning revenue trend (day-grained, bucketed by range span)
-  const smMap=bucketMap(DATA.sales_daily,['revenue_total','margin','orders','new_revenue','returning_revenue']);
+  const smMap=salesBucket();
   const SX=bucketAxis(smMap); const labels=SX.map(b=>b.label);
   charts.salesNRTrend=new Chart(el('salesNRTrend'),{ data:{labels,datasets:[
     {type:'bar',label:'New',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).new_revenue||0),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24},
@@ -1252,16 +1356,16 @@ function renderSales(){
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?money(c.parsed.y):moneyM(c.parsed.y))}}},
       scales:{x:axisX(),y:gridY({ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'AOV',color:C.mute},ticks:{callback:v=>money(v)}}}} });
   // channel donut + table (range-aware: clip sales_by_channel_monthly per channel, re-derive aov/margin%)
-  const bc = narrowed()
-    ? aggRange(DATA.sales_by_channel_daily, r=>r.sales_channel, ['revenue','margin','orders','units','new_orders','returning_orders'], ['sales_channel','channel_group'])
+  const bc = salesNarrowed()
+    ? aggRange(DATA.sales_by_channel_daily.filter(chanOk), r=>r.sales_channel, ['revenue','margin','orders','units','new_orders','returning_orders'], ['sales_channel','channel_group'])
         .map(r=>Object.assign(r,{aov: r.orders? r.revenue/r.orders : 0, margin_pct: r.revenue? r.margin/r.revenue : 0}))
-    : (DATA.sales_by_channel||[]);
+    : (DATA.sales_by_channel||[]).filter(chanOk);
   const cg=bc.reduce((m,r)=>{m[r.channel_group]=(m[r.channel_group]||0)+r.revenue;return m;},{});
   const cgk=Object.keys(cg).sort((a,b)=>cg[b]-cg[a]);
   donut('salesChannelDonut',cgk,cgk.map(g=>cg[g]),cgk.map(g=>CHANNEL_COLOR[g]||C.sand),moneyM(sk.revenue_total),'revenue',sk.revenue_total);
   // category (range-aware: clip the monthly sibling, re-derive margin%)
-  const cat=(narrowed()
-    ? aggRange(DATA.sales_category_daily, r=>r.category, ['revenue','margin','orders','units'], ['category']).map(r=>Object.assign(r,{margin_pct: r.revenue? r.margin/r.revenue : 0}))
+  const cat=(salesNarrowed()
+    ? aggRange(DATA.sales_category_daily.filter(chanOk), r=>r.category, ['revenue','margin','orders','units'], ['category']).map(r=>Object.assign(r,{margin_pct: r.revenue? r.margin/r.revenue : 0}))
     : (DATA.sales_category||[])).slice().sort((a,b)=>b.revenue-a.revenue);
   charts.salesCategory=new Chart(el('salesCategory'),{ data:{labels:cat.map(r=>r.category),datasets:[
     {type:'bar',label:'Revenue',yAxisID:'y',data:cat.map(r=>r.revenue),backgroundColor:cat.map(r=>CAT_COLOR[r.category]||C.sand),borderRadius:3,maxBarThickness:40,order:2},
@@ -1277,8 +1381,8 @@ function renderSales(){
   el('sortRev').style.fontWeight=productSort==='revenue'?'800':'600';
   el('sortMargin').style.fontWeight=productSort==='margin'?'800':'600';
   // range-aware: when narrowed, re-aggregate the monthly product pool and re-rank over the window
-  const prods=(narrowed()
-    ? aggRange(DATA.sales_products_daily, r=>r.product_name, ['revenue','margin','units','orders'], ['product_name','category']).map(p=>Object.assign(p,{margin_pct: p.revenue? p.margin/p.revenue : 0}))
+  const prods=(salesNarrowed()
+    ? aggRange(DATA.sales_products_daily.filter(chanOk), r=>r.product_name, ['revenue','margin','units','orders'], ['product_name','category']).map(p=>Object.assign(p,{margin_pct: p.revenue? p.margin/p.revenue : 0}))
     : (DATA.sales_products||[]).filter(p=> productSort==='revenue'?p.rev_rank<=50:p.margin_rank<=50))
     .sort((a,b)=> productSort==='revenue'? b.revenue-a.revenue : b.margin-a.margin).slice(0,50);
   let pt='<tr><th>Product</th><th>Category</th><th class="num">Revenue</th><th class="num">Margin</th><th class="num">Margin %</th><th class="num">Units</th><th class="num">Orders</th></tr>';
@@ -1298,9 +1402,9 @@ function renderLink(){
   // trends (day-grained, bucketed by range span): revenue vs ad spend, scatter, ROAS
   const grain=chartGrain();
   const spendMapL=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true));
-  const salesMapL=bucketMap(DATA.sales_daily,['revenue_total','revenue_online']);
+  const salesMapL=salesBucket();
   const LX=bucketAxis(spendMapL,salesMapL), labels=LX.map(b=>b.label);
-  const lRev=b=> revenueBasis==='online'?(salesMapL[b.key]||{}).revenue_online||0:(salesMapL[b.key]||{}).revenue_total||0;
+  const lRev=b=> (salesMapL[b.key]||{}).revenue_total||0;
   const lSpend=b=>(spendMapL[b.key]||{}).spend_aud||0;
   charts.linkWeekly=new Chart(el('linkWeekly'),{ data:{labels,datasets:[
     {type:'line',label:'Sales revenue',yAxisID:'y',data:LX.map(lRev),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.10)',borderWidth:2.5,fill:true,tension:.35,pointRadius:0,order:0},

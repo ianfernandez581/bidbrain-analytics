@@ -5,10 +5,11 @@ CREATE OR REPLACE VIEW `bidbrain-analytics.client_cityperfume.sales_category_dai
 SELECT
   order_date                AS day,
   category,
+  channel_group,            -- carried so the global sales-channel filter can scope category mix
   SUM(line_total)           AS revenue,
   SUM(margin)               AS margin,
   COUNT(DISTINCT order_id)  AS orders,
   SUM(quantity)             AS units
 FROM `bidbrain-analytics.client_cityperfume.stg_sales`
-GROUP BY day, category
+GROUP BY day, category, channel_group
 ORDER BY day, revenue DESC;

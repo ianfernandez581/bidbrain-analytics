@@ -20,6 +20,7 @@ WITH pool AS (
 SELECT
   order_date                AS day,
   product_name,
+  channel_group,            -- carried so the global sales-channel filter can scope top products
   ANY_VALUE(category)       AS category,
   SUM(line_total)           AS revenue,
   SUM(margin)               AS margin,
@@ -27,5 +28,5 @@ SELECT
   COUNT(DISTINCT order_id)  AS orders
 FROM `bidbrain-analytics.client_cityperfume.stg_sales`
 WHERE product_name IN (SELECT product_name FROM pool)
-GROUP BY day, product_name
+GROUP BY day, product_name, channel_group
 ORDER BY day, revenue DESC;
