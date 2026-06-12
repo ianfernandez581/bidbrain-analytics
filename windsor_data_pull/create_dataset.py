@@ -2,8 +2,9 @@
 One-time setup: create the shared raw ad-platform dataset (raw_windsor).
 
 This is the dataset all the Windsor loaders write to (perf_the_trade_desk,
-perf_meta, perf_ga4, perf_ga4_events) and that the per-loader create_*_table.py
-scripts add tables into, so it must exist FIRST. Idempotent (exists_ok=True).
+perf_meta, perf_ga4, perf_ga4_events, perf_google_ads, perf_reddit) and that the
+per-loader create_*_table.py scripts add tables into, so it must exist FIRST.
+Idempotent (exists_ok=True).
 
 Lives at the windsor_data_pull root because the dataset is shared by every
 loader -- it belongs to no single one (meta / tradedesk / ga4).

@@ -1,0 +1,7 @@
+_run/
+__pycache__/
+*.pyc
+README.md
+create_reddit_table.py
+probe_*.py
+truncate_*.py

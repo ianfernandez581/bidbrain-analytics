@@ -28,6 +28,7 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 | [`meta/`](meta/README.md) | The **Meta / Facebook** loader (`perf_meta`) + its table-creation script. One row per (ad × date). [Open its README →](meta/README.md) |
 | [`tradedesk/`](tradedesk/README.md) | The **Trade Desk** loader (`perf_the_trade_desk`) + its table-creation script. One row per (campaign × ad-group × creative × date × ad-format). [Open its README →](tradedesk/README.md) |
 | [`ga4/`](ga4/README.md) | The **Google Analytics 4** loaders + their table-creation scripts. The acquisition loader (`perf_ga4`) — on-site outcomes (sessions, engagement, revenue), one row per (property × date × session source/medium/campaign × channel group) — plus an event-grain sibling (`perf_ga4_events`, one row per property × date × event_name). [Open its README →](ga4/README.md) |
+| [`reddit/`](reddit/README.md) | The **Reddit Ads** loader (`perf_reddit`) + its table-creation script. One row per (account × ad × date), via the blended `/all` endpoint. [Open its README →](reddit/README.md) |
 | `README.md` | This file. |
 
 ---
@@ -40,10 +41,12 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 .\.venv\Scripts\python.exe windsor_data_pull\meta\create_meta_table.py               # 3. the Meta table
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\create_ga4_table.py                 # 4. the GA4 acquisition table
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\create_ga4_events_table.py          # 5. the GA4 events table
-.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py                     # 6. first load (backfills)
+.\.venv\Scripts\python.exe windsor_data_pull\reddit\create_reddit_table.py           # 6. the Reddit table
+.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py                     # 7. first load (backfills)
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\ga4_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\events_loader.py
+.\.venv\Scripts\python.exe windsor_data_pull\reddit\reddit_loader.py
 ```
 
 **Auth:** Windsor API key + BigQuery + Storage all via **Application Default Credentials** —
