@@ -165,6 +165,20 @@
   .note b{color:var(--warn)}
   .hide{display:none}
   .secttitle{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:20px 0 2px;text-transform:uppercase}
+
+  /* segmented grain/axis toggles + Looker-style drill-down */
+  .panelhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .panelhead .ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--panel2)}
+  .seg button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:11.5px;font-weight:700;
+        padding:5px 11px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--accent);color:#fff}
+  .seg button:not(.on):hover{color:var(--ink)}
+  .seg .cap{padding:0 8px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--muted2);align-self:center}
+  .drillback{display:none;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:var(--accent);
+        cursor:pointer;border:1px solid var(--line2);border-radius:7px;padding:4px 9px;background:var(--panel2)}
+  .drillback.show{display:inline-flex}
+  .drillback:hover{border-color:var(--accent)}
 </style>
 </head>
 <body>
@@ -236,9 +250,23 @@
   <section id="tab-overview">
     <div class="grid kpis" id="ovKpis"></div>
     <div class="panel-box">
-      <h3>Monthly ad spend vs website sessions</h3>
-      <p class="hint">Stacked bars = media spend by platform (AUD, scoped by the filters). Teal line = website sessions; amber dashed = GA4 key events (whole — GA4 has no campaign dimension).</p>
+      <div class="panelhead">
+        <div>
+          <h3>Ad spend &amp; its effects</h3>
+          <p class="hint">Stacked bars = media spend by platform (AUD, scoped by the filters). Lines = the effects of that spend: website sessions, ad clicks, impressions and GA4 key events. <b>Relative</b> indexes each line to its own peak so every trend is visible at once; switch to <b>Absolute</b> for real values on dedicated axes. Click a month bar to drill into its weeks.</p>
+        </div>
+        <div class="ctrls">
+          <span class="drillback" id="heroBack" onclick="heroDrillReset()">↩ All months</span>
+          <span class="seg" id="heroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setHeroScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setHeroScale('abs',this)">Absolute</button></span>
+          <span class="seg" id="heroGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setHeroGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setHeroGrain('week',this)">Week</button></span>
+        </div>
+      </div>
       <div class="chartbox tall"><canvas id="heroChart"></canvas></div>
+    </div>
+    <div class="panel-box" style="margin-top:14px">
+      <h3>What the key events are</h3>
+      <p class="hint">Make-up of the “Key events” line above — GA4 key-event volume by event type per month, scoped to the date range (<code>Leadform_submit</code>, <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code>, $50-credit click).</p>
+      <div class="chartbox"><canvas id="keyEventsBreakdown"></canvas></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Website sessions by channel</h3><p class="hint">GA4 default channel grouping (whole period).</p><div class="chartbox sm"><canvas id="channelDonut"></canvas></div></div>
@@ -273,7 +301,10 @@
     <div class="grid kpis" id="webKpis"></div>
     <div class="grid cols-2">
       <div class="panel-box"><h3>Sessions by channel</h3><p class="hint">Paid channels are the ad-driven slice.</p><div class="chartbox"><canvas id="webChannelBar"></canvas></div></div>
-      <div class="panel-box"><h3>Total vs ad-driven sessions</h3><p class="hint">Monthly: all sessions vs paid-channel sessions.</p><div class="chartbox"><canvas id="webTrend"></canvas></div></div>
+      <div class="panel-box">
+        <div class="panelhead"><div><h3>Total vs ad-driven sessions</h3><p class="hint">All sessions vs paid-channel sessions (whole period).</p></div>
+          <span class="seg" id="webGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setWebGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setWebGrain('week',this)">Week</button></span></div>
+        <div class="chartbox"><canvas id="webTrend"></canvas></div></div>
     </div>
     <div class="panel-box" style="margin-top:14px">
       <h3>Key events by type</h3>
@@ -325,6 +356,36 @@ let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;   // ISO 'YYYY-M
 const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+
+// ---- Drill-down grain (Looker-style) + hero effect-axis mode --------------------
+const grain = { hero:'month', web:'month' };   // month | week
+let heroScale = 'rel';        // 'rel' = each effect line indexed to its own peak; 'abs' = real values
+let defaultStart = null;      // the "since May" default — used by the drill "↩ All months" reset
+const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const moLabel = m => { const a=String(m).split('-'); return (MON[(+a[1]||1)-1]||'')+' '+a[0]; };
+const wkLabel = w => { const a=String(w).split('-'); return (+a[2])+' '+(MON[(+a[1]||1)-1]||''); };
+const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
+function segPick(btn){ if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); }
+function setHeroGrain(g,btn){ grain.hero=g; segPick(btn); renderHero(); }
+function setHeroScale(s,btn){ heroScale=s; segPick(btn); renderHero(); }
+function setWebGrain(g,btn){ grain.web=g; segPick(btn); renderWebsite(); }
+function heroDrill(month){               // click a month bar → zoom to that month's weeks
+  rangeStart=month+'-01';
+  const a=month.split('-').map(Number), last=new Date(a[0],a[1],0).getDate();
+  rangeEnd=month+'-'+String(last).padStart(2,'0');
+  grain.hero='week';
+  document.querySelectorAll('#heroGrainSeg button').forEach(b=>b.classList.toggle('on',b.dataset.grain==='week'));
+  document.getElementById('heroBack').classList.add('show');
+  DateRange.set(rangeStart,rangeEnd);
+  renderAll();
+}
+function heroDrillReset(){                // back out to the default (since-May) view
+  rangeStart=defaultStart; rangeEnd=dateMax; grain.hero='month';
+  document.querySelectorAll('#heroGrainSeg button').forEach(b=>b.classList.toggle('on',b.dataset.grain==='month'));
+  document.getElementById('heroBack').classList.remove('show');
+  DateRange.set(rangeStart,rangeEnd);
+  renderAll();
+}
 
 const fmtN=v=>v==null?'—':Math.round(v).toLocaleString();
 const fmt1=v=>v==null?'—':(+v).toLocaleString(undefined,{maximumFractionDigits:1});
@@ -473,15 +534,20 @@ window.DateRange = (function(){
       : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
   }
 
-  return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+  function set(s,e){ const ps=parse(s),pe=parse(e); if(ps)selStart=clamp(ps); if(pe)selEnd=clamp(pe); updateButton(); }
+  return { init, toggle, set, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
 })();
 
 // ===================== boot =====================
 fetch('/data.json').then(r=>r.json()).then(d=>{
   DATA=d;
   dateMin = DATA.window && DATA.window.start; dateMax = DATA.window && DATA.window.end;
-  rangeStart = dateMin; rangeEnd = dateMax;
-  DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderAll(); } });
+  // Default view: from 1 May of the latest year in the data (user can widen via the picker).
+  const may1 = dateMax ? dateMax.slice(0,4)+'-05-01' : null;
+  defaultStart = (may1 && (!dateMin || may1>=dateMin) && may1<=dateMax) ? may1 : dateMin;
+  rangeStart = defaultStart; rangeEnd = dateMax;
+  DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
+    onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; document.getElementById('heroBack').classList.remove('show'); renderAll(); } });
   document.getElementById('updated').textContent='Updated '+(d.last_updated||'').replace('T',' ').replace('Z',' UTC');
   // default: all campaigns selected
   DATA.ad_campaigns.forEach(r=>selCamp.add(ckey(r.platform,r.campaign)));
@@ -597,26 +663,8 @@ function renderOverview(){
   document.getElementById('ovKpis').innerHTML=cards.map(c=>
     `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
 
-  // hero: monthly spend stacked by platform (filtered) + sessions line + key events dashed
-  const fm=DATA.monthly.filter(m=>inRangeMonth(m.month));
-  const months=fm.map(m=>m.month);
-  const spendByPM={google:{},meta:{},ttd:{}};
-  DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month)).forEach(r=>{
-    spendByPM[r.platform][r.month]=(spendByPM[r.platform][r.month]||0)+(+r.spend_aud||0);
-  });
-  const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
-    type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],
-    data:months.map(m=>spendByPM[p][m]||0),yAxisID:'y'
-  }));
-  ds.push({type:'line',label:'Website sessions',borderColor:'#E84A6F',backgroundColor:'#E84A6F',
-    data:fm.map(m=>m.sessions),yAxisID:'y1',tension:.3,borderWidth:2.5,pointRadius:2});
-  ds.push({type:'line',label:'Key events',borderColor:'#F59E0B',backgroundColor:'#F59E0B',borderDash:[5,4],
-    data:fm.map(m=>m.conversions),yAxisID:'y1',tension:.3,borderWidth:2,pointRadius:0});
-  mkChart('heroChart',{data:{labels:months,datasets:ds},options:{responsive:true,maintainAspectRatio:false,
-    interaction:{mode:'index',intersect:false},
-    plugins:{legend:{labels:{color:tickClr,boxWidth:12}}},
-    scales:{x:axis({stacked:true}),y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-      y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions / events',color:tickClr}})}}});
+  renderHero();
+  renderKeyEventsBreakdown();
 
   // channel donut (whole)
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
@@ -629,6 +677,93 @@ function renderOverview(){
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11}}}}});
+}
+
+// hero: ad spend (stacked bars) vs its effects (sessions / clicks / impressions / key events).
+// "Relative" indexes each effect line to its OWN peak (right axis 0–100%), so series at wildly
+// different scales (impressions vs key events) all show their real trend. "Absolute" puts them on
+// dedicated right axes instead. Month⇄week grain + click-a-month-to-drill (Looker-style).
+function renderHero(){
+  const wk = grain.hero==='week';
+  let keys, sessions, keyevents, clicks, imps; const spendByPlt={};
+  if(wk){
+    const fw=DATA.weekly.filter(w=>inRangeWeek(w.week_start));
+    keys=fw.map(w=>w.week_start);
+    sessions=fw.map(w=>w.ga4_sessions);
+    keyevents=null;                       // key events aren't broken out weekly in the feed
+    const ci={}; keys.forEach((k,i)=>ci[k]=i);
+    const clk=keys.map(()=>0), im=keys.map(()=>0);
+    PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));
+    DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign)&&inRangeWeek(r.week_start)).forEach(r=>{
+      const i=ci[r.week_start]; if(i==null)return;
+      spendByPlt[r.platform][i]+=(+r.spend_aud||0); clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0);
+    });
+    clicks=clk; imps=im;
+  } else {
+    const fm=DATA.monthly.filter(m=>inRangeMonth(m.month));
+    keys=fm.map(m=>m.month);
+    sessions=fm.map(m=>m.sessions);
+    keyevents=fm.map(m=>m.conversions);
+    const ci={}; keys.forEach((k,i)=>ci[k]=i);
+    const clk=keys.map(()=>0), im=keys.map(()=>0);
+    PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));
+    DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign)&&inRangeMonth(r.month)).forEach(r=>{
+      const i=ci[r.month]; if(i==null)return;
+      spendByPlt[r.platform][i]+=(+r.spend_aud||0); clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0);
+    });
+    clicks=clk; imps=im;
+  }
+  const labels=keys.map(wk?wkLabel:moLabel);
+  const rel=(heroScale==='rel');
+  const effects=[
+    {label:'Sessions',    color:'#E84A6F', data:sessions, w:2.5},
+    {label:'Clicks',      color:'#34D399', data:clicks,   w:2},
+    {label:'Impressions', color:'#22D3EE', data:imps,     w:2},
+    {label:'Key events',  color:'#F59E0B', data:keyevents,w:2.5, dash:true},
+  ].filter(e=>e.data);
+  const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
+    type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
+  }));
+  effects.forEach(e=>ds.push({
+    type:'line',label:e.label,borderColor:e.color,backgroundColor:e.color,
+    data: rel?indexed(e.data):e.data, _raw:e.data,
+    yAxisID: rel?'yRel':((e.label==='Clicks'||e.label==='Impressions')?'y2':'y1'),
+    tension:.3,borderWidth:e.w,pointRadius:2,borderDash:e.dash?[5,4]:undefined,order:1
+  }));
+  const scales = rel
+    ? { x:axis({stacked:true}),
+        y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
+        yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},
+          title:{display:true,text:'Effects — % of own peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}) }
+    : { x:axis({stacked:true}),
+        y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
+        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions / key events',color:tickClr}}),
+        y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Clicks / impressions',color:tickClr}}) };
+  mkChart('heroChart',{data:{labels,datasets:ds},options:{
+    responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    onClick:(evt,els)=>{ if(grain.hero==='month'&&els&&els.length){ const m=keys[els[0].index]; if(m)heroDrill(m); } },
+    plugins:{legend:{labels:{color:tickClr,boxWidth:12}},
+      tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
+        if(d.type==='bar') return d.label+': '+aud(ctx.parsed.y);
+        const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
+        return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+    scales}});
+}
+// breakdown of what the "Key events" line is made of — GA4 key events by type, stacked per month.
+function renderKeyEventsBreakdown(){
+  const rows=DATA.ga4_key_events.filter(r=>inRangeMonth(r.month));
+  const months=[...new Set(rows.map(r=>r.month))].sort();
+  const tot={}; rows.forEach(r=>tot[r.event_name]=(tot[r.event_name]||0)+(+r.event_count||0));
+  const names=[...new Set(rows.map(r=>r.event_name))].sort((a,b)=>(tot[b]||0)-(tot[a]||0));
+  const PAL=['#F59E0B','#E84A6F','#6366F1','#0EA5E9','#A78BFA','#34D399','#FB7185','#FBBF24','#22D3EE','#94A3B8'];
+  const ci={}; months.forEach((m,i)=>ci[m]=i);
+  const ds=names.map((nm,i)=>{ const arr=months.map(()=>0);
+    rows.filter(r=>r.event_name===nm).forEach(r=>{arr[ci[r.month]]+=(+r.event_count||0);});
+    return {label:nm,backgroundColor:PAL[i%PAL.length],data:arr,stack:'ke'}; });
+  mkChart('keyEventsBreakdown',{type:'bar',data:{labels:months.map(moLabel),datasets:ds},options:{
+    responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:11}}}},
+    scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Key-event count',color:tickClr}})}}});
 }
 
 // ---------- Paid Media (Campaign filter only; Platform ignored) ----------
@@ -691,10 +826,11 @@ function renderWebsite(){
     {label:'Sessions',backgroundColor:ch.map(c=>c.bucket==='Paid'?'#E84A6F':'#3B4D66'),data:ch.map(c=>c.sessions)}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
-  const months=DATA.monthly.map(m=>m.month);
-  mkChart('webTrend',{data:{labels:months,datasets:[
-    {type:'line',label:'All sessions',borderColor:'#E84A6F',data:DATA.monthly.map(m=>m.sessions),tension:.3,borderWidth:2.5,pointRadius:2},
-    {type:'line',label:'Ad-driven (paid)',borderColor:'#F59E0B',data:DATA.monthly.map(m=>m.paid_sessions),tension:.3,borderWidth:2,pointRadius:2}]},
+  const wkw=grain.web==='week', wsrc=wkw?DATA.weekly:DATA.monthly;
+  const wlabels=wkw?wsrc.map(r=>wkLabel(r.week_start)):wsrc.map(r=>r.month);
+  mkChart('webTrend',{data:{labels:wlabels,datasets:[
+    {type:'line',label:'All sessions',borderColor:'#E84A6F',data:wsrc.map(r=>wkw?r.ga4_sessions:r.sessions),tension:.3,borderWidth:2.5,pointRadius:2},
+    {type:'line',label:'Ad-driven (paid)',borderColor:'#F59E0B',data:wsrc.map(r=>r.paid_sessions),tension:.3,borderWidth:2,pointRadius:2}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tickClr,boxWidth:12}}},scales:{x:axis(),y:axis()}}});
 
   // key events by type (aggregate over months)
