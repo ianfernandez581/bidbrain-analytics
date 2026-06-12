@@ -292,6 +292,7 @@
           <button class="tab" id="tabWeb"      onclick="setTab('web')">Website &amp; GA4</button>
           <button class="tab" id="tabSales"    onclick="setTab('sales')">Sales &amp; Products</button>
           <button class="tab" id="tabLink"     onclick="setTab('link')">Ads &rarr; Revenue</button>
+          <button class="tab" id="tabYoY"      onclick="setTab('yoy')">Year on Year</button>
         </div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
@@ -485,6 +486,26 @@
           <div class="chart-wrap"><canvas id="linkRoas"></canvas></div></div>
       </div>
       <div class="compare-strip" id="linkStats"></div>
+    </div>
+
+    <!-- ============ YEAR ON YEAR ============ -->
+    <div id="tab-yoy" class="tabpane">
+      <div class="section first"><h2>Year on year</h2><span class="sub">Plain-dollar finance view (AUD): each month against the same month last year. Whole-store first-party revenue and total ad spend across all platforms — no filters apply. The current month is in progress, so it is shown muted in the table and left out of the year-to-date totals.</span></div>
+      <div class="info-note" id="yoyBasisNote"></div>
+      <div class="kpis" id="yoyKpis"></div>
+      <div class="card card-tall" style="margin-top:14px"><h3>Revenue — this year vs last year</h3>
+        <div class="hint">Monthly whole-store revenue, paired by calendar month. AUD. The in-progress current month is omitted here.</div>
+        <div class="chart-wrap"><canvas id="yoyRevChart"></canvas></div></div>
+      <div class="grid-2-1" style="margin-top:14px">
+        <div class="card card-tall"><h3>Ad spend — this year vs last year</h3><div class="hint">Total working media, all platforms. AUD.</div>
+          <div class="chart-wrap"><canvas id="yoySpendChart"></canvas></div></div>
+        <div class="card card-tall"><h3>Blended ROAS — this year vs last year</h3><div class="hint">Total sales &divide; total ad spend.</div>
+          <div class="chart-wrap"><canvas id="yoyRoasChart"></canvas></div></div>
+      </div>
+      <div class="section"><h2>Monthly detail</h2><span class="sub">Every month with a prior-year comparison. &#9650;/&#9660; is YoY growth; the in-progress month is muted.</span></div>
+      <div class="card"><div class="tbl-scroll"><table id="yoyTable"></table></div></div>
+      <div class="section"><h2>Attribution — platform-claimed vs total revenue</h2><span class="sub">Each platform reports only its own click-through ("attributed") revenue; these understate true impact and are never summed. Total revenue is the first-party source of truth.</span></div>
+      <div class="kpis" id="yoyAttrib"></div>
     </div>
 
     <footer id="footMeta">&nbsp;</footer>
@@ -858,25 +879,100 @@ function donut(canvasId,labels,values,colors,centerL1,centerL2,total){
       cutoutText:{line1:centerL1,line2:centerL2}}, plugins:[centerText] });
 }
 
+/* =================== YEAR ON YEAR =================== */
+// Finance view: each calendar month vs the same month a year earlier, in plain AUD.
+// Reads DATA.yoy_monthly (whole-store revenue + total ad spend, already paired with
+// prior-year); the global date/platform filters do NOT apply here. The newest month is
+// the in-progress current month — muted in the table and excluded from YTD totals so a
+// partial month never reads as a real decline.
+function renderYoY(){
+  const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MUTE='#8A8079';
+  const rows=(DATA.yoy_monthly||[]).slice().sort((a,b)=> a.month<b.month?-1:a.month>b.month?1:0);
+  if(!rows.length){ el('yoyKpis').innerHTML='<div class="hint">No year-on-year data available.</div>';
+    el('yoyTable').innerHTML=''; el('yoyAttrib').innerHTML=''; el('yoyBasisNote').textContent=''; return; }
+  const curYear=Math.max(...rows.map(r=>r.year));
+  const partial=rows[rows.length-1].month;                 // newest month = in progress
+  const mLbl=r=>MO[r.month_num-1]+" '"+String(r.year).slice(2);
+  const yoyPct=(now,base)=> base==null||!base ? '<span style="color:'+MUTE+'">—</span>'
+      : '<span class="'+(now>=base?'up':'down')+'">'+(now>=base?'▲':'▼')+' '+Math.abs((now-base)/base*100).toFixed(0)+'%</span>';
+
+  // YTD = COMPLETE months of the current year (exclude the in-progress newest month),
+  // each matched to the same prior-year month (rows already carry the *_py columns).
+  const ytd=rows.filter(r=>r.year===curYear && r.month!==partial && r.revenue_total_py!=null);
+  const sum=(a,f)=>a.reduce((s,r)=>s+(+r[f]||0),0);
+  const revCY=sum(ytd,'revenue_total'), revPY=sum(ytd,'revenue_total_py');
+  const spCY=sum(ytd,'ad_spend'),       spPY=sum(ytd,'ad_spend_py');
+  const ordCY=sum(ytd,'orders'),        ordPY=sum(ytd,'orders_py');
+  const roasCY=spCY?revCY/spCY:0,       roasPY=spPY?revPY/spPY:0;
+
+  el('yoyBasisNote').innerHTML='Year-to-date compares the <b>'+ytd.length+'</b> complete month'+(ytd.length===1?'':'s')
+    +' of '+curYear+' with the same months of '+(curYear-1)+'. <b>'+MO[(partial.slice(5,7)|0)-1]+' '+partial.slice(0,4)
+    +'</b> is still in progress — muted in the table below and excluded from these totals.';
+
+  el('yoyKpis').innerHTML =
+      kpiCard('sale','Revenue YTD '+curYear, money(revCY), 'vs '+money(revPY)+' LY &nbsp; '+yoyPct(revCY,revPY))
+    + kpiCard('paid','Ad spend YTD '+curYear, money(spCY), 'vs '+money(spPY)+' LY &nbsp; '+yoyPct(spCY,spPY))
+    + kpiCard('sale','Blended ROAS YTD', roasS(roasCY), 'vs '+roasS(roasPY)+' last year')
+    + kpiCard('','Orders YTD', fmtN(ordCY), 'vs '+fmtN(ordPY)+' LY &nbsp; '+yoyPct(ordCY,ordPY));
+
+  // Paired bar charts — COMPLETE months only (a partial month never reads as a drop).
+  const full=rows.filter(r=>r.month!==partial && r.revenue_total_py!=null);
+  const labels=full.map(mLbl);
+  const pairBars=(cy,py,fmtTip)=>({type:'bar',
+    data:{labels,datasets:[
+      {label:curYear+' (this year)',     data:cy, backgroundColor:C.gold, borderRadius:3, maxBarThickness:26},
+      {label:(curYear-1)+' (last year)', data:py, backgroundColor:C.sand, borderRadius:3, maxBarThickness:26}]},
+    options:{maintainAspectRatio:false,plugins:{legend:legendTop(),
+      tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtTip(c.parsed.y)}}},
+      scales:{x:axisX(),y:gridY({ticks:{callback:fmtTip}})}}});
+  charts.yoyRevChart   = new Chart(el('yoyRevChart'),   pairBars(full.map(r=>r.revenue_total), full.map(r=>r.revenue_total_py), moneyM));
+  charts.yoySpendChart = new Chart(el('yoySpendChart'), pairBars(full.map(r=>r.ad_spend),      full.map(r=>r.ad_spend_py),      moneyM));
+  charts.yoyRoasChart  = new Chart(el('yoyRoasChart'),  pairBars(full.map(r=>r.roas_blended),  full.map(r=>r.roas_blended_py),  roasS));
+
+  // Monthly detail — newest first; every month that has a prior-year comparison.
+  let t='<tr><th>Month</th><th class="num">Revenue</th><th class="num">LY</th><th class="num">YoY</th>'
+       +'<th class="num">Ad spend</th><th class="num">LY</th><th class="num">YoY</th>'
+       +'<th class="num">Blended ROAS</th><th class="num">LY</th></tr>';
+  rows.filter(r=>r.revenue_total_py!=null).reverse().forEach(r=>{
+    const muted = r.month===partial;
+    t+='<tr'+(muted?' style="opacity:.55"':'')+'><td>'+mLbl(r)+(muted?' <span style="color:'+MUTE+'">· in progress</span>':'')+'</td>'
+      +'<td class="num">'+money(r.revenue_total)+'</td><td class="num">'+money(r.revenue_total_py)+'</td><td class="num">'+yoyPct(r.revenue_total,r.revenue_total_py)+'</td>'
+      +'<td class="num">'+money(r.ad_spend)+'</td><td class="num">'+money(r.ad_spend_py)+'</td><td class="num">'+yoyPct(r.ad_spend,r.ad_spend_py)+'</td>'
+      +'<td class="num">'+roasS(r.roas_blended)+'</td><td class="num">'+roasS(r.roas_blended_py)+'</td></tr>';
+  });
+  el('yoyTable').innerHTML=t;
+
+  // Attribution clarity — platform click-through ("attributed") vs first-party total.
+  // Full reporting period; from the headline kpi row (never summed across platforms).
+  const k=DATA.kpi||{};
+  const tot=k.revenue_total||0, mclaim=k.meta_rev_claimed||0, gclaim=k.google_rev_claimed||0;
+  el('yoyAttrib').innerHTML =
+      kpiCard('sale','Total revenue', moneyM(tot), 'first-party — every order, every channel')
+    + kpiCard('','Meta attributed revenue', moneyM(mclaim), (tot?fmtPct(mclaim/tot,1):'—')+' of total · Meta click-through only')
+    + kpiCard('','Google attributed revenue', moneyM(gclaim), (tot?fmtPct(gclaim/tot,1):'—')+' of total · Google click-through only');
+}
+
 /* =================== tab orchestration =================== */
 function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
 function setBasis(b){ revenueBasis=b; el('basisAll').classList.toggle('on',b==='all'); el('basisOnline').classList.toggle('on',b==='online'); renderActive(); }
 function setProductSort(s){ productSort=s; renderSales(); }
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 function renderActive(){
-  ['overview','paid','web','sales','link'].forEach(t=>el('tab-'+t).style.display=(t===activeTab?'block':'none'));
+  ['overview','paid','web','sales','link','yoy'].forEach(t=>el('tab-'+t).style.display=(t===activeTab?'block':'none'));
   destroyCharts();
   renderDateScope();
   if(activeTab==='overview') renderOverview();
   else if(activeTab==='paid') renderPaid();
   else if(activeTab==='web') renderWeb();
   else if(activeTab==='sales') renderSales();
+  else if(activeTab==='yoy') renderYoY();
   else renderLink();
 }
 // Banner stating what the date range does (and doesn't) touch — shown only when narrowed.
 function renderDateScope(){
   const note=el('dateScopeNote'); if(!note) return;
-  if(narrowed()){
+  if(narrowed() && activeTab!=='yoy'){
     note.style.display='block';
     note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (to the day; trend charts bucket by day, week, or month depending on the span). '
       +'KPI cards, donuts, charts, and campaign/creative/category/product tables all reflect this exact range. '
@@ -886,15 +982,16 @@ function renderDateScope(){
   }
 }
 function renderControls(){
-  [['overview','tabOverview'],['paid','tabPaid'],['web','tabWeb'],['sales','tabSales'],['link','tabLink']]
+  [['overview','tabOverview'],['paid','tabPaid'],['web','tabWeb'],['sales','tabSales'],['link','tabLink'],['yoy','tabYoY']]
     .forEach(([t,id])=>el(id).className='tab'+(t===activeTab?' on':''));
   const showPlatform = ['overview','paid','link'].includes(activeTab);
   const showCampaign = ['overview','paid','link'].includes(activeTab);
   const showBasis    = activeTab==='overview'||activeTab==='link';
-  // Date filtering is meaningful on EVERY tab (each has >=1 date-grained chart),
-  // so the date group is always visible — which also forces #filterRow visible on the
-  // 'web' and 'sales' tabs where the other three groups are all hidden.
-  const showDate     = true;
+  // Date filtering is meaningful on every tab EXCEPT Year-on-Year, which is a fixed
+  // calendar-month finance view that always spans full years (the range picker doesn't
+  // apply). Elsewhere the date group is always visible — which also forces #filterRow
+  // visible on the 'web'/'sales' tabs where the other three groups are all hidden.
+  const showDate     = activeTab!=='yoy';
   el('dateGroup').style.display=showDate?'flex':'none';
   el('platformGroup').style.display=showPlatform?'flex':'none';
   el('campaignGroup').style.display=showCampaign?'flex':'none';
@@ -912,7 +1009,8 @@ function renderControls(){
   renderCampaignButton();
   const notes={overview:'Platform & Campaign rescale ad delivery; revenue is whole-store.',
     paid:'Platform & Campaign filters apply.', web:'GA4 — no campaign dimension.',
-    sales:'First-party sales — whole-store, no filters.', link:'Spend rescales; sales stays whole.'};
+    sales:'First-party sales — whole-store, no filters.', link:'Spend rescales; sales stays whole.',
+    yoy:'Full-year finance view — date/platform filters do not apply.'};
   el('ctrlNote').textContent=notes[activeTab]||'';
 }
 function allPlatforms(){ activePlatforms=new Set(PLATFORMS.map(p=>p.key)); renderControls(); renderActive(); }

@@ -145,6 +145,10 @@ def main():
         "kpi": kpi,
         "monthly": rows(bq, "monthly"),         # kept for the CSV export
         "weekly": rows(bq, "weekly"),
+        # Year-on-year monthly comparison (finance "Year on Year" tab): each month paired
+        # with the same calendar month a year earlier, $ + YoY%. Prior-year baseline is our
+        # own first-party v_sales for now (to be reconciled with the client's old tracker).
+        "yoy_monthly": rows(bq, "yoy_monthly"),
         # DAY-GRAINED sources — the dashboard clips these to the exact selected date range,
         # aggregates up for KPIs/donuts/tables, and buckets to day/week/month for trend charts
         # by range span. The full-period arrays below stay the EXACT source when the range is
