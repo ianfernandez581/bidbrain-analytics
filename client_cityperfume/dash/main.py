@@ -55,16 +55,16 @@ LOGIN_HTML = """<!doctype html>
 <title>City Perfume · Marketing Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Karla:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       font-family:"Karla",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
        background:radial-gradient(1200px 600px at 50% -10%,#2A2422 0%,#1C1815 55%,#141110 100%)}
   .card{width:100%;max-width:360px;padding:40px 32px;background:#FBF8F4;
         border:1px solid rgba(0,0,0,.06);border-radius:16px;
         box-shadow:0 20px 64px rgba(0,0,0,.42)}
-  .logo{font-family:"Fraunces",Georgia,serif;font-size:24px;font-weight:600;letter-spacing:2px;
+  .logo{font-family:"Karla",Georgia,serif;font-size:24px;font-weight:600;letter-spacing:2px;
         color:#1C1815;text-align:center;margin-bottom:6px}
   .brand{font-size:11px;font-weight:700;letter-spacing:1.8px;color:#B08D57;margin-bottom:18px;text-align:center}
   h1{font-size:18px;font-weight:700;margin:0 0 4px;color:#1C1815;text-align:center}
