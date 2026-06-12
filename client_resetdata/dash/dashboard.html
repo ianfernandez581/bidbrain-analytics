@@ -690,7 +690,7 @@ function renderHero(){
     const fw=DATA.weekly.filter(w=>inRangeWeek(w.week_start));
     keys=fw.map(w=>w.week_start);
     sessions=fw.map(w=>w.ga4_sessions);
-    keyevents=null;                       // key events aren't broken out weekly in the feed
+    keyevents=fw.map(w=>w.conversions);   // GA4 key events, now broken out weekly
     const ci={}; keys.forEach((k,i)=>ci[k]=i);
     const clk=keys.map(()=>0), im=keys.map(()=>0);
     PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));

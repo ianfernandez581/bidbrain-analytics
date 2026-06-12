@@ -177,6 +177,7 @@ def main():
         "weekly": [{
             "week_start": ymd(r["week_start"]),
             "ga4_sessions": num(r["ga4_sessions"]),
+            "conversions": num(r["conversions"]),
             "paid_sessions": num(r["paid_sessions"]),
             "search_sessions": num(r["search_sessions"]),
             "social_sessions": num(r["social_sessions"]),

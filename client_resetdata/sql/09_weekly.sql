@@ -14,7 +14,8 @@ g AS (
     SUM(IF(channel_bucket = 'Paid', sessions, 0))       AS paid_sessions,
     SUM(IF(channel_group = 'Paid Search', sessions, 0)) AS search_sessions,
     SUM(IF(channel_group = 'Paid Social', sessions, 0)) AS social_sessions,
-    SUM(IF(channel_group = 'Display', sessions, 0))     AS display_sessions
+    SUM(IF(channel_group = 'Display', sessions, 0))     AS display_sessions,
+    SUM(conversions)                                    AS conversions
   FROM `bidbrain-analytics.client_resetdata.stg_ga4`
   WHERE metric_date >= DATE '2025-12-01'
   GROUP BY week_start
@@ -40,6 +41,7 @@ td AS (
 SELECT
   g.week_start,
   g.ga4_sessions, g.paid_sessions, g.search_sessions, g.social_sessions, g.display_sessions,
+  g.conversions,
   IFNULL(ga.ga_imps, 0)   AS ga_imps,
   IFNULL(me.me_imps, 0)   AS me_imps,
   IFNULL(td.td_imps, 0)   AS td_imps,
