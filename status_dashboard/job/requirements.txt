@@ -4,7 +4,7 @@
 #
 # No pandas/pyarrow: the accuracy numbers are scalar COUNT/SUM results read with
 # a plain cursor (fetchone), so the no-op freshness tick stays a light container.
-# Pins match client_cloudflare/job/requirements.txt so the image base is shared.
+# Pins match clients/client_cloudflare/job/requirements.txt so the image base is shared.
 snowflake-connector-python==4.6.0
 google-cloud-bigquery==3.41.0
 google-cloud-storage==3.10.1

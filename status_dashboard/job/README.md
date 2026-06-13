@@ -25,7 +25,7 @@ Snowflake, so they're out of scope.) Keep this list in sync with `$CLIENT_BUCKET
 |---|---|
 | `main.py` | The job. The `CLIENTS` spec (per-client sources + accuracy checks), the freshness probe of both stages, the verdict logic, the gated Snowflake accuracy counts, and the `status.json` writer. No `CLIENT` key / dataset / FX — it reports across all clients. |
 | `freshness.py` | Vendored probe helpers (identical to the client jobs'): `probe_snowflake_last_altered` (INFORMATION_SCHEMA.LAST_ALTERED, metadata-only — never resumes `APAC_IN_WH`) and `probe_bq_last_modified` (`__TABLES__.last_modified_time`). Used here for *probing*, not for a `_freshness.json` watermark — see Freshness below. |
-| `requirements.txt` | `snowflake-connector-python`, `google-cloud-bigquery`, `google-cloud-storage`, `cryptography`, `google-cloud-secret-manager` (pinned; base shared with `client_cloudflare/job`). No pandas — every accuracy result is a single scalar. |
+| `requirements.txt` | `snowflake-connector-python`, `google-cloud-bigquery`, `google-cloud-storage`, `cryptography`, `google-cloud-secret-manager` (pinned; base shared with `clients/client_cloudflare/job`). No pandas — every accuracy result is a single scalar. |
 | `Dockerfile` | `python:3.12.13-slim`, non-root (`appuser`), `COPY main.py freshness.py`, `CMD python main.py`. |
 | `deploy_job_status.ps1` | Rebuild + redeploy + run ONLY this job after editing `main.py` / `requirements.txt`. |
 

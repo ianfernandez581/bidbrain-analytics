@@ -23,9 +23,11 @@ on every client bucket). See `status_dashboard/README.md`.
   bucket `bidbrain-analytics-<c>-dash`, export job `<c>-export`, web service `<c>-dash`,
   subdomain `<c>.bidbrain.ai`.
   (`<c>` ∈ {mongodb, cloudflare, stt, schneider, hireright, cityperfume, resetdata, proptrack})
+- **Repo layout:** per-client dashboards live in `clients/client_<c>/` (each with `sql/` `job/` `dash/`);
+  the shared raw-layer loaders live in `ingest/<source>_data_pull/`. `status_dashboard/` + `scripts/` stay at root.
 
 ## What's in the repo (so you don't have to go hunting)
-**8 client dashboards** — each is `client_<c>/` with `sql/` + `job/` + `dash/`, dataset `client_<c>`,
+**8 client dashboards** — each is `clients/client_<c>/` with `sql/` + `job/` + `dash/`, dataset `client_<c>`,
 job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-derivable facts:
 
 | `<c>` | Reports | Currency | Views | Watch out for |
@@ -40,24 +42,24 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 | `proptrack` | Banking ABM — TTD (advertiser `PopTrack`) + LinkedIn | AUD (no FX) | 15 | TTD impressions come from `IMPRESSION` (singular); LinkedIn `PropTrack_TransmissionSG_AUD` |
 
 **4 shared ingest units** fill the `raw_*` layers for everyone (no dashboard of their own):
-- `snowflake_data_pull/` → `raw_snowflake` (7 tables, 1:1 mirror). **Self-gating `*/10`** — the exception
+- `ingest/snowflake_data_pull/` → `raw_snowflake` (7 tables, 1:1 mirror). **Self-gating `*/10`** — the exception
   that watermarks BQ `raw_snowflake._sync_state`, not a GCS `_freshness.json` sidecar.
-- `windsor_data_pull/` → `raw_windsor` (Meta, Trade Desk, GA4 +events, Google Ads, Reddit). **Fixed daily**
+- `ingest/windsor_data_pull/` → `raw_windsor` (Meta, Trade Desk, GA4 +events, Google Ads, Reddit). **Fixed daily**
   Cloud Run jobs (`windsor-meta-ingest`, `windsor-tradedesk-ingest`); Reddit not yet wired; TTD connector down.
-- `dts_data_pull/` → `raw_google_ads` + `raw_ga4` via **native BigQuery DTS** (no job; daily, free). 3 bridge views.
-- `neto_data_pull/` → `raw_neto.orders` (City Perfume sales). **Fixed daily** Cloud Run job `neto-orders-ingest`.
+- `ingest/dts_data_pull/` → `raw_google_ads` + `raw_ga4` via **native BigQuery DTS** (no job; daily, free). 3 bridge views.
+- `ingest/neto_data_pull/` → `raw_neto.orders` (City Perfume sales). **Fixed daily** Cloud Run job `neto-orders-ingest`.
 
 **`status_dashboard/`** — meta dash (`status.bidbrain.ai`), no dataset/views; reads the other clients'
 resources, self-gating `*/15`. **`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1`
-(deploys the 4 ingest jobs as `ingest-runner@`). For anything client-specific, open `client_<c>/README.md`.
+(deploys the 4 ingest jobs as `ingest-runner@`). For anything client-specific, open `clients/client_<c>/README.md`.
 
 ## Dashboard edits — the common task. READ THIS FIRST.
-Each client's UI is ONE big file: `client_<c>/dash/dashboard.html` (~1,300–2,400 lines).
+Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,300–2,400 lines).
 
 - **Do NOT read, reformat, or edit the logo blocks.** They are static, enormous, and never
   change: a wall of `<svg … aria-label="…"><path …></svg>` (STT, MongoDB) or an inline
   `<img src="data:image/jpeg;base64,…">` (Cloudflare). The STT logo SVG is **duplicated** in
-  `client_STT/dash/main.py` (LOGIN_HTML) — same rule there.
+  `clients/client_STT/dash/main.py` (LOGIN_HTML) — same rule there.
 - **grep to the target** (a chart canvas `id`, a KPI element `id`, a render function name)
   and edit in place. Don't slurp the whole file to change a colour/label/card.
 - Pure visual tweaks (colours, labels, spacing, a new card) live entirely in `dashboard.html`.
@@ -84,12 +86,12 @@ Reach for the matching one by edit:
 - `job/deploy_job_<c>.ps1`     — edited `job/main.py` (JSON shape) → rebuild + deploy + run JOB
 - `sql/deploy_views_<c>.ps1`   — edited a `sql/*.sql` view → reapply views (`create_views.py`) + run JOB
 
-The one-shot `deploy_<c>.ps1` (still at the `client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,
+The one-shot `deploy_<c>.ps1` (still at the `clients/client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,
 scheduler). The raw commands each stage script runs, for reference:
 
     # edited dashboard.html or dash/main.py → rebuild + redeploy the SERVICE:
     $IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/<c>-dash:$(git rev-parse --short HEAD)"
-    gcloud builds submit client_<c>/dash --tag $IMG --region australia-southeast1
+    gcloud builds submit clients/client_<c>/dash --tag $IMG --region australia-southeast1
     gcloud run services update <c>-dash --image $IMG --region australia-southeast1
 
     # edited a sql/*.sql view → reapply views + re-run the JOB (no service redeploy):
@@ -98,7 +100,7 @@ scheduler). The raw commands each stage script runs, for reference:
 
     # edited job/main.py (the JSON shape) → rebuild + deploy + run the JOB:
     $IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/<c>-export:$(git rev-parse --short HEAD)"
-    gcloud builds submit client_<c>/job --tag $IMG --region australia-southeast1
+    gcloud builds submit clients/client_<c>/job --tag $IMG --region australia-southeast1
     gcloud run jobs deploy <c>-export --image $IMG --region australia-southeast1 `
       --service-account <c>-dash-job@bidbrain-analytics.iam.gserviceaccount.com --memory 1Gi
     gcloud run jobs execute <c>-export --region australia-southeast1 --wait
@@ -106,7 +108,7 @@ scheduler). The raw commands each stage script runs, for reference:
 The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy shows
 immediately. The service always reads whatever JSON is currently in the bucket.
 
-## Freshness contract (binding — definition-of-done for every export job + `snowflake_data_pull`)
+## Freshness contract (binding — definition-of-done for every export job + `ingest/snowflake_data_pull`)
 Every dashboard must refresh **within ~10 min of its upstream data updating**, NOT on a fixed daily
 cron. The mechanism is a SELF-GATING job: on a frequent (`*/10` UTC) Cloud Scheduler tick it cheaply
 checks whether the upstream it reads has new data and only does the full rebuild + upload when
@@ -116,7 +118,7 @@ something advanced. A job is **not "done"** until it satisfies 1–4.
    past its stored watermark — otherwise exit 0 without pulling or uploading. Honor `FORCE_REBUILD=1`
    to bypass the gate for manual runs.
 2. **Gate source = whatever the job READS** (derive from the code, never guess):
-   - **Snowflake-direct** (`client_cloudflare`, `snowflake_data_pull`) → probe Snowflake PUBLIC
+   - **Snowflake-direct** (`client_cloudflare`, `ingest/snowflake_data_pull`) → probe Snowflake PUBLIC
      `INFORMATION_SCHEMA.TABLES.LAST_ALTERED`. Metadata-only — **no warehouse credits, never resumes
      `APAC_IN_WH`**.
    - **BigQuery-reading** (every other client, via `raw_snowflake` / `raw_windsor` / `raw_ga4` /
@@ -124,7 +126,7 @@ something advanced. A job is **not "done"** until it satisfies 1–4.
    Never watermark a **VIEW** (its `LAST_ALTERED` only moves on DDL) — watermark the base/mirror
    TABLES the views read.
 3. **Watermark** = a tiny JSON sidecar in the client's own GCS bucket (`_freshness.json`).
-   `snowflake_data_pull` instead keeps a per-table BQ `raw_snowflake._sync_state` (refresh table T
+   `ingest/snowflake_data_pull` instead keeps a per-table BQ `raw_snowflake._sync_state` (refresh table T
    iff T advanced). Order matters: **upload first, write watermark second**, so a failed upload
    simply retries next tick.
 4. **Schedule** = Cloud Scheduler `*/10 * * * *` UTC (tunable; parameterize the scheduler script). No
@@ -169,7 +171,7 @@ is the canonical agent doc; the per-folder `README.md`s carry the detail. Concre
 - **Renamed or added a data key?** The 3-stage contract is matched BY NAME — fix `sql` → `job/main.py` →
   `dashboard.html` in the same change (renaming one stage breaks the next).
 - **Hit a non-obvious gotcha** a future session would get wrong? Add ONE terse line to the right place —
-  repo-wide here, single-client in `client_<c>/README.md`. **Volatile status (a date, a live URL,
+  repo-wide here, single-client in `clients/client_<c>/README.md`. **Volatile status (a date, a live URL,
   "verified on…") goes in a README, never in CLAUDE.md** (it rots, and a wrong instruction is worse than none).
 - **Found a stale instruction** (a path/command/file that no longer exists)? Fix or delete it now.
 - Edit in place and merge into the right section. **Do NOT create new summary / notes / changelog `.md`

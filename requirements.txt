@@ -1,11 +1,11 @@
-# Root dependencies for the Windsor -> BigQuery loaders (windsor_data_pull/*)
+# Root dependencies for the Windsor -> BigQuery loaders (ingest/windsor_data_pull/*)
 # and the one-time BigQuery setup scripts (create_dataset.py / create_*table*.py
-# beside the loaders, plus client_mongodb/create_views.py). Pinned for
+# beside the loaders, plus clients/client_mongodb/create_views.py). Pinned for
 # reproducible installs on any machine / OS.
 #
 # The two Cloud Run units pin their own dependencies separately:
-#   client_mongodb/job/requirements.txt   (export job)
-#   client_mongodb/dash/requirements.txt  (web app)
+#   clients/client_mongodb/job/requirements.txt   (export job)
+#   clients/client_mongodb/dash/requirements.txt  (web app)
 #
 # Install:  python -m pip install -r requirements.txt
 google-cloud-bigquery==3.41.0

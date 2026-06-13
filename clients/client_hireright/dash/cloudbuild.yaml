@@ -1,0 +1,46 @@
+# Cloud Build -> Cloud Run CD for the HireRight dashboard web app (a SERVICE).
+#
+# Wire a Cloud Build trigger (one-time, see client_mongodb README section 11):
+#   repo:           Bidbrain/bidbrain-analytics
+#   event:          push to ^main$
+#   included files: clients/client_hireright/dash/**      (only redeploy when this unit changes)
+#   config:         clients/client_hireright/dash/cloudbuild.yaml
+#
+# The trigger's service account needs: roles/run.admin, roles/artifactregistry.writer,
+# and roles/iam.serviceAccountUser on _RUNTIME_SA.
+substitutions:
+  _REGION: australia-southeast1
+  _REPO: bidbrain                                                   # Artifact Registry docker repo (shared)
+  _SERVICE: hireright-dash
+  _RUNTIME_SA: hireright-dash-web@bidbrain-analytics.iam.gserviceaccount.com
+  _BUCKET: bidbrain-analytics-hireright-dash
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    dir: clients/client_hireright/dash
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA", "."]
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA"]
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --service-account=${_RUNTIME_SA}
+      - --set-env-vars=GCS_BUCKET=${_BUCKET},DATA_OBJECT=hireright.json
+      - --set-secrets=DASH_PASSWORD=hireright-dash-password:latest,SESSION_SECRET=hireright-dash-session-key:latest
+      - --memory=512Mi
+  - id: allow-public-under-org-policy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    # Org enforces Domain Restricted Sharing, so --allow-unauthenticated is rejected.
+    # The app does its own password auth; this removes the conflicting invoker gate.
+    # Idempotent, so it's safe to run on every deploy.
+    args: ["run", "services", "update", "${_SERVICE}", "--region=${_REGION}", "--no-invoker-iam-check"]
+options:
+  logging: CLOUD_LOGGING_ONLY

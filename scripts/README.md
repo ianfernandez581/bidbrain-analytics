@@ -15,7 +15,7 @@ helpers never touch production beyond logging you in; the cloud serving/export p
 build themselves from each unit's own files.
 
 **Where this sits:** `setup.ps1` / `start_day.ps1` prepare your **local machine** to run the
-[`windsor_data_pull/`](../windsor_data_pull/) and [`snowflake_data_pull/`](../snowflake_data_pull/)
+[`ingest/windsor_data_pull/`](../ingest/windsor_data_pull/) and [`ingest/snowflake_data_pull/`](../ingest/snowflake_data_pull/)
 loaders and the client export jobs — they don't touch production beyond logging you in.
 `deploy_ingest_jobs.ps1` is the exception: it deploys the cloud-side raw loaders themselves
 (the ingest jobs that those data-pull folders ship as containers).
@@ -44,7 +44,7 @@ loaders and the client export jobs — they don't touch production beyond loggin
 .\scripts\start_day.ps1      # or double-click scripts\start_day.cmd
 
 # Then run a loader with the venv's Python:
-.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py
+.\.venv\Scripts\python.exe ingest/windsor_data_pull\meta\meta_loader.py
 
 # Deploy the shared ingest jobs to the cloud (build + deploy + schedule all four):
 .\scripts\deploy_ingest_jobs.ps1
@@ -65,10 +65,10 @@ service account in `australia-southeast1`; images go to the shared `bidbrain` Ar
 
 | Raw target | Cloud Run job | Build context | Schedule (UTC) |
 |---|---|---|---|
-| `raw_snowflake.*` (Salesforce/TTD/GA/etc, all clients) | `snowflake-ingest` | `snowflake_data_pull` | `*/10 * * * *` — **self-gating** |
-| `raw_neto.orders` (City Perfume sales truth) | `neto-orders-ingest` | `neto_data_pull/orders` | `0 21 * * *` |
-| `raw_windsor.perf_meta` (Meta, all granted accounts) | `windsor-meta-ingest` | `windsor_data_pull/meta` | `15 21 * * *` |
-| `raw_windsor.perf_the_trade_desk` (TTD, per-account + self-heal) | `windsor-tradedesk-ingest` | `windsor_data_pull/tradedesk` | `35 21 * * *` |
+| `raw_snowflake.*` (Salesforce/TTD/GA/etc, all clients) | `snowflake-ingest` | `ingest/snowflake_data_pull` | `*/10 * * * *` — **self-gating** |
+| `raw_neto.orders` (City Perfume sales truth) | `neto-orders-ingest` | `ingest/neto_data_pull/orders` | `0 21 * * *` |
+| `raw_windsor.perf_meta` (Meta, all granted accounts) | `windsor-meta-ingest` | `ingest/windsor_data_pull/meta` | `15 21 * * *` |
+| `raw_windsor.perf_the_trade_desk` (TTD, per-account + self-heal) | `windsor-tradedesk-ingest` | `ingest/windsor_data_pull/tradedesk` | `35 21 * * *` |
 
 - **`snowflake-ingest` is self-gating** per the freshness contract: it runs every 10 minutes,
   but each tick cheaply checks per-table freshness (`raw_snowflake._sync_state`, honoring
@@ -106,7 +106,7 @@ a long loader run.
   [README Quickstart](../README.md#quickstart)).
 - **The `.venv` is a dev-only superset.** `setup.ps1` installs both
   [`requirements.txt`](../requirements.txt) (loaders + setup scripts) and
-  [`client_mongodb/job/requirements.txt`](../client_mongodb/job/requirements.txt) (the export
+  [`clients/client_mongodb/job/requirements.txt`](../clients/client_mongodb/job/requirements.txt) (the export
   job) into one venv — they pin compatible versions so they coexist. The **dash** web app is
   deliberately excluded (it pins an older `google-cloud-storage` that conflicts). Each Cloud
   Run unit still builds its own container from its own `requirements.txt`, so this local venv
@@ -119,9 +119,9 @@ a long loader run.
 - **Known dangling reference:** the closing hints in `setup.ps1` mention
   `.\scripts\run-export-job.ps1` (a local export-job runner). **That file isn't in the repo
   yet.** To run the MongoDB export job locally today, use the commands in
-  [`client_mongodb/README.md`](../client_mongodb/README.md) instead.
+  [`clients/client_mongodb/README.md`](../clients/client_mongodb/README.md) instead.
 
 ## See also
 
 - [Root README](../README.md) — the whole-platform map and the cross-platform Quickstart.
-- [`windsor_data_pull/`](../windsor_data_pull/README.md) / [`snowflake_data_pull/`](../snowflake_data_pull/README.md) — what you run *after* setup.
+- [`ingest/windsor_data_pull/`](../ingest/windsor_data_pull/README.md) / [`ingest/snowflake_data_pull/`](../ingest/snowflake_data_pull/README.md) — what you run *after* setup.

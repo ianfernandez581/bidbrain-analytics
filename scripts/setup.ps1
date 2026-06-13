@@ -20,7 +20,7 @@
   start_day.ps1 auto-resolves Python). This script never edits tracked files.
 
   After this, run a loader with the venv's python:
-      .\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py
+      .\.venv\Scripts\python.exe ingest\windsor_data_pull\meta\meta_loader.py
 #>
 
 $ErrorActionPreference = "Stop"
@@ -29,8 +29,8 @@ $PROJECT = "bidbrain-analytics"
 # --- Locate repo root ---------------------------------------------------------
 if ($PSScriptRoot) { Set-Location (Split-Path $PSScriptRoot -Parent) }
 $REPO = (Get-Location).Path
-if (-not (Test-Path (Join-Path $REPO "windsor_data_pull"))) {
-    Write-Host "[X] Run this from the bidbrain-analytics repo root (windsor_data_pull not found here)." -ForegroundColor Red
+if (-not (Test-Path (Join-Path $REPO "ingest/windsor_data_pull"))) {
+    Write-Host "[X] Run this from the bidbrain-analytics repo root (ingest/windsor_data_pull not found here)." -ForegroundColor Red
     exit 1
 }
 
@@ -99,7 +99,7 @@ Write-Host "[OK] gcloud: $((Get-Command gcloud).Source)" -ForegroundColor Green
 # --- 3. requirements files (must be committed in the repo) --------------------
 # The local .venv is a convenience superset for running everything locally:
 #   - requirements.txt                    -> Windsor loaders + BigQuery setup scripts
-#   - client_mongodb/job/requirements.txt -> the MongoDB export job (main.py:
+#   - clients/client_mongodb/job/requirements.txt -> the MongoDB export job (main.py:
 #                                            BigQuery + Storage clients only)
 # Both pin google-cloud-bigquery/storage to the SAME versions, so they coexist
 # in one venv (verified with `pip check`). The dash web app is deliberately
@@ -108,7 +108,7 @@ Write-Host "[OK] gcloud: $((Get-Command gcloud).Source)" -ForegroundColor Green
 # own requirements.txt, so this dev-only superset never affects image builds.
 $reqFiles = @(
     (Join-Path $REPO "requirements.txt"),
-    (Join-Path $REPO "client_mongodb\job\requirements.txt")
+    (Join-Path $REPO "clients\client_mongodb\job\requirements.txt")
 )
 foreach ($r in $reqFiles) {
     if (-not (Test-Path $r)) {
@@ -169,8 +169,8 @@ if (Test-Probe { & $venvPy -c "from google.cloud import bigquery; bigquery.Clien
 # --- Done ---------------------------------------------------------------------
 Write-Host ""
 Write-Host "Setup complete. Run a loader:" -ForegroundColor Cyan
-Write-Host "  .\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py"
-Write-Host "  .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py"
+Write-Host "  .\.venv\Scripts\python.exe ingest\windsor_data_pull\meta\meta_loader.py"
+Write-Host "  .\.venv\Scripts\python.exe ingest\windsor_data_pull\tradedesk\tradedesk_loader.py"
 Write-Host ""
 Write-Host "Run the MongoDB export job locally (sets env + pulls the Snowflake key):" -ForegroundColor DarkGray
 Write-Host "  .\scripts\run-export-job.ps1 -DryRun   (verify env, no prod write)" -ForegroundColor DarkGray

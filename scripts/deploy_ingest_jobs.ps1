@@ -42,10 +42,10 @@ $SHA = "$SHA".Trim()
 # snowflake-ingest is SELF-GATING (per-table freshness gate in loader.py), so it runs */10
 # and most ticks are a ~3s no-op; the rest stay daily, just before the 22:00 client exports.
 $JOBS = @(
-  @{ key="snowflake"; dir="snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="*/10 * * * *" },
-  @{ key="neto";      dir="neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
-  @{ key="meta";      dir="windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
-  @{ key="tradedesk"; dir="windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" }
+  @{ key="snowflake"; dir="ingest/snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="*/10 * * * *" },
+  @{ key="neto";      dir="ingest/neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
+  @{ key="meta";      dir="ingest/windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
+  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" }
 )
 
 # ---- one-time shared service account + least-privilege IAM (idempotent) --------------

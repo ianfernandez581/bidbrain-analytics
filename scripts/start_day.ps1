@@ -81,8 +81,8 @@ if ($LASTEXITCODE -eq 0) {
 
 Write-Host ""
 Write-Host "Ready to go. Common commands:" -ForegroundColor Cyan
-Write-Host "  $PY windsor_data_pull/meta/meta_loader.py"
-Write-Host "  $PY windsor_data_pull/tradedesk/tradedesk_loader.py"
-Write-Host "  $PY windsor_data_pull/meta/create_meta_table.py"
+Write-Host "  $PY ingest/windsor_data_pull/meta/meta_loader.py"
+Write-Host "  $PY ingest/windsor_data_pull/tradedesk/tradedesk_loader.py"
+Write-Host "  $PY ingest/windsor_data_pull/meta/create_meta_table.py"
 Write-Host ""
 

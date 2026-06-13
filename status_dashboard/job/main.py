@@ -53,7 +53,7 @@ DATA_OBJECT = "status.json"
 # ingest cadence is */10–*/15, so a brief lag after a source change is expected, not a fault).
 INGEST_LAG_TOLERANCE = datetime.timedelta(minutes=45)
 
-# --- Snowflake source table -> BigQuery raw mirror (from snowflake_data_pull/loader.py).
+# --- Snowflake source table -> BigQuery raw mirror (from ingest/snowflake_data_pull/loader.py).
 # Used to label the freshness chain and to probe both stages.
 SF_TO_MIRROR = {
     "Salesforce_CS_APAC_ALL":         "raw_snowflake.salesforce_cs_apac_all",
@@ -309,7 +309,7 @@ CLIENTS = [
 def _snowflake_key_bytes():
     """Snowflake private key (PEM) as bytes. Cloud Run injects SNOWFLAKE_KEY
     (--set-secrets); locally it falls back to Secret Manager via ADC. Mirrors
-    client_cloudflare/job/main.py and snowflake_data_pull/loader.py."""
+    clients/client_cloudflare/job/main.py and ingest/snowflake_data_pull/loader.py."""
     pem = os.environ.get("SNOWFLAKE_KEY")
     if pem is None:
         from google.cloud import secretmanager

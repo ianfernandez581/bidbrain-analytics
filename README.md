@@ -28,7 +28,7 @@ git clone https://github.com/Bidbrain/bidbrain-analytics.git
 cd bidbrain-analytics
 .\scripts\setup.ps1            # one-time: installs Python 3.12 + gcloud if missing, makes .venv, installs deps, logs in
 .\scripts\start_day.ps1        # each session: verifies gcloud + ADC creds
-.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py
+.\.venv\Scripts\python.exe ingest\windsor_data_pull\meta\meta_loader.py
 ```
 
 **macOS / Linux (no `setup.ps1` needed — the code is cross-platform):**
@@ -37,7 +37,7 @@ git clone https://github.com/Bidbrain/bidbrain-analytics.git && cd bidbrain-anal
 gcloud auth login && gcloud auth application-default login   # one-time; ADC powers the client libs
 python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt
-python windsor_data_pull/meta/meta_loader.py
+python ingest/windsor_data_pull/meta/meta_loader.py
 ```
 
 Secrets are read at runtime from Secret Manager via Application Default Credentials — no key
@@ -106,11 +106,11 @@ needs a password to see it.
 **The journey:**
 
 1. **Shared ingest** pulls raw data once for everyone, into **five** shared `raw_*` datasets:
-   [`windsor_data_pull/`](windsor_data_pull/) lands ad-platform performance (Meta, Trade Desk,
-   Reddit, Google Ads) + GA4 into `raw_windsor`; [`snowflake_data_pull/`](snowflake_data_pull/)
-   mirrors the Snowflake source tables into `raw_snowflake`; [`dts_data_pull/`](dts_data_pull/)
+   [`ingest/windsor_data_pull/`](ingest/windsor_data_pull/) lands ad-platform performance (Meta, Trade Desk,
+   Reddit, Google Ads) + GA4 into `raw_windsor`; [`ingest/snowflake_data_pull/`](ingest/snowflake_data_pull/)
+   mirrors the Snowflake source tables into `raw_snowflake`; [`ingest/dts_data_pull/`](ingest/dts_data_pull/)
    lands Google Ads + GA4 via Google's native **BigQuery Data Transfer Service** into
-   `raw_google_ads` + `raw_ga4`; and [`neto_data_pull/`](neto_data_pull/) mirrors Neto e-commerce
+   `raw_google_ads` + `raw_ga4`; and [`ingest/neto_data_pull/`](ingest/neto_data_pull/) mirrors Neto e-commerce
    orders into `raw_neto`.
 2. Each client has an **Export Job** (Cloud Run) that runs the client's BigQuery **views**
    (which filter the shared raw data to *that* client and roll it up), packages the result
@@ -153,10 +153,10 @@ needs a password to see it.
 - **One client = its own dataset, job, bucket, web app, password, and subdomain.** Full
   isolation between clients.
 
-**To add a new client:** copy [`client_mongodb/`](client_mongodb/) (the template), change
+**To add a new client:** copy [`clients/client_mongodb/`](clients/client_mongodb/) (the template), change
 one line (`CLIENT = "..."`), point its views at the right filter, and follow the playbook in
 [§10](#10-playbook-add-a-new-client). For a **lean paid-media client** with no Snowflake
-final-model layer, copy [`client_STT/`](client_STT/) instead — the archetype Schneider and
+final-model layer, copy [`clients/client_STT/`](clients/client_STT/) instead — the archetype Schneider and
 HireRight were built from. The shared `raw_*` layers usually already have the data.
 
 ---
@@ -165,14 +165,14 @@ HireRight were built from. The shared `raw_*` layers usually already have the da
 
 **If you're an AI / engineer (fastest path to productive):**
 1. This page → [§3 Orientation](#3-orientation-for-an-ai-or-engineer) and the [Repo map](#5-repo-map-every-folder-and-its-readme).
-2. [`client_mongodb/README.md`](client_mongodb/README.md) — the canonical 3-stage pattern, end to end.
+2. [`clients/client_mongodb/README.md`](clients/client_mongodb/README.md) — the canonical 3-stage pattern, end to end.
 3. The folder you actually need to change (every folder's README is self-contained).
 
 **If you're a non-technical stakeholder (full understanding):**
 1. [§1](#1-what-this-is-plain-english) and [§2](#2-how-it-works-the-60-second-version) here.
-2. [`client_mongodb/README.md`](client_mongodb/README.md) — a worked example in plain English.
-3. The two ingest folders ([`windsor_data_pull/`](windsor_data_pull/),
-   [`snowflake_data_pull/`](snowflake_data_pull/)) and the [Glossary](#12-glossary-plain-english).
+2. [`clients/client_mongodb/README.md`](clients/client_mongodb/README.md) — a worked example in plain English.
+3. The two ingest folders ([`ingest/windsor_data_pull/`](ingest/windsor_data_pull/),
+   [`ingest/snowflake_data_pull/`](ingest/snowflake_data_pull/)) and the [Glossary](#12-glossary-plain-english).
 
 ---
 
@@ -180,27 +180,31 @@ HireRight were built from. The shared `raw_*` layers usually already have the da
 
 Each folder has a **detailed README of its own** — start there for anything inside it.
 
+> **Layout:** everything is grouped under two top-level folders — **`clients/`** (one `client_<c>/`
+> sub-folder per client dashboard) and **`ingest/`** (the shared raw-layer loaders) — plus
+> **`status_dashboard/`** (the meta dashboard) and **`scripts/`** (operator tooling) at the root.
+
 ### Shared ingest — runs once, feeds every client
 
 | Folder | What it does | Open its README |
 |---|---|---|
-| [`windsor_data_pull/`](windsor_data_pull/) | Pulls ad-platform performance (Meta, Trade Desk, Reddit, Google Ads) and GA4 web analytics from **Windsor.ai** into BigQuery `raw_windsor`. Incremental, idempotent loaders; Meta + Trade Desk run as fixed-daily Cloud Run jobs. | [README](windsor_data_pull/README.md) · [meta/](windsor_data_pull/meta/README.md) · [tradedesk/](windsor_data_pull/tradedesk/README.md) · [ga4/](windsor_data_pull/ga4/README.md) · [google_ads/](windsor_data_pull/google_ads/README.md) · [reddit/](windsor_data_pull/reddit/README.md) |
-| [`snowflake_data_pull/`](snowflake_data_pull/) | Mirrors the **Snowflake** source tables (Salesforce CS + ad platforms) 1:1 into BigQuery `raw_snowflake`. Dumb full copy; clients filter in their views. **Self-gating `*/10`** (per-table `_sync_state` watermark — the one ingest unit that self-gates). | [README](snowflake_data_pull/README.md) |
-| [`dts_data_pull/`](dts_data_pull/) | Lands **Google Ads + GA4** into `raw_google_ads` + `raw_ga4` via Google's native **BigQuery Data Transfer Service** (free, daily). `create_views.py` builds 3 flattening bridge views that UNION the Windsor history while the native backfill catches up. | [README](dts_data_pull/README.md) |
-| [`neto_data_pull/`](neto_data_pull/) | Mirrors **Neto / Maropost** e-commerce orders 1:1 into `raw_neto.orders` (City Perfume's sales truth). Fixed-daily Cloud Run job. | [README](neto_data_pull/README.md) · [orders/](neto_data_pull/orders/README.md) |
+| [`ingest/windsor_data_pull/`](ingest/windsor_data_pull/) | Pulls ad-platform performance (Meta, Trade Desk, Reddit, Google Ads) and GA4 web analytics from **Windsor.ai** into BigQuery `raw_windsor`. Incremental, idempotent loaders; Meta + Trade Desk run as fixed-daily Cloud Run jobs. | [README](ingest/windsor_data_pull/README.md) · [meta/](ingest/windsor_data_pull/meta/README.md) · [tradedesk/](ingest/windsor_data_pull/tradedesk/README.md) · [ga4/](ingest/windsor_data_pull/ga4/README.md) · [google_ads/](ingest/windsor_data_pull/google_ads/README.md) · [reddit/](ingest/windsor_data_pull/reddit/README.md) |
+| [`ingest/snowflake_data_pull/`](ingest/snowflake_data_pull/) | Mirrors the **Snowflake** source tables (Salesforce CS + ad platforms) 1:1 into BigQuery `raw_snowflake`. Dumb full copy; clients filter in their views. **Self-gating `*/10`** (per-table `_sync_state` watermark — the one ingest unit that self-gates). | [README](ingest/snowflake_data_pull/README.md) |
+| [`ingest/dts_data_pull/`](ingest/dts_data_pull/) | Lands **Google Ads + GA4** into `raw_google_ads` + `raw_ga4` via Google's native **BigQuery Data Transfer Service** (free, daily). `create_views.py` builds 3 flattening bridge views that UNION the Windsor history while the native backfill catches up. | [README](ingest/dts_data_pull/README.md) |
+| [`ingest/neto_data_pull/`](ingest/neto_data_pull/) | Mirrors **Neto / Maropost** e-commerce orders 1:1 into `raw_neto.orders` (City Perfume's sales truth). Fixed-daily Cloud Run job. | [README](ingest/neto_data_pull/README.md) · [orders/](ingest/neto_data_pull/orders/README.md) |
 
 ### Clients — one folder per client (copy of the template)
 
 | Folder | Status | What it is | Open its README |
 |---|---|---|---|
-| [`client_mongodb/`](client_mongodb/) | **Live** | The **template** every client copies (MongoDB APAC, via Transmission). Models everything in BigQuery from `raw_snowflake`: Trade Desk paid media + Content Syndication (Salesforce, DNB). USD. 10 views. | [README](client_mongodb/README.md) · [job/](client_mongodb/job/README.md) · [dash/](client_mongodb/dash/README.md) · [sql/](client_mongodb/sql/README.md) |
-| [`client_cloudflare/`](client_cloudflare/) | **Live** | Cloudflare APAC (via Transmission). The one client modelled **in Snowflake**: the job pulls Snowflake's *final-model* views into `src_*` tables and the BigQuery views are thin pass-throughs. TTD + LinkedIn + Reddit + LINE + CS. USD. 6 views. | [README](client_cloudflare/README.md) · [job/](client_cloudflare/job/README.md) · [dash/](client_cloudflare/dash/README.md) · [sql/](client_cloudflare/sql/README.md) |
-| [`client_STT/`](client_STT/) | **Live** | STT GDC (ST Telemedia, via Transmission) — the **archetype** for the lean clients below. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD. 24 views. | [README](client_STT/README.md) · [job/](client_STT/job/README.md) · [dash/](client_STT/dash/README.md) · [sql/](client_STT/sql/README.md) · [INTAKE.md](client_STT/INTAKE.md) |
-| [`client_schneider/`](client_schneider/) | **Live** | Schneider Electric APAC (via Transmission). **Plan-vs-actual** portfolio across DV360 + Trade Desk + LinkedIn; seed tables (campaign map / budget / flighting / targets / channel split) joined to live delivery. **AUD**. GA4 ships disabled until SE's property id is known. 26 views. | [README](client_schneider/README.md) · [job/](client_schneider/job/README.md) · [dash/](client_schneider/dash/README.md) · [sql/](client_schneider/sql/README.md) · [INTAKE.md](client_schneider/INTAKE.md) |
-| [`client_hireright/`](client_hireright/) | **Live** | HireRight. Pure paid-media **delivery** baseline — no GA4, no media plan — across DV360 + Trade Desk + LinkedIn. **USD**. 14 views. | [README](client_hireright/README.md) · [job/](client_hireright/job/README.md) · [dash/](client_hireright/dash/README.md) · [sql/](client_hireright/sql/README.md) · [INTAKE.md](client_hireright/INTAKE.md) |
-| [`client_cityperfume/`](client_cityperfume/) | **Live** | City Perfume (AU e-commerce, via 100 Digital). "Ads → actual profit": first-party **Neto `v_sales`** revenue/margin truth vs Google Ads + Meta + Trade Desk + GA4. Single incremental **Margin ROAS**; aggregates-only JSON (no PII). **AUD**. 36 views. | [README](client_cityperfume/README.md) · [job/](client_cityperfume/job/README.md) · [dash/](client_cityperfume/dash/README.md) · [sql/](client_cityperfume/sql/README.md) |
-| [`client_resetdata/`](client_resetdata/) | **Live** | ResetData (AU sovereign-AI / data-centre, via 100 Digital). Copied from STT: B2B "ads → traffic / leads" across **Google Ads + Meta + The Trade Desk** vs GA4 — reading three raw layers (`raw_google_ads`, `raw_windsor`, `raw_ga4`). **No revenue/ROAS** (B2B). **AUD** (TTD USD→AUD @1.50). 19 views. | [README](client_resetdata/README.md) · [job/](client_resetdata/job/README.md) · [dash/](client_resetdata/dash/README.md) · [sql/](client_resetdata/sql/README.md) |
-| [`client_proptrack/`](client_proptrack/) | **Live** | PropTrack (REA Group, via Transmission). "Banking ABM": always-on LinkedIn + a concentrated Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX). 15 views. | [README](client_proptrack/README.md) · [job/](client_proptrack/job/README.md) · [dash/](client_proptrack/dash/README.md) · [sql/](client_proptrack/sql/README.md) |
+| [`clients/client_mongodb/`](clients/client_mongodb/) | **Live** | The **template** every client copies (MongoDB APAC, via Transmission). Models everything in BigQuery from `raw_snowflake`: Trade Desk paid media + Content Syndication (Salesforce, DNB). USD. 10 views. | [README](clients/client_mongodb/README.md) · [job/](clients/client_mongodb/job/README.md) · [dash/](clients/client_mongodb/dash/README.md) · [sql/](clients/client_mongodb/sql/README.md) |
+| [`clients/client_cloudflare/`](clients/client_cloudflare/) | **Live** | Cloudflare APAC (via Transmission). The one client modelled **in Snowflake**: the job pulls Snowflake's *final-model* views into `src_*` tables and the BigQuery views are thin pass-throughs. TTD + LinkedIn + Reddit + LINE + CS. USD. 6 views. | [README](clients/client_cloudflare/README.md) · [job/](clients/client_cloudflare/job/README.md) · [dash/](clients/client_cloudflare/dash/README.md) · [sql/](clients/client_cloudflare/sql/README.md) |
+| [`clients/client_STT/`](clients/client_STT/) | **Live** | STT GDC (ST Telemedia, via Transmission) — the **archetype** for the lean clients below. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD. 24 views. | [README](clients/client_STT/README.md) · [job/](clients/client_STT/job/README.md) · [dash/](clients/client_STT/dash/README.md) · [sql/](clients/client_STT/sql/README.md) · [INTAKE.md](clients/client_STT/INTAKE.md) |
+| [`clients/client_schneider/`](clients/client_schneider/) | **Live** | Schneider Electric APAC (via Transmission). **Plan-vs-actual** portfolio across DV360 + Trade Desk + LinkedIn; seed tables (campaign map / budget / flighting / targets / channel split) joined to live delivery. **AUD**. GA4 ships disabled until SE's property id is known. 26 views. | [README](clients/client_schneider/README.md) · [job/](clients/client_schneider/job/README.md) · [dash/](clients/client_schneider/dash/README.md) · [sql/](clients/client_schneider/sql/README.md) · [INTAKE.md](clients/client_schneider/INTAKE.md) |
+| [`clients/client_hireright/`](clients/client_hireright/) | **Live** | HireRight. Pure paid-media **delivery** baseline — no GA4, no media plan — across DV360 + Trade Desk + LinkedIn. **USD**. 14 views. | [README](clients/client_hireright/README.md) · [job/](clients/client_hireright/job/README.md) · [dash/](clients/client_hireright/dash/README.md) · [sql/](clients/client_hireright/sql/README.md) · [INTAKE.md](clients/client_hireright/INTAKE.md) |
+| [`clients/client_cityperfume/`](clients/client_cityperfume/) | **Live** | City Perfume (AU e-commerce, via 100 Digital). "Ads → actual profit": first-party **Neto `v_sales`** revenue/margin truth vs Google Ads + Meta + Trade Desk + GA4. Single incremental **Margin ROAS**; aggregates-only JSON (no PII). **AUD**. 36 views. | [README](clients/client_cityperfume/README.md) · [job/](clients/client_cityperfume/job/README.md) · [dash/](clients/client_cityperfume/dash/README.md) · [sql/](clients/client_cityperfume/sql/README.md) |
+| [`clients/client_resetdata/`](clients/client_resetdata/) | **Live** | ResetData (AU sovereign-AI / data-centre, via 100 Digital). Copied from STT: B2B "ads → traffic / leads" across **Google Ads + Meta + The Trade Desk** vs GA4 — reading three raw layers (`raw_google_ads`, `raw_windsor`, `raw_ga4`). **No revenue/ROAS** (B2B). **AUD** (TTD USD→AUD @1.50). 19 views. | [README](clients/client_resetdata/README.md) · [job/](clients/client_resetdata/job/README.md) · [dash/](clients/client_resetdata/dash/README.md) · [sql/](clients/client_resetdata/sql/README.md) |
+| [`clients/client_proptrack/`](clients/client_proptrack/) | **Live** | PropTrack (REA Group, via Transmission). "Banking ABM": always-on LinkedIn + a concentrated Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX). 15 views. | [README](clients/client_proptrack/README.md) · [job/](clients/client_proptrack/job/README.md) · [dash/](clients/client_proptrack/dash/README.md) · [sql/](clients/client_proptrack/sql/README.md) |
 
 ### Operations & root
 
@@ -224,14 +228,14 @@ client has its own drawer of saved calculations that pick out and reshape just t
   clients. **Five exist:**
   - **`raw_windsor`** — Meta (`perf_meta`), Trade Desk (`perf_the_trade_desk`), Reddit
     (`perf_reddit`), Google Ads (`perf_google_ads`) and GA4 (`perf_ga4` / `perf_ga4_events`),
-    loaded by [`windsor_data_pull/`](windsor_data_pull/).
+    loaded by [`ingest/windsor_data_pull/`](ingest/windsor_data_pull/).
   - **`raw_snowflake`** — the Snowflake APAC tables mirrored 1:1 (Salesforce CS + Trade Desk +
-    LinkedIn + Reddit + DV360 + Google Ads + GA4), loaded by [`snowflake_data_pull/`](snowflake_data_pull/).
+    LinkedIn + Reddit + DV360 + Google Ads + GA4), loaded by [`ingest/snowflake_data_pull/`](ingest/snowflake_data_pull/).
   - **`raw_google_ads`** + **`raw_ga4`** — Google Ads and GA4 landed by Google's native
-    **BigQuery Data Transfer Service** via [`dts_data_pull/`](dts_data_pull/) (free, daily); its
+    **BigQuery Data Transfer Service** via [`ingest/dts_data_pull/`](ingest/dts_data_pull/) (free, daily); its
     `perf_*` views bridge the native rows with the Windsor history.
   - **`raw_neto`** — Neto / Maropost e-commerce orders (`orders`), City Perfume's sales truth,
-    loaded by [`neto_data_pull/`](neto_data_pull/).
+    loaded by [`ingest/neto_data_pull/`](ingest/neto_data_pull/).
 - **`client_<client>`** — one dataset per client, holding everything specific to that client:
   - **views** that filter the shared raw tables down to this client's slice (campaign IDs,
     advertiser name, business rules) and roll them up into dashboard-ready numbers.
@@ -250,7 +254,7 @@ Each client has **two** Cloud Run pieces. They're different things and easy to c
 | Cloud Run type | **Job** (runs, finishes, stops) | **Service** (always-on, answers web requests) |
 | What it does | reads BigQuery views → builds `<client>.json` → saves to the private bucket | shows password screen, serves the dashboard + data to logged-in users |
 | When it runs | every ~10 min on a `*/10` UTC Cloud Scheduler tick — **self-gating** (rebuilds only when its upstream advanced), plus on demand | whenever someone visits the URL |
-| Source folder | `client_<client>/job/` | `client_<client>/dash/` |
+| Source folder | `clients/client_<client>/job/` | `clients/client_<client>/dash/` |
 | Talks to | BigQuery + GCS (Cloudflare's job also reads Snowflake) | GCS (read-only) + Secret Manager |
 
 **In plain terms:** the Job is the *kitchen* (makes the dish once a day); the Web App is the
@@ -324,7 +328,7 @@ variable, all names derive from the **client key**:
 | Web service account | `<client>-dash-web@…` | `mongodb-dash-web@…` |
 | Password / session secrets | `<client>-dash-password` / `<client>-dash-session-key` | `mongodb-dash-password` |
 | Subdomain | `<client>.bidbrain.ai` | `mongodb.bidbrain.ai` |
-| Repo folder | `client_<client>/` (with `job/`, `dash/`, `sql/`) | `client_mongodb/` |
+| Repo folder | `clients/client_<client>/` (with `job/`, `dash/`, `sql/`) | `clients/client_mongodb/` |
 
 Other rules: everything in `australia-southeast1`; `snake_case` for BigQuery objects; the
 Artifact Registry docker repo is `bidbrain` (shared); secrets only in Secret Manager +
@@ -342,7 +346,7 @@ Artifact Registry docker repo is `bidbrain` (shared); secrets only in Secret Man
 
 **Refresh a client's data now (don't wait for the schedule):**
 ```powershell
-.\.venv\Scripts\python.exe snowflake_data_pull\loader.py            # refresh shared raw layer (all clients)
+.\.venv\Scripts\python.exe ingest/snowflake_data_pull\loader.py            # refresh shared raw layer (all clients)
 # the export job self-gates, so a plain execute rebuilds only if upstream advanced.
 # to force a rebuild regardless, run the job with env FORCE_REBUILD=1 (see CLAUDE.md).
 gcloud run jobs execute mongodb-export --region australia-southeast1 --wait   # rebuild this client's JSON
@@ -351,7 +355,7 @@ gcloud run jobs execute mongodb-export --region australia-southeast1 --wait   # 
 **Redeploy the dashboard app after editing `dash/`:**
 ```powershell
 $IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/mongodb-dash:$(git rev-parse --short HEAD)"
-gcloud builds submit client_mongodb/dash --tag $IMG --region australia-southeast1
+gcloud builds submit clients/client_mongodb/dash --tag $IMG --region australia-southeast1
 gcloud run services update mongodb-dash --image $IMG --region australia-southeast1
 ```
 
@@ -364,10 +368,10 @@ The **canonical deploy commands live in [`CLAUDE.md`](CLAUDE.md)** (single sourc
 stage also ships a wrapper script in its subfolder — `dash/deploy_dash_<c>.ps1`,
 `job/deploy_job_<c>.ps1`, `sql/deploy_views_<c>.ps1` — and `scheduler.ps1` sets the `*/10`
 self-gating Cloud Scheduler trigger. Each client also ships a one-shot, idempotent stand-up script
-`client_<c>/deploy_<c>.ps1` (provisions a whole client — bucket, dataset, service accounts, IAM,
+`clients/client_<c>/deploy_<c>.ps1` (provisions a whole client — bucket, dataset, service accounts, IAM,
 secrets, both Cloud Run units, the scheduler) — e.g.
-[`client_STT/deploy_stt.ps1`](client_STT/deploy_stt.ps1),
-[`client_schneider/deploy_schneider.ps1`](client_schneider/deploy_schneider.ps1); copy the
+[`clients/client_STT/deploy_stt.ps1`](clients/client_STT/deploy_stt.ps1),
+[`clients/client_schneider/deploy_schneider.ps1`](clients/client_schneider/deploy_schneider.ps1); copy the
 nearest one for a new client. *(`scheduler.ps1` can also re-point an existing client's Cloud
 Scheduler to `*/10` — useful for any client stood up before the scripts defaulted to it.)*
 
@@ -379,14 +383,14 @@ The reusable recipe (replace `acme` with the client key). Full detail is in the 
 README — this is the shape:
 
 1. **Confirm the data exists** in a shared `raw_*` layer (or add one line to a loader's table
-   list). Check [`client_STT/INTAKE.md`](client_STT/INTAKE.md) for how we scope a new client.
-2. **Copy the template:** `client_mongodb/` → `client_acme/`. Change `CLIENT = "acme"` in
+   list). Check [`clients/client_STT/INTAKE.md`](clients/client_STT/INTAKE.md) for how we scope a new client.
+2. **Copy the template:** `clients/client_mongodb/` → `clients/client_acme/`. Change `CLIENT = "acme"` in
    `job/main.py`. Rewrite the filter in `sql/01_*`/`02_*` for this client's slice.
 3. **Provision GCP:** private bucket, `client_acme` dataset, two service accounts + IAM,
-   password + session secrets. (STT's [`deploy_stt.ps1`](client_STT/deploy_stt.ps1)
+   password + session secrets. (STT's [`deploy_stt.ps1`](clients/client_STT/deploy_stt.ps1)
    does all of this in one idempotent script — copy it.)
 4. **Bootstrap BigQuery:** run the job once (lands any `src_*`, then errors on the
-   not-yet-existing views — expected), `python client_acme/create_views.py`, re-run the job.
+   not-yet-existing views — expected), `python clients/client_acme/create_views.py`, re-run the job.
 5. **Deploy the web app**, run `--no-invoker-iam-check`, drop in `dashboard.html`.
 6. **Wire the daily refresh** (`scheduler.ps1`) and the **custom domain** (Cloudflare CNAME +
    Host Header Override).
@@ -403,13 +407,13 @@ All eight client dashboards are **live** (Cloud Run service + export job + a `*/
 | Client | State |
 |---|---|
 | **MongoDB** | ✅ Live at https://mongodb-dash-p32gk2wuia-ts.a.run.app — the BigQuery template. 10 views → `mongodb-export` → `mongodb-dash`, self-gating `*/10` Scheduler `mongodb-export-daily`. Finishing: `mongodb.bidbrain.ai` custom domain; retiring the legacy public-R2 path (**rotate the leaked R2 keys**). |
-| **Cloudflare** | ✅ Live at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-13. TTD/LinkedIn/Reddit/LINE + CS + 3 single-campaign LinkedIn dashboards; models in Snowflake (`src_*`). USD, 6 views, self-gating `*/10` (Snowflake `LAST_ALTERED` probe). See [`dash/LIVE_URL.md`](client_cloudflare/dash/LIVE_URL.md). |
-| **STT** | ✅ Live at https://stt-dash-p32gk2wuia-ts.a.run.app. "Ads → website traffic": GA4 vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD, 24 views → `stt-export` → `stt-dash`, self-gating `*/10`. The **archetype** for the lean clients. See [`client_STT/README.md`](client_STT/README.md). |
-| **Schneider** | ✅ Live at https://schneider-dash-p32gk2wuia-ts.a.run.app. **Plan-vs-actual** (DV360 + Trade Desk + LinkedIn), **AUD**, seed-driven. 26 views, self-gating `*/10`. GA4 disabled until SE's property id is known; 11/21 campaign budgets seeded. See [`client_schneider/README.md`](client_schneider/README.md). |
-| **HireRight** | ✅ Live at https://hireright-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. Pure **delivery** baseline (DV360 + Trade Desk + LinkedIn), **USD**; no GA4, no plan. 14 views, self-gating `*/10`. See [`client_hireright/README.md`](client_hireright/README.md). |
-| **City Perfume** | ✅ Live at https://cityperfume-dash-p32gk2wuia-ts.a.run.app. E-commerce "ads → profit": Neto `v_sales` truth + Google/Meta/TTD/GA4, **AUD**. 36 views, 6 tabs (incl. Year-on-Year), self-gating `*/10`. Single incremental Margin ROAS; aggregates-only JSON (no PII). See [`client_cityperfume/README.md`](client_cityperfume/README.md). |
-| **ResetData** | ✅ Live at https://resetdata-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-08. B2B "ads → traffic / leads" (Google Ads + Meta + Trade Desk vs GA4), three raw layers, **AUD** (TTD USD→AUD @1.50); no revenue/ROAS. 19 views, self-gating `*/10`. Branding wired (100 Digital). See [`client_resetdata/README.md`](client_resetdata/README.md). |
-| **PropTrack** | ✅ Live at https://proptrack-dash-p32gk2wuia-ts.a.run.app. "Banking ABM": always-on LinkedIn + a Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX), 15 views, self-gating `*/10`. See [`client_proptrack/README.md`](client_proptrack/README.md). |
+| **Cloudflare** | ✅ Live at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-13. TTD/LinkedIn/Reddit/LINE + CS + 3 single-campaign LinkedIn dashboards; models in Snowflake (`src_*`). USD, 6 views, self-gating `*/10` (Snowflake `LAST_ALTERED` probe). See [`dash/LIVE_URL.md`](clients/client_cloudflare/dash/LIVE_URL.md). |
+| **STT** | ✅ Live at https://stt-dash-p32gk2wuia-ts.a.run.app. "Ads → website traffic": GA4 vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD, 24 views → `stt-export` → `stt-dash`, self-gating `*/10`. The **archetype** for the lean clients. See [`clients/client_STT/README.md`](clients/client_STT/README.md). |
+| **Schneider** | ✅ Live at https://schneider-dash-p32gk2wuia-ts.a.run.app. **Plan-vs-actual** (DV360 + Trade Desk + LinkedIn), **AUD**, seed-driven. 26 views, self-gating `*/10`. GA4 disabled until SE's property id is known; 11/21 campaign budgets seeded. See [`clients/client_schneider/README.md`](clients/client_schneider/README.md). |
+| **HireRight** | ✅ Live at https://hireright-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. Pure **delivery** baseline (DV360 + Trade Desk + LinkedIn), **USD**; no GA4, no plan. 14 views, self-gating `*/10`. See [`clients/client_hireright/README.md`](clients/client_hireright/README.md). |
+| **City Perfume** | ✅ Live at https://cityperfume-dash-p32gk2wuia-ts.a.run.app. E-commerce "ads → profit": Neto `v_sales` truth + Google/Meta/TTD/GA4, **AUD**. 36 views, 6 tabs (incl. Year-on-Year), self-gating `*/10`. Single incremental Margin ROAS; aggregates-only JSON (no PII). See [`clients/client_cityperfume/README.md`](clients/client_cityperfume/README.md). |
+| **ResetData** | ✅ Live at https://resetdata-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-08. B2B "ads → traffic / leads" (Google Ads + Meta + Trade Desk vs GA4), three raw layers, **AUD** (TTD USD→AUD @1.50); no revenue/ROAS. 19 views, self-gating `*/10`. Branding wired (100 Digital). See [`clients/client_resetdata/README.md`](clients/client_resetdata/README.md). |
+| **PropTrack** | ✅ Live at https://proptrack-dash-p32gk2wuia-ts.a.run.app. "Banking ABM": always-on LinkedIn + a Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX), 15 views, self-gating `*/10`. See [`clients/client_proptrack/README.md`](clients/client_proptrack/README.md). |
 | **Status** (meta) | ✅ Live at https://status.bidbrain.ai — monitors the 6 Snowflake-sourced clients (data-sync verdict + accuracy vs Snowflake). No dataset/views; self-gating `*/15`. See [`status_dashboard/README.md`](status_dashboard/README.md). |
 
 **Platform-wide TODO:** activate CD triggers (deploys are manual today — see [§9](#9-operating-it-deploy-refresh-debug));
@@ -443,5 +447,5 @@ may need `scheduler.ps1` re-run); re-grant the Windsor **Trade Desk** connector
 
 ---
 
-*Maintained by the Bidbrain team. When in doubt: follow the [MongoDB template](client_mongodb/README.md),
+*Maintained by the Bidbrain team. When in doubt: follow the [MongoDB template](clients/client_mongodb/README.md),
 keep secrets out of git, and never make the data public.*

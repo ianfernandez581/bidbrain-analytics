@@ -5,7 +5,7 @@ client, (1) whether the pipeline is stale because Transmission's Snowflake hasn'
 updated or because 100% Digital's pipeline is behind, and (2) that the number on
 each client dashboard exactly equals the number in Snowflake.
 
-Identical serving model to every client dash (client_mongodb/dash/main.py): a thin
+Identical serving model to every client dash (clients/client_mongodb/dash/main.py): a thin
 password gate + static server. It renders a login screen, and once a session is
 authenticated it serves `dashboard.html` and proxies the private `status.json`
 from GCS at `/data.json`. All presentation logic lives in `dashboard.html`; this
