@@ -441,9 +441,10 @@
           </div>
         </div>
         <div class="group">
-          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· New = awaiting manual triage</span></div>
-          <div class="pair">
+          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· New = Unresponsive + New (awaiting manual triage)</span></div>
+          <div class="pair triple">
             <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cs_acc">—</div><div class="cnt" id="cs_acc_cnt">—</div></div>
+            <div class="stat"><div class="k">Rejected</div><div class="v" id="cs_rej">—</div><div class="cnt" id="cs_rej_cnt">—</div></div>
             <div class="stat"><div class="k">New</div><div class="v" id="cs_new">—</div><div class="cnt" id="cs_new_cnt">—</div></div>
           </div>
         </div>
@@ -1229,6 +1230,7 @@ function csPacing(mPred) {
   const csRows   = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme) === c && pred(r.market));
   const leads    = csRows.reduce((s,r) => s + (r.total||0), 0);
   const accepted = csRows.reduce((s,r) => s + (r.accepted||0), 0);
+  const rejected = csRows.reduce((s,r) => s + (r.rejected||0), 0);
   const newLeads = csRows.reduce((s,r) => s + (r.new||0), 0);
   const ttd = Math.round(target * elapsed / totalDays);
   // Delivered media cost + leads-weighted average CPL (only leads with a plan CPL count).
@@ -1238,7 +1240,7 @@ function csPacing(mPred) {
     if (cpl == null) continue;
     cost += (r.total||0) * cpl; cplLeads += (r.total||0);
   }
-  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, accepted, newLeads, ttd, cost, cplLeads,
+  return {start:w.start, end:w.end, totalDays, elapsed, target, leads, accepted, rejected, newLeads, ttd, cost, cplLeads,
     cpl: cplLeads ? cost/cplLeads : null,
     hasTarget: target > 0, leadsPct: target?leads/target:0, vsTtd: ttd ? leads/ttd : null, timePct: totalDays?elapsed/totalDays:0};
 }
@@ -1313,11 +1315,15 @@ function renderCSSnap(p) {
   el('cs_daysleft').textContent      = fmtN(daysLeft);
   el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
 
-  // Lead quality — acceptance vs still-New (awaiting manual triage), denom = total leads.
+  // Lead quality — Accepted (delivered) vs Rejected vs still-New (Unresponsive + New,
+  // awaiting manual triage). Denominator is total leads for all three.
   const accRatio = p.leads ? p.accepted / p.leads : 0;
+  const rejRatio = p.leads ? p.rejected / p.leads : 0;
   const newRatio = p.leads ? p.newLeads / p.leads : 0;
   el('cs_acc').textContent     = p.leads ? fmtPct(accRatio,1) : '—';
   el('cs_acc_cnt').textContent = p.leads ? fmtN(p.accepted) + ' leads' : '—';
+  el('cs_rej').textContent     = p.leads ? fmtPct(rejRatio,1) : '—';
+  el('cs_rej_cnt').textContent = p.leads ? fmtN(p.rejected) + ' leads' : '—';
   el('cs_new').textContent     = p.leads ? fmtPct(newRatio,1) : '—';
   el('cs_new_cnt').textContent = p.leads ? fmtN(p.newLeads) + ' leads' : '—';
 }
@@ -1555,6 +1561,9 @@ const EXPORT_COLS = {
     ['programme',     r => progLabel(r.programme)],
     ['market',        r => r.market],
     ['leads',         r => r.total],
+    ['accepted',      r => r.accepted],
+    ['rejected',      r => r.rejected],
+    ['new',           r => r.new],
     ['cpl',           r => progCPL(r.programme)],
     ['total_cost',    r => { const c = progCPL(r.programme); return c == null ? null : (r.total||0) * c; }],
     ['last_lead_day', r => r.last_lead_day]

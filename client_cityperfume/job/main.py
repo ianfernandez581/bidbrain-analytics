@@ -13,9 +13,11 @@ first-party order ledger (v_sales) as the single source of truth:
   * Trade Desk (raw_windsor.perf_the_trade_desk, 'City Perfume')     -> upper-funnel display pilot
   * GA4        (raw_ga4.perf_ga4 / perf_ga4_events, 'City Perfume')  -> website channel context
 
-Everything is AUD (no FX). Headline blended ROAS = total sales / total ad spend (MER);
-online-only ROAS (excl. in-store POS) is the stricter secondary lens. Each platform's
-own conversions_value/purchase_value is shown as "platform-claimed" and NEVER summed.
+Everything is AUD (no FX). The dashboard is ONLINE-ONLY (website + marketplaces; in-store
+POS excluded) and reports ONE canonical ROAS: incremental online revenue (regression-based)
+x online gross margin -- the causal, margin-based return, NOT total-revenue / spend. Each
+platform's own conversions_value/purchase_value is "platform-claimed" context and NEVER summed.
+See client_cityperfume/analysis/city_perfume_roas_handoff.md.
 
 PRIVACY (non-negotiable): this job emits AGGREGATES ONLY. It reads only the roll-up views
 (never stg_sales / v_sales directly), none of which expose email or customer_id. A final
@@ -131,11 +133,12 @@ def main():
         },
         # Notes the dashboard surfaces verbatim (attribution stance + data caveats).
         "notes": {
-            "attribution": ("Blended marketing-efficiency ratio: v_sales is the source of "
-                            "truth for revenue/orders/margin. Headline blended ROAS = total "
-                            "sales / total ad spend; online ROAS excludes in-store POS. "
-                            "Platform-claimed conversions_value/purchase_value are shown for "
-                            "context only and never summed."),
+            "attribution": ("Online-only (website + marketplaces; in-store POS excluded). "
+                            "v_sales is the source of truth for revenue/orders/margin. ROAS = "
+                            "incremental online revenue (regression-based) x online gross margin "
+                            "-- the causal, margin-based return, NOT total-revenue / spend. "
+                            "Platform-claimed conversions_value/purchase_value are context only "
+                            "and never summed. See analysis/city_perfume_roas_handoff.md."),
             "ga4_caveat": ("GA4 tracking degraded from ~Oct 2025 (sessions/revenue collapse); "
                            "GA4 figures are directional only and never used as revenue truth."),
             "margin_caveat": ("Margin is net as-reported; some lines have zero cost_price "

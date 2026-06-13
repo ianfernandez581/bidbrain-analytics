@@ -32,8 +32,8 @@ DATA_OBJECT = f"{CLIENT}.json"                      # mongodb.json
 # refresh is TWO steps now:
 #   1. python snowflake_data_pull/loader.py     (refresh the shared raw layer)
 #   2. run this job                             (BigQuery views -> mongodb.json)
-# The per-client filter (campaign IDs) and the LEAD_STATUS != 'New' rule live in
-# the stg_salesforce view, not here.
+# The per-client filter (the 3 DNB campaign IDs) and the country->market mapping
+# live in the stg_salesforce view, not here.
 
 
 def iso(v):
@@ -96,11 +96,11 @@ def main():
                     "start": iso(r["START_DATE"]), "end": iso(r["END_DATE"]),
                     "est_cpc": r["EST_CPC"]} for r in bud],
         "cs": [{"market": r["MARKET"], "total": r["TOTAL_LEADS"], "accepted": r["ACCEPTED"],
-                "rejected": r["REJECTED"], "unresponsive": r["UNRESPONSIVE"],
-                "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in cso],
+                "rejected": r["REJECTED"], "new": r["NEW_LEADS"],
+                "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in cso],
         "cs_by_programme": [{"programme": r["PROGRAMME_LABEL"], "market": r["MARKET"], "total": r["TOTAL_LEADS"],
-                "accepted": r["ACCEPTED"], "new": r["NEW_LEADS"], "unresponsive": r["UNRESPONSIVE"],
-                "do_not_contact": r["DO_NOT_CONTACT"], "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
+                "accepted": r["ACCEPTED"], "rejected": r["REJECTED"], "new": r["NEW_LEADS"],
+                "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(

@@ -1,0 +1,27 @@
+######################################################################
+CITY PERFUME - REAL-WORLD (INCREMENTAL) ROAS
+######################################################################
+
+=== WHOLE-STORE revenue ~ spend  (n=17) ===
+  total revenue A$20,935,364 | total spend A$664,498 | naive total/total ROAS 31.5x
+  [M1] OLS all months   slope=28.20x  intercept(monthly)=A$129,403  weekly base=A$29,862  R2=0.48  p=0.0021
+  [M2] OLS excl Dec      slope=16.59x  intercept(monthly)=A$512,751  weekly base=A$118,327  R2=0.67  p=0.0001
+  [M3] YoY-diff slope    9.10x   (seasonality removed; n=5, noisy)
+  Spearman rho = 0.86
+
+=== ONLINE-ONLY revenue ~ spend  (n=17) ===
+  total revenue A$7,804,711 | total spend A$664,498 | naive total/total ROAS 11.7x
+  [M1] OLS all months   slope=13.39x  intercept(monthly)=A$-64,178  weekly base=A$-14,810  R2=0.45  p=0.0032
+  [M2] OLS excl Dec      slope=8.16x  intercept(monthly)=A$108,391  weekly base=A$25,013  R2=0.45  p=0.0042
+  [M3] YoY-diff slope    -1.29x   (seasonality removed; n=5, noisy)
+  Spearman rho = 0.71
+
+======================================================================
+RECOMMENDED CANONICAL FIGURES (ONLINE)
+======================================================================
+  Incremental revenue ROAS : 7.0x   (every A$1 spend -> A$7 online revenue)
+  Gross margin (true online): 37.7%
+  Margin (profit) ROAS     : 2.64x  (gross profit per A$1 spend)
+  Net profit ROAS          : 1.64x  (after the ad cost itself)
+
+Chart written: C:\Users\Ian\Desktop\bidbrain\bidbrain-analytics\client_cityperfume\analysis\city_perfume_ad_profit_online.png
