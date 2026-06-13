@@ -59,6 +59,7 @@ the raw `APAC_ALL_PLATFORM.PUBLIC.*` tables instead of the CF views.
 ```json
 {
   "last_updated": "YYYY-MM-DDTHH:MM:SSZ",
+  "data_through": "YYYY-MM-DDTHH:MM:SSZ",
   "paid_media": {
     "row_count": 0,
     "window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "days": 0 },
@@ -66,6 +67,7 @@ the raw `APAC_ALL_PLATFORM.PUBLIC.*` tables instead of the CF views.
     "rows": [ { "channel","date","week_start","market","imps","clicks","spend_usd",
                 "leads","form_opens","link_clicks","action_clicks","video_starts",
                 "video_completions","spend_jpy","fx_usd_jpy" } ],
+    "creatives": [ { "channel","market","creative","imps","clicks","spend_usd","leads" } ],
     "benchmarks":        { "<channel>": { "ctr","cpm","cpc" } },
     "benchmarks_market": { "<market>":  { "ctr","cpm","cpc" } },
     "li_weekly": [ { "week","period","week_start","target","cum_target" } ]
@@ -73,13 +75,23 @@ the raw `APAC_ALL_PLATFORM.PUBLIC.*` tables instead of the CF views.
   "pacing": {
     "row_count": 0,
     "rows": [ /* every column of V_PACING_FINAL_MODEL, dates as ISO strings */ ]
+  },
+  "campaigns": {
+    "peyc":        { "label","campaign_group","window","totals","daily":[…],"by_campaign":[…] },
+    "cf1_india":   { … },
+    "coles_hyper": { … }
   }
 }
 ```
 
 `dashboard.html` reads `paid_media` exactly like the old `paid_media.json`
 (`adaptPayload` is unchanged) and `pacing.rows` exactly like the old
-`pacing.json` (`rawRows`). See `dash/DASHBOARD.md`.
+`pacing.json` (`rawRows`). The `paid_media.creatives[]` array (creative-grain
+delivery) powers the "Top & bottom performing creatives" tables; `campaigns`
+powers the three single-campaign LinkedIn dashboards selectable in the top-bar
+dropdown (read from the shared `raw_snowflake.linkedin_ads_apac` mirror, not from
+Snowflake directly). `data_through` is the newest source `LAST_ALTERED` (true
+data instant); `last_updated` is the build time. See `dash/DASHBOARD.md`.
 
 **Channel / market labels must match the dashboard:** `benchmarks` keys must be
 `TTD`, `LinkedIn`, `Reddit`, `LINE`; row `channel` must be one of

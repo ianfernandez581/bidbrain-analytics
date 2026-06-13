@@ -33,6 +33,7 @@ reporting layer (e.g. `client_cityperfume/sql/`), exactly like the other clients
 | [`orders_loader.py`](orders_loader.py) | **The loader.** POSTs `GetOrder` to the Neto API, walks 0-indexed pages, transforms, and `MERGE`s into `raw_neto.orders`. Creates the dataset + table if missing. Runtime artifacts (window cache, log, NDJSON, backfill checkpoint) go to `_run/`. |
 | [`../reporting/v_orders_overview.sql`](../reporting/v_orders_overview.sql) | **SAMPLE** order-grain reporting view (NOT raw). One row per order + derived customer history. |
 | [`../reporting/v_sales.sql`](../reporting/v_sales.sql) | **SAMPLE** product-grain reporting view (NOT raw). `UNNEST(order_lines)` → one row per SKU per order, with `line_total` / `margin`. |
+| [`Dockerfile`](Dockerfile) + [`requirements.txt`](requirements.txt) + [`.dockerignore`](.dockerignore) | Container build for the **`neto-orders-ingest`** Cloud Run job (Python 3.12-slim, non-root, pinned deps). Built/deployed/scheduled by [`scripts/deploy_ingest_jobs.ps1`](../../scripts/deploy_ingest_jobs.ps1) — see *Scheduling & deployment* below. |
 | `README.md` | This file. |
 
 ---
@@ -106,6 +107,33 @@ it moves:
 - on `--backfill`, a `[month i/total]` header per month plus a **CUMULATIVE** line (months done, rows fetched/inserted/updated, pages, minutes elapsed) so you can gauge progress and ETA.
 
 To follow a backfill running in another window: `Get-Content neto_data_pull\orders\_run\orders_loader.log -Wait -Tail 40`.
+
+---
+
+## Scheduling & deployment (the `neto-orders-ingest` Cloud Run job)
+
+In production the *incremental* run is **not** launched from a laptop — it's one of the four shared
+**ingest** Cloud Run jobs. The [`Dockerfile`](Dockerfile) here (Python 3.12-slim, non-root,
+`requirements.txt` pinned to the repo `.venv`) builds the **`neto-orders-ingest`** job, which is
+built, deployed, and scheduled by [`scripts/deploy_ingest_jobs.ps1`](../../scripts/deploy_ingest_jobs.ps1)
+(run as yourself; never `cloudbuild` from a laptop):
+
+```powershell
+.\scripts\deploy_ingest_jobs.ps1 -Only neto        # build + deploy + (re)schedule just this one
+.\scripts\deploy_ingest_jobs.ps1 -Only neto -Run   # also execute it once after deploy
+```
+
+- **Job:** `neto-orders-ingest` (region `australia-southeast1`, repo `bidbrain`, `1Gi` / 1 CPU, 1-hour task timeout).
+- **Runtime SA:** the shared `ingest-runner@bidbrain-analytics.iam.gserviceaccount.com` — granted `secretAccessor`
+  on `neto-api-key`, BigQuery `dataEditor` + `jobUser`, and `objectAdmin` on the `bidbrain-analytics-staging` bucket.
+- **Schedule:** Cloud Scheduler `neto-orders-ingest-daily` runs **`0 21 * * *` UTC — a fixed daily cron**,
+  staggered *before* the 22:00 UTC `*-export` client jobs so City Perfume's nightly export reads fresh orders.
+
+> **Freshness note.** Unlike the `*/10` SELF-GATING pattern in the freshness contract (which today only
+> `snowflake-ingest` implements), this loader is a plain **fixed daily** job: there is no `freshness.py`,
+> no `_freshness.json` watermark, and no upstream-advanced gate — each scheduled tick simply does the
+> incremental `MAX(date_updated) − 2d → now` pull. (Re-running is cheap and idempotent; the day-to-day
+> orders volume is small, and the incremental overlap makes a daily cadence sufficient for this source.)
 
 ---
 
@@ -190,11 +218,16 @@ Nothing to pre-create — the loader **creates `raw_neto` and the table on first
 ```powershell
 # (optional) confirm credentials + response shape first
 .\.venv\Scripts\python.exe neto_data_pull\orders\orders_loader.py --dry-run --limit 5 --since 2026-05-01
-# the one deliberate full backfill, then rely on scheduled incrementals
+# the one deliberate full backfill (done once, locally)
 .\.venv\Scripts\python.exe neto_data_pull\orders\orders_loader.py --backfill --since 2015-01-01
 ```
 
+After that, the scheduled `neto-orders-ingest` Cloud Run job keeps the table current with daily
+incrementals — see *Scheduling & deployment* above. (The full backfill 2015-01 .. 2026-06 has already
+been run; the local `_run/orders_backfill_done.json` checkpoint records every completed month.)
+
 ## See also
 
+- [`../README.md`](../README.md) — the `neto_data_pull/` component map (this loader + the sample reporting views).
 - [`windsor_data_pull/`](../../windsor_data_pull/README.md) & [`snowflake_data_pull/`](../../snowflake_data_pull/README.md) — the other shared-ingest units this mirrors.
 - [`windsor_data_pull/ga4/ga4_loader.py`](../../windsor_data_pull/ga4/ga4_loader.py) — the loader whose chunking / retries / MERGE / resume design this follows.

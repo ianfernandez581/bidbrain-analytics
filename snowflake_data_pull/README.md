@@ -94,13 +94,21 @@ WHERE  CAMPAIGN_ID IN ('701RG…','701RG…')   -- per-client filter
   AND  LEAD_STATUS != 'New';                  -- business rule
 ```
 
-Today's consumers:
+Today's consumers (verified against each client's `sql/` + job, 2026-06-13):
 - **MongoDB** filters `tradedesk_apac_all` (by advertiser) and `salesforce_cs_apac_all` (by
   campaign IDs) — see [`client_mongodb/sql/`](../client_mongodb/sql/README.md).
-- **Cloudflare** does *not* use `raw_snowflake` — its model lives in a separate Snowflake
-  schema and its job pulls that directly (see [`client_cloudflare/`](../client_cloudflare/README.md)).
 - **STT** filters `google_ads_apac`, `google_analytics_apac_all`, `linkedin_ads_apac`, and
   `dv360_apac` in its staging views (see [`client_STT/sql/`](../client_STT/sql/README.md)).
+- **Schneider** filters `tradedesk_apac_all`, `linkedin_ads_apac`, `dv360_apac`, and
+  `google_analytics_apac_all` (see [`client_schneider/sql/`](../client_schneider/sql/README.md)).
+- **HireRight** filters `linkedin_ads_apac`, `tradedesk_apac_all`, and `dv360_apac`
+  (see [`client_hireright/sql/`](../client_hireright/sql/README.md)).
+- **PropTrack** filters `tradedesk_apac_all` and `linkedin_ads_apac` (see
+  [`client_proptrack/sql/`](../client_proptrack/sql/README.md)).
+- **Cloudflare** is *mostly* separate — its core model lives in its own Snowflake schema
+  (`CLOUDFLARE_SANDBOX`) and its job pulls that directly — but it also reads
+  `raw_snowflake.linkedin_ads_apac` from this shared layer for its extra single-campaign
+  LinkedIn cards (see [`client_cloudflare/`](../client_cloudflare/README.md)).
 
 ---
 

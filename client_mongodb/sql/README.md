@@ -23,10 +23,10 @@ views (`stg_*`) must exist before the models and rollups that read them.
 | File | View | What it does |
 |---|---|---|
 | [`01_stg_tradedesk.sql`](01_stg_tradedesk.sql) | `stg_tradedesk` | Filters `raw_snowflake.tradedesk_apac_all` to **`ADVERTISER_NAME = "MongoDB"`** and parses the campaign/ad-group naming convention into `PROGRAMME`, `MARKET`, `STRATEGY`, `OBJECTIVE` (via `SPLIT(... , "_")[SAFE_OFFSET(n)]`). |
-| [`02_stg_salesforce.sql`](02_stg_salesforce.sql) | `stg_salesforce` | Filters `raw_snowflake.salesforce_cs_apac_all` to MongoDB's **4 campaign IDs** and drops `LEAD_STATUS = "New"`. Maps campaign ID → `PROGRAMME_LABEL` and `COUNTRY_NAME` → the 4-market bucket (`ANZ` / `INDIA` / `ASEAN` / `KR-HK-TW`, else `OTHER`). |
+| [`02_stg_salesforce.sql`](02_stg_salesforce.sql) | `stg_salesforce` | Filters `raw_snowflake.salesforce_cs_apac_all` to MongoDB's **3 DNB campaign IDs** (no status filter). Maps each campaign ID → `PROGRAMME_LABEL` and `COUNTRY_NAME` → the 4-market bucket (`ANZ` / `INDIA` / `ASEAN` / `KR-HK-TW`, else `OTHER`). |
 | [`03_paid_media_model.sql`](03_paid_media_model.sql) | `paid_media_model` | The unified paid-media delivery model: labels channel `"TradeDesk"`, derives `WEEK_START` (Monday), and `SUM`s impressions/clicks/cost/conversions grouped by all dimensions. `LEADS = 0` (TTD has no lead pixel here). |
-| [`04_cs_leads.sql`](04_cs_leads.sql) | `cs_leads` | Lead counts **by market** with per-status buckets (`Accepted`, `Rejected`, `New`, `Unresponsive`, `Do Not Contact`) + `LAST_LEAD_DAY`. |
-| [`05_cs_leads_by_programme.sql`](05_cs_leads_by_programme.sql) | `cs_leads_by_programme` | Same rollup **by programme × market** (no `Rejected` bucket). |
+| [`04_cs_leads.sql`](04_cs_leads.sql) | `cs_leads` | Lead counts **by market** with three status buckets — `ACCEPTED` (`LEAD_STATUS = "Accepted"`), `REJECTED` (`= "Rejected"`), `NEW_LEADS` (`IN ("Unresponsive","New")`, i.e. unprocessed) — plus `TOTAL_LEADS` and `LAST_LEAD_DAY`. |
+| [`05_cs_leads_by_programme.sql`](05_cs_leads_by_programme.sql) | `cs_leads_by_programme` | Same rollup and identical buckets **by programme × market**. |
 | [`06_targets.sql`](06_targets.sql) | `targets` | Lead targets + delivered snapshot **as a hardcoded table** (plan numbers, per programme × market). |
 | [`07_targets_by_programme.sql`](07_targets_by_programme.sql) | `targets_by_programme` | Rolls up `targets` and computes achievement %. |
 | [`08_benchmarks_strategy.sql`](08_benchmarks_strategy.sql) | `benchmarks_strategy` | **Hardcoded** CPM / CTR / frequency-cap / budget-weight plan benchmarks per strategy. |
@@ -40,10 +40,12 @@ views (`stg_*`) must exist before the models and rollups that read them.
 > literals transcribed from the media plan — they are **not** live data. Update them here when
 > the plan changes.
 
-> **Known pending item:** in `02_stg_salesforce.sql` the campaign-ID `CASE` labels only the
-> three **DNB** campaigns; the **KGA/IDC** campaign (`701RG00001NKKwQYAX`) is in the `WHERE`
-> filter but not yet mapped to a `PROGRAMME_LABEL` (so it currently resolves to `NULL`).
-> Finishing the IDC split is on the [root TODO](../../README.md#11-current-status--todo).
+> **CS scope = the 3 DNB campaigns.** `02_stg_salesforce.sql` pulls only the three **DNB**
+> campaign IDs, each mapped to a `PROGRAMME_LABEL`, so every CS lead row resolves to a real
+> programme. The **KGA/IDC** campaign (`701RG00001NKKwQYAX`) was removed from the CS lead pull
+> (retired 2026-06-12). Its media-plan rows still live in `targets`/`budget`, so the dashboard's
+> **KGA (IDC)** campaign toggle persists but now shows zero delivered leads — drop the IDC rows
+> from `06_targets.sql` / `10_budget.sql` too if the toggle should disappear entirely.
 
 ---
 

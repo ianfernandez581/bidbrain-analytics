@@ -12,7 +12,7 @@ proxies the private `schneider.json` from GCS at `/data.json`. All charts/tabs/b
 | `requirements.txt` | `Flask`, `gunicorn`, `google-cloud-storage`. |
 | `Dockerfile` | `python:3.12-slim`, non-root, gunicorn. |
 | `cloudbuild.yaml` | Build → push → `run deploy` → `--no-invoker-iam-check` (future trigger). |
-| `LIVE_URL.md` | The live URL + password (filled in once stood up). |
+| `LIVE_URL.md` | The live `…run.app` URL + how to read/rotate the password (service is live as of 2026-06-04). |
 
 **Security:** the data bucket is private; the browser never touches it. `/data.json` returns 401
 unless the session passed the password. The public `…run.app` URL just shows the login page. The

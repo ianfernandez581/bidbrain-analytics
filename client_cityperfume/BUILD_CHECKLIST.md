@@ -6,6 +6,14 @@ Live status board for the City Perfume build. Status tags:
 Client key `cityperfume` · dataset `client_cityperfume` · bucket `bidbrain-analytics-cityperfume-dash`
 · object `cityperfume.json` · job `cityperfume-export` · service `cityperfume-dash` · region `australia-southeast1`.
 
+> **Post-launch note (as of 2026-06-13):** this board records the original 2026-06-06 build (then **25 views**).
+> The dashboard has since been extended: a **6th tab (Year on Year)**, the **`40_yoy_monthly`** view, a family
+> of **day-grained views `50–59`** powering a global **Date range** picker, and a global **Sales-channel** chip
+> filter. The live dataset now holds **36 views**. The ROAS framing also moved from blended-MER (total) to the
+> **online-only incremental Margin ROAS** of the analysis handoff (see B3 + `analysis/city_perfume_roas_handoff.md`).
+> The scheduler is now **self-gating on `*/10 * * * *` UTC** (rebuilds only when an upstream raw table advances),
+> not the fixed **22:00 UTC** daily cron recorded in the build log below. The export job vendors `freshness.py`.
+
 ---
 
 ## Blockers / needs Ian
@@ -14,7 +22,7 @@ Client key `cityperfume` · dataset `client_cityperfume` · bucket `bidbrain-ana
 |---|--------|----------|
 | B1 | ☑ RESOLVED | **Logos** embedded 2026-06-06 — 100% Digital (webp) + City Perfume (png) base64-inlined in the topbar (`dashboard.html`) and login page (`main.py`). Source files in `Creatives/`. |
 | B2 | ⚠ NEEDS CONFIRM | **Attribution stance** — data strongly backs it: v_sales is the single truth; platform-claimed revenue (Google/Meta/GA4) shown separately, never summed. Confirm OK. |
-| B3 | ⚠ NEEDS CONFIRM | **Blended-ROAS denominator** — brief said "ad spend ÷ total v_sales revenue" (= **31.0x**), but EDA shows in-store **Neto POS = 63%** of sales (ads can't drive walk-ins). Online-only (Website+marketplaces, excl. POS) = **11.6x**; Website-only = **9.4x**. Which is the headline? (Recommend: online-only headline, total shown as secondary.) |
+| B3 | ☑ RESOLVED | **ROAS basis** — brief said "ad spend ÷ total v_sales revenue" (= **31.0x**), but EDA showed in-store **Neto POS = 63%** of sales (ads can't drive walk-ins). Resolved (2026-06-12, per `analysis/city_perfume_roas_handoff.md`): dashboard is now **online-only** (Website + Marketplaces, in-store POS excluded) and reports **one canonical incremental Margin ROAS ≈ 2.6× (net ≈ 1.6×)** = 7× incremental online revenue × 37.7% online margin — NOT a total-revenue ÷ spend ratio. Old ratio headlines (31× blended / 11.6× online) retired; platform-claimed shown separately, never summed. 7× is a planning estimate pending the T7 spend-down/geo holdout (`analysis/validation_plan.md`). |
 
 **Findings flagged to client (not blockers — building defensively):**
 - **GA4 tracking is BROKEN from Oct 2025** — row counts collapse from ~2,500/mo to <120/mo; purchase_revenue/transactions go null. GA4 is only reliable Jun–Sep 2025. Website/GA4 tab will carry a visible "tracking degraded from Oct 2025" note and lean on the healthy window. Worth a separate heads-up to City Perfume's analytics owner.

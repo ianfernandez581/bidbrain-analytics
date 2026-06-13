@@ -145,7 +145,12 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 
 ## Files
 
-- [`sql/`](sql/) — 19 BigQuery views (filter + model); `create_views.py` applies them in `NN_` order.
-- [`job/`](job/) — the export job (stage 2): views → `resetdata.json`.
-- [`dash/`](dash/) — the web app (stage 3): password gate + `dashboard.html`.
-- [`creatives/`](creatives/README.md) — drop branding assets here.
+- [`sql/`](sql/README.md) — 19 BigQuery views (filter + model); `create_views.py` applies them in `NN_` order.
+- [`job/`](job/README.md) — the export job (stage 2): views → `resetdata.json`.
+- [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
+- [`creatives/`](creatives/README.md) — branding source assets (the ResetData wordmark + a site
+  screenshot), now wired in as inline base64 / the sampled palette.
+- [`data/`](data/) — a one-off reference export (`resetdata_reddit_febmar26.csv`, Reddit Feb–Mar 2026
+  ad delivery). **Not read by the views/job** — the pipeline has no Reddit source; it's only a manual
+  reference (Reddit traffic shows up inside the GA4 Paid Social channel). The repo-wide Windsor Reddit
+  loader (`raw_windsor.perf_reddit`) is separate and unused here.

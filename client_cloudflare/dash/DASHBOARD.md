@@ -11,17 +11,26 @@ two files nested under `pacing` and `paid_media`:
 ```jsonc
 {
   "last_updated": "...",
+  "data_through": "...",                     // newest source LAST_ALTERED (added with the freshness gate)
   "paid_media": { "row_count": ..., "window": {...}, "all_markets": [...],
-                  "rows": [...], "benchmarks": {...}, "benchmarks_market": {...},
-                  "li_weekly": [...] },          // == the old paid_media.json
-  "pacing":     { "row_count": ..., "rows": [...] }   // == the old pacing.json
+                  "rows": [...], "creatives": [...], "benchmarks": {...},
+                  "benchmarks_market": {...}, "li_weekly": [...] },   // == the old paid_media.json (+ creatives)
+  "pacing":     { "row_count": ..., "rows": [...] },  // == the old pacing.json
+  "campaigns":  { "peyc": {...}, "cf1_india": {...}, "coles_hyper": {...} }  // single-campaign LinkedIn dashboards (added later)
 }
 ```
 
-Because of that, the conversion is **three small edits** to the `<script>` in
-`index.html` — no chart/render code changes. `adaptPayload()` already expects the
-exact shape of `COMBINED.paid_media`, and `rawRows` already expects
-`COMBINED.pacing.rows`.
+Because of that, the original conversion was **three small edits** to the
+`<script>` in `index.html` — no chart/render code changes. `adaptPayload()`
+already expects the exact shape of `COMBINED.paid_media`, and `rawRows` already
+expects `COMBINED.pacing.rows`.
+
+> The shipped `dashboard.html` has since grown beyond this three-edit baseline:
+> the freshness gate added `data_through`, the Paid Media tab gained "top & bottom
+> creatives" tables (reading `paid_media.creatives`), and a top-bar dashboard
+> selector renders three single-campaign LinkedIn dashboards from a new
+> `campaigns` branch. Those keys are additive — the original `adaptPayload()` /
+> `rawRows` contract below is unchanged.
 
 > Save the edited file as **`client_cloudflare/dash/dashboard.html`** (the
 > Dockerfile copies it in by that name). Don't add the old client-side password

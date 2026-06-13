@@ -16,7 +16,8 @@ new for each ad account, and re-running it never creates duplicates.
 | File | What it does |
 |---|---|
 | [`create_meta_table.py`](create_meta_table.py) | **One-time.** Creates `raw_windsor.perf_meta` with the full typed schema (~80 columns), partitioned by `metric_date`, clustered by `campaign_id, ad_id`. Idempotent — but it **creates, doesn't alter**: to add columns to an existing table, drop it first (it's safe when empty). |
-| [`meta_loader.py`](meta_loader.py) | **The loader.** Fetches from Windsor's blended `/all` endpoint for an explicit list of Facebook accounts, transforms, and `MERGE`s into `perf_meta`. |
+| [`meta_loader.py`](meta_loader.py) | **The loader.** Fetches from Windsor's blended `/all` endpoint for an explicit list of Facebook accounts (currently 6), transforms, and `MERGE`s into `perf_meta`. |
+| `Dockerfile` / `.dockerignore` / `requirements.txt` | Container for the Cloud Run ingest job (`windsor-meta-ingest`, daily — see the [parent README](../README.md#deployment--scheduling-cloud-run-jobs)). |
 | `README.md` | This file. |
 
 ---

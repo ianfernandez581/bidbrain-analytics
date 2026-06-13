@@ -105,7 +105,10 @@ The job is read-only on BigQuery — it only `SELECT`s the views and writes JSON
 
 Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv`
 (`.\.venv\Scripts\python.exe`). **First-time stand-up:** run [`deploy_stt.ps1`](deploy_stt.ps1) once
-(idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the daily scheduler). After that:
+(idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the `stt-export-daily` scheduler).
+> **Note:** `deploy_stt.ps1` first creates that scheduler on a fixed daily cron; the live cadence is the
+> `*/10` UTC self-gating tick — run [`scheduler.ps1`](scheduler.ps1) to (re)apply it. The job name keeps the
+> legacy `-daily` suffix regardless of cadence. After standup:
 
 **① Refresh the data now** (the `stt-export-daily` Cloud Scheduler runs `*/10` UTC, self-gating):
 ```powershell
@@ -148,7 +151,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_stt` (23 views) |
+| BigQuery dataset | `client_stt` (24 views — 5 `stg_*` staging + 19 roll-ups) |
 | Data bucket / object | `bidbrain-analytics-stt-dash` / `stt.json` |
 | Export job | `stt-export` (runtime SA `stt-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `stt-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `stt-dash-web@…`) |
@@ -157,7 +160,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 
 ## Files
 
-- [`sql/`](sql/README.md) — the 23 BigQuery views (filter + model); `create_views.py` applies them.
+- [`sql/`](sql/README.md) — the 24 BigQuery views (5 `stg_*` filters + 19 roll-ups); `create_views.py` applies them.
 - [`job/`](job/README.md) — the export job (stage 2): views → `stt.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the original pre-build scoping notes (historical).

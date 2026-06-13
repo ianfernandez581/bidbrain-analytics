@@ -7,8 +7,12 @@
 (also reachable at `https://cityperfume-dash-516554645957.australia-southeast1.run.app`)
 
 Deployed + verified **2026-06-06**: login page serves HTTP 200; `/data.json` returns 401 unauthenticated
-and 200 once logged in (576 KB, **no PII**); wrong password → 401, correct password → 302 → dashboard.
-Daily refresh scheduled at 22:00 UTC (`cityperfume-export-daily`).
+and 200 once logged in (**no PII**); wrong password → 401, correct password → 302 → dashboard.
+Refresh is **self-gating on a `*/10 * * * *` UTC scheduler** (`cityperfume-export-daily`): the export job
+probes its upstream BigQuery tables each tick and rebuilds `cityperfume.json` only when one advanced, so
+the dashboard tracks new data within ~10 min instead of on a fixed daily cron. The dashboard shows
+`last_updated` (build time) and `data_through` (newest upstream `last_modified`, UTC) rather than a fixed
+refresh time. Adjust the cadence with `..\..\scheduler.ps1 -Schedule "<cron>"`.
 
 Password-gated — the page loads a login screen; enter the dashboard password
 (Secret Manager: `cityperfume-dash-password`) to view it.

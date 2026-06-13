@@ -34,7 +34,7 @@ Two things changed from the "obvious" design, and they matter:
    It does a dumb full copy of the Snowflake source tables into `raw_snowflake.*`
    **once for every client**. This job no longer touches Snowflake at all.
 2. **The per-client filter lives in the views, not the pull.** This client's
-   campaign IDs and the `LEAD_STATUS != 'New'` rule are in `sql/02_stg_salesforce.sql`
+   3 DNB campaign IDs and the country→market mapping are in `sql/02_stg_salesforce.sql`
    (and the advertiser filter in `sql/01_stg_tradedesk.sql`).
 
 So this folder's **`job/main.py` is now just stage 2**: read BigQuery views → write
@@ -88,12 +88,17 @@ are manual — there are no auto-deploy triggers.**
 > `cloudbuild.yaml` files are for a future push-to-main trigger that isn't set up
 > yet. For now: **build the image, then deploy as yourself** (below).
 
-**① Refresh the data** — two steps: refresh the shared raw layer, then run the job:
+**① Refresh the data** — normally **automatic**. `mongodb-export` is **self-gating** on a Cloud
+Scheduler `*/10 * * * *` UTC tick (`../scheduler.ps1`): each tick cheaply probes whether the
+`raw_snowflake` tables its views read advanced (via `__TABLES__.last_modified`) and rebuilds only
+when they did, so the dashboard refreshes within ~10 min of new upstream data. To force a refresh
+by hand — two steps: refresh the shared raw layer, then run the job:
 ```powershell
 .\.venv\Scripts\python.exe snowflake_data_pull\loader.py        # stage 1: Snowflake -> raw_snowflake (all clients)
 gcloud run jobs execute mongodb-export --region australia-southeast1 --wait   # stage 2: views -> mongodb.json
 ```
-*(If raw_snowflake is already fresh, the second command alone refreshes this client.)*
+*(If `raw_snowflake` is already fresh, the second command alone refreshes this client. The gate
+still applies on a manual `execute`; set `FORCE_REBUILD=1` to bypass it.)*
 
 **② You edited a view (`sql/*.sql`)** — apply views, then re-run the job:
 ```powershell
@@ -159,8 +164,10 @@ reads whatever JSON is currently in the bucket.
 
 | Path | What it is |
 |---|---|
-| `job/main.py` | The export job — reads BigQuery views, writes `mongodb.json` (stage 2). No Snowflake. |
+| `job/main.py` | The export job — freshness gate, then reads BigQuery views and writes `mongodb.json` (stage 2). No Snowflake. |
+| `job/freshness.py` | Vendored self-gating helper (BQ `__TABLES__` probe + `_freshness.json` GCS watermark). |
 | `job/cloudbuild.yaml`, `job/Dockerfile` | How the job is built/deployed (used by a future trigger) |
+| `scheduler.ps1` | Creates/refreshes the Cloud Scheduler `*/10` UTC trigger that runs the self-gating `mongodb-export` job. |
 | `sql/*.sql` | BigQuery view definitions (the stage-2 transform); `01/02_stg_*` hold this client's filter |
 | `create_views.py` | Applies every `sql/*.sql` view to BigQuery |
 | `dash/main.py` | The web app — login + serves `dashboard.html` and the JSON (stage 3) |

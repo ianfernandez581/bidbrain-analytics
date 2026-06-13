@@ -20,7 +20,7 @@ the charts.
 | File | What it does |
 |---|---|
 | [`main.py`](main.py) | The Flask app: login, session, and the gated routes. ~135 lines, mostly the login page. |
-| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — all tabs, charts, filters, and the CSV export. Baked into the container; fetches `/data.json` on load. ~1,300 lines (HTML + CSS + inline JS). |
+| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — all tabs, charts, filters, and the CSV export. Baked into the container; fetches `/data.json` on load. ~1,660 lines (HTML + CSS + inline JS). |
 | [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py` + `dashboard.html`. |
 | [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run deploy mongodb-dash` → re-apply `--no-invoker-iam-check` (so a redeploy never silently drops public reachability). |
 | [`requirements.txt`](requirements.txt) | `Flask`, `gunicorn`, `google-cloud-storage` (pinned older than the job's — kept out of the dev venv on purpose). |
@@ -39,8 +39,10 @@ the charts.
 | `GET /data.json` | **The only data path.** 401 unless authenticated; then streams `mongodb.json` from the private bucket (also `no-store`). The bucket itself stays private — the browser never touches it. |
 | `GET /healthz` | Liveness check. |
 
-**Security details:** session cookies are `HttpOnly`, `Secure`, `SameSite=Lax`, 12-hour
-lifetime; the cookie is intentionally **not pinned to a domain** so login works through the
+**Security details:** session cookies are `HttpOnly`, `Secure`, `SameSite=None`, 12-hour
+lifetime. `SameSite=None` (which requires `Secure`) is deliberate: the dash is embedded as a
+**cross-origin iframe** on `dashboards.bidbrain.ai`, and a `Lax` cookie would be dropped on that
+third-party request. The cookie is also **not pinned to a domain** so login works through the
 Cloudflare proxy. Config (`GCS_BUCKET`, `DATA_OBJECT`) and secrets (`DASH_PASSWORD`,
 `SESSION_SECRET`) are injected by Cloud Run.
 

@@ -5,7 +5,7 @@
 -- applied anywhere in this client. `spend` is NUMERIC dollars already (NOT micros —
 -- verified: SUM=1.54M AUD vs 177M imps => ~AUD 8.7 CPM; do not divide by 1e6).
 -- conversions_value is Google-CLAIMED revenue (shown separately, never summed into the
--- blended headline). Reporting window 2025-06-01 -> latest is applied once, here.
+-- blended headline). Reporting window 2025-01-01 -> latest is applied once, here.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_cityperfume.stg_google` AS
 SELECT
   campaign_name,

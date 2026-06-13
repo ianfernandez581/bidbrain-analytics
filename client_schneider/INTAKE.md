@@ -1,7 +1,8 @@
 # client_schneider — intake / data slice (resolved)
 
 **Client:** Schneider Electric (APAC) · **Agency:** Transmission · **Reporting currency:** AUD
-**Status:** 🟡 Scaffolded in-repo (this PR), not yet stood up on GCP.
+**Status:** 🟢 Live on GCP (stood up 2026-06-04). 11 of the 21 mapped campaigns have seeded plan
+budgets; the rest are still TODO (see open items below).
 
 > The data slice was **resolved before the build** (filters below are applied verbatim in the
 > `stg_*` views). The DV360 `COUNTRY_NAME` enumeration was run once to ground the market mapping;

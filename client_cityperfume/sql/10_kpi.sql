@@ -1,6 +1,6 @@
 -- City Perfume — headline KPI row (the single row the dashboard reads for the big numbers).
 --
--- Window = 2025-06-01 -> latest sales day (applied in every stg_*). ALL AUD, no FX.
+-- Window = 2025-01-01 -> latest sales day (applied in every stg_*). ALL AUD, no FX.
 --
 -- ATTRIBUTION STANCE (blended / marketing-efficiency-ratio):
 --   * v_sales is the SINGLE source of truth for revenue / margin / orders / AOV / customers.

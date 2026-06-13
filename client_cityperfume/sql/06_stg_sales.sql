@@ -2,7 +2,7 @@
 --
 -- Source: bidbrain-analytics.client_cityperfume.v_sales (order-line grain, 358,695 lines).
 -- This is the ground truth for revenue / margin / orders / AOV / customers — the blended
--- ROAS denominator. AUD (no currency column; AU business). Window 2025-06-01 -> latest.
+-- ROAS denominator. AUD (no currency column; AU business). Window 2025-01-01 -> latest.
 --
 -- PRIVACY: customer_id is carried here ONLY to compute the new-vs-returning flag and the
 -- distinct-customer counts inside BigQuery. It (and email) MUST NEVER be selected by any

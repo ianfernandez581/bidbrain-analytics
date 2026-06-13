@@ -1,18 +1,22 @@
-# client_resetdata/creatives/ — drop branding assets here
+# client_resetdata/creatives/ — branding source assets (wired in)
 
-Put the ResetData branding assets in this folder and I'll wire them into the
-dashboard (topbar logo chip + login page) and extract the palette from them:
+Source artwork for the ResetData dashboard's branding. As of 2026-06-08 the real
+branding **is wired in** — the topbar and login page render the inlined base64 logos,
+not a placeholder. These files are the originals the base64 was made from / the palette
+was sampled from:
 
-- **ResetData logo** — preferred as `.svg` (inline, sharp at any size). A raster
-  `.png` / `.jpg` is fine too — it'll be embedded as a base64 `<img>`.
-- **Agency logo** — goes top-left where STT shows `TRANSMISSION`.
-- **Website screenshot** — used only to extract the palette (cool / technical:
-  deep blue / teal / slate / near-black for a sovereign-AI / data-centre brand).
+- **`resetdate_wordmark.webp`** — the ResetData wordmark, embedded as a base64 `<img>`
+  in the topbar of [`../dash/dashboard.html`](../dash/dashboard.html) and on the login
+  page (`LOGIN_HTML`) in [`../dash/main.py`](../dash/main.py), next to the **100% Digital**
+  agency mark and a divider.
+- **`Screenshot 2026-06-08 133943.png`** — ResetData website screenshot, used to sample
+  the brand palette: the crimson-pink accent **`#E84A6F`** on a deep-navy ground.
 
-Until assets land here, the dashboard ships with a clearly-labeled **placeholder
-logo block** and the fallback cool/technical palette (see the README note about
-"final logos + palette pending"). Swapping is a single contiguous block edit in
-`dash/dashboard.html` (and the `LOGIN_HTML` block in `dash/main.py`).
+To **re-skin** later, swap the base64 in two places — the `.logo` block in
+`../dash/dashboard.html` and the `LOGIN_HTML` block in `../dash/main.py` — and adjust the
+`:root` palette in `dashboard.html`. (A leftover placeholder `.logo .mark` CSS rule still
+sits in `dashboard.html`; it is unused — the markup uses the wordmark `<img>`.) The agency
+slug carried in the data is `100-digital`.
 
-Suggested filenames (any of these will be picked up):
-`resetdata-logo.svg` · `resetdata-logo.png` · `agency-logo.svg` · `website.png`
+A `.svg` wordmark would render sharper at any size than the current `.webp` raster — drop
+one here if/when ResetData provides it and re-embed.

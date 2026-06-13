@@ -29,7 +29,7 @@ $JOB_SA   = "cityperfume-dash-job@${PROJECT}.iam.gserviceaccount.com"
 $WEB_SA   = "cityperfume-dash-web@${PROJECT}.iam.gserviceaccount.com"
 $PW_SECRET      = "cityperfume-dash-password"
 $SESSION_SECRET = "cityperfume-dash-session-key"
-$SCHEDULE_UTC   = "0 22 * * *"          # 22:00 UTC = ~08:00 AEST daily refresh
+$SCHEDULE_UTC   = "*/10 * * * *"        # self-gating: */10 UTC tick, rebuilds only when upstream advanced
 
 function Die($m)  { Write-Host "!! Failed: $m. Fix the cause and re-run (idempotent)." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }

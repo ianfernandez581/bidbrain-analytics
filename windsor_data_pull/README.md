@@ -1,8 +1,8 @@
 # windsor_data_pull/ — pull ad-platform + analytics performance into BigQuery (`raw_windsor`)
 
-> One of the two **shared ingest** units. Loads ad-platform performance (Meta, Trade Desk) and
-> web-analytics outcomes (GA4) from **Windsor.ai** into the shared BigQuery dataset
-> `raw_windsor`, for all clients. The Windsor sibling of
+> One of the two **shared ingest** units. Loads ad-platform performance (Meta, Trade Desk,
+> Google Ads, Reddit Ads) and web-analytics outcomes (GA4) from **Windsor.ai** into the shared
+> BigQuery dataset `raw_windsor`, for all clients. The Windsor sibling of
 > [`snowflake_data_pull/`](../snowflake_data_pull/) (which fills `raw_snowflake`).
 
 **Plain English:** Windsor.ai is a connector service that pulls numbers out of advertising
@@ -28,6 +28,7 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 | [`meta/`](meta/README.md) | The **Meta / Facebook** loader (`perf_meta`) + its table-creation script. One row per (ad × date). [Open its README →](meta/README.md) |
 | [`tradedesk/`](tradedesk/README.md) | The **Trade Desk** loader (`perf_the_trade_desk`) + its table-creation script. One row per (campaign × ad-group × creative × date × ad-format). [Open its README →](tradedesk/README.md) |
 | [`ga4/`](ga4/README.md) | The **Google Analytics 4** loaders + their table-creation scripts. The acquisition loader (`perf_ga4`) — on-site outcomes (sessions, engagement, revenue), one row per (property × date × session source/medium/campaign × channel group) — plus an event-grain sibling (`perf_ga4_events`, one row per property × date × event_name). [Open its README →](ga4/README.md) |
+| [`google_ads/`](google_ads/README.md) | The **Google Ads** loader (`perf_google_ads`) + its table-creation script. One row per (customer × date × campaign), via the dedicated `google_ads` connector (single-pass). [Open its README →](google_ads/README.md) |
 | [`reddit/`](reddit/README.md) | The **Reddit Ads** loader (`perf_reddit`) + its table-creation script. One row per (account × ad × date), via the blended `/all` endpoint. [Open its README →](reddit/README.md) |
 | `README.md` | This file. |
 
@@ -41,11 +42,13 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 .\.venv\Scripts\python.exe windsor_data_pull\meta\create_meta_table.py               # 3. the Meta table
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\create_ga4_table.py                 # 4. the GA4 acquisition table
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\create_ga4_events_table.py          # 5. the GA4 events table
-.\.venv\Scripts\python.exe windsor_data_pull\reddit\create_reddit_table.py           # 6. the Reddit table
-.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py                     # 7. first load (backfills)
+.\.venv\Scripts\python.exe windsor_data_pull\google_ads\create_google_ads_table.py   # 6. the Google Ads table
+.\.venv\Scripts\python.exe windsor_data_pull\reddit\create_reddit_table.py           # 7. the Reddit table
+.\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py                     # 8. first load (backfills)
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\ga4_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\events_loader.py
+.\.venv\Scripts\python.exe windsor_data_pull\google_ads\google_ads_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\reddit\reddit_loader.py
 ```
 
@@ -59,10 +62,11 @@ first to confirm both credential systems are valid.
 
 ## How the loaders work (shared design)
 
-All three loaders share the same per-chunk pipeline, so once you understand one you understand them all:
+All the loaders share the same per-chunk pipeline, so once you understand one you understand them all:
 
 1. **Fetch in date chunks** from the Windsor API (`CHUNK_DAYS` per loader — Meta & Trade Desk
-   `3`, GA4 acquisition `14`, GA4 events `200`), with capped-backoff **retries** on transient
+   `3`, GA4 acquisition `14`, GA4 events `200`, Google Ads `90`, Reddit `30`), with
+   capped-backoff **retries** on transient
    errors (timeouts, 429, 5xx) and **fail-fast** on permanent 4xx (bad field / auth). An
    unattended/scheduled run can't hang forever.
 2. **Cache each chunk** to disk so a re-run doesn't re-fetch what it already has (`--force`
@@ -72,11 +76,11 @@ All three loaders share the same per-chunk pipeline, so once you understand one 
 4. **Load → staging table → `MERGE`** into the main table on a natural key, so re-pulling a
    day is **idempotent** (no duplicates; revised metrics overwrite).
 
-**Run modes (all three loaders):**
+**Run modes (every loader):**
 
 | Invocation | Mode |
 |---|---|
-| no args | **The normal/scheduled run.** Meta & GA4 = incremental per-account/property (forward from each one's last day; brand-new ones get a full backward-walk backfill). Trade Desk = backward walk that auto-discovers how far back data exists. |
+| no args | **The normal/scheduled run.** Meta, GA4, Google Ads & Reddit = incremental per-account/property (forward from each one's last day; brand-new ones get a full backward-walk backfill). Trade Desk = backward walk that auto-discovers how far back data exists. |
 | two dates, e.g. `… 2026-05-25 2026-05-30` | **Fixed range** (all accounts/properties together) — a targeted re-pull. |
 | append `--force` | re-fetch even cached chunks (the MERGE stays idempotent). |
 
@@ -88,16 +92,47 @@ See [`ga4/README.md`](ga4/README.md).
 **next to each loader**, anchored via `__file__` — never the repo root, never committed
 (`_run/` is gitignored).
 
-**Shared infrastructure:** all three loaders stage NDJSON through the `bidbrain-analytics-staging`
+**Shared infrastructure:** every loader stages NDJSON through the `bidbrain-analytics-staging`
 GCS bucket before the BigQuery `MERGE`. Every table is **partitioned by `metric_date`** and
 **clustered** for cheap, fast slicing. Each tags every row with `client_slug` / `agency_slug`
 inferred from the account/property/campaign names (see the `CLIENT_TO_AGENCY` map in each loader;
-GA4 also supports an explicit `PROPERTY_TO_CLIENT` override, since property names are often generic).
+GA4 supports an explicit `PROPERTY_TO_CLIENT` override, Google Ads a `CUSTOMER_TO_CLIENT` map, and
+Reddit a `REDDIT_ACCOUNT_TO_CLIENT` map — since those account/property names are often generic).
+
+---
+
+## Deployment & scheduling (Cloud Run jobs)
+
+These loaders run in production as shared **Cloud Run ingest jobs**, built and scheduled by
+[`scripts/deploy_ingest_jobs.ps1`](../scripts/deploy_ingest_jobs.ps1) (run as yourself — never
+cloudbuild from a laptop). All run as the shared `ingest-runner@` service account and read the
+Windsor key from Secret Manager (`windsor-api-key`).
+
+| Loader | Cloud Run job | Cron (UTC) |
+|---|---|---|
+| Meta | `windsor-meta-ingest` | `15 21 * * *` (daily) |
+| Trade Desk | `windsor-tradedesk-ingest` | `35 21 * * *` (daily) |
+
+> **Freshness contract — windsor is deliberately DAILY, not `*/10` self-gating.** Unlike the
+> binding `*/10` self-gating rule for *client export jobs* and `snowflake-ingest`, these raw-layer
+> Windsor loaders run on a **fixed daily** Cloud Scheduler trigger (`<job>-daily`), staggered to
+> land **before the 22:00 UTC `*-export` jobs** so every dashboard's nightly export reads fresh raw
+> data. Only `snowflake-ingest` self-gates at `*/10`; neto + windsor stay daily. There is **no
+> `_freshness.json` watermark** in this unit.
+>
+> - **Reddit** has a container (`reddit/Dockerfile`) for a future `windsor-reddit-ingest` job, but
+>   it is **not yet wired into `deploy_ingest_jobs.ps1`** — run it from a laptop for now.
+> - **Google Ads & GA4** also auto-refresh daily via the native **BigQuery Data Transfer Service**
+>   (`raw_google_ads` / `raw_ga4`); the Windsor `google_ads` / `ga4` loaders here coexist with — and
+>   do not replace — those DTS mirrors. They are run from a laptop, not scheduled here.
+> - **Trade Desk** currently exits non-zero until the TTD Windsor connector is re-granted
+>   (Windsor data endpoint down as of 2026-06-13).
 
 ---
 
 ## See also
 
-- [`meta/README.md`](meta/README.md), [`tradedesk/README.md`](tradedesk/README.md), and [`ga4/README.md`](ga4/README.md) — per-loader detail (schemas, fields, MERGE keys, caveats).
+- [`meta/README.md`](meta/README.md), [`tradedesk/README.md`](tradedesk/README.md), [`ga4/README.md`](ga4/README.md), [`google_ads/README.md`](google_ads/README.md), and [`reddit/README.md`](reddit/README.md) — per-loader detail (schemas, fields, MERGE keys, caveats).
+- [`scripts/deploy_ingest_jobs.ps1`](../scripts/deploy_ingest_jobs.ps1) — builds + schedules the shared ingest Cloud Run jobs.
 - [`snowflake_data_pull/`](../snowflake_data_pull/README.md) — the other shared ingest unit.
 - [Root README §6.1](../README.md#61-the-layered-bigquery-model) — how the raw layers feed clients.

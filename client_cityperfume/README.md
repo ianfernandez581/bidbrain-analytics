@@ -6,33 +6,40 @@ Cloud Run export job writes `cityperfume.json` to a private bucket → password-
 web app serves it). It pairs the **STT backend + auth model** with an **e-commerce front-end**
 (modelled on the Adriatic sample) plus a first-party **Sales** tab neither of them had.
 
-Status: **LIVE** at https://cityperfume-dash-p32gk2wuia-ts.a.run.app (password-gated) — deployed +
-verified 2026-06-06: 25 views applied, the export job ran (PII-free `cityperfume.json` in the private
-bucket), the dashboard serves all 5 tabs, and the auth flow is confirmed (401 unauth → 200 authed).
-Refreshes within ~10 min of new upstream data (self-gating `*/10` scheduler). Both logos (100% Digital + City Perfume) are embedded in the topbar + login.
+Status: **LIVE** at https://cityperfume-dash-p32gk2wuia-ts.a.run.app (password-gated) — first
+deployed + verified 2026-06-06; since extended (YoY tab, day-grained views, global Sales-channel +
+date-range filters). The export job runs (PII-free `cityperfume.json` in the private bucket), the
+dashboard serves all 6 tabs, and the auth flow is confirmed (401 unauth → 200 authed). **36 views**
+now applied. Refreshes within ~10 min of new upstream data (self-gating `*/10` scheduler). Both logos
+(100% Digital + City Perfume) are embedded in the topbar + login.
 
 ## The story it tells
 
 City Perfume is e-commerce, so the outcome is **revenue / orders / margin / ROAS**, not sessions —
-and the headline is **"ads → actual sales."** The **first-party order ledger** (`v_sales`) is the
+and the headline is **"ads → actual profit."** The **first-party order ledger** (`v_sales`) is the
 single source of truth for revenue, margin, orders, AOV and customers. The three ad platforms
 (Google, Meta, Trade Desk) and GA4 each *claim* their own attributed revenue, and they disagree
-wildly (Google ~22%, Meta ~4%, GA4 ~2% of true sales over the 12-mo window), so we never sum them.
-Instead the headline is a **blended marketing-efficiency ratio**:
+wildly (Google ~22%, Meta ~4%, GA4 ~2% of true sales), so we never sum them — platform-claimed
+figures are **context only**.
 
-- **Blended ROAS = total sales ÷ total ad spend** (≈ **31×**) — no per-platform attribution assumed.
-- **Online ROAS = online sales (excl. in-store POS) ÷ total ad spend** (≈ **11.6×**) — the stricter,
-  ad-attributable lens (in-store POS is ~63% of revenue; ads influence it only via the omnichannel halo).
-- Each platform's own `conversions_value` / `purchase_value` is shown **only as "platform-claimed."**
+The dashboard is **online-only** (Website + Marketplaces; **in-store POS excluded**) and reports a
+**single canonical ROAS — the incremental, margin-based return**, NOT a total-revenue ÷ spend ratio:
 
-Everything is **AUD** across all six sources — **no FX**. Reporting window is rolling from
-**2025-06-01** (the first full month Meta data exists) to latest.
+- **Margin ROAS (incremental) ≈ 2.6×**, **net ≈ 1.6×** (after the ad cost itself).
+- = **7× incremental online revenue** per A$1 (regression-based; planning estimate, band 4–9×)
+  × **37.7% online gross margin** (revenue-weighted from `v_sales` COGS).
+- The old ratio headline (≈31× blended / ≈11.7× online) overstated ad impact ~10× — retired.
+- 7× is a **planning estimate**, not a measured constant, **pending a spend-down / geo holdout**.
 
-## The 5 dashboard tabs (`dash/dashboard.html`)
+Full methodology, the reproducible regressions and the validation plan live in
+[`analysis/`](analysis/) (`city_perfume_roas_handoff.md`, `city_perfume_incrementality.py`,
+`validation_plan.md`). Everything is **AUD** — **no FX**. Window rolls from **2025-01-01** to latest.
 
-1. **Overview** — KPIs (spend · revenue · blended ROAS · AOV · margin % · repeat-rate · sessions),
-   AI commentary, monthly spend-by-platform vs revenue vs ROAS hero, revenue-by-channel donut,
-   online-vs-in-store split, spend share. A **Revenue basis** toggle flips All-sales ⇄ Online-only.
+## The 6 dashboard tabs (`dash/dashboard.html`)
+
+1. **Overview** — KPIs (spend · online revenue · AOV · margin % · repeat-rate · sessions),
+   AI commentary, monthly spend-by-platform vs online-revenue hero, revenue-by-online-channel donut,
+   a **Margin ROAS (incremental)** callout, and spend share.
 2. **Paid Media** — all platforms (ignores the Platform chips; Campaign filter applies); monthly
    spend + ROAS, spend share, platform comparison table **incl. platform-claimed ROAS**, Google by
    campaign type, Meta creative mix (video/image) + a creative gallery, top-campaigns table.
@@ -43,25 +50,42 @@ Everything is **AUD** across all six sources — **no FX**. Reporting window is 
    new-vs-returning section** (cards + monthly stacked revenue + returning-share + split donut),
    revenue by channel, category mix (EDP/EDT/Parfum/Gift Set & Hamper/Other), top products by
    revenue **or** margin, sales-by-channel detail.
-5. **Ads → Revenue** — spend→sales funnel, weekly spend vs revenue, weekly correlation scatter
-   (Pearson r), monthly blended-vs-online ROAS, and a stat strip (blended/online ROAS, cost/order,
-   platform-claimed as % of true sales).
+5. **Ads → Revenue** — spend→sales funnel, weekly spend vs online revenue, weekly correlation scatter
+   (Pearson r, flagged as largely seasonal), the **monthly profit band** (base online margin + ad spend
+   + net ad-driven profit), and a stat strip (Margin ROAS incremental, net ROAS, cost/order, platform-
+   claimed as % of true online sales). Carries the methodology footnote linking the analysis handoff.
+6. **Year on Year** — plain-dollar finance view (AUD): each month against the same calendar month a year
+   earlier, $ + YoY%, from the `yoy_monthly` view. The in-progress month is compared **month-to-date**
+   (same day-count both years) so it stays fair. The Date range acts as a **month filter** and the Sales
+   channel chips scope revenue; ad spend stays whole (ad data has no channel split). Prior-year baseline
+   is our own first-party `v_sales` (to be reconciled with the client's old tracker).
 
-**Filters:** **Platform** (Google · Meta · Trade Desk) and **Campaign** (searchable multi-select,
-grouped by platform, sorted by spend) rescale the **ad side** client-side; the sales side has no
-campaign dimension and stays whole. A **Revenue basis** toggle (All / Online) drives the ROAS framing.
-No Country filter (no geo dimension). Sales-channel detail is shown on the Sales tab rather than as a
-global filter (the channel decomposition isn't carried on every trend, so a global filter would only
-partially rescale — the All/Online toggle covers the meaningful case consistently).
+**Filters (global, in the topbar):**
+- **Date range** — a Looker-style picker (presets + custom range). The finest grain is the **DAY**: every
+  `*_daily` view is clipped to the selected range, aggregated up for KPIs/donuts/tables, and bucketed to
+  day/week/month for trend charts by span. When the range is **not** narrowed, the full-period arrays stay
+  the exact source (so the default view is unchanged and distinct-customer counts stay exact). On the
+  Year-on-Year tab the range acts as a **month filter**.
+- **Platform** (Google · Meta · Trade Desk) and **Campaign** (searchable multi-select, grouped by platform,
+  sorted by spend) rescale the **ad side** client-side.
+- **Sales channel** chips (Website / Marketplace = the online `channel_group` values) scope the **online**
+  revenue side. There is no in-store and no All/Online toggle — the dashboard is online-only. No Country
+  filter (no geo dimension).
 
 ## How it works (3 stages — same shape as every client)
 
-1. **`sql/`** — 25 `CREATE OR REPLACE VIEW`s, `NN_` ordered (06 stg filters → 10–35 rollups).
-   Apply with `python client_cityperfume/create_views.py` (or `sql/deploy_views_cityperfume.ps1`).
-   The filter strings + the 2025-06-01 window live once in the `01–06 stg_*` views.
+1. **`sql/`** — 36 `CREATE OR REPLACE VIEW`s, `NN_` ordered (01–06 stg filters → 10–40 full-period
+   rollups → 50–59 day-grained rollups). Apply with `python client_cityperfume/create_views.py`
+   (or `sql/deploy_views_cityperfume.ps1`). The filter strings + the `2025-01-01` window live once in
+   the `01–06 stg_*` views. (See [`sql/README.md`](sql/README.md) for the per-view map.)
 2. **`job/`** — `cityperfume-export` Cloud Run job reads the rollup views and writes
    `cityperfume.json` to the private bucket. **Aggregates only** — it never reads `v_sales`/`stg_sales`
-   directly and a `assert_no_pii` guard refuses to write if `customer_id`/`email` ever appear.
+   directly and a `assert_no_pii` guard refuses to write if `customer_id`/`email` ever appear. It is
+   **self-gating** (`freshness.py`): on each `*/10` UTC scheduler tick it probes the BigQuery
+   `__TABLES__.last_modified` of the raw tables it reads (`raw_neto.orders`, `raw_google_ads.perf_google_ads`,
+   `raw_windsor.perf_meta` / `perf_the_trade_desk`, `raw_ga4.perf_ga4` / `perf_ga4_events`) against the
+   `_freshness.json` watermark in the bucket and rebuilds **only** when one advanced (else exits 0).
+   `FORCE_REBUILD=1` bypasses the gate. See [`job/README.md`](job/README.md).
 3. **`dash/`** — `cityperfume-dash` Cloud Run service: a Flask password gate that serves
    `dashboard.html` and proxies `cityperfume.json` at `/data.json` to authenticated sessions only.
    Auth logic is byte-for-byte STT; only the login branding + data object differ.
@@ -99,8 +123,9 @@ and it always reads whatever JSON is currently in the bucket.
 
 ## EDA decisions (recorded in `BUILD_CHECKLIST.md`)
 
-AUD-only (no FX) · window 2025-06-01→latest · v_sales = truth, blended-MER ROAS, platform-claimed
-shown separately · Meta includes all `effective_status` (paused/archived hold ~50% of spend) ·
+AUD-only (no FX) · window 2025-01-01→latest · v_sales = truth · ONLINE-ONLY (in-store POS excluded) ·
+single canonical incremental Margin ROAS (7× × 37.7% online margin), platform-claimed shown separately ·
+Meta includes all `effective_status` (paused/archived hold ~50% of spend) ·
 TTD stays upper-funnel (parsed `conversion_touch_03`, no revenue) · concentration category via regex ·
 new-vs-returning via first-ever-order over full history. **Flagged to client:** GA4 tracking broke
 ~Oct 2025; margin has zero-cost-price / negative-promo noise.
@@ -120,10 +145,14 @@ new-vs-returning via first-ever-order over full history. **Flagged to client:** 
 ## Files
 
 - `create_views.py` — applies `sql/*.sql` in order.
-- `sql/` — 01–06 staging, 10–12 headline/trend, 13–16 GA4, 20–25 sales, 30–35 campaign/platform.
-- `job/` — `main.py` (export), Dockerfile, requirements, cloudbuild, `deploy_job_cityperfume.ps1`.
+- `sql/` (36 views) — 01–06 staging, 10–12 headline/trend, 13–16 GA4, 20–25 sales, 30–35
+  campaign/platform, 40 year-on-year, 50–59 day-grained (the range-filter source). See
+  [`sql/README.md`](sql/README.md).
+- `job/` — `main.py` (export), `freshness.py` (self-gating helper), Dockerfile, requirements,
+  cloudbuild, `deploy_job_cityperfume.ps1`. See [`job/README.md`](job/README.md).
 - `dash/` — `main.py` (auth gate), `dashboard.html`, Dockerfile, requirements, cloudbuild,
-  `deploy_dash_cityperfume.ps1`, `LIVE_URL.md`.
+  `deploy_dash_cityperfume.ps1`, `LIVE_URL.md`. See [`dash/README.md`](dash/README.md).
+- `analysis/` — ROAS analysis handoff, reproducible incrementality script + chart, T7 validation plan.
 - `deploy_cityperfume.ps1` (one-shot) · `scheduler.ps1` · `BUILD_CHECKLIST.md`.
 
 ## See also

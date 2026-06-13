@@ -1,4 +1,4 @@
-# client_schneider/ — Schneider Electric (APAC) · **scaffolded, not yet deployed**
+# client_schneider/ — Schneider Electric (APAC) · **live (deployed 2026-06-04)**
 
 > Schneider Electric's APAC paid-media portfolio (run via the agency **Transmission**), across
 > **DV360**, **The Trade Desk** and **LinkedIn**. Built on the [`client_STT`](../client_STT/README.md)
@@ -11,8 +11,12 @@ Segment, …) across three ad platforms, mostly ANZ-weighted with India / SEA / 
 / Pacific spill. This dashboard puts plan **budget & targets** (from the media plans) next to live
 **spend & delivery** so stakeholders can see pacing, funnel and channel/geo performance per campaign.
 
-**Status:** 🟡 **Built in-repo, not yet stood up on GCP.** Run [`deploy_schneider.ps1`](deploy_schneider.ps1)
-once to provision everything. GA4 (website) ships **disabled** until the SE GA4 property id(s) are known.
+**Status:** 🟢 **Live on GCP (stood up 2026-06-04).** All 26 views, `schneider.json`, the
+`schneider-export` job and the `schneider-dash` service are deployed; the `*/10` self-gating
+scheduler is running. [`deploy_schneider.ps1`](deploy_schneider.ps1) was the one-shot stand-up and
+stays idempotent for a rebuild from scratch. GA4 (website) ships **disabled** until the SE GA4
+property id(s) are known. Seeded plan budgets cover 11 of the 21 mapped campaigns; the rest are TODO
+(see [`INTAKE.md`](INTAKE.md)).
 
 ---
 
@@ -66,7 +70,9 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 ## Deploy / refresh (copy-paste, PowerShell)
 Project `bidbrain-analytics`, region `australia-southeast1`. **First-time stand-up:** run
 [`deploy_schneider.ps1`](deploy_schneider.ps1) once (idempotent — bucket, dataset, SAs, IAM, secrets,
-both Cloud Run units, daily scheduler). After that:
+both Cloud Run units, scheduler). Note `deploy_schneider.ps1` seeds the scheduler at a fixed daily
+cron; [`scheduler.ps1`](scheduler.ps1) flips it to the binding `*/10` self-gating cadence (the live
+schedule). After that:
 
 ```powershell
 # ① refresh data now (scheduler schneider-export-daily runs */10 UTC, self-gating)
@@ -96,7 +102,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_schneider` (25 views) |
+| BigQuery dataset | `client_schneider` (26 views) |
 | Data bucket / object | `bidbrain-analytics-schneider-dash` / `schneider.json` |
 | Export job | `schneider-export` (runtime SA `schneider-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `schneider-dash` (runtime SA `schneider-dash-web@…`) → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
@@ -105,7 +111,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | Domain (later) | `schneider.bidbrain.ai` (CNAME + Host Header Override, wired later) |
 
 ## Files
-- [`sql/`](sql/README.md) — the 25 BigQuery views (filter + model + seeds + disabled GA4).
+- [`sql/`](sql/README.md) — the 26 BigQuery views (filter + model + seeds + disabled GA4).
 - [`job/`](job/README.md) — the export job (stage 2): views → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.

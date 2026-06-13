@@ -2,7 +2,7 @@
 --
 -- Source: bidbrain-analytics.raw_ga4.perf_ga4, account_name='City Perfume'.
 -- Session x source/medium x channel-group daily grain. No currency column — values are
--- AUD by assumption (AU retailer). Reporting window 2025-06-01 -> latest applied here.
+-- AUD by assumption (AU retailer). Reporting window 2025-01-01 -> latest applied here.
 --
 -- DATA-QUALITY CAVEAT: GA4 tracking is BROKEN from ~Oct 2025 (row counts collapse from
 -- ~2,500/mo to <120/mo, purchase_revenue/transactions go null). GA4 is only reliable

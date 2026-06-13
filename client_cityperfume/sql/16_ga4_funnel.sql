@@ -3,7 +3,7 @@
 -- from the acquisition table (stg_ga4), the mid/lower-funnel event counts from the
 -- event-grain table (perf_ga4_events, which has NO source dimension) — so the funnel is
 -- WHOLE-SITE only, not segmentable by channel. event_name='purchase' is the canonical
--- step (is_conversion_event is unreliable across the date range). Window 2025-06-01 ->.
+-- step (is_conversion_event is unreliable across the date range). Window 2025-01-01 ->.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_cityperfume.ga4_funnel` AS
 WITH s AS (
   SELECT SUM(sessions) AS sessions

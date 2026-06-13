@@ -1,13 +1,15 @@
 # PropTrack dashboard — live URL
 
-**Not deployed yet.** Run the first-time stand-up to provision and deploy:
+**Live:** https://proptrack-dash-p32gk2wuia-ts.a.run.app
+(canonical Cloud Run host: `https://proptrack-dash-516554645957.australia-southeast1.run.app`)
 
-```powershell
-.\client_proptrack\deploy_proptrack.ps1
-```
+Service `proptrack-dash` in `australia-southeast1`. Redeploy a UI/serving edit with
+`.\client_proptrack\dash\deploy_dash_proptrack.ps1`; the service serves `dashboard.html` with
+`Cache-Control: no-store`, so changes are live immediately.
 
-It prints the live `…run.app` URL at the end (and prompts you to choose the dashboard password, stored in
-Secret Manager as `proptrack-dash-password`). Once deployed, record the URL here.
+First-time stand-up (APIs, SAs, IAM, secrets, scheduler) is the one-shot
+`.\client_proptrack\deploy_proptrack.ps1` — it prompts for the dashboard password, stored in Secret
+Manager as `proptrack-dash-password`.
 
 Password-gated: the page loads a login screen; enter the dashboard password to view it.
 - Read the current password: `gcloud secrets versions access latest --secret=proptrack-dash-password`.

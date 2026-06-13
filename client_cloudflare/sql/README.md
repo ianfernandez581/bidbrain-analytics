@@ -22,10 +22,15 @@ model already exists in Snowflake:
 - `CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_BENCHMARKS_CHANNEL` / `V_BENCHMARKS_MARKET`
 - `CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_LI_WEEKLY_TARGETS`
 - `CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL` — the CS lead pacing model
+- the per-channel staging views `…PAID_MEDIA_REPORTING.V_STG_{LINKEDIN,TRADEDESK,REDDIT,LINE}_CF`
+  — for the creative-grain pull (`src_paid_creatives`); the final model collapses
+  the creative dimension away, so the job re-derives it one level lower (see
+  `PAID_CREATIVES_SQL` in `../job/main.py`)
 
-The job pulls those five views and lands them as BigQuery `src_*` tables. The
-views here just re-expose those tables in the exact shape the dashboard reads,
-so the on-screen numbers are byte-for-byte what Snowflake already produces.
+The job runs six Snowflake queries and lands their results as BigQuery `src_*`
+tables. The views here just re-expose those tables in the exact shape the
+dashboard reads, so the on-screen numbers are byte-for-byte what Snowflake
+already produces.
 
 ## Views (dependency order)
 
@@ -36,6 +41,7 @@ so the on-screen numbers are byte-for-byte what Snowflake already produces.
 | `03_benchmarks_channel.sql` | `benchmarks_channel` | `src_benchmarks_channel` |
 | `04_benchmarks_market.sql`  | `benchmarks_market`  | `src_benchmarks_market` |
 | `05_li_weekly_targets.sql`  | `li_weekly_targets`  | `src_li_weekly` |
+| `06_paid_creatives_model.sql` | `paid_creatives_model` | `src_paid_creatives` |
 
 ## Column-name contract
 

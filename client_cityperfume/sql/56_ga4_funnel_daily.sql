@@ -2,7 +2,7 @@
 -- Sessions from the acquisition table (stg_ga4); the mid/lower-funnel event counts from the
 -- event-grain table (perf_ga4_events, no source dimension) — whole-site only. All steps are
 -- additive session/event counts, so the dashboard sums the days in range. FULL OUTER JOIN on
--- day so a day present in one table but not the other still appears. Window 2025-06-01 ->.
+-- day so a day present in one table but not the other still appears. Window 2025-01-01 ->.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_cityperfume.ga4_funnel_daily` AS
 WITH s AS (
   SELECT metric_date AS day, SUM(sessions) AS sessions

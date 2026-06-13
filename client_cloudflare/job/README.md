@@ -23,7 +23,7 @@ publish as **two separate public files** (`pacing.json` + `paid_media.json`) int
 
 | File | What it does |
 |---|---|
-| [`main.py`](main.py) | The job. Connects to Snowflake (key-pair auth), **gates on freshness** (see below), pulls 5 final-model views, lands them as `src_*` BigQuery tables, reads the thin views, and uploads `cloudflare.json`. `CLIENT = "cloudflare"` drives all the names. |
+| [`main.py`](main.py) | The job. Connects to Snowflake (key-pair auth), **gates on freshness** (see below), runs 6 Snowflake pulls (5 final-model views + 1 creative-grain query over the `V_STG_*` staging views), lands them as `src_*` BigQuery tables, reads the thin views, queries the shared `raw_snowflake.linkedin_ads_apac` mirror for the three single-campaign LinkedIn dashboards, and uploads `cloudflare.json`. `CLIENT = "cloudflare"` drives all the names. |
 | [`freshness.py`](freshness.py) | The freshness gate (vendored per job folder, like `sf_connect`). Probes `INFORMATION_SCHEMA.TABLES.LAST_ALTERED` (metadata-only — no warehouse credits, never resumes compute), reads/writes the `_freshness.json` watermark sidecar in the bucket, and answers `is_stale()`. Reusable across clients: only the bucket, watermark key, and table list differ. |
 | [`Dockerfile`](Dockerfile) | `python:3.12-slim`, non-root, `CMD python main.py`. Ships both `main.py` and `freshness.py`. |
 | [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run jobs deploy cloudflare-export` with the Snowflake secret + env vars wired in. |
@@ -34,16 +34,21 @@ publish as **two separate public files** (`pacing.json` + `paid_media.json`) int
 
 ## What it pulls and lands
 
-| Snowflake source view | → BigQuery `src_*` | → thin view ([`../sql/`](../sql/README.md)) |
+| Snowflake source | → BigQuery `src_*` | → thin view ([`../sql/`](../sql/README.md)) |
 |---|---|---|
 | `…PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL` | `src_paid_media` | `paid_media_model` |
 | `…CS_REPORTING.V_PACING_FINAL_MODEL` | `src_pacing` | `pacing_model` |
 | `…PAID_MEDIA_REPORTING.V_BENCHMARKS_CHANNEL` | `src_benchmarks_channel` | `benchmarks_channel` |
 | `…PAID_MEDIA_REPORTING.V_BENCHMARKS_MARKET` | `src_benchmarks_market` | `benchmarks_market` |
 | `…PAID_MEDIA_REPORTING.V_LI_WEEKLY_TARGETS` | `src_li_weekly` | `li_weekly_targets` |
+| creative-grain query over `…PAID_MEDIA_REPORTING.V_STG_{LINKEDIN,TRADEDESK,REDDIT,LINE}_CF` | `src_paid_creatives` | `paid_creatives_model` |
 
 (Three further **static** inputs — LINE spend, pacing targets, account tiers — are landed
 separately and rarely by [`../seed_static.py`](../seed_static.py), not by this job.)
+
+Separately, the job reads the shared **`raw_snowflake.linkedin_ads_apac`** mirror directly in
+BigQuery (no Snowflake round-trip) to assemble the `campaigns` block — three single-campaign
+LinkedIn dashboards (`peyc` = ANZ PEYC, `cf1_india` = CF1 India, `coles_hyper` = Coles Hyper).
 
 ---
 
@@ -56,18 +61,24 @@ dashboard's `adaptPayload` / `rawRows` code is unchanged:
 {
   "last_updated": "YYYY-MM-DDTHH:MM:SSZ",  // when THIS build ran (build time)
   "data_through": "YYYY-MM-DDTHH:MM:SSZ",  // newest LAST_ALTERED across the 4 gating tables (true data instant, UTC)
-  "paid_media": {                          // == the old paid_media.json
+  "paid_media": {                          // == the old paid_media.json (+ creatives)
     "row_count": 0,
     "window": { "start": "…", "end": "…", "days": 0 },
     "all_markets": ["ANZ","ASEAN","SAARC","RIG","KR","JP","GCR"],
     "rows": [ { channel, date, week_start, market, imps, clicks, spend_usd, leads,
                 form_opens, link_clicks, action_clicks, video_starts, video_completions,
                 spend_jpy, fx_usd_jpy } ],
+    "creatives": [ { channel, market, creative, imps, clicks, spend_usd, leads } ],  // creative-grain, whole-window
     "benchmarks":        { "<channel>": { ctr, cpm, cpc } },   // TTD, LinkedIn, Reddit, LINE
     "benchmarks_market": { "<market>":  { ctr, cpm, cpc } },
     "li_weekly": [ { week, period, week_start, target, cum_target } ]
   },
-  "pacing": { "row_count": 0, "rows": [ /* every V_PACING_FINAL_MODEL column, dates → ISO */ ] }
+  "pacing": { "row_count": 0, "rows": [ /* every V_PACING_FINAL_MODEL column, dates → ISO */ ] },
+  "campaigns": {                           // three single-campaign LinkedIn dashboards
+    "peyc":        { label, campaign_group, window, totals, daily: [...], by_campaign: [...] },
+    "cf1_india":   { ... },                // from raw_snowflake.linkedin_ads_apac (BQ mirror)
+    "coles_hyper": { ... }
+  }
 }
 ```
 

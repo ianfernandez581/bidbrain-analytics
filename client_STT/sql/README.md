@@ -30,13 +30,14 @@ filter views first, then the roll-ups that read them). The export job
 | `21_ad_campaign_weekly.sql` | `ad_campaign_weekly` | Ad delivery by campaign × ISO week (Ads → Traffic weekly + scatter). |
 | `22_ad_campaign_market.sql` | `ad_campaign_market` | Ad delivery by campaign × market (Paid Media Google + DV360 by market). |
 | `23_li_campaign_creative.sql` | `li_campaign_creative` | LinkedIn delivery by campaign × creative type (Paid Media creative mix). |
+| `24_ad_campaign_market_monthly.sql` | `ad_campaign_market_monthly` | Ad delivery by campaign × market × month — the market grain of `ad_campaign_monthly`, **keeping LinkedIn's NULL-market rows**, so the Overview "media spend by platform" donut honours the Country filter AND the date picker at once. |
 
 The **Country filter** (dashboard) is the GA4 `account_name` → `market` label, with "Global" deselected by
 default. The `13–17` market-grained views ship the per-market GA4 data the dashboard sums over the
 selected countries.
 
 The **Campaign filter** is the ad-delivery analogue: `stg_ad_delivery` (03c) folds the three platforms into
-one long-format fact, and `19–23` roll it up by campaign × {total, month, week, market, creative}. The
+one long-format fact, and `19–24` roll it up by campaign × {total, month, week, market, creative, market×month}. The
 dashboard sums the selected campaigns client-side to rescale every ad-delivery figure — selecting **all**
 campaigns (the default) reproduces the whole-flight `kpi` / `monthly` / `weekly` / market totals exactly.
 The GA4/website side has no campaign dimension, so it is untouched by this filter.

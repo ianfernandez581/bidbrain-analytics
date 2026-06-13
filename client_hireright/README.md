@@ -1,4 +1,4 @@
-# client_hireright/ — HireRight (paid media) · **ready to deploy**
+# client_hireright/ — HireRight (paid media) · **live**
 
 > All of HireRight's paid media in one place. Built on the
 > [`client_STT`](../client_STT/README.md) template, stripped to a pure paid-media **delivery** baseline:
@@ -11,8 +11,9 @@ dashboard: spend, impressions, clicks, conversions and efficiency in one view. T
 website side** (HireRight's GA4 property can't be identified) and **no media plan / targets / seeds** —
 it renders fully from delivery alone.
 
-**Status:** 🟢 Built, SQL validated against the live raw layer. Not yet stood up — run
-[`deploy_hireright.ps1`](deploy_hireright.ps1) to provision + deploy. See [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
+**Status:** 🟢 Deployed & live (password-gated). Stood up via
+[`deploy_hireright.ps1`](deploy_hireright.ps1); verified serving HTTP 200 (login) and `/data.json`
+(401-gated / 200-after-login) on **2026-06-04**. See [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
 
 ---
 
@@ -90,8 +91,11 @@ The job is read-only on BigQuery — it only `SELECT`s the views and writes JSON
 
 Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv`
 (`.\.venv\Scripts\python.exe`). **First-time stand-up:** run [`deploy_hireright.ps1`](deploy_hireright.ps1)
-once (idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the daily scheduler; it
-prompts for the dashboard password, or set `$env:DASH_PASSWORD` first). After that:
+once (idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the Cloud Scheduler trigger; it
+prompts for the dashboard password, or set `$env:DASH_PASSWORD` first). The export **job is self-gating**
+(see the Coordinates table). Note: `deploy_hireright.ps1` still seeds the scheduler at the legacy daily
+`0 22 * * *` default — run [`scheduler.ps1`](scheduler.ps1) (default `*/10 * * * *`) to flip it to the
+self-gating cadence. After that:
 
 **① Refresh the data now** (the `hireright-export-daily` Cloud Scheduler runs `*/10` UTC, self-gating):
 ```powershell

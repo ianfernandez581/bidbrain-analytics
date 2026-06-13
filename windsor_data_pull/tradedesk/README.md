@@ -17,6 +17,7 @@ loader, it's incremental and safe to re-run.
 |---|---|
 | [`create_trade_desk__tables.py`](create_trade_desk__tables.py) | **One-time.** Creates `raw_windsor.perf_the_trade_desk`, partitioned by `metric_date`, clustered by `campaign_id, ad_format`. Idempotent. |
 | [`tradedesk_loader.py`](tradedesk_loader.py) | **The loader.** Fetches from Windsor's `/tradedesk` endpoint, transforms, and `MERGE`s into the table. |
+| `Dockerfile` / `.dockerignore` / `requirements.txt` | Container for the Cloud Run ingest job (`windsor-tradedesk-ingest`, daily — see the [parent README](../README.md#deployment--scheduling-cloud-run-jobs)). |
 | `README.md` | This file. |
 
 ---
@@ -43,6 +44,13 @@ or the `MIN_DATE` floor — auto-discovering how far back data exists.
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py 2026-05-01 2026-05-31 # fixed range
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py 2026-05-01 2026-05-31 --force
 ```
+
+**Accounts loaded:** `484` (single TTD account). An ungranted/revoked account is logged and
+skipped (`AccountUnavailableError`) rather than aborting the run.
+
+> **Status (2026-06-13):** the deployed `windsor-tradedesk-ingest` job exits non-zero until the TTD
+> Windsor connector is re-granted at <https://onboard.windsor.ai?datasource=tradedesk> (the Windsor
+> data endpoint is currently down). See the [parent README](../README.md#deployment--scheduling-cloud-run-jobs).
 
 ---
 

@@ -27,7 +27,7 @@ $JOB_SA   = "proptrack-dash-job@${PROJECT}.iam.gserviceaccount.com"
 $WEB_SA   = "proptrack-dash-web@${PROJECT}.iam.gserviceaccount.com"
 $PW_SECRET      = "proptrack-dash-password"
 $SESSION_SECRET = "proptrack-dash-session-key"
-$SCHEDULE_UTC   = "0 22 * * *"
+$SCHEDULE_UTC   = "*/10 * * * *"        # self-gating: */10 UTC tick, rebuilds only when upstream advanced
 
 function Die($m)  { Write-Host "!! Failed: $m. Fix the cause and re-run (idempotent)." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
