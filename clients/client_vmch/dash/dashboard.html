@@ -1,0 +1,1323 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VMCH — Villa Maria Catholic Homes · Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    /* VMCH brand — vivid orange-red wordmark (#EB3300) + maroon hero (#4C2736), warm neutrals.
+       Sampled from vmch.org.au (logo + hero panel). */
+    --orange:#EB3300; --orange-deep:#C22A00; --orange-soft:#FCE3DA;
+    --maroon:#4C2736; --maroon2:#7A4154; --maroon-soft:#F3E7EB;
+    --ink:#2A1E20; --ink2:#574A4C; --mute:#8C7E80;
+    --paper:#FBF6F1; --card:#FFFFFF; --line:#ECE3D9;
+    --grey:#C9BEB8;
+    --green:#2E8B72; --green-soft:#9FD0C2; --slate:#7A6A6E;
+    --good:#1E8E3E; --bad:#C8362A;
+    --shadow-card:0 1px 2px rgba(42,30,32,.04),0 4px 16px rgba(42,30,32,.07);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);
+            font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+            font-size:14px;line-height:1.5}
+  a{color:var(--orange);text-decoration:none}
+
+  /* ---- topbar (white, like vmch.org.au's nav) ---- */
+  .topbar{background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(42,30,32,.03);
+          padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar-left{display:flex;align-items:center;gap:16px}
+  .brandlogo{height:32px;width:auto;display:block}
+  .topbar-divider{width:1px;height:30px;background:var(--line)}
+  .agency-logo{display:flex;align-items:center;opacity:.92}
+  .agency-logo svg{height:17px;width:auto;display:block}
+  .topbar-right{font-size:11.5px;color:var(--mute);text-align:right;line-height:1.6}
+  .topbar-right b{color:var(--ink)}
+  .live{display:inline-block;width:7px;height:7px;background:#3FB36B;border-radius:50%;margin-right:6px;
+        box-shadow:0 0 0 0 rgba(63,179,107,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,179,107,.6)}70%{box-shadow:0 0 0 8px rgba(63,179,107,0)}100%{box-shadow:0 0 0 0 rgba(63,179,107,0)}}
+
+  .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
+
+  /* ---- control bar ---- */
+  .control-bar{background:var(--card);border:1px solid var(--line);border-radius:10px;
+               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  .tabs{display:flex;gap:2px;flex-wrap:wrap}
+  .tab{padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--ink)}
+  .tab.on{color:var(--ink);border-bottom-color:var(--orange)}
+  .tabs-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:7px 0}
+  .ctrl-note{font-size:11.5px;color:var(--mute)}
+  .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
+              padding:7px 12px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);
+              transition:border-color .15s ease,color .15s ease}
+  .export-btn:hover{border-color:var(--orange);color:var(--orange)}
+  .export-btn svg{width:14px;height:14px;flex:none}
+
+  /* ---- filters ---- */
+  .control-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--line)}
+  .filter-grp{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .fdiv{width:1px;height:20px;background:var(--line)}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--mute)}
+  .chip-action{background:none;border:1px dashed var(--line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--mute)}
+  .chip-action:hover{color:var(--ink);border-color:var(--mute)}
+
+  /* ---- campaign filter (searchable multi-select dropdown) ---- */
+  .campaign-dd{position:relative;display:inline-block}
+  .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;
+                padding:6px 12px;font-size:12.5px;cursor:pointer;color:var(--ink);max-width:320px}
+  .campaign-btn:hover{border-color:var(--orange)}
+  .campaign-btn.filtered{background:var(--maroon);color:#fff;border-color:var(--maroon)}
+  .campaign-btn .caret{font-size:10px;color:var(--mute)}
+  .campaign-btn.filtered .caret{color:rgba(255,255,255,.7)}
+  .campaign-btn .lbltxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .campaign-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:430px;max-width:88vw;background:#fff;
+                 border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(42,30,32,.18);overflow:hidden}
+  .campaign-menu-head{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+  .campaign-menu-head input{width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:8px;outline:none;color:var(--ink)}
+  .campaign-menu-head input:focus{border-color:var(--orange);box-shadow:0 0 0 3px rgba(235,51,0,.10)}
+  .campaign-menu-actions{display:flex;align-items:center;gap:8px;justify-content:space-between}
+  .campaign-menu-actions .count{font-size:11px;color:var(--mute)}
+  .campaign-menu-actions .btns{display:flex;gap:6px}
+  .campaign-list{max-height:340px;overflow-y:auto;padding:4px 0}
+  .cl-group{padding:8px 12px 3px}
+  .cl-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
+  .cl-group-title{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mute)}
+  .cl-group-title .dot{width:8px;height:8px;border-radius:50%}
+  .cl-group-toggle{font-size:10.5px;color:var(--orange);cursor:pointer;background:none;border:none;padding:0}
+  .cl-item{display:flex;align-items:flex-start;gap:9px;padding:6px 12px;cursor:pointer;border-radius:7px}
+  .cl-item:hover{background:#FAF6F1}
+  .cl-item input{margin-top:2px;flex:none;accent-color:var(--orange)}
+  .cl-item .ci-main{min-width:0;flex:1}
+  .cl-item .ci-name{font-size:12px;color:var(--ink);line-height:1.35;word-break:break-word}
+  .cl-item .ci-meta{font-size:10.5px;color:var(--mute);margin-top:1px}
+  .cl-empty{padding:18px 14px;text-align:center;color:var(--mute);font-size:12px}
+
+  /* ===== shared date-range picker (Looker-style) ===== */
+  .dp{position:relative;display:inline-block;font-size:13px}
+  .dp{--dp-accent:var(--orange);--dp-bg:var(--card);--dp-panel:var(--paper);
+      --dp-line:var(--line);--dp-ink:var(--ink);--dp-muted:var(--mute)}
+  .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);
+      border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:8px;
+      padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
+  .dp-btn:hover{border-color:var(--dp-accent)}
+  .dp-btn svg{opacity:.75}
+  .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);
+      border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(42,30,32,.18);overflow:hidden}
+  .dp-pop.dp-hide{display:none}
+  .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);font-weight:600;font-size:12.5px;white-space:nowrap}
+  .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)}
+  .dp-presets a.dp-on{background:var(--dp-accent);color:#fff}
+  .dp-cal{padding:12px;width:264px}
+  .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
+  .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
+  .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)}
+  .dp-nav:disabled{opacity:.3;cursor:default}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .dp-dow{font-size:10px;font-weight:700;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;color:var(--dp-ink);border:1px solid transparent;user-select:none}
+  .dp-day:hover{border-color:var(--dp-accent)}
+  .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
+  .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
+  .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 18%,transparent)}
+  .dp-day.dp-sel{background:var(--dp-accent);color:#fff;font-weight:700;border-color:transparent}
+  .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center}
+  .dp-range b{color:var(--dp-ink)}
+  .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--dp-line);font-family:inherit}
+  .dp-cancel{background:transparent;color:var(--dp-muted)}
+  .dp-cancel:hover{color:var(--dp-ink)}
+  .dp-apply{background:var(--dp-accent);color:#fff;border-color:transparent}
+  @media(max-width:560px){
+    .dp-pop{flex-direction:column}
+    .dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}
+  }
+
+  /* date-scope banner */
+  .date-scope{background:#FDF6EC;border:1px solid #F0DBB8;border-left:4px solid var(--orange);border-radius:10px;
+              padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:#5A3E14}
+  .date-scope b{color:#3F2A0B}
+
+  .tabpane{display:none}
+
+  .section{border-top:1px solid var(--line);padding-top:18px;margin-top:24px}
+  .section.first{border-top:none;padding-top:0;margin-top:4px}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--ink)}
+  .section .sub{display:block;margin-top:3px;color:var(--ink2);font-size:12.5px;max-width:920px}
+
+  /* ---- grids + cards ---- */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .grid-2-1{display:grid;grid-template-columns:1.9fr 1fr;gap:16px;margin-top:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;
+        box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--ink)}
+  .card .hint{font-size:11.5px;color:var(--mute);margin:4px 0 10px 0}
+  .card-tall .chart-wrap{height:300px}
+  .chart-wrap{position:relative;flex:1;min-height:170px}
+
+  /* ---- KPIs ---- */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
+  .kpis.five{grid-template-columns:repeat(5,1fr)}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:10.5px;color:var(--mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--ink)}
+  .kpi .delta{font-size:11px;margin-top:4px;color:var(--mute);line-height:1.35}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--grey)}
+  .kpi.accent{background:linear-gradient(135deg,#fff 0%,var(--orange-soft) 100%);border-color:#F6CDBE}
+  .kpi.accent .stripe{background:var(--orange)}
+  .kpi.web{background:linear-gradient(135deg,#fff 0%,var(--maroon-soft) 100%);border-color:#E6CFD6}
+  .kpi.web .stripe{background:var(--maroon)}
+  .up{color:var(--good);font-weight:600}
+  .down{color:var(--bad);font-weight:600}
+
+  /* ---- info / AI notes ---- */
+  .info-note{background:var(--orange-soft);border:1px solid #F6CDBE;border-left:4px solid var(--orange);border-radius:10px;
+             padding:13px 16px;margin-top:16px;font-size:13px;color:#6B2410}
+  .info-note b{color:#491808}
+  .info-note.neutral{background:var(--maroon-soft);border-color:#E6CFD6;border-left-color:var(--maroon);color:#3F2330}
+  .info-note.neutral b{color:#2A1620}
+  .ai-note{background:linear-gradient(100deg,var(--maroon-soft) 0%,var(--orange-soft) 100%);border:1px solid #ECD6CF;
+           border-left:4px solid var(--maroon);border-radius:10px;padding:13px 16px;margin-top:16px;
+           font-size:13.5px;line-height:1.6;color:#3A2329}
+  .ai-note b{color:#241318}
+  .ai-note .ai-badge{display:inline-flex;align-items:center;gap:6px;font-size:10.5px;font-weight:700;
+           letter-spacing:.7px;text-transform:uppercase;color:var(--maroon);margin-bottom:5px;margin-right:8px}
+  .ai-note .ai-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--maroon);box-shadow:0 0 0 3px rgba(76,39,54,.16)}
+
+  /* ---- tables ---- */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mute);font-weight:600;background:#FAF6F1}
+  table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table tr:hover td{background:#FCF8F4}
+  table tr.total td{font-weight:700;background:#FBEEE8;border-bottom:none}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F4ECE6;color:var(--ink)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:5px;text-transform:uppercase}
+  .tag.paid{background:var(--orange-soft);color:var(--orange-deep)}
+  .tag.org{background:#E1F0EA;color:#1C6E59}
+  .tag.dir{background:#F0EBEC;color:#5A474C}
+  .tag.oth{background:#F1EEEC;color:var(--mute)}
+
+  /* ---- comparison strip + funnel ---- */
+  .compare-strip{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .stat-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px 20px;box-shadow:var(--shadow-card)}
+  .stat-card .k{font-size:11px;color:var(--mute);text-transform:uppercase;letter-spacing:.5px;font-weight:600}
+  .stat-card .v{font-size:28px;font-weight:800;letter-spacing:-.6px;margin-top:6px;color:var(--ink)}
+  .stat-card .v.orange{color:var(--orange)}
+  .stat-card .c{font-size:12px;color:var(--mute);margin-top:4px}
+  .funnel{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:14px}
+  .funnel .step{flex:1;min-width:150px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:14px 16px;box-shadow:var(--shadow-card)}
+  .funnel .step .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mute);font-weight:600}
+  .funnel .step .v{font-size:21px;font-weight:700;margin-top:4px;color:var(--ink)}
+  .funnel .arrow{color:var(--orange);font-size:22px;font-weight:700;flex:none}
+
+  .loading{padding:80px 20px;text-align:center;color:var(--mute)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--orange);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
+
+  footer{color:var(--mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--line)}
+  footer b{color:var(--ink)}
+
+  @media (max-width:1100px){.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.kpis.five{grid-template-columns:repeat(3,1fr)}}
+  @media (max-width:760px){.grid{grid-template-columns:1fr}.kpis,.kpis.five{grid-template-columns:repeat(2,1fr)}.compare-strip{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <!-- VMCH client logo (inlined data URI by creatives/inject_logos.py) -->
+    <img class="brandlogo" src="data:image/png;base64,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" alt="VMCH — Villa Maria Catholic Homes">
+    <div class="topbar-divider"></div>
+    <!-- 100% Digital — agency wordmark -->
+    <span class="agency-logo" title="100% Digital — agency">
+      <svg viewBox="0 0 150 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="100% Digital">
+        <text x="0" y="18" font-family="-apple-system,BlinkMacSystemFont,Inter,'Segoe UI',Roboto,sans-serif"
+              font-size="19" font-weight="800" letter-spacing="-.5" fill="#2A1E20">100<tspan fill="#EB3300">%</tspan></text>
+        <text x="55" y="18" font-family="-apple-system,BlinkMacSystemFont,Inter,'Segoe UI',Roboto,sans-serif"
+              font-size="15" font-weight="500" letter-spacing="2.2" fill="#574A4C">DIGITAL</text>
+      </svg>
+    </span>
+  </div>
+  <div class="topbar-right">
+    <div><span class="live"></span><b>Live</b> · The Trade Desk → VMCH website</div>
+    <div id="topPeriod">&nbsp;</div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>Fetching dashboard data from BigQuery…</div>
+  </div>
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="content" style="display:none">
+
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs">
+          <button class="tab" id="tabOverview" onclick="setTab('overview')">Overview</button>
+          <button class="tab" id="tabPaid"     onclick="setTab('paid')">Trade Desk</button>
+          <button class="tab" id="tabWeb"      onclick="setTab('web')">Website</button>
+          <button class="tab" id="tabLink"     onclick="setTab('link')">Media → Traffic</button>
+        </div>
+        <div class="tabs-right">
+          <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
+          <button class="export-btn" onclick="exportAllData()" title="Download the full dataset as one CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export data</span>
+          </button>
+        </div>
+      </div>
+      <div class="control-filters" id="filterRow">
+        <div class="filter-grp" id="dateGroup">
+          <span class="lbl">Date range</span>
+          <div class="dp" id="dateRange">
+            <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/>
+                <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span id="dpLabel">All time</span><span class="dp-cap">▾</span>
+            </button>
+            <div class="dp-pop dp-hide" id="dpPop">
+              <div class="dp-presets" id="dpPresets"></div>
+              <div class="dp-cal">
+                <div class="dp-cal-head">
+                  <button class="dp-nav" id="dpPrev" type="button">‹</button>
+                  <span id="dpMonthLbl"></span>
+                  <button class="dp-nav" id="dpNext" type="button">›</button>
+                </div>
+                <div class="dp-grid" id="dpGrid"></div>
+                <div class="dp-range" id="dpRangeLbl"></div>
+                <div class="dp-actions">
+                  <button class="dp-cancel" id="dpCancel" type="button">Cancel</button>
+                  <button class="dp-apply" id="dpApply" type="button">Apply</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fdiv" id="filterDiv2"></div>
+        <div class="filter-grp" id="campaignGroup">
+          <span class="lbl">Campaign</span>
+          <div class="campaign-dd">
+            <button class="campaign-btn" id="campaignBtn" onclick="toggleCampaignMenu(event)" aria-haspopup="true" aria-expanded="false">
+              <span class="lbltxt" id="campaignBtnLabel">All campaigns</span>
+              <span class="caret">▾</span>
+            </button>
+            <div class="campaign-menu" id="campaignMenu" style="display:none">
+              <div class="campaign-menu-head">
+                <input type="text" id="campaignSearch" placeholder="Search campaigns…" autocomplete="off" oninput="renderCampaignList()">
+                <div class="campaign-menu-actions">
+                  <span class="count" id="campaignCount">&nbsp;</span>
+                  <div class="btns">
+                    <button class="chip-action" onclick="allCampaigns()">All</button>
+                    <button class="chip-action" onclick="clearCampaigns()">Clear</button>
+                  </div>
+                </div>
+              </div>
+              <div class="campaign-list" id="campaignList"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="dateScopeNote" class="date-scope" style="display:none"></div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <div id="tab-overview" class="tabpane">
+      <div class="section first">
+        <h2>The Trade Desk campaign &amp; the VMCH website</h2>
+        <span class="sub">The Trade Desk programmatic display (four service-line campaigns — Residential Aged Care, Retirement Living, Seniors at Home, Disability) set against what happened on the VMCH website in Google Analytics&nbsp;4. Flight from April 2026. Reporting currency AUD. VMCH is a not-for-profit, so the website outcomes are enquiries — phone calls, emails and contact forms — not revenue.</span>
+      </div>
+
+      <div class="kpis" id="ovKpis"></div>
+
+      <div class="ai-note" id="ovCommentary"></div>
+
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Media spend, website sessions &amp; enquiries — monthly</h3>
+          <div class="hint">Trade Desk spend (orange bars, AUD, right axis) and total website sessions (line, left axis), with GA4 enquiry events by type as dashed lines. Spend reflects the Campaign filter; sessions &amp; enquiries are the whole website.</div>
+          <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Where website traffic came from</h3>
+          <div class="hint">Sessions by acquisition channel, flight window. Paid channels in orange.</div>
+          <div class="chart-wrap"><canvas id="ovDonut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Website sessions — paid vs the rest (monthly)</h3>
+          <div class="hint">Paid-channel sessions (orange) stacked over organic, direct and other.</div>
+          <div class="chart-wrap"><canvas id="ovStack"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Trade Desk delivery — monthly</h3>
+          <div class="hint">Impressions (bars) and clicks to site (line). Reflects the Campaign &amp; date filters.</div>
+          <div class="chart-wrap"><canvas id="ovDelivery"></canvas></div>
+        </div>
+      </div>
+
+      <div class="info-note neutral" id="ovNote"></div>
+    </div>
+
+    <!-- ============ TRADE DESK ============ -->
+    <div id="tab-paid" class="tabpane">
+      <div class="section first">
+        <h2>The Trade Desk — programmatic display delivery</h2>
+        <span class="sub">Spend, impressions, clicks and efficiency for the always-on display flight, by campaign, ad group and creative. Use the <b>Campaign</b> filter to focus on a service line. The Trade Desk pixels fire into anonymous conversion slots with no attributable revenue, so this is a delivery view — outcomes live on the <b>Website</b> and <b>Media → Traffic</b> tabs.</span>
+      </div>
+
+      <div class="kpis five" id="pmKpis"></div>
+
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Monthly delivery — spend &amp; clicks</h3>
+          <div class="hint">Spend (orange bars, AUD) with clicks to site (line, right axis), over the selected campaigns.</div>
+          <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Spend by campaign</h3>
+          <div class="hint">Share of Trade Desk spend across the four service-line campaigns.</div>
+          <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Campaign breakdown</h3>
+        <div class="hint">Whole-flight totals per service-line campaign (AUD).</div>
+        <div style="overflow:auto">
+          <table id="pmCampaigns">
+            <thead><tr><th>Campaign</th><th class="num">Spend (AUD)</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Top ad groups by spend</h3>
+          <div class="hint">Whole-flight (not date-scoped); honours the Campaign filter where the campaign prefix matches. Top 10 of <span id="pmAgCount">—</span>.</div>
+          <div class="chart-wrap"><canvas id="pmAdgroups"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Creative format mix</h3>
+          <div class="hint">Impressions by ad format, whole flight (not date-scoped).</div>
+          <div class="chart-wrap"><canvas id="pmFormatDonut"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ WEBSITE ============ -->
+    <div id="tab-web" class="tabpane">
+      <div class="section first">
+        <h2>Website traffic — GA4</h2>
+        <span class="sub">The VMCH website (one GA4 property), flight window. This is the outcome the media is working toward: visits, engagement and enquiries (phone, email, contact forms). The website has no campaign dimension, so it is not split by the Campaign filter.</span>
+      </div>
+
+      <div class="kpis" id="webKpis"></div>
+
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Sessions by channel</h3>
+          <div class="hint">All acquisition channels. Paid channels in orange (the Trade Desk lands in Display).</div>
+          <div class="chart-wrap"><canvas id="webChannels"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Monthly sessions — total vs paid</h3>
+          <div class="hint">Total sessions (line) with paid sessions (orange) and Display sessions (dashed).</div>
+          <div class="chart-wrap"><canvas id="webTrend"></canvas></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Enquiry events by type</h3>
+        <div class="hint">GA4 key events per month, split by type — phone calls, email clicks and contact-form submits are the meaningful enquiry signals for VMCH.</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="webKeyEvents"></canvas></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Top sources / mediums</h3>
+        <div class="hint">Where sessions originate. Paid sources flagged <span class="tag paid">AD</span>.</div>
+        <div style="overflow:auto">
+          <table id="webSources">
+            <thead><tr><th>Source / medium</th><th>Channel</th><th class="num">Sessions</th><th class="num">Engaged</th><th class="num">Eng. rate</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ MEDIA -> TRAFFIC ============ -->
+    <div id="tab-link" class="tabpane">
+      <div class="section first">
+        <h2>Media → Traffic — did the display flight move the site?</h2>
+        <span class="sub">Connecting Trade Desk delivery to the website. Programmatic display is an upper-funnel, awareness &amp; retargeting channel: it earns reach and clicks to site, but GA4 attributes few <b>last-click</b> "Display" sessions — so the honest read is delivery intensity vs. overall site activity, not a one-to-one session lift. Use the <b>Campaign</b> filter to focus the media side.</span>
+      </div>
+
+      <div class="info-note" id="linkHeadline"></div>
+
+      <div class="funnel" id="linkFunnel"></div>
+
+      <div class="card card-tall" style="margin-top:18px">
+        <h3>Weekly — Trade Desk impressions vs website sessions</h3>
+        <div class="hint">Weekly Trade Desk impressions (bars, right axis) against total website sessions (line, left axis). Flight weeks only.</div>
+        <div class="chart-wrap" style="height:300px"><canvas id="linkWeekly"></canvas></div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Correlation — weekly impressions vs website sessions</h3>
+          <div class="hint" id="linkScatterHint">Each dot is one flight week.</div>
+          <div class="chart-wrap"><canvas id="linkScatter"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Weekly clicks to site</h3>
+          <div class="hint">Direct on-site arrivals from the display flight, per week.</div>
+          <div class="chart-wrap"><canvas id="linkClicks"></canvas></div>
+        </div>
+      </div>
+
+      <div class="compare-strip" id="linkStats"></div>
+    </div>
+
+    <footer id="footMeta"></footer>
+  </div>
+</div>
+
+<script>
+//==============================================================================
+// CONFIG
+//==============================================================================
+const JSON_URL = '/data.json';
+const C = {
+  orange:'#EB3300', orangeDeep:'#C22A00', orangeSoft:'#F6B49E',
+  maroon:'#4C2736', maroon2:'#7A4154',
+  ink:'#2A1E20', mute:'#8C7E80', line:'#ECE3D9',
+  green:'#2E8B72', greenSoft:'#9FD0C2', slate:'#7A6A6E', grey:'#C9BEB8'
+};
+// GA4 channel-bucket colours
+const BUCKET_COLOR = { Paid:C.orange, Organic:C.green, Direct:C.slate, Referral:C.greenSoft, Other:C.grey };
+// distinct hues for enquiry-event series (phone / email / contact / …)
+const KE_PALETTE = [C.maroon, C.orange, C.green, '#B97400', C.maroon2, C.slate];
+
+//==============================================================================
+// STATE / HELPERS
+//==============================================================================
+let DATA = null, charts = {}, activeTab = 'overview';
+let activeCampaigns = new Set();   // TTD campaign filter (all on by default) — scopes AD DELIVERY only;
+                                   // the GA4/website side has no campaign dimension so it stays whole.
+let campaignMenuOpen = false;
+const el = id => document.getElementById(id);
+
+// Date range. Finest grain is month/week, so trend charts honour the range; whole-window
+// KPIs/donuts/tables stay full-period. ISO 'YYYY-MM-DD'; null = full window.
+let rangeStart = null, rangeEnd = null, dateMin = null, dateMax = null;
+const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
+const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
+const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+
+// ===================== shared date-range picker (Looker-style) =====================
+window.DateRange = (function(){
+  const PRESETS = [
+    {k:'7',  label:'Last 7 days'},  {k:'14', label:'Last 14 days'},
+    {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
+    {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
+    {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
+    {k:'all', label:'All time'},
+  ];
+  let MIN=null, MAX=null, onApply=null;
+  let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
+  let viewYear=0, viewMonth=0, open=false;
+
+  const pad = n => String(n).padStart(2,'0');
+  const iso = d => d ? d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()) : null;
+  const parse = s => { if(!s) return null; const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); return m?new Date(+m[1],+m[2]-1,+m[3]):null; };
+  const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
+  const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const $ = id => document.getElementById(id);
+
+  function presetRange(k){
+    let s, e=new Date(MAX);
+    if(/^\d+$/.test(k))            s = addDays(MAX, -(parseInt(k,10)-1));
+    else if(k==='month')          s = new Date(MAX.getFullYear(), MAX.getMonth(), 1);
+    else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
+                                  e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
+    else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else                          { s=new Date(MIN); e=new Date(MAX); }
+    return [clamp(s), clamp(e)];
+  }
+  function detectPreset(s,e){
+    for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
+    return 'custom';
+  }
+  function init(opts){
+    opts = opts || {};
+    MIN = parse(opts.min); MAX = parse(opts.max);
+    if(!MAX) MAX = new Date();
+    if(!MIN) MIN = addDays(MAX, -364);
+    if(MIN>MAX){ const t=MIN; MIN=MAX; MAX=t; }
+    onApply = opts.onApply || null;
+    selStart = opts.initialStart ? clamp(parse(opts.initialStart)) : new Date(MIN);
+    selEnd   = opts.initialEnd   ? clamp(parse(opts.initialEnd))   : new Date(MAX);
+    draftStart = new Date(selStart); draftEnd = new Date(selEnd);
+    viewYear = draftEnd.getFullYear(); viewMonth = draftEnd.getMonth();
+    $('dpPrev').onclick   = () => { nav(-1); };
+    $('dpNext').onclick   = () => { nav(1);  };
+    $('dpCancel').onclick = () => { close(); };
+    $('dpApply').onclick  = () => { apply(); };
+    $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
+    $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
+    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); }, true);
+    updateButton();
+  }
+  function toggle(ev){ if(ev) ev.stopPropagation(); open ? close() : openPop(); }
+  function openPop(){
+    open=true; draftStart=new Date(selStart); draftEnd=new Date(selEnd);
+    viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
+    $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function close(){ open=false; $('dpPop').classList.add('dp-hide'); }
+  function nav(delta){
+    let y=viewYear, m=viewMonth+delta;
+    if(m<0){m=11;y--;} if(m>11){m=0;y++;}
+    const first=new Date(y,m,1);
+    if(first < new Date(MIN.getFullYear(),MIN.getMonth(),1)) return;
+    if(first > new Date(MAX.getFullYear(),MAX.getMonth(),1)) return;
+    viewYear=y; viewMonth=m; renderCal();
+  }
+  function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
+    viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+  function pickDay(d){
+    if(!draftStart || (draftStart && draftEnd)){ draftStart=d; draftEnd=null; }
+    else if(d < draftStart){ draftEnd=draftStart; draftStart=d; }
+    else { draftEnd=d; }
+    renderPresets(); renderCal(); renderRangeLbl();
+  }
+  function apply(){ if(!draftStart) return;
+    selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
+    close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
+  function renderPresets(){
+    const cur = detectPreset(draftStart, draftEnd||draftStart);
+    $('dpPresets').innerHTML = PRESETS.map(p =>
+      `<a data-k="${p.k}" class="${p.k===cur?'dp-on':''}">${p.label}</a>`).join('');
+  }
+  function renderCal(){
+    $('dpMonthLbl').textContent = new Date(viewYear,viewMonth,1)
+      .toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    $('dpPrev').disabled = new Date(viewYear,viewMonth,1) <= new Date(MIN.getFullYear(),MIN.getMonth(),1);
+    $('dpNext').disabled = new Date(viewYear,viewMonth,1) >= new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    const dow=['S','M','T','W','T','F','S'];
+    let html = dow.map(d=>`<div class="dp-dow">${d}</div>`).join('');
+    const first=new Date(viewYear,viewMonth,1), lead=first.getDay();
+    const days=new Date(viewYear,viewMonth+1,0).getDate();
+    for(let i=0;i<lead;i++) html+=`<div class="dp-day dp-blank"></div>`;
+    const lo=draftStart, hi=draftEnd||draftStart;
+    for(let d=1; d<=days; d++){
+      const cur=new Date(viewYear,viewMonth,d);
+      const dis = cur<MIN || cur>MAX;
+      let cls='dp-day';
+      if(dis) cls+=' dp-disabled';
+      else {
+        if(lo && hi && cur>=lo && cur<=hi) cls+=' dp-inrange';
+        if(sameDay(cur,lo) || sameDay(cur,hi)) cls+=' dp-sel';
+      }
+      html += `<div class="${cls}" ${dis?'':`data-iso="${iso(cur)}"`}>${d}</div>`;
+    }
+    $('dpGrid').innerHTML=html;
+  }
+  function renderRangeLbl(){
+    $('dpRangeLbl').innerHTML = draftStart
+      ? `<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`
+      : 'Pick a start date';
+  }
+  function updateButton(){
+    const k = detectPreset(selStart, selEnd);
+    $('dpLabel').textContent = (k!=='custom')
+      ? PRESETS.find(p=>p.k===k).label
+      : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
+  }
+  return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+})();
+
+//==============================================================================
+// FORMATTERS
+//==============================================================================
+const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
+const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
+const fmtPct = (v,d=2) => v==null||isNaN(v) ? '—' : (v*100).toFixed(d)+'%';
+const money  = (v,sym='A$',d=0) => v==null||isNaN(v) ? '—' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+function dur(sec){ if(sec==null||isNaN(sec)) return '—'; const m=Math.floor(sec/60), s=Math.round(sec%60); return m? `${m}m ${s}s` : `${s}s`; }
+function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+function dayLabel(d){ const dt=new Date(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function pct(part,whole){ return whole? part/whole : 0; }
+function deltaHTML(now, base){
+  if(!base) return '';
+  const d = (now-base)/base;
+  return `<span class="${d>=0?'up':'down'}">${d>=0?'▲':'▼'} ${Math.abs(d*100).toFixed(0)}%</span>`;
+}
+
+//==============================================================================
+// CAMPAIGN DISPLAY NAMES — raw platform strings -> VMCH service lines.
+// The raw string stays the filter KEY; this map only changes what we SHOW.
+//==============================================================================
+const CAMPAIGN_LABELS = {
+  "RAC_AU_ID Digital_VMCH_2026":        "Residential Aged Care",
+  "RL_AU_ID Digital_VMCH_2026":         "Retirement Living",
+  "SAH_AU_ID Digital_VMCH_2026":        "Seniors at Home",
+  "Disability_AU_ID Digital_VMCH_2026": "Disability Services",
+};
+function campLabel(raw){ return CAMPAIGN_LABELS[raw] || (raw||'').replace(/_/g,' '); }
+const campOn = name => activeCampaigns.has(name);
+
+//==============================================================================
+// AD DELIVERY (Trade Desk) — all figures summed from the campaign-grained arrays,
+// so the Campaign filter rescales every ad number. Spend field = spend_aud.
+//==============================================================================
+function adCampaignsSel(){ return (DATA.ad_campaigns||[]).filter(c=>campOn(c.campaign)); }
+function adTotals(){
+  let imps=0, clk=0, spend=0;
+  for(const c of adCampaignsSel()){ imps+=c.imps||0; clk+=c.clicks||0; spend+=c.spend_aud||0; }
+  return {imps, clk, spend};
+}
+// month -> {imps,clk,spend} over selected campaigns, within the picker range.
+function adMonthlyMap(){
+  const m = {};
+  for(const r of (DATA.ad_campaign_monthly||[])){
+    if(!campOn(r.campaign) || !inRangeMonth(r.month)) continue;
+    const e = m[r.month] || (m[r.month] = {imps:0,clk:0,spend:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0;
+  }
+  return m;
+}
+// week_start -> {imps,clk,spend} over selected campaigns, within the picker range.
+function adWeeklyMap(){
+  const m = {};
+  for(const r of (DATA.ad_campaign_weekly||[])){
+    if(!campOn(r.campaign) || !inRangeWeek(r.week_start)) continue;
+    const e = m[r.week_start] || (m[r.week_start] = {imps:0,clk:0,spend:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0;
+  }
+  return m;
+}
+function campaignScopeText(){
+  const tot = (DATA.ad_campaigns||[]).length, sel = activeCampaigns.size;
+  if(sel>=tot) return `all ${tot} campaigns`;
+  if(sel===0)  return 'no campaigns';
+  return `${sel} of ${tot} campaigns`;
+}
+// Ad-group rows whose name carries a selected campaign's prefix (RAC/RL/SAH/Disability).
+function adgroupsSel(){
+  const sel = adCampaignsSel().map(c => c.campaign.split('_')[0].toLowerCase());
+  const all = activeCampaigns.size >= (DATA.ad_campaigns||[]).length;
+  return (DATA.ttd_adgroups||[]).filter(r => all || sel.some(p => (r.ad_group||'').toLowerCase().startsWith(p)));
+}
+
+//==============================================================================
+// GA4 (single market — read kpi/monthly/weekly directly; aggregate channels/sources)
+//==============================================================================
+const ga4Kpi = () => DATA.kpi || {};
+function ga4MonthlyRange(){ return (DATA.monthly||[]).filter(r=>inRangeMonth(r.month)); }
+function ga4Channels(){
+  const m = {};
+  for(const r of (DATA.ga4_channels_market||[])){
+    const e = m[r.channel] || (m[r.channel] = {channel:r.channel,bucket:r.bucket,sessions:0,engaged:0,users:0,conversions:0});
+    e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.users+=r.users||0; e.conversions+=r.conversions||0;
+  }
+  return Object.values(m).filter(c=>c.sessions>0).sort((a,b)=>b.sessions-a.sessions);
+}
+function ga4Sources(){
+  const m = {};
+  for(const r of (DATA.ga4_sources_market||[])){
+    const e = m[r.source_medium] || (m[r.source_medium] = {source_medium:r.source_medium,channel:r.channel,bucket:r.bucket,sessions:0,engaged:0,conversions:0});
+    e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.conversions+=r.conversions||0;
+  }
+  return Object.values(m).sort((a,b)=>b.sessions-a.sessions).slice(0,15);
+}
+// Enquiry events by type, by month (picker range). Drops all-zero types.
+// -> {byMonth:{month:{event:count}}, types:[event] sorted by total desc, total}
+function keyEvents(){
+  const byMonth = {}, totals = {};
+  for(const r of (DATA.ga4_key_events||[])){
+    if(!inRangeMonth(r.month)) continue;
+    (byMonth[r.month] || (byMonth[r.month] = {}));
+    byMonth[r.month][r.event_name] = (byMonth[r.month][r.event_name]||0) + (r.key_events||0);
+    totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
+  }
+  const types = Object.keys(totals).filter(t=>totals[t]>0).sort((a,b)=>totals[b]-totals[a]);
+  const total = types.reduce((s,t)=>s+totals[t],0);
+  return { byMonth, types, totals, total };
+}
+// Enquiry total over the flight window (months >= window.start) — the headline "Enquiries" KPI.
+function enquiriesFlight(){
+  const start = (DATA.window||{}).start || '0000-00';
+  let t=0; for(const r of (DATA.ga4_key_events||[])){ if(r.month >= start.slice(0,7)) t += r.key_events||0; }
+  return t;
+}
+
+//==============================================================================
+// BOOT
+//==============================================================================
+async function boot(){
+  try{
+    const res = await fetch(JSON_URL, {cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
+    DATA = await res.json();
+    activeCampaigns = new Set((DATA.ad_campaigns||[]).map(c => c.campaign));
+    const h = (location.hash||'').replace('#','');
+    if(['overview','paid','web','link'].includes(h)) activeTab = h;
+    // Scope the dashboard to the FLIGHT (Apr 2026 →). KPIs are flight-window, and the pre-flight
+    // 2025 months use a different/!lapsed GA4 key-event taxonomy, so including them would mislead
+    // (the enquiry series would show a false cliff). dateMax must cover the latest weekly point too
+    // (weeks run a few days past window.end), else the final week clips off the Media → Traffic charts.
+    const months = (DATA.monthly||[]).map(r=>r.month).sort();
+    const lastWeek = (DATA.weekly||[]).map(r=>r.week_start).sort().pop();
+    const monthEnd = months.length ? months[months.length-1]+'-28' : null;
+    dateMin = (DATA.window||{}).start || (months.length ? months[0]+'-01' : null);
+    dateMax = [ (DATA.window||{}).end, lastWeek, monthEnd ].filter(Boolean).sort().pop();
+    rangeStart = dateMin; rangeEnd = dateMax;
+    DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });
+    el('loading').style.display='none';
+    el('content').style.display='block';
+    renderMeta();
+    renderControls();
+    renderActive();
+  }catch(e){
+    el('loading').style.display='none';
+    el('error').style.display='block';
+    el('errDetail').textContent = e.message;
+  }
+}
+
+function renderMeta(){
+  const w = DATA.window||{};
+  const fmt = d => d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  el('topPeriod').textContent = `${fmt(w.start)} – ${fmt(w.end)}`;
+  const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
+  const dt = DATA.data_through ? new Date(DATA.data_through) : null;
+  el('footMeta').innerHTML = `VMCH dashboard · data from BigQuery (GA4 · The Trade Desk) · AUD, no FX · `
+    + `Data through <b>${dt&&!isNaN(dt)?dt.toUTCString().replace(/ GMT$/,' UTC'):'—'}</b> · `
+    + `Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+}
+
+function renderControls(){
+  el('tabOverview').className = 'tab'+(activeTab==='overview'?' on':'');
+  el('tabPaid').className     = 'tab'+(activeTab==='paid'?' on':'');
+  el('tabWeb').className       = 'tab'+(activeTab==='web'?' on':'');
+  el('tabLink').className     = 'tab'+(activeTab==='link'?' on':'');
+  const notes = { overview:'Campaign vs website outcomes', paid:'Trade Desk delivery',
+    web:'GA4 website analytics', link:'Connecting media to traffic' };
+  el('ctrlNote').textContent = notes[activeTab]||'';
+  // Campaign filter scopes ad delivery; hidden on the Website tab (no campaign grain there).
+  const showCampaign = activeTab !== 'web';
+  el('campaignGroup').style.display = showCampaign ? 'flex' : 'none';
+  el('filterDiv2').style.display    = showCampaign ? 'block' : 'none';
+  renderCampaignButton();
+}
+
+//==============================================================================
+// CAMPAIGN dropdown (searchable multi-select)
+//==============================================================================
+const allCampaignNames = () => (DATA.ad_campaigns||[]).map(c=>c.campaign);
+function renderCampaignButton(){
+  const total = (DATA.ad_campaigns||[]).length;
+  const sel = activeCampaigns.size;
+  const btn = el('campaignBtn'), lbl = el('campaignBtnLabel');
+  if(sel >= total){ lbl.textContent = 'All campaigns'; btn.classList.remove('filtered'); }
+  else if(sel === 0){ lbl.textContent = 'No campaigns'; btn.classList.add('filtered'); }
+  else { lbl.textContent = `${sel} of ${total} campaigns`; btn.classList.add('filtered'); }
+  btn.setAttribute('aria-expanded', campaignMenuOpen ? 'true' : 'false');
+}
+function toggleCampaignMenu(e){
+  if(e) e.stopPropagation();
+  campaignMenuOpen = !campaignMenuOpen;
+  el('campaignMenu').style.display = campaignMenuOpen ? 'block' : 'none';
+  el('campaignBtn').setAttribute('aria-expanded', campaignMenuOpen ? 'true' : 'false');
+  if(campaignMenuOpen){ renderCampaignList(); setTimeout(()=>{ const s=el('campaignSearch'); if(s) s.focus(); }, 0); }
+}
+function closeCampaignMenu(){
+  if(!campaignMenuOpen) return;
+  campaignMenuOpen = false;
+  el('campaignMenu').style.display = 'none';
+  el('campaignBtn').setAttribute('aria-expanded','false');
+}
+document.addEventListener('click', e => { const dd = e.target.closest && e.target.closest('.campaign-dd'); if(!dd) closeCampaignMenu(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeCampaignMenu(); });
+
+function renderCampaignList(){
+  const list = el('campaignList'); if(!list) return;
+  const q = (el('campaignSearch').value||'').trim().toLowerCase();
+  const camps = (DATA.ad_campaigns||[]).filter(c => !q || c.campaign.toLowerCase().includes(q) || campLabel(c.campaign).toLowerCase().includes(q))
+                                       .sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
+  el('campaignCount').textContent = `${activeCampaigns.size} of ${(DATA.ad_campaigns||[]).length} selected`;
+  const selN = camps.filter(c=>campOn(c.campaign)).length, allSel = selN===camps.length && camps.length>0;
+  let html = camps.length ? `<div class="cl-group">
+      <div class="cl-group-head">
+        <span class="cl-group-title"><span class="dot" style="background:${C.orange}"></span>The Trade Desk · ${camps.length}</span>
+        <button class="cl-group-toggle" onclick="toggleAllCampaigns(${allSel?'false':'true'})">${allSel?'Clear':'Select'} all</button>
+      </div>` : '';
+  camps.forEach(c => {
+    const checked = campOn(c.campaign) ? 'checked' : '';
+    const safe = c.campaign.replace(/"/g,'&quot;');
+    html += `<label class="cl-item" title="${safe}">
+      <input type="checkbox" ${checked} onchange="toggleCampaign(this, '${encodeURIComponent(c.campaign).replace(/'/g,'%27')}')">
+      <span class="ci-main">
+        <span class="ci-name">${campLabel(c.campaign)}</span>
+        <span class="ci-meta">${fmtM(c.imps)} imps · ${money(c.spend_aud)}</span>
+      </span>
+    </label>`;
+  });
+  if(camps.length) html += `</div>`;
+  list.innerHTML = html || `<div class="cl-empty">No campaigns match “${q}”.</div>`;
+}
+function toggleCampaign(input, encName){
+  const name = decodeURIComponent(encName);
+  input.checked ? activeCampaigns.add(name) : activeCampaigns.delete(name);
+  renderCampaignButton(); renderActive();
+}
+function toggleAllCampaigns(select){
+  (DATA.ad_campaigns||[]).forEach(c => { select ? activeCampaigns.add(c.campaign) : activeCampaigns.delete(c.campaign); });
+  renderCampaignButton(); renderCampaignList(); renderActive();
+}
+function allCampaigns(){ activeCampaigns = new Set(allCampaignNames()); renderCampaignButton(); renderCampaignList(); renderActive(); }
+function clearCampaigns(){ activeCampaigns = new Set(); renderCampaignButton(); renderCampaignList(); renderActive(); }
+
+function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
+
+function renderActive(){
+  ['overview','paid','web','link'].forEach(t => el('tab-'+t).style.display = (t===activeTab?'block':'none'));
+  renderDateScope();
+  destroyCharts();
+  if(activeTab==='overview') renderOverview();
+  else if(activeTab==='paid') renderPaid();
+  else if(activeTab==='web') renderWeb();
+  else renderLink();
+}
+function renderDateScope(){
+  const note = el('dateScopeNote'); if(!note) return;
+  if(!narrowed()){ note.style.display='none'; return; }
+  note.style.display='block';
+  note.innerHTML = '📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to whole months/weeks). '
+    + 'The monthly &amp; weekly <b>trend charts</b> reflect this range; KPI cards, the channel/source breakdowns, '
+    + 'spend donuts and campaign/creative tables show the <b>full flight</b> (those aren\'t available at a finer grain in the feed).';
+}
+function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
+
+//==============================================================================
+// shared chart helpers
+//==============================================================================
+const FONT = {family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
+function gridY(opts={}){ return Object.assign({grid:{color:'#F1EAE2'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
+function kpiCard(cls,label,value,delta){
+  return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
+}
+function shade(hex,i){ const f=[0,-14,16,-26,30,-36,44,-44,52,-52,58][i%11]||0; return adjust(hex,f); }
+function adjust(hex,amt){
+  let h=hex.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join('');
+  let r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  r=Math.max(0,Math.min(255,r+amt)); g=Math.max(0,Math.min(255,g+amt)); b=Math.max(0,Math.min(255,b+amt));
+  return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
+}
+const centerText = {
+  id:'centerText',
+  afterDraw(chart){
+    const o=chart.config.options.cutoutText; if(!o) return;
+    const {ctx,chartArea:{left,right,top,bottom}}=chart;
+    const x=(left+right)/2, y=(top+bottom)/2;
+    ctx.save(); ctx.textAlign='center';
+    ctx.fillStyle=C.ink; ctx.font=`700 22px ${FONT.family}`; ctx.fillText(o.line1,x,y-2);
+    ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+16);
+    ctx.restore();
+  }
+};
+function pearson(xs,ys){
+  const n=xs.length; if(n<2) return 0;
+  const mx=xs.reduce((a,b)=>a+b,0)/n, my=ys.reduce((a,b)=>a+b,0)/n;
+  let sxy=0,sxx=0,syy=0;
+  for(let i=0;i<n;i++){ const dx=xs[i]-mx, dy=ys[i]-my; sxy+=dx*dy; sxx+=dx*dx; syy+=dy*dy; }
+  return (sxx&&syy)? sxy/Math.sqrt(sxx*syy) : 0;
+}
+
+//==============================================================================
+// OVERVIEW
+//==============================================================================
+function renderOverview(){
+  const g = ga4Kpi();
+  const a = adTotals();
+  const ctr = pct(a.clk, a.imps);
+  const adShare = pct(g.paid_sessions, g.sessions);
+  const engRate = pct(g.engaged_sessions, g.sessions);
+  const enq = enquiriesFlight();
+  el('ovKpis').innerHTML =
+    kpiCard('accent','Media spend (AUD)', money(a.spend), `The Trade Desk · ${campaignScopeText()}`)
+  + kpiCard('accent','Ad impressions', fmtM(a.imps), `${money(a.imps?a.spend/a.imps*1000:0,'A$',2)} CPM`)
+  + kpiCard('accent','Clicks to site', fmtN(a.clk), `${fmtPct(ctr,2)} CTR`)
+  + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
+  + kpiCard('web','Paid sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
+  + kpiCard('web','Enquiries', fmtN(enq), `phone · email · contact form`);
+
+  renderOvCommentary();
+
+  // Hero: TTD spend bars (y1, AUD) + website sessions line (y) + enquiry events dashed (y2)
+  const M = ga4MonthlyRange();
+  const am = adMonthlyMap();
+  const labels = M.map(r=>monthLabel(r.month));
+  const ke = keyEvents();
+  const keTypes = ke.types.slice(0,4);
+  const keLines = keTypes.map((t,i)=>({
+    type:'line', label:t, yAxisID:'y2', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0,
+    data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+    borderColor:KE_PALETTE[i % KE_PALETTE.length], backgroundColor:KE_PALETTE[i % KE_PALETTE.length]
+  }));
+  charts.ovHero = new Chart(el('ovHero'),{
+    data:{ labels, datasets:[
+      { type:'line', label:'Website sessions', data:M.map(r=>r.sessions||0), yAxisID:'y',
+        borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.08)', borderWidth:2.5, tension:.35, fill:true, pointRadius:2.5, pointBackgroundColor:C.maroon, order:1 },
+      { type:'bar', label:'Trade Desk spend', yAxisID:'y1', data:M.map(r=>(am[r.month]||{}).spend||0),
+        backgroundColor:C.orange, borderRadius:3, maxBarThickness:26, order:2 },
+      ...keLines
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}}},
+      scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'A$'+fmtM(v)}},
+        y2:{display:false} } }
+  });
+
+  // Donut: sessions by channel
+  const ch = ga4Channels();
+  const donutData = ch.map(c=>({label:c.channel, v:c.sessions, color:BUCKET_COLOR[c.bucket]||C.grey}));
+  charts.ovDonut = new Chart(el('ovDonut'),{
+    type:'doughnut',
+    data:{ labels:donutData.map(d=>d.label), datasets:[{ data:donutData.map(d=>d.v),
+      backgroundColor:donutData.map((d,i)=>shade(d.color,i)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,g.sessions),1)})`}} },
+      cutoutText:{ line1:fmtM(g.sessions), line2:'sessions' } },
+    plugins:[centerText]
+  });
+
+  // Stacked monthly paid vs rest
+  charts.ovStack = new Chart(el('ovStack'),{
+    type:'bar',
+    data:{ labels, datasets:[
+      { label:'Paid', data:M.map(r=>r.paid_sessions||0), backgroundColor:C.orange, stack:'s', borderRadius:{topLeft:3,topRight:3} },
+      { label:'Organic', data:M.map(r=>r.organic_sessions||0), backgroundColor:C.green, stack:'s' },
+      { label:'Direct', data:M.map(r=>r.direct_sessions||0), backgroundColor:C.slate, stack:'s' },
+      { label:'Other', data:M.map(r=>r.other_sessions||0), backgroundColor:C.grey, stack:'s' }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // TTD delivery: impressions bars + clicks line
+  charts.ovDelivery = new Chart(el('ovDelivery'),{
+    data:{ labels, datasets:[
+      { type:'bar', label:'Impressions', data:M.map(r=>(am[r.month]||{}).imps||0), backgroundColor:C.orange, borderRadius:3, maxBarThickness:30, yAxisID:'y' },
+      { type:'line', label:'Clicks to site', data:M.map(r=>(am[r.month]||{}).clk||0), borderColor:C.maroon, backgroundColor:C.maroon, borderWidth:2.5, tension:.3, pointRadius:3, yAxisID:'y1' }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({title:{display:true,text:'Impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+  });
+
+  el('ovNote').innerHTML = `<b>How to read this.</b> The paid-media KPIs and the spend/delivery charts reflect the <b>Campaign</b> filter (${campaignScopeText()}); `
+    + `website figures are the whole VMCH property (GA4 has no campaign dimension). `
+    + `The Trade Desk is an awareness &amp; retargeting <b>display</b> channel — it earns reach (impressions) and ${fmtN(a.clk)} clicks to site, `
+    + `but GA4 attributes few <b>last-click</b> Display sessions, so judge it on reach, clicks and the lift in overall enquiries rather than a one-to-one session count. `
+    + `Reporting currency AUD (The Trade Desk bills in AUD — no FX conversion). `
+    + `The most recent month/week can read low while GA4 and Trade Desk data finish landing (GA4 currently lands a few days behind delivery).`;
+}
+
+function renderOvCommentary(){
+  const box = el('ovCommentary');
+  const ke = keyEvents();                 // enquiry events over the selected (default = flight) range
+  if(!ke.types.length || ke.total<=0){ box.style.display='none'; return; }
+  box.style.display='';
+  const top = ke.types[0], topShare = pct(ke.totals[top], ke.total);
+  const second = ke.types[1];
+  const a = adTotals();
+  const lead = `<b>${top.replace(/_/g,' ')}</b> (${fmtN(ke.totals[top])}, ${fmtPct(topShare,0)})`
+    + (second ? ` and <b>${second.replace(/_/g,' ')}</b> (${fmtN(ke.totals[second])})` : '');
+  box.innerHTML =
+    `<div class="ai-badge"><span class="dot"></span>AI commentary</div>`
+  + `<b>Enquiries are the outcome to watch.</b> Over the flight the VMCH website logged `
+  + `<b>${fmtN(ke.total)}</b> enquiry actions across ${ke.types.length} type${ke.types.length===1?'':'s'} — led by ${lead}. `
+  + `Alongside <b>${fmtN(a.imps)}</b> Trade Desk impressions and <b>${fmtN(a.clk)}</b> clicks to site, the website kept turning `
+  + `visits into phone, email and contact-form enquiries — the real measure of value for a not-for-profit. `
+  + `(Display is upper-funnel, so most enquiries are assisted rather than last-click.)`;
+}
+
+//==============================================================================
+// TRADE DESK
+//==============================================================================
+function renderPaid(){
+  const a = adTotals();
+  const ctr = pct(a.clk,a.imps), cpm = a.imps? a.spend/a.imps*1000:0, cpc = a.clk? a.spend/a.clk:0;
+  el('pmKpis').innerHTML =
+    kpiCard('accent','Spend (AUD)', money(a.spend), `${campaignScopeText()}`)
+  + kpiCard('accent','Impressions', fmtM(a.imps), `${money(cpm,'A$',2)} CPM`)
+  + kpiCard('accent','Clicks to site', fmtN(a.clk), `${money(cpc,'A$',2)} CPC`)
+  + kpiCard('','CTR', fmtPct(ctr,2), `clicks ÷ impressions`)
+  + kpiCard('','Campaigns', `${adCampaignsSel().length}`, `of ${(DATA.ad_campaigns||[]).length} service lines`);
+
+  // Monthly spend + clicks over selected campaigns
+  const am = adMonthlyMap();
+  const M = (DATA.monthly||[]).filter(r=> inRangeMonth(r.month) && (((am[r.month]||{}).imps||0)>0 || ((am[r.month]||{}).spend||0)>0));
+  const labels = M.map(r=>monthLabel(r.month));
+  charts.pmMonthly = new Chart(el('pmMonthly'),{
+    data:{ labels, datasets:[
+      { type:'bar', label:'Spend (AUD)', data:M.map(r=>(am[r.month]||{}).spend||0), backgroundColor:C.orange, borderRadius:{topLeft:3,topRight:3}, maxBarThickness:34, yAxisID:'y' },
+      { type:'line', label:'Clicks to site', data:M.map(r=>(am[r.month]||{}).clk||0), borderColor:C.maroon, backgroundColor:C.maroon, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):money(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+  });
+
+  // Spend by campaign donut
+  const camps = adCampaignsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
+  charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
+    type:'doughnut',
+    data:{ labels:camps.map(c=>campLabel(c.campaign)), datasets:[{ data:camps.map(c=>c.spend_aud||0),
+      backgroundColor:camps.map((c,i)=>shade(C.orange,i*2)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
+      cutoutText:{line1:money(a.spend),line2:'AUD'} }, plugins:[centerText]
+  });
+
+  // Campaign breakdown table
+  const rowsHtml = camps.map(c=>{
+    const cr=pct(c.clicks,c.imps), cm=c.imps?c.spend_aud/c.imps*1000:0, cc=c.clicks?c.spend_aud/c.clicks:0;
+    return `<tr><td><span class="pill"><span class="dot" style="background:${C.orange}"></span>${campLabel(c.campaign)}</span></td>
+      <td class="num">${money(c.spend_aud)}</td><td class="num">${fmtN(c.imps)}</td><td class="num">${fmtN(c.clicks)}</td>
+      <td class="num">${fmtPct(cr,2)}</td><td class="num">${money(cm,'A$',2)}</td><td class="num">${money(cc,'A$',2)}</td></tr>`;
+  }).join('');
+  el('pmCampaigns').querySelector('tbody').innerHTML = rowsHtml +
+    `<tr class="total"><td>All selected</td><td class="num">${money(a.spend)}</td><td class="num">${fmtN(a.imps)}</td><td class="num">${fmtN(a.clk)}</td>
+      <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'A$',2)}</td><td class="num">${money(cpc,'A$',2)}</td></tr>`;
+
+  // Top ad groups by spend (horizontal bar)
+  const ag = adgroupsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
+  el('pmAgCount').textContent = ag.length;
+  const agTop = ag.slice(0,10);
+  charts.pmAdgroups = new Chart(el('pmAdgroups'),{
+    type:'bar',
+    data:{ labels:agTop.map(r=>shortAg(r.ad_group)), datasets:[{ label:'Spend (AUD)', data:agTop.map(r=>r.spend_aud||0),
+      backgroundColor:C.orange, borderRadius:4, maxBarThickness:18 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{title:items=>agTop[items[0].dataIndex].ad_group, label:c=>` ${money(c.parsed.x)} · ${fmtN(agTop[c.dataIndex].imps)} imps · ${fmtN(agTop[c.dataIndex].clicks)} clicks`}} },
+      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}), y:axisX({ticks:{color:C.ink,font:{size:10}}}) } }
+  });
+
+  // Creative format mix donut
+  const fmt = {};
+  for(const r of (DATA.ttd_creative||[])){ const k=r.ad_format||'(unknown)'; (fmt[k]=fmt[k]||{imps:0}); fmt[k].imps+=r.imps||0; }
+  const fmtArr = Object.entries(fmt).map(([k,v])=>({label:k, v:v.imps})).sort((a,b)=>b.v-a.v);
+  const fmtTotal = fmtArr.reduce((s,x)=>s+x.v,0);
+  charts.pmFormatDonut = new Chart(el('pmFormatDonut'),{
+    type:'doughnut',
+    data:{ labels:fmtArr.map(x=>x.label), datasets:[{ data:fmtArr.map(x=>x.v),
+      backgroundColor:fmtArr.map((x,i)=>shade(C.maroon,i*6)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'60%',
+      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps (${fmtPct(pct(c.parsed,fmtTotal),0)})`}} },
+      cutoutText:{line1:fmtM(fmtTotal),line2:'imps'} }, plugins:[centerText]
+  });
+}
+// Trim the long TTD ad-group strings for the y-axis labels.
+function shortAg(s){
+  if(!s) return '(unknown)';
+  return s.replace(/_AU_ID Digital_VMCH_2026/g,'').replace(/_/g,' ').replace(/\s+/g,' ').trim().slice(0,42);
+}
+
+//==============================================================================
+// WEBSITE
+//==============================================================================
+function renderWeb(){
+  const g = ga4Kpi();
+  const engRate=pct(g.engaged_sessions,g.sessions), avgEng=g.sessions?g.eng_duration/g.sessions:0;
+  const enq = enquiriesFlight();
+  el('webKpis').innerHTML =
+    kpiCard('web','Sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
+  + kpiCard('web','Total users', fmtM(g.users), `${g.users?(g.sessions/g.users).toFixed(1):'—'} sessions / user`)
+  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
+  + kpiCard('web','Page views', fmtM(g.page_views), `${g.sessions?(g.page_views/g.sessions).toFixed(1):'—'} per session`)
+  + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
+  + kpiCard('accent','Enquiries', fmtN(enq), `phone · email · contact form`);
+
+  // sessions by channel (horizontal bar)
+  const ch = ga4Channels();
+  charts.webChannels = new Chart(el('webChannels'),{
+    type:'bar',
+    data:{ labels:ch.map(c=>c.channel), datasets:[{ label:'Sessions', data:ch.map(c=>c.sessions),
+      backgroundColor:ch.map(c=>BUCKET_COLOR[c.bucket]||C.grey), borderRadius:4 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} sessions · ${ch[c.dataIndex].bucket}`}} },
+      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX() } }
+  });
+
+  // monthly trend total vs paid vs display
+  const M = ga4MonthlyRange();
+  const labels = M.map(r=>monthLabel(r.month));
+  charts.webTrend = new Chart(el('webTrend'),{
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Total sessions', data:M.map(r=>r.sessions||0), borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2 },
+      { label:'Paid sessions', data:M.map(r=>r.paid_sessions||0), borderColor:C.orange, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
+      { label:'Display sessions', data:M.map(r=>r.display_sessions||0), borderColor:C.orangeDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // enquiry events by type, by month (stacked bars)
+  const ke = keyEvents();
+  const keTypes = ke.types.slice(0,6);
+  charts.webKeyEvents = new Chart(el('webKeyEvents'),{
+    type:'bar',
+    data:{ labels, datasets: keTypes.map((t,i)=>({
+      label:t.replace(/_/g,' '), data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+      backgroundColor:KE_PALETTE[i % KE_PALETTE.length], stack:'ke', borderRadius:3, maxBarThickness:34 })) },
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
+  });
+
+  // top sources table
+  const srcs = ga4Sources();
+  el('webSources').querySelector('tbody').innerHTML = srcs.map(r=>{
+    const isAd = r.bucket==='Paid';
+    const tagCls = r.bucket==='Paid'?'paid':r.bucket==='Organic'?'org':r.bucket==='Direct'?'dir':'oth';
+    const eng = pct(r.engaged,r.sessions);
+    return `<tr><td>${isAd?'<span class="tag paid">AD</span> ':''}${r.source_medium}</td>
+      <td><span class="tag ${tagCls}">${r.channel}</span></td>
+      <td class="num">${fmtN(r.sessions)}</td><td class="num">${fmtN(r.engaged)}</td><td class="num">${fmtPct(eng,0)}</td></tr>`;
+  }).join('');
+}
+
+//==============================================================================
+// MEDIA -> TRAFFIC
+//==============================================================================
+function renderLink(){
+  const W = DATA.weekly||[];
+  const a = adTotals();
+  const aw = adWeeklyMap();
+  const g = ga4Kpi();
+  const adImpsW = r => (aw[r.week_start]||{}).imps||0;
+  const adClkW  = r => (aw[r.week_start]||{}).clk||0;
+
+  const wk = W.filter(r=> inRangeWeek(r.week_start));
+  const sessOf = r => r.ga4_sessions||0;
+  const dispSess = (DATA.monthly||[]).filter(r=>r.month>=((DATA.window||{}).start||'').slice(0,7)).reduce((s,r)=>s+(r.display_sessions||0),0);
+  const sessPer1k = a.imps ? a.clk/(a.imps/1000) : 0;
+
+  el('linkHeadline').innerHTML = `<b>Reach delivered, clicks earned.</b> Across the flight, <b>${money(a.spend)}</b> of Trade Desk display `
+    + `delivered <b>${fmtN(a.imps)}</b> impressions and <b>${fmtN(a.clk)}</b> clicks to the VMCH site (${fmtPct(pct(a.clk,a.imps),2)} CTR). `
+    + `Display is upper-funnel, so GA4 recorded only <b>${fmtN(dispSess)}</b> last-click Display sessions over the flight — `
+    + `the campaign's job is reach and assisted enquiry, not last-click traffic.`;
+
+  el('linkFunnel').innerHTML =
+    `<div class="step"><div class="k">Media spend</div><div class="v">${money(a.spend)}</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Impressions</div><div class="v">${fmtM(a.imps)}</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Clicks to site</div><div class="v">${fmtN(a.clk)}</div></div>`
+  + `<div class="arrow">→</div>`
+  + `<div class="step"><div class="k">Last-click Display sessions</div><div class="v">${fmtN(dispSess)}</div></div>`;
+
+  // weekly: ad impressions (bars, right) vs all website sessions (line, left)
+  const labels = wk.map(r=>dayLabel(r.week_start));
+  charts.linkWeekly = new Chart(el('linkWeekly'),{
+    data:{ labels, datasets:[
+      { type:'line', label:'Website sessions', data:wk.map(sessOf),
+        borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
+      { type:'bar', label:'Trade Desk impressions', data:wk.map(adImpsW), backgroundColor:'rgba(235,51,0,.8)', borderRadius:3, maxBarThickness:16, yAxisID:'y1', order:1 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}),
+        y:gridY({title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+  });
+
+  // scatter: weekly impressions vs weekly website sessions
+  const pts = wk.map(r=>({x:adImpsW(r), y:sessOf(r)})).filter(p=>p.x>0);
+  const r = pearson(pts.map(p=>p.x), pts.map(p=>p.y));
+  el('linkScatterHint').innerHTML = `Each dot is one flight week with delivery. Correlation <b>r = ${r.toFixed(2)}</b> `
+    + `(${Math.abs(r)>0.6?'strong':Math.abs(r)>0.3?'moderate':'weak'} ${r>=0?'positive':'negative'} relationship). Display is upper-funnel — a loose link is expected.`;
+  charts.linkScatter = new Chart(el('linkScatter'),{
+    type:'scatter',
+    data:{ datasets:[{ label:'Flight week', data:pts, backgroundColor:'rgba(235,51,0,.55)', borderColor:C.orangeDeep, pointRadius:5, pointHoverRadius:7 }]},
+    options:{ maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} imps · ${fmtN(c.parsed.y)} sessions`}} },
+      scales:{ x:gridY({title:{display:true,text:'Ad impressions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y:gridY({title:{display:true,text:'Website sessions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  // weekly clicks to site (bars)
+  charts.linkClicks = new Chart(el('linkClicks'),{
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Clicks to site', data:wk.map(adClkW), backgroundColor:C.orange, borderRadius:3, maxBarThickness:18 }]},
+    options:{ maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.y)} clicks`}} },
+      scales:{ x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
+  });
+
+  // stats strip
+  el('linkStats').innerHTML =
+    `<div class="stat-card"><div class="k">Clicks to site</div><div class="v orange">${fmtN(a.clk)}</div><div class="c">${fmtPct(pct(a.clk,a.imps),2)} CTR over ${fmtM(a.imps)} impressions</div></div>`
+  + `<div class="stat-card"><div class="k">Clicks per 1,000 impressions</div><div class="v">${sessPer1k.toFixed(2)}</div><div class="c">display click rate to the site</div></div>`
+  + `<div class="stat-card"><div class="k">Last-click Display sessions</div><div class="v orange">${fmtN(dispSess)}</div><div class="c">GA4 under-attributes upper-funnel display</div></div>`;
+}
+
+//==============================================================================
+// EXPORT
+//==============================================================================
+function exportAllData(){
+  const lines = [];
+  const push = (section,obj)=>{ lines.push(''); lines.push('# '+section); const keys=Object.keys((obj&&obj[0])||{}); lines.push(keys.join(',')); (obj||[]).forEach(r=>lines.push(keys.map(k=>csv(r[k])).join(','))); };
+  lines.push('# VMCH dashboard export'); lines.push('# window,'+(DATA.window||{}).start+','+(DATA.window||{}).end);
+  const totC = (DATA.ad_campaigns||[]).length;
+  lines.push('# selected_campaigns,'+(activeCampaigns.size>=totC ? 'ALL' : [...activeCampaigns].join('|')));
+  push('monthly (GA4 + Trade Desk)', DATA.monthly); push('weekly (GA4 + Trade Desk)', DATA.weekly);
+  push('ga4_channels', DATA.ga4_channels_market); push('ga4_sources', DATA.ga4_sources_market);
+  push('ga4_key_events', DATA.ga4_key_events);
+  push('ad_campaigns', DATA.ad_campaigns); push('ad_campaign_monthly', DATA.ad_campaign_monthly);
+  push('ad_campaign_weekly', DATA.ad_campaign_weekly);
+  push('ttd_adgroups', DATA.ttd_adgroups); push('ttd_creative', DATA.ttd_creative);
+  const blob = new Blob([lines.join('\n')], {type:'text/csv'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='vmch_dashboard.csv'; a.click();
+}
+function csv(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
+
+boot();
+</script>
+</body>
+</html>

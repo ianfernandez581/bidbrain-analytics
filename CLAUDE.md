@@ -2,7 +2,7 @@
 
 Monorepo of self-hosted client marketing dashboards on GCP. One repeatable pattern, many clients:
 **MongoDB is the template**; **STT** is the archetype every lean paid-media client is copied from.
-**Nine client dashboards are live**, plus a meta **Status dashboard**. The root `README.md` is the
+**Ten client dashboards are live**, plus a meta **Status dashboard**. The root `README.md` is the
 full human map — **this file (CLAUDE.md) is the canonical agent fast-path** and the single source of
 truth for fixed facts + deploy commands. **Keep it current: see _Keep this file current_ at the
 bottom — updating it is part of finishing a task, not an afterthought.**
@@ -22,12 +22,12 @@ on every client bucket). See `status_dashboard/README.md`.
 - Per client `<c>` everything derives from the key: dataset `client_<c>`,
   bucket `bidbrain-analytics-<c>-dash`, export job `<c>-export`, web service `<c>-dash`,
   subdomain `<c>.bidbrain.ai`.
-  (`<c>` ∈ {mongodb, cloudflare, stt, schneider, hireright, cityperfume, resetdata, proptrack, tlm})
+  (`<c>` ∈ {mongodb, cloudflare, stt, schneider, hireright, cityperfume, resetdata, proptrack, tlm, vmch})
 - **Repo layout:** per-client dashboards live in `clients/client_<c>/` (each with `sql/` `job/` `dash/`);
   the shared raw-layer loaders live in `ingest/<source>_data_pull/`. `status_dashboard/` + `scripts/` stay at root.
 
 ## What's in the repo (so you don't have to go hunting)
-**9 client dashboards** — each is `clients/client_<c>/` with `sql/` + `job/` + `dash/`, dataset `client_<c>`,
+**10 client dashboards** — each is `clients/client_<c>/` with `sql/` + `job/` + `dash/`, dataset `client_<c>`,
 job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-derivable facts:
 
 | `<c>` | Reports | Currency | Views | Watch out for |
@@ -41,6 +41,7 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 | `resetdata` | B2B Google Ads+Meta+TTD vs GA4 (leads, **no revenue/ROAS**) | AUD (TTD USD@1.50) | 19 | agency = 100-digital; Meta account filter contains an EN-DASH |
 | `proptrack` | Banking ABM — TTD (advertiser `PopTrack`) + LinkedIn | AUD (no FX) | 15 | TTD impressions come from `IMPRESSION` (singular); LinkedIn `PropTrack_TransmissionSG_AUD` |
 | `tlm` | The Little Marionette — e-comm coffee: Google Ads (DTS) search/shopping/PMax + Trade Desk display | AUD (TTD FX@1.50 unused) | 13 | Google spend already AUD (NOT micros); ROAS/CPA Google-only (TTD pixels anonymous, no revenue); light cream+slate-blue theme; `ttd_creative` is whole-flight (not date-scoped) |
+| `vmch` | Villa Maria Catholic Homes — aged-care **NFP** brand awareness: Trade Desk display (4 service-line campaigns RAC/RL/SAH/Disability) vs GA4 website | AUD (no FX) | 21 | SINGLE platform (TTD only) + SINGLE market (`*_market` views are vestigial 'Australia' rows; dash reads flat `kpi`/`monthly`/`ga4_channels_market`); **no revenue** — outcome is GA4 enquiry key events (phone/email/contact); display is upper-funnel (~25 last-click sessions vs 4.4M imps — don't overclaim); orange-red `#EB3300` + maroon `#4C2736` theme; logos inlined via `creatives/inject_logos.py` |
 
 **4 shared ingest units** fill the `raw_*` layers for everyone (no dashboard of their own):
 - `ingest/snowflake_data_pull/` → `raw_snowflake` (7 tables, 1:1 mirror). **Self-gating `*/10`** — the exception

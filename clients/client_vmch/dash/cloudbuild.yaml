@@ -1,0 +1,9 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - australia-southeast1-docker.pkg.dev/$PROJECT_ID/bidbrain/vmch-dash:$COMMIT_SHA
+      - .
+images:
+  - australia-southeast1-docker.pkg.dev/$PROJECT_ID/bidbrain/vmch-dash:$COMMIT_SHA
