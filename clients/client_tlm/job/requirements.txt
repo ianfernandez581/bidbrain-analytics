@@ -1,0 +1,7 @@
+# Cloud Run export job: BigQuery views -> tlm.json -> GCS.
+# Pinned for reproducible container builds. This job only reads BigQuery views
+# (across raw_google_ads, raw_windsor via the client_tlm views) and
+# writes JSON to GCS — it never touches the upstream loaders — so it needs nothing
+# beyond the BigQuery + Storage clients.
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1
