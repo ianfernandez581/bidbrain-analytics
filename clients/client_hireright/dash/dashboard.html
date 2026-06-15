@@ -99,6 +99,16 @@
   .cl-item .ci-meta{font-size:10.5px;color:var(--mute);margin-top:1px}
   .cl-empty{padding:18px 14px;text-align:center;color:var(--mute);font-size:12px}
 
+  /* ---- per-chart segmented toggles (VIEW BY grain · AXIS scale) ---- */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff;vertical-align:middle}
+  .seg button{background:none;border:none;color:var(--mute);font-family:inherit;font-size:11.5px;font-weight:700;
+              padding:5px 11px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--hr-red);color:#fff}
+  .seg button:not(.on):hover{color:var(--ink)}
+  .seg .cap{padding:0 8px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--mute);align-self:center}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card-head .segs{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
   /* ===== Shared date-range picker (Looker-style) ===== */
   .dp{position:relative;display:inline-block;font-size:13px;
       --dp-accent:#3b82f6;--dp-bg:#0f1a2b;--dp-panel:#0c1524;
@@ -349,8 +359,16 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Monthly spend by platform &amp; clicks</h3>
-          <div class="hint">Spend by platform (stacked bars, USD, left axis) and clicks to site (line, right axis). Reflects the Platform &amp; Campaign filters.</div>
+          <div class="card-head">
+            <div>
+              <h3>Spend by platform &amp; clicks</h3>
+              <div class="hint">Spend by platform (stacked bars, USD, left axis) and clicks to site (line, right axis). Reflects the Platform &amp; Campaign filters.</div>
+            </div>
+            <div class="segs">
+              <span class="seg" id="ovHeroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setOvHeroScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setOvHeroScale('abs',this)">Absolute</button></span>
+              <span class="seg" id="ovHeroGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setOvHeroGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setOvHeroGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setOvHeroGrain('day',this)">Day</button></span>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -380,8 +398,16 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Monthly delivery — spend by platform</h3>
-          <div class="hint">Spend by platform (stacked bars, USD); line = clicks to site (right axis).</div>
+          <div class="card-head">
+            <div>
+              <h3>Delivery — spend by platform</h3>
+              <div class="hint">Spend by platform (stacked bars, USD); line = clicks to site (right axis).</div>
+            </div>
+            <div class="segs">
+              <span class="seg" id="pmMonthlyScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setPmMonthlyScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setPmMonthlyScale('abs',this)">Absolute</button></span>
+              <span class="seg" id="pmMonthlyGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setPmMonthlyGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setPmMonthlyGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setPmMonthlyGrain('day',this)">Day</button></span>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -465,7 +491,27 @@ const el = id => document.getElementById(id);
 let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;   // ISO 'YYYY-MM-DD'
 const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
+const inRangeDay   = d => (!rangeStart || d >= rangeStart) && (!rangeEnd || d <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+
+// ---- Per-chart grain (Month/Week/Day) + scale (Relative/Absolute) state. Default
+// grain = month (preserves each chart's original view); default scale = relative
+// (the secondary clicks line is indexed to its own peak=100 on a shared 0-100 right
+// axis, while spend bars stay absolute on the left axis). Mirrors resetdata/tlm.
+const grain = { ovHero:'month', pmMonthly:'month' };   // month | week | day
+const scale = { ovHero:'rel',   pmMonthly:'rel'   };   // rel | abs
+const segPick = btn => { if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); };
+const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
+function setOvHeroGrain(g,btn){ grain.ovHero=g; segPick(btn); renderOverview(); }
+function setOvHeroScale(s,btn){ scale.ovHero=s; segPick(btn); renderOverview(); }
+function setPmMonthlyGrain(g,btn){ grain.pmMonthly=g; segPick(btn); renderPaid(); }
+function setPmMonthlyScale(s,btn){ scale.pmMonthly=s; segPick(btn); renderPaid(); }
+// Period-key label for whichever grain is showing. month 'YYYY-MM' -> "Apr 25";
+// week/day 'YYYY-MM-DD' -> "7 Apr".
+function bucketLabel(k,g){
+  if(g==='month') return monthLabel(k);
+  const [y,mo,d]=k.split('-'); return (+d)+' '+new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short'});
+}
 
 // The three paid-media platforms with HireRight data. Each maps a stable key to its
 // kpi/monthly field names + a chart colour. DV360 = programmatic display (real geo),
@@ -522,18 +568,43 @@ function adTotals(applyPlatform){
 }
 const adKpi = () => adTotals(true);   // Overview: campaign + platform scoped
 // month -> {imps,clk,spend, <platform>:{imps,clk,spend}} over selected campaigns.
-function adMonthlyMap(applyPlatform){
+function adMonthlyMap(applyPlatform){ return adGrainMap(applyPlatform,'month'); }
+// week_start -> {…} over selected campaigns (reads ad_campaign_weekly).
+function adWeeklyMap(applyPlatform){ return adGrainMap(applyPlatform,'week'); }
+// day -> {…} over selected campaigns (reads ad_campaign_daily).
+function adDailyMap(applyPlatform){ return adGrainMap(applyPlatform,'day'); }
+// Generic bucket map for whichever grain is showing. Picks the matching campaign-
+// grained source array + its period key, re-aggregates (SUM additive imps/clk/spend)
+// per period/platform over the selected campaigns, and honors the Period date filter.
+// Returns { <periodKey>: {imps,clk,spend, dv360:{…},tradedesk:{…},linkedin:{…}} }.
+function adGrainMap(applyPlatform, g){
+  const src = g==='week' ? (DATA.ad_campaign_weekly||[])
+            : g==='day'  ? (DATA.ad_campaign_daily||[])
+            :              (DATA.ad_campaign_monthly||[]);
+  const keyOf  = g==='week' ? (r=>r.week_start) : g==='day' ? (r=>r.day) : (r=>r.month);
+  const inRng  = g==='week' ? inRangeWeek       : g==='day' ? inRangeDay  : inRangeMonth;
   const m = {};
-  for(const r of (DATA.ad_campaign_monthly||[])){
+  for(const r of src){
     if(!rowOk(r, applyPlatform)) continue;
-    if(!inRangeMonth(r.month)) continue;   // honor the Period date filter
-    const e = m[r.month] || (m[r.month] = {imps:0,clk:0,spend:0,
+    const k = keyOf(r);
+    if(!inRng(k)) continue;                // honor the Period date filter
+    const e = m[k] || (m[k] = {imps:0,clk:0,spend:0,
       dv360:{imps:0,clk:0,spend:0}, tradedesk:{imps:0,clk:0,spend:0}, linkedin:{imps:0,clk:0,spend:0}});
     e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_usd||0;
     const p = e[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_usd||0; }
   }
   return m;
 }
+// Period spine (sorted keys) for whichever grain is showing, from the blended series
+// arrays, filtered to the Period date range. month -> r.month ('YYYY-MM'); week ->
+// r.week_start; day -> r.day. The map functions above re-aggregate the campaign-
+// grained delivery onto these keys.
+function grainSpine(g){
+  if(g==='week') return (DATA.weekly||[]).map(r=>r.week_start).filter(inRangeWeek);
+  if(g==='day')  return (DATA.daily ||[]).map(r=>r.day).filter(inRangeDay);
+  return (DATA.monthly||[]).map(r=>r.month).filter(inRangeMonth);
+}
+
 // By-market delivery over the selected campaigns + markets. platformKey null = all platforms.
 function adMarketArr(platformKey){
   const m = {};
@@ -911,10 +982,10 @@ function renderDateScope(){
   const note = el('dateScopeNote'); if(!note) return;
   if(narrowed()){
     note.style.display = 'block';
-    note.innerHTML = '📅 Period filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to month). '
-      + 'The <b>monthly trend chart</b> honors this range; KPI cards, spend mix/share, by-market &amp; by-country, '
+    note.innerHTML = '📅 Period filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b>. '
+      + 'The <b>delivery trend charts</b> (Month / Week / Day) honor this range; KPI cards, spend mix/share, by-market &amp; by-country, '
       + 'the platform-comparison &amp; top-campaign tables and the LinkedIn creative/funnel show the <b>full period</b> '
-      + '(those breakdowns — and conversions — aren\'t available at a monthly grain in the feed).';
+      + '(those breakdowns — and conversions — aren\'t available at a time grain in the feed).';
   } else {
     note.style.display = 'none';
   }
@@ -971,27 +1042,38 @@ function renderOverview(){
   + kpiCard('','CPC', money(cpc,'$',2), 'cost per click')
   + kpiCard('accent','Conversions', fmtN(a.conv), 'DV360 + TradeDesk + LinkedIn leads');
 
-  // Hero: spend by platform (stacked bars, USD) + clicks (line) — honors the Period filter
-  const M = DATA.monthly.filter(r=>inRangeMonth(r.month));
-  const am = adMonthlyMap(true);
-  const labels = M.map(r=>monthLabel(r.month));
-  const spendOf = (mo,key) => ((am[mo]||{})[key]||{}).spend||0;
+  // Hero: spend by platform (stacked bars, USD) + clicks (line) — honors the Period
+  // filter. VIEW BY grain (month/week/day) re-aggregates from the matching campaign-
+  // grained array; AXIS scale rel/abs indexes the clicks line to its own peak=100 on
+  // a shared 0-100 right axis (bars stay absolute on the left).
+  const gH = grain.ovHero, relH = scale.ovHero==='rel';
+  const keysH = grainSpine(gH);
+  const am = adGrainMap(true, gH);
+  const labels = keysH.map(k=>bucketLabel(k,gH));
+  const spendOf = (k,key) => ((am[k]||{})[key]||{}).spend||0;
   const spendBars = selPlatforms().map(p => ({
     type:'bar', label:p.label, yAxisID:'y', stack:'spend',
-    data:M.map(r=>spendOf(r.month,p.key)),
+    data:keysH.map(k=>spendOf(k,p.key)),
     backgroundColor:p.color, borderRadius:3, maxBarThickness:30, order:2
   }));
+  const clksH = keysH.map(k=>(am[k]||{}).clk||0);
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       ...spendBars,
-      { type:'line', label:'Clicks to site', data:M.map(r=>(am[r.month]||{}).clk||0), yAxisID:'y1',
+      { type:'line', label:'Clicks to site', data:relH?indexed(clksH):clksH, _raw:clksH, yAxisID:relH?'yRel':'y1',
         borderColor:C.ink, backgroundColor:C.ink, borderWidth:2.5, tension:.3, pointRadius:2.5, order:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):money(c.parsed.y)}`}}},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID==='y') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;
+        const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
+        return ` ${c.dataset.label}: ${fmtN(raw)}${relH?`  (${Math.round(c.parsed.y)}% of peak)`:''}`;
+      }}}},
       scales:{ x:axisX({stacked:true}),
         y:gridY({stacked:true,position:'left',title:{display:true,text:'Spend (USD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+        ...(relH
+          ? {yRel:{position:'right',min:0,max:100,grid:{display:false},border:{display:false},title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v}}}
+          : {y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}}) } }
   });
 
   // Spend mix doughnut (selected platforms)
@@ -1043,22 +1125,33 @@ function renderPaid(){
   + kpiCard('accent','Impressions', fmtM(T.imps), `${money(cpm,'$',2)} blended CPM`)
   + kpiCard('accent','Clicks', fmtN(T.clk), `DV360 ${fmtN(P.dv360.clk)} · TTD ${fmtN(P.tradedesk.clk)} · LI ${fmtN(P.linkedin.clk)}`);
 
-  // Monthly spend by platform over the selected campaigns (months with delivery only).
-  const amp = adMonthlyMap(false);
-  const mspend = (mo,key) => ((amp[mo]||{})[key]||{}).spend||0;
-  const M = DATA.monthly.filter(r=> inRangeMonth(r.month) && (((amp[r.month]||{}).imps||0) > 0 || ((amp[r.month]||{}).spend||0) > 0) );
-  const labels = M.map(r=>monthLabel(r.month));
+  // Spend by platform over the selected campaigns (periods with delivery only). VIEW
+  // BY grain (month/week/day) re-aggregates from the matching campaign-grained array;
+  // AXIS scale rel/abs indexes the clicks line to its own peak=100 on a shared 0-100
+  // right axis (bars stay absolute on the left).
+  const gP = grain.pmMonthly, relP = scale.pmMonthly==='rel';
+  const amp = adGrainMap(false, gP);
+  const keysP = grainSpine(gP).filter(k => (((amp[k]||{}).imps||0) > 0 || ((amp[k]||{}).spend||0) > 0));
+  const mspend = (k,key) => ((amp[k]||{})[key]||{}).spend||0;
+  const labels = keysP.map(k=>bucketLabel(k,gP));
+  const clksP = keysP.map(k=>(amp[k]||{}).clk||0);
   charts.pmMonthly = new Chart(el('pmMonthly'),{
     data:{ labels, datasets:[
-      { type:'bar', label:'DV360', data:M.map(r=>mspend(r.month,'dv360')), backgroundColor:C.red, stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:34 },
-      { type:'bar', label:'TradeDesk', data:M.map(r=>mspend(r.month,'tradedesk')), backgroundColor:C.slate, stack:'s', yAxisID:'y', maxBarThickness:34 },
-      { type:'bar', label:'LinkedIn', data:M.map(r=>mspend(r.month,'linkedin')), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:34 },
-      { type:'line', label:'Clicks to site', data:M.map(r=>(amp[r.month]||{}).clk||0), borderColor:C.ink, backgroundColor:C.ink, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3 }
+      { type:'bar', label:'DV360', data:keysP.map(k=>mspend(k,'dv360')), backgroundColor:C.red, stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:34 },
+      { type:'bar', label:'TradeDesk', data:keysP.map(k=>mspend(k,'tradedesk')), backgroundColor:C.slate, stack:'s', yAxisID:'y', maxBarThickness:34 },
+      { type:'bar', label:'LinkedIn', data:keysP.map(k=>mspend(k,'linkedin')), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:34 },
+      { type:'line', label:'Clicks to site', data:relP?indexed(clksP):clksP, _raw:clksP, borderColor:C.ink, backgroundColor:C.ink, borderWidth:2.5, tension:.3, yAxisID:relP?'yRel':'y1', pointRadius:3 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):money(c.parsed.y)}`}} },
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID==='y') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;
+        const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
+        return ` ${c.dataset.label}: ${fmtN(raw)}${relP?`  (${Math.round(c.parsed.y)}% of peak)`:''}`;
+      }}} },
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks to site',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+        ...(relP
+          ? {yRel:{position:'right',min:0,max:100,grid:{display:false},border:{display:false},title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v}}}
+          : {y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks to site',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}}) } }
   });
 
   // Spend share doughnut
@@ -1149,10 +1242,12 @@ function exportAllData(){
   lines.push('# selected_campaigns,'+(activeCampaigns.size>=totC ? 'ALL' : [...activeCampaigns].join('|')));
   push('monthly (ad delivery, whole flight)', DATA.monthly);
   push('weekly (ad delivery, whole flight)', DATA.weekly);
+  push('daily (ad delivery, whole flight)', DATA.daily);
   push('li_creative', DATA.li_creative); push('li_campaigns', DATA.li_campaigns);
   // Campaign-grained ad delivery (full dump; the Campaign/Market filters slice these client-side).
   push('ad_campaigns', DATA.ad_campaigns); push('ad_campaign_monthly', DATA.ad_campaign_monthly);
-  push('ad_campaign_weekly', DATA.ad_campaign_weekly); push('ad_campaign_market', DATA.ad_campaign_market);
+  push('ad_campaign_weekly', DATA.ad_campaign_weekly); push('ad_campaign_daily', DATA.ad_campaign_daily);
+  push('ad_campaign_market', DATA.ad_campaign_market);
   push('li_campaign_creative', DATA.li_campaign_creative);
   const blob = new Blob([lines.join('\n')], {type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hireright_dashboard.csv'; a.click();

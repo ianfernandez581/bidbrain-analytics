@@ -11,6 +11,7 @@ shared raw layers:
   * Google Ads (raw_google_ads.perf_google_ads)   -> paid-search delivery (AUD; native DTS)
   * Meta       (raw_windsor.perf_meta)             -> paid-social delivery (AUD)
   * Trade Desk (raw_windsor.perf_the_trade_desk)   -> programmatic display (USD -> AUD @1.50)
+  * Reddit     (raw_windsor.perf_reddit)           -> community awareness / traffic (AUD)
   * GA4        (raw_ga4.perf_ga4)                  -> website sessions / users / channels (the OUTCOME)
   * GA4 events (raw_ga4.perf_ga4_events)           -> key events / leads by name
 
@@ -34,6 +35,7 @@ GATING_TABLES = [
     "raw_google_ads.perf_google_ads",
     "raw_windsor.perf_meta",
     "raw_windsor.perf_the_trade_desk",
+    "raw_windsor.perf_reddit",
     "raw_ga4.perf_ga4",
     "raw_ga4.perf_ga4_events",
 ]
@@ -92,12 +94,15 @@ def main():
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
+    daily = rows(bq, "daily")
     ga4_channels = rows(bq, "ga4_channels")
     ga4_key_events = rows(bq, "ga4_key_events")
+    ga4_key_events_daily = rows(bq, "ga4_key_events_daily")
     ga4_sources = rows(bq, "ga4_sources")
     google_campaigns = rows(bq, "google_campaigns")
     meta_campaigns = rows(bq, "meta_campaigns")
     ttd_campaigns = rows(bq, "ttd_campaigns")
+    reddit_campaigns = rows(bq, "reddit_campaigns")
     meta_creative = rows(bq, "meta_creative")
     # Campaign-grained ad delivery — the dashboard's Campaign filter sums the selected
     # campaigns out of these client-side, rescaling every ad-delivery figure (the
@@ -105,6 +110,7 @@ def main():
     ad_campaigns = rows(bq, "ad_campaigns")
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_daily = rows(bq, "ad_campaign_daily")
 
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
@@ -120,6 +126,7 @@ def main():
         "ga_window": {"start": ymd(kpi["ga_start"]), "end": ymd(kpi["ga_end"])},
         "me_window": {"start": ymd(kpi["me_start"]), "end": ymd(kpi["me_end"])},
         "td_window": {"start": ymd(kpi["td_start"]), "end": ymd(kpi["td_end"])},
+        "rd_window": {"start": ymd(kpi["rd_start"]), "end": ymd(kpi["rd_end"])},
         "kpi": {
             "sessions": num(kpi["sessions"]),
             "engaged_sessions": num(kpi["engaged_sessions"]),
@@ -143,6 +150,11 @@ def main():
             "td_imps": num(kpi["td_imps"]),
             "td_clicks": num(kpi["td_clicks"]),
             "td_spend_aud": num(kpi["td_spend_aud"]),
+            "rd_imps": num(kpi["rd_imps"]),
+            "rd_clicks": num(kpi["rd_clicks"]),
+            "rd_spend_aud": num(kpi["rd_spend_aud"]),
+            "rd_conv": num(kpi["rd_conv"]),
+            "rd_page_visits": num(kpi["rd_page_visits"]),
             "ad_imps": num(kpi["ad_imps"]),
             "ad_clicks": num(kpi["ad_clicks"]),
             "ad_spend_aud": num(kpi["ad_spend_aud"]),
@@ -170,6 +182,9 @@ def main():
             "td_imps": num(r["td_imps"]),
             "td_clicks": num(r["td_clicks"]),
             "td_spend_aud": num(r["td_spend_aud"]),
+            "rd_imps": num(r["rd_imps"]),
+            "rd_clicks": num(r["rd_clicks"]),
+            "rd_spend_aud": num(r["rd_spend_aud"]),
             "ad_imps": num(r["ad_imps"]),
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_aud": num(r["ad_spend_aud"]),
@@ -185,10 +200,42 @@ def main():
             "ga_imps": num(r["ga_imps"]),
             "me_imps": num(r["me_imps"]),
             "td_imps": num(r["td_imps"]),
+            "rd_imps": num(r["rd_imps"]),
             "ad_imps": num(r["ad_imps"]),
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_aud": num(r["ad_spend_aud"]),
         } for r in weekly],
+        # Day grain (View by -> Day). raw_ga4.perf_ga4 is day-grained, so this is real
+        # per-day data. Mirrors `monthly` (same keys, keyed on `day` = 'YYYY-MM-DD').
+        "daily": [{
+            "day": ymd(r["day"]),
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+            "ga_imps": num(r["ga_imps"]),
+            "ga_clicks": num(r["ga_clicks"]),
+            "ga_spend_aud": num(r["ga_spend_aud"]),
+            "me_imps": num(r["me_imps"]),
+            "me_clicks": num(r["me_clicks"]),
+            "me_spend_aud": num(r["me_spend_aud"]),
+            "td_imps": num(r["td_imps"]),
+            "td_clicks": num(r["td_clicks"]),
+            "td_spend_aud": num(r["td_spend_aud"]),
+            "rd_imps": num(r["rd_imps"]),
+            "rd_clicks": num(r["rd_clicks"]),
+            "rd_spend_aud": num(r["rd_spend_aud"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_aud": num(r["ad_spend_aud"]),
+        } for r in daily],
         "ga4_channels": [{
             "channel": r["channel_group"],
             "bucket": r["channel_bucket"],
@@ -205,6 +252,16 @@ def main():
             "conversions": num(r["conversions"]),
             "event_value": num(r["event_value"]),
         } for r in ga4_key_events],
+        # Day grain for the key-events breakdown (View by -> Day). Mirrors ga4_key_events,
+        # keyed on `day` = 'YYYY-MM-DD'. Week grain is bucketed client-side from these.
+        "ga4_key_events_daily": [{
+            "day": ymd(r["day"]),
+            "event_name": r["event_name"],
+            "is_conversion_event": bool(r["is_conversion_event"]) if r["is_conversion_event"] is not None else False,
+            "event_count": num(r["event_count"]),
+            "conversions": num(r["conversions"]),
+            "event_value": num(r["event_value"]),
+        } for r in ga4_key_events_daily],
         "ga4_sources": [{
             "source_medium": r["source_medium"],
             "channel": r["channel_group"],
@@ -242,6 +299,17 @@ def main():
             "start": ymd(r["start_date"]),
             "end": ymd(r["end_date"]),
         } for r in ttd_campaigns],
+        "reddit_campaigns": [{
+            "campaign": r["campaign"],
+            "objective": r["objective"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+            "page_visits": num(r["page_visits"]),
+            "start": ymd(r["start_date"]),
+            "end": ymd(r["end_date"]),
+        } for r in reddit_campaigns],
         "meta_creative": [{
             "creative": r["creative_name"],
             "imps": num(r["imps"]),
@@ -278,6 +346,17 @@ def main():
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
         } for r in ad_campaign_weekly],
+        # Day grain for the Campaign-filtered ad-delivery charts (View by -> Day). Mirrors
+        # ad_campaign_weekly, keyed on `day` = 'YYYY-MM-DD' (carries conversions too).
+        "ad_campaign_daily": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "day": ymd(r["day"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+        } for r in ad_campaign_daily],
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
@@ -286,7 +365,7 @@ def main():
     # second), so a failed upload simply retries on the next tick.
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
-          f"{len(env['weekly'])} weeks, {env['kpi']['sessions']:,} sessions, "
+          f"{len(env['weekly'])} weeks, {len(env['daily'])} days, {env['kpi']['sessions']:,} sessions, "
           f"A${env['kpi']['ad_spend_aud']:,.0f} ad spend, "
           f"{env['kpi']['conversions']:,.0f} GA4 key events")
 

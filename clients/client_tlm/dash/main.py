@@ -101,7 +101,16 @@ LOGIN_HTML = """<!doctype html>
 
 
 def authed():
-    return session.get("ok") is True
+    # Authenticated by THIS dashboard's own password (session["ok"]) OR by a platform-issued
+    # SSO cookie from dashboards.bidbrain.ai that lists this client. Fail-closed + fail-safe:
+    # any problem falls back to password-only, so this can never break the existing gate.
+    if session.get("ok") is True:
+        return True
+    try:
+        from platform_sso import sso_allows
+        return sso_allows(request)
+    except Exception:
+        return False
 
 
 @app.get("/")

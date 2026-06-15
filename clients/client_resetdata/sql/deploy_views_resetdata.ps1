@@ -15,7 +15,7 @@
 $PROJECT   = "bidbrain-analytics"
 $REGION    = "australia-southeast1"
 $JOB       = "resetdata-export"
-$REPO_ROOT = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$REPO_ROOT = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent  # sql -> client_resetdata -> clients -> repo root
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
 $VIEWS_PY  = Join-Path (Split-Path $PSScriptRoot -Parent) "create_views.py"
 
@@ -29,6 +29,6 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gclo
 Write-Host "Reapplying SQL views via create_views.py ..."
 & $PYTHON $VIEWS_PY; Must "apply views"
 Write-Host "Re-running $JOB so resetdata.json reflects the new views ..."
-gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait; Must "run job"
+gcloud run jobs execute $JOB --region $REGION --project $PROJECT --update-env-vars FORCE_REBUILD=1 --wait; Must "run job"
 
 Write-Host "`nDONE. Views reapplied and $JOB re-run. The dash service serves the new JSON immediately (no image rebuild, no service redeploy)."

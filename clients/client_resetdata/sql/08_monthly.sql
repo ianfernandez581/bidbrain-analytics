@@ -1,9 +1,9 @@
 -- ResetData — monthly trend: the hero "ad spend vs website sessions" series.
 --
 -- One row per month: GA4 sessions split by bucket (and the ad-mapped channels Paid Search =
--- Google, Paid Social = Meta, Display = TTD) + GA4 key events, alongside Google + Meta + TTD
--- delivery for the same month. From 2025-12 (the start of the live data). ad_* folds the three
--- platforms in (TTD already USD→AUD in its stg view). NO revenue (B2B).
+-- Google, Paid Social = Meta + Reddit, Display = TTD) + GA4 key events, alongside Google + Meta
+-- + TTD + Reddit delivery for the same month. From 2025-12 (the start of the live data). ad_*
+-- folds the four platforms in (TTD already USD→AUD in its stg view). NO revenue (B2B).
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_resetdata.monthly` AS
 WITH
 g AS (
@@ -38,6 +38,11 @@ td AS (
   SELECT FORMAT_DATE('%Y-%m', metric_date) AS month,
          SUM(imps) AS td_imps, SUM(clicks) AS td_clicks, SUM(spend_aud) AS td_spend_aud
   FROM `bidbrain-analytics.client_resetdata.stg_ttd` GROUP BY month
+),
+rd AS (
+  SELECT FORMAT_DATE('%Y-%m', metric_date) AS month,
+         SUM(imps) AS rd_imps, SUM(clicks) AS rd_clicks, SUM(spend_aud) AS rd_spend_aud
+  FROM `bidbrain-analytics.client_resetdata.stg_reddit` GROUP BY month
 )
 SELECT
   g.*,
@@ -50,11 +55,15 @@ SELECT
   IFNULL(td.td_imps, 0)      AS td_imps,
   IFNULL(td.td_clicks, 0)    AS td_clicks,
   IFNULL(td.td_spend_aud, 0) AS td_spend_aud,
-  IFNULL(ga.ga_imps,0)   + IFNULL(me.me_imps,0)   + IFNULL(td.td_imps,0)   AS ad_imps,
-  IFNULL(ga.ga_clicks,0) + IFNULL(me.me_clicks,0) + IFNULL(td.td_clicks,0) AS ad_clicks,
-  IFNULL(ga.ga_spend_aud,0) + IFNULL(me.me_spend_aud,0) + IFNULL(td.td_spend_aud,0) AS ad_spend_aud
+  IFNULL(rd.rd_imps, 0)      AS rd_imps,
+  IFNULL(rd.rd_clicks, 0)    AS rd_clicks,
+  IFNULL(rd.rd_spend_aud, 0) AS rd_spend_aud,
+  IFNULL(ga.ga_imps,0)   + IFNULL(me.me_imps,0)   + IFNULL(td.td_imps,0)   + IFNULL(rd.rd_imps,0)   AS ad_imps,
+  IFNULL(ga.ga_clicks,0) + IFNULL(me.me_clicks,0) + IFNULL(td.td_clicks,0) + IFNULL(rd.rd_clicks,0) AS ad_clicks,
+  IFNULL(ga.ga_spend_aud,0) + IFNULL(me.me_spend_aud,0) + IFNULL(td.td_spend_aud,0) + IFNULL(rd.rd_spend_aud,0) AS ad_spend_aud
 FROM g
 LEFT JOIN ga USING (month)
 LEFT JOIN me USING (month)
 LEFT JOIN td USING (month)
+LEFT JOIN rd USING (month)
 ORDER BY month;

@@ -15,6 +15,7 @@
     --google:#6366F1;          /* indigo */
     --meta:#0EA5E9;            /* sky blue */
     --ttd:#A78BFA;             /* violet */
+    --reddit:#FF5700;          /* Reddit orange */
     --sessions:#E84A6F;        /* crimson — the website outcome line */
     --keyevents:#F59E0B;       /* amber — key-events / leads line */
     --good:#34D399; --warn:#FBBF24; --bad:#FB7185;
@@ -60,6 +61,7 @@
   .chip.google.on{background:var(--google);color:#fff}
   .chip.meta.on{background:var(--meta);color:#fff}
   .chip.ttd.on{background:var(--ttd);color:#fff}
+  .chip.reddit.on{background:var(--reddit);color:#fff}
   .cdrop{position:relative}
   .cdrop .panel{position:absolute;z-index:50;margin-top:6px;width:360px;max-height:360px;overflow:auto;
         background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:10px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
@@ -71,6 +73,7 @@
   .plt.google{background:rgba(99,102,241,.22);color:#A5B4FC}
   .plt.meta{background:rgba(14,165,233,.22);color:#7DD3FC}
   .plt.ttd{background:rgba(167,139,250,.22);color:#C4B5FD}
+  .plt.reddit{background:rgba(255,87,0,.22);color:#FDBA74}
   .cdrop .actions{display:flex;gap:8px;margin-bottom:8px}
   .cdrop .actions a{font-size:11.5px;cursor:pointer}
 
@@ -159,6 +162,7 @@
   .pill.google{background:rgba(99,102,241,.2);color:#A5B4FC}
   .pill.meta{background:rgba(14,165,233,.2);color:#7DD3FC}
   .pill.ttd{background:rgba(167,139,250,.2);color:#C4B5FD}
+  .pill.reddit{background:rgba(255,87,0,.2);color:#FDBA74}
 
   .note{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.3);border-radius:10px;
         padding:11px 14px;font-size:12px;color:#FCD9A1;margin:14px 0}
@@ -237,6 +241,7 @@
       <span class="chip google on" data-plt="google" onclick="togglePlatform('google')">Google Ads</span>
       <span class="chip meta on" data-plt="meta" onclick="togglePlatform('meta')">Meta</span>
       <span class="chip ttd on" data-plt="ttd" onclick="togglePlatform('ttd')">Trade Desk</span>
+      <span class="chip reddit on" data-plt="reddit" onclick="togglePlatform('reddit')">Reddit</span>
     </div>
     <div class="fgroup cdrop">
       <div class="lbl">CAMPAIGN</div>
@@ -258,14 +263,22 @@
         <div class="ctrls">
           <span class="drillback" id="heroBack" onclick="heroDrillReset()">↩ All months</span>
           <span class="seg" id="heroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setHeroScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setHeroScale('abs',this)">Absolute</button></span>
-          <span class="seg" id="heroGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setHeroGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setHeroGrain('week',this)">Week</button></span>
+          <span class="seg" id="heroGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setHeroGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setHeroGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setHeroGrain('day',this)">Day</button></span>
         </div>
       </div>
       <div class="chartbox tall"><canvas id="heroChart"></canvas></div>
     </div>
     <div class="panel-box" style="margin-top:14px">
-      <h3>What the key events are</h3>
-      <p class="hint">Make-up of the “Key events” line above — GA4 key-event volume by event type per month, scoped to the date range (<code>Leadform_submit</code>, <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code>, $50-credit click).</p>
+      <div class="panelhead">
+        <div>
+          <h3>What the key events are</h3>
+          <p class="hint">Make-up of the “Key events” line above — GA4 key-event volume by event type, scoped to the date range (<code>Leadform_submit</code>, <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code>, $50-credit click). <b>Relative</b> shows each period's <i>mix</i> (100%-stacked); switch to <b>Absolute</b> for raw counts.</p>
+        </div>
+        <div class="ctrls">
+          <span class="seg" id="keScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setKeScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setKeScale('abs',this)">Absolute</button></span>
+          <span class="seg" id="keGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setKeGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setKeGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setKeGrain('day',this)">Day</button></span>
+        </div>
+      </div>
       <div class="chartbox"><canvas id="keyEventsBreakdown"></canvas></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
@@ -279,11 +292,17 @@
     <div class="note" id="paidNote"></div>
     <div class="panel-box">
       <h3>Platform comparison</h3>
-      <p class="hint">Delivery across the three paid platforms (Campaign filter applies; Platform filter ignored on this tab). Ratios derived: CTR, CPM, CPC, cost-per-lead.</p>
+      <p class="hint">Delivery across the four paid platforms (Campaign filter applies; Platform filter ignored on this tab). Ratios derived: CTR, CPM, CPC, cost-per-lead.</p>
       <table id="platformTable"></table>
     </div>
     <div class="panel-box" style="margin-top:14px">
-      <h3>Monthly spend by platform</h3><p class="hint">Stacked media spend (AUD).</p>
+      <div class="panelhead">
+        <div><h3>Spend by platform over time</h3><p class="hint">Stacked media spend (AUD). <b>Relative</b> shows each period's platform <i>mix</i> (100%-stacked); switch to <b>Absolute</b> for AUD amounts.</p></div>
+        <div class="ctrls">
+          <span class="seg" id="paidScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setPaidScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setPaidScale('abs',this)">Absolute</button></span>
+          <span class="seg" id="paidGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setPaidGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setPaidGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setPaidGrain('day',this)">Day</button></span>
+        </div>
+      </div>
       <div class="chartbox"><canvas id="paidSpendChart"></canvas></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
@@ -294,6 +313,26 @@
       <div class="panel-box"><h3>Trade Desk campaigns</h3><p class="hint">Programmatic display (AUD; no conversions reported upstream).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
       <div class="panel-box"><h3>Meta creative mix</h3><p class="hint">Delivery by creative (top by impressions).</p><div class="tablewrap"><table id="metaCreative"></table></div></div>
     </div>
+
+    <!-- Reddit community-awareness deep-dive -->
+    <div class="secttitle">Reddit — community awareness deep-dive <span style="color:var(--muted2);font-weight:600">· whole-flight summary</span></div>
+    <div class="grid kpis" id="redditKpis" style="margin-top:0"></div>
+    <div class="panel-box">
+      <div class="panelhead">
+        <div><h3>Reddit delivery over time</h3>
+          <p class="hint">Spend (bars, AUD) with impressions (line). Reddit is a top-of-funnel community awareness / traffic play — three TOF campaigns across Feb–Jun 2026. Campaign filter + date range apply.</p></div>
+        <div class="ctrls">
+          <span class="seg" id="redditScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setRedditScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setRedditScale('abs',this)">Absolute</button></span>
+          <span class="seg" id="redditGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setRedditGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setRedditGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setRedditGrain('day',this)">Day</button></span>
+        </div>
+      </div>
+      <div class="chartbox"><canvas id="redditTrend"></canvas></div>
+    </div>
+    <div class="panel-box" style="margin-top:14px">
+      <h3>Reddit campaigns</h3>
+      <p class="hint">The three community campaigns by objective. <b>Page visits</b> (page-visit clicks + views) is Reddit's traffic-driving signal; sign-ups / leads are platform-reported conversions (sparse — B2B).</p>
+      <div class="tablewrap"><table id="redditCamps"></table></div>
+    </div>
   </section>
 
   <!-- ============ WEBSITE TRAFFIC ============ -->
@@ -302,8 +341,11 @@
     <div class="grid cols-2">
       <div class="panel-box"><h3>Sessions by channel</h3><p class="hint">Paid channels are the ad-driven slice.</p><div class="chartbox"><canvas id="webChannelBar"></canvas></div></div>
       <div class="panel-box">
-        <div class="panelhead"><div><h3>Total vs ad-driven sessions</h3><p class="hint">All sessions vs paid-channel sessions (whole period).</p></div>
-          <span class="seg" id="webGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setWebGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setWebGrain('week',this)">Week</button></span></div>
+        <div class="panelhead"><div><h3>Total vs ad-driven sessions</h3><p class="hint">All sessions vs paid-channel sessions. <b>Relative</b> indexes each line to its own peak (shared 0–100 axis) so both trends read at once; switch to <b>Absolute</b> for session counts.</p></div>
+          <div class="ctrls">
+            <span class="seg" id="webScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setWebScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setWebScale('abs',this)">Absolute</button></span>
+            <span class="seg" id="webGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setWebGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setWebGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setWebGrain('day',this)">Day</button></span>
+          </div></div>
         <div class="chartbox"><canvas id="webTrend"></canvas></div></div>
     </div>
     <div class="panel-box" style="margin-top:14px">
@@ -320,17 +362,30 @@
   <!-- ============ ADS → TRAFFIC ============ -->
   <section id="tab-ads2traffic" class="hide">
     <div class="panel-box">
-      <h3>Monthly: ad spend vs sessions</h3>
-      <p class="hint">Media spend (bars, filtered) vs website sessions (line). Does the spend ramp move the traffic?</p>
+      <div class="panelhead">
+        <div><h3>Ad spend vs sessions</h3><p class="hint">Media spend (bars, filtered) vs website sessions (line). Does the spend ramp move the traffic? <b>Relative</b> indexes the sessions line to its own peak; <b>Absolute</b> uses a dedicated sessions axis.</p></div>
+        <div class="ctrls">
+          <span class="seg" id="a2tmScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setA2tmScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setA2tmScale('abs',this)">Absolute</button></span>
+          <span class="seg" id="a2tmGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setA2tmGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setA2tmGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setA2tmGrain('day',this)">Day</button></span>
+        </div>
+      </div>
       <div class="chartbox"><canvas id="a2tMonthly"></canvas></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
-      <div class="panel-box"><h3>Weekly: ad impressions vs sessions</h3><p class="hint">Mon-anchored weeks.</p><div class="chartbox"><canvas id="a2tWeekly"></canvas></div></div>
+      <div class="panel-box">
+        <div class="panelhead">
+          <div><h3>Ad impressions vs sessions</h3><p class="hint">Ad impressions (bars) vs mapped paid sessions (line). <b>Relative</b> indexes the line to its peak.</p></div>
+          <div class="ctrls">
+            <span class="seg" id="a2twScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setA2twScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setA2twScale('abs',this)">Absolute</button></span>
+            <span class="seg" id="a2twGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="setA2twGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="setA2twGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setA2twGrain('day',this)">Day</button></span>
+          </div>
+        </div>
+        <div class="chartbox"><canvas id="a2tWeekly"></canvas></div></div>
       <div class="panel-box"><h3>Spend ↔ sessions correlation</h3><p class="hint" id="corrHint"></p><div class="chartbox"><canvas id="a2tScatter"></canvas></div></div>
     </div>
     <div class="panel-box" style="margin-top:14px">
       <h3>Conversions &amp; cost-per-lead by platform</h3>
-      <p class="hint">Platform-reported conversions (Campaign filter applies). Google solid; Meta sparse; Trade Desk reports none.</p>
+      <p class="hint">Platform-reported conversions (Campaign filter applies). Google solid; Meta &amp; Reddit sparse; Trade Desk reports none.</p>
       <table id="convTable"></table>
     </div>
   </section>
@@ -341,9 +396,9 @@
 <script>
 // ===================== state & helpers =====================
 let DATA=null;
-const PLATFORMS=['google','meta','ttd'];
-const PLABEL={google:'Google Ads',meta:'Meta',ttd:'Trade Desk'};
-const PCOLOR={google:'#6366F1',meta:'#0EA5E9',ttd:'#A78BFA'};
+const PLATFORMS=['google','meta','ttd','reddit'];
+const PLABEL={google:'Google Ads',meta:'Meta',ttd:'Trade Desk',reddit:'Reddit'};
+const PCOLOR={google:'#6366F1',meta:'#0EA5E9',ttd:'#A78BFA',reddit:'#FF5700'};
 const selPlt=new Set(PLATFORMS);
 let selCamp=new Set();             // keys "platform||campaign"
 const charts={};
@@ -357,18 +412,40 @@ const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!range
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
 
-// ---- Drill-down grain (Looker-style) + hero effect-axis mode --------------------
-const grain = { hero:'month', web:'month' };   // month | week
-let heroScale = 'rel';        // 'rel' = each effect line indexed to its own peak; 'abs' = real values
+// ---- Drill-down grain (Looker-style) + per-chart axis mode (Relative default) ----
+// grain: month | week | day  ·  scale: 'rel' (each line indexed to its own peak) | 'abs' (real values)
+const grain = { hero:'month', web:'month', reddit:'month', paid:'month', ke:'month', a2tm:'month', a2tw:'week' };
+const scale = { hero:'rel', web:'rel', reddit:'rel', paid:'rel', ke:'rel', a2tm:'rel', a2tw:'rel' };
+let heroScale = scale.hero;   // kept as a back-compat alias (renderHero reads it)
 let defaultStart = null;      // the "since May" default — used by the drill "↩ All months" reset
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const moLabel = m => { const a=String(m).split('-'); return (MON[(+a[1]||1)-1]||'')+' '+a[0]; };
 const wkLabel = w => { const a=String(w).split('-'); return (+a[2])+' '+(MON[(+a[1]||1)-1]||''); };
+const dyLabel = d => { const a=String(d).split('-'); return (+a[2])+' '+(MON[(+a[1]||1)-1]||''); };
 const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
+// ISO Monday-anchored week_start ('YYYY-MM-DD') for a 'YYYY-MM-DD' day — used to roll day rows up to weeks.
+function weekStartOf(dStr){ const a=String(dStr).split('-').map(Number); const dt=new Date(Date.UTC(a[0],a[1]-1,a[2]));
+  const dow=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-dow);
+  const p=n=>String(n).padStart(2,'0'); return dt.getUTCFullYear()+'-'+p(dt.getUTCMonth()+1)+'-'+p(dt.getUTCDate()); }
+// Grain plumbing: pick the right time field + in-range test + axis label for month/week/day.
+const grainKeyField = g => g==='day' ? 'day' : g==='week' ? 'week_start' : 'month';
+const grainLabel    = g => g==='day' ? dyLabel : g==='week' ? wkLabel : moLabel;
+const grainInRange  = g => g==='month' ? inRangeMonth : inRangeWeek;   // day reuses the ISO compare
 function segPick(btn){ if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); }
 function setHeroGrain(g,btn){ grain.hero=g; segPick(btn); renderHero(); }
-function setHeroScale(s,btn){ heroScale=s; segPick(btn); renderHero(); }
+function setHeroScale(s,btn){ scale.hero=s; heroScale=s; segPick(btn); renderHero(); }
 function setWebGrain(g,btn){ grain.web=g; segPick(btn); renderWebsite(); }
+function setWebScale(s,btn){ scale.web=s; segPick(btn); renderWebsite(); }
+function setRedditGrain(g,btn){ grain.reddit=g; segPick(btn); renderReddit(); }
+function setRedditScale(s,btn){ scale.reddit=s; segPick(btn); renderReddit(); }
+function setPaidGrain(g,btn){ grain.paid=g; segPick(btn); renderPaid(); }
+function setPaidScale(s,btn){ scale.paid=s; segPick(btn); renderPaid(); }
+function setKeGrain(g,btn){ grain.ke=g; segPick(btn); renderKeyEventsBreakdown(); }
+function setKeScale(s,btn){ scale.ke=s; segPick(btn); renderKeyEventsBreakdown(); }
+function setA2tmGrain(g,btn){ grain.a2tm=g; segPick(btn); renderAds2Traffic(); }
+function setA2tmScale(s,btn){ scale.a2tm=s; segPick(btn); renderAds2Traffic(); }
+function setA2twGrain(g,btn){ grain.a2tw=g; segPick(btn); renderAds2Traffic(); }
+function setA2twScale(s,btn){ scale.a2tw=s; segPick(btn); renderAds2Traffic(); }
 function heroDrill(month){               // click a month bar → zoom to that month's weeks
   rangeStart=month+'-01';
   const a=month.split('-').map(Number), last=new Date(a[0],a[1],0).getDate();
@@ -607,7 +684,7 @@ function updateCampBtn(){
 function setNotes(){
   document.getElementById('paidNote').innerHTML=
     '<b>Conversion reporting differs by platform.</b> Google Ads conversions come from Google\'s own tracking (reliable). '+
-    'Meta leads are configured but <b>very sparse</b> to date. The Trade Desk reports <b>no conversions</b> upstream, so its '+
+    'Meta leads and Reddit sign-up / lead clicks are configured but <b>very sparse</b> to date. The Trade Desk reports <b>no conversions</b> upstream, so its '+
     'cost-per-lead is shown as “—”. All spend is AUD (Trade Desk converted from USD at FX '+fmt1(DATA.fx_usd_aud)+').';
   document.getElementById('gaNote').innerHTML=
     '<b>GA4 key-event tracking is real but low-volume.</b> Conversions populate (the configured event is '+
@@ -631,8 +708,10 @@ function renderDateScope(){
   if(narrowed() && activeTab!=='website'){
     note.style.display='block';
     note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b>. '+
-      'Trend charts reflect this range; KPI cards, donuts and campaign/creative tables show the <b>full period</b> '+
-      '(those breakdowns aren\'t available at a finer grain in the feed).';
+      'KPI cards (<b>month grain</b>), the platform comparison, conversions table, spend donut and the trend charts reflect this range '+
+      '(trend charts honor the range at their selected <b>View by</b> grain — Month / Week / Day). The channel-mix donut, source/medium list, '+
+      'per-platform campaign tables, creative mix and the Reddit deep-dive summary remain <b>whole-flight</b> '+
+      '(no finer grain in the feed).';
   } else {
     note.style.display='none';
   }
@@ -641,24 +720,54 @@ function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.ge
 const gridClr='#1E2D42', tickClr='#8CA0B8';
 const axis=(extra={})=>Object.assign({grid:{color:gridClr},ticks:{color:tickClr}},extra);
 
+// ===================== shared time-series plumbing (Month / Week / Day) =====================
+// One place that maps a grain to its GA4-side rows + the campaign-grained ad-delivery rows, all
+// scoped to the date range. SUM additive metrics; ratios are derived from summed parts elsewhere.
+// `sessions` is normalized (weekly view names it ga4_sessions; monthly/daily name it sessions).
+function tsGA4(g){
+  const src = g==='day'?DATA.daily : g==='week'?DATA.weekly : DATA.monthly;
+  const kf = grainKeyField(g), inR = grainInRange(g);
+  const rowsf = src.filter(r=>inR(r[kf]));
+  return { keys: rowsf.map(r=>r[kf]), rows: rowsf, kf,
+           sessOf: r => (g==='week'? r.ga4_sessions : r.sessions) };
+}
+// per-platform ad spend/clicks/imps + total spend/imps, indexed by the grain key. `filt` selects
+// rows (campActive on Overview/Ads→Traffic; campSel on Paid Media — caller passes the predicate).
+function tsAd(g, keys, filt){
+  const src = g==='day'?DATA.ad_campaign_daily : g==='week'?DATA.ad_campaign_weekly : DATA.ad_campaign_monthly;
+  const kf = grainKeyField(g), inR = grainInRange(g);
+  const ci={}; keys.forEach((k,i)=>ci[k]=i);
+  const spendByPlt={}, clk=keys.map(()=>0), im=keys.map(()=>0), sp=keys.map(()=>0);
+  PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));
+  src.filter(r=>filt(r.platform,r.campaign)&&inR(r[kf])).forEach(r=>{
+    const i=ci[r[kf]]; if(i==null)return;
+    spendByPlt[r.platform][i]+=(+r.spend_aud||0); clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0); sp[i]+=(+r.spend_aud||0);
+  });
+  return { spendByPlt, clicks:clk, imps:im, spend:sp };
+}
+
 // ---------- Overview ----------
 function renderOverview(){
-  const ac=activeCamps();
-  const spend=sumBy(ac,'spend_aud'), imps=sumBy(ac,'imps'), clicks=sumBy(ac,'clicks'), convs=sumBy(ac,'conversions');
-  const k=DATA.kpi;
-  // ad-driven sessions = mapped channel sessions for SELECTED platforms
+  // KPI cards honor the date range (month granularity — the feed's finest KPI grain): media delivery
+  // from ad_campaign_monthly (Platform + Campaign scoped), GA4 outcomes from monthly. Selecting all
+  // campaigns + "All time" reproduces the whole-flight totals exactly.
+  const acm=DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month));
+  const spend=sumBy(acm,'spend_aud'), imps=sumBy(acm,'imps'), clicks=sumBy(acm,'clicks');
+  const mr=DATA.monthly.filter(m=>inRangeMonth(m.month));
+  const sessions=sumBy(mr,'sessions'), engaged=sumBy(mr,'engaged_sessions'), keyEvents=sumBy(mr,'conversions');
+  // ad-driven sessions = mapped channel sessions for SELECTED platforms (Meta + Reddit share Paid Social — count once)
   let adDriven=0;
-  if(selPlt.has('google'))adDriven+=k.search_sessions||0;
-  if(selPlt.has('meta'))adDriven+=k.social_sessions||0;
-  if(selPlt.has('ttd'))adDriven+=k.display_sessions||0;
+  if(selPlt.has('google'))adDriven+=sumBy(mr,'search_sessions');
+  if(selPlt.has('meta')||selPlt.has('reddit'))adDriven+=sumBy(mr,'social_sessions');
+  if(selPlt.has('ttd'))adDriven+=sumBy(mr,'display_sessions');
   const cards=[
     ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks))],
     ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000)],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps))],
-    ['k-sessions','Website sessions',fmtN(k.sessions),'whole site'],
-    ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,k.sessions))+' of sessions'],
-    ['k-eng','Engaged sessions',fmtN(k.engaged_sessions),pct(div(k.engaged_sessions,k.sessions))+' eng. rate'],
-    ['k-leads','Key events',fmtN(k.conversions),'GA4 (modest)'],
+    ['k-sessions','Website sessions',fmtN(sessions),'whole site'],
+    ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions'],
+    ['k-eng','Engaged sessions',fmtN(engaged),pct(div(engaged,sessions))+' eng. rate'],
+    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)'],
   ];
   document.getElementById('ovKpis').innerHTML=cards.map(c=>
     `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
@@ -666,14 +775,14 @@ function renderOverview(){
   renderHero();
   renderKeyEventsBreakdown();
 
-  // channel donut (whole)
+  // channel donut (whole period — GA4 channel mix has no month grain in the feed)
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
   mkChart('channelDonut',{type:'doughnut',data:{labels:ch.map(c=>c.channel),
     datasets:[{data:ch.map(c=>c.sessions),backgroundColor:['#E84A6F','#0EA5E9','#6366F1','#A78BFA','#34D399','#F59E0B','#FB7185','#64748B','#94A3B8','#475569','#0D9488']}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
 
-  // spend donut (filtered)
-  const sp=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumBy(ac.filter(r=>r.platform===p),'spend_aud')})).filter(x=>x.v>0);
+  // spend donut (filtered, in range)
+  const sp=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumBy(acm.filter(r=>r.platform===p),'spend_aud')})).filter(x=>x.v>0);
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11}}}}});
@@ -682,39 +791,16 @@ function renderOverview(){
 // hero: ad spend (stacked bars) vs its effects (sessions / clicks / impressions / key events).
 // "Relative" indexes each effect line to its OWN peak (right axis 0–100%), so series at wildly
 // different scales (impressions vs key events) all show their real trend. "Absolute" puts them on
-// dedicated right axes instead. Month⇄week grain + click-a-month-to-drill (Looker-style).
+// dedicated right axes instead. Month/Week/Day grain + click-a-month-to-drill (Looker-style).
 function renderHero(){
-  const wk = grain.hero==='week';
-  let keys, sessions, keyevents, clicks, imps; const spendByPlt={};
-  if(wk){
-    const fw=DATA.weekly.filter(w=>inRangeWeek(w.week_start));
-    keys=fw.map(w=>w.week_start);
-    sessions=fw.map(w=>w.ga4_sessions);
-    keyevents=fw.map(w=>w.conversions);   // GA4 key events, now broken out weekly
-    const ci={}; keys.forEach((k,i)=>ci[k]=i);
-    const clk=keys.map(()=>0), im=keys.map(()=>0);
-    PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));
-    DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign)&&inRangeWeek(r.week_start)).forEach(r=>{
-      const i=ci[r.week_start]; if(i==null)return;
-      spendByPlt[r.platform][i]+=(+r.spend_aud||0); clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0);
-    });
-    clicks=clk; imps=im;
-  } else {
-    const fm=DATA.monthly.filter(m=>inRangeMonth(m.month));
-    keys=fm.map(m=>m.month);
-    sessions=fm.map(m=>m.sessions);
-    keyevents=fm.map(m=>m.conversions);
-    const ci={}; keys.forEach((k,i)=>ci[k]=i);
-    const clk=keys.map(()=>0), im=keys.map(()=>0);
-    PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));
-    DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign)&&inRangeMonth(r.month)).forEach(r=>{
-      const i=ci[r.month]; if(i==null)return;
-      spendByPlt[r.platform][i]+=(+r.spend_aud||0); clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0);
-    });
-    clicks=clk; imps=im;
-  }
-  const labels=keys.map(wk?wkLabel:moLabel);
-  const rel=(heroScale==='rel');
+  const g=grain.hero;
+  const ga=tsGA4(g), keys=ga.keys;
+  const sessions=ga.rows.map(ga.sessOf);
+  const keyevents=ga.rows.map(r=>r.conversions);   // GA4 key events, broken out per grain
+  const ad=tsAd(g, keys, campActive);
+  const spendByPlt=ad.spendByPlt, clicks=ad.clicks, imps=ad.imps;
+  const labels=keys.map(grainLabel(g));
+  const rel=(scale.hero==='rel');
   const effects=[
     {label:'Sessions',    color:'#E84A6F', data:sessions, w:2.5},
     {label:'Clicks',      color:'#34D399', data:clicks,   w:2},
@@ -749,30 +835,50 @@ function renderHero(){
         return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
     scales}});
 }
-// breakdown of what the "Key events" line is made of — GA4 key events by type, stacked per month.
+// breakdown of what the "Key events" line is made of — GA4 key events by type, stacked per period.
+// Pure stacked composition (no overlay line): "Relative" = 100%-stacked (each period's mix), with
+// tooltips showing the TRUE count; "Absolute" = raw counts. Month/Week/Day grain.
 function renderKeyEventsBreakdown(){
-  const rows=DATA.ga4_key_events.filter(r=>inRangeMonth(r.month));
-  const months=[...new Set(rows.map(r=>r.month))].sort();
+  const g=grain.ke;
+  // month/week derive from the day feed (real per-day GA4 events); month uses the month feed directly.
+  let src, keyOf;
+  if(g==='day'){ src=DATA.ga4_key_events_daily; keyOf=r=>r.day; }
+  else if(g==='week'){ src=DATA.ga4_key_events_daily; keyOf=r=>weekStartOf(r.day); }
+  else { src=DATA.ga4_key_events; keyOf=r=>r.month; }
+  const inR=(g==='month')?inRangeMonth:inRangeWeek;
+  const rows=src.filter(r=>inR(keyOf(r)));
+  const buckets=[...new Set(rows.map(keyOf))].sort();
   const tot={}; rows.forEach(r=>tot[r.event_name]=(tot[r.event_name]||0)+(+r.event_count||0));
   const names=[...new Set(rows.map(r=>r.event_name))].sort((a,b)=>(tot[b]||0)-(tot[a]||0));
   const PAL=['#F59E0B','#E84A6F','#6366F1','#0EA5E9','#A78BFA','#34D399','#FB7185','#FBBF24','#22D3EE','#94A3B8'];
-  const ci={}; months.forEach((m,i)=>ci[m]=i);
-  const ds=names.map((nm,i)=>{ const arr=months.map(()=>0);
-    rows.filter(r=>r.event_name===nm).forEach(r=>{arr[ci[r.month]]+=(+r.event_count||0);});
-    return {label:nm,backgroundColor:PAL[i%PAL.length],data:arr,stack:'ke'}; });
-  mkChart('keyEventsBreakdown',{type:'bar',data:{labels:months.map(moLabel),datasets:ds},options:{
+  const ci={}; buckets.forEach((b,i)=>ci[b]=i);
+  // raw counts per event per bucket
+  const raw=names.map(()=>buckets.map(()=>0));
+  names.forEach((nm,ni)=>rows.filter(r=>r.event_name===nm).forEach(r=>{raw[ni][ci[keyOf(r)]]+=(+r.event_count||0);}));
+  const colTot=buckets.map((_,bi)=>names.reduce((s,_,ni)=>s+raw[ni][bi],0));   // per-period total
+  const rel=(scale.ke==='rel');
+  const ds=names.map((nm,ni)=>({
+    label:nm, backgroundColor:PAL[ni%PAL.length], stack:'ke',
+    data: rel?raw[ni].map((v,bi)=>colTot[bi]?v/colTot[bi]*100:0):raw[ni], _raw:raw[ni] }));
+  const lab=grainLabel(g);
+  mkChart('keyEventsBreakdown',{type:'bar',data:{labels:buckets.map(lab),datasets:ds},options:{
     responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:11}}}},
-    scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Key-event count',color:tickClr}})}}});
+    plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:11}}},
+      tooltip:{callbacks:{label:ctx=>{ const v=ctx.dataset._raw?ctx.dataset._raw[ctx.dataIndex]:ctx.parsed.y;
+        return ctx.dataset.label+': '+fmtN(v)+(rel?'  ('+Math.round(ctx.parsed.y)+'%)':''); }}}},
+    scales:{x:axis({stacked:true}),y:axis(rel
+      ?{stacked:true,min:0,max:100,title:{display:true,text:'Share of key events',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}
+      :{stacked:true,title:{display:true,text:'Key-event count',color:tickClr}})}}});
 }
 
 // ---------- Paid Media (Campaign filter only; Platform ignored) ----------
 function renderPaid(){
-  const rows=DATA.ad_campaigns.filter(r=>campSel(r.platform,r.campaign));
+  // Platform comparison honors the date range (month grain) via ad_campaign_monthly.
+  const rows=DATA.ad_campaign_monthly.filter(r=>campSel(r.platform,r.campaign) && inRangeMonth(r.month));
   const per={};
   PLATFORMS.forEach(p=>per[p]={imps:0,clicks:0,spend:0,conv:0});
   rows.forEach(r=>{const a=per[r.platform];a.imps+=+r.imps||0;a.clicks+=+r.clicks||0;a.spend+=+r.spend_aud||0;a.conv+=+r.conversions||0;});
-  const convReported={google:true,meta:true,ttd:false};
+  const convReported={google:true,meta:true,ttd:false,reddit:true};
   let body='<tr><th>Platform</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Conv.</th><th>Cost / lead</th></tr>';
   let tot={imps:0,clicks:0,spend:0,conv:0};
   PLATFORMS.forEach(p=>{const a=per[p];tot.imps+=a.imps;tot.clicks+=a.clicks;tot.spend+=a.spend;tot.conv+=a.conv;
@@ -785,12 +891,23 @@ function renderPaid(){
     <td>${aud2(div(tot.spend,tot.clicks))}</td><td>${fmtN(tot.conv)}</td><td>—</td></tr>`;
   document.getElementById('platformTable').innerHTML=body;
 
-  // monthly stacked spend (campaign-filtered, all platforms)
-  const months=DATA.monthly.filter(m=>inRangeMonth(m.month)).map(m=>m.month);
-  const byPM={google:{},meta:{},ttd:{}};
-  DATA.ad_campaign_monthly.filter(r=>campSel(r.platform,r.campaign) && inRangeMonth(r.month)).forEach(r=>{byPM[r.platform][r.month]=(byPM[r.platform][r.month]||0)+(+r.spend_aud||0);});
-  mkChart('paidSpendChart',{type:'bar',data:{labels:months,datasets:PLATFORMS.map(p=>({label:PLABEL[p],stack:'s',backgroundColor:PCOLOR[p],data:months.map(m=>byPM[p][m]||0)}))},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tickClr,boxWidth:12}}},scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Spend (AUD)',color:tickClr}})}}});
+  // stacked spend by platform over time (campaign-filtered). Pure composition: "Relative" =
+  // 100%-stacked (each period's platform mix, true AUD in tooltips); "Absolute" = AUD amounts.
+  const gp=grain.paid;
+  const ga=tsGA4(gp), keys=ga.keys;                        // GA4 feed gives the canonical period list
+  const ad=tsAd(gp, keys, campSel);
+  const colTot=keys.map((_,i)=>PLATFORMS.reduce((s,p)=>s+ad.spendByPlt[p][i],0));
+  const relP=(scale.paid==='rel');
+  mkChart('paidSpendChart',{type:'bar',data:{labels:keys.map(grainLabel(gp)),datasets:PLATFORMS.map(p=>({
+      label:PLABEL[p],stack:'s',backgroundColor:PCOLOR[p],
+      data: relP?ad.spendByPlt[p].map((v,i)=>colTot[i]?v/colTot[i]*100:0):ad.spendByPlt[p], _raw:ad.spendByPlt[p]}))},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:12}},
+        tooltip:{callbacks:{label:ctx=>{ const v=ctx.dataset._raw?ctx.dataset._raw[ctx.dataIndex]:ctx.parsed.y;
+          return ctx.dataset.label+': '+aud(v)+(relP?'  ('+Math.round(ctx.parsed.y)+'%)':''); }}}},
+      scales:{x:axis({stacked:true}),y:axis(relP
+        ?{stacked:true,min:0,max:100,title:{display:true,text:'Share of spend',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}
+        :{stacked:true,title:{display:true,text:'Spend (AUD)',color:tickClr}})}}});
 
   campTable('googleCamps',DATA.google_campaigns.filter(r=>campSel('google',r.campaign)),
     ['Impr.','Clicks','Spend','Conv.','CPL'],r=>[fmtN(r.imps),fmtN(r.clicks),aud(r.spend_aud),fmtN(r.conversions),aud(div(r.spend_aud,r.conversions))]);
@@ -800,6 +917,61 @@ function renderPaid(){
     ['Impr.','Clicks','CTR','Spend'],r=>[fmtN(r.imps),fmtN(r.clicks),pct(div(r.clicks,r.imps)),aud(r.spend_aud)]);
   campTable('metaCreative',DATA.meta_creative,
     ['Impr.','Clicks','Link clk','Spend'],r=>[fmtN(r.imps),fmtN(r.clicks),fmtN(r.link_clicks),aud(r.spend_aud)],'creative');
+
+  renderReddit();
+}
+
+// ---------- Reddit deep-dive (Paid Media tab; Campaign filter applies, Platform ignored) ----------
+// Reddit is a top-of-funnel community awareness/traffic play. Its real engagement signal is
+// page visits (page-visit clicks + views); sign-up/lead conversions are sparse, like Meta.
+function renderReddit(){
+  const rc=DATA.reddit_campaigns.filter(r=>campSel('reddit',r.campaign));
+  const spend=sumBy(rc,'spend_aud'), imps=sumBy(rc,'imps'), clicks=sumBy(rc,'clicks'),
+        conv=sumBy(rc,'conversions'), pv=sumBy(rc,'page_visits');
+  const cards=[
+    ['k-spend','Reddit spend',aud(spend),'CPC '+aud2(div(spend,clicks))],
+    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000)],
+    ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps))],
+    ['k-addriven','Page visits',fmtN(pv),'traffic-driving signal'],
+    ['k-leads','Sign-ups / leads',fmtN(conv),'sparse (B2B)'],
+  ];
+  document.getElementById('redditKpis').innerHTML=cards.map(c=>
+    `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
+
+  // delivery over time: spend (bars) + impressions (overlay line). Reuses the campaign-grained
+  // feed (filtered to platform 'reddit'), so it honors the Campaign filter + date range.
+  // "Relative" indexes the impressions line to its own peak (shared 0–100 axis); "Absolute" puts
+  // it on a dedicated impressions axis. Month/Week/Day grain.
+  const gr=grain.reddit;
+  const src=gr==='day'?DATA.ad_campaign_daily : gr==='week'?DATA.ad_campaign_weekly : DATA.ad_campaign_monthly;
+  const kf=grainKeyField(gr), inR=grainInRange(gr);
+  const agg={};
+  src.filter(r=>r.platform==='reddit'&&campSel('reddit',r.campaign)&&inR(r[kf])).forEach(r=>{
+    const k=r[kf]; (agg[k]=agg[k]||{imps:0,spend:0}); agg[k].imps+=+r.imps||0; agg[k].spend+=+r.spend_aud||0;});
+  const keys=Object.keys(agg).sort();
+  const impArr=keys.map(k=>agg[k].imps), relR=(scale.reddit==='rel');
+  mkChart('redditTrend',{data:{labels:keys.map(grainLabel(gr)),datasets:[
+    {type:'bar',label:'Spend',backgroundColor:'#FF5700',data:keys.map(k=>agg[k].spend),yAxisID:'y',order:5},
+    {type:'line',label:'Impressions',borderColor:'#22D3EE',backgroundColor:'#22D3EE',
+      data: relR?indexed(impArr):impArr, _raw:impArr,
+      yAxisID: relR?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,order:1}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
+        if(d.type==='bar')return d.label+': '+aud(ctx.parsed.y);
+        const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
+        return d.label+': '+fmtN(raw)+(relR?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+      scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
+        relR?{yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions — % of peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+            :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Impressions',color:tickClr}})})}});
+
+  // campaign table — objective + page visits + conversions
+  let h='<tr><th>Campaign</th><th>Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
+  if(!rc.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
+  rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(r.campaign||'(unnamed)')+'</td>'+
+    '<td style="text-align:left;color:var(--muted)">'+(r.objective||'—')+'</td>'+
+    '<td>'+fmtN(r.imps)+'</td><td>'+fmtN(r.clicks)+'</td><td>'+pct(div(r.clicks,r.imps))+'</td>'+
+    '<td>'+aud(r.spend_aud)+'</td><td>'+fmtN(r.page_visits)+'</td><td>'+fmtN(r.conversions)+'</td></tr>';});
+  document.getElementById('redditCamps').innerHTML=h;
 }
 function campTable(id,rows,heads,cells,nameKey){
   let h='<tr><th>'+(nameKey||'Campaign')+'</th>'+heads.map(x=>'<th>'+x+'</th>').join('')+'</tr>';
@@ -826,12 +998,27 @@ function renderWebsite(){
     {label:'Sessions',backgroundColor:ch.map(c=>c.bucket==='Paid'?'#E84A6F':'#3B4D66'),data:ch.map(c=>c.sessions)}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
-  const wkw=grain.web==='week', wsrc=wkw?DATA.weekly:DATA.monthly;
-  const wlabels=wkw?wsrc.map(r=>wkLabel(r.week_start)):wsrc.map(r=>r.month);
+  // Total vs ad-driven sessions (whole period — the Website tab hides the filter bar). Two lines,
+  // no bars: "Relative" indexes each line to its OWN peak on a shared 0–100 axis so both trends
+  // read at once; "Absolute" plots real session counts. Month/Week/Day grain.
+  const gw=grain.web;
+  const wsrc=gw==='day'?DATA.daily : gw==='week'?DATA.weekly : DATA.monthly;
+  const wkf=grainKeyField(gw);
+  const wlabels=wsrc.map(r=>grainLabel(gw)(r[wkf]));
+  const allSess=wsrc.map(r=>gw==='week'?r.ga4_sessions:r.sessions);
+  const adSess=wsrc.map(r=>r.paid_sessions);
+  const relW=(scale.web==='rel');
+  const wyId=relW?'yRel':'y';
   mkChart('webTrend',{data:{labels:wlabels,datasets:[
-    {type:'line',label:'All sessions',borderColor:'#E84A6F',data:wsrc.map(r=>wkw?r.ga4_sessions:r.sessions),tension:.3,borderWidth:2.5,pointRadius:2},
-    {type:'line',label:'Ad-driven (paid)',borderColor:'#F59E0B',data:wsrc.map(r=>r.paid_sessions),tension:.3,borderWidth:2,pointRadius:2}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:tickClr,boxWidth:12}}},scales:{x:axis(),y:axis()}}});
+    {type:'line',label:'All sessions',borderColor:'#E84A6F',data:relW?indexed(allSess):allSess,_raw:allSess,yAxisID:wyId,tension:.3,borderWidth:2.5,pointRadius:2},
+    {type:'line',label:'Ad-driven (paid)',borderColor:'#F59E0B',data:relW?indexed(adSess):adSess,_raw:adSess,yAxisID:wyId,tension:.3,borderWidth:2,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
+        const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
+        return d.label+': '+fmtN(raw)+(relW?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+      scales:Object.assign({x:axis()}, relW
+        ?{yRel:axis({min:0,max:100,title:{display:true,text:'Index (peak=100)',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+        :{y:axis({title:{display:true,text:'Sessions',color:tickClr}})})}});
 
   // key events by type (aggregate over months)
   const ev={};
@@ -848,30 +1035,47 @@ function renderWebsite(){
 }
 
 // ---------- Ads → Traffic ----------
+// mapped paid sessions (selected platforms) for any grain row (monthly/weekly/daily all carry
+// search_/social_/display_sessions).
+function mappedSess(r){let s=0;if(selPlt.has('google'))s+=r.search_sessions||0;if(selPlt.has('meta')||selPlt.has('reddit'))s+=r.social_sessions||0;if(selPlt.has('ttd'))s+=r.display_sessions||0;return s;}
 function renderAds2Traffic(){
-  const fm=DATA.monthly.filter(m=>inRangeMonth(m.month));
-  const months=fm.map(m=>m.month);
-  const spendByMonth={};
-  DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month)).forEach(r=>{spendByMonth[r.month]=(spendByMonth[r.month]||0)+(+r.spend_aud||0);});
-  mkChart('a2tMonthly',{data:{labels:months,datasets:[
-    {type:'bar',label:'Ad spend',backgroundColor:'#6366F1',data:months.map(m=>spendByMonth[m]||0),yAxisID:'y'},
-    {type:'line',label:'Sessions',borderColor:'#E84A6F',data:fm.map(m=>m.sessions),yAxisID:'y1',tension:.3,borderWidth:2.5,pointRadius:2}]},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:tickClr,boxWidth:12}}},
-      scales:{x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions',color:tickClr}})}}});
+  // "Ad spend vs sessions": spend (bars) + sessions (overlay line). "Relative" indexes the line
+  // to its own peak (shared 0–100 axis); "Absolute" uses a dedicated sessions axis. M/W/D grain.
+  const gm=grain.a2tm, gaM=tsGA4(gm), mkeys=gaM.keys;
+  const adM=tsAd(gm, mkeys, campActive);
+  const sessM=gaM.rows.map(gaM.sessOf), relM=(scale.a2tm==='rel');
+  mkChart('a2tMonthly',{data:{labels:mkeys.map(grainLabel(gm)),datasets:[
+    {type:'bar',label:'Ad spend',backgroundColor:'#6366F1',data:adM.spend,yAxisID:'y'},
+    {type:'line',label:'Sessions',borderColor:'#E84A6F',data:relM?indexed(sessM):sessM,_raw:sessM,yAxisID:relM?'yRel':'y1',tension:.3,borderWidth:2.5,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
+        if(d.type==='bar')return d.label+': '+aud(ctx.parsed.y);
+        const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
+        return d.label+': '+fmtN(raw)+(relM?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+      scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
+        relM?{yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+            :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions',color:tickClr}})})}});
 
-  // weekly: ad imps (filtered) vs mapped paid sessions (selected platforms)
+  // "Ad impressions vs sessions": imps (bars) + mapped paid sessions (overlay line). Same Rel/Abs
+  // semantics. M/W/D grain (defaults to Week to preserve its original view).
+  const gw=grain.a2tw, gaW=tsGA4(gw), wkeys=gaW.keys;
+  const adW=tsAd(gw, wkeys, campActive);
+  const mapW=gaW.rows.map(mappedSess), relW=(scale.a2tw==='rel');
+  mkChart('a2tWeekly',{data:{labels:wkeys.map(grainLabel(gw)),datasets:[
+    {type:'bar',label:'Ad impressions',backgroundColor:'#A78BFA',data:adW.imps,yAxisID:'y'},
+    {type:'line',label:'Mapped paid sessions',borderColor:'#E84A6F',data:relW?indexed(mapW):mapW,_raw:mapW,yAxisID:relW?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
+        if(d.type==='bar')return d.label+': '+fmtN(ctx.parsed.y);
+        const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
+        return d.label+': '+fmtN(raw)+(relW?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+      scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Impressions',color:tickClr}})},
+        relW?{yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+            :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Mapped paid sessions',color:tickClr}})})}});
+
+  // scatter (excluded from the grain/scale toggles — always weekly): ad spend vs mapped paid
+  // sessions + Pearson r, on the fixed Mon-anchored weekly grain.
   const fw=DATA.weekly.filter(w=>inRangeWeek(w.week_start));
-  const weeks=fw.map(w=>w.week_start);
-  const impByWeek={};
-  DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign) && inRangeWeek(r.week_start)).forEach(r=>{impByWeek[r.week_start]=(impByWeek[r.week_start]||0)+(+r.imps||0);});
-  const mappedSess=w=>{let s=0;if(selPlt.has('google'))s+=w.search_sessions||0;if(selPlt.has('meta'))s+=w.social_sessions||0;if(selPlt.has('ttd'))s+=w.display_sessions||0;return s;};
-  mkChart('a2tWeekly',{data:{labels:weeks,datasets:[
-    {type:'bar',label:'Ad impressions',backgroundColor:'#A78BFA',data:weeks.map(w=>impByWeek[w]||0),yAxisID:'y'},
-    {type:'line',label:'Mapped paid sessions',borderColor:'#E84A6F',data:fw.map(mappedSess),yAxisID:'y1',tension:.3,borderWidth:2,pointRadius:2}]},
-    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:tickClr,boxWidth:12}}},
-      scales:{x:axis(),y:axis({position:'left'}),y1:axis({position:'right',grid:{drawOnChartArea:false}})}}});
-
-  // scatter: weekly ad spend vs mapped paid sessions + Pearson r
   const spByWeek={};
   DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign) && inRangeWeek(r.week_start)).forEach(r=>{spByWeek[r.week_start]=(spByWeek[r.week_start]||0)+(+r.spend_aud||0);});
   const pts=fw.map(w=>({x:spByWeek[w.week_start]||0,y:mappedSess(w)})).filter(p=>p.x>0||p.y>0);
@@ -881,12 +1085,12 @@ function renderAds2Traffic(){
   const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));
   document.getElementById('corrHint').innerHTML='Weekly ad spend vs mapped paid sessions. Pearson r = <b style="color:var(--accent)">'+(r==null?'—':r.toFixed(2))+'</b> ('+pts.length+' weeks).';
 
-  // conversions / CPL by platform (campaign-active)
-  const ac=activeCamps();
+  // conversions / CPL by platform (Platform + Campaign scoped, honors the date range via ad_campaign_monthly)
+  const acm=DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month));
   const per={};PLATFORMS.forEach(p=>per[p]={spend:0,conv:0});
-  ac.forEach(r=>{per[r.platform].spend+=+r.spend_aud||0;per[r.platform].conv+=+r.conversions||0;});
-  const reported={google:'Google-reported',meta:'Meta leads (sparse)',ttd:'None reported'};
-  const has={google:true,meta:true,ttd:false};
+  acm.forEach(r=>{per[r.platform].spend+=+r.spend_aud||0;per[r.platform].conv+=+r.conversions||0;});
+  const reported={google:'Google-reported',meta:'Meta leads (sparse)',ttd:'None reported',reddit:'Reddit sign-ups/leads (sparse)'};
+  const has={google:true,meta:true,ttd:false,reddit:true};
   let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th>Source</th></tr>';
   PLATFORMS.filter(p=>selPlt.has(p)).forEach(p=>{const a=per[p];
     h+=`<tr><td class="name"><span class="pill ${p}">${PLABEL[p]}</span></td><td>${aud(a.spend)}</td>

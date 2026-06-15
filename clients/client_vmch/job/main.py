@@ -88,6 +88,7 @@ def main():
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
+    daily = rows(bq, "daily")
     ttd_markets = rows(bq, "ttd_markets")
     ttd_adgroups = rows(bq, "ttd_adgroups")
     ttd_creative = rows(bq, "ttd_creative")
@@ -96,6 +97,7 @@ def main():
     ad_campaigns = rows(bq, "ad_campaigns")
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_daily = rows(bq, "ad_campaign_daily")
     ad_campaign_market = rows(bq, "ad_campaign_market")
     ad_campaign_market_monthly = rows(bq, "ad_campaign_market_monthly")
 
@@ -103,9 +105,11 @@ def main():
     ga4_kpi_market = rows(bq, "ga4_kpi_market")
     ga4_monthly_market = rows(bq, "ga4_monthly_market")
     ga4_weekly_market = rows(bq, "ga4_weekly_market")
+    ga4_daily_market = rows(bq, "ga4_daily_market")
     ga4_channels_market = rows(bq, "ga4_channels_market")
     ga4_sources_market = rows(bq, "ga4_sources_market")
     ga4_key_events = rows(bq, "ga4_key_events")
+    ga4_key_events_daily = rows(bq, "ga4_key_events_daily")
 
     # Country options (single market for VMCH)
     countries = [r["market"] for r in ga4_kpi_market]
@@ -162,6 +166,25 @@ def main():
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_aud": num(r["ad_spend_aud"]),
         } for r in monthly],
+        "daily": [{
+            "day": ymd(r["day"]),
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+            "ttd_imps": num(r["ttd_imps"]),
+            "ttd_clicks": num(r["ttd_clicks"]),
+            "ttd_spend_aud": num(r["ttd_spend_aud"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_aud": num(r["ad_spend_aud"]),
+        } for r in daily],
         "countries": countries,
         "ga4_kpi_market": [{
             "market": r["market"],
@@ -203,6 +226,15 @@ def main():
             "social_sessions": num(r["social_sessions"]),
             "search_sessions": num(r["search_sessions"]),
         } for r in ga4_weekly_market],
+        "ga4_daily_market": [{
+            "day": ymd(r["day"]),
+            "market": r["market"],
+            "ga4_sessions": num(r["ga4_sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
+        } for r in ga4_daily_market],
         "ga4_channels_market": [{
             "market": r["market"],
             "channel": r["channel_group"],
@@ -226,6 +258,11 @@ def main():
             "event_name": r["event_name"],
             "key_events": num(r["key_events"]),
         } for r in ga4_key_events],
+        "ga4_key_events_daily": [{
+            "day": ymd(r["day"]),
+            "event_name": r["event_name"],
+            "key_events": num(r["key_events"]),
+        } for r in ga4_key_events_daily],
         "ttd_markets": [{
             "market": r["market"],
             "imps": num(r["imps"]),
@@ -271,6 +308,14 @@ def main():
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
         } for r in ad_campaign_weekly],
+        "ad_campaign_daily": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "day": ymd(r["day"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+        } for r in ad_campaign_daily],
         "ad_campaign_market": [{
             "platform": r["platform"],
             "campaign": r["campaign"],

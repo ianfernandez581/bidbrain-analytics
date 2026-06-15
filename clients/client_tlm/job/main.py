@@ -87,6 +87,7 @@ def main():
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
+    daily = rows(bq, "daily")
     google_campaigns = rows(bq, "google_campaigns")
     google_by_type = rows(bq, "google_by_type")
     ttd_campaigns = rows(bq, "ttd_campaigns")
@@ -96,6 +97,7 @@ def main():
     ad_campaigns = rows(bq, "ad_campaigns")
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_daily = rows(bq, "ad_campaign_daily")
 
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
@@ -158,6 +160,22 @@ def main():
             "t_clicks": num(r["t_clicks"]),
             "t_spend_aud": num(r["t_spend_aud"]),
         } for r in weekly],
+        "daily": [{
+            "date": ymd(r["day"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+            "revenue": num(r["revenue"]),
+            "g_imps": num(r["g_imps"]),
+            "g_clicks": num(r["g_clicks"]),
+            "g_spend_aud": num(r["g_spend_aud"]),
+            "g_conv": num(r["g_conv"]),
+            "g_revenue": num(r["g_revenue"]),
+            "t_imps": num(r["t_imps"]),
+            "t_clicks": num(r["t_clicks"]),
+            "t_spend_aud": num(r["t_spend_aud"]),
+        } for r in daily],
         "google_campaigns": [{
             "campaign": r["campaign"],
             "campaign_type": r.get("campaign_type"),
@@ -226,6 +244,16 @@ def main():
             "conversions": num(r["conversions"]),  # Google-only (TTD NULL)
             "revenue": num(r["revenue"]),          # Google-only (TTD NULL)
         } for r in ad_campaign_weekly],
+        "ad_campaign_daily": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "day": ymd(r["day"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),  # Google-only (TTD NULL)
+            "revenue": num(r["revenue"]),          # Google-only (TTD NULL)
+        } for r in ad_campaign_daily],
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
@@ -234,7 +262,7 @@ def main():
     # second), so a failed upload simply retries on the next tick.
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
-          f"{len(env['weekly'])} weeks, "
+          f"{len(env['weekly'])} weeks, {len(env['daily'])} days, "
           f"A${env['kpi']['ad_spend_aud']:,.0f} ad spend, "
           f"{env['kpi']['conversions']:,.0f} purchases, "
           f"A${env['kpi']['revenue']:,.0f} revenue")

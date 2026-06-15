@@ -173,6 +173,16 @@
   .card-med{min-height:262px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
 
+  /* ---- chart-card head + grain/scale segmented toggles ---- */
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card-head .titles{min-width:0;flex:1}
+  .card-ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex:none}
+  .seg{display:inline-flex;align-items:center;border:1px solid var(--stt-line);border-radius:8px;overflow:hidden;background:var(--stt-bg)}
+  .seg .cap{padding:0 8px;font-size:9px;font-weight:700;letter-spacing:.8px;color:var(--stt-mute);align-self:center;text-transform:uppercase}
+  .seg button{background:none;border:none;color:var(--stt-mute);font-family:inherit;font-size:11.5px;font-weight:600;padding:5px 11px;cursor:pointer;letter-spacing:.2px}
+  .seg button.on{background:var(--stt-dark);color:#fff}
+  .seg button:not(.on):hover{color:var(--stt-ink)}
+
   /* ---- KPIs ---- */
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
   .kpis.five{grid-template-columns:repeat(5,1fr)}
@@ -378,8 +388,13 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Media activity, key events &amp; website sessions — monthly</h3>
-          <div class="hint">Ad spend by platform (stacked bars, SGD) and total website sessions (line), with GA4 key events by type as dashed lines. Three axes. Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
+          <div class="card-head"><div class="titles">
+            <h3>Media activity, key events &amp; website sessions</h3>
+            <div class="hint">Ad spend by platform (stacked bars, SGD) and total website sessions (line), with GA4 key events by type as dashed lines. Three axes. <b>Relative</b> indexes each overlay line to its own peak=100 so differently-scaled series stay comparable. Spend reflects the Platform &amp; Campaign filters; sessions &amp; key events reflect the Country filter.</div>
+          </div><div class="card-ctrls">
+            <span class="seg" id="ovHeroScaleSeg"><span class="cap">Axis</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="ovHeroGrainSeg"><span class="cap">View by</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+          </div></div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -391,8 +406,13 @@
 
       <div class="grid">
         <div class="card card-tall">
-          <h3>Website sessions — paid vs the rest (monthly)</h3>
-          <div class="hint">Paid-channel sessions (red) stacked over organic, direct and other. Paid traffic scales up as the campaign ramps.</div>
+          <div class="card-head"><div class="titles">
+            <h3>Website sessions — paid vs the rest</h3>
+            <div class="hint">Paid-channel sessions (red) stacked over organic, direct and other. Paid traffic scales up as the campaign ramps. <b>Relative</b> shows each period as a 100% composition.</div>
+          </div><div class="card-ctrls">
+            <span class="seg" id="ovStackScaleSeg"><span class="cap">Axis</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="ovStackGrainSeg"><span class="cap">View by</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+          </div></div>
           <div class="chart-wrap"><canvas id="ovStack"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -416,8 +436,13 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Monthly delivery — spend by platform</h3>
-          <div class="hint">Spend by platform (stacked bars, SGD); line = clicks to site (right axis).</div>
+          <div class="card-head"><div class="titles">
+            <h3>Delivery — spend by platform</h3>
+            <div class="hint">Spend by platform (stacked bars, SGD); line = clicks to site (right axis). <b>Relative</b> indexes the clicks line to its own peak=100.</div>
+          </div><div class="card-ctrls">
+            <span class="seg" id="pmMonthlyScaleSeg"><span class="cap">Axis</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="pmMonthlyGrainSeg"><span class="cap">View by</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+          </div></div>
           <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -486,8 +511,13 @@
           <div class="chart-wrap"><canvas id="webChannels"></canvas></div>
         </div>
         <div class="card card-tall">
-          <h3>Monthly sessions — total vs ad-driven</h3>
-          <div class="hint">Total sessions (line) with paid sessions (red) and programmatic-display sessions.</div>
+          <div class="card-head"><div class="titles">
+            <h3>Sessions — total vs ad-driven</h3>
+            <div class="hint">Total sessions (line) with paid sessions (red) and programmatic-display sessions. <b>Relative</b> indexes each line to its own peak=100.</div>
+          </div><div class="card-ctrls">
+            <span class="seg" id="webTrendScaleSeg"><span class="cap">Axis</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="webTrendGrainSeg"><span class="cap">View by</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+          </div></div>
           <div class="chart-wrap"><canvas id="webTrend"></canvas></div>
         </div>
       </div>
@@ -499,8 +529,13 @@
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>Key events by type</h3>
-        <div class="hint">GA4 key events per month, split by event type, summed over the selected countries. Includes every configured key event — not just contact / lead-gen / newsletter.</div>
+        <div class="card-head"><div class="titles">
+          <h3>Key events by type</h3>
+          <div class="hint">GA4 key events per period, split by event type, summed over the selected countries. Includes every configured key event — not just contact / lead-gen / newsletter. <b>Relative</b> shows each period as a 100% composition.</div>
+        </div><div class="card-ctrls">
+          <span class="seg" id="webKeyEventsScaleSeg"><span class="cap">Axis</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+          <span class="seg" id="webKeyEventsGrainSeg"><span class="cap">View by</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+        </div></div>
         <div class="chart-wrap" style="height:300px"><canvas id="webKeyEvents"></canvas></div>
       </div>
 
@@ -528,8 +563,13 @@
       <div class="funnel" id="linkFunnel"></div>
 
       <div class="card card-tall" style="margin-top:18px">
-        <h3>Weekly — ad impressions vs all website sessions</h3>
-        <div class="hint">Weekly ad impressions (bars, right axis) against total website sessions on the websites (line, left axis).</div>
+        <div class="card-head"><div class="titles">
+          <h3>Ad impressions vs all website sessions</h3>
+          <div class="hint">Ad impressions (bars, right axis) against total website sessions on the websites (line, left axis). <b>Relative</b> indexes the sessions line to its own peak=100.</div>
+        </div><div class="card-ctrls">
+          <span class="seg" id="linkWeeklyScaleSeg"><span class="cap">Axis</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+          <span class="seg" id="linkWeeklyGrainSeg"><span class="cap">View by</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
+        </div></div>
         <div class="chart-wrap" style="height:300px"><canvas id="linkWeekly"></canvas></div>
       </div>
 
@@ -578,12 +618,20 @@ let activeCampaigns = new Set();   // ad-campaign filter (all on by default) —
 let campaignMenuOpen = false;
 const el = id => document.getElementById(id);
 
+// ---- Per-chart grain (month/week/day) + scale (rel/abs) toggles. DEFAULT scale =
+// 'rel' (Relative). Each genuine time-series chart keeps its own pre-existing default
+// grain — linkWeekly stays 'week', the rest stay 'month'. The toggle handlers update
+// these then re-render the active tab (STT destroys + rebuilds all charts per tab).
+const grain = { ovHero:'month', ovStack:'month', pmMonthly:'month', webTrend:'month', webKeyEvents:'month', linkWeekly:'week' };
+const scale = { ovHero:'rel',   ovStack:'rel',   pmMonthly:'rel',   webTrend:'rel',   webKeyEvents:'rel',   linkWeekly:'rel' };
+
 // ---- Date range (Looker-style picker). Finest grain in this feed is month/week,
 // so trend charts honor the range while whole-window KPIs/donuts/tables/breakdowns
 // stay full-period. ISO 'YYYY-MM-DD' strings; null = full window.
 let rangeStart = null, rangeEnd = null, dateMin = null, dateMax = null;
 const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
+const inRangeDay   = d => (!rangeStart || d >= rangeStart) && (!rangeEnd || d <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
 
 // ===================== shared date-range picker (Looker-style) =====================
@@ -736,6 +784,19 @@ const money  = (v,sym='S$',d=0) => v==null||isNaN(v) ? '—' : sym+Number(v).toL
 function dur(sec){ if(sec==null||isNaN(sec)) return '—'; const m=Math.floor(sec/60), s=Math.round(sec%60); return m? `${m}m ${s}s` : `${s}s`; }
 function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
 function dayLabel(d){ const dt=new Date(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+// Period label for a grain'd value: 'month' -> "Jun 25", 'week'/'day' -> "Jun 9".
+const periodLabel = (k,key) => key==='month' ? monthLabel(k) : dayLabel(k);
+// Sorted period keys for a grain, drawn from the blended monthly/weekly/daily view
+// (each carries the union of GA4 + ad dates), honoring the date picker. Returns the
+// raw period strings ('YYYY-MM' | 'YYYY-MM-DD') — the trend charts label them via
+// periodLabel and look every series up by the same key.
+function gPeriods(grainKey){
+  if(grainKey==='week') return (DATA.weekly||[]).filter(r=>inRangeWeek(r.week_start)).map(r=>r.week_start);
+  if(grainKey==='day')  return (DATA.daily||[]).filter(r=>inRangeDay(r.day)).map(r=>r.day);
+  return (DATA.monthly||[]).filter(r=>inRangeMonth(r.month)).map(r=>r.month);
+}
+// Index each series to its own peak=100 (Relative scale) — un-indexed via *peak/100 in tooltips.
+function indexToPeak(arr){ const mx=Math.max.apply(null,arr.concat([0])); return mx>0 ? arr.map(v=>v/mx*100) : arr.map(()=>0); }
 function pct(part,whole){ return whole? part/whole : 0; }
 
 function deltaHTML(now, base){
@@ -923,6 +984,26 @@ function adWeeklyMap(applyPlatform){
   }
   return m;
 }
+// day -> {imps,clk,spend, <platform>:{imps,clk,spend}} over selected campaigns (VIEW BY -> Day).
+function adDailyMap(applyPlatform){
+  const m = {};
+  for(const r of (DATA.ad_campaign_daily||[])){
+    if(!rowOk(r, applyPlatform)) continue; if(!inRangeDay(r.day)) continue;
+    const e = m[r.day] || (m[r.day] = {imps:0,clk:0,spend:0,
+      google:{imps:0,clk:0,spend:0}, dv360:{imps:0,clk:0,spend:0}, linkedin:{imps:0,clk:0,spend:0}});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_sgd||0;
+    const p = e[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_sgd||0; }
+  }
+  return m;
+}
+// Grain dispatcher for the ad-delivery map (month/week/day). adMonthlyMap carries the
+// per-platform breakdown; adWeeklyMap only the blended totals (its only caller, the
+// link chart, needs only blended). adDailyMap carries both so day works on every chart.
+function adGrainMap(grainKey, applyPlatform){
+  return grainKey==='week' ? adWeeklyMap(applyPlatform)
+       : grainKey==='day'  ? adDailyMap(applyPlatform)
+       :                     adMonthlyMap(applyPlatform);
+}
 // One platform's by-market delivery over selected campaigns (Paid Media — campaign only).
 function adMarketArr(platformKey){
   const m = {};
@@ -991,6 +1072,55 @@ function ga4WeeklyMap(){
   }
   return m;
 }
+// day -> summed GA4 fields over selected countries (mirror of ga4_monthly_market shape).
+function ga4DailyMap(){
+  const m = {};
+  for(const r of (DATA.ga4_daily_market||[])){ if(!countryOk(r.market)) continue; if(!inRangeDay(r.day)) continue;
+    const e = m[r.day] || (m[r.day] = {sessions:0,paid_sessions:0,organic_sessions:0,direct_sessions:0,
+      other_sessions:0,display_sessions:0,social_sessions:0,search_sessions:0,engaged_sessions:0,users:0,conversions:0});
+    for(const k in e) e[k]+=r[k]||0;
+  }
+  return m;
+}
+// Grain dispatcher returning a period -> GA4-fields map with a CONSISTENT `sessions`
+// key across all grains (the weekly view emits `ga4_sessions`, so normalize it). The
+// trend charts read `.sessions/.paid_sessions/.display_sessions`; organic/direct/other
+// exist on month+day (used by ovStack, which is only offered month/week/day — its week
+// branch falls back to 0 for the splits the weekly view doesn't carry, see ovStackSeries).
+function ga4GrainMap(grainKey){
+  if(grainKey==='week'){
+    const w = ga4WeeklyMap(), o = {};
+    for(const k in w){ const r = w[k]; o[k] = Object.assign({}, r, {sessions:r.ga4_sessions||0}); }
+    return o;
+  }
+  return grainKey==='day' ? ga4DailyMap() : ga4MonthlyMap();
+}
+// Session composition (Paid/Organic/Direct/Other) by period for ovStack — country
+// filtered. Month reads ga4_monthly_market; day reads ga4_daily_market; week re-buckets
+// the daily rows onto their Monday ISO week (the weekly view lacks the full split).
+// -> {periods:[sorted], paid:[], organic:[], direct:[], other:[]}.
+function ovStackComp(grainKey){
+  const acc = {};
+  if(grainKey==='month'){
+    const m = ga4MonthlyMap();
+    for(const k of Object.keys(m).sort()){ const r=m[k];
+      acc[k] = {paid:r.paid_sessions||0, organic:r.organic_sessions||0, direct:r.direct_sessions||0, other:r.other_sessions||0}; }
+  } else {
+    for(const r of (DATA.ga4_daily_market||[])){ if(!countryOk(r.market)) continue;
+      const inR = grainKey==='day' ? inRangeDay(r.day) : inRangeWeek(weekStart(r.day));
+      if(!inR) continue;
+      const k = grainKey==='day' ? r.day : weekStart(r.day);
+      const e = acc[k] || (acc[k] = {paid:0,organic:0,direct:0,other:0});
+      e.paid+=r.paid_sessions||0; e.organic+=r.organic_sessions||0; e.direct+=r.direct_sessions||0; e.other+=r.other_sessions||0;
+    }
+  }
+  const periods = Object.keys(acc).sort();
+  return { periods,
+    paid:    periods.map(k=>acc[k].paid),
+    organic: periods.map(k=>acc[k].organic),
+    direct:  periods.map(k=>acc[k].direct),
+    other:   periods.map(k=>acc[k].other) };
+}
 function ga4Channels(){
   const m = {};
   for(const r of DATA.ga4_channels_market){ if(!countryOk(r.market)) continue;
@@ -1021,6 +1151,32 @@ function ga4KeyEvents(){
     totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
   }
   return { byMonth, types: Object.keys(totals).sort((a,b)=>totals[b]-totals[a]) };
+}
+// Key events by type, by PERIOD (month/week/day) — country-filtered. Month reads the
+// monthly view; day reads ga4_key_events_daily_market; week re-buckets the daily rows
+// onto their Monday-anchored ISO week (the feed has no key-event weekly view). Returns
+// {byPeriod:{period:{event_name:count}}, types:[event_name] sorted by total desc}.
+function ga4KeyEventsGrain(grainKey){
+  if(grainKey==='month'){ const r = ga4KeyEvents(); return { byPeriod:r.byMonth, types:r.types }; }
+  const byPeriod = {}, totals = {};
+  for(const r of (DATA.ga4_key_events_daily_market||[])){ if(!countryOk(r.market)) continue;
+    if(grainKey==='day' ? !inRangeDay(r.day) : !inRangeWeek(weekStart(r.day))) continue;
+    if(r.event_name==='generate_lead') continue;   // negligible (~80) — hidden at the client's request
+    const k = grainKey==='day' ? r.day : weekStart(r.day);
+    (byPeriod[k] || (byPeriod[k] = {}));
+    byPeriod[k][r.event_name] = (byPeriod[k][r.event_name]||0) + (r.key_events||0);
+    totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
+  }
+  return { byPeriod, types: Object.keys(totals).sort((a,b)=>totals[b]-totals[a]) };
+}
+// ISO week start (Monday) for a 'YYYY-MM-DD' string -> 'YYYY-MM-DD'. Matches BigQuery
+// DATE_TRUNC(d, WEEK(MONDAY)) so re-bucketed key-event weeks align with the other weekly series.
+function weekStart(ymdStr){
+  const dt = new Date(ymdStr+'T00:00:00');
+  const dow = (dt.getDay()+6)%7;            // 0=Mon … 6=Sun
+  dt.setDate(dt.getDate()-dow);
+  const y=dt.getFullYear(), m=String(dt.getMonth()+1).padStart(2,'0'), d=String(dt.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
 }
 
 // Successful "Contact us" form submits by month (country-filtered) — drives the AI commentary callout.
@@ -1063,6 +1219,7 @@ async function boot(){
     el('content').style.display='block';
     renderMeta();
     renderControls();
+    wireChartToggles();
     renderActive();
   }catch(e){
     el('loading').style.display='none';
@@ -1129,6 +1286,27 @@ function renderControls(){
   });
 
   renderCampaignButton();
+}
+
+// Wire the per-chart "AXIS" (scale rel/abs) + "VIEW BY" (grain month/week/day) segmented
+// toggles. The seg buttons live in always-present tabpanes (hidden via display:none), so
+// they wire once at boot. A click updates the per-chart state then re-renders the active
+// tab (STT destroys + rebuilds every chart per tab, so a full re-render is cheap + safe).
+function wireChartToggles(){
+  const CHARTS = ['ovHero','ovStack','pmMonthly','webTrend','webKeyEvents','linkWeekly'];
+  CHARTS.forEach(id => {
+    const sSeg = el(id+'ScaleSeg'), gSeg = el(id+'GrainSeg');
+    if(sSeg) Array.from(sSeg.querySelectorAll('button')).forEach(b => b.addEventListener('click', function(){
+      scale[id] = this.dataset.scale;
+      Array.from(sSeg.querySelectorAll('button')).forEach(x => x.classList.toggle('on', x.dataset.scale===scale[id]));
+      renderActive();
+    }));
+    if(gSeg) Array.from(gSeg.querySelectorAll('button')).forEach(b => b.addEventListener('click', function(){
+      grain[id] = this.dataset.grain;
+      Array.from(gSeg.querySelectorAll('button')).forEach(x => x.classList.toggle('on', x.dataset.grain===grain[id]));
+      renderActive();
+    }));
+  });
 }
 
 function allCountries(){ activeCountries = new Set((DATA.countries||[]).filter(isApac)); renderControls(); renderActive(); }
@@ -1270,7 +1448,6 @@ function kpiCard(cls,label,value,delta){
 //==============================================================================
 function renderOverview(){
   const g = ga4Kpi();            // GA4 totals over selected countries
-  const gm = ga4MonthlyMap();
   const P = adByPlatform(true);  // per-platform ad totals over selected campaigns + platforms
   const a = adKpi();             // blended ad totals (same scope)
   const ctr = pct(a.clk, a.imps);
@@ -1289,37 +1466,58 @@ function renderOverview(){
 
   renderOvCommentary();
 
-  // Hero: ad SPEND as stacked bars by platform (y1, SGD), website sessions as a line (y),
-  //       and GA4 KEY EVENTS as dashed lines by type (y2). Three axes — scales differ
-  //       wildly (sessions ~60k, spend ~S$45k stacked, key events ~1.5k/type).
-  const M = DATA.monthly.filter(r=>inRangeMonth(r.month));   // months in the picker range
-  const am = adMonthlyMap(true);                       // month -> {imps,clk,spend, <platform>:{imps,clk,spend}}
-  const labels = M.map(r=>monthLabel(r.month));
-  const spendOf = (mo,key) => ((am[mo]||{})[key]||{}).spend||0;
+  // Hero: ad SPEND as stacked bars by platform (primary, ABSOLUTE on the SGD axis),
+  //       website sessions + GA4 KEY EVENTS as overlay lines. ABSOLUTE = three native
+  //       axes (sessions / spend / key events). RELATIVE (default) = index EACH overlay
+  //       line to its own peak=100 on ONE shared 0-100 right axis, so sessions (~60k) and
+  //       key events (~1.5k/type) stay visually comparable; bars stay absolute. Grain:
+  //       Month / Week / Day via the per-chart VIEW BY toggle.
+  const hGrain = grain.ovHero, hRel = scale.ovHero==='rel';
+  const hPer = gPeriods(hGrain);                        // sorted period keys honoring the picker
+  const am = adGrainMap(hGrain, true);                  // period -> {…, <platform>:{spend}}
+  const hgm = ga4GrainMap(hGrain);                      // period -> GA4 fields (consistent .sessions)
+  const labels = hPer.map(k=>periodLabel(k,hGrain));
+  const spendOf = (k,key) => ((am[k]||{})[key]||{}).spend||0;
   const spendBars = selPlatforms().map(p => ({
     type:'bar', label:p.label, yAxisID:'y1', stack:'spend',
-    data:M.map(r=>spendOf(r.month,p.key)),
+    data:hPer.map(k=>spendOf(k,p.key)),
     backgroundColor:p.color, borderRadius:3, maxBarThickness:26, order:2
   }));
-  const ke = ga4KeyEvents();
+  const ke = ga4KeyEventsGrain(hGrain);
   const kePal = ['#7C3AED','#DB2777','#15803D','#B97400','#0891B2'];   // distinct hue per key-event type (violet / magenta / green / amber / cyan) — NOT a single purple ramp; all clear of the teal sessions line + red/amber/blue spend bars
+  // True (un-indexed) overlay values, so Relative re-scales them + tooltips un-index.
+  const sessRaw = hPer.map(k=>(hgm[k]||{}).sessions||0);
+  const sessPeak = Math.max.apply(null, sessRaw.concat([0]));
+  const keRaw = ke.types.map(t => hPer.map(k=>(ke.byPeriod[k]||{})[t]||0));
+  const kePeak = keRaw.map(arr => Math.max.apply(null, arr.concat([0])));
   const keLines = ke.types.map((t,i) => ({
-    type:'line', label:t, yAxisID:'y2', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0,
-    data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+    type:'line', label:t, yAxisID: hRel?'yIdx':'y2', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0,
+    data: hRel ? indexToPeak(keRaw[i]) : keRaw[i],
     borderColor:kePal[i % kePal.length], backgroundColor:kePal[i % kePal.length]
   }));
+  const heroScales = hRel
+    ? { x:axisX({stacked:true}),
+        y1:gridY({position:'left',stacked:true,title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}}),
+        yIdx:{position:'right',min:0,max:100,grid:{display:false},border:{display:false},title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v.toFixed(0)}} }
+    : { x:axisX({stacked:true}),
+        y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
+        y2:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Key events',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} };
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
-      { type:'line', label:'Website sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), yAxisID:'y',
+      { type:'line', label:'Website sessions', data: hRel ? indexToPeak(sessRaw) : sessRaw, yAxisID: hRel?'yIdx':'y',
         borderColor:C.teal, backgroundColor:'rgba(14,124,134,.10)', borderWidth:2.5, tension:.35,
-        fill:true, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
+        fill:!hRel, pointRadius:2.5, pointBackgroundColor:C.teal, order:0 },
       ...spendBars, ...keLines
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}}},
-      scales:{ x:axisX({stacked:true}), y:gridY({position:'left',title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (SGD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'S$'+fmtM(v)}},
-        y2:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Key events',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID==='y1') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;   // spend bars (always absolute)
+        if(!hRel) return ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`;                         // absolute overlay lines
+        const peak = c.dataset.label==='Website sessions' ? sessPeak : (kePeak[ke.types.indexOf(c.dataset.label)]||0);
+        return ` ${c.dataset.label}: ${fmtN(c.parsed.y/100*peak)}`;                          // un-index to the true value
+      }}}},
+      scales: heroScales }
   });
 
   // Donut: sessions by channel (country-filtered)
@@ -1336,18 +1534,30 @@ function renderOverview(){
     plugins:[centerText]
   });
 
-  // Stacked monthly paid vs rest (country-filtered)
+  // Stacked sessions paid vs rest (country-filtered). Pure composition bars, NO overlay
+  // line -> ABSOLUTE = raw session counts; RELATIVE (default) = 100%-stacked (each period
+  // normalized to its own total). Grain: Month / Week / Day. The month + day GA4 views
+  // carry the full Paid/Organic/Direct/Other split; the weekly view doesn't, so week grain
+  // re-buckets the daily rows onto their Monday-anchored ISO week (ovStackComp).
+  const sGrain = grain.ovStack, sRel = scale.ovStack==='rel';
+  const sComp = ovStackComp(sGrain);
+  const sLabels = sComp.periods.map(k=>periodLabel(k,sGrain));
+  const sTot = sComp.periods.map((k,i)=> (sComp.paid[i]+sComp.organic[i]+sComp.direct[i]+sComp.other[i]) );
+  const norm = (arr) => sRel ? arr.map((v,i)=> sTot[i]>0 ? v/sTot[i]*100 : 0) : arr;
   charts.ovStack = new Chart(el('ovStack'),{
     type:'bar',
-    data:{ labels, datasets:[
-      { label:'Paid', data:M.map(r=>(gm[r.month]||{}).paid_sessions||0), backgroundColor:C.red, stack:'s', borderRadius:{topLeft:3,topRight:3} },
-      { label:'Organic', data:M.map(r=>(gm[r.month]||{}).organic_sessions||0), backgroundColor:C.teal, stack:'s' },
-      { label:'Direct', data:M.map(r=>(gm[r.month]||{}).direct_sessions||0), backgroundColor:C.slate, stack:'s' },
-      { label:'Other', data:M.map(r=>(gm[r.month]||{}).other_sessions||0), backgroundColor:C.grey, stack:'s' }
+    data:{ labels:sLabels, datasets:[
+      { label:'Paid', data:norm(sComp.paid), _raw:sComp.paid, backgroundColor:C.red, stack:'s', borderRadius:{topLeft:3,topRight:3} },
+      { label:'Organic', data:norm(sComp.organic), _raw:sComp.organic, backgroundColor:C.teal, stack:'s' },
+      { label:'Direct', data:norm(sComp.direct), _raw:sComp.direct, backgroundColor:C.slate, stack:'s' },
+      { label:'Other', data:norm(sComp.other), _raw:sComp.other, backgroundColor:C.grey, stack:'s' }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        const raw = (c.dataset._raw||[])[c.dataIndex]||0;
+        return sRel ? ` ${c.dataset.label}: ${fmtN(raw)} (${fmtPct(c.parsed.y/100,0)})` : ` ${c.dataset.label}: ${fmtN(raw)}`;
+      }}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true, max: sRel?100:undefined, ticks:{color:C.mute,font:{size:11},callback:v=> sRel ? v.toFixed(0)+'%' : fmtM(v)}}) } }
   });
 
   // Spend donut by platform — scoped to Platform + Campaign + Country + date range.
@@ -1458,22 +1668,31 @@ function renderPaid(){
   + kpiCard('accent','Impressions', fmtM(T.imps), `${money(cpm,'S$',2)} blended CPM`)
   + kpiCard('accent','Clicks', fmtN(T.clk), `Google ${fmtN(P.google.clk)} · DV360 ${fmtN(P.dv360.clk)} · LI ${fmtN(P.linkedin.clk)}`);
 
-  // Monthly spend by platform over the selected campaigns (months with delivery only).
-  const amp = adMonthlyMap(false);
-  const mspend = (mo,key) => ((amp[mo]||{})[key]||{}).spend||0;
-  const M = DATA.monthly.filter(r=> inRangeMonth(r.month) && (((amp[r.month]||{}).imps||0) > 0 || ((amp[r.month]||{}).spend||0) > 0) );
-  const labels = M.map(r=>monthLabel(r.month));
+  // Spend by platform over the selected campaigns. Stacked spend bars (primary, ABSOLUTE
+  // on the left SGD axis) + clicks-to-site overlay line. RELATIVE (default) indexes the
+  // clicks line to its own peak=100 on the right axis; ABSOLUTE = native clicks axis.
+  // Grain: Month / Week / Day. Only periods with delivery are shown.
+  const pmGrain = grain.pmMonthly, pmRel = scale.pmMonthly==='rel';
+  const amp = adGrainMap(pmGrain, false);
+  const mspend = (k,key) => ((amp[k]||{})[key]||{}).spend||0;
+  const pmPer = gPeriods(pmGrain).filter(k => ((amp[k]||{}).imps||0) > 0 || ((amp[k]||{}).spend||0) > 0);
+  const labels = pmPer.map(k=>periodLabel(k,pmGrain));
+  const clkRaw = pmPer.map(k=>(amp[k]||{}).clk||0);
+  const clkPeak = Math.max.apply(null, clkRaw.concat([0]));
   charts.pmMonthly = new Chart(el('pmMonthly'),{
     data:{ labels, datasets:[
-      { type:'bar', label:'Google Ads', data:M.map(r=>mspend(r.month,'google')), backgroundColor:'#E8A33D', stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
-      { type:'bar', label:'DV360', data:M.map(r=>mspend(r.month,'dv360')), backgroundColor:C.red, stack:'s', yAxisID:'y', maxBarThickness:30 },
-      { type:'bar', label:'LinkedIn', data:M.map(r=>mspend(r.month,'linkedin')), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
-      { type:'line', label:'Clicks to site', data:M.map(r=>(amp[r.month]||{}).clk||0), borderColor:C.teal, backgroundColor:C.teal, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3 }
+      { type:'bar', label:'Google Ads', data:pmPer.map(k=>mspend(k,'google')), backgroundColor:'#E8A33D', stack:'s', yAxisID:'y', borderRadius:{topLeft:3,topRight:3}, maxBarThickness:30 },
+      { type:'bar', label:'DV360', data:pmPer.map(k=>mspend(k,'dv360')), backgroundColor:C.red, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'bar', label:'LinkedIn', data:pmPer.map(k=>mspend(k,'linkedin')), backgroundColor:C.li, stack:'s', yAxisID:'y', maxBarThickness:30 },
+      { type:'line', label:'Clicks to site', data: pmRel ? indexToPeak(clkRaw) : clkRaw, borderColor:C.teal, backgroundColor:C.teal, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):money(c.parsed.y)}`}} },
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID!=='y1') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;            // spend bars
+        return ` Clicks to site: ${fmtN(pmRel ? c.parsed.y/100*clkPeak : c.parsed.y)}`;             // un-index in relative
+      }}} },
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks to site',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+        y1:{position:'right',min: pmRel?0:undefined, max: pmRel?100:undefined, grid:{display:false},border:{display:false},title:{display:true,text: pmRel?'Index (peak=100)':'Clicks to site',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=> pmRel ? v.toFixed(0) : fmtN(v)}} } }
   });
 
   charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
@@ -1578,20 +1797,27 @@ function renderWeb(){
       scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX() } }
   });
 
-  // monthly trend total vs paid vs display (country-filtered, picker range)
-  const M = DATA.monthly.filter(r=>inRangeMonth(r.month));
-  const gm = ga4MonthlyMap();
-  const labels = M.map(r=>monthLabel(r.month));
+  // trend total vs paid vs display (country-filtered, picker range). All three are LINE
+  // series at different scales -> RELATIVE (default) indexes EACH line to its own peak=100
+  // on a shared 0-100 axis; ABSOLUTE = raw session counts. Grain: Month / Week / Day.
+  const wtGrain = grain.webTrend, wtRel = scale.webTrend==='rel';
+  const wtPer = gPeriods(wtGrain);
+  const wgm = ga4GrainMap(wtGrain);
+  const labels = wtPer.map(k=>periodLabel(k,wtGrain));
+  const totRaw  = wtPer.map(k=>(wgm[k]||{}).sessions||0);
+  const paidRaw = wtPer.map(k=>(wgm[k]||{}).paid_sessions||0);
+  const dispRaw = wtPer.map(k=>(wgm[k]||{}).display_sessions||0);
+  const wtPeak = { 'Total sessions':Math.max.apply(null,totRaw.concat([0])), 'Paid sessions':Math.max.apply(null,paidRaw.concat([0])), 'Display (DV360)':Math.max.apply(null,dispRaw.concat([0])) };
   charts.webTrend = new Chart(el('webTrend'),{
     type:'line',
     data:{ labels, datasets:[
-      { label:'Total sessions', data:M.map(r=>(gm[r.month]||{}).sessions||0), borderColor:C.teal, backgroundColor:'rgba(14,124,134,.08)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2 },
-      { label:'Paid sessions', data:M.map(r=>(gm[r.month]||{}).paid_sessions||0), borderColor:C.red, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
-      { label:'Display (DV360)', data:M.map(r=>(gm[r.month]||{}).display_sessions||0), borderColor:C.redDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
+      { label:'Total sessions', data: wtRel?indexToPeak(totRaw):totRaw, borderColor:C.teal, backgroundColor:'rgba(14,124,134,.08)', borderWidth:2.5, fill:!wtRel, tension:.35, pointRadius:2 },
+      { label:'Paid sessions', data: wtRel?indexToPeak(paidRaw):paidRaw, borderColor:C.red, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
+      { label:'Display (DV360)', data: wtRel?indexToPeak(dispRaw):dispRaw, borderColor:C.redDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
-      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(wtRel ? c.parsed.y/100*(wtPeak[c.dataset.label]||0) : c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({min: wtRel?0:undefined, max: wtRel?100:undefined, title: wtRel?{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}}:{display:false}, ticks:{color:C.mute,font:{size:11},callback:v=> wtRel ? v.toFixed(0) : fmtM(v)}}) } }
   });
 
   // sessions by market (stacked: paid + rest) — only the selected countries
@@ -1607,17 +1833,29 @@ function renderWeb(){
       scales:{ x:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX({stacked:true}) } }
   });
 
-  // key events by type, by month (country-filtered, stacked bars — one per event type)
-  const ke = ga4KeyEvents();
+  // key events by type, by period (country-filtered, stacked bars — one per event type).
+  // Pure composition, NO overlay line -> ABSOLUTE = raw counts; RELATIVE (default) =
+  // 100%-stacked (each period normalized to its own total). Grain: Month / Week / Day.
+  const keGrain = grain.webKeyEvents, keRel = scale.webKeyEvents==='rel';
+  const kev = ga4KeyEventsGrain(keGrain);
+  const kePer = gPeriods(keGrain);
+  const keLabels = kePer.map(k=>periodLabel(k,keGrain));
   const kePal = [C.teal, C.red, C.amber, C.slate, C.li, C.redDeep, C.tealSoft, C.grey];
+  const keRawByType = kev.types.map(t => kePer.map(k=>(kev.byPeriod[k]||{})[t]||0));
+  const keColTot = kePer.map((k,ci)=> kev.types.reduce((s,t,ti)=> s + keRawByType[ti][ci], 0));
   charts.webKeyEvents = new Chart(el('webKeyEvents'),{
     type:'bar',
-    data:{ labels, datasets: ke.types.map((t,i)=>({
-      label:t, data:M.map(r=>(ke.byMonth[r.month]||{})[t]||0),
+    data:{ labels:keLabels, datasets: kev.types.map((t,i)=>({
+      label:t,
+      data: keRel ? keRawByType[i].map((v,ci)=> keColTot[ci]>0 ? v/keColTot[ci]*100 : 0) : keRawByType[i],
+      _raw: keRawByType[i],
       backgroundColor:kePal[i % kePal.length], stack:'ke', borderRadius:3, maxBarThickness:34 })) },
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        const raw = (c.dataset._raw||[])[c.dataIndex]||0;
+        return keRel ? ` ${c.dataset.label}: ${fmtN(raw)} (${fmtPct(c.parsed.y/100,0)})` : ` ${c.dataset.label}: ${fmtN(raw)}`;
+      }}} },
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true, max: keRel?100:undefined, ticks:{color:C.mute,font:{size:11},callback:v=> keRel ? v.toFixed(0)+'%' : fmtN(v)}}) } }
   });
 
   // top sources table (top 15, country-filtered)
@@ -1642,8 +1880,7 @@ function renderLink(){
   const aw = adWeeklyMap(true);                        // weekly ad imps over the same scope
   const adImpsW = r => (aw[r.week_start]||{}).imps||0;
   const campSessions = campFrom(g);                   // GA4 sessions on the selected platforms' channels
-  const dsw = r => campFrom(gw[r.week_start]||{});    // same, per week
-  const asw = r => (gw[r.week_start]||{}).ga4_sessions||0;  // ALL website sessions, per week
+  const dsw = r => campFrom(gw[r.week_start]||{});    // same, per week (scatter)
 
   // before vs during (DV360 launched Nov 2025) — Display sessions for the selected countries.
   // This comparison is anchored to a FIXED Nov-2025 split and is intrinsically whole-period, so
@@ -1675,24 +1912,43 @@ function renderLink(){
   + `<div class="arrow">→</div>`
   + `<div class="step"><div class="k">Campaign-driven sessions</div><div class="v">${fmtN(campSessions)}</div></div>`;
 
-  // weekly: ad impressions (bars, right) vs all website sessions (line, left) — honors the picker
-  // range, but keeps the 2025-06-01 campaign-window floor.
-  const wk = W.filter(r=> inRangeWeek(r.week_start) && r.week_start>='2025-06-01');
-  const labels = wk.map(r=>dayLabel(r.week_start));
+  // Ad impressions (bars, ABSOLUTE on the right axis) vs all website sessions (overlay
+  // line, left). RELATIVE (default) indexes the sessions line to its own peak=100; bars
+  // stay absolute. Grain: Month / Week (default) / Day. Honors the picker but keeps the
+  // 2025-06-01 campaign-window floor. The scatter below stays on the weekly `wk` slice.
+  const lwGrain = grain.linkWeekly, lwRel = scale.linkWeekly==='rel';
+  const FLOOR = '2025-06-01', FLOORM = '2025-06';
+  const lwPer = gPeriods(lwGrain).filter(k => lwGrain==='month' ? k>=FLOORM : k>=FLOOR);
+  const lwAd = adGrainMap(lwGrain, true);
+  const lwGm = ga4GrainMap(lwGrain);
+  const lwLabels = lwPer.map(k=> lwGrain==='month' ? monthLabel(k) : dayLabel(k));
+  const lwSessRaw = lwPer.map(k=>(lwGm[k]||{}).sessions||0);
+  const lwSessPeak = Math.max.apply(null, lwSessRaw.concat([0]));
+  const lwImps = lwPer.map(k=>(lwAd[k]||{}).imps||0);
   charts.linkWeekly = new Chart(el('linkWeekly'),{
-    data:{ labels, datasets:[
-      { type:'line', label:'All sessions', data:wk.map(asw),
-        borderColor:C.dark, backgroundColor:'rgba(35,39,46,.07)', borderWidth:2.5, fill:true, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
-      { type:'bar', label:'Ad impressions', data:wk.map(adImpsW), backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
+    data:{ labels:lwLabels, datasets:[
+      { type:'line', label:'All sessions', data: lwRel?indexToPeak(lwSessRaw):lwSessRaw,
+        borderColor:C.dark, backgroundColor:'rgba(35,39,46,.07)', borderWidth:2.5, fill:!lwRel, tension:.35, pointRadius:0, yAxisID: lwRel?'yIdx':'y', order:0 },
+      { type:'bar', label:'Ad impressions', data:lwImps, backgroundColor:'rgba(214,40,40,.75)', borderRadius:3, maxBarThickness:14, yAxisID:'y1', order:1 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
-      scales:{ x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}),
-        y:gridY({title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.label==='Ad impressions') return ` Ad impressions: ${fmtN(c.parsed.y)}`;
+        return ` All sessions: ${fmtN(lwRel ? c.parsed.y/100*lwSessPeak : c.parsed.y)}`;
+      }}} },
+      scales: lwRel
+        ? { x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}),
+            yIdx:gridY({position:'left',min:0,max:100,title:{display:true,text:'Sessions index (peak=100)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v.toFixed(0)}}),
+            y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} }
+        : { x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}),
+            y:gridY({title:{display:true,text:'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+            y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
   });
 
-  // scatter ad impressions vs campaign sessions, weeks with delivery (selected campaigns/platforms)
+  // scatter ad impressions vs campaign sessions, weeks with delivery (selected campaigns/platforms).
+  // The scatter is a fixed per-WEEK correlation (EXCLUDED from the grain toggle), so it keeps its
+  // own weekly slice independent of the linkWeekly chart's VIEW BY grain.
+  const wk = W.filter(r=> inRangeWeek(r.week_start) && r.week_start>='2025-06-01');
   const pts = wk.map(r=>({x:adImpsW(r), y:dsw(r)})).filter(p=>p.x>0);
   const r = pearson(pts.map(p=>p.x), pts.map(p=>p.y));
   el('linkScatterHint').innerHTML = `Each dot is one campaign week with ad delivery. Correlation <b>r = ${r.toFixed(2)}</b> `

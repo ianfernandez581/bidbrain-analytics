@@ -18,7 +18,7 @@ $PROJECT   = "bidbrain-analytics"
 $REGION    = "australia-southeast1"
 $JOB       = "vmch-export"
 $BUCKET    = "bidbrain-analytics-vmch-dash"
-$REPO_ROOT = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
+$REPO_ROOT = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent  # sql -> client_vmch -> clients -> repo root
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
 $VIEWS_PY  = Join-Path (Split-Path $PSScriptRoot -Parent) "create_views.py"
 
@@ -37,6 +37,6 @@ Write-Host "Clearing freshness watermark to force one rebuild ..."
 gcloud storage rm "gs://$BUCKET/_freshness.json" --project $PROJECT 2>$null
 
 Write-Host "Re-running $JOB so vmch.json reflects the new views ..."
-gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait; Must "run job"
+gcloud run jobs execute $JOB --region $REGION --project $PROJECT --update-env-vars FORCE_REBUILD=1 --wait; Must "run job"
 
 Write-Host "`nDONE. Views reapplied and $JOB re-run. The dash service serves the new JSON immediately (no image rebuild, no service redeploy)."

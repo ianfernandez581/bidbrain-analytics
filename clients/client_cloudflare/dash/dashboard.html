@@ -131,6 +131,15 @@
   .chart-wrap{position:relative;height:240px}
   .chart-wrap.tall{height:300px}
 
+  /* Per-chart Grain (Month/Week/Day) + Scale (Relative/Absolute) toggles */
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card-head .ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;border:1px solid var(--cf-line);border-radius:8px;overflow:hidden;background:var(--cf-bg)}
+  .seg button{background:none;border:none;color:var(--cf-mute);font-family:inherit;font-size:11px;font-weight:700;padding:4px 10px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--cf-orange);color:#fff}
+  .seg button:not(.on):hover{color:var(--cf-ink)}
+  .seg .cap{padding:0 7px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--cf-mute);align-self:center}
+
   .progress-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:10px;margin:8px 0;font-size:13px}
   .pbar{height:10px;background:#F6F8FA;border-radius:6px;overflow:hidden}
   .pbar .fill{height:100%;background:var(--cf-orange);border-radius:6px}
@@ -407,8 +416,12 @@
       </div>
 
       <div class="card" style="margin-bottom:14px">
-        <h3>Weekly pacing — target vs actual</h3>
-        <div class="hint">Accepted + unprocessed leads per week-of (stacked), against weekly target.</div>
+        <div class="card-head"><div><h3>Pacing — target vs actual</h3>
+        <div class="hint">Accepted + unprocessed leads per period (stacked), against target. <b>Relative</b> = 100%-stacked share.</div></div>
+        <div class="ctrls">
+          <span class="seg" id="csWeekly_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+          <span class="seg" id="csWeekly_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
+        </div></div>
         <div class="chart-wrap"><canvas id="weeklyChart"></canvas></div>
       </div>
 
@@ -425,7 +438,12 @@
 
       <div class="grid">
         <div class="card"><h3>Best performing assets (top 12)</h3><div class="chart-wrap tall"><canvas id="assetsChart"></canvas></div></div>
-        <div class="card"><h3>Daily accepted leads</h3><div class="chart-wrap tall"><canvas id="dailyChart"></canvas></div></div>
+        <div class="card"><div class="card-head"><div><h3>Accepted leads trend</h3></div>
+          <div class="ctrls">
+            <span class="seg" id="csDaily_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="csDaily_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+          </div></div>
+          <div class="chart-wrap tall"><canvas id="dailyChart"></canvas></div></div>
       </div>
 
       <div class="card">
@@ -637,8 +655,12 @@
 
         <div class="grid">
           <div class="card card-tall">
-            <h3>TTD daily — impressions, clicks, CTR</h3>
-            <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div>
+            <div class="card-head"><div><h3>TTD daily — impressions, clicks, CTR</h3>
+            <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div></div>
+            <div class="ctrls">
+              <span class="seg" id="ttdImpCtr_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+              <span class="seg" id="ttdImpCtr_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+            </div></div>
             <div class="chart-wrap"><canvas id="ttdImpCtr"></canvas></div>
           </div>
           <div class="card card-tall">
@@ -650,8 +672,12 @@
 
         <div class="grid">
           <div class="card card-tall">
-            <h3>Daily spend — all channels stacked</h3>
-            <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window.</div>
+            <div class="card-head"><div><h3>Daily spend — all channels stacked</h3>
+            <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window. <b>Relative</b> = 100%-stacked share.</div></div>
+            <div class="ctrls">
+              <span class="seg" id="dailyStack_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+              <span class="seg" id="dailyStack_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+            </div></div>
             <div class="chart-wrap"><canvas id="dailyStack"></canvas></div>
           </div>
           <div class="card card-tall">
@@ -661,9 +687,13 @@
           </div>
         </div>
 
-        <div class="section">
-          <h2>Daily efficiency — CTR · Clicks · CPC by channel</h2>
-          <span class="sub">Same date axis. Hover for daily values.</span>
+        <div class="section" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
+          <div><h2>Daily efficiency — CTR · Clicks · CPC by channel</h2>
+          <span class="sub">Same date axis. Hover for true daily values.</span></div>
+          <div class="ctrls">
+            <span class="seg" id="effTrio_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="effTrio_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+          </div>
         </div>
 
         <div class="grid-3">
@@ -810,9 +840,15 @@
         <div class="kpi li"><span class="stripe"></span><div class="label">Leads</div><div class="value" id="cmp_leads">—</div><div class="delta" id="cmp_cpl">—</div></div>
         <div class="kpi accent li"><span class="stripe"></span><div class="label">CPC</div><div class="value" id="cmp_cpc">—</div><div class="delta">LinkedIn</div></div>
       </div>
+      <div class="card-head" style="margin-bottom:8px"><div></div>
+        <div class="ctrls">
+          <span class="seg" id="cmp_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+          <span class="seg" id="cmp_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+        </div>
+      </div>
       <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div class="card card-tall"><h3>Daily — impressions, clicks, CTR</h3><div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes.</div><div class="chart-wrap"><canvas id="cmpDaily"></canvas></div></div>
-        <div class="card card-tall"><h3>Daily spend</h3><div class="hint">LinkedIn spend per day (USD).</div><div class="chart-wrap"><canvas id="cmpSpend"></canvas></div></div>
+        <div class="card card-tall"><h3>Trend — impressions, clicks, CTR</h3><div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes. Hover for true values.</div><div class="chart-wrap"><canvas id="cmpDaily"></canvas></div></div>
+        <div class="card card-tall"><h3>Spend</h3><div class="hint">LinkedIn spend per period (USD).</div><div class="chart-wrap"><canvas id="cmpSpend"></canvas></div></div>
       </div>
       <div class="card" style="margin-bottom:14px">
         <h3>LinkedIn funnel — impressions → click → form open → lead</h3>
@@ -991,6 +1027,74 @@ let activeMarkets = new Set(ALL_MARKETS);
 let activeTab = 'paid';
 const charts = {};
 
+// ---- Per-chart Grain (month/week/day) + Scale (rel/abs) toggle state ----
+// Default scale = 'rel' everywhere (relative). Defaults preserve each chart's
+// pre-existing native grain (paid trends + CS daily = day; CS pacing = week).
+let pmGrain='day',     pmScale='rel';      // shared by ttdImpCtr + dailyStack
+let effGrain='day',    effScale='rel';     // shared by ctrTrend / clkTrend / cpcTrend
+let cmpGrain='day',    cmpScale='rel';     // shared by cmpDaily + cmpSpend
+let csDailyGrain='day',  csDailyScale='rel';  // dailyChart (accepted leads)
+let csWeeklyGrain='week',csWeeklyScale='rel'; // weeklyChart (pacing 100%-stacked)
+let currentCampaignKey=null;                  // active single-campaign view key
+
+// One shared time-bucket key: 'month'->'YYYY-MM', 'week'->ISO Monday 'YYYY-MM-DD',
+// 'day'->'YYYY-MM-DD'. Re-aggregation SUMs additive metrics; ratios are derived
+// from summed numerators/denominators by the callers (never average a ratio).
+function bucketKey(dateStr, grain){
+  const d = String(dateStr||'').slice(0,10);
+  if (!d) return null;
+  if (grain==='month') return d.slice(0,7);
+  if (grain==='week')  return weekStartISO(d);
+  return d;
+}
+// Short axis label for a bucket key.
+function bucketLabel(key, grain){
+  if (grain==='month') return key;        // YYYY-MM
+  return key.slice(5);                     // MM-DD (week-start or day)
+}
+// Wire a Grain seg + a Scale seg (either may be omitted) to setter callbacks +
+// a re-render. setG(val)/setS(val) mutate state; rerender() redraws the chart(s).
+function wireToggles(grainId, scaleId, setG, setS, rerender){
+  const seg = (id, attr, set) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    Array.from(el.querySelectorAll('button')).forEach(b => {
+      b.addEventListener('click', function(){
+        const v = this.getAttribute('data-'+attr);
+        set(v);
+        Array.from(el.querySelectorAll('button')).forEach(x =>
+          x.classList.toggle('on', x.getAttribute('data-'+attr)===v));
+        rerender();
+      });
+    });
+  };
+  if (grainId) seg(grainId,'grain',setG);
+  if (scaleId) seg(scaleId,'scale',setS);
+}
+
+// Bind every WIRE chart's toggle pair to its render fn. Elements are static in
+// the DOM (incl. the single-campaign view), so this binds once at boot.
+function initChartToggles(){
+  // Paid-media: TTD daily (overlay lines indexed) + Daily-stack (100%-stacked in rel).
+  // ttdImpCtr + dailyStack share pmGrain/pmScale, so changing one re-renders both.
+  wireToggles('ttdImpCtr_grain','ttdImpCtr_scale',
+    v=>pmGrain=v, v=>pmScale=v, ()=>{renderTtdImpCtr();renderDailyStack();});
+  wireToggles('dailyStack_grain','dailyStack_scale',
+    v=>pmGrain=v, v=>pmScale=v, ()=>{renderTtdImpCtr();renderDailyStack();});
+  // Efficiency trio (CTR/Clicks/CPC) — one shared control.
+  wireToggles('effTrio_grain','effTrio_scale',
+    v=>effGrain=v, v=>effScale=v, renderEffTrio);
+  // Single-campaign cmpDaily + cmpSpend — one shared control.
+  wireToggles('cmp_grain','cmp_scale',
+    v=>cmpGrain=v, v=>cmpScale=v, ()=>{ if(currentCampaignKey) renderCampaign(currentCampaignKey); });
+  // CS pacing daily (single line, indexed in rel).
+  wireToggles('csDaily_grain','csDaily_scale',
+    v=>csDailyGrain=v, v=>csDailyScale=v, ()=>renderDaily(aggregate()));
+  // CS pacing weekly (pure stacked composition -> 100%-stacked in rel).
+  wireToggles('csWeekly_grain','csWeekly_scale',
+    v=>csWeeklyGrain=v, v=>csWeeklyScale=v, ()=>renderWeekly(aggregate()));
+}
+
 // Date range (Looker-style picker). ONE shared control over the union of both
 // core windows (CS lead dates + paid-delivery dates). Daily grain, so true
 // day-level clipping. ISO 'YYYY-MM-DD' lexical compare (zero-padded → exact).
@@ -1048,6 +1152,7 @@ async function boot() {
     document.getElementById('dashboardRoot').style.display = 'block';
     renderChips();
     populateRegionSelects();
+    initChartToggles();
     renderAll();
     if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
   } catch (err) {
@@ -1183,18 +1288,34 @@ function aggregate(filterFn) {
   const timePct = totalMs > 0 ? elapsedMs / totalMs : 0;
 
   const weekMap = new Map();
+  // Per-DAY pacing map ({target, actual, unprocessed}) — the regrainable source
+  // the weekly pacing + daily charts both re-bucket (month/week/day) client-side.
+  const dayFullMap = new Map();
   for (const r of targetRows) {
     const wk = weekStartISO(r.DAY);
     if (!wk) continue;
     if (!weekMap.has(wk)) weekMap.set(wk, {target:0, actual:0, unprocessed:0});
     const bucket = weekMap.get(wk);
     bucket.target += Number(r.ALLOCATED_TARGET) || 0;
-    if (!isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS)) bucket.actual += 1;
-    else if (!isDummy(r) && r.LEAD_STATUS === 'New') bucket.unprocessed += 1;
+    const isAcc = !isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS);
+    const isNew = !isDummy(r) && r.LEAD_STATUS === 'New';
+    if (isAcc) bucket.actual += 1;
+    else if (isNew) bucket.unprocessed += 1;
+
+    const day = r.DAY ? String(r.DAY).slice(0,10) : null;
+    if (day){
+      if (!dayFullMap.has(day)) dayFullMap.set(day, {target:0, actual:0, unprocessed:0});
+      const db = dayFullMap.get(day);
+      db.target += Number(r.ALLOCATED_TARGET) || 0;
+      if (isAcc) db.actual += 1; else if (isNew) db.unprocessed += 1;
+    }
   }
   const weekly = [...weekMap.entries()]
     .sort((a,b) => a[0].localeCompare(b[0]))
     .map(([wk, v]) => ({week: wk, target: v.target, actual: v.actual, unprocessed: v.unprocessed}));
+  const dailyFull = [...dayFullMap.entries()]
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([day, v]) => ({day, target: v.target, actual: v.actual, unprocessed: v.unprocessed}));
 
   const dailyMap = new Map();
   for (const r of accepted) {
@@ -1236,7 +1357,7 @@ function aggregate(filterFn) {
     accepted: accepted.length,
     rejected: rejected.length,
     q2Target, ttdTarget, timePct,
-    weekly, daily, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
+    weekly, daily, dailyFull, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
   };
 }
 
@@ -1327,17 +1448,44 @@ function renderProgress(agg) {
 
 function renderWeekly(agg) {
   destroy('weeklyChart');
-  const labels = agg.weekly.map(w => w.week.slice(5));
+  // Re-bucket the per-day pacing source by csWeeklyGrain, SUMMING target/actual/
+  // unprocessed (additive counts).
+  const m = {};
+  for (const d of agg.dailyFull){
+    const k = bucketKey(d.day, csWeeklyGrain); if (!k) continue;
+    const o = m[k] = m[k] || {target:0, actual:0, unprocessed:0};
+    o.target += d.target; o.actual += d.actual; o.unprocessed += d.unprocessed;
+  }
+  const keys = Object.keys(m).sort();
+  const labels = keys.map(k => bucketLabel(k, csWeeklyGrain));
+  const tgt = keys.map(k=>m[k].target), act = keys.map(k=>m[k].actual), unp = keys.map(k=>m[k].unprocessed);
+  // Relative = 100%-stacked composition of ACTUAL leads (Accepted vs Unprocessed),
+  // each period normalized to its own actual total; the Target reference bar is a
+  // plan figure (not part of the composition) so it's hidden in this share view.
+  // Tooltips always show the true lead counts. Absolute = original target-vs-actual.
+  const isRel = csWeeklyScale==='rel';
+  const actTot = keys.map((k,i)=>act[i]+unp[i]);
+  const norm = (arr) => arr.map((v,i)=>actTot[i]?v/actTot[i]*100:0);
+  const datasets = isRel ? [
+      {label:'Accepted (share)', data: norm(act), backgroundColor:CF, borderRadius:3, stack:'actual'},
+      {label:'Unprocessed (share)', data: norm(unp), backgroundColor:'#FBAD41', borderRadius:3, stack:'actual'}
+    ] : [
+      {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan'},
+      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual'},
+      {label:'Unprocessed', data: unp, backgroundColor:'#FBAD41', borderRadius:3, stack:'actual'}
+    ];
   charts.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
     type:'bar',
-    data:{ labels, datasets:[
-      {label:'Target', data: agg.weekly.map(w => w.target), backgroundColor:TARGET, borderRadius:3, stack:'plan'},
-      {label:'Accepted actual', data: agg.weekly.map(w => w.actual), backgroundColor:CF, borderRadius:3, stack:'actual'},
-      {label:'Unprocessed', data: agg.weekly.map(w => w.unprocessed), backgroundColor:'#FBAD41', borderRadius:3, stack:'actual'}
-    ]},
+    data:{ labels, datasets },
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{position:'bottom'} },
-      scales:{ x:{stacked:true, grid:{display:false}}, y:{stacked:true, beginAtZero:true, grid:{color:LINE}} } }
+      plugins:{ legend:{position:'bottom'},
+        tooltip:{ callbacks:{ label:function(c){
+          if (!isRel) return ' '+c.dataset.label+': '+fmtN(c.parsed.y);
+          const trueV = c.dataset.label.indexOf('Accepted')===0 ? act[c.dataIndex] : unp[c.dataIndex];
+          return ' '+c.dataset.label.replace(' (share)','')+': '+fmtN(trueV)+' ('+c.parsed.y.toFixed(1)+'%)';
+        }}}},
+      scales:{ x:{stacked:true, grid:{display:false}},
+        y:{stacked:true, beginAtZero:true, max:isRel?100:undefined, grid:{color:LINE}, ticks:{callback:v=>isRel?v+'%':v}} } }
   });
 }
 
@@ -1459,15 +1607,29 @@ function renderAssets(agg) {
 
 function renderDaily(agg) {
   destroy('dailyChart');
+  // Re-bucket accepted leads by csDailyGrain (SUM of per-day accepted counts).
+  const m = {};
+  for (const d of agg.dailyFull){
+    const k = bucketKey(d.day, csDailyGrain); if (!k) continue;
+    m[k] = (m[k]||0) + d.actual;
+  }
+  const keys = Object.keys(m).sort();
+  const vals = keys.map(k=>m[k]);
+  // Single series: Relative indexes the line to its own peak=100; tooltip un-indexes.
+  const isRel = csDailyScale==='rel';
+  const mx = Math.max.apply(null, vals.concat([1]));
   charts.dailyChart = new Chart(document.getElementById('dailyChart'), {
     type:'line',
-    data:{ labels: agg.daily.map(d => d[0].slice(5)),
-      datasets:[{label:'Accepted leads', data: agg.daily.map(d => d[1]),
+    data:{ labels: keys.map(k=>bucketLabel(k, csDailyGrain)),
+      datasets:[{label:'Accepted leads', data: isRel?vals.map(v=>v/mx*100):vals,
         borderColor:CF, backgroundColor:CF+'33', fill:true, tension:0.25, pointRadius:2, borderWidth:2}] },
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false} },
+      plugins:{ legend:{display:false},
+        tooltip:{ callbacks:{ label:c=>' Accepted leads: '+fmtN(isRel?c.raw/100*mx:c.raw) } } },
       scales:{ x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}},
-               y:{beginAtZero:true, grid:{color:LINE}} } }
+               y:{beginAtZero:true, max:isRel?100:undefined, grid:{color:LINE},
+                  title:{display:true, text:isRel?'Index (peak=100)':'Accepted leads'},
+                  ticks:{callback:v=>isRel?v.toFixed(0):v}} } }
   });
 }
 
@@ -1893,28 +2055,47 @@ function renderPaidKPIs() {
 }
 
 function renderTtdImpCtr() {
-  const days = {};
+  // Bucket TTD delivery by pmGrain, SUMMING imps/clicks; CTR derived from the
+  // summed totals (never an average of daily CTRs).
+  const buckets = {};
   for (const r of PAYLOAD.ttd_market_day) if (passesAll(r)) {
-    const o = days[r.date] = days[r.date] || {imp:0, clk:0};
+    const k = bucketKey(r.date, pmGrain); if (!k) continue;
+    const o = buckets[k] = buckets[k] || {imp:0, clk:0};
     o.imp += r.imps; o.clk += r.clk;
   }
-  const dates = Object.keys(days).sort();
+  const keys = Object.keys(buckets).sort();
+  const imps = keys.map(k=>buckets[k].imp);
+  const clks = keys.map(k=>buckets[k].clk);
+  const ctrs = keys.map(k=>buckets[k].imp ? buckets[k].clk/buckets[k].imp*100 : 0);
+  // Relative: index each overlay line (clicks, CTR) to its own peak=100 on a
+  // shared 0-100 right axis; impression bars stay absolute on the left axis.
+  const isRel = pmScale==='rel';
+  const maxClk = Math.max.apply(null, clks.concat([1]));
+  const maxCtr = Math.max.apply(null, ctrs.concat([1e-9]));
   destroy('ttdImpCtr');
   charts.ttdImpCtr = new Chart(document.getElementById('ttdImpCtr'), {data:{
-    labels: dates.map(d=>d.slice(5)),
+    labels: keys.map(k=>bucketLabel(k, pmGrain)),
     datasets:[
-      {type:'bar',  label:'Impressions', data: dates.map(d=>days[d].imp), backgroundColor: PM_CFs, borderColor: PM_CF, borderWidth:1, yAxisID:'y', order:3},
-      {type:'line', label:'Clicks',      data: dates.map(d=>days[d].clk), borderColor: PM_PURPLE, backgroundColor: PM_PURPLE, tension:.25, pointRadius:2, pointHoverRadius:4, borderWidth:2, yAxisID:'yClk', order:1},
-      {type:'line', label:'CTR (%)',     data: dates.map(d=>days[d].imp ? days[d].clk/days[d].imp*100 : 0), borderColor: PM_INK, backgroundColor: PM_INK, tension:.25, pointRadius:2, pointHoverRadius:4, borderWidth:2, borderDash:[4,3], yAxisID:'yCtr', order:2}
+      {type:'bar',  label:'Impressions', data: imps, backgroundColor: PM_CFs, borderColor: PM_CF, borderWidth:1, yAxisID:'y', order:3},
+      {type:'line', label:'Clicks',      data: isRel?clks.map(v=>v/maxClk*100):clks, borderColor: PM_PURPLE, backgroundColor: PM_PURPLE, tension:.25, pointRadius:2, pointHoverRadius:4, borderWidth:2, yAxisID:isRel?'yIdx':'yClk', order:1},
+      {type:'line', label:'CTR (%)',     data: isRel?ctrs.map(v=>v/maxCtr*100):ctrs, borderColor: PM_INK, backgroundColor: PM_INK, tension:.25, pointRadius:2, pointHoverRadius:4, borderWidth:2, borderDash:[4,3], yAxisID:isRel?'yIdx':'yCtr', order:2}
     ]
   }, options:{responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8}}},
-    scales:{
+    plugins:{legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8}},
+      tooltip:{callbacks:{label:function(c){
+        if (c.dataset.label==='Clicks') return ' Clicks: '+fmtNum(isRel?c.raw/100*maxClk:c.raw);
+        if (c.dataset.label==='CTR (%)') return ' CTR: '+(isRel?c.raw/100*maxCtr:c.raw).toFixed(2)+'%';
+        return ' Impressions: '+fmtNum(c.raw);
+      }}}},
+    scales:Object.assign({
       y:    {beginAtZero:true, position:'left',  grid:{color:PM_LINE}, ticks:{color: PM_CF,     callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:PM_CF}},
-      yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{color: PM_PURPLE},                                       title:{display:true, text:'Clicks',     color:PM_PURPLE}},
-      yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{color: PM_INK,    callback:v=>v.toFixed(2)+'%'},        title:{display:true, text:'CTR',        color:PM_INK}, offset:true, afterFit:a=>{a.width=50}},
       x:    {grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:14}}
-    }}});
+    }, isRel ? {
+      yIdx: {beginAtZero:true, max:100, position:'right', grid:{display:false}, ticks:{color:PM_INK, callback:v=>v.toFixed(0)}, title:{display:true, text:'Index (peak=100)', color:PM_INK}}
+    } : {
+      yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{color: PM_PURPLE},                                       title:{display:true, text:'Clicks',     color:PM_PURPLE}},
+      yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{color: PM_INK,    callback:v=>v.toFixed(2)+'%'},        title:{display:true, text:'CTR',        color:PM_INK}, offset:true, afterFit:a=>{a.width=50}}
+    })}});
 }
 
 function renderChannelMix() {
@@ -1934,19 +2115,45 @@ function renderChannelMix() {
       }}}}}});
 }
 
-function renderDailyStack() {
+// Re-bucket dailyByChannel() rows into pmGrain buckets, SUMMING all channel
+// fields. Returns sorted [{key, ...sums}].
+function channelByGrain(grain){
   const daily = dailyByChannel();
-  const labels = daily.map(d => d.date.slice(5));
+  const out = {};
+  for (const d of daily){
+    const k = bucketKey(d.date, grain); if (!k) continue;
+    const o = out[k] = out[k] || {key:k, li_sp:0,ttd_sp:0,rd_sp:0,ln_sp:0,
+      li_imp:0,ttd_imp:0,rd_imp:0,
+      li_clk:0,ttd_clk:0,rd_clk:0};
+    o.li_sp+=d.li_sp; o.ttd_sp+=d.ttd_sp; o.rd_sp+=d.rd_sp; o.ln_sp+=d.ln_sp;
+    o.li_imp+=d.li_imp; o.ttd_imp+=d.ttd_imp; o.rd_imp+=d.rd_imp;
+    o.li_clk+=d.li_clk; o.ttd_clk+=d.ttd_clk; o.rd_clk+=d.rd_clk;
+  }
+  return Object.keys(out).sort().map(k=>out[k]);
+}
+function renderDailyStack() {
+  const rows = channelByGrain(pmGrain);
+  const labels = rows.map(d => bucketLabel(d.key, pmGrain));
+  // Pure composition chart: Relative = 100%-stacked (each period normalized to
+  // its own total). Tooltip always shows the true dollar value.
+  const isRel = pmScale==='rel';
+  const tot = rows.map(d => d.ttd_sp + d.li_sp + d.rd_sp + d.ln_sp);
+  const norm = (vals) => isRel ? vals.map((v,i)=>tot[i]?v/tot[i]*100:0) : vals;
+  const raw = {TTD:rows.map(d=>d.ttd_sp), LinkedIn:rows.map(d=>d.li_sp), Reddit:rows.map(d=>d.rd_sp), LINE:rows.map(d=>d.ln_sp)};
   destroy('dailyStack');
   charts.dailyStack = new Chart(document.getElementById('dailyStack'), {type:'bar', data:{labels, datasets:[
-    {label:'TTD',      data:daily.map(d=>d.ttd_sp), backgroundColor:PM_CF},
-    {label:'LinkedIn', data:daily.map(d=>d.li_sp),  backgroundColor:PM_LI},
-    {label:'Reddit',   data:daily.map(d=>d.rd_sp),  backgroundColor:PM_RD},
-    {label:'LINE',     data:daily.map(d=>d.ln_sp),  backgroundColor:PM_LN},
+    {label:'TTD',      data:norm(raw.TTD),      backgroundColor:PM_CF},
+    {label:'LinkedIn', data:norm(raw.LinkedIn), backgroundColor:PM_LI},
+    {label:'Reddit',   data:norm(raw.Reddit),   backgroundColor:PM_RD},
+    {label:'LINE',     data:norm(raw.LINE),     backgroundColor:PM_LN},
   ]}, options:{responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.y,0)}`}}},
+    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:function(c){
+      const v = raw[c.dataset.label][c.dataIndex];
+      return isRel ? ` ${c.dataset.label}: ${fmt$(v,0)} (${c.parsed.y.toFixed(1)}%)`
+                   : ` ${c.dataset.label}: ${fmt$(c.parsed.y,0)}`;
+    }}}},
     scales:{x:{stacked:true, grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:14}},
-            y:{stacked:true, grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v}}}}});
+            y:{stacked:true, grid:{color:PM_LINE}, max:isRel?100:undefined, ticks:{callback:v=>isRel?v+'%':'$'+v}}}}});
 }
 
 function renderMarketBar() {
@@ -1961,37 +2168,48 @@ function renderMarketBar() {
 }
 
 function renderEffTrio() {
-  const daily = dailyByChannel();
-  const labels = daily.map(d => d.date.slice(5));
-  const ttd_ctr = daily.map(d => d.ttd_imp ? d.ttd_clk/d.ttd_imp*100 : 0);
-  const li_ctr  = daily.map(d => d.li_imp  ? d.li_clk /d.li_imp *100 : 0);
-  const rd_ctr  = daily.map(d => d.rd_imp  ? d.rd_clk /d.rd_imp *100 : 0);
-  destroy('ctrTrend');
-  charts.ctrTrend = new Chart(document.getElementById('ctrTrend'), {type:'line', data:{labels, datasets:[
-    lineDS('TTD', PM_CF, ttd_ctr), lineDS('LinkedIn', PM_LI, li_ctr), lineDS('Reddit', PM_RD, rd_ctr),
-  ]}, options:{responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(3)}%`}}},
-    scales:{y:{beginAtZero:true, grid:{color:PM_LINE}, ticks:{callback:v=>v.toFixed(2)+'%'}},
-            x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+  // Bucket by effGrain; ratios (CTR, CPC) derived from summed imps/clicks/spend.
+  const rows = channelByGrain(effGrain);
+  const labels = rows.map(d => bucketLabel(d.key, effGrain));
+  const isRel = effScale==='rel';
 
-  destroy('clkTrend');
-  charts.clkTrend = new Chart(document.getElementById('clkTrend'), {type:'line', data:{labels, datasets:[
-    lineDS('TTD',      PM_CF, daily.map(d=>d.ttd_clk)),
-    lineDS('LinkedIn', PM_LI, daily.map(d=>d.li_clk)),
-    lineDS('Reddit',   PM_RD, daily.map(d=>d.rd_clk)),
-  ]}, options:{responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom'}},
-    scales:{y:{beginAtZero:true, grid:{color:PM_LINE}}, x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+  // Build a single-metric line chart whose series are each indexed to their own
+  // peak=100 in Relative; tooltips/axis un-index to the true value via fmtTrue.
+  function effChart(id, series, axisTitle, fmtTrue, tickFmt){
+    const ds = series.map(s => {
+      const mx = Math.max.apply(null, s.data.concat([1e-9]));
+      return lineDS(s.label, s.color, isRel ? s.data.map(v=>v/mx*100) : s.data);
+    });
+    // stash per-series peak for tooltip un-indexing
+    const peaks = series.map(s => Math.max.apply(null, s.data.concat([1e-9])));
+    destroy(id);
+    charts[id] = new Chart(document.getElementById(id), {type:'line', data:{labels, datasets:ds},
+      options:{responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>
+          ` ${c.dataset.label}: ${fmtTrue(isRel ? c.raw/100*peaks[c.datasetIndex] : c.raw)}`}}},
+        scales:{y:{beginAtZero:true, max:isRel?100:undefined, grid:{color:PM_LINE},
+            ticks:{callback:v=> isRel ? v.toFixed(0) : tickFmt(v)},
+            title:{display:true, text:isRel?'Index (peak=100)':axisTitle}},
+          x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+  }
 
-  destroy('cpcTrend');
-  charts.cpcTrend = new Chart(document.getElementById('cpcTrend'), {type:'line', data:{labels, datasets:[
-    lineDS('TTD',      PM_CF, daily.map(d=>d.ttd_clk ? d.ttd_sp/d.ttd_clk : 0)),
-    lineDS('LinkedIn', PM_LI, daily.map(d=>d.li_clk  ? d.li_sp /d.li_clk  : 0)),
-    lineDS('Reddit',   PM_RD, daily.map(d=>d.rd_clk  ? d.rd_sp /d.rd_clk  : 0)),
-  ]}, options:{responsive:true, maintainAspectRatio:false,
-    plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: $${c.parsed.y.toFixed(2)}`}}},
-    scales:{y:{beginAtZero:true, grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v.toFixed(2)}},
-            x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
+  effChart('ctrTrend', [
+    {label:'TTD',      color:PM_CF, data:rows.map(d=>d.ttd_imp?d.ttd_clk/d.ttd_imp*100:0)},
+    {label:'LinkedIn', color:PM_LI, data:rows.map(d=>d.li_imp ?d.li_clk /d.li_imp *100:0)},
+    {label:'Reddit',   color:PM_RD, data:rows.map(d=>d.rd_imp ?d.rd_clk /d.rd_imp *100:0)},
+  ], 'CTR (%)', v=>v.toFixed(3)+'%', v=>v.toFixed(2)+'%');
+
+  effChart('clkTrend', [
+    {label:'TTD',      color:PM_CF, data:rows.map(d=>d.ttd_clk)},
+    {label:'LinkedIn', color:PM_LI, data:rows.map(d=>d.li_clk)},
+    {label:'Reddit',   color:PM_RD, data:rows.map(d=>d.rd_clk)},
+  ], 'Clicks', v=>fmtNum(Math.round(v)), v=>v);
+
+  effChart('cpcTrend', [
+    {label:'TTD',      color:PM_CF, data:rows.map(d=>d.ttd_clk?d.ttd_sp/d.ttd_clk:0)},
+    {label:'LinkedIn', color:PM_LI, data:rows.map(d=>d.li_clk ?d.li_sp /d.li_clk :0)},
+    {label:'Reddit',   color:PM_RD, data:rows.map(d=>d.rd_clk ?d.rd_sp /d.rd_clk :0)},
+  ], 'CPC ($)', v=>'$'+v.toFixed(2), v=>'$'+v.toFixed(2));
 }
 
 function renderMarketStack() {
@@ -2325,6 +2543,7 @@ function switchDashboard(val){
 }
 
 function renderCampaign(key){
+  currentCampaignKey = key;
   const c = (COMBINED && COMBINED.campaigns && COMBINED.campaigns[key]) || null;
   document.getElementById('cmp_title').textContent = c ? c.label : 'No data';
   document.getElementById('cmp_group').textContent = c ? c.campaign_group : '';
@@ -2351,23 +2570,55 @@ function renderCampaign(key){
   document.getElementById('cmp_cpc').textContent = t.clicks ? fmt$(cpc,2) : '—';
   document.getElementById('cmp_window').innerHTML = (w.start&&w.end)?`Window <b style="color:#fff">${w.start} → ${w.end}</b>`:'';
 
-  const labels = c.daily.map(d=>d.date.slice(5));
+  // Bucket the campaign's daily rows by cmpGrain, SUMMING imps/clicks/spend;
+  // CTR derived from summed totals per bucket (never an average of daily CTRs).
+  const cb = {};
+  for (const d of c.daily){
+    const k = bucketKey(d.date, cmpGrain); if (!k) continue;
+    const o = cb[k] = cb[k] || {imps:0, clicks:0, spend:0};
+    o.imps += d.imps||0; o.clicks += d.clicks||0; o.spend += d.spend||0;
+  }
+  const ckeys = Object.keys(cb).sort();
+  const labels = ckeys.map(k=>bucketLabel(k, cmpGrain));
+  const cImps = ckeys.map(k=>cb[k].imps);
+  const cClk  = ckeys.map(k=>cb[k].clicks);
+  const cSp   = ckeys.map(k=>cb[k].spend);
+  const cCtr  = ckeys.map(k=>cb[k].imps?cb[k].clicks/cb[k].imps*100:0);
+  const cmpRel = cmpScale==='rel';
+  const cMaxClk = Math.max.apply(null, cClk.concat([1]));
+  const cMaxCtr = Math.max.apply(null, cCtr.concat([1e-9]));
+  const cMaxSp  = Math.max.apply(null, cSp.concat([1]));
+
   destroy('cmpDaily');
   charts.cmpDaily = new Chart(document.getElementById('cmpDaily'), {data:{labels,datasets:[
-    {type:'bar', label:'Impressions', data:c.daily.map(d=>d.imps), backgroundColor:PM_CFs, borderColor:PM_CF, borderWidth:1, yAxisID:'y', order:3},
-    {type:'line',label:'Clicks', data:c.daily.map(d=>d.clicks), borderColor:PM_LI, backgroundColor:PM_LI, tension:.25, pointRadius:2, borderWidth:2, yAxisID:'yClk', order:1},
-    {type:'line',label:'CTR (%)', data:c.daily.map(d=>d.imps?d.clicks/d.imps*100:0), borderColor:PM_INK, tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:'yCtr', order:2},
-  ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:12,boxHeight:8}}},
-    scales:{y:{beginAtZero:true,position:'left',grid:{color:PM_LINE},ticks:{color:PM_CF,callback:v=>v>=1000?(v/1000)+'k':v},title:{display:true,text:'Impressions',color:PM_CF}},
-            yClk:{beginAtZero:true,position:'right',grid:{display:false},ticks:{color:PM_LI},title:{display:true,text:'Clicks',color:PM_LI}},
-            yCtr:{beginAtZero:true,position:'right',grid:{display:false},ticks:{color:PM_INK,callback:v=>v.toFixed(2)+'%'},title:{display:true,text:'CTR',color:PM_INK},offset:true,afterFit:a=>{a.width=50}},
-            x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:14}}}}});
+    {type:'bar', label:'Impressions', data:cImps, backgroundColor:PM_CFs, borderColor:PM_CF, borderWidth:1, yAxisID:'y', order:3},
+    {type:'line',label:'Clicks', data:cmpRel?cClk.map(v=>v/cMaxClk*100):cClk, borderColor:PM_LI, backgroundColor:PM_LI, tension:.25, pointRadius:2, borderWidth:2, yAxisID:cmpRel?'yIdx':'yClk', order:1},
+    {type:'line',label:'CTR (%)', data:cmpRel?cCtr.map(v=>v/cMaxCtr*100):cCtr, borderColor:PM_INK, tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:cmpRel?'yIdx':'yCtr', order:2},
+  ]}, options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom',labels:{boxWidth:12,boxHeight:8}},
+      tooltip:{callbacks:{label:function(cc){
+        if (cc.dataset.label==='Clicks') return ' Clicks: '+fmtNum(cmpRel?cc.raw/100*cMaxClk:cc.raw);
+        if (cc.dataset.label==='CTR (%)') return ' CTR: '+(cmpRel?cc.raw/100*cMaxCtr:cc.raw).toFixed(2)+'%';
+        return ' Impressions: '+fmtNum(cc.raw);
+      }}}},
+    scales:Object.assign({
+      y:{beginAtZero:true,position:'left',grid:{color:PM_LINE},ticks:{color:PM_CF,callback:v=>v>=1000?(v/1000)+'k':v},title:{display:true,text:'Impressions',color:PM_CF}},
+      x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:14}}
+    }, cmpRel ? {
+      yIdx:{beginAtZero:true,max:100,position:'right',grid:{display:false},ticks:{color:PM_INK,callback:v=>v.toFixed(0)},title:{display:true,text:'Index (peak=100)',color:PM_INK}}
+    } : {
+      yClk:{beginAtZero:true,position:'right',grid:{display:false},ticks:{color:PM_LI},title:{display:true,text:'Clicks',color:PM_LI}},
+      yCtr:{beginAtZero:true,position:'right',grid:{display:false},ticks:{color:PM_INK,callback:v=>v.toFixed(2)+'%'},title:{display:true,text:'CTR',color:PM_INK},offset:true,afterFit:a=>{a.width=50}}
+    })}});
 
+  // Spend: single bar series. Relative = index to peak=100; tooltip shows true $.
   destroy('cmpSpend');
   charts.cmpSpend = new Chart(document.getElementById('cmpSpend'), {type:'bar', data:{labels,datasets:[
-    {label:'Spend', data:c.daily.map(d=>d.spend), backgroundColor:PM_LI, borderRadius:3}
-  ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:cc=>' '+fmt$(cc.parsed.y,0)}}},
-    scales:{x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:14}},y:{beginAtZero:true,grid:{color:PM_LINE},ticks:{callback:v=>'$'+v}}}}});
+    {label:'Spend', data:cmpRel?cSp.map(v=>v/cMaxSp*100):cSp, backgroundColor:PM_LI, borderRadius:3}
+  ]}, options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+    tooltip:{callbacks:{label:cc=>' '+fmt$(cmpRel?cc.raw/100*cMaxSp:cc.raw,0)}}},
+    scales:{x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:14}},
+      y:{beginAtZero:true,max:cmpRel?100:undefined,grid:{color:PM_LINE},title:{display:true,text:cmpRel?'Index (peak=100)':'Spend (USD)'},ticks:{callback:v=>cmpRel?v.toFixed(0):'$'+v}}}}});
 
   const imps=t.imps, clk=t.clicks, fo=t.form_opens||0, leads=t.leads;
   const dr=(a,b)=>(a>0&&b!==undefined)?((1-b/a)*100):null;

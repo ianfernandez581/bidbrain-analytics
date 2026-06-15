@@ -31,6 +31,18 @@ filter views first, then the roll-ups that read them). The export job
 | `22_ad_campaign_market.sql` | `ad_campaign_market` | Ad delivery by campaign × market (Paid Media Google + DV360 by market). |
 | `23_li_campaign_creative.sql` | `li_campaign_creative` | LinkedIn delivery by campaign × creative type (Paid Media creative mix). |
 | `24_ad_campaign_market_monthly.sql` | `ad_campaign_market_monthly` | Ad delivery by campaign × market × month — the market grain of `ad_campaign_monthly`, **keeping LinkedIn's NULL-market rows**, so the Overview "media spend by platform" donut honours the Country filter AND the date picker at once. |
+| `25_daily.sql` | `daily` | **Day-grain mirror of `monthly`+`weekly`** — blended GA4 + LinkedIn + DV360 + Google per `day` (from 2025-06-01). Feeds the trend charts' "VIEW BY → Day" toggle. |
+| `26_ga4_daily_market.sql` | `ga4_daily_market` | GA4 daily sessions **by market** (full Paid/Organic/Direct/Other split) — day grain of `ga4_monthly_market`. |
+| `27_ga4_key_events_daily_market.sql` | `ga4_key_events_daily_market` | GA4 key events **by event type × day × market** — day grain of `ga4_key_events_market` (read from the raw source, same guards). |
+| `28_ad_campaign_daily.sql` | `ad_campaign_daily` | Ad delivery by campaign × day — day grain of `ad_campaign_monthly`/`_weekly`. |
+
+The four `25–28` **daily** views are the day-grain mirrors of the monthly/weekly roll-ups: every genuine
+time-series chart (hero `ovHero`, `ovStack`, web `webTrend`/`webKeyEvents`, paid `pmMonthly`, link
+`linkWeekly`) now has a **VIEW BY: Month / Week / Day** toggle (+ a **AXIS: Relative / Absolute** scale
+toggle, default Relative) that reads these. Day views start at the `2025-06-01` campaign-window floor
+(day grain is only meaningful in the active flight; the month grain keeps the 2025-01 baseline). The
+dashboard sums each daily array exactly like the month/week branches, re-bucketing onto Monday ISO weeks
+for the week grain where a dedicated weekly view doesn't carry the needed split.
 
 The **Country filter** (dashboard) is the GA4 `account_name` → `market` label, with "Global" deselected by
 default. The `13–17` market-grained views ship the per-market GA4 data the dashboard sums over the

@@ -444,8 +444,23 @@
         <div class="hint" id="spPacingNote" style="margin-top:10px"></div>
       </div>
       <div class="card" style="margin-top:16px">
-        <h3>Cumulative spend vs flight</h3>
-        <div class="hint">Monthly cumulative actual spend across the filtered portfolio (AUD). Use it to read whether delivery is pacing evenly across the flight.</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div>
+            <h3>Cumulative spend vs flight</h3>
+            <div class="hint">Cumulative actual spend across the filtered portfolio (AUD), cumulated within the chosen grain. Use it to read whether delivery is pacing evenly across the flight.</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <div class="seg" id="cumGrainSeg">
+              <button type="button" class="seg-btn on" data-grain="month" onclick="setCumGrain('month')">Month</button>
+              <button type="button" class="seg-btn" data-grain="week" onclick="setCumGrain('week')">Week</button>
+              <button type="button" class="seg-btn" data-grain="day" onclick="setCumGrain('day')">Day</button>
+            </div>
+            <div class="seg" id="cumScaleSeg">
+              <button type="button" class="seg-btn on" data-scale="rel" onclick="setCumScale('rel')">Relative</button>
+              <button type="button" class="seg-btn" data-scale="abs" onclick="setCumScale('abs')">Absolute</button>
+            </div>
+          </div>
+        </div>
         <div class="chart-wrap" style="height:280px"><canvas id="spCumulative"></canvas></div>
       </div>
       <div class="card" style="margin-top:16px">
@@ -472,8 +487,23 @@
       <div class="funnel" id="fnFunnel"></div>
       <div class="grid-2-1" style="margin-top:4px">
         <div class="card card-tall">
-          <h3>Monthly delivery — impressions &amp; spend</h3>
-          <div class="hint">Impressions by platform (stacked bars) with spend (line, AUD, right axis).</div>
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap">
+            <div>
+              <h3>Delivery — impressions &amp; spend</h3>
+              <div class="hint">Impressions by platform (stacked bars) with spend (line, AUD, right axis).</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+              <div class="seg" id="fnGrainSeg">
+                <button type="button" class="seg-btn on" data-grain="month" onclick="setFnGrain('month')">Month</button>
+                <button type="button" class="seg-btn" data-grain="week" onclick="setFnGrain('week')">Week</button>
+                <button type="button" class="seg-btn" data-grain="day" onclick="setFnGrain('day')">Day</button>
+              </div>
+              <div class="seg" id="fnScaleSeg">
+                <button type="button" class="seg-btn on" data-scale="rel" onclick="setFnScale('rel')">Relative</button>
+                <button type="button" class="seg-btn" data-scale="abs" onclick="setFnScale('abs')">Absolute</button>
+              </div>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="fnMonthly"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -596,12 +626,17 @@ const regionOf = m => REGION_OF[m] || m;   // East Asia / South Asia / Europe & 
 let DATA=null, charts={}, activeTab='portfolio';
 let activePlatforms=new Set(), activeObjectives=new Set(), activeRegions=new Set(), activeInternal=new Set();
 let campaignMenuOpen=false;
+// VIEW BY grain (month|week|day) + AXIS scale (rel|abs, default rel) for the two genuine
+// time-series charts: cumulative spend (Portfolio) and monthly delivery (Funnel). Each chart
+// keeps its own toggle pair; grain default 'month' preserves the prior default view.
+let cumGrain='month', cumScale='rel', fnGrain='month', fnScale='rel';
 const el = id => document.getElementById(id);
 
-// ---- Date range (Looker-style picker). The finest grain in this feed is month/week,
-// and only ad_campaign_monthly carries a date dimension, so ONLY the two monthly trend
-// charts (spCumulative, fnMonthly) honor the range; every KPI/Gantt/doughnut/table/funnel/
-// geo panel stays full-period (its source array has no date field). See #dateScopeNote.
+// ---- Date range (Looker-style picker). The delivery feed carries month/week/day grains
+// (ad_campaign_{monthly,weekly,daily}), so ONLY the two time-series trend charts (spCumulative,
+// fnMonthly — each with its own VIEW BY month/week/day toggle) honor the range; every
+// KPI/Gantt/doughnut/table/funnel/geo panel stays full-period (its source array has no date
+// field). See #dateScopeNote.
 let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;   // ISO 'YYYY-MM-DD'
 const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
@@ -692,16 +727,33 @@ function funnelTotals(){
   }
   return o;
 }
-// monthly delivery (platform-pivoted) over the current filter
-function monthlyMap(){
+// ---- Grain-aware delivery roll-up (powers the two genuine time-series charts).
+// Re-aggregates the campaign×period delivery feed at the chosen grain over the current
+// filter, SUMMING additive metrics (imps/clicks/spend) into per-period buckets. Each grain
+// reads its own pre-bucketed view (month/week/day) — never a ratio average. Buckets carry a
+// generic `bucket` key (the period's ISO start, for date-range gating) plus the source key.
+const DAILY_SRC = {month:'ad_campaign_monthly', week:'ad_campaign_weekly', day:'ad_campaign_daily'};
+const inRangeDate = d => (!rangeStart || d >= rangeStart.slice(0,10)) && (!rangeEnd || d <= rangeEnd.slice(0,10));
+function grainMap(grain){
+  const src = DATA[DAILY_SRC[grain]] || [];
+  const keyOf = grain==='month' ? (r=>r.month) : grain==='week' ? (r=>r.week_start) : (r=>r.day);
+  const inR = grain==='month' ? (k=>inRangeMonth(k)) : (k=>inRangeDate(k));
   const m={};
-  for(const r of (DATA.ad_campaign_monthly||[])){
+  for(const r of src){
     if(!rowOk(r.platform,r.campaign)) continue;
-    if(!inRangeMonth(r.month)) continue;   // date-range filter (the ONLY date-grained chokepoint)
-    const e = m[r.month] || (m[r.month]={month:r.month,imps:0,clk:0,spend:0,dv360:0,tradedesk:0,linkedin:0});
+    const k=keyOf(r);
+    if(!inR(k)) continue;   // date-range filter (the ONLY date-grained chokepoint)
+    const e = m[k] || (m[k]={bucket:k,imps:0,clk:0,spend:0,dv360:0,tradedesk:0,linkedin:0});
     e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e[r.platform]+=r.imps||0;
   }
-  return Object.values(m).sort((a,b)=>a.month<b.month?-1:1);
+  return Object.values(m).sort((a,b)=>a.bucket<b.bucket?-1:1);
+}
+// human label for a bucket key at the given grain (month: 'Jun 25'; week: 'wk 9 Jun';
+// day: '9 Jun 25').
+function grainLabel(bucket,grain){
+  if(grain==='month') return monthLabel(bucket);
+  if(grain==='day')   return new Date(bucket).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'});
+  return 'wk '+new Date(bucket).toLocaleDateString('en-US',{day:'numeric',month:'short'});  // week (Mon-anchored start)
 }
 // market (fine) totals over the current filter — region filter applies HERE
 function marketRows(){
@@ -1027,15 +1079,16 @@ function renderActive(){
   else if(activeTab==='channels') renderChannels();
   else renderGeo();
 }
-// Banner clarifying the limited reach of the date filter. Only the two monthly trend charts
-// (Cumulative spend on Pacing, Monthly delivery on Funnel) honor the range; everything else is
-// whole-window because its source array carries no date dimension. Shown only when narrowed.
+// Banner clarifying the limited reach of the date filter. Only the two time-series trend charts
+// (Cumulative spend on Pacing, Delivery on Funnel — each with a VIEW BY month/week/day toggle)
+// honor the range; everything else is whole-window because its source array carries no date
+// dimension. Shown only when narrowed.
 function renderDateScope(){
   const note=el('dateScopeNote'); if(!note) return;
   if(narrowed()){
     note.style.display='block';
-    note.innerHTML='📅 Date range <b>'+dateLabel(rangeStart)+' – '+dateLabel(rangeEnd)+'</b> (applied at month granularity). '
-      +'Only the two monthly trend charts — <b>Cumulative spend</b> (Spend &amp; Pacing) and <b>Monthly delivery</b> (Delivery &amp; Funnel) — '
+    note.innerHTML='📅 Date range <b>'+dateLabel(rangeStart)+' – '+dateLabel(rangeEnd)+'</b>. '
+      +'Only the two time-series trend charts — <b>Cumulative spend</b> (Spend &amp; Pacing) and <b>Delivery</b> (Delivery &amp; Funnel), each with its own VIEW BY grain — '
       +'honor this range. KPI cards, the flight-window Gantt, budget/pacing/doughnut/tables, funnel, channel and geography panels show the '
       +'<b>full period</b> — those breakdowns aren’t available at a finer grain in the feed. The plan-budget reference line stays full-period.';
   } else {
@@ -1080,6 +1133,15 @@ function setPoView(v){
   const g=el('poActiveCards'); if(g){ g.classList.remove('show-consumed','show-plan'); g.classList.add('show-'+v); }
   document.querySelectorAll('#poViewToggle .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset.view===v));
 }
+// VIEW BY / AXIS toggles for the two time-series charts. Each setter flips state, syncs the
+// pressed-button class, and re-renders via renderActive() — which destroyCharts() then rebuilds
+// the active tab. The individual render fns do NOT self-destroy, so calling them directly would
+// throw Chart.js "Canvas is already in use"; renderActive() is the safe re-render path.
+function syncSeg(segId,attr,val){ document.querySelectorAll('#'+segId+' .seg-btn').forEach(b=>b.classList.toggle('on', b.dataset[attr]===val)); }
+function setCumGrain(g){ cumGrain=g; syncSeg('cumGrainSeg','grain',g); renderActive(); }
+function setCumScale(s){ cumScale=s; syncSeg('cumScaleSeg','scale',s); renderActive(); }
+function setFnGrain(g){ fnGrain=g; syncSeg('fnGrainSeg','grain',g); renderActive(); }
+function setFnScale(s){ fnScale=s; syncSeg('fnScaleSeg','scale',s); renderActive(); }
 function renderPortfolio(){
   const rs = roster().filter(c=>idSelected(c.id));
   const a = adTotals();
@@ -1254,16 +1316,28 @@ function renderPacing(){
   });
 
   // cumulative spend
-  const M=monthlyMap(); let cum=0;
+  // grain-aware: bucket delivery at cumGrain, cumulate spend WITHIN that grain.
+  const M=grainMap(cumGrain); let cum=0;
   const cumData=M.map(r=>{ cum+=r.spend; return cum; });
+  const cumLabels=M.map(r=>grainLabel(r.bucket,cumGrain));
+  const planData=totBudget?M.map(()=>totBudget):null;
+  // Relative (default): index EACH line to its own peak=100 on one shared 0-100 axis. Absolute:
+  // raw AUD on the native left axis (today's behavior). Tooltips always show TRUE AUD.
+  const cumRel=cumScale==='rel';
+  const cumPeak=Math.max(1,...cumData);
+  const planPeak=planData?Math.max(1,...planData):1;
+  const cumDs=cumRel?cumData.map(v=>v/cumPeak*100):cumData;
+  const planDs=planData?(cumRel?planData.map(v=>v/planPeak*100):planData):null;
   charts.spCumulative = new Chart(el('spCumulative'),{
     type:'line',
-    data:{ labels:M.map(r=>monthLabel(r.month)), datasets:[
-      {label:'Cumulative spend', data:cumData, borderColor:C.green2, backgroundColor:'rgba(0,149,48,.10)', borderWidth:2.5, fill:true, tension:.3, pointRadius:2},
-      ...(totBudget?[{label:'Plan budget', data:M.map(()=>totBudget), borderColor:C.slate, borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false}]:[])
+    data:{ labels:cumLabels, datasets:[
+      {label:'Cumulative spend', data:cumDs, _true:cumData, borderColor:C.green2, backgroundColor:'rgba(0,149,48,.10)', borderWidth:2.5, fill:true, tension:.3, pointRadius:2},
+      ...(planDs?[{label:'Plan budget', data:planDs, _true:planData, borderColor:C.slate, borderDash:[6,4], borderWidth:1.5, pointRadius:0, fill:false}]:[])
     ]},
-    options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money(c.parsed.y)}`}}},
-      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
+    options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${money((c.dataset._true||[])[c.dataIndex])}`}}},
+      scales:{ x:axisX(), y:gridY(cumRel
+        ? {min:0,max:100,title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v.toFixed(0)}}
+        : {ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
   });
 
   // table
@@ -1317,19 +1391,28 @@ function renderFunnel(){
   + `<div class="arrow">→</div>`
   + `<div class="step"><div class="k">Conversions / leads</div><div class="v">${fmtN(convTot+leadTot)}</div><div class="s">${fmtN(convTot)} conv · ${fmtN(leadTot)} leads</div></div>`;
 
-  // monthly imps + spend
-  const M=monthlyMap(), labels=M.map(r=>monthLabel(r.month));
+  // delivery: imps by platform (stacked bars) + spend (overlay line), grain-aware.
+  const M=grainMap(fnGrain), labels=M.map(r=>grainLabel(r.bucket,fnGrain));
+  const spendArr=M.map(r=>r.spend);
+  // Relative (default): the secondary OVERLAY spend line is indexed to its own peak=100 on a
+  // shared 0-100 right axis; the primary impression bars stay ABSOLUTE (left axis). Absolute:
+  // today's behavior. Tooltips always show TRUE values (un-index the line).
+  const fnRel=fnScale==='rel';
+  const spPeak=Math.max(1,...spendArr);
+  const spendDs=fnRel?spendArr.map(v=>v/spPeak*100):spendArr;
   charts.fnMonthly = new Chart(el('fnMonthly'),{
     data:{ labels, datasets:[
       {type:'bar',label:'DV360', data:M.map(r=>r.dv360), backgroundColor:C.dv, stack:'i', yAxisID:'y', maxBarThickness:30, borderRadius:{topLeft:3,topRight:3}},
       {type:'bar',label:'TradeDesk', data:M.map(r=>r.tradedesk), backgroundColor:C.td, stack:'i', yAxisID:'y', maxBarThickness:30},
       {type:'bar',label:'LinkedIn', data:M.map(r=>r.linkedin), backgroundColor:C.li, stack:'i', yAxisID:'y', maxBarThickness:30},
-      {type:'line',label:'Spend (AUD)', data:M.map(r=>r.spend), borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, tension:.3, yAxisID:'y1', pointRadius:2}
+      {type:'line',label:'Spend (AUD)', data:spendDs, _true:spendArr, borderColor:C.dark, backgroundColor:C.dark, borderWidth:2, tension:.3, yAxisID:'y1', pointRadius:2}
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money((c.dataset._true||[])[c.dataIndex]):fmtN(c.parsed.y)}`}} },
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+        y1:fnRel
+          ? {position:'right',min:0,max:100,grid:{display:false},border:{display:false},title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v.toFixed(0)}}
+          : {position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
   });
 
   // engagement mix by platform (doughnut)

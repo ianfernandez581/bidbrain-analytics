@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ agency.name }} · Bidbrain Dashboards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
+    --text:#e8ebf2; --muted:#8a93a6; --accent:#3b82f6; --active:#22c55e;
+    --chip-bg:#1a2334; --chip-text:#9aa6bd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--text);background:var(--bg);
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .topbar{display:flex;align-items:center;gap:14px;padding:14px 28px;
+          border-bottom:1px solid var(--border);background:#0c121e;position:sticky;top:0;z-index:10}
+  .topbar .logo svg{height:24px;width:auto;display:block}
+  .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
+  .spacer{flex:1}
+  .btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer;
+       border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none}
+  .btn:hover{background:#16202f}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 28px 64px}
+  h1{font-size:26px;font-weight:800;margin:0 0 4px}
+  .agencyslug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
+              color:var(--chip-text);background:var(--chip-bg);padding:3px 8px;border-radius:6px;margin-left:10px}
+  .lead{color:var(--muted);font-size:14px;margin:0 0 32px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+  .tile{display:block;text-decoration:none;color:inherit;background:var(--panel);
+        border:1px solid var(--border);border-radius:14px;padding:20px 20px 18px;
+        transition:border-color .15s,transform .15s,background .15s}
+  .tile.live:hover{border-color:var(--accent);transform:translateY(-2px);background:#121b2c}
+  .tile.soon{opacity:.6;cursor:default}
+  .tile .row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .tile h2{font-size:17px;font-weight:700;margin:0}
+  .pill{font-size:10.5px;font-weight:700;letter-spacing:.6px;padding:3px 8px;border-radius:999px}
+  .pill.active{color:#86efac;background:rgba(34,197,94,.14)}
+  .pill.soon{color:#cbd5e1;background:rgba(148,163,184,.16)}
+  .tile .camps{margin:14px 0 0;padding:0;list-style:none}
+  .tile .camps li{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);padding:4px 0}
+  .tile .camps .path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+                     color:var(--chip-text);background:var(--chip-bg);padding:2px 7px;border-radius:6px}
+  .open{margin-top:14px;font-size:13px;font-weight:600;color:var(--accent)}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="logo">{{ logo_svg | safe }}</span>
+    <span class="label">Campaign Dashboards</span>
+    <span class="spacer"></span>
+    <a class="btn" href="/logout">Log out</a>
+  </div>
+  <div class="wrap">
+    <h1>{{ agency.name }}<span class="agencyslug">{{ agency.slug }}</span></h1>
+    <p class="lead">{{ clients|length }} dashboard{{ '' if clients|length == 1 else 's' }} · choose a client to open it. No further password needed.</p>
+    <div class="grid">
+      {% for c in clients %}
+        {% if c.status == 'active' %}
+        <a class="tile live" href="{{ c.url }}">
+          <div class="row"><h2>{{ c.name }}</h2><span class="pill active">ACTIVE</span></div>
+          <ul class="camps">
+            {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
+          </ul>
+          <div class="open">Open dashboard →</div>
+        </a>
+        {% else %}
+        <div class="tile soon">
+          <div class="row"><h2>{{ c.name }}</h2><span class="pill soon">COMING SOON</span></div>
+          <ul class="camps">
+            {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
+          </ul>
+          <div class="open" style="color:var(--muted)">Not yet available</div>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

@@ -37,6 +37,6 @@ gcloud builds submit $JOB_DIR --tag $IMG --region $REGION --project $PROJECT; Mu
 Write-Host "Deploying Cloud Run job $JOB ..."
 gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB_SA --memory 1Gi --project $PROJECT; Must "deploy job"
 Write-Host "Running $JOB (writes a fresh schneider.json to the bucket) ..."
-gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait; Must "run job"
+gcloud run jobs execute $JOB --region $REGION --project $PROJECT --update-env-vars FORCE_REBUILD=1 --wait; Must "run job"
 
 Write-Host "`nDONE. $JOB rebuilt, deployed, and executed. The dash service serves the new JSON immediately (no service redeploy needed)."

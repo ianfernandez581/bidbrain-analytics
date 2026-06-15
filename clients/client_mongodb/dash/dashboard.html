@@ -115,6 +115,10 @@
   .seg-btn:hover{background:#F2F5F7}
   .seg-btn.on{background:var(--mdb-slate);color:#fff}
   .seg-btn .dot{width:9px;height:9px;border-radius:50%;display:inline-block}
+  .seg .cap{padding:0 9px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--mdb-mute);
+            align-self:center;border-right:1px solid var(--mdb-line)}
+  .seg.seg-sm .seg-btn{padding:5px 11px;font-size:11px}
+  .chartctrls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:2px 0 8px}
 
   .chips{display:flex;gap:6px;flex-wrap:wrap}
   .chip{background:#fff;border:1px solid var(--mdb-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;
@@ -356,6 +360,15 @@
       <div class="section">
         <h2 style="font-size:15px">Programmatic delivery</h2>
         <span class="sub">Daily impressions, clicks &amp; CTR, with the spend mix by strategy.</span>
+      </div>
+      <div class="chartctrls">
+        <span class="seg seg-sm" id="pmGrainSeg"><span class="cap">VIEW BY</span>
+          <button type="button" class="seg-btn" data-grain="month">Month</button>
+          <button type="button" class="seg-btn" data-grain="week">Week</button>
+          <button type="button" class="seg-btn" data-grain="day">Day</button></span>
+        <span class="seg seg-sm" id="pmScaleSeg"><span class="cap">AXIS</span>
+          <button type="button" class="seg-btn" data-scale="rel">Relative</button>
+          <button type="button" class="seg-btn" data-scale="abs">Absolute</button></span>
       </div>
       <div class="grid-2-1">
         <div class="card card-tall">
@@ -757,6 +770,10 @@ let charts = {};
 let activeTab = 'paid';            // 'paid' | 'cs' | 'compare'
 let activeCampaign = 'DNB';        // 'DNB' | 'IDC'
 let activeMarkets = new Set();
+// Paid-media time-series toggles (apply ONLY to pmDaily/pmDailyStack/pmCtr/pmClk/pmCpc).
+// Grain default = 'day' (preserves the charts' original per-day view); scale default = 'rel'.
+let pmGrain = 'day';               // 'month' | 'week' | 'day'
+let pmScale = 'rel';               // 'rel' (Relative, default) | 'abs' (Absolute)
 let dateStartSel = null;           // ISO 'YYYY-MM-DD' lower bound (paid delivery rows)
 let dateEndSel   = null;           // ISO 'YYYY-MM-DD' upper bound
 let compareReady = false;
@@ -872,6 +889,7 @@ async function boot() {
     renderTopbarMeta();
     populateRegionSelects();
     renderControls();
+    wirePMToggles();
     renderActive();
   } catch (e) {
     el('loading').style.display = 'none';
@@ -938,6 +956,21 @@ function setTab(t){ activeTab = t; location.hash = t; renderControls(); renderAc
 function allRegions(){ activeMarkets = new Set(DATA.all_markets || []); renderControls(); renderActive(); }
 function clearRegions(){ activeMarkets = new Set(); renderControls(); renderActive(); }
 
+// Paid-media time-series toggles (grain + scale). Sync the `on` highlight, then on a
+// click set state + re-render. Only the 5 paid-media charts read pmGrain/pmScale, so a
+// plain renderActive() suffices (and on the CS/Compare tabs it's a harmless no-op).
+function syncPMToggles(){
+  Array.from(el('pmGrainSeg').querySelectorAll('.seg-btn')).forEach(b=>b.classList.toggle('on', b.dataset.grain===pmGrain));
+  Array.from(el('pmScaleSeg').querySelectorAll('.seg-btn')).forEach(b=>b.classList.toggle('on', b.dataset.scale===pmScale));
+}
+function wirePMToggles(){
+  Array.from(el('pmGrainSeg').querySelectorAll('.seg-btn')).forEach(b=>{
+    b.addEventListener('click', ()=>{ pmGrain=b.dataset.grain; syncPMToggles(); renderActive(); }); });
+  Array.from(el('pmScaleSeg').querySelectorAll('.seg-btn')).forEach(b=>{
+    b.addEventListener('click', ()=>{ pmScale=b.dataset.scale; syncPMToggles(); renderActive(); }); });
+  syncPMToggles();
+}
+
 //==============================================================================
 // RENDER DISPATCH
 //==============================================================================
@@ -967,6 +1000,24 @@ function stratKeys(rows){
   for (const r of rows){ const s = String(r.strategy||'').trim().toUpperCase(); if (s) set.add(s); }
   return [...set].sort(stratSort);
 }
+
+// ── Time-series grain + scale helpers (pmGrain / pmScale) ────────────────────
+// Bucket key for a row at the active grain: Month='YYYY-MM', Week=ISO-week-Monday
+// (the row's own week_start), Day='YYYY-MM-DD'. Re-aggregation always SUMs the
+// additive numerators (imps/clicks/spend) and derives ratios from those sums.
+function pmBucketKey(r){
+  const d = String(r.date||'').slice(0,10);
+  if (pmGrain === 'month') return d.slice(0,7);
+  if (pmGrain === 'week')  return String(r.week_start||'').slice(0,10) || d;
+  return d;
+}
+// Tick label for a bucket key (drop the leading 'YYYY-' for day/week to stay compact).
+function pmBucketLabel(k){ return pmGrain === 'month' ? k : k.slice(5); }
+// Sorted unique bucket keys present in rows.
+function pmBuckets(rows){ return [...new Set(rows.map(pmBucketKey).filter(Boolean))].sort(); }
+// Index a numeric series to its own peak=100 (Relative mode); keeps the raw series
+// recoverable via the parallel `raw` array the caller passes to the tooltip.
+function pmIndex(arr){ const mx = Math.max(0, ...arr); return mx ? arr.map(v => v/mx*100) : arr.map(()=>0); }
 
 function renderPaidAll() {
   const rows = pmCampRows();
@@ -1054,19 +1105,36 @@ function renderStrategyTable(rows) {
 }
 
 function renderPMDaily(rows) {
-  const days = {};
-  for (const r of rows){ const d = String(r.date||'').slice(0,10); if (!d) continue;
-    if (!days[d]) days[d] = {imp:0, clk:0}; days[d].imp += r.imps||0; days[d].clk += r.clicks||0; }
-  const dates = Object.keys(days).sort();
+  const buckets = {};
+  for (const r of rows){ const k = pmBucketKey(r); if (!k) continue;
+    if (!buckets[k]) buckets[k] = {imp:0, clk:0}; buckets[k].imp += r.imps||0; buckets[k].clk += r.clicks||0; }
+  const keys = pmBuckets(rows);
+  // Raw (true) series — tooltips always show these, in BOTH modes.
+  const impRaw = keys.map(k=>buckets[k].imp);
+  const clkRaw = keys.map(k=>buckets[k].clk);
+  const ctrRaw = keys.map(k=>buckets[k].imp ? buckets[k].clk/buckets[k].imp*100 : 0); // ratio of sums
+  const isRel = pmScale === 'rel';
+  // Relative: bars (Impressions) stay ABSOLUTE on the left; the two overlay LINES
+  // (Clicks, CTR) are each indexed to their own peak=100 on ONE shared 0-100 axis.
+  const clkPlot = isRel ? pmIndex(clkRaw) : clkRaw;
+  const ctrPlot = isRel ? pmIndex(ctrRaw) : ctrRaw;
   charts.pmDaily = new Chart(el('pmDaily'), {
-    data:{ labels: dates.map(d=>d.slice(5)), datasets:[
-      {type:'bar',  label:'Impressions', data: dates.map(d=>days[d].imp), backgroundColor:MDB.mint, borderColor:MDB.green, borderWidth:1, yAxisID:'y', order:3, borderRadius:2},
-      {type:'line', label:'Clicks',      data: dates.map(d=>days[d].clk), borderColor:MDB.forest, backgroundColor:MDB.forest, tension:.25, pointRadius:2, borderWidth:2, yAxisID:'yClk', order:1},
-      {type:'line', label:'CTR (%)',     data: dates.map(d=>days[d].imp ? days[d].clk/days[d].imp*100 : 0), borderColor:MDB.slate, backgroundColor:MDB.slate, tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:'yCtr', order:2}
+    data:{ labels: keys.map(pmBucketLabel), datasets:[
+      {type:'bar',  label:'Impressions', data: impRaw, backgroundColor:MDB.mint, borderColor:MDB.green, borderWidth:1, yAxisID:'y', order:3, borderRadius:2},
+      {type:'line', label:'Clicks',      data: clkPlot, _raw:clkRaw, _fmt:'clk', borderColor:MDB.forest, backgroundColor:MDB.forest, tension:.25, pointRadius:2, borderWidth:2, yAxisID:isRel?'yIdx':'yClk', order:1},
+      {type:'line', label:'CTR (%)',     data: ctrPlot, _raw:ctrRaw, _fmt:'ctr', borderColor:MDB.slate, backgroundColor:MDB.slate, tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:isRel?'yIdx':'yCtr', order:2}
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, color:MDB.ink}}, tooltip:{backgroundColor:MDB.slate, padding:10, cornerRadius:6} },
-      scales:{
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, color:MDB.ink}},
+        tooltip:{backgroundColor:MDB.slate, padding:10, cornerRadius:6, callbacks:{ label:c=>{
+          const ds=c.dataset; if(ds._fmt==='ctr') return `${ds.label}: ${(ds._raw?ds._raw[c.dataIndex]:c.parsed.y).toFixed(3)}%`;
+          if(ds._fmt==='clk') return `${ds.label}: ${fmtN(ds._raw?ds._raw[c.dataIndex]:c.parsed.y)}`;
+          return `${ds.label}: ${fmtN(c.parsed.y)}`; } } } },
+      scales: isRel ? {
+        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:MDB.green, callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:MDB.green}},
+        yIdx: {beginAtZero:true, position:'right', max:100, grid:{display:false}, ticks:{font:{size:10}, color:MDB.slate}, title:{display:true, text:'Index (peak=100)', color:MDB.slate}},
+        x:    {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}}
+      } : {
         y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:MDB.green, callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:MDB.green}},
         yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:MDB.forest}, title:{display:true, text:'Clicks', color:MDB.forest}},
         yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:MDB.slate, callback:v=>v.toFixed(2)+'%'}, title:{display:true, text:'CTR', color:MDB.slate}, offset:true, afterFit:a=>{a.width=46}},
@@ -1091,21 +1159,35 @@ function renderPMSpendStrat(rows) {
 
 function renderPMDailyStack(rows) {
   const keys = stratKeys(rows);
-  const dates = [...new Set(rows.map(r=>String(r.date||'').slice(0,10)).filter(Boolean))].sort();
-  const byDateStrat = {};
+  const buckets = pmBuckets(rows);
+  const byBktStrat = {};
   for (const r of rows){
-    const d = String(r.date||'').slice(0,10); const s = String(r.strategy||'').trim().toUpperCase();
-    if (!d || !s) continue;
-    if (!byDateStrat[s]) byDateStrat[s] = {};
-    byDateStrat[s][d] = (byDateStrat[s][d]||0) + (r.spend_usd||0);
+    const k = pmBucketKey(r); const s = String(r.strategy||'').trim().toUpperCase();
+    if (!k || !s) continue;
+    if (!byBktStrat[s]) byBktStrat[s] = {};
+    byBktStrat[s][k] = (byBktStrat[s][k]||0) + (r.spend_usd||0);
   }
-  const datasets = keys.map(s => ({ label:s, data: dates.map(d => (byDateStrat[s] && byDateStrat[s][d]) || 0), backgroundColor: stratColor(s), borderRadius:2 }));
+  const isRel = pmScale === 'rel';
+  // Pure stacked-composition bar (no overlay line). Relative => 100%-stacked: each
+  // bucket normalized to its own total (left axis 0-100%); tooltip un-normalizes to $.
+  const totals = buckets.map(k => keys.reduce((s2,s)=>s2 + ((byBktStrat[s]&&byBktStrat[s][k])||0), 0));
+  const datasets = keys.map(s => {
+    const raw = buckets.map(k => (byBktStrat[s] && byBktStrat[s][k]) || 0);
+    const plot = isRel ? raw.map((v,i)=> totals[i] ? v/totals[i]*100 : 0) : raw;
+    return { label:s, data: plot, _raw:raw, backgroundColor: stratColor(s), borderRadius:2 };
+  });
   charts.pmDailyStack = new Chart(el('pmDailyStack'), {
-    type:'bar', data:{ labels: dates.map(d=>d.slice(5)), datasets },
+    type:'bar', data:{ labels: buckets.map(pmBucketLabel), datasets },
     options: chartBase({
-      plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.y)}` } } },
+      plugins:{ tooltip:{ callbacks:{ label:c=>{
+        const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
+        const t = totals[c.dataIndex];
+        return ` ${c.dataset.label}: ${fmt$(raw)}` + (isRel && t ? ` (${(raw/t*100).toFixed(1)}%)` : '');
+      } } } },
       scales:{ x:{stacked:true, grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}},
-        y:{stacked:true, beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+Number(v).toLocaleString()}} }
+        y:{stacked:true, beginAtZero:true, max: isRel?100:undefined, grid:{color:MDB.line},
+           ticks:{callback: isRel ? (v=>v+'%') : (v=>'$'+Number(v).toLocaleString())},
+           title:{display:isRel, text:'Share of spend', color:MDB.mute}} }
     })
   });
 }
@@ -1126,30 +1208,42 @@ function renderPMSpendMarket(rows) {
 
 function renderPMEffTrio(rows) {
   const keys = stratKeys(rows);
-  const dates = [...new Set(rows.map(r=>String(r.date||'').slice(0,10)).filter(Boolean))].sort();
+  const buckets = pmBuckets(rows);
   const agg = {};
   for (const r of rows){
-    const d = String(r.date||'').slice(0,10); const s = String(r.strategy||'').trim().toUpperCase();
-    if (!d || !s) continue;
+    const k = pmBucketKey(r); const s = String(r.strategy||'').trim().toUpperCase();
+    if (!k || !s) continue;
     if (!agg[s]) agg[s] = {};
-    if (!agg[s][d]) agg[s][d] = {imp:0, clk:0, sp:0};
-    agg[s][d].imp += r.imps||0; agg[s][d].clk += r.clicks||0; agg[s][d].sp += r.spend_usd||0;
+    if (!agg[s][k]) agg[s][k] = {imp:0, clk:0, sp:0};
+    agg[s][k].imp += r.imps||0; agg[s][k].clk += r.clicks||0; agg[s][k].sp += r.spend_usd||0;
   }
-  const mk = (s, fn) => ({ label:s, data: dates.map(d => { const o = agg[s] && agg[s][d]; return o ? fn(o) : 0; }),
-    borderColor: stratColor(s), backgroundColor: stratColor(s)+'22', tension:.25, pointRadius:2, borderWidth:2, fill:false });
+  const isRel = pmScale === 'rel';
+  // Build a line per strategy; fn derives the metric from SUMMED imp/clk/sp per bucket.
+  // Relative => each line indexed to its own peak=100 on a shared 0-100 axis; the raw
+  // series is carried on `_raw` so the tooltip shows true values in BOTH modes.
+  const mk = (s, fn) => {
+    const raw = buckets.map(k => { const o = agg[s] && agg[s][k]; return o ? fn(o) : 0; });
+    const plot = isRel ? pmIndex(raw) : raw;
+    return { label:s, data: plot, _raw:raw, borderColor: stratColor(s), backgroundColor: stratColor(s)+'22',
+             tension:.25, pointRadius:2, borderWidth:2, fill:false, yAxisID: isRel?'yIdx':'y' };
+  };
+  const xCfg = {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}};
+  const idxAxis = {beginAtZero:true, max:100, grid:{color:MDB.line}, title:{display:true, text:'Index (peak=100)', color:MDB.mute, font:{size:9}}};
+  const labels = buckets.map(pmBucketLabel);
   charts.pmCtr = new Chart(el('pmCtr'), {
-    type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets: keys.map(s => mk(s, o => o.imp ? o.clk/o.imp*100 : 0)) },
-    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${c.parsed.y.toFixed(3)}%` } } },
-      scales:{ x:{grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>v.toFixed(2)+'%'}} } })
+    type:'line', data:{ labels, datasets: keys.map(s => mk(s, o => o.imp ? o.clk/o.imp*100 : 0)) },
+    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${(c.dataset._raw?c.dataset._raw[c.dataIndex]:c.parsed.y).toFixed(3)}%` } } },
+      scales:{ x:xCfg, y: isRel ? idxAxis : {beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>v.toFixed(2)+'%'}} } })
   });
   charts.pmClk = new Chart(el('pmClk'), {
-    type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets: keys.map(s => mk(s, o => o.clk)) },
-    options: chartBase({ scales:{ x:{grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}}, y:{beginAtZero:true, grid:{color:MDB.line}} } })
+    type:'line', data:{ labels, datasets: keys.map(s => mk(s, o => o.clk)) },
+    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmtN(c.dataset._raw?c.dataset._raw[c.dataIndex]:c.parsed.y)}` } } },
+      scales:{ x:xCfg, y: isRel ? idxAxis : {beginAtZero:true, grid:{color:MDB.line}} } })
   });
   charts.pmCpc = new Chart(el('pmCpc'), {
-    type:'line', data:{ labels: dates.map(d=>d.slice(5)), datasets: keys.map(s => mk(s, o => o.clk ? o.sp/o.clk : 0)) },
-    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: $${c.parsed.y.toFixed(2)}` } } },
-      scales:{ x:{grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:10}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+v.toFixed(2)}} } })
+    type:'line', data:{ labels, datasets: keys.map(s => mk(s, o => o.clk ? o.sp/o.clk : 0)) },
+    options: chartBase({ plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: $${(c.dataset._raw?c.dataset._raw[c.dataIndex]:c.parsed.y).toFixed(2)}` } } },
+      scales:{ x:xCfg, y: isRel ? idxAxis : {beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+v.toFixed(2)}} } })
   });
 }
 

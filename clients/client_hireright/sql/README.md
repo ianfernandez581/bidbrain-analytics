@@ -26,9 +26,14 @@ exist for this client.
 | `12_li_creative.sql` | `li_creative` | LinkedIn by creative type (whole flight) with the full funnel metric set. |
 | `13_li_campaign_creative.sql` | `li_campaign_creative` | LinkedIn by campaign × creative type (creative-mix donut + engagement funnel). |
 | `14_li_campaigns.sql` | `li_campaigns` | LinkedIn by campaign (the detail table). |
+| `15_daily.sql` | `daily` | Per-day delivery — DV360 + TradeDesk + LinkedIn imps/clicks/spend. Powers the **Day** grain of the two trend charts; mirrors `monthly`/`weekly` (day key = ISO `'YYYY-MM-DD'` string). |
+| `16_ad_campaign_daily.sql` | `ad_campaign_daily` | Ad delivery by campaign × day (the **Day** grain of the Overview hero + Paid Media trend chart). Mirrors `ad_campaign_monthly`/`ad_campaign_weekly`. |
 
 The **Campaign filter** is the ad-delivery slicer: `stg_ad_delivery` (04) folds the three platforms into
-one long-format fact, and `08–11` roll it up by campaign × {total, month, week, market}. The dashboard sums
+one long-format fact, and `08–11` + `16` roll it up by campaign × {total, month, week, market, day}. The two
+trend charts (Overview hero + Paid Media) carry a **VIEW BY** Month/Week/Day grain toggle that re-aggregates
+from `ad_campaign_monthly` / `ad_campaign_weekly` / `ad_campaign_daily`, plus an **AXIS** Relative/Absolute
+scale toggle (default Relative: the clicks line is indexed to its own peak=100). The dashboard sums
 the selected campaigns client-side to rescale every ad-delivery figure — selecting **all** campaigns (the
 default) reproduces the whole-flight `kpi` / `monthly` totals exactly.
 

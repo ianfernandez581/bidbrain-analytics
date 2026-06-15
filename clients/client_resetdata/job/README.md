@@ -10,7 +10,7 @@ their own loaders), so it needs only the BigQuery + Storage clients.
 
 | File | What it is |
 |---|---|
-| `main.py` | The job. `CLIENT = "resetdata"` → dataset / bucket / object all follow. Reads 14 roll-up views → `env` dict → JSON. **Self-gating:** probes the five upstream raw tables it reads (`raw_google_ads.perf_google_ads`, `raw_windsor.perf_meta`, `raw_windsor.perf_the_trade_desk`, `raw_ga4.perf_ga4`, `raw_ga4.perf_ga4_events`) via `freshness.py` and skips the rebuild unless one advanced. `FORCE_REBUILD=1` bypasses the gate. Currency is **AUD** throughout (Google/Meta already AUD; TTD USD→AUD ×1.50, surfaced as `fx_usd_aud`). |
+| `main.py` | The job. `CLIENT = "resetdata"` → dataset / bucket / object all follow. Reads 15 roll-up views → `env` dict → JSON. **Self-gating:** probes the six upstream raw tables it reads (`raw_google_ads.perf_google_ads`, `raw_windsor.perf_meta`, `raw_windsor.perf_the_trade_desk`, `raw_windsor.perf_reddit`, `raw_ga4.perf_ga4`, `raw_ga4.perf_ga4_events`) via `freshness.py` and skips the rebuild unless one advanced. `FORCE_REBUILD=1` bypasses the gate. Currency is **AUD** throughout (Google/Meta/Reddit already AUD; TTD USD→AUD ×1.50, surfaced as `fx_usd_aud`). |
 | `freshness.py` | Vendored self-gating helper (shared across jobs): `probe_bq_last_modified` (BQ `__TABLES__.last_modified`), `read_watermark`/`write_watermark` (GCS `_freshness.json` sidecar), `is_stale`. |
 | `requirements.txt` | `google-cloud-bigquery`, `google-cloud-storage` (pinned). |
 | `Dockerfile` | `python:3.12.13-slim`, non-root, `CMD python main.py`; `COPY main.py freshness.py`. |

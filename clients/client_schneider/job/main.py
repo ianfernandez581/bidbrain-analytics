@@ -100,9 +100,11 @@ def main():
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
+    daily = rows(bq, "daily")
     ad_campaigns = rows(bq, "ad_campaigns")
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_daily = rows(bq, "ad_campaign_daily")
     ad_campaign_market = rows(bq, "ad_campaign_market")
     ad_campaign_metrics = rows(bq, "ad_campaign_metrics")
     li_creative = rows(bq, "li_creative")
@@ -160,6 +162,13 @@ def main():
             "li_imps": num(r["li_imps"]), "li_clicks": num(r["li_clicks"]), "li_spend_aud": num(r["li_spend_aud"]),
             "ad_imps": num(r["ad_imps"]), "ad_clicks": num(r["ad_clicks"]), "ad_spend_aud": num(r["ad_spend_aud"]),
         } for r in weekly],
+        "daily": [{
+            "day": r["day"],
+            "dv_imps": num(r["dv_imps"]), "dv_clicks": num(r["dv_clicks"]), "dv_spend_aud": num(r["dv_spend_aud"]),
+            "td_imps": num(r["td_imps"]), "td_clicks": num(r["td_clicks"]), "td_spend_aud": num(r["td_spend_aud"]),
+            "li_imps": num(r["li_imps"]), "li_clicks": num(r["li_clicks"]), "li_spend_aud": num(r["li_spend_aud"]),
+            "ad_imps": num(r["ad_imps"]), "ad_clicks": num(r["ad_clicks"]), "ad_spend_aud": num(r["ad_spend_aud"]),
+        } for r in daily],
         # --- Campaign filter: campaign-grained ad delivery (spend all AUD) --------
         "ad_campaigns": [{
             "platform": r["platform"], "campaign": r["campaign"],
@@ -174,6 +183,10 @@ def main():
             "platform": r["platform"], "campaign": r["campaign"], "week_start": ymd(r["week_start"]),
             "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
         } for r in ad_campaign_weekly],
+        "ad_campaign_daily": [{
+            "platform": r["platform"], "campaign": r["campaign"], "day": r["day"],
+            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
+        } for r in ad_campaign_daily],
         "ad_campaign_market": [{
             "platform": r["platform"], "campaign": r["campaign"], "market": r["market"],
             "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),

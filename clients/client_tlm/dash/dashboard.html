@@ -156,7 +156,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
 
   <section id="tab-overview">
     <div class="grid kpis" id="ovKpis"></div>
-    <div class="panel-box"><div class="panelhead"><div><h3>Media spend · Revenue · ROAS</h3><p class="hint">Stacked bars = spend by platform (AUD). Lines = revenue + ROAS. <b>Relative</b> indexes each line to its peak. Click a bar to drill into weeks.</p></div><div class="ctrls"><span class="drillback" id="heroBack">↩ All months</span><span class="seg" id="heroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="heroGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button></span></div></div><div class="chartbox tall"><canvas id="heroChart"></canvas></div></div>
+    <div class="panel-box"><div class="panelhead"><div><h3>Media spend · Revenue · ROAS</h3><p class="hint">Stacked bars = spend by platform (AUD). Lines = revenue + ROAS. <b>Relative</b> indexes each line to its peak. Click a bar to drill into weeks.</p></div><div class="ctrls"><span class="drillback" id="heroBack">↩ All months</span><span class="seg" id="heroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="heroGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox tall"><canvas id="heroChart"></canvas></div></div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Spend by platform</h3><p class="hint">AUD, scoped by filters.</p><div class="chartbox sm"><canvas id="spendDonut"></canvas></div></div>
       <div class="panel-box"><h3>Revenue by campaign type</h3><p class="hint">Google Ads conversions_value (AUD).</p><div class="chartbox sm"><canvas id="typeDonut"></canvas></div></div>
@@ -165,7 +165,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
 
   <section id="tab-google" class="hide">
     <div class="panel-box"><h3>By campaign type</h3><p class="hint">Performance Max · Search · Shopping. Ratios derived client-side.</p><table id="googleTypeTable"></table></div>
-    <div class="panel-box" style="margin-top:14px"><h3>Monthly spend vs revenue</h3><p class="hint">Google Ads only — bars = spend (AUD), line = revenue (AUD).</p><div class="chartbox"><canvas id="googleMonthlyChart"></canvas></div></div>
+    <div class="panel-box" style="margin-top:14px"><div class="panelhead"><div><h3>Spend vs revenue</h3><p class="hint">Google Ads only — bars = spend (AUD), line = revenue (AUD). <b>Relative</b> indexes the line to its peak.</p></div><div class="ctrls"><span class="seg" id="googMonScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="googMonGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox"><canvas id="googleMonthlyChart"></canvas></div></div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Per campaign</h3><p class="hint">Delivery + conversions/revenue by campaign.</p><div class="tablewrap"><table id="googleCamps"></table></div></div>
       <div class="panel-box"><h3>Spend by campaign type</h3><p class="hint">AUD.</p><div class="chartbox sm"><canvas id="googleTypeDonut"></canvas></div></div>
@@ -183,7 +183,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
   <section id="tab-performance" class="hide">
     <div class="grid kpis" id="perfKpis"></div>
     <div class="panel-box"><h3>Weekly spend ↔ revenue correlation</h3><p class="hint">Each dot = one ISO week. Pearson's r shown. Campaign filter applies.</p><div class="chartbox"><canvas id="scatterChart"></canvas></div></div>
-    <div class="panel-box" style="margin-top:14px"><div class="panelhead"><div><h3>Revenue & purchases trend</h3><p class="hint">The e-commerce story: revenue (AUD) + purchases over time.</p></div><div class="ctrls"><span class="seg" id="perfGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button></span></div></div><div class="chartbox"><canvas id="perfTrendChart"></canvas></div></div>
+    <div class="panel-box" style="margin-top:14px"><div class="panelhead"><div><h3>Revenue & purchases trend</h3><p class="hint">The e-commerce story: revenue (AUD) + purchases over time.</p></div><div class="ctrls"><span class="seg" id="perfScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="perfGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox"><canvas id="perfTrendChart"></canvas></div></div>
   </section>
 </div>
 
@@ -195,7 +195,8 @@ var platformOn={google:true,ttd:true};
 var selectedCampaigns=null;
 var dateFrom=null,dateTo=null;
 var heroGrain='month',heroScale='rel',heroDrillMonth=null;
-var perfGrain='month';
+var perfGrain='month',perfScale='rel';
+var googMonGrain='month',googMonScale='rel';
 var charts={};
 var typeByCampaign={};   // google campaign name -> campaign_type (built on load)
 // Chart palette — kept in sync with :root. Google = brand steel-blue (primary platform),
@@ -213,6 +214,7 @@ function inDR(ymd){if(!ymd)return true;var d=parseYMD(ymd);if(dateFrom&&d<dateFr
 function campFilter(r){if(!platformOn[r.platform])return false;if(selectedCampaigns!==null&&selectedCampaigns.indexOf(r.platform+'|'+r.campaign)===-1)return false;return true;}
 function fMonthly(){return(data.ad_campaign_monthly||[]).filter(function(r){return campFilter(r)&&inDR(r.month+'-01');});}
 function fWeekly(){return(data.ad_campaign_weekly||[]).filter(function(r){return campFilter(r)&&inDR(r.week_start);});}
+function fDaily(){return(data.ad_campaign_daily||[]).filter(function(r){return campFilter(r)&&inDR(r.day);});}
 function rollUp(rows,key){var m={};rows.forEach(function(r){var k=r[key];if(!m[k])m[k]={sp:0,cl:0,im:0,cv:0,rv:0};m[k].sp+=r.spend_aud||0;m[k].cl+=r.clicks||0;m[k].im+=r.imps||0;m[k].cv+=r.conversions||0;m[k].rv+=r.revenue||0;});return m;}
 function sumBy(rows,key,field){var m={};rows.forEach(function(r){var k=r[key];m[k]=(m[k]||0)+(r[field]||0);});return m;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];});}
@@ -222,6 +224,10 @@ function fGoogleMonthly(){return(data.ad_campaign_monthly||[]).filter(function(r
 function fTtdMonthly(){return(data.ad_campaign_monthly||[]).filter(function(r){return r.platform==='ttd'&&campFilter(r)&&inDR(r.month+'-01');});}
 function fGoogleWeekly(){return(data.ad_campaign_weekly||[]).filter(function(r){return r.platform==='google'&&campFilter(r)&&inDR(r.week_start);});}
 function fTtdWeekly(){return(data.ad_campaign_weekly||[]).filter(function(r){return r.platform==='ttd'&&campFilter(r)&&inDR(r.week_start);});}
+// Day-grain slices — mirror the weekly helpers; daily rows are keyed by 'day' ('YYYY-MM-DD'),
+// which inDR() accepts directly (it parses any YYYY-MM-DD).
+function fGoogleDaily(){return(data.ad_campaign_daily||[]).filter(function(r){return r.platform==='google'&&campFilter(r)&&inDR(r.day);});}
+function fTtdDaily(){return(data.ad_campaign_daily||[]).filter(function(r){return r.platform==='ttd'&&campFilter(r)&&inDR(r.day);});}
 function googleTypeRollup(){var m={};fGoogleMonthly().forEach(function(r){var t=typeByCampaign[r.campaign]||'Other';if(!m[t])m[t]={sp:0,im:0,cl:0,cv:0,rv:0};var o=m[t];o.sp+=r.spend_aud||0;o.im+=r.imps||0;o.cl+=r.clicks||0;o.cv+=r.conversions||0;o.rv+=r.revenue||0;});return m;}
 function googleCampRollup(){var m={};fGoogleMonthly().forEach(function(r){if(!m[r.campaign])m[r.campaign]={type:typeByCampaign[r.campaign]||'Other',sp:0,im:0,cl:0,cv:0,rv:0};var o=m[r.campaign];o.sp+=r.spend_aud||0;o.im+=r.imps||0;o.cl+=r.clicks||0;o.cv+=r.conversions||0;o.rv+=r.revenue||0;});return m;}
 function ttdCampRollup(){var m={};fTtdMonthly().forEach(function(r){if(!m[r.campaign])m[r.campaign]={sp:0,im:0,cl:0};var o=m[r.campaign];o.sp+=r.spend_aud||0;o.im+=r.imps||0;o.cl+=r.clicks||0;});return m;}
@@ -350,8 +356,13 @@ $('heroBack').addEventListener('click',function(){heroDrillMonth=null;this.class
 Array.from($('heroScaleSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){heroScale=this.dataset.scale;Array.from($('heroScaleSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.scale===heroScale);});renderOverview();});});
 Array.from($('heroGrainSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){heroGrain=this.dataset.grain;heroDrillMonth=null;$('heroBack').classList.remove('show');Array.from($('heroGrainSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.grain===heroGrain);});renderOverview();});});
 
-// ===== PERF GRAIN =====
+// ===== PERF GRAIN + SCALE =====
 Array.from($('perfGrainSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){perfGrain=this.dataset.grain;Array.from($('perfGrainSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.grain===perfGrain);});renderPerf();});});
+Array.from($('perfScaleSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){perfScale=this.dataset.scale;Array.from($('perfScaleSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.scale===perfScale);});renderPerf();});});
+
+// ===== GOOGLE MONTHLY GRAIN + SCALE =====
+Array.from($('googMonGrainSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){googMonGrain=this.dataset.grain;Array.from($('googMonGrainSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.grain===googMonGrain);});renderGoogle();});});
+Array.from($('googMonScaleSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){googMonScale=this.dataset.scale;Array.from($('googMonScaleSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.scale===googMonScale);});renderGoogle();});});
 
 // ===== RENDER: OVERVIEW =====
 function renderOverview(){
@@ -381,14 +392,21 @@ function renderOverview(){
   $('ovKpis').innerHTML=cards.map(function(c){return'<div class="kpi '+c.cls+'"><div class="label">'+c.label+'</div><div class="value">'+c.value+'</div><div class="sub">'+c.sub+'</div></div>';}).join('');
 
   // --- Hero: stacked spend bars (Google + TTD) + revenue + ROAS(Google) line ---
-  // Month grain, OR weeks (when 'Week' is picked OR a month bar is drilled into).
-  var useWeek=(heroGrain==='week')||(heroGrain==='month'&&heroDrillMonth);
+  // Month grain (drill a bar into weeks), OR weeks, OR days. SUM additive metrics per
+  // bucket; ROAS is derived from SUMMED revenue ÷ SUMMED Google spend (never averaged).
   var labels=[],gArr=[],tArr=[],rvArr=[],roasArr=[];
-  if(!useWeek){
+  if(heroGrain==='month'&&!heroDrillMonth){
     labels=(data.monthly||[]).filter(function(r){return inDR(r.month+'-01');}).map(function(r){return r.month;});
     var gms=sumBy(fGoogleMonthly(),'month','spend_aud'),tms=sumBy(fTtdMonthly(),'month','spend_aud'),rms=sumBy(fGoogleMonthly(),'month','revenue');
     labels.forEach(function(m){var g=gms[m]||0,r=rms[m]||0;gArr.push(g);tArr.push(tms[m]||0);rvArr.push(r);roasArr.push(g>0?r/g:0);});
+  } else if(heroGrain==='day'){
+    var gd=fGoogleDaily(),td=fTtdDaily();
+    var setd={};gd.forEach(function(r){setd[r.day]=1;});td.forEach(function(r){setd[r.day]=1;});
+    labels=Object.keys(setd).sort();
+    var gds=sumBy(gd,'day','spend_aud'),tds=sumBy(td,'day','spend_aud'),rds=sumBy(gd,'day','revenue');
+    labels.forEach(function(d){var g=gds[d]||0,r=rds[d]||0;gArr.push(g);tArr.push(tds[d]||0);rvArr.push(r);roasArr.push(g>0?r/g:0);});
   } else {
+    // week grain, OR a drilled-into month (shown as its weeks)
     var gw=fGoogleWeekly(),tw=fTtdWeekly();
     if(heroGrain==='month'&&heroDrillMonth){
       gw=gw.filter(function(r){return r.week_start.slice(0,7)===heroDrillMonth;});
@@ -445,14 +463,29 @@ function renderGoogle(){
     return'<tr><td class="name">'+esc(name)+' <span class="pill '+(typeCls[ct]||'other')+'">'+esc(ct)+'</span></td><td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(o.sp>0?(o.rv/o.sp).toFixed(2)+'×':'—')+'</td></tr>';}).join('');
   $('googleCamps').innerHTML='<thead><tr><th>Campaign</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Purch.</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>'+(cRows||'<tr><td colspan="8" style="text-align:center;color:var(--muted2)">No Google delivery in range</td></tr>')+'</tbody>';
 
-  // Monthly chart (filtered Google spend + revenue)
+  // Spend vs revenue chart (filtered Google spend + revenue) — grain Month/Week/Day, with a
+  // Relative axis that indexes the revenue line to its own peak=100. Bars (spend) stay
+  // absolute on the left axis. SUM additive metrics per bucket.
   destroyChart('googleMonthlyChart');
-  var mlabels=(data.monthly||[]).filter(function(r){return inDR(r.month+'-01');}).map(function(r){return r.month;});
-  var gms=sumBy(fGoogleMonthly(),'month','spend_aud'),rms=sumBy(fGoogleMonthly(),'month','revenue');
-  charts.googleMonthlyChart=new Chart(ctx('googleMonthlyChart'),{type:'bar',data:{labels:mlabels,datasets:[
-    {label:'Spend (AUD)',data:mlabels.map(function(m){return gms[m]||0;}),backgroundColor:C.google,borderRadius:2},
-    {label:'Revenue (AUD)',data:mlabels.map(function(m){return rms[m]||0;}),type:'line',borderColor:C.revenue,tension:.3,pointRadius:2,yAxisID:'y1'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){return c.dataset.label+': '+curr(c.raw);}}}},scales:{y:{title:{display:true,text:'Spend (AUD)'},ticks:{callback:function(v){return curr(v);}}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}}}}});
+  var gmLabels=[],gmSp=[],gmRv=[];
+  if(googMonGrain==='month'){
+    gmLabels=(data.monthly||[]).filter(function(r){return inDR(r.month+'-01');}).map(function(r){return r.month;});
+    var gms=sumBy(fGoogleMonthly(),'month','spend_aud'),rms=sumBy(fGoogleMonthly(),'month','revenue');
+    gmLabels.forEach(function(m){gmSp.push(gms[m]||0);gmRv.push(rms[m]||0);});
+  } else if(googMonGrain==='week'){
+    var gwR=fGoogleWeekly();gmLabels=Object.keys(sumBy(gwR,'week_start','spend_aud')).sort();
+    var gwsS=sumBy(gwR,'week_start','spend_aud'),gwsR=sumBy(gwR,'week_start','revenue');
+    gmLabels.forEach(function(w){gmSp.push(gwsS[w]||0);gmRv.push(gwsR[w]||0);});
+  } else {
+    var gdR=fGoogleDaily();gmLabels=Object.keys(sumBy(gdR,'day','spend_aud')).sort();
+    var gdsS=sumBy(gdR,'day','spend_aud'),gdsR=sumBy(gdR,'day','revenue');
+    gmLabels.forEach(function(d){gmSp.push(gdsS[d]||0);gmRv.push(gdsR[d]||0);});
+  }
+  var gmRel=googMonScale==='rel',gmMaxR=Math.max.apply(null,gmRv.concat([1]));
+  charts.googleMonthlyChart=new Chart(ctx('googleMonthlyChart'),{type:'bar',data:{labels:gmLabels,datasets:[
+    {label:'Spend (AUD)',data:gmSp,backgroundColor:C.google,borderRadius:2},
+    {label:'Revenue (AUD)',data:gmRel?gmRv.map(function(v){return v/gmMaxR*100;}):gmRv,type:'line',borderColor:C.revenue,tension:.3,pointRadius:2,yAxisID:'y1'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){if(c.dataset.label==='Revenue (AUD)')return'Revenue: '+curr(gmRel?c.raw/100*gmMaxR:c.raw);return c.dataset.label+': '+curr(c.raw);}}}},scales:{y:{title:{display:true,text:'Spend (AUD)'},ticks:{callback:function(v){return curr(v);}}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:gmRel?'Index (peak=100)':'Revenue (AUD)'},ticks:{callback:function(v){return gmRel?v.toFixed(0):curr(v);}}}}}});
 
   // Type donut (filtered, spend)
   destroyChart('googleTypeDonut');
@@ -497,22 +530,29 @@ function renderPerf(){
   var pr=pearson(sps,rvs);
   charts.scatterChart=new Chart(ctx('scatterChart'),{type:'scatter',data:{datasets:[{label:'Weekly spend → revenue',data:sps.map(function(s,i){return{x:s,y:rvs[i]};}),backgroundColor:C.accent}]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){return'Spend: '+curr(c.raw.x)+' | Revenue: '+curr(c.raw.y);}}},subtitle:{display:true,text:pr!==null?'Correlation (Pearson r) = '+pr.toFixed(3):'Not enough weeks for a correlation'}},scales:{x:{title:{display:true,text:'Spend (AUD)'},ticks:{callback:function(v){return curr(v);}}},y:{title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}}}}});
 
-  // Trend — revenue + purchases by period (filtered)
+  // Trend — revenue (bars) + purchases (overlay line) by period (filtered). Grain
+  // Month/Week/Day; SUM additive metrics per bucket. Relative axis indexes the purchases
+  // line to its own peak=100; revenue bars stay absolute on the left axis.
   destroyChart('perfTrendChart');
   var tlabels=[],trvs=[],tcvs=[];
   if(perfGrain==='month'){
     var rm=rollUp(fMonthly(),'month');
     tlabels=(data.monthly||[]).filter(function(r){return inDR(r.month+'-01');}).map(function(r){return r.month;});
     tlabels.forEach(function(m){var o=rm[m]||{rv:0,cv:0};trvs.push(o.rv);tcvs.push(o.cv);});
+  } else if(perfGrain==='day'){
+    var rd=rollUp(fDaily(),'day');
+    tlabels=Object.keys(rd).sort();
+    tlabels.forEach(function(d){var o=rd[d]||{rv:0,cv:0};trvs.push(o.rv);tcvs.push(o.cv);});
   } else {
     var rw2=rollUp(fWeekly(),'week_start');
     tlabels=Object.keys(rw2).sort();
     tlabels.forEach(function(w){var o=rw2[w]||{rv:0,cv:0};trvs.push(o.rv);tcvs.push(o.cv);});
   }
+  var ptRel=perfScale==='rel',ptMaxC=Math.max.apply(null,tcvs.concat([1]));
   charts.perfTrendChart=new Chart(ctx('perfTrendChart'),{type:'bar',data:{labels:tlabels,datasets:[
     {label:'Revenue (AUD)',data:trvs,backgroundColor:C.revenue,borderRadius:2},
-    {label:'Purchases',data:tcvs,type:'line',borderColor:C.roas,tension:.3,pointRadius:2,yAxisID:'y1'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){return c.dataset.label==='Purchases'?'Purchases: '+fmt(c.raw,1):'Revenue: '+curr(c.raw);}}}},scales:{y:{title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Purchases'}}}}});
+    {label:'Purchases',data:ptRel?tcvs.map(function(v){return v/ptMaxC*100;}):tcvs,type:'line',borderColor:C.roas,tension:.3,pointRadius:2,yAxisID:'y1'}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){return c.dataset.label==='Purchases'?'Purchases: '+fmt(ptRel?c.raw/100*ptMaxC:c.raw,1):'Revenue: '+curr(c.raw);}}}},scales:{y:{title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:ptRel?'Index (peak=100)':'Purchases'},ticks:{callback:function(v){return ptRel?v.toFixed(0):v;}}}}}});
 }
 
 // ===== EXPORT =====

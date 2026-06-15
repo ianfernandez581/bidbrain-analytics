@@ -98,6 +98,9 @@ def main():
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
+    # Day-grain mirror of `monthly`/`weekly` — powers the trend charts' "VIEW BY ->
+    # Day" toggle (the day branch in the dashboard sums these exactly like month/week).
+    daily = rows(bq, "daily")
     li_creative = rows(bq, "li_creative")
     li_campaigns = rows(bq, "li_campaigns")
     dv_markets = rows(bq, "dv_markets")
@@ -109,6 +112,7 @@ def main():
     ad_campaigns = rows(bq, "ad_campaigns")
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_daily = rows(bq, "ad_campaign_daily")  # day grain (VIEW BY -> Day)
     ad_campaign_market = rows(bq, "ad_campaign_market")
     ad_campaign_market_monthly = rows(bq, "ad_campaign_market_monthly")
     li_campaign_creative = rows(bq, "li_campaign_creative")
@@ -118,11 +122,13 @@ def main():
     ga4_kpi_market = rows(bq, "ga4_kpi_market")
     ga4_monthly_market = rows(bq, "ga4_monthly_market")
     ga4_weekly_market = rows(bq, "ga4_weekly_market")
+    ga4_daily_market = rows(bq, "ga4_daily_market")  # day grain (VIEW BY -> Day)
     ga4_channels_market = rows(bq, "ga4_channels_market")
     ga4_sources_market = rows(bq, "ga4_sources_market")
     # Key events by type (all GA4 key events, not just the 3 stg_ga4 folds into
     # `conversions`) x month x market — powers the Website tab's key-events breakdown.
     ga4_key_events_market = rows(bq, "ga4_key_events_market")
+    ga4_key_events_daily_market = rows(bq, "ga4_key_events_daily_market")  # day grain
 
     # Country options for the filter, ordered by total sessions desc (ga4_kpi_market
     # is already ordered that way). "Global" is excluded by default in the frontend.
@@ -194,6 +200,32 @@ def main():
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_sgd": num(r["ad_spend_sgd"]),
         } for r in monthly],
+        # Day-grain blended series (mirror of `monthly`, keyed on "day"=YYYY-MM-DD).
+        "daily": [{
+            "day": ymd(r["day"]),
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+            "li_imps": num(r["li_imps"]),
+            "li_clicks": num(r["li_clicks"]),
+            "li_cost_usd": num(r["li_cost_usd"]),
+            "dv_imps": num(r["dv_imps"]),
+            "dv_clicks": num(r["dv_clicks"]),
+            "dv_spend_sgd": num(r["dv_spend_sgd"]),
+            "ga_imps": num(r["ga_imps"]),
+            "ga_clicks": num(r["ga_clicks"]),
+            "ga_spend_sgd": num(r["ga_spend_sgd"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_sgd": num(r["ad_spend_sgd"]),
+        } for r in daily],
         "countries": countries,
         "ga4_kpi_market": [{
             "market": r["market"],
@@ -235,6 +267,23 @@ def main():
             "social_sessions": num(r["social_sessions"]),
             "search_sessions": num(r["search_sessions"]),
         } for r in ga4_weekly_market],
+        # Day grain (mirror of ga4_monthly_market, keyed on "day") — same session
+        # split the month/week branches use, so the dashboard sums it identically.
+        "ga4_daily_market": [{
+            "day": ymd(r["day"]),
+            "market": r["market"],
+            "sessions": num(r["sessions"]),
+            "paid_sessions": num(r["paid_sessions"]),
+            "organic_sessions": num(r["organic_sessions"]),
+            "direct_sessions": num(r["direct_sessions"]),
+            "other_sessions": num(r["other_sessions"]),
+            "display_sessions": num(r["display_sessions"]),
+            "social_sessions": num(r["social_sessions"]),
+            "search_sessions": num(r["search_sessions"]),
+            "engaged_sessions": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_daily_market],
         "ga4_channels_market": [{
             "market": r["market"],
             "channel": r["channel_group"],
@@ -259,6 +308,13 @@ def main():
             "event_name": r["event_name"],
             "key_events": num(r["key_events"]),
         } for r in ga4_key_events_market],
+        # Day grain (mirror of ga4_key_events_market, keyed on "day") for VIEW BY -> Day.
+        "ga4_key_events_daily_market": [{
+            "day": ymd(r["day"]),
+            "market": r["market"],
+            "event_name": r["event_name"],
+            "key_events": num(r["key_events"]),
+        } for r in ga4_key_events_daily_market],
         "li_creative": [{
             "creative_type": r["creative_type"],
             "imps": num(r["imps"]),
@@ -316,6 +372,15 @@ def main():
             "clicks": num(r["clicks"]),
             "spend_sgd": num(r["spend_sgd"]),
         } for r in ad_campaign_weekly],
+        # Day grain (mirror of ad_campaign_monthly/weekly, keyed on "day").
+        "ad_campaign_daily": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "day": ymd(r["day"]),
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_sgd": num(r["spend_sgd"]),
+        } for r in ad_campaign_daily],
         "ad_campaign_market": [{
             "platform": r["platform"],
             "campaign": r["campaign"],
@@ -366,7 +431,8 @@ def main():
     # second), so a failed upload simply retries on the next tick.
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
-          f"{len(env['weekly'])} weeks, {env['kpi']['sessions']:,} sessions, "
+          f"{len(env['weekly'])} weeks, {len(env['daily'])} days, "
+          f"{env['kpi']['sessions']:,} sessions, "
           f"S${env['kpi']['ad_spend_sgd']:,.0f} ad spend")
 
 

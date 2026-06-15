@@ -7,10 +7,10 @@
 > revenue / ROAS / AOV / transactions. Conversions here are leads / form-fills / key events.
 
 **Plain English:** ResetData is an Australian sovereign-AI / data-centre infrastructure brand, run
-by the agency **100 Digital**. It advertises on **Google Ads** (paid search), **Meta** (paid social)
-and **The Trade Desk** (programmatic display). This dashboard puts that ad spend next to what
-happened on the ResetData **website** (Google Analytics 4) — sessions, engagement, and the demand-gen
-key events (lead form, sign-up, $50-credit click, file downloads).
+by the agency **100 Digital**. It advertises on **Google Ads** (paid search), **Meta** (paid social),
+**The Trade Desk** (programmatic display) and **Reddit** (community awareness / traffic). This
+dashboard puts that ad spend next to what happened on the ResetData **website** (Google Analytics 4) —
+sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-credit click, file downloads).
 
 **Reporting currency: AUD.** Status: built 2026-06-08; see [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
 
@@ -20,33 +20,39 @@ key events (lead form, sign-up, $50-credit click, file downloads).
 
 | | STT | **ResetData** |
 |---|---|---|
-| Platforms | Google Ads · LinkedIn · DV360 | **Google Ads · Meta · The Trade Desk** |
+| Platforms | Google Ads · LinkedIn · DV360 | **Google Ads · Meta · The Trade Desk · Reddit** |
 | Source datasets | all `raw_snowflake` | **three layers**: `raw_google_ads` · `raw_windsor` · `raw_ga4` |
 | GA4 source | Snowflake event-grain (reconstructed) | **`raw_ga4.perf_ga4`** — already Traffic-Acquisition grain → `stg_ga4` is a plain filter |
 | Currency | SGD (FX_USD_SGD=1.34) | **AUD** (FX_USD_AUD=1.50, TTD only) |
 | Geography | 9 APAC markets + Country filter | **AU-only — no Country filter** |
 | Conversions | GA4 key events | GA4 key events **+ platform-reported** (Google solid, Meta sparse, TTD none) |
 
-## The five sources (three raw datasets) + the exact slice filters
+## The six sources (three raw datasets) + the exact slice filters
 
 | Source | Raw table | ResetData filter | Currency | Contributes |
 |---|---|---|---|---|
 | **Google Ads** (paid search) | `raw_google_ads.perf_google_ads` | `account_name = 'Reset Data'` | AUD | imps / clicks / **spend (already AUD — not micros)** / conversions (83) |
 | **Meta** (paid social) | `raw_windsor.perf_meta` | `account_name = 'Reset backup – Ad account'` (**en-dash –**) | AUD | imps / clicks / spend / **leads** / creative mix |
 | **The Trade Desk** (display) | `raw_windsor.perf_the_trade_desk` | `advertiser_name = 'ResetData'` | **USD → AUD ×1.50** | imps / clicks / spend |
+| **Reddit** (community awareness / traffic) | `raw_windsor.perf_reddit` | `client_slug = 'resetdata'` | AUD (native) | imps / clicks / spend / **page visits** / sign-up+lead conversions (sparse) |
 | **GA4** (the outcome) | `raw_ga4.perf_ga4` | `client_slug = 'reset-data'` | — | sessions / users / engagement / channels / conversions |
 | **GA4 events** | `raw_ga4.perf_ga4_events` | `client_slug = 'reset-data'` | — | key events by name (leads / sign-ups / …) |
 
-> **Slug split (important):** Google Ads + GA4 tag the client `reset-data` (hyphen); Meta + TTD tag it
-> `resetdata` (no hyphen). Each `stg_*` view filters by the **stable per-table key** above
-> (account / advertiser name), not a single shared slug.
+> **Slug split (important):** Google Ads + GA4 tag the client `reset-data` (hyphen); Meta + TTD + Reddit
+> tag it `resetdata` (no hyphen). Each `stg_*` view filters by the **stable per-table key** above
+> (account / advertiser name, or `client_slug` for Reddit), not a single shared slug.
+>
+> **Reddit notes:** 3 top-of-funnel "Community" campaigns (Feb–Jun 2026), objectives CONVERSIONS + CLICKS.
+> Native engagement (upvotes/downvotes/comments) and all video metrics are NULL upstream, so only delivery
+> + page visits + sparse conversions are surfaced. `reach` is non-additive across days, so it is not summed.
 
 ## Currency & FX
 
 Everything is **AUD**. Google Ads `spend` from the native DTS table is **already whole AUD dollars**
-(verified ~A$8 CPM — do **not** divide by 1,000,000). Meta `cost` is already AUD. The Trade Desk bills
-**USD**, converted once in [`sql/04_stg_ttd.sql`](sql/04_stg_ttd.sql) at **`FX_USD_AUD = 1.50`** (the same
-constant `client_schneider` uses) and surfaced as `kpi.fx_usd_aud`. _If the real rate differs, edit the
+(verified ~A$8 CPM — do **not** divide by 1,000,000). Meta `cost` is already AUD. Reddit's
+`account_currency` is **AUD native** (no FX). The Trade Desk bills **USD**, converted once in
+[`sql/04_stg_ttd.sql`](sql/04_stg_ttd.sql) at **`FX_USD_AUD = 1.50`** (the same constant
+`client_schneider` uses) and surfaced as `kpi.fx_usd_aud`. _If the real rate differs, edit the
 `1.50` in `04_stg_ttd.sql` and re-run the views._
 
 ## GA4 conversion health (read honestly)
@@ -65,8 +71,9 @@ TTD↔Display) is approximate. The Ads→Traffic correlation uses mapped paid se
 ## The 4 dashboard tabs (`dash/dashboard.html`)
 
 Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows none):
-- **Platform** — Google Ads · Meta · Trade Desk. Scopes ad-delivery figures; on Ads → Traffic also scopes
-  the mapped GA4 channel sessions. (Paid Media ignores Platform — it always compares all three.)
+- **Platform** — Google Ads · Meta · Trade Desk · Reddit. Scopes ad-delivery figures; on Ads → Traffic also
+  scopes the mapped GA4 channel sessions (Meta + Reddit both map to Paid Social — counted once). (Paid Media
+  ignores Platform — it always compares all four.)
 - **Campaign** — searchable multi-select of every delivering campaign (grouped by platform, sorted by
   spend), all selected by default. Scopes **ad delivery only**; the GA4/website side stays whole. Powered
   by the campaign-grained `ad_campaign*` views, summed client-side.
@@ -74,8 +81,10 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · ad-driven sessions · engaged ·
    key events), hero monthly **spend (stacked by platform) vs sessions** with key-events dashed line, and
    channel-mix / spend-by-platform donuts.
-2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL), monthly spend by platform, per-platform
-   campaign tables (Google / Meta / TTD), and the Meta creative mix.
+2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by
+   platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, and a **Reddit
+   community-awareness deep-dive** (KPI cards, spend-vs-impressions trend, and the 3 campaigns by objective
+   with page visits + sign-up/lead conversions).
 3. **Website Traffic** (GA4) — sessions / users / engagement KPIs, sessions by channel, total-vs-ad-driven
    trend, **key events by type**, and top sources/mediums (ad platforms flagged `AD`).
 4. **Ads → Traffic** — monthly spend vs sessions, weekly impressions vs mapped sessions, a **Pearson-r
@@ -136,7 +145,7 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 
 | | |
 |---|---|
-| BigQuery dataset | `client_resetdata` (19 views) |
+| BigQuery dataset | `client_resetdata` (21 views) |
 | Data bucket / object | `bidbrain-analytics-resetdata-dash` / `resetdata.json` |
 | Export job | `resetdata-export` (runtime SA `resetdata-dash-job@…`, read-only BQ + bucket write) |
 | Web service | `resetdata-dash` (runtime SA `resetdata-dash-web@…`) → [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
@@ -151,6 +160,7 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 - [`creatives/`](creatives/README.md) — branding source assets (the ResetData wordmark + a site
   screenshot), now wired in as inline base64 / the sampled palette.
 - [`data/`](data) — a one-off reference export (`resetdata_reddit_febmar26.csv`, Reddit Feb–Mar 2026
-  ad delivery). **Not read by the views/job** — the pipeline has no Reddit source; it's only a manual
-  reference (Reddit traffic shows up inside the GA4 Paid Social channel). The repo-wide Windsor Reddit
-  loader (`raw_windsor.perf_reddit`) is separate and unused here.
+  ad delivery). **Not read by the views/job** — it predates the live Reddit wiring and is kept only as a
+  manual reference. Reddit is now a first-class platform: the pipeline reads `raw_windsor.perf_reddit`
+  via [`sql/04b_stg_reddit.sql`](sql/04b_stg_reddit.sql) (Reddit traffic also still blends into the GA4
+  Paid Social channel).

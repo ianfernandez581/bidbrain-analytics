@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin · Bidbrain Campaign Dashboards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --row:#0e1521; --border:rgba(255,255,255,.08);
+    --text:#e8ebf2; --muted:#8a93a6; --accent:#3b82f6; --accent-2:#2563eb;
+    --teal:#2dd4bf; --active:#22c55e; --danger:#f87171;
+    --chip-bg:#1a2334; --chip-text:#9aa6bd;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--text);background:var(--bg);
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;
+          border-bottom:1px solid var(--border);background:#0c121e;position:sticky;top:0;z-index:20}
+  .topbar .logo svg{height:24px;width:auto;display:block}
+  .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
+  .admin-pill{font-size:10.5px;font-weight:800;letter-spacing:.7px;color:#0a0e16;background:var(--teal);
+              padding:3px 9px;border-radius:6px}
+  .spacer{flex:1}
+  .btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer;
+       border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none}
+  .btn:hover{background:#16202f}
+  .btn.primary{background:var(--accent);border-color:transparent;color:#fff}
+  .btn.primary:hover{background:var(--accent-2)}
+  .btn.sm{font-size:12px;padding:5px 10px}
+  .btn.danger{color:var(--danger);border-color:rgba(248,113,113,.3)}
+  .btn.danger:hover{background:rgba(248,113,113,.12)}
+  .wrap{max-width:1120px;margin:0 auto;padding:34px 28px 80px}
+  .head{display:flex;align-items:center;justify-content:space-between;margin:0 0 26px}
+  .head h1{font-size:26px;font-weight:800;margin:0}
+  .slug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
+        color:var(--chip-text);background:var(--chip-bg);padding:2px 8px;border-radius:6px}
+  .count{font-size:12.5px;color:var(--muted)}
+  .agency{background:var(--panel);border:1px solid var(--border);border-radius:14px;margin:0 0 16px;overflow:hidden}
+  .agency>.bar{display:flex;align-items:center;gap:11px;padding:15px 18px;background:#121a29;border-bottom:1px solid var(--border)}
+  .agency>.bar .nm{font-size:16px;font-weight:700}
+  .agency .acts{display:flex;gap:7px;margin-left:auto}
+  .client{padding:13px 18px 13px 26px;border-bottom:1px solid rgba(255,255,255,.05)}
+  .client:last-child{border-bottom:none}
+  .client>.crow{display:flex;align-items:center;gap:10px}
+  .client>.crow .nm{font-size:14.5px;font-weight:650}
+  .client .acts{display:flex;gap:6px;margin-left:auto;opacity:0;transition:opacity .12s}
+  .client:hover .acts{opacity:1}
+  .camp{display:flex;align-items:center;gap:11px;padding:8px 0 8px 22px;color:var(--muted)}
+  .camp .cnm{font-size:13.5px;color:var(--text);font-weight:550;min-width:150px}
+  .camp .url{font-size:12px;color:#6b7488;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .camp a.url{color:#6b7488;text-decoration:none}
+  .camp a.url:hover{color:var(--accent)}
+  .pill{font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:999px}
+  .pill.active{color:#86efac;background:rgba(34,197,94,.14)}
+  .pill.soon{color:#cbd5e1;background:rgba(148,163,184,.16)}
+  .camp .acts{display:flex;gap:6px;margin-left:auto;opacity:0;transition:opacity .12s}
+  .camp:hover .acts{opacity:1}
+  .addrow{padding:10px 18px 10px 26px}
+  .unassigned{margin-top:30px}
+  .unassigned h3{font-size:13px;color:var(--muted);font-weight:600;margin:0 0 10px;letter-spacing:.3px}
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(5,8,13,.66);display:none;align-items:center;justify-content:center;z-index:50}
+  .scrim.on{display:flex}
+  .modal{width:100%;max-width:440px;background:var(--panel);border:1px solid var(--border);
+         border-radius:16px;padding:24px;box-shadow:0 30px 80px rgba(0,0,0,.6)}
+  .modal h3{margin:0 0 16px;font-size:17px;font-weight:700}
+  .modal label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 6px}
+  .modal input,.modal select{width:100%;padding:11px 12px;font-size:14px;color:var(--text);background:#0b111d;
+        border:1px solid #20293b;border-radius:10px;outline:none;font-family:inherit}
+  .modal input:focus,.modal select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+  .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+  .hint{font-size:11.5px;color:#5b6478;margin-top:6px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="logo">{{ logo_svg | safe }}</span>
+    <span class="label">Campaign Dashboards · Admin</span>
+    <span class="admin-pill">ADMIN</span>
+    <span class="spacer"></span>
+    <a class="btn" href="/logout">Log out</a>
+  </div>
+
+  <div class="wrap">
+    <div class="head">
+      <h1>Agencies</h1>
+      <button class="btn primary" onclick="openAgency()">+ Add Agency</button>
+    </div>
+
+    {% for a in agencies %}
+    <div class="agency">
+      <div class="bar">
+        <span class="nm">{{ a.name }}</span>
+        <span class="slug">{{ a.slug }}</span>
+        <span class="count">{{ a.clients|length }} client{{ '' if a.clients|length == 1 else 's' }}</span>
+        <span class="acts">
+          <button class="btn sm" onclick='openClient("{{ a.slug }}")'>+ Add client</button>
+          <button class="btn sm" onclick='openAgency({{ a|tojson }})'>Edit</button>
+          <button class="btn sm danger" onclick='delAgency("{{ a.slug }}","{{ a.name }}")'>Delete</button>
+        </span>
+      </div>
+
+      {% for c in a.clients %}
+      <div class="client">
+        <div class="crow">
+          <span class="nm">{{ c.name }}</span>
+          <span class="slug">{{ c.slug }}</span>
+          <span class="count">{{ c.campaigns|length }} campaign{{ '' if c.campaigns|length == 1 else 's' }}</span>
+          <span class="acts">
+            <button class="btn sm" onclick='openCampaign("{{ c.key }}")'>+ Campaign</button>
+            <button class="btn sm" onclick='openClient("{{ a.slug }}",{{ c|tojson }})'>Edit</button>
+            <button class="btn sm danger" onclick='delClient("{{ c.key }}","{{ c.name }}")'>Remove</button>
+          </span>
+        </div>
+        {% for cm in c.campaigns %}
+        <div class="camp">
+          <span class="cnm">{{ cm.name }}</span>
+          <span class="slug">{{ cm.path }}</span>
+          {% if c.url and c.status == 'active' %}<a class="url" href="{{ c.url }}" target="_blank" rel="noopener">{{ c.url }}</a>{% else %}<span class="url">—</span>{% endif %}
+          {% if cm.status == 'active' and c.status == 'active' %}<span class="pill active">ACTIVE</span>{% else %}<span class="pill soon">COMING SOON</span>{% endif %}
+          <span class="acts">
+            <button class="btn sm" onclick='openCampaign("{{ c.key }}",{{ loop.index0 }},{{ cm|tojson }})'>Edit</button>
+            <button class="btn sm danger" onclick='delCampaign("{{ c.key }}",{{ loop.index0 }},"{{ cm.name }}")'>Delete</button>
+          </span>
+        </div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    {% endfor %}
+
+    {% if unassigned %}
+    <div class="unassigned">
+      <h3>UNASSIGNED · reachable only by their own dashboard password</h3>
+      <div class="agency">
+        {% for c in unassigned %}
+        <div class="client">
+          <div class="crow">
+            <span class="nm">{{ c.name }}</span>
+            <span class="slug">{{ c.slug }}</span>
+            <span class="count">{{ c.note or 'no agency' }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- generic modal -->
+  <div class="scrim" id="scrim">
+    <form class="modal" id="modal" onsubmit="return submitModal(event)">
+      <h3 id="mTitle">Edit</h3>
+      <div id="mBody"></div>
+      <div class="actions">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn primary" id="mSave">Save</button>
+      </div>
+    </form>
+  </div>
+
+<script>
+const CLIENT_KEYS = {{ all_client_keys|tojson }};
+const scrim = document.getElementById('scrim');
+const mTitle = document.getElementById('mTitle');
+const mBody = document.getElementById('mBody');
+let endpoint = '', payloadBase = {};
+
+function field(label, name, value='', type='text', hint=''){
+  return `<label>${label}</label><input name="${name}" type="${type}" value="${(value||'').toString().replace(/"/g,'&quot;')}">${hint?`<div class="hint">${hint}</div>`:''}`;
+}
+function select(label, name, options, value=''){
+  const opts = options.map(o=>`<option value="${o.v}" ${o.v===value?'selected':''}>${o.t}</option>`).join('');
+  return `<label>${label}</label><select name="${name}">${opts}</select>`;
+}
+function openModal(title, html, ep, base={}){
+  mTitle.textContent=title; mBody.innerHTML=html; endpoint=ep; payloadBase=base;
+  scrim.classList.add('on'); const f=mBody.querySelector('input,select'); if(f) f.focus();
+}
+function closeModal(){ scrim.classList.remove('on'); }
+scrim.addEventListener('click', e=>{ if(e.target===scrim) closeModal(); });
+
+function openAgency(a){
+  const edit = !!a;
+  openModal(edit?'Edit agency':'Add agency',
+    field('Name','name',a?a.name:'') +
+    field('Slug','slug',a?a.slug:'','text','lowercase-with-dashes; identifies the agency') +
+    field('Password','password','', 'text', edit?'leave blank to keep current password':'agency login password'),
+    '/admin/api/agency', {action: edit?'update':'create', orig_slug: a?a.slug:''});
+}
+function openClient(agency_slug, c){
+  const edit = !!c;
+  const keyOpts = CLIENT_KEYS.map(k=>({v:k,t:k}));
+  openModal(edit?'Edit client':'Add client',
+    (edit ? field('Client key','key',c.key,'text','fixed') : select('Client key (dashboard <c>)','key',keyOpts)) +
+    field('Name','name',c?c.name:'') +
+    field('Slug','slug',c?c.slug:'') +
+    select('Status','status',[{v:'active',t:'active'},{v:'coming_soon',t:'coming soon'}],c?c.status:'active') +
+    field('Dashboard URL','url',c?c.url:'', 'text','https://<c>.bidbrain.ai/ — leave blank for coming soon'),
+    '/admin/api/client', {action: edit?'update':'create', agency_slug});
+}
+function openCampaign(client_key, index, cm){
+  const edit = (index!==undefined);
+  openModal(edit?'Edit campaign':'Add campaign',
+    field('Name','name',cm?cm.name:'') +
+    field('Path','path',cm?cm.path:'', 'text','/campaign-slug') +
+    select('Status','status',[{v:'active',t:'active'},{v:'coming_soon',t:'coming soon'}],cm?cm.status:'active'),
+    '/admin/api/campaign', {action: edit?'update':'create', client_key, index: edit?index:null});
+}
+async function submitModal(e){
+  e.preventDefault();
+  const data = Object.assign({}, payloadBase);
+  mBody.querySelectorAll('input,select').forEach(el=>{ data[el.name]=el.value; });
+  document.getElementById('mSave').textContent='Saving…';
+  await post(endpoint, data); return false;
+}
+async function post(ep, data){
+  const r = await fetch(ep, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  const j = await r.json().catch(()=>({ok:false,error:'bad response'}));
+  if(j.ok){ location.reload(); } else { alert(j.error||'Failed'); document.getElementById('mSave').textContent='Save'; }
+}
+function delAgency(slug,name){ if(confirm(`Delete agency "${name}"? Its clients become unassigned.`)) post('/admin/api/agency',{action:'delete',orig_slug:slug}); }
+function delClient(key,name){ if(confirm(`Remove client "${name}" from its agency?`)) post('/admin/api/client',{action:'delete',key}); }
+function delCampaign(key,index,name){ if(confirm(`Delete campaign "${name}"?`)) post('/admin/api/campaign',{action:'delete',client_key:key,index}); }
+</script>
+</body>
+</html>

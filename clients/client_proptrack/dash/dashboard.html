@@ -170,6 +170,15 @@
   .card-tall .chart-wrap{height:300px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
 
+  /* ---- chart-card header with VIEW BY / AXIS toggles ---- */
+  .chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .chart-head .ctrls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#FAFBFC}
+  .seg button{background:none;border:none;color:var(--mute);font-family:inherit;font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--teal);color:#fff}
+  .seg button:not(.on):hover{color:var(--ink)}
+  .seg .cap{padding:0 7px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--mute);align-self:center}
+
   /* ---- KPIs ---- */
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
@@ -344,8 +353,16 @@
 
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Monthly delivery — spend by platform &amp; total impressions</h3>
-          <div class="hint">Spend by platform (stacked bars, AUD, left axis) and total impressions (line, right axis), from Aug 2025. The Trade Desk appears only at the tail (May–Jun 2026); LinkedIn is always-on with real gaps.</div>
+          <div class="chart-head">
+            <div>
+              <h3>Delivery — spend by platform &amp; total impressions</h3>
+              <div class="hint">Spend by platform (stacked bars, AUD, left axis) and total impressions (line, right axis), from Aug 2025. The Trade Desk appears only at the tail (May–Jun 2026); LinkedIn is always-on with real gaps. <b>Relative</b> indexes the impressions line to its own peak.</div>
+            </div>
+            <div class="ctrls">
+              <span class="seg" id="ovScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+              <span class="seg" id="ovGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -362,8 +379,16 @@
           <div class="chart-wrap"><canvas id="ovFormatDonut"></canvas></div>
         </div>
         <div class="card card-tall">
-          <h3>Monthly impressions &amp; clicks</h3>
-          <div class="hint">Total impressions (bars, left) and clicks to site (line, right), reflecting the Platform &amp; Campaign filters.</div>
+          <div class="chart-head">
+            <div>
+              <h3>Impressions &amp; clicks</h3>
+              <div class="hint">Total impressions (bars, left) and clicks to site (line, right), reflecting the Platform &amp; Campaign filters. <b>Relative</b> indexes the clicks line to its own peak.</div>
+            </div>
+            <div class="ctrls">
+              <span class="seg" id="ovIcScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+              <span class="seg" id="ovIcGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="ovImpsClicks"></canvas></div>
         </div>
       </div>
@@ -400,8 +425,16 @@
       </div>
 
       <div class="card card-tall" style="margin-top:16px">
-        <h3>Daily delivery — the burst</h3>
-        <div class="hint">Impressions (bars, left) and spend (line, right, AUD) across 20 May → 9 Jun 2026. Reflects the Campaign filter and the date range.</div>
+        <div class="chart-head">
+          <div>
+            <h3>Delivery — the burst</h3>
+            <div class="hint">Impressions (bars, left) and spend (line, right, AUD) across 20 May → 9 Jun 2026. Reflects the Campaign filter and the date range. <b>Relative</b> indexes the spend line to its own peak.</div>
+          </div>
+          <div class="ctrls">
+            <span class="seg" id="pgScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="pgGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+          </div>
+        </div>
         <div class="chart-wrap" style="height:300px"><canvas id="pgDaily"></canvas></div>
       </div>
     </div>
@@ -429,8 +462,16 @@
       </div>
 
       <div class="card card-tall" style="margin-top:16px">
-        <h3>Monthly delivery — impressions &amp; spend</h3>
-        <div class="hint">Impressions (line, left) and spend (bars, right, AUD) per month — the always-on cadence and its gaps. Reflects the date range.</div>
+        <div class="chart-head">
+          <div>
+            <h3>Delivery — impressions &amp; spend</h3>
+            <div class="hint">Impressions (line, left) and spend (bars, right, AUD) — the always-on cadence and its gaps. Reflects the date range. <b>Relative</b> indexes the impressions line to its own peak.</div>
+          </div>
+          <div class="ctrls">
+            <span class="seg" id="soScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
+            <span class="seg" id="soGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+          </div>
+        </div>
         <div class="chart-wrap" style="height:300px"><canvas id="soMonthly"></canvas></div>
       </div>
 
@@ -477,8 +518,16 @@ const el = id => document.getElementById(id);
 // stay full-period. ISO 'YYYY-MM-DD' strings; null = full window.
 let rangeStart = null, rangeEnd = null, dateMin = null, dateMax = null;
 const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
+const inRangeWeek  = w => (!rangeStart || w >= weekStartOf(rangeStart)) && (!rangeEnd || w <= rangeEnd);
 const inRangeDay   = d => (!rangeStart || d >= rangeStart) && (!rangeEnd || d <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+
+// ---- Time-series toggles (VIEW BY grain + AXIS scale). Applied ONLY to the genuine
+// time-series charts: ovHero + ovImpsClicks (Overview), pgDaily (Trade Desk), soMonthly
+// (LinkedIn). Each preserves its own current default grain; scale defaults to Relative.
+let ovGrain='month', ovScale='rel';   // Overview hero + imps/clicks
+let pgGrain='day',   pgScale='rel';   // Trade Desk daily burst
+let soGrain='month', soScale='rel';   // LinkedIn monthly delivery
 
 // ===================== shared date-range picker (Looker-style) =====================
 // API: DateRange.init({min,max,onApply}); onApply(startISO,endISO) fires on Apply.
@@ -628,6 +677,20 @@ function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).t
 function dayLabel(d){ const dt=new Date(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 function pct(part,whole){ return whole? part/whole : 0; }
 
+// ---- Grain plumbing (Month/Week/Day) -----------------------------------------
+// ISO Monday-anchored week_start ('YYYY-MM-DD') for a 'YYYY-MM-DD' day. Used to bucket
+// the daily campaign arrays into weeks client-side (the feed carries no weekly array).
+function weekStartOf(dStr){ const a=String(dStr).split('-').map(Number); const dt=new Date(Date.UTC(a[0],a[1]-1,a[2]));
+  const dow=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-dow);
+  const p=n=>String(n).padStart(2,'0'); return dt.getUTCFullYear()+'-'+p(dt.getUTCMonth()+1)+'-'+p(dt.getUTCDate()); }
+function weekLabel(w){ const dt=new Date(w); return 'wk '+dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+const grainLabel   = g => g==='day' ? dayLabel : g==='week' ? weekLabel : monthLabel;
+const grainInRange = g => g==='week' ? inRangeWeek : g==='day' ? inRangeDay : inRangeMonth;
+// Bucket a 'YYYY-MM-DD' day into the period key for a grain (month='YYYY-MM', week=Monday, day=itself).
+const periodKey = (day,g) => g==='month' ? String(day).slice(0,7) : g==='week' ? weekStartOf(day) : day;
+// Relative-scale helper: index an array of values to its own peak=100 (0 when peak is 0).
+function indexed(arr){ const mx=Math.max(0,...arr.map(v=>+v||0)); return mx>0 ? arr.map(v=>(+v||0)/mx*100) : arr.map(()=>0); }
+
 // ---- Platform filter ----
 const platOk = key => activePlatforms.has(key);
 function selPlatforms(){ return PLATFORMS.filter(p => activePlatforms.has(p.key)); }
@@ -696,6 +759,33 @@ function tdDailyMap(){
   }
   return m;
 }
+
+// ---- Grain-aware aggregation over the campaign-grained ad arrays --------------
+// Bucket ad delivery by ANY grain (month/week/day) into ordered period keys with both
+// blended totals and per-platform sums. Month reads ad_campaign_monthly; Week/Day bucket
+// ad_campaign_daily client-side (the feed has no weekly array). `opts.platform` restricts
+// to one platform key; `opts.applyPlatform` folds in the Overview Platform chips;
+// `opts.applyCampaign` (default true) folds in the Campaign filter. Returns
+// {keys:[...periodKeys sorted], by:{key:{imps,clk,spend,conv, tradedesk:{…}, linkedin:{…}}}}.
+function adGrainAgg(grain, opts){
+  opts = opts || {};
+  const applyCampaign = opts.applyCampaign !== false;
+  const inRange = grainInRange(grain);
+  const src = grain==='month' ? (DATA.ad_campaign_monthly||[]) : (DATA.ad_campaign_daily||[]);
+  const by = {};
+  for(const r of src){
+    if(opts.platform && r.platform!==opts.platform) continue;
+    if(applyCampaign && !campOn(r.campaign)) continue;
+    if(opts.applyPlatform && !platOk(r.platform)) continue;
+    const k = grain==='month' ? r.month : periodKey(r.date, grain);
+    if(!inRange(k)) continue;
+    const e = by[k] || (by[k] = {imps:0,clk:0,spend:0,conv:0,
+      tradedesk:{imps:0,clk:0,spend:0,conv:0}, linkedin:{imps:0,clk:0,spend:0,conv:0}});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e.conv+=r.conversions||0;
+    const p = e[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_aud||0; p.conv+=r.conversions||0; }
+  }
+  return { keys: Object.keys(by).sort(), by };
+}
 function campaignScopeText(){
   const tot = (DATA.ad_campaigns||[]).length, sel = activeCampaigns.size;
   if(sel>=tot) return `all ${tot} campaigns`;
@@ -722,6 +812,7 @@ async function boot(){
     el('loading').style.display='none';
     el('content').style.display='block';
     renderMeta();
+    wireToggles();
     renderControls();
     renderActive();
   }catch(e){
@@ -869,6 +960,7 @@ function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderCon
 function renderActive(){
   ['overview','programmatic','social'].forEach(t => el('tab-'+t).style.display = (t===activeTab?'block':'none'));
   renderDateScope();
+  syncToggleButtons();
   destroyCharts();
   if(activeTab==='overview') renderOverview();
   else if(activeTab==='programmatic') renderProgrammatic();
@@ -885,6 +977,32 @@ function renderDateScope(){
 }
 
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
+
+// ---- VIEW BY (grain) + AXIS (scale) toggles for the genuine time-series charts.
+// Wired once at boot (the seg buttons are static HTML, always in the DOM). Each click
+// sets the chart's grain/scale state then re-renders the active tab.
+function wireToggles(){
+  // Overview: ovHero + ovImpsClicks share one grain+scale (two seg groups kept in sync).
+  const wire = (ids, set) => ids.forEach(id=>{ const seg=el(id); if(!seg) return;
+    seg.querySelectorAll('button').forEach(b=>b.addEventListener('click',function(){
+      set(this.getAttribute('data-grain') || this.getAttribute('data-scale')); })); });
+  wire(['ovGrainSeg','ovIcGrainSeg'], v=>{ ovGrain=v; renderActive(); });
+  wire(['ovScaleSeg','ovIcScaleSeg'], v=>{ ovScale=v; renderActive(); });
+  wire(['pgGrainSeg'], v=>{ pgGrain=v; renderActive(); });
+  wire(['pgScaleSeg'], v=>{ pgScale=v; renderActive(); });
+  wire(['soGrainSeg'], v=>{ soGrain=v; renderActive(); });
+  wire(['soScaleSeg'], v=>{ soScale=v; renderActive(); });
+}
+// Re-apply the .on state to every seg from the current state — called on each render so
+// the buttons reflect state after a tab switch / filter re-render. Each group set
+// explicitly (the two Overview groups mirror the shared ov* state).
+function syncToggleButtons(){
+  const set = (id,attr,val)=>{ const seg=el(id); if(!seg) return; seg.querySelectorAll('button['+attr+']').forEach(b=>b.classList.toggle('on', b.getAttribute(attr)===val)); };
+  set('ovGrainSeg','data-grain',ovGrain);   set('ovIcGrainSeg','data-grain',ovGrain);
+  set('ovScaleSeg','data-scale',ovScale);   set('ovIcScaleSeg','data-scale',ovScale);
+  set('pgGrainSeg','data-grain',pgGrain);   set('pgScaleSeg','data-scale',pgScale);
+  set('soGrainSeg','data-grain',soGrain);   set('soScaleSeg','data-scale',soScale);
+}
 
 //==============================================================================
 // shared chart helpers
@@ -936,27 +1054,39 @@ function renderOverview(){
   + kpiCard('accent','Conversions', fmtN(a.conv), `Trade Desk pixel`)
   + kpiCard('li','LinkedIn engagements', fmtN(DATA.kpi.li_eng), `${fmtN(DATA.kpi.li_video_views)} video views · whole flight`);
 
-  // Hero: ad SPEND stacked bars by platform (y, AUD) + total IMPRESSIONS line (y1).
-  const M = DATA.monthly.filter(r=>inRangeMonth(r.month));   // month spine in the picker range
-  const am = adMonthlyMap(true);
-  const labels = M.map(r=>monthLabel(r.month));
-  const spendOf = (mo,key) => ((am[mo]||{})[key]||{}).spend||0;
+  // Hero: ad SPEND stacked bars by platform (y, AUD, always absolute) + total IMPRESSIONS
+  // line (y1). VIEW BY = ovGrain (month/week/day); AXIS = ovScale. Relative indexes the
+  // impressions line to its own peak=100 on a shared 0-100 right axis.
+  const ovG  = adGrainAgg(ovGrain, {applyPlatform:true});
+  const keys = ovG.keys;
+  const lblF = grainLabel(ovGrain);
+  const labels = keys.map(lblF);
+  const spendOf = (k,key) => ((ovG.by[k]||{})[key]||{}).spend||0;
   const spendBars = selPlatforms().map(p => ({
     type:'bar', label:p.label, yAxisID:'y', stack:'spend',
-    data:M.map(r=>spendOf(r.month,p.key)),
+    data:keys.map(k=>spendOf(k,p.key)),
     backgroundColor:p.color, borderRadius:3, maxBarThickness:30, order:2
   }));
+  const heroRel = ovScale==='rel';
+  const impsRaw = keys.map(k=>(ovG.by[k]||{}).imps||0);
+  const impsMax = Math.max(0,...impsRaw);
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels, datasets:[
       ...spendBars,
-      { type:'line', label:'Total impressions', data:M.map(r=>(am[r.month]||{}).imps||0), yAxisID:'y1',
+      { type:'line', label:'Total impressions', data:heroRel?indexed(impsRaw):impsRaw, yAxisID:'y1',
         borderColor:C.amber, backgroundColor:C.amber, borderWidth:2.5, tension:.35, pointRadius:2, fill:false, order:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?fmtN(c.parsed.y):money(c.parsed.y)}`}}},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID!=='y1') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;
+        const tru = heroRel ? (impsMax?c.parsed.y/100*impsMax:0) : c.parsed.y;
+        return ` ${c.dataset.label}: ${fmtN(tru)}`;
+      }}}},
       scales:{ x:axisX({stacked:true}),
         y:gridY({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}} } }
+        y1:{position:'right',grid:{display:false},border:{display:false},min:heroRel?0:undefined,max:heroRel?100:undefined,
+          title:{display:true,text:heroRel?'Index (peak=100)':'Impressions',color:C.mute,font:{size:11}},
+          ticks:{color:C.mute,font:{size:11},callback:v=>heroRel?v.toFixed(0):fmtM(v)}} } }
   });
 
   // Spend donut by platform (selected platforms, selected campaigns)
@@ -997,16 +1127,26 @@ function renderOverview(){
     plugins:[centerText]
   });
 
-  // Monthly impressions (bars) + clicks (line)
+  // Impressions (bars, left, absolute) + clicks (line, right). Same VIEW BY / AXIS as the
+  // hero (shared ovGrain/ovScale). Relative indexes the clicks line to its own peak=100.
+  const icImps = keys.map(k=>(ovG.by[k]||{}).imps||0);
+  const icClk  = keys.map(k=>(ovG.by[k]||{}).clk||0);
+  const icClkMax = Math.max(0,...icClk);
   charts.ovImpsClicks = new Chart(el('ovImpsClicks'),{
     data:{ labels, datasets:[
-      { type:'bar', label:'Impressions', data:M.map(r=>(am[r.month]||{}).imps||0), backgroundColor:C.teal, borderRadius:3, maxBarThickness:30, yAxisID:'y' },
-      { type:'line', label:'Clicks to site', data:M.map(r=>(am[r.month]||{}).clk||0), borderColor:C.amber, backgroundColor:C.amber, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y1' }
+      { type:'bar', label:'Impressions', data:icImps, backgroundColor:C.teal, borderRadius:3, maxBarThickness:30, yAxisID:'y' },
+      { type:'line', label:'Clicks to site', data:heroRel?indexed(icClk):icClk, borderColor:C.amber, backgroundColor:C.amber, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y1' }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID!=='y1') return ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`;
+        const tru = heroRel ? (icClkMax?c.parsed.y/100*icClkMax:0) : c.parsed.y;
+        return ` ${c.dataset.label}: ${fmtN(tru)}`;
+      }}} },
       scales:{ x:axisX(), y:gridY({title:{display:true,text:'Impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Clicks',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}} } }
+        y1:{position:'right',grid:{display:false},border:{display:false},min:heroRel?0:undefined,max:heroRel?100:undefined,
+          title:{display:true,text:heroRel?'Index (peak=100)':'Clicks',color:C.mute,font:{size:11}},
+          ticks:{color:C.mute,font:{size:11},callback:v=>heroRel?v.toFixed(0):fmtN(v)}} } }
   });
 
   const plats = selPlatforms().map(p=>p.label).join(' + ') || 'none';
@@ -1082,20 +1222,32 @@ function renderProgrammatic(){
         y:axisX() } }
   });
 
-  // Daily delivery — impressions (bars, left) + spend (line, right). Campaign + date-range scoped.
-  const dm = tdDailyMap();
-  const days = (DATA.td_daily||[]).map(r=>r.date).filter(inRangeDay);
-  const dLabels = days.map(dayLabel);
+  // Delivery — impressions (bars, left, absolute) + spend (line, right). Campaign +
+  // date-range scoped. VIEW BY = pgGrain (default day); AXIS = pgScale. Relative indexes
+  // the spend line to its own peak=100. Week/Day bucket ad_campaign_daily client-side.
+  const pgG = adGrainAgg(pgGrain, {platform:'tradedesk'});
+  const pgKeys = pgG.keys;
+  const pgLblF = grainLabel(pgGrain);
+  const pgImps = pgKeys.map(k=>(pgG.by[k]||{}).imps||0);
+  const pgSpend = pgKeys.map(k=>(pgG.by[k]||{}).spend||0);
+  const pgRel = pgScale==='rel';
+  const pgSpendMax = Math.max(0,...pgSpend);
   charts.pgDaily = new Chart(el('pgDaily'),{
-    data:{ labels:dLabels, datasets:[
-      { type:'bar', label:'Impressions', data:days.map(d=>(dm[d]||{}).imps||0), backgroundColor:'rgba(31,111,235,.80)', borderRadius:3, maxBarThickness:20, yAxisID:'y', order:1 },
-      { type:'line', label:'Spend (AUD)', data:days.map(d=>(dm[d]||{}).spend||0), borderColor:C.amber, backgroundColor:C.amber, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y1', order:0 }
+    data:{ labels:pgKeys.map(pgLblF), datasets:[
+      { type:'bar', label:'Impressions', data:pgImps, backgroundColor:'rgba(31,111,235,.80)', borderRadius:3, maxBarThickness:20, yAxisID:'y', order:1 },
+      { type:'line', label:'Spend (AUD)', data:pgRel?indexed(pgSpend):pgSpend, borderColor:C.amber, backgroundColor:C.amber, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y1', order:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID!=='y1') return ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`;
+        const tru = pgRel ? (pgSpendMax?c.parsed.y/100*pgSpendMax:0) : c.parsed.y;
+        return ` ${c.dataset.label}: ${money(tru)}`;
+      }}} },
       scales:{ x:axisX({ticks:{maxTicksLimit:16,color:C.mute,font:{size:10}}}),
         y:gridY({title:{display:true,text:'Impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
+        y1:{position:'right',grid:{display:false},border:{display:false},min:pgRel?0:undefined,max:pgRel?100:undefined,
+          title:{display:true,text:pgRel?'Index (peak=100)':'Spend (AUD)',color:C.mute,font:{size:11}},
+          ticks:{color:C.mute,font:{size:11},callback:v=>pgRel?v.toFixed(0):money(v)}} } }
   });
 }
 
@@ -1144,18 +1296,32 @@ function renderSocial(){
     plugins:[centerText]
   });
 
-  // Monthly delivery — impressions (line, left) + spend (bars, right). Date-range scoped.
-  const M = DATA.monthly.filter(r=>inRangeMonth(r.month));
-  const labels = M.map(r=>monthLabel(r.month));
+  // Delivery — impressions (line, left) + spend (bars, right, absolute). Whole-flight
+  // LinkedIn (NOT campaign-filtered, matching DATA.monthly), date-range scoped. VIEW BY =
+  // soGrain (default month); AXIS = soScale. Relative indexes the impressions line to its
+  // own peak=100 on the left axis; spend bars stay absolute. Week/Day bucket the daily array.
+  const soG = adGrainAgg(soGrain, {platform:'linkedin', applyCampaign:false});
+  const soKeys = soG.keys;
+  const soLblF = grainLabel(soGrain);
+  const soImps = soKeys.map(k=>(soG.by[k]||{}).imps||0);
+  const soSpend = soKeys.map(k=>(soG.by[k]||{}).spend||0);
+  const soRel = soScale==='rel';
+  const soImpsMax = Math.max(0,...soImps);
   charts.soMonthly = new Chart(el('soMonthly'),{
-    data:{ labels, datasets:[
-      { type:'bar', label:'Spend (AUD)', data:M.map(r=>r.li_spend_aud||0), backgroundColor:'rgba(40,103,178,.78)', borderRadius:3, maxBarThickness:30, yAxisID:'y1', order:1 },
-      { type:'line', label:'Impressions', data:M.map(r=>r.li_imps||0), borderColor:C.li, backgroundColor:'rgba(40,103,178,.10)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2, yAxisID:'y', order:0 }
+    data:{ labels:soKeys.map(soLblF), datasets:[
+      { type:'bar', label:'Spend (AUD)', data:soSpend, backgroundColor:'rgba(40,103,178,.78)', borderRadius:3, maxBarThickness:30, yAxisID:'y1', order:1 },
+      { type:'line', label:'Impressions', data:soRel?indexed(soImps):soImps, borderColor:C.li, backgroundColor:'rgba(40,103,178,.10)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2, yAxisID:'y', order:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.dataset.yAxisID==='y1'?money(c.parsed.y):fmtN(c.parsed.y)}`}} },
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
+        if(c.dataset.yAxisID==='y1') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;
+        const tru = soRel ? (soImpsMax?c.parsed.y/100*soImpsMax:0) : c.parsed.y;
+        return ` ${c.dataset.label}: ${fmtN(tru)}`;
+      }}} },
       scales:{ x:axisX(),
-        y:gridY({position:'left',title:{display:true,text:'Impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y:gridY({position:'left',min:soRel?0:undefined,max:soRel?100:undefined,
+          title:{display:true,text:soRel?'Index (peak=100)':'Impressions',color:C.mute,font:{size:11}},
+          ticks:{color:C.mute,font:{size:11},callback:v=>soRel?v.toFixed(0):fmtM(v)}}),
         y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
   });
 

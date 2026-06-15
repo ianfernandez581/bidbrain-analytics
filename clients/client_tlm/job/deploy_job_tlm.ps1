@@ -17,4 +17,4 @@ gcloud builds submit $DIR --tag=$IMAGE --project=$PROJECT --region=$REGION
 Write-Host "Deploying $JOB ..."
 gcloud run jobs deploy $JOB --image=$IMAGE --region=$REGION --service-account=$SA --memory=1Gi --project=$PROJECT
 
-Write-Host "Done. Run: gcloud run jobs execute $JOB --region=$REGION --project=$PROJECT --wait"
+Write-Host "Done. Run: gcloud run jobs execute $JOB --region=$REGION --project=$PROJECT --update-env-vars FORCE_REBUILD=1 --wait"

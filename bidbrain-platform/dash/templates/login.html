@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bidbrain · Campaign Dashboards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16; --panel:#101726; --border:rgba(255,255,255,.08);
+    --text:#e8ebf2; --muted:#8a93a6; --accent:#3b82f6; --accent-2:#2563eb;
+    --err:#f87171;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       color:var(--text);
+       background:radial-gradient(1100px 620px at 50% -8%,#152033 0%,#0b1120 52%,#070a11 100%)}
+  .card{width:100%;max-width:380px;padding:38px 34px;background:var(--panel);
+        border:1px solid var(--border);border-radius:18px;
+        box-shadow:0 30px 80px rgba(0,0,0,.55)}
+  .logo{display:block;height:30px;width:auto;margin:0 auto 22px}
+  .logo svg{height:30px;width:auto}
+  h1{font-size:19px;font-weight:700;margin:0 0 4px;text-align:center}
+  p.sub{font-size:13px;color:var(--muted);margin:0 0 24px;text-align:center}
+  label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 7px;letter-spacing:.3px}
+  input{width:100%;padding:13px 14px;font-size:15px;color:var(--text);background:#0b111d;
+        border:1px solid #20293b;border-radius:11px;outline:none;font-family:inherit}
+  input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.22)}
+  button{width:100%;margin-top:16px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
+         background:var(--accent);color:#fff;border:none;border-radius:11px;letter-spacing:.2px;
+         transition:background .15s}
+  button:hover{background:var(--accent-2)}
+  .err{margin-top:14px;font-size:13px;color:var(--err);min-height:16px;text-align:center}
+  .foot{margin-top:20px;font-size:11.5px;color:#5b6478;text-align:center;line-height:1.5}
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login">
+    <div class="logo">{{ logo_svg | safe }}</div>
+    <h1>Campaign Dashboards</h1>
+    <p class="sub">Enter your agency or dashboard password.</p>
+    <label for="pw">Password</label>
+    <input id="pw" type="password" name="password" placeholder="••••••••" autofocus
+           autocomplete="current-password">
+    <input type="hidden" name="next" value="{{ next_url or '' }}">
+    <button type="submit">Continue</button>
+    <div class="err">{{ error or "" }}</div>
+    <div class="foot">An agency password opens every dashboard in that agency.<br>A single dashboard password opens just that dashboard.</div>
+  </form>
+</body>
+</html>

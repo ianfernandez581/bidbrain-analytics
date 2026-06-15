@@ -40,12 +40,12 @@ views (`stg_*`) must exist before the models and rollups that read them.
 > literals transcribed from the media plan — they are **not** live data. Update them here when
 > the plan changes.
 
-> **CS scope = the 3 DNB campaigns.** `02_stg_salesforce.sql` pulls only the three **DNB**
-> campaign IDs, each mapped to a `PROGRAMME_LABEL`, so every CS lead row resolves to a real
-> programme. The **KGA/IDC** campaign (`701RG00001NKKwQYAX`) was removed from the CS lead pull
-> (retired 2026-06-12). Its media-plan rows still live in `targets`/`budget`, so the dashboard's
-> **KGA (IDC)** campaign toggle persists but now shows zero delivered leads — drop the IDC rows
-> from `06_targets.sql` / `10_budget.sql` too if the toggle should disappear entirely.
+> **CS scope = 4 campaigns (3 DNB + KGA/IDC).** `02_stg_salesforce.sql` pulls the three **DNB**
+> campaign IDs (each mapped to a `PROGRAMME_LABEL`) plus the **KGA/IDC** campaign
+> (`701RG00001NKKwQYAX`). The IDC campaign has a `NULL` `PROGRAMME_LABEL` by design — the dashboard
+> normalises it to the single KGA (IDC) programme (`progLabel`/`campaignOf`). IDC was briefly
+> removed from the pull (2026-06-12) and restored 2026-06-15, so the dashboard's **KGA (IDC)**
+> campaign toggle shows delivered leads again; its media-plan rows live in `targets`/`budget`.
 
 ---
 

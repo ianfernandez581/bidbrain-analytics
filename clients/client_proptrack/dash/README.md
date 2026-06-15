@@ -8,7 +8,7 @@ proxies the private `proptrack.json` from GCS at `/data.json`. All charts/tabs/b
 | File | What it is |
 |---|---|
 | `main.py` | Flask app: login gate (byte-for-byte the proven `client_STT` auth/serve/proxy logic), PropTrack-branded login page, serves `dashboard.html` + `/data.json`. |
-| `dashboard.html` | The dashboard UI — 3 tabs (Overview · Programmatic/Trade Desk · Paid Social/LinkedIn), Chart.js, PropTrack brand palette (near-black canvas + white + vivid blue `#1F6FEB`, Inter), real PropTrack + Transmission logos in the topbar, AUD. Reads `/data.json`. |
+| `dashboard.html` | The dashboard UI — 3 tabs (Overview · Programmatic/Trade Desk · Paid Social/LinkedIn), Chart.js, PropTrack brand palette (near-black canvas + white + vivid blue `#1F6FEB`, Inter), real PropTrack + Transmission logos in the topbar, AUD. Reads `/data.json`. The 4 genuine time-series charts (Overview hero + imps/clicks, Trade Desk burst, LinkedIn delivery) carry **VIEW BY** Month/Week/Day + **AXIS** Relative/Absolute toggles (default Relative; Overview keeps Month, Trade Desk keeps Day). Week/Day are bucketed **client-side** from the existing `ad_campaign_daily` array (no weekly SQL view); Relative indexes each overlay line to its own peak=100. |
 | `requirements.txt` | `Flask`, `gunicorn`, `google-cloud-storage`. |
 | `Dockerfile` | `python:3.12-slim`, non-root, gunicorn. |
 | `cloudbuild.yaml` | Build → push → `run deploy` → `--no-invoker-iam-check` (future trigger). |

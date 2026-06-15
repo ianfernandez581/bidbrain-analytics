@@ -88,6 +88,7 @@ def main():
     kpi = rows(bq, "kpi")[0]
     monthly = rows(bq, "monthly")
     weekly = rows(bq, "weekly")
+    daily = rows(bq, "daily")
     li_creative = rows(bq, "li_creative")
     li_campaigns = rows(bq, "li_campaigns")
     # Campaign-grained ad delivery — the dashboard's Campaign filter sums the
@@ -96,6 +97,7 @@ def main():
     ad_campaigns = rows(bq, "ad_campaigns")
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
+    ad_campaign_daily = rows(bq, "ad_campaign_daily")
     ad_campaign_market = rows(bq, "ad_campaign_market")
     li_campaign_creative = rows(bq, "li_campaign_creative")
 
@@ -162,6 +164,15 @@ def main():
             "ad_clicks": num(r["ad_clicks"]),
             "ad_spend_usd": num(r["ad_spend_usd"]),
         } for r in weekly],
+        "daily": [{
+            "day": r["day"],
+            "dv_imps": num(r["dv_imps"]),
+            "td_imps": num(r["td_imps"]),
+            "li_imps": num(r["li_imps"]),
+            "ad_imps": num(r["ad_imps"]),
+            "ad_clicks": num(r["ad_clicks"]),
+            "ad_spend_usd": num(r["ad_spend_usd"]),
+        } for r in daily],
         "markets": markets,
         "li_creative": [{
             "creative_type": r["creative_type"],
@@ -212,6 +223,14 @@ def main():
             "clicks": num(r["clicks"]),
             "spend_usd": num(r["spend_usd"]),
         } for r in ad_campaign_weekly],
+        "ad_campaign_daily": [{
+            "platform": r["platform"],
+            "campaign": r["campaign"],
+            "day": r["day"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_usd": num(r["spend_usd"]),
+        } for r in ad_campaign_daily],
         "ad_campaign_market": [{
             "platform": r["platform"],
             "campaign": r["campaign"],

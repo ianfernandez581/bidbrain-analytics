@@ -20,6 +20,11 @@ loaders), so it needs only the BigQuery + Storage clients.
 `dashboard.html`. Rename a view column → fix `main.py`; rename a JSON key → fix `dashboard.html`.
 Spend is **USD** end-to-end (`*_spend_usd` / `*_cost_usd`).
 
+The two trend charts carry a **VIEW BY** Month/Week/Day grain toggle, so the job emits three blended
+series — `data.monthly` (`month` key), `data.weekly` (`week_start`), `data.daily` (`day`) — and three
+campaign-grained series — `data.ad_campaign_monthly` (`month`), `data.ad_campaign_weekly` (`week_start`),
+`data.ad_campaign_daily` (`day`); the dashboard re-aggregates the campaign-grained one matching the grain.
+
 **Runtime SA** `hireright-dash-job@…`: `roles/bigquery.jobUser` + `roles/bigquery.dataViewer` (project,
 read-only) and `roles/storage.objectAdmin` on the data bucket.
 

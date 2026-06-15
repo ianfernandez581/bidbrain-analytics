@@ -15,4 +15,4 @@ gcloud run jobs deploy $JOB --image $IMG --region $REGION `
   --service-account $JOB_SA --memory 1Gi --project $PROJECT
 if ($LASTEXITCODE -ne 0) { exit 1 }
 
-gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait
+gcloud run jobs execute $JOB --region $REGION --project $PROJECT --update-env-vars FORCE_REBUILD=1 --wait

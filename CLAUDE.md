@@ -2,7 +2,8 @@
 
 Monorepo of self-hosted client marketing dashboards on GCP. One repeatable pattern, many clients:
 **MongoDB is the template**; **STT** is the archetype every lean paid-media client is copied from.
-**Ten client dashboards are live**, plus a meta **Status dashboard**. The root `README.md` is the
+**Ten client dashboards are live**, plus a meta **Status dashboard** and the **Platform front-door**
+(dashboards.bidbrain.ai — one login over all of them). The root `README.md` is the
 full human map — **this file (CLAUDE.md) is the canonical agent fast-path** and the single source of
 truth for fixed facts + deploy commands. **Keep it current: see _Keep this file current_ at the
 bottom — updating it is part of finishing a task, not an afterthought.**
@@ -13,6 +14,19 @@ source not updating) or 100% Digital's (our pipeline behind), and that each dash
 Snowflake. Same serving pattern, but no dataset/views; service `status-dash`, job `status-export`,
 bucket `bidbrain-analytics-status-dash`, SA `status-dash-job@` (needs `snowflake-bq-key` + objectViewer
 on every client bucket). See `status_dashboard/README.md`.
+
+**`bidbrain-platform/`** is the front-door (dashboards.bidbrain.ai): ONE password box over all the
+dashboards. An **agency** password opens a portal of that agency's clients with no further password;
+a single **dashboard** password opens just that one; the **admin** password opens an editable
+agencies→clients→campaigns tree. Web-only service `platform-dash` (SA `platform-dash-web@`,
+`roles/datastore.user`), registry in **Firestore** (`platform_*` collections), no bucket/job/scheduler.
+"No second password" = a signed **`bb_sso`** cookie scoped to `.bidbrain.ai` listing the client keys
+you may open; each dashboard's `authed()` was extended (additively — its own password still works) to
+trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shared signer secret
+`platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, +bellshakespeare/geocon
+*coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb}; **stt/hireright unassigned**.
+SSO only fires once a dashboard runs the rebuilt image AND is served on `<c>.bidbrain.ai`. See
+`bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)
@@ -32,16 +46,16 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 
 | `<c>` | Reports | Currency | Views | Watch out for |
 |---|---|---|---|---|
-| `mongodb` | TEMPLATE — Trade Desk paid media + Content Syndication (Salesforce, 3 DNB campaigns) | USD | 10 | CS map: Accepted/Rejected/New(=Unresponsive+New). KGA(IDC) campaign dropped from CS pull |
+| `mongodb` | TEMPLATE — Trade Desk paid media + Content Syndication (Salesforce, 3 DNB + KGA/IDC campaigns) | USD | 10 | CS map: Accepted/Rejected/New(=Unresponsive+New). KGA(IDC) campaign (`701RG00001NKKwQYAX`) has a NULL PROGRAMME_LABEL → normalised in dash (`progLabel`/`campaignOf`) |
 | `cloudflare` | TTD+LinkedIn+Reddit+LINE + CS + 3 single-campaign LinkedIn dashes | USD (LINE JPY→USD@155) | 6 | ONLY client modelled in Snowflake → job lands `src_*`, views are thin pass-throughs; CS map is OPPOSITE of mongodb |
-| `stt` | ARCHETYPE — GA4 web traffic vs Google Ads+LinkedIn+DV360 | SGD (USD@1.34) | 24 | `client_Adriatic_Furniture/` is a separate OPEN sample dash — don't copy its no-auth pattern |
-| `schneider` | Plan-vs-actual DV360+TTD+LinkedIn (seed tables) | AUD (USD@1.50, SGD@1.15) | 26 | GA4 disabled; 11/21 budgets seeded; FX rates are placeholders |
-| `hireright` | Pure delivery DV360+TTD+LinkedIn | USD (AUD@0.65) | 14 | No GA4, no media plan |
+| `stt` | ARCHETYPE — GA4 web traffic vs Google Ads+LinkedIn+DV360 | SGD (USD@1.34) | 28 | `client_Adriatic_Furniture/` is a separate OPEN sample dash — don't copy its no-auth pattern; genuine time-series charts have Month/Week/Day + Relative/Absolute toggles (daily views 25–28) |
+| `schneider` | Plan-vs-actual DV360+TTD+LinkedIn (seed tables) | AUD (USD@1.50, SGD@1.15) | 28 | GA4 disabled; 11/21 budgets seeded; FX rates are placeholders; spCumulative/fnMonthly trend charts have Month/Week/Day + Relative/Absolute toggles (daily + ad_campaign_daily, views 15–16) |
+| `hireright` | Pure delivery DV360+TTD+LinkedIn | USD (AUD@0.65) | 16 | No GA4, no media plan |
 | `cityperfume` | E-commerce — Neto `v_sales`=revenue truth + Google/Meta/TTD/GA4 | AUD (no FX) | 36 | Online-only incremental Margin ROAS ~2.6x; **aggregates-only JSON, no PII**; GA4 degraded since ~Oct 2025 |
-| `resetdata` | B2B Google Ads+Meta+TTD vs GA4 (leads, **no revenue/ROAS**) | AUD (TTD USD@1.50) | 19 | agency = 100-digital; Meta account filter contains an EN-DASH |
+| `resetdata` | B2B Google Ads+Meta+TTD+Reddit vs GA4 (leads, **no revenue/ROAS**) | AUD (TTD USD@1.50; Reddit AUD native) | 24 | agency = 100-digital; Meta account filter contains an EN-DASH; Reddit slice `client_slug='resetdata'` (only Reddit client), engagement/video metrics NULL upstream; **Reddit `spend_aud` = raw spend ×2** (intentional agency billed-rate markup — so Reddit sits on a different cost basis than Google/Meta/TTD media cost on shared spend charts); trend charts have Month/Week/Day + Relative/Absolute toggles (daily / ad_campaign_daily / ga4_key_events_daily feeds) |
 | `proptrack` | Banking ABM — TTD (advertiser `PopTrack`) + LinkedIn | AUD (no FX) | 15 | TTD impressions come from `IMPRESSION` (singular); LinkedIn `PropTrack_TransmissionSG_AUD` |
-| `tlm` | The Little Marionette — e-comm coffee: Google Ads (DTS) search/shopping/PMax + Trade Desk display | AUD (TTD FX@1.50 unused) | 13 | Google spend already AUD (NOT micros); ROAS/CPA Google-only (TTD pixels anonymous, no revenue); light cream+slate-blue theme; `ttd_creative` is whole-flight (not date-scoped) |
-| `vmch` | Villa Maria Catholic Homes — aged-care **NFP** brand awareness: Trade Desk display (4 service-line campaigns RAC/RL/SAH/Disability) vs GA4 website | AUD (no FX) | 21 | SINGLE platform (TTD only) + SINGLE market (`*_market` views are vestigial 'Australia' rows; dash reads flat `kpi`/`monthly`/`ga4_channels_market`); **no revenue** — outcome is GA4 enquiry key events (phone/email/contact); display is upper-funnel (~25 last-click sessions vs 4.4M imps — don't overclaim); orange-red `#EB3300` + maroon `#4C2736` theme; logos inlined via `creatives/inject_logos.py` |
+| `tlm` | The Little Marionette — e-comm coffee: Google Ads (DTS) search/shopping/PMax + Trade Desk display | AUD (TTD FX@1.50 unused) | 15 | Google spend already AUD (NOT micros); ROAS/CPA Google-only (TTD pixels anonymous, no revenue); light cream+slate-blue theme; `ttd_creative` is whole-flight (not date-scoped); hero/google/perf trend charts have Month/Week/Day + Relative/Absolute toggles (daily + ad_campaign_daily, views 14–15) |
+| `vmch` | Villa Maria Catholic Homes — aged-care **NFP** brand awareness: Trade Desk display (4 service-line campaigns RAC/RL/SAH/Disability) vs GA4 website | AUD (no FX) | 25 | SINGLE platform (TTD only) + SINGLE market (`*_market` views are vestigial 'Australia' rows; dash reads flat `kpi`/`monthly`/`ga4_channels_market`); **no revenue** — outcome is GA4 enquiry key events (phone/email/contact); display is upper-funnel (~25 last-click sessions vs 4.4M imps — don't overclaim); orange-red `#EB3300` + maroon `#4C2736` theme; logos inlined via `creatives/inject_logos.py`; trend charts have Month/Week/Day + Relative/Absolute toggles (daily/ad_campaign_daily/ga4_daily_market/ga4_key_events_daily, views 30–33) |
 
 **4 shared ingest units** fill the `raw_*` layers for everyone (no dashboard of their own):
 - `ingest/snowflake_data_pull/` → `raw_snowflake` (7 tables, 1:1 mirror). **Self-gating `*/10`** — the exception
@@ -66,6 +80,14 @@ Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,3
   and edit in place. Don't slurp the whole file to change a colour/label/card.
 - Pure visual tweaks (colours, labels, spacing, a new card) live entirely in `dashboard.html`.
   Colours are CSS vars in `:root` at the top.
+- **Time-series charts carry a grain + scale toggle (all 10 clients).** Every genuine time-series
+  line/bar/mixed chart has a `.seg` "VIEW BY" Month/Week/Day control and an "AXIS" Relative/Absolute
+  control (**default Relative**). Relative indexes overlay LINE series to peak=100 on a shared 0–100
+  axis (or 100%-stacks pure-composition bars); tooltips always show the TRUE value. Categorical /
+  Gantt / scatter / doughnut / YoY / synthetic-series charts are intentionally excluded. Reference
+  impls: `clients/client_resetdata` + `clients/client_tlm`. The 6 ex-month/week clients (stt,
+  schneider, hireright, resetdata, tlm, vmch) gained daily SQL views (`*_daily`) to back the Day grain;
+  cloudflare/cityperfume/mongodb/proptrack already shipped daily data so they are frontend-only.
 
 ## The data contract — when an edit needs NEW data, not just layout
 A value on screen traces through three files, matched **by name**:
@@ -87,6 +109,10 @@ Reach for the matching one by edit:
 - `dash/deploy_dash_<c>.ps1`   — edited `dash/dashboard.html` or `dash/main.py` → rebuild + update SERVICE
 - `job/deploy_job_<c>.ps1`     — edited `job/main.py` (JSON shape) → rebuild + deploy + run JOB
 - `sql/deploy_views_<c>.ps1`   — edited a `sql/*.sql` view → reapply views (`create_views.py`) + run JOB
+- **Platform front-door:** `bidbrain-platform/dash/deploy_dash_platform.ps1` — edited `main.py`/`store.py`/
+  templates → rebuild + update SERVICE. Standup once with `bidbrain-platform/deploy_platform.ps1`; then
+  `scripts/enable_platform_sso.ps1` injects `SSO_SECRET`+`CLIENT_KEY` into the 10 dashboards. Agency/client/
+  campaign DATA is edited in the admin UI (Firestore), NOT by redeploy. See `bidbrain-platform/README.md`.
 
 The one-shot `deploy_<c>.ps1` (still at the `clients/client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,
 scheduler). The raw commands each stage script runs, for reference:
@@ -97,15 +123,18 @@ scheduler). The raw commands each stage script runs, for reference:
     gcloud run services update <c>-dash --image $IMG --region australia-southeast1
 
     # edited a sql/*.sql view → reapply views + re-run the JOB (no service redeploy):
-    .\.venv\Scripts\python.exe client_<c>\create_views.py
-    gcloud run jobs execute <c>-export --region australia-southeast1 --wait
+    .\.venv\Scripts\python.exe clients\client_<c>\create_views.py
+    # FORCE_REBUILD=1 is REQUIRED: a view edit does NOT advance the upstream tables the
+    # freshness gate watches, so without it the job exits 0 and skips the rebuild (stale JSON).
+    gcloud run jobs execute <c>-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 
     # edited job/main.py (the JSON shape) → rebuild + deploy + run the JOB:
     $IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/<c>-export:$(git rev-parse --short HEAD)"
     gcloud builds submit clients/client_<c>/job --tag $IMG --region australia-southeast1
     gcloud run jobs deploy <c>-export --image $IMG --region australia-southeast1 `
       --service-account <c>-dash-job@bidbrain-analytics.iam.gserviceaccount.com --memory 1Gi
-    gcloud run jobs execute <c>-export --region australia-southeast1 --wait
+    # FORCE_REBUILD=1 as above — a new image is not a new upstream watermark, so force the rebuild:
+    gcloud run jobs execute <c>-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 
 The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy shows
 immediately. The service always reads whatever JSON is currently in the bucket.
@@ -149,8 +178,10 @@ rebuild path) so an idle tick stays a light, fast container.
 idle tail ever becomes material, an optional dedicated XS export warehouse at `auto_suspend=60s`
 would cut it (needs SYSADMIN; do **not** change `APAC_IN_WH`'s shared 600s auto-suspend).
 
-**Static re-seeds** (e.g. `seed_static.py`) change inputs the gate does NOT watch — kick the job once
-by hand afterwards: `gcloud run jobs execute <c>-export --region australia-southeast1 --wait`.
+**Static re-seeds** (e.g. `seed_static.py`) change inputs the gate does NOT watch — so you MUST force
+the rebuild, or the job exits 0 without re-exporting: `gcloud run jobs execute <c>-export --region
+australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait`. (`--update-env-vars` is a per-execution
+override and does NOT persist on the job.) The same applies after any view-only or `seed_static` change.
 
 ## Never
 - Never commit secrets/keys (`*.p8`, `*credentials*.json`, `.env`, bare `*_key`). They live in

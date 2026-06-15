@@ -151,6 +151,13 @@
   .basis-toggle button{border:none;background:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--mute);padding:5px 12px}
   .basis-toggle button.on{background:var(--gold);color:#fff}
 
+  /* segmented controls (VIEW BY grain · AXIS scale) — global, drives all time-series charts */
+  .seg{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .seg button{background:none;border:none;color:var(--mute);font-family:inherit;font-size:11.5px;font-weight:700;padding:5px 11px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--gold);color:#fff}
+  .seg button:not(.on):hover{color:var(--ink)}
+  .seg .cap{padding:0 8px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--mute);align-self:center}
+
   /* campaign multi-select */
   .campaign-dd{position:relative;display:inline-block}
   .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;padding:5px 12px;font-size:12.5px;cursor:pointer;color:var(--ink2);max-width:260px}
@@ -369,6 +376,12 @@
         <div class="filter-grp" id="channelGroup">
           <span class="lbl">Sales channel</span><div class="chips" id="channelChips"></div>
           <button class="chip-action" onclick="allChannels()">All online</button>
+        </div>
+        <div class="fdiv" id="filterDiv3"></div>
+        <!-- Trend-chart controls (apply to every time-series chart on this tab) -->
+        <div class="filter-grp" id="trendGroup">
+          <span class="seg" id="grainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="auto" class="on">Auto</button><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+          <span class="seg" id="scaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
         </div>
       </div>
     </div>
@@ -686,6 +699,8 @@ window.DateRange = (function(){
 })();
 
 let DATA = null, charts = {}, activeTab = 'overview';
+let grainOverride = null;             // VIEW BY: null=Auto (span heuristic) | 'month' | 'week' | 'day'
+let scaleMode = 'rel';                // AXIS: 'rel' (index overlay lines to peak=100) | 'abs' (raw)
 let activePlatforms = new Set();      // ad-platform filter (defaults all)
 let activeCampaigns = new Set();      // ad-campaign filter (defaults all) — scopes AD DELIVERY only
 // ONLINE-ONLY dashboard (T1): in-store POS is excluded from the channel universe entirely.
@@ -758,7 +773,13 @@ function aggRange(arr, keyFn, sumFields, staticFields){
 function daysSpan(){ const lo=rangeStart||dateMin, hi=rangeEnd||dateMax; return Math.round((new Date(hi)-new Date(lo))/86400000)+1; }
 // day for ≤ ~6 weeks, week for ≤ ~6 months, month beyond — so the default all-time (~1yr) view
 // keeps its familiar monthly bars, while short ranges get daily/weekly detail.
-function chartGrain(){ const n=daysSpan(); return n<=45?'day': n<=183?'week':'month'; }
+// Global VIEW BY override: 'day'/'week'/'month' forces that grain; null = Auto (span heuristic).
+function chartGrain(){ if(grainOverride) return grainOverride; const n=daysSpan(); return n<=45?'day': n<=183?'week':'month'; }
+// Relative-scale helper: index a series to its own peak=100 (un-index in tooltips). isRel() reads
+// the global AXIS toggle; idx() returns the array scaled, idxMax() the divisor used to un-index.
+const isRel = () => scaleMode==='rel';
+const seriesMax = arr => Math.max(1, ...arr.map(v=>+v||0));
+const idxTo100 = arr => { const mx=seriesMax(arr); return arr.map(v=>(+v||0)/mx*100); };
 function isoWeekMonday(iso){ const d=new Date(iso+'T00:00:00Z'); const wd=(d.getUTCDay()+6)%7; d.setUTCDate(d.getUTCDate()-wd); return d.toISOString().slice(0,10); }
 function bucketKey(iso,grain){ iso=String(iso).slice(0,10); return grain==='month'? iso.slice(0,7)+'-01' : grain==='week'? isoWeekMonday(iso) : iso; }
 function bucketLabel(key,grain){ return grain==='month'? monthLabel(key) : weekLabel(key); }
@@ -1066,6 +1087,18 @@ function renderYoY(){
 
 /* =================== tab orchestration =================== */
 function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
+// Wire the global VIEW BY (grain) + AXIS (scale) segmented controls once. data-grain='auto' clears
+// the override (back to the span heuristic); data-scale toggles relative-vs-absolute. Both re-render.
+function wireTrendSegs(){
+  const gs=el('grainSeg'); Array.prototype.forEach.call(gs.querySelectorAll('button'), b=>{ b.onclick=function(){
+    grainOverride = this.dataset.grain==='auto' ? null : this.dataset.grain;
+    Array.prototype.forEach.call(gs.querySelectorAll('button'), x=>x.classList.toggle('on', x.dataset.grain===this.dataset.grain));
+    renderActive(); }; });
+  const ss=el('scaleSeg'); Array.prototype.forEach.call(ss.querySelectorAll('button'), b=>{ b.onclick=function(){
+    scaleMode = this.dataset.scale;
+    Array.prototype.forEach.call(ss.querySelectorAll('button'), x=>x.classList.toggle('on', x.dataset.scale===scaleMode));
+    renderActive(); }; });
+}
 function setProductSort(s){ productSort=s; renderSales(); }
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 function renderActive(){
@@ -1102,14 +1135,19 @@ function renderControls(){
   // Date filtering applies on every tab. On Year-on-Year the range acts as a MONTH filter
   // (which calendar months to compare); elsewhere it clips day-grained data to the range.
   const showDate     = true;
+  // Trend (VIEW BY / AXIS) controls drive the bucketed *_daily time-series charts — present on every
+  // tab except Year-on-Year (its charts are inherently calendar-month YoY pairs, not bucketed).
+  const showTrend    = activeTab!=='yoy';
   el('dateGroup').style.display=showDate?'flex':'none';
   el('platformGroup').style.display=showPlatform?'flex':'none';
   el('campaignGroup').style.display=showCampaign?'flex':'none';
   el('channelGroup').style.display=showChannel?'flex':'none';
-  el('filterRow').style.display=(showDate||showPlatform||showCampaign||showChannel)?'flex':'none';
+  el('trendGroup').style.display=showTrend?'flex':'none';
+  el('filterRow').style.display=(showDate||showPlatform||showCampaign||showChannel||showTrend)?'flex':'none';
   el('filterDiv0').style.display=(showDate&&(showPlatform||showCampaign||showChannel))?'block':'none';
   el('filterDiv').style.display=(showPlatform&&showCampaign)?'block':'none';
   el('filterDiv2').style.display=((showPlatform||showCampaign)&&showChannel)?'block':'none';
+  el('filterDiv3').style.display=((showPlatform||showCampaign||showChannel)&&showTrend)?'block':'none';
   // platform chips
   const pw=el('platformChips'); pw.innerHTML='';
   PLATFORMS.forEach(p=>{ const b=document.createElement('button'); b.className='chip'+(activePlatforms.has(p.key)?' on':'');
@@ -1153,15 +1191,19 @@ function renderOverview(){
   const platMap={}; PLATFORMS.forEach(p=>platMap[p.key]=bucketMap(DATA.ad_campaign_daily,['spend_aud'], r=>rowOk(r,true)&&r.platform===p.key));
   const AX=bucketAxis(salesMap,spendMap), labels=AX.map(b=>b.label);
   const bRev=b=> (salesMap[b.key]||{}).revenue_total||0;
+  // AXIS=Relative: index the revenue overlay line to its own peak=100 (left axis 0-100); spend bars
+  // stay ABSOLUTE on their own axis. AXIS=Absolute: revenue in raw AUD on the left axis (today's view).
+  const rel=isRel(), revRaw=AX.map(bRev), revMax=seriesMax(revRaw);
+  const revData=rel?idxTo100(revRaw):revRaw;
   const spendBars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y1',stack:'sp',
     data:AX.map(b=>(platMap[p.key][b.key]||{}).spend_aud||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:3}));
   charts.ovHero=new Chart(el('ovHero'),{ data:{labels,datasets:[
-    {type:'line',label:'Sales revenue',yAxisID:'y',data:AX.map(bRev),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.12)',borderWidth:2.5,tension:.35,fill:true,pointRadius:2,order:1},
+    {type:'line',label:'Sales revenue',yAxisID:'y',data:revData,borderColor:C.rose,backgroundColor:'rgba(201,139,122,.12)',borderWidth:2.5,tension:.35,fill:true,pointRadius:2,order:1},
     ...spendBars]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+moneyM(c.parsed.y)}}},
+      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y'&&rel?moneyM(c.parsed.y/100*revMax):moneyM(c.parsed.y))}}},
       scales:{x:axisX({stacked:true}),
-        y:gridY({position:'left',title:{display:true,text:'Sales revenue',color:C.mute},ticks:{callback:v=>moneyM(v)}}),
+        y:gridY({position:'left',min:0,max:rel?100:undefined,title:{display:true,text:rel?'Index (peak=100)':'Sales revenue',color:C.mute},ticks:{callback:v=>rel?v.toFixed(0):moneyM(v)}}),
         y1:{position:'right',stacked:true,grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}}}}
   });
   // revenue by sales channel donut (range-aware: clip the monthly sibling when narrowed)
@@ -1233,11 +1275,17 @@ function renderPaid(){
     {id:'yGRev', label:'Google-attr. revenue', color:C.goldDeep, data:AXp.map(b=>at(gRevMap,b,'platform_revenue')), fmt:moneyM, def:false},
     {id:'yMRev', label:'Meta-attr. revenue',   color:C.plum,     data:AXp.map(b=>at(mRevMap,b,'platform_revenue')), fmt:moneyM, def:false},
   ];
-  const lineScales={}; lineDefs.forEach(d=>{ const mx=Math.max(0,...d.data); lineScales[d.id]={type:'linear',display:false,position:'right',min:0,max:mx>0?mx*1.08:1}; });
-  const lines=lineDefs.map((d,i)=>({type:'line',label:d.label,yAxisID:d.id,data:d.data,borderColor:d.color,backgroundColor:d.color,borderWidth:2,tension:.35,pointRadius:0,pointHoverRadius:4,spanGaps:true,fill:false,order:i,hidden:!d.def}));
+  // AXIS=Relative: every outcome line is indexed to its OWN peak=100 on ONE shared 0-100 right axis
+  // (compare shape, not level). AXIS=Absolute: each line rides its own hidden 0→max axis (raw values,
+  // native per-metric). Bars (ad spend) are always absolute on the left axis. Tooltips show true values.
+  const rel=isRel(); lineDefs.forEach(d=>{ d.max=seriesMax(d.data); });
+  const lineScales={};
+  if(!rel) lineDefs.forEach(d=>{ const mx=Math.max(0,...d.data); lineScales[d.id]={type:'linear',display:false,position:'right',min:0,max:mx>0?mx*1.08:1}; });
+  else lineScales.yIdx={type:'linear',display:true,position:'right',min:0,max:100,grid:{display:false},border:{display:false},title:{display:true,text:'Index (peak=100)',color:C.mute},ticks:{color:C.mute,callback:v=>v.toFixed(0)}};
+  const lines=lineDefs.map((d,i)=>({type:'line',label:d.label,yAxisID:rel?'yIdx':d.id,data:rel?d.data.map(v=>(+v||0)/d.max*100):d.data,borderColor:d.color,backgroundColor:d.color,borderWidth:2,tension:.35,pointRadius:0,pointHoverRadius:4,spanGaps:true,fill:false,order:i,hidden:!d.def}));
   charts.pmMonthly=new Chart(el('pmMonthly'),{ data:{labels,datasets:[...bars,...lines]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{ const d=lineDefs.find(x=>x.id===c.dataset.yAxisID); return ' '+c.dataset.label+': '+(d?d.fmt(c.parsed.y):moneyM(c.parsed.y)); }}}},
+      plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{ const d=lineDefs.find(x=>x.label===c.dataset.label); const tv=(rel&&d)?c.parsed.y/100*d.max:c.parsed.y; return ' '+c.dataset.label+': '+(d?d.fmt(tv):moneyM(tv)); }}}},
       scales:Object.assign({x:axisX({stacked:true}),y:gridY({stacked:true,title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}})}, lineScales)}});
   const pk=PLATFORMS.filter(p=>ap[p.key].spend>0);
   donut('pmSpendDonut',pk.map(p=>p.label),pk.map(p=>ap[p.key].spend),pk.map(p=>p.color),moneyM(a.spend),'ad spend',a.spend);
@@ -1321,8 +1369,14 @@ function renderWeb(){
   for(const r of clipDaily(DATA.ga4_channels_daily)){ const k=bucketKey(r.day,wgrain); wKeys.add(k); wBuckets.add(r.channel_bucket);
     (wMap[k]=wMap[k]||{})[r.channel_bucket]=(wMap[k][r.channel_bucket]||0)+(+r.sessions||0); }
   const wkeys=[...wKeys].sort(), wbk=[...wBuckets];
-  charts.webMonthly=new Chart(el('webMonthly'),{ type:'bar', data:{labels:wkeys.map(k=>bucketLabel(k,wgrain)),datasets:wbk.map(b=>({label:b,data:wkeys.map(k=>(wMap[k]||{})[b]||0),backgroundColor:BUCKET_COLOR[b]||C.sand,stack:'s',maxBarThickness:24,borderRadius:2}))},
-    options:{maintainAspectRatio:false,plugins:{legend:legendTop()},scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>fmtM(v)}})}} });
+  // Pure stacked-composition chart (no overlay line). AXIS=Relative -> 100%-stacked: each period's
+  // channel buckets normalized to its OWN total session count (left axis 0-100%). AXIS=Absolute ->
+  // raw session counts (today's view). Tooltip always shows the true session count.
+  const relWM=isRel();
+  const wRaw={}; wbk.forEach(b=>{ wRaw[b]=wkeys.map(k=>(wMap[k]||{})[b]||0); });
+  const wTot=wkeys.map((k,i)=>Math.max(1, wbk.reduce((s,b)=>s+wRaw[b][i],0)));
+  charts.webMonthly=new Chart(el('webMonthly'),{ type:'bar', data:{labels:wkeys.map(k=>bucketLabel(k,wgrain)),datasets:wbk.map(b=>({label:b,data:relWM?wRaw[b].map((v,i)=>v/wTot[i]*100):wRaw[b],backgroundColor:BUCKET_COLOR[b]||C.sand,stack:'s',maxBarThickness:24,borderRadius:2}))},
+    options:{maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{ const raw=wRaw[c.dataset.label][c.dataIndex]; return ' '+c.dataset.label+': '+(relWM?fmtN(raw)+' ('+c.parsed.y.toFixed(0)+'%)':fmtN(c.parsed.y))+' sessions'; }}}},scales:{x:axisX({stacked:true}),y:gridY({stacked:true,min:0,max:relWM?100:undefined,ticks:{callback:v=>relWM?v.toFixed(0)+'%':fmtM(v)}})}} });
   // sources table (range-aware: clip source×month, re-aggregate, re-rank to top 20)
   const srcSrc = narrowed()
     ? aggRange(DATA.ga4_sources_daily, r=>r.source_medium, ['sessions','engaged_sessions','transactions','purchase_revenue'], ['source_medium','is_paid']).sort((a,b)=>b.sessions-a.sessions)
@@ -1355,20 +1409,32 @@ function renderSales(){
   // new vs returning revenue trend (day-grained, bucketed by range span)
   const smMap=salesBucket();
   const SX=bucketAxis(smMap); const labels=SX.map(b=>b.label);
+  // AXIS=Relative: the Returning-share overlay line is indexed to its own peak=100 (shared 0-100 right
+  // axis); the New/Returning revenue bars stay absolute on the left. AXIS=Absolute: today's view (line
+  // on a 0-100% right axis). Tooltip always shows the true share %.
+  const relNR=isRel();
+  const shareRaw=SX.map(b=>{const e=smMap[b.key]||{};const t=(e.new_revenue||0)+(e.returning_revenue||0);return t?(e.returning_revenue||0)/t:0;});
+  const shareMax=seriesMax(shareRaw);
   charts.salesNRTrend=new Chart(el('salesNRTrend'),{ data:{labels,datasets:[
     {type:'bar',label:'New',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).new_revenue||0),backgroundColor:C.gold,stack:'r',borderRadius:3,maxBarThickness:24},
     {type:'bar',label:'Returning',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).returning_revenue||0),backgroundColor:C.rose,stack:'r',borderRadius:3,maxBarThickness:24},
-    {type:'line',label:'Returning share',yAxisID:'y1',data:SX.map(b=>{const e=smMap[b.key]||{};const t=(e.new_revenue||0)+(e.returning_revenue||0);return t?(e.returning_revenue||0)/t:0;}),borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0}]},
-    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?fmtPct(c.parsed.y,1):moneyM(c.parsed.y))}}},
-      scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},min:0,max:1,ticks:{callback:v=>fmtPct(v,0)}}}} });
+    {type:'line',label:'Returning share',yAxisID:'y1',data:relNR?shareRaw.map(v=>v/shareMax*100):shareRaw,borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0}]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?fmtPct(relNR?c.parsed.y/100*shareMax:c.parsed.y,1):moneyM(c.parsed.y))}}},
+      scales:{x:axisX({stacked:true}),y:gridY({stacked:true,ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},min:0,max:relNR?100:1,title:relNR?{display:true,text:'Index (peak=100)',color:C.mute}:undefined,ticks:{callback:v=>relNR?v.toFixed(0):fmtPct(v,0)}}}} });
   donut('salesNRDonut',['New','Returning'],[sk.new_revenue,sk.returning_revenue],[C.gold,C.rose],moneyM(sk.revenue_total),'revenue',sk.revenue_total);
   // revenue / margin / AOV trend (day-grained, bucketed; reuses smMap/SX from above)
+  // AXIS=Relative: the AOV overlay line is indexed to its own peak=100 (shared 0-100 right axis);
+  // Revenue & Margin bars stay absolute on the left. AXIS=Absolute: today's view (AOV on its own AUD
+  // right axis). Tooltip always shows the true AOV.
+  const relST=isRel();
+  const aovRaw=SX.map(b=>{const e=smMap[b.key]||{};return e.orders?(e.revenue_total||0)/e.orders:0;});
+  const aovMax=seriesMax(aovRaw);
   charts.salesTrend=new Chart(el('salesTrend'),{ data:{labels,datasets:[
     {type:'bar',label:'Revenue',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).revenue_total||0),backgroundColor:C.gold,borderRadius:3,maxBarThickness:22,order:3},
     {type:'bar',label:'Margin',yAxisID:'y',data:SX.map(b=>(smMap[b.key]||{}).margin||0),backgroundColor:C.sage,borderRadius:3,maxBarThickness:22,order:2},
-    {type:'line',label:'AOV',yAxisID:'y1',data:SX.map(b=>{const e=smMap[b.key]||{};return e.orders?(e.revenue_total||0)/e.orders:0;}),borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0,order:0}]},
-    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?money(c.parsed.y):moneyM(c.parsed.y))}}},
-      scales:{x:axisX(),y:gridY({ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'AOV',color:C.mute},ticks:{callback:v=>money(v)}}}} });
+    {type:'line',label:'AOV',yAxisID:'y1',data:relST?aovRaw.map(v=>v/aovMax*100):aovRaw,borderColor:C.plum,borderWidth:2,tension:.35,pointRadius:0,order:0}]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y1'?money(relST?c.parsed.y/100*aovMax:c.parsed.y):moneyM(c.parsed.y))}}},
+      scales:{x:axisX(),y:gridY({ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},min:relST?0:undefined,max:relST?100:undefined,title:{display:true,text:relST?'Index (peak=100)':'AOV',color:C.mute},ticks:{callback:v=>relST?v.toFixed(0):money(v)}}}} });
   // channel donut + table (range-aware: clip sales_by_channel_monthly per channel, re-derive aov/margin%)
   const bc = salesNarrowed()
     ? aggRange(DATA.sales_by_channel_daily.filter(chanOk), r=>r.sales_channel, ['revenue','margin','orders','units','new_orders','returning_orders'], ['sales_channel','channel_group'])
@@ -1421,11 +1487,14 @@ function renderLink(){
   const LX=bucketAxis(spendMapL,salesMapL), labels=LX.map(b=>b.label);
   const lRev=b=> (salesMapL[b.key]||{}).revenue_total||0;
   const lSpend=b=>(spendMapL[b.key]||{}).spend_aud||0;
+  // AXIS=Relative: index the Sales-revenue overlay line to its own peak=100 (left axis 0-100); the Ad
+  // spend bars stay absolute on the right axis. AXIS=Absolute: today's view (revenue in raw AUD).
+  const relLW=isRel(), lwRevRaw=LX.map(lRev), lwRevMax=seriesMax(lwRevRaw);
   charts.linkWeekly=new Chart(el('linkWeekly'),{ data:{labels,datasets:[
-    {type:'line',label:'Sales revenue',yAxisID:'y',data:LX.map(lRev),borderColor:C.rose,backgroundColor:'rgba(201,139,122,.10)',borderWidth:2.5,fill:true,tension:.35,pointRadius:0,order:0},
+    {type:'line',label:'Sales revenue',yAxisID:'y',data:relLW?lwRevRaw.map(v=>v/lwRevMax*100):lwRevRaw,borderColor:C.rose,backgroundColor:'rgba(201,139,122,.10)',borderWidth:2.5,fill:true,tension:.35,pointRadius:0,order:0},
     {type:'bar',label:'Ad spend',yAxisID:'y1',data:LX.map(lSpend),backgroundColor:'rgba(176,141,87,.8)',borderRadius:2,maxBarThickness:12,order:1}]},
-    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop()},
-      scales:{x:axisX({ticks:{maxTicksLimit:14}}),y:gridY({title:{display:true,text:'Sales revenue',color:C.mute},ticks:{callback:v=>moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}}}} });
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y'&&relLW?moneyM(c.parsed.y/100*lwRevMax):moneyM(c.parsed.y))}}},
+      scales:{x:axisX({ticks:{maxTicksLimit:14}}),y:gridY({min:0,max:relLW?100:undefined,title:{display:true,text:relLW?'Index (peak=100)':'Sales revenue',color:C.mute},ticks:{callback:v=>relLW?v.toFixed(0):moneyM(v)}}),y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend',color:C.mute},ticks:{callback:v=>moneyM(v)}}}} });
   // scatter — one dot per bucket
   const gname = grain==='day'?'day':grain==='week'?'week':'month';
   const pts=LX.map(b=>({x:lSpend(b),y:lRev(b)})).filter(p=>p.x>0);
@@ -1440,12 +1509,20 @@ function renderLink(){
   const mgL=onlineMargin();
   const baseB = b=>{ const r=(salesMapL[b.key]||{}).revenue_total||0; return Math.max(0,(r - REV_ROAS_ONLINE*lSpend(b))*mgL); };
   const netB  = b=>{ const r=(salesMapL[b.key]||{}).revenue_total||0; return Math.max(0, r*mgL - baseB(b) - lSpend(b)); };
+  // Pure stacked-composition chart (no overlay line). AXIS=Relative -> 100%-stacked: each period's
+  // three segments normalized to its OWN total (left axis 0-100%). AXIS=Absolute -> raw AUD stacked
+  // (today's view). Tooltip always shows the true AUD value (un-normalized).
+  const relLR=isRel();
+  const baseRaw=LX.map(baseB), spendRaw=LX.map(lSpend), netRaw=LX.map(netB);
+  const totRaw=LX.map((b,i)=>Math.max(1,baseRaw[i]+spendRaw[i]+netRaw[i]));
+  const norm=arr=>arr.map((v,i)=>v/totRaw[i]*100);
+  const lrTip=(c,raw)=>' '+c.dataset.label+': '+(relLR?moneyM(raw[c.dataIndex])+' ('+(c.parsed.y).toFixed(0)+'%)':moneyM(c.parsed.y));
   charts.linkRoas=new Chart(el('linkRoas'),{ type:'bar', data:{labels,datasets:[
-    {label:'Base online margin (without ads)',data:LX.map(baseB),backgroundColor:'rgba(226,75,74,.30)',stack:'p',borderRadius:2,maxBarThickness:26},
-    {label:'Ad spend (the investment)',data:LX.map(lSpend),backgroundColor:'rgba(151,196,89,.78)',stack:'p',borderRadius:2,maxBarThickness:26},
-    {label:'Net profit from ads',data:LX.map(netB),backgroundColor:'rgba(39,80,10,.82)',stack:'p',borderRadius:2,maxBarThickness:26}]},
-    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+moneyM(c.parsed.y)}}},
-      scales:{x:axisX({stacked:true}),y:gridY({stacked:true,title:{display:true,text:'Online gross margin / period',color:C.mute},ticks:{callback:v=>moneyM(v)}})}} });
+    {label:'Base online margin (without ads)',data:relLR?norm(baseRaw):baseRaw,backgroundColor:'rgba(226,75,74,.30)',stack:'p',borderRadius:2,maxBarThickness:26},
+    {label:'Ad spend (the investment)',data:relLR?norm(spendRaw):spendRaw,backgroundColor:'rgba(151,196,89,.78)',stack:'p',borderRadius:2,maxBarThickness:26},
+    {label:'Net profit from ads',data:relLR?norm(netRaw):netRaw,backgroundColor:'rgba(39,80,10,.82)',stack:'p',borderRadius:2,maxBarThickness:26}]},
+    options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{ const raw=c.datasetIndex===0?baseRaw:c.datasetIndex===1?spendRaw:netRaw; return lrTip(c,raw); }}}},
+      scales:{x:axisX({stacked:true}),y:gridY({stacked:true,min:0,max:relLR?100:undefined,title:{display:true,text:relLR?'Share of online gross margin (%)':'Online gross margin / period',color:C.mute},ticks:{callback:v=>relLR?v.toFixed(0)+'%':moneyM(v)}})}} });
   // stat cards — the single canonical ROAS (incremental, margin-based)
   el('linkStats').innerHTML =
       '<div class="stat-card"><div class="sv">'+roasS(marginRoas())+'</div><div class="sl">Margin ROAS (incremental)</div></div>'
@@ -1487,6 +1564,7 @@ async function boot(){
       onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });
     const h=(location.hash||'').replace('#',''); if(['overview','paid','web','sales','link'].includes(h)) activeTab=h;
     el('loading').style.display='none'; el('content').style.display='block';
+    wireTrendSegs();
     renderMeta(); renderControls(); renderActive();
   }catch(e){
     el('loading').style.display='none'; el('error').style.display='flex';

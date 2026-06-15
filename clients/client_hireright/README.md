@@ -137,7 +137,7 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_hireright` (14 views) |
+| BigQuery dataset | `client_hireright` (16 views) |
 | Data bucket / object | `bidbrain-analytics-hireright-dash` / `hireright.json` |
 | Export job | `hireright-export` (runtime SA `hireright-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `hireright-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `hireright-dash-web@…`) |

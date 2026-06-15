@@ -8,7 +8,7 @@ proxies the private `resetdata.json` from GCS at `/data.json`. All charts/tabs/b
 | File | What it is |
 |---|---|
 | `main.py` | Flask app: login gate (byte-for-byte the proven `client_STT` / `client_mongodb` auth/serve/proxy logic), ResetData-branded login page (`LOGIN_HTML`, with the 100% Digital agency mark + ResetData wordmark inline as base64), serves `dashboard.html` + `/data.json`. Session cookie is `SameSite=None; Secure` (cross-site iframe on dashboards.bidbrain.ai). `DATA_OBJECT` defaults to `resetdata.json`. |
-| `dashboard.html` | The dashboard UI — 4 tabs (Overview · Paid Media · Website Traffic · Ads → Traffic), Chart.js, crimson-pink (`#E84A6F`) on deep-navy palette, ResetData wordmark topbar. Two filters: **Platform** (Google / Meta / TTD) and **Campaign** (searchable multi-select). Reads `/data.json`. |
+| `dashboard.html` | The dashboard UI — 4 tabs (Overview · Paid Media · Website Traffic · Ads → Traffic), Chart.js, crimson-pink (`#E84A6F`) on deep-navy palette, ResetData wordmark topbar. Two filters: **Platform** (Google / Meta / TTD / Reddit `#FF5700`) and **Campaign** (searchable multi-select). Paid Media carries a **Reddit community-awareness deep-dive** (KPI cards + spend-vs-impressions trend + campaigns-by-objective table). Reads `/data.json`. |
 | `requirements.txt` | `Flask`, `gunicorn`, `google-cloud-storage` (pinned). |
 | `Dockerfile` | `python:3.12.13-slim`, non-root, gunicorn (2 workers × 8 threads). |
 | `cloudbuild.yaml` | Build → push → `run deploy` → `--no-invoker-iam-check` (future push-to-main trigger). |
