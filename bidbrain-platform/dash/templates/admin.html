@@ -120,7 +120,7 @@
         <div class="camp">
           <span class="cnm">{{ cm.name }}</span>
           <span class="slug">{{ cm.path }}</span>
-          {% if c.url and c.status == 'active' %}<a class="url" href="{{ c.url }}" target="_blank" rel="noopener">{{ c.url }}</a>{% else %}<span class="url">—</span>{% endif %}
+          {% if c.status == 'active' %}<a class="url" href="/d/{{ c.key }}/" target="_blank" rel="noopener">/d/{{ c.key }}/ → {{ c.url }}</a>{% else %}<span class="url">—</span>{% endif %}
           {% if cm.status == 'active' and c.status == 'active' %}<span class="pill active">ACTIVE</span>{% else %}<span class="pill soon">COMING SOON</span>{% endif %}
           <span class="acts">
             <button class="btn sm" onclick='openCampaign("{{ c.key }}",{{ loop.index0 }},{{ cm|tojson }})'>Edit</button>

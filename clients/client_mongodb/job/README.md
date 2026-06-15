@@ -36,9 +36,12 @@ it every 10 minutes UTC ([`../scheduler.ps1`](../scheduler.ps1)), but each tick 
 cheap metadata probe and **exits 0 without rebuilding unless the upstream actually advanced**:
 
 - **Gate source** = the BigQuery raw tables this job's views read, set in `GATING_TABLES`:
-  `raw_snowflake.tradedesk_apac_all` and `raw_snowflake.salesforce_cs_apac_all`. It probes their
-  `__TABLES__.last_modified_time` (metadata-only — no warehouse credits, this client never touches
-  Snowflake directly).
+  the live mirrors `raw_snowflake.tradedesk_apac_all` + `raw_snowflake.salesforce_cs_apac_all`
+  (`SNOWFLAKE_TABLES`), **plus** the static pixel seed `client_mongodb.seed_tradedesk_pixel`
+  (`SEED_TABLES`). It probes their `__TABLES__.last_modified_time` (metadata-only). Including the
+  seed means re-running [`../seed_pixel.py`](../seed_pixel.py) advances the gate, so a fresh CSV
+  rebuilds on the next tick with no `FORCE_REBUILD`. **`data_through` is derived from the Snowflake
+  subset only** — never the seed's load time, which would overstate how current the live data is.
 - **Watermark** = a tiny `_freshness.json` sidecar in this client's own bucket. Order matters:
   upload `mongodb.json` **first**, write the watermark **second**, so a failed upload simply
   retries next tick.
@@ -70,14 +73,20 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
   "benchmarks_market":   { /* keyed by market:   { budget_weight } */ },
   "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end, est_cpc (committed blended CPC; null for DNB IDE) */ ],
   "cs":              [ /* market, total, accepted, rejected, new, last_lead_day (status buckets: Accepted / Rejected / New=Unresponsive+New) */ ],
-  "cs_by_programme": [ /* programme, market, total, accepted, rejected, new, last_lead_day (identical buckets) */ ]
+  "cs_by_programme": [ /* programme, market, total, accepted, rejected, new, last_lead_day (identical buckets) */ ],
+  "pixel": {                                       // TTD Universal Pixel content-engagement snapshot; null if the seed/views are absent
+    "summary": { /* start, end, days, imps, cost_usd, clicks, all_conv, content_total/click/view (6 named pixels), default_total/view/click (catch-all) */ },
+    "assets":  [ /* key, asset, total, click, view — per named content landing page (Gartner MQ Leader, AI Readiness, …) */ ],
+    "dims":    { "device": [...], "environment": [...], "format": [...] }   // each: { label, imps, cost_usd, clicks }
+  }
 }
 ```
 
 Source views, one per payload branch: `paid_media_model` → `rows`; `targets` → `targets`;
 `benchmarks_strategy` / `benchmarks_market`; `budget`; `cs_leads` → `cs`;
-`cs_leads_by_programme` → `cs_by_programme`. The `window` is computed from the min/max date in
-`paid_media_model`.
+`cs_leads_by_programme` → `cs_by_programme`; `pixel_summary` / `pixel_assets` / `pixel_dims` →
+`pixel` (wrapped in `try/except` → `null` if those views/seed don't exist yet). The `window` is
+computed from the min/max date in `paid_media_model`.
 
 ---
 

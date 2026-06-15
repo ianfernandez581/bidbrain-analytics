@@ -1,17 +1,19 @@
 # deploy_platform.ps1 - one-shot, idempotent stand-up of the Bidbrain front-door platform
-# (dashboards.bidbrain.ai). Web-only Cloud Run service backed by Firestore (no dataset, no
-# bucket, no export job, no scheduler — it serves the agency/client registry, not client data).
+# (dashboards.bidbrain.ai). Web-only Cloud Run service whose agency/client registry is a single
+# PRIVATE JSON in GCS (the same private-bucket pattern every dashboard uses - no database, no
+# dataset, no export job, no scheduler).
 #
 #   HOW TO RUN (from the repo root OR from inside bidbrain-platform\):
 #       .\bidbrain-platform\deploy_platform.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 #
-# What it provisions (all idempotent): APIs (run/build/AR/secretmanager/firestore) -> Firestore
-# database (native) -> web SA + IAM (datastore.user + secretAccessor) -> 2 secrets
-# (platform-dash-session-key = this app's own session signer; platform-sso-key = the SHARED
-# cross-subdomain SSO signer, also injected into every dashboard by scripts\enable_platform_sso.ps1)
-# -> build + deploy the service -> --no-invoker-iam-check -> seed Firestore from dash\config.py.
+# What it provisions (all idempotent): APIs (run/build/AR/secretmanager/storage) -> private bucket
+# bidbrain-analytics-platform-dash -> web SA + IAM (objectAdmin on that bucket + secretAccessor) ->
+# 2 secrets (platform-dash-session-key = this app's own session signer; platform-sso-key = the
+# SHARED cross-subdomain SSO signer, also injected into every dashboard by
+# scripts\enable_platform_sso.ps1) -> build + deploy the service -> --no-invoker-iam-check ->
+# seed the registry JSON from dash\config.py.
 #
 # After this: map dashboards.bidbrain.ai at the service in Cloudflare (CNAME + Host Header
 # Override, same as every client dash), then run scripts\enable_platform_sso.ps1 so the
@@ -22,6 +24,8 @@ $PROJECT  = "bidbrain-analytics"
 $REGION   = "australia-southeast1"
 $REPO     = "bidbrain"                                  # Artifact Registry docker repo (shared)
 $SERVICE  = "platform-dash"
+$BUCKET   = "bidbrain-analytics-platform-dash"          # private; holds the registry JSON
+$DATA_OBJECT = "platform.json"
 $WEB_SA   = "platform-dash-web@${PROJECT}.iam.gserviceaccount.com"
 $SESSION_SECRET = "platform-dash-session-key"           # this app's own Flask session key
 $SSO_SECRET     = "platform-sso-key"                    # SHARED SSO signer (platform + all dashboards)
@@ -43,19 +47,16 @@ Write-Host "Deploying the Bidbrain platform front-door to $PROJECT ($REGION)`n"
 
 # ---- 1. APIs ----------------------------------------------------------------
 Write-Host "[1/6] Enabling APIs ..."
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com firestore.googleapis.com iam.googleapis.com --project $PROJECT
+gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com --project $PROJECT
 Must "enable APIs"
 
-# ---- 2. Artifact Registry + Firestore database ------------------------------
-Write-Host "[2/6] Artifact Registry + Firestore ..."
+# ---- 2. Artifact Registry + private registry bucket -------------------------
+Write-Host "[2/6] Artifact Registry + bucket ..."
 if (-not (Exists { gcloud artifacts repositories describe $REPO --location $REGION --project $PROJECT })) {
   gcloud artifacts repositories create $REPO --repository-format=docker --location $REGION --project $PROJECT; Must "create AR repo"
 }
-# Firestore native database (one per project). If a database already exists in any mode, leave it.
-if (-not (Exists { gcloud firestore databases describe --database="(default)" --project $PROJECT })) {
-  gcloud firestore databases create --location=$REGION --project $PROJECT; Must "create Firestore database (native)"
-} else {
-  Write-Host "  Firestore database already exists - leaving it alone."
+if (-not (Exists { gcloud storage buckets describe "gs://${BUCKET}" --project $PROJECT })) {
+  gcloud storage buckets create "gs://${BUCKET}" --project $PROJECT --location $REGION --uniform-bucket-level-access; Must "create bucket"
 }
 
 # ---- 3. Web service account + IAM (least privilege) -------------------------
@@ -64,8 +65,9 @@ $id = $WEB_SA.Split('@')[0]
 if (-not (Exists { gcloud iam service-accounts describe $WEB_SA --project $PROJECT })) {
   gcloud iam service-accounts create $id --display-name "Bidbrain platform front-door web service" --project $PROJECT; Must "create web SA"
 }
-# Firestore read/write for the agency/client registry. No BigQuery, no buckets.
-gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${WEB_SA}" --role="roles/datastore.user" --condition=None | Out-Null; Must "grant datastore.user"
+# objectAdmin (read+write) on its OWN bucket so the admin UI can persist edits to the registry JSON.
+# No BigQuery, no other buckets, no datastore.
+gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" --member="serviceAccount:${WEB_SA}" --role="roles/storage.objectAdmin" | Out-Null; Must "grant objectAdmin to web SA"
 
 # ---- 4. Secrets -------------------------------------------------------------
 Write-Host "[4/6] Secrets ..."
@@ -93,20 +95,21 @@ $SHA = "$SHA".Trim()
 $IMG = "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${SERVICE}:${SHA}"
 gcloud builds submit bidbrain-platform/dash --tag $IMG --region $REGION --project $PROJECT; Must "build platform image"
 gcloud run deploy $SERVICE --image $IMG --region $REGION --service-account $WEB_SA `
-  --set-env-vars "COOKIE_DOMAIN=${COOKIE_DOMAIN}" `
+  --set-env-vars "GCS_BUCKET=${BUCKET},DATA_OBJECT=${DATA_OBJECT},COOKIE_DOMAIN=${COOKIE_DOMAIN}" `
   --set-secrets "SESSION_SECRET=${SESSION_SECRET}:latest,SSO_SECRET=${SSO_SECRET}:latest" `
   --memory 512Mi --no-allow-unauthenticated --quiet --project $PROJECT; Must "deploy platform service"
 gcloud run services update $SERVICE --region $REGION --no-invoker-iam-check --project $PROJECT | Out-Null
 
-# ---- 6. Seed Firestore from dash\config.py ----------------------------------
-Write-Host "[6/6] Seeding Firestore from config.py (idempotent; refuses to clobber existing data) ..."
+# ---- 6. Seed the registry JSON from dash\config.py --------------------------
+Write-Host "[6/6] Seeding the registry from config.py (idempotent; refuses to clobber existing data) ..."
 $PYTHON = Join-Path (Get-Location) ".venv\Scripts\python.exe"
 if (Test-Path $PYTHON) {
-  & $PYTHON -m pip install -q google-cloud-firestore 2>$null
-  & $PYTHON "bidbrain-platform\dash\seed_firestore.py"
-  if ($LASTEXITCODE -ne 0) { Write-Host "  Seed step did not complete - run it by hand: .\.venv\Scripts\python.exe bidbrain-platform\dash\seed_firestore.py" -ForegroundColor Yellow }
+  & $PYTHON -m pip install -q google-cloud-storage 2>$null
+  $env:GCS_BUCKET = $BUCKET; $env:DATA_OBJECT = $DATA_OBJECT
+  & $PYTHON "bidbrain-platform\dash\seed_registry.py"
+  if ($LASTEXITCODE -ne 0) { Write-Host "  Seed step did not complete - run it by hand (set `$env:GCS_BUCKET first): .\.venv\Scripts\python.exe bidbrain-platform\dash\seed_registry.py" -ForegroundColor Yellow }
 } else {
-  Write-Host "  repo venv not found - seed manually: .\.venv\Scripts\python.exe bidbrain-platform\dash\seed_firestore.py" -ForegroundColor Yellow
+  Write-Host "  repo venv not found - seed manually: `$env:GCS_BUCKET='$BUCKET'; .\.venv\Scripts\python.exe bidbrain-platform\dash\seed_registry.py" -ForegroundColor Yellow
 }
 
 $URL = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format='value(status.url)'); $URL = "$URL".Trim()
@@ -116,6 +119,6 @@ Write-Host "    $URL"
 Write-Host "  NEXT: 1) point dashboards.bidbrain.ai at it in Cloudflare (CNAME + Host Header Override),"
 Write-Host "        2) run scripts\enable_platform_sso.ps1 so dashboards trust the SSO cookie,"
 Write-Host "        3) map each <c>.bidbrain.ai subdomain (so the .bidbrain.ai cookie reaches them)."
-Write-Host "  Admin password default is 'bidbrain-admin-2026' - change it via ADMIN_PW before seeding,"
-Write-Host "  or rotate later through Firestore. See bidbrain-platform\README.md."
+Write-Host "  Admin password default is 'bidbrain-admin-2026' - set a strong ADMIN_PW before seeding,"
+Write-Host "  or rotate it later by editing the registry. See bidbrain-platform\README.md."
 Write-Host "============================================================"

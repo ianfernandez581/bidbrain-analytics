@@ -17,6 +17,8 @@ id_ed25519
 # Local data & logs
 chunks/
 *.log
+# Raw client report exports (manual drops -> seeded into BigQuery, never committed)
+clients/*/data/
 
 # Python
 __pycache__/

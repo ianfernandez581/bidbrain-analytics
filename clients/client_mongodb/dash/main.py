@@ -9,11 +9,15 @@ and the regional filter — lives in `dashboard.html`; this file only decides
 """
 import os
 import hmac
+import json
+import hashlib
 from pathlib import Path
 from flask import (
     Flask, request, redirect, session, Response, render_template_string, abort
 )
 from google.cloud import storage
+
+from report import generate_report
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]
@@ -22,6 +26,9 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
+    # Hard cap on request bodies (Werkzeug 413s anything larger, even chunked / no Content-Length).
+    # The /report POST is the only sizeable body; everything else is tiny.
+    MAX_CONTENT_LENGTH=256 * 1024,
 )
 
 # --- config (injected by Cloud Run) ------------------------------------------
@@ -132,6 +139,72 @@ def data():
         mimetype="application/json",
         headers={"Cache-Control": "no-store"},
     )
+
+
+# Bump to invalidate every cached report when the prompts/schema change (see report.py).
+REPORT_CACHE_VERSION = "1"
+
+
+def _json_err(msg, code):
+    return Response(json.dumps({"error": msg}), status=code, mimetype="application/json")
+
+
+@app.post("/report")
+def report_route():
+    # AI account report. Auth-gated like the dashboard. The browser POSTs the current view's
+    # numbers (the same figures it renders); we cache the generated report in the private bucket
+    # keyed by VIEW IDENTITY + DATA VERSION, so re-downloading the same view costs no model calls
+    # and regenerates only when the underlying data advances. (Two users hitting the SAME uncached
+    # view at once may both generate once — accepted: low traffic, and the UI disables the button
+    # during generation so a single user can't double-fire.)
+    if not authed():
+        abort(401)
+    if request.content_length and request.content_length > 256 * 1024:
+        return _json_err("request too large", 413)
+    summary = request.get_json(silent=True)
+    if not isinstance(summary, dict):
+        return _json_err("invalid request body", 400)
+
+    ctx = summary.get("context") or {}
+    key_src = json.dumps({
+        "client": summary.get("client"),
+        "campaign": ctx.get("campaign_key"),
+        "markets": sorted(ctx.get("markets") or []),
+        "date_filter": ctx.get("date_filter") or {},
+        "data_through": ctx.get("data_through"),
+        "v": REPORT_CACHE_VERSION,
+    }, sort_keys=True)
+    h = hashlib.sha256(key_src.encode("utf-8")).hexdigest()[:16]
+    ckey = "".join(c for c in str(summary.get("client") or "mongodb").lower()
+                   if c.isalnum() or c in "-_")[:40] or "client"
+    blob = _storage.bucket(GCS_BUCKET).blob(f"reports/{ckey}_{h}.json")
+
+    # Cache hit -> instant, no model cost.
+    try:
+        if blob.exists():
+            cached = json.loads(blob.download_as_bytes())
+            cached["cached"] = True
+            return Response(json.dumps(cached), mimetype="application/json",
+                            headers={"Cache-Control": "no-store"})
+    except Exception:
+        app.logger.exception("report cache read failed")
+
+    try:
+        rpt = generate_report(summary)
+    except Exception as e:
+        app.logger.exception("report generation failed")
+        # Only surface our own vetted RuntimeError messages; anything else (anthropic SDK /
+        # google.cloud.storage) may embed URLs, request-ids, or response fragments -> log it,
+        # show a generic message.
+        msg = str(e) if isinstance(e, RuntimeError) else "report generation failed"
+        return _json_err(msg or "report generation failed", 502)
+
+    rpt["cached"] = False
+    try:
+        blob.upload_from_string(json.dumps(rpt), content_type="application/json")
+    except Exception:
+        app.logger.exception("report cache write failed")
+    return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/healthz")

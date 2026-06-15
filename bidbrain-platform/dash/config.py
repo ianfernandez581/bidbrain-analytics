@@ -25,13 +25,19 @@ ADMIN_PW = os.environ.get("ADMIN_PW", "bidbrain-admin-2026")
 AGENCY_100D_PW = os.environ.get("AGENCY_100D_PW", "100d2026")
 AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "Transmission2026")
 
-# Friendly subdomain pattern. SSO requires the dashboard and the platform to share the
-# parent domain so the `.bidbrain.ai` session cookie is sent to both.
-DASH_DOMAIN = os.environ.get("DASH_DOMAIN", "bidbrain.ai")
+# Each dashboard is its own Cloud Run service `<key>-dash`. Until a custom domain is registered
+# there are NO `<key>.bidbrain.ai` subdomains — link straight to the live GCP run.app URL
+# (deterministic project-number form). The platform is therefore a password-gated LAUNCHER:
+# clicking a tile opens that dashboard's OWN login. The seamless "no second password" SSO can't
+# work across run.app hosts (run.app is a public-suffix domain, so the shared `.bidbrain.ai`
+# cookie cannot apply) — it only switches on once these become https://<key>.<domain>/ behind a
+# registered domain (Cloud DNS + Cloud Run domain mappings). Flip _runapp -> a subdomain helper then.
+PROJECT_NUMBER = os.environ.get("PROJECT_NUMBER", "516554645957")
+REGION = os.environ.get("REGION", "australia-southeast1")
 
 
-def _sub(client_key: str) -> str:
-    return f"https://{client_key}.{DASH_DOMAIN}/"
+def _runapp(client_key: str) -> str:
+    return f"https://{client_key}-dash-{PROJECT_NUMBER}.{REGION}.run.app/"
 
 
 # --- clients ------------------------------------------------------------------------------
@@ -42,28 +48,28 @@ def _sub(client_key: str) -> str:
 CLIENTS = {
     "cityperfume": {
         "name": "City Perfume", "slug": "city-perfume", "status": "active",
-        "url": _sub("cityperfume"),
+        "url": _runapp("cityperfume"),
         "campaigns": [
             {"name": "Ads to Sales", "path": "/ads-to-sales", "status": "active"},
         ],
     },
     "vmch": {
         "name": "VMCH", "slug": "vmch", "status": "active",
-        "url": _sub("vmch"),
+        "url": _runapp("vmch"),
         "campaigns": [
             {"name": "Brand Awareness", "path": "/brand-awareness", "status": "active"},
         ],
     },
     "tlm": {
         "name": "The Little Marionette", "slug": "the-little-marionette", "status": "active",
-        "url": _sub("tlm"),
+        "url": _runapp("tlm"),
         "campaigns": [
             {"name": "Coffee Sales", "path": "/coffee-sales", "status": "active"},
         ],
     },
     "resetdata": {
         "name": "ResetData", "slug": "reset-data", "status": "active",
-        "url": _sub("resetdata"),
+        "url": _runapp("resetdata"),
         "campaigns": [
             {"name": "Lead Generation", "path": "/lead-generation", "status": "active"},
         ],
@@ -84,28 +90,28 @@ CLIENTS = {
     },
     "schneider": {
         "name": "Schneider Electric", "slug": "schneider-electric", "status": "active",
-        "url": _sub("schneider"),
+        "url": _runapp("schneider"),
         "campaigns": [
             {"name": "Plan vs Actual", "path": "/plan-vs-actual", "status": "active"},
         ],
     },
     "cloudflare": {
         "name": "Cloudflare", "slug": "cloudflare", "status": "active",
-        "url": _sub("cloudflare"),
+        "url": _runapp("cloudflare"),
         "campaigns": [
             {"name": "Always-On Media", "path": "/always-on-media", "status": "active"},
         ],
     },
     "proptrack": {
         "name": "PropTrack", "slug": "proptrack", "status": "active",
-        "url": _sub("proptrack"),
+        "url": _runapp("proptrack"),
         "campaigns": [
             {"name": "Banking ABM", "path": "/banking-abm", "status": "active"},
         ],
     },
     "mongodb": {
         "name": "MongoDB", "slug": "mongodb", "status": "active",
-        "url": _sub("mongodb"),
+        "url": _runapp("mongodb"),
         "campaigns": [
             {"name": "Paid Media + CS", "path": "/paid-media", "status": "active"},
         ],

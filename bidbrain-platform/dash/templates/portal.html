@@ -25,6 +25,10 @@
        border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none}
   .btn:hover{background:#16202f}
   .wrap{max-width:1080px;margin:0 auto;padding:40px 28px 64px}
+  .agencylogo{margin:0 0 20px}
+  .agencylogo svg,.agencylogo img{height:46px;width:auto;display:block}
+  .agencylogo.light{display:inline-block;background:#fff;padding:12px 16px;border-radius:14px;
+                    box-shadow:0 8px 28px rgba(0,0,0,.35)}
   h1{font-size:26px;font-weight:800;margin:0 0 4px}
   .agencyslug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
               color:var(--chip-text);background:var(--chip-bg);padding:3px 8px;border-radius:6px;margin-left:10px}
@@ -55,12 +59,13 @@
     <a class="btn" href="/logout">Log out</a>
   </div>
   <div class="wrap">
+    {% if agency_logo %}<div class="agencylogo {{ 'light' if agency_logo.light else '' }}">{{ agency_logo.html | safe }}</div>{% endif %}
     <h1>{{ agency.name }}<span class="agencyslug">{{ agency.slug }}</span></h1>
     <p class="lead">{{ clients|length }} dashboard{{ '' if clients|length == 1 else 's' }} · choose a client to open it. No further password needed.</p>
     <div class="grid">
       {% for c in clients %}
         {% if c.status == 'active' %}
-        <a class="tile live" href="{{ c.url }}">
+        <a class="tile live" href="/d/{{ c.key }}/">
           <div class="row"><h2>{{ c.name }}</h2><span class="pill active">ACTIVE</span></div>
           <ul class="camps">
             {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}

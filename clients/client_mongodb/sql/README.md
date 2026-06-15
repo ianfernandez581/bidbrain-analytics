@@ -32,6 +32,18 @@ views (`stg_*`) must exist before the models and rollups that read them.
 | [`08_benchmarks_strategy.sql`](08_benchmarks_strategy.sql) | `benchmarks_strategy` | **Hardcoded** CPM / CTR / frequency-cap / budget-weight plan benchmarks per strategy. |
 | [`09_benchmarks_market.sql`](09_benchmarks_market.sql) | `benchmarks_market` | **Hardcoded** budget-weight per market. |
 | [`10_budget.sql`](10_budget.sql) | `budget` | **Hardcoded** programme budget envelopes (gross/net USD, start/end). |
+| [`11_pixel_assets.sql`](11_pixel_assets.sql) | `pixel_assets` | Content-engagement: Universal Pixel landing-page views per **content asset** (the 6 named `MDB_UPM_LPView_*` pixels; the catch-all `default` is excluded here). Reads the **seed** table, not `raw_snowflake`. |
+| [`12_pixel_dims.sql`](12_pixel_dims.sql) | `pixel_dims` | Long-form delivery mix (imps/spend/clicks) by **device**, **ad environment**, **creative size** — dimensions the `raw_snowflake` mirror drops. |
+| [`13_pixel_summary.sql`](13_pixel_summary.sql) | `pixel_summary` | One-row headline for the pixel snapshot: window + delivery + the `CONTENT_*` (6 named pixels) vs `DEFAULT_*` (catch-all, view-through-dominated) conversion split. |
+
+> **The 3 `pixel_*` views read a STATIC seed, not the raw layer.** Their base tables
+> (`seed_tradedesk_pixel`, `seed_tradedesk_pixel_assets`) are a manual Trade Desk
+> "Pixel - Overall Performance" CSV loaded by [`../seed_pixel.py`](../seed_pixel.py) — they hold
+> the per-content-asset (Universal Pixel) breakdown + Device/Environment/Creative-size cuts that
+> aren't anywhere upstream. `create_views.py` builds the views, but the seed tables must already
+> exist (run `seed_pixel.py` first on a fresh project). To refresh: drop a new CSV in
+> [`../data/`](../data/) (gitignored) and re-run `seed_pixel.py` — re-seeding advances the export
+> job's freshness gate (it watches `seed_tradedesk_pixel`), so the next */10 tick rebuilds.
 
 > **The per-client filter is the main thing you change** when copying this folder for a new
 > client: the advertiser in `01_*` and the campaign IDs + market mapping in `02_*`.
@@ -65,7 +77,8 @@ in BigQuery, re-export to bring git back in sync:
 ```powershell
 $views = @("stg_tradedesk","stg_salesforce","paid_media_model","cs_leads",
            "cs_leads_by_programme","targets","targets_by_programme",
-           "benchmarks_strategy","benchmarks_market","budget")
+           "benchmarks_strategy","benchmarks_market","budget",
+           "pixel_assets","pixel_dims","pixel_summary")
 $i = 0
 foreach ($v in $views) {
   $i++

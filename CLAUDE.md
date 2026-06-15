@@ -15,18 +15,26 @@ Snowflake. Same serving pattern, but no dataset/views; service `status-dash`, jo
 bucket `bidbrain-analytics-status-dash`, SA `status-dash-job@` (needs `snowflake-bq-key` + objectViewer
 on every client bucket). See `status_dashboard/README.md`.
 
-**`bidbrain-platform/`** is the front-door (dashboards.bidbrain.ai): ONE password box over all the
-dashboards. An **agency** password opens a portal of that agency's clients with no further password;
+**`bidbrain-platform/`** is the front-door: ONE password box over all the dashboards. **LIVE on its
+Cloud Run URL** (`platform-dash-…run.app`; no custom domain needed). It's a **REVERSE PROXY**: each
+dashboard is served under the platform's own origin at `/d/<client>/`, and the platform logs into the
+upstream `<c>-dash` once (server-side, with that dashboard's own Secret-Manager password) — so after the
+ONE platform login the dashboards open with **no second password**, on raw run.app, no domain required.
+An **agency** password opens a portal of that agency's clients;
 a single **dashboard** password opens just that one; the **admin** password opens an editable
 agencies→clients→campaigns tree. Web-only service `platform-dash` (SA `platform-dash-web@`,
-`roles/datastore.user`), registry in **Firestore** (`platform_*` collections), no bucket/job/scheduler.
+`storage.objectAdmin`), registry = ONE private JSON `gs://bidbrain-analytics-platform-dash/platform.json`
+(same private-bucket pattern as the dashboards — no database), no job/scheduler.
 "No second password" = a signed **`bb_sso`** cookie scoped to `.bidbrain.ai` listing the client keys
 you may open; each dashboard's `authed()` was extended (additively — its own password still works) to
 trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shared signer secret
 `platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, +bellshakespeare/geocon
 *coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb}; **stt/hireright unassigned**.
-SSO only fires once a dashboard runs the rebuilt image AND is served on `<c>.bidbrain.ai`. See
-`bidbrain-platform/README.md`.
+No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.py`), NOT a cookie —
+the `bb_sso`/`platform_sso.py` machinery stays deployed but inert, and would only take over if a real
+domain is later wired (Cloud DNS + Cloud Run domain mappings; `australia-southeast1` supports `gcloud
+run domain-mappings`; **NO Cloudflare**). Platform SA `platform-dash-web@` has `secretAccessor` on every
+`<c>-dash-password` (to log into upstreams). See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)
@@ -46,7 +54,7 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 
 | `<c>` | Reports | Currency | Views | Watch out for |
 |---|---|---|---|---|
-| `mongodb` | TEMPLATE — Trade Desk paid media + Content Syndication (Salesforce, 3 DNB + KGA/IDC campaigns) | USD | 10 | CS map: Accepted/Rejected/New(=Unresponsive+New). KGA(IDC) campaign (`701RG00001NKKwQYAX`) has a NULL PROGRAMME_LABEL → normalised in dash (`progLabel`/`campaignOf`) |
+| `mongodb` | TEMPLATE — Trade Desk paid media + Content Syndication (Salesforce, 3 DNB + KGA/IDC campaigns) + a TTD **Universal Pixel** content-engagement snapshot | USD | 13 | CS map: Accepted/Rejected/New(=Unresponsive+New). KGA(IDC) campaign (`701RG00001NKKwQYAX`) has a NULL PROGRAMME_LABEL → normalised in dash (`progLabel`/`campaignOf`). **Pixel section** (views 11-13 `pixel_*`) is a STATIC seed, NOT in `raw_snowflake`: drop the TTD "Pixel - Overall Performance" CSV in `data/` (gitignored) → `python clients/client_mongodb/seed_pixel.py` (loads `seed_tradedesk_pixel`+`_assets`); re-seeding advances the gate so the next */10 tick rebuilds. Default pixel = view-through site visits (label as reach, not leads); Gartner MQ Leader ≈30× any other content asset. Filter-independent section on the Paid Media tab. |
 | `cloudflare` | TTD+LinkedIn+Reddit+LINE + CS + 3 single-campaign LinkedIn dashes | USD (LINE JPY→USD@155) | 6 | ONLY client modelled in Snowflake → job lands `src_*`, views are thin pass-throughs; CS map is OPPOSITE of mongodb |
 | `stt` | ARCHETYPE — GA4 web traffic vs Google Ads+LinkedIn+DV360 | SGD (USD@1.34) | 28 | `client_Adriatic_Furniture/` is a separate OPEN sample dash — don't copy its no-auth pattern; genuine time-series charts have Month/Week/Day + Relative/Absolute toggles (daily views 25–28) |
 | `schneider` | Plan-vs-actual DV360+TTD+LinkedIn (seed tables) | AUD (USD@1.50, SGD@1.15) | 28 | GA4 disabled; 11/21 budgets seeded; FX rates are placeholders; spCumulative/fnMonthly trend charts have Month/Week/Day + Relative/Absolute toggles (daily + ad_campaign_daily, views 15–16) |

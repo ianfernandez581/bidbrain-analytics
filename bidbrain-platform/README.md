@@ -1,11 +1,12 @@
 # bidbrain-platform — the front-door (dashboards.bidbrain.ai)
 
 One password box in front of all the client dashboards. It does **not** hold or show any client
-data — it's a thin Flask gate + an editable registry of agencies → clients → campaigns, backed
-by Firestore. Same serving pattern as every other dash in this repo (gunicorn, `no-store`,
-private, `--no-invoker-iam-check`).
+data — it's a thin Flask gate + an editable registry of agencies → clients → campaigns, stored
+as a single **private JSON object in GCS** (`gs://bidbrain-analytics-platform-dash/platform.json`)
+— the same private-bucket pattern every dashboard uses, no database. Same serving pattern as every
+other dash in this repo (gunicorn, `no-store`, private, `--no-invoker-iam-check`).
 
-## What a password does (resolved against Firestore by `store.resolve_password`)
+## What a password does (resolved against the registry by `store.resolve_password`)
 | You type… | You get… |
 |---|---|
 | an **agency** password (e.g. `100d2026`) | a portal of every dashboard in that agency; click any to open it with **no further password** |
@@ -20,12 +21,28 @@ private, `--no-invoker-iam-check`).
   (on hold), **HireRight**. Add them to an agency anytime via the admin UI.
 
 Admin password defaults to `bidbrain-admin-2026` — override with the `ADMIN_PW` env before
-seeding, or rotate later in Firestore.
+seeding, or rotate later by re-seeding with a new `ADMIN_PW`.
 
-## How "no second password" works — the SSO cookie
-The dashboards were already built for this: each sets `SESSION_COOKIE_SAMESITE=None; Secure`
-"for the iframe on dashboards.bidbrain.ai", but its session cookie is **host-only** (won't span
-subdomains). So the platform issues a **separate** signed cookie:
+## How "no second password" works TODAY — a reverse proxy (no domain needed)
+No `<c>.bidbrain.ai` subdomains exist, and a shared SSO cookie can't span raw `run.app` hosts
+(public-suffix). So the platform **reverse-proxies** each dashboard under its own origin:
+
+- Portal/admin tiles link to **`/d/<client>/`** (not the dashboard's run.app URL).
+- `proxy()` in `main.py` checks your platform session may open that client, then forwards to the
+  upstream `https://<c>-dash-…run.app/`, logging in **once per instance** with that dashboard's own
+  password (read from Secret Manager `<c>-dash-password`; the platform SA has `secretAccessor`). The
+  upstream session cookie is cached and reused; the dashboard's `/data.json` is rewritten to
+  `/d/<client>/data.json` so it stays inside the proxy.
+- Result: after the single platform login, dashboards just open — **no second password** — on raw
+  run.app, no domain required. Per-agency scoping is enforced on `/d/<client>/`.
+
+The `bb_sso` cookie machinery below is also deployed but **inert** — it would only take over if a real
+domain is wired later (then you'd switch the registry URLs to `https://<c>.<domain>/`).
+
+## (Future) cookie-based SSO once a domain exists
+The dashboards were already built for this: each sets `SESSION_COOKIE_SAMESITE=None; Secure`, but
+its session cookie is **host-only** (won't span subdomains). So the platform issues a **separate**
+signed cookie:
 
 - On login the platform sets **`bb_sso`** — a timed, signed (`itsdangerous`) token listing the
   client keys you may open — scoped to the parent domain **`.bidbrain.ai`** so it reaches every
@@ -48,13 +65,13 @@ password — nothing breaks): each dashboard must (1) run the rebuilt image that
 ## Layout
 ```
 bidbrain-platform/
-  deploy_platform.ps1            one-shot standup (APIs, Firestore, SA+IAM, secrets, build, deploy, seed)
+  deploy_platform.ps1            one-shot standup (APIs, bucket, SA+IAM, secrets, build, deploy, seed)
   dash/
     main.py                      Flask: login → tier resolution → SSO cookie → portal / admin / CRUD
-    store.py                     Firestore layer + password hashing + login resolution (memory backend for dev)
+    store.py                     GCS-JSON registry layer + password hashing + login resolution (memory backend for dev)
     config.py                    SEED source of truth: agencies, clients, campaigns, passwords
     platform_sso.py              shared SSO token (issuer here; VENDORED into every dashboard as the verifier)
-    seed_firestore.py            push config.py → Firestore (idempotent; --force to overwrite)
+    seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
     templates/                   login.html · portal.html · admin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
   Creatives/                     the design screenshot + source logo.svg
@@ -62,21 +79,25 @@ bidbrain-platform/
 
 ## Deploy & operate
 ```powershell
-# First-time standup (idempotent):
+# First-time standup (idempotent). DONE — platform is live at:
+#   https://platform-dash-p32gk2wuia-ts.a.run.app  (logs in; tiles link to each dashboard's run.app URL)
 .\bidbrain-platform\deploy_platform.ps1
-#   then, in Cloudflare, point dashboards.bidbrain.ai at the platform-dash service
-#   (CNAME + Host Header Override, exactly like the client dashboards — see root README §6.4).
 
-# Activate SSO on the dashboards (grants each SA the shared key + injects SSO_SECRET/CLIENT_KEY):
+# Activate SSO on the dashboards (DONE — injects SSO_SECRET/CLIENT_KEY into all 10). Stays dormant
+# until a custom domain is wired (see "To turn on real SSO" below):
 .\scripts\enable_platform_sso.ps1
-#   prereq: each dashboard rebuilt with the new image (clients\client_<c>\dash\deploy_dash_<c>.ps1)
-#   and served on <c>.bidbrain.ai.
+
+# To turn on real single-sign-on later — 100% GCP, NO Cloudflare:
+#   1. Register a domain (Cloud Domains) and host its zone in Cloud DNS.
+#   2. `gcloud beta run domain-mappings create --service=<svc> --domain=<host> --region=australia-southeast1`
+#      for platform-dash + each <c>-dash (Google auto-issues managed TLS). australia-southeast1 IS supported.
+#   3. Add the returned records in Cloud DNS; update the registry URLs to https://<c>.<domain>/.
 
 # Redeploy the platform after a code/template edit (data edits use the admin UI, not a redeploy):
 .\bidbrain-platform\dash\deploy_dash_platform.ps1
 
-# Re-seed Firestore from config.py (rare; refuses to clobber live edits unless --force):
-.\.venv\Scripts\python.exe bidbrain-platform\dash\seed_firestore.py
+# Re-seed the registry from config.py (rare; refuses to clobber live edits unless --force):
+$env:GCS_BUCKET="bidbrain-analytics-platform-dash"; .\.venv\Scripts\python.exe bidbrain-platform\dash\seed_registry.py
 ```
 
 ## Local dev (no GCP)
@@ -88,9 +109,9 @@ $env:PLATFORM_BACKEND="memory"; $env:DEV="1"; $env:SESSION_SECRET="x"; $env:SSO_
 
 ## Coordinates
 Project `bidbrain-analytics` · region `australia-southeast1` · service `platform-dash` ·
-web SA `platform-dash-web@` (`roles/datastore.user` + `secretAccessor`) · secrets
-`platform-dash-session-key`, `platform-sso-key` · Firestore collections `platform_agencies`,
-`platform_clients`, `platform_meta`. No bucket, no export job, no scheduler.
+web SA `platform-dash-web@` (`roles/storage.objectAdmin` on its bucket + `secretAccessor`) ·
+secrets `platform-dash-session-key`, `platform-sso-key` · registry
+`gs://bidbrain-analytics-platform-dash/platform.json` (private). No database, no export job, no scheduler.
 
 ## Hardening / known trade-offs
 Reviewed adversarially; the items below are deliberate trade-offs for an internal, admin-gated
@@ -109,5 +130,5 @@ front door, not open bugs:
 
 ## Cost
 One scale-to-zero Cloud Run service ≈ **$0/mo** (free tier), or **~$13–16/mo** if you set
-`min-instances=1` to avoid the ~1–3s cold start. Firestore free tier (1 GiB, 50k reads/day)
-covers the registry at ~$0. Cloudflare DNS/proxy is free. No load balancer.
+`min-instances=1` to avoid the ~1–3s cold start. The registry is one tiny JSON in GCS (a few KB) ≈
+$0. Cloudflare DNS/proxy is free. No database, no load balancer.

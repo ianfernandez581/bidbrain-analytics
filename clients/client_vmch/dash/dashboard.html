@@ -596,7 +596,10 @@ const CHART_RENDER = { ovHero:'overview', ovStack:'overview', ovDelivery:'overvi
                        pmMonthly:'paid', webTrend:'web', webKeyEvents:'web',
                        linkWeekly:'link', linkClicks:'link' };
 function segPick(btn){ if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>{ if(b.tagName==='BUTTON') b.classList.toggle('on',b===btn); }); }
-function reRender(chart){ const t=CHART_RENDER[chart];
+// MUST destroyCharts() first: each render fn rebuilds ALL of its tab's canvases, and a new Chart()
+// on a canvas that still holds the old instance throws "Canvas is already in use" — which silently
+// killed every grain/scale toggle. renderActive() (tab/date path) already does this; reRender didn't.
+function reRender(chart){ destroyCharts(); const t=CHART_RENDER[chart];
   if(t==='overview') renderOverview(); else if(t==='paid') renderPaid();
   else if(t==='web') renderWeb(); else if(t==='link') renderLink(); }
 function setGrain(chart,g,btn){ grain[chart]=g; segPick(btn); reRender(chart); }
