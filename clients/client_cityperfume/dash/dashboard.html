@@ -1055,10 +1055,14 @@ function renderYoY(){
 
   // Paired bar charts — one pair per displayed month (in-progress month shown as MTD).
   const labels=D.map(r=>r.label+(r.isMTD?' (MTD)':''));
+  // Thicker bars, grouped tighter. categoryPercentage scales with the month count (∝ n) so the per-bar
+  // slot — and thus the gap inside each year-pair — stays a roughly constant fraction of chart width
+  // whether one month or twelve are shown; maxBarThickness just caps the width (no thin-and-far-apart pair).
+  const nMo = D.length, catPct = Math.min(0.9, 0.11*nMo);
   const pairBars=(cy,py,fmtTip)=>({type:'bar',
     data:{labels,datasets:[
-      {label:curYear+' (this year)',     data:cy, backgroundColor:C.gold, borderRadius:3, maxBarThickness:26},
-      {label:(curYear-1)+' (last year)', data:py, backgroundColor:C.sand, borderRadius:3, maxBarThickness:26}]},
+      {label:curYear+' (this year)',     data:cy, backgroundColor:C.gold, borderRadius:3, maxBarThickness:72, categoryPercentage:catPct, barPercentage:0.96},
+      {label:(curYear-1)+' (last year)', data:py, backgroundColor:C.sand, borderRadius:3, maxBarThickness:72, categoryPercentage:catPct, barPercentage:0.96}]},
     options:{maintainAspectRatio:false,plugins:{legend:legendTop(),
       tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmtTip(c.parsed.y)}}},
       scales:{x:axisX(),y:gridY({ticks:{callback:fmtTip}})}}});
