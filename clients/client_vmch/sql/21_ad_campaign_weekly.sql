@@ -7,7 +7,9 @@ WITH agg AS (
     DATE_TRUNC(metric_date, WEEK(MONDAY)) AS week_start,
     SUM(imps)      AS imps,
     SUM(clicks)    AS clicks,
-    SUM(spend_aud) AS spend_aud
+    SUM(spend_aud) AS spend_aud,
+    SUM(post_view_conv)  AS post_view,
+    SUM(post_click_conv) AS post_click
   FROM `bidbrain-analytics.client_vmch.stg_ad_delivery`
   WHERE metric_date >= DATE '2026-04-01'
   GROUP BY platform, campaign, week_start

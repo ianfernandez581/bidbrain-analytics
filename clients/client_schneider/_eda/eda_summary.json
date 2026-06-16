@@ -1,0 +1,3237 @@
+{
+  "seed_order": [
+    "eae",
+    "eba",
+    "aveva",
+    "ai_lc",
+    "csp",
+    "ent_it",
+    "water_env",
+    "ind_edge",
+    "mcset",
+    "ia_services",
+    "impact_maker",
+    "iof",
+    "mea_seg",
+    "power_products",
+    "digital_bldg",
+    "digital_power",
+    "ecocare",
+    "modernisation",
+    "active_kpx",
+    "pac_hybrid_it",
+    "airset",
+    "heavy",
+    "ecoconsult",
+    "global_rebrand",
+    "healthcare",
+    "microgrid",
+    "enterprise_software"
+  ],
+  "inventory": [
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_ANZ_Imapct_Maker_1914",
+      "id": "impact_maker",
+      "imps": 19241041,
+      "clicks": 6789,
+      "spend_aud": 33336.0,
+      "start": "2025-11-30",
+      "end": "2026-03-27"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_C&SP_Awareness_1608",
+      "id": "csp",
+      "imps": 8290921,
+      "clicks": 36006,
+      "spend_aud": 30418.21,
+      "start": "2025-09-12",
+      "end": "2025-12-07"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_2025_AI in DC_ Awareness_1925",
+      "id": "ai_lc",
+      "imps": 11852116,
+      "clicks": 172160,
+      "spend_aud": 29578.39,
+      "start": "2025-11-19",
+      "end": "2026-02-17"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_ANZ_Ecostructure_Automation_Expert_1974",
+      "id": "eae",
+      "imps": 13822157,
+      "clicks": 14041,
+      "spend_aud": 28329.35,
+      "start": "2025-12-01",
+      "end": "2026-06-09"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_ANZ_2025_Power_Products_1916",
+      "id": "power_products",
+      "imps": 10313375,
+      "clicks": 32810,
+      "spend_aud": 20999.62,
+      "start": "2025-11-26",
+      "end": "2026-04-01"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_2025_Industries of the Future_Awareness_1899",
+      "id": "iof",
+      "imps": 32563770,
+      "clicks": 3971,
+      "spend_aud": 15201.29,
+      "start": "2025-10-29",
+      "end": "2026-02-01"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_ANZ_Impact_Maker_Non_C&SP_AU",
+      "id": "csp",
+      "imps": 446147,
+      "clicks": 1565,
+      "spend_aud": 15001.61,
+      "start": "2025-12-03",
+      "end": "2026-03-26"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_ANZ_Impact_Maker_C&SP_AU",
+      "id": "csp",
+      "imps": 381780,
+      "clicks": 662,
+      "spend_aud": 15001.5,
+      "start": "2025-12-03",
+      "end": "2026-03-26"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "APAC_SE_Digital Building_1721",
+      "id": "digital_bldg",
+      "imps": 1209625,
+      "clicks": 601,
+      "spend_aud": 7937.48,
+      "start": "2025-10-07",
+      "end": "2025-11-04"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_LQAIDC_TTD_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 348420,
+      "clicks": 1028,
+      "spend_aud": 5830.71,
+      "start": "2026-05-18",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers",
+      "id": "ia_services",
+      "imps": 37027,
+      "clicks": 164,
+      "spend_aud": 4210.19,
+      "start": "2026-03-10",
+      "end": "2026-06-01"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_Cooling Solutions Event Registrations LP Visit",
+      "id": "mcset",
+      "imps": 52007,
+      "clicks": 219,
+      "spend_aud": 4044.0,
+      "start": "2025-08-29",
+      "end": "2025-09-24"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Industrial Manufacture",
+      "id": "ind_edge",
+      "imps": 38432,
+      "clicks": 114,
+      "spend_aud": 3811.8,
+      "start": "2025-10-13",
+      "end": "2025-12-08"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Public_Access_AU",
+      "id": "digital_power",
+      "imps": 142321,
+      "clicks": 180,
+      "spend_aud": 3778.07,
+      "start": "2025-12-03",
+      "end": "2026-03-01"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "2353_FY25Q2_MEA Segment Healthcare Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+      "id": "mea_seg",
+      "imps": 69325,
+      "clicks": 311,
+      "spend_aud": 3641.46,
+      "start": "2025-07-02",
+      "end": "2025-09-15"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "(APAC) - Schneider Electric_1130_Cooling Solutions Event Registrations/ Sign Ups",
+      "id": "mcset",
+      "imps": 405276,
+      "clicks": 548,
+      "spend_aud": 3514.16,
+      "start": "2025-08-26",
+      "end": "2025-09-12"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ MMM",
+      "id": "ind_edge",
+      "imps": 28954,
+      "clicks": 93,
+      "spend_aud": 3378.42,
+      "start": "2025-10-13",
+      "end": "2025-12-08"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_C&SP_Awareness_India",
+      "id": "csp",
+      "imps": 325321,
+      "clicks": 1038,
+      "spend_aud": 3309.66,
+      "start": "2025-09-12",
+      "end": "2025-10-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_C&SP_Awareness_Japan",
+      "id": "csp",
+      "imps": 33748,
+      "clicks": 133,
+      "spend_aud": 3308.81,
+      "start": "2025-09-18",
+      "end": "2025-10-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Energies&Chemicals_AU",
+      "id": "digital_power",
+      "imps": 121979,
+      "clicks": 154,
+      "spend_aud": 3218.38,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO_1899_IOF_ Mining, Minerals & Metals_ Awareness_ Single Image",
+      "id": "iof",
+      "imps": 153748,
+      "clicks": 136,
+      "spend_aud": 3166.36,
+      "start": "2025-10-24",
+      "end": "2026-01-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO_1899_IOF_ Mining, Minerals & Metals_ Awareness_ Video",
+      "id": "iof",
+      "imps": 150344,
+      "clicks": 253,
+      "spend_aud": 3166.05,
+      "start": "2025-10-24",
+      "end": "2026-01-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_C&SP_Awareness_ANZ",
+      "id": "csp",
+      "imps": 79940,
+      "clicks": 144,
+      "spend_aud": 3160.26,
+      "start": "2025-09-12",
+      "end": "2025-10-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_C&SP_Awareness_SEA",
+      "id": "csp",
+      "imps": 20587,
+      "clicks": 88,
+      "spend_aud": 3152.1,
+      "start": "2025-09-12",
+      "end": "2025-10-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_C&SP_Awareness_MEA",
+      "id": "csp",
+      "imps": 71216,
+      "clicks": 234,
+      "spend_aud": 2993.37,
+      "start": "2025-09-12",
+      "end": "2025-10-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "2353_FY25Q2_MEA Segment CPG Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+      "id": "mea_seg",
+      "imps": 128419,
+      "clicks": 548,
+      "spend_aud": 2942.45,
+      "start": "2025-07-02",
+      "end": "2025-09-30"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Single Image",
+      "id": "ecocare",
+      "imps": 24680,
+      "clicks": 63,
+      "spend_aud": 2936.39,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_PAC",
+      "id": "ent_it",
+      "imps": 106224,
+      "clicks": 218,
+      "spend_aud": 2895.05,
+      "start": "2026-05-14",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Awareness",
+      "id": "(unmapped)",
+      "imps": 127750,
+      "clicks": 115,
+      "spend_aud": 2886.22,
+      "start": "2025-09-12",
+      "end": "2025-10-21"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_All TAL_ANZ_JobTitles_Awareness_Static",
+      "id": "pac_hybrid_it",
+      "imps": 81846,
+      "clicks": 79,
+      "spend_aud": 2879.62,
+      "start": "2025-06-02",
+      "end": "2025-07-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers (Conversions)",
+      "id": "ia_services",
+      "imps": 1496,
+      "clicks": 12,
+      "spend_aud": 2800.0,
+      "start": "2026-05-26",
+      "end": "2026-06-01"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_LQAIDC_LI_India_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 327622,
+      "clicks": 1458,
+      "spend_aud": 2717.27,
+      "start": "2026-05-16",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "dv360",
+      "campaign": "(APAC) - Schneider Electric_MEA Segment Marketing Program_MEA_Q225 - (JN2353)",
+      "id": "mea_seg",
+      "imps": 497426,
+      "clicks": 3401,
+      "spend_aud": 2631.62,
+      "start": "2025-07-26",
+      "end": "2025-09-07"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EBA_Activate_AWR_June4",
+      "id": "eba",
+      "imps": 2022891,
+      "clicks": 1862,
+      "spend_aud": 2623.36,
+      "start": "2026-06-05",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_Education_AU",
+      "id": "digital_power",
+      "imps": 60763,
+      "clicks": 79,
+      "spend_aud": 2488.17,
+      "start": "2026-01-14",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Consideration_Japan",
+      "id": "csp",
+      "imps": 15868,
+      "clicks": 37,
+      "spend_aud": 2449.35,
+      "start": "2025-09-18",
+      "end": "2025-12-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Consideration_SEA",
+      "id": "csp",
+      "imps": 15900,
+      "clicks": 47,
+      "spend_aud": 2448.74,
+      "start": "2025-11-03",
+      "end": "2025-12-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Consideration_MEA",
+      "id": "csp",
+      "imps": 64112,
+      "clicks": 162,
+      "spend_aud": 2447.96,
+      "start": "2025-09-15",
+      "end": "2025-12-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Consideration_INDIA",
+      "id": "csp",
+      "imps": 167663,
+      "clicks": 432,
+      "spend_aud": 2447.19,
+      "start": "2025-11-03",
+      "end": "2025-12-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Awareness Video",
+      "id": "ecocare",
+      "imps": 18504,
+      "clicks": 54,
+      "spend_aud": 2308.28,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_AI in DC_ Singapore_ Awareness",
+      "id": "ai_lc",
+      "imps": 30597,
+      "clicks": 84,
+      "spend_aud": 2253.92,
+      "start": "2025-11-09",
+      "end": "2026-02-10"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_AI in DC_ Indonesia_ Awareness",
+      "id": "ai_lc",
+      "imps": 63640,
+      "clicks": 133,
+      "spend_aud": 2253.88,
+      "start": "2025-11-09",
+      "end": "2026-02-10"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_AI in DC_ Malaysia_ Awareness",
+      "id": "ai_lc",
+      "imps": 47425,
+      "clicks": 92,
+      "spend_aud": 2253.22,
+      "start": "2025-11-09",
+      "end": "2026-02-10"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_AI in DC_ Thailand_ Awareness",
+      "id": "ai_lc",
+      "imps": 10854,
+      "clicks": 28,
+      "spend_aud": 2203.24,
+      "start": "2025-11-09",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Consideration_ANZ",
+      "id": "csp",
+      "imps": 17639,
+      "clicks": 39,
+      "spend_aud": 2137.37,
+      "start": "2025-09-15",
+      "end": "2025-12-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_Cybersecurity_ANZ_JobTitles_WebsiteTraffic_Static",
+      "id": "pac_hybrid_it",
+      "imps": 29547,
+      "clicks": 99,
+      "spend_aud": 2086.08,
+      "start": "2025-07-03",
+      "end": "2025-08-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1759_Schneider_Modernisation_FY25Q3_ANZ_Website_visits",
+      "id": "modernisation",
+      "imps": 66290,
+      "clicks": 335,
+      "spend_aud": 2047.73,
+      "start": "2025-09-23",
+      "end": "2025-10-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Schneider_Modernisation_FY25Q3_ANZ_Lead Generation_Conversion",
+      "id": "modernisation",
+      "imps": 19781,
+      "clicks": 112,
+      "spend_aud": 1957.7,
+      "start": "2025-10-14",
+      "end": "2025-11-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_MINING, WHOLESALE METALS & MINERALS",
+      "id": "ecocare",
+      "imps": 107364,
+      "clicks": 47,
+      "spend_aud": 1952.13,
+      "start": "2025-08-06",
+      "end": "2025-11-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_IT DC_ANZ_JobTitles_WebsiteTraffic_Static",
+      "id": "pac_hybrid_it",
+      "imps": 19146,
+      "clicks": 70,
+      "spend_aud": 1920.0,
+      "start": "2025-07-03",
+      "end": "2025-08-02"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_MEA",
+      "id": "ent_it",
+      "imps": 116051,
+      "clicks": 311,
+      "spend_aud": 1919.79,
+      "start": "2026-05-14",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO_1899_IOF_Water and Wastewater_ Awareness_ Single Image",
+      "id": "iof",
+      "imps": 89660,
+      "clicks": 79,
+      "spend_aud": 1899.27,
+      "start": "2025-10-24",
+      "end": "2026-01-31"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO_1899_IOF_Water and Wastewater_ Awareness_ VIdeo",
+      "id": "iof",
+      "imps": 85150,
+      "clicks": 147,
+      "spend_aud": 1898.97,
+      "start": "2025-10-24",
+      "end": "2026-01-31"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_SAM",
+      "id": "ent_it",
+      "imps": 123833,
+      "clicks": 290,
+      "spend_aud": 1836.22,
+      "start": "2026-05-14",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_India",
+      "id": "ent_it",
+      "imps": 146418,
+      "clicks": 358,
+      "spend_aud": 1824.1,
+      "start": "2026-05-14",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_ClevelPersona_ANZ_JobTitles_WebsiteTraffic_Static",
+      "id": "pac_hybrid_it",
+      "imps": 12313,
+      "clicks": 48,
+      "spend_aud": 1824.0,
+      "start": "2025-07-03",
+      "end": "2025-08-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "2353_FY25Q2_MEA Segment Marketing_Finance Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+      "id": "mea_seg",
+      "imps": 44553,
+      "clicks": 197,
+      "spend_aud": 1736.06,
+      "start": "2025-06-16",
+      "end": "2025-07-11"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_ANZ_Impact_Maker_Non_C&SP_NZ",
+      "id": "csp",
+      "imps": 38666,
+      "clicks": 122,
+      "spend_aud": 1666.84,
+      "start": "2025-12-03",
+      "end": "2026-03-26"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_ANZ_Impact_Maker_C&SP_NZ",
+      "id": "csp",
+      "imps": 34309,
+      "clicks": 66,
+      "spend_aud": 1666.72,
+      "start": "2025-12-03",
+      "end": "2026-03-26"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_LQAIDC_LI_Australia_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 20211,
+      "clicks": 83,
+      "spend_aud": 1656.22,
+      "start": "2026-05-16",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1759_Schneider_Spaas_FY25Q3_ANZ_Traffic_Static_Group1",
+      "id": "modernisation",
+      "imps": 12383,
+      "clicks": 51,
+      "spend_aud": 1579.5,
+      "start": "2025-08-26",
+      "end": "2025-10-11"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_TRANSPORTATION",
+      "id": "ecocare",
+      "imps": 85078,
+      "clicks": 51,
+      "spend_aud": 1569.84,
+      "start": "2025-08-06",
+      "end": "2025-11-25"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare",
+      "id": "ecocare",
+      "imps": 80483,
+      "clicks": 51,
+      "spend_aud": 1561.53,
+      "start": "2025-08-06",
+      "end": "2025-11-14"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Single Image",
+      "id": "ecocare",
+      "imps": 12315,
+      "clicks": 20,
+      "spend_aud": 1453.09,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1759_Schneider_Modernisation_FY25Q3_ANZ_Awareness",
+      "id": "modernisation",
+      "imps": 90447,
+      "clicks": 464,
+      "spend_aud": 1440.0,
+      "start": "2025-08-26",
+      "end": "2025-09-22"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_LQAIDC_LI_Brazil_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 66577,
+      "clicks": 253,
+      "spend_aud": 1434.08,
+      "start": "2026-05-16",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1759_Schneider_Spaas_FY25Q3_ANZ_Lead_Static_Group1",
+      "id": "modernisation",
+      "imps": 11916,
+      "clicks": 67,
+      "spend_aud": 1417.5,
+      "start": "2025-08-26",
+      "end": "2025-10-06"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_AI in DC_ Vietnam_ Awareness",
+      "id": "ai_lc",
+      "imps": 1190,
+      "clicks": 3,
+      "spend_aud": 1377.02,
+      "start": "2025-11-09",
+      "end": "2026-01-11"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_AI in DC _Philippines _ Awareness",
+      "id": "ai_lc",
+      "imps": 5286,
+      "clicks": 29,
+      "spend_aud": 1374.78,
+      "start": "2025-11-09",
+      "end": "2026-01-11"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1759_Schneider_Spaas_FY25Q3_ANZ_WT_Conversion_Static_Group1",
+      "id": "modernisation",
+      "imps": 13176,
+      "clicks": 59,
+      "spend_aud": 1359.0,
+      "start": "2025-08-26",
+      "end": "2025-10-01"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1721_SE_ANZ_ESW_Digital Buildings_Consideration_Retail",
+      "id": "digital_bldg",
+      "imps": 7053,
+      "clicks": 29,
+      "spend_aud": 1344.0,
+      "start": "2025-09-09",
+      "end": "2025-10-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1721_SE_ANZ_ESW_Digital Buildings_Consideration_Healthcare",
+      "id": "digital_bldg",
+      "imps": 6341,
+      "clicks": 31,
+      "spend_aud": 1344.0,
+      "start": "2025-09-09",
+      "end": "2025-10-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Awareness Video",
+      "id": "ecocare",
+      "imps": 10907,
+      "clicks": 28,
+      "spend_aud": 1327.6,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Schneider_Electric_AI Services_Q1_2026_NZ - Industrial Decision Makers",
+      "id": "ia_services",
+      "imps": 10892,
+      "clicks": 45,
+      "spend_aud": 1225.15,
+      "start": "2026-03-10",
+      "end": "2026-06-01"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Schneider_Modernisation_FY25Q3_ANZ_Lead Generation_Retargeting",
+      "id": "modernisation",
+      "imps": 2669,
+      "clicks": 38,
+      "spend_aud": 1206.57,
+      "start": "2025-10-24",
+      "end": "2025-12-01"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_WaterEnv_P2_AWR - AU",
+      "id": "water_env",
+      "imps": 168633,
+      "clicks": 781,
+      "spend_aud": 1170.83,
+      "start": "2026-04-30",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_WaterEnv_P2_Cons_TAL-Persona - AU",
+      "id": "water_env",
+      "imps": 7943,
+      "clicks": 26,
+      "spend_aud": 1166.28,
+      "start": "2026-04-29",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_Education",
+      "id": "ind_edge",
+      "imps": 10800,
+      "clicks": 31,
+      "spend_aud": 1125.62,
+      "start": "2025-10-13",
+      "end": "2025-12-08"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_LQAIDC_LI_KSA_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 27996,
+      "clicks": 118,
+      "spend_aud": 1112.46,
+      "start": "2026-05-16",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_LQAIDC_LI_UAE_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 23138,
+      "clicks": 115,
+      "spend_aud": 1104.58,
+      "start": "2026-05-16",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_LQAIDC_LI_Chile_TOFU_May26",
+      "id": "ai_lc",
+      "imps": 26687,
+      "clicks": 87,
+      "spend_aud": 1098.27,
+      "start": "2026-05-16",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_IT DC_ANZ_JobTitles_WebsiteTraffic_Static RETARGETING",
+      "id": "pac_hybrid_it",
+      "imps": 5388,
+      "clicks": 15,
+      "spend_aud": 1056.0,
+      "start": "2025-08-04",
+      "end": "2025-09-03"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_Cybersecurity_ANZ_JobTitles_WebsiteTraffic_Static RETARGETING",
+      "id": "pac_hybrid_it",
+      "imps": 7806,
+      "clicks": 30,
+      "spend_aud": 1056.0,
+      "start": "2025-08-04",
+      "end": "2025-09-03"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1130_FY25Q2_Pacific Hybrid IT_Procurement_ANZ_JobTitles_WebsiteTraffic_Static",
+      "id": "pac_hybrid_it",
+      "imps": 10239,
+      "clicks": 27,
+      "spend_aud": 1008.0,
+      "start": "2025-07-03",
+      "end": "2025-08-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1721_SE_ANZ_ESW_Digital Buildings_Video",
+      "id": "digital_bldg",
+      "imps": 26211,
+      "clicks": 39,
+      "spend_aud": 952.77,
+      "start": "2025-08-08",
+      "end": "2025-08-29"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video",
+      "id": "ecocare",
+      "imps": 7007,
+      "clicks": 29,
+      "spend_aud": 938.9,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Energies&Chemicals_NZ",
+      "id": "digital_power",
+      "imps": 28475,
+      "clicks": 52,
+      "spend_aud": 937.17,
+      "start": "2025-12-03",
+      "end": "2026-02-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image",
+      "id": "ecocare",
+      "imps": 7383,
+      "clicks": 12,
+      "spend_aud": 927.55,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_Industrial_Manufacturing_NZ",
+      "id": "digital_power",
+      "imps": 8357,
+      "clicks": 7,
+      "spend_aud": 909.94,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1896_SE_ Active KPX_ Awareness _AU_ Single Image",
+      "id": "active_kpx",
+      "imps": 40176,
+      "clicks": 43,
+      "spend_aud": 897.0,
+      "start": "2025-10-29",
+      "end": "2025-11-27"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1896_SE_ Active KPX_ Awareness _AU_ Carousel",
+      "id": "active_kpx",
+      "imps": 40892,
+      "clicks": 36,
+      "spend_aud": 897.0,
+      "start": "2025-11-02",
+      "end": "2025-11-27"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Public_Access_NZ",
+      "id": "digital_power",
+      "imps": 26252,
+      "clicks": 41,
+      "spend_aud": 865.56,
+      "start": "2025-12-03",
+      "end": "2026-02-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1896_SE_ Active KPX_ Awareness _NZ_ Single Image",
+      "id": "active_kpx",
+      "imps": 39087,
+      "clicks": 31,
+      "spend_aud": 862.5,
+      "start": "2025-10-29",
+      "end": "2025-12-04"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1759_Schneider_Modernisation_FY25Q3_ANZ_Website_visits_Carousel",
+      "id": "modernisation",
+      "imps": 8263,
+      "clicks": 34,
+      "spend_aud": 831.0,
+      "start": "2025-10-07",
+      "end": "2025-10-18"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_S2_SAM",
+      "id": "ent_it",
+      "imps": 52125,
+      "clicks": 148,
+      "spend_aud": 819.76,
+      "start": "2026-05-23",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_S2_MEA",
+      "id": "ent_it",
+      "imps": 50125,
+      "clicks": 206,
+      "spend_aud": 819.2,
+      "start": "2026-05-23",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_EntIT_2026_S2_India",
+      "id": "ent_it",
+      "imps": 72837,
+      "clicks": 276,
+      "spend_aud": 814.69,
+      "start": "2026-05-23",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Industrial_Manufacturing_AU",
+      "id": "digital_power",
+      "imps": 20316,
+      "clicks": 19,
+      "spend_aud": 802.08,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_ENERGY & CHEMICALS",
+      "id": "ecocare",
+      "imps": 28700,
+      "clicks": 26,
+      "spend_aud": 769.17,
+      "start": "2025-08-06",
+      "end": "2025-10-04"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "2353_FY25Q2_MEA Segment Marketing_Finance Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic v2",
+      "id": "mea_seg",
+      "imps": 16770,
+      "clicks": 63,
+      "spend_aud": 761.39,
+      "start": "2025-07-29",
+      "end": "2025-08-23"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Single Image",
+      "id": "ecocare",
+      "imps": 5894,
+      "clicks": 16,
+      "spend_aud": 731.26,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_Renewables (100%)",
+      "id": "ecocare",
+      "imps": 22478,
+      "clicks": 18,
+      "spend_aud": 689.33,
+      "start": "2025-08-06",
+      "end": "2025-10-20"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1896_SE_ Active KPX_ Awareness _NZ_ Carousel",
+      "id": "active_kpx",
+      "imps": 28259,
+      "clicks": 39,
+      "spend_aud": 672.75,
+      "start": "2025-11-02",
+      "end": "2025-11-27"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Hero_AdGroup",
+      "id": "ent_it",
+      "imps": 7476,
+      "clicks": 14,
+      "spend_aud": 652.45,
+      "start": "2026-05-06",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Single Image",
+      "id": "ecocare",
+      "imps": 680,
+      "clicks": 4,
+      "spend_aud": 643.08,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Awareness Video",
+      "id": "ecocare",
+      "imps": 657,
+      "clicks": 2,
+      "spend_aud": 626.35,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Education_AU",
+      "id": "digital_power",
+      "imps": 15452,
+      "clicks": 9,
+      "spend_aud": 611.22,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_WaterEnv_P2_Cons_TAL-Persona - NZ",
+      "id": "water_env",
+      "imps": 1690,
+      "clicks": 3,
+      "spend_aud": 579.13,
+      "start": "2026-04-29",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Hero_AdGroup",
+      "id": "ent_it",
+      "imps": 25071,
+      "clicks": 54,
+      "spend_aud": 529.44,
+      "start": "2026-05-06",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Hero_AdGroup",
+      "id": "ent_it",
+      "imps": 35723,
+      "clicks": 120,
+      "spend_aud": 525.57,
+      "start": "2026-05-06",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Hero_AdGroup",
+      "id": "ent_it",
+      "imps": 54812,
+      "clicks": 167,
+      "spend_aud": 524.35,
+      "start": "2026-05-06",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_CRE_AU",
+      "id": "digital_power",
+      "imps": 12964,
+      "clicks": 16,
+      "spend_aud": 452.22,
+      "start": "2026-01-14",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Industrial_Manufacturing_NZ",
+      "id": "digital_power",
+      "imps": 4290,
+      "clicks": 8,
+      "spend_aud": 443.15,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image",
+      "id": "ecocare",
+      "imps": 400,
+      "clicks": 1,
+      "spend_aud": 433.51,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Retail_AdGroup",
+      "id": "ent_it",
+      "imps": 1934,
+      "clicks": 3,
+      "spend_aud": 398.75,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Education_AdGroup",
+      "id": "ent_it",
+      "imps": 1787,
+      "clicks": 5,
+      "spend_aud": 396.12,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Healthcare_AdGroup",
+      "id": "ent_it",
+      "imps": 2058,
+      "clicks": 4,
+      "spend_aud": 392.65,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Finance_AdGroup",
+      "id": "ent_it",
+      "imps": 2256,
+      "clicks": 1,
+      "spend_aud": 392.08,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Manufacturing_AdGroup",
+      "id": "ent_it",
+      "imps": 2931,
+      "clicks": 3,
+      "spend_aud": 390.63,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Education_AdGroup",
+      "id": "ent_it",
+      "imps": 1161,
+      "clicks": 6,
+      "spend_aud": 389.08,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Education_AdGroup",
+      "id": "ent_it",
+      "imps": 2041,
+      "clicks": 7,
+      "spend_aud": 376.12,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_PAC_Generic_AdGroup",
+      "id": "ent_it",
+      "imps": 4429,
+      "clicks": 12,
+      "spend_aud": 373.64,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Education_AdGroup",
+      "id": "ent_it",
+      "imps": 4012,
+      "clicks": 7,
+      "spend_aud": 360.43,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Healthcare_AdGroup",
+      "id": "ent_it",
+      "imps": 4245,
+      "clicks": 7,
+      "spend_aud": 357.4,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Finance_AdGroup",
+      "id": "ent_it",
+      "imps": 6086,
+      "clicks": 12,
+      "spend_aud": 355.74,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Awareness Video",
+      "id": "ecocare",
+      "imps": 2949,
+      "clicks": 5,
+      "spend_aud": 354.1,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Retail_AdGroup",
+      "id": "ent_it",
+      "imps": 5757,
+      "clicks": 14,
+      "spend_aud": 353.65,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Manufacturing_AdGroup",
+      "id": "ent_it",
+      "imps": 8095,
+      "clicks": 12,
+      "spend_aud": 350.12,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Healthcare_AdGroup",
+      "id": "ent_it",
+      "imps": 7759,
+      "clicks": 17,
+      "spend_aud": 349.26,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Retail_AdGroup",
+      "id": "ent_it",
+      "imps": 6625,
+      "clicks": 14,
+      "spend_aud": 347.65,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_SAM_Generic_AdGroup",
+      "id": "ent_it",
+      "imps": 13328,
+      "clicks": 32,
+      "spend_aud": 346.6,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water",
+      "id": "ind_edge",
+      "imps": 2752,
+      "clicks": 11,
+      "spend_aud": 346.47,
+      "start": "2025-10-13",
+      "end": "2025-11-02"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Finance_AdGroup",
+      "id": "ent_it",
+      "imps": 11317,
+      "clicks": 22,
+      "spend_aud": 343.68,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Generic_AdGroup",
+      "id": "ent_it",
+      "imps": 21576,
+      "clicks": 77,
+      "spend_aud": 341.77,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_MEA_Manufacturing_AdGroup",
+      "id": "ent_it",
+      "imps": 13394,
+      "clicks": 34,
+      "spend_aud": 341.56,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Finance_AdGroup",
+      "id": "ent_it",
+      "imps": 16826,
+      "clicks": 36,
+      "spend_aud": 340.86,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Retail_AdGroup",
+      "id": "ent_it",
+      "imps": 14369,
+      "clicks": 28,
+      "spend_aud": 339.64,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Healthcare_AdGroup",
+      "id": "ent_it",
+      "imps": 18427,
+      "clicks": 62,
+      "spend_aud": 337.96,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Manufacturing_AdGroup",
+      "id": "ent_it",
+      "imps": 28931,
+      "clicks": 99,
+      "spend_aud": 337.88,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SE_EntIT_2026_India_Generic_AdGroup",
+      "id": "ent_it",
+      "imps": 33207,
+      "clicks": 92,
+      "spend_aud": 335.83,
+      "start": "2026-05-13",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video",
+      "id": "ecocare",
+      "imps": 402,
+      "clicks": 0,
+      "spend_aud": 334.79,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_GOVERNMENT",
+      "id": "ecocare",
+      "imps": 2975,
+      "clicks": 6,
+      "spend_aud": 333.4,
+      "start": "2025-08-06",
+      "end": "2025-08-25"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_Retail_Chains_and_Building_AU",
+      "id": "digital_power",
+      "imps": 8803,
+      "clicks": 13,
+      "spend_aud": 308.92,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Single Image",
+      "id": "ecocare",
+      "imps": 346,
+      "clicks": 2,
+      "spend_aud": 298.59,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Awareness Video",
+      "id": "ecocare",
+      "imps": 350,
+      "clicks": 0,
+      "spend_aud": 291.71,
+      "start": "2025-11-10",
+      "end": "2025-12-05"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_WaterEnv_P2_AWR - NZ",
+      "id": "water_env",
+      "imps": 70089,
+      "clicks": 207,
+      "spend_aud": 250.49,
+      "start": "2026-04-30",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Consideration",
+      "id": "(unmapped)",
+      "imps": 4775,
+      "clicks": 8,
+      "spend_aud": 216.69,
+      "start": "2025-09-12",
+      "end": "2025-09-12"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_NEL_TTD_AWR_AU_Jun26",
+      "id": "(unmapped)",
+      "imps": 2872,
+      "clicks": 7,
+      "spend_aud": 198.17,
+      "start": "2026-06-06",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_Industrial_Manufacturing_AU",
+      "id": "digital_power",
+      "imps": 4433,
+      "clicks": 4,
+      "spend_aud": 159.96,
+      "start": "2025-12-03",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Established Operators_Japan",
+      "id": "csp",
+      "imps": 183,
+      "clicks": 2,
+      "spend_aud": 102.99,
+      "start": "2025-09-15",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Emerging Operators_Japan",
+      "id": "csp",
+      "imps": 266,
+      "clicks": 1,
+      "spend_aud": 101.97,
+      "start": "2025-09-15",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Emerging Operators_ANZ",
+      "id": "csp",
+      "imps": 538,
+      "clicks": 2,
+      "spend_aud": 101.61,
+      "start": "2025-09-15",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_CRE_AU",
+      "id": "digital_power",
+      "imps": 2851,
+      "clicks": 3,
+      "spend_aud": 98.0,
+      "start": "2026-01-14",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Specialist Operators_INDIA",
+      "id": "csp",
+      "imps": 2195,
+      "clicks": 5,
+      "spend_aud": 97.5,
+      "start": "2025-09-15",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Emerging Operators_MEA",
+      "id": "csp",
+      "imps": 1193,
+      "clicks": 4,
+      "spend_aud": 94.46,
+      "start": "2025-09-15",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Emerging Operators_SEA",
+      "id": "csp",
+      "imps": 952,
+      "clicks": 4,
+      "spend_aud": 90.0,
+      "start": "2025-09-15",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Government Facilities_ Single Image",
+      "id": "ecocare",
+      "imps": 185,
+      "clicks": 0,
+      "spend_aud": 83.55,
+      "start": "2025-11-10",
+      "end": "2025-11-14"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "RM AirSeT – Retargeting – ANZ",
+      "id": "airset",
+      "imps": 1217,
+      "clicks": 4,
+      "spend_aud": 72.84,
+      "start": "2026-06-12",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_CRE_NZ",
+      "id": "digital_power",
+      "imps": 858,
+      "clicks": 1,
+      "spend_aud": 65.05,
+      "start": "2026-01-14",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_Retail_Chains_and_Building_NZ",
+      "id": "digital_power",
+      "imps": 534,
+      "clicks": 0,
+      "spend_aud": 58.43,
+      "start": "2026-01-14",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SM AirSeT – Retargeting – ANZ",
+      "id": "airset",
+      "imps": 776,
+      "clicks": 7,
+      "spend_aud": 55.07,
+      "start": "2026-06-12",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Retail Chain_NZ",
+      "id": "digital_power",
+      "imps": 539,
+      "clicks": 1,
+      "spend_aud": 51.92,
+      "start": "2026-01-14",
+      "end": "2026-02-28"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Established Operators_INDIA",
+      "id": "csp",
+      "imps": 2034,
+      "clicks": 7,
+      "spend_aud": 51.86,
+      "start": "2025-09-18",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Established Operators_MEA",
+      "id": "csp",
+      "imps": 1256,
+      "clicks": 3,
+      "spend_aud": 48.98,
+      "start": "2025-09-18",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Established Operators_SEA",
+      "id": "csp",
+      "imps": 1352,
+      "clicks": 7,
+      "spend_aud": 40.44,
+      "start": "2025-09-18",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_C&SP_Specialist Operators_SEA",
+      "id": "csp",
+      "imps": 844,
+      "clicks": 4,
+      "spend_aud": 40.44,
+      "start": "2025-09-18",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1608_SE_2025_C&SP_Specialist Operators_MEA",
+      "id": "csp",
+      "imps": 1165,
+      "clicks": 7,
+      "spend_aud": 38.0,
+      "start": "2025-09-18",
+      "end": "2025-09-19"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Government Facilities _ Awareness Video",
+      "id": "ecocare",
+      "imps": 78,
+      "clicks": 0,
+      "spend_aud": 34.43,
+      "start": "2025-11-10",
+      "end": "2025-11-14"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "RM AirSeT – Awareness – AU",
+      "id": "airset",
+      "imps": 1326,
+      "clicks": 2,
+      "spend_aud": 29.64,
+      "start": "2026-06-15",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "SM AirSeT – Awareness – AU",
+      "id": "airset",
+      "imps": 1241,
+      "clicks": 0,
+      "spend_aud": 28.99,
+      "start": "2026-06-14",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "tradedesk",
+      "campaign": "SE_NEL_TTD_AWR_NZ_Jun26",
+      "id": "(unmapped)",
+      "imps": 390,
+      "clicks": 3,
+      "spend_aud": 24.7,
+      "start": "2026-06-06",
+      "end": "2026-06-15"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_PFC_Retail Chain_AU",
+      "id": "digital_power",
+      "imps": 718,
+      "clicks": 0,
+      "spend_aud": 24.49,
+      "start": "2026-01-14",
+      "end": "2026-02-25"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "Digital_Power_Basket_EEH_Real_Estate_AU",
+      "id": "digital_power",
+      "imps": 893,
+      "clicks": 0,
+      "spend_aud": 22.55,
+      "start": "2025-12-03",
+      "end": "2026-02-26"
+    },
+    {
+      "platform": "linkedin",
+      "campaign": "RM AirSeT – Awareness – NZ",
+      "id": "airset",
+      "imps": 506,
+      "clicks": 1,
+      "spend_aud": 15.3,
+      "start": "2026-06-15",
+      "end": "2026-06-15"
+    }
+  ],
+  "roster": {
+    "impact_maker": {
+      "display": "Impact Maker",
+      "nCamp": 1,
+      "spend_aud": 33336.0,
+      "imps": 19241041,
+      "platforms": [
+        "dv360"
+      ],
+      "start": "2025-11-30",
+      "end": "2026-03-27",
+      "names": [
+        "dv360:APAC_SE_ANZ_Imapct_Maker_1914"
+      ]
+    },
+    "csp": {
+      "display": "C&SP Relationship Marketing",
+      "nCamp": 26,
+      "spend_aud": 92417.9,
+      "imps": 10015795,
+      "platforms": [
+        "dv360",
+        "linkedin"
+      ],
+      "start": "2025-09-12",
+      "end": "2026-03-26",
+      "names": [
+        "dv360:APAC_SE_C&SP_Awareness_1608",
+        "linkedin:SE_ANZ_Impact_Maker_Non_C&SP_AU",
+        "linkedin:SE_ANZ_Impact_Maker_C&SP_AU",
+        "linkedin:1608_C&SP_Awareness_India",
+        "linkedin:1608_C&SP_Awareness_Japan",
+        "linkedin:1608_C&SP_Awareness_ANZ",
+        "linkedin:1608_C&SP_Awareness_SEA",
+        "linkedin:1608_C&SP_Awareness_MEA",
+        "linkedin:1608_SE_2025_C&SP_Consideration_Japan",
+        "linkedin:1608_SE_2025_C&SP_Consideration_SEA",
+        "linkedin:1608_SE_2025_C&SP_Consideration_MEA",
+        "linkedin:1608_SE_2025_C&SP_Consideration_INDIA",
+        "linkedin:1608_SE_2025_C&SP_Consideration_ANZ",
+        "linkedin:SE_ANZ_Impact_Maker_Non_C&SP_NZ",
+        "linkedin:SE_ANZ_Impact_Maker_C&SP_NZ",
+        "linkedin:1608_SE_2025_C&SP_Established Operators_Japan",
+        "linkedin:1608_SE_2025_C&SP_Emerging Operators_Japan",
+        "linkedin:1608_SE_2025_C&SP_Emerging Operators_ANZ",
+        "linkedin:1608_SE_2025_C&SP_Specialist Operators_INDIA",
+        "linkedin:1608_SE_2025_C&SP_Emerging Operators_MEA",
+        "linkedin:1608_SE_2025_C&SP_Emerging Operators_SEA",
+        "linkedin:1608_SE_2025_C&SP_Established Operators_INDIA",
+        "linkedin:1608_SE_2025_C&SP_Established Operators_MEA",
+        "linkedin:1608_SE_2025_C&SP_Established Operators_SEA",
+        "linkedin:1608_SE_C&SP_Specialist Operators_SEA",
+        "linkedin:1608_SE_2025_C&SP_Specialist Operators_MEA"
+      ]
+    },
+    "ai_lc": {
+      "display": "AI & Liquid Cooling",
+      "nCamp": 14,
+      "spend_aud": 56248.03,
+      "imps": 12851759,
+      "platforms": [
+        "dv360",
+        "linkedin",
+        "tradedesk"
+      ],
+      "start": "2025-11-09",
+      "end": "2026-06-15",
+      "names": [
+        "dv360:APAC_SE_2025_AI in DC_ Awareness_1925",
+        "tradedesk:SE_LQAIDC_TTD_TOFU_May26",
+        "linkedin:SE_LQAIDC_LI_India_TOFU_May26",
+        "linkedin:SE_AI in DC_ Singapore_ Awareness",
+        "linkedin:SE_AI in DC_ Indonesia_ Awareness",
+        "linkedin:SE_AI in DC_ Malaysia_ Awareness",
+        "linkedin:SE_AI in DC_ Thailand_ Awareness",
+        "linkedin:SE_LQAIDC_LI_Australia_TOFU_May26",
+        "linkedin:SE_LQAIDC_LI_Brazil_TOFU_May26",
+        "linkedin:SE_AI in DC_ Vietnam_ Awareness",
+        "linkedin:SE_AI in DC _Philippines _ Awareness",
+        "linkedin:SE_LQAIDC_LI_KSA_TOFU_May26",
+        "linkedin:SE_LQAIDC_LI_UAE_TOFU_May26",
+        "linkedin:SE_LQAIDC_LI_Chile_TOFU_May26"
+      ]
+    },
+    "eae": {
+      "display": "EcoStruxure Automation Expert",
+      "nCamp": 1,
+      "spend_aud": 28329.35,
+      "imps": 13822157,
+      "platforms": [
+        "dv360"
+      ],
+      "start": "2025-12-01",
+      "end": "2026-06-09",
+      "names": [
+        "dv360:APAC_SE_ANZ_Ecostructure_Automation_Expert_1974"
+      ]
+    },
+    "power_products": {
+      "display": "Power Products (ANZ)",
+      "nCamp": 1,
+      "spend_aud": 20999.62,
+      "imps": 10313375,
+      "platforms": [
+        "dv360"
+      ],
+      "start": "2025-11-26",
+      "end": "2026-04-01",
+      "names": [
+        "dv360:APAC_SE_ANZ_2025_Power_Products_1916"
+      ]
+    },
+    "iof": {
+      "display": "Industries of the Future",
+      "nCamp": 5,
+      "spend_aud": 25331.95,
+      "imps": 33042672,
+      "platforms": [
+        "dv360",
+        "linkedin"
+      ],
+      "start": "2025-10-24",
+      "end": "2026-02-01",
+      "names": [
+        "dv360:APAC_SE_2025_Industries of the Future_Awareness_1899",
+        "linkedin:PO_1899_IOF_ Mining, Minerals & Metals_ Awareness_ Single Image",
+        "linkedin:PO_1899_IOF_ Mining, Minerals & Metals_ Awareness_ Video",
+        "linkedin:PO_1899_IOF_Water and Wastewater_ Awareness_ Single Image",
+        "linkedin:PO_1899_IOF_Water and Wastewater_ Awareness_ VIdeo"
+      ]
+    },
+    "digital_bldg": {
+      "display": "Digital Buildings",
+      "nCamp": 4,
+      "spend_aud": 11578.25,
+      "imps": 1249230,
+      "platforms": [
+        "dv360",
+        "linkedin"
+      ],
+      "start": "2025-08-08",
+      "end": "2025-11-04",
+      "names": [
+        "dv360:APAC_SE_Digital Building_1721",
+        "linkedin:1721_SE_ANZ_ESW_Digital Buildings_Consideration_Retail",
+        "linkedin:1721_SE_ANZ_ESW_Digital Buildings_Consideration_Healthcare",
+        "linkedin:1721_SE_ANZ_ESW_Digital Buildings_Video"
+      ]
+    },
+    "ia_services": {
+      "display": "IA Services",
+      "nCamp": 3,
+      "spend_aud": 8235.33,
+      "imps": 49415,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2026-03-10",
+      "end": "2026-06-01",
+      "names": [
+        "linkedin:Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers",
+        "linkedin:Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers (Conversions)",
+        "linkedin:Schneider_Electric_AI Services_Q1_2026_NZ - Industrial Decision Makers"
+      ]
+    },
+    "mcset": {
+      "display": "MCSeT + EvoPacT",
+      "nCamp": 2,
+      "spend_aud": 7558.16,
+      "imps": 457283,
+      "platforms": [
+        "dv360",
+        "linkedin"
+      ],
+      "start": "2025-08-26",
+      "end": "2025-09-24",
+      "names": [
+        "linkedin:1130_Cooling Solutions Event Registrations LP Visit",
+        "dv360:(APAC) - Schneider Electric_1130_Cooling Solutions Event Registrations/ Sign Ups"
+      ]
+    },
+    "ind_edge": {
+      "display": "Industrial Edge / Prefab",
+      "nCamp": 4,
+      "spend_aud": 8662.3,
+      "imps": 80938,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2025-10-13",
+      "end": "2025-12-08",
+      "names": [
+        "linkedin:1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Industrial Manufacture",
+        "linkedin:1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ MMM",
+        "linkedin:1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_Education",
+        "linkedin:1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water"
+      ]
+    },
+    "digital_power": {
+      "display": "Digital Power Basket",
+      "nCamp": 18,
+      "spend_aud": 15295.3,
+      "imps": 460798,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2025-12-03",
+      "end": "2026-03-01",
+      "names": [
+        "linkedin:Digital_Power_Basket_PFC_Public_Access_AU",
+        "linkedin:Digital_Power_Basket_PFC_Energies&Chemicals_AU",
+        "linkedin:Digital_Power_Basket_EEH_Education_AU",
+        "linkedin:Digital_Power_Basket_PFC_Energies&Chemicals_NZ",
+        "linkedin:Digital_Power_Basket_EEH_Industrial_Manufacturing_NZ",
+        "linkedin:Digital_Power_Basket_PFC_Public_Access_NZ",
+        "linkedin:Digital_Power_Basket_PFC_Industrial_Manufacturing_AU",
+        "linkedin:Digital_Power_Basket_PFC_Education_AU",
+        "linkedin:Digital_Power_Basket_EEH_CRE_AU",
+        "linkedin:Digital_Power_Basket_PFC_Industrial_Manufacturing_NZ",
+        "linkedin:Digital_Power_Basket_EEH_Retail_Chains_and_Building_AU",
+        "linkedin:Digital_Power_Basket_EEH_Industrial_Manufacturing_AU",
+        "linkedin:Digital_Power_Basket_PFC_CRE_AU",
+        "linkedin:Digital_Power_Basket_PFC_CRE_NZ",
+        "linkedin:Digital_Power_Basket_EEH_Retail_Chains_and_Building_NZ",
+        "linkedin:Digital_Power_Basket_PFC_Retail Chain_NZ",
+        "linkedin:Digital_Power_Basket_PFC_Retail Chain_AU",
+        "linkedin:Digital_Power_Basket_EEH_Real_Estate_AU"
+      ]
+    },
+    "mea_seg": {
+      "display": "MEA Segment Program",
+      "nCamp": 5,
+      "spend_aud": 11712.96,
+      "imps": 756493,
+      "platforms": [
+        "dv360",
+        "linkedin"
+      ],
+      "start": "2025-06-16",
+      "end": "2025-09-30",
+      "names": [
+        "linkedin:2353_FY25Q2_MEA Segment Healthcare Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+        "linkedin:2353_FY25Q2_MEA Segment CPG Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+        "dv360:(APAC) - Schneider Electric_MEA Segment Marketing Program_MEA_Q225 - (JN2353)",
+        "linkedin:2353_FY25Q2_MEA Segment Marketing_Finance Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+        "linkedin:2353_FY25Q2_MEA Segment Marketing_Finance Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic v2"
+      ]
+    },
+    "ecocare": {
+      "display": "EcoCare BMS",
+      "nCamp": 22,
+      "spend_aud": 20598.57,
+      "imps": 419815,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2025-08-06",
+      "end": "2025-12-05",
+      "names": [
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Single Image",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Awareness Video",
+        "linkedin:PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_MINING, WHOLESALE METALS & MINERALS",
+        "linkedin:PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_TRANSPORTATION",
+        "linkedin:PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Single Image",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Awareness Video",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image",
+        "linkedin:PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_ENERGY & CHEMICALS",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Single Image",
+        "linkedin:PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_Renewables (100%)",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Single Image",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Awareness Video",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image",
+        "linkedin:1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Awareness Video",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video",
+        "linkedin:PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_GOVERNMENT",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Single Image",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Awareness Video",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Government Facilities_ Single Image",
+        "linkedin:1967_SE_Ecocare_BMS_NZ_Static_Government Facilities _ Awareness Video"
+      ]
+    },
+    "ent_it": {
+      "display": "Enterprise IT Expansion",
+      "nCamp": 35,
+      "spend_aud": 21809.74,
+      "imps": 1023246,
+      "platforms": [
+        "linkedin",
+        "tradedesk"
+      ],
+      "start": "2026-05-06",
+      "end": "2026-06-15",
+      "names": [
+        "tradedesk:SE_EntIT_2026_PAC",
+        "tradedesk:SE_EntIT_2026_MEA",
+        "tradedesk:SE_EntIT_2026_SAM",
+        "tradedesk:SE_EntIT_2026_India",
+        "tradedesk:SE_EntIT_2026_S2_SAM",
+        "tradedesk:SE_EntIT_2026_S2_MEA",
+        "tradedesk:SE_EntIT_2026_S2_India",
+        "linkedin:SE_EntIT_2026_PAC_Hero_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Hero_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Hero_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Hero_AdGroup",
+        "linkedin:SE_EntIT_2026_PAC_Retail_AdGroup",
+        "linkedin:SE_EntIT_2026_PAC_Education_AdGroup",
+        "linkedin:SE_EntIT_2026_PAC_Healthcare_AdGroup",
+        "linkedin:SE_EntIT_2026_PAC_Finance_AdGroup",
+        "linkedin:SE_EntIT_2026_PAC_Manufacturing_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Education_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Education_AdGroup",
+        "linkedin:SE_EntIT_2026_PAC_Generic_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Education_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Healthcare_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Finance_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Retail_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Manufacturing_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Healthcare_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Retail_AdGroup",
+        "linkedin:SE_EntIT_2026_SAM_Generic_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Finance_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Generic_AdGroup",
+        "linkedin:SE_EntIT_2026_MEA_Manufacturing_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Finance_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Retail_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Healthcare_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Manufacturing_AdGroup",
+        "linkedin:SE_EntIT_2026_India_Generic_AdGroup"
+      ]
+    },
+    "(unmapped)": {
+      "display": "(unmapped)",
+      "nCamp": 4,
+      "spend_aud": 3325.78,
+      "imps": 135787,
+      "platforms": [
+        "linkedin",
+        "tradedesk"
+      ],
+      "start": "2025-09-12",
+      "end": "2026-06-15",
+      "names": [
+        "linkedin:1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Awareness",
+        "linkedin:1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Consideration",
+        "tradedesk:SE_NEL_TTD_AWR_AU_Jun26",
+        "tradedesk:SE_NEL_TTD_AWR_NZ_Jun26"
+      ]
+    },
+    "pac_hybrid_it": {
+      "display": "Pacific Hybrid IT",
+      "nCamp": 7,
+      "spend_aud": 11829.7,
+      "imps": 166285,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2025-06-02",
+      "end": "2025-09-03",
+      "names": [
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_All TAL_ANZ_JobTitles_Awareness_Static",
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_Cybersecurity_ANZ_JobTitles_WebsiteTraffic_Static",
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_IT DC_ANZ_JobTitles_WebsiteTraffic_Static",
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_ClevelPersona_ANZ_JobTitles_WebsiteTraffic_Static",
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_IT DC_ANZ_JobTitles_WebsiteTraffic_Static RETARGETING",
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_Cybersecurity_ANZ_JobTitles_WebsiteTraffic_Static RETARGETING",
+        "linkedin:1130_FY25Q2_Pacific Hybrid IT_Procurement_ANZ_JobTitles_WebsiteTraffic_Static"
+      ]
+    },
+    "eba": {
+      "display": "EcoStruxure Building Activate",
+      "nCamp": 1,
+      "spend_aud": 2623.36,
+      "imps": 2022891,
+      "platforms": [
+        "tradedesk"
+      ],
+      "start": "2026-06-05",
+      "end": "2026-06-15",
+      "names": [
+        "tradedesk:SE_EBA_Activate_AWR_June4"
+      ]
+    },
+    "modernisation": {
+      "display": "Modernisation / SPaaS",
+      "nCamp": 8,
+      "spend_aud": 11838.99,
+      "imps": 224925,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2025-08-26",
+      "end": "2025-12-01",
+      "names": [
+        "linkedin:1759_Schneider_Modernisation_FY25Q3_ANZ_Website_visits",
+        "linkedin:Schneider_Modernisation_FY25Q3_ANZ_Lead Generation_Conversion",
+        "linkedin:PO1759_Schneider_Spaas_FY25Q3_ANZ_Traffic_Static_Group1",
+        "linkedin:PO1759_Schneider_Modernisation_FY25Q3_ANZ_Awareness",
+        "linkedin:PO1759_Schneider_Spaas_FY25Q3_ANZ_Lead_Static_Group1",
+        "linkedin:PO1759_Schneider_Spaas_FY25Q3_ANZ_WT_Conversion_Static_Group1",
+        "linkedin:Schneider_Modernisation_FY25Q3_ANZ_Lead Generation_Retargeting",
+        "linkedin:1759_Schneider_Modernisation_FY25Q3_ANZ_Website_visits_Carousel"
+      ]
+    },
+    "water_env": {
+      "display": "Water & Environment",
+      "nCamp": 4,
+      "spend_aud": 3166.74,
+      "imps": 248355,
+      "platforms": [
+        "linkedin",
+        "tradedesk"
+      ],
+      "start": "2026-04-29",
+      "end": "2026-06-15",
+      "names": [
+        "tradedesk:SE_WaterEnv_P2_AWR - AU",
+        "linkedin:SE_WaterEnv_P2_Cons_TAL-Persona - AU",
+        "linkedin:SE_WaterEnv_P2_Cons_TAL-Persona - NZ",
+        "tradedesk:SE_WaterEnv_P2_AWR - NZ"
+      ]
+    },
+    "active_kpx": {
+      "display": "Active KPX",
+      "nCamp": 4,
+      "spend_aud": 3329.25,
+      "imps": 148414,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2025-10-29",
+      "end": "2025-12-04",
+      "names": [
+        "linkedin:1896_SE_ Active KPX_ Awareness _AU_ Single Image",
+        "linkedin:1896_SE_ Active KPX_ Awareness _AU_ Carousel",
+        "linkedin:1896_SE_ Active KPX_ Awareness _NZ_ Single Image",
+        "linkedin:1896_SE_ Active KPX_ Awareness _NZ_ Carousel"
+      ]
+    },
+    "airset": {
+      "display": "AirSeT",
+      "nCamp": 5,
+      "spend_aud": 201.84,
+      "imps": 5066,
+      "platforms": [
+        "linkedin"
+      ],
+      "start": "2026-06-12",
+      "end": "2026-06-15",
+      "names": [
+        "linkedin:RM AirSeT – Retargeting – ANZ",
+        "linkedin:SM AirSeT – Retargeting – ANZ",
+        "linkedin:RM AirSeT – Awareness – AU",
+        "linkedin:SM AirSeT – Awareness – AU",
+        "linkedin:RM AirSeT – Awareness – NZ"
+      ]
+    }
+  },
+  "unmapped": [
+    "1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Awareness",
+    "1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Consideration",
+    "SE_NEL_TTD_AWR_AU_Jun26",
+    "SE_NEL_TTD_AWR_NZ_Jun26"
+  ],
+  "program_probe": {
+    "Heavy Industries": [],
+    "AirSeT": [
+      {
+        "platform": "linkedin",
+        "campaign": "SM AirSeT – Retargeting – ANZ",
+        "id": "airset"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "RM AirSeT – Retargeting – ANZ",
+        "id": "airset"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SM AirSeT – Awareness – AU",
+        "id": "airset"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "RM AirSeT – Awareness – AU",
+        "id": "airset"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "RM AirSeT – Awareness – NZ",
+        "id": "airset"
+      }
+    ],
+    "EBA / Building Activate": [
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EBA_Activate_AWR_June4",
+        "id": "eba"
+      }
+    ],
+    "Water & Environment": [
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_WaterEnv_P2_AWR - AU",
+        "id": "water_env"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_WaterEnv_P2_AWR - NZ",
+        "id": "water_env"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_WaterEnv_P2_Cons_TAL-Persona - NZ",
+        "id": "water_env"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_WaterEnv_P2_Cons_TAL-Persona - AU",
+        "id": "water_env"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water",
+        "id": "ind_edge"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO_1899_IOF_Water and Wastewater_ Awareness_ VIdeo",
+        "id": "iof"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO_1899_IOF_Water and Wastewater_ Awareness_ Single Image",
+        "id": "iof"
+      }
+    ],
+    "Global Rebrand": [],
+    "MCSeT & EvoPacT": [
+      {
+        "platform": "dv360",
+        "campaign": "(APAC) - Schneider Electric_1130_Cooling Solutions Event Registrations/ Sign Ups",
+        "id": "mcset"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1130_Cooling Solutions Event Registrations LP Visit",
+        "id": "mcset"
+      }
+    ],
+    "EcoConsult": [],
+    "Healthcare": [
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "2353_FY25Q2_MEA Segment Healthcare Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic",
+        "id": "mea_seg"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1721_SE_ANZ_ESW_Digital Buildings_Consideration_Healthcare",
+        "id": "digital_bldg"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image",
+        "id": "ecocare"
+      }
+    ],
+    "Microgrid": [],
+    "EcoCare BMS": [
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_Renewables (100%)",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_ENERGY & CHEMICALS",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_MINING, WHOLESALE METALS & MINERALS",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_GOVERNMENT",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_TRANSPORTATION",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Government Facilities _ Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Government Facilities_ Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Single Image",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Awareness Video",
+        "id": "ecocare"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Single Image",
+        "id": "ecocare"
+      }
+    ],
+    "Enterprise Software": [],
+    "Industrial Edge": [
+      {
+        "platform": "linkedin",
+        "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water",
+        "id": "ind_edge"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ MMM",
+        "id": "ind_edge"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Industrial Manufacture",
+        "id": "ind_edge"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_Education",
+        "id": "ind_edge"
+      }
+    ],
+    "EAE / Automation Expert": [
+      {
+        "platform": "dv360",
+        "campaign": "APAC_SE_ANZ_Ecostructure_Automation_Expert_1974",
+        "id": "eae"
+      }
+    ],
+    "IA Services": [
+      {
+        "platform": "linkedin",
+        "campaign": "Schneider_Electric_AI Services_Q1_2026_NZ - Industrial Decision Makers",
+        "id": "ia_services"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers",
+        "id": "ia_services"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers (Conversions)",
+        "id": "ia_services"
+      }
+    ],
+    "AI & Liquid Cooling [EXCLUDE]": [
+      {
+        "platform": "dv360",
+        "campaign": "APAC_SE_2025_AI in DC_ Awareness_1925",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_LQAIDC_TTD_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_LQAIDC_LI_UAE_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_LQAIDC_LI_India_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_LQAIDC_LI_Brazil_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_LQAIDC_LI_Australia_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_LQAIDC_LI_KSA_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_LQAIDC_LI_Chile_TOFU_May26",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_AI in DC_ Malaysia_ Awareness",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_AI in DC_ Singapore_ Awareness",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_AI in DC_ Indonesia_ Awareness",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_AI in DC_ Thailand_ Awareness",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_AI in DC_ Vietnam_ Awareness",
+        "id": "ai_lc"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_AI in DC _Philippines _ Awareness",
+        "id": "ai_lc"
+      }
+    ],
+    "Enterprise IT Expansion [EXCLUDE]": [
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_India",
+        "id": "ent_it"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_MEA",
+        "id": "ent_it"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_PAC",
+        "id": "ent_it"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_S2_India",
+        "id": "ent_it"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_S2_MEA",
+        "id": "ent_it"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_S2_SAM",
+        "id": "ent_it"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_EntIT_2026_SAM",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Hero_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Hero_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Hero_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Hero_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Manufacturing_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Education_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Education_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Finance_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Manufacturing_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Retail_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Finance_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Education_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Finance_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Education_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Retail_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Manufacturing_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Generic_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Generic_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Retail_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_SAM_Generic_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Generic_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Finance_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_PAC_Healthcare_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_MEA_Manufacturing_AdGroup",
+        "id": "ent_it"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_EntIT_2026_India_Retail_AdGroup",
+        "id": "ent_it"
+      }
+    ],
+    "C&SP [EXCLUDE]": [
+      {
+        "platform": "dv360",
+        "campaign": "APAC_SE_C&SP_Awareness_1608",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_C&SP_Awareness_ANZ",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Emerging Operators_SEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Emerging Operators_ANZ",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Consideration_Japan",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Specialist Operators_MEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Emerging Operators_Japan",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Emerging Operators_MEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_C&SP_Awareness_MEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Established Operators_INDIA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Specialist Operators_INDIA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Consideration_MEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_C&SP_Specialist Operators_SEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_C&SP_Awareness_Japan",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Established Operators_MEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Established Operators_Japan",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_C&SP_Awareness_SEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Consideration_ANZ",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Established Operators_SEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Consideration_INDIA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_C&SP_Awareness_India",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "1608_SE_2025_C&SP_Consideration_SEA",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_ANZ_Impact_Maker_Non_C&SP_AU",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_ANZ_Impact_Maker_C&SP_NZ",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_ANZ_Impact_Maker_C&SP_AU",
+        "id": "csp"
+      },
+      {
+        "platform": "linkedin",
+        "campaign": "SE_ANZ_Impact_Maker_Non_C&SP_NZ",
+        "id": "csp"
+      }
+    ],
+    "New Energy Landscape/NEL": [
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_NEL_TTD_AWR_AU_Jun26",
+        "id": "(unmapped)"
+      },
+      {
+        "platform": "tradedesk",
+        "campaign": "SE_NEL_TTD_AWR_NZ_Jun26",
+        "id": "(unmapped)"
+      }
+    ],
+    "Cisco Powered Unified Edge": [],
+    "AVEVA": [],
+    "Alliance Partner Program": []
+  },
+  "currency": [
+    {
+      "platform": "dv360",
+      "currency": "SGD",
+      "rows": 10296,
+      "imps": 44415886
+    },
+    {
+      "platform": "dv360",
+      "currency": "AUD",
+      "rows": 236228,
+      "imps": 43376573
+    },
+    {
+      "platform": "dv360",
+      "currency": "USD",
+      "rows": 55335,
+      "imps": 10403248
+    },
+    {
+      "platform": "linkedin (acct suffix)",
+      "currency": "AUD",
+      "rows": 7002,
+      "imps": 2366415
+    },
+    {
+      "platform": "linkedin (acct suffix)",
+      "currency": "USD",
+      "rows": 6445,
+      "imps": 2106402
+    },
+    {
+      "platform": "linkedin (acct suffix)",
+      "currency": "SGD",
+      "rows": 1374,
+      "imps": 786308
+    },
+    {
+      "platform": "tradedesk",
+      "currency": "AUD",
+      "rows": 25608,
+      "imps": 3280908
+    }
+  ],
+  "market": [
+    {
+      "platform": "dv360",
+      "market": "Australia",
+      "imps": 59923121,
+      "spend_aud": 85580.33
+    },
+    {
+      "platform": "dv360",
+      "market": "New Zealand",
+      "imps": 16855573,
+      "spend_aud": 17628.9
+    },
+    {
+      "platform": "dv360",
+      "market": "India",
+      "imps": 3218221,
+      "spend_aud": 7067.5
+    },
+    {
+      "platform": "dv360",
+      "market": "Malaysia",
+      "imps": 2875413,
+      "spend_aud": 5008.81
+    },
+    {
+      "platform": "dv360",
+      "market": "Thailand",
+      "imps": 2623074,
+      "spend_aud": 5900.01
+    },
+    {
+      "platform": "dv360",
+      "market": "MEA",
+      "imps": 2618462,
+      "spend_aud": 11155.63
+    },
+    {
+      "platform": "dv360",
+      "market": "Singapore",
+      "imps": 2501111,
+      "spend_aud": 4715.88
+    },
+    {
+      "platform": "dv360",
+      "market": "Philippines",
+      "imps": 1679842,
+      "spend_aud": 4021.02
+    },
+    {
+      "platform": "dv360",
+      "market": "Vietnam",
+      "imps": 1607876,
+      "spend_aud": 3129.0
+    },
+    {
+      "platform": "dv360",
+      "market": "Japan",
+      "imps": 1485253,
+      "spend_aud": 6653.38
+    },
+    {
+      "platform": "dv360",
+      "market": "Indonesia",
+      "imps": 1203181,
+      "spend_aud": 2496.15
+    },
+    {
+      "platform": "dv360",
+      "market": "North America",
+      "imps": 705395,
+      "spend_aud": 8973.49
+    },
+    {
+      "platform": "dv360",
+      "market": "Europe & C.Asia",
+      "imps": 322321,
+      "spend_aud": 6704.77
+    },
+    {
+      "platform": "dv360",
+      "market": "South Asia",
+      "imps": 268016,
+      "spend_aud": 1295.2
+    },
+    {
+      "platform": "dv360",
+      "market": "South America",
+      "imps": 210431,
+      "spend_aud": 979.53
+    },
+    {
+      "platform": "dv360",
+      "market": "East Asia",
+      "imps": 69827,
+      "spend_aud": 488.24
+    },
+    {
+      "platform": "dv360",
+      "market": "Other (RoW)",
+      "imps": 14585,
+      "spend_aud": 75.81
+    },
+    {
+      "platform": "dv360",
+      "market": "Pacific",
+      "imps": 8185,
+      "spend_aud": 45.34
+    },
+    {
+      "platform": "dv360",
+      "market": "SEA",
+      "imps": 5820,
+      "spend_aud": 27.12
+    },
+    {
+      "platform": "linkedin",
+      "market": "Australia",
+      "imps": 1786449,
+      "spend_aud": 71505.07
+    },
+    {
+      "platform": "linkedin",
+      "market": "India",
+      "imps": 995419,
+      "spend_aud": 11200.42
+    },
+    {
+      "platform": "linkedin",
+      "market": "MEA",
+      "imps": 545830,
+      "spend_aud": 19565.72
+    },
+    {
+      "platform": "linkedin",
+      "market": "ANZ",
+      "imps": 530925,
+      "spend_aud": 32836.6
+    },
+    {
+      "platform": "linkedin",
+      "market": "Unmapped",
+      "imps": 530909,
+      "spend_aud": 14174.66
+    },
+    {
+      "platform": "linkedin",
+      "market": "Pacific",
+      "imps": 236334,
+      "spend_aud": 14761.55
+    },
+    {
+      "platform": "linkedin",
+      "market": "New Zealand",
+      "imps": 225812,
+      "spend_aud": 12765.62
+    },
+    {
+      "platform": "linkedin",
+      "market": "South America",
+      "imps": 158755,
+      "spend_aud": 5195.42
+    },
+    {
+      "platform": "linkedin",
+      "market": "Indonesia",
+      "imps": 63640,
+      "spend_aud": 2253.88
+    },
+    {
+      "platform": "linkedin",
+      "market": "Japan",
+      "imps": 50065,
+      "spend_aud": 5963.12
+    },
+    {
+      "platform": "linkedin",
+      "market": "Malaysia",
+      "imps": 47425,
+      "spend_aud": 2253.22
+    },
+    {
+      "platform": "linkedin",
+      "market": "SEA",
+      "imps": 39635,
+      "spend_aud": 5771.72
+    },
+    {
+      "platform": "linkedin",
+      "market": "Singapore",
+      "imps": 30597,
+      "spend_aud": 2253.92
+    },
+    {
+      "platform": "linkedin",
+      "market": "Thailand",
+      "imps": 10854,
+      "spend_aud": 2203.24
+    },
+    {
+      "platform": "linkedin",
+      "market": "Philippines",
+      "imps": 5286,
+      "spend_aud": 1374.78
+    },
+    {
+      "platform": "linkedin",
+      "market": "Vietnam",
+      "imps": 1190,
+      "spend_aud": 1377.02
+    },
+    {
+      "platform": "tradedesk",
+      "market": "Unmapped",
+      "imps": 2371311,
+      "spend_aud": 8454.07
+    },
+    {
+      "platform": "tradedesk",
+      "market": "India",
+      "imps": 219255,
+      "spend_aud": 2638.79
+    },
+    {
+      "platform": "tradedesk",
+      "market": "South America",
+      "imps": 175958,
+      "spend_aud": 2655.98
+    },
+    {
+      "platform": "tradedesk",
+      "market": "Australia",
+      "imps": 171505,
+      "spend_aud": 1369.0
+    },
+    {
+      "platform": "tradedesk",
+      "market": "MEA",
+      "imps": 166176,
+      "spend_aud": 2738.99
+    },
+    {
+      "platform": "tradedesk",
+      "market": "Pacific",
+      "imps": 106224,
+      "spend_aud": 2895.05
+    },
+    {
+      "platform": "tradedesk",
+      "market": "New Zealand",
+      "imps": 70479,
+      "spend_aud": 275.19
+    }
+  ]
+}

@@ -11,12 +11,28 @@ Segment, …) across three ad platforms, mostly ANZ-weighted with India / SEA / 
 / Pacific spill. This dashboard puts plan **budget & targets** (from the media plans) next to live
 **spend & delivery** so stakeholders can see pacing, funnel and channel/geo performance per campaign.
 
-**Status:** 🟢 **Live on GCP (stood up 2026-06-04).** All 26 views, `schneider.json`, the
-`schneider-export` job and the `schneider-dash` service are deployed; the `*/10` self-gating
-scheduler is running. [`deploy_schneider.ps1`](deploy_schneider.ps1) was the one-shot stand-up and
-stays idempotent for a rebuild from scratch. GA4 (website) ships **disabled** until the SE GA4
-property id(s) are known. Seeded plan budgets cover 11 of the 21 mapped campaigns; the rest are TODO
-(see [`INTAKE.md`](INTAKE.md)).
+**Status:** 🟢 **Live on GCP (stood up 2026-06-04; PACIFIC carve-out 2026-06-16).** All 28 views,
+`schneider.json`, the `schneider-export` job and the `schneider-dash` service are deployed; the `*/10`
+self-gating scheduler is running. [`deploy_schneider.ps1`](deploy_schneider.ps1) was the one-shot
+stand-up and stays idempotent for a rebuild from scratch. GA4 (website) ships **disabled** until the
+SE GA4 property id(s) are known. Seeded plan budgets cover 12 of the 27 mapped campaigns; the rest are
+TODO (see [`INTAKE.md`](INTAKE.md)).
+
+## 🌏 Pacific carve-out (the default view) — 2026-06-16
+Per Transmission (Gabby O'Driscoll), the dashboard now **defaults to the SE *Pacific* book of work**,
+kept COMPLETELY SEPARATE from the rest of APAC. `sql/30_seed_campaign_map.sql` carries a **`portfolio`**
+column (`'Pacific'` | `'APAC-other'`); the dash has a **Portfolio toggle (Pacific / APAC-other / All)**
+defaulting to Pacific. **This is the ORGANISATIONAL Pacific** (the client's named program list) — *not*
+the geographic Pacific region chip on the Geography tab (Fiji/PNG/… parsed from campaign names), which
+is deliberately **left untouched**. The 3 explicit excludes (AI & Liquid Cooling, Enterprise IT
+Expansion, C&SP) are `'APAC-other'`. Newly mapped from the Phase-1 EDA: **AirSeT** (job 2223) and **EBA
+/ EcoStruxure Building Activate** (job 2079) — EBA split into its own row out of `eae` (Automation
+Expert) with the 300-opt-in-MQL target moved onto it. Job numbers corrected from the client Drive
+(water_env 2026, mcset 2389, ind_edge 2463, eae 1974, ia_services 2280, heavy 2281, ecoconsult 2279).
+**Full EDA, reconciliation table, the architecture decision (A: tag+toggle, one deployment) and the
+open NEEDS-CONFIRMATION questions are in [`_eda/pacific_eda.md`](_eda/pacific_eda.md)** — read that
+before changing portfolio tags. Flip candidates flagged in the seed comments: `ind_edge` /
+`pac_hybrid_it` (geo-"Pacific"-named, tagged APAC-other), `ecocare`≡"EcoCare BMS", `enterprise_software`.
 
 ---
 

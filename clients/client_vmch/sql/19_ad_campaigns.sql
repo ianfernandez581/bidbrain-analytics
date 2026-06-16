@@ -8,6 +8,8 @@ WITH agg AS (
     SUM(imps)      AS imps,
     SUM(clicks)    AS clicks,
     SUM(spend_aud) AS spend_aud,
+    SUM(post_view_conv)  AS post_view,
+    SUM(post_click_conv) AS post_click,
     MIN(metric_date) AS start_date,
     MAX(metric_date) AS end_date
   FROM `bidbrain-analytics.client_vmch.stg_ad_delivery`

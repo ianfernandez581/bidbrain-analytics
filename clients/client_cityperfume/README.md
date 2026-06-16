@@ -18,8 +18,9 @@ now applied. Refreshes within ~10 min of new upstream data (self-gating `*/10` s
 There are **two Cloud Run web services** over the *same* `cityperfume.json` (the export job already
 ships every channel — `sales_by_channel*` carry all `channel_group`s):
 
-- **`cityperfume-dash`** (`dash/`) — the original, **online-only** (Website + Marketplace; in-store
-  POS excluded). Headline = the incremental online Margin ROAS. **This is the default deliverable.**
+- **`cityperfume-dash`** (`dash/`) — **defaults to Website-only** (in-store POS excluded entirely;
+  Marketplace excluded by default — not ad-addressable — but still a selectable Sales-channel chip).
+  Headline = the **ad spend → attributed revenue → ad-attributed profit** chain. **This is the default deliverable.**
 - **`cityperfume-total-dash`** (`dash_total/`) — the **all-sales** variant: In-store POS + Website +
   Marketplace (In-store POS is the *largest* channel — ~A$13.5M vs Website ~A$6.4M vs Marketplace
   ~A$1.7M). Headline = **blended Marketing Efficiency Ratio** (all sales ÷ ad spend); the incremental
@@ -35,14 +36,24 @@ single source of truth for revenue, margin, orders, AOV and customers. The three
 wildly (Google ~22%, Meta ~4%, GA4 ~2% of true sales), so we never sum them — platform-claimed
 figures are **context only**.
 
-The dashboard is **online-only** (Website + Marketplaces; **in-store POS excluded**) and reports a
-**single canonical ROAS — the incremental, margin-based return**, NOT a total-revenue ÷ spend ratio:
+`dash/` **defaults to Website-only** (in-store POS excluded entirely; **Marketplace excluded by
+default** — ads don't click through to marketplaces so we don't credit them — but it stays a
+*selectable* Sales-channel chip for drill-down). It answers the client's literal question —
+**"how many dollars did we spend, and how many did that make?"** — as a **spend → attributed revenue
+→ ad-attributed profit** chain (margin/ROAS/profit track the *selected* channels, live from
+`v_sales`/Maropost COGS), NOT a total-revenue ÷ spend ratio:
 
-- **Margin ROAS (incremental) ≈ 2.6×**, **net ≈ 1.6×** (after the ad cost itself).
-- = **7× incremental online revenue** per A$1 (regression-based; planning estimate, band 4–9×)
-  × **37.7% online gross margin** (revenue-weighted from `v_sales` COGS).
-- The old ratio headline (≈31× blended / ≈11.7× online) overstated ad impact ~10× — retired.
-- 7× is a **planning estimate**, not a measured constant, **pending a spend-down / geo holdout**.
+- **Ad spend** (working media) — the hard fact (~A$0.69M full window).
+- **Attributed revenue** = spend × **7× incremental revenue ROAS** (regression-based planning estimate,
+  band 4–9×) — the modeled *incremental* website revenue ads caused (~A$4.8M full window).
+- **Ad-attributed profit** = attributed revenue × **~38.5% Website gross margin** (Maropost COGS) =
+  spend × **~2.69× margin ROAS** (~A$1.86M gross; net ~1.69× after the ad cost).
+- The old ratio headline (≈31× blended / ≈11.7× online) overstated ad impact ~10× — retired; platform-
+  claimed revenue is context only, never a ROAS input.
+- **This is the interim "quick" calc** (acceptable for the immediate deliverable). The real
+  regression/Maropost-margin productionisation + the spend-down / geo holdout that would turn
+  `7×`/`2.69×` from planning estimates into measured constants are **follow-ups**. `7×` is one constant
+  (`REV_ROAS_ONLINE` in `dash/dashboard.html`), so re-baselining is a one-line change.
 
 Full methodology, the reproducible regressions and the validation plan live in
 [`analysis/`](analysis) (`city_perfume_roas_handoff.md`, `city_perfume_incrementality.py`,
@@ -50,9 +61,10 @@ Full methodology, the reproducible regressions and the validation plan live in
 
 ## The 6 dashboard tabs (`dash/dashboard.html`)
 
-1. **Overview** — KPIs (spend · online revenue · AOV · margin % · repeat-rate · sessions),
-   AI commentary, monthly spend-by-platform vs online-revenue hero, revenue-by-online-channel donut,
-   a **Margin ROAS (incremental)** callout, and spend share.
+1. **Overview** — KPIs telling the **spend → attributed revenue → ad-attributed profit** story
+   (ad spend · attributed revenue · ad-attributed profit · actual Website revenue · AOV · margin% ·
+   sessions), AI commentary, monthly spend-by-platform vs *actual* website-revenue hero, revenue-by-
+   channel donut, a **Margin ROAS (incremental)** callout (now showing the profit dollars), and spend share.
 2. **Paid Media** — all platforms (ignores the Platform chips; Campaign filter applies); monthly
    spend + ROAS, spend share, platform comparison table **incl. platform-claimed ROAS**, Google by
    campaign type, Meta creative mix (video/image) + a creative gallery, top-campaigns table.
@@ -136,8 +148,11 @@ and it always reads whatever JSON is currently in the bucket.
 
 ## EDA decisions (recorded in `BUILD_CHECKLIST.md`)
 
-AUD-only (no FX) · window 2025-01-01→latest · v_sales = truth · ONLINE-ONLY (in-store POS excluded) ·
-single canonical incremental Margin ROAS (7× × 37.7% online margin), platform-claimed shown separately ·
+AUD-only (no FX) · window 2025-01-01→latest · v_sales = truth · `dash/` DEFAULTS to Website-only
+(in-store POS excluded entirely; Marketplace excluded by default — not ad-addressable — still selectable) ·
+spend → attributed revenue (×7 incremental rev ROAS) → ad-attributed profit (×~38.5% Website Maropost
+margin = ~2.69× margin ROAS); interim quick calc, real regression/Maropost calc is a follow-up ·
+margin/ROAS track the SELECTED channels · platform-claimed shown separately ·
 Meta includes all `effective_status` (paused/archived hold ~50% of spend) ·
 TTD stays upper-funnel (parsed `conversion_touch_03`, no revenue) · concentration category via regex ·
 new-vs-returning via first-ever-order over full history. **Flagged to client:** GA4 tracking broke

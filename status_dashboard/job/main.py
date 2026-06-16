@@ -109,16 +109,49 @@ CLIENTS = [
         "sources": ["TradeDesk_APAC ALL", "Salesforce_CS_APAC_ALL"],
         "reads_direct": False,
         "checks": [
+            # Content-Syndication leads — ALL 4 MongoDB CS campaigns (3 DNB + the funded KGA/IDC),
+            # bucketed exactly as the cs_leads view (and the dashboard): Accepted = 'Accepted',
+            # Rejected = 'Rejected', New = 'Unresponsive' + 'Do Not Contact' + 'New'. KGA/IDC ('701RG00001NKKwQYAX',
+            # NULL programme) is the LARGEST CS campaign (~479 leads, almost all New/unprocessed), so
+            # it MUST be counted: the dashboard's cs[] (grouped by market, no programme filter) includes
+            # it → 881 total / 353 accepted / 0 rejected / 527 new across all four. The SQL mirrors that.
             {"label": "Content-Syndication · Total leads", "kind": "count",
              "dash": lambda d: sum(_num(c.get("total")) for c in d.get("cs", [])),
              "sql": "SELECT COUNT(*) AS total_leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
                     "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
                     "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX');",
-             "note": "Compared against the un-scoped sum of cs[].total in the JSON (NOT the on-screen "
-                     "'Total leads' KPI, which is scoped to the DNB campaign + mapped markets). HEADS-UP: "
-                     "the live stg_salesforce view filters these 4 CAMPAIGN_IDs (3 are Cloudflare's) — NOT "
-                     "the 8 MongoDB IDs — so the leads shown may be for the wrong campaigns. Worth verifying."},
+             "note": "All 4 CS campaigns. Compared against the un-scoped sum of cs[].total in the JSON "
+                     "(which the cs_leads view builds from these very rows), NOT the on-screen 'Total leads' "
+                     "KPI (scoped to a programme + mapped markets). KGA/IDC alone is ~479 of the ~881."},
+            {"label": "Content-Syndication · Accepted leads", "kind": "count",
+             "dash": lambda d: sum(_num(c.get("accepted")) for c in d.get("cs", [])),
+             "sql": "SELECT COUNT(*) AS accepted_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
+                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX')\n"
+                    "  AND LEAD_STATUS = 'Accepted';",
+             "note": "Accepted bucket = LEAD_STATUS 'Accepted' (matches cs_leads.ACCEPTED). "
+                     "Compared against sum(cs[].accepted) in the JSON. (KGA/IDC contributes 0 accepted.)"},
+            {"label": "Content-Syndication · Rejected leads", "kind": "count",
+             "dash": lambda d: sum(_num(c.get("rejected")) for c in d.get("cs", [])),
+             "sql": "SELECT COUNT(*) AS rejected_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
+                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX')\n"
+                    "  AND LEAD_STATUS = 'Rejected';",
+             "note": "Rejected bucket = LEAD_STATUS 'Rejected' (matches cs_leads.REJECTED). "
+                     "Compared against sum(cs[].rejected) in the JSON."},
+            {"label": "Content-Syndication · New (unprocessed) leads", "kind": "count",
+             "dash": lambda d: sum(_num(c.get("new")) for c in d.get("cs", [])),
+             "sql": "SELECT COUNT(*) AS new_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
+                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX')\n"
+                    "  AND LEAD_STATUS IN ('Unresponsive','Do Not Contact','New');",
+             "note": "New bucket = LEAD_STATUS IN ('Unresponsive','Do Not Contact','New') (matches "
+                     "cs_leads.NEW_LEADS). Compared against sum(cs[].new) in the JSON. 'Do Not Contact' "
+                     "is IDC-only (1 lead); KGA/IDC contributes ~479 of these."},
             {"label": "TradeDesk · Total impressions", "kind": "sum",
              "dash": lambda d: sum(_num(r.get("imps")) for r in d.get("rows", [])),
              "sql": "SELECT SUM(CAST(COALESCE(IMPRESSIONS, IMPRESSION) AS INTEGER)) AS imps\n"

@@ -1,8 +1,31 @@
 # client_schneider — intake / data slice (resolved)
 
 **Client:** Schneider Electric (APAC) · **Agency:** Transmission · **Reporting currency:** AUD
-**Status:** 🟢 Live on GCP (stood up 2026-06-04). 11 of the 21 mapped campaigns have seeded plan
-budgets; the rest are still TODO (see open items below).
+**Status:** 🟢 Live on GCP (stood up 2026-06-04; **Pacific carve-out 2026-06-16**). 12 of the 27 mapped
+campaigns have seeded plan budgets; the rest are still TODO (see open items below).
+
+## Pacific carve-out — open items (raised to client 2026-06-16, dashboard live with defaults applied)
+The dashboard now defaults to the **Pacific** portfolio (org book of work, NOT the geographic region).
+Decisions made to ship live — each is a one-line `portfolio` flip in `sql/30_seed_campaign_map.sql`
++ re-run; confirm with the client. Full EDA + reconciliation in [`_eda/pacific_eda.md`](_eda/pacific_eda.md).
+1. **Portfolio of the "neither-list" programs.** Pacific = the client's named 11 programs only;
+   everything else (incl. `eae`, `iof`, `impact_maker`, `power_products`, `digital_*`, `modernisation`,
+   `active_kpx`, `mea_seg`, `aveva`, `ia_services`) → APAC-other. Confirm.
+2. **`ind_edge` + `pac_hybrid_it`** are NAMED "Pacific" in the platform but NOT on the client's program
+   list → tagged **APAC-other** (the org-vs-geo trap). Flip to Pacific if they belong to the Pacific book.
+3. **`ecocare` ≡ "EcoCare BMS"?** Tagged Pacific (delivery is literally `..._Ecocare_BMS_...`). Confirm.
+4. **`enterprise_software`** added as a Pacific placeholder, distinct from the excluded `ent_it`
+   ("Enterprise IT Expansion"). Confirm its real identity / naming when it launches.
+5. **Heavy Industries** is marked LIVE by the client but has **zero warehouse delivery** under any
+   naming — need the platform campaign name / PO to set a real `match_pattern` (currently `Heavy Indust*`).
+6. **W&E budget conflict** (unchanged, still flagged): seed = 95,000 AUD incl-fees; W&E media plan totals
+   59,111 AUD (P1 13,854 + P2 22,167 + P3 23,090). Which is canonical?
+7. **NEL / New Energy Landscape** (job 2053) is delivering (2 TradeDesk campaigns) but unmapped & not on
+   the Pacific list — Pacific, APAC-other, or ignore?
+8. **Pacific placeholders** (Global Rebrand, Healthcare, Microgrid, Enterprise Software) seeded with
+   non-matching sentinel `match_pattern`s — set the real pattern + budget/flight when each launches
+   (Jul/Aug). Budgets/flight-dates/channel-splits still needed per program.
+9. **FX** (USD→AUD 1.50, SGD→AUD 1.15) and **GA4** (no SE property id) unchanged — still placeholders/disabled.
 
 > The data slice was **resolved before the build** (filters below are applied verbatim in the
 > `stg_*` views). The DV360 `COUNTRY_NAME` enumeration was run once to ground the market mapping;

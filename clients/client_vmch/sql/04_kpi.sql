@@ -37,6 +37,8 @@ gp AS (
 ),
 ttd AS (
   SELECT SUM(imps) AS imps, SUM(clicks) AS clicks, SUM(spend_aud) AS spend_aud,
+         SUM(post_view_conv)  AS post_view,    -- TTD post-view (view-through) attributed conversions
+         SUM(post_click_conv) AS post_click,   -- TTD post-click attributed conversions
          MIN(metric_date) AS start_date, MAX(metric_date) AS end_date
   FROM `bidbrain-analytics.client_vmch.stg_ttd`
 )
@@ -53,5 +55,7 @@ SELECT
   ttd.start_date AS ttd_start, ttd.end_date AS ttd_end,
   ttd.imps                     AS ad_imps,
   ttd.clicks                   AS ad_clicks,
-  ttd.spend_aud                AS ad_spend_aud
+  ttd.spend_aud                AS ad_spend_aud,
+  ttd.post_view                AS ad_post_view,
+  ttd.post_click               AS ad_post_click
 FROM g, gp, ttd;

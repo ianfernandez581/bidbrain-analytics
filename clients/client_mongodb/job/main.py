@@ -118,7 +118,9 @@ def main():
             [observed[k] for k in SNOWFLAKE_TABLES if observed.get(k)]),
         "row_count": len(pm),
         "window": {"start": iso(win["s"]), "end": iso(win["e"]), "days": win["days"]},
-        "all_markets": ["ANZ","ASEAN","INDIA","KR-HK-TW"],
+        # "OTHER" = leads in countries outside the 4 plan markets (e.g. China, Japan).
+        # Surfaced as its own region so every lead is counted; has no plan target.
+        "all_markets": ["ANZ","ASEAN","INDIA","KR-HK-TW","OTHER"],
         "all_programmes": ["IDE","IDC"],
         "rows": [{"channel": r["CHANNEL"], "date": iso(r["DATE"]), "week_start": iso(r["WEEK_START"]),
                   "programme": r["PROGRAMME"], "market": r["MARKET"], "strategy": r["STRATEGY"],

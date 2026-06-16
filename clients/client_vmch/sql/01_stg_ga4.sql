@@ -27,4 +27,15 @@ SELECT
   CAST(user_engagement_duration AS NUMERIC) AS user_engagement_duration,
   CAST(conversions AS NUMERIC)              AS conversions
 FROM `bidbrain-analytics.raw_ga4.perf_ga4`
-WHERE account_name = 'VMCH Website - GA4';
+WHERE account_name = 'VMCH Website - GA4'
+  -- EXCLUDE the `programmatic-display / *` source/medium. GA4 dumps it into the "Unassigned"
+  -- channel and it LOOKS like ~19-38k display sessions, but it is NOT credible campaign traffic:
+  --   * it predates any loaded Trade Desk spend (peaks Mar-2026, before the Apr-2026 flight);
+  --   * 12k of its April sessions came from just 144 Trade Desk clicks (physically impossible 1:1);
+  --   * its engagement is 5.7% / 2.5s / 1.48 pp vs the site's 40% / 47s / 2.05 pp — a bot/redirect
+  --     /landing-pixel signature, and it drags the whole-site engagement rate from ~46% to ~30%.
+  -- Surfacing it as a "display win" to a sceptical client is indefensible, so it is filtered here
+  -- once — keeping EVERY downstream metric (sessions, channels, monthly/daily, YoY) clean and
+  -- internally consistent. The campaign's real contribution is shown via reach, clicks and the
+  -- Trade-Desk-ATTRIBUTED post-view/post-click conversions (stg_ttd), not last-click sessions.
+  AND LOWER(COALESCE(session_source_medium, '')) NOT LIKE 'programmatic-display%';

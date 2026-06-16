@@ -256,7 +256,7 @@ def _fmt_brief(s):
     L.append(f"Weighted plan CPL: {_money(cs.get('cpl'))}  |  Media cost (delivered): {_money(cs.get('media_cost'))}")
     L.append(f"Lead quality: Accepted {_int(q.get('accepted'))} ({_pct(q.get('accepted_pct'),1)}); "
              f"Rejected {_int(q.get('rejected'))} ({_pct(q.get('rejected_pct'),1)}); "
-             f"New {_int(q.get('new'))} ({_pct(q.get('new_pct'),1)})  [New = Unresponsive + New, awaiting triage]")
+             f"New {_int(q.get('new'))} ({_pct(q.get('new_pct'),1)})  [New = Unresponsive + New (+ Do Not Contact for KGA/IDC), awaiting triage]")
     bp = cs.get("by_programme") or []
     L.append("By programme:" if bp else "By programme: (none recorded)")
     for r in bp:

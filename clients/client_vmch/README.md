@@ -34,17 +34,20 @@ Desk programmatic display) set against the VMCH website (GA4).
 
 ## Dashboard (4 tabs)
 
-`dash/dashboard.html` — one self-contained file. Filters: **Date range** + **Campaign** (4 service
-lines). No Country/Platform chips (single market, single platform).
+`dash/dashboard.html` — one self-contained file. Filters: **Date range** (defaults to **all available
+history**; flight marked on charts) + **Campaign** (4 service lines). No Country/Platform chips (single
+market, single platform).
 
-- **Overview** — media spend + website sessions + enquiry events (3-axis hero), channel donut,
-  paid-vs-rest stack, TTD delivery, AI commentary on enquiries.
+- **Overview** — ad spend + website sessions + enquiry events (3-axis hero), **Attributed-conversions
+  KPI** (post-view + post-click), channel donut, paid-vs-rest stack, ad delivery, AI commentary.
 - **Trade Desk** — delivery KPIs (spend/imps/clicks/CTR/CPM/CPC), monthly spend+clicks, spend-by-
-  campaign donut, campaign breakdown table, top ad groups, creative-format mix.
-- **Website** — GA4 KPIs, sessions-by-channel, monthly trend (total/paid/display), enquiry events
-  by type, top sources/mediums.
-- **Media → Traffic** — honest upper-funnel read: weekly impressions vs sessions, correlation
-  scatter, weekly clicks, stat strip (clicks, click-rate, last-click Display sessions).
+  campaign donut, campaign breakdown table (**now with Post-view / Post-click columns**), top ad groups,
+  creative-format mix.
+- **Website** — GA4 KPIs, sessions-by-channel (junk filtered), sessions trend (total/paid/display),
+  enquiry events by type (**flight-scoped**), top sources/mediums.
+- **Media → Traffic** — the full chain: **spend → impressions → clicks → post-click → post-view**
+  conversions (funnel + stat strip), impressions-vs-sessions trend, correlation scatter, weekly clicks.
+  Last-click Display sessions kept as an honest aside (small by design — display is upper-funnel).
 
 ## Coordinates
 
@@ -104,23 +107,44 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
    (Phone 957 · Contact 851 · Call-back 551 · Email 264 · Property/sales alert 113). `kpi.conversions`
    stays 0 and is no longer used for the headline. If GA4 key-event tagging is re-enabled upstream,
    revisit whether to switch back to `conversions`.
-4. **Display is upper-funnel** — TTD drove 4.4M impressions but GA4 attributes only ~25 last-click
-   "Display" sessions. The **Media → Traffic** tab says so explicitly — judge the flight on reach,
-   clicks (3,248) and assisted enquiries, not a 1:1 session lift. Do not overclaim.
-5. **TTD already AUD** — Windsor returns `advertiser_currency_code = 'AUD'`; the FX@1.50 case in
+4. **Display is upper-funnel** — TTD drove 4.5M impressions but GA4 attributes only ~25 last-click
+   "Display" sessions. Judge the flight on **reach, clicks (~3,435) and ad-attributed conversions**
+   (≈113 post-view + 13 post-click — see caveat 5), not a 1:1 last-click session lift. Do not overclaim.
+   The **Media → Traffic** tab makes the full chain explicit: spend → impressions → clicks → post-click → post-view.
+5. **TTD-attributed conversions** (added Jun 2026) — the real "attributable leads". `03_stg_ttd.sql`
+    parses Windsor's **double-encoded** `conversions` JSON (`PARSE_JSON(JSON_VALUE(conversions))`) into
+    `post_view_conv` (view-through) + `post_click_conv` (click-through). **Pixels come in DUPLICATE PAIRS**
+    (`*_01`==`*_02`, `*_03`==`*_04` row-identical ~99.9%), so sum ONLY the **distinct pixels {01,03,05}** —
+    summing 01–05 double-counts. `conversion_touch_*` (~3,300) is **total pixel fires, NOT ad-attributed** —
+    never surface it as conversions/leads. Flows `stg_ttd`→`stg_ad_delivery`→`ad_campaigns`/`_monthly`/`_weekly`/`_daily`
+    (`post_view`/`post_click`) and `kpi` (`ad_post_view`/`ad_post_click`). De-duped flight totals: **113 post-view, 13 post-click**.
+6. **Junk traffic excluded** — `01_stg_ga4.sql` filters out the `programmatic-display / *` source/medium.
+    GA4 buckets it into "Unassigned" and it *looks* like ~19–38k display sessions, but it is **not credible**:
+    it predates loaded ad spend (peaks Mar-2026), 12k of its April sessions came from just 144 TTD clicks
+    (impossible 1:1), and it runs **2.5s / 5.7% engagement** (vs the site's 47s / 40%), dragging whole-site
+    engagement from ~46% to ~30% when present. **Do NOT resurfacing it as a "display win"** — it's the kind of
+    too-good-doesn't-add-up number that destroys trust with a sceptical client. Filtering it lifts the flight
+    engagement rate back to ~40% and the channel mix to genuine channels. (Headline flight sessions: ~103k, not 124.6k.)
+7. **TTD already AUD** — Windsor returns `advertiser_currency_code = 'AUD'`; the FX@1.50 case in
    `stg_ttd` is present but never exercised.
-6. **TTD creative/ad-group tables are whole-flight** (no date grain); ad groups honour the Campaign
+8. **TTD creative/ad-group tables are whole-flight** (no date grain); ad groups honour the Campaign
    filter via the campaign prefix in the ad-group name (RAC/RL/SAH/Disability).
-7. **YoY** uses `kpi.prior_sessions` / `prior_paid_sessions`. The prior CTE in `04_kpi.sql` is
+9. **YoY** uses `kpi.prior_sessions` / `prior_paid_sessions`. The prior CTE in `04_kpi.sql` is
    **like-for-like**: the same calendar span one year earlier (`2025-04-01 .. max-GA4-date − 1yr`),
-   NOT a full 12 months — otherwise a ~2-month flight vs a year reads as a false −77% drop (real is
-   sessions **+47%**; paid sessions −45% YoY is genuine — VMCH's all-channel paid traffic is down YoY,
-   our TTD flight is additive awareness). `ga4_kpi_market.prior_*` is hardcoded 0 — never read YoY there.
-8. **Total users is approximate** — `raw_ga4.perf_ga4` is session-source-medium grain, so summed
-   `total_users` / `new_users` double-count (new can exceed total). The Website "Total users" card
-   shows the summed figure with a `sessions/user` sub-label and does NOT show "new" (which would
-   exceed total). No de-duplicated property-level user count is available from this source.
-9. **Latest period is partial** — GA4 currently lands ~a few days behind The Trade Desk (GA4 ends
-   ~2026-06-01, TTD ~2026-06-12), so the trailing month/week reads low; the Overview note says so.
-   The dashboard defaults its date range to the **flight** (Apr 2026 →) — pre-flight 2025 months use
-   a different GA4 event taxonomy and are intentionally outside the default range.
+   NOT a full 12 months — otherwise a ~2-month flight vs a year reads as a false −77% drop. With the junk
+   source excluded (caveat 6) the real flight figure is sessions **103,002 vs 84,844 prior ≈ +21%**; paid
+   sessions −45% YoY is genuine — VMCH's all-channel paid traffic is down YoY, our TTD flight is additive
+   awareness. `ga4_kpi_market.prior_*` is hardcoded 0 — never read YoY there.
+10. **Total users is approximate** — `raw_ga4.perf_ga4` is session-source-medium grain, so summed
+    `total_users` / `new_users` double-count (new can exceed total). The Website "Total users" card
+    shows the summed figure with a `sessions/user` sub-label and does NOT show "new" (which would
+    exceed total). No de-duplicated property-level user count is available from this source.
+11. **Date range defaults to ALL available history** (Jan 2025 →) so the client sees the full trend; the
+    **flight (Apr 2026 →)** is demarcated on every time-series chart by the `flightMarker` plugin (faint
+    pre-flight shade + dashed "Flight →" line). Pre-flight, two things are NOT comparable and are scoped/
+    annotated: (a) **no ad spend** was loaded; (b) **GA4 enquiry tagging changed in 2026** (2025 ≈110k vs
+    flight 2,736 — a taxonomy artefact, not a real decline), so the **enquiry charts clamp to the flight**
+    via `inFlight()` (ovHero enquiry lines null pre-flight with `spanGaps:false`+`indexedNN`; `webKeyEvents`
+    filters its keys). KPI cards + channel/source breakdowns stay flight-window. An always-on date-scope
+    banner explains this. **Latest period is partial** — GA4 lands ~a few days behind TTD, so the trailing
+    month/week reads low (the Overview note says so).

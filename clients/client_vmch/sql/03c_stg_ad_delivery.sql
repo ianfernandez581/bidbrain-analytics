@@ -15,5 +15,7 @@ SELECT
   creative_name,
   imps,
   clicks,
-  spend_aud
+  spend_aud,
+  post_view_conv,    -- TTD post-view (view-through) attributed conversions
+  post_click_conv    -- TTD post-click attributed conversions
 FROM `bidbrain-analytics.client_vmch.stg_ttd`;

@@ -1,0 +1,518 @@
+
+============================================================================================
+RAW SE SLICE vs ad_campaigns VIEW (completeness cross-check)
+============================================================================================
+     dv360 | raw distinct campaigns=   9 | imps=  98,195,707 | clicks=   270,327 | 2025-07-26 -> 2026-06-09
+ tradedesk | raw distinct campaigns=  13 | imps=   3,280,908 | clicks=     5,695 | 2026-04-30 -> 2026-06-15
+  linkedin | raw distinct campaigns= 152 | imps=   5,259,125 | clicks=    13,646 | 2025-06-02 -> 2026-06-15
+-- ad_campaigns view (delivering only): dv360=9c/98,195,707imps | linkedin=152c/5,259,125imps | tradedesk=13c/3,280,908imps
+
+============================================================================================
+1. PLATFORM CAMPAIGN INVENTORY (every delivering campaign, by spend) -> mapped id
+============================================================================================
+  platform               id         imps      clk    spend_AUD       start        end  campaign
+     dv360     impact_maker   19,241,041    6,789       33,336  2025-11-30 2026-03-27  APAC_SE_ANZ_Imapct_Maker_1914
+     dv360              csp    8,290,921   36,006       30,418  2025-09-12 2025-12-07  APAC_SE_C&SP_Awareness_1608
+     dv360            ai_lc   11,852,116  172,160       29,578  2025-11-19 2026-02-17  APAC_SE_2025_AI in DC_ Awareness_1925
+     dv360              eae   13,822,157   14,041       28,329  2025-12-01 2026-06-09  APAC_SE_ANZ_Ecostructure_Automation_Expert_1974
+     dv360   power_products   10,313,375   32,810       21,000  2025-11-26 2026-04-01  APAC_SE_ANZ_2025_Power_Products_1916
+     dv360              iof   32,563,770    3,971       15,201  2025-10-29 2026-02-01  APAC_SE_2025_Industries of the Future_Awareness_1899
+  linkedin              csp      446,147    1,565       15,002  2025-12-03 2026-03-26  SE_ANZ_Impact_Maker_Non_C&SP_AU
+  linkedin              csp      381,780      662       15,002  2025-12-03 2026-03-26  SE_ANZ_Impact_Maker_C&SP_AU
+     dv360     digital_bldg    1,209,625      601        7,937  2025-10-07 2025-11-04  APAC_SE_Digital Building_1721
+ tradedesk            ai_lc      348,420    1,028        5,831  2026-05-18 2026-06-15  SE_LQAIDC_TTD_TOFU_May26
+  linkedin      ia_services       37,027      164        4,210  2026-03-10 2026-06-01  Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers
+  linkedin            mcset       52,007      219        4,044  2025-08-29 2025-09-24  1130_Cooling Solutions Event Registrations LP Visit
+  linkedin         ind_edge       38,432      114        3,812  2025-10-13 2025-12-08  1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Industrial Manufacture
+  linkedin    digital_power      142,321      180        3,778  2025-12-03 2026-03-01  Digital_Power_Basket_PFC_Public_Access_AU
+  linkedin          mea_seg       69,325      311        3,641  2025-07-02 2025-09-15  2353_FY25Q2_MEA Segment Healthcare Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic
+     dv360            mcset      405,276      548        3,514  2025-08-26 2025-09-12  (APAC) - Schneider Electric_1130_Cooling Solutions Event Registrations/ Sign Ups
+  linkedin         ind_edge       28,954       93        3,378  2025-10-13 2025-12-08  1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ MMM
+  linkedin              csp      325,321    1,038        3,310  2025-09-12 2025-10-31  1608_C&SP_Awareness_India
+  linkedin              csp       33,748      133        3,309  2025-09-18 2025-10-31  1608_C&SP_Awareness_Japan
+  linkedin    digital_power      121,979      154        3,218  2025-12-03 2026-02-28  Digital_Power_Basket_PFC_Energies&Chemicals_AU
+  linkedin              iof      153,748      136        3,166  2025-10-24 2026-01-31  PO_1899_IOF_ Mining, Minerals & Metals_ Awareness_ Single Image
+  linkedin              iof      150,344      253        3,166  2025-10-24 2026-01-31  PO_1899_IOF_ Mining, Minerals & Metals_ Awareness_ Video
+  linkedin              csp       79,940      144        3,160  2025-09-12 2025-10-31  1608_C&SP_Awareness_ANZ
+  linkedin              csp       20,587       88        3,152  2025-09-12 2025-10-31  1608_C&SP_Awareness_SEA
+  linkedin              csp       71,216      234        2,993  2025-09-12 2025-10-31  1608_C&SP_Awareness_MEA
+  linkedin          mea_seg      128,419      548        2,942  2025-07-02 2025-09-30  2353_FY25Q2_MEA Segment CPG Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic
+  linkedin          ecocare       24,680       63        2,936  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Single Image
+ tradedesk           ent_it      106,224      218        2,895  2026-05-14 2026-06-15  SE_EntIT_2026_PAC
+  linkedin       (unmapped)      127,750      115        2,886  2025-09-12 2025-10-21  1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Awareness
+  linkedin    pac_hybrid_it       81,846       79        2,880  2025-06-02 2025-07-02  1130_FY25Q2_Pacific Hybrid IT_All TAL_ANZ_JobTitles_Awareness_Static
+  linkedin      ia_services        1,496       12        2,800  2026-05-26 2026-06-01  Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers (Conversions)
+  linkedin            ai_lc      327,622    1,458        2,717  2026-05-16 2026-06-15  SE_LQAIDC_LI_India_TOFU_May26
+     dv360          mea_seg      497,426    3,401        2,632  2025-07-26 2025-09-07  (APAC) - Schneider Electric_MEA Segment Marketing Program_MEA_Q225 - (JN2353)
+ tradedesk              eba    2,022,891    1,862        2,623  2026-06-05 2026-06-15  SE_EBA_Activate_AWR_June4
+  linkedin    digital_power       60,763       79        2,488  2026-01-14 2026-02-28  Digital_Power_Basket_EEH_Education_AU
+  linkedin              csp       15,868       37        2,449  2025-09-18 2025-12-06  1608_SE_2025_C&SP_Consideration_Japan
+  linkedin              csp       15,900       47        2,449  2025-11-03 2025-12-06  1608_SE_2025_C&SP_Consideration_SEA
+  linkedin              csp       64,112      162        2,448  2025-09-15 2025-12-06  1608_SE_2025_C&SP_Consideration_MEA
+  linkedin              csp      167,663      432        2,447  2025-11-03 2025-12-06  1608_SE_2025_C&SP_Consideration_INDIA
+  linkedin          ecocare       18,504       54        2,308  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Awareness Video
+  linkedin            ai_lc       30,597       84        2,254  2025-11-09 2026-02-10  SE_AI in DC_ Singapore_ Awareness
+  linkedin            ai_lc       63,640      133        2,254  2025-11-09 2026-02-10  SE_AI in DC_ Indonesia_ Awareness
+  linkedin            ai_lc       47,425       92        2,253  2025-11-09 2026-02-10  SE_AI in DC_ Malaysia_ Awareness
+  linkedin            ai_lc       10,854       28        2,203  2025-11-09 2026-02-28  SE_AI in DC_ Thailand_ Awareness
+  linkedin              csp       17,639       39        2,137  2025-09-15 2025-12-06  1608_SE_2025_C&SP_Consideration_ANZ
+  linkedin    pac_hybrid_it       29,547       99        2,086  2025-07-03 2025-08-02  1130_FY25Q2_Pacific Hybrid IT_Cybersecurity_ANZ_JobTitles_WebsiteTraffic_Static
+  linkedin    modernisation       66,290      335        2,048  2025-09-23 2025-10-06  1759_Schneider_Modernisation_FY25Q3_ANZ_Website_visits
+  linkedin    modernisation       19,781      112        1,958  2025-10-14 2025-11-28  Schneider_Modernisation_FY25Q3_ANZ_Lead Generation_Conversion
+  linkedin          ecocare      107,364       47        1,952  2025-08-06 2025-11-28  PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_MINING, WHOLESALE METALS & MINERALS
+  linkedin    pac_hybrid_it       19,146       70        1,920  2025-07-03 2025-08-02  1130_FY25Q2_Pacific Hybrid IT_IT DC_ANZ_JobTitles_WebsiteTraffic_Static
+ tradedesk           ent_it      116,051      311        1,920  2026-05-14 2026-06-15  SE_EntIT_2026_MEA
+  linkedin              iof       89,660       79        1,899  2025-10-24 2026-01-31  PO_1899_IOF_Water and Wastewater_ Awareness_ Single Image
+  linkedin              iof       85,150      147        1,899  2025-10-24 2026-01-31  PO_1899_IOF_Water and Wastewater_ Awareness_ VIdeo
+ tradedesk           ent_it      123,833      290        1,836  2026-05-14 2026-06-15  SE_EntIT_2026_SAM
+ tradedesk           ent_it      146,418      358        1,824  2026-05-14 2026-06-15  SE_EntIT_2026_India
+  linkedin    pac_hybrid_it       12,313       48        1,824  2025-07-03 2025-08-02  1130_FY25Q2_Pacific Hybrid IT_ClevelPersona_ANZ_JobTitles_WebsiteTraffic_Static
+  linkedin          mea_seg       44,553      197        1,736  2025-06-16 2025-07-11  2353_FY25Q2_MEA Segment Marketing_Finance Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic
+  linkedin              csp       38,666      122        1,667  2025-12-03 2026-03-26  SE_ANZ_Impact_Maker_Non_C&SP_NZ
+  linkedin              csp       34,309       66        1,667  2025-12-03 2026-03-26  SE_ANZ_Impact_Maker_C&SP_NZ
+  linkedin            ai_lc       20,211       83        1,656  2026-05-16 2026-06-15  SE_LQAIDC_LI_Australia_TOFU_May26
+  linkedin    modernisation       12,383       51        1,580  2025-08-26 2025-10-11  PO1759_Schneider_Spaas_FY25Q3_ANZ_Traffic_Static_Group1
+  linkedin          ecocare       85,078       51        1,570  2025-08-06 2025-11-25  PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_TRANSPORTATION
+  linkedin          ecocare       80,483       51        1,562  2025-08-06 2025-11-14  PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare
+  linkedin          ecocare       12,315       20        1,453  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Single Image
+  linkedin    modernisation       90,447      464        1,440  2025-08-26 2025-09-22  PO1759_Schneider_Modernisation_FY25Q3_ANZ_Awareness
+  linkedin            ai_lc       66,577      253        1,434  2026-05-16 2026-06-15  SE_LQAIDC_LI_Brazil_TOFU_May26
+  linkedin    modernisation       11,916       67        1,418  2025-08-26 2025-10-06  PO1759_Schneider_Spaas_FY25Q3_ANZ_Lead_Static_Group1
+  linkedin            ai_lc        1,190        3        1,377  2025-11-09 2026-01-11  SE_AI in DC_ Vietnam_ Awareness
+  linkedin            ai_lc        5,286       29        1,375  2025-11-09 2026-01-11  SE_AI in DC _Philippines _ Awareness
+  linkedin    modernisation       13,176       59        1,359  2025-08-26 2025-10-01  PO1759_Schneider_Spaas_FY25Q3_ANZ_WT_Conversion_Static_Group1
+  linkedin     digital_bldg        7,053       29        1,344  2025-09-09 2025-10-19  1721_SE_ANZ_ESW_Digital Buildings_Consideration_Retail
+  linkedin     digital_bldg        6,341       31        1,344  2025-09-09 2025-10-19  1721_SE_ANZ_ESW_Digital Buildings_Consideration_Healthcare
+  linkedin          ecocare       10,907       28        1,328  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Awareness Video
+  linkedin      ia_services       10,892       45        1,225  2026-03-10 2026-06-01  Schneider_Electric_AI Services_Q1_2026_NZ - Industrial Decision Makers
+  linkedin    modernisation        2,669       38        1,207  2025-10-24 2025-12-01  Schneider_Modernisation_FY25Q3_ANZ_Lead Generation_Retargeting
+ tradedesk        water_env      168,633      781        1,171  2026-04-30 2026-06-15  SE_WaterEnv_P2_AWR - AU
+  linkedin        water_env        7,943       26        1,166  2026-04-29 2026-06-15  SE_WaterEnv_P2_Cons_TAL-Persona - AU
+  linkedin         ind_edge       10,800       31        1,126  2025-10-13 2025-12-08  1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_Education
+  linkedin            ai_lc       27,996      118        1,112  2026-05-16 2026-06-15  SE_LQAIDC_LI_KSA_TOFU_May26
+  linkedin            ai_lc       23,138      115        1,105  2026-05-16 2026-06-15  SE_LQAIDC_LI_UAE_TOFU_May26
+  linkedin            ai_lc       26,687       87        1,098  2026-05-16 2026-06-15  SE_LQAIDC_LI_Chile_TOFU_May26
+  linkedin    pac_hybrid_it        5,388       15        1,056  2025-08-04 2025-09-03  1130_FY25Q2_Pacific Hybrid IT_IT DC_ANZ_JobTitles_WebsiteTraffic_Static RETARGETING
+  linkedin    pac_hybrid_it        7,806       30        1,056  2025-08-04 2025-09-03  1130_FY25Q2_Pacific Hybrid IT_Cybersecurity_ANZ_JobTitles_WebsiteTraffic_Static RETARGETING
+  linkedin    pac_hybrid_it       10,239       27        1,008  2025-07-03 2025-08-02  1130_FY25Q2_Pacific Hybrid IT_Procurement_ANZ_JobTitles_WebsiteTraffic_Static
+  linkedin     digital_bldg       26,211       39          953  2025-08-08 2025-08-29  1721_SE_ANZ_ESW_Digital Buildings_Video
+  linkedin          ecocare        7,007       29          939  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video
+  linkedin    digital_power       28,475       52          937  2025-12-03 2026-02-02  Digital_Power_Basket_PFC_Energies&Chemicals_NZ
+  linkedin          ecocare        7,383       12          928  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image
+  linkedin    digital_power        8,357        7          910  2025-12-03 2026-02-28  Digital_Power_Basket_EEH_Industrial_Manufacturing_NZ
+  linkedin       active_kpx       40,176       43          897  2025-10-29 2025-11-27  1896_SE_ Active KPX_ Awareness _AU_ Single Image
+  linkedin       active_kpx       40,892       36          897  2025-11-02 2025-11-27  1896_SE_ Active KPX_ Awareness _AU_ Carousel
+  linkedin    digital_power       26,252       41          866  2025-12-03 2026-02-02  Digital_Power_Basket_PFC_Public_Access_NZ
+  linkedin       active_kpx       39,087       31          862  2025-10-29 2025-12-04  1896_SE_ Active KPX_ Awareness _NZ_ Single Image
+  linkedin    modernisation        8,263       34          831  2025-10-07 2025-10-18  1759_Schneider_Modernisation_FY25Q3_ANZ_Website_visits_Carousel
+ tradedesk           ent_it       52,125      148          820  2026-05-23 2026-06-15  SE_EntIT_2026_S2_SAM
+ tradedesk           ent_it       50,125      206          819  2026-05-23 2026-06-15  SE_EntIT_2026_S2_MEA
+ tradedesk           ent_it       72,837      276          815  2026-05-23 2026-06-15  SE_EntIT_2026_S2_India
+  linkedin    digital_power       20,316       19          802  2025-12-03 2026-02-28  Digital_Power_Basket_PFC_Industrial_Manufacturing_AU
+  linkedin          ecocare       28,700       26          769  2025-08-06 2025-10-04  PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_ENERGY & CHEMICALS
+  linkedin          mea_seg       16,770       63          761  2025-07-29 2025-08-23  2353_FY25Q2_MEA Segment Marketing_Finance Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic v2
+  linkedin          ecocare        5,894       16          731  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Single Image
+  linkedin          ecocare       22,478       18          689  2025-08-06 2025-10-20  PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_Renewables (100%)
+  linkedin       active_kpx       28,259       39          673  2025-11-02 2025-11-27  1896_SE_ Active KPX_ Awareness _NZ_ Carousel
+  linkedin           ent_it        7,476       14          652  2026-05-06 2026-06-15  SE_EntIT_2026_PAC_Hero_AdGroup
+  linkedin          ecocare          680        4          643  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Single Image
+  linkedin          ecocare          657        2          626  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Awareness Video
+  linkedin    digital_power       15,452        9          611  2025-12-03 2026-02-28  Digital_Power_Basket_PFC_Education_AU
+  linkedin        water_env        1,690        3          579  2026-04-29 2026-06-15  SE_WaterEnv_P2_Cons_TAL-Persona - NZ
+  linkedin           ent_it       25,071       54          529  2026-05-06 2026-06-15  SE_EntIT_2026_SAM_Hero_AdGroup
+  linkedin           ent_it       35,723      120          526  2026-05-06 2026-06-15  SE_EntIT_2026_MEA_Hero_AdGroup
+  linkedin           ent_it       54,812      167          524  2026-05-06 2026-06-15  SE_EntIT_2026_India_Hero_AdGroup
+  linkedin    digital_power       12,964       16          452  2026-01-14 2026-02-28  Digital_Power_Basket_EEH_CRE_AU
+  linkedin    digital_power        4,290        8          443  2025-12-03 2026-02-28  Digital_Power_Basket_PFC_Industrial_Manufacturing_NZ
+  linkedin          ecocare          400        1          434  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image
+  linkedin           ent_it        1,934        3          399  2026-05-13 2026-06-15  SE_EntIT_2026_PAC_Retail_AdGroup
+  linkedin           ent_it        1,787        5          396  2026-05-13 2026-06-15  SE_EntIT_2026_PAC_Education_AdGroup
+  linkedin           ent_it        2,058        4          393  2026-05-13 2026-06-15  SE_EntIT_2026_PAC_Healthcare_AdGroup
+  linkedin           ent_it        2,256        1          392  2026-05-13 2026-06-15  SE_EntIT_2026_PAC_Finance_AdGroup
+  linkedin           ent_it        2,931        3          391  2026-05-13 2026-06-15  SE_EntIT_2026_PAC_Manufacturing_AdGroup
+  linkedin           ent_it        1,161        6          389  2026-05-13 2026-06-15  SE_EntIT_2026_MEA_Education_AdGroup
+  linkedin           ent_it        2,041        7          376  2026-05-13 2026-06-15  SE_EntIT_2026_SAM_Education_AdGroup
+  linkedin           ent_it        4,429       12          374  2026-05-13 2026-06-15  SE_EntIT_2026_PAC_Generic_AdGroup
+  linkedin           ent_it        4,012        7          360  2026-05-13 2026-06-15  SE_EntIT_2026_India_Education_AdGroup
+  linkedin           ent_it        4,245        7          357  2026-05-13 2026-06-15  SE_EntIT_2026_SAM_Healthcare_AdGroup
+  linkedin           ent_it        6,086       12          356  2026-05-13 2026-06-15  SE_EntIT_2026_SAM_Finance_AdGroup
+  linkedin          ecocare        2,949        5          354  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Awareness Video
+  linkedin           ent_it        5,757       14          354  2026-05-13 2026-06-15  SE_EntIT_2026_MEA_Retail_AdGroup
+  linkedin           ent_it        8,095       12          350  2026-05-13 2026-06-15  SE_EntIT_2026_SAM_Manufacturing_AdGroup
+  linkedin           ent_it        7,759       17          349  2026-05-13 2026-06-15  SE_EntIT_2026_MEA_Healthcare_AdGroup
+  linkedin           ent_it        6,625       14          348  2026-05-13 2026-06-15  SE_EntIT_2026_SAM_Retail_AdGroup
+  linkedin           ent_it       13,328       32          347  2026-05-13 2026-06-15  SE_EntIT_2026_SAM_Generic_AdGroup
+  linkedin         ind_edge        2,752       11          346  2025-10-13 2025-11-02  1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water
+  linkedin           ent_it       11,317       22          344  2026-05-13 2026-06-15  SE_EntIT_2026_MEA_Finance_AdGroup
+  linkedin           ent_it       21,576       77          342  2026-05-13 2026-06-15  SE_EntIT_2026_MEA_Generic_AdGroup
+  linkedin           ent_it       13,394       34          342  2026-05-13 2026-06-15  SE_EntIT_2026_MEA_Manufacturing_AdGroup
+  linkedin           ent_it       16,826       36          341  2026-05-13 2026-06-15  SE_EntIT_2026_India_Finance_AdGroup
+  linkedin           ent_it       14,369       28          340  2026-05-13 2026-06-15  SE_EntIT_2026_India_Retail_AdGroup
+  linkedin           ent_it       18,427       62          338  2026-05-13 2026-06-15  SE_EntIT_2026_India_Healthcare_AdGroup
+  linkedin           ent_it       28,931       99          338  2026-05-13 2026-06-15  SE_EntIT_2026_India_Manufacturing_AdGroup
+  linkedin           ent_it       33,207       92          336  2026-05-13 2026-06-15  SE_EntIT_2026_India_Generic_AdGroup
+  linkedin          ecocare          402        0          335  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video
+  linkedin          ecocare        2,975        6          333  2025-08-06 2025-08-25  PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_GOVERNMENT
+  linkedin    digital_power        8,803       13          309  2025-12-03 2026-02-28  Digital_Power_Basket_EEH_Retail_Chains_and_Building_AU
+  linkedin          ecocare          346        2          299  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Single Image
+  linkedin          ecocare          350        0          292  2025-11-10 2025-12-05  1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Awareness Video
+ tradedesk        water_env       70,089      207          250  2026-04-30 2026-06-15  SE_WaterEnv_P2_AWR - NZ
+  linkedin       (unmapped)        4,775        8          217  2025-09-12 2025-09-12  1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Consideration
+ tradedesk       (unmapped)        2,872        7          198  2026-06-06 2026-06-15  SE_NEL_TTD_AWR_AU_Jun26
+  linkedin    digital_power        4,433        4          160  2025-12-03 2026-02-28  Digital_Power_Basket_EEH_Industrial_Manufacturing_AU
+  linkedin              csp          183        2          103  2025-09-15 2025-09-19  1608_SE_2025_C&SP_Established Operators_Japan
+  linkedin              csp          266        1          102  2025-09-15 2025-09-19  1608_SE_2025_C&SP_Emerging Operators_Japan
+  linkedin              csp          538        2          102  2025-09-15 2025-09-19  1608_SE_2025_C&SP_Emerging Operators_ANZ
+  linkedin    digital_power        2,851        3           98  2026-01-14 2026-02-28  Digital_Power_Basket_PFC_CRE_AU
+  linkedin              csp        2,195        5           98  2025-09-15 2025-09-19  1608_SE_2025_C&SP_Specialist Operators_INDIA
+  linkedin              csp        1,193        4           94  2025-09-15 2025-09-19  1608_SE_2025_C&SP_Emerging Operators_MEA
+  linkedin              csp          952        4           90  2025-09-15 2025-09-19  1608_SE_2025_C&SP_Emerging Operators_SEA
+  linkedin          ecocare          185        0           84  2025-11-10 2025-11-14  1967_SE_Ecocare_BMS_NZ_Static_Government Facilities_ Single Image
+  linkedin           airset        1,217        4           73  2026-06-12 2026-06-15  RM AirSeT – Retargeting – ANZ
+  linkedin    digital_power          858        1           65  2026-01-14 2026-02-28  Digital_Power_Basket_PFC_CRE_NZ
+  linkedin    digital_power          534        0           58  2026-01-14 2026-02-28  Digital_Power_Basket_EEH_Retail_Chains_and_Building_NZ
+  linkedin           airset          776        7           55  2026-06-12 2026-06-15  SM AirSeT – Retargeting – ANZ
+  linkedin    digital_power          539        1           52  2026-01-14 2026-02-28  Digital_Power_Basket_PFC_Retail Chain_NZ
+  linkedin              csp        2,034        7           52  2025-09-18 2025-09-19  1608_SE_2025_C&SP_Established Operators_INDIA
+  linkedin              csp        1,256        3           49  2025-09-18 2025-09-19  1608_SE_2025_C&SP_Established Operators_MEA
+  linkedin              csp        1,352        7           40  2025-09-18 2025-09-19  1608_SE_2025_C&SP_Established Operators_SEA
+  linkedin              csp          844        4           40  2025-09-18 2025-09-19  1608_SE_C&SP_Specialist Operators_SEA
+  linkedin              csp        1,165        7           38  2025-09-18 2025-09-19  1608_SE_2025_C&SP_Specialist Operators_MEA
+  linkedin          ecocare           78        0           34  2025-11-10 2025-11-14  1967_SE_Ecocare_BMS_NZ_Static_Government Facilities _ Awareness Video
+  linkedin           airset        1,326        2           30  2026-06-15 2026-06-15  RM AirSeT – Awareness – AU
+  linkedin           airset        1,241        0           29  2026-06-14 2026-06-15  SM AirSeT – Awareness – AU
+ tradedesk       (unmapped)          390        3           25  2026-06-06 2026-06-15  SE_NEL_TTD_AWR_NZ_Jun26
+  linkedin    digital_power          718        0           24  2026-01-14 2026-02-25  Digital_Power_Basket_PFC_Retail Chain_AU
+  linkedin    digital_power          893        0           23  2025-12-03 2026-02-26  Digital_Power_Basket_EEH_Real_Estate_AU
+  linkedin           airset          506        1           15  2026-06-15 2026-06-15  RM AirSeT – Awareness – NZ
+
+============================================================================================
+2. ROSTER by internal id (what the dashboard shows in the campaign filter)
+============================================================================================
+              id                            display #camp    spend_AUD         imps  platforms  window
+             csp        C&SP Relationship Marketing    26       92,418   10,015,795  dv360,linkedin         2025-09-12 -> 2026-03-26
+           ai_lc                AI & Liquid Cooling    14       56,248   12,851,759  dv360,linkedin,tradedesk 2025-11-09 -> 2026-06-15
+    impact_maker                       Impact Maker     1       33,336   19,241,041  dv360                  2025-11-30 -> 2026-03-27
+             eae      EcoStruxure Automation Expert     1       28,329   13,822,157  dv360                  2025-12-01 -> 2026-06-09
+             iof           Industries of the Future     5       25,332   33,042,672  dv360,linkedin         2025-10-24 -> 2026-02-01
+          ent_it            Enterprise IT Expansion    35       21,810    1,023,246  linkedin,tradedesk     2026-05-06 -> 2026-06-15
+  power_products               Power Products (ANZ)     1       21,000   10,313,375  dv360                  2025-11-26 -> 2026-04-01
+         ecocare                        EcoCare BMS    22       20,599      419,815  linkedin               2025-08-06 -> 2025-12-05
+   digital_power               Digital Power Basket    18       15,295      460,798  linkedin               2025-12-03 -> 2026-03-01
+   modernisation              Modernisation / SPaaS     8       11,839      224,925  linkedin               2025-08-26 -> 2025-12-01
+   pac_hybrid_it                  Pacific Hybrid IT     7       11,830      166,285  linkedin               2025-06-02 -> 2025-09-03
+         mea_seg                MEA Segment Program     5       11,713      756,493  dv360,linkedin         2025-06-16 -> 2025-09-30
+    digital_bldg                  Digital Buildings     4       11,578    1,249,230  dv360,linkedin         2025-08-08 -> 2025-11-04
+        ind_edge           Industrial Edge / Prefab     4        8,662       80,938  linkedin               2025-10-13 -> 2025-12-08
+     ia_services                        IA Services     3        8,235       49,415  linkedin               2026-03-10 -> 2026-06-01
+           mcset                    MCSeT + EvoPacT     2        7,558      457,283  dv360,linkedin         2025-08-26 -> 2025-09-24
+      active_kpx                         Active KPX     4        3,329      148,414  linkedin               2025-10-29 -> 2025-12-04
+      (unmapped)                         (unmapped)     4        3,326      135,787  linkedin,tradedesk     2025-09-12 -> 2026-06-15
+       water_env                Water & Environment     4        3,167      248,355  linkedin,tradedesk     2026-04-29 -> 2026-06-15
+             eba      EcoStruxure Building Activate     1        2,623    2,022,891  tradedesk              2026-06-05 -> 2026-06-15
+          airset                             AirSeT     5          202        5,066  linkedin               2026-06-12 -> 2026-06-15
+
+============================================================================================
+2b. UNMAPPED platform campaigns (fell through to '(unmapped)')
+============================================================================================
+    linkedin |    127,750 imps |      2,886 AUD | 1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Awareness
+    linkedin |      4,775 imps |        217 AUD | 1839_Schneider_Electric_Pacific_All_Industrial_TAL_&_Job_Edge_Consideration
+   tradedesk |      2,872 imps |        198 AUD | SE_NEL_TTD_AWR_AU_Jun26
+   tradedesk |        390 imps |         25 AUD | SE_NEL_TTD_AWR_NZ_Jun26
+
+============================================================================================
+3/6. PROGRAM PROBE — does any delivering campaign name contain each program's tokens?
+============================================================================================
+
+  ## Heavy Industries: NO delivering campaign name matches ['heavy indust', 'heavy_indust']
+
+  ## AirSeT: 5 hit(s)
+       [linkedin] -> id=airset   SM AirSeT – Retargeting – ANZ
+       [linkedin] -> id=airset   RM AirSeT – Retargeting – ANZ
+       [linkedin] -> id=airset   SM AirSeT – Awareness – AU
+       [linkedin] -> id=airset   RM AirSeT – Awareness – AU
+       [linkedin] -> id=airset   RM AirSeT – Awareness – NZ
+
+  ## EBA / Building Activate: 1 hit(s)
+       [tradedesk] -> id=eba   SE_EBA_Activate_AWR_June4
+
+  ## Water & Environment: 7 hit(s)
+       [tradedesk] -> id=water_env   SE_WaterEnv_P2_AWR - AU
+       [tradedesk] -> id=water_env   SE_WaterEnv_P2_AWR - NZ
+       [linkedin] -> id=water_env   SE_WaterEnv_P2_Cons_TAL-Persona - NZ
+       [linkedin] -> id=water_env   SE_WaterEnv_P2_Cons_TAL-Persona - AU
+       [linkedin] -> id=ind_edge   1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water
+       [linkedin] -> id=iof   PO_1899_IOF_Water and Wastewater_ Awareness_ VIdeo
+       [linkedin] -> id=iof   PO_1899_IOF_Water and Wastewater_ Awareness_ Single Image
+
+  ## Global Rebrand: NO delivering campaign name matches ['rebrand', 'global rebrand']
+
+  ## MCSeT & EvoPacT: 2 hit(s)
+       [dv360] -> id=mcset   (APAC) - Schneider Electric_1130_Cooling Solutions Event Registrations/ Sign Ups
+       [linkedin] -> id=mcset   1130_Cooling Solutions Event Registrations LP Visit
+
+  ## EcoConsult: NO delivering campaign name matches ['ecoconsult', 'eco consult']
+
+  ## Healthcare: 11 hit(s)
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Healthcare_AdGroup
+       [linkedin] -> id=mea_seg   2353_FY25Q2_MEA Segment Healthcare Segment_IT/EN/FM/DC JobTitles_WebsiteTraffic
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare
+       [linkedin] -> id=digital_bldg   1721_SE_ANZ_ESW_Digital Buildings_Consideration_Healthcare
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image
+
+  ## Microgrid: NO delivering campaign name matches ['microgrid', 'micro grid']
+
+  ## EcoCare BMS: 22 hit(s)
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_StaticHealthCare_HealthCare
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_Renewables (100%)
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_ENERGY & CHEMICALS
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_MINING, WHOLESALE METALS & MINERALS
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_GOVERNMENT
+       [linkedin] -> id=ecocare   PO1787_Schneider_EcoCare_FY25Q3_AU_Traffic_Static_TRANSPORTATION
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Healthcare_Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Healthcare_Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Government Facilities _ Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Government Facilities_ Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Commercial Real Estate_ Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Healthcare_Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Government Facilities _ Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Commercial Real Estate_ Single Image
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_AU_Static_Higher Education_ Awareness Video
+       [linkedin] -> id=ecocare   1967_SE_Ecocare_BMS_NZ_Static_Higher Education_ Single Image
+
+  ## Enterprise Software: NO delivering campaign name matches ['enterprise software', 'ent software', 'entsoftware']
+
+  ## Industrial Edge: 4 hit(s)
+       [linkedin] -> id=ind_edge   1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Water
+       [linkedin] -> id=ind_edge   1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ MMM
+       [linkedin] -> id=ind_edge   1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_ Industrial Manufacture
+       [linkedin] -> id=ind_edge   1839_Schneider_Electric_Pacific_Industrial Edge_ Consideration_Education
+
+  ## EAE / Automation Expert: 1 hit(s)
+       [dv360] -> id=eae   APAC_SE_ANZ_Ecostructure_Automation_Expert_1974
+
+  ## IA Services: 3 hit(s)
+       [linkedin] -> id=ia_services   Schneider_Electric_AI Services_Q1_2026_NZ - Industrial Decision Makers
+       [linkedin] -> id=ia_services   Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers
+       [linkedin] -> id=ia_services   Schneider_Electric_AI Services_Q1_2026_AU - Industrial Decision Makers (Conversions)
+
+  ## AI & Liquid Cooling [EXCLUDE]: 14 hit(s)
+       [dv360] -> id=ai_lc   APAC_SE_2025_AI in DC_ Awareness_1925
+       [tradedesk] -> id=ai_lc   SE_LQAIDC_TTD_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_LQAIDC_LI_UAE_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_LQAIDC_LI_India_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_LQAIDC_LI_Brazil_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_LQAIDC_LI_Australia_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_LQAIDC_LI_KSA_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_LQAIDC_LI_Chile_TOFU_May26
+       [linkedin] -> id=ai_lc   SE_AI in DC_ Malaysia_ Awareness
+       [linkedin] -> id=ai_lc   SE_AI in DC_ Singapore_ Awareness
+       [linkedin] -> id=ai_lc   SE_AI in DC_ Indonesia_ Awareness
+       [linkedin] -> id=ai_lc   SE_AI in DC_ Thailand_ Awareness
+       [linkedin] -> id=ai_lc   SE_AI in DC_ Vietnam_ Awareness
+       [linkedin] -> id=ai_lc   SE_AI in DC _Philippines _ Awareness
+
+  ## Enterprise IT Expansion [EXCLUDE]: 35 hit(s)
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_India
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_MEA
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_PAC
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_S2_India
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_S2_MEA
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_S2_SAM
+       [tradedesk] -> id=ent_it   SE_EntIT_2026_SAM
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Hero_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Hero_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Hero_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Hero_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Manufacturing_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Education_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Education_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Finance_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Manufacturing_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Retail_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Finance_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Education_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Finance_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Education_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Retail_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Manufacturing_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Generic_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Generic_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Retail_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_SAM_Generic_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Generic_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Finance_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_PAC_Healthcare_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_MEA_Manufacturing_AdGroup
+       [linkedin] -> id=ent_it   SE_EntIT_2026_India_Retail_AdGroup
+
+  ## C&SP [EXCLUDE]: 26 hit(s)
+       [dv360] -> id=csp   APAC_SE_C&SP_Awareness_1608
+       [linkedin] -> id=csp   1608_C&SP_Awareness_ANZ
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Emerging Operators_SEA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Emerging Operators_ANZ
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Consideration_Japan
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Specialist Operators_MEA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Emerging Operators_Japan
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Emerging Operators_MEA
+       [linkedin] -> id=csp   1608_C&SP_Awareness_MEA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Established Operators_INDIA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Specialist Operators_INDIA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Consideration_MEA
+       [linkedin] -> id=csp   1608_SE_C&SP_Specialist Operators_SEA
+       [linkedin] -> id=csp   1608_C&SP_Awareness_Japan
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Established Operators_MEA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Established Operators_Japan
+       [linkedin] -> id=csp   1608_C&SP_Awareness_SEA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Consideration_ANZ
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Established Operators_SEA
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Consideration_INDIA
+       [linkedin] -> id=csp   1608_C&SP_Awareness_India
+       [linkedin] -> id=csp   1608_SE_2025_C&SP_Consideration_SEA
+       [linkedin] -> id=csp   SE_ANZ_Impact_Maker_Non_C&SP_AU
+       [linkedin] -> id=csp   SE_ANZ_Impact_Maker_C&SP_NZ
+       [linkedin] -> id=csp   SE_ANZ_Impact_Maker_C&SP_AU
+       [linkedin] -> id=csp   SE_ANZ_Impact_Maker_Non_C&SP_NZ
+
+  ## New Energy Landscape/NEL: 2 hit(s)
+       [tradedesk] -> id=(unmapped)   SE_NEL_TTD_AWR_AU_Jun26
+       [tradedesk] -> id=(unmapped)   SE_NEL_TTD_AWR_NZ_Jun26
+
+  ## Cisco Powered Unified Edge: NO delivering campaign name matches ['cisco', 'unified edge']
+
+  ## AVEVA: NO delivering campaign name matches ['aveva']
+
+  ## Alliance Partner Program: NO delivering campaign name matches ['alliance partner']
+
+============================================================================================
+4. GEOGRAPHY — market split per platform (org 'Pacific' vs geo 'Pacific' distinction)
+============================================================================================
+     dv360        Australia | imps=  59,923,121 | spend=      85,580
+     dv360      New Zealand | imps=  16,855,573 | spend=      17,629
+     dv360            India | imps=   3,218,221 | spend=       7,067
+     dv360         Malaysia | imps=   2,875,413 | spend=       5,009
+     dv360         Thailand | imps=   2,623,074 | spend=       5,900
+     dv360              MEA | imps=   2,618,462 | spend=      11,156
+     dv360        Singapore | imps=   2,501,111 | spend=       4,716
+     dv360      Philippines | imps=   1,679,842 | spend=       4,021
+     dv360          Vietnam | imps=   1,607,876 | spend=       3,129
+     dv360            Japan | imps=   1,485,253 | spend=       6,653
+     dv360        Indonesia | imps=   1,203,181 | spend=       2,496
+     dv360    North America | imps=     705,395 | spend=       8,973
+     dv360  Europe & C.Asia | imps=     322,321 | spend=       6,705
+     dv360       South Asia | imps=     268,016 | spend=       1,295
+     dv360    South America | imps=     210,431 | spend=         980
+     dv360        East Asia | imps=      69,827 | spend=         488
+     dv360      Other (RoW) | imps=      14,585 | spend=          76
+     dv360          Pacific | imps=       8,185 | spend=          45
+     dv360              SEA | imps=       5,820 | spend=          27
+  linkedin        Australia | imps=   1,786,449 | spend=      71,505
+  linkedin            India | imps=     995,419 | spend=      11,200
+  linkedin              MEA | imps=     545,830 | spend=      19,566
+  linkedin              ANZ | imps=     530,925 | spend=      32,837
+  linkedin         Unmapped | imps=     530,909 | spend=      14,175
+  linkedin          Pacific | imps=     236,334 | spend=      14,762
+  linkedin      New Zealand | imps=     225,812 | spend=      12,766
+  linkedin    South America | imps=     158,755 | spend=       5,195
+  linkedin        Indonesia | imps=      63,640 | spend=       2,254
+  linkedin            Japan | imps=      50,065 | spend=       5,963
+  linkedin         Malaysia | imps=      47,425 | spend=       2,253
+  linkedin              SEA | imps=      39,635 | spend=       5,772
+  linkedin        Singapore | imps=      30,597 | spend=       2,254
+  linkedin         Thailand | imps=      10,854 | spend=       2,203
+  linkedin      Philippines | imps=       5,286 | spend=       1,375
+  linkedin          Vietnam | imps=       1,190 | spend=       1,377
+ tradedesk         Unmapped | imps=   2,371,311 | spend=       8,454
+ tradedesk            India | imps=     219,255 | spend=       2,639
+ tradedesk    South America | imps=     175,958 | spend=       2,656
+ tradedesk        Australia | imps=     171,505 | spend=       1,369
+ tradedesk              MEA | imps=     166,176 | spend=       2,739
+ tradedesk          Pacific | imps=     106,224 | spend=       2,895
+ tradedesk      New Zealand | imps=      70,479 | spend=         275
+
+-- DV360 raw COUNTRY_NAME (top 25) — confirms ANZ dominance & whether geo-Pacific countries appear:
+       AU |   59,923,121 imps
+       NZ |   16,855,573 imps
+       IN |    3,218,221 imps
+       MY |    2,875,413 imps
+       TH |    2,623,074 imps
+       SG |    2,501,111 imps
+       PH |    1,679,842 imps
+       VN |    1,607,876 imps
+       JP |    1,485,253 imps
+       ID |    1,203,181 imps
+       AE |    1,156,401 imps
+       ZA |      878,698 imps
+       US |      640,014 imps
+       PK |      250,899 imps
+       SA |      203,186 imps
+       MX |       83,609 imps
+       MA |       73,220 imps
+       EG |       68,596 imps
+       CA |       65,381 imps
+       QA |       61,401 imps
+       FR |       48,023 imps
+       GB |       42,367 imps
+       DE |       40,756 imps
+       JO |       37,582 imps
+       ES |       28,922 imps
+
+============================================================================================
+5. CURRENCY per platform (validates the FX CASE branches)
+============================================================================================
+                 dv360 |   SGD | rows=  10,296 | imps=  44,415,886
+                 dv360 |   AUD | rows= 236,228 | imps=  43,376,573
+                 dv360 |   USD | rows=  55,335 | imps=  10,403,248
+linkedin (acct suffix) |   AUD | rows=   7,002 | imps=   2,366,415
+linkedin (acct suffix) |   USD | rows=   6,445 | imps=   2,106,402
+linkedin (acct suffix) |   SGD | rows=   1,374 | imps=     786,308
+             tradedesk |   AUD | rows=  25,608 | imps=   3,280,908
+
+============================================================================================
+SEED MAP — current rows in match precedence (array) order
+============================================================================================
+   0.              eae | job=  1974 |      LeadGen | region=     ANZ | pat="Ecostructure_Automation_Expert|Automation_Expert|Automation Expert"
+   1.              eba | job=  2079 |      LeadGen | region=     ANZ | pat="EBA_Activate|Building Activate|EBA_"
+   2.            aveva | job=     — |      LeadGen | region=     ANZ | pat="AVEVA"
+   3.            ai_lc | job=  2306 |    Awareness | region=   multi | pat="AI in DC|LQAIDC|AI in DC "
+   4.              csp | job=  1957 |          ABM | region=   multi | pat="C&SP"
+   5.           ent_it | job=  1958 |          ABM | region=   multi | pat="EntIT"
+   6.        water_env | job=  2026 |    Awareness | region=     ANZ | pat="WaterEnv"
+   7.         ind_edge | job=  2463 |      LeadGen | region= Pacific | pat="Industrial Edge"
+   8.            mcset | job=  2389 |        Event | region=     ANZ | pat="Cooling Solutions"
+   9.      ia_services | job=  2280 | Awareness→RT | region=     ANZ | pat="AI Services"
+  10.     impact_maker | job=  1914 |    Awareness | region=     ANZ | pat="Impact_Maker|Imapct_Maker"
+  11.              iof | job=  1899 |    Awareness | region=   multi | pat="IOF|Industries of the Future"
+  12.          mea_seg | job=  2353 |          ABM | region=     MEA | pat="2353|MEA Segment"
+  13.   power_products | job=     — |    Awareness | region=     ANZ | pat="Power_Products|Power Products"
+  14.     digital_bldg | job=     — |    Awareness | region=     ANZ | pat="Digital Building|Digital Buildings"
+  15.    digital_power | job=     — |    Awareness | region=     ANZ | pat="Digital_Power_Basket|Power_Basket"
+  16.          ecocare | job=     — |    Awareness | region=     ANZ | pat="EcoCare|Ecocare"
+  17.    modernisation | job=     — |      LeadGen | region=     ANZ | pat="Modernisation|Spaas|SPaaS"
+  18.       active_kpx | job=     — |    Awareness | region=     ANZ | pat="Active KPX|Active_KPX| KPX_"
+  19.    pac_hybrid_it | job=     — |          ABM | region= Pacific | pat="Pacific Hybrid IT|Hybrid IT"
+  20.           airset | job=  2223 | Awareness→RT | region=     ANZ | pat="AirSeT|AirSet"
+  21.            heavy | job=  2281 |    Awareness | region=     ANZ | pat="Heavy Indust|Heavy_Indust"
+  22.       ecoconsult | job=  2279 |      LeadGen | region=     ANZ | pat="EcoConsult|Eco Consult"
+  23.   global_rebrand | job=     — |    Awareness | region=     ANZ | pat="Global Rebrand|Global_Rebrand|Rebrand Activation"
+  24.       healthcare | job=     — |    Awareness | region=     ANZ | pat="Healthcare_Vertical_TBC"
+  25.        microgrid | job=     — |    Awareness | region=     ANZ | pat="Microgrid|Micro Grid|Micro_Grid"
+  26. enterprise_software | job=     — |      LeadGen | region=     ANZ | pat="Enterprise_Software_TBC|EntSoftware"
+
+
+[wrote C:\Users\ianfe\Desktop\bidbrain-analytics\clients\client_schneider\_eda\eda_summary.json]

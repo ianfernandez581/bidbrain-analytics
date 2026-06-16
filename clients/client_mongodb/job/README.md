@@ -65,15 +65,15 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
   "data_through": "2026-06-13T01:50:00Z",        // newest upstream raw last_modified (UTC); may be null
   "row_count": 1234,
   "window": { "start": "2026-04-01", "end": "2026-06-30", "days": 91 },
-  "all_markets":    ["ANZ", "ASEAN", "INDIA", "KR-HK-TW"],
+  "all_markets":    ["ANZ", "ASEAN", "INDIA", "KR-HK-TW", "OTHER"],   // OTHER = leads outside the 4 plan markets (e.g. China, Japan); surfaced as a region so totals are complete
   "all_programmes": ["IDE", "IDC"],
   "rows":     [ /* paid-media per day: channel, date, week_start, programme, market, strategy, objective, imps, clicks, spend_usd, conversions, leads */ ],
   "targets":  [ /* programme, market, target, delivered, cpl (plan cost/lead; null for KGA IDC Report) */ ],
   "benchmarks_strategy": { /* keyed by strategy: { cpm, ctr, cpc, frequency, weight } */ },
   "benchmarks_market":   { /* keyed by market:   { budget_weight } */ },
   "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end, est_cpc (committed blended CPC; null for DNB IDE) */ ],
-  "cs":              [ /* market, total, accepted, rejected, new, last_lead_day (status buckets: Accepted / Rejected / New=Unresponsive+New) */ ],
-  "cs_by_programme": [ /* programme, market, total, accepted, rejected, new, last_lead_day (identical buckets) */ ],
+  "cs":              [ /* market, total, accepted, rejected, new, last_lead_day (status buckets: Accepted / Rejected / New=Unresponsive+Do Not Contact+New) */ ],
+  "cs_by_programme": [ /* programme, market, total, accepted, rejected, new, last_lead_day (same buckets; for KGA/IDC total & new = Unresponsive+Do Not Contact+New only) */ ],
   "pixel": {                                       // TTD Universal Pixel content-engagement snapshot; null if the seed/views are absent
     "summary": { /* start, end, days, imps, cost_usd, clicks, all_conv, content_total/click/view (6 named pixels), default_total/view/click (catch-all) */ },
     "assets":  [ /* key, asset, total, click, view — per named content landing page (Gartner MQ Leader, AI Readiness, …) */ ],

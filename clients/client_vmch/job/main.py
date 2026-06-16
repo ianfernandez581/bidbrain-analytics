@@ -146,6 +146,8 @@ def main():
             "ad_imps": num(kpi["ad_imps"]),
             "ad_clicks": num(kpi["ad_clicks"]),
             "ad_spend_aud": num(kpi["ad_spend_aud"]),
+            "ad_post_view": num(kpi["ad_post_view"]),
+            "ad_post_click": num(kpi["ad_post_click"]),
         },
         "monthly": [{
             "month": r["month"],
@@ -289,6 +291,8 @@ def main():
             "imps": num(r["imps"]),
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
+            "post_view": num(r["post_view"]),
+            "post_click": num(r["post_click"]),
             "start": ymd(r["start_date"]),
             "end": ymd(r["end_date"]),
         } for r in ad_campaigns],
@@ -299,6 +303,8 @@ def main():
             "imps": num(r["imps"]),
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
+            "post_view": num(r["post_view"]),
+            "post_click": num(r["post_click"]),
         } for r in ad_campaign_monthly],
         "ad_campaign_weekly": [{
             "platform": r["platform"],
@@ -307,6 +313,8 @@ def main():
             "imps": num(r["imps"]),
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
+            "post_view": num(r["post_view"]),
+            "post_click": num(r["post_click"]),
         } for r in ad_campaign_weekly],
         "ad_campaign_daily": [{
             "platform": r["platform"],
@@ -315,6 +323,8 @@ def main():
             "imps": num(r["imps"]),
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
+            "post_view": num(r["post_view"]),
+            "post_click": num(r["post_click"]),
         } for r in ad_campaign_daily],
         "ad_campaign_market": [{
             "platform": r["platform"],

@@ -52,10 +52,13 @@ verification:
   wouldn't match. Checks use un-transformed integers: lead **counts**, **impressions**, **clicks**, **leads**.
 - **Compared against un-scoped JSON sums**, not the on-screen KPI. On the client dashboards the headline
   KPIs are scoped by campaign/market/date pickers; the raw JSON arrays are the faithful pass-through.
-- **mongodb CS ⚠️** — the live `client_mongodb/sql/02_stg_salesforce.sql` filters **4** `CAMPAIGN_ID`s
-  (`701RG00001DtQczYAF`, `HcDIVYA3`, `GvvrDYAR`, `NKKwQYAX`) — three of which are **Cloudflare's** — **not**
-  the 8 MongoDB IDs. The accuracy check replicates the *live* view (so it reads ✓), but the MongoDB CS leads
-  on the dashboard may be for the wrong campaigns. **Worth fixing in that view.**
+- **mongodb CS** — validated over **all 4** CS `CAMPAIGN_ID`s (3 DNB `701RG00001DtQczYAF`/`HcDIVYA3`/`GvvrDYAR`
+  **+ the funded KGA/IDC `701RG00001NKKwQYAX`**) across **4 buckets** — Total / Accepted (`= 'Accepted'`) /
+  Rejected (`= 'Rejected'`) / New (`IN ('Unresponsive','Do Not Contact','New')`) — matching the `cs_leads` view byte-for-byte,
+  each compared to the un-scoped `sum(cs[].<bucket>)` in the JSON. **KGA/IDC (NULL programme) is the largest
+  CS campaign — ~479 leads, almost all New/unprocessed — so it must be counted**; the live `02_stg_salesforce.sql`
+  view filters all 4 IDs and `cs_leads` groups by market with no programme filter, giving **881 total / 353
+  accepted / 0 rejected / 527 new**. (Excluding KGA/IDC would drop Total to 402 and New to 49 and read RED.)
 - **cloudflare CS** reads Snowflake modelled views directly, so its accuracy query hits the very view the
   dashboard was built from — bulletproof regardless of mirror sync.
 - **proptrack** TradeDesk impressions come from the **singular** `IMPRESSION` column (plural is NULL for that

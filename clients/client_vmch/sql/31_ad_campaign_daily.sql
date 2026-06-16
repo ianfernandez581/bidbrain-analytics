@@ -8,7 +8,9 @@ WITH agg AS (
     metric_date AS day,
     SUM(imps)      AS imps,
     SUM(clicks)    AS clicks,
-    SUM(spend_aud) AS spend_aud
+    SUM(spend_aud) AS spend_aud,
+    SUM(post_view_conv)  AS post_view,
+    SUM(post_click_conv) AS post_click
   FROM `bidbrain-analytics.client_vmch.stg_ad_delivery`
   WHERE metric_date >= DATE '2026-04-01'
   GROUP BY platform, campaign, day

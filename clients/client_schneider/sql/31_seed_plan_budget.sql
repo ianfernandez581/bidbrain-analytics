@@ -24,13 +24,10 @@
 -- Still NULL — no brief budget supplied: impact_maker, iof, mea_seg, power_products, digital_bldg,
 -- digital_power, ecocare, modernisation, active_kpx, pac_hybrid_it.
 --
--- IDENTITY NOTE (unresolved — see seed_targets / seed_campaign_map / INTAKE.md): 'eae' carries the
--- 'EcoStruxure Automation Expert' display + 'Automation Expert' match_pattern, so the EAE brief
--- budget (10,900) is keyed here. BUT the existing 300 opt-in MQL TARGET on 'eae' was sourced from
--- the EcoStruxure Building Activate (EBA, job 2079) brief — a DIFFERENT campaign. EBA's 20,000 ex-fees
--- budget is therefore NOT seeded pending confirmation of EBA's identity (candidate card: digital_bldg
--- 'Digital Buildings'). Resolve before trusting eae's % consumed: if EBA ≡ eae the target/budget are
--- mismatched here; if EBA ≡ digital_bldg, move the 300-opt-in target off 'eae' too.
+-- IDENTITY NOTE (RESOLVED 2026-06-16): 'eae' = EcoStruxure Automation Expert (job 1974, EAE brief
+-- budget 10,900 ex-fees). EBA = EcoStruxure Building Activate (job 2079) is now its OWN campaign-map
+-- row (delivery 'SE_EBA_Activate_AWR_June4'), with the 300 opt-in MQL target moved onto it (see
+-- seed_targets). EBA's 20,000 ex-fees budget (from the EBA brief) is therefore seeded here on 'eba'.
 -- flight_start / flight_end: seeded from the activation briefs ("Campaign Dates" field) for the
 -- currently-active campaigns where the brief gives a usable window —
 --   * water_env   2026-03-01 → 2026-12-31  (brief: Pillar 1 Mar–Jun, Pillar 2 Mar–Dec, Pillar 3 Jul–Sep → outer span)
@@ -49,6 +46,7 @@ SELECT * FROM UNNEST([
   STRUCT('ai_lc',        480600.0, 'ex_fees',  NULL, NULL),
   STRUCT('heavy',         87500.0, 'ex_fees',  NULL, NULL),
   STRUCT('eae',           10900.0,  'ex_fees',  NULL, NULL),
+  STRUCT('eba',           20000.0,  'ex_fees',  NULL, NULL),
   STRUCT('aveva',         15400.0,  'ex_fees',  NULL, NULL),
   STRUCT('csp',           82355.0,  'ex_fees',  NULL, NULL),
   STRUCT('ent_it',        100000.0, 'ex_fees',  DATE '2026-04-15', DATE '2026-09-30'),

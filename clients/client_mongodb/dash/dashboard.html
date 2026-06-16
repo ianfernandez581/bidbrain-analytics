@@ -640,7 +640,7 @@
           </div>
         </div>
         <div class="group">
-          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· New = Unresponsive + New (awaiting manual triage)</span></div>
+          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· New = Unresponsive + New (+ Do Not Contact for KGA/IDC), awaiting manual triage</span></div>
           <div class="pair triple">
             <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cs_acc">—</div><div class="cnt" id="cs_acc_cnt">—</div></div>
             <div class="stat"><div class="k">Rejected</div><div class="v" id="cs_rej">—</div><div class="cnt" id="cs_rej_cnt">—</div></div>
@@ -1676,8 +1676,8 @@ function renderCSSnap(p) {
   el('cs_daysleft').textContent      = fmtN(daysLeft);
   el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
 
-  // Lead quality — Accepted (delivered) vs Rejected vs still-New (Unresponsive + New,
-  // awaiting manual triage). Denominator is total leads for all three.
+  // Lead quality — Accepted (delivered) vs Rejected vs still-New (Unresponsive + New;
+  // + Do Not Contact for KGA/IDC; awaiting manual triage). Denominator is total leads for all three.
   const accRatio = p.leads ? p.accepted / p.leads : 0;
   const rejRatio = p.leads ? p.rejected / p.leads : 0;
   const newRatio = p.leads ? p.newLeads / p.leads : 0;

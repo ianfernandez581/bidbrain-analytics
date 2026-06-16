@@ -218,6 +218,7 @@ def main():
             "brief_job_no": r["brief_job_no"], "objective_type": r["objective_type"],
             "primary_kpi": r["primary_kpi"], "pillar": r["pillar"],
             "primary_region": r["primary_region"], "match_pattern": r["match_pattern"],
+            "portfolio": r["portfolio"],
         } for r in seed_campaign_map],
         "seed_plan_budget": [{
             "id": r["internal_campaign_id"], "budget_aud": num(r["budget_aud"]),

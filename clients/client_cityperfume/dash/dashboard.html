@@ -394,8 +394,8 @@
       <div class="kpis six" id="ovKpis"></div>
       <div class="ai-note" id="ovCommentary"></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>Ad spend by platform vs online sales revenue — monthly</h3>
-          <div class="hint">Stacked bars = ad spend by platform; line = first-party online sales revenue (website + marketplaces). Spend reflects the Platform/Campaign filters.</div>
+        <div class="card card-tall"><h3>Ad spend vs website sales revenue — monthly</h3>
+          <div class="hint">Stacked bars = ad spend by platform; line = <b>actual</b> first-party website sales revenue (the selected Sales channels — default Website; this is the real spend↔sales relationship the attribution model is built on). Spend reflects the Platform/Campaign filters.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div></div>
         <div class="card card-tall"><h3>Revenue by online channel</h3>
           <div class="hint">First-party sales (v_sales) by online channel group.</div>
@@ -460,7 +460,7 @@
 
     <!-- ============ SALES & PRODUCTS ============ -->
     <div id="tab-sales" class="tabpane">
-      <div class="section first"><h2>Sales &amp; products</h2><span class="sub">First-party order ledger (v_sales) — the source of truth for revenue, margin, orders &amp; customers. Online only (website + marketplaces; no campaign dimension). Margin is net as-reported.</span></div>
+      <div class="section first"><h2>Sales &amp; products</h2><span class="sub">First-party order ledger (v_sales) — the source of truth for revenue, margin, orders &amp; customers. Online only (default Website; Marketplace selectable; no campaign dimension). Margin is net as-reported.</span></div>
       <div class="kpis" id="salesKpis"></div>
       <div class="section"><h2>New vs returning customers</h2><span class="sub">A customer's first-ever order is "new"; any later order is "returning". Identity keyed on customer_id (kept in BigQuery — never exported).</span></div>
       <div class="kpis five" id="salesNRCards"></div>
@@ -498,7 +498,7 @@
       <div class="section"><h2>Spend → sales funnel</h2><span class="sub">Spend/impressions/clicks reflect the filters; orders &amp; revenue are online first-party sales.</span></div>
       <div class="funnel" id="linkFunnel"></div>
       <div class="card card-tall" style="margin-top:14px"><h3>Weekly ad spend vs online sales revenue</h3>
-        <div class="hint">Bars = ad spend (filtered); line = first-party online sales revenue (website + marketplaces).</div>
+        <div class="hint">Bars = ad spend (filtered); line = first-party online sales revenue (the selected Sales channels — default Website).</div>
         <div class="chart-wrap"><canvas id="linkWeekly"></canvas></div></div>
       <div class="grid">
         <div class="card card-tall"><h3>Spend vs revenue — weekly correlation</h3><div class="hint" id="linkScatterHint"></div>
@@ -515,13 +515,13 @@
       <div class="info-note" id="yoyBasisNote"></div>
       <div class="kpis" id="yoyKpis"></div>
       <div class="card card-tall" style="margin-top:14px"><h3>Online revenue — this year vs last year</h3>
-        <div class="hint">Online revenue (website + marketplaces) per displayed month, paired with the same month last year. AUD. The in-progress month is shown month-to-date.</div>
+        <div class="hint">Online revenue (the selected Sales channels — default Website) per displayed month, paired with the same month last year. AUD. The in-progress month is shown month-to-date.</div>
         <div class="chart-wrap"><canvas id="yoyRevChart"></canvas></div></div>
       <div class="card card-tall" style="margin-top:14px"><h3>Ad spend — this year vs last year</h3><div class="hint">Total working media, all platforms. AUD.</div>
         <div class="chart-wrap"><canvas id="yoySpendChart"></canvas></div></div>
       <div class="section"><h2>Monthly detail</h2><span class="sub">Every month with a prior-year comparison. &#9650;/&#9660; is YoY growth; the in-progress month is muted.</span></div>
       <div class="card"><div class="tbl-scroll"><table id="yoyTable"></table></div></div>
-      <div class="section"><h2>Attribution — platform-claimed vs total revenue</h2><span class="sub">Each platform reports only its own click-through ("attributed") revenue; these understate true impact and are never summed. Total revenue is the first-party source of truth.</span></div>
+      <div class="section"><h2>Attribution — platform-claimed vs first-party online revenue</h2><span class="sub">Each platform reports only its own click-through ("attributed") revenue; these understate true impact and are never summed. First-party online revenue (the selected period &amp; channels) is the source of truth.</span></div>
       <div class="kpis" id="yoyAttrib"></div>
     </div>
 
@@ -704,27 +704,37 @@ let scaleMode = 'rel';                // AXIS: 'rel' (index overlay lines to pea
 let activePlatforms = new Set();      // ad-platform filter (defaults all)
 let activeCampaigns = new Set();      // ad-campaign filter (defaults all) — scopes AD DELIVERY only
 // ONLINE-ONLY dashboard (T1): in-store POS is excluded from the channel universe entirely.
-// "Online" = Website + Marketplaces, per the ROAS analysis handoff. The Sales-channel filter
-// now only drills WITHIN online channels — there is no all/online toggle and no in-store basis.
+// "Online" = Website + Marketplaces. Per the client brief, MARKETPLACE is treated as NOT
+// ad-driven, so it is excluded from the default basis — the dashboard defaults to WEBSITE-ONLY
+// (Marketplace stays a selectable chip for drill-down, just unchecked by default).
 const CHANNELS = ['Website','Marketplace'];   // online channel_group values (in-store POS excluded)
-let activeChannels = new Set(CHANNELS);   // GLOBAL sales-channel filter (defaults to all online channels)
+let activeChannels = new Set(['Website']);   // GLOBAL sales-channel filter — DEFAULT Website only (Marketplace excluded: not ad-driven)
 const chanOk        = r => activeChannels.has(r.channel_group);
 const allChannelsOn = () => activeChannels.size === CHANNELS.length;
 
 /* ---- canonical incremental Margin ROAS — the SINGLE ROAS definition across every tab (T2/T3).
    See client_cityperfume/analysis/city_perfume_roas_handoff.md. This is NOT a revenue÷spend
-   ratio: it is the regression-based INCREMENTAL online-revenue ROAS × the true online gross
-   margin (computed live from first-party COGS). 7.0× is a PLANNING estimate (defensible band
-   4–9×) pending the spend-down / geo holdout in analysis/validation_plan.md — never a measured
-   constant. Platform-claimed conversion values are context only and never enter a ROAS figure. */
+   ratio: it is the regression-based INCREMENTAL online-revenue ROAS × the true gross margin of
+   the SELECTED online channels (computed live from first-party COGS). With the default Website-
+   only basis that is ≈38.5% → ≈2.70× (marketplace, treated as non-ad-driven, is excluded; re-
+   checking it blends margin back toward the ~37.7% online figure → ~2.64×). 7.0× is a PLANNING
+   estimate (defensible band 4–9×) pending the spend-down / geo holdout in
+   analysis/validation_plan.md — never a measured constant. Platform-claimed conversion values
+   are context only and never enter a ROAS figure. */
 const REV_ROAS_ONLINE = 7.0;          // incremental online revenue ROAS (planning estimate)
-function onlineMargin(){              // revenue-weighted online gross margin from v_sales COGS
+function onlineMargin(){              // revenue-weighted gross margin of the SELECTED channels, from v_sales COGS
   let rev=0, mar=0;
-  (DATA.sales_by_channel||[]).forEach(r=>{ if(CHANNELS.includes(r.channel_group)){ rev+=(+r.revenue||0); mar+=(+r.margin||0); } });
+  (DATA.sales_by_channel||[]).forEach(r=>{ if(chanOk(r)){ rev+=(+r.revenue||0); mar+=(+r.margin||0); } });
   return rev ? mar/rev : 0;
 }
-const marginRoas = () => REV_ROAS_ONLINE * onlineMargin();   // ≈ 2.6×  (gross profit per A$1 spend)
-const netRoas    = () => marginRoas() - 1;                   // ≈ 1.6×  (after the ad cost itself)
+const marginRoas = () => REV_ROAS_ONLINE * onlineMargin();   // default ≈ 2.70× (Website 38.5%) — gross profit per A$1 spend
+const netRoas    = () => marginRoas() - 1;                   // default ≈ 1.70× — after the ad cost itself
+// Ad-attributed revenue & profit (the dollar answer the client asked for): the spend→revenue→profit
+// chain. adKpi() is range- AND platform/campaign-filter aware, so all three move with every filter.
+//   spend ──×7 (REV_ROAS_ONLINE)──▶ attributed revenue ──×margin──▶ profit   (profit = spend × marginRoas)
+const adRevenue   = () => adKpi().spend * REV_ROAS_ONLINE;   // modeled INCREMENTAL website revenue driven by ads (≈ spend × 7×)
+const adProfit    = () => adKpi().spend * marginRoas();      // GROSS profit attributable to ads (= attributed revenue × margin)
+const adProfitNet = () => adKpi().spend * netRoas();         // net of the ad cost itself
 let campaignMenuOpen = false;
 let productSort = 'revenue';
 const el = id => document.getElementById(id);
@@ -758,6 +768,8 @@ function fmtDay(iso){ if(!iso) return ''; const [y,m,d]=String(iso).slice(0,10).
 function scopeLabel(){ return fmtDay(rangeStart||dateMin)+' – '+fmtDay(rangeEnd||dateMax); }
 const apxN = (v,approx) => (approx?'≈ ':'')+fmtN(v);
 const APX_TIP = 'Approximate for a sub-range: sums each day’s distinct customer count, so a buyer active on multiple days is counted more than once. Exact only over the full period.';
+const AD_REVENUE_TIP = 'Modeled INCREMENTAL website revenue driven by advertising = working ad spend × the incremental revenue ROAS (≈7×, the regression-based estimate of extra website revenue per A$1 of spend; defensible band 4–9×). This is the revenue the ads are estimated to have CAUSED, not total website revenue and not platform-claimed attribution. Marketplace is excluded (not ad-addressable). Moves with the date range and ad filters. See the analysis handoff.';
+const AD_PROFIT_TIP = 'GROSS profit attributable to advertising = attributed revenue × the gross margin of the selected online channels (Website ≈38.5%, from Maropost/v_sales COGS) = ad spend × the margin ROAS (≈2.7×). The dollars the ads are estimated to have made after cost of goods — NOT a total-revenue figure and NOT platform-claimed attribution. Moves with the date range and ad filters. Net = after the ad cost itself.';
 // Clip DAY-grained rows to the active range, group by keyFn, sum sumFields; staticFields carry
 // the first row's value (labels/colours). Returns rows in first-seen order.
 function aggRange(arr, keyFn, sumFields, staticFields){
@@ -1079,14 +1091,15 @@ function renderYoY(){
   });
   el('yoyTable').innerHTML=t;
 
-  // Attribution clarity — platform click-through ("attributed") vs first-party total.
-  // Full reporting period; from the headline kpi row (never summed across platforms).
-  const k=DATA.kpi||{};
-  const tot=k.revenue_total||0, mclaim=k.meta_rev_claimed||0, gclaim=k.google_rev_claimed||0;
+  // Attribution clarity — platform click-through ("attributed") vs first-party online sales, for the
+  // SELECTED period & channels (range-aware). Denominator is the period's online revenue (revCY) and
+  // the claimed figures come from the range-clipped delivery — NOT the old whole-store, full-period
+  // DATA.kpi row (which ignored the date range and banked in-store POS). Never summed across platforms.
+  const cr=claimedRev(), denom=revCY;
   el('yoyAttrib').innerHTML =
-      kpiCard('sale','Total revenue', moneyM(tot), 'first-party — every order, every channel')
-    + kpiCard('','Meta attributed revenue', moneyM(mclaim), (tot?fmtPct(mclaim/tot,1):'—')+' of total · Meta click-through only')
-    + kpiCard('','Google attributed revenue', moneyM(gclaim), (tot?fmtPct(gclaim/tot,1):'—')+' of total · Google click-through only');
+      kpiCard('sale','Online revenue · '+span, moneyM(denom), 'first-party — '+channelScopeLabel())
+    + kpiCard('','Meta attributed revenue', moneyM(cr.meta), (denom?fmtPct(cr.meta/denom,1):'—')+' of online rev · Meta click-through only')
+    + kpiCard('','Google attributed revenue', moneyM(cr.google), (denom?fmtPct(cr.google/denom,1):'—')+' of online rev · Google click-through only');
 }
 
 /* =================== tab orchestration =================== */
@@ -1180,12 +1193,16 @@ function renderOverview(){
   const a=adKpi(), sk=salesTotals(), g=ga4Totals();
   const rev=basisRevTotal();
   el('ovSub').textContent = `${scopeLabel()} · ${basisLabel()} · ${SYM} AUD`;
+  // The client's question — "how many dollars did we spend, and how many did that make?" — told
+  // left→right: Ad spend → Attributed (incremental) revenue → Ad-attributed profit, then the actual
+  // first-party Website revenue it is grounded in. (Repeat-rate moved off the headline, §6.)
   el('ovKpis').innerHTML =
       kpiCard('paid','Ad spend', money(a.spend), `${fmtM(a.imps)} imps · ${fmtM(a.clk)} clicks`)
-    + kpiCard('sale','Revenue ('+basisLabel()+')', moneyM(rev), `${fmtN(sk.orders_total)} orders`)
+    + kpiCard('sale','Attributed revenue', moneyM(adRevenue()), `modeled incremental · spend × ${REV_ROAS_ONLINE.toFixed(0)}× rev ROAS`, AD_REVENUE_TIP)
+    + kpiCard('sale','Ad-attributed profit', moneyM(adProfit()), `× ${roasS(marginRoas())} margin ROAS · ${moneyM(adProfitNet())} net`, AD_PROFIT_TIP)
+    + kpiCard('sale','Website revenue (actual)', moneyM(rev), `${fmtN(sk.orders_total)} orders · ${basisLabel()}`)
     + kpiCard('sale','AOV', money(sk.aov), `${fmtN(sk.units)} units`)
-    + kpiCard('sale','Margin %', fmtPct(sk.margin_pct,1), `${moneyM(sk.margin_total)} margin`)
-    + kpiCard('sale','Repeat-order rate', fmtPct(sk.repeat_order_rate,1), `${apxN(sk.returning_customers,sk.approxCustomers)} returning custs`, sk.approxCustomers?APX_TIP:'')
+    + kpiCard('sale','Margin %', fmtPct(sk.margin_pct,1), `${moneyM(sk.margin_total)} margin · Maropost COGS`)
     + kpiCard('site','Sessions', fmtM(g.sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} paid`);
   renderOvCommentary();
 
@@ -1202,7 +1219,7 @@ function renderOverview(){
   const spendBars=selPlatforms().map(p=>({type:'bar',label:p.label,yAxisID:'y1',stack:'sp',
     data:AX.map(b=>(platMap[p.key][b.key]||{}).spend_aud||0),backgroundColor:p.color,borderRadius:3,maxBarThickness:24,order:3}));
   charts.ovHero=new Chart(el('ovHero'),{ data:{labels,datasets:[
-    {type:'line',label:'Sales revenue',yAxisID:'y',data:revData,borderColor:C.rose,backgroundColor:'rgba(201,139,122,.12)',borderWidth:2.5,tension:.35,fill:true,pointRadius:2,order:1},
+    {type:'line',label:'Website sales revenue (actual)',yAxisID:'y',data:revData,borderColor:C.rose,backgroundColor:'rgba(201,139,122,.12)',borderWidth:2.5,tension:.35,fill:true,pointRadius:2,order:1},
     ...spendBars]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+(c.dataset.yAxisID==='y'&&rel?moneyM(c.parsed.y/100*revMax):moneyM(c.parsed.y))}}},
@@ -1222,16 +1239,17 @@ function renderOverview(){
     +   '<div style="font-family:\'Karla\',serif;font-size:48px;font-weight:700;color:var(--gold-deep);line-height:1">'+roasS(marginRoas())+'</div>'
     +   '<div style="font-size:13px;color:var(--mute);line-height:1.4">gross profit per A$1 ad spend<br><b style="color:var(--ink)">'+roasS(netRoas())+' net</b> — after the ad cost itself</div>'
     + '</div>'
-    + '<div style="margin-top:16px;font-size:12.5px;color:var(--mute);line-height:1.55">'
-    +   '= <b style="color:var(--ink)">'+REV_ROAS_ONLINE.toFixed(0)+'×</b> incremental online revenue per A$1 (regression-based) × <b style="color:var(--ink)">'+fmtPct(mg,1)+'</b> online gross margin.<br>'
+    + '<div style="margin-top:14px;font-size:13px;color:var(--mute);line-height:1.5">On the current selection that is <b style="color:var(--ink)">'+moneyM(adProfit())+'</b> gross ad-attributed profit (<b style="color:var(--ink)">'+moneyM(adProfitNet())+'</b> net) from '+money(adKpi().spend)+' spend.</div>'
+    + '<div style="margin-top:12px;font-size:12.5px;color:var(--mute);line-height:1.55">'
+    +   '= <b style="color:var(--ink)">'+REV_ROAS_ONLINE.toFixed(0)+'×</b> incremental '+basisLabel()+' revenue per A$1 (regression-based) × <b style="color:var(--ink)">'+fmtPct(mg,1)+'</b> gross margin.<br>'
     +   'Planning estimate (defensible band 4–9×); platform-claimed attribution excluded. Pending a spend-down / geo holdout — see methodology.'
     + '</div>';
   // spend share donut
   const ap=adByPlatform(true), pk=PLATFORMS.filter(p=>ap[p.key].spend>0);
   donut('ovSpendDonut',pk.map(p=>p.label),pk.map(p=>ap[p.key].spend),pk.map(p=>p.color),moneyM(a.spend),'ad spend',a.spend);
 
-  el('ovNote').innerHTML='<b>How to read this.</b> This dashboard is <b>online-only</b> (website + marketplaces); in-store POS is excluded. Revenue, margin, orders &amp; AOV come from first-party sales (v_sales) — the source of truth. '
-    +'Use the <b>Sales channel</b> filter to drill into Website or Marketplace. ROAS is the incremental, margin-based return (see Ads → Revenue); platform-claimed figures appear on the Paid Media tab for context only.';
+  el('ovNote').innerHTML='<b>How to read this.</b> This dashboard is <b>online</b> and defaults to <b>Website only</b> — in-store POS is excluded entirely, and Marketplace is excluded by default because it is not driven by our ads (re-check it with the <b>Sales channel</b> filter to include it). Revenue, margin, orders &amp; AOV come from first-party sales (v_sales) — the source of truth. '
+    +'<b>Ad-attributed profit</b> = working ad spend × the incremental, margin-based ROAS (see Ads → Revenue); platform-claimed figures appear on the Paid Media tab for context only.';
 }
 function renderOvCommentary(){
   const box=el('ovCommentary');
@@ -1241,9 +1259,9 @@ function renderOvCommentary(){
   const bv=b=> (sMap[b.key]||{}).revenue_total||0;
   let pi=0; BX.forEach((b,i)=>{ if(bv(b)>bv(BX[pi])) pi=i; }); const peakM=BX[pi].label;
   box.innerHTML='<span class="ai-badge"><span class="dot"></span>AI commentary</span>'
-    +'<b>The media is paying its way.</b> '+money(a.spend)+' of working media sits against <b>'+moneyM(rev)+'</b> in online sales (website + marketplaces) across '+fmtN(sk.orders_total)+' orders at '+money(sk.aov)+' AOV. '
-    +'On an incremental, margin-based basis that is a <b>'+roasS(marginRoas())+'</b> margin ROAS (<b>'+roasS(netRoas())+'</b> net of the ad cost) — the causal return, not the platform-claimed headline. '
-    +'Online revenue peaked in <b>'+peakM+'</b>, and <b>'+fmtPct(sk.repeat_order_rate,0)+'</b> of orders came from returning customers.';
+    +'<b>How many dollars did the ads make?</b> '+money(a.spend)+' of working media is estimated to have driven <b>'+moneyM(adRevenue())+'</b> in incremental website revenue (≈'+REV_ROAS_ONLINE.toFixed(0)+'× per A$1, regression-based) — <b>'+moneyM(adProfit())+'</b> of it gross profit after Maropost COGS (<b>'+moneyM(adProfitNet())+'</b> net of the ad cost), a <b>'+roasS(marginRoas())+'</b> margin ROAS rather than the overstated platform-claimed headline. '
+    +'Marketplace is excluded (not ad-addressable) — this is '+channelScopeLabel()+' only, grounded in <b>'+moneyM(rev)+'</b> of actual first-party website sales across '+fmtN(sk.orders_total)+' orders. '
+    +'Website revenue peaked in <b>'+peakM+'</b>.';
 }
 
 /* =================== PAID MEDIA =================== */
@@ -1396,7 +1414,7 @@ function renderWeb(){
 function renderSales(){
   const sk=salesTotals(), ax=sk.approxCustomers;
   el('salesKpis').innerHTML =
-      kpiCard('sale','Revenue', moneyM(sk.revenue_total), 'online (website + marketplaces)')
+      kpiCard('sale','Revenue', moneyM(sk.revenue_total), channelScopeLabel())
     + kpiCard('sale','Margin', moneyM(sk.margin_total), '')
     + kpiCard('sale','Margin %', fmtPct(sk.margin_pct,1), '')
     + kpiCard('sale','Orders', fmtN(sk.orders_total), '')
@@ -1478,11 +1496,11 @@ function renderSales(){
 /* =================== ADS → REVENUE =================== */
 function renderLink(){
   const a=adKpi(), sk=salesTotals(), cr=claimedRev(), rev=basisRevTotal(), mg=onlineMargin();
-  el('linkHeadline').innerHTML='<b>Margin ROAS (incremental) — the causal return.</b> '+money(a.spend)+' of ad spend drives an estimated <b>'+roasS(marginRoas())+'</b> in gross profit per A$1 (net <b>'+roasS(netRoas())+'</b> after the ad cost), from ~<b>'+REV_ROAS_ONLINE.toFixed(0)+'×</b> incremental online revenue per A$1 × <b>'+fmtPct(mg,1)+'</b> online gross margin. '
+  el('linkHeadline').innerHTML='<b>How many dollars did the ads make?</b> '+money(a.spend)+' of working ad spend is estimated to have driven <b>'+moneyM(adRevenue())+'</b> in incremental website revenue (~<b>'+REV_ROAS_ONLINE.toFixed(0)+'×</b> per A$1) — of which <b>'+moneyM(adProfit())+'</b> is gross profit after <b>'+fmtPct(mg,1)+'</b> Maropost margin (<b>'+moneyM(adProfitNet())+'</b> net, after the ad cost). That is a <b>'+roasS(marginRoas())+'</b> margin ROAS (net <b>'+roasS(netRoas())+'</b>). '
     +'This replaces the old total-revenue÷spend ratio, which overstated ad impact roughly 10×. Platform-claimed revenue (Google '+moneyM(cr.google)+', Meta '+moneyM(cr.meta)+') is each platform\'s own attribution — context only, never summed.'
-    +'<span class="hint" style="display:block;margin-top:8px">Methodology: incremental online revenue (regression-based) × online gross margin; platform attribution excluded. 7× is a planning estimate (band 4–9×) pending a spend-down / geo holdout. See client_cityperfume/analysis/city_perfume_roas_handoff.md.</span>';
+    +'<span class="hint" style="display:block;margin-top:8px">Methodology: incremental revenue (regression-based) × the gross margin of the selected online channels (default Website only — marketplace is treated as not ad-driven); platform attribution excluded. 7× is a planning estimate (band 4–9×) pending a spend-down / geo holdout. See client_cityperfume/analysis/city_perfume_roas_handoff.md.</span>';
   // funnel
-  const steps=[['Ad spend',money(a.spend)],['Impressions',fmtM(a.imps)],['Clicks',fmtN(a.clk)],['Orders',fmtN(sk.orders_total)],['Sales revenue',moneyM(rev)]];
+  const steps=[['Ad spend',money(a.spend)],['Impressions',fmtM(a.imps)],['Clicks',fmtN(a.clk)],['Orders',fmtN(sk.orders_total)],['Website revenue (actual)',moneyM(rev)],['Attributed revenue (modeled)',moneyM(adRevenue())],['Ad-attributed profit',moneyM(adProfit())]];
   el('linkFunnel').innerHTML=steps.map((s,i)=>'<div class="step"><div class="k">'+s[0]+'</div><div class="v">'+s[1]+'</div><div class="r">&nbsp;</div></div>'+(i<steps.length-1?'<div class="arrow">→</div>':'')).join('');
   // trends (day-grained, bucketed by range span): revenue vs ad spend, scatter, ROAS
   const grain=chartGrain();
@@ -1503,7 +1521,7 @@ function renderLink(){
   const gname = grain==='day'?'day':grain==='week'?'week':'month';
   const pts=LX.map(b=>({x:lSpend(b),y:lRev(b)})).filter(p=>p.x>0);
   const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));
-  el('linkScatterHint').innerHTML='Each dot is one '+gname+'. Correlation <b>r = '+r.toFixed(2)+'</b> ('+(r>0.6?'strong':r>0.3?'moderate':'weak')+' positive) — note correlation is largely seasonal, not causal. Sales are online (website + marketplaces); spend reflects the filters.';
+  el('linkScatterHint').innerHTML='Each dot is one '+gname+'. Correlation <b>r = '+r.toFixed(2)+'</b> ('+(r>0.6?'strong':r>0.3?'moderate':'weak')+' positive) — note correlation is largely seasonal, not causal. Sales are '+basisLabel()+'; spend reflects the filters.';
   charts.linkScatter=new Chart(el('linkScatter'),{ type:'scatter', data:{datasets:[{label:'Period',data:pts,backgroundColor:'rgba(176,141,87,.6)',borderColor:C.gold,pointRadius:5,pointHoverRadius:7}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+money(c.parsed.x)+' spend · '+moneyM(c.parsed.y)+' revenue'}}},
       scales:{x:gridY({title:{display:true,text:'Ad spend / '+gname,color:C.mute},ticks:{callback:v=>moneyM(v)}}),y:gridY({title:{display:true,text:'Sales revenue / '+gname,color:C.mute},ticks:{callback:v=>moneyM(v)}})}} });
@@ -1527,12 +1545,14 @@ function renderLink(){
     {label:'Net profit from ads',data:relLR?norm(netRaw):netRaw,backgroundColor:'rgba(39,80,10,.82)',stack:'p',borderRadius:2,maxBarThickness:26}]},
     options:{maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{ const raw=c.datasetIndex===0?baseRaw:c.datasetIndex===1?spendRaw:netRaw; return lrTip(c,raw); }}}},
       scales:{x:axisX({stacked:true}),y:gridY({stacked:true,min:0,max:relLR?100:undefined,title:{display:true,text:relLR?'Share of online gross margin (%)':'Online gross margin / period',color:C.mute},ticks:{callback:v=>relLR?v.toFixed(0)+'%':moneyM(v)}})}} });
-  // stat cards — the single canonical ROAS (incremental, margin-based)
+  // stat cards — the spend→revenue→profit chain in dollars, then the canonical ROAS multiples
   el('linkStats').innerHTML =
-      '<div class="stat-card"><div class="sv">'+roasS(marginRoas())+'</div><div class="sl">Margin ROAS (incremental)</div></div>'
+      '<div class="stat-card"><div class="sv">'+moneyM(adRevenue())+'</div><div class="sl">Attributed revenue (modeled, incremental)</div></div>'
+    + '<div class="stat-card"><div class="sv">'+moneyM(adProfit())+'</div><div class="sl">Ad-attributed profit (gross)</div></div>'
+    + '<div class="stat-card"><div class="sv">'+moneyM(adProfitNet())+'</div><div class="sl">Net profit from ads (after the ad cost)</div></div>'
+    + '<div class="stat-card"><div class="sv">'+roasS(marginRoas())+'</div><div class="sl">Margin ROAS (incremental)</div></div>'
     + '<div class="stat-card"><div class="sv">'+roasS(netRoas())+'</div><div class="sl">Net ROAS (after the ad cost)</div></div>'
-    + '<div class="stat-card"><div class="sv">'+money(sk.orders_total?a.spend/sk.orders_total:0)+'</div><div class="sl">Cost per order</div></div>'
-    + '<div class="stat-card"><div class="sv">'+fmtPct(pct(cr.google+cr.meta,sk.revenue_total),0)+'</div><div class="sl">Platform-claimed rev. as % of true online sales</div></div>';
+    + '<div class="stat-card"><div class="sv">'+money(sk.orders_total?a.spend/sk.orders_total:0)+'</div><div class="sl">Cost per order</div></div>';
 }
 
 /* =================== meta / boot / export =================== */
@@ -1542,8 +1562,8 @@ function renderMeta(){
   const lu=DATA.last_updated ? new Date(DATA.last_updated).toLocaleString('en-AU',{timeZone:'Australia/Sydney'}) : '—';
   el('footMeta').innerHTML='Sources: first-party sales (Neto/v_sales), Google Ads, Meta, The Trade Desk, GA4 · Currency: AUD · '
     +'Window '+(w.start||'')+' → '+(w.end||'')+' · Last updated '+lu+' (AEST).<br>'
-    +'<b>Online-only</b> (website + marketplaces; in-store POS excluded). Revenue, margin &amp; orders are first-party sales (source of truth). '
-    +'ROAS = incremental online revenue (regression-based) × online gross margin; platform attribution excluded. See client_cityperfume/analysis/city_perfume_roas_handoff.md.';
+    +'<b>Online</b> (default Website only; Marketplace selectable but excluded by default as not ad-driven; in-store POS excluded). Revenue, margin &amp; orders are first-party sales (source of truth). '
+    +'Ad-attributed profit = ad spend × margin ROAS; ROAS = incremental revenue (regression-based) × the gross margin of the selected online channels; platform attribution excluded. See client_cityperfume/analysis/city_perfume_roas_handoff.md.';
 }
 function exportData(){
   // Online-only export: drop whole-store revenue/margin and the retired ratio-ROAS columns.

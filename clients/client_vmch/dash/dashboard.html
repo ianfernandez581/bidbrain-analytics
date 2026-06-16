@@ -162,7 +162,7 @@
   .chart-wrap{position:relative;flex:1;min-height:170px}
 
   /* ---- KPIs ---- */
-  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:16px}
   .kpis.five{grid-template-columns:repeat(5,1fr)}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
   .kpi .label{font-size:10.5px;color:var(--mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
@@ -349,8 +349,8 @@
     <!-- ============ OVERVIEW ============ -->
     <div id="tab-overview" class="tabpane">
       <div class="section first">
-        <h2>The Trade Desk campaign &amp; the VMCH website</h2>
-        <span class="sub">The Trade Desk programmatic display (four service-line campaigns — Residential Aged Care, Retirement Living, Seniors at Home, Disability) set against what happened on the VMCH website in Google Analytics&nbsp;4. Flight from April 2026. Reporting currency AUD. VMCH is a not-for-profit, so the website outcomes are enquiries — phone calls, emails and contact forms — not revenue.</span>
+        <h2>Display advertising &amp; the VMCH website</h2>
+        <span class="sub">Programmatic display advertising (four service-line campaigns — Residential Aged Care, Retirement Living, Seniors at Home, Disability) set against what happened on the VMCH website in Google Analytics&nbsp;4. The view defaults to the <b>full available history</b> so the trend is visible; the live campaign <b>flight runs from April 2026</b> and is marked on every trend chart. Reporting currency AUD. VMCH is a not-for-profit, so website outcomes are <b>enquiries</b> — phone calls, emails and contact forms — plus ad-attributed conversions, not revenue.</span>
       </div>
 
       <div class="kpis" id="ovKpis"></div>
@@ -360,18 +360,18 @@
       <div class="grid-2-1">
         <div class="card card-tall">
           <div class="card-head">
-            <h3>Media spend, website sessions &amp; enquiries</h3>
+            <h3>Ad spend, website sessions &amp; enquiries</h3>
             <div class="ctrls">
               <span class="seg" id="ovHeroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('ovHero','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('ovHero','abs',this)">Absolute</button></span>
               <span class="seg" id="ovHeroGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setGrain('ovHero','month',this)">Month</button><button type="button" data-grain="week" onclick="setGrain('ovHero','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('ovHero','day',this)">Day</button></span>
             </div>
           </div>
-          <div class="hint">Trade Desk spend (orange bars, AUD, right axis) and total website sessions (line, left axis), with GA4 enquiry events by type as dashed lines. <b>Relative</b> indexes each line to its own peak=100; <b>Absolute</b> shows raw sessions. Spend reflects the Campaign filter; sessions &amp; enquiries are the whole website.</div>
+          <div class="hint">Ad spend (orange bars, AUD, right axis) and total website sessions (line, left axis), with GA4 enquiry events by type as dashed lines. <b>Relative</b> indexes each line to its own peak=100; <b>Absolute</b> shows raw sessions. Spend reflects the Campaign filter; sessions &amp; enquiries are the whole website. Enquiry lines show from the <b>flight start</b> (Apr 2026) — earlier GA4 tagging isn't comparable.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div>
         </div>
         <div class="card card-tall">
           <h3>Where website traffic came from</h3>
-          <div class="hint">Sessions by acquisition channel, flight window. Paid channels in orange.</div>
+          <div class="hint">Sessions by acquisition channel, flight window. Paid channels in orange. Low-quality programmatic landing-pixel traffic is filtered out, so these are genuine engaged channels.</div>
           <div class="chart-wrap"><canvas id="ovDonut"></canvas></div>
         </div>
       </div>
@@ -408,7 +408,7 @@
     <div id="tab-paid" class="tabpane">
       <div class="section first">
         <h2>The Trade Desk — programmatic display delivery</h2>
-        <span class="sub">Spend, impressions, clicks and efficiency for the always-on display flight, by campaign, ad group and creative. Use the <b>Campaign</b> filter to focus on a service line. The Trade Desk pixels fire into anonymous conversion slots with no attributable revenue, so this is a delivery view — outcomes live on the <b>Website</b> and <b>Media → Traffic</b> tabs.</span>
+        <span class="sub">Spend, impressions, clicks, efficiency and ad-attributed conversions for the display flight, by campaign, ad group and creative. Use the <b>Campaign</b> filter to focus on a service line. VMCH is a not-for-profit so there's no revenue/ROAS, but The Trade Desk attributes <b>post-view</b> and <b>post-click</b> conversions back to the ads — see the campaign table below and the <b>Media → Traffic</b> tab for the full spend → reach → conversions chain.</span>
       </div>
 
       <div class="kpis five" id="pmKpis"></div>
@@ -427,7 +427,7 @@
         </div>
         <div class="card card-tall">
           <h3>Spend by campaign</h3>
-          <div class="hint">Share of Trade Desk spend across the four service-line campaigns.</div>
+          <div class="hint">Share of ad spend across the four service-line campaigns.</div>
           <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div>
         </div>
       </div>
@@ -437,7 +437,7 @@
         <div class="hint">Whole-flight totals per service-line campaign (AUD).</div>
         <div style="overflow:auto">
           <table id="pmCampaigns">
-            <thead><tr><th>Campaign</th><th class="num">Spend (AUD)</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead>
+            <thead><tr><th>Campaign</th><th class="num">Spend (AUD)</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Post-view</th><th class="num">Post-click</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -461,7 +461,7 @@
     <div id="tab-web" class="tabpane">
       <div class="section first">
         <h2>Website traffic — GA4</h2>
-        <span class="sub">The VMCH website (one GA4 property), flight window. This is the outcome the media is working toward: visits, engagement and enquiries (phone, email, contact forms). The website has no campaign dimension, so it is not split by the Campaign filter.</span>
+        <span class="sub">The VMCH website (one GA4 property). This is the outcome the media is working toward: visits, engagement and enquiries (phone, email, contact forms). The sessions trend runs the full selected range (flight marked); KPI cards and the enquiry chart are scoped to the <b>flight (Apr 2026 →)</b>, the window where enquiry tagging is comparable. The website has no campaign dimension, so it is not split by the Campaign filter.</span>
       </div>
 
       <div class="kpis" id="webKpis"></div>
@@ -469,7 +469,7 @@
       <div class="grid-2-1">
         <div class="card card-tall">
           <h3>Sessions by channel</h3>
-          <div class="hint">All acquisition channels. Paid channels in orange (the Trade Desk lands in Display).</div>
+          <div class="hint">Genuine acquisition channels, paid in orange. <b>Note:</b> low-quality programmatic landing-pixel hits (2.5-second non-engaged visits, ~46% → 30% engagement when present) are filtered out, so this reflects real engaged traffic. Display is upper-funnel — its contribution is reach &amp; attributed conversions (see Media → Traffic), not last-click sessions.</div>
           <div class="chart-wrap"><canvas id="webChannels"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -493,7 +493,7 @@
             <span class="seg" id="webKeyEventsGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setGrain('webKeyEvents','month',this)">Month</button><button type="button" data-grain="week" onclick="setGrain('webKeyEvents','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('webKeyEvents','day',this)">Day</button></span>
           </div>
         </div>
-        <div class="hint">GA4 key events by type — phone calls, email clicks and contact-form submits are the meaningful enquiry signals for VMCH. <b>Relative</b> shows each period as 100% composition.</div>
+        <div class="hint">GA4 key events by type — phone calls, email clicks and contact-form submits are the meaningful enquiry signals for VMCH. Scoped to the <b>flight (Apr 2026 →)</b>: GA4's enquiry-event tagging changed in 2026, so earlier months use a different, non-comparable taxonomy and are excluded here. <b>Relative</b> shows each period as 100% composition.</div>
         <div class="chart-wrap" style="height:300px"><canvas id="webKeyEvents"></canvas></div>
       </div>
 
@@ -512,8 +512,8 @@
     <!-- ============ MEDIA -> TRAFFIC ============ -->
     <div id="tab-link" class="tabpane">
       <div class="section first">
-        <h2>Media → Traffic — did the display flight move the site?</h2>
-        <span class="sub">Connecting Trade Desk delivery to the website. Programmatic display is an upper-funnel, awareness &amp; retargeting channel: it earns reach and clicks to site, but GA4 attributes few <b>last-click</b> "Display" sessions — so the honest read is delivery intensity vs. overall site activity, not a one-to-one session lift. Use the <b>Campaign</b> filter to focus the media side.</span>
+        <h2>Media → Traffic — what the display flight delivered</h2>
+        <span class="sub">The full chain from ad spend to outcomes: reach, clicks to site, and the <b>post-view</b> and <b>post-click</b> conversions The Trade Desk attributes back to the ads. Programmatic display is an upper-funnel, awareness &amp; retargeting channel, so GA4 records few <b>last-click</b> "Display" sessions by design — the fair read is reach plus ad-attributed conversions, not a one-to-one last-click session lift. Use the <b>Campaign</b> filter to focus the media side.</span>
       </div>
 
       <div class="info-note" id="linkHeadline"></div>
@@ -522,13 +522,13 @@
 
       <div class="card card-tall" style="margin-top:18px">
         <div class="card-head">
-          <h3>Trade Desk impressions vs website sessions</h3>
+          <h3>Ad impressions vs website sessions</h3>
           <div class="ctrls">
             <span class="seg" id="linkWeeklyScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('linkWeekly','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('linkWeekly','abs',this)">Absolute</button></span>
             <span class="seg" id="linkWeeklyGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="setGrain('linkWeekly','month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="setGrain('linkWeekly','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('linkWeekly','day',this)">Day</button></span>
           </div>
         </div>
-        <div class="hint">Trade Desk impressions (bars, right axis) against total website sessions (line, left axis). <b>Relative</b> indexes both to their own peak=100. Flight window only.</div>
+        <div class="hint">Ad impressions (bars, right axis) against total website sessions (line, left axis). <b>Relative</b> indexes both to their own peak=100. Flight window only.</div>
         <div class="chart-wrap" style="height:300px"><canvas id="linkWeekly"></canvas></div>
       </div>
 
@@ -606,14 +606,27 @@ function setGrain(chart,g,btn){ grain[chart]=g; segPick(btn); reRender(chart); }
 function setScale(chart,s,btn){ scale[chart]=s; segPick(btn); reRender(chart); }
 // index a numeric series to its own peak=100 (Relative mode for overlay lines)
 const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
+// null-preserving index: nulls (pre-flight gaps) stay null (a line break), and the peak is taken
+// over the non-null values only — so a clamped flight series indexes to ITS peak, not 2025's.
+const indexedNN = arr => { const v=arr.filter(x=>x!=null); const mx=Math.max(0,...v); return arr.map(x=>x==null?null:(mx?x/mx*100:0)); };
 
 // Date range. Finest grain is month/week, so trend charts honour the range; whole-window
 // KPIs/donuts/tables stay full-period. ISO 'YYYY-MM-DD'; null = full window.
 let rangeStart = null, rangeEnd = null, dateMin = null, dateMax = null;
+// The display flight start ('YYYY-MM-DD'). Set in boot(). Two things are NOT comparable before it:
+// ad spend (none loaded) and GA4 enquiry tagging (different 2025 taxonomy). The flightClampKeys
+// helper scopes the enquiry-specific charts to the flight even when the global range is all-time.
+let FLIGHT_START = null;
 const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!rangeEnd || m <= rangeEnd.slice(0,7));
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
 const inRangeDay   = d => (!rangeStart || d >= rangeStart) && (!rangeEnd || d <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
+// Is a period key on/after the flight start, by grain? (enquiry charts use this; pre-flight GA4
+// enquiry counts use a different, non-comparable taxonomy so they are intentionally excluded.)
+const inFlight = (k,g) => { if(!FLIGHT_START) return true; return g==='month' ? k >= FLIGHT_START.slice(0,7) : k >= FLIGHT_START; };
+// Index (into a sorted key list) of the first flight period — where the "Flight start" marker sits.
+// Returns -1 when every period is already in the flight (no pre-flight context to demarcate).
+function flightStartIndex(keys,g){ for(let i=0;i<keys.length;i++){ if(inFlight(keys[i],g)){ return i>0?i:-1; } } return -1; }
 
 // ===================== shared date-range picker (Looker-style) =====================
 window.DateRange = (function(){
@@ -784,9 +797,9 @@ const campOn = name => activeCampaigns.has(name);
 //==============================================================================
 function adCampaignsSel(){ return (DATA.ad_campaigns||[]).filter(c=>campOn(c.campaign)); }
 function adTotals(){
-  let imps=0, clk=0, spend=0;
-  for(const c of adCampaignsSel()){ imps+=c.imps||0; clk+=c.clicks||0; spend+=c.spend_aud||0; }
-  return {imps, clk, spend};
+  let imps=0, clk=0, spend=0, pview=0, pclick=0;
+  for(const c of adCampaignsSel()){ imps+=c.imps||0; clk+=c.clicks||0; spend+=c.spend_aud||0; pview+=c.post_view||0; pclick+=c.post_click||0; }
+  return {imps, clk, spend, pview, pclick, conv:pview+pclick};
 }
 // month -> {imps,clk,spend} over selected campaigns, within the picker range.
 function adMonthlyMap(){ return adMap('month'); }
@@ -803,8 +816,8 @@ function adMap(g){
   for(const r of src){
     const k = keyOf(r);
     if(!campOn(r.campaign) || !inRangeBy(k,g)) continue;
-    const e = m[k] || (m[k] = {imps:0,clk:0,spend:0});
-    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0;
+    const e = m[k] || (m[k] = {imps:0,clk:0,spend:0,pview:0,pclick:0});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; e.pview+=r.post_view||0; e.pclick+=r.post_click||0;
   }
   return m;
 }
@@ -900,6 +913,19 @@ function enquiriesFlight(){
   let t=0; for(const r of (DATA.ga4_key_events||[])){ if(r.month >= start.slice(0,7)) t += r.key_events||0; }
   return t;
 }
+// Flight-clamped enquiry summary {types, totals, total} for the AI commentary. MUST be flight-scoped
+// (not the picker range) so it matches the flight "Enquiries" KPI — the all-time picker would sum the
+// non-comparable 2025 GA4 taxonomy (~40× inflated) and contradict the KPI on the same screen.
+function enquiriesFlightSummary(){
+  const totals = {};
+  for(const r of (DATA.ga4_key_events||[])){
+    if(!inFlight(r.month,'month')) continue;
+    totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
+  }
+  const types = Object.keys(totals).filter(t=>totals[t]>0).sort((a,b)=>totals[b]-totals[a]);
+  const total = types.reduce((s,t)=>s+totals[t],0);
+  return { types, totals, total };
+}
 
 //==============================================================================
 // BOOT
@@ -912,14 +938,19 @@ async function boot(){
     activeCampaigns = new Set((DATA.ad_campaigns||[]).map(c => c.campaign));
     const h = (location.hash||'').replace('#','');
     if(['overview','paid','web','link'].includes(h)) activeTab = h;
-    // Scope the dashboard to the FLIGHT (Apr 2026 →). KPIs are flight-window, and the pre-flight
-    // 2025 months use a different/!lapsed GA4 key-event taxonomy, so including them would mislead
-    // (the enquiry series would show a false cliff). dateMax must cover the latest weekly point too
-    // (weeks run a few days past window.end), else the final week clips off the Media → Traffic charts.
+    // Default to ALL available history (back to Jan 2025) so the client sees the full trend, per
+    // the brief. The CHARTS that are comparable across time (sessions, spend, impressions, clicks,
+    // attributed conversions) run the whole range; the flight (Apr 2026 →) is demarcated on every
+    // time-series chart by a "Flight start" marker, and the date-scope banner annotates the two
+    // things that are NOT comparable pre-flight: there was no loaded ad spend before the flight, and
+    // GA4 enquiry-event tagging used a different taxonomy in 2025 (so the enquiry-specific charts stay
+    // scoped to the flight — see flightClampKeys). dateMax covers the latest weekly point too (weeks
+    // run a few days past window.end), else the final week clips off the Media → Traffic charts.
     const months = (DATA.monthly||[]).map(r=>r.month).sort();
     const lastWeek = (DATA.weekly||[]).map(r=>r.week_start).sort().pop();
     const monthEnd = months.length ? months[months.length-1]+'-28' : null;
-    dateMin = (DATA.window||{}).start || (months.length ? months[0]+'-01' : null);
+    FLIGHT_START = (DATA.window||{}).start || (months.length ? months[months.length-1]+'-01' : null);
+    dateMin = months.length ? months[0]+'-01' : ((DATA.window||{}).start || null);
     dateMax = [ (DATA.window||{}).end, lastWeek, monthEnd ].filter(Boolean).sort().pop();
     rangeStart = dateMin; rangeEnd = dateMax;
     DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });
@@ -1041,11 +1072,20 @@ function renderActive(){
 }
 function renderDateScope(){
   const note = el('dateScopeNote'); if(!note) return;
-  if(!narrowed()){ note.style.display='none'; return; }
+  const flightTxt = FLIGHT_START ? new Date(FLIGHT_START).toLocaleDateString('en-US',{month:'short',year:'numeric'}) : 'Apr 2026';
+  // Always-on context so an all-time view can't be misread. Two things are NOT comparable pre-flight
+  // and are annotated everywhere: (1) no ad spend was running, (2) GA4 enquiry tagging differed.
+  let html = '📅 Showing <b>all available history</b> by default so the trend is visible. The live campaign '
+    + '<b>flight runs from '+flightTxt+'</b> and is marked on every trend chart. <b>Ad spend &amp; attributed conversions</b> exist only during the flight; '
+    + '<b>enquiry charts</b> are scoped to the flight because GA4 changed its enquiry-event tagging in 2026 (earlier counts aren\'t comparable). '
+    + 'Session figures exclude low-quality programmatic landing-pixel traffic.';
+  if(narrowed()){
+    html = '📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to whole months/weeks). '
+      + 'Monthly &amp; weekly <b>trend charts</b> reflect this range; KPI cards, channel/source breakdowns, spend donuts and '
+      + 'campaign/creative tables show the <b>full flight</b>. ' + html;
+  }
   note.style.display='block';
-  note.innerHTML = '📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to whole months/weeks). '
-    + 'The monthly &amp; weekly <b>trend charts</b> reflect this range; KPI cards, the channel/source breakdowns, '
-    + 'spend donuts and campaign/creative tables show the <b>full flight</b> (those aren\'t available at a finer grain in the feed).';
+  note.innerHTML = html;
 }
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 
@@ -1066,6 +1106,35 @@ function adjust(hex,amt){
   r=Math.max(0,Math.min(255,r+amt)); g=Math.max(0,Math.min(255,g+amt)); b=Math.max(0,Math.min(255,b+amt));
   return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
+// Draws a dashed vertical "Flight start" marker at a category boundary, shading the pre-flight zone.
+// Enabled per-chart via options.flightMarker = {index, text}. index = the first flight category;
+// index<=0 (or absent) draws nothing (no pre-flight history to demarcate). Category scales only.
+const flightMarker = {
+  id:'flightMarker',
+  _x(chart){
+    const o=chart.config.options.flightMarker; if(!o || o.index==null || o.index<=0) return null;
+    const xs=chart.scales.x; if(!xs) return null;
+    return (xs.getPixelForValue(o.index-1)+xs.getPixelForValue(o.index))/2;
+  },
+  beforeDatasetsDraw(chart){            // faint shade over the pre-flight span (behind the data)
+    const x=this._x(chart); if(x==null) return;
+    const {ctx,chartArea:{top,bottom,left}}=chart;
+    ctx.save(); ctx.fillStyle='rgba(140,126,128,.06)';
+    ctx.fillRect(left, top, Math.max(0,x-left), bottom-top); ctx.restore();
+  },
+  afterDatasetsDraw(chart){             // dashed boundary line + label (on top of the data)
+    const x=this._x(chart); if(x==null) return;
+    const o=chart.config.options.flightMarker;
+    const {ctx,chartArea:{top,bottom}}=chart;
+    ctx.save();
+    ctx.strokeStyle='rgba(76,39,54,.55)'; ctx.lineWidth=1.5; ctx.setLineDash([4,3]);
+    ctx.beginPath(); ctx.moveTo(x,top); ctx.lineTo(x,bottom); ctx.stroke();
+    ctx.setLineDash([]); ctx.font='700 10px '+FONT.family; ctx.fillStyle='#4C2736';
+    ctx.textAlign='left'; ctx.textBaseline='top';
+    ctx.fillText(' '+(o.text||'Flight start'), x+3, top+2);
+    ctx.restore();
+  }
+};
 const centerText = {
   id:'centerText',
   afterDraw(chart){
@@ -1097,9 +1166,10 @@ function renderOverview(){
   const engRate = pct(g.engaged_sessions, g.sessions);
   const enq = enquiriesFlight();
   el('ovKpis').innerHTML =
-    kpiCard('accent','Media spend (AUD)', money(a.spend), `The Trade Desk · ${campaignScopeText()}`)
+    kpiCard('accent','Ad spend (AUD)', money(a.spend), `display ads · ${campaignScopeText()}`)
   + kpiCard('accent','Ad impressions', fmtM(a.imps), `${money(a.imps?a.spend/a.imps*1000:0,'A$',2)} CPM`)
   + kpiCard('accent','Clicks to site', fmtN(a.clk), `${fmtPct(ctr,2)} CTR`)
+  + kpiCard('accent','Attributed conversions', fmtN(a.conv), `${fmtN(a.pview)} post-view · ${fmtN(a.pclick)} post-click`)
   + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
   + kpiCard('web','Paid sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
   + kpiCard('web','Enquiries', fmtN(enq), `phone · email · contact form`);
@@ -1117,28 +1187,33 @@ function renderOverview(){
   const keTypes = keH.types.slice(0,4);
   const sessRaw = SH.map(r=>r.sessions||0);
   const sessData = relH ? indexed(sessRaw) : sessRaw;
+  // Enquiry lines are CLAMPED to the flight (null pre-flight). 2025 GA4 enquiry tagging used a
+  // different taxonomy (counts ~40× higher), so plotting it would crush the flight to ~zero and
+  // read as a false collapse. Nulls break the line so it only appears over the comparable window.
   const keLines = keTypes.map((t,i)=>{
-    const raw = SH.map(r=>(keH.byKey[r.key]||{})[t]||0);
-    return { type:'line', label:t, yAxisID:'y', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0,
-      data: relH ? indexed(raw) : raw, _raw:raw,
+    const raw = SH.map(r=> inFlight(r.key,gH) ? ((keH.byKey[r.key]||{})[t]||0) : null);
+    return { type:'line', label:t, yAxisID:'y', borderDash:[5,3], borderWidth:2, tension:.35, pointRadius:2, fill:false, order:0, spanGaps:false,
+      data: relH ? indexedNN(raw) : raw, _raw:raw,
       borderColor:KE_PALETTE[i % KE_PALETTE.length], backgroundColor:KE_PALETTE[i % KE_PALETTE.length] };
   });
   charts.ovHero = new Chart(el('ovHero'),{
     data:{ labels:labelsH, datasets:[
       { type:'line', label:'Website sessions', data:sessData, _raw:sessRaw, yAxisID:'y',
         borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.08)', borderWidth:2.5, tension:.35, fill:!relH, pointRadius:2.5, pointBackgroundColor:C.maroon, order:1 },
-      { type:'bar', label:'Trade Desk spend', yAxisID:'y1', data:SH.map(r=>(amH[r.key]||{}).spend||0),
+      { type:'bar', label:'Ad spend', yAxisID:'y1', data:SH.map(r=>(amH[r.key]||{}).spend||0),
         backgroundColor:C.orange, borderRadius:3, maxBarThickness:26, order:2 },
       ...keLines
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      flightMarker:{ index:flightStartIndex(SH.map(r=>r.key),gH), text:'Flight →' },
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
         if(c.dataset.yAxisID==='y1') return ` ${c.dataset.label}: ${money(c.parsed.y)}`;
         const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;  // un-index for display
         return ` ${c.dataset.label}: ${fmtN(raw)}`;
       }}}},
       scales:{ x:axisX(), y:gridY({position:'left',title:{display:true,text:relH?'Index (peak=100)':'Sessions / enquiries',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relH?Math.round(v):fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'A$'+fmtM(v)}} } }
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Ad spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'A$'+fmtM(v)}} } },
+    plugins:[flightMarker]
   });
 
   // Donut: sessions by channel
@@ -1172,11 +1247,13 @@ function renderOverview(){
       { label:'Other', data:stk('other_sessions'), _raw:stkRaw('other_sessions'), backgroundColor:C.grey, stack:'s' }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      flightMarker:{ index:flightStartIndex(SS.map(r=>r.key),gS), text:'Flight →' },
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
         const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
         return ` ${c.dataset.label}: ${fmtN(raw)}`+(relS?` (${c.parsed.y.toFixed(0)}%)`:'');
       }}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,max:relS?100:undefined,ticks:{color:C.mute,font:{size:11},callback:v=>relS?v+'%':fmtM(v)}}) } }
+      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,max:relS?100:undefined,ticks:{color:C.mute,font:{size:11},callback:v=>relS?v+'%':fmtM(v)}}) } },
+    plugins:[flightMarker]
   });
 
   // TTD delivery: impressions bars (primary, absolute) + clicks line. Relative indexes clicks to
@@ -1204,15 +1281,16 @@ function renderOverview(){
 
   el('ovNote').innerHTML = `<b>How to read this.</b> The paid-media KPIs and the spend/delivery charts reflect the <b>Campaign</b> filter (${campaignScopeText()}); `
     + `website figures are the whole VMCH property (GA4 has no campaign dimension). `
-    + `The Trade Desk is an awareness &amp; retargeting <b>display</b> channel — it earns reach (impressions) and ${fmtN(a.clk)} clicks to site, `
-    + `but GA4 attributes few <b>last-click</b> Display sessions, so judge it on reach, clicks and the lift in overall enquiries rather than a one-to-one session count. `
+    + `Display is an awareness &amp; retargeting channel, so its value shows up as <b>reach</b> (${fmtM(a.imps)} impressions), <b>${fmtN(a.clk)} clicks to site</b> and `
+    + `<b>${fmtN(a.conv)} ad-attributed conversions</b> (${fmtN(a.pview)} post-view + ${fmtN(a.pclick)} post-click, measured by The Trade Desk) — not by last-click sessions, which GA4 under-attributes for display. `
+    + `Session figures exclude low-quality programmatic landing-pixel traffic (2.5-second visits that aren't genuine engagement), so the engagement rate and channel mix you see are real. `
     + `Reporting currency AUD (The Trade Desk bills in AUD — no FX conversion). `
-    + `The most recent month/week can read low while GA4 and Trade Desk data finish landing (GA4 currently lands a few days behind delivery).`;
+    + `The most recent month/week can read low while GA4 and ad data finish landing (GA4 currently lands a few days behind delivery).`;
 }
 
 function renderOvCommentary(){
   const box = el('ovCommentary');
-  const ke = keyEvents();                 // enquiry events over the selected (default = flight) range
+  const ke = enquiriesFlightSummary();    // FLIGHT-scoped (matches the Enquiries KPI), never the all-time picker
   if(!ke.types.length || ke.total<=0){ box.style.display='none'; return; }
   box.style.display='';
   const top = ke.types[0], topShare = pct(ke.totals[top], ke.total);
@@ -1222,11 +1300,12 @@ function renderOvCommentary(){
     + (second ? ` and <b>${second.replace(/_/g,' ')}</b> (${fmtN(ke.totals[second])})` : '');
   box.innerHTML =
     `<div class="ai-badge"><span class="dot"></span>AI commentary</div>`
-  + `<b>Enquiries are the outcome to watch.</b> Over the flight the VMCH website logged `
-  + `<b>${fmtN(ke.total)}</b> enquiry actions across ${ke.types.length} type${ke.types.length===1?'':'s'} — led by ${lead}. `
-  + `Alongside <b>${fmtN(a.imps)}</b> Trade Desk impressions and <b>${fmtN(a.clk)}</b> clicks to site, the website kept turning `
-  + `visits into phone, email and contact-form enquiries — the real measure of value for a not-for-profit. `
-  + `(Display is upper-funnel, so most enquiries are assisted rather than last-click.)`;
+  + `<b>The flight is working — spend is turning into reach, clicks and attributed actions.</b> `
+  + `<b>${money(a.spend)}</b> of display delivered <b>${fmtM(a.imps)}</b> impressions and <b>${fmtN(a.clk)}</b> clicks to the VMCH site, and The Trade Desk attributed `
+  + `<b>${fmtN(a.conv)}</b> conversions back to those ads (<b>${fmtN(a.pview)}</b> post-view + <b>${fmtN(a.pclick)}</b> post-click). `
+  + `Over the same window the website logged <b>${fmtN(ke.total)}</b> enquiry actions across ${ke.types.length} type${ke.types.length===1?'':'s'} — led by ${lead} — `
+  + `the phone, email and contact-form enquiries that matter most for a not-for-profit. `
+  + `Display is upper-funnel, so much of its impact is assisted (post-view) rather than last-click — which is exactly why the attributed conversions above matter more than raw last-click sessions.`;
 }
 
 //==============================================================================
@@ -1282,11 +1361,11 @@ function renderPaid(){
     const cr=pct(c.clicks,c.imps), cm=c.imps?c.spend_aud/c.imps*1000:0, cc=c.clicks?c.spend_aud/c.clicks:0;
     return `<tr><td><span class="pill"><span class="dot" style="background:${C.orange}"></span>${campLabel(c.campaign)}</span></td>
       <td class="num">${money(c.spend_aud)}</td><td class="num">${fmtN(c.imps)}</td><td class="num">${fmtN(c.clicks)}</td>
-      <td class="num">${fmtPct(cr,2)}</td><td class="num">${money(cm,'A$',2)}</td><td class="num">${money(cc,'A$',2)}</td></tr>`;
+      <td class="num">${fmtPct(cr,2)}</td><td class="num">${fmtN(c.post_view)}</td><td class="num">${fmtN(c.post_click)}</td><td class="num">${money(cm,'A$',2)}</td><td class="num">${money(cc,'A$',2)}</td></tr>`;
   }).join('');
   el('pmCampaigns').querySelector('tbody').innerHTML = rowsHtml +
     `<tr class="total"><td>All selected</td><td class="num">${money(a.spend)}</td><td class="num">${fmtN(a.imps)}</td><td class="num">${fmtN(a.clk)}</td>
-      <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'A$',2)}</td><td class="num">${money(cpc,'A$',2)}</td></tr>`;
+      <td class="num">${fmtPct(ctr,2)}</td><td class="num">${fmtN(a.pview)}</td><td class="num">${fmtN(a.pclick)}</td><td class="num">${money(cpm,'A$',2)}</td><td class="num">${money(cc,'A$',2)}</td></tr>`;
 
   // Top ad groups by spend (horizontal bar)
   const ag = adgroupsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
@@ -1362,18 +1441,22 @@ function renderWeb(){
       { label:'Display sessions', data:relT?indexed(dispRaw):dispRaw, _raw:dispRaw, borderColor:C.orangeDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      flightMarker:{ index:flightStartIndex(ST.map(r=>r.key),gT), text:'Flight →' },
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
         const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
         return ` ${c.dataset.label}: ${fmtN(raw)}`;
       }}} },
-      scales:{ x:axisX(), y:gridY({title:{display:relT,text:relT?'Index (peak=100)':'',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relT?Math.round(v):fmtM(v)}}) } }
+      scales:{ x:axisX(), y:gridY({title:{display:relT,text:relT?'Index (peak=100)':'',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relT?Math.round(v):fmtM(v)}}) } },
+    plugins:[flightMarker]
   });
 
   // enquiry events by type (stacked bars). Pure composition (no overlay) -> Relative = 100%-stacked
   // (each period normalised to its own total); Absolute = raw counts. Grain month/week/day.
   const gK = grain.webKeyEvents, relK = scale.webKeyEvents==='rel';
   const keW = keyEventsBy(gK);
-  const keKeys = Object.keys(keW.byKey).filter(k=>inRangeBy(k,gK)).sort();
+  // Clamp to the flight: pre-flight GA4 enquiry tagging used a different taxonomy (counts ~40× higher)
+  // so it is NOT comparable — showing it would swamp the flight bars and read as a false collapse.
+  const keKeys = Object.keys(keW.byKey).filter(k=>inRangeBy(k,gK) && inFlight(k,gK)).sort();
   const labelsK = keKeys.map(k=>periodLabel(k,gK));
   const keTypes = keW.types.slice(0,6);
   const keTot = keKeys.map(k=>keTypes.reduce((s,t)=>s+((keW.byKey[k]||{})[t]||0),0));
@@ -1421,24 +1504,29 @@ function renderLink(){
   const dispSess = (DATA.monthly||[]).filter(r=>r.month>=((DATA.window||{}).start||'').slice(0,7)).reduce((s,r)=>s+(r.display_sessions||0),0);
   const sessPer1k = a.imps ? a.clk/(a.imps/1000) : 0;
 
-  el('linkHeadline').innerHTML = `<b>Reach delivered, clicks earned.</b> Across the flight, <b>${money(a.spend)}</b> of Trade Desk display `
-    + `delivered <b>${fmtN(a.imps)}</b> impressions and <b>${fmtN(a.clk)}</b> clicks to the VMCH site (${fmtPct(pct(a.clk,a.imps),2)} CTR). `
-    + `Display is upper-funnel, so GA4 recorded only <b>${fmtN(dispSess)}</b> last-click Display sessions over the flight — `
-    + `the campaign's job is reach and assisted enquiry, not last-click traffic.`;
+  el('linkHeadline').innerHTML = `<b>Spend → reach → clicks → attributed conversions.</b> Across the flight, <b>${money(a.spend)}</b> of display `
+    + `delivered <b>${fmtN(a.imps)}</b> impressions and <b>${fmtN(a.clk)}</b> clicks to the VMCH site (${fmtPct(pct(a.clk,a.imps),2)} CTR), and The Trade Desk attributed `
+    + `<b>${fmtN(a.conv)}</b> conversions back to the ads — <b>${fmtN(a.pview)}</b> post-view and <b>${fmtN(a.pclick)}</b> post-click. `
+    + `Display is upper-funnel, so GA4 logs only <b>${fmtN(dispSess)}</b> last-click Display sessions — that's expected, and it's exactly why post-view attribution (below) is the fairer read of impact.`;
 
   el('linkFunnel').innerHTML =
-    `<div class="step"><div class="k">Media spend</div><div class="v">${money(a.spend)}</div></div>`
+    `<div class="step"><div class="k">Ad spend</div><div class="v">${money(a.spend)}</div></div>`
   + `<div class="arrow">→</div>`
   + `<div class="step"><div class="k">Impressions</div><div class="v">${fmtM(a.imps)}</div></div>`
   + `<div class="arrow">→</div>`
   + `<div class="step"><div class="k">Clicks to site</div><div class="v">${fmtN(a.clk)}</div></div>`
   + `<div class="arrow">→</div>`
-  + `<div class="step"><div class="k">Last-click Display sessions</div><div class="v">${fmtN(dispSess)}</div></div>`;
+  + `<div class="step"><div class="k">Post-click conversions</div><div class="v">${fmtN(a.pclick)}</div></div>`
+  + `<div class="arrow">+</div>`
+  + `<div class="step"><div class="k">Post-view conversions</div><div class="v">${fmtN(a.pview)}</div></div>`;
 
   // ad impressions (bars, right) vs all website sessions (line, left). Relative indexes BOTH series
   // to their own peak=100 on shared 0-100 axes so they compare. Grain month/week/day (default week).
   const gLW = grain.linkWeekly, relLW = scale.linkWeekly==='rel';
-  const SLW = ga4Series(gLW);
+  // Clamp to the flight: TTD impressions only exist during the flight, so pre-flight periods would
+  // render empty bars against a full-history sessions line — and this chart is captioned "Flight
+  // window only" (and sits beside the flight-only scatter). inFlight keeps the two in agreement.
+  const SLW = ga4Series(gLW).filter(r=>inFlight(r.key,gLW));
   const amLW = adMap(gLW);
   const keysLW = SLW.map(r=>r.key);
   const labels = keysLW.map(k=>periodLabel(k,gLW));
@@ -1448,7 +1536,7 @@ function renderLink(){
     data:{ labels, datasets:[
       { type:'line', label:'Website sessions', data:relLW?indexed(sessRawLW):sessRawLW, _raw:sessRawLW,
         borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.07)', borderWidth:2.5, fill:!relLW, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
-      { type:'bar', label:'Trade Desk impressions', data:relLW?indexed(impsRawLW):impsRawLW, _raw:impsRawLW, backgroundColor:'rgba(235,51,0,.8)', borderRadius:3, maxBarThickness:16, yAxisID:'y1', order:1 }
+      { type:'bar', label:'Ad impressions', data:relLW?indexed(impsRawLW):impsRawLW, _raw:impsRawLW, backgroundColor:'rgba(235,51,0,.8)', borderRadius:3, maxBarThickness:16, yAxisID:'y1', order:1 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
@@ -1495,8 +1583,8 @@ function renderLink(){
   // stats strip
   el('linkStats').innerHTML =
     `<div class="stat-card"><div class="k">Clicks to site</div><div class="v orange">${fmtN(a.clk)}</div><div class="c">${fmtPct(pct(a.clk,a.imps),2)} CTR over ${fmtM(a.imps)} impressions</div></div>`
-  + `<div class="stat-card"><div class="k">Clicks per 1,000 impressions</div><div class="v">${sessPer1k.toFixed(2)}</div><div class="c">display click rate to the site</div></div>`
-  + `<div class="stat-card"><div class="k">Last-click Display sessions</div><div class="v orange">${fmtN(dispSess)}</div><div class="c">GA4 under-attributes upper-funnel display</div></div>`;
+  + `<div class="stat-card"><div class="k">Ad-attributed conversions</div><div class="v orange">${fmtN(a.conv)}</div><div class="c">${fmtN(a.pview)} post-view + ${fmtN(a.pclick)} post-click (The Trade Desk)</div></div>`
+  + `<div class="stat-card"><div class="k">Last-click Display sessions</div><div class="v">${fmtN(dispSess)}</div><div class="c">small by design — GA4 under-attributes upper-funnel display</div></div>`;
 }
 
 //==============================================================================

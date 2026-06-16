@@ -87,7 +87,13 @@ the raw `APAC_ALL_PLATFORM.PUBLIC.*` tables instead of the CF views.
 `dashboard.html` reads `paid_media` exactly like the old `paid_media.json`
 (`adaptPayload` is unchanged) and `pacing.rows` exactly like the old
 `pacing.json` (`rawRows`). The `paid_media.creatives[]` array (creative-grain
-delivery) powers the "Top & bottom performing creatives" tables; `campaigns`
+delivery) powers the "Top & bottom performing creatives" tables — **these rows
+carry NO `date`, so the dashboard filters them by the market chips ONLY, never the
+date range** (`renderCreativeTables` uses `paidMediaActiveMarkets.has(r.market)`, NOT
+`passesAll()`, whose `dateOk(undefined)` would silently blank the tables). Their
+`market` is raw TTD `MARKET_L3` (e.g. `HKTW`, `CN`, `AUNZ`, `SGMYIDPHTH`), so every
+token must be in `PM_MARKET_REMAP` or the row falls outside the 7 L1 buckets and
+drops. `campaigns`
 powers the three single-campaign LinkedIn dashboards selectable in the top-bar
 dropdown (read from the shared `raw_snowflake.linkedin_ads_apac` mirror, not from
 Snowflake directly). `data_through` is the newest source `LAST_ALTERED` (true

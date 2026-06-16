@@ -1857,11 +1857,14 @@ function loadPaidMedia() {
 // campaign names; we roll those up to the standard 7 APAC L1 buckets so the chips
 // + market table line up across channels.
 const PM_MARKET_REMAP = {
-  'HKTW':   'GCR',
-  'SGMYID': 'ASEAN',
-  'VNPHID': 'ASEAN',
-  'IN':     'SAARC',
-  'ALL':    'RIG'
+  'HKTW':       'GCR',
+  'CN':         'GCR',     // mainland China → Greater China Region
+  'SGMYID':     'ASEAN',
+  'SGMYIDPHTH': 'ASEAN',   // SG/MY/ID/PH/TH → ASEAN
+  'VNPHID':     'ASEAN',
+  'IN':         'SAARC',
+  'AUNZ':       'ANZ',     // Australia + New Zealand → ANZ
+  'ALL':        'RIG'
 };
 function normalizeMarket(m) { return PM_MARKET_REMAP[m] || m; }
 
@@ -2365,7 +2368,10 @@ function prettyCreative(raw) {
 function renderCreativeTables() {
   const map = new Map();
   for (const r of (PAYLOAD.creatives || [])) {
-    if (!passesAll(r)) continue;
+    // Creatives are aggregated over the whole flight and carry NO date — so filter by
+    // the market chips ONLY, never the date range (see the note below). passesAll()
+    // would reject every row here via dateOk(undefined) → the tables would go blank.
+    if (!paidMediaActiveMarkets.has(r.market)) continue;
     const key = r.channel + '||' + r.creative;
     let o = map.get(key);
     if (!o) { o = {channel:r.channel, creative:r.creative, imp:0, clk:0, sp:0, leads:0}; map.set(key, o); }

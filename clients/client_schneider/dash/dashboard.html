@@ -283,7 +283,7 @@
     </div>
   </div>
   <div class="topbar-right">
-    <div><span class="live"></span><b style="color:#fff">Live</b> · APAC paid-media portfolio</div>
+    <div><span class="live"></span><b style="color:#fff">Live</b> · Pacific paid-media portfolio</div>
     <div id="topPeriod">&nbsp;</div>
   </div>
 </div>
@@ -348,6 +348,15 @@
           </div>
         </div>
         <div class="fdiv"></div>
+        <div class="filter-grp" id="portfolioGroup">
+          <span class="lbl">Portfolio</span>
+          <div class="seg" id="portfolioSeg">
+            <button type="button" class="seg-btn on" data-portfolio="Pacific"    onclick="setPortfolio('Pacific')">Pacific</button>
+            <button type="button" class="seg-btn"    data-portfolio="APAC-other" onclick="setPortfolio('APAC-other')">APAC-other</button>
+            <button type="button" class="seg-btn"    data-portfolio="all"        onclick="setPortfolio('all')">All</button>
+          </div>
+        </div>
+        <div class="fdiv"></div>
         <div class="filter-grp" id="platformGroup">
           <span class="lbl">Platform</span>
           <div class="chips" id="platformChips"></div>
@@ -394,7 +403,7 @@
     <div id="tab-portfolio" class="tabpane">
       <div class="section first">
         <h2>Portfolio overview</h2>
-        <span class="sub">Schneider Electric APAC paid-media portfolio (via Transmission), across DV360, The Trade Desk and LinkedIn. Budget &amp; targets are from the media plans (seed data); spend &amp; delivery are live from the platforms. Reporting currency AUD.</span>
+        <span class="sub">Schneider Electric <b>Pacific</b> paid-media portfolio (via Transmission), across DV360, The Trade Desk and LinkedIn — use the <b>Portfolio</b> toggle for APAC-other / All. Budget &amp; targets are from the media plans (seed data); spend &amp; delivery are live from the platforms. Reporting currency AUD.</span>
       </div>
       <div class="kpis" id="poKpis"></div>
       <div class="card" style="margin-top:16px">
@@ -625,6 +634,7 @@ const regionOf = m => REGION_OF[m] || m;   // East Asia / South Asia / Europe & 
 //==============================================================================
 let DATA=null, charts={}, activeTab='portfolio';
 let activePlatforms=new Set(), activeObjectives=new Set(), activeRegions=new Set(), activeInternal=new Set();
+let activePortfolio='Pacific';   // 'Pacific' | 'APAC-other' | 'all' — Pacific carve-out default
 let campaignMenuOpen=false;
 // VIEW BY grain (month|week|day) + AXIS scale (rel|abs, default rel) for the two genuine
 // time-series charts: cumulative spend (Portfolio) and monthly delivery (Funnel). Each chart
@@ -675,6 +685,12 @@ function idOf(name){
 const displayOf   = id => (META[id]||{}).display || (id==='(unmapped)'?'(unmapped)':id);
 const objectiveOf = id => (META[id]||{}).objective_type || 'Unmapped';
 const regionLblOf = id => (META[id]||{}).primary_region || '—';
+// PORTFOLIO (organisational: 'Pacific' | 'APAC-other'). Distinct from the geographic Pacific
+// region chip on the Geography tab. Unmapped delivery has no portfolio. Default view = Pacific.
+const portfolioOf = id => (META[id]||{}).portfolio || null;
+function portfolioIds(p){   // delivering ids in portfolio p (p==='all' → every delivering id)
+  return rosterIds().filter(id => p==='all' || portfolioOf(id)===p);
+}
 
 // internal-campaign roster (only ids with ≥1 delivering platform campaign, + unmapped if present)
 function roster(){
@@ -932,7 +948,11 @@ async function boot(){
       rangeStart=s; rangeEnd=e; renderActive();
     } });
     activePlatforms = new Set(PLATFORMS.map(p=>p.key));
-    activeInternal  = new Set(rosterIds());
+    // Default to the Pacific carve-out. Defensive: if nothing Pacific is delivering yet, fall
+    // back to the whole roster so the dashboard never boots empty.
+    const pacIds = portfolioIds('Pacific');
+    if(!pacIds.length) activePortfolio='all';
+    activeInternal  = new Set(activePortfolio==='all' ? rosterIds() : pacIds);
     activeObjectives= new Set([...activeInternal].map(objectiveOf));
     activeRegions   = new Set(allRegions());
     const h=(location.hash||'').replace('#','');
@@ -976,6 +996,7 @@ function renderControls(){
     .forEach(([id,t])=> el(id).className='tab'+(activeTab===t?' on':''));
   const notes={portfolio:'Budget vs spend vs target',pacing:'Plan vs actual',funnel:'Delivery funnel',channels:'Platform efficiency',geo:'Where it delivered'};
   el('ctrlNote').textContent = notes[activeTab]||'';
+  syncSeg('portfolioSeg','portfolio',activePortfolio);   // keep the Portfolio toggle in sync
 
   // region filter is only meaningful on Geography
   el('regionGroup').style.display = activeTab==='geo' ? 'flex' : 'none';
@@ -1067,6 +1088,16 @@ function toggleObjGroup(obj, select){
 }
 function allCampaigns(){ activeInternal=new Set(rosterIds()); renderCampaignButton(); renderCampaignList(); renderActive(); }
 function clearCampaigns(){ activeInternal=new Set(); renderCampaignButton(); renderCampaignList(); renderActive(); }
+// Portfolio toggle (Pacific / APAC-other / All) — re-seeds the campaign + objective selection to
+// the chosen portfolio's delivering campaigns. The Pacific carve-out is the default view.
+function setPortfolio(p){
+  activePortfolio=p;
+  const ids=portfolioIds(p);
+  activeInternal=new Set(ids);
+  activeObjectives=new Set(ids.map(objectiveOf));
+  syncSeg('portfolioSeg','portfolio',p);
+  renderControls(); renderActive();
+}
 
 function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
 function renderActive(){
