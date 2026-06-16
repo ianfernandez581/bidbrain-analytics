@@ -13,6 +13,19 @@ dashboard serves all 6 tabs, and the auth flow is confirmed (401 unauth → 200 
 now applied. Refreshes within ~10 min of new upstream data (self-gating `*/10` scheduler). Both logos
 (100% Digital + City Perfume) are embedded in the topbar + login.
 
+### Two dashboards off ONE pipeline (online-only + all-sales)
+
+There are **two Cloud Run web services** over the *same* `cityperfume.json` (the export job already
+ships every channel — `sales_by_channel*` carry all `channel_group`s):
+
+- **`cityperfume-dash`** (`dash/`) — the original, **online-only** (Website + Marketplace; in-store
+  POS excluded). Headline = the incremental online Margin ROAS. **This is the default deliverable.**
+- **`cityperfume-total-dash`** (`dash_total/`) — the **all-sales** variant: In-store POS + Website +
+  Marketplace (In-store POS is the *largest* channel — ~A$13.5M vs Website ~A$6.4M vs Marketplace
+  ~A$1.7M). Headline = **blended Marketing Efficiency Ratio** (all sales ÷ ad spend); the incremental
+  online margin-ROAS is kept as a stricter secondary lens. **Front-end-only fork** — same bucket, JSON,
+  web SA and password/session secrets, so one login opens it. See [`dash_total/README.md`](dash_total/README.md).
+
 ## The story it tells
 
 City Perfume is e-commerce, so the outcome is **revenue / orders / margin / ROAS**, not sessions —
@@ -137,7 +150,7 @@ new-vs-returning via first-ever-order over full history. **Flagged to client:** 
 | GCP project | `bidbrain-analytics` (au-southeast1) |
 | Dataset | `client_cityperfume` (pre-existing — holds `v_sales`) |
 | Bucket / object | `bidbrain-analytics-cityperfume-dash` / `cityperfume.json` |
-| Job / service | `cityperfume-export` / `cityperfume-dash` |
+| Job / services | `cityperfume-export` / `cityperfume-dash` (online-only) + `cityperfume-total-dash` (all-sales, `dash_total/`) |
 | SAs | `cityperfume-dash-job@…` (job) · `cityperfume-dash-web@…` (web) |
 | Secrets | `cityperfume-dash-password` · `cityperfume-dash-session-key` |
 | Subdomain (later) | `cityperfume.bidbrain.ai` |
@@ -152,6 +165,9 @@ new-vs-returning via first-ever-order over full history. **Flagged to client:** 
   cloudbuild, `deploy_job_cityperfume.ps1`. See [`job/README.md`](job/README.md).
 - `dash/` — `main.py` (auth gate), `dashboard.html`, Dockerfile, requirements, cloudbuild,
   `deploy_dash_cityperfume.ps1`, `LIVE_URL.md`. See [`dash/README.md`](dash/README.md).
+- `dash_total/` — the **all-sales** 2nd dashboard (`cityperfume-total-dash`): forked `dashboard.html`
+  + `main.py` + `deploy_dash_cityperfume_total.ps1`. Reuses `dash/`'s pipeline/SA/secrets. See
+  [`dash_total/README.md`](dash_total/README.md).
 - `analysis/` — ROAS analysis handoff, reproducible incrementality script + chart, T7 validation plan.
 - `deploy_cityperfume.ps1` (one-shot) · `scheduler.ps1` · `BUILD_CHECKLIST.md`.
 
