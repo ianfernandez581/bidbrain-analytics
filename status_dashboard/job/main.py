@@ -104,15 +104,19 @@ def _mdb_idc(field):
     return lambda d: sum(_num(c.get(field)) for c in d.get("cs_by_programme", []) if not c.get("programme"))
 
 
-# mongodb CS goes through the BQ mirror (raw_snowflake.salesforce_cs_apac_all), and the
-# Salesforce lead table is MUTABLE — leads are continuously added and re-statused — so a
-# small delta vs the live source count is normal mirror lag, NOT a pipeline fault (the
-# magnitude IS the signal: how many leads the mirror is behind). cloudflare CS matches
-# exactly only because it reads the live modelled view direct. The Sync tab is the
-# authority on whether the pipeline itself is healthy.
+# BOTH mongodb and cloudflare CS now go through the BQ mirror (raw_snowflake.salesforce_cs_apac_all),
+# and the Salesforce lead table is MUTABLE — leads are continuously added and re-statused — so a
+# small delta vs the live source count is normal mirror lag, NOT a pipeline fault (the magnitude IS
+# the signal: how many leads the mirror is behind). (cloudflare used to match the live modelled view
+# exactly; since 2026-06-17 BQ owns its model and it reads the mirror like mongodb.) The Sync tab is
+# the authority on whether the pipeline itself is healthy.
 _MDB_CS_NOTE = (" · Mutable source: mongodb CS reads the BQ mirror and Salesforce leads are "
                 "continuously added / re-statused, so a small delta vs the live source is normal "
                 "mirror lag, not a pipeline fault — the Sync tab is the authority on health.")
+_CF_CS_NOTE = (" · Mutable source: cloudflare CS is now derived in BigQuery from the "
+               "raw_snowflake mirror (not the live Snowflake view), and Salesforce leads are "
+               "continuously added / re-statused, so a small delta vs this live source query is "
+               "normal mirror lag, not a pipeline fault — the Sync tab is the authority on health.")
 
 
 # --- cloudflare dash-side extractors -----------------------------------------
@@ -146,8 +150,10 @@ def _cf_camp(key, field):
 # plus the lead/CS breakdowns broken out). Verified line-by-line against each
 # client's sql/ views, job/main.py and dashboard JS (see status_dashboard/README.md).
 #   sources : Snowflake source tables this client depends on (Transmission side).
-#   reads_direct : True only for cloudflare (reads Snowflake modelled views directly;
-#                  no BigQuery raw mirror in its CS / paid-media path).
+#   reads_direct : True when the client reads Snowflake modelled views DIRECTLY (no BigQuery
+#                  raw mirror in its path) → ingest freshness = the build's data_through.
+#                  Now False for EVERY client: cloudflare moved onto the raw_snowflake mirror
+#                  on 2026-06-17 (BQ owns its model now, like the rest), so the field is inert.
 #   checks  : accuracy comparisons. `group` clusters checks by data domain in the UI;
 #             `dash` extracts the comparable number from the client's JSON; `sql` is
 #             the EXACT Snowflake query that should equal it.
@@ -239,11 +245,14 @@ CLIENTS = [
         "client": "cloudflare", "label": "Cloudflare APAC", "url": "https://cloudflare.bidbrain.ai",
         "sources": ["Salesforce_CS_APAC_ALL", "TradeDesk_APAC ALL",
                     "LinkedIn Ads - APAC", "Reddit Ads - APAC_ALL"],
-        "reads_direct": True,
+        "reads_direct": False,   # BQ owns the model since 2026-06-17 — reads raw_snowflake mirrors
         "checks": [
-            # --- Paid media: the modelled V_PAID_ADS_FINAL_MODEL the build reads ---
-            # (the dashboard's paid_media.rows[] are a pass-through of this view, with
-            #  the per-channel staging filters already applied — read direct).
+            # --- Paid media ---
+            # The dashboard's paid_media.rows[] are now derived in BigQuery (stg_* over the
+            # raw_snowflake mirrors → paid_media_model). The SQL below still queries Snowflake's
+            # V_PAID_ADS_FINAL_MODEL as the independent source of truth, so this validates the
+            # whole chain (mirror sync + BQ port). These channel sums are append-only/daily, so
+            # they match exactly when the mirror is in sync.
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _cf_pm("imps", {"TTD", "TradeDesk"}),
              "sql": "SELECT SUM(IMPS) AS imps\n"
@@ -303,16 +312,20 @@ CLIENTS = [
                     "WHERE CHANNEL = 'LINE';",
              "note": "vs sum of paid_media.rows[] clicks where channel = LINE."},
 
-            # --- Content Syndication (V_PACING_FINAL_MODEL, dummies excluded) ------
-            # CF map is the OPPOSITE of mongodb: Accepted = Accepted+Replied+Unresponsive.
+            # --- Content Syndication (dummies excluded) ---------------------------
+            # SQL queries Snowflake V_PACING_FINAL_MODEL (independent source of truth); the dashboard
+            # now derives CS in BigQuery (pacing_model over the raw_snowflake mirror; the 12-ID campaign
+            # filter lives in sql/10_salesforce_leads_live.sql). CF map is the OPPOSITE of mongodb:
+            # Accepted = Accepted+Replied+Unresponsive.
             {"label": "CS · Total leads", "kind": "count", "group": "Content Syndication",
              "dash": _cf_total_leads,
              "sql": "SELECT COUNT(*) AS total_leads\n"
                     "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS IS NOT NULL;",
-             "note": "Reads the modelled view directly (campaign filter = the canonical 12 CS IDs, inside "
-                     "V_SALESFORCE_LEADS_LIVE). Counts every non-null status (incl. New)."},
+             "note": "SQL = Snowflake source of truth (V_PACING, filtered to the canonical 12 CS IDs inside "
+                     "V_SALESFORCE_LEADS_LIVE); the dashboard derives the same in BigQuery (pacing_model, 12-ID "
+                     "filter in sql/10). Counts every non-null status (incl. New)." + _CF_CS_NOTE},
             {"label": "CS · Accepted (Accepted+Replied+Unresponsive)", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"Accepted", "Replied", "Unresponsive"}),
              "sql": "SELECT COUNT(*) AS accepted_leads\n"
@@ -320,14 +333,14 @@ CLIENTS = [
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS IN ('Accepted','Replied','Unresponsive');",
              "note": "Cloudflare's Accepted bucket = Accepted + Replied + Unresponsive (OPPOSITE of mongodb). "
-                     "vs the same count over pacing.rows[]."},
+                     "vs the same count over pacing.rows[]." + _CF_CS_NOTE},
             {"label": "CS · Rejected", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"Rejected"}),
              "sql": "SELECT COUNT(*) AS rejected_leads\n"
                     "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS = 'Rejected';",
-             "note": "vs count of pacing.rows[] with LEAD_STATUS = 'Rejected'."},
+             "note": "vs count of pacing.rows[] with LEAD_STATUS = 'Rejected'." + _CF_CS_NOTE},
             {"label": "CS · New / unprocessed", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"New"}),
              "sql": "SELECT COUNT(*) AS new_leads\n"
@@ -335,7 +348,7 @@ CLIENTS = [
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS = 'New';",
              "note": "On the dash this is derived (total − accepted − rejected); checked here directly as "
-                     "LEAD_STATUS = 'New' over pacing.rows[]."},
+                     "LEAD_STATUS = 'New' over pacing.rows[]." + _CF_CS_NOTE},
 
             # --- Single-campaign LinkedIn dashboards (raw_snowflake mirror) --------
             # Each is its own dashboard, filtered by an exact CAMPAIGN_GROUP_NAME.

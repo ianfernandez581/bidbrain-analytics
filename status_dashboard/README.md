@@ -25,8 +25,9 @@ For each client the export job probes three stages and compares them:
 
 - **`transmission_latest`** = newest `LAST_ALTERED` across the client's source tables (probed live; metadata
   only, never resumes the warehouse).
-- **`ingest_latest`** = newest BigQuery mirror `last_modified` (mirror clients), or the build's `data_through`
-  (cloudflare, which reads Snowflake modelled views directly — no mirror in its CS path).
+- **`ingest_latest`** = newest BigQuery mirror `last_modified` (all clients now read the `raw_snowflake`
+  mirrors — cloudflare included since 2026-06-17, when BQ took over its model; the `reads_direct` /
+  build-`data_through` path is retained but currently unused).
 - **caught_up** = `ingest_latest >= transmission_latest − 45 min` (the tolerance absorbs the normal */10–*/15
   ingest cadence).
 
@@ -70,16 +71,19 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   - **KGA(IDC)** = campaign `701RG00001NKKwQYAX`, whose `PROGRAMME_LABEL` is NULL (the only null-programme
     rows). Its **Delivered leads** = `Unresponsive + Do Not Contact + New` ONLY (no Accepted/Rejected
     lifecycle) — which is why its stored `total` is that 3-status count, NOT `COUNT(*)`.
-  - **Mutable-source caveat:** mongodb CS reads the **BQ mirror**, and the Salesforce lead table is mutable
-    (leads continuously added / re-statused), so the CS rows can sit a few leads off the **live** source even
-    when the pipeline is healthy — a normal mirror lag, not a fault (cloudflare CS matches exactly only because
-    it reads the live modelled view *direct*). The delta's magnitude is the signal; the **Sync tab** is the
-    authority on pipeline health. Paid-media counts are append-only and match exactly.
-- **cloudflare** reads Snowflake **modelled views directly** — paid media against
+  - **Mutable-source caveat:** mongodb **and cloudflare** CS both read the **BQ mirror**, and the Salesforce
+    lead table is mutable (leads continuously added / re-statused), so the CS rows can sit a few leads off the
+    **live** source even when the pipeline is healthy — a normal mirror lag, not a fault. The delta's magnitude
+    is the signal; the **Sync tab** is the authority on pipeline health. Paid-media counts are append-only and
+    match exactly.
+- **cloudflare** — **BQ owns its model since 2026-06-17** (it used to read Snowflake modelled views directly;
+  now it reads the `raw_snowflake.*` mirrors like everyone else). The accuracy SQL still queries Snowflake's
+  modelled views as the independent **source of truth** — paid media against
   `…PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL` (per channel: TTD/LinkedIn/Reddit/LINE; LinkedIn is the only
   channel with leads), CS against `…CS_REPORTING.V_PACING_FINAL_MODEL` (Accepted = Accepted+Replied+
-  Unresponsive — OPPOSITE of mongodb). The 3 single-campaign LinkedIn dashboards check their exact
-  `CAMPAIGN_GROUP_NAME` slices of the `raw_snowflake.linkedin_ads_apac` mirror.
+  Unresponsive — OPPOSITE of mongodb) — so a green check validates the whole chain (mirror sync + BQ port).
+  The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
+  `raw_snowflake.linkedin_ads_apac` mirror.
 - **proptrack** TradeDesk impressions come from the **singular** `IMPRESSION` column (plural is NULL for that
   advertiser) while LinkedIn uses the plural `IMPRESSIONS`; the advertiser is spelled **`PopTrack`** on
   TradeDesk vs **`PropTrack`** on LinkedIn — the blended-impressions check mixes both columns deliberately.
