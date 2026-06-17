@@ -56,6 +56,15 @@ Meta's no-args mode is **incremental per-account**:
 [`meta_loader.py`](meta_loader.py). To widen the re-pull window for late conversions, raise
 `INCREMENTAL_LOOKBACK_DAYS`.
 
+> **Facebook's ~13-month unique-count horizon.** Our wide field set carries unique-count fields
+> (`unique_clicks`, `reach`, `unique_actions_*`, and the custom-conversion breakdowns), and
+> Facebook only serves breakdowns for those over the **last ~13 months**. So a **full-history
+> `--force` re-pull will 400 on the oldest chunks** (`"…only available for the last 13 months"`).
+> This is a hard Facebook limit, not a bad field — the date-walk loops now catch it
+> (`UniqueCountHorizonError`) and **stop gracefully** (exit 0) instead of crashing. The **daily
+> incremental run is unaffected** (it only pulls recent days). Bound a manual backfill to the last
+> ~13 months; older rows that were loaded when they were still in-window simply stay as-is.
+
 ---
 
 ## What's captured (column groups in `perf_meta`)

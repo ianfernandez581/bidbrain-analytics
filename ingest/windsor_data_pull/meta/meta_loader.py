@@ -218,6 +218,15 @@ class AccountUnavailableError(Exception):
     granted / wrong id). Not retryable, but skippable: per-account runs catch this
     and move on so one misconfigured account never aborts the whole loader."""
 
+class UniqueCountHorizonError(Exception):
+    """Windsor/Facebook 400: 'breakdowns for unique-count fields are only available
+    for the last 13 months'. Our wide field set carries unique-count fields
+    (unique_clicks, reach, unique_actions_*, custom-conversion breakdowns), so a
+    full-history backfill inevitably hits this ~13-month wall on the OLDEST chunks.
+    It is the natural backfill horizon, NOT a bug or a bad field -- so the date-walk
+    loops catch it and STOP gracefully (like reaching MIN_DATE) instead of crashing.
+    The daily incremental run never reaches it (it only pulls recent days)."""
+
 
 def fetch_chunk(api_key, d_from, d_to, idx, total, select_accounts, cache_tag, force=False):
     """Fetch one chunk for the given accounts. Retries transient errors forever;
@@ -277,6 +286,14 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, select_accounts, cache_tag, f
                 raise AccountUnavailableError(
                     f"Account(s) {','.join(select_accounts)} not available in Windsor. "
                     f"Body:\n{body}"
+                )
+            if status == 400 and "last 13 months" in body.lower():
+                # Facebook caps unique-count breakdowns to ~13 months; older chunks
+                # can't be served with our wide field set. The natural backfill
+                # horizon -- the date-walk loops stop here gracefully.
+                raise UniqueCountHorizonError(
+                    f"Chunk {d_from}..{d_to} beyond Facebook's 13-month unique-count "
+                    f"horizon. Body:\n{body}"
                 )
             raise RuntimeError(
                 f"Chunk {d_from}..{d_to} got permanent HTTP {status}. This will NOT "
@@ -528,7 +545,15 @@ def main():
         total = len(chunks)
         log.info(f"  {total} chunk(s), newest first: {d_start}..{d_end}")
         for i, (d_from, d_to) in enumerate(chunks, start=1):
-            run_chunk(d_from, d_to, i, total, select, cache_tag)
+            try:
+                run_chunk(d_from, d_to, i, total, select, cache_tag)
+            except UniqueCountHorizonError as e:
+                # Chunks are newest-first, so everything still to come is even older
+                # and would fail the same way. Stop this range cleanly.
+                log.warning(f"  >>> Reached Facebook's 13-month unique-count horizon at "
+                            f"{d_from}..{d_to}; older chunks can't be served with the wide "
+                            f"field set. Stopping this range gracefully.")
+                break
             time.sleep(INTER_CHUNK_SLEEP)
 
     def process_backward_walk(d_end, select, cache_tag):
@@ -541,7 +566,14 @@ def main():
             floor_hit = cur_from <= MIN_DATE
             if floor_hit:
                 cur_from = MIN_DATE
-            n = run_chunk(cur_from, cur_to, idx, None, select, cache_tag)
+            try:
+                n = run_chunk(cur_from, cur_to, idx, None, select, cache_tag)
+            except UniqueCountHorizonError:
+                # Walking backward into Facebook's 13-month unique-count wall: treat
+                # as the start of servable history and stop (like the MIN_DATE floor).
+                log.warning(f"  >>> Reached Facebook's 13-month unique-count horizon at "
+                            f"{cur_from}..{cur_to}. Stopping backfill (servable history exhausted).")
+                break
 
             if n == 0:
                 consecutive_empty += 1
