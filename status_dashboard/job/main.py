@@ -311,7 +311,7 @@ CLIENTS = [
                     "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS IS NOT NULL;",
-             "note": "Reads the modelled view directly (campaign filter = the canonical 8 CS IDs, inside "
+             "note": "Reads the modelled view directly (campaign filter = the canonical 12 CS IDs, inside "
                      "V_SALESFORCE_LEADS_LIVE). Counts every non-null status (incl. New)."},
             {"label": "CS · Accepted (Accepted+Replied+Unresponsive)", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"Accepted", "Replied", "Unresponsive"}),

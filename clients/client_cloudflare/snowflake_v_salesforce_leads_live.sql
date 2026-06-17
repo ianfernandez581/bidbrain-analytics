@@ -6,11 +6,15 @@
 -- NOT applied by create_views.py (that targets BigQuery sql/*.sql). This file
 -- lives at the client root on purpose so the BigQuery pipeline ignores it.
 --
--- WHY: the Cloudflare CS dashboard understated leads because this feeder view
--- filtered to only 6 of the canonical 8 CS campaigns. The two missing IDs
--- (701RG00001NJd6NYAT, 701RG00001NIYRKYA5 ~= 181 leads) are added below. The
--- pacing view V_PACING_FINAL_MODEL is pass-through on campaigns, so this is the
--- only edit needed. Everything else is byte-for-byte the current definition.
+-- WHY: the Cloudflare CS dashboard understated leads because this feeder view's
+-- CAMPAIGN_ID filter lagged the live CS APAC campaign set. History:
+--   2026-06-10  6 -> 8 IDs  (added 701RG00001NJd6NYAT, 701RG00001NIYRKYA5).
+--   2026-06-17  8 -> 12 IDs (added the four Modernize Security / Modernize
+--               Applications campaigns now running: 701RG00001PXNyDYAX,
+--               701RG00001PWX5gYAH, 701RG00001PXLpxYAH, 701RG00001PXHnzYAH
+--               ~= 267 leads). The full canonical set is the 12 IDs below.
+-- The pacing view V_PACING_FINAL_MODEL is pass-through on campaigns, so this is
+-- the only edit needed. Everything else is byte-for-byte the current definition.
 --
 -- Our pipeline roles (APAC_IN_ROLE via the MCP connector; BQ_SYNC_ROLE via the
 -- export job key-pair) are read-only and CANNOT apply this -- 003001/42501.
@@ -102,8 +106,9 @@ SELECT
 
     /* 1. PUBLISHER LOGIC:
        High-level grouping for Vendor performance comparisons.
-       NOTE: the two newly-added campaign IDs are not mapped here and will
-       resolve to 'Unknown' until the client supplies their publisher/offer.
+       NOTE: the six newly-added campaign IDs (NJd6N/NIYRK 2026-06-10; the four
+       Modernize* IDs 2026-06-17) are not mapped here and resolve to 'Unknown'
+       until the client supplies their publisher/offer.
     */
     CASE
         WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElTu3YAF', '701RG00001ElVXdYAN') THEN 'Roverpath'
@@ -137,9 +142,10 @@ SELECT
 FROM APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"
 
 /* CAMPAIGN ID FILTERING:
-   We filter for the canonical 8 IDs of the CS APAC campaign set.
-   (2026-06-10) Added the final two IDs below -- they were previously
-   excluded, which understated Accepted/Rejected lead counts on the dash.
+   We filter for the canonical 12 IDs of the CS APAC campaign set.
+   (2026-06-10) Added NJd6N/NIYRK; (2026-06-17) added the four Modernize
+   Security / Modernize Applications IDs -- previously excluded, which
+   understated Accepted/Rejected/New lead counts on the dash.
 */
 WHERE CAMPAIGN_ID IN (
     '701RG00001ElJZzYAN', -- Roverpath - Precision MQL
@@ -148,8 +154,12 @@ WHERE CAMPAIGN_ID IN (
     '701RG00001ElUoXYAV', -- Final Funnel - Precision MQL
     '701RG00001ElUa0YAF', -- Final Funnel - Pulse Survey
     '701RG00001ElNYkYAN', -- Final Funnel - Qualification Questions
-    '701RG00001NJd6NYAT', -- (added 2026-06-10) canonical CS set
-    '701RG00001NIYRKYA5'  -- (added 2026-06-10) canonical CS set
+    '701RG00001NJd6NYAT', -- (added 2026-06-10) Roverpath - Connectivity Cloud (ANZ)
+    '701RG00001NIYRKYA5', -- (added 2026-06-10) Final Funnel CF1 - Connectivity Cloud (ANZ)
+    '701RG00001PXNyDYAX', -- (added 2026-06-17) Final Funnel ABM - Modernize Security (ANZ)
+    '701RG00001PWX5gYAH', -- (added 2026-06-17) Final Funnel ABM - Modernize Security (ANZ)
+    '701RG00001PXLpxYAH', -- (added 2026-06-17) Roverpath - Modernize Applications (ANZ)
+    '701RG00001PXHnzYAH'  -- (added 2026-06-17) Roverpath - Modernize Applications (ANZ)
 );
 
 -- ---------------------------------------------------------------------------
@@ -160,5 +170,5 @@ WHERE CAMPAIGN_ID IN (
 --          COUNT_IF(LEAD_STATUS='New') new_
 --   FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL
 --   WHERE LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%';
--- Expected ~ total 3582 | accepted 3199 | rejected 383 | new 0  (as of 2026-06-10)
+-- Expected ~ total 3911 | accepted 3328 | rejected 416 | new 167  (12 IDs, as of 2026-06-17)
 -- ---------------------------------------------------------------------------
