@@ -32,7 +32,7 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 | Source | Raw table | ResetData filter | Currency | Contributes |
 |---|---|---|---|---|
 | **Google Ads** (paid search) | `raw_google_ads.perf_google_ads` | `account_name = 'Reset Data'` | AUD | imps / clicks / **spend (already AUD — not micros)** / conversions (83) |
-| **Meta** (paid social) | `raw_windsor.perf_meta` | `account_name = 'Reset backup – Ad account'` (**en-dash –**) | AUD | imps / clicks / spend / **leads** / creative mix |
+| **Meta** (paid social) | `raw_windsor.perf_meta` | `account_name = 'Reset backup – Ad account'` (**en-dash –**) | AUD | imps / clicks / spend / **leads** (the "Signup Button" custom pixel conversion) / creative mix |
 | **The Trade Desk** (display) | `raw_windsor.perf_the_trade_desk` | `advertiser_name = 'ResetData'` | **USD → AUD ×1.50** | imps / clicks / spend |
 | **Reddit** (community awareness / traffic) | `raw_windsor.perf_reddit` | `client_slug = 'resetdata'` | AUD (native) | imps / clicks / spend / **page visits** / sign-up+lead conversions (sparse) |
 | **GA4** (the outcome) | `raw_ga4.perf_ga4` | `client_slug = 'reset-data'` | — | sessions / users / engagement / channels / conversions |
@@ -61,8 +61,10 @@ GA4 key-event tracking **is live and does populate**, but volumes are **modest**
 site (~72 key events over the window). The configured GA4 conversion event is **`Leadform_submit`**; other
 demand events — `sign_up`, `start_$50_free_credit_click`, `file_download`, `learn_more_click` — also fire.
 The dashboard shows these as **directional demand signals, not a high-volume funnel**, and flags the
-caveat in-app. Platform-reported conversions are separate: **Google Ads = 83 (reliable)**, **Meta leads = 2
-(sparse)**, **The Trade Desk = none reported upstream** (its `conversions` JSON is null → cost-per-lead "—").
+caveat in-app. Platform-reported conversions are separate: **Google Ads = 83 (reliable)**, **Meta leads ≈ 51**
+(the advertiser's **"Signup Button"** custom pixel conversion, `signup_button_conversions` — the generic
+`actions_lead` is ~2 noise and is kept only as `platform_leads_actions`), **The Trade Desk = none reported
+upstream** (its `conversions` JSON is null → cost-per-lead "—").
 
 **GA4 channel blend:** Paid Search ≈ Google Ads (clean); Paid Social also carries Reddit traffic; Display
 also carries Google PMax/Demand-Gen — so the platform↔channel mapping (Google↔Search, Meta↔Social,

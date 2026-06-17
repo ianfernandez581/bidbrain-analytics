@@ -307,7 +307,7 @@
     </div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Google Ads campaigns</h3><p class="hint">Paid search delivery + Google-reported conversions.</p><div class="tablewrap"><table id="googleCamps"></table></div></div>
-      <div class="panel-box"><h3>Meta campaigns</h3><p class="hint">Paid social delivery + leads (sparse — see note).</p><div class="tablewrap"><table id="metaCamps"></table></div></div>
+      <div class="panel-box"><h3>Meta campaigns</h3><p class="hint">Paid social delivery + Signup Button leads (Meta custom pixel).</p><div class="tablewrap"><table id="metaCamps"></table></div></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Trade Desk campaigns</h3><p class="hint">Programmatic display (AUD; no conversions reported upstream).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
@@ -385,7 +385,7 @@
     </div>
     <div class="panel-box" style="margin-top:14px">
       <h3>Conversions &amp; cost-per-lead by platform</h3>
-      <p class="hint">Platform-reported conversions (Campaign filter applies). Google solid; Meta &amp; Reddit sparse; Trade Desk reports none.</p>
+      <p class="hint">Platform-reported conversions (Campaign filter applies). Google solid; Meta = Signup Button pixel leads; Reddit sparse; Trade Desk reports none.</p>
       <table id="convTable"></table>
     </div>
   </section>
@@ -684,7 +684,7 @@ function updateCampBtn(){
 function setNotes(){
   document.getElementById('paidNote').innerHTML=
     '<b>Conversion reporting differs by platform.</b> Google Ads conversions come from Google\'s own tracking (reliable). '+
-    'Meta leads and Reddit sign-up / lead clicks are configured but <b>very sparse</b> to date. The Trade Desk reports <b>no conversions</b> upstream, so its '+
+    'Meta leads are the advertiser\'s <b>“Signup Button”</b> custom pixel conversion (the deliberate lead tracker); Reddit sign-up / lead clicks are configured but <b>sparse</b>. The Trade Desk reports <b>no conversions</b> upstream, so its '+
     'cost-per-lead is shown as “—”. All spend is AUD (Trade Desk converted from USD at FX '+fmt1(DATA.fx_usd_aud)+').';
   document.getElementById('gaNote').innerHTML=
     '<b>GA4 key-event tracking is real but low-volume.</b> Conversions populate (the configured event is '+
@@ -1089,7 +1089,7 @@ function renderAds2Traffic(){
   const acm=DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month));
   const per={};PLATFORMS.forEach(p=>per[p]={spend:0,conv:0});
   acm.forEach(r=>{per[r.platform].spend+=+r.spend_aud||0;per[r.platform].conv+=+r.conversions||0;});
-  const reported={google:'Google-reported',meta:'Meta leads (sparse)',ttd:'None reported',reddit:'Reddit sign-ups/leads (sparse)'};
+  const reported={google:'Google-reported',meta:'Signup Button (Meta pixel)',ttd:'None reported',reddit:'Reddit sign-ups/leads (sparse)'};
   const has={google:true,meta:true,ttd:false,reddit:true};
   let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th>Source</th></tr>';
   PLATFORMS.filter(p=>selPlt.has(p)).forEach(p=>{const a=per[p];

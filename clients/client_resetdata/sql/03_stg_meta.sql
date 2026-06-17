@@ -7,9 +7,11 @@
 -- so the account name is the stable key here.
 --
 -- Currency is already AUD (currency = 'AUD'), so `cost` maps straight to spend_aud — no FX.
--- Objective is uniformly OUTCOME_LEADS; `leads` is the platform-reported conversion (very
--- sparse to date — 2 leads — flagged in the README). creative_name / creative_title power
--- the creative-mix view. landing_page_views + link_clicks kept as soft engagement signals.
+-- Objective is uniformly OUTCOME_LEADS. The platform-reported LEAD is the advertiser's custom
+-- pixel conversion **"Signup Button"** (signup_button_conversions, ~51 across the flight) — the
+-- deliberate lead tracker for this account. We use it as `conversions` instead of the generic
+-- `leads` action (actions_lead), which is near-zero noise here (2). creative_name /
+-- creative_title power the creative-mix view; landing_page_views + link_clicks are soft signals.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_resetdata.stg_meta` AS
 SELECT
   metric_date,
@@ -20,7 +22,8 @@ SELECT
   clicks,
   link_clicks,
   landing_page_views,
-  cost                                            AS spend_aud,   -- already AUD
-  leads                                           AS conversions  -- platform-reported leads
+  cost                                            AS spend_aud,                -- already AUD
+  signup_button_conversions                       AS conversions,              -- "Signup Button" custom pixel = the lead
+  leads                                           AS platform_leads_actions    -- generic actions_lead (sparse; kept for reference)
 FROM `bidbrain-analytics.raw_windsor.perf_meta`
 WHERE account_name = 'Reset backup – Ad account';
