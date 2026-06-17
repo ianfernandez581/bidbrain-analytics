@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MongoDB APAC — Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- PptxGenJS (pinned, bundled w/ JSZip) — powers the "Download slides" Google-Slides deck export. -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <style>
   :root{
     color-scheme: light;
@@ -227,7 +229,7 @@
   @media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.cs-snap{grid-template-columns:1fr;gap:18px}.compare-grid{grid-template-columns:1fr}}
 
-  /* ============ AI REPORT — branded 3-slide deck (Download report → Save as PDF) ============ */
+  /* ============ AI REPORT — on-screen preview overlay (Download slides → Download Google Slides) ============ */
   #bbReport{display:none;position:fixed;inset:0;z-index:9999;background:#0A141C;overflow:auto;
             font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif}
   #bbReport.show{display:block}
@@ -332,33 +334,19 @@
   .bb-foot .pglabel{font-weight:700;color:var(--mdb-slate)}
   .bb-foot b{color:var(--mdb-ink)}
   .bb-disc{font-style:italic}
-
-  @media print {
-    body.bb-printing > *:not(#bbReport){display:none !important}
-    body.bb-printing{background:#fff}
-    #bbReport, #bbReport *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
-    #bbReport.show{position:static;background:#fff;overflow:visible}
-    .bb-bar{display:none !important}
-    .bb-deck{max-width:none;margin:0;padding:0;gap:0;display:block}
-    .bb-slide{box-shadow:none;border-radius:0;padding:14mm 16mm;page-break-after:always;break-after:page;
-              page-break-inside:avoid;min-height:auto}
-    .bb-slide:last-child{page-break-after:auto;break-after:auto}
-    .bb-kpi,.bb-driver,.bb-action{break-inside:avoid;page-break-inside:avoid}
-    @page{size:A4 landscape;margin:0}
-  }
 </style>
 </head>
 <body>
 
-<!-- AI report overlay (Download report → branded 3-slide deck → Save as PDF). Direct child of
-     <body> so the print rule body.bb-printing > *:not(#bbReport) can hide the dashboard behind it. -->
+<!-- AI report overlay (Download slides → AI builds the analysis → on-screen preview of the 3 analytical
+     slides + a "Download Google Slides" button that builds a 4-slide .pptx client-side via PptxGenJS). -->
 <div id="bbReport" role="dialog" aria-modal="true" aria-label="Account report">
   <div class="bb-bar">
     <div class="bb-brand">TRANSMISSION<span class="dot"></span><span class="sep">/</span><span class="sub">MONGODB APAC</span></div>
     <div class="bb-actions">
-      <button class="bb-btn primary" id="bbPrintBtn" onclick="bbPrint()" style="display:none">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-        <span>Save as PDF</span>
+      <button class="bb-btn primary" id="bbDlBtn" onclick="bbDownloadSlides()" style="display:none">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+        <span>Download Google Slides</span>
       </button>
       <button class="bb-btn" onclick="bbCloseReport()">Close</button>
     </div>
@@ -411,9 +399,9 @@
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <div class="exports">
             <button class="export-btn primary" id="reportBtn" onclick="downloadReport()"
-                    title="Generate a branded 3-slide report (What happened · Why · Recommended actions) for the current campaign &amp; region — analysed live by AI with web research, then saved as a PDF">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
-              <span>Download report</span>
+                    title="Generate a branded Google Slides deck (Cover · What happened · Why · What to do) for this campaign over its full flight — analysed live by AI with web research, then downloaded as an editable .pptx you open in Google Slides">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+              <span>Download slides</span>
             </button>
             <button class="export-btn" id="exportTabBtn" onclick="exportThisTab()"
                     title="Download the source rows behind this tab (honors the campaign &amp; region filters) as CSV — so the figures can be re-summed and verified">
@@ -1972,7 +1960,7 @@ function exportAllData(){
 }
 
 //==============================================================================
-// AI REPORT  (Download report -> POST /report -> branded 3-slide deck -> Save as PDF)
+// AI REPORT  (Download slides -> POST /report -> preview the 3 analytical slides -> Download Google Slides .pptx)
 // Slide 1's KPI grid is rendered from the LIVE numbers below (never the model), so the
 // figures are always exact; the model writes the narrative + the "why" + the actions.
 //==============================================================================
@@ -1982,6 +1970,8 @@ const bbSafeUrl = u => { const s = String(u || ''); return /^https?:\/\//i.test(
 const r2 = v => v == null || isNaN(v) ? null : Math.round(v * 100) / 100;
 const r6 = v => v == null || isNaN(v) ? null : Math.round(v * 1e6) / 1e6;
 let _bbStepTimer = null;
+let _bbLastReport = null, _bbLastPayload = null;   // stashed so the Download-slides button can rebuild
+let _bbLogo;                                       // cached rasterized MongoDB logo PNG (undefined=not tried, null=failed)
 
 // Assemble everything the report needs for the CURRENT campaign + region + date selection.
 // Mirrors the on-screen aggregations (pmCampRows / sumRows / csPacing / strategy table) so the
@@ -2058,11 +2048,24 @@ function buildReportPayload(){
   };
 }
 
+// The slide deck always reports the FULL FLIGHT (campaign start → latest data), regardless of any
+// on-screen date sub-range — only the paid rows honor dateStartSel/End (via dateOk; CS pacing already
+// spans the whole window). So null the date globals, build, and restore — a synchronous round-trip that
+// never disturbs the live view. A stable full-flight payload also means the /report cache key (which
+// includes date_filter + data_through) is steady, so the AI deck regenerates at most once per campaign/
+// region per day — the "runs once a day" behaviour.
+function buildDeckPayload(){
+  const _s = dateStartSel, _e = dateEndSel;
+  dateStartSel = null; dateEndSel = null;
+  try { return buildReportPayload(); }
+  finally { dateStartSel = _s; dateEndSel = _e; }
+}
+
 const BB_STEPS = ['Reading the campaign numbers…','Researching live market context on the web…',
   'Writing the analysis…','Formatting your slides…'];
 function bbOpenReport(){
   const ov = el('bbReport');
-  el('bbPrintBtn').style.display = 'none';
+  el('bbDlBtn').style.display = 'none';
   el('bbReportBody').innerHTML =
     `<div class="bb-load"><div class="ring"></div><h3>Building your report…</h3>` +
     `<p>Analysing this campaign's numbers and researching current market context. This usually takes 20–40 seconds.</p>` +
@@ -2083,14 +2086,267 @@ function bbReportError(msg){
 function bbCloseReport(){
   clearInterval(_bbStepTimer);
   el('bbReport').classList.remove('show');
-  document.body.classList.remove('bb-printing');
   document.body.style.overflow = '';
 }
-function bbPrint(){
-  document.body.classList.add('bb-printing');
-  const cleanup = () => { document.body.classList.remove('bb-printing'); window.removeEventListener('afterprint', cleanup); };
-  window.addEventListener('afterprint', cleanup);
-  window.print();
+// ── Google Slides export ───────────────────────────────────────────────────────
+// Build a 4-slide .pptx (Cover · What happened · Why · What to do) ENTIRELY in the browser with
+// PptxGenJS and download it; Google Slides opens it natively (drag into Drive → editable Google Slides).
+// Renders the SAME structured `report` the on-screen preview shows (KPI numbers verbatim from the live
+// dashboard) plus `payload.context` for the cover/footers. Verified against the PptxGenJS 4.0.1 API:
+// color = hex WITHOUT '#', fill = {color}, autofit key = fit:'shrink' (belt only — the JS clamps are the
+// real overflow guard), addImage data drops the 'data:' prefix, borderless shapes OMIT `line`, download
+// via writeFile({fileName}). Arial throughout (the only Google-Slides-safe face; brand font won't survive
+// import — the MongoDB wordmark rides in as a rasterized PNG instead).
+async function bbDownloadSlides(){
+  if (!_bbLastReport || !_bbLastPayload){ alert('Generate the report first, then download.'); return; }
+  if (typeof PptxGenJS === 'undefined'){ alert('The slide library failed to load (check your connection) — please try again.'); return; }
+  const btn = el('bbDlBtn'), lbl = btn ? btn.querySelector('span') : null, orig = lbl ? lbl.textContent : '';
+  if (lbl){ lbl.textContent = 'Building…'; btn.disabled = true; }
+  try {
+    if (_bbLogo === undefined) _bbLogo = await bbRasterizeLogo();   // rasterize once; null if it fails (cover falls back to text)
+    await buildSlidesDeck(_bbLastReport, _bbLastPayload, _bbLogo);
+  } catch(e){
+    alert('Could not build the slides: ' + (e && e.message ? e.message : e));
+  } finally {
+    if (lbl){ lbl.textContent = orig; btn.disabled = false; }
+  }
+}
+
+// Rasterize the live MongoDB logo SVG (dark navy in the DOM) to a WHITE, high-res PNG data URI for the
+// dark cover: clone → recolor fills white → serialize → draw on a canvas → toDataURL. Same-origin data
+// URI (no external refs), so the canvas is never tainted. Resolves null on any failure (deck → text fallback).
+function bbRasterizeLogo(){
+  return new Promise(resolve => {
+    try {
+      const src = document.querySelector('.mdb-logo');
+      if (!src){ resolve(null); return; }
+      const svg = src.cloneNode(true);
+      svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      svg.querySelectorAll('[fill]').forEach(p => { if ((p.getAttribute('fill')||'').toLowerCase() !== 'none') p.setAttribute('fill', '#FFFFFF'); });
+      const vb = (src.getAttribute('viewBox') || '0 0 1102 278').split(/\s+/).map(Number);
+      const vbw = vb[2] || 1102, vbh = vb[3] || 278, scale = 1600 / vbw;
+      const W = Math.round(vbw*scale), H = Math.round(vbh*scale);
+      svg.setAttribute('width', W); svg.setAttribute('height', H);
+      const url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(new XMLSerializer().serializeToString(svg));
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+          cv.getContext('2d').drawImage(img, 0, 0, W, H);
+          resolve(cv.toDataURL('image/png'));
+        } catch(e){ resolve(null); }
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    } catch(e){ resolve(null); }
+  });
+}
+
+async function buildSlidesDeck(report, payload, logo){
+  const pres = new PptxGenJS();
+  pres.defineLayout({ name:'BB_WIDE', width:13.33, height:7.5 });
+  pres.layout = 'BB_WIDE';
+  pres.author = 'Transmission'; pres.company = 'Transmission';
+  const ctx = payload.context || {}, win = ctx.window || {};
+  pres.title = `MongoDB APAC — ${ctx.campaign || ''}`;
+
+  const FONT = 'Arial';
+  const C = {
+    slate:'001E2B', forest:'023430', green:'00684A', spring:'00ED64', mint:'C3E7CA',
+    ink:'1B2834', mute:'5A6B78', line:'E5E9EE', bg:'F6F8FA', white:'FFFFFF',
+    good:'1E8E3E', bad:'C8362A', warn:'B97400', slateLine:'1F3A47', muteDark:'8FA3AE', greenTint:'E1EFE9'
+  };
+  const STATUS = {
+    ahead:{label:'Ahead of plan',hex:C.good}, on_track:{label:'On track',hex:C.good},
+    at_risk:{label:'At risk',hex:C.warn}, behind:{label:'Behind plan',hex:C.bad},
+    mixed:{label:'Mixed',hex:C.warn}, neutral:{label:'Monitoring',hex:C.mute}
+  };
+  const ENGINE = { content_syndication:'LEAD ENGINE', paid_display:'DISPLAY', budget:'BUDGET',
+    overall:'OVERALL', both:'BOTH', external:'MARKET', measurement:'MEASUREMENT' };
+  const DIR = { up:{glyph:'▲',hex:C.good}, down:{glyph:'▼',hex:C.bad}, flat:{glyph:'▬',hex:C.mute}, mixed:{glyph:'◆',hex:C.warn} };
+  const PRI = { high:{label:'HIGH PRIORITY',hex:C.bad}, medium:{label:'MED PRIORITY',hex:C.warn}, low:{label:'LOW PRIORITY',hex:C.mute} };
+  const EFFORT = { low:'EFFORT · LOW', medium:'EFFORT · MED', high:'EFFORT · HIGH' };
+  const CONF = { high:'HIGH CONFIDENCE', medium:'MEDIUM CONFIDENCE', low:'LOW CONFIDENCE' };
+
+  const R = report || {}, S1 = R.slide1||{}, S2 = R.slide2||{}, S3 = R.slide3||{};
+  const kpis = (S1.kpis||[]).slice(0,6), drivers = (S2.drivers||[]).slice(0,5), actions = (S3.actions||[]).slice(0,5);
+  const sources = R.sources||[];
+  const modelLabel = R.provider === 'gemini' ? (R.model || 'Google Gemini') : 'Claude (Opus 4.8)';
+
+  const clamp = (s,n) => { s = String(s==null?'':s); return s.length>n ? s.slice(0,n-1).replace(/\s+\S*$/,'')+'…' : s; };
+  const regions = (ctx.markets||[]).length === (ctx.all_markets||[]).length ? 'All regions' : ((ctx.markets||[]).join(', ') || 'No region');
+  const dataThrough = String(ctx.data_through||'').slice(0,10) || '—';
+  const fmtDate = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}) : '—'; };
+
+  // chip = shape + separate text (two stacked objects; text-in-autoshape radius imports inconsistently)
+  const engineChip = (sl,x,y,key) => {
+    const label = ENGINE[key] || '—', w = 0.18 + 0.066*label.length;
+    sl.addShape(pres.ShapeType.roundRect,{ x,y,w,h:0.22, rectRadius:0.05, fill:{color:C.greenTint}, line:{color:C.line,width:0.75} });
+    sl.addText(label,{ x,y,w,h:0.22, fontFace:FONT, fontSize:8, bold:true, color:C.green, charSpacing:1, align:'center', valign:'middle' });
+    return w;
+  };
+  const card = (sl,o) => {
+    sl.addShape(pres.ShapeType.roundRect,{ x:o.x, y:o.y, w:o.w, h:o.h, rectRadius:0.06, fill:{color:C.white}, line:{color:C.line,width:1} });
+    if (o.edge) sl.addShape(pres.ShapeType.rect,{ x:o.x, y:o.y+0.04, w:0.05, h:o.h-0.08, fill:{color:o.edge} });   // borderless: omit line
+  };
+  const noteCard = (sl,msg) => {
+    card(sl,{ x:0.55, y:2.5, w:12.23, h:1.2 });
+    sl.addText(msg,{ x:0.55, y:2.5, w:12.23, h:1.2, fontFace:FONT, fontSize:12, color:C.mute, align:'center', valign:'middle' });
+  };
+  const lightChrome = (sl,kicker,h2) => {
+    sl.background = { color:C.white };
+    sl.addShape(pres.ShapeType.rect,{ x:0,y:0,w:13.33,h:0.06, fill:{color:C.slate} });
+    sl.addShape(pres.ShapeType.rect,{ x:0,y:0,w:1.9,h:0.06, fill:{color:C.spring} });
+    sl.addText([
+      { text:'TRANSMISSION', options:{ fontSize:10, bold:true, color:C.slate, charSpacing:2 } },
+      { text:' ● ', options:{ fontSize:9, color:C.spring } },
+      { text:' × MONGODB APAC', options:{ fontSize:10, bold:true, color:C.mute, charSpacing:1 } }
+    ],{ x:0.55,y:0.30,w:7,h:0.26, fontFace:FONT, align:'left', valign:'middle' });
+    sl.addText(kicker,{ x:8.0,y:0.30,w:4.78,h:0.26, fontFace:FONT, fontSize:9, bold:true, color:C.mute, charSpacing:1.5, align:'right', valign:'middle' });
+    sl.addText(h2,{ x:0.55,y:0.72,w:9.0,h:0.55, fontFace:FONT, fontSize:26, bold:true, color:C.slate, align:'left', valign:'middle' });
+    sl.addShape(pres.ShapeType.line,{ x:0.55,y:1.40,w:0.62,h:0, line:{color:C.spring,width:1.75} });
+  };
+  const footer = (sl,pageLabel) => {
+    sl.addShape(pres.ShapeType.line,{ x:0.55,y:7.0,w:12.23,h:0, line:{color:C.line,width:1} });
+    sl.addText(`Prepared by Transmission · Confidential   ·   Campaign: ${ctx.campaign||'—'}   ·   Regions: ${regions}   ·   Flight: ${win.start||'—'} → ${win.end||'—'}   ·   Data through: ${dataThrough}`,
+      { x:0.55,y:7.06,w:9.4,h:0.34, fontFace:FONT, fontSize:7, color:C.mute, align:'left', valign:'top', wrap:true });
+    sl.addText(pageLabel,{ x:10.0,y:7.06,w:2.78,h:0.34, fontFace:FONT, fontSize:7, color:C.mute, align:'right', valign:'top' });
+  };
+
+  // ── SLIDE 1 — COVER (dark) ──────────────────────────────────────────────────
+  const cov = pres.addSlide();
+  cov.addShape(pres.ShapeType.rect,{ x:0,y:0,w:13.33,h:7.5, fill:{color:C.slate} });
+  cov.addShape(pres.ShapeType.ellipse,{ x:10.7,y:-1.3,w:4.2,h:4.2, fill:{color:C.spring,transparency:88} });
+  if (logo) cov.addImage({ data: logo.replace(/^data:/,''), x:0.85, y:0.72, sizing:{type:'contain',w:2.46,h:0.62} });
+  else cov.addText('MongoDB',{ x:0.85,y:0.66,w:3.4,h:0.7, fontFace:FONT, fontSize:30, bold:true, color:C.white, align:'left', valign:'middle' });
+  cov.addText([
+    { text:'TRANSMISSION', options:{ fontSize:15, bold:true, color:C.white, charSpacing:3 } },
+    { text:' ●', options:{ fontSize:12, color:C.spring } }
+  ],{ x:8.7,y:0.74,w:3.78,h:0.5, fontFace:FONT, align:'right', valign:'middle' });
+  cov.addText('AGENCY OF RECORD',{ x:8.7,y:1.18,w:3.78,h:0.2, fontFace:FONT, fontSize:7, color:C.muteDark, charSpacing:2, align:'right', valign:'top' });
+  cov.addText('CLIENT · MONGODB APAC',{ x:0.85,y:1.42,w:4,h:0.2, fontFace:FONT, fontSize:7, color:C.muteDark, charSpacing:1, align:'left', valign:'top' });
+  cov.addShape(pres.ShapeType.line,{ x:0.85,y:1.78,w:11.63,h:0, line:{color:C.slateLine,width:0.75} });
+  cov.addShape(pres.ShapeType.line,{ x:0.85,y:1.78,w:1.1,h:0, line:{color:C.spring,width:1.75} });
+  cov.addText('CAMPAIGN PERFORMANCE REPORT',{ x:0.85,y:2.05,w:11.5,h:0.3, fontFace:FONT, fontSize:12, bold:true, color:C.muteDark, charSpacing:3, align:'left', valign:'middle' });
+  cov.addText([
+    { text:'MongoDB APAC', options:{ color:C.white, breakLine:true } },
+    { text:`${ctx.campaign||''} Co-Marketing`, options:{ color:C.spring } }
+  ],{ x:0.83,y:2.45,w:11.6,h:1.7, fontFace:FONT, fontSize:40, bold:true, align:'left', valign:'top', fit:'shrink', wrap:true });
+  [
+    { lbl:'FLIGHT WINDOW', val:`${win.start||'—'} → ${win.end||'—'}` },
+    { lbl:'DURATION', val:`${win.days!=null?win.days:'—'} days` },
+    { lbl:'REGIONS', val:clamp(regions,22) }
+  ].forEach((c,i) => {
+    const x = 0.85 + i*3.75;
+    cov.addShape(pres.ShapeType.roundRect,{ x, y:4.55, w:3.55, h:0.95, rectRadius:0.06, fill:{color:C.forest}, line:{color:C.slateLine,width:0.75} });
+    if (i===0) cov.addShape(pres.ShapeType.rect,{ x, y:4.59, w:0.05, h:0.87, fill:{color:C.spring} });
+    cov.addText(c.lbl,{ x:x+0.16, y:4.66, w:3.2, h:0.2, fontFace:FONT, fontSize:8, bold:true, color:C.muteDark, charSpacing:1.5, align:'left', valign:'top' });
+    cov.addText(c.val,{ x:x+0.16, y:4.92, w:3.24, h:0.5, fontFace:FONT, fontSize:15, bold:true, color:C.white, align:'left', valign:'top', fit:'shrink', wrap:false });
+  });
+  cov.addText(`Generated ${fmtDate(ctx.generated_at)} · Data through ${dataThrough} UTC`,{ x:0.85,y:5.78,w:8,h:0.3, fontFace:FONT, fontSize:9, color:C.muteDark, align:'left', valign:'middle' });
+  cov.addShape(pres.ShapeType.line,{ x:0.85,y:6.7,w:11.63,h:0, line:{color:C.slateLine,width:0.75} });
+  cov.addText('Prepared by Transmission · Confidential',{ x:0.85,y:6.85,w:6,h:0.3, fontFace:FONT, fontSize:9, bold:true, color:C.white, align:'left', valign:'top' });
+  cov.addText(`Figures pulled live from source data. Analysis & recommendations generated by ${modelLabel} with live web research — review before circulation.`,
+    { x:7.0,y:6.82,w:5.48,h:0.5, fontFace:FONT, fontSize:7, color:C.muteDark, align:'right', valign:'top', wrap:true });
+
+  // ── SLIDE 2 — What happened? (slide1) ───────────────────────────────────────
+  const s2 = pres.addSlide();
+  lightChrome(s2,'01 · WHAT HAPPENED','What happened?');
+  footer(s2,'What happened · 2 / 4');
+  { const st = STATUS[R.overall_status] || STATUS.neutral;
+    s2.addShape(pres.ShapeType.roundRect,{ x:9.55,y:0.80,w:3.23,h:0.34, rectRadius:0.13, fill:{color:C.white}, line:{color:st.hex,width:1} });
+    s2.addShape(pres.ShapeType.ellipse,{ x:9.73,y:0.915,w:0.11,h:0.11, fill:{color:st.hex} });
+    s2.addText(st.label,{ x:9.95,y:0.80,w:2.7,h:0.34, fontFace:FONT, fontSize:10, bold:true, color:st.hex, align:'left', valign:'middle' });
+  }
+  if (R.campaign_type) s2.addText(`${R.campaign_type} CAMPAIGN`,{ x:6.8,y:0.80,w:2.6,h:0.34, fontFace:FONT, fontSize:8, bold:true, color:C.mute, charSpacing:1.5, align:'right', valign:'middle' });
+  if (R.headline) s2.addText(clamp(R.headline,140),{ x:0.55,y:1.30,w:12.23,h:0.42, fontFace:FONT, fontSize:13, bold:true, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+  { const sumRuns = [{ text:clamp(S1.summary,240), options:{ color:C.ink } }];
+    if (R.confidence_note) sumRuns.push({ text:'  '+clamp(R.confidence_note,200), options:{ italic:true, color:C.mute, breakLine:true } });
+    s2.addText(sumRuns,{ x:0.55,y:1.74,w:12.23,h:0.62, fontFace:FONT, fontSize:13, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+  }
+  if (!kpis.length) noteCard(s2,'No KPI highlights were returned for this view.');
+  else {
+    const n = kpis.length, g = 0.20, cols = n<=4 ? n : 3, rws = Math.ceil(n/cols);
+    const cardW = (12.23 - g*(cols-1))/cols, cardH = (3.9 - g*(rws-1))/rws, valSize = n<=4 ? 26 : (n===5 ? 24 : 22);
+    kpis.forEach((k,i) => {
+      const col = i%cols, row = Math.floor(i/cols), x = 0.55 + col*(cardW+g), y = 2.5 + row*(cardH+g);
+      card(s2,{ x, y, w:cardW, h:cardH, edge:(STATUS[k.status]||STATUS.neutral).hex });
+      engineChip(s2, x+0.14, y+0.12, k.engine);
+      s2.addText(clamp(k.label,26).toUpperCase(),{ x:x+0.14,y:y+0.50,w:cardW-0.28,h:0.22, fontFace:FONT, fontSize:8, bold:true, color:C.mute, charSpacing:1.5, align:'left', valign:'middle', fit:'shrink' });
+      // value is single-line / no-wrap — Google Slides won't auto-shrink on import, so size the font to
+      // the string length (Arial bold ≈ 0.0076 in/char/pt) so even a long figure fits the card width.
+      const vstr = clamp(k.value,18);
+      const vS = Math.max(14, Math.min(valSize, Math.floor((cardW-0.30) / (Math.max(vstr.length,1)*0.0076))));
+      s2.addText(vstr,{ x:x+0.14,y:y+0.74,w:cardW-0.28,h:0.55, fontFace:FONT, fontSize:vS, bold:true, color:C.ink, align:'left', valign:'top', fit:'shrink', wrap:false });
+      s2.addText(clamp(k.detail,90),{ x:x+0.14,y:y+(cardH-0.64),w:cardW-0.28,h:0.5, fontFace:FONT, fontSize:10.5, color:C.mute, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+    });
+  }
+
+  // ── SLIDE 3 — Why did it happen? (slide2) ───────────────────────────────────
+  const s3 = pres.addSlide();
+  lightChrome(s3,'02 · WHY','Why did it happen?');
+  footer(s3,'Why it happened · 3 / 4');
+  if (S2.summary) s3.addText(clamp(S2.summary,240),{ x:0.55,y:1.30,w:12.23,h:0.5, fontFace:FONT, fontSize:13, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+  if (!drivers.length) noteCard(s3,'No drivers were identified for this view.');
+  else {
+    const y0 = 1.95, H = sources.length ? 4.35 : 4.95, n = drivers.length, g = 0.14, rowH = (H - g*(n-1))/n;
+    drivers.forEach((d,i) => {
+      const y = y0 + i*(rowH+g), dir = DIR[d.direction]||DIR.flat;
+      card(s3,{ x:0.55, y, w:12.23, h:rowH, edge:dir.hex });
+      s3.addShape(pres.ShapeType.roundRect,{ x:0.69,y:y+0.12,w:0.34,h:0.34, rectRadius:0.05, fill:{color:C.slate} });
+      s3.addText(String(i+1),{ x:0.69,y:y+0.12,w:0.34,h:0.34, fontFace:FONT, fontSize:13, bold:true, color:C.white, align:'center', valign:'middle' });
+      s3.addText(dir.glyph,{ x:1.10,y:y+0.12,w:0.34,h:0.34, fontFace:FONT, fontSize:13, bold:true, color:dir.hex, align:'center', valign:'middle' });
+      s3.addText(clamp(d.title,64),{ x:1.55,y:y+0.12,w:6.4,h:0.3, fontFace:FONT, fontSize:12, bold:true, color:C.ink, align:'left', valign:'middle', fit:'shrink' });
+      engineChip(s3, 8.1, y+0.13, d.engine);
+      if (CONF[d.confidence]) s3.addText(CONF[d.confidence],{ x:9.7,y:y+0.13,w:3.0,h:0.26, fontFace:FONT, fontSize:8, color:C.mute, charSpacing:1, align:'right', valign:'middle' });
+      const expl = [{ text:clamp(d.explanation,230), options:{ color:C.ink } }];
+      const si = d.source_index;
+      if (Number.isInteger(si) && si>=0 && si<sources.length) expl.push({ text:` [${si+1}]`, options:{ bold:true, color:C.green, superscript:true, fontSize:8 } });
+      s3.addText(expl,{ x:1.55,y:y+0.46,w:11.0,h:rowH-0.78, fontFace:FONT, fontSize:10.5, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+      if (d.evidence && rowH>=0.85) s3.addText([
+        { text:'EVIDENCE  ', options:{ bold:true, color:C.mute, charSpacing:1, fontSize:8 } },
+        { text:clamp(d.evidence,110), options:{ color:C.ink, fontSize:9 } }
+      ],{ x:1.55,y:y+rowH-0.30,w:11.0,h:0.24, fontFace:FONT, align:'left', valign:'middle', fit:'shrink' });
+    });
+    if (sources.length){
+      s3.addShape(pres.ShapeType.line,{ x:0.55,y:6.4,w:12.23,h:0, line:{color:C.line,width:0.75} });
+      s3.addText('SOURCES',{ x:0.55,y:6.44,w:1.2,h:0.3, fontFace:FONT, fontSize:7, bold:true, color:C.mute, charSpacing:1.5, align:'left', valign:'top' });
+      const runs = [];
+      sources.forEach((s,i) => {
+        const safe = /^https?:\/\//i.test(s.url||'');
+        runs.push({ text:`[${i+1}] `, options:{ bold:true, color:C.green } });
+        runs.push({ text:clamp(s.title,42)+(i<sources.length-1?'   ':''), options:{ color:C.mute, underline: safe?{style:'sng'}:undefined, hyperlink: safe?{ url:s.url, tooltip:s.title }:undefined } });
+      });
+      s3.addText(runs,{ x:1.85,y:6.44,w:10.9,h:0.5, fontFace:FONT, fontSize:7, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+    }
+  }
+
+  // ── SLIDE 4 — What should we do? (slide3) ───────────────────────────────────
+  const s4 = pres.addSlide();
+  lightChrome(s4,'03 · RECOMMENDED ACTIONS','What should we do?');
+  footer(s4,'Recommended actions · 4 / 4');
+  if (S3.summary) s4.addText(clamp(S3.summary,240),{ x:0.55,y:1.30,w:12.23,h:0.5, fontFace:FONT, fontSize:13, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+  if (!actions.length) noteCard(s4,'No recommendations were generated for this view.');
+  else {
+    const y0 = 1.95, H = 4.95, n = actions.length, g = 0.16, rowH = (H - g*(n-1))/n;
+    actions.forEach((a,i) => {
+      const y = y0 + i*(rowH+g), p = PRI[a.priority]||PRI.low;
+      card(s4,{ x:0.55, y, w:12.23, h:rowH, edge:p.hex });
+      s4.addShape(pres.ShapeType.roundRect,{ x:0.69,y:y+0.14,w:0.40,h:0.40, rectRadius:0.05, fill:{color:p.hex} });
+      s4.addText(String(i+1),{ x:0.69,y:y+0.14,w:0.40,h:0.40, fontFace:FONT, fontSize:15, bold:true, color:C.white, align:'center', valign:'middle' });
+      s4.addText(clamp(a.title,70),{ x:1.25,y:y+0.13,w:6.6,h:0.3, fontFace:FONT, fontSize:12, bold:true, color:C.ink, align:'left', valign:'middle', fit:'shrink' });
+      s4.addShape(pres.ShapeType.roundRect,{ x:8.0,y:y+0.14,w:1.55,h:0.28, rectRadius:0.1, fill:{color:C.white}, line:{color:p.hex,width:1} });
+      s4.addText(p.label,{ x:8.0,y:y+0.14,w:1.55,h:0.28, fontFace:FONT, fontSize:8, bold:true, color:p.hex, charSpacing:1, align:'center', valign:'middle' });
+      engineChip(s4, 9.7, y+0.14, a.engine);
+      if (EFFORT[a.effort]) s4.addText(EFFORT[a.effort],{ x:11.2,y:y+0.14,w:1.55,h:0.28, fontFace:FONT, fontSize:8, color:C.mute, charSpacing:0.5, align:'right', valign:'middle' });
+      s4.addText(clamp(a.rationale,200),{ x:1.25,y:y+0.50,w:11.5,h:rowH-0.62, fontFace:FONT, fontSize:10.5, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
+    });
+  }
+
+  const campSlug = (ctx.campaign||'Campaign').replace(/[^\w]+/g,'_').replace(/^_|_$/g,'');
+  const day = String(win.end || new Date().toISOString()).slice(0,10);
+  const fileName = `MongoDB_APAC_${campSlug}_${day}.pptx`.replace(/_+/g,'_');
+  await pres.writeFile({ fileName, compression:true });
 }
 
 async function downloadReport(){
@@ -2098,7 +2354,7 @@ async function downloadReport(){
   const orig = lbl ? lbl.textContent : '';
   if (lbl){ lbl.textContent = 'Generating…'; btn.disabled = true; }
   let payload;
-  try { payload = buildReportPayload(); }
+  try { payload = buildDeckPayload(); }   // full flight: start → today (ignores any on-screen date filter)
   catch(e){ if (lbl){ lbl.textContent = orig; btn.disabled = false; } alert('Could not assemble the report data: ' + e.message); return; }
   bbOpenReport();
   try {
@@ -2109,6 +2365,7 @@ async function downloadReport(){
       throw new Error('HTTP ' + res.status + (detail ? ' — ' + detail : ''));
     }
     const report = await res.json();
+    _bbLastReport = report; _bbLastPayload = payload;   // stash for the Download-slides builder
     renderReportDeck(report, payload);
   } catch(e){
     bbReportError(e.message || 'Request failed.');
@@ -2224,7 +2481,7 @@ function renderReportDeck(report, payload){
     actionHtml + bbFooter(payload, '3 / 3 · Actions', modelLabel) + `</section>`;
 
   el('bbReportBody').innerHTML = `<div class="bb-deck">${slide1}${slide2}${slide3}</div>`;
-  el('bbPrintBtn').style.display = '';
+  el('bbDlBtn').style.display = '';
   el('bbReport').scrollTop = 0;
 }
 

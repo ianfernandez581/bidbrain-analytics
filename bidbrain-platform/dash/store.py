@@ -59,24 +59,36 @@ def verify_pw(password: str, stored: str) -> bool:
 
 
 def _seed_doc():
-    """The full registry dict built from config.py (seed for a fresh store / the memory backend)."""
-    doc = {"admin_password_hash": hash_pw(seed.ADMIN_PW), "agencies": [], "clients": {}}
+    """The full registry dict built from config.py (seed for a fresh store / the memory backend).
+
+    Passwords are stored as a one-way hash AND a recoverable `*_plain` copy. The plain copy is what
+    lets the SUPER ADMIN console reveal a password (a hash can't be un-hashed); it lives only in the
+    PRIVATE registry JSON — the same private-bucket trust boundary that already holds every
+    dashboard's plaintext `<c>-dash-password` secret."""
+    doc = {
+        "admin_password_hash": hash_pw(seed.ADMIN_PW), "admin_password_plain": seed.ADMIN_PW,
+        "super_admin_password_hash": hash_pw(seed.SUPER_ADMIN_PW),
+        "super_admin_password_plain": seed.SUPER_ADMIN_PW,
+        "agencies": [], "clients": {},
+    }
     for i, a in enumerate(seed.AGENCIES):
         doc["agencies"].append({
             "name": a["name"], "slug": a["slug"],
-            "password_hash": hash_pw(a["password"]),
+            "password_hash": hash_pw(a["password"]), "password_plain": a.get("password", ""),
             "client_keys": list(a["clients"]), "order": i,
         })
     for i, (k, c) in enumerate(seed.CLIENTS.items()):
+        pw = seed.CLIENT_PASSWORDS.get(k, "")
         doc["clients"][k] = {
             "key": k, "name": c["name"], "slug": c["slug"], "status": c["status"],
-            "url": c.get("url", ""), "password_hash": hash_pw(seed.CLIENT_PASSWORDS.get(k, "")),
+            "url": c.get("url", ""), "password_hash": hash_pw(pw), "password_plain": pw,
             "campaigns": [dict(cm) for cm in c.get("campaigns", [])], "order": i,
         }
     for k in seed.UNASSIGNED_CLIENTS:
         doc["clients"].setdefault(k, {
             "key": k, "name": k.upper(), "slug": k, "status": "active",
-            "url": seed._runapp(k), "password_hash": "", "campaigns": [], "order": 99,
+            "url": seed._runapp(k), "password_hash": "", "password_plain": "",
+            "campaigns": [], "order": 99,
         })
     return doc
 
@@ -97,22 +109,28 @@ class Store:
     # ---- the one blob: load / save ----
     @staticmethod
     def _empty():
-        return {"admin_password_hash": "", "agencies": [], "clients": {}}
+        return {"admin_password_hash": "", "admin_password_plain": "",
+                "super_admin_password_hash": "", "super_admin_password_plain": "",
+                "agencies": [], "clients": {}}
 
     def _load(self):
         if self._mem is not None:
             return self._mem
         blob = self._bucket.blob(self._object)
         if not blob.exists():
-            return self._empty()
-        try:
-            doc = json.loads(blob.download_as_bytes())
-            doc.setdefault("agencies", [])
-            doc.setdefault("clients", {})
-            doc.setdefault("admin_password_hash", "")
-            return doc
-        except Exception:
-            return self._empty()
+            return self._empty()        # genuinely fresh registry — only this case is "empty"
+        # A blob that EXISTS but won't download/parse must NOT degrade to _empty(): every mutator does
+        # load -> mutate -> save (backfill_plaintext even runs on each super-admin render), so returning
+        # empty here would let the next write persist a blank doc over a good registry — a full wipe.
+        # Fail CLOSED: let the exception propagate so the caller aborts the read-modify-write.
+        doc = json.loads(blob.download_as_bytes())
+        doc.setdefault("agencies", [])
+        doc.setdefault("clients", {})
+        doc.setdefault("admin_password_hash", "")
+        doc.setdefault("admin_password_plain", "")
+        doc.setdefault("super_admin_password_hash", "")
+        doc.setdefault("super_admin_password_plain", "")
+        return doc
 
     def _save(self, doc):
         if self._mem is not None:
@@ -136,6 +154,7 @@ class Store:
                 if not seed.CLIENT_PASSWORDS.get(k, ""):
                     prior = existing.get("clients", {}).get(k, {})
                     c["password_hash"] = prior.get("password_hash", c["password_hash"])
+                    c["password_plain"] = prior.get("password_plain", c["password_plain"])
         self._save(doc)
         return True
 
@@ -188,10 +207,23 @@ class Store:
 
     # ---- login resolution ----
     def resolve_password(self, password):
-        """('admin', None) | ('agency', agency_dict) | ('client', client_dict) | (None, None)."""
+        """('superadmin', None) | ('admin', None) | ('agency', a) | ('client', c) | (None, None).
+
+        Super admin is checked FIRST. It resolves against the registry hash if one is set; if the
+        registry has no super-admin hash yet (a not-yet-configured live registry), it falls back to
+        the bootstrap `SUPER_ADMIN_PW` env (config.SUPER_ADMIN_PW), so the god-mode login works the
+        moment the env is injected, before anyone re-seeds. Once a super admin sets a password in the
+        UI the registry hash exists and the env fallback is ignored."""
         if not password:
             return None, None
         doc = self._load()
+        super_hash = doc.get("super_admin_password_hash", "")
+        if super_hash:
+            if verify_pw(password, super_hash):
+                return "superadmin", None
+        elif getattr(seed, "SUPER_ADMIN_PW", "") and \
+                hmac.compare_digest(password.encode(), seed.SUPER_ADMIN_PW.encode()):
+            return "superadmin", None
         if verify_pw(password, doc.get("admin_password_hash", "")):
             return "admin", None
         for a in sorted(doc.get("agencies", []), key=lambda a: a.get("order", 0)):
@@ -232,6 +264,8 @@ class Store:
         new_agency = {
             "name": name, "slug": slug,
             "password_hash": hash_pw(password) if password else (existing or {}).get("password_hash", ""),
+            # keep a recoverable copy in lock-step with the hash, so the super-admin console can reveal it
+            "password_plain": password if password else (existing or {}).get("password_plain", ""),
             "client_keys": (existing or {}).get("client_keys", []),
             "order": (existing or {}).get("order", self._next_order(agencies)),
         }
@@ -301,3 +335,80 @@ class Store:
             camps.pop(i)
         c["campaigns"] = camps
         self._save(doc)
+
+    # ---- super-admin (god-mode): reveal + rotate every PLATFORM password ----
+    # (Dashboard/standalone passwords live in Secret Manager — those are revealed/rotated in main.py,
+    #  not here. These three setters cover the passwords the registry owns.)
+    def set_admin_password(self, pw):
+        doc = self._load()
+        doc["admin_password_hash"] = hash_pw(pw)
+        doc["admin_password_plain"] = pw
+        self._save(doc)
+
+    def set_super_password(self, pw):
+        doc = self._load()
+        doc["super_admin_password_hash"] = hash_pw(pw)
+        doc["super_admin_password_plain"] = pw
+        self._save(doc)
+
+    def set_agency_password(self, slug, pw):
+        doc = self._load()
+        for a in doc.get("agencies", []):
+            if a.get("slug") == slug:
+                a["password_hash"] = hash_pw(pw)
+                a["password_plain"] = pw
+                self._save(doc)
+                return True
+        return False
+
+    def get_super_state(self):
+        """Everything the god-mode console reveals. Dashboard (standalone) passwords are filled in
+        by main.py from Secret Manager; here we surface the registry-owned passwords in clear."""
+        doc = self._load()
+        clients = doc.get("clients", {})
+        agencies = [{
+            "name": a["name"], "slug": a["slug"],
+            "password": a.get("password_plain", ""), "has_pw": bool(a.get("password_hash")),
+            "client_count": len(a.get("client_keys", [])),
+        } for a in sorted(doc.get("agencies", []), key=lambda a: a.get("order", 0))]
+        dashboards = [{
+            "key": k, "name": c["name"], "slug": c.get("slug", k),
+            "status": c.get("status", "active"), "url": c.get("url", ""),
+        } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
+        return {
+            "admin_password": doc.get("admin_password_plain", ""),
+            "admin_has": bool(doc.get("admin_password_hash")),
+            "super_password": doc.get("super_admin_password_plain", ""),
+            "super_has": bool(doc.get("super_admin_password_hash")),
+            "agencies": agencies, "dashboards": dashboards,
+        }
+
+    def backfill_plaintext(self, candidates):
+        """Self-heal a hash-only registry so the super-admin console can REVEAL passwords.
+
+        A live registry seeded before this feature stores passwords only as one-way hashes. For each
+        such password, if a known candidate plaintext (from config.py — the documented seed values)
+        verifies against the stored hash, persist it as the recoverable `*_plain`. Anything rotated
+        away from its seed value won't match, stays hidden, and is set explicitly via the UI.
+
+        candidates: {'admin': pw, 'super': pw, 'agency:<slug>': pw, 'client:<key>': pw}. Idempotent;
+        a couple of pbkdf2 checks on first super-admin load, then a no-op once `*_plain` is filled."""
+        doc = self._load()
+        changed = False
+        if not doc.get("admin_password_plain") and candidates.get("admin") \
+                and verify_pw(candidates["admin"], doc.get("admin_password_hash", "")):
+            doc["admin_password_plain"] = candidates["admin"]; changed = True
+        if not doc.get("super_admin_password_plain") and candidates.get("super") \
+                and verify_pw(candidates["super"], doc.get("super_admin_password_hash", "")):
+            doc["super_admin_password_plain"] = candidates["super"]; changed = True
+        for a in doc.get("agencies", []):
+            cand = candidates.get(f"agency:{a.get('slug')}")
+            if not a.get("password_plain") and cand and verify_pw(cand, a.get("password_hash", "")):
+                a["password_plain"] = cand; changed = True
+        for k, c in doc.get("clients", {}).items():
+            cand = candidates.get(f"client:{k}")
+            if not c.get("password_plain") and cand and verify_pw(cand, c.get("password_hash", "")):
+                c["password_plain"] = cand; changed = True
+        if changed:
+            self._save(doc)
+        return changed

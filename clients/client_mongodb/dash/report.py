@@ -176,11 +176,12 @@ Plus: one overall one-line headline, the campaign type, an overall status read, 
 Populate every required field from the inputs, conform EXACTLY to the schema, and return ONLY the JSON object. Use adaptive thinking to reconcile the brief and notes, but emit nothing except the structured result."""
 
 
-# ── Gemini fallback (fires ONLY when Claude hits a rate/capacity limit) ───────────────────────
-# When Claude 429/529s (e.g. a low org tier), regenerate the whole report on Google Gemini so a
-# report still comes back. Same prompts + brief + slide shape; web research uses Google Search
-# grounding instead of Anthropic web_search. Plain REST via httpx (already a dep) — no extra SDK,
-# no guessed bindings. Enabled iff GEMINI_API_KEY is set; model via GEMINI_MODEL (default below).
+# ── Gemini fallback (fires when Claude is UNUSABLE: rate/capacity limit, out of credits, or auth) ─
+# When Claude 429/529s (low org tier) OR returns a 400 "credit balance is too low" (unfunded account)
+# OR 401/403 (bad/disabled key), regenerate the whole report on Google Gemini so a report still comes
+# back. Same prompts + brief + slide shape; web research uses Google Search grounding instead of
+# Anthropic web_search. Plain REST via httpx (already a dep) — no extra SDK, no guessed bindings.
+# Enabled iff GEMINI_API_KEY is set; model via GEMINI_MODEL (default below).
 GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
 GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GEMINI_STAGE_A_SYSTEM = (STAGE_A_SYSTEM +
@@ -426,15 +427,23 @@ def _gemini_enabled():
     return bool(os.environ.get("GEMINI_API_KEY"))
 
 
-def _is_rate_limit(e):
-    """True for a Claude rate/capacity limit (429 / 529) — the only trigger for the fallback."""
-    if getattr(e, "status_code", None) in (429, 529):
+def _should_fallback(e):
+    """True when Claude is UNUSABLE for an infrastructure/account reason — rate limit, capacity,
+    billing/credit exhaustion, or auth — so the Gemini fallback should take over. Genuine request
+    bugs (a real 400 validation error, our own RuntimeErrors) still propagate so they aren't masked."""
+    if getattr(e, "status_code", None) in (401, 403, 429, 529):
         return True
     try:
         import anthropic
-        return isinstance(e, (anthropic.RateLimitError, anthropic.OverloadedError))
+        if isinstance(e, (anthropic.RateLimitError, anthropic.OverloadedError,
+                          anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+            return True
     except Exception:  # noqa: BLE001
-        return False
+        pass
+    # Credit/billing exhaustion arrives as a 400 invalid_request — match on the message so we fall
+    # back for "out of credits" without swallowing genuine 400 validation bugs.
+    msg = str(getattr(e, "message", "") or e).lower()
+    return "credit balance is too low" in msg or "plans & billing" in msg
 
 
 def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json_mode=False):
@@ -508,9 +517,9 @@ def generate_report(summary):
         report = _structure(client, brief, notes, sources)
         return _finalize(report, sources, MODEL, "claude")
     except Exception as e:
-        if _gemini_enabled() and _is_rate_limit(e):
+        if _gemini_enabled() and _should_fallback(e):
             try:
                 return _gemini_report(brief)
             except Exception as ge:  # noqa: BLE001
-                raise RuntimeError(f"Claude rate-limited and the Gemini fallback failed: {ge}") from ge
+                raise RuntimeError(f"Claude unavailable (rate-limit/credit/auth) and the Gemini fallback failed: {ge}") from ge
         raise

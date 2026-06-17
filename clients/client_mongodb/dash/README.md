@@ -20,8 +20,8 @@ the charts.
 | File | What it does |
 |---|---|
 | [`main.py`](main.py) | The Flask app: login, session, the gated routes, and the `POST /report` endpoint (auth + GCS cache, delegates generation to `report.py`). |
-| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — all tabs, charts, filters, the CSV export, and the **AI report** (button + branded 3-slide print deck). Baked into the container; fetches `/data.json` on load. |
-| [`report.py`](report.py) | **AI report generator** (vendored, like `platform_sso.py`). Two Claude Opus 4.8 calls — Stage A researches the "why" with **live web search**, Stage B structures it into the strict slide JSON. See [§ AI report](#ai-report-download-report--pdf). |
+| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — all tabs, charts, filters, the CSV export, and the **AI report** (button + on-screen preview + a client-side **4-slide Google Slides** `.pptx` download via PptxGenJS). Baked into the container; fetches `/data.json` on load. |
+| [`report.py`](report.py) | **AI report generator** (vendored, like `platform_sso.py`). Two Claude Opus 4.8 calls — Stage A researches the "why" with **live web search**, Stage B structures it into the strict slide JSON. See [§ AI report](#ai-report-download-slides--google-slides). |
 | [`platform_sso.py`](platform_sso.py) | Cross-subdomain SSO verifier (trusts the platform's `bb_sso` cookie in addition to the local password). |
 | [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py` + `platform_sso.py` + `report.py` + `dashboard.html`. |
 | [`enable_report_mongodb.ps1`](enable_report_mongodb.ps1) | **One-time** setup for the AI report: creates the `anthropic-api-key` secret, grants the runtime SA secret-read + bucket-write, mounts the key, and bumps the service `--timeout`. |
@@ -40,7 +40,7 @@ the charts.
 | `POST /login` | Constant-time (`hmac.compare_digest`) password check against `DASH_PASSWORD`. Success → session cookie; wrong → 401. |
 | `GET /logout` | Clears the session. |
 | `GET /data.json` | **The only data path.** 401 unless authenticated; then streams `mongodb.json` from the private bucket (also `no-store`). The bucket itself stays private — the browser never touches it. |
-| `POST /report` | **AI report.** 401 unless authenticated. The browser POSTs the current view's numbers; the route serves a cached report (keyed by view + data version) or calls `report.py` to generate one, caches it in `gs://…/reports/`, and returns the slide JSON. See [§ AI report](#ai-report-download-report--pdf). |
+| `POST /report` | **AI report.** 401 unless authenticated. The browser POSTs the current view's numbers; the route serves a cached report (keyed by view + data version) or calls `report.py` to generate one, caches it in `gs://…/reports/`, and returns the slide JSON. See [§ AI report](#ai-report-download-slides--google-slides). |
 | `GET /healthz` | Liveness check. |
 
 **Security details:** session cookies are `HttpOnly`, `Secure`, `SameSite=None`, 12-hour
@@ -56,7 +56,7 @@ Cloudflare proxy. Config (`GCS_BUCKET`, `DATA_OBJECT`) and secrets (`DASH_PASSWO
 
 Branding: "MongoDB APAC — Live Dashboard" (Transmission + MongoDB logos; MongoDB greens). One
 external library: Chart.js 4.5.0. **Sticky control bar:** a **DNB ↔ KGA (IDC)** campaign toggle,
-multi-select **region chips**, **Download report** (the AI PDF — see [§ AI report](#ai-report-download-report--pdf)),
+multi-select **region chips**, **Download slides** (the AI Google Slides deck — see [§ AI report](#ai-report-download-slides--google-slides)),
 and CSV export ("this tab" / "all data"). Three tabs:
 
 1. **Paid Media** — Trade Desk delivery. KPI tiles (spend, impressions/CPM, clicks/CTR, blended
@@ -77,13 +77,22 @@ contract in [`../job/README.md`](../job/README.md).
 
 ---
 
-## AI report (Download report → PDF)
+## AI report (Download slides → Google Slides)
 
-The control bar's **Download report** button generates a branded, **3-slide** account report —
-**1) What happened? · 2) Why did it happen? · 3) Recommended actions** — for the *current*
-campaign + region + date selection, then opens a print-ready deck you **Save as PDF**. It's
-Transmission-branded (MongoDB is a Transmission client). This is the **sample/first build** of a
-feature intended for every client dashboard.
+The control bar's **Download slides** button generates a branded, **4-slide** account deck —
+**1) Cover (client + agency logos) · 2) What happened? · 3) Why did it happen? · 4) What should we
+do?** — for the *current* campaign + region over the **full flight** (campaign start → latest data,
+ignoring any on-screen date sub-range), shows an on-screen preview of the three analytical slides,
+then **downloads an editable `.pptx`** you open in Google Slides (drag into Drive → opens as native
+Google Slides). The deck is built **client-side** with **PptxGenJS** (pinned `4.0.1`, loaded from
+jsDelivr like Chart.js — no new GCP infra) in `buildSlidesDeck()`; the MongoDB wordmark is rasterized
+from the live DOM SVG to a PNG so brand typography survives the Slides import (Arial everywhere else,
+the only Google-Slides-safe face). It's Transmission-branded (MongoDB is a Transmission client). This
+is the **sample/first build** of a feature intended for every client dashboard.
+
+Because the deck always reports the full flight, the `/report` cache key (view + data version) is
+stable across the day, so the AI deck regenerates **at most once per campaign/region per day** — it
+"runs once a day" as data advances, and re-downloads are instant from cache.
 
 **How it works (two Claude calls — the split is forced):** structured outputs are incompatible
 with the citations web search emits, so [`report.py`](report.py) does:
@@ -98,20 +107,23 @@ with the citations web search emits, so [`report.py`](report.py) does:
 dashboard can't disagree. The model writes the *narrative*, the "why", and the actions — never the
 numbers. The honesty/anti-injection/no-PII guardrails live in the system prompts in `report.py`.
 
-**Gemini fallback (Claude rate/capacity limits):** if the Claude call returns **429/529** *and* a
-`GEMINI_API_KEY` is configured, `report.py` regenerates the whole report on **Google Gemini**
-(`GEMINI_MODEL`, default `gemini-2.5-pro`) — same prompts + brief + slide schema, with web research
-via **Google Search grounding** instead of Anthropic web search (plain REST through the bundled
-`httpx`, no extra dependency). The deck footer + status pill show which model actually generated it
-(e.g. `gemini-2.5-pro (Claude fallback)`). Any *non-limit* Claude error still propagates (so real
-bugs aren't masked). This is what lets the report work even while the Claude org is on a low tier;
+**Gemini fallback (Claude unusable):** if the Claude call fails because Claude is unusable for an
+infra/account reason — **429/529** (rate/capacity), a **400 "credit balance is too low"** (unfunded
+account), or **401/403** (bad/disabled key) — *and* a `GEMINI_API_KEY` is configured, `report.py`
+(`_should_fallback`) regenerates the whole report on **Google Gemini** (`GEMINI_MODEL`, default
+`gemini-2.5-pro`) — same prompts + brief + slide schema, with web research via **Google Search
+grounding** instead of Anthropic web search (plain REST through the bundled `httpx`, no extra
+dependency). The deck footer + status pill show which model actually generated it (e.g.
+`gemini-2.5-flash (Claude fallback)`). Any *genuine* Claude error (a real 400 validation bug, our own
+RuntimeErrors) still propagates (so real bugs aren't masked). This is what lets the report work even while the Claude org is on a low tier;
 removing the `gemini-api-key` secret disables the fallback. **Note:** Anthropic Tier 1 (10k input
 tokens/min) is too low for a single web-grounded Opus report — raise the tier at
 `console.anthropic.com/settings/limits` to use Claude as the primary, or rely on the Gemini fallback.
 
 **The data contract** (matched by name, like the rest of the pipeline):
-`buildReportPayload()` (dashboard.html) → `_fmt_brief()` keys (report.py) → `REPORT_SCHEMA`
-(report.py) → `renderReportDeck()` (dashboard.html). Rename a key in one place → fix all four.
+`buildReportPayload()` / `buildDeckPayload()` (dashboard.html) → `_fmt_brief()` keys (report.py) →
+`REPORT_SCHEMA` (report.py) → `renderReportDeck()` (on-screen preview) **and** `buildSlidesDeck()`
+(the downloaded Google Slides `.pptx`) (dashboard.html). Rename a key in one place → fix all the rest.
 
 **Caching & cost.** The route caches each generated report in `gs://bidbrain-analytics-mongodb-dash/reports/`,
 keyed by **view identity + `data_through`** — so re-downloading the same view is instant and free,

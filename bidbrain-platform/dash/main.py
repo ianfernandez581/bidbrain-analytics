@@ -1,11 +1,14 @@
 """Bidbrain Campaign Dashboards — the front-door platform (dashboards.bidbrain.ai).
 
-ONE password box, three outcomes (resolved against Firestore by `store.resolve_password`):
+ONE password box, four outcomes (resolved against the private GCS registry JSON by
+`store.resolve_password`):
   - an AGENCY password  -> a portal of every dashboard in that agency; clicking any opens it
                            with NO further password (a `bb_sso` cookie pre-authorises them).
   - a single DASHBOARD password -> straight to that one dashboard.
   - the ADMIN password  -> the editable admin tree (the screenshot): agencies -> clients ->
-                           campaigns, add/edit/remove, persisted to Firestore.
+                           campaigns, add/edit/remove, persisted to the registry.
+  - the SUPER-ADMIN password -> the god-mode console: reveal AND rotate every password (agencies,
+                           dashboards, admin) + open any dashboard. See templates/superadmin.html.
 
 How "no second password" works: a REVERSE PROXY. Because the dashboards live on raw `*.run.app`
 (a public-suffix domain where a shared SSO cookie can't apply), the platform serves each dashboard
@@ -22,6 +25,7 @@ Serving pattern mirrors every other dash in this repo: thin Flask gate, gunicorn
 private by default, deployed with --no-invoker-iam-check so this app's gate is the only door.
 """
 import os
+import time
 import base64
 from pathlib import Path
 
@@ -30,6 +34,7 @@ from flask import (
     Flask, request, redirect, session, render_template, abort, jsonify, make_response, Response
 )
 
+import config as cfg
 import platform_sso
 from store import Store
 
@@ -55,6 +60,16 @@ except FileNotFoundError:
     LOGO_SVG = "<span style='font-weight:800'>Bidbrain.ai</span>"
 
 store = Store()
+
+
+@app.after_request
+def _no_store(resp):
+    """Never cache. The proxy already sets this per-response; here it also covers the super-admin
+    console and admin tree, whose HTML embeds cleartext passwords — they must not land in a browser
+    disk cache or any intermediary. Don't clobber a header a view set deliberately."""
+    resp.headers.setdefault("Cache-Control", "no-store")
+    resp.headers.setdefault("Referrer-Policy", "no-referrer")
+    return resp
 
 
 # Per-agency logos shown on that agency's portal (loaded once, inlined). `light=True` means the
@@ -100,7 +115,13 @@ def _clear_sso(resp):
 
 
 def _require_admin():
-    if session.get("kind") != "admin":
+    # super admin can do everything an admin can (and more)
+    if session.get("kind") not in ("admin", "superadmin"):
+        abort(403)
+
+
+def _require_super():
+    if session.get("kind") != "superadmin":
         abort(403)
 
 
@@ -108,9 +129,11 @@ def _require_admin():
 @app.get("/")
 def home():
     kind = session.get("kind")
+    if kind == "superadmin":
+        return _render_super()
     if kind == "admin":
         st = store.get_state()
-        return render_template("admin.html", logo_svg=LOGO_SVG, **st)
+        return render_template("admin.html", logo_svg=LOGO_SVG, is_super=False, **st)
     if kind == "agency":
         agency = store.get_agency(session.get("agency_slug", ""))
         if not agency:
@@ -138,8 +161,8 @@ def login():
                                error="Incorrect password.", next_url=""), 401
 
     session.permanent = True
-    if kind == "admin":
-        session["kind"] = "admin"
+    if kind in ("admin", "superadmin"):
+        session["kind"] = kind
         allowed = store.active_client_keys()  # every LIVE dashboard (incl. unassigned, excl. coming_soon)
         resp = make_response(redirect("/"))
         return _set_sso(resp, allowed)
@@ -167,6 +190,118 @@ def logout():
 @app.get("/healthz")
 def healthz():
     return "ok"
+
+
+# --- super-admin god-mode console ---------------------------------------------------------
+def _pw_candidates():
+    """Documented seed plaintexts (config.py), used to self-heal a hash-only registry on first
+    super-admin load so existing passwords can be revealed (see Store.backfill_plaintext)."""
+    cands = {"admin": getattr(cfg, "ADMIN_PW", ""), "super": getattr(cfg, "SUPER_ADMIN_PW", "")}
+    for a in getattr(cfg, "AGENCIES", []):
+        cands[f"agency:{a['slug']}"] = a.get("password", "")
+    for k, pw in getattr(cfg, "CLIENT_PASSWORDS", {}).items():
+        if pw:
+            cands[f"client:{k}"] = pw
+    return cands
+
+
+def _safe_upstream_pw(client):
+    """The REAL standalone dashboard password from Secret Manager — '' if unreadable/not set yet."""
+    try:
+        return _upstream_pw(client)
+    except Exception:
+        return ""
+
+
+def _render_super():
+    store.backfill_plaintext(_pw_candidates())   # recover revealable plaintexts (idempotent)
+    st = store.get_super_state()
+    # the dashboard password IS the standalone <c>-dash-password secret — reveal it live
+    for d in st["dashboards"]:
+        d["password"] = _safe_upstream_pw(d["key"]) if d.get("status") == "active" and d.get("url") else ""
+    # if no super-admin password is set in the registry yet, the active login is the bootstrap env
+    if not st["super_has"] and not st["super_password"]:
+        st["super_password"] = getattr(cfg, "SUPER_ADMIN_PW", "")
+        st["super_bootstrap"] = True
+    else:
+        st["super_bootstrap"] = False
+    return render_template("superadmin.html", logo_svg=LOGO_SVG, **st)
+
+
+@app.get("/admin")
+def admin_tree():
+    """The editable agencies→clients→campaigns tree. Reachable by admin (its home) and by super
+    admin (linked from the god-mode console)."""
+    kind = session.get("kind")
+    if kind not in ("admin", "superadmin"):
+        return redirect("/")
+    st = store.get_state()
+    return render_template("admin.html", logo_svg=LOGO_SVG, is_super=(kind == "superadmin"), **st)
+
+
+@app.post("/super/api/admin-password")
+def super_admin_password():
+    _require_super()
+    pw = ((request.get_json(silent=True) or {}).get("password") or "").strip()
+    if not pw:
+        return jsonify(ok=False, error="Password required."), 400
+    store.set_admin_password(pw)
+    return jsonify(ok=True)
+
+
+@app.post("/super/api/super-password")
+def super_super_password():
+    _require_super()
+    pw = ((request.get_json(silent=True) or {}).get("password") or "").strip()
+    if not pw:
+        return jsonify(ok=False, error="Password required."), 400
+    store.set_super_password(pw)
+    return jsonify(ok=True)
+
+
+@app.post("/super/api/agency-password")
+def super_agency_password():
+    _require_super()
+    d = request.get_json(silent=True) or {}
+    slug = (d.get("slug") or "").strip()
+    pw = (d.get("password") or "").strip()
+    if not slug or not pw:
+        return jsonify(ok=False, error="Agency and password required."), 400
+    if not store.set_agency_password(slug, pw):
+        return jsonify(ok=False, error="Unknown agency."), 404
+    return jsonify(ok=True)
+
+
+@app.post("/super/api/dashboard-password")
+def super_dashboard_password():
+    """TRUE rotation of a dashboard's REAL password: write a new Secret Manager version for
+    <c>-dash-password and restart the <c>-dash service so it re-reads :latest. The platform's own
+    proxy cache is updated in-process. After this the standalone dashboard's password is changed
+    everywhere."""
+    _require_super()
+    d = request.get_json(silent=True) or {}
+    client = (d.get("client") or "").strip()
+    pw = (d.get("password") or "").strip()
+    if not client or not pw:
+        return jsonify(ok=False, error="Dashboard and password required."), 400
+    if client not in store.active_client_keys():
+        return jsonify(ok=False, error="Unknown or inactive dashboard."), 404
+    try:
+        _add_secret_version(f"{client}-dash-password", pw)
+    except Exception as e:
+        return jsonify(ok=False, error=f"Could not write the secret: {e}"), 500
+    _UPSTREAM_PW[client] = pw                  # proxy now logs into the upstream with the new pw
+    _UPSTREAM_COOKIES.pop(client, None)
+    try:
+        _restart_service(f"{client}-dash")
+    except Exception as e:
+        # the secret is rotated but the running dashboard still serves the OLD password until it
+        # restarts — tell the operator exactly how to finish the job by hand.
+        return jsonify(ok=False, restart_failed=True,
+                       error=(f"Password saved, but auto-restart of {client}-dash failed: {e}. "
+                              f"Run:  gcloud run services update {client}-dash "
+                              f"--region {REGION} --update-secrets DASH_PASSWORD={client}-dash-password:latest")), 500
+    return jsonify(ok=True)
 
 
 # --- admin CRUD API (admin session only) --------------------------------------------------
@@ -252,6 +387,7 @@ def api_campaign():
 # ONCE per instance (with the dashboard's own password from Secret Manager) and proxies it under
 # /d/<client>/. Visitors only ever see the platform origin + the platform's single login.
 PROJECT = os.environ.get("GCP_PROJECT", "bidbrain-analytics")
+REGION = os.environ.get("REGION", "australia-southeast1")
 _UPSTREAM_PW = {}       # client_key -> plaintext dashboard password (cached per instance)
 _UPSTREAM_COOKIES = {}  # client_key -> upstream session cookies (cached per instance)
 
@@ -271,6 +407,36 @@ def _upstream_pw(client):
     return _UPSTREAM_PW[client]
 
 
+# --- super-admin: rotate a dashboard's real password (write secret + restart its service) ----
+def _add_secret_version(secret_id, value):
+    """Add a new version to <secret_id>. Needs roles/secretmanager.secretVersionAdder on the
+    platform SA (granted by scripts/enable_super_admin.ps1)."""
+    from google.cloud import secretmanager
+    sm = secretmanager.SecretManagerServiceClient()
+    parent = f"projects/{PROJECT}/secrets/{secret_id}"
+    sm.add_secret_version(parent=parent, payload={"data": value.encode()})
+
+
+def _restart_service(service):
+    """Force a new Cloud Run revision of <service> so it re-reads its :latest secrets. Bumps a
+    benign env var on the revision template (leaving the secret-backed envs untouched). Needs
+    roles/run.developer + roles/iam.serviceAccountUser on that service's runtime SA."""
+    from google.cloud import run_v2
+    rc = run_v2.ServicesClient()
+    name = f"projects/{PROJECT}/locations/{REGION}/services/{service}"
+    svc = rc.get_service(name=name)
+    stamp = str(int(time.time()))
+    env = svc.template.containers[0].env
+    for e in env:
+        if e.name == "PW_ROTATED_AT":
+            e.value = stamp
+            break
+    else:
+        env.append(run_v2.EnvVar(name="PW_ROTATED_AT", value=stamp))
+    svc.template.revision = ""           # let Cloud Run auto-name the new revision
+    rc.update_service(service=svc).result(timeout=300)
+
+
 def _upstream_login(client):
     base = _upstream_base(client)
     r = requests.post(f"{base}/login", data={"password": _upstream_pw(client)},
@@ -281,7 +447,7 @@ def _upstream_login(client):
 
 def _may_open(client):
     kind = session.get("kind")
-    if kind == "admin":
+    if kind in ("admin", "superadmin"):
         return client in store.active_client_keys()
     if kind == "agency":
         a = store.get_agency(session.get("agency_slug", ""))
@@ -322,6 +488,11 @@ def proxy(client, subpath):
     cookies = _UPSTREAM_COOKIES.get(client) or _upstream_login(client)
     resp = _forward(client, subpath, cookies)
     if _unauth(resp, subpath):                      # cached upstream session expired -> re-login once
+        # Drop the cached PASSWORD too, not just the cookies: an out-of-band rotation (incl. the
+        # super-admin rotate, which only busts the cache on the worker that served it) means OTHER
+        # workers/instances still hold the OLD pw. Popping it forces _upstream_pw to re-read
+        # <c>-dash-password:latest from Secret Manager, so every worker self-heals on its next miss.
+        _UPSTREAM_PW.pop(client, None)
         resp = _forward(client, subpath, _upstream_login(client))
     ctype = resp.headers.get("Content-Type", "application/octet-stream")
     body = resp.content

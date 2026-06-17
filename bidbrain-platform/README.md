@@ -12,16 +12,62 @@ other dash in this repo (gunicorn, `no-store`, private, `--no-invoker-iam-check`
 | an **agency** password (e.g. `100d2026`) | a portal of every dashboard in that agency; click any to open it with **no further password** |
 | a single **dashboard** password | straight to that one dashboard |
 | the **admin** password | the editable admin tree (add/edit/remove agencies, clients, campaigns) |
+| the **super-admin** password | the **god-mode console** — reveal AND rotate every password + open any dashboard. See [Super admin](#super-admin-god-mode-console) below. |
 
 ### Agencies (seeded from `dash/config.py`)
 - **100% Digital** (`100d2026`): City Perfume, VMCH, The Little Marionette, ResetData,
   Bell Shakespeare *(coming soon)*, Geocon *(coming soon)*.
-- **Transmission** (`Transmission2026`): Schneider Electric, Cloudflare, PropTrack, MongoDB.
+- **Transmission** (`transmission2026`): Schneider Electric, Cloudflare, PropTrack, MongoDB,
+  Pipeline Status *(the meta `status-dash`, surfaced here so Transmission can watch data health;
+  proxied like any client — the platform SA has `secretAccessor` on `status-dash-password`)*.
 - **Unassigned** (not in any agency, reachable only by their own dashboard password): **STT**
   (on hold), **HireRight**. Add them to an agency anytime via the admin UI.
 
 Admin password defaults to `bidbrain-admin-2026` — override with the `ADMIN_PW` env before
 seeding, or rotate later by re-seeding with a new `ADMIN_PW`.
+
+## Super admin (god-mode console)
+The **super-admin** password opens `templates/superadmin.html` — a gold-themed console headed
+**“WELCOME, SUPER ADMIN”** that does three things no other tier can:
+
+1. **Reveal every password** — each agency password, each dashboard's real login, and the admin
+   password, shown masked with a click-to-reveal eye + copy button.
+2. **Rotate any password** — inline “Change”. Agency/admin/super passwords are stored in the private
+   registry (instant). A **dashboard** password is *true* rotation: it writes a new
+   `<c>-dash-password` Secret Manager version **and restarts that `<c>-dash` service** so the new
+   password takes effect for the standalone dashboard everywhere (the dashboard is briefly
+   unavailable, ~20–40s, while it restarts). The platform's own proxy cache is updated in-process.
+3. **Open any dashboard** — same one-click, no-second-password access as admin.
+   It also links to the full admin tree at `/admin` (super admin inherits every admin power).
+
+**How revealing is possible.** Passwords were previously stored only as one-way pbkdf2 hashes — a hash
+can't be un-hashed. The registry now keeps a recoverable `password_plain` *beside* each hash (it lives
+only in the **private** GCS registry — the same trust boundary that already holds every dashboard's
+plaintext `<c>-dash-password` secret). A registry seeded before this feature is hash-only;
+`Store.backfill_plaintext` self-heals it on first super-admin load by recovering any seed value
+(from `config.py`) that still verifies against the stored hash. Anything rotated away from its seed
+value stays hidden until the super admin sets it explicitly in the console.
+
+**Login resolution.** `store.resolve_password` checks super admin **first**: against the registry
+`super_admin_password_hash` if set, else the bootstrap `SUPER_ADMIN_PW` env (Secret Manager
+`platform-super-admin-password`) so the login works the moment the secret is mounted, before any
+re-seed. Setting a super password in the console moves it into the registry and the env fallback stops.
+
+**Enabling it (one-time, after deploying the new image):**
+```powershell
+.\bidbrain-platform\dash\deploy_dash_platform.ps1      # ships the console + the google-cloud-run dep
+.\scripts\enable_super_admin.ps1 -SuperPw 'a-strong-password'   # IAM + bootstrap secret + env mount
+```
+`enable_super_admin.ps1` creates `platform-super-admin-password`, mounts `SUPER_ADMIN_PW`+`REGION` on
+the platform service, and grants the platform SA the extra IAM dashboard rotation needs:
+`secretmanager.secretVersionAdder` on each `<c>-dash-password`, project `run.developer` (create a new
+`<c>-dash` revision), and `iam.serviceAccountUser` on each `<c>-dash` runtime SA (actAs, required to
+deploy the revision). **There is no committed default super-admin password** — pass `-SuperPw`, or omit
+it and the script generates a strong random one and prints it **once** (save it; the config default is
+empty so an unconfigured deploy fails *closed*, never open). Change it any time in the console (that
+moves it into the registry and supersedes the secret). If a dashboard rotation's auto-restart ever
+fails (e.g. IAM not yet propagated), the console tells you the exact `gcloud run services update …` to
+finish it by hand.
 
 ## How "no second password" works TODAY — a reverse proxy (no domain needed)
 No `<c>.bidbrain.ai` subdomains exist, and a shared SSO cookie can't span raw `run.app` hosts
@@ -72,9 +118,10 @@ bidbrain-platform/
     config.py                    SEED source of truth: agencies, clients, campaigns, passwords
     platform_sso.py              shared SSO token (issuer here; VENDORED into every dashboard as the verifier)
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
-    templates/                   login.html · portal.html · admin.html (dark theme, Bidbrain logo)
+    templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
   Creatives/                     the design screenshot + source logo.svg
+scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mode IAM (see "Super admin")
 ```
 
 ## Deploy & operate
@@ -98,6 +145,9 @@ bidbrain-platform/
 
 # Re-seed the registry from config.py (rare; refuses to clobber live edits unless --force):
 $env:GCS_BUCKET="bidbrain-analytics-platform-dash"; .\.venv\Scripts\python.exe bidbrain-platform\dash\seed_registry.py
+
+# Enable the super-admin god-mode console (one-time, AFTER deploying the new image — see "Super admin"):
+.\scripts\enable_super_admin.ps1 -SuperPw 'a-strong-password'
 ```
 
 ## Local dev (no GCP)
@@ -109,8 +159,10 @@ $env:PLATFORM_BACKEND="memory"; $env:DEV="1"; $env:SESSION_SECRET="x"; $env:SSO_
 
 ## Coordinates
 Project `bidbrain-analytics` · region `australia-southeast1` · service `platform-dash` ·
-web SA `platform-dash-web@` (`roles/storage.objectAdmin` on its bucket + `secretAccessor`) ·
-secrets `platform-dash-session-key`, `platform-sso-key` · registry
+web SA `platform-dash-web@` (`roles/storage.objectAdmin` on its bucket + `secretAccessor`; **+ for
+super-admin god-mode**: `secretmanager.secretVersionAdder` on each `<c>-dash-password`, project
+`run.developer`, and `iam.serviceAccountUser` on each `<c>-dash` runtime SA) · secrets
+`platform-dash-session-key`, `platform-sso-key`, `platform-super-admin-password` · registry
 `gs://bidbrain-analytics-platform-dash/platform.json` (private). No database, no export job, no scheduler.
 
 ## Hardening / known trade-offs
@@ -127,6 +179,15 @@ front door, not open bugs:
 - **Campaigns are edited by positional index.** Two admins editing the same client's campaigns
   concurrently (or from a stale tab) can mis-edit a row. Single-admin use makes this unlikely; it's
   a recoverable registry edit, not data loss.
+- **Super admin stores recoverable plaintext passwords.** To let the god-mode console *reveal*
+  passwords (a pbkdf2 hash can't be un-hashed), the registry keeps a `password_plain` beside each
+  hash. This is a deliberate choice scoped to the **private** registry — the same trust boundary that
+  already stores every dashboard's plaintext `<c>-dash-password` secret — and gated behind the
+  super-admin password. The pbkdf2 hash is still what `/login` verifies against; the plaintext is
+  reveal-only. There is **no committed default** super-admin password — `SUPER_ADMIN_PW` defaults to
+  empty so an unconfigured deploy fails *closed*; `enable_super_admin.ps1` takes `-SuperPw` (or mints
+  a random one). Super admin is god-mode by design: it can rotate the **real** standalone dashboard
+  secrets and restart those services.
 
 ## Cost
 One scale-to-zero Cloud Run service ≈ **$0/mo** (free tier), or **~$13–16/mo** if you set

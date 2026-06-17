@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Super Admin · Bidbrain Campaign Dashboards</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0c12; --panel:#12151f; --panel-2:#0e111a; --row:#10131d; --border:rgba(255,255,255,.08);
+    --text:#f1ecdf; --muted:#9a93a6; --muted-2:#6b6478;
+    --gold:#f3c969; --gold-2:#e0a818; --gold-dim:rgba(243,201,105,.14);
+    --accent:#3b82f6; --active:#22c55e; --danger:#f87171;
+    --chip-bg:#1c1a12; --chip-text:#cdb878;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;color:var(--text);background:var(--bg);
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  /* top bar */
+  .topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;
+          border-bottom:1px solid var(--border);background:#0b0d14;position:sticky;top:0;z-index:20}
+  .topbar .logo svg{height:24px;width:auto;display:block}
+  .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
+  .super-pill{font-size:10.5px;font-weight:900;letter-spacing:.8px;color:#1a1405;
+              background:linear-gradient(135deg,var(--gold),var(--gold-2));
+              padding:4px 10px;border-radius:6px;box-shadow:0 2px 10px rgba(224,168,24,.35)}
+  .spacer{flex:1}
+  .btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer;
+       border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none}
+  .btn:hover{background:#1a1d28}
+  .btn.gold{background:linear-gradient(135deg,var(--gold),var(--gold-2));border-color:transparent;
+            color:#1a1405;font-weight:700}
+  .btn.gold:hover{filter:brightness(1.06)}
+  .btn.sm{font-size:12px;padding:6px 11px}
+  .btn.ghost{border-color:rgba(243,201,105,.32);color:var(--gold)}
+  .btn.ghost:hover{background:var(--gold-dim)}
+  /* hero */
+  .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--border);
+        background:radial-gradient(900px 380px at 18% -40%,rgba(243,201,105,.18) 0%,rgba(243,201,105,0) 60%),
+                   linear-gradient(180deg,#14110a 0%,#0a0c12 100%)}
+  .hero .inner{max-width:1120px;margin:0 auto;padding:52px 28px 46px}
+  .hero .crown{font-size:13px;font-weight:800;letter-spacing:3px;color:var(--gold-2);margin:0 0 10px}
+  .hero h1{margin:0;font-size:clamp(34px,6vw,60px);font-weight:900;letter-spacing:-1px;line-height:1.02;
+           background:linear-gradient(120deg,#fff 0%,var(--gold) 55%,var(--gold-2) 100%);
+           -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .hero p{margin:14px 0 0;font-size:15px;color:#bdb6a6;max-width:680px;line-height:1.55}
+  .hero .badges{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+  .hero .badge{font-size:12px;color:var(--chip-text);background:var(--chip-bg);
+               border:1px solid rgba(243,201,105,.18);padding:7px 12px;border-radius:999px;font-weight:600}
+  /* layout */
+  .wrap{max-width:1120px;margin:0 auto;padding:36px 28px 90px}
+  .sec{margin:0 0 30px}
+  .sec>.shead{display:flex;align-items:baseline;gap:12px;margin:0 0 14px}
+  .sec>.shead h2{font-size:15px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;margin:0;color:#d9d2c2}
+  .sec>.shead .c{font-size:12.5px;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 18px 16px}
+  .card.key{border-color:rgba(243,201,105,.22);background:linear-gradient(180deg,#16130b 0%,var(--panel) 60%)}
+  .card .knm{font-size:14.5px;font-weight:700;margin:0 0 2px;display:flex;align-items:center;gap:9px}
+  .card .ksub{font-size:12px;color:var(--muted);margin:0 0 14px}
+  .slug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
+        color:var(--chip-text);background:var(--chip-bg);padding:2px 8px;border-radius:6px;font-weight:600}
+  .note{font-size:11px;color:var(--gold-2);margin-top:9px}
+  /* password field */
+  .pwline{display:flex;align-items:center;gap:8px}
+  .pwbox{flex:1;display:flex;align-items:center;gap:8px;min-width:0;
+         background:#0a0c13;border:1px solid #232838;border-radius:10px;padding:10px 12px}
+  .pwval{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13.5px;color:var(--text);
+         overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:.5px}
+  .pwval.empty{color:var(--muted-2);font-style:italic;letter-spacing:0;font-family:inherit}
+  .icbtn{border:none;background:transparent;color:var(--muted);cursor:pointer;padding:4px;border-radius:7px;
+         display:inline-flex;align-items:center;justify-content:center;line-height:0}
+  .icbtn:hover{color:var(--gold);background:var(--gold-dim)}
+  .icbtn svg{width:17px;height:17px;display:block}
+  .icbtn.copied{color:var(--active)}
+  /* dashboards table-ish rows */
+  .drow{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);
+        border-radius:12px;padding:13px 16px;margin:0 0 10px}
+  .drow .who{min-width:210px}
+  .drow .who .dn{font-size:14.5px;font-weight:700}
+  .drow .who .dk{margin-top:3px}
+  .drow .pwbox{max-width:none}
+  .drow .open{margin-left:auto}
+  .drow.soon{opacity:.62}
+  .muted{color:var(--muted);font-size:12.5px}
+  /* modal */
+  .scrim{position:fixed;inset:0;background:rgba(5,6,10,.72);display:none;align-items:center;justify-content:center;z-index:50}
+  .scrim.on{display:flex}
+  .modal{width:100%;max-width:460px;background:var(--panel);border:1px solid rgba(243,201,105,.22);
+         border-radius:16px;padding:24px;box-shadow:0 30px 90px rgba(0,0,0,.7)}
+  .modal h3{margin:0 0 6px;font-size:17px;font-weight:800}
+  .modal .msub{margin:0 0 16px;font-size:12.5px;color:var(--muted)}
+  .modal label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 6px}
+  .modal input{width:100%;padding:12px;font-size:14px;color:var(--text);background:#0a0c13;
+        border:1px solid #232838;border-radius:10px;outline:none;font-family:ui-monospace,Menlo,monospace}
+  .modal input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,201,105,.16)}
+  .modal .warn{margin-top:12px;font-size:12px;color:#f0b86a;background:rgba(240,184,106,.08);
+               border:1px solid rgba(240,184,106,.22);border-radius:9px;padding:10px 12px;line-height:1.5}
+  .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
+  .err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:14px;line-height:1.5}
+</style>
+</head>
+<body>
+  {# reusable password field: masked value + reveal/copy + a Change/Set button #}
+  {% macro pwfield(kind, id, value, present) %}
+  <div class="pwline">
+    <div class="pwbox">
+      <span class="pwval{{ '' if present else ' empty' }}" data-pw="{{ value|e }}"
+            data-present="{{ '1' if present else '0' }}">{{ '••••••••••••' if present else 'not set' }}</span>
+      {% if present %}
+      <button type="button" class="icbtn reveal" title="Show / hide" aria-label="Show or hide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+      <button type="button" class="icbtn copy" title="Copy" aria-label="Copy">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>
+      </button>
+      {% endif %}
+    </div>
+    <button type="button" class="btn ghost sm chgbtn" data-kind="{{ kind }}" data-id="{{ id|e }}">
+      {{ 'Change' if present else 'Set' }}
+    </button>
+  </div>
+  {% endmacro %}
+
+  <div class="topbar">
+    <span class="logo">{{ logo_svg | safe }}</span>
+    <span class="label">Campaign Dashboards</span>
+    <span class="super-pill">SUPER ADMIN</span>
+    <span class="spacer"></span>
+    <a class="btn ghost" href="/admin">Manage agencies &amp; clients →</a>
+    <a class="btn" href="/logout">Log out</a>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div class="inner">
+      <div class="crown">★ GOD-MODE ACCESS</div>
+      <h1>WELCOME, SUPER ADMIN</h1>
+      <p>You can reveal and rotate <b>every</b> password — agencies, dashboards, and the admin key —
+         and open any dashboard with no further login. Handle with care: these are the live keys to
+         the whole platform.</p>
+      <div class="badges">
+        <span class="badge">{{ agencies|length }} agenc{{ 'y' if agencies|length == 1 else 'ies' }}</span>
+        <span class="badge">{{ dashboards|length }} dashboard{{ '' if dashboards|length == 1 else 's' }}</span>
+        <span class="badge">All passwords revealable</span>
+        <span class="badge">One-click dashboard access</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="wrap">
+
+    <!-- ACCESS KEYS -->
+    <div class="sec">
+      <div class="shead"><h2>Access keys</h2><span class="c">the platform's own master passwords</span></div>
+      <div class="grid2">
+        <div class="card key">
+          <div class="knm">Super-admin password <span class="super-pill">SUPER</span></div>
+          <div class="ksub">Opens this god-mode console.</div>
+          {{ pwfield("super", "", super_password, super_has or super_password) }}
+          {% if super_bootstrap %}<div class="note">Using the bootstrap password from env — set one here to store it in the registry.</div>{% endif %}
+        </div>
+        <div class="card key">
+          <div class="knm">Admin password</div>
+          <div class="ksub">Opens the editable agencies → clients → campaigns tree.</div>
+          {{ pwfield("admin", "", admin_password, admin_has or admin_password) }}
+        </div>
+      </div>
+    </div>
+
+    <!-- AGENCIES -->
+    <div class="sec">
+      <div class="shead"><h2>Agency passwords</h2><span class="c">each opens a portal of that agency's dashboards</span></div>
+      <div class="grid2">
+        {% for a in agencies %}
+        <div class="card">
+          <div class="knm">{{ a.name }} <span class="slug">{{ a.slug }}</span></div>
+          <div class="ksub">{{ a.client_count }} dashboard{{ '' if a.client_count == 1 else 's' }} in this portal</div>
+          {{ pwfield("agency", a.slug, a.password, a.has_pw or a.password) }}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- DASHBOARDS -->
+    <div class="sec">
+      <div class="shead"><h2>Dashboard passwords</h2><span class="c">the real standalone <span class="mono">&lt;c&gt;-dash</span> login — change rotates it everywhere</span></div>
+      {% for d in dashboards %}
+        {% if d.status == 'active' and d.url %}
+        <div class="drow">
+          <div class="who">
+            <div class="dn">{{ d.name }}</div>
+            <div class="dk"><span class="slug">{{ d.key }}</span></div>
+          </div>
+          {{ pwfield("dashboard", d.key, d.password, d.password) }}
+          <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
+        </div>
+        {% else %}
+        <div class="drow soon">
+          <div class="who">
+            <div class="dn">{{ d.name }}</div>
+            <div class="dk"><span class="slug">{{ d.key }}</span></div>
+          </div>
+          <span class="muted">No live dashboard yet — nothing to reveal.</span>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
+
+  </div>
+
+  <!-- change-password modal -->
+  <div class="scrim" id="scrim">
+    <form class="modal" id="modal" onsubmit="return submitPw(event)">
+      <h3 id="mTitle">Change password</h3>
+      <p class="msub" id="mSub"></p>
+      <label for="newpw">New password</label>
+      <input id="newpw" type="text" name="password" autocomplete="off" spellcheck="false" placeholder="Type the new password">
+      <div class="warn" id="mWarn" style="display:none"></div>
+      <div class="err" id="mErr"></div>
+      <div class="actions">
+        <button type="button" class="btn" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="btn gold" id="mSave">Save</button>
+      </div>
+    </form>
+  </div>
+
+<script>
+  // ---- reveal / copy (values are server-rendered into data-pw; this page is no-store + super-only) ----
+  document.querySelectorAll('.pwbox').forEach(box=>{
+    const val = box.querySelector('.pwval');
+    const real = val.getAttribute('data-pw') || '';
+    const present = val.getAttribute('data-present') === '1';
+    let shown = false;
+    const reveal = box.querySelector('.reveal');
+    const copy = box.querySelector('.copy');
+    if(reveal) reveal.addEventListener('click', ()=>{
+      shown = !shown;
+      val.textContent = shown ? (real || '(empty)') : '••••••••••••';
+    });
+    if(copy) copy.addEventListener('click', async ()=>{
+      try{ await navigator.clipboard.writeText(real); }catch(e){}
+      copy.classList.add('copied');
+      setTimeout(()=>copy.classList.remove('copied'), 1100);
+    });
+  });
+
+  // ---- change a password ----
+  const scrim = document.getElementById('scrim');
+  const mTitle = document.getElementById('mTitle');
+  const mSub = document.getElementById('mSub');
+  const mWarn = document.getElementById('mWarn');
+  const mErr = document.getElementById('mErr');
+  const mSave = document.getElementById('mSave');
+  const newpw = document.getElementById('newpw');
+  let ctx = {};
+
+  const META = {
+    admin:     {ep:'/super/api/admin-password',     title:'Change the admin password',
+                sub:'Opens the agencies → clients → campaigns tree. Stored in the private registry.'},
+    super:     {ep:'/super/api/super-password',      title:'Change the super-admin password',
+                sub:'Opens THIS god-mode console. Choose a strong value — it controls everything.'},
+    agency:    {ep:'/super/api/agency-password',     title:'Change an agency password',
+                sub:'Opens a portal of that agency’s dashboards. Stored in the private registry.'},
+    dashboard: {ep:'/super/api/dashboard-password',  title:'Rotate a dashboard password',
+                sub:'Changes the REAL standalone dashboard login everywhere.',
+                warn:'This writes a new secret version and restarts the dashboard service so the new password takes effect. The dashboard may be briefly unavailable (~20–40s) while it restarts.'},
+  };
+
+  // wire Change/Set buttons via data-* attributes (no id interpolated into inline JS — JS-string-safe)
+  document.querySelectorAll('.chgbtn').forEach(b=>{
+    b.addEventListener('click', ()=> changePw(b.dataset.kind, b.dataset.id || ''));
+  });
+
+  function changePw(kind, id){
+    const m = META[kind];
+    ctx = {kind, id, ep:m.ep};
+    mTitle.textContent = m.title;
+    mSub.textContent = m.sub + (id ? '   ·   ' + id : '');
+    if(m.warn){ mWarn.textContent = m.warn; mWarn.style.display='block'; } else { mWarn.style.display='none'; }
+    mErr.textContent=''; newpw.value=''; mSave.textContent='Save';
+    scrim.classList.add('on'); setTimeout(()=>newpw.focus(), 30);
+  }
+  function closeModal(){ scrim.classList.remove('on'); }
+  scrim.addEventListener('click', e=>{ if(e.target===scrim) closeModal(); });
+
+  async function submitPw(e){
+    e.preventDefault();
+    const pw = newpw.value;
+    if(!pw){ mErr.textContent='Enter a password.'; return false; }
+    mErr.textContent='';
+    mSave.textContent = ctx.kind==='dashboard' ? 'Rotating & restarting…' : 'Saving…';
+    const body = {password: pw};
+    if(ctx.kind==='agency') body.slug = ctx.id;
+    if(ctx.kind==='dashboard') body.client = ctx.id;
+    try{
+      const r = await fetch(ctx.ep, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      const j = await r.json().catch(()=>({ok:false,error:'Bad response.'}));
+      if(j.ok){ location.reload(); return false; }
+      mErr.textContent = j.error || 'Failed.';
+      mSave.textContent = 'Save';
+    }catch(err){
+      mErr.textContent = 'Network error — '+err;
+      mSave.textContent = 'Save';
+    }
+    return false;
+  }
+</script>
+</body>
+</html>

@@ -22,14 +22,24 @@ upstream `<c>-dash` once (server-side, with that dashboard's own Secret-Manager 
 ONE platform login the dashboards open with **no second password**, on raw run.app, no domain required.
 An **agency** password opens a portal of that agency's clients;
 a single **dashboard** password opens just that one; the **admin** password opens an editable
-agencies→clients→campaigns tree. Web-only service `platform-dash` (SA `platform-dash-web@`,
+agencies→clients→campaigns tree; the **super-admin** password opens a god-mode console
+(`templates/superadmin.html`, gold theme) that **reveals AND rotates every password** — agencies,
+dashboards, admin — and opens any dashboard. Revealing works because the registry now keeps a
+recoverable `password_plain` beside each pbkdf2 hash (a hash can't be un-hashed); a hash-only live
+registry self-heals via `Store.backfill_plaintext` (recovers seed values that still verify). Rotating
+a **dashboard** password is true god-mode: it writes a new `<c>-dash-password` secret version **and
+restarts that `<c>-dash` service** so the new password takes effect everywhere (needs the extra IAM
+from `scripts/enable_super_admin.ps1`). Super admin resolves first in `store.resolve_password`
+(registry hash, else the bootstrap `SUPER_ADMIN_PW` env / secret `platform-super-admin-password`).
+Web-only service `platform-dash` (SA `platform-dash-web@`,
 `storage.objectAdmin`), registry = ONE private JSON `gs://bidbrain-analytics-platform-dash/platform.json`
 (same private-bucket pattern as the dashboards — no database), no job/scheduler.
 "No second password" = a signed **`bb_sso`** cookie scoped to `.bidbrain.ai` listing the client keys
 you may open; each dashboard's `authed()` was extended (additively — its own password still works) to
 trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shared signer secret
 `platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, +bellshakespeare/geocon
-*coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb}; **stt/hireright unassigned**.
+*coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb, +status (the meta
+Pipeline-Status dash, surfaced here so Transmission can watch data health)}; **stt/hireright unassigned**.
 No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.py`), NOT a cookie —
 the `bb_sso`/`platform_sso.py` machinery stays deployed but inert, and would only take over if a real
 domain is later wired (Cloud DNS + Cloud Run domain mappings; `australia-southeast1` supports `gcloud
@@ -119,8 +129,12 @@ Reach for the matching one by edit:
 - `sql/deploy_views_<c>.ps1`   — edited a `sql/*.sql` view → reapply views (`create_views.py`) + run JOB
 - **Platform front-door:** `bidbrain-platform/dash/deploy_dash_platform.ps1` — edited `main.py`/`store.py`/
   templates → rebuild + update SERVICE. Standup once with `bidbrain-platform/deploy_platform.ps1`; then
-  `scripts/enable_platform_sso.ps1` injects `SSO_SECRET`+`CLIENT_KEY` into the 10 dashboards. Agency/client/
-  campaign DATA is edited in the admin UI (Firestore), NOT by redeploy. See `bidbrain-platform/README.md`.
+  `scripts/enable_platform_sso.ps1` injects `SSO_SECRET`+`CLIENT_KEY` into the 10 dashboards. **For the
+  super-admin god-mode console, after deploying the new image run `scripts/enable_super_admin.ps1` once**
+  — it creates the bootstrap secret + mounts `SUPER_ADMIN_PW`/`REGION` on the platform and grants the
+  platform SA the extra IAM for dashboard-password rotation (secretVersionAdder + project run.developer +
+  serviceAccountUser on each `<c>-dash` runtime SA). Agency/client/campaign DATA + all password reveals/
+  rotations are done in the UI, NOT by redeploy. See `bidbrain-platform/README.md`.
 
 The one-shot `deploy_<c>.ps1` (still at the `clients/client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,
 scheduler). The raw commands each stage script runs, for reference:

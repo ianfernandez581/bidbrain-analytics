@@ -1,8 +1,9 @@
 """Seed configuration for the Bidbrain platform front-door (dashboards.bidbrain.ai).
 
-This is the *source of truth in code*. `seed_firestore.py` pushes it into Firestore on
-first standup; after that the admin UI edits the live Firestore copy (so the running config
-can diverge from this file — re-seed only deliberately, with `seed_firestore.py --force`).
+This is the *source of truth in code*. `seed_registry.py` pushes it into the private GCS registry
+JSON (`gs://$GCS_BUCKET/platform.json`) on first standup; after that the admin/super-admin UI edits
+the live registry copy (so the running config can diverge from this file — re-seed only
+deliberately, with `seed_registry.py --force`).
 
 The platform never stores a row of client data. It stores only:
   - which AGENCIES exist, their login password, and which CLIENTS belong to each;
@@ -11,7 +12,8 @@ The platform never stores a row of client data. It stores only:
     its CAMPAIGNS (display rows in the admin tree — name + path + the live URL + status).
 
 Passwords here are PLAINTEXT only in this seed file (gitignored from real values via the
-`*_PW` env overrides below). `seed_firestore.py` hashes them before writing to Firestore.
+`*_PW` env overrides below). `seed_registry.py` hashes them (pbkdf2) before writing to the registry,
+and also keeps a recoverable `*_plain` copy there so the super-admin console can reveal them.
 
 Client keys derive everything else (CLAUDE.md "Fixed facts"): dataset `client_<c>`, bucket
 `bidbrain-analytics-<c>-dash`, service `<c>-dash`, subdomain `<c>.bidbrain.ai`.
@@ -22,8 +24,15 @@ import os
 # In production these are injected from Secret Manager and the Firestore copy is hashed;
 # these literals are the documented defaults the user gave and the local-dev fallback.
 ADMIN_PW = os.environ.get("ADMIN_PW", "bidbrain-admin-2026")
+# SUPER_ADMIN_PW opens the god-mode console: reveal/rotate EVERY password (agencies, dashboards,
+# admin) and open any dashboard. It is injected from Secret Manager `platform-super-admin-password`
+# (set up by scripts/enable_super_admin.ps1). It DEFAULTS TO EMPTY ON PURPOSE — never a committed
+# literal: when the registry has no super-admin hash yet, resolve_password falls back to comparing
+# against this env, so a shipped default would fail OPEN (anyone reading the repo could log in as god).
+# Empty => fail CLOSED (no super-admin login until the secret is injected or one is set in the UI).
+SUPER_ADMIN_PW = os.environ.get("SUPER_ADMIN_PW", "")
 AGENCY_100D_PW = os.environ.get("AGENCY_100D_PW", "100d2026")
-AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "Transmission2026")
+AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "transmission2026")
 
 # Each dashboard is its own Cloud Run service `<key>-dash`. Until a custom domain is registered
 # there are NO `<key>.bidbrain.ai` subdomains — link straight to the live GCP run.app URL
@@ -116,6 +125,17 @@ CLIENTS = {
             {"name": "Paid Media + CS", "path": "/paid-media", "status": "active"},
         ],
     },
+    # The meta Pipeline-Status dashboard (status.bidbrain.ai) — not a media client of its own,
+    # but surfaced in the Transmission portal so they can watch data health. Its key `status`
+    # derives the same way as every dashboard: service `status-dash`, bucket
+    # `bidbrain-analytics-status-dash`, secret `status-dash-password` (so the proxy logs in).
+    "status": {
+        "name": "Pipeline Status", "slug": "status", "status": "active",
+        "url": _runapp("status"),
+        "campaigns": [
+            {"name": "Data Health", "path": "/", "status": "active"},
+        ],
+    },
 }
 
 # Per-client dashboard passwords (seed only; real values come from `<c>-dash-password`
@@ -132,7 +152,7 @@ AGENCIES = [
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
-        "clients": ["schneider", "cloudflare", "proptrack", "mongodb"],
+        "clients": ["schneider", "cloudflare", "proptrack", "mongodb", "status"],
     },
 ]
 
