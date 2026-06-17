@@ -15,7 +15,7 @@ new for each ad account, and re-running it never creates duplicates.
 
 | File | What it does |
 |---|---|
-| [`create_meta_table.py`](create_meta_table.py) | **One-time.** Creates `raw_windsor.perf_meta` with the full typed schema (~80 columns), partitioned by `metric_date`, clustered by `campaign_id, ad_id`. Idempotent — but it **creates, doesn't alter**: to add columns to an existing table, drop it first (it's safe when empty). |
+| [`create_meta_table.py`](create_meta_table.py) | **One-time.** Creates `raw_windsor.perf_meta` with the full typed schema (~85 columns), partitioned by `metric_date`, clustered by `campaign_id, ad_id`. Idempotent — but it **creates, doesn't alter**: to add columns to an existing (non-empty) table, `ALTER TABLE … ADD COLUMN IF NOT EXISTS` instead of dropping, then re-pull `--force` to backfill. |
 | [`meta_loader.py`](meta_loader.py) | **The loader.** Fetches from Windsor's blended `/all` endpoint for an explicit list of Facebook accounts (currently 6), transforms, and `MERGE`s into `perf_meta`. |
 | `Dockerfile` / `.dockerignore` / `requirements.txt` | Container for the Cloud Run ingest job (`windsor-meta-ingest`, daily — see the [parent README](../README.md#deployment--scheduling-cloud-run-jobs)). |
 | `README.md` | This file. |
@@ -72,6 +72,14 @@ The schema is intentionally wide so any client can build any view without a re-p
 - **Leads** — total / website / on-Facebook / unique, cost-per-lead.
 - **Conversions & value** — landing-page views, add-to-cart, checkout, purchases, ROAS (ecom;
   null for lead-gen).
+- **Custom pixel conversions** (account-specific) — `signup_button_conversions` /
+  `signup_button_conversion_value`, the resetdata "Signup Button" custom pixel event (Windsor
+  ids `conversions_…` / `conversion_values_offsite_conversion_fb_pixel_custom_signup_button`).
+  NULL for accounts without it. **Discovery note:** Windsor's `/all` does **not** 400 on an
+  unknown field token (it silently nulls it) and per-conversion-name tokens aren't guessable —
+  list the real ids from the account-scoped catalog `GET /all/fields?select_accounts=<acct>`
+  (the entry `id` is the `fields=` token; its `name` is the picker label). The value here is
+  **0** unless a conversion value is assigned in Meta (a signup carries none by default).
 - **Video funnel** — starts, 25/50/75/95/100%, thruplays, avg watch time.
 - **Optimization signals** — quality / engagement-rate / conversion-rate rankings.
 - **Creative metadata** — creative id, thumbnails, title, body, link/destination URLs.

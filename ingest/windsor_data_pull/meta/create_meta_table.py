@@ -124,6 +124,16 @@ schema = [
     bigquery.SchemaField("purchase_roas_website", "NUMERIC",
         description="website_purchase_roas_offsite_conversion_fb_pixel_purchase"),
 
+    # ---- Custom pixel conversions (account-specific) ----
+    bigquery.SchemaField("signup_button_conversions", "INT64",
+        description="'Signup Button' custom pixel conversion count (resetdata, acct "
+        "465058559225771); conversions_offsite_conversion_fb_pixel_custom_signup_button. "
+        "NULL for accounts without this custom conversion."),
+    bigquery.SchemaField("signup_button_conversion_value", "NUMERIC",
+        description="Value of the 'Signup Button' custom pixel conversion "
+        "(conversion_values_offsite_conversion_fb_pixel_custom_signup_button); 0 unless a "
+        "conversion value is assigned in Meta (a signup carries none by default)."),
+
     # ---- Video funnel ----
     bigquery.SchemaField("video_starts", "INT64", description="video_play_actions"),
     bigquery.SchemaField("video_25", "INT64"),

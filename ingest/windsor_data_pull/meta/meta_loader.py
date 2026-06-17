@@ -90,6 +90,11 @@ WINDSOR_FIELDS = (
     "actions_landing_page_view,actions_add_to_cart,actions_initiate_checkout,"
     "actions_omni_purchase,actions_complete_registration,action_values_omni_purchase,"
     "purchase_roas_omni_purchase,website_purchase_roas_offsite_conversion_fb_pixel_purchase,"
+    # Custom pixel conversion 'Signup Button' (resetdata, account 465058559225771).
+    # Windsor's `conversions_`/`conversion_values_` namespace (custom-conversion-rule based),
+    # NOT the `actions_` namespace -- only this exact id returns data (verified empirically).
+    "conversions_offsite_conversion_fb_pixel_custom_signup_button,"
+    "conversion_values_offsite_conversion_fb_pixel_custom_signup_button,"
     "video_play_actions_video_view,video_p25_watched_actions_video_view,"
     "video_p50_watched_actions_video_view,video_p75_watched_actions_video_view,"
     "video_p95_watched_actions_video_view,video_p100_watched_actions_video_view,"
@@ -362,6 +367,8 @@ def transform(row, ingested_at_iso):
         "purchase_value": to_num(g("action_values_omni_purchase")),
         "purchase_roas": to_num(g("purchase_roas_omni_purchase")),
         "purchase_roas_website": to_num(g("website_purchase_roas_offsite_conversion_fb_pixel_purchase")),
+        "signup_button_conversions": to_int(g("conversions_offsite_conversion_fb_pixel_custom_signup_button")),
+        "signup_button_conversion_value": to_num(g("conversion_values_offsite_conversion_fb_pixel_custom_signup_button")),
         "video_starts": to_int(g("video_play_actions_video_view")),
         "video_25": to_int(g("video_p25_watched_actions_video_view")),
         "video_50": to_int(g("video_p50_watched_actions_video_view")),
@@ -398,7 +405,8 @@ _MERGE_SET_COLS = [
     "video_3s_views","est_ad_recall_lift","est_ad_recall_rate","instagram_profile_visits",
     "leads","leads_website","leads_onfacebook","unique_leads","cost_per_lead",
     "landing_page_views","add_to_cart","initiate_checkout","purchases","registrations",
-    "purchase_value","purchase_roas","purchase_roas_website","video_starts","video_25",
+    "purchase_value","purchase_roas","purchase_roas_website",
+    "signup_button_conversions","signup_button_conversion_value","video_starts","video_25",
     "video_50","video_75","video_95","video_completes","thruplays","video_avg_watch_time",
     "quality_ranking","engagement_rate_ranking","conversion_rate_ranking","creative_id",
     "creative_thumbnail_url","ig_thumbnail_url","placement_thumbnail_url","creative_title",
