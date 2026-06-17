@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<!--
+  Headless render surface for VMCH report charts.
+  render_charts.py opens this with Playwright, calls window.renderChart(cfg) per
+  chart, then screenshots the #stage canvas. Chart.js is vendored locally (no CDN
+  dependency at render time) — drop chart.umd.min.js next to this file (the
+  render script fetches it on first run if missing).
+
+  Palette mirrors dash/dashboard.html :root — keep in sync.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<style>
+  html,body{margin:0;padding:0;background:#fff;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;}
+  #wrap{padding:16px;}
+  #stage{display:block;}
+</style>
+<script src="./chart.umd.min.js"></script>
+</head>
+<body>
+<div id="wrap"><canvas id="stage"></canvas></div>
+<script>
+  const VMCH = {
+    orange:'#EB3300', orangeDeep:'#C22A00', orangeSoft:'#FCE3DA',
+    maroon:'#4C2736', maroon2:'#7A4154', maroonSoft:'#F3E7EB',
+    ink:'#2A1E20', ink2:'#574A4C', mute:'#8C7E80', line:'#E7DDD8',
+  };
+  // Palette ramp for categorical charts (donuts / multi-series).
+  window.VMCH_RAMP = [
+    VMCH.orange, VMCH.maroon, VMCH.maroon2, VMCH.orangeDeep,
+    '#D98A2B', '#6E8B6F', '#9C6B8E', '#B8B0A6',
+  ];
+
+  let chart = null;
+
+  // Called by Playwright. cfg = {width,height,type,data,options}.
+  // Returns once the chart has finished its (disabled) animation so the
+  // screenshot is deterministic.
+  window.renderChart = function(cfg){
+    const cv = document.getElementById('stage');
+    const wrap = document.getElementById('wrap');
+    cv.width = cfg.width; cv.height = cfg.height;
+    cv.style.width = cfg.width + 'px'; cv.style.height = cfg.height + 'px';
+    wrap.style.width = (cfg.width + 32) + 'px';
+
+    if (chart) { chart.destroy(); chart = null; }
+
+    Chart.defaults.font.family = '-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif';
+    Chart.defaults.color = VMCH.ink2;
+    Chart.defaults.font.size = 13;
+
+    const opts = Object.assign({
+      responsive: false,
+      animation: false,
+      devicePixelRatio: 2,            // crisp PNG for slides
+      plugins: { legend: { labels: { boxWidth: 14, font: { size: 12 } } } },
+    }, cfg.options || {});
+
+    chart = new Chart(cv.getContext('2d'), {
+      type: cfg.type, data: cfg.data, options: opts,
+    });
+    return true;
+  };
+
+  window.chartReady = function(){ return !!chart; };
+</script>
+</body>
+</html>

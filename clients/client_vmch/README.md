@@ -38,8 +38,23 @@ Desk programmatic display) set against the VMCH website (GA4).
 history**; flight marked on charts) + **Campaign** (4 service lines). No Country/Platform chips (single
 market, single platform).
 
-- **Overview** — ad spend + website sessions + enquiry events (3-axis hero), **Attributed-conversions
-  KPI** (post-view + post-click), channel donut, paid-vs-rest stack, ad delivery, AI commentary.
+- **Overview** — the **combined campaign story**: the standalone `VMCH_Campaign_Analysis.html` retrospective
+  (Oct 2025 – Mar 2026) **stitched to the live flight** (Apr 2026 →) into one continuous timeline. Built by
+  the `OV` IIFE in `dash/dashboard.html`: the historical daily series is **hard-coded** in the module
+  (`__HIST_DATA__`) and merged at render time with the live `DATA.daily` / `DATA.ad_campaign_daily` (the two
+  are contiguous — analysis ends 2026-03-29, live begins 2026-04-01, no overlap). Channel map by campaign
+  prefix: SAH→sah, RL→rl (live-only), RAC→rac, Disability→dis; `rt`=Retargeting is historical-only. Every
+  time-series chart has a **Month/Week** grain toggle (`OV.setGrain`; aggregates the combined daily via `byGrain`)
+  that re-renders the whole tab. Hero = **"effect of spend on results"**: spend stacked by platform (bars, drawn
+  **behind**, `order:20`) + website-sessions line (front) + total-impressions line, with per-channel
+  impressions/clicks + total clicks as **hidden, legend-toggleable** lines. Then exec summary,
+  combined KPIs (full-timeline spend/imps/clicks/sessions + the original-flight 100 conversions + live TTD
+  attributed), the 6 analysis charts (traffic overlay, first visits, engagement, campaign-by-unit — all
+  continuous where data exists; first-visit/bounce/page-views/pages-per-session are historical-only as the
+  live feed doesn't carry them), the disability conversion ramp, conversion breakdown + ROAS/LTV tables +
+  8 recommendations (the Oct–Mar campaign retrospective). The date/campaign filters are inert on this tab
+  (the combined narrative is fixed); they still drive the other three tabs. To revise, edit `OV` in
+  `dash/dashboard.html` and redeploy the service — front-end only, no job/view change.
 - **Trade Desk** — delivery KPIs (spend/imps/clicks/CTR/CPM/CPC), monthly spend+clicks, spend-by-
   campaign donut, campaign breakdown table (**now with Post-view / Post-click columns**), top ad groups,
   creative-format mix.

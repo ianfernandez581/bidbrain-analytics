@@ -293,11 +293,14 @@ def _may_open(client):
 
 def _forward(client, subpath, cookies):
     url = f"{_upstream_base(client)}/{subpath}"
+    # /report runs a live LLM (web research + structuring, or the Gemini fallback) and can take a
+    # minute-plus to generate a cold (uncached) view; every other route is a fast static/JSON fetch.
+    timeout = 600 if subpath == "report" else 30
     if request.method == "POST":
         return requests.post(url, data=request.get_data(), params=request.args, cookies=cookies,
                              headers={"Content-Type": request.headers.get("Content-Type", "")},
-                             allow_redirects=False, timeout=30)
-    return requests.get(url, params=request.args, cookies=cookies, allow_redirects=False, timeout=30)
+                             allow_redirects=False, timeout=timeout)
+    return requests.get(url, params=request.args, cookies=cookies, allow_redirects=False, timeout=timeout)
 
 
 def _unauth(resp, subpath):
@@ -322,8 +325,9 @@ def proxy(client, subpath):
         resp = _forward(client, subpath, _upstream_login(client))
     ctype = resp.headers.get("Content-Type", "application/octet-stream")
     body = resp.content
-    if "text/html" in ctype:                        # keep the dashboard's data fetch inside the proxy
+    if "text/html" in ctype:                        # keep the dashboard's same-origin fetches inside the proxy
         body = body.replace(b"/data.json", f"/d/{client}/data.json".encode())
+        body = body.replace(b"'/report'", f"'/d/{client}/report'".encode())  # AI report POST (mongodb)
     out = Response(body, status=resp.status_code, content_type=ctype)
     out.headers["Cache-Control"] = "no-store"
     loc = resp.headers.get("Location")

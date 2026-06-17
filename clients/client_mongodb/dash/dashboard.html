@@ -391,7 +391,7 @@
 <div class="container">
   <div id="loading" class="loading">
     <div class="spinner"></div>
-    <div>Fetching dashboard data from BigQuery…</div>
+    <div>Fetching dashboard data…</div>
   </div>
   <div id="error" class="error-box" style="display:none">
     <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
@@ -2169,7 +2169,7 @@ async function downloadReport(){
 // Consumes the structured report: headline / overall_status / campaign_type / confidence_note /
 // slide1{summary,kpis[]} / slide2{summary,drivers[]} / slide3{summary,actions[]} / sources[].
 // KPI values are shown as the model copied them VERBATIM from the figures we POSTed (the same
-// numbers sit one tab away on the dashboard, and the footer says figures are live from BigQuery).
+// numbers sit one tab away on the dashboard, and the footer says figures are live from source data).
 const BB_STATUS = {ahead:'Ahead of plan', on_track:'On track', at_risk:'At risk', behind:'Behind plan', mixed:'Mixed', neutral:'Monitoring'};
 const BB_ENGINE = {content_syndication:'Lead engine', paid_display:'Display', budget:'Budget',
   overall:'Overall', both:'Both', external:'Market', measurement:'Measurement'};
@@ -2204,7 +2204,7 @@ function bbFooter(payload, pageLabel, modelLabel){
     `<span><b>Campaign:</b> ${bbEsc(ctx.campaign)}</span><span><b>Regions:</b> ${bbEsc(mkts)}</span>` +
     `<span><b>Flight:</b> ${bbEsc(win.start||'—')} → ${bbEsc(win.end||'—')}</span>` +
     `<span><b>Data through:</b> ${bbEsc(thruTxt)}</span></div>` +
-    `<div class="bb-disc">Prepared by Transmission · Confidential. Figures are live from BigQuery; the analysis and ` +
+    `<div class="bb-disc">Prepared by Transmission · Confidential. Figures are pulled live from source data; the analysis and ` +
     `recommendations were produced by ${bbEsc(modelLabel || 'AI')} with live web research and should be reviewed before circulation.</div></div>`;
 }
 

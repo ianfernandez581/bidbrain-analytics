@@ -347,8 +347,12 @@ def _client():
         raise RuntimeError("ANTHROPIC_API_KEY is not configured on this service")
     # Bound each call (gunicorn runs --timeout 0, so only Cloud Run's 900s cap would otherwise stop
     # a hung upstream — which would pin a worker thread and keep burning tokens). 300s/call leaves
-    # room for both stages + continuations under the 900s service timeout; retry once, not twice.
-    return anthropic.Anthropic(timeout=300.0, max_retries=1)
+    # room for both stages + continuations under the 900s service timeout.
+    # max_retries=0: on a 429/529 the SDK otherwise sleeps the rate-limit `retry-after` (~60s) before
+    # one doomed retry — on a low org tier (e.g. 10k ITPM for Opus) that just makes the "Download
+    # report" button hang. Fail fast instead so generate_report()'s rate-limit branch flips to the
+    # Gemini fallback in seconds, not a minute. Claude still serves the report when it has headroom.
+    return anthropic.Anthropic(timeout=300.0, max_retries=0)
 
 
 def _research(client, brief):
