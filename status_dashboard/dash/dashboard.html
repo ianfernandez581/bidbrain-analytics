@@ -95,6 +95,10 @@
   .qnote{color:var(--faint);font-size:11.5px;margin-top:6px;max-width:640px}
   .checked{color:var(--faint);font-size:11px;margin-top:4px}
   .err{color:var(--bad);font-size:12px}
+  table.acc tr.grp td{padding:10px 17px 5px;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;
+       color:var(--digital);font-weight:800;background:var(--panel2)}
+  .accsum{font-size:12.5px;color:var(--mute);font-weight:600;font-variant-numeric:tabular-nums}
+  .accsum .badn{color:var(--bad)}
   .loading{color:var(--mute);padding:40px 0;text-align:center}
 </style>
 </head>
@@ -211,36 +215,51 @@ function syncCard(c){
     '</div>';
 }
 
+function accRow(chk){
+  var sf=chk.snowflake_value, dv=chk.dashboard_value, m=chk.match;
+  var tag;
+  if(chk.error) tag='<span class="mtag na">'+dot("unknown")+'query error</span>';
+  else if(m===true) tag='<span class="mtag ok">✓ MATCH</span>';
+  else if(m===false){
+    var diff=(sf!=null&&dv!=null)?Math.abs(Number(sf)-Number(dv)):null;
+    tag='<span class="mtag bad">✗ off by '+(diff!=null?fmtNum(diff):"?")+'</span>';
+  } else tag='<span class="mtag na">'+dot("unknown")+'no data</span>';
+  var note = chk.note ? '<div class="qnote">'+esc(chk.note)+'</div>' : '';
+  var errLine = chk.error ? '<div class="err">'+esc(chk.error)+'</div>' : '';
+  return ''+
+    '<tr>'+
+      '<td><div style="font-weight:600">'+esc(chk.label)+'</div>'+
+        '<details class="q"><summary>show the Snowflake query</summary>'+
+          '<pre class="sql">'+esc(chk.snowflake_query)+'</pre>'+note+
+          '<div class="checked">checked '+fmtAge(chk.computed_at)+'</div>'+errLine+
+        '</details></td>'+
+      '<td class="num sf">'+fmtNum(sf)+'</td>'+
+      '<td class="num dash">'+fmtNum(dv)+'</td>'+
+      '<td>'+tag+'</td>'+
+    '</tr>';
+}
+
 function accCard(c){
-  var rows = (c.accuracy||[]).map(function(chk){
-    var sf=chk.snowflake_value, dv=chk.dashboard_value, m=chk.match;
-    var tag;
-    if(chk.error) tag='<span class="mtag na">'+dot("unknown")+'query error</span>';
-    else if(m===true) tag='<span class="mtag ok">✓ MATCH</span>';
-    else if(m===false){
-      var diff=(sf!=null&&dv!=null)?Math.abs(Number(sf)-Number(dv)):null;
-      tag='<span class="mtag bad">✗ off by '+(diff!=null?fmtNum(diff):"?")+'</span>';
-    } else tag='<span class="mtag na">'+dot("unknown")+'no data</span>';
-    var note = chk.note ? '<div class="qnote">'+esc(chk.note)+'</div>' : '';
-    var errLine = chk.error ? '<div class="err">'+esc(chk.error)+'</div>' : '';
-    return ''+
-      '<tr>'+
-        '<td><div style="font-weight:600">'+esc(chk.label)+'</div>'+
-          '<details class="q"><summary>show the Snowflake query</summary>'+
-            '<pre class="sql">'+esc(chk.snowflake_query)+'</pre>'+note+
-            '<div class="checked">checked '+fmtAge(chk.computed_at)+'</div>'+errLine+
-          '</details></td>'+
-        '<td class="num sf">'+fmtNum(sf)+'</td>'+
-        '<td class="num dash">'+fmtNum(dv)+'</td>'+
-        '<td>'+tag+'</td>'+
-      '</tr>';
-  }).join("");
+  var checks = c.accuracy||[];
+  var nOk=0, nBad=0, nNa=0;
+  checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++; else nNa++; });
+  // Render rows, inserting a group sub-header whenever the data domain changes.
+  var body="", lastGroup=null;
+  checks.forEach(function(chk){
+    var g = chk.group||"";
+    if(g!==lastGroup){ lastGroup=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; }
+    body += accRow(chk);
+  });
+  var summary = checks.length
+    ? '<span class="accsum">'+nOk+'/'+checks.length+' match'+
+        (nBad?' · <span class="badn">'+nBad+' off</span>':'')+(nNa?' · '+nNa+' n/a':'')+'</span>'
+    : '';
   return ''+
     '<div class="card">'+
-      '<div class="head"><div class="cname">'+esc(c.label)+'</div></div>'+
+      '<div class="head"><div class="cname">'+esc(c.label)+'</div>'+summary+'</div>'+
       '<table class="acc"><thead><tr>'+
         '<th>Metric</th><th>Snowflake</th><th>Dashboard</th><th>Match</th>'+
-      '</tr></thead><tbody>'+(rows||'<tr><td colspan="4" class="qnote">No checks.</td></tr>')+'</tbody></table>'+
+      '</tr></thead><tbody>'+(body||'<tr><td colspan="4" class="qnote">No checks.</td></tr>')+'</tbody></table>'+
     '</div>';
 }
 

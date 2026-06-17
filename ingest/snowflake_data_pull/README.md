@@ -60,6 +60,7 @@ client reads this one shared raw layer and applies its own `WHERE` + rollups in 
 | `APAC_ALL_PLATFORM.PUBLIC."DV360 - APAC"` | `raw_snowflake.dv360_apac` |
 | `APAC_ALL_PLATFORM.PUBLIC."Google Ads - APAC"` | `raw_snowflake.google_ads_apac` |
 | `APAC_ALL_PLATFORM.PUBLIC."Google Analytics Data_APAC ALL"` | `raw_snowflake.google_analytics_apac_all` |
+| `APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL-Conversion"` | `raw_snowflake.tradedesk_apac_conversion` (per-fire TTD Universal Pixel; MongoDB content engagement) |
 
 **To add another source table:** add one line to the `TABLES` dict in [`loader.py`](loader.py).
 
@@ -96,7 +97,9 @@ WHERE  CAMPAIGN_ID IN ('701RG…','701RG…')   -- per-client filter
 
 Today's consumers (verified against each client's `sql/` + job, 2026-06-13):
 - **MongoDB** filters `tradedesk_apac_all` (by advertiser) and `salesforce_cs_apac_all` (by
-  campaign IDs) — see [`clients/client_mongodb/sql/`](../../clients/client_mongodb/sql/README.md).
+  campaign IDs), and reads `tradedesk_apac_conversion` for its live Universal-Pixel
+  content-engagement section (`ADVERTISER_ID='9c1w83i'`) — see
+  [`clients/client_mongodb/sql/`](../../clients/client_mongodb/sql/README.md).
 - **STT** filters `google_ads_apac`, `google_analytics_apac_all`, `linkedin_ads_apac`, and
   `dv360_apac` in its staging views (see [`clients/client_STT/sql/`](../../clients/client_STT/sql/README.md)).
 - **Schneider** filters `tradedesk_apac_all`, `linkedin_ads_apac`, `dv360_apac`, and

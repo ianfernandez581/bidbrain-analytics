@@ -48,6 +48,10 @@ TABLES = {
     'APAC_ALL_PLATFORM.PUBLIC."DV360 - APAC"':            "dv360_apac",
     'APAC_ALL_PLATFORM.PUBLIC."Google Ads - APAC"':       "google_ads_apac",
     'APAC_ALL_PLATFORM.PUBLIC."Google Analytics Data_APAC ALL"': "google_analytics_apac_all",
+    # Per-fire Trade Desk Universal Pixel conversions (one row per pixel fire) —
+    # the per-pixel/per-campaign breakdown the blended tradedesk_apac_all drops.
+    # MongoDB's content-engagement section reads its slice (ADVERTISER_ID='9c1w83i').
+    'APAC_ALL_PLATFORM.PUBLIC."TradeDesk_APAC ALL-Conversion"': "tradedesk_apac_conversion",
 }
 
 

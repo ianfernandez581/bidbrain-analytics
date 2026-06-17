@@ -6,19 +6,16 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when an
 # upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
 # ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
-#   * SNOWFLAKE_TABLES are the live ad/lead mirrors; they also define `data_through`.
-#   * SEED_TABLES is the static Universal-Pixel snapshot (loaded by seed_pixel.py).
-#     It's a gate so re-dropping a fresh CSV + re-seeding makes the next */10 tick
-#     rebuild automatically — but it is kept OUT of `data_through` so the seed's
-#     load time never overstates how current the live ad/lead data is.
+# These are the live mirrors the views read; they also define `data_through`.
+# `tradedesk_apac_conversion` backs the Universal-Pixel content-engagement section
+# (live since the manual CSV seed was retired), so it both gates the rebuild and
+# counts toward `data_through`.
 SNOWFLAKE_TABLES = [
     "raw_snowflake.tradedesk_apac_all",
     "raw_snowflake.salesforce_cs_apac_all",
+    "raw_snowflake.tradedesk_apac_conversion",
 ]
-SEED_TABLES = [
-    "client_mongodb.seed_tradedesk_pixel",
-]
-GATING_TABLES = SNOWFLAKE_TABLES + SEED_TABLES
+GATING_TABLES = SNOWFLAKE_TABLES
 WATERMARK_OBJECT = "_freshness.json"
 
 # --- Project-wide constants ---------------------------------------------------
@@ -83,16 +80,18 @@ def main():
     cso = rows(bq, f"SELECT * FROM {t('cs_leads')}")
     csp = rows(bq, f"SELECT * FROM {t('cs_leads_by_programme')}")
 
-    # Content-engagement snapshot (Trade Desk Universal Pixel, seeded by seed_pixel.py
-    # via the pixel_* views). Resilient: if the seed/views aren't present yet, the rest
-    # of the dashboard still builds and the UI simply hides the section.
+    # Content-engagement snapshot (Trade Desk Universal Pixel) — LIVE from
+    # raw_snowflake.tradedesk_apac_conversion via the pixel_* views (the manual CSV
+    # seed was retired). Emitted PER CAMPAIGN ('DNB' / 'IDC') so the dashboard's
+    # campaign toggle can pick its slice client-side. Resilient: if the views aren't
+    # present yet, the rest of the dashboard still builds and the UI hides the section.
     pixel = None
     try:
-        s = rows(bq, f"SELECT * FROM {t('pixel_summary')}")[0]
-        assets = rows(bq, f"SELECT * FROM {t('pixel_assets')}")
-        dims = rows(bq, f"SELECT * FROM {t('pixel_dims')}")
+        summ   = rows(bq, f"SELECT * FROM {t('pixel_summary')}")   # one row per CAMPAIGN_KEY
+        assets = rows(bq, f"SELECT * FROM {t('pixel_assets')}")    # per CAMPAIGN_KEY x asset
         pixel = {
-            "summary": {
+            # keyed by campaign: the dash reads pixel.summary[activeCampaign].
+            "summary": {s["CAMPAIGN_KEY"]: {
                 "start": iso(s["START_DAY"]), "end": iso(s["END_DAY"]), "days": s["DAYS"],
                 "imps": s["IMPS"], "cost_usd": s["COST_USD"], "clicks": s["CLICKS"],
                 "all_conv": s["ALL_CONV"],
@@ -100,12 +99,11 @@ def main():
                 "content_view": s["CONTENT_VIEW"],
                 "default_total": s["DEFAULT_TOTAL"], "default_view": s["DEFAULT_VIEW"],
                 "default_click": s["DEFAULT_CLICK"],
-            },
-            "assets": [{"key": r["ASSET_KEY"], "asset": r["ASSET"], "total": r["TOTAL_CONV"],
-                        "click": r["CLICK_CONV"], "view": r["VIEW_CONV"]} for r in assets],
-            "dims": {d: [{"label": r["LABEL"], "imps": r["IMPS"], "cost_usd": r["COST_USD"],
-                          "clicks": r["CLICKS"]} for r in dims if r["DIM"] == d]
-                     for d in ("device", "environment", "format")},
+            } for s in summ},
+            # each asset tagged with its campaign so the dash filters by the toggle.
+            "assets": [{"campaign": r["CAMPAIGN_KEY"], "key": r["ASSET_KEY"], "asset": r["ASSET"],
+                        "total": r["TOTAL_CONV"], "click": r["CLICK_CONV"], "view": r["VIEW_CONV"]}
+                       for r in assets],
         }
     except Exception as e:
         print(f"pixel views unavailable -> skipping content-engagement block: {e}")

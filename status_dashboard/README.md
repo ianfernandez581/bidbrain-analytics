@@ -44,28 +44,57 @@ The headline case: when we're **caught up** and the data still looks old, the ve
 
 ## Data Accuracy — provenance
 
-Every accuracy query was extracted from each client's `sql/` views + `job/main.py` and **adversarially
-verified** against the live view filters (so the dashboard never shows a false ✗). Key points per the
-verification:
+The accuracy tab now carries the **comprehensive** list of every important query that feeds each dashboard —
+**one check per source pull**, grouped by data domain (Trade Desk / LinkedIn / DV360 / GA4 / Content
+Syndication / single-campaign dashboards / "All paid channels"). **~77 checks across the 6 clients.** Each
+was extracted from that client's `sql/` views + `job/main.py` + dashboard JS, and reproduces the SAME view
+filters (advertiser/account/campaign IDs, lead-status sets, singular-vs-plural columns) so the Snowflake
+query is a true like-for-like. Each card shows an `n/n match` summary in its header. Principles:
 
-- **Spend is never used for an equality check** — most clients FX-convert it (AUD/SGD/JPY→USD), so it
-  wouldn't match. Checks use un-transformed integers: lead **counts**, **impressions**, **clicks**, **leads**.
-- **Compared against un-scoped JSON sums**, not the on-screen KPI. On the client dashboards the headline
-  KPIs are scoped by campaign/market/date pickers; the raw JSON arrays are the faithful pass-through.
-- **mongodb CS** — validated over **all 4** CS `CAMPAIGN_ID`s (3 DNB `701RG00001DtQczYAF`/`HcDIVYA3`/`GvvrDYAR`
-  **+ the funded KGA/IDC `701RG00001NKKwQYAX`**) across **4 buckets** — Total / Accepted (`= 'Accepted'`) /
-  Rejected (`= 'Rejected'`) / New (`IN ('Unresponsive','Do Not Contact','New')`) — matching the `cs_leads` view byte-for-byte,
-  each compared to the un-scoped `sum(cs[].<bucket>)` in the JSON. **KGA/IDC (NULL programme) is the largest
-  CS campaign — ~479 leads, almost all New/unprocessed — so it must be counted**; the live `02_stg_salesforce.sql`
-  view filters all 4 IDs and `cs_leads` groups by market with no programme filter, giving **881 total / 353
-  accepted / 0 rejected / 527 new**. (Excluding KGA/IDC would drop Total to 402 and New to 49 and read RED.)
-- **cloudflare CS** reads Snowflake modelled views directly, so its accuracy query hits the very view the
-  dashboard was built from — bulletproof regardless of mirror sync.
+- **Separated, not blended.** Distinct source pulls each get their own row (per platform; mongodb's DNB
+  programmes vs KGA(IDC); proptrack's click vs view-through conversions). A genuinely *combined* metric —
+  the "All paid channels" rollup — stays as ONE combined check (cross-table sum) since decomposing it adds
+  nothing the per-platform rows don't already cover.
+- **Spend is deliberately never equality-checked.** Most clients FX-convert it (AUD/SGD/JPY→USD) and even
+  native spend is a float, so a rounded equality would read as a false ✗. Checks use un-transformed
+  integers only: lead **counts**, **impressions**, **clicks**, **conversions**, **leads**, **sessions**,
+  **key events**.
+- **Compared against un-scoped JSON values** (the whole-flight `kpi.*` block, or the raw `rows[]`/`pacing`
+  arrays for mongodb/cloudflare), never the on-screen KPI — those are scoped by the campaign/market/date
+  pickers, whereas the JSON is the faithful pass-through.
+- **mongodb Content Syndication — DNB and KGA(IDC) are now SEPARATE groups** (previously KGA/IDC was
+  invisible; only one combined DNB check existed):
+  - **DNB** = the 3 programme campaigns (`701RG00001DtQczYAF`/`HcDIVYA3`/`GvvrDYAR`), which carry a non-null
+    programme label in `cs_by_programme`. Broken out into **Total** (`COUNT(*)`), **Accepted**, **New**
+    (Unresponsive + New — NO 'Do Not Contact'), and **Rejected**.
+  - **KGA(IDC)** = campaign `701RG00001NKKwQYAX`, whose `PROGRAMME_LABEL` is NULL (the only null-programme
+    rows). Its **Delivered leads** = `Unresponsive + Do Not Contact + New` ONLY (no Accepted/Rejected
+    lifecycle) — which is why its stored `total` is that 3-status count, NOT `COUNT(*)`.
+  - **Mutable-source caveat:** mongodb CS reads the **BQ mirror**, and the Salesforce lead table is mutable
+    (leads continuously added / re-statused), so the CS rows can sit a few leads off the **live** source even
+    when the pipeline is healthy — a normal mirror lag, not a fault (cloudflare CS matches exactly only because
+    it reads the live modelled view *direct*). The delta's magnitude is the signal; the **Sync tab** is the
+    authority on pipeline health. Paid-media counts are append-only and match exactly.
+- **cloudflare** reads Snowflake **modelled views directly** — paid media against
+  `…PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL` (per channel: TTD/LinkedIn/Reddit/LINE; LinkedIn is the only
+  channel with leads), CS against `…CS_REPORTING.V_PACING_FINAL_MODEL` (Accepted = Accepted+Replied+
+  Unresponsive — OPPOSITE of mongodb). The 3 single-campaign LinkedIn dashboards check their exact
+  `CAMPAIGN_GROUP_NAME` slices of the `raw_snowflake.linkedin_ads_apac` mirror.
 - **proptrack** TradeDesk impressions come from the **singular** `IMPRESSION` column (plural is NULL for that
-  advertiser); the advertiser is spelled **`PopTrack`** on TradeDesk.
+  advertiser) while LinkedIn uses the plural `IMPRESSIONS`; the advertiser is spelled **`PopTrack`** on
+  TradeDesk vs **`PropTrack`** on LinkedIn — the blended-impressions check mixes both columns deliberately.
+- **schneider** only its **ACTUAL** delivery is Snowflake-checkable; the plan/budget/target numbers
+  (`seed_*` tables) and the Pacific portfolio tag are seed-side and have no Snowflake source. TradeDesk imps
+  use `COALESCE(IMPRESSIONS, IMPRESSION)`; blended conversions key is `kpi.ad_conversions` (DV360 + TradeDesk;
+  LinkedIn's outcome is leads).
 
 Clients covered (Snowflake-sourced): **mongodb, cloudflare, stt, hireright, schneider, proptrack**.
-(cityperfume + resetdata read Windsor/GA4/Neto/Google-Ads natively — no Snowflake — so they're out of scope.)
+(cityperfume + resetdata + tlm + vmch read Windsor/GA4/Neto/Google-Ads natively — no Snowflake source to
+compare against — so they're out of scope here.)
+
+> **Not Snowflake-checkable** (shown nowhere in the accuracy tab, by design): FX-converted spend; derived
+> ratios (CTR/CPM/CPC/ROAS/VCR — recompute from the checked components); mongodb's Universal-Pixel section
+> (a static CSV seed, not in `raw_snowflake`); and all seed/plan/budget/target tables.
 
 ## Cost
 

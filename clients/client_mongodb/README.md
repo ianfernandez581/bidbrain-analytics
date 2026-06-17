@@ -168,8 +168,7 @@ reads whatever JSON is currently in the bucket.
 | `job/freshness.py` | Vendored self-gating helper (BQ `__TABLES__` probe + `_freshness.json` GCS watermark). |
 | `job/cloudbuild.yaml`, `job/Dockerfile` | How the job is built/deployed (used by a future trigger) |
 | `scheduler.ps1` | Creates/refreshes the Cloud Scheduler `*/10` UTC trigger that runs the self-gating `mongodb-export` job. |
-| `sql/*.sql` | BigQuery view definitions (the stage-2 transform); `01/02_stg_*` hold this client's filter; `11-13_pixel_*` are the content-engagement views (read the seed, not `raw_snowflake`) |
-| `seed_pixel.py` | Loads a TTD "Pixel - Overall Performance" CSV from `data/` → `seed_tradedesk_pixel`(+`_assets`) BQ tables (the static source for the content-engagement section). See below. |
+| `sql/*.sql` | BigQuery view definitions (the stage-2 transform); `01/02_stg_*` hold this client's filter; `11_stg_tradedesk_pixel`→`12_pixel_assets`/`13_pixel_summary` are the content-engagement views (LIVE from `raw_snowflake.tradedesk_apac_conversion`) |
 | `create_views.py` | Applies every `sql/*.sql` view to BigQuery |
 | `dash/main.py` | The web app — login + serves `dashboard.html` and the JSON (stage 3) |
 | `dash/dashboard.html` | The actual dashboard UI (all charts/tabs live here) |
@@ -178,34 +177,37 @@ reads whatever JSON is currently in the bucket.
 > Stage 1 (the Snowflake → `raw_snowflake` copy) lives in `../snowflake_data_pull/`
 > because it's shared by every client, not specific to MongoDB.
 
-## Content engagement (Trade Desk Universal Pixel) — a STATIC seed
+## Content engagement (Trade Desk Universal Pixel) — LIVE from Snowflake
 
-The Paid Media tab carries a **Content engagement** section sourced from a manual Trade Desk
-**"Pixel - Overall Performance"** export, NOT the live `raw_snowflake` feed (which only carries a
-single *blended* conversion count). The export breaks conversions out **by Universal Pixel event**
-— i.e. which content landing page people reached after seeing a display ad — and adds
-**Device / Ad-Environment / Creative-size** cuts the mirror drops.
+The Paid Media tab carries a **Content engagement** section, now sourced **live** from
+`raw_snowflake.tradedesk_apac_conversion` (the per-fire TTD Universal Pixel feed, mirrored by
+[`snowflake_data_pull`](../../ingest/snowflake_data_pull/README.md)) via `stg_tradedesk_pixel`
+→ `pixel_assets` / `pixel_summary`. It refreshes on the normal `*/10` cadence — **no manual CSV
+step** (the old `seed_pixel.py` + seed tables were retired). MongoDB's slice is
+`ADVERTISER_ID = '9c1w83i'` (the conversion table has no `ADVERTISER_NAME`).
 
 What the numbers mean:
-- **Content LP views** = the six named `MDB_UPM_LPView_*` pixels (real content engagement).
-  **Gartner MQ Leader dominates (~30× any other asset)** and is almost entirely click-driven.
+- **Content LP views** = the named `MDB_UPM_LPView_*` pixels (real content engagement). Under
+  **DNB**, **Gartner MQ Leader dominates (~30× any other asset)**; the content pixels are almost
+  entirely click-driven (click vs view-through is derived: `DISPLAY_CLICK_COUNT > 0`).
 - **Ad-influenced site visits** = the catch-all `Default` Universal Pixel, ~95% **view-through**
   (saw an ad, later reached mongodb.com). It's a reach/influence signal — **label it as such, not
   hard leads** (the dashboard does, in `#pxNote`).
-- The section is **filter-independent** — it covers the whole APJ demand-gen flight (both IDC &
-  IDE programmes, all markets) and ignores the campaign/region/date controls.
+- **Driven by the DNB / KGA(IDC) campaign toggle** (the same toggle as the rest of the Paid Media
+  tab), but **independent of the region & date filters**. Each fire's campaign is derived from its
+  attributed campaign name — `COALESCE(FIRST_DISPLAY_CLICK_CAMPAIGN_NAME,
+  FIRST_IMPRESSION_CAMPAIGN_NAME)` → `SPLIT("_")[2]` → `campaignOf` (IDE/DNB → DNB, else IDC) — so
+  100% of fires are attributed (zero unattributed). **KGA(IDC) is legitimately sparse** (~122
+  content LP views vs DNB's ~4,085) — the section renders the real numbers, it does not hide them.
+- The old **Device / Ad-Environment / Creative-size** dimension charts are **gone** — those cuts
+  aren't in the conversion feed.
 
-**To refresh it** (recurring): drop the new CSV into `data/` (gitignored) and re-seed —
-
-```powershell
-.\.venv\Scripts\python.exe clients\client_mongodb\seed_pixel.py   # loads seed_tradedesk_pixel(+_assets)
-```
-
-Re-seeding advances the export job's freshness gate (it watches `seed_tradedesk_pixel`), so the
-next `*/10` tick rebuilds `mongodb.json` automatically — no `FORCE_REBUILD` needed. On a **fresh
-project** run `seed_pixel.py` *before* `create_views.py` (the `pixel_*` views read the seed tables).
-If you change the SQL views or want an immediate rebuild, force it:
+It rebuilds automatically when new conversions land (the export job's freshness gate watches
+`raw_snowflake.tradedesk_apac_conversion`). For an immediate rebuild after a view edit, force it:
 `gcloud run jobs execute mongodb-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait`.
+
+> **History note:** the conversion feed starts **2026-06-01**, whereas the retired CSV seed
+> covered from May 19 — so the section no longer shows May 19–31; it went live 2026-06-17.
 
 ## See also
 

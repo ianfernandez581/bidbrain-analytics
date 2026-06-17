@@ -35,13 +35,13 @@ This job is **self-gating** (see the repo CLAUDE.md "Freshness contract"). Cloud
 it every 10 minutes UTC ([`../scheduler.ps1`](../scheduler.ps1)), but each tick first does a
 cheap metadata probe and **exits 0 without rebuilding unless the upstream actually advanced**:
 
-- **Gate source** = the BigQuery raw tables this job's views read, set in `GATING_TABLES`:
-  the live mirrors `raw_snowflake.tradedesk_apac_all` + `raw_snowflake.salesforce_cs_apac_all`
-  (`SNOWFLAKE_TABLES`), **plus** the static pixel seed `client_mongodb.seed_tradedesk_pixel`
-  (`SEED_TABLES`). It probes their `__TABLES__.last_modified_time` (metadata-only). Including the
-  seed means re-running [`../seed_pixel.py`](../seed_pixel.py) advances the gate, so a fresh CSV
-  rebuilds on the next tick with no `FORCE_REBUILD`. **`data_through` is derived from the Snowflake
-  subset only** — never the seed's load time, which would overstate how current the live data is.
+- **Gate source** = the BigQuery raw tables this job's views read, set in `GATING_TABLES`
+  (= `SNOWFLAKE_TABLES`): the live mirrors `raw_snowflake.tradedesk_apac_all`,
+  `raw_snowflake.salesforce_cs_apac_all`, and `raw_snowflake.tradedesk_apac_conversion` (the
+  per-fire TTD Universal Pixel feed backing the content-engagement section, **live since the
+  manual CSV seed was retired**). It probes their `__TABLES__.last_modified_time` (metadata-only),
+  and **`data_through` is the newest of these** — so the pixel section refreshes when conversions
+  advance, on the same `*/10` cadence as the rest of the dashboard.
 - **Watermark** = a tiny `_freshness.json` sidecar in this client's own bucket. Order matters:
   upload `mongodb.json` **first**, write the watermark **second**, so a failed upload simply
   retries next tick.
@@ -74,18 +74,17 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
   "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end, est_cpc (committed blended CPC; null for DNB IDE) */ ],
   "cs":              [ /* market, total, accepted, rejected, new, last_lead_day (status buckets: Accepted / Rejected / New=Unresponsive+Do Not Contact+New) */ ],
   "cs_by_programme": [ /* programme, market, total, accepted, rejected, new, last_lead_day (same buckets; for KGA/IDC total & new = Unresponsive+Do Not Contact+New only) */ ],
-  "pixel": {                                       // TTD Universal Pixel content-engagement snapshot; null if the seed/views are absent
-    "summary": { /* start, end, days, imps, cost_usd, clicks, all_conv, content_total/click/view (6 named pixels), default_total/view/click (catch-all) */ },
-    "assets":  [ /* key, asset, total, click, view — per named content landing page (Gartner MQ Leader, AI Readiness, …) */ ],
-    "dims":    { "device": [...], "environment": [...], "format": [...] }   // each: { label, imps, cost_usd, clicks }
+  "pixel": {                                       // TTD Universal Pixel content-engagement, LIVE & per-campaign; null if the views are absent
+    "summary": { /* keyed by CAMPAIGN_KEY "DNB"|"IDC"; each: start, end, days, imps, cost_usd, clicks, all_conv, content_total/click/view (named pixels), default_total/view/click (catch-all) */ },
+    "assets":  [ /* { campaign, key, asset, total, click, view } — per named content landing page × campaign (Gartner MQ Leader, AI Readiness, …) */ ]
   }
 }
 ```
 
 Source views, one per payload branch: `paid_media_model` → `rows`; `targets` → `targets`;
 `benchmarks_strategy` / `benchmarks_market`; `budget`; `cs_leads` → `cs`;
-`cs_leads_by_programme` → `cs_by_programme`; `pixel_summary` / `pixel_assets` / `pixel_dims` →
-`pixel` (wrapped in `try/except` → `null` if those views/seed don't exist yet). The `window` is
+`cs_leads_by_programme` → `cs_by_programme`; `pixel_summary` / `pixel_assets` → `pixel`
+(per-campaign; wrapped in `try/except` → `null` if those views don't exist yet). The `window` is
 computed from the min/max date in `paid_media_model`.
 
 ---

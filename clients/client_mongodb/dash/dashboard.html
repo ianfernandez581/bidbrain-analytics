@@ -574,7 +574,7 @@
           <h2 style="font-size:15px">Content engagement — Trade Desk Universal Pixel
             <span id="pxWindow" style="display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 9px;border-radius:999px;background:var(--mdb-mint);color:var(--mdb-forest);vertical-align:middle;margin-left:8px">snapshot</span>
           </h2>
-          <span class="sub">Which content landing pages the display ads sent people to, and the delivery mix across device, ad environment &amp; creative size — dimensions the live feed doesn't carry. <b>Fixed snapshot, independent of the campaign / region / date filters above.</b></span>
+          <span class="sub" id="pxSub">Which content landing pages the display ads sent people to. <b>Driven by the campaign toggle above; independent of the region &amp; date filters.</b></span>
         </div>
 
         <div class="kpis">
@@ -586,30 +586,10 @@
 
         <div id="pxNote" class="info-note">The large “site visits” figure is the catch-all Universal Pixel’s <b>view-through</b> attribution — someone saw an ad, then later reached mongodb.com without clicking. It's a reach / influence signal, <b>not</b> hard leads. The chart below shows only the named <b>content</b> landing pages.</div>
 
-        <div class="grid-2-1">
-          <div class="card card-tall">
-            <h3>Content landing-page views by asset</h3>
-            <div class="hint">Named Universal Pixel events — clicked vs view-through. Gartner MQ Leader is the runaway hero (~30× any other asset).</div>
-            <div class="chart-wrap"><canvas id="pxAssets"></canvas></div>
-          </div>
-          <div class="card card-tall">
-            <h3>Spend by device</h3>
-            <div class="hint">Where the budget landed across device types.</div>
-            <div class="chart-wrap"><canvas id="pxDevice"></canvas></div>
-          </div>
-        </div>
-
-        <div class="grid">
-          <div class="card card-tall">
-            <h3>Spend by ad environment</h3>
-            <div class="hint">In-app vs open web vs mobile-optimised web.</div>
-            <div class="chart-wrap"><canvas id="pxEnv"></canvas></div>
-          </div>
-          <div class="card card-tall">
-            <h3>Impressions by creative size</h3>
-            <div class="hint">Which display formats delivered the volume.</div>
-            <div class="chart-wrap"><canvas id="pxFormat"></canvas></div>
-          </div>
+        <div class="card card-tall">
+          <h3>Content landing-page views by asset</h3>
+          <div class="hint">Named Universal Pixel events — clicked vs view-through, for the selected campaign. Under DNB, Gartner MQ Leader is the runaway hero (~30× any other asset).</div>
+          <div class="chart-wrap"><canvas id="pxAssets"></canvas></div>
         </div>
       </div>
     </div>
@@ -640,11 +620,11 @@
           </div>
         </div>
         <div class="group">
-          <div class="glbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· New = Unresponsive + New (+ Do Not Contact for KGA/IDC), awaiting manual triage</span></div>
+          <div class="glbl">Delivery <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· Trade Desk impressions, clicks &amp; CTR for the selected campaign / region(s)</span></div>
           <div class="pair triple">
-            <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cs_acc">—</div><div class="cnt" id="cs_acc_cnt">—</div></div>
-            <div class="stat"><div class="k">Rejected</div><div class="v" id="cs_rej">—</div><div class="cnt" id="cs_rej_cnt">—</div></div>
-            <div class="stat"><div class="k">New</div><div class="v" id="cs_new">—</div><div class="cnt" id="cs_new_cnt">—</div></div>
+            <div class="stat"><div class="k">Impressions</div><div class="v" id="cs_imp">—</div></div>
+            <div class="stat"><div class="k">Clicks</div><div class="v" id="cs_clk">—</div></div>
+            <div class="stat"><div class="k">CTR</div><div class="v" id="cs_ctr">—</div></div>
           </div>
         </div>
         <div class="group">
@@ -1478,26 +1458,31 @@ function renderPMMarketTable(rows) {
 }
 
 //==============================================================================
-// CONTENT ENGAGEMENT — Trade Desk Universal Pixel snapshot.
-// Self-contained: reads the static DATA.pixel block (seed_pixel.py -> pixel_* views)
-// and is intentionally INDEPENDENT of the campaign/region/date filters — it covers
-// the whole APJ demand-gen flight (both IDC & IDE programmes, all markets). Hidden
-// entirely if the feed carries no pixel block.
+// CONTENT ENGAGEMENT — Trade Desk Universal Pixel.
+// Reads the LIVE DATA.pixel block (raw_snowflake.tradedesk_apac_conversion -> pixel_*
+// views), keyed by campaign. DRIVEN BY the DNB/KGA(IDC) campaign toggle (the same
+// toggle as the Paid Media tab — renderPixelAll runs inside renderPaidAll, which
+// re-runs on a campaign change) but INDEPENDENT of the region/date filters. Hidden
+// only if the feed carries no pixel block, or the selected campaign has no impressions.
+// Under KGA(IDC) the content list is legitimately sparse (~122 LP views) — rendered
+// honestly, not hidden.
 //==============================================================================
-const PX_DIM_COLORS = ['#00684A','#00ED64','#C3E7CA','#3FA037','#023430','#9AD4B5','#0E6B57'];
 function pxFmtDay(s){ const d = new Date(String(s)+'T00:00:00'); return isNaN(d) ? String(s) : d.toLocaleDateString('en-US',{day:'numeric',month:'short'}); }
 
 function renderPixelAll(){
   const wrap = el('pxWrap'); if (!wrap) return;
   const px = DATA.pixel;
-  if (!px || !px.summary || !(px.summary.imps > 0)) { wrap.style.display = 'none'; return; }
+  const s  = px && px.summary ? px.summary[activeCampaign] : null;
+  if (!px || !s || !(s.imps > 0)) { wrap.style.display = 'none'; return; }
   wrap.style.display = 'block';
-  const s = px.summary;
+  const assets = (px.assets || []).filter(a => a.campaign === activeCampaign);
+
+  el('pxSub').innerHTML = `Which content landing pages the display ads sent people to, for <b>${CAMP[activeCampaign].label}</b>. Driven by the campaign toggle above; independent of the region &amp; date filters.`;
   el('pxWindow').textContent = `${pxFmtDay(s.start)} – ${pxFmtDay(s.end)} · ${s.days} days`;
 
   el('px_content').textContent     = fmtN(s.content_total);
   el('px_content_sub').textContent = `${fmtN(s.content_click)} clicked · ${fmtN(s.content_view)} view-through`;
-  const top = (px.assets || [])[0];
+  const top = assets.slice().sort((x,y)=>y.total-x.total)[0];
   el('px_top').textContent     = top ? top.asset : '—';
   el('px_top_sub').textContent = top ? `${fmtN(top.total)} views · ${s.content_total ? Math.round(top.total/s.content_total*100) : 0}% of content` : '—';
   el('px_imp').textContent     = fmtN_M(s.imps);
@@ -1505,12 +1490,11 @@ function renderPixelAll(){
   el('px_visits').textContent     = fmtN_M(s.default_total);
   el('px_visits_sub').textContent = `${s.default_total ? Math.round(s.default_view/s.default_total*100) : 0}% view-through (Default pixel)`;
 
-  renderPxAssets(px);
-  renderPxDims(px);
+  renderPxAssets(assets);
 }
 
-function renderPxAssets(px){
-  const a = (px.assets || []).slice().sort((x,y)=>y.total-x.total);
+function renderPxAssets(assets){
+  const a = (assets || []).slice().sort((x,y)=>y.total-x.total);
   charts.pxAssets = new Chart(el('pxAssets'), {
     type:'bar',
     data:{ labels:a.map(r=>r.asset), datasets:[
@@ -1522,37 +1506,6 @@ function renderPxAssets(px){
       plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.x)}` } } },
       scales:{ x:{stacked:true, beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>Number(v).toLocaleString()}},
                y:{stacked:true, grid:{display:false}, ticks:{font:{size:11}}} }
-    })
-  });
-}
-
-// Doughnut over a long-form dims list ([{label, imps, cost_usd, clicks}, …]).
-function pxDoughnut(id, list, valKey, valFmt){
-  const rows = (list || []).slice().sort((a,b)=>(b[valKey]||0)-(a[valKey]||0));
-  charts[id] = new Chart(el(id), {
-    type:'doughnut',
-    data:{ labels:rows.map(r=>r.label), datasets:[{ data:rows.map(r=>r[valKey]||0),
-      backgroundColor:rows.map((_,i)=>PX_DIM_COLORS[i % PX_DIM_COLORS.length]), borderColor:'#fff', borderWidth:2 }] },
-    options:{ responsive:true, maintainAspectRatio:false, cutout:'58%',
-      plugins:{ legend:{position:'bottom', labels:{boxWidth:8, boxHeight:8, font:{size:10}, padding:6}},
-        tooltip:{ callbacks:{ label:c=>{ const tot=rows.reduce((sm,r)=>sm+(r[valKey]||0),0);
-          return ` ${c.label}: ${valFmt(c.parsed)} (${tot?(c.parsed/tot*100).toFixed(1):0}%)`; } } } } }
-  });
-}
-
-function renderPxDims(px){
-  const d = px.dims || {};
-  pxDoughnut('pxDevice', d.device,      'cost_usd', v=>fmt$(v));
-  pxDoughnut('pxEnv',    d.environment, 'cost_usd', v=>fmt$(v));
-  // Creative size = impressions, as a horizontal bar (7 formats read better than a doughnut).
-  const f = (d.format || []).slice().sort((a,b)=>(b.imps||0)-(a.imps||0));
-  charts.pxFormat = new Chart(el('pxFormat'), {
-    type:'bar',
-    data:{ labels:f.map(r=>r.label), datasets:[{ label:'Impressions', data:f.map(r=>r.imps||0), backgroundColor:MDB.green, borderRadius:4 }] },
-    options: chartBase({
-      indexAxis:'y',
-      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ${fmtN(c.parsed.x)} imps` } } },
-      scales:{ x:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>fmtN_M(v)}}, y:{grid:{display:false}, ticks:{font:{size:11}}} }
     })
   });
 }
@@ -1676,17 +1629,16 @@ function renderCSSnap(p) {
   el('cs_daysleft').textContent      = fmtN(daysLeft);
   el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
 
-  // Lead quality — Accepted (delivered) vs Rejected vs still-New (Unresponsive + New;
-  // + Do Not Contact for KGA/IDC; awaiting manual triage). Denominator is total leads for all three.
-  const accRatio = p.leads ? p.accepted / p.leads : 0;
-  const rejRatio = p.leads ? p.rejected / p.leads : 0;
-  const newRatio = p.leads ? p.newLeads / p.leads : 0;
-  el('cs_acc').textContent     = p.leads ? fmtPct(accRatio,1) : '—';
-  el('cs_acc_cnt').textContent = p.leads ? fmtN(p.accepted) + ' leads' : '—';
-  el('cs_rej').textContent     = p.leads ? fmtPct(rejRatio,1) : '—';
-  el('cs_rej_cnt').textContent = p.leads ? fmtN(p.rejected) + ' leads' : '—';
-  el('cs_new').textContent     = p.leads ? fmtPct(newRatio,1) : '—';
-  el('cs_new_cnt').textContent = p.leads ? fmtN(p.newLeads) + ' leads' : '—';
+  // Delivery — Trade Desk impressions / clicks / CTR for the active campaign and selected
+  // region(s) (same campaign + region scope as the leads above; no date filter on this tab).
+  let imp = 0, clk = 0;
+  for (const r of (DATA.rows||[])){
+    if (campaignOf(r.programme) !== activeCampaign || !marketOk(r.market)) continue;
+    imp += r.imps || 0; clk += r.clicks || 0;
+  }
+  el('cs_imp').textContent = imp ? fmtN_M(imp) : '—';
+  el('cs_clk').textContent = clk ? fmtN(clk)   : '—';
+  el('cs_ctr').textContent = imp ? fmtPct(clk/imp,2) : '—';
 }
 
 function renderCSCpl(){

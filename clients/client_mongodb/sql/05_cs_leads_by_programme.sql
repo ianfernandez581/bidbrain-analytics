@@ -1,14 +1,18 @@
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_mongodb.cs_leads_by_programme` AS
 -- The KGA (IDC) campaign (701RG00001NKKwQYAX) is the ONLY NULL-PROGRAMME_LABEL group
--- here (the 3 DNB programmes are labelled in stg_salesforce). Per the client's
--- definition an IDC lead is "delivered" only when its status is Unresponsive /
--- Do Not Contact / New — so IDC's TOTAL_LEADS (= the dash's Total/Delivered number)
--- and its still-pending NEW_LEADS count exactly those three statuses. The DNB
--- programmes keep the full COUNT(*) Accepted/Rejected/New(=Unresponsive+New) lifecycle.
+-- here (the 3 DNB programmes are labelled in stg_salesforce). Two "delivered" definitions
+-- for TOTAL_LEADS (= the dash's Total/Delivered number):
+--   * KGA(IDC): delivered only when Unresponsive / Do Not Contact / New — so its
+--     TOTAL_LEADS and still-pending NEW_LEADS count exactly those three statuses.
+--   * DNB (the 3 programmes): TOTAL_LEADS counts New + Unresponsive + Accepted ONLY (the
+--     client's delivered-lead definition) — this EXCLUDES 'Unqualified' and 'Rejected',
+--     so it is NOT COUNT(*). (COUNT(*) over-counted by the 3 'Unqualified' Technical-DMs
+--     leads: 402 vs the correct 399.) ACCEPTED/REJECTED/NEW keep the full lifecycle
+--     breakdown (NEW = Unresponsive + New) and reconcile to TOTAL_LEADS.
 SELECT PROGRAMME_LABEL, MARKET,
   CASE WHEN PROGRAMME_LABEL IS NULL
        THEN COUNTIF(LEAD_STATUS IN ("Unresponsive","Do Not Contact","New"))
-       ELSE COUNT(*)
+       ELSE COUNTIF(LEAD_STATUS IN ("New","Unresponsive","Accepted"))
   END AS TOTAL_LEADS,
   COUNTIF(LEAD_STATUS="Accepted") AS ACCEPTED,
   COUNTIF(LEAD_STATUS="Rejected") AS REJECTED,

@@ -80,28 +80,81 @@ def _is_dummy(r):
     return str(r.get("LEAD_ID_SF") or "").startswith("DUMMY")
 
 
-# Cloudflare CS lives in Snowflake modelled views (read direct), so the dashboard
-# number is a COUNT over the passed-through pacing rows.
+def _kpi(key):
+    """dash-extractor: read d['kpi'][key] as a number (the whole-flight reference block)."""
+    return lambda d: _num(d.get("kpi", {}).get(key))
+
+
+# --- mongodb dash-side extractors --------------------------------------------
+# Trade Desk numbers are the un-scoped sum over the top-level rows[] array
+# (the campaign/region/date pickers only scope the on-screen KPI, not the JSON).
+def _mdb_rows(field):
+    return lambda d: sum(_num(r.get(field)) for r in d.get("rows", []))
+
+
+# Content-Syndication is split into DNB (the 3 programme campaigns, which carry a
+# non-null programme label) and KGA(IDC) (campaign NKKwQYAX, whose PROGRAMME_LABEL
+# is NULL -> the only null-programme rows in cs_by_programme). This is the
+# separation the monitor previously lacked: KGA(IDC) was invisible.
+def _mdb_dnb(field):
+    return lambda d: sum(_num(c.get(field)) for c in d.get("cs_by_programme", []) if c.get("programme"))
+
+
+def _mdb_idc(field):
+    return lambda d: sum(_num(c.get(field)) for c in d.get("cs_by_programme", []) if not c.get("programme"))
+
+
+# mongodb CS goes through the BQ mirror (raw_snowflake.salesforce_cs_apac_all), and the
+# Salesforce lead table is MUTABLE — leads are continuously added and re-statused — so a
+# small delta vs the live source count is normal mirror lag, NOT a pipeline fault (the
+# magnitude IS the signal: how many leads the mirror is behind). cloudflare CS matches
+# exactly only because it reads the live modelled view direct. The Sync tab is the
+# authority on whether the pipeline itself is healthy.
+_MDB_CS_NOTE = (" · Mutable source: mongodb CS reads the BQ mirror and Salesforce leads are "
+                "continuously added / re-statused, so a small delta vs the live source is normal "
+                "mirror lag, not a pipeline fault — the Sync tab is the authority on health.")
+
+
+# --- cloudflare dash-side extractors -----------------------------------------
+# Paid media: sum a field over paid_media.rows[] for one channel (the modelled
+# V_PAID_ADS_FINAL_MODEL emits 'TTD'/'LinkedIn'/'Reddit'/'LINE'; the dash also
+# tolerates the 'TradeDesk'/'LI' aliases, so match a set).
+def _cf_pm(field, channels):
+    return lambda d: sum(_num(r.get(field)) for r in d.get("paid_media", {}).get("rows", [])
+                         if r.get("channel") in channels)
+
+
+# CS: COUNT over the passed-through V_PACING_FINAL_MODEL rows, dummies excluded.
+def _cf_status(statuses):
+    return lambda d: sum(1 for r in d.get("pacing", {}).get("rows", [])
+                         if not _is_dummy(r) and r.get("LEAD_STATUS") in statuses)
+
+
 def _cf_total_leads(d):
-    rows = d.get("pacing", {}).get("rows", [])
-    return sum(1 for r in rows if not _is_dummy(r) and r.get("LEAD_STATUS") is not None)
+    return sum(1 for r in d.get("pacing", {}).get("rows", [])
+               if not _is_dummy(r) and r.get("LEAD_STATUS") is not None)
 
 
-def _cf_accepted(d):
-    A = {"Accepted", "Replied", "Unresponsive"}
-    rows = d.get("pacing", {}).get("rows", [])
-    return sum(1 for r in rows if not _is_dummy(r) and r.get("LEAD_STATUS") in A)
+# Single-campaign LinkedIn dashboards: campaigns.<key>.totals.<field>.
+def _cf_camp(key, field):
+    return lambda d: _num(d.get("campaigns", {}).get(key, {}).get("totals", {}).get(field))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# The per-client spec. Verified line-by-line against each client's sql/ views,
-# job/main.py and dashboard JS (see status_dashboard/README.md for provenance).
+# The per-client spec — the comprehensive list of every important data pull that
+# feeds each dashboard, separated by source (one check per platform × metric,
+# plus the lead/CS breakdowns broken out). Verified line-by-line against each
+# client's sql/ views, job/main.py and dashboard JS (see status_dashboard/README.md).
 #   sources : Snowflake source tables this client depends on (Transmission side).
 #   reads_direct : True only for cloudflare (reads Snowflake modelled views directly;
-#                  no BigQuery raw mirror in its CS path -> ingest stage = the build).
-#   checks  : accuracy comparisons. `dash` extracts the comparable number from the
-#             client's JSON; `sql` is the EXACT Snowflake query that should equal it.
-# Spend is never used for an equality check (FX-converted on most clients).
+#                  no BigQuery raw mirror in its CS / paid-media path).
+#   checks  : accuracy comparisons. `group` clusters checks by data domain in the UI;
+#             `dash` extracts the comparable number from the client's JSON; `sql` is
+#             the EXACT Snowflake query that should equal it.
+# Only un-transformed integers are equality-checked (counts / impressions / clicks /
+# conversions / leads / sessions). SPEND is deliberately never checked: most clients
+# FX-convert it (AUD/SGD/JPY->USD) and even native spend is a float, so a rounded
+# equality would read as a false ✗ — see the README "Data Accuracy" note.
 # ─────────────────────────────────────────────────────────────────────────────
 CLIENTS = [
     {
@@ -109,61 +162,77 @@ CLIENTS = [
         "sources": ["TradeDesk_APAC ALL", "Salesforce_CS_APAC_ALL"],
         "reads_direct": False,
         "checks": [
-            # Content-Syndication leads — ALL 4 MongoDB CS campaigns (3 DNB + the funded KGA/IDC),
-            # bucketed exactly as the cs_leads view (and the dashboard): Accepted = 'Accepted',
-            # Rejected = 'Rejected', New = 'Unresponsive' + 'Do Not Contact' + 'New'. KGA/IDC ('701RG00001NKKwQYAX',
-            # NULL programme) is the LARGEST CS campaign (~479 leads, almost all New/unprocessed), so
-            # it MUST be counted: the dashboard's cs[] (grouped by market, no programme filter) includes
-            # it → 881 total / 353 accepted / 0 rejected / 527 new across all four. The SQL mirrors that.
-            {"label": "Content-Syndication · Total leads", "kind": "count",
-             "dash": lambda d: sum(_num(c.get("total")) for c in d.get("cs", [])),
-             "sql": "SELECT COUNT(*) AS total_leads\n"
+            # --- Trade Desk paid media (rows[] = the whole-flight pass-through) ----
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _mdb_rows("imps"),
+             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'MongoDB';",
+             "note": "COALESCE(IMPRESSIONS, IMPRESSION): the source carries both a current and a legacy "
+                     "singular column. Clean integer (no FX). vs sum(rows[].imps)."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _mdb_rows("clicks"),
+             "sql": "SELECT SUM(CLICKS) AS clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'MongoDB';",
+             "note": "Clean integer pass-through. vs sum(rows[].clicks)."},
+            {"label": "Trade Desk · Conversions (click+view)", "kind": "sum", "group": "Trade Desk",
+             "dash": _mdb_rows("conversions"),
+             "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS conversions\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'MongoDB';",
+             "note": "The blended click+view conversion count. The per-Universal-Pixel breakout is a "
+                     "static seed (not in Snowflake) — see the README. vs sum(rows[].conversions)."},
+
+            # --- Content Syndication — DNB (3 programme campaigns) ----------------
+            # DNB rows in cs_by_programme carry a non-null programme label; total = the
+            # delivered statuses (New + Unresponsive + Accepted), NOT COUNT(*).
+            {"label": "DNB · Total leads", "kind": "count", "group": "Content Syndication — DNB",
+             "dash": _mdb_dnb("total"),
+             "sql": "SELECT COUNT(*) AS dnb_total_leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
-                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
-                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX');",
-             "note": "All 4 CS campaigns. Compared against the un-scoped sum of cs[].total in the JSON "
-                     "(which the cs_leads view builds from these very rows), NOT the on-screen 'Total leads' "
-                     "KPI (scoped to a programme + mapped markets). KGA/IDC alone is ~479 of the ~881."},
-            {"label": "Content-Syndication · Accepted leads", "kind": "count",
-             "dash": lambda d: sum(_num(c.get("accepted")) for c in d.get("cs", [])),
-             "sql": "SELECT COUNT(*) AS accepted_leads\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR')\n"
+                    "  AND LEAD_STATUS IN ('New','Unresponsive','Accepted');",
+             "note": "The 3 DNB programme campaigns (DtQcz / HcDIV / Gvvr). DNB delivered total = "
+                     "New + Unresponsive + Accepted ONLY — EXCLUDES 'Unqualified' / 'Rejected', so it is "
+                     "NOT COUNT(*) (COUNT(*) over-counts by the 3 'Unqualified' Technical-DMs leads: 402 vs "
+                     "399). vs sum(cs_by_programme[programme≠null].total)." + _MDB_CS_NOTE},
+            {"label": "DNB · Accepted", "kind": "count", "group": "Content Syndication — DNB",
+             "dash": _mdb_dnb("accepted"),
+             "sql": "SELECT COUNT(*) AS dnb_accepted\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
-                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
-                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX')\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR')\n"
                     "  AND LEAD_STATUS = 'Accepted';",
-             "note": "Accepted bucket = LEAD_STATUS 'Accepted' (matches cs_leads.ACCEPTED). "
-                     "Compared against sum(cs[].accepted) in the JSON. (KGA/IDC contributes 0 accepted.)"},
-            {"label": "Content-Syndication · Rejected leads", "kind": "count",
-             "dash": lambda d: sum(_num(c.get("rejected")) for c in d.get("cs", [])),
-             "sql": "SELECT COUNT(*) AS rejected_leads\n"
+             "note": "DNB accepted = LEAD_STATUS = 'Accepted'. vs sum(cs_by_programme[DNB].accepted)." + _MDB_CS_NOTE},
+            {"label": "DNB · New (Unresponsive + New)", "kind": "count", "group": "Content Syndication — DNB",
+             "dash": _mdb_dnb("new"),
+             "sql": "SELECT COUNT(*) AS dnb_new\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
-                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
-                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX')\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR')\n"
+                    "  AND LEAD_STATUS IN ('Unresponsive','New');",
+             "note": "DNB 'New' bucket = Unresponsive + New (does NOT include 'Do Not Contact' — that is "
+                     "KGA/IDC only). vs sum(cs_by_programme[DNB].new)." + _MDB_CS_NOTE},
+            {"label": "DNB · Rejected", "kind": "count", "group": "Content Syndication — DNB",
+             "dash": _mdb_dnb("rejected"),
+             "sql": "SELECT COUNT(*) AS dnb_rejected\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3','701RG00001GvvrDYAR')\n"
                     "  AND LEAD_STATUS = 'Rejected';",
-             "note": "Rejected bucket = LEAD_STATUS 'Rejected' (matches cs_leads.REJECTED). "
-                     "Compared against sum(cs[].rejected) in the JSON."},
-            {"label": "Content-Syndication · New (unprocessed) leads", "kind": "count",
-             "dash": lambda d: sum(_num(c.get("new")) for c in d.get("cs", [])),
-             "sql": "SELECT COUNT(*) AS new_leads\n"
+             "note": "DNB rejected = LEAD_STATUS = 'Rejected'. vs sum(cs_by_programme[DNB].rejected)." + _MDB_CS_NOTE},
+
+            # --- Content Syndication — KGA(IDC) (campaign NKKwQYAX) ---------------
+            # KGA/IDC has a NULL PROGRAMME_LABEL -> the only null-programme rows in
+            # cs_by_programme, and its 'delivered' definition DIFFERS from DNB.
+            {"label": "KGA(IDC) · Delivered leads", "kind": "count", "group": "Content Syndication — KGA(IDC)",
+             "dash": _mdb_idc("total"),
+             "sql": "SELECT COUNT(*) AS idc_delivered_leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
-                    "WHERE CAMPAIGN_ID IN ('701RG00001DtQczYAF','701RG00001HcDIVYA3',\n"
-                    "                      '701RG00001GvvrDYAR','701RG00001NKKwQYAX')\n"
+                    "WHERE CAMPAIGN_ID = '701RG00001NKKwQYAX'\n"
                     "  AND LEAD_STATUS IN ('Unresponsive','Do Not Contact','New');",
-             "note": "New bucket = LEAD_STATUS IN ('Unresponsive','Do Not Contact','New') (matches "
-                     "cs_leads.NEW_LEADS). Compared against sum(cs[].new) in the JSON. 'Do Not Contact' "
-                     "is IDC-only (1 lead); KGA/IDC contributes ~479 of these."},
-            {"label": "TradeDesk · Total impressions", "kind": "sum",
-             "dash": lambda d: sum(_num(r.get("imps")) for r in d.get("rows", [])),
-             "sql": "SELECT SUM(CAST(COALESCE(IMPRESSIONS, IMPRESSION) AS INTEGER)) AS imps\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'MongoDB';",
-             "note": "Clean integer pass-through (no FX). Compared against sum(rows[].imps) in the JSON."},
-            {"label": "TradeDesk · Total clicks", "kind": "sum",
-             "dash": lambda d: sum(_num(r.get("clicks")) for r in d.get("rows", [])),
-             "sql": "SELECT SUM(CAST(CLICKS AS INTEGER)) AS clicks\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'MongoDB';",
-             "note": "Clean integer pass-through. Compared against sum(rows[].clicks) in the JSON."},
+             "note": "KGA(IDC) is campaign NKKwQYAX — its delivered-leads definition is Unresponsive + "
+                     "Do Not Contact + New ONLY (no Accepted/Rejected lifecycle), which is why the dash "
+                     "stores its total as that 3-status count (NOT COUNT(*)). vs the KGA/IDC row "
+                     "(programme = null) total in cs_by_programme. This was previously MISSING from the monitor." + _MDB_CS_NOTE},
         ],
     },
     {
@@ -172,31 +241,147 @@ CLIENTS = [
                     "LinkedIn Ads - APAC", "Reddit Ads - APAC_ALL"],
         "reads_direct": True,
         "checks": [
-            {"label": "Content-Syndication · Total leads", "kind": "count",
+            # --- Paid media: the modelled V_PAID_ADS_FINAL_MODEL the build reads ---
+            # (the dashboard's paid_media.rows[] are a pass-through of this view, with
+            #  the per-channel staging filters already applied — read direct).
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _cf_pm("imps", {"TTD", "TradeDesk"}),
+             "sql": "SELECT SUM(IMPS) AS imps\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL IN ('TTD','TradeDesk');",
+             "note": "Reads the CF modelled view directly (not the raw mirror). vs sum of paid_media.rows[] "
+                     "where channel is TTD/TradeDesk."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _cf_pm("clicks", {"TTD", "TradeDesk"}),
+             "sql": "SELECT SUM(CLICKS) AS clicks\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL IN ('TTD','TradeDesk');",
+             "note": "vs sum of paid_media.rows[] clicks where channel is TTD/TradeDesk."},
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn (paid media)",
+             "dash": _cf_pm("imps", {"LinkedIn", "LI"}),
+             "sql": "SELECT SUM(IMPS) AS imps\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL IN ('LinkedIn','LI');",
+             "note": "vs sum of paid_media.rows[] imps where channel is LinkedIn/LI."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn (paid media)",
+             "dash": _cf_pm("clicks", {"LinkedIn", "LI"}),
+             "sql": "SELECT SUM(CLICKS) AS clicks\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL IN ('LinkedIn','LI');",
+             "note": "vs sum of paid_media.rows[] clicks where channel is LinkedIn/LI."},
+            {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn (paid media)",
+             "dash": _cf_pm("leads", {"LinkedIn", "LI"}),
+             "sql": "SELECT SUM(LEADS) AS leads\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL IN ('LinkedIn','LI');",
+             "note": "LinkedIn is the only paid channel reporting leads (TTD/Reddit/LINE carry 0). "
+                     "vs sum of paid_media.rows[] leads where channel is LinkedIn/LI."},
+            {"label": "Reddit · Impressions", "kind": "sum", "group": "Reddit",
+             "dash": _cf_pm("imps", {"Reddit"}),
+             "sql": "SELECT SUM(IMPS) AS imps\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL = 'Reddit';",
+             "note": "Reddit spend is native USD here (no ×2 markup — that is resetdata-only). "
+                     "vs sum of paid_media.rows[] imps where channel = Reddit."},
+            {"label": "Reddit · Clicks", "kind": "sum", "group": "Reddit",
+             "dash": _cf_pm("clicks", {"Reddit"}),
+             "sql": "SELECT SUM(CLICKS) AS clicks\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL = 'Reddit';",
+             "note": "vs sum of paid_media.rows[] clicks where channel = Reddit."},
+            {"label": "LINE · Impressions", "kind": "sum", "group": "LINE",
+             "dash": _cf_pm("imps", {"LINE"}),
+             "sql": "SELECT SUM(IMPS) AS imps\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL = 'LINE';",
+             "note": "LINE imps/clicks are clean integers; only its USD spend is FX-derived (JPY/155), so "
+                     "spend is not checked. vs sum of paid_media.rows[] imps where channel = LINE."},
+            {"label": "LINE · Clicks", "kind": "sum", "group": "LINE",
+             "dash": _cf_pm("clicks", {"LINE"}),
+             "sql": "SELECT SUM(CLICKS) AS clicks\n"
+                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
+                    "WHERE CHANNEL = 'LINE';",
+             "note": "vs sum of paid_media.rows[] clicks where channel = LINE."},
+
+            # --- Content Syndication (V_PACING_FINAL_MODEL, dummies excluded) ------
+            # CF map is the OPPOSITE of mongodb: Accepted = Accepted+Replied+Unresponsive.
+            {"label": "CS · Total leads", "kind": "count", "group": "Content Syndication",
              "dash": _cf_total_leads,
              "sql": "SELECT COUNT(*) AS total_leads\n"
                     "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS IS NOT NULL;",
-             "note": "CS reads Snowflake modelled views DIRECTLY, so this query hits the very view the "
-                     "dashboard was built from (campaign filter = the canonical 8 CS IDs, inside "
-                     "V_SALESFORCE_LEADS_LIVE). Counts all non-null statuses (incl. New)."},
-            {"label": "Content-Syndication · Accepted leads", "kind": "count",
-             "dash": _cf_accepted,
+             "note": "Reads the modelled view directly (campaign filter = the canonical 8 CS IDs, inside "
+                     "V_SALESFORCE_LEADS_LIVE). Counts every non-null status (incl. New)."},
+            {"label": "CS · Accepted (Accepted+Replied+Unresponsive)", "kind": "count", "group": "Content Syndication",
+             "dash": _cf_status({"Accepted", "Replied", "Unresponsive"}),
              "sql": "SELECT COUNT(*) AS accepted_leads\n"
                     "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
                     "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
                     "  AND LEAD_STATUS IN ('Accepted','Replied','Unresponsive');",
-             "note": "Accepted bucket = Accepted + Replied + Unresponsive. Compared against the same count "
-                     "over pacing.rows[] in the JSON."},
-            {"label": "LinkedIn ANZ-PEYC · Impressions", "kind": "sum",
-             "dash": lambda d: _num(d.get("campaigns", {}).get("peyc", {}).get("totals", {}).get("imps")),
+             "note": "Cloudflare's Accepted bucket = Accepted + Replied + Unresponsive (OPPOSITE of mongodb). "
+                     "vs the same count over pacing.rows[]."},
+            {"label": "CS · Rejected", "kind": "count", "group": "Content Syndication",
+             "dash": _cf_status({"Rejected"}),
+             "sql": "SELECT COUNT(*) AS rejected_leads\n"
+                    "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
+                    "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
+                    "  AND LEAD_STATUS = 'Rejected';",
+             "note": "vs count of pacing.rows[] with LEAD_STATUS = 'Rejected'."},
+            {"label": "CS · New / unprocessed", "kind": "count", "group": "Content Syndication",
+             "dash": _cf_status({"New"}),
+             "sql": "SELECT COUNT(*) AS new_leads\n"
+                    "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
+                    "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
+                    "  AND LEAD_STATUS = 'New';",
+             "note": "On the dash this is derived (total − accepted − rejected); checked here directly as "
+                     "LEAD_STATUS = 'New' over pacing.rows[]."},
+
+            # --- Single-campaign LinkedIn dashboards (raw_snowflake mirror) --------
+            # Each is its own dashboard, filtered by an exact CAMPAIGN_GROUP_NAME.
+            {"label": "ANZ PEYC · Impressions", "kind": "sum", "group": "LinkedIn — ANZ PEYC",
+             "dash": _cf_camp("peyc", "imps"),
              "sql": "SELECT SUM(IMPRESSIONS) AS imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_"
                     "APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PEYC';",
-             "note": "This number comes via the raw_snowflake.linkedin_ads_apac mirror, so it equals "
-                     "Snowflake only when the mirror is in sync — exactly what the Sync tab measures."},
+             "note": "Built via the raw_snowflake.linkedin_ads_apac mirror, so it equals Snowflake only "
+                     "when the mirror is in sync. vs campaigns.peyc.totals.imps."},
+            {"label": "ANZ PEYC · Leads", "kind": "sum", "group": "LinkedIn — ANZ PEYC",
+             "dash": _cf_camp("peyc", "leads"),
+             "sql": "SELECT SUM(IFNULL(LEADS,0)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_"
+                    "APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PEYC';",
+             "note": "vs campaigns.peyc.totals.leads."},
+            {"label": "CF1 India · Impressions", "kind": "sum", "group": "LinkedIn — CF1 India",
+             "dash": _cf_camp("cf1_india", "imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_"
+                    "APAC-IN_IN_MOFU_GENERAL_X_AWR-CONS_CF1-Integrated';",
+             "note": "vs campaigns.cf1_india.totals.imps."},
+            {"label": "CF1 India · Leads", "kind": "sum", "group": "LinkedIn — CF1 India",
+             "dash": _cf_camp("cf1_india", "leads"),
+             "sql": "SELECT SUM(IFNULL(LEADS,0)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_"
+                    "APAC-IN_IN_MOFU_GENERAL_X_AWR-CONS_CF1-Integrated';",
+             "note": "vs campaigns.cf1_india.totals.leads."},
+            {"label": "Coles Hyper · Impressions", "kind": "sum", "group": "LinkedIn — Coles Hyper",
+             "dash": _cf_camp("coles_hyper", "imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_MDS_LINKEDIN_GENERAL_SI_"
+                    "APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_Hyper_COLES';",
+             "note": "Note _MDS_ (not _CNC_) in the group name. vs campaigns.coles_hyper.totals.imps."},
+            {"label": "Coles Hyper · Leads", "kind": "sum", "group": "LinkedIn — Coles Hyper",
+             "dash": _cf_camp("coles_hyper", "leads"),
+             "sql": "SELECT SUM(IFNULL(LEADS,0)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_MDS_LINKEDIN_GENERAL_SI_"
+                    "APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_Hyper_COLES';",
+             "note": "vs campaigns.coles_hyper.totals.leads."},
         ],
     },
     {
@@ -205,8 +390,48 @@ CLIENTS = [
                     "LinkedIn Ads - APAC", "DV360 - APAC"],
         "reads_direct": False,
         "checks": [
-            {"label": "All paid channels · Total impressions", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_imps")),
+            # --- Google Ads (CAMPAIGN_NAME LIKE '%STT%') --------------------------
+            {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("ga_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS ga_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_NAME LIKE '%STT%';",
+             "note": "Whole flight, no date floor — the '%STT%' campaign-name LIKE is the only filter. vs kpi.ga_imps."},
+            {"label": "Google Ads · Clicks", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("ga_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS ga_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
+                    "WHERE CAMPAIGN_NAME LIKE '%STT%';",
+             "note": "vs kpi.ga_clicks."},
+            # --- LinkedIn (ACCOUNT_ID IN the two STT accounts) --------------------
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_ID IN ('515691430','511609128');",
+             "note": "Two accounts: 515691430 (SGD) + 511609128 (USD). vs kpi.li_imps."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_ID IN ('515691430','511609128');",
+             "note": "vs kpi.li_clicks."},
+            # --- DV360 (ADVERTISER_ID IN the two STT advertisers) -----------------
+            {"label": "DV360 · Impressions", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS dv_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE ADVERTISER_ID IN ('7572338345','6466367438');",
+             "note": "vs kpi.dv_imps."},
+            {"label": "DV360 · Clicks", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS dv_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE ADVERTISER_ID IN ('7572338345','6466367438');",
+             "note": "vs kpi.dv_clicks."},
+            # --- Blended rollup (the headline KPIs) -------------------------------
+            {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_ID IN ('515691430','511609128'))\n"
@@ -214,10 +439,9 @@ CLIENTS = [
                     "     WHERE ADVERTISER_ID IN ('7572338345','6466367438'))\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
                     "     WHERE CAMPAIGN_NAME LIKE '%STT%') AS total_ad_imps;",
-             "note": "LinkedIn + DV360 + Google Ads, whole flight, no date floor. Clean integer sums "
-                     "(spend is FX-converted, so spend is never checked). Compared against kpi.ad_imps."},
-            {"label": "All paid channels · Total clicks", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_clicks")),
+             "note": "LinkedIn + DV360 + Google Ads. Clean integer sums (spend is FX-converted, never checked). vs kpi.ad_imps."},
+            {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_ID IN ('515691430','511609128'))\n"
@@ -225,15 +449,40 @@ CLIENTS = [
                     "     WHERE ADVERTISER_ID IN ('7572338345','6466367438'))\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
                     "     WHERE CAMPAIGN_NAME LIKE '%STT%') AS total_ad_clicks;",
-             "note": "Same three channel filters as impressions. Compared against kpi.ad_clicks."},
-            {"label": "GA4 · Total sessions", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("sessions")),
+             "note": "Same three filters as impressions. vs kpi.ad_clicks."},
+            # --- GA4 website (PROPERTY_ID 318963196, campaign-window date floor) ---
+            {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("sessions"),
              "sql": "SELECT COALESCE(SUM(CASE WHEN EVENT_NAME = 'session_start' THEN SESSIONS ELSE 0 END),0)\n"
                     "         AS ga4_sessions\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Analytics Data_APAC ALL\"\n"
                     "WHERE PROPERTY_ID = '318963196' AND TO_DATE(DAY) >= DATE '2025-06-01';",
-             "note": "GA4 is event-grained, so sessions are taken only from session_start rows. "
-                     "Compared against kpi.sessions."},
+             "note": "GA4 is event-grained: SESSIONS repeats on every event row, so sessions come ONLY from "
+                     "session_start rows. vs kpi.sessions (whole property; the on-screen headline drops 'Global')."},
+            {"label": "GA4 · Engaged sessions", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("engaged_sessions"),
+             "sql": "SELECT COALESCE(SUM(CASE WHEN EVENT_NAME = 'user_engagement' THEN SESSIONS ELSE 0 END),0)\n"
+                    "         AS ga4_engaged\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Analytics Data_APAC ALL\"\n"
+                    "WHERE PROPERTY_ID = '318963196' AND TO_DATE(DAY) >= DATE '2025-06-01';",
+             "note": "Engaged sessions use the user_engagement event grain. vs kpi.engaged_sessions."},
+            {"label": "GA4 · Key events (conversions)", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("conversions"),
+             "sql": "SELECT COALESCE(SUM(CASE WHEN EVENT_NAME IN\n"
+                    "         ('contact_submit_success','generate_lead','newsletter_subscribe_success')\n"
+                    "         THEN KEY_EVENTS ELSE 0 END),0) AS ga4_key_events\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Analytics Data_APAC ALL\"\n"
+                    "WHERE PROPERTY_ID = '318963196' AND TO_DATE(DAY) >= DATE '2025-06-01';",
+             "note": "Headline 'Key events' = a fixed 3-event allowlist summed over KEY_EVENTS. vs kpi.conversions."},
+            {"label": "GA4 · Ad-driven (paid) sessions", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("paid_sessions"),
+             "sql": "SELECT COALESCE(SUM(CASE WHEN EVENT_NAME = 'session_start'\n"
+                    "         AND CHANNEL_GROUPING IN ('Paid Search','Paid Social','Paid Other','Cross-network','Display')\n"
+                    "         THEN SESSIONS ELSE 0 END),0) AS ga4_paid_sessions\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Analytics Data_APAC ALL\"\n"
+                    "WHERE PROPERTY_ID = '318963196' AND TO_DATE(DAY) >= DATE '2025-06-01';",
+             "note": "Paid bucket = the 5 paid CHANNEL_GROUPING values (incl. Display + Cross-network), "
+                     "session_start only. vs kpi.paid_sessions."},
         ],
     },
     {
@@ -241,8 +490,66 @@ CLIENTS = [
         "sources": ["DV360 - APAC", "LinkedIn Ads - APAC", "TradeDesk_APAC ALL"],
         "reads_direct": False,
         "checks": [
-            {"label": "All paid channels · Total impressions", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_imps")),
+            # --- DV360 (LOWER(ADVERTISER_NAME) LIKE '%hireright%') ----------------
+            {"label": "DV360 · Impressions", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS dv_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%';",
+             "note": "Case-insensitive substring filter. vs kpi.dv_imps."},
+            {"label": "DV360 · Clicks", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS dv_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%';",
+             "note": "vs kpi.dv_clicks."},
+            {"label": "DV360 · Conversions", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_conv"),
+             "sql": "SELECT SUM(CONVERSIONS_TOTAL) AS dv_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%';",
+             "note": "DV360's conversion column is CONVERSIONS_TOTAL. vs kpi.dv_conv."},
+            # --- Trade Desk (ADVERTISER_NAME = 'HireRight') -----------------------
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_imps"),
+             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS td_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'HireRight';",
+             "note": "COALESCE(IMPRESSIONS, IMPRESSION) (current + legacy column); exact advertiser '='. vs kpi.td_imps."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'HireRight';",
+             "note": "vs kpi.td_clicks."},
+            {"label": "Trade Desk · Conversions (click+view)", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_conv"),
+             "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'HireRight';",
+             "note": "vs kpi.td_conv."},
+            # --- LinkedIn (LOWER(ACCOUNT_NAME) LIKE 'hireright%') -----------------
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%';",
+             "note": "Case-insensitive prefix filter. vs kpi.li_imps."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%';",
+             "note": "vs kpi.li_clicks."},
+            {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_conv"),
+             "sql": "SELECT SUM(LEADS) AS li_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%';",
+             "note": "LinkedIn's 'conversion' metric here = SUM(LEADS). vs kpi.li_conv."},
+            # --- Blended rollup (the Overview headline tiles) ---------------------
+            {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%')\n"
@@ -250,10 +557,9 @@ CLIENTS = [
                     "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'HireRight')\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%') AS ad_imps;",
-             "note": "DV360 + TradeDesk + LinkedIn, whole flight. TradeDesk imps use COALESCE(IMPRESSIONS, "
-                     "IMPRESSION) (current + legacy column). Compared against kpi.ad_imps."},
-            {"label": "All paid channels · Total clicks", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_clicks")),
+             "note": "DV360 + TradeDesk + LinkedIn. TradeDesk imps use COALESCE(IMPRESSIONS, IMPRESSION). vs kpi.ad_imps."},
+            {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%')\n"
@@ -261,13 +567,17 @@ CLIENTS = [
                     "     WHERE ADVERTISER_NAME = 'HireRight')\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%') AS ad_clicks;",
-             "note": "Same three filters as impressions. Compared against kpi.ad_clicks."},
-            {"label": "LinkedIn · Leads", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("li_conv")),
-             "sql": "SELECT COALESCE(SUM(LEADS),0) AS li_leads\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%';",
-             "note": "Clean SUM(LEADS) over the LinkedIn HireRight slice. Compared against kpi.li_conv."},
+             "note": "Same three filters as impressions. vs kpi.ad_clicks."},
+            {"label": "All paid channels · Conversions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_conv"),
+             "sql": "SELECT\n"
+                    "  (SELECT COALESCE(SUM(CONVERSIONS_TOTAL),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "     WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%')\n"
+                    "+ (SELECT COALESCE(SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS),0)\n"
+                    "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'HireRight')\n"
+                    "+ (SELECT COALESCE(SUM(LEADS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "     WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%') AS ad_conv;",
+             "note": "Heterogeneous: DV360 CONVERSIONS_TOTAL + TradeDesk click+view + LinkedIn LEADS. vs kpi.ad_conv."},
         ],
     },
     {
@@ -275,8 +585,76 @@ CLIENTS = [
         "sources": ["DV360 - APAC", "LinkedIn Ads - APAC", "TradeDesk_APAC ALL"],
         "reads_direct": False,
         "checks": [
-            {"label": "All paid channels · Total impressions", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_imps")),
+            # NB only ACTUAL delivery is Snowflake-checkable. The plan/budget/target
+            # numbers (seed_* tables) and the Pacific portfolio tag are seed-side and
+            # NOT in Snowflake — see the README. These checks reconcile the kpi.* block
+            # (whole-flight, all-portfolio) against the source.
+            # --- DV360 (ADVERTISER_NAME LIKE 'APAC | Schneider Electric%') --------
+            {"label": "DV360 · Impressions", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS dv_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%';",
+             "note": "vs kpi.dv_imps."},
+            {"label": "DV360 · Clicks", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS dv_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%';",
+             "note": "vs kpi.dv_clicks."},
+            {"label": "DV360 · Conversions", "kind": "sum", "group": "DV360",
+             "dash": _kpi("dv_conv"),
+             "sql": "SELECT SUM(CONVERSIONS_TOTAL) AS dv_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%';",
+             "note": "DV360 conversion column = CONVERSIONS_TOTAL. vs kpi.dv_conv."},
+            # --- Trade Desk (ADVERTISER_NAME = 'Schneider Electric') --------------
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_imps"),
+             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS td_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric';",
+             "note": "COALESCE(IMPRESSIONS, IMPRESSION); exact advertiser '='. vs kpi.td_imps."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric';",
+             "note": "vs kpi.td_clicks."},
+            {"label": "Trade Desk · Conversions (click+view)", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_conv"),
+             "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric';",
+             "note": "vs kpi.td_conv."},
+            # --- LinkedIn (ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%') -
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
+             "note": "The '_' in the LIKE pattern is an (unescaped) single-char wildcard, matching the view. vs kpi.li_imps."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
+             "note": "vs kpi.li_clicks."},
+            {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_leads"),
+             "sql": "SELECT SUM(LEADS) AS li_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
+             "note": "LinkedIn is the only platform with leads. vs kpi.li_leads."},
+            {"label": "LinkedIn · Lead-form opens", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_lead_form_opens"),
+             "sql": "SELECT SUM(LEAD_FORM_OPENS) AS li_lead_form_opens\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
+             "note": "The funnel's 'Leads' = li_leads + li_lead_form_opens. vs kpi.li_lead_form_opens."},
+            # --- Blended rollup ---------------------------------------------------
+            {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%')\n"
@@ -284,10 +662,9 @@ CLIENTS = [
                     "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'Schneider Electric')\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%') AS total_imps;",
-             "note": "DV360 + TradeDesk + LinkedIn, whole flight. TradeDesk filter is exact '='; DV360/LinkedIn "
-                     "are LIKE patterns (the '_' is a wildcard, left unescaped to match the view). vs kpi.ad_imps."},
-            {"label": "All paid channels · Total clicks", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_clicks")),
+             "note": "DV360 + TradeDesk + LinkedIn. TradeDesk filter exact '='; DV360/LinkedIn LIKE patterns. vs kpi.ad_imps."},
+            {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%')\n"
@@ -295,13 +672,17 @@ CLIENTS = [
                     "     WHERE ADVERTISER_NAME = 'Schneider Electric')\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%') AS total_clicks;",
-             "note": "Same three filters as impressions. Compared against kpi.ad_clicks."},
-            {"label": "LinkedIn · Leads", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("li_leads")),
-             "sql": "SELECT COALESCE(SUM(LEADS),0) AS li_leads\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
-             "note": "LinkedIn-only leads (DV360/TradeDesk contribute 0). Compared against kpi.li_leads."},
+             "note": "Same three filters as impressions. vs kpi.ad_clicks."},
+            {"label": "All paid channels · Conversions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_conversions"),
+             "sql": "SELECT\n"
+                    "  (SELECT COALESCE(SUM(CONVERSIONS_TOTAL),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
+                    "     WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%')\n"
+                    "+ (SELECT COALESCE(SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS),0)\n"
+                    "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'Schneider Electric')\n"
+                    "  AS ad_conversions;",
+             "note": "Schneider's blended conversions = DV360 + TradeDesk only (LinkedIn outcome is leads, not "
+                     "conversions). JSON key is kpi.ad_conversions (not ad_conv)."},
         ],
     },
     {
@@ -309,31 +690,95 @@ CLIENTS = [
         "sources": ["TradeDesk_APAC ALL", "LinkedIn Ads - APAC"],
         "reads_direct": False,
         "checks": [
-            {"label": "All paid channels · Total impressions", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_imps")),
+            # --- Trade Desk (ADVERTISER_NAME = 'PopTrack' — note the spelling) ----
+            # TradeDesk impressions live in the SINGULAR column IMPRESSION (the plural
+            # IMPRESSIONS is NULL for this advertiser); LinkedIn uses the plural.
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_imps"),
+             "sql": "SELECT SUM(IMPRESSION) AS td_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+             "note": "MUST use IMPRESSION (singular) — the plural is NULL here. Advertiser spelled 'PopTrack' "
+                     "on TradeDesk. vs kpi.td_imps."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+             "note": "vs kpi.td_clicks."},
+            {"label": "Trade Desk · Conversions (click+view total)", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_conv"),
+             "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+             "note": "Should equal td_click_conv + td_vt_conv below. vs kpi.td_conv."},
+            {"label": "Trade Desk · Click conversions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_click_conv"),
+             "sql": "SELECT SUM(CLICK_CONVERSION) AS td_click_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+             "note": "Column CLICK_CONVERSION (singular). vs kpi.td_click_conv."},
+            {"label": "Trade Desk · View-through conversions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_vt_conv"),
+             "sql": "SELECT SUM(VIEW_THROUGH_CONVERSION) AS td_vt_conv\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+             "note": "Column VIEW_THROUGH_CONVERSION (singular). vs kpi.td_vt_conv."},
+            # --- LinkedIn (ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD') ---------
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD';",
+             "note": "LinkedIn uses IMPRESSIONS (plural) — opposite of TradeDesk. Account spelled 'PropTrack'. vs kpi.li_imps."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_clicks"),
+             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD';",
+             "note": "vs kpi.li_clicks."},
+            {"label": "LinkedIn · Engagements", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_eng"),
+             "sql": "SELECT SUM(ENGAGEMENTS) AS li_eng\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD';",
+             "note": "vs kpi.li_eng."},
+            {"label": "LinkedIn · Video views", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_video_views"),
+             "sql": "SELECT SUM(VIDEO_VIEWS) AS li_video_views\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD';",
+             "note": "vs kpi.li_video_views."},
+            {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_leads"),
+             "sql": "SELECT SUM(LEADS) AS li_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD';",
+             "note": "vs kpi.li_leads (LinkedIn CONVERSIONS is ~0; leads tracked via LEADS/LEAD_FORM_OPENS)."},
+            {"label": "LinkedIn · Lead-form opens", "kind": "sum", "group": "LinkedIn",
+             "dash": _kpi("li_lead_opens"),
+             "sql": "SELECT SUM(LEAD_FORM_OPENS) AS li_lead_opens\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD';",
+             "note": "vs kpi.li_lead_opens."},
+            # --- Blended rollup ---------------------------------------------------
+            {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(IMPRESSION),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
                     "     WHERE ADVERTISER_NAME = 'PopTrack')\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD') AS ad_imps;",
-             "note": "TradeDesk + LinkedIn. Note the column spelling: TradeDesk impressions live in the "
-                     "SINGULAR column IMPRESSION (plural is NULL for this advertiser); LinkedIn uses IMPRESSIONS. "
-                     "TradeDesk spells the advertiser 'PopTrack'. Compared against kpi.ad_imps."},
-            {"label": "All paid channels · Total clicks", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("ad_clicks")),
+             "note": "The blend mixes IMPRESSION (TradeDesk, singular) with IMPRESSIONS (LinkedIn, plural) — "
+                     "wrong column on either side breaks the rollup. vs kpi.ad_imps."},
+            {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
                     "     WHERE ADVERTISER_NAME = 'PopTrack')\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD') AS ad_clicks;",
-             "note": "Both channels use the CLICKS column. Compared against kpi.ad_clicks."},
-            {"label": "TradeDesk · Conversions", "kind": "sum",
-             "dash": lambda d: _num(d.get("kpi", {}).get("td_conv")),
-             "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'PopTrack';",
-             "note": "TradeDesk click+view conversions (LinkedIn conv is 0 for this client, so this also "
-                     "equals the blended kpi.ad_conv). Compared against kpi.td_conv."},
+             "note": "Both channels use CLICKS. vs kpi.ad_clicks."},
         ],
     },
 ]
@@ -518,6 +963,7 @@ def main():
                          and round(float(sf_val)) == round(float(dash_val)))
                 checks_out.append({
                     "label": chk["label"], "metric_kind": chk["kind"],
+                    "group": chk.get("group", ""),
                     "snowflake_value": sf_val, "dashboard_value": dash_val,
                     "match": (None if (sf_val is None or dash_val is None) else match),
                     "snowflake_query": chk["sql"], "note": chk.get("note", ""),
