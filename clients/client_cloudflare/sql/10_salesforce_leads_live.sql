@@ -1,0 +1,56 @@
+-- salesforce_leads_live: Content-Syndication leads with the canonical 12-campaign
+-- filter + region/publisher/offer derivation. BigQuery port of
+-- CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE, now reading the mirror
+-- raw_snowflake.salesforce_cs_apac_all instead of APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL".
+-- THIS IS NOW THE SOURCE OF TRUTH for the campaign filter (the Snowflake view is no
+-- longer in our pipeline path). The 12 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17).
+CREATE OR REPLACE VIEW `client_cloudflare.salesforce_leads_live` AS
+SELECT
+    DT_CREATED, DT_UPDATED, DT_FILENAME, DAY, FIRST_NAME, LAST_NAME, EMAIL,
+    COMPANY_NAME, JOB_TITLE, JOB_FUNCTION, JOB_LEVEL, OPT_IN, ASSET_1, ASSET_2,
+    CAMPAIGN, PHONE, INDUSTRY_NAME, WEBSITE, STATE, REGION, COUNTRY_NAME,
+    ANNUAL_REVENUE_, CAMPAIGN_ID, LEADS, LEAD_ID_SF, STATUS, LEAD_STATUS,
+    CASE
+        WHEN COUNTRY_NAME IN ('Australia', 'New Zealand') THEN 'ANZ'
+        WHEN COUNTRY_NAME IN ('Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Philippines', 'Viet Nam', 'Vietnam') THEN 'ASEAN'
+        WHEN COUNTRY_NAME = 'India' THEN 'SAARC'
+        WHEN COUNTRY_NAME IN ('China', 'Taiwan', 'Hong Kong') THEN 'GCR'
+        WHEN COUNTRY_NAME IN ('Korea, Republic of', 'Korea', 'South Korea') THEN 'KR'
+        WHEN COUNTRY_NAME = 'Japan' THEN 'JP'
+        ELSE 'RIG'
+    END AS REGION_GRP,
+    CASE
+        WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElTu3YAF', '701RG00001ElVXdYAN') THEN 'Roverpath'
+        WHEN CAMPAIGN_ID IN ('701RG00001ElUoXYAV', '701RG00001ElUa0YAF', '701RG00001ElNYkYAN') THEN 'Final Funnel'
+        ELSE 'Unknown'
+    END AS PUBLISHER,
+    CASE
+        WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElUoXYAV') THEN 'Precision MQL'
+        WHEN CAMPAIGN_ID IN ('701RG00001ElTu3YAF', '701RG00001ElUa0YAF') THEN 'Pulse Survey'
+        WHEN CAMPAIGN_ID IN ('701RG00001ElVXdYAN', '701RG00001ElNYkYAN') THEN 'Qualification Questions'
+        ELSE 'Unknown'
+    END AS OFFER_TYPE,
+    CASE
+        WHEN CAMPAIGN_ID = '701RG00001ElJZzYAN' THEN 'Roverpath - Precision MQL'
+        WHEN CAMPAIGN_ID = '701RG00001ElTu3YAF' THEN 'Roverpath - Pulse Survey'
+        WHEN CAMPAIGN_ID = '701RG00001ElVXdYAN' THEN 'Roverpath - Qualification Questions'
+        WHEN CAMPAIGN_ID = '701RG00001ElUoXYAV' THEN 'Final Funnel - Precision MQL'
+        WHEN CAMPAIGN_ID = '701RG00001ElUa0YAF' THEN 'Final Funnel - Pulse Survey'
+        WHEN CAMPAIGN_ID = '701RG00001ElNYkYAN' THEN 'Final Funnel - Qualification Questions'
+        ELSE 'Unknown'
+    END AS PUBLISHER_OFFER
+FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
+WHERE CAMPAIGN_ID IN (
+    '701RG00001ElJZzYAN',  -- Roverpath - Precision MQL
+    '701RG00001ElTu3YAF',  -- Roverpath - Pulse Survey
+    '701RG00001ElVXdYAN',  -- Roverpath - Qualification Questions
+    '701RG00001ElUoXYAV',  -- Final Funnel - Precision MQL
+    '701RG00001ElUa0YAF',  -- Final Funnel - Pulse Survey
+    '701RG00001ElNYkYAN',  -- Final Funnel - Qualification Questions
+    '701RG00001NJd6NYAT',  -- (2026-06-10) Roverpath - Connectivity Cloud (ANZ)
+    '701RG00001NIYRKYA5',  -- (2026-06-10) Final Funnel CF1 - Connectivity Cloud (ANZ)
+    '701RG00001PXNyDYAX',  -- (2026-06-17) Final Funnel ABM - Modernize Security (ANZ)
+    '701RG00001PWX5gYAH',  -- (2026-06-17) Final Funnel ABM - Modernize Security (ANZ)
+    '701RG00001PXLpxYAH',  -- (2026-06-17) Roverpath - Modernize Applications (ANZ)
+    '701RG00001PXHnzYAH'   -- (2026-06-17) Roverpath - Modernize Applications (ANZ)
+);

@@ -1,86 +1,75 @@
+r"""
+client_cloudflare/seed_static.py -- load the local static CSV snapshots in data/
+into BigQuery `client_cloudflare.seed_*` tables. (data/ is gitignored per
+clients/*/data/; regenerate it with pull_static.py if absent.)
+
+These are Cloudflare's STATIC inputs (pacing targets, account->tier mapping, the
+LINE JP manual upload). They are NOT in the shared `raw_snowflake` mirror (that
+layer carries only the dynamic ad-platform tables), so they get a simple seed:
+    data/real_targets.csv -> client_cloudflare.seed_real_targets   (V_TARGETS_V2_NORM source)
+    data/tiers.csv        -> client_cloudflare.seed_tiers           (V_TIER_MAPPING_CLEANED source)
+    data/line_cf.csv      -> client_cloudflare.seed_line_cf         (LINE JP paid-media source)
+
+The CSVs are produced by the one-time `pull_static.py` (Snowflake -> data/). This
+loader reads ONLY the local CSVs -- no Snowflake connection. The `sql/` views then
+model everything in BigQuery over these seeds + the `raw_snowflake` mirrors, so the
+export job never touches Snowflake (true MongoDB parity).
+
+Explicit BigQuery schemas lock the column types the views depend on (notably the
+DATE columns used in the pacing week-join). Re-run after pull_static.py refreshes a
+CSV, then kick the export job once with FORCE_REBUILD=1 (a seed change is invisible
+to the freshness gate -- see CLAUDE.md).
+
+Run:  .\.venv\Scripts\python.exe clients\client_cloudflare\seed_static.py
 """
-client_cloudflare/seed_static.py — one-time pull of Cloudflare's STATIC inputs.
-
-Unlike the shared APAC platform tables (which snowflake_data_pull mirrors into
-raw_snowflake for every client), these three live in CLOUDFLARE_SANDBOX and are
-Cloudflare-specific manual uploads that rarely change. So they get a simple
-one-shot copy into the client_cloudflare dataset as src_* tables; re-run only
-when the manual upload changes.
-
-    CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_STG_LINE_CF -> client_cloudflare.src_line_cf      (LINE JP spend)
-    CLOUDFLARE_SANDBOX.CS_REPORTING.REAL_TARGETS          -> client_cloudflare.src_real_targets  (pacing targets)
-    CLOUDFLARE_SANDBOX.CS_REPORTING.TIERS                 -> client_cloudflare.src_tiers          (account -> tier)
-
-Auth (same as every job): Snowflake key from $SNOWFLAKE_KEY else Secret Manager
-(snowflake-bq-key) via ADC; BigQuery via ADC.
-
-Run:  .\.venv\Scripts\python.exe client_cloudflare\seed_static.py
-"""
-import os, re
-import pandas as pd
+import os
 from google.cloud import bigquery
-import snowflake.connector
-from cryptography.hazmat.primitives import serialization
 
-PROJECT      = "bidbrain-analytics"
-LOC          = "australia-southeast1"
-DATASET      = "client_cloudflare"
-SF_ACCOUNT   = "ZGKGHOH-ISA98947"
-SF_USER      = "BQ_SYNC_USER"
-SF_WAREHOUSE = "APAC_IN_WH"
+PROJECT = "bidbrain-analytics"
+LOC     = "australia-southeast1"
+DATASET = "client_cloudflare"
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 
-# Snowflake static source -> BigQuery table name in client_cloudflare.
-TABLES = {
-    "CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_STG_LINE_CF": "src_line_cf",
-    "CLOUDFLARE_SANDBOX.CS_REPORTING.REAL_TARGETS":          "src_real_targets",
-    "CLOUDFLARE_SANDBOX.CS_REPORTING.TIERS":                 "src_tiers",
+SF = bigquery.SchemaField
+# CSV file -> (BigQuery table, explicit schema in CSV COLUMN ORDER).
+# (BQ maps columns by position when a schema is given + header is skipped.)
+SEEDS = {
+    "real_targets.csv": ("seed_real_targets", [
+        SF("WEEK", "INT64"), SF("DATE", "DATE"), SF("TIER", "STRING"),
+        SF("REGION", "STRING"), SF("COUNTRY", "STRING"), SF("TARGET", "INT64"),
+    ]),
+    "tiers.csv": ("seed_tiers", [
+        SF("ACCOUNT_NAME", "STRING"), SF("WEBSITE", "STRING"), SF("L1", "STRING"),
+        SF("L2", "STRING"), SF("BILLING_COUNTRY", "STRING"), SF("INDUSTRY", "STRING"),
+        SF("COHORT", "STRING"), SF("PRIORITY", "STRING"), SF("TIER", "STRING"),
+    ]),
+    "line_cf.csv": ("seed_line_cf", [
+        SF("DAY", "DATE"), SF("AD_NAME", "STRING"), SF("IMPRESSIONS", "INT64"),
+        SF("CLICKS", "INT64"), SF("COST", "INT64"), SF("VIDEO_STARTS", "INT64"),
+        SF("VIDEO_100_WATCHED", "INT64"),
+    ]),
 }
-
-
-def _snowflake_key_bytes():
-    pem = os.environ.get("SNOWFLAKE_KEY")
-    if pem is None:
-        from google.cloud import secretmanager
-        sm = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{PROJECT}/secrets/snowflake-bq-key/versions/latest"
-        pem = sm.access_secret_version(name=name).payload.data.decode("utf-8")
-    return pem.encode()
-
-
-def sf_connect():
-    pkey = serialization.load_pem_private_key(_snowflake_key_bytes(), password=None)
-    der = pkey.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption())
-    return snowflake.connector.connect(
-        account=SF_ACCOUNT, user=SF_USER,
-        private_key=der, warehouse=SF_WAREHOUSE)
-
-
-def bq_colname(c):
-    """BigQuery-safe column name: uppercase, only [A-Z0-9_], must start with a
-    letter/underscore. These tables are manual uploads with messy headers like
-    'CPM (COST PER THOUSAND IMPRESSIONS)', which BigQuery rejects verbatim."""
-    c = re.sub(r"[^0-9A-Za-z_]+", "_", c.strip()).strip("_").upper()
-    if not c or not re.match(r"^[A-Z_]", c):
-        c = "_" + c
-    return c
 
 
 def main():
     bq = bigquery.Client(project=PROJECT)
-    cn = sf_connect()
-    try:
-        for src, dest in TABLES.items():
-            df = cn.cursor().execute(f"SELECT * FROM {src}").fetch_pandas_all()
-            df.columns = [bq_colname(c) for c in df.columns]
-            ref = f"{PROJECT}.{DATASET}.{dest}"
-            cfg = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-            bq.load_table_from_dataframe(df, ref, job_config=cfg, location=LOC).result()
-            print(f"loaded {len(df):>6} rows | {src}  ->  {ref}")
-    finally:
-        cn.close()
+    for fname, (dest, schema) in SEEDS.items():
+        path = os.path.join(DATA_DIR, fname)
+        ref = f"{PROJECT}.{DATASET}.{dest}"
+        cfg = bigquery.LoadJobConfig(
+            source_format=bigquery.SourceFormat.CSV,
+            skip_leading_rows=1,
+            schema=schema,
+            write_disposition="WRITE_TRUNCATE",
+            # TIERS account-name/website fields contain embedded newlines (quoted by
+            # pandas), so the CSV reader must honour quoted newlines.
+            allow_quoted_newlines=True,
+        )
+        with open(path, "rb") as f:
+            job = bq.load_table_from_file(f, ref, job_config=cfg, location=LOC)
+        job.result()
+        n = bq.get_table(ref).num_rows
+        print(f"loaded {n:>6} rows | {fname}  ->  {ref}")
     print("done.")
 
 

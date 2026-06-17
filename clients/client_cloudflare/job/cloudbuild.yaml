@@ -36,8 +36,9 @@ steps:
       - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_JOB}:$SHORT_SHA
       - --region=${_REGION}
       - --service-account=${_RUNTIME_SA}
-      - --set-secrets=SNOWFLAKE_KEY=snowflake-bq-key:latest
-      - --set-env-vars=GCP_PROJECT=$PROJECT_ID,BQ_DATASET=${_DATASET},GCS_BUCKET=${_BUCKET},SF_ACCOUNT=ZGKGHOH-ISA98947,SF_USER=BQ_SYNC_USER,SF_WAREHOUSE=APAC_IN_WH
+      # BQ-only job now (no Snowflake): no SNOWFLAKE_KEY secret, no SF_* env vars. main.py
+      # hardcodes project/dataset/bucket from CLIENT, so these env vars are informational.
+      - --set-env-vars=GCP_PROJECT=$PROJECT_ID,BQ_DATASET=${_DATASET},GCS_BUCKET=${_BUCKET}
       - --memory=1Gi
 options:
   logging: CLOUD_LOGGING_ONLY

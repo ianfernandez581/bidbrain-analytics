@@ -2,22 +2,21 @@
 Apply the client_cloudflare BigQuery view definitions from version-controlled SQL.
 
 Mirrors client_mongodb/create_views.py. Each *.sql file in client_cloudflare/sql/
-holds one CREATE OR REPLACE VIEW, applied in filename order (use an NN_ prefix to
-control order). The export job (client_cloudflare/job/main.py) reads these views
-to assemble cloudflare.json.
+holds one CREATE OR REPLACE VIEW, applied in filename order (the NN_ prefix encodes
+dependency order: staging -> models). The export job (client_cloudflare/job/main.py)
+reads the final views to assemble cloudflare.json.
 
-DELIBERATE DIVERGENCE FROM client_mongodb:
-Cloudflare's data model already lives in Snowflake (CLOUDFLARE_SANDBOX.* views),
-so these BigQuery views are *thin*: the job pulls Snowflake's final-model views,
-lands them as BigQuery src_* tables, and these views expose them in the shape the
-dashboard expects. MongoDB does the modelling in BigQuery; Cloudflare does not
-re-derive it. See client_cloudflare/sql/README.md.
+BigQuery owns the model (MongoDB parity, since 2026-06-17). The views model everything
+in BigQuery over the shared raw_snowflake.* mirrors + the client_cloudflare.seed_*
+static tables -- the job no longer pulls pre-modelled Snowflake views. See
+client_cloudflare/sql/README.md for the ported chain.
 
 Fresh-project order (see ../README.md):
     1. create the client_cloudflare dataset + GCS bucket
-    2. run the export job once to land the src_* tables
-    3. python client_cloudflare/create_views.py
-    4. re-run the export job to build cloudflare.json
+    2. python client_cloudflare/pull_static.py   (Snowflake -> data/ CSVs, one-time)
+    3. python client_cloudflare/seed_static.py   (data/ CSVs -> client_cloudflare.seed_*)
+    4. python client_cloudflare/create_views.py  (this; needs the seeds + raw_snowflake to exist)
+    5. run the export job to build cloudflare.json
 
 Run:  python client_cloudflare/create_views.py
 """

@@ -1,45 +1,35 @@
 """Cloudflare APAC dashboard export job (Cloud Run job).
 
-Mirrors client_mongodb/job/main.py. The one difference in intent: Cloudflare's
-data model already lives in Snowflake (CLOUDFLARE_SANDBOX.* views), so this job
-pulls the already-modelled *final* views, lands them as BigQuery src_* tables
-(a queryable per-client copy, uniform with every client folder), then reads the
-thin BigQuery views in client_cloudflare/sql/ to assemble cloudflare.json.
+Now on the SAME pattern as every other client (MongoDB template): BigQuery owns the
+model. The shared ingest unit (ingest/snowflake_data_pull) already mirrors the four
+dynamic APAC platform tables into raw_snowflake; the Cloudflare-specific STATIC tables
+(pacing targets, account tiers, LINE JP upload) are committed CSV snapshots seeded into
+client_cloudflare.seed_* (pull_static.py -> data/ -> seed_static.py). The sql/ views
+model everything in BigQuery, and this job just reads those views and assembles
+cloudflare.json. IT NO LONGER TOUCHES SNOWFLAKE.
 
-    Snowflake final-model views
-      -> BigQuery src_*            (landed here)
-      -> BigQuery views (sql/)     (read here)
-      -> cloudflare.json           (one combined payload)
+    raw_snowflake.* mirrors (+ client_cloudflare.seed_* static seeds)
+      -> BigQuery views (client_cloudflare/sql/)   read here
+      -> cloudflare.json                           one combined payload
       -> GCS (private)
 
-The combined payload merges what Cloudflare today writes as two separate R2
-files (paid_media.json + pacing.json) into a single object served at /data.json
-by the gated Cloud Run service in client_cloudflare/dash.
+Refresh is two steps, like MongoDB:
+    1. python ingest/snowflake_data_pull/loader.py   (refresh the shared raw layer)
+    2. run this job                                  (BigQuery views -> cloudflare.json)
 
-BOOTSTRAP: on a fresh project the BigQuery views don't exist yet, and they read
-FROM the src_* tables this job lands. So the first run lands src_* and then
-*errors* on the view reads -- that's expected. Then run
-`python client_cloudflare/create_views.py`, then re-run this job. (Same flow as
-client_mongodb README section 10.)
+History: this client used to pull Snowflake's pre-modelled CLOUDFLARE_SANDBOX.* views
+and land them as src_* pass-throughs. That deviated from the repo pattern; it was ported
+to BigQuery modelling on 2026-06-17 (see client_cloudflare/README.md + sql/README.md).
 """
 import os, json, datetime
-from google.cloud import bigquery, storage
-import snowflake.connector
-from cryptography.hazmat.primitives import serialization
-
-from freshness import probe_snowflake_last_altered, read_watermark, write_watermark, is_stale
-
-# pandas is heavy; import it lazily so a no-op freshness tick stays a light, fast
-# container. _ensure_pandas() runs only on the rebuild path (see main()).
-pd = None
-def _ensure_pandas():
-    global pd
-    if pd is None:
-        import pandas as _pd
-        pd = _pd
-
 from decimal import Decimal as _Decimal
 import datetime as _dt
+import math
+
+from google.cloud import bigquery, storage
+
+from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
+
 
 def _json_default(o):
     if isinstance(o, _Decimal):
@@ -48,17 +38,12 @@ def _json_default(o):
         return o.isoformat()
     raise TypeError(f"Object of type {o.__class__.__name__} is not JSON serializable")
 
+
 # --- Project-wide constants (identical for every client) ----------------------
-PROJECT      = "bidbrain-analytics"
-LOC          = "australia-southeast1"
-SF_ACCOUNT   = "ZGKGHOH-ISA98947"
-SF_USER      = "BQ_SYNC_USER"
-SF_WAREHOUSE = "APAC_IN_WH"
+PROJECT = "bidbrain-analytics"
+LOC     = "australia-southeast1"
 
 # --- The ONE line that differs per client -------------------------------------
-# Copy this folder for a new client and change ONLY this. Dataset / bucket /
-# output object all follow from it via the naming convention, so they can never
-# drift or be pointed at the wrong client by a stale shell variable.
 CLIENT = "cloudflare"
 
 DATASET     = f"client_{CLIENT}"                    # client_cloudflare
@@ -66,144 +51,30 @@ BUCKET      = f"bidbrain-analytics-{CLIENT}-dash"   # bidbrain-analytics-cloudfl
 DATA_OBJECT = f"{CLIENT}.json"                      # cloudflare.json
 
 # --- Freshness gate -----------------------------------------------------------
-# The job now runs on a frequent (*/N) schedule and only rebuilds when an
-# upstream Snowflake table has new data. These are the FOUR dynamic PUBLIC base
-# tables in APAC_ALL_PLATFORM that feed the whole Cloudflare dashboard:
-#   "Salesforce_CS_APAC_ALL" -> V_PACING_FINAL_MODEL          (CS pacing tab)
-#   "TradeDesk_APAC ALL" / "LinkedIn Ads - APAC" / "Reddit Ads - APAC_ALL"
-#                            -> V_PAID_ADS_FINAL_MODEL         (Paid Media tab)
-# This is a FULL rebuild (it can't rebuild one channel in isolation), so the
-# rule is: if ANY of the four advanced since the last successful build, rebuild
-# everything. The static inputs (REAL_TARGETS/TIERS/TARGETS/V_STG_LINE_CF and the
-# V_BENCHMARKS_*/V_LI_WEEKLY_TARGETS views) are NOT freshness drivers -- see the
-# seed_static manual-kick caveat in job/README.md. Watch base TABLES, not views:
-# a view's LAST_ALTERED only moves on DDL.
-GATING_TABLES = ["Salesforce_CS_APAC_ALL", "TradeDesk_APAC ALL",
-                 "LinkedIn Ads - APAC", "Reddit Ads - APAC_ALL"]
+# BigQuery-reading client now (see CLAUDE.md "Freshness contract"): rebuild only when
+# an upstream raw_snowflake mirror this job's views read has advanced. These are the
+# four dynamic platform tables behind the paid-media + CS views; they also define
+# `data_through`. The static seed_* tables are NOT freshness drivers (re-seed forces a
+# manual rebuild -- see seed_static.py / the FORCE_REBUILD caveat in CLAUDE.md).
+GATING_TABLES = [
+    "raw_snowflake.salesforce_cs_apac_all",   # -> salesforce_leads_live -> pacing_model (CS)
+    "raw_snowflake.tradedesk_apac_all",        # -> stg_tradedesk -> paid_media_model
+    "raw_snowflake.linkedin_ads_apac",         # -> stg_linkedin -> paid_media_model + the campaigns block
+    "raw_snowflake.reddit_ads_apac_all",       # -> stg_reddit -> paid_media_model
+]
 WATERMARK_OBJECT = "_freshness.json"
-
-# --- Snowflake source views ---------------------------------------------------
-# Unlike the MongoDB job (which pulls raw tables and models in BigQuery), these
-# are Cloudflare's *final* model views -- the same objects the existing Snowflake
-# DAILY_* tasks COPY INTO R2. The seven APAC markets and the JSON shapes below
-# match those tasks exactly, so the dashboard renders identical numbers.
-SF_PAID = "CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING"
-SF_CS   = "CLOUDFLARE_SANDBOX.CS_REPORTING"
-
-PAID_SQL      = f"SELECT * FROM {SF_PAID}.V_PAID_ADS_FINAL_MODEL"
-PACING_SQL    = f"SELECT * FROM {SF_CS}.V_PACING_FINAL_MODEL"
-BENCH_CH_SQL  = f"SELECT CHANNEL, CTR, CPM, CPC FROM {SF_PAID}.V_BENCHMARKS_CHANNEL"
-BENCH_MKT_SQL = f"SELECT MARKET, CTR, CPM, CPC FROM {SF_PAID}.V_BENCHMARKS_MARKET"
-LI_WEEKLY_SQL = f"SELECT WEEK, PERIOD, WEEK_START, TARGET, CUM_TARGET FROM {SF_PAID}.V_LI_WEEKLY_TARGETS"
-
-# Creative-grain delivery for the "Top & bottom performing creatives" tables.
-# V_PAID_ADS_FINAL_MODEL collapses the creative dimension away, so we re-derive the
-# same per-channel union (identical campaign filters + market CASE expressions) one
-# level lower -- grouping by creative instead of date. Aggregated over the whole
-# window (no date), so each row is one channel x market x creative. The dashboard
-# normalizes MARKET (TTD L3 tokens -> 7 L1 buckets) and ranks client-side.
-PAID_CREATIVES_SQL = f"""
-WITH fx AS (SELECT 155.0::FLOAT AS USD_JPY_RATE),
-linkedin AS (
-  SELECT 'LinkedIn' AS channel,
-    CASE
-      WHEN CAMPAIGN_NAME ILIKE '%APAC-ANZ%'   THEN 'ANZ'
-      WHEN CAMPAIGN_NAME ILIKE '%APAC-ASEAN%' THEN 'ASEAN'
-      WHEN CAMPAIGN_NAME ILIKE '%APAC-IN%'    THEN 'SAARC'
-      WHEN CAMPAIGN_NAME ILIKE '%APAC-TCN%'   THEN 'GCR'
-      WHEN CAMPAIGN_NAME ILIKE '%_JP_%' OR CAMPAIGN_NAME ILIKE '%APAC-JP%' THEN 'JP'
-      WHEN CAMPAIGN_NAME ILIKE '%_KR_%' OR CAMPAIGN_NAME ILIKE '%APAC-KR%' THEN 'KR'
-      WHEN CAMPAIGN_NAME ILIKE '%RIG%'        THEN 'RIG'
-      ELSE 'UNMAPPED' END AS market,
-    COALESCE(NULLIF(TRIM(CREATIVE_NAME),''), NULLIF(TRIM(AD_TITLE),''), '(unnamed)') AS creative,
-    SUM(IMPRESSIONS) AS imps, SUM(CLICKS) AS clicks, SUM(COSTS) AS spend_usd, SUM(LEADS) AS leads
-  FROM {SF_PAID}.V_STG_LINKEDIN_CF
-  WHERE STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_')
-  GROUP BY 1, 2, 3
-),
-tradedesk AS (
-  SELECT 'TTD' AS channel, MARKET_L3 AS market,
-    COALESCE(NULLIF(TRIM(CREATIVE_NAME),''), '(unnamed)') AS creative,
-    SUM(IMPRESSIONS) AS imps, SUM(CLICKS) AS clicks, SUM(COSTS) AS spend_usd, 0 AS leads
-  FROM {SF_PAID}.V_STG_TRADEDESK_CF
-  WHERE MARKET_L3 IS NOT NULL AND MARKET_L3 <> ''
-  GROUP BY 1, 2, 3
-),
-reddit AS (
-  SELECT 'Reddit' AS channel,
-    CASE
-      WHEN CAMPAIGN_NAME ILIKE '%ANZ%'   THEN 'ANZ'
-      WHEN CAMPAIGN_NAME ILIKE '%ASEAN%' THEN 'ASEAN'
-      WHEN CAMPAIGN_NAME ILIKE '%SAARC%' OR CAMPAIGN_NAME ILIKE '%INDIA%' THEN 'SAARC'
-      WHEN CAMPAIGN_NAME ILIKE '%GCR%'   THEN 'GCR'
-      WHEN CAMPAIGN_NAME ILIKE '%JP%'    THEN 'JP'
-      WHEN CAMPAIGN_NAME ILIKE '%KR%'    THEN 'KR'
-      WHEN CAMPAIGN_NAME ILIKE '%RIG%'   THEN 'RIG'
-      ELSE 'ANZ' END AS market,
-    COALESCE(NULLIF(TRIM(AD_NAME),''), '(unnamed)') AS creative,
-    SUM(IMPRESSIONS) AS imps, SUM(CLICKS) AS clicks, SUM(COSTS) AS spend_usd, 0 AS leads
-  FROM {SF_PAID}.V_STG_REDDIT_CF
-  GROUP BY 1, 2, 3
-),
-line_jp AS (
-  SELECT 'LINE' AS channel, 'JP' AS market,
-    COALESCE(NULLIF(TRIM(AD_NAME),''), '(unnamed)') AS creative,
-    SUM(l.IMPRESSIONS) AS imps, SUM(l.CLICKS) AS clicks,
-    ROUND(SUM(l.COST) / fx.USD_JPY_RATE, 2) AS spend_usd, 0 AS leads
-  FROM {SF_PAID}.V_STG_LINE_CF l CROSS JOIN fx
-  GROUP BY 1, 2, 3, fx.USD_JPY_RATE
-)
-SELECT channel, market, creative, imps, clicks, spend_usd, leads
-FROM (SELECT * FROM linkedin UNION ALL SELECT * FROM tradedesk
-      UNION ALL SELECT * FROM reddit UNION ALL SELECT * FROM line_jp)
-WHERE imps > 0
-"""
 
 ALL_MARKETS = ["ANZ", "ASEAN", "SAARC", "RIG", "KR", "JP", "GCR"]
 
 
-def _snowflake_key_bytes():
-    """Snowflake private key (PEM) as bytes for cryptography.
-
-    Cloud Run injects it as the SNOWFLAKE_KEY env var (--set-secrets), so in prod
-    this just reads the env var. Locally, when that env var is absent, fall back
-    to reading the secret from Secret Manager via ADC -- so `python main.py` runs
-    with no env setup. Reading through the client library (not gcloud) returns the
-    raw stored bytes, so no CRLF mangling.
-    """
-    pem = os.environ.get("SNOWFLAKE_KEY")
-    if pem is None:
-        from google.cloud import secretmanager
-        sm = secretmanager.SecretManagerServiceClient()
-        name = f"projects/{PROJECT}/secrets/snowflake-bq-key/versions/latest"
-        pem = sm.access_secret_version(name=name).payload.data.decode("utf-8")
-    return pem.encode()
-
-
-def sf_connect():
-    pkey = serialization.load_pem_private_key(_snowflake_key_bytes(), password=None)
-    der = pkey.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption())
-    return snowflake.connector.connect(
-        account=SF_ACCOUNT, user=SF_USER,
-        private_key=der, warehouse=SF_WAREHOUSE)
-
-
 def jval(v):
-    """JSON-safe value: dates -> ISO strings, numpy scalars -> python, NaN -> None."""
+    """JSON-safe value: dates -> ISO strings, NaN -> None (BQ returns native types)."""
     if v is None:
         return None
     if isinstance(v, (datetime.date, datetime.datetime)):
         return v.isoformat()
-    if isinstance(v, float) and pd.isna(v):
+    if isinstance(v, float) and math.isnan(v):
         return None
-    if hasattr(v, "item"):
-        try:
-            return v.item()
-        except Exception:
-            pass
     return v
 
 
@@ -221,65 +92,24 @@ def rows(bq, sql):
     return [dict(r) for r in bq.query(sql, location=LOC).result()]
 
 
-def land(bq, df, table):
-    """Land a Snowflake pull as a BigQuery src_* table (schema inferred from the df)."""
-    df.columns = [c.upper() for c in df.columns]
-    cfg = bigquery.LoadJobConfig(write_disposition="WRITE_TRUNCATE")
-    ref = f"{PROJECT}.{DATASET}.{table}"
-    bq.load_table_from_dataframe(df, ref, job_config=cfg, location=LOC).result()
-    print(f"landed {len(df)} rows -> {table}")
-
-
 def main():
-    cn = sf_connect()
-    try:
-        # --- Freshness gate: cheap metadata probe; skip unless something changed.
-        # Metadata-only -- no warehouse, no pandas, no BigQuery client constructed yet.
-        observed = probe_snowflake_last_altered(cn, GATING_TABLES)
-        wm = read_watermark(BUCKET, WATERMARK_OBJECT)
-        times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
-                          for k in sorted(observed)) or "(no tables found)"
-        if os.environ.get("FORCE_REBUILD") == "1":
-            print(f"FORCE_REBUILD=1 -> rebuilding regardless of freshness | {times}")
-        elif not is_stale(observed, wm):
-            print(f"no change, skipping rebuild | {times}")
-            return
-        else:
-            print(f"upstream advanced -> rebuilding | {times}")
+    bq = bigquery.Client(project=PROJECT)
 
-        # Rebuild path: now pull the heavy deps + clients.
-        _ensure_pandas()
-        bq = bigquery.Client(project=PROJECT)
+    # --- Freshness gate: cheap metadata probe; skip the rebuild unless an upstream
+    # raw mirror advanced. Reading __TABLES__.last_modified is metadata-only.
+    observed = probe_bq_last_modified(bq, GATING_TABLES)
+    wm = read_watermark(BUCKET, WATERMARK_OBJECT)
+    times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
+                      for k in sorted(observed)) or "(no tables found)"
+    if os.environ.get("FORCE_REBUILD") == "1":
+        print(f"FORCE_REBUILD=1 -> rebuilding regardless of freshness | {times}")
+    elif not is_stale(observed, wm):
+        print(f"no change, skipping rebuild | {times}")
+        return
+    else:
+        print(f"upstream advanced -> rebuilding | {times}")
 
-        paid   = cn.cursor().execute(PAID_SQL).fetch_pandas_all()
-        pacing = cn.cursor().execute(PACING_SQL).fetch_pandas_all()
-        bch    = cn.cursor().execute(BENCH_CH_SQL).fetch_pandas_all()
-        bmkt   = cn.cursor().execute(BENCH_MKT_SQL).fetch_pandas_all()
-        liw    = cn.cursor().execute(LI_WEEKLY_SQL).fetch_pandas_all()
-        creat  = cn.cursor().execute(PAID_CREATIVES_SQL).fetch_pandas_all()
-    finally:
-        cn.close()
-
-    # Normalise column case and coerce the date columns the dashboard slices.
-    for df in (paid, pacing, bch, bmkt, liw, creat):
-        df.columns = [c.upper() for c in df.columns]
-    for c in ("DATE", "WEEK_START"):
-        if c in paid.columns:
-            paid[c] = pd.to_datetime(paid[c]).dt.date
-    if "WEEK_START" in liw.columns:
-        liw["WEEK_START"] = pd.to_datetime(liw["WEEK_START"]).dt.date
-    if "DAY" in pacing.columns:
-        pacing["DAY"] = pd.to_datetime(pacing["DAY"]).dt.date
-
-    # Land the pulls as BigQuery src_* tables (queryable copy; the sql/ views read these).
-    land(bq, paid,   "src_paid_media")
-    land(bq, pacing, "src_pacing")
-    land(bq, bch,    "src_benchmarks_channel")
-    land(bq, bmkt,   "src_benchmarks_market")
-    land(bq, liw,    "src_li_weekly")
-    land(bq, creat,  "src_paid_creatives")
-
-    # Read the thin BigQuery views (client_cloudflare/sql) to assemble the payload.
+    # Read the BigQuery views (client_cloudflare/sql) to assemble the payload.
     t = lambda n: f"`{PROJECT}.{DATASET}.{n}`"
     pm  = rows(bq, f"SELECT * FROM {t('paid_media_model')}")
     pac = rows(bq, f"SELECT * FROM {t('pacing_model')}")
@@ -338,7 +168,7 @@ def main():
         } for r in lw],
     }
 
-    # Pacing: pass every V_PACING_FINAL_MODEL column straight through (dates -> ISO).
+    # Pacing: pass every pacing_model column straight through (dates -> ISO).
     pacing_payload = {
         "row_count": len(pac),
         "rows": [{k: jval(v) for k, v in r.items()} for r in pac],
@@ -346,9 +176,8 @@ def main():
 
     # --- Extra single-campaign LinkedIn dashboards from the SHARED raw layer.
     # raw_snowflake.linkedin_ads_apac is already in BigQuery (snowflake_data_pull),
-    # so read it directly -- no Snowflake roundtrip. Columns stored UPPERCASE.
-    # EDA-confirmed names: DAY (daily grain), IMPRESSIONS, CLICKS, COSTS (USD),
-    # LEADS (FLOAT64), LEAD_FORM_OPENS (FLOAT64, null for these AWR-CONS groups).
+    # so read it directly. EDA-confirmed names: DAY (daily grain), IMPRESSIONS, CLICKS,
+    # COSTS (USD), LEADS (FLOAT64), LEAD_FORM_OPENS (FLOAT64, null for these AWR-CONS groups).
     CAMPAIGN_GROUPS = {
         "peyc":        ("ANZ PEYC",    "CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PEYC"),
         "cf1_india":   ("CF1 India",   "CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_APAC-IN_IN_MOFU_GENERAL_X_AWR-CONS_CF1-Integrated"),
@@ -406,9 +235,9 @@ def main():
             "by_campaign": sorted(cmap.values(), key=lambda x: x["spend"], reverse=True),
         }
 
-    # last_updated = when THIS build ran; data_through = the true data instant, i.e.
-    # the newest LAST_ALTERED across the gating tables (UTC). The dashboard shows
-    # both so "fresh build" and "fresh data" are never conflated.
+    # last_updated = when THIS build ran; data_through = the newest upstream mirror
+    # last_modified (UTC). The dashboard shows both so "fresh build" and "fresh data"
+    # are never conflated.
     _dt_vals = [v for v in observed.values() if v]
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -428,10 +257,10 @@ def main():
     print(f"watermark updated -> gs://{BUCKET}/{WATERMARK_OBJECT} | data_through={env['data_through']}")
     print(f"  linkedin single-campaign rows: {len(li_rows)} total across {len(CAMPAIGN_GROUPS)} groups")
     for key, c in campaigns.items():
-        t, w = c["totals"], c["window"]
+        tt, w = c["totals"], c["window"]
         print(f"    {key:12s} {c['label']:12s} days={w['days']:>3} daily={len(c['daily']):>3} "
-              f"campaigns={len(c['by_campaign']):>2} imps={t['imps']:>9} clicks={t['clicks']:>6} "
-              f"spend=${t['spend']:>11.2f} leads={t['leads']:>4} form_opens={t['form_opens']:>4}")
+              f"campaigns={len(c['by_campaign']):>2} imps={tt['imps']:>9} clicks={tt['clicks']:>6} "
+              f"spend=${tt['spend']:>11.2f} leads={tt['leads']:>4} form_opens={tt['form_opens']:>4}")
 
 
 if __name__ == "__main__":

@@ -3,12 +3,14 @@
 **Status: LIVE.** The gated web app is deployed and serving (HTTP 200 verified
 2026-06-04). See [`dash/LIVE_URL.md`](dash/LIVE_URL.md) for the URL.
 
-This folder ports the **Cloudflare** dashboard onto the same Google Cloud
-architecture as `client_mongodb`:
+This folder runs the **Cloudflare** dashboard on the same Google Cloud
+architecture as `client_mongodb` — **BigQuery owns the model** (since 2026-06-17;
+see [BigQuery owns the model](#bigquery-owns-the-model-was-the-snowflake-modelled-exception)):
 
 ```
-Snowflake (CLOUDFLARE_SANDBOX.* final-model views)
-  -> Cloud Run JOB  (clients/client_cloudflare/job)      pull -> land BigQuery src_* -> read BQ views -> cloudflare.json
+raw_snowflake.* mirrors (shared ingest/snowflake_data_pull)  +  client_cloudflare.seed_* (static, from data/)
+  -> BigQuery views (clients/client_cloudflare/sql)      staging -> models
+  -> Cloud Run JOB  (clients/client_cloudflare/job)      read views -> cloudflare.json   (NO Snowflake)
   -> GCS (private)  gs://bidbrain-analytics-cloudflare-dash/cloudflare.json
   -> Cloud Run SERVICE (clients/client_cloudflare/dash)  password gate + serves dashboard.html + proxies /data.json
   -> Cloudflare CNAME  cloudflare.bidbrain.ai (proxied) -> *.run.app
@@ -27,32 +29,48 @@ same Flask password gate MongoDB uses.
 
 | Path | What it is |
 |---|---|
-| [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): pulls Snowflake final-model views → lands `src_*` → reads thin BigQuery views → writes `cloudflare.json`. [Guide →](job/README.md) |
+| [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
 | [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. [Guide →](dash/README.md) |
-| [`sql/`](sql/README.md) | The **thin** BigQuery pass-through views that lock the JSON column contract. [Guide →](sql/README.md) |
-| [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner). |
-| [`seed_static.py`](seed_static.py) | One-time copy of Cloudflare's three **static** Snowflake inputs (LINE JP spend, pacing targets, account tiers) into `src_*`. Re-run only when those manual uploads change. |
+| [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
+| [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
+| `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
+| [`pull_static.py`](pull_static.py) | **One-time** Snowflake → `data/*.csv` pull (manual; needs the Snowflake key; re-run on a fresh checkout or when a static upload changes). |
+| [`seed_static.py`](seed_static.py) | Loads `data/*.csv` → BigQuery `client_cloudflare.seed_*` (no Snowflake). Re-run after `pull_static.py`. |
+| [`snowflake_v_*.sql`](snowflake_v_salesforce_leads_live.sql) | **Reference only** now — the live Snowflake DDL for Cloudflare's OWN legacy R2 export tasks. NOT part of this pipeline (the BQ `sql/` views are the source of truth). |
 | [`scheduler.ps1`](scheduler.ps1) | Creates/refreshes the Cloud Scheduler trigger for `cloudflare-export` (default `*/10` UTC; pass `-Cron` to override). The job self-gates, so most ticks no-op. Idempotent. |
 
 > There is **no** one-shot `deploy_cloudflare.ps1` for this client — it was stood
 > up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
 > below. (Only STT has a one-shot stand-up script, `clients/client_STT/deploy_stt.ps1`.)
 
-## Deliberate divergence from client_mongodb
+## BigQuery owns the model (was the Snowflake-modelled exception)
 
-MongoDB does its modelling **in BigQuery** (raw Snowflake -> `src_*` ->
-BigQuery views that derive everything). Cloudflare's model already lives in
-**Snowflake** (`V_PAID_ADS_FINAL_MODEL`, `V_PACING_FINAL_MODEL`, the
-`V_BENCHMARKS_*` / `V_LI_WEEKLY_TARGETS` views). Re-deriving that in BigQuery
-would mean porting a lot of tested Snowflake SQL (and the upstream views aren't
-in this repo). So here the job pulls Snowflake's **final-model** views, lands
-them as BigQuery `src_*` tables (a queryable per-client copy, uniform with every
-other client folder), and the `sql/` views are **thin pass-throughs** that
-expose them in the shape the dashboard expects.
+Until 2026-06-17 Cloudflare was the **only** client that didn't follow the repo
+pattern: the job pulled Snowflake's pre-modelled `CLOUDFLARE_SANDBOX.*` views and
+landed them as thin `src_*` pass-throughs. It's now on the standard MongoDB pattern —
+**BigQuery owns the model**:
 
-If you later want BigQuery to own the model (true MongoDB parity), port the
-Snowflake DDL from the four `CREATE …` scripts into `sql/` and have the job pull
-the raw `APAC_ALL_PLATFORM.PUBLIC.*` tables instead of the CF views.
+- The four **dynamic** platform tables are already mirrored into `raw_snowflake`
+  by the shared `ingest/snowflake_data_pull` unit (no Cloudflare-specific pull).
+- The **static** Cloudflare-only tables (`REAL_TARGETS`, `TIERS`, the LINE JP upload)
+  were pulled once to [`data/`](data/) (`pull_static.py`) and seeded into BigQuery
+  `seed_*` (`seed_static.py`).
+- The Snowflake modelling SQL was **ported into [`sql/`](sql/README.md)** — the
+  `V_STG_*` staging, `V_PAID_ADS_FINAL_MODEL`, `V_SALESFORCE_LEADS_LIVE`,
+  `V_TIER_MAPPING_CLEANED`, `V_TARGETS_V2_NORM`, `V_PACING_FINAL_MODEL`, and the
+  hardcoded benchmark/`li_weekly` constants — over `raw_snowflake.*` + the seeds.
+- The job no longer touches Snowflake; it just reads the views (gates on BQ
+  `__TABLES__.last_modified` like every other client).
+
+**Verified parity** on the cutover: every headline figure matches the old pipeline
+exactly (paid media per-channel imps/clicks/spend, creatives, 12 CS campaigns,
+3911 leads / 3328 accepted / 416 rejected / 167 new, the 3 LinkedIn campaign dashes).
+The pacing **tier** sub-split (Tier 2/3/Other) is **non-deterministic in the source
+model** — `TIERS` has 742 cleaned account names mapping to conflicting tiers and 349
+accepted leads match multiple tiers, so the post-join `QUALIFY` dedup picks a tier
+arbitrarily. The old Snowflake view re-resolves these on every rebuild too; the BQ
+port reproduces the model faithfully, so that split flickers as it always did (the
+region totals and all headline counts are stable/exact).
 
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
@@ -146,16 +164,18 @@ gcloud storage buckets add-iam-policy-binding gs://bidbrain-analytics-cloudflare
 printf 'choose-a-dashboard-password' | gcloud secrets create cloudflare-dash-password --data-file=- --project $PROJECT
 python -c "import secrets;print(secrets.token_urlsafe(48),end='')" | gcloud secrets create cloudflare-dash-session-key --data-file=- --project $PROJECT
 #   grant both secrets to cloudflare-dash-web (roles/secretmanager.secretAccessor)
-#   grant snowflake-bq-key to cloudflare-dash-job (roles/secretmanager.secretAccessor)
+#   (the job is BQ-only now — it does NOT need snowflake-bq-key. pull_static.py does,
+#    but that's a manual one-time local run, not the scheduled job.)
 
-# 5. Bootstrap the BigQuery src_* tables (lands them, then errors reading the not-yet-existing
-#    views — expected, same as MongoDB §10). Run locally with ADC:
-python clients/client_cloudflare/job/main.py    # lands src_*, then raises on the view reads — fine
+# 5. Seed the static tables into BigQuery. data/ is gitignored, so on a fresh checkout pull
+#    the snapshots first (needs the Snowflake key); then load them to BQ (no Snowflake).
+python clients/client_cloudflare/pull_static.py    # Snowflake -> data/*.csv (skip if data/ already present)
+python clients/client_cloudflare/seed_static.py    # data/*.csv -> client_cloudflare.seed_*
 
-# 6. Apply the (thin) BigQuery views
+# 6. Apply the BigQuery model views (needs the seeds + raw_snowflake.* mirrors to exist)
 python clients/client_cloudflare/create_views.py
 
-# 7. Re-run the job — now it produces cloudflare.json in GCS
+# 7. Run the job — reads the views, produces cloudflare.json in GCS (no Snowflake)
 python clients/client_cloudflare/job/main.py
 
 # 8. Build dashboard.html from your existing index.html (see dash/DASHBOARD.md)
@@ -204,4 +224,4 @@ Then, mirroring MongoDB:
 
 - [Root README](../../README.md) — the whole-platform map, security model, and naming conventions.
 - [`../client_mongodb/`](../client_mongodb/README.md) — the template this client is based on (and diverges from).
-- [`../snowflake_data_pull/`](../../ingest/snowflake_data_pull/README.md) — the shared raw layer (note: this client does **not** use it; it pulls its own Snowflake schema directly — see [Deliberate divergence](#deliberate-divergence-from-client_mongodb)).
+- [`../snowflake_data_pull/`](../../ingest/snowflake_data_pull/README.md) — the shared raw layer this client now reads (`salesforce_cs_apac_all`, `tradedesk_apac_all`, `linkedin_ads_apac`, `reddit_ads_apac_all`), like every other client.

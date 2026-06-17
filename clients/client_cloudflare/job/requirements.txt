@@ -1,14 +1,8 @@
-# Cloud Run export job: Snowflake -> BigQuery -> cloudflare.json -> GCS.
-# Pinned for reproducible container builds, resolved together against
-# python:3.12-slim (pandas held <3 for ecosystem compatibility). Matches the
-# pins in client_mongodb/job/requirements.txt so both client jobs share an image base.
-snowflake-connector-python[pandas]==4.6.0
-pandas==2.3.3
-pyarrow==24.0.0
+# Cloud Run export job: BigQuery views -> cloudflare.json -> GCS.
+# Pinned for reproducible container builds. This job no longer touches Snowflake
+# (the shared ingest/snowflake_data_pull unit mirrors the source tables into
+# raw_snowflake; the Cloudflare-specific static tables are seeded from data/ via
+# seed_static.py; this job only reads BigQuery views and writes the JSON to GCS),
+# so it needs nothing beyond the BigQuery + Storage clients. Matches client_mongodb/job.
 google-cloud-bigquery==3.41.0
 google-cloud-storage==3.10.1
-cryptography==48.0.0
-# Only used by the LOCAL key fallback in main.py (_snowflake_key_bytes): when
-# SNOWFLAKE_KEY isn't in the env, the key is read from Secret Manager via ADC.
-# Cloud Run injects SNOWFLAKE_KEY directly so it never hits this path.
-google-cloud-secret-manager==2.28.0
