@@ -18,6 +18,15 @@
 --
 -- Our pipeline roles (APAC_IN_ROLE via the MCP connector; BQ_SYNC_ROLE via the
 -- export job key-pair) are read-only and CANNOT apply this -- 003001/42501.
+--
+-- CRITICAL -- ALWAYS keep the `copy grants` below. Applying this WITHOUT it
+-- (e.g. a hand-edited paste) drops every SELECT grant on the view and the
+-- consumer roles lose access ("Schema ... not authorized"). If that happens,
+-- recover under ACCOUNTADMIN with:
+--   GRANT SELECT ON VIEW CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE
+--     TO ROLE BQ_SYNC_ROLE;     -- the export job (reads V_PACING_FINAL_MODEL)
+--   GRANT SELECT ON VIEW CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE
+--     TO ROLE APAC_IN_ROLE;     -- the MCP connector (verification)
 -- ============================================================================
 create or replace view CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE(
 	DT_CREATED,
@@ -51,7 +60,11 @@ create or replace view CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE(
 	PUBLISHER,
 	OFFER_TYPE,
 	PUBLISHER_OFFER
-) as
+) copy grants as           -- COPY GRANTS: preserve existing SELECT grants across the
+                           -- replace. WITHOUT it, CREATE OR REPLACE wipes every grant on
+                           -- the view AND resets its owner to the running role -> the
+                           -- export job's BQ_SYNC_ROLE + the MCP APAC_IN_ROLE lose SELECT
+                           -- (and ownership-chaining from V_PACING_FINAL_MODEL breaks).
 SELECT
     /* STABILITY FIX:
        We explicitly list these 27 columns instead of using SELECT *.
