@@ -40,7 +40,7 @@ ttd AS (
          SUM(post_view_conv)  AS post_view,    -- TTD post-view (view-through) attributed conversions
          SUM(post_click_conv) AS post_click,   -- TTD post-click attributed conversions
          MIN(metric_date) AS start_date, MAX(metric_date) AS end_date
-  FROM `bidbrain-analytics.client_vmch.stg_ttd`
+  FROM `bidbrain-analytics.client_vmch.stg_ad_delivery`   -- incl. MODELLED April (03b/03c)
 )
 SELECT
   DATE '2026-04-01' AS campaign_start,

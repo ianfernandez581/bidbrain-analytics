@@ -23,7 +23,7 @@ g AS (
 ttd AS (
   SELECT metric_date AS day,
          SUM(imps) AS ttd_imps, SUM(clicks) AS ttd_clicks, SUM(spend_aud) AS ttd_spend_aud
-  FROM `bidbrain-analytics.client_vmch.stg_ttd`
+  FROM `bidbrain-analytics.client_vmch.stg_ad_delivery`   -- incl. MODELLED April (03b/03c)
   WHERE metric_date >= DATE '2026-04-01'
   GROUP BY day
 )

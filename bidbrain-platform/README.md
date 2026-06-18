@@ -79,6 +79,10 @@ No `<c>.bidbrain.ai` subdomains exist, and a shared SSO cookie can't span raw `r
   password (read from Secret Manager `<c>-dash-password`; the platform SA has `secretAccessor`). The
   upstream session cookie is cached and reused; the dashboard's `/data.json` is rewritten to
   `/d/<client>/data.json` so it stays inside the proxy.
+- `proxy()` also **injects a floating "Log out" pill** (`_LOGOUT_BUTTON`, fully inline-styled, max
+  z-index) into the bottom of every proxied dashboard page — the dashboards have no logout of their
+  own. It links to the platform's `/logout` (root-relative, so `dashboards.bidbrain.ai/logout`, NOT
+  through `/d/`), which clears the session + `bb_sso` cookie exactly like the portal/admin pages.
 - Result: after the single platform login, dashboards just open — **no second password** — on raw
   run.app, no domain required. Per-agency scoping is enforced on `/d/<client>/`.
 

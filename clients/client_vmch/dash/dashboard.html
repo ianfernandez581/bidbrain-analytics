@@ -494,36 +494,47 @@
     <div id="tab-web" class="tabpane">
       <div class="section first">
         <h2>Website traffic — GA4</h2>
-        <span class="sub">The VMCH website (one GA4 property). This is the outcome the media is working toward: visits, engagement and enquiries (phone, email, contact forms). The sessions trend runs the full selected range (flight marked); KPI cards and the enquiry chart are scoped to the <b>flight (Apr 2026 →)</b>, the window where enquiry tagging is comparable. The website has no campaign dimension, so it is not split by the Campaign filter.</span>
+        <span class="sub">The VMCH website (one GA4 property) — the outcome the media is working toward: visits, engagement and enquiries (phone, email, contact forms). Enquiry KPIs and charts are scoped to the <b>flight (Apr 2026 →)</b>. <b>Use the Campaign filter</b> (top bar, or the quick chips in the panel) to credit website sessions and enquiries to a campaign — the <b>Campaign effect</b> panel, the <b>Sessions</b> trend and the two <b>enquiry</b> charts all respond, and the per-campaign figures add up to the all-campaigns total.</span>
       </div>
 
       <div class="ai-note" id="webAdEffect"></div>
 
       <div class="kpis" id="webKpis"></div>
 
+      <!-- ===== campaign statistical effect — driven by the Campaign filter ===== -->
+      <div class="card card-tall" id="webAttrCard" style="margin-top:16px">
+        <div class="card-head">
+          <h3>Campaign effect on website outcomes <span style="font-size:11px;font-weight:600;color:var(--orange);border:1px solid var(--orange);border-radius:10px;padding:1px 8px;margin-left:6px;vertical-align:middle">STATISTICAL MODEL</span></h3>
+          <div class="ctrls">
+            <span class="seg" id="webAttrCampSeg"></span>
+            <span class="seg" id="webAttrGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-g="week" class="on" onclick="setAttrGrain('week',this)">Week</button><button type="button" data-g="day" onclick="setAttrGrain('day',this)">Day</button></span>
+          </div>
+        </div>
+        <div class="kpis" id="webAttrHead" style="margin-bottom:6px"></div>
+        <div class="grid-2-1">
+          <div class="chart-wrap"><canvas id="webAttrScatter"></canvas></div>
+          <div id="webAttrStats"></div>
+        </div>
+        <div class="hint" id="webAttrMethod" style="margin-top:10px;line-height:1.6"></div>
+      </div>
+
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Sessions by channel</h3>
-          <div class="hint">Genuine acquisition channels, paid in orange. <b>Note:</b> low-quality programmatic landing-pixel hits (2.5-second non-engaged visits, ~46% → 30% engagement when present) are filtered out, so this reflects real engaged traffic. Display is upper-funnel — its contribution is reach &amp; attributed conversions (see Media → Traffic), not last-click sessions.</div>
-          <div class="chart-wrap"><canvas id="webChannels"></canvas></div>
+          <h3>Enquiries by type</h3>
+          <div class="hint">Flight enquiry actions by type — phone calls, contact &amp; call-back forms, email clicks and property/sales alerts — <b>credited to the selected campaign(s) by share of ad spend</b>, so it scales with the Campaign filter. With <b>All campaigns</b> it shows the full flight totals.</div>
+          <div class="chart-wrap"><canvas id="webEnqTotals"></canvas></div>
         </div>
         <div class="card card-tall">
           <div class="card-head">
-            <h3>Sessions — total vs paid</h3>
+            <h3>Sessions</h3>
             <div class="ctrls">
               <span class="seg" id="webTrendScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('webTrend','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('webTrend','abs',this)">Absolute</button></span>
               <span class="seg" id="webTrendGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setGrain('webTrend','month',this)">Month</button><button type="button" data-grain="week" onclick="setGrain('webTrend','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('webTrend','day',this)">Day</button></span>
             </div>
           </div>
-          <div class="hint">Total sessions (line) with paid sessions (orange) and Display sessions (dashed). <b>Relative</b> indexes each line to its own peak=100. <b>Note:</b> total volume peaked <i>pre-flight</i> (March) and eased seasonally; the May paid uptick is Google &amp; Meta search/social, not this display buy — display's effect is reach &amp; attributed conversions, above.</div>
+          <div class="hint">Website sessions over time, <b>credited to the selected campaign(s) by share of ad spend</b> (scales with the Campaign filter; shows full sessions when all or none are selected). <b>Relative</b> indexes to peak=100; the flight start is marked.</div>
           <div class="chart-wrap"><canvas id="webTrend"></canvas></div>
         </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>Display reach vs website engagement</h3>
-        <div class="hint">Monthly display reach (orange bars, right axis) against the share of website visits that were <b>engaged</b> (line, left axis). As the flight's reach ramped into May, the engaged-visit rate rose — an <b>association</b>, not proof of causation. Total session <i>volume</i> followed its own seasonal trend (it peaked pre-flight), so read this as a quality signal, not a traffic claim. <b>Flight start (Apr 2026) marked.</b></div>
-        <div class="chart-wrap"><canvas id="webEngage"></canvas></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -538,16 +549,6 @@
         <div class="chart-wrap" style="height:300px"><canvas id="webKeyEvents"></canvas></div>
       </div>
 
-      <div class="card" style="margin-top:16px">
-        <h3>Top sources / mediums</h3>
-        <div class="hint">Where sessions originate. Paid sources flagged <span class="tag paid">AD</span>.</div>
-        <div style="overflow:auto">
-          <table id="webSources">
-            <thead><tr><th>Source / medium</th><th>Channel</th><th class="num">Sessions</th><th class="num">Engaged</th><th class="num">Eng. rate</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
     </div>
 
     <!-- ============ MEDIA -> TRAFFIC ============ -->
@@ -632,6 +633,7 @@ const grain = { ovHero:'month', ovStack:'month', ovDelivery:'month', pmMonthly:'
                 webTrend:'month', webKeyEvents:'month', linkWeekly:'week', linkClicks:'week' };
 const scale = { ovHero:'rel', ovStack:'rel', ovDelivery:'rel', pmMonthly:'rel',
                 webTrend:'rel', webKeyEvents:'rel', linkWeekly:'rel', linkClicks:'rel' };
+let attrGrain = 'week';   // GA4 campaign-effect panel: regression grain (week|day)
 // which render fn owns each chart, so a toggle only re-renders its tab
 const CHART_RENDER = { ovHero:'overview', ovStack:'overview', ovDelivery:'overview',
                        pmMonthly:'paid', webTrend:'web', webKeyEvents:'web',
@@ -645,6 +647,18 @@ function reRender(chart){ destroyCharts(); const t=CHART_RENDER[chart];
   else if(t==='web') renderWeb(); else if(t==='link') renderLink(); }
 function setGrain(chart,g,btn){ grain[chart]=g; segPick(btn); reRender(chart); }
 function setScale(chart,s,btn){ scale[chart]=s; segPick(btn); reRender(chart); }
+// GA4 campaign-effect panel: re-fit the regression at the chosen grain (re-renders the Web tab).
+function setAttrGrain(g,btn){ attrGrain=g; segPick(btn); destroyCharts(); renderWeb(); }
+// GA4 campaign-effect panel: fast one-click Campaign picker (sets the shared campaign filter, so
+// the top dropdown + other tabs stay in sync). '__all__' selects every campaign.
+function setAttrCampaign(enc){
+  const name = decodeURIComponent(enc);
+  activeCampaigns = (name==='__all__')
+    ? new Set((DATA.ad_campaigns||[]).map(c=>c.campaign))
+    : new Set([name]);
+  renderCampaignButton();
+  destroyCharts(); renderWeb();
+}
 // index a numeric series to its own peak=100 (Relative mode for overlay lines)
 const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
 // null-preserving index: nulls (pre-flight gaps) stay null (a line break), and the peak is taken
@@ -969,6 +983,55 @@ function enquiriesFlightSummary(){
 }
 
 //==============================================================================
+// STATISTICS — ordinary least-squares + significance, for the GA4 campaign-effect panel.
+// Plain, named techniques (OLS regression; Pearson r; two-tailed Student-t test on the
+// slope) so the modelled numbers are fully transparent. No external libraries.
+//==============================================================================
+// Fit y = a + b·x by ordinary least squares. Returns slope, intercept, Pearson r, R²,
+// the slope's two-tailed p-value, n, and Σx. null if fewer than 3 usable points.
+function olsFit(xs, ys){
+  const n = xs.length;
+  if(n < 3) return null;
+  let sx=0, sy=0; for(let i=0;i<n;i++){ sx+=xs[i]; sy+=ys[i]; }
+  const mx=sx/n, my=sy/n;
+  let sxx=0, syy=0, sxy=0;
+  for(let i=0;i<n;i++){ const dx=xs[i]-mx, dy=ys[i]-my; sxx+=dx*dx; syy+=dy*dy; sxy+=dx*dy; }
+  if(sxx<=0 || syy<=0) return { n, slope:0, intercept:my, r:0, r2:0, p:1, sumx:sx };
+  const slope = sxy/sxx, intercept = my - slope*mx;
+  const r = sxy/Math.sqrt(sxx*syy), r2 = r*r;
+  const df = n-2;
+  const t = r2>=1 ? 1e6 : Math.abs(r)*Math.sqrt(df/(1-r2));
+  return { n, slope, intercept, r, r2, p: studentPTwoTail(t, df), sumx:sx };
+}
+// two-tailed p for a Student-t statistic with df degrees of freedom
+function studentPTwoTail(t, df){ if(!(df>0)) return 1; if(!isFinite(t)) return 0; return betai(df/2, 0.5, df/(df+t*t)); }
+// regularised incomplete beta I_x(a,b) — Numerical Recipes betai/betacf/lgamma
+function betai(a,b,x){
+  if(x<=0) return 0; if(x>=1) return 1;
+  const bt = Math.exp(lgamma(a+b)-lgamma(a)-lgamma(b)+a*Math.log(x)+b*Math.log(1-x));
+  return x < (a+1)/(a+b+2) ? bt*betacf(a,b,x)/a : 1 - bt*betacf(b,a,1-x)/b;
+}
+function betacf(a,b,x){
+  const MAXIT=200, EPS=3e-7, FPMIN=1e-30;
+  const qab=a+b, qap=a+1, qam=a-1; let c=1, d=1-qab*x/qap;
+  if(Math.abs(d)<FPMIN) d=FPMIN; d=1/d; let h=d;
+  for(let m=1;m<=MAXIT;m++){
+    const m2=2*m;
+    let aa=m*(b-m)*x/((qam+m2)*(a+m2)); d=1+aa*d; if(Math.abs(d)<FPMIN)d=FPMIN; c=1+aa/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d; h*=d*c;
+    aa=-(a+m)*(qab+m)*x/((a+m2)*(qap+m2)); d=1+aa*d; if(Math.abs(d)<FPMIN)d=FPMIN; c=1+aa/c; if(Math.abs(c)<FPMIN)c=FPMIN; d=1/d; const del=d*c; h*=del;
+    if(Math.abs(del-1)<EPS) break;
+  }
+  return h;
+}
+function lgamma(z){
+  const g=[76.18009172947146,-86.50532032941677,24.01409824083091,-1.231739572450155,0.1208650973866179e-2,-0.5395239384953e-5];
+  let x=z, tmp=x+5.5; tmp-=(x+0.5)*Math.log(tmp); let ser=1.000000000190015;
+  for(let j=0;j<6;j++) ser+=g[j]/(z+j+1);
+  return -tmp+Math.log(2.5066282746310005*ser/x);
+}
+function sigLabel(p){ return p<0.001?'highly significant (p<0.001)':p<0.01?'very significant (p<0.01)':p<0.05?'significant (p<0.05)':p<0.1?'marginal (p<0.1)':'not significant'; }
+
+//==============================================================================
 // BOOT
 //==============================================================================
 async function boot(){
@@ -1026,8 +1089,8 @@ function renderControls(){
   const notes = { overview:'Campaign vs website outcomes', paid:'Trade Desk delivery',
     web:'GA4 website analytics', link:'Connecting media to traffic' };
   el('ctrlNote').textContent = notes[activeTab]||'';
-  // Campaign filter scopes ad delivery; hidden on the Website tab (no campaign grain there).
-  const showCampaign = activeTab !== 'web';
+  // Campaign filter shows on every tab — the Website tab's campaign-effect panel uses it too.
+  const showCampaign = true;
   el('campaignGroup').style.display = showCampaign ? 'flex' : 'none';
   el('filterDiv2').style.display    = showCampaign ? 'block' : 'none';
   renderCampaignButton();
@@ -1319,6 +1382,7 @@ function shortAg(s){
 //==============================================================================
 function renderWeb(){
   const g = ga4Kpi();
+  const ATTR = computeAttribution();   // shared spend-share attribution: drives the panel AND scales the enquiry chart
   const A = adTotals();   // TTD reach + attributed conversions for the SELECTED campaigns (flight)
   const engRate=pct(g.engaged_sessions,g.sessions), avgEng=g.sessions?g.eng_duration/g.sessions:0;
   const enq = enquiriesFlight();
@@ -1354,29 +1418,31 @@ function renderWeb(){
   + ` and Organic Search demand held steady (<b>${fmtN(flOrg)}</b> sessions). `
   + `Total session <i>volume</i> followed its own seasonal trend — it peaked before the flight and eased back — which is expected for an awareness channel, and is why reach &amp; attributed conversions (not raw last-click sessions) are the fair read of impact.`;
 
-  // sessions by channel (horizontal bar)
-  const ch = ga4Channels();
-  charts.webChannels = new Chart(el('webChannels'),{
+  // enquiries by type (horizontal bar) — flight totals CREDITED to the selected campaign(s) by
+  // share of ad spend (ATTR.share), so the Campaign filter scales it. All campaigns -> full totals.
+  const enqW = enquiriesFlightSummary();
+  const enqTypes = enqW.types.slice(0,8);
+  const enqScaled = enqTypes.map(t=>(enqW.totals[t]||0)*ATTR.share);
+  const enqScaledTotal = enqW.total*ATTR.share;
+  charts.webEnqTotals = new Chart(el('webEnqTotals'),{
     type:'bar',
-    data:{ labels:ch.map(c=>c.channel), datasets:[{ label:'Sessions', data:ch.map(c=>c.sessions),
-      backgroundColor:ch.map(c=>BUCKET_COLOR[c.bucket]||C.grey), borderRadius:4 }]},
+    data:{ labels:enqTypes.map(t=>t.replace(/_/g,' ')), datasets:[{ label:'Enquiries', data:enqScaled,
+      backgroundColor:enqTypes.map((t,i)=>KE_PALETTE[i % KE_PALETTE.length]), borderRadius:4, maxBarThickness:30 }]},
     options:{ indexAxis:'y', maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} sessions · ${ch[c.dataIndex].bucket}`}} },
-      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX() } }
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} enquiries (${fmtPct(pct(c.parsed.x, enqScaledTotal),0)})`}} },
+      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}), y:axisX() } }
   });
 
-  // trend total vs paid vs display — pure overlay lines. Relative indexes EACH line to its own
-  // peak=100 on a shared 0-100 axis so the differently-scaled lines compare. Grain month/week/day.
+  // Sessions trend — total website sessions, credited to the selected campaign(s) by share of ad
+  // spend (ATTR.share; = 1 when all OR none selected, so it shows full sessions then). Single line.
   const gT = grain.webTrend, relT = scale.webTrend==='rel';
   const ST = ga4Series(gT);
   const labelsT = ST.map(r=>periodLabel(r.key,gT));
-  const totRaw = ST.map(r=>r.sessions||0), paidRaw = ST.map(r=>r.paid_sessions||0), dispRaw = ST.map(r=>r.display_sessions||0);
+  const sessRaw = ST.map(r=>(r.sessions||0)*ATTR.share);
   charts.webTrend = new Chart(el('webTrend'),{
     type:'line',
     data:{ labels:labelsT, datasets:[
-      { label:'Total sessions', data:relT?indexed(totRaw):totRaw, _raw:totRaw, borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.07)', borderWidth:2.5, fill:!relT, tension:.35, pointRadius:2 },
-      { label:'Paid sessions', data:relT?indexed(paidRaw):paidRaw, _raw:paidRaw, borderColor:C.orange, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:2 },
-      { label:'Display sessions', data:relT?indexed(dispRaw):dispRaw, _raw:dispRaw, borderColor:C.orangeDeep, backgroundColor:'transparent', borderWidth:2, borderDash:[5,3], tension:.35, pointRadius:0 }
+      { label:'Sessions', data:relT?indexed(sessRaw):sessRaw, _raw:sessRaw, borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.07)', borderWidth:2.5, fill:!relT, tension:.35, pointRadius:2 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       flightMarker:{ index:flightStartIndex(ST.map(r=>r.key),gT), text:'Flight →' },
@@ -1388,32 +1454,9 @@ function renderWeb(){
     plugins:[flightMarker]
   });
 
-  // Display reach (TTD impressions, bars) vs engaged-visit rate (line), by month. Month grain only
-  // (the weekly view carries no engaged_sessions). Honest QUALITY tie, not a volume claim — both
-  // series come straight from monthly[]. Flight start marked so the ramp into May is visible.
-  // trailing full months (drop the partial newest) so the engaged-rate line has a pre-flight
-  // baseline and the flight marker lands mid-chart, showing the May reach ramp in context.
-  const EM = (DATA.monthly||[]).filter(r=>r.month<lastMon).slice(-9);
-  const emKeys = EM.map(r=>r.month);
-  charts.webEngage = new Chart(el('webEngage'),{
-    data:{ labels:EM.map(r=>periodLabel(r.month,'month')), datasets:[
-      { type:'bar', label:'Display impressions (reach)', data:EM.map(r=>r.ttd_imps||0), yAxisID:'y1',
-        backgroundColor:C.orangeSoft, borderColor:C.orange, borderWidth:1, borderRadius:4, order:2 },
-      { type:'line', label:'Engaged-visit rate', data:EM.map(r=>pct(r.engaged_sessions,r.sessions)*100), yAxisID:'y',
-        borderColor:C.maroon, backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:3, pointBackgroundColor:C.maroon, order:1 }
-    ]},
-    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      flightMarker:{ index:flightStartIndex(emKeys,'month'), text:'Flight →' },
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>
-        c.dataset.yAxisID==='y1' ? ` Impressions: ${fmtN(c.parsed.y)}` : ` Engaged-visit rate: ${c.parsed.y.toFixed(0)}%` }} },
-      scales:{ x:axisX(),
-        y:gridY({position:'left',min:0,max:100,title:{display:true,text:'Engaged-visit rate',color:C.maroon,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>v+'%'}}),
-        y1:gridY({position:'right',grid:{display:false},title:{display:true,text:'Display impressions',color:C.orange,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } },
-    plugins:[flightMarker]
-  });
-
-  // enquiry events by type (stacked bars). Pure composition (no overlay) -> Relative = 100%-stacked
-  // (each period normalised to its own total); Absolute = raw counts. Grain month/week/day.
+  // enquiry events by type (stacked bars), credited to the selected campaign(s) by spend share
+  // (ATTR.share scales every value; Relative composition is unchanged since share cancels).
+  // Pure composition -> Relative = 100%-stacked; Absolute = scaled counts. Grain month/week/day.
   const gK = grain.webKeyEvents, relK = scale.webKeyEvents==='rel';
   const keW = keyEventsBy(gK);
   // Clamp to the flight: pre-flight GA4 enquiry tagging used a different taxonomy (counts ~40× higher)
@@ -1421,11 +1464,11 @@ function renderWeb(){
   const keKeys = Object.keys(keW.byKey).filter(k=>inRangeBy(k,gK) && inFlight(k,gK)).sort();
   const labelsK = keKeys.map(k=>periodLabel(k,gK));
   const keTypes = keW.types.slice(0,6);
-  const keTot = keKeys.map(k=>keTypes.reduce((s,t)=>s+((keW.byKey[k]||{})[t]||0),0));
+  const keTot = keKeys.map(k=>keTypes.reduce((s,t)=>s+((keW.byKey[k]||{})[t]||0),0)*ATTR.share);
   charts.webKeyEvents = new Chart(el('webKeyEvents'),{
     type:'bar',
     data:{ labels:labelsK, datasets: keTypes.map((t,i)=>{
-      const raw = keKeys.map(k=>(keW.byKey[k]||{})[t]||0);
+      const raw = keKeys.map(k=>((keW.byKey[k]||{})[t]||0)*ATTR.share);
       return { label:t.replace(/_/g,' '),
         data: relK ? raw.map((v,j)=>keTot[j]?v/keTot[j]*100:0) : raw, _raw:raw,
         backgroundColor:KE_PALETTE[i % KE_PALETTE.length], stack:'ke', borderRadius:3, maxBarThickness:34 };
@@ -1438,16 +1481,114 @@ function renderWeb(){
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,max:relK?100:undefined,ticks:{color:C.mute,font:{size:11},callback:v=>relK?v+'%':fmtN(v)}}) } }
   });
 
-  // top sources table
-  const srcs = ga4Sources();
-  el('webSources').querySelector('tbody').innerHTML = srcs.map(r=>{
-    const isAd = r.bucket==='Paid';
-    const tagCls = r.bucket==='Paid'?'paid':r.bucket==='Organic'?'org':r.bucket==='Direct'?'dir':'oth';
-    const eng = pct(r.engaged,r.sessions);
-    return `<tr><td>${isAd?'<span class="tag paid">AD</span> ':''}${r.source_medium}</td>
-      <td><span class="tag ${tagCls}">${r.channel}</span></td>
-      <td class="num">${fmtN(r.sessions)}</td><td class="num">${fmtN(r.engaged)}</td><td class="num">${fmtPct(eng,0)}</td></tr>`;
-  }).join('');
+  renderWebAttribution(ATTR);
+}
+
+//==============================================================================
+// CAMPAIGN STATISTICAL EFFECT (GA4 tab) — driven by the Campaign filter.
+// GA4 carries no campaign dimension, so we relate each campaign's ad SPEND to TOTAL
+// website outcomes via OLS regression over the full Oct 2025 → present timeline (the
+// same combined series the Overview chart plots). Modelled sessions = slope × spend;
+// modelled enquiries = modelled sessions × the site's enquiry rate. Fully transparent.
+//==============================================================================
+function campPrefix(raw){ const s=(raw||'').toLowerCase();
+  return s.startsWith('rac')?'rac' : s.startsWith('rl')?'rl' : s.startsWith('sah')?'sah'
+       : s.startsWith('dis')?'dis' : null; }   // maps a filter campaign -> OV.combined() ch key
+// Shared campaign-attribution computation — used by BOTH the enquiry chart and the effect panel
+// so they stay consistent. Models total sessions ~ total ad spend (OLS over the full HIST+live
+// timeline), then credits the SELECTED campaigns their SHARE OF SPEND (additive). README caveat 13.
+function computeAttribution(){
+  const totalCamps = (DATA.ad_campaigns||[]).length, selCount = activeCampaigns.size;
+  const ALLP = new Set((DATA.ad_campaigns||[]).map(c=>campPrefix(c.campaign)).filter(Boolean));
+  const selPrefs = new Set([...activeCampaigns].map(campPrefix).filter(Boolean));
+  // NONE selected -> show the full (no-filter) effect: treat as all campaigns.
+  const allSel = selPrefs.size===0 || selCount>=totalCamps;
+  const prefs = selPrefs.size===0 ? new Set(ALLP) : selPrefs;
+  const TL = OV.combined(), g = attrGrain, map = {};   // do NOT name it C — that's the global palette
+  for(const r of TL){
+    if(r.sessions==null || r.sessions<=0) continue;    // only days GA4 recorded sessions
+    const k = g==='week' ? mondayOf(r.date) : r.date;
+    const e = map[k] || (map[k]={sess:0, sel:0, all:0});
+    e.sess += r.sessions;
+    for(const p of ALLP){ const sp=(r.ch[p] ? r.ch[p].spend : 0)||0; e.all+=sp; if(prefs.has(p)) e.sel+=sp; }
+  }
+  const periods = Object.keys(map).sort();
+  const ys = periods.map(k=>map[k].sess), xsSel = periods.map(k=>map[k].sel), xsAll = periods.map(k=>map[k].all);
+  const fitSel = olsFit(xsSel, ys), fitAll = olsFit(xsAll, ys);
+  const selectedSpend = xsSel.reduce((a,b)=>a+b,0), totalAllSpend = xsAll.reduce((a,b)=>a+b,0);
+  const share = totalAllSpend>0 ? selectedSpend/totalAllSpend : 0;   // ADDITIVE: campaigns sum to total
+  const enqRate = (DATA.kpi && DATA.kpi.sessions) ? enquiriesFlight()/DATA.kpi.sessions : 0;
+  const attrTotalSessions = (fitAll && fitAll.slope>0) ? fitAll.slope*totalAllSpend : 0;
+  const attrSess = attrTotalSessions*share;                          // sessions: regression-modelled (nets baseline)
+  const attrEnq  = enquiriesFlightSummary().total * share;           // enquiries: flight total credited by spend share (matches the enquiry chart)
+  return { totalCamps, selCount, allSel, prefs, periods, map, g, fitSel, selectedSpend, totalAllSpend, share, enqRate, attrSess, attrEnq };
+}
+function renderWebAttribution(ATTR){
+  const head=el('webAttrHead'), stats=el('webAttrStats'), method=el('webAttrMethod');
+  const { totalCamps, selCount, allSel, prefs, periods, map, g, fitSel:fit, selectedSpend, totalAllSpend, share, enqRate, attrSess, attrEnq } = ATTR;
+
+  // fast one-click Campaign chips on the Website tab (reflect + drive the shared filter)
+  const seg = el('webAttrCampSeg');
+  if(seg){
+    const single = selCount===1 ? [...activeCampaigns][0] : null;
+    let b = `<span class="cap">CAMPAIGN</span><button type="button" class="${allSel?'on':''}" onclick="setAttrCampaign('__all__')">All</button>`;
+    for(const c of (DATA.ad_campaigns||[])){
+      const enc = encodeURIComponent(c.campaign).replace(/'/g,'%27');
+      b += `<button type="button" class="${single===c.campaign?'on':''}" onclick="setAttrCampaign('${enc}')">${(c.campaign||'').split('_')[0]}</button>`;
+    }
+    seg.innerHTML = b;
+  }
+  if(charts.webAttrScatter){ try{charts.webAttrScatter.destroy()}catch(e){} delete charts.webAttrScatter; }
+
+  if(!fit){
+    head.innerHTML=''; stats.innerHTML=''; method.innerHTML='';
+    charts.webAttrScatter = new Chart(el('webAttrScatter'),{type:'scatter',data:{datasets:[]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    return;
+  }
+
+  const xsSel = periods.map(k=>map[k].sel);
+
+  head.innerHTML =
+      kpiCard('accent','Modelled sessions', '≈ '+fmtN(attrSess), allSel?'all campaigns':`${fmtPct(share,0)} of ad spend`)
+    + kpiCard('accent','Modelled enquiries', '≈ '+fmtN(attrEnq), allSel?'all flight enquiries':`${fmtPct(share,0)} of flight enquiries`)
+    + kpiCard('web','Spend → sessions (r)', fit?((fit.r>=0?'+':'')+fit.r.toFixed(2)):'—', fit?`${sigLabel(fit.p)}`:'')
+    + kpiCard('web','Spend analysed', money(selectedSpend), allSel?`${totalCamps} campaigns`:`${fmtPct(share,0)} of A$${fmtN(totalAllSpend)}`);
+
+  // scatter (each point = one period: selected spend vs total sessions) + the fitted line
+  const pts = periods.map(k=>({x:map[k].sel, y:map[k].sess}));
+  let lineData=[];
+  if(fit){ const xmin=Math.min(...xsSel), xmax=Math.max(...xsSel);
+    lineData=[{x:xmin,y:fit.intercept+fit.slope*xmin},{x:xmax,y:fit.intercept+fit.slope*xmax}]; }
+  charts.webAttrScatter = new Chart(el('webAttrScatter'),{
+    data:{ datasets:[
+      { type:'line', label:'Regression fit', data:lineData, borderColor:C.orange, borderWidth:2.5,
+        pointRadius:0, fill:false, tension:0, order:1 },
+      { type:'scatter', label:`Ad spend vs sessions (per ${g})`, data:pts,
+        backgroundColor:'rgba(76,39,54,.5)', borderColor:C.maroon, pointRadius:4, pointHoverRadius:6, order:2 }
+    ]},
+    options:{ maintainAspectRatio:false,
+      plugins:{ legend:legendTop(),
+        tooltip:{callbacks:{label:c=> c.dataset.type==='line' ? '' : ` ${money(c.parsed.x)} spend · ${fmtN(c.parsed.y)} sessions`}} },
+      scales:{ x:gridY({type:'linear',title:{display:true,text:`Ad spend per ${g} (AUD)`,color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
+               y:gridY({title:{display:true,text:'Website sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
+  });
+
+  stats.innerHTML = fit ? `<table style="width:100%;font-size:13px;border-collapse:collapse">
+      <tr><td style="padding:5px 0">Spend → sessions correlation (r)</td><td class="num"><b>${(fit.r>=0?'+':'')+fit.r.toFixed(3)}</b></td></tr>
+      <tr><td style="padding:5px 0">R² — variance explained</td><td class="num">${(fit.r2*100).toFixed(0)}%</td></tr>
+      <tr><td style="padding:5px 0">Significance (two-tailed t-test)</td><td class="num">${sigLabel(fit.p)}</td></tr>
+      <tr><td style="padding:5px 0">Share of total ad spend</td><td class="num">${fmtPct(share,1)}</td></tr>
+      <tr><td style="padding:5px 0">Data points</td><td class="num">${fit.n} ${g==='week'?'weeks':'days'}</td></tr>
+      <tr><td style="padding:5px 0">Site enquiry rate</td><td class="num">${fmtPct(enqRate,1)}</td></tr>
+    </table>` : '<div class="hint">Not enough data points to fit a model.</div>';
+
+  method.innerHTML = `<b>How this is calculated (transparent):</b> first an ordinary least-squares (OLS) linear regression of `
+    + `${g==='week'?'weekly':'daily'} <b>total website sessions</b> on <b>total ad spend</b> across the full Oct 2025 → present timeline `
+    + `(zero-spend baseline weeks included, so the slope is the lift above baseline) estimates the sessions the whole programme drove. `
+    + `Each campaign is then credited <b>in proportion to its share of spend</b> — so the campaigns <b>add up to the all-campaigns total</b>. `
+    + `<b>Modelled enquiries</b> (and the Enquiries-by-type chart) credit the flight's enquiries to each campaign by the same <b>spend share</b>. `
+    + `The scatter and <i>r</i> show the selected campaign’s own spend-vs-sessions relationship (Pearson <i>r</i> with a two-tailed Student-<i>t</i> test). `
+    + `A strong, significant association is supporting evidence, not by itself proof of causation.`;
 }
 
 //==============================================================================
@@ -1937,7 +2078,7 @@ const OV = (function(){
     syncGrainBtns();
   }
 
-  return { render, setGrain };
+  return { render, setGrain, combined };   // combined() = HIST+live daily, used by the GA4 campaign-effect panel
 })();
 boot();
 </script>

@@ -391,6 +391,26 @@ REGION = os.environ.get("REGION", "australia-southeast1")
 _UPSTREAM_PW = {}       # client_key -> plaintext dashboard password (cached per instance)
 _UPSTREAM_COOKIES = {}  # client_key -> upstream session cookies (cached per instance)
 
+# A floating "Log out" pill injected into every proxied dashboard page (the dashboards are
+# third-party HTML with 10 different themes, so it is fully inline-styled + max z-index to never
+# clash). It points at the platform's own /logout (root-relative -> dashboards.bidbrain.ai/logout,
+# NOT through /d/<client>/), which clears the session + bb_sso cookie — same as the portal/admin
+# pages. After logout _may_open() fails and the dashboards redirect back to the login screen.
+_LOGOUT_BUTTON = (
+    b'<a href="/logout" title="Log out of all dashboards" '
+    b'style="position:fixed;top:14px;right:16px;z-index:2147483647;display:inline-flex;'
+    b'align-items:center;gap:6px;padding:8px 13px;border-radius:999px;'
+    b'font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#fff;'
+    b'background:rgba(17,17,17,.82);border:1px solid rgba(255,255,255,.22);text-decoration:none;'
+    b'box-shadow:0 2px 10px rgba(0,0,0,.28);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);'
+    b'cursor:pointer;">'
+    b'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    b'stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    b'<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>'
+    b'<polyline points="16 17 21 12 16 7"></polyline>'
+    b'<line x1="21" y1="12" x2="9" y2="12"></line></svg>Log out</a>'
+)
+
 
 def _upstream_base(client):
     c = store.get_client(client)
@@ -497,8 +517,11 @@ def proxy(client, subpath):
     ctype = resp.headers.get("Content-Type", "application/octet-stream")
     body = resp.content
     if "text/html" in ctype:                        # keep the dashboard's same-origin fetches inside the proxy
+        is_dashboard = b"/data.json" in body        # the real dashboard page (vs. a sub-view); see _unauth
         body = body.replace(b"/data.json", f"/d/{client}/data.json".encode())
         body = body.replace(b"'/report'", f"'/d/{client}/report'".encode())  # AI report POST (mongodb)
+        if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout control
+            body = body.replace(b"</body>", _LOGOUT_BUTTON + b"</body>", 1)
     out = Response(body, status=resp.status_code, content_type=ctype)
     out.headers["Cache-Control"] = "no-store"
     loc = resp.headers.get("Location")

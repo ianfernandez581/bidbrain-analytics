@@ -21,10 +21,16 @@ from google.cloud import bigquery, storage
 
 from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
 
-# Freshness gate: probe these raw tables for new data
+# Freshness gate: probe these raw tables for new data.
+# GA4 has a DTS→Windsor fallback (see sql/01_stg_ga4.sql): raw_ga4.* are the native
+# Data-Transfer source (currently frozen — failed transfer), raw_windsor.perf_ga4(+events)
+# are the Windsor fallback BASE TABLES that advance when the Windsor loaders run. Watching
+# the Windsor base tables makes the gate fire when GA4 catches up via Windsor.
 GATING_TABLES = [
     "raw_ga4.perf_ga4",
     "raw_ga4.perf_ga4_events",
+    "raw_windsor.perf_ga4",
+    "raw_windsor.perf_ga4_events",
     "raw_windsor.perf_the_trade_desk",
 ]
 WATERMARK_OBJECT = "_freshness.json"

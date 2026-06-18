@@ -58,8 +58,12 @@ market, single platform).
 - **Trade Desk** — delivery KPIs (spend/imps/clicks/CTR/CPM/CPC), monthly spend+clicks, spend-by-
   campaign donut, campaign breakdown table (**now with Post-view / Post-click columns**), top ad groups,
   creative-format mix.
-- **Website** — GA4 KPIs, sessions-by-channel (junk filtered), sessions trend (total/paid/display),
-  enquiry events by type (**flight-scoped**), top sources/mediums.
+- **Website** — GA4 KPIs (total sessions led); a **Campaign effect** panel (`STATISTICAL MODEL`, see
+  caveat 13); and three displays that all **scale with the Campaign filter by spend share** (additive;
+  full data when all OR none selected): **Enquiries by type**, the **Sessions** trend (single line,
+  was "total vs paid"), and **Enquiry events by type** by date (**flight-scoped**). The Campaign filter
+  now shows on this tab (it was hidden). Removed: sessions-by-channel, Display-reach-vs-engagement, and
+  Top sources/mediums.
 - **Media → Traffic** — the full chain: **spend → impressions → clicks → post-click → post-view**
   conversions (funnel + stat strip), impressions-vs-sessions trend, correlation scatter, weekly clicks.
   Last-click Display sessions kept as an honest aside (small by design — display is upper-funnel).
@@ -163,3 +167,48 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
     filters its keys). KPI cards + channel/source breakdowns stay flight-window. An always-on date-scope
     banner explains this. **Latest period is partial** — GA4 lands ~a few days behind TTD, so the trailing
     month/week reads low (the Overview note says so).
+12. **April RAC + SAH delivery is MODELLED** (added 2026-06-18). The Trade Desk's full April delivery for
+    RAC and SAH never reached the Windsor feed — only stray Apr-30 slivers did (RAC 16k imps / A$38, SAH 7
+    imps / A$0.10). The client supplied April's real campaign totals (RAC 1,251,220 imps · 3,809 clicks ·
+    A$4,678.58; SAH 3,050,621 imps · 2,772 clicks · A$7,041.63), so we simulate the month by spreading each
+    total **evenly across all 30 days (÷30)** in `sql/03b_stg_april_modelled.sql`. That view is UNION'd into
+    `03c_stg_ad_delivery.sql` — which also **drops the stray Apr RAC/SAH slivers** (no double count) — so the
+    modelled month flows into every campaign roll-up. `04_kpi` / `05_monthly` / `12_weekly` / `30_daily` were
+    **repointed from `stg_ttd` to `stg_ad_delivery`** so the KPIs + trends pick it up too. Disability ran for
+    real in April and is untouched. `stg_ttd` itself stays pure-measured, so `ttd_adgroups` / `ttd_creative`
+    (whole-flight, no date grain) show **only** measured TTD — the modelled month has no ad-group/creative
+    detail. A view-only/seed change like this needs `FORCE_REBUILD=1` on the export (the gate watches raw
+    tables, which didn't move). Tiny ≤0.4% rounding drift on imps/clicks from the flat ÷30 split is expected.
+13. **GA4 "Campaign effect" panel = additive spend-share attribution** (added 2026-06-18). GA4 has no campaign
+    dimension, so we can't split sessions/enquiries by campaign directly. Instead, over the **full combined
+    Oct'25→present timeline** (the same `OV.combined()` series the Overview plots — `OV` now exposes
+    `combined`), we fit an **OLS regression** of total website sessions on total ad spend (zero-spend baseline
+    weeks included, so the slope is lift-above-baseline). That gives the sessions the whole programme drove
+    (full-timeline weekly r ≈ 0.85, highly significant). Each campaign is then credited **in proportion to its
+    share of spend**, so individual campaigns **sum to the all-campaigns total** (intuitive, fewer client
+    questions) — NOT independent per-campaign regressions, which over-attribute (each claims the shared trend
+    and they'd sum to ~2× the total). **Modelled enquiries** = modelled sessions × the site enquiry rate
+    (enquiries ÷ sessions over the flight ≈ 2.6%). The scatter + Pearson *r* + two-tailed Student-*t* p-value
+    (computed in-page via `olsFit`/`betai`, no libraries) show the selected campaign's own spend-vs-sessions
+    relationship. Driven by the Campaign filter (`computeAttribution`/`renderWebAttribution` in
+    `dash/dashboard.html`). The same spend-share credit also **scales the Enquiries-by-type chart, the
+    Sessions trend, and the by-date enquiry chart** (all additive; show full data when all OR none are
+    selected). The method is spelled out in-panel — association evidence, framed transparently, not causal proof.
+14. **GA4 source = native DTS with a Windsor fallback** (added 2026-06-18). VMCH's native GA4 Data Transfer
+    (property `287370621`) is FAILING on a permission error — it froze at **2026-06-01** while properties on a
+    still-valid credential (STT, City Perfume, Reset Data) keep updating; a shared Google account lost access to a
+    cluster (VMCH, Atlantis ×2, Sophiie, ChocolateGrove, RSVP, 100.digital). So `01_stg_ga4.sql` /
+    `02_stg_ga4_events.sql` now read **DTS first, and Windsor (`raw_windsor.perf_ga4` / `perf_ga4_events`,
+    property 287370621) for any date the DTS lacks** — **per-date precedence, so no double counting** (verified:
+    May 31 = 917 sessions from DTS only; Jun 2→ from Windsor). If the DTS is re-authorised, its dates
+    automatically resume precedence. Windsor is a separate, healthy connector (its own API-key auth, unaffected by
+    the DTS failure) — the two share an identical event-name vocabulary, so the enquiry bucketing is unchanged.
+    **Refresh Windsor** with `ingest/windsor_data_pull/ga4/ga4_loader.py <from> <to>` **and**
+    `events_loader.py <from> <to>` (fixed-range, all properties; e.g. `2026-06-01 2026-06-17`). The export
+    freshness gate now also watches `raw_windsor.perf_ga4(+events)`.
+    **Ongoing freshness — open:** the Windsor GA4 loaders are NOT yet a scheduled job, so GA4 will refreeze at the
+    last manual pull until either (a) the DTS is re-authorised (cleanest — BigQuery → Data Transfers → refresh
+    credentials, then backfill), or (b) the Windsor GA4 loaders are deployed/scheduled. NOTE: `job/main.py`'s
+    gate edit is committed but **not yet deployed** — `job/deploy_job_vmch.ps1` fails on `iam.serviceaccounts.actAs`
+    for the runtime SA and references `vmch-export-job@` (the live SA is `vmch-dash-job@`, per Coordinates); the
+    live job still rebuilds daily off the TTD gate, which picks up the refreshed Windsor data regardless.

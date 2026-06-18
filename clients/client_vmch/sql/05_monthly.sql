@@ -22,7 +22,7 @@ g AS (
 ttd AS (
   SELECT FORMAT_DATE('%Y-%m', metric_date) AS month,
          SUM(imps) AS ttd_imps, SUM(clicks) AS ttd_clicks, SUM(spend_aud) AS ttd_spend_aud
-  FROM `bidbrain-analytics.client_vmch.stg_ttd` GROUP BY month
+  FROM `bidbrain-analytics.client_vmch.stg_ad_delivery` GROUP BY month   -- incl. MODELLED April (03b/03c)
 )
 SELECT
   g.*,
