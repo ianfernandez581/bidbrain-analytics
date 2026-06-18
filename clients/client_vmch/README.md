@@ -32,41 +32,50 @@ Desk programmatic display) set against the VMCH website (GA4).
 | Campaigns? | 4 = service lines RAC / RL / SAH / Disability | Campaign filter relabels them |
 | Display → last-click sessions? | only ~25 GA4 "Display" sessions in-window vs 4.4M imps | **Frame display as upper-funnel** — reach + clicks, not 1:1 session lift |
 
-## Dashboard (4 tabs)
+## Dashboard (single page — consolidated 2026-06-18)
 
-`dash/dashboard.html` — one self-contained file. Filters: **Date range** (defaults to **all available
-history**; flight marked on charts) + **Campaign** (4 service lines). No Country/Platform chips (single
-market, single platform).
+`dash/dashboard.html` — one self-contained file, **one page**. The old **Trade Desk**, **Website** and
+**Media → Traffic** tabs were removed and everything worth keeping was folded into the single Overview.
+The only top-bar filter is **Date range** (defaults to **all available history**; flight marked on
+charts). There is **no top-bar Campaign dropdown anymore** — campaign selection lives on the **Campaign
+chips inside the campaign-effect panel** (All / RAC / RL / SAH / Disability, `setAttrCampaign`); they
+drive the statistical model, scale the Sessions trend, and highlight a column in the enquiries heat-table.
+Because everything shares one canvas namespace now, **every grain/scale/chip toggle rebuilds the whole
+page** (`reRender` → `renderActive` → `OV.render()` + `renderWeb()`); `OV.setGrain` was repointed at it too.
 
-- **Overview** — the **combined campaign story**: the standalone `VMCH_Campaign_Analysis.html` retrospective
-  (Oct 2025 – Mar 2026) **stitched to the live flight** (Apr 2026 →) into one continuous timeline. Built by
-  the `OV` IIFE in `dash/dashboard.html`: the historical daily series is **hard-coded** in the module
-  (`__HIST_DATA__`) and merged at render time with the live `DATA.daily` / `DATA.ad_campaign_daily` (the two
-  are contiguous — analysis ends 2026-03-29, live begins 2026-04-01, no overlap). Channel map by campaign
-  prefix: SAH→sah, RL→rl (live-only), RAC→rac, Disability→dis; `rt`=Retargeting is historical-only. Every
-  time-series chart has a **Month/Week** grain toggle (`OV.setGrain`; aggregates the combined daily via `byGrain`)
-  that re-renders the whole tab. Hero = **"effect of spend on results"**: spend stacked by platform (bars, drawn
-  **behind**, `order:20`) + website-sessions line (front) + total-impressions line, with per-channel
-  impressions/clicks + total clicks as **hidden, legend-toggleable** lines. Then exec summary,
-  combined KPIs (full-timeline spend/imps/clicks/sessions + the original-flight 100 conversions + live TTD
-  attributed), the 6 analysis charts (traffic overlay, first visits, engagement, campaign-by-unit — all
-  continuous where data exists; first-visit/bounce/page-views/pages-per-session are historical-only as the
-  live feed doesn't carry them), the disability conversion ramp, conversion breakdown + ROAS/LTV tables +
-  8 recommendations (the Oct–Mar campaign retrospective). The date/campaign filters are inert on this tab
-  (the combined narrative is fixed); they still drive the other three tabs. To revise, edit `OV` in
-  `dash/dashboard.html` and redeploy the service — front-end only, no job/view change.
-- **Trade Desk** — delivery KPIs (spend/imps/clicks/CTR/CPM/CPC), monthly spend+clicks, spend-by-
-  campaign donut, campaign breakdown table (**now with Post-view / Post-click columns**), top ad groups,
-  creative-format mix.
-- **Website** — GA4 KPIs (total sessions led); a **Campaign effect** panel (`STATISTICAL MODEL`, see
-  caveat 13); and three displays that all **scale with the Campaign filter by spend share** (additive;
-  full data when all OR none selected): **Enquiries by type**, the **Sessions** trend (single line,
-  was "total vs paid"), and **Enquiry events by type** by date (**flight-scoped**). The Campaign filter
-  now shows on this tab (it was hidden). Removed: sessions-by-channel, Display-reach-vs-engagement, and
-  Top sources/mediums.
-- **Media → Traffic** — the full chain: **spend → impressions → clicks → post-click → post-view**
-  conversions (funnel + stat strip), impressions-vs-sessions trend, correlation scatter, weekly clicks.
-  Last-click Display sessions kept as an honest aside (small by design — display is upper-funnel).
+The page, top to bottom:
+
+- **KPIs** — Impressions · Clicks to site · Website sessions · Session uplift at launch. (The old
+  Ad-spend, Campaign-conversions, TTD-attributed and Original-budget cards were removed.)
+- **Hero — "the effect of spend on results"** (the `OV` IIFE): weekly/monthly ad spend stacked by
+  campaign against the website-sessions line + total-impressions line, with per-channel
+  impressions/clicks as hidden legend-toggleable lines. **Retargeting (`rt`) is folded into Disability
+  (`dis`) in `OV.combined()`** — no separate stack. Month/Week grain via `OV.setGrain`. Still built from
+  the hard-coded Oct'25–Mar'26 series (`__HIST_DATA__`) stitched to live `DATA.daily`/`ad_campaign_daily`
+  (contiguous, no overlap).
+- **1. Site-wide traffic & campaign overlay** — GA4 sessions + page views with display impressions
+  overlaid across the whole timeline; launch markers + flight line.
+- **2. Website outcomes** — the moved-in Website pieces:
+  - **Campaign effect on website outcomes** (`STATISTICAL MODEL`, caveat 13) — OLS of total sessions on
+    total ad spend, additive spend-share attribution. Its **Campaign chips are the page's only campaign
+    selector**.
+  - **Enquiries by type** — now a **heat-shaded TABLE** (`renderEnqHeatmap`), not a bar chart: rows =
+    enquiry types, **one column per service-line campaign** (+ an "All" column). Each campaign is credited
+    the flight's enquiries by its **share of ad spend** (additive — the campaign columns sum across to
+    "All"); cells are heat-shaded by volume and the selected chip highlights its column. Picking campaigns
+    **emphasises columns, never removes them**.
+  - **Sessions** — single-line GA4 sessions trend, credited to the selected campaign(s) by spend share;
+    Month/Week/Day + Relative/Absolute toggles, flight start marked. Sized **equal to the enquiries
+    table** (`.grid`, 1fr 1fr).
+
+To revise, edit `dash/dashboard.html` and redeploy the service — **front-end only, no job/view change**;
+the export job still emits every array (incl. `ttd_adgroups`/`ttd_creative`), so the CSV export is
+unchanged even though the UI no longer charts them. **Removed entirely:** the Trade Desk delivery tab
+(spend/donut/campaign table/ad-groups/creative), the Media → Traffic funnel tab, the Overview's
+first-visits / engagement / campaign-by-unit / disability-ramp / conversion-breakdown / ROAS-LTV /
+recommendations sections, the executive summary, the GA4 KPI strip + the "how display shows up in GA4"
+banner, and the "Enquiry events by type" stacked chart (`renderPaid`/`renderLink`/`renderOvCommentary` +
+the campaign-dropdown machinery are gone).
 
 ## Coordinates
 
@@ -129,7 +138,8 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
 4. **Display is upper-funnel** — TTD drove 4.5M impressions but GA4 attributes only ~25 last-click
    "Display" sessions. Judge the flight on **reach, clicks (~3,435) and ad-attributed conversions**
    (≈113 post-view + 13 post-click — see caveat 5), not a 1:1 last-click session lift. Do not overclaim.
-   The **Media → Traffic** tab makes the full chain explicit: spend → impressions → clicks → post-click → post-view.
+   (The dedicated Media → Traffic funnel tab that used to spell out spend → impressions → clicks →
+   post-click → post-view was removed in the 2026-06-18 single-page consolidation.)
 5. **TTD-attributed conversions** (added Jun 2026) — the real "attributable leads". `03_stg_ttd.sql`
     parses Windsor's **double-encoded** `conversions` JSON (`PARSE_JSON(JSON_VALUE(conversions))`) into
     `post_view_conv` (view-through) + `post_click_conv` (click-through). **Pixels come in DUPLICATE PAIRS**
@@ -162,9 +172,9 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
     **flight (Apr 2026 →)** is demarcated on every time-series chart by the `flightMarker` plugin (faint
     pre-flight shade + dashed "Flight →" line). Pre-flight, two things are NOT comparable and are scoped/
     annotated: (a) **no ad spend** was loaded; (b) **GA4 enquiry tagging changed in 2026** (2025 ≈110k vs
-    flight 2,736 — a taxonomy artefact, not a real decline), so the **enquiry charts clamp to the flight**
-    via `inFlight()` (ovHero enquiry lines null pre-flight with `spanGaps:false`+`indexedNN`; `webKeyEvents`
-    filters its keys). KPI cards + channel/source breakdowns stay flight-window. An always-on date-scope
+    flight 2,736 — a taxonomy artefact, not a real decline), so the **enquiry figures stay flight-scoped**
+    via `inFlight()` (the enquiries heat-table reads `enquiriesFlightSummary()`, which is flight-only).
+    KPI cards + channel/source breakdowns stay flight-window. An always-on date-scope
     banner explains this. **Latest period is partial** — GA4 lands ~a few days behind TTD, so the trailing
     month/week reads low (the Overview note says so).
 12. **April RAC + SAH delivery is MODELLED** (added 2026-06-18). The Trade Desk's full April delivery for
@@ -191,9 +201,10 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
     (enquiries ÷ sessions over the flight ≈ 2.6%). The scatter + Pearson *r* + two-tailed Student-*t* p-value
     (computed in-page via `olsFit`/`betai`, no libraries) show the selected campaign's own spend-vs-sessions
     relationship. Driven by the Campaign filter (`computeAttribution`/`renderWebAttribution` in
-    `dash/dashboard.html`). The same spend-share credit also **scales the Enquiries-by-type chart, the
-    Sessions trend, and the by-date enquiry chart** (all additive; show full data when all OR none are
-    selected). The method is spelled out in-panel — association evidence, framed transparently, not causal proof.
+    `dash/dashboard.html`). The same spend-share credit also drives the **Enquiries-by-type heat-table**
+    (one additive column per campaign, summing to "All" — see `renderEnqHeatmap`) and **scales the Sessions
+    trend** (full data when all OR none are selected). The method is spelled out in-panel — association
+    evidence, framed transparently, not causal proof.
 14. **GA4 source = native DTS with a Windsor fallback** (added 2026-06-18). VMCH's native GA4 Data Transfer
     (property `287370621`) is FAILING on a permission error — it froze at **2026-06-01** while properties on a
     still-valid credential (STT, City Perfume, Reset Data) keep updating; a shared Google account lost access to a

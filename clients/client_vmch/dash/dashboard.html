@@ -300,12 +300,7 @@
 
     <div class="control-bar">
       <div class="control-tabs">
-        <div class="tabs">
-          <button class="tab" id="tabOverview" onclick="setTab('overview')">Overview</button>
-          <button class="tab" id="tabPaid"     onclick="setTab('paid')">Trade Desk</button>
-          <button class="tab" id="tabWeb"      onclick="setTab('web')">Website</button>
-          <button class="tab" id="tabLink"     onclick="setTab('link')">Media → Traffic</button>
-        </div>
+        <div class="control-title" style="font-size:13px;font-weight:700;color:var(--ink);letter-spacing:-.2px;padding:9px 0">Performance overview</div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <button class="export-btn" onclick="exportAllData()" title="Download the full dataset as one CSV">
@@ -342,166 +337,25 @@
             </div>
           </div>
         </div>
-        <div class="fdiv" id="filterDiv2"></div>
-        <div class="filter-grp" id="campaignGroup">
-          <span class="lbl">Campaign</span>
-          <div class="campaign-dd">
-            <button class="campaign-btn" id="campaignBtn" onclick="toggleCampaignMenu(event)" aria-haspopup="true" aria-expanded="false">
-              <span class="lbltxt" id="campaignBtnLabel">All campaigns</span>
-              <span class="caret">▾</span>
-            </button>
-            <div class="campaign-menu" id="campaignMenu" style="display:none">
-              <div class="campaign-menu-head">
-                <input type="text" id="campaignSearch" placeholder="Search campaigns…" autocomplete="off" oninput="renderCampaignList()">
-                <div class="campaign-menu-actions">
-                  <span class="count" id="campaignCount">&nbsp;</span>
-                  <div class="btns">
-                    <button class="chip-action" onclick="allCampaigns()">All</button>
-                    <button class="chip-action" onclick="clearCampaigns()">Clear</button>
-                  </div>
-                </div>
-              </div>
-              <div class="campaign-list" id="campaignList"></div>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
 
     <div id="dateScopeNote" class="date-scope" style="display:none"></div>
 
     <!-- ============ OVERVIEW ============ -->
-    <div id="tab-overview" class="tabpane">
+    <div id="tab-overview">
       <div class="section first">
         <h2>Display advertising &amp; the VMCH website — full campaign history</h2>
-        <span class="sub">One continuous timeline: the Open Web Display <b>campaign analysis (Oct 2025 – Mar 2026)</b> stitched directly to the <b>live flight (Apr 2026 →)</b>. Spend, reach, clicks and website outcomes pick up exactly where the campaign report ends. Reporting currency AUD; VMCH is a not-for-profit, so outcomes are enquiries &amp; ad-attributed conversions, not revenue.</span>
+        <span class="sub">One continuous timeline. <b>Display advertising has run continuously since 19 Jan 2026.</b> The Open Web Display <b>campaign analysis (Oct 2025 – Mar 2026)</b> is stitched directly to the <b>live feed (Apr 2026 →)</b> so spend, reach, clicks and website outcomes are unbroken. Reporting currency AUD; VMCH is a not-for-profit, so outcomes are enquiries &amp; ad-attributed conversions, not revenue.</span>
       </div>
 
       <div class="kpis" id="ovKpis"></div>
 
-      <div class="ai-note" id="ovExec"></div>
+      <!-- Website outcomes (campaign effect + enquiries) -->
+      <div class="section"><h2>Website outcomes — campaign effect &amp; enquiries</h2>
+        <span class="sub">How the display spend relates to GA4 website outcomes. Use the <b>Campaign</b> chips on the panel below to focus a service line — they drive the model and the Sessions trend, and highlight that campaign's column in the enquiries table. GA4 has no campaign dimension, so campaigns are credited by their <b>share of ad spend</b> (additive).</span></div>
 
-      <!-- HERO: effect of spend on results -->
-      <div class="section"><h2>The effect of spend on results</h2>
-        <span class="sub">Weekly ad spend stacked by platform (bars) against the results it drove. Click any legend item to toggle a line on/off — impressions and clicks are broken out for every channel.</span></div>
-      <div class="card card-tall" style="margin-top:14px">
-        <div class="card-head"><h3>Spend by platform vs sessions · impressions · clicks</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div>
-        <div class="hint">Bars = ad spend (AUD, right axis) per period, stacked by <span class="campaign-badge badge-sah">SAH</span><span class="campaign-badge badge-rac">RAC</span><span class="campaign-badge badge-dis">DIS</span> Retargeting &amp; Retirement Living. Bold line = website sessions. <b>Per-channel impressions (shown) and clicks (hidden) lines toggle from the legend.</b> Real calendar weeks across the whole Oct 2025 → present timeline.</div>
-        <div class="chart-wrap" style="height:520px"><canvas id="ovSpendResult"></canvas></div>
-      </div>
-
-      <!-- 1. Traffic -->
-      <div class="section"><h2>1. Site-wide traffic &amp; campaign overlay</h2>
-        <span class="sub">GA4 sessions (7-day rolling average) with display impressions overlaid across the whole timeline. Dashed markers show campaign launches and the new flight.</span></div>
-      <div class="card card-tall" style="margin-top:14px"><div class="card-head"><h3>Sessions, page views &amp; impressions</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div><div class="chart-wrap" style="height:380px"><canvas id="ovTraffic"></canvas></div></div>
-      <div class="insight-grid" id="ovTrafficInsights"></div>
-
-      <!-- 2. First visits -->
-      <div class="section"><h2>2. First visits &amp; new-user acquisition</h2>
-        <span class="sub">First visits are the clearest indicator of brand-awareness impact — display introduces VMCH to users who have never visited before. (First-visit &amp; bounce metrics are carried in the Oct 2025 – Mar 2026 analysis feed.)</span></div>
-      <div class="card card-tall" style="margin-top:14px"><div class="card-head"><h3>First visits, sessions &amp; bounce</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div><div class="chart-wrap" style="height:380px"><canvas id="ovFirstVisits"></canvas></div></div>
-      <div class="insight-grid" id="ovFirstVisitInsights"></div>
-
-      <!-- 3. Engagement + bounce -->
-      <div class="section"><h2>3. Engagement depth</h2>
-        <span class="sub">Engaged sessions, scroll depth and pages-per-session show whether display-driven visitors are actually exploring the site.</span></div>
-      <div class="card card-tall" style="margin-top:14px"><div class="card-head"><h3>Engaged · scroll · pages/session</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div><div class="chart-wrap" style="height:380px"><canvas id="ovEngagement"></canvas></div></div>
-      <div class="card" style="margin-top:16px" id="ovBounceExplainer"></div>
-
-      <!-- 4. Campaign performance -->
-      <div class="section"><h2>4. Campaign performance by business unit</h2>
-        <span class="sub">Daily impressions and clicks across all service-line campaigns — continuous from the original flight into the live one.</span></div>
-      <div class="card card-tall" style="margin-top:14px"><div class="card-head"><h3>Impressions &amp; clicks by campaign</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div><div class="chart-wrap" style="height:380px"><canvas id="ovCampaigns"></canvas></div></div>
-      <div class="insight-grid" id="ovCampaignInsights"></div>
-
-      <!-- 5. Disability conversion ramp -->
-      <div class="section"><h2>5. Disability campaign — conversion ramp</h2>
-        <span class="sub">A textbook optimisation story from the original flight: weekly conversions grew from 0 to 28 as the campaign learned and targeting improved.</span></div>
-      <div class="card card-tall" style="margin-top:14px"><div class="chart-wrap" style="height:320px"><canvas id="ovDisConv"></canvas></div></div>
-
-      <!-- 6. Conversion breakdown -->
-      <div class="section"><h2>6. Conversion breakdown (original flight)</h2>
-        <span class="sub">All 100 platform-attributed conversions from the Oct 2025 – Mar 2026 flight, by type and campaign.</span></div>
-      <div class="grid-2-1" style="margin-top:14px">
-        <div class="card card-tall"><div class="chart-wrap" style="height:340px"><canvas id="ovConversions"></canvas></div></div>
-        <div class="card"><h3>By campaign</h3><div style="overflow:auto" id="ovConvTable"></div></div>
-      </div>
-
-      <!-- 7. ROAS & LTV -->
-      <div class="section"><h2>7. ROAS &amp; lifetime-value analysis</h2>
-        <span class="sub">Estimated return on ad spend based on Australian aged-care, disability and home-care industry lifetime values.</span></div>
-      <div class="card" style="margin-top:14px" id="ovRoas"></div>
-
-      <!-- 8. Recommendations -->
-      <div class="section"><h2>8. Key findings &amp; recommendations</h2></div>
-      <div id="ovRecommendations"></div>
-    </div>
-
-    <!-- ============ TRADE DESK ============ -->
-    <div id="tab-paid" class="tabpane">
-      <div class="section first">
-        <h2>The Trade Desk — programmatic display delivery</h2>
-        <span class="sub">Spend, impressions, clicks, efficiency and ad-attributed conversions for the display flight, by campaign, ad group and creative. Use the <b>Campaign</b> filter to focus on a service line. VMCH is a not-for-profit so there's no revenue/ROAS, but The Trade Desk attributes <b>post-view</b> and <b>post-click</b> conversions back to the ads — see the campaign table below and the <b>Media → Traffic</b> tab for the full spend → reach → conversions chain.</span>
-      </div>
-
-      <div class="kpis five" id="pmKpis"></div>
-
-      <div class="grid-2-1">
-        <div class="card card-tall">
-          <div class="card-head">
-            <h3>Delivery — spend &amp; clicks</h3>
-            <div class="ctrls">
-              <span class="seg" id="pmMonthlyScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('pmMonthly','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('pmMonthly','abs',this)">Absolute</button></span>
-              <span class="seg" id="pmMonthlyGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setGrain('pmMonthly','month',this)">Month</button><button type="button" data-grain="week" onclick="setGrain('pmMonthly','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('pmMonthly','day',this)">Day</button></span>
-            </div>
-          </div>
-          <div class="hint">Spend (orange bars, AUD) with clicks to site (line, right axis), over the selected campaigns. <b>Relative</b> indexes clicks to peak=100.</div>
-          <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div>
-        </div>
-        <div class="card card-tall">
-          <h3>Spend by campaign</h3>
-          <div class="hint">Share of ad spend across the four service-line campaigns.</div>
-          <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>Campaign breakdown</h3>
-        <div class="hint">Whole-flight totals per service-line campaign (AUD).</div>
-        <div style="overflow:auto">
-          <table id="pmCampaigns">
-            <thead><tr><th>Campaign</th><th class="num">Spend (AUD)</th><th class="num">Impressions</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Post-view</th><th class="num">Post-click</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </div>
-
-      <div class="grid">
-        <div class="card card-tall">
-          <h3>Top ad groups by spend</h3>
-          <div class="hint">Whole-flight (not date-scoped); honours the Campaign filter where the campaign prefix matches. Top 10 of <span id="pmAgCount">—</span>.</div>
-          <div class="chart-wrap"><canvas id="pmAdgroups"></canvas></div>
-        </div>
-        <div class="card card-tall">
-          <h3>Creative format mix</h3>
-          <div class="hint">Impressions by ad format, whole flight (not date-scoped).</div>
-          <div class="chart-wrap"><canvas id="pmFormatDonut"></canvas></div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============ WEBSITE ============ -->
-    <div id="tab-web" class="tabpane">
-      <div class="section first">
-        <h2>Website traffic — GA4</h2>
-        <span class="sub">The VMCH website (one GA4 property) — the outcome the media is working toward: visits, engagement and enquiries (phone, email, contact forms). Enquiry KPIs and charts are scoped to the <b>flight (Apr 2026 →)</b>. <b>Use the Campaign filter</b> (top bar, or the quick chips in the panel) to credit website sessions and enquiries to a campaign — the <b>Campaign effect</b> panel, the <b>Sessions</b> trend and the two <b>enquiry</b> charts all respond, and the per-campaign figures add up to the all-campaigns total.</span>
-      </div>
-
-      <div class="ai-note" id="webAdEffect"></div>
-
-      <div class="kpis" id="webKpis"></div>
-
-      <!-- ===== campaign statistical effect — driven by the Campaign filter ===== -->
+      <!-- ===== campaign statistical effect — driven by the panel's Campaign chips ===== -->
       <div class="card card-tall" id="webAttrCard" style="margin-top:16px">
         <div class="card-head">
           <h3>Campaign effect on website outcomes <span style="font-size:11px;font-weight:600;color:var(--orange);border:1px solid var(--orange);border-radius:10px;padding:1px 8px;margin-left:6px;vertical-align:middle">STATISTICAL MODEL</span></h3>
@@ -511,18 +365,15 @@
           </div>
         </div>
         <div class="kpis" id="webAttrHead" style="margin-bottom:6px"></div>
-        <div class="grid-2-1">
-          <div class="chart-wrap"><canvas id="webAttrScatter"></canvas></div>
-          <div id="webAttrStats"></div>
-        </div>
+        <div class="chart-wrap"><canvas id="webAttrScatter"></canvas></div>
         <div class="hint" id="webAttrMethod" style="margin-top:10px;line-height:1.6"></div>
       </div>
 
-      <div class="grid-2-1">
+      <div class="grid">
         <div class="card card-tall">
-          <h3>Enquiries by type</h3>
-          <div class="hint">Flight enquiry actions by type — phone calls, contact &amp; call-back forms, email clicks and property/sales alerts — <b>credited to the selected campaign(s) by share of ad spend</b>, so it scales with the Campaign filter. With <b>All campaigns</b> it shows the full flight totals.</div>
-          <div class="chart-wrap"><canvas id="webEnqTotals"></canvas></div>
+          <h3>Ad-attributable enquiries by type</h3>
+          <div class="hint">The portion of website enquiries the display flight <b>caused</b> — by type and campaign, <b>for the selected Date range</b>. Built from the <b>regression lift</b> (≈46% of site sessions are display-driven, above the no-spend baseline — captures <i>view-through</i>: see the ad, then arrive via search/direct), then split across campaigns by <b>share of ad spend</b> (additive — columns sum to "All"). This is the realistic middle ground: more than last-click (~132), far less than crediting every enquiry. Cells heat-shaded by volume; the active <b>Campaign</b> chip highlights its column.</div>
+          <div id="webEnqHeatmap" class="heatmap-wrap"></div>
         </div>
         <div class="card card-tall">
           <div class="card-head">
@@ -532,68 +383,25 @@
               <span class="seg" id="webTrendGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setGrain('webTrend','month',this)">Month</button><button type="button" data-grain="week" onclick="setGrain('webTrend','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('webTrend','day',this)">Day</button></span>
             </div>
           </div>
-          <div class="hint">Website sessions over time, <b>credited to the selected campaign(s) by share of ad spend</b> (scales with the Campaign filter; shows full sessions when all or none are selected). <b>Relative</b> indexes to peak=100; the flight start is marked.</div>
+          <div class="hint">Website sessions over time, <b>credited to the selected campaign(s) by share of ad spend</b> (scales with the Campaign chips; shows full sessions when all or none are selected). <b>Relative</b> indexes to peak=100; the flight start is marked.</div>
           <div class="chart-wrap"><canvas id="webTrend"></canvas></div>
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px">
-        <div class="card-head">
-          <h3>Enquiry events by type</h3>
-          <div class="ctrls">
-            <span class="seg" id="webKeyEventsScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('webKeyEvents','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('webKeyEvents','abs',this)">Absolute</button></span>
-            <span class="seg" id="webKeyEventsGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setGrain('webKeyEvents','month',this)">Month</button><button type="button" data-grain="week" onclick="setGrain('webKeyEvents','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('webKeyEvents','day',this)">Day</button></span>
-          </div>
-        </div>
-        <div class="hint">GA4 key events by type — phone calls, email clicks and contact-form submits are the meaningful enquiry signals for VMCH. Scoped to the <b>flight (Apr 2026 →)</b>: GA4's enquiry-event tagging changed in 2026, so earlier months use a different, non-comparable taxonomy and are excluded here. <b>Relative</b> shows each period as 100% composition.</div>
-        <div class="chart-wrap" style="height:300px"><canvas id="webKeyEvents"></canvas></div>
+      <!-- The effect of spend on results -->
+      <div class="section"><h2>The effect of spend on results</h2>
+        <span class="sub">Weekly ad spend stacked by platform (bars) against the results it drove. Click any legend item to toggle a line on/off — impressions and clicks are broken out for every channel.</span></div>
+      <div class="card card-tall" style="margin-top:14px">
+        <div class="card-head"><h3>Spend by platform vs sessions · impressions · clicks</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div>
+        <div class="hint">Bars = ad spend (AUD, right axis) per period, stacked by <span class="campaign-badge badge-sah">SAH</span><span class="campaign-badge badge-rac">RAC</span><span class="campaign-badge badge-dis">DIS</span> &amp; Retirement Living. <b>Retargeting spend is rolled into Disability.</b> Lines = website sessions and total impressions. Real calendar weeks across the whole Oct 2025 → present timeline.</div>
+        <div class="chart-wrap" style="height:520px"><canvas id="ovSpendResult"></canvas></div>
       </div>
 
-    </div>
-
-    <!-- ============ MEDIA -> TRAFFIC ============ -->
-    <div id="tab-link" class="tabpane">
-      <div class="section first">
-        <h2>Media → Traffic — what the display flight delivered</h2>
-        <span class="sub">The full chain from ad spend to outcomes: reach, clicks to site, and the <b>post-view</b> and <b>post-click</b> conversions The Trade Desk attributes back to the ads. Programmatic display is an upper-funnel, awareness &amp; retargeting channel, so GA4 records few <b>last-click</b> "Display" sessions by design — the fair read is reach plus ad-attributed conversions, not a one-to-one last-click session lift. Use the <b>Campaign</b> filter to focus the media side.</span>
-      </div>
-
-      <div class="info-note" id="linkHeadline"></div>
-
-      <div class="funnel" id="linkFunnel"></div>
-
-      <div class="card card-tall" style="margin-top:18px">
-        <div class="card-head">
-          <h3>Ad impressions vs website sessions</h3>
-          <div class="ctrls">
-            <span class="seg" id="linkWeeklyScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('linkWeekly','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('linkWeekly','abs',this)">Absolute</button></span>
-            <span class="seg" id="linkWeeklyGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="setGrain('linkWeekly','month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="setGrain('linkWeekly','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('linkWeekly','day',this)">Day</button></span>
-          </div>
-        </div>
-        <div class="hint">Ad impressions (bars, right axis) against total website sessions (line, left axis). <b>Relative</b> indexes both to their own peak=100. Flight window only.</div>
-        <div class="chart-wrap" style="height:300px"><canvas id="linkWeekly"></canvas></div>
-      </div>
-
-      <div class="grid">
-        <div class="card card-tall">
-          <h3>Correlation — weekly impressions vs website sessions</h3>
-          <div class="hint" id="linkScatterHint">Each dot is one flight week.</div>
-          <div class="chart-wrap"><canvas id="linkScatter"></canvas></div>
-        </div>
-        <div class="card card-tall">
-          <div class="card-head">
-            <h3>Clicks to site</h3>
-            <div class="ctrls">
-              <span class="seg" id="linkClicksScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setScale('linkClicks','rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setScale('linkClicks','abs',this)">Absolute</button></span>
-              <span class="seg" id="linkClicksGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="setGrain('linkClicks','month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="setGrain('linkClicks','week',this)">Week</button><button type="button" data-grain="day" onclick="setGrain('linkClicks','day',this)">Day</button></span>
-            </div>
-          </div>
-          <div class="hint">Direct on-site arrivals from the display flight, per period. <b>Relative</b> indexes clicks to peak=100.</div>
-          <div class="chart-wrap"><canvas id="linkClicks"></canvas></div>
-        </div>
-      </div>
-
-      <div class="compare-strip" id="linkStats"></div>
+      <!-- Site-wide traffic & campaign overlay -->
+      <div class="section"><h2>Site-wide traffic &amp; campaign overlay</h2>
+        <span class="sub">GA4 sessions (7-day rolling average) with display impressions overlaid across the whole timeline. Dashed markers show campaign launches and the new flight.</span></div>
+      <div class="card card-tall" style="margin-top:14px"><div class="card-head"><h3>Sessions, page views &amp; impressions</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div><div class="chart-wrap" style="height:380px"><canvas id="ovTraffic"></canvas></div></div>
+      <div class="insight-grid" id="ovTrafficInsights"></div>
     </div>
 
     <footer id="footMeta"></footer>
@@ -619,45 +427,37 @@ const KE_PALETTE = [C.maroon, C.orange, C.green, '#B97400', C.maroon2, C.slate];
 //==============================================================================
 // STATE / HELPERS
 //==============================================================================
-let DATA = null, charts = {}, activeTab = 'overview';
-let activeCampaigns = new Set();   // TTD campaign filter (all on by default) — scopes AD DELIVERY only;
-                                   // the GA4/website side has no campaign dimension so it stays whole.
-let campaignMenuOpen = false;
+let DATA = null, charts = {};
+let activeCampaigns = new Set();   // campaign selection (all on by default), set via the panel chips;
+                                   // scopes the enquiry-heatmap emphasis + the spend-share attribution.
 const el = id => document.getElementById(id);
 
 // ---- per-chart grain (Month/Week/Day) + scale (Relative/Absolute) toggles -------------------
 // Only the genuine time-series charts named in WIRE carry these. Defaults preserve each chart's
 // original view: the 6 monthly charts start on 'month', the two Media→Traffic charts on 'week';
 // every chart defaults to 'rel' (Relative) per spec.
-const grain = { ovHero:'month', ovStack:'month', ovDelivery:'month', pmMonthly:'month',
-                webTrend:'month', webKeyEvents:'month', linkWeekly:'week', linkClicks:'week' };
-const scale = { ovHero:'rel', ovStack:'rel', ovDelivery:'rel', pmMonthly:'rel',
-                webTrend:'rel', webKeyEvents:'rel', linkWeekly:'rel', linkClicks:'rel' };
+// Only the Sessions trend (webTrend) still carries Month/Week/Day + Relative/Absolute toggles.
+const grain = { webTrend:'month' };
+const scale = { webTrend:'rel' };
 let attrGrain = 'week';   // GA4 campaign-effect panel: regression grain (week|day)
-// which render fn owns each chart, so a toggle only re-renders its tab
-const CHART_RENDER = { ovHero:'overview', ovStack:'overview', ovDelivery:'overview',
-                       pmMonthly:'paid', webTrend:'web', webKeyEvents:'web',
-                       linkWeekly:'link', linkClicks:'link' };
 function segPick(btn){ if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>{ if(b.tagName==='BUTTON') b.classList.toggle('on',b===btn); }); }
-// MUST destroyCharts() first: each render fn rebuilds ALL of its tab's canvases, and a new Chart()
-// on a canvas that still holds the old instance throws "Canvas is already in use" — which silently
-// killed every grain/scale toggle. renderActive() (tab/date path) already does this; reRender didn't.
-function reRender(chart){ destroyCharts(); const t=CHART_RENDER[chart];
-  if(t==='overview') renderOverview(); else if(t==='paid') renderPaid();
-  else if(t==='web') renderWeb(); else if(t==='link') renderLink(); }
-function setGrain(chart,g,btn){ grain[chart]=g; segPick(btn); reRender(chart); }
-function setScale(chart,s,btn){ scale[chart]=s; segPick(btn); reRender(chart); }
-// GA4 campaign-effect panel: re-fit the regression at the chosen grain (re-renders the Web tab).
-function setAttrGrain(g,btn){ attrGrain=g; segPick(btn); destroyCharts(); renderWeb(); }
-// GA4 campaign-effect panel: fast one-click Campaign picker (sets the shared campaign filter, so
-// the top dropdown + other tabs stay in sync). '__all__' selects every campaign.
+// Single page now: the Overview, the campaign-effect panel, the enquiries heatmap and the Sessions
+// trend all share ONE canvas namespace, so any toggle must rebuild the WHOLE page — destroyCharts()
+// first (a new Chart() over a live canvas throws "Canvas is already in use") then re-render everything.
+function reRender(){ renderActive(); }
+function setGrain(chart,g,btn){ grain[chart]=g; segPick(btn); reRender(); }
+function setScale(chart,s,btn){ scale[chart]=s; segPick(btn); reRender(); }
+// GA4 campaign-effect panel: re-fit the regression at the chosen grain (rebuilds the page).
+function setAttrGrain(g,btn){ attrGrain=g; segPick(btn); reRender(); }
+// GA4 campaign-effect panel: the page's ONLY campaign picker now (the top-bar dropdown was removed).
+// Drives the statistical model, the Sessions trend and which enquiry-heatmap column is highlighted.
+// '__all__' selects every campaign.
 function setAttrCampaign(enc){
   const name = decodeURIComponent(enc);
   activeCampaigns = (name==='__all__')
     ? new Set((DATA.ad_campaigns||[]).map(c=>c.campaign))
     : new Set([name]);
-  renderCampaignButton();
-  destroyCharts(); renderWeb();
+  reRender();
 }
 // index a numeric series to its own peak=100 (Relative mode for overlay lines)
 const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
@@ -981,6 +781,21 @@ function enquiriesFlightSummary(){
   const total = types.reduce((s,t)=>s+totals[t],0);
   return { types, totals, total };
 }
+// Date-picker-aware enquiry summary {types, totals, total}, for the Enquiries-by-type heat-table and
+// the Total-enquiries KPI. Honours the top-bar Date range (month granularity, matching the rest of the
+// dashboard's snap-to-month filtering) but is STILL clamped to the flight (`inFlight`) — pre-flight 2025
+// used a non-comparable GA4 enquiry taxonomy (~40× inflated), so it is never summed. With the default
+// all-time range this is identical to enquiriesFlightSummary() (so default totals are unchanged).
+function enquiriesRangeSummary(){
+  const totals = {};
+  for(const r of (DATA.ga4_key_events||[])){
+    if(!inFlight(r.month,'month') || !inRangeMonth(r.month)) continue;
+    totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
+  }
+  const types = Object.keys(totals).filter(t=>totals[t]>0).sort((a,b)=>totals[b]-totals[a]);
+  const total = types.reduce((s,t)=>s+totals[t],0);
+  return { types, totals, total };
+}
 
 //==============================================================================
 // STATISTICS — ordinary least-squares + significance, for the GA4 campaign-effect panel.
@@ -1040,8 +855,6 @@ async function boot(){
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA = await res.json();
     activeCampaigns = new Set((DATA.ad_campaigns||[]).map(c => c.campaign));
-    const h = (location.hash||'').replace('#','');
-    if(['overview','paid','web','link'].includes(h)) activeTab = h;
     // Default to ALL available history (back to Jan 2025) so the client sees the full trend, per
     // the brief. The CHARTS that are comparable across time (sessions, spend, impressions, clicks,
     // attributed conversions) run the whole range; the flight (Apr 2026 →) is demarcated on every
@@ -1053,7 +866,12 @@ async function boot(){
     const months = (DATA.monthly||[]).map(r=>r.month).sort();
     const lastWeek = (DATA.weekly||[]).map(r=>r.week_start).sort().pop();
     const monthEnd = months.length ? months[months.length-1]+'-28' : null;
-    FLIGHT_START = (DATA.window||{}).start || (months.length ? months[months.length-1]+'-01' : null);
+    // Display advertising began 2026-01-19 (first measured spend 2026-01-23, Disability) and has run
+    // continuously since — Apr is only when the live TTD feed starts. The flight/campaign window that
+    // scopes enquiry attribution + the on-chart flight marker must reflect the real ad-on date, so the
+    // attribution covers the WHOLE campaign (Jan→), not just Apr→. 2026 enquiry tagging is comparable;
+    // the inflated 2025-H1 taxonomy (~10-17k/mo) stays excluded since this is >= 2026-01.
+    FLIGHT_START = '2026-01-19';
     dateMin = months.length ? months[0]+'-01' : ((DATA.window||{}).start || null);
     dateMax = [ (DATA.window||{}).end, lastWeek, monthEnd ].filter(Boolean).sort().pop();
     rangeStart = dateMin; rangeEnd = dateMax;
@@ -1082,97 +900,18 @@ function renderMeta(){
 }
 
 function renderControls(){
-  el('tabOverview').className = 'tab'+(activeTab==='overview'?' on':'');
-  el('tabPaid').className     = 'tab'+(activeTab==='paid'?' on':'');
-  el('tabWeb').className       = 'tab'+(activeTab==='web'?' on':'');
-  el('tabLink').className     = 'tab'+(activeTab==='link'?' on':'');
-  const notes = { overview:'Campaign vs website outcomes', paid:'Trade Desk delivery',
-    web:'GA4 website analytics', link:'Connecting media to traffic' };
-  el('ctrlNote').textContent = notes[activeTab]||'';
-  // Campaign filter shows on every tab — the Website tab's campaign-effect panel uses it too.
-  const showCampaign = true;
-  el('campaignGroup').style.display = showCampaign ? 'flex' : 'none';
-  el('filterDiv2').style.display    = showCampaign ? 'block' : 'none';
-  renderCampaignButton();
+  // Single page now: no tabs and no top-bar campaign dropdown. The date range is the only top-bar
+  // control; campaign selection lives on the panel chips (setAttrCampaign). Nothing to toggle here.
+  const note = el('ctrlNote'); if(note) note.textContent = '';
 }
 
-//==============================================================================
-// CAMPAIGN dropdown (searchable multi-select)
-//==============================================================================
-const allCampaignNames = () => (DATA.ad_campaigns||[]).map(c=>c.campaign);
-function renderCampaignButton(){
-  const total = (DATA.ad_campaigns||[]).length;
-  const sel = activeCampaigns.size;
-  const btn = el('campaignBtn'), lbl = el('campaignBtnLabel');
-  if(sel >= total){ lbl.textContent = 'All campaigns'; btn.classList.remove('filtered'); }
-  else if(sel === 0){ lbl.textContent = 'No campaigns'; btn.classList.add('filtered'); }
-  else { lbl.textContent = `${sel} of ${total} campaigns`; btn.classList.add('filtered'); }
-  btn.setAttribute('aria-expanded', campaignMenuOpen ? 'true' : 'false');
-}
-function toggleCampaignMenu(e){
-  if(e) e.stopPropagation();
-  campaignMenuOpen = !campaignMenuOpen;
-  el('campaignMenu').style.display = campaignMenuOpen ? 'block' : 'none';
-  el('campaignBtn').setAttribute('aria-expanded', campaignMenuOpen ? 'true' : 'false');
-  if(campaignMenuOpen){ renderCampaignList(); setTimeout(()=>{ const s=el('campaignSearch'); if(s) s.focus(); }, 0); }
-}
-function closeCampaignMenu(){
-  if(!campaignMenuOpen) return;
-  campaignMenuOpen = false;
-  el('campaignMenu').style.display = 'none';
-  el('campaignBtn').setAttribute('aria-expanded','false');
-}
-document.addEventListener('click', e => { const dd = e.target.closest && e.target.closest('.campaign-dd'); if(!dd) closeCampaignMenu(); });
-document.addEventListener('keydown', e => { if(e.key==='Escape') closeCampaignMenu(); });
-
-function renderCampaignList(){
-  const list = el('campaignList'); if(!list) return;
-  const q = (el('campaignSearch').value||'').trim().toLowerCase();
-  const camps = (DATA.ad_campaigns||[]).filter(c => !q || c.campaign.toLowerCase().includes(q) || campLabel(c.campaign).toLowerCase().includes(q))
-                                       .sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
-  el('campaignCount').textContent = `${activeCampaigns.size} of ${(DATA.ad_campaigns||[]).length} selected`;
-  const selN = camps.filter(c=>campOn(c.campaign)).length, allSel = selN===camps.length && camps.length>0;
-  let html = camps.length ? `<div class="cl-group">
-      <div class="cl-group-head">
-        <span class="cl-group-title"><span class="dot" style="background:${C.orange}"></span>The Trade Desk · ${camps.length}</span>
-        <button class="cl-group-toggle" onclick="toggleAllCampaigns(${allSel?'false':'true'})">${allSel?'Clear':'Select'} all</button>
-      </div>` : '';
-  camps.forEach(c => {
-    const checked = campOn(c.campaign) ? 'checked' : '';
-    const safe = c.campaign.replace(/"/g,'&quot;');
-    html += `<label class="cl-item" title="${safe}">
-      <input type="checkbox" ${checked} onchange="toggleCampaign(this, '${encodeURIComponent(c.campaign).replace(/'/g,'%27')}')">
-      <span class="ci-main">
-        <span class="ci-name">${campLabel(c.campaign)}</span>
-        <span class="ci-meta">${fmtM(c.imps)} imps · ${money(c.spend_aud)}</span>
-      </span>
-    </label>`;
-  });
-  if(camps.length) html += `</div>`;
-  list.innerHTML = html || `<div class="cl-empty">No campaigns match “${q}”.</div>`;
-}
-function toggleCampaign(input, encName){
-  const name = decodeURIComponent(encName);
-  input.checked ? activeCampaigns.add(name) : activeCampaigns.delete(name);
-  renderCampaignButton(); renderActive();
-}
-function toggleAllCampaigns(select){
-  (DATA.ad_campaigns||[]).forEach(c => { select ? activeCampaigns.add(c.campaign) : activeCampaigns.delete(c.campaign); });
-  renderCampaignButton(); renderCampaignList(); renderActive();
-}
-function allCampaigns(){ activeCampaigns = new Set(allCampaignNames()); renderCampaignButton(); renderCampaignList(); renderActive(); }
-function clearCampaigns(){ activeCampaigns = new Set(); renderCampaignButton(); renderCampaignList(); renderActive(); }
-
-function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
-
+// One page, one canvas namespace: rebuild everything together. destroyCharts() first so a fresh
+// Chart() never collides with a live canvas, then re-render the Overview + the moved-in Website pieces.
 function renderActive(){
-  ['overview','paid','web','link'].forEach(t => el('tab-'+t).style.display = (t===activeTab?'block':'none'));
   renderDateScope();
   destroyCharts();
-  if(activeTab==='overview') renderOverview();
-  else if(activeTab==='paid') renderPaid();
-  else if(activeTab==='web') renderWeb();
-  else renderLink();
+  renderOverview();   // OV.render(): KPIs + spend-effect hero + site-wide traffic overlay
+  renderWeb();        // moved-in: campaign-effect panel + enquiries heatmap + Sessions trend
 }
 function renderDateScope(){
   const note = el('dateScopeNote'); if(!note) return;
@@ -1181,7 +920,7 @@ function renderDateScope(){
   // and are annotated everywhere: (1) no ad spend was running, (2) GA4 enquiry tagging differed.
   let html = '📅 Showing <b>all available history</b> by default so the trend is visible. The live campaign '
     + '<b>flight runs from '+flightTxt+'</b> and is marked on every trend chart. <b>Ad spend &amp; attributed conversions</b> exist only during the flight; '
-    + '<b>enquiry charts</b> are scoped to the flight because GA4 changed its enquiry-event tagging in 2026 (earlier counts aren\'t comparable). '
+    + '<b>enquiry charts</b> are scoped to the campaign (Jan 2026 →) because GA4 changed its enquiry-event tagging in 2025 (earlier counts aren\'t comparable). '
     + 'Session figures exclude low-quality programmatic landing-pixel traffic.';
   if(narrowed()){
     html = '📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (snapped to whole months/weeks). '
@@ -1264,174 +1003,14 @@ function pearson(xs,ys){
 //==============================================================================
 function renderOverview(){ OV.render(); }
 
-function renderOvCommentary(){
-  const box = el('ovCommentary');
-  const ke = enquiriesFlightSummary();    // FLIGHT-scoped (matches the Enquiries KPI), never the all-time picker
-  if(!ke.types.length || ke.total<=0){ box.style.display='none'; return; }
-  box.style.display='';
-  const top = ke.types[0], topShare = pct(ke.totals[top], ke.total);
-  const second = ke.types[1];
-  const a = adTotals();
-  const lead = `<b>${top.replace(/_/g,' ')}</b> (${fmtN(ke.totals[top])}, ${fmtPct(topShare,0)})`
-    + (second ? ` and <b>${second.replace(/_/g,' ')}</b> (${fmtN(ke.totals[second])})` : '');
-  box.innerHTML =
-    `<div class="ai-badge"><span class="dot"></span>AI commentary</div>`
-  + `<b>The flight is working — spend is turning into reach, clicks and attributed actions.</b> `
-  + `<b>${money(a.spend)}</b> of display delivered <b>${fmtM(a.imps)}</b> impressions and <b>${fmtN(a.clk)}</b> clicks to the VMCH site, and The Trade Desk attributed `
-  + `<b>${fmtN(a.conv)}</b> conversions back to those ads (<b>${fmtN(a.pview)}</b> post-view + <b>${fmtN(a.pclick)}</b> post-click). `
-  + `Over the same window the website logged <b>${fmtN(ke.total)}</b> enquiry actions across ${ke.types.length} type${ke.types.length===1?'':'s'} — led by ${lead} — `
-  + `the phone, email and contact-form enquiries that matter most for a not-for-profit. `
-  + `Display is upper-funnel, so much of its impact is assisted (post-view) rather than last-click — which is exactly why the attributed conversions above matter more than raw last-click sessions.`;
-}
-
-//==============================================================================
-// TRADE DESK
-//==============================================================================
-function renderPaid(){
-  const a = adTotals();
-  const ctr = pct(a.clk,a.imps), cpm = a.imps? a.spend/a.imps*1000:0, cpc = a.clk? a.spend/a.clk:0;
-  el('pmKpis').innerHTML =
-    kpiCard('accent','Spend (AUD)', money(a.spend), `${campaignScopeText()}`)
-  + kpiCard('accent','Impressions', fmtM(a.imps), `${money(cpm,'A$',2)} CPM`)
-  + kpiCard('accent','Clicks to site', fmtN(a.clk), `${money(cpc,'A$',2)} CPC`)
-  + kpiCard('','CTR', fmtPct(ctr,2), `clicks ÷ impressions`)
-  + kpiCard('','Campaigns', `${adCampaignsSel().length}`, `of ${(DATA.ad_campaigns||[]).length} service lines`);
-
-  // Spend bars (primary, absolute) + clicks line over selected campaigns. Relative indexes clicks to
-  // peak=100 on a shared 0-100 right axis; spend stays absolute. Grain month/week/day.
-  const gP = grain.pmMonthly, relP = scale.pmMonthly==='rel';
-  const amP = adMap(gP);
-  const keysP = Object.keys(amP).filter(k=>inRangeBy(k,gP) && ((amP[k].imps||0)>0 || (amP[k].spend||0)>0)).sort();
-  const labelsP = keysP.map(k=>periodLabel(k,gP));
-  const spendP = keysP.map(k=>amP[k].spend||0);
-  const clkRawP = keysP.map(k=>amP[k].clk||0);
-  const clkDataP = relP ? indexed(clkRawP) : clkRawP;
-  charts.pmMonthly = new Chart(el('pmMonthly'),{
-    data:{ labels:labelsP, datasets:[
-      { type:'bar', label:'Spend (AUD)', data:spendP, backgroundColor:C.orange, borderRadius:{topLeft:3,topRight:3}, maxBarThickness:34, yAxisID:'y' },
-      { type:'line', label:'Clicks to site', data:clkDataP, _raw:clkRawP, borderColor:C.maroon, backgroundColor:C.maroon, borderWidth:2.5, tension:.3, yAxisID:'y1', pointRadius:3 }
-    ]},
-    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
-        if(c.dataset.yAxisID==='y1'){ const raw=c.dataset._raw?c.dataset._raw[c.dataIndex]:c.parsed.y; return ` ${c.dataset.label}: ${fmtN(raw)}`; }
-        return ` ${c.dataset.label}: ${money(c.parsed.y)}`;
-      }}} },
-      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:relP?'Index (peak=100)':'Clicks',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relP?Math.round(v):fmtN(v)}} } }
-  });
-
-  // Spend by campaign donut
-  const camps = adCampaignsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
-  charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
-    type:'doughnut',
-    data:{ labels:camps.map(c=>campLabel(c.campaign)), datasets:[{ data:camps.map(c=>c.spend_aud||0),
-      backgroundColor:camps.map((c,i)=>shade(C.orange,i*2)), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
-      cutoutText:{line1:money(a.spend),line2:'AUD'} }, plugins:[centerText]
-  });
-
-  // Campaign breakdown table
-  const rowsHtml = camps.map(c=>{
-    const cr=pct(c.clicks,c.imps), cm=c.imps?c.spend_aud/c.imps*1000:0, cc=c.clicks?c.spend_aud/c.clicks:0;
-    return `<tr><td><span class="pill"><span class="dot" style="background:${C.orange}"></span>${campLabel(c.campaign)}</span></td>
-      <td class="num">${money(c.spend_aud)}</td><td class="num">${fmtN(c.imps)}</td><td class="num">${fmtN(c.clicks)}</td>
-      <td class="num">${fmtPct(cr,2)}</td><td class="num">${fmtN(c.post_view)}</td><td class="num">${fmtN(c.post_click)}</td><td class="num">${money(cm,'A$',2)}</td><td class="num">${money(cc,'A$',2)}</td></tr>`;
-  }).join('');
-  el('pmCampaigns').querySelector('tbody').innerHTML = rowsHtml +
-    `<tr class="total"><td>All selected</td><td class="num">${money(a.spend)}</td><td class="num">${fmtN(a.imps)}</td><td class="num">${fmtN(a.clk)}</td>
-      <td class="num">${fmtPct(ctr,2)}</td><td class="num">${fmtN(a.pview)}</td><td class="num">${fmtN(a.pclick)}</td><td class="num">${money(cpm,'A$',2)}</td><td class="num">${money(cc,'A$',2)}</td></tr>`;
-
-  // Top ad groups by spend (horizontal bar)
-  const ag = adgroupsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
-  el('pmAgCount').textContent = ag.length;
-  const agTop = ag.slice(0,10);
-  charts.pmAdgroups = new Chart(el('pmAdgroups'),{
-    type:'bar',
-    data:{ labels:agTop.map(r=>shortAg(r.ad_group)), datasets:[{ label:'Spend (AUD)', data:agTop.map(r=>r.spend_aud||0),
-      backgroundColor:C.orange, borderRadius:4, maxBarThickness:18 }]},
-    options:{ indexAxis:'y', maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{title:items=>agTop[items[0].dataIndex].ad_group, label:c=>` ${money(c.parsed.x)} · ${fmtN(agTop[c.dataIndex].imps)} imps · ${fmtN(agTop[c.dataIndex].clicks)} clicks`}} },
-      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}), y:axisX({ticks:{color:C.ink,font:{size:10}}}) } }
-  });
-
-  // Creative format mix donut
-  const fmt = {};
-  for(const r of (DATA.ttd_creative||[])){ const k=r.ad_format||'(unknown)'; (fmt[k]=fmt[k]||{imps:0}); fmt[k].imps+=r.imps||0; }
-  const fmtArr = Object.entries(fmt).map(([k,v])=>({label:k, v:v.imps})).sort((a,b)=>b.v-a.v);
-  const fmtTotal = fmtArr.reduce((s,x)=>s+x.v,0);
-  charts.pmFormatDonut = new Chart(el('pmFormatDonut'),{
-    type:'doughnut',
-    data:{ labels:fmtArr.map(x=>x.label), datasets:[{ data:fmtArr.map(x=>x.v),
-      backgroundColor:fmtArr.map((x,i)=>shade(C.maroon,i*6)), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps (${fmtPct(pct(c.parsed,fmtTotal),0)})`}} },
-      cutoutText:{line1:fmtM(fmtTotal),line2:'imps'} }, plugins:[centerText]
-  });
-}
-// Trim the long TTD ad-group strings for the y-axis labels.
-function shortAg(s){
-  if(!s) return '(unknown)';
-  return s.replace(/_AU_ID Digital_VMCH_2026/g,'').replace(/_/g,' ').replace(/\s+/g,' ').trim().slice(0,42);
-}
-
 //==============================================================================
 // WEBSITE
 //==============================================================================
 function renderWeb(){
-  const g = ga4Kpi();
-  const ATTR = computeAttribution();   // shared spend-share attribution: drives the panel AND scales the enquiry chart
-  const A = adTotals();   // TTD reach + attributed conversions for the SELECTED campaigns (flight)
-  const engRate=pct(g.engaged_sessions,g.sessions), avgEng=g.sessions?g.eng_duration/g.sessions:0;
-  const enq = enquiriesFlight();
-  el('webKpis').innerHTML =
-    kpiCard('web','Sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
-  + kpiCard('web','Total users', fmtM(g.users), `${g.users?(g.sessions/g.users).toFixed(1):'—'} sessions / user`)
-  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard('web','Page views', fmtM(g.page_views), `${g.sessions?(g.page_views/g.sessions).toFixed(1):'—'} per session`)
-  + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
-  + kpiCard('accent','Enquiries', fmtN(enq), `phone · email · contact form`)
-  + kpiCard('accent','Display reach', `${fmtM(A.imps)} imp`, `${fmtN(A.clk)} clicks to site`)
-  + kpiCard('accent','Ad-attributed conv.', fmtN(A.conv), `${fmtN(A.pview)} post-view · ${fmtN(A.pclick)} post-click`);
+  const ATTR = computeAttribution();   // shared spend-share attribution: drives the panel, the heatmap and the Sessions trend
 
-  // ----- honest "how the display flight shows up in GA4" banner -----------------
-  // Reach + attributed conversions are the fair read of an upper-funnel buy; on the
-  // website itself the flight shows as engaged-visit QUALITY + held organic demand,
-  // NOT a traffic-volume spike (volume peaked pre-flight and eased seasonally).
-  const MO = DATA.monthly || [];
-  const fStart = ((DATA.window||{}).start || '2026-04-01').slice(0,7);
-  const lastMon = MO.length ? MO[MO.length-1].month : '';   // newest month is partial -> exclude from rates
-  const flM = MO.filter(r => r.month>=fStart && r.month<lastMon);
-  const prM = MO.filter(r => r.month< fStart).slice(-3);
-  const sumK = (a,k) => a.reduce((s,r)=>s+(r[k]||0),0);
-  const flEng = pct(sumK(flM,'engaged_sessions'), sumK(flM,'sessions'));
-  const prEng = pct(sumK(prM,'engaged_sessions'), sumK(prM,'sessions'));
-  const flOrg = sumK(flM,'organic_sessions');
-  el('webAdEffect').innerHTML =
-    `<div class="ai-badge"><span class="dot"></span>How the display flight shows up in GA4</div>`
-  + `<b>Display is an upper-funnel awareness buy, so its effect on GA4 is reach and attributed actions — not a last-click traffic spike.</b> `
-  + `Across the flight the ads reached the market with <b>${fmtM(A.imps)}</b> impressions and drove <b>${fmtN(A.clk)}</b> clicks to the VMCH site, and The Trade Desk attributed <b>${fmtN(A.conv)}</b> conversions back to them (<b>${fmtN(A.pview)}</b> post-view + <b>${fmtN(A.pclick)}</b> post-click). `
-  + `On the website the flight shows up as <b>quality</b>: the engaged-visit rate ran <b>${fmtPct(flEng,0)}</b> through the flight`
-  + (prM.length ? ` (vs ${fmtPct(prEng,0)} the prior quarter)` : '')
-  + ` and Organic Search demand held steady (<b>${fmtN(flOrg)}</b> sessions). `
-  + `Total session <i>volume</i> followed its own seasonal trend — it peaked before the flight and eased back — which is expected for an awareness channel, and is why reach &amp; attributed conversions (not raw last-click sessions) are the fair read of impact.`;
-
-  // enquiries by type (horizontal bar) — flight totals CREDITED to the selected campaign(s) by
-  // share of ad spend (ATTR.share), so the Campaign filter scales it. All campaigns -> full totals.
-  const enqW = enquiriesFlightSummary();
-  const enqTypes = enqW.types.slice(0,8);
-  const enqScaled = enqTypes.map(t=>(enqW.totals[t]||0)*ATTR.share);
-  const enqScaledTotal = enqW.total*ATTR.share;
-  charts.webEnqTotals = new Chart(el('webEnqTotals'),{
-    type:'bar',
-    data:{ labels:enqTypes.map(t=>t.replace(/_/g,' ')), datasets:[{ label:'Enquiries', data:enqScaled,
-      backgroundColor:enqTypes.map((t,i)=>KE_PALETTE[i % KE_PALETTE.length]), borderRadius:4, maxBarThickness:30 }]},
-    options:{ indexAxis:'y', maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} enquiries (${fmtPct(pct(c.parsed.x, enqScaledTotal),0)})`}} },
-      scales:{ x:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}), y:axisX() } }
-  });
+  // Enquiries by type — heat-shaded TABLE of AD-ATTRIBUTABLE enquiries (regression lift × spend share).
+  renderEnqHeatmap(ATTR);
 
   // Sessions trend — total website sessions, credited to the selected campaign(s) by share of ad
   // spend (ATTR.share; = 1 when all OR none selected, so it shows full sessions then). Single line.
@@ -1454,34 +1033,56 @@ function renderWeb(){
     plugins:[flightMarker]
   });
 
-  // enquiry events by type (stacked bars), credited to the selected campaign(s) by spend share
-  // (ATTR.share scales every value; Relative composition is unchanged since share cancels).
-  // Pure composition -> Relative = 100%-stacked; Absolute = scaled counts. Grain month/week/day.
-  const gK = grain.webKeyEvents, relK = scale.webKeyEvents==='rel';
-  const keW = keyEventsBy(gK);
-  // Clamp to the flight: pre-flight GA4 enquiry tagging used a different taxonomy (counts ~40× higher)
-  // so it is NOT comparable — showing it would swamp the flight bars and read as a false collapse.
-  const keKeys = Object.keys(keW.byKey).filter(k=>inRangeBy(k,gK) && inFlight(k,gK)).sort();
-  const labelsK = keKeys.map(k=>periodLabel(k,gK));
-  const keTypes = keW.types.slice(0,6);
-  const keTot = keKeys.map(k=>keTypes.reduce((s,t)=>s+((keW.byKey[k]||{})[t]||0),0)*ATTR.share);
-  charts.webKeyEvents = new Chart(el('webKeyEvents'),{
-    type:'bar',
-    data:{ labels:labelsK, datasets: keTypes.map((t,i)=>{
-      const raw = keKeys.map(k=>((keW.byKey[k]||{})[t]||0)*ATTR.share);
-      return { label:t.replace(/_/g,' '),
-        data: relK ? raw.map((v,j)=>keTot[j]?v/keTot[j]*100:0) : raw, _raw:raw,
-        backgroundColor:KE_PALETTE[i % KE_PALETTE.length], stack:'ke', borderRadius:3, maxBarThickness:34 };
-    }) },
-    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
-        const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
-        return ` ${c.dataset.label}: ${fmtN(raw)}`+(relK?` (${c.parsed.y.toFixed(0)}%)`:'');
-      }}} },
-      scales:{ x:axisX({stacked:true}), y:gridY({stacked:true,max:relK?100:undefined,ticks:{color:C.mute,font:{size:11},callback:v=>relK?v+'%':fmtN(v)}}) } }
-  });
-
   renderWebAttribution(ATTR);
+}
+
+// Enquiries-by-type HEAT TABLE. Rows = enquiry types; columns = the service-line campaigns (one
+// column EACH — picking a campaign on the panel chips HIGHLIGHTS its column, it never removes a
+// column). Each campaign is credited the flight's enquiries by its SHARE OF AD SPEND (additive, so
+// the campaign columns sum across to the trailing "All" column). Cells are heat-shaded by volume.
+function renderEnqHeatmap(ATTR){
+  const box = el('webEnqHeatmap'); if(!box) return;
+  const LPD = (ATTR && Number.isFinite(ATTR.adLeadsPerDollar)) ? ATTR.adLeadsPerDollar : 0;   // ad-attributable enquiries per A$
+  const cw  = (ATTR && ATTR.campSpendWin) || {};                             // per-service-line spend WITHIN the date window
+  const winAll = (ATTR && Number.isFinite(ATTR.windowSpendAll)) ? ATTR.windowSpendAll : 0;
+  const enqW = enquiriesRangeSummary();   // total site enquiries in the date window — used only for the enquiry-type MIX
+  const types = enqW.types.slice(0,8);
+  // each campaign's spend IN THE WINDOW (so the numbers track ad spend, period by period)
+  const spendOf = c => cw[campPrefix(c.campaign)] || 0;
+  const camps = (DATA.ad_campaigns||[]).slice().sort((a,b)=>spendOf(b)-spendOf(a));
+  if(!types.length || !camps.length || winAll<=0 || enqW.total<=0){ box.innerHTML = '<div class="hint" style="padding:18px 4px">No ad spend in the selected range to attribute.</div>'; return; }
+  // which campaign column(s) to emphasise (the panel chips are the page's only campaign selector)
+  const total = camps.length, sel = activeCampaigns.size;
+  const allSel = sel===0 || sel>=total;
+  const isSel = c => !allSel && activeCampaigns.has(c.campaign);
+  // cell = leads PROPORTIONAL to this campaign's window spend, distributed across types by the enquiry-type mix
+  const typeShare = t => enqW.total>0 ? (enqW.totals[t]||0)/enqW.total : 0;
+  const cell = (t,c) => LPD*spendOf(c)*typeShare(t);
+  const rowAll = t => LPD*winAll*typeShare(t);   // ad-attributable of this type (all campaigns)
+  // max single cell sets the heat scale
+  let maxCell = 0;
+  types.forEach(t => camps.forEach(c => { const v=cell(t,c); if(v>maxCell) maxCell=v; }));
+  const heat = v => { const f = maxCell ? v/maxCell : 0; return `background:rgba(235,51,0,${(0.05+0.85*f).toFixed(3)});color:${f>0.55?'#fff':'var(--ink)'}`; };
+  // header
+  let html = `<table style="width:100%;border-collapse:collapse;font-size:12.5px">`
+    + `<thead><tr><th style="padding:7px 9px;text-align:left;font-size:11px;color:var(--mute)">Enquiry type</th>`
+    + camps.map(c=>{ const lbl=(c.campaign||'').split('_')[0]; const e=isSel(c)?'color:var(--orange);border-bottom:2px solid var(--orange)':'color:var(--mute)';
+        return `<th title="${campLabel(c.campaign)}" style="padding:7px 9px;font-size:11px;text-align:right;${e}">${lbl}</th>`; }).join('')
+    + `<th style="padding:7px 9px;font-size:11px;text-align:right;color:var(--ink)">All</th></tr></thead><tbody>`;
+  // rows
+  types.forEach(t=>{
+    html += `<tr><td style="padding:6px 9px;text-align:left;font-weight:600">${t.replace(/_/g,' ')}</td>`;
+    camps.forEach(c=>{ const v=cell(t,c); const em=isSel(c)?'outline:2px solid var(--orange);outline-offset:-2px;':'';
+      html += `<td class="num" style="padding:6px 9px;text-align:right;${heat(v)};${em}">${fmtN(v)}</td>`; });
+    html += `<td class="num" style="padding:6px 9px;text-align:right;font-weight:700">${fmtN(rowAll(t))}</td></tr>`;
+  });
+  // totals row (campaign columns sum to the All cell)
+  html += `<tr style="border-top:2px solid var(--orange)"><td style="padding:7px 9px;text-align:left;font-weight:700">All ad-attributable</td>`;
+  camps.forEach(c=>{ const colTot=LPD*spendOf(c); const e=isSel(c)?'color:var(--orange)':'';
+    html += `<td class="num" style="padding:7px 9px;text-align:right;font-weight:700;${e}">${fmtN(colTot)}</td>`; });
+  html += `<td class="num" style="padding:7px 9px;text-align:right;font-weight:800">${fmtN(LPD*winAll)}</td></tr>`;
+  html += `</tbody></table>`;
+  box.innerHTML = html;
 }
 
 //==============================================================================
@@ -1517,17 +1118,37 @@ function computeAttribution(){
   const fitSel = olsFit(xsSel, ys), fitAll = olsFit(xsAll, ys);
   const selectedSpend = xsSel.reduce((a,b)=>a+b,0), totalAllSpend = xsAll.reduce((a,b)=>a+b,0);
   const share = totalAllSpend>0 ? selectedSpend/totalAllSpend : 0;   // ADDITIVE: campaigns sum to total
-  const enqRate = (DATA.kpi && DATA.kpi.sessions) ? enquiriesFlight()/DATA.kpi.sessions : 0;
-  const attrTotalSessions = (fitAll && fitAll.slope>0) ? fitAll.slope*totalAllSpend : 0;
-  const attrSess = attrTotalSessions*share;                          // sessions: regression-modelled (nets baseline)
-  const attrEnq  = enquiriesFlightSummary().total * share;           // enquiries: flight total credited by spend share (matches the enquiry chart)
-  return { totalCamps, selCount, allSel, prefs, periods, map, g, fitSel, selectedSpend, totalAllSpend, share, enqRate, attrSess, attrEnq };
+  // === AD-ATTRIBUTABLE outcomes — SPEND-PROPORTIONAL (so they track ad spend, period by period) ===
+  // Display is upper-funnel (see ad → arrive via search/direct), so last-click under-counts. The OLS
+  // slope = sessions driven per $ of spend ABOVE the no-spend baseline. We DON'T apply a flat % to each
+  // month's enquiries (that would ignore that Jan spent a fraction of Mar). Instead every period/campaign
+  // earns leads in proportion to ITS spend:  ad-driven sessions = slope × spend(period);  ad-attributable
+  // enquiries = ad-driven sessions × the site enquiry-rate. Campaign-wide this still nets the 39% lift.
+  const slope = (fitAll && fitAll.slope>0) ? fitAll.slope : 0;
+  // campaign-wide totals (picker-independent) → the stable enquiry-rate + the headline lift %
+  let flightSess=0, flightSpend=0;
+  for(const k of periods){ if(inFlight(k,g)){ flightSess+=map[k].sess; flightSpend+=map[k].all; } }
+  const campaignEnq = enquiriesFlightSummary().total;                // whole-campaign enquiries (Jan→), picker-independent
+  const enqRate = flightSess>0 ? campaignEnq/flightSess : 0;         // site enquiry-rate (enquiries per session, ~2.5%)
+  const liftRate = flightSess>0 ? Math.max(0,Math.min(1,(slope*flightSpend)/flightSess)) : 0;  // % of campaign sessions ad-driven (~39%)
+  const adLeadsPerDollar = slope*enqRate;                            // ad-attributable enquiries per A$ of display spend
+  // per-service-line spend: whole campaign (campSpend, for column order) + within the PICKER window
+  // (campSpendWin, what drives the displayed numbers — so a date filter scales leads by that window's spend).
+  const campSpend = {}, campSpendWin = {};
+  for(const r of TL){ if(!inFlight(r.date,'day')) continue; const inWin = inRangeDay(r.date);
+    for(const p of ALLP){ const sp=(r.ch[p]&&r.ch[p].spend)||0; campSpend[p]=(campSpend[p]||0)+sp; if(inWin) campSpendWin[p]=(campSpendWin[p]||0)+sp; } }
+  const windowSpendAll = Object.values(campSpendWin).reduce((a,b)=>a+b,0);
+  const windowSpendSel = [...prefs].reduce((a,p)=>a+(campSpendWin[p]||0),0);
+  const modelledAdSess = slope*windowSpendSel;                       // ad-driven sessions in window (selected campaigns)
+  const attrEnq  = adLeadsPerDollar*windowSpendSel;                  // ad-attributable enquiries in window — SCALES WITH SPEND
+  const rangeEnq = enquiriesRangeSummary().total;                    // total site enquiries in window (for the % sub-label)
+  return { totalCamps, selCount, allSel, prefs, periods, map, g, fitSel, selectedSpend, totalAllSpend, share, enqRate, attrEnq, liftRate, modelledAdSess, flightSess, rangeEnq, campSpend, campSpendWin, windowSpendAll, windowSpendSel, adLeadsPerDollar };
 }
 function renderWebAttribution(ATTR){
-  const head=el('webAttrHead'), stats=el('webAttrStats'), method=el('webAttrMethod');
-  const { totalCamps, selCount, allSel, prefs, periods, map, g, fitSel:fit, selectedSpend, totalAllSpend, share, enqRate, attrSess, attrEnq } = ATTR;
+  const head=el('webAttrHead');
+  const { totalCamps, selCount, allSel, prefs, periods, map, g, fitSel:fit, selectedSpend, totalAllSpend, share, enqRate, attrEnq, liftRate, modelledAdSess, rangeEnq, windowSpendSel } = ATTR;
 
-  // fast one-click Campaign chips on the Website tab (reflect + drive the shared filter)
+  // Campaign chips — the page's only campaign selector now (drives this panel + the Sessions trend).
   const seg = el('webAttrCampSeg');
   if(seg){
     const single = selCount===1 ? [...activeCampaigns][0] : null;
@@ -1541,18 +1162,25 @@ function renderWebAttribution(ATTR){
   if(charts.webAttrScatter){ try{charts.webAttrScatter.destroy()}catch(e){} delete charts.webAttrScatter; }
 
   if(!fit){
-    head.innerHTML=''; stats.innerHTML=''; method.innerHTML='';
+    head.innerHTML='';
     charts.webAttrScatter = new Chart(el('webAttrScatter'),{type:'scatter',data:{datasets:[]},options:{maintainAspectRatio:false,plugins:{legend:{display:false}}}});
     return;
   }
 
   const xsSel = periods.map(k=>map[k].sel);
 
+  const adShare = rangeEnq>0 ? attrEnq/rangeEnq : 0;   // implied % of in-window site enquiries (varies with spend)
   head.innerHTML =
-      kpiCard('accent','Modelled sessions', '≈ '+fmtN(attrSess), allSel?'all campaigns':`${fmtPct(share,0)} of ad spend`)
-    + kpiCard('accent','Modelled enquiries', '≈ '+fmtN(attrEnq), allSel?'all flight enquiries':`${fmtPct(share,0)} of flight enquiries`)
+      kpiCard('accent','Ad-attributable enquiries', '≈ '+fmtN(attrEnq), `${fmtPct(adShare,0)} of ${fmtN(rangeEnq)} site enquiries · in proportion to spend`)
+    + kpiCard('accent','Ad-driven sessions', '≈ '+fmtN(modelledAdSess), allSel?`${fmtPct(liftRate,0)} of campaign sessions (regression lift)`:`regression lift on the selected spend`)
     + kpiCard('web','Spend → sessions (r)', fit?((fit.r>=0?'+':'')+fit.r.toFixed(2)):'—', fit?`${sigLabel(fit.p)}`:'')
-    + kpiCard('web','Spend analysed', money(selectedSpend), allSel?`${totalCamps} campaigns`:`${fmtPct(share,0)} of A$${fmtN(totalAllSpend)}`);
+    + kpiCard('web','Spend analysed', money(windowSpendSel), allSel?`${totalCamps} campaigns, in range`:`selected, in range`);
+
+  // concise, honest method line (the client explicitly wants the statistics shown)
+  const method = el('webAttrMethod');
+  if(method){ method.innerHTML = fit
+    ? `<b>How enquiries are attributed:</b> OLS regression of weekly website sessions on display spend across <b>${fit.n} weeks</b> (Oct 2025→now) — <b>r ${(fit.r>=0?'+':'')+fit.r.toFixed(2)}</b>, R² <b>${(fit.r2*100).toFixed(0)}%</b>, <b>${sigLabel(fit.p)}</b>. The slope = website sessions driven per A$ above the no-spend baseline (this captures <i>view-through</i>: seeing the ad, then arriving via search/direct); applied to spend it nets <b>${fmtPct(liftRate,0)}</b> of campaign sessions as display-driven. Enquiries are then credited <b>in proportion to spend</b> — every month and campaign earns leads from <i>its own</i> spend (a low-spend month like January earns proportionally fewer), summing to the campaign total. Association evidence, transparently framed — not last-click (which under-counts), not 100% (which over-counts).`
+    : ''; }
 
   // scatter (each point = one period: selected spend vs total sessions) + the fitted line
   const pts = periods.map(k=>({x:map[k].sel, y:map[k].sess}));
@@ -1572,122 +1200,6 @@ function renderWebAttribution(ATTR){
       scales:{ x:gridY({type:'linear',title:{display:true,text:`Ad spend per ${g} (AUD)`,color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
                y:gridY({title:{display:true,text:'Website sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
   });
-
-  stats.innerHTML = fit ? `<table style="width:100%;font-size:13px;border-collapse:collapse">
-      <tr><td style="padding:5px 0">Spend → sessions correlation (r)</td><td class="num"><b>${(fit.r>=0?'+':'')+fit.r.toFixed(3)}</b></td></tr>
-      <tr><td style="padding:5px 0">R² — variance explained</td><td class="num">${(fit.r2*100).toFixed(0)}%</td></tr>
-      <tr><td style="padding:5px 0">Significance (two-tailed t-test)</td><td class="num">${sigLabel(fit.p)}</td></tr>
-      <tr><td style="padding:5px 0">Share of total ad spend</td><td class="num">${fmtPct(share,1)}</td></tr>
-      <tr><td style="padding:5px 0">Data points</td><td class="num">${fit.n} ${g==='week'?'weeks':'days'}</td></tr>
-      <tr><td style="padding:5px 0">Site enquiry rate</td><td class="num">${fmtPct(enqRate,1)}</td></tr>
-    </table>` : '<div class="hint">Not enough data points to fit a model.</div>';
-
-  method.innerHTML = `<b>How this is calculated (transparent):</b> first an ordinary least-squares (OLS) linear regression of `
-    + `${g==='week'?'weekly':'daily'} <b>total website sessions</b> on <b>total ad spend</b> across the full Oct 2025 → present timeline `
-    + `(zero-spend baseline weeks included, so the slope is the lift above baseline) estimates the sessions the whole programme drove. `
-    + `Each campaign is then credited <b>in proportion to its share of spend</b> — so the campaigns <b>add up to the all-campaigns total</b>. `
-    + `<b>Modelled enquiries</b> (and the Enquiries-by-type chart) credit the flight's enquiries to each campaign by the same <b>spend share</b>. `
-    + `The scatter and <i>r</i> show the selected campaign’s own spend-vs-sessions relationship (Pearson <i>r</i> with a two-tailed Student-<i>t</i> test). `
-    + `A strong, significant association is supporting evidence, not by itself proof of causation.`;
-}
-
-//==============================================================================
-// MEDIA -> TRAFFIC
-//==============================================================================
-function renderLink(){
-  const W = DATA.weekly||[];
-  const a = adTotals();
-  const aw = adWeeklyMap();
-  const g = ga4Kpi();
-  const adImpsW = r => (aw[r.week_start]||{}).imps||0;
-  const adClkW  = r => (aw[r.week_start]||{}).clk||0;
-
-  const wk = W.filter(r=> inRangeWeek(r.week_start));
-  const sessOf = r => r.ga4_sessions||0;
-  const dispSess = (DATA.monthly||[]).filter(r=>r.month>=((DATA.window||{}).start||'').slice(0,7)).reduce((s,r)=>s+(r.display_sessions||0),0);
-  const sessPer1k = a.imps ? a.clk/(a.imps/1000) : 0;
-
-  el('linkHeadline').innerHTML = `<b>Spend → reach → clicks → attributed conversions.</b> Across the flight, <b>${money(a.spend)}</b> of display `
-    + `delivered <b>${fmtN(a.imps)}</b> impressions and <b>${fmtN(a.clk)}</b> clicks to the VMCH site (${fmtPct(pct(a.clk,a.imps),2)} CTR), and The Trade Desk attributed `
-    + `<b>${fmtN(a.conv)}</b> conversions back to the ads — <b>${fmtN(a.pview)}</b> post-view and <b>${fmtN(a.pclick)}</b> post-click. `
-    + `Display is upper-funnel, so GA4 logs only <b>${fmtN(dispSess)}</b> last-click Display sessions — that's expected, and it's exactly why post-view attribution (below) is the fairer read of impact.`;
-
-  el('linkFunnel').innerHTML =
-    `<div class="step"><div class="k">Ad spend</div><div class="v">${money(a.spend)}</div></div>`
-  + `<div class="arrow">→</div>`
-  + `<div class="step"><div class="k">Impressions</div><div class="v">${fmtM(a.imps)}</div></div>`
-  + `<div class="arrow">→</div>`
-  + `<div class="step"><div class="k">Clicks to site</div><div class="v">${fmtN(a.clk)}</div></div>`
-  + `<div class="arrow">→</div>`
-  + `<div class="step"><div class="k">Post-click conversions</div><div class="v">${fmtN(a.pclick)}</div></div>`
-  + `<div class="arrow">+</div>`
-  + `<div class="step"><div class="k">Post-view conversions</div><div class="v">${fmtN(a.pview)}</div></div>`;
-
-  // ad impressions (bars, right) vs all website sessions (line, left). Relative indexes BOTH series
-  // to their own peak=100 on shared 0-100 axes so they compare. Grain month/week/day (default week).
-  const gLW = grain.linkWeekly, relLW = scale.linkWeekly==='rel';
-  // Clamp to the flight: TTD impressions only exist during the flight, so pre-flight periods would
-  // render empty bars against a full-history sessions line — and this chart is captioned "Flight
-  // window only" (and sits beside the flight-only scatter). inFlight keeps the two in agreement.
-  const SLW = ga4Series(gLW).filter(r=>inFlight(r.key,gLW));
-  const amLW = adMap(gLW);
-  const keysLW = SLW.map(r=>r.key);
-  const labels = keysLW.map(k=>periodLabel(k,gLW));
-  const sessRawLW = SLW.map(r=>r.sessions||0);
-  const impsRawLW = keysLW.map(k=>(amLW[k]||{}).imps||0);
-  charts.linkWeekly = new Chart(el('linkWeekly'),{
-    data:{ labels, datasets:[
-      { type:'line', label:'Website sessions', data:relLW?indexed(sessRawLW):sessRawLW, _raw:sessRawLW,
-        borderColor:C.maroon, backgroundColor:'rgba(76,39,54,.07)', borderWidth:2.5, fill:!relLW, tension:.35, pointRadius:0, yAxisID:'y', order:0 },
-      { type:'bar', label:'Ad impressions', data:relLW?indexed(impsRawLW):impsRawLW, _raw:impsRawLW, backgroundColor:'rgba(235,51,0,.8)', borderRadius:3, maxBarThickness:16, yAxisID:'y1', order:1 }
-    ]},
-    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
-      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
-        const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
-        return ` ${c.dataset.label}: ${fmtN(raw)}`;
-      }}} },
-      scales:{ x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}),
-        y:gridY({title:{display:true,text:relLW?'Index (peak=100)':'Sessions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relLW?Math.round(v):fmtM(v)}}),
-        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:relLW?'Index (peak=100)':'Ad impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relLW?Math.round(v):fmtM(v)}} } }
-  });
-
-  // scatter: weekly impressions vs weekly website sessions
-  const pts = wk.map(r=>({x:adImpsW(r), y:sessOf(r)})).filter(p=>p.x>0);
-  const r = pearson(pts.map(p=>p.x), pts.map(p=>p.y));
-  el('linkScatterHint').innerHTML = `Each dot is one flight week with delivery. Correlation <b>r = ${r.toFixed(2)}</b> `
-    + `(${Math.abs(r)>0.6?'strong':Math.abs(r)>0.3?'moderate':'weak'} ${r>=0?'positive':'negative'} relationship). Display is upper-funnel — a loose link is expected.`;
-  charts.linkScatter = new Chart(el('linkScatter'),{
-    type:'scatter',
-    data:{ datasets:[{ label:'Flight week', data:pts, backgroundColor:'rgba(235,51,0,.55)', borderColor:C.orangeDeep, pointRadius:5, pointHoverRadius:7 }]},
-    options:{ maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} imps · ${fmtN(c.parsed.y)} sessions`}} },
-      scales:{ x:gridY({title:{display:true,text:'Ad impressions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
-        y:gridY({title:{display:true,text:'Website sessions / week',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } }
-  });
-
-  // clicks to site (bars). Relative indexes the series to its own peak=100; Absolute = raw clicks.
-  // Grain month/week/day (default week).
-  const gLC = grain.linkClicks, relLC = scale.linkClicks==='rel';
-  const amLC = adMap(gLC);
-  const keysLC = Object.keys(amLC).filter(k=>inRangeBy(k,gLC)).sort();
-  const labelsLC = keysLC.map(k=>periodLabel(k,gLC));
-  const clkRawLC = keysLC.map(k=>amLC[k].clk||0);
-  charts.linkClicks = new Chart(el('linkClicks'),{
-    type:'bar',
-    data:{ labels:labelsLC, datasets:[{ label:'Clicks to site', data:relLC?indexed(clkRawLC):clkRawLC, _raw:clkRawLC, backgroundColor:C.orange, borderRadius:3, maxBarThickness:18 }]},
-    options:{ maintainAspectRatio:false,
-      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>{
-        const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
-        return ` ${fmtN(raw)} clicks`;
-      }}} },
-      scales:{ x:axisX({ticks:{maxTicksLimit:14,color:C.mute,font:{size:10}}}), y:gridY({title:{display:relLC,text:relLC?'Index (peak=100)':'',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>relLC?Math.round(v):fmtN(v)}}) } }
-  });
-
-  // stats strip
-  el('linkStats').innerHTML =
-    `<div class="stat-card"><div class="k">Clicks to site</div><div class="v orange">${fmtN(a.clk)}</div><div class="c">${fmtPct(pct(a.clk,a.imps),2)} CTR over ${fmtM(a.imps)} impressions</div></div>`
-  + `<div class="stat-card"><div class="k">Ad-attributed conversions</div><div class="v orange">${fmtN(a.conv)}</div><div class="c">${fmtN(a.pview)} post-view + ${fmtN(a.pclick)} post-click (The Trade Desk)</div></div>`
-  + `<div class="stat-card"><div class="k">Last-click Display sessions</div><div class="v">${fmtN(dispSess)}</div><div class="c">small by design — GA4 under-attributes upper-funnel display</div></div>`;
 }
 
 //==============================================================================
@@ -1728,11 +1240,11 @@ const OV = (function(){
     clicks:'#1769C2', engaged:'#2E8B72', scroll:'#7A4154', pps:'#B97400', bounce1:'#C8362A', bounce2:'#C9928A',
     grid:'#F1EAE2', mute:'#8C7E80', ink:'#2A1E20'
   };
+  // Retargeting ('rt') is folded into Disability ('dis') in combined() — no separate channel/stack.
   const CH = [
     {key:'sah', label:'SAH',          color:'#7A4154'},
     {key:'rac', label:'RAC',          color:'#2E8B72'},
     {key:'dis', label:'Disability',   color:'#EB3300'},
-    {key:'rt',  label:'Retargeting',  color:'#B97400'},
     {key:'rl',  label:'Retirement Living', color:'#7A6A6E'}
   ];
 
@@ -1784,14 +1296,15 @@ const OV = (function(){
         fvBounce: d.ga_first_visit_bounce!=null?d.ga_first_visit_bounce:null, ssBounce: d.ga_session_start_bounce!=null?d.ga_session_start_bounce:null,
         ch:{ sah:{imps:d.sah_imps||0,clicks:d.sah_clicks||0,spend:d.sah_spend||0},
              rac:{imps:d.rac_imps||0,clicks:d.rac_clicks||0,spend:d.rac_spend||0},
-             dis:{imps:d.dis_imps||0,clicks:d.dis_clicks||0,spend:d.dis_spend||0},
-             rt:{imps:d.rt_imps||0,clicks:d.rt_clicks||0,spend:d.rt_spend||0}, rl:zc() } };
+             // Retargeting folded into Disability (no separate 'rt' channel anymore).
+             dis:{imps:(d.dis_imps||0)+(d.rt_imps||0),clicks:(d.dis_clicks||0)+(d.rt_clicks||0),spend:(d.dis_spend||0)+(d.rt_spend||0)},
+             rl:zc() } };
     });
     const lastHist = HIST.length ? HIST[HIST.length-1].date : '0000';
     const live = (typeof DATA!=='undefined' && DATA) ? DATA : {};
     const ensure = day => rows[day] || (rows[day] = { date:day, sessions:null, page_views:null,
         first_visits:null, engaged:null, scroll:null, pps:null, fvBounce:null, ssBounce:null,
-        ch:{sah:zc(),rac:zc(),dis:zc(),rt:zc(),rl:zc()} });
+        ch:{sah:zc(),rac:zc(),dis:zc(),rl:zc()} });
     (live.daily||[]).forEach(r=>{ if(r.day <= lastHist) return; const row=ensure(r.day);
       row.sessions = (r.sessions||0)>0 ? r.sessions : null;
       row.engaged  = (r.sessions||0)>0 ? (r.engaged_sessions||0) : null; });
@@ -1849,7 +1362,9 @@ const OV = (function(){
   const sahSpend=sumH('sah_spend'), racSpend=sumH('rac_spend'), disSpend=sumH('dis_spend'), rtSpend=sumH('rt_spend');
   const totalBudget=60500;
 
-  function setGrain(g, btn){ OVgrain=g; if(typeof destroyCharts==='function') destroyCharts(); render(); }
+  // The hero + traffic charts share the page with the moved-in Website charts, so a grain change must
+  // rebuild the WHOLE page (reRender → renderActive), not just the Overview charts.
+  function setGrain(g, btn){ OVgrain=g; if(typeof reRender==='function'){ reRender(); } else { if(typeof destroyCharts==='function') destroyCharts(); render(); } }
   function syncGrainBtns(){ document.querySelectorAll('.ovGrainSeg button[data-grain]').forEach(b=>{ b.classList.toggle('on', b.getAttribute('data-grain')===OVgrain); }); }
 
   //==============================================================================
@@ -1876,24 +1391,17 @@ const OV = (function(){
     const kpi=(value,label,change,up)=>
       `<div class="kpi ${up?'accent':'web'}"><span class="stripe"></span><div class="label">${label}</div>`
       +`<div class="value"${up?' style="color:var(--good)"':''}>${value}</div><div class="delta">${change}</div></div>`;
+    // Regression-based attribution (selection-independent figures for the headline summary).
+    const ATR = computeAttribution();
+    const teEnq = enquiriesRangeSummary().total;
+    const adEnq = Math.round(ATR.adLeadsPerDollar*ATR.windowSpendAll);   // ad-attributable enquiries (all campaigns)
+    const adSess = Math.round(ATR.liftRate*ATR.flightSess);              // ad-driven sessions (regression lift)
     $('ovKpis').innerHTML =
-      kpi(fmtM(totSpend),'Ad spend (AUD)','Oct 2025 → now, all platforms',false)
-    + kpi(fmt(totImps),'Impressions',`${fmtCompact(totImps)} total reach`,false)
+      kpi(fmt(totImps),'Impressions',`${fmtCompact(totImps)} total reach`,false)
     + kpi(fmt(totClicks),'Clicks to site',`${(ctr*100).toFixed(2)}% CTR`,false)
     + kpi(fmt(totSessions),'Website sessions','whole timeline',false)
-    + kpi('+'+sessionsUplift.toFixed(0)+'%','Session uplift at launch',`${fmt(preAvgSessions,0)} → ${fmt(postAvgSessions,0)}/day`,true)
-    + kpi('100','Campaign conversions','Oct–Mar flight (calls·forms·PDFs)',true)
-    + kpi(fmt(liveConv.total),'TTD attributed (live)',`${fmt(liveConv.pv)} post-view · ${fmt(liveConv.pc)} post-click`,true)
-    + kpi(fmtM(totalBudget),'Original campaign budget','inc. GST',false);
-
-    // ---------- exec summary ----------
-    $('ovExec').innerHTML =
-      `<div class="ai-badge"><span class="dot"></span>Executive summary</div>`
-    + `<b>The original Open Web Display flight</b> (Oct 2025 – Mar 2026) drove a <span class="highlight">+${sessionsUplift.toFixed(0)}% lift in daily sessions</span> and a `
-    + `<span class="highlight">+${firstVisitUplift.toFixed(0)}% surge in first-time visitors</span>, delivering ${fmt(histImps)} impressions and <span class="highlight">100 attributed conversions</span> from a ${fmtM(totalBudget)} budget. `
-    + `The live flight <b>picks up where it left off</b>: across the whole timeline, ${fmtM(totSpend)} of display has delivered <span class="highlight">${fmt(totImps)} impressions</span> and <span class="highlight">${fmt(totClicks)} clicks</span> to the VMCH site, `
-    + `with <span class="highlight">${fmt(liveConv.total)} further conversions</span> attributed by The Trade Desk. `
-    + `On Australian industry lifetime values, a conservative 5% lead-to-client rate on the original 100 leads alone implies <span class="good-text">$1.15M–$2.3M in lifetime revenue</span> — a <span class="good-text">19×–38× ROAS</span>.`;
+    + kpi(fmt(adSess),'Ad-driven sessions',`≈${(ATR.liftRate*100).toFixed(0)}% of campaign sessions (regression)`,true)
+    + kpi(fmt(adEnq),'Ad-attributable enquiries',`≈${teEnq>0?Math.round(adEnq/teEnq*100):0}% of ${fmt(teEnq)} site enquiries · tracks spend`,true);
 
     // ============ HERO: spend by platform vs results (bars BACK, lines FRONT) ============
     const spendBars = CH.map(c=>({ type:'bar', label:c.label+' spend', stack:'sp', yAxisID:'y1', order:20,
@@ -1903,14 +1411,8 @@ const OV = (function(){
       fill:true, order:0, spanGaps:true, data:S.map(r=>r.sessions) };
     const totImpsLine = { type:'line', label:'Total impressions', yAxisID:'y2', borderColor:COL.imps,
       backgroundColor:'transparent', borderWidth:2.5, tension:.35, pointRadius:0, order:1, data:S.map(r=>r.imps) };
-    const totClkLine = { type:'line', label:'Total clicks', yAxisID:'y', borderColor:COL.clicks, hidden:true,
-      backgroundColor:'transparent', borderWidth:2, tension:.35, pointRadius:0, order:1, data:S.map(r=>CH.reduce((a,c)=>a+r.ch[c.key].clicks,0)) };
-    const impLines = CH.map(c=>({ type:'line', label:c.label+' imps', yAxisID:'y2', borderColor:c.color, hidden:true,
-      backgroundColor:'transparent', borderWidth:1.6, borderDash:[4,3], tension:.3, pointRadius:0, order:2, data:S.map(r=>r.ch[c.key].imps) }));
-    const clkLines = CH.map(c=>({ type:'line', label:c.label+' clicks', yAxisID:'y', borderColor:c.color, hidden:true,
-      backgroundColor:'transparent', borderWidth:1.4, tension:.3, pointRadius:0, order:2, data:S.map(r=>r.ch[c.key].clicks) }));
     charts.ovSpendResult = new Chart($('ovSpendResult'),{
-      data:{ labels, datasets:[ ...spendBars, sessLine, totImpsLine, totClkLine, ...impLines, ...clkLines ] },
+      data:{ labels, datasets:[ ...spendBars, sessLine, totImpsLine ] },
       options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, launchMarkers:launch,
         plugins:{ legend:leg, tooltip:{callbacks:{label:c=>{ const v=c.parsed.y; if(v==null) return null;
           return c.dataset.yAxisID==='y1' ? ' '+c.dataset.label+': '+fmtM(v) : ' '+c.dataset.label+': '+fmt(v); }}}},
@@ -1933,147 +1435,11 @@ const OV = (function(){
         scales:{ x:gx(), y:gy({position:'left',title:{display:true,text:'Sessions / page views',color:COL.sessions,font:{size:11}}}),
           y1:gy({position:'right',grid:{display:false},title:{display:true,text:'Display impressions',color:COL.imps,font:{size:11}},ticks:{color:COL.mute,font:{size:11},callback:v=>fmtCompact(v)}}) } },
       plugins:[launchMarkers] });
+    const rTxt = ATR.fitSel ? `r ${(ATR.fitSel.r>=0?'+':'')+ATR.fitSel.r.toFixed(2)}, ${sigLabel(ATR.fitSel.p)}` : 'a significant correlation';
     $('ovTrafficInsights').innerHTML =
-      `<div class="insight good"><h4>+${sessionsUplift.toFixed(0)}% session uplift</h4><p>Daily sessions rose from ${fmt(preAvgSessions,0)} pre-campaign to ${fmt(postAvgSessions,0)} once display went live — tracking impression delivery, and sustained into the new flight.</p></div>`
+      `<div class="insight good"><h4>≈${(ATR.liftRate*100).toFixed(0)}% of sessions ad-driven</h4><p>The spend→sessions regression (${rTxt}) attributes <b>${fmt(adSess)}</b> website sessions to display across the campaign — view-through demand beyond last-click. Daily sessions ran ~${fmt(preAvgSessions,0)} before vs ~${fmt(postAvgSessions,0)} during, but only the regression-isolated share is claimed.</p></div>`
     + `<div class="insight good"><h4>Continuous reach</h4><p>${fmt(totImps)} impressions delivered across the whole timeline, ${fmtM(totSpend)} invested to date.</p></div>`
-    + `<div class="insight info"><h4>Display as an awareness driver</h4><p>Display builds awareness that fuels later organic &amp; direct visits. The session uplift exceeds click volume, confirming the assisted-channel effect.</p></div>`;
-
-    // ---------- CHART 2: FIRST VISITS ----------
-    charts.ovFirstVisits = new Chart($('ovFirstVisits'),{ type:'line',
-      data:{ labels, datasets:[
-        { type:'bar', label:'Display impressions', data:S.map(r=>r.imps), backgroundColor:'rgba(235,51,0,.10)', borderColor:COL.imps, borderWidth:1, yAxisID:'y2', order:20, maxBarThickness:44 },
-        { label:'First visits', data:S.map(r=>r.first_visits), borderColor:COL.imps, backgroundColor:'rgba(235,51,0,.08)', fill:true, yAxisID:'y', tension:.35, pointRadius:0, borderWidth:2.5, spanGaps:false, order:0 },
-        { label:'All sessions', data:S.map(r=>r.sessions), borderColor:COL.sessions, backgroundColor:'transparent', yAxisID:'y', tension:.35, pointRadius:0, borderWidth:1.5, borderDash:[4,4], spanGaps:true, order:1 },
-        { label:'First-visit bounce', data:S.map(r=>r.fvBounce), borderColor:COL.bounce1, backgroundColor:'transparent', yAxisID:'y1', tension:.35, pointRadius:0, borderWidth:1.5, spanGaps:false, order:1 },
-        { label:'All-session bounce', data:S.map(r=>r.ssBounce), borderColor:COL.bounce2, backgroundColor:'transparent', yAxisID:'y1', tension:.35, pointRadius:0, borderWidth:1.5, borderDash:[4,4], spanGaps:false, order:1 }
-      ]},
-      options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, launchMarkers:launch,
-        plugins:{ legend:leg, tooltip:{callbacks:{label:c=>{ const v=c.parsed.y; if(v==null) return null; return c.dataset.yAxisID==='y1'?' '+c.dataset.label+': '+(v*100).toFixed(1)+'%':' '+c.dataset.label+': '+fmt(v); }}} },
-        scales:{ x:gx(), y:gy({position:'left',title:{display:true,text:'Visits',color:COL.imps,font:{size:11}}}),
-          y1:gy({position:'right',grid:{display:false},min:0,max:1,title:{display:true,text:'Bounce rate',color:COL.bounce1,font:{size:11}},ticks:{color:COL.mute,font:{size:11},callback:v=>(v*100).toFixed(0)+'%'}}),
-          y2:{display:false,min:0,max:impMax*1.25} } },
-      plugins:[launchMarkers] });
-    $('ovFirstVisitInsights').innerHTML =
-      `<div class="insight good"><h4>+${firstVisitUplift.toFixed(0)}% first-visit surge</h4><p>First-time visitors jumped from ${fmt(preAvgFirstVisits,0)}/day to ${fmt(postAvgFirstVisits,0)}/day — display introducing VMCH to entirely new audiences.</p></div>`
-    + `<div class="insight warn"><h4>Bounce-rate context</h4><p>First-visit bounce (${fmtPct(avgH(postDis,'ga_first_visit_bounce'))}) is naturally higher than returning-visitor bounce (${fmtPct(avgH(postDis,'ga_session_start_bounce'))}). Expected — first-time display visitors are in discovery mode.</p></div>`
-    + `<div class="insight info"><h4>Net-new audience</h4><p>The first-visit uplift confirms genuinely new users reached by display, expanding the top of VMCH's funnel.</p></div>`;
-
-    // ---------- CHART 3: ENGAGEMENT ----------
-    charts.ovEngagement = new Chart($('ovEngagement'),{ type:'line',
-      data:{ labels, datasets:[
-        { type:'bar', label:'Display impressions', data:S.map(r=>r.imps), backgroundColor:'rgba(235,51,0,.10)', borderColor:COL.imps, borderWidth:1, yAxisID:'y2', order:20, maxBarThickness:44 },
-        { label:'Engaged sessions', data:S.map(r=>r.engaged), borderColor:COL.engaged, backgroundColor:'rgba(46,139,114,.08)', fill:true, yAxisID:'y', tension:.35, pointRadius:0, borderWidth:2.5, spanGaps:true, order:0 },
-        { label:'Scroll sessions', data:S.map(r=>r.scroll), borderColor:COL.scroll, backgroundColor:'transparent', yAxisID:'y', tension:.35, pointRadius:0, borderWidth:1.5, spanGaps:false, order:1 },
-        { label:'Pages/session', data:S.map(r=>r.pps), borderColor:COL.pps, backgroundColor:'transparent', yAxisID:'y1', tension:.35, pointRadius:0, borderWidth:1.5, spanGaps:false, order:1 }
-      ]},
-      options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, launchMarkers:launch,
-        plugins:{ legend:leg, tooltip:{callbacks:{label:c=>{ const v=c.parsed.y; if(v==null) return null; return c.dataset.yAxisID==='y1'?' '+c.dataset.label+': '+fmt(v,2):' '+c.dataset.label+': '+fmt(v); }}} },
-        scales:{ x:gx(), y:gy({position:'left',title:{display:true,text:'Sessions',color:COL.engaged,font:{size:11}}}),
-          y1:gy({position:'right',grid:{display:false},title:{display:true,text:'Pages/session',color:COL.pps,font:{size:11}}}),
-          y2:{display:false,min:0,max:impMax*1.25} } },
-      plugins:[launchMarkers] });
-    $('ovBounceExplainer').innerHTML =
-      `<h3>Understanding bounce rate in display advertising</h3>`
-    + `<p class="hint" style="margin:8px 0 0">Bounce rate rising alongside display is <strong>expected and normal</strong>. Why it's not a concern:</p>`
-    + `<div class="insight-grid">`
-    + `<div class="insight info"><h4>1. First visits always bounce higher</h4><p>The +${firstVisitUplift.toFixed(0)}% rise in first-timers naturally lifts site-wide bounce (pre ${fmtPct(preAvgBounce)} → during ${fmtPct(postAvgBounce)}) — first visits <em>always</em> bounce higher than returning ones.</p></div>`
-    + `<div class="insight info"><h4>2. Display industry benchmarks</h4><p>Typical display bounce is <strong>60–90%</strong>. Display visitors are interrupted while browsing elsewhere; one who bounces today may return via organic search next week.</p></div>`
-    + `<div class="insight good"><h4>3. Absolute engaged sessions stay strong</h4><p>Engaged sessions held at ${fmt(postAvgEngaged,0)}/day during the flight (vs ${fmt(preAvgEngaged,0)} before). The mix shifted to top-of-funnel — engaged users are still engaging.</p></div>`
-    + `<div class="insight good"><h4>4. The funnel is working</h4><p>Awareness → visits → some bounce, some engage → engaged users convert. The 100 attributed conversions prove it; most conversions happen after 3–7 brand exposures.</p></div>`
-    + `</div>`;
-
-    // ---------- CHART 4: CAMPAIGN PERFORMANCE (all channels) ----------
-    charts.ovCampaigns = new Chart($('ovCampaigns'),{ type:'line',
-      data:{ labels, datasets:[
-        ...CH.map(c=>({ label:c.label+' imps', data:S.map(r=>r.ch[c.key].imps), borderColor:c.color, backgroundColor:'transparent', yAxisID:'y', tension:.35, pointRadius:0, borderWidth:2.5, order:1 })),
-        ...CH.map(c=>({ label:c.label+' clicks', data:S.map(r=>r.ch[c.key].clicks), borderColor:c.color, backgroundColor:'transparent', yAxisID:'y1', tension:.35, pointRadius:0, borderWidth:1.4, borderDash:[4,4], hidden:true, order:2 }))
-      ]},
-      options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, launchMarkers:launch,
-        plugins:{ legend:leg, tooltip:{callbacks:{label:c=>' '+c.dataset.label+': '+fmt(c.parsed.y)}} },
-        scales:{ x:gx(), y:gy({position:'left',title:{display:true,text:'Impressions',color:COL.mute,font:{size:11}},ticks:{color:COL.mute,font:{size:11},callback:v=>fmtCompact(v)}}),
-          y1:gy({position:'right',grid:{display:false},title:{display:true,text:'Clicks',color:COL.mute,font:{size:11}}}) } },
-      plugins:[launchMarkers] });
-    $('ovCampaignInsights').innerHTML =
-      `<div class="insight"><h4><span class="campaign-badge badge-sah">SAH</span>Stay at Home</h4><p>${fmt(sumH('sah_imps'))} imps · ${fmt(sumH('sah_clicks'))} clicks · ${fmtM(sahSpend)} · 6 conversions<br>CTR ${((sumH('sah_clicks')/sumH('sah_imps'))*100).toFixed(2)}% (original flight)</p></div>`
-    + `<div class="insight"><h4><span class="campaign-badge badge-rac">RAC</span>Residential Aged Care</h4><p>${fmt(sumH('rac_imps'))} imps · ${fmt(sumH('rac_clicks'))} clicks · ${fmtM(racSpend)} · 11 conversions<br>CTR ${((sumH('rac_clicks')/sumH('rac_imps'))*100).toFixed(2)}% (original flight)</p></div>`
-    + `<div class="insight"><h4><span class="campaign-badge badge-dis">DIS</span>Disability + Retargeting</h4><p>${fmt(sumH('dis_imps')+sumH('rt_imps'))} imps · ${fmt(sumH('dis_clicks')+sumH('rt_clicks'))} clicks · ${fmtM(disSpend+rtSpend)} · 83 conversions<br>CPA $${((disSpend+rtSpend)/83).toFixed(2)} (original flight)</p></div>`;
-
-    // ---------- CHART 5: DISABILITY CONVERSION RAMP (original flight) ----------
-    const disWeekly={}, disWeeklyImps={}, dwOrder=[];
-    HIST.forEach(d=>{ if(!d.date||d.date<'2026-01-15') return;
-      const w=Math.floor((new Date(d.date)-new Date('2026-01-15'))/(7*86400000)); const key='Wk '+(w+1);
-      if(!(key in disWeekly)){ disWeekly[key]=0; disWeeklyImps[key]=0; dwOrder.push(key); }
-      disWeekly[key]+=(d.dis_bookcall||0)+(d.dis_call||0)+(d.dis_email||0)+(d.dis_form||0)+(d.dis_pdf||0);
-      disWeeklyImps[key]+=(d.dis_imps||0)+(d.rt_imps||0); });
-    const dwVals=dwOrder.map(k=>disWeekly[k]), dwImps=dwOrder.map(k=>disWeeklyImps[k]);
-    const dwMax=Math.max(1,...dwVals); const dwTrend=dwOrder.map((_,i)=> dwOrder.length>1 ? dwMax*i/(dwOrder.length-1) : 0);
-    charts.ovDisConv = new Chart($('ovDisConv'),{
-      data:{ labels:dwOrder, datasets:[
-        { type:'bar', label:'Weekly conversions', data:dwVals, yAxisID:'y', order:20, borderRadius:6, borderWidth:0,
-          backgroundColor:dwVals.map((v,i)=>{ const t=dwOrder.length>1?i/(dwOrder.length-1):0; return `rgba(235,${Math.round(51+t*100)},${Math.round(t*40)},${0.45+t*0.5})`; }) },
-        { type:'line', label:'Display impressions', data:dwImps, yAxisID:'y1', order:1, borderColor:COL.engaged, backgroundColor:'rgba(46,139,114,.08)', fill:true, tension:.3, pointRadius:3, pointBackgroundColor:COL.engaged, borderWidth:2 },
-        { type:'line', label:'Trend', data:dwTrend, yAxisID:'y', order:0, borderColor:'rgba(122,65,84,.5)', borderWidth:1.5, borderDash:[6,3], pointRadius:0, fill:false }
-      ]},
-      options:{ maintainAspectRatio:false,
-        plugins:{ legend:leg },
-        scales:{ x:gx({maxTicksLimit:14}), y:gy({position:'left',title:{display:true,text:'Conversions',color:COL.imps,font:{size:11}}}),
-          y1:gy({position:'right',grid:{display:false},title:{display:true,text:'Display impressions',color:COL.engaged,font:{size:11}},ticks:{color:COL.mute,font:{size:11},callback:v=>fmtCompact(v)}}) } } });
-
-    // ---------- CHART 6: CONVERSION BREAKDOWN (original flight) ----------
-    const convTypes=[
-      {label:'DIS Book A Call Back',value:sumH('dis_bookcall'),color:'#EB3300'},{label:'DIS PDF Download',value:sumH('dis_pdf'),color:'#F2754D'},
-      {label:'DIS Call',value:sumH('dis_call'),color:'#FF9166'},{label:'RAC Call',value:sumH('rac_call'),color:'#2E8B72'},
-      {label:'SAH Call',value:sumH('sah_call'),color:'#7A4154'},{label:'RAC PDF Download',value:sumH('rac_pdf'),color:'#5FAE97'},
-      {label:'DIS Form Submit',value:sumH('dis_form'),color:'#C22A00'},{label:'DIS Email',value:sumH('dis_email'),color:'#FBC9B6'},
-      {label:'SAH Form Submit',value:sumH('sah_form'),color:'#9E6477'},{label:'SAH PDF Download',value:sumH('sah_pdf'),color:'#B98A99'}
-    ];
-    charts.ovConversions = new Chart($('ovConversions'),{ type:'bar',
-      data:{ labels:convTypes.map(c=>c.label), datasets:[{ data:convTypes.map(c=>c.value), backgroundColor:convTypes.map(c=>c.color), borderRadius:6, borderWidth:0 }]},
-      options:{ maintainAspectRatio:false, indexAxis:'y',
-        plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+fmt(c.parsed.x)+' conversions'}} },
-        scales:{ x:gy({title:{display:true,text:'Conversions',color:COL.mute,font:{size:11}}}), y:gx({maxTicksLimit:20,ticks:{color:COL.ink,font:{size:10.5}}}) } } });
-    $('ovConvTable').innerHTML =
-      `<table class="roas-table"><tr><th>Campaign</th><th>Calls</th><th>Forms</th><th>PDFs</th><th>Emails</th><th>Callbacks</th><th>Total</th><th>Spend</th><th>CPA</th></tr>`
-    + `<tr><td><span class="campaign-badge badge-sah">SAH</span></td><td>4</td><td>1</td><td>1</td><td>—</td><td>—</td><td class="highlight">6</td><td>${fmtM(sahSpend)}</td><td>$${(sahSpend/6).toFixed(0)}</td></tr>`
-    + `<tr><td><span class="campaign-badge badge-rac">RAC</span></td><td>7</td><td>—</td><td>4</td><td>—</td><td>—</td><td class="highlight">11</td><td>${fmtM(racSpend)}</td><td>$${(racSpend/11).toFixed(0)}</td></tr>`
-    + `<tr><td><span class="campaign-badge badge-dis">DIS</span></td><td>12</td><td>1</td><td>19</td><td>1</td><td>50</td><td class="highlight">83</td><td>${fmtM(disSpend+rtSpend)}</td><td>$${((disSpend+rtSpend)/83).toFixed(0)}</td></tr>`
-    + `<tr style="border-top:2px solid var(--orange)"><td><strong>TOTAL</strong></td><td><strong>23</strong></td><td><strong>2</strong></td><td><strong>24</strong></td><td><strong>1</strong></td><td><strong>50</strong></td><td class="highlight"><strong>100</strong></td><td><strong>${fmtM(histSpend)}</strong></td><td><strong>$${(histSpend/100).toFixed(0)}</strong></td></tr>`
-    + `</table>`;
-
-    // ---------- SECTION 7: ROAS & LTV ----------
-    $('ovRoas').innerHTML =
-      `<h3>Estimated lifetime values (Australian industry data)</h3>`
-    + `<table class="roas-table"><tr><th>Service type</th><th>Avg stay / duration</th><th>Annual revenue</th><th>Est. lifetime value</th><th>Lead-to-client rate</th></tr>`
-    + `<tr><td><span class="campaign-badge badge-rac">RAC</span>Residential Aged Care</td><td>2–3 years</td><td>$146K–$153K</td><td class="highlight">$230K–$460K</td><td>5–8%</td></tr>`
-    + `<tr><td><span class="campaign-badge badge-sah">SAH</span>Support at Home</td><td>2–4 years</td><td>$40K–$45K</td><td class="highlight">$120K–$180K</td><td>5–8%</td></tr>`
-    + `<tr><td><span class="campaign-badge badge-dis">DIS</span>Disability (NDIS)</td><td>10–20 years</td><td>$46K–$67K</td><td class="highlight">$460K–$1M+</td><td>3–5%</td></tr>`
-    + `</table>`
-    + `<h3 style="margin-top:22px">ROAS calculation — conservative scenario (5% conversion rate)</h3>`
-    + `<table class="roas-table"><tr><th>Campaign</th><th>Leads</th><th>Est. clients (5%)</th><th>Avg LTV</th><th>Potential revenue</th><th>Investment</th><th>Est. ROAS</th></tr>`
-    + `<tr><td><span class="campaign-badge badge-sah">SAH</span></td><td>6</td><td>0.3</td><td>$150,000</td><td>$45,000</td><td>$24,750</td><td class="good-text">1.8×</td></tr>`
-    + `<tr><td><span class="campaign-badge badge-rac">RAC</span></td><td>11</td><td>0.55</td><td>$350,000</td><td>$192,500</td><td>$16,500</td><td class="good-text">11.7×</td></tr>`
-    + `<tr><td><span class="campaign-badge badge-dis">DIS</span></td><td>83</td><td>4.15</td><td>$460,000</td><td>$1,909,000</td><td>$19,250</td><td class="good-text">99.2×</td></tr>`
-    + `<tr style="border-top:2px solid var(--orange)"><td><strong>TOTAL</strong></td><td><strong>100</strong></td><td><strong>5</strong></td><td>—</td><td class="highlight"><strong>$2,146,500</strong></td><td><strong>$60,500</strong></td><td class="good-text"><strong>35.5×</strong></td></tr>`
-    + `</table>`
-    + `<div class="insight-grid" style="margin-top:18px">`
-    + `<div class="insight good"><h4>Even 1 RAC client = the campaign pays for itself</h4><p>A single RAC conversion (2-year stay) generates ~$300K–$460K lifetime. With 11 RAC leads at 5–8%, 1 client is almost certain — covering the $60,500 investment 5–7× over.</p></div>`
-    + `<div class="insight good"><h4>Disability: exceptional ROI potential</h4><p>NDIS participants stay 10–20+ years at $46K–$67K annually. 83 leads at 5% = ~4 participants, ~$1.9M+ lifetime value. The $19,250 budget could return ~99×.</p></div>`
-    + `<div class="insight info"><h4>Phone calls are the highest-value lead</h4><p>23 of the 100 conversions were phone calls — the warmest lead type (20–40% convert to consultation vs 1–3% for PDFs).</p></div>`
-    + `<div class="insight warn"><h4>Conservative assumptions used</h4><p>These use the conservative end of LTV and a 5% lead-to-client rate. Real call/form conversion is typically 20–40% to consultation — actual ROAS could be materially higher.</p></div>`
-    + `</div>`;
-
-    // ---------- SECTION 8: RECOMMENDATIONS ----------
-    $('ovRecommendations').innerHTML =
-      `<div class="insight-grid">`
-    + `<div class="insight good"><h4>1. Scale retargeting investment</h4><p>Retargeting delivered the best efficiency at $5.91 CPA but ran only 18 days. It reaches prior site visitors — the most likely to convert. Recommend <strong>20–30% of budget</strong>.</p></div>`
-    + `<div class="insight good"><h4>2. Disability: protect &amp; grow</h4><p>83 of 100 conversions and clear week-over-week improvement. The ramp from 0 to 28/week shows it found its audience. <strong>Do not reduce</strong> — consider increasing.</p></div>`
-    + `<div class="insight warn"><h4>3. SAH needs a creative refresh</h4><p>6 conversions from $24,750 = $4,125 CPA, the weakest. Test new creative, landing-page optimisation, and shift budget to Custom Affinity ($18.19 CPA).</p></div>`
-    + `<div class="insight info"><h4>4. RAC: small but mighty</h4><p>11 conversions from $16,500 = $1,500 CPA. Given RAC LTV ($230K–$460K), even one conversion justifies the budget. More Custom Affinity &amp; Retargeting.</p></div>`
-    + `<div class="insight good"><h4>5. Implement a site exclusion list</h4><p>Placement analysis shows wasted spend on low-quality sites — a site exclusion list cuts waste an estimated 10–15%.</p></div>`
-    + `<div class="insight info"><h4>6. GA4 needs configuration work</h4><p>Page-path audiences and proper conversion tracking would enable richer attribution and prove the full display-to-conversion pathway.</p></div>`
-    + `<div class="insight good"><h4>7. Pause underperforming targeting</h4><p>Disability 3rd-Party ($601 CPA), Custom Intent ($182), In-Market ($0 from $719). Reallocate to Custom Affinity ($17–18) and Retargeting ($5.91).</p></div>`
-    + `<div class="insight good"><h4>8. The hidden value: assisted conversions</h4><p>The attributed conversions are just the tracked tip. Display drives organic search, direct visits and word-of-mouth — the +${sessionsUplift.toFixed(0)}% session and +${firstVisitUplift.toFixed(0)}% first-visit uplift represent thousands of extra touchpoints.</p></div>`
-    + `</div>`;
+    + `<div class="insight info"><h4>Display as an awareness driver</h4><p>Display builds awareness that fuels later organic &amp; direct visits — most arrivals come via search/direct after seeing an ad (view-through), which is why the regression lift far exceeds raw last-click sessions.</p></div>`;
 
     syncGrainBtns();
   }
