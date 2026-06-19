@@ -26,6 +26,10 @@ MAX_AUDIO_BYTES = 16 * 1024 * 1024     # ~16 MB; the widget caps recording at 2 
 MAX_IMAGE_BYTES = 8 * 1024 * 1024      # a JPEG viewport screenshot is normally well under 1 MB
 MAX_TEXT_CHARS = 8000
 
+# Triage workflow states for the tracker; a record with no `status` is treated as the first one.
+STATUSES = ["Not yet started", "Ongoing", "On Hold", "Completed"]
+DEFAULT_STATUS = STATUSES[0]
+
 # MediaRecorder picks a container per browser (Chrome: audio/webm, Safari: audio/mp4). Map the
 # mime to a sane extension so the stored object is directly playable in an <audio> tag.
 _EXT = {"audio/webm": "webm", "audio/ogg": "ogg", "audio/mp4": "m4a",
@@ -78,7 +82,10 @@ def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_byt
 
 
 def update_record(client, rid, fields):
-    """Merge `fields` into a stored record's JSON (used to write back the AI transcript/summary)."""
+    """Merge `fields` into a stored record's JSON (used to write back the AI transcript/summary
+    and the triage status)."""
+    if not valid(client) or not valid(rid):
+        return None
     b = _bucket().blob(f"{_PREFIX}/{client}/{rid}.json")
     if not b.exists():
         return None
@@ -104,6 +111,23 @@ def list_recent(limit=300):
 
 
 _SAFE = re.compile(r"^[A-Za-z0-9._-]+$")
+
+
+def valid(name):
+    return bool(_SAFE.match(name or ""))
+
+
+def delete(client, rid):
+    """Delete a record and all its binary objects (json + audio + screenshot share the rid prefix).
+    Returns False on an invalid key. Idempotent — deleting an already-gone note is fine."""
+    if not valid(client) or not valid(rid):
+        return False
+    for blob in _bucket().list_blobs(prefix=f"{_PREFIX}/{client}/{rid}"):
+        try:
+            blob.delete()
+        except Exception:
+            pass
+    return True
 
 
 def load_blob(client, fname):

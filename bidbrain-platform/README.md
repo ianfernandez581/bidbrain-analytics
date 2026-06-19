@@ -137,6 +137,9 @@ voice message** (`MediaRecorder`), or both; on open it also grabs a **page scree
   super-admin/admin top bars). Every note newest-first in three columns — **Raw feedback** (typed
   text + voice transcript + audio player) · **AI summary** (interpretation + action items) ·
   **Screenshot** (thumbnail → full image). Audio/images stream via `/feedback/file/<client>/<f>`.
+- **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
+  On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
+  button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).
 - **Caps:** voice 2 min; the service rejects bodies over `MAX_AUDIO_BYTES + MAX_IMAGE_BYTES` (~24 MB);
   an oversized screenshot is dropped rather than failing the note.
 - **Wiring:** `feedback.py` (storage) + `feedback_ai.py` (Gemini) + `_FEEDBACK_WIDGET` / `_enrich()` /

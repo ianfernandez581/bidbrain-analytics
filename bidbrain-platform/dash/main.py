@@ -275,7 +275,8 @@ def feedback_admin():
             budget -= 1
     names = {k: c.get("name", k) for k, c in store._all_clients().items()}
     return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows),
-                                  ai_on=feedback_ai.enabled())
+                                  ai_on=feedback_ai.enabled(), statuses=feedback.STATUSES,
+                                  default_status=feedback.DEFAULT_STATUS)
 
 
 @app.get("/feedback/file/<client>/<fname>")
@@ -286,6 +287,31 @@ def feedback_file(client, fname):
     if data is None:
         abort(404)
     return Response(data, mimetype=ctype, headers={"Cache-Control": "no-store"})
+
+
+@app.post("/feedback/status")
+def feedback_status():
+    """Set a note's triage status (Not yet started / Ongoing / On Hold / Completed). Admin/super."""
+    _require_admin()
+    d = request.get_json(silent=True) or {}
+    client = (d.get("client") or "").strip()
+    rid = (d.get("id") or "").strip()
+    status = (d.get("status") or "").strip()
+    if status not in feedback.STATUSES:
+        return jsonify(ok=False, error="bad status"), 400
+    if not feedback.update_record(client, rid, {"status": status}):
+        return jsonify(ok=False, error="not found"), 404
+    return jsonify(ok=True)
+
+
+@app.post("/feedback/delete")
+def feedback_delete():
+    """Permanently delete a note and its audio/screenshot. Admin/super."""
+    _require_admin()
+    d = request.get_json(silent=True) or {}
+    if not feedback.delete((d.get("client") or "").strip(), (d.get("id") or "").strip()):
+        return jsonify(ok=False, error="bad request"), 400
+    return jsonify(ok=True)
 
 
 _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
@@ -301,6 +327,15 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   .card{background:#15171c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:15px 17px}
   .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:12px}
   .chip{background:#1f2937;color:#c7d2fe;border-radius:999px;padding:2px 9px;font-weight:600}
+  .meta .grow{flex:1}
+  select.stat{font:600 12px/1 inherit;color:#f3f4f6;background:#1f2937;border:1px solid rgba(255,255,255,.18);
+    border-radius:7px;padding:5px 8px;cursor:pointer}
+  select.stat[data-status="Completed"]{background:#064e3b;border-color:#10b981}
+  select.stat[data-status="Ongoing"]{background:#1e3a8a;border-color:#3b82f6}
+  select.stat[data-status="On Hold"]{background:#78350f;border-color:#f59e0b}
+  select.stat[disabled]{opacity:.5}
+  button.del{font:600 12px/1 inherit;color:#fca5a5;background:transparent;border:1px solid rgba(248,113,113,.45);
+    border-radius:7px;padding:5px 9px;cursor:pointer} button.del:hover{background:rgba(248,113,113,.16)}
   .cols{display:grid;grid-template-columns:1fr 1fr 220px;gap:18px}
   @media(max-width:820px){.cols{grid-template-columns:1fr}}
   .col h4{margin:0 0 7px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593}
@@ -323,6 +358,12 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       <span>{{ r.created_at | datetime }}</span>
       {% if r.page %}<span>· {{ r.page }}</span>{% endif %}
       {% if r.user_kind %}<span>· {{ r.user_kind }}</span>{% endif %}
+      <span class="grow"></span>
+      {% set st = r.status or default_status %}
+      <select class="stat" data-status="{{ st }}" data-client="{{ r.client }}" data-id="{{ r.id }}">
+        {% for s in statuses %}<option value="{{ s }}"{% if s == st %} selected{% endif %}>{{ s }}</option>{% endfor %}
+      </select>
+      <button class="del" data-client="{{ r.client }}" data-id="{{ r.id }}">Delete</button>
     </div>
     <div class="cols">
       <div class="col">
@@ -351,7 +392,30 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 {% else %}
   <div class="none">No feedback yet.</div>
 {% endfor %}
-</div></body></html>"""
+</div>
+<script>
+function fbPost(url,body){return fetch(url,{method:'POST',headers:{'content-type':'application/json'},
+  credentials:'same-origin',body:JSON.stringify(body)});}
+document.querySelectorAll('select.stat').forEach(function(sel){
+  sel.addEventListener('change',function(){
+    var prev=sel.dataset.status; sel.disabled=true;
+    fbPost('/feedback/status',{client:sel.dataset.client,id:sel.dataset.id,status:sel.value})
+      .then(function(r){if(!r.ok)throw 0;sel.dataset.status=sel.value;})
+      .catch(function(){sel.value=prev;alert('Could not update status.');})
+      .finally(function(){sel.disabled=false;});
+  });
+});
+document.querySelectorAll('button.del').forEach(function(b){
+  b.addEventListener('click',function(){
+    if(!confirm('Delete this feedback permanently?'))return;
+    b.disabled=true;
+    fbPost('/feedback/delete',{client:b.dataset.client,id:b.dataset.id})
+      .then(function(r){if(!r.ok)throw 0;var c=b.closest('.card');if(c)c.remove();})
+      .catch(function(){b.disabled=false;alert('Could not delete.');});
+  });
+});
+</script>
+</body></html>"""
 
 
 @app.template_filter("datetime")
