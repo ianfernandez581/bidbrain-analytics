@@ -44,7 +44,12 @@ No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.p
 the `bb_sso`/`platform_sso.py` machinery stays deployed but inert, and would only take over if a real
 domain is later wired (Cloud DNS + Cloud Run domain mappings; `australia-southeast1` supports `gcloud
 run domain-mappings`; **NO Cloudflare**). Platform SA `platform-dash-web@` has `secretAccessor` on every
-`<c>-dash-password` (to log into upstreams). See `bidbrain-platform/README.md`.
+`<c>-dash-password` (to log into upstreams). **Feedback:** the proxy injects a self-contained
+**Feedback widget** (text **or** a voice note via `MediaRecorder`) into every proxied dashboard —
+same `</body>`-injection as the logout pill (`feedback.py` + `_FEEDBACK_WIDGET`/`/feedback` in
+`dash/main.py`). Notes land in the platform's OWN private bucket (`gs://bidbrain-analytics-platform-dash/
+feedback/<client>/…`, JSON + the recording blob; no email yet) and admin/super read them back at
+`/feedback/admin`. See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)

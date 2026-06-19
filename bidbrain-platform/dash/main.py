@@ -36,6 +36,7 @@ from flask import (
 
 import config as cfg
 import platform_sso
+import feedback
 from store import Store
 
 app = Flask(__name__)
@@ -45,6 +46,9 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("DEV") != "1",
     SESSION_COOKIE_SAMESITE="Lax",                       # platform is top-level, not iframed
     PERMANENT_SESSION_LIFETIME=platform_sso.DEFAULT_MAX_AGE,
+    # Bound request bodies. The only sizeable one is a feedback voice note (capped ~16 MB); the
+    # proxy's forwarded POSTs (login, the mongodb /report) are all tiny.
+    MAX_CONTENT_LENGTH=feedback.MAX_AUDIO_BYTES + 256 * 1024,
 )
 
 # --- config injected by Cloud Run ---------------------------------------------------------
@@ -190,6 +194,102 @@ def logout():
 @app.get("/healthz")
 def healthz():
     return "ok"
+
+
+# --- feedback: every proxied dashboard posts here (text and/or a voice note) ---------------
+@app.post("/feedback")
+def feedback_submit():
+    """Capture feedback from a dashboard's injected widget. Auth = the same session check the proxy
+    uses, so a visitor can only file feedback against a dashboard they're allowed to open. Stored to
+    the platform's private bucket via feedback.save() — no email (yet), no DB."""
+    client = (request.form.get("client") or "").strip()
+    if not client or not _may_open(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    text = request.form.get("text") or ""
+    audio_bytes, audio_ctype = None, ""
+    f = request.files.get("audio")
+    if f is not None:
+        audio_bytes = f.read()
+        audio_ctype = f.mimetype or "audio/webm"
+        if len(audio_bytes) > feedback.MAX_AUDIO_BYTES:
+            return jsonify(ok=False, error="recording too large"), 413
+    if not text.strip() and not audio_bytes:
+        return jsonify(ok=False, error="empty feedback"), 400
+    try:
+        feedback.save(client, text, audio_bytes, audio_ctype,
+                      request.form.get("page", ""), session.get("kind", ""))
+    except Exception:
+        app.logger.exception("feedback save failed")
+        return jsonify(ok=False, error="could not store feedback"), 500
+    return jsonify(ok=True)
+
+
+@app.get("/feedback/admin")
+def feedback_admin():
+    """The simple tracker: every feedback note across all dashboards, newest first. Admin/super only."""
+    _require_admin()
+    try:
+        rows = feedback.list_recent()
+    except Exception:
+        app.logger.exception("feedback list failed")
+        rows = []
+    names = {k: c.get("name", k) for k, c in store._all_clients().items()}
+    return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows))
+
+
+@app.get("/feedback/audio/<client>/<fname>")
+def feedback_audio(client, fname):
+    """Stream one stored voice note for playback on the tracker page. Admin/super only."""
+    _require_admin()
+    data, ctype = feedback.load_audio(client, fname)
+    if data is None:
+        abort(404)
+    return Response(data, mimetype=ctype, headers={"Cache-Control": "no-store"})
+
+
+_FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard feedback</title>
+<style>
+  *{box-sizing:border-box} body{margin:0;background:#0e1014;color:#f3f4f6;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  header{padding:22px 28px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;
+    align-items:baseline;gap:14px}
+  header h1{margin:0;font-size:19px} header .n{color:#9ca3af;font-size:13px}
+  header a{margin-left:auto;color:#9ca3af;font-size:13px;text-decoration:none}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 28px;display:flex;flex-direction:column;gap:14px}
+  .card{background:#15171c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:15px 17px}
+  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:8px}
+  .chip{background:#1f2937;color:#c7d2fe;border-radius:999px;padding:2px 9px;font-weight:600}
+  .txt{white-space:pre-wrap;font-size:14px;line-height:1.5} .txt.empty{color:#6b7280;font-style:italic}
+  audio{width:100%;margin-top:10px} .none{color:#9ca3af;padding:40px 0;text-align:center}
+</style></head><body>
+<header><h1>Dashboard feedback</h1><span class="n">{{ count }} note(s)</span>
+  <a href="/">&larr; back to platform</a></header>
+<div class="wrap">
+{% for r in rows %}
+  <div class="card">
+    <div class="meta">
+      <span class="chip">{{ names.get(r.client, r.client) }}</span>
+      <span>{{ r.created_at | datetime }}</span>
+      {% if r.page %}<span>· {{ r.page }}</span>{% endif %}
+      {% if r.user_kind %}<span>· {{ r.user_kind }}</span>{% endif %}
+    </div>
+    {% if r.text %}<div class="txt">{{ r.text }}</div>{% else %}<div class="txt empty">(voice note only)</div>{% endif %}
+    {% if r.audio %}<audio controls preload="none" src="/feedback/audio/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
+  </div>
+{% else %}
+  <div class="none">No feedback yet.</div>
+{% endfor %}
+</div></body></html>"""
+
+
+@app.template_filter("datetime")
+def _fmt_dt(epoch):
+    try:
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    except Exception:
+        return ""
 
 
 # --- super-admin god-mode console ---------------------------------------------------------
@@ -411,6 +511,98 @@ _LOGOUT_BUTTON = (
     b'<line x1="21" y1="12" x2="9" y2="12"></line></svg>Log out</a>'
 )
 
+# A self-contained Feedback widget injected into every proxied dashboard (same approach as the
+# logout pill: the dashboards are 10 differently-themed third-party pages, so it is fully
+# inline-styled, scoped under #bbfb*, and max z-index). A floating pill bottom-right opens a panel
+# where the user types OR records a voice note (MediaRecorder; getUserMedia works because the page
+# is served over the platform's https origin) and POSTs it to the platform's own /feedback. The
+# client key is baked in per-dashboard at injection time (replaces __CLIENT__).
+_FEEDBACK_WIDGET = (
+    "<style>"
+    "#bbfb-btn{position:fixed;bottom:18px;right:18px;z-index:2147483646;display:inline-flex;"
+    "align-items:center;gap:7px;padding:10px 15px;border-radius:999px;border:1px solid rgba(255,255,255,.22);"
+    "font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#fff;cursor:pointer;"
+    "background:rgba(17,17,17,.86);box-shadow:0 2px 12px rgba(0,0,0,.32);backdrop-filter:blur(4px);"
+    "-webkit-backdrop-filter:blur(4px)}"
+    "#bbfb-panel{position:fixed;bottom:66px;right:18px;z-index:2147483646;width:330px;max-width:calc(100vw - 36px);"
+    "display:none;flex-direction:column;gap:10px;padding:16px;border-radius:14px;"
+    "background:#15171c;color:#f3f4f6;border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 44px rgba(0,0,0,.5);"
+    "font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}"
+    "#bbfb-panel.open{display:flex}"
+    "#bbfb-panel h3{margin:0;font-size:15px;font-weight:700}"
+    "#bbfb-panel p.sub{margin:0;font-size:12px;color:#9ca3af}"
+    "#bbfb-text{width:100%;min-height:84px;resize:vertical;padding:9px 10px;border-radius:9px;"
+    "background:#0e1014;color:#f3f4f6;border:1px solid rgba(255,255,255,.16);font:inherit;outline:none}"
+    "#bbfb-text:focus{border-color:#6366f1}"
+    "#bbfb-row{display:flex;align-items:center;gap:8px}"
+    ".bbfb-mini{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:9px;cursor:pointer;"
+    "font:600 13px/1 inherit;border:1px solid rgba(255,255,255,.18);background:#0e1014;color:#f3f4f6}"
+    ".bbfb-mini.rec{background:#7f1d1d;border-color:#ef4444}"
+    "#bbfb-send{flex:1;justify-content:center;background:#6366f1;border-color:#6366f1;color:#fff}"
+    "#bbfb-send:disabled{opacity:.5;cursor:default}"
+    "#bbfb-status{font-size:12px;min-height:15px;color:#9ca3af}"
+    "#bbfb-audio{width:100%;display:none;margin-top:2px}"
+    "#bbfb-dot{width:9px;height:9px;border-radius:50%;background:#ef4444;display:inline-block;animation:bbfbpulse 1s infinite}"
+    "@keyframes bbfbpulse{0%,100%{opacity:1}50%{opacity:.25}}"
+    "</style>"
+    "<button id='bbfb-btn' type='button' aria-label='Send feedback'>"
+    "<svg width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' "
+    "stroke-linecap='round' stroke-linejoin='round'><path d='M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'></path></svg>"
+    "Feedback</button>"
+    "<div id='bbfb-panel' role='dialog' aria-label='Send feedback'>"
+    "<h3>Send feedback</h3>"
+    "<p class='sub'>Type a note or record a voice message — whatever’s easiest.</p>"
+    "<textarea id='bbfb-text' placeholder='What’s working, what’s confusing, what you’d like to see…'></textarea>"
+    "<audio id='bbfb-audio' controls></audio>"
+    "<div id='bbfb-row'>"
+    "<button id='bbfb-mic' type='button' class='bbfb-mini'>\U0001f3a4 Record</button>"
+    "<button id='bbfb-send' type='button' class='bbfb-mini'>Send</button>"
+    "</div>"
+    "<div id='bbfb-status'></div>"
+    "</div>"
+    "<script>(function(){"
+    "var CLIENT='__CLIENT__';"
+    "var btn=document.getElementById('bbfb-btn'),panel=document.getElementById('bbfb-panel'),"
+    "ta=document.getElementById('bbfb-text'),mic=document.getElementById('bbfb-mic'),"
+    "send=document.getElementById('bbfb-send'),status=document.getElementById('bbfb-status'),"
+    "audioEl=document.getElementById('bbfb-audio');"
+    "var rec=null,chunks=[],blob=null,ctype='',timer=null,secs=0;"
+    "btn.onclick=function(){panel.classList.toggle('open');if(panel.classList.contains('open'))ta.focus();};"
+    "function stopRec(){if(rec&&rec.state!=='inactive')rec.stop();}"
+    "function resetTimer(){clearInterval(timer);timer=null;secs=0;}"
+    "mic.onclick=function(){"
+    "if(rec&&rec.state==='recording'){stopRec();return;}"
+    "if(!navigator.mediaDevices||!window.MediaRecorder){status.textContent='Voice recording isn\\u2019t supported in this browser \\u2014 please type instead.';return;}"
+    "navigator.mediaDevices.getUserMedia({audio:true}).then(function(stream){"
+    "chunks=[];blob=null;rec=new MediaRecorder(stream);ctype=rec.mimeType||'audio/webm';"
+    "rec.ondataavailable=function(e){if(e.data&&e.data.size)chunks.push(e.data);};"
+    "rec.onstop=function(){stream.getTracks().forEach(function(t){t.stop();});"
+    "blob=new Blob(chunks,{type:ctype});audioEl.src=URL.createObjectURL(blob);audioEl.style.display='block';"
+    "mic.classList.remove('rec');mic.textContent='\\ud83c\\udfa4 Re-record';resetTimer();status.textContent='Voice note ready \\u2014 add a note if you like, then Send.';};"
+    "rec.start();mic.classList.add('rec');mic.innerHTML='<span id=\"bbfb-dot\"></span> Stop (0s)';"
+    "secs=0;timer=setInterval(function(){secs++;mic.innerHTML='<span id=\"bbfb-dot\"></span> Stop ('+secs+'s)';if(secs>=120)stopRec();},1000);"
+    "status.textContent='Recording\\u2026 (max 2 min)';"
+    "}).catch(function(){status.textContent='Microphone blocked \\u2014 allow access or just type your feedback.';});"
+    "};"
+    "send.onclick=function(){"
+    "var txt=(ta.value||'').trim();"
+    "if(!txt&&!blob){status.textContent='Add a note or a voice message first.';return;}"
+    "send.disabled=true;status.textContent='Sending\\u2026';"
+    "var fd=new FormData();fd.append('client',CLIENT);fd.append('text',txt);fd.append('page',location.pathname);"
+    "if(blob)fd.append('audio',blob,'voice.'+((ctype.indexOf('mp4')>-1)?'m4a':(ctype.indexOf('ogg')>-1)?'ogg':'webm'));"
+    "fetch('/feedback',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){"
+    "if(!r.ok)throw 0;status.textContent='Thanks \\u2014 your feedback was sent! \\u2713';"
+    "ta.value='';blob=null;chunks=[];audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';"
+    "setTimeout(function(){panel.classList.remove('open');status.textContent='';send.disabled=false;},1600);"
+    "}).catch(function(){status.textContent='Could not send \\u2014 please try again.';send.disabled=false;});"
+    "};"
+    "})();</script>"
+).encode()
+
+
+def _feedback_widget(client):
+    return _FEEDBACK_WIDGET.replace(b"__CLIENT__", client.encode())
+
 
 def _upstream_base(client):
     c = store.get_client(client)
@@ -520,8 +712,8 @@ def proxy(client, subpath):
         is_dashboard = b"/data.json" in body        # the real dashboard page (vs. a sub-view); see _unauth
         body = body.replace(b"/data.json", f"/d/{client}/data.json".encode())
         body = body.replace(b"'/report'", f"'/d/{client}/report'".encode())  # AI report POST (mongodb)
-        if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout control
-            body = body.replace(b"</body>", _LOGOUT_BUTTON + b"</body>", 1)
+        if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout + feedback control
+            body = body.replace(b"</body>", _LOGOUT_BUTTON + _feedback_widget(client) + b"</body>", 1)
     out = Response(body, status=resp.status_code, content_type=ctype)
     out.headers["Cache-Control"] = "no-store"
     loc = resp.headers.get("Location")
