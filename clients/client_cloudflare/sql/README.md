@@ -27,7 +27,7 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
 | `07_benchmarks_channel.sql`  | `benchmarks_channel`  | — (literal constants) | `V_BENCHMARKS_CHANNEL` |
 | `08_benchmarks_market.sql`   | `benchmarks_market`   | — (literal constants) | `V_BENCHMARKS_MARKET` |
 | `09_li_weekly_targets.sql`   | `li_weekly_targets`   | — (literal constants) | `V_LI_WEEKLY_TARGETS` |
-| `10_salesforce_leads_live.sql`| `salesforce_leads_live`| `raw_snowflake.salesforce_cs_apac_all` (the 12-ID CS filter + region/publisher/offer) | `V_SALESFORCE_LEADS_LIVE` |
+| `10_salesforce_leads_live.sql`| `salesforce_leads_live`| `raw_snowflake.salesforce_cs_apac_all` (the 12-ID CS filter + region/publisher/offer; **KR + RIG are client-defined, not geographic** — see below) | `V_SALESFORCE_LEADS_LIVE` (region logic now DIVERGES) |
 | `11_tier_mapping_cleaned.sql`| `tier_mapping_cleaned`| `seed_tiers` (static) | `V_TIER_MAPPING_CLEANED` |
 | `12_targets_v2_norm.sql`     | `targets_v2_norm`     | `seed_real_targets` (static) | `V_TARGETS_V2_NORM` |
 | `13_pacing_model.sql`        | `pacing_model`        | `salesforce_leads_live` + `tier_mapping_cleaned` + `targets_v2_norm` | `V_PACING_FINAL_MODEL` |
@@ -39,6 +39,10 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
 - `SPLIT_PART(s,'_',N)` → `IFNULL(SPLIT(s,'_')[SAFE_OFFSET(N-1)], '')` (mirror Snowflake's empty-string-on-overflow).
 - `REGEXP_REPLACE(...,'i')` → RE2 `(?i)` inline flag; `UUID_STRING()` → `GENERATE_UUID()`; `QUALIFY` is native.
 - The 12-ID CS campaign filter lives in `10_salesforce_leads_live.sql` (this is now its source of truth, not the Snowflake view).
+- **KR + RIG are client-defined CS segments (2026-06-19), redefined in `10_salesforce_leads_live.sql`'s `REGION_GRP`** — they are NO LONGER purely geographic, and the BQ region logic now DIVERGES from the reference Snowflake view (`snowflake_v_salesforce_leads_live.sql`, which keeps the old geographic logic for Cloudflare's own legacy R2 export):
+  - **KR** = Country `'Korea, Republic of'` **AND** the 6 ORIGINAL El* campaigns only (3 Roverpath + 3 Final Funnel). Korea leads from the Connectivity-Cloud / Modernize campaigns are excluded → land in `OTHER`. (~164 leads.)
+  - **RIG** = **NON-Korea AND** `ASSET_2 IN ('A-MAM-2','A-MAM-3')` (the gaming-vertical Modernize-Applications asset; only `A-MAM-3` has data today) **AND** the 3 Final Funnel campaigns. RIG is asset-based, spans every country, and is evaluated **before** the five geographic buckets — so it pulls those leads out of ANZ/ASEAN/SAARC/GCR/JP (intentional overlap). (~180 leads.)
+  - The other five regions stay purely geographic. A residual **`OTHER`** bucket (~42 leads: Korea-from-Modernize + a few mis-cased countries) is NOT one of the dashboard's 7 market chips, so it is excluded from the dash with no total-vs-sum drift. `13_pacing_model.sql` sets `MARKET_REGION = REGION_GRP` verbatim (the old "Computer Games + Tier 2 → RIG" override was removed so RIG equals the exact client def). Verified live: KR 164 / RIG 180; the status dashboard reproduces both straight from Snowflake.
 - **`pacing_model` tier sub-split is non-deterministic** (inherited from the source model — see [../README.md](../README.md#bigquery-owns-the-model-was-the-snowflake-modelled-exception)). Dummy rows use `GENERATE_UUID()` so their `LEAD_ID_SF` differs each run (always `DUMMY_*`, excluded from lead counts).
 
 ## See also

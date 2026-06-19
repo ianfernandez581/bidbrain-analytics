@@ -139,6 +139,16 @@ def _cf_total_leads(d):
                if not _is_dummy(r) and r.get("LEAD_STATUS") is not None)
 
 
+# CS region bucket: COUNT of non-dummy leads (any status) in one MARKET_REGION of the
+# passed-through pacing rows. KR / RIG are the 2026-06-19 CLIENT-DEFINED segments
+# (clients/client_cloudflare/sql/10_salesforce_leads_live.sql): KR = Korea on the 6 El*
+# campaigns; RIG = the Modernize-Applications asset on the 3 Final Funnel campaigns, non-Korea.
+def _cf_region(region):
+    return lambda d: sum(1 for r in d.get("pacing", {}).get("rows", [])
+                         if not _is_dummy(r) and r.get("LEAD_STATUS") is not None
+                         and r.get("MARKET_REGION") == region)
+
+
 # Single-campaign LinkedIn dashboards: campaigns.<key>.totals.<field>.
 def _cf_camp(key, field):
     return lambda d: _num(d.get("campaigns", {}).get(key, {}).get("totals", {}).get(field))
@@ -349,6 +359,35 @@ CLIENTS = [
                     "  AND LEAD_STATUS = 'New';",
              "note": "On the dash this is derived (total − accepted − rejected); checked here directly as "
                      "LEAD_STATUS = 'New' over pacing.rows[]." + _CF_CS_NOTE},
+
+            # --- CS client-defined segments: Korea & RIG (2026-06-19) -------------
+            # These two buckets are NOT geographic — they are the client's exact definitions, and the
+            # dashboard derives them in BigQuery (sql/10 REGION_GRP -> pacing_model MARKET_REGION='KR'/'RIG').
+            # The SQL goes STRAIGHT to the raw Snowflake source (the modelled V_PACING / V_SALESFORCE_LEADS_LIVE
+            # views still carry the OLD geographic logic, so they CANNOT verify these). The query IS the
+            # canonical definition: a green check proves the BQ view buckets == the source definition.
+            {"label": "Korea Leads · Total (KR bucket)", "kind": "count", "group": "Content Syndication — Korea & RIG",
+             "dash": _cf_region("KR"),
+             "sql": "SELECT COUNT(*) AS korea_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE COUNTRY_NAME = 'Korea, Republic of'\n"
+                    "  AND CAMPAIGN_ID IN ('701RG00001ElJZzYAN','701RG00001ElTu3YAF','701RG00001ElVXdYAN',\n"
+                    "                      '701RG00001ElUoXYAV','701RG00001ElUa0YAF','701RG00001ElNYkYAN');",
+             "note": "Korea Leads = Country 'Korea, Republic of' AND the 6 ORIGINAL El* campaigns (3 Roverpath "
+                     "+ 3 Final Funnel) ONLY — Korea leads from the Connectivity-Cloud / Modernize campaigns are "
+                     "EXCLUDED by definition. vs the count of pacing.rows[] with MARKET_REGION = 'KR' "
+                     "(the dashboard's KR bucket)." + _CF_CS_NOTE},
+            {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea & RIG",
+             "dash": _cf_region("RIG"),
+             "sql": "SELECT COUNT(*) AS rig_leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE COUNTRY_NAME <> 'Korea, Republic of'\n"
+                    "  AND ASSET_2 IN ('A-MAM-2','A-MAM-3')\n"
+                    "  AND CAMPAIGN_ID IN ('701RG00001ElUoXYAV','701RG00001ElUa0YAF','701RG00001ElNYkYAN');",
+             "note": "RIG Leads = NON-Korea AND ASSET_2 ('Asset Title 2') IN A-MAM-2 / A-MAM-3 (the gaming-vertical "
+                     "Modernize-Applications asset; only A-MAM-3 has data today) AND the 3 Final Funnel campaigns. "
+                     "Asset-based, so it spans all countries — it is the dashboard's RIG bucket (MARKET_REGION='RIG'), "
+                     "evaluated before the geographic buckets. vs the count of pacing.rows[] with MARKET_REGION = 'RIG'." + _CF_CS_NOTE},
 
             # --- Single-campaign LinkedIn dashboards (raw_snowflake mirror) --------
             # Each is its own dashboard, filtered by an exact CAMPAIGN_GROUP_NAME.

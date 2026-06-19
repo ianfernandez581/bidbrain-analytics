@@ -4,6 +4,19 @@
 -- raw_snowflake.salesforce_cs_apac_all instead of APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL".
 -- THIS IS NOW THE SOURCE OF TRUTH for the campaign filter (the Snowflake view is no
 -- longer in our pipeline path). The 12 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17).
+--
+-- KR + RIG are CLIENT-DEFINED segments (2026-06-19), NOT the old purely-geographic buckets:
+--   * KR  = Korea ('Korea, Republic of') AND the 6 ORIGINAL El* campaigns only (Roverpath +
+--           Final Funnel). Korea leads from the Connectivity-Cloud / Modernize campaigns are
+--           deliberately EXCLUDED (they fall to OTHER).  ~164 leads.
+--   * RIG = the gaming-vertical "Modernize Applications" asset (ASSET_2 = "Asset Title 2" in
+--           Salesforce; values A-MAM-2 / A-MAM-3 — only A-MAM-3 has data today) on the 3 Final
+--           Funnel campaigns, for NON-Korea leads. RIG is ASSET-based, not geographic, so it
+--           spans every country — hence it is evaluated BEFORE the five geographic buckets and
+--           pulls those leads out of ANZ/ASEAN/SAARC/GCR/JP (the overlap is intentional).  ~180 leads.
+-- This is the SAME logic the status dashboard reproduces straight from Snowflake (Korea / RIG
+-- checks in status_dashboard/job/main.py). The other five regions stay purely geographic.
+-- The redefinition applies to CS LEADS ONLY — paid-media (TTD) KR/RIG market buckets are unaffected.
 CREATE OR REPLACE VIEW `client_cloudflare.salesforce_leads_live` AS
 SELECT
     DT_CREATED, DT_UPDATED, DT_FILENAME, DAY, FIRST_NAME, LAST_NAME, EMAIL,
@@ -11,13 +24,24 @@ SELECT
     CAMPAIGN, PHONE, INDUSTRY_NAME, WEBSITE, STATE, REGION, COUNTRY_NAME,
     ANNUAL_REVENUE_, CAMPAIGN_ID, LEADS, LEAD_ID_SF, STATUS, LEAD_STATUS,
     CASE
+        -- RIG (client def): Modernize-Applications asset, 3 Final Funnel campaigns, non-Korea.
+        -- FIRST so it claims these leads across all geographies (intentional overlap with ANZ/.../JP).
+        WHEN COUNTRY_NAME <> 'Korea, Republic of'
+             AND ASSET_2 IN ('A-MAM-2', 'A-MAM-3')
+             AND CAMPAIGN_ID IN ('701RG00001ElUoXYAV', '701RG00001ElUa0YAF', '701RG00001ElNYkYAN') THEN 'RIG'
+        -- KR (client def): Korea + the 6 original El* campaigns ONLY (not Connectivity Cloud / Modernize).
+        WHEN COUNTRY_NAME = 'Korea, Republic of'
+             AND CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElTu3YAF', '701RG00001ElVXdYAN',
+                                 '701RG00001ElUoXYAV', '701RG00001ElUa0YAF', '701RG00001ElNYkYAN') THEN 'KR'
+        -- The other five regions remain purely geographic.
         WHEN COUNTRY_NAME IN ('Australia', 'New Zealand') THEN 'ANZ'
         WHEN COUNTRY_NAME IN ('Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Philippines', 'Viet Nam', 'Vietnam') THEN 'ASEAN'
         WHEN COUNTRY_NAME = 'India' THEN 'SAARC'
         WHEN COUNTRY_NAME IN ('China', 'Taiwan', 'Hong Kong') THEN 'GCR'
-        WHEN COUNTRY_NAME IN ('Korea, Republic of', 'Korea', 'South Korea') THEN 'KR'
         WHEN COUNTRY_NAME = 'Japan' THEN 'JP'
-        ELSE 'RIG'
+        -- Residual: Korea leads outside the 6 El* campaigns + any non-RIG lead in an unlisted /
+        -- mis-cased country. NOT one of the dashboard's 7 market chips, so it is excluded from the dash.
+        ELSE 'OTHER'
     END AS REGION_GRP,
     CASE
         WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElTu3YAF', '701RG00001ElVXdYAN') THEN 'Roverpath'

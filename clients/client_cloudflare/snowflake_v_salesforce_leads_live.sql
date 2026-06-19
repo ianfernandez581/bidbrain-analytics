@@ -16,6 +16,12 @@
 -- The pacing view V_PACING_FINAL_MODEL is pass-through on campaigns, so this is
 -- the only edit needed. Everything else is byte-for-byte the current definition.
 --
+-- NOTE (2026-06-19): the REGION_GRP logic below is the OLD purely-geographic mapping and is kept
+-- for Cloudflare's own legacy R2 export. OUR BigQuery pipeline (sql/10_salesforce_leads_live.sql)
+-- now DIVERGES: KR + RIG are client-defined CS segments (KR = Korea on the 6 El* campaigns; RIG =
+-- the A-MAM Modernize-Applications asset on the 3 Final Funnel campaigns, non-Korea). Do NOT copy
+-- the geographic KR/RIG below into the BQ view — see clients/client_cloudflare/sql/README.md.
+--
 -- Our pipeline roles (APAC_IN_ROLE via the MCP connector; BQ_SYNC_ROLE via the
 -- export job key-pair) are read-only and CANNOT apply this -- 003001/42501.
 --

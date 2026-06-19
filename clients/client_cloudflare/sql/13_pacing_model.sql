@@ -20,25 +20,20 @@ lead_prep AS (
     FROM `client_cloudflare.salesforce_leads_live`
 ),
 
--- A2. Join tier mapping + derive L2_STANDARD, MARKET_REGION (Computer Games + Tier 2 -> RIG), RIG flag
+-- A2. Join tier mapping + derive L2_STANDARD, MARKET_REGION, RIG flag.
+-- MARKET_REGION = REGION_GRP verbatim. RIG and KR are now CLIENT-DEFINED in
+-- salesforce_leads_live.REGION_GRP (see sql/10): RIG = the Modernize-Applications asset on the 3
+-- Final Funnel campaigns (non-Korea), KR = Korea on the 6 El* campaigns. The OLD "Computer Games +
+-- Tier 2 -> RIG" geographic override is REMOVED — keeping it would re-route additional leads into
+-- RIG and break the exact 180-lead client definition (RIG must equal sql/10's REGION_GRP='RIG').
 tiered_leads AS (
     SELECT
         lp.*,
         CASE WHEN lp.REGION_GRP = 'SAARC' THEN 'IN' ELSE lp.REGION_GRP END AS L2_STANDARD,
-        CASE
-            WHEN lp.INDUSTRY_NAME = 'Computer Games'
-                 AND COALESCE(t.CLEAN_TIER, 'Other') = 'Tier 2'
-            THEN 'RIG'
-            ELSE lp.REGION_GRP
-        END AS MARKET_REGION,
+        lp.REGION_GRP AS MARKET_REGION,
         COALESCE(t.CLEAN_TIER, 'Other') AS FINAL_TIER,
         t.L1 AS TIER_L1,
-        CASE
-            WHEN UPPER(TRIM(t.L1)) = 'RIG' THEN 1
-            WHEN lp.INDUSTRY_NAME = 'Computer Games'
-                 AND COALESCE(t.CLEAN_TIER, 'Other') = 'Tier 2' THEN 1
-            ELSE 0
-        END AS RIG
+        CASE WHEN lp.REGION_GRP = 'RIG' THEN 1 ELSE 0 END AS RIG
     FROM lead_prep lp
     LEFT JOIN `client_cloudflare.tier_mapping_cleaned` t
         ON lp.JOIN_KEY_LEAD = t.JOIN_NAME

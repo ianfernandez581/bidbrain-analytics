@@ -47,7 +47,8 @@ The headline case: when we're **caught up** and the data still looks old, the ve
 
 The accuracy tab now carries the **comprehensive** list of every important query that feeds each dashboard —
 **one check per source pull**, grouped by data domain (Trade Desk / LinkedIn / DV360 / GA4 / Content
-Syndication / single-campaign dashboards / "All paid channels"). **~77 checks across the 6 clients.** Each
+Syndication / single-campaign dashboards / "All paid channels"). **~79 checks across the 6 clients**
+(incl. cloudflare's Korea & RIG client-defined CS segments, 2026-06-19). Each
 was extracted from that client's `sql/` views + `job/main.py` + dashboard JS, and reproduces the SAME view
 filters (advertiser/account/campaign IDs, lead-status sets, singular-vs-plural columns) so the Snowflake
 query is a true like-for-like. Each card shows an `n/n match` summary in its header. Principles:
@@ -84,6 +85,14 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   Unresponsive — OPPOSITE of mongodb) — so a green check validates the whole chain (mirror sync + BQ port).
   The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
   `raw_snowflake.linkedin_ads_apac` mirror.
+  - **Korea & RIG CS segments (2026-06-19)** — two checks for the client-defined lead segments. Unlike
+    the other CS checks, their SQL goes **straight to the raw source** `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"`
+    (NOT the modelled `V_PACING`/`V_SALESFORCE_LEADS_LIVE`, which still carry the OLD geographic region
+    logic and therefore can't verify these). The query **is** the canonical definition — **Korea** =
+    Country `'Korea, Republic of'` + the 6 El\* campaigns (~164); **RIG** = non-Korea + `ASSET_2 IN
+    ('A-MAM-2','A-MAM-3')` (gaming Modernize-Apps asset; only `A-MAM-3` populated) + the 3 Final Funnel
+    campaigns (~180) — compared against the count of `pacing.rows[]` with `MARKET_REGION = 'KR'` / `'RIG'`.
+    A green check proves the BQ view buckets equal the source definition.
 - **proptrack** TradeDesk impressions come from the **singular** `IMPRESSION` column (plural is NULL for that
   advertiser) while LinkedIn uses the plural `IMPRESSIONS`; the advertiser is spelled **`PopTrack`** on
   TradeDesk vs **`PropTrack`** on LinkedIn — the blended-impressions check mixes both columns deliberately.

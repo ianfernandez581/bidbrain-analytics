@@ -72,6 +72,33 @@ arbitrarily. The old Snowflake view re-resolves these on every rebuild too; the 
 port reproduces the model faithfully, so that split flickers as it always did (the
 region totals and all headline counts are stable/exact).
 
+### KR + RIG are client-defined CS segments (2026-06-19) — not geographic
+
+The **KR** and **RIG** CS buckets are no longer the old purely-geographic regions. They are
+the client's exact lead definitions, redefined in `sql/10_salesforce_leads_live.sql`'s `REGION_GRP`
+(and carried straight through `sql/13_pacing_model.sql`, `MARKET_REGION = REGION_GRP`):
+
+- **Korea Leads (KR)** — Country `'Korea, Republic of'` **AND** the **6 original El\*** campaigns
+  only (3 Roverpath + 3 Final Funnel). Korea leads from the Connectivity-Cloud / Modernize campaigns
+  are deliberately **excluded**. Live count **164** (137 accepted).
+- **RIG Leads (RIG)** — **NON-Korea AND** `ASSET_2` ("Asset Title 2" in Salesforce) `IN ('A-MAM-2','A-MAM-3')`
+  (the gaming-vertical *Modernize Applications* asset — only `A-MAM-3` has data today) **AND** the
+  **3 Final Funnel** campaigns. RIG is **asset-based, not geographic**, so it spans every country and is
+  evaluated **before** the five geographic buckets — it pulls those leads out of ANZ/ASEAN/SAARC/GCR/JP
+  (intentional overlap, accepted by the client). Live count **180** (167 accepted).
+
+The other five regions stay purely geographic. The redefinition leaves a small residual **`OTHER`**
+bucket (~42 leads — mostly Korea-from-Modernize-Security + a few mis-cased countries) that is NOT one of
+the dashboard's 7 market chips (`ALL_MARKETS`), so the dash excludes it automatically with **no
+total-vs-sum drift** (the `aggregate()` filter only ever sums `MARKET_REGION ∈ ALL_MARKETS`). The old
+`pacing_model` "Computer Games + Tier 2 → RIG" override was removed so RIG equals the exact client def.
+The reference DDL `snowflake_v_salesforce_leads_live.sql` (Cloudflare's own legacy R2 export, NOT our
+pipeline) keeps the OLD geographic logic — our BQ region logic now **diverges** from it.
+The **status dashboard** reproduces both numbers straight from Snowflake (Korea / RIG accuracy checks).
+**Pacing caveat:** RIG/KR target rows in the seed are still keyed by the old region names, so the RIG
+pacing % (actual-vs-target) compares the new asset-based RIG actuals against the legacy RIG target —
+the *counts* are exact, the pacing ratio is indicative until the client supplies segment-specific targets.
+
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
 ```json
