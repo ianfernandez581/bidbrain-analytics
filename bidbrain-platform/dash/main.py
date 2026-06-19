@@ -31,7 +31,8 @@ from pathlib import Path
 
 import requests
 from flask import (
-    Flask, request, redirect, session, render_template, abort, jsonify, make_response, Response
+    Flask, request, redirect, session, render_template, render_template_string,
+    abort, jsonify, make_response, Response
 )
 
 import config as cfg
