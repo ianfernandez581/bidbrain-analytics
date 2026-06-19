@@ -112,29 +112,41 @@ password — nothing breaks): each dashboard must (1) run the rebuilt image that
 `platform_sso.py` + the extended `authed()`, and (2) be served on `<c>.bidbrain.ai` (a raw
 `*.run.app` host never receives a `.bidbrain.ai` cookie).
 
-## Feedback (every dashboard, text or voice)
+## Feedback (every dashboard: text / voice / screenshot, with AI interpretation)
 A small **Feedback** pill is injected into the bottom-right of every proxied dashboard — the exact
 same `</body>`-injection mechanism as the logout pill, so all 10 dashboards get it from ONE
-`platform-dash` deploy (no per-client work). The panel lets a viewer either **type a note** or
-**record a voice message** (`MediaRecorder` → works because the page is served over the platform's
-https origin); it POSTs to the platform's own `/feedback`.
+`platform-dash` deploy (no per-client work). The panel lets a viewer **type a note**, **record a
+voice message** (`MediaRecorder`), or both; on open it also grabs a **page screenshot** (lazy-loaded
+`html2canvas`, viewport only, the widget hidden from the shot). It POSTs to the platform's `/feedback`.
 
 - **Auth:** `/feedback` uses the same `_may_open(client)` check as the proxy — you can only file
   feedback against a dashboard you're allowed to open. The client key is baked into the widget per
   dashboard at injection time.
 - **Storage (no email yet):** `feedback.save()` writes to the platform's OWN private bucket —
-  `gs://bidbrain-analytics-platform-dash/feedback/<client>/<ts>-<id>.json` plus the recording blob
-  (`.webm`/`.m4a`) when a voice note was left. Same private-bucket trust boundary as the registry;
-  the existing `storage.objectAdmin` on `platform-dash-web@` already covers it — **no new infra/IAM**.
-- **Track it:** sign in as **admin/super** and open **`/feedback/admin`** — every note across all
-  dashboards, newest first, with inline audio playback (streamed back via `/feedback/audio/<client>/<f>`).
-- **Recording cap:** 2 min in the widget; the service rejects bodies over ~16 MB (`MAX_CONTENT_LENGTH`).
-- **Wiring:** `feedback.py` (storage helpers) + `_FEEDBACK_WIDGET`/`_feedback_widget()` and the
-  `/feedback*` routes in `dash/main.py`. Email/Slack alerting to ian@100.digital is a deliberate
+  `gs://bidbrain-analytics-platform-dash/feedback/<client>/<ts>-<id>.json` plus the recording
+  (`.webm`/`.m4a`) and the screenshot (`.jpg`) when present. Same private-bucket trust boundary as
+  the registry; `storage.objectAdmin` on `platform-dash-web@` already covers it — no new storage IAM.
+- **AI transcription + interpretation:** `feedback_ai.py` makes ONE Gemini call
+  (`gemini-2.5-flash`) that transcribes the voice note (Gemini accepts the browser's `audio/webm`
+  inline — no Cloud Speech-to-Text, no transcoding) AND interprets the feedback into a short summary
+  + concrete action items. It runs **lazily on the `/feedback/admin` view** (bounded to 15 calls per
+  load) and is **cached back into the record** (`transcript`/`ai_summary`/`ai_actions`/`ai_done`), so
+  it costs one call per note. Needs `GEMINI_API_KEY` (secret `gemini-api-key`, granted to
+  `platform-dash-web@` + mounted on the service); if unset, notes still store and just show no summary.
+- **Track it:** sign in as **admin/super** → **`/feedback/admin`** (also a "Feedback →" link in the
+  super-admin/admin top bars). Every note newest-first in three columns — **Raw feedback** (typed
+  text + voice transcript + audio player) · **AI summary** (interpretation + action items) ·
+  **Screenshot** (thumbnail → full image). Audio/images stream via `/feedback/file/<client>/<f>`.
+- **Caps:** voice 2 min; the service rejects bodies over `MAX_AUDIO_BYTES + MAX_IMAGE_BYTES` (~24 MB);
+  an oversized screenshot is dropped rather than failing the note.
+- **Wiring:** `feedback.py` (storage) + `feedback_ai.py` (Gemini) + `_FEEDBACK_WIDGET` / `_enrich()` /
+  the `/feedback*` routes in `dash/main.py`. Email/Slack alerting to ian@100.digital is a deliberate
   TODO — drop it into `feedback_submit()` after `feedback.save()`.
-- **Caveat:** delivered via the PROXY, so it appears on dashboards opened through the platform
-  (the normal path). A dashboard hit directly on its raw `<c>-dash` run.app URL won't show it — if
-  that's ever needed, vendor the widget + a `/feedback` route into each `client_<c>/dash/`.
+- **Caveats:** delivered via the PROXY, so it appears on dashboards opened through the platform
+  (the normal path), not on a raw `<c>-dash` run.app URL. The screenshot is an html2canvas DOM
+  re-render (Chart.js canvases capture fine; the odd web-font/cross-origin image may render
+  imperfectly) and `html2canvas` is lazy-loaded from a CDN — if blocked, the note just sends without
+  an image. Both are vendorable later if needed.
 
 ## Layout
 ```
@@ -145,7 +157,8 @@ bidbrain-platform/
     store.py                     GCS-JSON registry layer + password hashing + login resolution (memory backend for dev)
     config.py                    SEED source of truth: agencies, clients, campaigns, passwords
     platform_sso.py              shared SSO token (issuer here; VENDORED into every dashboard as the verifier)
-    feedback.py                  feedback capture: save()/list_recent()/load_audio() over the platform's GCS bucket
+    feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
+    feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1

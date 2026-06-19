@@ -38,6 +38,7 @@ from flask import (
 import config as cfg
 import platform_sso
 import feedback
+import feedback_ai
 from store import Store
 
 app = Flask(__name__)
@@ -47,9 +48,10 @@ app.config.update(
     SESSION_COOKIE_SECURE=os.environ.get("DEV") != "1",
     SESSION_COOKIE_SAMESITE="Lax",                       # platform is top-level, not iframed
     PERMANENT_SESSION_LIFETIME=platform_sso.DEFAULT_MAX_AGE,
-    # Bound request bodies. The only sizeable one is a feedback voice note (capped ~16 MB); the
-    # proxy's forwarded POSTs (login, the mongodb /report) are all tiny.
-    MAX_CONTENT_LENGTH=feedback.MAX_AUDIO_BYTES + 256 * 1024,
+    # Bound request bodies. The only sizeable one is a feedback submission (a voice note capped
+    # ~16 MB plus an optional JPEG screenshot); the proxy's forwarded POSTs (login, the mongodb
+    # /report) are all tiny.
+    MAX_CONTENT_LENGTH=feedback.MAX_AUDIO_BYTES + feedback.MAX_IMAGE_BYTES + 256 * 1024,
 )
 
 # --- config injected by Cloud Run ---------------------------------------------------------
@@ -214,35 +216,73 @@ def feedback_submit():
         audio_ctype = f.mimetype or "audio/webm"
         if len(audio_bytes) > feedback.MAX_AUDIO_BYTES:
             return jsonify(ok=False, error="recording too large"), 413
+    shot_bytes = None
+    sf = request.files.get("screenshot")
+    if sf is not None:
+        shot_bytes = sf.read()
+        if len(shot_bytes) > feedback.MAX_IMAGE_BYTES:
+            shot_bytes = None  # drop an oversized screenshot; never fail the note over it
     if not text.strip() and not audio_bytes:
         return jsonify(ok=False, error="empty feedback"), 400
     try:
         feedback.save(client, text, audio_bytes, audio_ctype,
-                      request.form.get("page", ""), session.get("kind", ""))
+                      request.form.get("page", ""), session.get("kind", ""), shot_bytes)
     except Exception:
         app.logger.exception("feedback save failed")
         return jsonify(ok=False, error="could not store feedback"), 500
     return jsonify(ok=True)
 
 
+def _enrich(rec):
+    """Transcribe + interpret a note via Gemini (once), writing the result back to the record so
+    every later view is instant. Best-effort: any failure leaves the note un-enriched to retry."""
+    if rec.get("ai_done") or not feedback_ai.enabled():
+        return rec
+    audio_bytes, ctype = (None, "")
+    if rec.get("audio"):
+        audio_bytes, ctype = feedback.load_blob(rec["client"], rec["audio"])
+    try:
+        res = feedback_ai.interpret(audio_bytes, ctype, rec.get("text", ""),
+                                    rec.get("client"), rec.get("page"))
+    except Exception:
+        app.logger.exception("feedback AI enrich failed")
+        return rec
+    fields = {"transcript": res["transcript"], "ai_summary": res["summary"],
+              "ai_actions": res["actions"], "ai_done": 1}
+    try:
+        feedback.update_record(rec["client"], rec["id"], fields)
+    except Exception:
+        app.logger.exception("feedback AI write-back failed")
+    rec.update(fields)
+    return rec
+
+
 @app.get("/feedback/admin")
 def feedback_admin():
-    """The simple tracker: every feedback note across all dashboards, newest first. Admin/super only."""
+    """The tracker: every note across all dashboards, newest first, with the raw feedback, an AI
+    transcript+summary, and the page screenshot. Admin/super only. AI runs lazily here (bounded per
+    load) and is cached back to each record, so repeat views are instant."""
     _require_admin()
     try:
         rows = feedback.list_recent()
     except Exception:
         app.logger.exception("feedback list failed")
         rows = []
+    budget = 15  # cap AI calls per page load; the rest enrich on a later view (newest first)
+    for r in rows:
+        if not r.get("ai_done") and budget > 0:
+            _enrich(r)
+            budget -= 1
     names = {k: c.get("name", k) for k, c in store._all_clients().items()}
-    return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows))
+    return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows),
+                                  ai_on=feedback_ai.enabled())
 
 
-@app.get("/feedback/audio/<client>/<fname>")
-def feedback_audio(client, fname):
-    """Stream one stored voice note for playback on the tracker page. Admin/super only."""
+@app.get("/feedback/file/<client>/<fname>")
+def feedback_file(client, fname):
+    """Stream one stored feedback file (voice note or screenshot) for the tracker. Admin/super only."""
     _require_admin()
-    data, ctype = feedback.load_audio(client, fname)
+    data, ctype = feedback.load_blob(client, fname)
     if data is None:
         abort(404)
     return Response(data, mimetype=ctype, headers={"Cache-Control": "no-store"})
@@ -257,12 +297,21 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
     align-items:baseline;gap:14px}
   header h1{margin:0;font-size:19px} header .n{color:#9ca3af;font-size:13px}
   header a{margin-left:auto;color:#9ca3af;font-size:13px;text-decoration:none}
-  .wrap{max-width:860px;margin:0 auto;padding:24px 28px;display:flex;flex-direction:column;gap:14px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 28px;display:flex;flex-direction:column;gap:16px}
   .card{background:#15171c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:15px 17px}
-  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:8px}
+  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:12px}
   .chip{background:#1f2937;color:#c7d2fe;border-radius:999px;padding:2px 9px;font-weight:600}
-  .txt{white-space:pre-wrap;font-size:14px;line-height:1.5} .txt.empty{color:#6b7280;font-style:italic}
-  audio{width:100%;margin-top:10px} .none{color:#9ca3af;padding:40px 0;text-align:center}
+  .cols{display:grid;grid-template-columns:1fr 1fr 220px;gap:18px}
+  @media(max-width:820px){.cols{grid-template-columns:1fr}}
+  .col h4{margin:0 0 7px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593}
+  .txt{white-space:pre-wrap;font-size:14px;line-height:1.5}
+  .muted{color:#6b7280;font-style:italic;font-size:13px}
+  audio{width:100%;margin-top:10px;height:38px}
+  .sum{font-size:14px;line-height:1.5;margin:0 0 9px}
+  .acts{margin:0;padding-left:18px;font-size:13.5px;line-height:1.55} .acts li{margin:2px 0}
+  .shot{display:block;border:1px solid rgba(255,255,255,.14);border-radius:8px;overflow:hidden}
+  .shot img{display:block;width:100%;height:auto}
+  .none{color:#9ca3af;padding:40px 0;text-align:center}
 </style></head><body>
 <header><h1>Dashboard feedback</h1><span class="n">{{ count }} note(s)</span>
   <a href="/">&larr; back to platform</a></header>
@@ -275,8 +324,29 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       {% if r.page %}<span>· {{ r.page }}</span>{% endif %}
       {% if r.user_kind %}<span>· {{ r.user_kind }}</span>{% endif %}
     </div>
-    {% if r.text %}<div class="txt">{{ r.text }}</div>{% else %}<div class="txt empty">(voice note only)</div>{% endif %}
-    {% if r.audio %}<audio controls preload="none" src="/feedback/audio/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
+    <div class="cols">
+      <div class="col">
+        <h4>Raw feedback</h4>
+        {% if r.text %}<div class="txt">{{ r.text }}</div>{% endif %}
+        {% if r.transcript %}<div class="txt"{% if r.text %} style="margin-top:8px"{% endif %}>&ldquo;{{ r.transcript }}&rdquo;</div>
+        {% elif not r.text %}<div class="muted">{% if r.audio %}(voice note — see player){% else %}(no content){% endif %}</div>{% endif %}
+        {% if r.audio %}<audio controls preload="none" src="/feedback/file/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
+      </div>
+      <div class="col">
+        <h4>AI summary</h4>
+        {% if r.ai_summary %}
+          <p class="sum">{{ r.ai_summary }}</p>
+          {% if r.ai_actions %}<ul class="acts">{% for a in r.ai_actions %}<li>{{ a }}</li>{% endfor %}</ul>{% endif %}
+        {% elif ai_on %}<div class="muted">Processing on next load…</div>
+        {% else %}<div class="muted">AI not configured.</div>{% endif %}
+      </div>
+      <div class="col">
+        <h4>Screenshot</h4>
+        {% if r.screenshot %}<a class="shot" href="/feedback/file/{{ r.client }}/{{ r.screenshot }}" target="_blank" rel="noopener">
+          <img loading="lazy" src="/feedback/file/{{ r.client }}/{{ r.screenshot }}" alt="page screenshot"></a>
+        {% else %}<div class="muted">none</div>{% endif %}
+      </div>
+    </div>
   </div>
 {% else %}
   <div class="none">No feedback yet.</div>
@@ -567,8 +637,21 @@ _FEEDBACK_WIDGET = (
     "ta=document.getElementById('bbfb-text'),mic=document.getElementById('bbfb-mic'),"
     "send=document.getElementById('bbfb-send'),status=document.getElementById('bbfb-status'),"
     "audioEl=document.getElementById('bbfb-audio');"
-    "var rec=null,chunks=[],blob=null,ctype='',timer=null,secs=0;"
-    "btn.onclick=function(){panel.classList.toggle('open');if(panel.classList.contains('open'))ta.focus();};"
+    "var rec=null,chunks=[],blob=null,ctype='',timer=null,secs=0,shot=null;"
+    "btn.onclick=function(){var opening=!panel.classList.contains('open');panel.classList.toggle('open');"
+    "if(opening){ta.focus();grabShot();}};"
+    # Lazily pull html2canvas (only when the panel first opens) and snapshot the visible viewport as
+    # a compact JPEG, with the widget itself hidden so it's not in the shot. Best-effort: any failure
+    # (no network, a CORS-tainted canvas) just leaves shot=null and the note sends without an image.
+    "function loadH2C(){return new Promise(function(res){if(window.html2canvas)return res();"
+    "var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';"
+    "s.onload=res;s.onerror=res;document.head.appendChild(s);});}"
+    "function grabShot(){shot=null;loadH2C().then(function(){if(!window.html2canvas)return;"
+    "var dB=btn.style.display,dP=panel.style.display;btn.style.display='none';panel.style.display='none';"
+    "return window.html2canvas(document.body,{useCORS:true,logging:false,scale:1,"
+    "x:window.scrollX,y:window.scrollY,width:window.innerWidth,height:window.innerHeight}).then(function(c){"
+    "c.toBlob(function(b){shot=b;},'image/jpeg',0.82);}).catch(function(){}).finally(function(){"
+    "btn.style.display=dB;panel.style.display=dP;});});}"
     "function stopRec(){if(rec&&rec.state!=='inactive')rec.stop();}"
     "function resetTimer(){clearInterval(timer);timer=null;secs=0;}"
     "mic.onclick=function(){"
@@ -591,9 +674,10 @@ _FEEDBACK_WIDGET = (
     "send.disabled=true;status.textContent='Sending\\u2026';"
     "var fd=new FormData();fd.append('client',CLIENT);fd.append('text',txt);fd.append('page',location.pathname);"
     "if(blob)fd.append('audio',blob,'voice.'+((ctype.indexOf('mp4')>-1)?'m4a':(ctype.indexOf('ogg')>-1)?'ogg':'webm'));"
+    "if(shot)fd.append('screenshot',shot,'shot.jpg');"
     "fetch('/feedback',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){"
     "if(!r.ok)throw 0;status.textContent='Thanks \\u2014 your feedback was sent! \\u2713';"
-    "ta.value='';blob=null;chunks=[];audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';"
+    "ta.value='';blob=null;chunks=[];shot=null;audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';"
     "setTimeout(function(){panel.classList.remove('open');status.textContent='';send.disabled=false;},1600);"
     "}).catch(function(){status.textContent='Could not send \\u2014 please try again.';send.disabled=false;});"
     "};"

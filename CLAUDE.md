@@ -45,11 +45,13 @@ the `bb_sso`/`platform_sso.py` machinery stays deployed but inert, and would onl
 domain is later wired (Cloud DNS + Cloud Run domain mappings; `australia-southeast1` supports `gcloud
 run domain-mappings`; **NO Cloudflare**). Platform SA `platform-dash-web@` has `secretAccessor` on every
 `<c>-dash-password` (to log into upstreams). **Feedback:** the proxy injects a self-contained
-**Feedback widget** (text **or** a voice note via `MediaRecorder`) into every proxied dashboard —
-same `</body>`-injection as the logout pill (`feedback.py` + `_FEEDBACK_WIDGET`/`/feedback` in
-`dash/main.py`). Notes land in the platform's OWN private bucket (`gs://bidbrain-analytics-platform-dash/
-feedback/<client>/…`, JSON + the recording blob; no email yet) and admin/super read them back at
-`/feedback/admin`. See `bidbrain-platform/README.md`.
+**Feedback widget** (text **or** a voice note via `MediaRecorder`, **plus an html2canvas page
+screenshot**) into every proxied dashboard — same `</body>`-injection as the logout pill
+(`feedback.py` storage + `feedback_ai.py` Gemini transcribe/interpret + `_FEEDBACK_WIDGET`/`/feedback*`
+in `dash/main.py`). Notes land in the platform's OWN private bucket (`gs://bidbrain-analytics-platform-dash/
+feedback/<client>/…`: JSON + the recording + the screenshot; no email yet). Admin/super read them at
+`/feedback/admin` as **Raw feedback | AI summary | Screenshot** — voice is transcribed + interpreted
+into action items by Gemini (`GEMINI_API_KEY`, run lazily on view & cached back). See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)
