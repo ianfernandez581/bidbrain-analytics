@@ -130,6 +130,11 @@
   /* cards / grid */
   .grid{display:grid;gap:14px}
   .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:16px 0}
+  .crm-callout{font-size:12.5px;color:var(--muted);margin:-2px 0 8px}
+  .crm-callout b{color:var(--accent);font-size:15px}
+  .crm-funnelstep::before{background:var(--accent)!important}
+  .kpi.k-pay::before{background:var(--good)!important} .kpi.k-free::before{background:var(--muted2)!important}
+  .kpi.k-queue::before{background:#F59E0B!important}
   .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
   .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
   .kpi.k-spend::before{background:var(--google)} .kpi.k-imps::before{background:var(--meta)}
@@ -205,6 +210,7 @@
     <div class="tab" data-tab="paid">Paid Media</div>
     <div class="tab" data-tab="website">Website Traffic</div>
     <div class="tab" data-tab="ads2traffic">Ads → Traffic</div>
+    <div class="tab" data-tab="crm">Signups &amp; CRM</div>
   </div>
 
   <!-- Filters (shown on Overview + Ads→Traffic; Paid Media respects Campaign only) -->
@@ -387,6 +393,49 @@
       <h3>Conversions &amp; cost-per-lead by platform</h3>
       <p class="hint">Platform-reported conversions (Campaign filter applies). Google solid; Meta = Signup Button pixel leads; Reddit sparse; Trade Desk reports none.</p>
       <table id="convTable"></table>
+    </div>
+  </section>
+
+  <!-- ============ SIGNUPS & CRM (HubSpot) ============ -->
+  <section id="tab-crm" class="hide">
+    <div class="note" id="crmNote"></div>
+
+    <!-- The signup funnel: Leads → App signups → Loaded balance → Paying → Customers -->
+    <div class="grid kpis" id="crmKpis"></div>
+
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="panel-box">
+        <div class="panelhead">
+          <div><h3>App signups per week — and where they came from</h3>
+          <p class="hint">New <code>app.reset.ai</code> accounts by ISO week, stacked by HubSpot Original Source. The line tracks how many of each week's signups went on to <b>pay</b> (load balance ≠ pay).</p></div>
+        </div>
+        <div id="crmWeekCallout" class="crm-callout"></div>
+        <div class="chartbox"><canvas id="crmSignupsChart"></canvas></div>
+      </div>
+      <div class="panel-box">
+        <div class="panelhead"><div><h3>Signup → paying funnel</h3>
+        <p class="hint">Of all app signups: how many loaded a balance (mostly the free $50 credit) and how many actually <b>spent</b> = paying. “Free only” = signed up but never spent.</p></div></div>
+        <div class="chartbox"><canvas id="crmFunnelChart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="panel-box" style="margin-top:14px">
+      <h3>Which sources drive paying customers vs free signups</h3>
+      <p class="hint">By HubSpot Original Source: lead volume → app signups → paying vs free-only, plus deals and ad-click-id matches. <b>⚠ HubSpot attribution is thin</b> — most signups land as Offline / Direct, so the <b>Ad-ID</b> column (a <code>gclid</code>/<code>fbclid</code> on the contact) and the <b>Paid Media</b> / <b>Ads → Traffic</b> tabs are the reliable ad-attribution signals.</p>
+      <div class="tablewrap"><table id="crmSourceTable"></table></div>
+    </div>
+
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="panel-box"><h3>Lifecycle stage by owner</h3><p class="hint">Live contacts per owner, stacked by lifecycle stage (top owners by volume).</p><div class="chartbox tall"><canvas id="crmOwnerChart"></canvas></div></div>
+      <div class="panel-box"><h3>Lifecycle mix</h3><p class="hint">All contacts by stage.</p><div class="chartbox sm"><canvas id="crmLifecycleDonut"></canvas></div>
+      <div class="tablewrap" style="margin-top:10px"><table id="crmLifecycleTable"></table></div></div>
+    </div>
+
+    <div class="panel-box" style="margin-top:14px">
+      <h3>Lead queue — what the BDM still needs to sort through</h3>
+      <p class="hint">The working pipeline: non-customer leads that carry a sales status. <b>NEW</b> = awaiting first touch; <b>Unassigned</b> = no owner yet. (A large status-less pool from a bulk import is counted as “Unassigned, no status”, not listed here.)</p>
+      <div class="grid kpis" id="crmQueueKpis"></div>
+      <div class="tablewrap" style="margin-top:8px"><table id="crmQueueTable"></table></div>
     </div>
   </section>
 
@@ -640,9 +689,9 @@ document.getElementById('tabs').addEventListener('click',e=>{
   t.classList.add('active');
   const tab=t.dataset.tab;
   activeTab=tab;
-  ['overview','paid','website','ads2traffic'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hide',s!==tab));
-  // filters apply on overview + ads2traffic
-  document.getElementById('filterbar').style.display=(tab==='website')?'none':'flex';
+  ['overview','paid','website','ads2traffic','crm'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hide',s!==tab));
+  // filters apply on overview + ads2traffic only (website + CRM are whole-dataset / HubSpot-sourced)
+  document.getElementById('filterbar').style.display=(tab==='website'||tab==='crm')?'none':'flex';
   renderAll();
 });
 
@@ -701,6 +750,7 @@ function renderAll(){
   renderPaid();
   renderWebsite();
   renderAds2Traffic();
+  renderCRM();
 }
 // Banner that states what the date range does (and doesn't) touch, shown when narrowed.
 function renderDateScope(){
@@ -1122,6 +1172,110 @@ function exportAllData(){
   const blob=new Blob([lines.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='resetdata_export.csv';a.click();
 }
+// ===================== Signups & CRM (HubSpot) =====================
+const SRC_COLORS={'Offline / Sales':'#64748B','Direct':'#0EA5E9','Organic Search':'#34D399','Paid Search':'#E84A6F','Paid Social':'#F472A0','Organic Social':'#A78BFA','Email':'#F59E0B','Referral':'#6366F1','AI Referral':'#0D9488','Other Campaigns':'#94A3B8','Unknown':'#475569'};
+const LC_ORDER=['Subscriber','Lead','MQL','SQL','Opportunity','Customer','Evangelist','Other','Unknown'];
+const LC_COLORS={'Subscriber':'#64748B','Lead':'#0EA5E9','MQL':'#A78BFA','SQL':'#6366F1','Opportunity':'#F59E0B','Customer':'#34D399','Evangelist':'#0D9488','Other':'#475569','Unknown':'#334155'};
+const srcColor=s=>SRC_COLORS[s]||'#475569';
+function qStart(d){const m=+d.slice(5,7);const qm=m<=3?1:m<=6?4:m<=9?7:10;return d.slice(0,4)+'-'+String(qm).padStart(2,'0')+'-01';}
+
+function renderCRM(){
+  const C=DATA.crm; if(!C)return; const k=C.kpi;
+  // ---- funnel KPI cards: Leads → App signups → Loaded balance → Paying → Customers ----
+  const cards=[
+    ['k-leads','Leads (contacts)',fmtN(k.leads),'all HubSpot contacts'],
+    ['k-sessions','App signups',fmtN(k.app_signups),'created app.reset.ai account'],
+    ['k-addriven','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account'],
+    ['k-pay','Paying',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'—')+' of signups · '+aud(k.total_rd_spend)+' spent'],
+    ['k-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent'],
+    ['k-eng','Customers',fmtN(k.customers),fmtN(k.with_deal)+' with a deal'],
+  ];
+  document.getElementById('crmKpis').innerHTML=cards.map(c=>
+    `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
+
+  // ---- Q1: weekly app signups stacked by source + paying line ----
+  const wk=C.signups_weekly;
+  const weeks=[...new Set(wk.map(r=>r.week_start))].sort();
+  const srcTot={}; wk.forEach(r=>srcTot[r.source]=(srcTot[r.source]||0)+r.signups);
+  const srcs=[...new Set(wk.map(r=>r.source))].sort((a,b)=>srcTot[b]-srcTot[a]);
+  const wi={}; weeks.forEach((w,i)=>wi[w]=i);
+  const bySrc={}; srcs.forEach(s=>bySrc[s]=weeks.map(()=>0));
+  const payLine=weeks.map(()=>0), sgnLine=weeks.map(()=>0);
+  wk.forEach(r=>{const i=wi[r.week_start];bySrc[r.source][i]+=r.signups;payLine[i]+=r.paying;sgnLine[i]+=r.signups;});
+  const wkLabels=weeks.map(w=>new Date(w+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
+  const ds=srcs.map(s=>({type:'bar',label:s,backgroundColor:srcColor(s),data:bySrc[s],stack:'sg'}));
+  ds.push({type:'line',label:'Paying',borderColor:'#34D399',backgroundColor:'#34D399',data:payLine,tension:.3,borderWidth:2.5,pointRadius:2,order:0});
+  mkChart('crmSignupsChart',{data:{labels:wkLabels,datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}}},
+      scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Signups',color:tickClr}})}}});
+  // this-week / QTD callout (latest week in the data)
+  const n=weeks.length, lastW=weeks[n-1];
+  const qtr=lastW?qStart(lastW):null; let qtdSgn=0,qtdPay=0;
+  weeks.forEach((w,i)=>{if(qtr&&w>=qtr){qtdSgn+=sgnLine[i];qtdPay+=payLine[i];}});
+  document.getElementById('crmWeekCallout').innerHTML=n?
+    `Week of ${wkLabels[n-1]}: <b>${sgnLine[n-1]}</b> signups (${payLine[n-1]} paying) &nbsp;·&nbsp; Quarter-to-date: <b>${qtdSgn}</b> signups (${qtdPay} paying)`:'';
+
+  // ---- Q2: signup → paying funnel ----
+  mkChart('crmFunnelChart',{type:'bar',data:{labels:['App signups','Loaded balance','Paying','Free only'],
+    datasets:[{data:[k.app_signups,k.loaded_balance,k.paying,k.signups_not_paying],
+      backgroundColor:['#0EA5E9','#E84A6F','#34D399','#64748B']}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>fmtN(ctx.parsed.x)+(k.app_signups?'  ('+pct(ctx.parsed.x/k.app_signups)+' of signups)':'')}}},
+      scales:{x:axis({title:{display:true,text:'Contacts',color:tickClr}}),y:axis()}}});
+
+  // ---- Q3+Q5: source quality ----
+  let sh='<tr><th>Source</th><th>Leads</th><th>Signups</th><th>Paying</th><th>Free only</th><th>Pay rate</th><th>Deals</th><th>Ad-ID</th><th>RD spend</th></tr>';
+  C.source_quality.forEach(r=>{sh+=`<tr><td class="name"><span style="color:${srcColor(r.source)}">●</span> ${r.source}</td>
+    <td>${fmtN(r.leads)}</td><td>${fmtN(r.signups)}</td><td style="color:var(--good);font-weight:700">${fmtN(r.paying)}</td>
+    <td style="color:var(--muted)">${fmtN(r.free_only)}</td><td>${r.pay_rate_pct==null?'—':r.pay_rate_pct+'%'}</td>
+    <td>${fmtN(r.with_deal)}</td><td>${r.ad_attributed?'<span class="tag ad">'+fmtN(r.ad_attributed)+'</span>':'—'}</td>
+    <td>${aud(r.rd_spend)}</td></tr>`;});
+  document.getElementById('crmSourceTable').innerHTML=sh;
+
+  // ---- Q4: lifecycle × owner ----
+  const lo=C.lifecycle_owner;
+  const ownerTot={}; lo.forEach(r=>ownerTot[r.owner]=(ownerTot[r.owner]||0)+r.contacts);
+  const owners=Object.keys(ownerTot).sort((a,b)=>ownerTot[b]-ownerTot[a]).slice(0,10);
+  const stages=LC_ORDER.filter(s=>lo.some(r=>r.lifecycle===s));
+  const oi={}; owners.forEach((o,i)=>oi[o]=i);
+  const stk={}; stages.forEach(s=>stk[s]=owners.map(()=>0));
+  lo.forEach(r=>{if(oi[r.owner]!=null&&stk[r.lifecycle])stk[r.lifecycle][oi[r.owner]]+=r.contacts;});
+  mkChart('crmOwnerChart',{type:'bar',data:{labels:owners,datasets:stages.map(s=>({label:s,backgroundColor:LC_COLORS[s]||'#475569',data:stk[s],stack:'lc'}))},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}}},
+      scales:{x:axis({stacked:true,title:{display:true,text:'Contacts',color:tickClr}}),y:axis({stacked:true})}}});
+  const lcTot={}; lo.forEach(r=>lcTot[r.lifecycle]=(lcTot[r.lifecycle]||0)+r.contacts);
+  const lcArr=stages.map(s=>({s,n:lcTot[s]||0})).filter(x=>x.n>0);
+  mkChart('crmLifecycleDonut',{type:'doughnut',data:{labels:lcArr.map(x=>x.s),
+    datasets:[{data:lcArr.map(x=>x.n),backgroundColor:lcArr.map(x=>LC_COLORS[x.s]||'#475569')}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+  const lcAgg={}; lo.forEach(r=>{const a=lcAgg[r.lifecycle]=lcAgg[r.lifecycle]||{c:0,s:0,p:0};a.c+=r.contacts;a.s+=r.signups;a.p+=r.paying;});
+  let lch='<tr><th>Stage</th><th>Contacts</th><th>Signups</th><th>Paying</th></tr>';
+  stages.forEach(s=>{const a=lcAgg[s];if(!a)return;lch+=`<tr><td class="name"><span style="color:${LC_COLORS[s]||'#475569'}">●</span> ${s}</td><td>${fmtN(a.c)}</td><td>${fmtN(a.s)}</td><td>${fmtN(a.p)}</td></tr>`;});
+  document.getElementById('crmLifecycleTable').innerHTML=lch;
+
+  // ---- Q6: BDM lead queue ----
+  document.getElementById('crmQueueKpis').innerHTML=[
+    ['k-queue','NEW — to triage',fmtN(k.queue_new),fmtN(k.queue_new_unassigned)+' unassigned'],
+    ['k-queue','Unassigned (no owner)',fmtN(k.queue_unassigned),'non-customers'],
+  ].map(c=>`<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
+  const byStatus={};
+  C.lead_queue.forEach(r=>{const a=byStatus[r.lead_status]=byStatus[r.lead_status]||{total:0,un:0,owners:{}};
+    a.total+=r.contacts; if(r.unassigned)a.un+=r.contacts; else a.owners[r.owner]=(a.owners[r.owner]||0)+r.contacts;});
+  const sr={NEW:1,OPEN:2,ATTEMPTED_TO_CONTACT:3,IN_PROGRESS:4,OPEN_DEAL:5,UNQUALIFIED:6};
+  let qh='<tr><th>Lead status</th><th>Leads</th><th>Unassigned</th><th>Top owners (assigned)</th></tr>';
+  Object.keys(byStatus).sort((a,b)=>(sr[a]||9)-(sr[b]||9)).forEach(s=>{const a=byStatus[s];
+    const tops=Object.entries(a.owners).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([o,c])=>`${o} (${c})`).join(', ')||'—';
+    qh+=`<tr><td class="name">${s}</td><td style="font-weight:700">${fmtN(a.total)}</td><td style="color:#F59E0B">${fmtN(a.un)}</td><td style="text-align:left;color:var(--muted)">${tops}</td></tr>`;});
+  document.getElementById('crmQueueTable').innerHTML=qh;
+
+  document.getElementById('crmNote').innerHTML=
+    '<b>Source: HubSpot CRM</b> (live snapshot — not scoped by the ad filters above). “Signup” = created an <code>app.reset.ai</code> account; '+
+    '“loaded balance” = has account credit (mostly the free $50); “paying” = has actually spent. CRM data through '+
+    (k.last_signup_at||'').replace('T',' ').replace('Z',' UTC')+'.';
+}
+
 // close campaign panel on outside click
 document.addEventListener('click',e=>{const d=e.target.closest('.cdrop');if(!d){document.getElementById('campPanel').classList.add('hide');}});
 </script>

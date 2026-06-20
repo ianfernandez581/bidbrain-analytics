@@ -8,6 +8,7 @@
 #   raw_neto.orders                  <- neto-orders-ingest        (City Perfume sales truth)
 #   raw_windsor.perf_meta            <- windsor-meta-ingest       (Meta, all granted accounts)
 #   raw_windsor.perf_the_trade_desk  <- windsor-tradedesk-ingest  (TTD, per-account + self-heal)
+#   raw_windsor.windsor_fields       <- windsor-fields-ingest     (Windsor field catalogue, new-field watch)
 #   raw_snowflake.*                  <- snowflake-ingest          (Salesforce/TTD/GA/etc, all clients)
 #
 # (Google Ads + GA4 are NOT here — they auto-refresh daily via BigQuery Data Transfer Service.)
@@ -16,7 +17,7 @@
 # from a laptop). Mirrors the per-client deploy_job_*.ps1 pattern.
 #
 #   .\scripts\deploy_ingest_jobs.ps1                 # build + deploy + (re)schedule all 4
-#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|snowflake
+#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|snowflake
 #   .\scripts\deploy_ingest_jobs.ps1 -SkipBuild      # redeploy + reschedule without rebuilding
 #   .\scripts\deploy_ingest_jobs.ps1 -Run            # also execute each job once after deploy
 #
@@ -45,7 +46,8 @@ $JOBS = @(
   @{ key="snowflake"; dir="ingest/snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="*/10 * * * *" },
   @{ key="neto";      dir="ingest/neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
   @{ key="meta";      dir="ingest/windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
-  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" }
+  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" },
+  @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" }
 )
 
 # ---- one-time shared service account + least-privilege IAM (idempotent) --------------

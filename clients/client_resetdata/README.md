@@ -70,7 +70,7 @@ upstream** (its `conversions` JSON is null → cost-per-lead "—").
 also carries Google PMax/Demand-Gen — so the platform↔channel mapping (Google↔Search, Meta↔Social,
 TTD↔Display) is approximate. The Ads→Traffic correlation uses mapped paid sessions for the selected platforms.
 
-## The 4 dashboard tabs (`dash/dashboard.html`)
+## The 5 dashboard tabs (`dash/dashboard.html`)
 
 Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows none):
 - **Platform** — Google Ads · Meta · Trade Desk · Reddit. Scopes ad-delivery figures; on Ads → Traffic also
@@ -91,6 +91,24 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
    trend, **key events by type**, and top sources/mediums (ad platforms flagged `AD`).
 4. **Ads → Traffic** — monthly spend vs sessions, weekly impressions vs mapped sessions, a **Pearson-r
    correlation scatter**, and conversions / cost-per-lead by platform.
+5. **Signups & CRM** (HubSpot) — answers Caroline's six questions. Reads HubSpot via
+   `raw_windsor.hubspot_contacts` / `hubspot_owners` (a **live snapshot**, NOT scoped by the ad filters,
+   which are hidden on this tab). The funnel Caroline cares about: **Leads → App signups → Loaded balance
+   → Paying → Customers**, where *signup* = created an `app.reset.ai` account (`contact_rd_created_at`),
+   *loaded balance* = `rd_billing_balance > 0` (mostly the free $50 credit) and *paying* = `rd_total_spend
+   > 0` (actually spent). Sections: the funnel KPI row; **weekly signups stacked by source** + a paying
+   line + this-week/QTD callout (Q1+Q2); a **source-quality table** (paying vs free-only, pay-rate, deals,
+   ad-id matches — Q3+Q5); **lifecycle × owner** stacked bar + lifecycle donut (Q4, owner ids resolved to
+   names via the owner dim); and the **BDM lead queue** (NEW / unassigned by status & owner — Q6).
+   **Caveat surfaced in-app: HubSpot's own attribution is thin** (most signups land `Offline`/`Direct`),
+   so the `gclid`/`fbclid` "Ad-ID" column and the Paid Media / Ads→Traffic tabs are the reliable ad signals.
+
+> **CRM data source (HubSpot).** The Signups & CRM tab is fed by the shared `ingest/windsor_data_pull/hubspot/`
+> loader (`raw_windsor.hubspot_contacts` ~4.7k, `hubspot_deals` ~242, `hubspot_owners` ~26 — a WRITE_TRUNCATE
+> snapshot, all-STRING). The client views (`sql/24_stg_hubspot` … `30_crm_lead_queue`) type + aggregate that
+> slice. The export job now also **gates on `raw_windsor.hubspot_contacts`**. The HubSpot loader is **not yet
+> scheduled** — re-run it from a laptop to refresh the CRM numbers (`.\.venv\Scripts\python.exe
+> ingest\windsor_data_pull\hubspot\hubspot_loader.py`); the daily ad-data ticks will then re-export the dash.
 
 ## How it works (3 stages — same shape as every client)
 
@@ -147,7 +165,7 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 
 | | |
 |---|---|
-| BigQuery dataset | `client_resetdata` (21 views) |
+| BigQuery dataset | `client_resetdata` (31 views — 23 ads/GA4 + 7 HubSpot CRM, reading `raw_windsor.hubspot_*`) |
 | Data bucket / object | `bidbrain-analytics-resetdata-dash` / `resetdata.json` |
 | Export job | `resetdata-export` (runtime SA `resetdata-dash-job@…`, read-only BQ + bucket write) |
 | Web service | `resetdata-dash` (runtime SA `resetdata-dash-web@…`) → [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
@@ -156,7 +174,7 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 
 ## Files
 
-- [`sql/`](sql/README.md) — 19 BigQuery views (filter + model); `create_views.py` applies them in `NN_` order.
+- [`sql/`](sql/README.md) — 31 BigQuery views (filter + model; 24–30 are the HubSpot CRM layer); `create_views.py` applies them in `NN_` order.
 - [`job/`](job/README.md) — the export job (stage 2): views → `resetdata.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`creatives/`](creatives/README.md) — branding source assets (the ResetData wordmark + a site

@@ -1,0 +1,4 @@
+# Windsor field-catalogue ingest Cloud Run job (windsor-fields-ingest). Pinned to match the repo .venv.
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1
+requests==2.34.2

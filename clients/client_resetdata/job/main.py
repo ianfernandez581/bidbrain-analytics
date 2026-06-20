@@ -38,6 +38,7 @@ GATING_TABLES = [
     "raw_windsor.perf_reddit",
     "raw_ga4.perf_ga4",
     "raw_ga4.perf_ga4_events",
+    "raw_windsor.hubspot_contacts",   # CRM tab: rebuild when the HubSpot snapshot refreshes
 ]
 WATERMARK_OBJECT = "_freshness.json"
 
@@ -111,6 +112,12 @@ def main():
     ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
     ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
     ad_campaign_daily = rows(bq, "ad_campaign_daily")
+    # --- Signups & CRM tab (HubSpot via raw_windsor.hubspot_contacts/_owners) ----------
+    crm_kpi = rows(bq, "crm_kpi")[0]
+    crm_signups_weekly = rows(bq, "crm_signups_weekly")
+    crm_source_quality = rows(bq, "crm_source_quality")
+    crm_lifecycle_owner = rows(bq, "crm_lifecycle_owner")
+    crm_lead_queue = rows(bq, "crm_lead_queue")
 
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
@@ -357,6 +364,67 @@ def main():
             "spend_aud": num(r["spend_aud"]),
             "conversions": num(r["conversions"]),
         } for r in ad_campaign_daily],
+        # --- Signups & CRM (HubSpot) -------------------------------------------------
+        # The signup funnel Caroline asks about: Leads -> App signups -> Loaded balance
+        # -> Paying. Plus lifecycle×owner, source quality, and the BDM lead queue.
+        "crm": {
+            "kpi": {
+                "leads": num(crm_kpi["leads"]),
+                "app_signups": num(crm_kpi["app_signups"]),
+                "loaded_balance": num(crm_kpi["loaded_balance"]),
+                "paying": num(crm_kpi["paying"]),
+                "signups_not_paying": num(crm_kpi["signups_not_paying"]),
+                "customers": num(crm_kpi["customers"]),
+                "with_deal": num(crm_kpi["with_deal"]),
+                "total_balance": num(crm_kpi["total_balance"]),
+                "total_rd_spend": num(crm_kpi["total_rd_spend"]),
+                "total_hs_revenue": num(crm_kpi["total_hs_revenue"]),
+                "queue_new": num(crm_kpi["queue_new"]),
+                "queue_unassigned": num(crm_kpi["queue_unassigned"]),
+                "queue_new_unassigned": num(crm_kpi["queue_new_unassigned"]),
+                "last_signup_at": crm_kpi["last_signup_at"],
+                "last_contact_at": crm_kpi["last_contact_at"],
+            },
+            "signups_weekly": [{
+                "week_start": ymd(r["week_start"]),
+                "source": r["source_bucket"],
+                "signups": num(r["signups"]),
+                "loaded_balance": num(r["loaded_balance"]),
+                "paying": num(r["paying"]),
+                "ad_attributed": num(r["ad_attributed"]),
+                "rd_spend": num(r["rd_spend"]),
+            } for r in crm_signups_weekly],
+            "source_quality": [{
+                "source": r["source_bucket"],
+                "leads": num(r["leads"]),
+                "signups": num(r["signups"]),
+                "loaded_balance": num(r["loaded_balance"]),
+                "paying": num(r["paying"]),
+                "free_only": num(r["free_only"]),
+                "with_deal": num(r["with_deal"]),
+                "customers": num(r["customers"]),
+                "ad_attributed": num(r["ad_attributed"]),
+                "rd_spend": num(r["rd_spend"]),
+                "signup_rate_pct": num(r["signup_rate_pct"]),
+                "pay_rate_pct": num(r["pay_rate_pct"]),
+            } for r in crm_source_quality],
+            "lifecycle_owner": [{
+                "owner": r["owner_name"],
+                "lifecycle": r["lifecycle_stage"],
+                "contacts": num(r["contacts"]),
+                "signups": num(r["signups"]),
+                "paying": num(r["paying"]),
+                "with_deal": num(r["with_deal"]),
+            } for r in crm_lifecycle_owner],
+            "lead_queue": [{
+                "lead_status": r["lead_status"],
+                "owner": r["owner_name"],
+                "unassigned": bool(r["unassigned"]),
+                "contacts": num(r["contacts"]),
+                "unworked": num(r["unworked"]),
+                "signups": num(r["signups"]),
+            } for r in crm_lead_queue],
+        },
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
