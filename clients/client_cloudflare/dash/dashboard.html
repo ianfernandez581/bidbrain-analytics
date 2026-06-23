@@ -579,34 +579,6 @@
           <button class="chip-action" onclick="selectNonePaidMarkets()">Clear all</button>
         </div>
 
-        <!-- Caveat: TTD pixel -->
-        <div class="alert">
-          <div class="ico">⚠</div>
-          <div>
-            <h3>Measurement caveat: TTD has no lead-level conversion tracking</h3>
-            <p>The Trade Desk reports zero <b>leads</b> for this window because Cloudflare deployed only the <b>universal pixel</b>, not the per-event <b>image pixels</b> we supplied. The universal pixel fires on any page load and can only count generic <b>site visits</b> — it cannot isolate a lead-form submission. Lead-attribution analysis is treated separately in &ldquo;Why lead volume looks low&rdquo; below.</p>
-          </div>
-        </div>
-
-        <!-- Info: pixel comparison -->
-        <div class="info">
-          <h3>What TTD is actually measuring &mdash; and why it isn't leads</h3>
-          <p>TTD's universal pixel credits site visits via <b>view-through + click</b> attribution. Cloudflare's CRM sees only <b>post-click leads</b> arriving on TTD-tagged URLs. The two systems answer different questions, so even site-visit numbers won't reconcile &mdash; and lead numbers can't reconcile at all until the image pixels go live.</p>
-          <div class="pixel-compare">
-            <div class="pix">
-              <h4>Universal pixel <span style="color:var(--good-green)">(deployed)</span></h4>
-              <div class="what">Sitewide tag, fires on every page load.</div>
-              <p style="margin:6px 0 0 0">Counts a user as &ldquo;converted&rdquo; if they touch any Cloudflare URL after seeing/clicking a TTD ad. <span class="ok">Catches site visits</span> &mdash; <span class="miss">cannot split leads from non-lead traffic</span>.</p>
-            </div>
-            <div class="pix">
-              <h4>Image pixels <span style="color:var(--bad-red)">(supplied, not deployed)</span></h4>
-              <div class="what">Per-event tags, placed on specific pages (e.g. lead-form thank-you).</div>
-              <p style="margin:6px 0 0 0">Fire only when a user lands on the conversion page. <span class="ok">Would isolate actual leads</span> from background traffic, by ad set / region / creative. We supplied these &mdash; client opted not to implement.</p>
-            </div>
-          </div>
-          <p style="font-size:12.5px;color:var(--cf-mute);margin:8px 0 0 0"><b>Recommendation:</b> deploy the supplied image pixels on the SASE lead-form thank-you page. Until then, TTD performance has to be judged on the upper-funnel signals it does measure cleanly: impressions, reach, clicks, CTR, CPC.</p>
-        </div>
-
         <div class="kpis">
           <div class="kpi accent"><span class="stripe"></span>
             <div class="label">Total spend</div><div class="value" id="k_spend">—</div>
@@ -912,7 +884,14 @@
 // ==========================================================================
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
-const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG'];
+// CS market universe. 'OTHER' is the residual bucket (pacing_model REGION_GRP='OTHER'):
+// leads in the 12 CS campaigns that fall outside the 7 named markets (off-plan / mis-cased
+// countries + Korea leads outside the 6 El* campaigns). It carries no Q2 target, so it is
+// surfaced as a selectable "Others" tab/chip so CS totals are COMPLETE (match the source's
+// full 12-campaign count, e.g. Accepted 3328 not 3309) rather than silently dropped.
+const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG','OTHER'];
+// Display label for a market code (only 'OTHER' differs from its code).
+const mktLabel = m => m === 'OTHER' ? 'Others' : m;
 const Q2_START = new Date('2026-04-01T00:00:00Z');
 const Q2_END   = new Date('2026-06-30T23:59:59Z');
 
@@ -1410,7 +1389,7 @@ function renderChips() {
   ALL_MARKETS.forEach(m => {
     const el = document.createElement('button');
     el.className = 'chip' + (activeMarkets.has(m) ? ' on' : '');
-    el.textContent = m;
+    el.textContent = mktLabel(m);
     el.onclick = () => {
       if (activeMarkets.has(m)) activeMarkets.delete(m);
       else activeMarkets.add(m);
@@ -1688,7 +1667,7 @@ function renderRegionGrid(agg) {
     grid.insertAdjacentHTML('beforeend', `
       <div style="border:1px solid var(--cf-line);border-radius:10px;padding:14px 16px;background:#fff">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
-          <div style="font-weight:700;font-size:14px">${market}</div>
+          <div style="font-weight:700;font-size:14px">${mktLabel(market)}</div>
           <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '—'}</div>
         </div>
         <div class="reg-row"><div class="reg-lbl">Q2 Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
@@ -1723,7 +1702,7 @@ function populateRegionSelects() {
     const sel = document.getElementById('region' + side);
     ALL_MARKETS.forEach(m => {
       const opt = document.createElement('option');
-      opt.value = m; opt.textContent = m;
+      opt.value = m; opt.textContent = mktLabel(m);
       sel.appendChild(opt);
     });
   });
