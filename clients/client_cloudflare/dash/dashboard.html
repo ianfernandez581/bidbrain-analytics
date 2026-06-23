@@ -393,11 +393,10 @@
           </div>
         </div>
         <div class="group">
-          <div class="lbl">Lead quality <span style="font-weight:400;font-size:10px;color:var(--cf-mute);text-transform:none;letter-spacing:0">· unprocessed = manual triage backlog</span></div>
-          <div class="pair triple">
+          <div class="lbl">Lead quality</div>
+          <div class="pair">
             <div class="stat"><div class="k">Rejection rate</div><div class="v" id="kpi_rej">—</div><div class="cnt" id="kpi_rej_cnt">—</div></div>
             <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="kpi_acc">—</div><div class="cnt" id="kpi_acc_cnt">—</div></div>
-            <div class="stat"><div class="k">Unprocessed</div><div class="v" id="kpi_unproc">—</div><div class="cnt" id="kpi_unproc_cnt">—</div></div>
           </div>
         </div>
       </div>
@@ -1418,17 +1417,13 @@ function renderKPIs(agg) {
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
   document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '—';
   document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '—';
-  // All three use total as denominator so they sum to 100%
+  // Both use total as the denominator
   const accRatio = agg.total ? agg.accepted / agg.total : 0;
   const rejRatio = agg.total ? agg.rejected / agg.total : 0;
-  const unprocessedCount = agg.total - agg.accepted - agg.rejected;
-  const unprocessedRatio = agg.total ? unprocessedCount / agg.total : 0;
   document.getElementById('kpi_acc').textContent = (accRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_rej').textContent = (rejRatio*100).toFixed(2)+'%';
-  document.getElementById('kpi_unproc').textContent = (unprocessedRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
   document.getElementById('kpi_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
-  document.getElementById('kpi_unproc_cnt').textContent = fmtN(unprocessedCount) + ' leads';
 }
 
 function renderLeadsTarget(agg) {
