@@ -1,0 +1,73 @@
+{
+  "_about": "SINGLE SOURCE OF TRUTH for Cloudflare's Content-Syndication business definitions (campaign-ID filters, client-defined KR/RIG segments, geographic region map, market chips, lead-status buckets). BOTH sides read this file: (1) the CLIENT side loads the ID lists into client_cloudflare.seed_* tables (definitions_seed.py) which sql/10 + sql/14 read live; (2) the VERIFIER side (status_dashboard/job/main.py) builds its Snowflake check SQL from this same file. Editing here (via the platform Data Accuracy tab → 'Make this live') changes BOTH at once, no two-place edit. The repo copy is the version-controlled SEED; the LIVE copy lives at gs://bidbrain-analytics-status-dash/definitions/cloudflare.json.",
+  "_maintenance": "Churny lists (campaign IDs, segment IDs, assets, buckets, market chips) are seed-driven end-to-end. The geographic country lists are also mirrored as literals inside sql/10's CASE (low-churn structural logic) — if you change geographic_regions here, also update the matching CASE arms in sql/10. Display-label CASEs (PUBLISHER/OFFER_TYPE/PUBLISHER_OFFER) stay as view literals and are out of scope.",
+  "client": "cloudflare",
+  "dataset": "client_cloudflare",
+  "source_table_snowflake": "APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"",
+  "mirror_table_bigquery": "bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all",
+
+  "last_edited_by": "system (initial seed)",
+  "last_edited_at": null,
+
+  "_seed_spec": [
+    {"table": "seed_cs_campaign_ids",  "column": "campaign_id", "path": "cs_campaigns[].id"},
+    {"table": "seed_cf1_cs_campaign_ids", "column": "campaign_id", "path": "cf1_cs_campaigns[].id"},
+    {"table": "seed_kr_campaign_ids",  "column": "campaign_id", "path": "segments.KR.campaign_ids"},
+    {"table": "seed_rig_campaign_ids", "column": "campaign_id", "path": "segments.RIG.campaign_ids"},
+    {"table": "seed_rig_assets",       "column": "asset_2",     "path": "segments.RIG.asset_2"}
+  ],
+
+  "_smoke_views": ["client_cloudflare.salesforce_leads_live", "client_cloudflare.cf1_cs", "client_cloudflare.pacing_model"],
+
+  "cs_campaigns": [
+    {"id": "701RG00001ElJZzYAN", "label": "Roverpath - Precision MQL"},
+    {"id": "701RG00001ElTu3YAF", "label": "Roverpath - Pulse Survey"},
+    {"id": "701RG00001ElVXdYAN", "label": "Roverpath - Qualification Questions"},
+    {"id": "701RG00001ElUoXYAV", "label": "Final Funnel - Precision MQL"},
+    {"id": "701RG00001ElUa0YAF", "label": "Final Funnel - Pulse Survey"},
+    {"id": "701RG00001ElNYkYAN", "label": "Final Funnel - Qualification Questions"},
+    {"id": "701RG00001NJd6NYAT", "label": "Roverpath - Connectivity Cloud (ANZ)"},
+    {"id": "701RG00001NIYRKYA5", "label": "Final Funnel CF1 - Connectivity Cloud (ANZ)"},
+    {"id": "701RG00001PXNyDYAX", "label": "Final Funnel ABM - Modernize Security (ANZ)"},
+    {"id": "701RG00001PWX5gYAH", "label": "Final Funnel ABM - Modernize Security (ANZ)"},
+    {"id": "701RG00001PXLpxYAH", "label": "Roverpath - Modernize Applications (ANZ)"},
+    {"id": "701RG00001PXHnzYAH", "label": "Roverpath - Modernize Applications (ANZ)"}
+  ],
+
+  "cf1_cs_campaigns": [
+    {"id": "701RG00001NJd6NYAT", "label": "Roverpath - Connectivity Cloud (CF1)"},
+    {"id": "701RG00001NIYRKYA5", "label": "Final Funnel CF1 - Connectivity Cloud"}
+  ],
+
+  "segments": {
+    "_note": "Client-defined (2026-06-19), NOT purely geographic. Evaluated BEFORE the geographic_regions buckets: RIG first, then KR. RIG = the Modernize-Applications gaming asset on the 3 Final Funnel campaigns, non-Korea (~180). KR = Korea on the 6 original El* campaigns only (~164).",
+    "RIG": {
+      "exclude_country": "Korea, Republic of",
+      "asset_2": ["A-MAM-2", "A-MAM-3"],
+      "campaign_ids": ["701RG00001ElUoXYAV", "701RG00001ElUa0YAF", "701RG00001ElNYkYAN"]
+    },
+    "KR": {
+      "country": "Korea, Republic of",
+      "campaign_ids": ["701RG00001ElJZzYAN", "701RG00001ElTu3YAF", "701RG00001ElVXdYAN",
+                       "701RG00001ElUoXYAV", "701RG00001ElUa0YAF", "701RG00001ElNYkYAN"]
+    }
+  },
+
+  "geographic_regions": {
+    "_note": "Evaluated AFTER RIG/KR. Pure COUNTRY_NAME → region map. Also mirrored as literals in sql/10's CASE.",
+    "ANZ": ["Australia", "New Zealand"],
+    "ASEAN": ["Singapore", "Malaysia", "Indonesia", "Thailand", "Philippines", "Viet Nam", "Vietnam"],
+    "SAARC": ["India"],
+    "GCR": ["China", "Taiwan", "Hong Kong"],
+    "JP": ["Japan"]
+  },
+
+  "market_chips": ["ANZ", "ASEAN", "SAARC", "GCR", "KR", "JP", "RIG"],
+
+  "status_buckets": {
+    "_note": "Cloudflare's CS map (OPPOSITE of mongodb): Accepted = Accepted + Replied + Unresponsive. The residual 'OTHER' region (not in market_chips) is never shown on the dash and is excluded from every count.",
+    "accepted": ["Accepted", "Replied", "Unresponsive"],
+    "rejected": ["Rejected"],
+    "new": ["New"]
+  }
+}

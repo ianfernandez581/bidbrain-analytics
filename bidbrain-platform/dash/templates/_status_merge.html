@@ -1,0 +1,277 @@
+<style>
+  /* Merged-in pipeline status — ported from the old standalone status dashboard so it keeps that
+     denser, dark look. Scoped to .bb* + the panes; uses its OWN palette (not the host vars) so it
+     reads identically on every role template. */
+  .bbtabs{display:flex;gap:2px;border-bottom:1px solid rgba(255,255,255,.10);margin:24px 0 20px}
+  .bbtab{appearance:none;background:none;border:none;color:#8A97AD;font:600 14px/1 inherit;
+         padding:11px 18px;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .bbtab:hover{color:#E8EDF6}
+  .bbtab.on{color:#E8EDF6;border-bottom-color:#34D399}
+  .bbpane{display:none}.bbpane.on{display:block}
+  .bbmuted{color:#8A97AD;font-size:13px}
+  .bbsyncbar{display:flex;align-items:center;gap:12px;margin:0 0 18px;flex-wrap:wrap}
+  .bbloading{color:#8A97AD;padding:34px 0;text-align:center}
+
+  /* Overview tile badge */
+  .bblogo{height:22px;width:auto;max-width:96px;border-radius:5px;object-fit:contain;background:#fff;padding:2px 4px;margin-right:9px;vertical-align:middle}
+  .bblogo.sm{height:20px}
+  .bbhealth{display:inline-block;margin-top:12px;font-size:11.5px;font-weight:700;letter-spacing:.3px;padding:4px 10px;border-radius:999px}
+  .bbhealth.ok{color:#34D399;background:rgba(52,211,153,.13)}
+  .bbhealth.warn{color:#FBBF24;background:rgba(251,191,36,.13)}
+  .bbhealth.bad{color:#F87171;background:rgba(248,113,113,.13)}
+  .bbhealth.na{color:#94a3b8;background:rgba(100,116,139,.16)}
+
+  /* Summary pills */
+  .bbsummary{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 18px}
+  .bbpill{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;font-weight:600;font-size:13px;
+          border:1px solid rgba(255,255,255,.08);background:#141C2E;color:#E8EDF6}
+  .bbpill .n{font-size:15px;font-weight:800}
+  .bbdot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+  .bbdot.ok{background:#34D399}.bbdot.warn{background:#FBBF24}.bbdot.bad{background:#F87171}.bbdot.unknown{background:#64748B}
+
+  /* Shared card */
+  .bbcard{background:#141C2E;border:1px solid rgba(255,255,255,.08);border-radius:13px;padding:0;margin-bottom:14px;overflow:hidden}
+  .bbcard .bbhd{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:15px 17px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .bbcname{font-size:16px;font-weight:700;display:flex;align-items:center;gap:9px;color:#E8EDF6}
+  .bbcname a{color:#64748B;font-size:12px;font-weight:500;text-decoration:none}
+  .bbcname a:hover{color:#E8EDF6}
+  .bbverdict{display:inline-flex;align-items:center;gap:8px;padding:6px 13px;border-radius:999px;font-weight:700;font-size:12.5px}
+  .bbverdict.ok{color:#34D399;background:rgba(52,211,153,.13)}
+  .bbverdict.transmission_stale{color:#F87171;background:rgba(248,113,113,.13)}
+  .bbverdict.digital_behind{color:#FBBF24;background:rgba(251,191,36,.13)}
+  .bbverdict.no_data{color:#94a3b8;background:rgba(100,116,139,.13)}
+
+  /* Sync chain */
+  .bbchain{display:grid;grid-template-columns:1fr 2fr;gap:0;padding:6px 17px 4px}
+  @media(max-width:640px){.bbchain{grid-template-columns:1fr}}
+  .bbparty{padding:12px 0}
+  .bbparty .pt{font-size:10.5px;font-weight:800;letter-spacing:1.2px;margin-bottom:9px}
+  .bbparty.t .pt{color:#7DA3FF}.bbparty.d .pt{color:#34D399}
+  .bbparty.t{border-right:1px dashed rgba(255,255,255,.08);padding-right:18px}
+  .bbparty.d{padding-left:18px}
+  @media(max-width:640px){.bbparty.t{border-right:none;border-bottom:1px dashed rgba(255,255,255,.08);padding-right:0}.bbparty.d{padding-left:0}}
+  .bbstages{display:flex;gap:18px;flex-wrap:wrap}
+  .bbstage{min-width:120px}
+  .bbstage .sl{font-size:11px;color:#8A97AD;display:flex;align-items:center;gap:7px;margin-bottom:3px}
+  .bbstage .sv{font-size:14px;font-weight:700;color:#E8EDF6}
+  .bbstage .sa{font-size:11.5px;color:#64748B}
+  .bbwhy{padding:11px 17px 16px;color:#8A97AD;font-size:13px}
+  .bbwhy b.t{color:#7DA3FF}.bbwhy b.d{color:#34D399}
+
+  /* Accuracy table */
+  table.bbacc{width:100%;border-collapse:collapse}
+  table.bbacc td,table.bbacc th{padding:11px 17px;text-align:left;border-top:1px solid rgba(255,255,255,.08);vertical-align:top}
+  table.bbacc th{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#8A97AD;font-weight:600;border-top:none}
+  .bbnum{font-variant-numeric:tabular-nums;font-weight:700;font-size:15px}
+  .bbnum.sf{color:#7DA3FF}.bbnum.dash{color:#34D399}
+  .bbmtag{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12.5px}
+  .bbmtag.ok{color:#34D399}.bbmtag.bad{color:#F87171}.bbmtag.na{color:#94a3b8}
+  table.bbacc tr.grp td{padding:10px 17px 5px;font-size:10.5px;text-transform:uppercase;letter-spacing:.8px;color:#34D399;font-weight:800;background:#1B2438}
+  details.bbq{margin-top:8px}
+  details.bbq summary{cursor:pointer;color:#64748B;font-size:12px}
+  details.bbq summary:hover{color:#E8EDF6}
+  pre.bbsql{background:#0A1426;border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:11px 13px;margin:8px 0 2px;
+            overflow:auto;font-size:12px;color:#BFD0EA;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap}
+  .bbqnote{color:#64748B;font-size:11.5px;margin-top:6px;max-width:680px}
+  .bbaccsum{font-size:12.5px;color:#8A97AD;font-weight:600;font-variant-numeric:tabular-nums}
+
+  /* Editor */
+  .bbedit{margin:0;border-top:1px solid rgba(255,255,255,.08);padding:14px 17px 17px}
+  .bbedit summary{cursor:pointer;font-size:13px;font-weight:700;color:#34D399}
+  .bbedit.open{background:#0f1830;border-bottom:1px solid rgba(255,255,255,.08)}
+  .bbed-h{font-size:13px;font-weight:800;color:#34D399;letter-spacing:.2px}
+  .bbed-lastby{font-size:12px;color:#64748B;margin:9px 0}
+  .bbed-json{width:100%;min-height:240px;resize:vertical;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;color:#BFD0EA;
+             background:#0A1426;border:1px solid rgba(255,255,255,.10);border-radius:9px;padding:11px;margin-top:6px;outline:none}
+  .bbed-json:focus{border-color:#34D399}
+  .bbed-name{width:100%;max-width:360px;margin-top:10px;padding:9px 11px;font:14px inherit;color:#E8EDF6;
+             background:#0A1426;border:1px solid rgba(255,255,255,.10);border-radius:9px;outline:none}
+  .bbed-name:focus{border-color:#34D399}
+  .bbed-row{display:flex;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+  .bbbtn{font:600 13px/1 inherit;padding:9px 14px;border-radius:9px;cursor:pointer;border:1px solid rgba(255,255,255,.14);background:transparent;color:#E8EDF6}
+  .bbbtn.live{background:#34D399;border-color:#34D399;color:#06231A}
+  .bbbtn:disabled{opacity:.5;cursor:default}
+  .bbed-msg{font-size:12.5px;color:#8A97AD}
+</style>
+<script>
+(function(){
+  var ACC = {data:null, err:false};
+
+  document.querySelectorAll(".bbtab").forEach(function(t){
+    t.addEventListener("click", function(){
+      document.querySelectorAll(".bbtab").forEach(function(x){ x.classList.toggle("on", x===t); });
+      var pane = t.getAttribute("data-pane");
+      document.querySelectorAll(".bbpane").forEach(function(p){ p.classList.toggle("on", p.id === "pane-"+pane); });
+    });
+  });
+
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
+  function fmtNum(n){ if(n==null||n==="") return "—"; var x=Number(n); return isFinite(x)?x.toLocaleString("en-US"):esc(n); }
+  function ageMs(iso){ if(!iso) return null; var t=Date.parse(iso); return isNaN(t)?null:(Date.now()-t); }
+  function fmtAge(iso){ var ms=ageMs(iso); if(ms==null) return "—"; if(ms<0) ms=0;
+    var s=Math.floor(ms/1000), m=Math.floor(s/60), h=Math.floor(m/60), d=Math.floor(h/24);
+    if(d>=1) return d+(d===1?" day ago":" days ago"); if(h>=1) return h+(h===1?" hr ago":" hrs ago");
+    if(m>=1) return m+(m===1?" min ago":" mins ago"); return "just now"; }
+  function dot(state){ return '<span class="bbdot '+esc(state||"unknown")+'"></span>'; }
+  function tstamp(iso){ return iso ? esc(iso.replace("T"," ").replace("Z"," UTC")) : "no data"; }
+
+  var VERDICT_TEXT = { ok:"✓ Healthy", transmission_stale:"⚠ Waiting on Transmission",
+    digital_behind:"⏳ 100% Digital catching up", no_data:"• No data yet" };
+  function badge(v){
+    if(v==="ok") return {cls:"ok",label:"Healthy"};
+    if(v==="transmission_stale") return {cls:"warn",label:"Source stale (Transmission)"};
+    if(v==="digital_behind") return {cls:"bad",label:"Pipeline behind"};
+    return {cls:"na",label:"No data"};
+  }
+  function whyText(f){
+    var src=fmtAge(f.transmission_latest);
+    if(f.verdict==="ok") return 'In sync. The dashboard is as current as Snowflake provides — source last changed <b>'+src+'</b>.';
+    if(f.verdict==="transmission_stale") return '<b class="t">Transmission:</b> the Snowflake source has not updated in <b>'+src+'</b>. <b class="d">100% Digital is in sync</b> with it — the stale numbers are the source, not our pipeline.';
+    if(f.verdict==="digital_behind") return '<b class="d">100% Digital:</b> Snowflake changed <b>'+src+'</b> but our pipeline has not ingested past it yet (ingest '+fmtAge(f.ingest_latest)+'). Catching up on the next run.';
+    return 'No dashboard data found for this client yet.';
+  }
+
+  function fillBadges(){
+    var by={}; ((ACC.data&&ACC.data.clients)||[]).forEach(function(c){ by[c.client]=c; });
+    document.querySelectorAll(".bbhealth").forEach(function(el){
+      var c=by[el.getAttribute("data-for")];
+      if(!c||!c.freshness){ el.remove(); return; }
+      var b=badge(c.freshness.verdict);
+      el.className="bbhealth "+b.cls;
+      el.textContent=b.label+" · updated "+fmtAge(c.freshness.build_at||c.freshness.ingest_latest||c.freshness.data_through||c.freshness.transmission_latest);
+    });
+  }
+
+  function syncCard(c){
+    var f=c.freshness||{}, v=f.verdict||"no_data";
+    var link=c.url?' <a href="'+esc(c.url)+'" target="_blank" rel="noopener">'+esc(c.url.replace(/^https?:\/\//,""))+' ↗</a>':'';
+    var src='<div class="bbstage"><div class="sl">'+dot(f.transmission_state)+'Snowflake source</div><div class="sv">'+fmtAge(f.transmission_latest)+'</div><div class="sa">'+tstamp(f.transmission_latest)+'</div></div>';
+    var ing='<div class="bbstage"><div class="sl">'+dot(f.digital_state)+esc(f.ingest_label||"Ingest")+'</div><div class="sv">'+fmtAge(f.ingest_latest)+'</div><div class="sa">'+tstamp(f.ingest_latest)+'</div></div>';
+    var bld='<div class="bbstage"><div class="sl">'+dot(f.digital_state)+'Dashboard build</div><div class="sv">'+fmtAge(f.build_at)+'</div><div class="sa">'+tstamp(f.build_at)+'</div></div>';
+    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+esc(c.label||c.client)+link+'</div>'+
+      '<div class="bbverdict '+esc(v)+'">'+esc(VERDICT_TEXT[v]||v)+'</div></div>'+
+      '<div class="bbchain"><div class="bbparty t"><div class="pt">TRANSMISSION</div><div class="bbstages">'+src+'</div></div>'+
+      '<div class="bbparty d"><div class="pt">100% DIGITAL</div><div class="bbstages">'+ing+bld+'</div></div></div>'+
+      '<div class="bbwhy">'+whyText(f)+'</div></div>';
+  }
+
+  function accRow(chk){
+    var sf=chk.snowflake_value, dv=chk.dashboard_value, m=chk.match, tag;
+    if(chk.error) tag='<span class="bbmtag na">'+dot("unknown")+'query error</span>';
+    else if(m===true) tag='<span class="bbmtag ok">✓ MATCH</span>';
+    else if(m===false){ var diff=(sf!=null&&dv!=null)?Math.abs(Number(sf)-Number(dv)):null;
+      tag='<span class="bbmtag bad">✗ off by '+(diff!=null?fmtNum(diff):"?")+'</span>'; }
+    else tag='<span class="bbmtag na">'+dot("unknown")+'no data</span>';
+    var note=chk.note?'<div class="bbqnote">'+esc(chk.note)+'</div>':'';
+    var err=chk.error?'<div class="bbqnote" style="color:#F87171">'+esc(chk.error)+'</div>':'';
+    return '<tr><td><div style="font-weight:600">'+esc(chk.label)+'</div>'+
+      '<details class="bbq"><summary>show the Snowflake query</summary><pre class="bbsql">'+esc(chk.snowflake_query)+'</pre>'+note+err+'</details></td>'+
+      '<td class="bbnum sf">'+fmtNum(sf)+'</td><td class="bbnum dash">'+fmtNum(dv)+'</td><td>'+tag+'</td></tr>';
+  }
+
+  function accCard(c, fl){
+    var checks=c.accuracy||[], nOk=0,nBad=0,nNa=0;
+    checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++; else nNa++; });
+    var body="", last=null;
+    checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk); });
+    var sum=checks.length?'<span class="bbaccsum">'+nOk+'/'+checks.length+' match'+(nBad?' · '+nBad+' off':'')+(nNa?' · '+nNa+' n/a':'')+'</span>':'';
+    var logo='<img class="bblogo sm" src="/logo/'+esc(c.client)+'" alt="" onerror="this.remove()">';
+    var editor=fl.has_definitions?editorBlock(c.client, !!fl.can_edit):"";
+    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+'</div>'+sum+'</div>'+editor+
+      '<table class="bbacc"><thead><tr><th>Metric</th><th>Snowflake</th><th>Dashboard</th><th>Match</th></tr></thead>'+
+      '<tbody>'+(body||'<tr><td colspan="4" class="bbqnote">No checks.</td></tr>')+'</tbody></table></div>';
+  }
+
+  function editorBlock(client, canEdit){
+    if(!canEdit) return '<div class="bbedit"><span class="bbmuted">Read-only — you can view these definitions but not edit them.</span></div>';
+    return '<div class="bbedit open" data-client="'+esc(client)+'">'+
+      '<div class="bbed-h">✎ Edit the live query parameters — deploys to the dashboard AND these checks</div>'+
+      '<p class="bbmuted" style="margin:7px 0 0">Change the campaign IDs, KR/RIG segments, market chips or status buckets below. '+
+      'The per-metric SQL shown in each check is auto-generated from these and stays read-only. Save a draft, then “Make this live” (~1–2 min).</p>'+
+      '<div class="bbed-lastby" data-for="'+esc(client)+'"></div>'+
+      '<textarea class="bbed-json" data-for="'+esc(client)+'" spellcheck="false"></textarea>'+
+      '<input class="bbed-name" data-for="'+esc(client)+'" placeholder="Your name (required — recorded as the editor)">'+
+      '<div class="bbed-row"><button class="bbbtn save" data-for="'+esc(client)+'">Save draft</button>'+
+      '<button class="bbbtn live" data-for="'+esc(client)+'">Make this live</button>'+
+      '<span class="bbed-msg" data-for="'+esc(client)+'"></span></div></div>';
+  }
+
+  function renderSummary(clients){
+    var n={ok:0,transmission_stale:0,digital_behind:0,no_data:0};
+    clients.forEach(function(c){ var v=(c.freshness||{}).verdict||"no_data"; n[v]=(n[v]||0)+1; });
+    var p=['<span class="bbpill">'+dot("ok")+'<span class="n">'+n.ok+'</span> healthy</span>'];
+    if(n.transmission_stale) p.push('<span class="bbpill">'+dot("bad")+'<span class="n">'+n.transmission_stale+'</span> waiting on Transmission</span>');
+    if(n.digital_behind) p.push('<span class="bbpill">'+dot("warn")+'<span class="n">'+n.digital_behind+'</span> 100% Digital catching up</span>');
+    if(n.no_data) p.push('<span class="bbpill">'+dot("unknown")+'<span class="n">'+n.no_data+'</span> no data</span>');
+    var el=document.getElementById("bbsummary"); if(el) el.innerHTML=p.join("");
+  }
+
+  function renderAll(){
+    fillBadges();
+    var sync=document.getElementById("bbsync"), acc=document.getElementById("bbacc");
+    if(ACC.err || !ACC.data){ var msg='<div class="bbloading">Couldn’t load data health — please refresh.</div>';
+      if(sync)sync.innerHTML=msg; if(acc)acc.innerHTML=msg; return; }
+    var clients=ACC.data.clients||[], flags=ACC.data.flags||{};
+    renderSummary(clients);
+    if(!clients.length){ var none='<div class="bbloading">No data-health data for the dashboards you can open. (Only Snowflake-sourced clients have checks.)</div>';
+      if(sync)sync.innerHTML=none; if(acc)acc.innerHTML=none; return; }
+    if(sync) sync.innerHTML=clients.map(syncCard).join("");
+    if(acc){ acc.innerHTML=clients.map(function(c){ return accCard(c, flags[c.client]||{}); }).join(""); wire(); }
+  }
+
+  function q(sel, client){ return document.querySelector(sel+'[data-for="'+(window.CSS&&CSS.escape?CSS.escape(client):client)+'"]'); }
+  function wire(){
+    document.querySelectorAll(".bbedit.open[data-client]").forEach(function(d){ loadDef(d.getAttribute("data-client")); });
+    document.querySelectorAll(".bbbtn.save").forEach(function(b){ b.onclick=function(){ save(b.getAttribute("data-for"), false); }; });
+    document.querySelectorAll(".bbbtn.live").forEach(function(b){ b.onclick=function(){ save(b.getAttribute("data-for"), true); }; });
+  }
+  function loadDef(client){
+    var msg=q(".bbed-msg",client); if(msg) msg.textContent="Loading…";
+    fetch("/definitions/"+client, {credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(j){
+      if(!j.ok){ if(msg) msg.textContent=j.error||"No definitions."; return; }
+      q(".bbed-json",client).value=JSON.stringify(j.definitions, null, 2);
+      var lb=j.definitions.last_edited_by, la=j.definitions.last_edited_at;
+      q(".bbed-lastby",client).textContent=lb?("Last edited by "+lb+(la?(" · "+la):"")):"Not edited yet.";
+      if(msg) msg.textContent="";
+    }).catch(function(){ if(msg) msg.textContent="Could not load definitions."; });
+  }
+  function save(client, thenLive){
+    var msg=q(".bbed-msg",client), name=(q(".bbed-name",client).value||"").trim();
+    if(!name){ msg.textContent="Enter your name first — it is recorded as the editor."; return; }
+    var defs; try{ defs=JSON.parse(q(".bbed-json",client).value); } catch(e){ msg.textContent="Invalid JSON: "+e.message; return; }
+    msg.textContent="Saving…";
+    fetch("/definitions/"+client, {method:"POST", headers:{"content-type":"application/json"}, credentials:"same-origin",
+      body:JSON.stringify({name:name, definitions:defs})}).then(function(r){ return r.json(); }).then(function(j){
+      if(!j.ok){ msg.textContent=j.error||"Save failed."; return; }
+      q(".bbed-lastby",client).textContent="Last edited by "+j.last_edited_by+" · "+j.last_edited_at+" (staged)";
+      if(!thenLive){ msg.textContent="Draft saved. Click “Make this live” to deploy."; return; }
+      msg.textContent="Deploying…";
+      fetch("/deploy/"+client, {method:"POST", headers:{"content-type":"application/json"}, credentials:"same-origin", body:"{}"})
+        .then(function(r){ return r.json(); }).then(function(k){
+          msg.textContent=k.ok?"Deploy started — the dashboard + this check refresh in ~1–2 min.":(k.error||"Deploy failed."); })
+        .catch(function(){ msg.textContent="Deploy request failed."; });
+    }).catch(function(){ msg.textContent="Save request failed."; });
+  }
+
+  function refetch(){ return fetch("/api/status", {credentials:"same-origin"}).then(function(r){ return r.ok?r.json():null; })
+    .then(function(j){ if(j){ ACC.data=j; ACC.err=false; fillBadges(); } }).catch(function(){}); }
+
+  var syncBtn=document.getElementById("bbsyncall"), syncMsg=document.getElementById("bbsyncall-msg");
+  if(syncBtn){ syncBtn.addEventListener("click", function(){
+    syncBtn.disabled=true; if(syncMsg) syncMsg.textContent="Starting a full refresh…";
+    fetch("/sync-all", {method:"POST", credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(j){
+      if(syncMsg) syncMsg.textContent = j.ok
+        ? "Sync started — every dashboard is rebuilding; timestamps reset as each finishes (~2–3 min)."
+        : ("Some jobs didn’t start: " + ((j.failed||[]).join(", ") || "error"));
+      var n=0, iv=setInterval(function(){ n++; refetch(); if(n>=10) clearInterval(iv); }, 30000);
+      setTimeout(function(){ syncBtn.disabled=false; }, 8000);
+    }).catch(function(){ if(syncMsg) syncMsg.textContent="Could not start the sync."; syncBtn.disabled=false; });
+  }); }
+
+  fetch("/api/status", {credentials:"same-origin"}).then(function(r){ return r.ok?r.json():null; })
+    .then(function(j){ ACC.data=j; ACC.err=!j; renderAll(); })
+    .catch(function(){ ACC.err=true; renderAll(); });
+  setInterval(refetch, 60000);
+})();
+</script>

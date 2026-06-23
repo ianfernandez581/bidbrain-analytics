@@ -1,0 +1,6 @@
+# status-deploy worker: reads/writes definitions JSON in GCS, WRITE_TRUNCATEs seed_* tables in
+# BigQuery, smoke-checks views, and RUNs the <c>-export + status-export jobs via the Run Admin API
+# (AuthorizedSession needs `requests`). No snowflake/pandas — it never queries Snowflake.
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1
+requests==2.32.3

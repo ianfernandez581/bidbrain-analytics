@@ -2,8 +2,11 @@
 -- filter + region/publisher/offer derivation. BigQuery port of
 -- CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE, now reading the mirror
 -- raw_snowflake.salesforce_cs_apac_all instead of APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL".
--- THIS IS NOW THE SOURCE OF TRUTH for the campaign filter (the Snowflake view is no
--- longer in our pipeline path). The 12 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17).
+-- The campaign-ID filter + the KR/RIG segment ID sets + the RIG assets are now SEED-DRIVEN:
+-- they live in clients/client_cloudflare/definitions.json (the single source of truth shared with
+-- the status verifier) and are materialised into client_cloudflare.seed_* tables by definitions_seed.py.
+-- Editing them is a one-place change (definitions.json) that reloads the seed tables — this view's
+-- structure never changes. The 12 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17).
 --
 -- KR + RIG are CLIENT-DEFINED segments (2026-06-19), NOT the old purely-geographic buckets:
 --   * KR  = Korea ('Korea, Republic of') AND the 6 ORIGINAL El* campaigns only (Roverpath +
@@ -27,12 +30,11 @@ SELECT
         -- RIG (client def): Modernize-Applications asset, 3 Final Funnel campaigns, non-Korea.
         -- FIRST so it claims these leads across all geographies (intentional overlap with ANZ/.../JP).
         WHEN COUNTRY_NAME <> 'Korea, Republic of'
-             AND ASSET_2 IN ('A-MAM-2', 'A-MAM-3')
-             AND CAMPAIGN_ID IN ('701RG00001ElUoXYAV', '701RG00001ElUa0YAF', '701RG00001ElNYkYAN') THEN 'RIG'
+             AND ASSET_2 IN (SELECT asset_2 FROM `bidbrain-analytics.client_cloudflare.seed_rig_assets`)
+             AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_rig_campaign_ids`) THEN 'RIG'
         -- KR (client def): Korea + the 6 original El* campaigns ONLY (not Connectivity Cloud / Modernize).
         WHEN COUNTRY_NAME = 'Korea, Republic of'
-             AND CAMPAIGN_ID IN ('701RG00001ElJZzYAN', '701RG00001ElTu3YAF', '701RG00001ElVXdYAN',
-                                 '701RG00001ElUoXYAV', '701RG00001ElUa0YAF', '701RG00001ElNYkYAN') THEN 'KR'
+             AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_kr_campaign_ids`) THEN 'KR'
         -- The other five regions remain purely geographic.
         WHEN COUNTRY_NAME IN ('Australia', 'New Zealand') THEN 'ANZ'
         WHEN COUNTRY_NAME IN ('Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Philippines', 'Viet Nam', 'Vietnam') THEN 'ASEAN'
@@ -64,17 +66,5 @@ SELECT
         ELSE 'Unknown'
     END AS PUBLISHER_OFFER
 FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
-WHERE CAMPAIGN_ID IN (
-    '701RG00001ElJZzYAN',  -- Roverpath - Precision MQL
-    '701RG00001ElTu3YAF',  -- Roverpath - Pulse Survey
-    '701RG00001ElVXdYAN',  -- Roverpath - Qualification Questions
-    '701RG00001ElUoXYAV',  -- Final Funnel - Precision MQL
-    '701RG00001ElUa0YAF',  -- Final Funnel - Pulse Survey
-    '701RG00001ElNYkYAN',  -- Final Funnel - Qualification Questions
-    '701RG00001NJd6NYAT',  -- (2026-06-10) Roverpath - Connectivity Cloud (ANZ)
-    '701RG00001NIYRKYA5',  -- (2026-06-10) Final Funnel CF1 - Connectivity Cloud (ANZ)
-    '701RG00001PXNyDYAX',  -- (2026-06-17) Final Funnel ABM - Modernize Security (ANZ)
-    '701RG00001PWX5gYAH',  -- (2026-06-17) Final Funnel ABM - Modernize Security (ANZ)
-    '701RG00001PXLpxYAH',  -- (2026-06-17) Roverpath - Modernize Applications (ANZ)
-    '701RG00001PXHnzYAH'   -- (2026-06-17) Roverpath - Modernize Applications (ANZ)
-);
+-- The 12-campaign filter now comes from the seed table (loaded from definitions.json).
+WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_campaign_ids`);

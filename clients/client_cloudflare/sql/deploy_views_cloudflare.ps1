@@ -17,15 +17,22 @@ $REGION    = "australia-southeast1"
 $JOB       = "cloudflare-export"
 $REPO_ROOT = Split-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) -Parent  # sql -> client_cloudflare -> clients -> repo root
 $PYTHON    = Join-Path $REPO_ROOT ".venv\Scripts\python.exe"
-$VIEWS_PY  = Join-Path (Split-Path $PSScriptRoot -Parent) "create_views.py"
+$CLIENT_DIR = Split-Path $PSScriptRoot -Parent                          # client_cloudflare
+$SEED_PY   = Join-Path $CLIENT_DIR "definitions_seed.py"                 # definitions.json -> seed_* tables
+$VIEWS_PY  = Join-Path $CLIENT_DIR "create_views.py"
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
 
 if (-not (Test-Path $PYTHON))   { Die "repo venv python not found at $PYTHON" }
+if (-not (Test-Path $SEED_PY))  { Die "definitions_seed.py not found at $SEED_PY" }
 if (-not (Test-Path $VIEWS_PY)) { Die "create_views.py not found at $VIEWS_PY" }
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 
+# Seeds MUST exist before the views: sql/10 + sql/14 read client_cloudflare.seed_* (campaign-ID
+# filter + KR/RIG sets), and BigQuery validates referenced tables at CREATE VIEW time.
+Write-Host "Loading definitions.json -> seed_* tables (definitions_seed.py) ..."
+& $PYTHON $SEED_PY; Must "seed definitions"
 Write-Host "Reapplying SQL views via create_views.py ..."
 & $PYTHON $VIEWS_PY; Must "apply views"
 Write-Host "Re-running $JOB so cloudflare.json reflects the new views ..."

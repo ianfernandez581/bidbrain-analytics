@@ -82,8 +82,14 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   now it reads the `raw_snowflake.*` mirrors like everyone else). The accuracy SQL still queries Snowflake's
   modelled views as the independent **source of truth** — paid media against
   `…PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL` (per channel: TTD/LinkedIn/Reddit/LINE; LinkedIn is the only
-  channel with leads), CS against `…CS_REPORTING.V_PACING_FINAL_MODEL` (Accepted = Accepted+Replied+
-  Unresponsive — OPPOSITE of mongodb) — so a green check validates the whole chain (mirror sync + BQ port).
+  channel with leads). **CS no longer uses the retired `…CS_REPORTING.V_PACING_FINAL_MODEL`** (it carried
+  the OLD geographic region logic AND counted the `OTHER` residual the dash drops — the cause of the old
+  false +19 "New / unprocessed" gap, status read 506 vs the dash's 487). The 4 CS quality checks (Total /
+  Accepted / Rejected / New) now reproduce the **actual dash pipeline** — `sql/10_salesforce_leads_live.sql`
+  against the raw source `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"`: the canonical 12-ID campaign
+  filter + the client-defined `REGION_GRP`, scoped to the dash's **7 market chips** (`OTHER` excluded, since
+  the dash never shows it). Accepted = Accepted+Replied+Unresponsive (OPPOSITE of mongodb). So a green check
+  validates the whole chain (mirror sync + BQ port) **against exactly what the dashboard displays**.
   The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
   `raw_snowflake.linkedin_ads_apac` mirror.
   - **Korea & RIG CS segments (2026-06-19)** — two checks for the client-defined lead segments. Unlike

@@ -427,6 +427,231 @@ def _fmt_dt(epoch):
         return ""
 
 
+# ─── Pipeline status + editable definitions (the merged-in Status dashboard) ───────────────
+# The status-export job writes gs://{_STATUS_BUCKET}/status.json (data-sync health + data-accuracy
+# checks per Snowflake-sourced client), and the LIVE single-source-of-truth definitions live at
+# definitions/<c>.json in the same bucket. The platform reads them to render the Overview health
+# badges + the Data Accuracy tab, stages an edit (definitions/<c>.staged.json) and triggers the
+# status-deploy job ("Make this live"). EDITING IS OPEN — anyone who can open a client may edit its
+# definitions; the only hard requirement is a typed NAME, recorded as last_edited_by (audit).
+_STATUS_BUCKET = "bidbrain-analytics-status-dash"
+_PLATFORM_BUCKET = os.environ.get("GCS_BUCKET", "")
+_STATUS_TTL = 30.0
+_status_cache = {"t": 0.0, "doc": None}
+_EDIT_ROLES = ("agency", "client", "admin", "superadmin")   # who may edit (one-line flip to restrict)
+
+
+def _gcs_bucket(name):
+    from google.cloud import storage
+    return storage.Client(project=PROJECT).bucket(name)
+
+
+def _status_doc():
+    """status.json (cached ~30s). Returns {} if missing/unreadable so the UI degrades gracefully."""
+    now = time.time()
+    if _status_cache["doc"] is not None and (now - _status_cache["t"]) < _STATUS_TTL:
+        return _status_cache["doc"]
+    doc = {}
+    try:
+        import json
+        blob = _gcs_bucket(_STATUS_BUCKET).blob("status.json")
+        if blob.exists():
+            doc = json.loads(blob.download_as_bytes())
+    except Exception:
+        app.logger.exception("status.json read failed")
+    _status_cache.update(t=now, doc=doc)
+    return doc
+
+
+def _read_definitions(client, staged=False):
+    """Live (or staged) definitions doc for a client, or None."""
+    import json
+    obj = f"definitions/{client}.{'staged.' if staged else ''}json"
+    blob = _gcs_bucket(_STATUS_BUCKET).blob(obj)
+    if not blob.exists():
+        return None
+    return json.loads(blob.download_as_bytes())
+
+
+def _has_definitions(client):
+    try:
+        return _gcs_bucket(_STATUS_BUCKET).blob(f"definitions/{client}.json").exists()
+    except Exception:
+        return False
+
+
+def _can_edit(client):
+    """Editing is OPEN: anyone who can OPEN the client may edit its definitions (the only hard gate
+    is a typed name). _may_open already encodes per-role visibility; _EDIT_ROLES is the broad knob."""
+    return session.get("kind") in _EDIT_ROLES and _may_open(client)
+
+
+def _run_status_deploy(client):
+    """RUN the status-deploy job with DEPLOY_CLIENT=<c> (Run Admin API v2 :run). Platform SA has
+    run.invoker on the job. RUNNING a job needs no actAs, so this works from the web tier."""
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    sess = AuthorizedSession(creds)
+    url = f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/jobs/status-deploy:run"
+    body = {"overrides": {"containerOverrides": [{"env": [{"name": "DEPLOY_CLIENT", "value": client}]}]}}
+    r = sess.post(url, json=body, timeout=60)
+    r.raise_for_status()
+
+
+def _append_audit(client, name, action):
+    """Append a who/when/what line to definitions/_audit/<c>.jsonl. Best-effort."""
+    import json
+    try:
+        blob = _gcs_bucket(_STATUS_BUCKET).blob(f"definitions/_audit/{client}.jsonl")
+        prev = blob.download_as_text() if blob.exists() else ""
+        line = json.dumps({"ts": int(time.time()), "client": client, "by": name, "action": action})
+        blob.upload_from_string(prev + line + "\n", content_type="application/json")
+    except Exception:
+        app.logger.exception("audit append failed")
+
+
+@app.get("/api/status")
+def api_status():
+    """status.json filtered to the clients this session may open, + per-client edit/definitions flags.
+    The Overview health badges and the Data Accuracy tab render from this."""
+    if session.get("kind") not in _EDIT_ROLES:
+        abort(403)
+    doc = _status_doc()
+    clients = [c for c in doc.get("clients", []) if _may_open(c.get("client", ""))]
+    flags = {c["client"]: {"can_edit": _can_edit(c["client"]), "has_definitions": _has_definitions(c["client"])}
+             for c in clients if c.get("client")}
+    return jsonify(generated_at=doc.get("generated_at"),
+                   tolerance_minutes=doc.get("tolerance_minutes"),
+                   clients=clients, flags=flags)
+
+
+@app.get("/logo/<client>")
+def client_logo(client):
+    """Stream a client's uploaded logo from the platform bucket (any logged-in session). 404 if none."""
+    if session.get("kind") not in _EDIT_ROLES:
+        abort(403)
+    try:
+        blob = _gcs_bucket(_PLATFORM_BUCKET).blob(f"logos/{client}")
+        if not blob.exists():
+            abort(404)
+        return Response(blob.download_as_bytes(), mimetype=blob.content_type or "image/png",
+                        headers={"Cache-Control": "private, max-age=300"})
+    except Exception:
+        abort(404)
+
+
+@app.post("/admin/api/client-logo")
+def api_client_logo():
+    """Upload/replace a client's logo (admin/super). Stored at logos/<client> in the platform bucket."""
+    _require_admin()
+    client = (request.form.get("client") or "").strip()
+    if client not in store._all_clients():
+        return jsonify(ok=False, error="Unknown client."), 404
+    f = request.files.get("logo")
+    if f is None:
+        return jsonify(ok=False, error="No file."), 400
+    data = f.read()
+    if len(data) > 2 * 1024 * 1024:
+        return jsonify(ok=False, error="Logo too large (max 2 MB)."), 413
+    ctype = f.mimetype or "image/png"
+    if not ctype.startswith("image/"):
+        return jsonify(ok=False, error="File must be an image."), 400
+    try:
+        _gcs_bucket(_PLATFORM_BUCKET).blob(f"logos/{client}").upload_from_string(data, content_type=ctype)
+    except Exception as e:
+        return jsonify(ok=False, error=f"Upload failed: {e}"), 500
+    return jsonify(ok=True)
+
+
+@app.get("/definitions/<client>")
+def get_definitions(client):
+    """The LIVE definitions doc for the editor (visibility-gated)."""
+    if not _may_open(client):
+        abort(403)
+    live = _read_definitions(client)
+    if live is None:
+        return jsonify(ok=False, error="This client has no editable definitions."), 404
+    return jsonify(ok=True, definitions=live, can_edit=_can_edit(client))
+
+
+@app.post("/definitions/<client>")
+def stage_definitions(client):
+    """Stage an edited definitions doc. Requires a typed NAME (recorded as last_edited_by). Carries
+    over the identity/seed-spec fields from the live doc so the editor can only change parameters."""
+    if not _can_edit(client):
+        abort(403)
+    d = request.get_json(silent=True) or {}
+    name = (d.get("name") or "").strip()
+    defs = d.get("definitions")
+    if not name:
+        return jsonify(ok=False, error="Your name is required — it is recorded as the editor."), 400
+    if not isinstance(defs, dict):
+        return jsonify(ok=False, error="Invalid definitions payload."), 400
+    live = _read_definitions(client) or {}
+    for k in ("client", "dataset", "source_table_snowflake", "mirror_table_bigquery",
+              "_seed_spec", "_smoke_views"):
+        if k in live and k not in defs:
+            defs[k] = live[k]
+    from datetime import datetime, timezone
+    defs["last_edited_by"] = name
+    defs["last_edited_at"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    try:
+        import json
+        _gcs_bucket(_STATUS_BUCKET).blob(f"definitions/{client}.staged.json").upload_from_string(
+            json.dumps(defs, indent=2), content_type="application/json")
+    except Exception as e:
+        return jsonify(ok=False, error=f"Could not stage: {e}"), 500
+    _append_audit(client, name, "staged")
+    return jsonify(ok=True, last_edited_by=name, last_edited_at=defs["last_edited_at"])
+
+
+@app.post("/deploy/<client>")
+def deploy_definitions(client):
+    """'Make this live' — trigger the status-deploy job to validate + seed + promote the staged doc
+    and rebuild the dashboards. Requires a staged doc (so a name was already captured)."""
+    if not _can_edit(client):
+        abort(403)
+    staged = _read_definitions(client, staged=True)
+    if staged is None:
+        return jsonify(ok=False, error="Nothing staged — save your edits first."), 400
+    try:
+        _run_status_deploy(client)
+    except Exception as e:
+        app.logger.exception("status-deploy trigger failed")
+        return jsonify(ok=False, error=f"Could not start the deploy: {e}"), 500
+    _append_audit(client, staged.get("last_edited_by", ""), "deploy-triggered")
+    return jsonify(ok=True)
+
+
+# The Snowflake-sourced clients whose export jobs "Sync all now" force-refreshes.
+_SYNC_EXPORT_JOBS = ["mongodb-export", "cloudflare-export", "stt-export",
+                     "hireright-export", "schneider-export", "proptrack-export"]
+
+
+@app.post("/sync-all")
+def sync_all():
+    """'Sync all dashboards now' (Overview) — force-rebuild every Snowflake client's export + the
+    status checks. Triggers each <c>-export + status-export (FORCE_REBUILD) via the Run Admin API
+    (platform SA needs run.invoker on them). Returns immediately; the dashboards rebuild over the
+    next few minutes and the Overview timestamps reset as each finishes."""
+    if session.get("kind") not in _EDIT_ROLES:
+        abort(403)
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+    creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    sess = AuthorizedSession(creds)
+    triggered, failed = [], []
+    for job in _SYNC_EXPORT_JOBS + ["status-export"]:
+        url = f"https://run.googleapis.com/v2/projects/{PROJECT}/locations/{REGION}/jobs/{job}:run"
+        body = {"overrides": {"containerOverrides": [{"env": [{"name": "FORCE_REBUILD", "value": "1"}]}]}}
+        try:
+            r = sess.post(url, json=body, timeout=30); r.raise_for_status(); triggered.append(job)
+        except Exception as e:   # noqa: BLE001
+            failed.append(job); app.logger.warning(f"sync-all: {job} failed: {e}")
+    return jsonify(ok=(not failed), triggered=triggered, failed=failed)
+
+
 # --- super-admin god-mode console ---------------------------------------------------------
 def _pw_candidates():
     """Documented seed plaintexts (config.py), used to self-heal a hash-only registry on first
