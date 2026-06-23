@@ -88,13 +88,16 @@ the client's exact lead definitions, redefined in `sql/10_salesforce_leads_live.
   (intentional overlap, accepted by the client). Live count **180** (167 accepted).
 
 The other five regions stay purely geographic. The redefinition leaves a small residual **`OTHER`**
-bucket (~42 leads — mostly Korea-from-Modernize-Security + a few mis-cased countries) that is NOT one of
-the dashboard's 7 market chips (`ALL_MARKETS`), so the dash excludes it automatically with **no
-total-vs-sum drift** (the `aggregate()` filter only ever sums `MARKET_REGION ∈ ALL_MARKETS`). The old
-`pacing_model` "Computer Games + Tier 2 → RIG" override was removed so RIG equals the exact client def.
-The reference DDL `snowflake_v_salesforce_leads_live.sql` (Cloudflare's own legacy R2 export, NOT our
-pipeline) keeps the OLD geographic logic — our BQ region logic now **diverges** from it.
-The **status dashboard** reproduces both numbers straight from Snowflake (Korea / RIG accuracy checks).
+bucket (~42 leads — mostly Korea-from-Modernize-Security + a few mis-cased / off-plan countries). As of
+**2026-06-23** `OTHER` is the **8th entry in the dash CS `ALL_MARKETS`** and renders as the **"Others"**
+market tab/chip (label only — the underlying `MARKET_REGION` stays `'OTHER'`), so CS totals are now
+**complete**: Accepted = **3328** (was 3309 when OTHER was dropped). It carries no Q2 target, so its
+By-region card shows only the QTD-Accepted bar. The old `pacing_model` "Computer Games + Tier 2 → RIG"
+override was removed so RIG equals the exact client def. The reference DDL
+`snowflake_v_salesforce_leads_live.sql` (Cloudflare's own legacy R2 export, NOT our pipeline) keeps the
+OLD geographic logic — our BQ region logic now **diverges** from it. The **status dashboard** reproduces
+KR / RIG / **Others** straight from Snowflake, and its core CS counts (Total / Accepted / Rejected / New)
+now query the raw 12-campaign universe with **no region filter** (so they include the OTHER residual too).
 **Pacing caveat:** RIG/KR target rows in the seed are still keyed by the old region names, so the RIG
 pacing % (actual-vs-target) compares the new asset-based RIG actuals against the legacy RIG target —
 the *counts* are exact, the pacing ratio is indicative until the client supplies segment-specific targets.

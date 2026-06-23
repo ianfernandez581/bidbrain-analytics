@@ -117,6 +117,32 @@ _CF_CS_NOTE = (" · Mutable source: cloudflare CS is now derived in BigQuery fro
                "raw_snowflake mirror (not the live Snowflake view), and Salesforce leads are "
                "continuously added / re-statused, so a small delta vs this live source query is "
                "normal mirror lag, not a pipeline fault — the Sync tab is the authority on health.")
+# The canonical 12 Content-Syndication campaign IDs (the filter that lives in
+# clients/client_cloudflare/sql/10_salesforce_leads_live.sql). The core CS counts query the RAW
+# Salesforce table with THIS filter and NO region filter, so they span every region INCLUDING the
+# ~42-lead OTHER residual (off-plan / mis-cased countries + Korea outside the 6 El* campaigns) —
+# i.e. they match the dashboard's full 12-campaign universe, not the old geographic V_PACING model.
+_CF_CS_12 = ("'701RG00001ElJZzYAN','701RG00001ElTu3YAF','701RG00001ElVXdYAN',"
+             "'701RG00001ElUoXYAV','701RG00001ElUa0YAF','701RG00001ElNYkYAN',"
+             "'701RG00001NJd6NYAT','701RG00001NIYRKYA5','701RG00001PXNyDYAX',"
+             "'701RG00001PWX5gYAH','701RG00001PXLpxYAH','701RG00001PXHnzYAH'")
+# The REGION_GRP CASE — verbatim from sql/10 — used by the OTHER-residual region check below.
+# RIG (asset-based, non-Korea) and KR (Korea on the 6 El*) are evaluated BEFORE the 5 geographic
+# buckets; everything the 7 named markets don't claim falls to OTHER.
+_CF_REGION_CASE = (
+    "    CASE\n"
+    "      WHEN COUNTRY_NAME <> 'Korea, Republic of' AND ASSET_2 IN ('A-MAM-2','A-MAM-3')\n"
+    "           AND CAMPAIGN_ID IN ('701RG00001ElUoXYAV','701RG00001ElUa0YAF','701RG00001ElNYkYAN') THEN 'RIG'\n"
+    "      WHEN COUNTRY_NAME = 'Korea, Republic of'\n"
+    "           AND CAMPAIGN_ID IN ('701RG00001ElJZzYAN','701RG00001ElTu3YAF','701RG00001ElVXdYAN',\n"
+    "                               '701RG00001ElUoXYAV','701RG00001ElUa0YAF','701RG00001ElNYkYAN') THEN 'KR'\n"
+    "      WHEN COUNTRY_NAME IN ('Australia','New Zealand') THEN 'ANZ'\n"
+    "      WHEN COUNTRY_NAME IN ('Singapore','Malaysia','Indonesia','Thailand','Philippines','Viet Nam','Vietnam') THEN 'ASEAN'\n"
+    "      WHEN COUNTRY_NAME = 'India' THEN 'SAARC'\n"
+    "      WHEN COUNTRY_NAME IN ('China','Taiwan','Hong Kong') THEN 'GCR'\n"
+    "      WHEN COUNTRY_NAME = 'Japan' THEN 'JP'\n"
+    "      ELSE 'OTHER'\n"
+    "    END AS REGION_GRP\n")
 # schneider CS reads the SAME shared, mutable Salesforce mirror (raw_snowflake.salesforce_cs_apac_all),
 # so the same mirror-lag caveat applies — the magnitude of any delta is the signal, the Sync tab the authority.
 _SCH_CS_NOTE = (" · Mutable source: schneider CS reads the BQ mirror of the shared Salesforce CS table "
@@ -348,51 +374,56 @@ CLIENTS = [
                     "WHERE CHANNEL = 'LINE';",
              "note": "vs sum of paid_media.rows[] clicks where channel = LINE."},
 
-            # --- Content Syndication (dummies excluded) ---------------------------
-            # SQL queries Snowflake V_PACING_FINAL_MODEL (independent source of truth); the dashboard
-            # now derives CS in BigQuery (pacing_model over the raw_snowflake mirror; the 12-ID campaign
-            # filter lives in sql/10_salesforce_leads_live.sql). CF map is the OPPOSITE of mongodb:
-            # Accepted = Accepted+Replied+Unresponsive.
+            # --- Content Syndication (ALL regions, incl. the OTHER residual) ------
+            # SQL goes STRAIGHT to the raw Salesforce table with the canonical 12-campaign filter and
+            # NO region filter, so it counts every region — INCLUDING the ~42-lead OTHER residual the
+            # dashboard now surfaces as the "Others" tab (2026-06-23). This replaces the old
+            # V_PACING_FINAL_MODEL query: V_PACING carries Cloudflare's legacy geographic model, so it is
+            # no longer our source of truth (the dashboard derives CS in BigQuery from the raw_snowflake
+            # mirror; the 12-ID filter lives in sql/10_salesforce_leads_live.sql). CF map is the OPPOSITE
+            # of mongodb: Accepted = Accepted+Replied+Unresponsive.
             {"label": "CS · Total leads", "kind": "count", "group": "Content Syndication",
              "dash": _cf_total_leads,
              "sql": "SELECT COUNT(*) AS total_leads\n"
-                    "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
-                    "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN (" + _CF_CS_12 + ")\n"
                     "  AND LEAD_STATUS IS NOT NULL;",
-             "note": "SQL = Snowflake source of truth (V_PACING, filtered to the canonical 12 CS IDs inside "
-                     "V_SALESFORCE_LEADS_LIVE); the dashboard derives the same in BigQuery (pacing_model, 12-ID "
-                     "filter in sql/10). Counts every non-null status (incl. New)." + _CF_CS_NOTE},
+             "note": "SQL = raw Salesforce source of truth, the canonical 12 CS campaign IDs (sql/10), every "
+                     "region incl. the OTHER residual. Counts every non-null status (incl. New). vs the count "
+                     "of all non-dummy pacing.rows[] (which also span every region)." + _CF_CS_NOTE},
             {"label": "CS · Accepted (Accepted+Replied+Unresponsive)", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"Accepted", "Replied", "Unresponsive"}),
              "sql": "SELECT COUNT(*) AS accepted_leads\n"
-                    "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
-                    "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN (" + _CF_CS_12 + ")\n"
                     "  AND LEAD_STATUS IN ('Accepted','Replied','Unresponsive');",
              "note": "Cloudflare's Accepted bucket = Accepted + Replied + Unresponsive (OPPOSITE of mongodb). "
-                     "vs the same count over pacing.rows[]." + _CF_CS_NOTE},
+                     "ALL regions incl. the OTHER residual (no region filter — the OTHER ~19 accepted are now "
+                     "counted, so this is 3328 not 3309). vs the same count over pacing.rows[]." + _CF_CS_NOTE},
             {"label": "CS · Rejected", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"Rejected"}),
              "sql": "SELECT COUNT(*) AS rejected_leads\n"
-                    "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
-                    "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN (" + _CF_CS_12 + ")\n"
                     "  AND LEAD_STATUS = 'Rejected';",
-             "note": "vs count of pacing.rows[] with LEAD_STATUS = 'Rejected'." + _CF_CS_NOTE},
+             "note": "vs count of pacing.rows[] with LEAD_STATUS = 'Rejected' (all regions)." + _CF_CS_NOTE},
             {"label": "CS · New / unprocessed", "kind": "count", "group": "Content Syndication",
              "dash": _cf_status({"New"}),
              "sql": "SELECT COUNT(*) AS new_leads\n"
-                    "FROM CLOUDFLARE_SANDBOX.CS_REPORTING.V_PACING_FINAL_MODEL\n"
-                    "WHERE (LEAD_ID_SF IS NULL OR LEAD_ID_SF NOT LIKE 'DUMMY%')\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN (" + _CF_CS_12 + ")\n"
                     "  AND LEAD_STATUS = 'New';",
              "note": "On the dash this is derived (total − accepted − rejected); checked here directly as "
-                     "LEAD_STATUS = 'New' over pacing.rows[]." + _CF_CS_NOTE},
+                     "LEAD_STATUS = 'New' over pacing.rows[] (all regions)." + _CF_CS_NOTE},
 
-            # --- CS client-defined segments: Korea & RIG (2026-06-19) -------------
-            # These two buckets are NOT geographic — they are the client's exact definitions, and the
-            # dashboard derives them in BigQuery (sql/10 REGION_GRP -> pacing_model MARKET_REGION='KR'/'RIG').
-            # The SQL goes STRAIGHT to the raw Snowflake source (the modelled V_PACING / V_SALESFORCE_LEADS_LIVE
-            # views still carry the OLD geographic logic, so they CANNOT verify these). The query IS the
-            # canonical definition: a green check proves the BQ view buckets == the source definition.
-            {"label": "Korea Leads · Total (KR bucket)", "kind": "count", "group": "Content Syndication — Korea & RIG",
+            # --- CS region buckets: Korea, RIG & the OTHER residual (2026-06-19 / 2026-06-23) --
+            # KR & RIG are NOT geographic — they are the client's exact definitions; OTHER is the
+            # geographic residual the dashboard now surfaces as the "Others" tab. The dashboard derives
+            # all three in BigQuery (sql/10 REGION_GRP -> pacing_model MARKET_REGION). The SQL goes
+            # STRAIGHT to the raw Snowflake source (the modelled V_PACING / V_SALESFORCE_LEADS_LIVE views
+            # carry the OLD geographic logic, so they CANNOT verify these). The query IS the canonical
+            # definition: a green check proves the BQ view buckets == the source definition.
+            {"label": "Korea Leads · Total (KR bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & Others",
              "dash": _cf_region("KR"),
              "sql": "SELECT COUNT(*) AS korea_leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
@@ -403,7 +434,7 @@ CLIENTS = [
                      "+ 3 Final Funnel) ONLY — Korea leads from the Connectivity-Cloud / Modernize campaigns are "
                      "EXCLUDED by definition. vs the count of pacing.rows[] with MARKET_REGION = 'KR' "
                      "(the dashboard's KR bucket)." + _CF_CS_NOTE},
-            {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea & RIG",
+            {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & Others",
              "dash": _cf_region("RIG"),
              "sql": "SELECT COUNT(*) AS rig_leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
@@ -414,6 +445,19 @@ CLIENTS = [
                      "Modernize-Applications asset; only A-MAM-3 has data today) AND the 3 Final Funnel campaigns. "
                      "Asset-based, so it spans all countries — it is the dashboard's RIG bucket (MARKET_REGION='RIG'), "
                      "evaluated before the geographic buckets. vs the count of pacing.rows[] with MARKET_REGION = 'RIG'." + _CF_CS_NOTE},
+            {"label": "Others · Total (OTHER residual bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & Others",
+             "dash": _cf_region("OTHER"),
+             "sql": "SELECT COUNT(*) AS other_leads\n"
+                    "FROM (\n"
+                    "  SELECT\n" + _CF_REGION_CASE +
+                    "  FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "  WHERE CAMPAIGN_ID IN (" + _CF_CS_12 + ")\n"
+                    ")\n"
+                    "WHERE REGION_GRP = 'OTHER';",
+             "note": "OTHER = the residual the 7 named markets don't claim: off-plan / mis-cased countries "
+                     "(e.g. China/Japan variants) + Korea leads OUTSIDE the 6 El* campaigns. Carries no Q2 target, "
+                     "so it used to silently drop out of the dash; surfaced as the 'Others' tab on 2026-06-23 so CS "
+                     "totals are complete. vs the count of pacing.rows[] with MARKET_REGION = 'OTHER'." + _CF_CS_NOTE},
 
             # --- Single-campaign LinkedIn dashboards (raw_snowflake mirror) --------
             # Each is its own dashboard, filtered by an exact CAMPAIGN_GROUP_NAME.

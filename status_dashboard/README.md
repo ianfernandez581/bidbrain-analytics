@@ -47,8 +47,8 @@ The headline case: when we're **caught up** and the data still looks old, the ve
 
 The accuracy tab now carries the **comprehensive** list of every important query that feeds each dashboard —
 **one check per source pull**, grouped by data domain (Trade Desk / LinkedIn / DV360 / GA4 / Content
-Syndication / single-campaign dashboards / "All paid channels"). **~76 checks across the 6 clients**
-(incl. cloudflare's Korea & RIG client-defined CS segments + CF1 Double-Touch CS lane, and schneider's
+Syndication / single-campaign dashboards / "All paid channels"). **~77 checks across the 6 clients**
+(incl. cloudflare's Korea / RIG / Others CS region buckets + CF1 Double-Touch CS lane, and schneider's
 per-program Content-Syndication leads — the latter two added 2026-06-22). Each
 was extracted from that client's `sql/` views + `job/main.py` + dashboard JS, and reproduces the SAME view
 filters (advertiser/account/campaign IDs, lead-status sets, singular-vs-plural columns) so the Snowflake
@@ -82,17 +82,23 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   now it reads the `raw_snowflake.*` mirrors like everyone else). The accuracy SQL still queries Snowflake's
   modelled views as the independent **source of truth** — paid media against
   `…PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL` (per channel: TTD/LinkedIn/Reddit/LINE; LinkedIn is the only
-  channel with leads), CS against `…CS_REPORTING.V_PACING_FINAL_MODEL` (Accepted = Accepted+Replied+
-  Unresponsive — OPPOSITE of mongodb) — so a green check validates the whole chain (mirror sync + BQ port).
+  channel with leads) — so a green check validates the whole chain (mirror sync + BQ port).
   The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
   `raw_snowflake.linkedin_ads_apac` mirror.
-  - **Korea & RIG CS segments (2026-06-19)** — two checks for the client-defined lead segments. Unlike
-    the other CS checks, their SQL goes **straight to the raw source** `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"`
-    (NOT the modelled `V_PACING`/`V_SALESFORCE_LEADS_LIVE`, which still carry the OLD geographic region
-    logic and therefore can't verify these). The query **is** the canonical definition — **Korea** =
-    Country `'Korea, Republic of'` + the 6 El\* campaigns (~164); **RIG** = non-Korea + `ASSET_2 IN
-    ('A-MAM-2','A-MAM-3')` (gaming Modernize-Apps asset; only `A-MAM-3` populated) + the 3 Final Funnel
-    campaigns (~180) — compared against the count of `pacing.rows[]` with `MARKET_REGION = 'KR'` / `'RIG'`.
+  - **Core CS counts (Total / Accepted / Rejected / New)** now query the **raw source**
+    `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` on the canonical **12-campaign filter** (sql/10) with
+    **NO region filter** — so they span every region **including the ~42-lead OTHER residual** (Accepted =
+    Accepted+Replied+Unresponsive, OPPOSITE of mongodb; **3328**, not 3309). This replaces the old
+    `…CS_REPORTING.V_PACING_FINAL_MODEL` query (V_PACING carries Cloudflare's legacy geographic model — no
+    longer our source of truth). Compared against the count over all non-dummy `pacing.rows[]`.
+  - **Korea / RIG / Others CS region buckets (2026-06-19 / Others added 2026-06-23)** — three checks for the
+    dashboard's special region buckets. Their SQL goes **straight to the raw source** (the modelled
+    `V_PACING`/`V_SALESFORCE_LEADS_LIVE` carry the OLD geographic region logic and can't verify these). The
+    query **is** the canonical definition — **Korea** = Country `'Korea, Republic of'` + the 6 El\* campaigns
+    (~164); **RIG** = non-Korea + `ASSET_2 IN ('A-MAM-2','A-MAM-3')` (gaming Modernize-Apps asset; only
+    `A-MAM-3` populated) + the 3 Final Funnel campaigns (~180); **Others** = the residual the 7 named markets
+    don't claim (off-plan / mis-cased countries + Korea outside the 6 El\*, ~42), now the dashboard's "Others"
+    tab. Compared against the count of `pacing.rows[]` with `MARKET_REGION = 'KR'` / `'RIG'` / `'OTHER'`.
     A green check proves the BQ view buckets equal the source definition.
   - **CF1 Double-Touch CS lane (2026-06-22)** — the "CF1 India" single-campaign view gained a `cs` block
     (Double Touch MQLs) from `sql/14_cf1_cs`. Four checks (Accepted / Rejected / New / Total) hit the **raw
