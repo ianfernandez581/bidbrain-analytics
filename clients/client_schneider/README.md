@@ -1,68 +1,67 @@
 # clients/client_schneider/ — Schneider Electric (APAC) · **live (deployed 2026-06-04)**
 
-> Schneider Electric's APAC paid-media portfolio (run via the agency **Transmission**), across
-> **DV360**, **The Trade Desk** and **LinkedIn**. Built on the [`client_STT`](../client_STT/README.md)
-> archetype: filter the shared raw layers to SE's slice, model it in BigQuery views, export one
-> JSON, serve it from a password-gated web app. Reporting currency **AUD**.
+> Schneider Electric's APAC **Content Syndication** programme (run via the agency **Transmission**) —
+> a [`client_mongodb`](../client_mongodb/README.md)-style dashboard scoped to the **5 Salesforce
+> lead-gen programs**. Filter the shared raw layers to SE's slice, model it in BigQuery views, export
+> one JSON, serve it from a password-gated web app. Reporting currency **AUD**.
 
-**Plain English:** Schneider runs a large, multi-campaign APAC programme (EcoStruxure Automation
-Expert, AI & Liquid Cooling, C&SP, Enterprise IT, Industries of the Future, Impact Maker, MEA
-Segment, …) across three ad platforms, mostly ANZ-weighted with India / SEA / MEA / South America
-/ Pacific spill. This dashboard puts plan **budget & targets** (from the media plans) next to live
-**spend & delivery** so stakeholders can see pacing, funnel and channel/geo performance per campaign.
+**Plain English:** Schneider runs lead-gen ("content syndication") for 5 programs — **Water &
+Environment, EBA, Heavy Industries, Global Rebrand, AirSeT** — backed by 9 Salesforce campaigns. This
+dashboard (modelled on MongoDB's) shows, per program: live **Salesforce leads vs the media-plan MQL+HQL
+target** (Content Syndication tab), the **DV360 / Trade Desk / LinkedIn paid delivery** behind them
+(Paid Media tab), and a **market-vs-market comparison** (CS Comparison tab).
 
-**Status:** 🟢 **Live on GCP (stood up 2026-06-04; PACIFIC carve-out 2026-06-16).** All 28 views,
-`schneider.json`, the `schneider-export` job and the `schneider-dash` service are deployed; the `*/10`
-self-gating scheduler is running. [`deploy_schneider.ps1`](deploy_schneider.ps1) was the one-shot
-stand-up and stays idempotent for a rebuild from scratch. GA4 (website) ships **disabled** until the
-SE GA4 property id(s) are known. Seeded plan budgets cover 12 of the 27 mapped campaigns; the rest are
-TODO (see [`INTAKE.md`](INTAKE.md)).
+**Status:** 🟢 **Live on GCP.** Restructured **2026-06-22** into a **3-tab mongodb clone** (Paid Media ·
+Content Syndication · CS Comparison) **scoped to the 5 lead-gen programs** — the earlier 6-tab Pacific
+paid-media dashboard is superseded. 27 BigQuery views + 7 CSV-loaded `seed_*` tables; `schneider.json`,
+the `schneider-export` job and `schneider-dash` service deployed; the `*/10` self-gating scheduler runs.
+Salesforce leads are **CRM-raw** (all status `New` — the CRM hasn't graded MQL/SQL/HQL yet), so the CS
+tab shows total leads vs target, not "MQLs achieved". Targets/CPL come from the media plan
+(`data/media_plan.csv`); see [`INTAKE.md`](INTAKE.md) for the client-flagged discrepancies (EBA MQL 157
+vs old 300, W&E/Heavy/EBA budgets, NEL added).
 
-## 🌏 Pacific carve-out (the default view) — 2026-06-16
-Per Transmission (Gabby O'Driscoll), the dashboard now **defaults to the SE *Pacific* book of work**,
-kept COMPLETELY SEPARATE from the rest of APAC. `sql/30_seed_campaign_map.sql` carries a **`portfolio`**
-column (`'Pacific'` | `'APAC-other'`); the dash has a **Portfolio toggle (Pacific / APAC-other / All)**
-defaulting to Pacific. **This is the ORGANISATIONAL Pacific** (the client's named program list) — *not*
-the geographic Pacific region chip on the Geography tab (Fiji/PNG/… parsed from campaign names), which
-is deliberately **left untouched**. The 3 explicit excludes (AI & Liquid Cooling, Enterprise IT
-Expansion, C&SP) are `'APAC-other'`. Newly mapped from the Phase-1 EDA: **AirSeT** (job 2223) and **EBA
-/ EcoStruxure Building Activate** (job 2079) — EBA split into its own row out of `eae` (Automation
-Expert) with the 300-opt-in-MQL target moved onto it. Job numbers corrected from the client Drive
-(water_env 2026, mcset 2389, ind_edge 2463, eae 1974, ia_services 2280, heavy 2281, ecoconsult 2279).
-**Full EDA, reconciliation table, the architecture decision (A: tag+toggle, one deployment) and the
-open NEEDS-CONFIRMATION questions are in [`_eda/pacific_eda.md`](_eda/pacific_eda.md)** — read that
-before changing portfolio tags. Flip candidates flagged in the seed comments: `ind_edge` /
-`pac_hybrid_it` (geo-"Pacific"-named, tagged APAC-other), `ecocare`≡"EcoCare BMS", `enterprise_software`.
+## Data model (mongodb concept → Schneider source)
+- **Campaign** (single-select seg) = the 5 programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`).
+- **Programme** (the CS breakdown) = the Salesforce `pillar_label` (9), from `seed_salesforce_map`.
+- **Market / Region chips** = normalized `COUNTRY_NAME` (Australia / New Zealand / ANZ / Other).
+- **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
+  lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from `seed_plan_budget`.
+- **Scoped to the 5:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5)`; the CS views read only the
+  9 SF ids via `seed_salesforce_map`. The old Pacific `portfolio` toggle and the other ~20 APAC programs
+  are **gone from the dashboard** — the seed tables still carry them for the `match_pattern` tagging.
+  (Historical Pacific-carve-out EDA: [`_eda/pacific_eda.md`](_eda/pacific_eda.md).)
 
 ---
 
 ## What's different from STT (the archetype)
-- **Three platforms, all programmatic/social** (DV360 + TradeDesk + LinkedIn) — **no GA4 website
-  layer yet**, **no Google Ads / Reddit / Salesforce** (Schneider has no rows there).
-- **Reporting currency AUD.** USD→AUD @1.50, SGD→AUD @1.15 (placeholders — confirm). LinkedIn has
-  no currency column, so its currency is inferred from the account-name suffix (`_USD`/`_AUD`/`_SGD`).
-- **Plan vs actual is the story**, not ads→traffic. The dashboard is driven by **seed tables**
-  (campaign map / budget / flighting / targets / channel split) joined to live delivery by a
-  `match_pattern` CONTAINS bridge — see [`sql/30_seed_campaign_map.sql`](sql/30_seed_campaign_map.sql).
-- **GA4 shipped disabled** behind a property-id placeholder + `GA4_ENABLED` flag in the job.
+- **It's a [`client_mongodb`](../client_mongodb/) clone, not the STT layout** — 3 tabs, a single-select
+  Campaign control, Region chips + a date picker, scoped to the 5 lead-gen programs (Schneider skin —
+  the mongodb *layout*, Schneider's green/dark theme + logo).
+- **Three ad platforms** (DV360 + TradeDesk + LinkedIn), AUD (USD→AUD @1.50, SGD→AUD @1.15 placeholders;
+  LinkedIn currency inferred from the `_USD`/`_AUD`/`_SGD` account suffix). **No GA4 website tab** in the
+  clone (the `40–46 ga4_*` views still apply but are unused by the job).
+- **Salesforce Content Syndication is the focus**: `stg_salesforce` + `cs_by_programme` / `cs_weekly`
+  (`sql/17–19`) read SE's 9 SF campaigns via `seed_salesforce_map`; `pm_delivery` (`sql/20`) tags paid
+  delivery to its program via the `match_pattern` join (replicating the old client-side `idOf` in SQL,
+  first-match-wins by `seq`), scoped to the 5.
+- **Seeds are CSV-loaded** from [`data/`](data/) via [`load_seeds.py`](load_seeds.py) into `seed_*` tables.
 
-## The 5 dashboard tabs (`dash/dashboard.html`)
-Filters: **Platform** · **Objective** · **Campaign** (internal, searchable multi-select) · **Region**
-(Geography tab). Persona / vertical / account / funnel-stage filters are stubs for a later seed-backed pass.
+## The 3 dashboard tabs (`dash/dashboard.html`)
+Filters (global): **Campaign** (the 5 programs, single-select seg) · **Region** chips · **Date range**.
+Default tab = **Content Syndication**, default campaign = the one with most leads (EBA today).
 
-1. **Portfolio Overview** — one card per internal campaign (objective, region, budget vs spend + %
-   consumed, pacing vs flight-elapsed, KPI-vs-target where set), portfolio rollups, and a flight-window
-   **Gantt** so overlapping flights (cannibalisation risk) are visible.
-2. **Spend & Pacing** — plan budget vs actual by campaign/platform, cumulative-spend pacing, the
-   budget-basis (incl/ex fees) label, and the approved **2306 channel split** (Search & Reddit flagged
-   "planned, no warehouse delivery").
-3. **Delivery & Funnel** — Impressions → Clicks (CTR/CPC) → Video (VCR, LinkedIn) → Conversions/Leads,
-   with each campaign's primary KPI.
-4. **Channel Comparison** — DV360 vs TradeDesk vs LinkedIn (CTR/CPC/CPM/VCR) + awareness-vs-RT split.
-5. **Geography** — region split + the AU/NZ split within ANZ + region×platform.
-
-Data-readiness chips make missing lanes explicit (Website/GA4 "awaiting property id"; Leads/ABM
-"manual feed, not yet wired"; Search & Reddit "no platform delivery").
+1. **Paid Media** — for the selected program: KPI snapshot (spend / imps / clicks / blended CPC), a
+   **platform comparison** table (DV360 / TTD / LinkedIn), a daily delivery chart (Month/Week/Day +
+   Relative/Absolute toggles), spend-by-platform + spend-by-market, a market table, and the **Flight
+   windows across the portfolio** Gantt. Heavy / Global Rebrand have no paid delivery yet (leads-only) —
+   the tab says so rather than showing zeros.
+2. **Content Syndication** — Salesforce leads vs the media-plan **MQL+HQL** target: the snapshot strip
+   (Overall / Pacing / Delivery / Outlook), the **Plan-CPL** banner, **Leads-vs-target** + **Progress**
+   panels, a **Weekly pacing** chart (real dated weekly leads vs the even target pace), **Leads-by-market**
+   + **Leads-by-programme** doughnuts, a by-market summary, and a programme × market table. Leads are
+   **CRM-raw** (`New`) — total leads vs target, not "MQLs achieved".
+3. **CS Comparison** — pick two markets (e.g. Australia vs New Zealand) for the selected program and
+   compare lead volume, share, programme mix and weekly pacing side by side.
 
 ## How it works (3 stages — same shape as every client)
 ```
@@ -77,8 +76,9 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | What to change | Edit | Stage |
 |---|---|---|
 | SE filter / FX rate | `sql/01_stg_dv360.sql` · `02_stg_linkedin.sql` · `03_stg_tradedesk.sql` (+ `05_kpi.sql`) | 2 |
-| Campaign map / budget / targets / flighting / channel split | `sql/30–34_seed_*.sql` | 2 |
-| Enable GA4 | set property id(s) in `sql/40_stg_ga4.sql` (+ `46_`), `GA4_ENABLED=True` in `job/main.py` | 2 |
+| Campaign map / budgets / targets / flighting / channel split / media plan / salesforce map | `data/*.csv` → re-run `load_seeds.py` | 2 |
+| CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
+| Which 5 programs are in scope | `data/salesforce_map.csv` (the 9 SF ids) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
 | Login / how JSON is served | `dash/main.py` (rarely) | 3 |
@@ -86,18 +86,29 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 ## Deploy / refresh (copy-paste, PowerShell)
 Project `bidbrain-analytics`, region `australia-southeast1`. **First-time stand-up:** run
 [`deploy_schneider.ps1`](deploy_schneider.ps1) once (idempotent — bucket, dataset, SAs, IAM, secrets,
-both Cloud Run units, scheduler). Note `deploy_schneider.ps1` seeds the scheduler at a fixed daily
-cron; [`scheduler.ps1`](scheduler.ps1) flips it to the binding `*/10` self-gating cadence (the live
-schedule). After that:
+both Cloud Run units, scheduler; its step [5/7] now loads the seed CSVs before applying the views).
+Note `deploy_schneider.ps1` seeds the scheduler at a fixed daily cron; [`scheduler.ps1`](scheduler.ps1)
+flips it to the binding `*/10` self-gating cadence (the live schedule). **Prefer the per-stage scripts**
+— [`deploy_seeds_schneider.ps1`](deploy_seeds_schneider.ps1) (edited `data/*.csv`),
+[`sql/deploy_views_schneider.ps1`](sql/deploy_views_schneider.ps1) (edited a view — loads seeds first),
+[`job/deploy_job_schneider.ps1`](job/deploy_job_schneider.ps1) (edited `job/main.py`),
+[`dash/deploy_dash_schneider.ps1`](dash/deploy_dash_schneider.ps1) (edited the dashboard). The raw
+commands each wraps:
 
 ```powershell
+# ⓪ edited a seed CSV (data/*.csv) — reload the seed_* tables, then re-run the job (FORCE_REBUILD,
+#    because seeds are NOT an upstream the freshness gate watches). load_seeds.py runs BEFORE views.
+.\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py
+gcloud run jobs execute schneider-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+
 # ① refresh data now (scheduler schneider-export-daily runs */10 UTC, self-gating)
-.\.venv\Scripts\python.exe snowflake_data_pull\loader.py            # optional: refresh shared raw layer
+.\.venv\Scripts\python.exe ingest\snowflake_data_pull\loader.py     # optional: refresh shared raw layer
 gcloud run jobs execute schneider-export --region australia-southeast1 --wait
 
-# ② edited a view (sql/*.sql) — apply, then re-run the job
-.\.venv\Scripts\python.exe client_schneider\create_views.py
-gcloud run jobs execute schneider-export --region australia-southeast1 --wait
+# ② edited a view (sql/*.sql) — load seeds (stg_salesforce needs seed_salesforce_map), apply, re-run
+.\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py
+.\.venv\Scripts\python.exe clients\client_schneider\create_views.py
+gcloud run jobs execute schneider-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 
 # ③ edited job/main.py (JSON shape) — build, deploy, run
 $IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/schneider-export:$(git rev-parse --short HEAD)"
@@ -118,7 +129,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_schneider` (26 views) |
+| BigQuery dataset | `client_schneider` (27 views + 7 CSV-loaded `seed_*` tables) |
 | Data bucket / object | `bidbrain-analytics-schneider-dash` / `schneider.json` |
 | Export job | `schneider-export` (runtime SA `schneider-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `schneider-dash` (runtime SA `schneider-dash-web@…`) → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
@@ -127,8 +138,10 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | Domain (later) | `schneider.bidbrain.ai` (CNAME + Host Header Override, wired later) |
 
 ## Files
-- [`sql/`](sql/README.md) — the 26 BigQuery views (filter + model + seeds + disabled GA4).
-- [`job/`](job/README.md) — the export job (stage 2): views → `schneider.json`.
+- [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
+  channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
+- [`sql/`](sql/README.md) — the 27 BigQuery views (filter + CS leads + paid delivery + unused GA4).
+- [`job/`](job/README.md) — the export job (stage 2): views + seed tables → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.
 

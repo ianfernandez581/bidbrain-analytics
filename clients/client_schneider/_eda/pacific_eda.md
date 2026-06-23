@@ -228,7 +228,7 @@ All)** defaulting to Pacific. One pipeline, one dataset/bucket/service/URL/passw
 
 Why A over B (separate `client_schneider_pacific` deployment):
 - **Lowest effort, fully reversible** — it's a `portfolio` column carried through the 3-file contract
-  (`30_seed_campaign_map.sql` → `job/main.py` seed dict → `dashboard.html` META + default filter) plus a
+  (`data/campaign_map.csv`, loaded by `load_seeds.py` → `job/main.py` seed dict → `dashboard.html` META + default filter) plus a
   toggle. No new dataset, bucket, Cloud Run service, SA, IAM, secret, scheduler, or domain.
 - **The data is one slice.** All three platforms are filtered to the *same* SE advertiser; Pacific is a
   re-grouping of the same 174 campaigns, not a different data source. B would clone the entire pipeline to

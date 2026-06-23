@@ -8,8 +8,10 @@
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 #
-#   Uses gcloud + bq + git only. Your .venv is only needed to (re)apply the SQL views, which this
-#   script does via `bq query` so the .venv isn't required here.
+#   Uses gcloud + bq + git, AND the repo .venv: step [5/7] now loads the human-editable seed CSVs
+#   in data/ into BigQuery seed_* TABLES via load_seeds.py (the BigQuery Python client) BEFORE
+#   applying sql/*.sql, because the stg_salesforce / lead_* views read the seed_salesforce_map table.
+#   The views themselves are still applied with `bq query`.
 #
 #   Like client_STT, Schneider's job is read-only on BigQuery and reads the shared raw layers
 #   directly (no Snowflake connection, no src_* landing, no bootstrap-first-failure). So:
@@ -111,8 +113,15 @@ try { $SHA = (& git rev-parse --short HEAD 2>$null) } catch { $SHA = $null }
 if (-not $SHA -or $LASTEXITCODE -ne 0) { $SHA = "manual-$(Get-Date -Format 'yyyyMMddHHmmss')" }
 $SHA = "$SHA".Trim()
 
-# ---- 5. Views + export job --------------------------------------------------
-Write-Host "[5/7] Applying views + building/deploying the export job ..."
+# ---- 5. Seeds + views + export job ------------------------------------------
+Write-Host "[5/7] Loading seed CSVs + applying views + building/deploying the export job ..."
+# 5a. Load data/*.csv -> seed_* TABLES (must precede the views: stg_salesforce reads seed_salesforce_map).
+#     load_seeds.py auto-migrates any pre-existing seed_* VIEW (old sql/30-34) to a table.
+$PYTHON = ".\.venv\Scripts\python.exe"
+if (-not (Test-Path $PYTHON)) { Die "repo venv python not found at $PYTHON (run scripts\setup.ps1 first)" }
+Write-Host "     loading data/*.csv -> seed_* tables via load_seeds.py"
+& $PYTHON 'clients/client_schneider/load_seeds.py'; Must "load seeds"
+# 5b. Apply the SQL views in filename order (NN_ prefix enforces dependency order).
 $sqlFiles = Get-ChildItem 'clients/client_schneider/sql' -Filter '*.sql' | Sort-Object Name
 foreach ($sf in $sqlFiles) {
   Write-Host "     applying $($sf.Name)"

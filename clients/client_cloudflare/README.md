@@ -123,7 +123,8 @@ the *counts* are exact, the pacing ratio is indicative until the client supplies
   },
   "campaigns": {
     "peyc":        { "label","campaign_group","window","totals","daily":[…],"by_campaign":[…] },
-    "cf1_india":   { … },
+    "cf1_india":   { …same…, "cs": { "target":110,"metric","accepted","rejected","new","total",
+                                      "reviewed","data_through","by_publisher":[…],"by_region":[…],"daily":[…] } },
     "coles_hyper": { … }
   }
 }
@@ -141,7 +142,17 @@ token must be in `PM_MARKET_REMAP` or the row falls outside the 7 L1 buckets and
 drops. `campaigns`
 powers the three single-campaign LinkedIn dashboards selectable in the top-bar
 dropdown (read from the shared `raw_snowflake.linkedin_ads_apac` mirror, not from
-Snowflake directly). `data_through` is the newest source `LAST_ALTERED` (true
+Snowflake directly). **CF1 also carries a content-syndication lane** (`campaigns.cf1_india.cs`,
+from `sql/14_cf1_cs`): "Double Touch MQLs" vs a **110 target** — accepted/rejected, by
+publisher/region, and a cumulative-delivery line keyed on the lead `DAY`. It's the 2 CF1
+CS campaign IDs (vendors→CaptureIQ→Integrate→Salesforce; also in the core 12-ID filter, but
+this is a separate CF1-scoped view). In the UI the CF1 single-campaign view is split into two
+**tabs** (`#cmpTabs`, mirroring the Core dashboard's tab pattern): **LinkedIn Paid Media**
+(`#cmpLI`, default) and **Content Syndication** (`#cmpCS`). `setupCmpTabs()` shows the tab bar
+only when a campaign has a `cs` block — peyc/coles_hyper have none, so they stay a single
+LinkedIn view with no tabs. `switchCmpTab()` toggles the panels and `.resize()`s the charts
+(Chart.js can't size a canvas created while `display:none`). Target is the one knob
+(`CF1_CS_TARGET` in `job/main.py`). `data_through` is the newest source `LAST_ALTERED` (true
 data instant); `last_updated` is the build time. See `dash/DASHBOARD.md`.
 
 **Channel / market labels must match the dashboard:** `benchmarks` keys must be

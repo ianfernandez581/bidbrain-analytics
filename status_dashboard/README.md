@@ -47,8 +47,9 @@ The headline case: when we're **caught up** and the data still looks old, the ve
 
 The accuracy tab now carries the **comprehensive** list of every important query that feeds each dashboard —
 **one check per source pull**, grouped by data domain (Trade Desk / LinkedIn / DV360 / GA4 / Content
-Syndication / single-campaign dashboards / "All paid channels"). **~79 checks across the 6 clients**
-(incl. cloudflare's Korea & RIG client-defined CS segments, 2026-06-19). Each
+Syndication / single-campaign dashboards / "All paid channels"). **~76 checks across the 6 clients**
+(incl. cloudflare's Korea & RIG client-defined CS segments + CF1 Double-Touch CS lane, and schneider's
+per-program Content-Syndication leads — the latter two added 2026-06-22). Each
 was extracted from that client's `sql/` views + `job/main.py` + dashboard JS, and reproduces the SAME view
 filters (advertiser/account/campaign IDs, lead-status sets, singular-vs-plural columns) so the Snowflake
 query is a true like-for-like. Each card shows an `n/n match` summary in its header. Principles:
@@ -93,13 +94,29 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
     ('A-MAM-2','A-MAM-3')` (gaming Modernize-Apps asset; only `A-MAM-3` populated) + the 3 Final Funnel
     campaigns (~180) — compared against the count of `pacing.rows[]` with `MARKET_REGION = 'KR'` / `'RIG'`.
     A green check proves the BQ view buckets equal the source definition.
+  - **CF1 Double-Touch CS lane (2026-06-22)** — the "CF1 India" single-campaign view gained a `cs` block
+    (Double Touch MQLs) from `sql/14_cf1_cs`. Four checks (Accepted / Rejected / New / Total) hit the **raw
+    source** `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` on the 2 CF1 CS campaign IDs
+    (`701RG00001NJd6NYAT` / `701RG00001NIYRKYA5`) — the same IDs are also in the core 12-campaign filter, but
+    this is a separate CF1-scoped lane. **Accepted** = the delivered double-touch MQL count (vs the 110
+    target); the client's headline **Total** = New + Accepted (excludes Rejected, so NOT `COUNT(*)`).
+    Compared against `campaigns.cf1_india.cs.*`.
 - **proptrack** TradeDesk impressions come from the **singular** `IMPRESSION` column (plural is NULL for that
   advertiser) while LinkedIn uses the plural `IMPRESSIONS`; the advertiser is spelled **`PopTrack`** on
   TradeDesk vs **`PropTrack`** on LinkedIn — the blended-impressions check mixes both columns deliberately.
-- **schneider** only its **ACTUAL** delivery is Snowflake-checkable; the plan/budget/target numbers
-  (`seed_*` tables) and the Pacific portfolio tag are seed-side and have no Snowflake source. TradeDesk imps
-  use `COALESCE(IMPRESSIONS, IMPRESSION)`; blended conversions key is `kpi.ad_conversions` (DV360 + TradeDesk;
-  LinkedIn's outcome is leads).
+- **schneider** **RESTRUCTURED 2026-06-22** from a 6-tab Pacific paid-media dashboard into a
+  `client_mongodb`-style Content-Syndication clone scoped to 5 lead-gen programs — so the old `kpi.*`
+  delivery checks are GONE (the block no longer exists) and the accuracy tab now checks **Content
+  Syndication leads per program**: one check per program (water_env / eba / heavy / global_rebrand / airset)
+  plus a combined total, each hitting the **raw source** `Salesforce_CS_APAC_ALL` on that program's SF
+  campaign IDs (`data/salesforce_map.csv`) and **reproducing the view's flight clamp** (`TO_DATE(DAY)` within
+  each program's `seed_plan_budget` flight from `data/plan_budget.csv`) so it's an exact like-for-like — e.g.
+  the clamp drops EBA's ~4 pre-flight spillover leads, matching the dashboard's 46 not 50. **Paid delivery
+  (`pm_delivery`) is intentionally NOT equality-checked**: it's now seed-scoped via `seed_campaign_map`'s
+  match_pattern first-match-wins join, which has no independent Snowflake definition to compare against.
+  DV360 / LinkedIn / TradeDesk stay in `sources` (and `Salesforce_CS_APAC_ALL` is added) so the **Sync tab**
+  still tracks every upstream the dashboard reads. **Flight-bound maintenance:** the hardcoded flight dates
+  mirror `data/plan_budget.csv` — if the client changes a flight, update the dates in the schneider checks.
 
 Clients covered (Snowflake-sourced): **mongodb, cloudflare, stt, hireright, schneider, proptrack**.
 (cityperfume + resetdata + tlm + vmch read Windsor/GA4/Neto/Google-Ads natively — no Snowflake source to

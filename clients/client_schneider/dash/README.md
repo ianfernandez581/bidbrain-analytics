@@ -8,7 +8,7 @@ proxies the private `schneider.json` from GCS at `/data.json`. All charts/tabs/b
 | File | What it is |
 |---|---|
 | `main.py` | Flask app: login gate (byte-for-byte the proven `client_STT` auth/serve/proxy logic), Schneider-branded login page, serves `dashboard.html` + `/data.json`. |
-| `dashboard.html` | The dashboard UI — 5 tabs (Portfolio Overview · Spend & Pacing · Delivery & Funnel · Channel Comparison · Geography), Chart.js, Schneider green palette, the searchable internal-Campaign dropdown, CSV export. Reads `/data.json`. |
+| `dashboard.html` | The dashboard UI — a [`client_mongodb`](../../client_mongodb/)-clone **3 tabs** (Paid Media · **Content Syndication** · CS Comparison), single-select Campaign seg (the 5 lead-gen programs) + Region chips + date picker, Chart.js, Schneider green palette, CSV export. Reads `/data.json`. |
 | `requirements.txt` | `Flask`, `gunicorn`, `google-cloud-storage`. |
 | `Dockerfile` | `python:3.12-slim`, non-root, gunicorn. |
 | `cloudbuild.yaml` | Build → push → `run deploy` → `--no-invoker-iam-check` (future trigger). |

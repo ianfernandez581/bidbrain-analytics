@@ -117,6 +117,11 @@ _CF_CS_NOTE = (" · Mutable source: cloudflare CS is now derived in BigQuery fro
                "raw_snowflake mirror (not the live Snowflake view), and Salesforce leads are "
                "continuously added / re-statused, so a small delta vs this live source query is "
                "normal mirror lag, not a pipeline fault — the Sync tab is the authority on health.")
+# schneider CS reads the SAME shared, mutable Salesforce mirror (raw_snowflake.salesforce_cs_apac_all),
+# so the same mirror-lag caveat applies — the magnitude of any delta is the signal, the Sync tab the authority.
+_SCH_CS_NOTE = (" · Mutable source: schneider CS reads the BQ mirror of the shared Salesforce CS table "
+                "(leads continuously added / re-statused), so a small delta vs this live source query is "
+                "normal mirror lag, not a pipeline fault — the Sync tab is the authority on health.")
 
 
 # --- cloudflare dash-side extractors -----------------------------------------
@@ -152,6 +157,27 @@ def _cf_region(region):
 # Single-campaign LinkedIn dashboards: campaigns.<key>.totals.<field>.
 def _cf_camp(key, field):
     return lambda d: _num(d.get("campaigns", {}).get(key, {}).get("totals", {}).get(field))
+
+
+# CF1 content-syndication lane (2026-06-22): campaigns.cf1_india.cs.<field> — the "Double Touch"
+# MQL block from sql/14_cf1_cs (the 2 CF1 CS campaign IDs). Lives UNDER the cf1_india campaign (not
+# .totals), separate from the LinkedIn paid-media totals that _cf_camp reads.
+def _cf_cf1cs(field):
+    return lambda d: _num(d.get("campaigns", {}).get("cf1_india", {}).get("cs", {}).get(field))
+
+
+# --- schneider dash-side extractors ------------------------------------------
+# RESTRUCTURED 2026-06-22: schneider became a client_mongodb-style Content-Syndication clone scoped to
+# 5 lead-gen programs (the 9 SF campaign IDs in data/salesforce_map.csv). The old kpi.* delivery block
+# is GONE — leads now live in cs_by_programme[] (campaign = internal program id; total = SUM(leads) per
+# program × programme × market). A program's dashboard lead count = sum of cs_by_programme[].total for it.
+def _sch_cs_camp(program):
+    return lambda d: sum(_num(r.get("total")) for r in d.get("cs_by_programme", [])
+                         if r.get("campaign") == program)
+
+
+def _sch_cs_total(d):
+    return sum(_num(r.get("total")) for r in d.get("cs_by_programme", []))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -434,6 +460,49 @@ CLIENTS = [
                     "WHERE CAMPAIGN_GROUP_NAME = 'CLOUD_ACQ_2026-Q2_MDS_LINKEDIN_GENERAL_SI_"
                     "APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_Hyper_COLES';",
              "note": "vs campaigns.coles_hyper.totals.leads."},
+
+            # --- CF1 Content-Syndication lane: "Double Touch" MQLs (2026-06-22) ---
+            # The CF1 India single-campaign view gained a `cs` block (sql/14_cf1_cs over the raw_snowflake
+            # mirror) mirroring the client's exact query against a 110 Double-Touch-MQL target. The 2 CF1
+            # CS campaign IDs are ALSO in the core 12-campaign filter, but this is a SEPARATE CF1-scoped
+            # lane. Every lead in these 2 campaigns is a double-touch lead, so ACCEPTED is the delivered
+            # double-touch MQL count. SQL goes STRAIGHT to the raw source (no asset filter needed).
+            {"label": "CF1 CS · Accepted (delivered Double Touch MQLs)", "kind": "count",
+             "group": "Content Syndication — CF1 (Double Touch)",
+             "dash": _cf_cf1cs("accepted"),
+             "sql": "SELECT COUNT(*) AS cf1_cs_accepted\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001NJd6NYAT','701RG00001NIYRKYA5')\n"
+                    "  AND LEAD_STATUS = 'Accepted';",
+             "note": "CF1's 2 Double-Touch CS campaigns (Roverpath + Final Funnel, Connectivity Cloud). "
+                     "Accepted = the delivered double-touch MQL count (counts toward the 110 target). "
+                     "vs campaigns.cf1_india.cs.accepted." + _CF_CS_NOTE},
+            {"label": "CF1 CS · Rejected", "kind": "count",
+             "group": "Content Syndication — CF1 (Double Touch)",
+             "dash": _cf_cf1cs("rejected"),
+             "sql": "SELECT COUNT(*) AS cf1_cs_rejected\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001NJd6NYAT','701RG00001NIYRKYA5')\n"
+                    "  AND LEAD_STATUS = 'Rejected';",
+             "note": "vs campaigns.cf1_india.cs.rejected." + _CF_CS_NOTE},
+            {"label": "CF1 CS · New", "kind": "count",
+             "group": "Content Syndication — CF1 (Double Touch)",
+             "dash": _cf_cf1cs("new"),
+             "sql": "SELECT COUNT(*) AS cf1_cs_new\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001NJd6NYAT','701RG00001NIYRKYA5')\n"
+                    "  AND LEAD_STATUS = 'New';",
+             "note": "Today the 2 campaigns carry only Accepted/Rejected, so New is normally 0 (kept for "
+                     "forward-compat). vs campaigns.cf1_india.cs.new." + _CF_CS_NOTE},
+            {"label": "CF1 CS · Total leads (New + Accepted)", "kind": "count",
+             "group": "Content Syndication — CF1 (Double Touch)",
+             "dash": _cf_cf1cs("total"),
+             "sql": "SELECT COUNT(*) AS cf1_cs_total\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001NJd6NYAT','701RG00001NIYRKYA5')\n"
+                    "  AND LEAD_STATUS IN ('New','Accepted');",
+             "note": "The client's headline 'Total Leads' = New + Accepted (deliberately NOT COUNT(*) — it "
+                     "excludes Rejected). vs campaigns.cf1_india.cs.total." + _CF_CS_NOTE},
         ],
     },
     {
@@ -634,107 +703,93 @@ CLIENTS = [
     },
     {
         "client": "schneider", "label": "Schneider Electric APAC", "url": "https://schneider.bidbrain.ai",
-        "sources": ["DV360 - APAC", "LinkedIn Ads - APAC", "TradeDesk_APAC ALL"],
+        "sources": ["DV360 - APAC", "LinkedIn Ads - APAC", "TradeDesk_APAC ALL",
+                    "Salesforce_CS_APAC_ALL"],
         "reads_direct": False,
         "checks": [
-            # NB only ACTUAL delivery is Snowflake-checkable. The plan/budget/target
-            # numbers (seed_* tables) and the Pacific portfolio tag are seed-side and
-            # NOT in Snowflake — see the README. These checks reconcile the kpi.* block
-            # (whole-flight, all-portfolio) against the source.
-            # --- DV360 (ADVERTISER_NAME LIKE 'APAC | Schneider Electric%') --------
-            {"label": "DV360 · Impressions", "kind": "sum", "group": "DV360",
-             "dash": _kpi("dv_imps"),
-             "sql": "SELECT SUM(IMPRESSIONS) AS dv_imps\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
-                    "WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%';",
-             "note": "vs kpi.dv_imps."},
-            {"label": "DV360 · Clicks", "kind": "sum", "group": "DV360",
-             "dash": _kpi("dv_clicks"),
-             "sql": "SELECT SUM(CLICKS) AS dv_clicks\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
-                    "WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%';",
-             "note": "vs kpi.dv_clicks."},
-            {"label": "DV360 · Conversions", "kind": "sum", "group": "DV360",
-             "dash": _kpi("dv_conv"),
-             "sql": "SELECT SUM(CONVERSIONS_TOTAL) AS dv_conv\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
-                    "WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%';",
-             "note": "DV360 conversion column = CONVERSIONS_TOTAL. vs kpi.dv_conv."},
-            # --- Trade Desk (ADVERTISER_NAME = 'Schneider Electric') --------------
-            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
-             "dash": _kpi("td_imps"),
-             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS td_imps\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'Schneider Electric';",
-             "note": "COALESCE(IMPRESSIONS, IMPRESSION); exact advertiser '='. vs kpi.td_imps."},
-            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
-             "dash": _kpi("td_clicks"),
-             "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'Schneider Electric';",
-             "note": "vs kpi.td_clicks."},
-            {"label": "Trade Desk · Conversions (click+view)", "kind": "sum", "group": "Trade Desk",
-             "dash": _kpi("td_conv"),
-             "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'Schneider Electric';",
-             "note": "vs kpi.td_conv."},
-            # --- LinkedIn (ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%') -
-            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
-             "dash": _kpi("li_imps"),
-             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
-             "note": "The '_' in the LIKE pattern is an (unescaped) single-char wildcard, matching the view. vs kpi.li_imps."},
-            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
-             "dash": _kpi("li_clicks"),
-             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
-             "note": "vs kpi.li_clicks."},
-            {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn",
-             "dash": _kpi("li_leads"),
-             "sql": "SELECT SUM(LEADS) AS li_leads\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
-             "note": "LinkedIn is the only platform with leads. vs kpi.li_leads."},
-            {"label": "LinkedIn · Lead-form opens", "kind": "sum", "group": "LinkedIn",
-             "dash": _kpi("li_lead_form_opens"),
-             "sql": "SELECT SUM(LEAD_FORM_OPENS) AS li_lead_form_opens\n"
-                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%';",
-             "note": "The funnel's 'Leads' = li_leads + li_lead_form_opens. vs kpi.li_lead_form_opens."},
-            # --- Blended rollup ---------------------------------------------------
-            {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
-             "dash": _kpi("ad_imps"),
+            # RESTRUCTURED 2026-06-22: the old 6-tab Pacific paid-media dashboard (a kpi.* block of
+            # DV360 / TradeDesk / LinkedIn delivery totals) became a client_mongodb-style Content-
+            # Syndication clone scoped to 5 lead-gen programs (the 9 SF campaign IDs in
+            # data/salesforce_map.csv). Two consequences for this monitor:
+            #   1. kpi.* is GONE -> the old delivery checks are removed (they'd read missing keys = false ✗).
+            #   2. PAID DELIVERY (pm_delivery) is now SEED-SCOPED via seed_campaign_map's match_pattern
+            #      first-match-wins join, which has NO independent Snowflake definition to reproduce — so
+            #      paid delivery is intentionally NOT equality-checked here. DV360 / TradeDesk / LinkedIn
+            #      stay in `sources` because pm_delivery still READS them (they drive the Sync tab).
+            # CS leads ARE Snowflake-checkable: known campaign IDs + the DETERMINISTIC flight clamp that
+            # stg_salesforce (sql/17) applies — WHERE DAY within each program's seed_plan_budget flight.
+            # The per-program flight bounds below MIRROR data/plan_budget.csv; if the client changes a
+            # flight, update them here (same maintenance contract as the hardcoded campaign IDs).
+            # Salesforce DAY is wrapped in TO_DATE() (repo convention) and SUM(COALESCE(LEADS,1)) ==
+            # the view's SUM(leads). Status today is uniformly 'New' (CRM-raw), so total == new.
+            # --- Content Syndication — per program (the 5 lead-gen programs) ------
+            # Each program's dashboard lead count = sum of cs_by_programme[].total for that campaign.
+            # SQL reproduces stg_salesforce exactly: the program's SF campaign IDs (data/salesforce_map.csv)
+            # + the flight clamp (data/plan_budget.csv). Today every lead is 'New' (CRM-raw, ungraded).
+            {"label": "Water & Environment · CS leads", "kind": "count", "group": "Content Syndication",
+             "dash": _sch_cs_camp("water_env"),
+             "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001RTyAQYA1','701RG00001RUkTfYAL')\n"
+                    "  AND TO_DATE(DAY) >= DATE '2026-04-30' AND TO_DATE(DAY) <= DATE '2027-01-31';",
+             "note": "water_env = the 2 W&E pillar campaign IDs; flight 2026-04-30..2027-01-31 (mirrors "
+                     "seed_plan_budget). vs sum of cs_by_programme[campaign='water_env'].total (~28)." + _SCH_CS_NOTE},
+            {"label": "EcoStruxure Building Activate (EBA) · CS leads", "kind": "count", "group": "Content Syndication",
+             "dash": _sch_cs_camp("eba"),
+             "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID = '701RG00001OwE65YAF'\n"
+                    "  AND TO_DATE(DAY) >= DATE '2026-05-25' AND TO_DATE(DAY) <= DATE '2026-08-31';",
+             "note": "eba flight 2026-05-25..2026-08-31. The clamp EXCLUDES EBA's ~4 pre-flight spillover "
+                     "leads (2026-05-21..24) exactly as the dashboard does — without it this reads ~50 not 46. "
+                     "vs cs_by_programme[campaign='eba'].total (~46)." + _SCH_CS_NOTE},
+            {"label": "Heavy Industries · CS leads", "kind": "count", "group": "Content Syndication",
+             "dash": _sch_cs_camp("heavy"),
+             "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001KhQEcYAN','701RG00001T4zGfYAJ',\n"
+                    "                      '701RG00001KhQL4YAN','701RG00001KhOntYAF')\n"
+                    "  AND TO_DATE(DAY) >= DATE '2026-05-01' AND TO_DATE(DAY) <= DATE '2026-10-31';",
+             "note": "heavy = the 4 Heavy-Industries campaign IDs; flight 2026-05-01..2026-10-31. heavy is "
+                     "leads-only (no paid delivery). vs cs_by_programme[campaign='heavy'].total (~25)." + _SCH_CS_NOTE},
+            {"label": "Global Rebrand Activation · CS leads", "kind": "count", "group": "Content Syndication",
+             "dash": _sch_cs_camp("global_rebrand"),
+             "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID = '701RG00001VHiiJYAT'\n"
+                    "  AND TO_DATE(DAY) >= DATE '2026-07-01';",
+             "note": "global_rebrand flight_start 2026-07-01 (no end seeded). Until then the clamp yields 0 "
+                     "delivered leads (leads-only; no paid delivery). vs cs_by_programme[campaign="
+                     "'global_rebrand'].total." + _SCH_CS_NOTE},
+            {"label": "AirSeT · CS leads", "kind": "count", "group": "Content Syndication",
+             "dash": _sch_cs_camp("airset"),
+             "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "WHERE CAMPAIGN_ID = '701RG00001VI10DYAT'\n"
+                    "  AND TO_DATE(DAY) >= DATE '2026-06-11' AND TO_DATE(DAY) <= DATE '2026-12-31';",
+             "note": "airset flight 2026-06-11..2026-12-31. vs cs_by_programme[campaign='airset'].total." + _SCH_CS_NOTE},
+            # --- Content Syndication — combined headline -------------------------
+            {"label": "All 5 programs · Total CS leads", "kind": "count", "group": "Content Syndication",
+             "dash": _sch_cs_total,
              "sql": "SELECT\n"
-                    "  (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
-                    "     WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%')\n"
-                    "+ (SELECT COALESCE(SUM(COALESCE(IMPRESSIONS, IMPRESSION)),0)\n"
-                    "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'Schneider Electric')\n"
-                    "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "     WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%') AS total_imps;",
-             "note": "DV360 + TradeDesk + LinkedIn. TradeDesk filter exact '='; DV360/LinkedIn LIKE patterns. vs kpi.ad_imps."},
-            {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
-             "dash": _kpi("ad_clicks"),
-             "sql": "SELECT\n"
-                    "  (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
-                    "     WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%')\n"
-                    "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "     WHERE ADVERTISER_NAME = 'Schneider Electric')\n"
-                    "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "     WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%') AS total_clicks;",
-             "note": "Same three filters as impressions. vs kpi.ad_clicks."},
-            {"label": "All paid channels · Conversions", "kind": "sum", "group": "All paid channels",
-             "dash": _kpi("ad_conversions"),
-             "sql": "SELECT\n"
-                    "  (SELECT COALESCE(SUM(CONVERSIONS_TOTAL),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
-                    "     WHERE ADVERTISER_NAME LIKE 'APAC | Schneider Electric%')\n"
-                    "+ (SELECT COALESCE(SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS),0)\n"
-                    "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'Schneider Electric')\n"
-                    "  AS ad_conversions;",
-             "note": "Schneider's blended conversions = DV360 + TradeDesk only (LinkedIn outcome is leads, not "
-                     "conversions). JSON key is kpi.ad_conversions (not ad_conv)."},
+                    "  (SELECT COALESCE(SUM(COALESCE(LEADS,1)),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "     WHERE CAMPAIGN_ID IN ('701RG00001RTyAQYA1','701RG00001RUkTfYAL')\n"
+                    "       AND TO_DATE(DAY) >= DATE '2026-04-30' AND TO_DATE(DAY) <= DATE '2027-01-31')\n"
+                    "+ (SELECT COALESCE(SUM(COALESCE(LEADS,1)),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "     WHERE CAMPAIGN_ID = '701RG00001OwE65YAF'\n"
+                    "       AND TO_DATE(DAY) >= DATE '2026-05-25' AND TO_DATE(DAY) <= DATE '2026-08-31')\n"
+                    "+ (SELECT COALESCE(SUM(COALESCE(LEADS,1)),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "     WHERE CAMPAIGN_ID IN ('701RG00001KhQEcYAN','701RG00001T4zGfYAJ','701RG00001KhQL4YAN','701RG00001KhOntYAF')\n"
+                    "       AND TO_DATE(DAY) >= DATE '2026-05-01' AND TO_DATE(DAY) <= DATE '2026-10-31')\n"
+                    "+ (SELECT COALESCE(SUM(COALESCE(LEADS,1)),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "     WHERE CAMPAIGN_ID = '701RG00001VHiiJYAT'\n"
+                    "       AND TO_DATE(DAY) >= DATE '2026-07-01')\n"
+                    "+ (SELECT COALESCE(SUM(COALESCE(LEADS,1)),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
+                    "     WHERE CAMPAIGN_ID = '701RG00001VI10DYAT'\n"
+                    "       AND TO_DATE(DAY) >= DATE '2026-06-11' AND TO_DATE(DAY) <= DATE '2026-12-31')\n"
+                    "  AS total_cs_leads;",
+             "note": "Sum of the 5 programs' flight-clamped lead counts (~99 today: eba 46 / water_env 28 / "
+                     "heavy 25). vs sum of all cs_by_programme[].total." + _SCH_CS_NOTE},
         ],
     },
     {

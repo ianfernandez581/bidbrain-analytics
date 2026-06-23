@@ -235,6 +235,56 @@ def main():
             "by_campaign": sorted(cmap.values(), key=lambda x: x["spend"], reverse=True),
         }
 
+    # --- CF1 content-syndication ("Double Touch" MQLs) -----------------------------
+    # Client request (2026-06-22): surface CF1's content-syndication delivery INSIDE the
+    # CF1 India single-campaign view. Vendors upload leads to CaptureIQ; Nabeel uploads them
+    # to Integrate; they land in Salesforce -> raw_snowflake.salesforce_cs_apac_all, read here
+    # via sql/14_cf1_cs (the 2 CF1 CS campaign IDs -- also in the core 12-campaign filter, but
+    # this is a separate CF1-scoped lane). TARGET = 110 Double Touch MQLs. Every lead in these
+    # campaigns is a double-touch lead, so the ACCEPTED count IS the delivered double-touch MQL
+    # count. DT_CREATED is a single bulk-load instant (manual Integrate upload), so the cumulative
+    # line uses DAY -- the true per-lead delivery date. The 110 target is the one knob; change it here.
+    CF1_CS_TARGET = 110
+    cs_rows = rows(bq, f"SELECT * FROM {t('cf1_cs')} ORDER BY DAY")
+    cs_accepted = sum(int(jval(r.get("LEADS")) or 0) for r in cs_rows if r.get("STATUS_BUCKET") == "Accepted")
+    cs_rejected = sum(int(jval(r.get("LEADS")) or 0) for r in cs_rows if r.get("STATUS_BUCKET") == "Rejected")
+    cs_new      = sum(int(jval(r.get("LEADS")) or 0) for r in cs_rows if r.get("STATUS_BUCKET") == "New")
+
+    def _cs_breakdown(dim):
+        agg = {}
+        for r in cs_rows:
+            o = agg.setdefault(r.get(dim) or "Unknown", {"name": r.get(dim) or "Unknown", "accepted": 0, "rejected": 0})
+            n = int(jval(r.get("LEADS")) or 0)
+            if   r.get("STATUS_BUCKET") == "Accepted": o["accepted"] += n
+            elif r.get("STATUS_BUCKET") == "Rejected": o["rejected"] += n
+        return sorted(agg.values(), key=lambda x: (x["accepted"] + x["rejected"]), reverse=True)
+
+    cs_daily = {}
+    for r in cs_rows:
+        d = ymd(r.get("DAY"))
+        if not d:
+            continue
+        o = cs_daily.setdefault(d, {"date": d, "accepted": 0, "rejected": 0})
+        n = int(jval(r.get("LEADS")) or 0)
+        if   r.get("STATUS_BUCKET") == "Accepted": o["accepted"] += n
+        elif r.get("STATUS_BUCKET") == "Rejected": o["rejected"] += n
+    cs_dates = sorted(cs_daily)
+
+    if "cf1_india" in campaigns:
+        campaigns["cf1_india"]["cs"] = {
+            "target":       CF1_CS_TARGET,
+            "metric":       "Double Touch MQLs",
+            "accepted":     cs_accepted,            # delivered double-touch MQLs (count toward target)
+            "rejected":     cs_rejected,
+            "new":          cs_new,
+            "total":        cs_new + cs_accepted,   # client's "Total Leads" = New + Accepted
+            "reviewed":     cs_accepted + cs_rejected,
+            "data_through": cs_dates[-1] if cs_dates else None,
+            "by_publisher": _cs_breakdown("PUBLISHER"),
+            "by_region":    _cs_breakdown("REGION"),
+            "daily":        [cs_daily[d] for d in cs_dates],
+        }
+
     # last_updated = when THIS build ran; data_through = the newest upstream mirror
     # last_modified (UTC). The dashboard shows both so "fresh build" and "fresh data"
     # are never conflated.
@@ -261,6 +311,11 @@ def main():
         print(f"    {key:12s} {c['label']:12s} days={w['days']:>3} daily={len(c['daily']):>3} "
               f"campaigns={len(c['by_campaign']):>2} imps={tt['imps']:>9} clicks={tt['clicks']:>6} "
               f"spend=${tt['spend']:>11.2f} leads={tt['leads']:>4} form_opens={tt['form_opens']:>4}")
+    if "cf1_india" in campaigns and "cs" in campaigns["cf1_india"]:
+        cs = campaigns["cf1_india"]["cs"]
+        print(f"  cf1 content-syndication: accepted={cs['accepted']}/{cs['target']} target "
+              f"({(cs['accepted']/cs['target']*100 if cs['target'] else 0):.0f}%), rejected={cs['rejected']}, "
+              f"reviewed={cs['reviewed']}, days={len(cs['daily'])}, data_through={cs['data_through']}")
 
 
 if __name__ == "__main__":

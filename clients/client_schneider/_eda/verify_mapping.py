@@ -2,7 +2,7 @@
 re-derivation done entirely in BigQuery SQL.
 
 - SQL side uses SPLIT()/STRPOS() (not Python str.split/in) and an id->ord ordering typed
-  by hand from the sql/30_seed_campaign_map.sql array literal (NOT from Python's fetch),
+  by hand from the data/campaign_map.csv `seq` order (NOT from Python's fetch),
   so a substring/precedence/lowercasing bug in either implementation surfaces as a diff.
 - Compares per-campaign mapped id. Exit non-zero (and list diffs) if they disagree.
 
@@ -18,13 +18,14 @@ PROJECT, DS, LOC = "bidbrain-analytics", "client_schneider", "australia-southeas
 HERE = os.path.dirname(os.path.abspath(__file__))
 bq = bigquery.Client(project=PROJECT)
 
-# Seed array order typed independently from sql/30_seed_campaign_map.sql (match precedence).
-# Updated 2026-06-16 for the Pacific carve-out (eba split in after eae; airset + 4 placeholders added).
+# Seed array order typed independently from data/campaign_map.csv `seq` column (match precedence).
+# Updated 2026-06-16 for the Pacific carve-out (eba split in after eae; airset + 4 placeholders added);
+# 2026-06-22 added `nel` (seq 27) when the seeds moved to data/campaign_map.csv.
 ORD = ["eae", "eba", "aveva", "ai_lc", "csp", "ent_it", "water_env", "ind_edge", "mcset",
        "ia_services", "impact_maker", "iof", "mea_seg", "power_products", "digital_bldg",
        "digital_power", "ecocare", "modernisation", "active_kpx", "pac_hybrid_it",
        "airset", "heavy", "ecoconsult", "global_rebrand", "healthcare", "microgrid",
-       "enterprise_software"]
+       "enterprise_software", "nel"]
 ord_values = ",".join(f"STRUCT('{i}' AS id,{n} AS ord)" for n, i in enumerate(ORD))
 
 sql = f"""

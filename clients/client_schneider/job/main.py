@@ -1,26 +1,20 @@
-"""Schneider Electric (APAC) dashboard export job (Cloud Run job).
+"""Schneider Electric (APAC) — Content-Syndication dashboard export job (Cloud Run job).
 
-Stage 2 of the standard pattern (mirrors client_STT/job/main.py): read the BigQuery
-views in client_schneider/sql/ and write a single schneider.json to the private GCS
-bucket. The gated web app (client_schneider/dash) serves that JSON at /data.json.
+Stage 2 of the standard pattern: read the BigQuery views in client_schneider/sql/ and write a
+single schneider.json to the private GCS bucket. The gated web app (client_schneider/dash) serves
+that JSON at /data.json.
 
-The Schneider story is multi-platform paid-media delivery (no website/GA4 layer yet),
-read straight from the shared raw layer and modelled in BigQuery views:
-  * DV360     (raw_snowflake.dv360_apac, ADVERTISER_NAME 'APAC | Schneider Electric%')
-  * TradeDesk (raw_snowflake.tradedesk_apac_all, ADVERTISER_NAME = 'Schneider Electric')
-  * LinkedIn  (raw_snowflake.linkedin_ads_apac, ACCOUNT_NAME 'SchneiderElectric_TransmissionSG%')
+This dashboard is a **client_mongodb-style clone** scoped to the 5 Salesforce lead-gen programs
+(water_env / eba / heavy / global_rebrand / airset) behind 9 SF campaign IDs. Three tabs:
+  * Paid Media          — DV360 / TradeDesk / LinkedIn delivery for the selected program (pm_delivery,
+                          the match_pattern-tagged delivery at program × day × market × platform grain).
+  * Content Syndication — Salesforce leads vs the media-plan MQL+HQL target (cs_by_programme / cs_weekly).
+  * CS Comparison       — market A vs B for the selected program.
+The campaign→programme→market model: CAMPAIGN = internal program, PROGRAMME = SF pillar_label,
+MARKET = normalized COUNTRY_NAME (Australia / New Zealand / ANZ / Other).
 
-Reporting currency AUD (USD/SGD converted at fixed FX in the stg_* views). On top of the
-delivery roll-ups it ships the SEED tables (campaign map / plan budget / flighting / targets /
-channel split) as their own JSON branches — the dashboard joins delivery → internal campaign
-via seed_campaign_map.match_pattern client-side.
-
-GA4 (website) is SHIPPED DISABLED: GA4_ENABLED gates the ga4_* branches. The views exist (with
-a property-id placeholder → 0 rows) but are NOT queried while disabled; the payload carries
-ga4_enabled:false and the dashboard renders the "awaiting GA4 property id" stub.
-
-This job does NOT touch Snowflake directly — the shared raw layer is filled by
-snowflake_data_pull/. Read-only on BigQuery: it SELECTs views and writes JSON to GCS.
+Read-only on BigQuery (SELECTs views, writes JSON to GCS). The shared raw layer is filled by
+snowflake_data_pull/. Reporting currency AUD.
 """
 import os
 import json
@@ -31,37 +25,29 @@ from google.cloud import bigquery, storage
 
 from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
 
-# Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when an
-# upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
-# ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
-# NOTE: raw_snowflake.google_analytics_apac_all is deliberately NOT gated -- the SE
-# GA4 property IDs are still a placeholder (stg_ga4 ships 0 rows), so gating on it
-# would only force pointless rebuilds whenever shared GA4 data lands.
+# Freshness gate (repo CLAUDE.md "Freshness contract"): rebuild only when an upstream raw table this
+# job reads has advanced. Probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
 GATING_TABLES = [
     "raw_snowflake.dv360_apac",
     "raw_snowflake.linkedin_ads_apac",
     "raw_snowflake.tradedesk_apac_all",
+    "raw_snowflake.salesforce_cs_apac_all",   # the CS leads lane
 ]
 WATERMARK_OBJECT = "_freshness.json"
 
-# --- Project-wide constants (identical for every client) ----------------------
 PROJECT = "bidbrain-analytics"
 LOC = "australia-southeast1"
-
-# --- The ONE line that differs per client -------------------------------------
 CLIENT = "schneider"
+DATASET = f"client_{CLIENT}"
+BUCKET = f"bidbrain-analytics-{CLIENT}-dash"
+DATA_OBJECT = f"{CLIENT}.json"
 
-DATASET = f"client_{CLIENT}"                    # client_schneider
-BUCKET = f"bidbrain-analytics-{CLIENT}-dash"    # bidbrain-analytics-schneider-dash
-DATA_OBJECT = f"{CLIENT}.json"                  # schneider.json
-
-# GA4 (Website tab) ships DISABLED until the SE GA4 property id(s) are known. Flip to True
-# AFTER setting the real PROPERTY_ID(s) in sql/40_stg_ga4.sql (+ 46_) and reapplying views.
-GA4_ENABLED = False
+# The 5 Content-Syndication programs (== the distinct internal ids in seed_salesforce_map).
+CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset"]
 
 
 def num(v):
-    """JSON-safe number: NUMERIC/Decimal -> float, leave ints/None alone."""
+    """JSON-safe number: NUMERIC/Decimal -> float; leave ints/None alone."""
     if isinstance(v, Decimal):
         return float(v)
     return v
@@ -75,16 +61,17 @@ def ymd(v):
     return str(v)[:10]
 
 
-def rows(bq, name):
+def rows(bq, name, order_by=None):
     sql = f"SELECT * FROM `{PROJECT}.{DATASET}.{name}`"
+    if order_by:
+        sql += f" ORDER BY {order_by}"
     return [dict(r) for r in bq.query(sql, location=LOC).result()]
 
 
 def main():
     bq = bigquery.Client(project=PROJECT)
 
-    # --- Freshness gate: cheap metadata probe; skip the rebuild unless an upstream
-    # raw table advanced. Reading __TABLES__.last_modified is metadata-only.
+    # --- Freshness gate -------------------------------------------------------
     observed = probe_bq_last_modified(bq, GATING_TABLES)
     wm = read_watermark(BUCKET, WATERMARK_OBJECT)
     times = ", ".join(f"{k}={observed[k].strftime('%Y-%m-%dT%H:%M:%SZ')}"
@@ -97,206 +84,94 @@ def main():
     else:
         print(f"upstream advanced -> rebuilding | {times}")
 
-    kpi = rows(bq, "kpi")[0]
-    monthly = rows(bq, "monthly")
-    weekly = rows(bq, "weekly")
-    daily = rows(bq, "daily")
-    ad_campaigns = rows(bq, "ad_campaigns")
-    ad_campaign_monthly = rows(bq, "ad_campaign_monthly")
-    ad_campaign_weekly = rows(bq, "ad_campaign_weekly")
-    ad_campaign_daily = rows(bq, "ad_campaign_daily")
-    ad_campaign_market = rows(bq, "ad_campaign_market")
-    ad_campaign_metrics = rows(bq, "ad_campaign_metrics")
-    li_creative = rows(bq, "li_creative")
-    li_campaign_creative = rows(bq, "li_campaign_creative")
-    # Seeds (the human bridge + plan data) — joined to delivery client-side via match_pattern.
-    seed_campaign_map = rows(bq, "seed_campaign_map")
-    seed_plan_budget = rows(bq, "seed_plan_budget")
-    seed_plan_flighting = rows(bq, "seed_plan_flighting")
-    seed_targets = rows(bq, "seed_targets")
-    seed_channel_split = rows(bq, "seed_channel_split")
+    # --- Read the views -------------------------------------------------------
+    cs = rows(bq, "cs_by_programme")
+    csw = rows(bq, "cs_weekly")
+    pm = rows(bq, "pm_delivery")
+    media = rows(bq, "seed_media_plan")
+    budget = {b["internal_campaign_id"]: b for b in rows(bq, "seed_plan_budget")}
+    display = {m["internal_campaign_id"]: m["display_name"]
+               for m in rows(bq, "seed_campaign_map", order_by="seq")}
+    fx = rows(bq, "kpi")[0]   # FX constants + (unused here) headline
+
+    # --- Per-campaign aggregates: target (MQL+HQL), plan-CPL tiers, committed spend, flight ----
+    leads_by_camp = {}
+    for r in cs:
+        leads_by_camp[r["campaign"]] = leads_by_camp.get(r["campaign"], 0) + (r["total"] or 0)
+
+    campaigns = []
+    for cid in CS_PROGRAMS:
+        lines = [m for m in media if m["internal_campaign_id"] == cid]
+        lead_lines = [m for m in lines if m["line_type"] in ("LeadGen-MQL", "LeadGen-HQL")
+                      and m["lead_target"]]
+        mql = sum(m["lead_target"] for m in lines if m["line_type"] == "LeadGen-MQL" and m["lead_target"])
+        hql = sum(m["lead_target"] for m in lines if m["line_type"] == "LeadGen-HQL" and m["lead_target"])
+        cpl_tiers = [{
+            "label": m["channel"],
+            "leads": m["lead_target"],
+            "spend": num(m["spend_aud"]),
+            "cpl": (float(m["spend_aud"]) / m["lead_target"]) if (m["spend_aud"] and m["lead_target"]) else None,
+        } for m in lead_lines]
+        committed = sum(float(m["spend_aud"]) for m in lead_lines if m["spend_aud"])
+        b = budget.get(cid, {})
+        campaigns.append({
+            "id": cid,
+            "label": display.get(cid, cid),
+            "target_mql": mql, "target_hql": hql, "target": mql + hql,
+            "cpl_tiers": cpl_tiers, "committed_spend": committed,
+            "flight_start": ymd(b.get("flight_start")), "flight_end": ymd(b.get("flight_end")),
+            "leads": leads_by_camp.get(cid, 0),
+        })
+    # default campaign = most leads, then biggest target (dashboard reads campaigns[0] as default).
+    campaigns.sort(key=lambda c: (-c["leads"], -c["target"], c["label"]))
+
+    # --- Shared market vocab (union of CS + paid markets), ordered ------------
+    mk_order = {"Australia": 0, "New Zealand": 1, "ANZ": 2, "Other": 9}
+    all_markets = sorted({r["market"] for r in cs} | {r["market"] for r in pm},
+                         key=lambda m: (mk_order.get(m, 5), m))
+
+    # --- Overall data window (paid delivery + leads) for the date picker ------
+    wq = list(bq.query(
+        f"""SELECT MIN(d) s, MAX(d) e FROM (
+              SELECT metric_date d FROM `{PROJECT}.{DATASET}.pm_delivery`
+              UNION ALL SELECT metric_date FROM `{PROJECT}.{DATASET}.stg_salesforce`)""",
+        location=LOC).result())[0]
+    wstart, wend = wq["s"], wq["e"]
+    wdays = (wend - wstart).days + 1 if (wstart and wend) else None
 
     env = {
-        "last_updated": datetime.datetime.now(datetime.timezone.utc)
-        .strftime("%Y-%m-%dT%H:%M:%SZ"),
-        "data_through": (max([v for v in observed.values() if v])
-                         .strftime("%Y-%m-%dT%H:%M:%SZ") if observed else None),
+        "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "data_through": (max([v for v in observed.values() if v]).strftime("%Y-%m-%dT%H:%M:%SZ")
+                         if observed else None),
         "currency": "AUD",
-        "fx_usd_aud": num(kpi["fx_usd_aud"]),
-        "fx_sgd_aud": num(kpi["fx_sgd_aud"]),
-        "ga4_enabled": GA4_ENABLED,
-        "window": {
-            "start": ymd(kpi["campaign_start"]),
-            "end": ymd(kpi["campaign_end"]),
-            "days": kpi["campaign_days"],
-        },
-        "dv_window": {"start": ymd(kpi["dv_start"]), "end": ymd(kpi["dv_end"])},
-        "td_window": {"start": ymd(kpi["td_start"]), "end": ymd(kpi["td_end"])},
-        "li_window": {"start": ymd(kpi["li_start"]), "end": ymd(kpi["li_end"])},
-        "kpi": {
-            "dv_imps": num(kpi["dv_imps"]), "dv_clicks": num(kpi["dv_clicks"]),
-            "dv_spend_aud": num(kpi["dv_spend_aud"]), "dv_conv": num(kpi["dv_conv"]),
-            "dv_engagements": num(kpi["dv_engagements"]), "dv_viewable_imps": num(kpi["dv_viewable_imps"]),
-            "td_imps": num(kpi["td_imps"]), "td_clicks": num(kpi["td_clicks"]),
-            "td_spend_aud": num(kpi["td_spend_aud"]), "td_conv": num(kpi["td_conv"]),
-            "li_imps": num(kpi["li_imps"]), "li_clicks": num(kpi["li_clicks"]),
-            "li_spend_aud": num(kpi["li_spend_aud"]),
-            "li_leads": num(kpi["li_leads"]), "li_lead_form_opens": num(kpi["li_lead_form_opens"]),
-            "li_video_views": num(kpi["li_video_views"]), "li_video_starts": num(kpi["li_video_starts"]),
-            "li_video_completions": num(kpi["li_video_completions"]), "li_engagements": num(kpi["li_engagements"]),
-            "ad_imps": num(kpi["ad_imps"]), "ad_clicks": num(kpi["ad_clicks"]),
-            "ad_spend_aud": num(kpi["ad_spend_aud"]),
-            "ad_conversions": num(kpi["ad_conversions"]), "ad_leads": num(kpi["ad_leads"]),
-        },
-        "monthly": [{
-            "month": r["month"],
-            "dv_imps": num(r["dv_imps"]), "dv_clicks": num(r["dv_clicks"]), "dv_spend_aud": num(r["dv_spend_aud"]),
-            "td_imps": num(r["td_imps"]), "td_clicks": num(r["td_clicks"]), "td_spend_aud": num(r["td_spend_aud"]),
-            "li_imps": num(r["li_imps"]), "li_clicks": num(r["li_clicks"]), "li_spend_aud": num(r["li_spend_aud"]),
-            "ad_imps": num(r["ad_imps"]), "ad_clicks": num(r["ad_clicks"]), "ad_spend_aud": num(r["ad_spend_aud"]),
-        } for r in monthly],
-        "weekly": [{
-            "week_start": ymd(r["week_start"]),
-            "dv_imps": num(r["dv_imps"]), "dv_clicks": num(r["dv_clicks"]), "dv_spend_aud": num(r["dv_spend_aud"]),
-            "td_imps": num(r["td_imps"]), "td_clicks": num(r["td_clicks"]), "td_spend_aud": num(r["td_spend_aud"]),
-            "li_imps": num(r["li_imps"]), "li_clicks": num(r["li_clicks"]), "li_spend_aud": num(r["li_spend_aud"]),
-            "ad_imps": num(r["ad_imps"]), "ad_clicks": num(r["ad_clicks"]), "ad_spend_aud": num(r["ad_spend_aud"]),
-        } for r in weekly],
-        "daily": [{
-            "day": r["day"],
-            "dv_imps": num(r["dv_imps"]), "dv_clicks": num(r["dv_clicks"]), "dv_spend_aud": num(r["dv_spend_aud"]),
-            "td_imps": num(r["td_imps"]), "td_clicks": num(r["td_clicks"]), "td_spend_aud": num(r["td_spend_aud"]),
-            "li_imps": num(r["li_imps"]), "li_clicks": num(r["li_clicks"]), "li_spend_aud": num(r["li_spend_aud"]),
-            "ad_imps": num(r["ad_imps"]), "ad_clicks": num(r["ad_clicks"]), "ad_spend_aud": num(r["ad_spend_aud"]),
-        } for r in daily],
-        # --- Campaign filter: campaign-grained ad delivery (spend all AUD) --------
-        "ad_campaigns": [{
-            "platform": r["platform"], "campaign": r["campaign"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
-            "start": ymd(r["start_date"]), "end": ymd(r["end_date"]),
-        } for r in ad_campaigns],
-        "ad_campaign_monthly": [{
-            "platform": r["platform"], "campaign": r["campaign"], "month": r["month"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
-        } for r in ad_campaign_monthly],
-        "ad_campaign_weekly": [{
-            "platform": r["platform"], "campaign": r["campaign"], "week_start": ymd(r["week_start"]),
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
-        } for r in ad_campaign_weekly],
-        "ad_campaign_daily": [{
-            "platform": r["platform"], "campaign": r["campaign"], "day": r["day"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
-        } for r in ad_campaign_daily],
-        "ad_campaign_market": [{
-            "platform": r["platform"], "campaign": r["campaign"], "market": r["market"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
-        } for r in ad_campaign_market],
-        "ad_campaign_metrics": [{
-            "platform": r["platform"], "campaign": r["campaign"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
-            "conversions": num(r["conversions"]),
-            "video_starts": num(r["video_starts"]), "video_completions": num(r["video_completions"]),
-            "video_views": num(r["video_views"]),
-            "leads": num(r["leads"]), "lead_form_opens": num(r["lead_form_opens"]),
-            "engagements": num(r["engagements"]), "viewable_imps": num(r["viewable_imps"]),
-        } for r in ad_campaign_metrics],
-        "li_creative": [{
-            "creative_type": r["creative_type"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "cost_aud": num(r["cost_aud"]),
-            "video_views": num(r["video_views"]), "video_starts": num(r["video_starts"]),
-            "video_completions": num(r["video_completions"]), "engagements": num(r["engagements"]),
-        } for r in li_creative],
-        "li_campaign_creative": [{
-            "campaign": r["campaign"], "creative_type": r["creative_type"],
-            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "cost_aud": num(r["cost_aud"]),
-            "video_views": num(r["video_views"]), "video_starts": num(r["video_starts"]),
-            "video_completions": num(r["video_completions"]), "engagements": num(r["engagements"]),
-        } for r in li_campaign_creative],
-        # --- Seeds (plan side): the dashboard joins these to delivery client-side ---
-        "seed_campaign_map": [{
-            "id": r["internal_campaign_id"], "display": r["display_name"],
-            "brief_job_no": r["brief_job_no"], "objective_type": r["objective_type"],
-            "primary_kpi": r["primary_kpi"], "pillar": r["pillar"],
-            "primary_region": r["primary_region"], "match_pattern": r["match_pattern"],
-            "portfolio": r["portfolio"],
-        } for r in seed_campaign_map],
-        "seed_plan_budget": [{
-            "id": r["internal_campaign_id"], "budget_aud": num(r["budget_aud"]),
-            "budget_basis": r["budget_basis"],
-            "flight_start": ymd(r["flight_start"]), "flight_end": ymd(r["flight_end"]),
-        } for r in seed_plan_budget],
-        "seed_plan_flighting": [{
-            "id": r["internal_campaign_id"], "period": r["period"], "weight_pct": num(r["weight_pct"]),
-        } for r in seed_plan_flighting],
-        "seed_targets": [{
-            "id": r["internal_campaign_id"], "kpi": r["kpi"], "target_value": num(r["target_value"]),
-        } for r in seed_targets],
-        "seed_channel_split": [{
-            "id": r["internal_campaign_id"], "stage": r["stage"],
-            "channel": r["channel"], "budget_aud": num(r["budget_aud"]),
-        } for r in seed_channel_split],
+        "fx_usd_aud": num(fx["fx_usd_aud"]), "fx_sgd_aud": num(fx["fx_sgd_aud"]),
+        "window": {"start": ymd(wstart), "end": ymd(wend), "days": wdays},
+        "all_markets": all_markets,
+        "campaigns": campaigns,
+        "cs_by_programme": [{
+            "campaign": r["campaign"], "programme": r["programme"], "market": r["market"],
+            "total": num(r["total"]), "new": num(r["new_leads"]), "working": num(r["working"]),
+            "qualified": num(r["qualified"]), "disqualified": num(r["disqualified"]),
+            "last_lead_day": ymd(r["last_lead_day"]),
+        } for r in cs],
+        "cs_weekly": [{
+            "campaign": r["campaign"], "programme": r["programme"], "market": r["market"],
+            "week_start": ymd(r["week_start"]), "leads": num(r["leads"]),
+        } for r in csw],
+        "pm_delivery": [{
+            "program": r["program"], "platform": r["platform"], "date": ymd(r["metric_date"]),
+            "market": r["market"], "imps": num(r["imps"]), "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+        } for r in pm],
     }
-
-    # --- GA4 (Website) branches — only when enabled (else empty + ga4_enabled:false) ---
-    if GA4_ENABLED:
-        ga4_kpi_market = rows(bq, "ga4_kpi_market")
-        ga4_monthly_market = rows(bq, "ga4_monthly_market")
-        ga4_weekly_market = rows(bq, "ga4_weekly_market")
-        ga4_channels_market = rows(bq, "ga4_channels_market")
-        ga4_sources_market = rows(bq, "ga4_sources_market")
-        ga4_key_events_market = rows(bq, "ga4_key_events_market")
-        env["countries"] = [r["market"] for r in ga4_kpi_market]
-        env["ga4_kpi_market"] = [{
-            "market": r["market"], "sessions": num(r["sessions"]),
-            "engaged_sessions": num(r["engaged_sessions"]), "users": num(r["users"]),
-            "new_users": num(r["new_users"]), "page_views": num(r["page_views"]),
-            "eng_duration": num(r["eng_duration"]), "conversions": num(r["conversions"]),
-            "paid_sessions": num(r["paid_sessions"]), "display_sessions": num(r["display_sessions"]),
-            "social_sessions": num(r["social_sessions"]), "search_sessions": num(r["search_sessions"]),
-            "prior_sessions": num(r["prior_sessions"]), "prior_paid_sessions": num(r["prior_paid_sessions"]),
-        } for r in ga4_kpi_market]
-        env["ga4_monthly_market"] = [{
-            "month": r["month"], "market": r["market"], "sessions": num(r["sessions"]),
-            "paid_sessions": num(r["paid_sessions"]), "organic_sessions": num(r["organic_sessions"]),
-            "direct_sessions": num(r["direct_sessions"]), "other_sessions": num(r["other_sessions"]),
-            "display_sessions": num(r["display_sessions"]), "social_sessions": num(r["social_sessions"]),
-            "search_sessions": num(r["search_sessions"]), "engaged_sessions": num(r["engaged_sessions"]),
-            "users": num(r["users"]), "conversions": num(r["conversions"]),
-        } for r in ga4_monthly_market]
-        env["ga4_weekly_market"] = [{
-            "week_start": ymd(r["week_start"]), "market": r["market"],
-            "ga4_sessions": num(r["ga4_sessions"]), "paid_sessions": num(r["paid_sessions"]),
-            "display_sessions": num(r["display_sessions"]), "social_sessions": num(r["social_sessions"]),
-            "search_sessions": num(r["search_sessions"]),
-        } for r in ga4_weekly_market]
-        env["ga4_channels_market"] = [{
-            "market": r["market"], "channel": r["channel_group"], "bucket": r["channel_bucket"],
-            "sessions": num(r["sessions"]), "engaged": num(r["engaged_sessions"]),
-            "users": num(r["users"]), "conversions": num(r["conversions"]),
-        } for r in ga4_channels_market]
-        env["ga4_sources_market"] = [{
-            "market": r["market"], "source_medium": r["source_medium"],
-            "channel": r["channel"], "bucket": r["bucket"], "sessions": num(r["sessions"]),
-            "engaged": num(r["engaged"]), "conversions": num(r["conversions"]),
-        } for r in ga4_sources_market]
-        env["ga4_key_events_market"] = [{
-            "month": r["month"], "market": r["market"],
-            "event_name": r["event_name"], "key_events": num(r["key_events"]),
-        } for r in ga4_key_events_market]
-    else:
-        env["countries"] = []
-        for k in ("ga4_kpi_market", "ga4_monthly_market", "ga4_weekly_market",
-                  "ga4_channels_market", "ga4_sources_market", "ga4_key_events_market"):
-            env[k] = []
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
-    # Record the watermark only after a successful upload (upload first, watermark
-    # second), so a failed upload simply retries on the next tick.
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
-    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['monthly'])} months, "
-          f"{len(env['ad_campaigns'])} campaigns, "
-          f"A${env['kpi']['ad_spend_aud']:,.0f} ad spend, GA4={'on' if GA4_ENABLED else 'off'}")
+    n_leads = sum(r["total"] for r in env["cs_by_programme"])
+    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['campaigns'])} programs, "
+          f"{n_leads} CS leads, {len(env['pm_delivery'])} paid-delivery rows, "
+          f"window {env['window']['start']}..{env['window']['end']}")
 
 
 if __name__ == "__main__":
