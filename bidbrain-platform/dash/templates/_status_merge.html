@@ -177,24 +177,9 @@
     checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk); });
     var sum=checks.length?'<span class="bbaccsum">'+nOk+'/'+checks.length+' match'+(nBad?' · '+nBad+' off':'')+(nNa?' · '+nNa+' n/a':'')+'</span>':'';
     var logo='<img class="bblogo sm" src="/logo/'+esc(c.client)+'" alt="" onerror="this.remove()">';
-    var editor=fl.has_definitions?editorBlock(c.client, !!fl.can_edit):"";
-    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+'</div>'+sum+'</div>'+editor+
+    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+'</div>'+sum+'</div>'+
       '<table class="bbacc"><thead><tr><th>Metric</th><th>Snowflake</th><th>Dashboard</th><th>Match</th></tr></thead>'+
       '<tbody>'+(body||'<tr><td colspan="4" class="bbqnote">No checks.</td></tr>')+'</tbody></table></div>';
-  }
-
-  function editorBlock(client, canEdit){
-    if(!canEdit) return '<div class="bbedit"><span class="bbmuted">Read-only — you can view these definitions but not edit them.</span></div>';
-    return '<div class="bbedit open" data-client="'+esc(client)+'">'+
-      '<div class="bbed-h">✎ Edit the live query parameters — deploys to the dashboard AND these checks</div>'+
-      '<p class="bbmuted" style="margin:7px 0 0">Change the campaign IDs, KR/RIG segments, market chips or status buckets below. '+
-      'The per-metric SQL shown in each check is auto-generated from these and stays read-only. Save a draft, then “Make this live” (~1–2 min).</p>'+
-      '<div class="bbed-lastby" data-for="'+esc(client)+'"></div>'+
-      '<textarea class="bbed-json" data-for="'+esc(client)+'" spellcheck="false"></textarea>'+
-      '<input class="bbed-name" data-for="'+esc(client)+'" placeholder="Your name (required — recorded as the editor)">'+
-      '<div class="bbed-row"><button class="bbbtn save" data-for="'+esc(client)+'">Save draft</button>'+
-      '<button class="bbbtn live" data-for="'+esc(client)+'">Make this live</button>'+
-      '<span class="bbed-msg" data-for="'+esc(client)+'"></span></div></div>';
   }
 
   function renderSummary(clients){
@@ -217,41 +202,7 @@
     if(!clients.length){ var none='<div class="bbloading">No data-health data for the dashboards you can open. (Only Snowflake-sourced clients have checks.)</div>';
       if(sync)sync.innerHTML=none; if(acc)acc.innerHTML=none; return; }
     if(sync) sync.innerHTML=clients.map(syncCard).join("");
-    if(acc){ acc.innerHTML=clients.map(function(c){ return accCard(c, flags[c.client]||{}); }).join(""); wire(); }
-  }
-
-  function q(sel, client){ return document.querySelector(sel+'[data-for="'+(window.CSS&&CSS.escape?CSS.escape(client):client)+'"]'); }
-  function wire(){
-    document.querySelectorAll(".bbedit.open[data-client]").forEach(function(d){ loadDef(d.getAttribute("data-client")); });
-    document.querySelectorAll(".bbbtn.save").forEach(function(b){ b.onclick=function(){ save(b.getAttribute("data-for"), false); }; });
-    document.querySelectorAll(".bbbtn.live").forEach(function(b){ b.onclick=function(){ save(b.getAttribute("data-for"), true); }; });
-  }
-  function loadDef(client){
-    var msg=q(".bbed-msg",client); if(msg) msg.textContent="Loading…";
-    fetch("/definitions/"+client, {credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(j){
-      if(!j.ok){ if(msg) msg.textContent=j.error||"No definitions."; return; }
-      q(".bbed-json",client).value=JSON.stringify(j.definitions, null, 2);
-      var lb=j.definitions.last_edited_by, la=j.definitions.last_edited_at;
-      q(".bbed-lastby",client).textContent=lb?("Last edited by "+lb+(la?(" · "+la):"")):"Not edited yet.";
-      if(msg) msg.textContent="";
-    }).catch(function(){ if(msg) msg.textContent="Could not load definitions."; });
-  }
-  function save(client, thenLive){
-    var msg=q(".bbed-msg",client), name=(q(".bbed-name",client).value||"").trim();
-    if(!name){ msg.textContent="Enter your name first — it is recorded as the editor."; return; }
-    var defs; try{ defs=JSON.parse(q(".bbed-json",client).value); } catch(e){ msg.textContent="Invalid JSON: "+e.message; return; }
-    msg.textContent="Saving…";
-    fetch("/definitions/"+client, {method:"POST", headers:{"content-type":"application/json"}, credentials:"same-origin",
-      body:JSON.stringify({name:name, definitions:defs})}).then(function(r){ return r.json(); }).then(function(j){
-      if(!j.ok){ msg.textContent=j.error||"Save failed."; return; }
-      q(".bbed-lastby",client).textContent="Last edited by "+j.last_edited_by+" · "+j.last_edited_at+" (staged)";
-      if(!thenLive){ msg.textContent="Draft saved. Click “Make this live” to deploy."; return; }
-      msg.textContent="Deploying…";
-      fetch("/deploy/"+client, {method:"POST", headers:{"content-type":"application/json"}, credentials:"same-origin", body:"{}"})
-        .then(function(r){ return r.json(); }).then(function(k){
-          msg.textContent=k.ok?"Deploy started — the dashboard + this check refresh in ~1–2 min.":(k.error||"Deploy failed."); })
-        .catch(function(){ msg.textContent="Deploy request failed."; });
-    }).catch(function(){ msg.textContent="Save request failed."; });
+    if(acc){ acc.innerHTML=clients.map(function(c){ return accCard(c, flags[c.client]||{}); }).join(""); }
   }
 
   function refetch(){ return fetch("/api/status", {credentials:"same-origin"}).then(function(r){ return r.ok?r.json():null; })
