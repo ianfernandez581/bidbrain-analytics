@@ -133,10 +133,20 @@ voice message** (`MediaRecorder`), or both; on open it also grabs a **page scree
   load) and is **cached back into the record** (`transcript`/`ai_summary`/`ai_actions`/`ai_done`), so
   it costs one call per note. Needs `GEMINI_API_KEY` (secret `gemini-api-key`, granted to
   `platform-dash-web@` + mounted on the service); if unset, notes still store and just show no summary.
+  **Gotcha (fixed 2026-06-24):** `gemini-2.5-flash` spends *thinking* tokens out of `maxOutputTokens`,
+  so the old `maxOutputTokens:1024` got eaten on a LONG transcript and the JSON came back truncated
+  (`Unterminated string` → `json.loads` raised → the note never set `ai_done` → stuck on "Processing
+  on next load…" forever, retrying each view). `interpret()` now sends `thinkingConfig.thinkingBudget:0`
+  + `maxOutputTokens:4096` and `_parse_json()` tolerates a truncated reply (salvages whatever fields
+  finished). Short notes were unaffected — that's why only the one long resetdata note was stuck.
 - **Track it:** sign in as **admin/super** → **`/feedback/admin`** (also a "Feedback →" link in the
   super-admin/admin top bars). Every note newest-first in three columns — **Raw feedback** (typed
   text + voice transcript + audio player) · **AI summary** (interpretation + action items) ·
-  **Screenshot** (thumbnail → full image). Audio/images stream via `/feedback/file/<client>/<f>`.
+  **Screenshot** (thumbnail → full image). Audio/images stream via `/feedback/file/<client>/<f>`,
+  which honors HTTP **Range** (`Accept-Ranges`/`206`) so the player can seek. MediaRecorder `.webm`
+  voice notes carry **no duration in their header** (the player would show `0:00 / 0:00`), so the
+  admin page forces a seek-to-end on `loadedmetadata` to make the browser compute the real length,
+  then rewinds (`audio.vn` handler); `<audio preload="metadata">` loads it up front (fixed 2026-06-24).
 - **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
   On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
   button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).

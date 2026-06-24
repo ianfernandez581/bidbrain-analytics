@@ -54,7 +54,8 @@ landed them as thin `src_*` pass-throughs. It's now on the standard MongoDB patt
   by the shared `ingest/snowflake_data_pull` unit (no Cloudflare-specific pull).
 - The **static** Cloudflare-only tables (`REAL_TARGETS`, `TIERS`, the LINE JP upload)
   were pulled once to [`data/`](data/) (`pull_static.py`) and seeded into BigQuery
-  `seed_*` (`seed_static.py`).
+  `seed_*` (`seed_static.py`). **LINE no longer comes from Snowflake** — see
+  [Updating LINE (manual)](#updating-line-manual) below.
 - The Snowflake modelling SQL was **ported into [`sql/`](sql/README.md)** — the
   `V_STG_*` staging, `V_PAID_ADS_FINAL_MODEL`, `V_SALESFORCE_LEADS_LIVE`,
   `V_TIER_MAPPING_CLEANED`, `V_TARGETS_V2_NORM`, `V_PACING_FINAL_MODEL`, and the
@@ -71,6 +72,30 @@ accepted leads match multiple tiers, so the post-join `QUALIFY` dedup picks a ti
 arbitrarily. The old Snowflake view re-resolves these on every rebuild too; the BQ
 port reproduces the model faithfully, so that split flickers as it always did (the
 region totals and all headline counts are stable/exact).
+
+### Updating LINE (manual)
+
+LINE is the **one channel with no API/Windsor connector** — it's a hand-download from
+LINE Ad Manager. The old Snowflake relay (`V_STG_LINE_CF` → `pull_static.py`) is being
+**retired**: the LINE Ads account is migrating to **LY Ads** (LINE×Yahoo merger; LINE
+Ads delivery ends ~late Oct 2026), and pre-migration the old account view gates behind
+the migration tool. So LINE now flows **download → `data/line_cf.csv` directly**, no
+Snowflake. Steps:
+
+1. **Download** at https://admanager.line.biz/ → open the Cloudflare JP ad account →
+   **☰ menu → Reports & Measurement → Performance report → + Create report**. Set
+   **Aggregation interval = Daily (日別)**, level = **Ad**, format **CSV**, period =
+   the full flight (or All time). The report generates async → download from the
+   report list. (The dashboard's **Download report** button only emits a *Total*
+   summary — it does NOT give daily rows; you need the Performance report builder.)
+2. **Convert**: `.\.venv\Scripts\python.exe clients\client_cloudflare\convert_line_export.py`
+   — auto-picks the newest `LINE*.csv` in `~/Downloads`, maps `Day/Ad name/Impressions/
+   Clicks/Cost` → the `seed_line_cf` 7 cols (video cols → 0; these are IMAGE ads),
+   sums to one row per (day, ad), and writes `data/line_cf.csv`. It prints range +
+   totals — clicks should match the LINE UI exactly.
+3. **Load + rebuild**: `seed_static.py` then the export job with `FORCE_REBUILD=1`
+   (a seed change is invisible to the freshness gate). The model (`05_paid_media_model`
+   `line_jp`) sums by day and converts **JPY→USD@155**.
 
 ### KR + RIG are client-defined CS segments (2026-06-19) — not geographic
 

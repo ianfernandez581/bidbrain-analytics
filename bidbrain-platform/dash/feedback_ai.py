@@ -9,6 +9,7 @@ written back to the record so it runs once per note.
 Env: GEMINI_API_KEY (Secret Manager `gemini-api-key`, mounted by Cloud Run). GEMINI_MODEL optional.
 """
 import os
+import re
 import json
 import base64
 
@@ -41,6 +42,32 @@ def enabled():
     return bool(os.environ.get("GEMINI_API_KEY"))
 
 
+def _parse_json(txt):
+    """Parse Gemini's JSON reply, tolerating a response that was cut off mid-string. A clean reply is
+    a plain json.loads; if the model is ever truncated (e.g. finishReason MAX_TOKENS) we salvage
+    whatever fields completed so the note still enriches instead of failing — and retrying — forever."""
+    txt = (txt or "").strip()
+    try:
+        return json.loads(txt)
+    except Exception:
+        pass
+    out = {}
+    for f in ("transcript", "summary"):
+        m = re.search(r'"%s"\s*:\s*"((?:[^"\\]|\\.)*)"' % f, txt)
+        if m:
+            try:
+                out[f] = json.loads('"' + m.group(1) + '"')
+            except Exception:
+                out[f] = m.group(1)
+    m = re.search(r'"actions"\s*:\s*\[(.*?)\]', txt, re.S)
+    if m:
+        out["actions"] = [json.loads('"' + a + '"') if a else "" for a in
+                          re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1))]
+    if not out:
+        raise RuntimeError("Gemini returned unparseable JSON")
+    return out
+
+
 def interpret(audio_bytes, audio_ctype, text, client=None, page=None):
     """-> {"transcript": str, "summary": str, "actions": [str, ...]}. Raises on transport/parse
     failure (the caller treats AI as best-effort and leaves the note un-enriched to retry later)."""
@@ -55,8 +82,11 @@ def interpret(audio_bytes, audio_ctype, text, client=None, page=None):
     body = {
         "systemInstruction": {"parts": [{"text": SYSTEM}]},
         "contents": [{"role": "user", "parts": parts}],
+        # gemini-2.5-flash spends "thinking" tokens out of maxOutputTokens — left on at 1024 they
+        # consumed the whole budget and truncated the JSON mid-string ("Unterminated string"), so the
+        # note never enriched. Disable thinking and give the actual JSON a generous ceiling.
         "generationConfig": {"responseMimeType": "application/json", "temperature": 0.2,
-                             "maxOutputTokens": 1024},
+                             "maxOutputTokens": 4096, "thinkingConfig": {"thinkingBudget": 0}},
     }
     r = requests.post(ENDPOINT.format(model=MODEL),
                       headers={"x-goog-api-key": key, "content-type": "application/json"},
@@ -68,7 +98,7 @@ def interpret(audio_bytes, audio_ctype, text, client=None, page=None):
         raise RuntimeError("Gemini returned no candidates")
     txt = "".join(p.get("text", "") for p in ((cands[0].get("content") or {}).get("parts") or [])
                   if isinstance(p, dict))
-    data = json.loads(txt)
+    data = _parse_json(txt)
     acts = [str(a).strip() for a in (data.get("actions") or []) if str(a).strip()][:6]
     return {"transcript": (data.get("transcript") or "").strip(),
             "summary": (data.get("summary") or "").strip(),

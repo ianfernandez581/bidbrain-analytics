@@ -281,12 +281,32 @@ def feedback_admin():
 
 @app.get("/feedback/file/<client>/<fname>")
 def feedback_file(client, fname):
-    """Stream one stored feedback file (voice note or screenshot) for the tracker. Admin/super only."""
+    """Stream one stored feedback file (voice note or screenshot) for the tracker. Admin/super only.
+    Honors HTTP Range so the <audio> element can seek — and, for the MediaRecorder WebM voice notes
+    (which carry no duration in their header), can scan to the end to compute the real duration
+    instead of showing 0:00 / 0:00."""
     _require_admin()
     data, ctype = feedback.load_blob(client, fname)
     if data is None:
         abort(404)
-    return Response(data, mimetype=ctype, headers={"Cache-Control": "no-store"})
+    total = len(data)
+    headers = {"Cache-Control": "no-store", "Accept-Ranges": "bytes"}
+    rng = request.headers.get("Range", "")
+    if rng.startswith("bytes="):
+        try:
+            start_s, _, end_s = rng[6:].partition("-")
+            start = int(start_s) if start_s else 0
+            end = int(end_s) if end_s else total - 1
+            start, end = max(0, start), min(end, total - 1)
+            if start > end:
+                start = 0
+            headers["Content-Range"] = f"bytes {start}-{end}/{total}"
+            headers["Content-Length"] = str(end - start + 1)
+            return Response(data[start:end + 1], status=206, mimetype=ctype, headers=headers)
+        except Exception:
+            pass
+    headers["Content-Length"] = str(total)
+    return Response(data, mimetype=ctype, headers=headers)
 
 
 @app.post("/feedback/status")
@@ -371,7 +391,7 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
         {% if r.text %}<div class="txt">{{ r.text }}</div>{% endif %}
         {% if r.transcript %}<div class="txt"{% if r.text %} style="margin-top:8px"{% endif %}>&ldquo;{{ r.transcript }}&rdquo;</div>
         {% elif not r.text %}<div class="muted">{% if r.audio %}(voice note — see player){% else %}(no content){% endif %}</div>{% endif %}
-        {% if r.audio %}<audio controls preload="none" src="/feedback/file/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
+        {% if r.audio %}<audio class="vn" controls preload="metadata" src="/feedback/file/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
       </div>
       <div class="col">
         <h4>AI summary</h4>
@@ -403,6 +423,20 @@ document.querySelectorAll('select.stat').forEach(function(sel){
       .then(function(r){if(!r.ok)throw 0;sel.dataset.status=sel.value;})
       .catch(function(){sel.value=prev;alert('Could not update status.');})
       .finally(function(){sel.disabled=false;});
+  });
+});
+// Voice notes are MediaRecorder WebM blobs whose header carries no duration, so the browser reports
+// duration=Infinity and the player shows 0:00 / 0:00. Forcing a seek past the end makes it scan the
+// stream (Range-served) and compute the real length, which we then rewind to 0.
+document.querySelectorAll('audio.vn').forEach(function(a){
+  a.addEventListener('loadedmetadata',function(){
+    if(a.duration===Infinity||isNaN(a.duration)){
+      a.currentTime=1e101;
+      a.addEventListener('timeupdate',function fix(){
+        a.removeEventListener('timeupdate',fix);
+        if(a.duration!==Infinity&&!isNaN(a.duration))a.currentTime=0;
+      });
+    }
   });
 });
 document.querySelectorAll('button.del').forEach(function(b){
