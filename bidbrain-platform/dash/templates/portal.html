@@ -61,12 +61,18 @@
   <div class="wrap">
     {% if agency_logo %}<div class="agencylogo {{ 'light' if agency_logo.light else '' }}">{{ agency_logo.html | safe }}</div>{% endif %}
     <h1>{{ agency.name }}<span class="agencyslug">{{ agency.slug }}</span></h1>
-    <p class="lead">{{ clients|length }} dashboard{{ '' if clients|length == 1 else 's' }} · choose a client to open it. No further password needed.</p>
+    <div class="bbtabs">
+      <button class="bbtab on" data-pane="overview">Overview</button>
+      <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
+    </div>
+    <div class="bbpane on" id="pane-overview">
+    <div class="bbsyncbar"><button id="bbsyncall" class="bbbtn">🔄 Sync all dashboards now</button> <span id="bbsyncall-msg" class="bbmuted"></span></div>
     <div class="grid">
       {% for c in clients %}
         {% if c.status == 'active' %}
-        <a class="tile live" href="/d/{{ c.key }}/">
-          <div class="row"><h2>{{ c.name }}</h2><span class="pill active">ACTIVE</span></div>
+        <a class="tile live" href="/d/{{ c.key }}/" data-client="{{ c.key }}">
+          <div class="row"><img class="bblogo" src="/logo/{{ c.key }}" alt="" onerror="this.remove()"><h2>{{ c.name }}</h2><span class="pill active">ACTIVE</span></div>
+          <span class="bbhealth" data-for="{{ c.key }}"></span>
           <ul class="camps">
             {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
           </ul>
@@ -83,6 +89,9 @@
         {% endif %}
       {% endfor %}
     </div>
+    </div><!-- /pane-overview -->
+    <div class="bbpane" id="pane-accuracy"><div id="bbacc"><div class="bbloading">Loading…</div></div></div>
   </div>
+  {% include "_status_merge.html" %}
 </body>
 </html>

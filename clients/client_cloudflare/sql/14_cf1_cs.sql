@@ -37,10 +37,8 @@ WITH base AS (
       ELSE 'Other'
     END AS STATUS_BUCKET
   FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
-  WHERE CAMPAIGN_ID IN (
-    '701RG00001NJd6NYAT',  -- Roverpath - Connectivity Cloud (CF1)
-    '701RG00001NIYRKYA5'   -- Final Funnel CF1 - Connectivity Cloud
-  )
+  -- The 2 CF1 CS campaign IDs are seed-driven (definitions.json -> seed_cf1_cs_campaign_ids).
+  WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cf1_cs_campaign_ids`)
 )
 SELECT DAY, PUBLISHER, REGION, TOPIC, STATUS_BUCKET, COUNT(*) AS LEADS
 FROM base

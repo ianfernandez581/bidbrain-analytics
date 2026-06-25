@@ -125,17 +125,10 @@ CLIENTS = {
             {"name": "Paid Media + CS", "path": "/paid-media", "status": "active"},
         ],
     },
-    # The meta Pipeline-Status dashboard (status.bidbrain.ai) — not a media client of its own,
-    # but surfaced in the Transmission portal so they can watch data health. Its key `status`
-    # derives the same way as every dashboard: service `status-dash`, bucket
-    # `bidbrain-analytics-status-dash`, secret `status-dash-password` (so the proxy logs in).
-    "status": {
-        "name": "Pipeline Status", "slug": "status", "status": "active",
-        "url": _runapp("status"),
-        "campaigns": [
-            {"name": "Data Health", "path": "/", "status": "active"},
-        ],
-    },
+    # NOTE: the meta Pipeline-Status dashboard is no longer a tile here. Its data-sync health and
+    # data-accuracy are now shown NATIVELY in the platform's Overview + Data Accuracy tabs (reading
+    # the status pipeline's status.json directly). The standalone status-dash web service + the
+    # /d/status/ proxy are retired; the status-export job still runs and feeds status.json.
 }
 
 # Per-client dashboard passwords (seed only; real values come from `<c>-dash-password`
@@ -152,7 +145,7 @@ AGENCIES = [
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
-        "clients": ["schneider", "cloudflare", "proptrack", "mongodb", "status"],
+        "clients": ["schneider", "cloudflare", "proptrack", "mongodb"],
     },
 ]
 
