@@ -30,8 +30,9 @@ private data.
 It rebuilds the image and swaps it onto the running service; `no-store` means the change is live
 immediately.
 
-## Custom domain (optional, not yet wired)
+## Not behind the platform front-door
 
-To put it on `adriatic.bidbrain.ai`: add a CNAME in Cloudflare DNS → the `…run.app` host above,
-Proxied, SSL Full (strict), with a **Host Header Override** to the run.app host (mirrors the
-MongoDB/Cloudflare setup).
+This open pitch sample is **not** one of the client dashboards behind the platform front-door
+(`dashboards.bidbrain.ai/d/<client>/`) — it has no login and is shared directly by its `…run.app` link.
+A custom domain isn't wired; if ever wanted, it would be a standalone CNAME to the `…run.app` host
+above (Proxied, SSL Full strict, with a Host Header Override), independent of the front-door.

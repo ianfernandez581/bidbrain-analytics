@@ -57,17 +57,26 @@ anything over — and you can't reach around the back to grab the product either
 
 We built the first one for **MongoDB (APAC)**. The whole point of this repo is that **every
 future client dashboard follows the exact same pattern**, so building the next one is mostly
-copy-and-adjust, not start-from-scratch. **Eight client dashboards are now live** on this pattern —
+copy-and-adjust, not start-from-scratch. **Ten client dashboards are now live** on this pattern —
 **MongoDB**, **Cloudflare**, **STT (ST Telemedia GDC)**, **Schneider Electric**, **HireRight**,
-**City Perfume**, **ResetData**, and **PropTrack** — plus a meta **Status dashboard**
-(`status.bidbrain.ai`) that watches all the Snowflake-sourced ones. MongoDB is the original template;
-**STT** became the archetype for the leaner clients that read straight from the shared raw layers with
-no Snowflake final-model layer (Schneider, HireRight, City Perfume, ResetData and PropTrack all
-descend from it).
+**City Perfume**, **ResetData**, **PropTrack**, **The Little Marionette (TLM)** and **VMCH** — plus a
+meta **Status dashboard** (pipeline-health) that watches all the Snowflake-sourced ones. MongoDB is the
+original template; **STT** became the archetype for the leaner clients that read straight from the
+shared raw layers with no Snowflake final-model layer (Schneider, HireRight, City Perfume, ResetData,
+PropTrack, TLM and VMCH all descend from it).
+
+**The single way in is the platform front-door, [`bidbrain-platform/`](bidbrain-platform/) —
+🔗 https://dashboards.bidbrain.ai.** One password box sits over all the dashboards; it logs you in
+once and then reverse-proxies each dashboard under its own origin at `dashboards.bidbrain.ai/d/<client>/`
+(no second password). The **Status dashboard's UI is merged into this front-door** (an Overview health
+tab + a Data Accuracy tab) — there is no standalone `status.bidbrain.ai` anymore. The per-client
+`<c>-dash` Cloud Run services still exist (the proxy logs into them upstream) and are individually
+password-gated, but the front-door is the access path.
 
 Everything lives on **Google Cloud** (one platform), in the GCP project
-**`bidbrain-analytics`**, in the **Sydney region (`australia-southeast1`)**. The web
-addresses (`*.bidbrain.ai`) are pointed at it by Cloudflare DNS.
+**`bidbrain-analytics`**, in the **Sydney region (`australia-southeast1`)**. The custom domain
+`dashboards.bidbrain.ai` is mapped to the platform front-door service; the individual dashboards do
+**not** have their own `<c>.bidbrain.ai` subdomains — they're reached through the front-door proxy.
 
 ---
 
@@ -96,11 +105,18 @@ needs a password to see it.
                                      ┌──────────────────┐              ┌────────────────────┐
                                      │ Dashboard Web App │  ◄────────── │  Password screen   │
                                      │   (Cloud Run)     │              │ (no password = no  │
-                                     │ <client>.bidbrain │              │  access, no data)  │
-                                     │       .ai         │              └────────────────────┘
+                                     │   <client>-dash   │              │  access, no data)  │
+                                     │                   │              └────────────────────┘
+                                     └──────────────────┘
+                                              ▲  reverse-proxied + logged into once
+                                     ┌──────────────────┐
+                                     │ Platform front-  │  ◄── ONE login over all dashboards
+                                     │ door (Cloud Run) │      https://dashboards.bidbrain.ai
+                                     │ dashboards.      │      /d/<client>/  (no 2nd password)
+                                     │  bidbrain.ai     │
                                      └──────────────────┘
                                               ▼
-                                   👤 The team / client (after the password)
+                                   👤 The team / client (after the one front-door password)
 ```
 
 **The journey:**
@@ -115,10 +131,12 @@ needs a password to see it.
 2. Each client has an **Export Job** (Cloud Run) that runs the client's BigQuery **views**
    (which filter the shared raw data to *that* client and roll it up), packages the result
    into a single tidy file `<client>.json`, and saves it to a **private** storage bucket.
-3. A small **Web App** (Cloud Run) shows a password screen. Enter the password and you see
-   the dashboard; the app fetches the data file *on your behalf* from the private bucket.
+3. A small **Web App** (Cloud Run, `<client>-dash`) shows a password screen. Enter the password and
+   you see the dashboard; the app fetches the data file *on your behalf* from the private bucket.
    No password → you see nothing, and the data file can't be grabbed directly.
-4. It's reachable at a friendly address, e.g. `mongodb.bidbrain.ai`.
+4. It's reached through the **platform front-door** at https://dashboards.bidbrain.ai — one login,
+   then each dashboard opens at `dashboards.bidbrain.ai/d/<client>/` with no second password (the
+   front-door reverse-proxies and logs into the upstream `<client>-dash` service for you).
 
 > **The data file is never public.** That is the entire security model — see
 > [§7 Security](#7-security-model-read-before-changing-hosting).
@@ -150,8 +168,9 @@ needs a password to see it.
   system exposed it publicly — don't regress. See [§7](#7-security-model-read-before-changing-hosting).
 - **Everything in `australia-southeast1`.** Mixed regions cause "missing resource"
   confusion and cross-region cost.
-- **One client = its own dataset, job, bucket, web app, password, and subdomain.** Full
-  isolation between clients.
+- **One client = its own dataset, job, bucket, web app, and password.** Full isolation between
+  clients. (Access is unified through the platform front-door at `dashboards.bidbrain.ai/d/<client>/`;
+  there are no per-client `<c>.bidbrain.ai` subdomains.)
 
 **To add a new client:** copy [`clients/client_mongodb/`](clients/client_mongodb/) (the template), change
 one line (`CLIENT = "..."`), point its views at the right filter, and follow the playbook in
@@ -182,7 +201,9 @@ Each folder has a **detailed README of its own** — start there for anything in
 
 > **Layout:** everything is grouped under two top-level folders — **`clients/`** (one `client_<c>/`
 > sub-folder per client dashboard) and **`ingest/`** (the shared raw-layer loaders) — plus
-> **`status_dashboard/`** (the meta dashboard) and **`scripts/`** (operator tooling) at the root.
+> **`bidbrain-platform/`** (the front-door at `dashboards.bidbrain.ai`), **`status_dashboard/`** (the
+> pipeline-health data + deploy plumbing behind the merged Data Accuracy tab) and **`scripts/`**
+> (operator tooling) at the root.
 
 ### Shared ingest — runs once, feeds every client
 
@@ -197,21 +218,24 @@ Each folder has a **detailed README of its own** — start there for anything in
 
 | Folder | Status | What it is | Open its README |
 |---|---|---|---|
-| [`clients/client_mongodb/`](clients/client_mongodb/) | **Live** | The **template** every client copies (MongoDB APAC, via Transmission). Models everything in BigQuery from `raw_snowflake`: Trade Desk paid media + Content Syndication (Salesforce, DNB). USD. 10 views. | [README](clients/client_mongodb/README.md) · [job/](clients/client_mongodb/job/README.md) · [dash/](clients/client_mongodb/dash/README.md) · [sql/](clients/client_mongodb/sql/README.md) |
-| [`clients/client_cloudflare/`](clients/client_cloudflare/) | **Live** | Cloudflare APAC (via Transmission). The one client modelled **in Snowflake**: the job pulls Snowflake's *final-model* views into `src_*` tables and the BigQuery views are thin pass-throughs. TTD + LinkedIn + Reddit + LINE + CS. USD. 6 views. | [README](clients/client_cloudflare/README.md) · [job/](clients/client_cloudflare/job/README.md) · [dash/](clients/client_cloudflare/dash/README.md) · [sql/](clients/client_cloudflare/sql/README.md) |
-| [`clients/client_STT/`](clients/client_STT/) | **Live** | STT GDC (ST Telemedia, via Transmission) — the **archetype** for the lean clients below. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD. 24 views. | [README](clients/client_STT/README.md) · [job/](clients/client_STT/job/README.md) · [dash/](clients/client_STT/dash/README.md) · [sql/](clients/client_STT/sql/README.md) · [INTAKE.md](clients/client_STT/INTAKE.md) |
-| [`clients/client_schneider/`](clients/client_schneider/) | **Live** | Schneider Electric APAC (via Transmission). **Plan-vs-actual** portfolio across DV360 + Trade Desk + LinkedIn; seed tables (campaign map / budget / flighting / targets / channel split) joined to live delivery. **AUD**. GA4 ships disabled until SE's property id is known. 26 views. | [README](clients/client_schneider/README.md) · [job/](clients/client_schneider/job/README.md) · [dash/](clients/client_schneider/dash/README.md) · [sql/](clients/client_schneider/sql/README.md) · [INTAKE.md](clients/client_schneider/INTAKE.md) |
-| [`clients/client_hireright/`](clients/client_hireright/) | **Live** | HireRight. Pure paid-media **delivery** baseline — no GA4, no media plan — across DV360 + Trade Desk + LinkedIn. **USD**. 14 views. | [README](clients/client_hireright/README.md) · [job/](clients/client_hireright/job/README.md) · [dash/](clients/client_hireright/dash/README.md) · [sql/](clients/client_hireright/sql/README.md) · [INTAKE.md](clients/client_hireright/INTAKE.md) |
-| [`clients/client_cityperfume/`](clients/client_cityperfume/) | **Live** | City Perfume (AU e-commerce, via 100 Digital). "Ads → actual profit": first-party **Neto `v_sales`** revenue/margin truth vs Google Ads + Meta + Trade Desk + GA4. Single incremental **Margin ROAS**; aggregates-only JSON (no PII). **AUD**. 36 views. | [README](clients/client_cityperfume/README.md) · [job/](clients/client_cityperfume/job/README.md) · [dash/](clients/client_cityperfume/dash/README.md) · [sql/](clients/client_cityperfume/sql/README.md) |
-| [`clients/client_resetdata/`](clients/client_resetdata/) | **Live** | ResetData (AU sovereign-AI / data-centre, via 100 Digital). Copied from STT: B2B "ads → traffic / leads" across **Google Ads + Meta + The Trade Desk** vs GA4 — reading three raw layers (`raw_google_ads`, `raw_windsor`, `raw_ga4`). **No revenue/ROAS** (B2B). **AUD** (TTD USD→AUD @1.50). 19 views. | [README](clients/client_resetdata/README.md) · [job/](clients/client_resetdata/job/README.md) · [dash/](clients/client_resetdata/dash/README.md) · [sql/](clients/client_resetdata/sql/README.md) |
+| [`clients/client_mongodb/`](clients/client_mongodb/) | **Live** | The **template** every client copies (MongoDB APAC, via Transmission). Models everything in BigQuery from `raw_snowflake`: Trade Desk paid media + Content Syndication (Salesforce, DNB + KGA/IDC) + a TTD Universal Pixel snapshot. USD. 13 views. | [README](clients/client_mongodb/README.md) · [job/](clients/client_mongodb/job/README.md) · [dash/](clients/client_mongodb/dash/README.md) · [sql/](clients/client_mongodb/sql/README.md) |
+| [`clients/client_cloudflare/`](clients/client_cloudflare/) | **Live** | Cloudflare APAC (via Transmission). **On the standard BQ pattern since 2026-06-17** (was the lone Snowflake-modelled client): staging+model views over `raw_snowflake.*` mirrors + a few BQ seed tables. TTD + LinkedIn + Reddit + LINE + CS + 3 single-campaign LinkedIn dashes (CF1 has a CS lane). CS is seed-driven from `definitions.json` (definitions pilot). USD. 14 views. | [README](clients/client_cloudflare/README.md) · [job/](clients/client_cloudflare/job/README.md) · [dash/](clients/client_cloudflare/dash/README.md) · [sql/](clients/client_cloudflare/sql/README.md) |
+| [`clients/client_STT/`](clients/client_STT/) | **Live** | STT GDC (ST Telemedia, via Transmission) — the **archetype** for the lean clients below. "Ads → website traffic": GA4 web analytics vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD. 28 views. | [README](clients/client_STT/README.md) · [job/](clients/client_STT/job/README.md) · [dash/](clients/client_STT/dash/README.md) · [sql/](clients/client_STT/sql/README.md) · [INTAKE.md](clients/client_STT/INTAKE.md) |
+| [`clients/client_schneider/`](clients/client_schneider/) | **Live** | Schneider Electric APAC (via Transmission). A **`client_mongodb`-clone Content-Syndication dashboard** scoped to 5 lead-gen programs (DV360 + Trade Desk + LinkedIn delivery + Salesforce CS leads); seed tables (campaign map / budget / flighting / targets / channel split) joined to live delivery. **AUD**. 27 views (+7 seed tables). (Restructured 2026-06-22 from a Pacific paid-media dash.) | [README](clients/client_schneider/README.md) · [job/](clients/client_schneider/job/README.md) · [dash/](clients/client_schneider/dash/README.md) · [sql/](clients/client_schneider/sql/README.md) · [INTAKE.md](clients/client_schneider/INTAKE.md) |
+| [`clients/client_hireright/`](clients/client_hireright/) | **Live** | HireRight. Pure paid-media **delivery** baseline — no GA4, no media plan — across DV360 + Trade Desk + LinkedIn. **USD**. 16 views. | [README](clients/client_hireright/README.md) · [job/](clients/client_hireright/job/README.md) · [dash/](clients/client_hireright/dash/README.md) · [sql/](clients/client_hireright/sql/README.md) · [INTAKE.md](clients/client_hireright/INTAKE.md) |
+| [`clients/client_cityperfume/`](clients/client_cityperfume/) | **Live** | City Perfume (AU e-commerce, via 100 Digital). "Ads → actual profit": first-party **Neto `v_sales`** revenue/margin truth vs Google Ads + Meta + Trade Desk + GA4. Single incremental ROAS; aggregates-only JSON (no PII). **AUD**. 36 views. TWO web services off ONE pipeline (online-only `cityperfume-dash` + all-sales `cityperfume-total-dash`). | [README](clients/client_cityperfume/README.md) · [job/](clients/client_cityperfume/job/README.md) · [dash/](clients/client_cityperfume/dash/README.md) · [sql/](clients/client_cityperfume/sql/README.md) |
+| [`clients/client_resetdata/`](clients/client_resetdata/) | **Live** | ResetData (AU sovereign-AI / data-centre, via 100 Digital). Copied from STT: B2B "ads → traffic / leads" across **Google Ads + Meta + Trade Desk + Reddit** vs GA4 **+ a HubSpot CRM tab** — reading four raw layers. **No revenue/ROAS** (B2B). **AUD** (TTD USD→AUD @1.50). 31 views. | [README](clients/client_resetdata/README.md) · [job/](clients/client_resetdata/job/README.md) · [dash/](clients/client_resetdata/dash/README.md) · [sql/](clients/client_resetdata/sql/README.md) |
 | [`clients/client_proptrack/`](clients/client_proptrack/) | **Live** | PropTrack (REA Group, via Transmission). "Banking ABM": always-on LinkedIn + a concentrated Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX). 15 views. | [README](clients/client_proptrack/README.md) · [job/](clients/client_proptrack/job/README.md) · [dash/](clients/client_proptrack/dash/README.md) · [sql/](clients/client_proptrack/sql/README.md) |
+| [`clients/client_tlm/`](clients/client_tlm/) | **Live** | The Little Marionette (AU e-comm coffee, via 100 Digital). Google Ads (search/shopping/PMax) + Trade Desk display; ROAS/CPA Google-only. **AUD**. 15 views. | [README](clients/client_tlm/README.md) |
+| [`clients/client_vmch/`](clients/client_vmch/) | **Live** | Villa Maria Catholic Homes (aged-care **NFP**, via 100 Digital). Single-platform Trade Desk display (4 service-line campaigns) vs GA4 website; no revenue — GA4 enquiry events + TTD-attributed conversions. **AUD**. 26 views. | [README](clients/client_vmch/README.md) |
 
 ### Operations & root
 
 | Path | What it does | Open its README |
 |---|---|---|
-| [`status_dashboard/`](status_dashboard/) | **Meta dashboard** at `status.bidbrain.ai` — for every Snowflake-sourced client it shows whether a stale number is Transmission's fault (Snowflake source) or ours (pipeline behind), and that each dashboard figure equals Snowflake. No dataset/views; reads the other clients' resources. | [README](status_dashboard/README.md) · [job/](status_dashboard/job/README.md) · [dash/](status_dashboard/dash/README.md) |
-| [`scripts/`](scripts/) | Windows onboarding + per-session credential checks (`setup.ps1`, `start_day.ps1`) **and `deploy_ingest_jobs.ps1`** (builds / deploys / schedules the 4 shared ingest Cloud Run jobs as `ingest-runner@`). | [README](scripts/README.md) |
+| [`bidbrain-platform/`](bidbrain-platform/) | **The front-door — https://dashboards.bidbrain.ai.** ONE password box over all dashboards; a reverse proxy that logs into each `<c>-dash` once and serves it at `/d/<client>/` (no second password). Agency / dashboard / admin / super-admin tiers; editable agencies→clients→campaigns registry (private JSON in GCS, no DB); the **merged Status dashboard** (Overview health + Data Accuracy tabs); a feedback widget injected into every dashboard. Web-only service `platform-dash`. | [README](bidbrain-platform/README.md) |
+| [`status_dashboard/`](status_dashboard/) | **Pipeline-health data + deploy plumbing** behind the front-door's Data Accuracy tab (its UI is **merged into the platform** — no standalone `status.bidbrain.ai`). For every Snowflake-sourced client it shows whether a stale number is Transmission's fault (Snowflake source) or ours (pipeline behind), and that each dashboard figure equals Snowflake. Remaining here: the **`status-export`** job (writes `status.json`) and the **`status-deploy`** job (the "Make this live" worker the platform triggers). No dataset/views; reads the other clients' resources. | [README](status_dashboard/README.md) · [job/](status_dashboard/job/README.md) |
+| [`scripts/`](scripts/) | Windows onboarding + per-session credential checks (`setup.ps1`, `start_day.ps1`) **and `deploy_ingest_jobs.ps1`** (builds / deploys / schedules the 5 shared ingest Cloud Run jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). | [README](scripts/README.md) |
 | [`requirements.txt`](requirements.txt) | Pinned deps for the loaders + one-time BigQuery setup scripts (dev superset). Each Cloud Run unit pins its own separately. | — |
 | [`.gitignore`](.gitignore) / [`.gcloudignore`](.gcloudignore) / [`.gitattributes`](.gitattributes) | Keep secrets out of git, keep source uploads clean, force LF in container files. | — |
 
@@ -255,7 +279,7 @@ Each client has **two** Cloud Run pieces. They're different things and easy to c
 | What it does | reads BigQuery views → builds `<client>.json` → saves to the private bucket | shows password screen, serves the dashboard + data to logged-in users |
 | When it runs | every ~10 min on a `*/10` UTC Cloud Scheduler tick — **self-gating** (rebuilds only when its upstream advanced), plus on demand | whenever someone visits the URL |
 | Source folder | `clients/client_<client>/job/` | `clients/client_<client>/dash/` |
-| Talks to | BigQuery + GCS (Cloudflare's job also reads Snowflake) | GCS (read-only) + Secret Manager |
+| Talks to | BigQuery + GCS (`snowflake_data_pull` is the only unit that reads Snowflake directly) | GCS (read-only) + Secret Manager |
 
 **In plain terms:** the Job is the *kitchen* (makes the dish once a day); the Web App is the
 *waiter behind a locked door* (checks your password, then brings you the dish).
@@ -269,16 +293,22 @@ Each client has **two** Cloud Run pieces. They're different things and easy to c
   `<client>-dash-password` + `<client>-dash-session-key`.
 - **Service accounts (the "ID badges"), per client:** `<client>-dash-job@…` (the job: read
   Snowflake key, write BigQuery + bucket) and `<client>-dash-web@…` (the web app: read the
-  bucket + the two dashboard secrets). The four shared ingest jobs run as one `ingest-runner@`
+  bucket + the two dashboard secrets). The five shared ingest jobs run as one `ingest-runner@`
   service account. Least privilege throughout.
 
-### 6.4 The custom domain
+### 6.4 The custom domain & the front-door
 
-- `bidbrain.ai` DNS is on **Cloudflare**; we add one subdomain per client (e.g.
-  `mongodb.bidbrain.ai`). DNS/proxy only — no compute, no extra cost.
-- A plain DNS record to a `…run.app` host returns **404** (Cloud Run routes by hostname).
-  The fix is a Cloudflare **Host Header Override** (Origin Rule), record **Proxied (orange)**,
-  SSL **Full (strict)**. Cloudflare provides the HTTPS cert for free.
+- There is **one** custom domain, **`dashboards.bidbrain.ai`**, mapped to the platform front-door
+  service (`platform-dash`). It is the single entry point for everything.
+- The individual `<c>-dash` services do **not** have their own subdomains. The front-door
+  **reverse-proxies** each one under its own origin at `dashboards.bidbrain.ai/d/<client>/` and logs
+  into the upstream `<c>-dash` once (server-side, with that dashboard's own
+  `<c>-dash-password` secret) — so after the single front-door login the dashboards open with no
+  second password. See [`bidbrain-platform/README.md`](bidbrain-platform/README.md).
+- The dashboards each still keep their own password gate (the proxy uses it; it also remains a valid
+  direct login on the raw `…run.app` host). The `bb_sso` cross-subdomain cookie machinery is deployed
+  but **inert** — it would only activate if each dashboard later got its own `<c>.bidbrain.ai`
+  subdomain (Cloud DNS + Cloud Run domain mappings), which today it does not.
 
 ---
 
@@ -327,7 +357,7 @@ variable, all names derive from the **client key**:
 | Job service account | `<client>-dash-job@…` | `mongodb-dash-job@…` |
 | Web service account | `<client>-dash-web@…` | `mongodb-dash-web@…` |
 | Password / session secrets | `<client>-dash-password` / `<client>-dash-session-key` | `mongodb-dash-password` |
-| Subdomain | `<client>.bidbrain.ai` | `mongodb.bidbrain.ai` |
+| Access path (via front-door) | `dashboards.bidbrain.ai/d/<client>/` | `dashboards.bidbrain.ai/d/mongodb/` |
 | Repo folder | `clients/client_<client>/` (with `job/`, `dash/`, `sql/`) | `clients/client_mongodb/` |
 
 Other rules: everything in `australia-southeast1`; `snake_case` for BigQuery objects; the
@@ -392,36 +422,43 @@ README — this is the shape:
 4. **Bootstrap BigQuery:** run the job once (lands any `src_*`, then errors on the
    not-yet-existing views — expected), `python clients/client_acme/create_views.py`, re-run the job.
 5. **Deploy the web app**, run `--no-invoker-iam-check`, drop in `dashboard.html`.
-6. **Wire the daily refresh** (`scheduler.ps1`) and the **custom domain** (Cloudflare CNAME +
-   Host Header Override).
+6. **Wire the refresh** (`scheduler.ps1`, `*/10` self-gating) and **register the client in the
+   platform front-door** (add it to `bidbrain-platform/dash/config.py` + re-seed, or via the admin UI)
+   so it's reachable at `dashboards.bidbrain.ai/d/<client>/`. The platform SA needs `secretAccessor`
+   on the new `<client>-dash-password` — `scripts/enable_platform_sso.ps1` / the platform standup grants it.
 7. **Commit.**
 
 ---
 
 ## 11. Current status & TODO
 
-All eight client dashboards are **live** (Cloud Run service + export job + a `*/10` UTC
-**self-gating** Cloud Scheduler that rebuilds only when its upstream advanced), each served on its
-`…run.app` URL pending a custom domain. The meta **Status dashboard** is live at `status.bidbrain.ai`.
+All ten client dashboards are **live** (Cloud Run service + export job + a `*/10` UTC **self-gating**
+Cloud Scheduler that rebuilds only when its upstream advanced). **Access is unified through the
+platform front-door — https://dashboards.bidbrain.ai** (one login, then `/d/<client>/` per dashboard).
+The per-client `…run.app` URLs below are the upstream services the front-door proxies (each still
+password-gated for direct access). The meta **Status dashboard's UI is merged into the front-door**
+(Overview health + Data Accuracy tabs) — there is no standalone `status.bidbrain.ai`. View counts below
+match each client's `sql/` folder.
 
-| Client | State |
-|---|---|
-| **MongoDB** | ✅ Live at https://mongodb-dash-p32gk2wuia-ts.a.run.app — the BigQuery template. 10 views → `mongodb-export` → `mongodb-dash`, self-gating `*/10` Scheduler `mongodb-export-daily`. Finishing: `mongodb.bidbrain.ai` custom domain; retiring the legacy public-R2 path (**rotate the leaked R2 keys**). |
-| **Cloudflare** | ✅ Live at https://cloudflare-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-13. TTD/LinkedIn/Reddit/LINE + CS + 3 single-campaign LinkedIn dashboards; models in Snowflake (`src_*`). USD, 6 views, self-gating `*/10` (Snowflake `LAST_ALTERED` probe). See [`dash/LIVE_URL.md`](clients/client_cloudflare/dash/LIVE_URL.md). |
-| **STT** | ✅ Live at https://stt-dash-p32gk2wuia-ts.a.run.app. "Ads → website traffic": GA4 vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD, 24 views → `stt-export` → `stt-dash`, self-gating `*/10`. The **archetype** for the lean clients. See [`clients/client_STT/README.md`](clients/client_STT/README.md). |
-| **Schneider** | ✅ Live at https://schneider-dash-p32gk2wuia-ts.a.run.app. **Plan-vs-actual** (DV360 + Trade Desk + LinkedIn), **AUD**, seed-driven. 26 views, self-gating `*/10`. GA4 disabled until SE's property id is known; 11/21 campaign budgets seeded. See [`clients/client_schneider/README.md`](clients/client_schneider/README.md). |
-| **HireRight** | ✅ Live at https://hireright-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-04. Pure **delivery** baseline (DV360 + Trade Desk + LinkedIn), **USD**; no GA4, no plan. 14 views, self-gating `*/10`. See [`clients/client_hireright/README.md`](clients/client_hireright/README.md). |
-| **City Perfume** | ✅ Live at https://cityperfume-dash-p32gk2wuia-ts.a.run.app. E-commerce "ads → profit": Neto `v_sales` truth + Google/Meta/TTD/GA4, **AUD**. 36 views, 6 tabs (incl. Year-on-Year), self-gating `*/10`. Single incremental Margin ROAS; aggregates-only JSON (no PII). See [`clients/client_cityperfume/README.md`](clients/client_cityperfume/README.md). |
-| **ResetData** | ✅ Live at https://resetdata-dash-p32gk2wuia-ts.a.run.app — verified HTTP 200 on 2026-06-08. B2B "ads → traffic / leads" (Google Ads + Meta + Trade Desk vs GA4), three raw layers, **AUD** (TTD USD→AUD @1.50); no revenue/ROAS. 19 views, self-gating `*/10`. Branding wired (100 Digital). See [`clients/client_resetdata/README.md`](clients/client_resetdata/README.md). |
-| **PropTrack** | ✅ Live at https://proptrack-dash-p32gk2wuia-ts.a.run.app. "Banking ABM": always-on LinkedIn + a Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX), 15 views, self-gating `*/10`. See [`clients/client_proptrack/README.md`](clients/client_proptrack/README.md). |
-| **Status** (meta) | ✅ Live at https://status.bidbrain.ai — monitors the 6 Snowflake-sourced clients (data-sync verdict + accuracy vs Snowflake). No dataset/views; self-gating `*/15`. See [`status_dashboard/README.md`](status_dashboard/README.md). |
+| Client | Front-door path | State |
+|---|---|---|
+| **MongoDB** | `/d/mongodb/` | ✅ The BigQuery template. Trade Desk paid media + Content Syndication + a TTD Universal Pixel snapshot. USD, 13 views → `mongodb-export` → `mongodb-dash`, self-gating `*/10`. (Legacy public-R2 path retired — **rotate the leaked R2 keys**.) |
+| **Cloudflare** | `/d/cloudflare/` | ✅ TTD/LinkedIn/Reddit/LINE + CS + 3 single-campaign LinkedIn dashboards (CF1 also has a content-syndication lane). **On the standard BQ pattern since 2026-06-17** (was the lone Snowflake-modelled client); CS is seed-driven from `definitions.json` (definitions pilot). USD, 14 views, self-gating `*/10`. See [`dash/LIVE_URL.md`](clients/client_cloudflare/dash/LIVE_URL.md). |
+| **STT** | `/d/stt/` | ✅ "Ads → website traffic": GA4 vs Google Ads + LinkedIn + DV360, all from `raw_snowflake`. SGD, 28 views → `stt-export` → `stt-dash`, self-gating `*/10`. The **archetype** for the lean clients. See [`clients/client_STT/README.md`](clients/client_STT/README.md). |
+| **Schneider** | `/d/schneider/` | ✅ **`client_mongodb`-clone Content-Syndication dashboard** scoped to 5 lead-gen programs (DV360 + Trade Desk + LinkedIn delivery + Salesforce CS leads). **AUD**, seed-driven. 27 views (+7 seed tables), self-gating `*/10`. (Restructured 2026-06-22 from a Pacific paid-media dash.) See [`clients/client_schneider/README.md`](clients/client_schneider/README.md). |
+| **HireRight** | `/d/hireright/` | ✅ Pure **delivery** baseline (DV360 + Trade Desk + LinkedIn), **USD**; no GA4, no plan. 16 views, self-gating `*/10`. See [`clients/client_hireright/README.md`](clients/client_hireright/README.md). |
+| **City Perfume** | `/d/cityperfume/` | ✅ E-commerce "ads → profit": Neto `v_sales` truth + Google/Meta/TTD/GA4, **AUD**. 36 views, self-gating `*/10`. Single incremental ROAS; aggregates-only JSON (no PII). TWO web services off ONE pipeline (`cityperfume-dash` online-only + `cityperfume-total-dash` all-sales). See [`clients/client_cityperfume/README.md`](clients/client_cityperfume/README.md). |
+| **ResetData** | `/d/resetdata/` | ✅ B2B "ads → traffic / leads" (Google Ads + Meta + Trade Desk + Reddit vs GA4) **+ HubSpot CRM** tab, three raw layers, **AUD**; no revenue/ROAS. 31 views, self-gating `*/10`. Branding wired (100 Digital). See [`clients/client_resetdata/README.md`](clients/client_resetdata/README.md). |
+| **PropTrack** | `/d/proptrack/` | ✅ "Banking ABM": always-on LinkedIn + a Trade Desk programmatic burst, from `raw_snowflake`. **AUD** (no FX), 15 views, self-gating `*/10`. See [`clients/client_proptrack/README.md`](clients/client_proptrack/README.md). |
+| **The Little Marionette** | `/d/tlm/` | ✅ E-comm coffee: Google Ads (search/shopping/PMax) + Trade Desk display; ROAS/CPA Google-only. **AUD**, 15 views, self-gating `*/10`. See [`clients/client_tlm/README.md`](clients/client_tlm/README.md). |
+| **VMCH** | `/d/vmch/` | ✅ Aged-care **NFP** brand awareness: single-platform Trade Desk display (4 service-line campaigns) vs GA4 website; no revenue — GA4 enquiry events + TTD-attributed conversions. **AUD**, 26 views, self-gating `*/10`. See [`clients/client_vmch/README.md`](clients/client_vmch/README.md). |
+| **Status** (meta) | `/d/` Data Accuracy tab | ✅ Merged into the front-door (Overview health + Data Accuracy). Monitors the Snowflake-sourced clients (data-sync verdict + accuracy vs Snowflake). `status-export` job writes `status.json`, self-gating `*/15`; `status-deploy` job is the "Make this live" worker. See [`status_dashboard/README.md`](status_dashboard/README.md). |
 
 **Platform-wide TODO:** activate CD triggers (deploys are manual today — see [§9](#9-operating-it-deploy-refresh-debug));
-wire each client's custom domain (`<client>.bidbrain.ai` — most still served on their `…run.app`
-URLs); rotate the legacy leaked R2 credentials when retiring the old public-R2 path; confirm each
-live Cloud Scheduler is on `*/10` (the stand-up scripts now seed it, but any client stood up earlier
-may need `scheduler.ps1` re-run); re-grant the Windsor **Trade Desk** connector
-(`windsor-tradedesk-ingest` exits non-zero until then).
+rotate the legacy leaked R2 credentials (the old public-R2 path is retired); confirm each live Cloud
+Scheduler is on `*/10` (the stand-up scripts seed it, but any client stood up earlier may need
+`scheduler.ps1` re-run); re-grant the Windsor **Trade Desk** connector (`windsor-tradedesk-ingest`
+exits non-zero until then); wire Bell Shakespeare + Geocon (coming soon for 100% Digital).
 
 ---
 

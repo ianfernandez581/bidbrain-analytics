@@ -13,7 +13,7 @@ raw_snowflake.* mirrors (shared ingest/snowflake_data_pull)  +  client_cloudflar
   -> Cloud Run JOB  (clients/client_cloudflare/job)      read views -> cloudflare.json   (NO Snowflake)
   -> GCS (private)  gs://bidbrain-analytics-cloudflare-dash/cloudflare.json
   -> Cloud Run SERVICE (clients/client_cloudflare/dash)  password gate + serves dashboard.html + proxies /data.json
-  -> Cloudflare CNAME  cloudflare.bidbrain.ai (proxied) -> *.run.app
+  -> Platform front-door  https://dashboards.bidbrain.ai/d/cloudflare/  (reverse-proxies + one login)
 ```
 
 The `cloudbuild.yaml` files are a **future** push-to-main CD trigger (one per
@@ -295,9 +295,9 @@ Then, mirroring MongoDB:
   changes a *static* input that the gate doesn't watch, so kick the job once by hand after it
   (`gcloud run jobs execute cloudflare-export --region australia-southeast1 --wait`). See
   [`job/README.md`](job/README.md#freshness-gate--why-most-runs-do-nothing-and-thats-the-point).
-- **Friendly URL** — Cloudflare CNAME `cloudflare.bidbrain.ai` -> the service's
-  `*.run.app` host, Proxied, SSL Full (strict), Host Header Override. See
-  `dash/LIVE_URL.md`.
+- **Access path** — via the platform front-door at `https://dashboards.bidbrain.ai/d/cloudflare/`
+  (one login over all dashboards; the front-door reverse-proxies this service). There is no
+  `cloudflare.bidbrain.ai` subdomain. See `dash/LIVE_URL.md`.
 - **CD (future, not active)** — the per-unit `cloudbuild.yaml` files are wiring
   for two push-to-`^main$` Cloud Build triggers (included files
   `clients/client_cloudflare/job/**` and `clients/client_cloudflare/dash/**`). Not enabled yet;

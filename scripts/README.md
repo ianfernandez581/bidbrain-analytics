@@ -8,7 +8,7 @@
 Windows machine. One sets the laptop up the first time (installs Python + the Google Cloud
 tools, logs you in). One is a 10-second morning check that you're still logged in to
 Google Cloud, so the data loaders don't fail halfway through. The newest one
-([`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1)) builds, deploys, and schedules the four
+([`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1)) builds, deploys, and schedules the five
 shared **ingest** Cloud Run jobs that feed every client dashboard — that one *does* touch
 production (run as yourself, never via cloudbuild from a laptop). The two `setup`/`start_day`
 helpers never touch production beyond logging you in; the cloud serving/export pieces still
@@ -28,7 +28,7 @@ loaders and the client export jobs — they don't touch production beyond loggin
 |---|---|---|
 | [`setup.ps1`](setup.ps1) | **One-time machine setup.** Installs Python 3.12 and the Google Cloud SDK if missing (via `winget`), verifies the committed `requirements.txt` files are present, creates an isolated `.venv` and installs deps into it, then logs you in to gcloud (both CLI creds **and** application-default creds), and verifies it can read the Windsor secret + reach BigQuery. **Idempotent.** | once, right after cloning |
 | [`start_day.ps1`](start_day.ps1) | **Per-session preflight.** Verifies both credential systems gcloud uses (CLI creds for `gcloud secrets`, and application-default creds for the Python client libraries), pins the project, confirms it can read `windsor-api-key`, and pings BigQuery (`raw_windsor`). Reauths in a browser if anything expired. | start of each work session |
-| [`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1) | **Deploy the shared raw-layer ingest jobs.** Builds, deploys, and schedules the four Cloud Run jobs that land data in the shared `raw_*` BigQuery datasets feeding **every** client dashboard. Ensures the `ingest-runner@` service account + least-privilege IAM first (idempotent). `-Only neto\|meta\|tradedesk\|snowflake`, `-SkipBuild`, `-Run`. Run as yourself (never cloudbuild from a laptop). | when you change an ingest loader |
+| [`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1) | **Deploy the shared raw-layer ingest jobs.** Builds, deploys, and schedules the five Cloud Run jobs that land data in the shared `raw_*` BigQuery datasets feeding **every** client dashboard. Ensures the `ingest-runner@` service account + least-privilege IAM first (idempotent). `-Only neto\|meta\|tradedesk\|fields\|snowflake`, `-SkipBuild`, `-Run`. Run as yourself (never cloudbuild from a laptop). | when you change an ingest loader |
 | [`setup.cmd`](setup.cmd) | Double-clickable launcher for `setup.ps1` (runs it with `-ExecutionPolicy Bypass` so you don't fight Windows script policy). | instead of `setup.ps1` if you prefer double-click |
 | [`start_day.cmd`](start_day.cmd) | Double-clickable launcher for `start_day.ps1`. | instead of `start_day.ps1` |
 
@@ -46,9 +46,9 @@ loaders and the client export jobs — they don't touch production beyond loggin
 # Then run a loader with the venv's Python:
 .\.venv\Scripts\python.exe ingest/windsor_data_pull\meta\meta_loader.py
 
-# Deploy the shared ingest jobs to the cloud (build + deploy + schedule all four):
+# Deploy the shared ingest jobs to the cloud (build + deploy + schedule all five):
 .\scripts\deploy_ingest_jobs.ps1
-.\scripts\deploy_ingest_jobs.ps1 -Only neto   # just one: neto|meta|tradedesk|snowflake
+.\scripts\deploy_ingest_jobs.ps1 -Only neto   # just one: neto|meta|tradedesk|fields|snowflake
 .\scripts\deploy_ingest_jobs.ps1 -SkipBuild   # redeploy + reschedule without rebuilding
 .\scripts\deploy_ingest_jobs.ps1 -Run         # also execute each job once after deploy
 ```
@@ -69,6 +69,7 @@ service account in `australia-southeast1`; images go to the shared `bidbrain` Ar
 | `raw_neto.orders` (City Perfume sales truth) | `neto-orders-ingest` | `ingest/neto_data_pull/orders` | `0 21 * * *` |
 | `raw_windsor.perf_meta` (Meta, all granted accounts) | `windsor-meta-ingest` | `ingest/windsor_data_pull/meta` | `15 21 * * *` |
 | `raw_windsor.perf_the_trade_desk` (TTD, per-account + self-heal) | `windsor-tradedesk-ingest` | `ingest/windsor_data_pull/tradedesk` | `35 21 * * *` |
+| `raw_windsor.windsor_fields` (Windsor field catalogue, new-field watch) | `windsor-fields-ingest` | `ingest/windsor_data_pull/fields` | `45 21 * * *` |
 
 - **`snowflake-ingest` is self-gating** per the freshness contract: it runs every 10 minutes,
   but each tick cheaply checks per-table freshness (`raw_snowflake._sync_state`, honoring

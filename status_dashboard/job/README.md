@@ -1,8 +1,9 @@
 # status_dashboard/job/ — the export job (stage 2)
 
 A Cloud Run **Job** (`status-export`) that assembles ONE `status.json` for the meta dashboard and
-writes it to the private bucket `bidbrain-analytics-status-dash`. Then it exits. The gated web service
-([`../dash/`](../dash/README.md)) serves that JSON at `/data.json`.
+writes it to the private bucket `bidbrain-analytics-status-dash`. Then it exits. The **platform
+front-door** ([`../../bidbrain-platform/`](../../bidbrain-platform/)) reads that JSON to render its
+merged Overview + Data Accuracy tabs (the old standalone `../dash/` service is retired).
 
 Unlike a client export job, this one has **no `sql/` views and no BigQuery dataset of its own**. It
 *reads other clients'* resources to answer two questions for every Snowflake-sourced client:
@@ -17,8 +18,8 @@ Unlike a client export job, this one has **no `sql/` views and no BigQuery datas
    query so anyone can reproduce it.
 
 **Clients covered (6, Snowflake-sourced):** mongodb, cloudflare, stt, hireright, schneider, proptrack —
-the `CLIENTS` spec in `main.py`. (cityperfume + resetdata read Windsor/GA4/Neto/Google-Ads natively, no
-Snowflake, so they're out of scope.) Keep this list in sync with `$CLIENT_BUCKETS` in
+the `CLIENTS` spec in `main.py`. (cityperfume + resetdata + tlm + vmch read Windsor/GA4/Neto/Google-Ads
+natively, no Snowflake, so they're out of scope.) Keep this list in sync with `$CLIENT_BUCKETS` in
 [`../deploy_status.ps1`](../deploy_status.ps1).
 
 | File | What it is |

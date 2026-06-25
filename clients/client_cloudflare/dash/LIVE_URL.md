@@ -6,10 +6,12 @@ Password-gated — the page loads a login screen; enter the dashboard password
 (Secret Manager: `cloudflare-dash-password`) to view it. Verified serving HTTP 200
 (login page) on 2026-06-04.
 
-**Intended friendly URL:** https://cloudflare.bidbrain.ai
-Cloudflare CNAME → the `…run.app` host above, Proxied (orange), SSL Full (strict),
-with a Host Header Override origin rule (same setup as `mongodb.bidbrain.ai`).
-Use the `…run.app` link until the custom domain is confirmed live.
+**How it's accessed — the platform front-door:** the normal way in is
+**https://dashboards.bidbrain.ai/d/cloudflare/** (one login over all dashboards; the front-door
+reverse-proxies this service and logs into it for you, so no second password). The `…run.app` URL above
+is the upstream the proxy talks to and stays individually password-gated for direct access. There is
+**no** `cloudflare.bidbrain.ai` subdomain — the front-door is the access path. See
+[`bidbrain-platform/README.md`](../../../bidbrain-platform/README.md).
 
 ## Deployment coordinates
 

@@ -168,7 +168,7 @@ new-vs-returning via first-ever-order over full history. **Flagged to client:** 
 | Job / services | `cityperfume-export` / `cityperfume-dash` (online-only) + `cityperfume-total-dash` (all-sales, `dash_total/`) |
 | SAs | `cityperfume-dash-job@…` (job) · `cityperfume-dash-web@…` (web) |
 | Secrets | `cityperfume-dash-password` · `cityperfume-dash-session-key` |
-| Subdomain (later) | `cityperfume.bidbrain.ai` |
+| Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/cityperfume/` (no per-client subdomain) |
 
 ## Files
 

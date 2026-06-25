@@ -18,8 +18,10 @@ The `…run.app` URL is harmless without the password: it only shows the login s
 (`schneider.json`) lives in a **private** bucket and is served only to an authenticated session via
 `/data.json` — never publicly. See the [root security model](../../../README.md#7-security-model-read-before-changing-hosting).
 
-## Custom domain (optional, not yet wired)
+## How it's accessed — the platform front-door
 
-To put it on `schneider.bidbrain.ai`: add a CNAME in Cloudflare DNS → the `…run.app` host above,
-Proxied, SSL Full (strict), with a **Host Header Override** to the run.app host (mirrors the
-MongoDB / Cloudflare / STT setup).
+The normal way in is the **platform front-door — https://dashboards.bidbrain.ai/d/schneider/** (one
+login over all dashboards; the front-door reverse-proxies this service and logs into it for you, so no
+second password). The `…run.app` URL above is the upstream the proxy talks to and stays individually
+password-gated for direct access. There is **no** `schneider.bidbrain.ai` subdomain — the front-door is
+the access path. See [`bidbrain-platform/README.md`](../../../bidbrain-platform/README.md).

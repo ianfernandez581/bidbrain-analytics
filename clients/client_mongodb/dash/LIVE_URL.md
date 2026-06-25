@@ -6,10 +6,12 @@ Password-gated — the page loads a login screen; enter the dashboard password
 (Secret Manager: `mongodb-dash-password`) to view it. Verified serving HTTP 200
 (login page) on 2026-05-30.
 
-**Intended friendly URL:** https://mongodb.bidbrain.ai
-Cloudflare CNAME → the `…run.app` host above, Proxied (orange), SSL Full (strict),
-with a Host Header Override origin rule. See README §4.5 and §13 — being finished;
-use the `…run.app` link until it's confirmed live.
+**How it's accessed — the platform front-door:** the normal way in is
+**https://dashboards.bidbrain.ai/d/mongodb/** (one login over all dashboards; the front-door
+reverse-proxies this service and logs into it for you, so no second password). The `…run.app` URL above
+is the upstream the proxy talks to and stays individually password-gated for direct access. There is
+**no** `mongodb.bidbrain.ai` subdomain — the front-door is the access path. See
+[`bidbrain-platform/README.md`](../../../bidbrain-platform/README.md).
 
 ## Deployment coordinates
 

@@ -150,7 +150,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | Web service | `schneider-dash` (runtime SA `schneider-dash-web@…`) → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
 | Secrets | `schneider-dash-password` · `schneider-dash-session-key` |
 | Refresh | Cloud Scheduler `schneider-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
-| Domain (later) | `schneider.bidbrain.ai` (CNAME + Host Header Override, wired later) |
+| Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/schneider/` (no per-client subdomain) |
 
 ## Files
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /

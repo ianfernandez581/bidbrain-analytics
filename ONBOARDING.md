@@ -79,11 +79,14 @@ You don't edit files by hand and you don't memorize gcloud commands. You **descr
 plain English** and let Claude find the file, make the edit, and deploy it. Claude already knows this
 repo's rules from `CLAUDE.md`.
 
-### The 8 client keys
-`mongodb`, `cloudflare`, `stt`, `schneider`, `hireright`, `cityperfume`, `resetdata`, `proptrack`
-(plus a meta `status_dashboard`). Everything for a client `<c>` derives from its key: dataset
-`client_<c>`, bucket `bidbrain-analytics-<c>-dash`, job `<c>-export`, service `<c>-dash`,
-subdomain `<c>.bidbrain.ai`. Each lives in `clients/client_<c>/` with `sql/` `job/` `dash/`.
+### The 10 client keys
+`mongodb`, `cloudflare`, `stt`, `schneider`, `hireright`, `cityperfume`, `resetdata`, `proptrack`,
+`tlm`, `vmch` (plus the `status_dashboard` pipeline-health plumbing and the `bidbrain-platform`
+front-door). Everything for a client `<c>` derives from its key: dataset `client_<c>`, bucket
+`bidbrain-analytics-<c>-dash`, job `<c>-export`, service `<c>-dash`. Each lives in `clients/client_<c>/`
+with `sql/` `job/` `dash/`. All dashboards are reached through ONE front-door —
+**https://dashboards.bidbrain.ai** (one login, then `/d/<client>/` per dashboard); there are no
+per-client `<c>.bidbrain.ai` subdomains.
 
 ### Two kinds of edit — say which one you want
 
@@ -153,7 +156,8 @@ These are the project's hard rules; Claude follows them, and so should you:
 - **Never edit BigQuery views in the console.** `sql/*.sql` is the source of truth, or the views
   drift. Edit the file and redeploy the views.
 - **Everything stays in `australia-southeast1`.** Never create a resource in another region.
-- **One client = its own dataset, job, bucket, service, password, subdomain.** Keep clients isolated.
+- **One client = its own dataset, job, bucket, service, password.** Keep clients isolated. (Access is
+  unified through the front-door at `dashboards.bidbrain.ai/d/<client>/`; no per-client subdomains.)
 
 ---
 
@@ -174,6 +178,8 @@ These are the project's hard rules; Claude follows them, and so should you:
 - **`README.md`** (repo root) — the full human map of the architecture and every folder.
 - **`clients/client_<c>/README.md`** — per-client detail (what it reports, currency, gotchas).
 - **`clients/client_mongodb/README.md`** — the canonical 3-stage pattern, end to end.
+- **`bidbrain-platform/README.md`** — the front-door at `dashboards.bidbrain.ai`: the one login,
+  the reverse proxy, the admin/super-admin tiers, the merged Status dashboard, and the feedback widget.
 
 Anything unclear, ask Claude in-repo ("how does the freshness gate work?", "where does the resetdata
 ROAS get computed?") — it can read the whole repo and explain.

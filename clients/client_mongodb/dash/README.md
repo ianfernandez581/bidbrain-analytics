@@ -27,7 +27,7 @@ the charts.
 | [`enable_report_mongodb.ps1`](enable_report_mongodb.ps1) | **One-time** setup for the AI report: creates the `anthropic-api-key` secret, grants the runtime SA secret-read + bucket-write, mounts the key, and bumps the service `--timeout`. |
 | [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run deploy mongodb-dash` → re-apply `--no-invoker-iam-check` (so a redeploy never silently drops public reachability). |
 | [`requirements.txt`](requirements.txt) | `Flask`, `gunicorn`, `google-cloud-storage`, `anthropic` (the report generator). Kept out of the dev venv on purpose. |
-| [`LIVE_URL.md`](LIVE_URL.md) | The live `…run.app` URL, the intended `mongodb.bidbrain.ai`, and how to re-fetch the URL. |
+| [`LIVE_URL.md`](LIVE_URL.md) | The upstream `…run.app` URL, the front-door access path (`dashboards.bidbrain.ai/d/mongodb/`), and how to re-fetch the URL. |
 | `.dockerignore` | Keeps the build context lean. |
 
 ---

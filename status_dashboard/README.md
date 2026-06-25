@@ -1,7 +1,15 @@
-# status_dashboard — the meta / pipeline-status dashboard
+# status_dashboard — pipeline-status data + deploy plumbing
 
-One gated screen (**status.bidbrain.ai**) that answers, for every Snowflake-sourced client, the two
-questions that keep getting 100% Digital blamed for Transmission's stale data:
+> **The UI now lives in the platform front-door**, not here. As of 2026-06-23 the standalone
+> `status.bidbrain.ai` screen was retired and folded into [`bidbrain-platform/`](../bidbrain-platform/)
+> (Overview health badges + a **Data Accuracy** tab at https://dashboards.bidbrain.ai). What remains in
+> this folder is the **data + deploy plumbing** behind that tab: the **`status-export`** job (writes
+> `status.json`) and the **`status-deploy`** job (the "Make this live" worker the platform triggers).
+> The `dash/` folder (the old gated Flask screen + `deploy_status.ps1`'s service step) is **legacy /
+> superseded** — kept for reference, no longer the access path.
+
+For every Snowflake-sourced client it answers the two questions that keep getting 100% Digital blamed
+for Transmission's stale data:
 
 1. **Data Sync Status** — is a stale dashboard *Transmission's* fault (the Snowflake **source** hasn't
    updated) or *100% Digital's* (our pipeline hasn't ingested/rebuilt)?
@@ -9,8 +17,14 @@ questions that keep getting 100% Digital blamed for Transmission's stale data:
    Snowflake**? (It shows the exact query so anyone can reproduce it.)
 
 It is **not a client** — there is no BigQuery dataset and no SQL views. It reads other clients' resources
-and writes one JSON. But it rides the exact same serving pattern as every client dash (gated Flask service
-+ private bucket + Cloud Run export job + Cloud Scheduler).
+and writes one JSON (`status.json`) to its private bucket `bidbrain-analytics-status-dash`. The platform
+front-door reads that JSON to render the merged Overview + Data Accuracy tabs.
+
+Because CS verification queries are now **built from each client's `definitions.json`** (single source of
+truth; LIVE copy at `gs://bidbrain-analytics-status-dash/definitions/<c>.json`), editing a client's
+definitions from the platform's Data Accuracy tab changes BOTH the dashboard (via seed tables) and the
+check. "Make this live" triggers the **`status-deploy`** job (`status_dashboard/deploy/`, SA
+`status-deploy@`) — the privileged worker that applies a staged edit and re-runs the affected export jobs.
 
 ## How it decides who's to blame
 
@@ -143,34 +157,44 @@ client's numbers are only recomputed when that client's Snowflake source advance
 
 ```
 status_dashboard/
-  deploy_status.ps1            one-shot, idempotent stand-up (APIs, bucket, SAs, IAM, secrets, job, scheduler, service)
-  scheduler.ps1                create/refresh the */15 Cloud Scheduler trigger
-  job/
+  deploy_status.ps1            one-shot, idempotent stand-up (APIs, bucket, SAs, IAM, secrets, job, scheduler;
+                               its standalone-service step is legacy — the UI is now in the platform)
+  scheduler.ps1                create/refresh the */15 Cloud Scheduler trigger for status-export
+  job/                         the status-export job (writes status.json)
     main.py                    the CLIENTS spec + freshness probe + gated accuracy + status.json writer
     freshness.py               vendored probe helpers (identical to the client jobs')
     requirements.txt  Dockerfile  deploy_job_status.ps1
-  dash/
-    main.py                    gated Flask service (login + /data.json proxy), serves dashboard.html no-store
-    dashboard.html             the two tabs (Data Sync Status, Data Accuracy) — pure HTML/CSS/JS, no chart libs
-    requirements.txt  Dockerfile  deploy_dash_status.ps1
+  deploy/                      the status-deploy job — the platform's "Make this live" worker (SA status-deploy@)
+    main.py                    applies a staged definitions edit + re-runs the affected export jobs
+    definitions_seed.py        seed/refresh definitions.json
+    grant_dataset_writer.py    grant the deploy SA dataset-level write on the clients it deploys
+    Dockerfile  requirements.txt  deploy_job_status_deploy.ps1
+  dash/                        LEGACY — the retired standalone status.bidbrain.ai screen (superseded by the
+                               platform front-door's merged tabs); kept for reference
+    main.py  dashboard.html  requirements.txt  Dockerfile  deploy_dash_status.ps1
 ```
 
 ## Deploy
 
-First-time stand-up (provisions everything; idempotent — safe to re-run):
+First-time stand-up (provisions the data + deploy plumbing; idempotent — safe to re-run):
 
 ```powershell
-.\status_dashboard\deploy_status.ps1        # prompts for a dashboard password (or set $env:DASH_PASSWORD)
-.\status_dashboard\scheduler.ps1            # */15 trigger
+.\status_dashboard\deploy_status.ps1                       # bucket, SAs, IAM, secrets, status-export job, scheduler
+.\status_dashboard\scheduler.ps1                           # */15 trigger for status-export
+.\status_dashboard\deploy\deploy_job_status_deploy.ps1     # the status-deploy "Make this live" worker + platform IAM
 ```
 
-Then point **status.bidbrain.ai** at the `status-dash` service in Cloudflare DNS (same as the client dashboards).
+The **UI is the platform front-door** — there is no `status.bidbrain.ai` to point DNS at anymore. The
+front-door reads `status.json` from the status bucket and renders the Overview + Data Accuracy tabs. (The
+`deploy_status.ps1` script still contains a legacy step that deploys the standalone `status-dash` service;
+it's superseded and can be skipped.)
 
 After an edit (manual, build-as-yourself — same rule as the rest of the repo; cloudbuild-from-laptop fails on
 `iam.serviceaccounts.actAs`):
 
-- edited `dash/dashboard.html` or `dash/main.py` → `.\status_dashboard\dash\deploy_dash_status.ps1`
 - edited `job/main.py` (CLIENTS spec / queries / verdict) → `.\status_dashboard\job\deploy_job_status.ps1`
+- edited `deploy/main.py` (the "Make this live" worker) → `.\status_dashboard\deploy\deploy_job_status_deploy.ps1`
+- the merged UI itself lives in `bidbrain-platform/` → redeploy with `bidbrain-platform\dash\deploy_dash_platform.ps1`
 
 The job's runtime SA (`status-dash-job@`) needs: BigQuery `jobUser`+`dataViewer`, `objectViewer` on each client
 bucket, `objectAdmin` on the status bucket, and `secretAccessor` on the shared `snowflake-bq-key`. The stand-up

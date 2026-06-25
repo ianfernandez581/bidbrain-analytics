@@ -44,4 +44,4 @@ pattern (only `snowflake-ingest` self-gates today). See [`orders/README.md`](ord
 
 - [`orders/README.md`](orders/README.md) — full loader detail (auth, pagination, schema, MERGE key, timezone convention, address-PII caveat).
 - [`ingest/windsor_data_pull/`](../windsor_data_pull/README.md) & [`ingest/snowflake_data_pull/`](../snowflake_data_pull/README.md) — the other shared ingest units this mirrors.
-- [`scripts/deploy_ingest_jobs.ps1`](../../scripts/deploy_ingest_jobs.ps1) — builds/deploys/schedules all four shared ingest jobs.
+- [`scripts/deploy_ingest_jobs.ps1`](../../scripts/deploy_ingest_jobs.ps1) — builds/deploys/schedules all five shared ingest jobs.

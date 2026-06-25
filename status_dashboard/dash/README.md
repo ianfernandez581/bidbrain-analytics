@@ -1,4 +1,10 @@
-# status_dashboard/dash/ — the web app (stage 3)
+# status_dashboard/dash/ — the web app (stage 3) — LEGACY / SUPERSEDED
+
+> **Retired (2026-06-23).** This standalone `status-dash` gated screen (and its `/d/status/` proxy) was
+> folded into the **platform front-door** — the Data Sync + Data Accuracy views now render as the
+> Overview + Data Accuracy tabs at https://dashboards.bidbrain.ai, reading the same `status.json`
+> written by [`../job/`](../job/README.md). This folder is kept for reference only; the live UI lives in
+> [`../../bidbrain-platform/`](../../bidbrain-platform/).
 
 A Cloud Run **Service** (`status-dash`): a thin password gate + static server. It renders a login screen,
 and once a session is authenticated it serves `dashboard.html` and proxies the private `status.json` from
@@ -26,6 +32,6 @@ only door. `dashboard.html` is served with `Cache-Control: no-store`, so a redep
 `secretAccessor` on `status-dash-password` and `status-dash-session-key`. Env: `GCS_BUCKET`,
 `DATA_OBJECT=status.json`; secrets: `DASH_PASSWORD`, `SESSION_SECRET`.
 
-Redeploy after editing `dashboard.html` or `main.py`: `.\status_dashboard\dash\deploy_dash_status.ps1`.
-Then point **status.bidbrain.ai** at the `status-dash` service in Cloudflare DNS (same as the client
-dashboards).
+> Legacy redeploy (only if you ever revive the standalone service):
+> `.\status_dashboard\dash\deploy_dash_status.ps1`. There is no `status.bidbrain.ai` DNS anymore — the
+> live UI is the platform front-door, which reads the same `status.json`.

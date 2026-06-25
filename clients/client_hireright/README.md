@@ -143,11 +143,11 @@ The service goes live as soon as the new revision is ready; it reads whatever JS
 | Web service | `hireright-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `hireright-dash-web@…`) |
 | Secrets | `hireright-dash-password` · `hireright-dash-session-key` |
 | Refresh | Cloud Scheduler `hireright-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
-| Custom domain | `hireright.bidbrain.ai` (note only — not yet wired; see `dash/LIVE_URL.md`) |
+| Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/hireright/` (no per-client subdomain; see `dash/LIVE_URL.md`) |
 
 ## Files
 
-- [`sql/`](sql/README.md) — the 14 BigQuery views (filter + model); `create_views.py` applies them.
+- [`sql/`](sql/README.md) — the 16 BigQuery views (filter + model); `create_views.py` applies them.
 - [`job/`](job/README.md) — the export job (stage 2): views → `hireright.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved build slice (filters, currency, platforms).

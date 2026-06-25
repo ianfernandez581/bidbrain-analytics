@@ -17,7 +17,7 @@ Desk programmatic display) set against the VMCH website (GA4).
 | Source | Table | Account / Advertiser | Window | Spend | Notes |
 |--------|-------|----------------------|--------|-------|-------|
 | The Trade Desk (Windsor) | `raw_windsor.perf_the_trade_desk` | `VMCH ` (trailing space) | 2026-04-30 → 2026-06-12 | **A$20,445** | 4.4M imps, 3,248 clicks, AUD (no FX) |
-| GA4 (DTS) | `raw_ga4.perf_ga4` + `…_events` | `VMCH Website - GA4` | flight ≥ 2026-04-01 | — | 124,634 sessions, 76,764 users; enquiries via key events |
+| GA4 (DTS + Windsor fallback) | `raw_ga4.perf_ga4` + `…_events`, then `raw_windsor.perf_ga4` / `…_events` for any missing date | `VMCH Website - GA4` | flight ≥ 2026-04-01 | — | 124,634 sessions, 76,764 users; enquiries via key events. DTS is failing since 2026-06-01 (permission error) so Windsor backfills per-date — see Caveats |
 
 **Decision gates (all resolved):**
 

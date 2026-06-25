@@ -21,11 +21,13 @@ live" worker the platform triggers. CS verification queries are now BUILT from e
 `gs://bidbrain-analytics-status-dash/definitions/<c>.json`), so editing it changes BOTH the dashboard
 (via seed tables) and the check. bucket `bidbrain-analytics-status-dash`. See `status_dashboard/README.md`.
 
-**`bidbrain-platform/`** is the front-door: ONE password box over all the dashboards. **LIVE on its
-Cloud Run URL** (`platform-dash-…run.app`; no custom domain needed). It's a **REVERSE PROXY**: each
-dashboard is served under the platform's own origin at `/d/<client>/`, and the platform logs into the
+**`bidbrain-platform/`** is the front-door: ONE password box over all the dashboards. **LIVE at
+https://dashboards.bidbrain.ai** (custom domain mapped to the `platform-dash` Cloud Run service; also
+reachable on its raw `platform-dash-…run.app` URL). It's a **REVERSE PROXY**: each dashboard is served
+under the platform's own origin at `dashboards.bidbrain.ai/d/<client>/`, and the platform logs into the
 upstream `<c>-dash` once (server-side, with that dashboard's own Secret-Manager password) — so after the
-ONE platform login the dashboards open with **no second password**, on raw run.app, no domain required.
+ONE platform login the dashboards open with **no second password**, all on the one
+`dashboards.bidbrain.ai` origin (no per-client domain needed).
 An **agency** password opens a portal of that agency's clients;
 a single **dashboard** password opens just that one; the **admin** password opens an editable
 agencies→clients→campaigns tree; the **super-admin** password opens a god-mode console
@@ -58,9 +60,12 @@ trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shar
 *coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb, +status (the meta
 Pipeline-Status dash, surfaced here so Transmission can watch data health)}; **stt/hireright unassigned**.
 No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.py`), NOT a cookie —
-the `bb_sso`/`platform_sso.py` machinery stays deployed but inert, and would only take over if a real
-domain is later wired (Cloud DNS + Cloud Run domain mappings; `australia-southeast1` supports `gcloud
-run domain-mappings`; **NO Cloudflare**). Platform SA `platform-dash-web@` has `secretAccessor` on every
+the `bb_sso`/`platform_sso.py` machinery stays deployed but inert. The platform itself now has the
+custom domain (`dashboards.bidbrain.ai`), but the cookie path would only take over if each *dashboard*
+also got its own `<c>.bidbrain.ai` subdomain — those still don't exist (the dashboards are reached only
+through the proxy on the single platform origin), so the cookie stays dormant. (Per-client subdomains
+would need Cloud DNS + Cloud Run domain mappings; `australia-southeast1` supports `gcloud run
+domain-mappings`.) Platform SA `platform-dash-web@` has `secretAccessor` on every
 `<c>-dash-password` (to log into upstreams). **Feedback:** the proxy injects a self-contained
 **Feedback widget** (text **or** a voice note via `MediaRecorder`, **plus an html2canvas page
 screenshot**) into every proxied dashboard — same `</body>`-injection as the logout pill
@@ -115,9 +120,12 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 - `ingest/dts_data_pull/` → `raw_google_ads` + `raw_ga4` via **native BigQuery DTS** (no job; daily, free). 3 bridge views.
 - `ingest/neto_data_pull/` → `raw_neto.orders` (City Perfume sales). **Fixed daily** Cloud Run job `neto-orders-ingest`.
 
-**`status_dashboard/`** — meta dash (`status.bidbrain.ai`), no dataset/views; reads the other clients'
-resources, self-gating `*/15`. **`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1`
-(deploys the 4 ingest jobs as `ingest-runner@`). For anything client-specific, open `clients/client_<c>/README.md`.
+**`status_dashboard/`** — pipeline-health data + deploy plumbing (its UI is **merged into the platform
+front-door** — no standalone `status.bidbrain.ai`); no dataset/views; reads the other clients'
+resources, self-gating `*/15`. **`bidbrain-platform/`** — the front-door at `dashboards.bidbrain.ai`.
+**`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1` (deploys the 5 shared ingest
+jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). For anything
+client-specific, open `clients/client_<c>/README.md`.
 
 ## Dashboard edits — the common task. READ THIS FIRST.
 Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,300–2,400 lines).

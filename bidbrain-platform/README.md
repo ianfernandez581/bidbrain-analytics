@@ -69,9 +69,10 @@ moves it into the registry and supersedes the secret). If a dashboard rotation's
 fails (e.g. IAM not yet propagated), the console tells you the exact `gcloud run services update …` to
 finish it by hand.
 
-## How "no second password" works TODAY — a reverse proxy (no domain needed)
-No `<c>.bidbrain.ai` subdomains exist, and a shared SSO cookie can't span raw `run.app` hosts
-(public-suffix). So the platform **reverse-proxies** each dashboard under its own origin:
+## How "no second password" works TODAY — a reverse proxy
+The platform is live on the custom domain **https://dashboards.bidbrain.ai**. The individual
+dashboards have **no** `<c>.bidbrain.ai` subdomains, and a shared SSO cookie can't span raw `run.app`
+hosts (public-suffix). So the platform **reverse-proxies** each dashboard under its own origin:
 
 - Portal/admin tiles link to **`/d/<client>/`** (not the dashboard's run.app URL).
 - `proxy()` in `main.py` checks your platform session may open that client, then forwards to the
@@ -83,11 +84,13 @@ No `<c>.bidbrain.ai` subdomains exist, and a shared SSO cookie can't span raw `r
   z-index) into the bottom of every proxied dashboard page — the dashboards have no logout of their
   own. It links to the platform's `/logout` (root-relative, so `dashboards.bidbrain.ai/logout`, NOT
   through `/d/`), which clears the session + `bb_sso` cookie exactly like the portal/admin pages.
-- Result: after the single platform login, dashboards just open — **no second password** — on raw
-  run.app, no domain required. Per-agency scoping is enforced on `/d/<client>/`.
+- Result: after the single platform login, dashboards just open — **no second password** — all on the
+  one `dashboards.bidbrain.ai` origin. Per-agency scoping is enforced on `/d/<client>/`.
 
-The `bb_sso` cookie machinery below is also deployed but **inert** — it would only take over if a real
-domain is wired later (then you'd switch the registry URLs to `https://<c>.<domain>/`).
+The `bb_sso` cookie machinery below is also deployed but **inert**. The platform itself now has a custom
+domain, but the cookie path would only take over if each *dashboard* got its own `<c>.bidbrain.ai`
+subdomain too (then you'd switch the registry URLs to `https://<c>.<domain>/`) — today they don't, so it
+stays dormant.
 
 ## (Future) cookie-based SSO once a domain exists
 The dashboards were already built for this: each sets `SESSION_COOKIE_SAMESITE=None; Secure`, but
@@ -181,19 +184,21 @@ scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mo
 
 ## Deploy & operate
 ```powershell
-# First-time standup (idempotent). DONE — platform is live at:
-#   https://platform-dash-p32gk2wuia-ts.a.run.app  (logs in; tiles link to each dashboard's run.app URL)
+# First-time standup (idempotent). DONE — platform is LIVE at:
+#   https://dashboards.bidbrain.ai  (custom domain on the platform-dash service; also on its raw
+#   https://platform-dash-p32gk2wuia-ts.a.run.app URL). Tiles open each dashboard at /d/<client>/.
 .\bidbrain-platform\deploy_platform.ps1
 
-# Activate SSO on the dashboards (DONE — injects SSO_SECRET/CLIENT_KEY into all 10). Stays dormant
-# until a custom domain is wired (see "To turn on real SSO" below):
+# Activate SSO on the dashboards (DONE — injects SSO_SECRET/CLIENT_KEY into all 10). Stays INERT:
+# the proxy delivers no-second-password today, and the cookie only takes over if each dashboard
+# also gets its own <c>.bidbrain.ai subdomain (see "To turn on cookie SSO" below):
 .\scripts\enable_platform_sso.ps1
 
-# To turn on real single-sign-on later — 100% GCP, NO Cloudflare:
-#   1. Register a domain (Cloud Domains) and host its zone in Cloud DNS.
-#   2. `gcloud beta run domain-mappings create --service=<svc> --domain=<host> --region=australia-southeast1`
-#      for platform-dash + each <c>-dash (Google auto-issues managed TLS). australia-southeast1 IS supported.
-#   3. Add the returned records in Cloud DNS; update the registry URLs to https://<c>.<domain>/.
+# To turn on cookie-based SSO later (only needed if you give each dashboard its own subdomain):
+#   1. Host the bidbrain.ai zone wherever DNS lives (Cloudflare DNS today, or Cloud DNS).
+#   2. `gcloud beta run domain-mappings create --service=<c>-dash --domain=<c>.bidbrain.ai --region=australia-southeast1`
+#      for each dashboard (Google auto-issues managed TLS). australia-southeast1 IS supported.
+#   3. Add the returned records; update the registry URLs to https://<c>.bidbrain.ai/.
 
 # Redeploy the platform after a code/template edit (data edits use the admin UI, not a redeploy):
 .\bidbrain-platform\dash\deploy_dash_platform.ps1

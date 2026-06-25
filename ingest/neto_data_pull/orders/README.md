@@ -112,7 +112,7 @@ To follow a backfill running in another window: `Get-Content neto_data_pull\orde
 
 ## Scheduling & deployment (the `neto-orders-ingest` Cloud Run job)
 
-In production the *incremental* run is **not** launched from a laptop — it's one of the four shared
+In production the *incremental* run is **not** launched from a laptop — it's one of the five shared
 **ingest** Cloud Run jobs. The [`Dockerfile`](Dockerfile) here (Python 3.12-slim, non-root,
 `requirements.txt` pinned to the repo `.venv`) builds the **`neto-orders-ingest`** job, which is
 built, deployed, and scheduled by [`scripts/deploy_ingest_jobs.ps1`](../../../scripts/deploy_ingest_jobs.ps1)
