@@ -1,0 +1,26 @@
+internal_campaign_id,channel,line_type,flight_start,flight_end,spend_aud,imp_target,reach_target,click_target,lead_target,sf_campaign_id,note
+airset,Lead gen (MQL),LeadGen-MQL,2026-06-17,2026-09-17,40000.0,,,,157,701RG00001VI10DYAT,AU 125 + NZ 32
+airset,LinkedIn CXO Stream,Awareness,2026-07-01,,15000.0,166000,16000,750,,,sharepoint media plan
+airset,LinkedIn Eng/Proc Stream,Awareness,2026-06-11,2026-12-31,10000.0,180000,25000,2000,,,
+airset,Programmatic,Awareness,2026-06-11,2026-12-31,25000.0,1600000,,1200,,,
+eba,IDE emails,Email,2026-07-01,,,,,,,,email sends/open/click; spend NA; no warehouse source
+eba,Lead gen (MQL),LeadGen-MQL,2026-05-25,2026-08-25,12500.0,,,,157,701RG00001OwE65YAF,
+eba,Programmatic,Awareness,2026-06-04,2026-08-31,20000.0,700000,233333,714,,,
+global_rebrand,Capital Brief,Awareness,2026-07-01,,,912000,,12000,,,
+global_rebrand,Energy Magazine,Awareness,2026-07-01,,,220248,,374,,,
+global_rebrand,Innovation Aus,Awareness,2026-07-01,,,24880,,1234,,,views/downloads; no warehouse source
+global_rebrand,LinkedIn,Awareness,2026-07-01,,,390625,88542,1393,,,
+global_rebrand,Search,Awareness,2026-07-01,,,,,1222,,,3% CTR target; no warehouse source
+heavy,Demand AI (HQL),LeadGen-HQL,2026-07-01,2026-10-31,10800.0,,,,48,701RG00001KhQEcYAN,
+heavy,Demand AI (MQL),LeadGen-MQL,2026-06-01,2026-09-30,5100.0,,,,51,701RG00001KhQEcYAN;701RG00001T4zGfYAJ,
+heavy,Finalfunnel (MQL),LeadGen-MQL,,,5690.0,,,,435,701RG00001KhOntYAF;701RG00001KhQL4YAN;701RG00001T4zGfYAJ,
+heavy,LinkedIn,Awareness,2026-06-30,2026-08-31,6649.0,190910,27272,2864,,,
+heavy,Programmatic,Awareness,2026-06-30,2026-08-31,27681.0,468517,139003,3153,,,
+heavy,Roverpath (MQL),LeadGen-MQL,,,1275.0,,,,85,701RG00001KhQEcYAN,
+heavy,Trade Publication,Trade,2026-05-01,,10000.0,,,180,,,page views 1200; sessions 950+; engaged 700+; outbound CTR 15%; on-months May/Jul/Sep; no warehouse source
+nel,LinkedIn,Awareness,2026-06-16,2026-09-10,27000.0,370417,65000,1981,,,
+nel,Programmatic,Awareness,2026-06-06,2026-08-30,8000.0,444444,111111,444,,,
+water_env,Demand AI Pillar 1 (MQL),LeadGen-MQL,2026-07-01,2026-10-31,7293.0,,,,51,701RG00001RTyAQYA1,7 leads/wk
+water_env,Demand AI Pillar 2 (MQL),LeadGen-MQL,2026-06-04,2026-08-10,14630.0,,,,133,701RG00001RUkTfYAL,14 leads/wk
+water_env,LinkedIn,Awareness,,,26599.0,277632,89462,2100,,,
+water_env,Programmatic,Awareness,2026-04-30,2027-01-31,32512.0,2167467,999066,2168,,,P2 live 30 Apr; P1&3 from Jul

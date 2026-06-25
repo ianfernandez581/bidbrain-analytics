@@ -138,10 +138,10 @@ def _cf_camp(key, field):
     return lambda d: _num(d.get("campaigns", {}).get(key, {}).get("totals", {}).get(field))
 
 
-# Cloudflare's Content-Syndication checks (4 CS region-quality + the KR/RIG segments + 4 CF1 CS) are
-# BUILT FROM DEFINITIONS at runtime — see _build_cf_cs_checks() below. The campaign-ID filter, the
-# client-defined KR/RIG sets, the geographic map, the 7 market chips and the status buckets all come
-# from definitions/<client>.json (the single source of truth shared with the client's seed tables),
+# Cloudflare's Content-Syndication checks (4 CS quality + KR/RIG segments + residual-zero guard + 4 CF1
+# CS) are BUILT FROM DEFINITIONS at runtime — see _build_cf_cs_checks() below. The campaign-ID filter,
+# the client-defined KR/RIG sets, the geographic map, the 11 market chips and the status buckets all
+# come from definitions/<client>.json (the single source of truth shared with the client's seed tables),
 # so editing that one file changes BOTH the dashboard and this verification — no two-place edit.
 
 
@@ -787,23 +787,27 @@ def read_definitions(client):
 
 def _cf_cs_cte(defs):
     """Rebuild cloudflare's CS region CTE (sql/10's REGION_GRP logic) from definitions.json —
-    semantically identical to the old hardcoded CTE. RIG then KR are evaluated BEFORE the
-    geographic buckets (the client definition); the geographic arms follow in declared order."""
+    byte-equivalent to sql/10 (2026-06-25 model): country match is case-normalised (UPPER(TRIM)),
+    KR = ALL Korea (no campaign filter), and the geographic arms are the 11-market grain. RIG then KR
+    are evaluated BEFORE the geographic buckets; the geographic arms follow in declared order. With
+    every source country mapped, REGION_GRP='OTHER' is now empty (kept as a defensive ELSE)."""
     def esc(s):
         return str(s).replace("'", "''")
+    def upinlist(vals):   # uppercased in-list to match sql/10's UPPER(TRIM(COUNTRY_NAME))
+        return _sql_inlist([str(v).upper() for v in vals])
     src = defs["source_table_snowflake"]
     cs_ids = [c["id"] for c in defs["cs_campaigns"]]
     kr, rig, geo = defs["segments"]["KR"], defs["segments"]["RIG"], defs["geographic_regions"]
     arms = [
-        "          WHEN COUNTRY_NAME <> '%s' AND ASSET_2 IN (%s) AND CAMPAIGN_ID IN (%s) THEN 'RIG'"
-        % (esc(rig["exclude_country"]), _sql_inlist(rig["asset_2"]), _sql_inlist(rig["campaign_ids"])),
-        "          WHEN COUNTRY_NAME = '%s' AND CAMPAIGN_ID IN (%s) THEN 'KR'"
-        % (esc(kr["country"]), _sql_inlist(kr["campaign_ids"])),
+        "          WHEN UPPER(TRIM(COUNTRY_NAME)) <> '%s' AND ASSET_2 IN (%s) AND CAMPAIGN_ID IN (%s) THEN 'RIG'"
+        % (esc(rig["exclude_country"]).upper(), _sql_inlist(rig["asset_2"]), _sql_inlist(rig["campaign_ids"])),
+        "          WHEN UPPER(TRIM(COUNTRY_NAME)) = '%s' THEN 'KR'"
+        % esc(kr["country"]).upper(),
     ]
     for region_name, countries in geo.items():
         if region_name.startswith("_"):
             continue
-        arms.append("          WHEN COUNTRY_NAME IN (%s) THEN '%s'" % (_sql_inlist(countries), region_name))
+        arms.append("          WHEN UPPER(TRIM(COUNTRY_NAME)) IN (%s) THEN '%s'" % (upinlist(countries), region_name))
     return ("WITH cf_cs AS (\n"
             "  SELECT LEAD_STATUS,\n"
             "    CASE\n" + "\n".join(arms) + "\n          ELSE 'OTHER'\n    END AS REGION_GRP\n"
@@ -820,6 +824,7 @@ def _build_cf_cs_checks(defs):
     src = defs["source_table_snowflake"]
     buckets = defs["status_buckets"]
     kr, rig = defs["segments"]["KR"], defs["segments"]["RIG"]
+    cs_ids = [c["id"] for c in defs["cs_campaigns"]]
     cf1_ids = [c["id"] for c in defs["cf1_cs_campaigns"]]
     cte = _cf_cs_cte(defs)
 
@@ -827,8 +832,8 @@ def _build_cf_cs_checks(defs):
         return str(s).replace("'", "''")
 
     def total_leads(d):
-        # Whole 12-campaign CS universe — ALL regions INCL. the OTHER residual. Matches the live
-        # dash headline since the Others tab was added (2026-06-23): Accepted is 3328, not 3309.
+        # Whole 12-campaign CS universe — every market (no residual since 2026-06-25). The total
+        # is unchanged by the re-bucketing; only which market each lead lands in changed.
         return sum(1 for r in d.get("pacing", {}).get("rows", [])
                    if not _is_dummy(r) and r.get("LEAD_STATUS") is not None)
 
@@ -851,16 +856,16 @@ def _build_cf_cs_checks(defs):
          "sql": cte + "SELECT COUNT(*) AS total_leads\nFROM cf_cs\n"
                 "WHERE LEAD_STATUS IS NOT NULL;",
          "note": "SQL = the dash pipeline itself (definitions.json: campaign filter + client-defined "
-                 "REGION_GRP), the whole 12-campaign universe — EVERY region incl. the OTHER residual "
-                 "the dash surfaces as the 'Others' tab. Counts every non-null status (incl. New). "
-                 "vs the same count over pacing.rows[] (all regions)." + _CF_CS_NOTE},
+                 "REGION_GRP), the whole 12-campaign universe — every one of the 11 markets (no residual). "
+                 "Counts every non-null status (incl. New). vs the same count over pacing.rows[] "
+                 "(all markets)." + _CF_CS_NOTE},
         {"label": "CS · Accepted (Accepted+Replied+Unresponsive)", "kind": "count", "group": "Content Syndication",
          "dash": status(buckets["accepted"]),
          "sql": cte + "SELECT COUNT(*) AS accepted_leads\nFROM cf_cs\n"
                 "WHERE LEAD_STATUS IN (%s);" % _sql_inlist(buckets["accepted"]),
-         "note": "Cloudflare's Accepted bucket = %s (OPPOSITE of mongodb). ALL regions incl. the OTHER "
-                 "residual (no region filter — the OTHER accepted are counted, so this is 3328 not 3309). "
-                 "vs the same count over pacing.rows[]." % " + ".join(buckets["accepted"]) + _CF_CS_NOTE},
+         "note": "Cloudflare's Accepted bucket = %s (OPPOSITE of mongodb). All 11 markets, no region "
+                 "filter (every lead is counted in some market). vs the same count over pacing.rows[]."
+                 % " + ".join(buckets["accepted"]) + _CF_CS_NOTE},
         {"label": "CS · Rejected", "kind": "count", "group": "Content Syndication",
          "dash": status(buckets["rejected"]),
          "sql": cte + "SELECT COUNT(*) AS rejected_leads\nFROM cf_cs\n"
@@ -872,30 +877,29 @@ def _build_cf_cs_checks(defs):
                 "WHERE LEAD_STATUS IN (%s);" % _sql_inlist(buckets["new"]),
          "note": "On the dash this is derived (total - accepted - rejected); checked here directly "
                  "over pacing.rows[] (all regions)." + _CF_CS_NOTE},
-        {"label": "Korea Leads · Total (KR bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & Others",
+        {"label": "Korea Leads · Total (KR bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & residual",
          "dash": region("KR"),
          "sql": "SELECT COUNT(*) AS korea_leads\nFROM " + src + "\n"
-                "WHERE COUNTRY_NAME = '%s'\n  AND CAMPAIGN_ID IN (%s);"
-                % (esc(kr["country"]), _sql_inlist(kr["campaign_ids"])),
-         "note": "Korea Leads = Country '%s' AND the original El* campaigns ONLY — Korea leads from the "
-                 "Connectivity-Cloud / Modernize campaigns are EXCLUDED by definition. vs the count of "
-                 "pacing.rows[] with MARKET_REGION = 'KR'." % kr["country"] + _CF_CS_NOTE},
-        {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & Others",
+                "WHERE UPPER(TRIM(COUNTRY_NAME)) = '%s'\n  AND CAMPAIGN_ID IN (%s);"
+                % (esc(kr["country"]).upper(), _sql_inlist(cs_ids)),
+         "note": "Korea Leads = ALL Country '%s' leads in the 12 CS campaigns (2026-06-25: the old "
+                 "'6 El* campaigns only' restriction was dropped). vs the count of pacing.rows[] with "
+                 "MARKET_REGION = 'KR'." % kr["country"] + _CF_CS_NOTE},
+        {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & residual",
          "dash": region("RIG"),
          "sql": "SELECT COUNT(*) AS rig_leads\nFROM " + src + "\n"
-                "WHERE COUNTRY_NAME <> '%s'\n  AND ASSET_2 IN (%s)\n  AND CAMPAIGN_ID IN (%s);"
-                % (esc(rig["exclude_country"]), _sql_inlist(rig["asset_2"]), _sql_inlist(rig["campaign_ids"])),
+                "WHERE UPPER(TRIM(COUNTRY_NAME)) <> '%s'\n  AND ASSET_2 IN (%s)\n  AND CAMPAIGN_ID IN (%s);"
+                % (esc(rig["exclude_country"]).upper(), _sql_inlist(rig["asset_2"]), _sql_inlist(rig["campaign_ids"])),
          "note": "RIG Leads = NON-Korea AND the Modernize-Applications asset(s) AND the Final Funnel "
                  "campaigns. Asset-based, so it spans all countries — the dashboard's RIG bucket. vs the "
                  "count of pacing.rows[] with MARKET_REGION = 'RIG'." + _CF_CS_NOTE},
-        {"label": "Others · Total (OTHER residual bucket)", "kind": "count",
-         "group": "Content Syndication — Korea, RIG & Others", "dash": region("OTHER"),
+        {"label": "Residual · must be 0 (no unmapped market)", "kind": "count",
+         "group": "Content Syndication — Korea, RIG & residual", "dash": region("OTHER"),
          "sql": cte + "SELECT COUNT(*) AS other_leads\nFROM cf_cs\nWHERE REGION_GRP = 'OTHER';",
-         "note": "OTHER = the residual the named market chips don't claim: off-plan / mis-cased "
-                 "countries (e.g. China/Japan variants) + Korea leads OUTSIDE the original El* campaigns. "
-                 "Carries no Q2 target, so it used to silently drop out; surfaced as the 'Others' tab "
-                 "(2026-06-23) so CS totals are complete. vs the count of pacing.rows[] with "
-                 "MARKET_REGION = 'OTHER'." + _CF_CS_NOTE},
+         "note": "2026-06-25: the 'Others' bucket was eliminated — every source country maps to one of "
+                 "the 11 markets and KR captures all Korea, so REGION_GRP='OTHER' must be 0 on BOTH sides. "
+                 "A non-zero here means a brand-new/unmapped country appeared and needs adding to "
+                 "geographic_regions. vs the count of pacing.rows[] with MARKET_REGION = 'OTHER'." + _CF_CS_NOTE},
         {"label": "CF1 CS · Accepted (delivered Double Touch MQLs)", "kind": "count",
          "group": "Content Syndication — CF1 (Double Touch)", "dash": cf1cs("accepted"),
          "sql": "SELECT COUNT(*) AS cf1_cs_accepted\nFROM " + src + "\n"

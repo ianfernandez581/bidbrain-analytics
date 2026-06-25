@@ -97,35 +97,52 @@ Snowflake. Steps:
    (a seed change is invisible to the freshness gate). The model (`05_paid_media_model`
    `line_jp`) sums by day and converts **JPY→USD@155**.
 
-### KR + RIG are client-defined CS segments (2026-06-19) — not geographic
+### Updating targets (committed CSV → BQ)
 
-The **KR** and **RIG** CS buckets are no longer the old purely-geographic regions. They are
-the client's exact lead definitions, redefined in `sql/10_salesforce_leads_live.sql`'s `REGION_GRP`
-(and carried straight through `sql/13_pacing_model.sql`, `MARKET_REGION = REGION_GRP`):
+CS pacing targets live in the **version-controlled** `targets/real_targets.csv` (week × tier ×
+region × country × target) — NOT the gitignored `data/`. This is the per-client "targets in BQ from
+a committed CSV" standard: the CSV is the source of truth, `seed_static.py` loads it into
+`client_cloudflare.seed_real_targets`, and `sql/12_targets_v2_norm.sql` maps `(REGION, COUNTRY)` to
+the 11 market codes. To change targets:
 
-- **Korea Leads (KR)** — Country `'Korea, Republic of'` **AND** the **6 original El\*** campaigns
-  only (3 Roverpath + 3 Final Funnel). Korea leads from the Connectivity-Cloud / Modernize campaigns
-  are deliberately **excluded**. Live count **164** (137 accepted).
-- **RIG Leads (RIG)** — **NON-Korea AND** `ASSET_2` ("Asset Title 2" in Salesforce) `IN ('A-MAM-2','A-MAM-3')`
-  (the gaming-vertical *Modernize Applications* asset — only `A-MAM-3` has data today) **AND** the
-  **3 Final Funnel** campaigns. RIG is **asset-based, not geographic**, so it spans every country and is
-  evaluated **before** the five geographic buckets — it pulls those leads out of ANZ/ASEAN/SAARC/GCR/JP
-  (intentional overlap, accepted by the client). Live count **180** (167 accepted).
+1. Edit `targets/real_targets.csv` (commit it).
+2. `.\.venv\Scripts\python.exe clients\client_cloudflare\seed_static.py` (reloads `seed_real_targets`).
+3. Run the export job with `FORCE_REBUILD=1` (a seed change is invisible to the freshness gate).
 
-The other five regions stay purely geographic. The redefinition leaves a small residual **`OTHER`**
-bucket (~42 leads — mostly Korea-from-Modernize-Security + a few mis-cased / off-plan countries). As of
-**2026-06-23** `OTHER` is the **8th entry in the dash CS `ALL_MARKETS`** and renders as the **"Others"**
-market tab/chip (label only — the underlying `MARKET_REGION` stays `'OTHER'`), so CS totals are now
-**complete**: Accepted = **3328** (was 3309 when OTHER was dropped). It carries no Q2 target, so its
-By-region card shows only the QTD-Accepted bar. The old `pacing_model` "Computer Games + Tier 2 → RIG"
-override was removed so RIG equals the exact client def. The reference DDL
-`snowflake_v_salesforce_leads_live.sql` (Cloudflare's own legacy R2 export, NOT our pipeline) keeps the
-OLD geographic logic — our BQ region logic now **diverges** from it. The **status dashboard** reproduces
-KR / RIG / **Others** straight from Snowflake, and its core CS counts (Total / Accepted / Rejected / New)
-now query the raw 12-campaign universe with **no region filter** (so they include the OTHER residual too).
-**Pacing caveat:** RIG/KR target rows in the seed are still keyed by the old region names, so the RIG
-pacing % (actual-vs-target) compares the new asset-based RIG actuals against the legacy RIG target —
-the *counts* are exact, the pacing ratio is indicative until the client supplies segment-specific targets.
+The per-market Q2 totals must reconcile to the media-plan sheet (current total **3216**). `tiers.csv`
+and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
+
+### 11 media-plan markets, no Others bucket (2026-06-25 rework)
+
+The CS markets are the client's media-plan grain — **11 markets, and there is NO `OTHER`/`Others`
+bucket**. Defined in `sql/10_salesforce_leads_live.sql`'s `REGION_GRP` and carried straight through
+`sql/13_pacing_model.sql` (`MARKET_REGION = REGION_GRP`):
+
+**`AU`, `NZ`, `SIM` (SG/MY/ID), `RoA` (TH/VN/PH), `SAARC` (IN), `GCR-CN`, `GCR-TW`, `GCR-HK`, `KR`,
+`RIG`, `JP`.** The old 7 chips (ANZ/ASEAN/GCR) were split to match the target sheet 1:1.
+
+- **Korea Leads (KR)** — **ALL** Country `'Korea, Republic of'` leads in the 12 CS campaigns. Live
+  count **200** (171 accepted), matching the media-plan target of 202. **2026-06-25:** the old
+  "6 original El\* campaigns only" rule was **dropped** — it stranded ~36 Korea ABM (Modernize-Security)
+  leads in `OTHER` and contradicted the plan, which targets all of Korea.
+- **RIG Leads (RIG)** — **NON-Korea AND** `ASSET_2` `IN ('A-MAM-2','A-MAM-3')` (the gaming-vertical
+  *Modernize Applications* asset — only `A-MAM-3` has data) **AND** the **3 Final Funnel** campaigns.
+  Asset-based, evaluated **before** geography, so it spans every country. Live count **180** (167 accepted).
+
+The geographic markets are pure `COUNTRY_NAME` maps, **case-normalised** (`UPPER(TRIM(COUNTRY_NAME))`)
+so mis-cased countries (`japan`, `Hong kong`, `india`) route to JP / GCR-HK / SAARC instead of falling
+to a residual. With KR capturing all Korea and every source country mapped, the `ELSE 'OTHER'` arm is
+**empty** (kept only as a defensive catch for a brand-new country — the status dash asserts it stays 0).
+The old `pacing_model` "Computer Games + Tier 2 → RIG" override was removed so RIG equals the exact def.
+The reference DDL `snowflake_v_salesforce_leads_live.sql` (Cloudflare's legacy R2 export, NOT our
+pipeline) keeps the OLD geographic logic — our BQ region logic **diverges** from it. The **status
+dashboard** reproduces KR / RIG + a *residual-must-be-0* guard straight from Snowflake; its core CS
+counts (Total / Accepted / Rejected / New) query the whole 12-campaign universe with **no region filter**.
+
+**Targets follow the media-plan sheet** per market (Q2 total **3216**: AU 1150 / NZ 127 / SIM 381 /
+RoA 165 / SAARC 282 / GCR-CN 106 / GCR-TW 106 / GCR-HK 204 / KR 202 / RIG 172 / JP 321), and now live
+as a **version-controlled committed CSV** (`targets/real_targets.csv` → `seed_real_targets`, the
+per-client "targets in BQ from a committed CSV" standard — see *Updating targets* below).
 
 ## The data contract (`cloudflare.json` -> `/data.json`)
 

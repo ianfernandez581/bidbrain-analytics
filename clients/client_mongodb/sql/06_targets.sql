@@ -1,7 +1,8 @@
+-- targets: MongoDB CS lead targets per programme x market. Source of truth is the
+-- VERSION-CONTROLLED committed CSV targets/targets.csv, loaded to client_mongodb.seed_targets
+-- by seed_static.py (the cross-client "targets in BQ from a committed CSV" standard). This view
+-- is a thin alias so the rest of the pipeline (job + targets_by_programme) is unchanged.
+-- To change targets: edit targets/targets.csv -> seed_static.py -> export FORCE_REBUILD=1.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_mongodb.targets` AS
-SELECT * FROM UNNEST([
-  STRUCT("DNB Multi-Touch" AS PROGRAMME_LABEL,"ANZ" AS MARKET,46 AS TARGET_LEADS,43 AS DELIVERED_LEADS_SNAPSHOT,80 AS CPL),
-  STRUCT("DNB Multi-Touch","INDIA",105,79,80),STRUCT("DNB Multi-Touch","KR-HK-TW",70,39,80),STRUCT("DNB Multi-Touch","ASEAN",86,73,80),
-  STRUCT("DNB Pulse Survey","ANZ",14,18,160),STRUCT("DNB Pulse Survey","INDIA",27,27,160),STRUCT("DNB Pulse Survey","KR-HK-TW",16,9,160),
-  STRUCT("DNB Pulse Survey","ASEAN",25,29,160),STRUCT("KGA IDC Report","ANZ",90,40,CAST(NULL AS INT64)),STRUCT("KGA IDC Report","INDIA",209,52,CAST(NULL AS INT64)),
-  STRUCT("KGA IDC Report","KR-HK-TW",139,28,CAST(NULL AS INT64)),STRUCT("KGA IDC Report","ASEAN",171,54,CAST(NULL AS INT64))])
+SELECT PROGRAMME_LABEL, MARKET, TARGET_LEADS, DELIVERED_LEADS_SNAPSHOT, CPL
+FROM `bidbrain-analytics.client_mongodb.seed_targets`;

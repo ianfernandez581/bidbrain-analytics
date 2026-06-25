@@ -1,10 +1,17 @@
-r"""Load the human-editable seed CSVs in data/ into BigQuery seed_* tables.
+r"""Load the human-editable seed CSVs into BigQuery seed_* tables.
 
-STANDARDISED across clients: same loader + same data/ CSV contract. Each
-data/<stem>.csv -> client_<c>.seed_<stem-mapped> per SEED_SCHEMAS. Read all as
-text, '' -> NULL, coerce per schema, WRITE_TRUNCATE. Run BEFORE create_views.py
-(stg_salesforce + lead_* views read seed_salesforce_map).
+STANDARDISED across clients: same loader + same CSV contract. Each <stem>.csv ->
+client_<c>.seed_<stem-mapped> per SEED_SCHEMAS. Read all as text, '' -> NULL,
+coerce per schema, WRITE_TRUNCATE. Run BEFORE create_views.py (stg_salesforce +
+lead_* views read seed_salesforce_map).
 Run: .\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py
+
+TARGETS standard (committed CSV -> BQ): the media-plan TARGET seeds (media_plan /
+targets / plan_budget) live in the VERSION-CONTROLLED targets/ dir (SRC_DIRS below),
+NOT gitignored data/ — they are the source of truth for the targets in BQ. The
+other (dimension/config) seeds still read from data/. NB: campaign_map /
+plan_flighting / channel_split / salesforce_map are currently BQ-only (no committed
+CSV) — extract+commit them too if you want schneider fully repo-reproducible.
 
 VIEW->TABLE MIGRATION (automatic): seed_campaign_map / seed_plan_budget /
 seed_plan_flighting / seed_targets / seed_channel_split previously existed as
@@ -21,6 +28,10 @@ PROJECT = "bidbrain-analytics"
 LOC = "australia-southeast1"
 DATASET = "client_schneider"                         # the ONE per-client line
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+TARGETS_DIR = os.path.join(os.path.dirname(__file__), "targets")
+# Committed "targets in BQ from a version-controlled CSV" standard: the media-plan target seeds
+# live in targets/ (tracked), everything else in gitignored data/. stem -> source dir override.
+SRC_DIRS = {"media_plan": TARGETS_DIR, "targets": TARGETS_DIR, "plan_budget": TARGETS_DIR}
 
 # csv stem -> (bq table, [(column, BQ type)])  — column order = CSV header order
 SEED_SCHEMAS = {
@@ -65,7 +76,7 @@ def _ensure_table(bq, ref):
 
 
 def load_one(bq, stem, table, cols):
-    path = os.path.join(DATA_DIR, f"{stem}.csv")
+    path = os.path.join(SRC_DIRS.get(stem, DATA_DIR), f"{stem}.csv")
     if not os.path.exists(path):
         print(f"skip {stem}: no {path}")
         return

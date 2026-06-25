@@ -883,14 +883,13 @@
 // ==========================================================================
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
-// CS market universe. 'OTHER' is the residual bucket (pacing_model REGION_GRP='OTHER'):
-// leads in the 12 CS campaigns that fall outside the 7 named markets (off-plan / mis-cased
-// countries + Korea leads outside the 6 El* campaigns). It carries no Q2 target, so it is
-// surfaced as a selectable "Others" tab/chip so CS totals are COMPLETE (match the source's
-// full 12-campaign count, e.g. Accepted 3328 not 3309) rather than silently dropped.
-const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG','OTHER'];
-// Display label for a market code (only 'OTHER' differs from its code).
-const mktLabel = m => m === 'OTHER' ? 'Others' : m;
+// CS market universe = the 11 media-plan markets (2026-06-25). There is NO 'Others' bucket:
+// every lead maps to a market (KR captures ALL Korea; country match is case-normalised), so CS
+// totals are complete by construction. ANZ/ASEAN/GCR were split to the plan's grain
+// (AU/NZ, SIM/RoA, GCR-CN/TW/HK) to match the client's target sheet 1:1.
+const ALL_MARKETS = ['AU','NZ','SIM','ROA','SAARC','GCR-CN','GCR-TW','GCR-HK','KR','RIG','JP'];
+// Display label for a market code (only 'ROA' differs from its code -> 'RoA').
+const mktLabel = m => m === 'ROA' ? 'RoA' : m;
 const Q2_START = new Date('2026-04-01T00:00:00Z');
 const Q2_END   = new Date('2026-06-30T23:59:59Z');
 

@@ -1,0 +1,5 @@
+internal_campaign_id,kpi,target_value
+ecoconsult,consults,20.0
+ecoconsult,sqls,25.0
+ecoconsult,traffic_uplift_pct,100.0
+ecoconsult,webinar_attendance_pct,40.0

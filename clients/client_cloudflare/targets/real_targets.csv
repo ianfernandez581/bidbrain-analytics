@@ -1,0 +1,253 @@
+WEEK,DATE,TIER,REGION,COUNTRY,TARGET
+1,2026-03-30,Tier 2,ANZ,Australia,5
+1,2026-03-30,Tier 2,ANZ,New Zealand,5
+1,2026-03-30,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",3
+1,2026-03-30,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",1
+1,2026-03-30,Tier 2,SAARC,India,0
+1,2026-03-30,Tier 2,GCR,Mainland China,0
+1,2026-03-30,Tier 2,GCR,Taiwan,0
+1,2026-03-30,Tier 2,GCR,Hong Kong,0
+1,2026-03-30,Tier 2,JAPAN,Japan,0
+1,2026-03-30,Tier 2,KOREA,Korea,0
+1,2026-03-30,Tier 2,RIG,RIG,0
+2,2026-04-06,Tier 2,ANZ,Australia,31
+2,2026-04-06,Tier 2,ANZ,New Zealand,3
+2,2026-04-06,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",9
+2,2026-04-06,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",2
+2,2026-04-06,Tier 2,SAARC,India,8
+2,2026-04-06,Tier 2,GCR,Mainland China,3
+2,2026-04-06,Tier 2,GCR,Taiwan,3
+2,2026-04-06,Tier 2,GCR,Hong Kong,5
+2,2026-04-06,Tier 2,JAPAN,Japan,8
+2,2026-04-06,Tier 2,KOREA,Korea,5
+2,2026-04-06,Tier 2,RIG,RIG,11
+3,2026-04-13,Tier 2,ANZ,Australia,38
+3,2026-04-13,Tier 2,ANZ,New Zealand,3
+3,2026-04-13,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",9
+3,2026-04-13,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",3
+3,2026-04-13,Tier 2,SAARC,India,7
+3,2026-04-13,Tier 2,GCR,Mainland China,3
+3,2026-04-13,Tier 2,GCR,Taiwan,3
+3,2026-04-13,Tier 2,GCR,Hong Kong,6
+3,2026-04-13,Tier 2,JAPAN,Japan,10
+3,2026-04-13,Tier 2,KOREA,Korea,5
+3,2026-04-13,Tier 2,RIG,RIG,12
+4,2026-04-20,Tier 2,ANZ,Australia,40
+4,2026-04-20,Tier 2,ANZ,New Zealand,4
+4,2026-04-20,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",10
+4,2026-04-20,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",3
+4,2026-04-20,Tier 2,SAARC,India,10
+4,2026-04-20,Tier 2,GCR,Mainland China,5
+4,2026-04-20,Tier 2,GCR,Taiwan,3
+4,2026-04-20,Tier 2,GCR,Hong Kong,7
+4,2026-04-20,Tier 2,JAPAN,Japan,10
+4,2026-04-20,Tier 2,KOREA,Korea,6
+4,2026-04-20,Tier 2,RIG,RIG,15
+5,2026-04-27,Tier 2,ANZ,Australia,45
+5,2026-04-27,Tier 2,ANZ,New Zealand,4
+5,2026-04-27,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",12
+5,2026-04-27,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",4
+5,2026-04-27,Tier 2,SAARC,India,10
+5,2026-04-27,Tier 2,GCR,Mainland China,1
+5,2026-04-27,Tier 2,GCR,Taiwan,3
+5,2026-04-27,Tier 2,GCR,Hong Kong,7
+5,2026-04-27,Tier 2,JAPAN,Japan,11
+5,2026-04-27,Tier 2,KOREA,Korea,6
+5,2026-04-27,Tier 2,RIG,RIG,15
+6,2026-05-04,Tier 2,ANZ,Australia,40
+6,2026-05-04,Tier 2,ANZ,New Zealand,4
+6,2026-05-04,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",10
+6,2026-05-04,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",3
+6,2026-05-04,Tier 2,SAARC,India,11
+6,2026-05-04,Tier 2,GCR,Mainland China,4
+6,2026-05-04,Tier 2,GCR,Taiwan,3
+6,2026-05-04,Tier 2,GCR,Hong Kong,8
+6,2026-05-04,Tier 2,JAPAN,Japan,12
+6,2026-05-04,Tier 2,KOREA,Korea,7
+6,2026-05-04,Tier 2,RIG,RIG,17
+7,2026-05-11,Tier 2,ANZ,Australia,48
+7,2026-05-11,Tier 2,ANZ,New Zealand,5
+7,2026-05-11,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",11
+7,2026-05-11,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",4
+7,2026-05-11,Tier 2,SAARC,India,12
+7,2026-05-11,Tier 2,GCR,Mainland China,3
+7,2026-05-11,Tier 2,GCR,Taiwan,4
+7,2026-05-11,Tier 2,GCR,Hong Kong,9
+7,2026-05-11,Tier 2,JAPAN,Japan,13
+7,2026-05-11,Tier 2,KOREA,Korea,7
+7,2026-05-11,Tier 2,RIG,RIG,18
+8,2026-05-18,Tier 2,ANZ,Australia,47
+8,2026-05-18,Tier 2,ANZ,New Zealand,5
+8,2026-05-18,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",14
+8,2026-05-18,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",4
+8,2026-05-18,Tier 2,SAARC,India,12
+8,2026-05-18,Tier 2,GCR,Mainland China,7
+8,2026-05-18,Tier 2,GCR,Taiwan,4
+8,2026-05-18,Tier 2,GCR,Hong Kong,9
+8,2026-05-18,Tier 2,JAPAN,Japan,13
+8,2026-05-18,Tier 2,KOREA,Korea,7
+8,2026-05-18,Tier 2,RIG,RIG,19
+9,2026-05-25,Tier 2,ANZ,Australia,39
+9,2026-05-25,Tier 2,ANZ,New Zealand,4
+9,2026-05-25,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",10
+9,2026-05-25,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",3
+9,2026-05-25,Tier 2,SAARC,India,11
+9,2026-05-25,Tier 2,GCR,Mainland China,0
+9,2026-05-25,Tier 2,GCR,Taiwan,3
+9,2026-05-25,Tier 2,GCR,Hong Kong,8
+9,2026-05-25,Tier 2,JAPAN,Japan,12
+9,2026-05-25,Tier 2,KOREA,Korea,7
+9,2026-05-25,Tier 2,RIG,RIG,17
+10,2026-06-01,Tier 2,ANZ,Australia,46
+10,2026-06-01,Tier 2,ANZ,New Zealand,4
+10,2026-06-01,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",14
+10,2026-06-01,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",4
+10,2026-06-01,Tier 2,SAARC,India,14
+10,2026-06-01,Tier 2,GCR,Mainland China,3
+10,2026-06-01,Tier 2,GCR,Taiwan,3
+10,2026-06-01,Tier 2,GCR,Hong Kong,7
+10,2026-06-01,Tier 2,JAPAN,Japan,12
+10,2026-06-01,Tier 2,KOREA,Korea,7
+10,2026-06-01,Tier 2,RIG,RIG,18
+11,2026-06-08,Tier 2,ANZ,Australia,40
+11,2026-06-08,Tier 2,ANZ,New Zealand,4
+11,2026-06-08,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",10
+11,2026-06-08,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",3
+11,2026-06-08,Tier 2,SAARC,India,11
+11,2026-06-08,Tier 2,GCR,Mainland China,3
+11,2026-06-08,Tier 2,GCR,Taiwan,3
+11,2026-06-08,Tier 2,GCR,Hong Kong,7
+11,2026-06-08,Tier 2,JAPAN,Japan,11
+11,2026-06-08,Tier 2,KOREA,Korea,6
+11,2026-06-08,Tier 2,RIG,RIG,15
+12,2026-06-15,Tier 2,ANZ,Australia,46
+12,2026-06-15,Tier 2,ANZ,New Zealand,7
+12,2026-06-15,Tier 2,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",8
+12,2026-06-15,Tier 2,ASEAN,"RoA (Thailand, Vietnam, Philippines)",2
+12,2026-06-15,Tier 2,SAARC,India,9
+12,2026-06-15,Tier 2,GCR,Mainland China,3
+12,2026-06-15,Tier 2,GCR,Taiwan,4
+12,2026-06-15,Tier 2,GCR,Hong Kong,5
+12,2026-06-15,Tier 2,JAPAN,Japan,17
+12,2026-06-15,Tier 2,KOREA,Korea,7
+12,2026-06-15,Tier 2,RIG,RIG,15
+1,2026-03-30,Tier 3,ANZ,Australia,58
+1,2026-03-30,Tier 3,ANZ,New Zealand,7
+1,2026-03-30,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+1,2026-03-30,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+1,2026-03-30,Tier 3,SAARC,India,14
+1,2026-03-30,Tier 3,GCR,Mainland China,6
+1,2026-03-30,Tier 3,GCR,Taiwan,6
+1,2026-03-30,Tier 3,GCR,Hong Kong,11
+1,2026-03-30,Tier 3,JAPAN,Japan,16
+1,2026-03-30,Tier 3,KOREA,Korea,11
+2,2026-04-06,Tier 3,ANZ,Australia,57
+2,2026-04-06,Tier 3,ANZ,New Zealand,7
+2,2026-04-06,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+2,2026-04-06,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+2,2026-04-06,Tier 3,SAARC,India,14
+2,2026-04-06,Tier 3,GCR,Mainland China,6
+2,2026-04-06,Tier 3,GCR,Taiwan,6
+2,2026-04-06,Tier 3,GCR,Hong Kong,11
+2,2026-04-06,Tier 3,JAPAN,Japan,16
+2,2026-04-06,Tier 3,KOREA,Korea,11
+3,2026-04-13,Tier 3,ANZ,Australia,57
+3,2026-04-13,Tier 3,ANZ,New Zealand,7
+3,2026-04-13,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+3,2026-04-13,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+3,2026-04-13,Tier 3,SAARC,India,14
+3,2026-04-13,Tier 3,GCR,Mainland China,6
+3,2026-04-13,Tier 3,GCR,Taiwan,6
+3,2026-04-13,Tier 3,GCR,Hong Kong,11
+3,2026-04-13,Tier 3,JAPAN,Japan,16
+3,2026-04-13,Tier 3,KOREA,Korea,11
+4,2026-04-20,Tier 3,ANZ,Australia,57
+4,2026-04-20,Tier 3,ANZ,New Zealand,7
+4,2026-04-20,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+4,2026-04-20,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+4,2026-04-20,Tier 3,SAARC,India,14
+4,2026-04-20,Tier 3,GCR,Mainland China,6
+4,2026-04-20,Tier 3,GCR,Taiwan,6
+4,2026-04-20,Tier 3,GCR,Hong Kong,11
+4,2026-04-20,Tier 3,JAPAN,Japan,16
+4,2026-04-20,Tier 3,KOREA,Korea,11
+5,2026-04-27,Tier 3,ANZ,Australia,57
+5,2026-04-27,Tier 3,ANZ,New Zealand,6
+5,2026-04-27,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+5,2026-04-27,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+5,2026-04-27,Tier 3,SAARC,India,14
+5,2026-04-27,Tier 3,GCR,Mainland China,6
+5,2026-04-27,Tier 3,GCR,Taiwan,6
+5,2026-04-27,Tier 3,GCR,Hong Kong,11
+5,2026-04-27,Tier 3,JAPAN,Japan,16
+5,2026-04-27,Tier 3,KOREA,Korea,11
+6,2026-05-04,Tier 3,ANZ,Australia,57
+6,2026-05-04,Tier 3,ANZ,New Zealand,6
+6,2026-05-04,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+6,2026-05-04,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+6,2026-05-04,Tier 3,SAARC,India,14
+6,2026-05-04,Tier 3,GCR,Mainland China,6
+6,2026-05-04,Tier 3,GCR,Taiwan,6
+6,2026-05-04,Tier 3,GCR,Hong Kong,11
+6,2026-05-04,Tier 3,JAPAN,Japan,16
+6,2026-05-04,Tier 3,KOREA,Korea,11
+7,2026-05-11,Tier 3,ANZ,Australia,57
+7,2026-05-11,Tier 3,ANZ,New Zealand,6
+7,2026-05-11,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+7,2026-05-11,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+7,2026-05-11,Tier 3,SAARC,India,14
+7,2026-05-11,Tier 3,GCR,Mainland China,6
+7,2026-05-11,Tier 3,GCR,Taiwan,6
+7,2026-05-11,Tier 3,GCR,Hong Kong,10
+7,2026-05-11,Tier 3,JAPAN,Japan,16
+7,2026-05-11,Tier 3,KOREA,Korea,11
+8,2026-05-18,Tier 3,ANZ,Australia,57
+8,2026-05-18,Tier 3,ANZ,New Zealand,6
+8,2026-05-18,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+8,2026-05-18,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+8,2026-05-18,Tier 3,SAARC,India,14
+8,2026-05-18,Tier 3,GCR,Mainland China,6
+8,2026-05-18,Tier 3,GCR,Taiwan,6
+8,2026-05-18,Tier 3,GCR,Hong Kong,10
+8,2026-05-18,Tier 3,JAPAN,Japan,16
+8,2026-05-18,Tier 3,KOREA,Korea,11
+9,2026-05-25,Tier 3,ANZ,Australia,57
+9,2026-05-25,Tier 3,ANZ,New Zealand,6
+9,2026-05-25,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+9,2026-05-25,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",11
+9,2026-05-25,Tier 3,SAARC,India,14
+9,2026-05-25,Tier 3,GCR,Mainland China,6
+9,2026-05-25,Tier 3,GCR,Taiwan,6
+9,2026-05-25,Tier 3,GCR,Hong Kong,10
+9,2026-05-25,Tier 3,JAPAN,Japan,16
+9,2026-05-25,Tier 3,KOREA,Korea,11
+10,2026-06-01,Tier 3,ANZ,Australia,57
+10,2026-06-01,Tier 3,ANZ,New Zealand,6
+10,2026-06-01,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",22
+10,2026-06-01,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",10
+10,2026-06-01,Tier 3,SAARC,India,14
+10,2026-06-01,Tier 3,GCR,Mainland China,6
+10,2026-06-01,Tier 3,GCR,Taiwan,6
+10,2026-06-01,Tier 3,GCR,Hong Kong,10
+10,2026-06-01,Tier 3,JAPAN,Japan,16
+10,2026-06-01,Tier 3,KOREA,Korea,11
+11,2026-06-08,Tier 3,ANZ,Australia,57
+11,2026-06-08,Tier 3,ANZ,New Zealand,6
+11,2026-06-08,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",21
+11,2026-06-08,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",10
+11,2026-06-08,Tier 3,SAARC,India,14
+11,2026-06-08,Tier 3,GCR,Mainland China,6
+11,2026-06-08,Tier 3,GCR,Taiwan,5
+11,2026-06-08,Tier 3,GCR,Hong Kong,10
+11,2026-06-08,Tier 3,JAPAN,Japan,16
+11,2026-06-08,Tier 3,KOREA,Korea,11
+12,2026-06-15,Tier 3,ANZ,Australia,57
+12,2026-06-15,Tier 3,ANZ,New Zealand,5
+12,2026-06-15,Tier 3,ASEAN,"SIM (Singapore, Indonesia, Malaysia)",20
+12,2026-06-15,Tier 3,ASEAN,"RoA (Thailand, Vietnam, Philippines)",10
+12,2026-06-15,Tier 3,SAARC,India,13
+12,2026-06-15,Tier 3,GCR,Mainland China,5
+12,2026-06-15,Tier 3,GCR,Taiwan,5
+12,2026-06-15,Tier 3,GCR,Hong Kong,10
+12,2026-06-15,Tier 3,JAPAN,Japan,16
+12,2026-06-15,Tier 3,KOREA,Korea,11

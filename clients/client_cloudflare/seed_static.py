@@ -28,7 +28,13 @@ from google.cloud import bigquery
 PROJECT = "bidbrain-analytics"
 LOC     = "australia-southeast1"
 DATASET = "client_cloudflare"
-DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+DATA_DIR    = os.path.join(os.path.dirname(__file__), "data")
+TARGETS_DIR = os.path.join(os.path.dirname(__file__), "targets")
+# Targets are the per-client "committed CSV -> BQ" source of truth: they live in the
+# version-controlled targets/ dir (NOT gitignored data/), so anyone who clones the repo can
+# reproduce client_cloudflare.seed_real_targets. tiers.csv / line_cf.csv stay in data/ (pulled
+# snapshots / manual paid-media drops, not targets). SRC_DIR routes each CSV to its dir.
+SRC_DIR = {"real_targets.csv": TARGETS_DIR}
 
 SF = bigquery.SchemaField
 # CSV file -> (BigQuery table, explicit schema in CSV COLUMN ORDER).
@@ -54,7 +60,7 @@ SEEDS = {
 def main():
     bq = bigquery.Client(project=PROJECT)
     for fname, (dest, schema) in SEEDS.items():
-        path = os.path.join(DATA_DIR, fname)
+        path = os.path.join(SRC_DIR.get(fname, DATA_DIR), fname)
         ref = f"{PROJECT}.{DATASET}.{dest}"
         cfg = bigquery.LoadJobConfig(
             source_format=bigquery.SourceFormat.CSV,

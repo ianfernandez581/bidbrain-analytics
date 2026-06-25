@@ -58,6 +58,7 @@ The BigQuery **views** (`sql/`) are the stage-2 transform; apply them with
 | Pull a new Snowflake **source table** (for everyone)         | `../snowflake_data_pull/loader.py` (`TABLES`)  |   1   |
 | This client's **filter** (campaign IDs, advertiser, leads)   | `sql/01_stg_tradedesk.sql` / `02_stg_salesforce.sql` | 2 |
 | How data is grouped / bucketed (lead-status buckets, etc.)   | the relevant view in `sql/*.sql`               |   2   |
+| **Lead targets / media-plan budget**                         | `targets/targets.csv` · `targets/budget.csv` → `seed_static.py` → export `FORCE_REBUILD=1` | 2 |
 | The shape/keys of the JSON the frontend receives             | `job/main.py` → the `env = {...}` dict         |   2   |
 | The charts, tabs, layout, colours                            | `dash/dashboard.html`                          |   3   |
 | Login / how the JSON is served                               | `dash/main.py` (rarely needed)                 |   3   |

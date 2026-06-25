@@ -1,4 +1,7 @@
+-- budget: MongoDB media-plan budget per programme. Source of truth is the VERSION-CONTROLLED
+-- committed CSV targets/budget.csv, loaded to client_mongodb.seed_budget by seed_static.py
+-- (the cross-client "targets in BQ from a committed CSV" standard). Thin alias view so the job
+-- is unchanged. To change: edit targets/budget.csv -> seed_static.py -> export FORCE_REBUILD=1.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_mongodb.budget` AS
-SELECT * FROM UNNEST([
-  STRUCT("DNB Targeted IDE (NEXD)" AS PROGRAMME_LABEL,"IDE" AS TRADEDESK_CODE,24000 AS GROSS_BUDGET_USD,19920 AS NET_BUDGET_USD,DATE "2026-04-01" AS START_DATE,DATE "2026-06-30" AS END_DATE,CAST(NULL AS FLOAT64) AS EST_CPC),
-  STRUCT("KGA IDC (NEXD+Bombora)","IDC",37200,30876,DATE "2026-05-25",DATE "2026-07-31",23.88)])
+SELECT PROGRAMME_LABEL, TRADEDESK_CODE, GROSS_BUDGET_USD, NET_BUDGET_USD, START_DATE, END_DATE, EST_CPC
+FROM `bidbrain-analytics.client_mongodb.seed_budget`;
