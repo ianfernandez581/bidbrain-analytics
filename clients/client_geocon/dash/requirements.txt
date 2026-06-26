@@ -1,5 +1,9 @@
-# Cloud Run dash service: password gate + serves geocon.json + dashboard.html.
-# Pinned for reproducible container builds. No AI report endpoint (geocon v1).
+# Cloud Run dash service: password gate + serves geocon.json + dashboard.html + the /report endpoint.
+# Pinned for reproducible container builds.
 Flask==3.0.3
 gunicorn==23.0.0
 google-cloud-storage==2.18.2
+# Powers the /report endpoint (report.py): Claude Opus 4.8 + web search, then structured-output JSON.
+# Floor chosen for Opus 4.8 / web_search_20260209 / output_config support; resolves to the latest.
+# httpx (used by the Gemini fallback) comes transitively via anthropic.
+anthropic>=0.92.0

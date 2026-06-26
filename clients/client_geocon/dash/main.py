@@ -2,17 +2,23 @@
 
 Thin password gate + static server. It renders a login screen, and once a
 session is authenticated it serves `dashboard.html` and proxies the private
-`geocon.json` from GCS at `/data.json`. All presentation logic — the Performance
-and Optimise tabs — lives in `dashboard.html`; this file only decides *who* may
-see it, not *what* it shows.
+`geocon.json` from GCS at `/data.json`. All presentation logic — the Executive /
+Media Buyer / Client Story views — lives in `dashboard.html`; this file only
+decides *who* may see it, not *what* it shows. It also exposes `/report`, the
+AI "Download report" endpoint (Claude Opus 4.8 + web research -> a 3-slide deck;
+see report.py), gated and cached the same way as the dashboard data.
 """
 import os
 import hmac
+import json
+import hashlib
 from pathlib import Path
 from flask import (
     Flask, request, redirect, session, Response, render_template_string, abort
 )
 from google.cloud import storage
+
+from report import generate_report
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]
@@ -21,6 +27,9 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
+    # Hard cap on request bodies (Werkzeug 413s anything larger). The /report POST is the only
+    # sizeable body; everything else is tiny.
+    MAX_CONTENT_LENGTH=256 * 1024,
 )
 
 # --- config (injected by Cloud Run) ------------------------------------------
@@ -50,31 +59,34 @@ LOGIN_HTML = """<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Geocon Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;display:flex;align-items:center;justify-content:center;
-       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:linear-gradient(135deg,#0E1A2B 0%,#1B2D44 100%);color:#fff;position:relative;overflow:hidden}
+       font-family:"Montserrat","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:#231A17;color:#FFFEEC;position:relative;overflow:hidden}
   body::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
-              background:linear-gradient(90deg,#C8A55B 0%,#E0C88A 50%,#C8A55B 100%)}
-  .card{width:100%;max-width:380px;padding:40px 34px;background:rgba(27,45,68,.85);
-        border:1px solid rgba(255,255,255,.08);border-radius:16px;
-        box-shadow:0 20px 60px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
+              background:#6C291B}
+  .card{width:100%;max-width:390px;padding:40px 34px;background:#6C291B;
+        border:1px solid rgba(255,254,236,.16);border-radius:8px;
+        box-shadow:0 22px 70px rgba(0,0,0,.42)}
   .logo-wrap{text-align:center;margin-bottom:24px}
-  .logo-wrap img{max-height:48px;max-width:220px;filter:brightness(0) invert(1);opacity:.9}
-  .brand{font-size:11px;font-weight:700;letter-spacing:1.6px;color:#C8A55B;margin-bottom:6px;text-transform:uppercase}
-  h1{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px}
-  p{font-size:13px;color:rgba(255,255,255,.55);margin:0 0 24px}
-  input{width:100%;padding:13px 15px;font-size:15px;color:#fff;background:rgba(14,26,43,.6);
-        border:1px solid rgba(255,255,255,.14);border-radius:10px;outline:none;transition:border-color .15s}
-  input:focus{border-color:#C8A55B}
-  input::placeholder{color:rgba(255,255,255,.3)}
+  .logo-wrap img{max-height:60px;max-width:250px;opacity:.96}
+  .brand{font-size:10px;font-weight:800;letter-spacing:2.2px;color:#BD9A8E;margin-bottom:8px;text-transform:uppercase}
+  h1{font-size:22px;font-weight:900;margin:0 0 5px;letter-spacing:0}
+  p{font-size:13px;color:rgba(255,254,236,.68);margin:0 0 24px}
+  input{width:100%;padding:13px 15px;font-size:15px;color:#FFFEEC;background:rgba(35,26,23,.5);
+        border:1px solid rgba(255,254,236,.18);border-radius:8px;outline:none;transition:border-color .15s}
+  input:focus{border-color:#FFFEEC}
+  input::placeholder{color:rgba(255,254,236,.38)}
   button{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
-         background:linear-gradient(135deg,#C8A55B 0%,#E0C88A 100%);color:#0E1A2B;border:none;border-radius:10px;
+         background:#FFFEEC;color:#231A17;border:none;border-radius:8px;
          transition:transform .1s ease,box-shadow .2s ease;letter-spacing:.3px}
-  button:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(200,165,91,.3)}
+  button:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(35,26,23,.28)}
   button:active{transform:translateY(0)}
-  .err{margin-top:14px;font-size:13px;color:#FF8B80;min-height:16px;text-align:center}
+  .err{margin-top:14px;font-size:13px;color:#FFDED5;min-height:16px;text-align:center}
 </style>
 </head>
 <body>
@@ -148,6 +160,69 @@ def data():
         mimetype="application/json",
         headers={"Cache-Control": "no-store"},
     )
+
+
+# Bump to invalidate every cached report when the prompts/schema change (see report.py).
+REPORT_CACHE_VERSION = "1"
+
+
+def _json_err(msg, code):
+    return Response(json.dumps({"error": msg}), status=code, mimetype="application/json")
+
+
+@app.post("/report")
+def report_route():
+    # AI account report ("Download report"). Auth-gated like the dashboard. The browser POSTs the
+    # current account numbers (the same figures it renders); we cache the generated report in the
+    # private bucket keyed by DATA VERSION, so re-downloading the same data costs no model calls and
+    # regenerates only when the underlying data advances. The report always describes the FULL
+    # account (every funnel stage / campaign), independent of the on-screen stage/search filters, so
+    # the cache key is just client + data_through — the deck regenerates at most once per data refresh.
+    if not authed():
+        abort(401)
+    if request.content_length and request.content_length > 256 * 1024:
+        return _json_err("request too large", 413)
+    summary = request.get_json(silent=True)
+    if not isinstance(summary, dict):
+        return _json_err("invalid request body", 400)
+
+    ctx = summary.get("context") or {}
+    key_src = json.dumps({
+        "client": summary.get("client"),
+        "data_through": ctx.get("data_through"),
+        "v": REPORT_CACHE_VERSION,
+    }, sort_keys=True)
+    h = hashlib.sha256(key_src.encode("utf-8")).hexdigest()[:16]
+    ckey = "".join(c for c in str(summary.get("client") or "geocon").lower()
+                   if c.isalnum() or c in "-_")[:40] or "client"
+    blob = _storage.bucket(GCS_BUCKET).blob(f"reports/{ckey}_{h}.json")
+
+    # Cache hit -> instant, no model cost.
+    try:
+        if blob.exists():
+            cached = json.loads(blob.download_as_bytes())
+            cached["cached"] = True
+            return Response(json.dumps(cached), mimetype="application/json",
+                            headers={"Cache-Control": "no-store"})
+    except Exception:
+        app.logger.exception("report cache read failed")
+
+    try:
+        rpt = generate_report(summary)
+    except Exception as e:
+        app.logger.exception("report generation failed")
+        # Only surface our own vetted RuntimeError messages; anything else (anthropic SDK /
+        # google.cloud.storage) may embed URLs, request-ids, or response fragments -> log it,
+        # show a generic message.
+        msg = str(e) if isinstance(e, RuntimeError) else "report generation failed"
+        return _json_err(msg or "report generation failed", 502)
+
+    rpt["cached"] = False
+    try:
+        blob.upload_from_string(json.dumps(rpt), content_type="application/json")
+    except Exception:
+        app.logger.exception("report cache write failed")
+    return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/logo.png")
