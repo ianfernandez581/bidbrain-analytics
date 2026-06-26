@@ -32,10 +32,17 @@ _storage = storage.Client()
 
 # Dashboard HTML is baked into the container at build time, next to this file.
 # Anchor to __file__ so it loads regardless of the process working directory.
+_dash_dir = Path(__file__).resolve().parent
 try:
-    DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html").read_text(encoding="utf-8")
+    DASHBOARD_HTML = (_dash_dir / "dashboard.html").read_text(encoding="utf-8")
 except FileNotFoundError:
     DASHBOARD_HTML = None
+
+# Logo PNG baked into the container (COPY'd in the Dockerfile).
+try:
+    LOGO_PNG = (_dash_dir / "logo.png").read_bytes()
+except FileNotFoundError:
+    LOGO_PNG = None
 
 LOGIN_HTML = """<!doctype html>
 <html lang="en">
@@ -44,33 +51,43 @@ LOGIN_HTML = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Geocon Dashboard</title>
 <style>
-  *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
-       font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
-       background:#1a2230;color:#fff}
-  .card{width:100%;max-width:340px;padding:34px 30px;background:#222c3d;
-        border:1px solid rgba(255,255,255,.08);border-radius:14px;
-        box-shadow:0 12px 44px rgba(0,0,0,.4)}
-  .brand{font-size:12px;font-weight:700;letter-spacing:1.4px;color:#2E5BFF;margin-bottom:18px}
-  h1{font-size:18px;font-weight:700;margin:0 0 4px}
-  p{font-size:13px;color:rgba(255,255,255,.6);margin:0 0 22px}
-  input{width:100%;padding:12px 13px;font-size:15px;color:#fff;background:#1a2230;
-        border:1px solid rgba(255,255,255,.16);border-radius:9px;outline:none}
-  input:focus{border-color:#2E5BFF}
-  button{width:100%;margin-top:12px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;
-         background:#2E5BFF;color:#fff;border:none;border-radius:9px}
-  button:hover{background:#2447cc}
-  .err{margin-top:12px;font-size:13px;color:#FF6B6B;min-height:16px}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       background:linear-gradient(135deg,#0E1A2B 0%,#1B2D44 100%);color:#fff;position:relative;overflow:hidden}
+  body::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
+              background:linear-gradient(90deg,#C8A55B 0%,#E0C88A 50%,#C8A55B 100%)}
+  .card{width:100%;max-width:380px;padding:40px 34px;background:rgba(27,45,68,.85);
+        border:1px solid rgba(255,255,255,.08);border-radius:16px;
+        box-shadow:0 20px 60px rgba(0,0,0,.5);backdrop-filter:blur(10px)}
+  .logo-wrap{text-align:center;margin-bottom:24px}
+  .logo-wrap img{max-height:48px;max-width:220px;filter:brightness(0) invert(1);opacity:.9}
+  .brand{font-size:11px;font-weight:700;letter-spacing:1.6px;color:#C8A55B;margin-bottom:6px;text-transform:uppercase}
+  h1{font-size:20px;font-weight:700;margin:0 0 4px;letter-spacing:-.3px}
+  p{font-size:13px;color:rgba(255,255,255,.55);margin:0 0 24px}
+  input{width:100%;padding:13px 15px;font-size:15px;color:#fff;background:rgba(14,26,43,.6);
+        border:1px solid rgba(255,255,255,.14);border-radius:10px;outline:none;transition:border-color .15s}
+  input:focus{border-color:#C8A55B}
+  input::placeholder{color:rgba(255,255,255,.3)}
+  button{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
+         background:linear-gradient(135deg,#C8A55B 0%,#E0C88A 100%);color:#0E1A2B;border:none;border-radius:10px;
+         transition:transform .1s ease,box-shadow .2s ease;letter-spacing:.3px}
+  button:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(200,165,91,.3)}
+  button:active{transform:translateY(0)}
+  .err{margin-top:14px;font-size:13px;color:#FF8B80;min-height:16px;text-align:center}
 </style>
 </head>
 <body>
   <form class="card" method="POST" action="/login">
-    <div class="brand">BIDBRAIN · GEOCON</div>
-    <h1>Dashboard access</h1>
+    <div class="logo-wrap">
+      <img src="/logo.png" alt="Gateway Braddon" onerror="this.style.display='none'">
+    </div>
+    <div class="brand">BidBrain · Geocon</div>
+    <h1>Dashboard Access</h1>
     <p>Enter the password to continue.</p>
     <input type="password" name="password" placeholder="Password" autofocus
            autocomplete="current-password">
-    <button type="submit">Unlock</button>
+    <button type="submit">Unlock Dashboard</button>
     <div class="err">{{ error or "" }}</div>
   </form>
 </body>
@@ -131,6 +148,15 @@ def data():
         mimetype="application/json",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@app.get("/logo.png")
+def logo():
+    """Serve the client logo (baked into the container). Public — no auth needed."""
+    if LOGO_PNG is None:
+        abort(404)
+    return Response(LOGO_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/healthz")
