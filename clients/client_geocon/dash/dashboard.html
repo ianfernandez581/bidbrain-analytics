@@ -1,0 +1,881 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Geocon — Gateway Brandon · Paid Media Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --geo-slate:#1a2230; --geo-ink:#1B2834; --geo-mute:#5A6B78; --geo-line:#E5E9EE;
+    --geo-card:#FFFFFF; --geo-bg:#F6F8FA; --geo-target:#9AA3AC;
+    --geo-blue:#2E5BFF; --geo-teal:#0EA5A4; --geo-amber:#E08A00; --geo-rose:#E0457B;
+    --bad-red:#C8362A; --good-green:#1E8E3E; --warn-amber:#B97400;
+    --shadow-card:0 1px 2px rgba(26,34,48,.04),0 4px 14px rgba(26,34,48,.05);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;background:var(--geo-bg);color:var(--geo-ink);
+            font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+            font-size:14px;line-height:1.5}
+
+  .topbar{background:var(--geo-slate);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar-left{display:flex;align-items:center;gap:18px}
+  .brand-logo{font-weight:800;letter-spacing:1.2px;font-size:13px;color:#fff;display:flex;align-items:center;gap:8px}
+  .brand-logo .dot{width:6px;height:6px;background:var(--geo-blue);border-radius:50%}
+  .topbar-divider{width:1px;height:22px;background:rgba(255,255,255,.18)}
+  .client-name{font-weight:700;font-size:15px;letter-spacing:.3px}
+  .client-sub{font-size:11px;color:rgba(255,255,255,.6);font-weight:400}
+  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.78);text-align:right;line-height:1.5}
+  .live{display:inline-block;width:7px;height:7px;background:var(--geo-blue);border-radius:50%;margin-right:6px;
+        box-shadow:0 0 0 0 rgba(46,91,255,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(46,91,255,.6)}70%{box-shadow:0 0 0 8px rgba(46,91,255,0)}100%{box-shadow:0 0 0 0 rgba(46,91,255,0)}}
+
+  .container{max-width:1340px;margin:0 auto;padding:22px 28px 60px}
+
+  .control-bar{background:var(--geo-card);border:1px solid var(--geo-line);border-radius:10px;
+               box-shadow:var(--shadow-card);padding:0 14px;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--geo-line)}
+  .tabs{display:flex;gap:2px}
+  .tab{padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--geo-mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--geo-ink)}
+  .tab.on{color:var(--geo-slate);border-bottom-color:var(--geo-blue)}
+  .ctrl-note{font-size:11px;color:var(--geo-mute);padding:0 4px 12px}
+
+  .tabpane{display:none}
+
+  .section{border-top:1px solid var(--geo-line);padding-top:18px;margin-top:24px}
+  .section.first{border-top:none;padding-top:0;margin-top:4px}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--geo-slate)}
+  .section .sub{display:block;margin-top:3px;color:var(--geo-mute);font-size:12.5px}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .grid-2-1{display:grid;grid-template-columns:2fr 1fr;gap:16px;margin-top:14px}
+  .card{background:var(--geo-card);border:1px solid var(--geo-line);border-radius:12px;padding:16px;
+        box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--geo-ink)}
+  .card .hint{font-size:11.5px;color:var(--geo-mute);margin:4px 0 10px 0}
+  .card-tall .chart-wrap{height:300px}
+  .card-med{min-height:262px}
+  .chart-wrap{position:relative;flex:1;min-height:160px}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}
+  .kpi{background:var(--geo-card);border:1px solid var(--geo-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:11px;color:var(--geo-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .value{font-size:23px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--geo-slate)}
+  .kpi .delta{font-size:11.5px;margin-top:4px;color:var(--geo-mute)}
+  .kpi .target{font-size:10.5px;color:var(--geo-target);margin-top:2px}
+  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#EEF3FF 100%);border-color:#C7D6FF}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--geo-blue)}
+  .kpi.alt .stripe{background:var(--geo-teal)}
+  .kpi.warn .stripe{background:var(--warn-amber)}
+
+  .gauge-wrap{display:flex;flex-direction:column;gap:8px}
+  .gauge-bar{position:relative;height:34px;background:#EEF2F4;border-radius:8px;overflow:hidden}
+  .gauge-expected{position:absolute;top:0;bottom:0;background:rgba(154,163,172,.35);border-right:2px dashed var(--geo-target)}
+  .gauge-actual{position:absolute;top:0;bottom:0;background:linear-gradient(90deg,var(--geo-blue),var(--geo-teal));border-radius:8px 0 0 8px;display:flex;align-items:center;padding-left:10px;color:#fff;font-weight:700;font-size:12px;white-space:nowrap;overflow:hidden}
+  .gauge-ticks{display:flex;justify-content:space-between;font-size:10.5px;color:var(--geo-mute)}
+  .gauge-status{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px}
+  .gs-on{background:#E6F4EA;color:var(--good-green)}
+  .gs-over{background:#FBEAE8;color:var(--bad-red)}
+  .gs-under{background:#FBF1DE;color:var(--warn-amber)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--geo-line)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--geo-mute);font-weight:600;background:#FAFBFC}
+  table td.num,table th.num{text-align:right}
+  table td.num{font-variant-numeric:tabular-nums}
+  table tr:hover td{background:#F8FAFB}
+  table tr.total td{font-weight:700;background:#F6F8FC;border-bottom:none}
+  table tr.total:hover td{background:#F6F8FC}
+  .vs-good{color:var(--good-green);font-weight:600}
+  .vs-bad{color:var(--bad-red);font-weight:600}
+  .vs-neut{color:var(--geo-mute)}
+  td.bench,.bench{color:var(--geo-mute);font-size:10.5px;font-style:italic}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F6;color:var(--geo-slate)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .row-best td{background:#EAF6EE!important}
+  .row-worst td{background:#FBEAE8!important}
+  .flag-fatigued{color:var(--bad-red);font-weight:700}
+  .flag-ok{color:var(--good-green)}
+  .flag-new{color:var(--geo-mute)}
+
+  .info-note{background:#EAF2FF;border:1px solid #BFD0FF;border-left:4px solid var(--geo-blue);border-radius:10px;padding:12px 16px;margin-top:16px;font-size:13px;color:#1B3A5A}
+  .info-note.warn{background:#FBF1DE;border-color:#E8D08A;border-left-color:var(--warn-amber);color:#5A4400}
+  .info-note b{font-weight:700}
+
+  .callouts{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-top:14px}
+  .callout{background:var(--geo-card);border:1px solid var(--geo-line);border-left:3px solid var(--geo-blue);border-radius:9px;padding:14px 16px;box-shadow:var(--shadow-card)}
+  .callout .ct{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--geo-blue);margin-bottom:4px}
+  .callout .cb{font-size:13.5px;line-height:1.5;color:#33404C;margin:0}
+  .callout .cb b{color:var(--geo-slate)}
+
+  .funnel{margin-top:6px}
+  .funnel svg{width:100%;height:auto;display:block;overflow:visible}
+  .funnel polygon{transition:opacity .15s ease,filter .15s ease;cursor:pointer}
+  .funnel polygon:hover{opacity:.82;filter:brightness(1.06)}
+  .funnel .fnote{font-size:11px;color:var(--geo-mute);text-align:center;margin-top:8px}
+
+  .loading{padding:80px 20px;text-align:center;color:var(--geo-mute)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--geo-line);border-top-color:var(--geo-blue);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
+
+  footer{color:var(--geo-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--geo-line)}
+  footer b{color:var(--geo-ink)}
+
+  .pending-mark{display:inline-block;width:9px;height:9px;background:var(--warn-amber);border-radius:50%;vertical-align:middle;margin-left:4px;cursor:help}
+
+  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.callouts{grid-template-columns:1fr}}
+  @media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="brand-logo">BIDBRAIN<span class="dot"></span></div>
+    <div class="topbar-divider"></div>
+    <div>
+      <div class="client-name">Geocon — Gateway Braddon</div>
+      <div class="client-sub">558-apartment launch · ACT · Meta paid media · AUD</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div id="freshnessStamp"><span class="live"></span><b style="color:#fff">Live</b></div>
+    <div id="freshnessSub" style="margin-top:2px"></div>
+  </div>
+</div>
+
+<div class="container">
+  <div id="loading" class="loading">
+    <div class="spinner"></div>
+    <div>Fetching dashboard data…</div>
+  </div>
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="content" style="display:none">
+
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs">
+          <button class="tab" id="tabPerf" onclick="setTab('perf')">Performance</button>
+          <button class="tab" id="tabOpt"  onclick="setTab('opt')">Optimise</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ PERFORMANCE TAB ============ -->
+    <div id="tab-perf" class="tabpane">
+      <div class="section first">
+        <h2>Performance — the spend is working</h2>
+        <span class="sub">Live Meta delivery for the Gateway Braddon launch. Leads labelled <b>Meta-reported</b> — the full blended figure (incl. landing-page form sign-ups) and lead quality live in the CRM feed, layered in later.</span>
+      </div>
+
+      <div id="perfNote" class="info-note" style="display:none"></div>
+
+      <div class="kpis">
+        <div class="kpi accent"><span class="stripe"></span>
+          <div class="label">Spend</div><div class="value" id="p_spend">—</div>
+          <div class="delta" id="p_spend_sub">—</div>
+          <div class="target" id="p_spend_tgt">—</div>
+        </div>
+        <div class="kpi alt"><span class="stripe"></span>
+          <div class="label">Leads (Meta-reported)</div><div class="value" id="p_leads">—</div>
+          <div class="delta" id="p_leads_sub">—</div>
+          <div class="target" id="p_leads_tgt">—</div>
+        </div>
+        <div class="kpi accent"><span class="stripe"></span>
+          <div class="label">CPL</div><div class="value" id="p_cpl">—</div>
+          <div class="delta" id="p_cpl_sub">—</div>
+          <div class="target" id="p_cpl_tgt">—</div>
+        </div>
+        <div class="kpi"><span class="stripe"></span>
+          <div class="label">Reach</div><div class="value" id="p_reach">—</div>
+          <div class="delta" id="p_reach_sub">—</div>
+        </div>
+        <div class="kpi"><span class="stripe"></span>
+          <div class="label">Link CTR</div><div class="value" id="p_ctr">—</div>
+          <div class="delta" id="p_ctr_sub">—</div>
+          <div class="target" id="p_ctr_tgt">—</div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Flight pacing</h2>
+        <span class="sub">Day <b id="pp_day">—</b> of <b id="pp_total">—</b> · 21 Jun–20 Jul 2026 · $250/day planned pace</span>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="gauge-wrap">
+          <div class="gauge-bar">
+            <div class="gauge-expected" id="pp_expected_bar"></div>
+            <div class="gauge-actual" id="pp_actual_bar">—</div>
+          </div>
+          <div class="gauge-ticks">
+            <span>$0</span>
+            <span id="pp_expected_lbl">Expected: —</span>
+            <span id="pp_budget_lbl">Budget: —</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:4px">
+            <span class="gauge-status" id="pp_status">—</span>
+            <span style="font-size:12px;color:var(--geo-mute)" id="pp_projected">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Cost-per-lead over time — the efficiency story</h2>
+        <span class="sub">Daily CPL with a 7-day rolling average. The hero chart: CPL falling from May's ~$192 toward June's ~$84 as the Leads campaign optimised.</span>
+      </div>
+      <div class="card card-tall" style="margin-top:14px">
+        <div class="chart-wrap"><canvas id="cplChart"></canvas></div>
+      </div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Cumulative leads vs target</h3>
+          <div class="hint">Pacing to the monthly lead target.</div>
+          <div class="chart-wrap"><canvas id="cumLeadsChart"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Funnel — impressions to leads</h3>
+          <div class="hint">Step conversion rates across the full funnel.</div>
+          <div class="funnel" id="funnelWrap" style="margin-top:10px"></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">What's working</h2>
+        <span class="sub">Auto-generated from the live data — plain English, no jargon.</span>
+      </div>
+      <div class="callouts" id="callouts"></div>
+
+    </div>
+
+    <!-- ============ OPTIMISE TAB ============ -->
+    <div id="tab-opt" class="tabpane">
+      <div class="section first">
+        <h2>Optimise — where to move the next dollar</h2>
+        <span class="sub">Dense, operational. Target-coloured cells: green beats target, red misses. Flagged rows highlight winners-to-scale and losers-to-cut.</span>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Campaign performance vs targets</h2>
+        <span class="sub">The three Geocon campaigns. Conditional-formatted against the seeded targets.</span>
+      </div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="campTable">
+          <thead><tr>
+            <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Reach</th>
+            <th class="num">Freq</th><th class="num">Link clicks</th><th class="num">CTR</th><th class="num">CPM</th>
+            <th class="num">CPC</th><th class="num">LPV</th><th class="num">Cost/LPV</th><th class="num">Leads</th><th class="num">CPL</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Ad / ad-set drill</h2>
+        <span class="sub">Per-ad metrics. <span style="color:var(--good-green)">Green row</span> = best CPL · <span style="color:var(--bad-red)">Red row</span> = worst CPL (among ads with leads).</span>
+      </div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="adTable">
+          <thead><tr>
+            <th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num">Imps</th>
+            <th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th><th class="num">LPV</th>
+            <th class="num">Cost/LPV</th><th class="num">Leads</th><th class="num">CPL</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+
+      <div class="grid">
+        <div class="card card-tall">
+          <h3>Spend vs leads by funnel stage</h3>
+          <div class="hint">Spend-share vs lead-share. When a stage's spend-share outruns its lead-share, budget is mis-allocated.</div>
+          <div class="chart-wrap"><canvas id="stageChart"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>CPL by funnel stage</h3>
+          <div class="hint">Conversion (Leads) vs Traffic vs Retargeting.</div>
+          <div class="chart-wrap"><canvas id="stageCplChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Creative fatigue</h2>
+        <span class="sub">Week-over-week frequency (↑) and CTR (↓). Flagged when both hold — the ad is showing the same people too often and losing click-through.</span>
+      </div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="fatigueTable">
+          <thead><tr>
+            <th>Ad</th><th>Ad set</th><th>Week</th><th class="num">Imps</th><th class="num">Freq</th>
+            <th class="num">Freq WoW</th><th class="num">CTR</th><th class="num">CTR WoW</th><th>Flag</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Budget burn per campaign</h2>
+        <span class="sub">Spend vs the proportional share of the flight budget each campaign should have consumed by now.</span>
+      </div>
+      <div class="card" style="margin-top:14px" id="burnWrap"></div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Volume / learning warnings</h2>
+        <span class="sub">Small-sample guard: campaigns or ads with too few impressions or conversions to trust. Don't let thin-volume CPLs masquerade as insight.</span>
+      </div>
+      <div id="warnWrap"></div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Retargeting & untapped pool</h2>
+        <span class="sub">Retargeting performance, plus the landing-page-viewers-who-didn't-convert pool — the cheapest remaining funnel layer.</span>
+      </div>
+      <div class="grid" id="retargetWrap"></div>
+
+    </div>
+
+    <footer id="footMeta"></footer>
+
+  </div>
+</div>
+
+<script>
+//==============================================================================
+// CONFIG & STATE
+//==============================================================================
+const JSON_URL = '/data.json';
+let DATA = null;
+let charts = {};
+let activeTab = 'perf';
+
+//==============================================================================
+// HELPERS
+//==============================================================================
+const el = id => document.getElementById(id);
+const fmt$ = (v, d=0) => v == null || isNaN(v) ? '—' :
+  'A$' + Number(v).toLocaleString('en-AU',{maximumFractionDigits:d,minimumFractionDigits:d});
+const fmtN = v => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('en-AU');
+const fmtN_M = v => v == null || isNaN(v) ? '—' :
+  (v>=1e6 ? (v/1e6).toFixed(2)+'M' : v>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
+const fmtPct = (v,d=2) => v == null || isNaN(v) ? '—' : (Number(v)*100).toFixed(d) + '%';
+const fmtPct1 = v => fmtPct(v,1);
+
+function tgt(key){ const t = (DATA.targets||{})[key]; return t ? t.value : null; }
+function tgtStatus(key){ const t = (DATA.targets||{})[key]; return t ? t.status : null; }
+function isPending(key){ return tgtStatus(key) === 'PENDING'; }
+function pendingMark(key){ return isPending(key) ? `<span class="pending-mark" title="target pending confirmation"></span>` : ''; }
+
+// colour a value vs its target. 'lower' = lower is better (CPL, CPM, CPC, cost/LPV); 'higher' = higher is better (CTR)
+function vsClass(val, target, direction){
+  if (val == null || target == null || isNaN(val) || isNaN(target)) return 'vs-neut';
+  if (direction === 'lower') return val <= target ? 'vs-good' : 'vs-bad';
+  return val >= target ? 'vs-good' : 'vs-bad';
+}
+
+const PALETTE = {
+  slate:'#1a2230', blue:'#2E5BFF', teal:'#0EA5A4', amber:'#E08A00', rose:'#E0457B',
+  green:'#1E8E3E', red:'#C8362A', mute:'#5A6B78', target:'#9AA3AC', mint:'#7FD1C8'
+};
+const STAGE_COLOR = { 'Conversion':PALETTE.blue, 'Traffic':PALETTE.teal, 'Retargeting':PALETTE.rose, 'Other':PALETTE.mute };
+
+//==============================================================================
+// DATA LOAD
+//==============================================================================
+async function load(){
+  try{
+    const r = await fetch(JSON_URL, {cache:'no-store'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    DATA = await r.json();
+    el('loading').style.display='none';
+    el('content').style.display='block';
+    renderFreshness();
+    renderPerf();
+    renderOpt();
+    setTab('perf');
+  }catch(e){
+    el('loading').style.display='none';
+    el('error').style.display='block';
+    el('errDetail').textContent = e.message;
+  }
+}
+
+function renderFreshness(){
+  const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
+  const dt = DATA.data_through ? new Date(DATA.data_through) : null;
+  const ov = DATA.overview||{};
+  const luStr = lu ? lu.toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'}) : '—';
+  const dtStr = dt ? dt.toLocaleDateString('en-AU',{day:'numeric',month:'short'}) : '—';
+  el('freshnessSub').innerHTML = `data to <b>${dtStr}</b>, refreshed ${luStr}`;
+  el('footMeta').innerHTML = `Geocon · Gateway Braddon · Meta paid media · AUD · `
+    + `source: <b>raw_windsor.perf_meta</b> (Windsor) · `
+    + `${(DATA.by_campaign||[]).length} campaigns, ${(DATA.by_ad||[]).length} ads · `
+    + `leads: <b>${DATA.lead_source_label||'Meta-reported'}</b>`;
+}
+
+//==============================================================================
+// TABS
+//==============================================================================
+function setTab(t){
+  activeTab = t;
+  document.querySelectorAll('.tabpane').forEach(p=>p.style.display='none');
+  el('tab-'+t).style.display='block';
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  el('tab'+(t==='perf'?'Perf':'Opt')).classList.add('on');
+  // resize charts when their tab becomes visible
+  setTimeout(()=>Object.values(charts).forEach(c=>{try{c.resize()}catch(e){}}), 50);
+}
+
+//==============================================================================
+// PERFORMANCE TAB
+//==============================================================================
+function renderPerf(){
+  const ov = DATA.overview||{};
+  const daily = DATA.daily||[];
+
+  // KPI strip
+  el('p_spend').textContent = fmt$(ov.spend);
+  const budget = ov.budget||tgt('flight_budget_aud');
+  el('p_spend_sub').textContent = budget ? `${fmt$(ov.spend)} of ${fmt$(budget)} budget` : '—';
+  el('p_spend_tgt').innerHTML = `target ${fmt$(tgt('flight_budget_aud'))}${pendingMark('flight_budget_aud')}`;
+
+  el('p_leads').textContent = fmtN(ov.leads);
+  el('p_leads_sub').textContent = (DATA.lead_source_label||'Meta-reported')+' leads';
+  el('p_leads_tgt').innerHTML = `target ${fmtN(tgt('monthly_lead_target'))}${pendingMark('monthly_lead_target')}`;
+
+  el('p_cpl').textContent = fmt$(ov.cpl,2);
+  // delta vs first-week CPL
+  const firstWeek = daily.filter(d=>d.cpl!=null).slice(0,7);
+  const recent = daily.filter(d=>d.cpl!=null).slice(-7);
+  const fAvg = firstWeek.length ? firstWeek.reduce((s,d)=>s+d.cpl,0)/firstWeek.length : null;
+  const rAvg = recent.length ? recent.reduce((s,d)=>s+d.cpl,0)/recent.length : null;
+  if(fAvg && rAvg){
+    const delta = ((rAvg-fAvg)/fAvg*100);
+    const cls = delta<=0?'vs-good':'vs-bad';
+    const arrow = delta<=0?'▼':'▲';
+    el('p_cpl_sub').innerHTML = `<span class="${cls}">${arrow} ${Math.abs(delta).toFixed(0)}% vs first week</span>`;
+  }else{ el('p_cpl_sub').textContent='—'; }
+  el('p_cpl_tgt').innerHTML = `target ${fmt$(tgt('cpl_target_aud'),0)}${pendingMark('cpl_target_aud')}`;
+
+  el('p_reach').textContent = fmtN_M(ov.reach);
+  el('p_reach_sub').textContent = fmtN(ov.reach)+' unique';
+
+  el('p_ctr').textContent = fmtPct(ov.ctr);
+  el('p_ctr_sub').textContent = 'link clicks / imps';
+  el('p_ctr_tgt').innerHTML = `target ${fmtPct(tgt('ctr_target'))}${pendingMark('ctr_target')}`;
+
+  // Flight pacing gauge
+  const daysElapsed = ov.days_elapsed||0, daysTotal = ov.days_total||30;
+  const paceExpected = ov.pace_expected||0, projected = ov.projected_spend||0;
+  el('pp_day').textContent = Math.max(0,Math.min(daysElapsed,daysTotal));
+  el('pp_total').textContent = daysTotal;
+  const expPct = budget ? Math.min(100, paceExpected/budget*100) : 0;
+  const actPct = budget ? Math.min(100, (ov.spend||0)/budget*100) : 0;
+  el('pp_expected_bar').style.width = expPct+'%';
+  el('pp_actual_bar').style.width = actPct+'%';
+  el('pp_actual_bar').textContent = fmt$(ov.spend);
+  el('pp_expected_lbl').textContent = 'Expected: '+fmt$(paceExpected);
+  el('pp_budget_lbl').textContent = 'Budget: '+fmt$(budget);
+  // status
+  const ratio = paceExpected ? (ov.spend||0)/paceExpected : 0;
+  let stCls, stTxt;
+  if(ratio>=1.1){ stCls='gs-over'; stTxt='Over pace'; }
+  else if(ratio>=0.9){ stCls='gs-on'; stTxt='On track'; }
+  else { stCls='gs-under'; stTxt='Under pace'; }
+  el('pp_status').className = 'gauge-status '+stCls;
+  el('pp_status').textContent = stTxt;
+  el('pp_projected').textContent = 'Projected end-of-flight: '+fmt$(projected,0)+
+    (budget && projected>budget ? ' (over budget)' : budget && projected<budget ? ' (under budget)' : '');
+
+  // CPL hero chart
+  renderCplChart(daily);
+  // Cumulative leads
+  renderCumLeadsChart(daily);
+  // Funnel
+  renderFunnel(ov);
+  // Callouts
+  renderCallouts();
+}
+
+function renderCplChart(daily){
+  const ctx = el('cplChart').getContext('2d');
+  const labels = daily.map(d=>d.date);
+  const cpl = daily.map(d=>d.cpl);
+  const cpl7 = daily.map(d=>d.cpl_7d);
+  const target = tgt('cpl_target_aud');
+  if(charts.cpl) charts.cpl.destroy();
+  charts.cpl = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Daily CPL', data:cpl, borderColor:PALETTE.blue, backgroundColor:'rgba(46,91,255,.08)',
+         pointRadius:2, borderWidth:1.5, tension:.3, spanGaps:true},
+        {label:'7-day rolling CPL', data:cpl7, borderColor:PALETTE.teal, backgroundColor:'rgba(14,165,164,.1)',
+         pointRadius:0, borderWidth:2.5, tension:.35, spanGaps:true},
+        {label:'Target', data:labels.map(()=>target), borderColor:PALETTE.target, borderWidth:1.5,
+         borderDash:[6,4], pointRadius:0, fill:false},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true, position:'top', labels:{font:{size:11}}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt$(c.parsed.y,2)}}
+      },
+      scales:{
+        x:{ticks:{font:{size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:12}},
+        y:{ticks:{font:{size:10}, callback:v=>'A$'+v}, title:{display:true,text:'CPL (AUD)',font:{size:11}}}
+      }
+    }
+  });
+}
+
+function renderCumLeadsChart(daily){
+  const ctx = el('cumLeadsChart').getContext('2d');
+  const labels = daily.map(d=>d.date);
+  const cum = daily.map(d=>d.cum_leads);
+  const monthlyTarget = tgt('monthly_lead_target');
+  // pace line: linear from 0 to monthly target across the flight
+  const daysTotal = (DATA.overview||{}).days_total||30;
+  const pace = labels.map((_,i)=> monthlyTarget ? monthlyTarget*(i+1)/Math.max(1,labels.length) : null);
+  if(charts.cumLeads) charts.cumLeads.destroy();
+  charts.cumLeads = new Chart(ctx, {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        {label:'Cumulative leads', data:cum, borderColor:PALETTE.blue, backgroundColor:'rgba(46,91,255,.12)',
+         pointRadius:2, borderWidth:2, tension:.3, fill:true, spanGaps:true},
+        {label:'Target pace', data:pace, borderColor:PALETTE.target, borderWidth:1.5,
+         borderDash:[6,4], pointRadius:0, fill:false},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true, position:'top', labels:{font:{size:11}}},
+        tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtN(c.parsed.y)}}
+      },
+      scales:{
+        x:{ticks:{font:{size:10}, maxRotation:0, autoSkip:true, maxTicksLimit:8}},
+        y:{ticks:{font:{size:10}, callback:v=>fmtN(v)}, title:{display:true,text:'Leads',font:{size:11}}, beginAtZero:true}
+      }
+    }
+  });
+}
+
+function renderFunnel(ov){
+  // Proportional SVG funnel: each stage's width = its share of the top stage,
+  // so it tapers like a real funnel (not all-equal bars). Hover a segment to
+  // see the absolute number + the step conversion from the prior stage.
+  const steps = [
+    {lbl:'Impressions',        val:ov.impressions,        color:PALETTE.blue},
+    {lbl:'Link clicks',        val:ov.link_clicks,        color:PALETTE.teal},
+    {lbl:'Landing page views', val:ov.landing_page_views, color:PALETTE.amber},
+    {lbl:'Leads',              val:ov.leads,              color:PALETTE.rose},
+  ];
+  const top = Math.max(...steps.map(s=>s.val||0)) || 1;
+  const W = 100, cx = W/2;          // viewBox width (height computed per band)
+  const bandH = 46, gap = 4;        // band height + gap between bands
+  const pad = 6;                    // min half-width so tiny stages stay visible
+  let polys = '', labels = '';
+  let y = 0;
+  for(let i=0;i<steps.length;i++){
+    const s = steps[i];
+    const v = s.val||0;
+    const frac = Math.max(pad, (v/top) * (W/2 - pad));  // half-width, proportional
+    const prevFrac = i===0 ? W/2 : Math.max(pad, ((steps[i-1].val||0)/top) * (W/2 - pad));
+    const y0 = y, y1 = y + bandH;
+    // trapezoid: top edge = prev stage width, bottom edge = this stage width
+    const pts = `${cx-prevFrac},${y0} ${cx+prevFrac},${y0} ${cx+frac},${y1} ${cx-frac},${y1}`;
+    const convPct = i>0 && steps[i-1].val ? (v/(steps[i-1].val||1)*100) : null;
+    const convTxt = convPct!=null ? ` · ${convPct.toFixed(1)}% of ${steps[i-1].lbl.toLowerCase()}` : '';
+    const tip = `${s.lbl}: ${fmtN(v)}${convTxt}`;
+    polys += `<polygon points="${pts}" fill="${s.color}" opacity=".92"><title>${tip}</title></polygon>`;
+    // label inside or to the right
+    const lblY = y0 + bandH/2 + 4;
+    labels += `<text x="${cx}" y="${lblY}" text-anchor="middle" font-size="9" font-weight="700" fill="#fff" pointer-events="none">${s.lbl}</text>`;
+    labels += `<text x="${W+4}" y="${lblY}" font-size="9" fill="var(--geo-mute)" pointer-events="none">${fmtN_M(v)}</text>`;
+    y = y1 + gap;
+  }
+  const H = y;
+  el('funnelWrap').innerHTML =
+    `<svg viewBox="0 0 ${W+38} ${H}" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Conversion funnel">
+       ${polys}${labels}
+     </svg>
+     <div class="fnote">Hover a segment for the absolute number & step conversion. Widths are proportional to impressions.</div>`;
+}
+
+function renderCallouts(){
+  const ov = DATA.overview||{};
+  const byAd = (DATA.by_ad||[]).filter(a=>a.lpv>0).sort((a,b)=>b.lpv-a.lpv);
+  const byStage = (DATA.by_stage||[]).slice().sort((a,b)=>(a.cpl||1e9)-(b.cpl||1e9));
+  const daily = DATA.daily||[];
+  const firstWeek = daily.filter(d=>d.cpl!=null).slice(0,7);
+  const recent = daily.filter(d=>d.cpl!=null).slice(-7);
+  const fAvg = firstWeek.length ? firstWeek.reduce((s,d)=>s+d.cpl,0)/firstWeek.length : null;
+  const rAvg = recent.length ? recent.reduce((s,d)=>s+d.cpl,0)/recent.length : null;
+  const effGain = (fAvg && rAvg) ? Math.max(0,((fAvg-rAvg)/fAvg*100)) : null;
+
+  const cards = [];
+  if(byAd.length){
+    const top = byAd[0];
+    cards.push({t:'Top creative by landing-page views', b:`<b>${top.ad||'—'}</b> drove <b>${fmtN(top.lpv)}</b> LP views at <b>${fmt$(top.cost_per_lpv,2)}</b> per view.`});
+  }
+  if(byStage.length && byStage[0].cpl!=null){
+    const s = byStage[0];
+    cards.push({t:'Most efficient funnel stage', b:`<b>${s.funnel_stage}</b> delivers leads at <b>${fmt$(s.cpl,0)}</b> CPL — ${(s.lead_share*100).toFixed(0)}% of leads on ${(s.spend_share*100).toFixed(0)}% of spend.`});
+  }
+  if(effGain!=null && effGain>0){
+    cards.push({t:'Efficiency gain vs first week', b:`CPL has improved <b>${effGain.toFixed(0)}%</b> — from <b>${fmt$(fAvg,0)}</b> in week one to <b>${fmt$(rAvg,0)}</b> recently.`});
+  }else{
+    cards.push({t:'Efficiency', b:`CPL is <b>${fmt$(ov.cpl,0)}</b> against a target of <b>${fmt$(tgt('cpl_target_aud'),0)}</b>.${pendingMark('cpl_target_aud')}`});
+  }
+  cards.push({t:'Reach', b:`Reached <b>${fmtN_M(ov.reach)}</b> unique people across <b>${fmtN_M(ov.impressions)}</b> impressions (frequency ${fmtN((ov.frequency||0).toFixed(1))}).`});
+  el('callouts').innerHTML = cards.map(c=>`<div class="callout"><div class="ct">${c.t}</div><p class="cb">${c.b}</p></div>`).join('');
+}
+
+//==============================================================================
+// OPTIMISE TAB
+//==============================================================================
+function renderOpt(){
+  renderCampTable();
+  renderAdTable();
+  renderStageCharts();
+  renderFatigueTable();
+  renderBurn();
+  renderWarnings();
+  renderRetarget();
+}
+
+function renderCampTable(){
+  const rows = DATA.by_campaign||[];
+  const tCtr = tgt('ctr_target'), tCpm = tgt('cpm_target_aud'), tCpc = tgt('cpc_target_aud'),
+        tCpl = tgt('cpl_target_aud'), tLpv = tgt('cost_per_lpv_target_aud');
+  let html = rows.map(r=>{
+    const leadCell = r.leads!=null ? fmtN(r.leads) : '<span class="bench">—</span>';
+    const cplCell = r.cpl!=null ? `<span class="${vsClass(r.cpl,tCpl,'lower')}">${fmt$(r.cpl,0)}</span>` : '<span class="bench">—</span>';
+    return `<tr>
+      <td>${r.campaign||'—'}</td>
+      <td><span class="pill"><span class="dot" style="background:${STAGE_COLOR[r.funnel_stage]||PALETTE.mute}"></span>${r.funnel_stage||'—'}</span></td>
+      <td class="num">${fmt$(r.spend,0)}</td>
+      <td class="num">${fmtN_M(r.impressions)}</td>
+      <td class="num">${fmtN_M(r.reach)}</td>
+      <td class="num">${fmtN((r.frequency||0).toFixed(1))}</td>
+      <td class="num">${fmtN(r.link_clicks)}</td>
+      <td class="num"><span class="${vsClass(r.ctr,tCtr,'higher')}">${fmtPct(r.ctr)}</span></td>
+      <td class="num"><span class="${vsClass(r.cpm,tCpm,'lower')}">${fmt$(r.cpm,2)}</span></td>
+      <td class="num"><span class="${vsClass(r.cpc,tCpc,'lower')}">${fmt$(r.cpc,2)}</span></td>
+      <td class="num">${fmtN(r.lpv)}</td>
+      <td class="num"><span class="${vsClass(r.cost_per_lpv,tLpv,'lower')}">${fmt$(r.cost_per_lpv,2)}</span></td>
+      <td class="num">${leadCell}</td>
+      <td class="num">${cplCell}</td>
+    </tr>`;
+  }).join('');
+  // total row
+  const ov = DATA.overview||{};
+  html += `<tr class="total">
+    <td>Total</td><td>—</td>
+    <td class="num">${fmt$(ov.spend,0)}</td><td class="num">${fmtN_M(ov.impressions)}</td>
+    <td class="num">${fmtN_M(ov.reach)}</td><td class="num">${fmtN((ov.frequency||0).toFixed(1))}</td>
+    <td class="num">${fmtN(ov.link_clicks)}</td><td class="num">${fmtPct(ov.ctr)}</td>
+    <td class="num">${fmt$(ov.cpm,2)}</td><td class="num">${fmt$(ov.cpc,2)}</td>
+    <td class="num">${fmtN(ov.landing_page_views)}</td><td class="num">${fmt$(ov.cost_per_lpv,2)}</td>
+    <td class="num">${fmtN(ov.leads)}</td><td class="num">${fmt$(ov.cpl,0)}</td>
+  </tr>`;
+  el('campTable').querySelector('tbody').innerHTML = html;
+}
+
+function renderAdTable(){
+  let rows = (DATA.by_ad||[]).slice().sort((a,b)=>(b.spend||0)-(a.spend||0));
+  // find best/worst CPL among ads with leads
+  const withLeads = rows.filter(r=>r.leads>0);
+  const best = withLeads.length ? withLeads.slice().sort((a,b)=>(a.cpl||1e9)-(b.cpl||1e9))[0] : null;
+  const worst = withLeads.length ? withLeads.slice().sort((a,b)=>(b.cpl||-1)-(a.cpl||-1))[0] : null;
+  const tCpl = tgt('cpl_target_aud'), tCtr = tgt('ctr_target');
+  let html = rows.map(r=>{
+    let cls = '';
+    if(best && r.ad===best.ad && r.adset===best.adset) cls='row-best';
+    else if(worst && r.ad===worst.ad && r.adset===worst.adset) cls='row-worst';
+    const leadCell = r.leads!=null&&r.leads>0 ? fmtN(r.leads) : '<span class="bench">—</span>';
+    const cplCell = r.cpl!=null ? `<span class="${vsClass(r.cpl,tCpl,'lower')}">${fmt$(r.cpl,0)}</span>` : '<span class="bench">—</span>';
+    return `<tr class="${cls}">
+      <td>${r.ad||'—'}</td>
+      <td>${r.adset||'—'}</td>
+      <td><span class="pill"><span class="dot" style="background:${STAGE_COLOR[r.funnel_stage]||PALETTE.mute}"></span>${r.funnel_stage||'—'}</span></td>
+      <td class="num">${fmt$(r.spend,0)}</td>
+      <td class="num">${fmtN_M(r.impressions)}</td>
+      <td class="num"><span class="${vsClass(r.ctr,tCtr,'higher')}">${fmtPct(r.ctr)}</span></td>
+      <td class="num">${fmt$(r.cpm,2)}</td>
+      <td class="num">${fmt$(r.cpc,2)}</td>
+      <td class="num">${fmtN(r.lpv)}</td>
+      <td class="num">${fmt$(r.cost_per_lpv,2)}</td>
+      <td class="num">${leadCell}</td>
+      <td class="num">${cplCell}</td>
+    </tr>`;
+  }).join('');
+  el('adTable').querySelector('tbody').innerHTML = html;
+}
+
+function renderStageCharts(){
+  const stages = DATA.by_stage||[];
+  const labels = stages.map(s=>s.funnel_stage);
+  const colors = labels.map(l=>STAGE_COLOR[l]||PALETTE.mute);
+  // spend-share vs lead-share grouped bar
+  const ctx = el('stageChart').getContext('2d');
+  if(charts.stage) charts.stage.destroy();
+  charts.stage = new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        {label:'Spend share', data:stages.map(s=>(s.spend_share||0)*100), backgroundColor:colors.map(c=>c+'CC'), borderWidth:0},
+        {label:'Lead share', data:stages.map(s=>(s.lead_share||0)*100), backgroundColor:colors.map(c=>c+'66'), borderWidth:0},
+      ]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{position:'top',labels:{font:{size:11}}}, tooltip:{callbacks:{label:c=>c.dataset.label+': '+c.parsed.y.toFixed(0)+'%'}}},
+      scales:{x:{ticks:{font:{size:11}}}, y:{ticks:{callback:v=>v+'%',font:{size:10}}, title:{display:true,text:'% of total',font:{size:11}}, max:100}}
+    }
+  });
+  // CPL by stage
+  const ctx2 = el('stageCplChart').getContext('2d');
+  if(charts.stageCpl) charts.stageCpl.destroy();
+  charts.stageCpl = new Chart(ctx2, {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[{label:'CPL', data:stages.map(s=>s.cpl), backgroundColor:colors, borderWidth:0}]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>'CPL: '+fmt$(c.parsed.y,0)}}},
+      scales:{x:{ticks:{font:{size:11}}}, y:{ticks:{callback:v=>'A$'+v,font:{size:10}}, title:{display:true,text:'CPL (AUD)',font:{size:11}}}}
+    }
+  });
+}
+
+function renderFatigueTable(){
+  const rows = (DATA.fatigue||[]).slice().sort((a,b)=>{
+    // fatigued first, then by freq_wow desc
+    const fa = a.flag==='FATIGUED'?0:1, fb=b.flag==='FATIGUED'?0:1;
+    if(fa!==fb) return fa-fb;
+    return (b.freq_wow||0)-(a.freq_wow||0);
+  });
+  let html = rows.map(r=>{
+    const flagCls = r.flag==='FATIGUED'?'flag-fatigued':r.flag==='OK'?'flag-ok':'flag-new';
+    const freqWow = r.freq_wow!=null ? `<span class="${r.freq_wow>0?'vs-bad':'vs-good'}">${r.freq_wow>0?'▲':'▼'} ${Math.abs(r.freq_wow).toFixed(2)}</span>` : '—';
+    const ctrWow = r.ctr_wow!=null ? `<span class="${r.ctr_wow<0?'vs-bad':'vs-good'}">${r.ctr_wow<0?'▼':'▲'} ${Math.abs(r.ctr_wow*100).toFixed(2)}pp</span>` : '—';
+    return `<tr>
+      <td>${r.ad||'—'}</td>
+      <td>${r.adset||'—'}</td>
+      <td>${r.week_start||'—'}</td>
+      <td class="num">${fmtN(r.impressions)}</td>
+      <td class="num">${fmtN((r.frequency||0).toFixed(1))}</td>
+      <td class="num">${freqWow}</td>
+      <td class="num">${fmtPct(r.ctr)}</td>
+      <td class="num">${ctrWow}</td>
+      <td class="${flagCls}">${r.flag||'—'}</td>
+    </tr>`;
+  }).join('');
+  if(!html) html = '<tr><td colspan="9" style="text-align:center;color:var(--geo-mute);padding:24px">No ads with ≥2 weeks of data yet — fatigue signals appear as the flight progresses.</td></tr>';
+  el('fatigueTable').querySelector('tbody').innerHTML = html;
+}
+
+function renderBurn(){
+  const ov = DATA.overview||{};
+  const camps = DATA.by_campaign||[];
+  const totalSpend = ov.spend||0;
+  const daysElapsed = Math.max(1, ov.days_elapsed||1);
+  let html = '<div style="display:flex;flex-direction:column;gap:14px">';
+  for(const c of camps){
+    const share = totalSpend ? (c.spend||0)/totalSpend : 0;
+    const expectedShare = share * (ov.pace_expected||0);
+    const actual = c.spend||0;
+    const ratio = expectedShare ? actual/expectedShare : 0;
+    let cls = 'vs-neut';
+    if(ratio>=1.1) cls='vs-bad'; else if(ratio<=0.9) cls='vs-good'; // over-pacing = bad (burning too fast)
+    const barW = Math.min(100, share*100);
+    html += `<div>
+      <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px">
+        <span><b>${c.campaign||'—'}</b> <span class="pill"><span class="dot" style="background:${STAGE_COLOR[c.funnel_stage]||PALETTE.mute}"></span>${c.funnel_stage||'—'}</span></span>
+        <span>${fmt$(actual,0)} <span class="${cls}">(${(ratio*100).toFixed(0)}% of pace)</span></span>
+      </div>
+      <div class="fbar" style="height:10px"><div class="ffill" style="width:${barW}%;background:${STAGE_COLOR[c.funnel_stage]||PALETTE.mute};padding:0"></div></div>
+    </div>`;
+  }
+  html += '</div>';
+  el('burnWrap').innerHTML = html;
+}
+
+function renderWarnings(){
+  const camps = DATA.by_campaign||[];
+  const ads = DATA.by_ad||[];
+  const warns = [];
+  // campaign-level volume warnings
+  for(const c of camps){
+    if((c.impressions||0) < 10000){
+      warns.push({type:'Campaign volume', msg:`<b>${c.campaign}</b> has only <b>${fmtN(c.impressions)}</b> impressions — too thin to trust its efficiency metrics.`});
+    }
+    if(c.leads!=null && c.leads>0 && c.leads<5){
+      warns.push({type:'Low-conversion CPL', msg:`<b>${c.campaign}</b> CPL of <b>${fmt$(c.cpl,0)}</b> is based on only <b>${fmtN(c.leads)}</b> leads — treat as low-confidence.`});
+    }
+  }
+  // ad-level
+  for(const a of ads){
+    if((a.impressions||0) < 2000 && (a.spend||0) > 50){
+      warns.push({type:'Ad volume', msg:`Ad <b>${a.ad}</b> has <b>${fmtN(a.impressions)}</b> impressions on <b>${fmt$(a.spend,0)}</b> spend — small sample.`});
+    }
+  }
+  let html = '';
+  if(!warns.length){
+    html = '<div class="info-note">No volume warnings — all campaigns and ads have sufficient sample to trust.</div>';
+  }else{
+    html = warns.map(w=>`<div class="info-note warn" style="margin-top:8px"><b>${w.type}:</b> ${w.msg}</div>`).join('');
+  }
+  el('warnWrap').innerHTML = html;
+}
+
+function renderRetarget(){
+  const stages = DATA.by_stage||[];
+  const ov = DATA.overview||{};
+  const ret = stages.find(s=>s.funnel_stage==='Retargeting');
+  const conv = stages.find(s=>s.funnel_stage==='Conversion');
+  // untapped pool = LPV - leads
+  const lpv = ov.landing_page_views||0, leads = ov.leads||0;
+  const pool = Math.max(0, lpv-leads);
+  let left = '';
+  if(ret){
+    left += `<div class="card"><h3>Retargeting</h3><div class="hint">Retargeting campaign performance.</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px">
+        <div><div class="k" style="font-size:10.5px;color:var(--geo-mute);text-transform:uppercase">Spend</div><div style="font-size:19px;font-weight:700;color:var(--geo-slate)">${fmt$(ret.spend,0)}</div></div>
+        <div><div class="k" style="font-size:10.5px;color:var(--geo-mute);text-transform:uppercase">Imps</div><div style="font-size:19px;font-weight:700;color:var(--geo-slate)">${fmtN_M(ret.impressions)}</div></div>
+        <div><div class="k" style="font-size:10.5px;color:var(--geo-mute);text-transform:uppercase">CTR</div><div style="font-size:19px;font-weight:700;color:var(--geo-slate)">${fmtPct(ret.ctr)}</div></div>
+        <div><div class="k" style="font-size:10.5px;color:var(--geo-mute);text-transform:uppercase">CPM</div><div style="font-size:19px;font-weight:700;color:var(--geo-slate)">${fmt$(ret.cpm,2)}</div></div>
+      </div></div>`;
+  }else{
+    left += `<div class="card"><h3>Retargeting</h3><div class="hint">No retargeting campaign data yet.</div></div>`;
+  }
+  left += `<div class="card"><h3>Untapped conversion pool</h3><div class="hint">Landing-page viewers who didn't convert — the cheapest remaining funnel layer to retarget.</div>
+    <div style="font-size:32px;font-weight:800;color:var(--geo-rose);margin:8px 0">${fmtN(pool)}</div>
+    <div style="font-size:12.5px;color:var(--geo-mute)">${fmtN(lpv)} LP views − ${fmtN(leads)} leads = <b>${fmtN(pool)}</b> prospects who showed intent but didn't submit.</div>
+    <div style="margin-top:10px;font-size:12px;color:var(--geo-mute)">Conversion-stage CPL: <b>${conv?fmt$(conv.cpl,0):'—'}</b> · these are warm leads for retargeting.</div>
+  </div>`;
+  el('retargetWrap').innerHTML = left;
+}
+
+//==============================================================================
+// BOOT
+//==============================================================================
+load();
+</script>
+</body>
+</html>

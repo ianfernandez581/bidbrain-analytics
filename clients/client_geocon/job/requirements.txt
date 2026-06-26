@@ -1,0 +1,7 @@
+# Cloud Run export job: BigQuery views -> mongodb.json -> GCS.
+# Pinned for reproducible container builds. This job no longer touches Snowflake
+# (the shared snowflake_data_pull/ unit mirrors the source tables into
+# raw_snowflake; this job only reads BigQuery views and writes the JSON to GCS),
+# so it needs nothing beyond the BigQuery + Storage clients.
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1

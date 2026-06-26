@@ -45,6 +45,22 @@ function Update-SessionPath {
     $env:Path = ($machine, $user | Where-Object { $_ }) -join ";"
 }
 
+# --- Helper: find a REAL python.exe, ignoring the Microsoft Store "App execution
+# alias" stub. That stub (a 0-byte shim under ...\WindowsApps\python.exe) lands on
+# PATH by default, satisfies `Get-Command python`, but only opens the Store and
+# makes `python -m venv` print "Python was not found" and do nothing. We skip any
+# python whose path is under WindowsApps, then fall back to the winget/python.org
+# install location. Returns a usable exe path, or $null if none is installed.
+function Get-RealPython {
+    $onPath = Get-Command python -All -ErrorAction SilentlyContinue |
+              Where-Object { $_.Source -and $_.Source -notmatch 'WindowsApps' } |
+              Select-Object -First 1 -ExpandProperty Source
+    if ($onPath) { return $onPath }
+    return (Get-ChildItem "$env:LOCALAPPDATA\Programs\Python\Python3*\python.exe",
+                          "$env:ProgramFiles\Python3*\python.exe" -ErrorAction SilentlyContinue |
+            Select-Object -First 1 -ExpandProperty FullName)
+}
+
 # --- Helper: run a probe command whose failure is EXPECTED and handled here. ----
 # With $ErrorActionPreference = "Stop", redirecting a native command's stderr
 # (2>$null) turns its error output into a terminating NativeCommandError, which
@@ -65,20 +81,22 @@ function Test-Probe {
 }
 
 # --- 1. Python ----------------------------------------------------------------
-if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
-    Write-Host "[*] Python not found - installing Python 3.12 via winget..." -ForegroundColor Yellow
+$realPython = Get-RealPython
+if (-not $realPython) {
+    Write-Host "[*] Real Python not found (only the Microsoft Store stub, if any) - installing Python 3.12 via winget..." -ForegroundColor Yellow
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
         Write-Host "[X] winget unavailable. Install Python 3.12 from python.org, then re-run." -ForegroundColor Red
         exit 1
     }
-    winget install -e --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements
+    winget install -e --id Python.Python.3.12 --accept-source-agreements --accept-package-agreements --scope user
     Update-SessionPath
-    if (-not (Get-Command python -ErrorAction SilentlyContinue)) {
+    $realPython = Get-RealPython
+    if (-not $realPython) {
         Write-Host "[!] Python installed. Close this terminal, open a NEW one, and re-run setup." -ForegroundColor Yellow
         exit 0
     }
 }
-Write-Host "[OK] Python: $((Get-Command python).Source)" -ForegroundColor Green
+Write-Host "[OK] Python: $realPython" -ForegroundColor Green
 
 # --- 2. Google Cloud SDK ------------------------------------------------------
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
@@ -124,7 +142,15 @@ Write-Host "[OK] requirements files present (root + export job)" -ForegroundColo
 $venvPy = Join-Path $REPO ".venv\Scripts\python.exe"
 if (-not (Test-Path $venvPy)) {
     Write-Host "[*] Creating .venv..." -ForegroundColor Yellow
-    python -m venv .venv
+    # Use the resolved real python (NOT bare `python`, which may be the Store stub).
+    & $realPython -m venv .venv
+    if (-not (Test-Path $venvPy)) {
+        Write-Host "[X] .venv was not created -- '$realPython -m venv' produced no $venvPy." -ForegroundColor Red
+        Write-Host "    Most likely 'python' resolved to the Microsoft Store stub. Disable it via" -ForegroundColor Red
+        Write-Host "    Settings > Apps > Advanced app settings > App execution aliases (turn OFF" -ForegroundColor Red
+        Write-Host "    python.exe and python3.exe), then re-run this script." -ForegroundColor Red
+        exit 1
+    }
 }
 Write-Host "[*] Installing dependencies into .venv..." -ForegroundColor Yellow
 & $venvPy -m pip install --upgrade pip | Out-Null
