@@ -95,6 +95,8 @@
   .status.warn{background:rgba(182,106,45,.14);color:var(--warning)}
   .status.bad{background:rgba(163,58,45,.13);color:var(--danger)}
   .status.neutral{background:rgba(35,26,23,.08);color:var(--muted)}
+  .kpi .kdelta{font-size:10px;font-weight:800;margin-top:5px;min-height:13px}
+  .warn-chip{display:inline-flex;align-items:center;gap:3px;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.03em;padding:1px 6px;border-radius:5px;background:rgba(182,106,45,.16);color:var(--warning);white-space:nowrap}
 
   .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
@@ -498,6 +500,24 @@ const ROWS = () => DATA.rows || [];
 function rowsInRange(){return ROWS().filter(r=>inRange(r.date));}        // date filter only (used by trend, exports, pacing-independent)
 function scoped(){const st=STATE.stage;return rowsInRange().filter(r=>st==='all'||(r.stage||'Other')===st);}  // date + stage (KPIs/charts)
 function searched(rows){const q=STATE.search.toLowerCase();if(!q)return rows;return rows.filter(r=>[r.campaign,r.ad,r.adset].join(' ').toLowerCase().includes(q));}
+function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00Z')-new Date(a+'T00:00:00Z'))/86400000);}
+function rowsBetween(a,b){const st=STATE.stage;return ROWS().filter(r=>{const d=String(r.date).slice(0,10);return d>=a&&d<=b&&(st==='all'||(r.stage||'Other')===st);});}
+// period-over-period: current window vs the equal-length window just before it; if there's no
+// prior window (e.g. "all time"), fall back to comparing the 2nd half of the window to the 1st.
+function deltaWindows(){
+  const [a,b]=rangeBounds(); if(!a||!b) return null;
+  const len=daysBetween(a,b)+1;
+  const prev=rowsBetween(addDaysStr(a,-len),addDaysStr(a,-1));
+  if(prev.length) return {cur:scoped(),prev,label:`vs prev ${len}d`};
+  if(len>=4){const mid=addDaysStr(a,Math.floor(len/2));return {cur:rowsBetween(mid,b),prev:rowsBetween(a,addDaysStr(mid,-1)),label:'2nd half vs 1st'};}
+  return null;
+}
+// thin-volume / small-sample guard so a low-confidence CPL can't masquerade as insight.
+function lowConfidence(r){
+  if(n(r.impressions)<15000) return {low:true,why:'under 15k impressions'};
+  if(r.cpl!=null && n(r.leads)<8) return {low:true,why:'fewer than 8 leads'};
+  return {low:false,why:''};
+}
 
 function agg(rows){
   const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
@@ -578,7 +598,11 @@ const targetLinePlugin={id:'targetLinePlugin',afterDraw(chart,args,opts){
   if(!opts)return;const{ctx,chartArea,scales}=chart;ctx.save();ctx.setLineDash([5,5]);ctx.lineWidth=1;
   ctx.strokeStyle='rgba(35,26,23,.35)';ctx.fillStyle=COLORS.muted;ctx.font='700 10px Montserrat, sans-serif';
   if(opts.x!=null&&scales.x){const x=scales.x.getPixelForValue(opts.x);if(x>=chartArea.left&&x<=chartArea.right){ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();if(opts.xLabel)ctx.fillText(opts.xLabel,Math.min(x+5,chartArea.right-55),chartArea.top+12);}}
+  // optional target->stretch BAND (shade between y and y2) drawn under the lines
+  if(opts.y!=null&&opts.y2!=null&&scales.y){const ya=scales.y.getPixelForValue(opts.y),yb=scales.y.getPixelForValue(opts.y2);
+    ctx.fillStyle='rgba(45,115,84,.09)';ctx.fillRect(chartArea.left,Math.min(ya,yb),chartArea.right-chartArea.left,Math.abs(ya-yb));ctx.fillStyle=COLORS.muted;}
   if(opts.y!=null&&scales.y){const y=scales.y.getPixelForValue(opts.y);if(y>=chartArea.top&&y<=chartArea.bottom){ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();if(opts.yLabel)ctx.fillText(opts.yLabel,chartArea.left+5,Math.max(y-5,chartArea.top+10));}}
+  if(opts.y2!=null&&scales.y){const y=scales.y.getPixelForValue(opts.y2);if(y>=chartArea.top&&y<=chartArea.bottom){ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();if(opts.y2Label)ctx.fillText(opts.y2Label,chartArea.left+5,Math.max(y-5,chartArea.top+10));}}
   ctx.restore();
 }};
 function initChartDefaults(){
@@ -655,18 +679,27 @@ function renderSummaryStrip(){
   ].map(x=>`<div class="strip-item"><div class="k">${x.k}</div><div class="v">${x.v}</div><div class="s">${x.s}</div></div>`).join('');
 }
 function renderKpis(){
-  const a=agg(scoped()), f=flight();
+  const a=agg(scoped());
   const cplT=bench('cpl'),ctrT=bench('ctr'),lpvT=bench('cost_per_lpv'),leadT=bench('lead_target');
-  const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
+  // period-over-period delta (lib: true=lower-is-better, false=higher-is-better, null=neutral/info)
+  const dw=deltaWindows(); const pv=dw?agg(dw.prev):null; const cv=dw?agg(dw.cur):null;
+  const delta=(curV,prevV,lib)=>{
+    if(!dw||prevV==null||curV==null||!isFinite(prevV)||prevV===0)return '';
+    const d=(curV-prevV)/Math.abs(prevV); if(!isFinite(d))return '';
+    const arrow=d<-0.001?'▼':d>0.001?'▲':'▬';
+    const cls=(lib===null||Math.abs(d)<0.005)?'muted-text':((lib?d<0:d>0)?'good-text':'bad-text');
+    return `<div class="kdelta ${cls}">${arrow} ${Math.abs(d*100).toFixed(0)}% ${dw.label}</div>`;
+  };
+  const P=k=>pv?pv[k]:null, C=k=>cv?cv[k]:null;
   const kpis=[
-    {label:'Spend',value:money(a.spend),sub:`${rangeLabel()} · ${STATE.stage==='all'?'all stages':safeName(STATE.stage)}`,cls:'neutral',stat:'In view'},
-    {label:'Leads',value:int(a.leads),sub:leadT?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)} (flight)`:'Meta-reported',cls:'neutral',stat:meta().lead_source_label?'Reported':'Reported'},
-    {label:'CPL',value:money(a.cpl),sub:cplT?`target ${money(cplT)}`:'no CPL target',cls:statusClass(a.cpl,cplT,true),stat:statusLabel(statusClass(a.cpl,cplT,true))},
-    {label:'CTR',value:pct(a.ctr),sub:ctrT?`target ${pct(ctrT)}`:'link CTR',cls:statusClass(a.ctr,ctrT,false),stat:statusLabel(statusClass(a.ctr,ctrT,false))},
-    {label:'Reach',value:compact(a.reach),sub:`Frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`,cls:'neutral',stat:'Delivery'},
-    {label:'LP Views',value:int(a.lpv),sub:`Cost / LPV ${money(a.cost_per_lpv,2)}`,cls:statusClass(a.cost_per_lpv,lpvT,true),stat:statusLabel(statusClass(a.cost_per_lpv,lpvT,true))}
+    {label:'Spend',value:money(a.spend),sub:`${rangeLabel()} · ${STATE.stage==='all'?'all stages':safeName(STATE.stage)}`,cls:'neutral',stat:'In view',delta:delta(C('spend'),P('spend'),null)},
+    {label:'Leads',value:int(a.leads),sub:leadT?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)} (flight)`:'Meta-reported',cls:'neutral',stat:'Reported',delta:delta(C('leads'),P('leads'),false)},
+    {label:'CPL',value:money(a.cpl),sub:cplT?`target ${money(cplT)}`:'no CPL target',cls:statusClass(a.cpl,cplT,true),stat:statusLabel(statusClass(a.cpl,cplT,true)),delta:delta(C('cpl'),P('cpl'),true)},
+    {label:'CTR',value:pct(a.ctr),sub:ctrT?`target ${pct(ctrT)}`:'link CTR',cls:statusClass(a.ctr,ctrT,false),stat:statusLabel(statusClass(a.ctr,ctrT,false)),delta:delta(C('ctr'),P('ctr'),false)},
+    {label:'Reach',value:compact(a.reach),sub:`Frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`,cls:'neutral',stat:'Delivery',delta:delta(C('reach'),P('reach'),null)},
+    {label:'LP Views',value:int(a.lpv),sub:`Cost / LPV ${money(a.cost_per_lpv,2)}`,cls:statusClass(a.cost_per_lpv,lpvT,true),stat:statusLabel(statusClass(a.cost_per_lpv,lpvT,true)),delta:delta(C('lpv'),P('lpv'),false)}
   ];
-  $('kpiGrid').innerHTML=kpis.map(k=>`<article class="kpi ${k.cls}"><div class="label">${k.label}</div><div class="value">${k.value}</div><div class="sub">${k.sub}</div><span class="status ${k.cls}">${k.stat}</span></article>`).join('');
+  $('kpiGrid').innerHTML=kpis.map(k=>`<article class="kpi ${k.cls}"><div class="label">${k.label}</div><div class="value">${k.value}</div>${k.delta||'<div class="kdelta"></div>'}<div class="sub">${k.sub}</div><span class="status ${k.cls}">${k.stat}</span></article>`).join('');
 }
 function bestRows(){
   const ads=byAd(scoped()).filter(a=>n(a.spend)>0);
@@ -715,7 +748,8 @@ function renderTrend(){
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';const dailyPace=bench('daily_pace')||250;
   let descs=[],hint='';
   if(metric==='spend'){hint=`${gw} spend versus the planned pace.`;descs=[{label:'Spend',type:'bar',data:rows.map(r=>r.spend),kind:'money',color:'rgba(108,41,27,.72)',br:5,abs:'y'},{label:'Planned pace',type:'line',data:rows.map(r=>dailyPace*r.days),kind:'money',color:COLORS.charcoal,dash:[5,5],pr:0,bw:2,abs:'y'}];}
-  else if(metric==='leads'){hint=`${gw} leads with cumulative lead momentum.`;descs=[{label:'Leads',type:'bar',data:rows.map(r=>r.leads),kind:'int',color:'rgba(108,41,27,.72)',br:5,abs:'y'},{label:'Cumulative leads',type:'line',data:rows.map(r=>r.cum_leads),kind:'int',color:COLORS.blue,bg:'rgba(36,94,138,.12)',pr:2,bw:3,tension:.35,abs:'y1'}];}
+  else if(metric==='leads'){hint=`${gw} leads with cumulative lead momentum.`;descs=[{label:'Leads',type:'bar',data:rows.map(r=>r.leads),kind:'int',color:'rgba(108,41,27,.72)',br:5,abs:'y'},{label:'Cumulative leads',type:'line',data:rows.map(r=>r.cum_leads),kind:'int',color:COLORS.blue,bg:'rgba(36,94,138,.12)',pr:2,bw:3,tension:.35,abs:'y1'}];
+    if(STATE.axis!=='rel'&&bench('lead_target'))descs.push({label:`Lead target (${int(bench('lead_target'))})`,type:'line',data:rows.map(()=>bench('lead_target')),kind:'int',color:COLORS.gold,dash:[6,4],pr:0,bw:2,abs:'y1'});}
   else if(metric==='ctr'){hint='CTR and CPM show whether attention is getting more or less expensive.';descs=[{label:'CTR',type:'line',data:rows.map(r=>r.ctr),kind:'pct',color:COLORS.heritage,bg:'rgba(108,41,27,.1)',pr:2,bw:3,tension:.35,abs:'y'},{label:'CPM',type:'bar',data:rows.map(r=>r.cpm),kind:'moneyc',color:'rgba(47,125,104,.45)',br:5,abs:'y1'}];}
   else{hint=`${gw} CPL with spend context`+(STATE.grain==='day'?' and the 7-day rolling average.':'.');descs=[{label:'Spend',type:'bar',data:rows.map(r=>r.spend),kind:'money',color:'rgba(189,154,142,.45)',br:5,abs:'y1'},{label:'CPL',type:'line',data:rows.map(r=>r.cpl),kind:'money',color:COLORS.heritage,bg:'rgba(108,41,27,.1)',pr:2,bw:3,tension:.35,abs:'y'}];if(STATE.grain==='day')descs.push({label:'7-day CPL',type:'line',data:rows.map(r=>r.cpl_7d),kind:'money',color:COLORS.blue,pr:0,bw:2.5,tension:.35,abs:'y'});}
   const datasets=descs.map(d=>{
@@ -732,7 +766,7 @@ function renderTrend(){
   makeChart('trendChart',{data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:{position:'top',labels:{usePointStyle:true,boxWidth:8,font:{size:11,weight:'700'}}},
       tooltip:{callbacks:{label:c=>{const ds=c.dataset;const v=ds._raw?ds._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[ds._kind]||(x=>String(x));return `${ds.label}: ${v==null?'-':f(v)}`;}}},
-      targetLinePlugin:(!rel&&metric==='cpl'&&bench('cpl'))?{y:bench('cpl'),yLabel:'CPL target'}:false},
+      targetLinePlugin:(!rel&&metric==='cpl'&&bench('cpl'))?{y:bench('cpl'),yLabel:`CPL target ${money(bench('cpl'))}`,y2:bench('cpl_stretch')||null,y2Label:bench('cpl_stretch')?`stretch ${money(bench('cpl_stretch'))}`:null}:false},
     scales:{x:{ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:12},grid:{display:false}},...scales}}});
 }
 
@@ -814,7 +848,9 @@ function renderActions(){
   if(pool>0)items.push({t:'Build the retargeting pool',b:`${int(pool)} landing-page visitors have not become reported leads. The warmest near-term audience.`,m:`LP views ${int(a.lpv)} minus leads ${int(a.leads)}.`});
   if(fatigued.length)items.push({t:'Refresh fatigued ads',b:`${int(fatigued.length)} ad-weeks flagged for fatigue. Refresh creative before frequency erodes CTR further.`,m:`Highest frequency: ${Math.max(...fatigued.map(f=>n(f.frequency))).toFixed(1)}.`});
   if(ctrT&&a.ctr!=null&&a.ctr<ctrT)items.push({t:'Tighten attention quality',b:`CTR is ${pct(a.ctr)} vs a ${pct(ctrT)} target. Prioritise higher-intent audiences and creative.`,m:`CPC ${money(a.cpc,2)}, CPM ${money(a.cpm,2)}.`});
-  $('actionList').innerHTML=items.slice(0,5).map(i=>`<div class="action"><div class="t">${i.t}</div><div class="b">${i.b}</div><div class="m">${i.m}</div></div>`).join('')||'<div class="muted-text">No optimisation signals yet.</div>';
+  const thin=byCampaign(scoped()).filter(x=>lowConfidence(x).low);
+  if(thin.length)items.push({t:'Treat thin-volume segments with caution',b:`${thin.map(c=>safeName(c.campaign)).join(', ')} ${thin.length>1?'have':'has'} low delivery — small-sample CPLs here can mislead. Let them gather more data before scaling or cutting.`,m:`Flagged under 15k impressions or fewer than 8 leads.`});
+  $('actionList').innerHTML=items.slice(0,6).map(i=>`<div class="action"><div class="t">${i.t}</div><div class="b">${i.b}</div><div class="m">${i.m}</div></div>`).join('')||'<div class="muted-text">No optimisation signals yet.</div>';
 }
 function renderBubbleCharts(){
   const st=byStage(scoped()).filter(r=>n(r.spend)>0);
@@ -837,7 +873,9 @@ function readFor(r){
 }
 function tableRows(rows,type){
   if(!rows.length){return `<tr><td colspan="${type==='ad'?11:10}" style="text-align:center;color:var(--muted);padding:28px">No rows match the current filters.</td></tr>`;}
-  return rows.map(r=>{const[cls,read]=readFor(r);const cells=type==='ad'?`<td class="name-cell">${safeName(r.ad)}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td>`:`<td class="name-cell">${safeName(r.campaign)}</td>`;
+  return rows.map(r=>{const[cls,read]=readFor(r);const lc=lowConfidence(r);
+    const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why} — treat its CPL as a weak signal.">&#9888; thin</span>`:'';
+    const cells=type==='ad'?`<td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td>`:`<td class="name-cell">${safeName(r.campaign)}${warn}</td>`;
     return `<tr>${cells}<td><span class="chip"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage||'Other')}</span></td><td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td><td class="num">${int(r.lpv)}</td><td class="num">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">-</span>'}</td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="${cls}">${read}</td></tr>`;}).join('');
 }
 function renderTables(){
