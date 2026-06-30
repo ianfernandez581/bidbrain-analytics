@@ -7,10 +7,10 @@ lead_* views read seed_salesforce_map).
 Run: .\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py
 
 TARGETS standard (committed CSV -> BQ): the media-plan TARGET seeds (media_plan /
-targets / plan_budget) live in the VERSION-CONTROLLED targets/ dir (SRC_DIRS below),
-NOT gitignored data/ — they are the source of truth for the targets in BQ. The
-other (dimension/config) seeds still read from data/. NB: campaign_map /
-plan_flighting / channel_split / salesforce_map are currently BQ-only (no committed
+targets / plan_budget) — plus campaign_map (display names + match_patterns) — live in
+the VERSION-CONTROLLED targets/ dir (SRC_DIRS below), NOT gitignored data/, so they are
+the source of truth in BQ. The other (dimension/config) seeds still read from data/.
+NB: plan_flighting / channel_split / salesforce_map are still BQ-only (no committed
 CSV) — extract+commit them too if you want schneider fully repo-reproducible.
 
 VIEW->TABLE MIGRATION (automatic): seed_campaign_map / seed_plan_budget /
@@ -29,9 +29,11 @@ LOC = "australia-southeast1"
 DATASET = "client_schneider"                         # the ONE per-client line
 DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
 TARGETS_DIR = os.path.join(os.path.dirname(__file__), "targets")
-# Committed "targets in BQ from a version-controlled CSV" standard: the media-plan target seeds
-# live in targets/ (tracked), everything else in gitignored data/. stem -> source dir override.
-SRC_DIRS = {"media_plan": TARGETS_DIR, "targets": TARGETS_DIR, "plan_budget": TARGETS_DIR}
+# Committed "targets in BQ from a version-controlled CSV" standard: the media-plan target seeds —
+# plus the campaign_map dimension seed (display names / match_patterns) — live in targets/ (tracked);
+# the remaining dimension seeds still read from gitignored data/. stem -> source dir override.
+SRC_DIRS = {"media_plan": TARGETS_DIR, "targets": TARGETS_DIR, "plan_budget": TARGETS_DIR,
+            "campaign_map": TARGETS_DIR}
 
 # csv stem -> (bq table, [(column, BQ type)])  — column order = CSV header order
 SEED_SCHEMAS = {
