@@ -926,13 +926,16 @@ function campLabel(raw){ return CAMPAIGN_LABELS[raw] || (raw||'').replace(/_/g,'
 
 function rowOk(r, applyPlatform){ return campOn(r.campaign) && (!applyPlatform || platOk(r.platform)); }
 
-// Per-platform totals {imps,clk,spend} over the selected campaigns.
+// Per-platform totals {imps,clk,spend} over the selected campaigns — DATE-FILTERED via the daily
+// feed. (Was the whole-flight `ad_campaigns` snapshot, which ignored the date picker.) adDailyMap
+// already applies the campaign/platform filters + inRangeDay, and at "All time" its sums reconcile
+// EXACTLY to the old snapshot totals, so the KPI cards are unchanged at full range and narrow
+// correctly when a date range is applied. imps/clicks/spend are additive across days.
 function adByPlatform(applyPlatform){
   const o = {google:{imps:0,clk:0,spend:0}, dv360:{imps:0,clk:0,spend:0}, linkedin:{imps:0,clk:0,spend:0}};
-  for(const c of (DATA.ad_campaigns||[])){
-    if(!rowOk(c, applyPlatform)) continue;
-    const e = o[c.platform]; if(!e) continue;
-    e.imps+=c.imps||0; e.clk+=c.clicks||0; e.spend+=c.spend_sgd||0;
+  const daily = adDailyMap(applyPlatform);
+  for(const day in daily){ const e = daily[day];
+    for(const k of ['google','dv360','linkedin']){ o[k].imps+=e[k].imps; o[k].clk+=e[k].clk; o[k].spend+=e[k].spend; }
   }
   return o;
 }
@@ -1046,13 +1049,25 @@ function adWindow(platformKey){
 // GA4 has no campaign grain, so this is scoped by Platform + Country only — never by Campaign.
 function campFrom(gobj){ let s=0; for(const p of selPlatforms()) s+=gobj[p.ga4]||0; return s; }
 
-// Sum ga4_kpi_market over the selected countries -> one totals object.
+// GA4 totals over the selected countries, DATE-FILTERED to the picker. The ADDITIVE metrics
+// (sessions / paid / engaged / channel splits / key events) are summed from the daily market feed,
+// which honors inRangeDay and reconciles EXACTLY to the whole-window snapshot at "All time". The
+// remaining fields are NOT summable across days (distinct `users`/`new_users`) or only exist for the
+// whole window (`prior_*` year-ago totals, `page_views`, `eng_duration`): they come from the snapshot
+// when no range is applied, and are `null` when a range IS applied so the UI shows "—" instead of a
+// wrong number. (Making these date-correct would need new fields in the daily GA4 view + job.)
 function ga4Kpi(){
-  const o = {sessions:0,engaged_sessions:0,users:0,new_users:0,page_views:0,eng_duration:0,
-             conversions:0,paid_sessions:0,display_sessions:0,social_sessions:0,search_sessions:0,
-             prior_sessions:0,prior_paid_sessions:0};
-  for(const r of DATA.ga4_kpi_market){ if(!countryOk(r.market)) continue; for(const k in o) o[k]+=r[k]||0; }
-  return o;
+  const add = {sessions:0,paid_sessions:0,engaged_sessions:0,conversions:0,
+               display_sessions:0,social_sessions:0,search_sessions:0};
+  const daily = ga4DailyMap();   // country-filtered + inRangeDay
+  for(const day in daily){ const e = daily[day]; for(const k in add) add[k]+=e[k]||0; }
+  let extra = {users:null,new_users:null,page_views:null,eng_duration:null,
+               prior_sessions:null,prior_paid_sessions:null};
+  if(!narrowed()){
+    extra = {users:0,new_users:0,page_views:0,eng_duration:0,prior_sessions:0,prior_paid_sessions:0};
+    for(const r of DATA.ga4_kpi_market){ if(!countryOk(r.market)) continue; for(const k in extra) extra[k]+=r[k]||0; }
+  }
+  return Object.assign(add, extra);
 }
 // month/week -> summed GA4 fields over selected countries.
 function ga4MonthlyMap(){
@@ -1459,8 +1474,8 @@ function renderOverview(){
     kpiCard('accent','Media spend (SGD)', money(a.spend), spendSub)
   + kpiCard('accent','Ad impressions', fmtM(a.imps), impSub)
   + kpiCard('accent','Ad clicks', fmtN(a.clk), `${fmtPct(ctr,2)} blended CTR`)
-  + kpiCard('web','Website sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
-  + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY`)
+  + kpiCard('web','Website sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range')
+  + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions${g.prior_paid_sessions!=null ? ` · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY` : ''}`)
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
   + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
 
@@ -1530,7 +1545,7 @@ function renderOverview(){
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
         tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,g.sessions),1)})`}} },
-      cutoutText:{ line1:fmtM(g.sessions), line2:'sessions' } },
+      cutoutText:{ fmt:fmtM, line2:'sessions' } },
     plugins:[centerText]
   });
 
@@ -1574,16 +1589,16 @@ function renderOverview(){
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
         tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,spendTotal),0)})`}} },
-      cutoutText:{ line1:money(spendTotal), line2:'total spend' } },
+      cutoutText:{ fmt:money, line2:'total spend' } },
     plugins:[centerText]
   });
 
   const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
   const scope = selN===totN ? 'all STT GDC properties' : `${selN} selected ${selN===1?'country':'countries'}`;
   const plats = selPlatforms().map(p=>p.label).join(', ') || 'none';
-  el('ovNote').innerHTML = `<b>How to read this.</b> Website sessions reflect the <b>Country</b> filter (${scope}); `
-    + `the paid-media <b>KPI cards</b> and the hero chart reflect the <b>Platform</b> filter (${plats}) and the <b>Campaign</b> filter (${campaignScopeText()}), and are the whole APAC campaign (not split by country). `
-    + `The <b>Media spend by platform</b> donut additionally honours the Country &amp; date filters (Google Ads &amp; DV360 carry a per-country split; LinkedIn does not, so it drops out when specific countries are selected). `
+  el('ovNote').innerHTML = `<b>How to read this.</b> All <b>KPI cards</b> honour the <b>Date range</b> filter${narrowed()?` (showing <b>${rangeStart}</b> → <b>${rangeEnd}</b>)`:` (currently <b>All time</b>)`}: website figures reflect the <b>Country</b> filter (${scope}) and the paid-media figures the <b>Platform</b> (${plats}) and <b>Campaign</b> (${campaignScopeText()}) filters (the paid figures are the whole APAC campaign, not split by country). `
+    + `When a date range is active a few full-period-only stats blank out to "—" — the <b>vs prior year</b> deltas, plus <b>Total users / Page views / Avg engagement</b> on the Website tab — because they aren't summable per day; the <b>sessions-by-channel</b> donut likewise stays full-period (no daily channel split exists). `
+    + `The <b>Media spend by platform</b> donut honours the Country &amp; date filters too (Google Ads &amp; DV360 carry a per-country split; LinkedIn does not, so it drops out when specific countries are selected). `
     + `LinkedIn ran ${DATA.li_window.start} → ${DATA.li_window.end}; DV360 ${DATA.dv_window.start} → ${DATA.dv_window.end}; Google Ads ${DATA.ga_window.start} → ${DATA.ga_window.end}. `
     + `Spend is reported in SGD — LinkedIn's USD is converted at US$1 = S$${DATA.fx_usd_sgd}. `
     + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;
@@ -1641,10 +1656,20 @@ const centerText = {
   id:'centerText',
   afterDraw(chart){
     const o=chart.config.options.cutoutText; if(!o) return;
+    // When a formatter `fmt` is supplied, recompute the centre from the CURRENTLY VISIBLE slices so
+    // it updates live as the user excludes slices via the legend (the reported bug was the centre
+    // staying on the original total). Falls back to a static `line1` for any chart without `fmt`.
+    let line1 = o.line1;
+    if(o.fmt){
+      const data = (chart.data.datasets[0]||{}).data || [];
+      let sum = 0;
+      data.forEach((v,i)=>{ if(chart.getDataVisibility(i)) sum += Number(v)||0; });
+      line1 = o.fmt(sum);
+    }
     const {ctx,chartArea:{left,right,top,bottom}}=chart;
     const x=(left+right)/2, y=(top+bottom)/2;
     ctx.save(); ctx.textAlign='center';
-    ctx.fillStyle=C.dark; ctx.font=`700 22px ${FONT.family}`; ctx.fillText(o.line1,x,y-2);
+    ctx.fillStyle=C.dark; ctx.font=`700 22px ${FONT.family}`; ctx.fillText(line1,x,y-2);
     ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+16);
     ctx.restore();
   }
@@ -1701,7 +1726,7 @@ function renderPaid(){
     options:{ maintainAspectRatio:false, cutout:'62%',
       plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
         tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,T.spend),0)})`}} },
-      cutoutText:{line1:money(T.spend),line2:'SGD'} }, plugins:[centerText]
+      cutoutText:{fmt:money,line2:'SGD'} }, plugins:[centerText]
   });
 
   // platform comparison table (per-platform totals + delivery window over selected campaigns)
@@ -1757,7 +1782,7 @@ function renderPaid(){
     options:{ maintainAspectRatio:false, cutout:'60%',
       plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
         tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps`}} },
-      cutoutText:{line1:fmtM(P.linkedin.imps),line2:'imps'} }, plugins:[centerText]
+      cutoutText:{fmt:fmtM,line2:'imps'} }, plugins:[centerText]
   });
 
   // LinkedIn campaigns table (top 8 of the selected campaigns)
@@ -1775,13 +1800,14 @@ function renderPaid(){
 //==============================================================================
 function renderWeb(){
   const g = ga4Kpi();
-  const engRate=pct(g.engaged_sessions,g.sessions), avgEng=g.sessions?g.eng_duration/g.sessions:0;
+  const engRate=pct(g.engaged_sessions,g.sessions);
+  const avgEng = (g.eng_duration!=null && g.sessions) ? g.eng_duration/g.sessions : null;
   el('webKpis').innerHTML =
-    kpiCard('web','Sessions', fmtM(g.sessions), `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year`)
-  + kpiCard('web','Total users', fmtM(g.users), `${fmtM(g.new_users)} new`)
+    kpiCard('web','Sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range')
+  + kpiCard('web','Total users', g.users!=null?fmtM(g.users):'—', g.new_users!=null ? `${fmtM(g.new_users)} new` : 'full period only')
   + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard('web','Page views', fmtM(g.page_views), `${g.sessions?(g.page_views/g.sessions).toFixed(1):'—'} per session`)
-  + kpiCard('web','Avg engagement', dur(avgEng), `per session`)
+  + kpiCard('web','Page views', g.page_views!=null?fmtM(g.page_views):'—', (g.page_views!=null && g.sessions) ? `${(g.page_views/g.sessions).toFixed(1)} per session` : 'full period only')
+  + kpiCard('web','Avg engagement', avgEng!=null?dur(avgEng):'—', `per session`)
   + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
   + kpiCard('accent','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
 
