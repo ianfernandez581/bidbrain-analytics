@@ -362,9 +362,17 @@ def feedback_admin():
             _enrich(r)
             budget -= 1
     names = {k: c.get("name", k) for k, c in store._all_clients().items()}
+    # Distinct clients PRESENT in the feedback (for the Client filter dropdown), name-sorted.
+    # (key, display-name) pairs; built from the data so the dropdown only lists clients with notes.
+    seen = {}
+    for r in rows:
+        k = r.get("client", "")
+        if k and k not in seen:
+            seen[k] = names.get(k, k)
+    clients_list = sorted(seen.items(), key=lambda kv: kv[1].lower())
     return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows),
                                   ai_on=feedback_ai.enabled(), statuses=feedback.STATUSES,
-                                  default_status=feedback.DEFAULT_STATUS)
+                                  default_status=feedback.DEFAULT_STATUS, clients_list=clients_list)
 
 
 @app.get("/feedback/file/<client>/<fname>")
@@ -457,18 +465,12 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   header h1{margin:0;font-size:19px} header .n{color:#9ca3af;font-size:13px}
   header a{margin-left:auto;color:#9ca3af;font-size:13px;text-decoration:none}
   .wrap{max-width:1180px;margin:0 auto;padding:24px 28px;display:flex;flex-direction:column;gap:16px}
-  .filterbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:2px}
-  .filterbar .flbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593;margin-right:4px}
-  .fbtn{font:600 12px/1 inherit;color:#cbd5e1;background:#1f2937;border:1px solid rgba(255,255,255,.14);
-    border-radius:999px;padding:7px 13px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
-  .fbtn .ct{color:#9ca3af;font-weight:700;font-size:11px}
-  .fbtn:hover{border-color:rgba(255,255,255,.32)}
-  .fbtn.on[data-filter="all"]{background:#374151;border-color:#9ca3af;color:#fff}
-  .fbtn.on[data-filter="Not yet started"]{background:#312e81;border-color:#6366f1;color:#fff}
-  .fbtn.on[data-filter="Ongoing"]{background:#1e3a8a;border-color:#3b82f6;color:#fff}
-  .fbtn.on[data-filter="On Hold"]{background:#78350f;border-color:#f59e0b;color:#fff}
-  .fbtn.on[data-filter="Completed"]{background:#064e3b;border-color:#10b981;color:#fff}
-  .fbtn.on .ct{color:#e5e7eb}
+  .filterbar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:2px}
+  .fsel{display:inline-flex;align-items:center;gap:8px}
+  .fsel .flbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593}
+  .fsel select{font:600 13px/1 inherit;color:#f3f4f6;background:#1f2937;border:1px solid rgba(255,255,255,.18);
+    border-radius:8px;padding:8px 11px;cursor:pointer;outline:none}
+  .fsel select:focus{border-color:#6366f1}
   .card{background:#15171c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:15px 17px}
   .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:12px}
   .chip{background:#1f2937;color:#c7d2fe;border-radius:999px;padding:2px 9px;font-weight:600}
@@ -513,16 +515,23 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 <div class="wrap">
 {% if rows %}
 <div class="filterbar">
-  <span class="flbl">Filter</span>
-  <button class="fbtn on" data-filter="all">All <span class="ct"></span></button>
-  {% for s in statuses %}
-  <button class="fbtn" data-filter="{{ s }}">{{ s }} <span class="ct"></span></button>
-  {% endfor %}
+  <label class="fsel"><span class="flbl">Status</span>
+    <select id="fStatus">
+      <option value="all" data-base="All">All</option>
+      {% for s in statuses %}<option value="{{ s }}" data-base="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fsel"><span class="flbl">Client</span>
+    <select id="fClient">
+      <option value="all" data-base="All clients">All clients</option>
+      {% for key, name in clients_list %}<option value="{{ key }}" data-base="{{ name }}">{{ name }}</option>{% endfor %}
+    </select>
+  </label>
 </div>
 {% endif %}
 {% for r in rows %}
   {% set st = r.status or default_status %}
-  <div class="card" data-status="{{ st }}">
+  <div class="card" data-status="{{ st }}" data-client="{{ r.client }}">
     <div class="meta">
       <span class="chip">{{ names.get(r.client, r.client) }}</span>
       <span>{{ r.created_at | datetime }}</span>
@@ -573,27 +582,41 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 <script>
 function fbPost(url,body){return fetch(url,{method:'POST',headers:{'content-type':'application/json'},
   credentials:'same-origin',body:JSON.stringify(body)});}
-// Status filter bar: show only cards matching the chosen status, with live per-status counts.
+// Status + Client filter: show only cards matching BOTH dropdowns, with live counts (per status
+// and per client) baked into each option label. Counts are computed from the actual cards, so they
+// stay correct after a status change or a delete (callers re-invoke fbFilter to recompute).
 var fbFilter=(function(){
   var bar=document.querySelector('.filterbar');
   if(!bar)return function(){};
-  var btns=bar.querySelectorAll('.fbtn'), current='all';
+  var selStatus=document.getElementById('fStatus'), selClient=document.getElementById('fClient');
   function apply(){
-    var counts={all:0};
+    var st=selStatus.value, cl=selClient.value;
     document.querySelectorAll('.card').forEach(function(card){
-      var s=card.dataset.status||'';
-      counts.all++; counts[s]=(counts[s]||0)+1;
-      card.style.display=(current==='all'||s===current)?'':'none';
-    });
-    btns.forEach(function(b){
-      var f=b.dataset.filter;
-      b.classList.toggle('on',f===current);
-      b.querySelector('.ct').textContent=(f==='all'?counts.all:(counts[f]||0));
+      var sOk=(st==='all'||(card.dataset.status||'')===st);
+      var cOk=(cl==='all'||(card.dataset.client||'')===cl);
+      card.style.display=(sOk&&cOk)?'':'none';
     });
   }
-  btns.forEach(function(b){b.addEventListener('click',function(){current=b.dataset.filter;apply();});});
-  apply();
-  return apply;
+  function relabel(sel,counts,total){
+    Array.prototype.forEach.call(sel.options,function(o){
+      var n=(o.value==='all')?total:(counts[o.value]||0);
+      o.textContent=(o.dataset.base||o.value)+' ('+n+')';
+    });
+  }
+  function recount(){
+    var cards=document.querySelectorAll('.card'), byStatus={}, byClient={};
+    cards.forEach(function(card){
+      var s=card.dataset.status||'', c=card.dataset.client||'';
+      byStatus[s]=(byStatus[s]||0)+1; byClient[c]=(byClient[c]||0)+1;
+    });
+    relabel(selStatus,byStatus,cards.length);
+    relabel(selClient,byClient,cards.length);
+    apply();
+  }
+  selStatus.addEventListener('change',apply);
+  selClient.addEventListener('change',apply);
+  recount();
+  return recount;   // status-change / delete handlers call fbFilter() to recompute counts + re-apply
 })();
 document.querySelectorAll('select.stat').forEach(function(sel){
   sel.addEventListener('change',function(){
