@@ -69,6 +69,7 @@
   .chip-action:hover{color:var(--stt-ink);border-color:var(--stt-mute)}
 
   /* ---- campaign filter (searchable multi-select dropdown — too many campaigns for chips) ---- */
+  .donut-ctrls{display:flex;gap:8px;align-items:center;margin:0 0 8px;flex-wrap:wrap}
   .campaign-dd{position:relative;display:inline-block}
   .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--stt-line);border-radius:999px;
                 padding:6px 12px;font-size:12.5px;cursor:pointer;color:var(--stt-ink);max-width:280px}
@@ -400,24 +401,22 @@
         <div class="card card-tall">
           <h3>Where website traffic came from</h3>
           <div class="hint">Sessions by acquisition channel, campaign window. Paid channels in red. <b>Click a slice</b> or use the filter to focus channels.</div>
-          <div class="campaign-dd" id="channelDD" style="margin:0 0 8px">
-            <button class="campaign-btn" id="channelBtn" onclick="toggleChannelMenu(event)" aria-haspopup="true" aria-expanded="false">
-              <span class="lbltxt" id="channelBtnLabel">All channels</span>
-              <span class="caret">▾</span>
-            </button>
-            <div class="campaign-menu" id="channelMenu" style="display:none">
-              <div class="campaign-menu-head">
-                <input type="text" id="channelSearch" placeholder="Search channels…" autocomplete="off" oninput="renderChannelList()">
-                <div class="campaign-menu-actions">
-                  <span class="count" id="channelCount">&nbsp;</span>
-                  <div class="btns">
-                    <button class="chip-action" onclick="allChannels()">All</button>
-                    <button class="chip-action" onclick="clearChannels()">Clear</button>
+          <div class="donut-ctrls">
+            <div class="campaign-dd" id="ovDonutDD">
+              <button class="campaign-btn" id="ovDonutBtn" onclick="toggleDonutMenu('ovDonut',event)" aria-haspopup="true" aria-expanded="false">
+                <span class="lbltxt" id="ovDonutBtnLabel">All channels</span><span class="caret">▾</span>
+              </button>
+              <div class="campaign-menu" id="ovDonutMenu" style="display:none">
+                <div class="campaign-menu-head">
+                  <input type="text" id="ovDonutSearch" placeholder="Search channels…" autocomplete="off" oninput="renderDonutList('ovDonut')">
+                  <div class="campaign-menu-actions"><span class="count" id="ovDonutCount">&nbsp;</span>
+                    <div class="btns"><button class="chip-action" onclick="selectAllDonut('ovDonut')">All</button><button class="chip-action" onclick="clearDonut('ovDonut')">Clear</button></div>
                   </div>
                 </div>
+                <div class="campaign-list" id="ovDonutList"></div>
               </div>
-              <div class="campaign-list" id="channelList"></div>
             </div>
+            <button class="chip-action" id="ovDonutReset" onclick="resetDonut('ovDonut')" title="Reset this chart to all channels">↺ Reset</button>
           </div>
           <div class="chart-wrap"><canvas id="ovDonut"></canvas></div>
         </div>
@@ -436,7 +435,24 @@
         </div>
         <div class="card card-tall">
           <h3>Media spend by platform</h3>
-          <div class="hint">Reflects the Country, Platform, Campaign &amp; date filters. Reporting currency SGD; LinkedIn billed in USD, converted at the rate below. LinkedIn has no per-country split, so selecting specific countries drops it.</div>
+          <div class="hint">Reflects the Country, Platform, Campaign &amp; date filters. Reporting currency SGD; LinkedIn billed in USD, converted at the rate below. LinkedIn has no per-country split, so selecting specific countries drops it. <b>Click a slice</b> or use the filter to focus platforms.</div>
+          <div class="donut-ctrls">
+            <div class="campaign-dd" id="ovSpendDD">
+              <button class="campaign-btn" id="ovSpendBtn" onclick="toggleDonutMenu('ovSpend',event)" aria-haspopup="true" aria-expanded="false">
+                <span class="lbltxt" id="ovSpendBtnLabel">All platforms</span><span class="caret">▾</span>
+              </button>
+              <div class="campaign-menu" id="ovSpendMenu" style="display:none">
+                <div class="campaign-menu-head">
+                  <input type="text" id="ovSpendSearch" placeholder="Search platforms…" autocomplete="off" oninput="renderDonutList('ovSpend')">
+                  <div class="campaign-menu-actions"><span class="count" id="ovSpendCount">&nbsp;</span>
+                    <div class="btns"><button class="chip-action" onclick="selectAllDonut('ovSpend')">All</button><button class="chip-action" onclick="clearDonut('ovSpend')">Clear</button></div>
+                  </div>
+                </div>
+                <div class="campaign-list" id="ovSpendList"></div>
+              </div>
+            </div>
+            <button class="chip-action" id="ovSpendReset" onclick="resetDonut('ovSpend')" title="Reset this chart to all platforms">↺ Reset</button>
+          </div>
           <div class="chart-wrap"><canvas id="ovSpend"></canvas></div>
         </div>
       </div>
@@ -466,7 +482,24 @@
         </div>
         <div class="card card-tall">
           <h3>Spend share</h3>
-          <div class="hint">Google Ads · DV360 · LinkedIn (USD converted to SGD).</div>
+          <div class="hint">Google Ads · DV360 · LinkedIn (USD converted to SGD). <b>Click a slice</b> or use the filter to focus platforms.</div>
+          <div class="donut-ctrls">
+            <div class="campaign-dd" id="pmSpendDonutDD">
+              <button class="campaign-btn" id="pmSpendDonutBtn" onclick="toggleDonutMenu('pmSpendDonut',event)" aria-haspopup="true" aria-expanded="false">
+                <span class="lbltxt" id="pmSpendDonutBtnLabel">All platforms</span><span class="caret">▾</span>
+              </button>
+              <div class="campaign-menu" id="pmSpendDonutMenu" style="display:none">
+                <div class="campaign-menu-head">
+                  <input type="text" id="pmSpendDonutSearch" placeholder="Search platforms…" autocomplete="off" oninput="renderDonutList('pmSpendDonut')">
+                  <div class="campaign-menu-actions"><span class="count" id="pmSpendDonutCount">&nbsp;</span>
+                    <div class="btns"><button class="chip-action" onclick="selectAllDonut('pmSpendDonut')">All</button><button class="chip-action" onclick="clearDonut('pmSpendDonut')">Clear</button></div>
+                  </div>
+                </div>
+                <div class="campaign-list" id="pmSpendDonutList"></div>
+              </div>
+            </div>
+            <button class="chip-action" id="pmSpendDonutReset" onclick="resetDonut('pmSpendDonut')" title="Reset this chart to all platforms">↺ Reset</button>
+          </div>
           <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div>
         </div>
       </div>
@@ -498,7 +531,24 @@
       <div class="grid">
         <div class="card card-tall">
           <h3>LinkedIn — creative mix</h3>
-          <div class="hint">Impressions by creative type.</div>
+          <div class="hint">Impressions by creative type. <b>Click a slice</b> or use the filter to focus creative types.</div>
+          <div class="donut-ctrls">
+            <div class="campaign-dd" id="pmLiCreativeDD">
+              <button class="campaign-btn" id="pmLiCreativeBtn" onclick="toggleDonutMenu('pmLiCreative',event)" aria-haspopup="true" aria-expanded="false">
+                <span class="lbltxt" id="pmLiCreativeBtnLabel">All creative types</span><span class="caret">▾</span>
+              </button>
+              <div class="campaign-menu" id="pmLiCreativeMenu" style="display:none">
+                <div class="campaign-menu-head">
+                  <input type="text" id="pmLiCreativeSearch" placeholder="Search creative types…" autocomplete="off" oninput="renderDonutList('pmLiCreative')">
+                  <div class="campaign-menu-actions"><span class="count" id="pmLiCreativeCount">&nbsp;</span>
+                    <div class="btns"><button class="chip-action" onclick="selectAllDonut('pmLiCreative')">All</button><button class="chip-action" onclick="clearDonut('pmLiCreative')">Clear</button></div>
+                  </div>
+                </div>
+                <div class="campaign-list" id="pmLiCreativeList"></div>
+              </div>
+            </div>
+            <button class="chip-action" id="pmLiCreativeReset" onclick="resetDonut('pmLiCreative')" title="Reset this chart to all creative types">↺ Reset</button>
+          </div>
           <div class="chart-wrap"><canvas id="pmLiCreative"></canvas></div>
         </div>
         <div class="card card-tall">
@@ -635,9 +685,8 @@ let activePlatforms = new Set();   // ad-platform filter (all on by default)
 let activeCampaigns = new Set();   // ad-campaign filter (all on by default) — scopes AD DELIVERY only;
                                    // the GA4/website side has no campaign dimension so it stays whole.
 let campaignMenuOpen = false;
-let channelsOff = new Set();       // donut-local: DESELECTED channels on the "Where website traffic
-                                   // came from" donut (empty = all selected). Toggled by slice-click + dropdown.
-let channelMenuOpen = false;
+const donutOff = {};               // donut key -> Set(excluded item ids) for the per-donut filters (empty = all selected)
+const donutMenuOpen = {};          // donut key -> bool (is that donut's dropdown open)
 const el = id => document.getElementById(id);
 
 // ---- Per-chart grain (month/week/day) + scale (rel/abs) toggles. DEFAULT scale =
@@ -1384,12 +1433,10 @@ function closeCampaignMenu(){
 }
 // Close on outside click / Escape.
 document.addEventListener('click', e => {
-  const dd = e.target.closest && e.target.closest('#campaignGroup');
-  if(!dd) closeCampaignMenu();
-  const cdd = e.target.closest && e.target.closest('#channelDD');
-  if(!cdd) closeChannelMenu();
+  if(!(e.target.closest && e.target.closest('#campaignGroup'))) closeCampaignMenu();
+  DONUT_KEYS.forEach(k => { if(!(e.target.closest && e.target.closest('#'+k+'DD'))) closeDonutMenu(k); });
 });
-document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeCampaignMenu(); closeChannelMenu(); } });
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeCampaignMenu(); DONUT_KEYS.forEach(closeDonutMenu); } });
 
 function renderCampaignList(){
   const list = el('campaignList'); if(!list) return;
@@ -1442,91 +1489,114 @@ function toggleCampaignGroup(platformKey, select){
   renderCampaignButton(); renderCampaignList(); renderActive();
 }
 
-// ---- "Where website traffic came from" donut: channel filter (slice-click + dropdown), Option A ----
-// A channel is SELECTED when it is NOT in channelsOff (empty set = all selected). Deselected channels
-// stay in the ring but dimmed, so a slice click toggles either way; the centre + tooltips reflect only
-// the selected channels. The dropdown (search + per-channel checkbox & count + select-all) stays in sync.
-const CHAN_DIM = '#E3E7EC';   // ring colour for a deselected (excluded) channel
-function chanOn(name){ return !channelsOff.has(name); }
+// ---- Generic selectable-donut filter (slice-click + dropdown + Reset), shared by EVERY donut ----
+// Each donut is keyed by `key` (== its canvas id). Selection is an EXCLUSION set per key
+// (donutOff[key]; empty = all selected). Deselected items stay in the ring but DIMMED, so a slice
+// click toggles either way; the centre number + tooltips reflect only the SELECTED items. The dropdown
+// (search + per-item checkbox & count + select-all) and the chart stay in sync; the legend is
+// display-only; a Reset button re-selects all. DONUTS[key].items() returns the live (otherwise-filtered)
+// rows [{id,label,value,color,dot}], recomputed on every render so other filters still apply.
+const DONUT_DIM = '#E3E7EC';
+function _off(key){ return donutOff[key] || (donutOff[key] = new Set()); }
+function _onItem(key, id){ return !_off(key).has(id); }
 
-function renderTrafficDonut(){
-  const ch = ga4Channels();                                   // current channels (country-filtered), sorted
-  const totalAll = ch.reduce((t,c)=>t+c.sessions,0);          // for tooltip % (stable, share of all channels)
-  const selSum   = ch.filter(c=>chanOn(c.channel)).reduce((t,c)=>t+c.sessions,0);
-  if(charts.ovDonut){ try{ charts.ovDonut.destroy(); }catch(e){} }
-  charts.ovDonut = new Chart(el('ovDonut'),{
+const DONUTS = {
+  ovDonut: { canvasId:'ovDonut', allLabel:'All channels', noun:'channels', fmt:fmtM, line2:'sessions',
+    countFmt:fmtN, legendPos:'right', legendSize:11, legendPad:8,
+    items:()=> ga4Channels().map((c,i)=>({ id:c.channel, label:c.channel, value:c.sessions,
+      color:shade(BUCKET_COLOR[c.bucket]||C.grey,i), dot:BUCKET_COLOR[c.bucket]||'#999' })) },
+  ovSpend: { canvasId:'ovSpend', allLabel:'All platforms', noun:'platforms', fmt:money, line2:'total spend',
+    countFmt:money, legendPos:'right', legendSize:12, legendPad:10,
+    items:()=>{ const SP=adSpendByPlatformScoped();
+      return selPlatforms().map(p=>({ id:p.key, label:p.label, value:SP[p.key].spend, color:p.color, dot:p.color }))
+                           .filter(it=>it.value>0); } },
+  pmSpendDonut: { canvasId:'pmSpendDonut', allLabel:'All platforms', noun:'platforms', fmt:money, line2:'SGD',
+    countFmt:money, legendPos:'bottom', legendSize:12, legendPad:10,
+    items:()=>{ const P=adByPlatform(false);
+      return [ {id:'google',  label:'Google Ads', value:P.google.spend,  color:'#E8A33D', dot:'#E8A33D'},
+               {id:'dv360',   label:'DV360',       value:P.dv360.spend,   color:C.red,     dot:C.red},
+               {id:'linkedin',label:'LinkedIn',    value:P.linkedin.spend,color:C.li,      dot:C.li} ]; } },
+  pmLiCreative: { canvasId:'pmLiCreative', allLabel:'All creative types', noun:'creative types', fmt:fmtM, line2:'imps',
+    countFmt:fmtN, legendPos:'bottom', legendSize:11.5, legendPad:9,
+    items:()=>{ const pal=[C.li,C.tealSoft,C.amber,C.grey];
+      return liCreativeArr().map((r,i)=>({ id:r.creative_type, label:r.creative_type, value:r.imps,
+        color:pal[i%pal.length], dot:pal[i%pal.length] })); } },
+};
+const DONUT_KEYS = Object.keys(DONUTS);
+
+function renderDonut(key, relist){
+  const cfg=DONUTS[key]; if(!cfg || !el(cfg.canvasId)) return;
+  const items=cfg.items();
+  const totalAll=items.reduce((t,it)=>t+(it.value||0),0);
+  const selSum  =items.filter(it=>_onItem(key,it.id)).reduce((t,it)=>t+(it.value||0),0);
+  if(charts[cfg.canvasId]){ try{ charts[cfg.canvasId].destroy(); }catch(e){} }
+  charts[cfg.canvasId] = new Chart(el(cfg.canvasId),{
     type:'doughnut',
-    data:{ labels:ch.map(c=>c.channel), datasets:[{ data:ch.map(c=>c.sessions),
-      backgroundColor:ch.map((c,i)=> chanOn(c.channel) ? shade(BUCKET_COLOR[c.bucket]||C.grey,i) : CHAN_DIM),
-      borderColor:'#fff', borderWidth:2 }]},
+    data:{ labels:items.map(it=>it.label), datasets:[{ data:items.map(it=>it.value),
+      backgroundColor:items.map(it=> _onItem(key,it.id) ? it.color : DONUT_DIM), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'62%',
-      // Slice click toggles that channel in/out of the selection.
-      onClick:(evt,els)=>{ if(els&&els.length){ const name=ch[els[0].index].channel;
-        channelsOff.has(name) ? channelsOff.delete(name) : channelsOff.add(name); syncChannels(true); } },
-      plugins:{ legend:{position:'right', onClick:()=>{},   // display-only (no toggle on legend labels)
-          labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
-        tooltip:{callbacks:{label:c=>{ const sel=chanOn(ch[c.dataIndex].channel);
-          return ` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,totalAll),1)})${sel?'':' · excluded'}`; }}} },
-      cutoutText:{ line1:fmtM(selSum), line2:'sessions' } },
+      // Slice click toggles that item in/out of the selection (Option A: deselected stays dimmed).
+      onClick:(evt,els)=>{ if(els&&els.length){ const it=items[els[0].index]; const off=_off(key);
+        off.has(it.id) ? off.delete(it.id) : off.add(it.id); renderDonut(key, true); } },
+      plugins:{ legend:{position:cfg.legendPos, onClick:()=>{},   // display-only
+          labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:cfg.legendSize,...FONT},color:C.ink,padding:cfg.legendPad}},
+        tooltip:{callbacks:{label:c=>{ const it=items[c.dataIndex];
+          return ` ${c.label}: ${cfg.countFmt(c.parsed)} (${fmtPct(pct(c.parsed,totalAll),1)})${_onItem(key,it.id)?'':' · excluded'}`; }}} },
+      cutoutText:{ line1:cfg.fmt(selSum), line2:cfg.line2 } },
     plugins:[centerText]
   });
-  renderChannelButton();
+  renderDonutButton(key);
+  if(relist && donutMenuOpen[key]) renderDonutList(key);
 }
 
-function renderChannelButton(){
-  const btn=el('channelBtn'), lbl=el('channelBtnLabel'); if(!btn||!lbl) return;
-  const ch=ga4Channels(), selN=ch.filter(c=>chanOn(c.channel)).length, all=selN===ch.length;
-  lbl.textContent = all ? 'All channels' : (selN===0 ? 'No channels' : `${selN} of ${ch.length} channels`);
+function renderDonutButton(key){
+  const cfg=DONUTS[key], btn=el(key+'Btn'), lbl=el(key+'BtnLabel'); if(!cfg||!btn||!lbl) return;
+  const items=cfg.items(), selN=items.filter(it=>_onItem(key,it.id)).length, all=selN===items.length;
+  lbl.textContent = all ? cfg.allLabel : (selN===0 ? ('No '+cfg.noun) : `${selN} of ${items.length} ${cfg.noun}`);
   btn.classList.toggle('filtered', !all);
 }
 
-function toggleChannelMenu(e){
+function toggleDonutMenu(key, e){
   if(e) e.stopPropagation();
-  channelMenuOpen = !channelMenuOpen;
-  el('channelMenu').style.display = channelMenuOpen ? 'block' : 'none';
-  el('channelBtn').setAttribute('aria-expanded', channelMenuOpen ? 'true' : 'false');
-  if(channelMenuOpen){ renderChannelList(); setTimeout(()=>{ const s=el('channelSearch'); if(s) s.focus(); }, 0); }
+  const open = !donutMenuOpen[key]; donutMenuOpen[key]=open;
+  el(key+'Menu').style.display = open ? 'block' : 'none';
+  el(key+'Btn').setAttribute('aria-expanded', open ? 'true' : 'false');
+  if(open){ renderDonutList(key); setTimeout(()=>{ const s=el(key+'Search'); if(s) s.focus(); }, 0); }
 }
-function closeChannelMenu(){
-  if(!channelMenuOpen) return;
-  channelMenuOpen=false; el('channelMenu').style.display='none'; el('channelBtn').setAttribute('aria-expanded','false');
+function closeDonutMenu(key){
+  if(!donutMenuOpen[key]) return;
+  donutMenuOpen[key]=false;
+  const m=el(key+'Menu'); if(m) m.style.display='none';
+  const b=el(key+'Btn'); if(b) b.setAttribute('aria-expanded','false');
 }
 
-function renderChannelList(){
-  const list=el('channelList'); if(!list) return;
-  const ch=ga4Channels();
-  const q=(el('channelSearch').value||'').trim().toLowerCase();
-  const rows=ch.filter(c=>!q || c.channel.toLowerCase().includes(q));
-  const selN=ch.filter(c=>chanOn(c.channel)).length, allSel=selN===ch.length, noneSel=selN===0;
-  el('channelCount').textContent = `${selN} of ${ch.length} selected`;
+function renderDonutList(key){
+  const cfg=DONUTS[key], list=el(key+'List'); if(!cfg||!list) return;
+  const items=cfg.items(), q=(el(key+'Search').value||'').trim().toLowerCase();
+  const rows=items.filter(it=>!q || String(it.label).toLowerCase().includes(q));
+  const selN=items.filter(it=>_onItem(key,it.id)).length, allSel=selN===items.length, noneSel=selN===0;
+  el(key+'Count').textContent = `${selN} of ${items.length} selected`;
   let html = `<label class="cl-item" style="border-bottom:1px solid var(--stt-line)">
-      <input type="checkbox" id="channelSelectAll" ${allSel?'checked':''} onchange="toggleAllChannels(this)">
-      <span class="ci-main"><span class="ci-name"><b>Select all</b></span></span>
-    </label>`;
-  rows.forEach(c=>{
-    const enc = encodeURIComponent(c.channel).replace(/'/g,'%27');
-    html += `<label class="cl-item" title="${c.channel.replace(/"/g,'&quot;')}">
-      <input type="checkbox" ${chanOn(c.channel)?'checked':''} onchange="toggleChannel('${enc}')">
-      <span class="ci-main"><span class="ci-name"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${BUCKET_COLOR[c.bucket]||'#999'};margin-right:6px"></span>${c.channel}</span></span>
-      <span class="ci-meta" style="margin-left:auto;white-space:nowrap;align-self:center">${fmtN(c.sessions)}</span>
-    </label>`;
-  });
-  list.innerHTML = html || `<div class="cl-empty">No channels match “${q}”.</div>`;
-  const sa=el('channelSelectAll'); if(sa) sa.indeterminate = !allSel && !noneSel;
+      <input type="checkbox" id="${key}SelAll" ${allSel?'checked':''} onchange="toggleAllDonut('${key}',this)">
+      <span class="ci-main"><span class="ci-name"><b>Select all</b></span></span></label>`;
+  rows.forEach(it=>{ const enc=encodeURIComponent(it.id).replace(/'/g,'%27');
+    html += `<label class="cl-item" title="${String(it.label).replace(/"/g,'&quot;')}">
+      <input type="checkbox" ${_onItem(key,it.id)?'checked':''} onchange="toggleDonutItem('${key}','${enc}')">
+      <span class="ci-main"><span class="ci-name"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${it.dot};margin-right:6px"></span>${it.label}</span></span>
+      <span class="ci-meta" style="margin-left:auto;white-space:nowrap;align-self:center">${cfg.countFmt(it.value)}</span></label>`; });
+  list.innerHTML = html || `<div class="cl-empty">No matches for “${q}”.</div>`;
+  const sa=el(key+'SelAll'); if(sa) sa.indeterminate = !allSel && !noneSel;
 }
 
-function toggleChannel(enc){
-  const name=decodeURIComponent(enc);
-  channelsOff.has(name) ? channelsOff.delete(name) : channelsOff.add(name);
-  syncChannels(false);   // the clicked checkbox already shows its new state — don't rebuild the list (keeps scroll)
+function toggleDonutItem(key, enc){
+  const id=decodeURIComponent(enc), off=_off(key);
+  off.has(id) ? off.delete(id) : off.add(id);
+  renderDonut(key, false);   // the clicked checkbox already reflects its state — don't rebuild the list (keeps scroll)
 }
-function toggleAllChannels(input){ input.checked ? allChannels() : clearChannels(); }
-function allChannels(){ channelsOff = new Set(); syncChannels(true); }
-function clearChannels(){ channelsOff = new Set(ga4Channels().map(c=>c.channel)); syncChannels(true); }
-
-// Rebuild the donut (+ button). `relist` also refreshes the open dropdown list — used when the change
-// came from a slice click or a bulk action; a single checkbox toggle passes false to preserve scroll.
-function syncChannels(relist){ renderTrafficDonut(); if(relist && channelMenuOpen) renderChannelList(); }
+function toggleAllDonut(key, input){ input.checked ? selectAllDonut(key) : clearDonut(key); }
+function selectAllDonut(key){ _off(key).clear(); renderDonut(key, true); }
+function clearDonut(key){ donutOff[key] = new Set(DONUTS[key].items().map(it=>it.id)); renderDonut(key, true); }
+function resetDonut(key){ _off(key).clear(); renderDonut(key, true); }   // Reset button = re-select all for this donut
 function allCampaigns(){ activeCampaigns = new Set(allCampaignNames()); renderCampaignButton(); renderCampaignList(); renderActive(); }
 function clearCampaigns(){ activeCampaigns = new Set(); renderCampaignButton(); renderCampaignList(); renderActive(); }
 
@@ -1645,9 +1715,8 @@ function renderOverview(){
       scales: heroScales }
   });
 
-  // Donut "Where website traffic came from" — channel filter via slice-click + the Channels dropdown
-  // (Option A: deselected channels stay dimmed in the ring; legend is display-only). See renderTrafficDonut.
-  renderTrafficDonut();
+  // Donut "Where website traffic came from" — channel filter (slice-click + dropdown + Reset). See renderDonut.
+  renderDonut('ovDonut', true);
 
   // Stacked sessions paid vs rest (country-filtered). Pure composition bars, NO overlay
   // line -> ABSOLUTE = raw session counts; RELATIVE (default) = 100%-stacked (each period
@@ -1678,20 +1747,7 @@ function renderOverview(){
   // Spend donut by platform — scoped to Platform + Campaign + Country + date range.
   // Only platforms with spend in scope appear (so LinkedIn drops out once a country
   // is selected — it has no market grain). Its own total drives the centre/tooltips.
-  const SP = adSpendByPlatformScoped();
-  const spendSlices = selPlatforms().map(p=>({label:p.label, color:p.color, spend:SP[p.key].spend}))
-                                    .filter(s=>s.spend>0);
-  const spendTotal = spendSlices.reduce((t,s)=>t+s.spend,0);
-  charts.ovSpend = new Chart(el('ovSpend'),{
-    type:'doughnut',
-    data:{ labels:spendSlices.map(s=>s.label), datasets:[{ data:spendSlices.map(s=>s.spend),
-      backgroundColor:spendSlices.map(s=>s.color), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,spendTotal),0)})`}} },
-      cutoutText:{ fmt:money, line2:'total spend' } },
-    plugins:[centerText]
-  });
+  renderDonut('ovSpend', true);   // platform filter (slice-click + dropdown + Reset); honors Country/Platform/Campaign/date
 
   const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
   const scope = selN===totN ? 'all STT GDC properties' : `${selN} selected ${selN===1?'country':'countries'}`;
@@ -1820,14 +1876,7 @@ function renderPaid(){
         y1:{position:'right',min: pmRel?0:undefined, max: pmRel?100:undefined, grid:{display:false},border:{display:false},title:{display:true,text: pmRel?'Index (peak=100)':'Clicks to site',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=> pmRel ? v.toFixed(0) : fmtN(v)}} } }
   });
 
-  charts.pmSpendDonut = new Chart(el('pmSpendDonut'),{
-    type:'doughnut',
-    data:{ labels:['Google Ads','DV360','LinkedIn'], datasets:[{ data:[P.google.spend, P.dv360.spend, liSgd], backgroundColor:['#E8A33D',C.red,C.li], borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,T.spend),0)})`}} },
-      cutoutText:{fmt:money,line2:'SGD'} }, plugins:[centerText]
-  });
+  renderDonut('pmSpendDonut', true);   // platform spend-share filter (slice-click + dropdown + Reset)
 
   // platform comparison table (per-platform totals + delivery window over selected campaigns)
   const liCtr=pct(P.linkedin.clk,P.linkedin.imps), liCpm=P.linkedin.imps?P.linkedin.spend/P.linkedin.imps*1000:0, liCpc=P.linkedin.clk?P.linkedin.spend/P.linkedin.clk:0;
@@ -1874,16 +1923,8 @@ function renderPaid(){
         y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
   });
 
-  // LinkedIn creative mix (selected campaigns)
-  const lic = liCreativeArr();
-  charts.pmLiCreative = new Chart(el('pmLiCreative'),{
-    type:'doughnut',
-    data:{ labels:lic.map(r=>r.creative_type), datasets:[{ data:lic.map(r=>r.imps), backgroundColor:[C.li,C.tealSoft,C.amber,C.grey], borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps`}} },
-      cutoutText:{fmt:fmtM,line2:'imps'} }, plugins:[centerText]
-  });
+  // LinkedIn creative mix (selected campaigns) — creative-type filter (slice-click + dropdown + Reset).
+  renderDonut('pmLiCreative', true);
 
   // LinkedIn campaigns table (top 8 of the selected campaigns)
   const camps = liCampaignsSel().slice(0,8);
