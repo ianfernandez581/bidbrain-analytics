@@ -1,5 +1,9 @@
-# clients/client_schneider/ — Schneider Electric (APAC) · **live (deployed 2026-06-04)**
+# clients/client_schneider/ — Schneider Electric **Pacific** · **live (deployed 2026-06-04)**
 
+> **Dashboard branded "Pacific"** (a sibling Schneider Electric dashboard for another SE region is
+> planned, so this one is explicitly the Pacific book). The underlying programme is still Schneider's
+> APAC Content Syndication, scoped to the Pacific markets / 5 lead-gen programs.
+>
 > Schneider Electric's APAC **Content Syndication** programme (run via the agency **Transmission**) —
 > a [`client_mongodb`](../client_mongodb/README.md)-style dashboard scoped to the **5 Salesforce
 > lead-gen programs**. Filter the shared raw layers to SE's slice, model it in BigQuery views, export

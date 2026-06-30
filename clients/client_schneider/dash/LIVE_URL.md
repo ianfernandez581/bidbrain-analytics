@@ -1,11 +1,12 @@
-# Schneider Electric APAC dashboard — live URL
+# Schneider Electric Pacific dashboard — live URL
 
 **Status: live (stood up 2026-06-04).** The `schneider-dash` service is deployed and password-gated.
-The exact `…run.app` URL below is still a placeholder — read the live value with
-`gcloud run services describe schneider-dash --region australia-southeast1 --format='value(status.url)'`
-and paste it in:
+Branded **"Pacific"** (a sibling SE-region dashboard is planned). Live URL:
 
-> https://schneider-dash-XXXXXXXXX-ts.a.run.app   _(read from the command above and fill in)_
+> https://schneider-dash-516554645957.australia-southeast1.run.app
+
+(re-read any time with
+`gcloud run services describe schneider-dash --region australia-southeast1 --format='value(status.url)'`)
 
 Password-gated — the page loads a login screen; enter the dashboard password (Secret Manager:
 `schneider-dash-password`) to view it.

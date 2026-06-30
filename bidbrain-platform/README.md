@@ -53,6 +53,18 @@ value stays hidden until the super admin sets it explicitly in the console.
 `platform-super-admin-password`) so the login works the moment the secret is mounted, before any
 re-seed. Setting a super password in the console moves it into the registry and the env fallback stops.
 
+> **Gotcha — two passwords open one dashboard, and they are NOT auto-synced.** A *single-dashboard*
+> front-door login (`resolve_password` → `('client', c)`) verifies the typed password against the
+> **registry** `clients[<key>].password_hash`. That is a DIFFERENT credential from the dashboard's own
+> `<c>-dash-password` Secret Manager value (used for direct `…run.app` access **and** the server-side
+> proxy login). They start equal because both are seeded from `config.CLIENT_PASSWORDS[<key>]`, but
+> rotating one does NOT update the other: the super-admin "rotate dashboard password" (and a manual
+> `gcloud secrets versions add <c>-dash-password`) only touches the **secret**. To change the password
+> a user types at `dashboards.bidbrain.ai` to open just that dashboard, update the **registry** hash
+> too — load `gs://bidbrain-analytics-platform-dash/platform.json`, set
+> `clients[<key>].password_hash` = `store.hash_pw(new)` (and `password_plain` = new), save. Keep both
+> in sync if you want one password everywhere.
+
 **Enabling it (one-time, after deploying the new image):**
 ```powershell
 .\bidbrain-platform\dash\deploy_dash_platform.ps1      # ships the console + the google-cloud-run dep
