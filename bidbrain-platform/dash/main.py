@@ -457,6 +457,8 @@ def feedback_delete():
 
 _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard feedback</title>
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <style>
   *{box-sizing:border-box} body{margin:0;background:#0e1014;color:#f3f4f6;
     font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}

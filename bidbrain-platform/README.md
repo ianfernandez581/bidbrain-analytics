@@ -271,7 +271,15 @@ bidbrain-platform/
     manage_allowlist.py          view/edit the Google sign-in email→role allow-list on the live registry
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
-  Creatives/                     the design screenshot + source logo.svg
+    favicon.ico favicon-32.png apple-touch-icon.png  browser-tab/home-screen icon — the official Bid Brain
+                                 mark (black brain+gavel), served PUBLIC (no auth) at /favicon.ico · /favicon-32.png ·
+                                 /apple-touch-icon.png and linked from EVERY page's <head> (the 4 templates + the feedback
+                                 admin page); the public /favicon.ico route also catches the browser's automatic request on
+                                 any page. SOURCE = Creatives/"Bidbrain logo.ico" (multi-size 16–256, used as favicon.ico
+                                 verbatim). Regenerate the variants from it with Pillow: favicon-32.png = transparent 32px;
+                                 apple-touch-icon.png = 180px composited on WHITE (iOS flattens transparency onto black, which
+                                 would hide the black mark). Baked in via the Dockerfile COPY.
+  Creatives/                     the design screenshot + source logo.svg + "Bidbrain logo.ico" (the favicon source)
 scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mode IAM (see "Super admin")
 scripts/enable_google_signin.ps1 one-time: store Google OAuth creds + mount them on platform-dash (see "Google sign-in")
 ```
