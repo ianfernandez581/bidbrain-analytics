@@ -167,6 +167,8 @@ ride along as plain form fields; both stored on the record, blank when not given
 - **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
   On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
   button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).
+  A **filter bar** at the top of the tracker filters the cards by status (All + each status, each with
+  a live count chip) — client-side only, re-counts as you change a status or delete a note.
 - **Hand-edit (admin/super):** an edit bar on each note makes the human fields fully editable — the
   **reporter** name, **two dates** (`date_reported`, defaulting to the submission day, and the
   **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges only the

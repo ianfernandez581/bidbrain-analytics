@@ -371,6 +371,18 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   header h1{margin:0;font-size:19px} header .n{color:#9ca3af;font-size:13px}
   header a{margin-left:auto;color:#9ca3af;font-size:13px;text-decoration:none}
   .wrap{max-width:1180px;margin:0 auto;padding:24px 28px;display:flex;flex-direction:column;gap:16px}
+  .filterbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:2px}
+  .filterbar .flbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593;margin-right:4px}
+  .fbtn{font:600 12px/1 inherit;color:#cbd5e1;background:#1f2937;border:1px solid rgba(255,255,255,.14);
+    border-radius:999px;padding:7px 13px;cursor:pointer;display:inline-flex;gap:7px;align-items:center}
+  .fbtn .ct{color:#9ca3af;font-weight:700;font-size:11px}
+  .fbtn:hover{border-color:rgba(255,255,255,.32)}
+  .fbtn.on[data-filter="all"]{background:#374151;border-color:#9ca3af;color:#fff}
+  .fbtn.on[data-filter="Not yet started"]{background:#312e81;border-color:#6366f1;color:#fff}
+  .fbtn.on[data-filter="Ongoing"]{background:#1e3a8a;border-color:#3b82f6;color:#fff}
+  .fbtn.on[data-filter="On Hold"]{background:#78350f;border-color:#f59e0b;color:#fff}
+  .fbtn.on[data-filter="Completed"]{background:#064e3b;border-color:#10b981;color:#fff}
+  .fbtn.on .ct{color:#e5e7eb}
   .card{background:#15171c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:15px 17px}
   .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:12px}
   .chip{background:#1f2937;color:#c7d2fe;border-radius:999px;padding:2px 9px;font-weight:600}
@@ -413,15 +425,24 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 <header><h1>Dashboard feedback</h1><span class="n">{{ count }} note(s)</span>
   <a href="/">&larr; back to platform</a></header>
 <div class="wrap">
+{% if rows %}
+<div class="filterbar">
+  <span class="flbl">Filter</span>
+  <button class="fbtn on" data-filter="all">All <span class="ct"></span></button>
+  {% for s in statuses %}
+  <button class="fbtn" data-filter="{{ s }}">{{ s }} <span class="ct"></span></button>
+  {% endfor %}
+</div>
+{% endif %}
 {% for r in rows %}
-  <div class="card">
+  {% set st = r.status or default_status %}
+  <div class="card" data-status="{{ st }}">
     <div class="meta">
       <span class="chip">{{ names.get(r.client, r.client) }}</span>
       <span>{{ r.created_at | datetime }}</span>
       {% if r.page %}<span>· {{ r.page }}</span>{% endif %}
       {% if r.user_kind %}<span>· {{ r.user_kind }}</span>{% endif %}
       <span class="grow"></span>
-      {% set st = r.status or default_status %}
       <select class="stat" data-status="{{ st }}" data-client="{{ r.client }}" data-id="{{ r.id }}">
         {% for s in statuses %}<option value="{{ s }}"{% if s == st %} selected{% endif %}>{{ s }}</option>{% endfor %}
       </select>
@@ -466,11 +487,35 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 <script>
 function fbPost(url,body){return fetch(url,{method:'POST',headers:{'content-type':'application/json'},
   credentials:'same-origin',body:JSON.stringify(body)});}
+// Status filter bar: show only cards matching the chosen status, with live per-status counts.
+var fbFilter=(function(){
+  var bar=document.querySelector('.filterbar');
+  if(!bar)return function(){};
+  var btns=bar.querySelectorAll('.fbtn'), current='all';
+  function apply(){
+    var counts={all:0};
+    document.querySelectorAll('.card').forEach(function(card){
+      var s=card.dataset.status||'';
+      counts.all++; counts[s]=(counts[s]||0)+1;
+      card.style.display=(current==='all'||s===current)?'':'none';
+    });
+    btns.forEach(function(b){
+      var f=b.dataset.filter;
+      b.classList.toggle('on',f===current);
+      b.querySelector('.ct').textContent=(f==='all'?counts.all:(counts[f]||0));
+    });
+  }
+  btns.forEach(function(b){b.addEventListener('click',function(){current=b.dataset.filter;apply();});});
+  apply();
+  return apply;
+})();
 document.querySelectorAll('select.stat').forEach(function(sel){
   sel.addEventListener('change',function(){
     var prev=sel.dataset.status; sel.disabled=true;
     fbPost('/feedback/status',{client:sel.dataset.client,id:sel.dataset.id,status:sel.value})
-      .then(function(r){if(!r.ok)throw 0;sel.dataset.status=sel.value;})
+      .then(function(r){if(!r.ok)throw 0;sel.dataset.status=sel.value;
+        var card=sel.closest('.card'); if(card)card.dataset.status=sel.value;
+        fbFilter();})
       .catch(function(){sel.value=prev;alert('Could not update status.');})
       .finally(function(){sel.disabled=false;});
   });
@@ -508,7 +553,7 @@ document.querySelectorAll('button.del').forEach(function(b){
     if(!confirm('Delete this feedback permanently?'))return;
     b.disabled=true;
     fbPost('/feedback/delete',{client:b.dataset.client,id:b.dataset.id})
-      .then(function(r){if(!r.ok)throw 0;var c=b.closest('.card');if(c)c.remove();})
+      .then(function(r){if(!r.ok)throw 0;var c=b.closest('.card');if(c)c.remove();fbFilter();})
       .catch(function(){b.disabled=false;alert('Could not delete.');});
   });
 });
