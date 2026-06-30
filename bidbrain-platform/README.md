@@ -28,7 +28,7 @@ seeding, or rotate later by re-seeding with a new `ADMIN_PW`.
 
 ## Super admin (god-mode console)
 The **super-admin** password opens `templates/superadmin.html` — a gold-themed console headed
-**“WELCOME, SUPER ADMIN”** that does three things no other tier can:
+**“WELCOME, SUPER ADMIN”** that does four things no other tier can:
 
 1. **Reveal every password** — each agency password, each dashboard's real login, and the admin
    password, shown masked with a click-to-reveal eye + copy button.
@@ -38,6 +38,8 @@ The **super-admin** password opens `templates/superadmin.html` — a gold-themed
    password takes effect for the standalone dashboard everywhere (the dashboard is briefly
    unavailable, ~20–40s, while it restarts). The platform's own proxy cache is updated in-process.
 3. **Open any dashboard** — same one-click, no-second-password access as admin.
+4. **Manage the Google sign-in allow-list** — add/remove the emails (and their role) allowed to
+   "Continue with Google". See [Google sign-in](#google-sign-in-continue-with-google--parallel-to-the-password-gate).
    It also links to the full admin tree at `/admin` (super admin inherits every admin power).
 
 **How revealing is possible.** Passwords were previously stored only as one-way pbkdf2 hashes — a hash
@@ -80,6 +82,73 @@ empty so an unconfigured deploy fails *closed*, never open). Change it any time 
 moves it into the registry and supersedes the secret). If a dashboard rotation's auto-restart ever
 fails (e.g. IAM not yet propagated), the console tells you the exact `gcloud run services update …` to
 finish it by hand.
+
+## Google sign-in (“Continue with Google”) — parallel to the password gate
+A second way in, on the **front-door only**; the password box keeps working exactly as before. Built on
+**Authlib** (OAuth 2.0 / OpenID Connect). There are **no user accounts** here — a login resolves to a
+*role* — so a Google login is authorised by an **email → role allow-list**, the twin of the password
+resolver:
+
+| password flow | Google flow |
+|---|---|
+| typed password → `store.resolve_password` → `(kind, payload)` | verified Google email → `store.resolve_email` → `(kind, payload)` |
+
+Both hand the SAME `(kind, payload)` to `_establish_session`, so from there the session, SSO cookie and
+proxy behave identically — admin / agency / single-dashboard access all work the same whether you typed a
+password or used Google. An email **not** on the allow-list is rejected after an otherwise-successful
+Google login (so the consent screen succeeding ≠ access).
+
+**The allow-list** (`google_allowlist` in the registry; seeded from `config.GOOGLE_ALLOWLIST`, live copy
+editable in the admin UI via `store.set_allowed_email`/`remove_allowed_email`). Each entry maps a lower-cased
+email to a role:
+
+```python
+GOOGLE_ALLOWLIST = {
+    "ian@100.digital":   {"kind": "admin"},
+    "boss@agency.com":   {"kind": "agency", "slug": "transmission"},   # slug from AGENCIES
+    "viewer@client.com": {"kind": "client", "key": "schneider"},       # key from CLIENTS
+}
+```
+
+**Routes:** `GET /auth/google/login` (start the OIDC flow) and `GET /auth/google/callback` (validate,
+read the verified email, resolve, log in). Both are inert (redirect home) when Google sign-in is OFF.
+
+**Config (env, never hardcoded):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE`
+(the public origin, `https://dashboards.bidbrain.ai`). Google sign-in is **OFF** (button hidden, routes
+inert) until the id+secret are present and Authlib is installed — so nothing changes for the password gate
+if you never turn it on.
+
+**Turn it on.** First create an OAuth 2.0 **Web application** client in the Google Cloud Console
+(APIs & Services → Credentials) and register the redirect URI
+`https://dashboards.bidbrain.ai/auth/google/callback` (add `http://localhost:8080/auth/google/callback`
+for local dev). Configure the consent screen (External; scopes `openid email profile` — non-sensitive, no
+Google verification needed). Then, after deploying the new platform image:
+
+```powershell
+.\bidbrain-platform\dash\deploy_dash_platform.ps1                          # ships Authlib + the routes
+.\scripts\enable_google_signin.ps1 -ClientId '<id>.apps.googleusercontent.com' -ClientSecret '<secret>'
+```
+
+`enable_google_signin.ps1` stores the creds in Secret Manager (`platform-google-client-id` /
+`platform-google-client-secret`), grants the platform SA `secretAccessor` on them, and mounts
+`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`OAUTH_REDIRECT_BASE` on `platform-dash`.
+
+**Manage *who* can sign in** in the **super-admin console** — the *Google sign-in* section (below the
+password cards) lists every allowed email with its role and a **Remove** button, and has an **Add email**
+bar (email + a role dropdown built from the live agencies/clients). Add/remove is an instant registry edit,
+no redeploy. An email not on the list is denied after an otherwise-successful Google sign-in.
+
+There's also a CLI for headless/bulk edits — `dash/manage_allowlist.py` (needs `GCS_BUCKET` + ADC). Note
+`config.GOOGLE_ALLOWLIST` only seeds a *fresh* registry, so on the live one run `seed` once to import it:
+
+```powershell
+$env:GCS_BUCKET="bidbrain-analytics-platform-dash"
+.\.venv\Scripts\python.exe bidbrain-platform\dash\manage_allowlist.py seed                 # import config entries (additive)
+.\.venv\Scripts\python.exe bidbrain-platform\dash\manage_allowlist.py add boss@agency.com agency transmission
+.\.venv\Scripts\python.exe bidbrain-platform\dash\manage_allowlist.py list
+```
+
+(`kind` = admin | superadmin | agency | client; `ref` = agency slug or client key.)
 
 ## How "no second password" works TODAY — a reverse proxy
 The platform is live on the custom domain **https://dashboards.bidbrain.ai**. The individual
@@ -197,10 +266,12 @@ bidbrain-platform/
     feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
+    manage_allowlist.py          view/edit the Google sign-in email→role allow-list on the live registry
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
   Creatives/                     the design screenshot + source logo.svg
 scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mode IAM (see "Super admin")
+scripts/enable_google_signin.ps1 one-time: store Google OAuth creds + mount them on platform-dash (see "Google sign-in")
 ```
 
 ## Deploy & operate

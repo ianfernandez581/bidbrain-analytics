@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>Super Admin · Bidbrain Campaign Dashboards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -101,6 +104,23 @@
                border:1px solid rgba(240,184,106,.22);border-radius:9px;padding:10px 12px;line-height:1.5}
   .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
   .err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:14px;line-height:1.5}
+  /* google allow-list */
+  .albar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);
+         border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:0 0 14px}
+  .albar input,.albar select{padding:10px 12px;font-size:13.5px;color:var(--text);background:#0a0c13;
+         border:1px solid #232838;border-radius:10px;outline:none;font-family:inherit}
+  .albar input{flex:1;min-width:200px;font-family:ui-monospace,Menlo,monospace}
+  .albar input:focus,.albar select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,201,105,.16)}
+  .alrow{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);
+         border-radius:12px;padding:12px 16px;margin:0 0 9px}
+  .alrow .alemail{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .alrow .alrole{font-size:11px;font-weight:700;color:var(--chip-text);background:var(--chip-bg);
+         border:1px solid rgba(243,201,105,.18);padding:4px 10px;border-radius:999px;white-space:nowrap}
+  .alrole.sup{color:#1a1405;background:linear-gradient(135deg,var(--gold),var(--gold-2));border-color:transparent}
+  .alempty{font-size:13px;color:var(--muted);padding:6px 2px}
+  .alhint{font-size:12px;color:#f0b86a;background:rgba(240,184,106,.08);border:1px solid rgba(240,184,106,.22);
+          border-radius:9px;padding:10px 12px;margin:0 0 14px;line-height:1.5}
+  .alerr{color:var(--danger);font-size:12.5px;min-height:14px;margin:2px 0 0;flex-basis:100%}
 </style>
 </head>
 <body>
@@ -211,6 +231,46 @@
       {% endfor %}
     </div>
 
+    <!-- GOOGLE SIGN-IN ALLOW-LIST -->
+    <div class="sec">
+      <div class="shead"><h2>Google sign-in</h2><span class="c">who may "Continue with Google" — email → role</span></div>
+      {% if not google_enabled %}
+      <div class="alhint">Google sign-in isn't switched on yet (no OAuth credentials mounted), so these
+        emails won't take effect until an admin runs <span class="mono">enable_google_signin.ps1</span>.
+        You can still build the list here now.</div>
+      {% endif %}
+
+      <div class="albar">
+        <input id="alEmail" type="email" placeholder="person@company.com" autocomplete="off" spellcheck="false">
+        <select id="alRole">
+          <option value="admin">Admin — agencies &amp; clients tree</option>
+          {% for a in agencies %}<option value="agency:{{ a.slug }}">Agency — {{ a.name }}</option>{% endfor %}
+          {% for d in dashboards %}{% if d.status == 'active' and d.url %}<option value="client:{{ d.key }}">Dashboard — {{ d.name }}</option>{% endif %}{% endfor %}
+          <option value="superadmin">Super admin — god-mode</option>
+        </select>
+        <button type="button" class="btn gold sm" id="alAdd">Add email</button>
+        <div class="alerr" id="alErr"></div>
+      </div>
+
+      {% if google_allowlist %}
+        {% for e in google_allowlist %}
+        <div class="alrow">
+          <span class="alemail mono">{{ e.email }}</span>
+          <span class="alrole{{ ' sup' if e.kind == 'superadmin' else '' }}">
+            {%- if e.kind == 'admin' -%}Admin
+            {%- elif e.kind == 'superadmin' -%}Super admin
+            {%- elif e.kind == 'agency' -%}Agency · {{ e.target }}
+            {%- elif e.kind == 'client' -%}Dashboard · {{ e.target }}
+            {%- else -%}{{ e.kind }}{%- endif -%}
+          </span>
+          <button type="button" class="btn ghost sm alrm" data-email="{{ e.email|e }}">Remove</button>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="alempty">No emails yet — add one above. An email not on this list is denied after Google sign-in.</div>
+      {% endif %}
+    </div>
+
   </div>
 
   <!-- change-password modal -->
@@ -309,6 +369,44 @@
     }
     return false;
   }
+
+  // ---- Google sign-in allow-list: add / remove ----
+  const alEmail = document.getElementById('alEmail');
+  const alRole  = document.getElementById('alRole');
+  const alErr   = document.getElementById('alErr');
+  const alAdd   = document.getElementById('alAdd');
+
+  async function alPost(ep, body){
+    const r = await fetch(ep, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    return r.json().catch(()=>({ok:false, error:'Bad response.'}));
+  }
+
+  if(alAdd) alAdd.addEventListener('click', async ()=>{
+    const email = (alEmail.value || '').trim();
+    if(!email || email.indexOf('@') < 0){ alErr.textContent = 'Enter a valid email.'; return; }
+    const [kind, ref=''] = (alRole.value || '').split(':');   // "agency:slug" / "client:key" / "admin"
+    alErr.textContent = ''; alAdd.textContent = 'Adding…';
+    try{
+      const j = await alPost('/super/api/allowlist-add', {email, kind, ref});
+      if(j.ok){ location.reload(); return; }
+      alErr.textContent = j.error || 'Failed.';
+    }catch(err){ alErr.textContent = 'Network error — '+err; }
+    alAdd.textContent = 'Add email';
+  });
+  if(alEmail) alEmail.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); alAdd.click(); } });
+
+  document.querySelectorAll('.alrm').forEach(b=>{
+    b.addEventListener('click', async ()=>{
+      const email = b.dataset.email;
+      if(!confirm('Remove '+email+' from Google sign-in?')) return;
+      b.textContent = 'Removing…';
+      try{
+        const j = await alPost('/super/api/allowlist-remove', {email});
+        if(j.ok){ location.reload(); return; }
+      }catch(err){}
+      b.textContent = 'Remove';
+    });
+  });
 </script>
 </body>
 </html>

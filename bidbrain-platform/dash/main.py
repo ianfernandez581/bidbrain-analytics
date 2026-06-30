@@ -41,6 +41,11 @@ import feedback
 import feedback_ai
 from store import Store
 
+try:  # optional: Google sign-in is OFF (button hidden, routes inert) if authlib isn't installed
+    from authlib.integrations.flask_client import OAuth
+except ImportError:
+    OAuth = None
+
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]            # platform's own session (separate from SSO)
 app.config.update(
@@ -60,13 +65,55 @@ COOKIE_DOMAIN = os.environ.get("COOKIE_DOMAIN", ".bidbrain.ai")  # parent domain
 _SECURE = os.environ.get("DEV") != "1"
 
 # Logo + Flask templates are baked into the container next to this file.
+_HERE = Path(__file__).resolve().parent
 LOGO_SVG = ""
 try:
-    LOGO_SVG = (Path(__file__).resolve().parent / "logo.svg").read_text(encoding="utf-8")
+    LOGO_SVG = (_HERE / "logo.svg").read_text(encoding="utf-8")
 except FileNotFoundError:
     LOGO_SVG = "<span style='font-weight:800'>Bidbrain.ai</span>"
 
+# Brand favicon — the official Bidbrain mark (brain + gavel), generated from
+# Creatives/Bid Brain Logo.png and baked in next to this file. Loaded once into memory and
+# served PUBLICLY (no auth) at the well-known icon paths so the tab/bookmark shows it on every
+# platform page — and on any proxied dashboard that doesn't set its own icon.
+def _read_icon(name):
+    try:
+        return (_HERE / name).read_bytes()
+    except OSError:
+        return b""
+
+FAVICON_ICO = _read_icon("favicon.ico")
+FAVICON_PNG = _read_icon("favicon-32.png")
+APPLE_ICON = _read_icon("apple-touch-icon.png")
+
 store = Store()
+
+# --- Google sign-in (OAuth 2.0 / OpenID Connect) — a PARALLEL login to the password gate ---
+# Credentials come from the environment (never hardcoded). When either is missing — or authlib
+# isn't installed — Google sign-in stays OFF: the button is hidden and the /auth/google/* routes
+# redirect home, so the existing password login is completely unaffected. On a successful callback
+# we map the VERIFIED Google email to a role via store.resolve_email and set the SAME session the
+# password flow sets (_establish_session), so the rest of the app/proxy/SSO are unchanged.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_ENABLED = bool(OAuth and GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
+oauth = OAuth(app) if GOOGLE_ENABLED else None
+if GOOGLE_ENABLED:
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+
+
+def _google_redirect_uri():
+    """The OAuth callback Google redirects back to — this exact URL must be registered in the Cloud
+    Console. In prod set OAUTH_REDIRECT_BASE=https://dashboards.bidbrain.ai (we never trust the
+    proxied Host/scheme to build it); falls back to the request root for local dev."""
+    base = os.environ.get("OAUTH_REDIRECT_BASE", "").rstrip("/") or request.url_root.rstrip("/")
+    return base + "/auth/google/callback"
 
 
 @app.after_request
@@ -133,6 +180,32 @@ def _require_super():
 
 
 # --- views --------------------------------------------------------------------------------
+def _login_page(error=None):
+    """Render the login screen (also tells the template whether to show the Google button)."""
+    return render_template("login.html", logo_svg=LOGO_SVG, error=error, next_url="",
+                           google_enabled=GOOGLE_ENABLED)
+
+
+def _establish_session(kind, payload):
+    """Set the session for a resolved login and return the redirect+SSO response. The SINGLE place
+    that turns a (kind, payload) — from EITHER store.resolve_password or store.resolve_email — into
+    a logged-in session, so password and Google sign-in are guaranteed identical from here on."""
+    session.permanent = True
+    if kind in ("admin", "superadmin"):
+        session["kind"] = kind
+        allowed = store.active_client_keys()  # every LIVE dashboard (incl. unassigned, excl. coming_soon)
+        return _set_sso(make_response(redirect("/")), allowed)
+    if kind == "agency":
+        session["kind"] = "agency"
+        session["agency_slug"] = payload["slug"]
+        allowed = list(payload.get("client_keys", []))
+        return _set_sso(make_response(redirect("/")), allowed)
+    # single dashboard -> straight into the proxied dashboard
+    session["kind"] = "client"
+    session["client_key"] = payload["key"]
+    return _set_sso(make_response(redirect(f"/d/{payload['key']}/")), [payload["key"]])
+
+
 @app.get("/")
 def home():
     kind = session.get("kind")
@@ -145,7 +218,7 @@ def home():
         agency = store.get_agency(session.get("agency_slug", ""))
         if not agency:
             session.clear()
-            return render_template("login.html", logo_svg=LOGO_SVG, error=None, next_url="")
+            return _login_page()
         clients = store.agency_clients(agency)
         return render_template("portal.html", logo_svg=LOGO_SVG,
                                agency={"name": agency["name"], "slug": agency["slug"]},
@@ -156,7 +229,7 @@ def home():
         if key:
             return redirect(f"/d/{key}/")
         session.clear()
-    return render_template("login.html", logo_svg=LOGO_SVG, error=None, next_url="")
+    return _login_page()
 
 
 @app.post("/login")
@@ -164,28 +237,41 @@ def login():
     pw = request.form.get("password", "")
     kind, payload = store.resolve_password(pw)
     if kind is None:
-        return render_template("login.html", logo_svg=LOGO_SVG,
-                               error="Incorrect password.", next_url=""), 401
+        return _login_page("Incorrect password."), 401
+    return _establish_session(kind, payload)
 
-    session.permanent = True
-    if kind in ("admin", "superadmin"):
-        session["kind"] = kind
-        allowed = store.active_client_keys()  # every LIVE dashboard (incl. unassigned, excl. coming_soon)
-        resp = make_response(redirect("/"))
-        return _set_sso(resp, allowed)
 
-    if kind == "agency":
-        session["kind"] = "agency"
-        session["agency_slug"] = payload["slug"]
-        allowed = list(payload.get("client_keys", []))
-        resp = make_response(redirect("/"))
-        return _set_sso(resp, allowed)
+@app.get("/auth/google/login")
+def google_login():
+    """Kick off the Google OAuth/OIDC code flow (no-op redirect home if Google sign-in is off)."""
+    if not GOOGLE_ENABLED:
+        return redirect("/")
+    return oauth.google.authorize_redirect(_google_redirect_uri())
 
-    # single dashboard -> straight into the proxied dashboard
-    session["kind"] = "client"
-    session["client_key"] = payload["key"]
-    resp = make_response(redirect(f"/d/{payload['key']}/"))
-    return _set_sso(resp, [payload["key"]])
+
+@app.get("/auth/google/callback")
+def google_callback():
+    """Google redirects back here. Validate the exchange, take the VERIFIED email, map it to a role
+    via the allow-list, and log in with the SAME session as a password. Unlisted email => denied."""
+    if not GOOGLE_ENABLED:
+        return redirect("/")
+    try:
+        token = oauth.google.authorize_access_token()        # validates state; exchanges code -> tokens
+    except Exception:
+        return _login_page("Google sign-in failed. Please try again."), 401
+    info = token.get("userinfo") or {}
+    if not info:                                             # fallback for authlib builds that don't inline it
+        try:
+            info = oauth.google.userinfo(token=token)
+        except Exception:
+            info = {}
+    email = (info.get("email") or "").strip().lower()
+    if not email or not info.get("email_verified"):
+        return _login_page("Your Google account has no verified email address."), 401
+    kind, payload = store.resolve_email(email)
+    if kind is None:
+        return _login_page(f"{email} isn't authorised yet. Ask an admin to add your Google email."), 403
+    return _establish_session(kind, payload)
 
 
 @app.get("/logout")
@@ -679,6 +765,30 @@ def api_status():
                    clients=clients, flags=flags)
 
 
+def _icon_response(data, ctype):
+    """Serve a baked-in brand icon. Public (no auth) and cacheable — overrides the default
+    no-store so browsers don't refetch the tab icon on every navigation."""
+    if not data:
+        abort(404)
+    return Response(data, mimetype=ctype,
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/favicon.ico")
+def favicon_ico():
+    return _icon_response(FAVICON_ICO, "image/x-icon")
+
+
+@app.get("/favicon-32.png")
+def favicon_png():
+    return _icon_response(FAVICON_PNG, "image/png")
+
+
+@app.get("/apple-touch-icon.png")
+def apple_touch_icon():
+    return _icon_response(APPLE_ICON, "image/png")
+
+
 @app.get("/logo/<client>")
 def client_logo(client):
     """Stream a client's uploaded logo from the platform bucket (any logged-in session). 404 if none."""
@@ -838,7 +948,8 @@ def _render_super():
         st["super_bootstrap"] = True
     else:
         st["super_bootstrap"] = False
-    return render_template("superadmin.html", logo_svg=LOGO_SVG, **st)
+    return render_template("superadmin.html", logo_svg=LOGO_SVG,
+                           google_enabled=GOOGLE_ENABLED, **st)
 
 
 @app.get("/admin")
@@ -882,6 +993,34 @@ def super_agency_password():
         return jsonify(ok=False, error="Agency and password required."), 400
     if not store.set_agency_password(slug, pw):
         return jsonify(ok=False, error="Unknown agency."), 404
+    return jsonify(ok=True)
+
+
+@app.post("/super/api/allowlist-add")
+def super_allowlist_add():
+    """Add/overwrite a Google sign-in allow-list entry (email -> role). Super-admin only."""
+    _require_super()
+    d = request.get_json(silent=True) or {}
+    email = (d.get("email") or "").strip().lower()
+    kind = (d.get("kind") or "").strip()
+    ref = (d.get("ref") or "").strip()
+    if not email or "@" not in email:
+        return jsonify(ok=False, error="A valid email is required."), 400
+    try:
+        store.set_allowed_email(email, kind, ref)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    return jsonify(ok=True)
+
+
+@app.post("/super/api/allowlist-remove")
+def super_allowlist_remove():
+    """Remove a Google sign-in allow-list entry. Super-admin only."""
+    _require_super()
+    email = ((request.get_json(silent=True) or {}).get("email") or "").strip().lower()
+    if not email:
+        return jsonify(ok=False, error="Email required."), 400
+    store.remove_allowed_email(email)
     return jsonify(ok=True)
 
 

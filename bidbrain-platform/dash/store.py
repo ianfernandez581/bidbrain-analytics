@@ -70,6 +70,8 @@ def _seed_doc():
         "super_admin_password_hash": hash_pw(seed.SUPER_ADMIN_PW),
         "super_admin_password_plain": seed.SUPER_ADMIN_PW,
         "agencies": [], "clients": {},
+        # email -> role map for Google sign-in (parallel to the password gate). See resolve_email.
+        "google_allowlist": {e.strip().lower(): dict(v) for e, v in getattr(seed, "GOOGLE_ALLOWLIST", {}).items()},
     }
     for i, a in enumerate(seed.AGENCIES):
         doc["agencies"].append({
@@ -111,7 +113,7 @@ class Store:
     def _empty():
         return {"admin_password_hash": "", "admin_password_plain": "",
                 "super_admin_password_hash": "", "super_admin_password_plain": "",
-                "agencies": [], "clients": {}}
+                "agencies": [], "clients": {}, "google_allowlist": {}}
 
     def _load(self):
         if self._mem is not None:
@@ -130,6 +132,7 @@ class Store:
         doc.setdefault("admin_password_plain", "")
         doc.setdefault("super_admin_password_hash", "")
         doc.setdefault("super_admin_password_plain", "")
+        doc.setdefault("google_allowlist", {})
         return doc
 
     def _save(self, doc):
@@ -232,6 +235,33 @@ class Store:
         for key, c in doc.get("clients", {}).items():
             if verify_pw(password, c.get("password_hash", "")):
                 return "client", c
+        return None, None
+
+    def resolve_email(self, email):
+        """Google-sign-in twin of resolve_password: map a VERIFIED Google email to the SAME role
+        tuple ('superadmin'|'admin'|'agency'|'client', payload) the password flow returns, so the
+        caller sets an identical session. Returns (None, None) for any email not on the allow-list,
+        or whose mapped agency/client no longer exists (a deleted target fails CLOSED).
+
+        Allow-list entry shapes (see config.GOOGLE_ALLOWLIST / set_allowed_email):
+            {"kind": "admin"}            {"kind": "superadmin"}
+            {"kind": "agency", "slug": "<agency-slug>"}
+            {"kind": "client", "key": "<client-key>"}"""
+        if not email:
+            return None, None
+        doc = self._load()
+        entry = doc.get("google_allowlist", {}).get(email.strip().lower())
+        if not entry:
+            return None, None
+        kind = entry.get("kind")
+        if kind in ("admin", "superadmin"):
+            return kind, None
+        if kind == "agency":
+            a = next((a for a in doc.get("agencies", []) if a.get("slug") == entry.get("slug")), None)
+            return ("agency", a) if a else (None, None)
+        if kind == "client":
+            c = doc.get("clients", {}).get(entry.get("key"))
+            return ("client", c) if c else (None, None)
         return None, None
 
     def agency_clients(self, agency):
@@ -361,6 +391,38 @@ class Store:
                 return True
         return False
 
+    # ---- Google sign-in allow-list (email -> role) -------------------------------------------
+    def list_allowed_emails(self):
+        """The whole allow-list as {email: {kind, slug?|key?}} (for the admin UI)."""
+        return dict(self._load().get("google_allowlist", {}))
+
+    def set_allowed_email(self, email, kind, ref=""):
+        """Add/overwrite one allow-list entry. kind in admin|superadmin|agency|client; ref is the
+        agency slug (agency) or client key (client), ignored for admin/superadmin. Validates the
+        target exists so you can't strand an email on a non-existent agency/client."""
+        email = (email or "").strip().lower()
+        if not email or kind not in ("admin", "superadmin", "agency", "client"):
+            raise ValueError("email required and kind must be admin|superadmin|agency|client")
+        doc = self._load()
+        entry = {"kind": kind}
+        if kind == "agency":
+            if not any(a.get("slug") == ref for a in doc.get("agencies", [])):
+                raise ValueError(f"unknown agency '{ref}'")
+            entry["slug"] = ref
+        elif kind == "client":
+            if ref not in doc.get("clients", {}):
+                raise ValueError(f"unknown client '{ref}'")
+            entry["key"] = ref
+        doc.setdefault("google_allowlist", {})[email] = entry
+        self._save(doc)
+
+    def remove_allowed_email(self, email):
+        email = (email or "").strip().lower()
+        doc = self._load()
+        if email in doc.get("google_allowlist", {}):
+            del doc["google_allowlist"][email]
+            self._save(doc)
+
     def get_super_state(self):
         """Everything the god-mode console reveals. Dashboard (standalone) passwords are filled in
         by main.py from Secret Manager; here we surface the registry-owned passwords in clear."""
@@ -375,12 +437,26 @@ class Store:
             "key": k, "name": c["name"], "slug": c.get("slug", k),
             "status": c.get("status", "active"), "url": c.get("url", ""),
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
+        # Google sign-in allow-list, each with a friendly target label for the console.
+        agency_names = {a.get("slug"): a.get("name") for a in doc.get("agencies", [])}
+        allowlist = []
+        for email, e in sorted(doc.get("google_allowlist", {}).items()):
+            kind = e.get("kind", "")
+            if kind == "agency":
+                target = agency_names.get(e.get("slug"), e.get("slug", ""))
+            elif kind == "client":
+                target = (clients.get(e.get("key")) or {}).get("name", e.get("key", ""))
+            else:
+                target = ""
+            allowlist.append({"email": email, "kind": kind,
+                              "ref": e.get("slug") or e.get("key") or "", "target": target})
         return {
             "admin_password": doc.get("admin_password_plain", ""),
             "admin_has": bool(doc.get("admin_password_hash")),
             "super_password": doc.get("super_admin_password_plain", ""),
             "super_has": bool(doc.get("super_admin_password_hash")),
             "agencies": agencies, "dashboards": dashboards,
+            "google_allowlist": allowlist,
         }
 
     def backfill_plaintext(self, candidates):

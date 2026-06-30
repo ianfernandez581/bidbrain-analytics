@@ -42,6 +42,15 @@ from `scripts/enable_super_admin.ps1`). Super admin resolves first in `store.res
 Web-only service `platform-dash` (SA `platform-dash-web@`,
 `storage.objectAdmin`), registry = ONE private JSON `gs://bidbrain-analytics-platform-dash/platform.json`
 (same private-bucket pattern as the dashboards — no database), no job/scheduler of its own.
+**Google sign-in (parallel to the password gate):** "Continue with Google" (OIDC via **Authlib**) is an
+ADDITIONAL login on the platform front-door only — the password gate is untouched. There are no user
+accounts (a login resolves to a ROLE), so a verified Google email is authorised by an **email→role
+allow-list**: `store.resolve_email` returns the SAME `(kind, payload)` tuple as `resolve_password`, and
+`_establish_session` (shared by both flows) sets an identical session. Seed = `config.GOOGLE_ALLOWLIST`,
+live copy editable in the **super-admin console** (a *Google sign-in* section: add/remove email→role;
+`/super/api/allowlist-add|-remove`) or `dash/manage_allowlist.py`; an unlisted email is denied. OFF until `GOOGLE_CLIENT_ID`/
+`GOOGLE_CLIENT_SECRET` env are set (`scripts/enable_google_signin.ps1`); redirect URI
+`https://dashboards.bidbrain.ai/auth/google/callback`. See `bidbrain-platform/README.md`.
 **Merged-in pipeline status (2026-06-23):** the homepage (agency portal + admin tree) is now TABBED —
 an **Overview** tab (each client shows an uploadable **logo** + a data-sync **health badge** +
 time-since-update, from the status pipeline's `status.json`) and a **Data Accuracy** tab (the per-client
@@ -176,7 +185,10 @@ Reach for the matching one by edit:
   — it creates the bootstrap secret + mounts `SUPER_ADMIN_PW`/`REGION` on the platform and grants the
   platform SA the extra IAM for dashboard-password rotation (secretVersionAdder + project run.developer +
   serviceAccountUser on each `<c>-dash` runtime SA). Agency/client/campaign DATA + all password reveals/
-  rotations are done in the UI, NOT by redeploy. See `bidbrain-platform/README.md`.
+  rotations are done in the UI, NOT by redeploy. **To enable Google sign-in, after deploying the new image
+  run `scripts/enable_google_signin.ps1 -ClientId … -ClientSecret …` once** — it stores the OAuth creds in
+  Secret Manager and mounts `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`OAUTH_REDIRECT_BASE` on the service
+  (allow-list emails are managed in the UI / `config.GOOGLE_ALLOWLIST`, NOT by redeploy). See `bidbrain-platform/README.md`.
 
 The one-shot `deploy_<c>.ps1` (still at the `clients/client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,
 scheduler). The raw commands each stage script runs, for reference:

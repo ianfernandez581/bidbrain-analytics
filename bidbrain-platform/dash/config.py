@@ -152,3 +152,17 @@ AGENCIES = [
 # Clients deliberately NOT in any agency (still reachable directly with their own password,
 # but never surfaced in an agency portal). STT is on hold; HireRight has no assigned agency.
 UNASSIGNED_CLIENTS = ["stt", "hireright"]
+
+# --- Google sign-in allow-list (email -> role) --------------------------------------------
+# "Log in with Google" is a PARALLEL login method to the password gate. There are no user
+# accounts here — a login resolves to a ROLE — so a Google account is authorised by mapping its
+# verified email to the same role a password would yield (store.resolve_email). Email not listed
+# => sign-in denied. This is the SEED; the live copy is edited in the admin UI (super-admin can
+# add/remove emails), so the running list can diverge from this file (re-seed only deliberately).
+#   {"kind": "admin"}                       -> the editable agencies->clients tree
+#   {"kind": "superadmin"}                  -> god-mode console (grant sparingly)
+#   {"kind": "agency", "slug": "<slug>"}    -> that agency's portal (slug from AGENCIES above)
+#   {"kind": "client", "key": "<key>"}      -> just that one dashboard (key from CLIENTS above)
+GOOGLE_ALLOWLIST = {
+    "ian@100.digital": {"kind": "admin"},
+}
