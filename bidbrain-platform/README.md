@@ -131,8 +131,10 @@ password — nothing breaks): each dashboard must (1) run the rebuilt image that
 A small **Feedback** pill is injected into the bottom-right of every proxied dashboard — the exact
 same `</body>`-injection mechanism as the logout pill, so all 10 dashboards get it from ONE
 `platform-dash` deploy (no per-client work). The panel lets a viewer **type a note**, **record a
-voice message** (`MediaRecorder`), or both; on open it also grabs a **page screenshot** (lazy-loaded
-`html2canvas`, viewport only, the widget hidden from the shot). It POSTs to the platform's `/feedback`.
+voice message** (`MediaRecorder`), or both, plus an OPTIONAL **reporter name** and **preferred
+deadline** (date); on open it also grabs a **page screenshot** (lazy-loaded `html2canvas`, viewport
+only, the widget hidden from the shot). It POSTs to the platform's `/feedback` (`reporter`/`deadline`
+ride along as plain form fields; both stored on the record, blank when not given).
 
 - **Auth:** `/feedback` uses the same `_may_open(client)` check as the proxy — you can only file
   feedback against a dashboard you're allowed to open. The client key is baked into the widget per
@@ -155,8 +157,8 @@ voice message** (`MediaRecorder`), or both; on open it also grabs a **page scree
   + `maxOutputTokens:4096` and `_parse_json()` tolerates a truncated reply (salvages whatever fields
   finished). Short notes were unaffected — that's why only the one long resetdata note was stuck.
 - **Track it:** sign in as **admin/super** → **`/feedback/admin`** (also a "Feedback →" link in the
-  super-admin/admin top bars). Every note newest-first in three columns — **Raw feedback** (typed
-  text + voice transcript + audio player) · **AI summary** (interpretation + action items) ·
+  super-admin/admin top bars). Every note newest-first in three columns — **Notes** (the editable
+  typed text + voice transcript + audio player) · **AI summary** (interpretation + action items) ·
   **Screenshot** (thumbnail → full image). Audio/images stream via `/feedback/file/<client>/<f>`,
   which honors HTTP **Range** (`Accept-Ranges`/`206`) so the player can seek. MediaRecorder `.webm`
   voice notes carry **no duration in their header** (the player would show `0:00 / 0:00`), so the
@@ -165,6 +167,11 @@ voice message** (`MediaRecorder`), or both; on open it also grabs a **page scree
 - **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
   On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
   button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).
+- **Hand-edit (admin/super):** an edit bar on each note makes the human fields fully editable — the
+  **reporter** name, **two dates** (`date_reported`, defaulting to the submission day, and the
+  **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges only the
+  posted keys; dates are the browser's `YYYY-MM-DD` strings or `""`). The AI summary/actions and
+  transcript stay read-only (they're derived; `ai_done` keeps Gemini from re-running on an edit).
 - **Caps:** voice 2 min; the service rejects bodies over `MAX_AUDIO_BYTES + MAX_IMAGE_BYTES` (~24 MB);
   an oversized screenshot is dropped rather than failing the note.
 - **Wiring:** `feedback.py` (storage) + `feedback_ai.py` (Gemini) + `_FEEDBACK_WIDGET` / `_enrich()` /

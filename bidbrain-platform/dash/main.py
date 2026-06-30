@@ -226,7 +226,9 @@ def feedback_submit():
         return jsonify(ok=False, error="empty feedback"), 400
     try:
         feedback.save(client, text, audio_bytes, audio_ctype,
-                      request.form.get("page", ""), session.get("kind", ""), shot_bytes)
+                      request.form.get("page", ""), session.get("kind", ""), shot_bytes,
+                      reporter=request.form.get("reporter", ""),
+                      deadline=request.form.get("deadline", ""))
     except Exception:
         app.logger.exception("feedback save failed")
         return jsonify(ok=False, error="could not store feedback"), 500
@@ -324,6 +326,31 @@ def feedback_status():
     return jsonify(ok=True)
 
 
+@app.post("/feedback/edit")
+def feedback_edit():
+    """Hand-edit a note: reporter name, the two dates (date_reported / deadline) and the notes text.
+    Admin/super. Only the keys present in the body are written, so a partial save is fine. Dates are
+    stored as the browser's "YYYY-MM-DD" strings (or "" to clear)."""
+    _require_admin()
+    d = request.get_json(silent=True) or {}
+    client = (d.get("client") or "").strip()
+    rid = (d.get("id") or "").strip()
+    fields = {}
+    if "reporter" in d:
+        fields["reporter"] = (d.get("reporter") or "").strip()[:120]
+    if "deadline" in d:
+        fields["deadline"] = (d.get("deadline") or "").strip()[:40]
+    if "date_reported" in d:
+        fields["date_reported"] = (d.get("date_reported") or "").strip()[:40]
+    if "text" in d:
+        fields["text"] = (d.get("text") or "").strip()[:feedback.MAX_TEXT_CHARS]
+    if not fields:
+        return jsonify(ok=False, error="nothing to update"), 400
+    if not feedback.update_record(client, rid, fields):
+        return jsonify(ok=False, error="not found"), 404
+    return jsonify(ok=True)
+
+
 @app.post("/feedback/delete")
 def feedback_delete():
     """Permanently delete a note and its audio/screenshot. Admin/super."""
@@ -356,6 +383,21 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   select.stat[disabled]{opacity:.5}
   button.del{font:600 12px/1 inherit;color:#fca5a5;background:transparent;border:1px solid rgba(248,113,113,.45);
     border-radius:7px;padding:5px 9px;cursor:pointer} button.del:hover{background:rgba(248,113,113,.16)}
+  .edit{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:13px;
+    padding:11px 13px;background:#10131a;border:1px solid rgba(255,255,255,.08);border-radius:9px}
+  .edit label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.5px;
+    text-transform:uppercase;color:#7c8593}
+  .edit input{font:14px/1 inherit;color:#f3f4f6;background:#0e1014;border:1px solid rgba(255,255,255,.16);
+    border-radius:7px;padding:7px 9px;outline:none;color-scheme:dark} .edit input:focus{border-color:#6366f1}
+  .edit input.rep{min-width:170px}
+  .edit .grow{flex:1}
+  button.save{font:600 12px/1 inherit;color:#fff;background:#6366f1;border:1px solid #6366f1;
+    border-radius:7px;padding:8px 13px;cursor:pointer} button.save:hover{background:#5457e6}
+  button.save:disabled{opacity:.5;cursor:default}
+  .saved{font-size:12px;color:#34d399;align-self:center}
+  textarea.note{width:100%;min-height:70px;resize:vertical;font:14px/1.5 inherit;color:#f3f4f6;
+    background:#0e1014;border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:8px 10px;
+    outline:none} textarea.note:focus{border-color:#6366f1}
   .cols{display:grid;grid-template-columns:1fr 1fr 220px;gap:18px}
   @media(max-width:820px){.cols{grid-template-columns:1fr}}
   .col h4{margin:0 0 7px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593}
@@ -385,12 +427,20 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
       </select>
       <button class="del" data-client="{{ r.client }}" data-id="{{ r.id }}">Delete</button>
     </div>
+    <div class="edit" data-client="{{ r.client }}" data-id="{{ r.id }}">
+      <label>Reporter<input class="ef rep" data-field="reporter" type="text" placeholder="(none)" value="{{ r.reporter or '' }}"></label>
+      <label>Date reported<input class="ef" data-field="date_reported" type="date" value="{{ r.date_reported or (r.created_at | dateonly) }}"></label>
+      <label>Target deadline<input class="ef" data-field="deadline" type="date" value="{{ r.deadline or '' }}"></label>
+      <span class="grow"></span>
+      <button class="save" type="button">Save</button>
+      <span class="saved" style="display:none">Saved &check;</span>
+    </div>
     <div class="cols">
       <div class="col">
-        <h4>Raw feedback</h4>
-        {% if r.text %}<div class="txt">{{ r.text }}</div>{% endif %}
-        {% if r.transcript %}<div class="txt"{% if r.text %} style="margin-top:8px"{% endif %}>&ldquo;{{ r.transcript }}&rdquo;</div>
-        {% elif not r.text %}<div class="muted">{% if r.audio %}(voice note — see player){% else %}(no content){% endif %}</div>{% endif %}
+        <h4>Notes (editable)</h4>
+        <textarea class="ef note" data-field="text" placeholder="Add or edit notes…">{{ r.text or '' }}</textarea>
+        {% if r.transcript %}<div class="txt" style="margin-top:8px">&ldquo;{{ r.transcript }}&rdquo;</div>
+        {% elif not r.text %}<div class="muted" style="margin-top:8px">{% if r.audio %}(voice note — see player){% endif %}</div>{% endif %}
         {% if r.audio %}<audio class="vn" controls preload="metadata" src="/feedback/file/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
       </div>
       <div class="col">
@@ -439,6 +489,20 @@ document.querySelectorAll('audio.vn').forEach(function(a){
     }
   });
 });
+document.querySelectorAll('div.edit').forEach(function(bar){
+  var btn=bar.querySelector('button.save'),ok=bar.querySelector('.saved'),
+      card=bar.closest('.card');
+  btn.addEventListener('click',function(){
+    var body={client:bar.dataset.client,id:bar.dataset.id};
+    card.querySelectorAll('.ef').forEach(function(el){body[el.dataset.field]=el.value;});
+    btn.disabled=true;ok.style.display='none';
+    fbPost('/feedback/edit',body)
+      .then(function(r){if(!r.ok)throw 0;ok.style.display='';
+        setTimeout(function(){ok.style.display='none';},2000);})
+      .catch(function(){alert('Could not save.');})
+      .finally(function(){btn.disabled=false;});
+  });
+});
 document.querySelectorAll('button.del').forEach(function(b){
   b.addEventListener('click',function(){
     if(!confirm('Delete this feedback permanently?'))return;
@@ -457,6 +521,16 @@ def _fmt_dt(epoch):
     try:
         from datetime import datetime, timezone
         return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    except Exception:
+        return ""
+
+
+@app.template_filter("dateonly")
+def _fmt_date(epoch):
+    """Epoch -> 'YYYY-MM-DD' (UTC) for prefilling a <input type=date> in the tracker."""
+    try:
+        from datetime import datetime, timezone
+        return datetime.fromtimestamp(int(epoch), tz=timezone.utc).strftime("%Y-%m-%d")
     except Exception:
         return ""
 
@@ -928,6 +1002,10 @@ _FEEDBACK_WIDGET = (
     "#bbfb-text{width:100%;min-height:84px;resize:vertical;padding:9px 10px;border-radius:9px;"
     "background:#0e1014;color:#f3f4f6;border:1px solid rgba(255,255,255,.16);font:inherit;outline:none}"
     "#bbfb-text:focus{border-color:#6366f1}"
+    "#bbfb-name,#bbfb-deadline{width:100%;padding:9px 10px;border-radius:9px;background:#0e1014;"
+    "color:#f3f4f6;border:1px solid rgba(255,255,255,.16);font:inherit;outline:none;color-scheme:dark}"
+    "#bbfb-name:focus,#bbfb-deadline:focus{border-color:#6366f1}"
+    ".bbfb-lbl{font-size:11px;color:#9ca3af;margin:-2px 0 -5px}"
     "#bbfb-row{display:flex;align-items:center;gap:8px}"
     ".bbfb-mini{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border-radius:9px;cursor:pointer;"
     "font:600 13px/1 inherit;border:1px solid rgba(255,255,255,.18);background:#0e1014;color:#f3f4f6}"
@@ -946,7 +1024,10 @@ _FEEDBACK_WIDGET = (
     "<div id='bbfb-panel' role='dialog' aria-label='Send feedback'>"
     "<h3>Send feedback</h3>"
     "<p class='sub'>Type a note or record a voice message — whatever’s easiest.</p>"
+    "<input id='bbfb-name' type='text' placeholder='Your name (optional)' autocomplete='name'>"
     "<textarea id='bbfb-text' placeholder='What’s working, what’s confusing, what you’d like to see…'></textarea>"
+    "<p class='bbfb-lbl'>Preferred deadline (optional)</p>"
+    "<input id='bbfb-deadline' type='date'>"
     "<audio id='bbfb-audio' controls></audio>"
     "<div id='bbfb-row'>"
     "<button id='bbfb-mic' type='button' class='bbfb-mini'>\U0001f3a4 Record</button>"
@@ -959,7 +1040,8 @@ _FEEDBACK_WIDGET = (
     "var btn=document.getElementById('bbfb-btn'),panel=document.getElementById('bbfb-panel'),"
     "ta=document.getElementById('bbfb-text'),mic=document.getElementById('bbfb-mic'),"
     "send=document.getElementById('bbfb-send'),status=document.getElementById('bbfb-status'),"
-    "audioEl=document.getElementById('bbfb-audio');"
+    "audioEl=document.getElementById('bbfb-audio'),"
+    "nameEl=document.getElementById('bbfb-name'),dlEl=document.getElementById('bbfb-deadline');"
     "var rec=null,chunks=[],blob=null,ctype='',timer=null,secs=0,shot=null;"
     "btn.onclick=function(){var opening=!panel.classList.contains('open');panel.classList.toggle('open');"
     "if(opening){ta.focus();grabShot();}};"
@@ -996,11 +1078,12 @@ _FEEDBACK_WIDGET = (
     "if(!txt&&!blob){status.textContent='Add a note or a voice message first.';return;}"
     "send.disabled=true;status.textContent='Sending\\u2026';"
     "var fd=new FormData();fd.append('client',CLIENT);fd.append('text',txt);fd.append('page',location.pathname);"
+    "fd.append('reporter',(nameEl.value||'').trim());fd.append('deadline',dlEl.value||'');"
     "if(blob)fd.append('audio',blob,'voice.'+((ctype.indexOf('mp4')>-1)?'m4a':(ctype.indexOf('ogg')>-1)?'ogg':'webm'));"
     "if(shot)fd.append('screenshot',shot,'shot.jpg');"
     "fetch('/feedback',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){"
     "if(!r.ok)throw 0;status.textContent='Thanks \\u2014 your feedback was sent! \\u2713';"
-    "ta.value='';blob=null;chunks=[];shot=null;audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';"
+    "ta.value='';nameEl.value='';dlEl.value='';blob=null;chunks=[];shot=null;audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';"
     "setTimeout(function(){panel.classList.remove('open');status.textContent='';send.disabled=false;},1600);"
     "}).catch(function(){status.textContent='Could not send \\u2014 please try again.';send.disabled=false;});"
     "};"

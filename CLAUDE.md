@@ -68,12 +68,14 @@ would need Cloud DNS + Cloud Run domain mappings; `australia-southeast1` support
 domain-mappings`.) Platform SA `platform-dash-web@` has `secretAccessor` on every
 `<c>-dash-password` (to log into upstreams). **Feedback:** the proxy injects a self-contained
 **Feedback widget** (text **or** a voice note via `MediaRecorder`, **plus an html2canvas page
-screenshot**) into every proxied dashboard — same `</body>`-injection as the logout pill
-(`feedback.py` storage + `feedback_ai.py` Gemini transcribe/interpret + `_FEEDBACK_WIDGET`/`/feedback*`
-in `dash/main.py`). Notes land in the platform's OWN private bucket (`gs://bidbrain-analytics-platform-dash/
-feedback/<client>/…`: JSON + the recording + the screenshot; no email yet). Admin/super read them at
-`/feedback/admin` as **Raw feedback | AI summary | Screenshot** — voice is transcribed + interpreted
-into action items by Gemini (`GEMINI_API_KEY`, run lazily on view & cached back). See `bidbrain-platform/README.md`.
+screenshot**, **+ optional reporter name & preferred-deadline date**) into every proxied dashboard —
+same `</body>`-injection as the logout pill (`feedback.py` storage + `feedback_ai.py` Gemini
+transcribe/interpret + `_FEEDBACK_WIDGET`/`/feedback*` in `dash/main.py`). Notes land in the platform's
+OWN private bucket (`gs://bidbrain-analytics-platform-dash/feedback/<client>/…`: JSON + the recording +
+the screenshot; no email yet). Admin/super read them at `/feedback/admin` as **Notes | AI summary |
+Screenshot** — voice is transcribed + interpreted into action items by Gemini (`GEMINI_API_KEY`, run
+lazily on view & cached back); the human fields (reporter, the two dates `date_reported`/`deadline`,
+and the Notes text) are **hand-editable** in the tracker via `POST /feedback/edit`. See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)

@@ -12,8 +12,10 @@ Layout inside gs://$GCS_BUCKET:
     feedback/<client>/<ts>-<id>.jpg     # the page screenshot (only when one was captured)
 
 Record fields: id, client, text, audio (filename or ""), screenshot (filename or ""), page,
-user_kind, created_at (epoch s, UTC). Enriched later (by main.py via feedback_ai): transcript,
-ai_summary, ai_actions[], ai_done.
+user_kind, created_at (epoch s, UTC), reporter (optional name), deadline (optional preferred
+deadline / target deadline, "YYYY-MM-DD" or ""). Enriched later (by main.py via feedback_ai):
+transcript, ai_summary, ai_actions[], ai_done. Hand-editable from the tracker (main.py
+/feedback/edit): reporter, date_reported (defaults to created_at's date), deadline, text.
 """
 import os
 import re
@@ -51,9 +53,11 @@ def _ext_for(ctype):
     return _EXT.get((ctype or "").split(";")[0].strip().lower(), "webm")
 
 
-def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_bytes=None):
+def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_bytes=None,
+         reporter="", deadline=""):
     """Persist one feedback entry. Returns the stored record dict. `audio_bytes` may be None for a
-    text-only note; `screenshot_bytes` is an optional JPEG of the page. Order: write the binary
+    text-only note; `screenshot_bytes` is an optional JPEG of the page. `reporter` (name) and
+    `deadline` (preferred deadline, "YYYY-MM-DD") are both optional. Order: write the binary
     objects FIRST, then the JSON that references them, so a half-written entry never dangles."""
     text = (text or "").strip()[:MAX_TEXT_CHARS]
     rid = f"{int(time.time())}-{uuid.uuid4().hex[:8]}"
@@ -74,7 +78,8 @@ def save(client, text, audio_bytes, audio_ctype, page, user_kind, screenshot_byt
         b.upload_from_string(screenshot_bytes, content_type="image/jpeg")
 
     rec = {"id": rid, "client": client, "text": text, "audio": audio_name, "screenshot": shot_name,
-           "page": (page or "")[:300], "user_kind": user_kind or "", "created_at": int(time.time())}
+           "page": (page or "")[:300], "user_kind": user_kind or "", "created_at": int(time.time()),
+           "reporter": (reporter or "").strip()[:120], "deadline": (deadline or "").strip()[:40]}
     j = bucket.blob(f"{_PREFIX}/{client}/{rid}.json")
     j.cache_control = "no-store"
     j.upload_from_string(json.dumps(rec, separators=(",", ":")), content_type="application/json")
