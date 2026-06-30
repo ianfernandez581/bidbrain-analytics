@@ -399,7 +399,26 @@
         </div>
         <div class="card card-tall">
           <h3>Where website traffic came from</h3>
-          <div class="hint">Sessions by acquisition channel, campaign window. Paid channels in red.</div>
+          <div class="hint">Sessions by acquisition channel, campaign window. Paid channels in red. <b>Click a slice</b> or use the filter to focus channels.</div>
+          <div class="campaign-dd" id="channelDD" style="margin:0 0 8px">
+            <button class="campaign-btn" id="channelBtn" onclick="toggleChannelMenu(event)" aria-haspopup="true" aria-expanded="false">
+              <span class="lbltxt" id="channelBtnLabel">All channels</span>
+              <span class="caret">▾</span>
+            </button>
+            <div class="campaign-menu" id="channelMenu" style="display:none">
+              <div class="campaign-menu-head">
+                <input type="text" id="channelSearch" placeholder="Search channels…" autocomplete="off" oninput="renderChannelList()">
+                <div class="campaign-menu-actions">
+                  <span class="count" id="channelCount">&nbsp;</span>
+                  <div class="btns">
+                    <button class="chip-action" onclick="allChannels()">All</button>
+                    <button class="chip-action" onclick="clearChannels()">Clear</button>
+                  </div>
+                </div>
+              </div>
+              <div class="campaign-list" id="channelList"></div>
+            </div>
+          </div>
           <div class="chart-wrap"><canvas id="ovDonut"></canvas></div>
         </div>
       </div>
@@ -616,6 +635,9 @@ let activePlatforms = new Set();   // ad-platform filter (all on by default)
 let activeCampaigns = new Set();   // ad-campaign filter (all on by default) — scopes AD DELIVERY only;
                                    // the GA4/website side has no campaign dimension so it stays whole.
 let campaignMenuOpen = false;
+let channelsOff = new Set();       // donut-local: DESELECTED channels on the "Where website traffic
+                                   // came from" donut (empty = all selected). Toggled by slice-click + dropdown.
+let channelMenuOpen = false;
 const el = id => document.getElementById(id);
 
 // ---- Per-chart grain (month/week/day) + scale (rel/abs) toggles. DEFAULT scale =
@@ -1362,10 +1384,12 @@ function closeCampaignMenu(){
 }
 // Close on outside click / Escape.
 document.addEventListener('click', e => {
-  const dd = e.target.closest && e.target.closest('.campaign-dd');
+  const dd = e.target.closest && e.target.closest('#campaignGroup');
   if(!dd) closeCampaignMenu();
+  const cdd = e.target.closest && e.target.closest('#channelDD');
+  if(!cdd) closeChannelMenu();
 });
-document.addEventListener('keydown', e => { if(e.key==='Escape') closeCampaignMenu(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape'){ closeCampaignMenu(); closeChannelMenu(); } });
 
 function renderCampaignList(){
   const list = el('campaignList'); if(!list) return;
@@ -1417,6 +1441,92 @@ function toggleCampaignGroup(platformKey, select){
   });
   renderCampaignButton(); renderCampaignList(); renderActive();
 }
+
+// ---- "Where website traffic came from" donut: channel filter (slice-click + dropdown), Option A ----
+// A channel is SELECTED when it is NOT in channelsOff (empty set = all selected). Deselected channels
+// stay in the ring but dimmed, so a slice click toggles either way; the centre + tooltips reflect only
+// the selected channels. The dropdown (search + per-channel checkbox & count + select-all) stays in sync.
+const CHAN_DIM = '#E3E7EC';   // ring colour for a deselected (excluded) channel
+function chanOn(name){ return !channelsOff.has(name); }
+
+function renderTrafficDonut(){
+  const ch = ga4Channels();                                   // current channels (country-filtered), sorted
+  const totalAll = ch.reduce((t,c)=>t+c.sessions,0);          // for tooltip % (stable, share of all channels)
+  const selSum   = ch.filter(c=>chanOn(c.channel)).reduce((t,c)=>t+c.sessions,0);
+  if(charts.ovDonut){ try{ charts.ovDonut.destroy(); }catch(e){} }
+  charts.ovDonut = new Chart(el('ovDonut'),{
+    type:'doughnut',
+    data:{ labels:ch.map(c=>c.channel), datasets:[{ data:ch.map(c=>c.sessions),
+      backgroundColor:ch.map((c,i)=> chanOn(c.channel) ? shade(BUCKET_COLOR[c.bucket]||C.grey,i) : CHAN_DIM),
+      borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'62%',
+      // Slice click toggles that channel in/out of the selection.
+      onClick:(evt,els)=>{ if(els&&els.length){ const name=ch[els[0].index].channel;
+        channelsOff.has(name) ? channelsOff.delete(name) : channelsOff.add(name); syncChannels(true); } },
+      plugins:{ legend:{position:'right', onClick:()=>{},   // display-only (no toggle on legend labels)
+          labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
+        tooltip:{callbacks:{label:c=>{ const sel=chanOn(ch[c.dataIndex].channel);
+          return ` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,totalAll),1)})${sel?'':' · excluded'}`; }}} },
+      cutoutText:{ line1:fmtM(selSum), line2:'sessions' } },
+    plugins:[centerText]
+  });
+  renderChannelButton();
+}
+
+function renderChannelButton(){
+  const btn=el('channelBtn'), lbl=el('channelBtnLabel'); if(!btn||!lbl) return;
+  const ch=ga4Channels(), selN=ch.filter(c=>chanOn(c.channel)).length, all=selN===ch.length;
+  lbl.textContent = all ? 'All channels' : (selN===0 ? 'No channels' : `${selN} of ${ch.length} channels`);
+  btn.classList.toggle('filtered', !all);
+}
+
+function toggleChannelMenu(e){
+  if(e) e.stopPropagation();
+  channelMenuOpen = !channelMenuOpen;
+  el('channelMenu').style.display = channelMenuOpen ? 'block' : 'none';
+  el('channelBtn').setAttribute('aria-expanded', channelMenuOpen ? 'true' : 'false');
+  if(channelMenuOpen){ renderChannelList(); setTimeout(()=>{ const s=el('channelSearch'); if(s) s.focus(); }, 0); }
+}
+function closeChannelMenu(){
+  if(!channelMenuOpen) return;
+  channelMenuOpen=false; el('channelMenu').style.display='none'; el('channelBtn').setAttribute('aria-expanded','false');
+}
+
+function renderChannelList(){
+  const list=el('channelList'); if(!list) return;
+  const ch=ga4Channels();
+  const q=(el('channelSearch').value||'').trim().toLowerCase();
+  const rows=ch.filter(c=>!q || c.channel.toLowerCase().includes(q));
+  const selN=ch.filter(c=>chanOn(c.channel)).length, allSel=selN===ch.length, noneSel=selN===0;
+  el('channelCount').textContent = `${selN} of ${ch.length} selected`;
+  let html = `<label class="cl-item" style="border-bottom:1px solid var(--stt-line)">
+      <input type="checkbox" id="channelSelectAll" ${allSel?'checked':''} onchange="toggleAllChannels(this)">
+      <span class="ci-main"><span class="ci-name"><b>Select all</b></span></span>
+    </label>`;
+  rows.forEach(c=>{
+    const enc = encodeURIComponent(c.channel).replace(/'/g,'%27');
+    html += `<label class="cl-item" title="${c.channel.replace(/"/g,'&quot;')}">
+      <input type="checkbox" ${chanOn(c.channel)?'checked':''} onchange="toggleChannel('${enc}')">
+      <span class="ci-main"><span class="ci-name"><span class="dot" style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${BUCKET_COLOR[c.bucket]||'#999'};margin-right:6px"></span>${c.channel}</span></span>
+      <span class="ci-meta" style="margin-left:auto;white-space:nowrap;align-self:center">${fmtN(c.sessions)}</span>
+    </label>`;
+  });
+  list.innerHTML = html || `<div class="cl-empty">No channels match “${q}”.</div>`;
+  const sa=el('channelSelectAll'); if(sa) sa.indeterminate = !allSel && !noneSel;
+}
+
+function toggleChannel(enc){
+  const name=decodeURIComponent(enc);
+  channelsOff.has(name) ? channelsOff.delete(name) : channelsOff.add(name);
+  syncChannels(false);   // the clicked checkbox already shows its new state — don't rebuild the list (keeps scroll)
+}
+function toggleAllChannels(input){ input.checked ? allChannels() : clearChannels(); }
+function allChannels(){ channelsOff = new Set(); syncChannels(true); }
+function clearChannels(){ channelsOff = new Set(ga4Channels().map(c=>c.channel)); syncChannels(true); }
+
+// Rebuild the donut (+ button). `relist` also refreshes the open dropdown list — used when the change
+// came from a slice click or a bulk action; a single checkbox toggle passes false to preserve scroll.
+function syncChannels(relist){ renderTrafficDonut(); if(relist && channelMenuOpen) renderChannelList(); }
 function allCampaigns(){ activeCampaigns = new Set(allCampaignNames()); renderCampaignButton(); renderCampaignList(); renderActive(); }
 function clearCampaigns(){ activeCampaigns = new Set(); renderCampaignButton(); renderCampaignList(); renderActive(); }
 
@@ -1535,19 +1645,9 @@ function renderOverview(){
       scales: heroScales }
   });
 
-  // Donut: sessions by channel (country-filtered)
-  const ch = ga4Channels();
-  const donutData = ch.map(c=>({label:c.channel, v:c.sessions, color:BUCKET_COLOR[c.bucket]||C.grey}));
-  charts.ovDonut = new Chart(el('ovDonut'),{
-    type:'doughnut',
-    data:{ labels:donutData.map(d=>d.label), datasets:[{ data:donutData.map(d=>d.v),
-      backgroundColor:donutData.map((d,i)=>shade(d.color,i)), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,g.sessions),1)})`}} },
-      cutoutText:{ fmt:fmtM, line2:'sessions' } },
-    plugins:[centerText]
-  });
+  // Donut "Where website traffic came from" — channel filter via slice-click + the Channels dropdown
+  // (Option A: deselected channels stay dimmed in the ring; legend is display-only). See renderTrafficDonut.
+  renderTrafficDonut();
 
   // Stacked sessions paid vs rest (country-filtered). Pure composition bars, NO overlay
   // line -> ABSOLUTE = raw session counts; RELATIVE (default) = 100%-stacked (each period
