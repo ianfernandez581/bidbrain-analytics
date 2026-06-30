@@ -34,6 +34,15 @@ SUPER_ADMIN_PW = os.environ.get("SUPER_ADMIN_PW", "")
 AGENCY_100D_PW = os.environ.get("AGENCY_100D_PW", "100d2026")
 AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "transmission2026")
 
+# --- Google sign-in (native "Sign in with Google" alongside the password box) --------------
+# A user can log in EITHER with a password (above) OR with their Google account. Google login is
+# an ADDITIVE second path: it never replaces the password box. The OAuth *Client ID* is public
+# (it ships in the login page HTML) — there is no client secret, because we verify Google's signed
+# ID token (JWT) server-side against this client ID (the JWT `aud`). Empty => the Google button is
+# simply not shown and /auth/google is disabled (password login is unaffected). Create a "Web
+# application" OAuth client in the Cloud Console and inject its ID with scripts/enable_google_login.ps1.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
+
 # Each dashboard is its own Cloud Run service `<key>-dash`. Until a custom domain is registered
 # there are NO `<key>.bidbrain.ai` subdomains — link straight to the live GCP run.app URL
 # (deterministic project-number form). The platform is therefore a password-gated LAUNCHER:
@@ -153,16 +162,15 @@ AGENCIES = [
 # but never surfaced in an agency portal). STT is on hold; HireRight has no assigned agency.
 UNASSIGNED_CLIENTS = ["stt", "hireright"]
 
-# --- Google sign-in allow-list (email -> role) --------------------------------------------
-# "Log in with Google" is a PARALLEL login method to the password gate. There are no user
-# accounts here — a login resolves to a ROLE — so a Google account is authorised by mapping its
-# verified email to the same role a password would yield (store.resolve_email). Email not listed
-# => sign-in denied. This is the SEED; the live copy is edited in the admin UI (super-admin can
-# add/remove emails), so the running list can diverge from this file (re-seed only deliberately).
-#   {"kind": "admin"}                       -> the editable agencies->clients tree
-#   {"kind": "superadmin"}                  -> god-mode console (grant sparingly)
-#   {"kind": "agency", "slug": "<slug>"}    -> that agency's portal (slug from AGENCIES above)
-#   {"kind": "client", "key": "<key>"}      -> just that one dashboard (key from CLIENTS above)
-GOOGLE_ALLOWLIST = {
-    "ian@100.digital": {"kind": "admin"},
-}
+# --- Google-account access (email -> what they can open) ----------------------------------
+# A signed-in Google account is matched BY EMAIL against the registry's `users` map (managed live
+# in the super-admin console) — exactly like a typed password is matched by `resolve_password`. The
+# entries below are the SEED + the permanent baked-in super admin: they always resolve even on a
+# pre-existing registry (config fallback in `store.resolve_email`), so you can never lock the super
+# admin out, and they are back-filled into the live registry on the first super-admin console load
+# so they show up there and the rest become editable.
+#   role: "superadmin" | "admin" | "agency" (needs agency_slug) | "client" (needs client_key)
+# Emails are matched case-insensitively. Add/assign more accounts in the super-admin console.
+USERS = [
+    {"email": "ian@100.digital", "role": "superadmin"},
+]

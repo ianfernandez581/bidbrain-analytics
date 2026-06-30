@@ -28,7 +28,7 @@ seeding, or rotate later by re-seeding with a new `ADMIN_PW`.
 
 ## Super admin (god-mode console)
 The **super-admin** password opens `templates/superadmin.html` — a gold-themed console headed
-**“WELCOME, SUPER ADMIN”** that does four things no other tier can:
+**“WELCOME, SUPER ADMIN”** that does three things no other tier can:
 
 1. **Reveal every password** — each agency password, each dashboard's real login, and the admin
    password, shown masked with a click-to-reveal eye + copy button.
@@ -38,8 +38,6 @@ The **super-admin** password opens `templates/superadmin.html` — a gold-themed
    password takes effect for the standalone dashboard everywhere (the dashboard is briefly
    unavailable, ~20–40s, while it restarts). The platform's own proxy cache is updated in-process.
 3. **Open any dashboard** — same one-click, no-second-password access as admin.
-4. **Manage the Google sign-in allow-list** — add/remove the emails (and their role) allowed to
-   "Continue with Google". See [Google sign-in](#google-sign-in-continue-with-google--parallel-to-the-password-gate).
    It also links to the full admin tree at `/admin` (super admin inherits every admin power).
 
 **How revealing is possible.** Passwords were previously stored only as one-way pbkdf2 hashes — a hash
@@ -83,72 +81,48 @@ moves it into the registry and supersedes the secret). If a dashboard rotation's
 fails (e.g. IAM not yet propagated), the console tells you the exact `gcloud run services update …` to
 finish it by hand.
 
-## Google sign-in (“Continue with Google”) — parallel to the password gate
-A second way in, on the **front-door only**; the password box keeps working exactly as before. Built on
-**Authlib** (OAuth 2.0 / OpenID Connect). There are **no user accounts** here — a login resolves to a
-*role* — so a Google login is authorised by an **email → role allow-list**, the twin of the password
-resolver:
+## Sign in with Google (native, alongside the password)
+Users can log in **either** with a password **or** with their Google account — Google sign-in is an
+**additive** second path that never replaces the password box. It's off until you switch it on
+(`GOOGLE_OAUTH_CLIENT_ID` unset ⇒ the button is hidden and `/auth/google` is disabled; passwords keep
+working exactly as before).
 
-| password flow | Google flow |
+**How it works.** The login page renders Google's official **GIS button**; the browser posts the
+signed **ID token (JWT)** to the platform's `/auth/google` via a *same-origin fetch*. The server
+verifies the JWT against the OAuth **client id** (the JWT `aud`) with `google-auth`
+(`id_token.verify_oauth2_token`), checks `email_verified`, then maps the **verified email** to a role
+with `store.resolve_email` — the email twin of `resolve_password`, with the same four outcomes. The
+OAuth **client id is public** (it ships in the login HTML) and there is **no client secret** — the
+signed JWT is the proof, so there's nothing secret to leak and no redirect flow to configure. The
+same-origin fetch sidesteps third-party-cookie / `SameSite` issues entirely.
+
+**Who gets in.** Only an email that's been granted access resolves; every other Google account is
+rejected *after* a valid sign-in (a clear "not authorised — ask an admin" message). The allow-list is
+the registry's **`users`** map:
+
+| email mapped to… | opens… |
 |---|---|
-| typed password → `store.resolve_password` → `(kind, payload)` | verified Google email → `store.resolve_email` → `(kind, payload)` |
+| `superadmin` | the god-mode console |
+| `admin` | the agencies → clients → campaigns tree |
+| `agency` (+ `agency_slug`) | that agency's portal |
+| `client` (+ `client_key`) | just that one dashboard |
 
-Both hand the SAME `(kind, payload)` to `_establish_session`, so from there the session, SSO cookie and
-proxy behave identically — admin / agency / single-dashboard access all work the same whether you typed a
-password or used Google. An email **not** on the allow-list is rejected after an otherwise-successful
-Google login (so the consent screen succeeding ≠ access).
+`ian@100.digital` is the **baked-in super admin** (config `USERS`) — it always resolves even on a
+pre-existing registry (config fallback in `resolve_email`, the same fail-safe idea as the
+`SUPER_ADMIN_PW` env), so you can never lock it out; deleting it in the UI can't actually revoke it
+(it's shown as "baked-in — permanent"). Manage everyone else in the super-admin console's **"Google
+sign-in access"** panel: add an email, pick a role, and (for agency/client) pick the target. Emails
+match case-insensitively.
 
-**The allow-list** (`google_allowlist` in the registry; seeded from `config.GOOGLE_ALLOWLIST`, live copy
-editable in the admin UI via `store.set_allowed_email`/`remove_allowed_email`). Each entry maps a lower-cased
-email to a role:
-
-```python
-GOOGLE_ALLOWLIST = {
-    "ian@100.digital":   {"kind": "admin"},
-    "boss@agency.com":   {"kind": "agency", "slug": "transmission"},   # slug from AGENCIES
-    "viewer@client.com": {"kind": "client", "key": "schneider"},       # key from CLIENTS
-}
-```
-
-**Routes:** `GET /auth/google/login` (start the OIDC flow) and `GET /auth/google/callback` (validate,
-read the verified email, resolve, log in). Both are inert (redirect home) when Google sign-in is OFF.
-
-**Config (env, never hardcoded):** `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `OAUTH_REDIRECT_BASE`
-(the public origin, `https://dashboards.bidbrain.ai`). Google sign-in is **OFF** (button hidden, routes
-inert) until the id+secret are present and Authlib is installed — so nothing changes for the password gate
-if you never turn it on.
-
-**Turn it on.** First create an OAuth 2.0 **Web application** client in the Google Cloud Console
-(APIs & Services → Credentials) and register the redirect URI
-`https://dashboards.bidbrain.ai/auth/google/callback` (add `http://localhost:8080/auth/google/callback`
-for local dev). Configure the consent screen (External; scopes `openid email profile` — non-sensitive, no
-Google verification needed). Then, after deploying the new platform image:
-
+**Switch it on (one-time).** The OAuth client can't be created with gcloud — make it in the Console,
+then inject its id:
 ```powershell
-.\bidbrain-platform\dash\deploy_dash_platform.ps1                          # ships Authlib + the routes
-.\scripts\enable_google_signin.ps1 -ClientId '<id>.apps.googleusercontent.com' -ClientSecret '<secret>'
+# 1. Console -> APIs & Services -> Credentials -> Create credentials -> OAuth client ID ->
+#    "Web application"; Authorized JavaScript origin: https://dashboards.bidbrain.ai
+#    (+ the raw https://platform-dash-...run.app). NO redirect URI (GIS button + same-origin fetch).
+# 2. Inject the client id (re-runnable; password login unaffected):
+.\scripts\enable_google_login.ps1 -ClientId '1234...apps.googleusercontent.com'
 ```
-
-`enable_google_signin.ps1` stores the creds in Secret Manager (`platform-google-client-id` /
-`platform-google-client-secret`), grants the platform SA `secretAccessor` on them, and mounts
-`GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`/`OAUTH_REDIRECT_BASE` on `platform-dash`.
-
-**Manage *who* can sign in** in the **super-admin console** — the *Google sign-in* section (below the
-password cards) lists every allowed email with its role and a **Remove** button, and has an **Add email**
-bar (email + a role dropdown built from the live agencies/clients). Add/remove is an instant registry edit,
-no redeploy. An email not on the list is denied after an otherwise-successful Google sign-in.
-
-There's also a CLI for headless/bulk edits — `dash/manage_allowlist.py` (needs `GCS_BUCKET` + ADC). Note
-`config.GOOGLE_ALLOWLIST` only seeds a *fresh* registry, so on the live one run `seed` once to import it:
-
-```powershell
-$env:GCS_BUCKET="bidbrain-analytics-platform-dash"
-.\.venv\Scripts\python.exe bidbrain-platform\dash\manage_allowlist.py seed                 # import config entries (additive)
-.\.venv\Scripts\python.exe bidbrain-platform\dash\manage_allowlist.py add boss@agency.com agency transmission
-.\.venv\Scripts\python.exe bidbrain-platform\dash\manage_allowlist.py list
-```
-
-(`kind` = admin | superadmin | agency | client; `ref` = agency slug or client key.)
 
 ## How "no second password" works TODAY — a reverse proxy
 The platform is live on the custom domain **https://dashboards.bidbrain.ai**. The individual
@@ -236,10 +210,8 @@ ride along as plain form fields; both stored on the record, blank when not given
 - **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
   On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
   button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).
-  A **filter bar** at the top of the tracker has two dropdowns — **Status** (All + each status) and
-  **Client** (All clients + each client that has notes, built dynamically from the data) — applied
-  together (status AND client). Each option shows a live count beside it (e.g. "Completed (8)",
-  "Schneider Electric (3)"); client-side only, re-counts as you change a status or delete a note.
+  A **filter bar** at the top of the tracker filters the cards by status (All + each status, each with
+  a live count chip) — client-side only, re-counts as you change a status or delete a note.
 - **Hand-edit (admin/super):** an edit bar on each note makes the human fields fully editable — the
   **reporter** name, **two dates** (`date_reported`, defaulting to the submission day, and the
   **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges only the
@@ -261,27 +233,18 @@ ride along as plain form fields; both stored on the record, blank when not given
 bidbrain-platform/
   deploy_platform.ps1            one-shot standup (APIs, bucket, SA+IAM, secrets, build, deploy, seed)
   dash/
-    main.py                      Flask: login → tier resolution → SSO cookie → portal / admin / CRUD
-    store.py                     GCS-JSON registry layer + password hashing + login resolution (memory backend for dev)
-    config.py                    SEED source of truth: agencies, clients, campaigns, passwords
+    main.py                      Flask: login (password + Google /auth/google) → tier resolution → SSO cookie → portal / admin / CRUD
+    store.py                     GCS-JSON registry layer + password hashing + login resolution (password & Google email; memory backend for dev)
+    config.py                    SEED source of truth: agencies, clients, campaigns, passwords, Google client id + users
     platform_sso.py              shared SSO token (issuer here; VENDORED into every dashboard as the verifier)
     feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
-    manage_allowlist.py          view/edit the Google sign-in email→role allow-list on the live registry
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
-    favicon.ico favicon-32.png apple-touch-icon.png  browser-tab/home-screen icon — the official Bid Brain
-                                 mark (black brain+gavel), served PUBLIC (no auth) at /favicon.ico · /favicon-32.png ·
-                                 /apple-touch-icon.png and linked from EVERY page's <head> (the 4 templates + the feedback
-                                 admin page); the public /favicon.ico route also catches the browser's automatic request on
-                                 any page. SOURCE = Creatives/"Bidbrain logo.ico" (multi-size 16–256, used as favicon.ico
-                                 verbatim). Regenerate the variants from it with Pillow: favicon-32.png = transparent 32px;
-                                 apple-touch-icon.png = 180px composited on WHITE (iOS flattens transparency onto black, which
-                                 would hide the black mark). Baked in via the Dockerfile COPY.
-  Creatives/                     the design screenshot + source logo.svg + "Bidbrain logo.ico" (the favicon source)
+  Creatives/                     the design screenshot + source logo.svg
 scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mode IAM (see "Super admin")
-scripts/enable_google_signin.ps1 one-time: store Google OAuth creds + mount them on platform-dash (see "Google sign-in")
+scripts/enable_google_login.ps1  one-time: inject the public OAuth client id for Google sign-in (see "Sign in with Google")
 ```
 
 ## Deploy & operate
@@ -310,6 +273,10 @@ $env:GCS_BUCKET="bidbrain-analytics-platform-dash"; .\.venv\Scripts\python.exe b
 
 # Enable the super-admin god-mode console (one-time, AFTER deploying the new image — see "Super admin"):
 .\scripts\enable_super_admin.ps1 -SuperPw 'a-strong-password'
+
+# Enable native "Sign in with Google" (one-time; create the OAuth client in the Console first — see
+# "Sign in with Google"). Re-runnable; password login is unaffected:
+.\scripts\enable_google_login.ps1 -ClientId '1234...apps.googleusercontent.com'
 ```
 
 ## Local dev (no GCP)
@@ -324,7 +291,8 @@ Project `bidbrain-analytics` · region `australia-southeast1` · service `platfo
 web SA `platform-dash-web@` (`roles/storage.objectAdmin` on its bucket + `secretAccessor`; **+ for
 super-admin god-mode**: `secretmanager.secretVersionAdder` on each `<c>-dash-password`, project
 `run.developer`, and `iam.serviceAccountUser` on each `<c>-dash` runtime SA) · secrets
-`platform-dash-session-key`, `platform-sso-key`, `platform-super-admin-password` · registry
+`platform-dash-session-key`, `platform-sso-key`, `platform-super-admin-password` · env
+`GOOGLE_OAUTH_CLIENT_ID` (public OAuth client id for native Google sign-in; no secret) · registry
 `gs://bidbrain-analytics-platform-dash/platform.json` (private). No database, no export job, no scheduler.
 
 ## Hardening / known trade-offs

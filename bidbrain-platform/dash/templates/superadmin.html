@@ -3,9 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<link rel="icon" href="/favicon.ico" sizes="any">
-<link rel="icon" type="image/png" href="/favicon-32.png">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>Super Admin · Bidbrain Campaign Dashboards</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -100,27 +97,16 @@
   .modal input{width:100%;padding:12px;font-size:14px;color:var(--text);background:#0a0c13;
         border:1px solid #232838;border-radius:10px;outline:none;font-family:ui-monospace,Menlo,monospace}
   .modal input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,201,105,.16)}
+  .modal select{width:100%;padding:12px;font-size:14px;color:var(--text);background:#0a0c13;
+        border:1px solid #232838;border-radius:10px;outline:none}
+  .modal select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,201,105,.16)}
+  .urole{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#1a1405;
+         background:linear-gradient(135deg,var(--gold),var(--gold-2));padding:2px 8px;border-radius:6px;font-weight:700}
+  .urole.client,.urole.agency{background:var(--chip-bg);color:var(--chip-text)}
   .modal .warn{margin-top:12px;font-size:12px;color:#f0b86a;background:rgba(240,184,106,.08);
                border:1px solid rgba(240,184,106,.22);border-radius:9px;padding:10px 12px;line-height:1.5}
   .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
   .err{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:14px;line-height:1.5}
-  /* google allow-list */
-  .albar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--panel);
-         border:1px solid var(--border);border-radius:12px;padding:14px 16px;margin:0 0 14px}
-  .albar input,.albar select{padding:10px 12px;font-size:13.5px;color:var(--text);background:#0a0c13;
-         border:1px solid #232838;border-radius:10px;outline:none;font-family:inherit}
-  .albar input{flex:1;min-width:200px;font-family:ui-monospace,Menlo,monospace}
-  .albar input:focus,.albar select:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,201,105,.16)}
-  .alrow{display:flex;align-items:center;gap:14px;background:var(--panel);border:1px solid var(--border);
-         border-radius:12px;padding:12px 16px;margin:0 0 9px}
-  .alrow .alemail{flex:1;min-width:0;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .alrow .alrole{font-size:11px;font-weight:700;color:var(--chip-text);background:var(--chip-bg);
-         border:1px solid rgba(243,201,105,.18);padding:4px 10px;border-radius:999px;white-space:nowrap}
-  .alrole.sup{color:#1a1405;background:linear-gradient(135deg,var(--gold),var(--gold-2));border-color:transparent}
-  .alempty{font-size:13px;color:var(--muted);padding:6px 2px}
-  .alhint{font-size:12px;color:#f0b86a;background:rgba(240,184,106,.08);border:1px solid rgba(240,184,106,.22);
-          border-radius:9px;padding:10px 12px;margin:0 0 14px;line-height:1.5}
-  .alerr{color:var(--danger);font-size:12.5px;min-height:14px;margin:2px 0 0;flex-basis:100%}
 </style>
 </head>
 <body>
@@ -231,44 +217,40 @@
       {% endfor %}
     </div>
 
-    <!-- GOOGLE SIGN-IN ALLOW-LIST -->
+    <!-- GOOGLE SIGN-IN ACCESS -->
     <div class="sec">
-      <div class="shead"><h2>Google sign-in</h2><span class="c">who may "Continue with Google" — email → role</span></div>
-      {% if not google_enabled %}
-      <div class="alhint">Google sign-in isn't switched on yet (no OAuth credentials mounted), so these
-        emails won't take effect until an admin runs <span class="mono">enable_google_signin.ps1</span>.
-        You can still build the list here now.</div>
-      {% endif %}
-
-      <div class="albar">
-        <input id="alEmail" type="email" placeholder="person@company.com" autocomplete="off" spellcheck="false">
-        <select id="alRole">
-          <option value="admin">Admin — agencies &amp; clients tree</option>
-          {% for a in agencies %}<option value="agency:{{ a.slug }}">Agency — {{ a.name }}</option>{% endfor %}
-          {% for d in dashboards %}{% if d.status == 'active' and d.url %}<option value="client:{{ d.key }}">Dashboard — {{ d.name }}</option>{% endif %}{% endfor %}
-          <option value="superadmin">Super admin — god-mode</option>
-        </select>
-        <button type="button" class="btn gold sm" id="alAdd">Add email</button>
-        <div class="alerr" id="alErr"></div>
+      <div class="shead"><h2>Google sign-in access</h2>
+        <span class="c">accounts that may sign in with Google — each maps to a role, an agency, or one dashboard</span></div>
+      {% if not google_configured %}
+      <div class="card" style="border-color:rgba(240,184,106,.32);margin-bottom:14px">
+        <div class="muted" style="line-height:1.6">Google sign-in isn’t switched on yet. Create a “Web application”
+        OAuth client in the Cloud Console (Authorized JavaScript origin <span class="mono">https://dashboards.bidbrain.ai</span>),
+        then run <span class="mono">scripts/enable_google_login.ps1 -ClientId &lt;id&gt;</span>. You can still add accounts
+        below — they take effect the moment it’s on.</div>
       </div>
-
-      {% if google_allowlist %}
-        {% for e in google_allowlist %}
-        <div class="alrow">
-          <span class="alemail mono">{{ e.email }}</span>
-          <span class="alrole{{ ' sup' if e.kind == 'superadmin' else '' }}">
-            {%- if e.kind == 'admin' -%}Admin
-            {%- elif e.kind == 'superadmin' -%}Super admin
-            {%- elif e.kind == 'agency' -%}Agency · {{ e.target }}
-            {%- elif e.kind == 'client' -%}Dashboard · {{ e.target }}
-            {%- else -%}{{ e.kind }}{%- endif -%}
-          </span>
-          <button type="button" class="btn ghost sm alrm" data-email="{{ e.email|e }}">Remove</button>
-        </div>
-        {% endfor %}
-      {% else %}
-        <div class="alempty">No emails yet — add one above. An email not on this list is denied after Google sign-in.</div>
       {% endif %}
+      <div style="display:flex;justify-content:flex-end;margin:0 0 12px">
+        <button type="button" class="btn gold sm" id="addUser">+ Add account</button>
+      </div>
+      {% for u in users %}
+      <div class="drow">
+        <div class="who" style="min-width:280px">
+          <div class="dn mono" style="font-size:13.5px">{{ u.email }}</div>
+          <div class="dk" style="margin-top:5px">
+            <span class="urole {{ u.role }}">{{ u.role }}</span>
+            {% if u.scope %}<span class="muted"> · {{ u.scope }}</span>{% endif %}
+          </div>
+        </div>
+        <span style="flex:1"></span>
+        {% if u.seed %}
+          <span class="muted">baked-in — permanent</span>
+        {% else %}
+          <button type="button" class="btn ghost sm deluser" data-email="{{ u.email|e }}">Remove</button>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="muted">No Google accounts yet — click “Add account”.</div>
+      {% endfor %}
     </div>
 
   </div>
@@ -285,6 +267,38 @@
       <div class="actions">
         <button type="button" class="btn" onclick="closeModal()">Cancel</button>
         <button type="submit" class="btn gold" id="mSave">Save</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- add-user modal (Google sign-in access) -->
+  <div class="scrim" id="uscrim">
+    <form class="modal" id="umodal" onsubmit="return submitUser(event)">
+      <h3>Grant Google access</h3>
+      <p class="msub">The account signs in with Google; this maps their verified email to what they can open.</p>
+      <label for="uemail">Google email</label>
+      <input id="uemail" type="email" autocomplete="off" spellcheck="false" placeholder="name@company.com">
+      <label for="urole">Role</label>
+      <select id="urole">
+        <option value="client">Single dashboard</option>
+        <option value="agency">Agency portal</option>
+        <option value="admin">Admin (manage the tree)</option>
+        <option value="superadmin">Super admin (god-mode)</option>
+      </select>
+      <div id="uagencyWrap"><label for="uagency">Agency</label>
+        <select id="uagency">
+          {% for a in agencies %}<option value="{{ a.slug }}">{{ a.name }}</option>{% endfor %}
+        </select>
+      </div>
+      <div id="uclientWrap"><label for="uclient">Dashboard</label>
+        <select id="uclient">
+          {% for d in dashboards %}<option value="{{ d.key }}">{{ d.name }} ({{ d.key }})</option>{% endfor %}
+        </select>
+      </div>
+      <div class="err" id="uErr"></div>
+      <div class="actions">
+        <button type="button" class="btn" onclick="closeUser()">Cancel</button>
+        <button type="submit" class="btn gold" id="uSave">Grant access</button>
       </div>
     </form>
   </div>
@@ -370,41 +384,52 @@
     return false;
   }
 
-  // ---- Google sign-in allow-list: add / remove ----
-  const alEmail = document.getElementById('alEmail');
-  const alRole  = document.getElementById('alRole');
-  const alErr   = document.getElementById('alErr');
-  const alAdd   = document.getElementById('alAdd');
+  // ---- Google sign-in access (users): add / change / revoke ----
+  const uscrim = document.getElementById('uscrim');
+  const uemail = document.getElementById('uemail'), urole = document.getElementById('urole'),
+        uagencyWrap = document.getElementById('uagencyWrap'), uclientWrap = document.getElementById('uclientWrap'),
+        uErr = document.getElementById('uErr'), uSave = document.getElementById('uSave');
+  function uToggle(){
+    const r = urole.value;
+    uagencyWrap.style.display = (r === 'agency') ? 'block' : 'none';
+    uclientWrap.style.display = (r === 'client') ? 'block' : 'none';
+  }
+  if(urole) urole.addEventListener('change', uToggle);
+  const addUserBtn = document.getElementById('addUser');
+  if(addUserBtn) addUserBtn.addEventListener('click', ()=>{
+    uemail.value = ''; urole.value = 'client'; uErr.textContent = ''; uSave.textContent = 'Grant access';
+    uToggle(); uscrim.classList.add('on'); setTimeout(()=>uemail.focus(), 30);
+  });
+  function closeUser(){ uscrim.classList.remove('on'); }
+  if(uscrim) uscrim.addEventListener('click', e=>{ if(e.target===uscrim) closeUser(); });
 
-  async function alPost(ep, body){
-    const r = await fetch(ep, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
-    return r.json().catch(()=>({ok:false, error:'Bad response.'}));
+  async function submitUser(e){
+    e.preventDefault();
+    const body = {action:'upsert', email:(uemail.value||'').trim(), role:urole.value,
+      agency_slug:document.getElementById('uagency').value,
+      client_key:document.getElementById('uclient').value};
+    if(!body.email){ uErr.textContent='Enter an email.'; return false; }
+    uErr.textContent=''; uSave.textContent='Saving…';
+    try{
+      const r = await fetch('/super/api/user', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+      const j = await r.json().catch(()=>({ok:false,error:'Bad response.'}));
+      if(j.ok){ location.reload(); return false; }
+      uErr.textContent = j.error || 'Failed.'; uSave.textContent = 'Grant access';
+    }catch(err){ uErr.textContent = 'Network error — '+err; uSave.textContent = 'Grant access'; }
+    return false;
   }
 
-  if(alAdd) alAdd.addEventListener('click', async ()=>{
-    const email = (alEmail.value || '').trim();
-    if(!email || email.indexOf('@') < 0){ alErr.textContent = 'Enter a valid email.'; return; }
-    const [kind, ref=''] = (alRole.value || '').split(':');   // "agency:slug" / "client:key" / "admin"
-    alErr.textContent = ''; alAdd.textContent = 'Adding…';
-    try{
-      const j = await alPost('/super/api/allowlist-add', {email, kind, ref});
-      if(j.ok){ location.reload(); return; }
-      alErr.textContent = j.error || 'Failed.';
-    }catch(err){ alErr.textContent = 'Network error — '+err; }
-    alAdd.textContent = 'Add email';
-  });
-  if(alEmail) alEmail.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); alAdd.click(); } });
-
-  document.querySelectorAll('.alrm').forEach(b=>{
+  document.querySelectorAll('.deluser').forEach(b=>{
     b.addEventListener('click', async ()=>{
-      const email = b.dataset.email;
-      if(!confirm('Remove '+email+' from Google sign-in?')) return;
-      b.textContent = 'Removing…';
+      if(!confirm('Remove Google access for '+b.dataset.email+'?')) return;
+      b.disabled = true;
       try{
-        const j = await alPost('/super/api/allowlist-remove', {email});
-        if(j.ok){ location.reload(); return; }
-      }catch(err){}
-      b.textContent = 'Remove';
+        const r = await fetch('/super/api/user', {method:'POST', headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({action:'delete', email:b.dataset.email})});
+        const j = await r.json().catch(()=>({ok:false}));
+        if(j.ok){ const row=b.closest('.drow'); if(row) row.remove(); }
+        else { b.disabled=false; alert(j.error||'Could not remove.'); }
+      }catch(e){ b.disabled=false; alert('Network error.'); }
     });
   });
 </script>

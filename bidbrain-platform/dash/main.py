@@ -41,11 +41,6 @@ import feedback
 import feedback_ai
 from store import Store
 
-try:  # optional: Google sign-in is OFF (button hidden, routes inert) if authlib isn't installed
-    from authlib.integrations.flask_client import OAuth
-except ImportError:
-    OAuth = None
-
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]            # platform's own session (separate from SSO)
 app.config.update(
@@ -88,32 +83,13 @@ APPLE_ICON = _read_icon("apple-touch-icon.png")
 
 store = Store()
 
-# --- Google sign-in (OAuth 2.0 / OpenID Connect) — a PARALLEL login to the password gate ---
-# Credentials come from the environment (never hardcoded). When either is missing — or authlib
-# isn't installed — Google sign-in stays OFF: the button is hidden and the /auth/google/* routes
-# redirect home, so the existing password login is completely unaffected. On a successful callback
-# we map the VERIFIED Google email to a role via store.resolve_email and set the SAME session the
-# password flow sets (_establish_session), so the rest of the app/proxy/SSO are unchanged.
-GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
-GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_ENABLED = bool(OAuth and GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
-oauth = OAuth(app) if GOOGLE_ENABLED else None
-if GOOGLE_ENABLED:
-    oauth.register(
-        name="google",
-        client_id=GOOGLE_CLIENT_ID,
-        client_secret=GOOGLE_CLIENT_SECRET,
-        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
-        client_kwargs={"scope": "openid email profile"},
-    )
-
-
-def _google_redirect_uri():
-    """The OAuth callback Google redirects back to — this exact URL must be registered in the Cloud
-    Console. In prod set OAUTH_REDIRECT_BASE=https://dashboards.bidbrain.ai (we never trust the
-    proxied Host/scheme to build it); falls back to the request root for local dev."""
-    base = os.environ.get("OAUTH_REDIRECT_BASE", "").rstrip("/") or request.url_root.rstrip("/")
-    return base + "/auth/google/callback"
+# --- Google sign-in (GIS button + ID-token verification) — a PARALLEL login to the password gate --
+# The login page renders Google's button; the browser posts a signed ID token (JWT) to /auth/google
+# (same-origin fetch). We verify it against this PUBLIC OAuth client id (the JWT `aud`) — no client
+# secret, no redirect flow — then map the VERIFIED email to a role via store.resolve_email and set the
+# SAME session the password flow sets (_establish_session). Empty client id => button hidden, route
+# inert; the password login is completely unaffected. Injected by scripts/enable_google_login.ps1.
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "") or getattr(cfg, "GOOGLE_OAUTH_CLIENT_ID", "")
 
 
 @app.after_request
@@ -183,27 +159,32 @@ def _require_super():
 def _login_page(error=None):
     """Render the login screen (also tells the template whether to show the Google button)."""
     return render_template("login.html", logo_svg=LOGO_SVG, error=error, next_url="",
-                           google_enabled=GOOGLE_ENABLED)
+                           google_client_id=GOOGLE_CLIENT_ID)
 
 
-def _establish_session(kind, payload):
-    """Set the session for a resolved login and return the redirect+SSO response. The SINGLE place
-    that turns a (kind, payload) — from EITHER store.resolve_password or store.resolve_email — into
-    a logged-in session, so password and Google sign-in are guaranteed identical from here on."""
+def _establish_session(kind, payload, json_mode=False):
+    """Set the session for a resolved login and return the response with the SSO cookie. The SINGLE
+    place that turns a (kind, payload) — from EITHER store.resolve_password or store.resolve_email —
+    into a logged-in session, so password and Google sign-in are identical from here on. json_mode
+    returns {ok, next} JSON (for the same-origin Google fetch); otherwise a 302 (password form POST)."""
+    session.clear()
     session.permanent = True
     if kind in ("admin", "superadmin"):
         session["kind"] = kind
         allowed = store.active_client_keys()  # every LIVE dashboard (incl. unassigned, excl. coming_soon)
-        return _set_sso(make_response(redirect("/")), allowed)
-    if kind == "agency":
+        nxt = "/"
+    elif kind == "agency":
         session["kind"] = "agency"
         session["agency_slug"] = payload["slug"]
         allowed = list(payload.get("client_keys", []))
-        return _set_sso(make_response(redirect("/")), allowed)
-    # single dashboard -> straight into the proxied dashboard
-    session["kind"] = "client"
-    session["client_key"] = payload["key"]
-    return _set_sso(make_response(redirect(f"/d/{payload['key']}/")), [payload["key"]])
+        nxt = "/"
+    else:  # single dashboard -> straight into the proxied dashboard
+        session["kind"] = "client"
+        session["client_key"] = payload["key"]
+        allowed = [payload["key"]]
+        nxt = f"/d/{payload['key']}/"
+    resp = make_response(jsonify(ok=True, next=nxt) if json_mode else redirect(nxt))
+    return _set_sso(resp, allowed)
 
 
 @app.get("/")
@@ -241,37 +222,34 @@ def login():
     return _establish_session(kind, payload)
 
 
-@app.get("/auth/google/login")
-def google_login():
-    """Kick off the Google OAuth/OIDC code flow (no-op redirect home if Google sign-in is off)."""
-    if not GOOGLE_ENABLED:
-        return redirect("/")
-    return oauth.google.authorize_redirect(_google_redirect_uri())
-
-
-@app.get("/auth/google/callback")
-def google_callback():
-    """Google redirects back here. Validate the exchange, take the VERIFIED email, map it to a role
-    via the allow-list, and log in with the SAME session as a password. Unlisted email => denied."""
-    if not GOOGLE_ENABLED:
-        return redirect("/")
+@app.post("/auth/google")
+def auth_google():
+    """Native 'Sign in with Google'. The browser GIS button posts a signed ID token (JWT) here via a
+    same-origin fetch; we verify it against our OAuth client id, then map the VERIFIED email to a role
+    with store.resolve_email (same outcomes as a password). Additive — the password box still works."""
+    if not GOOGLE_CLIENT_ID:
+        return jsonify(ok=False, error="Google sign-in is not configured."), 400
+    token = ((request.get_json(silent=True) or {}).get("credential") or "").strip()
+    if not token:
+        return jsonify(ok=False, error="Missing Google credential."), 400
     try:
-        token = oauth.google.authorize_access_token()        # validates state; exchanges code -> tokens
-    except Exception:
-        return _login_page("Google sign-in failed. Please try again."), 401
-    info = token.get("userinfo") or {}
-    if not info:                                             # fallback for authlib builds that don't inline it
-        try:
-            info = oauth.google.userinfo(token=token)
-        except Exception:
-            info = {}
-    email = (info.get("email") or "").strip().lower()
-    if not email or not info.get("email_verified"):
-        return _login_page("Your Google account has no verified email address."), 401
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as ga_requests
+        info = id_token.verify_oauth2_token(token, ga_requests.Request(), GOOGLE_CLIENT_ID,
+                                             clock_skew_in_seconds=10)
+    except Exception as e:   # malformed/expired token, wrong aud, clock skew, certs fetch fail, …
+        app.logger.warning("google id_token verification failed: %s", e)
+        return jsonify(ok=False, error="Could not verify your Google sign-in."), 401
+    if not info.get("email") or not info.get("email_verified"):
+        return jsonify(ok=False, error="Your Google account has no verified email."), 401
+    email = info["email"].strip().lower()
     kind, payload = store.resolve_email(email)
     if kind is None:
-        return _login_page(f"{email} isn't authorised yet. Ask an admin to add your Google email."), 403
-    return _establish_session(kind, payload)
+        return jsonify(ok=False,
+                       error=f"{email} isn’t authorised yet. Ask an admin to grant your account access."), 403
+    resp = _establish_session(kind, payload, json_mode=True)
+    session["email"] = email   # persisted with the session cookie at response time (audit/display)
+    return resp
 
 
 @app.get("/logout")
@@ -974,7 +952,7 @@ def _render_super():
     else:
         st["super_bootstrap"] = False
     return render_template("superadmin.html", logo_svg=LOGO_SVG,
-                           google_enabled=GOOGLE_ENABLED, **st)
+                           google_configured=bool(GOOGLE_CLIENT_ID), **st)
 
 
 @app.get("/admin")
@@ -1021,31 +999,33 @@ def super_agency_password():
     return jsonify(ok=True)
 
 
-@app.post("/super/api/allowlist-add")
-def super_allowlist_add():
-    """Add/overwrite a Google sign-in allow-list entry (email -> role). Super-admin only."""
+@app.post("/super/api/user")
+def super_user():
+    """Grant / change / revoke a Google account's access (super-admin only). Mirrors the password
+    tiers: role superadmin/admin, or agency (+agency_slug), or client (+client_key)."""
     _require_super()
     d = request.get_json(silent=True) or {}
+    action = (d.get("action") or "upsert").strip()
     email = (d.get("email") or "").strip().lower()
-    kind = (d.get("kind") or "").strip()
-    ref = (d.get("ref") or "").strip()
-    if not email or "@" not in email:
-        return jsonify(ok=False, error="A valid email is required."), 400
-    try:
-        store.set_allowed_email(email, kind, ref)
-    except ValueError as e:
-        return jsonify(ok=False, error=str(e)), 400
-    return jsonify(ok=True)
-
-
-@app.post("/super/api/allowlist-remove")
-def super_allowlist_remove():
-    """Remove a Google sign-in allow-list entry. Super-admin only."""
-    _require_super()
-    email = ((request.get_json(silent=True) or {}).get("email") or "").strip().lower()
-    if not email:
-        return jsonify(ok=False, error="Email required."), 400
-    store.remove_allowed_email(email)
+    if action == "delete":
+        if not email:
+            return jsonify(ok=False, error="Email required."), 400
+        store.delete_user(email)
+        return jsonify(ok=True)
+    role = (d.get("role") or "").strip()
+    if "@" not in email or "." not in email.split("@")[-1]:
+        return jsonify(ok=False, error="Enter a valid email address."), 400
+    if role not in ("superadmin", "admin", "agency", "client"):
+        return jsonify(ok=False, error="Choose a role."), 400
+    agency_slug = (d.get("agency_slug") or "").strip()
+    client_key = (d.get("client_key") or "").strip()
+    if role == "agency" and not store.get_agency(agency_slug):
+        return jsonify(ok=False, error="Choose a valid agency."), 400
+    if role == "client" and client_key not in store._all_clients():
+        return jsonify(ok=False, error="Choose a valid dashboard."), 400
+    store.upsert_user(email, role,
+                      agency_slug if role == "agency" else "",
+                      client_key if role == "client" else "")
     return jsonify(ok=True)
 
 
