@@ -514,6 +514,9 @@
       <div class="section first"><h2>Year on year</h2><span class="sub">Plain-dollar finance view (AUD): each month against the same month last year. Use the <b>Date range</b> as a month filter and the <b>Sales channel</b> chips to scope revenue (ad spend is whole — ad data has no channel split). The in-progress month is compared month-to-date (same days, both years) so it stays fair.</span></div>
       <div class="info-note" id="yoyBasisNote"></div>
       <div class="kpis" id="yoyKpis"></div>
+      <div class="card card-tall" style="margin-top:14px"><h3>Cumulative revenue — this year vs last year</h3>
+        <div class="hint">Running total of online revenue (the selected Sales channels — default Website) day by day across the full calendar year. Last year is drawn in full; this year tracks to the latest day and extends automatically. The shaded band is the year-on-year difference. AUD · always full-year (ignores the date range).</div>
+        <div class="chart-wrap"><canvas id="yoyCumChart"></canvas></div></div>
       <div class="card card-tall" style="margin-top:14px"><h3>Online revenue — this year vs last year</h3>
         <div class="hint">Online revenue (the selected Sales channels — default Website) per displayed month, paired with the same month last year. AUD. The in-progress month is shown month-to-date.</div>
         <div class="chart-wrap"><canvas id="yoyRevChart"></canvas></div></div>
@@ -1102,6 +1105,51 @@ function renderYoY(){
     + kpiCard('','Google attributed revenue', moneyM(cr.google), (denom?fmtPct(cr.google/denom,1):'—')+' of online rev · Google click-through only');
 }
 
+/* =================== YEAR ON YEAR — cumulative pace =================== */
+// Running-total revenue this year vs last year, aligned by day of year over the FULL calendar
+// year (Jan→Dec). Per the client's ask this chart is range-INDEPENDENT: last year is always drawn
+// in full and this year's line stops at the latest day with sales (so it extends on its own as new
+// daily data lands — "auto-updates"). The Sales-channel chips STILL scope revenue (default Website),
+// exactly like the monthly YoY above. Lines reuse the SAME gold/sand as the YoY bars; the shaded
+// band between them is the YoY gap, filled with brand-kit sage (growth).
+function renderYoYCumulative(){
+  const id='yoyCumChart', cv=el(id); if(!cv) return;
+  if(charts[id]){ try{charts[id].destroy()}catch(e){} delete charts[id]; }
+  const sbc=DATA.sales_by_channel_daily||[];
+  const MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const MD=[31,28,31,30,31,30,31,31,30,31,30,31], OFF=[]; (function(){let a=0;for(let m=0;m<12;m++){OFF.push(a);a+=MD[m];}})();
+  const doy=s=>{ const mo=+s.slice(5,7), da=+s.slice(8,10); return OFF[mo-1]+Math.min(da,MD[mo-1]); }; // 1..365 (leap-safe)
+  // Channel-scoped daily revenue, bucketed by calendar year → arr indexed by day-of-year (1..365).
+  const byYear={};
+  for(const r of sbc){ if(!chanOk(r)) continue; const s=String(r.day).slice(0,10), y=+s.slice(0,4);
+    (byYear[y]||(byYear[y]=new Array(366).fill(0)))[doy(s)] += (+r.revenue||0); }
+  const years=Object.keys(byYear).map(Number).sort((a,b)=>a-b);
+  if(years.length<2) return;                       // need two calendar years to compare
+  const curY=years[years.length-1], lastY=curY-1;
+  if(!byYear[lastY]) return;
+  let maxCur=0; for(let i=1;i<=365;i++) if(byYear[curY][i]) maxCur=i;   // latest day with sales this year
+  const cum=(arr,cut)=>{ let run=0, out=[]; for(let i=1;i<=365;i++){ run+=arr[i]||0; out.push(cut&&i>cut?null:run); } return out; };
+  const lastCum=cum(byYear[lastY],0), curCum=cum(byYear[curY],maxCur);
+  const labels=[]; for(let m=0;m<12;m++) for(let d=1;d<=MD[m];d++) labels.push(d+' '+MO[m]);
+  charts[id]=new Chart(cv,{ type:'line',
+    data:{labels, datasets:[
+      {label:lastY+' (last year)', data:lastCum, borderColor:C.sand, backgroundColor:'transparent',
+       borderWidth:2,   pointRadius:0, tension:.15},
+      {label:curY+' (this year)',  data:curCum,  borderColor:C.gold, backgroundColor:'rgba(110,139,114,.18)',
+       borderWidth:2.5, pointRadius:0, tension:.15, fill:'-1'}]},   // fill the band down to last year's line
+    options:{maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:Object.assign(legendTop(),{reverse:true}),
+        tooltip:{callbacks:{
+          title:items=>items.length?labels[items[0].dataIndex]:'',
+          label:c=>' '+c.dataset.label+': '+money(c.parsed.y),
+          footer:items=>{ const cy=items.find(i=>i.datasetIndex===1), ly=items.find(i=>i.datasetIndex===0);
+            if(!cy||!ly||cy.parsed.y==null||ly.parsed.y==null) return '';
+            const diff=cy.parsed.y-ly.parsed.y, pct=ly.parsed.y?diff/ly.parsed.y*100:0;
+            return (diff>=0?'▲ +':'▼ −')+money(Math.abs(diff))+'  ('+(diff>=0?'+':'−')+Math.abs(pct).toFixed(1)+'% YoY)'; } }}},
+      scales:{ x:axisX({ticks:{autoSkip:false,maxRotation:0,callback:(v,i)=>{ const m=OFF.indexOf(i); return m>=0?MO[m]:''; }}}),
+               y:gridY({beginAtZero:true,ticks:{callback:moneyM}}) }}});
+}
+
 /* =================== tab orchestration =================== */
 function setTab(t){ activeTab=t; location.hash=t; closeCampaignMenu(); renderControls(); renderActive(); }
 // Wire the global VIEW BY (grain) + AXIS (scale) segmented controls once. data-grain='auto' clears
@@ -1126,7 +1174,7 @@ function renderActive(){
   else if(activeTab==='paid') renderPaid();
   else if(activeTab==='web') renderWeb();
   else if(activeTab==='sales') renderSales();
-  else if(activeTab==='yoy') renderYoY();
+  else if(activeTab==='yoy'){ renderYoY(); renderYoYCumulative(); }
   else renderLink();
 }
 // Banner stating what the date range does (and doesn't) touch — shown only when narrowed.
@@ -1586,7 +1634,7 @@ async function boot(){
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({ min:dateMin, max:dateMax,
       onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });
-    const h=(location.hash||'').replace('#',''); if(['overview','paid','web','sales','link'].includes(h)) activeTab=h;
+    const h=(location.hash||'').replace('#',''); if(['overview','paid','web','sales','link','yoy'].includes(h)) activeTab=h;
     el('loading').style.display='none'; el('content').style.display='block';
     wireTrendSegs();
     renderMeta(); renderControls(); renderActive();
