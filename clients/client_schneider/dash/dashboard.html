@@ -180,6 +180,7 @@
   table td.num,table th.num{text-align:right;font-variant-numeric:tabular-nums}
   table tr:hover td{background:#FAFBFA}
   table tr.total td{font-weight:700;background:#F1FAF2;border-bottom:none}
+  .plan-badge{display:inline-block;font-size:10.5px;font-weight:700;letter-spacing:.3px;color:var(--se-mute);background:#F1F3F5;border:1px solid var(--se-line);border-radius:999px;padding:2px 9px}
   .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F2;color:var(--se-dark)}
   .pill .dot{width:8px;height:8px;border-radius:50%}
   .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 7px;border-radius:5px;text-transform:uppercase}
@@ -235,11 +236,7 @@
   <div id="content" style="display:none">
     <div class="control-bar">
       <div class="control-tabs">
-        <div class="tabs">
-          <button class="tab" id="tabPaid"    onclick="setTab('paid')">Paid Media</button>
-          <button class="tab" id="tabCS"      onclick="setTab('cs')">Content Syndication</button>
-          <button class="tab" id="tabCompare" onclick="setTab('compare')">CS Comparison</button>
-        </div>
+        <div class="tabs" id="tabBar"><!-- tabs are built per selected campaign in renderControls() --></div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <div class="exports">
@@ -414,6 +411,18 @@
       </div>
     </div>
 
+    <!-- ============ OTHER CHANNELS (plan only) ============ -->
+    <div id="tab-other" class="tabpane">
+      <div class="section first">
+        <h2>Other Channels</h2>
+        <span class="sub" id="otherSub">Media-plan channels for this campaign that don't have a measured data feed. Reporting currency AUD.</span>
+      </div>
+      <div class="info-note warn">These channels are in the media plan but have <b>no warehouse data source</b> connected (e.g. Search, publisher sponsorships, trade press, email), so only the <b>plan targets</b> are shown — not measured delivery. Connect a feed (or upload actuals) to report on them.</div>
+      <div class="section">
+        <div style="overflow:auto"><table id="otherTable"><thead><tr><th>Channel</th><th>Type</th><th class="num">Plan impressions</th><th class="num">Plan clicks</th><th class="num">Plan leads</th><th class="num">Plan spend</th><th>Status</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
     <footer id="footMeta"></footer>
   </div>
 </div>
@@ -521,6 +530,10 @@ const FONT={family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,s
 
 function campaign(){ return (DATA.campaigns||[]).find(c=>c.id===activeCampaign) || {}; }
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
+// The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
+// BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
+const TAB_LABEL={paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
+function campaignTabs(){ const t=campaign().tabs; return (t&&t.length)?t:['cs']; }
 function marketOk(m){ return activeMarkets.has(m); }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
@@ -580,7 +593,8 @@ async function boot(){
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
     const h=(location.hash||'').replace('#','');
-    if(['paid','cs','compare'].includes(h)) activeTab=h;
+    const validTabs=campaignTabs();         // tabs for the default (campaigns[0]) campaign
+    activeTab=validTabs.includes(h)?h:validTabs[0];
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
@@ -597,8 +611,8 @@ function renderMeta(){
 //==============================================================================
 // CONTROLS
 //==============================================================================
-function setTab(t){ activeTab=t; location.hash=t; renderControls(); renderActive(); }
-function setCampaign(id){ activeCampaign=id; compareReady=false; renderControls(); renderActive(); }
+function setTab(t){ if(!campaignTabs().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(!t.includes(activeTab)) activeTab=t[0]; renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function allRegions(){ activeMarkets=new Set(DATA.all_markets||[]); renderControls(); renderActive(); }
@@ -606,7 +620,9 @@ function clearRegions(){ activeMarkets=new Set(); renderControls(); renderActive
 function toggleRegion(m){ activeMarkets.has(m)?activeMarkets.delete(m):activeMarkets.add(m); renderControls(); renderActive(); }
 
 function renderControls(){
-  [['tabPaid','paid'],['tabCS','cs'],['tabCompare','compare']].forEach(([id,t])=>el(id).className='tab'+(activeTab===t?' on':''));
+  // tab bar — only the tabs (channels) this campaign actually uses
+  const bar=el('tabBar'); bar.innerHTML='';
+  campaignTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const c=campaign();
   const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
   el('ctrlNote').textContent=`Showing ${c.label||'—'} · ${mkts}`;
@@ -621,10 +637,11 @@ function renderControls(){
 }
 
 function renderActive(){
-  ['paid','cs','compare'].forEach(t=>el('tab-'+t).style.display=(t===activeTab?'block':'none'));
+  ['paid','cs','compare','other'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
   destroyCharts();
   if(activeTab==='paid') renderPaid();
   else if(activeTab==='cs') renderCS();
+  else if(activeTab==='other') renderOther();
   else renderCompare();
   // pm toggles reflect state
   document.querySelectorAll('#pmGrainSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.grain===pmGrain));
@@ -855,9 +872,29 @@ function renderComparePanel(side){
 function csvCell(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }
 function dl(name,lines){ const blob=new Blob([lines.join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
 function tableCSV(section,obj){ const lines=['# '+section]; const keys=Object.keys((obj&&obj[0])||{}); lines.push(keys.join(',')); (obj||[]).forEach(r=>lines.push(keys.map(k=>csvCell(r[k])).join(','))); return lines; }
+//==============================================================================
+// OTHER CHANNELS (plan only — no measured feed)
+//==============================================================================
+function otherChannels(){ return (campaign().channels||[]).filter(c=>c.group==='other' && c.has_target); }
+function renderOther(){
+  el('otherSub').textContent=`Plan-only channels for ${campaign().label} — tracked in the media plan, no measured delivery feed connected.`;
+  const tb=el('otherTable').querySelector('tbody'); tb.innerHTML='';
+  const chans=otherChannels();
+  if(!chans.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for this campaign.</td></tr>'; return; }
+  chans.forEach(c=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${c.name}</td><td>${c.line_type||'—'}</td>`
+      +`<td class="num">${fmtN(c.imp_target)}</td><td class="num">${fmtN(c.click_target)}</td>`
+      +`<td class="num">${fmtN(c.lead_target)}</td><td class="num">${c.spend?money(c.spend):'—'}</td>`
+      +`<td><span class="plan-badge">Plan only · no feed</span></td>`;
+    tb.appendChild(tr);
+  });
+}
+
 function exportThisTab(){
   let lines=[`# Schneider CS — ${activeTab} — ${campaign().label} — ${activeMarketList().join('/')}`];
   if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
+  else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
   else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows())).concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()));
   dl(`schneider_${activeTab}.csv`, lines);
 }

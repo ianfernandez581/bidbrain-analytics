@@ -99,6 +99,21 @@ def main():
     for r in cs:
         leads_by_camp[r["campaign"]] = leads_by_camp.get(r["campaign"], 0) + (r["total"] or 0)
 
+    # Programs that have ACTUAL paid delivery (rows in pm_delivery), for the per-campaign tab logic.
+    paid_programs = {r["program"] for r in pm}
+
+    def chan_group(line_type, channel):
+        """Bucket a media-plan line into the reporting channel it feeds:
+          cs    — lead-gen (LeadGen-MQL/HQL) → Salesforce Content Syndication,
+          paid  — Programmatic / LinkedIn    → DV360/TTD/LinkedIn delivery (pm_delivery),
+          other — Search / publisher sponsorships / Trade / Email → NO warehouse feed (plan only)."""
+        if line_type in ("LeadGen-MQL", "LeadGen-HQL"):
+            return "cs"
+        c = (channel or "").lower()
+        if "linkedin" in c or "programmatic" in c:
+            return "paid"
+        return "other"
+
     campaigns = []
     for cid in CS_PROGRAMS:
         lines = [m for m in media if m["internal_campaign_id"] == cid]
@@ -114,13 +129,44 @@ def main():
         } for m in lead_lines]
         committed = sum(float(m["spend_aud"]) for m in lead_lines if m["spend_aud"])
         b = budget.get(cid, {})
+
+        # Per-campaign channel lineup (from the media plan) + which reporting tabs that implies.
+        channels = []
+        for m in lines:
+            g = chan_group(m["line_type"], m["channel"])
+            has_target = any(m.get(k) for k in
+                             ("spend_aud", "imp_target", "reach_target", "click_target", "lead_target"))
+            channels.append({
+                "name": m["channel"], "group": g, "line_type": m["line_type"],
+                "spend": num(m["spend_aud"]), "imp_target": m["imp_target"],
+                "click_target": m["click_target"], "lead_target": m["lead_target"],
+                "has_target": bool(has_target),
+            })
+        n_leads = leads_by_camp.get(cid, 0)
+        has_paid = any(c["group"] == "paid" for c in channels) or (cid in paid_programs)
+        has_cs = any(c["group"] == "cs" for c in channels) or n_leads > 0
+        other_chans = [c for c in channels if c["group"] == "other" and c["has_target"]]
+        # Tab order matches the dashboard's: Paid Media · Content Syndication · CS Comparison · Other.
+        tabs = []
+        if has_paid:
+            tabs.append("paid")
+        if has_cs:
+            tabs.append("cs")
+        if n_leads > 0:                      # CS Comparison needs real leads to compare markets
+            tabs.append("compare")
+        if other_chans:                      # plan-only channels (Search / publishers / Trade / Email)
+            tabs.append("other")
+        if not tabs:
+            tabs = ["cs"]
+
         campaigns.append({
             "id": cid,
             "label": display.get(cid, cid),
             "target_mql": mql, "target_hql": hql, "target": mql + hql,
             "cpl_tiers": cpl_tiers, "committed_spend": committed,
             "flight_start": ymd(b.get("flight_start")), "flight_end": ymd(b.get("flight_end")),
-            "leads": leads_by_camp.get(cid, 0),
+            "leads": n_leads,
+            "channels": channels, "tabs": tabs,
         })
     # default campaign = most leads, then biggest target (dashboard reads campaigns[0] as default).
     campaigns.sort(key=lambda c: (-c["leads"], -c["target"], c["label"]))

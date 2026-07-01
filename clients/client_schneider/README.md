@@ -54,9 +54,19 @@ vs old 300, W&E/Heavy/EBA budgets, NEL added).
   match_patterns) live in the VERSION-CONTROLLED [`targets/`](targets/) dir (routed by `SRC_DIRS`); the
   remaining dimension seeds read from gitignored `data/` (still BQ-only — see *Updating targets*).
 
-## The 3 dashboard tabs (`dash/dashboard.html`)
+## The dashboard tabs (`dash/dashboard.html`) — now **per-campaign**
 Filters (global): **Campaign** (the 5 programs, single-select seg) · **Region** chips · **Date range**.
-Default tab = **Content Syndication**, default campaign = the one with most leads (EBA today).
+**The tab bar adapts to the selected campaign** — each campaign shows only the channels it actually
+uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
+([`targets/media_plan.csv`](targets/media_plan.csv) `channel` column, bucketed by `chan_group`):
+**Paid Media** (a Programmatic/LinkedIn line, or real `pm_delivery`), **Content Syndication** (a
+lead-gen line, or real leads), **CS Comparison** (only when the campaign has leads), and **Other
+Channels** (plan-only lines with no warehouse feed — Search, publisher sponsorships, trade press,
+email — shown as plan targets + a "Plan only · no feed" badge). Live result: `eba`/`water_env` →
+Paid·CS·Compare; `airset` → Paid·CS; `heavy` → Paid·CS·Compare·Other(Trade Publication);
+`global_rebrand` (Advancing Energy Technology) → Paid·Other(Search + Capital Brief/Energy Magazine/
+Innovation Aus). Default campaign = the one with most leads (EBA today); default tab = its first tab.
+The tab bar is built in `renderControls()`; switching campaign resets to a valid tab (`setCampaign`).
 
 1. **Paid Media** — for the selected program: KPI snapshot (spend / imps / clicks / blended CPC), a
    **platform comparison** table (DV360 / TTD / LinkedIn), a daily delivery chart (Month/Week/Day +
