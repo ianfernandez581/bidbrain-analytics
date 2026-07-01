@@ -913,7 +913,7 @@ function renderKeyEventsBreakdown(){
   const lab=grainLabel(g);
   mkChart('keyEventsBreakdown',{type:'bar',data:{labels:buckets.map(lab),datasets:ds},options:{
     responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:11}}},
+    plugins:{legend:{display:false},   // legend removed — hover tooltips already name each event type
       tooltip:{callbacks:{label:ctx=>{ const v=ctx.dataset._raw?ctx.dataset._raw[ctx.dataIndex]:ctx.parsed.y;
         return ctx.dataset.label+': '+fmtN(v)+(rel?'  ('+Math.round(ctx.parsed.y)+'%)':''); }}}},
     scales:{x:axis({stacked:true}),y:axis(rel
