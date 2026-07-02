@@ -31,6 +31,8 @@ loaders and the client export jobs — they don't touch production beyond loggin
 | [`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1) | **Deploy the shared raw-layer ingest jobs.** Builds, deploys, and schedules the five Cloud Run jobs that land data in the shared `raw_*` BigQuery datasets feeding **every** client dashboard. Ensures the `ingest-runner@` service account + least-privilege IAM first (idempotent). `-Only neto\|meta\|tradedesk\|fields\|snowflake`, `-SkipBuild`, `-Run`. Run as yourself (never cloudbuild from a laptop). | when you change an ingest loader |
 | [`setup.cmd`](setup.cmd) | Double-clickable launcher for `setup.ps1` (runs it with `-ExecutionPolicy Bypass` so you don't fight Windows script policy). | instead of `setup.ps1` if you prefer double-click |
 | [`start_day.cmd`](start_day.cmd) | Double-clickable launcher for `start_day.ps1`. | instead of `start_day.ps1` |
+| [`glm-bypass-mode.ps1`](glm-bypass-mode.ps1) | **Launch Claude Code on Z.ai GLM** ("bypass mode"). Pulls the shared org key from Secret Manager (`glm-api-key`), sets the 5 Anthropic-compatible env vars for the Claude process only (restored on exit so the token never lingers), then launches `claude`. `-NewWindow` opens a fresh terminal. | when you want Claude Code on GLM |
+| [`glm-bypass-mode.cmd`](glm-bypass-mode.cmd) | Double-clickable launcher for `glm-bypass-mode.ps1` (opens a fresh window). | instead of the `.ps1` if you prefer double-click |
 
 ---
 
@@ -43,6 +45,9 @@ loaders and the client export jobs — they don't touch production beyond loggin
 # Every session after that:
 .\scripts\start_day.ps1      # or double-click scripts\start_day.cmd
 
+# Launch Claude Code on Z.ai GLM (shared org key from Secret Manager):
+.\scripts\glm-bypass-mode.ps1   # or double-click scripts\glm-bypass-mode.cmd
+
 # Then run a loader with the venv's Python:
 .\.venv\Scripts\python.exe ingest/windsor_data_pull\meta\meta_loader.py
 
@@ -51,6 +56,35 @@ loaders and the client export jobs — they don't touch production beyond loggin
 .\scripts\deploy_ingest_jobs.ps1 -Only neto   # just one: neto|meta|tradedesk|fields|snowflake
 .\scripts\deploy_ingest_jobs.ps1 -SkipBuild   # redeploy + reschedule without rebuilding
 .\scripts\deploy_ingest_jobs.ps1 -Run         # also execute each job once after deploy
+```
+
+---
+
+## GLM bypass mode (Claude Code on Z.ai GLM)
+
+[`glm-bypass-mode.ps1`](glm-bypass-mode.ps1) launches Claude Code pointed at **Z.ai's
+Anthropic-compatible endpoint** with the **GLM** model family instead of the default Anthropic
+backend. Every dev runs the same setup because the key is shared from Secret Manager, not
+pasted per-machine.
+
+- **The key lives in Secret Manager as `glm-api-key`.** One-time bootstrap: run
+  [`create-glm-secret.ps1`](create-glm-secret.ps1) (prompts for the key, masked) to create it.
+  The launcher then fetches it at runtime
+  (`gcloud secrets versions access`), so it's never committed and never printed. The env vars
+  it sets (`ANTHROPIC_BASE_URL` → `https://api.z.ai/api/anthropic`, `ANTHROPIC_AUTH_TOKEN` ←
+  the key, `ANTHROPIC_DEFAULT_{OPUS,SONNET}_MODEL=glm-5.2`, `...HAIKU...=glm-4.7`) are scoped
+  to the Claude process and **restored on exit**, so the token doesn't linger in your shell.
+- **Prereqs:** `claude` on PATH + gcloud logged in with read access to `glm-api-key`.
+  `setup.ps1` checks both (and prints install instructions if `claude` is missing — it never
+  auto-installs); `start_day.ps1` checks the secret each session.
+- **Access:** devs read secrets through their project role (same as `windsor-api-key`), so no
+  extra IAM is needed for anyone who can already read `windsor-api-key`. If a dev can't:
+  `gcloud secrets add-iam-policy-binding glm-api-key --member=<you> --role=roles/secretmanager.secretAccessor`.
+
+```powershell
+.\scripts\glm-bypass-mode.ps1              # launch in the current terminal
+.\scripts\glm-bypass-mode.ps1 -NewWindow   # launch in a fresh window
+.\scripts\glm-bypass-mode.cmd              # double-click = fresh window
 ```
 
 ---

@@ -141,7 +141,10 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 front-door** — no standalone `status.bidbrain.ai`); no dataset/views; reads the other clients'
 resources, self-gating `*/15`. **`bidbrain-platform/`** — the front-door at `dashboards.bidbrain.ai`.
 **`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1` (deploys the 5 shared ingest
-jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). **Multi-dev flow (1-click,
+jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`), `glm-bypass-mode.ps1`
+(launches Claude Code on Z.ai GLM via the shared `glm-api-key` Secret Manager secret — sets the
+`ANTHROPIC_BASE_URL`/`AUTH_TOKEN`/`*_MODEL` env vars for the Claude process only, restored on exit).
+**Multi-dev flow (1-click,
 agent-driven):** `/push` (→ `push-branch.ps1`) commits + pushes your work to your own `<you>/<desc>`
 branch; `/ship` (→ `merge-branches.ps1`) integrates every dev branch → sanity-gates → lands on `main` →
 auto-deploys ONLY the changed services (path→deploy-script map = its `Resolve-DeployPlan`) → prunes. Both

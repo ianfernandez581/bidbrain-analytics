@@ -70,6 +70,16 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "    check the secret name / your IAM access to it." -ForegroundColor Yellow
 }
 
+# 6b. Verify the GLM launcher can read the shared key (so a launch doesn't fail
+#     mid-task). Captured to $null so the secret never prints.
+Write-Host "[*] Checking Secret Manager (glm-api-key for GLM launcher)..." -ForegroundColor Yellow
+$null = gcloud secrets versions access latest --secret glm-api-key --project $PROJECT 2>$null
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "[OK] glm-api-key readable - GLM launcher ready." -ForegroundColor Green
+} else {
+    Write-Host "[!] Couldn't read glm-api-key (GLM launcher won't work until fixed)." -ForegroundColor Yellow
+}
+
 # 7. BigQuery ping via the Python client (same path your loaders use).
 Write-Host "[*] Pinging BigQuery (raw_windsor)..." -ForegroundColor Yellow
 & $PY -c "from google.cloud import bigquery; bigquery.Client(project='$PROJECT').get_dataset('raw_windsor'); print('ok')" 2>$null | Out-Null
