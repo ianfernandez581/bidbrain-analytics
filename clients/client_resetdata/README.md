@@ -45,6 +45,17 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 > **Reddit notes:** 3 top-of-funnel "Community" campaigns (Feb–Jun 2026), objectives CONVERSIONS + CLICKS.
 > Native engagement (upvotes/downvotes/comments) and all video metrics are NULL upstream, so only delivery
 > + page visits + sparse conversions are surfaced. `reach` is non-additive across days, so it is not summed.
+>
+> **Audience / creative / keywords (added 2026-07-02; views 31–33):** Overview **Audience** = **Google Ads**
+> inferred age / gender / device (`ga_audience`, from the `ads_AgeRange*`/`ads_Gender*` DTS tables scoped to
+> customer_id `1054407474`; `cost_micros`/1e6 → AUD). It is "who the **ads** reached", **not** site visitors —
+> **GA4 `DemographicDetails` is EMPTY** (Google thresholds demographics on this low-traffic property) and Google
+> Ads **geo is country-only** (~all Australia), so neither is used; label it as Google-Ads-only + directional.
+> Paid-Media **Creative gallery** = **Meta** `meta_creatives` (thumbnail / title / body per `creative_id`;
+> `creative_thumbnail_url` is a Meta CDN link that can EXPIRE — the view keeps the most-recent URL and the export
+> refreshes it each rebuild, with a graceful "preview unavailable" fallback). **"Who we targeted"** = top **Google
+> Ads keywords** (`ga_keywords`, search intent — more meaningful than audience segments for a search account).
+> Job emits `ga_audience` / `ga_keywords` / `meta_creatives`.
 
 ## Currency & FX
 
@@ -87,7 +98,8 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 
 1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · ad-driven sessions · engaged ·
    key events), hero monthly **spend (stacked by platform) vs sessions** with key-events dashed line, and
-   channel-mix / spend-by-platform donuts. **KPI cards that map to a chart line are clickable toggles**:
+   channel-mix / spend-by-platform donuts, and an **Audience** section (age bar + gender / device donuts =
+   Google Ads *ad-audience* demographics; see the data-source note). **KPI cards that map to a chart line are clickable toggles**:
    Media spend, Impressions, Clicks, Website sessions and Key events hide/show their matching series on the
    hero chart (the card dims when off) — the same effect as clicking the chart's legend, driven from the
    card. Wired via `trendCard`'s `toggle` spec → `toggleKpiCard`/`applyKpiToChart` (keyed by chart-series
@@ -97,7 +109,9 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
    **Website Traffic** tab applies the same: **Sessions** and **Ad-driven** are clickable (toggling the
    webTrend "All sessions" / "Ad-driven (paid)" lines); Users / Engaged / Page views / Key events are static.
 2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by
-   platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, and a **Reddit
+   platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, a **Creative gallery**
+   (Meta ad thumbnails + copy + per-creative delivery), a **"Who we targeted"** panel (top Google Ads search
+   keywords + conversions), and a **Reddit
    community-awareness deep-dive** (KPI cards with cost-per-outcome, an **efficiency trend** — impressions
    bars vs CPM/CPC lines, reframing the old spend-vs-impressions view so the *rising cost of a narrow AU
    auction*, not performance, explains the impression taper — and the 3 campaigns by objective with page
