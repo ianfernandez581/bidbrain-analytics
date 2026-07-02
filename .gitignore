@@ -33,8 +33,10 @@ desktop.ini
 *.ndjson
 _run/
 
-# Claude Code harness / session state (not part of the project)
-.claude/
+# Claude Code harness / session state (not part of the project) -- but DO track the shared
+# team slash commands under .claude/commands/ (/push, /ship). Ignore everything else.
+.claude/*
+!.claude/commands/
 
 # Per-developer branch name remembered by scripts/push-branch.ps1 (machine-local)
 scripts/.devname

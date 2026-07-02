@@ -15,17 +15,25 @@
 #        (optionally .\scripts\merge-branches.ps1 -DryRun FIRST to print the land+deploy
 #         plan and change nothing -- good when you're unsure what will ship.)
 #
-#     2. If it STOPS on a MERGE CONFLICT: it has aborted that one branch's merge and left
-#        the clean merges on `integration/merge`. Open the conflicting files, resolve them
-#        SEMANTICALLY -- preserve BOTH developers' intent (e.g. two people who edited the
-#        same dashboard.html); never just pick one side blindly -- commit the resolution,
-#        then re-run this script. It will pick up from a clean state.
+#     2. If it STOPS on a MERGE CONFLICT: it LEAVES the conflict in the working tree (it does
+#        NOT abort). Open the conflicting files, resolve them SEMANTICALLY -- preserve BOTH
+#        developers' intent (e.g. two people who edited the same dashboard.html); never just
+#        pick one side blindly. Then commit + continue:
+#            git add -A; git commit --no-edit
+#            .\scripts\merge-branches.ps1 -Resume
+#        -Resume KEEPS your resolution and carries on (it doesn't rebuild the integration from
+#        scratch), so the loop converges. Repeat until it stops stopping.
 #
 #     3. If it STOPS on the SANITY GATE: the integrated tree has a leftover conflict marker,
 #        a Python syntax error, or invalid JSON (usually a botched conflict resolution). Fix
-#        it on the integrated tree, then re-run. NEVER land a tree that fails the gate.
+#        it on the integrated tree, then `git add -A; git commit --no-edit` and re-run with
+#        -Resume. NEVER land a tree that fails the gate.
 #        (NOTE: this repo has no unit-test/CI suite, so the gate is a syntax + merge-sanity
 #         check, not a behavioural test. Deploy scripts still rebuild + run the export jobs.)
+#
+#   ONE-CLICK: developers don't run this by hand -- they use the /ship slash command
+#   (.claude/commands/ship.md), which tells you (the agent) to run it and drive the whole
+#   resolve -> commit -> -Resume loop automatically. /push wraps push-branch.ps1.
 #
 #     4. On success it has ALREADY: landed `integration/merge` into `main` (fast-forward,
 #        pushed), deployed every service whose files changed (see the mapping below), and
@@ -41,8 +49,8 @@
 #      dev branch first (delegates to push-branch.ps1) so your work is integrated too.
 #   1. fetch + discover every per-developer branch on origin (everything except main).
 #   2. create a throwaway `integration/merge` branch off origin/main.
-#   3. merge each branch in turn -- on the FIRST conflict it aborts that merge and STOPS
-#      (hand off to the agent per the runbook above).
+#   3. merge each branch in turn -- on the FIRST conflict it LEAVES the conflict in the tree
+#      and STOPS (hand off to the agent per the runbook above; resolve + commit + -Resume).
 #   4. run the local SANITY GATE against the integrated result; STOP if anything is broken.
 #   5. LAND: fast-forward `main` to the integrated result and push origin main.
 #   6. DEPLOY: diff the integrated result against the old main, map each changed path to
@@ -62,6 +70,10 @@
 #   -NoDeploy      land to main, but do NOT deploy the changed services (deploy later).
 #   -NoPrune       skip the branch cleanup at the end.
 #   -Exclude a,b   skip specific dev branches (comma-separated).
+#   -Resume        continue an integration you've been resolving (after resolving a conflict
+#                  or a gate failure and committing) -- keeps your commits, skips already-
+#                  merged branches, re-gates, then lands + deploys. This is what makes the
+#                  conflict loop converge; the /ship command drives it for you.
 #   -DeleteMerged  standalone: ONLY prune remote branches already contained in origin/main
 #                  (runs nothing else).
 #
@@ -79,7 +91,8 @@ param(
     [switch]$NoPush,
     [switch]$NoDeploy,
     [switch]$NoPrune,
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$Resume     # continue an integration you've been resolving (keeps your commits)
 )
 
 $ErrorActionPreference = "Continue"
@@ -90,6 +103,13 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path   # scripts/ -> repo 
 Set-Location $repo
 
 $origBranch = (git rev-parse --abbrev-ref HEAD 2>$null)   # remembered so -DryRun can restore it
+
+# A merge left in progress from a previous conflict run: don't silently stomp it. Either
+# finish it and -Resume, or abort it and start fresh -- never proceed over it blindly.
+git rev-parse -q --verify MERGE_HEAD *>$null
+if ($LASTEXITCODE -eq 0 -and -not $Resume) {
+    Die "a merge is in progress (unresolved conflict from a previous run). Resolve it then 'git add -A; git commit --no-edit' and re-run with -Resume, or 'git merge --abort' to discard it and start fresh."
+}
 
 # -DryRun integrates locally; it never commits your WIP, so a dirty tree would block the
 # integration checkout. Require a clean tree for the preview (the real run commits first).
@@ -295,13 +315,29 @@ if ($DryRun) {
 }
 
 # =============================================================================
-# 1. Fresh view of remotes, then discover the dev branches (origin/* minus main/HEAD).
+# 1-3. Discover dev branches, (re)build the integration branch, and merge each one.
+#      Default: rebuild `integration/merge` fresh off the current origin/main.
+#      -Resume: continue the integration you've been resolving (keeps your commits) --
+#               so a conflict/gate fix you committed is NOT thrown away on re-run.
 # =============================================================================
-Write-Host "[..] Fetching origin" -ForegroundColor Cyan
-git fetch origin --prune; Must "git fetch"
+$intg = "integration/merge"
 
-$baseMain = (git rev-parse origin/main).Trim()   # the main we are integrating ON TOP OF
-Must "resolve origin/main"
+if ($Resume) {
+    $cur = (git rev-parse --abbrev-ref HEAD 2>$null); $cur = "$cur".Trim()
+    if ($cur -ne $intg) { Die "-Resume expects to be on '$intg' but HEAD is '$cur'. Re-run WITHOUT -Resume to start a fresh integration." }
+    if (-not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
+        Die "-Resume needs a clean tree. Finish the resolution first:  git add -A; git commit --no-edit   (or 'git merge --abort' to discard it), then re-run -Resume."
+    }
+    Write-Host "[..] Resuming the in-progress integration on $intg" -ForegroundColor Cyan
+    git fetch origin --prune; Must "git fetch"
+    $baseMain = (git merge-base origin/main $intg 2>$null); $baseMain = "$baseMain".Trim()
+    if ([string]::IsNullOrWhiteSpace($baseMain)) { Die "could not find the base of $intg -- re-run WITHOUT -Resume." }
+} else {
+    Write-Host "[..] Fetching origin" -ForegroundColor Cyan
+    git fetch origin --prune; Must "git fetch"
+    $baseMain = (git rev-parse origin/main).Trim()   # the main we are integrating ON TOP OF
+    Must "resolve origin/main"
+}
 
 $branches = git branch -r --format='%(refname:short)' |
     ForEach-Object { $_.Trim() } |
@@ -316,32 +352,45 @@ if (-not $branches) {
 }
 Write-Host "[OK] branches to integrate: $($branches -join ', ')"
 
-# =============================================================================
-# 2. Throwaway integration branch off the CURRENT origin/main.
-# =============================================================================
-$intg = "integration/merge"
-Write-Host "[..] Creating $intg off origin/main" -ForegroundColor Cyan
-git switch -C $intg origin/main; Must "create $intg"
+if (-not $Resume) {
+    Write-Host "[..] Creating $intg off origin/main" -ForegroundColor Cyan
+    git switch -C $intg origin/main; Must "create $intg"
+}
 
-# =============================================================================
-# 3. Merge each branch; STOP on the first conflict (hand off to the agent per runbook).
-# =============================================================================
+# Merge each branch NOT already contained in the integration. On a conflict we LEAVE it in
+# the working tree (never abort) so the agent can resolve it in place, commit, and re-run
+# with -Resume -- which keeps that commit and continues from here. Converges for both
+# textual conflicts and semantic/gate fixes (any committed fix survives the resume).
 $merged = @()
 foreach ($b in $branches) {
+    git merge-base --is-ancestor "origin/$b" HEAD 2>$null
+    if ($LASTEXITCODE -eq 0) { Write-Host "    [skip] $b already integrated" -ForegroundColor DarkGray; $merged += $b; continue }
+
     Write-Host "[..] Merging $b" -ForegroundColor Cyan
     git merge --no-ff -m "Merge $b into $intg" "origin/$b"
     if ($LASTEXITCODE -ne 0) {
-        git merge --abort
+        if ($DryRun) {
+            # DryRun must leave no state behind: abort the conflict + restore, don't hand off.
+            git merge --abort *>$null
+            Write-Host "[dry-run] $b conflicts with the integration -- can't preview past it (resolve it in a real run)." -ForegroundColor Yellow
+            if ($origBranch -and $origBranch -ne 'HEAD' -and $origBranch -ne $intg) { git switch $origBranch *>$null } else { git switch main *>$null }
+            git branch -D $intg *>$null
+            exit 1
+        }
+        $unmerged = @(git diff --name-only --diff-filter=U | ForEach-Object { $_.Trim() } | Where-Object { $_ })
         Write-Host ""
-        Write-Host "[CONFLICT] $b does not merge cleanly -- aborted that merge." -ForegroundColor Red
-        Write-Host "  Already integrated cleanly: $($merged -join ', ')" -ForegroundColor Yellow
-        Write-Host "  AGENT: resolve this branch's conflict semantically (preserve BOTH devs' intent)," -ForegroundColor Yellow
-        Write-Host "         commit, then re-run this script. The $intg branch holds the clean merges so far."
+        Write-Host "[CONFLICT] $b does not merge cleanly -- the conflict is LEFT IN THE TREE for you to resolve." -ForegroundColor Red
+        Write-Host "  Conflicted file(s):" -ForegroundColor Yellow
+        $unmerged | ForEach-Object { Write-Host "      $_" -ForegroundColor Yellow }
+        Write-Host "  Already integrated: $($merged -join ', ')" -ForegroundColor Yellow
+        Write-Host "  AGENT: resolve each file semantically (preserve BOTH devs' intent), then run:" -ForegroundColor Yellow
+        Write-Host "         git add -A; git commit --no-edit" -ForegroundColor Yellow
+        Write-Host "         .\scripts\merge-branches.ps1 -Resume   (keeps your resolution + continues; also -Resume after fixing a gate failure)" -ForegroundColor Yellow
         exit 1
     }
     $merged += $b
 }
-Write-Host "[OK] all branches merged cleanly: $($merged -join ', ')" -ForegroundColor Green
+Write-Host "[OK] all branches integrated: $($merged -join ', ')" -ForegroundColor Green
 
 # =============================================================================
 #    Compute the changed set ONCE (used by the gate, -DryRun, -NoPush and deploy).
