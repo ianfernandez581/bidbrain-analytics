@@ -87,7 +87,12 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 
 1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · ad-driven sessions · engaged ·
    key events), hero monthly **spend (stacked by platform) vs sessions** with key-events dashed line, and
-   channel-mix / spend-by-platform donuts.
+   channel-mix / spend-by-platform donuts. **The Overview KPI cards are clickable toggles**: Media spend,
+   Impressions, Clicks, Website sessions and Key events hide/show their matching series on the hero chart
+   (the card dims when off) — the same effect as clicking the chart's legend, driven from the card. Wired
+   via `trendCard`'s `toggle` spec → `toggleKpiCard`/`applyKpiToChart` (keyed by chart-series label, so
+   `mkChart` reapplies it on every grain/date re-render). Ad-driven & Engaged (no hero line) and the CRM
+   funnel cards (HubSpot snapshot, no time series) are intentionally static.
 2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by
    platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, and a **Reddit
    community-awareness deep-dive** (KPI cards with cost-per-outcome, an **efficiency trend** — impressions
