@@ -80,6 +80,11 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
   spend), all selected by default. Scopes **ad delivery only**; the GA4/website side stays whole. Powered
   by the campaign-grained `ad_campaign*` views, summed client-side.
 
+> **Chart toggles default to Absolute + Day** (client preference, 2026-07-02) — this client deliberately
+> diverges from the repo-wide "Relative" default. The defaults live in the `grain`/`scale` objects in
+> `dash/dashboard.html` (`syncToggleDefaults()` highlights the matching AXIS/VIEW-BY buttons at load);
+> don't "fix" them back to Relative/Month.
+
 1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · ad-driven sessions · engaged ·
    key events), hero monthly **spend (stacked by platform) vs sessions** with key-events dashed line, and
    channel-mix / spend-by-platform donuts.

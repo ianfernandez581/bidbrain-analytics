@@ -500,10 +500,12 @@ const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!range
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
 
-// ---- Drill-down grain (Looker-style) + per-chart axis mode (Relative default) ----
+// ---- Drill-down grain (Looker-style) + per-chart axis mode ----
 // grain: month | week | day  ·  scale: 'rel' (each line indexed to its own peak) | 'abs' (real values)
-const grain = { hero:'month', web:'month', reddit:'month', paid:'month', ke:'month', a2tm:'month', a2tw:'week' };
-const scale = { hero:'rel', web:'rel', reddit:'abs', paid:'rel', ke:'rel', a2tm:'rel', a2tw:'rel' };
+// Default is Absolute + Day for every toggled chart (syncToggleDefaults() below highlights the
+// matching buttons at load, so these two objects are the single source of truth for the defaults).
+const grain = { hero:'day', web:'day', reddit:'day', paid:'day', ke:'day', a2tm:'day', a2tw:'day' };
+const scale = { hero:'abs', web:'abs', reddit:'abs', paid:'abs', ke:'abs', a2tm:'abs', a2tw:'abs' };
 let heroScale = scale.hero;   // kept as a back-compat alias (renderHero reads it)
 let defaultStart = null;      // the "since May" default — used by the drill "↩ All months" reset
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -520,6 +522,14 @@ const grainKeyField = g => g==='day' ? 'day' : g==='week' ? 'week_start' : 'mont
 const grainLabel    = g => g==='day' ? dyLabel : g==='week' ? wkLabel : moLabel;
 const grainInRange  = g => g==='month' ? inRangeMonth : inRangeWeek;   // day reuses the ISO compare
 function segPick(btn){ if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); }
+// Highlight each AXIS / VIEW-BY toggle's active button from the grain/scale defaults above, so the
+// buttons always match what the charts actually render (seg ids are `<key>ScaleSeg` / `<key>GrainSeg`).
+function syncToggleDefaults(){
+  const mark=(segId,attr,val)=>{ const seg=document.getElementById(segId); if(!seg)return;
+    [...seg.querySelectorAll('button['+attr+']')].forEach(b=>b.classList.toggle('on',b.getAttribute(attr)===val)); };
+  Object.keys(scale).forEach(k=>mark(k+'ScaleSeg','data-scale',scale[k]));
+  Object.keys(grain).forEach(k=>mark(k+'GrainSeg','data-grain',grain[k]));
+}
 function setHeroGrain(g,btn){ grain.hero=g; segPick(btn); renderHero(); }
 function setHeroScale(s,btn){ scale.hero=s; heroScale=s; segPick(btn); renderHero(); }
 function setWebGrain(g,btn){ grain.web=g; segPick(btn); renderWebsite(); }
@@ -723,6 +733,7 @@ fetch('/data.json').then(r=>r.json()).then(d=>{
   DATA.ad_campaigns.forEach(r=>selCamp.add(ckey(r.platform,r.campaign)));
   buildCampaignPanel();
   setNotes();
+  syncToggleDefaults();
   renderAll();
 }).catch(e=>{document.body.innerHTML='<div style="padding:40px;color:#FB7185">Failed to load data: '+e+'</div>';});
 
