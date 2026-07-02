@@ -1445,6 +1445,7 @@ def proxy(client, subpath):
         is_dashboard = b"/data.json" in body        # the real dashboard page (vs. a sub-view); see _unauth
         body = body.replace(b"/data.json", f"/d/{client}/data.json".encode())
         body = body.replace(b"'/report'", f"'/d/{client}/report'".encode())  # AI report POST (mongodb)
+        body = body.replace(b"/creative-img/", f"/d/{client}/creative-img/".encode())  # cached creative images (resetdata gallery)
         if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout + feedback control
             body = body.replace(b"</body>", _LOGOUT_BUTTON + _feedback_widget(client) + b"</body>", 1)
     out = Response(body, status=resp.status_code, content_type=ctype)
