@@ -16,6 +16,13 @@
     --tile-fill:color-mix(in srgb,var(--accent) 14%,transparent);     /* eyebrow / icon-tile fill */
     --tile-line:color-mix(in srgb,var(--accent) 32%,transparent);     /* eyebrow / icon-tile border */
     --sp-sect:26px;                                                   /* section rhythm */
+    /* One shared glow, reused behind every card + chart so the whole dashboard reads as lit by
+       the same top-center bloom. --glow is the house blue (same hue as the body bloom above);
+       --card-glow = a top inset highlight + a depth drop-shadow + the soft ambient bloom. */
+    --glow:rgba(72,130,255,.34);
+    --card-glow:0 1px 0 rgba(255,255,255,.045) inset,
+                0 24px 50px -28px rgba(0,0,0,.85),
+                0 0 44px -16px var(--glow);
     --ink:#EEF2F8; --muted:#AAB4C5; --muted2:#68738A;
     --accent:#E84A6F;          /* ResetData crimson-pink — primary / active */
     --accent2:#F472A0;         /* lighter pink */
@@ -66,7 +73,7 @@
 
   /* filter bar */
   .filters{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin:14px 0 4px}
-  .fgroup{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:11px;padding:9px 12px}
+  .fgroup{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:11px;padding:9px 12px;box-shadow:var(--card-glow)}
   .fgroup .lbl{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted2);margin-bottom:6px}
   .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;margin:2px;border-radius:7px;
         font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line2);background:var(--panel2);color:var(--muted)}
@@ -153,7 +160,7 @@
   .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 12%,transparent),transparent 58%),
        linear-gradient(180deg,var(--card-1),var(--card-2));
        border:1px solid var(--hair);
-       border-radius:11px;padding:15px 16px;position:relative;overflow:hidden}
+       border-radius:11px;padding:15px 16px;position:relative;overflow:hidden;box-shadow:var(--card-glow)}
   .kpi .label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
   .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;background:var(--kc,var(--accent));
        box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
@@ -170,7 +177,7 @@
   .kpi.clk.off{opacity:.42;filter:grayscale(.75)}
   .kpi.clk.off .label::after{background:transparent;box-shadow:none}
 
-  .panel-box{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:16px;padding:18px}
+  .panel-box{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:16px;padding:18px;box-shadow:var(--card-glow)}
   .panel-box h3{margin:0 0 4px;font-size:19px;font-weight:600;color:var(--ink);letter-spacing:-.2px}
   .panel-box h3 .hl{color:var(--accent)}
   .panel-box .hint{font-size:11.5px;color:var(--muted2);margin:0 0 12px}
@@ -180,6 +187,12 @@
   .chartbox{position:relative;height:300px}
   .chartbox.tall{height:340px}
   .chartbox.sm{height:280px}  /* donuts: legend now sits on top, so give the ring a little more room */
+  /* Soft ambient bloom BEHIND the chart canvas — the chart's transparent background lets it glow
+     through the plot area (the "glow behind the charts" from the house sample). Non-interactive;
+     the canvas is lifted above it so lines/bars/rings always paint on top. */
+  .chartbox::before{content:"";position:absolute;inset:8% 10%;z-index:0;pointer-events:none;
+       background:radial-gradient(58% 62% at 50% 46%,var(--glow),transparent 72%);filter:blur(8px);opacity:.55}
+  .chartbox>canvas{position:relative;z-index:1}
   /* Creative gallery (Paid Media): Meta ad previews as cards */
   .creative-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:10px}
   .ccard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
@@ -479,12 +492,13 @@
   <section id="tab-ads2traffic" class="hide">
     <div class="panel-box">
       <div class="panelhead">
-        <div><h3>Ad spend vs sessions</h3><p class="hint">Media spend (bars, filtered) vs website sessions (line). Does the spend ramp move the traffic? <b>Relative</b> indexes the sessions line to its own peak; <b>Absolute</b> uses a dedicated sessions axis.</p></div>
+        <div><h3>Ad spend vs sessions</h3><p class="hint">Media spend (bars) vs the <b>ad-driven</b> sessions it produced (solid line), with <b>total</b> sessions (dashed) for context - this is how our ads created the traffic. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses a dedicated sessions axis.</p></div>
         <div class="ctrls">
           <span class="seg" id="a2tmScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setA2tmScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setA2tmScale('abs',this)">Absolute</button></span>
           <span class="seg" id="a2tmGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setA2tmGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setA2tmGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setA2tmGrain('day',this)">Day</button></span>
         </div>
       </div>
+      <div id="a2tShare" class="crm-callout"></div>
       <div class="chartbox"><canvas id="a2tMonthly"></canvas></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
@@ -512,6 +526,7 @@
 
     <!-- The signup funnel: Leads → App signups → Loaded balance → Paying → Customers -->
     <div class="grid kpis" id="crmKpis"></div>
+    <div class="note" id="crmAttrNote"></div>
 
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box">
@@ -1212,17 +1227,21 @@ function renderHero(){
   const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
     type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
   }));
+  // Relative = index every effect line to the SHARED peak across all of them (tallest = 100%), on an
+  // auto-scaling axis — so hiding a metric card rescales the axis and the remaining lines reflow/animate
+  // (matching Absolute). Trade-off: smaller-volume metrics read shorter. _raw keeps the true values.
+  const relMax = rel ? Math.max(1, ...effects.flatMap(e=>(e.data||[]).map(v=>+v||0))) : 1;
   effects.forEach(e=>ds.push({
     type:'line',label:e.label,borderColor:e.color,backgroundColor:e.color,
-    data: rel?indexed(e.data):e.data, _raw:e.data,
+    data: rel?e.data.map(v=>(+v||0)/relMax*100):e.data, _raw:e.data,
     yAxisID: rel?'yRel':((e.label==='Clicks'||e.label==='Impressions')?'y2':'y1'),
     tension:.3,borderWidth:e.w,pointRadius:2,borderDash:e.dash?[5,4]:undefined,order:1
   }));
   const scales = rel
     ? { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-        yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},
-          title:{display:true,text:'Effects: % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
+        yRel:axis({position:'right',min:0,grace:'6%',grid:{drawOnChartArea:false},
+          title:{display:true,text:'Effects: % of shared peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
         y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions / key events',color:tickClr}}),
@@ -1234,7 +1253,7 @@ function renderHero(){
       tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         if(d.type==='bar') return d.label+': '+aud(ctx.parsed.y);
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
-        return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+        return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of max)':''); }}}},
     scales}});
 }
 // breakdown of what the "Key events" line is made of — GA4 key events by type, stacked per period.
@@ -1540,10 +1559,15 @@ function renderAds2Traffic(){
   // to its own peak (shared 0–100 axis); "Absolute" uses a dedicated sessions axis. M/W/D grain.
   const gm=grain.a2tm, gaM=tsGA4(gm), mkeys=gaM.keys;
   const adM=tsAd(gm, mkeys, campActive);
-  const sessM=gaM.rows.map(gaM.sessOf), relM=(scale.a2tm==='rel');
+  const sessM=gaM.rows.map(gaM.sessOf), mapM=gaM.rows.map(mappedSess), relM=(scale.a2tm==='rel');
+  // Honest "ads created this traffic" stat: ad-driven share of sessions across the visible range.
+  const _tS=sessM.reduce((a,b)=>a+b,0), _tA=mapM.reduce((a,b)=>a+b,0);
+  const _a2ts=document.getElementById('a2tShare');
+  if(_a2ts) _a2ts.innerHTML=_tS ? 'Ads drove <b>'+pct(div(_tA,_tS))+'</b> of website sessions in this view <span style="color:var(--muted2)">('+fmtN(_tA)+' of '+fmtN(_tS)+')</span>' : '';
   mkChart('a2tMonthly',{data:{labels:mkeys.map(grainLabel(gm)),datasets:[
     {type:'bar',label:'Ad spend',backgroundColor:mc('Ad spend'),data:adM.spend,yAxisID:'y'},
-    {type:'line',label:'Sessions',borderColor:mc('Sessions'),data:relM?indexed(sessM):sessM,_raw:sessM,yAxisID:relM?'yRel':'y1',tension:.3,borderWidth:2.5,pointRadius:2,borderDash:[5,4]}]},
+    {type:'line',label:'Ad-driven sessions',borderColor:mc('Ad-driven (paid)'),backgroundColor:mc('Ad-driven (paid)'),data:relM?indexed(mapM):mapM,_raw:mapM,yAxisID:relM?'yRel':'y1',tension:.3,borderWidth:2.5,pointRadius:2},
+    {type:'line',label:'Total sessions',borderColor:mc('Sessions'),data:relM?indexed(sessM):sessM,_raw:sessM,yAxisID:relM?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,borderDash:[5,4]}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         if(d.type==='bar')return d.label+': '+aud(ctx.parsed.y);
@@ -1755,6 +1779,14 @@ function renderCRM(){
     '<b>Source: HubSpot CRM</b> (live snapshot, not scoped by the ad filters above). “Signup” = created an <code>app.reset.ai</code> account; '+
     '“loaded balance” = has account credit (mostly the free $50); “paying” = has actually spent. CRM data through '+
     (k.last_signup_at||'').replace('T',' ').replace('Z',' UTC')+'.';
+
+  // Honest attribution-gap callout - protects against over-reading this tab as "ads -> signups".
+  const _sq=C.source_quality||[];
+  const _adAttr=_sq.reduce((s,r)=>s+(+r.ad_attributed||0),0);
+  const _sg=+k.app_signups||0;
+  const _offdir=_sq.filter(r=>{const s=(r.source||'').toLowerCase();return s==='offline / sales'||s==='direct';}).reduce((s,r)=>s+(+r.signups||0),0);
+  const _an=document.getElementById('crmAttrNote');
+  if(_an) _an.innerHTML='<b>Signup attribution is thin.</b> Only <b>'+fmtN(_adAttr)+'</b> of '+fmtN(_sg)+' app signups ('+pct(div(_adAttr,_sg))+') carry an ad click-ID (gclid/fbclid); '+pct(div(_offdir,_sg))+' land Offline/Direct in HubSpot. Ads clearly drive <b>traffic</b>, but ad-to-signup links here are <b>directional, not attributed</b>.';
 }
 
 // close campaign panel on outside click
