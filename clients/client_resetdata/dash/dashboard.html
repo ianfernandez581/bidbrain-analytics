@@ -777,7 +777,7 @@ function setNotes(){
   document.getElementById('paidNote').innerHTML=
     '<b>Conversion reporting differs by platform.</b> Google Ads conversions come from Google\'s own tracking (reliable). '+
     'Meta leads are the advertiser\'s <b>“Signup Button”</b> custom pixel conversion (the deliberate lead tracker); Reddit sign-up / lead clicks are configured but <b>sparse</b>. The Trade Desk reports <b>no conversions</b> upstream, so its '+
-    'cost-per-lead is shown as “—”. All spend is AUD (Trade Desk converted from USD at FX '+fmt1(DATA.fx_usd_aud)+').';
+    'cost-per-lead is shown as “-”. All spend is AUD (Trade Desk converted from USD at FX '+fmt1(DATA.fx_usd_aud)+').';
   document.getElementById('gaNote').innerHTML=
     '<b>GA4 key-event tracking is real but low-volume.</b> Conversions populate (the configured event is '+
     '<code>Leadform_submit</code>; <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code> and the '+

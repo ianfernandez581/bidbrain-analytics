@@ -864,7 +864,7 @@ def stage_definitions(client):
     name = (d.get("name") or "").strip()
     defs = d.get("definitions")
     if not name:
-        return jsonify(ok=False, error="Your name is required — it is recorded as the editor."), 400
+        return jsonify(ok=False, error="Your name is required - it is recorded as the editor."), 400
     if not isinstance(defs, dict):
         return jsonify(ok=False, error="Invalid definitions payload."), 400
     live = _read_definitions(client) or {}
@@ -893,7 +893,7 @@ def deploy_definitions(client):
         abort(403)
     staged = _read_definitions(client, staged=True)
     if staged is None:
-        return jsonify(ok=False, error="Nothing staged — save your edits first."), 400
+        return jsonify(ok=False, error="Nothing staged - save your edits first."), 400
     try:
         _run_status_deploy(client)
     except Exception as e:

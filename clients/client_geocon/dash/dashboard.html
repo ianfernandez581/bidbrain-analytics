@@ -893,7 +893,7 @@ const BB_THEME = {
   bg:'231A17', panel:'352622', accent:'6C291B', accentInk:'FFFEEC', softBg:'FFF9EF',
   lightBg:'FFFFFF', ink:'2B211D', mute:'786B63', line:'E6E9ED', onDark:'FFFEEC', onDarkMute:'BD9A8E',
   serif:'Georgia', sans:'Arial', mono:'Courier New',
-  agency:'BidBrain', client:'Geocon — Gateway Braddon', brand:'BIDBRAIN × GEOCON', filePrefix:'Geocon_Gateway_Braddon'
+  agency:'BidBrain', client:'Geocon - Gateway Braddon', brand:'BIDBRAIN × GEOCON', filePrefix:'Geocon_Gateway_Braddon'
 };
 async function bbDeckLogos(){
   try {
@@ -909,7 +909,7 @@ async function bbHeadlessSlides(){
     const payload = buildReportPayload();
     const res = await fetch('/report', { method:'POST', cache:'no-store',
       headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if (!res.ok){ let d=''; try { d=(await res.json()).error||''; } catch(_){} throw new Error('HTTP '+res.status+(d?' — '+d:'')); }
+    if (!res.ok){ let d=''; try { d=(await res.json()).error||''; } catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
     const report = await res.json();
     const logos = await bbDeckLogos();
     await bbBuildDeck(report, payload, BB_THEME, logos);

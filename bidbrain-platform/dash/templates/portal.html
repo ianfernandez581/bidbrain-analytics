@@ -97,7 +97,7 @@
             <span class="open">Open dashboard →</span>
             {% if c.key in slides_clients %}<span class="slidesbtn" role="button" tabindex="0"
                   data-slides="{{ c.key }}" data-name="{{ c.name|e }}"
-                  title="Generate a branded AI slide deck (Cover · What happened · Why · Actions) for this client's full flight — downloads as an editable Google Slides .pptx">📊 Download slides</span>{% endif %}
+                  title="Generate a branded AI slide deck (Cover · What happened · Why · Actions) for this client's full flight - downloads as an editable Google Slides .pptx">📊 Download slides</span>{% endif %}
           </div>
         </a>
         {% else %}
@@ -136,7 +136,7 @@
         if (d.status === 'done'){ done = true; btn.textContent = '✓ Downloaded'; setTimeout(cleanup, 1600); }
         else if (d.status === 'error'){ done = true; cleanup(); alert('Could not build slides for ' + name + ':\n\n' + (d.error || 'unknown error')); }
       }
-      var timer = setTimeout(function(){ if (!done){ cleanup(); alert('Slide generation for ' + name + ' timed out — please try again.'); } }, 600000);
+      var timer = setTimeout(function(){ if (!done){ cleanup(); alert('Slide generation for ' + name + ' timed out - please try again.'); } }, 600000);
       window.addEventListener('message', onMsg);
       iframe.src = '/d/' + encodeURIComponent(key) + '/?bbslides=1';
       document.body.appendChild(iframe);
