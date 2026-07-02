@@ -75,6 +75,42 @@ def rows(bq, name):
     return [dict(r) for r in bq.query(sql, location=LOC).result()]
 
 
+def cache_creative_images(bucket, creatives):
+    """Best-effort: download each SHOWN creative's live Meta thumbnail and store the bytes in the
+    bucket under creatives/<creative_id>, so the gallery previews survive after Meta's signed CDN URL
+    expires (which happens once an ad ends). Returns the set of creative_ids that HAVE a cached image
+    (downloaded now OR on a prior run). Never raises — a miss just means the dashboard falls back to
+    the ad's text. NB: an already-expired URL simply 403s here and is skipped, so this preserves only
+    creatives whose URL is still live at export time (the durable 'cache going forward')."""
+    import urllib.request
+    prefix = "creatives/"
+    have = set()
+    try:
+        for b in bucket.list_blobs(prefix=prefix):
+            cid = b.name[len(prefix):]
+            if cid:
+                have.add(cid)
+    except Exception as e:
+        print(f"  creative cache: list skipped ({e})")
+    for c in creatives:
+        cid = str(c.get("creative_id") or "")
+        url = c.get("thumbnail_url")
+        if not cid or not url or cid in have:      # skip if no url or already cached (keep the good copy)
+            continue
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = resp.read()
+                ctype = resp.headers.get("Content-Type", "image/jpeg")
+            if data and ctype.startswith("image/"):
+                bucket.blob(prefix + cid).upload_from_string(data, content_type=ctype)
+                have.add(cid)
+                print(f"  creative {cid}: cached ({len(data)} bytes)")
+        except Exception as e:
+            print(f"  creative {cid}: cache skip ({e})")
+    return have
+
+
 def main():
     bq = bigquery.Client(project=PROJECT)
 
@@ -110,6 +146,10 @@ def main():
     ga_audience = rows(bq, "ga_audience")        # Google Ads age/gender/device (ad audience reached)
     ga_keywords = rows(bq, "ga_keywords")        # Google Ads top keywords ("who we targeted")
     meta_creatives = rows(bq, "meta_creatives")  # Meta creatives WITH preview thumbnails
+    # Cache the shown (top-10) creatives' images into our own bucket while their Meta CDN URLs are
+    # still live, so previews survive after Meta expires the link (best-effort; never breaks export).
+    _bucket = storage.Client(project=PROJECT).bucket(BUCKET)
+    creative_cached = cache_creative_images(_bucket, meta_creatives[:10])
     # Campaign-grained ad delivery — the dashboard's Campaign filter sums the selected
     # campaigns out of these client-side, rescaling every ad-delivery figure (the
     # GA4/website side has no campaign dimension, so website metrics stay whole).
@@ -358,6 +398,7 @@ def main():
             "body": r["body"],
             "thumbnail_url": r["thumbnail_url"],
             "link_url": r["link_url"],
+            "img_cached": r["creative_id"] in creative_cached,   # have a permanent copy at /creative-img/<id>
             "imps": num(r["imps"]),
             "clicks": num(r["clicks"]),
             "link_clicks": num(r["link_clicks"]),
@@ -466,7 +507,7 @@ def main():
         },
     }
 
-    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
+    _bucket.blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
     # Record the watermark only after a successful upload (upload first, watermark
     # second), so a failed upload simply retries on the next tick.

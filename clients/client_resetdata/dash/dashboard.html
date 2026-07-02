@@ -190,6 +190,41 @@
   .ccard .cc-copy{color:var(--muted);font-size:11px;line-height:1.35;max-height:46px;overflow:hidden}
   .ccard .cc-m{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
   .ccard .cc-m b{color:var(--ink);font-weight:700}
+  /* clickable card → opens the zoom lightbox */
+  .ccard{cursor:pointer;transition:border-color .15s,transform .06s,box-shadow .15s}
+  .ccard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.35)}
+  .ccard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* creative zoom lightbox */
+  .cc-modal{position:fixed;inset:0;background:rgba(4,6,12,.78);display:none;align-items:center;justify-content:center;z-index:200;padding:24px}
+  .cc-modal.on{display:flex}
+  .cc-modal-card{position:relative;width:100%;max-width:820px;max-height:90vh;overflow:auto;background:var(--panel2);
+    border:1px solid var(--line);border-radius:16px;box-shadow:0 30px 90px rgba(0,0,0,.7)}
+  .cc-modal-x{position:absolute;top:10px;right:12px;z-index:2;border:1px solid var(--line);background:rgba(0,0,0,.35);
+    color:var(--ink);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px;line-height:1}
+  .cc-modal-x:hover{background:var(--accent);border-color:transparent;color:#fff}
+  .cc-modal-body{display:flex;gap:20px;padding:24px;flex-wrap:wrap}
+  .ccm-media{flex:0 0 340px;max-width:100%}
+  .ccm-img{width:100%;border-radius:12px;display:block;background:#0b1220}
+  .ccm-noimg{width:100%;min-height:240px;display:flex;align-items:center;justify-content:center;text-align:center;
+    padding:20px;background:#0b1220;border-radius:12px;color:var(--muted2);font-size:12.5px}
+  .ccm-info{flex:1;min-width:260px;display:flex;flex-direction:column;gap:12px}
+  .ccm-info h3{margin:0;font-size:19px;font-weight:700;color:var(--ink);line-height:1.25}
+  .ccm-body{margin:0;white-space:pre-wrap;font-size:13.5px;line-height:1.55;color:var(--muted)}
+  .ccm-metrics{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--muted2);
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0}
+  .ccm-metrics b{color:var(--ink);font-weight:700}
+  .ccm-link{display:inline-block;padding:9px 14px;border-radius:9px;background:var(--accent);color:#fff;
+    text-decoration:none;font-size:13px;font-weight:700}
+  .ccm-link:hover{filter:brightness(1.08)}
+  .ccm-nolink{font-size:12px;color:var(--muted2)}
+  .ccm-cap{font-size:10.5px;color:var(--muted2);letter-spacing:.3px}
+  /* branded fallback tile (no cached image) — shows the ad headline instead of a blank box */
+  .cc-fallback{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;text-align:center;padding:16px;border-bottom:1px solid var(--line);
+    background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 24%,#0b1220),#0b1220 72%)}
+  .cc-fb-mark{font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:var(--accent);opacity:.9}
+  .cc-fb-h{font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:4;line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
@@ -377,8 +412,16 @@
 
     <div class="secttitle" style="margin-top:18px">Creative gallery <span style="color:var(--muted2);font-weight:600">· Meta · the actual ads that ran</span></div>
     <div class="panel-box">
-      <p class="hint">The Meta creatives that ran, with per-creative delivery + Signup Button leads (top by impressions). Images are Meta CDN previews refreshed on each data update; an occasional tile may not load if Meta expires the link.</p>
+      <p class="hint">The <b>top 10</b> Meta creatives by impressions, with per-creative delivery + Signup Button leads. <b>Click any card</b> to enlarge it (full copy + metrics) and open its ad destination. Images are Meta CDN previews refreshed on each data update; an occasional tile may not load if Meta expires the link — the enlarged view still shows the full text.</p>
       <div id="creativeGallery" class="creative-grid"></div>
+    </div>
+
+    <!-- creative zoom lightbox (populated by openCreative) -->
+    <div id="ccModal" class="cc-modal" onclick="if(event.target===this)closeCreative()">
+      <div class="cc-modal-card">
+        <button class="cc-modal-x" onclick="closeCreative()" aria-label="Close">&#10005;</button>
+        <div id="ccModalBody" class="cc-modal-body"></div>
+      </div>
     </div>
 
     <div class="secttitle" style="margin-top:18px">Who we targeted <span style="color:var(--muted2);font-weight:600">· Google Ads · top search keywords</span></div>
@@ -1297,23 +1340,55 @@ function renderPaid(){
 
 // Paid Media: Meta creative gallery — the actual ads (thumbnail + copy + per-creative delivery).
 // Thumbnails are Meta CDN links (can expire); onerror swaps in a graceful "preview unavailable" tile.
+let _creatives=[];
+const escC=s=>(''+(s||'')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// Branded tile shown when there's no cached image (most Meta CDN links expire once an ad ends) —
+// surfaces the ad HEADLINE so the card still shows what the ad said, instead of a blank grey box.
+function ccFallback(c){
+  return `<div class="cc-fallback"><div class="cc-fb-mark">RESETDATA · AD</div>`
+       + `<div class="cc-fb-h">${escC(c.title||c.body||'Creative')}</div></div>`;
+}
+function cThumbErr(imgEl,i){ const c=_creatives[i]; if(c) imgEl.outerHTML=ccFallback(c); }
 function renderCreatives(){
-  const cs=(DATA.meta_creatives||[]);
-  const esc=s=>(''+(s||'')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-  const cards=cs.map(c=>{
-    const img=c.thumbnail_url
-      ? `<img class="cc-thumb" src="${esc(c.thumbnail_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'cc-noimg',textContent:'preview unavailable'}))">`
-      : `<div class="cc-noimg">no preview</div>`;
-    const copy=c.body?`<div class="cc-copy">${esc(c.body)}</div>`:'';
-    return `<div class="ccard">${img}<div class="cc-b"><div class="cc-title">${esc(c.title||c.body||'(untitled creative)')}</div>${copy}`
+  _creatives=(DATA.meta_creatives||[]).slice(0,10);   // top 10 (the meta_creatives view is ORDER BY imps DESC)
+  const cards=_creatives.map((c,i)=>{
+    const img=c.img_cached
+      ? `<img class="cc-thumb" src="/creative-img/${encodeURIComponent(c.creative_id)}" alt="" loading="lazy" onerror="cThumbErr(this,${i})">`
+      : ccFallback(c);
+    const copy=c.body?`<div class="cc-copy">${escC(c.body)}</div>`:'';
+    return `<div class="ccard" role="button" tabindex="0" title="Click to enlarge this creative"`
+      +` onclick="openCreative(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCreative(${i});}">`
+      +`${img}<div class="cc-b"><div class="cc-title">${escC(c.title||c.body||'(untitled creative)')}</div>${copy}`
       +`<div class="cc-m"><span><b>${fmtN(c.imps)}</b> impr</span><span><b>${fmtN(c.clicks)}</b> clk</span><span><b>${aud(c.spend_aud)}</b></span><span><b>${fmtN(c.conversions)}</b> leads</span></div></div></div>`;
   }).join('');
   document.getElementById('creativeGallery').innerHTML = cards || '<p class="hint">No creatives for the current data.</p>';
 }
+// Zoom lightbox: enlarge one creative with its FULL copy + metrics + a link to the ad's destination.
+// (Meta gives no public campaign URL; link_url is where the ad pointed — the closest "go to the ad".)
+function openCreative(i){
+  const c=_creatives[i]; if(!c) return;
+  const media=c.img_cached
+    ? `<img class="ccm-img" src="/creative-img/${encodeURIComponent(c.creative_id)}" alt="" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'ccm-noimg',textContent:'Preview unavailable — the ad copy is shown at right.'}))">`
+    : `<div class="ccm-noimg">The image for this ad has expired on Meta's side — the full ad copy is shown at right.</div>`;
+  const link=c.link_url
+    ? `<a class="ccm-link" href="${escC(c.link_url)}" target="_blank" rel="noopener noreferrer">Open ad destination &#8599;</a>`
+    : `<span class="ccm-nolink">No destination link recorded for this creative.</span>`;
+  document.getElementById('ccModalBody').innerHTML =
+     `<div class="ccm-media">${media}</div>`
+    +`<div class="ccm-info"><h3>${escC(c.title||'(untitled creative)')}</h3>`
+    +(c.body?`<p class="ccm-body">${escC(c.body)}</p>`:'')
+    +`<div class="ccm-metrics"><span><b>${fmtN(c.imps)}</b> impressions</span><span><b>${fmtN(c.clicks)}</b> clicks</span>`
+    +`<span><b>${aud(c.spend_aud)}</b> spend</span><span><b>${fmtN(c.conversions)}</b> leads</span></div>`
+    +`<div>${link}</div>`
+    +`<div class="ccm-cap">Creative ID ${escC(c.creative_id||'—')}</div></div>`;
+  document.getElementById('ccModal').classList.add('on');
+}
+function closeCreative(){ const m=document.getElementById('ccModal'); if(m) m.classList.remove('on'); }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeCreative(); });
 // Paid Media: "who we targeted" — top Google Ads keywords (search intent + what converts).
 function renderKeywords(){
   const ks=(DATA.ga_keywords||[]);
-  let h='<tr><th>Keyword</th><th>Match</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Conv.</th></tr>';
+  let h='<tr><th>Keyword</th><th style="text-align:left">Match</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Conv.</th></tr>';
   if(!ks.length)h+='<tr><td class="name" style="color:var(--muted2)">No keyword data.</td></tr>';
   ks.forEach(k=>{h+='<tr><td class="name">'+(''+(k.keyword||'')).replace(/</g,'&lt;')+'</td>'
     +'<td style="text-align:left;color:var(--muted)">'+(''+(k.match_type||'')).toLowerCase()+'</td>'
@@ -1375,7 +1450,7 @@ function renderReddit(){
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost - CPM / CPC (AUD)',color:tickClr}})})}});
 
   // campaign table — objective + page visits + conversions
-  let h='<tr><th>Campaign</th><th>Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
+  let h='<tr><th>Campaign</th><th style="text-align:left">Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
   if(!rc.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
   rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(prettyName(r.campaign)||'(unnamed)')+'</td>'+
     '<td style="text-align:left;color:var(--muted)">'+(r.objective||'—')+'</td>'+
@@ -1446,7 +1521,7 @@ function renderWebsite(){
     {label:'Event count',backgroundColor:mc('Key events'),data:evArr.map(e=>e[1])}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
-  let h='<tr><th>Source / Medium</th><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Key events</th></tr>';
+  let h='<tr><th>Source / Medium</th><th style="text-align:left">Channel</th><th>Sessions</th><th>Engaged</th><th>Key events</th></tr>';
   DATA.ga4_sources.forEach(r=>{h+=`<tr><td class="name">${r.source_medium}${r.is_ad?'<span class="tag ad">AD</span>':''}</td>
     <td style="text-align:left;color:var(--muted)">${r.channel}</td><td>${fmtN(r.sessions)}</td><td>${fmtN(r.engaged)}</td><td>${fmtN(r.conversions)}</td></tr>`;});
   document.getElementById('sourcesTable').innerHTML=h;
@@ -1509,7 +1584,7 @@ function renderAds2Traffic(){
   acm.forEach(r=>{per[r.platform].spend+=+r.spend_aud||0;per[r.platform].conv+=+r.conversions||0;});
   const reported={google:'Google-reported',meta:'Signup Button (Meta pixel)',ttd:'None reported',reddit:'Reddit sign-ups/leads (sparse)'};
   const has={google:true,meta:true,ttd:false,reddit:true};
-  let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th>Source</th></tr>';
+  let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th style="text-align:left">Source</th></tr>';
   PLATFORMS.filter(p=>selPlt.has(p)).forEach(p=>{const a=per[p];
     h+=`<tr><td class="name"><span class="pill ${p}">${PLABEL[p]}</span></td><td>${aud(a.spend)}</td>
       <td>${has[p]?fmtN(a.conv):'—'}</td><td>${has[p]?aud(div(a.spend,a.conv)):'—'}</td>
@@ -1666,7 +1741,7 @@ function renderCRM(){
   C.lead_queue.forEach(r=>{const a=byStatus[r.lead_status]=byStatus[r.lead_status]||{total:0,un:0,owners:{}};
     a.total+=r.contacts; if(r.unassigned)a.un+=r.contacts; else a.owners[r.owner]=(a.owners[r.owner]||0)+r.contacts;});
   const sr={NEW:1,OPEN:2,ATTEMPTED_TO_CONTACT:3,IN_PROGRESS:4,OPEN_DEAL:5,UNQUALIFIED:6};
-  let qh='<tr><th>Lead status</th><th>Leads</th><th>Unassigned</th><th>Top owners (assigned)</th></tr>';
+  let qh='<tr><th>Lead status</th><th>Leads</th><th>Unassigned</th><th style="text-align:left">Top owners (assigned)</th></tr>';
   Object.keys(byStatus).sort((a,b)=>(sr[a]||9)-(sr[b]||9)).forEach(s=>{const a=byStatus[s];
     const tops=Object.entries(a.owners).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([o,c])=>`${o} (${c})`).join(', ')||'—';
     qh+=`<tr><td class="name">${s}</td><td style="font-weight:700">${fmtN(a.total)}</td><td style="color:#F59E0B">${fmtN(a.un)}</td><td style="text-align:left;color:var(--muted)">${tops}</td></tr>`;});

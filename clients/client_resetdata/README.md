@@ -51,9 +51,18 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 > customer_id `1054407474`; `cost_micros`/1e6 → AUD). It is "who the **ads** reached", **not** site visitors —
 > **GA4 `DemographicDetails` is EMPTY** (Google thresholds demographics on this low-traffic property) and Google
 > Ads **geo is country-only** (~all Australia), so neither is used; label it as Google-Ads-only + directional.
-> Paid-Media **Creative gallery** = **Meta** `meta_creatives` (thumbnail / title / body per `creative_id`;
+> Paid-Media **Creative gallery** = **Meta** `meta_creatives` (thumbnail / title / body / `link_url` per `creative_id`;
 > `creative_thumbnail_url` is a Meta CDN link that can EXPIRE — the view keeps the most-recent URL and the export
-> refreshes it each rebuild, with a graceful "preview unavailable" fallback). **"Who we targeted"** = top **Google
+> refreshes it each rebuild, with a graceful "preview unavailable" fallback). Shows the **top 10 by impressions**;
+> **clicking a card opens a zoom lightbox** (`openCreative`) with the enlarged image + FULL copy + metrics + an
+> "Open ad destination" link (`link_url`) — so the creative is readable even when the thumbnail link has expired
+> (Meta exposes no public campaign URL, so we link to the ad's destination, not a campaign page).
+> **Image persistence (2026-07-02):** Meta thumbnail URLs are signed + short-lived and 403 once an ad ends, so the
+> export job **caches the top-10 images to the bucket** (`cache_creative_images` → `gs://…-resetdata-dash/creatives/<id>`,
+> best-effort, never breaks the export) and emits `img_cached`; the dash serves the permanent copy at **`/creative-img/<id>`**
+> (same auth as `/data.json`). When there's no cached image the card shows a **branded headline tile** (`ccFallback`),
+> not a blank box. Caveat: this only preserves creatives whose URL is still live at export time — already-expired ones
+> can't be recovered without the Meta Marketing API. **"Who we targeted"** = top **Google
 > Ads keywords** (`ga_keywords`, search intent — more meaningful than audience segments for a search account).
 > Job emits `ga_audience` / `ga_keywords` / `meta_creatives`.
 
