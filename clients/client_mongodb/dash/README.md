@@ -79,7 +79,16 @@ contract in [`../job/README.md`](../job/README.md).
 
 ## AI report (Download slides → Google Slides)
 
-The control bar's **Download slides** button generates a branded, **4-slide** account deck —
+> **Moved to the agency portal (2026-07-02).** The **Download slides** button + on-screen preview were
+> REMOVED from this dashboard's toolbar. The deck is now triggered from the **agency login** portal
+> (dashboards.bidbrain.ai → Overview → per-client "Download slides"): the portal opens this dashboard in a
+> hidden iframe at `?bbslides=1`, which builds the payload, calls `/report`, and hands it to the shared,
+> theme-driven **`bb_deck.js`** builder (which replaced the old in-page `buildSlidesDeck()`); the portal
+> downloads the returned `.pptx`. `/report` + `report.py` + `buildDeckPayload()` stay here unchanged. See
+> `bidbrain-platform/README.md` → "Download slides". The description below is retained for the pipeline
+> internals (the toolbar/preview parts are historical).
+
+The (now portal-triggered) flow generates a branded, **4-slide** account deck —
 **1) Cover (client + agency logos) · 2) What happened? · 3) Why did it happen? · 4) What should we
 do?** — for the *current* campaign + region over the **full flight** (campaign start → latest data,
 ignoring any on-screen date sub-range), shows an on-screen preview of the three analytical slides,

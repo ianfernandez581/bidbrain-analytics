@@ -268,8 +268,10 @@
     const campSlug = String(ctx.campaign || 'Campaign').replace(/[^\w]+/g, '_').replace(/^_|_$/g, '');
     const day = String(win.end || (ctx.generated_at || '')).slice(0, 10) || 'report';
     const fileName = `${T.filePrefix || clientName.replace(/[^\w]+/g, '_')}_${campSlug}_${day}.pptx`.replace(/_+/g, '_');
-    if (opts && opts.download === false) return await pres.write({ outputType: 'blob', compression: true });
+    // download:false -> return {blob, fileName} so the caller (the portal, via postMessage) downloads in the
+    // TOP frame - more robust than a download initiated inside a hidden iframe.
+    if (opts && opts.download === false) return { blob: await pres.write({ outputType: 'blob', compression: true }), fileName };
     await pres.writeFile({ fileName, compression: true });
-    return null;
+    return { blob: null, fileName };
   };
 })(typeof window !== 'undefined' ? window : this);

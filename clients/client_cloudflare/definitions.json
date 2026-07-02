@@ -6,14 +6,15 @@
   "source_table_snowflake": "APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"",
   "mirror_table_bigquery": "bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all",
 
-  "last_edited_by": "2026-06-25 rework: 11 media-plan markets, KR=all-Korea, no OTHER residual",
-  "last_edited_at": "2026-06-25",
+  "last_edited_by": "2026-07-02: KR restricted to the 6 original El* CS campaigns (client request); reverts the 2026-06-25 all-Korea rule",
+  "last_edited_at": "2026-07-02",
 
   "_seed_spec": [
     {"table": "seed_cs_campaign_ids",  "column": "campaign_id", "path": "cs_campaigns[].id"},
     {"table": "seed_cf1_cs_campaign_ids", "column": "campaign_id", "path": "cf1_cs_campaigns[].id"},
     {"table": "seed_rig_campaign_ids", "column": "campaign_id", "path": "segments.RIG.campaign_ids"},
-    {"table": "seed_rig_assets",       "column": "asset_2",     "path": "segments.RIG.asset_2"}
+    {"table": "seed_rig_assets",       "column": "asset_2",     "path": "segments.RIG.asset_2"},
+    {"table": "seed_kr_campaign_ids",  "column": "campaign_id", "path": "segments.KR.campaign_ids"}
   ],
 
   "_smoke_views": ["client_cloudflare.salesforce_leads_live", "client_cloudflare.cf1_cs", "client_cloudflare.pacing_model"],
@@ -39,15 +40,23 @@
   ],
 
   "segments": {
-    "_note": "Evaluated BEFORE the geographic_regions buckets: RIG first, then KR. RIG = the Modernize-Applications gaming asset on the 3 Final Funnel campaigns, non-Korea (~172, asset-based so it spans countries). KR (2026-06-25) = ALL Korea leads in the 12 CS campaigns (~200) — the old '6 original El* campaigns only' rule was dropped (it stranded ~36 Korea ABM leads in OTHER and contradicted the media-plan target of 202).",
+    "_note": "Evaluated BEFORE the geographic_regions buckets: RIG first, then KR. RIG = the Modernize-Applications gaming asset on the 3 Final Funnel campaigns, non-Korea (~172, asset-based so it spans countries). KR (2026-07-02) = Korea leads in the 6 ORIGINAL El* CS campaigns ONLY (3 Roverpath + 3 Final Funnel Lead-Gen, ~164) — reverts the 2026-06-25 'all Korea in the 12 campaigns' rule at the client's request. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize Security / Modernize Applications) now fall through to the OTHER residual (see status_buckets._note).",
     "RIG": {
       "exclude_country": "Korea, Republic of",
       "asset_2": ["A-MAM-2", "A-MAM-3"],
       "campaign_ids": ["701RG00001ElUoXYAV", "701RG00001ElUa0YAF", "701RG00001ElNYkYAN"]
     },
     "KR": {
-      "_note": "Country-only since 2026-06-25 (no campaign_ids): every Korea lead in the 12 CS campaigns.",
-      "country": "Korea, Republic of"
+      "_note": "2026-07-02: Korea leads AND one of the 6 original El* CS campaigns only (client request). campaign_ids = the 3 Roverpath + 3 Final Funnel Lead-Gen campaigns. Korea leads outside these 6 land in OTHER (not a market chip).",
+      "country": "Korea, Republic of",
+      "campaign_ids": [
+        "701RG00001ElJZzYAN",
+        "701RG00001ElTu3YAF",
+        "701RG00001ElVXdYAN",
+        "701RG00001ElUoXYAV",
+        "701RG00001ElUa0YAF",
+        "701RG00001ElNYkYAN"
+      ]
     }
   },
 
@@ -67,7 +76,7 @@
   "market_chips": ["AU", "NZ", "SIM", "ROA", "SAARC", "GCR-CN", "GCR-TW", "GCR-HK", "KR", "RIG", "JP"],
 
   "status_buckets": {
-    "_note": "Cloudflare's CS map (OPPOSITE of mongodb): Accepted = Accepted + Replied + Unresponsive. As of 2026-06-25 there is NO residual 'OTHER' bucket — every lead maps to one of the 11 markets, so all counts are complete by construction.",
+    "_note": "Cloudflare's CS map (OPPOSITE of mongodb): Accepted = Accepted + Replied + Unresponsive. Since 2026-07-02 a residual 'OTHER' bucket can be non-empty again (it holds Korea leads outside the 6 KR campaigns — see segments.KR). OTHER is NOT one of the 11 market_chips, so those leads are excluded from the dashboard (its totals sum over the chips), matching pre-2026-06-25 behaviour. The status verifier's residual check reports the OTHER count instead of asserting it is 0.",
     "accepted": ["Accepted", "Replied", "Unresponsive"],
     "rejected": ["Rejected"],
     "new": ["New"]

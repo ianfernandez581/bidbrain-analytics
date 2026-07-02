@@ -1,3 +1,7 @@
 Flask==3.0.3
 gunicorn==23.0.0
 google-cloud-storage==2.18.2
+# Powers the /report endpoint (report.py): Claude Opus 4.8 + web search, then structured-output JSON.
+# Floor chosen for Opus 4.8 / web_search_20260209 / output_config support; resolves to the latest.
+anthropic>=0.92.0
+httpx

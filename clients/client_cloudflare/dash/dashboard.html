@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Core Demand Generation</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- PptxGenJS + the shared bb_deck.js builder — power the portal-driven "Download slides" export
+     (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
 <style>
   :root{
     color-scheme: light;
@@ -886,10 +890,11 @@
 // ==========================================================================
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
-// CS market universe = the 11 media-plan markets (2026-06-25). There is NO 'Others' bucket:
-// every lead maps to a market (KR captures ALL Korea; country match is case-normalised), so CS
-// totals are complete by construction. ANZ/ASEAN/GCR were split to the plan's grain
-// (AU/NZ, SIM/RoA, GCR-CN/TW/HK) to match the client's target sheet 1:1.
+// CS market universe = the 11 media-plan markets (2026-06-25 grain: ANZ/ASEAN/GCR were split to
+// AU/NZ, SIM/RoA, GCR-CN/TW/HK to match the client's target sheet 1:1). KR = Korea in the 6 El*
+// campaigns (2026-07-02); Korea leads outside those 6 land in REGION_GRP='OTHER', which is NOT in
+// this list, so they are excluded from every chip AND the headline totals (which sum over these
+// markets) — matching pre-2026-06-25 behaviour. Add 'OTHER' here if those leads should be visible.
 const ALL_MARKETS = ['AU','NZ','SIM','ROA','SAARC','GCR-CN','GCR-TW','GCR-HK','KR','RIG','JP'];
 // Display label for a market code (only 'ROA' differs from its code -> 'RoA').
 const mktLabel = m => m === 'ROA' ? 'RoA' : m;
@@ -2795,6 +2800,86 @@ setInterval(async () => {
     }
   } catch (_) { /* transient fetch error: just try again next tick */ }
 }, 5 * 60 * 1000);
+
+//==============================================================================
+// Portal-driven "Download slides" (headless). The agency portal opens this dashboard in a hidden
+// same-origin iframe with ?bbslides=1; we build the FULL-FLIGHT brief across ALL markets (CS via the
+// shared aggregate() over all 11 CS markets, honouring the DUMMY_* filter + ACCEPTED_STATUSES; paid via
+// adaptPayload over all 7 paid markets), POST it to /report, and hand it to the shared bb_deck.js
+// builder, which returns the .pptx as a Blob for the portal to download. No visible report UI here.
+//==============================================================================
+const BB_THEME = {
+  bg:'0E2233', panel:'13314A', accent:'F38020', accentInk:'FFFFFF', softBg:'FFF3E8',
+  lightBg:'FFFFFF', ink:'1B2834', mute:'5A6B78', line:'E5E9EE', onDark:'FFFFFF', onDarkMute:'9FB0BD',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'Transmission', client:'Cloudflare APAC', brand:'TRANSMISSION × Cloudflare', filePrefix:'Cloudflare_APAC'
+};
+const _r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
+const _r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
+const _bbTop=(pairs,n)=> (pairs||[]).slice(0,n||8).map(([name,count])=>({name, count}));
+function buildDeckPayload(){
+  // CS: reuse aggregate() with full scope (all 11 markets, full window), then restore the live globals.
+  const _am=activeMarkets, _rs=rangeStart, _re=rangeEnd;
+  let agg;
+  try { activeMarkets=new Set(ALL_MARKETS); rangeStart=null; rangeEnd=null; agg=aggregate(); }
+  finally { activeMarkets=_am; rangeStart=_rs; rangeEnd=_re; }
+  // Paid: build from COMBINED.paid_media (adaptPayload is idempotent + doesn't need the tab to be opened).
+  const P = PAYLOAD || adaptPayload((COMBINED && COMBINED.paid_media) || {});
+  const sumCh=arr=>{ let imp=0,clk=0,sp=0,leads=0; (arr||[]).forEach(r=>{ imp+=r.imps||0; clk+=r.clk||0; sp+=r.spend||0; leads+=r.leads||0; }); return {imp,clk,sp,leads}; };
+  const chans=[['TTD',P.ttd_market_day],['LinkedIn',P.li_market_day],['Reddit',P.rd_market_day],['LINE',P.line_market_day]];
+  const by_channel=chans.map(([channel,arr])=>{ const a=sumCh(arr); return { channel, spend_usd:_r2(a.sp), imps:a.imp, clicks:a.clk, leads:a.leads,
+    cpm:_r2(a.imp?a.sp/a.imp*1000:0), ctr:_r6(a.imp?a.clk/a.imp:0), cpc:_r2(a.clk?a.sp/a.clk:0) }; }).filter(c=>c.imps||c.spend_usd);
+  const tot=chans.reduce((o,[,arr])=>{ const a=sumCh(arr); o.imp+=a.imp; o.clk+=a.clk; o.sp+=a.sp; o.leads+=a.leads; return o; },{imp:0,clk:0,sp:0,leads:0});
+  const pmMk={};
+  chans.forEach(([,arr])=>{ (arr||[]).forEach(r=>{ const m=r.market||r.m||'—'; (pmMk[m]=pmMk[m]||{spend:0,imps:0,clicks:0}); pmMk[m].spend+=r.spend||0; pmMk[m].imps+=r.imps||0; pmMk[m].clicks+=r.clk||0; }); });
+  const paid_by_market=Object.entries(pmMk).sort((a,b)=>b[1].spend-a[1].spend).map(([market,v])=>({market, spend_usd:_r2(v.spend), imps:v.imps, clicks:v.clicks}));
+  const cmap=(COMBINED && COMBINED.campaigns) || {};
+  const campaigns={};
+  Object.keys(cmap).forEach(k=>{ const c=cmap[k]||{}; campaigns[k]={ label:c.label, totals:c.totals, by_campaign:c.by_campaign, cs:c.cs }; });
+  return {
+    client:'cloudflare', agency:'Transmission', generated_for:'Cloudflare APAC', currency:'USD',
+    context:{
+      campaign:'Core Demand Generation', campaign_key:'core_demand_gen',
+      markets:[], all_markets:ALL_MARKETS.slice(),
+      date_filtered:false, date_filter:{start:null,end:null},
+      window:(P.window||{}), data_through:(COMBINED&&COMBINED.data_through)||null, last_updated:(COMBINED&&COMBINED.last_updated)||null,
+      generated_at:new Date().toISOString()
+    },
+    cs:{
+      q2_target:agg.q2Target, accepted:agg.accepted, rejected:agg.rejected, total:agg.total,
+      leads_pct:_r6(agg.q2Target?agg.accepted/agg.q2Target:0), ttd_target:agg.ttdTarget, vs_ttd_pct:_r6(agg.ttdTarget?agg.accepted/agg.ttdTarget:0),
+      time_pct:_r6(agg.timePct),
+      by_market:(agg.regionRows||[]).map(r=>({market:r.market, q2_target:r.q2, ttd_target:r.ttd, accepted:r.accepted})),
+      dims:{ solutions:_bbTop(agg.solutions), countries:_bbTop(agg.countries), job_function:_bbTop(agg.jobFunc) },
+      note:'Accepted = Accepted + Replied + Unresponsive (engaged), NOT a graded MQL; New = unprocessed backlog. Headline lead totals are exact; the tier sub-split is non-deterministic in the source.'
+    },
+    paid:{
+      totals:{ spend_usd:_r2(tot.sp), imps:tot.imp, clicks:tot.clk, leads:tot.leads, cpm:_r2(tot.imp?tot.sp/tot.imp*1000:0), ctr:_r6(tot.imp?tot.clk/tot.imp:0), cpc:_r2(tot.clk?tot.sp/tot.clk:0) },
+      by_channel, by_market:paid_by_market,
+      note:'The Trade Desk display + LinkedIn (only channel with leads) + Reddit + LINE (JP, JPY->USD@155). 7 paid markets; CS spans 11.'
+    },
+    campaigns
+  };
+}
+// Cloudflare's dashboard mark is a text wordmark, not a rasterisable logo — bb_deck.js renders the
+// client name as a serif wordmark on the cover instead.
+async function bbDeckLogos(){ return { white:null, dark:null }; }
+async function bbHeadlessSlides(){
+  try {
+    const payload=buildDeckPayload();
+    const res=await fetch('/report',{ method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' — '+d:'')); }
+    const report=await res.json();
+    const logos=await bbDeckLogos();
+    const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });
+    try{ parent.postMessage({ __bbslides:true, status:'done', blob:out&&out.blob, fileName:out&&out.fileName }, location.origin); }catch(_){}
+  } catch(e){
+    try{ parent.postMessage({ __bbslides:true, status:'error', error:(e&&e.message)||String(e) }, location.origin); }catch(_){}
+  }
+}
+if (new URLSearchParams(location.search).has('bbslides')){
+  (function bbWait(){ if (typeof COMBINED!=='undefined' && COMBINED && COMBINED.last_updated) bbHeadlessSlides(); else setTimeout(bbWait,120); })();
+}
 
 boot();
 </script>

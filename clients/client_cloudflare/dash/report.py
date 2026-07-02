@@ -24,38 +24,38 @@ import os
 # ── PER-CLIENT CONFIG ────────────────────────────────────────────────────────────────────────
 # Edit ONLY this block per client. Everything below it is the shared engine.
 CONFIG = {
-    "client": "proptrack",
-    "client_name": "PropTrack",
+    "client": "cloudflare",
+    "client_name": "Cloudflare APAC",
     "agency": "Transmission",
-    "currency": "AUD",
+    "currency": "USD",
     # Stage-A business-model brief — precise enough that the model's reasoning is never generic.
     "business_model": (
-        "PropTrack (REA Group) 'Banking ABM' — a Transmission-run, UPPER-FUNNEL awareness + reach campaign aimed at "
-        "banking / lending decision-makers. TWO delivery lanes:\n"
-        "  1) THE TRADE DESK (advertiser 'PopTrack') = a concentrated May-Jun 2026 programmatic ABM BURST (display, "
-        "plus some video). It is the ONLY source of pixel CONVERSIONS: td_conv, split into click-through "
-        "(td_click_conv) and view-through (td_vt_conv). Display drove essentially all conversions; VIDEO is "
-        "awareness-only (about 0 conversions). View-through conversions are REACH-attributed, NOT lead-generating. The "
-        "ABM AUDIENCES are td_segments — Partner-Broker-Distribution dominates (~80% of spend).\n"
-        "  2) LINKEDIN = an ALWAYS-ON presence with real, intermittent delivery GAPS (explain the gaps, do NOT read "
-        "them as a collapse). LinkedIn is awareness + ENGAGEMENT (li_eng, li_video_views) with a SOFT lead signal only "
-        "(li_lead_opens = lead-form opens; li_leads is a tiny handful). LinkedIn carries NO pixel conversions.\n"
-        "There are NO targets, NO pacing plan, NO revenue, NO ROAS and NO CPA in this account — it is measured purely "
-        "on delivery, reach and efficiency. All money is AUD; there is NO FX."
+        "Cloudflare's APAC B2B demand-generation account ('Core Demand Generation'), run by Transmission. TWO "
+        "DISTINCT ENGINES with DIFFERENT market granularities — keep them STRICTLY separate:\n"
+        "  1) PAID MEDIA (7 markets: ANZ, ASEAN, SAARC, KR, JP, GCR, RIG) across FOUR channels — The Trade Desk "
+        "(programmatic DISPLAY, upper-funnel reach), LinkedIn (the ONLY channel that also reports leads + lead-form "
+        "opens), Reddit, and LINE (JP-only, already converted JPY->USD at 155). Measured on spend (USD), impressions, "
+        "clicks, CTR/CPM/CPC. Display + paid social are awareness/mid-funnel; a display click is NOT a lead.\n"
+        "  2) CONTENT SYNDICATION (CS) = the LEAD ENGINE (11 markets: AU, NZ, SIM, ROA, SAARC, GCR-CN, GCR-TW, "
+        "GCR-HK, KR, RIG, JP): Salesforce gated-content leads across a 12-campaign universe, measured against a Q2 "
+        "total lead target (3216) and a time-to-date (TTD) pro-rata target. Lead-status buckets: ACCEPTED = Accepted "
+        "+ Replied + Unresponsive (an engaged-lead definition, NOT a graded MQL); Rejected is its own bucket; "
+        "everything else ('New') is the UNPROCESSED backlog awaiting triage. Anchor the 'are we winning?' judgement "
+        "on CS pacing (accepted vs the total + TTD pro-rata target) and lead volume, NOT on display clicks.\n"
+        "  'TTD' is overloaded: in CS it means the time-to-date pro-rata target; 'The Trade Desk' is the paid "
+        "platform. Use full words to disambiguate. LinkedIn is the only paid channel that also reports leads directly."
     ),
     # Extra client-specific honesty rules woven into both stages.
     "guardrails": (
-        "NEVER compute or imply ROAS, CPA, revenue, or a goal/pacing judgement — none exist in the feed; say so if the "
-        "reader might expect them. Frame success on REACH (impressions), delivery efficiency (CTR / CPM / CPC), and "
-        "the Trade Desk pixel conversions (with the click-through vs view-through split; view-through is "
-        "reach-attributed, not a lead). Do NOT present LinkedIn as a lead engine — it is awareness + engagement + soft "
-        "lead-form opens. Trade Desk = the short intense burst; LinkedIn = always-on with real delivery gaps (explain "
-        "the gaps, do not read them as a decline). AUD only, never convert. overall_status should usually be "
-        "'on_track' or 'neutral' because there is no target to be ahead of or behind — note that this limits "
-        "confidence in any 'winning / losing' call."
+        "Keep the CS lead engine (11 markets) and the paid channels (7 markets) STRICTLY separate; never credit a "
+        "display / Reddit / LINE click as a lead — pipeline shows up in CS ACCEPTED leads (and, on LinkedIn, its own "
+        "leads column). Headline CS lead totals are EXACT, but any Tier / segment sub-split is non-deterministic in "
+        "the source model — do NOT chase or over-interpret a tier breakdown. USD throughout (LINE is already "
+        "converted from JPY). 'Accepted' means Accepted + Replied + Unresponsive (engaged), NOT a graded MQL — "
+        "describe it as such and do not imply a formal qualification rate."
     ),
     # Short lowercase tokens for the on-slide category chip (bb_deck.js maps known ones to labels).
-    "category_tokens": "reach, efficiency, trade_desk, linkedin, delivery, abm, audience, overall",
+    "category_tokens": "content_syndication (the CS lead engine), paid_media, linkedin, trade_desk, budget, overall",
 }
 
 CLIENT = CONFIG["client"]

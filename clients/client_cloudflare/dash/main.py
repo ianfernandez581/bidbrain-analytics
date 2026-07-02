@@ -15,11 +15,15 @@ app's own password gate is the only door (see cloudbuild.yaml).
 """
 import os
 import hmac
+import json
+import hashlib
 from pathlib import Path
 from flask import (
     Flask, request, redirect, session, Response, render_template_string, abort
 )
 from google.cloud import storage
+
+from report import generate_report
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]
@@ -28,6 +32,7 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
+    MAX_CONTENT_LENGTH=256 * 1024,   # the /report POST is the only sizeable body; everything else is tiny
 )
 
 # --- config (injected by Cloud Run) ------------------------------------------
@@ -43,6 +48,16 @@ try:
     DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html").read_text(encoding="utf-8")
 except FileNotFoundError:
     DASHBOARD_HTML = None
+
+# Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
+# folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it.
+try:
+    BB_DECK_JS = (Path(__file__).resolve().parent / "bb_deck.js").read_text(encoding="utf-8")
+except FileNotFoundError:
+    BB_DECK_JS = ""
+
+# Bump to invalidate every cached report when the prompts/schema change (see report.py).
+REPORT_CACHE_VERSION = "1"
 
 LOGIN_HTML = """<!doctype html>
 <html lang="en">
@@ -138,6 +153,73 @@ def data():
         mimetype="application/json",
         headers={"Cache-Control": "no-store"},
     )
+
+
+@app.get("/bb_deck.js")
+def bb_deck_js():
+    """The slide-deck builder. Auth-gated like the dashboard (the deck reveals report content)."""
+    if not authed():
+        abort(401)
+    if not BB_DECK_JS:
+        return Response("// bb_deck.js missing from the deploy", status=500, mimetype="application/javascript")
+    return Response(BB_DECK_JS, mimetype="application/javascript",
+                    headers={"Cache-Control": "no-store"})
+
+
+def _json_err(msg, code):
+    return Response(json.dumps({"error": msg}), status=code, mimetype="application/json")
+
+
+@app.post("/report")
+def report_route():
+    # AI account report (the portal "Download slides" deck). Auth-gated like the dashboard. The browser
+    # POSTs the current view's numbers (the same figures it renders); we cache the generated report in the
+    # private bucket keyed by VIEW IDENTITY + DATA VERSION, so re-downloading the same view costs no model
+    # calls and regenerates only when the underlying data advances.
+    if not authed():
+        abort(401)
+    if request.content_length and request.content_length > 256 * 1024:
+        return _json_err("request too large", 413)
+    summary = request.get_json(silent=True)
+    if not isinstance(summary, dict):
+        return _json_err("invalid request body", 400)
+
+    ctx = summary.get("context") or {}
+    key_src = json.dumps({
+        "client": summary.get("client"),
+        "campaign": ctx.get("campaign_key"),
+        "markets": sorted(ctx.get("markets") or []),
+        "date_filter": ctx.get("date_filter") or {},
+        "data_through": ctx.get("data_through"),
+        "v": REPORT_CACHE_VERSION,
+    }, sort_keys=True)
+    h = hashlib.sha256(key_src.encode("utf-8")).hexdigest()[:16]
+    ckey = "".join(c for c in str(summary.get("client") or "cloudflare").lower()
+                   if c.isalnum() or c in "-_")[:40] or "client"
+    blob = _storage.bucket(GCS_BUCKET).blob(f"reports/{ckey}_{h}.json")
+
+    try:
+        if blob.exists():
+            cached = json.loads(blob.download_as_bytes())
+            cached["cached"] = True
+            return Response(json.dumps(cached), mimetype="application/json",
+                            headers={"Cache-Control": "no-store"})
+    except Exception:
+        app.logger.exception("report cache read failed")
+
+    try:
+        rpt = generate_report(summary)
+    except Exception as e:
+        app.logger.exception("report generation failed")
+        msg = str(e) if isinstance(e, RuntimeError) else "report generation failed"
+        return _json_err(msg or "report generation failed", 502)
+
+    rpt["cached"] = False
+    try:
+        blob.upload_from_string(json.dumps(rpt), content_type="application/json")
+    except Exception:
+        app.logger.exception("report cache write failed")
+    return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
 
 
 @app.get("/healthz")

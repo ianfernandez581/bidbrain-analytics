@@ -253,6 +253,36 @@ ride along as plain form fields; both stored on the record, blank when not given
   imperfectly) and `html2canvas` is lazy-loaded from a CDN — if blocked, the note just sends without
   an image. Both are vendorable later if needed.
 
+## Download slides (AI decks — the "Download slides" button)
+
+The agency portal's **Overview** tab shows a per-client **"Download slides"** button (rendered only for
+clients in `SLIDES_CLIENTS` in `dash/main.py` = {mongodb, cloudflare, schneider, proptrack, geocon}). It
+replaces the old in-dashboard toolbar button — the deck is now reachable **only from the agency login**.
+
+**Flow (all same-origin, no new server machinery on the platform):**
+1. Click → the portal opens the client's dashboard in a **hidden iframe** at `/d/<c>/?bbslides=1` (the
+   reverse proxy already logs into the upstream and serves it same-origin).
+2. The dashboard, seeing `?bbslides=1`, runs headless: `buildDeckPayload()` assembles the **full-flight**
+   `summary` (mirroring the dashboard's own aggregators, so the deck can never disagree with the screen),
+   POSTs it to `/report`, then calls the shared **`bb_deck.js`** builder.
+3. `/report` (on the client's `<c>-dash`, `report.py`) runs a two-stage **Claude Opus 4.8** call —
+   web-research analyst notes → strict slide JSON — with a **Gemini fallback**, cached in the client's
+   bucket under `reports/` keyed by view identity + data version (so re-downloads cost no model calls).
+4. `bb_deck.js` builds a 4-slide `.pptx` (Cover · What happened · Why · Recommended actions) in the
+   **MongoDB brand deck's design language** (serif headlines, "ALL CAPS" mono accent pills, organic
+   corner blobs, logo top-right, dark cover + light content), **recoloured per client** from a `BB_THEME`
+   const in each `dashboard.html`. It returns the `.pptx` as a **Blob**; the iframe `postMessage`s it to
+   the portal, and the **portal** triggers the download (opens natively in Google Slides).
+
+**Vendored, config-driven.** `bb_deck.js` (one canonical copy in `clients/client_mongodb/dash/`) and the
+generic `report.py` are copied into each participating dash; `report.py`'s per-client `CONFIG` block
+(client / currency / business model / guardrails / category tokens) is the only thing that differs.
+**Provisioning:** each client needs `dash/enable_report_<c>.ps1` run once (binds `secretAccessor` on the
+shared `anthropic-api-key`/`gemini-api-key`, `objectAdmin` on its data bucket, mounts the keys, bumps
+`--timeout` to 900) then a normal `deploy_dash_<c>.ps1`. To add a client: give its dash a `report.py`
+(CONFIG), `buildDeckPayload()` + `BB_THEME` + the `?bbslides=1` bootstrap, the `/report` + `/bb_deck.js`
+routes, copy `bb_deck.js`, and add its key to `SLIDES_CLIENTS`.
+
 ## Layout
 ```
 bidbrain-platform/

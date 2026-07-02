@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Schneider Electric Pacific - Content Syndication</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- PptxGenJS + the shared bb_deck.js builder — power the portal-driven "Download slides" export
+     (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
 <style>
   :root{
     color-scheme: light;
@@ -932,6 +936,108 @@ function exportAllData(){
   let lines=['# Schneider Electric Pacific - Content Syndication - full export'];
   lines=lines.concat(tableCSV('campaigns', DATA.campaigns)).concat(tableCSV('cs_by_programme', DATA.cs_by_programme)).concat(tableCSV('cs_weekly', DATA.cs_weekly)).concat(tableCSV('pm_delivery', DATA.pm_delivery));
   dl('schneider_content_syndication.csv', lines);
+}
+
+//==============================================================================
+// Portal-driven "Download slides" (headless). The agency portal opens this dashboard in a hidden
+// same-origin iframe with ?bbslides=1; we build the FULL-FLIGHT payload for the active campaign, POST
+// it to /report, rasterize the logo, and hand it to the shared bb_deck.js builder, which returns the
+// .pptx as a Blob for the portal to download. Slide-1 numbers come VERBATIM from this payload, so the
+// deck and the dashboard can never disagree. No visible report UI in this dashboard.
+//==============================================================================
+const BB_THEME = {
+  bg:'1A1A1A', panel:'2A2A2A', accent:'009530', accentInk:'FFFFFF', softBg:'EAF6EE',
+  lightBg:'FFFFFF', ink:'1F2933', mute:'6B7480', line:'E6E9ED', onDark:'FFFFFF', onDarkMute:'A7B0B8',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'Transmission', client:'Schneider Electric Pacific', brand:'TRANSMISSION × Schneider Electric', filePrefix:'Schneider_Pacific'
+};
+const _r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
+const _r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
+function buildReportPayload(){
+  const c=campaign(), p=csPacing();
+  const crows=csRows();
+  const by_programme=crows.slice().sort((a,b)=>(b.total||0)-(a.total||0)).map(r=>({
+    programme:r.programme, market:r.market, leads:r.total||0,
+    new:r.new||0, working:r.working||0, qualified:r.qualified||0, disqualified:r.disqualified||0, last_lead_day:r.last_lead_day||null }));
+  const cmAgg={};
+  crows.forEach(r=>{ const m=r.market||'—'; (cmAgg[m]=cmAgg[m]||{leads:0,new:0,working:0,qualified:0,disqualified:0});
+    cmAgg[m].leads+=r.total||0; cmAgg[m].new+=r.new||0; cmAgg[m].working+=r.working||0; cmAgg[m].qualified+=r.qualified||0; cmAgg[m].disqualified+=r.disqualified||0; });
+  const cs_by_market=Object.entries(cmAgg).sort((a,b)=>b[1].leads-a[1].leads).map(([market,v])=>({market,...v}));
+  const prows=pmRows(), pt=pmTotals(prows);
+  const platAgg={};
+  prows.forEach(r=>{ const pf=r.platform||'other'; (platAgg[pf]=platAgg[pf]||{spend:0,imps:0,clicks:0});
+    platAgg[pf].spend+=r.spend_aud||0; platAgg[pf].imps+=r.imps||0; platAgg[pf].clicks+=r.clicks||0; });
+  const by_platform=Object.entries(platAgg).sort((a,b)=>b[1].spend-a[1].spend).map(([platform,v])=>({
+    platform, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks,
+    cpm:_r2(v.imps?v.spend/v.imps*1000:0), cpc:_r2(v.clicks?v.spend/v.clicks:0), ctr:_r6(v.imps?v.clicks/v.imps:0) }));
+  const pmAgg={};
+  prows.forEach(r=>{ const m=r.market||'—'; (pmAgg[m]=pmAgg[m]||{spend:0,imps:0,clicks:0});
+    pmAgg[m].spend+=r.spend_aud||0; pmAgg[m].imps+=r.imps||0; pmAgg[m].clicks+=r.clicks||0; });
+  const paid_by_market=Object.entries(pmAgg).sort((a,b)=>b[1].spend-a[1].spend).map(([market,v])=>({market, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks}));
+  return {
+    client:'schneider', agency:'Transmission', generated_for:'Schneider Electric Pacific', currency:'AUD',
+    context:{
+      campaign:c.label||activeCampaign, campaign_key:activeCampaign,
+      markets:activeMarketList(), all_markets:DATA.all_markets||[],
+      date_filtered:false, date_filter:{start:null,end:null},
+      window:DATA.window||{}, data_through:DATA.data_through||null, last_updated:DATA.last_updated||null,
+      generated_at:new Date().toISOString()
+    },
+    cs:{
+      target:p.target, leads:p.leads, leads_pct:_r6(p.leadsPct), ttd_target:Math.round(p.ttd||0), vs_ttd_pct:_r6(p.vsTtd),
+      time_pct:_r6(p.timePct), elapsed_days:p.elapsed, total_days:p.totalDays, cpl:_r2(p.cpl), committed_spend:_r2(p.committed),
+      quality:{ new:p.byStatus.New, working:p.byStatus.Working, qualified:p.byStatus.Qualified, disqualified:p.byStatus.Disqualified, other:p.byStatus.Other },
+      note:'Lead-status buckets are CRM-raw lifecycle stages (mostly New / un-triaged), NOT graded MQLs — do not infer an acceptance rate.',
+      by_programme, by_market:cs_by_market
+    },
+    paid:{
+      totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0) },
+      by_platform, by_market:paid_by_market,
+      note:'DV360 / The Trade Desk / LinkedIn delivery (upper/mid-funnel). No per-strategy split and no CTR/CPM/CPC benchmarks are seeded.'
+    },
+    plan:{
+      target_mql:c.target_mql||0, target_hql:c.target_hql||0, target:c.target||0, committed_spend:_r2(c.committed_spend),
+      cpl_tiers:(c.cpl_tiers||[]).map(t=>({label:t.label, leads:t.leads, spend:_r2(t.spend), cpl:_r2(t.cpl)})),
+      flight_start:c.flight_start||null, flight_end:c.flight_end||null
+    }
+  };
+}
+// Full flight: null the on-screen DATE sub-range, build, restore (CS is never date-filtered; only paid rows honor it).
+function buildDeckPayload(){
+  const _s=rangeStart, _e=rangeEnd; rangeStart=null; rangeEnd=null;
+  try { return buildReportPayload(); } finally { rangeStart=_s; rangeEnd=_e; }
+}
+// Rasterize the DOM logo SVG to a PNG data-URI. recolor='#FFFFFF' for the dark cover; null keeps native for light slides.
+function bbRasterizeLogo(selector, recolor){
+  return new Promise(resolve=>{ try{
+    const src=document.querySelector(selector); if(!src){ resolve(null); return; }
+    const svg=src.cloneNode(true); svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    if(recolor) svg.querySelectorAll('[fill]').forEach(p=>{ if((p.getAttribute('fill')||'').toLowerCase()!=='none') p.setAttribute('fill',recolor); });
+    const vb=(src.getAttribute('viewBox')||'0 0 218 64').split(/\s+/).map(Number);
+    const vbw=vb[2]||218, vbh=vb[3]||64, scale=1200/vbw, W=Math.round(vbw*scale), H=Math.round(vbh*scale);
+    svg.setAttribute('width',W); svg.setAttribute('height',H);
+    const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    const img=new Image();
+    img.onload=()=>{ try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; cv.getContext('2d').drawImage(img,0,0,W,H); resolve(cv.toDataURL('image/png')); }catch(e){ resolve(null); } };
+    img.onerror=()=>resolve(null); img.src=url;
+  }catch(e){ resolve(null); } });
+}
+async function bbDeckLogos(){ return { white: await bbRasterizeLogo('.se-logo','#FFFFFF'), dark: await bbRasterizeLogo('.se-logo', null) }; }
+async function bbHeadlessSlides(){
+  try {
+    const payload=buildDeckPayload();
+    const res=await fetch('/report',{ method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' — '+d:'')); }
+    const report=await res.json();
+    const logos=await bbDeckLogos();
+    const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });
+    try{ parent.postMessage({ __bbslides:true, status:'done', blob:out&&out.blob, fileName:out&&out.fileName }, location.origin); }catch(_){}
+  } catch(e){
+    try{ parent.postMessage({ __bbslides:true, status:'error', error:(e&&e.message)||String(e) }, location.origin); }catch(_){}
+  }
+}
+if (new URLSearchParams(location.search).has('bbslides')){
+  (function bbWait(){ if (typeof DATA!=='undefined' && DATA && DATA.last_updated) bbHeadlessSlides(); else setTimeout(bbWait,120); })();
 }
 
 boot();
