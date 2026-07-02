@@ -1374,7 +1374,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeCreative(); }
 // Paid Media: "who we targeted" — top Google Ads keywords (search intent + what converts).
 function renderKeywords(){
   const ks=(DATA.ga_keywords||[]);
-  let h='<tr><th>Keyword</th><th>Match</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Conv.</th></tr>';
+  let h='<tr><th>Keyword</th><th style="text-align:left">Match</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Conv.</th></tr>';
   if(!ks.length)h+='<tr><td class="name" style="color:var(--muted2)">No keyword data.</td></tr>';
   ks.forEach(k=>{h+='<tr><td class="name">'+(''+(k.keyword||'')).replace(/</g,'&lt;')+'</td>'
     +'<td style="text-align:left;color:var(--muted)">'+(''+(k.match_type||'')).toLowerCase()+'</td>'
@@ -1436,7 +1436,7 @@ function renderReddit(){
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost - CPM / CPC (AUD)',color:tickClr}})})}});
 
   // campaign table — objective + page visits + conversions
-  let h='<tr><th>Campaign</th><th>Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
+  let h='<tr><th>Campaign</th><th style="text-align:left">Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
   if(!rc.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
   rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(prettyName(r.campaign)||'(unnamed)')+'</td>'+
     '<td style="text-align:left;color:var(--muted)">'+(r.objective||'—')+'</td>'+
@@ -1507,7 +1507,7 @@ function renderWebsite(){
     {label:'Event count',backgroundColor:mc('Key events'),data:evArr.map(e=>e[1])}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
-  let h='<tr><th>Source / Medium</th><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Key events</th></tr>';
+  let h='<tr><th>Source / Medium</th><th style="text-align:left">Channel</th><th>Sessions</th><th>Engaged</th><th>Key events</th></tr>';
   DATA.ga4_sources.forEach(r=>{h+=`<tr><td class="name">${r.source_medium}${r.is_ad?'<span class="tag ad">AD</span>':''}</td>
     <td style="text-align:left;color:var(--muted)">${r.channel}</td><td>${fmtN(r.sessions)}</td><td>${fmtN(r.engaged)}</td><td>${fmtN(r.conversions)}</td></tr>`;});
   document.getElementById('sourcesTable').innerHTML=h;
@@ -1570,7 +1570,7 @@ function renderAds2Traffic(){
   acm.forEach(r=>{per[r.platform].spend+=+r.spend_aud||0;per[r.platform].conv+=+r.conversions||0;});
   const reported={google:'Google-reported',meta:'Signup Button (Meta pixel)',ttd:'None reported',reddit:'Reddit sign-ups/leads (sparse)'};
   const has={google:true,meta:true,ttd:false,reddit:true};
-  let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th>Source</th></tr>';
+  let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th style="text-align:left">Source</th></tr>';
   PLATFORMS.filter(p=>selPlt.has(p)).forEach(p=>{const a=per[p];
     h+=`<tr><td class="name"><span class="pill ${p}">${PLABEL[p]}</span></td><td>${aud(a.spend)}</td>
       <td>${has[p]?fmtN(a.conv):'—'}</td><td>${has[p]?aud(div(a.spend,a.conv)):'—'}</td>
@@ -1727,7 +1727,7 @@ function renderCRM(){
   C.lead_queue.forEach(r=>{const a=byStatus[r.lead_status]=byStatus[r.lead_status]||{total:0,un:0,owners:{}};
     a.total+=r.contacts; if(r.unassigned)a.un+=r.contacts; else a.owners[r.owner]=(a.owners[r.owner]||0)+r.contacts;});
   const sr={NEW:1,OPEN:2,ATTEMPTED_TO_CONTACT:3,IN_PROGRESS:4,OPEN_DEAL:5,UNQUALIFIED:6};
-  let qh='<tr><th>Lead status</th><th>Leads</th><th>Unassigned</th><th>Top owners (assigned)</th></tr>';
+  let qh='<tr><th>Lead status</th><th>Leads</th><th>Unassigned</th><th style="text-align:left">Top owners (assigned)</th></tr>';
   Object.keys(byStatus).sort((a,b)=>(sr[a]||9)-(sr[b]||9)).forEach(s=>{const a=byStatus[s];
     const tops=Object.entries(a.owners).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([o,c])=>`${o} (${c})`).join(', ')||'—';
     qh+=`<tr><td class="name">${s}</td><td style="font-weight:700">${fmtN(a.total)}</td><td style="color:#F59E0B">${fmtN(a.un)}</td><td style="text-align:left;color:var(--muted)">${tops}</td></tr>`;});
