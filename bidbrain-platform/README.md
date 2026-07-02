@@ -30,6 +30,15 @@ console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clear
 - **Unassigned** (not in any agency, reachable only by their own dashboard password): **STT**
   (on hold), **HireRight**. Add them to an agency anytime via the admin UI.
 
+The **admin agencies page** (`templates/admin.html`) renders these as per-agency **accordion cards**
+(collapsed by default; open state kept client-side in `sessionStorage`) in the teal house style, each
+with each agency's **dark logo tile** from `ADMIN_AGENCY_LOGOS` — a black-ground badge loaded from
+`admlogo_<slug>.svg/.jpg/.png` in `dash/`, **admin-page only and separate from the portal's
+`AGENCY_LOGOS`** so the two surfaces can differ (the route passes it to the template as `agency_logos`;
+falls back to initials on a neutral tile) — plus a name/client **search box**. Every action (Enter
+portal / Add client / Edit / Delete / + Campaign / Logo / Remove / Sync all) and its endpoint is
+unchanged — the redesign (2026-07-02) is presentation only.
+
 Admin password defaults to `bidbrain-admin-2026` — override with the `ADMIN_PW` env before
 seeding, or rotate later by re-seeding with a new `ADMIN_PW`.
 
@@ -239,8 +248,11 @@ ride along as plain form fields; both stored on the record, blank when not given
 - **Triage:** each note has a **status** dropdown (`feedback.STATUSES` = Not yet started → Ongoing →
   On Hold → Completed; new notes default to the first) → `POST /feedback/status`, and a **Delete**
   button → `POST /feedback/delete` (removes the JSON + audio + screenshot, which share the rid prefix).
-  A **filter bar** at the top of the tracker filters the cards by status (All + each status, each with
-  a live count chip) — client-side only, re-counts as you change a status or delete a note.
+  A **filter bar** at the top of the tracker filters the cards by **status, agency (100% Digital /
+  Transmission / Unassigned) and client** — each dropdown lists only values present in the notes, with
+  a live count chip; client-side only (the three AND-combine), re-counts as you change a status or
+  delete a note. Agency membership comes from the registry (`agency_of` client→agency map). The
+  tracker was restyled to the teal house palette (2026-07-02).
 - **Hand-edit (admin/super):** an edit bar on each note makes the human fields fully editable — the
   **reporter** name, **two dates** (`date_reported`, defaulting to the submission day, and the
   **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges only the

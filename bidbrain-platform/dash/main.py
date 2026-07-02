@@ -130,6 +130,30 @@ def _load_agency_logos():
 AGENCY_LOGOS = _load_agency_logos()
 
 
+# Admin-tree ONLY agency badges — the black-background marks, shown on a dark square tile in the
+# accordion header. Deliberately SEPARATE from AGENCY_LOGOS (the portal's) so the admin page can use
+# a different, badge-shaped logo without changing the portal. Drop an `admlogo_<slug>.svg/.jpg/.png`
+# next to this file. No `light` flag — these already sit on their own dark ground.
+def _load_admin_agency_logos():
+    here = Path(__file__).resolve().parent
+    logos = {}
+    for f in here.glob("admlogo_*"):
+        slug = f.stem[len("admlogo_"):]
+        try:
+            if f.suffix == ".svg":
+                logos[slug] = f.read_text(encoding="utf-8")
+            elif f.suffix in (".jpg", ".jpeg", ".png"):
+                mime = "png" if f.suffix == ".png" else "jpeg"
+                b64 = base64.b64encode(f.read_bytes()).decode()
+                logos[slug] = f'<img src="data:image/{mime};base64,{b64}" alt="">'
+        except OSError:
+            pass
+    return logos
+
+
+ADMIN_AGENCY_LOGOS = _load_admin_agency_logos()
+
+
 # --- SSO cookie helpers -------------------------------------------------------------------
 def _set_sso(resp, allowed):
     """Attach the signed cross-subdomain allow-list cookie to a response."""
@@ -199,7 +223,8 @@ def home():
         return _render_super()
     if kind == "admin":
         st = store.get_state()
-        return render_template("admin.html", logo_svg=LOGO_SVG, is_super=False, **st)
+        return render_template("admin.html", logo_svg=LOGO_SVG, is_super=False,
+                               agency_logos=ADMIN_AGENCY_LOGOS, **st)
     if kind == "agency":
         agency = store.get_agency(session.get("agency_slug", ""))
         if not agency:
@@ -361,9 +386,28 @@ def feedback_admin():
         if k and k not in seen:
             seen[k] = names.get(k, k)
     clients_list = sorted(seen.items(), key=lambda kv: kv[1].lower())
+    # Client -> agency membership (for the Agency filter dropdown). Each card carries data-agency so
+    # a note can be filtered to the agency its client belongs to (e.g. 100% Digital vs Transmission);
+    # clients in no agency are "Unassigned". Like clients_list, the dropdown lists only agencies that
+    # actually have notes, built from the data.
+    agency_name = {a["slug"]: a["name"] for a in store._all_agencies()}
+    agency_of = {}
+    for a in store._all_agencies():
+        for k in a.get("client_keys", []):
+            agency_of[k] = a["slug"]
+    seen_ag, has_unassigned = {}, False
+    for r in rows:
+        slug = agency_of.get(r.get("client", ""), "")
+        if slug:
+            seen_ag[slug] = agency_name.get(slug, slug)
+        elif r.get("client"):
+            has_unassigned = True
+    agencies_filter = sorted(seen_ag.items(), key=lambda kv: kv[1].lower())
     return render_template_string(_FEEDBACK_ADMIN_HTML, rows=rows, names=names, count=len(rows),
                                   ai_on=feedback_ai.enabled(), statuses=feedback.STATUSES,
-                                  default_status=feedback.DEFAULT_STATUS, clients_list=clients_list)
+                                  default_status=feedback.DEFAULT_STATUS, clients_list=clients_list,
+                                  agency_of=agency_of, agencies_filter=agencies_filter,
+                                  has_unassigned=has_unassigned)
 
 
 @app.get("/feedback/file/<client>/<fname>")
@@ -450,60 +494,78 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>Dashboard feedback</title>
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" type="image/png" href="/favicon-32.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  *{box-sizing:border-box} body{margin:0;background:#0e1014;color:#f3f4f6;
-    font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-  header{padding:22px 28px;border-bottom:1px solid rgba(255,255,255,.1);display:flex;
-    align-items:baseline;gap:14px}
-  header h1{margin:0;font-size:19px} header .n{color:#9ca3af;font-size:13px}
-  header a{margin-left:auto;color:#9ca3af;font-size:13px;text-decoration:none}
-  .wrap{max-width:1180px;margin:0 auto;padding:24px 28px;display:flex;flex-direction:column;gap:16px}
+  :root{
+    --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
+    --border-strong:#2f3a52; --text:#e8ebf2; --muted:#8a93a6; --dim:#6b7280;
+    /* single accent — Bidbrain teal (house style) */
+    --accent:#10b981; --accent-strong:#34d399; --accent-bg:rgba(16,185,129,.12);
+    --danger:#f87171;
+    --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--text);font-family:var(--font-sans);
+    background:
+      radial-gradient(600px 340px at 50% -12%, rgba(72,130,255,.04), transparent 60%),
+      radial-gradient(340px 220px at 50% -8%, rgba(16,185,129,.03), transparent 62%),
+      var(--bg);
+    background-repeat:no-repeat;background-attachment:fixed}
+  header{padding:18px 28px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:12px;
+    background:rgba(12,18,30,.72);backdrop-filter:blur(6px);position:sticky;top:0;z-index:5}
+  header .eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong)}
+  header h1{margin:0;font-size:19px;font-weight:800} header .n{color:var(--muted);font-size:13px}
+  header a{margin-left:auto;color:var(--muted);font-size:13px;text-decoration:none}
+  header a:hover{color:var(--text)}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 28px 80px;display:flex;flex-direction:column;gap:16px}
   .filterbar{display:flex;gap:16px;flex-wrap:wrap;align-items:center;margin-bottom:2px}
   .fsel{display:inline-flex;align-items:center;gap:8px}
-  .fsel .flbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593}
-  .fsel select{font:600 13px/1 inherit;color:#f3f4f6;background:#1f2937;border:1px solid rgba(255,255,255,.18);
+  .fsel .flbl{font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
+  .fsel select{font:600 13px/1 inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--border);
     border-radius:8px;padding:8px 11px;cursor:pointer;outline:none}
-  .fsel select:focus{border-color:#6366f1}
-  .card{background:#15171c;border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:15px 17px}
-  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:#9ca3af;margin-bottom:12px}
-  .chip{background:#1f2937;color:#c7d2fe;border-radius:999px;padding:2px 9px;font-weight:600}
+  .fsel select:focus{border-color:var(--accent-strong)}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:15px 17px}
+  .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:12px}
+  .chip{background:var(--accent-bg);color:var(--accent-strong);border-radius:999px;padding:2px 9px;font-weight:700}
   .meta .grow{flex:1}
-  select.stat{font:600 12px/1 inherit;color:#f3f4f6;background:#1f2937;border:1px solid rgba(255,255,255,.18);
+  select.stat{font:600 12px/1 inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--border);
     border-radius:7px;padding:5px 8px;cursor:pointer}
-  select.stat[data-status="Completed"]{background:#064e3b;border-color:#10b981}
-  select.stat[data-status="Ongoing"]{background:#1e3a8a;border-color:#3b82f6}
-  select.stat[data-status="On Hold"]{background:#78350f;border-color:#f59e0b}
+  select.stat[data-status="Completed"]{background:rgba(16,185,129,.16);border-color:var(--accent)}
+  select.stat[data-status="Ongoing"]{background:rgba(59,130,246,.18);border-color:#3b82f6}
+  select.stat[data-status="On Hold"]{background:rgba(245,158,11,.16);border-color:#f59e0b}
   select.stat[disabled]{opacity:.5}
   button.del{font:600 12px/1 inherit;color:#fca5a5;background:transparent;border:1px solid rgba(248,113,113,.45);
     border-radius:7px;padding:5px 9px;cursor:pointer} button.del:hover{background:rgba(248,113,113,.16)}
   .edit{display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:13px;
-    padding:11px 13px;background:#10131a;border:1px solid rgba(255,255,255,.08);border-radius:9px}
+    padding:11px 13px;background:var(--panel-2);border:1px solid var(--border);border-radius:9px}
   .edit label{display:flex;flex-direction:column;gap:4px;font-size:10.5px;letter-spacing:.5px;
-    text-transform:uppercase;color:#7c8593}
-  .edit input{font:14px/1 inherit;color:#f3f4f6;background:#0e1014;border:1px solid rgba(255,255,255,.16);
-    border-radius:7px;padding:7px 9px;outline:none;color-scheme:dark} .edit input:focus{border-color:#6366f1}
+    text-transform:uppercase;color:var(--muted)}
+  .edit input{font:14px/1 inherit;color:var(--text);background:var(--bg);border:1px solid var(--border);
+    border-radius:7px;padding:7px 9px;outline:none;color-scheme:dark} .edit input:focus{border-color:var(--accent-strong)}
   .edit input.rep{min-width:170px}
   .edit .grow{flex:1}
-  button.save{font:600 12px/1 inherit;color:#fff;background:#6366f1;border:1px solid #6366f1;
-    border-radius:7px;padding:8px 13px;cursor:pointer} button.save:hover{background:#5457e6}
+  button.save{font:600 12px/1 inherit;color:#06281d;background:var(--accent);border:1px solid var(--accent);
+    border-radius:7px;padding:8px 13px;cursor:pointer} button.save:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
   button.save:disabled{opacity:.5;cursor:default}
-  .saved{font-size:12px;color:#34d399;align-self:center}
-  textarea.note{width:100%;min-height:70px;resize:vertical;font:14px/1.5 inherit;color:#f3f4f6;
-    background:#0e1014;border:1px solid rgba(255,255,255,.16);border-radius:8px;padding:8px 10px;
-    outline:none} textarea.note:focus{border-color:#6366f1}
+  .saved{font-size:12px;color:var(--accent-strong);align-self:center}
+  textarea.note{width:100%;min-height:70px;resize:vertical;font:14px/1.5 inherit;color:var(--text);
+    background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:8px 10px;
+    outline:none} textarea.note:focus{border-color:var(--accent-strong)}
   .cols{display:grid;grid-template-columns:1fr 1fr 220px;gap:18px}
   @media(max-width:820px){.cols{grid-template-columns:1fr}}
-  .col h4{margin:0 0 7px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:#7c8593}
+  .col h4{margin:0 0 7px;font-size:11px;letter-spacing:.6px;text-transform:uppercase;color:var(--muted)}
   .txt{white-space:pre-wrap;font-size:14px;line-height:1.5}
-  .muted{color:#6b7280;font-style:italic;font-size:13px}
+  .muted{color:var(--dim);font-style:italic;font-size:13px}
   audio{width:100%;margin-top:10px;height:38px}
   .sum{font-size:14px;line-height:1.5;margin:0 0 9px}
   .acts{margin:0;padding-left:18px;font-size:13.5px;line-height:1.55} .acts li{margin:2px 0}
-  .shot{display:block;border:1px solid rgba(255,255,255,.14);border-radius:8px;overflow:hidden}
+  .shot{display:block;border:1px solid var(--border);border-radius:8px;overflow:hidden}
   .shot img{display:block;width:100%;height:auto}
-  .none{color:#9ca3af;padding:40px 0;text-align:center}
+  .none{color:var(--muted);padding:40px 0;text-align:center}
 </style></head><body>
-<header><h1>Dashboard feedback</h1><span class="n">{{ count }} note(s)</span>
+<header><span class="eyebrow">Feedback</span><h1>Dashboard feedback</h1><span class="n">{{ count }} note(s)</span>
   <a href="/">&larr; back to platform</a></header>
 <div class="wrap">
 {% if rows %}
@@ -512,6 +574,13 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
     <select id="fStatus">
       <option value="all" data-base="All">All</option>
       {% for s in statuses %}<option value="{{ s }}" data-base="{{ s }}">{{ s }}</option>{% endfor %}
+    </select>
+  </label>
+  <label class="fsel"><span class="flbl">Agency</span>
+    <select id="fAgency">
+      <option value="all" data-base="All agencies">All agencies</option>
+      {% for slug, name in agencies_filter %}<option value="{{ slug }}" data-base="{{ name }}">{{ name }}</option>{% endfor %}
+      {% if has_unassigned %}<option value="" data-base="Unassigned">Unassigned</option>{% endif %}
     </select>
   </label>
   <label class="fsel"><span class="flbl">Client</span>
@@ -524,7 +593,7 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
 {% endif %}
 {% for r in rows %}
   {% set st = r.status or default_status %}
-  <div class="card" data-status="{{ st }}" data-client="{{ r.client }}">
+  <div class="card" data-status="{{ st }}" data-client="{{ r.client }}" data-agency="{{ agency_of.get(r.client, '') }}">
     <div class="meta">
       <span class="chip">{{ names.get(r.client, r.client) }}</span>
       <span>{{ r.created_at | datetime }}</span>
@@ -581,33 +650,38 @@ function fbPost(url,body){return fetch(url,{method:'POST',headers:{'content-type
 var fbFilter=(function(){
   var bar=document.querySelector('.filterbar');
   if(!bar)return function(){};
-  var selStatus=document.getElementById('fStatus'), selClient=document.getElementById('fClient');
+  var selStatus=document.getElementById('fStatus'), selClient=document.getElementById('fClient'),
+      selAgency=document.getElementById('fAgency');
   function apply(){
-    var st=selStatus.value, cl=selClient.value;
+    var st=selStatus.value, cl=selClient.value, ag=selAgency?selAgency.value:'all';
     document.querySelectorAll('.card').forEach(function(card){
       var sOk=(st==='all'||(card.dataset.status||'')===st);
       var cOk=(cl==='all'||(card.dataset.client||'')===cl);
-      card.style.display=(sOk&&cOk)?'':'none';
+      var aOk=(ag==='all'||(card.dataset.agency||'')===ag);
+      card.style.display=(sOk&&cOk&&aOk)?'':'none';
     });
   }
   function relabel(sel,counts,total){
+    if(!sel)return;
     Array.prototype.forEach.call(sel.options,function(o){
       var n=(o.value==='all')?total:(counts[o.value]||0);
       o.textContent=(o.dataset.base||o.value)+' ('+n+')';
     });
   }
   function recount(){
-    var cards=document.querySelectorAll('.card'), byStatus={}, byClient={};
+    var cards=document.querySelectorAll('.card'), byStatus={}, byClient={}, byAgency={};
     cards.forEach(function(card){
-      var s=card.dataset.status||'', c=card.dataset.client||'';
-      byStatus[s]=(byStatus[s]||0)+1; byClient[c]=(byClient[c]||0)+1;
+      var s=card.dataset.status||'', c=card.dataset.client||'', a=card.dataset.agency||'';
+      byStatus[s]=(byStatus[s]||0)+1; byClient[c]=(byClient[c]||0)+1; byAgency[a]=(byAgency[a]||0)+1;
     });
     relabel(selStatus,byStatus,cards.length);
     relabel(selClient,byClient,cards.length);
+    relabel(selAgency,byAgency,cards.length);
     apply();
   }
   selStatus.addEventListener('change',apply);
   selClient.addEventListener('change',apply);
+  if(selAgency)selAgency.addEventListener('change',apply);
   recount();
   return recount;   // status-change / delete handlers call fbFilter() to recompute counts + re-apply
 })();
@@ -977,7 +1051,8 @@ def admin_tree():
     if kind not in ("admin", "superadmin"):
         return redirect("/")
     st = store.get_state()
-    return render_template("admin.html", logo_svg=LOGO_SVG, is_super=(kind == "superadmin"), **st)
+    return render_template("admin.html", logo_svg=LOGO_SVG, is_super=(kind == "superadmin"),
+                           agency_logos=ADMIN_AGENCY_LOGOS, **st)
 
 
 # --- admin / super "enter agency view" -----------------------------------------------------
