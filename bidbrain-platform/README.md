@@ -31,13 +31,21 @@ console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clear
   (on hold), **HireRight**. Add them to an agency anytime via the admin UI.
 
 The **admin agencies page** (`templates/admin.html`) renders these as per-agency **accordion cards**
-(collapsed by default; open state kept client-side in `sessionStorage`) in the teal house style, each
+(collapsed by default; open state kept client-side in `sessionStorage`) in the house style, each
 with each agency's **dark logo tile** from `ADMIN_AGENCY_LOGOS` — a black-ground badge loaded from
 `admlogo_<slug>.svg/.jpg/.png` in `dash/`, **admin-page only and separate from the portal's
 `AGENCY_LOGOS`** so the two surfaces can differ (the route passes it to the template as `agency_logos`;
 falls back to initials on a neutral tile) — plus a name/client **search box**. Every action (Enter
 portal / Add client / Edit / Delete / + Campaign / Logo / Remove / Sync all) and its endpoint is
 unchanged — the redesign (2026-07-02) is presentation only.
+
+**House accent = bright cornflower blue** `--accent:#4C8DFF` / `--accent-strong:#6EA8FF` (+ 12% tint),
+with a subtle blue top-glow. It's declared per-file in each template's `:root`, so a re-theme means
+editing **`templates/login.html`, `templates/admin.html`, and the `_FEEDBACK_ADMIN_HTML` string in
+`main.py`**. `templates/_status_merge.html` is SHARED with the portal and keeps its own semantic
+palette (blue = Snowflake, teal = dashboard, green = healthy/match); the admin view only overrides its
+active-tab underline to the accent. Semantic status colours (Completed = green, etc.) are kept separate
+from the accent.
 
 Admin password defaults to `bidbrain-admin-2026` — override with the `ADMIN_PW` env before
 seeding, or rotate later by re-seeding with a new `ADMIN_PW`.
@@ -252,7 +260,7 @@ ride along as plain form fields; both stored on the record, blank when not given
   Transmission / Unassigned) and client** — each dropdown lists only values present in the notes, with
   a live count chip; client-side only (the three AND-combine), re-counts as you change a status or
   delete a note. Agency membership comes from the registry (`agency_of` client→agency map). The
-  tracker was restyled to the teal house palette (2026-07-02).
+  tracker was restyled to the house palette (2026-07-02).
 - **Hand-edit (admin/super):** an edit bar on each note makes the human fields fully editable — the
   **reporter** name, **two dates** (`date_reported`, defaulting to the submission day, and the
   **target deadline**), and the **Notes** text — saved via `POST /feedback/edit` (merges only the

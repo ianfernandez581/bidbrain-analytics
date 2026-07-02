@@ -15,8 +15,8 @@
     --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --row:#0e1521;
     --border:rgba(255,255,255,.08); --border-strong:#2f3a52;
     --text:#e8ebf2; --muted:#8a93a6; --dim:#6b7488;
-    /* single accent — Bidbrain teal (replaces the old blue+teal mix) */
-    --accent:#10b981; --accent-strong:#34d399; --accent-bg:rgba(16,185,129,.12);
+    /* single accent — bright cornflower blue */
+    --accent:#4C8DFF; --accent-strong:#6EA8FF; --accent-bg:rgba(76,141,255,.12);
     --danger:#f87171; --danger-bg:rgba(248,113,113,.12); --warning:#f59e0b;
     --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
     --chip-bg:#1a2334; --chip-text:#9aa6bd;
@@ -26,8 +26,8 @@
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;color:var(--text);font-family:var(--font-sans);font-size:14px;line-height:1.5;
        background:
-         radial-gradient(720px 400px at 50% -10%, rgba(72,130,255,.09), transparent 60%),
-         radial-gradient(460px 280px at 50% -6%, rgba(16,185,129,.07), transparent 62%),
+         radial-gradient(840px 480px at 50% -6%, rgba(76,141,255,.18), transparent 62%),
+         radial-gradient(560px 340px at 50% -2%, rgba(110,168,255,.10), transparent 66%),
          var(--bg);
        background-repeat:no-repeat;background-attachment:fixed}
   .mono{font-family:var(--font-mono)}
@@ -37,7 +37,7 @@
           background:rgba(12,18,30,.72);backdrop-filter:blur(6px);position:sticky;top:0;z-index:20}
   .topbar .logo svg{height:22px;width:auto;display:block}
   .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
-  .admin-pill{font-size:10.5px;font-weight:800;letter-spacing:.7px;color:#06281d;background:var(--accent-strong);
+  .admin-pill{font-size:10.5px;font-weight:800;letter-spacing:.7px;color:#06132b;background:var(--accent-strong);
               padding:3px 9px;border-radius:6px}
   .spacer{flex:1}
 
@@ -48,7 +48,7 @@
   .btn:hover{background:#16202f}
   .btn:active{transform:scale(.985)}
   .btn:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}
-  .btn.primary{background:var(--accent);border-color:var(--accent);color:#06281d}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#06132b}
   .btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
   .btn.ghost{border-color:transparent;color:var(--muted)}
   .btn.ghost:hover{background:#16202f;color:var(--text)}
@@ -300,6 +300,12 @@
   </div>
 
   {% include "_status_merge.html" %}
+  <style>
+    /* This view uses the cornflower-blue accent; re-point the shared status partial's brand-teal
+       tab underline to match (admin page only — the portal keeps the partial's defaults). The
+       health/verdict/match greens stay as-is: they're semantic success colors, not the brand accent. */
+    .bbtab.on{border-bottom-color:var(--accent-strong)}
+  </style>
 
   <!-- generic modal -->
   <div class="scrim" id="scrim">
