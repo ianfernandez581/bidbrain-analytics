@@ -12,59 +12,140 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --row:#0e1521; --border:rgba(255,255,255,.08);
-    --text:#e8ebf2; --muted:#8a93a6; --accent:#3b82f6; --accent-2:#2563eb;
-    --teal:#2dd4bf; --active:#22c55e; --danger:#f87171;
+    --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --row:#0e1521;
+    --border:rgba(255,255,255,.08); --border-strong:#2f3a52;
+    --text:#e8ebf2; --muted:#8a93a6; --dim:#6b7488;
+    /* single accent — Bidbrain teal (replaces the old blue+teal mix) */
+    --accent:#10b981; --accent-strong:#34d399; --accent-bg:rgba(16,185,129,.12);
+    --danger:#f87171; --danger-bg:rgba(248,113,113,.12); --warning:#f59e0b;
+    --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
     --chip-bg:#1a2334; --chip-text:#9aa6bd;
+    --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;color:var(--text);background:var(--bg);
-       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
-  .topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;
-          border-bottom:1px solid var(--border);background:#0c121e;position:sticky;top:0;z-index:20}
-  .topbar .logo svg{height:24px;width:auto;display:block}
+  body{margin:0;min-height:100vh;color:var(--text);font-family:var(--font-sans);font-size:14px;line-height:1.5;
+       background:
+         radial-gradient(720px 400px at 50% -10%, rgba(72,130,255,.09), transparent 60%),
+         radial-gradient(460px 280px at 50% -6%, rgba(16,185,129,.07), transparent 62%),
+         var(--bg);
+       background-repeat:no-repeat;background-attachment:fixed}
+  .mono{font-family:var(--font-mono)}
+
+  /* topbar */
+  .topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;border-bottom:1px solid var(--border);
+          background:rgba(12,18,30,.72);backdrop-filter:blur(6px);position:sticky;top:0;z-index:20}
+  .topbar .logo svg{height:22px;width:auto;display:block}
   .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
-  .admin-pill{font-size:10.5px;font-weight:800;letter-spacing:.7px;color:#0a0e16;background:var(--teal);
+  .admin-pill{font-size:10.5px;font-weight:800;letter-spacing:.7px;color:#06281d;background:var(--accent-strong);
               padding:3px 9px;border-radius:6px}
   .spacer{flex:1}
-  .btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer;
-       border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none}
+
+  /* buttons */
+  .btn{display:inline-flex;align-items:center;gap:6px;font-family:inherit;font-size:13px;font-weight:600;
+       padding:8px 15px;border-radius:999px;border:1px solid var(--border-strong);background:transparent;
+       color:var(--text);text-decoration:none;cursor:pointer;transition:background .12s,border-color .12s,color .12s}
   .btn:hover{background:#16202f}
-  .btn.primary{background:var(--accent);border-color:transparent;color:#fff}
-  .btn.primary:hover{background:var(--accent-2)}
-  .btn.sm{font-size:12px;padding:5px 10px}
-  .btn.danger{color:var(--danger);border-color:rgba(248,113,113,.3)}
-  .btn.danger:hover{background:rgba(248,113,113,.12)}
-  .wrap{max-width:1120px;margin:0 auto;padding:34px 28px 80px}
-  .head{display:flex;align-items:center;justify-content:space-between;margin:0 0 26px}
+  .btn:active{transform:scale(.985)}
+  .btn:focus-visible{outline:2px solid var(--accent-strong);outline-offset:2px}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#06281d}
+  .btn.primary:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
+  .btn.ghost{border-color:transparent;color:var(--muted)}
+  .btn.ghost:hover{background:#16202f;color:var(--text)}
+  .btn.sm{font-size:12px;padding:5px 12px}
+  .btn.danger{color:var(--danger);border-color:rgba(248,113,113,.34)}
+  .btn.danger:hover{background:var(--danger-bg);border-color:var(--danger)}
+  .icon-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;
+            border-radius:var(--radius-sm);background:transparent;border:none;color:var(--muted);cursor:pointer;text-decoration:none}
+  .icon-btn:hover{background:#16202f;color:var(--text)}
+  .icon-btn svg{width:16px;height:16px}
+  .icon-btn.is-live{color:#fff}
+  .icon-btn.is-live:hover{color:var(--accent-strong)}
+  .icon-btn.is-placeholder{color:#fff;opacity:.32;cursor:default;pointer-events:none}
+
+  .wrap{max-width:1120px;margin:0 auto;padding:32px 28px 90px}
+
+  /* page header */
+  .head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:0 0 8px}
+  .head .eyebrow{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent-strong);margin:0 0 6px}
   .head h1{font-size:26px;font-weight:800;margin:0}
-  .slug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
-        color:var(--chip-text);background:var(--chip-bg);padding:2px 8px;border-radius:6px}
-  .count{font-size:12.5px;color:var(--muted)}
-  .agency{background:var(--panel);border:1px solid var(--border);border-radius:14px;margin:0 0 16px;overflow:hidden}
-  .agency>.bar{display:flex;align-items:center;gap:11px;padding:15px 18px;background:#121a29;border-bottom:1px solid var(--border)}
-  .agency>.bar .nm{font-size:16px;font-weight:700}
-  .agency .acts{display:flex;gap:7px;margin-left:auto}
-  .client{padding:13px 18px 13px 26px;border-bottom:1px solid rgba(255,255,255,.05)}
-  .client:last-child{border-bottom:none}
-  .client>.crow{display:flex;align-items:center;gap:10px}
-  .client>.crow .nm{font-size:14.5px;font-weight:650}
-  .client .acts{display:flex;gap:6px;margin-left:auto;opacity:0;transition:opacity .12s}
-  .client:hover .acts{opacity:1}
-  .camp{display:flex;align-items:center;gap:11px;padding:8px 0 8px 22px;color:var(--muted)}
-  .camp .cnm{font-size:13.5px;color:var(--text);font-weight:550;min-width:150px}
-  .camp .url{font-size:12px;color:#6b7488;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .camp a.url{color:#6b7488;text-decoration:none}
-  .camp a.url:hover{color:var(--accent)}
-  .pill{font-size:10px;font-weight:800;letter-spacing:.6px;padding:3px 8px;border-radius:999px}
-  .pill.active{color:#86efac;background:rgba(34,197,94,.14)}
+  .head .subtitle{margin:5px 0 0;color:var(--muted);font-size:13px}
+  .head-actions{display:flex;gap:8px}
+
+  /* sync bar */
+  .bbmuted{color:var(--muted);font-size:13px}
+
+  /* toolbar: search + follow-up note */
+  .toolbar{display:flex;gap:10px;margin:0 0 22px;flex-wrap:wrap;align-items:center}
+  .search{position:relative;flex:1;min-width:220px}
+  .search input{width:100%;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius-sm);
+    color:var(--text);font:13px inherit;padding:9px 12px 9px 34px}
+  .search input::placeholder{color:var(--muted)}
+  .search input:focus{outline:none;border-color:var(--border-strong)}
+  .search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;color:var(--muted)}
+  .chip-note{font-size:12px;color:var(--dim)}
+
+  /* agency accordion cards */
+  #agencyList{display:flex;flex-direction:column;gap:14px}
+  .agency-card{border:1px solid var(--border);border-left:3px solid var(--agency-color,var(--border-strong));
+    border-radius:var(--radius-lg);overflow:hidden;background:var(--panel)}
+  .agency-header{display:flex;align-items:center;justify-content:space-between;gap:12px;
+    padding:14px 20px 14px 16px;cursor:pointer;user-select:none;flex-wrap:wrap}
+  .agency-header:hover{background:#16202f}
+  .agency-left{display:flex;align-items:center;gap:12px;min-width:0}
+  .chevron{color:var(--muted);flex:0 0 auto;transition:transform .15s ease;display:inline-flex}
+  .chevron svg{width:16px;height:16px;display:block}
+  .agency-card.open .chevron{transform:rotate(90deg)}
+  .agency-logo{width:34px;height:34px;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;
+    background:var(--agency-color,var(--border-strong));color:#fff;font-size:12px;font-weight:800;flex:0 0 auto;overflow:hidden}
+  /* black-ground logo tile (admin page only) — the agency's own dark mark */
+  .agency-logo.badge-dark{width:40px;height:40px;background:#000;padding:3px}
+  .agency-logo.badge-dark img,.agency-logo.badge-dark svg{width:100%;height:100%;object-fit:contain;display:block}
+  .nm{font-size:15px;font-weight:700}
+  .slug{font-family:var(--font-mono);font-size:11px;color:var(--muted);background:var(--chip-bg);padding:2px 7px;border-radius:4px}
+  .count{font-size:12px;color:var(--muted)}
+  .agency-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:flex-end}
+  .summary-pill{font-size:12px;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .summary-pill svg{width:14px;height:14px;color:var(--accent-strong)}
+  .agency-actions{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+  /* client + campaign nesting */
+  .client-list{display:none;border-top:1px solid var(--border)}
+  .agency-card.open .client-list{display:block}
+  .client{border-top:1px solid rgba(255,255,255,.05);background:var(--panel-2)}
+  .client:first-child{border-top:none}
+  .client-header{display:flex;align-items:center;gap:10px;padding:12px 20px 12px 46px;flex-wrap:wrap}
+  .client-header .nm{font-size:14px;font-weight:650}
+  .client-header .bbhealth{margin-top:0}
+  .client-acts{display:flex;gap:6px;margin-left:auto;opacity:0;transition:opacity .12s}
+  .client:hover .client-acts,.client:focus-within .client-acts{opacity:1}
+  .camp{display:flex;align-items:center;gap:11px;padding:9px 20px 9px 72px;border-top:1px solid var(--border);color:var(--muted)}
+  .camp .dot{width:5px;height:5px;border-radius:50%;background:var(--dim);flex:0 0 auto}
+  .cnm{font-size:13.5px;color:var(--text);font-weight:550;min-width:150px}
+  .camp .path{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+  .url{font-size:12px;color:var(--dim);max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  a.url{text-decoration:none}
+  a.url:hover{color:var(--accent-strong)}
+  .camp-right{display:flex;align-items:center;gap:10px;margin-left:auto}
+  .camp-acts{display:flex;gap:6px;opacity:0;transition:opacity .12s}
+  .camp:hover .camp-acts,.camp:focus-within .camp-acts{opacity:1}
+
+  /* status pills */
+  .pill{font-size:10px;font-weight:800;letter-spacing:.5px;padding:3px 9px;border-radius:999px;display:inline-flex;align-items:center}
+  .pill.active{color:var(--accent-strong);background:var(--accent-bg)}
   .pill.soon{color:#cbd5e1;background:rgba(148,163,184,.16)}
-  .camp .acts{display:flex;gap:6px;margin-left:auto;opacity:0;transition:opacity .12s}
-  .camp:hover .acts{opacity:1}
-  .addrow{padding:10px 18px 10px 26px}
-  .unassigned{margin-top:30px}
-  .unassigned h3{font-size:13px;color:var(--muted);font-weight:600;margin:0 0 10px;letter-spacing:.3px}
+  .pill.hold{color:var(--warning);background:rgba(245,158,11,.14)}
+  .pill.none{color:var(--muted);background:var(--panel-2);border:1px solid var(--border)}
+
+  /* unassigned */
+  .unassigned-card{border:1px solid var(--border);border-left:3px solid var(--border-strong);
+    border-radius:var(--radius-lg);overflow:hidden;background:var(--panel);margin-top:16px}
+  .unassigned-heading{padding:12px 20px;font-size:12px;color:var(--muted);background:var(--panel-2)}
+  .unassigned-row{display:flex;align-items:center;gap:10px;padding:13px 20px;border-top:1px solid var(--border);background:var(--panel-2)}
+  .unassigned-row .nm{font-size:14px;font-weight:650}
+
+  .bb-hide{display:none !important}
+
   /* modal */
   .scrim{position:fixed;inset:0;background:rgba(5,8,13,.66);display:none;align-items:center;justify-content:center;z-index:50}
   .scrim.on{display:flex}
@@ -74,97 +155,146 @@
   .modal label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:12px 0 6px}
   .modal input,.modal select{width:100%;padding:11px 12px;font-size:14px;color:var(--text);background:#0b111d;
         border:1px solid #20293b;border-radius:10px;outline:none;font-family:inherit}
-  .modal input:focus,.modal select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(59,130,246,.2)}
+  .modal input:focus,.modal select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
   .modal .actions{display:flex;gap:10px;justify-content:flex-end;margin-top:22px}
   .hint{font-size:11.5px;color:#5b6478;margin-top:6px}
-  .crow .bbhealth{margin-top:0}
+
+  @media (max-width:640px){
+    .wrap{padding:24px 16px 80px}
+    .agency-header,.client-header,.camp{padding-left:16px}
+    .camp{flex-wrap:wrap;gap:8px}.cnm{min-width:0}
+    .agency-right{width:100%;justify-content:flex-start}
+    .agency-actions{width:100%}.agency-actions .btn{flex:1;justify-content:center}
+    .client-acts,.camp-acts{opacity:1}
+  }
+  @media (prefers-reduced-motion:reduce){ .chevron{transition:none} }
 </style>
 </head>
 <body>
+{% macro chevron_svg() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>{% endmacro %}
+{% macro ext_svg() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>{% endmacro %}
+{% macro check_svg() %}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.5 2.5 4.5-5"/></svg>{% endmacro %}
+
   <div class="topbar">
     <span class="logo">{{ logo_svg | safe }}</span>
     <span class="label">Campaign Dashboards · Admin</span>
     <span class="admin-pill">ADMIN</span>
     <span class="spacer"></span>
-    <a class="btn" href="/feedback/admin">Feedback →</a>
-    {% if is_super %}<a class="btn" href="/">★ Super console</a>{% endif %}
-    <a class="btn" href="/logout">Log out</a>
+    <a class="btn ghost" href="/feedback/admin">Feedback →</a>
+    {% if is_super %}<a class="btn ghost" href="/">★ Super console</a>{% endif %}
+    <a class="btn ghost" href="/logout">Log out</a>
   </div>
 
   <div class="wrap">
     <div class="head">
-      <h1>Agencies</h1>
-      <button class="btn primary" onclick="openAgency()">+ Add Agency</button>
+      <div>
+        <p class="eyebrow">Campaign dashboards</p>
+        <h1>Agencies</h1>
+        {% set ns = namespace(c=0) %}{% for a in agencies %}{% set ns.c = ns.c + a.clients|length %}{% endfor %}
+        <p class="subtitle">{{ ns.c }} client{{ '' if ns.c == 1 else 's' }} across {{ agencies|length }} agenc{{ 'y' if agencies|length == 1 else 'ies' }}{% if unassigned %} · {{ unassigned|length }} unassigned{% endif %}</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn primary" onclick="openAgency()">+ Add agency</button>
+      </div>
     </div>
 
     <div class="bbtabs">
       <button class="bbtab on" data-pane="overview">Overview</button>
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
     </div>
+
     <div class="bbpane on" id="pane-overview">
-    <div class="bbsyncbar"><button id="bbsyncall" class="bbbtn">🔄 Sync all dashboards now</button> <span id="bbsyncall-msg" class="bbmuted"></span></div>
+    <div class="bbsyncbar">
+      <button id="bbsyncall" class="btn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+        Sync all dashboards now
+      </button>
+      <span id="bbsyncall-msg" class="bbmuted"></span>
+    </div>
 
-    {% for a in agencies %}
-    <div class="agency">
-      <div class="bar">
-        <span class="nm">{{ a.name }}</span>
-        <span class="slug">{{ a.slug }}</span>
-        <span class="count">{{ a.clients|length }} client{{ '' if a.clients|length == 1 else 's' }}</span>
-        <span class="acts">
-          <a class="btn sm" href="/enter-agency/{{ a.slug }}">Enter portal →</a>
-          <button class="btn sm" onclick='openClient("{{ a.slug }}")'>+ Add client</button>
-          <button class="btn sm" onclick='openAgency({{ a|tojson }})'>Edit</button>
-          <button class="btn sm danger" onclick='delAgency("{{ a.slug }}","{{ a.name }}")'>Delete</button>
-        </span>
+    <div class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="bbAdminSearch" type="text" placeholder="Search agencies or clients" autocomplete="off">
       </div>
+      <span class="chip-note">Filter chips (All / Needs attention / Coming soon) — planned follow-up</span>
+    </div>
 
-      {% for c in a.clients %}
-      <div class="client" data-client="{{ c.key }}">
-        <div class="crow">
-          <span class="nm">{{ c.name }}</span>
-          <span class="slug">{{ c.slug }}</span>
-          <span class="count">{{ c.campaigns|length }} campaign{{ '' if c.campaigns|length == 1 else 's' }}</span>
-          <span class="bbhealth" data-for="{{ c.key }}"></span>
-          <span class="acts">
-            <button class="btn sm" onclick='openCampaign("{{ c.key }}")'>+ Campaign</button>
-            <button class="btn sm" onclick='uploadLogo("{{ c.key }}")'>Logo</button>
-            <button class="btn sm" onclick='openClient("{{ a.slug }}",{{ c|tojson }})'>Edit</button>
-            <button class="btn sm danger" onclick='delClient("{{ c.key }}","{{ c.name }}")'>Remove</button>
-          </span>
+    <div id="agencyList">
+    {% for a in agencies %}
+    {% set lg = (agency_logos.get(a.slug) if agency_logos else None) %}
+    {% set parts = a.name.split() %}
+    {% set na = a.clients|selectattr('status','equalto','active')|list|length %}
+    <div class="agency-card" data-agency="{{ a.slug }}" data-name="{{ a.name }}">
+      <div class="agency-header" onclick="toggleAgency('{{ a.slug }}')">
+        <div class="agency-left">
+          <span class="chevron">{{ chevron_svg() }}</span>
+          {% if lg %}<span class="agency-logo badge-dark">{{ lg | safe }}</span>
+          {% else %}<span class="agency-logo">{{ ((parts[0][0] if parts else '') ~ (parts[1][0] if parts|length > 1 else ''))|upper }}</span>{% endif %}
+          <span class="nm">{{ a.name }}</span>
+          <span class="slug">{{ a.slug }}</span>
+          <span class="count">{{ a.clients|length }} client{{ '' if a.clients|length == 1 else 's' }}</span>
         </div>
-        {% for cm in c.campaigns %}
-        <div class="camp">
-          <span class="cnm">{{ cm.name }}</span>
-          <span class="slug">{{ cm.path }}</span>
-          {% if c.status == 'active' %}<a class="url" href="/d/{{ c.key }}/" target="_blank" rel="noopener">/d/{{ c.key }}/ → {{ c.url }}</a>{% else %}<span class="url">—</span>{% endif %}
-          {% if cm.status == 'active' and c.status == 'active' %}<span class="pill active">ACTIVE</span>{% else %}<span class="pill soon">COMING SOON</span>{% endif %}
-          <span class="acts">
-            <button class="btn sm" onclick='openCampaign("{{ c.key }}",{{ loop.index0 }},{{ cm|tojson }})'>Edit</button>
-            <button class="btn sm danger" onclick='delCampaign("{{ c.key }}",{{ loop.index0 }},"{{ cm.name }}")'>Delete</button>
-          </span>
+        <div class="agency-right">
+          <span class="summary-pill">{{ check_svg() }}{{ na }} active</span>
+          <div class="agency-actions" onclick="event.stopPropagation()">
+            <a class="btn sm" href="/enter-agency/{{ a.slug }}">Enter portal →</a>
+            <button class="btn sm" onclick='openClient("{{ a.slug }}")'>+ Add client</button>
+            <button class="btn sm" onclick='openAgency({{ a|tojson }})'>Edit</button>
+            <button class="btn sm danger" onclick='delAgency("{{ a.slug }}","{{ a.name }}")'>Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="client-list">
+        {% for c in a.clients %}
+        <div class="client" data-client="{{ c.name }} {{ c.slug }} {{ c.key }}">
+          <div class="client-header">
+            <span class="nm">{{ c.name }}</span>
+            <span class="slug">{{ c.slug }}</span>
+            <span class="count">{{ c.campaigns|length }} campaign{{ '' if c.campaigns|length == 1 else 's' }}</span>
+            <span class="bbhealth" data-for="{{ c.key }}"></span>
+            <span class="client-acts">
+              <button class="btn sm" onclick='openCampaign("{{ c.key }}")'>+ Campaign</button>
+              <button class="btn sm" onclick='uploadLogo("{{ c.key }}")'>Logo</button>
+              <button class="btn sm" onclick='openClient("{{ a.slug }}",{{ c|tojson }})'>Edit</button>
+              <button class="btn sm danger" onclick='delClient("{{ c.key }}","{{ c.name }}")'>Remove</button>
+            </span>
+          </div>
+          {% for cm in c.campaigns %}
+          <div class="camp">
+            <span class="dot"></span>
+            <span class="cnm">{{ cm.name }}</span>
+            <span class="path">{{ cm.path }}</span>
+            {% if c.status == 'active' and c.url %}<a class="url" href="/d/{{ c.key }}/" target="_blank" rel="noopener">/d/{{ c.key }}/ → {{ c.url }}</a>{% else %}<span class="url">—</span>{% endif %}
+            <div class="camp-right">
+              {% if cm.status == 'active' and c.status == 'active' %}<span class="pill active">ACTIVE</span>{% else %}<span class="pill soon">COMING SOON</span>{% endif %}
+              {% if c.status == 'active' and c.url %}<a class="icon-btn is-live" href="/d/{{ c.key }}/" target="_blank" rel="noopener" title="Open dashboard">{{ ext_svg() }}</a>{% else %}<span class="icon-btn is-placeholder" title="No link set yet">{{ ext_svg() }}</span>{% endif %}
+              <span class="camp-acts">
+                <button class="btn sm" onclick='openCampaign("{{ c.key }}",{{ loop.index0 }},{{ cm|tojson }})'>Edit</button>
+                <button class="btn sm danger" onclick='delCampaign("{{ c.key }}",{{ loop.index0 }},"{{ cm.name }}")'>Delete</button>
+              </span>
+            </div>
+          </div>
+          {% endfor %}
         </div>
         {% endfor %}
       </div>
-      {% endfor %}
     </div>
     {% endfor %}
 
     {% if unassigned %}
-    <div class="unassigned">
-      <h3>UNASSIGNED · reachable only by their own dashboard password</h3>
-      <div class="agency">
-        {% for c in unassigned %}
-        <div class="client">
-          <div class="crow">
-            <span class="nm">{{ c.name }}</span>
-            <span class="slug">{{ c.slug }}</span>
-            <span class="count">{{ c.note or 'no agency' }}</span>
-          </div>
-        </div>
-        {% endfor %}
+    <div class="unassigned-card">
+      <div class="unassigned-heading">UNASSIGNED · reachable only by their own dashboard password</div>
+      {% for c in unassigned %}
+      <div class="unassigned-row" data-client="{{ c.name }} {{ c.slug }}">
+        <span class="nm">{{ c.name }}</span>
+        <span class="slug">{{ c.slug }}</span>
+        <span style="margin-left:auto"><span class="pill {{ 'hold' if c.note == 'on hold' else 'none' }}">{{ (c.note or 'no agency')|upper }}</span></span>
       </div>
+      {% endfor %}
     </div>
     {% endif %}
+    </div><!-- /agencyList -->
     </div><!-- /pane-overview -->
     <div class="bbpane" id="pane-accuracy"><div id="bbacc"><div class="bbloading">Loading…</div></div></div>
   </div>
@@ -255,6 +385,49 @@ function uploadLogo(key){
       .catch(()=>alert('Upload failed.')); };
   inp.click();
 }
+
+/* ---- accordion (client-side state, no backend; survives post()->reload via sessionStorage) ---- */
+let OPEN = new Set();
+try{ OPEN = new Set(JSON.parse(sessionStorage.getItem('bbAdminOpen')||'[]')); }catch(e){}
+function applyOpen(){ document.querySelectorAll('.agency-card').forEach(function(el){
+  el.classList.toggle('open', OPEN.has(el.getAttribute('data-agency'))); }); }
+function toggleAgency(slug){
+  if(OPEN.has(slug)) OPEN.delete(slug); else OPEN.add(slug);
+  try{ sessionStorage.setItem('bbAdminOpen', JSON.stringify(Array.from(OPEN))); }catch(e){}
+  applyOpen();
+}
+applyOpen();
+
+/* ---- search: filter agencies + clients; expand matching cards; restore on clear ---- */
+(function(){
+  var box = document.getElementById('bbAdminSearch');
+  if(!box) return;
+  box.addEventListener('input', function(){
+    var q = box.value.trim().toLowerCase();
+    document.querySelectorAll('#agencyList > .agency-card').forEach(function(card){
+      var agencyHit = (card.getAttribute('data-name')||'').toLowerCase().indexOf(q) >= 0 ||
+                      (card.getAttribute('data-agency')||'').toLowerCase().indexOf(q) >= 0;
+      var any = false;
+      card.querySelectorAll('.client').forEach(function(row){
+        var hit = q==='' || agencyHit || (row.getAttribute('data-client')||'').toLowerCase().indexOf(q) >= 0;
+        row.classList.toggle('bb-hide', !hit); if(hit) any = true;
+      });
+      var show = q==='' || agencyHit || any;
+      card.classList.toggle('bb-hide', !show);
+      if(q!=='' && show && !agencyHit) card.classList.add('open');
+      else if(q==='') card.classList.toggle('open', OPEN.has(card.getAttribute('data-agency')));
+    });
+    var un = document.querySelector('.unassigned-card');
+    if(un){
+      var anyu = false;
+      un.querySelectorAll('.unassigned-row').forEach(function(r){
+        var hit = q==='' || (r.getAttribute('data-client')||'').toLowerCase().indexOf(q) >= 0 || 'unassigned'.indexOf(q) >= 0;
+        r.classList.toggle('bb-hide', !hit); if(hit) anyu = true;
+      });
+      un.classList.toggle('bb-hide', !(q==='' || anyu));
+    }
+  });
+})();
 </script>
 </body>
 </html>
