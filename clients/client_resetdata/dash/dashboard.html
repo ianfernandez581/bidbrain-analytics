@@ -530,12 +530,10 @@
   <section id="tab-crm" class="hide">
     <div class="note" id="crmNote"></div>
 
-    <!-- The signup funnel (app spend): Leads → App signups → Loaded balance → Paying users. -->
+    <!-- The signup funnel (app spend): Leads → App signups → Loaded balance → Paying users.
+         The HubSpot "Customer" lifecycle count is intentionally NOT here — it's a separate CRM
+         signal (0 overlap with paying) shown in the Lifecycle mix / by-owner section below. -->
     <div class="grid kpis" id="crmKpis"></div>
-    <!-- CRM lifecycle is a SEPARATE HubSpot signal, NOT the step after Paying (0 overlap — paying
-         users are still tagged Lead in HubSpot), so it's demoted out of the funnel strip above. -->
-    <div style="margin:18px 0 6px;font-size:12px;color:var(--muted)"><b>CRM status</b> — HubSpot lifecycle stage, a separate signal from the app-spend funnel above (not the next step)</div>
-    <div class="grid kpis" id="crmLifecycleKpis"></div>
     <div class="note" id="crmAttrNote"></div>
 
     <div class="grid cols-2" style="margin-top:14px">
@@ -1705,10 +1703,11 @@ function qStart(d){const m=+d.slice(5,7);const qm=m<=3?1:m<=6?4:m<=9?7:10;return
 function renderCRM(){
   const C=DATA.crm; if(!C)return; const k=C.kpi;
   // ---- funnel KPI cards (app spend): Leads → App signups → Loaded balance → Paying users ----
-  //      "CRM customers" (HubSpot lifecycle) is DEMOTED to its own strip below — a separate signal,
-  //      not the step after Paying (0 overlap: payers are still tagged Lead in HubSpot).
+  //      The HubSpot "Customer" lifecycle count is deliberately NOT a card here — it's a separate
+  //      CRM signal (0 overlap with paying: payers are still tagged Lead) and is already shown in the
+  //      Lifecycle mix / by-owner section below, so a funnel card would be redundant + misleading.
   // Weekly series (whole-period; this tab ignores the date range) for the sparklines. Only signups /
-  // paying / loaded_balance exist over time; Free = signups - paying. Leads & Customers have no
+  // paying / loaded_balance exist over time; Free = signups - paying. Leads have no
   // time series -> null -> "no trend data".
   const sw=C.signups_weekly||[];
   const wks=[...new Set(sw.map(r=>r.week_start))].sort();
@@ -1723,10 +1722,6 @@ function renderCRM(){
     ['kc-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent', freeW],
   ];
   document.getElementById('crmKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
-  // "CRM customers" (HubSpot lifecycle = Customer) is a SEPARATE signal, NOT the step after Paying:
-  // 0 overlap with paying users (they're still tagged Lead in HubSpot), so it gets its own strip.
-  document.getElementById('crmLifecycleKpis').innerHTML=
-    trendCard('kc-cust','CRM customers',fmtN(k.customers),'HubSpot lifecycle · '+fmtN(k.with_deal)+' with a deal · not tied to app spend', null);
 
   // ---- Q1: weekly app signups stacked by source + paying line ----
   const wk=C.signups_weekly;
