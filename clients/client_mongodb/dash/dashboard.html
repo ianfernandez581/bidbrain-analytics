@@ -1994,7 +1994,7 @@ async function bbHeadlessSlides(){
   }
 }
 if (new URLSearchParams(location.search).has('bbslides')){
-  (function bbWait(){ if (typeof DATA !== 'undefined' && DATA) bbHeadlessSlides(); else setTimeout(bbWait, 120); })();
+  (function bbWait(){ if (typeof DATA !== 'undefined' && DATA && DATA.last_updated) bbHeadlessSlides(); else setTimeout(bbWait, 120); })();
 }
 
 boot();

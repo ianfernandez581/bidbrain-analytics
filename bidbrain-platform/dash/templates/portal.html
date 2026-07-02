@@ -57,6 +57,13 @@
   .tile .camps .path{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11.5px;
                      color:var(--chip-text);background:var(--chip-bg);padding:2px 7px;border-radius:6px}
   .open{margin-top:14px;font-size:13px;font-weight:600;color:var(--accent)}
+  .openrow{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px}
+  .openrow .open{margin-top:0}
+  .slidesbtn{font-size:12px;font-weight:700;color:#86efac;background:rgba(34,197,94,.12);
+             border:1px solid rgba(34,197,94,.32);border-radius:999px;padding:5px 11px;cursor:pointer;
+             white-space:nowrap;user-select:none;transition:background .15s}
+  .slidesbtn:hover{background:rgba(34,197,94,.22)}
+  .slidesbtn.busy{color:var(--muted);background:var(--chip-bg);border-color:var(--border);cursor:default}
 </style>
 </head>
 <body>
@@ -86,7 +93,12 @@
           <ul class="camps">
             {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
           </ul>
-          <div class="open">Open dashboard →</div>
+          <div class="openrow">
+            <span class="open">Open dashboard →</span>
+            {% if c.key in slides_clients %}<span class="slidesbtn" role="button" tabindex="0"
+                  data-slides="{{ c.key }}" data-name="{{ c.name|e }}"
+                  title="Generate a branded AI slide deck (Cover · What happened · Why · Actions) for this client's full flight — downloads as an editable Google Slides .pptx">📊 Download slides</span>{% endif %}
+          </div>
         </a>
         {% else %}
         <div class="tile soon">
@@ -103,5 +115,37 @@
     <div class="bbpane" id="pane-accuracy"><div id="bbacc"><div class="bbloading">Loading…</div></div></div>
   </div>
   {% include "_status_merge.html" %}
+  <script>
+  // "Download slides": open the client's dashboard in a hidden same-origin iframe with ?bbslides=1.
+  // The dashboard builds the full-flight payload, runs /report, and hands it to bb_deck.js, which
+  // downloads a branded .pptx from inside the iframe. We only listen for a small {status} message to
+  // update the button and clean up. The tile is an <a>, so the button click is stopped from navigating.
+  (function(){
+    function launch(btn){
+      if (btn.dataset.busy) return;
+      var key = btn.dataset.slides, name = btn.dataset.name || key, orig = btn.textContent, done = false;
+      btn.dataset.busy = '1'; btn.classList.add('busy'); btn.textContent = '⏳ Generating…';
+      var iframe = document.createElement('iframe');
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:820px;border:0;opacity:0;pointer-events:none';
+      function cleanup(){ window.removeEventListener('message', onMsg); clearTimeout(timer);
+        try { iframe.remove(); } catch(e){} btn.classList.remove('busy'); delete btn.dataset.busy; btn.textContent = orig; }
+      function onMsg(e){
+        if (e.origin !== location.origin || e.source !== iframe.contentWindow) return;
+        var d = e.data || {}; if (!d.__bbslides) return;
+        if (d.status === 'done'){ done = true; btn.textContent = '✓ Downloaded'; setTimeout(cleanup, 1600); }
+        else if (d.status === 'error'){ done = true; cleanup(); alert('Could not build slides for ' + name + ':\n\n' + (d.error || 'unknown error')); }
+      }
+      var timer = setTimeout(function(){ if (!done){ cleanup(); alert('Slide generation for ' + name + ' timed out — please try again.'); } }, 600000);
+      window.addEventListener('message', onMsg);
+      iframe.src = '/d/' + encodeURIComponent(key) + '/?bbslides=1';
+      document.body.appendChild(iframe);
+    }
+    document.querySelectorAll('.slidesbtn').forEach(function(btn){
+      btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); launch(btn); });
+      btn.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); ev.stopPropagation(); launch(btn); } });
+    });
+  })();
+  </script>
 </body>
 </html>
