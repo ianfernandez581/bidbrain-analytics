@@ -35,6 +35,18 @@ _BACKEND = os.environ.get("PLATFORM_BACKEND", "gcs").lower()
 ALL_DASHBOARD_KEYS = sorted(set(list(seed.CLIENTS.keys()) + seed.UNASSIGNED_CLIENTS))
 
 
+def _domain_of(email: str) -> str:
+    """The domain part of an email, lowercased ('' if malformed). Exact match only — 'x@100.digital'
+    -> '100.digital', but 'x@evil.100.digital' -> 'evil.100.digital' (a subdomain is NOT the domain)."""
+    email = (email or "").strip().lower()
+    return email.rsplit("@", 1)[-1] if "@" in email else ""
+
+
+def _admin_domains():
+    """Domains whose verified Google accounts are admins by default (config.ADMIN_EMAIL_DOMAINS)."""
+    return set(getattr(seed, "ADMIN_EMAIL_DOMAINS", []))
+
+
 def _seed_users():
     """The config.py USERS seed as an {email: {role, agency_slug, client_key}} map (lowercased).
 
@@ -270,6 +282,12 @@ class Store:
         doc = self._load()
         rec = doc.get("users", {}).get(email) or _seed_users().get(email)
         if not rec:
+            # Domain fallback: a verified account on an admin domain (e.g. @100.digital) is an admin by
+            # default, even before its email is recorded — so the very FIRST Google login succeeds. An
+            # explicit record above always wins, so a domain user re-scoped/removed in the console keeps
+            # that assignment (record_domain_admin persists the grant on first login for exactly this).
+            if _domain_of(email) in _admin_domains():
+                return "admin", None
             return None, None
         role = rec.get("role")
         if role == "superadmin":
@@ -283,6 +301,22 @@ class Store:
             c = doc.get("clients", {}).get(rec.get("client_key"))
             return ("client", c) if c else (None, None)
         return None, None
+
+    def record_domain_admin(self, email):
+        """Persist a domain-granted admin (see config.ADMIN_EMAIL_DOMAINS) into the registry `users`
+        map so it shows up — and becomes editable/removable — in the super-admin console's "Google
+        sign-in access" panel. Returns True iff a NEW row was written. Idempotent and no-op unless the
+        email is on an admin domain AND has no explicit record yet: so a seed account (the permanent
+        super admin) or an account already re-scoped in the console is never overwritten to admin."""
+        email = (email or "").strip().lower()
+        if _domain_of(email) not in _admin_domains():
+            return False
+        doc = self._load()
+        if email in doc.get("users", {}) or email in _seed_users():
+            return False
+        doc.setdefault("users", {})[email] = {"role": "admin", "agency_slug": "", "client_key": ""}
+        self._save(doc)
+        return True
 
     def upsert_user(self, email, role, agency_slug="", client_key=""):
         doc = self._load()

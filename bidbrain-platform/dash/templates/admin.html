@@ -111,6 +111,7 @@
         <span class="slug">{{ a.slug }}</span>
         <span class="count">{{ a.clients|length }} client{{ '' if a.clients|length == 1 else 's' }}</span>
         <span class="acts">
+          <a class="btn sm" href="/enter-agency/{{ a.slug }}">Enter portal →</a>
           <button class="btn sm" onclick='openClient("{{ a.slug }}")'>+ Add client</button>
           <button class="btn sm" onclick='openAgency({{ a|tojson }})'>Edit</button>
           <button class="btn sm danger" onclick='delAgency("{{ a.slug }}","{{ a.name }}")'>Delete</button>

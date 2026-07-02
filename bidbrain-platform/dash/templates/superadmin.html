@@ -187,6 +187,7 @@
           <div class="knm">{{ a.name }} <span class="slug">{{ a.slug }}</span></div>
           <div class="ksub">{{ a.client_count }} dashboard{{ '' if a.client_count == 1 else 's' }} in this portal</div>
           {{ pwfield("agency", a.slug, a.password, a.has_pw or a.password) }}
+          <div style="margin-top:12px"><a class="btn ghost sm" href="/enter-agency/{{ a.slug }}">Enter agency portal →</a></div>
         </div>
         {% endfor %}
       </div>
@@ -221,6 +222,15 @@
     <div class="sec">
       <div class="shead"><h2>Google sign-in access</h2>
         <span class="c">accounts that may sign in with Google — each maps to a role, an agency, or one dashboard</span></div>
+      {% if admin_domains %}
+      <div class="card" style="border-color:rgba(240,184,106,.32);margin-bottom:14px">
+        <div class="muted" style="line-height:1.6">Anyone with a
+        {% for d in admin_domains %}<span class="mono">@{{ d }}</span>{% if not loop.last %} or {% endif %}{% endfor %}
+        email gets <span class="urole admin">admin</span> automatically the first time they sign in with Google — their
+        account is added to the list below then, and you can re-scope or remove it here (removing re-grants admin on
+        their next sign-in while the domain rule is on).</div>
+      </div>
+      {% endif %}
       {% if not google_configured %}
       <div class="card" style="border-color:rgba(240,184,106,.32);margin-bottom:14px">
         <div class="muted" style="line-height:1.6">Google sign-in isn’t switched on yet. Create a “Web application”
