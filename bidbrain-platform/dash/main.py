@@ -236,6 +236,7 @@ def home():
                                agency_logo=AGENCY_LOGOS.get(agency["slug"]),
                                clients=clients,
                                slides_clients=list(SLIDES_CLIENTS),
+                               google_client_id=GOOGLE_CLIENT_ID,
                                admin_return=session.get("admin_return"))
     if kind == "client":
         key = session.get("client_key")

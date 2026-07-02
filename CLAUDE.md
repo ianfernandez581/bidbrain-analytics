@@ -91,19 +91,24 @@ the screenshot; no email yet). Admin/super read them at `/feedback/admin` as **N
 Screenshot** — voice is transcribed + interpreted into action items by Gemini (`GEMINI_API_KEY`, run
 lazily on view & cached back); the human fields (reporter, the two dates `date_reported`/`deadline`,
 and the Notes text) are **hand-editable** in the tracker via `POST /feedback/edit`. See `bidbrain-platform/README.md`.
-**Download slides — AI decks, moved to the front-door (2026-07-02):** the agency portal's Overview tab shows a
-per-client **"Download slides"** button (only for clients with the pipeline — `SLIDES_CLIENTS` in `dash/main.py` =
-{mongodb, cloudflare, schneider, proptrack, geocon}). Clicking it opens that client's dashboard in a HIDDEN
-same-origin iframe at `/d/<c>/?bbslides=1`; the dashboard builds its FULL-FLIGHT `summary` payload
-(`buildDeckPayload()`), POSTs `/report` (a two-stage **Claude Opus 4.8** web-research → strict-slide-JSON call
-with a Gemini fallback — `report.py`), and hands the result to the ONE vendored, theme-driven deck builder
-**`bb_deck.js`** (the MongoDB brand deck's design language — serif headlines, "ALL CAPS" mono accent pills,
-organic corner blobs, logo top-right, dark cover + light content — recoloured per client from a `BB_THEME`
-const in each `dashboard.html`). The iframe returns the `.pptx` as a Blob via `postMessage` and the PORTAL
-triggers the download (opens natively in Google Slides). The old in-dashboard toolbar button + on-screen
-preview are GONE — the deck is reachable ONLY from the agency login. `report.py` is generic + **config-driven**
-(one `CONFIG` block per client — client/currency/business-model/guardrails/category-tokens — the engine + Gemini
-fallback are identical, vendored like `bb_deck.js`). See `bidbrain-platform/README.md`.
+**Open slides — AI decks, front-door only (2026-07-02; renamed + Google-Slides export 2026-07-03):** the agency
+portal's Overview tab shows a per-client **"Open slides"** button (only for clients with the pipeline —
+`SLIDES_CLIENTS` in `dash/main.py` = {mongodb, cloudflare, schneider, proptrack, geocon}). Clicking it opens that
+client's dashboard in a HIDDEN same-origin iframe at `/d/<c>/?bbslides=1`; the dashboard builds its FULL-FLIGHT
+`summary` payload (`buildDeckPayload()`), POSTs `/report` (a two-stage **Claude Opus 4.8** web-research →
+strict-slide-JSON call with a Gemini fallback — `report.py`), and hands the result to the ONE vendored,
+theme-driven deck builder **`bb_deck.js`** (the MongoDB brand deck's design language — serif headlines, "ALL CAPS"
+mono accent pills, organic corner blobs, logo top-right, dark cover + light content — recoloured per client from a
+`BB_THEME` const in each `dashboard.html`). The iframe returns the `.pptx` as a Blob via `postMessage`; the portal
+then shows a **chooser modal** with two actions: **Open in Google Slides** (browser-side Google OAuth *token* flow
+via GIS — reuses the platform's existing `GOOGLE_OAUTH_CLIENT_ID`, requests the `drive.file` scope, uploads the
+`.pptx` to the signed-in user's OWN Drive converting it to a native Google Slides doc, then opens it in a new tab —
+no server secrets, nothing link-shared) or **Download .pptx**. Needs the Drive API enabled (it is) + the
+`drive.file` scope allowed on that OAuth client's consent screen; the button is hidden if `GOOGLE_OAUTH_CLIENT_ID`
+is empty (download still works). The old in-dashboard toolbar button + on-screen preview are GONE — the deck is
+reachable ONLY from the agency login. `report.py` is generic + **config-driven** (one `CONFIG` block per client —
+client/currency/business-model/guardrails/category-tokens — the engine + Gemini fallback are identical, vendored
+like `bb_deck.js`). See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)

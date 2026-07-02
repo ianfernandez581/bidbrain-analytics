@@ -64,6 +64,33 @@
              white-space:nowrap;user-select:none;transition:background .15s}
   .slidesbtn:hover{background:rgba(34,197,94,.22)}
   .slidesbtn.busy{color:var(--muted);background:var(--chip-bg);border-color:var(--border);cursor:default}
+  /* ── "Open slides" chooser modal ─────────────────────────────────────────── */
+  .smodal{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+          background:rgba(5,8,14,.72);backdrop-filter:blur(3px);padding:20px}
+  .smodal[hidden]{display:none}
+  .scard{position:relative;width:100%;max-width:440px;background:var(--panel);
+         border:1px solid var(--border);border-radius:16px;padding:26px 26px 22px;
+         box-shadow:0 24px 70px rgba(0,0,0,.55)}
+  .scard .sclose{position:absolute;top:12px;right:14px;background:none;border:0;color:var(--muted);
+         font-size:22px;line-height:1;cursor:pointer;padding:4px}
+  .scard .sclose:hover{color:var(--text)}
+  .scard .seyebrow{font-size:11px;font-weight:700;letter-spacing:.7px;color:var(--active);text-transform:uppercase}
+  .scard .stitle{font-size:19px;font-weight:800;margin:6px 0 4px}
+  .scard .ssub{font-size:12.5px;color:var(--muted);margin:0 0 20px;line-height:1.45}
+  .sactions{display:flex;flex-direction:column;gap:10px}
+  .sbtn{font-size:14px;font-weight:700;padding:12px 16px;border-radius:11px;cursor:pointer;
+        border:1px solid var(--border);background:#16202f;color:var(--text);text-align:center;
+        display:flex;align-items:center;justify-content:center;gap:8px;transition:background .15s,border-color .15s}
+  .sbtn:hover{background:#1c2942}
+  .sbtn.primary{background:rgba(34,197,94,.14);border-color:rgba(34,197,94,.4);color:#86efac}
+  .sbtn.primary:hover{background:rgba(34,197,94,.24)}
+  .sbtn[disabled]{opacity:.45;cursor:default;pointer-events:none}
+  .sspin{display:flex;align-items:center;gap:11px;color:var(--muted);font-size:13.5px;padding:8px 0 4px}
+  .sspin i{width:17px;height:17px;border:2.5px solid var(--border);border-top-color:var(--active);
+           border-radius:50%;display:inline-block;animation:sspin .8s linear infinite}
+  @keyframes sspin{to{transform:rotate(360deg)}}
+  .smsg{font-size:12px;color:var(--muted);margin-top:14px;min-height:16px;line-height:1.4}
+  .smsg.err{color:#fca5a5}
 </style>
 </head>
 <body>
@@ -97,7 +124,7 @@
             <span class="open">Open dashboard →</span>
             {% if c.key in slides_clients %}<span class="slidesbtn" role="button" tabindex="0"
                   data-slides="{{ c.key }}" data-name="{{ c.name|e }}"
-                  title="Generate a branded AI slide deck (Cover · What happened · Why · Actions) for this client's full flight - downloads as an editable Google Slides .pptx">📊 Download slides</span>{% endif %}
+                  title="Build a branded AI slide deck (Cover · What happened · Why · Actions) for this client's full flight, then open it in Google Slides or download the .pptx">📊 Open slides</span>{% endif %}
           </div>
         </a>
         {% else %}
@@ -115,44 +142,139 @@
     <div class="bbpane" id="pane-accuracy"><div id="bbacc"><div class="bbloading">Loading…</div></div></div>
   </div>
   {% include "_status_merge.html" %}
+
+  <!-- "Open slides" chooser: build the deck (hidden iframe), then Open in Google Slides or Download .pptx -->
+  <div id="slidesModal" class="smodal" hidden role="dialog" aria-modal="true" aria-labelledby="sTitle">
+    <div class="scard">
+      <button class="sclose" type="button" aria-label="Close">&times;</button>
+      <div class="seyebrow">AI slide deck</div>
+      <div class="stitle" id="sTitle">Slide deck</div>
+      <div class="ssub">Cover · What happened · Why · Recommended actions — branded for this client, full flight.</div>
+      <div id="sBusy" class="sspin"><i></i><span>Building your deck…</span></div>
+      <div id="sReady" class="sactions" hidden>
+        {% if google_client_id %}<button id="sGoogle" class="sbtn primary" type="button">↗&nbsp; Open in Google Slides</button>{% endif %}
+        <button id="sDownload" class="sbtn" type="button">⬇&nbsp; Download .pptx</button>
+      </div>
+      <div id="sMsg" class="smsg" role="status"></div>
+    </div>
+  </div>
+  {% if google_client_id %}<script src="https://accounts.google.com/gsi/client" async></script>{% endif %}
   <script>
-  // "Download slides": open the client's dashboard in a hidden same-origin iframe with ?bbslides=1.
-  // The dashboard builds the full-flight payload, runs /report, and hands it to bb_deck.js, which
-  // returns the .pptx as a Blob. The iframe postMessages {status:'done', blob, fileName} and WE (the
-  // top frame) trigger the download — more robust than downloading from inside a hidden iframe. The
-  // tile is an <a>, so the button click is stopped from navigating.
+  // "Open slides": open the client dashboard in a hidden same-origin iframe with ?bbslides=1. The
+  // dashboard builds the full-flight payload, runs /report, hands it to bb_deck.js and postMessages
+  // {status:'done', blob, fileName}. We then present a chooser: OPEN IN GOOGLE SLIDES (client-side
+  // Google OAuth token -> upload the .pptx to the user's own Drive, converting it to a Google Slides
+  // doc -> open that in a new tab) or DOWNLOAD the .pptx. The tile is an <a>, so clicks are stopped
+  // from navigating.
+  var GOOGLE_CLIENT_ID = {{ google_client_id|tojson }};
   (function(){
+    var modal = document.getElementById('slidesModal');
+    var elBusy = document.getElementById('sBusy'), elReady = document.getElementById('sReady');
+    var elTitle = document.getElementById('sTitle'), elMsg = document.getElementById('sMsg');
+    var btnDownload = document.getElementById('sDownload'), btnGoogle = document.getElementById('sGoogle');
+    var cur = { blob:null, fileName:null, name:'', url:null, iframe:null, onMsg:null, timer:null, done:false, btn:null };
+
+    function setMsg(t, err){ elMsg.textContent = t || ''; elMsg.classList.toggle('err', !!err); }
+    function resetTile(){ if (cur.btn){ cur.btn.classList.remove('busy'); delete cur.btn.dataset.busy; cur.btn.textContent = cur.btn.dataset.orig || '📊 Open slides'; } }
+    function teardownIframe(){
+      if (cur.onMsg){ window.removeEventListener('message', cur.onMsg); cur.onMsg = null; }
+      if (cur.timer){ clearTimeout(cur.timer); cur.timer = null; }
+      if (cur.iframe){ try { cur.iframe.remove(); } catch(e){} cur.iframe = null; }
+    }
+    function closeModal(){
+      modal.hidden = true; teardownIframe(); resetTile();
+      if (cur.url){ try { URL.revokeObjectURL(cur.url); } catch(e){} cur.url = null; }
+      cur.blob = null; cur.fileName = null; cur.done = false; cur.btn = null;
+    }
+    function showBusy(){ elBusy.hidden = false; elReady.hidden = true; setMsg(''); }
+    function showReady(){ elBusy.hidden = true; elReady.hidden = false; setMsg('');
+      if (btnGoogle) btnGoogle.disabled = false; btnDownload.disabled = false; }
+
+    function doDownload(){
+      if (!cur.blob) return;
+      var url = cur.url || (cur.url = URL.createObjectURL(cur.blob));
+      var a = document.createElement('a'); a.href = url; a.download = cur.fileName || (cur.name + '.pptx');
+      document.body.appendChild(a); a.click(); a.remove(); setMsg('Downloaded ✓');
+    }
+
+    function openInGoogleSlides(){
+      if (!cur.blob) return;
+      if (!GOOGLE_CLIENT_ID || !(window.google && google.accounts && google.accounts.oauth2)){
+        setMsg('Google Slides export is not available here - use Download .pptx.', true); return; }
+      // Open the new tab synchronously on the click (so it is not popup-blocked); redirect once uploaded.
+      var tab = window.open('', '_blank');
+      if (tab){ try { tab.document.write('<title>Opening Google Slides…</title><p style="font:15px system-ui;padding:26px;color:#333">Preparing your Google Slides deck… this tab will open it automatically.</p>'); } catch(e){} }
+      if (btnGoogle) btnGoogle.disabled = true;
+      setMsg('Requesting Google Drive access…');
+      var fail = function(m){ if (tab){ try { tab.close(); } catch(e){} } if (btnGoogle) btnGoogle.disabled = false; setMsg(m, true); };
+      var tc = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: function(resp){
+          if (!resp || resp.error || !resp.access_token){ fail('Google access was declined.'); return; }
+          setMsg('Uploading to Google Slides…');
+          var meta = { name: (cur.fileName || cur.name || 'Deck').replace(/\.pptx$/i, ''), mimeType: 'application/vnd.google-apps.presentation' };
+          var form = new FormData();
+          form.append('metadata', new Blob([JSON.stringify(meta)], { type:'application/json' }));
+          form.append('file', cur.blob, cur.fileName || 'deck.pptx');
+          fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink', {
+            method:'POST', headers:{ Authorization:'Bearer ' + resp.access_token }, body: form
+          }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, j:j }; }); })
+            .then(function(o){
+              if (!o.ok) throw new Error((o.j && o.j.error && o.j.error.message) || ('HTTP ' + o.status));
+              var link = o.j.webViewLink || ('https://docs.google.com/presentation/d/' + o.j.id + '/edit');
+              if (tab){ tab.location.href = link; } else { window.open(link, '_blank'); }
+              setMsg('Opened in Google Slides ✓ (saved to your Drive)'); if (btnGoogle) btnGoogle.disabled = false;
+            }).catch(function(err){ fail('Google Slides upload failed: ' + ((err && err.message) || err)); });
+        },
+        error_callback: function(){ fail('Google access was cancelled.'); }
+      });
+      try { tc.requestAccessToken(); } catch(e){ fail('Could not start Google sign-in: ' + ((e && e.message) || e)); }
+    }
+
     function launch(btn){
       if (btn.dataset.busy) return;
-      var key = btn.dataset.slides, name = btn.dataset.name || key, orig = btn.textContent, done = false;
-      btn.dataset.busy = '1'; btn.classList.add('busy'); btn.textContent = '⏳ Generating…';
+      teardownIframe(); resetTile();
+      var key = btn.dataset.slides, name = btn.dataset.name || key;
+      btn.dataset.orig = btn.textContent; btn.dataset.busy = '1'; btn.classList.add('busy'); btn.textContent = '⏳ Building…';
+      cur.name = name; cur.done = false; cur.blob = null; cur.fileName = null; cur.btn = btn;
+      if (cur.url){ try { URL.revokeObjectURL(cur.url); } catch(e){} cur.url = null; }
+      elTitle.textContent = name + ' — slide deck';
+      if (btnGoogle) btnGoogle.disabled = true; btnDownload.disabled = true;
+      showBusy(); modal.hidden = false;
       var iframe = document.createElement('iframe');
       iframe.setAttribute('aria-hidden', 'true');
       iframe.style.cssText = 'position:fixed;left:-10000px;top:0;width:1280px;height:820px;border:0;opacity:0;pointer-events:none';
-      function cleanup(){ window.removeEventListener('message', onMsg); clearTimeout(timer);
-        try { iframe.remove(); } catch(e){} btn.classList.remove('busy'); delete btn.dataset.busy; btn.textContent = orig; }
-      function onMsg(e){
+      cur.iframe = iframe;
+      cur.onMsg = function(e){
         if (e.origin !== location.origin || e.source !== iframe.contentWindow) return;
         var d = e.data || {}; if (!d.__bbslides) return;
-        if (d.status === 'done'){ done = true;
-          try {
-            if (d.blob){ var url = URL.createObjectURL(d.blob);
-              var a = document.createElement('a'); a.href = url; a.download = d.fileName || (name + '.pptx');
-              document.body.appendChild(a); a.click(); a.remove();
-              setTimeout(function(){ URL.revokeObjectURL(url); }, 4000); }
-          } catch(err){}
-          btn.textContent = '✓ Downloaded'; setTimeout(cleanup, 1800); }
-        else if (d.status === 'error'){ done = true; cleanup(); alert('Could not build slides for ' + name + ':\n\n' + (d.error || 'unknown error')); }
-      }
-      var timer = setTimeout(function(){ if (!done){ cleanup(); alert('Slide generation for ' + name + ' timed out - please try again.'); } }, 600000);
-      window.addEventListener('message', onMsg);
+        if (d.status === 'done'){
+          cur.done = true; cur.blob = d.blob || null; cur.fileName = d.fileName || (name + '.pptx');
+          teardownIframe(); resetTile();
+          if (!cur.blob){ elBusy.hidden = true; setMsg('The deck came back empty - please try again.', true); return; }
+          showReady();
+        } else if (d.status === 'error'){
+          cur.done = true; teardownIframe(); resetTile(); elBusy.hidden = true; elReady.hidden = true;
+          setMsg('Could not build slides: ' + (d.error || 'unknown error'), true);
+        }
+      };
+      cur.timer = setTimeout(function(){ if (!cur.done){ teardownIframe(); resetTile(); elBusy.hidden = true;
+        setMsg('Timed out building the deck - please try again.', true); } }, 600000);
+      window.addEventListener('message', cur.onMsg);
       iframe.src = '/d/' + encodeURIComponent(key) + '/?bbslides=1';
       document.body.appendChild(iframe);
     }
+
     document.querySelectorAll('.slidesbtn').forEach(function(btn){
       btn.addEventListener('click', function(ev){ ev.preventDefault(); ev.stopPropagation(); launch(btn); });
       btn.addEventListener('keydown', function(ev){ if (ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); ev.stopPropagation(); launch(btn); } });
     });
+    btnDownload.addEventListener('click', doDownload);
+    if (btnGoogle) btnGoogle.addEventListener('click', openInGoogleSlides);
+    modal.querySelector('.sclose').addEventListener('click', closeModal);
+    modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !modal.hidden) closeModal(); });
   })();
   </script>
 </body>
