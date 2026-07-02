@@ -121,7 +121,10 @@ def _load_agency_logos():
             elif f.suffix in (".jpg", ".jpeg", ".png"):
                 mime = "png" if f.suffix == ".png" else "jpeg"
                 b64 = base64.b64encode(f.read_bytes()).decode()
-                logos[slug] = {"html": f'<img src="data:image/{mime};base64,{b64}" alt="">', "light": True}
+                # PNGs are treated as transparent dark-theme marks (render plain, no white backing);
+                # JPGs are opaque logos-on-white, so they get the light chip.
+                logos[slug] = {"html": f'<img src="data:image/{mime};base64,{b64}" alt="">',
+                               "light": f.suffix != ".png"}
         except OSError:
             pass
     return logos
@@ -501,16 +504,16 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   :root{
     --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
     --border-strong:#2f3a52; --text:#e8ebf2; --muted:#8a93a6; --dim:#6b7280;
-    /* single accent — Bidbrain teal (house style) */
-    --accent:#10b981; --accent-strong:#34d399; --accent-bg:rgba(16,185,129,.12);
+    /* single accent — bright cornflower blue */
+    --accent:#4C8DFF; --accent-strong:#6EA8FF; --accent-bg:rgba(76,141,255,.12);
     --danger:#f87171;
     --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
   }
   *{box-sizing:border-box}
   body{margin:0;color:var(--text);font-family:var(--font-sans);
     background:
-      radial-gradient(600px 340px at 50% -12%, rgba(72,130,255,.04), transparent 60%),
-      radial-gradient(340px 220px at 50% -8%, rgba(16,185,129,.03), transparent 62%),
+      radial-gradient(840px 480px at 50% -6%, rgba(76,141,255,.18), transparent 62%),
+      radial-gradient(560px 340px at 50% -2%, rgba(110,168,255,.10), transparent 66%),
       var(--bg);
     background-repeat:no-repeat;background-attachment:fixed}
   header{padding:18px 28px;border-bottom:1px solid var(--border);display:flex;align-items:baseline;gap:12px;
@@ -532,7 +535,7 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
   .meta .grow{flex:1}
   select.stat{font:600 12px/1 inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--border);
     border-radius:7px;padding:5px 8px;cursor:pointer}
-  select.stat[data-status="Completed"]{background:rgba(16,185,129,.16);border-color:var(--accent)}
+  select.stat[data-status="Completed"]{background:rgba(34,197,94,.16);border-color:#22c55e}
   select.stat[data-status="Ongoing"]{background:rgba(59,130,246,.18);border-color:#3b82f6}
   select.stat[data-status="On Hold"]{background:rgba(245,158,11,.16);border-color:#f59e0b}
   select.stat[disabled]{opacity:.5}
@@ -546,7 +549,7 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
     border-radius:7px;padding:7px 9px;outline:none;color-scheme:dark} .edit input:focus{border-color:var(--accent-strong)}
   .edit input.rep{min-width:170px}
   .edit .grow{flex:1}
-  button.save{font:600 12px/1 inherit;color:#06281d;background:var(--accent);border:1px solid var(--accent);
+  button.save{font:600 12px/1 inherit;color:#06132b;background:var(--accent);border:1px solid var(--accent);
     border-radius:7px;padding:8px 13px;cursor:pointer} button.save:hover{background:var(--accent-strong);border-color:var(--accent-strong)}
   button.save:disabled{opacity:.5;cursor:default}
   .saved{font-size:12px;color:var(--accent-strong);align-self:center}
