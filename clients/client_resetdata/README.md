@@ -100,6 +100,14 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
   spend), all selected by default. Scopes **ad delivery only**; the GA4/website side stays whole. Powered
   by the campaign-grained `ad_campaign*` views, summed client-side.
 
+> **Campaign display names are auto-cleaned** by `cleanCampaign()` (the "naming agent" in `dash/dashboard.html`):
+> raw ad-platform names — Google Ads' `[TAG] Theme | S | Max Conv` / `100D | S | HT | Theme` convention — are
+> normalised on the fly (strip the `[TAG]` + account/channel/bid-strategy codes, expand HT→High-Intent / GPU /
+> LLM / ANZ…, Title-Case while preserving acronyms & good casing), so **new campaigns need no hand-editing**.
+> Rules-based (deterministic), **display-only** — the raw name stays the join/filter key. `CAMPAIGN_LABELS` is
+> now just an **override** map for the few names where the auto-label isn't ideal:
+> `displayName = CAMPAIGN_LABELS[raw] || cleanCampaign(raw)`, used by the filter dropdown + every campaign table.
+
 > **Chart toggles default to Absolute + Day** (client preference, 2026-07-02) — this client deliberately
 > diverges from the repo-wide "Relative" default. The defaults live in the `grain`/`scale` objects in
 > `dash/dashboard.html` (`syncToggleDefaults()` highlights the matching AXIS/VIEW-BY buttons at load);

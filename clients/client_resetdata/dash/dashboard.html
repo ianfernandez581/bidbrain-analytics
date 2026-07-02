@@ -726,13 +726,61 @@ const div=(a,b)=>(!b)?null:a/b;
 // snake_case GA4 event names -> Title Case (with common acronyms upper-cased); tokens like "$50" pass through.
 const ACRONYMS={api:'API',gpu:'GPU',crm:'CRM',id:'ID',url:'URL',ai:'AI'};
 const prettyEvent=s=>String(s||'').split('_').map(w=>ACRONYMS[w.toLowerCase()]||(w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
-// campaign display names: swap delimiter underscores for spaces, preserve original casing.
-const prettyName=s=>String(s||'').replace(/_/g,' ');
-// Google Ads campaigns use an internal naming convention ("[SEGMENT] … | S | Max Conv", or
-// "100D | S | HT | theme") that reads badly in the UI. This maps each RAW name → a clean DISPLAY
-// label. Display-only: the raw r.campaign stays the join/filter key — only the label changes.
-// Unmapped names (new campaigns, other platforms) fall back to prettyName. Drafted 2026-07; edit
-// freely — add a new campaign's raw name here to give it a friendly label.
+// ── Campaign-name cleaner ("naming agent") ──────────────────────────────────────────────────
+// Turns a RAW ad-platform campaign name into a readable DISPLAY label AUTOMATICALLY, so NEW
+// campaigns get a decent label with no hand-editing. Rules-based (deterministic) + a tiny
+// dictionary — DISPLAY ONLY; the raw r.campaign stays the join/filter key. The curated
+// CAMPAIGN_LABELS map below still WINS where set (it's the override for hand-perfected names).
+//   Google-Ads pipe convention ("[TAG] Theme | S | Max Conv", "100D | S | HT | Theme"): strip the
+//   [TAG] wrapper, drop metadata segments (agency/account code, channel code, bid strategy), drop
+//   the short "HT" qualifier when a fuller theme is present, keep the descriptive segment(s).
+//   Plain names (Meta / Reddit / TTD): underscores→spaces only. Both paths expand known
+//   abbreviations (HT→High-Intent, GPU, LLM, ANZ…) and Title-Case plain words while PRESERVING
+//   acronyms and already-good casing (e.g. "ResetData", "GPU-as-a-Service").
+const CAMP_DROP = new Set([   // segments that are pure metadata → removed (lower-cased, spaces collapsed)
+  '100d','s','d','se','sem','ppc','disp','display','pmax','p max','performance max',
+  'max conv','max conversions','maximise conversions','maximize conversions',
+  'max clicks','maximise clicks','manual cpc','ecpc','tcpa','troas','target cpa','target roas']);
+const CAMP_WORDS = {          // token (letters/digits only, lower-cased) → readable form
+  ht:'High-Intent', reset:'ResetData', resetdata:'ResetData', llm:'LLM', llmaas:'LLMaaS',
+  gpu:'GPU', hpc:'HPC', ai:'AI', anz:'ANZ', apac:'APAC', msp:'MSP',
+  us:'US', uk:'UK', eu:'EU', b2b:'B2B', saas:'SaaS', api:'API', crm:'CRM'};
+const _expandWord = w => {
+  if(!w) return w;
+  const k = w.toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(CAMP_WORDS[k]) return CAMP_WORDS[k];
+  if(/[A-Z]/.test(w.slice(1))) return w;                 // inner caps (ResetData, GPU-as-a-Service) → keep
+  if(/\d/.test(w)) return w;                             // contains a digit (2024) → keep
+  if(w.length<=4 && w===w.toUpperCase()) return w;       // short ALL-CAPS acronym → keep
+  return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase();
+};
+const CAMP_STOP = new Set(['a','an','and','or','the','of','to','for','in','on','at','by','vs','as','with']); // stay lower-case mid-label
+const _expandSeg = seg => { let seen=false; return seg.split(/(\s+|[\/&])/).map(t=>{
+    if(t==='' || /^(\s+|[\/&])$/.test(t)) return t;                    // separator / empty → passthrough
+    const ex=_expandWord(t), lc=t.toLowerCase();
+    const out=(seen && CAMP_STOP.has(lc) && ex.toLowerCase()===lc) ? lc : ex;  // lower-case a mid-label stopword
+    seen=true; return out;
+  }).join(''); };
+function cleanCampaign(raw){
+  const s = String(raw||'').trim();
+  if(!s) return '';
+  if(s.includes('|')){                                   // Google-Ads pipe convention
+    const norm = x => x.toLowerCase().replace(/\s+/g,' ').trim();
+    let segs = s.split(/\s*\|\s*/).map(x=>x.trim()).filter(Boolean).map(seg=>{
+      const m = seg.match(/^\[[^\]]*\]\s*(.+)$/);         // "[TAG] Theme" → "Theme"
+      return m ? m[1].trim() : seg.replace(/^\[([^\]]*)\]$/,'$1').trim();   // bare "[TAG]" → "TAG"
+    });
+    let keep = segs.filter(x=>!CAMP_DROP.has(norm(x)));
+    if(!keep.length) keep = segs;                         // everything looked like metadata → keep it
+    if(keep.length>1){ const full = keep.filter(x=>norm(x)!=='ht' && norm(x).length>2); if(full.length) keep = full; }
+    return keep.map(_expandSeg).join(' – ');
+  }
+  return s.split(/_+/).map(x=>x.trim()).filter(Boolean).map(_expandSeg).join(' ');   // plain name
+}
+// Curated overrides: hand-perfected labels for the current Google Ads campaigns whose raw names
+// ("[SEGMENT] … | S | Max Conv", "100D | S | HT | theme") read badly. Display-only — the raw name
+// stays the join/filter key. Unmapped names fall through to cleanCampaign() above (so new campaigns
+// are auto-named); add an entry here ONLY to override the auto label. Drafted 2026-07; edit freely.
 const CAMPAIGN_LABELS = {
   '[AI INFRA] AI Infrastructure | S | Max Conv': 'AI Infrastructure',
   '[BRAND] ResetData | S | Max Conv': 'Brand – ResetData',
@@ -757,7 +805,7 @@ const CAMPAIGN_LABELS = {
   'Enterprise AI Solutions': 'Enterprise AI Solutions',
   'GPU-as-a-Service & Sovereign GPU Compute': 'GPU-as-a-Service & Sovereign GPU Compute',
 };
-const displayName = s => CAMPAIGN_LABELS[s] || prettyName(s);
+const displayName = s => CAMPAIGN_LABELS[s] || cleanCampaign(s);
 
 function campActive(p,c){return selPlt.has(p)&&selCamp.has(ckey(p,c));}
 
@@ -1477,7 +1525,7 @@ function renderReddit(){
   // campaign table — objective + page visits + conversions
   let h='<tr><th>Campaign</th><th style="text-align:left">Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
   if(!rc.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
-  rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(prettyName(r.campaign)||'(unnamed)')+'</td>'+
+  rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(displayName(r.campaign)||'(unnamed)')+'</td>'+
     '<td style="text-align:left;color:var(--muted)">'+(r.objective||'—')+'</td>'+
     '<td>'+fmtN(r.imps)+'</td><td>'+fmtN(r.clicks)+'</td><td>'+pct(div(r.clicks,r.imps))+'</td>'+
     '<td>'+aud(r.spend_aud)+'</td><td>'+fmtN(r.page_visits)+'</td><td>'+fmtN(r.conversions)+'</td></tr>';});
