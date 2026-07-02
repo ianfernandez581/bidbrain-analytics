@@ -43,6 +43,12 @@
        radial-gradient(1000px 520px at 50% -6%, rgba(72,130,255,0.12), transparent 64%),
        radial-gradient(600px 340px at 50% -3%, color-mix(in srgb, var(--accent) 52%, transparent) 0%, transparent 62%),
        var(--bg-0);}
+  /* Each TAB opens under that same top-center bloom, anchored to the TOP of its OWN content — so a
+     tab whose first panel is a table (e.g. Paid Media) still glows up top, just like the Overview.
+     Painted as the section background, so it sits behind the panels with no z-index juggling. */
+  section[id^="tab-"]{background:
+       radial-gradient(1100px 440px at 50% -70px, rgba(72,130,255,0.16), transparent 66%),
+       radial-gradient(680px 300px at 50% -46px, color-mix(in srgb,var(--accent) 42%,transparent), transparent 62%);}
   a{color:var(--accent)}
   .wrap{max-width:1240px;margin:0 auto;padding:0 20px 64px}
 
