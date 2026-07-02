@@ -1664,8 +1664,8 @@ function renderCRM(){
   const cards=[
     ['kc-leads','Leads (contacts)',fmtN(k.leads),'all HubSpot contacts', null],
     ['kc-signup','App signups',fmtN(k.app_signups),'created app.reset.ai account', sgW, {chart:'crmSignupsChart',series:'Signups'}],
-    ['kc-loaded','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account', loadW],
     ['kc-paying','Paying',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'—')+' of signups · '+aud(k.total_rd_spend)+' spent', payW, {chart:'crmSignupsChart',series:'Paying'}],
+    ['kc-loaded','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account', loadW],
     ['kc-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent', freeW],
     ['kc-cust','Customers',fmtN(k.customers),fmtN(k.with_deal)+' with a deal', null],
   ];
