@@ -63,7 +63,7 @@ LOGIN_HTML = """<!doctype html>
         border:1px solid rgba(232,74,111,.22);border-radius:16px;
         box-shadow:0 20px 64px rgba(0,0,0,.55)}
   .logo{display:flex;align-items:center;justify-content:center;gap:13px;margin-bottom:8px}
-  .logo .agency{height:26px;width:auto;display:block}
+  .logo .agency{height:32px;width:auto;display:block}
   .logo .divider{width:1px;height:26px;background:#25364B;display:inline-block}
   .logo .client{height:26px;width:auto;display:block}
   .brand{font-size:10.5px;font-weight:700;letter-spacing:1.8px;color:#F472A0;margin:14px 0;text-align:center}
