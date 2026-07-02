@@ -1227,21 +1227,17 @@ function renderHero(){
   const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
     type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
   }));
-  // Relative = index every effect line to the SHARED peak across all of them (tallest = 100%), on an
-  // auto-scaling axis — so hiding a metric card rescales the axis and the remaining lines reflow/animate
-  // (matching Absolute). Trade-off: smaller-volume metrics read shorter. _raw keeps the true values.
-  const relMax = rel ? Math.max(1, ...effects.flatMap(e=>(e.data||[]).map(v=>+v||0))) : 1;
   effects.forEach(e=>ds.push({
     type:'line',label:e.label,borderColor:e.color,backgroundColor:e.color,
-    data: rel?e.data.map(v=>(+v||0)/relMax*100):e.data, _raw:e.data,
+    data: rel?indexed(e.data):e.data, _raw:e.data,
     yAxisID: rel?'yRel':((e.label==='Clicks'||e.label==='Impressions')?'y2':'y1'),
     tension:.3,borderWidth:e.w,pointRadius:2,borderDash:e.dash?[5,4]:undefined,order:1
   }));
   const scales = rel
     ? { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-        yRel:axis({position:'right',min:0,grace:'6%',grid:{drawOnChartArea:false},
-          title:{display:true,text:'Effects: % of shared peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}) }
+        yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},
+          title:{display:true,text:'Effects: % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
         y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions / key events',color:tickClr}}),
@@ -1253,7 +1249,7 @@ function renderHero(){
       tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         if(d.type==='bar') return d.label+': '+aud(ctx.parsed.y);
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
-        return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of max)':''); }}}},
+        return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
     scales}});
 }
 // breakdown of what the "Key events" line is made of — GA4 key events by type, stacked per period.
@@ -1661,13 +1657,13 @@ function renderCRM(){
   const freeW=wks.map((w,i)=>sgW[i]-payW[i]);
   const cards=[
     ['kc-leads','Leads (contacts)',fmtN(k.leads),'all HubSpot contacts', null],
-    ['kc-signup','App signups',fmtN(k.app_signups),'created app.reset.ai account', sgW],
+    ['kc-signup','App signups',fmtN(k.app_signups),'created app.reset.ai account', sgW, {chart:'crmSignupsChart',series:'Signups'}],
     ['kc-loaded','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account', loadW],
-    ['kc-paying','Paying',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'—')+' of signups · '+aud(k.total_rd_spend)+' spent', payW],
+    ['kc-paying','Paying',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'—')+' of signups · '+aud(k.total_rd_spend)+' spent', payW, {chart:'crmSignupsChart',series:'Paying'}],
     ['kc-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent', freeW],
     ['kc-cust','Customers',fmtN(k.customers),fmtN(k.with_deal)+' with a deal', null],
   ];
-  document.getElementById('crmKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4])).join('');
+  document.getElementById('crmKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
   // ---- Q1: weekly app signups stacked by source + paying line ----
   const wk=C.signups_weekly;
