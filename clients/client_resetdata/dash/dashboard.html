@@ -180,6 +180,16 @@
   .chartbox{position:relative;height:300px}
   .chartbox.tall{height:340px}
   .chartbox.sm{height:280px}  /* donuts: legend now sits on top, so give the ring a little more room */
+  /* Creative gallery (Paid Media): Meta ad previews as cards */
+  .creative-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:10px}
+  .ccard{background:var(--panel2);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .ccard .cc-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;background:#0b1220;display:block}
+  .ccard .cc-noimg{width:100%;aspect-ratio:1/1;display:flex;align-items:center;justify-content:center;background:#0b1220;color:var(--muted2);font-size:11px}
+  .ccard .cc-b{padding:10px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .ccard .cc-title{font-weight:700;font-size:12px;line-height:1.3}
+  .ccard .cc-copy{color:var(--muted);font-size:11px;line-height:1.35;max-height:46px;overflow:hidden}
+  .ccard .cc-m{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
+  .ccard .cc-m b{color:var(--ink);font-weight:700}
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
@@ -326,6 +336,16 @@
       <div class="panel-box"><h3>Website sessions by channel</h3><p class="hint">GA4 default channel grouping (whole period).</p><div class="chartbox sm"><canvas id="channelDonut"></canvas></div></div>
       <div class="panel-box"><h3>Media spend by platform</h3><p class="hint">AUD, scoped by the filters (TTD converted USD→AUD).</p><div class="chartbox sm"><canvas id="spendDonut"></canvas></div></div>
     </div>
+
+    <div class="secttitle" style="margin-top:18px">Audience &mdash; who the ads reached <span style="color:var(--muted2);font-weight:600">· Google-inferred · Google Ads only · whole flight</span></div>
+    <div class="grid cols-2" style="margin-top:0">
+      <div class="panel-box"><h3>Age</h3><p class="hint">Google-inferred age of the audience Google Ads reached (by impressions). Skews younger &mdash; 18-34 dominates.</p><div class="chartbox sm"><canvas id="ageBar"></canvas></div></div>
+      <div class="panel-box"><h3>Gender</h3><p class="hint">Google-inferred gender split (by impressions).</p><div class="chartbox sm"><canvas id="genderDonut"></canvas></div></div>
+    </div>
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="panel-box"><h3>Device</h3><p class="hint">What device the ads were seen on (by impressions).</p><div class="chartbox sm"><canvas id="deviceDonut"></canvas></div></div>
+      <div class="panel-box"><h3>How to read this</h3><p class="hint" style="line-height:1.5">These are <b>Google Ads' inferred demographics of the people the ads reached</b> &mdash; not website-visitor demographics and not all-channel. GA4 withholds demographics for this low-traffic property, and Meta/Trade Desk/Reddit don't report them, so this is the Google Ads slice only. Treat as directional. &ldquo;Undetermined&rdquo; = Google couldn't infer the attribute.</p></div>
+    </div>
   </section>
 
   <!-- ============ PAID MEDIA ============ -->
@@ -353,6 +373,18 @@
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Trade Desk campaigns</h3><p class="hint">Programmatic display (AUD; no conversions reported upstream).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
       <div class="panel-box"><h3>Meta creative mix</h3><p class="hint">Delivery by creative (top by impressions).</p><div class="tablewrap"><table id="metaCreative"></table></div></div>
+    </div>
+
+    <div class="secttitle" style="margin-top:18px">Creative gallery <span style="color:var(--muted2);font-weight:600">· Meta · the actual ads that ran</span></div>
+    <div class="panel-box">
+      <p class="hint">The Meta creatives that ran, with per-creative delivery + Signup Button leads (top by impressions). Images are Meta CDN previews refreshed on each data update; an occasional tile may not load if Meta expires the link.</p>
+      <div id="creativeGallery" class="creative-grid"></div>
+    </div>
+
+    <div class="secttitle" style="margin-top:18px">Who we targeted <span style="color:var(--muted2);font-weight:600">· Google Ads · top search keywords</span></div>
+    <div class="panel-box">
+      <p class="hint">For a search account the targeting <b>is</b> the search intent we bid on. Top Google Ads keywords by impressions, with delivery + conversions &mdash; showing what people searched when we reached them, and which terms convert (e.g. <code>sovereign ai solutions</code>, <code>ai consulting australia</code>).</p>
+      <div class="tablewrap"><table id="keywordsTable"></table></div>
     </div>
 
     <!-- Reddit community-awareness deep-dive -->
@@ -557,9 +589,11 @@ const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin 
 
 // ---- Drill-down grain (Looker-style) + per-chart axis mode ----
 // grain: month | week | day  ·  scale: 'rel' (each line indexed to its own peak) | 'abs' (real values)
-// Default is Absolute + Day for every toggled chart (syncToggleDefaults() below highlights the
-// matching buttons at load, so these two objects are the single source of truth for the defaults).
-const grain = { hero:'day', web:'day', reddit:'day', paid:'day', ke:'day', a2tm:'day', a2tw:'day' };
+// Default axis = Absolute for every toggled chart. Grain per chart: hero + web (Total vs ad-driven)
+// default Month; paid (Media metrics) + a2tm (Ad spend vs sessions) default Week; the rest Day.
+// syncToggleDefaults() below highlights the matching buttons at load, so these two objects are the
+// single source of truth for the defaults.
+const grain = { hero:'month', web:'month', reddit:'day', paid:'week', ke:'day', a2tm:'week', a2tw:'day' };
 const scale = { hero:'abs', web:'abs', reddit:'abs', paid:'abs', ke:'abs', a2tm:'abs', a2tw:'abs' };
 let heroScale = scale.hero;   // kept as a back-compat alias (renderHero reads it)
 let defaultStart = null;      // the "since May" default — used by the drill "↩ All months" reset
@@ -1059,14 +1093,17 @@ function renderOverview(){
   // Cards without a hero-chart series (Ad-driven, Engaged sessions) stay static. Spend toggles the whole
   // stacked-spend bar group; the four line metrics toggle their line (labels must match renderHero's).
   const H='heroChart';
+  // Clickable cards (each toggles a hero-chart series) are grouped on the LEFT; the two static cards
+  // — Ad-driven & Engaged sessions, which have no hero line — sit on the RIGHT so it reads clearly that
+  // they don't toggle. (Key events sits beside Website sessions, both clickable.)
   const cards=[
     ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks)), acmBy('spend_aud'), {chart:H,stack:'spend'}],
     ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), acmBy('imps'), {chart:H,series:'Impressions'}],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), acmBy('clicks'), {chart:H,series:'Clicks'}],
     ['k-sessions','Website sessions',fmtN(sessions),'whole site', mrBy('sessions'), {chart:H,series:'Sessions'}],
+    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)', mrBy('conversions'), {chart:H,series:'Key events'}],
     ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions', adDrivenBy],
     ['k-eng','Engaged sessions',fmtN(engaged),pct(div(engaged,sessions))+' eng. rate', mrBy('engaged_sessions')],
-    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)', mrBy('conversions'), {chart:H,series:'Key events'}],
   ];
   document.getElementById('ovKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
@@ -1084,6 +1121,30 @@ function renderOverview(){
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
+
+  renderAudience();
+}
+
+// Overview: Google Ads AD-AUDIENCE demographics — age bar + gender/device donuts. Whole-flight,
+// Google-Ads-only (GA4 demographics are thresholded to empty for this property), so NOT scoped by
+// the Platform/Campaign filters. "Undetermined" = Google couldn't infer the attribute (greyed).
+function renderAudience(){
+  const A=(DATA.ga_audience||[]);
+  const pick=d=>A.filter(r=>r.dim===d);
+  const AGE=['18-24','25-34','35-44','45-54','55-64','65+','Undetermined'];
+  const age=pick('age').slice().sort((a,b)=>AGE.indexOf(a.bucket)-AGE.indexOf(b.bucket));
+  mkChart('ageBar',{type:'bar',data:{labels:age.map(r=>r.bucket),
+    datasets:[{label:'Impressions',data:age.map(r=>r.imps),backgroundColor:age.map(r=>r.bucket==='Undetermined'?'#475569':mc('Impressions'))}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:ctx=>{const r=age[ctx.dataIndex];return fmtN(r.imps)+' impr · '+fmtN(r.clicks)+' clicks · '+pct(div(r.clicks,r.imps))+' CTR';}}}},
+      scales:{x:axis(),y:axis({position:'left',title:{display:true,text:'Impressions',color:tickClr}})}}});
+  const donut=(id,dim,colors)=>{const d=pick(dim);
+    mkChart(id,{type:'doughnut',data:{labels:d.map(r=>r.bucket),
+      datasets:[{data:d.map(r=>r.imps),backgroundColor:d.map(r=>colors[r.bucket]||'#475569')}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}},
+        tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtN(ctx.parsed)+' impr'}}}}});};
+  donut('genderDonut','gender',{Male:'#0EA5E9',Female:'#F472A0',Undetermined:'#68738A'});
+  donut('deviceDonut','device',{Mobile:'#22D3EE',Desktop:'#818CF8',Tablet:'#FDBA74','Connected Tv':'#A3E635',Other:'#68738A'});
 }
 
 // hero: ad spend (stacked bars) vs its effects (sessions / clicks / impressions / key events).
@@ -1229,7 +1290,36 @@ function renderPaid(){
   campTable('metaCreative',DATA.meta_creative,
     ['Impr.','Clicks','Link clk','Spend'],r=>[fmtN(r.imps),fmtN(r.clicks),fmtN(r.link_clicks),aud(r.spend_aud)],'creative');
 
+  renderCreatives();
+  renderKeywords();
   renderReddit();
+}
+
+// Paid Media: Meta creative gallery — the actual ads (thumbnail + copy + per-creative delivery).
+// Thumbnails are Meta CDN links (can expire); onerror swaps in a graceful "preview unavailable" tile.
+function renderCreatives(){
+  const cs=(DATA.meta_creatives||[]);
+  const esc=s=>(''+(s||'')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  const cards=cs.map(c=>{
+    const img=c.thumbnail_url
+      ? `<img class="cc-thumb" src="${esc(c.thumbnail_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'cc-noimg',textContent:'preview unavailable'}))">`
+      : `<div class="cc-noimg">no preview</div>`;
+    const copy=c.body?`<div class="cc-copy">${esc(c.body)}</div>`:'';
+    return `<div class="ccard">${img}<div class="cc-b"><div class="cc-title">${esc(c.title||c.body||'(untitled creative)')}</div>${copy}`
+      +`<div class="cc-m"><span><b>${fmtN(c.imps)}</b> impr</span><span><b>${fmtN(c.clicks)}</b> clk</span><span><b>${aud(c.spend_aud)}</b></span><span><b>${fmtN(c.conversions)}</b> leads</span></div></div></div>`;
+  }).join('');
+  document.getElementById('creativeGallery').innerHTML = cards || '<p class="hint">No creatives for the current data.</p>';
+}
+// Paid Media: "who we targeted" — top Google Ads keywords (search intent + what converts).
+function renderKeywords(){
+  const ks=(DATA.ga_keywords||[]);
+  let h='<tr><th>Keyword</th><th>Match</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Conv.</th></tr>';
+  if(!ks.length)h+='<tr><td class="name" style="color:var(--muted2)">No keyword data.</td></tr>';
+  ks.forEach(k=>{h+='<tr><td class="name">'+(''+(k.keyword||'')).replace(/</g,'&lt;')+'</td>'
+    +'<td style="text-align:left;color:var(--muted)">'+(''+(k.match_type||'')).toLowerCase()+'</td>'
+    +'<td>'+fmtN(k.imps)+'</td><td>'+fmtN(k.clicks)+'</td><td>'+pct(div(k.clicks,k.imps))+'</td>'
+    +'<td>'+aud(k.spend_aud)+'</td><td>'+fmtN(k.conversions)+'</td></tr>';});
+  document.getElementById('keywordsTable').innerHTML=h;
 }
 
 // ---------- Reddit deep-dive (Paid Media tab; Campaign filter applies, Platform ignored) ----------
@@ -1307,11 +1397,14 @@ function renderWebsite(){
   // kpi-only (no monthly series) -> null -> "no trend data".
   const wm=[...DATA.monthly].sort((a,b)=>a.month<b.month?-1:1);
   const wmBy=f=>wm.map(m=>+m[f]||0);
-  // Sessions is clickable — toggles the "All sessions" line on the website trend chart below. The other
-  // cards (Users / Engaged / Page views / Key events) have no matching line on that chart, so stay static.
+  const adSessTot=wm.reduce((s,m)=>s+(+m.paid_sessions||0),0);   // paid/ad-driven sessions (the "Ad-driven (paid)" line)
+  // The two CLICKABLE cards (Sessions, Ad-driven — each toggles its line on the webTrend chart below)
+  // are grouped on the LEFT; the static cards (Users / Engaged / Page views / Key events — no matching
+  // line) sit on the RIGHT so it reads clearly that they don't toggle.
   const cards=[
     ['k-sessions','Sessions',fmtN(k.sessions),'', wmBy('sessions'), {chart:'webTrend',series:'All sessions'}],
-    ['k-addriven','Users',fmtN(k.users),fmtN(k.new_users)+' new', wmBy('users')],
+    ['k-addriven','Ad-driven',fmtN(adSessTot),pct(div(adSessTot,k.sessions))+' of sessions', wmBy('paid_sessions'), {chart:'webTrend',series:'Ad-driven (paid)'}],
+    ['k-free','Users',fmtN(k.users),fmtN(k.new_users)+' new', wmBy('users')],
     ['k-eng','Engaged sessions',fmtN(k.engaged_sessions),pct(div(k.engaged_sessions,k.sessions))+' rate', wmBy('engaged_sessions')],
     ['k-imps','Page views',fmtN(k.page_views),fmt1(div(k.page_views,k.sessions))+' / session', null],
     ['k-leads','Key events',fmtN(k.conversions),'GA4 (modest)', wmBy('conversions')],
