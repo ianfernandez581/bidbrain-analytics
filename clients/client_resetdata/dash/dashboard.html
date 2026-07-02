@@ -190,10 +190,10 @@
   .ccard .cc-copy{color:var(--muted);font-size:11px;line-height:1.35;max-height:46px;overflow:hidden}
   .ccard .cc-m{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
   .ccard .cc-m b{color:var(--ink);font-weight:700}
-  /* clickable card → opens the zoom lightbox */
-  .ccard{cursor:pointer;transition:border-color .15s,transform .06s,box-shadow .15s}
-  .ccard:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.35)}
-  .ccard:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  /* only cards WITH a cached image are clickable (open the zoom lightbox); text-only cards aren't */
+  .ccard.clickable{cursor:pointer;transition:border-color .15s,transform .06s,box-shadow .15s}
+  .ccard.clickable:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 22px rgba(0,0,0,.35)}
+  .ccard.clickable:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
   /* creative zoom lightbox */
   .cc-modal{position:fixed;inset:0;background:rgba(4,6,12,.78);display:none;align-items:center;justify-content:center;z-index:200;padding:24px}
   .cc-modal.on{display:flex}
@@ -1356,8 +1356,12 @@ function renderCreatives(){
       ? `<img class="cc-thumb" src="/creative-img/${encodeURIComponent(c.creative_id)}" alt="" loading="lazy" onerror="cThumbErr(this,${i})">`
       : ccFallback(c);
     const copy=c.body?`<div class="cc-copy">${escC(c.body)}</div>`:'';
-    return `<div class="ccard" role="button" tabindex="0" title="Click to enlarge this creative"`
-      +` onclick="openCreative(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCreative(${i});}">`
+    // Only make a card clickable when there's an actual image to enlarge; text-only cards (expired
+    // creatives) are not clickable for now — their copy is already shown on the card.
+    const open=c.img_cached
+      ? ` class="ccard clickable" role="button" tabindex="0" title="Click to enlarge this creative" onclick="openCreative(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCreative(${i});}"`
+      : ` class="ccard"`;
+    return `<div${open}>`
       +`${img}<div class="cc-b"><div class="cc-title">${escC(c.title||c.body||'(untitled creative)')}</div>${copy}`
       +`<div class="cc-m"><span><b>${fmtN(c.imps)}</b> impr</span><span><b>${fmtN(c.clicks)}</b> clk</span><span><b>${aud(c.spend_aud)}</b></span><span><b>${fmtN(c.conversions)}</b> leads</span></div></div></div>`;
   }).join('');
