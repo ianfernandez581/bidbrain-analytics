@@ -136,7 +136,11 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 front-door** — no standalone `status.bidbrain.ai`); no dataset/views; reads the other clients'
 resources, self-gating `*/15`. **`bidbrain-platform/`** — the front-door at `dashboards.bidbrain.ai`.
 **`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1` (deploys the 5 shared ingest
-jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). For anything
+jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). **Multi-dev flow:**
+`push-branch.ps1` commits + pushes your work to your own `<you>/<desc>` branch; `merge-branches.ps1`
+integrates every dev branch → sanity-gates → lands on `main` → auto-deploys ONLY the changed services
+(path→deploy-script map lives in its `Resolve-DeployPlan`) → prunes. It STOPS for the agent on a real
+merge conflict or a failed gate. Header comments in each script are the SOP. For anything
 client-specific, open `clients/client_<c>/README.md`.
 
 ## Dashboard edits — the common task. READ THIS FIRST.

@@ -35,3 +35,6 @@ _run/
 
 # Claude Code harness / session state (not part of the project)
 .claude/
+
+# Per-developer branch name remembered by scripts/push-branch.ps1 (machine-local)
+scripts/.devname
