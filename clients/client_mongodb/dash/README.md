@@ -77,15 +77,17 @@ contract in [`../job/README.md`](../job/README.md).
 
 ---
 
-## AI report (Download slides → Google Slides)
+## AI report (Open slides → Google Slides)
 
-> **Moved to the agency portal (2026-07-02).** The **Download slides** button + on-screen preview were
-> REMOVED from this dashboard's toolbar. The deck is now triggered from the **agency login** portal
-> (dashboards.bidbrain.ai → Overview → per-client "Download slides"): the portal opens this dashboard in a
-> hidden iframe at `?bbslides=1`, which builds the payload, calls `/report`, and hands it to the shared,
-> theme-driven **`bb_deck.js`** builder (which replaced the old in-page `buildSlidesDeck()`); the portal
-> downloads the returned `.pptx`. `/report` + `report.py` + `buildDeckPayload()` stay here unchanged. See
-> `bidbrain-platform/README.md` → "Download slides". The description below is retained for the pipeline
+> **Moved to the agency portal (2026-07-02); renamed "Open slides" + Google-Slides export 2026-07-03.**
+> The old **Download slides** button + on-screen preview were REMOVED from this dashboard's toolbar. The
+> deck is now triggered from the **agency login** portal (dashboards.bidbrain.ai → Overview → per-client
+> **"Open slides"**): the portal opens this dashboard in a hidden iframe at `?bbslides=1`, which builds the
+> payload, calls `/report`, and hands it to the shared, theme-driven **`bb_deck.js`** builder (which
+> replaced the old in-page `buildSlidesDeck()`); `bb_deck.js` returns the `.pptx` as a Blob and the portal
+> shows a chooser: **Open in Google Slides** (uploads to the user's own Drive as a native Slides doc, new
+> tab) or **Download .pptx**. `/report` + `report.py` + `buildDeckPayload()` stay here unchanged. See
+> `bidbrain-platform/README.md` → "Open slides". The description below is retained for the pipeline
 > internals (the toolbar/preview parts are historical).
 
 The (now portal-triggered) flow generates a branded, **4-slide** account deck —

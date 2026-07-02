@@ -253,9 +253,9 @@ ride along as plain form fields; both stored on the record, blank when not given
   imperfectly) and `html2canvas` is lazy-loaded from a CDN — if blocked, the note just sends without
   an image. Both are vendorable later if needed.
 
-## Download slides (AI decks — the "Download slides" button)
+## Open slides (AI decks — the "Open slides" button)
 
-The agency portal's **Overview** tab shows a per-client **"Download slides"** button (rendered only for
+The agency portal's **Overview** tab shows a per-client **"Open slides"** button (rendered only for
 clients in `SLIDES_CLIENTS` in `dash/main.py` = {mongodb, cloudflare, schneider, proptrack, geocon}). It
 replaces the old in-dashboard toolbar button — the deck is now reachable **only from the agency login**.
 
@@ -272,7 +272,18 @@ replaces the old in-dashboard toolbar button — the deck is now reachable **onl
    **MongoDB brand deck's design language** (serif headlines, "ALL CAPS" mono accent pills, organic
    corner blobs, logo top-right, dark cover + light content), **recoloured per client** from a `BB_THEME`
    const in each `dashboard.html`. It returns the `.pptx` as a **Blob**; the iframe `postMessage`s it to
-   the portal, and the **portal** triggers the download (opens natively in Google Slides).
+   the portal.
+5. The portal shows a **chooser modal** (`#slidesModal` in `portal.html`) with two actions:
+   - **Open in Google Slides** — a **browser-side** Google OAuth *token* flow (`google.accounts.oauth2`
+     from the GIS library, reusing the platform's existing `GOOGLE_OAUTH_CLIENT_ID`) requests the
+     `drive.file` scope, uploads the `.pptx` Blob straight to the signed-in user's **own** Google Drive as
+     a **native Google Slides** doc (Drive multipart upload with `mimeType:
+     application/vnd.google-apps.presentation` → Drive converts it), and opens the resulting presentation
+     in a **new tab**. No server secrets, no service account, nothing link-shared — the deck lives in the
+     user's Drive. Requires the **Drive API** enabled (it is) and the **`drive.file` scope** allowed on
+     that OAuth client's consent screen (an *Internal* consent screen needs no verification). The button
+     is only rendered when `GOOGLE_OAUTH_CLIENT_ID` is set (else the modal is Download-only).
+   - **Download .pptx** — downloads the Blob directly (the original behavior).
 
 **Vendored, config-driven.** `bb_deck.js` (one canonical copy in `clients/client_mongodb/dash/`) and the
 generic `report.py` are copied into each participating dash; `report.py`'s per-client `CONFIG` block

@@ -155,8 +155,8 @@
     else cov.addText(clientName, { x: 0.85, y: 0.64, w: 6, h: 0.72, fontFace: T.serif, fontSize: 30, bold: true, color: T.onDark, align: 'left', valign: 'middle' });
     cov.addText(brandLine.toUpperCase(), { x: 8.55, y: 0.78, w: 3.2, h: 0.24, fontFace: T.mono, fontSize: 8.5, bold: true, color: T.onDarkMute, charSpacing: 1.5, align: 'right', valign: 'middle' });
     pill(cov, 0.85, 1.85, 'Campaign Performance Report');
-    cov.addText(clamp(R.headline || `${clientName} - ${ctx.campaign || ''}`, 150), {
-      x: 0.83, y: 2.42, w: 11.4, h: 2.1, fontFace: T.serif, fontSize: 40, bold: true, color: T.onDark, align: 'left', valign: 'top', fit: 'shrink', wrap: true,
+    cov.addText(clamp(R.headline || `${clientName} - ${ctx.campaign || ''}`, 140), {
+      x: 0.83, y: 2.42, w: 11.4, h: 2.1, fontFace: T.serif, fontSize: 36, bold: true, color: T.onDark, align: 'left', valign: 'top', fit: 'shrink', wrap: true,
     });
     // three info chips (flight · duration · regions)
     [{ lbl: 'FLIGHT WINDOW', val: `${win.start || '—'} → ${win.end || '—'}` },
@@ -184,23 +184,29 @@
       s2.addText(st.label, { x: 9.95, y: 1.18, w: 2.7, h: 0.34, fontFace: T.sans, fontSize: 10, bold: true, color: st.hex, align: 'left', valign: 'middle' });
     }
     if (R.campaign_type) s2.addText(`${R.campaign_type}`.toUpperCase(), { x: 6.9, y: 1.18, w: 2.5, h: 0.34, fontFace: T.sans, fontSize: 8, bold: true, color: T.mute, charSpacing: 1.5, align: 'right', valign: 'middle' });
-    { const sumRuns = [{ text: clamp(S1.summary, 250), options: { color: T.ink } }];
-      if (R.confidence_note) sumRuns.push({ text: '  ' + clamp(R.confidence_note, 200), options: { italic: true, color: T.mute, breakLine: true } });
-      s2.addText(sumRuns, { x: 0.55, y: 2.02, w: 12.23, h: 0.62, fontFace: T.sans, fontSize: 12.5, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
+    { const sumRuns = [{ text: clamp(S1.summary, 210), options: { color: T.ink } }];
+      if (R.confidence_note) sumRuns.push({ text: '  ' + clamp(R.confidence_note, 130), options: { italic: true, color: T.mute, breakLine: true } });
+      s2.addText(sumRuns, { x: 0.55, y: 2.02, w: 12.23, h: 0.66, fontFace: T.sans, fontSize: 12, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
     }
     if (!kpis.length) noteCard(s2, 'No KPI highlights were returned for this view.');
     else {
+      // Grid of KPI cards, height-capped + vertically centered so a few cards don't stretch into
+      // tall near-empty boxes (Google Slides ignores autofit, so we also size the value to the string).
       const n = kpis.length, g = 0.20, cols = n <= 4 ? n : 3, rws = Math.ceil(n / cols);
-      const cardW = (12.23 - g * (cols - 1)) / cols, cardH = (3.66 - g * (rws - 1)) / rws, valSize = n <= 4 ? 26 : (n === 5 ? 24 : 22);
+      const bandTop = 2.82, bandH = 3.58, capH = 1.98;
+      const cardW = (12.23 - g * (cols - 1)) / cols;
+      let cardH = (bandH - g * (rws - 1)) / rws; if (cardH > capH) cardH = capH;
+      const gridH = cardH * rws + g * (rws - 1), yTop = bandTop + Math.max(0, (bandH - gridH) / 2);
+      const valSize = cols <= 2 ? 30 : (cols === 3 ? 25 : 27);
       kpis.forEach((k, i) => {
-        const col = i % cols, row = Math.floor(i / cols), x = 0.55 + col * (cardW + g), y = 2.78 + row * (cardH + g);
+        const col = i % cols, row = Math.floor(i / cols), x = 0.55 + col * (cardW + g), y = yTop + row * (cardH + g);
         card(s2, { x, y, w: cardW, h: cardH, edge: (STATUS[k.status] || STATUS.neutral).hex });
-        chip(s2, x + 0.14, y + 0.13, catOf(k));
-        s2.addText(clamp(k.label, 26).toUpperCase(), { x: x + 0.14, y: y + 0.50, w: cardW - 0.28, h: 0.22, fontFace: T.sans, fontSize: 8, bold: true, color: T.mute, charSpacing: 1.5, align: 'left', valign: 'middle', fit: 'shrink' });
+        chip(s2, x + 0.16, y + 0.15, catOf(k));
+        s2.addText(clamp(k.label, 26).toUpperCase(), { x: x + 0.16, y: y + 0.46, w: cardW - 0.32, h: 0.20, fontFace: T.sans, fontSize: 8, bold: true, color: T.mute, charSpacing: 1.5, align: 'left', valign: 'middle', fit: 'shrink' });
         const vstr = clamp(k.value, 18);
-        const vS = Math.max(14, Math.min(valSize, Math.floor((cardW - 0.30) / (Math.max(vstr.length, 1) * 0.0076))));
-        s2.addText(vstr, { x: x + 0.14, y: y + 0.74, w: cardW - 0.28, h: 0.55, fontFace: T.serif, fontSize: vS, bold: true, color: T.ink, align: 'left', valign: 'top', fit: 'shrink', wrap: false });
-        s2.addText(clamp(k.detail, 90), { x: x + 0.14, y: y + (cardH - 0.64), w: cardW - 0.28, h: 0.5, fontFace: T.sans, fontSize: 10.5, color: T.mute, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
+        const vS = Math.max(15, Math.min(valSize, Math.floor((cardW - 0.34) / (Math.max(vstr.length, 1) * 0.0072))));
+        s2.addText(vstr, { x: x + 0.16, y: y + 0.68, w: cardW - 0.32, h: 0.5, fontFace: T.serif, fontSize: vS, bold: true, color: T.ink, align: 'left', valign: 'middle', fit: 'shrink', wrap: false });
+        s2.addText(clamp(k.detail, 84), { x: x + 0.16, y: y + 1.20, w: cardW - 0.32, h: Math.max(0.4, cardH - 1.30), fontFace: T.sans, fontSize: 10, color: T.mute, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
       });
     }
 
@@ -208,10 +214,13 @@
     const s3 = pres.addSlide();
     lightChrome(s3, '02 · Why', 'Why did it happen?');
     footer(s3, 'Why it happened · 3 / 4');
-    if (S2.summary) s3.addText(clamp(S2.summary, 240), { x: 0.55, y: 2.02, w: 12.23, h: 0.5, fontFace: T.sans, fontSize: 12.5, color: T.ink, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
+    if (S2.summary) s3.addText(clamp(S2.summary, 210), { x: 0.55, y: 2.02, w: 12.23, h: 0.5, fontFace: T.sans, fontSize: 12, color: T.ink, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
     if (!drivers.length) noteCard(s3, 'No drivers were identified for this view.');
     else {
-      const y0 = 2.62, H = (sources.length ? 4.05 : 4.6), n = drivers.length, g = 0.14, rowH = (H - g * (n - 1)) / n;
+      // Row height capped + stack vertically centered so 1-2 drivers don't balloon into huge rows.
+      const bandTop = 2.62, H = (sources.length ? 3.78 : 4.34), n = drivers.length, g = 0.14, capH = 1.5;
+      let rowH = (H - g * (n - 1)) / n; if (rowH > capH) rowH = capH;
+      const stackH = rowH * n + g * (n - 1), y0 = bandTop + Math.max(0, (H - stackH) / 2);
       drivers.forEach((d, i) => {
         const y = y0 + i * (rowH + g), dir = DIR[d.direction] || DIR.flat;
         card(s3, { x: 0.55, y, w: 12.23, h: rowH, edge: dir.hex });
@@ -247,10 +256,13 @@
     const s4 = pres.addSlide();
     lightChrome(s4, '03 · Recommended actions', 'What should we do?');
     footer(s4, 'Recommended actions · 4 / 4');
-    if (S3.summary) s4.addText(clamp(S3.summary, 240), { x: 0.55, y: 2.02, w: 12.23, h: 0.5, fontFace: T.sans, fontSize: 12.5, color: T.ink, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
+    if (S3.summary) s4.addText(clamp(S3.summary, 210), { x: 0.55, y: 2.02, w: 12.23, h: 0.5, fontFace: T.sans, fontSize: 12, color: T.ink, align: 'left', valign: 'top', isTextBox: true, wrap: true, fit: 'shrink' });
     if (!actions.length) noteCard(s4, 'No recommendations were generated for this view.');
     else {
-      const y0 = 2.62, H = 4.6, n = actions.length, g = 0.16, rowH = (H - g * (n - 1)) / n;
+      // Row height capped + stack vertically centered so a short action list stays compact, not stretched.
+      const bandTop = 2.62, H = 4.34, n = actions.length, g = 0.16, capH = 1.55;
+      let rowH = (H - g * (n - 1)) / n; if (rowH > capH) rowH = capH;
+      const stackH = rowH * n + g * (n - 1), y0 = bandTop + Math.max(0, (H - stackH) / 2);
       actions.forEach((a, i) => {
         const y = y0 + i * (rowH + g), p = PRI[a.priority] || PRI.low;
         card(s4, { x: 0.55, y, w: 12.23, h: rowH, edge: p.hex });
