@@ -83,6 +83,11 @@ APPLE_ICON = _read_icon("apple-touch-icon.png")
 
 store = Store()
 
+# Clients whose dashboards ship the AI "Download slides" pipeline (report.py + /report + the headless
+# ?bbslides=1 bootstrap + bb_deck.js). The agency portal shows a per-client "Download slides" button for
+# these (only these — others have no generator). Extend as new clients gain the pipeline.
+SLIDES_CLIENTS = {"mongodb", "cloudflare", "schneider", "proptrack", "geocon"}
+
 # --- Google sign-in (GIS button + ID-token verification) — a PARALLEL login to the password gate --
 # The login page renders Google's button; the browser posts a signed ID token (JWT) to /auth/google
 # (same-origin fetch). We verify it against this PUBLIC OAuth client id (the JWT `aud`) — no client
@@ -205,6 +210,7 @@ def home():
                                agency={"name": agency["name"], "slug": agency["slug"]},
                                agency_logo=AGENCY_LOGOS.get(agency["slug"]),
                                clients=clients,
+                               slides_clients=list(SLIDES_CLIENTS),
                                admin_return=session.get("admin_return"))
     if kind == "client":
         key = session.get("client_key")
@@ -858,7 +864,7 @@ def stage_definitions(client):
     name = (d.get("name") or "").strip()
     defs = d.get("definitions")
     if not name:
-        return jsonify(ok=False, error="Your name is required — it is recorded as the editor."), 400
+        return jsonify(ok=False, error="Your name is required - it is recorded as the editor."), 400
     if not isinstance(defs, dict):
         return jsonify(ok=False, error="Invalid definitions payload."), 400
     live = _read_definitions(client) or {}
@@ -887,7 +893,7 @@ def deploy_definitions(client):
         abort(403)
     staged = _read_definitions(client, staged=True)
     if staged is None:
-        return jsonify(ok=False, error="Nothing staged — save your edits first."), 400
+        return jsonify(ok=False, error="Nothing staged - save your edits first."), 400
     try:
         _run_status_deploy(client)
     except Exception as e:

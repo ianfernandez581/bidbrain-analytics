@@ -25,8 +25,12 @@ tab shows total leads vs target, not "MQLs achieved". Targets/CPL come from the 
 [`INTAKE.md`](INTAKE.md) for the client-flagged discrepancies (EBA MQL 157
 vs old 300, W&E/Heavy/EBA budgets, NEL added).
 
-**Update 2026-07-02** (dash rev `schneider-dash-00019`): (1) the **Campaign selector moved to a dropdown
-in the top nav bar** (Cloudflare pattern), off the control-bar filter row. (2) **Region simplified to
+**Update 2026-07-02** (dash rev `schneider-dash-00021`): (0) the campaign dropdown now leads with an
+**"All campaigns" portfolio view** (a synthesized pseudo-campaign summing all 5 across the Paid Media,
+Content Syndication and CS Comparison tabs — helpers use an `inCamp()` match-all predicate; the "Other
+Channels" tab stays per-campaign), and the dashboard **defaults to it** (`activeCampaign = ALL_ID` on
+boot; flip back to a single default by restoring `cs[0].id`). (1) the **Campaign selector moved to a
+dropdown in the top nav bar** (Cloudflare pattern), off the control-bar filter row. (2) **Region simplified to
 Australia + New Zealand** — the ANZ and Other chips are gone. (3) **EBA (EcoStruxure Building Activate)
 paid media now renders**: its Trade Desk delivery (5.2M imps / A$6.3k) was always in BigQuery but the
 region was parsed only from the campaign name, so it fell into the "Other" bucket (`SE_EBA_Activate_AWR_June4`

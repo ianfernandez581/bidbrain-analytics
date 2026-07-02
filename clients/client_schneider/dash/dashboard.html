@@ -539,7 +539,24 @@ function dateLabel(d){ return d?new Date(d).toLocaleDateString('en-US',{day:'num
 function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
 const FONT={family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
 
-function campaign(){ return (DATA.campaigns||[]).find(c=>c.id===activeCampaign) || {}; }
+// "All campaigns" = a synthesized portfolio pseudo-campaign (totals across the 5 programs) so
+// every per-campaign render path (csPacing, renderCS, renderPaid, compare) works unchanged.
+const ALL_ID='__all__';
+const inCamp=id=> activeCampaign===ALL_ID || id===activeCampaign;
+function campaign(){
+  if(activeCampaign===ALL_ID){
+    const cs=(DATA.campaigns||[]); const sum=k=>cs.reduce((a,c)=>a+(c[k]||0),0);
+    const fs=cs.map(c=>c.flight_start).filter(Boolean).sort();
+    const fe=cs.map(c=>c.flight_end).filter(Boolean).sort();
+    return { id:ALL_ID, label:'All campaigns',
+      target_mql:sum('target_mql'), target_hql:sum('target_hql'), target:sum('target'),
+      committed_spend:sum('committed_spend'), leads:sum('leads'),
+      flight_start:fs[0]||null, flight_end:fe[fe.length-1]||null,
+      cpl_tiers:cs.flatMap(c=>c.cpl_tiers||[]), channels:cs.flatMap(c=>c.channels||[]),
+      tabs:['paid','cs','compare'] };   // portfolio view = the aggregatable tabs (Other is per-campaign)
+  }
+  return (DATA.campaigns||[]).find(c=>c.id===activeCampaign) || {};
+}
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
 // The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
@@ -550,10 +567,10 @@ const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
 
 // CS rows for the selected campaign (+ optional market predicate)
-function csRows(mp){ mp=mp||marketOk; return (DATA.cs_by_programme||[]).filter(r=>r.campaign===activeCampaign && mp(r.market)); }
-function csWeeklyRows(mp){ mp=mp||marketOk; return (DATA.cs_weekly||[]).filter(r=>r.campaign===activeCampaign && mp(r.market)); }
+function csRows(mp){ mp=mp||marketOk; return (DATA.cs_by_programme||[]).filter(r=>inCamp(r.campaign) && mp(r.market)); }
+function csWeeklyRows(mp){ mp=mp||marketOk; return (DATA.cs_weekly||[]).filter(r=>inCamp(r.campaign) && mp(r.market)); }
 // paid rows for the selected campaign (+ region + date)
-function pmRows(){ return (DATA.pm_delivery||[]).filter(r=>r.program===activeCampaign && marketOk(r.market) && inRangeDate(r.date)); }
+function pmRows(){ return (DATA.pm_delivery||[]).filter(r=>inCamp(r.program) && marketOk(r.market) && inRangeDate(r.date)); }
 
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
 
@@ -598,7 +615,7 @@ async function boot(){
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA=await res.json();
     const cs=(DATA.campaigns||[]);
-    activeCampaign=cs.length?cs[0].id:null;
+    activeCampaign=cs.length?ALL_ID:null;   // default = portfolio overview ("All campaigns")
     activeMarkets=new Set(DATA.all_markets||[]);
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
@@ -639,9 +656,10 @@ function renderControls(){
   el('ctrlNote').textContent=`Showing ${c.label||'—'} · ${mkts}`;
   // the date range only scopes Paid Media (CS leads are shown for the flight) — hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
-  // campaign selector (top-nav dropdown, Cloudflare pattern)
+  // campaign selector (top-nav dropdown, Cloudflare pattern) — "All campaigns" first (portfolio view)
   const sel=el('campSelect'); sel.innerHTML='';
-  (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; if(cp.id===activeCampaign) o.selected=true; sel.appendChild(o); });
+  const optAll=document.createElement('option'); optAll.value=ALL_ID; optAll.textContent='All campaigns'; sel.appendChild(optAll);
+  (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
   sel.value=activeCampaign;
   // region chips
   const rw=el('regionChips'); rw.innerHTML='';
@@ -744,7 +762,7 @@ function renderCS(){
   else note.style.display='none';
 
   // delivery (paid imps/clicks for this campaign+region, all dates)
-  let imp=0, clk=0; (DATA.pm_delivery||[]).forEach(r=>{ if(r.program===activeCampaign && marketOk(r.market)){ imp+=r.imps||0; clk+=r.clicks||0; } });
+  let imp=0, clk=0; (DATA.pm_delivery||[]).forEach(r=>{ if(inCamp(r.program) && marketOk(r.market)){ imp+=r.imps||0; clk+=r.clicks||0; } });
 
   // snapshot
   el('cs_target').textContent=p.hasTarget?fmtN(p.target):'—';
@@ -788,7 +806,7 @@ function csWeeks(start,end){ const out=[]; if(!start) return out; let d=new Date
 // CS weekly chart and the compare panels so they line up.
 function csDisplayWeeks(){
   const c=campaign();
-  const aw=(DATA.cs_weekly||[]).filter(r=>r.campaign===activeCampaign).map(r=>r.week_start).sort();
+  const aw=(DATA.cs_weekly||[]).filter(r=>inCamp(r.campaign)).map(r=>r.week_start).sort();
   const today=new Date(Date.now()).toISOString().slice(0,10);
   let start=c.flight_start||(aw[0]||today);
   let end=(c.flight_end && c.flight_end<today)?c.flight_end:today;

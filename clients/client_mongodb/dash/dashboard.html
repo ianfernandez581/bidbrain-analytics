@@ -1987,14 +1987,14 @@ async function bbHeadlessSlides(){
     if (!res.ok){ let d=''; try { d=(await res.json()).error||''; } catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
     const report = await res.json();
     const logos = await bbDeckLogos();
-    await bbBuildDeck(report, payload, BB_THEME, logos);
-    try { parent.postMessage({ __bbslides:true, status:'done' }, location.origin); } catch(_){}
+    const out = await bbBuildDeck(report, payload, BB_THEME, logos, { download: false });
+    try { parent.postMessage({ __bbslides:true, status:'done', blob: out && out.blob, fileName: out && out.fileName }, location.origin); } catch(_){}
   } catch(e){
     try { parent.postMessage({ __bbslides:true, status:'error', error:(e && e.message) || String(e) }, location.origin); } catch(_){}
   }
 }
 if (new URLSearchParams(location.search).has('bbslides')){
-  (function bbWait(){ if (typeof DATA !== 'undefined' && DATA) bbHeadlessSlides(); else setTimeout(bbWait, 120); })();
+  (function bbWait(){ if (typeof DATA !== 'undefined' && DATA && DATA.last_updated) bbHeadlessSlides(); else setTimeout(bbWait, 120); })();
 }
 
 boot();

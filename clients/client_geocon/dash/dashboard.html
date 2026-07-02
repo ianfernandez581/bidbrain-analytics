@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <!-- PptxGenJS (pinned, bundled w/ JSZip) - powers the "Download slides" Google-Slides deck export. -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
 <style>
   :root{
     color-scheme:light;
@@ -182,83 +183,9 @@
     .chart,.chart.tall{height:300px}
   }
 
-  /* ============ AI REPORT overlay ============ */
-  #bbReport{display:none;position:fixed;inset:0;z-index:9999;background:var(--charcoal);overflow:auto;font-family:"Montserrat",-apple-system,sans-serif}
-  #bbReport.show{display:block}
-  .bb-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:13px 24px;background:#1B1310;color:var(--linen);box-shadow:0 2px 14px rgba(0,0,0,.4)}
-  .bb-bar .bb-brand{display:flex;align-items:center;gap:9px;font-weight:900;letter-spacing:2px;font-size:12px}
-  .bb-bar .bb-brand .dot{width:6px;height:6px;border-radius:50%;background:var(--clay)}
-  .bb-bar .bb-brand .sub{color:var(--clay);letter-spacing:1px}
-  .bb-bar .bb-actions{display:flex;gap:9px}
-  .bb-btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:800;cursor:pointer;padding:8px 14px;border-radius:var(--radius);border:1px solid rgba(255,254,236,.26);background:transparent;color:var(--linen)}
-  .bb-btn:hover{border-color:var(--clay)} .bb-btn.primary{background:var(--linen);color:var(--charcoal);border-color:var(--linen)} .bb-btn.primary:hover{background:#fff}
-  .bb-btn svg{width:15px;height:15px}
-  .bb-deck{max-width:1040px;margin:0 auto;padding:26px 20px 60px;display:flex;flex-direction:column;gap:22px}
-  .bb-load{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--linen);text-align:center;gap:8px}
-  .bb-load .ring{width:46px;height:46px;border:3px solid rgba(255,254,236,.18);border-top-color:var(--clay);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
-  .bb-load h3{margin:0;font-size:18px;font-weight:800} .bb-load p{margin:0;font-size:13px;color:rgba(255,254,236,.62);max-width:440px}
-  .bb-load .step{font-size:12px;color:var(--clay);margin-top:6px;min-height:16px}
-  .bb-slide{background:var(--white);color:var(--ink);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.4);padding:32px 36px;position:relative;display:flex;flex-direction:column}
-  .bb-slide .bb-head{display:flex;align-items:center;justify-content:space-between;gap:14px;border-bottom:1px solid var(--line);padding-bottom:12px;margin-bottom:16px}
-  .bb-brandline{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:900;letter-spacing:1.5px;color:var(--heritage)}
-  .bb-brandline .dot{width:5px;height:5px;border-radius:50%;background:var(--clay)} .bb-brandline .sub{color:var(--muted);font-weight:800}
-  .bb-sidx{font-size:10.5px;font-weight:800;letter-spacing:1px;color:var(--muted);text-transform:uppercase}
-  .bb-slide h2{margin:0 0 4px;font-size:23px;font-weight:900;color:var(--charcoal)}
-  .bb-lede{margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#42352F}
-  .bb-headline{font-size:14px;line-height:1.5;color:var(--heritage);font-weight:800;margin:0 0 14px}
-  .bb-statusrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
-  .bb-modeltag{font-size:10px;color:var(--muted);margin-left:auto}
-  .bb-confnote{font-size:11.5px;font-style:italic;color:var(--muted);margin:0 0 12px;line-height:1.45}
-  .bb-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .bb-kpi{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--paper);display:flex;flex-direction:column;gap:3px}
-  .bb-kpi .kpi-top{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px}
-  .bb-kpi .kl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:800}
-  .bb-kpi .kv{font-size:20px;font-weight:900;color:var(--charcoal);font-variant-numeric:tabular-nums;line-height:1.1}
-  .bb-kpi .kd{font-size:11px;color:#52463F;line-height:1.4}
-  .bb-pill{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:900;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
-  .bb-pill .d{width:5px;height:5px;border-radius:50%;background:currentColor}
-  .st-ahead,.st-on_track{background:rgba(45,115,84,.14);color:var(--success)}
-  .st-behind,.st-at_risk{background:rgba(163,58,45,.13);color:var(--danger)} .st-mixed{background:rgba(182,106,45,.16);color:var(--warning)} .st-neutral{background:rgba(35,26,23,.08);color:var(--muted)}
-  .pri-high{background:var(--heritage);color:var(--linen)} .pri-medium{background:rgba(182,106,45,.16);color:var(--warning)} .pri-low{background:rgba(35,26,23,.08);color:var(--muted)}
-  .bb-chip{display:inline-flex;align-items:center;font-size:9px;font-weight:900;letter-spacing:.5px;text-transform:uppercase;padding:2px 7px;border-radius:5px;white-space:nowrap;background:var(--sand);color:var(--heritage);border:1px solid var(--line)}
-  .bb-chip.area-external,.bb-chip.area-budget,.bb-chip.area-measurement,.bb-chip.area-overall{color:var(--muted);background:#F1ECE5}
-  .bb-tag{font-size:9.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
-  .conf-high{background:rgba(45,115,84,.14);color:var(--success)} .conf-medium{background:rgba(182,106,45,.16);color:var(--warning)} .conf-low{background:rgba(35,26,23,.08);color:var(--muted)}
-  .bb-eff{font-size:10px;font-weight:800;color:var(--muted)}
-  .bb-drivers{display:flex;flex-direction:column;gap:11px}
-  .bb-driver{border:1px solid var(--line);border-left:3px solid var(--heritage);border-radius:9px;padding:12px 15px;background:var(--white)}
-  .bb-driver .t{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--charcoal);margin-bottom:4px;flex-wrap:wrap}
-  .bb-driver .t .rank{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--clay);color:var(--charcoal);font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center}
-  .bb-driver .t .dt{font-weight:800} .bb-driver .t .bb-dir{color:var(--muted);font-size:11px} .bb-driver .t .spacer{flex:1}
-  .bb-driver .x{font-size:12.5px;line-height:1.5;color:#42352F;margin:0 0 6px} .bb-driver .x .cite{font-size:9px;color:var(--heritage);font-weight:800;vertical-align:super}
-  .bb-driver .ev{font-size:11.5px;line-height:1.45;color:#3F332E;background:var(--sand);border-radius:6px;padding:6px 9px} .bb-driver .ev b{color:var(--heritage);font-weight:800}
-  .bb-actionlist{display:flex;flex-direction:column;gap:11px}
-  .bb-action{display:flex;gap:13px;border:1px solid var(--line);border-radius:9px;padding:12px 15px}
-  .bb-action .num{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--heritage);color:var(--linen);font-size:12px;font-weight:900;display:flex;align-items:center;justify-content:center}
-  .bb-action .body{flex:1;min-width:0} .bb-action .t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px} .bb-action .t .at{font-size:13.5px;font-weight:800;color:var(--charcoal)} .bb-action .r{font-size:12.5px;line-height:1.5;color:#42352F;margin:0}
-  .bb-sources{margin-top:16px;border-top:1px solid var(--line);padding-top:10px} .bb-sources .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:800;margin-bottom:5px}
-  .bb-sources ol{margin:0;padding-left:18px} .bb-sources li{font-size:10.5px;line-height:1.5;color:#52463F;margin-bottom:2px} .bb-sources a{color:var(--heritage);word-break:break-all}
-  .bb-foot{margin-top:auto;padding-top:14px;font-size:9.5px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line)}
-  .bb-foot .meta-top{display:flex;flex-wrap:wrap;gap:4px 12px;margin-bottom:3px} .bb-foot .pglabel{font-weight:800;color:var(--charcoal)} .bb-foot b{color:var(--ink)} .bb-disc{font-style:italic}
-  @media(max-width:760px){.bb-kpis{grid-template-columns:1fr}.bb-slide{padding:24px 18px}}
 </style>
 </head>
 <body>
-
-<!-- AI report overlay -->
-<div id="bbReport" role="dialog" aria-modal="true" aria-label="Account report">
-  <div class="bb-bar">
-    <div class="bb-brand">BIDBRAIN<span class="dot"></span><span class="sub">GEOCON &middot; GATEWAY BRADDON</span></div>
-    <div class="bb-actions">
-      <button class="bb-btn primary" id="bbDlBtn" onclick="bbDownloadSlides()" style="display:none">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        <span>Download Google Slides</span>
-      </button>
-      <button class="bb-btn" onclick="bbCloseReport()">Close</button>
-    </div>
-  </div>
-  <div id="bbReportBody"></div>
-</div>
 
 <div class="shell">
   <header class="masthead">
@@ -325,11 +252,7 @@
               <label for="searchBox">Find</label>
               <input id="searchBox" type="search" placeholder="Campaign or ad">
             </div>
-            <button class="btn btn-accent" id="reportBtn" type="button" onclick="downloadReport()"
-              title="Generate a branded AI report (Cover / What happened / Why / What to do) for the full flight, downloadable as Google Slides">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              <span>Download report</span>
-            </button>
+            <!-- "Download slides" moved to the agency portal (dashboards.bidbrain.ai); the deck is built headlessly via ?bbslides=1 + bb_deck.js. No toolbar button here. -->
             <button class="btn btn-ghost" id="expTabBtn" type="button" onclick="exportThisTab()" title="Download the current view's table as CSV (honors the date, stage and search filters)">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Export tab</span>
@@ -942,16 +865,9 @@ function exportThisTab(){
   }
 }
 
-// ================= AI REPORT =================
-const bbEsc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const bbSafeUrl=u=>{const s=String(u||'');return /^https?:\/\//i.test(s)?s:null;};
+// ================= AI REPORT PAYLOAD (used by the headless portal deck path below) =================
 const r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
 const r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
-let _bbStepTimer=null,_bbLastReport=null,_bbLastPayload=null,_bbLogo;
-const BB_STATUS={ahead:'Ahead of plan',on_track:'On track',at_risk:'At risk',behind:'Behind plan',mixed:'Mixed',neutral:'Monitoring'};
-const BB_AREA={reach:'Reach',traffic:'Traffic',leads:'Leads',efficiency:'Efficiency',budget:'Budget',overall:'Overall',creative:'Creative',audience:'Audience',budget_pacing:'Budget & pace',landing_page:'Landing page',funnel:'Funnel mix',external:'Market',measurement:'Measurement'};
-const BB_DIRGLYPH={up:'▲',down:'▼',flat:'▬',mixed:'◆'};
-const _has=(o,k)=>o&&Object.prototype.hasOwnProperty.call(o,k);
 
 function buildReportPayload(){
   // FULL flight (all rows, ignore the on-screen date filter) so the deck is stable + cached per data refresh.
@@ -968,103 +884,42 @@ function buildReportPayload(){
     top_ads:ads.map(r=>({ad:r.ad,adset:r.adset,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency)})),
     fatigue:fat.map(r=>({ad:r.ad,adset:r.adset,frequency:r2(r.frequency),freq_wow:r2(r.freq_wow),ctr:r6(r.ctr),ctr_wow:r6(r.ctr_wow),flag:r.flag}))};
 }
-const BB_STEPS=['Reading the campaign numbers…','Researching live market context on the web…','Writing the analysis…','Formatting your slides…'];
-function bbOpenReport(){const ov=$('bbReport');$('bbDlBtn').style.display='none';$('bbReportBody').innerHTML=`<div class="bb-load"><div class="ring"></div><h3>Building your report…</h3><p>Analysing the Gateway Braddon numbers and researching current market context. This usually takes 20–40 seconds.</p><div class="step" id="bbStep">${bbEsc(BB_STEPS[0])}</div></div>`;ov.classList.add('show');document.body.style.overflow='hidden';let i=0;clearInterval(_bbStepTimer);_bbStepTimer=setInterval(()=>{i=Math.min(i+1,BB_STEPS.length-1);const s=$('bbStep');if(s)s.textContent=BB_STEPS[i];},9000);}
-function bbReportError(msg){clearInterval(_bbStepTimer);$('bbReportBody').innerHTML=`<div class="bb-load"><h3>Couldn't generate the report</h3><p>${bbEsc(msg)}</p><p style="margin-top:10px"><button class="bb-btn" onclick="bbCloseReport()">Close</button></p></div>`;}
-function bbCloseReport(){clearInterval(_bbStepTimer);$('bbReport').classList.remove('show');document.body.style.overflow='';}
-async function downloadReport(){
-  const btn=$('reportBtn'),lbl=btn?btn.querySelector('span'):null,orig=lbl?lbl.textContent:'';if(lbl){lbl.textContent='Generating…';btn.disabled=true;}
-  let payload;try{payload=buildReportPayload();}catch(e){if(lbl){lbl.textContent=orig;btn.disabled=false;}alert('Could not assemble the report data: '+e.message);return;}
-  bbOpenReport();
-  try{const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){try{d=(await res.text()).slice(0,200);}catch(__){}}throw new Error('HTTP '+res.status+(d?' - '+d:''));}
-    const report=await res.json();_bbLastReport=report;_bbLastPayload=payload;renderReportDeck(report,payload);
-  }catch(e){bbReportError(e.message||'Request failed.');}
-  finally{if(lbl){lbl.textContent=orig;btn.disabled=false;}}
+
+// ── Portal-driven "Download slides" (headless) ──
+// The agency portal opens this dashboard in a hidden same-origin iframe with ?bbslides=1. We build the
+// full-flight payload, POST it to /report, load the logo, and hand it to the shared bb_deck.js builder,
+// which downloads a branded .pptx. Small status messages go back to the portal; no visible UI here.
+const BB_THEME = {
+  bg:'231A17', panel:'352622', accent:'6C291B', accentInk:'FFFEEC', softBg:'FFF9EF',
+  lightBg:'FFFFFF', ink:'2B211D', mute:'786B63', line:'E6E9ED', onDark:'FFFEEC', onDarkMute:'BD9A8E',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'BidBrain', client:'Geocon - Gateway Braddon', brand:'BIDBRAIN × GEOCON', filePrefix:'Geocon_Gateway_Braddon'
+};
+async function bbDeckLogos(){
+  try {
+    const res = await fetch('logo.png', { cache:'force-cache' });
+    if (!res.ok) return { white:null, dark:null };
+    const blob = await res.blob();
+    const uri = await new Promise(function(r){ const fr = new FileReader(); fr.onload = function(){ r(fr.result); }; fr.onerror = function(){ r(null); }; fr.readAsDataURL(blob); });
+    return { white: uri, dark: uri };
+  } catch(e){ return { white:null, dark:null }; }
 }
-function bbStatusPill(s){const k=String(s||'').toLowerCase();return BB_STATUS[k]?`<span class="bb-pill st-${k}"><span class="d"></span>${bbEsc(BB_STATUS[k])}</span>`:'';}
-function bbAreaChip(a){const k=String(a||'').toLowerCase();return BB_AREA[k]?`<span class="bb-chip area-${k}">${bbEsc(BB_AREA[k])}</span>`:'';}
-function bbConfTag(c){const k=String(c||'').toLowerCase();return ['high','medium','low'].includes(k)?`<span class="bb-tag conf-${k}">${k} confidence</span>`:'';}
-function bbPriPill(p){const k=String(p||'').toLowerCase();return ['high','medium','low'].includes(k)?`<span class="bb-pill pri-${k}">${k} priority</span>`:'';}
-function bbEffort(e){const m={low:'Low',medium:'Med',high:'High'}[String(e||'').toLowerCase()];return m?`<span class="bb-eff">Effort: ${m}</span>`:'';}
-function bbDirGlyph(d){const g=BB_DIRGLYPH[String(d||'').toLowerCase()];return g?`<span class="bb-dir">${g}</span>`:'';}
-function bbBrandHead(k){return `<div class="bb-head"><div class="bb-brandline">BIDBRAIN<span class="dot"></span><span class="sub">× Geocon · Gateway Braddon</span></div><div class="bb-sidx">${bbEsc(k)}</div></div>`;}
-function bbFooter(p,page,model){const ctx=p.context||{},win=ctx.window||{};const thr=ctx.data_through?new Date(ctx.data_through):null;const t=thr&&!isNaN(thr)?thr.toUTCString().replace(/ GMT$/,' UTC'):'—';
-  return `<div class="bb-foot"><div class="meta-top"><span class="pglabel">${bbEsc(page)}</span><span><b>Development:</b> ${bbEsc(ctx.campaign)}</span><span><b>Flight:</b> ${bbEsc(win.start||'—')} → ${bbEsc(win.end||'—')}</span><span><b>Data through:</b> ${bbEsc(t)}</span></div><div class="bb-disc">Prepared with BidBrain · Confidential. Figures are pulled live from source data; the analysis and recommendations were produced by ${bbEsc(model||'AI')} with live web research and should be reviewed before circulation. Leads are ${bbEsc(ctx.lead_source_label||'Meta-reported')} enquiries, not CRM-qualified leads.</div></div>`;}
-function bbKpiCards(k){if(!k.length)return `<p class="bb-lede">No KPI highlights were returned.</p>`;return `<div class="bb-kpis">`+k.map(x=>`<div class="bb-kpi"><div class="kpi-top">${bbAreaChip(x.area)}${bbStatusPill(x.status)}</div><div class="kl">${bbEsc(x.label)}</div><div class="kv">${bbEsc(x.value)}</div><div class="kd">${bbEsc(x.detail)}</div></div>`).join('')+`</div>`;}
-function bbSourcesBlock(s){if(!s.length)return '';return `<div class="bb-sources"><div class="lbl">Sources · live web research</div><ol>`+s.map(x=>{const u=bbSafeUrl(x&&x.url);const t=bbEsc((x&&x.title)||u||'');return `<li>${u?`<a href="${bbEsc(u)}" target="_blank" rel="noopener noreferrer">${t}</a>`:t}</li>`;}).join('')+`</ol></div>`;}
-function renderReportDeck(report,payload){
-  clearInterval(_bbStepTimer);const R=report||{},S1=R.slide1||{},S2=R.slide2||{},S3=R.slide3||{};
-  const kpis=Array.isArray(S1.kpis)?S1.kpis:[],drivers=Array.isArray(S2.drivers)?S2.drivers:[],actions=Array.isArray(S3.actions)?S3.actions:[],sources=Array.isArray(R.sources)?R.sources:[];
-  const model=R.provider==='gemini'?(R.model||'Google Gemini'):'Claude (Opus 4.8)';
-  const statusRow=`<div class="bb-statusrow">${bbStatusPill(R.overall_status)}<span class="bb-modeltag">AI analysis · ${bbEsc(model)}</span></div>`;
-  const s1=`<section class="bb-slide">${bbBrandHead('01 · What happened')}<h2>What happened?</h2>${R.headline?`<p class="bb-headline">${bbEsc(R.headline)}</p>`:''}${statusRow}${R.confidence_note?`<p class="bb-confnote">${bbEsc(R.confidence_note)}</p>`:''}${S1.summary?`<p class="bb-lede">${bbEsc(S1.summary)}</p>`:''}${bbKpiCards(kpis)}${bbFooter(payload,'1 / 3 · What happened',model)}</section>`;
-  const dHtml=drivers.length?`<div class="bb-drivers">`+drivers.map((d,i)=>{const si=(_has(d,'source_index')&&Number.isInteger(d.source_index)&&d.source_index>=0&&d.source_index<sources.length)?d.source_index:null;return `<div class="bb-driver"><div class="t"><span class="rank">${i+1}</span>${bbDirGlyph(d.direction)}<span class="dt">${bbEsc(d.title)}</span>${bbAreaChip(d.area)}<span class="spacer"></span>${bbConfTag(d.confidence)}</div>${d.explanation?`<p class="x">${bbEsc(d.explanation)}${si!=null?`<sup class="cite">[${si+1}]</sup>`:''}</p>`:''}${d.evidence?`<div class="ev"><b>Evidence:</b> ${bbEsc(d.evidence)}</div>`:''}</div>`;}).join('')+`</div>`:`<p class="bb-lede">No drivers were identified.</p>`;
-  const s2=`<section class="bb-slide">${bbBrandHead('02 · Why')}<h2>Why did it happen?</h2>${S2.summary?`<p class="bb-lede">${bbEsc(S2.summary)}</p>`:''}${dHtml}${bbSourcesBlock(sources)}${bbFooter(payload,'2 / 3 · Why',model)}</section>`;
-  const aHtml=actions.length?`<div class="bb-actionlist">`+actions.map((a,i)=>`<div class="bb-action"><div class="num">${i+1}</div><div class="body"><div class="t">${bbPriPill(a.priority)}<span class="at">${bbEsc(a.title)}</span>${bbAreaChip(a.area)}${bbEffort(a.effort)}</div>${a.rationale?`<p class="r">${bbEsc(a.rationale)}</p>`:''}</div></div>`).join('')+`</div>`:`<p class="bb-lede">No recommendations were generated.</p>`;
-  const s3=`<section class="bb-slide">${bbBrandHead('03 · Recommended actions')}<h2>Recommended actions</h2>${S3.summary?`<p class="bb-lede">${bbEsc(S3.summary)}</p>`:''}${aHtml}${bbFooter(payload,'3 / 3 · Actions',model)}</section>`;
-  $('bbReportBody').innerHTML=`<div class="bb-deck">${s1}${s2}${s3}</div>`;$('bbDlBtn').style.display='';$('bbReport').scrollTop=0;
+async function bbHeadlessSlides(){
+  try {
+    const payload = buildReportPayload();
+    const res = await fetch('/report', { method:'POST', cache:'no-store',
+      headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    if (!res.ok){ let d=''; try { d=(await res.json()).error||''; } catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
+    const report = await res.json();
+    const logos = await bbDeckLogos();
+    await bbBuildDeck(report, payload, BB_THEME, logos);
+    try { parent.postMessage({ __bbslides:true, status:'done' }, location.origin); } catch(_){}
+  } catch(e){
+    try { parent.postMessage({ __bbslides:true, status:'error', error:(e && e.message) || String(e) }, location.origin); } catch(_){}
+  }
 }
-function bbLoadLogo(){return new Promise(res=>{fetch('/logo.png',{cache:'force-cache'}).then(r=>r.ok?r.blob():Promise.reject()).then(b=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b);}).catch(()=>res(null));});}
-async function bbDownloadSlides(){
-  if(!_bbLastReport||!_bbLastPayload){alert('Generate the report first.');return;}
-  if(typeof PptxGenJS==='undefined'){alert('The slide library failed to load - please retry.');return;}
-  const btn=$('bbDlBtn'),lbl=btn?btn.querySelector('span'):null,orig=lbl?lbl.textContent:'';if(lbl){lbl.textContent='Building…';btn.disabled=true;}
-  try{if(_bbLogo===undefined)_bbLogo=await bbLoadLogo();await buildSlidesDeck(_bbLastReport,_bbLastPayload,_bbLogo);}
-  catch(e){alert('Could not build the slides: '+(e&&e.message?e.message:e));}
-  finally{if(lbl){lbl.textContent=orig;btn.disabled=false;}}
-}
-async function buildSlidesDeck(report,payload,logo){
-  const pres=new PptxGenJS();pres.defineLayout({name:'BB_WIDE',width:13.33,height:7.5});pres.layout='BB_WIDE';pres.author='BidBrain';pres.company='BidBrain';
-  const ctx=payload.context||{},win=ctx.window||{};pres.title='Geocon - Gateway Braddon';
-  const FONT='Arial';
-  const C={charcoal:'231A17',heritage:'6C291B',heritage2:'812F20',linen:'FFFEEC',clay:'BD9A8E',sand:'EFE3D4',paper:'FFF9EF',ink:'2B211D',mute:'786B63',line:'E5DDD3',white:'FFFFFF',good:'2D7354',bad:'A33A2D',warn:'B66A2D',muteDark:'A38C81',heritageTint:'F0E6E1'};
-  const STATUS={ahead:{label:'Ahead of plan',hex:C.good},on_track:{label:'On track',hex:C.good},at_risk:{label:'At risk',hex:C.warn},behind:{label:'Behind plan',hex:C.bad},mixed:{label:'Mixed',hex:C.warn},neutral:{label:'Monitoring',hex:C.mute}};
-  const AREA={reach:'REACH',traffic:'TRAFFIC',leads:'LEADS',efficiency:'EFFICIENCY',budget:'BUDGET',overall:'OVERALL',creative:'CREATIVE',audience:'AUDIENCE',budget_pacing:'BUDGET & PACE',landing_page:'LANDING PAGE',funnel:'FUNNEL',external:'MARKET',measurement:'MEASUREMENT'};
-  const DIR={up:{glyph:'▲'},down:{glyph:'▼'},flat:{glyph:'▬'},mixed:{glyph:'◆'}};
-  const PRI={high:{label:'HIGH PRIORITY',hex:C.bad},medium:{label:'MED PRIORITY',hex:C.warn},low:{label:'LOW PRIORITY',hex:C.mute}};
-  const EFFORT={low:'EFFORT · LOW',medium:'EFFORT · MED',high:'EFFORT · HIGH'};
-  const CONF={high:'HIGH CONFIDENCE',medium:'MEDIUM CONFIDENCE',low:'LOW CONFIDENCE'};
-  const R=report||{},S1=R.slide1||{},S2=R.slide2||{},S3=R.slide3||{};
-  const kpis=(S1.kpis||[]).slice(0,6),drivers=(S2.drivers||[]).slice(0,5),actions=(S3.actions||[]).slice(0,5),sources=R.sources||[];
-  const model=R.provider==='gemini'?(R.model||'Google Gemini'):'Claude (Opus 4.8)';
-  const clamp=(s,m)=>{s=String(s==null?'':s);return s.length>m?s.slice(0,m-1).replace(/\s+\S*$/,'')+'…':s;};
-  const dataThrough=String(ctx.data_through||'').slice(0,10)||'—';
-  const fmtD=iso=>{const d=iso?new Date(iso):null;return d&&!isNaN(d)?d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'—';};
-  const areaChip=(sl,x,y,key)=>{const label=AREA[key]||'—',w=0.18+0.066*label.length;sl.addShape(pres.ShapeType.roundRect,{x,y,w,h:0.22,rectRadius:0.05,fill:{color:C.heritageTint},line:{color:C.line,width:0.75}});sl.addText(label,{x,y,w,h:0.22,fontFace:FONT,fontSize:8,bold:true,color:C.heritage,charSpacing:1,align:'center',valign:'middle'});return w;};
-  const card=(sl,o)=>{sl.addShape(pres.ShapeType.roundRect,{x:o.x,y:o.y,w:o.w,h:o.h,rectRadius:0.06,fill:{color:C.white},line:{color:C.line,width:1}});if(o.edge)sl.addShape(pres.ShapeType.rect,{x:o.x,y:o.y+0.04,w:0.05,h:o.h-0.08,fill:{color:o.edge}});};
-  const noteCard=(sl,msg)=>{card(sl,{x:0.55,y:2.5,w:12.23,h:1.2});sl.addText(msg,{x:0.55,y:2.5,w:12.23,h:1.2,fontFace:FONT,fontSize:12,color:C.mute,align:'center',valign:'middle'});};
-  const lightChrome=(sl,kicker,h2)=>{sl.background={color:C.white};sl.addShape(pres.ShapeType.rect,{x:0,y:0,w:13.33,h:0.06,fill:{color:C.charcoal}});sl.addShape(pres.ShapeType.rect,{x:0,y:0,w:1.9,h:0.06,fill:{color:C.heritage}});sl.addText([{text:'BIDBRAIN',options:{fontSize:10,bold:true,color:C.charcoal,charSpacing:2}},{text:' ● ',options:{fontSize:9,color:C.heritage}},{text:' × GEOCON - GATEWAY BRADDON',options:{fontSize:10,bold:true,color:C.mute,charSpacing:1}}],{x:0.55,y:0.30,w:8.5,h:0.26,fontFace:FONT,align:'left',valign:'middle'});sl.addText(kicker,{x:9.5,y:0.30,w:3.28,h:0.26,fontFace:FONT,fontSize:9,bold:true,color:C.mute,charSpacing:1.5,align:'right',valign:'middle'});sl.addText(h2,{x:0.55,y:0.72,w:9.0,h:0.55,fontFace:FONT,fontSize:26,bold:true,color:C.charcoal,align:'left',valign:'middle'});sl.addShape(pres.ShapeType.line,{x:0.55,y:1.40,w:0.62,h:0,line:{color:C.heritage,width:1.75}});};
-  const footer=(sl,page)=>{sl.addShape(pres.ShapeType.line,{x:0.55,y:7.0,w:12.23,h:0,line:{color:C.line,width:1}});sl.addText(`Prepared with BidBrain · Confidential   ·   Development: ${ctx.campaign||'—'}   ·   Flight: ${win.start||'—'} → ${win.end||'—'}   ·   Data through: ${dataThrough}   ·   Leads are ${ctx.lead_source_label||'Meta-reported'} enquiries`,{x:0.55,y:7.06,w:9.4,h:0.34,fontFace:FONT,fontSize:7,color:C.mute,align:'left',valign:'top',wrap:true});sl.addText(page,{x:10.0,y:7.06,w:2.78,h:0.34,fontFace:FONT,fontSize:7,color:C.mute,align:'right',valign:'top'});};
-  // cover
-  const cov=pres.addSlide();cov.addShape(pres.ShapeType.rect,{x:0,y:0,w:13.33,h:7.5,fill:{color:C.charcoal}});cov.addShape(pres.ShapeType.ellipse,{x:10.7,y:-1.3,w:4.2,h:4.2,fill:{color:C.heritage,transparency:62}});
-  if(logo)cov.addImage({data:logo.replace(/^data:/,''),x:0.85,y:0.70,sizing:{type:'contain',w:2.7,h:0.72}});else cov.addText('GEOCON',{x:0.85,y:0.64,w:3.4,h:0.7,fontFace:FONT,fontSize:30,bold:true,color:C.linen,align:'left',valign:'middle'});
-  cov.addText([{text:'BIDBRAIN',options:{fontSize:15,bold:true,color:C.linen,charSpacing:3}},{text:' ●',options:{fontSize:12,color:C.heritage}}],{x:8.7,y:0.74,w:3.78,h:0.5,fontFace:FONT,align:'right',valign:'middle'});
-  cov.addText('PERFORMANCE INTELLIGENCE',{x:8.7,y:1.18,w:3.78,h:0.2,fontFace:FONT,fontSize:7,color:C.muteDark,charSpacing:2,align:'right',valign:'top'});
-  cov.addText('CLIENT · GEOCON',{x:0.85,y:1.50,w:4,h:0.2,fontFace:FONT,fontSize:7,color:C.muteDark,charSpacing:1,align:'left',valign:'top'});
-  cov.addShape(pres.ShapeType.line,{x:0.85,y:1.86,w:11.63,h:0,line:{color:C.heritage2,width:0.75}});cov.addShape(pres.ShapeType.line,{x:0.85,y:1.86,w:1.1,h:0,line:{color:C.heritage,width:1.75}});
-  cov.addText('PAID MEDIA PERFORMANCE REPORT',{x:0.85,y:2.12,w:11.5,h:0.3,fontFace:FONT,fontSize:12,bold:true,color:C.muteDark,charSpacing:3,align:'left',valign:'middle'});
-  cov.addText([{text:'Gateway Braddon',options:{color:C.linen,breakLine:true}},{text:'Meta Paid Media',options:{color:C.clay}}],{x:0.83,y:2.52,w:11.6,h:1.7,fontFace:FONT,fontSize:40,bold:true,align:'left',valign:'top',fit:'shrink',wrap:true});
-  [{lbl:'FLIGHT WINDOW',val:`${win.start||'—'} → ${win.end||'—'}`},{lbl:'DURATION',val:`${win.days!=null?win.days:'—'} days`},{lbl:'CHANNEL',val:'Meta (FB + IG)'}].forEach((c,i)=>{const x=0.85+i*3.75;cov.addShape(pres.ShapeType.roundRect,{x,y:4.55,w:3.55,h:0.95,rectRadius:0.06,fill:{color:C.heritage2},line:{color:C.heritage,width:0.75}});if(i===0)cov.addShape(pres.ShapeType.rect,{x,y:4.59,w:0.05,h:0.87,fill:{color:C.clay}});cov.addText(c.lbl,{x:x+0.16,y:4.66,w:3.2,h:0.2,fontFace:FONT,fontSize:8,bold:true,color:C.clay,charSpacing:1.5,align:'left',valign:'top'});cov.addText(c.val,{x:x+0.16,y:4.92,w:3.24,h:0.5,fontFace:FONT,fontSize:15,bold:true,color:C.linen,align:'left',valign:'top',fit:'shrink',wrap:false});});
-  cov.addText(`Generated ${fmtD(ctx.generated_at)} · Data through ${dataThrough} UTC`,{x:0.85,y:5.78,w:8,h:0.3,fontFace:FONT,fontSize:9,color:C.muteDark,align:'left',valign:'middle'});
-  cov.addShape(pres.ShapeType.line,{x:0.85,y:6.7,w:11.63,h:0,line:{color:C.heritage2,width:0.75}});cov.addText('Prepared with BidBrain · Confidential',{x:0.85,y:6.85,w:6,h:0.3,fontFace:FONT,fontSize:9,bold:true,color:C.linen,align:'left',valign:'top'});
-  cov.addText(`Figures pulled live from source data. Analysis & recommendations generated by ${model} with live web research - review before circulation.`,{x:7.0,y:6.82,w:5.48,h:0.5,fontFace:FONT,fontSize:7,color:C.muteDark,align:'right',valign:'top',wrap:true});
-  // slide 2
-  const s2=pres.addSlide();lightChrome(s2,'01 · WHAT HAPPENED','What happened?');footer(s2,'What happened · 2 / 4');
-  {const st=STATUS[R.overall_status]||STATUS.neutral;s2.addShape(pres.ShapeType.roundRect,{x:9.55,y:0.80,w:3.23,h:0.34,rectRadius:0.13,fill:{color:C.white},line:{color:st.hex,width:1}});s2.addShape(pres.ShapeType.ellipse,{x:9.73,y:0.915,w:0.11,h:0.11,fill:{color:st.hex}});s2.addText(st.label,{x:9.95,y:0.80,w:2.7,h:0.34,fontFace:FONT,fontSize:10,bold:true,color:st.hex,align:'left',valign:'middle'});}
-  if(R.headline)s2.addText(clamp(R.headline,140),{x:0.55,y:1.30,w:12.23,h:0.42,fontFace:FONT,fontSize:13,bold:true,color:C.ink,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});
-  {const runs=[{text:clamp(S1.summary,240),options:{color:C.ink}}];if(R.confidence_note)runs.push({text:'  '+clamp(R.confidence_note,200),options:{italic:true,color:C.mute,breakLine:true}});s2.addText(runs,{x:0.55,y:1.74,w:12.23,h:0.62,fontFace:FONT,fontSize:13,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});}
-  if(!kpis.length)noteCard(s2,'No KPI highlights were returned.');else{const nk=kpis.length,g=0.20,cols=nk<=4?nk:3,rws=Math.ceil(nk/cols);const cardW=(12.23-g*(cols-1))/cols,cardH=(3.9-g*(rws-1))/rws,valSize=nk<=4?26:(nk===5?24:22);kpis.forEach((k,i)=>{const col=i%cols,row=Math.floor(i/cols),x=0.55+col*(cardW+g),y=2.5+row*(cardH+g);card(s2,{x,y,w:cardW,h:cardH,edge:(STATUS[k.status]||STATUS.neutral).hex});areaChip(s2,x+0.14,y+0.12,k.area);s2.addText(clamp(k.label,26).toUpperCase(),{x:x+0.14,y:y+0.50,w:cardW-0.28,h:0.22,fontFace:FONT,fontSize:8,bold:true,color:C.mute,charSpacing:1.5,align:'left',valign:'middle',fit:'shrink'});const vstr=clamp(k.value,18);const vS=Math.max(14,Math.min(valSize,Math.floor((cardW-0.30)/(Math.max(vstr.length,1)*0.0076))));s2.addText(vstr,{x:x+0.14,y:y+0.74,w:cardW-0.28,h:0.55,fontFace:FONT,fontSize:vS,bold:true,color:C.ink,align:'left',valign:'top',fit:'shrink',wrap:false});s2.addText(clamp(k.detail,90),{x:x+0.14,y:y+(cardH-0.64),w:cardW-0.28,h:0.5,fontFace:FONT,fontSize:10.5,color:C.mute,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});});}
-  // slide 3
-  const s3=pres.addSlide();lightChrome(s3,'02 · WHY','Why did it happen?');footer(s3,'Why it happened · 3 / 4');
-  if(S2.summary)s3.addText(clamp(S2.summary,240),{x:0.55,y:1.30,w:12.23,h:0.5,fontFace:FONT,fontSize:13,color:C.ink,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});
-  if(!drivers.length)noteCard(s3,'No drivers were identified.');else{const y0=1.95,H=sources.length?4.35:4.95,nd=drivers.length,g=0.14,rowH=(H-g*(nd-1))/nd;drivers.forEach((d,i)=>{const y=y0+i*(rowH+g),dir=DIR[d.direction]||DIR.flat;card(s3,{x:0.55,y,w:12.23,h:rowH,edge:C.heritage});s3.addShape(pres.ShapeType.roundRect,{x:0.69,y:y+0.12,w:0.34,h:0.34,rectRadius:0.05,fill:{color:C.charcoal}});s3.addText(String(i+1),{x:0.69,y:y+0.12,w:0.34,h:0.34,fontFace:FONT,fontSize:13,bold:true,color:C.linen,align:'center',valign:'middle'});s3.addText(dir.glyph,{x:1.10,y:y+0.12,w:0.34,h:0.34,fontFace:FONT,fontSize:12,bold:true,color:C.mute,align:'center',valign:'middle'});s3.addText(clamp(d.title,64),{x:1.55,y:y+0.12,w:6.4,h:0.3,fontFace:FONT,fontSize:12,bold:true,color:C.ink,align:'left',valign:'middle',fit:'shrink'});areaChip(s3,8.1,y+0.13,d.area);if(CONF[d.confidence])s3.addText(CONF[d.confidence],{x:9.7,y:y+0.13,w:3.0,h:0.26,fontFace:FONT,fontSize:8,color:C.mute,charSpacing:1,align:'right',valign:'middle'});const expl=[{text:clamp(d.explanation,230),options:{color:C.ink}}];const si=d.source_index;if(Number.isInteger(si)&&si>=0&&si<sources.length)expl.push({text:` [${si+1}]`,options:{bold:true,color:C.heritage,superscript:true,fontSize:8}});s3.addText(expl,{x:1.55,y:y+0.46,w:11.0,h:rowH-0.78,fontFace:FONT,fontSize:10.5,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});if(d.evidence&&rowH>=0.85)s3.addText([{text:'EVIDENCE  ',options:{bold:true,color:C.mute,charSpacing:1,fontSize:8}},{text:clamp(d.evidence,110),options:{color:C.ink,fontSize:9}}],{x:1.55,y:y+rowH-0.30,w:11.0,h:0.24,fontFace:FONT,align:'left',valign:'middle',fit:'shrink'});});if(sources.length){s3.addShape(pres.ShapeType.line,{x:0.55,y:6.4,w:12.23,h:0,line:{color:C.line,width:0.75}});s3.addText('SOURCES',{x:0.55,y:6.44,w:1.2,h:0.3,fontFace:FONT,fontSize:7,bold:true,color:C.mute,charSpacing:1.5,align:'left',valign:'top'});const runs=[];sources.forEach((s,i)=>{const safe=/^https?:\/\//i.test(s.url||'');runs.push({text:`[${i+1}] `,options:{bold:true,color:C.heritage}});runs.push({text:clamp(s.title,42)+(i<sources.length-1?'   ':''),options:{color:C.mute,underline:safe?{style:'sng'}:undefined,hyperlink:safe?{url:s.url,tooltip:s.title}:undefined}});});s3.addText(runs,{x:1.85,y:6.44,w:10.9,h:0.5,fontFace:FONT,fontSize:7,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});}}
-  // slide 4
-  const s4=pres.addSlide();lightChrome(s4,'03 · RECOMMENDED ACTIONS','What should we do?');footer(s4,'Recommended actions · 4 / 4');
-  if(S3.summary)s4.addText(clamp(S3.summary,240),{x:0.55,y:1.30,w:12.23,h:0.5,fontFace:FONT,fontSize:13,color:C.ink,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});
-  if(!actions.length)noteCard(s4,'No recommendations were generated.');else{const y0=1.95,H=4.95,na=actions.length,g=0.16,rowH=(H-g*(na-1))/na;actions.forEach((a,i)=>{const y=y0+i*(rowH+g),p=PRI[a.priority]||PRI.low;card(s4,{x:0.55,y,w:12.23,h:rowH,edge:p.hex});s4.addShape(pres.ShapeType.roundRect,{x:0.69,y:y+0.14,w:0.40,h:0.40,rectRadius:0.05,fill:{color:p.hex}});s4.addText(String(i+1),{x:0.69,y:y+0.14,w:0.40,h:0.40,fontFace:FONT,fontSize:15,bold:true,color:C.white,align:'center',valign:'middle'});s4.addText(clamp(a.title,70),{x:1.25,y:y+0.13,w:6.6,h:0.3,fontFace:FONT,fontSize:12,bold:true,color:C.ink,align:'left',valign:'middle',fit:'shrink'});s4.addShape(pres.ShapeType.roundRect,{x:8.0,y:y+0.14,w:1.55,h:0.28,rectRadius:0.1,fill:{color:C.white},line:{color:p.hex,width:1}});s4.addText(p.label,{x:8.0,y:y+0.14,w:1.55,h:0.28,fontFace:FONT,fontSize:8,bold:true,color:p.hex,charSpacing:1,align:'center',valign:'middle'});areaChip(s4,9.7,y+0.14,a.area);if(EFFORT[a.effort])s4.addText(EFFORT[a.effort],{x:11.2,y:y+0.14,w:1.55,h:0.28,fontFace:FONT,fontSize:8,color:C.mute,charSpacing:0.5,align:'right',valign:'middle'});s4.addText(clamp(a.rationale,200),{x:1.25,y:y+0.50,w:11.5,h:rowH-0.62,fontFace:FONT,fontSize:10.5,color:C.ink,align:'left',valign:'top',isTextBox:true,wrap:true,fit:'shrink'});});}
-  const day=String(win.end||new Date().toISOString()).slice(0,10);
-  await pres.writeFile({fileName:`Geocon_Gateway_Braddon_${day}.pptx`.replace(/_+/g,'_'),compression:true});
+if (new URLSearchParams(location.search).has('bbslides')){
+  (function bbWait(){ if (typeof DATA !== 'undefined' && DATA && DATA.meta && DATA.meta.last_updated) bbHeadlessSlides(); else setTimeout(bbWait, 120); })();
 }
 
 bindControls();
