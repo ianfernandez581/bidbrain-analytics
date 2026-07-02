@@ -94,9 +94,9 @@
     // The signature "ALL CAPS" pill: a filled accent roundRect + mono caps text. Two stacked
     // objects (text-in-autoshape radius imports inconsistently). Returns its width.
     const pill = (sl, x, y, text) => {
-      const t = String(text || '').toUpperCase(), w = 0.34 + 0.082 * t.length, h = 0.30;
+      const t = String(text || '').toUpperCase(), w = 0.42 + 0.118 * t.length, h = 0.30;
       sl.addShape(ST.roundRect, { x, y, w, h, rectRadius: 0.15, fill: { color: T.accent } });
-      sl.addText(t, { x, y, w, h, fontFace: T.mono, fontSize: 9, bold: true, color: T.accentInk, charSpacing: 2, align: 'center', valign: 'middle' });
+      sl.addText(t, { x, y, w, h, fontFace: T.mono, fontSize: 9, bold: true, color: T.accentInk, charSpacing: 2, align: 'center', valign: 'middle', wrap: false });
       return w;
     };
     // Organic corner blobs — the MongoDB motif, approximated with large-radius roundRects + ellipses
@@ -118,9 +118,9 @@
     };
     const chip = (sl, x, y, key) => {
       const label = catLabel(key); if (!label) return 0;
-      const w = 0.22 + 0.068 * label.length;
+      const w = 0.30 + 0.100 * label.length;
       sl.addShape(ST.roundRect, { x, y, w, h: 0.22, rectRadius: 0.05, fill: { color: T.softBg }, line: { color: T.line, width: 0.75 } });
-      sl.addText(label, { x, y, w, h: 0.22, fontFace: T.sans, fontSize: 8, bold: true, color: T.ink, charSpacing: 1, align: 'center', valign: 'middle' });
+      sl.addText(label, { x, y, w, h: 0.22, fontFace: T.sans, fontSize: 8, bold: true, color: T.ink, charSpacing: 1, align: 'center', valign: 'middle', wrap: false });
       return w;
     };
     const card = (sl, o) => {
