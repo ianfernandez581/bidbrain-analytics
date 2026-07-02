@@ -24,38 +24,41 @@ import os
 # ── PER-CLIENT CONFIG ────────────────────────────────────────────────────────────────────────
 # Edit ONLY this block per client. Everything below it is the shared engine.
 CONFIG = {
-    "client": "proptrack",
-    "client_name": "PropTrack",
+    "client": "schneider",
+    "client_name": "Schneider Electric Pacific",
     "agency": "Transmission",
     "currency": "AUD",
     # Stage-A business-model brief — precise enough that the model's reasoning is never generic.
     "business_model": (
-        "PropTrack (REA Group) 'Banking ABM' — a Transmission-run, UPPER-FUNNEL awareness + reach campaign aimed at "
-        "banking / lending decision-makers. TWO delivery lanes:\n"
-        "  1) THE TRADE DESK (advertiser 'PopTrack') = a concentrated May-Jun 2026 programmatic ABM BURST (display, "
-        "plus some video). It is the ONLY source of pixel CONVERSIONS: td_conv, split into click-through "
-        "(td_click_conv) and view-through (td_vt_conv). Display drove essentially all conversions; VIDEO is "
-        "awareness-only (about 0 conversions). View-through conversions are REACH-attributed, NOT lead-generating. The "
-        "ABM AUDIENCES are td_segments — Partner-Broker-Distribution dominates (~80% of spend).\n"
-        "  2) LINKEDIN = an ALWAYS-ON presence with real, intermittent delivery GAPS (explain the gaps, do NOT read "
-        "them as a collapse). LinkedIn is awareness + ENGAGEMENT (li_eng, li_video_views) with a SOFT lead signal only "
-        "(li_lead_opens = lead-form opens; li_leads is a tiny handful). LinkedIn carries NO pixel conversions.\n"
-        "There are NO targets, NO pacing plan, NO revenue, NO ROAS and NO CPA in this account — it is measured purely "
-        "on delivery, reach and efficiency. All money is AUD; there is NO FX."
+        "Schneider Electric's Pacific (ANZ) B2B demand-generation account, run by Transmission, scoped one "
+        "lead-gen PROGRAM at a time (the brief tells you which). TWO DISTINCT ENGINES — keep them separate:\n"
+        "  1) PAID MEDIA = delivery across THREE platforms — DV360, The Trade Desk (both programmatic DISPLAY) "
+        "and LinkedIn. Measured on spend, impressions, clicks (and derived CTR/CPM/CPC). There is NO per-strategy "
+        "split and NO CTR/CPM/CPC benchmark seeded — so judge paid on DELIVERY and reach and its cost per lead, "
+        "NOT against a benchmark. Display + paid social are UPPER/MID-FUNNEL brand-and-reach activity; clicks are a "
+        "weak proxy for intent and are NOT the goal. Never treat a display click as a lead.\n"
+        "  2) CONTENT SYNDICATION (CS) = the actual LEAD ENGINE: Salesforce leads from gated content, measured "
+        "against a total MQL/HQL lead target and a time-to-date (TTD) pro-rata target (are leads pacing ahead of, "
+        "or behind, where elapsed time says they should be?), with a plan cost-per-lead by media-plan line. Leads "
+        "are CLAMPED to each program's flight window (pre-flight spillover is excluded). Anchor the 'are we "
+        "winning?' judgement HERE, on CS pacing-vs-target and lead volume — not on display clicks.\n"
+        "  MARKETS: Australia / New Zealand / ANZ / Other. Some programs (heavy, global_rebrand) are leads-only "
+        "with NO paid delivery.\n"
+        "  'TTD' is overloaded: in CS it means the time-to-date pro-rata target; 'The Trade Desk' is a paid platform. "
+        "Use full words to disambiguate."
     ),
     # Extra client-specific honesty rules woven into both stages.
     "guardrails": (
-        "NEVER compute or imply ROAS, CPA, revenue, or a goal/pacing judgement — none exist in the feed; say so if the "
-        "reader might expect them. Frame success on REACH (impressions), delivery efficiency (CTR / CPM / CPC), and "
-        "the Trade Desk pixel conversions (with the click-through vs view-through split; view-through is "
-        "reach-attributed, not a lead). Do NOT present LinkedIn as a lead engine — it is awareness + engagement + soft "
-        "lead-form opens. Trade Desk = the short intense burst; LinkedIn = always-on with real delivery gaps (explain "
-        "the gaps, do not read them as a decline). AUD only, never convert. overall_status should usually be "
-        "'on_track' or 'neutral' because there is no target to be ahead of or behind — note that this limits "
-        "confidence in any 'winning / losing' call."
+        "CS LEAD QUALITY IS CRM-RAW, NOT GRADED. The lead-status buckets (new / working / qualified / disqualified) "
+        "are raw Salesforce CRM lifecycle stages — in practice almost every lead sits in 'New' (un-triaged). Do NOT "
+        "invent, imply, or judge an acceptance/rejection/qualification RATE from these — there is no graded "
+        "accept-vs-reject signal here. Frame CS on LEAD VOLUME and PACING vs the total and TTD pro-rata targets, and "
+        "on cost-per-lead vs the media-plan CPL, NOT on a quality mix. Do NOT credit paid display/social clicks as "
+        "leads; pipeline shows up in CS leads. Leads-only programs have no paid delivery — say so rather than "
+        "inventing a paid story."
     ),
     # Short lowercase tokens for the on-slide category chip (bb_deck.js maps known ones to labels).
-    "category_tokens": "reach, efficiency, trade_desk, linkedin, delivery, abm, audience, overall",
+    "category_tokens": "content_syndication (the CS lead engine), paid_media (DV360/TTD/LinkedIn delivery), budget, overall",
 }
 
 CLIENT = CONFIG["client"]

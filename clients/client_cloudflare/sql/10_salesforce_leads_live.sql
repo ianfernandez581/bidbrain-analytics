@@ -8,16 +8,17 @@
 -- Editing them is a one-place change (definitions.json) that reloads the seed tables — this view's
 -- structure never changes. The 12 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17).
 --
--- REGION_GRP = the 11 media-plan markets (2026-06-25 rework). There is NO 'OTHER' tab anymore:
--- every source country maps to a market, KR captures ALL Korea, and the country match is
--- case-normalised so mis-cased countries can't fall through.
+-- REGION_GRP = the 11 media-plan markets + a residual OTHER (2026-06-25 grain; KR reverted 2026-07-02).
+-- The country match is case-normalised so mis-cased countries can't fall through.
 --   * RIG = the gaming-vertical "Modernize Applications" asset (ASSET_2 = "Asset Title 2" in
 --           Salesforce; values A-MAM-2 / A-MAM-3 — only A-MAM-3 has data today) on the 3 Final
 --           Funnel campaigns, for NON-Korea leads. ASSET-based, not geographic, so evaluated
 --           BEFORE geography and pulls those leads out of every market (the overlap is intentional).
---   * KR  = ALL Korea ('Korea, Republic of') leads in the 12 CS campaigns (~200). 2026-06-25:
---           the old "6 El* campaigns only" rule was dropped (it stranded ~36 Korea ABM leads in OTHER
---           and contradicted the media plan, which targets all of Korea at 202).
+--   * KR  = Korea ('Korea, Republic of') leads in the 6 ORIGINAL El* CS campaigns ONLY (~164).
+--           2026-07-02: reverted the 2026-06-25 "all Korea in the 12 campaigns" rule at the client's
+--           request. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize Security /
+--           Modernize Applications) fall through to OTHER, which is NOT a market chip -> excluded from
+--           the dash (its totals sum over the 11 chips), matching pre-2026-06-25 behaviour.
 --   * The geographic markets are SPLIT to the media plan's grain: AU, NZ, SIM (SG/MY/ID),
 --           ROA (TH/VN/PH), SAARC (IN), GCR-CN, GCR-TW, GCR-HK, JP.
 -- The status dashboard reproduces KR / RIG straight from Snowflake (status_dashboard/job/main.py).
@@ -34,10 +35,13 @@ SELECT
         WHEN UPPER(TRIM(COUNTRY_NAME)) <> 'KOREA, REPUBLIC OF'
              AND ASSET_2 IN (SELECT asset_2 FROM `bidbrain-analytics.client_cloudflare.seed_rig_assets`)
              AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_rig_campaign_ids`) THEN 'RIG'
-        -- KR = ALL Korea leads in the 12 CS campaigns. 2026-06-25: dropped the old "6 El* campaigns
-        -- only" restriction -- the media plan targets all of Korea (~200 vs target 202), and the
-        -- restriction was stranding ~36 Korea ABM (Modernize-Security) leads in OTHER.
-        WHEN UPPER(TRIM(COUNTRY_NAME)) = 'KOREA, REPUBLIC OF' THEN 'KR'
+        -- KR = Korea leads in the 6 ORIGINAL El* CS campaigns ONLY (3 Roverpath + 3 Final Funnel
+        -- Lead-Gen). 2026-07-02: reverted the 2026-06-25 "all Korea in the 12 campaigns" rule at the
+        -- client's request -- Korea now counts ONLY these 6. Korea leads from the other 6 campaigns
+        -- (Connectivity Cloud / Modernize Security / Modernize Applications) fall through to OTHER
+        -- (not a market chip, so excluded from the dash). Seed-driven: seed_kr_campaign_ids.
+        WHEN UPPER(TRIM(COUNTRY_NAME)) = 'KOREA, REPUBLIC OF'
+             AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_kr_campaign_ids`) THEN 'KR'
         -- Geographic markets, case-normalised (UPPER(TRIM)) so mis-cased countries ('japan',
         -- 'Hong kong', 'india') route correctly instead of falling to OTHER. The old 7-region map
         -- is SPLIT to the media plan's granular markets (2026-06-25):
@@ -51,8 +55,9 @@ SELECT
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'TAIWAN'                                          THEN 'GCR-TW'
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'HONG KONG'                                       THEN 'GCR-HK'
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'JAPAN'                                           THEN 'JP'
-        -- Defensive residual: with all source countries mapped above, this is currently EMPTY.
-        -- Kept so a brand-new/unmapped country is caught (status dashboard reconciles totals).
+        -- Residual: holds Korea leads outside the 6 KR campaigns (2026-07-02, ~55 live) plus any
+        -- brand-new/unmapped country. OTHER is NOT a market chip, so these are excluded from the
+        -- dash (its totals sum over the 11 chips); the status dashboard reports the OTHER count.
         ELSE 'OTHER'
     END AS REGION_GRP,
     CASE

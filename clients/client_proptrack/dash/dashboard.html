@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>PropTrack - Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- PptxGenJS + the shared bb_deck.js builder — power the portal-driven "Download slides" export
+     (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
@@ -1355,6 +1359,80 @@ function exportAllData(){
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='proptrack_dashboard.csv'; a.click();
 }
 function csv(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.test(s)? '"'+s.replace(/"/g,'""')+'"' : s; }
+
+//==============================================================================
+// Portal-driven "Download slides" (headless). The agency portal opens this dashboard in a hidden
+// same-origin iframe with ?bbslides=1; we assemble the WHOLE-FLIGHT delivery brief straight from
+// DATA.kpi (a deck tells the full-campaign story, not the current chip filter), POST it to /report,
+// rasterize the logo, and hand it to the shared bb_deck.js builder, which returns the .pptx as a Blob
+// for the portal to download. Pure delivery/reach — no targets/ROAS/CPA exist in this feed.
+//==============================================================================
+const BB_THEME = {
+  bg:'12151B', panel:'1B1F27', accent:'1F6FEB', accentInk:'FFFFFF', softBg:'EAF1FE',
+  lightBg:'FFFFFF', ink:'171A20', mute:'667085', line:'E6E8EC', onDark:'FFFFFF', onDarkMute:'9AA6B8',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'Transmission', client:'PropTrack', brand:'TRANSMISSION × PropTrack', filePrefix:'PropTrack'
+};
+const _r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
+const _r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
+function buildDeckPayload(){
+  const k=DATA.kpi||{};
+  const per=(sp,imp,clk)=>({ ctr:_r6(imp?clk/imp:0), cpm:_r2(imp?sp/imp*1000:0), cpc:_r2(clk?sp/clk:0) });
+  return {
+    client:'proptrack', agency:'Transmission', generated_for:'PropTrack', currency:'AUD',
+    context:{
+      campaign:'Banking ABM', campaign_key:'banking_abm', markets:[], all_markets:[],
+      date_filtered:false, date_filter:{start:null,end:null},
+      window:DATA.window||{}, data_through:DATA.data_through||null, last_updated:DATA.last_updated||null,
+      generated_at:new Date().toISOString()
+    },
+    windows:{ combined:DATA.window||{}, tradedesk:DATA.td_window||{}, linkedin:DATA.li_window||{} },
+    headline:{ spend_aud:_r2(k.ad_spend_aud), imps:k.ad_imps, clicks:k.ad_clicks, conversions:k.ad_conv, ...per(k.ad_spend_aud,k.ad_imps,k.ad_clicks) },
+    tradedesk:{ spend_aud:_r2(k.td_spend_aud), imps:k.td_imps, clicks:k.td_clicks, conv:k.td_conv, conv_click:k.td_click_conv, conv_view:k.td_vt_conv, ...per(k.td_spend_aud,k.td_imps,k.td_clicks),
+      media_type:(DATA.td_media_type||[]).map(r=>({media_type:r.media_type, imps:r.imps, clicks:r.clicks, spend_aud:_r2(r.spend_aud), conv:r.conv})),
+      segments:(DATA.td_segments||[]).map(r=>({segment:segLabel(r.segment), imps:r.imps, clicks:r.clicks, spend_aud:_r2(r.spend_aud), conv:r.conv})),
+      sizes:(DATA.td_creative_sizes||[]).map(r=>({creative_size:r.creative_size, imps:r.imps, clicks:r.clicks, spend_aud:_r2(r.spend_aud)})) },
+    linkedin:{ spend_aud:_r2(k.li_spend_aud), imps:k.li_imps, clicks:k.li_clicks, engagements:k.li_eng, video_views:k.li_video_views, lead_form_opens:k.li_lead_opens, leads:k.li_leads, ...per(k.li_spend_aud,k.li_imps,k.li_clicks),
+      objectives:(DATA.li_groups||[]).map(g=>({objective:groupLabel(g.campaign_group), imps:g.imps, clicks:g.clicks, spend_aud:_r2(g.spend_aud), engagements:g.engagements, video_views:g.video_views, lead_form_opens:g.lead_form_opens})),
+      creative:(DATA.li_creative||[]).map(r=>({creative_type:r.creative_type, imps:r.imps, clicks:r.clicks, spend_aud:_r2(r.spend_aud), video_views:r.video_views, engagements:r.engagements})) },
+    trend:{ monthly:(DATA.monthly||[]).map(m=>({month:m.month, ad_imps:m.ad_imps, ad_clicks:m.ad_clicks, ad_spend_aud:_r2(m.ad_spend_aud), ad_conv:m.ad_conv, td_spend_aud:_r2(m.td_spend_aud), li_spend_aud:_r2(m.li_spend_aud)})) },
+    caveats:[ 'All figures AUD; there is no FX.',
+              'Conversions are Trade Desk pixel only; LinkedIn carries none (leads='+(k.li_leads||0)+', lead-form opens='+(k.li_lead_opens||0)+').',
+              'LinkedIn delivery is intermittent — real gaps across the flight (not a decline).',
+              'Upper-funnel reach: no revenue / ROAS / CPA / target in the feed.' ]
+  };
+}
+function bbRasterizeLogo(selector, recolor){
+  return new Promise(resolve=>{ try{
+    const src=document.querySelector(selector); if(!src){ resolve(null); return; }
+    const svg=src.cloneNode(true); svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    if(recolor) svg.querySelectorAll('[fill]').forEach(p=>{ if((p.getAttribute('fill')||'').toLowerCase()!=='none') p.setAttribute('fill',recolor); });
+    const vb=(src.getAttribute('viewBox')||'0 0 165 44').split(/\s+/).map(Number);
+    const vbw=vb[2]||165, vbh=vb[3]||44, scale=1200/vbw, W=Math.round(vbw*scale), H=Math.round(vbh*scale);
+    svg.setAttribute('width',W); svg.setAttribute('height',H);
+    const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    const img=new Image();
+    img.onload=()=>{ try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; cv.getContext('2d').drawImage(img,0,0,W,H); resolve(cv.toDataURL('image/png')); }catch(e){ resolve(null); } };
+    img.onerror=()=>resolve(null); img.src=url;
+  }catch(e){ resolve(null); } });
+}
+async function bbDeckLogos(){ return { white: await bbRasterizeLogo('.brand-logo svg', null), dark: await bbRasterizeLogo('.brand-logo svg', '#171A20') }; }
+async function bbHeadlessSlides(){
+  try {
+    const payload=buildDeckPayload();
+    const res=await fetch('/report',{ method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' — '+d:'')); }
+    const report=await res.json();
+    const logos=await bbDeckLogos();
+    const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });
+    try{ parent.postMessage({ __bbslides:true, status:'done', blob:out&&out.blob, fileName:out&&out.fileName }, location.origin); }catch(_){}
+  } catch(e){
+    try{ parent.postMessage({ __bbslides:true, status:'error', error:(e&&e.message)||String(e) }, location.origin); }catch(_){}
+  }
+}
+if (new URLSearchParams(location.search).has('bbslides')){
+  (function bbWait(){ if (typeof DATA!=='undefined' && DATA && DATA.last_updated) bbHeadlessSlides(); else setTimeout(bbWait,120); })();
+}
 
 boot();
 </script>

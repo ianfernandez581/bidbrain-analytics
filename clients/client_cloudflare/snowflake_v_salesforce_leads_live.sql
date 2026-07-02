@@ -20,7 +20,13 @@
 -- for Cloudflare's own legacy R2 export. OUR BigQuery pipeline (sql/10_salesforce_leads_live.sql)
 -- now DIVERGES: KR + RIG are client-defined CS segments (KR = Korea on the 6 El* campaigns; RIG =
 -- the A-MAM Modernize-Applications asset on the 3 Final Funnel campaigns, non-Korea). Do NOT copy
--- the geographic KR/RIG below into the BQ view — see clients/client_cloudflare/sql/README.md.
+-- the geographic RIG below into the BQ view — see clients/client_cloudflare/sql/README.md.
+--
+-- UPDATE (2026-07-02): the KR arm below was campaign-scoped to the 6 original El* campaigns at the
+-- client's request (Korea counts only these 6, matching the BQ pipeline). This is the ONLY change to
+-- the legacy mapping; RIG stays the geographic Rest-of-APAC catch-all. NOT YET APPLIED to Snowflake:
+-- our pipeline roles are read-only (see below) — an owner/ACCOUNTADMIN must run this CREATE OR REPLACE
+-- (keep the `copy grants`). Until then Transmission's own view still buckets all Korea into KR.
 --
 -- Our pipeline roles (APAC_IN_ROLE via the MCP connector; BQ_SYNC_ROLE via the
 -- export job key-pair) are read-only and CANNOT apply this -- 003001/42501.
@@ -118,7 +124,18 @@ SELECT
         WHEN COUNTRY_NAME IN ('Singapore', 'Malaysia', 'Indonesia', 'Thailand', 'Philippines', 'Viet Nam', 'Vietnam') THEN 'ASEAN'
         WHEN COUNTRY_NAME = 'India' THEN 'SAARC'
         WHEN COUNTRY_NAME IN ('China', 'Taiwan', 'Hong Kong') THEN 'GCR'
-        WHEN COUNTRY_NAME IN ('Korea, Republic of', 'Korea', 'South Korea') THEN 'KR'
+        -- KR restricted to the 6 ORIGINAL El* CS campaigns (2026-07-02, client request) so Korea
+        -- counts only these 6 here too. Korea leads from the other 6 campaigns fall to the ELSE 'RIG'
+        -- (this view's Rest-of-APAC catch-all) rather than a separate OTHER.
+        WHEN COUNTRY_NAME IN ('Korea, Republic of', 'Korea', 'South Korea')
+             AND CAMPAIGN_ID IN (
+                 '701RG00001ElJZzYAN', -- Roverpath - Precision MQL
+                 '701RG00001ElTu3YAF', -- Roverpath - Pulse Survey
+                 '701RG00001ElVXdYAN', -- Roverpath - Qualification Questions
+                 '701RG00001ElUoXYAV', -- Final Funnel - Precision MQL
+                 '701RG00001ElUa0YAF', -- Final Funnel - Pulse Survey
+                 '701RG00001ElNYkYAN'  -- Final Funnel - Qualification Questions
+             ) THEN 'KR'
         WHEN COUNTRY_NAME = 'Japan' THEN 'JP'
         ELSE 'RIG'
     END AS REGION_GRP,
