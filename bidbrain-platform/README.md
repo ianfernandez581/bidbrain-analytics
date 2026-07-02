@@ -14,6 +14,13 @@ other dash in this repo (gunicorn, `no-store`, private, `--no-invoker-iam-check`
 | the **admin** password | the editable admin tree (add/edit/remove agencies, clients, campaigns) |
 | the **super-admin** password | the **god-mode console** — reveal AND rotate every password + open any dashboard. See [Super admin](#super-admin-god-mode-console) below. |
 
+**Enter agency view (admin & super).** From the admin tree (each agency's **Enter portal →**) or the
+god-mode console (**Enter agency portal →**), an admin/super can step into any agency's own portal —
+exactly what that agency sees, correctly scoped. It flips the session to that `agency` kind (reusing
+every agency-scoped path: the portal, `/api/status`, the proxy's `_may_open`) and stashes the role to
+restore; the portal then shows a **▸ Viewing agency portal** pill and a **← Back to admin / super
+console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clears everything.
+
 ### Agencies (seeded from `dash/config.py`)
 - **100% Digital** (`100d2026`): City Perfume, VMCH, The Little Marionette, ResetData,
   Bell Shakespeare *(coming soon)*, Geocon *(coming soon)*.
@@ -113,6 +120,24 @@ pre-existing registry (config fallback in `resolve_email`, the same fail-safe id
 (it's shown as "baked-in — permanent"). Manage everyone else in the super-admin console's **"Google
 sign-in access"** panel: add an email, pick a role, and (for agency/client) pick the target. Emails
 match case-insensitively.
+
+**Domain auto-admin (`@100.digital`).** So the whole team doesn't have to be added one email at a
+time, any verified Google email whose **domain** is in `config.ADMIN_EMAIL_DOMAINS` (default
+`100.digital`; override with the comma-separated `ADMIN_EMAIL_DOMAINS` env, empty ⇒ feature off) is
+granted the **admin** role automatically:
+- `resolve_email` has a **domain fallback** — when an email has *no* explicit `users`/seed record and
+  its domain matches, it resolves to `admin`. This makes the very *first* sign-in succeed (no 403).
+- `/auth/google` then calls **`store.record_domain_admin(email)`**, which writes that email into the
+  registry `users` map as `admin` — so it shows up in the "Google sign-in access" panel like any other
+  account and can be **re-scoped or removed** there. (Removing it just re-grants admin on the next
+  sign-in while the domain rule is on; to truly restrict someone, re-scope them to `client`/`agency` —
+  an explicit record always beats the domain fallback.)
+- **Precedence:** explicit registry row → config `USERS` seed → domain fallback. So the seed super
+  admin `ian@100.digital` stays **superadmin** (never downgraded), and `record_domain_admin` no-ops for
+  any email that already has a record. Match is **exact domain** — `x@evil.100.digital` (a subdomain)
+  does *not* match `100.digital`. Trust rests on `100.digital` being a **Google Workspace domain the
+  company controls** (Google verifies domain ownership and we require `email_verified`), so a stranger
+  can't mint a `@100.digital` Google account.
 
 **Switch it on (one-time).** The OAuth client can't be created with gcloud — make it in the Console,
 then inject its id:

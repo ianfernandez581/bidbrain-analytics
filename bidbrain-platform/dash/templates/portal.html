@@ -27,6 +27,11 @@
   .btn{font-size:13px;font-weight:600;padding:8px 14px;border-radius:9px;cursor:pointer;
        border:1px solid var(--border);background:transparent;color:var(--text);text-decoration:none}
   .btn:hover{background:#16202f}
+  .btn.back{border-color:rgba(59,130,246,.4);color:#93c5fd}
+  .btn.back:hover{background:rgba(59,130,246,.12)}
+  .viewpill{font-size:11px;font-weight:700;letter-spacing:.4px;color:#fbbf24;
+            background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.32);
+            padding:4px 10px;border-radius:999px}
   .wrap{max-width:1080px;margin:0 auto;padding:40px 28px 64px}
   .agencylogo{margin:0 0 20px}
   .agencylogo svg,.agencylogo img{height:46px;width:auto;display:block}
@@ -58,7 +63,9 @@
   <div class="topbar">
     <span class="logo">{{ logo_svg | safe }}</span>
     <span class="label">Campaign Dashboards</span>
+    {% if admin_return %}<span class="viewpill">▸ Viewing agency portal</span>{% endif %}
     <span class="spacer"></span>
+    {% if admin_return %}<a class="btn back" href="/exit-agency">← Back to {{ 'super console' if admin_return == 'superadmin' else 'admin' }}</a>{% endif %}
     <a class="btn" href="/logout">Log out</a>
   </div>
   <div class="wrap">

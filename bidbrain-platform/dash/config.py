@@ -43,6 +43,19 @@ AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "transmission2
 # application" OAuth client in the Cloud Console and inject its ID with scripts/enable_google_login.ps1.
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
 
+# Emails on these domains are granted the ADMIN role AUTOMATICALLY the first time they sign in with
+# Google — no super admin has to add them first. On that first login the verified email is written
+# into the registry's `users` map (see store.record_domain_admin), so the account then shows up in the
+# super-admin console's "Google sign-in access" panel like any other, and can be re-scoped or removed
+# there (removing it just re-grants admin on the next login while the domain rule is in force). This is
+# only as trustworthy as the domain: it must be a Google Workspace domain the team controls (Google
+# verifies domain ownership, and we require `email_verified`), so a stranger can't mint a `@100.digital`
+# Google account. Comma-separated env override; default = the 100% Digital team domain. Empty => no
+# auto-admin (Google login then works only for explicitly-granted emails, as before).
+ADMIN_EMAIL_DOMAINS = [d.strip().lower().lstrip("@")
+                       for d in os.environ.get("ADMIN_EMAIL_DOMAINS", "100.digital").split(",")
+                       if d.strip()]
+
 # Each dashboard is its own Cloud Run service `<key>-dash`. Until a custom domain is registered
 # there are NO `<key>.bidbrain.ai` subdomains — link straight to the live GCP run.app URL
 # (deterministic project-number form). The platform is therefore a password-gated LAUNCHER:

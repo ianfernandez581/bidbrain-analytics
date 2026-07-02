@@ -204,7 +204,8 @@ def home():
         return render_template("portal.html", logo_svg=LOGO_SVG,
                                agency={"name": agency["name"], "slug": agency["slug"]},
                                agency_logo=AGENCY_LOGOS.get(agency["slug"]),
-                               clients=clients)
+                               clients=clients,
+                               admin_return=session.get("admin_return"))
     if kind == "client":
         key = session.get("client_key")
         if key:
@@ -243,6 +244,12 @@ def auth_google():
     if not info.get("email") or not info.get("email_verified"):
         return jsonify(ok=False, error="Your Google account has no verified email."), 401
     email = info["email"].strip().lower()
+    try:
+        store.record_domain_admin(email)   # @100.digital (config.ADMIN_EMAIL_DOMAINS) -> auto-enrolled
+                                           # as admin & recorded in the console; no-op otherwise.
+    except Exception as e:  # best-effort: resolve_email's domain fallback grants admin from a pure read,
+                            # so a transient registry-write error must NOT fail the login (just isn't recorded).
+        app.logger.warning("record_domain_admin failed for %s (continuing): %s", email, e)
     kind, payload = store.resolve_email(email)
     if kind is None:
         return jsonify(ok=False,
@@ -952,7 +959,8 @@ def _render_super():
     else:
         st["super_bootstrap"] = False
     return render_template("superadmin.html", logo_svg=LOGO_SVG,
-                           google_configured=bool(GOOGLE_CLIENT_ID), **st)
+                           google_configured=bool(GOOGLE_CLIENT_ID),
+                           admin_domains=getattr(cfg, "ADMIN_EMAIL_DOMAINS", []), **st)
 
 
 @app.get("/admin")
@@ -964,6 +972,45 @@ def admin_tree():
         return redirect("/")
     st = store.get_state()
     return render_template("admin.html", logo_svg=LOGO_SVG, is_super=(kind == "superadmin"), **st)
+
+
+# --- admin / super "enter agency view" -----------------------------------------------------
+# Admins and super admins normally land on the admin tree / god-mode console. This lets them drop
+# into ANY agency's own portal (exactly what that agency sees) with one click, and step back out.
+# It flips the session to an `agency` kind — so every existing agency-scoped path (the portal render,
+# /api/status, the proxy's _may_open) is reused verbatim and correctly scoped — while stashing the
+# role to restore on exit. Logout still clears everything.
+def _admin_kind():
+    """The admin/super identity behind this session: the live kind, or — while already viewing an
+    agency portal — the role we'll return to. So an impersonating admin can hop between agencies."""
+    return session.get("admin_return") or session.get("kind")
+
+
+@app.get("/enter-agency/<slug>")
+def enter_agency(slug):
+    if _admin_kind() not in ("admin", "superadmin"):
+        abort(403)
+    agency = store.get_agency(slug)
+    if not agency:
+        abort(404)
+    session["admin_return"] = _admin_kind()   # idempotent across agency-to-agency hops
+    session["kind"] = "agency"
+    session["agency_slug"] = slug
+    # Re-scope the (dormant, proxy-era) SSO allow-list to this agency too, so the impersonated view
+    # is consistent end-to-end even if the cookie path is ever activated by per-client subdomains.
+    return _set_sso(make_response(redirect("/")), list(agency.get("client_keys", [])))
+
+
+@app.get("/exit-agency")
+def exit_agency():
+    """Return from an agency portal to the admin tree / god-mode console."""
+    ret = session.pop("admin_return", None)
+    resp = make_response(redirect("/"))
+    if ret in ("admin", "superadmin"):
+        session["kind"] = ret
+        session.pop("agency_slug", None)
+        return _set_sso(resp, store.active_client_keys())   # restore the full admin allow-list
+    return resp
 
 
 @app.post("/super/api/admin-password")

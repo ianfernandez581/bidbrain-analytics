@@ -46,7 +46,12 @@ the PUBLIC OAuth client id (no secret) and maps the verified email to a role via
 (the email twin of `resolve_password`: superadmin/admin/agency/client) against a registry `users` map.
 `ian@100.digital` is the baked-in super admin (config `USERS`, always resolves — can't be locked out);
 assign other emails (to a role, an agency, or one dashboard) in the super-admin console's "Google
-sign-in access" panel. Switch on with `scripts/enable_google_login.ps1 -ClientId <id>` (create the
+sign-in access" panel. **Domain auto-admin:** any verified Google email on a
+`config.ADMIN_EMAIL_DOMAINS` domain (default `100.digital`, env `ADMIN_EMAIL_DOMAINS` comma-sep) gets
+the **admin** role on first sign-in (`resolve_email` domain fallback) and is auto-recorded into the
+registry `users` map (`store.record_domain_admin`) so it then shows up + is re-scopable/removable in
+that panel; an explicit registry/seed row always wins (so the seed super admin is never downgraded, and
+a re-scoped domain user keeps its assignment). Switch on with `scripts/enable_google_login.ps1 -ClientId <id>` (create the
 "Web application" OAuth client in the Console first — gcloud can't); empty `GOOGLE_OAUTH_CLIENT_ID` ⇒
 button hidden, passwords unaffected.
 Web-only service `platform-dash` (SA `platform-dash-web@`,
