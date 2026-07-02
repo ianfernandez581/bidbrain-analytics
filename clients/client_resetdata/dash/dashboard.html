@@ -167,8 +167,10 @@
        linear-gradient(180deg,var(--card-1),var(--card-2));
        border:1px solid var(--hair);
        border-radius:11px;padding:15px 16px;position:relative;overflow:hidden;box-shadow:var(--card-glow)}
-  .kpi .label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
-  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;background:var(--kc,var(--accent));
+  /* min-height reserves 2 lines so a wrapping label (e.g. "Total HubSpot leads") doesn't push its
+     value down out of line with the single-line cards — every card's value + sub align across the row. */
+  .kpi .label{display:flex;align-items:flex-start;gap:7px;font-size:11px;line-height:1.3;color:var(--muted);font-weight:600;letter-spacing:.3px;min-height:29px}
+  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;margin-top:3px;background:var(--kc,var(--accent));
        box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
   .kpi .value{font-size:24px;font-weight:800;margin-top:9px;letter-spacing:-.5px}
   .kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px}
@@ -1231,7 +1233,6 @@ function renderOverview(){
     ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), null],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), null],
     ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions', null],
-    ['k-eng','Engaged sessions',fmtN(engaged),pct(div(engaged,sessions))+' eng. rate', null],
   ];
   document.getElementById('ovKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
