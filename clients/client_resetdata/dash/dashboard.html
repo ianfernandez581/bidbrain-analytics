@@ -619,7 +619,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) — globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
-  'Leads':'#22C55E','Cost / lead':'#F97316','Paying customers':'#34D399',
+  'Leads':'#3B82F6','Cost / lead':'#F97316','Paying customers':'#34D399',
   'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
@@ -1159,10 +1159,10 @@ function tsCrm(g, keys){
 // a subtle "no trend data" slot; nothing is ever fabricated.
 const KACCENT={
   'k-spend':'#64748B','k-imps':'#22D3EE','k-clicks':'#A3E635','k-sessions':'#E84A6F',
-  'k-addriven':'#8B5CF6','k-eng':'#2DD4BF','k-leads':'#22C55E','k-ke':'#F59E0B','k-pay':'#34D399',
+  'k-addriven':'#8B5CF6','k-eng':'#2DD4BF','k-leads':'#3B82F6','k-ke':'#F59E0B','k-pay':'#34D399',
   'k-free':'#8CA0B8','k-queue':'#F59E0B',
-  // north-star strip (Overview headline): leads=green (goal), CPL=orange (cost), paying=green, spend=slate
-  'k-ns-leads':'#22C55E','k-ns-cpl':'#F97316','k-ns-paying':'#34D399','k-ns-spend':'#64748B',
+  // north-star strip (Overview headline): leads=blue (goal), CPL=orange (cost), paying=green, spend=slate
+  'k-ns-leads':'#3B82F6','k-ns-cpl':'#F97316','k-ns-paying':'#34D399','k-ns-spend':'#64748B',
   // CRM cards mirror the funnel / weekly-chart colours so each metric tracks by colour:
   // App signups=#38BDF8 (sky), Loaded balance=#FBBF24 (gold — distinct from the sky-blue signups),
   // Paying=#34D399 (mc('Paying')), Free only=#78716C. Leads & Customers have no funnel bar, so they
@@ -1222,7 +1222,7 @@ function nsCard(cls,label,value,sub,series,invertDelta,toggle){
         + ` onclick="toggleKpiCard(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleKpiCard(this);}"`;
   }
   return `<div class="${klass}" style="--kc:${color}"${extra}>`
-       + `<div class="label">${label} ${deltaFromSeries(series,invertDelta)}</div>`
+       + `<div class="label">${label}</div>`
        + `<div class="value">${value}</div>`
        + `<div class="sub">${sub}</div></div>`;
 }
