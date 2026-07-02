@@ -113,16 +113,23 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 > `dash/dashboard.html` (`syncToggleDefaults()` highlights the matching AXIS/VIEW-BY buttons at load);
 > don't "fix" them back to Relative/Month.
 
-1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · ad-driven sessions · engaged ·
-   key events), hero monthly **spend (stacked by platform) vs sessions** with key-events dashed line, and
-   channel-mix / spend-by-platform donuts, and an **Audience** section (age bar + gender / device donuts =
-   Google Ads *ad-audience* demographics; see the data-source note). **KPI cards that map to a chart line are clickable toggles**:
-   Media spend, Impressions, Clicks, Website sessions and Key events hide/show their matching series on the
-   hero chart (the card dims when off) — the same effect as clicking the chart's legend, driven from the
-   card. Wired via `trendCard`'s `toggle` spec → `toggleKpiCard`/`applyKpiToChart` (keyed by chart-series
-   label, so `mkChart` reapplies it on every grain/date re-render). **Clickable cards are grouped on the
-   LEFT, static cards on the RIGHT** of each KPI row, so it reads which respond. Ad-driven & Engaged sessions
-   (no hero line) and the CRM funnel cards (HubSpot snapshot, no time series) are intentionally static. The
+1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · **total HubSpot leads · total
+   paying customers** · ad-driven sessions · engaged), and the **"Ad spend & its effects"** hero: monthly
+   **spend (stacked by platform) bars** vs three trend lines — **website sessions** (dotted) + **HubSpot
+   confirmed leads** + **paying customers** (2026-07-02 rework: dropped the old clicks/impressions/key-events
+   lines per the client; the leads/paying trends come from `crm_outcomes_daily` = HubSpot lifecycle dates
+   `..._lead_date` / `..._customer_date`, bucketed to the hero grain by `tsCrm`, **whole-account CRM — NOT
+   filter-scoped**; "paying customers" line uses the Customer-stage date as the dated proxy for the 64
+   `rd_total_spend>0` payers). A **launch marker** for the inference product go-live is planned once Sofia/Ben
+   confirm the date. Plus channel-mix / spend-by-platform donuts and an **Audience** section (age bar + gender
+   / device donuts = Google Ads *ad-audience* demographics; see the data-source note). **KPI cards that map to
+   a chart line are clickable toggles**: Media spend, Website sessions, Total HubSpot leads and Total paying
+   customers hide/show their matching hero series (the card dims when off) — same effect as the chart legend,
+   driven from the card. Wired via `trendCard`'s `toggle` spec → `toggleKpiCard`/`applyKpiToChart` (keyed by
+   chart-series label, so `mkChart` reapplies it on every grain/date re-render). **Clickable cards are grouped
+   on the LEFT, static cards on the RIGHT** of each KPI row, so it reads which respond. Impressions, Clicks,
+   Ad-driven & Engaged sessions (no hero line) and the two HubSpot totals (all-time snapshot, don't move with
+   the filters) are static / fixed. The
    **Website Traffic** tab applies the same: **Sessions** and **Ad-driven** are clickable (toggling the
    webTrend "All sessions" / "Ad-driven (paid)" lines); Users / Engaged / Page views / Key events are static.
 2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by

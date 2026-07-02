@@ -163,6 +163,7 @@ def main():
     crm_source_quality = rows(bq, "crm_source_quality")
     crm_lifecycle_owner = rows(bq, "crm_lifecycle_owner")
     crm_lead_queue = rows(bq, "crm_lead_queue")
+    crm_outcomes = rows(bq, "crm_outcomes_daily")   # daily new leads + new customers (Overview hero trend)
 
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc)
@@ -504,6 +505,13 @@ def main():
                 "unworked": num(r["unworked"]),
                 "signups": num(r["signups"]),
             } for r in crm_lead_queue],
+            # Daily new leads + new customers (whole-account, from HubSpot lifecycle dates) — the
+            # Overview hero chart buckets these to its grain for the "confirmed leads" / "paying" trends.
+            "outcomes_daily": [{
+                "date": ymd(r["day"]),
+                "new_leads": num(r["new_leads"]),
+                "new_customers": num(r["new_customers"]),
+            } for r in crm_outcomes],
         },
     }
 
