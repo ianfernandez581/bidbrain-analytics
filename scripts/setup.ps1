@@ -192,6 +192,30 @@ if (Test-Probe { & $venvPy -c "from google.cloud import bigquery; bigquery.Clien
     Write-Host "[!] Could not reach raw_windsor via Python (check creds / dataset)" -ForegroundColor Yellow
 }
 
+# --- 7. Claude Code (GLM bypass) prerequisites --------------------------------
+# Optional dev convenience (NOT required by the data pipeline): the GLM launcher
+# (scripts\glm-bypass-mode.ps1) needs (a) the `claude` CLI and (b) read access to
+# the shared glm-api-key secret. Both checks are WARN-ONLY - they never block setup,
+# and setup NEVER auto-installs claude (that's a dev decision).
+Write-Host "[*] Checking Claude Code CLI..." -ForegroundColor Yellow
+if (-not (Get-Command claude -ErrorAction SilentlyContinue)) {
+    Write-Host "[!] 'claude' not found - the GLM launcher (glm-bypass-mode.ps1) needs it." -ForegroundColor Yellow
+    Write-Host "    Install it yourself (setup does NOT auto-install):" -ForegroundColor Yellow
+    Write-Host "      npm install -g @anthropic-ai/claude-code" -ForegroundColor Yellow
+    Write-Host "    or the native installer from https://claude.ai/code" -ForegroundColor Yellow
+} else {
+    Write-Host "[OK] Claude Code CLI present" -ForegroundColor Green
+}
+
+Write-Host "[*] Checking Secret Manager (glm-api-key for GLM launcher)..." -ForegroundColor Yellow
+if (Test-Probe { gcloud secrets versions access latest --secret glm-api-key --project $PROJECT }) {
+    Write-Host "[OK] glm-api-key readable - GLM launcher will work." -ForegroundColor Green
+} else {
+    Write-Host "[!] Could not read glm-api-key - the GLM launcher won't work until you can." -ForegroundColor Yellow
+    Write-Host "    It may not exist yet, or your identity lacks access. If the latter:" -ForegroundColor Yellow
+    Write-Host "      gcloud secrets add-iam-policy-binding glm-api-key --member=<you> --role=roles/secretmanager.secretAccessor" -ForegroundColor Yellow
+}
+
 # --- Done ---------------------------------------------------------------------
 Write-Host ""
 Write-Host "Setup complete. Run a loader:" -ForegroundColor Cyan
