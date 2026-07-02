@@ -326,10 +326,10 @@
     <div class="grid kpis" id="redditKpis" style="margin-top:0"></div>
     <div class="panel-box">
       <div class="panelhead">
-        <div><h3>Reddit delivery over time</h3>
-          <p class="hint">Spend (bars, AUD) with impressions (line). Reddit is a top-of-funnel community awareness / traffic play - three TOF campaigns across Feb–Jun 2026. Campaign filter + date range apply.</p></div>
+        <div><h3>Reddit delivery efficiency</h3>
+          <p class="hint">Impressions (bars) against <b>CPM</b> (cost per 1,000 impressions) and <b>CPC</b> (cost per click). Reddit is a top-of-funnel awareness play into a niche AU tech audience - as the always-on flight matures, impressions taper while CPM/CPC climb (the rising cost of a narrow auction), even though click-through holds. That cost trend - not performance - is why raw impression volume falls. Campaign filter + date range apply.</p></div>
         <div class="ctrls">
-          <span class="seg" id="redditScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setRedditScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setRedditScale('abs',this)">Absolute</button></span>
+          <span class="seg" id="redditScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" onclick="setRedditScale('rel',this)">Relative</button><button type="button" data-scale="abs" class="on" onclick="setRedditScale('abs',this)">Absolute</button></span>
           <span class="seg" id="redditGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setRedditGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setRedditGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setRedditGrain('day',this)">Day</button></span>
         </div>
       </div>
@@ -474,6 +474,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) — globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
+  'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
   'Paid Social':'#F472A0','Paid Other':'#FCA5A5','Display':'#FDBA74','Email':'#FB923C',
@@ -502,7 +503,7 @@ const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin 
 // ---- Drill-down grain (Looker-style) + per-chart axis mode (Relative default) ----
 // grain: month | week | day  ·  scale: 'rel' (each line indexed to its own peak) | 'abs' (real values)
 const grain = { hero:'month', web:'month', reddit:'month', paid:'month', ke:'month', a2tm:'month', a2tw:'week' };
-const scale = { hero:'rel', web:'rel', reddit:'rel', paid:'rel', ke:'rel', a2tm:'rel', a2tw:'rel' };
+const scale = { hero:'rel', web:'rel', reddit:'abs', paid:'rel', ke:'rel', a2tm:'rel', a2tw:'rel' };
 let heroScale = scale.hero;   // kept as a back-compat alias (renderHero reads it)
 let defaultStart = null;      // the "since May" default — used by the drill "↩ All months" reset
 const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1134,37 +1135,46 @@ function renderReddit(){
     ['k-spend','Reddit spend',aud(spend),'CPC '+aud2(div(spend,clicks))],
     ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000)],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps))],
-    ['k-addriven','Page visits',fmtN(pv),'traffic-driving signal'],
-    ['k-leads','Sign-ups / leads',fmtN(conv),'sparse (B2B)'],
+    ['k-addriven','Page visits',fmtN(pv),pv?'cost / visit '+aud2(div(spend,pv)):'traffic-driving signal'],
+    ['k-leads','Sign-ups / leads',fmtN(conv),conv?'cost / sign-up '+aud2(div(spend,conv)):'sparse (B2B)'],
   ];
   document.getElementById('redditKpis').innerHTML=cards.map(c=>
     `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
 
-  // delivery over time: spend (bars) + impressions (overlay line). Reuses the campaign-grained
-  // feed (filtered to platform 'reddit'), so it honors the Campaign filter + date range.
-  // "Relative" indexes the impressions line to its own peak (shared 0–100 axis); "Absolute" puts
-  // it on a dedicated impressions axis. Month/Week/Day grain.
+  // delivery EFFICIENCY over time: impressions (bars) + CPM & CPC (overlay lines). Reframes the
+  // old spend-vs-impressions view — the story is that impressions taper while cost-per-impression
+  // rises (a narrow-audience auction effect), which the raw spend line hid. Reuses the campaign-
+  // grained feed (filtered to platform 'reddit'), so it honors the Campaign filter + date range.
+  // "Absolute" (default here) shows CPM/CPC in real AUD on a right axis; "Relative" indexes each
+  // cost line to its own peak (shared 0–100 axis). Month/Week/Day grain.
   const gr=grain.reddit;
   const src=gr==='day'?DATA.ad_campaign_daily : gr==='week'?DATA.ad_campaign_weekly : DATA.ad_campaign_monthly;
   const kf=grainKeyField(gr), inR=grainInRange(gr);
   const agg={};
   src.filter(r=>r.platform==='reddit'&&campSel('reddit',r.campaign)&&inR(r[kf])).forEach(r=>{
-    const k=r[kf]; (agg[k]=agg[k]||{imps:0,spend:0}); agg[k].imps+=+r.imps||0; agg[k].spend+=+r.spend_aud||0;});
+    const k=r[kf]; (agg[k]=agg[k]||{imps:0,spend:0,clicks:0});
+    agg[k].imps+=+r.imps||0; agg[k].spend+=+r.spend_aud||0; agg[k].clicks+=+r.clicks||0;});
   const keys=Object.keys(agg).sort();
-  const impArr=keys.map(k=>agg[k].imps), relR=(scale.reddit==='rel');
+  const impArr=keys.map(k=>agg[k].imps);
+  const cpmArr=keys.map(k=>{const a=agg[k];return a.imps?a.spend/a.imps*1000:0;});
+  const cpcArr=keys.map(k=>{const a=agg[k];return a.clicks?a.spend/a.clicks:0;});
+  const relR=(scale.reddit==='rel');
   mkChart('redditTrend',{data:{labels:keys.map(grainLabel(gr)),datasets:[
-    {type:'bar',label:'Spend',backgroundColor:mc('Reddit'),data:keys.map(k=>agg[k].spend),yAxisID:'y',order:5},
-    {type:'line',label:'Impressions',borderColor:mc('Impressions'),backgroundColor:mc('Impressions'),
-      data: relR?indexed(impArr):impArr, _raw:impArr,
-      yAxisID: relR?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,order:1}]},
+    {type:'bar',label:'Impressions',backgroundColor:mc('Impressions'),data:impArr,yAxisID:'y',order:5},
+    {type:'line',label:'CPM',borderColor:mc('CPM'),backgroundColor:mc('CPM'),
+      data: relR?indexed(cpmArr):cpmArr, _raw:cpmArr,
+      yAxisID: relR?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,order:1},
+    {type:'line',label:'CPC',borderColor:mc('CPC'),backgroundColor:mc('CPC'),
+      data: relR?indexed(cpcArr):cpcArr, _raw:cpcArr,
+      yAxisID: relR?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,order:2}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
-        if(d.type==='bar')return d.label+': '+aud(ctx.parsed.y);
+        if(d.type==='bar')return d.label+': '+fmtN(ctx.parsed.y);
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
-        return d.label+': '+fmtN(raw)+(relR?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
-      scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
-        relR?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions: % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
-            :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Impressions',color:tickClr}})})}});
+        return d.label+': '+aud2(raw)+(relR?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+      scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Impressions',color:tickClr}})},
+        relR?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Cost: % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
+            :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost - CPM / CPC (AUD)',color:tickClr}})})}});
 
   // campaign table — objective + page visits + conversions
   let h='<tr><th>Campaign</th><th>Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';

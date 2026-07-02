@@ -85,8 +85,10 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
    channel-mix / spend-by-platform donuts.
 2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by
    platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, and a **Reddit
-   community-awareness deep-dive** (KPI cards, spend-vs-impressions trend, and the 3 campaigns by objective
-   with page visits + sign-up/lead conversions).
+   community-awareness deep-dive** (KPI cards with cost-per-outcome, an **efficiency trend** — impressions
+   bars vs CPM/CPC lines, reframing the old spend-vs-impressions view so the *rising cost of a narrow AU
+   auction*, not performance, explains the impression taper — and the 3 campaigns by objective with page
+   visits + sign-up/lead conversions).
 3. **Website Traffic** (GA4) — sessions / users / engagement KPIs, sessions by channel, total-vs-ad-driven
    trend, **key events by type**, and top sources/mediums (ad platforms flagged `AD`).
 4. **Ads → Traffic** — monthly spend vs sessions, weekly impressions vs mapped sessions, a **Pearson-r
