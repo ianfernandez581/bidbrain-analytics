@@ -218,6 +218,13 @@
   .ccm-link:hover{filter:brightness(1.08)}
   .ccm-nolink{font-size:12px;color:var(--muted2)}
   .ccm-cap{font-size:10.5px;color:var(--muted2);letter-spacing:.3px}
+  /* branded fallback tile (no cached image) — shows the ad headline instead of a blank box */
+  .cc-fallback{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:10px;text-align:center;padding:16px;border-bottom:1px solid var(--line);
+    background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 24%,#0b1220),#0b1220 72%)}
+  .cc-fb-mark{font-size:8.5px;font-weight:700;letter-spacing:1.5px;color:var(--accent);opacity:.9}
+  .cc-fb-h{font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;
+    display:-webkit-box;-webkit-line-clamp:4;line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
@@ -1335,12 +1342,19 @@ function renderPaid(){
 // Thumbnails are Meta CDN links (can expire); onerror swaps in a graceful "preview unavailable" tile.
 let _creatives=[];
 const escC=s=>(''+(s||'')).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+// Branded tile shown when there's no cached image (most Meta CDN links expire once an ad ends) —
+// surfaces the ad HEADLINE so the card still shows what the ad said, instead of a blank grey box.
+function ccFallback(c){
+  return `<div class="cc-fallback"><div class="cc-fb-mark">RESETDATA · AD</div>`
+       + `<div class="cc-fb-h">${escC(c.title||c.body||'Creative')}</div></div>`;
+}
+function cThumbErr(imgEl,i){ const c=_creatives[i]; if(c) imgEl.outerHTML=ccFallback(c); }
 function renderCreatives(){
   _creatives=(DATA.meta_creatives||[]).slice(0,10);   // top 10 (the meta_creatives view is ORDER BY imps DESC)
   const cards=_creatives.map((c,i)=>{
-    const img=c.thumbnail_url
-      ? `<img class="cc-thumb" src="${escC(c.thumbnail_url)}" alt="" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'cc-noimg',textContent:'preview unavailable'}))">`
-      : `<div class="cc-noimg">no preview</div>`;
+    const img=c.img_cached
+      ? `<img class="cc-thumb" src="/creative-img/${encodeURIComponent(c.creative_id)}" alt="" loading="lazy" onerror="cThumbErr(this,${i})">`
+      : ccFallback(c);
     const copy=c.body?`<div class="cc-copy">${escC(c.body)}</div>`:'';
     return `<div class="ccard" role="button" tabindex="0" title="Click to enlarge this creative"`
       +` onclick="openCreative(${i})" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openCreative(${i});}">`
@@ -1353,9 +1367,9 @@ function renderCreatives(){
 // (Meta gives no public campaign URL; link_url is where the ad pointed — the closest "go to the ad".)
 function openCreative(i){
   const c=_creatives[i]; if(!c) return;
-  const media=c.thumbnail_url
-    ? `<img class="ccm-img" src="${escC(c.thumbnail_url)}" alt="" referrerpolicy="no-referrer" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'ccm-noimg',textContent:'Preview unavailable — Meta expired this image link. The ad copy is shown at right.'}))">`
-    : `<div class="ccm-noimg">No preview image for this creative. The ad copy is shown at right.</div>`;
+  const media=c.img_cached
+    ? `<img class="ccm-img" src="/creative-img/${encodeURIComponent(c.creative_id)}" alt="" onerror="this.onerror=null;this.replaceWith(Object.assign(document.createElement('div'),{className:'ccm-noimg',textContent:'Preview unavailable — the ad copy is shown at right.'}))">`
+    : `<div class="ccm-noimg">The image for this ad has expired on Meta's side — the full ad copy is shown at right.</div>`;
   const link=c.link_url
     ? `<a class="ccm-link" href="${escC(c.link_url)}" target="_blank" rel="noopener noreferrer">Open ad destination &#8599;</a>`
     : `<span class="ccm-nolink">No destination link recorded for this creative.</span>`;

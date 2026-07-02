@@ -56,7 +56,13 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 > refreshes it each rebuild, with a graceful "preview unavailable" fallback). Shows the **top 10 by impressions**;
 > **clicking a card opens a zoom lightbox** (`openCreative`) with the enlarged image + FULL copy + metrics + an
 > "Open ad destination" link (`link_url`) — so the creative is readable even when the thumbnail link has expired
-> (Meta exposes no public campaign URL, so we link to the ad's destination, not a campaign page). **"Who we targeted"** = top **Google
+> (Meta exposes no public campaign URL, so we link to the ad's destination, not a campaign page).
+> **Image persistence (2026-07-02):** Meta thumbnail URLs are signed + short-lived and 403 once an ad ends, so the
+> export job **caches the top-10 images to the bucket** (`cache_creative_images` → `gs://…-resetdata-dash/creatives/<id>`,
+> best-effort, never breaks the export) and emits `img_cached`; the dash serves the permanent copy at **`/creative-img/<id>`**
+> (same auth as `/data.json`). When there's no cached image the card shows a **branded headline tile** (`ccFallback`),
+> not a blank box. Caveat: this only preserves creatives whose URL is still live at export time — already-expired ones
+> can't be recovered without the Meta Marketing API. **"Who we targeted"** = top **Google
 > Ads keywords** (`ga_keywords`, search intent — more meaningful than audience segments for a search account).
 > Job emits `ga_audience` / `ga_keywords` / `meta_creatives`.
 
