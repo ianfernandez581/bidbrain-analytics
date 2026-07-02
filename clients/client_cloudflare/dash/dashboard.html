@@ -417,7 +417,7 @@
       </div>
 
       <div class="card" style="margin-bottom:14px">
-        <div class="card-head"><div><h3>Pacing — target vs actual</h3>
+        <div class="card-head"><div><h3>Pacing - target vs actual</h3>
         <div class="hint">Accepted + unprocessed leads per period (stacked), against target. <b>Relative</b> = 100%-stacked share.</div></div>
         <div class="ctrls">
           <span class="seg" id="csWeekly_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
@@ -622,13 +622,13 @@
         </div>
 
         <div class="section first" style="border-top:none;padding-top:0;margin-top:18px">
-          <h2>TTD — Impressions, Clicks &amp; CTR</h2>
+          <h2>TTD - Impressions, Clicks &amp; CTR</h2>
           <span class="sub">Programmatic upper-funnel delivery</span>
         </div>
 
         <div class="grid">
           <div class="card card-tall">
-            <div class="card-head"><div><h3>TTD daily — impressions, clicks, CTR</h3>
+            <div class="card-head"><div><h3>TTD daily - impressions, clicks, CTR</h3>
             <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div></div>
             <div class="ctrls">
               <span class="seg" id="ttdImpCtr_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
@@ -645,7 +645,7 @@
 
         <div class="grid">
           <div class="card card-tall">
-            <div class="card-head"><div><h3>Daily spend — all channels stacked</h3>
+            <div class="card-head"><div><h3>Daily spend - all channels stacked</h3>
             <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window. <b>Relative</b> = 100%-stacked share.</div></div>
             <div class="ctrls">
               <span class="seg" id="dailyStack_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
@@ -661,7 +661,7 @@
         </div>
 
         <div class="section" style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap">
-          <div><h2>Daily efficiency — CTR · Clicks · CPC by channel</h2>
+          <div><h2>Daily efficiency - CTR · Clicks · CPC by channel</h2>
           <span class="sub">Same date axis. Hover for true daily values.</span></div>
           <div class="ctrls">
             <span class="seg" id="effTrio_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
@@ -685,18 +685,18 @@
         </div>
 
         <div class="section">
-          <h2>Market breakdown — LinkedIn + TTD + Reddit + LINE</h2>
+          <h2>Market breakdown - LinkedIn + TTD + Reddit + LINE</h2>
           <span class="sub">Stacked spend by region with full-funnel summary table. Actuals follow the date range; the <b>"vs plan" columns are full period</b>.</span>
         </div>
 
         <div class="grid">
           <div class="card card-tall">
-            <h3>Market spend — stacked by channel</h3>
+            <h3>Market spend - stacked by channel</h3>
             <div class="chart-wrap"><canvas id="marketStack"></canvas></div>
           </div>
           <div class="card card-tall">
             <h3>Market summary table</h3>
-            <div class="hint" style="margin-bottom:6px">Live values — toggles refresh on chip change.</div>
+            <div class="hint" style="margin-bottom:6px">Live values - toggles refresh on chip change.</div>
             <div style="overflow:auto;flex:1">
               <table id="marketTable">
                 <thead><tr><th>Market</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>vs plan</th><th>CPC</th><th>vs plan</th><th>Leads</th></tr></thead>
@@ -725,7 +725,7 @@
           </div>
           <div class="card">
             <h3>Bottom 10 creatives by CTR</h3>
-            <div class="hint">Lowest click-through rate — candidates to pause or refresh.</div>
+            <div class="hint">Lowest click-through rate - candidates to pause or refresh.</div>
             <div style="overflow:auto">
               <table class="creative-table">
                 <thead><tr><th>Creative</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>CPC</th></tr></thead>
@@ -747,37 +747,37 @@
         </div>
 
         <div class="card" style="margin-top:14px">
-          <h3>LinkedIn funnel — impressions → click → form start → submitted lead</h3>
+          <h3>LinkedIn funnel - impressions → click → form start → submitted lead</h3>
           <div class="hint">Lead-form-start metric (oneClickLeadFormOpens) on datastream 924; numbers populate after each fetch.</div>
           <div id="liFunnel"></div>
         </div>
 
         <!-- Why lead volume looks low -->
         <div class="why">
-          <h2>Why lead volume looks low &mdash; the four-part story</h2>
+          <h2>Why lead volume looks low - the four-part story</h2>
           <div class="lede">Headline measured leads under-represent reality. Here is what is actually happening, ordered by impact.</div>
           <div class="reasons">
             <div class="reason"><div class="num">1</div><h4>TTD has no lead-level pixel</h4>
-              <p>Cloudflare deployed only the universal pixel, which counts generic site visits and can't isolate a lead-form completion. We supplied per-event <b>image pixels</b> for the lead-form thank-you page; the client opted not to implement them. Until they're live, TTD-driven leads are literally unmeasurable &mdash; not low, just invisible.</p>
+              <p>Cloudflare deployed only the universal pixel, which counts generic site visits and can't isolate a lead-form completion. We supplied per-event <b>image pixels</b> for the lead-form thank-you page; the client opted not to implement them. Until they're live, TTD-driven leads are literally unmeasurable - not low, just invisible.</p>
             </div>
             <div class="reason"><div class="num">2</div><h4>The mix is upper-funnel by design</h4>
-              <p>Reading the campaign naming convention, ~78% of spend sits in MOFU/awareness ad sets (<i>AWARENESS</i>, <i>AWR-CONS</i>, <i>SHADOW-AI</i> TOFU). Only the <i>BOFU_RETARGETING_LEAD-GEN</i> slices are optimized for form fills &mdash; lead volume should be modest by construction.</p>
+              <p>Reading the campaign naming convention, ~78% of spend sits in MOFU/awareness ad sets (<i>AWARENESS</i>, <i>AWR-CONS</i>, <i>SHADOW-AI</i> TOFU). Only the <i>BOFU_RETARGETING_LEAD-GEN</i> slices are optimized for form fills - lead volume should be modest by construction.</p>
             </div>
             <div class="reason"><div class="num">3</div><h4>Reddit is on a TOFU goal, not Lead</h4>
               <p>$2.4K of Reddit spend ran on <i>SHADOW-AI</i> awareness ad sets with goal &ldquo;-&rdquo; (no conversion goal set). Zero leads is on plan for that placement; only the small APAC-ANZ retargeting line was configured for LEAD goal and it received negligible delivery.</p>
             </div>
             <div class="reason"><div class="num">4</div><h4>LinkedIn form is the bottleneck</h4>
-              <p>Tracked LinkedIn leads vs clicks indicate ~1.0% click-to-lead. The form requires <b>Work phone number</b> alongside Work email &mdash; the rest of the fields are auto-filled. That single required phone field is the likely cause: prospects assume it triggers a sales call.</p>
+              <p>Tracked LinkedIn leads vs clicks indicate ~1.0% click-to-lead. The form requires <b>Work phone number</b> alongside Work email - the rest of the fields are auto-filled. That single required phone field is the likely cause: prospects assume it triggers a sales call.</p>
             </div>
           </div>
           <h3 style="font-size:14px;margin:18px 0 6px 0">Modeled TTD lead volume (using LinkedIn click-to-lead as the floor benchmark)</h3>
-          <div class="hint" style="margin-bottom:8px">Because the image pixel isn't deployed, we can only model the missing TTD lead count. LinkedIn click-to-lead rate is computed live from the data. Applied to TTD's measured clicks &mdash; before any view-through credit.</div>
+          <div class="hint" style="margin-bottom:8px">Because the image pixel isn't deployed, we can only model the missing TTD lead count. LinkedIn click-to-lead rate is computed live from the data. Applied to TTD's measured clicks - before any view-through credit.</div>
           <div class="gap-box">
             <div class="gap-tile"><div class="lbl">Conservative (50% of LI rate)</div><div class="val" id="gap_low">—</div></div>
             <div class="gap-tile bad"><div class="lbl">Mid (1× LI rate, click-only)</div><div class="val" id="gap_mid">—</div></div>
             <div class="gap-tile"><div class="lbl">High (2× LI w/ view-through)</div><div class="val" id="gap_high">—</div></div>
           </div>
-          <p style="font-size:12.5px;color:var(--cf-mute);margin:10px 0 0 0">Translation: TTD has likely produced a meaningful number of leads that no one is counting. The fix is to deploy the supplied image pixels on the lead-form thank-you page. Note: the LinkedIn benchmark itself is depressed by the phone-field friction &mdash; if that's fixed, the modeled TTD number grows accordingly.</p>
+          <p style="font-size:12.5px;color:var(--cf-mute);margin:10px 0 0 0">Translation: TTD has likely produced a meaningful number of leads that no one is counting. The fix is to deploy the supplied image pixels on the lead-form thank-you page. Note: the LinkedIn benchmark itself is depressed by the phone-field friction - if that's fixed, the modeled TTD number grows accordingly.</p>
         </div>
 
         <div style="font-size:12px;color:rgba(255,255,255,0.85);text-align:center;padding:8px 0;margin-top:14px" id="paidFooter">—</div>
@@ -804,7 +804,7 @@
       <div id="cmpCS" style="display:none">
         <div class="section first" style="justify-content:space-between">
           <div>
-            <h2 style="color:#fff;margin:0">Content Syndication — Double Touch MQLs</h2>
+            <h2 style="color:#fff;margin:0">Content Syndication - Double Touch MQLs</h2>
             <p class="sub" style="color:rgba(255,255,255,.8);margin:4px 0 0;font-size:11.5px">
               Vendor leads via CaptureIQ → Integrate → Salesforce. Every lead is a double-touch (two-asset) MQL.</p>
           </div>
@@ -859,11 +859,11 @@
         </div>
       </div>
       <div class="grid" style="grid-template-columns:1fr 1fr">
-        <div class="card card-tall"><h3>Trend — impressions, clicks, CTR</h3><div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes. Hover for true values.</div><div class="chart-wrap"><canvas id="cmpDaily"></canvas></div></div>
+        <div class="card card-tall"><h3>Trend - impressions, clicks, CTR</h3><div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes. Hover for true values.</div><div class="chart-wrap"><canvas id="cmpDaily"></canvas></div></div>
         <div class="card card-tall"><h3>Spend</h3><div class="hint">LinkedIn spend per period (USD).</div><div class="chart-wrap"><canvas id="cmpSpend"></canvas></div></div>
       </div>
       <div class="card" style="margin-bottom:14px">
-        <h3>LinkedIn funnel — impressions → click → form open → lead</h3>
+        <h3>LinkedIn funnel - impressions → click → form open → lead</h3>
         <div class="hint">Aggregated over the campaign window.</div>
         <div id="cmpFunnel"></div>
       </div>
@@ -1573,7 +1573,7 @@ const ASSET_NAMES = {
   'A-MSM-9':'[Solution brief] Replace your VPN with Cloudflare',
   'G-MST-5':'2026 Security Signals Report',
   'G-VFINB-0':'Innovating securely for financial services growth',
-  'VFIN7':'[Ebook] Cloudflare APAC & Japan Banking Report 2025 — From embracing innovation to customer privacy, 6 trends to watch',
+  'VFIN7':'[Ebook] Cloudflare APAC & Japan Banking Report 2025: From embracing innovation to customer privacy, 6 trends to watch',
   'VRET2':'Accelerating digital transformation in retail',
   'MSM9':'DeNA Case Study (JP)',
   'MSM12':'Guangzhou Lianya Network Technology Co., Ltd. [Ueeshop] Case Study (CN)',
@@ -1584,7 +1584,7 @@ const ASSET_NAMES = {
 function assetTooltipTitle(id) {
   const name = ASSET_NAMES[id];
   if (!name) return id;
-  const words = (id + ' — ' + name).split(' ');
+  const words = (id + ' - ' + name).split(' ');
   const lines = []; let line = '';
   for (const w of words) {
     if (line && (line.length + 1 + w.length) > 46) { lines.push(line); line = w; }
@@ -2427,7 +2427,7 @@ function renderCreativeTables() {
     + `with ≥ ${CREATIVE_MIN_IMPS.toLocaleString()} impressions`
     + (creativeChannel !== 'all' ? ` on ${CH_LABEL[creativeChannel] || creativeChannel}` : '')
     + ` in the selected markets `
-    + `(full period — creatives have no date dimension, so the date range doesn't apply here).`;
+    + `(full period - creatives have no date dimension, so the date range doesn't apply here).`;
 }
 function renderCreativeTable(bodyId, rows) {
   const tbody = document.getElementById(bodyId);
@@ -2518,7 +2518,7 @@ function renderLiFunnel() {
   const d_sl = formOpens > 0 ? dr(formOpens, li.leads) : null;
   const formStartsTxt = formOpens > 0
     ? formOpens.toLocaleString()
-    : '<span style="color:var(--cf-mute);font-size:13px;font-weight:600">— pending</span>';
+    : '<span style="color:var(--cf-mute);font-size:13px;font-weight:600">- pending</span>';
   const formStartsSub = formOpens > 0
     ? `CPS ${fmt$(cpStart,2)} · click→start ${li.clk ? fmtPct2(formOpens/li.clk,2) : '—'}`
     : 'awaiting next datastream 924 fetch';
@@ -2677,7 +2677,7 @@ function renderCampaign(key){
     ${arrow(dr(imps,clk),'impr → click')}
     ${step('Clicks', fmtNum(clk), `CPC ${fmt$(cpc2,2)}`)}
     ${arrow(fo>0?dr(clk,fo):null,'click → form open')}
-    ${step('Form opens', fo>0?fmtNum(fo):'<span style="color:var(--cf-mute);font-size:13px;font-weight:600">— n/a</span>', fo>0?`CPS ${fmt$(cps,2)}`:'not tracked for this group')}
+    ${step('Form opens', fo>0?fmtNum(fo):'<span style="color:var(--cf-mute);font-size:13px;font-weight:600">- n/a</span>', fo>0?`CPS ${fmt$(cps,2)}`:'not tracked for this group')}
     ${arrow(fo>0?dr(fo,leads):null,'form open → lead')}
     ${step('Leads', fmtNum(leads), `CPL ${fmt$(cpl2,0)} · click→lead ${clk?fmtPct2(leads/clk,2):'—'}`)}
   </div>`;
@@ -2765,8 +2765,8 @@ function renderCampaignCS(cs){
     + bar('Rejected', rej, 'var(--bad-red)')
     + `<div style="margin-top:10px;font-size:12px;color:var(--cf-mute)">`
     + (acc>=target
-        ? `<b style="color:var(--good-green)">${(pct*100).toFixed(0)}%</b> of target — ${fmtNum(acc-target)} over.`
-        : `<b style="color:var(--cf-ink)">${(pct*100).toFixed(0)}%</b> of target — ${fmtNum(target-acc)} to go.`)
+        ? `<b style="color:var(--good-green)">${(pct*100).toFixed(0)}%</b> of target, ${fmtNum(acc-target)} over.`
+        : `<b style="color:var(--cf-ink)">${(pct*100).toFixed(0)}%</b> of target, ${fmtNum(target-acc)} to go.`)
     + `</div>`;
 
   // Breakdown table: publisher rows, then region rows.

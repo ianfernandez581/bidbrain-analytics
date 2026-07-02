@@ -146,7 +146,7 @@
     <div class="inner">
       <div class="crown">★ GOD-MODE ACCESS</div>
       <h1>WELCOME, SUPER ADMIN</h1>
-      <p>You can reveal and rotate <b>every</b> password — agencies, dashboards, and the admin key —
+      <p>You can reveal and rotate <b>every</b> password (agencies, dashboards, and the admin key)
          and open any dashboard with no further login. Handle with care: these are the live keys to
          the whole platform.</p>
       <div class="badges">
@@ -168,7 +168,7 @@
           <div class="knm">Super-admin password <span class="super-pill">SUPER</span></div>
           <div class="ksub">Opens this god-mode console.</div>
           {{ pwfield("super", "", super_password, super_has or super_password) }}
-          {% if super_bootstrap %}<div class="note">Using the bootstrap password from env — set one here to store it in the registry.</div>{% endif %}
+          {% if super_bootstrap %}<div class="note">Using the bootstrap password from env - set one here to store it in the registry.</div>{% endif %}
         </div>
         <div class="card key">
           <div class="knm">Admin password</div>
@@ -195,7 +195,7 @@
 
     <!-- DASHBOARDS -->
     <div class="sec">
-      <div class="shead"><h2>Dashboard passwords</h2><span class="c">the real standalone <span class="mono">&lt;c&gt;-dash</span> login — change rotates it everywhere</span></div>
+      <div class="shead"><h2>Dashboard passwords</h2><span class="c">the real standalone <span class="mono">&lt;c&gt;-dash</span> login - change rotates it everywhere</span></div>
       {% for d in dashboards %}
         {% if d.status == 'active' and d.url %}
         <div class="drow">
@@ -212,7 +212,7 @@
             <div class="dn">{{ d.name }}</div>
             <div class="dk"><span class="slug">{{ d.key }}</span></div>
           </div>
-          <span class="muted">No live dashboard yet — nothing to reveal.</span>
+          <span class="muted">No live dashboard yet - nothing to reveal.</span>
         </div>
         {% endif %}
       {% endfor %}
@@ -221,12 +221,12 @@
     <!-- GOOGLE SIGN-IN ACCESS -->
     <div class="sec">
       <div class="shead"><h2>Google sign-in access</h2>
-        <span class="c">accounts that may sign in with Google — each maps to a role, an agency, or one dashboard</span></div>
+        <span class="c">accounts that may sign in with Google - each maps to a role, an agency, or one dashboard</span></div>
       {% if admin_domains %}
       <div class="card" style="border-color:rgba(240,184,106,.32);margin-bottom:14px">
         <div class="muted" style="line-height:1.6">Anyone with a
         {% for d in admin_domains %}<span class="mono">@{{ d }}</span>{% if not loop.last %} or {% endif %}{% endfor %}
-        email gets <span class="urole admin">admin</span> automatically the first time they sign in with Google — their
+        email gets <span class="urole admin">admin</span> automatically the first time they sign in with Google - their
         account is added to the list below then, and you can re-scope or remove it here (removing re-grants admin on
         their next sign-in while the domain rule is on).</div>
       </div>
@@ -236,7 +236,7 @@
         <div class="muted" style="line-height:1.6">Google sign-in isn’t switched on yet. Create a “Web application”
         OAuth client in the Cloud Console (Authorized JavaScript origin <span class="mono">https://dashboards.bidbrain.ai</span>),
         then run <span class="mono">scripts/enable_google_login.ps1 -ClientId &lt;id&gt;</span>. You can still add accounts
-        below — they take effect the moment it’s on.</div>
+        below - they take effect the moment it’s on.</div>
       </div>
       {% endif %}
       <div style="display:flex;justify-content:flex-end;margin:0 0 12px">
@@ -253,13 +253,13 @@
         </div>
         <span style="flex:1"></span>
         {% if u.seed %}
-          <span class="muted">baked-in — permanent</span>
+          <span class="muted">baked-in - permanent</span>
         {% else %}
           <button type="button" class="btn ghost sm deluser" data-email="{{ u.email|e }}">Remove</button>
         {% endif %}
       </div>
       {% else %}
-      <div class="muted">No Google accounts yet — click “Add account”.</div>
+      <div class="muted">No Google accounts yet - click “Add account”.</div>
       {% endfor %}
     </div>
 
@@ -347,7 +347,7 @@
     admin:     {ep:'/super/api/admin-password',     title:'Change the admin password',
                 sub:'Opens the agencies → clients → campaigns tree. Stored in the private registry.'},
     super:     {ep:'/super/api/super-password',      title:'Change the super-admin password',
-                sub:'Opens THIS god-mode console. Choose a strong value — it controls everything.'},
+                sub:'Opens THIS god-mode console. Choose a strong value - it controls everything.'},
     agency:    {ep:'/super/api/agency-password',     title:'Change an agency password',
                 sub:'Opens a portal of that agency’s dashboards. Stored in the private registry.'},
     dashboard: {ep:'/super/api/dashboard-password',  title:'Rotate a dashboard password',
@@ -388,7 +388,7 @@
       mErr.textContent = j.error || 'Failed.';
       mSave.textContent = 'Save';
     }catch(err){
-      mErr.textContent = 'Network error — '+err;
+      mErr.textContent = 'Network error: '+err;
       mSave.textContent = 'Save';
     }
     return false;
@@ -425,7 +425,7 @@
       const j = await r.json().catch(()=>({ok:false,error:'Bad response.'}));
       if(j.ok){ location.reload(); return false; }
       uErr.textContent = j.error || 'Failed.'; uSave.textContent = 'Grant access';
-    }catch(err){ uErr.textContent = 'Network error — '+err; uSave.textContent = 'Grant access'; }
+    }catch(err){ uErr.textContent = 'Network error: '+err; uSave.textContent = 'Grant access'; }
     return false;
   }
 

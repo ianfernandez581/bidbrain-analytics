@@ -279,7 +279,7 @@
       <div class="panelhead">
         <div>
           <h3>What the key events are</h3>
-          <p class="hint">Make-up of the “Key events” line above — GA4 key-event volume by event type, scoped to the date range (<code>Leadform_submit</code>, <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code>, $50-credit click). <b>Relative</b> shows each period's <i>mix</i> (100%-stacked); switch to <b>Absolute</b> for raw counts.</p>
+          <p class="hint">Make-up of the “Key events” line above - GA4 key-event volume by event type, scoped to the date range (<code>Leadform_submit</code>, <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code>, $50-credit click). <b>Relative</b> shows each period's <i>mix</i> (100%-stacked); switch to <b>Absolute</b> for raw counts.</p>
         </div>
         <div class="ctrls">
           <span class="seg" id="keScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setKeScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setKeScale('abs',this)">Absolute</button></span>
@@ -322,12 +322,12 @@
     </div>
 
     <!-- Reddit community-awareness deep-dive -->
-    <div class="secttitle">Reddit — community awareness deep-dive <span style="color:var(--muted2);font-weight:600">· whole-flight summary</span></div>
+    <div class="secttitle">Reddit - community awareness deep-dive <span style="color:var(--muted2);font-weight:600">· whole-flight summary</span></div>
     <div class="grid kpis" id="redditKpis" style="margin-top:0"></div>
     <div class="panel-box">
       <div class="panelhead">
         <div><h3>Reddit delivery over time</h3>
-          <p class="hint">Spend (bars, AUD) with impressions (line). Reddit is a top-of-funnel community awareness / traffic play — three TOF campaigns across Feb–Jun 2026. Campaign filter + date range apply.</p></div>
+          <p class="hint">Spend (bars, AUD) with impressions (line). Reddit is a top-of-funnel community awareness / traffic play - three TOF campaigns across Feb–Jun 2026. Campaign filter + date range apply.</p></div>
         <div class="ctrls">
           <span class="seg" id="redditScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setRedditScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setRedditScale('abs',this)">Absolute</button></span>
           <span class="seg" id="redditGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setRedditGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setRedditGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setRedditGrain('day',this)">Day</button></span>
@@ -337,7 +337,7 @@
     </div>
     <div class="panel-box" style="margin-top:14px">
       <h3>Reddit campaigns</h3>
-      <p class="hint">The three community campaigns by objective. <b>Page visits</b> (page-visit clicks + views) is Reddit's traffic-driving signal; sign-ups / leads are platform-reported conversions (sparse — B2B).</p>
+      <p class="hint">The three community campaigns by objective. <b>Page visits</b> (page-visit clicks + views) is Reddit's traffic-driving signal; sign-ups / leads are platform-reported conversions (sparse, B2B).</p>
       <div class="tablewrap"><table id="redditCamps"></table></div>
     </div>
   </section>
@@ -357,7 +357,7 @@
     </div>
     <div class="panel-box" style="margin-top:14px">
       <h3>Key events by type</h3>
-      <p class="hint">GA4 demand-gen / lead events (whole period). Volumes are modest — B2B, low traffic.</p>
+      <p class="hint">GA4 demand-gen / lead events (whole period). Volumes are modest - B2B, low traffic.</p>
       <div class="chartbox"><canvas id="keyEventsChart"></canvas></div>
     </div>
     <div class="panel-box" style="margin-top:14px">
@@ -408,7 +408,7 @@
       <div class="panel-box">
         <div class="panelhead">
           <div><h3>App signups per week</h3>
-          <p class="hint">New <code>app.reset.ai</code> accounts by ISO week — bars are <b>total</b> signups; the green line tracks how many of each week's signups went on to <b>pay</b> (load balance ≠ pay). The source breakdown is in the chart below.</p></div>
+          <p class="hint">New <code>app.reset.ai</code> accounts by ISO week - bars are <b>total</b> signups; the green line tracks how many of each week's signups went on to <b>pay</b> (load balance ≠ pay). The source breakdown is in the chart below.</p></div>
         </div>
         <div id="crmWeekCallout" class="crm-callout"></div>
         <div class="chartbox"><canvas id="crmSignupsChart"></canvas></div>
@@ -424,7 +424,7 @@
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box">
         <div class="panelhead"><div><h3>Signups by source</h3>
-        <p class="hint">The attribution behind the totals above — each week's app signups split by HubSpot Original Source. <b>Hover</b> a bar to see the source (no legend, to keep it readable). <b>⚠ Attribution is thin</b> — most land as Offline / Direct.</p></div></div>
+        <p class="hint">The attribution behind the totals above - each week's app signups split by HubSpot Original Source. <b>Hover</b> a bar to see the source (no legend, to keep it readable). <b>⚠ Attribution is thin</b> - most land as Offline / Direct.</p></div></div>
         <div class="chartbox"><canvas id="crmSourceMixChart"></canvas></div>
       </div>
       <div class="panel-box">
@@ -436,7 +436,7 @@
 
     <div class="panel-box" style="margin-top:14px">
       <h3>Which sources drive paying customers vs free signups</h3>
-      <p class="hint">By HubSpot Original Source: lead volume → app signups → paying vs free-only, plus deals and ad-click-id matches. <b>⚠ HubSpot attribution is thin</b> — most signups land as Offline / Direct, so the <b>Ad-ID</b> column (a <code>gclid</code>/<code>fbclid</code> on the contact) and the <b>Paid Media</b> / <b>Ads → Traffic</b> tabs are the reliable ad-attribution signals.</p>
+      <p class="hint">By HubSpot Original Source: lead volume → app signups → paying vs free-only, plus deals and ad-click-id matches. <b>⚠ HubSpot attribution is thin</b> - most signups land as Offline / Direct, so the <b>Ad-ID</b> column (a <code>gclid</code>/<code>fbclid</code> on the contact) and the <b>Paid Media</b> / <b>Ads → Traffic</b> tabs are the reliable ad-attribution signals.</p>
       <div class="tablewrap"><table id="crmSourceTable"></table></div>
     </div>
 
@@ -447,7 +447,7 @@
     </div>
 
     <div class="panel-box" style="margin-top:14px">
-      <h3>Lead queue — what the BDM still needs to sort through</h3>
+      <h3>Lead queue - what the BDM still needs to sort through</h3>
       <p class="hint">The working pipeline: non-customer leads that carry a sales status. <b>NEW</b> = awaiting first touch; <b>Unassigned</b> = no owner yet. (A large status-less pool from a bulk import is counted as “Unassigned, no status”, not listed here.)</p>
       <div class="grid kpis" id="crmQueueKpis"></div>
       <div class="tablewrap" style="margin-top:8px"><table id="crmQueueTable"></table></div>
@@ -781,7 +781,7 @@ function setNotes(){
   document.getElementById('gaNote').innerHTML=
     '<b>GA4 key-event tracking is real but low-volume.</b> Conversions populate (the configured event is '+
     '<code>Leadform_submit</code>; <code>sign_up</code>, <code>file_download</code>, <code>learn_more_click</code> and the '+
-    '$50-credit click also fire), but totals are modest for a B2B audience — read them as directional demand signals, not a high-volume funnel. '+
+    '$50-credit click also fire), but totals are modest for a B2B audience - read them as directional demand signals, not a high-volume funnel. '+
     'GA4 channels blend sources (Paid Social also carries Reddit; Display also carries Google PMax/Demand-Gen), so platform↔channel mapping is approximate.';
 }
 
@@ -802,7 +802,7 @@ function renderDateScope(){
     note.style.display='block';
     note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b>. '+
       'KPI cards (<b>month grain</b>), the platform comparison, conversions table, spend donut and the trend charts reflect this range '+
-      '(trend charts honor the range at their selected <b>View by</b> grain — Month / Week / Day). The channel-mix donut, source/medium list, '+
+      '(trend charts honor the range at their selected <b>View by</b> grain: Month / Week / Day). The channel-mix donut, source/medium list, '+
       'per-platform campaign tables, creative mix and the Reddit deep-dive summary remain <b>whole-flight</b> '+
       '(no finer grain in the feed).';
   } else {
@@ -1009,7 +1009,7 @@ function renderHero(){
     ? { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
         yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},
-          title:{display:true,text:'Effects — % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
+          title:{display:true,text:'Effects: % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
         y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions / key events',color:tickClr}}),
@@ -1107,7 +1107,7 @@ function renderPaid(){
           const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
           return d.label+': '+fmtN(raw)+(relP?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
-        relP?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions / clicks — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
+        relP?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions / clicks: % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Impressions',color:tickClr}}),
               y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Clicks',color:tickClr}})})}});
 
@@ -1163,7 +1163,7 @@ function renderReddit(){
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relR?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
-        relR?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
+        relR?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions: % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Impressions',color:tickClr}})})}});
 
   // campaign table — objective + page visits + conversions
@@ -1258,7 +1258,7 @@ function renderAds2Traffic(){
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relM?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
-        relM?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
+        relM?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions: % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions',color:tickClr}})})}});
 
   // "Ad impressions vs sessions": imps (bars) + mapped paid sessions (overlay line). Same Rel/Abs
@@ -1275,7 +1275,7 @@ function renderAds2Traffic(){
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relW?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Impressions',color:tickClr}})},
-        relW?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
+        relW?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions: % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Mapped paid sessions',color:tickClr}})})}});
 
   // scatter (excluded from the grain/scale toggles — always weekly): ad spend vs mapped paid
@@ -1446,7 +1446,7 @@ function renderCRM(){
 
   // ---- Q6: BDM lead queue ----
   document.getElementById('crmQueueKpis').innerHTML=[
-    ['k-queue','NEW — to triage',fmtN(k.queue_new),fmtN(k.queue_new_unassigned)+' unassigned'],
+    ['k-queue','NEW - to triage',fmtN(k.queue_new),fmtN(k.queue_new_unassigned)+' unassigned'],
     ['k-queue','Unassigned (no owner)',fmtN(k.queue_unassigned),'non-customers'],
   ].map(c=>`<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
   const byStatus={};
@@ -1460,7 +1460,7 @@ function renderCRM(){
   document.getElementById('crmQueueTable').innerHTML=qh;
 
   document.getElementById('crmNote').innerHTML=
-    '<b>Source: HubSpot CRM</b> (live snapshot — not scoped by the ad filters above). “Signup” = created an <code>app.reset.ai</code> account; '+
+    '<b>Source: HubSpot CRM</b> (live snapshot, not scoped by the ad filters above). “Signup” = created an <code>app.reset.ai</code> account; '+
     '“loaded balance” = has account credit (mostly the free $50); “paying” = has actually spent. CRM data through '+
     (k.last_signup_at||'').replace('T',' ').replace('Z',' UTC')+'.';
 }

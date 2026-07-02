@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>HireRight — Paid Media Dashboard</title>
+<title>HireRight - Paid Media Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <style>
   :root{
@@ -380,7 +380,7 @@
 
       <div class="card card-tall" style="margin-top:14px">
         <h3>Spend by market</h3>
-        <div class="hint">Spend (USD) by country — DV360 programmatic display. TradeDesk &amp; LinkedIn run as <b>Global</b> air-cover and aren't broken out by country. Reflects the Market &amp; Campaign filters.</div>
+        <div class="hint">Spend (USD) by country - DV360 programmatic display. TradeDesk &amp; LinkedIn run as <b>Global</b> air-cover and aren't broken out by country. Reflects the Market &amp; Campaign filters.</div>
         <div class="chart-wrap"><canvas id="ovMarket"></canvas></div>
       </div>
 
@@ -390,7 +390,7 @@
     <!-- ============ PAID MEDIA ============ -->
     <div id="tab-paid" class="tabpane">
       <div class="section first">
-        <h2>Paid media — delivery</h2>
+        <h2>Paid media - delivery</h2>
         <span class="sub">DV360 (programmatic display), The Trade Desk (programmatic) and LinkedIn (paid social) delivery: spend, impressions, clicks and efficiency. Shows all three platforms regardless of the Platform filter; use the <b>Campaign</b> and <b>Market</b> filters to focus.</span>
       </div>
 
@@ -400,7 +400,7 @@
         <div class="card card-tall">
           <div class="card-head">
             <div>
-              <h3>Delivery — spend by platform</h3>
+              <h3>Delivery - spend by platform</h3>
               <div class="hint">Spend by platform (stacked bars, USD); line = clicks to site (right axis).</div>
             </div>
             <div class="segs">
@@ -429,7 +429,7 @@
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>DV360 — spend &amp; impressions by country</h3>
+        <h3>DV360 - spend &amp; impressions by country</h3>
         <div class="hint">DV360 is the only source with real geo. Impressions (bars) and spend (USD, line) by country. Reflects the Market &amp; Campaign filters.</div>
         <div class="chart-wrap" style="height:320px"><canvas id="pmCountry"></canvas></div>
       </div>
@@ -447,12 +447,12 @@
 
       <div class="grid">
         <div class="card card-tall">
-          <h3>LinkedIn — creative mix</h3>
+          <h3>LinkedIn - creative mix</h3>
           <div class="hint">Impressions by creative type, over the selected campaigns.</div>
           <div class="chart-wrap"><canvas id="pmLiCreative"></canvas></div>
         </div>
         <div class="card">
-          <h3>LinkedIn — engagement funnel</h3>
+          <h3>LinkedIn - engagement funnel</h3>
           <div class="hint">Impressions → clicks → video views → video completion rate → lead-form opens → leads, over the selected LinkedIn campaigns.</div>
           <div class="funnel" id="pmFunnel"></div>
         </div>
@@ -985,7 +985,7 @@ function renderDateScope(){
     note.innerHTML = '📅 Period filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b>. '
       + 'The <b>delivery trend charts</b> (Month / Week / Day) honor this range; KPI cards, spend mix/share, by-market &amp; by-country, '
       + 'the platform-comparison &amp; top-campaign tables and the LinkedIn creative/funnel show the <b>full period</b> '
-      + '(those breakdowns — and conversions — aren\'t available at a time grain in the feed).';
+      + '(those breakdowns, and conversions, aren\'t available at a time grain in the feed).';
   } else {
     note.style.display = 'none';
   }
@@ -1102,10 +1102,10 @@ function renderOverview(){
 
   const plats = selPlatforms().map(p=>p.label).join(', ') || 'none';
   el('ovNote').innerHTML = `<b>How to read this.</b> Spend, impressions, clicks &amp; conversions reflect the <b>Platform</b> filter (${plats}) `
-    + `and the <b>Campaign</b> filter (${campaignScopeText()}). The <b>Market</b> filter (${marketScopeText()}) scopes the by-market chart only — `
+    + `and the <b>Campaign</b> filter (${campaignScopeText()}). The <b>Market</b> filter (${marketScopeText()}) scopes the by-market chart only - `
     + `DV360 carries real countries, while TradeDesk &amp; LinkedIn are <b>Global</b> air-cover. `
     + `DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}; TradeDesk ${DATA.td_window.start} → ${DATA.td_window.end}; LinkedIn ${DATA.li_window.start} → ${DATA.li_window.end}. `
-    + `Spend is reported in USD — TradeDesk's AUD is converted at A$1 = US$${DATA.fx_aud_usd}.`;
+    + `Spend is reported in USD - TradeDesk's AUD is converted at A$1 = US$${DATA.fx_aud_usd}.`;
 }
 
 //==============================================================================

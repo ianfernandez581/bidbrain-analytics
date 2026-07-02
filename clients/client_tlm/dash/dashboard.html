@@ -165,7 +165,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
 
   <section id="tab-google" class="hide">
     <div class="panel-box"><h3>By campaign type</h3><p class="hint">Performance Max · Search · Shopping. Ratios derived client-side.</p><table id="googleTypeTable"></table></div>
-    <div class="panel-box" style="margin-top:14px"><div class="panelhead"><div><h3>Spend vs revenue</h3><p class="hint">Google Ads only — bars = spend (AUD), line = revenue (AUD). <b>Relative</b> indexes the line to its peak.</p></div><div class="ctrls"><span class="seg" id="googMonScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="googMonGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox"><canvas id="googleMonthlyChart"></canvas></div></div>
+    <div class="panel-box" style="margin-top:14px"><div class="panelhead"><div><h3>Spend vs revenue</h3><p class="hint">Google Ads only - bars = spend (AUD), line = revenue (AUD). <b>Relative</b> indexes the line to its peak.</p></div><div class="ctrls"><span class="seg" id="googMonScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="googMonGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox"><canvas id="googleMonthlyChart"></canvas></div></div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Per campaign</h3><p class="hint">Delivery + conversions/revenue by campaign.</p><div class="tablewrap"><table id="googleCamps"></table></div></div>
       <div class="panel-box"><h3>Spend by campaign type</h3><p class="hint">AUD.</p><div class="chartbox sm"><canvas id="googleTypeDonut"></canvas></div></div>
@@ -176,7 +176,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
     <div class="note">Trade Desk pixel fires are anonymous slots with no revenue attribution. Revenue / ROAS / AOV / CPA come from Google Ads only. TTD contributes delivery metrics (Impr., Clicks, Spend AUD).</div>
     <div class="grid cols-2">
       <div class="panel-box"><h3>Campaigns</h3><p class="hint">Programmatic display delivery (AUD).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
-      <div class="panel-box"><h3>Creative / ad format mix</h3><p class="hint">Delivery by creative × ad format (top by impressions). Whole flight — not date-scoped.</p><div class="tablewrap"><table id="ttdCreative"></table></div></div>
+      <div class="panel-box"><h3>Creative / ad format mix</h3><p class="hint">Delivery by creative × ad format (top by impressions). Whole flight - not date-scoped.</p><div class="tablewrap"><table id="ttdCreative"></table></div></div>
     </div>
   </section>
 

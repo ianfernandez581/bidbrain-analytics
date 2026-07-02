@@ -384,7 +384,7 @@
       <!-- MEDIA BUYER -->
       <section id="view-buyer" class="view">
         <div class="section panel">
-          <div class="table-tools"><div><h3>Performance vs Targets</h3><div class="hint">&Delta; vs the seeded media-plan targets (CPL / CTR / CPM / CPC). Green beats target &mdash; for cost metrics that means coming in under the planned rate.</div></div></div>
+          <div class="table-tools"><div><h3>Performance vs Targets</h3><div class="hint">&Delta; vs the seeded media-plan targets (CPL / CTR / CPM / CPC). Green beats target - for cost metrics that means coming in under the planned rate.</div></div></div>
           <div class="table-wrap"><table id="benchTable"><thead><tr>
             <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th>
             <th class="num">CTR</th><th class="num">vs tgt</th><th class="num">CPM</th><th class="num">vs tgt</th>
@@ -849,7 +849,7 @@ function renderActions(){
   if(fatigued.length)items.push({t:'Refresh fatigued ads',b:`${int(fatigued.length)} ad-weeks flagged for fatigue. Refresh creative before frequency erodes CTR further.`,m:`Highest frequency: ${Math.max(...fatigued.map(f=>n(f.frequency))).toFixed(1)}.`});
   if(ctrT&&a.ctr!=null&&a.ctr<ctrT)items.push({t:'Tighten attention quality',b:`CTR is ${pct(a.ctr)} vs a ${pct(ctrT)} target. Prioritise higher-intent audiences and creative.`,m:`CPC ${money(a.cpc,2)}, CPM ${money(a.cpm,2)}.`});
   const thin=byCampaign(scoped()).filter(x=>lowConfidence(x).low);
-  if(thin.length)items.push({t:'Treat thin-volume segments with caution',b:`${thin.map(c=>safeName(c.campaign)).join(', ')} ${thin.length>1?'have':'has'} low delivery — small-sample CPLs here can mislead. Let them gather more data before scaling or cutting.`,m:`Flagged under 15k impressions or fewer than 8 leads.`});
+  if(thin.length)items.push({t:'Treat thin-volume segments with caution',b:`${thin.map(c=>safeName(c.campaign)).join(', ')} ${thin.length>1?'have':'has'} low delivery - small-sample CPLs here can mislead. Let them gather more data before scaling or cutting.`,m:`Flagged under 15k impressions or fewer than 8 leads.`});
   $('actionList').innerHTML=items.slice(0,6).map(i=>`<div class="action"><div class="t">${i.t}</div><div class="b">${i.b}</div><div class="m">${i.m}</div></div>`).join('')||'<div class="muted-text">No optimisation signals yet.</div>';
 }
 function renderBubbleCharts(){
@@ -874,7 +874,7 @@ function readFor(r){
 function tableRows(rows,type){
   if(!rows.length){return `<tr><td colspan="${type==='ad'?11:10}" style="text-align:center;color:var(--muted);padding:28px">No rows match the current filters.</td></tr>`;}
   return rows.map(r=>{const[cls,read]=readFor(r);const lc=lowConfidence(r);
-    const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why} — treat its CPL as a weak signal.">&#9888; thin</span>`:'';
+    const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why} - treat its CPL as a weak signal.">&#9888; thin</span>`:'';
     const cells=type==='ad'?`<td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td>`:`<td class="name-cell">${safeName(r.campaign)}${warn}</td>`;
     return `<tr>${cells}<td><span class="chip"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage||'Other')}</span></td><td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td><td class="num">${int(r.lpv)}</td><td class="num">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">-</span>'}</td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="${cls}">${read}</td></tr>`;}).join('');
 }
@@ -959,7 +959,7 @@ function buildReportPayload(){
   const byS=byStage(all),byC=byCampaign(all).slice(0,12),ads=byAd(all).filter(x=>n(x.spend)>0).slice(0,10);
   const fat=fatigueOf(all).filter(x=>x.flag==='FATIGUED').slice(0,8);
   const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
-  return {client:'geocon',generated_for:'Geocon — Gateway Braddon',currency:meta().currency||'AUD',
+  return {client:'geocon',generated_for:'Geocon - Gateway Braddon',currency:meta().currency||'AUD',
     context:{campaign:'Gateway Braddon',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),lead_source_label:meta().lead_source_label||'Meta-reported'},
     overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)},
     targets:{cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace')},
@@ -977,7 +977,7 @@ async function downloadReport(){
   let payload;try{payload=buildReportPayload();}catch(e){if(lbl){lbl.textContent=orig;btn.disabled=false;}alert('Could not assemble the report data: '+e.message);return;}
   bbOpenReport();
   try{const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){try{d=(await res.text()).slice(0,200);}catch(__){}}throw new Error('HTTP '+res.status+(d?' — '+d:''));}
+    if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){try{d=(await res.text()).slice(0,200);}catch(__){}}throw new Error('HTTP '+res.status+(d?' - '+d:''));}
     const report=await res.json();_bbLastReport=report;_bbLastPayload=payload;renderReportDeck(report,payload);
   }catch(e){bbReportError(e.message||'Request failed.');}
   finally{if(lbl){lbl.textContent=orig;btn.disabled=false;}}
@@ -1008,7 +1008,7 @@ function renderReportDeck(report,payload){
 function bbLoadLogo(){return new Promise(res=>{fetch('/logo.png',{cache:'force-cache'}).then(r=>r.ok?r.blob():Promise.reject()).then(b=>{const fr=new FileReader();fr.onload=()=>res(fr.result);fr.onerror=()=>res(null);fr.readAsDataURL(b);}).catch(()=>res(null));});}
 async function bbDownloadSlides(){
   if(!_bbLastReport||!_bbLastPayload){alert('Generate the report first.');return;}
-  if(typeof PptxGenJS==='undefined'){alert('The slide library failed to load — please retry.');return;}
+  if(typeof PptxGenJS==='undefined'){alert('The slide library failed to load - please retry.');return;}
   const btn=$('bbDlBtn'),lbl=btn?btn.querySelector('span'):null,orig=lbl?lbl.textContent:'';if(lbl){lbl.textContent='Building…';btn.disabled=true;}
   try{if(_bbLogo===undefined)_bbLogo=await bbLoadLogo();await buildSlidesDeck(_bbLastReport,_bbLastPayload,_bbLogo);}
   catch(e){alert('Could not build the slides: '+(e&&e.message?e.message:e));}
@@ -1016,7 +1016,7 @@ async function bbDownloadSlides(){
 }
 async function buildSlidesDeck(report,payload,logo){
   const pres=new PptxGenJS();pres.defineLayout({name:'BB_WIDE',width:13.33,height:7.5});pres.layout='BB_WIDE';pres.author='BidBrain';pres.company='BidBrain';
-  const ctx=payload.context||{},win=ctx.window||{};pres.title='Geocon — Gateway Braddon';
+  const ctx=payload.context||{},win=ctx.window||{};pres.title='Geocon - Gateway Braddon';
   const FONT='Arial';
   const C={charcoal:'231A17',heritage:'6C291B',heritage2:'812F20',linen:'FFFEEC',clay:'BD9A8E',sand:'EFE3D4',paper:'FFF9EF',ink:'2B211D',mute:'786B63',line:'E5DDD3',white:'FFFFFF',good:'2D7354',bad:'A33A2D',warn:'B66A2D',muteDark:'A38C81',heritageTint:'F0E6E1'};
   const STATUS={ahead:{label:'Ahead of plan',hex:C.good},on_track:{label:'On track',hex:C.good},at_risk:{label:'At risk',hex:C.warn},behind:{label:'Behind plan',hex:C.bad},mixed:{label:'Mixed',hex:C.warn},neutral:{label:'Monitoring',hex:C.mute}};
@@ -1034,7 +1034,7 @@ async function buildSlidesDeck(report,payload,logo){
   const areaChip=(sl,x,y,key)=>{const label=AREA[key]||'—',w=0.18+0.066*label.length;sl.addShape(pres.ShapeType.roundRect,{x,y,w,h:0.22,rectRadius:0.05,fill:{color:C.heritageTint},line:{color:C.line,width:0.75}});sl.addText(label,{x,y,w,h:0.22,fontFace:FONT,fontSize:8,bold:true,color:C.heritage,charSpacing:1,align:'center',valign:'middle'});return w;};
   const card=(sl,o)=>{sl.addShape(pres.ShapeType.roundRect,{x:o.x,y:o.y,w:o.w,h:o.h,rectRadius:0.06,fill:{color:C.white},line:{color:C.line,width:1}});if(o.edge)sl.addShape(pres.ShapeType.rect,{x:o.x,y:o.y+0.04,w:0.05,h:o.h-0.08,fill:{color:o.edge}});};
   const noteCard=(sl,msg)=>{card(sl,{x:0.55,y:2.5,w:12.23,h:1.2});sl.addText(msg,{x:0.55,y:2.5,w:12.23,h:1.2,fontFace:FONT,fontSize:12,color:C.mute,align:'center',valign:'middle'});};
-  const lightChrome=(sl,kicker,h2)=>{sl.background={color:C.white};sl.addShape(pres.ShapeType.rect,{x:0,y:0,w:13.33,h:0.06,fill:{color:C.charcoal}});sl.addShape(pres.ShapeType.rect,{x:0,y:0,w:1.9,h:0.06,fill:{color:C.heritage}});sl.addText([{text:'BIDBRAIN',options:{fontSize:10,bold:true,color:C.charcoal,charSpacing:2}},{text:' ● ',options:{fontSize:9,color:C.heritage}},{text:' × GEOCON — GATEWAY BRADDON',options:{fontSize:10,bold:true,color:C.mute,charSpacing:1}}],{x:0.55,y:0.30,w:8.5,h:0.26,fontFace:FONT,align:'left',valign:'middle'});sl.addText(kicker,{x:9.5,y:0.30,w:3.28,h:0.26,fontFace:FONT,fontSize:9,bold:true,color:C.mute,charSpacing:1.5,align:'right',valign:'middle'});sl.addText(h2,{x:0.55,y:0.72,w:9.0,h:0.55,fontFace:FONT,fontSize:26,bold:true,color:C.charcoal,align:'left',valign:'middle'});sl.addShape(pres.ShapeType.line,{x:0.55,y:1.40,w:0.62,h:0,line:{color:C.heritage,width:1.75}});};
+  const lightChrome=(sl,kicker,h2)=>{sl.background={color:C.white};sl.addShape(pres.ShapeType.rect,{x:0,y:0,w:13.33,h:0.06,fill:{color:C.charcoal}});sl.addShape(pres.ShapeType.rect,{x:0,y:0,w:1.9,h:0.06,fill:{color:C.heritage}});sl.addText([{text:'BIDBRAIN',options:{fontSize:10,bold:true,color:C.charcoal,charSpacing:2}},{text:' ● ',options:{fontSize:9,color:C.heritage}},{text:' × GEOCON - GATEWAY BRADDON',options:{fontSize:10,bold:true,color:C.mute,charSpacing:1}}],{x:0.55,y:0.30,w:8.5,h:0.26,fontFace:FONT,align:'left',valign:'middle'});sl.addText(kicker,{x:9.5,y:0.30,w:3.28,h:0.26,fontFace:FONT,fontSize:9,bold:true,color:C.mute,charSpacing:1.5,align:'right',valign:'middle'});sl.addText(h2,{x:0.55,y:0.72,w:9.0,h:0.55,fontFace:FONT,fontSize:26,bold:true,color:C.charcoal,align:'left',valign:'middle'});sl.addShape(pres.ShapeType.line,{x:0.55,y:1.40,w:0.62,h:0,line:{color:C.heritage,width:1.75}});};
   const footer=(sl,page)=>{sl.addShape(pres.ShapeType.line,{x:0.55,y:7.0,w:12.23,h:0,line:{color:C.line,width:1}});sl.addText(`Prepared with BidBrain · Confidential   ·   Development: ${ctx.campaign||'—'}   ·   Flight: ${win.start||'—'} → ${win.end||'—'}   ·   Data through: ${dataThrough}   ·   Leads are ${ctx.lead_source_label||'Meta-reported'} enquiries`,{x:0.55,y:7.06,w:9.4,h:0.34,fontFace:FONT,fontSize:7,color:C.mute,align:'left',valign:'top',wrap:true});sl.addText(page,{x:10.0,y:7.06,w:2.78,h:0.34,fontFace:FONT,fontSize:7,color:C.mute,align:'right',valign:'top'});};
   // cover
   const cov=pres.addSlide();cov.addShape(pres.ShapeType.rect,{x:0,y:0,w:13.33,h:7.5,fill:{color:C.charcoal}});cov.addShape(pres.ShapeType.ellipse,{x:10.7,y:-1.3,w:4.2,h:4.2,fill:{color:C.heritage,transparency:62}});
@@ -1048,7 +1048,7 @@ async function buildSlidesDeck(report,payload,logo){
   [{lbl:'FLIGHT WINDOW',val:`${win.start||'—'} → ${win.end||'—'}`},{lbl:'DURATION',val:`${win.days!=null?win.days:'—'} days`},{lbl:'CHANNEL',val:'Meta (FB + IG)'}].forEach((c,i)=>{const x=0.85+i*3.75;cov.addShape(pres.ShapeType.roundRect,{x,y:4.55,w:3.55,h:0.95,rectRadius:0.06,fill:{color:C.heritage2},line:{color:C.heritage,width:0.75}});if(i===0)cov.addShape(pres.ShapeType.rect,{x,y:4.59,w:0.05,h:0.87,fill:{color:C.clay}});cov.addText(c.lbl,{x:x+0.16,y:4.66,w:3.2,h:0.2,fontFace:FONT,fontSize:8,bold:true,color:C.clay,charSpacing:1.5,align:'left',valign:'top'});cov.addText(c.val,{x:x+0.16,y:4.92,w:3.24,h:0.5,fontFace:FONT,fontSize:15,bold:true,color:C.linen,align:'left',valign:'top',fit:'shrink',wrap:false});});
   cov.addText(`Generated ${fmtD(ctx.generated_at)} · Data through ${dataThrough} UTC`,{x:0.85,y:5.78,w:8,h:0.3,fontFace:FONT,fontSize:9,color:C.muteDark,align:'left',valign:'middle'});
   cov.addShape(pres.ShapeType.line,{x:0.85,y:6.7,w:11.63,h:0,line:{color:C.heritage2,width:0.75}});cov.addText('Prepared with BidBrain · Confidential',{x:0.85,y:6.85,w:6,h:0.3,fontFace:FONT,fontSize:9,bold:true,color:C.linen,align:'left',valign:'top'});
-  cov.addText(`Figures pulled live from source data. Analysis & recommendations generated by ${model} with live web research — review before circulation.`,{x:7.0,y:6.82,w:5.48,h:0.5,fontFace:FONT,fontSize:7,color:C.muteDark,align:'right',valign:'top',wrap:true});
+  cov.addText(`Figures pulled live from source data. Analysis & recommendations generated by ${model} with live web research - review before circulation.`,{x:7.0,y:6.82,w:5.48,h:0.5,fontFace:FONT,fontSize:7,color:C.muteDark,align:'right',valign:'top',wrap:true});
   // slide 2
   const s2=pres.addSlide();lightChrome(s2,'01 · WHAT HAPPENED','What happened?');footer(s2,'What happened · 2 / 4');
   {const st=STATUS[R.overall_status]||STATUS.neutral;s2.addShape(pres.ShapeType.roundRect,{x:9.55,y:0.80,w:3.23,h:0.34,rectRadius:0.13,fill:{color:C.white},line:{color:st.hex,width:1}});s2.addShape(pres.ShapeType.ellipse,{x:9.73,y:0.915,w:0.11,h:0.11,fill:{color:st.hex}});s2.addText(st.label,{x:9.95,y:0.80,w:2.7,h:0.34,fontFace:FONT,fontSize:10,bold:true,color:st.hex,align:'left',valign:'middle'});}

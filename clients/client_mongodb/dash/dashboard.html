@@ -3,10 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>MongoDB APAC — Live Dashboard</title>
+<title>MongoDB APAC - Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
-<!-- PptxGenJS (pinned, bundled w/ JSZip) — powers the "Download slides" Google-Slides deck export. -->
+<!-- PptxGenJS (pinned, bundled w/ JSZip) + the shared bb_deck.js builder — power the portal-driven
+     "Download slides" Google-Slides deck export (headless via ?bbslides=1; see bb_deck.js). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
 <style>
   :root{
     color-scheme: light;
@@ -229,130 +231,9 @@
   @media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.cs-snap{grid-template-columns:1fr;gap:18px}.compare-grid{grid-template-columns:1fr}}
 
-  /* ============ AI REPORT — on-screen preview overlay (Download slides → Download Google Slides) ============ */
-  #bbReport{display:none;position:fixed;inset:0;z-index:9999;background:#0A141C;overflow:auto;
-            font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif}
-  #bbReport.show{display:block}
-  .bb-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;
-          gap:16px;padding:12px 22px;background:var(--mdb-slate);color:#fff;
-          box-shadow:0 2px 14px rgba(0,0,0,.35)}
-  .bb-bar .bb-brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:1.6px;font-size:12px}
-  .bb-bar .bb-brand .dot{width:6px;height:6px;border-radius:50%;background:var(--mdb-spring)}
-  .bb-bar .bb-brand .sep{opacity:.4;font-weight:400;margin:0 2px}
-  .bb-bar .bb-brand .sub{color:var(--mdb-mint);letter-spacing:1px}
-  .bb-bar .bb-actions{display:flex;gap:9px}
-  .bb-btn{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;cursor:pointer;
-          padding:8px 14px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:transparent;color:#fff}
-  .bb-btn:hover{border-color:var(--mdb-spring)}
-  .bb-btn.primary{background:var(--mdb-spring);color:var(--mdb-slate);border-color:var(--mdb-spring)}
-  .bb-btn.primary:hover{background:#00d459}
-  .bb-deck{max-width:1040px;margin:0 auto;padding:26px 20px 60px;display:flex;flex-direction:column;gap:22px}
-
-  /* loading / error states inside the overlay */
-  .bb-load{min-height:78vh;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;gap:8px}
-  .bb-load .ring{width:46px;height:46px;border:3px solid rgba(255,255,255,.18);border-top-color:var(--mdb-spring);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px}
-  .bb-load h3{margin:0;font-size:18px;font-weight:700}
-  .bb-load p{margin:0;font-size:13px;color:rgba(255,255,255,.6);max-width:440px}
-  .bb-load .step{font-size:12px;color:var(--mdb-mint);margin-top:6px;min-height:16px}
-
-  /* a slide = one printed page */
-  .bb-slide{background:#fff;color:var(--mdb-ink);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.4);
-            padding:34px 38px;position:relative;display:flex;flex-direction:column}
-  .bb-slide .bb-head{display:flex;align-items:center;justify-content:space-between;gap:14px;
-                     border-bottom:1px solid var(--mdb-line);padding-bottom:12px;margin-bottom:18px}
-  .bb-slide .bb-brandline{display:flex;align-items:center;gap:8px;font-size:10.5px;font-weight:800;letter-spacing:1.5px;color:var(--mdb-slate)}
-  .bb-slide .bb-brandline .dot{width:5px;height:5px;border-radius:50%;background:var(--mdb-green)}
-  .bb-slide .bb-brandline .sub{color:var(--mdb-mute);font-weight:700}
-  .bb-slide .bb-sidx{font-size:10.5px;font-weight:700;letter-spacing:1px;color:var(--mdb-mute);text-transform:uppercase}
-  .bb-slide h2{margin:0 0 4px;font-size:23px;font-weight:800;color:var(--mdb-slate);letter-spacing:-.2px}
-  .bb-slide .bb-lede{margin:0 0 16px;font-size:13.5px;line-height:1.55;color:#33404C}
-  .bb-headline{font-size:14px;line-height:1.5;color:var(--mdb-green);font-weight:700;margin:0 0 14px}
-
-  /* slide 1 — KPI highlights */
-  /* header status row + overall read */
-  .bb-statusrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 12px}
-  .bb-camptype{font-size:11px;font-weight:700;color:var(--mdb-mute);letter-spacing:.3px}
-  .bb-modeltag{font-size:10px;color:var(--mdb-mute);margin-left:auto}
-  .bb-confnote{font-size:11.5px;font-style:italic;color:var(--mdb-mute);margin:0 0 12px;line-height:1.45}
-
-  /* slide 1 — KPI cards (engine chip + status pill + label / value / detail) */
-  .bb-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-  .bb-kpi{border:1px solid var(--mdb-line);border-radius:10px;padding:12px 14px;background:#FAFCFB;display:flex;flex-direction:column;gap:3px}
-  .bb-kpi .kpi-top{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-bottom:2px}
-  .bb-kpi .kl{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--mdb-mute);font-weight:700}
-  .bb-kpi .kv{font-size:20px;font-weight:800;color:var(--mdb-slate);font-variant-numeric:tabular-nums;line-height:1.1}
-  .bb-kpi .kd{font-size:11px;color:#52606B;line-height:1.4}
-
-  /* pills / chips / tags — always pair colour WITH a word so the deck reads in black & white */
-  .bb-pill{display:inline-flex;align-items:center;gap:5px;font-size:9.5px;font-weight:800;letter-spacing:.4px;
-           text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap}
-  .bb-pill .d{width:5px;height:5px;border-radius:50%;background:currentColor}
-  .st-ahead{background:#E6F4EA;color:#1E7E34}.st-on_track{background:#FBF1DE;color:#B97400}
-  .st-behind,.st-at_risk{background:#FBEAE8;color:#C8362A}.st-mixed{background:#FBF1DE;color:#B97400}
-  .st-neutral{background:#F1F3F5;color:var(--mdb-mute)}
-  .pri-high{background:var(--mdb-slate);color:#fff}.pri-medium{background:#FBF1DE;color:#B97400}.pri-low{background:#F1F3F5;color:var(--mdb-mute)}
-  .bb-chip{display:inline-flex;align-items:center;font-size:9px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;
-           padding:2px 7px;border-radius:5px;white-space:nowrap;background:#EAF1ED;color:var(--mdb-green);border:1px solid var(--mdb-line)}
-  .bb-chip.eng-paid_display{color:#2257B5;background:#EAF1FB}
-  .bb-chip.eng-budget,.bb-chip.eng-measurement,.bb-chip.eng-overall{color:var(--mdb-mute);background:#F1F3F5}
-  .bb-tag{font-size:9.5px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;padding:2px 7px;border-radius:999px;white-space:nowrap}
-  .conf-high{background:#E6F4EA;color:#1E7E34}.conf-medium{background:#FBF1DE;color:#B97400}.conf-low{background:#F1F3F5;color:var(--mdb-mute)}
-  .bb-eff{font-size:10px;font-weight:700;color:var(--mdb-mute)}
-
-  /* slide 2 — drivers */
-  .bb-drivers{display:flex;flex-direction:column;gap:11px}
-  .bb-driver{border:1px solid var(--mdb-line);border-left:3px solid var(--mdb-green);border-radius:9px;padding:12px 15px;background:#fff}
-  .bb-driver .t{display:flex;align-items:center;gap:8px;font-size:13.5px;color:var(--mdb-slate);margin-bottom:4px}
-  .bb-driver .t .rank{flex:0 0 auto;width:20px;height:20px;border-radius:50%;background:var(--mdb-spring);color:var(--mdb-slate);
-                      font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center}
-  .bb-driver .t .dt{font-weight:700}
-  .bb-driver .t .bb-dir{color:var(--mdb-mute);font-size:11px}
-  .bb-driver .t .spacer{flex:1}
-  .bb-driver .x{font-size:12.5px;line-height:1.5;color:#33404C;margin:0 0 6px}
-  .bb-driver .x .cite{font-size:9px;color:var(--mdb-green);font-weight:700;vertical-align:super}
-  .bb-driver .ev{font-size:11.5px;line-height:1.45;color:#3a4751;background:#F2F7F4;border-radius:6px;padding:6px 9px}
-  .bb-driver .ev b{color:var(--mdb-green);font-weight:700}
-
-  /* slide 3 — actions */
-  .bb-actionlist{display:flex;flex-direction:column;gap:11px}
-  .bb-action{display:flex;gap:13px;border:1px solid var(--mdb-line);border-radius:9px;padding:12px 15px}
-  .bb-action .num{flex:0 0 auto;width:24px;height:24px;border-radius:50%;background:var(--mdb-slate);color:#fff;
-                  font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center}
-  .bb-action .body{flex:1;min-width:0}
-  .bb-action .t{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:3px}
-  .bb-action .t .at{font-size:13.5px;font-weight:700;color:var(--mdb-slate)}
-  .bb-action .r{font-size:12.5px;line-height:1.5;color:#33404C;margin:0}
-
-  /* sources + footer */
-  .bb-sources{margin-top:16px;border-top:1px solid var(--mdb-line);padding-top:10px}
-  .bb-sources .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--mdb-mute);font-weight:700;margin-bottom:5px}
-  .bb-sources ol{margin:0;padding-left:18px}
-  .bb-sources li{font-size:10.5px;line-height:1.5;color:#52606B;margin-bottom:2px}
-  .bb-sources a{color:var(--mdb-green);word-break:break-all}
-  .bb-foot{margin-top:auto;padding-top:14px;font-size:9.5px;color:var(--mdb-mute);line-height:1.5;border-top:1px solid var(--mdb-line)}
-  .bb-foot .meta-top{display:flex;flex-wrap:wrap;gap:4px 12px;margin-bottom:3px}
-  .bb-foot .pglabel{font-weight:700;color:var(--mdb-slate)}
-  .bb-foot b{color:var(--mdb-ink)}
-  .bb-disc{font-style:italic}
 </style>
 </head>
 <body>
-
-<!-- AI report overlay (Download slides → AI builds the analysis → on-screen preview of the 3 analytical
-     slides + a "Download Google Slides" button that builds a 4-slide .pptx client-side via PptxGenJS). -->
-<div id="bbReport" role="dialog" aria-modal="true" aria-label="Account report">
-  <div class="bb-bar">
-    <div class="bb-brand">TRANSMISSION<span class="dot"></span><span class="sep">/</span><span class="sub">MONGODB APAC</span></div>
-    <div class="bb-actions">
-      <button class="bb-btn primary" id="bbDlBtn" onclick="bbDownloadSlides()" style="display:none">
-        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        <span>Download Google Slides</span>
-      </button>
-      <button class="bb-btn" onclick="bbCloseReport()">Close</button>
-    </div>
-  </div>
-  <div id="bbReportBody"></div>
-</div>
 
 <div class="topbar">
   <div class="topbar-left">
@@ -398,18 +279,15 @@
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <div class="exports">
-            <button class="export-btn primary" id="reportBtn" onclick="downloadReport()"
-                    title="Generate a branded Google Slides deck (Cover · What happened · Why · What to do) for this campaign over its full flight — analysed live by AI with web research, then downloaded as an editable .pptx you open in Google Slides">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-              <span>Download slides</span>
-            </button>
+            <!-- "Download slides" moved to the agency portal (dashboards.bidbrain.ai) — the deck is
+                 generated headlessly via ?bbslides=1 and built by bb_deck.js. No toolbar button here. -->
             <button class="export-btn" id="exportTabBtn" onclick="exportThisTab()"
-                    title="Download the source rows behind this tab (honors the campaign &amp; region filters) as CSV — so the figures can be re-summed and verified">
+                    title="Download the source rows behind this tab (honors the campaign &amp; region filters) as CSV - so the figures can be re-summed and verified">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Export this tab</span>
             </button>
             <button class="export-btn" id="exportAllBtn" onclick="exportAllData()"
-                    title="Download the complete dataset — every campaign, region and table (paid delivery, CS leads, targets, benchmarks) — as one CSV">
+                    title="Download the complete dataset - every campaign, region and table (paid delivery, CS leads, targets, benchmarks) - as one CSV">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               <span>Export all data</span>
             </button>
@@ -460,7 +338,7 @@
     <!-- ============ PAID MEDIA TAB ============ -->
     <div id="tab-paid" class="tabpane">
       <div class="section first">
-        <h2>Paid Media — Delivery</h2>
+        <h2>Paid Media - Delivery</h2>
         <span class="sub">Live Trade Desk &amp; social delivery for the selected campaign: spend, impressions, clicks, CTR. Reflects the selected region(s).</span>
       </div>
 
@@ -475,7 +353,7 @@
 
       <div class="section">
         <h2 style="font-size:15px">Strategy performance vs media plan benchmarks</h2>
-        <span class="sub">Δ vs the MongoDB media-plan benchmarks (CPM, CTR &amp; CPC). Green beats plan — for CPC and CPM that means coming in under the planned rate.</span>
+        <span class="sub">Δ vs the MongoDB media-plan benchmarks (CPM, CTR &amp; CPC). Green beats plan - for CPC and CPM that means coming in under the planned rate.</span>
       </div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="stratTable">
@@ -501,7 +379,7 @@
       </div>
       <div class="grid-2-1">
         <div class="card card-tall">
-          <h3>Daily — impressions, clicks, CTR</h3>
+          <h3>Daily - impressions, clicks, CTR</h3>
           <div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes.</div>
           <div class="chart-wrap"><canvas id="pmDaily"></canvas></div>
         </div>
@@ -514,7 +392,7 @@
 
       <div class="grid">
         <div class="card card-tall">
-          <h3>Daily spend — stacked by strategy</h3>
+          <h3>Daily spend - stacked by strategy</h3>
           <div class="hint">Per-day spend split across strategies.</div>
           <div class="chart-wrap"><canvas id="pmDailyStack"></canvas></div>
         </div>
@@ -526,7 +404,7 @@
       </div>
 
       <div class="section">
-        <h2 style="font-size:15px">Daily efficiency — CTR · Clicks · CPC by strategy</h2>
+        <h2 style="font-size:15px">Daily efficiency - CTR · Clicks · CPC by strategy</h2>
         <span class="sub">Same date axis. Hover for daily values.</span>
       </div>
       <div class="grid-3">
@@ -541,12 +419,12 @@
       </div>
       <div class="grid">
         <div class="card card-tall">
-          <h3>Market spend — stacked by strategy</h3>
+          <h3>Market spend - stacked by strategy</h3>
           <div class="chart-wrap"><canvas id="pmMarketStack"></canvas></div>
         </div>
         <div class="card card-tall">
           <h3>Market summary table</h3>
-          <div class="hint" style="margin-bottom:6px">Live values — refresh on campaign / region change.</div>
+          <div class="hint" style="margin-bottom:6px">Live values - refresh on campaign / region change.</div>
           <div style="overflow:auto;flex:1">
             <table id="pmMarketTable">
               <thead><tr><th>Market</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead>
@@ -559,7 +437,7 @@
       <!-- ============ CONTENT ENGAGEMENT — Trade Desk Universal Pixel snapshot ============ -->
       <div id="pxWrap" style="display:none">
         <div class="section">
-          <h2 style="font-size:15px">Content engagement — Trade Desk Universal Pixel
+          <h2 style="font-size:15px">Content engagement - Trade Desk Universal Pixel
             <span id="pxWindow" style="display:inline-block;font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 9px;border-radius:999px;background:var(--mdb-mint);color:var(--mdb-forest);vertical-align:middle;margin-left:8px">snapshot</span>
           </h2>
           <span class="sub" id="pxSub">Which content landing pages the display ads sent people to. <b>Driven by the campaign toggle above; independent of the region &amp; date filters.</b></span>
@@ -572,11 +450,11 @@
           <div class="kpi"><span class="stripe"></span><div class="label">Ad-influenced site visits</div><div class="value" id="px_visits">—</div><div class="delta" id="px_visits_sub">—</div></div>
         </div>
 
-        <div id="pxNote" class="info-note">The large “site visits” figure is the catch-all Universal Pixel’s <b>view-through</b> attribution — someone saw an ad, then later reached mongodb.com without clicking. It's a reach / influence signal, <b>not</b> hard leads. The chart below shows only the named <b>content</b> landing pages.</div>
+        <div id="pxNote" class="info-note">The large “site visits” figure is the catch-all Universal Pixel’s <b>view-through</b> attribution - someone saw an ad, then later reached mongodb.com without clicking. It's a reach / influence signal, <b>not</b> hard leads. The chart below shows only the named <b>content</b> landing pages.</div>
 
         <div class="card card-tall">
           <h3>Content landing-page views by asset</h3>
-          <div class="hint">Named Universal Pixel events — clicked vs view-through, for the selected campaign. Under DNB, Gartner MQ Leader is the runaway hero (~30× any other asset).</div>
+          <div class="hint">Named Universal Pixel events - clicked vs view-through, for the selected campaign. Under DNB, Gartner MQ Leader is the runaway hero (~30× any other asset).</div>
           <div class="chart-wrap"><canvas id="pxAssets"></canvas></div>
         </div>
       </div>
@@ -1960,18 +1838,12 @@ function exportAllData(){
 }
 
 //==============================================================================
-// AI REPORT  (Download slides -> POST /report -> preview the 3 analytical slides -> Download Google Slides .pptx)
-// Slide 1's KPI grid is rendered from the LIVE numbers below (never the model), so the
-// figures are always exact; the model writes the narrative + the "why" + the actions.
+// AI REPORT PAYLOAD  (agency portal "Download slides" → hidden iframe ?bbslides=1 → POST /report →
+// bb_deck.js builds the branded .pptx). Slide 1's KPI figures come VERBATIM from the LIVE numbers
+// this file POSTs (never the model), so the deck and the dashboard can never disagree.
 //==============================================================================
-const bbEsc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c =>
-  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const bbSafeUrl = u => { const s = String(u || ''); return /^https?:\/\//i.test(s) ? s : null; };
 const r2 = v => v == null || isNaN(v) ? null : Math.round(v * 100) / 100;
 const r6 = v => v == null || isNaN(v) ? null : Math.round(v * 1e6) / 1e6;
-let _bbStepTimer = null;
-let _bbLastReport = null, _bbLastPayload = null;   // stashed so the Download-slides button can rebuild
-let _bbLogo;                                       // cached rasterized MongoDB logo PNG (undefined=not tried, null=failed)
 
 // Assemble everything the report needs for the CURRENT campaign + region + date selection.
 // Mirrors the on-screen aggregations (pmCampRows / sumRows / csPacing / strategy table) so the
@@ -2061,68 +1933,18 @@ function buildDeckPayload(){
   finally { dateStartSel = _s; dateEndSel = _e; }
 }
 
-const BB_STEPS = ['Reading the campaign numbers…','Researching live market context on the web…',
-  'Writing the analysis…','Formatting your slides…'];
-function bbOpenReport(){
-  const ov = el('bbReport');
-  el('bbDlBtn').style.display = 'none';
-  el('bbReportBody').innerHTML =
-    `<div class="bb-load"><div class="ring"></div><h3>Building your report…</h3>` +
-    `<p>Analysing this campaign's numbers and researching current market context. This usually takes 20–40 seconds.</p>` +
-    `<div class="step" id="bbStep">${bbEsc(BB_STEPS[0])}</div></div>`;
-  ov.classList.add('show');
-  document.body.style.overflow = 'hidden';
-  let i = 0;
-  clearInterval(_bbStepTimer);
-  _bbStepTimer = setInterval(() => { i = Math.min(i + 1, BB_STEPS.length - 1);
-    const s = el('bbStep'); if (s) s.textContent = BB_STEPS[i]; }, 9000);
-}
-function bbReportError(msg){
-  clearInterval(_bbStepTimer);
-  el('bbReportBody').innerHTML =
-    `<div class="bb-load"><h3>Couldn't generate the report</h3>` +
-    `<p>${bbEsc(msg)}</p><p style="margin-top:10px"><button class="bb-btn" onclick="bbCloseReport()">Close</button></p></div>`;
-}
-function bbCloseReport(){
-  clearInterval(_bbStepTimer);
-  el('bbReport').classList.remove('show');
-  document.body.style.overflow = '';
-}
-// ── Google Slides export ───────────────────────────────────────────────────────
-// Build a 4-slide .pptx (Cover · What happened · Why · What to do) ENTIRELY in the browser with
-// PptxGenJS and download it; Google Slides opens it natively (drag into Drive → editable Google Slides).
-// Renders the SAME structured `report` the on-screen preview shows (KPI numbers verbatim from the live
-// dashboard) plus `payload.context` for the cover/footers. Verified against the PptxGenJS 4.0.1 API:
-// color = hex WITHOUT '#', fill = {color}, autofit key = fit:'shrink' (belt only — the JS clamps are the
-// real overflow guard), addImage data drops the 'data:' prefix, borderless shapes OMIT `line`, download
-// via writeFile({fileName}). Arial throughout (the only Google-Slides-safe face; brand font won't survive
-// import — the MongoDB wordmark rides in as a rasterized PNG instead).
-async function bbDownloadSlides(){
-  if (!_bbLastReport || !_bbLastPayload){ alert('Generate the report first, then download.'); return; }
-  if (typeof PptxGenJS === 'undefined'){ alert('The slide library failed to load (check your connection) — please try again.'); return; }
-  const btn = el('bbDlBtn'), lbl = btn ? btn.querySelector('span') : null, orig = lbl ? lbl.textContent : '';
-  if (lbl){ lbl.textContent = 'Building…'; btn.disabled = true; }
-  try {
-    if (_bbLogo === undefined) _bbLogo = await bbRasterizeLogo();   // rasterize once; null if it fails (cover falls back to text)
-    await buildSlidesDeck(_bbLastReport, _bbLastPayload, _bbLogo);
-  } catch(e){
-    alert('Could not build the slides: ' + (e && e.message ? e.message : e));
-  } finally {
-    if (lbl){ lbl.textContent = orig; btn.disabled = false; }
-  }
-}
-
-// Rasterize the live MongoDB logo SVG (dark navy in the DOM) to a WHITE, high-res PNG data URI for the
-// dark cover: clone → recolor fills white → serialize → draw on a canvas → toDataURL. Same-origin data
-// URI (no external refs), so the canvas is never tainted. Resolves null on any failure (deck → text fallback).
-function bbRasterizeLogo(){
+// ── deck build (headless, portal-driven) ──
+// Rasterize the DOM logo SVG to a PNG data-URI for the deck. mode 'white' recolours fills white (for the
+// dark cover); 'native' keeps the brand colour (for the light content-slide corner mark). Same-origin
+// data URI (no external refs), so the canvas is never tainted. Resolves null on any failure (deck → text).
+function bbRasterizeLogo(selector, mode){
   return new Promise(resolve => {
     try {
-      const src = document.querySelector('.mdb-logo');
+      const src = document.querySelector(selector);
       if (!src){ resolve(null); return; }
       const svg = src.cloneNode(true);
       svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      svg.querySelectorAll('[fill]').forEach(p => { if ((p.getAttribute('fill')||'').toLowerCase() !== 'none') p.setAttribute('fill', '#FFFFFF'); });
+      if (mode === 'white') svg.querySelectorAll('[fill]').forEach(p => { if ((p.getAttribute('fill')||'').toLowerCase() !== 'none') p.setAttribute('fill', '#FFFFFF'); });
       const vb = (src.getAttribute('viewBox') || '0 0 1102 278').split(/\s+/).map(Number);
       const vbw = vb[2] || 1102, vbh = vb[3] || 278, scale = 1600 / vbw;
       const W = Math.round(vbw*scale), H = Math.round(vbh*scale);
@@ -2140,6 +1962,10 @@ function bbRasterizeLogo(){
       img.src = url;
     } catch(e){ resolve(null); }
   });
+}
+// The MongoDB wordmark SVG (.mdb-logo, dark navy in the DOM): white for the dark cover, native for light slides.
+async function bbDeckLogos(){
+  return { white: await bbRasterizeLogo('.mdb-logo', 'white'), dark: await bbRasterizeLogo('.mdb-logo', 'native') };
 }
 
 async function buildSlidesDeck(report, payload, logo){

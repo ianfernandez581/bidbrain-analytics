@@ -288,10 +288,10 @@
     <div class="titlerow">
       <div>
         <div class="eyebrow">Marketing Performance · All Sales</div>
-        <h1 class="dash-title">City Perfume — Ads to All Sales</h1>
+        <h1 class="dash-title">City Perfume - Ads to All Sales</h1>
       </div>
       <div class="title-aside">
-        <div class="tagline">All sales — in-store + website + marketplaces</div>
+        <div class="tagline">All sales: in-store + website + marketplaces</div>
         <div id="topPeriod2">&nbsp;</div>
       </div>
     </div>
@@ -394,7 +394,7 @@
       <div class="kpis six" id="ovKpis"></div>
       <div class="ai-note" id="ovCommentary"></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>Ad spend by platform vs sales revenue — monthly</h3>
+        <div class="card card-tall"><h3>Ad spend by platform vs sales revenue - monthly</h3>
           <div class="hint">Stacked bars = ad spend by platform; line = first-party sales revenue (all channels). Spend reflects the Platform/Campaign filters.</div>
           <div class="chart-wrap"><canvas id="ovHero"></canvas></div></div>
         <div class="card card-tall"><h3>Revenue by channel</h3>
@@ -403,7 +403,7 @@
       </div>
       <div class="grid">
         <div class="card card-tall"><h3>Marketing efficiency (all sales ÷ ad spend)</h3>
-          <div class="hint">Blended MER across every channel — credits the omnichannel halo onto in-store. A stricter incremental online margin-ROAS is shown below.</div>
+          <div class="hint">Blended MER across every channel - credits the omnichannel halo onto in-store. A stricter incremental online margin-ROAS is shown below.</div>
           <div id="ovRoasCallout"></div></div>
         <div class="card card-tall"><h3>Ad spend share by platform</h3>
           <div class="hint">Reflects the Platform/Campaign filters.</div>
@@ -414,16 +414,16 @@
 
     <!-- ============ PAID MEDIA ============ -->
     <div id="tab-paid" class="tabpane">
-      <div class="section first"><h2>Paid media delivery</h2><span class="sub">Spend &amp; delivery scoped to the Platform &amp; Campaign filters. Platform-claimed conversions/revenue are each platform's own attribution — shown for context.</span></div>
+      <div class="section first"><h2>Paid media delivery</h2><span class="sub">Spend &amp; delivery scoped to the Platform &amp; Campaign filters. Platform-claimed conversions/revenue are each platform's own attribution - shown for context.</span></div>
       <div class="kpis" id="pmKpis"></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>Ad spend &amp; what it drives — monthly</h3>
-          <div class="hint">Stacked bars = ad spend by platform. Each line is an outcome on its <em>own</em> 0→max axis, so you compare shape not absolute level — click a legend item to show/hide it. Spend, impressions, clicks &amp; attributed revenue follow the Platform/Campaign filters; web traffic &amp; total revenue are whole-site.</div>
+        <div class="card card-tall"><h3>Ad spend &amp; what it drives - monthly</h3>
+          <div class="hint">Stacked bars = ad spend by platform. Each line is an outcome on its <em>own</em> 0→max axis, so you compare shape not absolute level - click a legend item to show/hide it. Spend, impressions, clicks &amp; attributed revenue follow the Platform/Campaign filters; web traffic &amp; total revenue are whole-site.</div>
           <div class="chart-wrap"><canvas id="pmMonthly"></canvas></div></div>
         <div class="card card-tall"><h3>Spend share</h3><div class="hint">By platform.</div>
           <div class="chart-wrap"><canvas id="pmSpendDonut"></canvas></div></div>
       </div>
-      <div class="section"><h2>Platform comparison</h2><span class="sub">Spend, delivery &amp; each platform's self-reported ("claimed") conversions/ROAS. Trade Desk is an upper-funnel display pilot — view-through conversions only, no revenue.</span></div>
+      <div class="section"><h2>Platform comparison</h2><span class="sub">Spend, delivery &amp; each platform's self-reported ("claimed") conversions/ROAS. Trade Desk is an upper-funnel display pilot - view-through conversions only, no revenue.</span></div>
       <div class="card"><div class="tbl-scroll"><table id="pmCompare"></table></div></div>
       <div class="grid">
         <div class="card card-tall"><h3>Google Ads by campaign type</h3><div class="hint">Spend (bars) and Google-claimed ROAS (line). Whole-Google (not campaign-filtered).</div>
@@ -439,7 +439,7 @@
 
     <!-- ============ WEBSITE & GA4 ============ -->
     <div id="tab-web" class="tabpane">
-      <div class="section first"><h2>Website &amp; GA4</h2><span class="sub">Session behaviour and on-site ecommerce funnel from GA4. GA4 is last-click context only — first-party sales (Sales tab) remain the revenue source of truth.</span></div>
+      <div class="section first"><h2>Website &amp; GA4</h2><span class="sub">Session behaviour and on-site ecommerce funnel from GA4. GA4 is last-click context only - first-party sales (Sales tab) remain the revenue source of truth.</span></div>
       <div class="info-note warn" id="webNote"></div>
       <div class="kpis six" id="webKpis"></div>
       <div class="grid-2-1">
@@ -451,7 +451,7 @@
       <div class="section"><h2>On-site conversion funnel</h2><span class="sub">Site-wide (GA4 event counts; no channel split). Note express/returning-cart checkouts can make purchases exceed begin-checkout.</span></div>
       <div class="funnel" id="webFunnel"></div>
       <div class="grid">
-        <div class="card card-tall"><h3>Sessions by channel bucket — monthly</h3><div class="hint">Stacked; the post-Oct-2025 drop reflects the GA4 tracking break.</div>
+        <div class="card card-tall"><h3>Sessions by channel bucket - monthly</h3><div class="hint">Stacked; the post-Oct-2025 drop reflects the GA4 tracking break.</div>
           <div class="chart-wrap"><canvas id="webMonthly"></canvas></div></div>
         <div class="card card-tall"><h3>Top source / mediums</h3><div class="hint">By sessions; paid sources flagged.</div>
           <div class="chart-wrap" style="overflow:auto;height:300px"><table id="webSources"></table></div></div>
@@ -460,19 +460,19 @@
 
     <!-- ============ SALES & PRODUCTS ============ -->
     <div id="tab-sales" class="tabpane">
-      <div class="section first"><h2>Sales &amp; products</h2><span class="sub">First-party order ledger (v_sales) — the source of truth for revenue, margin, orders &amp; customers. All sales (in-store + website + marketplaces; no campaign dimension). Margin is net as-reported.</span></div>
+      <div class="section first"><h2>Sales &amp; products</h2><span class="sub">First-party order ledger (v_sales) - the source of truth for revenue, margin, orders &amp; customers. All sales (in-store + website + marketplaces; no campaign dimension). Margin is net as-reported.</span></div>
       <div class="kpis" id="salesKpis"></div>
-      <div class="section"><h2>New vs returning customers</h2><span class="sub">A customer's first-ever order is "new"; any later order is "returning". Identity keyed on customer_id (kept in BigQuery — never exported).</span></div>
+      <div class="section"><h2>New vs returning customers</h2><span class="sub">A customer's first-ever order is "new"; any later order is "returning". Identity keyed on customer_id (kept in BigQuery, never exported).</span></div>
       <div class="kpis five" id="salesNRCards"></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>New vs returning revenue — monthly</h3><div class="hint">Stacked revenue; line = returning-revenue share.</div>
+        <div class="card card-tall"><h3>New vs returning revenue - monthly</h3><div class="hint">Stacked revenue; line = returning-revenue share.</div>
           <div class="chart-wrap"><canvas id="salesNRTrend"></canvas></div></div>
         <div class="card card-tall"><h3>Revenue split</h3><div class="hint">New vs returning, window total.</div>
           <div class="chart-wrap"><canvas id="salesNRDonut"></canvas></div></div>
       </div>
       <div class="section"><h2>Revenue, margin &amp; mix</h2></div>
       <div class="grid-2-1">
-        <div class="card card-tall"><h3>Revenue, margin &amp; AOV — monthly</h3><div class="hint">Bars = revenue &amp; margin; line = AOV.</div>
+        <div class="card card-tall"><h3>Revenue, margin &amp; AOV - monthly</h3><div class="hint">Bars = revenue &amp; margin; line = AOV.</div>
           <div class="chart-wrap"><canvas id="salesTrend"></canvas></div></div>
         <div class="card card-tall"><h3>Revenue by channel</h3><div class="hint">Channel group split.</div>
           <div class="chart-wrap"><canvas id="salesChannelDonut"></canvas></div></div>
@@ -501,9 +501,9 @@
         <div class="hint">Bars = ad spend (filtered); line = first-party sales revenue (all channels).</div>
         <div class="chart-wrap"><canvas id="linkWeekly"></canvas></div></div>
       <div class="grid">
-        <div class="card card-tall"><h3>Spend vs revenue — weekly correlation</h3><div class="hint" id="linkScatterHint"></div>
+        <div class="card card-tall"><h3>Spend vs revenue - weekly correlation</h3><div class="hint" id="linkScatterHint"></div>
           <div class="chart-wrap"><canvas id="linkScatter"></canvas></div></div>
-        <div class="card card-tall"><h3>Profit advertising adds — online incremental (stricter lens)</h3><div class="hint">Online sales only: base online margin + ad spend + net profit from ads (incremental, margin-based). In-store is excluded from this causal lens.</div>
+        <div class="card card-tall"><h3>Profit advertising adds - online incremental (stricter lens)</h3><div class="hint">Online sales only: base online margin + ad spend + net profit from ads (incremental, margin-based). In-store is excluded from this causal lens.</div>
           <div class="chart-wrap"><canvas id="linkRoas"></canvas></div></div>
       </div>
       <div class="compare-strip" id="linkStats"></div>
@@ -511,17 +511,17 @@
 
     <!-- ============ YEAR ON YEAR ============ -->
     <div id="tab-yoy" class="tabpane">
-      <div class="section first"><h2>Year on year</h2><span class="sub">Plain-dollar finance view (AUD): each month against the same month last year. Use the <b>Date range</b> as a month filter and the <b>Sales channel</b> chips to scope revenue (ad spend is whole — ad data has no channel split). The in-progress month is compared month-to-date (same days, both years) so it stays fair.</span></div>
+      <div class="section first"><h2>Year on year</h2><span class="sub">Plain-dollar finance view (AUD): each month against the same month last year. Use the <b>Date range</b> as a month filter and the <b>Sales channel</b> chips to scope revenue (ad spend is whole, ad data has no channel split). The in-progress month is compared month-to-date (same days, both years) so it stays fair.</span></div>
       <div class="info-note" id="yoyBasisNote"></div>
       <div class="kpis" id="yoyKpis"></div>
-      <div class="card card-tall" style="margin-top:14px"><h3>Revenue — this year vs last year</h3>
+      <div class="card card-tall" style="margin-top:14px"><h3>Revenue - this year vs last year</h3>
         <div class="hint">All sales (in-store + website + marketplaces) per displayed month, paired with the same month last year. AUD. The in-progress month is shown month-to-date.</div>
         <div class="chart-wrap"><canvas id="yoyRevChart"></canvas></div></div>
-      <div class="card card-tall" style="margin-top:14px"><h3>Ad spend — this year vs last year</h3><div class="hint">Total working media, all platforms. AUD.</div>
+      <div class="card card-tall" style="margin-top:14px"><h3>Ad spend - this year vs last year</h3><div class="hint">Total working media, all platforms. AUD.</div>
         <div class="chart-wrap"><canvas id="yoySpendChart"></canvas></div></div>
       <div class="section"><h2>Monthly detail</h2><span class="sub">Every month with a prior-year comparison. &#9650;/&#9660; is YoY growth; the in-progress month is muted.</span></div>
       <div class="card"><div class="tbl-scroll"><table id="yoyTable"></table></div></div>
-      <div class="section"><h2>Attribution — platform-claimed vs total revenue</h2><span class="sub">Each platform reports only its own click-through ("attributed") revenue; these understate true impact and are never summed. Total revenue is the first-party source of truth.</span></div>
+      <div class="section"><h2>Attribution - platform-claimed vs total revenue</h2><span class="sub">Each platform reports only its own click-through ("attributed") revenue; these understate true impact and are never summed. Total revenue is the first-party source of truth.</span></div>
       <div class="kpis" id="yoyAttrib"></div>
     </div>
 
@@ -1050,7 +1050,7 @@ function renderYoY(){
              : MO[+D[0].k.slice(5,7)-1]+'–'+MO[+D[D.length-1].k.slice(5,7)-1]+" '"+String(curYear).slice(2);
 
   el('yoyBasisNote').innerHTML='Comparing <b>'+span+'</b> with the same months of '+(curYear-1)
-    +'. Revenue &amp; orders reflect the <b>'+channelScopeLabel()+'</b> channel selection; ad spend is whole (all platforms — ad data has no channel split).'
+    +'. Revenue &amp; orders reflect the <b>'+channelScopeLabel()+'</b> channel selection; ad spend is whole (all platforms, ad data has no channel split).'
     + (hasMTD ? ' The in-progress month uses <b>month-to-date (days 1–'+N+')</b> on both years for a fair comparison.' : '');
 
   el('yoyKpis').innerHTML =
@@ -1090,7 +1090,7 @@ function renderYoY(){
   const k=DATA.kpi||{};
   const tot=k.revenue_total||0, mclaim=k.meta_rev_claimed||0, gclaim=k.google_rev_claimed||0;
   el('yoyAttrib').innerHTML =
-      kpiCard('sale','Total revenue', moneyM(tot), 'first-party — every order, every channel')
+      kpiCard('sale','Total revenue', moneyM(tot), 'first-party - every order, every channel')
     + kpiCard('','Meta attributed revenue', moneyM(mclaim), (tot?fmtPct(mclaim/tot,1):'—')+' of total · Meta click-through only')
     + kpiCard('','Google attributed revenue', moneyM(gclaim), (tot?fmtPct(gclaim/tot,1):'—')+' of total · Google click-through only');
 }
@@ -1129,7 +1129,7 @@ function renderDateScope(){
     note.style.display='block';
     note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b> (to the day; trend charts bucket by day, week, or month depending on the span). '
       +'KPI cards, donuts, charts, and campaign/creative/category/product tables all reflect this exact range. '
-      +'The only exception is the <b>distinct-customer counts</b> (Customers / Returning), shown with a <b>≈</b> — a buyer active on more than one day is counted in each, so they are exact only over the full period (New customers stays exact).';
+      +'The only exception is the <b>distinct-customer counts</b> (Customers / Returning), shown with a <b>≈</b> - a buyer active on more than one day is counted in each, so they are exact only over the full period (New customers stays exact).';
   } else {
     note.style.display='none';
   }
@@ -1172,8 +1172,8 @@ function renderControls(){
     cw.appendChild(b); });
   renderCampaignButton();
   const notes={overview:'Platform/Campaign rescale ad delivery; Sales channel rescales revenue.',
-    paid:'Platform & Campaign filters apply; Sales channel scopes the revenue lines.', web:'GA4 — no campaign dimension.',
-    sales:'First-party sales — scoped by the Sales channel filter.', link:'Spend rescales; Sales channel scopes the revenue side.',
+    paid:'Platform & Campaign filters apply; Sales channel scopes the revenue lines.', web:'GA4 - no campaign dimension.',
+    sales:'First-party sales - scoped by the Sales channel filter.', link:'Spend rescales; Sales channel scopes the revenue side.',
     yoy:'Date range = month filter; Sales channel scopes revenue (ad spend is whole).'};
   el('ctrlNote').textContent=notes[activeTab]||'';
 }
@@ -1226,7 +1226,7 @@ function renderOverview(){
   el('ovRoasCallout').innerHTML =
       '<div style="display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-top:8px">'
     +   '<div style="font-family:\'Karla\',serif;font-size:48px;font-weight:700;color:var(--gold-deep);line-height:1">'+roasS(mer())+'</div>'
-    +   '<div style="font-size:13px;color:var(--mute);line-height:1.4">'+channelScopeLabel()+' per A$1 ad spend<br><b style="color:var(--ink)">marketing efficiency ratio</b> — includes the in-store halo (not causal)</div>'
+    +   '<div style="font-size:13px;color:var(--mute);line-height:1.4">'+channelScopeLabel()+' per A$1 ad spend<br><b style="color:var(--ink)">marketing efficiency ratio</b> - includes the in-store halo (not causal)</div>'
     + '</div>'
     + '<div style="margin-top:16px;font-size:12.5px;color:var(--mute);line-height:1.55">'
     +   'Stricter online lens: <b style="color:var(--ink)">'+roasS(marginRoas())+'</b> incremental margin-ROAS (<b style="color:var(--ink)">'+roasS(netRoas())+'</b> net) = '
@@ -1236,7 +1236,7 @@ function renderOverview(){
   const ap=adByPlatform(true), pk=PLATFORMS.filter(p=>ap[p.key].spend>0);
   donut('ovSpendDonut',pk.map(p=>p.label),pk.map(p=>ap[p.key].spend),pk.map(p=>p.color),moneyM(a.spend),'ad spend',a.spend);
 
-  el('ovNote').innerHTML='<b>How to read this.</b> This dashboard covers <b>all sales</b> — In-store POS + Website + Marketplace — from first-party sales (v_sales), the source of truth for revenue, margin, orders &amp; AOV. '
+  el('ovNote').innerHTML='<b>How to read this.</b> This dashboard covers <b>all sales</b> (In-store POS + Website + Marketplace) from first-party sales (v_sales), the source of truth for revenue, margin, orders &amp; AOV. '
     +'Use the <b>Sales channel</b> filter to drill into In-store, Website or Marketplace. Headline ROAS is the blended marketing-efficiency ratio (all sales ÷ ad spend); a stricter incremental online margin-ROAS is shown as a secondary lens (see Ads → Revenue). Platform-claimed figures appear on the Paid Media tab for context only.';
 }
 function renderOvCommentary(){
@@ -1247,8 +1247,8 @@ function renderOvCommentary(){
   const bv=b=> (sMap[b.key]||{}).revenue_total||0;
   let pi=0; BX.forEach((b,i)=>{ if(bv(b)>bv(BX[pi])) pi=i; }); const peakM=BX[pi].label;
   box.innerHTML='<span class="ai-badge"><span class="dot"></span>AI commentary</span>'
-    +'<b>The media is paying its way.</b> '+money(a.spend)+' of working media sits against <b>'+moneyM(rev)+'</b> in '+channelScopeLabel()+' across '+fmtN(sk.orders_total)+' orders at '+money(sk.aov)+' AOV — a <b>'+roasS(mer())+'</b> blended marketing-efficiency ratio (all sales ÷ ad spend). '
-    +'On the stricter incremental, margin-based online lens that is a <b>'+roasS(marginRoas())+'</b> margin ROAS (<b>'+roasS(netRoas())+'</b> net of the ad cost) — the causal return, not the platform-claimed headline. '
+    +'<b>The media is paying its way.</b> '+money(a.spend)+' of working media sits against <b>'+moneyM(rev)+'</b> in '+channelScopeLabel()+' across '+fmtN(sk.orders_total)+' orders at '+money(sk.aov)+' AOV - a <b>'+roasS(mer())+'</b> blended marketing-efficiency ratio (all sales ÷ ad spend). '
+    +'On the stricter incremental, margin-based online lens that is a <b>'+roasS(marginRoas())+'</b> margin ROAS (<b>'+roasS(netRoas())+'</b> net of the ad cost) - the causal return, not the platform-claimed headline. '
     +'Revenue peaked in <b>'+peakM+'</b>, and <b>'+fmtPct(sk.repeat_order_rate,0)+'</b> of orders came from returning customers.';
 }
 
@@ -1484,8 +1484,8 @@ function renderSales(){
 /* =================== ADS → REVENUE =================== */
 function renderLink(){
   const a=adKpi(), sk=salesTotals(), cr=claimedRev(), rev=basisRevTotal(), mg=onlineMargin();
-  el('linkHeadline').innerHTML='<b>Blended marketing efficiency — '+roasS(mer())+'.</b> '+money(a.spend)+' of ad spend sits against <b>'+moneyM(rev)+'</b> in '+channelScopeLabel()+' — a <b>'+roasS(mer())+'</b> marketing-efficiency ratio (all sales ÷ ad spend), which credits the omnichannel halo onto in-store and is NOT causal. '
-    +'<b>Stricter online lens:</b> ~<b>'+REV_ROAS_ONLINE.toFixed(0)+'×</b> incremental online revenue per A$1 × <b>'+fmtPct(mg,1)+'</b> online gross margin ⇒ a <b>'+roasS(marginRoas())+'</b> incremental margin-ROAS (net <b>'+roasS(netRoas())+'</b>). Platform-claimed revenue (Google '+moneyM(cr.google)+', Meta '+moneyM(cr.meta)+') is each platform\'s own attribution — context only, never summed.'
+  el('linkHeadline').innerHTML='<b>Blended marketing efficiency: '+roasS(mer())+'.</b> '+money(a.spend)+' of ad spend sits against <b>'+moneyM(rev)+'</b> in '+channelScopeLabel()+' - a <b>'+roasS(mer())+'</b> marketing-efficiency ratio (all sales ÷ ad spend), which credits the omnichannel halo onto in-store and is NOT causal. '
+    +'<b>Stricter online lens:</b> ~<b>'+REV_ROAS_ONLINE.toFixed(0)+'×</b> incremental online revenue per A$1 × <b>'+fmtPct(mg,1)+'</b> online gross margin ⇒ a <b>'+roasS(marginRoas())+'</b> incremental margin-ROAS (net <b>'+roasS(netRoas())+'</b>). Platform-claimed revenue (Google '+moneyM(cr.google)+', Meta '+moneyM(cr.meta)+') is each platform\'s own attribution - context only, never summed.'
     +'<span class="hint" style="display:block;margin-top:8px">Methodology: MER = all first-party sales ÷ ad spend (blended, not causal). The incremental lens = incremental online revenue (regression-based) × online gross margin; platform attribution excluded; 7× is a planning estimate (band 4–9×) pending a spend-down / geo holdout. See client_cityperfume/analysis/city_perfume_roas_handoff.md.</span>';
   // funnel
   const steps=[['Ad spend',money(a.spend)],['Impressions',fmtM(a.imps)],['Clicks',fmtN(a.clk)],['Orders',fmtN(sk.orders_total)],['Sales revenue',moneyM(rev)]];
@@ -1509,7 +1509,7 @@ function renderLink(){
   const gname = grain==='day'?'day':grain==='week'?'week':'month';
   const pts=LX.map(b=>({x:lSpend(b),y:lRev(b)})).filter(p=>p.x>0);
   const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));
-  el('linkScatterHint').innerHTML='Each dot is one '+gname+'. Correlation <b>r = '+r.toFixed(2)+'</b> ('+(r>0.6?'strong':r>0.3?'moderate':'weak')+' positive) — note correlation is largely seasonal, not causal. Sales are '+channelScopeLabel()+'; spend reflects the filters.';
+  el('linkScatterHint').innerHTML='Each dot is one '+gname+'. Correlation <b>r = '+r.toFixed(2)+'</b> ('+(r>0.6?'strong':r>0.3?'moderate':'weak')+' positive) - note correlation is largely seasonal, not causal. Sales are '+channelScopeLabel()+'; spend reflects the filters.';
   charts.linkScatter=new Chart(el('linkScatter'),{ type:'scatter', data:{datasets:[{label:'Period',data:pts,backgroundColor:'rgba(176,141,87,.6)',borderColor:C.gold,pointRadius:5,pointHoverRadius:7}]},
     options:{maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+money(c.parsed.x)+' spend · '+moneyM(c.parsed.y)+' revenue'}}},
       scales:{x:gridY({title:{display:true,text:'Ad spend / '+gname,color:C.mute},ticks:{callback:v=>moneyM(v)}}),y:gridY({title:{display:true,text:'Sales revenue / '+gname,color:C.mute},ticks:{callback:v=>moneyM(v)}})}} });

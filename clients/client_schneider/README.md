@@ -25,10 +25,28 @@ tab shows total leads vs target, not "MQLs achieved". Targets/CPL come from the 
 [`INTAKE.md`](INTAKE.md) for the client-flagged discrepancies (EBA MQL 157
 vs old 300, W&E/Heavy/EBA budgets, NEL added).
 
+**Update 2026-07-02** (dash rev `schneider-dash-00019`): (1) the **Campaign selector moved to a dropdown
+in the top nav bar** (Cloudflare pattern), off the control-bar filter row. (2) **Region simplified to
+Australia + New Zealand** — the ANZ and Other chips are gone. (3) **EBA (EcoStruxure Building Activate)
+paid media now renders**: its Trade Desk delivery (5.2M imps / A$6.3k) was always in BigQuery but the
+region was parsed only from the campaign name, so it fell into the "Other" bucket (`SE_EBA_Activate_AWR_June4`
+has no country in the campaign name — the AU/NZ split lives in the ad-group names). `sql/03_stg_tradedesk.sql`
+now reads the country from `AD_GROUP_NAME` first, splitting EBA into Australia (A$5.0k) + New Zealand (A$1.3k);
+AirSeT's Trade Desk resolves the same way. The **Heavy Industries trade-publication** thought-leadership line
+was already in the plan and renders under **Heavy → Other Channels** (a plan-only line — a publisher
+sponsorship has no ad-platform feed, so only its plan targets show).
+
 ## Data model (mongodb concept → Schneider source)
-- **Campaign** (single-select seg) = the 5 programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`).
+- **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
+  programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`).
 - **Programme** (the CS breakdown) = the Salesforce `pillar_label` (9), from `seed_salesforce_map`.
-- **Market / Region chips** = normalized `COUNTRY_NAME` (Australia / New Zealand / ANZ / Other).
+- **Market / Region chips** = **Australia / New Zealand only** (no ANZ, no Other). CS leads are
+  AU/NZ-native; paid delivery's AU/NZ split is resolved from **`AD_GROUP_NAME`** (then `CAMPAIGN_NAME`)
+  in `sql/03_stg_tradedesk.sql` — several ANZ-level campaigns (EBA `SE_EBA_Activate_AWR_June4`, AirSeT
+  `SE AirSeT_ANZ_HighImpact…`) carry the country only in the ad-group name, so the old campaign-name-only
+  parse stranded that delivery (notably **all of EBA's Trade Desk** — 5.2M imps) in an Unmapped/Other
+  bucket. `sql/20_pm_delivery.sql` folds any tiny unsplittable combined-ANZ residual (e.g. AirSeT's
+  `RM AirSeT – Retargeting – ANZ` LinkedIn line, ~$500) into **Australia** so it stays in the paid totals.
 - **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
   lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from `seed_plan_budget`.
 - **Scoped to the 5:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5)`; the CS views read only the
@@ -55,7 +73,8 @@ vs old 300, W&E/Heavy/EBA budgets, NEL added).
   remaining dimension seeds read from gitignored `data/` (still BQ-only — see *Updating targets*).
 
 ## The dashboard tabs (`dash/dashboard.html`) — now **per-campaign**
-Filters (global): **Campaign** (the 5 programs, single-select seg) · **Region** chips · **Date range**.
+Filters: **Campaign** (the 5 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
+**Region** chips (Australia / New Zealand) + **Date range** stay on the control bar under the tabs.
 **The tab bar adapts to the selected campaign** — each campaign shows only the channels it actually
 uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
 ([`targets/media_plan.csv`](targets/media_plan.csv) `channel` column, bucketed by `chan_group`):
