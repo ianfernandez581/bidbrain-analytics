@@ -136,12 +136,16 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 front-door** — no standalone `status.bidbrain.ai`); no dataset/views; reads the other clients'
 resources, self-gating `*/15`. **`bidbrain-platform/`** — the front-door at `dashboards.bidbrain.ai`.
 **`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1` (deploys the 5 shared ingest
-jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). **Multi-dev flow:**
-`push-branch.ps1` commits + pushes your work to your own `<you>/<desc>` branch; `merge-branches.ps1`
-integrates every dev branch → sanity-gates → lands on `main` → auto-deploys ONLY the changed services
-(path→deploy-script map lives in its `Resolve-DeployPlan`) → prunes. It STOPS for the agent on a real
-merge conflict or a failed gate. Header comments in each script are the SOP. For anything
-client-specific, open `clients/client_<c>/README.md`.
+jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`). **Multi-dev flow (1-click,
+agent-driven):** `/push` (→ `push-branch.ps1`) commits + pushes your work to your own `<you>/<desc>`
+branch; `/ship` (→ `merge-branches.ps1`) integrates every dev branch → sanity-gates → lands on `main` →
+auto-deploys ONLY the changed services (path→deploy-script map = its `Resolve-DeployPlan`) → prunes. Both
+are git-tracked Claude Code slash commands in `.claude/commands/` (the ONLY tracked part of `.claude/`,
+shared with the team). On a **merge conflict** `merge-branches.ps1` LEAVES it in the tree (never aborts);
+the agent resolves semantically, `git add -A; git commit --no-edit`, then re-runs with **`-Resume`** —
+which keeps the resolution and continues (so the loop converges; a plain re-run would rebuild fresh and
+discard it). Same for a gate fix. Header comments in each script are the SOP. For anything client-specific,
+open `clients/client_<c>/README.md`.
 
 ## Dashboard edits — the common task. READ THIS FIRST.
 Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,300–2,400 lines).
