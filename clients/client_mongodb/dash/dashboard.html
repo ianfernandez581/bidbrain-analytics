@@ -463,7 +463,7 @@
     <!-- ============ CONTENT SYNDICATION TAB ============ -->
     <div id="tab-cs" class="tabpane">
       <div class="section first">
-        <h2>Content Syndication — Lead Pacing</h2>
+        <h2>Content Syndication - Lead Pacing</h2>
         <span class="sub">Live Salesforce leads vs target for the selected campaign. Reflects the selected region(s).</span>
       </div>
 
@@ -518,8 +518,8 @@
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>Weekly pacing — target vs actual</h3>
-        <div class="hint">Leads per week (bars) vs the weekly target pace (dashed). Actuals are ramped across the elapsed window — Salesforce leads aren't date-stamped in the feed yet.</div>
+        <h3>Weekly pacing - target vs actual</h3>
+        <div class="hint">Leads per week (bars) vs the weekly target pace (dashed). Actuals are ramped across the elapsed window - Salesforce leads aren't date-stamped in the feed yet.</div>
         <div class="chart-wrap" style="height:320px"><canvas id="csWeekly"></canvas></div>
       </div>
 
@@ -980,7 +980,7 @@ function renderControls() {
     const dateable = activeTab === 'paid';
     dpEl.style.opacity = dateable ? '1' : '.45';
     dpEl.style.pointerEvents = dateable ? 'auto' : 'none';
-    dpEl.title = dateable ? '' : 'Date range applies to Paid Media — Salesforce leads aren’t date-stamped in the feed';
+    dpEl.title = dateable ? '' : 'Date range applies to Paid Media - Salesforce leads aren’t date-stamped in the feed';
   }
 }
 
@@ -1577,7 +1577,7 @@ function renderCSProgramme() {
   // market view, which is the meaningful split for a single-programme campaign.
   let labels, data;
   if (progPairs.length <= 1) {
-    el('csProgTitle').textContent = 'Leads by market — share';
+    el('csProgTitle').textContent = 'Leads by market - share';
     el('csProgHint').textContent  = 'Share of delivered leads across the selected regions.';
     const byMkt = {};
     for (const r of (DATA.cs_by_programme||[])){ if (campaignOf(r.programme)!==activeCampaign || !marketOk(r.market)) continue; byMkt[r.market]=(byMkt[r.market]||0)+(r.total||0); }
@@ -1810,7 +1810,7 @@ function exportThisTab(){
 
 function exportAllData(){
   const parts = [
-    'MongoDB APAC dashboard — full data export',
+    'MongoDB APAC dashboard - full data export',
     `Generated,${exportStamp()}`,
     `Source feed last updated,${csvCell(DATA.last_updated || 'unknown')}`,
     ''
@@ -1968,347 +1968,33 @@ async function bbDeckLogos(){
   return { white: await bbRasterizeLogo('.mdb-logo', 'white'), dark: await bbRasterizeLogo('.mdb-logo', 'native') };
 }
 
-async function buildSlidesDeck(report, payload, logo){
-  const pres = new PptxGenJS();
-  pres.defineLayout({ name:'BB_WIDE', width:13.33, height:7.5 });
-  pres.layout = 'BB_WIDE';
-  pres.author = 'Transmission'; pres.company = 'Transmission';
-  const ctx = payload.context || {}, win = ctx.window || {};
-  pres.title = `MongoDB APAC — ${ctx.campaign || ''}`;
-
-  const FONT = 'Arial';
-  const C = {
-    slate:'001E2B', forest:'023430', green:'00684A', spring:'00ED64', mint:'C3E7CA',
-    ink:'1B2834', mute:'5A6B78', line:'E5E9EE', bg:'F6F8FA', white:'FFFFFF',
-    good:'1E8E3E', bad:'C8362A', warn:'B97400', slateLine:'1F3A47', muteDark:'8FA3AE', greenTint:'E1EFE9'
-  };
-  const STATUS = {
-    ahead:{label:'Ahead of plan',hex:C.good}, on_track:{label:'On track',hex:C.good},
-    at_risk:{label:'At risk',hex:C.warn}, behind:{label:'Behind plan',hex:C.bad},
-    mixed:{label:'Mixed',hex:C.warn}, neutral:{label:'Monitoring',hex:C.mute}
-  };
-  const ENGINE = { content_syndication:'LEAD ENGINE', paid_display:'DISPLAY', budget:'BUDGET',
-    overall:'OVERALL', both:'BOTH', external:'MARKET', measurement:'MEASUREMENT' };
-  const DIR = { up:{glyph:'▲',hex:C.good}, down:{glyph:'▼',hex:C.bad}, flat:{glyph:'▬',hex:C.mute}, mixed:{glyph:'◆',hex:C.warn} };
-  const PRI = { high:{label:'HIGH PRIORITY',hex:C.bad}, medium:{label:'MED PRIORITY',hex:C.warn}, low:{label:'LOW PRIORITY',hex:C.mute} };
-  const EFFORT = { low:'EFFORT · LOW', medium:'EFFORT · MED', high:'EFFORT · HIGH' };
-  const CONF = { high:'HIGH CONFIDENCE', medium:'MEDIUM CONFIDENCE', low:'LOW CONFIDENCE' };
-
-  const R = report || {}, S1 = R.slide1||{}, S2 = R.slide2||{}, S3 = R.slide3||{};
-  const kpis = (S1.kpis||[]).slice(0,6), drivers = (S2.drivers||[]).slice(0,5), actions = (S3.actions||[]).slice(0,5);
-  const sources = R.sources||[];
-  const modelLabel = R.provider === 'gemini' ? (R.model || 'Google Gemini') : 'Claude (Opus 4.8)';
-
-  const clamp = (s,n) => { s = String(s==null?'':s); return s.length>n ? s.slice(0,n-1).replace(/\s+\S*$/,'')+'…' : s; };
-  const regions = (ctx.markets||[]).length === (ctx.all_markets||[]).length ? 'All regions' : ((ctx.markets||[]).join(', ') || 'No region');
-  const dataThrough = String(ctx.data_through||'').slice(0,10) || '—';
-  const fmtDate = iso => { const d = iso ? new Date(iso) : null; return d && !isNaN(d) ? d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}) : '—'; };
-
-  // chip = shape + separate text (two stacked objects; text-in-autoshape radius imports inconsistently)
-  const engineChip = (sl,x,y,key) => {
-    const label = ENGINE[key] || '—', w = 0.18 + 0.066*label.length;
-    sl.addShape(pres.ShapeType.roundRect,{ x,y,w,h:0.22, rectRadius:0.05, fill:{color:C.greenTint}, line:{color:C.line,width:0.75} });
-    sl.addText(label,{ x,y,w,h:0.22, fontFace:FONT, fontSize:8, bold:true, color:C.green, charSpacing:1, align:'center', valign:'middle' });
-    return w;
-  };
-  const card = (sl,o) => {
-    sl.addShape(pres.ShapeType.roundRect,{ x:o.x, y:o.y, w:o.w, h:o.h, rectRadius:0.06, fill:{color:C.white}, line:{color:C.line,width:1} });
-    if (o.edge) sl.addShape(pres.ShapeType.rect,{ x:o.x, y:o.y+0.04, w:0.05, h:o.h-0.08, fill:{color:o.edge} });   // borderless: omit line
-  };
-  const noteCard = (sl,msg) => {
-    card(sl,{ x:0.55, y:2.5, w:12.23, h:1.2 });
-    sl.addText(msg,{ x:0.55, y:2.5, w:12.23, h:1.2, fontFace:FONT, fontSize:12, color:C.mute, align:'center', valign:'middle' });
-  };
-  const lightChrome = (sl,kicker,h2) => {
-    sl.background = { color:C.white };
-    sl.addShape(pres.ShapeType.rect,{ x:0,y:0,w:13.33,h:0.06, fill:{color:C.slate} });
-    sl.addShape(pres.ShapeType.rect,{ x:0,y:0,w:1.9,h:0.06, fill:{color:C.spring} });
-    sl.addText([
-      { text:'TRANSMISSION', options:{ fontSize:10, bold:true, color:C.slate, charSpacing:2 } },
-      { text:' ● ', options:{ fontSize:9, color:C.spring } },
-      { text:' × MONGODB APAC', options:{ fontSize:10, bold:true, color:C.mute, charSpacing:1 } }
-    ],{ x:0.55,y:0.30,w:7,h:0.26, fontFace:FONT, align:'left', valign:'middle' });
-    sl.addText(kicker,{ x:8.0,y:0.30,w:4.78,h:0.26, fontFace:FONT, fontSize:9, bold:true, color:C.mute, charSpacing:1.5, align:'right', valign:'middle' });
-    sl.addText(h2,{ x:0.55,y:0.72,w:9.0,h:0.55, fontFace:FONT, fontSize:26, bold:true, color:C.slate, align:'left', valign:'middle' });
-    sl.addShape(pres.ShapeType.line,{ x:0.55,y:1.40,w:0.62,h:0, line:{color:C.spring,width:1.75} });
-  };
-  const footer = (sl,pageLabel) => {
-    sl.addShape(pres.ShapeType.line,{ x:0.55,y:7.0,w:12.23,h:0, line:{color:C.line,width:1} });
-    sl.addText(`Prepared by Transmission · Confidential   ·   Campaign: ${ctx.campaign||'—'}   ·   Regions: ${regions}   ·   Flight: ${win.start||'—'} → ${win.end||'—'}   ·   Data through: ${dataThrough}`,
-      { x:0.55,y:7.06,w:9.4,h:0.34, fontFace:FONT, fontSize:7, color:C.mute, align:'left', valign:'top', wrap:true });
-    sl.addText(pageLabel,{ x:10.0,y:7.06,w:2.78,h:0.34, fontFace:FONT, fontSize:7, color:C.mute, align:'right', valign:'top' });
-  };
-
-  // ── SLIDE 1 — COVER (dark) ──────────────────────────────────────────────────
-  const cov = pres.addSlide();
-  cov.addShape(pres.ShapeType.rect,{ x:0,y:0,w:13.33,h:7.5, fill:{color:C.slate} });
-  cov.addShape(pres.ShapeType.ellipse,{ x:10.7,y:-1.3,w:4.2,h:4.2, fill:{color:C.spring,transparency:88} });
-  if (logo) cov.addImage({ data: logo.replace(/^data:/,''), x:0.85, y:0.72, sizing:{type:'contain',w:2.46,h:0.62} });
-  else cov.addText('MongoDB',{ x:0.85,y:0.66,w:3.4,h:0.7, fontFace:FONT, fontSize:30, bold:true, color:C.white, align:'left', valign:'middle' });
-  cov.addText([
-    { text:'TRANSMISSION', options:{ fontSize:15, bold:true, color:C.white, charSpacing:3 } },
-    { text:' ●', options:{ fontSize:12, color:C.spring } }
-  ],{ x:8.7,y:0.74,w:3.78,h:0.5, fontFace:FONT, align:'right', valign:'middle' });
-  cov.addText('AGENCY OF RECORD',{ x:8.7,y:1.18,w:3.78,h:0.2, fontFace:FONT, fontSize:7, color:C.muteDark, charSpacing:2, align:'right', valign:'top' });
-  cov.addText('CLIENT · MONGODB APAC',{ x:0.85,y:1.42,w:4,h:0.2, fontFace:FONT, fontSize:7, color:C.muteDark, charSpacing:1, align:'left', valign:'top' });
-  cov.addShape(pres.ShapeType.line,{ x:0.85,y:1.78,w:11.63,h:0, line:{color:C.slateLine,width:0.75} });
-  cov.addShape(pres.ShapeType.line,{ x:0.85,y:1.78,w:1.1,h:0, line:{color:C.spring,width:1.75} });
-  cov.addText('CAMPAIGN PERFORMANCE REPORT',{ x:0.85,y:2.05,w:11.5,h:0.3, fontFace:FONT, fontSize:12, bold:true, color:C.muteDark, charSpacing:3, align:'left', valign:'middle' });
-  cov.addText([
-    { text:'MongoDB APAC', options:{ color:C.white, breakLine:true } },
-    { text:`${ctx.campaign||''} Co-Marketing`, options:{ color:C.spring } }
-  ],{ x:0.83,y:2.45,w:11.6,h:1.7, fontFace:FONT, fontSize:40, bold:true, align:'left', valign:'top', fit:'shrink', wrap:true });
-  [
-    { lbl:'FLIGHT WINDOW', val:`${win.start||'—'} → ${win.end||'—'}` },
-    { lbl:'DURATION', val:`${win.days!=null?win.days:'—'} days` },
-    { lbl:'REGIONS', val:clamp(regions,22) }
-  ].forEach((c,i) => {
-    const x = 0.85 + i*3.75;
-    cov.addShape(pres.ShapeType.roundRect,{ x, y:4.55, w:3.55, h:0.95, rectRadius:0.06, fill:{color:C.forest}, line:{color:C.slateLine,width:0.75} });
-    if (i===0) cov.addShape(pres.ShapeType.rect,{ x, y:4.59, w:0.05, h:0.87, fill:{color:C.spring} });
-    cov.addText(c.lbl,{ x:x+0.16, y:4.66, w:3.2, h:0.2, fontFace:FONT, fontSize:8, bold:true, color:C.muteDark, charSpacing:1.5, align:'left', valign:'top' });
-    cov.addText(c.val,{ x:x+0.16, y:4.92, w:3.24, h:0.5, fontFace:FONT, fontSize:15, bold:true, color:C.white, align:'left', valign:'top', fit:'shrink', wrap:false });
-  });
-  cov.addText(`Generated ${fmtDate(ctx.generated_at)} · Data through ${dataThrough} UTC`,{ x:0.85,y:5.78,w:8,h:0.3, fontFace:FONT, fontSize:9, color:C.muteDark, align:'left', valign:'middle' });
-  cov.addShape(pres.ShapeType.line,{ x:0.85,y:6.7,w:11.63,h:0, line:{color:C.slateLine,width:0.75} });
-  cov.addText('Prepared by Transmission · Confidential',{ x:0.85,y:6.85,w:6,h:0.3, fontFace:FONT, fontSize:9, bold:true, color:C.white, align:'left', valign:'top' });
-  cov.addText(`Figures pulled live from source data. Analysis & recommendations generated by ${modelLabel} with live web research — review before circulation.`,
-    { x:7.0,y:6.82,w:5.48,h:0.5, fontFace:FONT, fontSize:7, color:C.muteDark, align:'right', valign:'top', wrap:true });
-
-  // ── SLIDE 2 — What happened? (slide1) ───────────────────────────────────────
-  const s2 = pres.addSlide();
-  lightChrome(s2,'01 · WHAT HAPPENED','What happened?');
-  footer(s2,'What happened · 2 / 4');
-  { const st = STATUS[R.overall_status] || STATUS.neutral;
-    s2.addShape(pres.ShapeType.roundRect,{ x:9.55,y:0.80,w:3.23,h:0.34, rectRadius:0.13, fill:{color:C.white}, line:{color:st.hex,width:1} });
-    s2.addShape(pres.ShapeType.ellipse,{ x:9.73,y:0.915,w:0.11,h:0.11, fill:{color:st.hex} });
-    s2.addText(st.label,{ x:9.95,y:0.80,w:2.7,h:0.34, fontFace:FONT, fontSize:10, bold:true, color:st.hex, align:'left', valign:'middle' });
-  }
-  if (R.campaign_type) s2.addText(`${R.campaign_type} CAMPAIGN`,{ x:6.8,y:0.80,w:2.6,h:0.34, fontFace:FONT, fontSize:8, bold:true, color:C.mute, charSpacing:1.5, align:'right', valign:'middle' });
-  if (R.headline) s2.addText(clamp(R.headline,140),{ x:0.55,y:1.30,w:12.23,h:0.42, fontFace:FONT, fontSize:13, bold:true, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-  { const sumRuns = [{ text:clamp(S1.summary,240), options:{ color:C.ink } }];
-    if (R.confidence_note) sumRuns.push({ text:'  '+clamp(R.confidence_note,200), options:{ italic:true, color:C.mute, breakLine:true } });
-    s2.addText(sumRuns,{ x:0.55,y:1.74,w:12.23,h:0.62, fontFace:FONT, fontSize:13, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-  }
-  if (!kpis.length) noteCard(s2,'No KPI highlights were returned for this view.');
-  else {
-    const n = kpis.length, g = 0.20, cols = n<=4 ? n : 3, rws = Math.ceil(n/cols);
-    const cardW = (12.23 - g*(cols-1))/cols, cardH = (3.9 - g*(rws-1))/rws, valSize = n<=4 ? 26 : (n===5 ? 24 : 22);
-    kpis.forEach((k,i) => {
-      const col = i%cols, row = Math.floor(i/cols), x = 0.55 + col*(cardW+g), y = 2.5 + row*(cardH+g);
-      card(s2,{ x, y, w:cardW, h:cardH, edge:(STATUS[k.status]||STATUS.neutral).hex });
-      engineChip(s2, x+0.14, y+0.12, k.engine);
-      s2.addText(clamp(k.label,26).toUpperCase(),{ x:x+0.14,y:y+0.50,w:cardW-0.28,h:0.22, fontFace:FONT, fontSize:8, bold:true, color:C.mute, charSpacing:1.5, align:'left', valign:'middle', fit:'shrink' });
-      // value is single-line / no-wrap — Google Slides won't auto-shrink on import, so size the font to
-      // the string length (Arial bold ≈ 0.0076 in/char/pt) so even a long figure fits the card width.
-      const vstr = clamp(k.value,18);
-      const vS = Math.max(14, Math.min(valSize, Math.floor((cardW-0.30) / (Math.max(vstr.length,1)*0.0076))));
-      s2.addText(vstr,{ x:x+0.14,y:y+0.74,w:cardW-0.28,h:0.55, fontFace:FONT, fontSize:vS, bold:true, color:C.ink, align:'left', valign:'top', fit:'shrink', wrap:false });
-      s2.addText(clamp(k.detail,90),{ x:x+0.14,y:y+(cardH-0.64),w:cardW-0.28,h:0.5, fontFace:FONT, fontSize:10.5, color:C.mute, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-    });
-  }
-
-  // ── SLIDE 3 — Why did it happen? (slide2) ───────────────────────────────────
-  const s3 = pres.addSlide();
-  lightChrome(s3,'02 · WHY','Why did it happen?');
-  footer(s3,'Why it happened · 3 / 4');
-  if (S2.summary) s3.addText(clamp(S2.summary,240),{ x:0.55,y:1.30,w:12.23,h:0.5, fontFace:FONT, fontSize:13, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-  if (!drivers.length) noteCard(s3,'No drivers were identified for this view.');
-  else {
-    const y0 = 1.95, H = sources.length ? 4.35 : 4.95, n = drivers.length, g = 0.14, rowH = (H - g*(n-1))/n;
-    drivers.forEach((d,i) => {
-      const y = y0 + i*(rowH+g), dir = DIR[d.direction]||DIR.flat;
-      card(s3,{ x:0.55, y, w:12.23, h:rowH, edge:dir.hex });
-      s3.addShape(pres.ShapeType.roundRect,{ x:0.69,y:y+0.12,w:0.34,h:0.34, rectRadius:0.05, fill:{color:C.slate} });
-      s3.addText(String(i+1),{ x:0.69,y:y+0.12,w:0.34,h:0.34, fontFace:FONT, fontSize:13, bold:true, color:C.white, align:'center', valign:'middle' });
-      s3.addText(dir.glyph,{ x:1.10,y:y+0.12,w:0.34,h:0.34, fontFace:FONT, fontSize:13, bold:true, color:dir.hex, align:'center', valign:'middle' });
-      s3.addText(clamp(d.title,64),{ x:1.55,y:y+0.12,w:6.4,h:0.3, fontFace:FONT, fontSize:12, bold:true, color:C.ink, align:'left', valign:'middle', fit:'shrink' });
-      engineChip(s3, 8.1, y+0.13, d.engine);
-      if (CONF[d.confidence]) s3.addText(CONF[d.confidence],{ x:9.7,y:y+0.13,w:3.0,h:0.26, fontFace:FONT, fontSize:8, color:C.mute, charSpacing:1, align:'right', valign:'middle' });
-      const expl = [{ text:clamp(d.explanation,230), options:{ color:C.ink } }];
-      const si = d.source_index;
-      if (Number.isInteger(si) && si>=0 && si<sources.length) expl.push({ text:` [${si+1}]`, options:{ bold:true, color:C.green, superscript:true, fontSize:8 } });
-      s3.addText(expl,{ x:1.55,y:y+0.46,w:11.0,h:rowH-0.78, fontFace:FONT, fontSize:10.5, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-      if (d.evidence && rowH>=0.85) s3.addText([
-        { text:'EVIDENCE  ', options:{ bold:true, color:C.mute, charSpacing:1, fontSize:8 } },
-        { text:clamp(d.evidence,110), options:{ color:C.ink, fontSize:9 } }
-      ],{ x:1.55,y:y+rowH-0.30,w:11.0,h:0.24, fontFace:FONT, align:'left', valign:'middle', fit:'shrink' });
-    });
-    if (sources.length){
-      s3.addShape(pres.ShapeType.line,{ x:0.55,y:6.4,w:12.23,h:0, line:{color:C.line,width:0.75} });
-      s3.addText('SOURCES',{ x:0.55,y:6.44,w:1.2,h:0.3, fontFace:FONT, fontSize:7, bold:true, color:C.mute, charSpacing:1.5, align:'left', valign:'top' });
-      const runs = [];
-      sources.forEach((s,i) => {
-        const safe = /^https?:\/\//i.test(s.url||'');
-        runs.push({ text:`[${i+1}] `, options:{ bold:true, color:C.green } });
-        runs.push({ text:clamp(s.title,42)+(i<sources.length-1?'   ':''), options:{ color:C.mute, underline: safe?{style:'sng'}:undefined, hyperlink: safe?{ url:s.url, tooltip:s.title }:undefined } });
-      });
-      s3.addText(runs,{ x:1.85,y:6.44,w:10.9,h:0.5, fontFace:FONT, fontSize:7, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-    }
-  }
-
-  // ── SLIDE 4 — What should we do? (slide3) ───────────────────────────────────
-  const s4 = pres.addSlide();
-  lightChrome(s4,'03 · RECOMMENDED ACTIONS','What should we do?');
-  footer(s4,'Recommended actions · 4 / 4');
-  if (S3.summary) s4.addText(clamp(S3.summary,240),{ x:0.55,y:1.30,w:12.23,h:0.5, fontFace:FONT, fontSize:13, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-  if (!actions.length) noteCard(s4,'No recommendations were generated for this view.');
-  else {
-    const y0 = 1.95, H = 4.95, n = actions.length, g = 0.16, rowH = (H - g*(n-1))/n;
-    actions.forEach((a,i) => {
-      const y = y0 + i*(rowH+g), p = PRI[a.priority]||PRI.low;
-      card(s4,{ x:0.55, y, w:12.23, h:rowH, edge:p.hex });
-      s4.addShape(pres.ShapeType.roundRect,{ x:0.69,y:y+0.14,w:0.40,h:0.40, rectRadius:0.05, fill:{color:p.hex} });
-      s4.addText(String(i+1),{ x:0.69,y:y+0.14,w:0.40,h:0.40, fontFace:FONT, fontSize:15, bold:true, color:C.white, align:'center', valign:'middle' });
-      s4.addText(clamp(a.title,70),{ x:1.25,y:y+0.13,w:6.6,h:0.3, fontFace:FONT, fontSize:12, bold:true, color:C.ink, align:'left', valign:'middle', fit:'shrink' });
-      s4.addShape(pres.ShapeType.roundRect,{ x:8.0,y:y+0.14,w:1.55,h:0.28, rectRadius:0.1, fill:{color:C.white}, line:{color:p.hex,width:1} });
-      s4.addText(p.label,{ x:8.0,y:y+0.14,w:1.55,h:0.28, fontFace:FONT, fontSize:8, bold:true, color:p.hex, charSpacing:1, align:'center', valign:'middle' });
-      engineChip(s4, 9.7, y+0.14, a.engine);
-      if (EFFORT[a.effort]) s4.addText(EFFORT[a.effort],{ x:11.2,y:y+0.14,w:1.55,h:0.28, fontFace:FONT, fontSize:8, color:C.mute, charSpacing:0.5, align:'right', valign:'middle' });
-      s4.addText(clamp(a.rationale,200),{ x:1.25,y:y+0.50,w:11.5,h:rowH-0.62, fontFace:FONT, fontSize:10.5, color:C.ink, align:'left', valign:'top', isTextBox:true, wrap:true, fit:'shrink' });
-    });
-  }
-
-  const campSlug = (ctx.campaign||'Campaign').replace(/[^\w]+/g,'_').replace(/^_|_$/g,'');
-  const day = String(win.end || new Date().toISOString()).slice(0,10);
-  const fileName = `MongoDB_APAC_${campSlug}_${day}.pptx`.replace(/_+/g,'_');
-  await pres.writeFile({ fileName, compression:true });
-}
-
-async function downloadReport(){
-  const btn = el('reportBtn'), lbl = btn ? btn.querySelector('span') : null;
-  const orig = lbl ? lbl.textContent : '';
-  if (lbl){ lbl.textContent = 'Generating…'; btn.disabled = true; }
-  let payload;
-  try { payload = buildDeckPayload(); }   // full flight: start → today (ignores any on-screen date filter)
-  catch(e){ if (lbl){ lbl.textContent = orig; btn.disabled = false; } alert('Could not assemble the report data: ' + e.message); return; }
-  bbOpenReport();
+// ── Portal-driven "Download slides" (headless) ───────────────────────────────────────────────
+// The agency portal opens this dashboard in a hidden same-origin iframe with ?bbslides=1. We build
+// the FULL-FLIGHT payload, POST it to /report (proxy-rewritten to /d/mongodb/report), rasterize the
+// logo, and hand it all to the shared bb_deck.js builder, which downloads a branded .pptx. Small
+// status messages go back to the portal; there is no visible report UI in this dashboard.
+const BB_THEME = {
+  bg:'001E2B', panel:'023430', accent:'00ED64', accentInk:'001E2B', softBg:'E3FCF7',
+  lightBg:'FFFFFF', ink:'001E2B', mute:'5A6B78', line:'E5E9EE', onDark:'FFFFFF', onDarkMute:'9FB4BE',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'Transmission', client:'MongoDB APAC', brand:'TRANSMISSION × MongoDB APAC', filePrefix:'MongoDB_APAC'
+};
+async function bbHeadlessSlides(){
   try {
+    const payload = buildDeckPayload();
     const res = await fetch('/report', { method:'POST', cache:'no-store',
       headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-    if (!res.ok){
-      let detail = ''; try { detail = (await res.json()).error || ''; } catch(_) { try { detail = (await res.text()).slice(0,200); } catch(__){} }
-      throw new Error('HTTP ' + res.status + (detail ? ' — ' + detail : ''));
-    }
+    if (!res.ok){ let d=''; try { d=(await res.json()).error||''; } catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
     const report = await res.json();
-    _bbLastReport = report; _bbLastPayload = payload;   // stash for the Download-slides builder
-    renderReportDeck(report, payload);
+    const logos = await bbDeckLogos();
+    await bbBuildDeck(report, payload, BB_THEME, logos);
+    try { parent.postMessage({ __bbslides:true, status:'done' }, location.origin); } catch(_){}
   } catch(e){
-    bbReportError(e.message || 'Request failed.');
-  } finally {
-    if (lbl){ lbl.textContent = orig; btn.disabled = false; }
+    try { parent.postMessage({ __bbslides:true, status:'error', error:(e && e.message) || String(e) }, location.origin); } catch(_){}
   }
 }
-
-// ── deck rendering ───────────────────────────────────────────────────────────
-// Consumes the structured report: headline / overall_status / campaign_type / confidence_note /
-// slide1{summary,kpis[]} / slide2{summary,drivers[]} / slide3{summary,actions[]} / sources[].
-// KPI values are shown as the model copied them VERBATIM from the figures we POSTed (the same
-// numbers sit one tab away on the dashboard, and the footer says figures are live from source data).
-const BB_STATUS = {ahead:'Ahead of plan', on_track:'On track', at_risk:'At risk', behind:'Behind plan', mixed:'Mixed', neutral:'Monitoring'};
-const BB_ENGINE = {content_syndication:'Lead engine', paid_display:'Display', budget:'Budget',
-  overall:'Overall', both:'Both', external:'Market', measurement:'Measurement'};
-const BB_DIRGLYPH = {up:'▲', down:'▼', flat:'▬', mixed:'◆'};
-const _has = (o, k) => o && Object.prototype.hasOwnProperty.call(o, k);
-
-function bbStatusPill(status){ const k = String(status||'').toLowerCase();
-  return BB_STATUS[k] ? `<span class="bb-pill st-${k}"><span class="d"></span>${bbEsc(BB_STATUS[k])}</span>` : ''; }
-function bbEngineChip(engine){ const k = String(engine||'').toLowerCase();
-  return BB_ENGINE[k] ? `<span class="bb-chip eng-${k}">${bbEsc(BB_ENGINE[k])}</span>` : ''; }
-function bbConfTag(c){ const k = String(c||'').toLowerCase();
-  return ['high','medium','low'].includes(k) ? `<span class="bb-tag conf-${k}">${k} confidence</span>` : ''; }
-function bbPriPill(p){ const k = String(p||'').toLowerCase();
-  return ['high','medium','low'].includes(k) ? `<span class="bb-pill pri-${k}">${k} priority</span>` : ''; }
-function bbEffort(e){ const m = {low:'Low', medium:'Med', high:'High'}[String(e||'').toLowerCase()];
-  return m ? `<span class="bb-eff">Effort: ${m}</span>` : ''; }
-function bbDirGlyph(dir){ const g = BB_DIRGLYPH[String(dir||'').toLowerCase()];
-  return g ? `<span class="bb-dir">${g}</span>` : ''; }
-
-function bbBrandHead(kicker){
-  return `<div class="bb-head"><div class="bb-brandline">TRANSMISSION<span class="dot"></span>` +
-    `<span class="sub">× MongoDB APAC</span></div><div class="bb-sidx">${bbEsc(kicker)}</div></div>`;
-}
-function bbFooter(payload, pageLabel, modelLabel){
-  const ctx = payload.context || {};
-  const win = ctx.window || {};
-  const mkts = (ctx.markets||[]).length === (ctx.all_markets||[]).length ? 'All regions' : (ctx.markets||[]).join(', ') || 'No region';
-  const through = ctx.data_through ? new Date(ctx.data_through) : null;
-  const thruTxt = through && !isNaN(through) ? through.toUTCString().replace(/ GMT$/,' UTC') : '—';
-  return `<div class="bb-foot"><div class="meta-top">` +
-    `<span class="pglabel">${bbEsc(pageLabel)}</span>` +
-    `<span><b>Campaign:</b> ${bbEsc(ctx.campaign)}</span><span><b>Regions:</b> ${bbEsc(mkts)}</span>` +
-    `<span><b>Flight:</b> ${bbEsc(win.start||'—')} → ${bbEsc(win.end||'—')}</span>` +
-    `<span><b>Data through:</b> ${bbEsc(thruTxt)}</span></div>` +
-    `<div class="bb-disc">Prepared by Transmission · Confidential. Figures are pulled live from source data; the analysis and ` +
-    `recommendations were produced by ${bbEsc(modelLabel || 'AI')} with live web research and should be reviewed before circulation.</div></div>`;
-}
-
-function bbKpiCards(kpis){
-  if (!kpis.length) return `<p class="bb-lede">No KPI highlights were returned for this view.</p>`;
-  return `<div class="bb-kpis">` + kpis.map(k =>
-    `<div class="bb-kpi"><div class="kpi-top">${bbEngineChip(k.engine)}${bbStatusPill(k.status)}</div>` +
-    `<div class="kl">${bbEsc(k.label)}</div><div class="kv">${bbEsc(k.value)}</div>` +
-    `<div class="kd">${bbEsc(k.detail)}</div></div>`).join('') + `</div>`;
-}
-function bbSourcesBlock(sources){
-  if (!sources.length) return '';
-  return `<div class="bb-sources"><div class="lbl">Sources · live web research</div><ol>` +
-    sources.map(s => { const u = bbSafeUrl(s && s.url); const title = bbEsc((s && s.title) || u || '');
-      return `<li>${u ? `<a href="${bbEsc(u)}" target="_blank" rel="noopener noreferrer">${title}</a>` : title}</li>`; }).join('') +
-    `</ol></div>`;
-}
-
-function renderReportDeck(report, payload){
-  clearInterval(_bbStepTimer);
-  const R = report || {};
-  const S1 = R.slide1 || {}, S2 = R.slide2 || {}, S3 = R.slide3 || {};
-  const kpis    = Array.isArray(S1.kpis)    ? S1.kpis    : [];
-  const drivers = Array.isArray(S2.drivers) ? S2.drivers : [];
-  const actions = Array.isArray(S3.actions) ? S3.actions : [];
-  const sources = Array.isArray(R.sources)  ? R.sources  : [];
-
-  // who actually generated this (Claude primary, or Gemini if Claude was rate-limited)
-  const modelLabel = R.provider === 'gemini' ? (R.model || 'Google Gemini') : 'Claude (Opus 4.8)';
-  const statusRow = `<div class="bb-statusrow">${bbStatusPill(R.overall_status)}` +
-    (R.campaign_type ? `<span class="bb-camptype">${bbEsc(R.campaign_type)} campaign</span>` : '') +
-    `<span class="bb-modeltag">AI analysis · ${bbEsc(modelLabel)}</span></div>`;
-
-  // Slide 1 — What happened
-  const slide1 = `<section class="bb-slide">${bbBrandHead('01 · What happened')}` +
-    `<h2>What happened?</h2>` +
-    (R.headline ? `<p class="bb-headline">${bbEsc(R.headline)}</p>` : '') +
-    statusRow +
-    (R.confidence_note ? `<p class="bb-confnote">${bbEsc(R.confidence_note)}</p>` : '') +
-    (S1.summary ? `<p class="bb-lede">${bbEsc(S1.summary)}</p>` : '') +
-    bbKpiCards(kpis) + bbFooter(payload, '1 / 3 · What happened', modelLabel) + `</section>`;
-
-  // Slide 2 — Why (drivers carry [n] citations into the Sources block)
-  const driverHtml = drivers.length ? `<div class="bb-drivers">` + drivers.map((d,i) => {
-    const si = (_has(d,'source_index') && Number.isInteger(d.source_index) && d.source_index>=0 && d.source_index<sources.length) ? d.source_index : null;
-    return `<div class="bb-driver"><div class="t"><span class="rank">${i+1}</span>${bbDirGlyph(d.direction)}` +
-      `<span class="dt">${bbEsc(d.title)}</span>${bbEngineChip(d.engine)}<span class="spacer"></span>${bbConfTag(d.confidence)}</div>` +
-      (d.explanation ? `<p class="x">${bbEsc(d.explanation)}${si!=null?`<sup class="cite">[${si+1}]</sup>`:''}</p>` : '') +
-      (d.evidence ? `<div class="ev"><b>Evidence:</b> ${bbEsc(d.evidence)}</div>` : '') + `</div>`;
-  }).join('') + `</div>` : `<p class="bb-lede">No drivers were identified for this view.</p>`;
-  const slide2 = `<section class="bb-slide">${bbBrandHead('02 · Why')}` +
-    `<h2>Why did it happen?</h2>` +
-    (S2.summary ? `<p class="bb-lede">${bbEsc(S2.summary)}</p>` : '') +
-    driverHtml + bbSourcesBlock(sources) + bbFooter(payload, '2 / 3 · Why', modelLabel) + `</section>`;
-
-  // Slide 3 — Recommended actions
-  const actionHtml = actions.length ? `<div class="bb-actionlist">` + actions.map((a,i) =>
-    `<div class="bb-action"><div class="num">${i+1}</div><div class="body">` +
-    `<div class="t">${bbPriPill(a.priority)}<span class="at">${bbEsc(a.title)}</span>${bbEngineChip(a.engine)}${bbEffort(a.effort)}</div>` +
-    (a.rationale ? `<p class="r">${bbEsc(a.rationale)}</p>` : '') + `</div></div>`).join('') + `</div>`
-    : `<p class="bb-lede">No recommendations were generated for this view.</p>`;
-  const slide3 = `<section class="bb-slide">${bbBrandHead('03 · Recommended actions')}` +
-    `<h2>Recommended actions</h2>` +
-    (S3.summary ? `<p class="bb-lede">${bbEsc(S3.summary)}</p>` : '') +
-    actionHtml + bbFooter(payload, '3 / 3 · Actions', modelLabel) + `</section>`;
-
-  el('bbReportBody').innerHTML = `<div class="bb-deck">${slide1}${slide2}${slide3}</div>`;
-  el('bbDlBtn').style.display = '';
-  el('bbReport').scrollTop = 0;
+if (new URLSearchParams(location.search).has('bbslides')){
+  (function bbWait(){ if (typeof DATA !== 'undefined' && DATA) bbHeadlessSlides(); else setTimeout(bbWait, 120); })();
 }
 
 boot();
