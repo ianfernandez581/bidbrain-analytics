@@ -105,6 +105,11 @@ def main():
     ttd_campaigns = rows(bq, "ttd_campaigns")
     reddit_campaigns = rows(bq, "reddit_campaigns")
     meta_creative = rows(bq, "meta_creative")
+    # Overview demographics + Paid Media gallery/keywords (the client's "birds-eye audience" +
+    # "deep dive: who we targeted + creative previews" asks).
+    ga_audience = rows(bq, "ga_audience")        # Google Ads age/gender/device (ad audience reached)
+    ga_keywords = rows(bq, "ga_keywords")        # Google Ads top keywords ("who we targeted")
+    meta_creatives = rows(bq, "meta_creatives")  # Meta creatives WITH preview thumbnails
     # Campaign-grained ad delivery — the dashboard's Campaign filter sums the selected
     # campaigns out of these client-side, rescaling every ad-delivery figure (the
     # GA4/website side has no campaign dimension, so website metrics stay whole).
@@ -325,6 +330,40 @@ def main():
             "spend_aud": num(r["spend_aud"]),
             "conversions": num(r["conversions"]),
         } for r in meta_creative],
+        # --- Overview: Google Ads AD-AUDIENCE demographics (age / gender / device) -------
+        # "Who the ADS reached" (Google-inferred) — GA4 demographics are thresholded to empty
+        # for this low-traffic property, so Google Ads is the only audience source. Label it so.
+        "ga_audience": [{
+            "dim": r["dim"],
+            "bucket": r["bucket"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga_audience],
+        # --- Paid Media: "who we targeted" — top Google Ads keywords (search intent) ------
+        "ga_keywords": [{
+            "keyword": r["keyword"],
+            "match_type": r["match_type"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga_keywords],
+        # --- Paid Media: Meta creative gallery (thumbnail + copy per creative) ------------
+        # thumbnail_url is a Meta CDN link that can expire; the export refreshes it each rebuild.
+        "meta_creatives": [{
+            "creative_id": r["creative_id"],
+            "title": r["title"],
+            "body": r["body"],
+            "thumbnail_url": r["thumbnail_url"],
+            "link_url": r["link_url"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "link_clicks": num(r["link_clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+            "conversions": num(r["conversions"]),
+        } for r in meta_creatives],
         # --- Campaign filter: campaign-grained ad delivery (spend all AUD) --------
         "ad_campaigns": [{
             "platform": r["platform"],

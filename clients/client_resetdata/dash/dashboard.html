@@ -630,6 +630,36 @@ const ACRONYMS={api:'API',gpu:'GPU',crm:'CRM',id:'ID',url:'URL',ai:'AI'};
 const prettyEvent=s=>String(s||'').split('_').map(w=>ACRONYMS[w.toLowerCase()]||(w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
 // campaign display names: swap delimiter underscores for spaces, preserve original casing.
 const prettyName=s=>String(s||'').replace(/_/g,' ');
+// Google Ads campaigns use an internal naming convention ("[SEGMENT] … | S | Max Conv", or
+// "100D | S | HT | theme") that reads badly in the UI. This maps each RAW name → a clean DISPLAY
+// label. Display-only: the raw r.campaign stays the join/filter key — only the label changes.
+// Unmapped names (new campaigns, other platforms) fall back to prettyName. Drafted 2026-07; edit
+// freely — add a new campaign's raw name here to give it a friendly label.
+const CAMPAIGN_LABELS = {
+  '[AI INFRA] AI Infrastructure | S | Max Conv': 'AI Infrastructure',
+  '[BRAND] ResetData | S | Max Conv': 'Brand – ResetData',
+  '[CLOUD] HT | S | Max Conv': 'Cloud (High-Intent)',
+  '[GPU] GPU as a Service | S | Max Conv': 'GPU-as-a-Service',
+  '[HPC] High Performance Computing | S | Max Conv': 'High-Performance Computing',
+  '[LLM] LLMaaS and AI Models | S | Max Conv': 'LLM-as-a-Service & AI Models',
+  '[SECTOR] Enterprise AI - Finance and Health | S | Max Conv': 'Enterprise AI – Finance & Health',
+  '[SECTOR] Government AI | S | Max Conv': 'Government AI',
+  '[SECTOR] Research and Education | S | Max Conv': 'Research & Education',
+  '[SOVEREIGN] Sovereign AI Cloud | S | Max Conv': 'Sovereign AI Cloud',
+  '100D | S | HT | AI Factory / Infrastructure': 'AI Factory / Infrastructure',
+  '100D | S | HT | AI Models & Marketplace': 'AI Models & Marketplace',
+  '100D | S | HT | Max Clicks': 'High-Intent Search (Max Clicks)',
+  '100D | S | HT | Sovereign AI Compute (Core)': 'Sovereign AI Compute (Core)',
+  '100D | S | Reset | Brand | Max Clicks': 'Brand – ResetData (Max Clicks)',
+  '100D | S | Reset | HT | Max Clicks': 'Brand High-Intent (Max Clicks)',
+  'Search Campaign | Manual CPC': 'Search – Manual CPC',
+  'MSP Channel Program ANZ': 'MSP Channel Program (ANZ)',
+  'AI Inference Platform': 'AI Inference Platform',
+  'AI Inference Platform & Sovereign LLMs': 'AI Inference Platform & Sovereign LLMs',
+  'Enterprise AI Solutions': 'Enterprise AI Solutions',
+  'GPU-as-a-Service & Sovereign GPU Compute': 'GPU-as-a-Service & Sovereign GPU Compute',
+};
+const displayName = s => CAMPAIGN_LABELS[s] || prettyName(s);
 
 function campActive(p,c){return selPlt.has(p)&&selCamp.has(ckey(p,c));}
 
@@ -819,10 +849,10 @@ function buildCampaignPanel(){
   html+='<div class="actions"><a onclick="selectAllCamps(true)">Select all</a><a onclick="selectAllCamps(false)">Clear</a></div>';
   PLATFORMS.forEach(p=>{(byPlt[p]||[]).sort((a,b)=>b.spend_aud-a.spend_aud).forEach(r=>{
     const k=ckey(p,r.campaign);
-    html+=`<label class="row" data-name="${prettyName(r.campaign).toLowerCase()}">
+    html+=`<label class="row" data-name="${displayName(r.campaign).toLowerCase()}">
       <input type="checkbox" ${selCamp.has(k)?'checked':''} onchange="toggleCamp('${p}',this)" data-c="${encodeURIComponent(r.campaign)}">
       <span class="plt ${p}">${p.toUpperCase()}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${prettyName(r.campaign)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName(r.campaign)}</span>
       <span style="color:var(--muted2)">${aud(r.spend_aud)}</span></label>`;
   });});
   document.getElementById('campPanel').innerHTML=html;
@@ -1266,7 +1296,7 @@ function renderReddit(){
 function campTable(id,rows,heads,cells,nameKey){
   let h='<tr><th>'+(nameKey||'Campaign')+'</th>'+heads.map(x=>'<th>'+x+'</th>').join('')+'</tr>';
   if(!rows.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
-  rows.forEach(r=>{h+='<tr><td class="name" title="'+((r.campaign||r.creative||'')+'').replace(/"/g,'')+'">'+(prettyName(r.campaign||r.creative)||'(unnamed)')+'</td>'+cells(r).map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
+  rows.forEach(r=>{h+='<tr><td class="name" title="'+((r.campaign||r.creative||'')+'').replace(/"/g,'')+'">'+(displayName(r.campaign||r.creative)||'(unnamed)')+'</td>'+cells(r).map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
   document.getElementById(id).innerHTML=h;
 }
 
