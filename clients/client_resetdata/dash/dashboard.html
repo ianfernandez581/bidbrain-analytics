@@ -133,17 +133,18 @@
   .crm-callout{font-size:12.5px;color:var(--muted);margin:-2px 0 8px}
   .crm-callout b{color:var(--accent);font-size:15px}
   .crm-funnelstep::before{background:var(--accent)!important}
-  .kpi.k-pay::before{background:var(--good)!important} .kpi.k-free::before{background:var(--muted2)!important}
-  .kpi.k-queue::before{background:#F59E0B!important}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
-  .kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
-  .kpi.k-spend::before{background:var(--google)} .kpi.k-imps::before{background:var(--meta)}
-  .kpi.k-clicks::before{background:var(--ttd)} .kpi.k-sessions::before{background:var(--sessions)}
-  .kpi.k-addriven::before{background:var(--accent2)} .kpi.k-eng::before{background:var(--good)}
-  .kpi.k-leads::before{background:var(--keyevents)}
-  .kpi .label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
-  .kpi .value{font-size:24px;font-weight:800;margin-top:4px;letter-spacing:-.5px}
-  .kpi .sub{font-size:11px;color:var(--muted2);margin-top:3px}
+  /* KPI / stat cards — colour-matched aesthetic (no trendline, no pacing). Each card sets its accent
+     colour inline as --kc (from the JS KACCENT map) so it matches that metric's chart-series colour.
+     A soft accent wash + a tinted border + a glowing colour dot on the label give each card its own
+     identity — not a generic bar. color-mix keeps everything derived from existing theme tokens. */
+  .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 13%,var(--panel)),var(--panel) 62%);
+       border:1px solid color-mix(in srgb,var(--kc,var(--accent)) 22%,var(--line));
+       border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
+  .kpi .label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
+  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;background:var(--kc,var(--accent));
+       box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
+  .kpi .value{font-size:24px;font-weight:800;margin-top:9px;letter-spacing:-.5px}
+  .kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px}
 
   .panel-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
   .panel-box h3{margin:0 0 2px;font-size:14px;font-weight:700}
@@ -153,7 +154,7 @@
   @media(max-width:880px){.cols-2,.cols-3{grid-template-columns:1fr}}
   .chartbox{position:relative;height:300px}
   .chartbox.tall{height:340px}
-  .chartbox.sm{height:240px}
+  .chartbox.sm{height:280px}  /* donuts: legend now sits on top, so give the ring a little more room */
 
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
@@ -303,13 +304,13 @@
     </div>
     <div class="panel-box" style="margin-top:14px">
       <div class="panelhead">
-        <div><h3>Spend by platform over time</h3><p class="hint">Stacked media spend (AUD). <b>Relative</b> shows each period's platform <i>mix</i> (100%-stacked); switch to <b>Absolute</b> for AUD amounts.</p></div>
+        <div><h3>Media metrics over time</h3><p class="hint">Campaign delivery per period: <b>ad spend</b> (bars, AUD) with <b>impressions</b> and <b>clicks</b> (lines). Campaign filter applies. <b>Relative</b> indexes each line to its own peak (shared 0–100 axis) so both trends read at once; switch to <b>Absolute</b> for real values on dedicated axes.</p></div>
         <div class="ctrls">
           <span class="seg" id="paidScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on" onclick="setPaidScale('rel',this)">Relative</button><button type="button" data-scale="abs" onclick="setPaidScale('abs',this)">Absolute</button></span>
           <span class="seg" id="paidGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setPaidGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setPaidGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setPaidGrain('day',this)">Day</button></span>
         </div>
       </div>
-      <div class="chartbox"><canvas id="paidSpendChart"></canvas></div>
+      <div class="chartbox"><canvas id="paidMediaChart"></canvas></div>
     </div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Google Ads campaigns</h3><p class="hint">Paid search delivery + Google-reported conversions.</p><div class="tablewrap"><table id="googleCamps"></table></div></div>
@@ -406,8 +407,8 @@
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box">
         <div class="panelhead">
-          <div><h3>App signups per week — and where they came from</h3>
-          <p class="hint">New <code>app.reset.ai</code> accounts by ISO week, stacked by HubSpot Original Source. The line tracks how many of each week's signups went on to <b>pay</b> (load balance ≠ pay).</p></div>
+          <div><h3>App signups per week</h3>
+          <p class="hint">New <code>app.reset.ai</code> accounts by ISO week — bars are <b>total</b> signups; the green line tracks how many of each week's signups went on to <b>pay</b> (load balance ≠ pay). The source breakdown is in the chart below.</p></div>
         </div>
         <div id="crmWeekCallout" class="crm-callout"></div>
         <div class="chartbox"><canvas id="crmSignupsChart"></canvas></div>
@@ -416,6 +417,20 @@
         <div class="panelhead"><div><h3>Signup → paying funnel</h3>
         <p class="hint">Of all app signups: how many loaded a balance (mostly the free $50 credit) and how many actually <b>spent</b> = paying. “Free only” = signed up but never spent.</p></div></div>
         <div class="chartbox"><canvas id="crmFunnelChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Attribution (moved off the main chart) + which sources convert to paying -->
+    <div class="grid cols-2" style="margin-top:14px">
+      <div class="panel-box">
+        <div class="panelhead"><div><h3>Signups by source</h3>
+        <p class="hint">The attribution behind the totals above — each week's app signups split by HubSpot Original Source. <b>Hover</b> a bar to see the source (no legend, to keep it readable). <b>⚠ Attribution is thin</b> — most land as Offline / Direct.</p></div></div>
+        <div class="chartbox"><canvas id="crmSourceMixChart"></canvas></div>
+      </div>
+      <div class="panel-box">
+        <div class="panelhead"><div><h3>Paying vs free signups by source</h3>
+        <p class="hint">Which sources actually convert: <b>paying</b> (green) vs <b>free-only</b> (signed up, never spent), per source, biggest first. Hover for the pay rate.</p></div></div>
+        <div class="chartbox"><canvas id="crmPayFreeChart"></canvas></div>
       </div>
     </div>
 
@@ -447,7 +462,30 @@
 let DATA=null;
 const PLATFORMS=['google','meta','ttd','reddit'];
 const PLABEL={google:'Google Ads',meta:'Meta',ttd:'Trade Desk',reddit:'Reddit'};
-const PCOLOR={google:'#6366F1',meta:'#0EA5E9',ttd:'#A78BFA',reddit:'#FF5700'};
+// ── SINGLE SOURCE OF TRUTH for metric colors ────────────────────────────────
+// Every named metric / dimension value has ONE colour, used everywhere it appears
+// (Overview · Paid Media · Website · Signups & CRM). Look it up via mc(name);
+// unlisted values fall back to a neutral gray. The 12 headline metrics are globally
+// unique. GA4 channels and CRM lifecycle stages never share a chart, so they
+// intentionally mirror one palette. Keep the .kpi.k-*::before CSS accents in sync.
+const MC = {
+  // paid platforms
+  'Google Ads':'#6366F1','Meta':'#0EA5E9','Trade Desk':'#A78BFA','Reddit':'#FF5700',
+  // performance metrics (KPI accents + trend lines) — globally unique
+  'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
+  'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
+  // GA4 traffic channels / signup sources
+  'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
+  'Paid Social':'#F472A0','Paid Other':'#FCA5A5','Display':'#FDBA74','Email':'#FB923C',
+  'Referral':'#FACC15','AI Assistant':'#5EEAD4','AI Referral':'#5EEAD4','Cross-network':'#A5B4FC','Other Campaigns':'#E879F9',
+  'Offline / Sales':'#94A3B8','Unassigned':'#475569',
+  // CRM lifecycle stages (mirror the channel palette — never co-occur with channels)
+  'Subscriber':'#94A3B8','Lead':'#38BDF8','Marketing Qualified Lead':'#C084FC','Sales Qualified Lead':'#818CF8',
+  'Opportunity':'#FB923C','Customer':'#34D399','Evangelist':'#5EEAD4','Other':'#78716C','Unknown':'#475569',
+};
+const MC_MISC='#475569';
+const mc = name => MC[name] || MC_MISC;
+const PCOLOR={google:MC['Google Ads'],meta:MC['Meta'],ttd:MC['Trade Desk'],reddit:MC['Reddit']};
 const selPlt=new Set(PLATFORMS);
 let selCamp=new Set();             // keys "platform||campaign"
 const charts={};
@@ -519,6 +557,13 @@ const aud=v=>v==null?'—':'A$'+Math.round(v).toLocaleString();
 const aud2=v=>v==null?'—':'A$'+(+v).toLocaleString(undefined,{maximumFractionDigits:2});
 const pct=v=>v==null?'—':(v*100).toFixed(2)+'%';
 const div=(a,b)=>(!b)?null:a/b;
+
+// ----- label formatting -----
+// snake_case GA4 event names -> Title Case (with common acronyms upper-cased); tokens like "$50" pass through.
+const ACRONYMS={api:'API',gpu:'GPU',crm:'CRM',id:'ID',url:'URL',ai:'AI'};
+const prettyEvent=s=>String(s||'').split('_').map(w=>ACRONYMS[w.toLowerCase()]||(w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
+// campaign display names: swap delimiter underscores for spaces, preserve original casing.
+const prettyName=s=>String(s||'').replace(/_/g,' ');
 
 function campActive(p,c){return selPlt.has(p)&&selCamp.has(ckey(p,c));}
 
@@ -668,10 +713,8 @@ window.DateRange = (function(){
 fetch('/data.json').then(r=>r.json()).then(d=>{
   DATA=d;
   dateMin = DATA.window && DATA.window.start; dateMax = DATA.window && DATA.window.end;
-  // Default view: from 1 May of the latest year in the data (user can widen via the picker).
-  const may1 = dateMax ? dateMax.slice(0,4)+'-05-01' : null;
-  defaultStart = (may1 && (!dateMin || may1>=dateMin) && may1<=dateMax) ? may1 : dateMin;
-  rangeStart = defaultStart; rangeEnd = dateMax;
+  // Default view: ALL TIME (full data window; user can narrow via the picker).
+  rangeStart = defaultStart = dateMin; rangeEnd = dateMax;
   DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
     onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; document.getElementById('heroBack').classList.remove('show'); renderAll(); } });
   document.getElementById('updated').textContent='Updated '+(d.last_updated||'').replace('T',' ').replace('Z',' UTC');
@@ -709,10 +752,10 @@ function buildCampaignPanel(){
   html+='<div class="actions"><a onclick="selectAllCamps(true)">Select all</a><a onclick="selectAllCamps(false)">Clear</a></div>';
   PLATFORMS.forEach(p=>{(byPlt[p]||[]).sort((a,b)=>b.spend_aud-a.spend_aud).forEach(r=>{
     const k=ckey(p,r.campaign);
-    html+=`<label class="row" data-name="${(r.campaign||'').toLowerCase()}">
+    html+=`<label class="row" data-name="${prettyName(r.campaign).toLowerCase()}">
       <input type="checkbox" ${selCamp.has(k)?'checked':''} onchange="toggleCamp('${p}',this)" data-c="${encodeURIComponent(r.campaign)}">
       <span class="plt ${p}">${p.toUpperCase()}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.campaign}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${prettyName(r.campaign)}</span>
       <span style="color:var(--muted2)">${aud(r.spend_aud)}</span></label>`;
   });});
   document.getElementById('campPanel').innerHTML=html;
@@ -767,8 +810,48 @@ function renderDateScope(){
   }
 }
 function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,cfg);}
+
+// ===================== legend affordance (legends are click-to-toggle) =====================
+// Chart.js legends already toggle their series/slice on click, but nothing signals that. Make it
+// discoverable, right where the eye already is — RIGHT ABOVE THE LABELS — via the legend's own
+// native title (renders inside the legend block, adjacent to the items, for BOTH top & right
+// legends). Plus a pointer cursor + a subtle dim on the hovered label. All via existing theme
+// tokens, no DOM/layout changes. Charts with legend:{display:false} render no legend → no hint,
+// so we never advertise a non-interactive legend.
+(function setupLegendAffordance(){
+  if(!window.Chart) return;
+  const HINT='Click a label to show or hide it';
+  const DIM='#5C7187';                                        // --muted2 (dimmer than the --muted legend text)
+  const keyOf=it=>it.datasetIndex!=null?('d'+it.datasetIndex):('i'+it.index);
+  const onHover=(e,item,legend)=>{ if(e&&e.native&&e.native.target)e.native.target.style.cursor='pointer';
+    const c=legend.chart, k=keyOf(item); if(c.$legHover!==k){ c.$legHover=k; c.update('none'); } };
+  const onLeave=(e,item,legend)=>{ if(e&&e.native&&e.native.target)e.native.target.style.cursor='';
+    const c=legend.chart; if(c.$legHover!=null){ c.$legHover=null; c.update('none'); } };
+  const wrap=obj=>{ if(!obj||obj.__aff)return; obj.__aff=true;
+    // hint as the legend's own title → sits immediately above the labels, on-canvas
+    obj.title=Object.assign(obj.title||{}, {display:true, text:HINT, color:DIM});
+    obj.title.font=Object.assign({size:11, weight:'normal'}, obj.title.font);
+    obj.title.padding=Object.assign({top:0, bottom:6}, obj.title.padding);
+    // pointer + hover dim
+    if(obj.labels && typeof obj.labels.generateLabels==='function'){ const orig=obj.labels.generateLabels;
+      obj.labels.generateLabels=function(chart){ const items=orig.call(this,chart);
+        try{ const h=chart.$legHover; if(h!=null) items.forEach(it=>{ if(keyOf(it)===h) it.fontColor=DIM; }); }catch(_){}
+        return items; }; }
+    obj.onHover=onHover; obj.onLeave=onLeave; };
+  wrap(Chart.defaults.plugins.legend);                        // bar / line / mixed (top legend)
+  if(Chart.overrides) ['doughnut','pie','polarArea'].forEach(t=>{                 // donut / pie keep their own legend defaults
+    const o=Chart.overrides[t]; if(o&&o.plugins&&o.plugins.legend) wrap(o.plugins.legend); });
+})();
 const gridClr='#1E2D42', tickClr='#8CA0B8';
-const axis=(extra={})=>Object.assign({grid:{color:gridClr},ticks:{color:tickClr}},extra);
+// Headroom: raise ONLY the top of value axes by ~8% so peaks/bars never touch the plot edge.
+// No-op on category axes and on axes with an explicit `max` (e.g. the % axes set their own), and
+// it never moves the baseline — so it can't introduce negative space below zero-based bars.
+function padTop(scale){
+  if(scale.type==='category' || scale.options.max!=null) return;
+  if(scale.max==null || scale.min==null) return;
+  scale.max += (scale.max - Math.min(0, scale.min)) * 0.08;
+}
+const axis=(extra={})=>Object.assign({grid:{color:gridClr},ticks:{color:tickClr},afterDataLimits:padTop},extra);
 
 // ===================== shared time-series plumbing (Month / Week / Day) =====================
 // One place that maps a grain to its GA4-side rows + the campaign-grained ad-delivery rows, all
@@ -797,6 +880,54 @@ function tsAd(g, keys, filt){
 }
 
 // ---------- Overview ----------
+// ── Trend cards: sparkline + period-over-period delta ────────────────────────
+// Each card's accent colour = its ::before stripe colour (kept in sync here); the
+// sparkline uses it. Delta = most-recent-half vs the immediately-preceding equal-
+// length half of the series (two consecutive equal windows). No new palette: the
+// arrow uses the theme's --good (up) / --bad (down). Cards with series===null show
+// a subtle "no trend data" slot; nothing is ever fabricated.
+const KACCENT={
+  'k-spend':'#64748B','k-imps':'#22D3EE','k-clicks':'#A3E635','k-sessions':'#E84A6F',
+  'k-addriven':'#8B5CF6','k-eng':'#2DD4BF','k-leads':'#F59E0B','k-pay':'#34D399',
+  'k-free':'#8CA0B8','k-queue':'#F59E0B',
+  // CRM cards mirror the funnel / weekly-chart colours so each metric tracks by colour:
+  // App signups=#38BDF8 (sky), Loaded balance=#FBBF24 (gold — distinct from the sky-blue signups),
+  // Paying=#34D399 (mc('Paying')), Free only=#78716C. Leads & Customers have no funnel bar, so they
+  // keep distinct standout accents: Leads=#6366F1 indigo (NOT the key-events amber), Customer=violet.
+  'kc-leads':'#6366F1','kc-signup':'#38BDF8','kc-loaded':'#FBBF24',
+  'kc-paying':'#34D399','kc-free':'#78716C','kc-cust':'#A78BFA',
+};
+function spark(series,color){
+  const v=(series||[]).filter(x=>x!=null&&!isNaN(x)).map(Number);
+  if(v.length<2) return '';
+  const W=100,H=26,P=2, mn=Math.min(...v), mx=Math.max(...v), rng=(mx-mn)||1;
+  const pts=v.map((y,i)=>((P+i*(W-2*P)/(v.length-1)).toFixed(1))+','+((H-P-((y-mn)/rng)*(H-2*P)).toFixed(1)));
+  const lp=pts[pts.length-1].split(',');
+  return `<svg class="spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">`
+       + `<polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" `
+       + `vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>`
+       + `<circle cx="${lp[0]}" cy="${lp[1]}" r="1.8" fill="${color}"/></svg>`;
+}
+function deltaFromSeries(series){
+  const v=(series||[]).filter(x=>x!=null&&!isNaN(x)).map(Number);
+  const n=Math.floor(v.length/2); if(n<1) return '';
+  const prev=v.slice(v.length-2*n,v.length-n).reduce((s,x)=>s+x,0);
+  const cur =v.slice(v.length-n).reduce((s,x)=>s+x,0);
+  if(!prev && !cur) return '';
+  const up=cur>=prev;
+  const txt = prev? (up?'+':'−')+Math.abs((cur-prev)/prev*100).toFixed(0)+'%' : 'new';
+  return `<span class="delta ${up?'up':'down'}">${up?'▲':'▼'} ${txt}</span>`;
+}
+// Build a KPI / stat card — colour-matched aesthetic, NO trendline and NO pacing (client dropped the
+// sparkline). `series` is intentionally ignored (kept in the signature so callers don't change). The
+// accent colour is passed inline as --kc so each card matches its metric's chart-series colour.
+function trendCard(cls,label,value,sub,series){
+  const color=KACCENT[cls]||'var(--accent)';
+  return `<div class="kpi ${cls}" style="--kc:${color}">`
+       + `<div class="label">${label}</div>`
+       + `<div class="value">${value}</div>`
+       + `<div class="sub">${sub}</div></div>`;
+}
 function renderOverview(){
   // KPI cards honor the date range (month granularity — the feed's finest KPI grain): media delivery
   // from ad_campaign_monthly (Platform + Campaign scoped), GA4 outcomes from monthly. Selecting all
@@ -810,17 +941,25 @@ function renderOverview(){
   if(selPlt.has('google'))adDriven+=sumBy(mr,'search_sessions');
   if(selPlt.has('meta')||selPlt.has('reddit'))adDriven+=sumBy(mr,'social_sessions');
   if(selPlt.has('ttd'))adDriven+=sumBy(mr,'display_sessions');
+  // Per-month series (range-filtered) so each sparkline matches its card value: ad metrics from the
+  // campaign-scoped acm, GA4 metrics from monthly (mr). Delta = recent half vs prior half of these.
+  const ovMonths=[...new Set(mr.map(m=>m.month))].sort();
+  const mrBy=f=>ovMonths.map(mo=>{const r=mr.find(x=>x.month===mo);return r?(+r[f]||0):0;});
+  const acmBy=f=>ovMonths.map(mo=>acm.filter(r=>r.month===mo).reduce((s,r)=>s+(+r[f]||0),0));
+  const adDrivenBy=ovMonths.map(mo=>{const r=mr.find(x=>x.month===mo); if(!r)return 0; let s=0;
+    if(selPlt.has('google'))s+=+r.search_sessions||0;
+    if(selPlt.has('meta')||selPlt.has('reddit'))s+=+r.social_sessions||0;
+    if(selPlt.has('ttd'))s+=+r.display_sessions||0; return s;});
   const cards=[
-    ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks))],
-    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000)],
-    ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps))],
-    ['k-sessions','Website sessions',fmtN(sessions),'whole site'],
-    ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions'],
-    ['k-eng','Engaged sessions',fmtN(engaged),pct(div(engaged,sessions))+' eng. rate'],
-    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)'],
+    ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks)), acmBy('spend_aud')],
+    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), acmBy('imps')],
+    ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), acmBy('clicks')],
+    ['k-sessions','Website sessions',fmtN(sessions),'whole site', mrBy('sessions')],
+    ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions', adDrivenBy],
+    ['k-eng','Engaged sessions',fmtN(engaged),pct(div(engaged,sessions))+' eng. rate', mrBy('engaged_sessions')],
+    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)', mrBy('conversions')],
   ];
-  document.getElementById('ovKpis').innerHTML=cards.map(c=>
-    `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
+  document.getElementById('ovKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4])).join('');
 
   renderHero();
   renderKeyEventsBreakdown();
@@ -828,14 +967,14 @@ function renderOverview(){
   // channel donut (whole period — GA4 channel mix has no month grain in the feed)
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
   mkChart('channelDonut',{type:'doughnut',data:{labels:ch.map(c=>c.channel),
-    datasets:[{data:ch.map(c=>c.sessions),backgroundColor:['#E84A6F','#0EA5E9','#6366F1','#A78BFA','#34D399','#F59E0B','#FB7185','#64748B','#94A3B8','#475569','#0D9488']}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+    datasets:[{data:ch.map(c=>c.sessions),backgroundColor:ch.map(c=>mc(c.channel))}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
 
   // spend donut (filtered, in range)
   const sp=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumBy(acm.filter(r=>r.platform===p),'spend_aud')})).filter(x=>x.v>0);
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
 }
 
 // hero: ad spend (stacked bars) vs its effects (sessions / clicks / impressions / key events).
@@ -852,10 +991,10 @@ function renderHero(){
   const labels=keys.map(grainLabel(g));
   const rel=(scale.hero==='rel');
   const effects=[
-    {label:'Sessions',    color:'#E84A6F', data:sessions, w:2.5},
-    {label:'Clicks',      color:'#34D399', data:clicks,   w:2},
-    {label:'Impressions', color:'#22D3EE', data:imps,     w:2},
-    {label:'Key events',  color:'#F59E0B', data:keyevents,w:2.5, dash:true},
+    {label:'Sessions',    color:mc('Sessions'),    data:sessions, w:2.5, dash:true},
+    {label:'Clicks',      color:mc('Clicks'),      data:clicks,   w:2},
+    {label:'Impressions', color:mc('Impressions'), data:imps,     w:2},
+    {label:'Key events',  color:mc('Key events'),  data:keyevents,w:2.5},
   ].filter(e=>e.data);
   const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
     type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
@@ -869,8 +1008,8 @@ function renderHero(){
   const scales = rel
     ? { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-        yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},
-          title:{display:true,text:'Effects — % of own peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}) }
+        yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},
+          title:{display:true,text:'Effects — % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
         y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions / key events',color:tickClr}}),
@@ -908,7 +1047,7 @@ function renderKeyEventsBreakdown(){
   const colTot=buckets.map((_,bi)=>names.reduce((s,_,ni)=>s+raw[ni][bi],0));   // per-period total
   const rel=(scale.ke==='rel');
   const ds=names.map((nm,ni)=>({
-    label:nm, backgroundColor:PAL[ni%PAL.length], stack:'ke',
+    label:prettyEvent(nm), backgroundColor:PAL[ni%PAL.length], stack:'ke',
     data: rel?raw[ni].map((v,bi)=>colTot[bi]?v/colTot[bi]*100:0):raw[ni], _raw:raw[ni] }));
   const lab=grainLabel(g);
   mkChart('keyEventsBreakdown',{type:'bar',data:{labels:buckets.map(lab),datasets:ds},options:{
@@ -941,23 +1080,36 @@ function renderPaid(){
     <td>${aud2(div(tot.spend,tot.clicks))}</td><td>${fmtN(tot.conv)}</td><td>—</td></tr>`;
   document.getElementById('platformTable').innerHTML=body;
 
-  // stacked spend by platform over time (campaign-filtered). Pure composition: "Relative" =
-  // 100%-stacked (each period's platform mix, true AUD in tooltips); "Absolute" = AUD amounts.
+  // media metrics over time (campaign-filtered): total ad spend (bars, AUD) + impressions & clicks
+  // (overlay lines). This tab is about MEDIA PERFORMANCE — the per-platform spend mix lives on the
+  // Overview (heroChart + spendDonut), so we don't repeat it here. "Relative" indexes each line to
+  // its own peak (shared 0–100 right axis) so impressions and clicks — orders of magnitude apart —
+  // both read at once; "Absolute" gives each its own right axis. Spend bars stay in AUD either way.
   const gp=grain.paid;
   const ga=tsGA4(gp), keys=ga.keys;                        // GA4 feed gives the canonical period list
   const ad=tsAd(gp, keys, campSel);
-  const colTot=keys.map((_,i)=>PLATFORMS.reduce((s,p)=>s+ad.spendByPlt[p][i],0));
+  const spendArr=ad.spend, impArr=ad.imps, clkArr=ad.clicks;
   const relP=(scale.paid==='rel');
-  mkChart('paidSpendChart',{type:'bar',data:{labels:keys.map(grainLabel(gp)),datasets:PLATFORMS.map(p=>({
-      label:PLABEL[p],stack:'s',backgroundColor:PCOLOR[p],
-      data: relP?ad.spendByPlt[p].map((v,i)=>colTot[i]?v/colTot[i]*100:0):ad.spendByPlt[p], _raw:ad.spendByPlt[p]}))},
+  const ds=[
+    {type:'bar',label:'Ad spend',backgroundColor:mc('Ad spend'),data:spendArr,yAxisID:'y',order:5},
+    {type:'line',label:'Impressions',borderColor:mc('Impressions'),backgroundColor:mc('Impressions'),
+      data: relP?indexed(impArr):impArr, _raw:impArr,
+      yAxisID: relP?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,order:1},
+    {type:'line',label:'Clicks',borderColor:mc('Clicks'),backgroundColor:mc('Clicks'),
+      data: relP?indexed(clkArr):clkArr, _raw:clkArr,
+      yAxisID: relP?'yRel':'y2',tension:.3,borderWidth:2,pointRadius:2,order:1},
+  ];
+  mkChart('paidMediaChart',{data:{labels:keys.map(grainLabel(gp)),datasets:ds},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:12}},
-        tooltip:{callbacks:{label:ctx=>{ const v=ctx.dataset._raw?ctx.dataset._raw[ctx.dataIndex]:ctx.parsed.y;
-          return ctx.dataset.label+': '+aud(v)+(relP?'  ('+Math.round(ctx.parsed.y)+'%)':''); }}}},
-      scales:{x:axis({stacked:true}),y:axis(relP
-        ?{stacked:true,min:0,max:100,title:{display:true,text:'Share of spend',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}}
-        :{stacked:true,title:{display:true,text:'Spend (AUD)',color:tickClr}})}}});
+        tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
+          if(d.type==='bar')return d.label+': '+aud(ctx.parsed.y);
+          const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
+          return d.label+': '+fmtN(raw)+(relP?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+      scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
+        relP?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions / clicks — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
+            :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Impressions',color:tickClr}}),
+              y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Clicks',color:tickClr}})})}});
 
   campTable('googleCamps',DATA.google_campaigns.filter(r=>campSel('google',r.campaign)),
     ['Impr.','Clicks','Spend','Conv.','CPL'],r=>[fmtN(r.imps),fmtN(r.clicks),aud(r.spend_aud),fmtN(r.conversions),aud(div(r.spend_aud,r.conversions))]);
@@ -1001,8 +1153,8 @@ function renderReddit(){
   const keys=Object.keys(agg).sort();
   const impArr=keys.map(k=>agg[k].imps), relR=(scale.reddit==='rel');
   mkChart('redditTrend',{data:{labels:keys.map(grainLabel(gr)),datasets:[
-    {type:'bar',label:'Spend',backgroundColor:'#FF5700',data:keys.map(k=>agg[k].spend),yAxisID:'y',order:5},
-    {type:'line',label:'Impressions',borderColor:'#22D3EE',backgroundColor:'#22D3EE',
+    {type:'bar',label:'Spend',backgroundColor:mc('Reddit'),data:keys.map(k=>agg[k].spend),yAxisID:'y',order:5},
+    {type:'line',label:'Impressions',borderColor:mc('Impressions'),backgroundColor:mc('Impressions'),
       data: relR?indexed(impArr):impArr, _raw:impArr,
       yAxisID: relR?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,order:1}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
@@ -1011,13 +1163,13 @@ function renderReddit(){
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relR?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
-        relR?{yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions — % of peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+        relR?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Impressions — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Impressions',color:tickClr}})})}});
 
   // campaign table — objective + page visits + conversions
   let h='<tr><th>Campaign</th><th>Objective</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Page visits</th><th>Sign-ups / leads</th></tr>';
   if(!rc.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
-  rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(r.campaign||'(unnamed)')+'</td>'+
+  rc.forEach(r=>{h+='<tr><td class="name" title="'+(''+(r.campaign||'')).replace(/"/g,'')+'">'+(prettyName(r.campaign)||'(unnamed)')+'</td>'+
     '<td style="text-align:left;color:var(--muted)">'+(r.objective||'—')+'</td>'+
     '<td>'+fmtN(r.imps)+'</td><td>'+fmtN(r.clicks)+'</td><td>'+pct(div(r.clicks,r.imps))+'</td>'+
     '<td>'+aud(r.spend_aud)+'</td><td>'+fmtN(r.page_visits)+'</td><td>'+fmtN(r.conversions)+'</td></tr>';});
@@ -1026,26 +1178,29 @@ function renderReddit(){
 function campTable(id,rows,heads,cells,nameKey){
   let h='<tr><th>'+(nameKey||'Campaign')+'</th>'+heads.map(x=>'<th>'+x+'</th>').join('')+'</tr>';
   if(!rows.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
-  rows.forEach(r=>{h+='<tr><td class="name" title="'+((r.campaign||r.creative||'')+'').replace(/"/g,'')+'">'+(r.campaign||r.creative||'(unnamed)')+'</td>'+cells(r).map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
+  rows.forEach(r=>{h+='<tr><td class="name" title="'+((r.campaign||r.creative||'')+'').replace(/"/g,'')+'">'+(prettyName(r.campaign||r.creative)||'(unnamed)')+'</td>'+cells(r).map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
   document.getElementById(id).innerHTML=h;
 }
 
 // ---------- Website Traffic (whole; no filters) ----------
 function renderWebsite(){
   const k=DATA.kpi;
+  // Whole-period monthly series for the sparklines (this tab ignores the date range). Page views is
+  // kpi-only (no monthly series) -> null -> "no trend data".
+  const wm=[...DATA.monthly].sort((a,b)=>a.month<b.month?-1:1);
+  const wmBy=f=>wm.map(m=>+m[f]||0);
   const cards=[
-    ['k-sessions','Sessions',fmtN(k.sessions),''],
-    ['k-addriven','Users',fmtN(k.users),fmtN(k.new_users)+' new'],
-    ['k-eng','Engaged sessions',fmtN(k.engaged_sessions),pct(div(k.engaged_sessions,k.sessions))+' rate'],
-    ['k-imps','Page views',fmtN(k.page_views),fmt1(div(k.page_views,k.sessions))+' / session'],
-    ['k-leads','Key events',fmtN(k.conversions),'GA4 (modest)'],
+    ['k-sessions','Sessions',fmtN(k.sessions),'', wmBy('sessions')],
+    ['k-addriven','Users',fmtN(k.users),fmtN(k.new_users)+' new', wmBy('users')],
+    ['k-eng','Engaged sessions',fmtN(k.engaged_sessions),pct(div(k.engaged_sessions,k.sessions))+' rate', wmBy('engaged_sessions')],
+    ['k-imps','Page views',fmtN(k.page_views),fmt1(div(k.page_views,k.sessions))+' / session', null],
+    ['k-leads','Key events',fmtN(k.conversions),'GA4 (modest)', wmBy('conversions')],
   ];
-  document.getElementById('webKpis').innerHTML=cards.map(c=>
-    `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
+  document.getElementById('webKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4])).join('');
 
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
   mkChart('webChannelBar',{type:'bar',data:{labels:ch.map(c=>c.channel),datasets:[
-    {label:'Sessions',backgroundColor:ch.map(c=>c.bucket==='Paid'?'#E84A6F':'#3B4D66'),data:ch.map(c=>c.sessions)}]},
+    {label:'Sessions',backgroundColor:ch.map(c=>c.bucket==='Paid'?mc('Ad-driven (paid)'):'#3B4D66'),data:ch.map(c=>c.sessions)}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
   // Total vs ad-driven sessions (whole period — the Website tab hides the filter bar). Two lines,
@@ -1060,22 +1215,22 @@ function renderWebsite(){
   const relW=(scale.web==='rel');
   const wyId=relW?'yRel':'y';
   mkChart('webTrend',{data:{labels:wlabels,datasets:[
-    {type:'line',label:'All sessions',borderColor:'#E84A6F',data:relW?indexed(allSess):allSess,_raw:allSess,yAxisID:wyId,tension:.3,borderWidth:2.5,pointRadius:2},
-    {type:'line',label:'Ad-driven (paid)',borderColor:'#F59E0B',data:relW?indexed(adSess):adSess,_raw:adSess,yAxisID:wyId,tension:.3,borderWidth:2,pointRadius:2}]},
+    {type:'line',label:'All sessions',borderColor:mc('Sessions'),data:relW?indexed(allSess):allSess,_raw:allSess,yAxisID:wyId,tension:.3,borderWidth:2.5,pointRadius:2,borderDash:[5,4]},
+    {type:'line',label:'Ad-driven (paid)',borderColor:mc('Ad-driven (paid)'),data:relW?indexed(adSess):adSess,_raw:adSess,yAxisID:wyId,tension:.3,borderWidth:2,pointRadius:2,borderDash:[5,4]}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relW?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis()}, relW
-        ?{yRel:axis({min:0,max:100,title:{display:true,text:'Index (peak=100)',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+        ?{yRel:axis({min:0,max:125,title:{display:true,text:'Index (peak=100)',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
         :{y:axis({title:{display:true,text:'Sessions',color:tickClr}})})}});
 
   // key events by type (aggregate over months)
   const ev={};
   DATA.ga4_key_events.forEach(r=>{ev[r.event_name]=(ev[r.event_name]||0)+(+r.event_count||0);});
   const evArr=Object.entries(ev).sort((a,b)=>b[1]-a[1]);
-  mkChart('keyEventsChart',{type:'bar',data:{labels:evArr.map(e=>e[0]),datasets:[
-    {label:'Event count',backgroundColor:'#F59E0B',data:evArr.map(e=>e[1])}]},
+  mkChart('keyEventsChart',{type:'bar',data:{labels:evArr.map(e=>prettyEvent(e[0])),datasets:[
+    {label:'Event count',backgroundColor:mc('Key events'),data:evArr.map(e=>e[1])}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
   let h='<tr><th>Source / Medium</th><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Key events</th></tr>';
@@ -1095,15 +1250,15 @@ function renderAds2Traffic(){
   const adM=tsAd(gm, mkeys, campActive);
   const sessM=gaM.rows.map(gaM.sessOf), relM=(scale.a2tm==='rel');
   mkChart('a2tMonthly',{data:{labels:mkeys.map(grainLabel(gm)),datasets:[
-    {type:'bar',label:'Ad spend',backgroundColor:'#6366F1',data:adM.spend,yAxisID:'y'},
-    {type:'line',label:'Sessions',borderColor:'#E84A6F',data:relM?indexed(sessM):sessM,_raw:sessM,yAxisID:relM?'yRel':'y1',tension:.3,borderWidth:2.5,pointRadius:2}]},
+    {type:'bar',label:'Ad spend',backgroundColor:mc('Ad spend'),data:adM.spend,yAxisID:'y'},
+    {type:'line',label:'Sessions',borderColor:mc('Sessions'),data:relM?indexed(sessM):sessM,_raw:sessM,yAxisID:relM?'yRel':'y1',tension:.3,borderWidth:2.5,pointRadius:2,borderDash:[5,4]}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         if(d.type==='bar')return d.label+': '+aud(ctx.parsed.y);
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relM?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}})},
-        relM?{yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+        relM?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Sessions',color:tickClr}})})}});
 
   // "Ad impressions vs sessions": imps (bars) + mapped paid sessions (overlay line). Same Rel/Abs
@@ -1112,15 +1267,15 @@ function renderAds2Traffic(){
   const adW=tsAd(gw, wkeys, campActive);
   const mapW=gaW.rows.map(mappedSess), relW=(scale.a2tw==='rel');
   mkChart('a2tWeekly',{data:{labels:wkeys.map(grainLabel(gw)),datasets:[
-    {type:'bar',label:'Ad impressions',backgroundColor:'#A78BFA',data:adW.imps,yAxisID:'y'},
-    {type:'line',label:'Mapped paid sessions',borderColor:'#E84A6F',data:relW?indexed(mapW):mapW,_raw:mapW,yAxisID:relW?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2}]},
+    {type:'bar',label:'Ad impressions',backgroundColor:mc('Impressions'),data:adW.imps,yAxisID:'y'},
+    {type:'line',label:'Mapped paid sessions',borderColor:mc('Ad-driven (paid)'),data:relW?indexed(mapW):mapW,_raw:mapW,yAxisID:relW?'yRel':'y1',tension:.3,borderWidth:2,pointRadius:2,borderDash:[5,4]}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:12}},tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         if(d.type==='bar')return d.label+': '+fmtN(ctx.parsed.y);
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
         return d.label+': '+fmtN(raw)+(relW?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
       scales:Object.assign({x:axis(),y:axis({position:'left',title:{display:true,text:'Impressions',color:tickClr}})},
-        relW?{yRel:axis({position:'right',min:0,max:100,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,callback:v=>v+'%'}})}
+        relW?{yRel:axis({position:'right',min:0,max:125,grid:{drawOnChartArea:false},title:{display:true,text:'Sessions — % of peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}})}
             :{y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Mapped paid sessions',color:tickClr}})})}});
 
   // scatter (excluded from the grain/scale toggles — always weekly): ad spend vs mapped paid
@@ -1129,7 +1284,7 @@ function renderAds2Traffic(){
   const spByWeek={};
   DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign) && inRangeWeek(r.week_start)).forEach(r=>{spByWeek[r.week_start]=(spByWeek[r.week_start]||0)+(+r.spend_aud||0);});
   const pts=fw.map(w=>({x:spByWeek[w.week_start]||0,y:mappedSess(w)})).filter(p=>p.x>0||p.y>0);
-  mkChart('a2tScatter',{type:'scatter',data:{datasets:[{label:'Week',data:pts,backgroundColor:'#E84A6F'}]},
+  mkChart('a2tScatter',{type:'scatter',data:{datasets:[{label:'Week',data:pts,backgroundColor:mc('Sessions')}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:axis({title:{display:true,text:'Weekly ad spend (AUD)',color:tickClr}}),y:axis({title:{display:true,text:'Mapped paid sessions',color:tickClr}})}}});
   const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));
@@ -1173,25 +1328,30 @@ function exportAllData(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='resetdata_export.csv';a.click();
 }
 // ===================== Signups & CRM (HubSpot) =====================
-const SRC_COLORS={'Offline / Sales':'#64748B','Direct':'#0EA5E9','Organic Search':'#34D399','Paid Search':'#E84A6F','Paid Social':'#F472A0','Organic Social':'#A78BFA','Email':'#F59E0B','Referral':'#6366F1','AI Referral':'#0D9488','Other Campaigns':'#94A3B8','Unknown':'#475569'};
-const LC_ORDER=['Subscriber','Lead','MQL','SQL','Opportunity','Customer','Evangelist','Other','Unknown'];
-const LC_COLORS={'Subscriber':'#64748B','Lead':'#0EA5E9','MQL':'#A78BFA','SQL':'#6366F1','Opportunity':'#F59E0B','Customer':'#34D399','Evangelist':'#0D9488','Other':'#475569','Unknown':'#334155'};
-const srcColor=s=>SRC_COLORS[s]||'#475569';
+const LC_ORDER=['Subscriber','Lead','Marketing Qualified Lead','Sales Qualified Lead','Opportunity','Customer','Evangelist','Other','Unknown'];
+const srcColor=mc;   // GA4 channels/sources & CRM lifecycle both resolve via the single MC map
 function qStart(d){const m=+d.slice(5,7);const qm=m<=3?1:m<=6?4:m<=9?7:10;return d.slice(0,4)+'-'+String(qm).padStart(2,'0')+'-01';}
 
 function renderCRM(){
   const C=DATA.crm; if(!C)return; const k=C.kpi;
   // ---- funnel KPI cards: Leads → App signups → Loaded balance → Paying → Customers ----
+  // Weekly series (whole-period; this tab ignores the date range) for the sparklines. Only signups /
+  // paying / loaded_balance exist over time; Free = signups - paying. Leads & Customers have no
+  // time series -> null -> "no trend data".
+  const sw=C.signups_weekly||[];
+  const wks=[...new Set(sw.map(r=>r.week_start))].sort();
+  const byW=f=>wks.map(w=>sw.filter(r=>r.week_start===w).reduce((s,r)=>s+(+r[f]||0),0));
+  const sgW=byW('signups'), payW=byW('paying'), loadW=byW('loaded_balance');
+  const freeW=wks.map((w,i)=>sgW[i]-payW[i]);
   const cards=[
-    ['k-leads','Leads (contacts)',fmtN(k.leads),'all HubSpot contacts'],
-    ['k-sessions','App signups',fmtN(k.app_signups),'created app.reset.ai account'],
-    ['k-addriven','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account'],
-    ['k-pay','Paying',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'—')+' of signups · '+aud(k.total_rd_spend)+' spent'],
-    ['k-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent'],
-    ['k-eng','Customers',fmtN(k.customers),fmtN(k.with_deal)+' with a deal'],
+    ['kc-leads','Leads (contacts)',fmtN(k.leads),'all HubSpot contacts', null],
+    ['kc-signup','App signups',fmtN(k.app_signups),'created app.reset.ai account', sgW],
+    ['kc-loaded','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account', loadW],
+    ['kc-paying','Paying',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'—')+' of signups · '+aud(k.total_rd_spend)+' spent', payW],
+    ['kc-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent', freeW],
+    ['kc-cust','Customers',fmtN(k.customers),fmtN(k.with_deal)+' with a deal', null],
   ];
-  document.getElementById('crmKpis').innerHTML=cards.map(c=>
-    `<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
+  document.getElementById('crmKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4])).join('');
 
   // ---- Q1: weekly app signups stacked by source + paying line ----
   const wk=C.signups_weekly;
@@ -1203,12 +1363,19 @@ function renderCRM(){
   const payLine=weeks.map(()=>0), sgnLine=weeks.map(()=>0);
   wk.forEach(r=>{const i=wi[r.week_start];bySrc[r.source][i]+=r.signups;payLine[i]+=r.paying;sgnLine[i]+=r.signups;});
   const wkLabels=weeks.map(w=>new Date(w+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-  const ds=srcs.map(s=>({type:'bar',label:s,backgroundColor:srcColor(s),data:bySrc[s],stack:'sg'}));
-  ds.push({type:'line',label:'Paying',borderColor:'#34D399',backgroundColor:'#34D399',data:payLine,tension:.3,borderWidth:2.5,pointRadius:2,order:0});
-  mkChart('crmSignupsChart',{data:{labels:wkLabels,datasets:ds},
+  // Change 1: the main chart is the clean TOTALS story — one bar series = total signups/week (single
+  // sky-blue, same as the funnel's "App signups") + the green Paying line. The per-source attribution
+  // that used to clutter this chart now lives in crmSourceMixChart just below.
+  const SIGNUP_COLOR='#38BDF8';   // matches the funnel's "App signups" bar → signups=sky-blue, paying=green
+  mkChart('crmSignupsChart',{data:{labels:wkLabels,datasets:[
+      {type:'bar',label:'Signups',backgroundColor:SIGNUP_COLOR,data:sgnLine,order:1},
+      {type:'line',label:'Paying',borderColor:mc('Paying'),backgroundColor:mc('Paying'),data:payLine,tension:.3,borderWidth:2.5,pointRadius:2,order:0}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-      plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}}},
-      scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Signups',color:tickClr}})}}});
+      plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}},
+        tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Paying'
+          ? 'Paying: '+fmtN(ctx.parsed.y)+(sgnLine[ctx.dataIndex]?'  ('+pct(ctx.parsed.y/sgnLine[ctx.dataIndex])+' of signups)':'')
+          : 'Signups: '+fmtN(ctx.parsed.y)}}},
+      scales:{x:axis(),y:axis({title:{display:true,text:'Signups',color:tickClr}})}}});
   // this-week / QTD callout (latest week in the data)
   const n=weeks.length, lastW=weeks[n-1];
   const qtr=lastW?qStart(lastW):null; let qtdSgn=0,qtdPay=0;
@@ -1216,10 +1383,32 @@ function renderCRM(){
   document.getElementById('crmWeekCallout').innerHTML=n?
     `Week of ${wkLabels[n-1]}: <b>${sgnLine[n-1]}</b> signups (${payLine[n-1]} paying) &nbsp;·&nbsp; Quarter-to-date: <b>${qtdSgn}</b> signups (${qtdPay} paying)`:'';
 
+  // ---- Change 2a: attribution — same weeks, bars STACKED by source (palette colours), NO legend;
+  //      hover reveals the source name + count (zero slices hidden). The "where from" detail lifted
+  //      off the main chart. HubSpot attribution is thin, so Offline/Direct dominate — that's real. ----
+  mkChart('crmSourceMixChart',{type:'bar',data:{labels:wkLabels,datasets:srcs.map(s=>({label:s,backgroundColor:srcColor(s),data:bySrc[s],stack:'sg'}))},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{display:false},
+        tooltip:{filter:it=>it.parsed.y>0,callbacks:{label:ctx=>{const tot=sgnLine[ctx.dataIndex];
+          return ctx.dataset.label+': '+fmtN(ctx.parsed.y)+(tot?'  ('+pct(ctx.parsed.y/tot)+')':'');}}}},
+      scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Signups by source',color:tickClr}})}}});
+
+  // ---- Change 2b: which sources drive PAYING vs FREE signups — one bar per source, paying (green)
+  //      stacked with free-only (grey), biggest first. Per-source all-time, from source_quality. ----
+  const sq=[...C.source_quality].filter(r=>r.signups>0).sort((a,b)=>b.signups-a.signups);
+  mkChart('crmPayFreeChart',{type:'bar',data:{labels:sq.map(r=>r.source),datasets:[
+      {label:'Paying',backgroundColor:mc('Paying'),data:sq.map(r=>r.paying),stack:'pf'},
+      {label:'Free only',backgroundColor:'#78716C',data:sq.map(r=>r.free_only),stack:'pf'}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}},
+        tooltip:{callbacks:{afterBody:items=>{const r=sq[items[0].dataIndex];
+          return r&&r.pay_rate_pct!=null?'Pay rate: '+r.pay_rate_pct+'%':'';}}}},
+      scales:{x:axis({stacked:true,title:{display:true,text:'Signups',color:tickClr}}),y:axis({stacked:true})}}});
+
   // ---- Q2: signup → paying funnel ----
   mkChart('crmFunnelChart',{type:'bar',data:{labels:['App signups','Loaded balance','Paying','Free only'],
     datasets:[{data:[k.app_signups,k.loaded_balance,k.paying,k.signups_not_paying],
-      backgroundColor:['#0EA5E9','#E84A6F','#34D399','#64748B']}]},
+      backgroundColor:['#38BDF8','#FBBF24',mc('Paying'),'#78716C']}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
       tooltip:{callbacks:{label:ctx=>fmtN(ctx.parsed.x)+(k.app_signups?'  ('+pct(ctx.parsed.x/k.app_signups)+' of signups)':'')}}},
       scales:{x:axis({title:{display:true,text:'Contacts',color:tickClr}}),y:axis()}}});
@@ -1241,18 +1430,18 @@ function renderCRM(){
   const oi={}; owners.forEach((o,i)=>oi[o]=i);
   const stk={}; stages.forEach(s=>stk[s]=owners.map(()=>0));
   lo.forEach(r=>{if(oi[r.owner]!=null&&stk[r.lifecycle])stk[r.lifecycle][oi[r.owner]]+=r.contacts;});
-  mkChart('crmOwnerChart',{type:'bar',data:{labels:owners,datasets:stages.map(s=>({label:s,backgroundColor:LC_COLORS[s]||'#475569',data:stk[s],stack:'lc'}))},
+  mkChart('crmOwnerChart',{type:'bar',data:{labels:owners,datasets:stages.map(s=>({label:s,backgroundColor:mc(s),data:stk[s],stack:'lc'}))},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}}},
       scales:{x:axis({stacked:true,title:{display:true,text:'Contacts',color:tickClr}}),y:axis({stacked:true})}}});
   const lcTot={}; lo.forEach(r=>lcTot[r.lifecycle]=(lcTot[r.lifecycle]||0)+r.contacts);
   const lcArr=stages.map(s=>({s,n:lcTot[s]||0})).filter(x=>x.n>0);
   mkChart('crmLifecycleDonut',{type:'doughnut',data:{labels:lcArr.map(x=>x.s),
-    datasets:[{data:lcArr.map(x=>x.n),backgroundColor:lcArr.map(x=>LC_COLORS[x.s]||'#475569')}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'right',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+    datasets:[{data:lcArr.map(x=>x.n),backgroundColor:lcArr.map(x=>mc(x.s))}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
   const lcAgg={}; lo.forEach(r=>{const a=lcAgg[r.lifecycle]=lcAgg[r.lifecycle]||{c:0,s:0,p:0};a.c+=r.contacts;a.s+=r.signups;a.p+=r.paying;});
   let lch='<tr><th>Stage</th><th>Contacts</th><th>Signups</th><th>Paying</th></tr>';
-  stages.forEach(s=>{const a=lcAgg[s];if(!a)return;lch+=`<tr><td class="name"><span style="color:${LC_COLORS[s]||'#475569'}">●</span> ${s}</td><td>${fmtN(a.c)}</td><td>${fmtN(a.s)}</td><td>${fmtN(a.p)}</td></tr>`;});
+  stages.forEach(s=>{const a=lcAgg[s];if(!a)return;lch+=`<tr><td class="name"><span style="color:${mc(s)}">●</span> ${s}</td><td>${fmtN(a.c)}</td><td>${fmtN(a.s)}</td><td>${fmtN(a.p)}</td></tr>`;});
   document.getElementById('crmLifecycleTable').innerHTML=lch;
 
   // ---- Q6: BDM lead queue ----
