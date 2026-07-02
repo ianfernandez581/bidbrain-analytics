@@ -125,17 +125,18 @@ The CS markets are the client's media-plan grain — **11 market chips**, plus a
   ONLY** (3 Roverpath + 3 Final Funnel Lead-Gen; seed-driven via `seed_kr_campaign_ids`). ~**164** leads.
   **2026-07-02:** reverted the 2026-06-25 "ALL Korea in the 12 campaigns" rule at the client's request —
   Korea now counts only these 6. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize
-  Security / Modernize Applications, ~36) fall through to `OTHER`.
+  Security / Modernize Applications, ~55 live 2026-07-02) fall through to `OTHER`. (Total Korea in the 12
+  CS campaigns = 219: 164 in the 6 → KR, 55 outside → OTHER.)
 - **RIG Leads (RIG)** — **NON-Korea AND** `ASSET_2` `IN ('A-MAM-2','A-MAM-3')` (the gaming-vertical
   *Modernize Applications* asset — only `A-MAM-3` has data) **AND** the **3 Final Funnel** campaigns.
   Asset-based, evaluated **before** geography, so it spans every country. Live count **180** (167 accepted).
 
 The geographic markets are pure `COUNTRY_NAME` maps, **case-normalised** (`UPPER(TRIM(COUNTRY_NAME))`)
 so mis-cased countries (`japan`, `Hong kong`, `india`) route to JP / GCR-HK / SAARC instead of falling
-to a residual. The `ELSE 'OTHER'` arm holds Korea leads outside the 6 KR campaigns (~36) plus any
+to a residual. The `ELSE 'OTHER'` arm holds Korea leads outside the 6 KR campaigns (~55) plus any
 brand-new/unmapped country. `OTHER` is **not one of the 11 chips**, so those leads are excluded from the
 dash — the headline CS totals sum over the chips, so there is no total-vs-sum drift on screen (this
-matches the pre-2026-06-25 behaviour; the ~36 leftover Korea leads just aren't counted anywhere on the
+matches the pre-2026-06-25 behaviour; the ~55 leftover Korea leads just aren't counted anywhere on the
 dash). Add `OTHER` to `ALL_MARKETS` in `dash/dashboard.html` if those leads should become visible.
 The old `pacing_model` "Computer Games + Tier 2 → RIG" override was removed so RIG equals the exact def.
 The reference DDL `snowflake_v_salesforce_leads_live.sql` (Transmission's / Cloudflare's legacy R2 export,
@@ -144,7 +145,7 @@ NOT our pipeline) keeps the geographic logic, but its KR arm was **also campaign
 owner/ACCOUNTADMIN to run the `CREATE OR REPLACE` (keep the `copy grants`) before Transmission's own view
 matches. The **status dashboard** reproduces KR / RIG + **reconciles the `OTHER` residual** straight from
 Snowflake; its core CS counts (Total / Accepted / Rejected / New) query the whole 12-campaign universe
-with **no region filter** (so they include the ~36 OTHER leads the dash omits).
+with **no region filter** (so they include the ~55 OTHER leads the dash omits).
 
 **Targets follow the media-plan sheet** per market (Q2 total **3216**: AU 1150 / NZ 127 / SIM 381 /
 RoA 165 / SAARC 282 / GCR-CN 106 / GCR-TW 106 / GCR-HK 204 / KR 202 / RIG 172 / JP 321), and now live

@@ -101,9 +101,9 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   `raw_snowflake.linkedin_ads_apac` mirror.
   - **Core CS counts (Total / Accepted / Rejected / New)** now query the **raw source**
     `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` on the canonical **12-campaign filter** (sql/10) with
-    **NO region filter** — so they span every region **including the ~36-lead OTHER residual** (Accepted =
-    Accepted+Replied+Unresponsive, OPPOSITE of mongodb; **3328**, not 3309). Note the dashboard's *displayed*
-    CS total excludes OTHER (its totals sum over the 11 market chips), so it runs ~36 below this whole-universe
+    **NO region filter** — so they span every region **including the ~55-lead OTHER residual** (Accepted =
+    Accepted+Replied+Unresponsive, OPPOSITE of mongodb). Note the dashboard's *displayed*
+    CS total excludes OTHER (its totals sum over the 11 market chips), so it runs ~55 below this whole-universe
     count. This replaces the old
     `…CS_REPORTING.V_PACING_FINAL_MODEL` query (V_PACING carries Cloudflare's legacy geographic model — no
     longer our source of truth). Compared against the count over all non-dummy `pacing.rows[]`.
@@ -114,7 +114,7 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
     (~164; **reverted 2026-07-02** at the client's request — between 2026-06-25 and 2026-07-02 KR was ALL Korea in
     the 12 campaigns); **RIG** = non-Korea + `ASSET_2 IN ('A-MAM-2','A-MAM-3')` (gaming Modernize-Apps asset; only
     `A-MAM-3` populated) + the 3 Final Funnel campaigns (~180); **OTHER** = the residual the named markets
-    don't claim (Korea outside the 6 El\* + any unmapped country, ~36). OTHER is **not a dashboard chip** (those
+    don't claim (Korea outside the 6 El\* + any unmapped country, ~55 live 2026-07-02). OTHER is **not a dashboard chip** (those
     leads are excluded from the dash); this check just reconciles the dash's OTHER count to the source (it is no
     longer a *must-be-0* assertion). Compared against the count of `pacing.rows[]` with `MARKET_REGION = 'KR'` /
     `'RIG'` / `'OTHER'`. A green check proves the BQ view buckets equal the source definition.

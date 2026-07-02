@@ -821,7 +821,7 @@ def _build_cf_cs_checks(defs):
     entirely from definitions.json. Core CS counts span the whole 12-campaign universe (all regions
     incl. the OTHER residual) — a pipeline-integrity check on pacing.rows[]. NOTE (2026-07-02): the
     dashboard's *displayed* CS total excludes OTHER (its totals sum over the 11 market chips, and KR is
-    now the 6 El* campaigns), so the displayed total runs ~36 below this whole-universe count."""
+    now the 6 El* campaigns), so the displayed total runs ~55 below this whole-universe count (live 2026-07-02)."""
     src = defs["source_table_snowflake"]
     buckets = defs["status_buckets"]
     kr, rig = defs["segments"]["KR"], defs["segments"]["RIG"]
@@ -899,9 +899,9 @@ def _build_cf_cs_checks(defs):
          "group": "Content Syndication — Korea, RIG & residual", "dash": region("OTHER"),
          "sql": cte + "SELECT COUNT(*) AS other_leads\nFROM cf_cs\nWHERE REGION_GRP = 'OTHER';",
          "note": "2026-07-02: with KR restricted to the 6 El* campaigns, REGION_GRP='OTHER' holds the "
-                 "Korea leads from the other 6 campaigns (~36) plus any brand-new/unmapped country. OTHER "
-                 "is NOT a market chip, so these are excluded from the dashboard; this check just "
-                 "reconciles the dash's OTHER count to Snowflake. A jump beyond the ~36 Korea residual "
+                 "Korea leads from the other 6 campaigns (~55 live 2026-07-02) plus any brand-new/unmapped "
+                 "country. OTHER is NOT a market chip, so these are excluded from the dashboard; this check "
+                 "just reconciles the dash's OTHER count to Snowflake. A jump well beyond the Korea residual "
                  "means a new unmapped country needs adding to geographic_regions. vs the count of "
                  "pacing.rows[] with MARKET_REGION = 'OTHER'." + _CF_CS_NOTE},
         {"label": "CF1 CS · Accepted (delivered Double Touch MQLs)", "kind": "count",

@@ -55,7 +55,7 @@ SELECT
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'TAIWAN'                                          THEN 'GCR-TW'
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'HONG KONG'                                       THEN 'GCR-HK'
         WHEN UPPER(TRIM(COUNTRY_NAME)) = 'JAPAN'                                           THEN 'JP'
-        -- Residual: holds Korea leads outside the 6 KR campaigns (2026-07-02, ~36) plus any
+        -- Residual: holds Korea leads outside the 6 KR campaigns (2026-07-02, ~55 live) plus any
         -- brand-new/unmapped country. OTHER is NOT a market chip, so these are excluded from the
         -- dash (its totals sum over the 11 chips); the status dashboard reports the OTHER count.
         ELSE 'OTHER'
