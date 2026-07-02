@@ -45,6 +45,14 @@ try:
 except FileNotFoundError:
     DASHBOARD_HTML = None
 
+# Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each
+# dash folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it
+# (relative → /bb_deck.js direct, or /d/<c>/bb_deck.js through the platform proxy).
+try:
+    BB_DECK_JS = (Path(__file__).resolve().parent / "bb_deck.js").read_text(encoding="utf-8")
+except FileNotFoundError:
+    BB_DECK_JS = ""
+
 LOGIN_HTML = """<!doctype html>
 <html lang="en">
 <head>
@@ -123,6 +131,17 @@ def login():
 def logout():
     session.clear()
     return redirect("/")
+
+
+@app.get("/bb_deck.js")
+def bb_deck_js():
+    # The slide-deck builder. Auth-gated like the dashboard (the deck reveals report content).
+    if not authed():
+        abort(401)
+    if not BB_DECK_JS:
+        return Response("// bb_deck.js missing from the deploy", status=500, mimetype="application/javascript")
+    return Response(BB_DECK_JS, mimetype="application/javascript",
+                    headers={"Cache-Control": "no-store"})
 
 
 @app.get("/data.json")

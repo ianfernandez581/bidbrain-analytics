@@ -25,9 +25,14 @@ camp_rank AS (
 ),
 camp_map AS (SELECT campaign, program FROM camp_rank WHERE rn = 1)
 SELECT cm.program, d.platform, d.metric_date,
-       -- normalize to the shared market vocab used by the CS views (Australia / New Zealand / ANZ /
-       -- Other) so the global Region chips are coherent across the Paid Media + CS tabs.
-       CASE WHEN d.market IN ('Australia','New Zealand','ANZ') THEN d.market ELSE 'Other' END AS market,
+       -- Normalize to the two markets the CS leads use (Australia / New Zealand) so the global
+       -- Region chips are strictly AU vs NZ across the Paid Media + CS tabs. After stg_tradedesk
+       -- resolves the AU/NZ split from ad-group names, in-scope delivery is almost entirely
+       -- country-specific; the small residual that is genuinely cross-market and can't be split
+       -- by country (e.g. airset's 'RM AirSeT – Retargeting – ANZ' LinkedIn line, ~$500) is folded
+       -- into Australia (the dominant Pacific market) so it stays in the paid totals rather than
+       -- being dropped. This is the only market roll-up — there is no ANZ / Other bucket.
+       CASE WHEN d.market = 'New Zealand' THEN 'New Zealand' ELSE 'Australia' END AS market,
        d.imps, d.clicks, d.spend_aud
 FROM `bidbrain-analytics.client_schneider.stg_ad_delivery` d
 JOIN camp_map cm USING (campaign)

@@ -128,7 +128,7 @@
     <div class="lede">
       Each dashboard is fed in stages: <b class="t">Transmission</b> updates the Snowflake source &nbsp;→&nbsp;
       <b class="d">100% Digital</b> mirrors it into BigQuery &nbsp;→&nbsp; builds the dashboard file.
-      When our ingest has caught up to Snowflake's latest change, <b class="d">100% Digital is green</b> — so if the
+      When our ingest has caught up to Snowflake's latest change, <b class="d">100% Digital is green</b> - so if the
       numbers still look old, the <b class="t">source</b> is what's behind, not us.
     </div>
     <div id="sync"><div class="loading">Loading…</div></div>
@@ -137,7 +137,7 @@
   <div id="pane-acc" class="tabpane">
     <div class="lede">
       The number on each client dashboard vs the number pulled <b>straight from Snowflake</b>. Under healthy sync they
-      are identical. The exact Snowflake query is shown for every figure — run it yourself to confirm.
+      are identical. The exact Snowflake query is shown for every figure - run it yourself to confirm.
     </div>
     <div id="acc"><div class="loading">Loading…</div></div>
   </div>
@@ -174,10 +174,10 @@ var VERDICT_TEXT = {
 function whyText(f){
   var src = fmtAge(f.transmission_latest);
   if(f.verdict==="ok")
-    return 'In sync. The dashboard is as current as Snowflake provides — Snowflake source last changed <b>'+src+'</b>.';
+    return 'In sync. The dashboard is as current as Snowflake provides - Snowflake source last changed <b>'+src+'</b>.';
   if(f.verdict==="transmission_stale")
     return '<b class="t">Transmission:</b> the Snowflake source has not updated in <b>'+src+'</b>. '+
-           '<b class="d">100% Digital is in sync</b> with it — the stale numbers are the source, not our pipeline.';
+           '<b class="d">100% Digital is in sync</b> with it - the stale numbers are the source, not our pipeline.';
   if(f.verdict==="digital_behind")
     return '<b class="d">100% Digital:</b> Snowflake changed <b>'+src+'</b> but our pipeline has not ingested past it yet '+
            '(ingest '+fmtAge(f.ingest_latest)+'). Catching up on the next run.';

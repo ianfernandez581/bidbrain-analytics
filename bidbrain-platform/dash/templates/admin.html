@@ -220,7 +220,7 @@ function openClient(agency_slug, c){
     field('Name','name',c?c.name:'') +
     field('Slug','slug',c?c.slug:'') +
     select('Status','status',[{v:'active',t:'active'},{v:'coming_soon',t:'coming soon'}],c?c.status:'active') +
-    field('Dashboard URL','url',c?c.url:'', 'text','https://<c>.bidbrain.ai/ — leave blank for coming soon'),
+    field('Dashboard URL','url',c?c.url:'', 'text','https://<c>.bidbrain.ai/ - leave blank for coming soon'),
     '/admin/api/client', {action: edit?'update':'create', agency_slug});
 }
 function openCampaign(client_key, index, cm){

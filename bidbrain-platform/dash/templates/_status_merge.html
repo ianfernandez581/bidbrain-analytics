@@ -126,8 +126,8 @@
   }
   function whyText(f){
     var src=fmtAge(f.transmission_latest);
-    if(f.verdict==="ok") return 'In sync. The dashboard is as current as Snowflake provides — source last changed <b>'+src+'</b>.';
-    if(f.verdict==="transmission_stale") return '<b class="t">Transmission:</b> the Snowflake source has not updated in <b>'+src+'</b>. <b class="d">100% Digital is in sync</b> with it — the stale numbers are the source, not our pipeline.';
+    if(f.verdict==="ok") return 'In sync. The dashboard is as current as Snowflake provides - source last changed <b>'+src+'</b>.';
+    if(f.verdict==="transmission_stale") return '<b class="t">Transmission:</b> the Snowflake source has not updated in <b>'+src+'</b>. <b class="d">100% Digital is in sync</b> with it - the stale numbers are the source, not our pipeline.';
     if(f.verdict==="digital_behind") return '<b class="d">100% Digital:</b> Snowflake changed <b>'+src+'</b> but our pipeline has not ingested past it yet (ingest '+fmtAge(f.ingest_latest)+'). Catching up on the next run.';
     return 'No dashboard data found for this client yet.';
   }
@@ -195,7 +195,7 @@
   function renderAll(){
     fillBadges();
     var sync=document.getElementById("bbsync"), acc=document.getElementById("bbacc");
-    if(ACC.err || !ACC.data){ var msg='<div class="bbloading">Couldn’t load data health — please refresh.</div>';
+    if(ACC.err || !ACC.data){ var msg='<div class="bbloading">Couldn’t load data health - please refresh.</div>';
       if(sync)sync.innerHTML=msg; if(acc)acc.innerHTML=msg; return; }
     var clients=ACC.data.clients||[], flags=ACC.data.flags||{};
     renderSummary(clients);
@@ -213,7 +213,7 @@
     syncBtn.disabled=true; if(syncMsg) syncMsg.textContent="Starting a full refresh…";
     fetch("/sync-all", {method:"POST", credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(j){
       if(syncMsg) syncMsg.textContent = j.ok
-        ? "Sync started — every dashboard is rebuilding; timestamps reset as each finishes (~2–3 min)."
+        ? "Sync started - every dashboard is rebuilding; timestamps reset as each finishes (~2–3 min)."
         : ("Some jobs didn’t start: " + ((j.failed||[]).join(", ") || "error"));
       var n=0, iv=setInterval(function(){ n++; refetch(); if(n>=10) clearInterval(iv); }, 30000);
       setTimeout(function(){ syncBtn.disabled=false; }, 8000);

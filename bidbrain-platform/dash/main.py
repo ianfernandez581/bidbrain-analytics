@@ -543,7 +543,7 @@ _FEEDBACK_ADMIN_HTML = """<!doctype html><html lang="en"><head><meta charset="ut
         <h4>Notes (editable)</h4>
         <textarea class="ef note" data-field="text" placeholder="Add or edit notes…">{{ r.text or '' }}</textarea>
         {% if r.transcript %}<div class="txt" style="margin-top:8px">&ldquo;{{ r.transcript }}&rdquo;</div>
-        {% elif not r.text %}<div class="muted" style="margin-top:8px">{% if r.audio %}(voice note — see player){% endif %}</div>{% endif %}
+        {% elif not r.text %}<div class="muted" style="margin-top:8px">{% if r.audio %}(voice note - see player){% endif %}</div>{% endif %}
         {% if r.audio %}<audio class="vn" controls preload="metadata" src="/feedback/file/{{ r.client }}/{{ r.audio }}"></audio>{% endif %}
       </div>
       <div class="col">
@@ -1259,7 +1259,7 @@ _FEEDBACK_WIDGET = (
     "Feedback</button>"
     "<div id='bbfb-panel' role='dialog' aria-label='Send feedback'>"
     "<h3>Send feedback</h3>"
-    "<p class='sub'>Type a note or record a voice message — whatever’s easiest.</p>"
+    "<p class='sub'>Type a note or record a voice message, whatever’s easiest.</p>"
     "<input id='bbfb-name' type='text' placeholder='Your name (optional)' autocomplete='name'>"
     "<textarea id='bbfb-text' placeholder='What’s working, what’s confusing, what you’d like to see…'></textarea>"
     "<p class='bbfb-lbl'>Preferred deadline (optional)</p>"
