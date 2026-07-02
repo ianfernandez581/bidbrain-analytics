@@ -158,8 +158,12 @@ hosts (public-suffix). So the platform **reverse-proxies** each dashboard under 
 - `proxy()` in `main.py` checks your platform session may open that client, then forwards to the
   upstream `https://<c>-dash-…run.app/`, logging in **once per instance** with that dashboard's own
   password (read from Secret Manager `<c>-dash-password`; the platform SA has `secretAccessor`). The
-  upstream session cookie is cached and reused; the dashboard's `/data.json` is rewritten to
-  `/d/<client>/data.json` so it stays inside the proxy.
+  upstream session cookie is cached and reused; the dashboard's **absolute same-origin paths are
+  rewritten** to `/d/<client>/…` so they stay inside the proxy: `/data.json`, mongodb's `'/report'`,
+  and `/creative-img/` (resetdata's cached creative-gallery images). **GOTCHA:** any NEW absolute path a
+  dashboard fetches (an `<img src="/…">`, a `fetch('/…')`) MUST be added to this rewrite list in
+  `proxy()` — otherwise it resolves to the platform ROOT through the proxy and 404s (works only on the
+  raw run.app URL, which hides the bug). This is exactly what broke resetdata's creative previews.
 - `proxy()` also **injects a floating "Log out" pill** (`_LOGOUT_BUTTON`, fully inline-styled, max
   z-index) into the bottom of every proxied dashboard page — the dashboards have no logout of their
   own. It links to the platform's `/logout` (root-relative, so `dashboards.bidbrain.ai/logout`, NOT
