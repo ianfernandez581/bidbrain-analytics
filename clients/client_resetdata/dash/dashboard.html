@@ -191,7 +191,8 @@
   .panel-box .hint{font-size:11.5px;color:var(--muted2);margin:0 0 12px}
   .cols-2{grid-template-columns:1fr 1fr}
   .cols-3{grid-template-columns:2fr 1fr}
-  @media(max-width:880px){.cols-2,.cols-3{grid-template-columns:1fr}}
+  .cols-3eq{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:880px){.cols-2,.cols-3,.cols-3eq{grid-template-columns:1fr}}
   .chartbox{position:relative;height:300px}
   .chartbox.tall{height:340px}
   .chartbox.sm{height:280px}  /* donuts: legend now sits on top, so give the ring a little more room */
@@ -360,12 +361,21 @@
 
   <!-- ============ OVERVIEW ============ -->
   <section id="tab-overview">
+    <style>
+      #ovNorthStar{margin-bottom:18px}
+      #ovNorthStar .kpi{background:linear-gradient(180deg,rgba(232,74,111,.12),rgba(232,74,111,.03));border-color:rgba(232,74,111,.4)}
+      #ovNorthStar .kpi .value{font-size:32px;line-height:1.15}
+      #ovNorthStar .kpi .label{font-weight:800;font-size:12px}
+      .nsband{margin:2px 0 10px;font-size:11.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent)}
+    </style>
+    <div class="nsband">Campaign goal &middot; leads at an efficient cost &rarr; paying customers</div>
+    <div class="grid kpis" id="ovNorthStar"></div>
     <div class="grid kpis" id="ovKpis"></div>
     <div class="panel-box">
       <div class="panelhead">
         <div>
-          <h3>Ad spend &amp; its effects</h3>
-          <p class="hint">Stacked bars = media spend by platform (AUD, scoped by the filters). Lines = the business effect over time: website sessions, <b>HubSpot confirmed leads</b> and <b>paying customers</b> (whole-account CRM — not filter-scoped). <b>Relative</b> indexes each line to its own peak so every trend is visible at once; switch to <b>Absolute</b> for real values on dedicated axes. Click a month bar to drill into its weeks.</p>
+          <h3>Ad spend &rarr; leads &rarr; paying</h3>
+          <p class="hint">Stacked bars = media spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>cost per lead</b> (Google·Meta·Reddit spend &divide; leads), plus <b>paying customers</b> (whole-account HubSpot CRM — not filter-scoped). <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses dedicated axes (leads/paying counts vs cost-per-lead AUD). Click a month bar to drill into its weeks.</p>
         </div>
         <div class="ctrls">
           <span class="drillback" id="heroBack" onclick="heroDrillReset()">↩ All months</span>
@@ -388,9 +398,10 @@
       </div>
       <div class="chartbox"><canvas id="keyEventsBreakdown"></canvas></div>
     </div>
-    <div class="grid cols-2" style="margin-top:14px">
+    <div class="grid cols-3eq" style="margin-top:14px">
+      <div class="panel-box"><h3>Ad spend by platform</h3><p class="hint">Where the budget goes (AUD; TTD converted USD→AUD).</p><div class="chartbox sm"><canvas id="spendDonut"></canvas></div></div>
+      <div class="panel-box"><h3>Leads by platform</h3><p class="hint">Where the leads come from &mdash; read against spend to see efficiency. Trade Desk (display) reports none, so it's absent here.</p><div class="chartbox sm"><canvas id="leadsDonut"></canvas></div></div>
       <div class="panel-box"><h3>Website sessions by channel</h3><p class="hint">GA4 default channel grouping (whole period).</p><div class="chartbox sm"><canvas id="channelDonut"></canvas></div></div>
-      <div class="panel-box"><h3>Media spend by platform</h3><p class="hint">AUD, scoped by the filters (TTD converted USD→AUD).</p><div class="chartbox sm"><canvas id="spendDonut"></canvas></div></div>
     </div>
 
     <div class="secttitle" style="margin-top:18px">Audience &mdash; who the ads reached <span style="color:var(--muted2);font-weight:600">· Google-inferred · Google Ads only · whole flight</span></div>
@@ -408,8 +419,8 @@
   <section id="tab-paid" class="hide">
     <div class="note" id="paidNote"></div>
     <div class="panel-box">
-      <h3>Platform comparison</h3>
-      <p class="hint">Delivery across the four paid platforms (Campaign filter applies; Platform filter ignored on this tab). Ratios derived: CTR, CPM, CPC, cost-per-lead.</p>
+      <h3>Cost per lead by platform</h3>
+      <p class="hint">Ranked by cost-per-lead, best first. Google · Meta · Reddit report leads; Trade Desk is display (no lead tracking), so its cost-per-lead shows &ldquo;&mdash;&rdquo; and it sorts last. The <b>Total</b> cost-per-lead is across the lead channels only (excludes Trade Desk display spend). Campaign filter applies; Platform filter ignored on this tab.</p>
       <table id="platformTable"></table>
     </div>
     <div class="panel-box" style="margin-top:14px">
@@ -608,6 +619,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) — globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
+  'Leads':'#22C55E','Cost / lead':'#F97316','Paying customers':'#34D399',
   'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
@@ -1117,13 +1129,14 @@ function tsAd(g, keys, filt){
   const src = g==='day'?DATA.ad_campaign_daily : g==='week'?DATA.ad_campaign_weekly : DATA.ad_campaign_monthly;
   const kf = grainKeyField(g), inR = grainInRange(g);
   const ci={}; keys.forEach((k,i)=>ci[k]=i);
-  const spendByPlt={}, clk=keys.map(()=>0), im=keys.map(()=>0), sp=keys.map(()=>0);
-  PLATFORMS.forEach(p=>spendByPlt[p]=keys.map(()=>0));
+  const spendByPlt={}, convByPlt={}, clk=keys.map(()=>0), im=keys.map(()=>0), sp=keys.map(()=>0), cv=keys.map(()=>0);
+  PLATFORMS.forEach(p=>{spendByPlt[p]=keys.map(()=>0); convByPlt[p]=keys.map(()=>0);});
   src.filter(r=>filt(r.platform,r.campaign)&&inR(r[kf])).forEach(r=>{
     const i=ci[r[kf]]; if(i==null)return;
-    spendByPlt[r.platform][i]+=(+r.spend_aud||0); clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0); sp[i]+=(+r.spend_aud||0);
+    spendByPlt[r.platform][i]+=(+r.spend_aud||0); convByPlt[r.platform][i]+=(+r.conversions||0);
+    clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0); sp[i]+=(+r.spend_aud||0); cv[i]+=(+r.conversions||0);
   });
-  return { spendByPlt, clicks:clk, imps:im, spend:sp };
+  return { spendByPlt, convByPlt, clicks:clk, imps:im, spend:sp, conv:cv };
 }
 // CRM outcomes (whole-account HubSpot, NOT filter-scoped) bucketed to the hero's grain keys: new
 // confirmed leads + new paying customers per period. crmKey maps a YYYY-MM-DD to the same key the
@@ -1146,8 +1159,10 @@ function tsCrm(g, keys){
 // a subtle "no trend data" slot; nothing is ever fabricated.
 const KACCENT={
   'k-spend':'#64748B','k-imps':'#22D3EE','k-clicks':'#A3E635','k-sessions':'#E84A6F',
-  'k-addriven':'#8B5CF6','k-eng':'#2DD4BF','k-leads':'#F59E0B','k-pay':'#34D399',
+  'k-addriven':'#8B5CF6','k-eng':'#2DD4BF','k-leads':'#22C55E','k-ke':'#F59E0B','k-pay':'#34D399',
   'k-free':'#8CA0B8','k-queue':'#F59E0B',
+  // north-star strip (Overview headline): leads=green (goal), CPL=orange (cost), paying=green, spend=slate
+  'k-ns-leads':'#22C55E','k-ns-cpl':'#F97316','k-ns-paying':'#34D399','k-ns-spend':'#64748B',
   // CRM cards mirror the funnel / weekly-chart colours so each metric tracks by colour:
   // App signups=#38BDF8 (sky), Loaded balance=#FBBF24 (gold — distinct from the sky-blue signups),
   // Paying=#34D399 (mc('Paying')), Free only=#78716C. Leads & Customers have no funnel bar, so they
@@ -1166,15 +1181,15 @@ function spark(series,color){
        + `vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>`
        + `<circle cx="${lp[0]}" cy="${lp[1]}" r="1.8" fill="${color}"/></svg>`;
 }
-function deltaFromSeries(series){
+function deltaFromSeries(series, invert){
   const v=(series||[]).filter(x=>x!=null&&!isNaN(x)).map(Number);
   const n=Math.floor(v.length/2); if(n<1) return '';
   const prev=v.slice(v.length-2*n,v.length-n).reduce((s,x)=>s+x,0);
   const cur =v.slice(v.length-n).reduce((s,x)=>s+x,0);
   if(!prev && !cur) return '';
-  const up=cur>=prev;
-  const txt = prev? (up?'+':'−')+Math.abs((cur-prev)/prev*100).toFixed(0)+'%' : 'new';
-  return `<span class="delta ${up?'up':'down'}">${up?'▲':'▼'} ${txt}</span>`;
+  const rising=cur>=prev, good=invert?!rising:rising;   // invert=true for cost metrics (falling CPL is good)
+  const txt = prev? (rising?'+':'−')+Math.abs((cur-prev)/prev*100).toFixed(0)+'%' : 'new';
+  return `<span class="delta ${good?'up':'down'}">${rising?'▲':'▼'} ${txt}</span>`;
 }
 // Build a KPI / stat card — colour-matched aesthetic, NO trendline and NO pacing (client dropped the
 // sparkline). `series` is intentionally ignored (kept in the signature so callers don't change). The
@@ -1194,6 +1209,23 @@ function trendCard(cls,label,value,sub,series,toggle){
        + `<div class="value">${value}</div>`
        + `<div class="sub">${sub}</div></div>`;
 }
+// North-star card: a larger headline stat with a period-over-period delta. invert=true flips the
+// good/bad colour for cost metrics (a FALLING cost-per-lead is good). Used for the Overview strip.
+function nsCard(cls,label,value,sub,series,invertDelta,toggle){
+  const color=KACCENT[cls]||'var(--accent)';
+  let extra='', klass='kpi '+cls;
+  if(toggle){                                            // clickable: toggles its series/bars on the hero
+    const mkey='mk::'+toggle.chart+'::'+(toggle.series||('#'+toggle.stack));
+    klass+=' clk'+(kpiHidden[mkey]?' off':'');
+    extra=` role="button" tabindex="0" title="Click to show/hide this on the chart"`
+        + ` data-chart="${toggle.chart}" data-mkey="${mkey}"`
+        + ` onclick="toggleKpiCard(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleKpiCard(this);}"`;
+  }
+  return `<div class="${klass}" style="--kc:${color}"${extra}>`
+       + `<div class="label">${label} ${deltaFromSeries(series,invertDelta)}</div>`
+       + `<div class="value">${value}</div>`
+       + `<div class="sub">${sub}</div></div>`;
+}
 function renderOverview(){
   // KPI cards honor the date range (month granularity — the feed's finest KPI grain): media delivery
   // from ad_campaign_monthly (Platform + Campaign scoped), GA4 outcomes from monthly. Selecting all
@@ -1201,7 +1233,7 @@ function renderOverview(){
   const acm=DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month));
   const spend=sumBy(acm,'spend_aud'), imps=sumBy(acm,'imps'), clicks=sumBy(acm,'clicks');
   const mr=DATA.monthly.filter(m=>inRangeMonth(m.month));
-  const sessions=sumBy(mr,'sessions'), engaged=sumBy(mr,'engaged_sessions'), keyEvents=sumBy(mr,'conversions');
+  const sessions=sumBy(mr,'sessions'), keyEvents=sumBy(mr,'conversions');
   // ad-driven sessions = mapped channel sessions for SELECTED platforms (Meta + Reddit share Paid Social — count once)
   let adDriven=0;
   if(selPlt.has('google'))adDriven+=sumBy(mr,'search_sessions');
@@ -1216,20 +1248,34 @@ function renderOverview(){
     if(selPlt.has('google'))s+=+r.search_sessions||0;
     if(selPlt.has('meta')||selPlt.has('reddit'))s+=+r.social_sessions||0;
     if(selPlt.has('ttd'))s+=+r.display_sessions||0; return s;});
-  // The 6th element makes a card CLICKABLE: it toggles its matching series on the hero chart (below).
-  // Cards without a hero-chart series (Ad-driven, Engaged sessions) stay static. Spend toggles the whole
-  // stacked-spend bar group; the four line metrics toggle their line (labels must match renderHero's).
-  const H='heroChart';
   const crmKpi=(DATA.crm && DATA.crm.kpi) || {};
-  // Clickable cards (each toggles a hero-chart series/bars) are grouped on the LEFT; static cards (no
-  // hero line — Impressions/Clicks lost theirs, plus Ad-driven & Engaged) sit on the RIGHT so it reads
-  // clearly which respond. The two HubSpot cards replace the old "Key events" card; they are WHOLE-
-  // ACCOUNT, ALL-TIME CRM totals (snapshot) — they do NOT move with the platform/date filters.
+  // ── North star: the campaign goal in one row — ad-reported leads → cost per lead → paying customers →
+  // ad spend. Leads/CPL are AD-ATTRIBUTED (Google·Meta·Reddit, filter-scoped); TTD display reports no
+  // leads so it's EXCLUDED from the CPL basis (its spend is noted on the Ad-spend card). Paying customers
+  // is the whole-account HubSpot snapshot (all-time, NOT filter-scoped) — the downstream of the funnel.
+  const LEADP=['google','meta','reddit'];
+  const byP={}; PLATFORMS.forEach(p=>byP[p]={spend:0,conv:0});
+  acm.forEach(r=>{const a=byP[r.platform]; if(a){a.spend+=+r.spend_aud||0; a.conv+=+r.conversions||0;}});
+  const adLeads=LEADP.reduce((s,p)=>s+byP[p].conv,0);
+  const leadSpend=LEADP.reduce((s,p)=>s+byP[p].spend,0);
+  const ttdSpend=byP.ttd.spend;
+  const cpl=div(leadSpend,adLeads);
+  const acmLeadBy=field=>ovMonths.map(mo=>acm.filter(r=>r.month===mo&&LEADP.includes(r.platform)).reduce((s,r)=>s+(+r[field]||0),0));
+  const leadsBy=acmLeadBy('conversions'), leadSpendBy=acmLeadBy('spend_aud');
+  const cplBy=leadSpendBy.map((s,i)=>leadsBy[i]?s/leadsBy[i]:null);
+  const H='heroChart';   // north-star tiles are clickable → toggle their matching hero series/bars
+  document.getElementById('ovNorthStar').innerHTML=[
+    nsCard('k-ns-leads','Ad-reported leads',fmtN(adLeads),'Google · Meta · Reddit conversions', leadsBy, false, {chart:H,series:'Leads'}),
+    nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, {chart:H,series:'Cost / lead'}),
+    nsCard('k-ns-paying','Paying customers',fmtN(+crmKpi.paying||0),'all-time · HubSpot CRM (not filter-scoped)', null, false, {chart:H,series:'Paying customers'}),
+    nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels'), acmBy('spend_aud'), false, {chart:H,stack:'spend'}),
+  ].join('');
+
+  // KPI row = supporting context (static). The GOAL metrics live in the north-star strip above and the
+  // hero below (whose legend toggles its lines); this row is the funnel inputs / traffic detail.
   const cards=[
-    ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks)), null, {chart:H,stack:'spend'}],
-    ['k-sessions','Website sessions',fmtN(sessions),'whole site', null, {chart:H,series:'Sessions'}],
-    ['kc-leads','Total HubSpot leads',fmtN(+crmKpi.leads||0),'all-time · CRM', null, {chart:H,series:'Confirmed leads'}],
-    ['kc-paying','Total paying customers',fmtN(+crmKpi.paying||0),'rd spend > 0 · CRM', null, {chart:H,series:'Paying customers'}],
+    ['k-sessions','Website sessions',fmtN(sessions),'whole site', null],
+    ['k-ke','GA4 key events',fmtN(keyEvents),'on-site (modest)', null],
     ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), null],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), null],
     ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions', null],
@@ -1250,6 +1296,14 @@ function renderOverview(){
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
+
+  // leads donut (same filter) — read side-by-side with spend to expose efficiency: TTD takes a big
+  // slice of spend but reports no leads, so it does not appear here at all.
+  const lpd=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:byP[p].conv})).filter(x=>x.v>0);
+  mkChart('leadsDonut',{type:'doughnut',data:{labels:lpd.map(x=>PLABEL[x.p]),
+    datasets:[{data:lpd.map(x=>x.v),backgroundColor:lpd.map(x=>PCOLOR[x.p])}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11}},
+      tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtN(ctx.parsed)+' leads'}}}}});
 
   renderAudience();
 }
@@ -1276,31 +1330,36 @@ function renderAudience(){
   donut('deviceDonut','device',{Mobile:'#22D3EE',Desktop:'#818CF8',Tablet:'#FDBA74','Connected Tv':'#A3E635',Other:'#68738A'});
 }
 
-// hero: ad spend (stacked bars) vs its effects — website sessions + HubSpot confirmed leads + paying
-// customers over time. "Relative" indexes each line to its OWN peak (right axis 0–100%) so series at
-// wildly different scales (sessions in thousands vs paying in single digits) all show their real trend;
-// "Absolute" puts sessions and the CRM counts on dedicated right axes. Month/Week/Day grain + drill.
-// NB: leads/paying come from the whole-account HubSpot snapshot (tsCrm) — NOT scoped by the ad filters.
+// hero: the campaign funnel over time — ad spend (stacked bars) → LEADS (ad-reported) + COST-PER-LEAD
+// (efficiency) + PAYING CUSTOMERS (the downstream goal). "Relative" indexes each line to its OWN peak;
+// "Absolute" puts leads/paying on a count axis and cost-per-lead on an AUD axis. Month/Week/Day + drill.
+// NB: leads + cost-per-lead are AD-ATTRIBUTED (they move with the filters); PAYING is the whole-account
+// HubSpot snapshot (tsCrm) — NOT filter-scoped — so it stays put when you change platform/campaign.
 function renderHero(){
   const g=grain.hero;
   const ga=tsGA4(g), keys=ga.keys;
   const sessions=ga.rows.map(ga.sessOf);
   const ad=tsAd(g, keys, campActive);
   const spendByPlt=ad.spendByPlt;
-  const crm=tsCrm(g, keys);                          // new confirmed leads + paying customers per period
+  const crm=tsCrm(g, keys);                          // whole-account CRM: new paying customers per period
+  // Ad leads = ad-reported conversions (TTD display reports none). Cost-per-lead is on the LEAD channels
+  // only (Google·Meta·Reddit spend ÷ leads). Paying customers is the CRM downstream (NOT filter-scoped).
+  const leads=ad.conv;
+  const leadSpend=keys.map((_,i)=>spendByPlt.google[i]+spendByPlt.meta[i]+spendByPlt.reddit[i]);
+  const cplLine=leads.map((n,i)=>n?leadSpend[i]/n:null);
   const labels=keys.map(grainLabel(g));
   const rel=(scale.hero==='rel');
   const effects=[
-    {label:'Sessions',          color:mc('Sessions'), data:sessions,  w:2.5, dash:true, axis:'y1'},
-    {label:'Confirmed leads',   color:'#6366F1',      data:crm.leads, w:2,               axis:'y2'},
-    {label:'Paying customers',  color:'#34D399',      data:crm.cust,  w:2.5,             axis:'y2'},
+    {label:'Leads',            color:mc('Leads'),       data:leads,    w:2.8, axis:'y1'},
+    {label:'Cost / lead',      color:mc('Cost / lead'), data:cplLine,  w:2.2, money:true, axis:'y2'},
+    {label:'Paying customers', color:mc('Paying'),      data:crm.cust, w:2.5, dash:true,  axis:'y1'},
   ].filter(e=>e.data);
   const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
     type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
   }));
   effects.forEach(e=>ds.push({
     type:'line',label:e.label,borderColor:e.color,backgroundColor:e.color,
-    data: rel?indexed(e.data):e.data, _raw:e.data,
+    data: rel?indexed(e.data):e.data, _raw:e.data, _money:e.money,
     yAxisID: rel?'yRel':e.axis,
     tension:.3,borderWidth:e.w,pointRadius:2,borderDash:e.dash?[5,4]:undefined,order:1
   }));
@@ -1311,8 +1370,8 @@ function renderHero(){
           title:{display:true,text:'Effects: % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Website sessions',color:tickClr}}),
-        y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Leads / paying customers',color:tickClr}}) };
+        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Leads / paying customers',color:tickClr}}),
+        y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost per lead (AUD)',color:tickClr}}) };
   mkChart('heroChart',{data:{labels,datasets:ds},options:{
     responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     onClick:(evt,els)=>{ if(grain.hero==='month'&&els&&els.length){ const m=keys[els[0].index]; if(m)heroDrill(m); } },
@@ -1320,7 +1379,7 @@ function renderHero(){
       tooltip:{callbacks:{label:ctx=>{ const d=ctx.dataset;
         if(d.type==='bar') return d.label+': '+aud(ctx.parsed.y);
         const raw=d._raw?d._raw[ctx.dataIndex]:ctx.parsed.y;
-        return d.label+': '+fmtN(raw)+(rel?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
+        return d.label+': '+(d._money?aud(raw):fmtN(raw))+(rel?'  ('+Math.round(ctx.parsed.y)+'% of peak)':''); }}}},
     scales}});
 }
 // breakdown of what the "Key events" line is made of — GA4 key events by type, stacked per period.
@@ -1367,16 +1426,25 @@ function renderPaid(){
   PLATFORMS.forEach(p=>per[p]={imps:0,clicks:0,spend:0,conv:0});
   rows.forEach(r=>{const a=per[r.platform];a.imps+=+r.imps||0;a.clicks+=+r.clicks||0;a.spend+=+r.spend_aud||0;a.conv+=+r.conversions||0;});
   const convReported={google:true,meta:true,ttd:false,reddit:true};
-  let body='<tr><th>Platform</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Conv.</th><th>Cost / lead</th></tr>';
-  let tot={imps:0,clicks:0,spend:0,conv:0};
-  PLATFORMS.forEach(p=>{const a=per[p];tot.imps+=a.imps;tot.clicks+=a.clicks;tot.spend+=a.spend;tot.conv+=a.conv;
-    body+=`<tr><td class="name"><span class="pill ${p}">${PLABEL[p]}</span></td><td>${aud(a.spend)}</td><td>${fmtN(a.imps)}</td>
-      <td>${fmtN(a.clicks)}</td><td>${pct(div(a.clicks,a.imps))}</td><td>${aud2(div(a.spend,a.imps)*1000)}</td>
-      <td>${aud2(div(a.spend,a.clicks))}</td><td>${convReported[p]?fmtN(a.conv):'—'}</td>
-      <td>${convReported[p]?aud(div(a.spend,a.conv)):'—'}</td></tr>`;});
-  body+=`<tr style="font-weight:800"><td class="name">Total</td><td>${aud(tot.spend)}</td><td>${fmtN(tot.imps)}</td>
-    <td>${fmtN(tot.clicks)}</td><td>${pct(div(tot.clicks,tot.imps))}</td><td>${aud2(div(tot.spend,tot.imps)*1000)}</td>
-    <td>${aud2(div(tot.spend,tot.clicks))}</td><td>${fmtN(tot.conv)}</td><td>—</td></tr>`;
+  const LEADP2=['google','meta','reddit'];        // lead-reporting channels (TTD display reports none)
+  // rank platforms by cost-per-lead, best first; platforms with no reported leads (TTD) sort last.
+  const order=PLATFORMS.slice().sort((x,y)=>{
+    const cx=(convReported[x]&&per[x].conv)?per[x].spend/per[x].conv:Infinity;
+    const cy=(convReported[y]&&per[y].conv)?per[y].spend/per[y].conv:Infinity;
+    return cx-cy;
+  });
+  let body='<tr><th>Platform</th><th>Spend</th><th>Leads</th><th>Cost / lead</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr>';
+  let tot={imps:0,clicks:0,spend:0,conv:0}, leadTot={spend:0,conv:0};
+  order.forEach(p=>{const a=per[p];tot.imps+=a.imps;tot.clicks+=a.clicks;tot.spend+=a.spend;tot.conv+=a.conv;
+    if(LEADP2.includes(p)){leadTot.spend+=a.spend;leadTot.conv+=a.conv;}
+    body+=`<tr><td class="name"><span class="pill ${p}">${PLABEL[p]}</span></td><td>${aud(a.spend)}</td>
+      <td>${convReported[p]?fmtN(a.conv):'—'}</td><td>${convReported[p]?aud(div(a.spend,a.conv)):'—'}</td>
+      <td>${fmtN(a.imps)}</td><td>${fmtN(a.clicks)}</td><td>${pct(div(a.clicks,a.imps))}</td>
+      <td>${aud2(div(a.spend,a.imps)*1000)}</td><td>${aud2(div(a.spend,a.clicks))}</td></tr>`;});
+  body+=`<tr style="font-weight:800"><td class="name">Total</td><td>${aud(tot.spend)}</td>
+    <td>${fmtN(leadTot.conv)}</td><td>${aud(div(leadTot.spend,leadTot.conv))}</td>
+    <td>${fmtN(tot.imps)}</td><td>${fmtN(tot.clicks)}</td><td>${pct(div(tot.clicks,tot.imps))}</td>
+    <td>${aud2(div(tot.spend,tot.imps)*1000)}</td><td>${aud2(div(tot.spend,tot.clicks))}</td></tr>`;
   document.getElementById('platformTable').innerHTML=body;
 
   // media metrics over time (campaign-filtered): total ad spend (bars, AUD) + impressions & clicks
@@ -1564,15 +1632,14 @@ function renderWebsite(){
   const wmBy=f=>wm.map(m=>+m[f]||0);
   const adSessTot=wm.reduce((s,m)=>s+(+m.paid_sessions||0),0);   // paid/ad-driven sessions (the "Ad-driven (paid)" line)
   // The two CLICKABLE cards (Sessions, Ad-driven — each toggles its line on the webTrend chart below)
-  // are grouped on the LEFT; the static cards (Users / Engaged / Page views / Key events — no matching
+  // are grouped on the LEFT; the static cards (Users / Page views / Key events — no matching
   // line) sit on the RIGHT so it reads clearly that they don't toggle.
   const cards=[
     ['k-sessions','Sessions',fmtN(k.sessions),'', wmBy('sessions'), {chart:'webTrend',series:'All sessions'}],
     ['k-addriven','Ad-driven',fmtN(adSessTot),pct(div(adSessTot,k.sessions))+' of sessions', wmBy('paid_sessions'), {chart:'webTrend',series:'Ad-driven (paid)'}],
     ['k-free','Users',fmtN(k.users),fmtN(k.new_users)+' new', wmBy('users')],
-    ['k-eng','Engaged sessions',fmtN(k.engaged_sessions),pct(div(k.engaged_sessions,k.sessions))+' rate', wmBy('engaged_sessions')],
     ['k-imps','Page views',fmtN(k.page_views),fmt1(div(k.page_views,k.sessions))+' / session', null],
-    ['k-leads','Key events',fmtN(k.conversions),'GA4 (modest)', wmBy('conversions')],
+    ['k-ke','Key events',fmtN(k.conversions),'GA4 (modest)', wmBy('conversions')],
   ];
   document.getElementById('webKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
@@ -1611,9 +1678,9 @@ function renderWebsite(){
     {label:'Event count',backgroundColor:mc('Key events'),data:evArr.map(e=>e[1])}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:axis(),y:axis()}}});
 
-  let h='<tr><th>Source / Medium</th><th style="text-align:left">Channel</th><th>Sessions</th><th>Engaged</th><th>Key events</th></tr>';
+  let h='<tr><th>Source / Medium</th><th style="text-align:left">Channel</th><th>Sessions</th><th>Key events</th></tr>';
   DATA.ga4_sources.forEach(r=>{h+=`<tr><td class="name">${r.source_medium}${r.is_ad?'<span class="tag ad">AD</span>':''}</td>
-    <td style="text-align:left;color:var(--muted)">${r.channel}</td><td>${fmtN(r.sessions)}</td><td>${fmtN(r.engaged)}</td><td>${fmtN(r.conversions)}</td></tr>`;});
+    <td style="text-align:left;color:var(--muted)">${r.channel}</td><td>${fmtN(r.sessions)}</td><td>${fmtN(r.conversions)}</td></tr>`;});
   document.getElementById('sourcesTable').innerHTML=h;
 }
 
