@@ -135,7 +135,7 @@
   .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .card-head .ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .seg{display:inline-flex;border:1px solid var(--cf-line);border-radius:8px;overflow:hidden;background:var(--cf-bg)}
-  .seg button{background:none;border:none;color:var(--cf-mute);font-family:inherit;font-size:11px;font-weight:700;padding:4px 10px;cursor:pointer;letter-spacing:.3px}
+  .seg button{background:none;border:none;color:var(--cf-mute);font-family:inherit;font-size:11px;font-weight:700;padding:4px 10px;cursor:pointer;letter-spacing:.3px;white-space:nowrap}
   .seg button.on{background:var(--cf-orange);color:#fff}
   .seg button:not(.on):hover{color:var(--cf-ink)}
   .seg .cap{padding:0 7px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--cf-mute);align-self:center}
@@ -204,6 +204,8 @@
   .panel-paid-scope .section h2{font-size:16px;margin:0;letter-spacing:-.2px;color:#fff}
   .panel-paid-scope .section .sub{font-size:12px;color:rgba(255,255,255,0.85);margin:0}
   .panel-paid-scope .section.first{border-top:none;padding-top:0;margin-top:0}
+  .panel-paid-scope .section.creatives-head h2{white-space:nowrap;flex-shrink:0}
+  .panel-paid-scope .section.creatives-head .seg{align-self:center;margin-left:auto}
 
   .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px}
   .kpi{background:var(--cf-card);border:1px solid var(--cf-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden}
@@ -704,9 +706,10 @@
           </div>
         </div>
 
-        <div class="section">
+        <div class="section creatives-head">
           <h2>Top &amp; bottom performing creatives</h2>
           <span class="sub" id="creativeNote">Ranked by CTR. Respects the market filter above.</span>
+          <span class="seg" id="creativeChannelSeg"></span>
         </div>
 
         <div class="creatives-grid">
@@ -2378,13 +2381,35 @@ function prettyCreative(raw) {
   const parts = [msg, fmtPart, market, obj, ...extra, concept, ver].filter(Boolean);
   return parts.length ? parts.join(' · ') : String(raw);
 }
+// Channel filter for the creatives tables (single-select). The creatives feed carries a per-row
+// CHANNEL (LinkedIn / TTD / Reddit / LINE); without this, TTD's high-volume display creatives
+// dominate the CTR ranking and bury LinkedIn. Stacks with the existing market filter.
+let creativeChannel = 'all';
+const CH_LABEL = {TTD:'Trade Desk', LinkedIn:'LinkedIn', Reddit:'Reddit', LINE:'LINE'};
+const CH_ORDER = ['LinkedIn','TTD','Reddit','LINE'];
+function renderCreativeChannelSeg() {
+  const seg = document.getElementById('creativeChannelSeg');
+  if (!seg) return;
+  const present = new Set((PAYLOAD.creatives || []).map(r => r.channel).filter(Boolean));
+  const chans = CH_ORDER.filter(c => present.has(c))
+    .concat([...present].filter(c => !CH_ORDER.includes(c)));
+  if (chans.length <= 1) { seg.style.display = 'none'; return; }   // nothing to filter
+  seg.style.display = '';
+  if (creativeChannel !== 'all' && !present.has(creativeChannel)) creativeChannel = 'all';
+  const opts = [['all','All channels']].concat(chans.map(c => [c, CH_LABEL[c] || c]));
+  seg.innerHTML = '<span class="cap">CHANNEL</span>' + opts.map(([v,l]) =>
+    `<button type="button" data-ch="${v}" class="${creativeChannel===v?'on':''}" onclick="setCreativeChannel('${v}')">${l}</button>`).join('');
+}
+function setCreativeChannel(v) { creativeChannel = v; renderCreativeTables(); }
 function renderCreativeTables() {
+  renderCreativeChannelSeg();
   const map = new Map();
   for (const r of (PAYLOAD.creatives || [])) {
     // Creatives are aggregated over the whole flight and carry NO date — so filter by
     // the market chips ONLY, never the date range (see the note below). passesAll()
     // would reject every row here via dateOk(undefined) → the tables would go blank.
     if (!paidMediaActiveMarkets.has(r.market)) continue;
+    if (creativeChannel !== 'all' && r.channel !== creativeChannel) continue;
     const key = r.channel + '||' + r.creative;
     let o = map.get(key);
     if (!o) { o = {channel:r.channel, creative:r.creative, imp:0, clk:0, sp:0, leads:0}; map.set(key, o); }
@@ -2399,7 +2424,9 @@ function renderCreativeTables() {
   const note = document.getElementById('creativeNote');
   if (note) note.textContent =
     `Ranked by CTR across ${eligible.length} creative${eligible.length === 1 ? '' : 's'} `
-    + `with ≥ ${CREATIVE_MIN_IMPS.toLocaleString()} impressions in the selected markets `
+    + `with ≥ ${CREATIVE_MIN_IMPS.toLocaleString()} impressions`
+    + (creativeChannel !== 'all' ? ` on ${CH_LABEL[creativeChannel] || creativeChannel}` : '')
+    + ` in the selected markets `
     + `(full period — creatives have no date dimension, so the date range doesn't apply here).`;
 }
 function renderCreativeTable(bodyId, rows) {
