@@ -9,7 +9,14 @@
   /* ===== ResetData brand palette (crimson-pink accent on deep navy — from the brand logo + site) ===== */
   :root{
     --bg:#0A0F1A; --panel:#0F1A2B; --panel2:#0C1524; --line:#1E2D42; --line2:#25364B;
-    --ink:#E8F0FA; --muted:#8CA0B8; --muted2:#5C7187;
+    /* Bidbrain house-style shell tokens — accent stays per-client (defined just below) */
+    --bg-0:#070A12;                                                   /* deep page base under the glow */
+    --hair:rgba(255,255,255,.09);                                     /* hairline card border */
+    --card-1:rgba(255,255,255,.025); --card-2:rgba(255,255,255,.015); /* card fill gradient */
+    --tile-fill:color-mix(in srgb,var(--accent) 14%,transparent);     /* eyebrow / icon-tile fill */
+    --tile-line:color-mix(in srgb,var(--accent) 32%,transparent);     /* eyebrow / icon-tile border */
+    --sp-sect:26px;                                                   /* section rhythm */
+    --ink:#EEF2F8; --muted:#AAB4C5; --muted2:#68738A;
     --accent:#E84A6F;          /* ResetData crimson-pink — primary / active */
     --accent2:#F472A0;         /* lighter pink */
     --google:#6366F1;          /* indigo */
@@ -21,8 +28,14 @@
     --good:#34D399; --warn:#FBBF24; --bad:#FB7185;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--bg);color:var(--ink);
+  html,body{margin:0;color:var(--ink);
        font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;font-size:14px}
+  /* Bidbrain house style: one soft top-center glow — fixed blue bloom + a faint accent-tinted bloom —
+     over the deep base. Anchored at the top so the lower page stays flat. */
+  body{min-height:100vh;background:
+       radial-gradient(1000px 520px at 50% -6%, rgba(72,130,255,0.12), transparent 64%),
+       radial-gradient(600px 340px at 50% -3%, color-mix(in srgb, var(--accent) 52%, transparent) 0%, transparent 62%),
+       var(--bg-0);}
   a{color:var(--accent)}
   .wrap{max-width:1240px;margin:0 auto;padding:0 20px 64px}
 
@@ -53,7 +66,7 @@
 
   /* filter bar */
   .filters{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;margin:14px 0 4px}
-  .fgroup{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:9px 12px}
+  .fgroup{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:11px;padding:9px 12px}
   .fgroup .lbl{font-size:10px;font-weight:700;letter-spacing:1px;color:var(--muted2);margin-bottom:6px}
   .chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;margin:2px;border-radius:7px;
         font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line2);background:var(--panel2);color:var(--muted)}
@@ -129,7 +142,7 @@
 
   /* cards / grid */
   .grid{display:grid;gap:14px}
-  .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:16px 0}
+  .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:16px 0 32px}
   .crm-callout{font-size:12.5px;color:var(--muted);margin:-2px 0 8px}
   .crm-callout b{color:var(--accent);font-size:15px}
   .crm-funnelstep::before{background:var(--accent)!important}
@@ -137,17 +150,29 @@
      colour inline as --kc (from the JS KACCENT map) so it matches that metric's chart-series colour.
      A soft accent wash + a tinted border + a glowing colour dot on the label give each card its own
      identity — not a generic bar. color-mix keeps everything derived from existing theme tokens. */
-  .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 13%,var(--panel)),var(--panel) 62%);
-       border:1px solid color-mix(in srgb,var(--kc,var(--accent)) 22%,var(--line));
-       border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
+  .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 12%,transparent),transparent 58%),
+       linear-gradient(180deg,var(--card-1),var(--card-2));
+       border:1px solid var(--hair);
+       border-radius:11px;padding:15px 16px;position:relative;overflow:hidden}
   .kpi .label{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
   .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;background:var(--kc,var(--accent));
        box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
   .kpi .value{font-size:24px;font-weight:800;margin-top:9px;letter-spacing:-.5px}
   .kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px}
+  /* clickable KPI cards — toggle their series on the chart (like a legend). A tiny dot hints it's a
+     toggle; the card dims + desaturates when its series is hidden ("unclicked"). */
+  .kpi.clk{cursor:pointer;user-select:none;transition:opacity .15s,filter .15s,transform .06s,border-color .15s}
+  .kpi.clk:hover{filter:brightness(1.09);border-color:color-mix(in srgb,var(--kc,var(--accent)) 55%,transparent)}
+  .kpi.clk:active{transform:translateY(1px)}
+  .kpi.clk:focus-visible{outline:2px solid var(--kc,var(--accent));outline-offset:2px}
+  .kpi.clk .label::after{content:"";width:7px;height:7px;margin-left:auto;border-radius:50%;
+    border:1.5px solid var(--kc,var(--accent));background:var(--kc,var(--accent));box-shadow:0 0 5px var(--kc,var(--accent))}
+  .kpi.clk.off{opacity:.42;filter:grayscale(.75)}
+  .kpi.clk.off .label::after{background:transparent;box-shadow:none}
 
-  .panel-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
-  .panel-box h3{margin:0 0 2px;font-size:14px;font-weight:700}
+  .panel-box{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:16px;padding:18px}
+  .panel-box h3{margin:0 0 4px;font-size:19px;font-weight:600;color:var(--ink);letter-spacing:-.2px}
+  .panel-box h3 .hl{color:var(--accent)}
   .panel-box .hint{font-size:11.5px;color:var(--muted2);margin:0 0 12px}
   .cols-2{grid-template-columns:1fr 1fr}
   .cols-3{grid-template-columns:2fr 1fr}
@@ -174,7 +199,16 @@
         padding:11px 14px;font-size:12px;color:#FCD9A1;margin:14px 0}
   .note b{color:var(--warn)}
   .hide{display:none}
-  .secttitle{font-size:12px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin:20px 0 2px;text-transform:uppercase}
+  /* Bidbrain house style: eyebrow pill / two-tone heading accent / icon tile */
+  .secttitle{display:inline-flex;align-items:center;gap:8px;font-size:9.5px;font-weight:700;color:var(--accent);
+       letter-spacing:1.6px;text-transform:uppercase;margin:var(--sp-sect) 0 12px;
+       padding:5px 11px;border-radius:999px;background:var(--tile-fill);border:1px solid var(--tile-line)}
+  .eyebrow{display:inline-flex;align-items:center;font-size:9.5px;font-weight:700;color:var(--accent);
+       letter-spacing:1.6px;text-transform:uppercase;padding:4px 10px;border-radius:999px;
+       background:var(--tile-fill);border:1px solid var(--tile-line);margin:0 0 10px}
+  .icon-tile{width:26px;height:26px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;
+       background:var(--tile-fill);border:1px solid var(--tile-line);color:var(--accent);flex:none}
+  .hl{color:var(--accent)}
 
   /* segmented grain/axis toggles + Looker-style drill-down */
   .panelhead{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -490,6 +524,27 @@ const PCOLOR={google:MC['Google Ads'],meta:MC['Meta'],ttd:MC['Trade Desk'],reddi
 const selPlt=new Set(PLATFORMS);
 let selCamp=new Set();             // keys "platform||campaign"
 const charts={};
+// KPI-card → chart-series toggles. A clickable KPI card (trendCard with a `toggle` spec) hides/shows
+// its matching series on a chart — the same effect as clicking that series' legend label, but from the
+// big card. State lives in kpiHidden keyed by mkey ('mk::<chartId>::<series>' or '…::#<stack>'), so it
+// PERSISTS across chart re-renders (grain/date/scale changes) — mkChart reapplies it after every build.
+const kpiHidden={};
+function kpiHiddenFor(chartId,ds){
+  const sk='mk::'+chartId+'::'+ds.label;                 // match a single series by its label
+  const stk=ds.stack?('mk::'+chartId+'::#'+ds.stack):null; // …or a whole stack (e.g. the spend bars)
+  return !!(kpiHidden[sk]||(stk&&kpiHidden[stk]));
+}
+function applyKpiToChart(chartId){
+  const ci=charts[chartId]; if(!ci)return; let changed=false;
+  ci.data.datasets.forEach((ds,i)=>{ const hide=kpiHiddenFor(chartId,ds); const m=ci.getDatasetMeta(i);
+    if(m.hidden!==hide){m.hidden=hide;changed=true;} });
+  if(changed)ci.update();
+}
+function toggleKpiCard(el){
+  const mkey=el.dataset.mkey; kpiHidden[mkey]=!kpiHidden[mkey];
+  el.classList.toggle('off',!!kpiHidden[mkey]);
+  applyKpiToChart(el.dataset.chart);
+}
 const ckey=(p,c)=>p+'||'+c;
 
 // ---- Date range (Looker-style picker). Finest grain in this feed is month/week,
@@ -575,6 +630,36 @@ const ACRONYMS={api:'API',gpu:'GPU',crm:'CRM',id:'ID',url:'URL',ai:'AI'};
 const prettyEvent=s=>String(s||'').split('_').map(w=>ACRONYMS[w.toLowerCase()]||(w.charAt(0).toUpperCase()+w.slice(1))).join(' ');
 // campaign display names: swap delimiter underscores for spaces, preserve original casing.
 const prettyName=s=>String(s||'').replace(/_/g,' ');
+// Google Ads campaigns use an internal naming convention ("[SEGMENT] … | S | Max Conv", or
+// "100D | S | HT | theme") that reads badly in the UI. This maps each RAW name → a clean DISPLAY
+// label. Display-only: the raw r.campaign stays the join/filter key — only the label changes.
+// Unmapped names (new campaigns, other platforms) fall back to prettyName. Drafted 2026-07; edit
+// freely — add a new campaign's raw name here to give it a friendly label.
+const CAMPAIGN_LABELS = {
+  '[AI INFRA] AI Infrastructure | S | Max Conv': 'AI Infrastructure',
+  '[BRAND] ResetData | S | Max Conv': 'Brand – ResetData',
+  '[CLOUD] HT | S | Max Conv': 'Cloud (High-Intent)',
+  '[GPU] GPU as a Service | S | Max Conv': 'GPU-as-a-Service',
+  '[HPC] High Performance Computing | S | Max Conv': 'High-Performance Computing',
+  '[LLM] LLMaaS and AI Models | S | Max Conv': 'LLM-as-a-Service & AI Models',
+  '[SECTOR] Enterprise AI - Finance and Health | S | Max Conv': 'Enterprise AI – Finance & Health',
+  '[SECTOR] Government AI | S | Max Conv': 'Government AI',
+  '[SECTOR] Research and Education | S | Max Conv': 'Research & Education',
+  '[SOVEREIGN] Sovereign AI Cloud | S | Max Conv': 'Sovereign AI Cloud',
+  '100D | S | HT | AI Factory / Infrastructure': 'AI Factory / Infrastructure',
+  '100D | S | HT | AI Models & Marketplace': 'AI Models & Marketplace',
+  '100D | S | HT | Max Clicks': 'High-Intent Search (Max Clicks)',
+  '100D | S | HT | Sovereign AI Compute (Core)': 'Sovereign AI Compute (Core)',
+  '100D | S | Reset | Brand | Max Clicks': 'Brand – ResetData (Max Clicks)',
+  '100D | S | Reset | HT | Max Clicks': 'Brand High-Intent (Max Clicks)',
+  'Search Campaign | Manual CPC': 'Search – Manual CPC',
+  'MSP Channel Program ANZ': 'MSP Channel Program (ANZ)',
+  'AI Inference Platform': 'AI Inference Platform',
+  'AI Inference Platform & Sovereign LLMs': 'AI Inference Platform & Sovereign LLMs',
+  'Enterprise AI Solutions': 'Enterprise AI Solutions',
+  'GPU-as-a-Service & Sovereign GPU Compute': 'GPU-as-a-Service & Sovereign GPU Compute',
+};
+const displayName = s => CAMPAIGN_LABELS[s] || prettyName(s);
 
 function campActive(p,c){return selPlt.has(p)&&selCamp.has(ckey(p,c));}
 
@@ -764,10 +849,10 @@ function buildCampaignPanel(){
   html+='<div class="actions"><a onclick="selectAllCamps(true)">Select all</a><a onclick="selectAllCamps(false)">Clear</a></div>';
   PLATFORMS.forEach(p=>{(byPlt[p]||[]).sort((a,b)=>b.spend_aud-a.spend_aud).forEach(r=>{
     const k=ckey(p,r.campaign);
-    html+=`<label class="row" data-name="${prettyName(r.campaign).toLowerCase()}">
+    html+=`<label class="row" data-name="${displayName(r.campaign).toLowerCase()}">
       <input type="checkbox" ${selCamp.has(k)?'checked':''} onchange="toggleCamp('${p}',this)" data-c="${encodeURIComponent(r.campaign)}">
       <span class="plt ${p}">${p.toUpperCase()}</span>
-      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${prettyName(r.campaign)}</span>
+      <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${displayName(r.campaign)}</span>
       <span style="color:var(--muted2)">${aud(r.spend_aud)}</span></label>`;
   });});
   document.getElementById('campPanel').innerHTML=html;
@@ -821,7 +906,7 @@ function renderDateScope(){
     note.style.display='none';
   }
 }
-function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,cfg);}
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,cfg);applyKpiToChart(id);}
 
 // ===================== legend affordance (legends are click-to-toggle) =====================
 // Chart.js legends already toggle their series/slice on click, but nothing signals that. Make it
@@ -933,9 +1018,17 @@ function deltaFromSeries(series){
 // Build a KPI / stat card — colour-matched aesthetic, NO trendline and NO pacing (client dropped the
 // sparkline). `series` is intentionally ignored (kept in the signature so callers don't change). The
 // accent colour is passed inline as --kc so each card matches its metric's chart-series colour.
-function trendCard(cls,label,value,sub,series){
+function trendCard(cls,label,value,sub,series,toggle){
   const color=KACCENT[cls]||'var(--accent)';
-  return `<div class="kpi ${cls}" style="--kc:${color}">`
+  let extra='', klass='kpi '+cls;
+  if(toggle){                                            // clickable: toggles its series on `toggle.chart`
+    const mkey='mk::'+toggle.chart+'::'+(toggle.series||('#'+toggle.stack));
+    klass+=' clk'+(kpiHidden[mkey]?' off':'');
+    extra=` role="button" tabindex="0" title="Click to show/hide this on the chart"`
+        + ` data-chart="${toggle.chart}" data-mkey="${mkey}"`
+        + ` onclick="toggleKpiCard(this)" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();toggleKpiCard(this);}"`;
+  }
+  return `<div class="${klass}" style="--kc:${color}"${extra}>`
        + `<div class="label">${label}</div>`
        + `<div class="value">${value}</div>`
        + `<div class="sub">${sub}</div></div>`;
@@ -962,16 +1055,20 @@ function renderOverview(){
     if(selPlt.has('google'))s+=+r.search_sessions||0;
     if(selPlt.has('meta')||selPlt.has('reddit'))s+=+r.social_sessions||0;
     if(selPlt.has('ttd'))s+=+r.display_sessions||0; return s;});
+  // The 6th element makes a card CLICKABLE: it toggles its matching series on the hero chart (below).
+  // Cards without a hero-chart series (Ad-driven, Engaged sessions) stay static. Spend toggles the whole
+  // stacked-spend bar group; the four line metrics toggle their line (labels must match renderHero's).
+  const H='heroChart';
   const cards=[
-    ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks)), acmBy('spend_aud')],
-    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), acmBy('imps')],
-    ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), acmBy('clicks')],
-    ['k-sessions','Website sessions',fmtN(sessions),'whole site', mrBy('sessions')],
+    ['k-spend','Media spend',aud(spend),'CPC '+aud2(div(spend,clicks)), acmBy('spend_aud'), {chart:H,stack:'spend'}],
+    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), acmBy('imps'), {chart:H,series:'Impressions'}],
+    ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), acmBy('clicks'), {chart:H,series:'Clicks'}],
+    ['k-sessions','Website sessions',fmtN(sessions),'whole site', mrBy('sessions'), {chart:H,series:'Sessions'}],
     ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions', adDrivenBy],
     ['k-eng','Engaged sessions',fmtN(engaged),pct(div(engaged,sessions))+' eng. rate', mrBy('engaged_sessions')],
-    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)', mrBy('conversions')],
+    ['k-leads','Key events',fmtN(keyEvents),'GA4 (modest)', mrBy('conversions'), {chart:H,series:'Key events'}],
   ];
-  document.getElementById('ovKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4])).join('');
+  document.getElementById('ovKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
   renderHero();
   renderKeyEventsBreakdown();
@@ -1199,7 +1296,7 @@ function renderReddit(){
 function campTable(id,rows,heads,cells,nameKey){
   let h='<tr><th>'+(nameKey||'Campaign')+'</th>'+heads.map(x=>'<th>'+x+'</th>').join('')+'</tr>';
   if(!rows.length)h+='<tr><td class="name" style="color:var(--muted2)">No data for the current filter.</td></tr>';
-  rows.forEach(r=>{h+='<tr><td class="name" title="'+((r.campaign||r.creative||'')+'').replace(/"/g,'')+'">'+(prettyName(r.campaign||r.creative)||'(unnamed)')+'</td>'+cells(r).map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
+  rows.forEach(r=>{h+='<tr><td class="name" title="'+((r.campaign||r.creative||'')+'').replace(/"/g,'')+'">'+(displayName(r.campaign||r.creative)||'(unnamed)')+'</td>'+cells(r).map(c=>'<td>'+c+'</td>').join('')+'</tr>';});
   document.getElementById(id).innerHTML=h;
 }
 
@@ -1210,14 +1307,16 @@ function renderWebsite(){
   // kpi-only (no monthly series) -> null -> "no trend data".
   const wm=[...DATA.monthly].sort((a,b)=>a.month<b.month?-1:1);
   const wmBy=f=>wm.map(m=>+m[f]||0);
+  // Sessions is clickable — toggles the "All sessions" line on the website trend chart below. The other
+  // cards (Users / Engaged / Page views / Key events) have no matching line on that chart, so stay static.
   const cards=[
-    ['k-sessions','Sessions',fmtN(k.sessions),'', wmBy('sessions')],
+    ['k-sessions','Sessions',fmtN(k.sessions),'', wmBy('sessions'), {chart:'webTrend',series:'All sessions'}],
     ['k-addriven','Users',fmtN(k.users),fmtN(k.new_users)+' new', wmBy('users')],
     ['k-eng','Engaged sessions',fmtN(k.engaged_sessions),pct(div(k.engaged_sessions,k.sessions))+' rate', wmBy('engaged_sessions')],
     ['k-imps','Page views',fmtN(k.page_views),fmt1(div(k.page_views,k.sessions))+' / session', null],
     ['k-leads','Key events',fmtN(k.conversions),'GA4 (modest)', wmBy('conversions')],
   ];
-  document.getElementById('webKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4])).join('');
+  document.getElementById('webKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
   mkChart('webChannelBar',{type:'bar',data:{labels:ch.map(c=>c.channel),datasets:[
@@ -1488,6 +1587,18 @@ function renderCRM(){
 
 // close campaign panel on outside click
 document.addEventListener('click',e=>{const d=e.target.closest('.cdrop');if(!d){document.getElementById('campPanel').classList.add('hide');}});
+</script>
+<script>
+/* Bidbrain house style: two-tone section headings — accent the last word of each panel heading. */
+(function(){try{
+  document.querySelectorAll('.panel-box h3').forEach(function(h){
+    if(h.children.length) return;
+    var t=(h.textContent||'').trimEnd(); var i=t.lastIndexOf(' ');
+    if(i<=0) return;
+    var span=document.createElement('span'); span.className='hl'; span.textContent=t.slice(i+1);
+    h.textContent=t.slice(0,i+1); h.appendChild(span);
+  });
+}catch(e){}})();
 </script>
 </body>
 </html>
