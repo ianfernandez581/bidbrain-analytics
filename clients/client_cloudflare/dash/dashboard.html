@@ -118,8 +118,8 @@
     .dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}
   }
 
-  .cs-snap{background:#fff;border:1px solid var(--cf-line);border-radius:12px;padding:18px 20px;margin-bottom:14px;
-    display:grid;grid-template-columns:repeat(3,1fr);gap:32px}
+  .cs-snap{margin-bottom:14px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .cs-snap .group{background:#fff;border:1px solid var(--cf-line);border-radius:12px;padding:18px 20px}
   .cs-snap .group .lbl{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
   .cs-snap .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .cs-snap .pair.triple{grid-template-columns:repeat(3,1fr);gap:10px}
@@ -145,9 +145,14 @@
   .seg .cap{padding:0 7px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--cf-mute);align-self:center}
 
   .progress-row{display:grid;grid-template-columns:110px 1fr 70px;align-items:center;gap:10px;margin:8px 0;font-size:13px}
-  .pbar{height:10px;background:#F6F8FA;border-radius:6px;overflow:hidden}
-  .pbar .fill{height:100%;background:var(--cf-orange);border-radius:6px}
+  .pbar{height:13px;background:#F6F8FA;border-radius:6px;overflow:hidden;position:relative}
+  .pbar .fill{height:100%;background:var(--cf-orange)}
+  .pbar .fill.surplus{background:var(--good-green)}
   .pbar.gray .fill{background:var(--target-gray)}
+  .prog-tgt{position:absolute;top:0;bottom:0;width:0;border-left:2px dashed var(--cf-navy);z-index:3}
+  .prog-badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;margin-bottom:12px;letter-spacing:.2px}
+  .prog-badge.good{background:rgba(31,157,85,.12);color:var(--good-green)}
+  .prog-badge.warn{background:rgba(243,128,32,.13);color:var(--cf-orange)}
 
   .reg-row{display:grid;grid-template-columns:96px 1fr 60px;align-items:center;gap:10px;margin:6px 0;font-size:11.5px}
   .reg-lbl{color:var(--cf-mute);font-size:11px}
@@ -1173,6 +1178,48 @@ let paidMediaAllMarkets = [];
 const CF = '#F38020', TARGET = '#6E7785', LINE = '#E5E9EE';
 const colors = ['#F38020','#FBAD41','#FCD8AA','#0A66C2','#7A99C0','#1F9D55','#C8362A','#6B3FA0','#5A6B78','#2C3E50','#A14B00','#073D75'];
 
+// Doughnut extras — applied to EVERY doughnut on the dashboard (registered globally,
+// type-guarded). (1) A "click to show/hide" hint above the legend. (2) A big total in
+// the middle of the ring that SUMS only the currently-VISIBLE slices, so it live-updates
+// when a legend label is toggled (Chart.js hides that slice on legend click by default).
+// Per-chart override: options.plugins.centerTotal = { label:'SPEND', format:v=>fmt$(v) }.
+const CHART_FONT = '-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif';
+const doughnutExtras = {
+  id: 'doughnutExtras',
+  beforeInit(chart){
+    if (chart.config.type !== 'doughnut') return;
+    const pl = chart.options.plugins = chart.options.plugins || {};
+    const lg = pl.legend = pl.legend || {};
+    lg.title = Object.assign({ display:true, text:'Tip: click a label to show / hide it',
+      color:'#5A6B78', padding:{top:0,bottom:6}, font:{size:10.5, style:'italic', weight:'500'} }, lg.title || {});
+  },
+  afterDraw(chart){
+    if (chart.config.type !== 'doughnut') return;
+    const ds = chart.data.datasets && chart.data.datasets[0];
+    if (!ds || !ds.data) return;
+    const arc = (chart.getDatasetMeta(0).data || [])[0];
+    if (!arc) return;
+    const opts = (chart.options.plugins && chart.options.plugins.centerTotal) || {};
+    const fmt = typeof opts.format === 'function' ? opts.format : (v => Math.round(v).toLocaleString());
+    let sum = 0, anyVisible = false;
+    ds.data.forEach((v, i) => { if (chart.getDataVisibility(i)) { sum += (Number(v) || 0); anyVisible = true; } });
+    const ctx = chart.ctx;
+    const R = arc.innerRadius || 40;                 // scale text to the ring hole so it never overflows
+    const numSize = Math.max(13, Math.min(22, R * 0.5));
+    const lblSize = Math.max(8, numSize * 0.46);
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#1B2834';
+    ctx.font = '700 ' + numSize + 'px ' + CHART_FONT;
+    ctx.fillText(anyVisible ? fmt(sum) : '—', arc.x, arc.y - numSize * 0.30);
+    ctx.fillStyle = '#5A6B78';
+    ctx.font = '600 ' + lblSize + 'px ' + CHART_FONT;
+    ctx.fillText(opts.label || 'TOTAL', arc.x, arc.y + numSize * 0.55);
+    ctx.restore();
+  }
+};
+Chart.register(doughnutExtras);
+
 // ==========================================================================
 // BOOT
 // ==========================================================================
@@ -1511,22 +1558,45 @@ function renderLeadsTarget(agg) {
 
 function renderProgress(agg) {
   const unprocessed = agg.total - agg.accepted - agg.rejected;
-  const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;
-  const up = agg.q2Target ? unprocessed/agg.q2Target : 0;
-  const tp = agg.timePct;
+  const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ target
+  const up = agg.q2Target ? unprocessed/agg.q2Target : 0;    // unprocessed ÷ target
+  const tp = agg.timePct;                                    // Q2 time elapsed
   const ratio = tp > 0 ? lp/tp : 0;
-  const lpW = Math.min(100, lp*100);
-  const upW = Math.min(Math.max(0, 100 - lpW), up*100);
+  const overTarget = lp > 1;                                 // beat the full-quarter target
+  const overLeads  = Math.round(agg.accepted - agg.q2Target);
+  // Shared scale so BOTH bars sit on one axis and the Leads bar visibly CROSSES the
+  // 100% target line (the surplus beyond it is drawn green). Headroom keeps the fill
+  // off the far edge so the crossing reads clearly even at ~115%.
+  const scale = Math.max(1.08, lp + up, tp);
+  const P = f => (Math.max(0, f) / scale * 100).toFixed(2);
+  const markerLeft = P(1);
+  const toTgt = Math.min(lp, 1), surplus = Math.max(0, lp - 1);
+  const badge = overTarget
+    ? `<div class="prog-badge good">🎯 TARGET EXCEEDED · ${(lp*100).toFixed(1)}% of Q2 goal · +${fmtN(overLeads)} leads over</div>`
+    : (lp >= tp
+        ? `<div class="prog-badge good">✓ AHEAD OF PACE · ${(ratio*100).toFixed(0)}% of expected</div>`
+        : `<div class="prog-badge warn">BEHIND PACE · ${(ratio*100).toFixed(0)}% of expected</div>`);
   document.getElementById('progress').innerHTML = `
+    ${badge}
     <div class="progress-row"><div>Leads</div>
       <div class="pbar" style="display:flex">
-        <div class="fill" style="width:${lpW}%"></div>
-        <div class="fill" style="width:${upW}%;background:var(--cf-orange-soft);border-radius:0 6px 6px 0"></div>
+        <div class="fill" style="width:${P(toTgt)}%"></div>
+        ${surplus > 0 ? `<div class="fill surplus" style="width:${P(surplus)}%"></div>` : ``}
+        <div class="fill" style="width:${P(up)}%;background:var(--cf-orange-soft)"></div>
+        <div class="prog-tgt" style="left:${markerLeft}%"></div>
       </div>
-      <div style="text-align:right">${(lp*100).toFixed(1)}%</div></div>
-    <div class="progress-row"><div>Time</div><div class="pbar gray"><div class="fill" style="width:${Math.min(100,tp*100)}%"></div></div><div style="text-align:right">${(tp*100).toFixed(1)}%</div></div>
-    <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
-      Leads pacing is <b>${(ratio*100).toFixed(0)}% of expected</b>. ${lp>tp ? 'Ahead of plan ✓' : 'Behind plan'}.
+      <div style="text-align:right;font-weight:700;color:${overTarget ? 'var(--good-green)' : 'var(--cf-ink)'}">${(lp*100).toFixed(1)}%</div></div>
+    <div class="progress-row"><div>Time</div>
+      <div class="pbar gray">
+        <div class="fill" style="width:${P(tp)}%"></div>
+        <div class="prog-tgt" style="left:${markerLeft}%"></div>
+      </div>
+      <div style="text-align:right">${(tp*100).toFixed(1)}%</div></div>
+    <div style="font-size:11px;color:var(--cf-mute);margin-top:8px">
+      <span style="border-left:2px dashed var(--cf-navy);padding-left:6px">Dashed line = 100% Q2 target</span>${surplus > 0 ? ` · <span style="color:var(--good-green);font-weight:600">green = leads beyond target</span>` : ``}
+    </div>
+    <div style="font-size:12px;color:var(--cf-mute);margin-top:10px">
+      Leads pacing is <b>${(ratio*100).toFixed(0)}% of expected</b>. ${lp > tp ? 'Ahead of plan ✓' : 'Behind plan'}.
       ${unprocessed > 0 ? `<br><span style="display:inline-block;width:9px;height:9px;background:var(--cf-orange-soft);border-radius:2px;margin-right:5px;vertical-align:middle"></span>${fmtN(unprocessed)} unprocessed leads pending triage could lift this to <b>${((lp+up)*100).toFixed(1)}%</b>.` : ''}
     </div>`;
 }
@@ -2205,7 +2275,7 @@ function renderChannelMix() {
     labels:['TTD','LinkedIn','Reddit','LINE'],
     datasets:[{data:[ttd.sp, li.sp, rd.sp, ln.sp], backgroundColor:[PM_CF, PM_LI, PM_RD, PM_LN], borderColor:'#fff', borderWidth:2}]
   }, options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
-    plugins:{legend:{position:'bottom'},
+    plugins:{legend:{position:'bottom'}, centerTotal:{label:'TOTAL SPEND', format:v=>fmt$(v,0)},
       tooltip:{callbacks:{label: c => {
         const tot = ttd.sp + li.sp + rd.sp + ln.sp;
         return `${c.label}: ${fmt$(c.parsed,0)} (${tot ? (c.parsed/tot*100).toFixed(1) : 0}%)`;
