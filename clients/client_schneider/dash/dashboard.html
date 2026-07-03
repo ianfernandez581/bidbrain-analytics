@@ -18,8 +18,8 @@
     --li:#2867B2; --td:#F2A900; --amber:#B97400;
     --good-green:#1E8E3E; --bad-red:#C8362A; --warn-amber:#B97400;
     /* consistent per-metric colours — reused on KPI tiles (and, in pass 2, matching chart series) */
-    --m-spend:#007E2A; --m-imp:#2867B2; --m-clk:#F2A900; --m-cpc:#8E44AD;
-    --m-leads:#D6336C; --m-target:#9AA3AC;
+    --m-spend:#007E2A; --m-imp:#3E6396; --m-clk:#C4902E; --m-cpc:#7A6E8C;
+    --m-leads:#A6547B; --m-target:#9AA3AC;
     /* premium: white cards float on the Schneider-green canvas with a soft green glow */
     --shadow-card:0 10px 30px rgba(3,20,12,.34),0 0 0 1px rgba(255,255,255,.04),0 0 66px -16px rgba(0,149,48,.78);
     /* text that sits ON the dark-green canvas (not inside a white card) */
@@ -832,9 +832,9 @@ function renderPaid(){
   // series colours match the KPI tiles (Spend=green, Impressions=blue, Clicks=amber); CTR=slate
   charts.pmDaily=new Chart(el('pmDaily'),{ data:{ labels, datasets:[
     {type:'line',label:'Spend',data:rel?spends.map(v=>v/spendPeak*100):spends,_true:spends,_money:true,borderColor:C.green2,backgroundColor:C.green2,borderWidth:2.4,tension:.3,pointRadius:2,yAxisID:rel?'y':'ySp'},
-    {type:'bar',label:'Impressions',data:rel?imps.map(v=>v/impPeak*100):imps,_true:imps,backgroundColor:C.li,yAxisID:'y',maxBarThickness:34,borderRadius:3},
-    {type:'line',label:'Clicks',data:rel?clks.map(v=>v/clkPeak*100):clks,_true:clks,borderColor:C.td,backgroundColor:C.td,borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'y1'},
-    {type:'line',label:'Leads',data:rel?leads.map(v=>v/leadPeak*100):leads,_true:leads,borderColor:'#D6336C',backgroundColor:'#D6336C',borderWidth:2.8,tension:.3,pointRadius:2.5,yAxisID:rel?'y':'yLd'},
+    {type:'bar',label:'Impressions',data:rel?imps.map(v=>v/impPeak*100):imps,_true:imps,backgroundColor:'#3E6396',yAxisID:'y',maxBarThickness:34,borderRadius:3},
+    {type:'line',label:'Clicks',data:rel?clks.map(v=>v/clkPeak*100):clks,_true:clks,borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'y1'},
+    {type:'line',label:'Leads',data:rel?leads.map(v=>v/leadPeak*100):leads,_true:leads,borderColor:'#A6547B',backgroundColor:'#A6547B',borderWidth:2.8,tension:.3,pointRadius:2.5,yAxisID:rel?'y':'yLd'},
     {type:'line',label:'CTR %',data:ctrs,_true:ctrs,borderColor:C.slate,borderDash:[5,4],borderWidth:1.6,tension:.3,pointRadius:0,yAxisID:'y2'}
   ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
