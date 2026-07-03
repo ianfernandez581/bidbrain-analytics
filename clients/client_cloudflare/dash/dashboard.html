@@ -1763,6 +1763,10 @@ function renderAll() {
 // ==========================================================================
 // COMPARISON TAB
 // ==========================================================================
+// Panels default to the two markets the client cares about most — AU (the flagship /
+// biggest market) vs SAARC (the #2) — so the comparison shows straight away instead of
+// two empty "Select a region" panels. Overrideable: the dropdowns / Clear still work.
+const COMPARE_DEFAULTS = { A: 'AU', B: 'SAARC' };
 function populateRegionSelects() {
   ['A', 'B'].forEach(side => {
     const sel = document.getElementById('region' + side);
@@ -1771,6 +1775,11 @@ function populateRegionSelects() {
       opt.value = m; opt.textContent = mktLabel(m);
       sel.appendChild(opt);
     });
+    const def = COMPARE_DEFAULTS[side];
+    if (def && ALL_MARKETS.includes(def)) {
+      sel.value = def;
+      populateCountryOptions(side);   // ready the (optional) country drill-down for the default region
+    }
   });
 }
 
