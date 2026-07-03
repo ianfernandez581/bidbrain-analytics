@@ -366,13 +366,12 @@
         <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
         <div class="kpi m-imp clk" data-toggle="Impressions" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Impressions on the chart"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
         <div class="kpi m-clk clk" data-toggle="Clicks" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Clicks on the chart"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
-        <div class="kpi m-leads clk" data-toggle="Leads" tabindex="0" role="button" aria-pressed="true" title="Click to show or hide Leads on the chart (the objective)"><span class="stripe"></span><div class="label">CS Leads</div><div class="value" id="pm_leads">—</div><div class="delta" id="pm_leads_sub">—</div></div>
         <div class="kpi m-cpc"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
       </div>
-      <div class="kpihint">Tap Spend, Impressions, Clicks or Leads to show or hide it on the chart below. <b>Leads</b> is the objective (content-syndication MQLs); Blended CPC is a read-only efficiency figure.</div>
+      <div class="kpihint">Tap Spend, Impressions or Clicks to show or hide it on the chart below. Blended CPC is a read-only efficiency figure.</div>
 
-      <!-- HERO: media spend to leads over time (Spend vs budget sits just below) -->
-      <div class="section"><h2 style="font-size:15px">Media spend to leads over time</h2><span class="sub">How paid <b>spend, impressions and clicks</b> track against the objective (<b>content-syndication leads</b>). <b>Relative</b> lines up the trends; <b>Absolute</b> shows true values. CTR is dashed.</span></div>
+      <!-- HERO: media spend / impressions / clicks over time (Spend vs budget sits just below) -->
+      <div class="section"><h2 style="font-size:15px">Media spend over time</h2><span class="sub">How paid <b>spend, impressions and clicks</b> track over time. <b>Relative</b> lines up the trends; <b>Absolute</b> shows true values. CTR is dashed.</span></div>
       <div class="chartctrls">
         <span class="seg seg-sm" id="pmGrainSeg"><span class="cap">VIEW BY</span>
           <button type="button" class="seg-btn" data-grain="month" onclick="setPmGrain('month')">Month</button>
@@ -705,7 +704,7 @@ async function boot(){
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA=await res.json();
     const cs=(DATA.campaigns||[]);
-    activeCampaign=cs.length?ALL_ID:null;   // default = portfolio overview ("All campaigns")
+    activeCampaign=cs.length?cs[0].id:null;   // default = first program (the "All campaigns" view was retired)
     activeMarkets=new Set(DATA.all_markets||[]);
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
@@ -746,9 +745,8 @@ function renderControls(){
   el('ctrlNote').textContent=`Showing ${c.label||'—'} · ${mkts}`;
   // the date range only scopes Paid Media (CS leads are shown for the flight) — hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
-  // campaign selector (top-nav dropdown, Cloudflare pattern) — "All campaigns" first (portfolio view)
+  // campaign selector (top-nav dropdown, Cloudflare pattern) — one option per program (no "All campaigns")
   const sel=el('campSelect'); sel.innerHTML='';
-  const optAll=document.createElement('option'); optAll.value=ALL_ID; optAll.textContent='All campaigns'; sel.appendChild(optAll);
   (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
   sel.value=activeCampaign;
   // region chips
@@ -792,6 +790,7 @@ function budgetPace(){
 function pmSpendFull(){ let s=0; (DATA.pm_delivery||[]).forEach(r=>{ if(inCamp(r.program)) s+=r.spend_aud||0; }); return s; }
 function renderPmBudget(){
   const host=el('pmBudget'); if(!host) return;
+  host.style.display='none'; return;   // Spend vs budget hidden for now (client request 2026-07-03) — delete this line to restore
   const b=budgetPace(), budget=b.paid, ttd=b.paidTtd, spent=pmSpendFull();
   if(!(budget>0) && !(spent>0)){ host.style.display='none'; return; }
   host.style.display='';
@@ -817,10 +816,6 @@ function renderPaid(){
   el('pm_clk').textContent=fmtN(t.clk); el('pm_ctr').textContent=`${fmtPct(ctr,2)} CTR`;
   el('pm_cpc').textContent=money(cpc,2); el('pm_cpc_sub').textContent='blended, AUD';
   renderPmBudget();
-  // Leads = the objective. CS leads for this campaign+region within the date range, + CPL (spend÷leads).
-  const csw=(DATA.cs_weekly||[]).filter(r=>inCamp(r.campaign) && marketOk(r.market) && inRangeDate(r.week_start));
-  const leadsTot=csw.reduce((s,r)=>s+(r.leads||0),0), cpl=leadsTot?t.spend/leadsTot:0;
-  el('pm_leads').textContent=fmtN(leadsTot); el('pm_leads_sub').textContent=leadsTot?`${money(cpl)} CPL`:'no leads in range';
 
   // platform comparison table
   const byPlat={}; PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
@@ -832,17 +827,15 @@ function renderPaid(){
 
   // daily delivery chart
   const m={};
-  rows.forEach(r=>{ const k=grainKey(r.date,pmGrain); const e=m[k]||(m[k]={k,imps:0,clk:0,spend:0,leads:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
-  csw.forEach(r=>{ const k=grainKey(r.week_start,pmGrain); const e=m[k]||(m[k]={k,imps:0,clk:0,spend:0,leads:0}); e.leads+=(r.leads||0); });
+  rows.forEach(r=>{ const k=grainKey(r.date,pmGrain); const e=m[k]||(m[k]={k,imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
   const B=Object.values(m).sort((a,b)=>a.k<b.k?-1:1);
-  const labels=B.map(b=>grainLabel(b.k,pmGrain)), imps=B.map(b=>b.imps), clks=B.map(b=>b.clk), ctrs=B.map(b=>pct(b.clk,b.imps)*100), spends=B.map(b=>b.spend), leads=B.map(b=>b.leads||0);
-  const rel=pmScale==='rel'; const impPeak=Math.max(1,...imps), clkPeak=Math.max(1,...clks), spendPeak=Math.max(1,...spends), leadPeak=Math.max(1,...leads);
+  const labels=B.map(b=>grainLabel(b.k,pmGrain)), imps=B.map(b=>b.imps), clks=B.map(b=>b.clk), ctrs=B.map(b=>pct(b.clk,b.imps)*100), spends=B.map(b=>b.spend);
+  const rel=pmScale==='rel'; const impPeak=Math.max(1,...imps), clkPeak=Math.max(1,...clks), spendPeak=Math.max(1,...spends);
   // series colours match the KPI tiles (Spend=green, Impressions=blue, Clicks=amber); CTR=slate
   charts.pmDaily=new Chart(el('pmDaily'),{ data:{ labels, datasets:[
     {type:'bar',label:'Spend',data:rel?spends.map(v=>v/spendPeak*100):spends,_true:spends,_money:true,backgroundColor:C.green2,yAxisID:'y',maxBarThickness:34,borderRadius:3},
     {type:'line',label:'Impressions',data:rel?imps.map(v=>v/impPeak*100):imps,_true:imps,borderColor:'#3E6396',backgroundColor:'#3E6396',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'ySp'},
     {type:'line',label:'Clicks',data:rel?clks.map(v=>v/clkPeak*100):clks,_true:clks,borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'y1'},
-    {type:'line',label:'Leads',data:rel?leads.map(v=>v/leadPeak*100):leads,_true:leads,borderColor:'#A6547B',backgroundColor:'#A6547B',borderWidth:2.8,tension:.3,pointRadius:2.5,yAxisID:rel?'y':'yLd'},
     {type:'line',label:'CTR %',data:ctrs,_true:ctrs,borderColor:C.slate,borderDash:[5,4],borderWidth:1.6,tension:.3,pointRadius:0,yAxisID:'y2'}
   ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
@@ -850,8 +843,7 @@ function renderPaid(){
       scales:{ x:axisX(), y:gridY(rel?{min:0,max:100,title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}}}:{ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
         y1:rel?{display:false}:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}},
         y2:{position:'right',grid:{display:false},border:{display:false},min:0,ticks:{color:C.mute,font:{size:10},callback:v=>v.toFixed(1)+'%'}},
-        ySp:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}},
-        yLd:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}} } }
+        ySp:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}} } }
   });
   wireKpiToggles();
 

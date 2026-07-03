@@ -74,8 +74,9 @@ planned; this is explicitly the Pacific book of work.
 ## 3. The five programs at a glance
 
 The dashboard is scoped to **five lead-generation programs**. You select one at a time from the
-**Campaign** dropdown in the top bar, or choose **"All campaigns"** (the default) for a combined
-portfolio view.
+**Campaign** dropdown in the top bar; it opens on the first program. (The combined **"All campaigns"**
+view was removed on 3 Jul 2026 at the client's request — the figures below are still the arithmetic
+sum across the five, for reference.)
 
 | Program (Campaign) | What it is | Flight window | Lead target (MQL + HQL) | Live leads (2 Jul) | Committed CS budget | Paid media budget | Tabs shown |
 |---|---|---|---|---|---|---|---|
@@ -85,7 +86,7 @@ portfolio view.
 | **AirSeT** | SF6-free medium-voltage product launch, awareness plus retargeting lead gen | 11 Jun to 31 Dec 2026 | **157** MQL | **7** (fixed 3 Jul; see §10 gap 1) | A$40,000 | A$50,000 | Paid, CS, Compare |
 | **Advancing Energy Technology (Global Rebrand)** | Brand / thought-leadership awareness for the new energy-technology positioning | from 1 Jul 2026 | **0** (awareness, no lead line seeded) | **0** | A$0 (see gap in §10) | A$0 (see gap in §10) | Paid, Other |
 
-Portfolio totals (the "All campaigns" default view):
+Portfolio totals (arithmetic sum across the five; no longer a selectable view):
 
 - **Total lead goal: 1,117** (sum of the five targets).
 - **Live leads: 296** (as of 3 Jul, after the AirSeT fix), which is about **27%** of the total goal
@@ -135,10 +136,9 @@ Key facts about the data:
 
 ### Three global filters (top of the page)
 
-1. **Campaign dropdown** (top nav bar). Pick one of the five programs, or **"All campaigns"** (the
-   default). "All campaigns" synthesises a portfolio by summing every program's targets, budgets,
-   leads and delivery, using the earliest start and latest end for the combined flight. The Other
-   Channels tab is per-program and is not part of the portfolio view.
+1. **Campaign dropdown** (top nav bar). Pick one of the five programs; the dashboard opens on the
+   first one. (The old **"All campaigns"** portfolio aggregate was removed on 3 Jul 2026 — you now
+   always view one program at a time.)
 2. **Region chips** (Australia / New Zealand). Toggle either or both. Everything on the current tab
    filters to the selected markets. Buttons "All" and "Clear" are provided.
 3. **Date range picker.** Applies **only to the Paid Media tab** (a note on the control bar says so,
@@ -168,28 +168,26 @@ Filters that apply: campaign, region, and date range. If the program has no paid
 Advancing Energy Technology today), a banner explains it is leads-only or pre-launch and points to the
 Content Syndication tab.
 
-**Five KPI cards:**
+**Four KPI cards:**
 
 | Card | What it shows | How it is calculated |
 |---|---|---|
 | **Total spend** | Paid spend in AUD | Sum of `spend_aud` across the filtered paid rows |
 | **Impressions** | Total impressions; sub-label shows CPM | CPM = spend / impressions x 1000 |
 | **Clicks** | Total clicks; sub-label shows CTR | CTR = clicks / impressions |
-| **CS Leads** | Leads in the current filter (the objective); sub-label shows CPL | CPL here = paid spend / leads in range (a **blended** cost per lead) |
 | **Blended CPC** | Cost per click | spend / clicks (read-only, does not toggle the chart) |
 
-The first four cards are clickable: clicking one shows or hides that series on the chart below.
+The first three cards are clickable: clicking one shows or hides that series on the chart below.
+(The **CS Leads** card was removed from Paid Media on 3 Jul 2026 — CS leads now live only on the
+Content Syndication tab.)
 
-**"Spend vs budget" card.** Compares **measured** paid spend against the **planned** paid-media budget
-for the program (or all five in portfolio mode). It is deliberately **whole-flight and all-markets**,
-independent of the region and date filters, because the plan budget is not split by market or day. It
-shows three bars (Planned budget, Time-to-date expected, Spent to date) and a sentence such as "Spent
-A$X of the A$Y planned paid-media budget (Z% used), ahead of / in line with / under the time-to-date
-pace." The budget figure is media-plan ex-fees; the content-syndication budget is shown separately on
-the CS tab because it bills per lead.
+**"Spend vs budget" card — hidden as of 3 Jul 2026** at the client's request (the code is retained, so
+it can be switched back on later). When shown, it compares **measured** paid spend against the
+**planned** paid-media budget for the program, whole-flight and all-markets, independent of the region
+and date filters.
 
-**Hero chart "From media spend to leads, over time."** A combined chart with Spend (line),
-Impressions (bars), Clicks (line), Leads (line) and CTR% (dashed line). Two toggles:
+**Hero chart "Media spend over time."** A combined chart with Spend (bars), Impressions (line),
+Clicks (line) and CTR% (dashed line). Two toggles:
 
 - **View by:** Month / Week / Day.
 - **Axis:** Relative or Absolute. "Relative" indexes each series to its own peak = 100 on a shared
@@ -253,7 +251,7 @@ match. This is where you tell the Australia versus New Zealand story for a singl
 A table of the media-plan lines that have **no automatic data feed**: search, publisher sponsorships,
 trade press, email. Columns: Channel, Type, Plan impressions, Plan clicks, Plan leads, Plan spend, and
 a "Plan only, no feed" badge. This exists so the full media plan is visible even where we cannot
-measure delivery. It is a per-program tab and is excluded from the "All campaigns" portfolio view.
+measure delivery. It is a per-program tab.
 
 ---
 
