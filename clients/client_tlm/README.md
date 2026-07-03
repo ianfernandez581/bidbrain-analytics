@@ -96,3 +96,19 @@ gcloud run jobs execute tlm-export --region australia-southeast1 --wait
 8. **`ttd_creative` is whole-flight** — the creative × ad-format table has no date grain, so it is NOT
    date-scoped (labelled as such); it does honour the Platform/Campaign selection. Everything else on
    every tab honours Date + Platform + Campaign.
+9. **"Top creatives — what worked" carries NO real artwork (by design).** The Trade Desk tab shows a
+   **CTR leaderboard** — top 10 banners by click-through, name + size + Impr./Clicks/CTR/Spend, #1 pilled
+   (`renderTTD`, `.clist`/`.crow` in `dash/dashboard.html`) — NOT a thumbnail gallery. Reason (researched
+   2026-07-03, all three ingest paths): TTD lands only `creative_name` + `ad_format` into
+   `raw_windsor.perf_the_trade_desk` (26 cols, no image column); Windsor's 3 `the_trade_desk` image
+   fields are all "(Deprecated)" and **live-return NULL**; the TTD Platform API that could serve previews
+   is closed/credentialed (we're read-only). Google Ads via DTS exports no images either (empty columns,
+   no Asset tables). Snowflake is irrelevant (TLM never reads it). A ResetData-style thumbnail gallery
+   works ONLY because Meta uniquely serves `creative_thumbnail_url`.
+   - **Real TTD artwork → manual seed of the top ~10 banners:** agency exports ~10 images from the TTD
+     UI (advertiser `mor6pp1`), seed keyed by `creative_name`, thread through `sql/10` → `job/main.py`
+     (`ttd_creative[]`) → `dashboard.html` (mirror ResetData's `33_meta_creatives.sql` render). No API access.
+   - **Google PMax/Shopping product images are obtainable** (Search is text-only): via a Windsor pull of
+     `google_ads` "Asset image asset full size url" + `google_merchant` "Product Image Link", or the Google
+     Ads API `asset` resource — needs Windsor connector scope / Merchant Center auth / a dev token. TLM's
+     Google customer id = `1869745895` (shared MCC `3451896252`).
