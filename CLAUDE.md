@@ -72,8 +72,8 @@ UI in `templates/_status_merge.html`. See `bidbrain-platform/README.md`.
 you may open; each dashboard's `authed()` was extended (additively — its own password still works) to
 trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shared signer secret
 `platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, +bellshakespeare/geocon
-*coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb, +status (the meta
-Pipeline-Status dash, surfaced here so Transmission can watch data health)}; **stt/hireright unassigned**.
+*coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb, stt, +status (the meta
+Pipeline-Status dash, surfaced here so Transmission can watch data health)}; **hireright unassigned**.
 No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.py`), NOT a cookie —
 the `bb_sso`/`platform_sso.py` machinery stays deployed but inert. The platform itself now has the
 custom domain (`dashboards.bidbrain.ai`), but the cookie path would only take over if each *dashboard*

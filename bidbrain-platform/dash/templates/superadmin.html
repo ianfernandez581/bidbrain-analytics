@@ -96,6 +96,17 @@
   .drow .pwbox{max-width:none}
   .drow .open{margin-left:auto}
   .drow.soon{opacity:.62}
+  /* dashboard groups — one per agency (100% Digital, Transmission, …) */
+  .dgroup{margin:0 0 24px}
+  .dgroup:last-child{margin-bottom:0}
+  .dghead{display:flex;align-items:center;gap:11px;margin:0 0 12px;padding-bottom:9px;
+          border-bottom:1px solid var(--border)}
+  .dghead .dgdot{width:8px;height:8px;border-radius:50%;flex:none;
+          background:linear-gradient(135deg,var(--gold),var(--gold-2));box-shadow:0 0 10px rgba(243,201,105,.5)}
+  .dghead .dgname{font-size:13px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;color:var(--gold)}
+  .dghead .dgcount{font-size:11.5px;color:var(--muted);font-weight:600}
+  .dgroup.unassigned .dghead .dgname{color:var(--muted)}
+  .dgroup.unassigned .dghead .dgdot{background:var(--muted-2);box-shadow:none}
   .muted{color:var(--muted);font-size:12.5px}
   /* modal */
   .scrim{position:fixed;inset:0;background:rgba(5,6,10,.72);display:none;align-items:center;justify-content:center;z-index:50}
@@ -206,26 +217,35 @@
 
     <!-- DASHBOARDS -->
     <div class="sec">
-      <div class="shead"><h2>Dashboard passwords</h2><span class="c">the real standalone <span class="mono">&lt;c&gt;-dash</span> login - change rotates it everywhere</span></div>
-      {% for d in dashboards %}
-        {% if d.status == 'active' and d.url %}
-        <div class="drow">
-          <div class="who">
-            <div class="dn">{{ d.name }}</div>
-            <div class="dk"><span class="slug">{{ d.key }}</span></div>
-          </div>
-          {{ pwfield("dashboard", d.key, d.password, d.password) }}
-          <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
+      <div class="shead"><h2>Dashboard passwords</h2><span class="c">the real standalone <span class="mono">&lt;c&gt;-dash</span> login - change rotates it everywhere, grouped by agency</span></div>
+      {% for g in dashboard_groups %}
+      <div class="dgroup{{ ' unassigned' if not g.slug else '' }}">
+        <div class="dghead">
+          <span class="dgdot"></span>
+          <span class="dgname">{{ g.name }}</span>
+          <span class="dgcount">{{ g.dashboards|length }} dashboard{{ '' if g.dashboards|length == 1 else 's' }}</span>
         </div>
-        {% else %}
-        <div class="drow soon">
-          <div class="who">
-            <div class="dn">{{ d.name }}</div>
-            <div class="dk"><span class="slug">{{ d.key }}</span></div>
+        {% for d in g.dashboards %}
+          {% if d.status == 'active' and d.url %}
+          <div class="drow">
+            <div class="who">
+              <div class="dn">{{ d.name }}</div>
+              <div class="dk"><span class="slug">{{ d.key }}</span></div>
+            </div>
+            {{ pwfield("dashboard", d.key, d.password, d.password) }}
+            <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
           </div>
-          <span class="muted">No live dashboard yet - nothing to reveal.</span>
-        </div>
-        {% endif %}
+          {% else %}
+          <div class="drow soon">
+            <div class="who">
+              <div class="dn">{{ d.name }}</div>
+              <div class="dk"><span class="slug">{{ d.key }}</span></div>
+            </div>
+            <span class="muted">No live dashboard yet - nothing to reveal.</span>
+          </div>
+          {% endif %}
+        {% endfor %}
+      </div>
       {% endfor %}
     </div>
 

@@ -638,7 +638,8 @@ var TTD_FORMAT={       // friendly IAB name + colour per standard banner size
   '160x600':{lbl:'Wide Skyscraper',c:'#5B8C88'},'970x250':{lbl:'Billboard',c:'#6E93B0'}
 };
 var TTD_FALLBACK=['#8A6E4F','#5B8C88','#A65A5A','#6E93B0'];
-function setTtdRank(m){if(!TTD_METRIC[m])return;ttdRankBy=m;renderTTD();}
+// exposed on window (like exportAllData) so the inline onclick on the RANK BY seg can reach it from outside the IIFE
+window.setTtdRank=function(m){if(!TTD_METRIC[m])return;ttdRankBy=m;renderTTD();};
 
 // ===== RENDER: TTD =====
 function renderTTD(){

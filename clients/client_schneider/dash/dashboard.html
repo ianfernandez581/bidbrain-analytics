@@ -193,7 +193,7 @@
   .kpi.clk.off::after{background:transparent;box-shadow:inset 0 0 0 1.5px var(--se-grey)}
   .kpi.clk.off .value{color:var(--se-mute)}
   .kpihint{font-size:11.5px;color:var(--on-canvas-mute);margin-top:10px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
-  .card-hero{margin-top:0}
+  .card-hero{margin-top:16px}
   .card-hero .chart-wrap{height:800px}
 
   /* CS snapshot — each group is its OWN white cell with a green glow behind it (no per-group colour accents) */
@@ -366,19 +366,13 @@
         <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
         <div class="kpi m-imp clk" data-toggle="Impressions" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Impressions on the chart"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
         <div class="kpi m-clk clk" data-toggle="Clicks" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Clicks on the chart"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
-        <div class="kpi m-leads clk" data-toggle="Leads" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Leads on the chart — this is the objective"><span class="stripe"></span><div class="label">CS Leads</div><div class="value" id="pm_leads">—</div><div class="delta" id="pm_leads_sub">—</div></div>
+        <div class="kpi m-leads clk" data-toggle="Leads" tabindex="0" role="button" aria-pressed="true" title="Click to show or hide Leads on the chart (the objective)"><span class="stripe"></span><div class="label">CS Leads</div><div class="value" id="pm_leads">—</div><div class="delta" id="pm_leads_sub">—</div></div>
         <div class="kpi m-cpc"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
       </div>
-      <div class="kpihint">Spend, Impressions, Clicks and Leads are clickable — tap a card to show or hide it on the chart below. <b>Leads</b> is the objective (content-syndication MQLs); Blended CPC is a read-only efficiency figure.</div>
+      <div class="kpihint">Tap Spend, Impressions, Clicks or Leads to show or hide it on the chart below. <b>Leads</b> is the objective (content-syndication MQLs); Blended CPC is a read-only efficiency figure.</div>
 
-      <div class="card" id="pmBudget" style="margin-top:14px;display:none">
-        <h3>Spend vs budget</h3>
-        <div class="hint">Measured paid-media spend (DV360 · The Trade Desk · LinkedIn) vs the planned media-plan budget. Whole flight, all markets - independent of the region / date filters below.</div>
-        <div class="budget-body" style="margin-top:10px"></div>
-      </div>
-
-      <!-- HERO: delivery over time (the platform-comparison table lives just below the hero chart) -->
-      <div class="section"><h2 style="font-size:15px">From media spend to leads — over time</h2><span class="sub">The objective on one chart: how paid <b>spend, impressions &amp; clicks</b> convert into <b>content-syndication leads</b> (the goal) for the selected program / region(s). <b>Relative</b> indexes each line to its own peak so the trends line up; <b>Absolute</b> shows true values. CTR is the dashed line.</span></div>
+      <!-- HERO: media spend to leads over time (Spend vs budget sits just below) -->
+      <div class="section"><h2 style="font-size:15px">Media spend to leads over time</h2><span class="sub">How paid <b>spend, impressions and clicks</b> track against the objective (<b>content-syndication leads</b>). <b>Relative</b> lines up the trends; <b>Absolute</b> shows true values. CTR is dashed.</span></div>
       <div class="chartctrls">
         <span class="seg seg-sm" id="pmGrainSeg"><span class="cap">VIEW BY</span>
           <button type="button" class="seg-btn" data-grain="month" onclick="setPmGrain('month')">Month</button>
@@ -389,6 +383,12 @@
           <button type="button" class="seg-btn" data-scale="abs" onclick="setPmScale('abs')">Absolute</button></span>
       </div>
       <div class="card card-hero"><div class="chart-wrap"><canvas id="pmDaily"></canvas></div></div>
+
+      <div class="card" id="pmBudget" style="margin-top:16px;display:none">
+        <h3>Spend vs budget</h3>
+        <div class="hint">Measured paid-media spend (DV360 · The Trade Desk · LinkedIn) vs the planned media-plan budget. Whole flight, all markets - independent of the region / date filters below.</div>
+        <div class="budget-body" style="margin-top:10px"></div>
+      </div>
 
       <div class="section"><h2 style="font-size:15px">Platform comparison</h2><span class="sub">DV360 vs The Trade Desk vs LinkedIn - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
