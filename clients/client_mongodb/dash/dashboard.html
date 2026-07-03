@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MongoDB APAC - Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- datalabels plugin: renders on-chart values (registered manually per-chart, off by default) -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <!-- PptxGenJS (pinned, bundled w/ JSZip) + the shared bb_deck.js builder — power the portal-driven
      "Download slides" Google-Slides deck export (headless via ?bbslides=1; see bb_deck.js). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
@@ -172,18 +174,20 @@
   .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:16px}
   .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
   .kpi .label{font-size:11px;color:var(--muted);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
+  .kpi .label::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;vertical-align:middle;margin-right:6px;background:var(--kc,var(--brand-accent));box-shadow:0 0 8px 0 var(--kc,var(--brand-accent))}
   .kpi .value{font-size:23px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--ink)}
   .kpi .delta{font-size:11.5px;margin-top:4px;color:var(--muted)}
   .kpi.accent{background:linear-gradient(135deg,var(--surface) 0%,color-mix(in srgb,var(--brand-accent) 14%,var(--surface)) 100%);border-color:color-mix(in srgb,var(--brand-accent) 32%,var(--line));box-shadow:var(--shadow-card),0 0 30px -12px var(--glow-strong)}
   .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--brand-accent);box-shadow:0 0 16px 1px var(--glow-strong)}
   .kpi.alt .stripe{background:var(--brand-accent-2)}
 
-  .cs-snap{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-top:16px;
-           display:grid;grid-template-columns:repeat(4,1fr);gap:32px;box-shadow:var(--shadow-card)}
+  .cs-snap{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:16px}
+  .cs-snap .group{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow-card)}
   .cs-snap .group .glbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600}
   .cs-snap .pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   .cs-snap .pair.triple{grid-template-columns:repeat(3,1fr);gap:10px}
   .cs-snap .stat .k{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+  .cs-snap .stat.mstat .k::before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--kc);margin-right:5px;vertical-align:middle;box-shadow:0 0 7px 0 var(--kc)}
   .cs-snap .stat .v{font-size:21px;font-weight:700;letter-spacing:-.4px;margin-top:2px;color:var(--ink)}
   .cs-snap .stat .cnt{font-size:11px;color:var(--muted);font-style:italic;margin-top:2px}
 
@@ -204,6 +208,8 @@
   table{width:100%;border-collapse:collapse;font-size:12.5px}
   table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
   table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;background:var(--surface-2)}
+  table th:hover{color:var(--ink)}
+  .sort-ind{font-size:9px;color:var(--brand-accent)}
   table td.num,table th.num{text-align:right}
   table td.num{font-variant-numeric:tabular-nums}
   table tr:hover td{background:rgba(255,255,255,.035)}
@@ -784,6 +790,71 @@ const MDB = {
   line:'rgba(255,255,255,.09)', target:'#5D7681'
 };
 
+// ===== Standard metric → colour (SINGLE SOURCE OF TRUTH) =====
+// One distinct colour per metric, reused everywhere it appears (KPI stripes, chart series) so a
+// metric is trackable across the whole dashboard. Distinct hues — NOT all green — for easy scanning.
+const MC = {
+  'Impressions':'#00ED64','Content LP views':'#00ED64',
+  'Clicks':'#38BDF8',
+  'CTR':'#FBBF24',
+  'Total spend':'#A78BFA','Spend':'#A78BFA','Cost':'#A78BFA','Total cost':'#A78BFA',
+  'Blended CPC':'#F472B6','CPC':'#F472B6','CPM':'#F472B6',
+  'CPL':'#FB923C',
+  'Total leads':'#22D3EE','Leads':'#22D3EE',
+  'Accepted':'#34D399','Rejected':'#F87171','New':'#94A3B8',
+  'Target':'#64748B','Conversions':'#2DD4BF','Ad-influenced site visits':'#818CF8'
+};
+function mc(name){ return MC[(name||'').trim()] || '#00ED64'; }
+
+// Colour each KPI card's stripe by its metric label (source = MC) so the same metric
+// reads the same colour across the whole dashboard.
+function colorKpis(){
+  document.querySelectorAll('.kpi').forEach(k=>{
+    const lbl=(k.querySelector('.label')?.textContent||'').trim(), c=MC[lbl], st=k.querySelector('.stripe');
+    if(c){ if(st){ st.style.background=c; st.style.boxShadow='0 0 14px 1px '+c+'55'; } k.style.setProperty('--kc',c); }
+  });
+  // Same metric colours on the CS snapshot cells (Impressions/Clicks/CTR/Leads/Target/CPL…).
+  document.querySelectorAll('.cs-snap .stat').forEach(s=>{
+    const lbl=(s.querySelector('.k')?.textContent||'').trim(), c=MC[lbl];
+    if(c){ s.style.setProperty('--kc',c); s.classList.add('mstat'); }
+  });
+}
+
+// Click-to-sort table headers: numeric-aware, toggles asc/desc, pins any .total row last.
+function makeSortable(tableId){
+  const t=el(tableId); if(!t||t._sortable||!t.tHead) return; t._sortable=true;
+  const ths=t.tHead.rows[0].cells;
+  Array.from(ths).forEach((th,ci)=>{
+    th.style.cursor='pointer'; th.style.userSelect='none'; if(!th.title) th.title='Click to sort';
+    th.addEventListener('click',()=>{
+      const body=t.tBodies[0]; if(!body) return;
+      const rows=Array.from(body.rows).filter(r=>!r.classList.contains('total'));
+      const totals=Array.from(body.rows).filter(r=>r.classList.contains('total'));
+      const dir = th._sortDir==='asc' ? 'desc' : 'asc';
+      Array.from(ths).forEach(h=>{ if(h!==th){ h._sortDir=null; const i=h.querySelector('.sort-ind'); if(i)i.remove(); } });
+      th._sortDir=dir;
+      const num=v=>{ const n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?null:n; };
+      rows.sort((a,b)=>{
+        const av=(a.cells[ci]?.textContent||'').trim(), bv=(b.cells[ci]?.textContent||'').trim();
+        const an=num(av), bn=num(bv);
+        const cmp = (an!==null&&bn!==null) ? an-bn : av.localeCompare(bv);
+        return dir==='asc'?cmp:-cmp;
+      });
+      rows.forEach(r=>body.appendChild(r)); totals.forEach(r=>body.appendChild(r));
+      let ind=th.querySelector('.sort-ind');
+      if(!ind){ ind=document.createElement('span'); ind.className='sort-ind'; ind.style.marginLeft='4px'; ind.style.opacity='.75'; th.appendChild(ind); }
+      ind.textContent = dir==='asc'?'▲':'▼';
+    });
+  });
+}
+
+// datalabels plugin: register once, OFF by default (opted-in per chart via options.plugins.datalabels).
+if (window.ChartDataLabels){ Chart.register(ChartDataLabels); Chart.defaults.set('plugins.datalabels', {display:false}); }
+// Compact value formatter for on-chart labels (6.2M / 27k / 1,234).
+function dlFmt(v){ v=Number(v)||0; const a=Math.abs(v); return a>=1e6?(v/1e6).toFixed(a>=1e7?0:1)+'M':a>=1e3?(v/1e3).toFixed(a>=1e4?0:1)+'k':fmtN(v); }
+// Shared datalabels config for bar/doughnut summary charts (hidden datasets drop their labels automatically).
+const DL_BARS = {display:ctx=>ctx.chart.getDatasetMeta(ctx.datasetIndex)?.hidden!==true, color:MDB.ink, anchor:'end', align:'end', offset:2, clamp:true, font:{size:9,weight:'600'}, formatter:(v)=>dlFmt(v)};
+
 // Strategy ordering + colour mapping (robust to the exact strategy spelling in the feed)
 const STRAT_RANK = [
   {test:k=>k.startsWith('CONTEXT'),                                             rank:0, color:'#0FA968'},
@@ -822,8 +893,8 @@ let activeTab = 'paid';            // 'paid' | 'cs' | 'compare'
 let activeCampaign = 'DNB';        // 'DNB' | 'IDC'
 let activeMarkets = new Set();
 // Paid-media time-series toggles (apply ONLY to pmDaily/pmDailyStack/pmCtr/pmClk/pmCpc).
-// Grain default = 'day' (preserves the charts' original per-day view); scale default = 'rel'.
-let pmGrain = 'day';               // 'month' | 'week' | 'day'
+// Grain default = 'week' (weekly view is the default timeframe); scale default = 'rel'.
+let pmGrain = 'week';              // 'month' | 'week' | 'day'
 let pmScale = 'rel';               // 'rel' (Relative, default) | 'abs' (Absolute)
 let dateStartSel = null;           // ISO 'YYYY-MM-DD' lower bound (paid delivery rows)
 let dateEndSel   = null;           // ISO 'YYYY-MM-DD' upper bound
@@ -942,6 +1013,8 @@ async function boot() {
     renderControls();
     wirePMToggles();
     renderActive();
+    colorKpis();                                              // metric-coloured KPI stripes (source = MC)
+    ['stratTable','pmMarketTable','csTable'].forEach(makeSortable);  // click-to-sort table headers
   } catch (e) {
     el('loading').style.display = 'none';
     el('error').style.display = 'block';
@@ -1172,24 +1245,25 @@ function renderPMDaily(rows) {
   const ctrPlot = isRel ? pmIndex(ctrRaw) : ctrRaw;
   charts.pmDaily = new Chart(el('pmDaily'), {
     data:{ labels: keys.map(pmBucketLabel), datasets:[
-      {type:'bar',  label:'Impressions', data: impRaw, backgroundColor:MDB.mint, borderColor:MDB.green, borderWidth:1, yAxisID:'y', order:3, borderRadius:2},
-      {type:'line', label:'Clicks',      data: clkPlot, _raw:clkRaw, _fmt:'clk', borderColor:MDB.forest, backgroundColor:MDB.forest, tension:.25, pointRadius:2, borderWidth:2, yAxisID:isRel?'yIdx':'yClk', order:1},
-      {type:'line', label:'CTR (%)',     data: ctrPlot, _raw:ctrRaw, _fmt:'ctr', borderColor:MDB.slate, backgroundColor:MDB.slate, tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:isRel?'yIdx':'yCtr', order:2}
+      {type:'bar',  label:'Impressions', data: impRaw, backgroundColor:mc('Impressions')+'33', borderColor:mc('Impressions'), borderWidth:1, yAxisID:'y', order:3, borderRadius:2},
+      {type:'line', label:'Clicks',      data: clkPlot, _raw:clkRaw, _fmt:'clk', borderColor:mc('Clicks'), backgroundColor:mc('Clicks'), tension:.25, pointRadius:2, borderWidth:2, yAxisID:isRel?'yIdx':'yClk', order:1},
+      {type:'line', label:'CTR (%)',     data: ctrPlot, _raw:ctrRaw, _fmt:'ctr', borderColor:mc('CTR'), backgroundColor:mc('CTR'), tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:isRel?'yIdx':'yCtr', order:2}
     ]},
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, color:MDB.ink}},
-        tooltip:{backgroundColor:MDB.slate, padding:10, cornerRadius:6, callbacks:{ label:c=>{
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, color:MDB.ink}, title:{display:true, text:'Click a label to show or hide it', color:MDB.mute, font:{size:9.5,weight:'500'}, padding:{bottom:6}}},
+        datalabels:{ display:ctx=>ctx.dataset.type==='bar' && ctx.chart.getDatasetMeta(ctx.datasetIndex)?.hidden!==true, color:MDB.ink, anchor:'end', align:'end', offset:2, clamp:true, font:{size:9,weight:'600'}, formatter:v=>dlFmt(v) },
+        tooltip:{backgroundColor:'#0A2029', borderColor:MDB.line, borderWidth:1, titleColor:MDB.ink, bodyColor:MDB.ink, padding:10, cornerRadius:6, callbacks:{ label:c=>{
           const ds=c.dataset; if(ds._fmt==='ctr') return `${ds.label}: ${(ds._raw?ds._raw[c.dataIndex]:c.parsed.y).toFixed(3)}%`;
           if(ds._fmt==='clk') return `${ds.label}: ${fmtN(ds._raw?ds._raw[c.dataIndex]:c.parsed.y)}`;
           return `${ds.label}: ${fmtN(c.parsed.y)}`; } } } },
       scales: isRel ? {
-        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:MDB.green, callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:MDB.green}},
-        yIdx: {beginAtZero:true, position:'right', max:100, grid:{display:false}, ticks:{font:{size:10}, color:MDB.slate}, title:{display:true, text:'Index (peak=100)', color:MDB.slate}},
+        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:mc('Impressions'), callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:mc('Impressions')}},
+        yIdx: {beginAtZero:true, position:'right', max:100, grid:{display:false}, ticks:{font:{size:10}, color:MDB.mute}, title:{display:true, text:'Index (peak=100)', color:MDB.mute}},
         x:    {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}}
       } : {
-        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:MDB.green, callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:MDB.green}},
-        yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:MDB.forest}, title:{display:true, text:'Clicks', color:MDB.forest}},
-        yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:MDB.slate, callback:v=>v.toFixed(2)+'%'}, title:{display:true, text:'CTR', color:MDB.slate}, offset:true, afterFit:a=>{a.width=46}},
+        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:mc('Impressions'), callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:mc('Impressions')}},
+        yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:mc('Clicks')}, title:{display:true, text:'Clicks', color:mc('Clicks')}},
+        yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:mc('CTR'), callback:v=>v.toFixed(2)+'%'}, title:{display:true, text:'CTR', color:mc('CTR')}, offset:true, afterFit:a=>{a.width=46}},
         x:    {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}}
       } }
   });
@@ -1249,7 +1323,7 @@ function renderPMSpendMarket(rows) {
   const byMkt = {}; for (const m of markets) byMkt[m] = 0;
   for (const r of rows){ if (byMkt[r.market] != null) byMkt[r.market] += r.spend_usd||0; }
   charts.pmSpendMarket = new Chart(el('pmSpendMarket'), {
-    type:'bar', data:{ labels: markets, datasets:[{ label:'Spend', data: markets.map(m=>byMkt[m]||0), backgroundColor: MDB.green, borderRadius:4 }] },
+    type:'bar', data:{ labels: markets, datasets:[{ label:'Spend', data: markets.map(m=>byMkt[m]||0), backgroundColor: mc('Spend'), borderRadius:4 }] },
     options: chartBase({
       indexAxis:'y',
       plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ${fmt$(c.parsed.x)}` } } },
@@ -1570,8 +1644,8 @@ function renderCSWeekly() {
   charts.csWeekly = new Chart(el('csWeekly'), {
     type:'bar',
     data:{ labels: W.labels, datasets:[
-      {label:CAMP[c].label+' target', data:W.targetData, backgroundColor:MDB.target, borderRadius:3, order:1},
-      {label:CAMP[c].label+' actual', data:W.actualData, backgroundColor:CAMP[c].color, borderRadius:3, order:2}
+      {label:CAMP[c].label+' target', data:W.targetData, backgroundColor:mc('Target'), borderRadius:3, order:1},
+      {label:CAMP[c].label+' actual', data:W.actualData, backgroundColor:mc('Leads'), borderRadius:3, order:2}
     ]},
     options: chartBase({ scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:MDB.line}, title:{display:true, text:'Leads / week'}} } })
   });
@@ -1582,7 +1656,7 @@ function renderCSMarket() {
   const byMkt = {}; for (const m of markets) byMkt[m]=0;
   for (const r of (DATA.cs_by_programme||[])){ if (campaignOf(r.programme)!==activeCampaign) continue; if (byMkt[r.market]!=null) byMkt[r.market]+= r.total||0; }
   charts.csMarket = new Chart(el('csMarket'), {
-    type:'bar', data:{ labels:markets, datasets:[{ label:'Leads', data:markets.map(m=>byMkt[m]||0), backgroundColor:CAMP[activeCampaign].color, borderRadius:3 }]},
+    type:'bar', data:{ labels:markets, datasets:[{ label:'Leads', data:markets.map(m=>byMkt[m]||0), backgroundColor:mc('Leads'), borderRadius:3 }]},
     options: chartBase({ plugins:{legend:{display:false}}, scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:MDB.line}, title:{display:true,text:'Leads'}} } })
   });
 }
@@ -1699,7 +1773,7 @@ function renderComparePanel(side) {
   destroy(side+'_targets');
   charts[side+'_targets'] = new Chart(el(side+'_targets'), {
     type:'bar',
-    data:{ labels:['TTD target','Delivered'], datasets:[{ data:[p.ttd, p.leads], backgroundColor:[MDB.target, CAMP[activeCampaign].color], borderRadius:3 }]},
+    data:{ labels:['TTD target','Delivered'], datasets:[{ data:[p.ttd, p.leads], backgroundColor:[mc('Target'), mc('Leads')], borderRadius:3 }]},
     options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>fmtN(c.parsed.y)}}},
       scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, grid:{color:MDB.line}} } }
   });
@@ -1709,8 +1783,8 @@ function renderComparePanel(side) {
   charts[side+'_weekly'] = new Chart(el(side+'_weekly'), {
     type:'bar',
     data:{ labels:W.labels, datasets:[
-      {label:'Target', data:W.targetData, backgroundColor:MDB.target, borderRadius:2, order:1},
-      {label:'Actual', data:W.actualData, backgroundColor:CAMP[activeCampaign].color, borderRadius:2, order:2}
+      {label:'Target', data:W.targetData, backgroundColor:mc('Target'), borderRadius:2, order:1},
+      {label:'Actual', data:W.actualData, backgroundColor:mc('Leads'), borderRadius:2, order:2}
     ]},
     options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{boxWidth:10,boxHeight:8,font:{size:10},padding:6}}},
       scales:{ x:{grid:{display:false}, ticks:{font:{size:10}}}, y:{beginAtZero:true, grid:{color:MDB.line}, ticks:{font:{size:10}}} } }
@@ -1729,8 +1803,12 @@ function chartBase(opts={}) {
   const base = {
     responsive:true, maintainAspectRatio:false,
     plugins:{
-      legend:{position:'bottom', labels:{boxWidth:10, boxHeight:8, padding:10, font:{size:11}, color:MDB.ink}},
-      tooltip:{backgroundColor:MDB.slate, padding:10, titleFont:{size:12}, bodyFont:{size:12}, cornerRadius:6}
+      legend:{position:'bottom', labels:{boxWidth:10, boxHeight:8, padding:10, font:{size:11}, color:MDB.ink},
+              title:{display:true, text:'Click a label to show or hide it', color:MDB.mute, font:{size:9.5, weight:'500'}, padding:{bottom:6}}},
+      tooltip:{backgroundColor:'#0A2029', borderColor:MDB.line, borderWidth:1, padding:10, titleColor:MDB.ink, bodyColor:MDB.ink, titleFont:{size:12}, bodyFont:{size:12}, cornerRadius:6},
+      datalabels:{ color:MDB.ink, anchor:'end', align:'end', offset:2, clamp:true, font:{size:9,weight:'600'},
+        display:ctx => ((ctx.dataset.type||ctx.chart.config.type)==='bar') && ctx.chart.getDatasetMeta(ctx.datasetIndex)?.hidden!==true,
+        formatter:v=>dlFmt(v) }
     },
     scales:{
       x:{grid:{color:MDB.line}, ticks:{font:{size:10}}},

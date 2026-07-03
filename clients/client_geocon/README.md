@@ -41,17 +41,30 @@ frequency = impressions ÷ summed-reach).
 
 ## The dashboard (`dash/dashboard.html`)
 
-One file, three **audience views** (top toggle): **Executive · Media Buyer · Client Story**.
-Heritage-maroon theme; everything below honours the global **date range** (Last 7/14/30/90 days, custom,
-or all-time) + a stage filter + search.
+**Rebuilt 2026-07 into the Bidbrain dark house style, branded to Gateway Braddon** (deep forest-green
+canvas + a terracotta accent and the shared soft glow; modelled on `client_resetdata`). One file,
+**three topic tabs**: **Overview · Paid Media · Creative**. Everything honours the shared **Looker
+date-range picker**, **stage chips**, and search; time-series charts carry **VIEW BY Month/Week/Day +
+AXIS Relative/Absolute** toggles (default Relative + Month).
 
-- **Executive** — KPI strip (vs targets), insight cards, the Performance-over-time chart, budget
-  pacing, funnel health, spend & leads by stage, money flow.
-- **Media Buyer** — a **Performance vs Targets Δ table** (green/red CPL/CTR/CPM/CPC deltas per
-  campaign), a **segment breakdown** (spend by ad set, coloured by stage + a stage summary table),
-  recommended moves, efficiency bubble maps, campaign + creative tables, budget burn, and a
+- **North-star = qualified leads (MODELLED).** Meta reports RAW enquiries only, so qualified leads =
+  `enquiries × qualification_rate_target` (0.20, PENDING) — shown with a "modelled · no CRM feed" badge
+  and an explainer note, **never as a measured actual**. Wire a CRM feed to report true qualified leads.
+  Green is reserved for that goal metric (house rule: green = goal/good only); enquiries=gold,
+  spend=sage, cost=terracotta, CTR=amber.
+- **Overview** — clickable KPI dot-cards (**Qualified · Enquiries · Spend** toggle their series on the
+  hero), the delivery hero (spend bars + enquiries + modelled-qualified lines), budget pacing,
+  spend-by-stage donut, the enquiry funnel, money-flow, and insight cards.
+- **Paid Media** — a **Performance vs Targets Δ table** (CPL/CTR/CPM/CPC per campaign), spend-by-ad-set,
+  budget burn, the per-ad table (thin-volume guard: ⚠ under 15k impressions or <8 leads), and a
   **fatigue watch** (weekly WoW frequency/CTR, ≥1,000-impression guard).
-- **Client Story** — a plain-language read, spend doughnut, outcome bars, retargeting pool.
+- **Creative** — the **top 10 creatives by spend**: real ad headline + body copy + metrics, with the
+  Meta thumbnail when its (short-lived, signed) CDN link is still valid, else a branded tile; a lightbox
+  shows the full copy + a landing-page link. **Meta CDN thumbnails expire** ("URL signature expired") —
+  to show the real images durably we'd cache them to the bucket on the freshness-gated rebuild (not yet
+  wired; the copy + metrics are always live).
+
+Login password lives in Secret Manager `geocon-dash-password` (mounted `DASH_PASSWORD`); agency = **100% Digital**.
 
 Two MongoDB/STT-grade capabilities every dashboard carries:
 - **Performance-over-time chart** with **View by Month/Week/Day** grain + **Relative/Absolute axis**

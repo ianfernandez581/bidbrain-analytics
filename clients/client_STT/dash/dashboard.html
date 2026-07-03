@@ -14,12 +14,19 @@
     --teal:#0E7C86; --teal-soft:#5FB0B6; --slate:#5A6B78; --amber:#B97400;
     --li-blue:#2867B2;
     --good-green:#1E8E3E; --bad-red:#C8362A;
-    --shadow-card:0 1px 2px rgba(20,24,28,.04),0 4px 16px rgba(20,24,28,.06);
+    /* Bidbrain house-style glow, tuned for STT's LIGHT theme: a soft STT-RED bloom + warm card
+       shadows (not a dark-mode blue glow). Colours are UNCHANGED — this only ADDS the glow, using
+       the brand red so it harmonises with the light red/teal palette. --shadow-card now carries it,
+       so every card that already uses it glows with no per-card change. */
+    --glow:rgba(214,40,40,.20);
+    --shadow-card:0 1px 2px rgba(20,24,28,.05),0 16px 40px -16px rgba(214,40,40,.20);
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--stt-bg);color:var(--stt-ink);
             font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
             font-size:14px;line-height:1.5}
+  /* One soft top-centre STT-red bloom over the page, and again at the top of each tab. */
+  body{background:radial-gradient(1200px 640px at 50% -8%,rgba(214,40,40,.09),transparent 60%),var(--stt-bg);background-attachment:fixed}
   a{color:var(--stt-red);text-decoration:none}
 
   /* ---- topbar ---- */
@@ -155,7 +162,7 @@
               padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:#5A3E14}
   .date-scope b{color:#3F2A0B}
 
-  .tabpane{display:none}
+  .tabpane{display:none;background:radial-gradient(1100px 460px at 50% -50px,rgba(214,40,40,.07),transparent 64%)}
 
   .section{border-top:1px solid var(--stt-line);padding-top:18px;margin-top:24px}
   .section.first{border-top:none;padding-top:0;margin-top:4px}
@@ -173,6 +180,10 @@
   .card-tall .chart-wrap{height:300px}
   .card-med{min-height:262px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
+  /* Let charts glow through — a soft blurred STT-red bloom behind the plot area, decoration only. */
+  .chart-wrap::before{content:"";position:absolute;inset:6% 8%;z-index:0;pointer-events:none;
+       background:radial-gradient(58% 62% at 50% 46%,var(--glow),transparent 72%);filter:blur(12px);opacity:.42}
+  .chart-wrap>canvas{position:relative;z-index:1}
 
   /* ---- chart-card head + grain/scale segmented toggles ---- */
   .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
@@ -184,17 +195,26 @@
   .seg button.on{background:var(--stt-dark);color:#fff}
   .seg button:not(.on):hover{color:var(--stt-ink)}
 
-  /* ---- KPIs ---- */
+  /* ---- KPIs (house dot pattern: each card carries a STANDARD metric-colour dot via inline --kc,
+     matched to that metric's chart-series colour. Clickable cards toggle their series on the hero
+     chart and dim when off. Light theme + colours unchanged — the stripe became a colour dot). ---- */
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
   .kpis.five{grid-template-columns:repeat(5,1fr)}
-  .kpi{background:var(--stt-card);border:1px solid var(--stt-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
-  .kpi .label{font-size:10.5px;color:var(--stt-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
-  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--stt-dark)}
-  .kpi .delta{font-size:11px;margin-top:4px;color:var(--stt-mute);line-height:1.35}
-  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--stt-grey)}
-  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#FDF1F1 100%);border-color:#F3CFCF}
-  .kpi.accent .stripe{background:var(--stt-red)}
-  .kpi.web .stripe{background:var(--teal)}
+  .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--stt-red)) 8%,transparent),transparent 56%),var(--stt-card);
+       border:1px solid var(--stt-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{display:flex;align-items:flex-start;gap:7px;font-size:10.5px;line-height:1.3;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--stt-mute);min-height:26px}
+  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;margin-top:2px;background:var(--kc,var(--stt-red));box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--stt-red)) 20%,transparent)}
+  .kpi .value{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-top:8px;color:var(--stt-dark)}
+  .kpi .sub{font-size:11px;margin-top:4px;color:var(--stt-mute);line-height:1.35}
+  /* clickable KPI cards — toggle that metric's series on the hero chart (like a legend). A tiny dot
+     on the right hints the toggle; the card dims + desaturates when its series is hidden. */
+  .kpi.clk{cursor:pointer;user-select:none;transition:filter .15s,transform .06s,border-color .15s,opacity .15s}
+  .kpi.clk:hover{border-color:color-mix(in srgb,var(--kc,var(--stt-red)) 55%,transparent)}
+  .kpi.clk:active{transform:translateY(1px)}
+  .kpi.clk:focus-visible{outline:2px solid var(--kc,var(--stt-red));outline-offset:2px}
+  .kpi.clk .label::after{content:"";width:7px;height:7px;margin-left:auto;border-radius:50%;border:1.5px solid var(--kc,var(--stt-red));background:var(--kc,var(--stt-red));box-shadow:0 0 5px var(--kc,var(--stt-red))}
+  .kpi.clk.off{opacity:.5;filter:grayscale(.7)}
+  .kpi.clk.off .label::after{background:transparent;box-shadow:none}
   .up{color:var(--good-green);font-weight:600}
   .down{color:var(--bad-red);font-weight:600}
 
@@ -1633,9 +1653,54 @@ function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catc
 const FONT = {family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
 function gridY(opts={}){ return Object.assign({grid:{color:'#EEF1F3'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
-function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
-function kpiCard(cls,label,value,delta){
-  return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
+// Shared top legend. These legends are click-to-toggle (Chart.js default), so advertise it with a
+// small note rendered inside the legend block, right above the labels.
+function legendTop(){ return {position:'top',align:'end',
+  title:{display:true,text:'Click a label to show or hide it',color:C.mute,font:{size:11,weight:'normal',...FONT},padding:{bottom:6}},
+  labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
+// Standard metric colours — one colour per metric, reused as the KPI dot AND (where a matching hero
+// series exists) that series' colour, so a metric reads the same everywhere. Drawn from STT's own
+// palette (no new brand colours introduced).
+const MC = {
+  spend:'#5A6B78', imps:'#0891B2', clicks:'#B97400',
+  sessions:'#0E7C86', engaged:'#5FB0B6', users:'#2867B2', pageviews:'#5A5A5A',
+  avgeng:'#B97400', addriven:'#D62828', keyevents:'#7C3AED'
+};
+// KPI card — house dot pattern. `color` sets the standard metric-colour dot (--kc). Pass `series`
+// (a hero-chart group key) to make the card CLICKABLE — clicking toggles that series on ovHero.
+function kpiCard(color,label,value,sub,series){
+  const clk = series ? ' clk' : '';
+  const attr = series ? ` data-series="${series}" tabindex="0" role="button" aria-pressed="false"` : '';
+  return `<div class="kpi${clk}"${attr} style="--kc:${color}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub||'&nbsp;'}</div></div>`;
+}
+
+// Overview KPI ↔ hero-chart series toggles. A clickable KPI card hides/shows its GROUP of ovHero
+// datasets (spend bars / the sessions line / the key-event lines). State lives in ovHidden so it
+// survives the filter-driven re-renders (renderOverview rebuilds ovHero each time); wireOvKpis()
+// re-applies it and (re)binds the cards after every Overview render.
+const ovHidden = new Set();
+function ovSeriesIdx(chart, group){
+  return chart.data.datasets.reduce((acc,d,i)=>{
+    const hit = group==='spend'     ? d.type==='bar'
+              : group==='sessions'  ? d.label==='Website sessions'
+              : group==='keyevents' ? (d.type==='line' && Array.isArray(d.borderDash)) : false;
+    if(hit) acc.push(i);
+    return acc;
+  }, []);
+}
+function wireOvKpis(){
+  const chart = charts.ovHero; if(!chart) return;
+  const applyGroup = group => { const hide = ovHidden.has(group);
+    ovSeriesIdx(chart,group).forEach(i=>{ chart.getDatasetMeta(i).hidden = hide ? true : null; }); };
+  ['spend','sessions','keyevents'].forEach(applyGroup);
+  chart.update();
+  document.querySelectorAll('#ovKpis .kpi.clk').forEach(card=>{
+    const group = card.getAttribute('data-series');
+    const sync = ()=>{ const off = ovHidden.has(group); card.classList.toggle('off',off); card.setAttribute('aria-pressed', off?'true':'false'); };
+    sync();
+    card.onclick = ()=>{ ovHidden.has(group) ? ovHidden.delete(group) : ovHidden.add(group); applyGroup(group); chart.update(); sync(); };
+    card.onkeydown = e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); card.onclick(); } };
+  });
 }
 
 //==============================================================================
@@ -1647,17 +1712,15 @@ function renderOverview(){
   const a = adKpi();             // blended ad totals (same scope)
   const ctr = pct(a.clk, a.imps);
   const adShare = pct(g.paid_sessions, g.sessions);
-  const engRate = pct(g.engaged_sessions, g.sessions);
   const spendSub = selPlatforms().map(p=>`${money(P[p.key].spend)} ${p.label}`).join(' · ') || 'no platform selected';
   const impSub   = selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ') || '—';
   el('ovKpis').innerHTML =
-    kpiCard('accent','Media spend (SGD)', money(a.spend), spendSub)
-  + kpiCard('accent','Ad impressions', fmtM(a.imps), impSub)
-  + kpiCard('accent','Ad clicks', fmtN(a.clk), `${fmtPct(ctr,2)} blended CTR`)
-  + kpiCard('web','Website sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range')
-  + kpiCard('web','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions${g.prior_paid_sessions!=null ? ` · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY` : ''}`)
-  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`);
+    kpiCard(MC.spend,'Media spend (SGD)', money(a.spend), spendSub, 'spend')
+  + kpiCard(MC.imps,'Ad impressions', fmtM(a.imps), impSub)
+  + kpiCard(MC.clicks,'Ad clicks', fmtN(a.clk), `${fmtPct(ctr,2)} blended CTR`)
+  + kpiCard(MC.sessions,'Website sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range', 'sessions')
+  + kpiCard(MC.addriven,'Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(adShare,0)} of all sessions${g.prior_paid_sessions!=null ? ` · ${deltaHTML(g.paid_sessions,g.prior_paid_sessions)} YoY` : ''}`)
+  + kpiCard(MC.keyevents,'Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`, 'keyevents');
 
   renderOvCommentary();
 
@@ -1714,6 +1777,7 @@ function renderOverview(){
       }}}},
       scales: heroScales }
   });
+  wireOvKpis();   // link the clickable Media spend / Website sessions / Key events cards to ovHero
 
   // Donut "Where website traffic came from" — channel filter (slice-click + dropdown + Reset). See renderDonut.
   renderDonut('ovDonut', true);
@@ -1842,12 +1906,12 @@ function renderPaid(){
   const liSgd = P.linkedin.spend;
   const ctr = pct(T.clk,T.imps), cpm = T.imps? T.spend/T.imps*1000:0, cpc = T.clk? T.spend/T.clk:0;
   el('pmKpis').innerHTML =
-    kpiCard('accent','Combined spend (SGD)', money(T.spend), `${fmtPct(ctr,2)} CTR · ${money(cpc,'S$',2)} CPC`)
-  + kpiCard('','Google Ads spend', money(P.google.spend), `paid search`)
-  + kpiCard('','DV360 spend', money(P.dv360.spend), `programmatic display`)
-  + kpiCard('','LinkedIn spend', money(P.linkedin.spend), `≈ ${money(liSgd)} · paid social`)
-  + kpiCard('accent','Impressions', fmtM(T.imps), `${money(cpm,'S$',2)} blended CPM`)
-  + kpiCard('accent','Clicks', fmtN(T.clk), `Google ${fmtN(P.google.clk)} · DV360 ${fmtN(P.dv360.clk)} · LI ${fmtN(P.linkedin.clk)}`);
+    kpiCard(MC.spend,'Combined spend (SGD)', money(T.spend), `${fmtPct(ctr,2)} CTR · ${money(cpc,'S$',2)} CPC`)
+  + kpiCard(MC.spend,'Google Ads spend', money(P.google.spend), `paid search`)
+  + kpiCard(MC.spend,'DV360 spend', money(P.dv360.spend), `programmatic display`)
+  + kpiCard(MC.spend,'LinkedIn spend', money(P.linkedin.spend), `≈ ${money(liSgd)} · paid social`)
+  + kpiCard(MC.imps,'Impressions', fmtM(T.imps), `${money(cpm,'S$',2)} blended CPM`)
+  + kpiCard(MC.clicks,'Clicks', fmtN(T.clk), `Google ${fmtN(P.google.clk)} · DV360 ${fmtN(P.dv360.clk)} · LI ${fmtN(P.linkedin.clk)}`);
 
   // Spend by platform over the selected campaigns. Stacked spend bars (primary, ABSOLUTE
   // on the left SGD axis) + clicks-to-site overlay line. RELATIVE (default) indexes the
@@ -1944,13 +2008,13 @@ function renderWeb(){
   const engRate=pct(g.engaged_sessions,g.sessions);
   const avgEng = (g.eng_duration!=null && g.sessions) ? g.eng_duration/g.sessions : null;
   el('webKpis').innerHTML =
-    kpiCard('web','Sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range')
-  + kpiCard('web','Total users', g.users!=null?fmtM(g.users):'—', g.new_users!=null ? `${fmtM(g.new_users)} new` : 'full period only')
-  + kpiCard('web','Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard('web','Page views', g.page_views!=null?fmtM(g.page_views):'—', (g.page_views!=null && g.sessions) ? `${(g.page_views/g.sessions).toFixed(1)} per session` : 'full period only')
-  + kpiCard('web','Avg engagement', avgEng!=null?dur(avgEng):'—', `per session`)
-  + kpiCard('accent','Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
-  + kpiCard('accent','Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
+    kpiCard(MC.sessions,'Sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range')
+  + kpiCard(MC.users,'Total users', g.users!=null?fmtM(g.users):'—', g.new_users!=null ? `${fmtM(g.new_users)} new` : 'full period only')
+  + kpiCard(MC.engaged,'Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
+  + kpiCard(MC.pageviews,'Page views', g.page_views!=null?fmtM(g.page_views):'—', (g.page_views!=null && g.sessions) ? `${(g.page_views/g.sessions).toFixed(1)} per session` : 'full period only')
+  + kpiCard(MC.avgeng,'Avg engagement', avgEng!=null?dur(avgEng):'—', `per session`)
+  + kpiCard(MC.keyevents,'Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
+  + kpiCard(MC.addriven,'Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
 
   // sessions by channel (horizontal bar, country-filtered)
   const ch = ga4Channels();
