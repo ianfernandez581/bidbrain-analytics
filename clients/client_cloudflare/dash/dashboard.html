@@ -1978,10 +1978,20 @@ const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#0A66C2', PM_RD='#FF4500',
       PM_TARGET='#6E7785', PM_PURPLE='#6B3FA0';
 
 // Formatters
-const fmt$  = (n,dec=0) => '$'+ (n||0).toLocaleString(undefined,{maximumFractionDigits:dec, minimumFractionDigits:dec});
-const fmtNum = (n) => (n||0).toLocaleString();
-const fmtN_M = (n) => (n>=1_000_000) ? (n/1_000_000).toFixed(2)+'M' : (n>=1000) ? (n/1000).toFixed(1)+'K' : ''+(n||0);
-const fmtPct2 = (n,dec=2) => ((n||0)*100).toFixed(dec)+'%';
+// Coerce input to a finite number WITHOUT ever calling Number() on an object (which itself
+// throws "Cannot convert object to primitive value" for a Chart.js proxy / odd object). Only
+// numbers and numeric strings convert; anything else -> 0. A throw inside a Chart.js draw
+// callback kills Chart.js's shared animation loop and blanks EVERY chart at once, so these
+// formatters must be bulletproof.
+const _pmNum = (n) => {
+  if (typeof n === 'number') return Number.isFinite(n) ? n : 0;
+  if (typeof n === 'string' && n.trim() !== '') { const x = +n; return Number.isFinite(x) ? x : 0; }
+  return 0;   // objects / proxies / null / undefined -> 0 (never coerce an object; that can throw)
+};
+const fmt$  = (n,dec=0) => '$'+ _pmNum(n).toLocaleString(undefined,{maximumFractionDigits:dec, minimumFractionDigits:dec});
+const fmtNum = (n) => _pmNum(n).toLocaleString();
+const fmtN_M = (n) => { n = _pmNum(n); return (n>=1_000_000) ? (n/1_000_000).toFixed(2)+'M' : (n>=1000) ? (n/1000).toFixed(1)+'K' : ''+n; };
+const fmtPct2 = (n,dec=2) => (_pmNum(n)*100).toFixed(dec)+'%';
 
 // PAYLOAD assembled from the combined JSON's paid_media branch — shape matches
 // the ORIGINAL_DASH render functions. Keys: li_market_day[], ttd_market_day[],
