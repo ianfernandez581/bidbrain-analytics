@@ -18,7 +18,13 @@ id_ed25519
 chunks/
 *.log
 # Raw client report exports (manual drops -> seeded into BigQuery, never committed)
-clients/*/data/
+clients/*/data/*
+# EXCEPTION: schneider's media-plan TARGET seeds live in data/ and ARE version-controlled
+# (committed-CSV->BQ standard; other clients keep theirs in targets/). Track just these.
+!clients/client_schneider/data/media_plan.csv
+!clients/client_schneider/data/plan_budget.csv
+!clients/client_schneider/data/targets.csv
+!clients/client_schneider/data/campaign_map.csv
 
 # Python
 __pycache__/

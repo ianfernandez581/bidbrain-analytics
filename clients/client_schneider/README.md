@@ -21,7 +21,7 @@ paid-media dashboard is superseded. 27 BigQuery views + 7 CSV-loaded `seed_*` ta
 the `schneider-export` job and `schneider-dash` service deployed; the `*/10` self-gating scheduler runs.
 Salesforce leads are **CRM-raw** (all status `New` — the CRM hasn't graded MQL/SQL/HQL yet), so the CS
 tab shows total leads vs target, not "MQLs achieved". Targets/CPL come from the media plan
-(`targets/media_plan.csv`, version-controlled — the committed-CSV→BQ targets standard); see
+(`data/media_plan.csv`, version-controlled — the committed-CSV→BQ targets standard); see
 [`INTAKE.md`](INTAKE.md) for the client-flagged discrepancies (EBA MQL 157
 vs old 300, W&E/Heavy/EBA budgets, NEL added).
 
@@ -87,15 +87,15 @@ and `report.py`'s per-client guardrail now tells the model to surface an explici
   first-match-wins by `seq`), scoped to the 5.
 - **Seeds are CSV-loaded** via [`load_seeds.py`](load_seeds.py) into `seed_*` tables. The media-plan
   **targets** (`media_plan` / `targets` / `plan_budget`) **and `campaign_map`** (campaign display names +
-  match_patterns) live in the VERSION-CONTROLLED [`targets/`](targets/) dir (routed by `SRC_DIRS`); the
-  remaining dimension seeds read from gitignored `data/` (still BQ-only — see *Updating targets*).
+  match_patterns) live in [`data/`](data/), version-controlled via `.gitignore` `!` exceptions; the
+  remaining dimension seeds also read from `data/` (gitignored / BQ-only — see *Updating targets*).
 
 ## The dashboard tabs (`dash/dashboard.html`) — now **per-campaign**
 Filters: **Campaign** (the 5 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
 **Region** chips (Australia / New Zealand) + **Date range** stay on the control bar under the tabs.
 **The tab bar adapts to the selected campaign** — each campaign shows only the channels it actually
 uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
-([`targets/media_plan.csv`](targets/media_plan.csv) `channel` column, bucketed by `chan_group`):
+([`data/media_plan.csv`](data/media_plan.csv) `channel` column, bucketed by `chan_group`):
 **Paid Media** (a Programmatic/LinkedIn line, or real `pm_delivery`), **Content Syndication** (a
 lead-gen line, or real leads), **CS Comparison** (only when the campaign has leads), and **Other
 Channels** (plan-only lines with no warehouse feed — Search, publisher sponsorships, trade press,
@@ -131,7 +131,7 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | What to change | Edit | Stage |
 |---|---|---|
 | SE filter / FX rate | `sql/01_stg_dv360.sql` · `02_stg_linkedin.sql` · `03_stg_tradedesk.sql` (+ `05_kpi.sql`) | 2 |
-| Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `targets/*.csv` (version-controlled) → re-run `load_seeds.py` | 2 |
+| Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `data/*.csv` (version-controlled — tracked via `.gitignore` `!` exceptions) → re-run `load_seeds.py` | 2 |
 | Other seeds (plan_flighting / channel_split / salesforce_map) | `data/*.csv` → `load_seeds.py` (NB: currently BQ-only, no committed CSV) | 2 |
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
 | Which 5 programs are in scope | `data/salesforce_map.csv` (the 9 SF ids) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
@@ -141,13 +141,15 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 
 ### Updating targets (committed CSV → BQ)
 
-The media-plan **targets** are the version-controlled source of truth in [`targets/`](targets/)
-(`media_plan.csv`, `targets.csv`, `plan_budget.csv`) — NOT gitignored `data/`. To change a target:
-edit the CSV → `.\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py` (reloads the
-`targets/` seeds — `media_plan` / `targets` / `plan_budget` **and `campaign_map`**; `SRC_DIRS` routes
-them) → run the export job with `FORCE_REBUILD=1`. The remaining seeds (plan_flighting / channel_split /
-salesforce_map) are **currently BQ-only** (no committed CSV — they predate this standard); extract+commit
-them to `targets/` if you want schneider fully repo-reproducible.
+The media-plan **targets** are the version-controlled source of truth in [`data/`](data/)
+(`media_plan.csv`, `targets.csv`, `plan_budget.csv`, `campaign_map.csv`). `data/` is gitignored
+repo-wide (`clients/*/data/*`), so those four files are **kept tracked by explicit `!` exceptions in
+the root `.gitignore`** — edit them freely and they travel with the repo (other clients keep their
+tracked targets in a separate `targets/` dir; schneider consolidated everything into `data/`). To
+change a target: edit the CSV → `.\.venv\Scripts\python.exe clients\client_schneider\load_seeds.py`
+(all seeds now load from `data/`) → run the export job with `FORCE_REBUILD=1`. The remaining seeds
+(plan_flighting / channel_split / salesforce_map) stay **gitignored / BQ-only** (no committed CSV);
+add matching `.gitignore` `!` exceptions if you want schneider fully repo-reproducible.
 
 ## Deploy / refresh (copy-paste, PowerShell)
 Project `bidbrain-analytics`, region `australia-southeast1`. **First-time stand-up:** run
