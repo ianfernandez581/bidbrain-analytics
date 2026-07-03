@@ -242,6 +242,19 @@
   .pill.ln{background:#E0F8EC;color:#017A3B}
   .delta-pm{font-size:11px;font-weight:600;display:inline-block;margin-left:4px}
   .delta-pm.good{color:var(--good-green)} .delta-pm.bad{color:var(--bad-red)} .delta-pm.neutral{color:var(--cf-mute)}
+  /* QoQ tab */
+  .qoq-note{background:#fff;border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5}
+  .qoq-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .qoq-stats .stat{background:#fff;border:1px solid var(--cf-line);border-radius:12px;padding:14px 16px}
+  .qoq-stats .stat .k{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px}
+  .qoq-stats .stat .v{font-size:22px;font-weight:700;letter-spacing:-.4px;margin-top:4px;color:var(--cf-ink)}
+  .qoq-stats .stat .cnt{font-size:11.5px;color:var(--cf-mute);font-style:italic;margin-top:2px}
+  .qoq-table{width:100%;border-collapse:collapse;font-size:13px}
+  .qoq-table th,.qoq-table td{padding:8px 10px;border-bottom:1px solid var(--cf-line);text-align:left}
+  .qoq-table th.num,.qoq-table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .qoq-table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute)}
+  .qd{font-size:11px;font-weight:700;margin-left:5px;white-space:nowrap}
+  .qd.good{color:var(--good-green)} .qd.bad{color:var(--bad-red)} .qd.neu{color:var(--cf-mute)}
   td.bench, .bench{color:var(--cf-mute);font-size:11px;font-style:italic}
 
   /* Top/bottom creatives */
@@ -367,9 +380,26 @@
       <button class="tab active" data-tab="paid" onclick="switchTab('paid')">Paid Media</button>
       <button class="tab" data-tab="main" onclick="switchTab('main')">Content Syndication</button>
       <button class="tab" data-tab="compare" onclick="switchTab('compare')">CS Comparison</button>
+      <button class="tab" data-tab="qoq" onclick="switchTab('qoq')">Quarter on Quarter</button>
     </div>
 
     <div id="dateScopeNote" style="display:none;background:#fff;border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5"></div>
+
+    <!-- ============================================================ -->
+    <!-- QoQ TAB (Q3 vs Q2, CS accepted leads — actuals only)          -->
+    <!-- ============================================================ -->
+    <div class="panel hidden" id="panel-qoq">
+      <div class="qoq-note"><b>Quarter-to-date</b> comparison — <b>Q3</b> vs the <b>same opening window of Q2</b> <span id="qoqAsof"></span>, so it's like-for-like as Q3 ramps (not a few days of Q3 against all of Q2). Content-Syndication <b>accepted</b> leads, the 11 market chips. <b>Actuals only</b> — Q3 targets pending from the client, so no "vs target" pacing yet.</div>
+      <div class="qoq-stats" id="qoqStats"></div>
+      <div class="card" style="margin-top:14px">
+        <div class="card-head"><div><h3>Accepted leads by market</h3><div class="hint">Q3-to-date vs Q2's same opening window. Δ = change vs Q2 same period.</div></div></div>
+        <div style="overflow:auto"><table class="qoq-table" id="qoqMarketTable"><thead><tr><th>Market</th><th class="num">Q2 (same period)</th><th class="num">Q3 (to date)</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected / New — Q3-to-date vs Q2 same period.</div></div></div>
+        <div style="overflow:auto"><table class="qoq-table" id="qoqStatusTable"><thead><tr><th>Status</th><th class="num">Q2 (same period)</th><th class="num">Q3 (to date)</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
 
     <!-- ============================================================ -->
     <!-- OVERVIEW TAB                                                  -->
@@ -1203,12 +1233,46 @@ function setLiveBanner(lastUpdated, rowCount) {
   document.getElementById('footer').innerHTML = `Live data · Updated <b style="color:#fff">${luText}</b>${dataThrough}${rangeText} · Auto-refreshes within ~10 min of new Snowflake data`;
 }
 
+// QoQ tab: Q3-vs-Q2 CS accepted leads (actuals). Reads COMBINED.qoq (built by the job from cs_qoq).
+function renderQoQ(){
+  const q = (typeof COMBINED !== 'undefined' && COMBINED.qoq) || {};
+  const q2 = q.q2 || {}, q3 = q.q3 || {}, asof = q.asof || {};
+  const N = v => Number(v||0).toLocaleString('en-US');
+  const dlabel = asof.day ? (asof.day + ' day' + (asof.day>1?'s':'')) : '—';
+  // Δ Q3 vs the SAME opening window of Q2. null base -> "new".
+  const dfmt = (a,b) => {
+    a=+a||0; b=+b||0;
+    if (b===0) return a>0 ? '<span class="qd neu">new</span>' : '<span class="qd neu">—</span>';
+    const up=(a-b)>=0, p=Math.abs((a-b)/b*100).toFixed(0);
+    // client rule: colour POSITIVE (up) green; leave NEGATIVE neutral (no red — early-quarter dips are expected)
+    return `<span class="qd ${up?'good':'neu'}">${up?'▲ +':'▼ '}${p}%</span>`;
+  };
+  const asEl=document.getElementById('qoqAsof');
+  if (asEl) asEl.textContent = asof.day ? `(first ${dlabel}, through ${asof.date})` : '';
+  // Scorecard: QTD like-for-like (Q3 vs Q2 same window) + Q2 full quarter as context.
+  document.getElementById('qoqStats').innerHTML =
+     `<div class="stat"><div class="k">Q3 accepted · to date</div><div class="v">${N(q3.accepted)} ${dfmt(q3.accepted,q2.accepted)}</div><div class="cnt">vs Q2 same period</div></div>`
+    +`<div class="stat"><div class="k">Q2 accepted · same period</div><div class="v">${N(q2.accepted)}</div><div class="cnt">first ${dlabel} of Q2</div></div>`
+    +`<div class="stat"><div class="k">Q2 accepted · full quarter</div><div class="v">${N(q2.full_accepted)}</div><div class="cnt">for context</div></div>`
+    +`<div class="stat"><div class="k">Q3 total leads · to date</div><div class="v">${N(q3.total)}</div></div>`;
+  // by-market (Q3-to-date vs Q2 same opening window)
+  const m2=q2.by_market||{}, m3=q3.by_market||{};
+  const mkts=[...new Set([...Object.keys(m2),...Object.keys(m3)])].sort((a,b)=>(m2[b]||0)-(m2[a]||0));
+  document.querySelector('#qoqMarketTable tbody').innerHTML = mkts.length ? mkts.map(m=>
+    `<tr><td>${m}</td><td class="num">${N(m2[m])}</td><td class="num">${N(m3[m])}</td><td class="num">${dfmt(m3[m],m2[m])}</td></tr>`).join('')
+    : '<tr><td colspan="4" style="text-align:center;color:var(--cf-mute);padding:18px">No accepted leads in this window yet.</td></tr>';
+  const s2=q2.by_status||{}, s3=q3.by_status||{};
+  document.querySelector('#qoqStatusTable tbody').innerHTML = ['Accepted','Rejected','New'].map(s=>
+    `<tr><td>${s}</td><td class="num">${N(s2[s])}</td><td class="num">${N(s3[s])}</td><td class="num">${dfmt(s3[s],s2[s])}</td></tr>`).join('');
+}
 function switchTab(tab) {
   activeTab = tab;
   document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
   document.getElementById('panel-main').classList.toggle('hidden', tab !== 'main');
   document.getElementById('panel-compare').classList.toggle('hidden', tab !== 'compare');
   document.getElementById('panel-paid').classList.toggle('hidden', tab !== 'paid');
+  document.getElementById('panel-qoq').classList.toggle('hidden', tab !== 'qoq');
+  if (tab === 'qoq') renderQoQ();
   if (tab === 'compare') {
     if (document.getElementById('regionA').value) renderComparePanel('A');
     if (document.getElementById('regionB').value) renderComparePanel('B');
