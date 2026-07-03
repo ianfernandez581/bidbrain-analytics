@@ -138,6 +138,25 @@ a{color:var(--accent)}
 .dleg-row.off .lbl{text-decoration:line-through}
 .dleg-row.off .dot{background:transparent!important;border:1.5px solid var(--muted2)}
 .dleg-hint{font-size:10px;color:var(--muted2);font-weight:600;letter-spacing:.2px;padding:0 8px 6px;opacity:.9}
+/* Trade Desk creative-performance tiles. TTD delivers no artwork, so each banner
+   is drawn to its TRUE ad size (to-scale placeholder), ranked by click-through. */
+.cgal{display:grid;grid-template-columns:repeat(auto-fill,minmax(188px,1fr));gap:16px}
+.ccard{position:relative;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,var(--card-1),var(--card-2));padding:14px;box-shadow:var(--card-glow)}
+.ccard.top{border-color:color-mix(in srgb,var(--ttd) 55%,var(--line))}
+.cframe{height:148px;display:flex;align-items:center;justify-content:center;margin-bottom:11px}
+.cbanner{position:relative;display:flex;align-items:center;justify-content:center;min-width:14px;min-height:10px;border-radius:6px;border:1px solid color-mix(in srgb,var(--ttd) 42%,var(--line));background:linear-gradient(135deg,color-mix(in srgb,var(--ttd) 28%,#fff),color-mix(in srgb,var(--ttd) 6%,#fff));box-shadow:0 6px 18px -9px rgba(189,107,76,.6)}
+.cbanner .csize{font-size:9.5px;font-weight:800;letter-spacing:.3px;color:#6b3f2c;background:rgba(255,255,255,.78);padding:2px 6px;border-radius:6px;white-space:nowrap}
+.cbadge{position:absolute;top:9px;right:9px;z-index:2;font-size:9px;font-weight:800;letter-spacing:.4px;color:#fff;background:var(--ttd);padding:3px 7px;border-radius:20px;box-shadow:0 3px 9px -2px rgba(189,107,76,.75)}
+.cname{font-size:12px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:9px}
+.cbar{height:5px;border-radius:4px;background:color-mix(in srgb,var(--ink) 8%,transparent);overflow:hidden;margin-bottom:9px}
+.cbar i{display:block;height:100%;border-radius:4px;background:var(--ttd)}
+.cmetrics{display:flex;justify-content:space-between;gap:6px;margin-bottom:9px}
+.cmetrics>div{display:flex;flex-direction:column;line-height:1.15}
+.cmetrics b{font-size:13.5px;font-weight:800;color:var(--ink)}
+.cmetrics span{font-size:9px;color:var(--muted2);font-weight:700;letter-spacing:.3px;text-transform:uppercase}
+.cmetrics .m-ctr b{color:var(--ttd)}
+.cfoot{display:flex;justify-content:space-between;font-size:10.5px;color:var(--muted);font-weight:600;border-top:1px solid var(--line);padding-top:8px}
+.cempty{color:var(--muted2);text-align:center;padding:26px 0;font-size:13px}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
@@ -220,10 +239,8 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
 
   <section id="tab-ttd" class="hide">
     <div class="note">Trade Desk pixel fires are anonymous slots with no revenue attribution. Revenue / ROAS / AOV / CPA come from Google Ads only. TTD contributes delivery metrics (Impr., Clicks, Spend AUD).</div>
-    <div class="grid cols-2">
-      <div class="panel-box"><h3>Campaigns</h3><p class="hint">Programmatic display delivery (AUD).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
-      <div class="panel-box"><h3>Creative / ad format mix</h3><p class="hint">Delivery by creative × ad format (top by impressions). Whole flight - not date-scoped.</p><div class="tablewrap"><table id="ttdCreative"></table></div></div>
-    </div>
+    <div class="panel-box"><h3>Campaigns</h3><p class="hint">Programmatic display delivery (AUD).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
+    <div class="panel-box"><h3>Creative performance</h3><p class="hint">Each banner drawn to its true ad size, ranked by click-through. Trade Desk delivers no artwork, so tiles are to-scale placeholders — not the real creative. Whole flight — not date-scoped.</p><div id="ttdCreative" class="cgal"></div></div>
   </section>
 
   <section id="tab-performance" class="hide">
@@ -608,11 +625,28 @@ function renderTTD(){
   var rows=camps.map(function(name){var o=cr[name];return'<tr><td class="name">'+esc(name)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+curr(o.im>0?o.sp/o.im*1000:0)+'</td><td>'+curr(o.sp)+'</td></tr>';}).join('');
   $('ttdCamps').innerHTML='<thead><tr><th>Campaign</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>Spend AUD</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;color:var(--muted2)">No Trade Desk delivery in range</td></tr>')+'</tbody>';
 
-  // Creative / ad-format mix — whole flight (no date grain); scoped to the TTD selection.
+  // Creative performance — whole flight (no date grain); scoped to the TTD selection.
+  // TTD lands no artwork, so each banner is drawn to its true ad size (to-scale placeholder).
   var ttdSel=platformOn.ttd&&(selectedCampaigns===null||(data.ad_campaigns||[]).some(function(r){return r.platform==='ttd'&&selectedCampaigns.indexOf('ttd|'+r.campaign)!==-1;}));
-  var tcr=ttdSel?(data.ttd_creative||[]):[];
-  var crows=tcr.map(function(r){return'<tr><td class="name">'+esc(r.creative)+'</td><td>'+esc(r.ad_format)+'</td><td>'+fmt(r.imps)+'</td><td>'+fmt(r.clicks)+'</td><td>'+curr(r.spend_aud)+'</td></tr>';}).join('');
-  $('ttdCreative').innerHTML='<thead><tr><th>Creative</th><th>Format</th><th>Impr.</th><th>Clicks</th><th>Spend AUD</th></tr></thead><tbody>'+(crows||'<tr><td colspan="5" style="text-align:center;color:var(--muted2)">Trade Desk excluded by current filter</td></tr>')+'</tbody>';
+  var tcr=(ttdSel?(data.ttd_creative||[]):[]).map(function(r){return{creative:r.creative,ad_format:r.ad_format,imps:r.imps||0,clicks:r.clicks||0,spend:r.spend_aud||0,ctr:(r.imps>0?r.clicks/r.imps:0)};});
+  tcr.sort(function(a,b){return b.ctr-a.ctr||b.imps-a.imps;});
+  var maxCtr=tcr.reduce(function(m,r){return Math.max(m,r.ctr);},0);
+  var cards=tcr.map(function(r){
+    var m=/^\s*(\d+)\s*[x×]\s*(\d+)\s*$/i.exec(r.ad_format||''),box;
+    if(m){var s=118/Math.max(+m[1],+m[2]);box='width:'+Math.max(14,Math.round(+m[1]*s))+'px;height:'+Math.max(10,Math.round(+m[2]*s))+'px';}
+    else box='width:104px;height:74px';
+    var top=(maxCtr>0&&r.ctr===maxCtr);
+    var nm=(r.creative||'').replace(/^TLM[_\- ]/,'')||'—';
+    return '<div class="ccard'+(top?' top':'')+'">'
+      +(top?'<span class="cbadge">★ TOP CTR</span>':'')
+      +'<div class="cframe"><div class="cbanner" style="'+box+'"><span class="csize">'+esc(r.ad_format||'—')+'</span></div></div>'
+      +'<div class="cname" title="'+esc(r.creative)+'">'+esc(nm)+'</div>'
+      +'<div class="cbar"><i style="width:'+(maxCtr>0?Math.round(r.ctr/maxCtr*100):0)+'%"></i></div>'
+      +'<div class="cmetrics"><div><b>'+fmt(r.imps)+'</b><span>Impr.</span></div><div><b>'+fmt(r.clicks)+'</b><span>Clicks</span></div><div class="m-ctr"><b>'+(r.ctr*100).toFixed(2)+'%</b><span>CTR</span></div></div>'
+      +'<div class="cfoot"><span>Spend</span><span>'+curr(r.spend)+'</span></div>'
+    +'</div>';
+  }).join('');
+  $('ttdCreative').innerHTML=cards||'<div class="cempty">Trade Desk excluded by current filter</div>';
 }
 
 // ===== RENDER: PERFORMANCE =====
