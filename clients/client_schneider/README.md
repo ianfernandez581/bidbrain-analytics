@@ -206,6 +206,10 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/schneider/` (no per-client subdomain) |
 
 ## Files
+- [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md) — **comprehensive client-facing guide** (built from the
+  client's `raw_files/` + live BigQuery): what every tab/card/number is and how it's computed, the
+  campaign-ID reconciliation, and a **client-vs-dashboard gap list** (incl. the live AirSeT lead-ID
+  mismatch). Written for a client review / chatbot Q&A. Start here for "how does this dashboard work".
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
   channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
 - [`sql/`](sql/README.md) — the 27 BigQuery views (filter + CS leads + paid delivery + unused GA4).

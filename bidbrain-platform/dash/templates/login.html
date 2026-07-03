@@ -50,6 +50,15 @@
   .divider{display:flex;align-items:center;gap:12px;margin:18px 0 16px;color:#5b6478;font-size:12px}
   .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
   .gwrap{display:flex;justify-content:center;min-height:44px}
+  /* "Sign in with Microsoft" — a white pill matched to Google's outline button (which renders white).
+     Class rules beat the generic blue `button{}` above (higher specificity). */
+  .msbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:auto;min-width:220px;
+         margin:10px auto 0;padding:0 18px;height:40px;background:#fff;color:#3c4043;
+         border:1px solid #dadce0;border-radius:20px;font-size:14px;font-weight:600;letter-spacing:0;
+         box-shadow:none;transition:background .15s,box-shadow .15s,transform .12s}
+  .msbtn:hover{background:#f8f9fa;box-shadow:0 1px 3px rgba(0,0,0,.25)}
+  .msbtn:active{transform:translateY(1px)}
+  .msbtn svg{display:block;flex:0 0 auto}
 </style>
 </head>
 <body>
@@ -62,11 +71,24 @@
            autocomplete="current-password">
     <input type="hidden" name="next" value="{{ next_url or '' }}">
     <button type="submit">Continue</button>
-    {% if google_client_id %}
+    {% if google_client_id or ms_client_id %}
     <div class="divider"><span>or</span></div>
+    {% endif %}
+    {% if google_client_id %}
     <div id="g_id_onload" data-client_id="{{ google_client_id }}" data-callback="onGoogleCred" data-auto_prompt="false"></div>
     <div class="gwrap"><div class="g_id_signin" data-type="standard" data-theme="outline"
          data-text="signin_with" data-shape="pill" data-logo_alignment="left"></div></div>
+    {% endif %}
+    {% if ms_client_id %}
+    <button type="button" id="msBtn" class="msbtn">
+      <svg width="18" height="18" viewBox="0 0 21 21" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
+        <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      <span>Sign in with Microsoft</span>
+    </button>
     {% endif %}
     <div class="err">{{ error or "" }}</div>
     <div class="foot">An agency password opens every dashboard in that agency.<br>A single dashboard password opens just that dashboard.</div>
@@ -82,6 +104,39 @@
      .then(function(j){ if(j&&j.ok){ location.href=j.next||'/'; } else if(err){ err.textContent=(j&&j.error)||'Sign-in failed.'; } })
      .catch(function(){ if(err) err.textContent='Network error during sign-in.'; });
   }
+  </script>
+  {% endif %}
+  {% if ms_client_id %}
+  <script src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"
+          crossorigin="anonymous" async></script>
+  <script>
+  var MS_CLIENT_ID={{ ms_client_id|tojson }}, MS_TENANT={{ ms_tenant|tojson }}, _msalApp=null;
+  function msalApp(){
+    if(_msalApp) return _msalApp;
+    if(typeof msal==='undefined') return null;   // MSAL script still loading
+    _msalApp=new msal.PublicClientApplication({
+      auth:{clientId:MS_CLIENT_ID,authority:'https://login.microsoftonline.com/'+MS_TENANT,
+            redirectUri:location.origin},
+      cache:{cacheLocation:'sessionStorage'}});
+    return _msalApp;
+  }
+  document.getElementById('msBtn').addEventListener('click',function(){
+    var err=document.querySelector('.err'); if(err) err.textContent='';
+    var app=msalApp();
+    if(!app){ if(err) err.textContent='Still loading — try again in a moment.'; return; }
+    app.loginPopup({scopes:['openid','profile','email'],prompt:'select_account'})
+     .then(function(res){
+        var idt=res&&res.idToken;
+        if(!idt){ if(err) err.textContent='Microsoft sign-in returned no token.'; return; }
+        return fetch('/auth/microsoft',{method:'POST',headers:{'content-type':'application/json'},
+          credentials:'same-origin',body:JSON.stringify({credential:idt})})
+         .then(function(r){return r.json().catch(function(){return {ok:false,error:'Sign-in failed.'};});})
+         .then(function(j){ if(j&&j.ok){ location.href=j.next||'/'; } else if(err){ err.textContent=(j&&j.error)||'Sign-in failed.'; } });
+     })
+     .catch(function(e){ // ignore the user simply closing the popup
+        if(err && e && e.errorCode!=='user_cancelled' && e.errorCode!=='popup_window_error') err.textContent='Microsoft sign-in failed.';
+     });
+  });
   </script>
   {% endif %}
 </body>
