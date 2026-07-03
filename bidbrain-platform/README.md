@@ -24,11 +24,11 @@ console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clear
 ### Agencies (seeded from `dash/config.py`)
 - **100% Digital** (`100d2026`): City Perfume, VMCH, The Little Marionette, ResetData,
   Bell Shakespeare *(coming soon)*, Geocon *(coming soon)*.
-- **Transmission** (`transmission2026`): Schneider Electric, Cloudflare, PropTrack, MongoDB,
+- **Transmission** (`transmission2026`): Schneider Electric, Cloudflare, PropTrack, MongoDB, STT,
   Pipeline Status *(the meta `status-dash`, surfaced here so Transmission can watch data health;
   proxied like any client — the platform SA has `secretAccessor` on `status-dash-password`)*.
-- **Unassigned** (not in any agency, reachable only by their own dashboard password): **STT**
-  (on hold), **HireRight**. Add them to an agency anytime via the admin UI.
+- **Unassigned** (not in any agency, reachable only by their own dashboard password): **HireRight**.
+  Add clients to an agency anytime via the admin UI.
 
 The **admin agencies page** (`templates/admin.html`) renders these as per-agency **accordion cards**
 (collapsed by default; open state kept client-side in `sessionStorage`) in the house style, each

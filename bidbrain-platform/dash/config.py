@@ -167,13 +167,13 @@ AGENCIES = [
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
-        "clients": ["schneider", "cloudflare", "proptrack", "mongodb"],
+        "clients": ["schneider", "cloudflare", "proptrack", "mongodb", "stt"],
     },
 ]
 
 # Clients deliberately NOT in any agency (still reachable directly with their own password,
-# but never surfaced in an agency portal). STT is on hold; HireRight has no assigned agency.
-UNASSIGNED_CLIENTS = ["stt", "hireright"]
+# but never surfaced in an agency portal). HireRight has no assigned agency.
+UNASSIGNED_CLIENTS = ["hireright"]
 
 # --- Google-account access (email -> what they can open) ----------------------------------
 # A signed-in Google account is matched BY EMAIL against the registry's `users` map (managed live

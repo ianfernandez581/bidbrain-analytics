@@ -483,6 +483,26 @@ class Store:
             "key": k, "name": c["name"], "slug": c.get("slug", k),
             "status": c.get("status", "active"), "url": c.get("url", ""),
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
+        # Which agency owns each dashboard, so the console can group them per agency (100% Digital,
+        # Transmission, …) instead of one flat list. Agencies keep their registry `order`; a client
+        # in no agency (stt/hireright) falls into a trailing "Unassigned" group.
+        ordered_agencies = sorted(doc.get("agencies", []), key=lambda a: a.get("order", 0))
+        key_to_agency = {}
+        for a in ordered_agencies:
+            for ck in a.get("client_keys", []):
+                key_to_agency.setdefault(ck, {"name": a["name"], "slug": a["slug"]})
+        for d in dashboards:
+            ag = key_to_agency.get(d["key"])
+            d["agency_slug"] = ag["slug"] if ag else ""
+            d["agency_name"] = ag["name"] if ag else ""
+        dashboard_groups = []
+        for a in ordered_agencies:
+            members = [d for d in dashboards if d["agency_slug"] == a["slug"]]
+            if members:
+                dashboard_groups.append({"name": a["name"], "slug": a["slug"], "dashboards": members})
+        unassigned_dash = [d for d in dashboards if not d["agency_slug"]]
+        if unassigned_dash:
+            dashboard_groups.append({"name": "Unassigned", "slug": "", "dashboards": unassigned_dash})
         agency_names = {a["slug"]: a["name"] for a in agencies}
         client_names = {d["key"]: d["name"] for d in dashboards}
         users = []
@@ -500,7 +520,8 @@ class Store:
             "admin_has": bool(doc.get("admin_password_hash")),
             "super_password": doc.get("super_admin_password_plain", ""),
             "super_has": bool(doc.get("super_admin_password_hash")),
-            "agencies": agencies, "dashboards": dashboards, "users": users,
+            "agencies": agencies, "dashboards": dashboards,
+            "dashboard_groups": dashboard_groups, "users": users,
         }
 
     def backfill_plaintext(self, candidates):
