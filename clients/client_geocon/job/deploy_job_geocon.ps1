@@ -1,23 +1,23 @@
-# deploy_job_mongodb.ps1 - rebuild + redeploy + run ONLY the mongodb export JOB after editing
+# deploy_job_geocon.ps1 - rebuild + redeploy + run ONLY the geocon export JOB after editing
 # job/main.py (the JSON shape the dashboard reads) or job/requirements.txt. Rebuilds the job image,
-# deploys it to the mongodb-export Cloud Run job, then runs it once so a fresh mongodb.json lands
+# deploys it to the geocon-export Cloud Run job, then runs it once so a fresh geocon.json lands
 # in the bucket. Does NOT touch the dash service, SQL views, or IAM.
 #
-# Use this when you changed which fields the job emits / how it assembles mongodb.json.
-# If you ALSO edited a sql/*.sql view that feeds it, run deploy_views_mongodb.ps1 first (it
-# reapplies the views) - then this rebuild re-reads the current views.
+# Use this when you changed which fields the job emits / how it assembles geocon.json (e.g. the
+# creative-image cache). If you ALSO edited a sql/*.sql view that feeds it, run
+# deploy_views_geocon.ps1 first (it reapplies the views) - then this rebuild re-reads them.
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
-#       .\client_mongodb\job\deploy_job_mongodb.ps1
+#       .\clients\client_geocon\job\deploy_job_geocon.ps1
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 
-# ---- config (matches job/cloudbuild.yaml) -----------------------------------
+# ---- config -----------------------------------------------------------------
 $PROJECT  = "bidbrain-analytics"
 $REGION   = "australia-southeast1"
 $REPO     = "bidbrain"                                 # Artifact Registry docker repo (shared)
-$JOB      = "mongodb-export"
-$JOB_SA   = "mongodb-dash-job@${PROJECT}.iam.gserviceaccount.com"
+$JOB      = "geocon-export"
+$JOB_SA   = "geocon-dash-job@${PROJECT}.iam.gserviceaccount.com"
 $JOB_DIR  = $PSScriptRoot
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
@@ -35,7 +35,7 @@ Write-Host "Rebuilding $JOB image ($SHA) ..."
 gcloud builds submit $JOB_DIR --tag $IMG --region $REGION --project $PROJECT; Must "build job image"
 Write-Host "Deploying Cloud Run job $JOB ..."
 gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB_SA --memory 1Gi --project $PROJECT; Must "deploy job"
-Write-Host "Running $JOB (writes a fresh mongodb.json to the bucket) ..."
+Write-Host "Running $JOB (writes a fresh geocon.json + caches creative images to the bucket) ..."
 gcloud run jobs execute $JOB --region $REGION --project $PROJECT --update-env-vars FORCE_REBUILD=1 --wait; Must "run job"
 
 Write-Host "`nDONE. $JOB rebuilt, deployed, and executed. The dash service serves the new JSON immediately (no service redeploy needed)."

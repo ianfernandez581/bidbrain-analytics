@@ -59,10 +59,18 @@ AXIS Relative/Absolute** toggles (default Relative + Month).
   budget burn, the per-ad table (thin-volume guard: ⚠ under 15k impressions or <8 leads), and a
   **fatigue watch** (weekly WoW frequency/CTR, ≥1,000-impression guard).
 - **Creative** — the **top 10 creatives by spend**: real ad headline + body copy + metrics, with the
-  Meta thumbnail when its (short-lived, signed) CDN link is still valid, else a branded tile; a lightbox
-  shows the full copy + a landing-page link. **Meta CDN thumbnails expire** ("URL signature expired") —
-  to show the real images durably we'd cache them to the bucket on the freshness-gated rebuild (not yet
-  wired; the copy + metrics are always live).
+  real Meta ad image, a lightbox showing the full copy + a landing-page link. **Meta signs
+  `thumbnail_url` with only a ~4-day validity**, so we cache the image bytes to our own bucket and serve
+  them durably: the export job (`job/main.py` → `cache_creative_images`) downloads each top creative's
+  thumbnail — using the **freshest** (latest-date) signed URL per creative — to
+  `gs://bidbrain-analytics-geocon-dash/creatives/<creative_id>` (skips ones already cached), and the dash
+  serves them at **`/creative-img/<creative_id>`** (same auth as `/data.json`). The gallery `<img>` falls
+  back **cache → live CDN URL → branded tile** (`ccImgErr` in `dashboard.html`). Because the URL is only
+  fetchable for a few days, the *export must run while it's live* — the freshness gate fires the export
+  within ~10 min of the Windsor loader re-pulling `perf_meta` (which re-signs the URL), so active
+  creatives get a permanent copy on that next run. A creative that's paused before it was ever cached
+  can't be recovered (its URL is dead); a one-off backfill (pull fresh URLs from Windsor →
+  `gcloud storage cp` into `creatives/`) can seed those.
 
 Login password lives in Secret Manager `geocon-dash-password` (mounted `DASH_PASSWORD`); agency = **100% Digital**.
 

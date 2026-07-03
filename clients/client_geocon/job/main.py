@@ -209,13 +209,21 @@ def main():
     # signed CDN URLs are still live, so the Creative gallery keeps showing the real ad after Meta expires
     # the link. Dedup by creative_id, prioritise by spend, cap the set (covers the dashboard's top-10 for
     # any date range).
+    # Meta signs thumbnail_url with only a ~4-day validity, and rows are ordered date-ASC, so keep the
+    # LATEST (freshest) URL per creative -- the earliest row's URL is usually already expired. cache_-
+    # creative_images only fetches creatives not already cached, so an active creative gets a permanent
+    # copy the first export that runs while its freshly-repulled URL is still live.
     cc = {}
     for r in env["rows"]:
         cid = str(r.get("creative_id") or "")
-        if not cid or not r.get("creative_thumbnail_url"):
+        url = r.get("creative_thumbnail_url")
+        if not cid or not url:
             continue
-        o = cc.setdefault(cid, {"creative_id": cid, "thumbnail_url": r["creative_thumbnail_url"], "spend": 0.0})
+        o = cc.setdefault(cid, {"creative_id": cid, "thumbnail_url": url, "_date": "", "spend": 0.0})
         o["spend"] += num(r.get("spend")) or 0
+        d = r.get("date") or ""
+        if d >= o["_date"]:                 # freshest signed URL wins (ISO dates compare lexically)
+            o["thumbnail_url"], o["_date"] = url, d
     top = sorted(cc.values(), key=lambda x: x["spend"], reverse=True)[:30]
     cached = cache_creative_images(bkt, top)
     bkt.blob(DATA_OBJECT).upload_from_string(json.dumps(env), content_type="application/json")
