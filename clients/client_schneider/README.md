@@ -40,6 +40,20 @@ AirSeT's Trade Desk resolves the same way. The **Heavy Industries trade-publicat
 was already in the plan and renders under **Heavy → Other Channels** (a plan-only line — a publisher
 sponsorship has no ad-platform feed, so only its plan targets show).
 
+**Update 2026-07-03** (`dash/dashboard.html` + `dash/report.py`; needs a `schneider-dash` redeploy to go live):
+(1) the deck **cover/eyebrow brand** now reads **"TRANSMISSION × Schneider Electric Pacific"** (was "…Schneider
+Electric" — `BB_THEME.brand`); every other surface already said "Schneider Electric Pacific". (2) **Spend vs budget**
+(client ask, from Gabby): the **Paid Media** tab has a new **"Spend vs budget"** card — measured DV360/TTD/LinkedIn
+spend vs the planned media-plan **paid-media budget**, plus a time-to-date (elapsed-flight pro-rata) pace. It is
+**whole-flight / all-markets** (independent of the region + date filters, which the plan budget isn't split by), so
+label it as such. The **Content Syndication** tab's leads-vs-target note now also shows **≈ est. spend (delivered
+leads × plan CPL) of the committed CS budget**. All budget maths is **client-side** from the already-emitted
+`campaigns[].channels[]` (`spend` + `group`) + `committed_spend` — **no job / view / seed change** (verified: All-
+campaigns paid budget A$163,441, CS committed A$97,288, total A$270,729 = Σ `plan_budget.budget_aud`). The deck
+payload gains a `plan.budget` block (`paid` / `paid_spend` / `paid_ttd` / `cs_committed` / `cs_est_spend` / `total`),
+and `report.py`'s per-client guardrail now tells the model to surface an explicit spent-vs-budgeted **budget** KPI
+(paid = measured, CS = estimated / per-lead, kept distinct).
+
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
   programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`).

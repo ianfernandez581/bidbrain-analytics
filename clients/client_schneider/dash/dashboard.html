@@ -331,6 +331,12 @@
         <div class="kpi m-cpc"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
       </div>
 
+      <div class="card" id="pmBudget" style="margin-top:14px;display:none">
+        <h3>Spend vs budget</h3>
+        <div class="hint">Measured paid-media spend (DV360 · The Trade Desk · LinkedIn) vs the planned media-plan budget. Whole flight, all markets - independent of the region / date filters below.</div>
+        <div class="budget-body" style="margin-top:10px"></div>
+      </div>
+
       <div class="section"><h2 style="font-size:15px">Platform comparison</h2><span class="sub">DV360 vs The Trade Desk vs LinkedIn - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="pmPlatTable"><thead><tr><th>Platform</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
@@ -713,6 +719,40 @@ function renderActive(){
 // PAID MEDIA
 //==============================================================================
 function pmTotals(rows){ const o={imps:0,clk:0,spend:0}; rows.forEach(r=>{o.imps+=r.imps||0;o.clk+=r.clicks||0;o.spend+=r.spend_aud||0;}); return o; }
+// Planned budget (from the media-plan channel lines) for the selected campaign(s), split by engine,
+// with a time-to-date (elapsed-flight pro-rata) expectation. Per-campaign so "All campaigns" sums each
+// program's own elapsed fraction. paid+other come from channels[]; cs = committed_spend (lead lines).
+function budgetPace(){
+  const list = activeCampaign===ALL_ID ? (DATA.campaigns||[]) : [campaign()];
+  const o={paid:0, cs:0, other:0, total:0, paidTtd:0, totalTtd:0};
+  list.forEach(c=>{
+    const ch=c.channels||[], g=grp=>ch.filter(x=>x.group===grp).reduce((a,x)=>a+(x.spend||0),0);
+    const paid=g('paid'), cs=c.committed_spend||0, other=g('other'), tot=paid+cs+other;
+    const tf=elapsedFrac(c.flight_start, c.flight_end||new Date(Date.now()).toISOString());
+    o.paid+=paid; o.cs+=cs; o.other+=other; o.total+=tot;
+    if(tf!=null){ o.paidTtd+=paid*tf; o.totalTtd+=tot*tf; }
+  });
+  return o;
+}
+// Whole-flight, all-markets measured paid spend for the selected campaign(s) — matches the whole-campaign
+// budget (ignores the region / date filters, which the plan budget isn't split by).
+function pmSpendFull(){ let s=0; (DATA.pm_delivery||[]).forEach(r=>{ if(inCamp(r.program)) s+=r.spend_aud||0; }); return s; }
+function renderPmBudget(){
+  const host=el('pmBudget'); if(!host) return;
+  const b=budgetPace(), budget=b.paid, ttd=b.paidTtd, spent=pmSpendFull();
+  if(!(budget>0) && !(spent>0)){ host.style.display='none'; return; }
+  host.style.display='';
+  const body=host.querySelector('.budget-body');
+  if(!(budget>0)){ body.innerHTML=`<div class="prog-note"><b>${money(spent)}</b> measured paid-media spend; no planned paid-media budget is seeded for ${campaign().label}.</div>`; return; }
+  const maxV=Math.max(budget, ttd||0, spent, 1), w=v=>(v/maxV*100).toFixed(1);
+  const usedPct=pct(spent,budget), pace=(ttd&&ttd>0)?spent/ttd:null;
+  const paceTxt = pace==null?'' : (pace>=1.05?'ahead of the time-to-date spend pace':pace>=0.95?'in line with the time-to-date spend pace':'under the time-to-date spend pace');
+  body.innerHTML=`
+    <div class="progress-row"><div>Planned budget</div><div class="pbar gray"><div class="fill" style="width:${w(budget)}%"></div></div><div>${money(budget)}</div></div>
+    ${ttd?`<div class="progress-row"><div>Time-to-date</div><div class="pbar gray"><div class="fill" style="width:${w(ttd)}%"></div></div><div>${money(ttd)}</div></div>`:''}
+    <div class="progress-row"><div>Spent to date</div><div class="pbar"><div class="fill" style="width:${w(spent)}%"></div></div><div>${money(spent)}</div></div>
+    <div class="prog-note">Spent <b>${money(spent)}</b> of the <b>${money(budget)}</b> planned paid-media budget (<b>${fmtPct(usedPct,0)}</b> used)${paceTxt?`, ${paceTxt}`:''}. Budget is the media plan (ex-fees); spend is measured DV360 / Trade Desk / LinkedIn delivery. Content-syndication budget is on the Content Syndication tab (it bills per lead).</div>`;
+}
 function renderPaid(){
   const rows=pmRows(), t=pmTotals(rows);
   const note=el('pmNote');
@@ -723,6 +763,7 @@ function renderPaid(){
   el('pm_imp').textContent=fmtM(t.imps); el('pm_cpm').textContent=`${money(cpm,2)} CPM`;
   el('pm_clk').textContent=fmtN(t.clk); el('pm_ctr').textContent=`${fmtPct(ctr,2)} CTR`;
   el('pm_cpc').textContent=money(cpc,2); el('pm_cpc_sub').textContent='blended, AUD';
+  renderPmBudget();
 
   // platform comparison table
   const byPlat={}; PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
@@ -800,6 +841,7 @@ function renderCS(){
   el('cs_total').textContent=fmtN(p.leads);
   el('cs_cpl').textContent=p.cpl==null?'—':money(p.cpl);
   el('cs_cpl_cnt').textContent=p.cpl==null?'—':'plan · '+money(p.committed)+' committed';
+  const csEst=(p.cpl!=null)?p.leads*p.cpl:null;
   el('cs_current').textContent=p.vsTtd==null?'—':fmtPct(p.vsTtd,0);
   el('cs_overall').textContent=p.hasTarget?fmtPct(p.leadsPct,1):'—';
   el('cs_imp').textContent=imp?fmtM(imp):'—'; el('cs_clk').textContent=clk?fmtN(clk):'—'; el('cs_ctr').textContent=imp?fmtPct(pct(clk,imp),2):'—';
@@ -813,7 +855,7 @@ function renderCS(){
     <div class="progress-row"><div>Total target</div><div class="pbar gray"><div class="fill" style="width:${w(p.target)}%"></div></div><div>${p.hasTarget?fmtN(p.target):'—'}</div></div>
     <div class="progress-row"><div>Time-to-date</div><div class="pbar gray"><div class="fill" style="width:${w(p.ttd)}%"></div></div><div>${p.hasTarget?fmtN(Math.round(p.ttd)):'—'}</div></div>
     <div class="progress-row"><div>Delivered</div><div class="pbar"><div class="fill" style="width:${w(p.leads)}%"></div></div><div>${fmtN(p.leads)}</div></div>
-    <div class="prog-note">Delivered is <b>${p.hasTarget?fmtPct(p.leadsPct,1):'—'}</b> of total target${p.vsTtd!=null?`, <b>${fmtPct(p.vsTtd,0)}</b> of the time-to-date pace`:''}. CRM-raw leads (status New), not graded MQLs.</div>`;
+    <div class="prog-note">Delivered is <b>${p.hasTarget?fmtPct(p.leadsPct,1):'—'}</b> of total target${p.vsTtd!=null?`, <b>${fmtPct(p.vsTtd,0)}</b> of the time-to-date pace`:''}.${csEst!=null?` ≈ <b>${money(csEst)}</b> spent of the <b>${money(p.committed)}</b> committed CS budget (bills per lead).`:''} CRM-raw leads (status New), not graded MQLs.</div>`;
 
   // progress
   const lp=p.hasTarget?Math.min(1,p.leadsPct):0, tp=p.timePct!=null?Math.min(1,p.timePct):0, v=paceVerdict(p.vsTtd);
@@ -976,12 +1018,13 @@ const BB_THEME = {
   bg:'1A1A1A', panel:'2A2A2A', accent:'009530', accentInk:'FFFFFF', softBg:'EAF6EE',
   lightBg:'FFFFFF', ink:'1F2933', mute:'6B7480', line:'E6E9ED', onDark:'FFFFFF', onDarkMute:'A7B0B8',
   serif:'Georgia', sans:'Arial', mono:'Courier New',
-  agency:'Transmission', client:'Schneider Electric Pacific', brand:'TRANSMISSION × Schneider Electric', filePrefix:'Schneider_Pacific'
+  agency:'Transmission', client:'Schneider Electric Pacific', brand:'TRANSMISSION × Schneider Electric Pacific', filePrefix:'Schneider_Pacific'
 };
 const _r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
 const _r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
 function buildReportPayload(){
   const c=campaign(), p=csPacing();
+  const bpv=budgetPace(), paidSpentFull=pmSpendFull(), csEstSpend=(p.cpl!=null)?p.leads*p.cpl:null;
   const crows=csRows();
   const by_programme=crows.slice().sort((a,b)=>(b.total||0)-(a.total||0)).map(r=>({
     programme:r.programme, market:r.market, leads:r.total||0,
@@ -1025,7 +1068,13 @@ function buildReportPayload(){
     plan:{
       target_mql:c.target_mql||0, target_hql:c.target_hql||0, target:c.target||0, committed_spend:_r2(c.committed_spend),
       cpl_tiers:(c.cpl_tiers||[]).map(t=>({label:t.label, leads:t.leads, spend:_r2(t.spend), cpl:_r2(t.cpl)})),
-      flight_start:c.flight_start||null, flight_end:c.flight_end||null
+      flight_start:c.flight_start||null, flight_end:c.flight_end||null,
+      budget:{
+        total:_r2(bpv.total), paid:_r2(bpv.paid), cs_committed:_r2(bpv.cs), other:_r2(bpv.other),
+        paid_spend:_r2(paidSpentFull), paid_used_pct:_r6(bpv.paid?paidSpentFull/bpv.paid:null),
+        paid_ttd:_r2(bpv.paidTtd), cs_est_spend:_r2(csEstSpend),
+        note:'Planned budget = media plan (ex-fees). paid = planned paid-media budget; paid_spend is MEASURED (DV360/TTD/LinkedIn) whole-flight all-markets; paid_ttd = time-to-date expected paid spend (budget prorated by elapsed flight). cs_committed = the CS lead-gen budget; cs_est_spend is ESTIMATED as delivered leads × plan CPL (CS bills per lead, so it tracks lead pacing). Keep paid (measured) and CS (estimated) spend distinct.'
+      }
     }
   };
 }

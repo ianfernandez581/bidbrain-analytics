@@ -55,7 +55,13 @@ CONFIG = {
         "accept-vs-reject signal here. Frame CS on LEAD VOLUME and PACING vs the total and TTD pro-rata targets, and "
         "on cost-per-lead vs the media-plan CPL, NOT on a quality mix. Do NOT credit paid display/social clicks as "
         "leads; pipeline shows up in CS leads. Leads-only programs have no paid delivery — say so rather than "
-        "inventing a paid story."
+        "inventing a paid story. "
+        "ALWAYS surface an explicit SPEND-VS-BUDGET read from plan.budget: paid_spend vs paid (the planned "
+        "paid-media budget; paid_spend is MEASURED delivery) and cs_est_spend vs cs_committed (the CS lead-gen "
+        "budget; cs_est_spend is ESTIMATED as delivered leads x plan CPL). Include at least one slide-1 KPI "
+        "(category 'budget') stating amount spent vs amount budgeted, and reference budget pacing "
+        "(paid_ttd = time-to-date expected paid spend) in the analysis. Never sum paid (measured) and CS "
+        "(estimated, per-lead) spend into a single 'spent' figure without flagging that half is an estimate."
     ),
     # Short lowercase tokens for the on-slide category chip (bb_deck.js maps known ones to labels).
     "category_tokens": "content_syndication (the CS lead engine), paid_media (DV360/TTD/LinkedIn delivery), budget, overall",
