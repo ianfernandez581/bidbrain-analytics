@@ -260,6 +260,16 @@
   .qoq-table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute)}
   .qd{font-size:11px;font-weight:700;margin-left:5px;white-space:nowrap}
   .qd.good{color:var(--good-green)} .qd.bad{color:var(--bad-red)} .qd.neu{color:var(--cf-mute)}
+  /* QoQ heat map: markets / status × (Q2 same window, Q3 to date); cells shaded by lead volume */
+  .qoq-heatscale{font-size:11px;color:var(--cf-mute);margin-bottom:12px;display:flex;align-items:center}
+  .qoq-heatscale .grad{display:inline-block;width:90px;height:10px;border-radius:5px;margin:0 8px;background:linear-gradient(90deg,rgba(243,128,32,.10),rgba(243,128,32,.92))}
+  .qoq-heat{display:grid;grid-template-columns:118px 1fr 1fr 72px;gap:6px;align-items:stretch}
+  .qoq-heat .hh{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--cf-mute);font-weight:700;padding:2px 6px 4px;align-self:end}
+  .qoq-heat .hh.num{text-align:center}
+  .qoq-heat .rlbl{display:flex;align-items:center;font-size:12.5px;font-weight:600;color:var(--cf-ink);padding:0 4px}
+  .qoq-cell{border-radius:8px;padding:13px 6px;text-align:center;font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;border:1px solid rgba(11,16,23,.04)}
+  .qoq-dcell{display:flex;align-items:center;justify-content:flex-end;padding-right:2px}
+  .qoq-dcell .qd{margin-left:0}
   td.bench, .bench{color:var(--cf-mute);font-size:11px;font-style:italic}
 
   /* Top/bottom creatives */
@@ -398,11 +408,13 @@
       <div class="qoq-stats" id="qoqStats"></div>
       <div class="card" style="margin-top:14px">
         <div class="card-head"><div><h3>Accepted leads by market</h3><div class="hint">Q3-to-date vs Q2's same opening window. Δ = change vs Q2 same period.</div></div></div>
-        <div style="overflow:auto"><table class="qoq-table" id="qoqMarketTable"><thead><tr><th>Market</th><th class="num">Q2 (same period)</th><th class="num">Q3 (to date)</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
+        <div class="qoq-heatscale">Fewer <span class="grad"></span> more leads</div>
+        <div id="qoqMarketBars"></div>
       </div>
       <div class="card" style="margin-top:14px">
         <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected / New — Q3-to-date vs Q2 same period.</div></div></div>
-        <div style="overflow:auto"><table class="qoq-table" id="qoqStatusTable"><thead><tr><th>Status</th><th class="num">Q2 (same period)</th><th class="num">Q3 (to date)</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
+        <div class="qoq-heatscale">Fewer <span class="grad"></span> more leads</div>
+        <div id="qoqStatusBars"></div>
       </div>
     </div>
 
@@ -1307,15 +1319,28 @@ function renderQoQ(){
     +`<div class="stat"><div class="k">Q2 accepted · same period</div><div class="v">${N(q2.accepted)}</div><div class="cnt">first ${dlabel} of Q2</div></div>`
     +`<div class="stat"><div class="k">Q2 accepted · full quarter</div><div class="v">${N(q2.full_accepted)}</div><div class="cnt">for context</div></div>`
     +`<div class="stat"><div class="k">Q3 total leads · to date</div><div class="v">${N(q3.total)}</div></div>`;
-  // by-market (Q3-to-date vs Q2 same opening window)
+  // Heat map: one cell per (row × quarter), background shaded by lead volume (calm read of the
+  // whole portfolio); Δ badge kept as subtle text on the right (client rule: no red for dips).
+  const heatCell = (v, max) => {
+    v = +v||0;
+    const a = max ? 0.10 + 0.82*(v/max) : 0.10;                 // faint → strong orange
+    const txt = a > 0.55 ? '#fff' : 'var(--cf-ink)';
+    return `<div class="qoq-cell" style="background:rgba(243,128,32,${a.toFixed(3)});color:${txt}">${N(v)}</div>`;
+  };
+  const heatGrid = (keys, v2map, v3map) => {
+    const max = Math.max(1, ...keys.map(k => Math.max(+v2map[k]||0, +v3map[k]||0)));
+    return `<div class="qoq-heat"><div class="hh"></div><div class="hh num">Q2 · same window</div><div class="hh num">Q3 · to date</div><div class="hh num">Δ</div>`
+      + keys.map(k => `<div class="rlbl">${k}</div>${heatCell(v2map[k],max)}${heatCell(v3map[k],max)}<div class="qoq-dcell">${dfmt(v3map[k],v2map[k])}</div>`).join('')
+      + `</div>`;
+  };
+  // by-market — sorted by Q3-to-date volume (biggest current market first)
   const m2=q2.by_market||{}, m3=q3.by_market||{};
-  const mkts=[...new Set([...Object.keys(m2),...Object.keys(m3)])].sort((a,b)=>(m2[b]||0)-(m2[a]||0));
-  document.querySelector('#qoqMarketTable tbody').innerHTML = mkts.length ? mkts.map(m=>
-    `<tr><td>${m}</td><td class="num">${N(m2[m])}</td><td class="num">${N(m3[m])}</td><td class="num">${dfmt(m3[m],m2[m])}</td></tr>`).join('')
-    : '<tr><td colspan="4" style="text-align:center;color:var(--cf-mute);padding:18px">No accepted leads in this window yet.</td></tr>';
+  const mkts=[...new Set([...Object.keys(m2),...Object.keys(m3)])].sort((a,b)=>(m3[b]||0)-(m3[a]||0)||(m2[b]||0)-(m2[a]||0));
+  document.getElementById('qoqMarketBars').innerHTML = mkts.length
+    ? heatGrid(mkts, m2, m3)
+    : '<div style="text-align:center;color:var(--cf-mute);padding:18px">No accepted leads in this window yet.</div>';
   const s2=q2.by_status||{}, s3=q3.by_status||{};
-  document.querySelector('#qoqStatusTable tbody').innerHTML = ['Accepted','Rejected','New'].map(s=>
-    `<tr><td>${s}</td><td class="num">${N(s2[s])}</td><td class="num">${N(s3[s])}</td><td class="num">${dfmt(s3[s],s2[s])}</td></tr>`).join('');
+  document.getElementById('qoqStatusBars').innerHTML = heatGrid(['Accepted','Rejected','New'], s2, s3);
 }
 function switchTab(tab) {
   activeTab = tab;
