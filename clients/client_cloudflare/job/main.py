@@ -113,6 +113,7 @@ def main():
     t = lambda n: f"`{PROJECT}.{DATASET}.{n}`"
     pm  = rows(bq, f"SELECT * FROM {t('paid_media_model')}")
     pac = rows(bq, f"SELECT * FROM {t('pacing_model')}")
+    qoq_rows = rows(bq, f"SELECT * FROM {t('cs_qoq')}")   # Q3-vs-Q2 CS accepted-lead comparison (actuals)
     bc  = rows(bq, f"SELECT * FROM {t('benchmarks_channel')}")
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
@@ -288,6 +289,33 @@ def main():
     # last_updated = when THIS build ran; data_through = the newest upstream mirror
     # last_modified (UTC). The dashboard shows both so "fresh build" and "fresh data"
     # are never conflated.
+    # QoQ (actuals, QUARTER-TO-DATE aligned): compare Q3-to-date vs Q2's SAME opening window (leads_qtd),
+    # so the start-of-quarter comparison is like-for-like — NOT Q3's few days against all of Q2. Q2's
+    # full-quarter accepted is kept as context. asof = how far into the quarter Q3 data reaches.
+    def _blank_q():
+        return {"accepted": 0, "total": 0, "by_market": {}, "by_status": {}}
+    q2, q3 = _blank_q(), _blank_q()
+    q2["full_accepted"] = 0
+    asof_idx, asof_date = None, None
+    for r in qoq_rows:
+        if asof_idx is None and r.get("asof_day_idx") is not None:
+            asof_idx = int(jval(r.get("asof_day_idx")))
+            asof_date = ymd(r.get("asof_date"))
+        tgt = q2 if r.get("quarter") == "Q2" else q3 if r.get("quarter") == "Q3" else None
+        if tgt is None:
+            continue
+        sb = r.get("status_bucket") or "Other"
+        qtd = int(jval(r.get("leads_qtd")) or 0)
+        tgt["total"] += qtd
+        tgt["by_status"][sb] = tgt["by_status"].get(sb, 0) + qtd
+        if sb == "Accepted":
+            tgt["accepted"] += qtd
+            tgt["by_market"][r.get("market") or "Unknown"] = tgt["by_market"].get(r.get("market") or "Unknown", 0) + qtd
+            if tgt is q2:
+                q2["full_accepted"] += int(jval(r.get("leads_full")) or 0)
+    qoq_block = {"q2": q2, "q3": q3,
+                 "asof": {"date": asof_date, "day": (asof_idx + 1) if asof_idx is not None else None}}
+
     _dt_vals = [v for v in observed.values() if v]
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
@@ -295,6 +323,7 @@ def main():
         "paid_media": paid_media,
         "pacing": pacing_payload,
         "campaigns": campaigns,
+        "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
