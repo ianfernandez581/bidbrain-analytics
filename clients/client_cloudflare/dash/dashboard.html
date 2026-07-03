@@ -2703,19 +2703,29 @@ function renderLiFunnel() {
 
 function renderPaidMediaAll() {
   if (!PAYLOAD) return;
-  renderPaidKPIs();
-  renderTtdImpCtr();
-  renderChannelMix();
-  renderDailyStack();
-  renderMarketBar();
-  renderEffTrio();
-  renderMarketStack();
-  renderMarketTable();
-  renderBenchmarkTable();
-  renderCreativeTables();
-  renderWeeklyTarget();
-  renderLiFunnel();
-  setPaidFooter();   // refresh footer so its range annotation tracks the active filter
+  // Render each section in ISOLATION. A single bad value in one chart's slice (e.g. from a
+  // malformed export) must never blank the whole tab with a cryptic error — so we catch per
+  // section, log it, skip that one piece, and keep rendering the rest. Only if EVERY section
+  // fails do we surface the styled error card (that means the feed itself is unusable).
+  const steps = [
+    ['KPIs', renderPaidKPIs], ['TTD imp/CTR', renderTtdImpCtr], ['Channel mix', renderChannelMix],
+    ['Daily stack', renderDailyStack], ['Market bar', renderMarketBar], ['Efficiency trio', renderEffTrio],
+    ['Market stack', renderMarketStack], ['Market table', renderMarketTable],
+    ['Benchmark table', renderBenchmarkTable], ['Creative tables', renderCreativeTables],
+    ['Weekly target', renderWeeklyTarget], ['LinkedIn funnel', renderLiFunnel],
+  ];
+  let failed = 0;
+  for (const [label, fn] of steps) {
+    try { fn(); }
+    catch (e) { failed++; console.error('[paid] "' + label + '" failed to render:', e); }
+  }
+  try { setPaidFooter(); } catch (e) { /* footer is cosmetic */ }   // range annotation tracks the active filter
+  if (failed === steps.length) {   // total failure → the feed is unusable, show the card
+    document.getElementById('paid-content').style.display = 'none';
+    document.getElementById('paid-error').style.display = 'block';
+    document.getElementById('paidErrorDetail').textContent =
+      'The paid-media charts could not be rendered — the latest export may be malformed. This usually clears on the next refresh once the export re-runs.';
+  }
 }
 
 function switchDashboard(val){
