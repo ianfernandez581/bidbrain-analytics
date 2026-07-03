@@ -831,15 +831,15 @@ function renderPaid(){
   const rel=pmScale==='rel'; const impPeak=Math.max(1,...imps), clkPeak=Math.max(1,...clks), spendPeak=Math.max(1,...spends), leadPeak=Math.max(1,...leads);
   // series colours match the KPI tiles (Spend=green, Impressions=blue, Clicks=amber); CTR=slate
   charts.pmDaily=new Chart(el('pmDaily'),{ data:{ labels, datasets:[
-    {type:'line',label:'Spend',data:rel?spends.map(v=>v/spendPeak*100):spends,_true:spends,_money:true,borderColor:C.green2,backgroundColor:C.green2,borderWidth:2.4,tension:.3,pointRadius:2,yAxisID:rel?'y':'ySp'},
-    {type:'bar',label:'Impressions',data:rel?imps.map(v=>v/impPeak*100):imps,_true:imps,backgroundColor:'#3E6396',yAxisID:'y',maxBarThickness:34,borderRadius:3},
+    {type:'bar',label:'Spend',data:rel?spends.map(v=>v/spendPeak*100):spends,_true:spends,_money:true,backgroundColor:C.green2,yAxisID:'y',maxBarThickness:34,borderRadius:3},
+    {type:'line',label:'Impressions',data:rel?imps.map(v=>v/impPeak*100):imps,_true:imps,borderColor:'#3E6396',backgroundColor:'#3E6396',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'ySp'},
     {type:'line',label:'Clicks',data:rel?clks.map(v=>v/clkPeak*100):clks,_true:clks,borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'y1'},
     {type:'line',label:'Leads',data:rel?leads.map(v=>v/leadPeak*100):leads,_true:leads,borderColor:'#A6547B',backgroundColor:'#A6547B',borderWidth:2.8,tension:.3,pointRadius:2.5,yAxisID:rel?'y':'yLd'},
     {type:'line',label:'CTR %',data:ctrs,_true:ctrs,borderColor:C.slate,borderDash:[5,4],borderWidth:1.6,tension:.3,pointRadius:0,yAxisID:'y2'}
   ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{ const tv=(c.dataset._true||[])[c.dataIndex]; const l=c.dataset.label; const v=l==='CTR %'?(tv||0).toFixed(2)+'%':(c.dataset._money?money(tv):fmtN(tv)); return ` ${l}: ${v}`; }}} },
-      scales:{ x:axisX(), y:gridY(rel?{min:0,max:100,title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}}}:{ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+      scales:{ x:axisX(), y:gridY(rel?{min:0,max:100,title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}}}:{ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
         y1:rel?{display:false}:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}},
         y2:{position:'right',grid:{display:false},border:{display:false},min:0,ticks:{color:C.mute,font:{size:10},callback:v=>v.toFixed(1)+'%'}},
         ySp:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}},
