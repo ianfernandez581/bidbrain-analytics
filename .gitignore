@@ -46,3 +46,7 @@ _run/
 
 # Per-developer branch name remembered by scripts/push-branch.ps1 (machine-local)
 scripts/.devname
+
+# Local client-demo previews (static design snapshots incl. a data.json copy — never commit).
+# Serve with staging/serve.ps1 to show a redesign to a client before deploying it.
+staging/

@@ -14,100 +14,124 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root{
-    color-scheme: light;
-    /* PropTrack brand: near-black canvas, white, vivid blue accent */
-    --teal:#1F6FEB; --teal-deep:#1450B5; --teal-soft:#7DA7F0; --green:#1450B5;
-    --ttd:#1F6FEB; --ttd-soft:#9CBEF7; --li:#2867B2; --li-soft:#6F9BD6;
-    --dark:#12151B; --dark2:#0A0C10; --ink:#171A20; --mute:#667085;
-    --line:#E6E8EC; --card:#FFFFFF; --bg:#F5F6F8; --slate:#5A6B78; --amber:#B97400;
-    --good-green:#1E8E3E; --bad-red:#C8362A;
-    --shadow-card:0 1px 2px rgba(16,20,30,.05),0 4px 16px rgba(16,20,30,.07);
+    color-scheme: dark;
+    /* ===== Bidbrain house style — ONE soft blue glow lights the whole page. PropTrack's own look:
+       a near-black canvas + a vivid blue accent (matches proptrack.com.au). ===== */
+    --bg-0:#080B12;                                                   /* deep near-black page base under the glow */
+    --panel:#0F141E; --panel2:#0B1017;                                /* solid surfaces (menus / pills / inputs) */
+    --line:#1C2534; --line2:#28303F;                                  /* solid borders */
+    --hair:rgba(255,255,255,.09);                                     /* hairline card border */
+    --card-1:rgba(255,255,255,.025); --card-2:rgba(255,255,255,.012); /* card fill gradient */
+    /* Define the glow ONCE and reuse it — behind the body, every tab, every card, every chart.
+       --glow is the house blue; --card-glow = top inset highlight + depth drop + soft ambient bloom. */
+    --glow:rgba(72,130,255,.34);
+    --card-glow:0 1px 0 rgba(255,255,255,.05) inset,
+                0 24px 50px -30px rgba(0,0,0,.85),
+                0 0 44px -18px var(--glow);
+    --ink:#EEF2F8; --muted:#AAB4C5; --muted2:#68738A;
+    --accent:#1F6FEB;                                                 /* PropTrack vivid blue — primary / active */
+    --accent2:#4C8DFF;                                                /* lighter blue */
+    --ttd:#4C8DFF;                                                    /* The Trade Desk (house blue) */
+    --li:#22D3EE;                                                     /* LinkedIn (cyan — distinct from the blue) */
+    --amber:#F59E0B; --slate:#64748B; --good:#34D399; --bad:#FB7185;  /* green = goal/good ONLY */
+    /* legacy aliases — kept so body-inline styles + a few old class refs never break on the dark theme */
+    --bg:var(--bg-0); --card:var(--panel); --dark:var(--ink); --dark2:#05070C;
+    --teal:var(--accent); --teal-deep:var(--accent2); --teal-soft:var(--accent2);
+    --mute:var(--muted); --green:var(--good); --good-green:var(--good); --bad-red:var(--bad);
+    --shadow-card:var(--card-glow);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  html,body{margin:0;padding:0;color:var(--ink);
             font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
             font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  a{color:var(--teal);text-decoration:none}
+  /* House glow on the body: a fixed blue bloom + a faint accent-tinted bloom, anchored top-centre. */
+  body{min-height:100vh;background:
+       radial-gradient(1000px 520px at 50% -6%, rgba(72,130,255,.12), transparent 64%),
+       radial-gradient(600px 340px at 50% -3%, color-mix(in srgb, var(--accent) 52%, transparent), transparent 62%),
+       var(--bg-0);}
+  a{color:var(--accent2);text-decoration:none}
 
   /* ---- topbar ---- */
-  .topbar{background:linear-gradient(100deg,var(--dark2) 0%,var(--dark) 60%);color:#fff;
-          padding:13px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar{background:linear-gradient(100deg,#05070C 0%,#0B1017 62%);color:#fff;
+          padding:13px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;
+          border-bottom:1px solid var(--line)}
   .topbar-left{display:flex;align-items:center;gap:18px}
   .brand-logo{display:flex;align-items:center}
   .brand-logo svg{height:30px;width:auto;display:block}
   .topbar-divider{width:1px;height:26px;background:rgba(255,255,255,.18)}
   .agency-logo{display:flex;align-items:center;opacity:.92}
   .agency-logo svg{height:16px;width:auto;display:block}
-  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.78);text-align:right;line-height:1.55}
-  .live{display:inline-block;width:7px;height:7px;background:#3FD07A;border-radius:50%;margin-right:6px;
-        box-shadow:0 0 0 0 rgba(63,208,122,.5);animation:pulse 2.2s infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(63,208,122,.6)}70%{box-shadow:0 0 0 8px rgba(63,208,122,0)}100%{box-shadow:0 0 0 0 rgba(63,208,122,0)}}
+  .topbar-right{font-size:11.5px;color:var(--muted);text-align:right;line-height:1.55}
+  .live{display:inline-block;width:7px;height:7px;background:#34D399;border-radius:50%;margin-right:6px;
+        box-shadow:0 0 0 0 rgba(52,211,153,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(52,211,153,.6)}70%{box-shadow:0 0 0 8px rgba(52,211,153,0)}100%{box-shadow:0 0 0 0 rgba(52,211,153,0)}}
 
-  .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
+  .container{max-width:1240px;margin:0 auto;padding:22px 28px 60px}
 
-  /* ---- control bar ---- */
-  .control-bar{background:var(--card);border:1px solid var(--line);border-radius:10px;
-               box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
-  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--line)}
+  /* ---- control bar (the sticky top bar: translucent dark + blur, per house cheat-sheet) ---- */
+  .control-bar{background:rgba(11,16,23,.82);backdrop-filter:blur(8px);border:1px solid var(--hair);border-radius:14px;
+               box-shadow:var(--card-glow);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--hair)}
   .tabs{display:flex;gap:2px;flex-wrap:wrap}
-  .tab{padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab{padding:12px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--muted);border-bottom:2.5px solid transparent;margin-bottom:-1px}
   .tab:hover{color:var(--ink)}
-  .tab.on{color:var(--dark);border-bottom-color:var(--teal)}
+  .tab.on{color:var(--ink);border-bottom-color:var(--accent)}
   .tabs-right{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:7px 0}
-  .ctrl-note{font-size:11.5px;color:var(--mute)}
+  .ctrl-note{font-size:11.5px;color:var(--muted)}
   .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
-              padding:7px 12px;border-radius:7px;border:1px solid var(--line);background:#fff;color:var(--ink);
+              padding:7px 12px;border-radius:8px;border:1px solid var(--line2);background:var(--panel2);color:var(--ink);
               transition:border-color .15s ease,color .15s ease}
-  .export-btn:hover{border-color:var(--teal);color:var(--teal)}
+  .export-btn:hover{border-color:var(--accent);color:var(--accent2)}
   .export-btn svg{width:14px;height:14px;flex:none}
 
   /* ---- filter chips (Platform) ---- */
-  .control-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--line)}
+  .control-filters{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--hair)}
   .filter-grp{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
-  .fdiv{width:1px;height:20px;background:var(--line)}
-  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--mute)}
+  .fdiv{width:1px;height:20px;background:var(--line2)}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2)}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
-  .chip{background:#fff;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color .15s ease,background .15s ease;color:var(--ink)}
-  .chip:hover{border-color:var(--teal)}
-  .chip.on{background:var(--dark);color:#fff;border-color:var(--dark)}
-  .chip-action{background:none;border:1px dashed var(--line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--mute)}
-  .chip-action:hover{color:var(--ink);border-color:var(--mute)}
+  .chip{background:var(--panel2);border:1px solid var(--line2);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:border-color .15s ease,background .15s ease;color:var(--muted)}
+  .chip:hover{border-color:var(--accent)}
+  .chip.on{background:var(--accent);color:#fff;border-color:transparent}
+  .chip-action{background:none;border:1px dashed var(--line2);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--muted2)}
+  .chip-action:hover{color:var(--ink);border-color:var(--muted)}
 
   /* ---- campaign filter (searchable multi-select dropdown) ---- */
   .campaign-dd{position:relative;display:inline-block}
-  .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;
+  .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line2);border-radius:999px;
                 padding:6px 12px;font-size:12.5px;cursor:pointer;color:var(--ink);max-width:280px}
-  .campaign-btn:hover{border-color:var(--teal)}
-  .campaign-btn.filtered{background:var(--dark);color:#fff;border-color:var(--dark)}
-  .campaign-btn .caret{font-size:10px;color:var(--mute)}
+  .campaign-btn:hover{border-color:var(--accent)}
+  .campaign-btn.filtered{background:var(--accent);color:#fff;border-color:transparent}
+  .campaign-btn .caret{font-size:10px;color:var(--muted2)}
   .campaign-btn.filtered .caret{color:rgba(255,255,255,.7)}
   .campaign-btn .lbltxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .campaign-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:440px;max-width:88vw;background:#fff;
-                 border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(16,20,30,.18);overflow:hidden}
+  .campaign-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:440px;max-width:88vw;background:var(--panel);
+                 border:1px solid var(--line2);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden}
   .campaign-menu-head{padding:10px 12px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
-  .campaign-menu-head input{width:100%;padding:8px 10px;font-size:13px;border:1px solid var(--line);border-radius:8px;outline:none;color:var(--ink)}
-  .campaign-menu-head input:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(31,111,235,.12)}
+  .campaign-menu-head input{width:100%;padding:8px 10px;font-size:13px;background:var(--panel2);border:1px solid var(--line2);border-radius:8px;outline:none;color:var(--ink)}
+  .campaign-menu-head input::placeholder{color:var(--muted2)}
+  .campaign-menu-head input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(31,111,235,.22)}
   .campaign-menu-actions{display:flex;align-items:center;gap:8px;justify-content:space-between}
-  .campaign-menu-actions .count{font-size:11px;color:var(--mute)}
+  .campaign-menu-actions .count{font-size:11px;color:var(--muted2)}
   .campaign-menu-actions .btns{display:flex;gap:6px}
   .campaign-list{max-height:340px;overflow-y:auto;padding:4px 0}
   .cl-group{padding:8px 12px 3px}
   .cl-group-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:3px}
-  .cl-group-title{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--mute)}
+  .cl-group-title{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;color:var(--muted2)}
   .cl-group-title .dot{width:8px;height:8px;border-radius:50%}
-  .cl-group-toggle{font-size:10.5px;color:var(--teal);cursor:pointer;background:none;border:none;padding:0}
+  .cl-group-toggle{font-size:10.5px;color:var(--accent2);cursor:pointer;background:none;border:none;padding:0}
   .cl-item{display:flex;align-items:flex-start;gap:9px;padding:6px 12px;cursor:pointer;border-radius:7px}
-  .cl-item:hover{background:#F2F6F5}
-  .cl-item input{margin-top:2px;flex:none;accent-color:var(--teal)}
+  .cl-item:hover{background:rgba(255,255,255,.04)}
+  .cl-item input{margin-top:2px;flex:none;accent-color:var(--accent)}
   .cl-item .ci-main{min-width:0;flex:1}
   .cl-item .ci-name{font-size:12px;color:var(--ink);line-height:1.35;word-break:break-word}
-  .cl-item .ci-meta{font-size:10.5px;color:var(--mute);margin-top:1px}
-  .cl-empty{padding:18px 14px;text-align:center;color:var(--mute);font-size:12px}
+  .cl-item .ci-meta{font-size:10.5px;color:var(--muted2);margin-top:1px}
+  .cl-empty{padding:18px 14px;text-align:center;color:var(--muted2);font-size:12px}
 
   /* ===== Shared date-range picker (Looker-style) ===== */
   .dp{position:relative;display:inline-block;font-size:13px;
-      --dp-accent:var(--teal);--dp-bg:var(--card);--dp-panel:var(--bg);
-      --dp-line:var(--line);--dp-ink:var(--ink);--dp-muted:var(--mute)}
+      --dp-accent:var(--accent);--dp-bg:var(--panel);--dp-panel:var(--panel2);
+      --dp-line:var(--line2);--dp-ink:var(--ink);--dp-muted:var(--muted)}
   .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);
       border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:8px;
       padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
@@ -115,7 +139,7 @@
   .dp-btn svg{opacity:.75}
   .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
   .dp-pop{position:absolute;z-index:60;margin-top:6px;left:0;display:flex;background:var(--dp-bg);
-      border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.18);overflow:hidden}
+      border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.6);overflow:hidden}
   .dp-pop.dp-hide{display:none}
   .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
   .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);
@@ -152,78 +176,90 @@
   }
 
   /* date-scope banner (shown only when the range is narrowed) */
-  .date-scope{background:#FDF6EC;border:1px solid #F0DBB8;border-left:4px solid var(--amber);border-radius:10px;
-              padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:#5A3E14}
-  .date-scope b{color:#3F2A0B}
+  .date-scope{background:color-mix(in srgb,var(--amber) 11%,transparent);border:1px solid color-mix(in srgb,var(--amber) 34%,transparent);
+              border-left:4px solid var(--amber);border-radius:12px;
+              padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:#F1D9AE}
+  .date-scope b{color:#FCEBC8}
 
   .tabpane{display:none}
 
-  .section{border-top:1px solid var(--line);padding-top:18px;margin-top:24px}
+  .section{border-top:1px solid var(--hair);padding-top:18px;margin-top:24px}
   .section.first{border-top:none;padding-top:0;margin-top:4px}
-  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--dark)}
-  .section .sub{display:block;margin-top:3px;color:var(--mute);font-size:12.5px;max-width:920px}
+  .section h2{margin:0;font-size:20px;font-weight:700;letter-spacing:-.2px;color:var(--ink)}
+  .section .sub{display:block;margin-top:3px;color:var(--muted);font-size:12.5px;max-width:920px}
+  .section .sub b{color:var(--ink)}
 
-  /* ---- grids + cards ---- */
+  /* ---- grids + cards (ONE card recipe: glass gradient + hairline + the shared glow) ---- */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
   .grid-2-1{display:grid;grid-template-columns:1.9fr 1fr;gap:16px;margin-top:14px}
-  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;
-        box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
-  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--ink)}
-  .card .hint{font-size:11.5px;color:var(--mute);margin:4px 0 10px 0}
+  .card{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:16px;padding:18px;
+        box-shadow:var(--card-glow);display:flex;flex-direction:column;min-width:0}
+  .card h3{margin:0;font-size:15px;font-weight:600;color:var(--ink)}
+  .card .hint{font-size:11.5px;color:var(--muted2);margin:4px 0 12px 0}
+  .card .hint b{color:var(--muted)}
   .card-tall .chart-wrap{height:300px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
+  /* Let charts glow through — a soft blurred bloom behind the plot area, decoration only. The
+     transparent canvas is lifted above it so bars/lines/rings always paint on top. */
+  .chart-wrap::before{content:"";position:absolute;inset:8% 10%;z-index:0;pointer-events:none;
+       background:radial-gradient(58% 62% at 50% 46%,var(--glow),transparent 72%);filter:blur(8px);opacity:.55}
+  .chart-wrap>canvas{position:relative;z-index:1}
 
   /* ---- chart-card header with VIEW BY / AXIS toggles ---- */
   .chart-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .chart-head .ctrls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .seg{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#FAFBFC}
-  .seg button{background:none;border:none;color:var(--mute);font-family:inherit;font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;letter-spacing:.3px}
-  .seg button.on{background:var(--teal);color:#fff}
+  .seg{display:inline-flex;align-items:center;border:1px solid var(--line2);border-radius:8px;overflow:hidden;background:var(--panel2)}
+  .seg button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;letter-spacing:.3px}
+  .seg button.on{background:var(--accent);color:#fff}
   .seg button:not(.on):hover{color:var(--ink)}
-  .seg .cap{padding:0 7px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--mute);align-self:center}
+  .seg .cap{padding:0 7px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--muted2);align-self:center}
 
-  /* ---- KPIs ---- */
-  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
-  .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
-  .kpi .label{font-size:10.5px;color:var(--mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
-  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--dark)}
-  .kpi .delta{font-size:11px;margin-top:4px;color:var(--mute);line-height:1.35}
-  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--slate)}
-  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#EAF4F3 100%);border-color:#CFE6E4}
-  .kpi.accent .stripe{background:var(--teal)}
-  .kpi.li .stripe{background:var(--li)}
-  .up{color:var(--good-green);font-weight:600}
-  .down{color:var(--bad-red);font-weight:600}
+  /* ---- KPIs — grid auto-fits; each card tags its metric colour via inline --kc (matches the
+     chart-series colour). Two lines reserved for the label so every value lines up across the row. ---- */
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:16px 0 32px}
+  .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 13%,transparent),transparent 58%),
+       linear-gradient(180deg,var(--card-1),var(--card-2));
+       border:1px solid var(--hair);border-radius:14px;padding:15px 16px;position:relative;overflow:hidden;box-shadow:var(--card-glow)}
+  .kpi .label{display:flex;align-items:flex-start;gap:7px;font-size:11px;line-height:1.3;font-weight:600;letter-spacing:.3px;color:var(--muted);min-height:29px}
+  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;margin-top:3px;background:var(--kc,var(--accent));
+       box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
+  .kpi .value{font-size:24px;font-weight:800;margin-top:9px;letter-spacing:-.5px;color:var(--ink)}
+  #ovNorthStar .kpi .value{font-size:32px;line-height:1.15}
+  .kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px}
+  .up{color:var(--good);font-weight:600}
+  .down{color:var(--bad);font-weight:600}
 
   /* ---- info note ---- */
-  .info-note{background:#EEF4F3;border:1px solid #CFE6E4;border-left:4px solid var(--teal);border-radius:10px;
-             padding:13px 16px;margin-top:16px;font-size:13px;color:#1E3D3A}
-  .info-note b{color:#0E2624}
-  .info-note.amber{background:#FDF6EC;border-color:#F0DBB8;border-left-color:var(--amber);color:#5A3E14}
-  .info-note.amber b{color:#3F2A0B}
+  .info-note{background:color-mix(in srgb,var(--accent) 9%,transparent);border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);
+             border-left:4px solid var(--accent);border-radius:12px;
+             padding:13px 16px;margin-top:16px;font-size:13px;color:var(--muted)}
+  .info-note b{color:var(--ink)}
+  .info-note.amber{background:color-mix(in srgb,var(--amber) 10%,transparent);border-color:color-mix(in srgb,var(--amber) 30%,transparent);border-left-color:var(--amber);color:#F1D9AE}
+  .info-note.amber b{color:#FCEBC8}
 
-  /* ---- tables ---- */
+  /* ---- tables — text columns left, number columns right with tabular figures ---- */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
-  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line)}
-  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mute);font-weight:600;background:#FAFBFB}
-  table td.num{text-align:right;font-variant-numeric:tabular-nums}
-  table tr:hover td{background:#FAFBFA}
-  table tr.total td{font-weight:700;background:#F1F6F5;border-bottom:none}
-  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#EEF4F3;color:var(--dark)}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--hair);color:var(--muted)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted2);font-weight:700;background:transparent}
+  table td:first-child{color:var(--ink)}
+  table th.num,table td.num{text-align:right;font-variant-numeric:tabular-nums}
+  table tr:hover td{background:rgba(255,255,255,.03)}
+  table tr.total td{font-weight:700;background:rgba(255,255,255,.05);border-bottom:none;color:var(--ink)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel2);color:var(--ink)}
   .pill .dot{width:8px;height:8px;border-radius:50%}
-  .badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.3px;padding:2px 7px;border-radius:5px;text-transform:uppercase;background:#EAF4F3;color:var(--teal-deep)}
+  .badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.3px;padding:2px 7px;border-radius:5px;text-transform:uppercase;background:color-mix(in srgb,var(--accent) 18%,transparent);color:var(--accent2)}
 
-  .loading{padding:80px 20px;text-align:center;color:var(--mute)}
-  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--line2);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
   @keyframes spin{to{transform:rotate(360deg)}}
-  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
+  .error-box{background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid color-mix(in srgb,var(--bad) 38%,transparent);color:#FCA5A5;border-radius:12px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
 
-  footer{color:var(--mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--line)}
-  footer b{color:var(--ink)}
+  footer{color:var(--muted2);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--hair)}
+  footer b{color:var(--muted)}
 
-  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}}
-  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}}
+  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -263,7 +299,7 @@
   </div>
   <div id="error" class="error-box" style="display:none">
     <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
-    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:rgba(0,0,0,.3);color:#F4C7C2;padding:8px;border-radius:6px;margin-top:8px"></div>
   </div>
 
   <div id="content" style="display:none">
@@ -484,7 +520,7 @@
         <div class="hint">Top campaigns by spend (whole flight). Raw campaign names, lightly de-underscored.</div>
         <div style="overflow:auto">
           <table id="soCampaigns">
-            <thead><tr><th>Campaign</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend (AUD)</th><th>Engage.</th><th>Leads</th></tr></thead>
+            <thead><tr><th>Campaign</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Spend (AUD)</th><th class="num">Engage.</th><th class="num">Leads</th></tr></thead>
             <tbody></tbody>
           </table>
         </div>
@@ -500,11 +536,12 @@
 // CONFIG
 //==============================================================================
 const JSON_URL = '/data.json';
+// Dark house palette (PropTrack blue + a distinct cyan for LinkedIn). green = goal/good ONLY.
 const C = {
-  teal:'#1F6FEB', tealDeep:'#1450B5', tealSoft:'#7DA7F0', green:'#1450B5',
-  ttd:'#1F6FEB', ttdSoft:'#9CBEF7', li:'#2867B2', liSoft:'#6F9BD6',
-  dark:'#12151B', ink:'#171A20', mute:'#667085', line:'#E6E8EC',
-  slate:'#5A6B78', amber:'#B97400', grey:'#C9CED4'
+  teal:'#4C8DFF', tealDeep:'#1F6FEB', tealSoft:'#9CBEF7', green:'#34D399',
+  ttd:'#4C8DFF', ttdSoft:'#9CBEF7', li:'#22D3EE', liSoft:'#7FE0EE',
+  dark:'#EEF2F8', ink:'#EEF2F8', mute:'#AAB4C5', mute2:'#68738A', line:'rgba(255,255,255,.09)',
+  slate:'#64748B', amber:'#F59E0B', grey:'#39465A', base:'#0B1017', grid:'rgba(255,255,255,.07)'
 };
 
 //==============================================================================
@@ -1012,11 +1049,13 @@ function syncToggleButtons(){
 // shared chart helpers
 //==============================================================================
 const FONT = {family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
-function gridY(opts={}){ return Object.assign({grid:{color:'#EBF0EF'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
+function gridY(opts={}){ return Object.assign({grid:{color:C.grid},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
-function kpiCard(cls,label,value,delta){
-  return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
+// KPI card — house pattern: a two-line label led by a metric colour dot (--kc, matched to the
+// series colour), a big value, a muted sub. No ▲/▼ delta badge on headline tiles.
+function kpiCard(color,label,value,sub){
+  return `<div class="kpi" style="--kc:${color}"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub||'&nbsp;'}</div></div>`;
 }
 function shade(hex,i){
   const f = [0,-14,16,-26,30,-36,44,-44,52,-52,58,-58,64][i%13]||0;
@@ -1028,18 +1067,74 @@ function adjust(hex,amt){
   r=Math.max(0,Math.min(255,r+amt)); g=Math.max(0,Math.min(255,g+amt)); b=Math.max(0,Math.min(255,b+amt));
   return '#'+[r,g,b].map(x=>x.toString(16).padStart(2,'0')).join('');
 }
-const centerText = {
-  id:'centerText',
-  afterDraw(chart){
-    const o=chart.config.options.cutoutText; if(!o) return;
-    const {ctx,chartArea:{left,right,top,bottom}}=chart;
-    const x=(left+right)/2, y=(top+bottom)/2;
-    ctx.save(); ctx.textAlign='center';
-    ctx.fillStyle=C.dark; ctx.font=`700 22px ${FONT.family}`; ctx.fillText(o.line1,x,y-2);
-    ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+16);
+// Pick legible text (near-black vs white) for a label drawn ON a given slice-fill colour.
+function readableOn(hex){ let h=String(hex||'').replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join('');
+  if(h.length<6) return '#fff';
+  const r=parseInt(h.slice(0,2),16),g=parseInt(h.slice(2,4),16),b=parseInt(h.slice(4,6),16);
+  return (0.299*r+0.587*g+0.114*b)/255 > 0.62 ? '#0B1017' : '#FFFFFF'; }
+
+//==============================================================================
+// DONUTS — house behaviour (built via makeDonut). The legend is click-to-toggle with a helper
+// note so it's discoverable; a toggled-OFF slice DIMS TO GREY and stays in the ring (never
+// removed), so it can be clicked back on; each slice prints its numeric value (+ % if it fits);
+// the CENTRE number = the sum of the currently-VISIBLE slices, recomputed on every draw so it
+// stays in sync with the legend selection.
+//==============================================================================
+const DONUT_DIM = '#39465A';
+function donutSliceFmt(v,unit){ return unit==='money' ? 'A$'+fmtM(v) : fmtN(v); }
+function donutVisibleTotal(chart){
+  const ds=chart.data.datasets[0], dim=chart.$dim; let t=0;
+  (ds.data||[]).forEach((v,i)=>{ if(!(dim && dim.has(i))) t+=(+v||0); });
+  return t;
+}
+const donutValues = { id:'donutValues', afterDatasetsDraw(chart){
+  const {ctx}=chart, meta=chart.getDatasetMeta(0), ds=chart.data.datasets[0];
+  const cols=chart.config.options.$sliceColors||[], unit=chart.config.options.$unit;
+  const grand=(ds.data||[]).reduce((s,v)=>s+(+v||0),0)||1, dim=chart.$dim;
+  meta.data.forEach((arc,i)=>{
+    if(dim && dim.has(i)) return;
+    const v=+ds.data[i]||0; if(!v) return;
+    if((arc.endAngle-arc.startAngle) < 0.34) return;                 // slice too thin for a legible label
+    const ang=(arc.startAngle+arc.endAngle)/2, r=(arc.innerRadius+arc.outerRadius)/2;
+    const x=arc.x+Math.cos(ang)*r, y=arc.y+Math.sin(ang)*r, share=v/grand;
+    ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle=readableOn(cols[i]);
+    ctx.font=`700 11px ${FONT.family}`; ctx.fillText(donutSliceFmt(v,unit), x, share>=.07 ? y-6 : y);
+    if(share>=.07){ ctx.globalAlpha=.82; ctx.font=`600 9.5px ${FONT.family}`; ctx.fillText((share*100).toFixed(0)+'%', x, y+7); }
     ctx.restore();
-  }
-};
+  });
+}};
+const donutCenter = { id:'donutCenter', afterDraw(chart){
+  const o=chart.config.options.cutoutText; if(!o) return;
+  const {ctx,chartArea:{left,right,top,bottom}}=chart, x=(left+right)/2, y=(top+bottom)/2, tot=donutVisibleTotal(chart);
+  ctx.save(); ctx.textAlign='center';
+  ctx.fillStyle=C.ink; ctx.font=`800 21px ${FONT.family}`; ctx.fillText(o.unit==='money'?money(tot):fmtM(tot), x, y-2);
+  ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2||'', x, y+16);
+  ctx.restore();
+}};
+// o = {labels[], values[], colors[], unit:'money'|'imps', centerLabel, legendPos}
+function makeDonut(id, o){
+  const node=el(id); if(!node) return;
+  const colors=o.colors, unit=o.unit||'imps';
+  const grand=(o.values||[]).reduce((s,v)=>s+(+v||0),0)||1;
+  charts[id]=new Chart(node,{
+    type:'doughnut',
+    data:{ labels:o.labels, datasets:[{ data:o.values, borderColor:C.base, borderWidth:2,
+      backgroundColor:(ctx)=>{ const c=ctx.chart; return (c.$dim && c.$dim.has(ctx.dataIndex)) ? DONUT_DIM : colors[ctx.dataIndex]; } }]},
+    options:{ maintainAspectRatio:false, cutout:'60%', $sliceColors:colors, $unit:unit,
+      plugins:{
+        legend:{ position:o.legendPos||'bottom',
+          labels:{ color:C.ink, boxWidth:10, boxHeight:10, usePointStyle:true, pointStyle:'circle', font:{size:11,...FONT}, padding:9,
+            generateLabels(chart){ const gl=(((Chart.overrides||{}).doughnut||{}).plugins||{}).legend, base=gl&&gl.labels&&gl.labels.generateLabels;
+              const items=base?base.call(this,chart):[]; const dim=chart.$dim;
+              if(dim) items.forEach(it=>{ if(dim.has(it.index)){ it.fillStyle=DONUT_DIM; it.strokeStyle=DONUT_DIM; it.fontColor=C.mute2; } }); return items; } },
+          onClick(e,item,legend){ const c=legend.chart; c.$dim=c.$dim||new Set(); c.$dim.has(item.index)?c.$dim.delete(item.index):c.$dim.add(item.index); c.update(); },
+          title:{ display:true, text:'Click a legend item to hide or show it', color:C.mute2, font:{size:11,weight:'normal',...FONT}, padding:{top:0,bottom:6} } },
+        tooltip:{ callbacks:{ label:c=>` ${c.label}: ${unit==='money'?money(c.parsed):fmtN(c.parsed)} (${fmtPct(pct(c.parsed,grand),1)})` } }
+      },
+      cutoutText:{ line2:o.centerLabel||'', unit } },
+    plugins:[donutValues, donutCenter]
+  });
+}
 
 //==============================================================================
 // OVERVIEW
@@ -1051,12 +1146,12 @@ function renderOverview(){
   const spendSub = selPlatforms().map(p=>`${money(P[p.key].spend)} ${p.short}`).join(' · ') || 'no platform selected';
   const impSub   = selPlatforms().map(p=>`${p.short} ${fmtM(P[p.key].imps)}`).join(' · ') || '—';
   el('ovKpis').innerHTML =
-    kpiCard('accent','Media spend (AUD)', money(a.spend), spendSub)
-  + kpiCard('accent','Impressions', fmtM(a.imps), impSub)
-  + kpiCard('accent','Clicks', fmtN(a.clk), `${money(a.clk?a.spend/a.clk:0,'A$',2)} CPC`)
-  + kpiCard('','CTR', fmtPct(ctr,2), `${money(a.imps?a.spend/a.imps*1000:0,'A$',2)} CPM`)
-  + kpiCard('accent','Conversions', fmtN(a.conv), `Trade Desk pixel`)
-  + kpiCard('li','LinkedIn engagements', fmtN(DATA.kpi.li_eng), `${fmtN(DATA.kpi.li_video_views)} video views · whole flight`);
+    kpiCard(C.slate,'Media spend (AUD)', money(a.spend), spendSub)
+  + kpiCard('#22D3EE','Impressions', fmtM(a.imps), impSub)
+  + kpiCard('#A3E635','Clicks', fmtN(a.clk), `${money(a.clk?a.spend/a.clk:0,'A$',2)} CPC`)
+  + kpiCard(C.teal,'CTR', fmtPct(ctr,2), `${money(a.imps?a.spend/a.imps*1000:0,'A$',2)} CPM`)
+  + kpiCard('#8B5CF6','Conversions', fmtN(a.conv), `Trade Desk pixel · not LinkedIn`)
+  + kpiCard('#2DD4BF','LinkedIn engagements', fmtN(DATA.kpi.li_eng), `${fmtN(DATA.kpi.li_video_views)} video views · whole flight`);
 
   // Hero: ad SPEND stacked bars by platform (y, AUD, always absolute) + total IMPRESSIONS
   // line (y1). VIEW BY = ovGrain (month/week/day); AXIS = ovScale. Relative indexes the
@@ -1095,16 +1190,8 @@ function renderOverview(){
 
   // Spend donut by platform (selected platforms, selected campaigns)
   const sp = selPlatforms();
-  charts.ovSpendDonut = new Chart(el('ovSpendDonut'),{
-    type:'doughnut',
-    data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>P[p.key].spend),
-      backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'62%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:12,...FONT},color:C.ink,padding:10}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,a.spend),0)})`}} },
-      cutoutText:{ line1:money(a.spend), line2:'total spend' } },
-    plugins:[centerText]
-  });
+  makeDonut('ovSpendDonut', { labels:sp.map(p=>p.label), values:sp.map(p=>P[p.key].spend),
+    colors:sp.map(p=>p.color), unit:'money', centerLabel:'total spend' });
 
   // Format-mix donut (whole flight; reflects the Platform filter): TTD Display/Video + LI Standard/Video by imps.
   const fmtSeg = [];
@@ -1119,17 +1206,8 @@ function renderOverview(){
       fmtSeg.push({label:'LinkedIn '+(isVid?'Video':'Standard'), v:r.imps, color: isVid?C.liSoft:C.li});
     }
   }
-  const fmtTot = fmtSeg.reduce((s,d)=>s+d.v,0);
-  charts.ovFormatDonut = new Chart(el('ovFormatDonut'),{
-    type:'doughnut',
-    data:{ labels:fmtSeg.map(d=>d.label), datasets:[{ data:fmtSeg.map(d=>d.v),
-      backgroundColor:fmtSeg.map(d=>d.color), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps (${fmtPct(pct(c.parsed,fmtTot),1)})`}} },
-      cutoutText:{ line1:fmtM(fmtTot), line2:'impressions' } },
-    plugins:[centerText]
-  });
+  makeDonut('ovFormatDonut', { labels:fmtSeg.map(d=>d.label), values:fmtSeg.map(d=>d.v),
+    colors:fmtSeg.map(d=>d.color), unit:'imps', centerLabel:'impressions' });
 
   // Impressions (bars, left, absolute) + clicks (line, right). Same VIEW BY / AXIS as the
   // hero (shared ovGrain/ovScale). Relative indexes the clicks line to its own peak=100.
@@ -1169,12 +1247,12 @@ function renderProgrammatic(){
   const k = DATA.kpi;
   const ctr = pct(k.td_clicks,k.td_imps), cpm = k.td_imps? k.td_spend_aud/k.td_imps*1000:0, cpc = k.td_clicks? k.td_spend_aud/k.td_clicks:0;
   el('pgKpis').innerHTML =
-    kpiCard('accent','Spend (AUD)', money(k.td_spend_aud), `${fmtPct(ctr,2)} CTR`)
-  + kpiCard('accent','Impressions', fmtM(k.td_imps), `${money(cpm,'A$',2)} CPM`)
-  + kpiCard('','Clicks', fmtN(k.td_clicks), `${money(cpc,'A$',2)} CPC`)
-  + kpiCard('','CTR', fmtPct(ctr,2), `display + video`)
-  + kpiCard('','CPM', money(cpm,'A$',2), `cost per 1,000 impressions`)
-  + kpiCard('accent','Conversions', fmtN(k.td_conv), `${fmtN(k.td_click_conv)} click · ${fmtN(k.td_vt_conv)} view-through`);
+    kpiCard(C.slate,'Spend (AUD)', money(k.td_spend_aud), `${fmtPct(ctr,2)} CTR`)
+  + kpiCard('#22D3EE','Impressions', fmtM(k.td_imps), `${money(cpm,'A$',2)} CPM`)
+  + kpiCard('#A3E635','Clicks', fmtN(k.td_clicks), `${money(cpc,'A$',2)} CPC`)
+  + kpiCard(C.teal,'CTR', fmtPct(ctr,2), `display + video`)
+  + kpiCard('#F97316','CPM', money(cpm,'A$',2), `cost per 1,000 impressions`)
+  + kpiCard('#8B5CF6','Conversions', fmtN(k.td_conv), `${fmtN(k.td_click_conv)} click · ${fmtN(k.td_vt_conv)} view-through`);
 
   // Display vs Video — impressions (bars, left) + spend (bars, right), grouped.
   const mt = (DATA.td_media_type||[]);
@@ -1195,17 +1273,8 @@ function renderProgrammatic(){
 
   // Creative-size mix (donut, by imps)
   const sz = (DATA.td_creative_sizes||[]);
-  const szTot = sz.reduce((s,r)=>s+(r.imps||0),0);
-  charts.pgSizes = new Chart(el('pgSizes'),{
-    type:'doughnut',
-    data:{ labels:sz.map(r=>r.creative_size), datasets:[{ data:sz.map(r=>r.imps),
-      backgroundColor:sz.map((r,i)=>shade(C.teal,i)), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%',
-      plugins:{ legend:{position:'right',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:8}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps (${fmtPct(pct(c.parsed,szTot),1)})`}} },
-      cutoutText:{ line1:fmtM(szTot), line2:'impressions' } },
-    plugins:[centerText]
-  });
+  makeDonut('pgSizes', { labels:sz.map(r=>r.creative_size), values:sz.map(r=>r.imps),
+    colors:sz.map((r,i)=>shade(C.teal,i)), unit:'imps', centerLabel:'impressions', legendPos:'right' });
 
   // By ABM segment — horizontal bars: impressions (x bottom) + spend (x1 top).
   const seg = (DATA.td_segments||[]);
@@ -1238,7 +1307,7 @@ function renderProgrammatic(){
   const pgSpendMax = Math.max(0,...pgSpend);
   charts.pgDaily = new Chart(el('pgDaily'),{
     data:{ labels:pgKeys.map(pgLblF), datasets:[
-      { type:'bar', label:'Impressions', data:pgImps, backgroundColor:'rgba(31,111,235,.80)', borderRadius:3, maxBarThickness:20, yAxisID:'y', order:1 },
+      { type:'bar', label:'Impressions', data:pgImps, backgroundColor:'rgba(76,141,255,.82)', borderRadius:3, maxBarThickness:20, yAxisID:'y', order:1 },
       { type:'line', label:'Spend (AUD)', data:pgRel?indexed(pgSpend):pgSpend, borderColor:C.amber, backgroundColor:C.amber, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y1', order:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
@@ -1262,12 +1331,12 @@ function renderSocial(){
   const k = DATA.kpi;
   const ctr = pct(k.li_clicks,k.li_imps), cpm = k.li_imps? k.li_spend_aud/k.li_imps*1000:0, cpc = k.li_clicks? k.li_spend_aud/k.li_clicks:0;
   el('soKpis').innerHTML =
-    kpiCard('li','Spend (AUD)', money(k.li_spend_aud), `${money(cpc,'A$',2)} CPC`)
-  + kpiCard('li','Impressions', fmtM(k.li_imps), `${money(cpm,'A$',2)} CPM`)
-  + kpiCard('','Clicks', fmtN(k.li_clicks), `${fmtPct(ctr,2)} CTR`)
-  + kpiCard('accent','Engagements', fmtN(k.li_eng), `${fmtN(k.li_video_views)} video views`)
-  + kpiCard('accent','Lead-form opens', fmtN(k.li_lead_opens), `${fmtN(k.li_leads)} lead`)
-  + kpiCard('','Conversions', fmtN(k.li_conv==null?0:k.li_conv), `no LinkedIn pixel`);
+    kpiCard(C.slate,'Spend (AUD)', money(k.li_spend_aud), `${money(cpc,'A$',2)} CPC`)
+  + kpiCard(C.li,'Impressions', fmtM(k.li_imps), `${money(cpm,'A$',2)} CPM`)
+  + kpiCard('#A3E635','Clicks', fmtN(k.li_clicks), `${fmtPct(ctr,2)} CTR`)
+  + kpiCard('#2DD4BF','Engagements', fmtN(k.li_eng), `${fmtN(k.li_video_views)} video views`)
+  + kpiCard('#3B82F6','Lead-form opens', fmtN(k.li_lead_opens), `${fmtN(k.li_leads)} form lead`)
+  + kpiCard(C.slate,'Conversions', k.li_conv==null?'—':fmtN(k.li_conv), `no LinkedIn pixel feed`);
 
   // By objective — spend (bars, left) + impressions (line, right)
   const gr = (DATA.li_groups||[]);
@@ -1288,17 +1357,8 @@ function renderSocial(){
 
   // Creative mix (donut, by imps): Standard vs Video
   const cr = (DATA.li_creative||[]);
-  const crTot = cr.reduce((s,r)=>s+(r.imps||0),0);
-  charts.soCreative = new Chart(el('soCreative'),{
-    type:'doughnut',
-    data:{ labels:cr.map(r=>r.creative_type), datasets:[{ data:cr.map(r=>r.imps),
-      backgroundColor:cr.map(r=> /video/i.test(r.creative_type)?C.liSoft:C.li), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%',
-      plugins:{ legend:{position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:9}},
-        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps (${fmtPct(pct(c.parsed,crTot),1)})`}} },
-      cutoutText:{ line1:fmtM(crTot), line2:'impressions' } },
-    plugins:[centerText]
-  });
+  makeDonut('soCreative', { labels:cr.map(r=>r.creative_type), values:cr.map(r=>r.imps),
+    colors:cr.map(r=> /video/i.test(r.creative_type)?C.liSoft:C.li), unit:'imps', centerLabel:'impressions' });
 
   // Delivery — impressions (line, left) + spend (bars, right, absolute). Whole-flight
   // LinkedIn (NOT campaign-filtered, matching DATA.monthly), date-range scoped. VIEW BY =
@@ -1313,8 +1373,8 @@ function renderSocial(){
   const soImpsMax = Math.max(0,...soImps);
   charts.soMonthly = new Chart(el('soMonthly'),{
     data:{ labels:soKeys.map(soLblF), datasets:[
-      { type:'bar', label:'Spend (AUD)', data:soSpend, backgroundColor:'rgba(40,103,178,.78)', borderRadius:3, maxBarThickness:30, yAxisID:'y1', order:1 },
-      { type:'line', label:'Impressions', data:soRel?indexed(soImps):soImps, borderColor:C.li, backgroundColor:'rgba(40,103,178,.10)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2, yAxisID:'y', order:0 }
+      { type:'bar', label:'Spend (AUD)', data:soSpend, backgroundColor:'rgba(100,116,139,.55)', borderRadius:3, maxBarThickness:30, yAxisID:'y1', order:1 },
+      { type:'line', label:'Impressions', data:soRel?indexed(soImps):soImps, borderColor:C.li, backgroundColor:'rgba(34,211,238,.12)', borderWidth:2.5, fill:true, tension:.35, pointRadius:2, yAxisID:'y', order:0 }
     ]},
     options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
       plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{
