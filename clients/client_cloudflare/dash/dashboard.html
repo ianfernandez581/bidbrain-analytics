@@ -666,7 +666,7 @@
             <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div></div>
             <div class="ctrls">
               <span class="seg" id="ttdImpCtr_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
-              <span class="seg" id="ttdImpCtr_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+              <span class="seg" id="ttdImpCtr_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
             </div></div>
             <div class="chart-wrap"><canvas id="ttdImpCtr"></canvas></div>
           </div>
@@ -683,7 +683,7 @@
             <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window. <b>Relative</b> = 100%-stacked share.</div></div>
             <div class="ctrls">
               <span class="seg" id="dailyStack_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
-              <span class="seg" id="dailyStack_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
+              <span class="seg" id="dailyStack_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
             </div></div>
             <div class="chart-wrap"><canvas id="dailyStack"></canvas></div>
           </div>
@@ -1084,7 +1084,7 @@ const charts = {};
 // ---- Per-chart Grain (month/week/day) + Scale (rel/abs) toggle state ----
 // Default scale = 'rel' everywhere (relative). Defaults preserve each chart's
 // pre-existing native grain (paid trends + CS daily = day; CS pacing = week).
-let pmGrain='day',     pmScale='rel';      // shared by ttdImpCtr + dailyStack
+let pmGrain='week',    pmScale='rel';      // shared by ttdImpCtr + dailyStack (default Week)
 let effGrain='day',    effScale='rel';     // shared by ctrTrend / clkTrend / cpcTrend
 let cmpGrain='day',    cmpScale='rel';     // shared by cmpDaily + cmpSpend
 let csDailyGrain='day',  csDailyScale='rel';  // dailyChart (accepted leads)
