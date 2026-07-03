@@ -1188,8 +1188,13 @@ const doughnutExtras = {
   id: 'doughnutExtras',
   beforeInit(chart){
     if (chart.config.type !== 'doughnut') return;
-    const pl = chart.options.plugins = chart.options.plugins || {};
-    const lg = pl.legend = pl.legend || {};
+    // Assign ONLY when the property is genuinely missing. The old pattern
+    // (x = x || {}) read the Chart.js options *proxy* and wrote it straight back
+    // onto itself, sending the option resolver's set-trap into infinite recursion
+    // ("Maximum call stack size exceeded" in helpers.config, :103 <-> :190) on
+    // some re-renders. Conditional assignment never writes a proxy back onto itself.
+    const pl = chart.options.plugins || (chart.options.plugins = {});
+    const lg = pl.legend || (pl.legend = {});
     lg.title = Object.assign({ display:true, text:'Tip: click a label to show / hide it',
       color:'#5A6B78', padding:{top:0,bottom:6}, font:{size:10.5, style:'italic', weight:'500'} }, lg.title || {});
   },
