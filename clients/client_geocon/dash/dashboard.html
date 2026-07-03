@@ -163,6 +163,9 @@
 
   /* KPIs — house dot pattern; clickable cards toggle their hero series */
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin:16px 0 8px}
+  .nsband{margin:16px 0 8px;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent)}
+  #ovNorth .nsrow{margin-top:0}
+  #ovNorth .nsrow .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 20%,transparent),transparent 62%)}
   .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 13%,transparent),transparent 58%),
        linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:14px;padding:15px 16px;position:relative;overflow:hidden;box-shadow:var(--card-glow)}
   .kpi .label{display:flex;align-items:flex-start;gap:7px;font-size:11px;line-height:1.3;font-weight:600;letter-spacing:.3px;color:var(--muted);min-height:29px}
@@ -342,7 +345,11 @@
         <span class="sub" id="introCopy"></span>
       </div>
 
-      <div id="ovNorth"><div class="kpis" id="kpiGrid"></div></div>
+      <div id="ovNorth">
+        <div class="nsband">Campaign goal &middot; qualified enquiries at an efficient cost</div>
+        <div class="kpis nsrow" id="kpiGridN"></div>
+        <div class="kpis" id="kpiGrid"></div>
+      </div>
 
       <div class="grid cols-2-1">
         <div class="card">
@@ -350,7 +357,7 @@
             <div class="titles"><h3>Delivery over time</h3><div class="hint" id="trendHint"></div></div>
             <div class="card-ctrls">
               <span class="seg" id="axisSeg"><span class="cap">AXIS</span><button type="button" data-axis="rel" class="on">Relative</button><button type="button" data-axis="abs">Absolute</button></span>
-              <span class="seg" id="grainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span>
+              <span class="seg" id="grainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
             </div>
           </div>
           <div class="chartbox tall"><canvas id="trendChart"></canvas></div>
@@ -366,7 +373,7 @@
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Enquiry funnel</h3><div class="hint">Impressions → link clicks → landing-page views → Meta leads → qualified (modeled).</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card"><h3>Enquiry funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Where the money goes</h3><div class="hint">Spend share by funnel stage.</div><div id="moneyFlow" style="margin-top:8px"></div></div>
       </div>
 
@@ -420,7 +427,7 @@
 <script>
 const JSON_URL = '/data.json';
 let DATA = {};
-let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'month', axis:'rel'};
+let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel'};
 const HERO_HIDDEN = new Set();          // clickable-KPI series toggles for the hero (persist across re-render)
 const charts = {};
 const $ = id => document.getElementById(id);
@@ -600,24 +607,33 @@ function renderKpis(){
   const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target'),qT=bench('qualified_lead_target');
   const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=q?a.spend/q:null;
   const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
-  const cards=[
+  // North-star (resetdata pattern): the campaign goal — enquiries at an efficient cost, plus the
+  // qualified downstream. These are the big tiles; the ones that map to a hero line are clickable.
+  const north=[
+    {color:MC.leads,north:true,series:'leads',label:'Meta enquiries',value:int(a.leads),
+      sub:leadT!=null?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)}`:'Meta-reported'},
+    {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'—',
+      sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
     {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
-      sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${int(a.leads)} enquiries × ${pctWhole(qualRate())}`,badge:'modelled · no CRM feed'},
-    {color:MC.leads,series:'leads',label:'Meta enquiries',value:int(a.leads),sub:leadT!=null?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)}`:'Meta-reported'},
-    {color:MC.spend,series:'spend',label:'Spend',value:money(a.spend),sub:budget?`${spendPct}% of ${money(budget)} flight budget`:'budget not set'},
-    {color:MC.cost,label:'Cost / qualified lead',value:cpql!=null?money(cpql):'—',sub:cpqlT!=null?`target ${money(cpqlT)}`:'modelled'},
-    {color:MC.cost,label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'—',sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
-    {color:MC.ctr,label:'CTR (link)',value:pct(a.ctr),sub:ctrT!=null?`target ${pct(ctrT)}`:'link CTR'},
-    {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'—'}`},
-    {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'—'}`}
+      sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${pctWhole(qualRate())} of enquiries`,badge:'modelled · no CRM feed'},
+    {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
+      sub:budget?`${spendPct}% of ${money(budget)} flight`:'budget not set'}
   ];
-  $('kpiGrid').innerHTML=cards.map(kpiCard).join('');
+  // Context — the funnel inputs / delivery quality (static tiles).
+  const ctx=[
+    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'—'}`},
+    {color:MC.ctr,label:'CTR (link)',value:pct(a.ctr),sub:ctrT!=null?`target ${pct(ctrT)}`:'link CTR'},
+    {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'—'}`},
+    {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'—'}`}
+  ];
+  $('kpiGridN').innerHTML=north.map(kpiCard).join('');
+  $('kpiGrid').innerHTML=ctx.map(kpiCard).join('');
   wireKpiToggles();
 }
 function heroSeriesIdx(chart,group){return chart.data.datasets.reduce((acc,d,i)=>{if(d._group===group)acc.push(i);return acc;},[]);}
 function wireKpiToggles(){
   const chart=charts.trendChart;
-  document.querySelectorAll('#kpiGrid .kpi.clk').forEach(card=>{
+  document.querySelectorAll('#ovNorth .kpi.clk').forEach(card=>{
     const group=card.getAttribute('data-series');const off=HERO_HIDDEN.has(group);card.classList.toggle('off',off);
     card.onclick=()=>{HERO_HIDDEN.has(group)?HERO_HIDDEN.delete(group):HERO_HIDDEN.add(group);card.classList.toggle('off',HERO_HIDDEN.has(group));
       const ch=charts.trendChart;if(ch){heroSeriesIdx(ch,group).forEach(i=>{ch.getDatasetMeta(i).hidden=HERO_HIDDEN.has(group)?true:null;});ch.update();}};
@@ -630,21 +646,26 @@ function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
   const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
+  const cpl=rows.map(r=>n(r.leads)?r.spend/r.leads:null);   // cost-per-enquiry per period — the media-buyer efficiency line
   const ds=[
-    {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(197,106,78,.6)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:3},
-    {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:1},
+    {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(197,106,78,.6)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
+    {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
+    {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
     {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}
   ];
-  $('trendHint').textContent=`${gw} spend (bars) with enquiries + modelled qualified leads.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  $('trendHint').textContent=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads — the spend-to-outcome view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
   const fmtKind={money:v=>money(v),int:v=>int(v)};
   const scales=rel
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
-    : {x:axis({grid:{display:false}}),y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Leads',color:MC.muted2,font:{size:11}}}};
+    : {x:axis({grid:{display:false}}),
+       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
+       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries / qualified',color:MC.muted2,font:{size:11}}},
+       y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}};
   makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'—':f(v)}`;}}}},
     scales}});
   // re-apply KPI toggles to the freshly-built chart
-  ['spend','leads','qualified'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
+  ['spend','leads','cost','qualified'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
   if(charts.trendChart)charts.trendChart.update();
 }
 
@@ -666,8 +687,16 @@ function renderStageDonut(){
 function renderFunnel(){
   const a=agg(scoped());
   const rows=[{name:'Impressions',value:n(a.impressions),color:MC.reach},{name:'Link clicks',value:n(a.link_clicks),color:MC.ctr},{name:'LP views',value:n(a.lpv),color:MC.lpv},{name:'Meta enquiries',value:n(a.leads),color:MC.leads},{name:'Qualified (modelled)',value:qualified(a.leads),color:MC.qualified}];
-  const max=Math.max(...rows.map(r=>r.value),1);
-  $('funnelList').innerHTML=rows.map((r,i)=>{const prev=i?rows[i-1].value:null;const rate=prev?`${pct(prev?r.value/prev:0,1)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${Math.max(2,r.value/max*100)}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;}).join('');
+  // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume — so the
+  // 65:1 impressions→click drop no longer flattens every later bar. Impressions is the 100% baseline;
+  // each later bar shows how well that step converted (a 4% floor keeps tiny rates visible). Count shown.
+  $('funnelList').innerHTML=rows.map((r,i)=>{
+    const prev=i?rows[i-1].value:null;
+    const conv=prev?(r.value/prev):1;
+    const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
+    const rate=prev?`${pct(conv,1)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
+    return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
+  }).join('');
 }
 function renderMoneyFlow(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
