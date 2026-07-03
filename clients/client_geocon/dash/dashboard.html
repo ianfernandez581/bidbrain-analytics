@@ -371,6 +371,8 @@
         </div>
       </div>
 
+      <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date — <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
+
       <div class="grid cols-2">
         <div class="card"><h3>Enquiry funnel</h3><div class="hint">Impressions → link clicks → landing-page views → enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
@@ -397,9 +399,14 @@
           <th class="num">CPC</th><th class="num">Δ</th><th class="num">CPL</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Efficiency map — cost per enquiry vs CTR</h3>
-        <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets — bubbles in the lower-right quadrant are the winners.</div>
-        <div class="chartbox tall"><canvas id="effScatter"></canvas></div></div>
+      <div class="grid cols-2">
+        <div class="card"><h3>Efficiency map — cost per enquiry vs CTR</h3>
+          <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets — the lower-right quadrant is the winners' zone.</div>
+          <div class="chartbox tall"><canvas id="effScatter"></canvas></div></div>
+        <div class="card"><h3>Cost per enquiry over time</h3>
+          <div class="hint">Weekly cost per enquiry vs the CPL target — is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
+          <div class="chartbox tall"><canvas id="cplTrend"></canvas></div></div>
+      </div>
 
       <div class="grid cols-2-1">
         <div class="card"><h3>Spend by ad set</h3><div class="hint">Top ad sets by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
@@ -584,8 +591,8 @@ function legendTop(){return {position:'top',align:'end',labels:{color:MC.ink,use
 
 // ================================= RENDER =================================
 function render(){
-  renderHeader();renderKpis();renderTrend();renderPacing();renderGoalProgress();renderStageDonut();renderFunnel();renderStageTable();renderInsights();renderNote();
-  renderBenchTable();renderEffScatter();renderSegment();renderTables();renderFatigue();renderBurn();
+  renderHeader();renderKpis();renderTrend();renderPacing();renderGoalProgress();renderPaceToGoal();renderStageDonut();renderFunnel();renderStageTable();renderInsights();renderNote();
+  renderBenchTable();renderEffScatter();renderCplTrend();renderSegment();renderTables();renderFatigue();renderBurn();
   renderCreative();renderFooter();renderDateScope();
 }
 function renderHeader(){
@@ -702,6 +709,34 @@ function renderGoalProgress(){
   $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
     +bar('Enquiries',a.leads,leadT,MC.leads,'')
     +bar('Qualified (modelled)',q,qT,MC.qualified,`×${pctWhole(qualRate())} of enquiries`);
+}
+// Cumulative enquiries across the flight vs the straight-line pace needed to hit the lead target by
+// the end date (full-flight; the client's "are we on track?" read). Above the dashed line = ahead.
+function renderPaceToGoal(){
+  const f=flight();const leadT=bench('lead_target');const fstart=f.start,ftot=n(f.days_total)||null;
+  const days=dailyOf(ROWS());
+  if(!days.length){makeChart('paceGoal',{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});return;}
+  const labels=days.map(d=>fmtDate(d.date));
+  const cum=days.map(d=>d.cum_leads);
+  const pace=(leadT&&fstart&&ftot)?days.map(d=>{const dn=daysBetween(fstart,String(d.date).slice(0,10))+1;return Math.round(Math.max(0,Math.min(ftot,dn))/ftot*leadT);}):null;
+  const ds=[{label:'Enquiries (cumulative)',data:cum,borderColor:MC.leads,backgroundColor:'rgba(227,161,92,.14)',fill:true,tension:.25,pointRadius:0,borderWidth:2.8}];
+  if(pace)ds.push({label:`Target pace → ${int(leadT)}`,data:pace,borderColor:MC.qualified,borderDash:[6,4],pointRadius:0,borderWidth:2,fill:false,tension:0});
+  makeChart('paceGoal',{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10},maxTicksLimit:10}}),y:axis({beginAtZero:true,title:{display:true,text:'Cumulative enquiries',color:MC.muted2,font:{size:11}}})}}});
+}
+// Weekly cost per enquiry vs the CPL target — the media-buyer's efficiency trajectory. Reflects the
+// date + stage filters; weekly buckets keep a short flight readable.
+function renderCplTrend(){
+  const days=dailyOf(scoped());const m=new Map();
+  days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,spend:0,leads:0};m.set(w,o);}o.spend+=n(d.spend);o.leads+=n(d.leads);});
+  const wk=[...m.values()].sort((a,b)=>a.w.localeCompare(b.w));
+  const labels=wk.map(o=>fmtDate(o.w));const cpl=wk.map(o=>o.leads?o.spend/o.leads:null);
+  const cplT=bench('cpl');
+  const tline=cplT!=null?{id:'cplTgt',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.y)return;const y=scales.y.getPixelForValue(cplT);if(y>chartArea.top&&y<chartArea.bottom){ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();ctx.fillStyle=MC.muted2;ctx.font='700 10px '+FONT.family;ctx.fillText('CPL target '+money(cplT),chartArea.left+6,y-4);ctx.restore();}}}:null;
+  makeChart('cplTrend',{type:'line',data:{labels,datasets:[{label:'Cost per enquiry',data:cpl,borderColor:MC.cost,backgroundColor:'rgba(224,113,78,.14)',fill:true,spanGaps:true,tension:.3,pointRadius:2,borderWidth:2.8}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'—':`Cost per enquiry: ${money(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)}})}},plugins:tline?[tline]:[]});
 }
 function renderInsights(){
   const a=agg(scoped());const st=byStage(scoped());const ads=byAd(scoped()).filter(x=>n(x.spend)>0);
