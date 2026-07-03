@@ -43,6 +43,24 @@ AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "transmission2
 # application" OAuth client in the Cloud Console and inject its ID with scripts/enable_google_login.ps1.
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "")
 
+# --- Microsoft sign-in (native "Sign in with Microsoft" — Teams/M365 accounts) --------------
+# The exact twin of Google above, for the team's Microsoft world (a "Sign in with Teams" login is just
+# a Microsoft work/school account). The login page loads MSAL.js and renders a "Sign in with Microsoft"
+# button; a popup returns a signed ID token (JWT) which the browser posts to /auth/microsoft, and the
+# server verifies it against Microsoft's per-tenant JWKS (no client secret — same public-client model as
+# Google) then maps the verified email to a role via the SAME store.resolve_email. Empty CLIENT_ID =>
+# the button is hidden and /auth/microsoft is disabled (password + Google login unaffected).
+#
+# SINGLE-TENANT by design: MICROSOFT_OAUTH_TENANT must be OUR Entra tenant (its GUID, or a verified
+# domain like `100.digital` / `<org>.onmicrosoft.com`). It pins BOTH the authority the button talks to
+# AND the issuer/`tid` the server accepts — so only accounts in our own organisation can sign in, and a
+# work/school UPN is org-controlled (authoritative), which is why no `email_verified` claim is needed
+# (Microsoft ID tokens don't carry one). This is what makes the @100.digital domain-auto-admin rule
+# below safe over Microsoft too: a foreign tenant can't mint a token our tenant-scoped keys will verify.
+# Both are injected by scripts/enable_microsoft_login.ps1 (create the Entra app registration first).
+MICROSOFT_OAUTH_CLIENT_ID = os.environ.get("MICROSOFT_OAUTH_CLIENT_ID", "")
+MICROSOFT_OAUTH_TENANT = os.environ.get("MICROSOFT_OAUTH_TENANT", "")
+
 # Emails on these domains are granted the ADMIN role AUTOMATICALLY the first time they sign in with
 # Google — no super admin has to add them first. On that first login the verified email is written
 # into the registry's `users` map (see store.record_domain_admin), so the account then shows up in the

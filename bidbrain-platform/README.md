@@ -166,6 +166,42 @@ then inject its id:
 .\scripts\enable_google_login.ps1 -ClientId '1234...apps.googleusercontent.com'
 ```
 
+## Sign in with Microsoft (Teams / M365 — the twin of Google)
+The exact same additive pattern for the team's Microsoft world. A **"Sign in with Microsoft"** button
+sits **beneath** the Google button (a "Sign in with Teams" login is just a Microsoft **work/school
+account** — there's no separate Teams identity, so the button carries Microsoft's standard label). Off
+until switched on: it needs **both** `MICROSOFT_OAUTH_CLIENT_ID` **and** `MICROSOFT_OAUTH_TENANT`
+(single-tenant); either unset ⇒ the button is hidden and `/auth/microsoft` is inert (password + Google
+unaffected).
+
+**How it works.** The login page loads **MSAL.js** and, on click, opens a Microsoft **login popup**
+that returns a signed **ID token (JWT)**; the browser posts it to `/auth/microsoft` (same-origin fetch).
+The server verifies it with **PyJWT** against the tenant's **JWKS** (`.../{tenant}/discovery/v2.0/keys`)
+— RS256 signature, `aud` = our client id, `exp`, and the issuer pinned to
+`https://login.microsoftonline.com/{tid}/v2.0` (plus `tid` == our tenant when the tenant is given as a
+GUID) — then maps the **verified email** (`email`, else the UPN in `preferred_username`) to a role with
+the **same `store.resolve_email`**. So password / Google / Microsoft are identical from
+`_establish_session` on, and the allow-list (registry `users` map) is **shared** — one grant works for
+either provider. Public-client model like Google: **no client secret**, the signed JWT is the proof.
+
+**Single-tenant is the safety.** `MICROSOFT_OAUTH_TENANT` is **our own Entra tenant** (its GUID, or a
+verified domain). It pins both the authority the button talks to and the issuer/`tid` the server
+accepts, so **only our organisation's accounts** can sign in — which is what makes the `@100.digital`
+**domain auto-admin** rule (shared with Google, via `record_domain_admin`) safe over Microsoft: a
+foreign tenant can't mint a token our tenant-scoped keys will verify. A work/school UPN is
+org-controlled, so it's authoritative — that's why no `email_verified` claim is required (Microsoft ID
+tokens don't carry one; Google's do, hence the asymmetry in the two routes).
+
+**Switch it on (one-time).** The app registration can't be created with gcloud — make it in Entra,
+then inject the two ids:
+```powershell
+# 1. entra.microsoft.com -> App registrations -> New registration; "single tenant";
+#    Redirect URI platform = "Single-page application (SPA)": https://dashboards.bidbrain.ai
+#    (+ the raw https://platform-dash-...run.app). Copy the Application (client) ID + Directory (tenant) ID.
+# 2. Inject both (re-runnable; password + Google login unaffected):
+.\scripts\enable_microsoft_login.ps1 -ClientId '<application-client-id>' -Tenant '<directory-tenant-id>'
+```
+
 ## How "no second password" works TODAY — a reverse proxy
 The platform is live on the custom domain **https://dashboards.bidbrain.ai**. The individual
 dashboards have **no** `<c>.bidbrain.ai` subdomains, and a shared SSO cookie can't span raw `run.app`
@@ -323,9 +359,9 @@ routes, copy `bb_deck.js`, and add its key to `SLIDES_CLIENTS`.
 bidbrain-platform/
   deploy_platform.ps1            one-shot standup (APIs, bucket, SA+IAM, secrets, build, deploy, seed)
   dash/
-    main.py                      Flask: login (password + Google /auth/google) → tier resolution → SSO cookie → portal / admin / CRUD
-    store.py                     GCS-JSON registry layer + password hashing + login resolution (password & Google email; memory backend for dev)
-    config.py                    SEED source of truth: agencies, clients, campaigns, passwords, Google client id + users
+    main.py                      Flask: login (password + Google /auth/google + Microsoft /auth/microsoft) → tier resolution → SSO cookie → portal / admin / CRUD
+    store.py                     GCS-JSON registry layer + password hashing + login resolution (password & Google/Microsoft email; memory backend for dev)
+    config.py                    SEED source of truth: agencies, clients, campaigns, passwords, Google + Microsoft client ids + users
     platform_sso.py              shared SSO token (issuer here; VENDORED into every dashboard as the verifier)
     feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
@@ -335,6 +371,7 @@ bidbrain-platform/
   Creatives/                     the design screenshot + source logo.svg
 scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mode IAM (see "Super admin")
 scripts/enable_google_login.ps1  one-time: inject the public OAuth client id for Google sign-in (see "Sign in with Google")
+scripts/enable_microsoft_login.ps1 one-time: inject the Microsoft app (client) id + tenant id for Microsoft sign-in (see "Sign in with Microsoft")
 ```
 
 ## Deploy & operate
@@ -367,6 +404,10 @@ $env:GCS_BUCKET="bidbrain-analytics-platform-dash"; .\.venv\Scripts\python.exe b
 # Enable native "Sign in with Google" (one-time; create the OAuth client in the Console first — see
 # "Sign in with Google"). Re-runnable; password login is unaffected:
 .\scripts\enable_google_login.ps1 -ClientId '1234...apps.googleusercontent.com'
+
+# Enable native "Sign in with Microsoft" (one-time; create the Entra app registration first — see
+# "Sign in with Microsoft"). Re-runnable; password + Google login unaffected:
+.\scripts\enable_microsoft_login.ps1 -ClientId '<application-client-id>' -Tenant '<directory-tenant-id>'
 ```
 
 ## Local dev (no GCP)
@@ -382,7 +423,9 @@ web SA `platform-dash-web@` (`roles/storage.objectAdmin` on its bucket + `secret
 super-admin god-mode**: `secretmanager.secretVersionAdder` on each `<c>-dash-password`, project
 `run.developer`, and `iam.serviceAccountUser` on each `<c>-dash` runtime SA) · secrets
 `platform-dash-session-key`, `platform-sso-key`, `platform-super-admin-password` · env
-`GOOGLE_OAUTH_CLIENT_ID` (public OAuth client id for native Google sign-in; no secret) · registry
+`GOOGLE_OAUTH_CLIENT_ID` (public OAuth client id for native Google sign-in; no secret) ·
+`MICROSOFT_OAUTH_CLIENT_ID` + `MICROSOFT_OAUTH_TENANT` (public app + tenant id for single-tenant
+Microsoft sign-in; no secret) · registry
 `gs://bidbrain-analytics-platform-dash/platform.json` (private). No database, no export job, no scheduler.
 
 ## Hardening / known trade-offs

@@ -54,6 +54,16 @@ that panel; an explicit registry/seed row always wins (so the seed super admin i
 a re-scoped domain user keeps its assignment). Switch on with `scripts/enable_google_login.ps1 -ClientId <id>` (create the
 "Web application" OAuth client in the Console first — gcloud can't); empty `GOOGLE_OAUTH_CLIENT_ID` ⇒
 button hidden, passwords unaffected.
+**Sign in with Microsoft (Teams/M365) — twin of Google:** a "Sign in with Microsoft" button sits below
+the Google one (a "Teams" login IS a Microsoft work/school account, no separate identity). MSAL.js popup
+→ signed ID token → `/auth/microsoft` verifies it with **PyJWT** against the tenant's JWKS (RS256 + `aud`
++ issuer/`tid` pinned) → the SAME `store.resolve_email` (shared allow-list; a grant works for either
+provider). **SINGLE-TENANT** (`MICROSOFT_OAUTH_TENANT` = our Entra tenant) is the safety — only our org's
+accounts sign in, which is what keeps the `@100.digital` domain-auto-admin safe over Microsoft (no
+`email_verified` claim exists on MS tokens, so we rely on the tenant being ours). Switch on with
+`scripts/enable_microsoft_login.ps1 -ClientId <appId> -Tenant <tenantId>` (create the single-tenant Entra
+app registration, SPA redirect URIs, in the Console first); needs BOTH env vars set or the button is
+hidden + `/auth/microsoft` inert (passwords + Google unaffected).
 Web-only service `platform-dash` (SA `platform-dash-web@`,
 `storage.objectAdmin`), registry = ONE private JSON `gs://bidbrain-analytics-platform-dash/platform.json`
 (same private-bucket pattern as the dashboards — no database), no job/scheduler of its own.
@@ -222,7 +232,9 @@ Reach for the matching one by edit:
   serviceAccountUser on each `<c>-dash` runtime SA). Agency/client/campaign DATA + all password reveals/
   rotations are done in the UI, NOT by redeploy. **For native Google login, run
   `scripts/enable_google_login.ps1 -ClientId <id>` once** (create the OAuth web client in the Console
-  first); emails are then granted/revoked in the super-admin console, NOT by redeploy.
+  first); emails are then granted/revoked in the super-admin console, NOT by redeploy. **For Microsoft
+  (Teams/M365) login, run `scripts/enable_microsoft_login.ps1 -ClientId <appId> -Tenant <tenantId>` once**
+  (create the single-tenant Entra app registration first); same shared allow-list as Google.
   See `bidbrain-platform/README.md`.
 - **"Download slides" / `report.py` (AI decks):** the endpoint needs the shared `anthropic-api-key` (+ optional
   `gemini-api-key`) secrets mounted + `--timeout 900` + the runtime SA granted `objectAdmin` (report cache). Run

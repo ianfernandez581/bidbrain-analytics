@@ -96,6 +96,18 @@ SLIDES_CLIENTS = {"mongodb", "cloudflare", "schneider", "proptrack", "geocon"}
 # inert; the password login is completely unaffected. Injected by scripts/enable_google_login.ps1.
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "") or getattr(cfg, "GOOGLE_OAUTH_CLIENT_ID", "")
 
+# --- Microsoft sign-in (MSAL.js popup + ID-token verification) — twin of the Google path above -----
+# The login page loads MSAL.js and shows a "Sign in with Microsoft" button; the popup returns a signed
+# ID token (JWT) which the browser posts to /auth/microsoft (same-origin fetch). We verify it against
+# Microsoft's per-tenant JWKS and map the VERIFIED email to a role via the SAME store.resolve_email +
+# _establish_session. SINGLE-TENANT: TENANT pins the authority + the accepted issuer/`tid`, so only our
+# own org's accounts can sign in. Both empty => button hidden, route inert; passwords + Google unaffected.
+MICROSOFT_CLIENT_ID = os.environ.get("MICROSOFT_OAUTH_CLIENT_ID", "") or getattr(cfg, "MICROSOFT_OAUTH_CLIENT_ID", "")
+MICROSOFT_TENANT = os.environ.get("MICROSOFT_OAUTH_TENANT", "") or getattr(cfg, "MICROSOFT_OAUTH_TENANT", "")
+# Microsoft login is live only when BOTH are set (single-tenant needs the tenant).
+MICROSOFT_ENABLED = bool(MICROSOFT_CLIENT_ID and MICROSOFT_TENANT)
+_MS_JWKS_CLIENT = None   # lazily-built, cached jwt.PyJWKClient (fetches + caches the tenant's signing keys)
+
 
 @app.after_request
 def _no_store(resp):
@@ -189,9 +201,11 @@ def _require_super():
 
 # --- views --------------------------------------------------------------------------------
 def _login_page(error=None):
-    """Render the login screen (also tells the template whether to show the Google button)."""
+    """Render the login screen (also tells the template whether to show the Google/Microsoft buttons)."""
     return render_template("login.html", logo_svg=LOGO_SVG, error=error, next_url="",
-                           google_client_id=GOOGLE_CLIENT_ID)
+                           google_client_id=GOOGLE_CLIENT_ID,
+                           ms_client_id=MICROSOFT_CLIENT_ID if MICROSOFT_ENABLED else "",
+                           ms_tenant=MICROSOFT_TENANT if MICROSOFT_ENABLED else "")
 
 
 def _establish_session(kind, payload, json_mode=False):
@@ -291,6 +305,72 @@ def auth_google():
                        error=f"{email} isn’t authorised yet. Ask an admin to grant your account access."), 403
     resp = _establish_session(kind, payload, json_mode=True)
     session["email"] = email   # persisted with the session cookie at response time (audit/display)
+    return resp
+
+
+def _verify_ms_id_token(token):
+    """Verify a Microsoft ID token (JWT) for OUR single tenant and return its claims, or raise.
+
+    Twin of google-auth's verify_oauth2_token: checks the RS256 signature against the tenant's JWKS,
+    the audience (our client id) and expiry, then pins the tenant — `iss` must be this token's own
+    `https://login.microsoftonline.com/{tid}/v2.0` and, when TENANT is a GUID, `tid` must equal it.
+    Because the JWKS endpoint is tenant-scoped, a foreign tenant's token can't be signed by these keys
+    at all; the explicit iss/tid checks are belt-and-braces so a misconfig can't widen the audience."""
+    global _MS_JWKS_CLIENT
+    import jwt   # PyJWT[crypto] — lazy so an idle container never imports it
+    if _MS_JWKS_CLIENT is None:
+        _MS_JWKS_CLIENT = jwt.PyJWKClient(
+            f"https://login.microsoftonline.com/{MICROSOFT_TENANT}/discovery/v2.0/keys")
+    signing_key = _MS_JWKS_CLIENT.get_signing_key_from_jwt(token).key
+    claims = jwt.decode(token, signing_key, algorithms=["RS256"], audience=MICROSOFT_CLIENT_ID,
+                        leeway=10, options={"require": ["exp", "iss", "aud"]})
+    tid = (claims.get("tid") or "").lower()
+    if claims.get("iss") != f"https://login.microsoftonline.com/{tid}/v2.0":
+        raise ValueError("issuer/tid mismatch")
+    # When TENANT is configured as a GUID, pin the token's tenant to it too (belt-and-braces on top of
+    # the tenant-scoped JWKS). A GUID is 36 chars with hyphens at 8/13/18/23; a verified domain isn't —
+    # a plain `"-" in tenant` test would misfire on a hyphenated domain like my-company.com.
+    t = MICROSOFT_TENANT.lower()
+    is_guid = len(t) == 36 and t[8] == t[13] == t[18] == t[23] == "-" and \
+        all(c in "0123456789abcdef-" for c in t)
+    if is_guid and t != tid:
+        raise ValueError("token is from a different tenant")
+    return claims
+
+
+@app.post("/auth/microsoft")
+def auth_microsoft():
+    """Native 'Sign in with Microsoft' (Teams/M365 accounts). The MSAL.js popup posts a signed ID token
+    (JWT) here; we verify it against our single tenant's keys, then map the VERIFIED email to a role with
+    store.resolve_email — identical outcomes to a password or Google. Additive: passwords still work."""
+    if not MICROSOFT_ENABLED:
+        return jsonify(ok=False, error="Microsoft sign-in is not configured."), 400
+    token = ((request.get_json(silent=True) or {}).get("credential") or "").strip()
+    if not token:
+        return jsonify(ok=False, error="Missing Microsoft credential."), 400
+    try:
+        claims = _verify_ms_id_token(token)
+    except Exception as e:   # bad signature/aud/expiry, wrong tenant, JWKS fetch fail, malformed token…
+        app.logger.warning("microsoft id_token verification failed: %s", e)
+        return jsonify(ok=False, error="Could not verify your Microsoft sign-in."), 401
+    # Work/school ID tokens carry the address in `email` (if set) or the UPN in `preferred_username`.
+    # Both are org-controlled in a single tenant, so they're authoritative (Microsoft omits a verified
+    # flag). Take whichever is an email-shaped value.
+    email = (claims.get("email") or claims.get("preferred_username") or "").strip().lower()
+    if "@" not in email:
+        return jsonify(ok=False, error="Your Microsoft account has no email address."), 401
+    try:
+        store.record_domain_admin(email)   # @100.digital (config.ADMIN_EMAIL_DOMAINS) -> auto-enrolled;
+                                            # no-op unless the tenant's UPN domain is an admin domain.
+    except Exception as e:  # best-effort, exactly as /auth/google: resolve_email's domain fallback still
+                            # grants admin from a pure read, so a transient write error must not fail login.
+        app.logger.warning("record_domain_admin failed for %s (continuing): %s", email, e)
+    kind, payload = store.resolve_email(email)
+    if kind is None:
+        return jsonify(ok=False,
+                       error=f"{email} isn’t authorised yet. Ask an admin to grant your account access."), 403
+    resp = _establish_session(kind, payload, json_mode=True)
+    session["email"] = email
     return resp
 
 
