@@ -17,14 +17,29 @@
     --se-card:#FFFFFF; --se-bg:#F4F6F7; --se-grey:#C9CED4;
     --li:#2867B2; --td:#F2A900; --amber:#B97400;
     --good-green:#1E8E3E; --bad-red:#C8362A; --warn-amber:#B97400;
-    --shadow-card:0 1px 2px rgba(20,30,40,.04),0 4px 14px rgba(20,30,40,.05);
+    /* consistent per-metric colours — reused on KPI tiles (and, in pass 2, matching chart series) */
+    --m-spend:#007E2A; --m-imp:#2867B2; --m-clk:#F2A900; --m-cpc:#8E44AD;
+    --m-leads:#009530; --m-target:#9AA3AC;
+    /* premium: white cards float on the Schneider-green canvas with a soft green glow */
+    --shadow-card:0 8px 26px rgba(4,24,14,.30),0 0 0 1px rgba(255,255,255,.03),0 0 48px -20px rgba(0,149,48,.5);
+    /* text that sits ON the dark-green canvas (not inside a white card) */
+    --on-canvas:#EAF3EC; --on-canvas-mute:rgba(234,243,236,.72);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:var(--se-bg);color:var(--se-ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5}
+  html{margin:0;padding:0}
+  body{margin:0;padding:0;min-height:100vh;color:var(--se-ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;
+    background-color:#08361F;
+    background-image:
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1440' height='900'><g fill='none' stroke='white' stroke-opacity='0.05' stroke-width='1.4'><path d='M-160 980 A 1180 1180 0 0 1 1620 240'/><path d='M-80 1020 A 1360 1360 0 0 1 1680 360'/><path d='M40 1060 A 1180 1180 0 0 1 1720 520'/></g></svg>"),
+      radial-gradient(1200px 720px at 82% -8%, rgba(0,149,48,.30), transparent 58%),
+      radial-gradient(1000px 700px at 8% 108%, rgba(0,95,32,.55), transparent 60%),
+      linear-gradient(150deg,#05301A 0%,#0A3D23 48%,#0E4A2B 100%);
+    background-repeat:no-repeat; background-position:center top; background-size:cover;
+    background-attachment:fixed;}
   a{color:var(--se-green);text-decoration:none}
 
-  .topbar{background:var(--se-dark);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar{background:linear-gradient(100deg,#04200F,#0A3620);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;border-bottom:1px solid rgba(0,149,48,.35)}
   .topbar-left{display:flex;align-items:center;gap:18px}
   .agency{font-weight:700;letter-spacing:1.2px;font-size:13px;color:#fff;display:flex;align-items:center;gap:8px}
   .agency .dot{width:6px;height:6px;background:var(--se-green);border-radius:50%}
@@ -128,8 +143,9 @@
   .tabpane{display:none}
   .section{border-top:1px solid var(--se-line);padding-top:18px;margin-top:24px}
   .section.first{border-top:none;padding-top:0;margin-top:4px}
-  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--se-dark)}
-  .section .sub{display:block;margin-top:3px;color:var(--se-mute);font-size:12.5px;max-width:940px}
+  .section h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.2px;color:var(--on-canvas)}
+  .section .sub{display:block;margin-top:3px;color:var(--on-canvas-mute);font-size:12.5px;max-width:940px}
+  .section .sub b{color:var(--on-canvas)}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
@@ -141,17 +157,27 @@
   .card-tall .chart-wrap{height:300px}
   .card-med .chart-wrap{height:210px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
+  /* soft green ambient behind the chart (shows through the transparent canvas) */
+  .chart-wrap::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:10px;
+    background:radial-gradient(62% 60% at 50% 42%,rgba(0,149,48,.06),transparent 72%)}
   .chartctrls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
 
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
-  .kpi{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
-  .kpi .label{font-size:10.5px;color:var(--se-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
-  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--se-dark)}
+  .kpi{--kc:var(--se-green);background:linear-gradient(155deg,color-mix(in srgb,var(--kc) 9%,#fff),#fff 62%);
+    border:1px solid color-mix(in srgb,var(--kc) 22%,var(--se-line));border-radius:12px;padding:14px 16px;
+    position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:10.5px;color:var(--se-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600;
+    display:flex;align-items:center;gap:7px}
+  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;background:var(--kc);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--kc) 20%,transparent)}
+  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:8px;color:var(--se-dark)}
   .kpi .delta{font-size:11px;margin-top:4px;color:var(--se-mute);line-height:1.35}
-  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--se-grey)}
-  .kpi.accent{background:linear-gradient(135deg,#fff 0%,#EEFBF0 100%);border-color:#CFEFD5}
-  .kpi.accent .stripe{background:var(--se-green)}
-  .kpi.blue .stripe{background:var(--li)}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kc)}
+  /* consistent per-metric accent (same colour wherever the metric appears) */
+  .kpi.m-spend{--kc:var(--m-spend)} .kpi.m-imp{--kc:var(--m-imp)} .kpi.m-clk{--kc:var(--m-clk)}
+  .kpi.m-cpc{--kc:var(--m-cpc)} .kpi.m-leads{--kc:var(--m-leads)} .kpi.m-target{--kc:var(--m-target)}
+  .kpi.accent{--kc:var(--se-green)}
+  .kpi.blue{--kc:var(--li)}
 
   /* CS snapshot strip (mongodb-style grouped stats) */
   .cs-snap{display:flex;gap:14px;flex-wrap:wrap;margin-top:16px;background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;box-shadow:var(--shadow-card);padding:16px 18px}
@@ -213,12 +239,12 @@
   .compare-chart{margin-top:2px}
   .compare-chart-wrap{position:relative;height:190px}
 
-  .loading{padding:80px 20px;text-align:center;color:var(--se-mute)}
+  .loading{padding:80px 20px;text-align:center;color:var(--on-canvas-mute)}
   .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--se-line);border-top-color:var(--se-green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
-  footer{color:var(--se-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--se-line)}
-  footer b{color:var(--se-ink)}
+  footer{color:var(--on-canvas-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid rgba(255,255,255,.12)}
+  footer b{color:var(--on-canvas)}
 
   @media (max-width:1100px){.grid-3,.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.compare-grid{grid-template-columns:1fr}}
   @media (max-width:760px){.grid{grid-template-columns:1fr}.cs-snap .group{border-right:none}}
@@ -299,10 +325,10 @@
       </div>
       <div id="pmNote" class="info-note warn" style="display:none"></div>
       <div class="kpis">
-        <div class="kpi accent"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
-        <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
-        <div class="kpi"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
-        <div class="kpi accent"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
+        <div class="kpi m-spend"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
+        <div class="kpi m-imp"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
+        <div class="kpi m-clk"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
+        <div class="kpi m-cpc"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
       </div>
 
       <div class="section"><h2 style="font-size:15px">Platform comparison</h2><span class="sub">DV360 vs The Trade Desk vs LinkedIn - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
@@ -601,8 +627,9 @@ function paceVerdict(vsTtd){ if(vsTtd==null) return {cls:'neut',txt:'no flight d
 //==============================================================================
 function gridY(o={}){ return Object.assign({grid:{color:'#EEF1F0'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}},o); }
 function axisX(o={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}},o); }
-function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
-function legendBottom(){ return {position:'bottom',labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}}; }
+const LEGEND_HINT={display:true,text:'Click a label to show or hide it',color:C.mute,font:{size:10.5,weight:'600',...FONT},padding:{bottom:8}};
+function legendTop(){ return {position:'top',align:'end',title:LEGEND_HINT,labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
+function legendBottom(){ return {position:'bottom',title:{...LEGEND_HINT,padding:{top:8}},labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}}; }
 const centerText={ id:'centerText', afterDraw(chart){ const o=chart.config.options.cutoutText; if(!o) return; const {ctx,chartArea:{left,right,top,bottom}}=chart; const x=(left+right)/2,y=(top+bottom)/2; ctx.save(); ctx.textAlign='center'; ctx.fillStyle=C.dark; ctx.font=`700 18px ${FONT.family}`; ctx.fillText(o.line1,x,y-2); ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+15); ctx.restore(); } };
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 

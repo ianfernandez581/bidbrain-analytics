@@ -255,7 +255,22 @@
   td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tag{font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:4px;margin-left:6px}
   .tag.ad{background:rgba(45,212,191,.18);color:var(--accent)}
-  .tablewrap{max-height:360px;overflow:auto}
+  .tablewrap{max-height:360px;overflow:auto;
+    /* Dark, aesthetic scrollbar — replaces the bright default that clashed with the navy theme.
+       Firefox: thin, near-black thumb on a transparent track. */
+    scrollbar-width:thin;scrollbar-color:#3B4658 transparent}
+  /* WebKit (Chrome/Edge/Safari): slim near-black thumb, padded + pill-rounded via a transparent
+     border with background-clip; transparent track; subtle lighten on hover for affordance. */
+  .tablewrap::-webkit-scrollbar{width:10px;height:10px}
+  .tablewrap::-webkit-scrollbar-track{background:transparent}
+  .tablewrap::-webkit-scrollbar-thumb{background:#3B4658;border:2px solid transparent;
+    background-clip:padding-box;border-radius:999px}
+  .tablewrap::-webkit-scrollbar-thumb:hover{background:#4C5A70}
+  .tablewrap::-webkit-scrollbar-corner{background:transparent}
+  /* Paid-Media campaign tables (Google Ads / Meta / Trade Desk / Meta creative): a uniform fixed
+     table height + equal grid rows so all four boxes are the SAME size and line up in a clean 2×2. */
+  .campgrid{grid-auto-rows:1fr}
+  .campwrap{height:340px}
   .pill{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.5px;padding:2px 7px;border-radius:5px}
   .pill.google{background:rgba(99,102,241,.2);color:#A5B4FC}
   .pill.meta{background:rgba(14,165,233,.2);color:#7DD3FC}
@@ -433,13 +448,11 @@
       </div>
       <div class="chartbox"><canvas id="paidMediaChart"></canvas></div>
     </div>
-    <div class="grid cols-2" style="margin-top:14px">
-      <div class="panel-box"><h3>Google Ads campaigns</h3><p class="hint">Paid search delivery + Google-reported conversions.</p><div class="tablewrap"><table id="googleCamps"></table></div></div>
-      <div class="panel-box"><h3>Meta campaigns</h3><p class="hint">Paid social delivery + Signup Button leads (Meta custom pixel).</p><div class="tablewrap"><table id="metaCamps"></table></div></div>
-    </div>
-    <div class="grid cols-2" style="margin-top:14px">
-      <div class="panel-box"><h3>Trade Desk campaigns</h3><p class="hint">Programmatic display (AUD; no conversions reported upstream).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
-      <div class="panel-box"><h3>Meta creative mix</h3><p class="hint">Delivery by creative (top by impressions).</p><div class="tablewrap"><table id="metaCreative"></table></div></div>
+    <div class="grid cols-2 campgrid" style="margin-top:14px">
+      <div class="panel-box"><h3>Google Ads campaigns</h3><p class="hint">Paid search delivery + Google-reported conversions.</p><div class="tablewrap campwrap"><table id="googleCamps"></table></div></div>
+      <div class="panel-box"><h3>Meta campaigns</h3><p class="hint">Paid social delivery + Signup Button leads (Meta custom pixel).</p><div class="tablewrap campwrap"><table id="metaCamps"></table></div></div>
+      <div class="panel-box"><h3>Trade Desk campaigns</h3><p class="hint">Programmatic display (AUD; no conversions reported upstream).</p><div class="tablewrap campwrap"><table id="ttdCamps"></table></div></div>
+      <div class="panel-box"><h3>Meta creative mix</h3><p class="hint">Delivery by creative (top by impressions).</p><div class="tablewrap campwrap"><table id="metaCreative"></table></div></div>
     </div>
 
     <div class="secttitle" style="margin-top:18px">Creative gallery <span style="color:var(--muted2);font-weight:600">· Meta · the actual ads that ran</span></div>

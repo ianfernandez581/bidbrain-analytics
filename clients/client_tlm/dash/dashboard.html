@@ -9,6 +9,18 @@
 :root{--bg:#ECE5D8;--panel:#FFFFFF;--panel2:#F5EFE4;--line:#E2D9C8;--line2:#CEC2AC;--ink:#2B2926;--muted:#6F665A;--muted2:#9C9182;--accent:#4F7290;--accent2:#6E93B0;--google:#4F7290;--ttd:#BD6B4C;--revenue:#2BA36F;--roas:#D98C1F;--good:#2BA36F;--warn:#C9871F;--bad:#D9534F}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;font-size:14px}
+/* ---- house-style glow, tuned for TLM's LIGHT cream theme: a SOFT warm bloom + soft card shadows,
+       not a bright dark-mode glow. Uses the brand's warm terracotta (#BD6B4C) so it harmonises with
+       the cream/coffee palette (a cold blue glow clashed). ---- */
+:root{--hair:var(--line);--card-1:#FFFFFF;--card-2:#FBF7EF;
+      --glow:rgba(189,107,76,.34);
+      --card-glow:0 1px 2px rgba(43,41,38,.06),0 16px 40px -14px rgba(189,107,76,.40)}
+body{background:radial-gradient(1200px 620px at 50% -8%,rgba(189,107,76,.24),transparent 60%),var(--bg);background-attachment:fixed}
+section[id^="tab-"]{background:radial-gradient(1100px 460px at 50% -60px,rgba(189,107,76,.20),transparent 64%)}
+.chartbox{position:relative}
+.chartbox::before{content:"";position:absolute;inset:6% 8%;z-index:0;pointer-events:none;
+     background:radial-gradient(58% 62% at 50% 46%,var(--glow),transparent 72%);filter:blur(12px);opacity:.7}
+.chartbox>canvas{position:relative;z-index:1}
 a{color:var(--accent)}
 .wrap{max-width:1240px;margin:0 auto;padding:0 20px 64px}
 .topbar{position:sticky;top:0;z-index:40;background:rgba(236,229,216,.9);backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:13px 0}
@@ -76,14 +88,27 @@ a{color:var(--accent)}
 @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
 .grid{display:grid;gap:14px}
 .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:16px 0}
-.kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 15px;position:relative;overflow:hidden}
-.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--accent)}
-.kpi.k-spend::before{background:var(--google)}.kpi.k-imps::before{background:var(--ttd)}
-.kpi.k-conv::before{background:var(--accent2)}.kpi.k-rev::before{background:var(--revenue)}
-.kpi.k-roas::before{background:var(--roas)}.kpi.k-aov::before{background:var(--good)}
-.kpi .label{font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.3px}
-.kpi .value{font-size:24px;font-weight:800;margin-top:4px;letter-spacing:-.5px}
-.kpi .sub{font-size:11px;color:var(--muted2);margin-top:3px}
+/* KPI cards — each sets its metric colour inline as --kc (from the JS MC map) so the card's dot
+   matches that metric's chart-series colour. Soft accent wash + card glow + a glowing colour dot
+   on the label give each card its own identity. color-mix keeps it derived from theme tokens. */
+.kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 15%,transparent),transparent 56%),
+     linear-gradient(180deg,var(--card-1),var(--card-2));
+     border:1px solid var(--hair);border-radius:12px;padding:15px 16px;position:relative;overflow:hidden;box-shadow:var(--card-glow)}
+.kpi .label{display:flex;align-items:flex-start;gap:7px;font-size:11px;line-height:1.3;color:var(--muted);font-weight:600;letter-spacing:.3px;min-height:29px}
+.kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;margin-top:3px;background:var(--kc,var(--accent));
+     box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
+.kpi .value{font-size:24px;font-weight:800;margin-top:9px;letter-spacing:-.5px}
+.kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px}
+/* clickable cards — click to hide/show that metric's series on the chart (like a legend). The
+   glowing dot on the RIGHT of the label hints it's a toggle; the card dims when its series is off. */
+.kpi.clk{cursor:pointer;user-select:none;transition:filter .15s,transform .06s,border-color .15s,opacity .15s}
+.kpi.clk:hover{filter:brightness(1.03);border-color:color-mix(in srgb,var(--kc,var(--accent)) 55%,transparent)}
+.kpi.clk:active{transform:translateY(1px)}
+.kpi.clk:focus-visible{outline:2px solid var(--kc,var(--accent));outline-offset:2px}
+.kpi.clk .label::after{content:"";width:7px;height:7px;margin-left:auto;border-radius:50%;
+     border:1.5px solid var(--kc,var(--accent));background:var(--kc,var(--accent));box-shadow:0 0 5px var(--kc,var(--accent))}
+.kpi.clk.off{opacity:.5;filter:grayscale(.7)}
+.kpi.clk.off .label::after{background:transparent;box-shadow:none}
 .panel-box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px}
 .panel-box h3{margin:0 0 2px;font-size:14px;font-weight:700}
 .panel-box .hint{font-size:11.5px;color:var(--muted2);margin:0 0 12px}
@@ -92,6 +117,27 @@ a{color:var(--accent)}
 .chartbox{position:relative;height:300px}
 .chartbox.tall{height:340px}
 .chartbox.sm{height:240px}
+/* Donut + value-legend: donut (with its total in the hole) on the left, a clickable value list on
+   the right so the panel isn't half-empty. Click a row to include/exclude that slice — the pie,
+   the centre total and the %s all update. */
+.donut-wrap{display:flex;align-items:center;gap:16px}
+.donut-wrap .chartbox{flex:0 0 150px;width:150px;height:150px}
+.donut-wrap.stacked{flex-direction:column;align-items:center;gap:16px}
+.donut-wrap.stacked .chartbox{flex:0 0 190px;width:190px;height:190px}
+.donut-wrap.stacked .donut-legend{flex:none;width:100%;max-width:340px}
+.donut-wrap.stacked .dleg-hint{text-align:center}
+.donut-legend{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.dleg-row{display:flex;align-items:center;gap:9px;padding:6px 8px;border-radius:8px;cursor:pointer;user-select:none;font-size:12.5px;transition:background .12s,opacity .12s}
+.dleg-row:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.dleg-row:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.dleg-row .dot{width:9px;height:9px;border-radius:50%;flex:none}
+.dleg-row .lbl{flex:1;color:var(--ink);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dleg-row .val{font-weight:800;color:var(--ink)}
+.dleg-row .pct{color:var(--muted2);font-size:11px;width:34px;text-align:right}
+.dleg-row.off{opacity:.42}
+.dleg-row.off .lbl{text-decoration:line-through}
+.dleg-row.off .dot{background:transparent!important;border:1.5px solid var(--muted2)}
+.dleg-hint{font-size:10px;color:var(--muted2);font-weight:600;letter-spacing:.2px;padding:0 8px 6px;opacity:.9}
 table{width:100%;border-collapse:collapse;font-size:12.5px}
 th,td{text-align:right;padding:7px 9px;border-bottom:1px solid var(--line)}
 th:first-child,td:first-child{text-align:left}
@@ -158,8 +204,8 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
     <div class="grid kpis" id="ovKpis"></div>
     <div class="panel-box"><div class="panelhead"><div><h3>Media spend · Revenue · ROAS</h3><p class="hint">Stacked bars = spend by platform (AUD). Lines = revenue + ROAS. <b>Relative</b> indexes each line to its peak. Click a bar to drill into weeks.</p></div><div class="ctrls"><span class="drillback" id="heroBack">↩ All months</span><span class="seg" id="heroScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="heroGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox tall"><canvas id="heroChart"></canvas></div></div>
     <div class="grid cols-2" style="margin-top:14px">
-      <div class="panel-box"><h3>Spend by platform</h3><p class="hint">AUD, scoped by filters.</p><div class="chartbox sm"><canvas id="spendDonut"></canvas></div></div>
-      <div class="panel-box"><h3>Revenue by campaign type</h3><p class="hint">Google Ads conversions_value (AUD).</p><div class="chartbox sm"><canvas id="typeDonut"></canvas></div></div>
+      <div class="panel-box"><h3>Spend by platform</h3><p class="hint">AUD, scoped by filters. Click a row to include/exclude it.</p><div class="donut-wrap"><div class="chartbox sm"><canvas id="spendDonut"></canvas></div><div class="donut-legend" id="spendLegend"></div></div></div>
+      <div class="panel-box"><h3>Revenue by campaign type</h3><p class="hint">Google Ads conversions_value (AUD). Click a row to include/exclude it.</p><div class="donut-wrap"><div class="chartbox sm"><canvas id="typeDonut"></canvas></div><div class="donut-legend" id="typeLegend"></div></div></div>
     </div>
   </section>
 
@@ -168,7 +214,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
     <div class="panel-box" style="margin-top:14px"><div class="panelhead"><div><h3>Spend vs revenue</h3><p class="hint">Google Ads only - bars = spend (AUD), line = revenue (AUD). <b>Relative</b> indexes the line to its peak.</p></div><div class="ctrls"><span class="seg" id="googMonScaleSeg"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span><span class="seg" id="googMonGrainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month" class="on">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day">Day</button></span></div></div><div class="chartbox"><canvas id="googleMonthlyChart"></canvas></div></div>
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Per campaign</h3><p class="hint">Delivery + conversions/revenue by campaign.</p><div class="tablewrap"><table id="googleCamps"></table></div></div>
-      <div class="panel-box"><h3>Spend by campaign type</h3><p class="hint">AUD.</p><div class="chartbox sm"><canvas id="googleTypeDonut"></canvas></div></div>
+      <div class="panel-box"><h3>Spend by campaign type</h3><p class="hint">AUD. Click a row to include/exclude it.</p><div class="donut-wrap stacked"><div class="chartbox sm"><canvas id="googleTypeDonut"></canvas></div><div class="donut-legend" id="googleTypeLegend"></div></div></div>
     </div>
   </section>
 
@@ -203,7 +249,30 @@ var typeByCampaign={};   // google campaign name -> campaign_type (built on load
 // Trade Desk = terracotta, revenue = green, ROAS = amber.
 var C={google:'#4F7290',ttd:'#BD6B4C',revenue:'#2BA36F',roas:'#D98C1F',accent:'#4F7290',axis:'#6F665A',grid:'rgba(43,41,38,.08)'};
 var typeColor={PERFORMANCE_MAX:'#4F7290',SEARCH:'#2BA36F',SHOPPING:'#D98C1F',Other:'#9C9182'};
+var typeLabel={PERFORMANCE_MAX:'Performance Max',SEARCH:'Search',SHOPPING:'Shopping',Other:'Other'};
 var typeCls={PERFORMANCE_MAX:'pmax',SEARCH:'search',SHOPPING:'shopping'};
+// Metric -> ONE colour, used on the card's dot AND its chart series so a metric reads the same
+// everywhere. Brand tokens (slate/terracotta/green/gold) + a few earthy derivations that fit the
+// coffee palette (muted teal / coffee-brown / brick) so every card is distinguishable.
+var MC={'Media spend':'#4F7290','Impressions':'#6E93B0','Clicks':'#5B8C88','Purchases':'#BD6B4C',
+        'Revenue':'#2BA36F','ROAS':'#D98C1F','AOV':'#8A6E4F','CPA':'#A65A5A'};
+function mc(n){return MC[n]||C.accent;}
+// Clickable KPI cards: click a card to hide/show its series on toggle.chart (like a legend).
+// State persists across chart re-renders; charts reapply it after each build.
+var kpiHidden={};
+function kpiHiddenFor(chartId,ds){var sk='mk::'+chartId+'::'+ds.label,stk=ds.stack?('mk::'+chartId+'::#'+ds.stack):null;return !!(kpiHidden[sk]||(stk&&kpiHidden[stk]));}
+function applyKpiToChart(chartId){var ci=charts[chartId];if(!ci)return;var ch=false;ci.data.datasets.forEach(function(ds,i){var h=kpiHiddenFor(chartId,ds),m=ci.getDatasetMeta(i);if(m.hidden!==h){m.hidden=h;ch=true;}});if(ch)ci.update();}
+function toggleKpiCard(el){var k=el.dataset.mkey;kpiHidden[k]=!kpiHidden[k];el.classList.toggle('off',!!kpiHidden[k]);applyKpiToChart(el.dataset.chart);}
+// Build one KPI card. c={cls?,label,value,sub,toggle?}; toggle={chart,series|stack} makes it clickable.
+function kpiCard(c){
+  var cls='kpi'+(c.cls?' '+c.cls:''), attrs='style="--kc:'+mc(c.label)+'"';
+  if(c.toggle){
+    var mk='mk::'+c.toggle.chart+'::'+(c.toggle.series||('#'+c.toggle.stack));
+    cls+=' clk'+(kpiHidden[mk]?' off':'');
+    attrs+=' tabindex="0" role="button" data-chart="'+c.toggle.chart+'" data-mkey="'+mk+'" onclick="toggleKpiCard(this)" onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();toggleKpiCard(this);}"';
+  }
+  return '<div class="'+cls+'" '+attrs+'><div class="label">'+c.label+'</div><div class="value">'+c.value+'</div><div class="sub">'+c.sub+'</div></div>';
+}
 
 function $(id){return document.getElementById(id);}
 function fmt(n,d){if(n==null)return'—';return Number(n).toLocaleString('en-AU',{maximumFractionDigits:d||0});}
@@ -365,6 +434,38 @@ Array.from($('googMonGrainSeg').querySelectorAll('button')).forEach(function(b){
 Array.from($('googMonScaleSeg').querySelectorAll('button')).forEach(function(b){b.addEventListener('click',function(){googMonScale=this.dataset.scale;Array.from($('googMonScaleSeg').querySelectorAll('button')).forEach(function(x){x.classList.toggle('on',x.dataset.scale===googMonScale);});renderGoogle();});});
 
 // ===== RENDER: OVERVIEW =====
+// Reusable value-donut: a doughnut with the TOTAL drawn in the hole + a clickable value legend
+// (colour dot · label · value · % of visible). Click a row (or Enter/Space) to include/exclude that
+// slice — the pie, the centre total and every % update. items=[{label,value,color}]; fmtV formats.
+function valueDonut(cvId,legId,items,fmtV){
+  var centre={id:'ctr_'+cvId,afterDatasetsDraw:function(ch){
+    var vis=0;items.forEach(function(it,i){if(ch.getDataVisibility(i))vis+=it.value;});
+    var a=ch.chartArea;if(!a)return;var g=ch.ctx,x=(a.left+a.right)/2,y=(a.top+a.bottom)/2;
+    g.save();g.textAlign='center';g.textBaseline='middle';
+    g.fillStyle='#2B2926';g.font='700 15px -apple-system,"Inter",sans-serif';g.fillText(fmtV(vis),x,y-3);
+    g.fillStyle='#9C9182';g.font='700 8.5px -apple-system,"Inter",sans-serif';g.fillText('TOTAL',x,y+12);
+    g.restore();}};
+  var ch=new Chart(ctx(cvId),{type:'doughnut',
+    data:{labels:items.map(function(i){return i.label;}),datasets:[{data:items.map(function(i){return i.value;}),backgroundColor:items.map(function(i){return i.color;}),borderColor:'#fff',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'64%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.label+': '+fmtV(c.raw);}}}}},
+    plugins:[centre]});
+  function drawLeg(){
+    var vis=0;items.forEach(function(it,i){if(ch.getDataVisibility(i))vis+=it.value;});
+    document.getElementById(legId).innerHTML='<div class="dleg-hint">Click a label to show or hide it</div>'+items.map(function(it,i){
+      var on=ch.getDataVisibility(i);
+      return '<div class="dleg-row'+(on?'':' off')+'" data-i="'+i+'" role="button" tabindex="0">'
+        +'<span class="dot" style="background:'+it.color+'"></span><span class="lbl">'+it.label+'</span>'
+        +'<span class="val">'+fmtV(it.value)+'</span>'
+        +'<span class="pct">'+(on&&vis>0?Math.round(it.value/vis*100)+'%':'—')+'</span></div>';
+    }).join('');
+  }
+  drawLeg();
+  var le=document.getElementById(legId);
+  function toggle(r){var i=+r.dataset.i;ch.toggleDataVisibility(i);ch.update();drawLeg();}
+  le.onclick=function(e){var r=e.target.closest('.dleg-row');if(r)toggle(r);};
+  le.onkeydown=function(e){if(e.key!=='Enter'&&e.key!==' ')return;var r=e.target.closest('.dleg-row');if(r){e.preventDefault();toggle(r);}};
+  return ch;
+}
 function renderOverview(){
   if(!data)return;
   // --- KPIs from filtered campaign×month data (Date + Platform + Campaign aware) ---
@@ -379,17 +480,20 @@ function renderOverview(){
   // spend (the only spend with attributable revenue) is the honest efficiency. Total media
   // spend stays visible on the Media-spend card.
   var roas=gSp>0?rv/gSp:null, aov=cv>0?rv/cv:null, cpa=cv>0?gSp/cv:null;
+  // Cards with a matching hero series are clickable (toggle it, legend-style); the rest are plain.
+  // Clickable trio FIRST (they toggle the hero chart) so the clickable cards sit together; the
+  // rest follow. mc() gives each its standard colour; the glowing right-dot marks the clickable ones.
   var cards=[
-    {cls:'k-spend',label:'Media spend',value:curr(sp),sub:tSp>0?'incl. TTD '+curr(tSp):'AUD'},
-    {cls:'k-imps',label:'Impressions',value:fmt(im),sub:''},
-    {cls:'',label:'Clicks',value:fmt(cl),sub:'CTR '+pct(im>0?cl/im:0)},
-    {cls:'k-conv',label:'Purchases',value:fmt(cv,1),sub:''},
-    {cls:'k-rev',label:'Revenue',value:curr(rv),sub:'AUD'},
-    {cls:'k-roas',label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'—',sub:'rev ÷ Google spend'},
-    {cls:'k-aov',label:'AOV',value:aov!=null?curr(aov):'—',sub:''},
-    {cls:'',label:'CPA',value:cpa!=null?curr(cpa):'—',sub:'Google spend ÷ purch.'}
+    {label:'Media spend',value:curr(sp),sub:tSp>0?'incl. TTD '+curr(tSp):'AUD',toggle:{chart:'heroChart',stack:'spend'}},
+    {label:'Revenue',value:curr(rv),sub:'AUD',toggle:{chart:'heroChart',series:'Revenue (AUD)'}},
+    {label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'—',sub:'rev ÷ Google spend',toggle:{chart:'heroChart',series:'ROAS'}},
+    {label:'Impressions',value:fmt(im),sub:''},
+    {label:'Clicks',value:fmt(cl),sub:'CTR '+pct(im>0?cl/im:0)},
+    {label:'Purchases',value:fmt(cv,1),sub:''},
+    {label:'AOV',value:aov!=null?curr(aov):'—',sub:''},
+    {label:'CPA',value:cpa!=null?curr(cpa):'—',sub:'Google spend ÷ purch.'}
   ];
-  $('ovKpis').innerHTML=cards.map(function(c){return'<div class="kpi '+c.cls+'"><div class="label">'+c.label+'</div><div class="value">'+c.value+'</div><div class="sub">'+c.sub+'</div></div>';}).join('');
+  $('ovKpis').innerHTML=cards.map(kpiCard).join('');
 
   // --- Hero: stacked spend bars (Google + TTD) + revenue + ROAS(Google) line ---
   // Month grain (drill a bar into weeks), OR weeks, OR days. SUM additive metrics per
@@ -427,18 +531,21 @@ function renderOverview(){
     {label:'ROAS',data:isRel?roasArr.map(function(v){return v/maxROAS*100;}):roasArr,type:'line',borderColor:C.roas,yAxisID:'y1',tension:.3,pointRadius:2,borderDash:[4,3]}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{intersect:false,mode:'index'},
     onClick:function(e,els){if(heroGrain==='month'&&!heroDrillMonth&&els.length>0){heroDrillMonth=labels[els[0].index];$('heroBack').classList.add('show');renderOverview();}},
-    plugins:{tooltip:{callbacks:{label:function(c){if(c.dataset.label==='Revenue (AUD)')return'Revenue: '+curr(isRel?c.raw/100*maxR:c.raw);if(c.dataset.label==='ROAS')return'ROAS: '+(isRel?c.raw/100*maxROAS:c.raw).toFixed(2)+'×';return c.dataset.label+': '+curr(c.raw);}}}},
+    plugins:{legend:{title:{display:true,text:'Click a label to show or hide it',color:'#9C9182',font:{size:10,weight:'400'},padding:{bottom:6}}},tooltip:{callbacks:{label:function(c){if(c.dataset.label==='Revenue (AUD)')return'Revenue: '+curr(isRel?c.raw/100*maxR:c.raw);if(c.dataset.label==='ROAS')return'ROAS: '+(isRel?c.raw/100*maxROAS:c.raw).toFixed(2)+'×';return c.dataset.label+': '+curr(c.raw);}}}},
     scales:{x:{stacked:true},y:{stacked:true,title:{display:true,text:'Spend (AUD)'},ticks:{callback:function(v){return curr(v);}}},
       y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:isRel?'Index (peak=100)':'Value'},ticks:{callback:function(v){return isRel?v.toFixed(0):v.toFixed(2);}}}}
   }});
+  applyKpiToChart('heroChart');   // re-apply any card toggles after the (re)build
 
   // --- Donuts (both honor the filters) ---
   destroyChart('spendDonut');
-  charts.spendDonut=new Chart(ctx('spendDonut'),{type:'doughnut',data:{labels:['Google Ads','Trade Desk'],datasets:[{data:[gSp,tSp],backgroundColor:[C.google,C.ttd],borderColor:'#fff',borderWidth:1}]},options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:function(c){return c.label+': '+curr(c.raw);}}}},cutout:'55%'}});
+  var spItems=[{label:'Google Ads',value:gSp,color:C.google},{label:'Trade Desk',value:tSp,color:C.ttd}].filter(function(x){return x.value>0;});
+  charts.spendDonut=valueDonut('spendDonut','spendLegend',spItems,curr);
 
   destroyChart('typeDonut');
   var tr=googleTypeRollup(),tk=Object.keys(tr).sort(function(a,b){return tr[b].rv-tr[a].rv;});
-  charts.typeDonut=new Chart(ctx('typeDonut'),{type:'doughnut',data:{labels:tk,datasets:[{data:tk.map(function(t){return tr[t].rv;}),backgroundColor:tk.map(function(t){return typeColor[t]||C.accent;}),borderColor:'#fff',borderWidth:1}]},options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:function(c){return c.label+': '+curr(c.raw);}}}},cutout:'55%'}});
+  var tyItems=tk.map(function(t){return{label:(typeLabel[t]||t),value:tr[t].rv,color:typeColor[t]||C.accent};}).filter(function(x){return x.value>0;});
+  charts.typeDonut=valueDonut('typeDonut','typeLegend',tyItems,curr);
 }
 
 // ===== RENDER: GOOGLE ADS =====
@@ -489,7 +596,8 @@ function renderGoogle(){
 
   // Type donut (filtered, spend)
   destroyChart('googleTypeDonut');
-  charts.googleTypeDonut=new Chart(ctx('googleTypeDonut'),{type:'doughnut',data:{labels:keys,datasets:[{data:keys.map(function(t){return tr[t].sp;}),backgroundColor:keys.map(function(t){return typeColor[t]||C.accent;}),borderColor:'#fff',borderWidth:1}]},options:{plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:function(c){return c.label+': '+curr(c.raw);}}}},cutout:'55%'}});
+  var gtItems=keys.map(function(t){return{label:(typeLabel[t]||t),value:tr[t].sp,color:typeColor[t]||C.accent};}).filter(function(x){return x.value>0;});
+  charts.googleTypeDonut=valueDonut('googleTypeDonut','googleTypeLegend',gtItems,curr);
 }
 
 // ===== RENDER: TTD =====
@@ -515,12 +623,12 @@ function renderPerf(){
   fm.forEach(function(r){if(r.platform==='google')gSp+=r.spend_aud||0;else if(r.platform==='ttd')tSp+=r.spend_aud||0;cv+=r.conversions||0;rv+=r.revenue||0;});
   var sp=gSp+tSp, roas=gSp>0?rv/gSp:null, aov=cv>0?rv/cv:null, cpa=cv>0?gSp/cv:null;
   $('perfKpis').innerHTML=[
-    {cls:'k-spend',label:'Media spend',value:curr(sp),sub:tSp>0?'incl. TTD '+curr(tSp):'AUD'},
-    {cls:'k-rev',label:'Revenue',value:curr(rv),sub:'AUD'},
-    {cls:'k-roas',label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'—',sub:'rev ÷ Google spend'},
-    {cls:'k-aov',label:'AOV',value:aov!=null?curr(aov):'—',sub:''},
-    {cls:'k-conv',label:'CPA',value:cpa!=null?curr(cpa):'—',sub:'Google spend ÷ purch.'}
-  ].map(function(c){return'<div class="kpi '+c.cls+'"><div class="label">'+c.label+'</div><div class="value">'+c.value+'</div><div class="sub">'+c.sub+'</div></div>';}).join('');
+    {label:'Media spend',value:curr(sp),sub:tSp>0?'incl. TTD '+curr(tSp):'AUD'},
+    {label:'Revenue',value:curr(rv),sub:'AUD',toggle:{chart:'perfTrendChart',series:'Revenue (AUD)'}},
+    {label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'—',sub:'rev ÷ Google spend'},
+    {label:'AOV',value:aov!=null?curr(aov):'—',sub:''},
+    {label:'CPA',value:cpa!=null?curr(cpa):'—',sub:'Google spend ÷ purch.'}
+  ].map(kpiCard).join('');
 
   // Scatter — weekly spend vs revenue (filtered; weekly revenue now carried in the JSON)
   var rw=rollUp(fWeekly(),'week_start');
@@ -552,7 +660,8 @@ function renderPerf(){
   charts.perfTrendChart=new Chart(ctx('perfTrendChart'),{type:'bar',data:{labels:tlabels,datasets:[
     {label:'Revenue (AUD)',data:trvs,backgroundColor:C.revenue,borderRadius:2},
     {label:'Purchases',data:ptRel?tcvs.map(function(v){return v/ptMaxC*100;}):tcvs,type:'line',borderColor:C.roas,tension:.3,pointRadius:2,yAxisID:'y1'}
-  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){return c.dataset.label==='Purchases'?'Purchases: '+fmt(ptRel?c.raw/100*ptMaxC:c.raw,1):'Revenue: '+curr(c.raw);}}}},scales:{y:{title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:ptRel?'Index (peak=100)':'Purchases'},ticks:{callback:function(v){return ptRel?v.toFixed(0):v;}}}}}});
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{title:{display:true,text:'Click a label to show or hide it',color:'#9C9182',font:{size:10,weight:'400'},padding:{bottom:6}}},tooltip:{callbacks:{label:function(c){return c.dataset.label==='Purchases'?'Purchases: '+fmt(ptRel?c.raw/100*ptMaxC:c.raw,1):'Revenue: '+curr(c.raw);}}}},scales:{y:{title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}},y1:{position:'right',grid:{drawOnChartArea:false},title:{display:true,text:ptRel?'Index (peak=100)':'Purchases'},ticks:{callback:function(v){return ptRel?v.toFixed(0):v;}}}}}});
+  applyKpiToChart('perfTrendChart');   // re-apply the card toggle after the (re)build
 }
 
 // ===== EXPORT =====
