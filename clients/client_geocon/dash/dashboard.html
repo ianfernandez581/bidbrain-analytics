@@ -769,7 +769,7 @@ function renderCreative(){
     const head=safeName(r.creative_title||r.ad);
     const body=r.creative_body?safeName(r.creative_body):'';
     const media=r.creative_thumbnail_url
-      ? `<img class="cc-thumb" src="${r.creative_thumbnail_url}" alt="" loading="lazy" data-head="${head}" onerror="ccFallback(this)">`
+      ? `<img class="cc-thumb" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" loading="lazy" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`
       : `<div class="cc-fallback"><div class="cc-fb-mark">GATEWAY BRADDON</div><div class="cc-fb-h">${head}</div></div>`;
     return `<div class="ccard clickable" onclick="openCreative(${i})">${media}
       <div class="cc-b"><div class="cc-title">${head}</div>${body?`<div class="cc-copy">${body}</div>`:''}
@@ -777,9 +777,13 @@ function renderCreative(){
   }).join(''):'<div class="muted-text" style="padding:24px">No creatives with spend in this range.</div>';
 }
 function ccFallback(img){const head=img.getAttribute('data-head')||'Gateway Braddon';const d=document.createElement('div');d.className='cc-fallback';d.innerHTML='<div class="cc-fb-mark">GATEWAY BRADDON</div><div class="cc-fb-h">'+head+'</div>';img.replaceWith(d);}
+// Creative image fallback chain: our cached copy (/creative-img/<id>, permanent) → the live Meta CDN
+// URL (if the signed link hasn't expired yet) → a branded tile. So the real ad shows whenever ANY
+// source is still available, and never breaks once Meta expires the CDN link.
+function ccImgErr(img){const cdn=img.getAttribute('data-cdn');if(cdn&&img.src.indexOf('/creative-img/')>-1){img.src=cdn;return;}ccFallback(img);}
 function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.creative_title||r.ad);
   const link=r.destination_url?`<a class="ccm-link" href="${r.destination_url}" target="_blank" rel="noopener">Open landing page ↗</a>`:'';
-  $('ccModalBody').innerHTML=`<div class="ccm-media">${r.creative_thumbnail_url?`<img class="ccm-img" src="${r.creative_thumbnail_url}" alt="" data-head="${head}" onerror="ccFallback(this)">`:`<div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark">GATEWAY BRADDON</div><div class="cc-fb-h">${head}</div></div>`}</div>
+  $('ccModalBody').innerHTML=`<div class="ccm-media">${r.creative_thumbnail_url?`<img class="ccm-img" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`:`<div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark">GATEWAY BRADDON</div><div class="cc-fb-h">${head}</div></div>`}</div>
     <div class="ccm-info"><h3>${safeName(r.creative_title||r.ad)}</h3>${r.creative_body?`<p class="ccm-body">${safeName(r.creative_body)}</p>`:''}
     <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Enquiries <b>${int(r.leads)}</b></span><span>CPL <b>${r.cpl!=null?money(r.cpl):'—'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>LPV <b>${int(r.lpv)}</b></span><span>Freq <b>${r.frequency!=null?r.frequency.toFixed(1):'—'}</b></span></div>${link}</div>`;
   $('ccModal').classList.add('on');

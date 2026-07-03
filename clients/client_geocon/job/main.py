@@ -152,6 +152,41 @@ def build_env(bq, observed):
     return env, summary
 
 
+def cache_creative_images(bucket, creatives):
+    """Best-effort: download each top creative's live Meta thumbnail and store the bytes in the bucket
+    under creatives/<creative_id>, so the Creative gallery keeps showing the real ad after Meta's signed
+    CDN URL expires (which happens once an ad ends). Returns the set of creative_ids with a cached image
+    (this run or a prior one). Never raises — a miss just falls back to the CDN URL / branded tile. An
+    already-expired URL 403s here and is skipped, so this preserves creatives whose URL is still live."""
+    import urllib.request
+    prefix = "creatives/"
+    have = set()
+    try:
+        for b in bucket.list_blobs(prefix=prefix):
+            cid = b.name[len(prefix):]
+            if cid:
+                have.add(cid)
+    except Exception as e:
+        print(f"  creative cache: list skipped ({e})")
+    for c in creatives:
+        cid = str(c.get("creative_id") or "")
+        url = c.get("thumbnail_url")
+        if not cid or not url or cid in have:      # skip if no url or already cached (keep the good copy)
+            continue
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = resp.read()
+                ctype = resp.headers.get("Content-Type", "image/jpeg")
+            if data and ctype.startswith("image/"):
+                bucket.blob(prefix + cid).upload_from_string(data, content_type=ctype)
+                have.add(cid)
+                print(f"  creative {cid}: cached ({len(data)} bytes)")
+        except Exception as e:
+            print(f"  creative {cid}: cache skip ({e})")
+    return have
+
+
 def main():
     bq = bigquery.Client(project=PROJECT)
 
@@ -169,11 +204,24 @@ def main():
         print(f"upstream advanced -> rebuilding | {times}")
 
     env, summary = build_env(bq, observed)
-    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
-        json.dumps(env), content_type="application/json")
+    bkt = storage.Client(project=PROJECT).bucket(BUCKET)
+    # Cache the top creatives' Meta thumbnails into our bucket (served at /creative-img/<id>) while the
+    # signed CDN URLs are still live, so the Creative gallery keeps showing the real ad after Meta expires
+    # the link. Dedup by creative_id, prioritise by spend, cap the set (covers the dashboard's top-10 for
+    # any date range).
+    cc = {}
+    for r in env["rows"]:
+        cid = str(r.get("creative_id") or "")
+        if not cid or not r.get("creative_thumbnail_url"):
+            continue
+        o = cc.setdefault(cid, {"creative_id": cid, "thumbnail_url": r["creative_thumbnail_url"], "spend": 0.0})
+        o["spend"] += num(r.get("spend")) or 0
+    top = sorted(cc.values(), key=lambda x: x["spend"], reverse=True)[:30]
+    cached = cache_creative_images(bkt, top)
+    bkt.blob(DATA_OBJECT).upload_from_string(json.dumps(env), content_type="application/json")
     # Watermark only after a successful upload (upload first, watermark second).
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
-    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {summary}")
+    print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {summary} | creatives cached: {len(cached)}")
 
 
 if __name__ == "__main__":

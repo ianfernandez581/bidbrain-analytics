@@ -9,6 +9,7 @@ AI "Download report" endpoint (Claude Opus 4.8 + web research -> a 3-slide deck;
 see report.py), gated and cached the same way as the dashboard data.
 """
 import os
+import re
 import hmac
 import json
 import hashlib
@@ -167,6 +168,25 @@ def data():
         blob.download_as_bytes(),
         mimetype="application/json",
         headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/creative-img/<cid>")
+def creative_img(cid):
+    # Serve a Meta creative image cached in our bucket (creatives/<id>) by the export job — a permanent
+    # copy that survives after Meta's signed CDN URL expires. Same auth as /data.json.
+    if not authed():
+        abort(401)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", cid or ""):   # simple ids only (no path traversal)
+        abort(404)
+    blob = _storage.bucket(GCS_BUCKET).blob(f"creatives/{cid}")
+    if not blob.exists():
+        abort(404)
+    blob.reload()
+    return Response(
+        blob.download_as_bytes(),
+        mimetype=blob.content_type or "image/jpeg",
+        headers={"Cache-Control": "public, max-age=86400"},   # our copy is stable; let the browser cache it
     )
 
 
