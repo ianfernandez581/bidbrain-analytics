@@ -1114,15 +1114,18 @@ function renderArticles(){
 function otherChannels(){ return (campaign().channels||[]).filter(c=>c.group==='other' && c.has_target); }
 function renderOther(){
   el('otherSub').textContent=`Plan-only channels for ${campaign().label} - tracked in the media plan, no measured delivery feed connected.`;
+  renderArticles();
   const tb=el('otherTable').querySelector('tbody'); tb.innerHTML='';
   const chans=otherChannels();
   if(!chans.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for this campaign.</td></tr>'; return; }
+  const hasArt=!!ARTICLE_DELIVERY[activeCampaign];
   chans.forEach(c=>{
+    const isArt=hasArt && /trade publication/i.test(c.name||'');
     const tr=document.createElement('tr');
     tr.innerHTML=`<td>${c.name}</td><td>${c.line_type||'—'}</td>`
       +`<td class="num">${fmtN(c.imp_target)}</td><td class="num">${fmtN(c.click_target)}</td>`
       +`<td class="num">${fmtN(c.lead_target)}</td><td class="num">${c.spend?money(c.spend):'—'}</td>`
-      +`<td><span class="plan-badge">Plan only · no feed</span></td>`;
+      +`<td>${isArt?'<span class="plan-badge" style="color:var(--se-green2);border-color:var(--se-green2)">Actuals below ↓</span>':'<span class="plan-badge">Plan only · no feed</span>'}</td>`;
     tb.appendChild(tr);
   });
 }
