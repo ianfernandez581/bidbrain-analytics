@@ -676,7 +676,7 @@ function gridY(o={}){ return Object.assign({grid:{color:'#EEF1F0'},ticks:{color:
 function axisX(o={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}},o); }
 const LEGEND_HINT={display:true,text:'Click a label to show or hide it',color:C.mute,font:{size:10.5,weight:'600',...FONT},padding:{bottom:8}};
 function legendTop(){ return {position:'top',align:'end',title:LEGEND_HINT,labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
-function legendBottom(){ return {position:'bottom',title:{...LEGEND_HINT,padding:{top:8}},labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}}; }
+function legendBottom(){ return {position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:8}},labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}}; }
 const centerText={ id:'centerText', afterDraw(chart){ const o=chart.config.options.cutoutText; if(!o) return;
   // dynamic: sum only the currently-VISIBLE segments so the centre value tracks legend clicks
   let line1=o.line1;
@@ -997,7 +997,7 @@ function renderCSProgramme(){
   const tot=data.reduce((s,x)=>s+x,0);
   charts.csProgramme=new Chart(el('csProgramme'),{ type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:labels.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,tot),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
+    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,tot),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
 }
 function renderCSRegionGrid(){
   const grid=el('csRegionGrid'); grid.innerHTML='';
@@ -1042,7 +1042,7 @@ function renderComparePanel(side){
     el(side+'_total').textContent=fmtN(vis); el(side+'_share').textContent=fmtPct(pct(vis,allLeads),0); el(side+'_last').textContent=dateLabel(lastV); };
   if(charts[side+'_prog']) charts[side+'_prog'].destroy();
   charts[side+'_prog']=new Chart(el(side+'_prog'),{ type:'doughnut', data:{ labels:pairs.map(x=>x[0]), datasets:[{ data:pairs.map(x=>x[1]), backgroundColor:pairs.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'56%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:9.5,...FONT},color:C.ink,padding:5},onClick:(e,it,lg)=>{ Chart.defaults.plugins.legend.onClick(e,it,lg); syncOverall(); }}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,leads),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
+    options:{ maintainAspectRatio:false, cutout:'56%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:9.5,...FONT},color:C.ink,padding:5},onClick:(e,it,lg)=>{ const ci=lg.chart; ci.toggleDataVisibility(it.index); ci.update(); syncOverall(); }}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,leads),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
   syncOverall();
   // weekly (shared axis with the CS tab)
   const weeks=csDisplayWeeks();
