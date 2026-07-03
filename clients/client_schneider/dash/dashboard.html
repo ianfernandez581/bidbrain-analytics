@@ -509,6 +509,14 @@
       <div class="section">
         <div style="overflow:auto"><table id="otherTable"><thead><tr><th>Channel</th><th>Type</th><th class="num">Plan impressions</th><th class="num">Plan clicks</th><th class="num">Plan leads</th><th class="num">Plan spend</th><th>Status</th></tr></thead><tbody></tbody></table></div>
       </div>
+      <div class="section" id="articleWrap" style="display:none">
+        <h2 style="font-size:15px">Article delivery <span class="plan-badge" id="articleFlightBadge" style="vertical-align:middle"></span></h2>
+        <span class="sub" id="articleSub"></span>
+        <div class="card" style="margin-top:12px"><div style="overflow:auto">
+          <table id="articleTable"><thead><tr><th>Publication</th><th class="num">Page views</th><th class="num">Sessions</th><th class="num">Engaged sessions</th><th class="num">Outbound clicks</th><th class="num">Outbound CTR</th></tr></thead><tbody></tbody></table>
+        </div></div>
+        <div id="articleNote" style="font-size:12px;color:var(--se-mute);margin-top:12px;line-height:1.55"></div>
+      </div>
     </div>
 
     <footer id="footMeta"></footer>
@@ -964,6 +972,11 @@ function csDisplayWeeks(){
   if(aw.length){ if(aw[0]<start) start=aw[0]; if(aw[aw.length-1]>end) end=aw[aw.length-1]; }
   return csWeeks(start, end);
 }
+// Weekly buckets are Monday-truncated, so a campaign that commences mid-week (e.g. Heavy, Fri 1 May)
+// would otherwise label its first bar with the prior Monday (27 Apr) and imply it started then. The
+// bar only holds post-commencement leads (they're flight-clamped in stg_salesforce), so relabel any
+// week whose Monday falls before flight_start to the actual commencement date.
+function csWeekLabel(wk){ const c=campaign(); const fs=c&&c.flight_start; return (fs && wk<fs)?fs:wk; }
 function renderCSWeekly(p){
   const c=campaign();
   const weeks=csDisplayWeeks();
@@ -971,7 +984,7 @@ function renderCSWeekly(p){
   const fullWeeks=Math.max(1, csWeeks(c.flight_start||weeks[0], c.flight_end||weeks[weeks.length-1]).length);
   const actualByWk={}; csWeeklyRows().forEach(r=>{ actualByWk[r.week_start]=(actualByWk[r.week_start]||0)+(r.leads||0); });
   const tgtPace=(p.hasTarget)?p.target/fullWeeks:0;
-  const labels=weeks.map(wk=>'wk '+new Date(wk).toLocaleDateString('en-US',{day:'numeric',month:'short'}));
+  const labels=weeks.map(wk=>'wk '+new Date(csWeekLabel(wk)).toLocaleDateString('en-US',{day:'numeric',month:'short'}));
   charts.csWeekly=new Chart(el('csWeekly'),{ type:'bar',
     data:{ labels, datasets:[
       {label:'Target pace', data:weeks.map(()=>tgtPace), backgroundColor:C.grey, borderRadius:3, order:1},
@@ -1048,7 +1061,7 @@ function renderComparePanel(side){
   const weeks=csDisplayWeeks();
   const byWk={}; csWeeklyRows(mp).forEach(r=>{ byWk[r.week_start]=(byWk[r.week_start]||0)+(r.leads||0); });
   if(charts[side+'_weekly']) charts[side+'_weekly'].destroy();
-  charts[side+'_weekly']=new Chart(el(side+'_weekly'),{ type:'bar', data:{ labels:weeks.map(wk=>new Date(wk).toLocaleDateString('en-US',{day:'numeric',month:'short'})), datasets:[{ label:'Leads', data:weeks.map(wk=>byWk[wk]||0), backgroundColor:campColor(activeCampaign), borderRadius:3 }]},
+  charts[side+'_weekly']=new Chart(el(side+'_weekly'),{ type:'bar', data:{ labels:weeks.map(wk=>new Date(csWeekLabel(wk)).toLocaleDateString('en-US',{day:'numeric',month:'short'})), datasets:[{ label:'Leads', data:weeks.map(wk=>byWk[wk]||0), backgroundColor:campColor(activeCampaign), borderRadius:3 }]},
     options:{ maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.y)} leads`}}}, scales:{ x:axisX({ticks:{font:{size:9}}}), y:gridY({beginAtZero:true}) } } });
 }
 
@@ -1061,6 +1074,43 @@ function tableCSV(section,obj){ const lines=['# '+section]; const keys=Object.ke
 //==============================================================================
 // OTHER CHANNELS (plan only — no measured feed)
 //==============================================================================
+// Article (trade-publication thought-leadership) delivery. MANUAL - no warehouse feed. Source:
+// raw_files/Article Reporting.xlsx (Ben Robinson / publisher reports). Update these totals when a new
+// report lands (add publications to the flight, flip live:true). The publisher reports an OVERALL total
+// per flight; the source sheet's identical weekly values are that total split by #weeks, so we report
+// FLIGHT TOTALS here, not a real weekly series.
+const ARTICLE_DELIVERY = {
+  heavy: {
+    plan: { click_target:180, spend:10000, note:'~1,200 page views, 950+ sessions, 700+ engaged, 15% outbound CTR; on-months May / Jul / Sep' },
+    flights: [
+      { month:'May 2026', live:true, publications:[
+        { name:'Mining Magazine', page_views:1188, sessions:1036, engaged:824, clicks:64, ctr:0.0502 },
+        { name:'TechPapersWorld', page_views:764,  sessions:668,  engaged:524, clicks:44, ctr:0.0558 },
+      ]},
+      { month:'Jul 2026', live:false, publications:[] },
+      { month:'Sep 2026', live:false, publications:[] },
+    ],
+  },
+};
+function renderArticles(){
+  const wrap=el('articleWrap'); if(!wrap) return;
+  const A=ARTICLE_DELIVERY[activeCampaign];
+  const live=A?A.flights.filter(f=>f.live && f.publications.length):[];
+  if(!A || !live.length){ wrap.style.display='none'; return; }
+  wrap.style.display='';
+  const pubs=live.flatMap(f=>f.publications);
+  const tot=pubs.reduce((o,p)=>{o.pv+=p.page_views||0;o.se+=p.sessions||0;o.en+=p.engaged||0;o.cl+=p.clicks||0;o.cw+=(p.ctr||0)*(p.page_views||0);return o;},{pv:0,se:0,en:0,cl:0,cw:0});
+  const totCtr=tot.pv?tot.cw/tot.pv:0;   // page-view-weighted mean of the reported per-publication CTRs
+  const tb=el('articleTable').querySelector('tbody');
+  tb.innerHTML=pubs.map(p=>`<tr><td>${p.name}</td><td class="num">${fmtN(p.page_views)}</td><td class="num">${fmtN(p.sessions)}</td><td class="num">${fmtN(p.engaged)}</td><td class="num">${fmtN(p.clicks)}</td><td class="num">${fmtPct(p.ctr,2)}</td></tr>`).join('')
+    + `<tr class="total"><td>Total delivered</td><td class="num">${fmtN(tot.pv)}</td><td class="num">${fmtN(tot.se)}</td><td class="num">${fmtN(tot.en)}</td><td class="num">${fmtN(tot.cl)}</td><td class="num">${fmtPct(totCtr,2)}</td></tr>`;
+  el('articleFlightBadge').textContent=live.map(f=>f.month).join(', ')+' delivered';
+  el('articleSub').textContent='Heavy Industries thought-leadership articles placed in trade publications (via Ben Robinson). Manual publisher reports - no live data feed.';
+  const upcoming=A.flights.filter(f=>!f.live).map(f=>f.month);
+  el('articleNote').innerHTML=`<b>Plan for this line:</b> ${A.plan.note} (media-plan click target <b>${fmtN(A.plan.click_target)}</b>, spend <b>${money(A.plan.spend)}</b>).`
+    + (upcoming.length?` <b>${upcoming.join(' &amp; ')}</b> flight${upcoming.length>1?'s':''} still to run.`:'')
+    + ` Publishers report an <b>overall total per flight only</b>, so these are <b>flight totals</b>, not a true weekly series; CTR is publisher-reported (total is page-view-weighted).`;
+}
 function otherChannels(){ return (campaign().channels||[]).filter(c=>c.group==='other' && c.has_target); }
 function renderOther(){
   el('otherSub').textContent=`Plan-only channels for ${campaign().label} - tracked in the media plan, no measured delivery feed connected.`;

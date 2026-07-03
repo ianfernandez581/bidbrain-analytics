@@ -1440,7 +1440,9 @@ function buildWeekly(mPred){
   let cur = new Date(p.start);
   cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));   // snap to Monday
   while (cur <= p.end) { weeks.push(new Date(cur)); cur.setDate(cur.getDate() + 7); }
-  const labels = weeks.map(x => String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0'));
+  // Weeks are Monday-truncated; if the flight commences mid-week, relabel the first week to the actual
+  // commencement date instead of the prior Monday (the bar only holds post-commencement leads anyway).
+  const labels = weeks.map(x => { const d = (x < p.start) ? p.start : x; return String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); });
   const today = new Date();
   const inC = weeks.map(x => { const e=new Date(x); e.setDate(e.getDate()+6); return x <= p.end && e >= p.start; });
   const activeWeeks = inC.filter(Boolean).length || 1;
