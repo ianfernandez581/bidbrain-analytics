@@ -347,7 +347,8 @@ class Store:
         return sorted(out, key=lambda u: (rank.get(u["role"], 9), u["email"]))
 
     def agency_clients(self, agency):
-        """Resolved client dicts (for the portal), in the agency's order."""
+        """Resolved client dicts (for the portal): active (live) tiles first, coming_soon at the
+        bottom; each carries its `note` so coming_soon tiles show the placeholder blurb."""
         clients = self._all_clients()
         out = []
         for key in agency.get("client_keys", []):
@@ -355,7 +356,9 @@ class Store:
             if c:
                 out.append({"key": key, "name": c["name"], "slug": c["slug"],
                             "status": c["status"], "url": c.get("url", ""),
+                            "note": c.get("note", ""),
                             "campaigns": c.get("campaigns", [])})
+        out.sort(key=lambda c: 0 if c.get("status") == "active" else 1)
         return out
 
     def active_client_keys(self):
