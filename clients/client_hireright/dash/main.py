@@ -55,7 +55,7 @@ LOGIN_HTML = """<!doctype html>
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
        font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
-       background:radial-gradient(1200px 600px at 50% -10%,#33373E 0%,#23272E 55%,#191C21 100%)}
+       background:radial-gradient(1200px 600px at 50% -12%,rgba(237,28,36,.22) 0%,#0A0E17 62%),#0A0E17}
   .card{width:100%;max-width:360px;padding:36px 32px;background:#fff;
         border:1px solid rgba(0,0,0,.06);border-radius:16px;
         box-shadow:0 20px 64px rgba(0,0,0,.34)}
