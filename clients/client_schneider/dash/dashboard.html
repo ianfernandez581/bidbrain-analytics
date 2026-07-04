@@ -39,7 +39,8 @@
     background-attachment:fixed;}
   a{color:var(--se-green);text-decoration:none}
 
-  .topbar{background:linear-gradient(100deg,#04200F,#0A3620);color:#fff;padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;border-bottom:1px solid rgba(0,149,48,.35)}
+  .topbar{background:linear-gradient(100deg,#04200F,#0A3620);color:#fff;padding:14px 0;border-bottom:1px solid rgba(0,149,48,.35)}
+  .topbar .inner{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
   .topbar-left{display:flex;align-items:center;gap:18px}
   .agency{font-weight:700;letter-spacing:1.2px;font-size:13px;color:#fff;display:flex;align-items:center;gap:8px}
   .agency .dot{width:6px;height:6px;background:var(--se-green);border-radius:50%}
@@ -290,7 +291,7 @@
 </head>
 <body>
 
-<div class="topbar">
+<div class="topbar"><div class="inner">
   <div class="topbar-left">
     <div class="agency">TRANSMISSION<span class="dot"></span></div>
     <div class="topbar-divider"></div>
@@ -304,7 +305,7 @@
     <div><span class="live"></span><b>Live</b> · Content Syndication</div>
     <div id="topPeriod">&nbsp;</div>
   </div>
-</div>
+</div></div>
 
 <div class="container">
   <div id="loading" class="loading"><div class="spinner"></div><div>Fetching dashboard data from BigQuery…</div></div>

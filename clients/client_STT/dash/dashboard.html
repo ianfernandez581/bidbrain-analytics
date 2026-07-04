@@ -30,8 +30,8 @@
   a{color:var(--stt-red);text-decoration:none}
 
   /* ---- topbar ---- */
-  .topbar{background:linear-gradient(100deg,var(--stt-dark2) 0%,var(--stt-dark) 60%);color:#fff;
-          padding:13px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar{background:linear-gradient(100deg,var(--stt-dark2) 0%,var(--stt-dark) 60%);color:#fff; padding:13px 0}
+  .topbar .inner{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
   .topbar-left{display:flex;align-items:center;gap:18px}
   .agency{font-weight:700;letter-spacing:1.3px;font-size:12px;color:#fff;display:flex;align-items:center;gap:8px}
   .agency .dot{width:7px;height:7px;background:var(--stt-red2);border-radius:50%}
@@ -279,7 +279,7 @@
 </head>
 <body>
 
-<div class="topbar">
+<div class="topbar"><div class="inner">
   <div class="topbar-left">
     <div class="agency">TRANSMISSION<span class="dot"></span></div>
     <div class="topbar-divider"></div>
@@ -296,7 +296,7 @@
     <div><span class="live"></span><b style="color:#fff">Live</b> · APAC Always On FY25-26</div>
     <div id="topPeriod">&nbsp;</div>
   </div>
-</div>
+</div></div>
 
 <div class="container">
   <div id="loading" class="loading">

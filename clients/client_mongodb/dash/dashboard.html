@@ -42,8 +42,8 @@
             background-attachment:fixed;background-repeat:no-repeat}
   a{color:var(--brand-accent);text-decoration:none}
 
-  .topbar{background:linear-gradient(180deg,var(--surface) 0%,var(--bg-2) 100%);color:var(--ink);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;
-          border-bottom:1px solid var(--line);box-shadow:0 18px 46px -26px var(--glow-strong)}
+  .topbar{background:linear-gradient(180deg,var(--surface) 0%,var(--bg-2) 100%);color:var(--ink);padding:14px 0; border-bottom:1px solid var(--line);box-shadow:0 18px 46px -26px var(--glow-strong)}
+  .topbar .inner{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
   .topbar-left{display:flex;align-items:center;gap:18px}
   .transmission-logo{font-weight:700;letter-spacing:1.2px;font-size:13px;color:var(--ink);display:flex;align-items:center;gap:8px}
   .transmission-logo .dot{width:6px;height:6px;background:var(--brand-accent);border-radius:50%;box-shadow:0 0 10px 1px var(--glow-strong)}
@@ -258,7 +258,7 @@
 </head>
 <body>
 
-<div class="topbar">
+<div class="topbar"><div class="inner">
   <div class="topbar-left">
     <div class="transmission-logo">TRANSMISSION<span class="dot"></span></div>
     <div class="topbar-divider"></div>
@@ -278,7 +278,7 @@
   <div class="topbar-right">
     <div><span class="live"></span><b style="color:#fff">Live</b></div>
   </div>
-</div>
+</div></div>
 
 <div class="container">
   <div id="loading" class="loading">

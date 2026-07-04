@@ -26,8 +26,8 @@
   a{color:var(--orange);text-decoration:none}
 
   /* ---- topbar (white, like vmch.org.au's nav) ---- */
-  .topbar{background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(42,30,32,.03);
-          padding:14px 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar{background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 0 rgba(42,30,32,.03); padding:14px 0}
+  .topbar .inner{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
   .topbar-left{display:flex;align-items:center;gap:16px}
   .brandlogo{height:32px;width:auto;display:block}
   .topbar-divider{width:1px;height:30px;background:var(--line)}
@@ -265,7 +265,7 @@
 </head>
 <body>
 
-<div class="topbar">
+<div class="topbar"><div class="inner">
   <div class="topbar-left">
     <!-- VMCH client logo (inlined data URI by creatives/inject_logos.py) -->
     <img class="brandlogo" src="data:image/png;base64,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" alt="VMCH - Villa Maria Catholic Homes">
@@ -284,7 +284,7 @@
     <div><span class="live"></span><b>Live</b> · The Trade Desk → VMCH website</div>
     <div id="topPeriod">&nbsp;</div>
   </div>
-</div>
+</div></div>
 
 <div class="container">
   <div id="loading" class="loading">
