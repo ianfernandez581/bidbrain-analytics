@@ -1,0 +1,18 @@
+{
+  "name": "api-probe",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Read-only diagnostic: checks whether we have working reporting API access to each ad platform (Google Ads, Meta, LinkedIn, Reddit, The Trade Desk, DV360).",
+  "bin": {
+    "api-probe": "index.js"
+  },
+  "scripts": {
+    "probe": "node index.js",
+    "probe:json": "node index.js --json"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {}
+}
