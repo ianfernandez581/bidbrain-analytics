@@ -1,0 +1,11 @@
+# Secrets — NEVER commit these
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Probe output
+*.probe.json
