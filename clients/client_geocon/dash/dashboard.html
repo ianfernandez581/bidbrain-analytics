@@ -387,6 +387,12 @@
 
       <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage — where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Enquiries</th><th class="num">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
+      <div class="section"><h2>Who &amp; where we reached</h2><span class="sub">Meta audience &amp; placement breakdowns for the Gateway Braddon campaigns — honours the date filter.</span></div>
+      <div class="grid cols-2">
+        <div class="card"><h3>Audience — age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band — where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
+        <div class="card"><h3>Placement — where ads ran</h3><div class="hint">Impressions by Meta placement — <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+      </div>
+
       <div class="section"><h2>What stands out</h2></div>
       <div class="grid-insights" id="insightGrid"></div>
 
@@ -413,6 +419,16 @@
         <div class="card"><h3>Cost per enquiry over time</h3>
           <div class="hint">Weekly cost per enquiry vs the CPL target — is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
           <div class="chartbox tall"><canvas id="cplTrend"></canvas></div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> — a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
+        <div class="card"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range — where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
+        <div class="card"><h3>Enquiry type — website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
       </div>
 
       <div class="grid cols-2-1">
@@ -551,7 +567,8 @@ function deltaWindows(){const[a,b]=rangeBounds();if(!a||!b)return null;const len
 function lowConfidence(r){if(n(r.impressions)<15000)return{low:true,why:'under 15k impressions'};if(r.cpl!=null&&n(r.leads)<8)return{low:true,why:'fewer than 8 leads'};return{low:false,why:''};}
 function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   const spend=s('spend'),imp=s('impressions'),reach=s('reach'),clicks=s('clicks'),lc=s('link_clicks'),lpv=s('lpv'),leads=s('leads'),v3=s('video_3s_views'),vc=s('video_completes');
-  return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,
+  const tp=s('thruplays'),lw=s('leads_website'),lof=s('leads_onfacebook');
+  return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,thruplays:tp,leads_website:lw,leads_onfacebook:lof,
     ctr:imp?lc/imp:null,cpm:imp?spend/imp*1000:null,cpc:lc?spend/lc:null,cpl:leads?spend/leads:null,cost_per_lpv:lpv?spend/lpv:null,frequency:reach?imp/reach:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
 function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;g.forEach(x=>{x.spend_share=n(x.spend)/ts;x.lead_share=n(x.leads)/tl;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
@@ -607,6 +624,7 @@ function render(){
   // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
   [renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderStageDonut,
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
+   renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
    renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
 }
@@ -769,11 +787,87 @@ function renderCplTrend(){
   days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,spend:0,leads:0};m.set(w,o);}o.spend+=n(d.spend);o.leads+=n(d.leads);});
   const wk=[...m.values()].sort((a,b)=>a.w.localeCompare(b.w));
   const labels=wk.map(o=>fmtDate(o.w));const cpl=wk.map(o=>o.leads?o.spend/o.leads:null);
-  const cplT=bench('cpl');
-  const tline=cplT!=null?{id:'cplTgt',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.y)return;const y=scales.y.getPixelForValue(cplT);if(y>chartArea.top&&y<chartArea.bottom){ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle='rgba(255,255,255,.28)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();ctx.fillStyle=MC.muted2;ctx.font='700 10px '+FONT.family;ctx.fillText('CPL target '+money(cplT),chartArea.left+6,y-4);ctx.restore();}}}:null;
+  const cplT=bench('cpl'),cplS=bench('cpl_stretch');
+  const drawTgt=(ctx,ca,y,label,color)=>{if(y<=ca.top||y>=ca.bottom)return;ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ca.left,y);ctx.lineTo(ca.right,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=color;ctx.font='700 10px '+FONT.family;ctx.fillText(label,ca.left+6,y-4);ctx.restore();};
+  const tline=(cplT!=null||cplS!=null)?{id:'cplTgt',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.y)return;
+    if(cplT!=null)drawTgt(ctx,chartArea,scales.y.getPixelForValue(cplT),'CPL target '+money(cplT),'rgba(255,255,255,.32)');
+    if(cplS!=null)drawTgt(ctx,chartArea,scales.y.getPixelForValue(cplS),'stretch '+money(cplS),MC.good+'AA');}}:null;
   makeChart('cplTrend',{type:'line',data:{labels,datasets:[{label:'Cost per enquiry',data:cpl,borderColor:MC.cost,backgroundColor:'rgba(224,113,78,.14)',fill:true,spanGaps:true,tension:.3,pointRadius:2,borderWidth:2.8}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'—':`Cost per enquiry: ${money(c.parsed.y)}`}}},
     scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)}})}},plugins:tline?[tline]:[]});
+}
+// ---- Tier 1: delivery-quality & timing charts (existing data, no new ingest) ----
+function weeklyOf(){const days=dailyOf(scoped());const m=new Map();
+  days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,imp:0,reach:0,v3:0,vc:0};m.set(w,o);}o.imp+=n(d.impressions);o.reach+=n(d.reach);o.v3+=n(d.video_3s_views);o.vc+=n(d.video_completes);});
+  return [...m.values()].sort((a,b)=>a.w.localeCompare(b.w));}
+function renderReachFreq(){
+  const wk=weeklyOf();const labels=wk.map(o=>fmtDate(o.w));const reach=wk.map(o=>o.reach);const freq=wk.map(o=>o.reach?o.imp/o.reach:null);
+  makeChart('reachFreqChart',{data:{labels,datasets:[
+    {type:'bar',label:'Reach',data:reach,backgroundColor:MC.reach+'88',borderColor:MC.reach,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:2},
+    {type:'line',label:'Frequency',data:freq,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.4,tension:.35,pointRadius:2,spanGaps:true,yAxisID:'y2',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Frequency'?`Frequency: ${c.parsed.y==null?'—':c.parsed.y.toFixed(2)}`:`Reach: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false}}),
+      y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Reach',color:MC.muted2,font:{size:11}}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Frequency',color:MC.muted2,font:{size:11}}}}}});
+}
+function renderVideo(){
+  const wk=weeklyOf();const labels=wk.map(o=>fmtDate(o.w));const v3=wk.map(o=>o.v3);const vc=wk.map(o=>o.vc);const rate=wk.map(o=>o.v3?o.vc/o.v3*100:null);
+  makeChart('videoChart',{data:{labels,datasets:[
+    {type:'bar',label:'3-sec views',data:v3,backgroundColor:MC.lpv+'88',borderColor:MC.lpv,borderRadius:4,maxBarThickness:30,yAxisID:'y1',order:3},
+    {type:'bar',label:'Completes',data:vc,backgroundColor:MC.forest+'AA',borderColor:MC.forest,borderRadius:4,maxBarThickness:30,yAxisID:'y1',order:2},
+    {type:'line',label:'Completion %',data:rate,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.4,tension:.35,pointRadius:2,spanGaps:true,yAxisID:'y2',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Completion %'?`Completion: ${c.parsed.y==null?'—':c.parsed.y.toFixed(0)+'%'}`:`${c.dataset.label}: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false}}),
+      y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Video views',color:MC.muted2,font:{size:11}}},
+      y2:{position:'right',beginAtZero:true,suggestedMax:100,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>v+'%'},title:{display:true,text:'Completion %',color:MC.muted2,font:{size:11}}}}}});
+}
+function renderDow(){
+  const names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];const b=names.map(()=>({spend:0,leads:0}));
+  scoped().forEach(r=>{const d=new Date(String(r.date).slice(0,10)+'T00:00:00Z');if(Number.isNaN(d.getTime()))return;const i=(d.getUTCDay()+6)%7;b[i].spend+=n(r.spend);b[i].leads+=n(r.leads);});
+  const leads=b.map(x=>x.leads);const cpl=b.map(x=>x.leads?x.spend/x.leads:null);
+  makeChart('dowChart',{data:{labels:names,datasets:[
+    {type:'bar',label:'Enquiries',data:leads,backgroundColor:MC.leads+'99',borderColor:MC.leads,borderRadius:4,maxBarThickness:46,yAxisID:'y1',order:2},
+    {type:'line',label:'Cost / enquiry',data:cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.4,tension:.35,pointRadius:3,spanGaps:true,yAxisID:'y2',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Cost / enquiry'?`Cost / enquiry: ${c.parsed.y==null?'—':money(c.parsed.y)}`:`Enquiries: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false}}),
+      y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries',color:MC.muted2,font:{size:11}}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}}}});
+}
+function renderLeadType(){
+  if(!$('leadTypeChart'))return;
+  const a=agg(scoped());const w=n(a.leads_website),f=n(a.leads_onfacebook);const tot=w+f;
+  makeChart('leadTypeChart',{type:'doughnut',data:{labels:['Website form','Instant form'],datasets:[{data:[w,f],backgroundColor:[MC.accent,MC.leads],borderColor:'#0A130E',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
+  const note=$('leadTypeNote');if(note)note.innerHTML=tot?`<b>${int(w)}</b> website-form · <b>${int(f)}</b> instant-form enquiries in range.`:'No lead-type split reported for this range yet — Meta returns it once instant-form or website leads are recorded.';
+}
+// ---- Tier 3: audience (age x gender) + placement — from the isolated Meta breakdown table ----
+function bdWithin(type){return (DATA.breakdowns||[]).filter(r=>r.breakdown===type&&inRange(r.date));}
+function renderAudience(){
+  if(!$('audienceChart'))return;
+  const AGES=['18-24','25-34','35-44','45-54','55-64','65+'];const rows=bdWithin('age_gender');
+  const sum=(age,gen)=>rows.reduce((a,r)=>a+(r.seg1===age&&String(r.seg2).toLowerCase()===gen?n(r.impressions):0),0);
+  const leadsByAge=age=>rows.reduce((a,r)=>a+(r.seg1===age?n(r.leads):0),0);
+  makeChart('audienceChart',{type:'bar',data:{labels:AGES,datasets:[
+    {label:'Women',data:AGES.map(a=>sum(a,'female')),backgroundColor:MC.leads+'CC',borderColor:MC.leads,borderRadius:4,maxBarThickness:26},
+    {label:'Men',data:AGES.map(a=>sum(a,'male')),backgroundColor:MC.reach+'CC',borderColor:MC.reach,borderRadius:4,maxBarThickness:26}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${int(c.parsed.y)} impressions`,afterBody:items=>`Enquiries (all genders): ${int(leadsByAge(AGES[items[0].dataIndex]))}`}}},
+    scales:{x:axis({grid:{display:false},title:{display:true,text:'Age',color:MC.muted2,font:{size:11}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions',color:MC.muted2,font:{size:11}}})}}});
+}
+function renderPlacement(){
+  if(!$('placementChart'))return;
+  const rows=bdWithin('placement');const m=new Map();
+  rows.forEach(r=>{const k=r.seg1||'unknown';let o=m.get(k);if(!o){o={seg:k,imps:0,leads:0,spend:0};m.set(k,o);}o.imps+=n(r.impressions);o.leads+=n(r.leads);o.spend+=n(r.spend);});
+  const NICE={feed:'Feed',facebook_reels:'FB Reels',facebook_reels_overlay:'FB Reels overlay',instagram_reels:'IG Reels',instagram_stories:'IG Stories',facebook_stories:'FB Stories',instream_video:'In-stream video',an_classic:'Audience Network',marketplace:'Marketplace',right_hand_column:'Right column',search:'Search',facebook_profile_feed:'FB profile feed',facebook_notification:'Notifications',threads_feed:'Threads',instagram_search:'IG Search'};
+  const isIG=s=>String(s).startsWith('instagram')||s==='threads_feed';
+  const arr=[...m.values()].filter(o=>o.imps>0).sort((a,b)=>b.imps-a.imps).slice(0,10);
+  makeChart('placementChart',{type:'bar',data:{labels:arr.map(o=>NICE[o.seg]||o.seg),datasets:[{label:'Impressions',data:arr.map(o=>o.imps),backgroundColor:arr.map(o=>isIG(o.seg)?MC.leads+'CC':MC.accent+'CC'),borderColor:arr.map(o=>isIG(o.seg)?MC.leads:MC.accent),borderWidth:1,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=arr[c.dataIndex];return [`${compact(o.imps)} impressions`,`${int(o.leads)} enquiries · ${money(o.spend)}`];}}}},
+      scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}}}}}});
 }
 function renderInsights(){
   const a=agg(scoped());const st=byStage(scoped());const ads=byAd(scoped()).filter(x=>n(x.spend)>0);
@@ -836,9 +930,10 @@ function renderBurn(){
 function renderEffScatter(){
   const ads=byAd(searched(scoped())).filter(x=>n(x.spend)>0&&x.cpl!=null&&x.ctr!=null);
   const grouped={};ads.forEach(x=>{const s=x.stage||'Other';(grouped[s]=grouped[s]||[]).push({x:n(x.ctr)*100,y:x.cpl,r:Math.max(5,Math.min(24,Math.sqrt(n(x.spend))/3)),raw:x});});
-  const cplT=bench('cpl'),ctrT=bench('ctr');
+  const cplT=bench('cpl'),ctrT=bench('ctr'),cplS=bench('cpl_stretch');
   const targetLines={id:'effTargets',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.x||!scales.y)return;ctx.save();ctx.setLineDash([5,4]);ctx.lineWidth=1;ctx.strokeStyle='rgba(255,255,255,.28)';ctx.fillStyle=MC.muted2;ctx.font='700 10px '+FONT.family;
     if(cplT!=null){const y=scales.y.getPixelForValue(cplT);if(y>chartArea.top&&y<chartArea.bottom){ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();ctx.fillText('CPL target '+money(cplT),chartArea.left+6,y-4);}}
+    if(cplS!=null){const ys=scales.y.getPixelForValue(cplS);if(ys>chartArea.top&&ys<chartArea.bottom){ctx.strokeStyle=MC.good+'AA';ctx.fillStyle=MC.good;ctx.beginPath();ctx.moveTo(chartArea.left,ys);ctx.lineTo(chartArea.right,ys);ctx.stroke();ctx.fillText('CPL stretch '+money(cplS),chartArea.left+6,ys-4);ctx.strokeStyle='rgba(255,255,255,.28)';ctx.fillStyle=MC.muted2;}}
     if(ctrT!=null){const x=scales.x.getPixelForValue(ctrT*100);if(x>chartArea.left&&x<chartArea.right){ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();ctx.fillText('CTR '+pct(ctrT),Math.min(x+5,chartArea.right-60),chartArea.top+12);}}
     ctx.restore();}};
   makeChart('effScatter',{type:'bubble',data:{datasets:Object.keys(grouped).map(s=>({label:s,data:grouped[s],backgroundColor:stageColor(s)+'B0',borderColor:stageColor(s)}))},
