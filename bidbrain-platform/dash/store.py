@@ -233,6 +233,8 @@ class Store:
                     "url": c.get("url", ""), "campaigns": c.get("campaigns", []),
                     "note": c.get("note", ""),
                 })
+            # active (client-facing live) tiles first; coming_soon (no live dashboard) drop to the bottom
+            kids.sort(key=lambda c: 0 if c.get("status") == "active" else 1)
             agencies.append({"name": a["name"], "slug": a["slug"], "clients": kids})
         unassigned = [
             {"key": k, "name": c["name"], "slug": c["slug"],
@@ -500,12 +502,21 @@ class Store:
             ag = key_to_agency.get(d["key"])
             d["agency_slug"] = ag["slug"] if ag else ""
             d["agency_name"] = ag["name"] if ag else ""
+        # Sort within each group so dashboards WITH a live dashboard sit on top, structure-only
+        # previews (coming_soon but deployed → openable by super admin) next, and clients with no
+        # dashboard at all fall to the bottom (easy to spot). Stable → preserves order within a tier.
+        def _tier(d):
+            if d.get("status") == "active" and d.get("url"):
+                return 0                       # live dashboard
+            if d.get("url"):
+                return 1                       # structure preview (deployed, not live)
+            return 2                           # no dashboard yet
         dashboard_groups = []
         for a in ordered_agencies:
-            members = [d for d in dashboards if d["agency_slug"] == a["slug"]]
+            members = sorted([d for d in dashboards if d["agency_slug"] == a["slug"]], key=_tier)
             if members:
                 dashboard_groups.append({"name": a["name"], "slug": a["slug"], "dashboards": members})
-        unassigned_dash = [d for d in dashboards if not d["agency_slug"]]
+        unassigned_dash = sorted([d for d in dashboards if not d["agency_slug"]], key=_tier)
         if unassigned_dash:
             dashboard_groups.append({"name": "Unassigned", "slug": "", "dashboards": unassigned_dash})
         agency_names = {a["slug"]: a["name"] for a in agencies}

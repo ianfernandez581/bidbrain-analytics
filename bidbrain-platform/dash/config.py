@@ -128,7 +128,7 @@ CLIENTS = {
     # coming_soon until the bellshakespeare-dash service is surfaced; then flip to "active".
     "bellshakespeare": {
         "name": "Bell Shakespeare", "slug": "bell-shakespeare", "status": "coming_soon",
-        "url": "",
+        "url": _runapp("bellshakespeare"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
         "note": "Dashboard isn't live yet - the structure is ready.",
         "campaigns": [
             {"name": "Season 2026", "path": "/paid-media", "status": "coming_soon"},
@@ -146,7 +146,7 @@ CLIENTS = {
     # caltex-dash service is stood up; then flip status->"active" + url->_runapp("caltex") to surface it.
     "caltex": {
         "name": "Caltex", "slug": "caltex", "status": "coming_soon",
-        "url": "",
+        "url": _runapp("caltex"),   # deployed preview: super-admin-openable, still hidden from clients (coming_soon)
         "note": "Dashboard isn't live yet - the structure is ready.",
         "campaigns": [
             {"name": "Paid Media", "path": "/paid-media", "status": "coming_soon"},

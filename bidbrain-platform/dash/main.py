@@ -1551,7 +1551,12 @@ def _upstream_login(client):
 
 def _may_open(client):
     kind = session.get("kind")
-    if kind in ("admin", "superadmin"):
+    if kind == "superadmin":
+        # god-mode: open ANY dashboard that has a URL, including coming_soon structure previews
+        # (Caltex / Bell Shakespeare) that aren't surfaced to clients yet.
+        c = store.get_client(client)
+        return bool(c and c.get("url"))
+    if kind == "admin":
         return client in store.active_client_keys()
     if kind == "agency":
         a = store.get_agency(session.get("agency_slug", ""))
