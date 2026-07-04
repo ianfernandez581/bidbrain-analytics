@@ -1,0 +1,21 @@
+{
+  "asOf": "2026-06-26",
+  "window": { "start": "2026-06-01", "end": "2026-06-30" },
+  "_comment": "Fill each check by reading ONE campaign's spend + impressions straight off the platform UI for this window. tolerancePct defaults to 0.5. Add one check per GREEN/YELLOW platform. The values below are real captured City Perfume figures for a first Google Ads sanity check.",
+  "checks": [
+    {
+      "source": "google",
+      "campaign": "Always On",
+      "spend": 34953.10,
+      "impressions": 2490816,
+      "tolerancePct": 0.5
+    },
+    {
+      "source": "ttd",
+      "campaign": "Always On",
+      "spend": 3957.75,
+      "impressions": 327885,
+      "tolerancePct": 1.0
+    }
+  ]
+}

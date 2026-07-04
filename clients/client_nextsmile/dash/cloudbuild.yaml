@@ -1,0 +1,43 @@
+# Cloud Build -> Cloud Run CD for the Next Smile Australia dashboard web app (a SERVICE).
+#
+# Wire a Cloud Build trigger (one-time):
+#   repo:           ianfernandez581/bidbrain-analytics
+#   event:          push to ^main$
+#   included files: clients/client_nextsmile/dash/**      (only redeploy when this unit changes)
+#   config:         clients/client_nextsmile/dash/cloudbuild.yaml
+#
+# The trigger's service account needs: roles/run.admin, roles/artifactregistry.writer,
+# and roles/iam.serviceAccountUser on _RUNTIME_SA.
+substitutions:
+  _REGION: australia-southeast1
+  _REPO: bidbrain                                                   # Artifact Registry docker repo (create once, see README)
+  _SERVICE: nextsmile-dash
+  _RUNTIME_SA: nextsmile-dash-web@bidbrain-analytics.iam.gserviceaccount.com
+  _BUCKET: bidbrain-analytics-nextsmile-dash
+steps:
+  - id: build
+    name: gcr.io/cloud-builders/docker
+    dir: clients/client_nextsmile/dash
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA", "."]
+  - id: push
+    name: gcr.io/cloud-builders/docker
+    args: ["push", "${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA"]
+  - id: deploy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - ${_SERVICE}
+      - --image=${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/${_SERVICE}:$SHORT_SHA
+      - --region=${_REGION}
+      - --service-account=${_RUNTIME_SA}
+      - --set-env-vars=GCS_BUCKET=${_BUCKET},DATA_OBJECT=nextsmile.json
+      - --set-secrets=DASH_PASSWORD=nextsmile-dash-password:latest,SESSION_SECRET=nextsmile-dash-session-key:latest
+      - --memory=512Mi
+  - id: allow-public-under-org-policy
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk
+    entrypoint: gcloud
+    args: ["run", "services", "update", "${_SERVICE}", "--region=${_REGION}", "--no-invoker-iam-check"]
+options:
+  logging: CLOUD_LOGGING_ONLY

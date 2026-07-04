@@ -1,0 +1,15 @@
+{
+  "name": "grid-core",
+  "version": "0.1.0",
+  "description": "Shared data + calculation core for The Grid. Connectors pull read-only reporting from each ad platform; derive.js holds the authoritative Live-Campaigns formulas used by both the app and the reconciliation harness.",
+  "type": "commonjs",
+  "main": "src/orchestrator.js",
+  "scripts": {
+    "test": "node src/derive.test.js",
+    "reconcile": "node src/reconcile.js --expected expected.json",
+    "check": "for f in src/derive.js src/orchestrator.js src/reconcile.js src/connectors/*.js; do node --check \"$f\"; done"
+  },
+  "engines": { "node": ">=18" },
+  "license": "UNLICENSED",
+  "private": true
+}

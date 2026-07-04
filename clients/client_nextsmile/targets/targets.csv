@@ -1,0 +1,14 @@
+key,value,status
+flight_budget_aud,7500,HARD
+flight_start,2026-06-21,HARD
+flight_end,2026-07-20,HARD
+daily_pace_aud,250,DERIVED
+cpl_target_aud,120,HARD
+cpl_stretch_aud,84,SOFT
+ctr_target,0.015,HARD
+cpm_target_aud,10,HARD
+cpc_target_aud,0.6,HARD
+cost_per_lpv_target_aud,1.1,HARD
+monthly_lead_target,55,PENDING
+qualified_lead_target,10,PENDING
+qualification_rate_target,0.2,PENDING
