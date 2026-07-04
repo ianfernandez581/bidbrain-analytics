@@ -312,10 +312,10 @@
 
   <div id="app" style="display:none">
     <div id="placeholderBanner" class="pholder" style="display:none">
-      <span class="ph-tag">Preview</span>
-      <div class="ph-copy"><b>Sample data — not connected yet.</b> Every figure, chart and table below is
-        placeholder data so you can see the finished dashboard. Caltex's live numbers appear here
-        automatically once the data pipeline is connected.</div>
+      <span class="ph-tag">Data coming soon</span>
+      <div class="ph-copy"><b>This is sample data — not Caltex's real numbers yet.</b> Every figure, chart
+        and table below is placeholder data so you can preview the finished dashboard. Caltex's live data
+        will appear here automatically once the pipeline is connected.</div>
     </div>
     <div class="control-bar">
       <div class="control-tabs">
@@ -659,7 +659,7 @@ function renderPlaceholderBanner(){
   const b=$('placeholderBanner');if(b)b.style.display=on?'flex':'none';
   const ll=$('liveLine');
   if(ll)ll.innerHTML=on
-    ? '<span class="live" style="background:var(--warn);box-shadow:none;animation:none"></span><b style="color:#fff">Preview</b> · sample data'
+    ? '<span class="live" style="background:var(--warn);box-shadow:none;animation:none"></span><b style="color:#fff">Data coming soon</b> · sample data'
     : '<span class="live"></span><b style="color:#fff">Live</b> · Meta paid media';
 }
 function renderDateScope(){
