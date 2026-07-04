@@ -32,18 +32,44 @@ Desk programmatic display) set against the VMCH website (GA4).
 | Campaigns? | 4 = service lines RAC / RL / SAH / Disability | Campaign filter relabels them |
 | Display → last-click sessions? | only ~25 GA4 "Display" sessions in-window vs 4.4M imps | **Frame display as upper-funnel** — reach + clicks, not 1:1 session lift |
 
-## Dashboard (single page — consolidated 2026-06-18)
+## Dashboard — 3 tabs (Overview · Trade Desk · Website)
 
-`dash/dashboard.html` — one self-contained file, **one page**. The old **Trade Desk**, **Website** and
-**Media → Traffic** tabs were removed and everything worth keeping was folded into the single Overview.
-The only top-bar filter is **Date range** (defaults to **all available history**; flight marked on
-charts). There is **no top-bar Campaign dropdown anymore** — campaign selection lives on the **Campaign
-chips inside the campaign-effect panel** (All / RAC / RL / SAH / Disability, `setAttrCampaign`); they
-drive the statistical model, scale the Sessions trend, and highlight a column in the enquiries heat-table.
-Because everything shares one canvas namespace now, **every grain/scale/chip toggle rebuilds the whole
-page** (`reRender` → `renderActive` → `OV.render()` + `renderWeb()`); `OV.setGrain` was repointed at it too.
+_Overview consolidated 2026-06-18; **Trade Desk + Website re-added as tabs 2026-07-04** (client + media-buyer
+asked for the delivery/GA4 detail back, plus clickable KPIs and full date-range responsiveness)._
 
-The page, top to bottom:
+`dash/dashboard.html` — one self-contained file, now **three tabs** (`setTab('overview'|'trade-desk'|'website')`;
+tab bar sits where the old "Performance overview" title was). The only top-bar filter is **Date range**
+(defaults to **all available history**; flight marked on charts) and it drives **all three tabs**. There is
+**no top-bar Campaign dropdown** — campaign selection lives on the **Campaign chips inside the campaign-effect
+panel** (All / RAC / RL / SAH / Disability, `setAttrCampaign`); they drive the statistical model, scale the
+Sessions trend, and highlight a column in the enquiries heat-table. Because everything shares one canvas
+namespace, **every tab/grain/scale/chip toggle rebuilds the active tab** (`reRender` → `renderActive` →
+Overview: `OV.render()` + `renderWeb()`; Trade Desk: `renderTradeDesk()`; Website: `renderWebsite()`);
+`destroyCharts()` clears the namespace first so tabs never collide. `OV.setGrain` was repointed at `reRender` too.
+
+**Clickable, range-responsive KPI cards (2026-07-04).** The Trade Desk and Website tabs each open with 6 KPI
+cards built by `kpiCard(cls,label,value,delta,opt)`; cards with `opt.series` get the `.clk` class + a coloured
+toggle dot and `wireKpiToggles(paneId,chartKey)` binds them to show/hide the matching `_group` series on that
+tab's trend chart (state in `TAB_HIDDEN[chartKey]`). **Every KPI on these two tabs recomputes from the selected
+date range** — Trade Desk sums `adMap('day')` (imps/clicks/CTR/spend/post-view/post-click), Website sums
+`ga4MonthlyRange()` + `enquiriesRangeSummary()`. (Overview's four headline KPIs stay full-flight by design —
+they frame the whole-campaign story; the range picker still drives every Overview chart.)
+
+### Trade Desk tab (`renderTradeDesk`)
+Range-scoped KPIs → **delivery trend** (`tdTrend`: spend bars + impressions & clicks lines, own axes,
+`flightMarker`, grain via `setTdGrain` Week/Month) → **creative-format donut** (`tdCreative`, `ttd_creative`
+grouped by `ad_format`, `centerText`) → **service-line table** (`tdCampTable`, `ad_campaigns` full-flight:
+imps/clicks/CTR/spend/post-view/post-click) → **top-15 ad-groups table** (`tdAdgroups`, `adgroupsSel`). The
+donut + both tables are **whole-flight** (no date grain — same as before); the KPIs + trend are range-scoped.
+
+### Website tab (`renderWebsite`)
+Range-scoped KPIs → **sessions-by-channel trend** (`wsTrend`: All/Paid/Display/Organic/Direct lines,
+`flightMarker`, grain via `setWsGrain`) → **channel donut** (`wsChannelDonut`, `ga4Channels` coloured by
+`BUCKET_COLOR`, `centerText`) → **enquiries-by-type bar** (`wsEnq`, `keyEventsBy('month')`, `KE_PALETTE`;
+flight-clamped) → **top-15 sources table** (`wsSources`, `ga4Sources`: source/medium · channel · sessions ·
+engaged · enquiries).
+
+### Overview tab, top to bottom:
 
 - **KPIs** — Impressions · Clicks to site · Website sessions · Session uplift at launch. (The old
   Ad-spend, Campaign-conversions, TTD-attributed and Original-budget cards were removed.)
@@ -69,13 +95,14 @@ The page, top to bottom:
     table** (`.grid`, 1fr 1fr).
 
 To revise, edit `dash/dashboard.html` and redeploy the service — **front-end only, no job/view change**;
-the export job still emits every array (incl. `ttd_adgroups`/`ttd_creative`), so the CSV export is
-unchanged even though the UI no longer charts them. **Removed entirely:** the Trade Desk delivery tab
-(spend/donut/campaign table/ad-groups/creative), the Media → Traffic funnel tab, the Overview's
-first-visits / engagement / campaign-by-unit / disability-ramp / conversion-breakdown / ROAS-LTV /
-recommendations sections, the executive summary, the GA4 KPI strip + the "how display shows up in GA4"
-banner, and the "Enquiry events by type" stacked chart (`renderPaid`/`renderLink`/`renderOvCommentary` +
-the campaign-dropdown machinery are gone).
+the Trade Desk / Website tabs are pure re-renders over arrays the job already emits (`ttd_adgroups`,
+`ttd_creative`, `ad_campaigns`, `ga4_channels_market`, `ga4_sources_market`, `ga4_key_events`), so nothing
+in `sql/` or `job/main.py` changed. **Still gone (not resurrected by the 2026-07-04 tab re-add):** the
+Media → Traffic funnel tab, the Overview's first-visits / engagement / campaign-by-unit / disability-ramp /
+conversion-breakdown / ROAS-LTV / recommendations sections, the executive summary, the top-bar campaign
+dropdown, and the old GA4 "how display shows up in GA4" banner (`renderPaid`/`renderLink`/`renderOvCommentary`
++ the campaign-dropdown machinery remain deleted). The Trade Desk delivery view + the GA4 Website view are
+back as their own tabs (above) but rebuilt clean, not the pre-2026-06-18 code.
 
 ## Coordinates
 
