@@ -52,8 +52,12 @@ cards built by `kpiCard(cls,label,value,delta,opt)`; cards with `opt.series` get
 toggle dot and `wireKpiToggles(paneId,chartKey)` binds them to show/hide the matching `_group` series on that
 tab's trend chart (state in `TAB_HIDDEN[chartKey]`). **Every KPI on these two tabs recomputes from the selected
 date range** — Trade Desk sums `adMap('day')` (imps/clicks/CTR/spend/post-view/post-click), Website sums
-`ga4MonthlyRange()` + `enquiriesRangeSummary()`. (Overview's four headline KPIs stay full-flight by design —
-they frame the whole-campaign story; the range picker still drives every Overview chart.)
+`ga4MonthlyRange()` + `enquiriesRangeSummary()`. On the **Overview** headline (5 KPIs), the 3 additive ones —
+Impressions, Clicks to site, Website sessions — re-sum within the range **when the picker is narrowed**
+(2026-07-04; `narrowed()` guard, so the un-narrowed default keeps the whole-campaign totals incl. the
+pre-picker Oct'25→ retrospective, and the "whole timeline" insight keeps its own full totals). The 2
+regression KPIs (Ad-driven sessions, Ad-attributable enquiries) stay campaign-level by design — they're OLS
+outputs that get unstable on short sub-windows. Every Overview chart already obeys the range.
 
 **Everything on both tabs responds to the Date range (2026-07-04).** The KPIs, trends AND every breakdown
 (donuts + tables) re-aggregate within the picker range. Because the original whole-flight arrays
