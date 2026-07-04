@@ -5,7 +5,7 @@ if (-not $SHA) {
   if (-not $SHA) { $SHA = "manual-$(Get-Date -Format 'yyyyMMddHHmmss')" }
 }
 $PROJECT="bidbrain-analytics"; $REGION="australia-southeast1"; $REPO="bidbrain"
-$JOB="vmch-export"; $JOB_SA="${JOB}-job@${PROJECT}.iam.gserviceaccount.com"
+$JOB="vmch-export"; $JOB_SA="vmch-dash-job@${PROJECT}.iam.gserviceaccount.com"
 $IMG = "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${JOB}:${SHA}"
 
 gcloud builds submit $PSScriptRoot --tag $IMG --region $REGION --project $PROJECT

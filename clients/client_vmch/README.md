@@ -55,19 +55,29 @@ date range** — Trade Desk sums `adMap('day')` (imps/clicks/CTR/spend/post-view
 `ga4MonthlyRange()` + `enquiriesRangeSummary()`. (Overview's four headline KPIs stay full-flight by design —
 they frame the whole-campaign story; the range picker still drives every Overview chart.)
 
+**Everything on both tabs responds to the Date range (2026-07-04).** The KPIs, trends AND every breakdown
+(donuts + tables) re-aggregate within the picker range. Because the original whole-flight arrays
+(`ga4_channels_market` / `ga4_sources_market` / `ttd_creative` / `ttd_adgroups`) carry **no date column**,
+four **daily-grained twin views** were added — `ga4_channels_daily`, `ga4_sources_daily`, `ttd_adgroups_daily`,
+`ttd_creative_daily` (`sql/34–37`) — exposed by the job as same-named arrays. The range accessors re-sum the
+daily arrays by `inRangeDay(day)` and **fall back to the whole-flight arrays** if the daily arrays are absent
+(older JSON). The daily views keep the same `>= 2026-04-01` flight clamp, so the **default all-time view is
+byte-for-byte the old totals**. The service-line table sums `ad_campaign_daily` within range + selected
+campaigns (`adCampaignRangeRows`).
+
 ### Trade Desk tab (`renderTradeDesk`)
 Range-scoped KPIs → **delivery trend** (`tdTrend`: spend bars + impressions & clicks lines, own axes,
-`flightMarker`, grain via `setTdGrain` Week/Month) → **creative-format donut** (`tdCreative`, `ttd_creative`
-grouped by `ad_format`, `centerText`) → **service-line table** (`tdCampTable`, `ad_campaigns` full-flight:
-imps/clicks/CTR/spend/post-view/post-click) → **top-15 ad-groups table** (`tdAdgroups`, `adgroupsSel`). The
-donut + both tables are **whole-flight** (no date grain — same as before); the KPIs + trend are range-scoped.
+`flightMarker`, grain via `setTdGrain` Week/Month) → **creative-format donut** (`tdCreative`, `ttdCreativeSel()`
+grouped by `ad_format`, `centerText`) → **service-line table** (`tdCampTable`, `adCampaignRangeRows()`:
+imps/clicks/CTR/spend/post-view/post-click) → **top-15 ad-groups table** (`tdAdgroups`, `adgroupsSel`). All
+range-scoped; the service-line + ad-group views also honour the Campaign chips.
 
 ### Website tab (`renderWebsite`)
 Range-scoped KPIs → **sessions-by-channel trend** (`wsTrend`: All/Paid/Display/Organic/Direct lines,
 `flightMarker`, grain via `setWsGrain`) → **channel donut** (`wsChannelDonut`, `ga4Channels` coloured by
 `BUCKET_COLOR`, `centerText`) → **enquiries-by-type bar** (`wsEnq`, `keyEventsBy('month')`, `KE_PALETTE`;
 flight-clamped) → **top-15 sources table** (`wsSources`, `ga4Sources`: source/medium · channel · sessions ·
-engaged · enquiries).
+engaged · enquiries). All range-scoped.
 
 ### Overview tab, top to bottom:
 
@@ -94,10 +104,13 @@ engaged · enquiries).
     Month/Week/Day + Relative/Absolute toggles, flight start marked. Sized **equal to the enquiries
     table** (`.grid`, 1fr 1fr).
 
-To revise, edit `dash/dashboard.html` and redeploy the service — **front-end only, no job/view change**;
-the Trade Desk / Website tabs are pure re-renders over arrays the job already emits (`ttd_adgroups`,
-`ttd_creative`, `ad_campaigns`, `ga4_channels_market`, `ga4_sources_market`, `ga4_key_events`), so nothing
-in `sql/` or `job/main.py` changed. **Still gone (not resurrected by the 2026-07-04 tab re-add):** the
+To revise a layout/label, edit `dash/dashboard.html` and redeploy the service (front-end only). The
+range-responsive breakdowns (2026-07-04) DID touch all three stages — `sql/34–37` (daily twin views),
+`job/main.py` (four new arrays), and the dash — so a change to *what data* those breakdowns show is a
+full views→job→dash redeploy. The Trade Desk / Website tabs otherwise re-render over arrays the job emits
+(`ttd_adgroups(_daily)`, `ttd_creative(_daily)`, `ad_campaigns`/`ad_campaign_daily`,
+`ga4_channels_market`/`_daily`, `ga4_sources_market`/`_daily`, `ga4_key_events`), so a layout tweak alone
+stays front-end-only. **Still gone (not resurrected by the 2026-07-04 tab re-add):** the
 Media → Traffic funnel tab, the Overview's first-visits / engagement / campaign-by-unit / disability-ramp /
 conversion-breakdown / ROAS-LTV / recommendations sections, the executive summary, the top-bar campaign
 dropdown, and the old GA4 "how display shows up in GA4" banner (`renderPaid`/`renderLink`/`renderOvCommentary`
@@ -183,8 +196,10 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
     engagement rate back to ~40% and the channel mix to genuine channels. (Headline flight sessions: ~103k, not 124.6k.)
 7. **TTD already AUD** — Windsor returns `advertiser_currency_code = 'AUD'`; the FX@1.50 case in
    `stg_ttd` is present but never exercised.
-8. **TTD creative/ad-group tables are whole-flight** (no date grain); ad groups honour the Campaign
-   filter via the campaign prefix in the ad-group name (RAC/RL/SAH/Disability).
+8. **TTD creative/ad-group tables are range-responsive** (2026-07-04) via the daily twin views
+   `ttd_creative_daily` / `ttd_adgroups_daily` (`sql/36–37`); ad groups honour the Campaign filter via the
+   campaign prefix in the ad-group name (RAC/RL/SAH/Disability). Both read `stg_ttd` (pure-measured), so the
+   modelled April RAC/SAH still sits OUT of them — matching the whole-flight `ttd_*` views (caveat 12).
 9. **YoY** uses `kpi.prior_sessions` / `prior_paid_sessions`. The prior CTE in `04_kpi.sql` is
    **like-for-like**: the same calendar span one year earlier (`2025-04-01 .. max-GA4-date − 1yr`),
    NOT a full 12 months — otherwise a ~2-month flight vs a year reads as a false −77% drop. With the junk
