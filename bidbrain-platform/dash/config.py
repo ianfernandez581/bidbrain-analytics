@@ -218,6 +218,19 @@ AGENCIES = [
 # but never surfaced in an agency portal). HireRight has no assigned agency.
 UNASSIGNED_CLIENTS = ["hireright"]
 
+# --- internal tools (NOT client dashboards) -----------------------------------------------
+# Shown in a "Tools" group visible ONLY to superadmin + admin (internal 100% Digital staff),
+# never to an agency/single-client login — the Pacing Grid exposes cross-CLIENT margins.
+# The pacing-grid Cloud Run service is ORG-PRIVATE (DRS policy forbids allUsers), so the proxy
+# sends an IAM Bearer token (see main.py _tool_headers) ON TOP OF the normal form-login. Its
+# password mirrors Secret Manager `pacing-dash-password` (read by _upstream_pw), like any <c>-dash.
+TOOLS = {
+    "pacing": {
+        "name": "Pacing Grid", "slug": "pacing-grid", "status": "active",
+        "url": "https://pacing-grid-p32gk2wuia-ts.a.run.app/",
+    },
+}
+
 # --- Google-account access (email -> what they can open) ----------------------------------
 # A signed-in Google account is matched BY EMAIL against the registry's `users` map (managed live
 # in the super-admin console) — exactly like a typed password is matched by `resolve_password`. The

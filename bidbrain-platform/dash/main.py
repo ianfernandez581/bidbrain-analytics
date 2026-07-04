@@ -233,6 +233,13 @@ def _establish_session(kind, payload, json_mode=False):
     return _set_sso(resp, allowed)
 
 
+def _tools_tiles():
+    """The internal-tools tile list (config.TOOLS) for the admin tree + super-admin console.
+    Empty unless TOOLS is populated, so the '{% if tools %}' block stays hidden otherwise."""
+    return [{"key": k, "name": v.get("name", k)}
+            for k, v in getattr(cfg, "TOOLS", {}).items() if v.get("status") == "active"]
+
+
 @app.get("/")
 def home():
     kind = session.get("kind")
@@ -241,7 +248,7 @@ def home():
     if kind == "admin":
         st = store.get_state()
         return render_template("admin.html", logo_svg=LOGO_SVG, is_super=False,
-                               agency_logos=ADMIN_AGENCY_LOGOS, **st)
+                               agency_logos=ADMIN_AGENCY_LOGOS, tools=_tools_tiles(), **st)
     if kind == "agency":
         agency = store.get_agency(session.get("agency_slug", ""))
         if not agency:
@@ -1124,7 +1131,8 @@ def _render_super():
         st["super_bootstrap"] = False
     return render_template("superadmin.html", logo_svg=LOGO_SVG,
                            google_configured=bool(GOOGLE_CLIENT_ID),
-                           admin_domains=getattr(cfg, "ADMIN_EMAIL_DOMAINS", []), **st)
+                           admin_domains=getattr(cfg, "ADMIN_EMAIL_DOMAINS", []),
+                           tools=_tools_tiles(), **st)
 
 
 @app.get("/admin")
@@ -1136,7 +1144,7 @@ def admin_tree():
         return redirect("/")
     st = store.get_state()
     return render_template("admin.html", logo_svg=LOGO_SVG, is_super=(kind == "superadmin"),
-                           agency_logos=ADMIN_AGENCY_LOGOS, **st)
+                           agency_logos=ADMIN_AGENCY_LOGOS, tools=_tools_tiles(), **st)
 
 
 # --- admin / super "enter agency view" -----------------------------------------------------
@@ -1497,7 +1505,7 @@ def _feedback_widget(client):
 
 
 def _upstream_base(client):
-    c = store.get_client(client)
+    c = store.get_client(client) or getattr(cfg, "TOOLS", {}).get(client)   # +TOOLS fallback (registry-free)
     url = (c or {}).get("url", "")
     return url.rstrip("/") if url else None
 
@@ -1541,9 +1549,29 @@ def _restart_service(service):
     rc.update_service(service=svc).result(timeout=300)
 
 
+_TOOL_TOKENS = {}   # audience -> (token, expiry)
+
+
+def _tool_headers(client):
+    """Org-private tools (config.TOOLS) sit behind Cloud Run IAM. The platform SA (run.invoker on
+    the service) mints an ID token for the service's own URL as audience -> an Authorization header.
+    Returns {} for normal client dashboards (public run.app), so their proxying is unchanged."""
+    if client not in getattr(cfg, "TOOLS", {}):
+        return {}
+    aud = _upstream_base(client)
+    tok, exp = _TOOL_TOKENS.get(aud, (None, 0))
+    if not tok or exp < time.time() + 60:
+        from google.oauth2 import id_token
+        from google.auth.transport.requests import Request as GAReq
+        tok = id_token.fetch_id_token(GAReq(), aud)
+        _TOOL_TOKENS[aud] = (tok, time.time() + 3300)   # ~55 min (ID tokens live 1h)
+    return {"Authorization": f"Bearer {tok}"}
+
+
 def _upstream_login(client):
     base = _upstream_base(client)
     r = requests.post(f"{base}/login", data={"password": _upstream_pw(client)},
+                      headers=_tool_headers(client),          # +IAM token for private tools ({} otherwise)
                       allow_redirects=False, timeout=30)
     _UPSTREAM_COOKIES[client] = r.cookies
     return r.cookies
@@ -1551,6 +1579,8 @@ def _upstream_login(client):
 
 def _may_open(client):
     kind = session.get("kind")
+    if client in getattr(cfg, "TOOLS", {}):     # internal tool: staff only, never agency/client
+        return kind in ("superadmin", "admin")
     if kind == "superadmin":
         # god-mode: open ANY dashboard that has a URL, including coming_soon structure previews
         # (Caltex / Bell Shakespeare) that aren't surfaced to clients yet.
@@ -1571,11 +1601,13 @@ def _forward(client, subpath, cookies):
     # /report runs a live LLM (web research + structuring, or the Gemini fallback) and can take a
     # minute-plus to generate a cold (uncached) view; every other route is a fast static/JSON fetch.
     timeout = 600 if subpath == "report" else 30
+    hdrs = _tool_headers(client)                             # {} for normal dashboards (unchanged)
     if request.method == "POST":
         return requests.post(url, data=request.get_data(), params=request.args, cookies=cookies,
-                             headers={"Content-Type": request.headers.get("Content-Type", "")},
+                             headers={"Content-Type": request.headers.get("Content-Type", ""), **hdrs},
                              allow_redirects=False, timeout=timeout)
-    return requests.get(url, params=request.args, cookies=cookies, allow_redirects=False, timeout=timeout)
+    return requests.get(url, params=request.args, cookies=cookies, headers=hdrs,
+                        allow_redirects=False, timeout=timeout)
 
 
 def _unauth(resp, subpath):
