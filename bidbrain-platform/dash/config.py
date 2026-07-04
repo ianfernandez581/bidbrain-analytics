@@ -123,11 +123,15 @@ CLIENTS = {
             {"name": "Lead Generation", "path": "/lead-generation", "status": "active"},
         ],
     },
+    # Onboarding: client_bellshakespeare/ is a built, LIGHT-themed (Bell's white/black/sage brand)
+    # placeholder dashboard that renders SAMPLE data behind a "not connected yet" banner. Keep
+    # coming_soon until the bellshakespeare-dash service is surfaced; then flip to "active".
     "bellshakespeare": {
         "name": "Bell Shakespeare", "slug": "bell-shakespeare", "status": "coming_soon",
         "url": "",
+        "note": "Dashboard isn't live yet - the structure is ready.",
         "campaigns": [
-            {"name": "Campaign", "path": "/campaign", "status": "coming_soon"},
+            {"name": "Season 2026", "path": "/paid-media", "status": "coming_soon"},
         ],
     },
     "geocon": {
