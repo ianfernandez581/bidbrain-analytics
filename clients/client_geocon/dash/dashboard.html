@@ -583,6 +583,10 @@ function trendRows(){const days=dailyOf(scoped());
 
 // ---------- chart defaults / helpers ----------
 const GRID='rgba(255,255,255,.07)';
+// Chart font family, referenced by canvas-draw plugins (ctx.font) that can't read Chart.defaults cleanly.
+// Kept in sync with initChartDefaults() below; without this, cplTrend/effScatter target-line plugins threw
+// "FONT is not defined" mid-draw and those charts rendered blank.
+const FONT={family:'"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'};
 function indexToPeak(arr){const mx=Math.max(0,...arr.map(v=>Math.abs(+v||0)));return mx>0?arr.map(v=>v==null?null:v/mx*100):arr.map(v=>v==null?null:0);}
 function initChartDefaults(){
   Chart.defaults.font.family='"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
@@ -598,9 +602,13 @@ function legendTop(){return {position:'top',align:'end',labels:{color:MC.ink,use
 
 // ================================= RENDER =================================
 function render(){
-  renderHeader();renderKpis();renderTrend();renderPacing();renderGoalProgress();renderPaceToGoal();renderStageDonut();renderFunnel();renderStageTable();renderInsights();renderNote();
-  renderBenchTable();renderEffScatter();renderCplTrend();renderSegment();renderTables();renderFatigue();renderBurn();
-  renderCreative();renderFooter();renderDateScope();
+  // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
+  // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
+  // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
+  [renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderStageDonut,
+   renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope]
+    .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
 }
 function renderHeader(){
   const f=flight(),m=meta();
@@ -879,10 +887,24 @@ function bindControls(){
   document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
   $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();});
 }
+function renderViewCharts(){
+  // Re-render only the now-visible tab's Chart.js charts. Per-chart try/catch so one bad draw can't
+  // blank the rest of the tab.
+  const R={overview:[renderTrend,renderPaceToGoal,renderStageDonut],
+           paid:[renderEffScatter,renderCplTrend,renderSegment],
+           creative:[]};
+  (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
+}
 function renderViewState(){
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===STATE.view));
   document.querySelectorAll('.tabpane').forEach(v=>v.style.display=(v.id==='tab-'+STATE.view)?'block':'none');
-  renderHeader();requestAnimationFrame(()=>Object.values(charts).forEach(c=>c&&c.resize()));
+  renderHeader();
+  // A Chart.js chart drawn into a display:none pane renders into a 0x0 canvas and stays BLANK when the
+  // pane is later shown — and chart.resize() across the none->block flip is unreliable (fires before the
+  // pane has real dimensions). So RE-RENDER the now-visible tab's charts after the browser has laid out
+  // the display change (double rAF = one frame to apply display, one to lay it out), which recreates each
+  // chart at its true size. This is why flipping Overview -> Paid Media -> Overview no longer blanks them.
+  requestAnimationFrame(()=>requestAnimationFrame(renderViewCharts));
 }
 function renderStageChips(){
   const chips=['all'].concat(stages());
