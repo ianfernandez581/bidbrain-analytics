@@ -229,6 +229,21 @@ domain, but the cookie path would only take over if each *dashboard* got its own
 subdomain too (then you'd switch the registry URLs to `https://<c>.<domain>/`) — today they don't, so it
 stays dormant.
 
+### Tools group — the Pacing Grid (internal, staff-only, org-private proxied)
+A **Tools** group (config `TOOLS`, separate from `CLIENTS`/`AGENCIES`) surfaces internal apps that are
+NOT client dashboards. First entry: the **Pacing Grid** (the standalone `pacing-grid` Cloud Run service,
+its own repo at `C:\Users\DELL\pacing-site`) at **`/d/pacing/`** — live pacing/margin-at-risk across every
+client. It renders as a tile on the **admin tree + super-admin console only** (`{% if tools %}`), and
+`_may_open` gates it to **superadmin/admin** — never agency/client, since it exposes cross-client margins.
+Two things differ from a normal dashboard, both keyed on `client in config.TOOLS` (so the 10 real
+dashboards proxy byte-for-byte unchanged): (1) `_upstream_base` falls back to `TOOLS` (registry-free — no
+`--force` re-seed needed); (2) `pacing-grid` is **org-private** (DRS policy forbids `allUsers`), so
+`_tool_headers` mints an **IAM ID token** (platform SA has `run.invoker`) and adds it as a Bearer header on
+the login + every forward — on top of the normal form-login (secret `pacing-dash-password`). The Grid
+conforms to the proxy contract (form `POST /login`, data at `/data.json`). One-time standup: create secret
+`pacing-dash-password`; grant platform SA `secretAccessor` + `run.invoker` on `pacing-grid` and the grid's
+runtime SA `secretAccessor`; redeploy `pacing-grid` with `--update-secrets PACING_PW=pacing-dash-password:latest`.
+
 ## (Future) cookie-based SSO once a domain exists
 The dashboards were already built for this: each sets `SESSION_COOKIE_SAMESITE=None; Secure`, but
 its session cookie is **host-only** (won't span subdomains). So the platform issues a **separate**
