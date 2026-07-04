@@ -110,7 +110,8 @@ def _seed_doc():
         pw = seed.CLIENT_PASSWORDS.get(k, "")
         doc["clients"][k] = {
             "key": k, "name": c["name"], "slug": c["slug"], "status": c["status"],
-            "url": c.get("url", ""), "password_hash": hash_pw(pw), "password_plain": pw,
+            "url": c.get("url", ""), "note": c.get("note", ""),
+            "password_hash": hash_pw(pw), "password_plain": pw,
             "campaigns": [dict(cm) for cm in c.get("campaigns", [])], "order": i,
         }
     for k in seed.UNASSIGNED_CLIENTS:
@@ -230,6 +231,7 @@ class Store:
                 kids.append({
                     "key": key, "name": c["name"], "slug": c["slug"], "status": c["status"],
                     "url": c.get("url", ""), "campaigns": c.get("campaigns", []),
+                    "note": c.get("note", ""),
                 })
             agencies.append({"name": a["name"], "slug": a["slug"], "clients": kids})
         unassigned = [
@@ -387,7 +389,7 @@ class Store:
         doc["agencies"] = [a for a in doc.get("agencies", []) if a["slug"] != slug]
         self._save(doc)  # clients persist; they fall into "unassigned"
 
-    def upsert_client(self, agency_slug, key, name, slug, status, url):
+    def upsert_client(self, agency_slug, key, name, slug, status, url, note=None):
         doc = self._load()
         # Validate the target agency BEFORE writing, so a stale/deleted agency_slug can't orphan it.
         if agency_slug and not any(a["slug"] == agency_slug for a in doc.get("agencies", [])):
@@ -396,6 +398,8 @@ class Store:
         existing = clients.get(key, {})
         clients[key] = {
             "key": key, "name": name, "slug": slug, "status": status, "url": url,
+            # optional placeholder blurb shown on coming_soon tiles + the super console (note=None preserves)
+            "note": existing.get("note", "") if note is None else note,
             "password_hash": existing.get("password_hash", ""),
             "campaigns": existing.get("campaigns", []),
             "order": existing.get("order", self._next_order(list(clients.values()))),
@@ -482,6 +486,7 @@ class Store:
         dashboards = [{
             "key": k, "name": c["name"], "slug": c.get("slug", k),
             "status": c.get("status", "active"), "url": c.get("url", ""),
+            "note": c.get("note", ""),
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
         # Which agency owns each dashboard, so the console can group them per agency (100% Digital,
         # Transmission, …) instead of one flat list. Agencies keep their registry `order`; a client

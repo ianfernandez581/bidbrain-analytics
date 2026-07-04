@@ -30,6 +30,7 @@ KEY = "caltex"
 NAME = "Caltex"
 STATUS = "coming_soon"          # -> greyed "COMING SOON" tile (no dead link). Flip to "active" post-deploy.
 URL = ""                        # set to the caltex-dash run.app url when going active
+NOTE = "Dashboard isn't live yet - the structure is ready."   # shown on the tile + super console
 CAMPAIGN = ("Paid Media", "/paid-media", "coming_soon")
 
 
@@ -46,10 +47,10 @@ def main(write: bool):
     print(f"live registry: caltex exists={bool(existing)} | attached to {AGENCY}={attached}")
     if not write:
         print("\nDRY RUN. Re-run with --yes to write:")
-        print(f"  + upsert client '{KEY}' ({NAME}, status={STATUS}) into agency '{AGENCY}'")
+        print(f"  + upsert client '{KEY}' ({NAME}, status={STATUS}, note={NOTE!r}) into agency '{AGENCY}'")
         print(f"  + set campaign {CAMPAIGN}")
         return
-    st.upsert_client(agency_slug=AGENCY, key=KEY, name=NAME, slug=KEY, status=STATUS, url=URL)
+    st.upsert_client(agency_slug=AGENCY, key=KEY, name=NAME, slug=KEY, status=STATUS, url=URL, note=NOTE)
     st.set_campaign(KEY, 0, *CAMPAIGN)     # index 0 -> replace-or-append (idempotent)
     c = st.get_client(KEY)
     ag = st.get_agency(AGENCY)

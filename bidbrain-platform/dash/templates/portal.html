@@ -141,7 +141,7 @@
           <ul class="camps">
             {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
           </ul>
-          <div class="open" style="color:var(--muted)">Not yet available</div>
+          <div class="open" style="color:var(--muted)">{{ c.note or 'Not yet available' }}</div>
         </div>
         {% endif %}
       {% endfor %}

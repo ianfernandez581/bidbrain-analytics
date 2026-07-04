@@ -143,6 +143,7 @@ CLIENTS = {
     "caltex": {
         "name": "Caltex", "slug": "caltex", "status": "coming_soon",
         "url": "",
+        "note": "Dashboard isn't live yet - the structure is ready.",
         "campaigns": [
             {"name": "Paid Media", "path": "/paid-media", "status": "coming_soon"},
         ],

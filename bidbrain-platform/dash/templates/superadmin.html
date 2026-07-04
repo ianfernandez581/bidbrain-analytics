@@ -241,7 +241,7 @@
               <div class="dn">{{ d.name }}</div>
               <div class="dk"><span class="slug">{{ d.key }}</span></div>
             </div>
-            <span class="muted">No live dashboard yet - nothing to reveal.</span>
+            <span class="muted">{{ d.note or 'No live dashboard yet - nothing to reveal.' }}</span>
           </div>
           {% endif %}
         {% endfor %}
