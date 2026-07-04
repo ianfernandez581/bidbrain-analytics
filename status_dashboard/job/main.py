@@ -147,7 +147,7 @@ def _cf_camp(key, field):
 
 # --- schneider dash-side extractors ------------------------------------------
 # RESTRUCTURED 2026-06-22: schneider became a client_mongodb-style Content-Syndication clone scoped to
-# 5 lead-gen programs (the 9 SF campaign IDs in data/salesforce_map.csv). The old kpi.* delivery block
+# 5 lead-gen programs (the 11 SF campaign IDs in data/salesforce_map.csv). The old kpi.* delivery block
 # is GONE — leads now live in cs_by_programme[] (campaign = internal program id; total = SUM(leads) per
 # program × programme × market). A program's dashboard lead count = sum of cs_by_programme[].total for it.
 def _sch_cs_camp(program):
@@ -582,7 +582,7 @@ CLIENTS = [
         "checks": [
             # RESTRUCTURED 2026-06-22: the old 6-tab Pacific paid-media dashboard (a kpi.* block of
             # DV360 / TradeDesk / LinkedIn delivery totals) became a client_mongodb-style Content-
-            # Syndication clone scoped to 5 lead-gen programs (the 9 SF campaign IDs in
+            # Syndication clone scoped to 5 lead-gen programs (the 11 SF campaign IDs in
             # data/salesforce_map.csv). Two consequences for this monitor:
             #   1. kpi.* is GONE -> the old delivery checks are removed (they'd read missing keys = false ✗).
             #   2. PAID DELIVERY (pm_delivery) is now SEED-SCOPED via seed_campaign_map's match_pattern
@@ -606,7 +606,7 @@ CLIENTS = [
                     "WHERE CAMPAIGN_ID IN ('701RG00001RTyAQYA1','701RG00001RUkTfYAL')\n"
                     "  AND TO_DATE(DAY) >= DATE '2026-04-30' AND TO_DATE(DAY) <= DATE '2027-01-31';",
              "note": "water_env = the 2 W&E pillar campaign IDs; flight 2026-04-30..2027-01-31 (mirrors "
-                     "seed_plan_budget). vs sum of cs_by_programme[campaign='water_env'].total (~28)." + _SCH_CS_NOTE},
+                     "seed_plan_budget). vs sum of cs_by_programme[campaign='water_env'].total (54)." + _SCH_CS_NOTE},
             {"label": "EcoStruxure Building Activate (EBA) · CS leads", "kind": "count", "group": "Content Syndication",
              "dash": _sch_cs_camp("eba"),
              "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
@@ -614,8 +614,8 @@ CLIENTS = [
                     "WHERE CAMPAIGN_ID = '701RG00001OwE65YAF'\n"
                     "  AND TO_DATE(DAY) >= DATE '2026-05-25' AND TO_DATE(DAY) <= DATE '2026-08-31';",
              "note": "eba flight 2026-05-25..2026-08-31. The clamp EXCLUDES EBA's ~4 pre-flight spillover "
-                     "leads (2026-05-21..24) exactly as the dashboard does — without it this reads ~50 not 46. "
-                     "vs cs_by_programme[campaign='eba'].total (~46)." + _SCH_CS_NOTE},
+                     "leads (2026-05-21..24) exactly as the dashboard does. "
+                     "vs cs_by_programme[campaign='eba'].total (83)." + _SCH_CS_NOTE},
             {"label": "Heavy Industries · CS leads", "kind": "count", "group": "Content Syndication",
              "dash": _sch_cs_camp("heavy"),
              "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
@@ -624,7 +624,7 @@ CLIENTS = [
                     "                      '701RG00001KhQL4YAN','701RG00001KhOntYAF')\n"
                     "  AND TO_DATE(DAY) >= DATE '2026-05-01' AND TO_DATE(DAY) <= DATE '2026-10-31';",
              "note": "heavy = the 4 Heavy-Industries campaign IDs; flight 2026-05-01..2026-10-31. heavy is "
-                     "leads-only (no paid delivery). vs cs_by_programme[campaign='heavy'].total (~25)." + _SCH_CS_NOTE},
+                     "leads-only (no paid delivery). vs cs_by_programme[campaign='heavy'].total (152)." + _SCH_CS_NOTE},
             {"label": "Global Rebrand Activation · CS leads", "kind": "count", "group": "Content Syndication",
              "dash": _sch_cs_camp("global_rebrand"),
              "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
@@ -638,9 +638,11 @@ CLIENTS = [
              "dash": _sch_cs_camp("airset"),
              "sql": "SELECT SUM(COALESCE(LEADS,1)) AS leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
-                    "WHERE CAMPAIGN_ID = '701RG00001VI10DYAT'\n"
+                    "WHERE CAMPAIGN_ID IN ('701RG00001VI10DYAT','701RG00001VbxRrYAJ','701RG00001VbvbTYAR')\n"
                     "  AND TO_DATE(DAY) >= DATE '2026-06-11' AND TO_DATE(DAY) <= DATE '2026-12-31';",
-             "note": "airset flight 2026-06-11..2026-12-31. vs cs_by_programme[campaign='airset'].total." + _SCH_CS_NOTE},
+             "note": "airset = the 3 AirSeT campaign IDs in seed_salesforce_map (base + Roverpath MQL + Final Funnel); "
+                     "Roverpath (701RG00001VbxRrYAJ) carries 7 leads from 2026-07-01. Flight 2026-06-11..2026-12-31. "
+                     "vs cs_by_programme[campaign='airset'].total (7)." + _SCH_CS_NOTE},
             # --- Content Syndication — combined headline -------------------------
             {"label": "All 5 programs · Total CS leads", "kind": "count", "group": "Content Syndication",
              "dash": _sch_cs_total,
@@ -658,11 +660,11 @@ CLIENTS = [
                     "     WHERE CAMPAIGN_ID = '701RG00001VHiiJYAT'\n"
                     "       AND TO_DATE(DAY) >= DATE '2026-07-01')\n"
                     "+ (SELECT COALESCE(SUM(COALESCE(LEADS,1)),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"\n"
-                    "     WHERE CAMPAIGN_ID = '701RG00001VI10DYAT'\n"
+                    "     WHERE CAMPAIGN_ID IN ('701RG00001VI10DYAT','701RG00001VbxRrYAJ','701RG00001VbvbTYAR')\n"
                     "       AND TO_DATE(DAY) >= DATE '2026-06-11' AND TO_DATE(DAY) <= DATE '2026-12-31')\n"
                     "  AS total_cs_leads;",
-             "note": "Sum of the 5 programs' flight-clamped lead counts (~99 today: eba 46 / water_env 28 / "
-                     "heavy 25). vs sum of all cs_by_programme[].total." + _SCH_CS_NOTE},
+             "note": "Sum of the 5 programs' flight-clamped lead counts (296 today: water_env 54 / eba 83 / "
+                     "heavy 152 / airset 7 / global_rebrand 0). vs sum of all cs_by_programme[].total." + _SCH_CS_NOTE},
         ],
     },
     {
