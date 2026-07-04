@@ -98,6 +98,8 @@ def main():
     ttd_markets = rows(bq, "ttd_markets")
     ttd_adgroups = rows(bq, "ttd_adgroups")
     ttd_creative = rows(bq, "ttd_creative")
+    ttd_adgroups_daily = rows(bq, "ttd_adgroups_daily")
+    ttd_creative_daily = rows(bq, "ttd_creative_daily")
 
     # Campaign-grained ad delivery
     ad_campaigns = rows(bq, "ad_campaigns")
@@ -114,6 +116,8 @@ def main():
     ga4_daily_market = rows(bq, "ga4_daily_market")
     ga4_channels_market = rows(bq, "ga4_channels_market")
     ga4_sources_market = rows(bq, "ga4_sources_market")
+    ga4_channels_daily = rows(bq, "ga4_channels_daily")
+    ga4_sources_daily = rows(bq, "ga4_sources_daily")
     ga4_key_events = rows(bq, "ga4_key_events")
     ga4_key_events_daily = rows(bq, "ga4_key_events_daily")
 
@@ -261,6 +265,24 @@ def main():
             "engaged": num(r["engaged"]),
             "conversions": num(r["conversions"]),
         } for r in ga4_sources_market],
+        "ga4_channels_daily": [{
+            "day": ymd(r["day"]),
+            "channel": r["channel_group"],
+            "bucket": r["channel_bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged_sessions"]),
+            "users": num(r["users"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_channels_daily],
+        "ga4_sources_daily": [{
+            "day": ymd(r["day"]),
+            "source_medium": r["source_medium"],
+            "channel": r["channel"],
+            "bucket": r["bucket"],
+            "sessions": num(r["sessions"]),
+            "engaged": num(r["engaged"]),
+            "conversions": num(r["conversions"]),
+        } for r in ga4_sources_daily],
         "ga4_key_events": [{
             "month": r["month"],
             "event_name": r["event_name"],
@@ -290,6 +312,21 @@ def main():
             "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
         } for r in ttd_creative],
+        "ttd_adgroups_daily": [{
+            "day": ymd(r["day"]),
+            "ad_group": r["ad_group"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+        } for r in ttd_adgroups_daily],
+        "ttd_creative_daily": [{
+            "day": ymd(r["day"]),
+            "creative": r["creative"],
+            "ad_format": r["ad_format"],
+            "imps": num(r["imps"]),
+            "clicks": num(r["clicks"]),
+            "spend_aud": num(r["spend_aud"]),
+        } for r in ttd_creative_daily],
         # --- Campaign filter ---
         "ad_campaigns": [{
             "platform": r["platform"],

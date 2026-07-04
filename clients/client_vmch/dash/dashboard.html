@@ -429,7 +429,7 @@
     <!-- ============ TRADE DESK ============ -->
     <div id="tab-trade-desk" class="tabpane">
       <div class="section first"><h2>Trade Desk — programmatic display delivery</h2>
-        <span class="sub">Open-Web display across the four VMCH service lines (RAC, Retirement Living, SAH, Disability). <b>KPI cards + the delivery trend reflect the Date range</b>; the per-campaign, creative-format &amp; ad-group breakdowns show the <b>full flight</b>. Display is upper-funnel — judged on reach, clicks and post-view / post-click attributed conversions.</span></div>
+        <span class="sub">Open-Web display across the four VMCH service lines (RAC, Retirement Living, SAH, Disability). <b>Everything on this tab reflects the Date range</b> (and the Campaign focus, where it applies). Display is upper-funnel — judged on reach, clicks and post-view / post-click attributed conversions.</span></div>
       <div class="kpis" id="tdKpis"></div>
       <div class="card card-tall" style="margin-top:16px">
         <div class="card-head"><h3>Delivery over time</h3>
@@ -438,16 +438,16 @@
         <div class="chart-wrap" style="height:360px"><canvas id="tdTrend"></canvas></div>
       </div>
       <div class="grid">
-        <div class="card card-tall"><h3>Creative format mix</h3><div class="hint">Impressions by ad format (full flight).</div><div class="chart-wrap"><canvas id="tdCreative"></canvas></div></div>
-        <div class="card card-tall"><h3>Delivery by service line</h3><div class="hint">Full-flight delivery + post-view / post-click attributed conversions per campaign.</div><div class="tablewrap"><table class="dtable" id="tdCampTable"></table></div></div>
+        <div class="card card-tall"><h3>Creative format mix</h3><div class="hint">Impressions by ad format (within the selected range).</div><div class="chart-wrap"><canvas id="tdCreative"></canvas></div></div>
+        <div class="card card-tall"><h3>Delivery by service line</h3><div class="hint">Delivery + post-view / post-click attributed conversions per campaign, within the selected range.</div><div class="tablewrap"><table class="dtable" id="tdCampTable"></table></div></div>
       </div>
-      <div class="card" style="margin-top:16px"><h3>Top ad groups by spend</h3><div class="hint">Full-flight ad-group delivery (reflects the Campaign focus if one is set on the Overview panel).</div><div class="tablewrap"><table class="dtable" id="tdAdgroups"></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Top ad groups by spend</h3><div class="hint">Ad-group delivery within the selected range (reflects the Campaign focus if one is set on the Overview panel).</div><div class="tablewrap"><table class="dtable" id="tdAdgroups"></table></div></div>
     </div>
 
     <!-- ============ WEBSITE ============ -->
     <div id="tab-website" class="tabpane">
       <div class="section first"><h2>Website — GA4 traffic &amp; enquiries</h2>
-        <span class="sub">VMCH website performance from GA4. <b>KPI cards + the sessions trend reflect the Date range</b>; channel mix &amp; top sources show the <b>full flight</b>. Enquiry counts are flight-scoped (Jan 2026 →) because GA4's enquiry-event tagging changed in 2025.</span></div>
+        <span class="sub">VMCH website performance from GA4. <b>KPI cards, the sessions trend, channel mix &amp; top sources all reflect the Date range</b>. Enquiry counts are flight-scoped (Jan 2026 →) because GA4's enquiry-event tagging changed in 2025.</span></div>
       <div class="kpis" id="webTabKpis"></div>
       <div class="grid grid-2-1">
         <div class="card card-tall">
@@ -456,11 +456,11 @@
           <div class="hint">Website sessions split by channel each period, over the selected range. Click a channel KPI above to toggle its line. Flight start marked.</div>
           <div class="chart-wrap" style="height:360px"><canvas id="wsTrend"></canvas></div>
         </div>
-        <div class="card card-tall"><h3>Channel mix</h3><div class="hint">Share of website sessions by channel (full flight).</div><div class="chart-wrap"><canvas id="wsChannelDonut"></canvas></div></div>
+        <div class="card card-tall"><h3>Channel mix</h3><div class="hint">Share of website sessions by channel (within the selected range).</div><div class="chart-wrap"><canvas id="wsChannelDonut"></canvas></div></div>
       </div>
       <div class="grid">
         <div class="card card-tall"><h3>Enquiries by type</h3><div class="hint">GA4 enquiry key-events by type — flight-scoped &amp; within the Date range.</div><div class="chart-wrap"><canvas id="wsEnq"></canvas></div></div>
-        <div class="card card-tall"><h3>Top sources / mediums</h3><div class="hint">Where website sessions come from (full flight).</div><div class="tablewrap"><table class="dtable" id="wsSources"></table></div></div>
+        <div class="card card-tall"><h3>Top sources / mediums</h3><div class="hint">Where website sessions come from (within the selected range).</div><div class="tablewrap"><table class="dtable" id="wsSources"></table></div></div>
       </div>
     </div>
 
@@ -742,11 +742,54 @@ function campaignScopeText(){
   if(sel===0)  return 'no campaigns';
   return `${sel} of ${tot} campaigns`;
 }
-// Ad-group rows whose name carries a selected campaign's prefix (RAC/RL/SAH/Disability).
+// Ad-group rows whose name carries a selected campaign's prefix (RAC/RL/SAH/Disability),
+// summed within the picker range from the DAILY twin (ttd_adgroups_daily); whole-flight
+// (ttd_adgroups) fallback for an older JSON.
 function adgroupsSel(){
   const sel = adCampaignsSel().map(c => c.campaign.split('_')[0].toLowerCase());
   const all = activeCampaigns.size >= (DATA.ad_campaigns||[]).length;
-  return (DATA.ttd_adgroups||[]).filter(r => all || sel.some(p => (r.ad_group||'').toLowerCase().startsWith(p)));
+  const keep = r => all || sel.some(p => (r.ad_group||'').toLowerCase().startsWith(p));
+  const daily = DATA.ttd_adgroups_daily;
+  if(daily && daily.length){
+    const m = {};
+    for(const r of daily){
+      if(!inRangeDay(r.day) || !keep(r)) continue;
+      const e = m[r.ad_group] || (m[r.ad_group] = {ad_group:r.ad_group,imps:0,clicks:0,spend_aud:0});
+      e.imps+=r.imps||0; e.clicks+=r.clicks||0; e.spend_aud+=r.spend_aud||0;
+    }
+    return Object.values(m).filter(r=>r.imps>0||r.spend_aud>0);
+  }
+  return (DATA.ttd_adgroups||[]).filter(keep);
+}
+// Creative rows summed within the picker range (daily twin ttd_creative_daily; whole-flight fallback).
+function ttdCreativeSel(){
+  const daily = DATA.ttd_creative_daily;
+  if(daily && daily.length){
+    const m = {};
+    for(const r of daily){
+      if(!inRangeDay(r.day)) continue;
+      const k = (r.creative||'')+'|'+(r.ad_format||'');
+      const e = m[k] || (m[k] = {creative:r.creative,ad_format:r.ad_format,imps:0,clicks:0,spend_aud:0});
+      e.imps+=r.imps||0; e.clicks+=r.clicks||0; e.spend_aud+=r.spend_aud||0;
+    }
+    return Object.values(m);
+  }
+  return (DATA.ttd_creative||[]).slice();
+}
+// Per-service-line delivery within the picker range + selected campaigns, from ad_campaign_daily
+// (falls back to the whole-flight ad_campaigns totals for an older JSON).
+function adCampaignRangeRows(){
+  const daily = DATA.ad_campaign_daily;
+  if(daily && daily.length){
+    const m = {};
+    for(const r of daily){
+      if(!campOn(r.campaign) || !inRangeDay(r.day)) continue;
+      const e = m[r.campaign] || (m[r.campaign] = {campaign:r.campaign,imps:0,clicks:0,spend_aud:0,post_view:0,post_click:0});
+      e.imps+=r.imps||0; e.clicks+=r.clicks||0; e.spend_aud+=r.spend_aud||0; e.post_view+=r.post_view||0; e.post_click+=r.post_click||0;
+    }
+    return Object.values(m);
+  }
+  return adCampaignsSel().map(c=>({campaign:c.campaign,imps:c.imps,clicks:c.clicks,spend_aud:c.spend_aud,post_view:c.post_view,post_click:c.post_click}));
 }
 
 //==============================================================================
@@ -778,21 +821,33 @@ function ga4Series(g){
   }
   return Object.values(m).sort((a,b)=>a.key<b.key?-1:1);
 }
+// Channel-group sessions within the picker range. Re-aggregates the DAILY twin
+// (ga4_channels_daily) so the donut responds to the date range; falls back to the
+// whole-flight ga4_channels_market for an older JSON that predates the daily view.
 function ga4Channels(){
+  const daily = DATA.ga4_channels_daily;
+  const useDaily = daily && daily.length;
   const m = {};
-  for(const r of (DATA.ga4_channels_market||[])){
+  const src = useDaily ? daily : (DATA.ga4_channels_market||[]);
+  for(const r of src){
+    if(useDaily && !inRangeDay(r.day)) continue;
     const e = m[r.channel] || (m[r.channel] = {channel:r.channel,bucket:r.bucket,sessions:0,engaged:0,users:0,conversions:0});
     e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.users+=r.users||0; e.conversions+=r.conversions||0;
   }
   return Object.values(m).filter(c=>c.sessions>0).sort((a,b)=>b.sessions-a.sessions);
 }
+// Top source/mediums within the picker range (daily twin ga4_sources_daily; whole-flight fallback).
 function ga4Sources(){
+  const daily = DATA.ga4_sources_daily;
+  const useDaily = daily && daily.length;
   const m = {};
-  for(const r of (DATA.ga4_sources_market||[])){
+  const src = useDaily ? daily : (DATA.ga4_sources_market||[]);
+  for(const r of src){
+    if(useDaily && !inRangeDay(r.day)) continue;
     const e = m[r.source_medium] || (m[r.source_medium] = {source_medium:r.source_medium,channel:r.channel,bucket:r.bucket,sessions:0,engaged:0,conversions:0});
     e.sessions+=r.sessions||0; e.engaged+=r.engaged||0; e.conversions+=r.conversions||0;
   }
-  return Object.values(m).sort((a,b)=>b.sessions-a.sessions).slice(0,15);
+  return Object.values(m).filter(s=>s.sessions>0).sort((a,b)=>b.sessions-a.sessions).slice(0,15);
 }
 // Enquiry events by type, by month (picker range). Drops all-zero types.
 // -> {byMonth:{month:{event:count}}, types:[event] sorted by total desc, total}
@@ -1100,7 +1155,7 @@ function pearson(xs,ys){
 function renderOverview(){ OV.render(); }
 
 //==============================================================================
-// TRADE DESK tab — programmatic display delivery (range-scoped KPIs + trend; full-flight breakdowns)
+// TRADE DESK tab — programmatic display delivery (all range-scoped: KPIs, trend + breakdowns)
 //==============================================================================
 function enqLabel(e){ return (e||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
 function renderTradeDesk(){
@@ -1134,8 +1189,8 @@ function renderTradeDesk(){
     plugins:[flightMarker]
   });
 
-  // creative-format donut (full flight)
-  const cf = {}; for(const r of (DATA.ttd_creative||[])){ const k=r.ad_format||'Other'; cf[k]=(cf[k]||0)+(r.imps||0); }
+  // creative-format donut (range-scoped)
+  const cf = {}; for(const r of ttdCreativeSel()){ const k=r.ad_format||'Other'; cf[k]=(cf[k]||0)+(r.imps||0); }
   const cfE = Object.entries(cf).sort((a,b)=>b[1]-a[1]), cfTot = cfE.reduce((s,x)=>s+x[1],0);
   charts.tdCreative = new Chart(el('tdCreative'), {
     type:'doughnut',
@@ -1147,14 +1202,14 @@ function renderTradeDesk(){
     plugins:[centerText]
   });
 
-  // per-service-line table (full flight)
-  const camps = (DATA.ad_campaigns||[]).slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
+  // per-service-line table (range-scoped + selected campaigns)
+  const camps = adCampaignRangeRows().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
   el('tdCampTable').innerHTML =
     `<thead><tr><th>Service line</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Post-view</th><th>Post-click</th></tr></thead><tbody>`
     + camps.map(c=>{ const ct=c.imps?c.clicks/c.imps:0; return `<tr><td>${campLabel(c.campaign)}</td><td>${fmtN(c.imps)}</td><td>${fmtN(c.clicks)}</td><td>${fmtPct(ct,2)}</td><td>${money(c.spend_aud)}</td><td>${fmtN(c.post_view)}</td><td>${fmtN(c.post_click)}</td></tr>`; }).join('')
     + `</tbody>`;
 
-  // top ad groups (full flight)
+  // top ad groups (range-scoped)
   const ags = adgroupsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0)).slice(0,15);
   el('tdAdgroups').innerHTML =
     `<thead><tr><th>Ad group</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th></tr></thead><tbody>`
@@ -1165,7 +1220,7 @@ function renderTradeDesk(){
 }
 
 //==============================================================================
-// WEBSITE tab — GA4 traffic & enquiries (range-scoped KPIs + sessions trend; full-flight breakdowns)
+// WEBSITE tab — GA4 traffic & enquiries (all range-scoped: KPIs, sessions trend + breakdowns)
 //==============================================================================
 function renderWebsite(){
   const mr = ga4MonthlyRange();
@@ -1197,7 +1252,7 @@ function renderWebsite(){
     plugins:[flightMarker]
   });
 
-  // channel donut (full flight)
+  // channel donut (range-scoped)
   const ch = ga4Channels(), chTot = ch.reduce((s,c)=>s+c.sessions,0);
   charts.wsChannelDonut = new Chart(el('wsChannelDonut'), {
     type:'doughnut',
@@ -1218,7 +1273,7 @@ function renderWebsite(){
       scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
   });
 
-  // top sources (full flight)
+  // top sources (range-scoped)
   const src = ga4Sources();
   el('wsSources').innerHTML =
     `<thead><tr><th>Source / medium</th><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Enquiries</th></tr></thead><tbody>`
