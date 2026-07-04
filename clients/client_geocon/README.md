@@ -117,6 +117,26 @@ gcloud run jobs update  geocon-export --image $IMG --region australia-southeast1
 gcloud run jobs execute geocon-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 ```
 
+## Meta breakdowns — audience (age×gender) + placement (`ingest/meta_breakdown_pull.py`)
+
+The **Audience** and **Placement** charts read `client_geocon.breakdowns` (view over the ISOLATED table
+`raw_windsor.geocon_meta_breakdown`). This is a **separate, geocon-only** pull — it does **NOT** touch the
+shared `raw_windsor.perf_meta` loader/table (Windsor breakdowns multiply the row grain: age×gender×placement).
+Region was pulled but is ~100% ACT (single market) so it isn't charted. It's a **manual refresh** (not
+scheduled) — re-run when you want fresh audience/placement data:
+
+```powershell
+# scratchpad path for the NDJSON is arbitrary
+$env:WINDSOR_API_KEY = (gcloud secrets versions access latest --secret=windsor-api-key)
+.\.venv\Scripts\python.exe clients\client_geocon\ingest\meta_breakdown_pull.py 2026-05-01 <today> out.ndjson
+bq load --replace --source_format=NEWLINE_DELIMITED_JSON raw_windsor.geocon_meta_breakdown out.ndjson `
+  date:DATE,campaign:STRING,breakdown:STRING,seg1:STRING,seg2:STRING,impressions:INTEGER,reach:INTEGER,clicks:INTEGER,link_clicks:INTEGER,spend:FLOAT,leads:INTEGER
+# then re-run the export job so geocon.json picks it up (FORCE_REBUILD as above)
+```
+The `geocon-export` job tolerates the table's absence (`breakdowns` → `[]`), so the dashboard never breaks
+if the pull hasn't run. **Real qualified leads** still need a client CRM feed (the north-star is modelled ×20%).
+
+
 The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy is live immediately;
 it always reads whatever `geocon.json` is currently in the bucket.
 

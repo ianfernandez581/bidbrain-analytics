@@ -59,6 +59,12 @@ def build_env(bq, observed):
     fact = rows(bq, f"SELECT * FROM {t('fact')} ORDER BY date, campaign_name, adset_name, ad_name")
     tgt  = rows(bq, f"SELECT * FROM {t('targets')}")
     bud  = rows(bq, f"SELECT * FROM {t('budget')} WHERE campaign_key = '{FLIGHT_KEY}' LIMIT 1")
+    # Isolated Meta breakdown facts (audience age/gender + placement) — geocon-only table.
+    # Tolerate absence so the export never breaks if the breakdown pull hasn't run.
+    try:
+        bd = rows(bq, f"SELECT * FROM {t('breakdowns')} ORDER BY date")
+    except Exception:
+        bd = []
 
     # --- targets: flat {key: {value, status}}; value parsed to float where possible (dates stay str)
     def tgt_value(raw):
@@ -145,7 +151,19 @@ def build_env(bq, observed):
             "clicks": num(r["clicks"]), "link_clicks": num(r["link_clicks"]),
             "lpv": num(r["landing_page_views"]), "leads": num(r["leads"]),
             "video_3s_views": num(r.get("video_3s_views")), "video_completes": num(r.get("video_completes")),
+            "thruplays": num(r.get("thruplays")),
+            "leads_website": num(r.get("leads_website")), "leads_onfacebook": num(r.get("leads_onfacebook")),
+            "objective": r.get("objective"), "effective_status": r.get("effective_status"),
         } for r in fact],
+        # Audience (age x gender) + placement breakdowns — per (date x campaign x seg); the
+        # dashboard date-filters + rolls up. seg2 is gender for age_gender, null otherwise.
+        "breakdowns": [{
+            "date": iso(r["date"]), "breakdown": r.get("breakdown"),
+            "seg1": r.get("seg1"), "seg2": r.get("seg2"),
+            "impressions": num(r["impressions"]), "reach": num(r["reach"]),
+            "clicks": num(r["clicks"]), "link_clicks": num(r["link_clicks"]),
+            "spend": num(r["spend"]), "leads": num(r["leads"]),
+        } for r in bd],
     }
     summary = (f"{len(fact)} fact rows, {leads_total} Meta-reported leads, "
                f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']})")

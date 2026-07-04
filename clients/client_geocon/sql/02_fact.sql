@@ -37,6 +37,11 @@ SELECT
   SUM(landing_page_views)           AS landing_page_views,
   SUM(leads)                        AS leads,
   SUM(video_3s_views)               AS video_3s_views,
-  SUM(video_completes)              AS video_completes
+  SUM(video_completes)              AS video_completes,
+  SUM(thruplays)                    AS thruplays,
+  SUM(leads_website)                AS leads_website,
+  SUM(leads_onfacebook)             AS leads_onfacebook,
+  ANY_VALUE(objective)              AS objective,
+  ANY_VALUE(effective_status)       AS effective_status
 FROM `bidbrain-analytics.client_geocon.stg_meta`
 GROUP BY date, campaign_id, adset_id, ad_id
