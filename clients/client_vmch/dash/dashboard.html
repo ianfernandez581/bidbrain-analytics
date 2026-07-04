@@ -1666,6 +1666,17 @@ const OV = (function(){
     const totImps=chSum('imps'), totClicks=chSum('clicks'), totSpend=chSum('spend');
     const totSessions=C.reduce((s,r)=>s+(r.sessions||0),0);
     const ctr=totImps?totClicks/totImps:0; const liveConv=liveAttributed();
+    // Range-scoped headline totals for the 3 additive KPIs (Impressions / Clicks / Website
+    // sessions). Only filter when the picker is actually NARROWED — un-narrowed keeps the
+    // whole-campaign totals (incl. the stitched Oct'25→ retrospective, which sits before the
+    // picker's min so a plain range filter would silently drop it). The tot* above stay
+    // whole-timeline: they feed the "whole timeline" insight + the campaign-level regression KPIs.
+    const scoped = narrowed();
+    const _rng = r => !scoped || inRangeDay(r.date);
+    const chSumR = k => C.reduce((s,r)=> s + (_rng(r) ? CH.reduce((a,c)=>a+(r.ch[c.key][k]||0),0) : 0), 0);
+    const rngImps=chSumR('imps'), rngClicks=chSumR('clicks');
+    const rngSessions=C.reduce((s,r)=> s + (_rng(r) ? (r.sessions||0) : 0), 0);
+    const rngCtr=rngImps?rngClicks/rngImps:0;
 
     // ---------- KPIs ----------
     const kpi=(value,label,change,up)=>
@@ -1677,9 +1688,9 @@ const OV = (function(){
     const adEnq = Math.round(ATR.adLeadsPerDollar*ATR.windowSpendAll);   // ad-attributable enquiries (all campaigns)
     const adSess = Math.round(ATR.liftRate*ATR.flightSess);              // ad-driven sessions (regression lift)
     $('ovKpis').innerHTML =
-      kpi(fmt(totImps),'Impressions',`${fmtCompact(totImps)} total reach`,false)
-    + kpi(fmt(totClicks),'Clicks to site',`${(ctr*100).toFixed(2)}% CTR`,false)
-    + kpi(fmt(totSessions),'Website sessions','whole timeline',false)
+      kpi(fmt(rngImps),'Impressions',`${fmtCompact(rngImps)} reach${scoped?' in range':' total'}`,false)
+    + kpi(fmt(rngClicks),'Clicks to site',`${(rngCtr*100).toFixed(2)}% CTR`,false)
+    + kpi(fmt(rngSessions),'Website sessions',scoped?'in the selected range':'whole timeline',false)
     + kpi(fmt(adSess),'Ad-driven sessions',`≈${(ATR.liftRate*100).toFixed(0)}% of campaign sessions (regression)`,true)
     + kpi(fmt(adEnq),'Ad-attributable enquiries',`≈${teEnq>0?Math.round(adEnq/teEnq*100):0}% of ${fmt(teEnq)} site enquiries · tracks spend`,true);
 
