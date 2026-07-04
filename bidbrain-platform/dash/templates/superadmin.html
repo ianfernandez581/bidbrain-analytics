@@ -96,6 +96,8 @@
   .drow .pwbox{max-width:none}
   .drow .open{margin-left:auto}
   .drow.soon{opacity:.62}
+  .drow.preview{opacity:.9}
+  .drow.preview .muted{flex:1}
   /* dashboard groups — one per agency (100% Digital, Transmission, …) */
   .dgroup{margin:0 0 24px}
   .dgroup:last-child{margin-bottom:0}
@@ -235,13 +237,23 @@
             {{ pwfield("dashboard", d.key, d.password, d.password) }}
             <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
           </div>
+          {% elif d.url %}
+          {# structure preview: deployed but not live for clients yet - super admin can open it #}
+          <div class="drow preview">
+            <div class="who">
+              <div class="dn">{{ d.name }}</div>
+              <div class="dk"><span class="slug">{{ d.key }}</span></div>
+            </div>
+            <span class="muted">{{ d.note or 'Structure ready - data not live yet.' }}</span>
+            <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open preview →</a>
+          </div>
           {% else %}
           <div class="drow soon">
             <div class="who">
               <div class="dn">{{ d.name }}</div>
               <div class="dk"><span class="slug">{{ d.key }}</span></div>
             </div>
-            <span class="muted">No live dashboard yet - nothing to reveal.</span>
+            <span class="muted">{{ d.note or 'No live dashboard yet - nothing to reveal.' }}</span>
           </div>
           {% endif %}
         {% endfor %}

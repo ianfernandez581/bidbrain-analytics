@@ -173,6 +173,24 @@
   .kpi.accent .stripe{background:var(--orange)}
   .kpi.web{background:linear-gradient(135deg,#fff 0%,var(--maroon-soft) 100%);border-color:#E6CFD6}
   .kpi.web .stripe{background:var(--maroon)}
+  /* clickable KPI cards — click to hide/show that metric's series on the tab's hero chart (like a
+     legend). A small dot on the right hints it's a toggle; the card dims + desaturates when off. */
+  .kpi.clk{cursor:pointer;user-select:none;transition:filter .15s,transform .06s,border-color .15s,opacity .15s}
+  .kpi.clk:hover{filter:brightness(1.02);border-color:var(--orange)}
+  .kpi.clk:active{transform:translateY(1px)}
+  .kpi.clk:focus-visible{outline:2px solid var(--orange);outline-offset:2px}
+  .kpi.clk .label::after{content:"";display:inline-block;width:6px;height:6px;margin-left:6px;border-radius:50%;background:var(--kc,var(--orange));vertical-align:middle;box-shadow:0 0 4px var(--kc,var(--orange))}
+  .kpi.clk.off{opacity:.5;filter:grayscale(.7)}
+  .kpi.clk.off .label::after{background:transparent;box-shadow:none;border:1px solid var(--grey)}
+  /* simple data table used on the Trade Desk + Website tabs */
+  .dtable{width:100%;border-collapse:collapse;font-size:12.5px}
+  .dtable th,.dtable td{padding:8px 10px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  .dtable th:first-child,.dtable td:first-child{text-align:left}
+  .dtable th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--mute);font-weight:700}
+  .dtable td:first-child{color:var(--ink);font-weight:600;max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  .dtable tr:hover td{background:#FBF6F0}
+  .dtable tr.total td{font-weight:800;background:#FBF4EE;border-bottom:none}
+  .tablewrap{overflow:auto;max-height:420px}
   .up{color:var(--good);font-weight:600}
   .down{color:var(--bad);font-weight:600}
 
@@ -300,7 +318,11 @@
 
     <div class="control-bar">
       <div class="control-tabs">
-        <div class="control-title" style="font-size:13px;font-weight:700;color:var(--ink);letter-spacing:-.2px;padding:9px 0">Performance overview</div>
+        <div class="tabs">
+          <button class="tab on" id="tabOverview" onclick="setTab('overview')">Overview</button>
+          <button class="tab" id="tabTradeDesk" onclick="setTab('trade-desk')">Trade Desk</button>
+          <button class="tab" id="tabWebsite" onclick="setTab('website')">Website</button>
+        </div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <button class="export-btn" onclick="exportAllData()" title="Download the full dataset as one CSV">
@@ -343,7 +365,7 @@
     <div id="dateScopeNote" class="date-scope" style="display:none"></div>
 
     <!-- ============ OVERVIEW ============ -->
-    <div id="tab-overview">
+    <div id="tab-overview" class="tabpane" style="display:block">
       <div class="section first">
         <h2>Display advertising &amp; the VMCH website: full campaign history</h2>
         <span class="sub">One continuous timeline. <b>Display advertising has run continuously since 19 Jan 2026.</b> The Open Web Display <b>campaign analysis (Oct 2025 – Mar 2026)</b> is stitched directly to the <b>live feed (Apr 2026 →)</b> so spend, reach, clicks and website outcomes are unbroken. Reporting currency AUD; VMCH is a not-for-profit, so outcomes are enquiries &amp; ad-attributed conversions, not revenue.</span>
@@ -402,6 +424,44 @@
         <span class="sub">GA4 sessions (7-day rolling average) with display impressions overlaid across the whole timeline. Dashed markers show campaign launches and the new flight.</span></div>
       <div class="card card-tall" style="margin-top:14px"><div class="card-head"><h3>Sessions, page views &amp; impressions</h3><div class="ctrls"><span class="seg ovGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" onclick="OV.setGrain('month',this)">Month</button><button type="button" data-grain="week" class="on" onclick="OV.setGrain('week',this)">Week</button></span></div></div><div class="chart-wrap" style="height:380px"><canvas id="ovTraffic"></canvas></div></div>
       <div class="insight-grid" id="ovTrafficInsights"></div>
+    </div>
+
+    <!-- ============ TRADE DESK ============ -->
+    <div id="tab-trade-desk" class="tabpane">
+      <div class="section first"><h2>Trade Desk — programmatic display delivery</h2>
+        <span class="sub">Open-Web display across the four VMCH service lines (RAC, Retirement Living, SAH, Disability). <b>KPI cards + the delivery trend reflect the Date range</b>; the per-campaign, creative-format &amp; ad-group breakdowns show the <b>full flight</b>. Display is upper-funnel — judged on reach, clicks and post-view / post-click attributed conversions.</span></div>
+      <div class="kpis" id="tdKpis"></div>
+      <div class="card card-tall" style="margin-top:16px">
+        <div class="card-head"><h3>Delivery over time</h3>
+          <div class="ctrls"><span class="seg" id="tdGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-g="month" onclick="setTdGrain('month',this)">Month</button><button type="button" data-g="week" class="on" onclick="setTdGrain('week',this)">Week</button></span></div></div>
+        <div class="hint">Ad spend (bars, AUD, right axis) with impressions &amp; clicks (lines, left) per period, over the selected range. Click a KPI card above to toggle its line. Flight start marked.</div>
+        <div class="chart-wrap" style="height:360px"><canvas id="tdTrend"></canvas></div>
+      </div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Creative format mix</h3><div class="hint">Impressions by ad format (full flight).</div><div class="chart-wrap"><canvas id="tdCreative"></canvas></div></div>
+        <div class="card card-tall"><h3>Delivery by service line</h3><div class="hint">Full-flight delivery + post-view / post-click attributed conversions per campaign.</div><div class="tablewrap"><table class="dtable" id="tdCampTable"></table></div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><h3>Top ad groups by spend</h3><div class="hint">Full-flight ad-group delivery (reflects the Campaign focus if one is set on the Overview panel).</div><div class="tablewrap"><table class="dtable" id="tdAdgroups"></table></div></div>
+    </div>
+
+    <!-- ============ WEBSITE ============ -->
+    <div id="tab-website" class="tabpane">
+      <div class="section first"><h2>Website — GA4 traffic &amp; enquiries</h2>
+        <span class="sub">VMCH website performance from GA4. <b>KPI cards + the sessions trend reflect the Date range</b>; channel mix &amp; top sources show the <b>full flight</b>. Enquiry counts are flight-scoped (Jan 2026 →) because GA4's enquiry-event tagging changed in 2025.</span></div>
+      <div class="kpis" id="webTabKpis"></div>
+      <div class="grid grid-2-1">
+        <div class="card card-tall">
+          <div class="card-head"><h3>Sessions by channel over time</h3>
+            <div class="ctrls"><span class="seg" id="wsGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-g="month" class="on" onclick="setWsGrain('month',this)">Month</button><button type="button" data-g="week" onclick="setWsGrain('week',this)">Week</button></span></div></div>
+          <div class="hint">Website sessions split by channel each period, over the selected range. Click a channel KPI above to toggle its line. Flight start marked.</div>
+          <div class="chart-wrap" style="height:360px"><canvas id="wsTrend"></canvas></div>
+        </div>
+        <div class="card card-tall"><h3>Channel mix</h3><div class="hint">Share of website sessions by channel (full flight).</div><div class="chart-wrap"><canvas id="wsChannelDonut"></canvas></div></div>
+      </div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Enquiries by type</h3><div class="hint">GA4 enquiry key-events by type — flight-scoped &amp; within the Date range.</div><div class="chart-wrap"><canvas id="wsEnq"></canvas></div></div>
+        <div class="card card-tall"><h3>Top sources / mediums</h3><div class="hint">Where website sessions come from (full flight).</div><div class="tablewrap"><table class="dtable" id="wsSources"></table></div></div>
+      </div>
     </div>
 
     <footer id="footMeta"></footer>
@@ -907,11 +967,23 @@ function renderControls(){
 
 // One page, one canvas namespace: rebuild everything together. destroyCharts() first so a fresh
 // Chart() never collides with a live canvas, then re-render the Overview + the moved-in Website pieces.
+let activeTab = 'overview', tdGrain = 'week', wsGrain = 'month';
+function setTab(t){
+  activeTab = t;
+  el('tabOverview').classList.toggle('on', t==='overview');
+  el('tabTradeDesk').classList.toggle('on', t==='trade-desk');
+  el('tabWebsite').classList.toggle('on', t==='website');
+  renderActive();
+}
+function setTdGrain(g,btn){ tdGrain=g; segPick(btn); renderActive(); }
+function setWsGrain(g,btn){ wsGrain=g; segPick(btn); renderActive(); }
 function renderActive(){
   renderDateScope();
   destroyCharts();
-  renderOverview();   // OV.render(): KPIs + spend-effect hero + site-wide traffic overlay
-  renderWeb();        // moved-in: campaign-effect panel + enquiries heatmap + Sessions trend
+  ['overview','trade-desk','website'].forEach(x=>{ const p=el('tab-'+x); if(p) p.style.display=(x===activeTab)?'block':'none'; });
+  if(activeTab==='overview'){ renderOverview(); renderWeb(); }   // OV: KPIs + spend hero + traffic; renderWeb: model + heatmap + Sessions
+  else if(activeTab==='trade-desk'){ renderTradeDesk(); }
+  else { renderWebsite(); }
 }
 function renderDateScope(){
   const note = el('dateScopeNote'); if(!note) return;
@@ -939,9 +1011,33 @@ const FONT = {family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto
 function gridY(opts={}){ return Object.assign({grid:{color:'#F1EAE2'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
-function kpiCard(cls,label,value,delta){
-  return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
+function kpiCard(cls,label,value,delta,opt){
+  opt = opt || {};
+  const clk = opt.series ? ' clk' : '';
+  const attr = opt.series ? ` data-series="${opt.series}" tabindex="0" role="button"` : '';
+  const kc = opt.color ? ` style="--kc:${opt.color}"` : '';
+  const stripe = `<span class="stripe"${opt.color?` style="background:${opt.color}"`:''}></span>`;
+  return `<div class="kpi ${cls}${clk}"${attr}${kc}>${stripe}<div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
 }
+// Wire clickable KPI cards in a pane to toggle their matching series-group on a chart (legend-style).
+// Datasets carry a ._group that matches the card's data-series. State persists across re-renders.
+const TAB_HIDDEN = {};
+function wireKpiToggles(paneId, chartKey){
+  const chart = charts[chartKey], pane = el(paneId); if(!chart || !pane) return;
+  const hidden = TAB_HIDDEN[chartKey] || (TAB_HIDDEN[chartKey] = new Set());
+  const apply = g => chart.data.datasets.forEach((d,i)=>{ if(d._group===g) chart.getDatasetMeta(i).hidden = hidden.has(g)?true:null; });
+  hidden.forEach(apply); chart.update();
+  pane.querySelectorAll('.kpi.clk').forEach(card=>{
+    const g = card.getAttribute('data-series');
+    card.classList.toggle('off', hidden.has(g));
+    card.onclick = ()=>{ hidden.has(g)?hidden.delete(g):hidden.add(g); card.classList.toggle('off',hidden.has(g)); apply(g); chart.update(); };
+    card.onkeydown = e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); card.onclick(); } };
+  });
+}
+// period-key label helpers for the new tabs
+function monLbl(m){ const a=String(m).split('-'); return new Date(+a[0],+a[1]-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+function wkLbl(w){ const d=new Date(w+'T00:00:00'); return d.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
+function firstFlightIdx(keys,g){ const f = g==='month' ? FLIGHT_START.slice(0,7) : mondayOf(FLIGHT_START); for(let i=0;i<keys.length;i++){ if(keys[i]>=f) return i; } return -1; }
 function shade(hex,i){ const f=[0,-14,16,-26,30,-36,44,-44,52,-52,58][i%11]||0; return adjust(hex,f); }
 function adjust(hex,amt){
   let h=hex.replace('#',''); if(h.length===3) h=h.split('').map(c=>c+c).join('');
@@ -1002,6 +1098,135 @@ function pearson(xs,ys){
 // OVERVIEW
 //==============================================================================
 function renderOverview(){ OV.render(); }
+
+//==============================================================================
+// TRADE DESK tab — programmatic display delivery (range-scoped KPIs + trend; full-flight breakdowns)
+//==============================================================================
+function enqLabel(e){ return (e||'').replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+function renderTradeDesk(){
+  const totMap = adMap('day');   // range-scoped daily per-campaign sums
+  let imps=0,clk=0,spend=0,pview=0,pclick=0;
+  Object.values(totMap).forEach(e=>{ imps+=e.imps; clk+=e.clk; spend+=e.spend; pview+=e.pview; pclick+=e.pclick; });
+  const ctr = imps? clk/imps : 0, cpm = imps? spend/imps*1000 : 0;
+  el('tdKpis').innerHTML =
+    kpiCard('accent','Impressions', fmtM(imps), `${money(cpm,'A$',2)} CPM`, {series:'imps',color:C.orange})
+  + kpiCard('accent','Clicks to site', fmtN(clk), `${fmtPct(ctr,2)} CTR`, {series:'clk',color:C.maroon})
+  + kpiCard('','CTR', fmtPct(ctr,2), 'clicks ÷ impressions')
+  + kpiCard('accent','Ad spend', money(spend), 'in the selected range', {series:'spend',color:C.slate})
+  + kpiCard('web','Post-view conv.', fmtN(pview), 'saw the ad → converted')
+  + kpiCard('web','Post-click conv.', fmtN(pclick), 'clicked → converted');
+
+  // delivery trend
+  const map = adMap(tdGrain), keys = Object.keys(map).sort();
+  const labels = keys.map(k => tdGrain==='month'?monLbl(k):wkLbl(k));
+  const fi = firstFlightIdx(keys, tdGrain);
+  charts.tdTrend = new Chart(el('tdTrend'), {
+    data:{ labels, datasets:[
+      { type:'bar', label:'Ad spend', _group:'spend', data:keys.map(k=>map[k].spend), backgroundColor:'rgba(122,106,110,.5)', yAxisID:'y1', borderRadius:3, maxBarThickness:34, order:3 },
+      { type:'line', label:'Impressions', _group:'imps', data:keys.map(k=>map[k].imps), borderColor:C.orange, backgroundColor:C.orange, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y', order:1 },
+      { type:'line', label:'Clicks', _group:'clk', data:keys.map(k=>map[k].clk), borderColor:C.maroon, backgroundColor:C.maroon, borderWidth:2.5, tension:.3, pointRadius:2, yAxisID:'y2', order:0 }
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, flightMarker:{index:fi,text:'Flight start'},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=> c.dataset._group==='spend' ? ` ${c.dataset.label}: ${money(c.parsed.y)}` : ` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({title:{display:true,text:'Impressions',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}),
+        y1:{position:'right',grid:{display:false},border:{display:false},title:{display:true,text:'Spend (AUD)',color:C.mute,font:{size:11}},ticks:{color:C.mute,font:{size:11},callback:v=>'A$'+fmtM(v)}},
+        y2:{display:false} } },
+    plugins:[flightMarker]
+  });
+
+  // creative-format donut (full flight)
+  const cf = {}; for(const r of (DATA.ttd_creative||[])){ const k=r.ad_format||'Other'; cf[k]=(cf[k]||0)+(r.imps||0); }
+  const cfE = Object.entries(cf).sort((a,b)=>b[1]-a[1]), cfTot = cfE.reduce((s,x)=>s+x[1],0);
+  charts.tdCreative = new Chart(el('tdCreative'), {
+    type:'doughnut',
+    data:{ labels:cfE.map(x=>x[0]), datasets:[{ data:cfE.map(x=>x[1]), backgroundColor:cfE.map((x,i)=>shade(C.orange,i)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'58%',
+      plugins:{ legend:{position:'right',labels:{color:C.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11,...FONT}}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} imps (${fmtPct(pct(c.parsed,cfTot),1)})`}} },
+      cutoutText:{line1:fmtM(cfTot),line2:'impressions'} },
+    plugins:[centerText]
+  });
+
+  // per-service-line table (full flight)
+  const camps = (DATA.ad_campaigns||[]).slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0));
+  el('tdCampTable').innerHTML =
+    `<thead><tr><th>Service line</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th><th>Post-view</th><th>Post-click</th></tr></thead><tbody>`
+    + camps.map(c=>{ const ct=c.imps?c.clicks/c.imps:0; return `<tr><td>${campLabel(c.campaign)}</td><td>${fmtN(c.imps)}</td><td>${fmtN(c.clicks)}</td><td>${fmtPct(ct,2)}</td><td>${money(c.spend_aud)}</td><td>${fmtN(c.post_view)}</td><td>${fmtN(c.post_click)}</td></tr>`; }).join('')
+    + `</tbody>`;
+
+  // top ad groups (full flight)
+  const ags = adgroupsSel().slice().sort((a,b)=>(b.spend_aud||0)-(a.spend_aud||0)).slice(0,15);
+  el('tdAdgroups').innerHTML =
+    `<thead><tr><th>Ad group</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Spend</th></tr></thead><tbody>`
+    + (ags.length ? ags.map(a=>{ const ct=a.imps?a.clicks/a.imps:0; return `<tr><td>${a.ad_group}</td><td>${fmtN(a.imps)}</td><td>${fmtN(a.clicks)}</td><td>${fmtPct(ct,2)}</td><td>${money(a.spend_aud)}</td></tr>`; }).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--mute);padding:16px">No ad groups in scope.</td></tr>`)
+    + `</tbody>`;
+
+  wireKpiToggles('tab-trade-desk','tdTrend');
+}
+
+//==============================================================================
+// WEBSITE tab — GA4 traffic & enquiries (range-scoped KPIs + sessions trend; full-flight breakdowns)
+//==============================================================================
+function renderWebsite(){
+  const mr = ga4MonthlyRange();
+  let sess=0,paid=0,disp=0,org=0,eng=0,users=0;
+  mr.forEach(r=>{ sess+=r.sessions||0; paid+=r.paid_sessions||0; disp+=r.display_sessions||0; org+=r.organic_sessions||0; eng+=r.engaged_sessions||0; users+=r.users||0; });
+  const enq = enquiriesRangeSummary(), engRate = sess? eng/sess : 0;
+  el('webTabKpis').innerHTML =
+    kpiCard('web','Sessions', fmtM(sess), `${fmtPct(engRate,0)} engaged`, {series:'all',color:C.maroon})
+  + kpiCard('accent','Paid sessions', fmtM(paid), `${fmtPct(pct(paid,sess),0)} of sessions`, {series:'paid',color:C.orange})
+  + kpiCard('','Display sessions', fmtM(disp), 'from Trade Desk', {series:'display',color:C.orangeDeep})
+  + kpiCard('','Organic sessions', fmtM(org), `${fmtPct(pct(org,sess),0)} of sessions`, {series:'organic',color:C.green})
+  + kpiCard('web','Users', fmtM(users), 'in the selected range')
+  + kpiCard('accent','Enquiries', fmtN(enq.total), 'GA4 key events · flight-scoped');
+
+  // sessions-by-channel trend
+  const ser = ga4Series(wsGrain), keys = ser.map(s=>s.key);
+  const labels = keys.map(k2 => wsGrain==='month'?monLbl(k2):wkLbl(k2));
+  const fi = firstFlightIdx(keys, wsGrain);
+  const mk = (label,grp,field,color)=>({ type:'line', label, _group:grp, data:ser.map(s=>s[field]||0), borderColor:color, backgroundColor:color, borderWidth:2.2, tension:.3, pointRadius:1.5, fill:false });
+  charts.wsTrend = new Chart(el('wsTrend'), {
+    data:{ labels, datasets:[
+      mk('All sessions','all','sessions',C.maroon), mk('Paid','paid','paid_sessions',C.orange),
+      mk('Display','display','display_sessions',C.orangeDeep), mk('Organic','organic','organic_sessions',C.green),
+      mk('Direct','direct','direct_sessions',C.slate)
+    ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false}, flightMarker:{index:fi,text:'Flight start'},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}) } },
+    plugins:[flightMarker]
+  });
+
+  // channel donut (full flight)
+  const ch = ga4Channels(), chTot = ch.reduce((s,c)=>s+c.sessions,0);
+  charts.wsChannelDonut = new Chart(el('wsChannelDonut'), {
+    type:'doughnut',
+    data:{ labels:ch.map(c=>c.channel), datasets:[{ data:ch.map(c=>c.sessions), backgroundColor:ch.map((c,i)=>BUCKET_COLOR[c.bucket]||shade(C.maroon,i)), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'58%',
+      plugins:{ legend:{position:'right',labels:{color:C.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:10.5,...FONT}}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,chTot),1)})`}} },
+      cutoutText:{line1:fmtM(chTot),line2:'sessions'} },
+    plugins:[centerText]
+  });
+
+  // enquiries by type (range-scoped, flight-clamped)
+  const ke = keyEventsBy('month'), kt = ke.types;
+  charts.wsEnq = new Chart(el('wsEnq'), {
+    type:'bar',
+    data:{ labels:kt.map(enqLabel), datasets:[{ label:'Enquiries', data:kt.map(t=>ke.totals[t]), backgroundColor:kt.map((t,i)=>KE_PALETTE[i%KE_PALETTE.length]), borderRadius:4, maxBarThickness:52 }]},
+    options:{ maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.y)} enquiries`}} },
+      scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>fmtN(v)}}) } }
+  });
+
+  // top sources (full flight)
+  const src = ga4Sources();
+  el('wsSources').innerHTML =
+    `<thead><tr><th>Source / medium</th><th>Channel</th><th>Sessions</th><th>Engaged</th><th>Enquiries</th></tr></thead><tbody>`
+    + (src.length ? src.map(s=>`<tr><td>${s.source_medium}</td><td>${s.channel}</td><td>${fmtN(s.sessions)}</td><td>${fmtN(s.engaged)}</td><td>${fmtN(s.conversions)}</td></tr>`).join('') : `<tr><td colspan="5" style="text-align:center;color:var(--mute);padding:16px">No sources.</td></tr>`)
+    + `</tbody>`;
+
+  wireKpiToggles('tab-website','wsTrend');
+}
 
 //==============================================================================
 // WEBSITE

@@ -110,7 +110,8 @@ def _seed_doc():
         pw = seed.CLIENT_PASSWORDS.get(k, "")
         doc["clients"][k] = {
             "key": k, "name": c["name"], "slug": c["slug"], "status": c["status"],
-            "url": c.get("url", ""), "password_hash": hash_pw(pw), "password_plain": pw,
+            "url": c.get("url", ""), "note": c.get("note", ""),
+            "password_hash": hash_pw(pw), "password_plain": pw,
             "campaigns": [dict(cm) for cm in c.get("campaigns", [])], "order": i,
         }
     for k in seed.UNASSIGNED_CLIENTS:
@@ -230,7 +231,10 @@ class Store:
                 kids.append({
                     "key": key, "name": c["name"], "slug": c["slug"], "status": c["status"],
                     "url": c.get("url", ""), "campaigns": c.get("campaigns", []),
+                    "note": c.get("note", ""),
                 })
+            # active (client-facing live) tiles first; coming_soon (no live dashboard) drop to the bottom
+            kids.sort(key=lambda c: 0 if c.get("status") == "active" else 1)
             agencies.append({"name": a["name"], "slug": a["slug"], "clients": kids})
         unassigned = [
             {"key": k, "name": c["name"], "slug": c["slug"],
@@ -343,7 +347,8 @@ class Store:
         return sorted(out, key=lambda u: (rank.get(u["role"], 9), u["email"]))
 
     def agency_clients(self, agency):
-        """Resolved client dicts (for the portal), in the agency's order."""
+        """Resolved client dicts (for the portal): active (live) tiles first, coming_soon at the
+        bottom; each carries its `note` so coming_soon tiles show the placeholder blurb."""
         clients = self._all_clients()
         out = []
         for key in agency.get("client_keys", []):
@@ -351,7 +356,9 @@ class Store:
             if c:
                 out.append({"key": key, "name": c["name"], "slug": c["slug"],
                             "status": c["status"], "url": c.get("url", ""),
+                            "note": c.get("note", ""),
                             "campaigns": c.get("campaigns", [])})
+        out.sort(key=lambda c: 0 if c.get("status") == "active" else 1)
         return out
 
     def active_client_keys(self):
@@ -387,7 +394,7 @@ class Store:
         doc["agencies"] = [a for a in doc.get("agencies", []) if a["slug"] != slug]
         self._save(doc)  # clients persist; they fall into "unassigned"
 
-    def upsert_client(self, agency_slug, key, name, slug, status, url):
+    def upsert_client(self, agency_slug, key, name, slug, status, url, note=None):
         doc = self._load()
         # Validate the target agency BEFORE writing, so a stale/deleted agency_slug can't orphan it.
         if agency_slug and not any(a["slug"] == agency_slug for a in doc.get("agencies", [])):
@@ -396,6 +403,8 @@ class Store:
         existing = clients.get(key, {})
         clients[key] = {
             "key": key, "name": name, "slug": slug, "status": status, "url": url,
+            # optional placeholder blurb shown on coming_soon tiles + the super console (note=None preserves)
+            "note": existing.get("note", "") if note is None else note,
             "password_hash": existing.get("password_hash", ""),
             "campaigns": existing.get("campaigns", []),
             "order": existing.get("order", self._next_order(list(clients.values()))),
@@ -482,6 +491,7 @@ class Store:
         dashboards = [{
             "key": k, "name": c["name"], "slug": c.get("slug", k),
             "status": c.get("status", "active"), "url": c.get("url", ""),
+            "note": c.get("note", ""),
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
         # Which agency owns each dashboard, so the console can group them per agency (100% Digital,
         # Transmission, …) instead of one flat list. Agencies keep their registry `order`; a client
@@ -495,12 +505,21 @@ class Store:
             ag = key_to_agency.get(d["key"])
             d["agency_slug"] = ag["slug"] if ag else ""
             d["agency_name"] = ag["name"] if ag else ""
+        # Sort within each group so dashboards WITH a live dashboard sit on top, structure-only
+        # previews (coming_soon but deployed → openable by super admin) next, and clients with no
+        # dashboard at all fall to the bottom (easy to spot). Stable → preserves order within a tier.
+        def _tier(d):
+            if d.get("status") == "active" and d.get("url"):
+                return 0                       # live dashboard
+            if d.get("url"):
+                return 1                       # structure preview (deployed, not live)
+            return 2                           # no dashboard yet
         dashboard_groups = []
         for a in ordered_agencies:
-            members = [d for d in dashboards if d["agency_slug"] == a["slug"]]
+            members = sorted([d for d in dashboards if d["agency_slug"] == a["slug"]], key=_tier)
             if members:
                 dashboard_groups.append({"name": a["name"], "slug": a["slug"], "dashboards": members})
-        unassigned_dash = [d for d in dashboards if not d["agency_slug"]]
+        unassigned_dash = sorted([d for d in dashboards if not d["agency_slug"]], key=_tier)
         if unassigned_dash:
             dashboard_groups.append({"name": "Unassigned", "slug": "", "dashboards": unassigned_dash})
         agency_names = {a["slug"]: a["name"] for a in agencies}
