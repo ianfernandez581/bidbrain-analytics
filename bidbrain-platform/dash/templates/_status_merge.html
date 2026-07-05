@@ -12,6 +12,29 @@
   .bbsyncbar{display:flex;align-items:center;gap:12px;margin:0 0 18px;flex-wrap:wrap}
   .bbloading{color:#8A97AD;padding:34px 0;text-align:center}
 
+  /* Prominent "Sync all dashboards now" control (overrides the host .bbbtn/.btn via #id). */
+  #bbsyncall{appearance:none;display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+    font:800 14px/1 inherit;letter-spacing:.2px;padding:12px 20px;border-radius:10px;
+    background:#34D399;color:#06210f;border:1px solid #34D399;box-shadow:0 2px 12px rgba(52,211,153,.30);
+    transition:background .14s,box-shadow .14s,transform .07s,color .14s}
+  #bbsyncall:hover{background:#4ee0aa;box-shadow:0 5px 18px rgba(52,211,153,.42)}
+  #bbsyncall:active{transform:translateY(1px)}
+  #bbsyncall:focus-visible{outline:2px solid #A7F3D0;outline-offset:2px}
+  #bbsyncall:disabled{cursor:default}
+  #bbsyncall.is-loading{background:#1F6F56;color:#CFEFE0;border-color:#1F6F56;box-shadow:none}
+  #bbsyncall.is-done{background:#0F3F2C;color:#8BF0C2;border-color:#1F6F56;box-shadow:none}
+  #bbsyncall.is-error{background:#7F1D1D;color:#FECACA;border-color:#7F1D1D;box-shadow:none}
+  #bbsyncall .bbspin{display:none;width:14px;height:14px;border-radius:50%;flex:0 0 auto;
+    border:2px solid rgba(207,239,224,.35);border-top-color:#CFEFE0}
+  #bbsyncall.is-loading .bbspin{display:inline-block;animation:bbspin .7s linear infinite}
+  @keyframes bbspin{to{transform:rotate(360deg)}}
+  @media (prefers-reduced-motion:reduce){#bbsyncall.is-loading .bbspin{animation:none}}
+  .bbsynctime{font-size:12px;color:#8A97AD;font-weight:600;white-space:nowrap;
+    background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:4px 11px}
+  .bbsynctime:empty{display:none}
+  .bbsyncbar .bb-ok{color:#34D399;font-weight:600}
+  .bbsyncbar .bb-err{color:#F87171;font-weight:600}
+
   /* Overview tile badge */
   .bblogo{height:22px;width:auto;max-width:96px;border-radius:5px;object-fit:contain;background:#fff;padding:2px 4px;margin-right:9px;vertical-align:middle}
   .bblogo.sm{height:20px}
@@ -208,16 +231,57 @@
   function refetch(){ return fetch("/api/status", {credentials:"same-origin"}).then(function(r){ return r.ok?r.json():null; })
     .then(function(j){ if(j){ ACC.data=j; ACC.err=false; fillBadges(); } }).catch(function(){}); }
 
-  var syncBtn=document.getElementById("bbsyncall"), syncMsg=document.getElementById("bbsyncall-msg");
+  var syncBtn=document.getElementById("bbsyncall"),
+      syncMsg=document.getElementById("bbsyncall-msg"),
+      syncTime=document.getElementById("bbsyncall-time"),
+      syncLabel=syncBtn?syncBtn.querySelector(".bblabel"):null,
+      SYNC_KEY="bb_last_sync";
+  // Persisted "last synced" stamp — survives reloads; the label re-renders every minute so
+  // "2 mins ago" stays current without a refresh.
+  function setSyncTimeLabel(){ if(!syncTime) return; var iso=null;
+    try{ iso=localStorage.getItem(SYNC_KEY); }catch(e){}
+    syncTime.textContent = iso ? ("Last synced "+fmtAge(iso)) : ""; }
+  function stampSync(){ try{ localStorage.setItem(SYNC_KEY,new Date().toISOString()); }catch(e){} setSyncTimeLabel(); }
+  function syncSet(state,label){ if(!syncBtn) return;
+    syncBtn.classList.remove("is-loading","is-done","is-error");
+    syncBtn.disabled=(state==="loading"||state==="syncing");
+    if(state==="loading"||state==="syncing") syncBtn.classList.add("is-loading");
+    else if(state==="done") syncBtn.classList.add("is-done");
+    else if(state==="error") syncBtn.classList.add("is-error");
+    if(syncLabel&&label) syncLabel.textContent=label; }
+  setSyncTimeLabel(); setInterval(setSyncTimeLabel,60000);
   if(syncBtn){ syncBtn.addEventListener("click", function(){
-    syncBtn.disabled=true; if(syncMsg) syncMsg.textContent="Starting a full refresh…";
-    fetch("/sync-all", {method:"POST", credentials:"same-origin"}).then(function(r){ return r.json(); }).then(function(j){
-      if(syncMsg) syncMsg.textContent = j.ok
-        ? "Sync started - every dashboard is rebuilding; timestamps reset as each finishes (~2–3 min)."
-        : ("Some jobs didn’t start: " + ((j.failed||[]).join(", ") || "error"));
-      var n=0, iv=setInterval(function(){ n++; refetch(); if(n>=10) clearInterval(iv); }, 30000);
-      setTimeout(function(){ syncBtn.disabled=false; }, 8000);
-    }).catch(function(){ if(syncMsg) syncMsg.textContent="Could not start the sync."; syncBtn.disabled=false; });
+    var t0=Date.now();
+    syncSet("loading","Starting…"); if(syncMsg){ syncMsg.className="bbmuted"; syncMsg.textContent="Triggering a full refresh…"; }
+    fetch("/sync-all",{method:"POST",credentials:"same-origin"})
+      .then(function(r){ if(!r.ok) throw new Error(r.status===403?"perm":("http "+r.status)); return r.json(); })
+      .then(function(j){
+        if(!j.ok && !((j.triggered||[]).length)){
+          syncSet("error","Sync failed"); if(syncMsg){ syncMsg.className="bbmuted bb-err"; syncMsg.textContent="Couldn’t start: "+((j.failed||[]).join(", ")||"error"); }
+          setTimeout(function(){ syncSet("idle","Sync all dashboards now"); },6000); return; }
+        stampSync();   // the sync action happened now — record it immediately
+        // jobs like "mongodb-export" -> client "mongodb"; watch their build_at advance past t0.
+        var targets=(j.triggered||[]).filter(function(x){return x!=="status-export";}).map(function(x){return x.replace(/-export$/,"");});
+        var total=targets.length;
+        syncSet("syncing","Syncing…");
+        if(syncMsg){ syncMsg.className="bbmuted"; syncMsg.textContent = total?("Rebuilding "+total+" dashboards… (~2–3 min)"):"Refresh triggered."; }
+        if(!total){ syncSet("done","✓ Synced"); setTimeout(function(){ syncSet("idle","Sync all dashboards now"); },6000); return; }
+        var done={}, tries=0, MAX=14;   // poll ~7 min (30s × 14)
+        var iv=setInterval(function(){ tries++;
+          refetch().then(function(){
+            var by={}; ((ACC.data&&ACC.data.clients)||[]).forEach(function(c){ by[c.client]=c; });
+            targets.forEach(function(k){ if(done[k]) return; var c=by[k]; if(!c||!c.freshness) return;
+              var bt=Date.parse(c.freshness.build_at||c.freshness.data_through||""); if(!isNaN(bt)&&bt>=t0-60000) done[k]=true; });
+            var nDone=Object.keys(done).length;
+            if(syncMsg&&nDone<total){ syncMsg.className="bbmuted"; syncMsg.textContent="Syncing… "+nDone+" of "+total+" updated"; }
+            if(nDone>=total||tries>=MAX){ clearInterval(iv); stampSync(); syncSet("done","✓ Synced");
+              if(syncMsg){ syncMsg.className="bbmuted bb-ok"; syncMsg.textContent = nDone>=total ? ("✓ All "+total+" dashboards updated") : ("✓ "+nDone+" of "+total+" updated — the rest are catching up"); }
+              setTimeout(function(){ syncSet("idle","Sync all dashboards now"); },8000); }
+          });
+        },30000);
+      })
+      .catch(function(e){ syncSet("error","Sync failed"); if(syncMsg){ syncMsg.className="bbmuted bb-err"; syncMsg.textContent=(e&&e.message==="perm")?"You don’t have permission to sync.":"Could not start the sync."; }
+        setTimeout(function(){ syncSet("idle","Sync all dashboards now"); },6000); });
   }); }
 
   fetch("/api/status", {credentials:"same-origin"}).then(function(r){ return r.ok?r.json():null; })

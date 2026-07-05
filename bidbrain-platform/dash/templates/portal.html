@@ -118,7 +118,11 @@
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
     </div>
     <div class="bbpane on" id="pane-overview">
-    <div class="bbsyncbar"><button id="bbsyncall" class="bbbtn">🔄 Sync all dashboards now</button> <span id="bbsyncall-msg" class="bbmuted"></span></div>
+    <div class="bbsyncbar">
+      <button id="bbsyncall" class="bbbtn"><span class="bbspin" aria-hidden="true"></span><span class="bblabel">Sync all dashboards now</span></button>
+      <span id="bbsyncall-time" class="bbsynctime"></span>
+      <span id="bbsyncall-msg" class="bbmuted" role="status" aria-live="polite"></span>
+    </div>
     <div class="grid">
       {% for c in clients %}
         {% if c.status == 'active' %}
