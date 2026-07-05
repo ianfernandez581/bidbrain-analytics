@@ -226,7 +226,7 @@ UNASSIGNED_CLIENTS = ["hireright"]
 # password mirrors Secret Manager `pacing-dash-password` (read by _upstream_pw), like any <c>-dash.
 TOOLS = {
     "pacing": {
-        "name": "Pacing Grid", "slug": "pacing-grid", "status": "active",
+        "name": "The Grid", "slug": "pacing-grid", "status": "active",
         "url": "https://pacing-grid-p32gk2wuia-ts.a.run.app/",
     },
 }
