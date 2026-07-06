@@ -1,15 +1,27 @@
 # start_day.ps1  -  bidbrain-analytics morning preflight
 # Verifies BOTH credential systems gcloud uses, plus that the loaders can
-# actually read the Windsor key, so nothing surprises you mid-task.
+# actually read the Windsor key, so nothing surprises you mid-task -- THEN runs
+# the /go flow so you start the day aligned with the whole team.
 #
 #   gcloud CLI creds      -> used by `gcloud secrets ...` (the loaders' key fetch)
 #   application-default   -> used by Python client libs (BigQuery)
 # These expire independently and your org enforces periodic reauth, so both
 # are checked here.
 #
+# After the creds pass, it runs /go (push-branch.ps1 -> merge-branches.ps1):
+# pushes your work to your dev branch, integrates EVERY dev branch, deploys the
+# changed services, and fast-forwards your local main to origin/main -- so every
+# dev opens the day on the latest main with everyone's work integrated. Skip that
+# step with -SkipGo (creds-only preflight).
+#
 # Lives in:  bidbrain-analytics/scripts/
 # Run:               .\scripts\start_day.ps1
+#   creds only:      .\scripts\start_day.ps1 -SkipGo
 # Or double-click:   scripts\start_day.cmd
+
+param(
+    [switch]$SkipGo    # run only the credential preflight; skip the /go integrate + deploy + pull
+)
 
 $PROJECT = "bidbrain-analytics"
 
@@ -87,6 +99,42 @@ if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] BigQuery reachable, raw_windsor found." -ForegroundColor Green
 } else {
     Write-Host "[!] Couldn't reach raw_windsor via Python (check creds / dataset name)." -ForegroundColor Yellow
+}
+
+# 8. Align with the team -- the /go flow: push my work, integrate EVERY dev branch, deploy
+#    the changed services, and fast-forward local main to origin/main (the "pull" that keeps
+#    every dev aligned). This is exactly what the /go slash command drives, in order:
+#    push-branch.ps1 then merge-branches.ps1 (whose final Sync-LocalMain step does the pull).
+#    Runs here because it needs the gcloud auth we just verified (deploy) + BigQuery reachable.
+#
+#    A shell preflight can't resolve a MERGE CONFLICT or a sanity-gate failure (that needs
+#    semantic judgment), so if merge-branches STOPS on one, we stop cleanly and tell you to
+#    finish it in Claude Code with  /go . Same for a secret the push guard refuses.
+if ($SkipGo) {
+    Write-Host ""
+    Write-Host "[*] -SkipGo: creds-only preflight. Align with the team later via:  .\scripts\merge-branches.ps1" -ForegroundColor DarkGray
+} else {
+    Write-Host ""
+    Write-Host "=== /go :: push my work -> integrate everyone -> deploy -> pull main ===" -ForegroundColor Cyan
+
+    Write-Host "[*] Pushing my work to my dev branch..." -ForegroundColor Yellow
+    & "$PSScriptRoot\push-branch.ps1"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "[!] push-branch stopped -- a file likely looks like a secret (see the message above)." -ForegroundColor Yellow
+        Write-Host "    Nothing was integrated; your local main is unchanged. Gitignore/move the file, then re-run start_day." -ForegroundColor Yellow
+        exit 1
+    }
+
+    Write-Host "[*] Integrating all dev branches, deploying changed services, pulling main..." -ForegroundColor Yellow
+    & "$PSScriptRoot\merge-branches.ps1"
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "[!] merge-branches stopped -- most likely a MERGE CONFLICT or a sanity-gate failure." -ForegroundColor Yellow
+        Write-Host "    That needs judgment a preflight can't apply. Finish it in Claude Code: open this repo and run  /go" -ForegroundColor Yellow
+        Write-Host "    (it resolves each conflict semantically, then lands + deploys + pulls main)." -ForegroundColor Yellow
+        exit 1
+    }
+    Write-Host "[OK] Aligned -- local main is up to date with the team; changed services deployed." -ForegroundColor Green
 }
 
 Write-Host ""
