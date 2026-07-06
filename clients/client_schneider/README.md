@@ -108,12 +108,14 @@ The remaining tabs are **per-campaign**. Filters: **Campaign** (the 5 programs) 
 uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
 ([`data/media_plan.csv`](data/media_plan.csv) `channel` column, bucketed by `chan_group`):
 **Paid Media** (a Programmatic/LinkedIn line, or real `pm_delivery`), **Content Syndication** (a
-lead-gen line, or real leads), **CS Comparison** (only when the campaign has leads), and **Other
-Channels** (plan-only lines with no warehouse feed — Search, publisher sponsorships, trade press,
-email — shown as plan targets + a "Plan only · no feed" badge). Live result: `eba`/`water_env` →
-Paid·CS·Compare; `airset` → Paid·CS; `heavy` → Paid·CS·Compare·Other(Trade Publication);
-`global_rebrand` (Advancing Energy Technology) → Paid·Other(Search + Capital Brief/Energy Magazine/
-Innovation Aus). Default campaign = the one with most leads (EBA today); default tab = its first tab.
+lead-gen line, or real leads), and **CS Comparison** (only when the campaign has leads). (An **Other
+Channels** tab for plan-only lines — Search, publisher sponsorships, trade press, email — was
+**removed from the UI 2026-07-06** at the client's request, low value; the job still emits `other` in
+`tabs[]` but `campaignTabs()` filters it out, so the `tab-other` pane + `renderOther`/`ARTICLE_DELIVERY`
+code is retained but inert. This also dropped the Heavy Industries trade-publication article-delivery
+table.) Live result: `eba`/`water_env` → Paid·CS·Compare; `airset` → Paid·CS; `heavy` →
+Paid·CS·Compare; `global_rebrand` → Paid only. Default campaign = the one with most leads (EBA today);
+default tab = its first per-campaign tab; the global **Executive Scorecard** is shown **last**.
 The tab bar is built in `renderControls()`; switching campaign resets to a valid tab (`setCampaign`).
 
 1. **Paid Media** — for the selected program: KPI snapshot (spend / imps / clicks / blended CPC), a

@@ -672,7 +672,9 @@ function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); re
 // The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
 const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
-function campaignTabs(){ const t=campaign().tabs; return (t&&t.length)?t:['cs']; }
+// "Other Channels" (plan-only lines: Search / publisher / trade / email) was removed from the UI
+// 2026-07-06 (client request — low value). The job still emits it in tabs[]; we filter it out here.
+function campaignTabs(){ const t=(campaign().tabs||[]).filter(x=>x!=='other'); return t.length?t:['cs']; }
 // The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) — it spans all 5 programs,
 // so it sits outside the per-campaign tab set.
 function allTabs(){ return campaignTabs().concat(['scorecard']); }
