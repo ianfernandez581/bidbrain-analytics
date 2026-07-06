@@ -156,7 +156,8 @@
       '<div class="bt-breadcrumb">The Grid <span>›</span> Brain</div>' +
       '<div class="bt-header"><div><h2 class="bt-h2">' + ICON.brain + ' Brain · all clients</h2>' +
       '<div class="bt-subtitle">Recommendations ranked by estimated impact. Cross-client view.</div></div>' +
-      '<div class="bt-header-btns"><button class="ibtn" data-act="rescan">' + ICON.scan + 'Rescan now</button>' +
+      '<div class="bt-header-btns"><button class="ibtn" data-act="historical">' + ICON.scan + 'Historical data</button>' +
+      '<button class="ibtn" data-act="rescan">' + ICON.scan + 'Rescan now</button>' +
       '<button class="ibtn" data-act="log">' + ICON.log + 'Log</button></div></div>';
     var table =
       '<section class="card tbl-wrap bt-tblcard"><div class="tableScroll"><table class="bt-table"><thead><tr>' +
@@ -182,7 +183,8 @@
     mount.querySelectorAll('[data-act]').forEach(function (b) {
       b.addEventListener('click', function () {
         var act = b.getAttribute('data-act');
-        if (act === 'rescan') { ctx.toast && ctx.toast.success('Rescan queued · V1 uses cached mock data'); }
+        if (act === 'historical') { if (ctx.openHistorical) ctx.openHistorical(ctx.filters && ctx.filters.client !== 'all' ? ctx.filters.client : 'resetdata'); }
+        else if (act === 'rescan') { ctx.toast && ctx.toast.success('Rescan queued · V1 uses cached mock data'); }
         else if (act === 'log') { var c = mount.querySelector('.bt-sidecards'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
         else if (act === 'show-all') { ctx.setFilters({ client: 'all', platform: 'all', type: 'all', min_conf: '0.6' }); }
         else if (act === 'manage-list') { ctx.toast && ctx.toast.success('Blacklist management ships in V2'); }

@@ -172,7 +172,8 @@
       '<h2 class="bt-ev-title">' + esc(rec.title) + '</h2>' +
       '<div class="bt-ev-tags"><span class="bt-tag bt-tag-plat">' + esc(rec.platform) + '</span><span class="bt-tag bt-tag-type">' + esc(prettyType(rec.type)) + '</span>' +
       '<span class="bt-ev-conf">Confidence ' + Math.round(rec.confidence * 100) + '% · generated ' + hoursAgo(rec.created_at) + '</span></div></div>' +
-      '<div class="bt-ev-head-r"><div class="bt-ev-impact-l">Estimated monthly impact</div><div class="bt-ev-impact bt-green">+' + k(rec.estimated_impact_aud_monthly) + '<span>/mo</span></div></div></div>';
+      '<div class="bt-ev-head-r"><div class="bt-ev-impact-l">Estimated monthly impact</div><div class="bt-ev-impact bt-green">+' + k(rec.estimated_impact_aud_monthly) + '<span>/mo</span></div>' +
+      '<button class="bt-link" data-act="historical" style="margin-top:6px">Historical data →</button></div></div>';
 
     var lineage = lineageRow(rec);
     var actions = actionRow(rec);
@@ -209,6 +210,7 @@
   // ---- wiring ---------------------------------------------------------------
   function wire(mount, ctx, rec) {
     mount.querySelectorAll('[data-act="back"],[data-act="home"]').forEach(function (b) { b.addEventListener('click', ctx.back); });
+    mount.querySelectorAll('[data-act="historical"]').forEach(function (b) { b.addEventListener('click', function () { if (ctx.openHistorical) ctx.openHistorical(rec.client_id); }); });
     mount.querySelectorAll('.bt-grain button').forEach(function (b) {
       b.addEventListener('click', function () {
         mount.querySelectorAll('.bt-grain button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });

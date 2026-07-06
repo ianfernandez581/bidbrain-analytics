@@ -7,9 +7,19 @@
   "scripts": {
     "test": "node src/derive.test.js",
     "reconcile": "node src/reconcile.js --expected expected.json",
-    "check": "for f in src/derive.js src/orchestrator.js src/reconcile.js src/connectors/*.js; do node --check \"$f\"; done"
+    "check": "for f in src/derive.js src/orchestrator.js src/reconcile.js src/connectors/*.js; do node --check \"$f\"; done",
+    "serve": "node server.js",
+    "seed": "node scripts/brain-seed-historical.js"
   },
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "license": "UNLICENSED",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "better-sqlite3": "^12.11.1",
+    "xlsx": "^0.18.5",
+    "zod": "^4.4.3"
+  }
 }
