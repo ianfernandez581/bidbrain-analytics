@@ -152,6 +152,27 @@ RoA 165 / SAARC 282 / GCR-CN 106 / GCR-TW 106 / GCR-HK 204 / KR 202 / RIG 172 / 
 as a **version-controlled committed CSV** (`targets/real_targets.csv` → `seed_real_targets`, the
 per-client "targets in BQ from a committed CSV" standard — see *Updating targets* below).
 
+### Quarter filter (Q2 / Q3) — defaults to Q3
+
+The top bar carries a **Quarter** toggle (Q2 · Apr–Jun / Q3 · Jul–Sep) that **defaults to Q3**.
+It's a coarse control layered over the shared Looker-style date-range picker: quarters are
+**contiguous calendar spans**, so a selection maps 1:1 onto a single date range — Q3 → `[Jul 1,
+dataMax]`, Q2 → `[Apr 1, Jun 30]`, **both selected** → `[Apr 1, dataMax]` (the union). The **date
+range is the single source of truth**; the chips are *derived* from it (`syncQuarterChips`), so
+picking an arbitrary range in the calendar simply lights no chip ("custom"). The filter is
+**global** — it drives Paid Media, Content Syndication and CS Comparison alike (the QoQ tab is
+Q3-vs-Q2 by construction and ignores the range). Implemented entirely in `dash/dashboard.html`
+(`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips` + `DateRange.setRange` + `q2`/`q3`
+calendar presets); no data-layer change.
+
+**No Q3 targets/pacing yet:** Q3 has no `ALLOCATED_TARGET` rows loaded, so on the Q3 (or any
+target-less) view the target KPIs show **`—`** and the two pacing cards (`renderLeadsTarget`,
+`renderProgress`) render a neutral *"Targets & pacing not set for the selected period yet — showing
+actuals only"* placeholder instead of a misleading `0` / "0% of expected". When Q3 targets arrive,
+seed them the usual way (`targets/real_targets.csv` → `seed_static.py` → job `FORCE_REBUILD=1`) and
+the pacing UI lights up automatically. Redeploy the dashboard with
+[`dash/deploy_dash_cloudflare.ps1`](dash/deploy_dash_cloudflare.ps1).
+
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
 ```json
