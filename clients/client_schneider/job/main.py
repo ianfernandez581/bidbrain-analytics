@@ -88,6 +88,7 @@ def main():
     cs = rows(bq, "cs_by_programme")
     csw = rows(bq, "cs_weekly")
     pm = rows(bq, "pm_delivery")
+    aud = rows(bq, "cs_audience")   # Executive Scorecard: account / function / seniority mix
     media = rows(bq, "seed_media_plan")
     budget = {b["internal_campaign_id"]: b for b in rows(bq, "seed_plan_budget")}
     display = {m["internal_campaign_id"]: m["display_name"]
@@ -209,6 +210,10 @@ def main():
             "market": r["market"], "imps": num(r["imps"]), "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
         } for r in pm],
+        "cs_audience": [{
+            "campaign": r["campaign"], "market": r["market"], "dim": r["dim"],
+            "value": r["value"], "leads": num(r["leads"]),
+        } for r in aud],
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
