@@ -356,6 +356,32 @@
       </div>
     </div>
 
+    <!-- ============ EXECUTIVE SCORECARD ============ -->
+    <div id="tab-scorecard" class="tabpane">
+      <div class="section first">
+        <h2>Executive Scorecard</h2>
+        <span class="sub">Portfolio view across all five programs — pace to target, efficiency, and the <b>quality of the audience reached</b> (accounts, functions, seniority). Reflects the selected region(s). Each program is framed against the Schneider strategic pillar it advances. All figures are true Salesforce &amp; media-plan source data.</span>
+      </div>
+
+      <div class="kpis" id="scKpis"></div>
+
+      <div class="section"><h2 style="font-size:15px">Programs vs strategy &amp; target</h2><span class="sub">Each lead-gen program mapped to the Schneider corporate pillar it supports, with pace-to-target (leads vs the even flight pace) and plan CPL.</span></div>
+      <div id="scPrograms" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-top:14px"></div>
+
+      <div class="section"><h2 style="font-size:15px">Who we reached — audience intelligence</h2><span class="sub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens senior marketers value beyond raw volume.</span></div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Leads by job function</h3><div class="hint">Which functions engaged with the content across the portfolio.</div><div class="chart-wrap"><canvas id="scFunc"></canvas></div></div>
+        <div class="card card-tall"><h3>Seniority of leads</h3><div class="hint">Job level where disclosed (~40% of leads state a level); the rest are shown honestly as "Not disclosed".</div><div class="chart-wrap"><canvas id="scSen"></canvas></div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px"><h3>Top accounts reached <span id="scAcctCount" style="font-weight:400;font-size:11.5px;color:var(--se-mute)"></span></h3>
+        <div class="hint">Named companies generating the most content-syndication leads — the account-level view behind the totals.</div>
+        <div id="scAccounts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 24px;margin-top:14px"></div>
+      </div>
+
+      <div class="info-note" id="scFootNote" style="margin-top:14px"></div>
+    </div>
+
     <!-- ============ PAID MEDIA ============ -->
     <div id="tab-paid" class="tabpane">
       <div class="section first">
@@ -645,8 +671,13 @@ function campaign(){
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
 // The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
-const TAB_LABEL={paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
-function campaignTabs(){ const t=campaign().tabs; return (t&&t.length)?t:['cs']; }
+const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
+// "Other Channels" (plan-only lines: Search / publisher / trade / email) was removed from the UI
+// 2026-07-06 (client request — low value). The job still emits it in tabs[]; we filter it out here.
+function campaignTabs(){ const t=(campaign().tabs||[]).filter(x=>x!=='other'); return t.length?t:['cs']; }
+// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) — it spans all 5 programs,
+// so it sits outside the per-campaign tab set.
+function allTabs(){ return campaignTabs().concat(['scorecard']); }
 function marketOk(m){ return activeMarkets.has(m); }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
@@ -711,8 +742,8 @@ async function boot(){
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
     const h=(location.hash||'').replace('#','');
-    const validTabs=campaignTabs();         // tabs for the default (campaigns[0]) campaign
-    activeTab=validTabs.includes(h)?h:validTabs[0];
+    const validTabs=allTabs();              // the default campaign's tabs + scorecard (last)
+    activeTab=validTabs.includes(h)?h:campaignTabs()[0];   // default to the campaign's first tab
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
@@ -729,8 +760,8 @@ function renderMeta(){
 //==============================================================================
 // CONTROLS
 //==============================================================================
-function setTab(t){ if(!campaignTabs().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
-function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(!t.includes(activeTab)) activeTab=t[0]; renderControls(); renderActive(); }
+function setTab(t){ if(!allTabs().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(activeTab!=='scorecard' && !t.includes(activeTab)) activeTab=t[0]; renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function allRegions(){ activeMarkets=new Set(DATA.all_markets||[]); renderControls(); renderActive(); }
@@ -740,12 +771,14 @@ function toggleRegion(m){ activeMarkets.has(m)?activeMarkets.delete(m):activeMar
 function renderControls(){
   // tab bar — only the tabs (channels) this campaign actually uses
   const bar=el('tabBar'); bar.innerHTML='';
-  campaignTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
-  const c=campaign();
+  allTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
+  const c=campaign(); const isSc=activeTab==='scorecard';
   const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
-  el('ctrlNote').textContent=`Showing ${c.label||'—'} · ${mkts}`;
+  el('ctrlNote').textContent = isSc ? `Showing all programs · ${mkts}` : `Showing ${c.label||'—'} · ${mkts}`;
   // the date range only scopes Paid Media (CS leads are shown for the flight) — hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
+  // the Executive Scorecard is portfolio-wide, so the per-program campaign dropdown is irrelevant there
+  const campWrap=document.querySelector('.topbar-camp'); if(campWrap) campWrap.style.display = isSc ? 'none' : '';
   // campaign selector (top-nav dropdown, Cloudflare pattern) — one option per program (no "All campaigns")
   const sel=el('campSelect'); sel.innerHTML='';
   (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
@@ -756,9 +789,10 @@ function renderControls(){
 }
 
 function renderActive(){
-  ['paid','cs','compare','other'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
+  ['scorecard','paid','cs','compare','other'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
   destroyCharts();
-  if(activeTab==='paid') renderPaid();
+  if(activeTab==='scorecard') renderScorecard();
+  else if(activeTab==='paid') renderPaid();
   else if(activeTab==='cs') renderCS();
   else if(activeTab==='other') renderOther();
   else renderCompare();
@@ -1028,6 +1062,94 @@ function renderCSTable(){
 }
 
 //==============================================================================
+// EXECUTIVE SCORECARD (portfolio-wide; respects the Region chips)
+//==============================================================================
+// Static mapping of each program to the Schneider corporate pillar it advances (from Schneider's
+// public 2025-26 positioning — CEO Olivier Blum's "electrification, automation and digital" /
+// EcoStruxure "digitize, electrify, decarbonize" / AirSeT SF6-free). Copy only — no data feed.
+const PILLAR={
+  global_rebrand:{pillar:'Advancing Energy Technology', note:'Electrification · Automation · Digital — Schneider’s core corporate narrative'},
+  eba:           {pillar:'EcoStruxure Buildings',       note:'Digitize, electrify &amp; decarbonize the built environment'},
+  airset:        {pillar:'Sustainability · SF6-free',   note:'AirSeT switchgear — eliminating SF6 greenhouse gas'},
+  water_env:     {pillar:'Water &amp; Environment',      note:'Resilient, efficient water &amp; utilities infrastructure'},
+  heavy:         {pillar:'Heavy Industries',            note:'Energy &amp; process efficiency for industry'},
+};
+// audience rows for the whole portfolio, filtered to the active regions, for one dimension
+function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
+// per-program pacing across the active regions (scorecard needs every program, not just the selected one)
+function progPacing(cid){
+  let leads=0; (DATA.cs_by_programme||[]).forEach(r=>{ if(r.campaign===cid && marketOk(r.market)) leads+=r.total||0; });
+  const c=(DATA.campaigns||[]).find(x=>x.id===cid)||{};
+  const target=c.target||0, committed=c.committed_spend||0;
+  const tp=elapsedFrac(c.flight_start, c.flight_end||new Date(Date.now()).toISOString());
+  const ttd=(target && tp!=null)?target*tp:0;
+  return {leads, target, committed, cpl:target?committed/target:null, ttd,
+          vsTtd:ttd?leads/ttd:null, leadsPct:target?leads/target:0, label:c.label||cid};
+}
+function scKpi(label,value,delta,cls){ return `<div class="kpi ${cls||''}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||''}</div></div>`; }
+
+function renderScorecard(){
+  const progs=(DATA.campaigns||[]).map(c=>c.id);
+  let leads=0,target=0,committed=0,portTtd=0;
+  progs.forEach(id=>{ const p=progPacing(id); leads+=p.leads; target+=p.target; committed+=p.committed; portTtd+=p.ttd||0; });
+  const accounts=audAgg('account'); const nAcct=Object.keys(accounts).length;
+  const blendedCpl=target?committed/target:null;
+  const vsTtd=portTtd?leads/portTtd:null; const pv=paceVerdict(vsTtd);
+
+  // --- portfolio KPI strip ---
+  el('scKpis').innerHTML=[
+    scKpi('Leads delivered', fmtN(leads), `of ${fmtN(target)} target`, 'm-spend'),
+    scKpi('Pace vs plan', vsTtd!=null?fmtPct(vsTtd,0):'—', pv.txt, 'm-imp'),
+    scKpi('Accounts reached', fmtN(nAcct), 'distinct companies', 'm-clk'),
+    scKpi('Blended plan CPL', blendedCpl!=null?money(blendedCpl):'—', 'committed ÷ target', 'm-spend'),
+    scKpi('Programs live', fmtN(progs.length), 'lead-gen programs', 'm-imp'),
+  ].join('');
+
+  // --- program × strategy cards ---
+  el('scPrograms').innerHTML=progs.map(id=>{
+    const p=progPacing(id), pillar=PILLAR[id]||{pillar:p.label,note:''}, col=campColor(id);
+    const pvv=paceVerdict(p.vsTtd);
+    const vcol=pvv.cls==='up'?'#007E2A':pvv.cls==='down'?'#C0392B':'#B97400';
+    const pctW=Math.min(100,Math.round((p.leadsPct||0)*100));
+    return `<div style="background:#fff;border:1px solid var(--se-line);border-top:3px solid ${col};border-radius:10px;padding:14px 16px">
+      <div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:${col}">${pillar.pillar}</div>
+      <div style="font-weight:700;font-size:15px;margin-top:3px">${p.label}</div>
+      <div style="font-size:11px;color:var(--se-mute);margin:4px 0 11px;min-height:29px;line-height:1.35">${pillar.note}</div>
+      <div style="height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pctW}%;background:${col}"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px"><span><b>${fmtN(p.leads)}</b> / ${fmtN(p.target)} leads</span><span style="font-weight:700;color:${vcol}">${p.target?fmtPct(p.leadsPct,0):'—'}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--se-mute)"><span>${pvv.txt}</span><span>${p.cpl!=null?money(p.cpl)+' plan CPL':'plan CPL —'}</span></div>
+    </div>`;
+  }).join('');
+
+  // --- audience: job function (doughnut) ---
+  const fp=Object.entries(audAgg('function')).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const ftot=fp.reduce((s,x)=>s+x[1],0);
+  if(fp.length) charts.scFunc=new Chart(el('scFunc'),{ type:'doughnut',
+    data:{ labels:fp.map(x=>x[0]), datasets:[{ data:fp.map(x=>x[1]), backgroundColor:fp.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,ftot),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
+
+  // --- audience: seniority (horizontal bar) ---
+  const sn=audAgg('seniority'), order=['Executive','Director','Manager','Other','Not disclosed'];
+  const sl=order.filter(k=>sn[k]), scol={Executive:'#005F20',Director:'#007E2A',Manager:'#2867B2',Other:'#C9CED4','Not disclosed':'#E6E9ED'};
+  if(sl.length) charts.scSen=new Chart(el('scSen'),{ type:'bar',
+    data:{ labels:sl, datasets:[{ label:'Leads', data:sl.map(k=>sn[k]), backgroundColor:sl.map(k=>scol[k]||C.slate), borderRadius:4, maxBarThickness:48 }]},
+    options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} leads`}}}, scales:{ x:gridY({beginAtZero:true}), y:axisX() } } });
+
+  // --- top accounts reached (ABM hook) ---
+  const ap=Object.entries(accounts).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  el('scAcctCount').textContent = ap.length?`· ${fmtN(ap.length)} companies, top ${Math.min(18,ap.length)} shown`:'';
+  const amax=Math.max(1,...ap.slice(0,18).map(x=>x[1]));
+  el('scAccounts').innerHTML = ap.slice(0,18).map(([name,n])=>`
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px" title="${String(name).replace(/"/g,'&quot;')}">${name}</div>
+      <div style="width:88px;height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden;flex:none"><div style="height:100%;width:${(n/amax*100).toFixed(1)}%;background:${C.green}"></div></div>
+      <div style="width:24px;text-align:right;font-weight:700;font-size:12px;flex:none">${fmtN(n)}</div>
+    </div>`).join('') || `<div style="color:var(--se-mute);font-style:italic;font-size:12px">No leads for the selected region(s).</div>`;
+
+  el('scFootNote').innerHTML=`Audience fields come from the Salesforce lead records: <b>company 100%</b>, <b>job function 100%</b>, <b>job level ~40%</b> populated. Industry, company-size and downloaded-asset fields are empty in the current feed, so they are intentionally not shown. Pace vs plan compares delivered leads to the even flight-to-date target. All figures are true source data.`;
+}
+
+//==============================================================================
 // CS COMPARISON
 //==============================================================================
 function renderCompare(){
@@ -1130,7 +1252,8 @@ function renderOther(){
 
 function exportThisTab(){
   let lines=[`# Schneider CS - ${activeTab} - ${campaign().label} - ${activeMarketList().join('/')}`];
-  if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
+  if(activeTab==='scorecard') lines=lines.concat(tableCSV('cs_audience (portfolio, filtered)', (DATA.cs_audience||[]).filter(r=>marketOk(r.market))));
+  else if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
   else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
   else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows())).concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()));
   dl(`schneider_${activeTab}.csv`, lines);

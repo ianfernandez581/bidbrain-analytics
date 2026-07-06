@@ -44,7 +44,14 @@ SELECT
     WHEN 'UNRESPONSIVE'    THEN 'Disqualified'
     WHEN 'DO NOT CONTACT'  THEN 'Disqualified'
     ELSE 'Other'
-  END                                          AS status_bucket
+  END                                          AS status_bucket,
+  -- AUDIENCE INTELLIGENCE fields (the Executive Scorecard tab). Verified populated for SE:
+  -- COMPANY_NAME 300/300, JOB_FUNCTION 300/300, JOB_LEVEL 120/300; INDUSTRY/ASSET/STATE/REVENUE
+  -- are empty for SE so are NOT surfaced. '' and '-' are normalised to NULL. No PII beyond the
+  -- account (COMPANY_NAME) is carried forward — name/email/phone are intentionally dropped here.
+  CASE WHEN TRIM(COALESCE(s.COMPANY_NAME, '')) IN ('', '-') THEN NULL ELSE TRIM(s.COMPANY_NAME) END AS company,
+  CASE WHEN TRIM(COALESCE(s.JOB_FUNCTION, '')) IN ('', '-') THEN NULL ELSE TRIM(s.JOB_FUNCTION) END AS job_function,
+  CASE WHEN TRIM(COALESCE(s.JOB_LEVEL,    '')) IN ('', '-') THEN NULL ELSE TRIM(s.JOB_LEVEL)    END AS job_level
 FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` s
 JOIN `bidbrain-analytics.client_schneider.seed_salesforce_map` m
   ON m.salesforce_campaign_id = s.CAMPAIGN_ID
