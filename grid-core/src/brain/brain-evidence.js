@@ -170,6 +170,7 @@
       '<span class="bt-ev-conf">' + Math.round(rec.confidence * 100) + '% confidence · generated ' + hoursAgo(rec.created_at) + '</span></div></div>' +
       '<div class="bt-ev-head-r"><div class="bt-ev-impact-l">Estimated monthly impact</div><div class="bt-ev-impact bt-green">+' + k(rec.estimated_impact_aud_monthly) + '<span>/mo</span></div></div></div>';
 
+    var lineage = lineageRow(rec);
     var actions = actionRow(rec);
 
     var s1 = section(IC.search, 'What we noticed', metricsCards(m, cur) + '<p class="bt-detail">' + esc(rec.evidence.detail_paragraph) + '</p>');
@@ -185,7 +186,17 @@
     var bottom = '<section class="card bt-card bt-bottombar"><div class="bt-bottombar-txt">After the trader confirms in ClickUp, this recommendation moves to the Optimization log and we start measuring the change against baseline.</div>' +
       (rec.status === 'review' ? '<button class="bt-btn bt-btn-primary" data-act="send">Send to ClickUp</button>' : '<button class="bt-btn bt-btn-done" disabled>' + (rec.status === 'in_clickup' ? 'Sent to ClickUp ✓' : 'Actioned') + '</button>') + '</section>';
 
-    return '<div class="bt-wrap bt-evidence">' + head + actions + s1 + s2 + s3 + s4 + s5 + s6 + bottom + '</div>';
+    return '<div class="bt-wrap bt-evidence">' + head + lineage + actions + s1 + s2 + s3 + s4 + s5 + s6 + bottom + '</div>';
+  }
+
+  // Data lineage: the real BigQuery table(s) a V2 engine would read, plus an honest flag
+  // for recs (placement / site-quality) the current pipeline can't derive yet.
+  function lineageRow(rec) {
+    var src = (rec.data_source || []).map(function (s) { return '<code class="bt-src">' + esc(s) + '</code>'; }).join(' ');
+    var badge = rec.data_readiness === 'needs_ingest'
+      ? '<span class="bt-ready bt-ready-warn" title="No per-placement / per-domain breakdown is ingested yet — needs a new ingest before this can run on live data.">needs placement-level ingest</span>'
+      : '<span class="bt-ready bt-ready-ok">live data source</span>';
+    return '<div class="bt-lineage">' + badge + '<span class="bt-lineage-src">Source: ' + (src || '—') + '</span></div>';
   }
 
   // ---- wiring ---------------------------------------------------------------

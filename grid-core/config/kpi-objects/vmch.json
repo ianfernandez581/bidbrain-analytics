@@ -15,5 +15,9 @@
   },
   "secondary_kpis": ["ttd_attributed_conversion", "engaged_session"],
   "guardrail_kpis": ["direct_traffic", "branded_search_volume"],
-  "connected_sources": ["trade_desk", "ga4"]
+  "connected_sources": ["trade_desk", "ga4"],
+  "raw_sources": {
+    "trade_desk": "raw_snowflake.tradedesk_apac_all",
+    "ga4": "raw_ga4.perf_ga4 / raw_ga4.perf_ga4_events (DTS-first, raw_windsor.perf_ga4 fallback)"
+  }
 }

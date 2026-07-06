@@ -24,15 +24,32 @@
   function mulberry32(a) { return function () { a |= 0; a = (a + 0x6D2B79F5) | 0; var t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
   function round(n, d) { var p = Math.pow(10, d || 0); return Math.round(n * p) / p; }
 
+  // Per-client facts VERIFIED against clients/client_<c>/ + ingest/ (2026-07-06).
+  // `platforms` = the ad platforms the client ACTUALLY buys media on — a rec may only
+  // use one of these (or 'Multi'); enforced by an assertion in rec(). `cur`/`fx` match
+  // how each dashboard actually displays money.
   var CLIENT_META = {
-    resetdata:  { name: 'ResetData',              cur: 'AUD' },
-    mongodb:    { name: 'MongoDB',                cur: 'USD' },
-    cloudflare: { name: 'Cloudflare',             cur: 'USD' },
-    schneider:  { name: 'Schneider',              cur: 'AUD' },
-    vmch:       { name: 'VMCH',                   cur: 'AUD' },
-    tlm:        { name: 'The Little Marionette',  cur: 'AUD' },
-    proptrack:  { name: 'PropTrack',              cur: 'AUD' },
-    hireright:  { name: 'HireRight',              cur: 'USD' }
+    resetdata:  { name: 'ResetData',              cur: 'AUD', platforms: ['Google Ads', 'Meta', 'Trade Desk', 'Reddit'], fx: 'Google/Meta/Reddit AUD native; Trade Desk USD→AUD @1.50' },
+    mongodb:    { name: 'MongoDB',                cur: 'USD', platforms: ['Trade Desk'], fx: 'USD throughout' },
+    cloudflare: { name: 'Cloudflare',             cur: 'USD', platforms: ['LinkedIn', 'Trade Desk', 'Reddit', 'LINE'], fx: 'USD; LINE JPY→USD @155' },
+    schneider:  { name: 'Schneider',              cur: 'AUD', platforms: ['DV360', 'Trade Desk', 'LinkedIn'], fx: 'AUD; USD→AUD @1.50, SGD→AUD @1.15' },
+    vmch:       { name: 'VMCH',                   cur: 'AUD', platforms: ['Trade Desk'], fx: 'AUD native' },
+    tlm:        { name: 'The Little Marionette',  cur: 'AUD', platforms: ['Google Ads', 'Trade Desk'], fx: 'AUD native' },
+    proptrack:  { name: 'PropTrack',              cur: 'AUD', platforms: ['LinkedIn', 'Trade Desk'], fx: 'AUD native' },
+    hireright:  { name: 'HireRight',              cur: 'USD', platforms: ['DV360', 'Trade Desk', 'LinkedIn'], fx: 'USD; Trade Desk AUD→USD @0.65' }
+  };
+
+  // Real BigQuery raw tables each platform's delivery lands in (from ingest/). Used as the
+  // `data_source` a V2 engine would query. See ingest/ + CLAUDE.md ingest section.
+  var PLATFORM_SOURCE = {
+    'Trade Desk': ['raw_snowflake.tradedesk_apac_all'],
+    'Meta':       ['raw_windsor.perf_meta'],
+    'LinkedIn':   ['raw_snowflake.linkedin_ads_apac'],
+    'Google Ads': ['raw_google_ads.perf_google_ads'],
+    'DV360':      ['raw_snowflake.dv360_apac'],
+    'Reddit':     ['raw_windsor.perf_reddit'],
+    'LINE':       ['manual LINE Ad Manager export (no raw table yet)'],
+    'Multi':      ['raw_snowflake.tradedesk_apac_all', 'raw_snowflake.dv360_apac']
   };
   var ASSIGNEES = ['Zen', 'Priya', 'Marcus', 'Aisha'];
   var BASE_DATE = new Date('2026-07-05T14:00:00+10:00'); // "now" for created_at spread
@@ -104,8 +121,16 @@
   // ---- factory: fill every field so the drill-down never hits an undefined --
   function rec(o) {
     var meta = CLIENT_META[o.client_id];
+    // Correctness guard: a rec can only use a platform its client actually runs ('Multi' = cross-platform).
+    if (meta && meta.platforms && o.platform !== 'Multi' && meta.platforms.indexOf(o.platform) < 0) {
+      throw new Error('brain-mock-data: ' + o.id + ' assigns platform "' + o.platform + '" to ' + o.client_id + ', which does not run it (runs: ' + meta.platforms.join(', ') + ')');
+    }
     var rnd = mulberry32(hashStr(o.id));
     var created = new Date(BASE_DATE.getTime() - (o.daysAgo || 0) * 86400000);
+    // Placement-isolation & site-quality need a per-domain/per-placement breakdown that the
+    // current pipeline does NOT ingest (TTD stops at ad_group×creative, Meta at ad×date) — flag it.
+    var readiness = o.data_readiness || ((o.type === 'placement' || o.type === 'site_quality') ? 'needs_ingest' : 'live');
+    var dataSource = o.data_source || PLATFORM_SOURCE[o.platform] || [];
 
     // headline metrics (internally consistent) unless explicitly provided
     var m = o.metrics_21d;
@@ -143,7 +168,8 @@
       risks: o.risks || defaultRisks(o),
       clickup_task_preview: preview,
       confidence: o.confidence, estimated_impact_aud_monthly: o.estimated_impact_aud_monthly,
-      status: o.status, created_at: created.toISOString()
+      status: o.status, created_at: created.toISOString(),
+      data_source: dataSource, data_readiness: readiness
     };
   }
   function r_platformAvg(p) { return p === 'Multi' ? 'cross-platform' : (p + ' Run of Network'); }
@@ -187,10 +213,11 @@
     // MongoDB (4)
     { id: 'R-2833', c: 'mongodb', platform: 'Trade Desk', type: 'placement', conf: 0.9, impact: 21000, status: 'won', daysAgo: 13,
       title: 'Isolate bloomberg.com placement', short: 'Bloomberg is outperforming inside ROP — carve it into its own line item.' },
-    { id: 'R-2840', c: 'mongodb', platform: 'LinkedIn', type: 'audience', conf: 0.81, impact: 11000, status: 'review', daysAgo: 6,
-      title: 'Expand job titles on content-syndication audience', short: 'Adjacent data-platform titles are converting but are not yet in the target set.' },
-    { id: 'R-2845', c: 'mongodb', platform: 'Meta', type: 'budget_shift', conf: 0.76, impact: 8000, status: 'in_clickup', daysAgo: 9,
-      title: 'Shift budget from underpacing Meta set to top line', short: 'One ad set is underpacing; move its daily budget to the top performer.' },
+    { id: 'R-2840', c: 'mongodb', platform: 'Trade Desk', type: 'budget_shift', conf: 0.81, impact: 11000, status: 'review', daysAgo: 6,
+      title: 'Reallocate Trade Desk delivery to DNB IDE Business & Ops Leaders', short: 'That programme is pacing best on delivered CS leads — move impressions off the softer Single Touch line.',
+      src: ['raw_snowflake.salesforce_cs_apac_all', 'raw_snowflake.tradedesk_apac_all'] },
+    { id: 'R-2845', c: 'mongodb', platform: 'Trade Desk', type: 'creative', conf: 0.76, impact: 8000, status: 'in_clickup', daysAgo: 9,
+      title: 'Rotate the fatigued DNB IDE display creative', short: 'Frequency on the DNB display set has climbed while its content-LP view rate is softening.' },
     { id: 'R-2830', c: 'mongodb', platform: 'Multi', type: 'site_quality', conf: 0.98, impact: 22000, status: 'review', daysAgo: 11,
       title: 'Blacklist made-for-advertising domains', short: 'High-density MFA domains detected across the display buy — recommend a shared blacklist.' },
 
@@ -201,26 +228,27 @@
       title: 'Expand to adjacent security subreddits', short: 'Engagement in r/netsec suggests nearby communities are worth adding.' },
     { id: 'R-2848', c: 'cloudflare', platform: 'Trade Desk', type: 'budget_shift', conf: 0.84, impact: 13000, status: 'review', daysAgo: 2,
       title: 'Reallocate budget from LINE to Trade Desk', short: 'LINE is underpacing this flight; Trade Desk has efficient headroom.' },
-    { id: 'R-2851', c: 'cloudflare', platform: 'DV360', type: 'placement', conf: 0.86, impact: 15000, status: 'measuring', daysAgo: 6,
-      title: 'Isolate theverge.com placement', short: 'The Verge is beating the ROP average — carve it out to scale efficiently.' },
-    { id: 'R-2837', c: 'cloudflare', platform: 'Meta', type: 'frequency_cap', conf: 0.73, impact: 4500, status: 'review', daysAgo: 1,
-      title: 'Cap frequency on prospecting ad sets', short: 'Prospecting frequency is climbing with no reach gain — cap to cut waste.' },
+    { id: 'R-2851', c: 'cloudflare', platform: 'LINE', type: 'budget_shift', conf: 0.86, impact: 15000, status: 'measuring', daysAgo: 6,
+      title: 'Rebalance LINE spend into LinkedIn as JP CPL climbs', short: 'JP cost-per-lead on LINE is drifting above target — shift a slice into the LinkedIn Roverpath line.' },
+    { id: 'R-2837', c: 'cloudflare', platform: 'Trade Desk', type: 'frequency_cap', conf: 0.73, impact: 4500, status: 'review', daysAgo: 1,
+      title: 'Cap frequency on Roverpath prospecting', short: 'Prospecting frequency is climbing with no reach gain — cap to cut waste.' },
 
     // Schneider (4)
     { id: 'R-2839', c: 'schneider', platform: 'DV360', type: 'placement', conf: 0.85, impact: 12000, status: 'review', daysAgo: 5,
-      title: 'Isolate high-performing energy-trade placement', short: 'A trade-publication placement is outperforming ROP for the water & environment program.' },
+      title: 'Isolate the trade-publication placement on Water & Environment', short: 'A trade-publication placement is outperforming the ROP average for the Water & Environment program.' },
     { id: 'R-2844', c: 'schneider', platform: 'LinkedIn', type: 'audience', conf: 0.8, impact: 10000, status: 'measuring', daysAgo: 8,
       title: 'Expand seniority band on EBA program', short: 'Director-level engagement is strong; widen one seniority band to scale MQLs.' },
     { id: 'R-2846', c: 'schneider', platform: 'Trade Desk', type: 'bid_strategy', conf: 0.77, impact: 9000, status: 'in_clickup', daysAgo: 9,
       title: 'Swap heavy-industries line to target CPA', short: 'Max-clicks is buying cheap but low-intent clicks; target CPA should tighten quality.' },
-    { id: 'R-2852', c: 'schneider', platform: 'Google Ads', type: 'negative_keywords', conf: 0.82, impact: 6000, status: 'review', daysAgo: 3,
-      title: 'Add negatives for consumer HVAC terms', short: 'Consumer-intent HVAC queries are pulling spend away from the B2B programs.' },
+    { id: 'R-2852', c: 'schneider', platform: 'DV360', type: 'budget_shift', conf: 0.82, impact: 6000, status: 'review', daysAgo: 3,
+      title: 'Shift DV360 budget from Global Rebrand to EBA', short: 'EcoStruxure Building Activate is pacing to target while Global Rebrand lags — rebalance the DV360 line.',
+      src: ['raw_snowflake.dv360_apac', 'raw_snowflake.salesforce_cs_apac_all'] },
 
     // VMCH (3)
     { id: 'R-2834', c: 'vmch', platform: 'Trade Desk', type: 'creative', conf: 0.69, impact: 3000, status: 'review', daysAgo: 12,
       title: 'Rotate fatigued RAC service-line creative', short: 'Residential aged-care creative frequency is high with softening click-through.' },
-    { id: 'R-2850', c: 'vmch', platform: 'DV360', type: 'frequency_cap', conf: 0.71, impact: 2500, status: 'review', daysAgo: 6,
-      title: 'Tighten frequency cap on disability line', short: 'Disability campaign is over-serving a narrow audience; cap to extend reach.' },
+    { id: 'R-2850', c: 'vmch', platform: 'Trade Desk', type: 'frequency_cap', conf: 0.71, impact: 2500, status: 'review', daysAgo: 6,
+      title: 'Tighten the frequency cap on the Disability service line', short: 'The Disability campaign is over-serving a narrow audience; cap to extend reach at the same spend.' },
     { id: 'R-2853', c: 'vmch', platform: 'Trade Desk', type: 'bid_strategy', conf: 0.65, impact: 2000, status: 'rolled_back', daysAgo: 10,
       title: 'Daypart SAH line to business hours', short: 'Enquiry events cluster in daytime; concentrate delivery there.' },
 
@@ -229,8 +257,8 @@
       title: 'Swap shopping campaign to target ROAS', short: 'Manual bidding is leaving efficient shopping demand on the table.' },
     { id: 'R-2854', c: 'tlm', platform: 'Google Ads', type: 'negative_keywords', conf: 0.8, impact: 3500, status: 'review', daysAgo: 4,
       title: 'Add negatives for wholesale coffee terms', short: 'Wholesale and cafe-equipment queries are not the DTC buyer — exclude them.' },
-    { id: 'R-2855', c: 'tlm', platform: 'Meta', type: 'placement', conf: 0.72, impact: 4000, status: 'review', daysAgo: 2,
-      title: 'Isolate Reels placement for top creative', short: 'Reels is driving the cheapest purchases — give the top creative its own placement.' },
+    { id: 'R-2855', c: 'tlm', platform: 'Google Ads', type: 'negative_keywords', conf: 0.72, impact: 4000, status: 'review', daysAgo: 2,
+      title: 'Exclude barista-course & job-seeker search terms', short: 'Search and PMax are matching "barista course" / jobs queries that never purchase — add them as negatives.' },
 
     // PropTrack (3)
     { id: 'R-2832', c: 'proptrack', platform: 'LinkedIn', type: 'audience', conf: 0.83, impact: 11000, status: 'review', daysAgo: 11,
@@ -254,7 +282,8 @@
       status: s.status, daysAgo: s.daysAgo,
       metrics_21d: s.metrics_21d, detail_paragraph: s.detail_paragraph, outperformance_days: s.outperformance_days,
       fraud_check: s.fraud_check, historical_pattern: s.historical_pattern, proposed_config: s.proposed_config,
-      risks: s.risks, clickup_task_preview: s.clickup_task_preview
+      risks: s.risks, clickup_task_preview: s.clickup_task_preview,
+      data_source: s.src, data_readiness: s.ready
     });
   });
 

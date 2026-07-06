@@ -14,5 +14,13 @@
   },
   "secondary_kpis": ["pipeline_created_aud", "ga4_engaged_session_icp"],
   "guardrail_kpis": ["branded_search_volume", "direct_traffic_icp"],
-  "connected_sources": ["ga4", "cms", "trade_desk", "meta", "linkedin"]
+  "connected_sources": ["google_ads", "meta", "trade_desk", "reddit", "ga4", "hubspot"],
+  "raw_sources": {
+    "google_ads": "raw_google_ads.perf_google_ads",
+    "meta": "raw_windsor.perf_meta",
+    "trade_desk": "raw_snowflake.tradedesk_apac_all",
+    "reddit": "raw_windsor.perf_reddit",
+    "ga4": "raw_ga4.perf_ga4 / raw_ga4.perf_ga4_events",
+    "hubspot": "raw_windsor.hubspot_contacts / raw_windsor.hubspot_deals"
+  }
 }

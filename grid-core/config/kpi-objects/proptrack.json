@@ -15,5 +15,9 @@
   },
   "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
   "guardrail_kpis": ["branded_search_volume", "account_reach"],
-  "connected_sources": ["trade_desk", "linkedin"]
+  "connected_sources": ["linkedin", "trade_desk"],
+  "raw_sources": {
+    "linkedin": "raw_snowflake.linkedin_ads_apac",
+    "trade_desk": "raw_snowflake.tradedesk_apac_all"
+  }
 }

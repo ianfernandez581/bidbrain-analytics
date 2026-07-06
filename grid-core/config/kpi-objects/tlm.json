@@ -15,5 +15,9 @@
   },
   "secondary_kpis": ["revenue_aud", "roas"],
   "guardrail_kpis": ["branded_search_volume", "new_customer_rate"],
-  "connected_sources": ["google_ads", "trade_desk", "ga4"]
+  "connected_sources": ["google_ads", "trade_desk"],
+  "raw_sources": {
+    "google_ads": "raw_google_ads.perf_google_ads",
+    "trade_desk": "raw_snowflake.tradedesk_apac_all"
+  }
 }

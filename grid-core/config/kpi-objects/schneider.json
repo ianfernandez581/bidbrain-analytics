@@ -15,5 +15,11 @@
   },
   "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
   "guardrail_kpis": ["branded_search_volume", "lead_grade_rate"],
-  "connected_sources": ["dv360", "trade_desk", "linkedin", "salesforce"]
+  "connected_sources": ["dv360", "trade_desk", "linkedin", "salesforce_cs"],
+  "raw_sources": {
+    "dv360": "raw_snowflake.dv360_apac",
+    "trade_desk": "raw_snowflake.tradedesk_apac_all",
+    "linkedin": "raw_snowflake.linkedin_ads_apac",
+    "salesforce_cs": "raw_snowflake.salesforce_cs_apac_all"
+  }
 }

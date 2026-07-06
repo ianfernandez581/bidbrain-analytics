@@ -114,7 +114,8 @@ client colours, keyboard shortcuts, toasts, loading/empty/404 states, and the
 
 Mocked:
 - **Recommendations data** — `config/brain-mock-data.js` (~30 recs across 8 clients).
-  No BigQuery yet.
+  Still hand-authored (no live BigQuery query yet), but as of the V2 data pass it is
+  **grounded in the real clients** (see "V2 — data grounding" below).
 - **The ClickUp endpoint** — the front-end really does `POST /api/brain/clickup-task`,
   but because The Grid has no server, a `window.fetch` interceptor in `the-grid.html`
   answers it: logs the payload (`[BRAIN][ClickUp]`), mints a `CU-MOCK-xxxxxx` id, flips
@@ -151,9 +152,40 @@ via `<script src>` in `the-grid.html`, before the main app script.
 The seam between the host page and the brain modules is a small `ctx` object the page builds
 (`data`, `colors`, `toast`, `theme`, `filters`, `setFilters`, `open`, `back`, `sendToClickup`).
 
+## V2 — data grounding (done)
+
+The mock data was audited against the real clients (`clients/client_<c>/`) and the raw
+ingest layer (`ingest/`), so every recommendation is now *faithful* even though it's still
+hand-authored:
+
+- **Platform-per-client is real and enforced.** Each client's `CLIENT_META.platforms` lists
+  only the ad platforms it actually buys on (e.g. MongoDB & VMCH = Trade Desk only; Cloudflare
+  runs LinkedIn/Trade Desk/Reddit/**LINE** but no Meta/DV360; Schneider has no Google Ads; only
+  ResetData runs Meta). `rec()` **throws** if a rec is assigned a platform its client doesn't run,
+  so the V1 bug (MongoDB on LinkedIn/Meta, etc.) can't come back. The platform mix is therefore
+  the *real* one — Trade-Desk-heavy, Meta only on ResetData — not a synthetic even spread.
+- **Currency & FX** per client match the dashboards (AUD: resetdata/schneider/vmch/tlm/proptrack;
+  USD: mongodb/cloudflare/hireright; TTD USD→AUD @1.50, LINE JPY→USD @155, etc.).
+- **Real programs/campaigns** appear in titles (Schneider's Water & Environment / EBA / Heavy
+  Industries / Global Rebrand; MongoDB's DNB IDE programmes; Cloudflare's Roverpath/Final Funnel;
+  VMCH's RAC/SAH/Disability; TLM's Shopping/Search).
+- **Data lineage on every rec** — `data_source` is the real BigQuery table(s) a V2 engine would
+  query (`raw_snowflake.tradedesk_apac_all`, `raw_windsor.perf_meta`, `raw_snowflake.linkedin_ads_apac`,
+  `raw_google_ads.perf_google_ads`, `raw_snowflake.dv360_apac`, `raw_windsor.perf_reddit`,
+  `raw_snowflake.salesforce_cs_apac_all`, …). The KPI objects gained a matching `raw_sources` map.
+- **Honest `data_readiness` flag** — ⚠️ the ingest layer has **no per-placement / per-domain / per-site
+  breakdown** (Trade Desk stops at campaign×ad_group×creative; Meta at ad×date). So `placement`
+  isolations and `site_quality`/MFA recs are tagged `data_readiness: 'needs_ingest'` (7 of 30) and
+  render a **"needs placement-level ingest"** badge on the drill-down. The other 23 (`live`) are
+  derivable from tables that exist today. This is the single biggest blocker for a real engine.
+
 ## V2 roadmap
 
-- Real recommendations engine (BigQuery queries → scored recs), replacing `brain-mock-data.js`
+- **Placement/domain breakdown ingest** (the gating item for `placement` + `site_quality` recs):
+  add a per-site/supply-vendor breakdown table from Trade Desk/DV360 (or verify whether
+  `raw_snowflake.dv360_apac` / `tradedesk_apac_all` already carry site columns at source).
+- Real recommendations engine (BigQuery queries → scored recs) reading each rec's `data_source`,
+  replacing the hand-authored `brain-mock-data.js`
 - Real ClickUp API (replace the fetch interceptor with a server route + auth)
 - LlamaParse ingestion of historical media plans / retros to ground the `historical_pattern`
 - Site Quality Index with real scoring (Jounce integration) + a live domain blacklist

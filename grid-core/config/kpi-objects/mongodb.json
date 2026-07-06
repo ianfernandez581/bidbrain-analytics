@@ -15,5 +15,10 @@
   },
   "secondary_kpis": ["pipeline_created_aud", "pixel_content_engagement"],
   "guardrail_kpis": ["branded_search_volume", "accepted_lead_rate"],
-  "connected_sources": ["trade_desk", "salesforce", "ga4"]
+  "connected_sources": ["trade_desk", "salesforce_cs", "tradedesk_pixel"],
+  "raw_sources": {
+    "trade_desk": "raw_snowflake.tradedesk_apac_all",
+    "salesforce_cs": "raw_snowflake.salesforce_cs_apac_all",
+    "tradedesk_pixel": "raw_snowflake.tradedesk_apac_conversion"
+  }
 }
