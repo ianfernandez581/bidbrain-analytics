@@ -42,6 +42,17 @@
               box-shadow:0 0 0 0 rgba(31,157,85,0.7);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,85,0.6)}70%{box-shadow:0 0 0 8px rgba(31,157,85,0)}100%{box-shadow:0 0 0 0 rgba(31,157,85,0)}}
 
+  /* ===== Quarter filter (Q2/Q3) — sits in the dark topbar, left of the date picker ===== */
+  .qtr-filter{display:inline-flex;align-items:center;gap:8px}
+  .qtr-filter .qtr-lbl{font-size:11px;color:#8ca0b8;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
+  .qtr-group{display:inline-flex;gap:3px;background:#0c1524;border:1px solid #25364b;border-radius:8px;padding:3px}
+  .qtr-chip{display:inline-flex;flex-direction:column;align-items:center;line-height:1.05;
+      padding:5px 12px;border:none;border-radius:6px;background:none;color:#8ca0b8;
+      font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s}
+  .qtr-chip span{font-size:9px;font-weight:600;opacity:.8;letter-spacing:.3px;margin-top:1px}
+  .qtr-chip:not(.on):hover{background:#16233a;color:#e8f0fa}
+  .qtr-chip.on{background:var(--cf-orange);color:#fff}
+
   .container{padding:24px;max-width:1400px;margin:0 auto}
 
   .tabs{display:flex;gap:2px;background:#fff;border:1px solid var(--cf-line);border-radius:10px;padding:3px;margin-bottom:14px;width:fit-content}
@@ -347,6 +358,13 @@
       <option value="cf1_india">CF1 India</option>
       <option value="coles_hyper">Coles Hyper</option>
     </select>
+    <div class="qtr-filter" id="qtrFilter">
+      <span class="qtr-lbl">Quarter</span>
+      <div class="qtr-group">
+        <button class="qtr-chip" data-q="Q2" type="button" onclick="toggleQuarter('Q2')">Q2<span>Apr-Jun</span></button>
+        <button class="qtr-chip" data-q="Q3" type="button" onclick="toggleQuarter('Q3')">Q3<span>Jul-Sep</span></button>
+      </div>
+    </div>
     <div class="dp" id="dateRange">
       <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -965,6 +983,7 @@ window.DateRange = (function(){
     {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
     {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
     {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
+    {k:'q2', label:'Q2 (Apr-Jun)'}, {k:'q3', label:'Q3 (Jul-Sep)'},
     {k:'all', label:'All time'},
   ];
   let MIN=null, MAX=null, onApply=null;
@@ -987,6 +1006,8 @@ window.DateRange = (function(){
     else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
                                   e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
     else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
+    else if(k==='q2'){            s=new Date(2026,3,1);  e=new Date(2026,5,30); }   // Apr 1 – Jun 30
+    else if(k==='q3'){            s=new Date(2026,6,1);  e=new Date(2026,8,30); }   // Jul 1 – Sep 30
     else                          { s=new Date(MIN); e=new Date(MAX); }   // all
     return [clamp(s), clamp(e)];
   }
@@ -1047,6 +1068,17 @@ window.DateRange = (function(){
     selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
     close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
 
+  // Programmatically set the selected range (used by the Q2/Q3 quarter chips).
+  // Clamps to [MIN,MAX], syncs the calendar view + button, and fires onApply so
+  // the rest of the dashboard re-renders exactly as if applied from the calendar.
+  function setRange(sISO, eISO){
+    const s=clamp(parse(sISO)), e=clamp(parse(eISO));
+    if(!s || !e || s>e) return;
+    selStart=s; selEnd=e; draftStart=new Date(s); draftEnd=new Date(e);
+    viewYear=e.getFullYear(); viewMonth=e.getMonth();
+    updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd));
+  }
+
   function renderPresets(){
     const cur = detectPreset(draftStart, draftEnd||draftStart);
     $('dpPresets').innerHTML = PRESETS.map(p =>
@@ -1088,8 +1120,54 @@ window.DateRange = (function(){
       : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
   }
 
-  return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+  return { init, toggle, setRange, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
 })();
+
+// ==========================================================================
+// QUARTER FILTER (Q2 / Q3) — a coarse control layered over the shared date
+// range. Quarters are CONTIGUOUS calendar spans, so a selection maps 1:1 onto
+// a single date range: Q3 -> [Jul 1, dataMax], Q2 -> [Apr 1, Jun 30], both ->
+// [Apr 1, dataMax]. The date range stays the single source of truth; the chips
+// are derived from it (so a custom calendar range simply lights no chip).
+// ==========================================================================
+const QUARTERS = { Q2:{start:'2026-04-01', end:'2026-06-30'},
+                   Q3:{start:'2026-07-01', end:'2026-09-30'} };
+let selQuarters = new Set(['Q3']);           // default view = Q3
+
+// [startISO,endISO] spanning the given quarter keys, clamped to the loaded data
+// window; null if the selection is empty or falls entirely outside the data.
+function quarterSpan(keys){
+  if(!keys || !keys.length) return null;
+  let s=null, e=null;
+  for(const k of keys){ const q=QUARTERS[k]; if(!q) continue;
+    if(!s || q.start<s) s=q.start; if(!e || q.end>e) e=q.end; }
+  if(!s || !e) return null;
+  if(dateMin && s<dateMin) s=dateMin;
+  if(dateMax && e>dateMax) e=dateMax;
+  return s>e ? null : [s,e];
+}
+// Toggle a quarter on/off (never allow an empty selection) and push the new span
+// to the shared range; DateRange.setRange -> onApply -> syncQuarterChips re-render.
+function toggleQuarter(k){
+  const next = new Set(selQuarters);
+  next.has(k) ? next.delete(k) : next.add(k);
+  if(next.size===0) next.add(k);
+  const span = quarterSpan([...next]);
+  if(span) DateRange.setRange(span[0], span[1]);
+}
+// Derive chip highlight from the current range (range = source of truth).
+function syncQuarterChips(){
+  const match = keys => { const sp=quarterSpan(keys); return sp && sp[0]===rangeStart && sp[1]===rangeEnd; };
+  if(match(['Q2','Q3'])) selQuarters = new Set(['Q2','Q3']);
+  else if(match(['Q3'])) selQuarters = new Set(['Q3']);
+  else if(match(['Q2'])) selQuarters = new Set(['Q2']);
+  else                   selQuarters = new Set();   // custom calendar range -> no chip
+  renderQuarterChips();
+}
+function renderQuarterChips(){
+  document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b =>
+    b.classList.toggle('on', selQuarters.has(b.dataset.q)));
+}
 
 // ==========================================================================
 // STATE
@@ -1264,8 +1342,14 @@ async function boot() {
     const maxOf = (a,b) => a && b ? (a > b ? a : b) : (a || b);
     dateMin = minOf(csMin, pmMin);
     dateMax = maxOf(csMax, pmMax);
-    rangeStart = dateMin; rangeEnd = dateMax;
-    DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; applyDateRange(); } });
+    // Default the shared range to Q3 (the current quarter); fall back to the full
+    // window if there's no Q3 data yet. The Q2/Q3 chips + the calendar both drive it.
+    const q3span = quarterSpan(['Q3']);
+    if(q3span){ rangeStart=q3span[0]; rangeEnd=q3span[1]; }
+    else      { rangeStart=dateMin;  rangeEnd=dateMax; }
+    DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
+      onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; syncQuarterChips(); applyDateRange(); } });
+    syncQuarterChips();
 
     setLiveBanner(COMBINED.last_updated, rawRows.length);
     document.getElementById('loading').style.display = 'none';
@@ -1274,6 +1358,7 @@ async function boot() {
     populateRegionSelects();
     initChartToggles();
     renderAll();
+    renderDateScope();   // default range is Q3 (narrowed) -> show the scope banner on load
     if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
   } catch (err) {
     document.getElementById('loading').style.display = 'none';
@@ -1562,7 +1647,9 @@ function selectNoneMarkets() {
 }
 
 function renderKPIs(agg) {
-  document.getElementById('kpi_target').textContent = fmtN(agg.q2Target);
+  // No Q2 target rows fall in the selected range (e.g. viewing Q3, which has no
+  // targets loaded yet) -> show '—' rather than a misleading '0'.
+  document.getElementById('kpi_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '—';
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
   document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '—';
   document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '—';
@@ -1575,7 +1662,12 @@ function renderKPIs(agg) {
   document.getElementById('kpi_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
 }
 
+// Neutral placeholder shown in the pacing cards when the selected range carries no
+// target rows (Q3 has no targets loaded yet — "targets/pacing TBD" by design).
+const NO_TARGET_MSG = '<div style="font-size:12.5px;color:var(--cf-mute);padding:10px 2px">Targets and pacing not set for the selected period yet (showing actuals only).</div>';
+
 function renderLeadsTarget(agg) {
+  if (!agg.q2Target) { document.getElementById('leadsTarget').innerHTML = NO_TARGET_MSG; return; }
   const maxV = Math.max(agg.q2Target, agg.ttdTarget, agg.accepted, 1);
   const w = v => (v/maxV*100).toFixed(1);
   document.getElementById('leadsTarget').innerHTML = `
@@ -1588,6 +1680,7 @@ function renderLeadsTarget(agg) {
 }
 
 function renderProgress(agg) {
+  if (!agg.q2Target) { document.getElementById('progress').innerHTML = NO_TARGET_MSG; return; }
   const unprocessed = agg.total - agg.accepted - agg.rejected;
   const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ target
   const up = agg.q2Target ? unprocessed/agg.q2Target : 0;    // unprocessed ÷ target
@@ -1952,7 +2045,7 @@ function renderComparePanel(side) {
   document.getElementById('empty' + side).style.display = 'none';
   document.getElementById('content' + side).style.display = 'block';
 
-  document.getElementById(side + '_target').textContent = fmtN(agg.q2Target);
+  document.getElementById(side + '_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '—';
   document.getElementById(side + '_total').textContent = fmtN(agg.accepted);
   // All three use total as denominator so they sum to 100%
   const accRatio = agg.total ? agg.accepted / agg.total : 0;
