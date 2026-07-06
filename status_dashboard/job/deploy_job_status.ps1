@@ -32,6 +32,21 @@ gcloud builds submit $JOB_DIR --tag $IMG --region $REGION --project $PROJECT; Mu
 Write-Host "Deploying Cloud Run job $JOB ..."
 gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB_SA --memory 1Gi `
   --set-secrets "SNOWFLAKE_KEY=${SF_SECRET}:latest" --project $PROJECT; Must "deploy job"
+
+# --- IAM the job needs to VERIFY the BigQuery-native clients (100% Digital agency) ------------
+# The BQ_CLIENTS accuracy checks read the raw BQ layer (raw_windsor / raw_neto / raw_ga4 /
+# raw_google_ads) directly and read each client's <c>.json from its bucket. These grants are
+# idempotent (add = no-op if present) so it's safe to re-run. Least-privilege = read-only.
+Write-Host "Granting the status SA read on the raw BQ layer + the 100% Digital client buckets ..."
+gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
+  --role roles/bigquery.jobUser   --condition=None --quiet | Out-Null
+gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
+  --role roles/bigquery.dataViewer --condition=None --quiet | Out-Null
+foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch")) {
+  gcloud storage buckets add-iam-policy-binding "gs://bidbrain-analytics-$c-dash" `
+    --member "serviceAccount:$JOB_SA" --role roles/storage.objectViewer --quiet | Out-Null
+}
+
 Write-Host "Running $JOB (writes a fresh status.json to the bucket) ..."
 gcloud run jobs execute $JOB --region $REGION --project $PROJECT --wait; Must "run job"
 

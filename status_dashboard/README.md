@@ -8,8 +8,9 @@
 > The `dash/` folder (the old gated Flask screen + `deploy_status.ps1`'s service step) is **legacy /
 > superseded** — kept for reference, no longer the access path.
 
-For every Snowflake-sourced client it answers the two questions that keep getting 100% Digital blamed
-for Transmission's stale data:
+For every Snowflake-sourced client (and now the BigQuery-native 100% Digital clients too — see
+[BigQuery-native clients](#bigquery-native-clients-the-100-digital-agency)) it answers the two questions
+that keep getting 100% Digital blamed for Transmission's stale data:
 
 1. **Data Sync Status** — is a stale dashboard *Transmission's* fault (the Snowflake **source** hasn't
    updated) or *100% Digital's* (our pipeline hasn't ingested/rebuilt)?
@@ -56,6 +57,35 @@ Verdict:
 
 The headline case: when we're **caught up** and the data still looks old, the verdict is
 `transmission_stale` — *our pipeline is green, the source is what's behind.*
+
+## BigQuery-native clients (the 100% Digital agency)
+
+The 6 clients above are **Snowflake-sourced** (Transmission's warehouse). The **100% Digital agency**
+clients — **cityperfume, resetdata, tlm, geocon, vmch** — have **no Snowflake in their path**: their
+source is the **BigQuery raw layer** (`raw_windsor` / `raw_neto` / `raw_ga4` / `raw_google_ads`) that our
+OWN ingest jobs land (Windsor.ai connectors, the Neto job, native BigQuery DTS). They're a separate
+`BQ_CLIENTS` spec in `job/main.py` and produce the SAME `status.json` shape, with two differences:
+
+- **Accuracy queries run against BigQuery** (`scalar_bq`), not Snowflake. The `snowflake_query` /
+  `snowflake_value` fields carry the **BigQuery** query/result; each client entry sets
+  `source_label: "BigQuery"` and the front-end relabels the column + the "show the … query" toggle. The
+  query reproduces the raw-layer aggregate the export job wrote into `<client>.json`, so a mismatch
+  localises the fault to **our transform/export**, and a stale raw table localises it to the **upstream
+  API or its ingest job** ("Windsor is down / a DTS transfer is out"). **46 checks** across the 5 clients.
+- **Verdict is 100%-Digital-only** (`_verdict_bq`): `ingest_latest` = newest raw-table `last_modified`;
+  `build_at` = `<client>.json last_updated`. `digital_behind` = raw advanced but our export didn't rebuild;
+  new **`source_stale`** = the raw layer itself is > 2 days old (upstream/ingest down); `ok` = build current.
+
+Whatever the query can't reproduce exactly is flagged in its note: **spend is never checked** (FX / float /
+Reddit's ×2 markup); **native-AUD money** (City Perfume revenue, TLM revenue) and **counts** are. Two
+documented non-exact cases: **VMCH** headline TTD imps/clicks add a **modelled-April** overlay with no raw
+source (so the check validates the *measured* delivery instead), and any GA4/HubSpot metric noted with its
+own floor/slug. Filters transcribed line-by-line from each client's `sql/` + `job/main.py` (watch: the
+ResetData Meta account name has a **U+2013 en-dash**; the VMCH TTD advertiser has a **trailing space**;
+TTD `conversions` is a **double-encoded JSON** summed over distinct pixels `{01,03,05}`).
+
+**Deploy note:** the status SA (`status-dash-job@`) needs `bigquery.jobUser` + `bigquery.dataViewer` and
+`objectViewer` on the 5 client buckets — `job/deploy_job_status.ps1` grants these idempotently on deploy.
 
 ## Data Accuracy — provenance
 

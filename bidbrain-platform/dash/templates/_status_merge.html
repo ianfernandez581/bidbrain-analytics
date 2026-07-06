@@ -117,10 +117,12 @@
   function tstamp(iso){ return iso ? esc(iso.replace("T"," ").replace("Z"," UTC")) : "no data"; }
 
   var VERDICT_TEXT = { ok:"✓ Healthy", transmission_stale:"⚠ Waiting on Transmission",
-    digital_behind:"⏳ 100% Digital catching up", no_data:"• No data yet" };
+    digital_behind:"⏳ 100% Digital catching up", source_stale:"⚠ Upstream data stale",
+    no_data:"• No data yet" };
   function badge(v){
     if(v==="ok") return {cls:"ok",label:"Healthy"};
     if(v==="transmission_stale") return {cls:"warn",label:"Source stale (Transmission)"};
+    if(v==="source_stale") return {cls:"warn",label:"Upstream data stale (Windsor/DTS/Neto)"};
     if(v==="digital_behind") return {cls:"bad",label:"Pipeline behind"};
     return {cls:"na",label:"No data"};
   }
@@ -156,7 +158,7 @@
       '<div class="bbwhy">'+whyText(f)+'</div></div>';
   }
 
-  function accRow(chk){
+  function accRow(chk, srcLabel){
     var sf=chk.snowflake_value, dv=chk.dashboard_value, m=chk.match, tag;
     if(chk.error) tag='<span class="bbmtag na">'+dot("unknown")+'query error</span>';
     else if(m===true) tag='<span class="bbmtag ok">✓ MATCH</span>';
@@ -166,19 +168,23 @@
     var note=chk.note?'<div class="bbqnote">'+esc(chk.note)+'</div>':'';
     var err=chk.error?'<div class="bbqnote" style="color:#F87171">'+esc(chk.error)+'</div>':'';
     return '<tr><td><div style="font-weight:600">'+esc(chk.label)+'</div>'+
-      '<details class="bbq"><summary>show the Snowflake query</summary><pre class="bbsql">'+esc(chk.snowflake_query)+'</pre>'+note+err+'</details></td>'+
+      '<details class="bbq"><summary>show the '+esc(srcLabel)+' query</summary><pre class="bbsql">'+esc(chk.snowflake_query)+'</pre>'+note+err+'</details></td>'+
       '<td class="bbnum sf">'+fmtNum(sf)+'</td><td class="bbnum dash">'+fmtNum(dv)+'</td><td>'+tag+'</td></tr>';
   }
 
   function accCard(c, fl){
+    // The source-of-truth column is Snowflake for Transmission's clients and BigQuery (the
+    // raw Windsor/Neto/DTS layer) for the 100% Digital clients — labelled per c.source_label.
+    var srcLabel=c.source_label||"Snowflake";
     var checks=c.accuracy||[], nOk=0,nBad=0,nNa=0;
     checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++; else nNa++; });
     var body="", last=null;
-    checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk); });
+    checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk, srcLabel); });
     var sum=checks.length?'<span class="bbaccsum">'+nOk+'/'+checks.length+' match'+(nBad?' · '+nBad+' off':'')+(nNa?' · '+nNa+' n/a':'')+'</span>':'';
     var logo='<img class="bblogo sm" src="/logo/'+esc(c.client)+'" alt="" onerror="this.remove()">';
-    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+'</div>'+sum+'</div>'+
-      '<table class="bbacc"><thead><tr><th>Metric</th><th>Snowflake</th><th>Dashboard</th><th>Match</th></tr></thead>'+
+    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+
+      ' <span class="bbmuted" style="font-size:11px;font-weight:600">source: '+esc(srcLabel)+'</span></div>'+sum+'</div>'+
+      '<table class="bbacc"><thead><tr><th>Metric</th><th>'+esc(srcLabel)+'</th><th>Dashboard</th><th>Match</th></tr></thead>'+
       '<tbody>'+(body||'<tr><td colspan="4" class="bbqnote">No checks.</td></tr>')+'</tbody></table></div>';
   }
 

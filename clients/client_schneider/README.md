@@ -112,7 +112,9 @@ The tab bar is built in `renderControls()`; switching campaign resets to a valid
    the tab says so rather than showing zeros.
 2. **Content Syndication** — Salesforce leads vs the media-plan **MQL+HQL** target: the snapshot strip
    (Overall / Pacing / Delivery / Outlook), the **Plan-CPL** banner, **Leads-vs-target** + **Progress**
-   panels, a **Weekly pacing** chart (real dated weekly leads vs the even target pace), **Leads-by-market**
+   panels, a **Weekly pacing** chart (real dated weekly leads vs the even target pace — both start at the
+   campaign's **first actual-lead week**, not its booked flight_start, since paid media often runs weeks
+   before the first CS lead lands), **Leads-by-market**
    + **Leads-by-programme** doughnuts, a by-market summary, and a programme × market table. Leads are
    **CRM-raw** (`New`) — total leads vs target, not "MQLs achieved".
 3. **CS Comparison** — pick two markets (e.g. Australia vs New Zealand) for the selected program and

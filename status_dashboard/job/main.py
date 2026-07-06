@@ -764,6 +764,462 @@ CLIENTS = [
 ]
 
 
+# ═════════════════════════════════════════════════════════════════════════════
+# BigQuery-NATIVE clients — the 100% Digital agency {cityperfume, resetdata, tlm,
+# geocon, vmch}. These have NO Snowflake in their path: the SOURCE is the BigQuery
+# RAW layer (raw_windsor / raw_neto / raw_ga4 / raw_google_ads) landed by OUR OWN
+# ingest jobs (Windsor.ai connectors, the Neto job, native BigQuery DTS). So:
+#   • the accuracy query runs against BigQuery (scalar_bq), NOT Snowflake, and it
+#     is the RAW-layer aggregate that should equal the number the export job wrote
+#     into <client>.json. Derived line-by-line from each client's sql/ views +
+#     job/main.py; shown verbatim in the UI so anyone can run it in BigQuery.
+#   • the freshness/verdict is 100%-Digital-only: `ingest_latest` = when the raw
+#     table last landed data. If a raw table is STALE the upstream API or its
+#     ingest job is down ("Windsor is down / a DTS transfer is out"); if the raw
+#     advanced but the build didn't, our EXPORT job is behind.
+# SPEND is never equality-checked (FX / float / agency markup); only clean counts
+# and native-AUD money (no FX) are. `raw_tables` drives freshness; `checks` the
+# accuracy table. Extractors: _kpi (kpi.<k>), _path (nested), _rows_sum (array).
+# ═════════════════════════════════════════════════════════════════════════════
+def _path(*keys):
+    """dash-extractor: read a nested JSON number, e.g. _path('crm','kpi','leads')."""
+    def g(d):
+        for k in keys[:-1]:
+            d = d.get(k) if isinstance(d, dict) else None
+            if d is None:
+                return 0
+        return _num(d.get(keys[-1]) if isinstance(d, dict) else None)
+    return g
+
+
+def _rows_sum(field, arr="rows"):
+    """dash-extractor: SUM(field) over a top-level array (rows[], ttd_adgroups[], …)."""
+    return lambda d: sum(_num(r.get(field)) for r in d.get(arr, []))
+
+
+def _json_ts(doc, key):
+    """Read a build/data timestamp that lives at the top level OR under a `meta` block —
+    most dashboards write last_updated/data_through top-level, but geocon nests them under
+    meta.*. Top-level wins; falls back to meta so build_at isn't spuriously None."""
+    if not doc:
+        return None
+    v = doc.get(key)
+    if v is None and isinstance(doc.get("meta"), dict):
+        v = doc["meta"].get(key)
+    return _parse_iso(v)
+
+
+_NETO_FROM = ("FROM `bidbrain-analytics.raw_neto.orders` o, UNNEST(o.order_lines) ol\n"
+              "WHERE DATE(o.date_placed) >= DATE '2025-01-01';")
+
+BQ_CLIENTS = [
+    {
+        "client": "cityperfume", "label": "City Perfume", "engine": "bq",
+        "ingest_label": "Neto + Windsor + DTS → raw_* (100% Digital ingest jobs)",
+        "raw_tables": ["raw_neto.orders", "raw_google_ads.perf_google_ads",
+                       "raw_windsor.perf_meta", "raw_windsor.perf_the_trade_desk",
+                       "raw_ga4.perf_ga4"],
+        "checks": [
+            # --- First-party sales truth (Neto ledger, single-tenant, AUD, floor 2025-01-01) ---
+            {"label": "Sales · Orders", "kind": "count", "group": "Sales (Neto — revenue truth)",
+             "dash": _kpi("orders_total"),
+             "sql": "SELECT COUNT(DISTINCT o.order_id) AS orders_total\n" + _NETO_FROM,
+             "note": "raw_neto.orders is City Perfume's own Maropost ledger (no advertiser filter — "
+                     "date floor only). The UNNEST INNER-joins order_lines, so lineless orders are "
+                     "excluded exactly as v_sales does. vs kpi.orders_total."},
+            {"label": "Sales · Units", "kind": "sum", "group": "Sales (Neto — revenue truth)",
+             "dash": _kpi("units"),
+             "sql": "SELECT SUM(ol.quantity) AS units\n" + _NETO_FROM,
+             "note": "Sum of line quantities. vs kpi.units."},
+            {"label": "Sales · Distinct customers", "kind": "count", "group": "Sales (Neto — revenue truth)",
+             "dash": _kpi("customers_total"),
+             "sql": "SELECT COUNT(DISTINCT COALESCE(NULLIF(o.email,''), CONCAT('order:', o.order_id)))\n"
+                    "       AS customers_total\n" + _NETO_FROM,
+             "note": "Identity is email-first (each no-email order is its own customer), matching v_sales. "
+                     "vs kpi.customers_total."},
+            {"label": "Sales · Revenue (AUD, no FX)", "kind": "sum", "group": "Sales (Neto — revenue truth)",
+             "dash": _kpi("revenue_total"),
+             "sql": "SELECT ROUND(SUM(ol.quantity*ol.unit_price - COALESCE(ol.product_discount,0)),2)\n"
+                    "       AS revenue_total\n" + _NETO_FROM,
+             "note": "line_total = quantity×unit_price − product_discount (the already-applied per-line $; "
+                     "do NOT also apply percent_discount). AUD, no FX — checked to the whole dollar. "
+                     "vs kpi.revenue_total."},
+            # --- Paid media (union of Google ∪ Meta ∪ TTD; floor 2025-01-01) ---
+            {"label": "Paid media · Impressions", "kind": "sum", "group": "Paid media (Google/Meta/TTD)",
+             "dash": _kpi("ad_imps"),
+             "sql": "SELECT SUM(imps) AS ad_imps FROM (\n"
+                    "  SELECT impressions AS imps FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "    WHERE account_name='City Perfume' AND metric_date>=DATE '2025-01-01'\n"
+                    "  UNION ALL\n"
+                    "  SELECT impressions FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "    WHERE account_name='Cityperfume.com.au' AND metric_date>=DATE '2025-01-01'\n"
+                    "  UNION ALL\n"
+                    "  SELECT impressions FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "    WHERE advertiser_name='City Perfume' AND metric_date>=DATE '2025-01-01'\n"
+                    ");",
+             "note": "Note the per-platform account keys: Google 'City Perfume', Meta 'Cityperfume.com.au' "
+                     "(.com.au), TTD 'City Perfume'. vs kpi.ad_imps."},
+            {"label": "Paid media · Clicks", "kind": "sum", "group": "Paid media (Google/Meta/TTD)",
+             "dash": _kpi("ad_clicks"),
+             "sql": "SELECT SUM(clicks) AS ad_clicks FROM (\n"
+                    "  SELECT clicks FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "    WHERE account_name='City Perfume' AND metric_date>=DATE '2025-01-01'\n"
+                    "  UNION ALL\n"
+                    "  SELECT clicks FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "    WHERE account_name='Cityperfume.com.au' AND metric_date>=DATE '2025-01-01'\n"
+                    "  UNION ALL\n"
+                    "  SELECT clicks FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "    WHERE advertiser_name='City Perfume' AND metric_date>=DATE '2025-01-01'\n"
+                    ");",
+             "note": "Same three filters as impressions. vs kpi.ad_clicks."},
+            {"label": "Trade Desk · Conversions (pixel _03)", "kind": "sum", "group": "Paid media (Google/Meta/TTD)",
+             "dash": _kpi("ttd_conversions"),
+             "sql": "SELECT SUM(COALESCE(SAFE_CAST(JSON_VALUE(SAFE.PARSE_JSON(JSON_VALUE(conversions)),\n"
+                    "       '$.conversion_touch_03') AS FLOAT64),0)) AS ttd_conversions\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name='City Perfume' AND metric_date>=DATE '2025-01-01';",
+             "note": "`conversions` is a DOUBLE-ENCODED JSON string — PARSE_JSON(JSON_VALUE(...)) first, then "
+                     "the _03 attribution window (a naive JSON_EXTRACT returns 0). Float count. vs kpi.ttd_conversions."},
+            # --- GA4 website (directional; floor 2025-01-01) ---
+            {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website — directional)",
+             "dash": _kpi("sessions"),
+             "sql": "SELECT SUM(sessions) AS sessions\n"
+                    "FROM `bidbrain-analytics.raw_ga4.perf_ga4`\n"
+                    "WHERE account_name='City Perfume' AND metric_date>=DATE '2025-01-01';",
+             "note": "GA4 tracking degraded ~Oct 2025 (row counts collapse) — directional, never revenue "
+                     "truth. vs kpi.sessions."},
+            {"label": "GA4 · Ecommerce purchases", "kind": "sum", "group": "GA4 (website — directional)",
+             "dash": _kpi("ga4_purchases"),
+             "sql": "SELECT SUM(ecommerce_purchases) AS ga4_purchases\n"
+                    "FROM `bidbrain-analytics.raw_ga4.perf_ga4`\n"
+                    "WHERE account_name='City Perfume' AND metric_date>=DATE '2025-01-01';",
+             "note": "vs kpi.ga4_purchases."},
+            {"label": "GA4 funnel · Purchase events", "kind": "sum", "group": "GA4 (website — directional)",
+             "dash": _path("ga4_funnel", "purchase"),
+             "sql": "SELECT SUM(IF(event_name='purchase', event_count, 0)) AS purchase\n"
+                    "FROM `bidbrain-analytics.raw_ga4.perf_ga4_events`\n"
+                    "WHERE client_slug='city-perfume' AND metric_date>=DATE '2025-01-01';",
+             "note": "The funnel steps read the EVENT-grain table with client_slug='city-perfume' (hyphen), "
+                     "NOT account_name. vs ga4_funnel.purchase."},
+        ],
+    },
+    {
+        "client": "resetdata", "label": "ResetData", "engine": "bq",
+        "ingest_label": "Windsor + DTS + HubSpot → raw_* (100% Digital ingest jobs)",
+        "raw_tables": ["raw_google_ads.perf_google_ads", "raw_windsor.perf_meta",
+                       "raw_windsor.perf_the_trade_desk", "raw_windsor.perf_reddit",
+                       "raw_ga4.perf_ga4", "raw_windsor.hubspot_contacts"],
+        "checks": [
+            # Platform imps/clicks have NO date floor (only GA4 is floored 2025-12-01).
+            {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("ga_imps"),
+             "sql": "SELECT SUM(impressions) AS ga_imps\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'Reset Data';",
+             "note": "Native BigQuery DTS. Account 'Reset Data' (with space). vs kpi.ga_imps."},
+            {"label": "Google Ads · Clicks", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("ga_clicks"),
+             "sql": "SELECT SUM(clicks) AS ga_clicks\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'Reset Data';",
+             "note": "vs kpi.ga_clicks."},
+            {"label": "Google Ads · Conversions", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("ga_conv"),
+             "sql": "SELECT SUM(conversions) AS ga_conv\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'Reset Data';",
+             "note": "vs kpi.ga_conv (Google-reported conversions)."},
+            {"label": "Meta · Impressions", "kind": "sum", "group": "Meta",
+             "dash": _kpi("me_imps"),
+             "sql": "SELECT SUM(impressions) AS me_imps\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE account_name = 'Reset backup – Ad account';",
+             "note": "The account name contains a U+2013 EN DASH ('Reset backup – Ad account'), not a "
+                     "hyphen — copy it verbatim or it matches nothing. vs kpi.me_imps."},
+            {"label": "Meta · Clicks", "kind": "sum", "group": "Meta",
+             "dash": _kpi("me_clicks"),
+             "sql": "SELECT SUM(clicks) AS me_clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE account_name = 'Reset backup – Ad account';",
+             "note": "EN-DASH account name. vs kpi.me_clicks."},
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_imps"),
+             "sql": "SELECT SUM(impressions) AS td_imps\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name = 'ResetData';",
+             "note": "Advertiser 'ResetData' (no space). TTD emits no conversions for this client. vs kpi.td_imps."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("td_clicks"),
+             "sql": "SELECT SUM(clicks) AS td_clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name = 'ResetData';",
+             "note": "vs kpi.td_clicks."},
+            {"label": "Reddit · Impressions", "kind": "sum", "group": "Reddit",
+             "dash": _kpi("rd_imps"),
+             "sql": "SELECT SUM(impressions) AS rd_imps\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_reddit`\n"
+                    "WHERE client_slug = 'resetdata';",
+             "note": "Reddit is sliced by client_slug='resetdata'. Imps/clicks are RAW (only spend gets the "
+                     "×2 agency markup, which is why spend is not checked). vs kpi.rd_imps."},
+            {"label": "Reddit · Clicks", "kind": "sum", "group": "Reddit",
+             "dash": _kpi("rd_clicks"),
+             "sql": "SELECT SUM(clicks) AS rd_clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_reddit`\n"
+                    "WHERE client_slug = 'resetdata';",
+             "note": "vs kpi.rd_clicks."},
+            {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_imps"),
+             "sql": "SELECT\n"
+                    "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_name='Reset backup – Ad account')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_imps;",
+             "note": "Google + Meta + TTD + Reddit. vs kpi.ad_imps."},
+            {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
+             "dash": _kpi("ad_clicks"),
+             "sql": "SELECT\n"
+                    "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_name='Reset backup – Ad account')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_clicks;",
+             "note": "vs kpi.ad_clicks."},
+            {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("sessions"),
+             "sql": "SELECT SUM(sessions) AS sessions\n"
+                    "FROM `bidbrain-analytics.raw_ga4.perf_ga4`\n"
+                    "WHERE client_slug = 'reset-data' AND metric_date >= DATE '2025-12-01';",
+             "note": "GA4 is sliced by client_slug='reset-data' (HYPHEN — differs from the ad platforms' "
+                     "'resetdata') and FLOORED at 2025-12-01 (the floor is GA4-only). vs kpi.sessions."},
+            {"label": "GA4 · Key events (conversions)", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("conversions"),
+             "sql": "SELECT SUM(conversions) AS conversions\n"
+                    "FROM `bidbrain-analytics.raw_ga4.perf_ga4`\n"
+                    "WHERE client_slug = 'reset-data' AND metric_date >= DATE '2025-12-01';",
+             "note": "Headline conversions = GA4 key events from perf_ga4 (traffic-acq grain), NOT the "
+                     "event-grained perf_ga4_events. vs kpi.conversions."},
+            {"label": "HubSpot · Leads (all contacts)", "kind": "count", "group": "HubSpot CRM (snapshot)",
+             "dash": _path("crm", "kpi", "leads"),
+             "sql": "SELECT COUNT(*) AS leads\n"
+                    "FROM `bidbrain-analytics.raw_windsor.hubspot_contacts`;",
+             "note": "HubSpot is a WHOLE-ACCOUNT snapshot (account 45274177) — not ad-scoped, not "
+                     "date-windowed. vs crm.kpi.leads."},
+            {"label": "HubSpot · App signups", "kind": "count", "group": "HubSpot CRM (snapshot)",
+             "dash": _path("crm", "kpi", "app_signups"),
+             "sql": "SELECT COUNTIF(SAFE_CAST(contact_rd_created_at AS TIMESTAMP) IS NOT NULL) AS app_signups\n"
+                    "FROM `bidbrain-analytics.raw_windsor.hubspot_contacts`;",
+             "note": "App signup = the RdCreatedAt custom property is set. vs crm.kpi.app_signups."},
+            {"label": "HubSpot · Paying", "kind": "count", "group": "HubSpot CRM (snapshot)",
+             "dash": _path("crm", "kpi", "paying"),
+             "sql": "SELECT COUNTIF(SAFE_CAST(contact_rd_total_spend AS FLOAT64) > 0) AS paying\n"
+                    "FROM `bidbrain-analytics.raw_windsor.hubspot_contacts`;",
+             "note": "Paying = RdTotalSpend > 0. vs crm.kpi.paying."},
+            {"label": "HubSpot · Customers", "kind": "count", "group": "HubSpot CRM (snapshot)",
+             "dash": _path("crm", "kpi", "customers"),
+             "sql": "SELECT COUNTIF(LOWER(TRIM(contact_lifecyclestage)) = 'customer') AS customers\n"
+                    "FROM `bidbrain-analytics.raw_windsor.hubspot_contacts`;",
+             "note": "vs crm.kpi.customers."},
+        ],
+    },
+    {
+        "client": "tlm", "label": "The Little Marionette", "engine": "bq",
+        "ingest_label": "Google Ads DTS + Windsor (TTD) → raw_*",
+        "raw_tables": ["raw_google_ads.perf_google_ads", "raw_windsor.perf_the_trade_desk"],
+        "checks": [
+            # NO date floor anywhere (the campaign_start in kpi is a display label, not a filter).
+            {"label": "All channels · Impressions", "kind": "sum", "group": "All channels",
+             "dash": _kpi("imps"),
+             "sql": "SELECT\n"
+                    "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "     WHERE account_name = 'The Little Marionette')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "     WHERE advertiser_name = 'The Little Marionette') AS imps;",
+             "note": "Google (DTS) + Trade Desk (Windsor), name-only filters, NO date floor. vs kpi.imps (=kpi.ad_imps)."},
+            {"label": "All channels · Clicks", "kind": "sum", "group": "All channels",
+             "dash": _kpi("clicks"),
+             "sql": "SELECT\n"
+                    "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "     WHERE account_name = 'The Little Marionette')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "     WHERE advertiser_name = 'The Little Marionette') AS clicks;",
+             "note": "vs kpi.clicks."},
+            {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("g_imps"),
+             "sql": "SELECT SUM(impressions) AS g_imps\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'The Little Marionette';",
+             "note": "vs kpi.g_imps."},
+            {"label": "Google Ads · Clicks", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("g_clicks"),
+             "sql": "SELECT SUM(clicks) AS g_clicks\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'The Little Marionette';",
+             "note": "vs kpi.g_clicks."},
+            {"label": "Google Ads · Conversions (purchases)", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("conversions"),
+             "sql": "SELECT SUM(conversions) AS conversions\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'The Little Marionette';",
+             "note": "Google-only (TTD pixels anonymous). conversions is NUMERIC (Google reports fractional "
+                     "conversions) — compared rounded to whole. vs kpi.conversions."},
+            {"label": "Google Ads · Revenue (AUD, no FX)", "kind": "sum", "group": "Google Ads",
+             "dash": _kpi("revenue"),
+             "sql": "SELECT SUM(conversions_value) AS revenue\n"
+                    "FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
+                    "WHERE account_name = 'The Little Marionette';",
+             "note": "conversions_value is already WHOLE AUD (NOT micros — do not /1e6). Checked to the "
+                     "whole dollar. vs kpi.revenue."},
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("t_imps"),
+             "sql": "SELECT SUM(impressions) AS t_imps\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name = 'The Little Marionette';",
+             "note": "vs kpi.t_imps."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _kpi("t_clicks"),
+             "sql": "SELECT SUM(clicks) AS t_clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name = 'The Little Marionette';",
+             "note": "vs kpi.t_clicks."},
+        ],
+    },
+    {
+        "client": "geocon", "label": "Geocon", "engine": "bq",
+        "ingest_label": "Windsor (Meta) → raw_windsor.perf_meta",
+        "raw_tables": ["raw_windsor.perf_meta"],
+        "checks": [
+            # Meta-only. The ONLY raw filter is STARTS_WITH(campaign_name,'Geocon_') — no date floor,
+            # no account filter. rows[] IS the whole flight, so summing it == the raw aggregate.
+            {"label": "Meta · Leads", "kind": "sum", "group": "Meta (Facebook/Instagram)",
+             "dash": _rows_sum("leads"),
+             "sql": "SELECT SUM(leads) AS leads\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+             "note": "Meta-reported `leads` (not leads_website/leads_onfacebook/unique_leads). The prefix "
+                     "filter is applied to the raw untrimmed campaign_name. vs sum(rows[].leads)."},
+            {"label": "Meta · Reach", "kind": "sum", "group": "Meta (Facebook/Instagram)",
+             "dash": _rows_sum("reach"),
+             "sql": "SELECT SUM(reach) AS reach\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+             "note": "Reach is a de-duplicated audience and not truly additive, but the view AND the dash "
+                     "both SUM it (documented convention), so the plain SUM reproduces the shown number. "
+                     "vs sum(rows[].reach)."},
+            {"label": "Meta · Landing-page views", "kind": "sum", "group": "Meta (Facebook/Instagram)",
+             "dash": _rows_sum("lpv"),
+             "sql": "SELECT SUM(landing_page_views) AS lpv\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+             "note": "Raw column landing_page_views (renamed lpv only in the JSON). vs sum(rows[].lpv)."},
+            {"label": "Meta · Impressions", "kind": "sum", "group": "Meta (Facebook/Instagram)",
+             "dash": _rows_sum("impressions"),
+             "sql": "SELECT SUM(impressions) AS impressions\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+             "note": "vs sum(rows[].impressions)."},
+            {"label": "Meta · Link clicks", "kind": "sum", "group": "Meta (Facebook/Instagram)",
+             "dash": _rows_sum("link_clicks"),
+             "sql": "SELECT SUM(link_clicks) AS link_clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+             "note": "vs sum(rows[].link_clicks)."},
+            {"label": "Meta · Clicks (all)", "kind": "sum", "group": "Meta (Facebook/Instagram)",
+             "dash": _rows_sum("clicks"),
+             "sql": "SELECT SUM(clicks) AS clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
+                    "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
+             "note": "vs sum(rows[].clicks)."},
+        ],
+    },
+    {
+        "client": "vmch", "label": "VMCH", "engine": "bq",
+        "ingest_label": "Windsor (TTD) + GA4 (DTS→Windsor fallback) → raw_*",
+        "raw_tables": ["raw_windsor.perf_the_trade_desk", "raw_windsor.perf_ga4",
+                       "raw_ga4.perf_ga4"],
+        "checks": [
+            # TTD advertiser filter has a TRAILING SPACE: 'VMCH '. The headline imps/clicks KPIs add a
+            # MODELLED April (a hardcoded constant in sql/03b) that has no raw source, so we check the
+            # MEASURED delivery (the ttd_adgroups breakdown reads stg_ttd directly = 100% measured).
+            {"label": "Trade Desk · Impressions (measured delivery)", "kind": "sum",
+             "group": "Trade Desk (measured — excludes modelled April)",
+             "dash": _rows_sum("imps", "ttd_adgroups"),
+             "sql": "SELECT SUM(impressions) AS imps\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name = 'VMCH ';",
+             "note": "Advertiser 'VMCH ' (TRAILING SPACE). This is the MEASURED whole-flight delivery "
+                     "(=stg_ttd = the ttd_adgroups breakdown). The headline KPI (kpi.ttd_imps) additionally "
+                     "adds ~4,301,841 MODELLED April impressions (a hardcoded overlay in sql/03b, no raw "
+                     "source), so it will read higher by design. vs sum(ttd_adgroups[].imps)."},
+            {"label": "Trade Desk · Clicks (measured delivery)", "kind": "sum",
+             "group": "Trade Desk (measured — excludes modelled April)",
+             "dash": _rows_sum("clicks", "ttd_adgroups"),
+             "sql": "SELECT SUM(clicks) AS clicks\n"
+                    "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "WHERE advertiser_name = 'VMCH ';",
+             "note": "Measured whole-flight clicks; the headline adds ~6,581 modelled-April clicks. "
+                     "vs sum(ttd_adgroups[].clicks)."},
+            {"label": "Trade Desk · Post-view conversions", "kind": "sum",
+             "group": "Trade Desk (attributed conversions)",
+             "dash": _kpi("ad_post_view"),
+             "sql": "SELECT SUM(\n"
+                    "    COALESCE(SAFE_CAST(JSON_VALUE(c,'$.view_through_conversion_01') AS FLOAT64),0)\n"
+                    "  + COALESCE(SAFE_CAST(JSON_VALUE(c,'$.view_through_conversion_03') AS FLOAT64),0)\n"
+                    "  + COALESCE(SAFE_CAST(JSON_VALUE(c,'$.view_through_conversion_05') AS FLOAT64),0)\n"
+                    ") AS ad_post_view\n"
+                    "FROM (\n"
+                    "  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS c\n"
+                    "  FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "  WHERE advertiser_name = 'VMCH '\n"
+                    "    AND NOT (metric_date BETWEEN DATE '2026-04-01' AND DATE '2026-04-30'\n"
+                    "             AND campaign_name IN ('RAC_AU_ID Digital_VMCH_2026','SAH_AU_ID Digital_VMCH_2026'))\n"
+                    ");",
+             "note": "Conversions arrive as DUPLICATE PAIRS per tracker {01,02},{03,04},{05,06}; sum ONLY the "
+                     "distinct pixels {01,03,05} (summing all 6 double-counts). The Apr RAC/SAH sliver is "
+                     "excluded to match stg_ad_delivery. NEVER use conversion_touch_NN (total fires, not "
+                     "attributed). vs kpi.ad_post_view."},
+            {"label": "Trade Desk · Post-click conversions", "kind": "sum",
+             "group": "Trade Desk (attributed conversions)",
+             "dash": _kpi("ad_post_click"),
+             "sql": "SELECT SUM(\n"
+                    "    COALESCE(SAFE_CAST(JSON_VALUE(c,'$.click_conversion_01') AS FLOAT64),0)\n"
+                    "  + COALESCE(SAFE_CAST(JSON_VALUE(c,'$.click_conversion_03') AS FLOAT64),0)\n"
+                    "  + COALESCE(SAFE_CAST(JSON_VALUE(c,'$.click_conversion_05') AS FLOAT64),0)\n"
+                    ") AS ad_post_click\n"
+                    "FROM (\n"
+                    "  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS c\n"
+                    "  FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
+                    "  WHERE advertiser_name = 'VMCH '\n"
+                    "    AND NOT (metric_date BETWEEN DATE '2026-04-01' AND DATE '2026-04-30'\n"
+                    "             AND campaign_name IN ('RAC_AU_ID Digital_VMCH_2026','SAH_AU_ID Digital_VMCH_2026'))\n"
+                    ");",
+             "note": "Distinct pixels {01,03,05}, Apr RAC/SAH sliver excluded. vs kpi.ad_post_click."},
+            {"label": "GA4 · Website sessions", "kind": "sum", "group": "GA4 (website)",
+             "dash": _kpi("sessions"),
+             "sql": "WITH src AS (\n"
+                    "  SELECT metric_date, session_source_medium, CAST(sessions AS INT64) AS sessions, 'dts' AS _src\n"
+                    "  FROM `bidbrain-analytics.raw_ga4.perf_ga4`\n"
+                    "  WHERE account_name = 'VMCH Website - GA4'\n"
+                    "  UNION ALL\n"
+                    "  SELECT metric_date, session_source_medium, CAST(sessions AS INT64), 'windsor'\n"
+                    "  FROM `bidbrain-analytics.raw_windsor.perf_ga4`\n"
+                    "  WHERE property_id = '287370621'\n"
+                    "),\n"
+                    "dts_dates AS (SELECT DISTINCT metric_date FROM src WHERE _src='dts'),\n"
+                    "pick AS (\n"
+                    "  SELECT * FROM src\n"
+                    "  WHERE _src='dts' OR metric_date NOT IN (SELECT metric_date FROM dts_dates)\n"
+                    ")\n"
+                    "SELECT SUM(sessions) AS ga4_sessions\n"
+                    "FROM pick\n"
+                    "WHERE LOWER(COALESCE(session_source_medium,'')) NOT LIKE 'programmatic-display%'\n"
+                    "  AND metric_date >= DATE '2026-04-01';",
+             "note": "GA4 source is DTS-first (account_name) with a per-date raw_windsor.perf_ga4 fallback "
+                     "(property_id — DTS frozen 2026-06-01), the non-credible 'programmatic-display/*' source "
+                     "EXCLUDED, floored at the flight start 2026-04-01. vs kpi.sessions."},
+        ],
+    },
+]
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Definitions-driven checks. The SINGLE SOURCE OF TRUTH for a client's churny CS
 # parameters (campaign-ID filter, KR/RIG segment sets, geographic map, market
@@ -967,6 +1423,18 @@ def scalar(cn, sql):
         cur.close()
 
 
+def scalar_bq(bq, sql):
+    """Run a single-value BigQuery aggregate -> python number/None (the BQ twin of scalar()).
+    Used for the BigQuery-native clients whose source of truth is the raw BQ layer."""
+    rows = list(bq.query(sql, location=LOC).result())
+    if not rows:
+        return None
+    v = rows[0][0]
+    if v is None:
+        return None
+    return int(v) if float(v).is_integer() else float(v)
+
+
 def read_json(bucket, obj):
     """Read a client's <client>.json from its bucket -> dict, or None if absent."""
     blob = storage.Client(project=PROJECT).bucket(bucket).blob(obj)
@@ -1003,6 +1471,29 @@ def _verdict(transmission_latest, ingest_latest, has_json, now):
     if t_state in ("warn", "bad"):
         return "transmission_stale", t_state, "ok", caught_up
     return "ok", "ok", "ok", caught_up
+
+
+def _verdict_bq(ingest_latest, build_at, has_json, now):
+    """Verdict for a BigQuery-native client (no Snowflake in the path). `ingest_latest`
+    = when the raw BQ layer (Windsor / Neto / DTS via our ingest jobs) last landed data;
+    `build_at` = the dashboard JSON's last rebuild. Returns (verdict, t_state, d_state):
+
+      digital_behind : the raw layer advanced but our export job hasn't rebuilt past it
+                       (the export scheduler/job is behind — 100% Digital's fault).
+      source_stale   : the raw layer ITSELF is old -> the upstream API or its ingest job
+                       is down (e.g. Windsor connector dead, a DTS transfer out).
+      ok             : the build is current with the latest landed data.
+
+    Uses the same colour vocabulary as _verdict so the front-end badge()/dots render
+    without change (t_state ≈ "is the source fresh", d_state ≈ "is our build current").
+    """
+    if not has_json or ingest_latest is None:
+        return "no_data", "unknown", "unknown"
+    if build_at is None or build_at < ingest_latest - INGEST_LAG_TOLERANCE:
+        return "digital_behind", "ok", "bad"
+    if (now - ingest_latest) > datetime.timedelta(days=2):
+        return "source_stale", "bad", "ok"
+    return "ok", "ok", "ok"
 
 
 def main():
@@ -1132,6 +1623,106 @@ def main():
             out_clients.append(entry)
             print(f"  {spec['client']:11s} verdict={entry['freshness']['verdict']:18s} "
                   f"caught_up={entry['freshness']['caught_up']} checks={len(checks_out)}")
+
+        # ---- BigQuery-native clients (the 100% Digital agency) --------------
+        # Source of truth = the BigQuery RAW layer (Windsor/Neto/DTS), not Snowflake.
+        # Freshness is 100%-Digital-only (raw last_modified -> build); accuracy queries
+        # run against BigQuery via scalar_bq. Gated on raw-table freshness like the
+        # Snowflake path, so an unchanged tick carries prior numbers forward.
+        # Wrapped so a BQ/IAM failure here (e.g. the SA not yet granted read on the raw
+        # datasets) NEVER aborts the run — the Snowflake clients above are already
+        # collected and must still be written.
+        try:
+          bq_raw_tables = sorted({t for c in BQ_CLIENTS for t in c["raw_tables"]})
+          bq_modified = probe_bq_last_modified(bq, bq_raw_tables)   # {"ds.table": last_modified}
+
+          for spec in BQ_CLIENTS:
+            entry = {"client": spec["client"], "label": spec["label"], "url": spec.get("url"),
+                     "source_label": "BigQuery", "reads_direct": False}
+
+            raw_rows, r_vals = [], []
+            for t in spec["raw_tables"]:
+                lm = bq_modified.get(t)
+                r_vals.append(lm)
+                raw_rows.append({"raw_table": t, "last_modified": _iso(lm)})
+            ingest_latest = max([v for v in r_vals if v], default=None)
+
+            client_json = read_json(f"bidbrain-analytics-{spec['client']}-dash",
+                                    f"{spec['client']}.json")
+            build_at = _json_ts(client_json, "last_updated")
+            data_through = _json_ts(client_json, "data_through")
+
+            verdict, t_state, d_state = _verdict_bq(
+                ingest_latest, build_at, client_json is not None, now)
+
+            entry["freshness"] = {
+                # For BQ-native clients the raw layer IS both the "source" and our ingest,
+                # so transmission_latest == ingest_latest (same timestamp, different labels).
+                "transmission_latest": _iso(ingest_latest),
+                "transmission_tables": raw_rows,
+                "ingest_latest": _iso(ingest_latest),
+                "ingest_label": spec.get("ingest_label", "BigQuery raw layer"),
+                "build_at": _iso(build_at),
+                "data_through": _iso(data_through),
+                "caught_up": (verdict in ("ok", "source_stale")),
+                "verdict": verdict,
+                "transmission_state": t_state,
+                "digital_state": d_state,
+            }
+
+            # Gate the BQ accuracy queries on raw freshness (carry forward when unchanged).
+            prev_entry = prev_by_client.get(spec["client"], {})
+            prev_checks = {c.get("label"): c for c in prev_entry.get("accuracy", [])}
+            prev_gate = (prev_entry.get("freshness") or {}).get("ingest_latest")
+            gate_unchanged = (not force) and prev_gate is not None and \
+                _iso(ingest_latest) == prev_gate
+
+            checks_out = []
+            for chk in spec["checks"]:
+                dash_val = None
+                if client_json is not None:
+                    try:
+                        dash_val = chk["dash"](client_json)
+                    except Exception as e:   # noqa: BLE001
+                        dash_val = None
+                        print(f"  [{spec['client']}] dash extract failed for {chk['label']}: {e}")
+
+                pc = prev_checks.get(chk["label"], {})
+                if gate_unchanged and "snowflake_value" in pc and pc.get("error") is None:
+                    sf_val = pc["snowflake_value"]
+                    computed_at = pc.get("computed_at")
+                    err = None
+                else:
+                    try:
+                        sf_val = scalar_bq(bq, chk["sql"])
+                        computed_at = _iso(now)
+                        err = None
+                    except Exception as e:   # noqa: BLE001
+                        sf_val = None
+                        computed_at = _iso(now)
+                        err = str(e)
+                        print(f"  [{spec['client']}] bigquery query failed for {chk['label']}: {e}")
+
+                match = (sf_val is not None and dash_val is not None
+                         and round(float(sf_val)) == round(float(dash_val)))
+                checks_out.append({
+                    # `snowflake_*` key names are reused for the source value/query (the front-end
+                    # relabels them per the client's source_label = "BigQuery") to keep the JSON
+                    # schema identical for both engines.
+                    "label": chk["label"], "metric_kind": chk["kind"],
+                    "group": chk.get("group", ""),
+                    "snowflake_value": sf_val, "dashboard_value": dash_val,
+                    "match": (None if (sf_val is None or dash_val is None) else match),
+                    "snowflake_query": chk["sql"], "note": chk.get("note", ""),
+                    "computed_at": computed_at, "error": err,
+                })
+
+            entry["accuracy"] = checks_out
+            out_clients.append(entry)
+            print(f"  {spec['client']:11s} verdict={entry['freshness']['verdict']:18s} "
+                  f"engine=bq checks={len(checks_out)}")
+        except Exception as e:   # noqa: BLE001 - BQ clients are best-effort; never abort the Snowflake run
+            print(f"  [bq-clients] skipped — BigQuery accuracy section failed: {e}")
     finally:
         cn.close()
 
