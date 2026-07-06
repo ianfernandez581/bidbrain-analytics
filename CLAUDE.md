@@ -174,7 +174,10 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 **`status_dashboard/`** — pipeline-health data + deploy plumbing (its UI is **merged into the platform
 front-door** — no standalone `status.bidbrain.ai`); no dataset/views; reads the other clients'
 resources, self-gating `*/15`. **`bidbrain-platform/`** — the front-door at `dashboards.bidbrain.ai`.
-**`scripts/`** — `setup.ps1`, `start_day.ps1`, `deploy_ingest_jobs.ps1` (deploys the 5 shared ingest
+**`scripts/`** — `setup.ps1`, `start_day.ps1` (morning preflight: verifies gcloud CLI + ADC creds +
+secret/BigQuery reachability, THEN runs the full `/go` flow — push-branch → merge-branches — so every dev
+opens the day on the latest `main` with everyone's work integrated + deployed; `-SkipGo` = creds-only, and
+it stops cleanly for Claude Code if a conflict/gate/secret needs judgment), `deploy_ingest_jobs.ps1` (deploys the 5 shared ingest
 jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`), `glm-bypass-mode.ps1`
 (launches Claude Code on Z.ai GLM via the shared `glm-api-key` Secret Manager secret — sets the
 `ANTHROPIC_BASE_URL`/`AUTH_TOKEN`/`*_MODEL` env vars for the Claude process only, restored on exit).
