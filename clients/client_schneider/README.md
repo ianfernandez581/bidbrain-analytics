@@ -17,7 +17,7 @@ target** (Content Syndication tab), the **DV360 / Trade Desk / LinkedIn paid del
 
 **Status:** 🟢 **Live on GCP.** Restructured **2026-06-22** into a **3-tab mongodb clone** (Paid Media ·
 Content Syndication · CS Comparison) **scoped to the 5 lead-gen programs** — the earlier 6-tab Pacific
-paid-media dashboard is superseded. 27 BigQuery views + 7 CSV-loaded `seed_*` tables; `schneider.json`,
+paid-media dashboard is superseded. 28 BigQuery views + 7 CSV-loaded `seed_*` tables; `schneider.json`,
 the `schneider-export` job and `schneider-dash` service deployed; the `*/10` self-gating scheduler runs.
 Salesforce leads are **CRM-raw** (all status `New` — the CRM hasn't graded MQL/SQL/HQL yet), so the CS
 tab shows total leads vs target, not "MQLs achieved". Targets/CPL come from the media plan
@@ -90,8 +90,19 @@ and `report.py`'s per-client guardrail now tells the model to surface an explici
   match_patterns) live in [`data/`](data/), version-controlled via `.gitignore` `!` exceptions; the
   remaining dimension seeds also read from `data/` (gitignored / BQ-only — see *Updating targets*).
 
-## The dashboard tabs (`dash/dashboard.html`) — now **per-campaign**
-Filters: **Campaign** (the 5 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
+## The dashboard tabs (`dash/dashboard.html`) — a global **Executive Scorecard** + **per-campaign** tabs
+**Executive Scorecard** (default tab, added 2026-07-06) is **global / portfolio-wide** — it spans all 5
+programs (region-filterable; the Campaign dropdown is hidden here) and reframes the dashboard from lead
+*volume* to lead *quality*, per the deep-research finding that senior B2B marketers value quality/pacing
+over raw counts. It shows: portfolio KPIs (leads vs target, pace vs plan, **accounts reached**, blended
+plan CPL); **program × Schneider-strategy-pillar** pace cards (each program tagged with the corporate
+pillar it advances — Advancing Energy Technology / EcoStruxure Buildings / AirSeT SF6-free / Water &
+Environment / Heavy Industries); a **job-function** doughnut + **seniority** bar; and a **top-accounts**
+(ABM) list. All from `21_cs_audience` (account / function / seniority from the Salesforce feed's
+`COMPANY_NAME`/`JOB_FUNCTION`/`JOB_LEVEL` — verified 100%/100%/~40% populated; industry/asset/state/revenue
+are empty for SE so are intentionally not shown). `renderScorecard()` in `dashboard.html`.
+
+The remaining tabs are **per-campaign**. Filters: **Campaign** (the 5 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
 **Region** chips (Australia / New Zealand) + **Date range** stay on the control bar under the tabs.
 **The tab bar adapts to the selected campaign** — each campaign shows only the channels it actually
 uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
@@ -197,7 +208,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| BigQuery dataset | `client_schneider` (27 views + 7 CSV-loaded `seed_*` tables) |
+| BigQuery dataset | `client_schneider` (28 views + 7 CSV-loaded `seed_*` tables) |
 | Data bucket / object | `bidbrain-analytics-schneider-dash` / `schneider.json` |
 | Export job | `schneider-export` (runtime SA `schneider-dash-job@…`, read-only BigQuery + bucket write) |
 | Web service | `schneider-dash` (runtime SA `schneider-dash-web@…`) → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
@@ -212,7 +223,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
   mismatch). Written for a client review / chatbot Q&A. Start here for "how does this dashboard work".
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
   channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
-- [`sql/`](sql/README.md) — the 27 BigQuery views (filter + CS leads + paid delivery + unused GA4).
+- [`sql/`](sql/README.md) — the 28 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + unused GA4).
 - [`job/`](job/README.md) — the export job (stage 2): views + seed tables → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.
