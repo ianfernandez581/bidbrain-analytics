@@ -444,7 +444,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>Weekly pacing - target vs actual</h3>
-        <div class="hint">Leads per week (green bars, real dated SF leads) vs the even weekly target pace (grey).</div>
+        <div class="hint">Leads per week (real dated SF leads) vs the even weekly target pace (grey), spread from the first lead through the end of the flight.</div>
         <div class="chart-wrap" style="height:300px"><canvas id="csWeekly"></canvas></div>
       </div>
 
@@ -953,16 +953,18 @@ function renderCS(){
 }
 
 function csWeeks(start,end){ const out=[]; if(!start) return out; let d=new Date(start); const day=(d.getDay()+6)%7; d.setDate(d.getDate()-day); const e=end?new Date(end):new Date(); while(d<=e && out.length<80){ out.push(d.toISOString().slice(0,10)); d=new Date(+d+7*864e5); } return out; }
-// Week axis for the selected campaign: flight window capped to elapsed weeks (today), but always
-// widened to include any actual lead weeks (some leads land just before flight_start). Shared by the
-// CS weekly chart and the compare panels so they line up.
+// Week axis for the selected campaign: from its FIRST actual-lead week to today (or flight_end if the
+// flight has ended), widened to include any later lead weeks. Shared by the CS weekly chart and the
+// compare panels so they line up. Starts at first LEAD delivery, NOT the booked flight_start: paid media
+// can run for weeks before the first CS lead lands (water_env spent from its Apr 30 flight start but
+// produced no lead until Jun 8), and those dead pre-lead weeks shouldn't be charged target pace.
 function csDisplayWeeks(){
   const c=campaign();
   const aw=(DATA.cs_weekly||[]).filter(r=>inCamp(r.campaign)).map(r=>r.week_start).sort();
   const today=new Date(Date.now()).toISOString().slice(0,10);
-  let start=c.flight_start||(aw[0]||today);
+  let start=aw[0]||c.flight_start||today;    // first lead week; fall back to flight_start only when no leads yet
   let end=(c.flight_end && c.flight_end<today)?c.flight_end:today;
-  if(aw.length){ if(aw[0]<start) start=aw[0]; if(aw[aw.length-1]>end) end=aw[aw.length-1]; }
+  if(aw.length && aw[aw.length-1]>end) end=aw[aw.length-1];
   return csWeeks(start, end);
 }
 // Weekly buckets are Monday-truncated, so a campaign that commences mid-week (e.g. Heavy, Fri 1 May)
@@ -973,10 +975,13 @@ function csWeekLabel(wk){ const c=campaign(); const fs=c&&c.flight_start; return
 function renderCSWeekly(p){
   const c=campaign();
   const weeks=csDisplayWeeks();
-  // target pace = per-week share over the FULL flight (not just elapsed weeks)
-  const fullWeeks=Math.max(1, csWeeks(c.flight_start||weeks[0], c.flight_end||weeks[weeks.length-1]).length);
+  // Target pace starts when leads actually begin (weeks[0], set by csDisplayWeeks) and is spread over the
+  // REMAINING flight from that week to flight_end -- not the full booked flight, whose early weeks had paid
+  // delivery but no CS leads yet. So the grey bars line up with when the campaign really started producing.
+  const paceStart=weeks[0]||c.flight_start;
+  const paceWeeks=Math.max(1, csWeeks(paceStart, c.flight_end||weeks[weeks.length-1]).length);
   const actualByWk={}; csWeeklyRows().forEach(r=>{ actualByWk[r.week_start]=(actualByWk[r.week_start]||0)+(r.leads||0); });
-  const tgtPace=(p.hasTarget)?p.target/fullWeeks:0;
+  const tgtPace=(p.hasTarget)?p.target/paceWeeks:0;
   const labels=weeks.map(wk=>'wk '+new Date(csWeekLabel(wk)).toLocaleDateString('en-US',{day:'numeric',month:'short'}));
   charts.csWeekly=new Chart(el('csWeekly'),{ type:'bar',
     data:{ labels, datasets:[

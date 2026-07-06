@@ -14,7 +14,13 @@ Digital's (our pipeline behind), and that each dashboard number equals Snowflake
 MERGED INTO the platform front-door** (Overview health badges + a Data Accuracy tab — see
 `bidbrain-platform/`); the standalone `status-dash` web service + `/d/status/` proxy are retired. What
 remains here is the data + deploy plumbing: the **`status-export`** job (writes `status.json`; SA
-`status-dash-job@`, needs `snowflake-bq-key` + objectViewer on every client bucket) and the new
+`status-dash-job@`, needs `snowflake-bq-key` + objectViewer on every client bucket + `bigquery.dataViewer`
+for the BQ-native accuracy queries — the deploy script grants it). **Also covers the BQ-NATIVE clients now**
+(the 100% Digital agency: cityperfume, resetdata, tlm, geocon, vmch) via a separate `BQ_CLIENTS` spec whose
+accuracy queries run against the BigQuery raw layer (raw_windsor/raw_neto/raw_ga4/raw_google_ads) instead of
+Snowflake and whose verdict is 100%-Digital-only (raw `last_modified` → build; a stale raw table = Windsor/DTS/Neto
+or its ingest job is down). Same `status.json` shape + a per-client `source_label` ("BigQuery" vs "Snowflake")
+the front-end relabels the column with. And the new
 **`status-deploy`** job (`status_dashboard/deploy/`, SA `status-deploy@`) — the privileged "Make this
 live" worker the platform triggers. CS verification queries are now BUILT from each client's
 `definitions.json` (single source of truth; LIVE copy at

@@ -228,9 +228,13 @@ content syndication bills per lead.
 see whether leads are keeping up with the clock.
 
 **"Weekly pacing: target vs actual" chart.** Bars per week: a flat grey **target pace** (total target
-divided evenly across the flight weeks) and the coloured **actual leads** per week from Salesforce.
-(Note: the target pace here is an even spread; the client's own Lead Pacing files use an uneven weekly
-target, see §10, gap 4.)
+divided evenly across the weeks) and the coloured **actual leads** per week from Salesforce. The chart
+and the grey pace both **start at the campaign's first actual lead week, not its booked flight_start**,
+and the target is re-spread over that first-lead-to-flight_end window. This is deliberate: the paid media
+often runs for weeks before the first Content-Syndication lead lands (water_env spent from its Apr 30
+flight start but produced no lead until Jun 8), and charging target pace against those dead pre-lead weeks
+made every campaign look behind at the start. (Note: the target pace here is an even spread; the client's
+own Lead Pacing files use an uneven weekly target, see §10, gap 4.)
 
 **Leads by market** (bar), **Leads by programme** (doughnut; the "programme" is the Salesforce pillar
 within a program, for example Heavy's four pillars), a **by-market summary grid**, and a **programme x
