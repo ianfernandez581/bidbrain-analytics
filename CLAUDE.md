@@ -181,8 +181,10 @@ jobs — snowflake, neto, windsor meta/tradedesk/fields — as `ingest-runner@`)
 **Multi-dev flow (1-click,
 agent-driven):** `/push` (→ `push-branch.ps1`) commits + pushes your work to your own `<you>/<desc>`
 branch; `/ship` (→ `merge-branches.ps1`) integrates every dev branch → sanity-gates → lands on `main` →
-auto-deploys ONLY the changed services (path→deploy-script map = its `Resolve-DeployPlan`) → prunes. Both
-are git-tracked Claude Code slash commands in `.claude/commands/` (the ONLY tracked part of `.claude/`,
+auto-deploys ONLY the changed services (path→deploy-script map = its `Resolve-DeployPlan`) → prunes.
+`/go` chains BOTH (push mine, then ship everyone) in one click — it just drives the same two scripts, so
+mind that its ship half still integrates + deploys EVERY dev branch, not only yours. All three are
+git-tracked Claude Code slash commands in `.claude/commands/` (the ONLY tracked part of `.claude/`,
 shared with the team). On a **merge conflict** `merge-branches.ps1` LEAVES it in the tree (never aborts);
 the agent resolves semantically, `git add -A; git commit --no-edit`, then re-runs with **`-Resume`** —
 which keeps the resolution and continues (so the loop converges; a plain re-run would rebuild fresh and
