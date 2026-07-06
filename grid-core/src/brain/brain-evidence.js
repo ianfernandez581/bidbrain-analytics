@@ -74,8 +74,9 @@
     var peak = series[0]; series.forEach(function (p) { if (p.placement_cvr_pct > peak.placement_cvr_pct) peak = p; });
     var px = X(peak.day), py = Y(peak.placement_cvr_pct);
     var labelRight = px < W - 140;
+    var peakMult = peak.avg_cvr_pct ? (peak.placement_cvr_pct / peak.avg_cvr_pct) : 0;
     var peakMark = '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="4.5" class="bt-cpeak"/>' +
-      '<text x="' + (labelRight ? px + 9 : px - 9).toFixed(1) + '" y="' + (py - 8).toFixed(1) + '" text-anchor="' + (labelRight ? 'start' : 'end') + '" class="bt-cpeaklbl">peak · day ' + peak.day + ' · ' + peak.placement_cvr_pct.toFixed(3) + '%</text>';
+      '<text x="' + (labelRight ? px + 9 : px - 9).toFixed(1) + '" y="' + (py - 8).toFixed(1) + '" text-anchor="' + (labelRight ? 'start' : 'end') + '" class="bt-cpeaklbl">Peak: ' + peak.placement_cvr_pct.toFixed(3) + '% (' + peakMult.toFixed(1) + '× avg)</text>';
 
     return '<svg class="bt-chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="Outperformance over 21 days">' +
       grid + xlabels +
@@ -92,8 +93,9 @@
   }
 
   // ---- sections -------------------------------------------------------------
-  function section(icon, title, body) {
-    return '<section class="card bt-card bt-sec"><div class="bt-sec-h">' + icon + '<h3>' + title + '</h3></div>' + body + '</section>';
+  function section(n, icon, title, subtitle, body) {
+    return '<section class="card bt-card bt-sec"><div class="bt-sec-h">' + icon +
+      '<div><h3>' + n + ' · ' + title + '</h3>' + (subtitle ? '<div class="bt-sec-sub">' + subtitle + '</div>' : '') + '</div></div>' + body + '</section>';
   }
 
   function metricsCards(m, cur) {
@@ -132,12 +134,14 @@
     }).join('') + '</div>';
   }
 
-  function previewBody(p) {
-    function row(l, v) { return '<div class="bt-cu-row"><span class="bt-cu-l">' + l + '</span><span class="bt-cu-v">' + esc(v) + '</span></div>'; }
-    return '<div class="bt-cu">' +
+  function previewBody(p, recId) {
+    var top = '<div class="bt-cu-top"><span class="bt-tag bt-tag-type">Optimization</span>' +
+      '<span class="bt-tag bt-cu-prio bt-cu-prio-' + esc(p.priority) + '">' + esc(p.priority) + '</span>' +
+      '<span class="bt-cu-due">Due ' + esc(p.due_date) + '</span></div>';
+    var foot = '<div class="bt-cu-foot"><span>Assignee: <b>' + esc(p.assignee) + '</b></span><span>Project: <b>' + esc(p.project) + '</b></span><span>Links back to ' + esc(p.links_to_r_id || recId) + '</span></div>';
+    return '<div class="bt-cu">' + top +
       '<div class="bt-cu-title">' + esc(p.title) + '</div>' +
-      '<div class="bt-cu-desc">' + esc(p.description) + '</div>' +
-      '<div class="bt-cu-grid">' + row('Priority', p.priority) + row('Assignee', p.assignee) + row('Project', p.project) + row('Due date', p.due_date) + '</div></div>';
+      '<div class="bt-cu-desc">' + esc(p.description) + '</div>' + foot + '</div>';
   }
 
   // ---- action buttons -------------------------------------------------------
@@ -167,23 +171,26 @@
       '<div class="bt-ev-head"><div class="bt-ev-head-l">' +
       '<h2 class="bt-ev-title">' + esc(rec.title) + '</h2>' +
       '<div class="bt-ev-tags"><span class="bt-tag bt-tag-plat">' + esc(rec.platform) + '</span><span class="bt-tag bt-tag-type">' + esc(prettyType(rec.type)) + '</span>' +
-      '<span class="bt-ev-conf">' + Math.round(rec.confidence * 100) + '% confidence · generated ' + hoursAgo(rec.created_at) + '</span></div></div>' +
+      '<span class="bt-ev-conf">Confidence ' + Math.round(rec.confidence * 100) + '% · generated ' + hoursAgo(rec.created_at) + '</span></div></div>' +
       '<div class="bt-ev-head-r"><div class="bt-ev-impact-l">Estimated monthly impact</div><div class="bt-ev-impact bt-green">+' + k(rec.estimated_impact_aud_monthly) + '<span>/mo</span></div></div></div>';
 
     var lineage = lineageRow(rec);
     var actions = actionRow(rec);
 
-    var s1 = section(IC.search, 'What we noticed', metricsCards(m, cur) + '<p class="bt-detail">' + esc(rec.evidence.detail_paragraph) + '</p>');
-    var s2 = section(IC.chart, 'The outperformance over time',
-      '<div class="bt-chart-h"><div class="bt-legend"><span class="bt-lg bt-lg-place">Isolated / recommended</span><span class="bt-lg bt-lg-avg">Channel average</span></div>' + grainToggle() + '</div>' +
+    var s1 = section(1, IC.search, 'What we noticed', 'The signal that triggered this recommendation.',
+      metricsCards(m, cur) + '<p class="bt-detail">' + esc(rec.evidence.detail_paragraph) + '</p>');
+    var s2 = section(2, IC.chart, 'The outperformance, over time', 'Day-by-day rate for this recommendation vs the channel average — not one lucky day, a sustained pattern.',
+      '<div class="bt-chart-h"><div class="bt-legend"><span class="bt-lg bt-lg-place">this recommendation</span><span class="bt-lg bt-lg-avg">channel average</span></div>' + grainToggle() + '</div>' +
       '<div class="bt-chart-wrap">' + chartSVG(rec.evidence.time_series, ctx.theme) + '</div>' +
-      '<div class="bt-fraudbox">' + esc(rec.evidence.fraud_check) + '</div>');
-    var s3 = section(IC.history, 'Historical pattern', historyBody(rec.historical_pattern));
-    var s4 = section(IC.settings, 'Proposed config', configBody(rec.proposed_config));
-    var s5 = section(IC.alert, 'Risks and assumptions', risksBody(rec.risks));
-    var s6 = section(IC.check, 'ClickUp task preview', previewBody(rec.clickup_task_preview));
+      '<div class="bt-grain-note" id="bt-grain-note"></div>' +
+      '<div class="bt-fraudbox">✓ Sustained, not spiky. Outperformed on ' + esc(rec.evidence.outperformance_days) + ' days. ' + esc(rec.evidence.fraud_check) + '</div>');
+    var s3 = section(3, IC.history, 'Historical pattern', 'Similar plays we’ve made before, for this client or others.', historyBody(rec.historical_pattern));
+    var hasCfg = rec.proposed_config && Object.keys(rec.proposed_config).length;
+    var s4 = hasCfg ? section(4, IC.settings, 'Proposed ' + esc(rec.platform) + ' config', 'The exact change the trader will build. Editable before sending.', configBody(rec.proposed_config)) : '';
+    var s5 = section(5, IC.alert, 'Risks and assumptions', 'What could go wrong. Read this before approving.', risksBody(rec.risks));
+    var s6 = section(6, IC.check, 'ClickUp task preview', 'What gets created when you click Send to ClickUp.', previewBody(rec.clickup_task_preview, rec.id));
 
-    var bottom = '<section class="card bt-card bt-bottombar"><div class="bt-bottombar-txt">After the trader confirms in ClickUp, this recommendation moves to the Optimization log and we start measuring the change against baseline.</div>' +
+    var bottom = '<section class="card bt-card bt-bottombar"><div class="bt-bottombar-txt">After the trader confirms in ClickUp, this recommendation moves to the Optimization log on Brain and starts tracking measured impact against the +' + k(rec.estimated_impact_aud_monthly) + '/mo estimate.</div>' +
       (rec.status === 'review' ? '<button class="bt-btn bt-btn-primary" data-act="send">Send to ClickUp</button>' : '<button class="bt-btn bt-btn-done" disabled>' + (rec.status === 'in_clickup' ? 'Sent to ClickUp ✓' : 'Actioned') + '</button>') + '</section>';
 
     return '<div class="bt-wrap bt-evidence">' + head + lineage + actions + s1 + s2 + s3 + s4 + s5 + s6 + bottom + '</div>';
@@ -205,7 +212,8 @@
     mount.querySelectorAll('.bt-grain button').forEach(function (b) {
       b.addEventListener('click', function () {
         mount.querySelectorAll('.bt-grain button').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-        // V1: week is the live view; day/month are placeholders (documented).
+        var g = b.getAttribute('data-grain'), note = mount.querySelector('#bt-grain-note');
+        if (note) note.textContent = (g === 'week') ? '' : (g.charAt(0).toUpperCase() + g.slice(1) + ' view coming in V3 — currently showing week.');
       });
     });
     mount.querySelectorAll('[data-act="snooze"]').forEach(function (b) { b.addEventListener('click', function () { ctx.toast && ctx.toast.success('Snoozed 7 days · reappears then (V1: not persisted)'); }); });

@@ -435,6 +435,16 @@ tr.detail td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--l
 .bt-sec-h{display:flex;align-items:center;gap:8px;margin-bottom:12px}
 .bt-sec-h svg{color:var(--brand)}
 .bt-sec-h h3{font-family:"Space Grotesk";font-size:14px;font-weight:600;margin:0;letter-spacing:-.1px}
+.bt-sec-sub{font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.bt-grain-note{font-size:11px;color:var(--warn);margin-top:8px;min-height:14px}
+.bt-cu-top{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.bt-cu-due{margin-left:auto;font-size:11px;color:var(--ink-3)}
+.bt-cu-prio{background:var(--tx-soft);color:var(--tx-ink)}
+.bt-cu-prio-high{background:var(--bad-soft);color:var(--bad)}
+.bt-cu-prio-low{background:var(--grp);color:var(--ink-3)}
+.bt-cu-foot{display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;padding-top:11px;border-top:1px solid var(--line-2);font-size:11px;color:var(--ink-3)}
+.bt-cu-foot b{color:var(--ink-2);font-weight:600}
+.bt-toast-info .bt-toast-i{color:var(--tx-ink)}
 .bt-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
 .bt-metric{background:var(--panel-2);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px}
 .bt-metric-l{font-size:10px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3)}
@@ -997,7 +1007,7 @@ function brainSendToClickup(id){
   const rec=window.BrainData?window.BrainData.getRecommendationById(id):null;
   const preview=rec?rec.clickup_task_preview:{};
   return fetch('/api/brain/clickup-task',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(Object.assign({recommendation_id:id},preview))}).then(r=>r.json());
+    body:JSON.stringify({recommendation_id:id,task:Object.assign({},preview,{links_to_r_id:id})})}).then(r=>r.json());
 }
 // Keyboard shortcuts: p -> Pulse (pacing), b -> Brain, esc -> back to Brain landing from a drill-down
 document.addEventListener('keydown',e=>{
