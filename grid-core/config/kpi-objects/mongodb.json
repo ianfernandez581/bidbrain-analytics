@@ -1,0 +1,19 @@
+{
+  "stub": true,
+  "client_id": "mongodb",
+  "client_name": "MongoDB",
+  "primary_kpi": {
+    "id": "content_syndication_mql",
+    "label": "Content-syndication MQL",
+    "definition": "Marketing-qualified lead accepted from a syndicated content asset",
+    "target_cost_per_kpi_aud": 950
+  },
+  "icp_filter": {
+    "company_size": ">= 200",
+    "industry_in": ["SaaS", "Financial services", "Retail", "Technology"],
+    "region_in": ["APAC", "AU-NZ"]
+  },
+  "secondary_kpis": ["pipeline_created_aud", "pixel_content_engagement"],
+  "guardrail_kpis": ["branded_search_volume", "accepted_lead_rate"],
+  "connected_sources": ["trade_desk", "salesforce", "ga4"]
+}

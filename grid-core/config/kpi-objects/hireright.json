@@ -1,0 +1,19 @@
+{
+  "stub": true,
+  "client_id": "hireright",
+  "client_name": "HireRight",
+  "primary_kpi": {
+    "id": "qualified_lead",
+    "label": "Qualified lead",
+    "definition": "Delivery-qualified lead from the programmatic + social mix",
+    "target_cost_per_kpi_aud": 1300
+  },
+  "icp_filter": {
+    "company_size": ">= 500",
+    "industry_in": ["HR tech", "Staffing", "Enterprise services"],
+    "region_in": ["APAC", "AU-NZ"]
+  },
+  "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
+  "guardrail_kpis": ["branded_search_volume", "lead_quality_rate"],
+  "connected_sources": ["dv360", "trade_desk", "linkedin"]
+}

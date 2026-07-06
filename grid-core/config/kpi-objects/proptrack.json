@@ -1,0 +1,19 @@
+{
+  "stub": true,
+  "client_id": "proptrack",
+  "client_name": "PropTrack",
+  "primary_kpi": {
+    "id": "abm_engaged_account",
+    "label": "ABM engaged account",
+    "definition": "Target banking account showing qualified engagement with the campaign",
+    "target_cost_per_kpi_aud": 1600
+  },
+  "icp_filter": {
+    "company_size": ">= 1000",
+    "industry_in": ["Banking", "Financial services", "Lending"],
+    "region_in": ["AU-NZ"]
+  },
+  "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
+  "guardrail_kpis": ["branded_search_volume", "account_reach"],
+  "connected_sources": ["trade_desk", "linkedin"]
+}

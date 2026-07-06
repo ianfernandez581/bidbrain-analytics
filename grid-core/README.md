@@ -82,3 +82,81 @@ async function fetchReport({ env, start, end }) => RawRow[]
   connector's parse function once you see a real report.
 
 These are exactly what step 3 (reconciliation) is designed to catch.
+
+---
+
+# Brain (V1)
+
+**Brain** is a tab in The Grid that surfaces AI-recommended campaign optimizations
+across every client in one ranked, cross-client view — "here are the highest-impact
+changes we could make right now, with the evidence behind each one." A trader reviews
+a recommendation, and one click sends it to ClickUp for a human to action.
+
+## Where it lives
+
+A tab in the top nav (Pulse · Register · **Brain** · Dashboards), next to a small
+`NEW` badge. The Grid is a single static HTML app with **hash-based routing**, so:
+
+- `#view=brain` — the cross-client landing page
+- `#view=brain&r=R-2847` — the evidence drill-down for one recommendation
+
+(The original spec referred to path routes `/d/brain/` and `/d/brain/r/:id`. The Grid
+has no server and already routes on the URL hash, so Brain follows that convention.
+Direct-URL load, refresh, and browser back/forward all work because the app re-reads
+the hash on `hashchange`.) Filter state is persisted to the hash too, `b`-prefixed so it
+never collides with the pacing filters: `#view=brain&bc=resetdata&bp=Trade%20Desk&bconf=0.75`.
+
+## V1 scope (this session) — what's real vs mocked
+
+Real: routing, the full landing + drill-down UI, filtering/sorting, URL persistence,
+client colours, keyboard shortcuts, toasts, loading/empty/404 states, and the
+"Send to ClickUp" round-trip.
+
+Mocked:
+- **Recommendations data** — `config/brain-mock-data.js` (~30 recs across 8 clients).
+  No BigQuery yet.
+- **The ClickUp endpoint** — the front-end really does `POST /api/brain/clickup-task`,
+  but because The Grid has no server, a `window.fetch` interceptor in `the-grid.html`
+  answers it: logs the payload (`[BRAIN][ClickUp]`), mints a `CU-MOCK-xxxxxx` id, flips
+  the rec's status to `in_clickup` in the in-memory store, and returns
+  `{ success, mock_task_id, updated_at }`. V2 deletes the interceptor and stands up a
+  real Express route with the **same contract**.
+- **Site Quality Index** and **Optimization log** cards — static content.
+- The outperformance chart is **hand-rolled SVG** (The Grid does not bundle Chart.js);
+  the day/week/month toggle shows `week` as the live view, day/month are V1 placeholders.
+
+## Keyboard shortcuts
+
+`b` → Brain · `p` → Pulse (pacing) · `Esc` → back to the Brain landing from a drill-down
+(ignored while typing in an input/select).
+
+## Where to find things
+
+```
+config/kpi-objects/<client>.json   ← per-client KPI object schema (resetdata is real, 7 stubs)
+config/brain-mock-data.js          ← RECOMMENDATIONS + helpers (getRecommendationById,
+                                       getFilteredRecommendations, updateStatus)
+src/brain/client-colors.js         ← getClientColor(clientId[, theme]) -> {bg,fg,border}
+src/brain/toast.js                 ← toast.success / toast.error
+src/brain/brain-landing.js         ← BrainLanding.render(mount, ctx)  (KPIs, filters, table, cards)
+src/brain/brain-evidence.js        ← BrainEvidence.render(mount, ctx) (6-section drill-down + chart)
+the-grid.html                      ← nav tab, #view-brain container, Brain CSS (#brain-css),
+                                       hash routing, the mock ClickUp fetch interceptor, shortcuts
+```
+
+The brain modules are classic scripts (UMD): they attach to `window.*` in the browser and
+`module.exports` in Node (so the mock data can be unit-tested with `node`). They're loaded
+via `<script src>` in `the-grid.html`, before the main app script.
+
+The seam between the host page and the brain modules is a small `ctx` object the page builds
+(`data`, `colors`, `toast`, `theme`, `filters`, `setFilters`, `open`, `back`, `sendToClickup`).
+
+## V2 roadmap
+
+- Real recommendations engine (BigQuery queries → scored recs), replacing `brain-mock-data.js`
+- Real ClickUp API (replace the fetch interceptor with a server route + auth)
+- LlamaParse ingestion of historical media plans / retros to ground the `historical_pattern`
+- Site Quality Index with real scoring (Jounce integration) + a live domain blacklist
+- Meridian MMM planning loop feeding budget-shift recommendations
+- Cross-client learning (a win on one client raises confidence for the same play elsewhere)
+- Model-precision metric computed from shipped-rec outcomes (currently hardcoded 73%)

@@ -1,0 +1,19 @@
+{
+  "stub": true,
+  "client_id": "cloudflare",
+  "client_name": "Cloudflare",
+  "primary_kpi": {
+    "id": "accepted_lead",
+    "label": "Accepted lead",
+    "definition": "Salesforce-accepted lead from a targeted media-plan campaign",
+    "target_cost_per_kpi_aud": 1100
+  },
+  "icp_filter": {
+    "company_size": ">= 500",
+    "industry_in": ["Technology", "Gaming", "Financial services"],
+    "region_in": ["APAC", "GCR", "KR", "JP"]
+  },
+  "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
+  "guardrail_kpis": ["branded_search_volume", "accepted_lead_rate"],
+  "connected_sources": ["trade_desk", "linkedin", "reddit", "line", "salesforce"]
+}
