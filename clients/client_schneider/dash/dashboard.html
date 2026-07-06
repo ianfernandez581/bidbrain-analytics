@@ -673,9 +673,9 @@ function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); re
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
 const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
 function campaignTabs(){ const t=campaign().tabs; return (t&&t.length)?t:['cs']; }
-// The Executive Scorecard is a GLOBAL, portfolio-wide tab (always first) — it spans all 5 programs,
+// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) — it spans all 5 programs,
 // so it sits outside the per-campaign tab set.
-function allTabs(){ return ['scorecard'].concat(campaignTabs()); }
+function allTabs(){ return campaignTabs().concat(['scorecard']); }
 function marketOk(m){ return activeMarkets.has(m); }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
@@ -740,8 +740,8 @@ async function boot(){
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
     const h=(location.hash||'').replace('#','');
-    const validTabs=allTabs();              // scorecard + the default campaign's tabs
-    activeTab=validTabs.includes(h)?h:'scorecard';   // default to the Executive Scorecard (portfolio view)
+    const validTabs=allTabs();              // the default campaign's tabs + scorecard (last)
+    activeTab=validTabs.includes(h)?h:campaignTabs()[0];   // default to the campaign's first tab
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
