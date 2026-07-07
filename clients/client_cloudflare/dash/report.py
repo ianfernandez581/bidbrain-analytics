@@ -211,6 +211,7 @@ GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
 # API key -- those credits run dry). Region australia-southeast1; runtime SA needs roles/aiplatform.user.
 VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "australia-southeast1")
 _VERTEX = {"token": None, "project": None, "exp": 0.0}
+_MODEL_LOC = {}
 
 
 def _vertex_auth():
@@ -228,6 +229,17 @@ def _vertex_auth():
         raise RuntimeError("Vertex AI: no GCP project resolved (set GOOGLE_CLOUD_PROJECT)")
     _VERTEX.update(token=creds.token, project=project, exp=time.time() + 3000)
     return creds.token, project
+
+
+def _vertex_locations(model):
+    """Locations to try for `model`, in order: cached winner, configured region, then global
+    (dedup). Availability is region-specific -- gemini-2.5-flash serves in australia-southeast1,
+    but gemini-2.5-pro is only at the global endpoint (au returns 404)."""
+    out = []
+    for loc in (_MODEL_LOC.get(model), VERTEX_LOCATION, "global"):
+        if loc and loc not in out:
+            out.append(loc)
+    return out
 GEMINI_STAGE_A_SYSTEM = (STAGE_A_SYSTEM +
     "\n\n(Tooling note: you are running on Google Gemini with the Google Search tool. Use Google "
     "Search for all live research in place of any web_search/web_fetch references above, and ground "
@@ -456,13 +468,22 @@ def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode
     if grounding:
         body["tools"] = [{"googleSearch": {}}]
     token, project = _vertex_auth()
-    host = "aiplatform.googleapis.com" if VERTEX_LOCATION == "global" else f"{VERTEX_LOCATION}-aiplatform.googleapis.com"
-    url = (f"https://{host}/v1/projects/{project}/locations/{VERTEX_LOCATION}"
-           f"/publishers/google/models/{model}:generateContent")
-    r = httpx.post(url, headers={"Authorization": f"Bearer {token}", "content-type": "application/json"},
-                   json=body, timeout=300.0)
-    if r.status_code != 200:
-        raise RuntimeError(f"Vertex Gemini HTTP {r.status_code}")
+    # Model availability is region-specific: gemini-2.5-flash serves in australia-southeast1, but
+    # gemini-2.5-pro is not in au (404) and lives at the "global" endpoint. Try the configured
+    # region first, fall back to global on a 404, and remember the location that answered.
+    r = None
+    for loc in _vertex_locations(model):
+        host = "aiplatform.googleapis.com" if loc == "global" else f"{loc}-aiplatform.googleapis.com"
+        url = (f"https://{host}/v1/projects/{project}/locations/{loc}"
+               f"/publishers/google/models/{model}:generateContent")
+        r = httpx.post(url, headers={"Authorization": f"Bearer {token}", "content-type": "application/json"},
+                       json=body, timeout=300.0)
+        if r.status_code == 404:
+            continue
+        _MODEL_LOC[model] = loc
+        break
+    if r is None or r.status_code != 200:
+        raise RuntimeError(f"Vertex Gemini HTTP {getattr(r, 'status_code', 'n/a')}")
     cands = (r.json().get("candidates") or [])
     if not cands:
         raise RuntimeError("Gemini returned no candidates (possibly blocked)")
