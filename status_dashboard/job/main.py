@@ -1243,6 +1243,14 @@ def read_definitions(client):
     return json.loads(blob.download_as_bytes())
 
 
+# Transmission TEST-lead exclusion (2026-07-07, Jade call): the client dashboard now drops any CS lead
+# whose email DOMAIN contains 'transmission' (see clients/client_cloudflare/sql/10). This accuracy
+# check queries the SAME raw source, so it must apply the SAME filter or every CS count would read
+# ~N above the dash (a false mismatch). Byte-identical to sql/10's WHERE clause.
+_CF_TEST_LEAD_FILTER = (
+    "\n  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%'")
+
+
 def _cf_cs_cte(defs):
     """Rebuild cloudflare's CS region CTE (sql/10's REGION_GRP logic) from definitions.json —
     byte-equivalent to sql/10: country match is case-normalised (UPPER(TRIM)), KR = Korea in the 6
@@ -1270,7 +1278,8 @@ def _cf_cs_cte(defs):
             "  SELECT LEAD_STATUS,\n"
             "    CASE\n" + "\n".join(arms) + "\n          ELSE 'OTHER'\n    END AS REGION_GRP\n"
             "  FROM " + src + "\n"
-            "  WHERE CAMPAIGN_ID IN (" + _sql_inlist(cs_ids) + ")\n"
+            "  WHERE CAMPAIGN_ID IN (" + _sql_inlist(cs_ids) + ")"
+            + _CF_TEST_LEAD_FILTER + "\n"
             ")\n")
 
 
@@ -1339,8 +1348,8 @@ def _build_cf_cs_checks(defs):
         {"label": "Korea Leads · Total (KR bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & residual",
          "dash": region("KR"),
          "sql": "SELECT COUNT(*) AS korea_leads\nFROM " + src + "\n"
-                "WHERE UPPER(TRIM(COUNTRY_NAME)) = '%s'\n  AND CAMPAIGN_ID IN (%s);"
-                % (esc(kr["country"]).upper(), _sql_inlist(kr["campaign_ids"])),
+                "WHERE UPPER(TRIM(COUNTRY_NAME)) = '%s'\n  AND CAMPAIGN_ID IN (%s)%s;"
+                % (esc(kr["country"]).upper(), _sql_inlist(kr["campaign_ids"]), _CF_TEST_LEAD_FILTER),
          "note": "Korea Leads = Country '%s' leads in the 6 ORIGINAL El* CS campaigns ONLY (2026-07-02: "
                  "reverted the 2026-06-25 all-Korea rule at the client's request; Korea leads outside "
                  "these 6 land in OTHER). vs the count of pacing.rows[] with MARKET_REGION = 'KR'."
@@ -1348,8 +1357,8 @@ def _build_cf_cs_checks(defs):
         {"label": "RIG Leads · Total (RIG bucket)", "kind": "count", "group": "Content Syndication — Korea, RIG & residual",
          "dash": region("RIG"),
          "sql": "SELECT COUNT(*) AS rig_leads\nFROM " + src + "\n"
-                "WHERE UPPER(TRIM(COUNTRY_NAME)) <> '%s'\n  AND ASSET_2 IN (%s)\n  AND CAMPAIGN_ID IN (%s);"
-                % (esc(rig["exclude_country"]).upper(), _sql_inlist(rig["asset_2"]), _sql_inlist(rig["campaign_ids"])),
+                "WHERE UPPER(TRIM(COUNTRY_NAME)) <> '%s'\n  AND ASSET_2 IN (%s)\n  AND CAMPAIGN_ID IN (%s)%s;"
+                % (esc(rig["exclude_country"]).upper(), _sql_inlist(rig["asset_2"]), _sql_inlist(rig["campaign_ids"]), _CF_TEST_LEAD_FILTER),
          "note": "RIG Leads = NON-Korea AND the Modernize-Applications asset(s) AND the Final Funnel "
                  "campaigns. Asset-based, so it spans all countries — the dashboard's RIG bucket. vs the "
                  "count of pacing.rows[] with MARKET_REGION = 'RIG'." + _CF_CS_NOTE},
@@ -1365,24 +1374,24 @@ def _build_cf_cs_checks(defs):
         {"label": "CF1 CS · Accepted (delivered Double Touch MQLs)", "kind": "count",
          "group": "Content Syndication — CF1 (Double Touch)", "dash": cf1cs("accepted"),
          "sql": "SELECT COUNT(*) AS cf1_cs_accepted\nFROM " + src + "\n"
-                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS = 'Accepted';" % _sql_inlist(cf1_ids),
+                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS = 'Accepted'%s;" % (_sql_inlist(cf1_ids), _CF_TEST_LEAD_FILTER),
          "note": "CF1's Double-Touch CS campaigns. Accepted = the delivered double-touch MQL count "
                  "(counts toward the 110 target). vs campaigns.cf1_india.cs.accepted." + _CF_CS_NOTE},
         {"label": "CF1 CS · Rejected", "kind": "count",
          "group": "Content Syndication — CF1 (Double Touch)", "dash": cf1cs("rejected"),
          "sql": "SELECT COUNT(*) AS cf1_cs_rejected\nFROM " + src + "\n"
-                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS = 'Rejected';" % _sql_inlist(cf1_ids),
+                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS = 'Rejected'%s;" % (_sql_inlist(cf1_ids), _CF_TEST_LEAD_FILTER),
          "note": "vs campaigns.cf1_india.cs.rejected." + _CF_CS_NOTE},
         {"label": "CF1 CS · New", "kind": "count",
          "group": "Content Syndication — CF1 (Double Touch)", "dash": cf1cs("new"),
          "sql": "SELECT COUNT(*) AS cf1_cs_new\nFROM " + src + "\n"
-                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS = 'New';" % _sql_inlist(cf1_ids),
+                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS = 'New'%s;" % (_sql_inlist(cf1_ids), _CF_TEST_LEAD_FILTER),
          "note": "Today the 2 campaigns carry only Accepted/Rejected, so New is normally 0. "
                  "vs campaigns.cf1_india.cs.new." + _CF_CS_NOTE},
         {"label": "CF1 CS · Total leads (New + Accepted)", "kind": "count",
          "group": "Content Syndication — CF1 (Double Touch)", "dash": cf1cs("total"),
          "sql": "SELECT COUNT(*) AS cf1_cs_total\nFROM " + src + "\n"
-                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS IN ('New','Accepted');" % _sql_inlist(cf1_ids),
+                "WHERE CAMPAIGN_ID IN (%s)\n  AND LEAD_STATUS IN ('New','Accepted')%s;" % (_sql_inlist(cf1_ids), _CF_TEST_LEAD_FILTER),
          "note": "The client's headline 'Total Leads' = New + Accepted (deliberately NOT COUNT(*) — it "
                  "excludes Rejected). vs campaigns.cf1_india.cs.total." + _CF_CS_NOTE},
     ]
