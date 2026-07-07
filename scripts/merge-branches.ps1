@@ -238,9 +238,13 @@ function Invoke-SanityGate {
     }
 
     # 3. JSON validity: parse every changed .json (definitions.json, platform.json, etc.).
+    #    -AsHashTable so legitimately-valid JSON that uses empty-string / duplicate keys
+    #    (e.g. every npm package-lock.json v2/v3 keys the root package as "") still validates
+    #    instead of false-failing on ConvertFrom-Json's object-property limitation. Genuinely
+    #    invalid JSON (syntax errors, leftover conflict markers) still throws and fails the gate.
     $jsonFiles = @($present | Where-Object { $_ -match '\.json$' })
     foreach ($rel in $jsonFiles) {
-        try { Get-Content (Join-Path $RepoRoot $rel) -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop | Out-Null }
+        try { Get-Content (Join-Path $RepoRoot $rel) -Raw -ErrorAction Stop | ConvertFrom-Json -AsHashTable -ErrorAction Stop | Out-Null }
         catch { Write-Host "    [FAIL] invalid JSON: $rel -- $($_.Exception.Message)" -ForegroundColor Red; $ok = $false }
     }
 
