@@ -451,7 +451,36 @@ def _should_fallback(e):
     return "credit balance is too low" in msg or "plans & billing" in msg
 
 
-def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode=False):
+def _vertex_schema(s):
+    """Convert REPORT_SCHEMA to a Vertex responseSchema (OpenAPI subset): drop
+    additionalProperties; turn anyOf[T,null] into T + nullable. Constrains Stage B output so it
+    cannot ramble past the token budget (the truncation failure) and is always schema-valid."""
+    if not isinstance(s, dict):
+        return s
+    if "anyOf" in s:
+        subs = s["anyOf"]
+        non_null = [x for x in subs if x.get("type") != "null"]
+        base = _vertex_schema(non_null[0]) if non_null else {"type": "string"}
+        if any(x.get("type") == "null" for x in subs):
+            base = dict(base); base["nullable"] = True
+        return base
+    out = {}
+    for k, v in s.items():
+        if k == "additionalProperties":
+            continue
+        if k == "properties":
+            out["properties"] = {pk: _vertex_schema(pv) for pk, pv in v.items()}
+        elif k == "items":
+            out["items"] = _vertex_schema(v)
+        else:
+            out[k] = v
+    return out
+
+
+_VERTEX_REPORT_SCHEMA = _vertex_schema(REPORT_SCHEMA)
+
+
+def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode=False, schema=None):
     import httpx
     # gemini-2.5-* are THINKING models: reasoning tokens draw from the SAME output budget, so a
     # small maxOutputTokens is eaten by thinking and the JSON truncates mid-string (finishReason
@@ -460,6 +489,8 @@ def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode
            "thinkingConfig": {"thinkingBudget": 4096}}
     if json_mode:
         gen["responseMimeType"] = "application/json"
+        if schema:
+            gen["responseSchema"] = schema
     body = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
@@ -506,16 +537,16 @@ def _gemini_report(brief):
                     "drivers, recommended actions, sources used) per your instructions.")
     try:
         notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
-                                              max_tokens=16000, grounding=True)
+                                              max_tokens=24000, grounding=True)
     except Exception:  # noqa: BLE001
         notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM,
-                                              brief + research_msg, max_tokens=16000, grounding=False)
+                                              brief + research_msg, max_tokens=24000, grounding=False)
     sources = _sanitize_sources(raw_sources)
     src_lines = "\n".join(f"[{i}] {s['title']} :: {s['url']}" for i, s in enumerate(sources)) or "(none found)"
     user = (brief + "\n\n## ANALYST RESEARCH NOTES (Stage A)\n" + (notes or "(no notes produced)")
             + "\n\n## SOURCE URL LIST (the only URLs that exist; 0-based indices for source_index)\n"
             + src_lines + "\n\nReturn the report JSON.")
-    text, _ = _gemini_generate(model, STAGE_B_SYSTEM, user, max_tokens=24000, json_mode=True)
+    text, _ = _gemini_generate(model, STAGE_B_SYSTEM, user, max_tokens=48000, json_mode=True, schema=_VERTEX_REPORT_SCHEMA)
     try:
         report = json.loads(text)
     except Exception as e:  # noqa: BLE001
