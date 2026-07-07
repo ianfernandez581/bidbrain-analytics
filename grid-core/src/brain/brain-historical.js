@@ -213,7 +213,10 @@
       try {
         var r = await (await fetch('/api/brain/historical/files/' + state.selected + '/commit', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ committed_by: 'grid-user' }) })).json();
         if (r.error) throw new Error(r.error);
-        ctx.toast && ctx.toast.success('Committed ' + r.snapshot.row_count + ' rows → ' + r.snapshot.target_bq_dataset);
+        var bqMsg = (r.bq && r.bq.written) ? ' · landed in BigQuery (' + r.bq.rows + ' rows)'
+          : (r.bq && r.bq.reason === 'dataset_missing') ? ' · staged (BigQuery dataset not provisioned yet)'
+          : (r.bq && (r.bq.error || r.bq.reason)) ? ' · staged (BigQuery: ' + (r.bq.error || r.bq.reason) + ')' : '';
+        ctx.toast && ctx.toast.success('Committed ' + r.snapshot.row_count + ' rows → ' + r.snapshot.target_bq_dataset + bqMsg);
         loadUploads(mount, ctx);
       } catch (e) { cb.disabled = false; cb.textContent = 'Commit to warehouse'; ctx.toast && ctx.toast.error('Commit failed: ' + e.message); }
     });
