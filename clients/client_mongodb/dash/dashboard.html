@@ -242,27 +242,6 @@
   .compare-chart h4{margin:0 0 8px 0;font-size:13px;font-weight:600;color:var(--ink)}
   .compare-chart-wrap{position:relative;height:180px}
 
-  /* Margin multiplier ("spent in full") control + badge */
-  .mrg{position:relative;display:inline-block}
-  .mrg-btn{display:inline-flex;align-items:center;gap:7px;background:var(--surface-2);border:1px solid var(--line);
-    color:var(--ink);border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:600;cursor:pointer}
-  .mrg-btn .x{color:var(--mdb-spring);font-weight:800}
-  .mrg-btn .cap{opacity:.55;font-size:11px}
-  .mrg-pop{position:absolute;z-index:60;margin-top:6px;right:0;min-width:290px;background:var(--surface);
-    border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-card);padding:14px}
-  .mrg-pop.hide{display:none}
-  .mrg-pop h4{margin:0 0 4px;font-size:13px;color:var(--ink)}
-  .mrg-pop .mrg-sub{font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.45}
-  .mrg-opt{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink);padding:5px 0;cursor:pointer}
-  .mrg-in{width:72px;background:var(--bg-2);border:1px solid var(--line);color:var(--ink);border-radius:6px;padding:5px 7px;font-size:12.5px}
-  .mrg-prev{margin-top:10px;padding:10px;border-radius:8px;background:var(--surface-2);font-size:12px;line-height:1.6;color:var(--muted)}
-  .mrg-prev b{color:var(--ink)}
-  .mrg-act{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
-  .mrg-act button{border-radius:7px;padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid var(--line);background:var(--surface-2);color:var(--ink)}
-  .mrg-act .apply{background:var(--mdb-spring);color:#062a17;border-color:transparent}
-  .mrg-pill{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.3px;
-    padding:3px 10px;border-radius:999px;background:var(--mdb-mint);color:var(--mdb-forest);margin-left:10px;vertical-align:middle}
-
   .loading{padding:80px 20px;text-align:center;color:var(--muted)}
   .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--brand-accent);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
   @keyframes spin{to{transform:rotate(360deg)}}
@@ -376,23 +355,13 @@
             </div>
           </div>
         </div>
-        <div class="filter-grp">
-          <span class="lbl">Margin</span>
-          <div class="mrg" id="marginCtrl">
-            <button class="mrg-btn" id="marginBtn" type="button" onclick="toggleMarginPop(event)"
-                    title="Gross reported spend & cost metrics up to the client-billed basis so the campaign reports spent-in-full">
-              <span>Margin <span class="x" id="marginBtnMult">×1.00</span></span><span class="cap">▾</span>
-            </button>
-            <div class="mrg-pop hide" id="marginPop"></div>
-          </div>
-        </div>
       </div>
     </div>
 
     <!-- ============ PAID MEDIA TAB ============ -->
     <div id="tab-paid" class="tabpane">
       <div class="section first">
-        <h2>Paid Media - Delivery<span class="mrg-pill" id="pmMarginPill" style="display:none"></span></h2>
+        <h2>Paid Media - Delivery</h2>
         <span class="sub">Live Trade Desk &amp; social delivery for the selected campaign: spend, impressions, clicks, CTR. Reflects the selected region(s).</span>
       </div>
 
@@ -979,11 +948,9 @@ function progCPL(programme){
   const m = PROG_CPL_TIER.find(x => x.test(p));
   if (!m) return null;
   const t = (DATA.targets||[]).find(t => t.programme === m.tier && t.cpl != null);
-  if (!t) return null;
-  // Content-syndication lead economics stay on the plan basis by default (a separate
-  // budget line from the paid-media gross budget that drives the multiplier). Flip
-  // MARGIN.scaleCS:true to also gross CS CPL / committed CS spend by the campaign factor.
-  return t.cpl * ((MARGIN.on && MARGIN.scaleCS) ? curMult() : 1);
+  // Content-syndication lead economics stay on the plan basis — the DNB spend adjustment
+  // is a paid-media-only gross-up (a separate budget line from CS CPL / committed CS spend).
+  return t ? t.cpl : null;
 }
 function marketOk(m){ return activeMarkets.has(m); }
 // Paid-delivery date predicate. Dates are zero-padded ISO 'YYYY-MM-DD', so a
@@ -1021,27 +988,25 @@ function committedBlendedCPC(){
 }
 
 //==============================================================================
-// MARGIN MULTIPLIER — "spent in full"  (see clients/client_mongodb/README.md)
+// DNB SPEND ADJUSTMENT — one-time, hardcoded  (see clients/client_mongodb/README.md)
 //==============================================================================
-// Grosses reported PAID-MEDIA money up to the client-billed basis, PER campaign
-// (DNB / KGA-IDC), so the campaign reports as spent-in-full. Two modes:
-//   auto   -> multiplier = gross budget ÷ actual spend (whole flight): spend == budget
-//   margin -> multiplier = 1 / (1 - margin)  from a client-input margin %  (the calculator)
-// Applies to: spend, blended & per-strategy CPM/CPC, and the plan CPC/benchmarks it's
-// compared to (so vs-plan deltas stay TRUE). Leaves untouched: impressions/clicks/leads
-// (counts), the gross/net budget anchors, and content-syndication lead economics (plan
-// CPL / committed CS spend — a separate budget line; flip MARGIN.scaleCS:true to include).
-// FRONTEND-ONLY: the JSON in the bucket keeps RAW spend, so the status-dashboard
-// accuracy checks (JSON vs Snowflake) are unaffected.
-const MARGIN = { on:true, mode:'auto', marginPct:null, scaleCS:false };
+// The DNB campaign under-delivered its budget (raw media cost ≈ $16,183.91 vs the billed
+// budget), which is bad for our business model — so DNB's reported paid spend is grossed up
+// to a fixed client-billed target below. HIDDEN FROM THE CLIENT: there is NO control and no
+// label — the grossed numbers simply read as the real spend. FRONTEND-ONLY: the mongodb.json
+// in the bucket keeps RAW spend, so the status-dashboard accuracy checks are unaffected.
+//
+// Multiplier = target ÷ raw whole-flight spend, applied to the campaign's spend and its
+// derived CPM/CPC (and the plan CPC/benchmarks it's compared to, so vs-plan deltas stay TRUE).
+// Impressions/clicks/leads (counts) and the budget anchors are left raw. KGA (IDC) is NOT in
+// the map, so it stays on raw spend (×1). One-off: to change the figure, edit MARGIN_TARGET;
+// to remove the adjustment entirely, set it to {}.
+const MARGIN_TARGET = { DNB: 19890 };   // campaign key -> reported paid spend (USD)
 
-// The reusable calculator: a client's margin % -> the gross-up multiplier.
-function marginToMultiplier(pct){ const m = Number(pct)/100; return (m > 0 && m < 1) ? 1/(1-m) : 1; }
+let MULT = {};   // campaign key -> multiplier (1 when the campaign has no target)
 
-let MULT = {};   // campaign key -> active multiplier (1 when off / not computable)
-
-// Whole-flight RAW (pre-adjustment) paid spend for a campaign — reads the stashed
-// _rawSpend so it's stable no matter how many times the multiplier is re-applied.
+// Whole-flight RAW (pre-adjustment) paid spend for a campaign — reads the stashed _rawSpend
+// so the multiplier is stable no matter how many times it's (re-)applied.
 function rawSpendFor(camp){
   let s = 0;
   for (const r of (DATA.rows||[])){
@@ -1050,29 +1015,14 @@ function rawSpendFor(camp){
   }
   return s;
 }
-// Gross media budget for a campaign (the "spent in full" anchor — never scaled).
-function grossBudgetFor(camp){
-  let g = 0;
-  for (const b of (DATA.budget||[])) if (campaignOf(b.programme) === camp) g += (b.gross_usd||0);
-  return g;
-}
-// Compute the per-campaign multiplier from the RAW basis (idempotent).
+// multiplier = target ÷ raw spend, so the campaign's displayed spend lands on the target.
 function computeMultipliers(){
   MULT = {};
   const camps = new Set();
   (DATA.rows||[]).forEach(r => camps.add(campaignOf(r.programme)));
-  (DATA.budget||[]).forEach(b => camps.add(campaignOf(b.programme)));
   camps.forEach(c => {
-    let m = 1;
-    if (MARGIN.on){
-      if (MARGIN.mode === 'margin' && MARGIN.marginPct != null){
-        m = marginToMultiplier(MARGIN.marginPct);
-      } else {
-        const s = rawSpendFor(c), g = grossBudgetFor(c);
-        if (s > 0 && g > 0) m = g / s;
-      }
-    }
-    MULT[c] = m;
+    const target = MARGIN_TARGET[c], raw = rawSpendFor(c);
+    MULT[c] = (target != null && raw > 0) ? target / raw : 1;
   });
 }
 // Bake the multiplier into each row's spend (stash the raw once so it's idempotent).
@@ -1086,79 +1036,6 @@ function applyMultipliers(){
 function refreshMargin(){ computeMultipliers(); applyMultipliers(); }
 // Multiplier for the active campaign (what the on-screen figures are grossed by).
 function curMult(){ return (MULT && MULT[activeCampaign]) || 1; }
-// Grossed spend for the active campaign + its budget utilisation (100% in auto mode).
-function marginStatus(){
-  const c = activeCampaign;
-  const g = grossBudgetFor(c), raw = rawSpendFor(c), m = curMult();
-  const grossed = raw * m;
-  return { mult:m, gross:g, raw, grossed, util: g > 0 ? grossed/g : null,
-           full: g > 0 && Math.abs(grossed - g) < Math.max(1, g*0.005) };
-}
-
-// ── Calculator popover ───────────────────────────────────────────────────────
-function toggleMarginPop(ev){ if (ev) ev.stopPropagation(); const p = el('marginPop'); if (!p) return;
-  p.classList.toggle('hide'); if (!p.classList.contains('hide')) renderMarginPop(); }
-document.addEventListener('click', e => { const c = el('marginCtrl'), p = el('marginPop');
-  if (p && c && !c.contains(e.target)) p.classList.add('hide'); });
-
-function renderMarginPop(){
-  const p = el('marginPop'); if (!p) return;
-  const autoMult = (() => { const s = rawSpendFor(activeCampaign), g = grossBudgetFor(activeCampaign);
-    return (s > 0 && g > 0) ? g/s : 1; })();
-  p.innerHTML =
-    `<h4>Margin multiplier</h4>` +
-    `<div class="mrg-sub">${CAMP[activeCampaign].label} &middot; grosses spend &amp; cost metrics to the client-billed basis, across the whole flight.</div>` +
-    `<label class="mrg-opt"><input type="radio" name="mrgmode" value="auto" ${MARGIN.mode!=='margin'?'checked':''} onchange="onMarginPreview()"> ` +
-      `Spent in full <span style="color:var(--muted)">(budget &divide; spend = &times;${autoMult.toFixed(3)})</span></label>` +
-    `<label class="mrg-opt"><input type="radio" name="mrgmode" value="margin" ${MARGIN.mode==='margin'?'checked':''} onchange="onMarginPreview()"> ` +
-      `Client margin <input class="mrg-in" id="mrgPct" type="number" min="0" max="99" step="0.1" placeholder="%" ` +
-      `value="${MARGIN.marginPct!=null?MARGIN.marginPct:''}" oninput="onMarginPreview()"> %</label>` +
-    `<div class="mrg-prev" id="mrgPrev"></div>` +
-    `<div class="mrg-act"><button class="off" onclick="setMarginOff()">Turn off</button>` +
-      `<button class="apply" onclick="applyMarginUI()">Apply</button></div>`;
-  onMarginPreview();
-}
-function draftMult(){
-  const mode = (document.querySelector('input[name=mrgmode]:checked')||{}).value || MARGIN.mode;
-  if (mode === 'margin'){ const v = parseFloat(el('mrgPct') ? el('mrgPct').value : NaN); return marginToMultiplier(isNaN(v)?0:v); }
-  const s = rawSpendFor(activeCampaign), g = grossBudgetFor(activeCampaign); return (s > 0 && g > 0) ? g/s : 1;
-}
-function onMarginPreview(){
-  const prev = el('mrgPrev'); if (!prev) return;
-  const m = draftMult(), raw = rawSpendFor(activeCampaign), g = grossBudgetFor(activeCampaign);
-  const grossed = raw * m, util = g > 0 ? grossed/g : null;
-  const full = g > 0 && Math.abs(grossed - g) < Math.max(1, g*0.005);
-  const impliedMargin = m > 1 ? (1 - 1/m) : 0;
-  prev.innerHTML =
-    `Multiplier <b>&times;${m.toFixed(3)}</b> <span style="opacity:.7">(&asymp; ${(impliedMargin*100).toFixed(1)}% margin)</span><br>` +
-    `Spend <b>${fmt$(raw)}</b> &rarr; <b>${fmt$(grossed)}</b><br>` +
-    `Gross budget <b>${g?fmt$(g):'—'}</b>` +
-    (util != null ? ` &middot; <b>${fmtPct(util,0)}</b> ${full ? '&check; spent in full' : 'of budget'}` : '');
-}
-function applyMarginUI(){
-  const mode = (document.querySelector('input[name=mrgmode]:checked')||{}).value || 'auto';
-  MARGIN.on = true; MARGIN.mode = mode;
-  if (mode === 'margin'){ const v = parseFloat(el('mrgPct') ? el('mrgPct').value : NaN); MARGIN.marginPct = isNaN(v) ? null : v; }
-  refreshMargin(); const p = el('marginPop'); if (p) p.classList.add('hide');
-  renderControls(); renderActive(); colorKpis();
-}
-function setMarginOff(){
-  MARGIN.on = false; refreshMargin(); const p = el('marginPop'); if (p) p.classList.add('hide');
-  renderControls(); renderActive(); colorKpis();
-}
-// Badge (control bar) + pill (paid section) — reflect the ACTIVE campaign's multiplier.
-function renderMarginUI(){
-  const btn = el('marginBtnMult');
-  if (btn) btn.textContent = MARGIN.on ? ('×' + curMult().toFixed(2)) : 'off';
-  const pill = el('pmMarginPill');
-  if (pill){
-    if (MARGIN.on && Math.abs(curMult() - 1) > 1e-6){
-      const st = marginStatus();
-      pill.style.display = 'inline-flex';
-      pill.textContent = (st.full ? 'Spent in full · ' : '') + 'Margin-adjusted ×' + st.mult.toFixed(2);
-    } else { pill.style.display = 'none'; }
-  }
-}
 
 //==============================================================================
 // BOOT
@@ -1244,8 +1121,6 @@ function renderControls() {
       (regs.length ? regs.join(', ') : 'no region selected')}`;
   el('compareSub').textContent =
     `Pick a region in each panel to compare them directly, for ${CAMP[activeCampaign].label}.`;
-
-  renderMarginUI();   // margin badge + spent-in-full pill (reflect the active campaign)
 
   // The date range only filters Paid Media (daily rows). Content Syndication leads
   // aren't date-stamped in the feed, so grey the control out on the CS / Compare tabs.
@@ -2191,13 +2066,10 @@ function buildReportPayload(){
       date_filter:{ start: dateStartSel || null, end: dateEndSel || null },
       window:{ start: isoD(p.start), end: isoD(p.end), days: p.totalDays },
       data_through: DATA.data_through || null, last_updated: DATA.last_updated || null,
-      generated_at: new Date().toISOString(),
-      // Margin basis: spend + cost metrics are grossed to the client-billed basis so the
-      // campaign reports spent-in-full. Impressions/clicks/leads and gross budget are raw.
-      margin: MARGIN.on && Math.abs(curMult()-1) > 1e-6
-        ? { applied:true, mode:MARGIN.mode, multiplier:r2(curMult()),
-            implied_margin_pct: r6(curMult()>1 ? 1 - 1/curMult() : 0), basis:'client-billed (spent in full)' }
-        : { applied:false }
+      generated_at: new Date().toISOString()
+      // NOTE: the margin gross-up is applied to the numbers below (spend/CPM/CPC), but its
+      // existence is deliberately NOT surfaced here — the deck is a client deliverable and
+      // must not reveal the multiplier. It just shows the grossed (spent-in-full) figures.
     },
     paid:{
       totals:{ spend_usd:r2(t.sp), impressions:t.imp, clicks:t.clk, ctr:r6(t.ctr), cpm:r2(t.cpm), cpc:r2(t.cpc) },

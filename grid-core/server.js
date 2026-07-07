@@ -27,10 +27,11 @@ const crypto = require('crypto');
 
 const db = require('./src/brain/db');
 const parser = require('./src/brain/parser');
+const bqWriter = require('./src/brain/bq-writer');
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
-const TMP = path.join(ROOT, 'tmp', 'brain-uploads');
+const TMP = process.env.BRAIN_TMP_DIR || path.join(ROOT, 'tmp', 'brain-uploads');
 fs.mkdirSync(TMP, { recursive: true });
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.map': 'application/json' };
@@ -144,8 +145,12 @@ async function commit(req, res, fileId) {
   let body = {}; try { body = await readBody(req); } catch { }
   const snap = db.commitSnapshot(fileId, body.committed_by || 'grid-user');
   if (!snap) return send(res, 400, { error: 'nothing to commit (file has no extracted rows)' });
-  console.log(`[BRAIN][Commit] file=${fileId} rows=${snap.row_count} spend=$${snap.total_spend_aud} -> ${snap.target_bq_dataset}.${snap.target_bq_table} (staging only; BQ write is V3.5)`);
-  send(res, 200, { snapshot: snap });
+  // V3.5: also load the rows into BigQuery. Never blocks the SQLite commit — a BQ
+  // problem (dataset not provisioned, no write perms) is reported, not thrown.
+  let bq = { written: false, reason: 'not_attempted' };
+  try { bq = await bqWriter.writeSnapshot(fileId); } catch (e) { bq = { written: false, error: String(e.message || e).slice(0, 300) }; }
+  console.log(`[BRAIN][Commit] file=${fileId} rows=${snap.row_count} spend=$${snap.total_spend_aud} -> ${snap.target_bq_dataset}.${snap.target_bq_table} | BQ ${bq.written ? 'WRITTEN (' + bq.rows + ' rows)' : 'not written: ' + (bq.reason || bq.error)}`);
+  send(res, 200, { snapshot: snap, bq });
 }
 
 function serveStatic(res, p) {

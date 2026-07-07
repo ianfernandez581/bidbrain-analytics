@@ -18,6 +18,7 @@
   "private": true,
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
+    "@google-cloud/bigquery": "^8.3.1",
     "better-sqlite3": "^12.11.1",
     "xlsx": "^0.18.5",
     "zod": "^4.4.3"
