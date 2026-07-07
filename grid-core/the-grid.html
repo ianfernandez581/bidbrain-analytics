@@ -15,6 +15,7 @@
   --ok:#22C07A;--ok-soft:rgba(34,192,122,.15);--warn:#E0912F;--warn-soft:rgba(224,145,47,.16);--bad:#FF5A4D;--bad-soft:rgba(255,90,77,.15);
   --money:#B98CFF;--money-soft:rgba(185,140,255,.16);--shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.6);--r:14px;
   --pill-bg:var(--brand);--pill-fg:#052012;
+  --scroll-thumb:rgba(38,197,126,.30);--scroll-thumb-hover:rgba(38,197,126,.50);--scroll-track:transparent;
 }
 :root[data-theme="light"]{ /* LIGHT - whiter, still green */
   --bg:#F4F7F5;--panel:#FFFFFF;--panel-2:#FAFCFB;--grp:#EEF4F0;--side:#FFFFFF;
@@ -24,8 +25,16 @@
   --ok:#0E9F6E;--ok-soft:#E6F6EF;--warn:#B45309;--warn-soft:#FBF1E4;--bad:#D92D20;--bad-soft:#FCEBEA;
   --money:#7C3AED;--money-soft:#F3ECFE;--shadow:0 1px 2px rgba(15,26,20,.04),0 8px 24px -12px rgba(15,26,20,.12);--r:14px;
   --pill-bg:var(--ink);--pill-fg:#fff;
+  --scroll-thumb:rgba(31,181,115,.35);--scroll-thumb-hover:rgba(31,181,115,.55);--scroll-track:transparent;
 }
 *{box-sizing:border-box}html,body{margin:0;padding:0}
+/* brand-tinted scrollbars (blend with green theme, not gray) — Firefox + WebKit */
+*{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) var(--scroll-track)}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:var(--scroll-track)}
+::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-thumb:hover{background:var(--scroll-thumb-hover);border:2px solid transparent;background-clip:padding-box}
+::-webkit-scrollbar-corner{background:transparent}
 body{background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,sans-serif;font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
 .num{font-variant-numeric:tabular-nums}
 .app{display:flex;min-height:100vh;align-items:flex-start}
