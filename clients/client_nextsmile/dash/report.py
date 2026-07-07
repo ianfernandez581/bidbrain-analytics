@@ -492,7 +492,11 @@ def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json
     """One Gemini generateContent call (REST). Key goes in the x-goog-api-key HEADER, never the URL,
     so it can't leak into an httpx error string or a log. Returns (text, grounding_sources)."""
     import httpx
-    gen = {"maxOutputTokens": max_tokens, "temperature": 0.4}
+    # gemini-2.5-* are THINKING models: reasoning tokens draw from the SAME output budget, so a
+    # small maxOutputTokens is eaten by thinking and the JSON truncates mid-string (finishReason
+    # MAX_TOKENS, surfaced as "Unterminated string"). Bound thinking + give the output headroom.
+    gen = {"maxOutputTokens": max_tokens, "temperature": 0.4,
+           "thinkingConfig": {"thinkingBudget": 4096}}
     if json_mode:
         gen["responseMimeType"] = "application/json"
     body = {
@@ -511,6 +515,8 @@ def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json
     if not cands:
         raise RuntimeError("Gemini returned no candidates (possibly blocked)")
     cand = cands[0]
+    if json_mode and cand.get("finishReason") == "MAX_TOKENS":
+        raise RuntimeError("Gemini output hit the token limit (truncated JSON) - raise maxOutputTokens")
     parts = ((cand.get("content") or {}).get("parts") or [])
     text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
     sources = []
@@ -529,16 +535,16 @@ def _gemini_report(brief):
                     "drivers, recommended actions, sources used) per your instructions.")
     try:
         notes, raw_sources = _gemini_generate(model, key, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
-                                              max_tokens=6000, grounding=True)
+                                              max_tokens=16000, grounding=True)
     except Exception:  # noqa: BLE001 — grounding may be unavailable; degrade to no live web
         notes, raw_sources = _gemini_generate(model, key, GEMINI_STAGE_A_SYSTEM,
-                                              brief + research_msg, max_tokens=6000, grounding=False)
+                                              brief + research_msg, max_tokens=16000, grounding=False)
     sources = _sanitize_sources(raw_sources)
     src_lines = "\n".join(f"[{i}] {s['title']} :: {s['url']}" for i, s in enumerate(sources)) or "(none found)"
     user = (brief + "\n\n## ANALYST RESEARCH NOTES (Stage A)\n" + (notes or "(no notes produced)")
             + "\n\n## SOURCE URL LIST (the only URLs that exist; 0-based indices for source_index)\n"
             + src_lines + "\n\nReturn the report JSON.")
-    text, _ = _gemini_generate(model, key, STAGE_B_SYSTEM, user, max_tokens=8192, json_mode=True)
+    text, _ = _gemini_generate(model, key, STAGE_B_SYSTEM, user, max_tokens=24000, json_mode=True)
     try:
         report = json.loads(text)
     except Exception as e:  # noqa: BLE001
