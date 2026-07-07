@@ -113,18 +113,20 @@ The per-market Q2 totals reconcile to the Q2 media-plan sheet (total **3216**). 
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
 
 **Q3 FY26 targets (added 2026-07-07).** Q3 rows appended for the 14 week-start Mondays
-`2026-06-29 → 2026-09-28` (grand total now 3468; Q2 rows untouched). The client's Q3 file
+`2026-06-29 → 2026-09-28` (grand total now 5660; Q2 rows untouched). The client's Q3 file
 (`targets/real_targets Q3.xlsx`) is a paid-media **activation plan**, NOT a weekly × tier CS
-pacing table like the Q2 Snowflake source — so Q3 was built from the plan's **LinkedIn per-region
-Commit Leads (252)**: ANZ 60 → AU 54 / NZ 6 (split by the Q2 90/10 ratio), ASEAN 80 → SIM 48 /
-RoA 32 (plan's stated 60/40), SAARC 59, GCR-HK 11, JP 42; GCR-CN/GCR-TW/KR/RIG = 0 (RIG folded
-into ANZ LinkedIn in Q3). **Single tier** (`Tier 2`) — the plan has no Tier 2/Tier 3 split —
-and each quarter total spread **evenly across the 14 weeks** (largest-remainder integer split).
-The dashboard's active quarter was rolled Q2→Q3 (default range = full Q3, all "Q2" labels → "Q3";
-`Q3_START`/`Q3_END` in `dash/dashboard.html`). **Note:** 252 is much smaller than Q2's 3216
-because it's the LinkedIn commit-lead plan, not CS 2-touch-MQL volume — reconfirm with the client
-if a CS-MQL target is wanted instead (the plan only carries that at APAC+JP aggregate, no market
-split). The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (no Q3 supplied).
+pacing table like the Q2 Snowflake source. The CS ("Double Touch MQL") target = the plan's
+**Precision + Conversion "2 Touch MQL" programs = 2444** (APAC 2200 + JP 244) — NOT the
+Persuasion **Commit Leads (252)**, which are the separate *paid-media* LinkedIn/YouTube lead-gen
+motion (that's the Paid Media tab, not CS). The plan gives CS only at APAC+JP aggregate (no
+per-market/tier split), so Q3 per-market×tier = the client's **actual Q2 CS mix scaled by
+2444/3216 = 0.760** — which reconciles *exactly* to the plan's APAC 2200 / JP 244. This preserves
+Q2's market and Tier 2/Tier 3 structure; each combo is spread **evenly across the 14 weeks**
+(largest-remainder integer split). Resulting per-market: AU 874 / NZ 97 / SIM 289 / RoA 125 /
+SAARC 215 / GCR-CN 81 / GCR-TW 80 / GCR-HK 155 / KR 153 / RIG 131 / JP 244. The dashboard's active
+quarter was rolled Q2→Q3 (default range = full Q3, all "Q2" labels → "Q3"; `Q3_START`/`Q3_END` in
+`dash/dashboard.html`). If the client later supplies a real per-market Q3 CS split, replace the
+scaled figures. The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (no Q3 supplied).
 
 **Since `.venv` may be broken / ADC unauthed, reload the seed with `bq` (gcloud creds, no venv) —
 `bq load` of ONLY `real_targets` is safer than `seed_static.py`, which also loads the gitignored
