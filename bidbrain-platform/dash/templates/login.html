@@ -60,27 +60,36 @@
   .msbtn:active{transform:translateY(1px)}
   .msbtn svg{display:block;flex:0 0 auto}
 
-  /* ===== Brief → Results animated background (decorative; behind the card) ===== */
+  /* ===== Brief → Results background + cursor glow (decorative; behind the card) ===== */
   #bb-stage{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
-  .card{z-index:20}
+  .card{z-index:20;transition:box-shadow .25s ease}
+  /* cursor glow: green + blue blend, rests top-centre, eases to the cursor after first move */
+  .bb-cursor-glow{position:fixed;top:0;left:0;width:520px;height:520px;z-index:1;pointer-events:none;
+            border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
+            background:radial-gradient(circle, rgba(61,220,132,.11) 0%, rgba(61,220,132,.04) 32%, transparent 68%),
+                       radial-gradient(circle, rgba(79,140,255,.12) 0%, rgba(79,140,255,.05) 40%, transparent 72%)}
   .bb-token{position:absolute;left:0;top:0;white-space:nowrap;font-weight:600;
-            padding:6px 12px;border-radius:8px;will-change:transform,opacity;pointer-events:none;opacity:0}
+            padding:6px 12px;border-radius:8px;will-change:transform,opacity;pointer-events:none;opacity:0;
+            transition:text-shadow .2s ease,color .2s ease,border-color .2s ease}
   .bb-token.in{font-size:14px;color:#e8edf7;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10)}
+  .bb-token.in.lit{color:#eafff3;border-color:rgba(61,220,132,.55);text-shadow:0 0 10px rgba(61,220,132,.7)}
   .bb-token.out{font-size:22px;font-weight:700;color:#eafff3;background:rgba(61,220,132,.16);
             border:1px solid rgba(61,220,132,.65);padding:10px 22px;border-radius:12px;
             text-shadow:0 0 8px rgba(61,220,132,.95),0 0 20px rgba(61,220,132,.7);
             box-shadow:0 0 22px 4px rgba(61,220,132,.55),0 0 45px 10px rgba(61,220,132,.30),inset 0 0 14px rgba(61,220,132,.25)}
+  /* pulse on output release: dim blue (matches the accent), layered over the card's base shadow */
   @keyframes bbCardPulse{
     0%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)}
-    50%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08),0 0 60px 14px rgba(61,220,132,.85)}
+    50%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08),0 0 34px 5px rgba(79,140,255,.5)}
     100%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)}}
   .card.bb-pulse{animation:bbCardPulse .6s ease}
-  /* NB: keep the space between the brace and the hash below — a brace immediately followed by a hash is a Jinja comment-open and breaks template compile */
-  @media (prefers-reduced-motion:reduce){ #bb-stage{display:none} }
+  /* keep the space after the brace below — a brace directly followed by a hash is a Jinja comment-open */
+  @media (prefers-reduced-motion:reduce){ #bb-stage{display:none} .bb-cursor-glow{display:none} }
 </style>
 </head>
 <body>
   <div id="bb-stage" aria-hidden="true"></div>
+  <div class="bb-cursor-glow" id="bbGlow" aria-hidden="true"></div>
   <form class="card" method="POST" action="/login">
     <div class="logo">{{ logo_svg | safe }}</div>
     <h1>Campaign Dashboards</h1>
@@ -175,6 +184,9 @@
       "CPA ↓","CPC ↓","On-track pacing ✓"];
 
     var timers = [], outIdx = 0;
+    var glow = document.getElementById('bbGlow');
+    var CARD_BASE = '0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)';
+    var moved = false, mx = window.innerWidth/2, my = 90, gx = mx, gy = my;
 
     // #bb-stage is position:fixed inset:0, so viewport coords == stage coords.
     function bounds(){
@@ -198,6 +210,7 @@
         if (x > b.cardLeft - 10) op = Math.max(0, 1 - (x - (b.cardLeft - 10)) / 50); // fade at card's left edge
         el.style.opacity = op;
         el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+        el._x = x; el._y = y;   // viewport coords, for the cursor-proximity "lit" effect
         requestAnimationFrame(frame);
       })(performance.now());
     }
@@ -221,6 +234,7 @@
     }
 
     function pulseCard(){ card.classList.remove('bb-pulse'); void card.offsetWidth; card.classList.add('bb-pulse'); }
+    card.addEventListener('animationend', function(){ card.classList.remove('bb-pulse'); }); // let proximity glow resume
 
     function run(){
       timers.forEach(clearTimeout); timers = [];
@@ -237,6 +251,28 @@
         timers.push(setTimeout(batch, inDur + 2900));
       })();
     }
+
+    // cursor glow (green+blue blend): rests top-centre, eases toward the cursor after the first move.
+    window.addEventListener('mousemove', function(e){ moved = true; mx = e.clientX; my = e.clientY; });
+    (function loop(){
+      gx += (mx - gx) * 0.12; gy += (my - gy) * 0.12;
+      if (glow) glow.style.transform = 'translate(' + gx + 'px,' + gy + 'px) translate(-50%,-50%)';
+      // card proximity: dim blue, only after the first cursor move and never while pulsing
+      if (!card.classList.contains('bb-pulse')){
+        if (moved){
+          var cr = card.getBoundingClientRect(), ccx = cr.left + cr.width/2, ccy = cr.top + cr.height/2;
+          var prox = Math.max(0, 1 - Math.hypot(mx - ccx, my - ccy) / 420);
+          var spread = 6 + prox*12, blur = 30 + prox*25, alpha = (0.08 + prox*0.22).toFixed(2);
+          card.style.boxShadow = CARD_BASE + ', 0 0 ' + blur + 'px ' + spread + 'px rgba(79,140,255,' + alpha + ')';
+        } else { card.style.boxShadow = CARD_BASE; }
+      }
+      // input tokens light up green when the cursor is near them
+      stage.querySelectorAll('.bb-token.in').forEach(function(el){
+        if (el._x == null) return;
+        if (Math.hypot(mx - el._x, my - el._y) < 120) el.classList.add('lit'); else el.classList.remove('lit');
+      });
+      requestAnimationFrame(loop);
+    })();
 
     var rt;
     window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(run, 200); });

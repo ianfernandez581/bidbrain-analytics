@@ -134,6 +134,26 @@
 </style>
 </head>
 <body>
+  <!-- cursor glow: subtle green+blue light that follows the cursor (decorative, non-interactive) -->
+  <style>
+    .bb-cursor-glow{position:fixed;top:0;left:0;width:520px;height:520px;z-index:9990;pointer-events:none;
+      border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
+      background:radial-gradient(circle, rgba(61,220,132,.10) 0%, rgba(61,220,132,.04) 32%, transparent 68%),
+                 radial-gradient(circle, rgba(79,140,255,.11) 0%, rgba(79,140,255,.05) 40%, transparent 72%)}
+    @media (prefers-reduced-motion:reduce){ .bb-cursor-glow{display:none} }
+  </style>
+  <div class="bb-cursor-glow" id="bbGlow" aria-hidden="true"></div>
+  <script>
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var glow = document.getElementById('bbGlow'); if (!glow) return;
+    var mx = window.innerWidth/2, my = 90, gx = mx, gy = my;
+    window.addEventListener('mousemove', function(e){ mx = e.clientX; my = e.clientY; });
+    (function loop(){ gx += (mx-gx)*0.12; gy += (my-gy)*0.12;
+      glow.style.transform = 'translate(' + gx + 'px,' + gy + 'px) translate(-50%,-50%)';
+      requestAnimationFrame(loop); })();
+  })();
+  </script>
   {# reusable password field: masked value + reveal/copy + a Change/Set button #}
   {% macro pwfield(kind, id, value, present) %}
   <div class="pwline">
