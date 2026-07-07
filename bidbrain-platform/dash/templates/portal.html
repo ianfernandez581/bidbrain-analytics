@@ -347,17 +347,19 @@
       return { left:r.left, right:r.right, cx:r.left + r.width/2, cy:r.top + r.height/2, W:window.innerWidth };
     }
     function spawnInput(text){
-      var b = bounds(), startX = -110, endX = b.cx, y = b.cy - 10;
+      var b = bounds(), startX = -110, y = b.cy - 10;
       var el = document.createElement('div');
       el.className = 'bbh-token in'; el.textContent = text; stage.appendChild(el);
+      // stop just before the hero's LEFT edge (token width included) so a word never travels behind the logo
+      var endX = b.left - 16 - el.offsetWidth;
       var start = performance.now();
       (function f(now){
         var t = (now - start) / IN_DUR;
         if (t > 1){ el.remove(); return; }
         var e = 1 - Math.pow(1 - t, 2), x = startX + (endX - startX) * e;
         var op = 1;
-        if (t < 0.15) op = t / 0.15;
-        if (x > b.left - 8) op = Math.max(0, 1 - (x - (b.left - 8)) / 40); // fade out before the hero's left edge
+        if (t < 0.15) op = t / 0.15;                          // fade in
+        else if (t > 0.55) op = Math.max(0, (1 - t) / 0.45);  // fade out quicker — gone as it reaches the edge
         el.style.opacity = op;
         el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
         requestAnimationFrame(f);

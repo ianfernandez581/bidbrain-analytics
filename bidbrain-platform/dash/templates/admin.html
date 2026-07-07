@@ -230,13 +230,7 @@
       <span id="bbsyncall-msg" class="bbmuted" role="status" aria-live="polite"></span>
     </div>
 
-    {% if tools %}
-    <div style="display:flex;align-items:baseline;gap:10px;margin:18px 0 10px">
-      <span style="font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text)">Tools</span>
-      <span class="bbmuted" style="font-size:12px">internal — staff-only</span>
-    </div>
-    {% endif %}
-    {% include "_tools_tile.html" %}
+    {# Tools (The Grid) intentionally omitted here — internal tools live in the super-admin console only. #}
 
     <div class="toolbar">
       <div class="search">
