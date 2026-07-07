@@ -25,7 +25,7 @@ const dbmod = require('./db');
 
 const HAS_ANTHROPIC = !!process.env.ANTHROPIC_API_KEY;
 const HAS_LLAMA = !!process.env.LLAMA_CLOUD_API_KEY;
-const CLAUDE_MODEL = process.env.BRAIN_CLAUDE_MODEL || 'claude-opus-4-6';
+const CLAUDE_MODEL = process.env.BRAIN_CLAUDE_MODEL || 'claude-opus-4-8';
 const CHANNELS = ['TV', 'Print', 'OOH', 'Radio', 'Digital', 'Meta', 'LinkedIn', 'Trade Desk', 'Google Ads', 'DV360', 'Reddit', 'Other'];
 const uuid = () => crypto.randomUUID();
 
@@ -48,14 +48,19 @@ async function parseFile(fileId) {
 
     // Stage 3 — structured extraction
     const kpiObj = loadKpiObject(file.client_id);
-    const extraction = HAS_ANTHROPIC
-      ? await claudeExtract(raw.text, file, kpiObj)
-      : heuristicExtract(raw, file);
+    // A PDF with no LlamaParse key but an Anthropic key: Claude reads the PDF
+    // natively as a base64 document block — no LlamaParse required.
+    const nativePdf = raw.mock && file.file_type === 'pdf' && HAS_ANTHROPIC;
+    let extraction;
+    if (nativePdf) extraction = await claudePdfExtract(file, kpiObj);
+    else if (HAS_ANTHROPIC) extraction = await claudeExtract(raw.text, file, kpiObj);
+    else extraction = heuristicExtract(raw, file);
     dbmod.updateJobRaw(jobId, 'extraction_raw', JSON.stringify(extraction).slice(0, 200000));
     dbmod.updateJobProgress(jobId, 'verifying', 50);
 
-    // Stage 4 — challenger verification
-    const verification = HAS_ANTHROPIC
+    // Stage 4 — challenger verification (Claude challenger needs source text;
+    // the native-PDF path has none, so it uses the deterministic rule verifier).
+    const verification = (HAS_ANTHROPIC && !raw.mock)
       ? await claudeVerify(raw.text, extraction.campaigns, file)
       : ruleVerify(extraction, file);
     dbmod.updateJobRaw(jobId, 'verification_raw', JSON.stringify(verification).slice(0, 200000));
@@ -88,8 +93,13 @@ async function getRawText(file, jobId) {
   if (ext === 'csv') return csvToTables(file.local_path);
   if (ext === 'pdf' || ext === 'pptx' || ext === 'docx') {
     if (HAS_LLAMA) return { text: await llamaParse(file.local_path, file.filename), tables: [] };
-    // offline mock: cannot truly read the binary; surface a labelled placeholder
-    return { text: `[MOCK PARSE — no LLAMA_CLOUD_API_KEY set]\nDocument: ${file.filename}\nAdd LLAMA_CLOUD_API_KEY to .env to parse ${ext.toUpperCase()} files for real.`, tables: [], mock: true };
+    // offline mock: cannot truly read the binary here. NOTE: for PDFs, if
+    // ANTHROPIC_API_KEY is set the caller routes to claudePdfExtract() instead of
+    // using this text (Claude reads the PDF natively — no LlamaParse needed).
+    var hint = ext === 'pdf'
+      ? 'Set ANTHROPIC_API_KEY (Claude reads PDFs natively) or LLAMA_CLOUD_API_KEY to parse this PDF for real.'
+      : `Set LLAMA_CLOUD_API_KEY to parse ${ext.toUpperCase()} files for real.`;
+    return { text: `[MOCK PARSE]\nDocument: ${file.filename}\n${hint}`, tables: [], mock: true };
   }
   throw new Error(`Unsupported file type: ${ext}`);
 }
@@ -169,6 +179,34 @@ Only use the channel vocabulary: ${CHANNELS.join(', ')}. Dates must be YYYY-MM-D
   }), 60000);
   const use = msg.content.find(c => c.type === 'tool_use');
   return use ? use.input : { campaigns: [], document_summary: '', totals_reported: {}, extraction_notes: 'no tool output' };
+}
+
+// Native-PDF extraction: send the PDF to Claude as a base64 document block
+// (no beta header; 32MB / 600-page limits) and force the same extraction tool.
+// This is the "PDF parses for real with only ANTHROPIC_API_KEY" path.
+async function claudePdfExtract(file, kpiObj) {
+  const Anthropic = require('@anthropic-ai/sdk');
+  const client = new Anthropic();
+  const b64 = fs.readFileSync(file.local_path).toString('base64'); // no newlines
+  const sys = `You extract campaign-level historical media data from a marketing PDF into strict JSON.
+Client: ${file.client_id}. KPI context: ${kpiObj ? JSON.stringify(kpiObj.primary_kpi) : 'n/a'}.
+Channel hint from uploader: ${file.channel_hint || 'auto-detect'}.
+Only use the channel vocabulary: ${CHANNELS.join(', ')}. Dates must be YYYY-MM-DD. Never invent numbers not present in the document. Use the page/table as the source_citation.`;
+  const msg = await withTimeout(client.messages.create({
+    model: CLAUDE_MODEL, max_tokens: 4096, system: sys,
+    tools: [{ name: 'emit', description: 'Emit the extracted campaigns.', input_schema: extractionSchema() }],
+    tool_choice: { type: 'tool', name: 'emit' },
+    messages: [{
+      role: 'user', content: [
+        { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: b64 } },
+        { type: 'text', text: 'Extract every campaign flight from this media plan PDF.' }
+      ]
+    }]
+  }), 90000);
+  const use = msg.content.find(c => c.type === 'tool_use');
+  var out = use ? use.input : { campaigns: [], document_summary: '', totals_reported: {}, extraction_notes: 'no tool output' };
+  out._mode = 'claude_pdf';
+  return out;
 }
 
 async function claudeVerify(text, campaigns, file) {
@@ -374,4 +412,4 @@ function verificationSchema() {
   };
 }
 
-module.exports = { parseFile, HAS_ANTHROPIC, HAS_LLAMA, _heuristicExtract: heuristicExtract, _parseDate: parseDate };
+module.exports = { parseFile, HAS_ANTHROPIC, HAS_LLAMA, _heuristicExtract: heuristicExtract, _parseDate: parseDate, _claudePdfExtract: claudePdfExtract };
