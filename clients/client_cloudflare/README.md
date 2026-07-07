@@ -112,8 +112,10 @@ the 11 market codes. To change targets:
 The per-market Q2 totals reconcile to the Q2 media-plan sheet (total **3216**). `tiers.csv`
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
 
-**Q3 FY26 targets (added 2026-07-07).** Q3 rows appended for the 14 week-start Mondays
-`2026-06-29 → 2026-09-28` (grand total now 5660; Q2 rows untouched). The client's Q3 file
+**Q3 FY26 targets (added 2026-07-07).** Q3 rows appended for the 13 week-start Mondays inside
+calendar Q3, `2026-07-06 → 2026-09-28` (grand total now 5660; Q2 rows untouched). Aligned to
+calendar Q3 (`07-01 → 09-30`) so the quarter chips, the QoQ view and the pacing model all share
+one quarter definition. The client's Q3 file
 (`targets/real_targets Q3.xlsx`) is a paid-media **activation plan**, NOT a weekly × tier CS
 pacing table like the Q2 Snowflake source. The CS ("Double Touch MQL") target = the plan's
 **Precision + Conversion "2 Touch MQL" programs = 2444** (APAC 2200 + JP 244) — NOT the

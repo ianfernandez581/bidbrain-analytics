@@ -964,14 +964,13 @@ let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{..
 const ALL_MARKETS = ['AU','NZ','SIM','ROA','SAARC','GCR-CN','GCR-TW','GCR-HK','KR','RIG','JP'];
 // Display label for a market code (only 'ROA' differs from its code -> 'RoA').
 const mktLabel = m => m === 'ROA' ? 'RoA' : m;
-// Active quarter = Q3 FY26. The pacing "Time %" gauge anchors to the calendar quarter;
-// the default view range starts on the Monday of the week containing Jul 1 (the first Q3
-// target week, mirroring Q2's 2026-03-30 week-of-quarter start) and spans the full quarter
-// so the whole-quarter target shows with to-date pacing.
+// Active quarter = Q3 FY26 (calendar quarter). Q3_START/Q3_END anchor the pacing "Time %" gauge;
+// Q3_END_ISO extends the date-picker horizon in boot() so the whole-quarter target (weekly target
+// dummies out to 2026-09-28) stays selectable before live data reaches quarter-end. The default
+// view range is driven by the Q2/Q3 quarter chips (quarterSpan), not a hardcoded start.
 const Q3_START = new Date('2026-07-01T00:00:00Z');
 const Q3_END   = new Date('2026-09-30T23:59:59Z');
-const Q3_RANGE_START = '2026-06-29';   // first Q3 target week-start Monday
-const Q3_END_ISO     = '2026-09-30';
+const Q3_END_ISO = '2026-09-30';
 
 // CS lead-status buckets (Salesforce LEAD_STATUS -> dashboard category).
 // "Accepted" spans Accepted/Replied/Unresponsive (all post-acceptance states);
