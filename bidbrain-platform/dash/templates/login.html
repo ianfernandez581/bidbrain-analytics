@@ -59,9 +59,27 @@
   .msbtn:hover{background:#f8f9fa;box-shadow:0 1px 3px rgba(0,0,0,.25)}
   .msbtn:active{transform:translateY(1px)}
   .msbtn svg{display:block;flex:0 0 auto}
+
+  /* ===== Brief → Results animated background (decorative; behind the card) ===== */
+  #bb-stage{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+  .card{z-index:20}
+  .bb-token{position:absolute;left:0;top:0;white-space:nowrap;font-weight:600;
+            padding:6px 12px;border-radius:8px;will-change:transform,opacity;pointer-events:none;opacity:0}
+  .bb-token.in{font-size:14px;color:#e8edf7;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10)}
+  .bb-token.out{font-size:22px;font-weight:700;color:#eafff3;background:rgba(61,220,132,.16);
+            border:1px solid rgba(61,220,132,.65);padding:10px 22px;border-radius:12px;
+            text-shadow:0 0 8px rgba(61,220,132,.95),0 0 20px rgba(61,220,132,.7);
+            box-shadow:0 0 22px 4px rgba(61,220,132,.55),0 0 45px 10px rgba(61,220,132,.30),inset 0 0 14px rgba(61,220,132,.25)}
+  @keyframes bbCardPulse{
+    0%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)}
+    50%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08),0 0 60px 14px rgba(61,220,132,.85)}
+    100%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)}}
+  .card.bb-pulse{animation:bbCardPulse .6s ease}
+  @media (prefers-reduced-motion:reduce){#bb-stage{display:none}}
 </style>
 </head>
 <body>
+  <div id="bb-stage" aria-hidden="true"></div>
   <form class="card" method="POST" action="/login">
     <div class="logo">{{ logo_svg | safe }}</div>
     <h1>Campaign Dashboards</h1>
@@ -139,5 +157,90 @@
   });
   </script>
   {% endif %}
+  <script>
+  /* Brief → Results background: raw campaign-brief words stream in from the left,
+     the card "processes" them (green pulse), one glowing metric emerges on the right.
+     Decorative + aria-hidden; disabled under prefers-reduced-motion. */
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var stage = document.getElementById('bb-stage');
+    var card  = document.querySelector('form.card');
+    if (!stage || !card) return;
+
+    var INPUTS = ["Campaign name","Client","Primary market","Start date","End date","Duration",
+      "Budget","Amount","Currency","Primary KPI","Goal","Objective","Audience","Channels",
+      "Dates","Market","Reach target","Creative"];
+    var OUTPUTS = ["ROAS ↑","Conversions ↑","Revenue ↑","CTR ↑","Reach ↑",
+      "CPA ↓","CPC ↓","On-track pacing ✓"];
+
+    var timers = [], outIdx = 0;
+
+    // #bb-stage is position:fixed inset:0, so viewport coords == stage coords.
+    function bounds(){
+      var c = card.getBoundingClientRect();
+      return { cardLeft:c.left, cardRight:c.right, cardCX:c.left+c.width/2, cardCY:c.top+c.height/2,
+               W:window.innerWidth, H:window.innerHeight };
+    }
+
+    function spawnInput(text, anchorY, dur){
+      var b = bounds(), startX = -140;
+      var el = document.createElement('div');
+      el.className = 'bb-token in'; el.textContent = text; stage.appendChild(el);
+      var start = performance.now(), endX = b.cardCX, endY = b.cardCY - 12;
+      (function frame(now){
+        var t = (now - start) / dur;
+        if (t > 1){ el.remove(); return; }
+        var e = 1 - Math.pow(1 - t, 2);
+        var x = startX + (endX - startX) * e, y = anchorY + (endY - anchorY) * e;
+        var op = 1;
+        if (t < 0.12) op = t / 0.12;
+        if (x > b.cardLeft - 10) op = Math.max(0, 1 - (x - (b.cardLeft - 10)) / 50); // fade at card's left edge
+        el.style.opacity = op;
+        el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+        requestAnimationFrame(frame);
+      })(performance.now());
+    }
+
+    function spawnOutput(text, dur){
+      var b = bounds();
+      var el = document.createElement('div');
+      el.className = 'bb-token out'; el.textContent = text; stage.appendChild(el);
+      var startX = b.cardRight - 30, endX = b.W + 160, y = b.cardCY - 20, start = performance.now();
+      (function frame(now){
+        var t = (now - start) / dur;
+        if (t > 1){ el.remove(); return; }
+        var e = 1 - Math.pow(1 - t, 2), x = startX + (endX - startX) * e;
+        var op = 1;
+        if (t < 0.10) op = t / 0.10;
+        if (t > 0.78) op = Math.max(0, (1 - t) / 0.22);
+        el.style.opacity = op;
+        el.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + (0.9 + 0.1*Math.min(1, t*3)) + ')';
+        requestAnimationFrame(frame);
+      })(performance.now());
+    }
+
+    function pulseCard(){ card.classList.remove('bb-pulse'); void card.offsetWidth; card.classList.add('bb-pulse'); }
+
+    function run(){
+      timers.forEach(clearTimeout); timers = [];
+      stage.querySelectorAll('.bb-token').forEach(function(e){ e.remove(); });
+      var inDur = 3400;
+      (function batch(){
+        var b = bounds(), lanes = [b.H*0.15, b.cardCY-12, b.H*0.85];
+        for (var k=0; k<9; k++){
+          var text = INPUTS[(outIdx*9 + k) % INPUTS.length];
+          var lane = lanes[k%3] + (Math.random()*40 - 20);
+          timers.push(setTimeout((function(tx,ly){ return function(){ spawnInput(tx, ly, inDur); }; })(text, lane), k*200));
+        }
+        timers.push(setTimeout(function(){ pulseCard(); spawnOutput(OUTPUTS[outIdx % OUTPUTS.length], 3600); outIdx++; }, inDur-100));
+        timers.push(setTimeout(batch, inDur + 2900));
+      })();
+    }
+
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(run, 200); });
+    run();
+  })();
+  </script>
 </body>
 </html>
