@@ -99,6 +99,38 @@
   @keyframes sspin{to{transform:rotate(360deg)}}
   .smsg{font-size:12px;color:var(--muted);margin-top:14px;min-height:16px;line-height:1.4}
   .smsg.err{color:#fca5a5}
+  /* ── on-screen deck preview (rendered from the report JSON the deck is built from) ── */
+  .scard.wide{max-width:760px}
+  .spreview{margin:2px 0 16px;max-height:56vh;overflow:auto;border-radius:12px;padding-right:2px}
+  .spreview[hidden]{display:none}
+  .deckwrap{display:flex;flex-direction:column;gap:12px}
+  .dslide{border-radius:11px;padding:16px 18px;overflow:hidden;position:relative;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .dslide.cover{aspect-ratio:16/9;display:flex;flex-direction:column;justify-content:center}
+  .deyebrow{font-size:9px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase}
+  .dhead{font-size:21px;font-weight:800;line-height:1.16;margin:9px 0 7px}
+  .cover .dsub{font-size:11px;opacity:.82;letter-spacing:.5px}
+  .dstatus{margin-top:13px;align-self:flex-start;font-size:9px;font-weight:800;letter-spacing:1px;
+           text-transform:uppercase;padding:4px 10px;border-radius:20px}
+  .dnum{font-size:9px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.72}
+  .dstitle{font-size:15px;font-weight:800;margin:1px 0 7px}
+  .dsum{font-size:11px;line-height:1.45;margin-bottom:9px}
+  .kgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px}
+  @media (max-width:560px){ .kgrid{grid-template-columns:repeat(2,1fr)} }
+  .kcard{border-radius:7px;padding:8px 9px;border-left:3px solid}
+  .klabel{font-size:7.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase}
+  .kval{font-size:16px;font-weight:800;line-height:1.05;margin:3px 0 2px}
+  .kdet{font-size:8px;line-height:1.32}
+  .drow{display:flex;gap:9px;padding:8px 0;border-top:1px solid}
+  .drow:first-child{border-top:0}
+  .dbadge{flex:none;width:19px;height:19px;border-radius:5px;display:flex;align-items:center;
+          justify-content:center;font-size:10px;font-weight:800;color:#fff}
+  .dtxt{flex:1;min-width:0}
+  .drt{font-size:11.5px;font-weight:800;display:flex;gap:6px;align-items:baseline}
+  .dpill{font-size:7.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;padding:2px 6px;border-radius:11px;border:1px solid}
+  .drx{font-size:9.5px;line-height:1.38;margin-top:2px}
+  .dev{font-size:8px;line-height:1.3;margin-top:3px}
+  .dev b{letter-spacing:.6px}
+  .dsrc{font-size:8px;line-height:1.45;margin-top:9px;padding-top:7px;border-top:1px solid;opacity:.85}
 </style>
 </head>
 <body>
@@ -163,6 +195,7 @@
       <div class="stitle" id="sTitle">Slide deck</div>
       <div class="ssub">Cover · What happened · Why · Recommended actions — branded for this client, full flight.</div>
       <div id="sBusy" class="sspin"><i></i><span>Building your deck…</span></div>
+      <div id="sPreview" class="spreview" hidden></div>
       <div id="sReady" class="sactions" hidden>
         {% if google_client_id %}<button id="sGoogle" class="sbtn primary" type="button">↗&nbsp; Open in Google Slides</button>{% endif %}
         <button id="sDownload" class="sbtn" type="button">⬇&nbsp; Download .pptx</button>
@@ -181,10 +214,75 @@
   var GOOGLE_CLIENT_ID = {{ google_client_id|tojson }};
   (function(){
     var modal = document.getElementById('slidesModal');
+    var scard = modal.querySelector('.scard');
     var elBusy = document.getElementById('sBusy'), elReady = document.getElementById('sReady');
+    var elPreview = document.getElementById('sPreview');
     var elTitle = document.getElementById('sTitle'), elMsg = document.getElementById('sMsg');
     var btnDownload = document.getElementById('sDownload'), btnGoogle = document.getElementById('sGoogle');
-    var cur = { blob:null, fileName:null, name:'', url:null, iframe:null, onMsg:null, timer:null, done:false, btn:null };
+    var cur = { blob:null, fileName:null, name:'', url:null, iframe:null, onMsg:null, timer:null, done:false, btn:null, report:null, theme:null };
+
+    // ── on-screen deck preview, rendered from the same report JSON the .pptx is built from ──
+    function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(m){
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]; }); }
+    function hx(h, fb){ h = String(h == null ? '' : h).replace('#',''); return /^[0-9a-fA-F]{6}$/.test(h) ? '#'+h : (fb || '#888'); }
+    function clearPreview(){ elPreview.hidden = true; elPreview.innerHTML = ''; if (scard) scard.classList.remove('wide'); }
+    function renderPreview(report, theme){
+      if (!report || !theme){ clearPreview(); return; }
+      var T = theme, bg = hx(T.bg,'#0b1b26'), onDark = hx(T.onDark,'#fff'), accent = hx(T.accent,'#22c55e'),
+          lightBg = hx(T.lightBg,'#fff'), ink = hx(T.ink,'#0b1b26'), mute = hx(T.mute,'#5a6b78'), line = hx(T.line,'#e5e9ee');
+      var serif = T.serif || 'Georgia', sans = T.sans || 'Arial';
+      var S1 = report.slide1 || {}, S2 = report.slide2 || {}, S3 = report.slide3 || {};
+      var kpis = (S1.kpis || []).slice(0,6), drivers = (S2.drivers || []).slice(0,5), actions = (S3.actions || []).slice(0,5);
+      var sources = report.sources || [];
+      var STAT = { ahead:'#16a34a', on_track:'#2563eb', behind:'#dc2626', at_risk:'#d97706', mixed:'#d97706', neutral:mute };
+      var DIR = { up:['▲','#16a34a'], down:['▼','#dc2626'], flat:['■',mute], mixed:['◆','#d97706'] };
+      var PRI = { high:'#dc2626', medium:'#d97706', low:mute };
+      var light = 'background:'+lightBg+';color:'+ink;
+      var h = '<div class="deckwrap" style="font-family:'+sans+'">';
+      // cover
+      h += '<div class="dslide cover" style="background:'+bg+';color:'+onDark+'">'
+         + '<div class="deyebrow" style="color:'+accent+'">'+esc(T.brand || T.client || '')+'</div>'
+         + '<div class="dhead" style="font-family:'+serif+'">'+esc(report.headline || (T.client||'Campaign')+' report')+'</div>'
+         + '<div class="dsub">'+esc([T.client, report.campaign_type].filter(Boolean).join(' · '))+'</div>';
+      if (report.overall_status){ var sc = STAT[report.overall_status] || mute;
+        h += '<span class="dstatus" style="background:'+sc+'22;color:'+sc+';border:1px solid '+sc+'">'+esc(String(report.overall_status).replace(/_/g,' '))+'</span>'; }
+      h += '</div>';
+      // slide 1 — what happened
+      h += '<div class="dslide" style="'+light+'"><div class="dnum" style="color:'+accent+'">01 · What happened?</div>';
+      if (S1.summary) h += '<div class="dsum">'+esc(S1.summary)+'</div>';
+      if (kpis.length){ h += '<div class="kgrid">';
+        kpis.forEach(function(k){ var c = STAT[k.status] || mute;
+          h += '<div class="kcard" style="background:'+bg+'0a;border-color:'+c+'">'
+             + '<div class="klabel" style="color:'+mute+'">'+esc(k.label)+'</div>'
+             + '<div class="kval" style="font-family:'+serif+';color:'+ink+'">'+esc(k.value)+'</div>'
+             + '<div class="kdet" style="color:'+mute+'">'+esc(k.detail)+'</div></div>'; });
+        h += '</div>'; }
+      h += '</div>';
+      // slide 2 — why
+      h += '<div class="dslide" style="'+light+'"><div class="dnum" style="color:'+accent+'">02 · Why did it happen?</div>';
+      if (S2.summary) h += '<div class="dsum">'+esc(S2.summary)+'</div>';
+      drivers.forEach(function(d,i){ var dr = DIR[d.direction] || DIR.flat;
+        h += '<div class="drow" style="border-color:'+line+'">'
+           + '<div class="dbadge" style="background:'+bg+'">'+(i+1)+'</div><div class="dtxt">'
+           + '<div class="drt" style="color:'+ink+'"><span style="color:'+dr[1]+'">'+dr[0]+'</span>'+esc(d.title)+'</div>'
+           + '<div class="drx" style="color:'+ink+'">'+esc(d.explanation)+'</div>'
+           + (d.evidence ? '<div class="dev" style="color:'+mute+'"><b>EVIDENCE</b> '+esc(d.evidence)+'</div>' : '')
+           + '</div></div>'; });
+      if (sources.length){ h += '<div class="dsrc" style="color:'+mute+';border-color:'+line+'"><b>SOURCES</b> '
+           + sources.slice(0,8).map(function(s,i){ return '['+(i+1)+'] '+esc(s.title); }).join('&nbsp;&nbsp; ')+'</div>'; }
+      h += '</div>';
+      // slide 3 — actions
+      h += '<div class="dslide" style="'+light+'"><div class="dnum" style="color:'+accent+'">03 · Recommended actions</div>';
+      if (S3.summary) h += '<div class="dsum">'+esc(S3.summary)+'</div>';
+      actions.forEach(function(a,i){ var pc = PRI[a.priority] || mute;
+        h += '<div class="drow" style="border-color:'+line+'">'
+           + '<div class="dbadge" style="background:'+pc+'">'+(i+1)+'</div><div class="dtxt">'
+           + '<div class="drt" style="color:'+ink+'">'+esc(a.title)
+           + (a.priority ? ' <span class="dpill" style="color:'+pc+';border-color:'+pc+'">'+esc(a.priority)+'</span>' : '')+'</div>'
+           + '<div class="drx" style="color:'+ink+'">'+esc(a.rationale)+'</div></div></div>'; });
+      h += '</div></div>';
+      elPreview.innerHTML = h; elPreview.hidden = false; if (scard) scard.classList.add('wide'); elPreview.scrollTop = 0;
+    }
 
     function setMsg(t, err){ elMsg.textContent = t || ''; elMsg.classList.toggle('err', !!err); }
     function resetTile(){ if (cur.btn){ cur.btn.classList.remove('busy'); delete cur.btn.dataset.busy; cur.btn.textContent = cur.btn.dataset.orig || '📊 Open slides'; } }
@@ -194,12 +292,13 @@
       if (cur.iframe){ try { cur.iframe.remove(); } catch(e){} cur.iframe = null; }
     }
     function closeModal(){
-      modal.hidden = true; teardownIframe(); resetTile();
+      modal.hidden = true; teardownIframe(); resetTile(); clearPreview();
       if (cur.url){ try { URL.revokeObjectURL(cur.url); } catch(e){} cur.url = null; }
-      cur.blob = null; cur.fileName = null; cur.done = false; cur.btn = null;
+      cur.blob = null; cur.fileName = null; cur.done = false; cur.btn = null; cur.report = null; cur.theme = null;
     }
-    function showBusy(){ elBusy.hidden = false; elReady.hidden = true; setMsg(''); }
+    function showBusy(){ elBusy.hidden = false; elReady.hidden = true; clearPreview(); setMsg(''); }
     function showReady(){ elBusy.hidden = true; elReady.hidden = false; setMsg('');
+      renderPreview(cur.report, cur.theme);
       if (btnGoogle) btnGoogle.disabled = false; btnDownload.disabled = false; }
 
     function doDownload(){
@@ -274,6 +373,7 @@
         var d = e.data || {}; if (!d.__bbslides) return;
         if (d.status === 'done'){
           cur.done = true; cur.blob = d.blob || null; cur.fileName = d.fileName || (name + '.pptx');
+          cur.report = d.report || null; cur.theme = d.theme || null;
           teardownIframe(); resetTile();
           if (!cur.blob){ elBusy.hidden = true; setMsg('The deck came back empty - please try again.', true); return; }
           showReady();

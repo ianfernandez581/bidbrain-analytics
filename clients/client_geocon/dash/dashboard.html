@@ -1055,7 +1055,7 @@ async function bbHeadlessSlides(){
   try{const payload=buildReportPayload();const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
     if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){}throw new Error('HTTP '+res.status+(d?' — '+d:''));}
     const report=await res.json();const logos=await bbDeckLogos();const out=await bbBuildDeck(report,payload,BB_THEME,logos,{download:false});
-    try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName},location.origin);}catch(_){}
+    try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName,report:report,theme:BB_THEME},location.origin);}catch(_){}
   }catch(e){try{parent.postMessage({__bbslides:true,status:'error',error:(e&&e.message)||String(e)},location.origin);}catch(_){}}
 }
 if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(typeof DATA!=='undefined'&&DATA&&DATA.meta&&DATA.meta.last_updated)bbHeadlessSlides();else setTimeout(bbWait,120);})();}
