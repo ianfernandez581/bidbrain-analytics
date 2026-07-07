@@ -1,0 +1,26 @@
+{
+  "client_id": "resetdata",
+  "client_name": "ResetData",
+  "primary_kpi": {
+    "id": "sql_from_target_account",
+    "label": "SQL from target account",
+    "definition": "Sales-qualified lead where account fits ICP filter",
+    "target_cost_per_kpi_aud": 1200
+  },
+  "icp_filter": {
+    "company_size": ">= 500",
+    "industry_in": ["SaaS", "AI/ML", "Fintech", "Data infrastructure"],
+    "region_in": ["APAC", "AU-NZ"]
+  },
+  "secondary_kpis": ["pipeline_created_aud", "ga4_engaged_session_icp"],
+  "guardrail_kpis": ["branded_search_volume", "direct_traffic_icp"],
+  "connected_sources": ["google_ads", "meta", "trade_desk", "reddit", "ga4", "hubspot"],
+  "raw_sources": {
+    "google_ads": "raw_google_ads.perf_google_ads",
+    "meta": "raw_windsor.perf_meta",
+    "trade_desk": "raw_snowflake.tradedesk_apac_all",
+    "reddit": "raw_windsor.perf_reddit",
+    "ga4": "raw_ga4.perf_ga4 / raw_ga4.perf_ga4_events",
+    "hubspot": "raw_windsor.hubspot_contacts / raw_windsor.hubspot_deals"
+  }
+}

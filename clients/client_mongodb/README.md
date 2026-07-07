@@ -210,6 +210,35 @@ It rebuilds automatically when new conversions land (the export job's freshness 
 > **History note:** the conversion feed starts **2026-06-01**, whereas the retired CSV seed
 > covered from May 19 — so the section no longer shows May 19–31; it went live 2026-06-17.
 
+## Margin multiplier ("spent in full")
+
+A **frontend-only** gross-up that reports paid media on the **client-billed basis** so the
+campaign shows as *spent in full*. All logic lives in `dash/dashboard.html` (search `MARGIN`) —
+**the `mongodb.json` in the bucket keeps RAW spend**, so the status-dashboard accuracy checks
+(JSON vs Snowflake) are unaffected and nothing in the pipeline changed.
+
+- **Multiplier is per campaign** (DNB / KGA-IDC), constant across the whole flight. Two modes,
+  chosen in the **Margin** control (a calculator popover next to the Date-range picker):
+  - **Spent in full** (default, `mode:'auto'`): multiplier = `gross budget ÷ actual spend`, so
+    grossed spend lands exactly on the gross budget (Calvin's MongoDB example ≈ **×1.23**).
+  - **Client margin** (`mode:'margin'`): the reusable calculator `marginToMultiplier(pct)` =
+    `1 / (1 − margin)` — a client inputs their margin %, and that drives the multiplier
+    (18.75 % ⇒ ×1.23). This is the per-client capability meant to generalise across dashboards.
+- **What's scaled:** each row's `spend_usd` is grossed once at load (stashing `_rawSpend`, so it's
+  idempotent), which propagates to every spend total, **CPM, CPC** and the charts/tables/CSV/AI-deck
+  automatically. The plan **CPM/CPC benchmarks + est-CPC are grossed by the same factor**, so the
+  vs-plan deltas stay true. **Not scaled:** impressions/clicks/leads (counts), the **gross/net budget
+  anchors**, and **content-syndication lead economics** (plan CPL / committed CS spend — a separate
+  budget line; flip `MARGIN.scaleCS:true` to include it).
+- **Turn off** in the popover to revert to raw media cost. A "Margin-adjusted ×N · Spent in full"
+  pill shows on the Paid Media tab whenever it's active, so the adjustment is never hidden.
+- Redeploy is the standard dashboard-only path: `dash/deploy_dash_mongodb.ps1` (no job/SQL change).
+
+> **Follow-up (not built here):** a *platform-wide* per-client margin store — where each client
+> inputs their margin into BidBrain once and every dashboard reads it — belongs in
+> `bidbrain-platform/` (the admin/registry), not in each dashboard. This MongoDB build is the
+> working reference: the same `marginToMultiplier()` formula + per-campaign auto fallback.
+
 ## See also
 
 - [Root README](../../README.md) — the whole-platform map, security model, and naming conventions.

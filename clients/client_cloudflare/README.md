@@ -109,8 +109,40 @@ the 11 market codes. To change targets:
 2. `.\.venv\Scripts\python.exe clients\client_cloudflare\seed_static.py` (reloads `seed_real_targets`).
 3. Run the export job with `FORCE_REBUILD=1` (a seed change is invisible to the freshness gate).
 
-The per-market Q2 totals must reconcile to the media-plan sheet (current total **3216**). `tiers.csv`
+The per-market Q2 totals reconcile to the Q2 media-plan sheet (total **3216**). `tiers.csv`
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
+
+**Q3 FY26 targets (added 2026-07-07).** Q3 rows appended for the 13 week-start Mondays inside
+calendar Q3, `2026-07-06 → 2026-09-28` (grand total now 5660; Q2 rows untouched). Aligned to
+calendar Q3 (`07-01 → 09-30`) so the quarter chips, the QoQ view and the pacing model all share
+one quarter definition. The client's Q3 file
+(`targets/real_targets Q3.xlsx`) is a paid-media **activation plan**, NOT a weekly × tier CS
+pacing table like the Q2 Snowflake source. The CS ("Double Touch MQL") target = the plan's
+**Precision + Conversion "2 Touch MQL" programs = 2444** (APAC 2200 + JP 244) — NOT the
+Persuasion **Commit Leads (252)**, which are the separate *paid-media* LinkedIn/YouTube lead-gen
+motion (that's the Paid Media tab, not CS). The plan gives CS only at APAC+JP aggregate (no
+per-market/tier split), so Q3 per-market×tier = the client's **actual Q2 CS mix scaled by
+2444/3216 = 0.760** — which reconciles *exactly* to the plan's APAC 2200 / JP 244. This preserves
+Q2's market and Tier 2/Tier 3 structure; each combo is spread **evenly across the 14 weeks**
+(largest-remainder integer split). Resulting per-market: AU 874 / NZ 97 / SIM 289 / RoA 125 /
+SAARC 215 / GCR-CN 81 / GCR-TW 80 / GCR-HK 155 / KR 153 / RIG 131 / JP 244. The dashboard's active
+quarter was rolled Q2→Q3 (default range = full Q3, all "Q2" labels → "Q3"; `Q3_START`/`Q3_END` in
+`dash/dashboard.html`). If the client later supplies a real per-market Q3 CS split, replace the
+scaled figures. The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (no Q3 supplied).
+
+**Since `.venv` may be broken / ADC unauthed, reload the seed with `bq` (gcloud creds, no venv) —
+`bq load` of ONLY `real_targets` is safer than `seed_static.py`, which also loads the gitignored
+`tiers.csv`/`line_cf.csv` and fails if `data/` is absent:**
+
+```powershell
+$env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"      # gcloud auth login first if the token expired
+bq --project_id=bidbrain-analytics --location=australia-southeast1 load `
+  --replace --source_format=CSV --skip_leading_rows=1 --allow_quoted_newlines `
+  client_cloudflare.seed_real_targets "clients/client_cloudflare/targets/real_targets.csv" `
+  WEEK:INTEGER,DATE:DATE,TIER:STRING,REGION:STRING,COUNTRY:STRING,TARGET:INTEGER
+gcloud run jobs execute cloudflare-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+```
+Then rebuild + deploy the dash service (see CLAUDE.md → *Redeploy after an edit*).
 
 ### 11 media-plan market chips + a non-displayed OTHER residual (2026-06-25 rework; KR reverted 2026-07-02)
 
