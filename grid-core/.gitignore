@@ -1,0 +1,11 @@
+# grid-core (Brain V3) — never commit these
+node_modules/
+tmp/
+data/*.db
+data/*.db-*
+.env
+
+# generated fixtures (rebuilt by make-fixtures.js)
+test-fixtures/brain-historical/*.xlsx
+test-fixtures/brain-historical/*.csv
+test-fixtures/brain-historical/*.pdf

@@ -1,0 +1,23 @@
+{
+  "stub": true,
+  "client_id": "tlm",
+  "client_name": "The Little Marionette",
+  "primary_kpi": {
+    "id": "online_purchase",
+    "label": "Online purchase",
+    "definition": "Completed e-commerce order attributed to paid media",
+    "target_cost_per_kpi_aud": 22
+  },
+  "icp_filter": {
+    "company_size": "n/a",
+    "industry_in": ["Coffee", "Specialty food & beverage"],
+    "region_in": ["AU-NZ"]
+  },
+  "secondary_kpis": ["revenue_aud", "roas"],
+  "guardrail_kpis": ["branded_search_volume", "new_customer_rate"],
+  "connected_sources": ["google_ads", "trade_desk"],
+  "raw_sources": {
+    "google_ads": "raw_google_ads.perf_google_ads",
+    "trade_desk": "raw_snowflake.tradedesk_apac_all"
+  }
+}

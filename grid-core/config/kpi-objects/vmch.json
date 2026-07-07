@@ -1,0 +1,23 @@
+{
+  "stub": true,
+  "client_id": "vmch",
+  "client_name": "VMCH",
+  "primary_kpi": {
+    "id": "ga4_enquiry_event",
+    "label": "GA4 enquiry key event",
+    "definition": "Website phone / email / contact enquiry attributed to the flight",
+    "target_cost_per_kpi_aud": 85
+  },
+  "icp_filter": {
+    "company_size": "n/a",
+    "industry_in": ["Aged care", "Retirement living", "Disability services"],
+    "region_in": ["AU-VIC"]
+  },
+  "secondary_kpis": ["ttd_attributed_conversion", "engaged_session"],
+  "guardrail_kpis": ["direct_traffic", "branded_search_volume"],
+  "connected_sources": ["trade_desk", "ga4"],
+  "raw_sources": {
+    "trade_desk": "raw_snowflake.tradedesk_apac_all",
+    "ga4": "raw_ga4.perf_ga4 / raw_ga4.perf_ga4_events (DTS-first, raw_windsor.perf_ga4 fallback)"
+  }
+}
