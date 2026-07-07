@@ -109,8 +109,36 @@ the 11 market codes. To change targets:
 2. `.\.venv\Scripts\python.exe clients\client_cloudflare\seed_static.py` (reloads `seed_real_targets`).
 3. Run the export job with `FORCE_REBUILD=1` (a seed change is invisible to the freshness gate).
 
-The per-market Q2 totals must reconcile to the media-plan sheet (current total **3216**). `tiers.csv`
+The per-market Q2 totals reconcile to the Q2 media-plan sheet (total **3216**). `tiers.csv`
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
+
+**Q3 FY26 targets (added 2026-07-07).** Q3 rows appended for the 14 week-start Mondays
+`2026-06-29 → 2026-09-28` (grand total now 3468; Q2 rows untouched). The client's Q3 file
+(`targets/real_targets Q3.xlsx`) is a paid-media **activation plan**, NOT a weekly × tier CS
+pacing table like the Q2 Snowflake source — so Q3 was built from the plan's **LinkedIn per-region
+Commit Leads (252)**: ANZ 60 → AU 54 / NZ 6 (split by the Q2 90/10 ratio), ASEAN 80 → SIM 48 /
+RoA 32 (plan's stated 60/40), SAARC 59, GCR-HK 11, JP 42; GCR-CN/GCR-TW/KR/RIG = 0 (RIG folded
+into ANZ LinkedIn in Q3). **Single tier** (`Tier 2`) — the plan has no Tier 2/Tier 3 split —
+and each quarter total spread **evenly across the 14 weeks** (largest-remainder integer split).
+The dashboard's active quarter was rolled Q2→Q3 (default range = full Q3, all "Q2" labels → "Q3";
+`Q3_START`/`Q3_END` in `dash/dashboard.html`). **Note:** 252 is much smaller than Q2's 3216
+because it's the LinkedIn commit-lead plan, not CS 2-touch-MQL volume — reconfirm with the client
+if a CS-MQL target is wanted instead (the plan only carries that at APAC+JP aggregate, no market
+split). The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (no Q3 supplied).
+
+**Since `.venv` may be broken / ADC unauthed, reload the seed with `bq` (gcloud creds, no venv) —
+`bq load` of ONLY `real_targets` is safer than `seed_static.py`, which also loads the gitignored
+`tiers.csv`/`line_cf.csv` and fails if `data/` is absent:**
+
+```powershell
+$env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"      # gcloud auth login first if the token expired
+bq --project_id=bidbrain-analytics --location=australia-southeast1 load `
+  --replace --source_format=CSV --skip_leading_rows=1 --allow_quoted_newlines `
+  client_cloudflare.seed_real_targets "clients/client_cloudflare/targets/real_targets.csv" `
+  WEEK:INTEGER,DATE:DATE,TIER:STRING,REGION:STRING,COUNTRY:STRING,TARGET:INTEGER
+gcloud run jobs execute cloudflare-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+```
+Then rebuild + deploy the dash service (see CLAUDE.md → *Redeploy after an edit*).
 
 ### 11 media-plan market chips + a non-displayed OTHER residual (2026-06-25 rework; KR reverted 2026-07-02)
 
