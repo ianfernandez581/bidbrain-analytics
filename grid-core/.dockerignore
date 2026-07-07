@@ -1,0 +1,7 @@
+node_modules
+tmp
+data
+.env
+.git
+test-fixtures
+*.md
