@@ -15,7 +15,10 @@
 $ErrorActionPreference = 'Stop'
 
 # ---- fixed config (see dts_data_pull/README.md) -----------------------------------------
-$BQ        = 'C:\Users\Ian\AppData\Local\Google\Cloud SDK\google-cloud-sdk\bin\bq.cmd'
+# Resolve bq from PATH so this runs on any dev's machine (was hardcoded to one user's path).
+$BQ = (Get-Command bq.cmd -ErrorAction SilentlyContinue).Source
+if (-not $BQ) { $BQ = (Get-Command bq -ErrorAction SilentlyContinue).Source }
+if (-not $BQ) { $BQ = 'bq' }
 $CONFIG    = 'projects/516554645957/locations/australia-southeast1/transferConfigs/6a271b88-0000-2a01-873b-d4f547eea634'
 $TABLE     = 'bidbrain-analytics.raw_google_ads.ads_CampaignBasicStats_3451896252'
 $DATE_COL  = 'segments_date'
