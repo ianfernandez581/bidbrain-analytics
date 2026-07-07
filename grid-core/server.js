@@ -31,7 +31,7 @@ const bqWriter = require('./src/brain/bq-writer');
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
-const TMP = path.join(ROOT, 'tmp', 'brain-uploads');
+const TMP = process.env.BRAIN_TMP_DIR || path.join(ROOT, 'tmp', 'brain-uploads');
 fs.mkdirSync(TMP, { recursive: true });
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.map': 'application/json' };
