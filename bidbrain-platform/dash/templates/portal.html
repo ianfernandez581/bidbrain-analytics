@@ -99,6 +99,22 @@
   @keyframes sspin{to{transform:rotate(360deg)}}
   .smsg{font-size:12px;color:var(--muted);margin-top:14px;min-height:16px;line-height:1.4}
   .smsg.err{color:#fca5a5}
+
+  /* ===== hero word-machine: single lane of brief words converge on the agency hero, one result emerges =====
+     Lighter than the login page: 1 lane, 3 words/batch, sparse cadence. Decorative + behind content. */
+  .bbh-stage{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .bbh-token{position:fixed;left:0;top:0;white-space:nowrap;font-weight:600;padding:4px 10px;border-radius:6px;
+    font-size:12px;font-family:inherit;letter-spacing:.2px;opacity:0;pointer-events:none;will-change:transform,opacity}
+  .bbh-token.in{color:#e8edf7;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10)}
+  .bbh-token.out{color:#eafff3;background:rgba(61,220,132,.15);border:1px solid rgba(61,220,132,.55);
+    font-size:13px;font-weight:700;text-shadow:0 0 8px rgba(61,220,132,.9);box-shadow:0 0 14px 2px rgba(61,220,132,.35)}
+  /* pulse the hero as it "processes": drop-shadow glows the actual mark (SVG wordmark / PNG badge / text) */
+  @keyframes bbhHeroPulse{
+    0%{filter:drop-shadow(0 0 0 rgba(61,220,132,0))}
+    50%{filter:drop-shadow(0 0 22px rgba(61,220,132,.85)) drop-shadow(0 0 40px rgba(61,220,132,.45))}
+    100%{filter:drop-shadow(0 0 0 rgba(61,220,132,0))}}
+  #bbHero.bbh-pulse{animation:bbhHeroPulse .6s ease}
+  @media (prefers-reduced-motion:reduce){ .bbh-stage{display:none} }
 </style>
 </head>
 <body>
@@ -131,8 +147,8 @@
     <a class="btn" href="/logout">Log out</a>
   </div>
   <div class="wrap">
-    {% if agency_logo %}<div class="agencylogo {{ 'light' if agency_logo.light else '' }}">{{ agency_logo.html | safe }}</div>
-    {% else %}<h1 style="text-align:center">{{ agency.name }}</h1>{% endif %}
+    {% if agency_logo %}<div id="bbHero" class="agencylogo {{ 'light' if agency_logo.light else '' }}">{{ agency_logo.html | safe }}</div>
+    {% else %}<h1 id="bbHero" style="text-align:center">{{ agency.name }}</h1>{% endif %}
     <div class="bbtabs">
       <button class="bbtab on" data-pane="overview">Overview</button>
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
@@ -307,6 +323,77 @@
     modal.querySelector('.sclose').addEventListener('click', closeModal);
     modal.addEventListener('click', function(e){ if (e.target === modal) closeModal(); });
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape' && !modal.hidden) closeModal(); });
+  })();
+  </script>
+
+  <!-- hero word-machine animation: brief words stream in one lane, converge on the agency hero, one result emerges.
+       Single lane, 3 words/batch, sparse cadence. aria-hidden + pointer-events:none; disabled under reduced-motion. -->
+  <div class="bbh-stage" id="bbHeroStage" aria-hidden="true"></div>
+  <script>
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var stage = document.getElementById('bbHeroStage');
+    var hero  = document.getElementById('bbHero');
+    if (!stage || !hero) return;
+
+    var INPUTS  = ["Budget", "Goal", "Channels"];
+    var OUTPUTS = ["ROAS ↑", "Conversions ↑", "CPA ↓"];
+    var IN_DUR = 3800, OUT_DUR = 3200, GAP = 3200, STAGGER = 350;
+    var outIdx = 0, timers = [];
+
+    // viewport coords straight from the hero (stage + tokens are position:fixed, so no offset math)
+    function bounds(){
+      var r = hero.getBoundingClientRect();
+      return { left:r.left, right:r.right, cx:r.left + r.width/2, cy:r.top + r.height/2, W:window.innerWidth };
+    }
+    function spawnInput(text){
+      var b = bounds(), startX = -110, endX = b.cx, y = b.cy - 10;
+      var el = document.createElement('div');
+      el.className = 'bbh-token in'; el.textContent = text; stage.appendChild(el);
+      var start = performance.now();
+      (function f(now){
+        var t = (now - start) / IN_DUR;
+        if (t > 1){ el.remove(); return; }
+        var e = 1 - Math.pow(1 - t, 2), x = startX + (endX - startX) * e;
+        var op = 1;
+        if (t < 0.15) op = t / 0.15;
+        if (x > b.left - 8) op = Math.max(0, 1 - (x - (b.left - 8)) / 40); // fade out before the hero's left edge
+        el.style.opacity = op;
+        el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+        requestAnimationFrame(f);
+      })(performance.now());
+    }
+    function spawnOutput(text){
+      var b = bounds(), startX = b.right - 15, endX = b.W + 110, y = b.cy - 10;
+      var el = document.createElement('div');
+      el.className = 'bbh-token out'; el.textContent = text; stage.appendChild(el);
+      var start = performance.now();
+      (function f(now){
+        var t = (now - start) / OUT_DUR;
+        if (t > 1){ el.remove(); return; }
+        var e = 1 - Math.pow(1 - t, 2), x = startX + (endX - startX) * e;
+        var op = 1;
+        if (t < 0.12) op = t / 0.12;
+        if (t > 0.8) op = Math.max(0, (1 - t) / 0.2);
+        el.style.opacity = op;
+        el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+        requestAnimationFrame(f);
+      })(performance.now());
+    }
+    function pulse(){ hero.classList.remove('bbh-pulse'); void hero.offsetWidth; hero.classList.add('bbh-pulse'); }
+
+    function run(){
+      timers.forEach(function(t){ clearTimeout(t); }); timers = [];
+      (function batch(){
+        for (var k = 0; k < INPUTS.length; k++){
+          timers.push(setTimeout((function(word){ return function(){ spawnInput(word); }; })(INPUTS[k]), k * STAGGER));
+        }
+        timers.push(setTimeout(function(){ pulse(); spawnOutput(OUTPUTS[outIdx % OUTPUTS.length]); outIdx++; }, IN_DUR - 100));
+        timers.push(setTimeout(batch, IN_DUR + GAP));
+      })();
+    }
+    var rz; window.addEventListener('resize', function(){ clearTimeout(rz); rz = setTimeout(run, 200); });
+    run();
   })();
   </script>
 </body>
