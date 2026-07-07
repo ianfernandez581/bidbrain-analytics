@@ -6,8 +6,9 @@
 --   leads_qtd    = leads whose day-of-quarter <= asof_day_idx  -> Q3 QTD, and Q2's SAME opening window.
 --   leads_full   = whole-quarter count (Q2's full total, kept as context; for Q3 it equals QTD).
 -- Built on salesforce_leads_live so it reuses the exact accepted-lead + market logic (REGION_GRP = the
--- 11 chips, OTHER excluded; accepted = Accepted/Replied/Unresponsive). Calendar quarters. No Q3 targets
--- loaded yet, so this is actuals-vs-actuals (no pacing here). Grain: (quarter, market, status_bucket).
+-- COARSE 7 chips as of 2026-07-07, OTHER excluded; accepted = Accepted/Replied/Unresponsive; Transmission
+-- test leads already dropped upstream). Calendar quarters. No Q3 targets loaded yet, so this is
+-- actuals-vs-actuals (no pacing here). Grain: (quarter, market, status_bucket).
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_cloudflare.cs_qoq` AS
 WITH tagged AS (
   SELECT

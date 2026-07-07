@@ -423,7 +423,7 @@
     <!-- QoQ TAB (Q3 vs Q2, CS accepted leads — actuals only)          -->
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-qoq">
-      <div class="qoq-note"><b>Quarter-to-date</b> comparison — <b>Q3</b> vs the <b>same opening window of Q2</b> <span id="qoqAsof"></span>, so it's like-for-like as Q3 ramps (not a few days of Q3 against all of Q2). Content-Syndication <b>accepted</b> leads, the 11 market chips. <b>Actuals only</b> — Q3 targets pending from the client, so no "vs target" pacing yet.</div>
+      <div class="qoq-note"><b>Quarter-to-date</b> comparison — <b>Q3</b> vs the <b>same opening window of Q2</b> <span id="qoqAsof"></span>, so it's like-for-like as Q3 ramps (not a few days of Q3 against all of Q2). Content-Syndication <b>accepted</b> leads, the 7 market groups (ANZ / ASEAN / SAARC / GCR / KR / JP / RIG). <b>Actuals only</b> — Q3 targets pending from the client, so no "vs target" pacing yet.<br><span style="color:var(--cf-mute)">Note: Q3 campaigns launched late, so QTD figures read light this early in the quarter. This reflects delivery timing, not a data issue.</span></div>
       <div class="qoq-stats" id="qoqStats"></div>
       <div class="card" style="margin-top:14px">
         <div class="card-head"><div><h3>Accepted leads by market</h3><div class="hint">Q3-to-date vs Q2's same opening window. Δ = change vs Q2 same period.</div></div></div>
@@ -431,7 +431,7 @@
         <div id="qoqMarketBars"></div>
       </div>
       <div class="card" style="margin-top:14px">
-        <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected / New — Q3-to-date vs Q2 same period.</div></div></div>
+        <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected — Q3-to-date vs Q2 same period.</div></div></div>
         <div class="qoq-heatscale">Fewer <span class="grad"></span> more leads</div>
         <div id="qoqStatusBars"></div>
       </div>
@@ -453,8 +453,8 @@
         <div class="group">
           <div class="lbl">Overall</div>
           <div class="pair">
-            <div class="stat"><div class="k">Q2 Target</div><div class="v" id="kpi_target">—</div></div>
-            <div class="stat"><div class="k">Total leads</div><div class="v" id="kpi_total">—</div></div>
+            <div class="stat"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="kpi_target">—</div></div>
+            <div class="stat"><div class="k">Accepted leads</div><div class="v" id="kpi_total">—</div></div>
           </div>
         </div>
         <div class="group">
@@ -476,19 +476,19 @@
       <div class="grid">
         <div class="card">
           <h3>Leads vs target</h3>
-          <div class="hint">Q2 target, time-to-date target, and accepted leads QTD.</div>
+          <div class="hint"><span class="qlbl">Q2</span> target, time-to-date target, and accepted leads QTD.</div>
           <div id="leadsTarget"></div>
         </div>
         <div class="card">
           <h3>Progress</h3>
-          <div class="hint">Leads vs target / Time vs Q2 days elapsed.</div>
+          <div class="hint">Leads vs target / Time vs <span class="qlbl">Q2</span> days elapsed.</div>
           <div id="progress"></div>
         </div>
       </div>
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-head"><div><h3>Pacing - target vs actual</h3>
-        <div class="hint">Accepted + unprocessed leads per period (stacked), against target. <b>Relative</b> = 100%-stacked share.</div></div>
+        <div class="hint">Accepted leads per period, against target. <b>Relative</b> = 100%-stacked share.</div></div>
         <div class="ctrls">
           <span class="seg" id="csWeekly_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
           <span class="seg" id="csWeekly_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
@@ -519,7 +519,7 @@
 
       <div class="card">
         <h3>By-region summary</h3>
-        <div class="hint">Three bars per region, scaled to the region's Q2 target.</div>
+        <div class="hint">Three bars per region, scaled to the region's <span class="qlbl">Q2</span> target.</div>
         <div id="regionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
       </div>
 
@@ -552,16 +552,15 @@
             <div class="compare-kpi-group">
               <div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k">Q2 Target</div><div class="v" id="A_target">—</div></div>
-                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">—</div></div>
+                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="A_target">—</div></div>
+                <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="A_total">—</div></div>
               </div>
             </div>
             <div class="compare-kpi-group">
               <div class="grp-lbl">Lead Quality</div>
-              <div class="compare-kpis triple">
+              <div class="compare-kpis">
                 <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="A_rej">—</div><div class="cnt" id="A_rej_cnt">—</div></div>
                 <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="A_acc">—</div><div class="cnt" id="A_acc_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">Unprocessed %</div><div class="v" id="A_unproc">—</div><div class="cnt" id="A_unproc_cnt">—</div></div>
               </div>
             </div>
             <div class="compare-chart">
@@ -595,16 +594,15 @@
             <div class="compare-kpi-group">
               <div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k">Q2 Target</div><div class="v" id="B_target">—</div></div>
-                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">—</div></div>
+                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="B_target">—</div></div>
+                <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="B_total">—</div></div>
               </div>
             </div>
             <div class="compare-kpi-group">
               <div class="grp-lbl">Lead Quality</div>
-              <div class="compare-kpis triple">
+              <div class="compare-kpis">
                 <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="B_rej">—</div><div class="cnt" id="B_rej_cnt">—</div></div>
                 <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="B_acc">—</div><div class="cnt" id="B_acc_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">Unprocessed %</div><div class="v" id="B_unproc">—</div><div class="cnt" id="B_unproc_cnt">—</div></div>
               </div>
             </div>
             <div class="compare-chart">
@@ -881,7 +879,7 @@
           <div class="sub" id="cmpCS_window" style="color:rgba(255,255,255,.85)"></div>
         </div>
         <div class="kpis">
-          <div class="kpi"><span class="stripe"></span><div class="label">Q2 Target</div><div class="value" id="cs_target">—</div><div class="delta">Double Touch MQLs</div></div>
+          <div class="kpi"><span class="stripe"></span><div class="label">Target</div><div class="value" id="cs_target">—</div><div class="delta">Double Touch MQLs</div></div>
           <div class="kpi accent"><span class="stripe"></span><div class="label">Accepted MQLs</div><div class="value" id="cs_accepted">—</div><div class="delta" id="cs_accepted_b">delivered</div></div>
           <div class="kpi li"><span class="stripe"></span><div class="label">% to target</div><div class="value" id="cs_pct">—</div><div class="delta" id="cs_pct_b">—</div></div>
           <div class="kpi warn"><span class="stripe"></span><div class="label">Rejected</div><div class="value" id="cs_rejected">—</div><div class="delta" id="cs_rejected_b">quality control</div></div>
@@ -956,14 +954,15 @@
 // ==========================================================================
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
-// CS market universe = the 11 media-plan markets (2026-06-25 grain: ANZ/ASEAN/GCR were split to
-// AU/NZ, SIM/RoA, GCR-CN/TW/HK to match the client's target sheet 1:1). KR = Korea in the 6 El*
-// campaigns (2026-07-02); Korea leads outside those 6 land in REGION_GRP='OTHER', which is NOT in
-// this list, so they are excluded from every chip AND the headline totals (which sum over these
-// markets) — matching pre-2026-06-25 behaviour. Add 'OTHER' here if those leads should be visible.
-const ALL_MARKETS = ['AU','NZ','SIM','ROA','SAARC','GCR-CN','GCR-TW','GCR-HK','KR','RIG','JP'];
-// Display label for a market code (only 'ROA' differs from its code -> 'RoA').
-const mktLabel = m => m === 'ROA' ? 'RoA' : m;
+// CS market universe = the COARSE 7 markets (2026-07-07 grain: rolled back UP from the 2026-06-25
+// 11-chip split at the client's request, so CS markets match the paid-media L3 grain 1:1 —
+// ANZ = AU+NZ, ASEAN = SG/MY/ID/TH/VN/PH, GCR = CN/TW/HK). KR = Korea in the 6 El* campaigns;
+// Korea leads outside those 6 land in REGION_GRP='OTHER', which is NOT in this list, so they are
+// excluded from every chip AND the headline totals (which sum over these markets). Add 'OTHER' here
+// if those leads should be visible.
+const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG'];
+// Display label for a market code (coarse codes are already display-ready).
+const mktLabel = m => m;
 const Q2_START = new Date('2026-04-01T00:00:00Z');
 const Q2_END   = new Date('2026-06-30T23:59:59Z');
 
@@ -1167,6 +1166,22 @@ function syncQuarterChips(){
 function renderQuarterChips(){
   document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b =>
     b.classList.toggle('on', selQuarters.has(b.dataset.q)));
+  updateQuarterLabels();
+}
+// The quarter the user is viewing, as a label. Targets are the Q2 plan (no Q3 targets loaded yet),
+// but the dashboard defaults to Q3 — so every "Q2" caption read wrong when viewing Q3 (client
+// feedback 2026-07-07). These captions now follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
+// neutral "Quarter" for a custom calendar range. Any element with class .qlbl gets this text.
+function qtrLabel(){
+  const has2 = selQuarters.has('Q2'), has3 = selQuarters.has('Q3');
+  if (has2 && has3) return 'Q2-Q3';
+  if (has3) return 'Q3';
+  if (has2) return 'Q2';
+  return 'Quarter';
+}
+function updateQuarterLabels(){
+  const t = qtrLabel();
+  document.querySelectorAll('.qlbl').forEach(el => el.textContent = t);
 }
 
 // ==========================================================================
@@ -1400,11 +1415,15 @@ function renderQoQ(){
   const asEl=document.getElementById('qoqAsof');
   if (asEl) asEl.textContent = asof.day ? `(first ${dlabel}, through ${asof.date})` : '';
   // Scorecard: QTD like-for-like (Q3 vs Q2 same window) + Q2 full quarter as context.
+  // Acceptance rate EXCLUDES unprocessed/New leads (client rule 2026-07-07): rate = accepted / reviewed.
+  const q3rev = (+(q3.by_status||{}).Accepted||0) + (+(q3.by_status||{}).Rejected||0);
+  const q3acc = +q3.accepted||0;
+  const accPct = q3rev ? (q3acc/q3rev*100).toFixed(0)+'%' : '—';
   document.getElementById('qoqStats').innerHTML =
      `<div class="stat"><div class="k">Q3 accepted · to date</div><div class="v">${N(q3.accepted)} ${dfmt(q3.accepted,q2.accepted)}</div><div class="cnt">vs Q2 same period</div></div>`
     +`<div class="stat"><div class="k">Q2 accepted · same period</div><div class="v">${N(q2.accepted)}</div><div class="cnt">first ${dlabel} of Q2</div></div>`
     +`<div class="stat"><div class="k">Q2 accepted · full quarter</div><div class="v">${N(q2.full_accepted)}</div><div class="cnt">for context</div></div>`
-    +`<div class="stat"><div class="k">Q3 total leads · to date</div><div class="v">${N(q3.total)}</div></div>`;
+    +`<div class="stat"><div class="k">Q3 acceptance rate · to date</div><div class="v">${accPct}</div><div class="cnt">accepted ÷ reviewed (excl. unprocessed)</div></div>`;
   // Heat map: one cell per (row × quarter), background shaded by lead volume (calm read of the
   // whole portfolio); Δ badge kept as subtle text on the right (client rule: no red for dips).
   const heatCell = (v, max) => {
@@ -1425,8 +1444,10 @@ function renderQoQ(){
   document.getElementById('qoqMarketBars').innerHTML = mkts.length
     ? heatGrid(mkts, m2, m3)
     : '<div style="text-align:center;color:var(--cf-mute);padding:18px">No accepted leads in this window yet.</div>';
+  // Status mix: Accepted vs Rejected only — unprocessed/New is intentionally omitted (client rule
+  // 2026-07-07: unprocessed leads are our internal backlog, not shown to Cloudflare).
   const s2=q2.by_status||{}, s3=q3.by_status||{};
-  document.getElementById('qoqStatusBars').innerHTML = heatGrid(['Accepted','Rejected','New'], s2, s3);
+  document.getElementById('qoqStatusBars').innerHTML = heatGrid(['Accepted','Rejected'], s2, s3);
 }
 function switchTab(tab) {
   activeTab = tab;
@@ -1473,10 +1494,10 @@ function renderDateScope(){
       + 'The <b>media-plan benchmarks</b> ("vs plan" columns), the <b>weekly LinkedIn target</b> lines and the <b>creatives</b> table have no date dimension and stay <b>full period</b>.';
   } else if (activeTab === 'compare') {
     scope = 'Both comparison panels (KPIs, targets, weekly, top assets) reflect this range. '
-      + 'The <b>Q2 Target</b> figure is the full-quarter plan and is not pro-rated.';
+      + 'The <b>' + qtrLabel() + ' Target</b> figure is the full-quarter plan and is not pro-rated.';
   } else {
     scope = 'KPIs, donuts, weekly/daily charts and the by-region summary reflect this range. '
-      + 'The <b>Q2 Target</b> and the <b>Time %</b> bar are quarter-anchored (full Q2) and are not pro-rated to the selected range.';
+      + 'The <b>' + qtrLabel() + ' Target</b> and the <b>Time %</b> bar are quarter-anchored (full ' + qtrLabel() + ') and are not pro-rated to the selected range.';
   }
   note.style.display = 'block';
   note.innerHTML = '📅 Filtered to <b>' + rangeStart + '</b> – <b>' + rangeEnd + '</b>. ' + scope;
@@ -1653,9 +1674,13 @@ function renderKPIs(agg) {
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
   document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '—';
   document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '—';
-  // Both use total as the denominator
-  const accRatio = agg.total ? agg.accepted / agg.total : 0;
-  const rejRatio = agg.total ? agg.rejected / agg.total : 0;
+  // Acceptance / rejection rate denominator = REVIEWED leads only (accepted + rejected),
+  // EXCLUDING unprocessed/New (client rule 2026-07-07, per the Jade call: unprocessed is our
+  // internal backlog, not shown to Cloudflare, and must not drag the acceptance rate down).
+  // So acc% + rej% = 100% of the leads that have actually been triaged.
+  const reviewed = agg.accepted + agg.rejected;
+  const accRatio = reviewed ? agg.accepted / reviewed : 0;
+  const rejRatio = reviewed ? agg.rejected / reviewed : 0;
   document.getElementById('kpi_acc').textContent = (accRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_rej').textContent = (rejRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
@@ -1668,35 +1693,36 @@ const NO_TARGET_MSG = '<div style="font-size:12.5px;color:var(--cf-mute);padding
 
 function renderLeadsTarget(agg) {
   if (!agg.q2Target) { document.getElementById('leadsTarget').innerHTML = NO_TARGET_MSG; return; }
+  const QL = qtrLabel();
   const maxV = Math.max(agg.q2Target, agg.ttdTarget, agg.accepted, 1);
   const w = v => (v/maxV*100).toFixed(1);
   document.getElementById('leadsTarget').innerHTML = `
-    <div class="progress-row"><div>Q2 Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
+    <div class="progress-row"><div>${QL} Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
     <div class="progress-row"><div>TTD Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.ttdTarget)}%"></div></div><div style="text-align:right">${fmtN(agg.ttdTarget)}</div></div>
     <div class="progress-row"><div>QTD Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
     <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
-      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of Q2 plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
+      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
     </div>`;
 }
 
 function renderProgress(agg) {
   if (!agg.q2Target) { document.getElementById('progress').innerHTML = NO_TARGET_MSG; return; }
-  const unprocessed = agg.total - agg.accepted - agg.rejected;
+  const QL = qtrLabel();
   const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ target
-  const up = agg.q2Target ? unprocessed/agg.q2Target : 0;    // unprocessed ÷ target
-  const tp = agg.timePct;                                    // Q2 time elapsed
+  const tp = agg.timePct;                                    // quarter time elapsed
   const ratio = tp > 0 ? lp/tp : 0;
   const overTarget = lp > 1;                                 // beat the full-quarter target
   const overLeads  = Math.round(agg.accepted - agg.q2Target);
   // Shared scale so BOTH bars sit on one axis and the Leads bar visibly CROSSES the
   // 100% target line (the surplus beyond it is drawn green). Headroom keeps the fill
-  // off the far edge so the crossing reads clearly even at ~115%.
-  const scale = Math.max(1.08, lp + up, tp);
+  // off the far edge so the crossing reads clearly even at ~115%. Unprocessed/New leads
+  // are intentionally NOT shown here (client rule 2026-07-07).
+  const scale = Math.max(1.08, lp, tp);
   const P = f => (Math.max(0, f) / scale * 100).toFixed(2);
   const markerLeft = P(1);
   const toTgt = Math.min(lp, 1), surplus = Math.max(0, lp - 1);
   const badge = overTarget
-    ? `<div class="prog-badge good">🎯 TARGET EXCEEDED · ${(lp*100).toFixed(1)}% of Q2 goal · +${fmtN(overLeads)} leads over</div>`
+    ? `<div class="prog-badge good">🎯 TARGET EXCEEDED · ${(lp*100).toFixed(1)}% of ${QL} goal · +${fmtN(overLeads)} leads over</div>`
     : (lp >= tp
         ? `<div class="prog-badge good">✓ AHEAD OF PACE · ${(ratio*100).toFixed(0)}% of expected</div>`
         : `<div class="prog-badge warn">BEHIND PACE · ${(ratio*100).toFixed(0)}% of expected</div>`);
@@ -1706,7 +1732,6 @@ function renderProgress(agg) {
       <div class="pbar" style="display:flex">
         <div class="fill" style="width:${P(toTgt)}%"></div>
         ${surplus > 0 ? `<div class="fill surplus" style="width:${P(surplus)}%"></div>` : ``}
-        <div class="fill" style="width:${P(up)}%;background:var(--cf-orange-soft)"></div>
         <div class="prog-tgt" style="left:${markerLeft}%"></div>
       </div>
       <div style="text-align:right;font-weight:700;color:${overTarget ? 'var(--good-green)' : 'var(--cf-ink)'}">${(lp*100).toFixed(1)}%</div></div>
@@ -1717,41 +1742,35 @@ function renderProgress(agg) {
       </div>
       <div style="text-align:right">${(tp*100).toFixed(1)}%</div></div>
     <div style="font-size:11px;color:var(--cf-mute);margin-top:8px">
-      <span style="border-left:2px dashed var(--cf-navy);padding-left:6px">Dashed line = 100% Q2 target</span>${surplus > 0 ? ` · <span style="color:var(--good-green);font-weight:600">green = leads beyond target</span>` : ``}
+      <span style="border-left:2px dashed var(--cf-navy);padding-left:6px">Dashed line = 100% ${QL} target</span>${surplus > 0 ? ` · <span style="color:var(--good-green);font-weight:600">green = leads beyond target</span>` : ``}
     </div>
     <div style="font-size:12px;color:var(--cf-mute);margin-top:10px">
       Leads pacing is <b>${(ratio*100).toFixed(0)}% of expected</b>. ${lp > tp ? 'Ahead of plan ✓' : 'Behind plan'}.
-      ${unprocessed > 0 ? `<br><span style="display:inline-block;width:9px;height:9px;background:var(--cf-orange-soft);border-radius:2px;margin-right:5px;vertical-align:middle"></span>${fmtN(unprocessed)} unprocessed leads pending triage could lift this to <b>${((lp+up)*100).toFixed(1)}%</b>.` : ''}
     </div>`;
 }
 
 function renderWeekly(agg) {
   destroy('weeklyChart');
-  // Re-bucket the per-day pacing source by csWeeklyGrain, SUMMING target/actual/
-  // unprocessed (additive counts).
+  // Re-bucket the per-day pacing source by csWeeklyGrain, SUMMING target/actual (accepted).
+  // Unprocessed/New is intentionally dropped (client rule 2026-07-07).
   const m = {};
   for (const d of agg.dailyFull){
     const k = bucketKey(d.day, csWeeklyGrain); if (!k) continue;
-    const o = m[k] = m[k] || {target:0, actual:0, unprocessed:0};
-    o.target += d.target; o.actual += d.actual; o.unprocessed += d.unprocessed;
+    const o = m[k] = m[k] || {target:0, actual:0};
+    o.target += d.target; o.actual += d.actual;
   }
   const keys = Object.keys(m).sort();
   const labels = keys.map(k => bucketLabel(k, csWeeklyGrain));
-  const tgt = keys.map(k=>m[k].target), act = keys.map(k=>m[k].actual), unp = keys.map(k=>m[k].unprocessed);
-  // Relative = 100%-stacked composition of ACTUAL leads (Accepted vs Unprocessed),
-  // each period normalized to its own actual total; the Target reference bar is a
-  // plan figure (not part of the composition) so it's hidden in this share view.
-  // Tooltips always show the true lead counts. Absolute = original target-vs-actual.
+  const tgt = keys.map(k=>m[k].target), act = keys.map(k=>m[k].actual);
+  // Absolute = Target vs Accepted-actual bars. Relative = Accepted as % of that period's
+  // target (a pacing read); tooltips always show the true accepted count.
   const isRel = csWeeklyScale==='rel';
-  const actTot = keys.map((k,i)=>act[i]+unp[i]);
-  const norm = (arr) => arr.map((v,i)=>actTot[i]?v/actTot[i]*100:0);
+  const pace = keys.map((k,i)=> tgt[i] ? act[i]/tgt[i]*100 : 0);
   const datasets = isRel ? [
-      {label:'Accepted (share)', data: norm(act), backgroundColor:CF, borderRadius:3, stack:'actual'},
-      {label:'Unprocessed (share)', data: norm(unp), backgroundColor:'#FBAD41', borderRadius:3, stack:'actual'}
+      {label:'Accepted vs target', data: pace, backgroundColor:CF, borderRadius:3}
     ] : [
       {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan'},
-      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual'},
-      {label:'Unprocessed', data: unp, backgroundColor:'#FBAD41', borderRadius:3, stack:'actual'}
+      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual'}
     ];
   charts.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
     type:'bar',
@@ -1760,11 +1779,10 @@ function renderWeekly(agg) {
       plugins:{ legend:{position:'bottom'},
         tooltip:{ callbacks:{ label:function(c){
           if (!isRel) return ' '+c.dataset.label+': '+fmtN(c.parsed.y);
-          const trueV = c.dataset.label.indexOf('Accepted')===0 ? act[c.dataIndex] : unp[c.dataIndex];
-          return ' '+c.dataset.label.replace(' (share)','')+': '+fmtN(trueV)+' ('+c.parsed.y.toFixed(1)+'%)';
+          return ' Accepted: '+fmtN(act[c.dataIndex])+' ('+c.parsed.y.toFixed(0)+'% of target '+fmtN(tgt[c.dataIndex])+')';
         }}}},
       scales:{ x:{stacked:true, grid:{display:false}},
-        y:{stacked:true, beginAtZero:true, max:isRel?100:undefined, grid:{color:LINE}, ticks:{callback:v=>isRel?v+'%':v}} } }
+        y:{stacked:true, beginAtZero:true, grid:{color:LINE}, ticks:{callback:v=>isRel?v+'%':v}} } }
   });
 }
 
@@ -1930,7 +1948,7 @@ function renderRegionGrid(agg) {
           <div style="font-weight:700;font-size:14px">${mktLabel(market)}</div>
           <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '—'}</div>
         </div>
-        <div class="reg-row"><div class="reg-lbl">Q2 Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
+        <div class="reg-row"><div class="reg-lbl">${qtrLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
         <div class="reg-row"><div class="reg-lbl">TTD Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
         <div class="reg-row"><div class="reg-lbl">QTD Accepted</div><div class="reg-bar"><div class="reg-fill orange" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(accepted)}</div></div>
       </div>`);
@@ -2047,17 +2065,15 @@ function renderComparePanel(side) {
 
   document.getElementById(side + '_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '—';
   document.getElementById(side + '_total').textContent = fmtN(agg.accepted);
-  // All three use total as denominator so they sum to 100%
-  const accRatio = agg.total ? agg.accepted / agg.total : 0;
-  const rejRatio = agg.total ? agg.rejected / agg.total : 0;
-  const unprocessedCount = agg.total - agg.accepted - agg.rejected;
-  const unprocessedRatio = agg.total ? unprocessedCount / agg.total : 0;
+  // Denominator = REVIEWED leads (accepted + rejected), EXCLUDING unprocessed/New (client rule
+  // 2026-07-07): acc% + rej% = 100% of triaged leads. The Unprocessed % KPI was removed.
+  const reviewed = agg.accepted + agg.rejected;
+  const accRatio = reviewed ? agg.accepted / reviewed : 0;
+  const rejRatio = reviewed ? agg.rejected / reviewed : 0;
   document.getElementById(side + '_rej').textContent = (rejRatio*100).toFixed(2)+'%';
   document.getElementById(side + '_acc').textContent = (accRatio*100).toFixed(2)+'%';
-  document.getElementById(side + '_unproc').textContent = (unprocessedRatio*100).toFixed(2)+'%';
   document.getElementById(side + '_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
   document.getElementById(side + '_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
-  document.getElementById(side + '_unproc_cnt').textContent = fmtN(unprocessedCount) + ' leads';
 
   destroy(side + '_chartTargets');
   charts[side + '_chartTargets'] = new Chart(document.getElementById(side + '_chartTargets'), {

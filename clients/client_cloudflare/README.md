@@ -112,14 +112,64 @@ the 11 market codes. To change targets:
 The per-market Q2 totals must reconcile to the media-plan sheet (current total **3216**). `tiers.csv`
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
 
-### 11 media-plan market chips + a non-displayed OTHER residual (2026-06-25 rework; KR reverted 2026-07-02)
+### 7 coarse market groups (2026-07-07 rollback of the 2026-06-25 11-chip split, per the Jade call)
 
-The CS markets are the client's media-plan grain — **11 market chips**, plus a residual `OTHER` that is
-**not a chip** (so it's excluded from the dashboard). Defined in `sql/10_salesforce_leads_live.sql`'s
-`REGION_GRP` and carried straight through `sql/13_pacing_model.sql` (`MARKET_REGION = REGION_GRP`):
+The CS markets are the **coarse 7 groups**, plus a residual `OTHER` that is **not a chip** (so it's
+excluded from the dashboard). Defined in `sql/10_salesforce_leads_live.sql`'s `REGION_GRP` and carried
+straight through `sql/13_pacing_model.sql` (`MARKET_REGION = REGION_GRP`); targets are rolled up to the
+same 7 in `sql/12_targets_v2_norm.sql`:
 
-**`AU`, `NZ`, `SIM` (SG/MY/ID), `RoA` (TH/VN/PH), `SAARC` (IN), `GCR-CN`, `GCR-TW`, `GCR-HK`, `KR`,
-`RIG`, `JP`.** The old 7 chips (ANZ/ASEAN/GCR) were split to match the target sheet 1:1.
+**`ANZ` (AU+NZ), `ASEAN` (SG/MY/ID/TH/VN/PH), `SAARC` (IN), `GCR` (CN/TW/HK), `KR`, `JP`, `RIG`.**
+This **rolls back** the 2026-06-25 split (which had broken these into 11 chips) at the client's request,
+so CS markets now match the paid-media L3 grain 1:1 (dashboard `ALL_MARKETS` + `PAID_ALL_MARKETS` are
+identical). Rolling REGION_GRP back to coarse also re-activates the `ANZ`/`ASEAN`/`GCR` accepted-lead
+columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
+
+### 2026-07-07 changes from the Jade call (test leads, unprocessed, quarter labels)
+
+- **Test leads excluded.** `sql/10` now drops any lead whose email DOMAIN contains `transmission`
+  (`... AND LOWER(IFNULL(SPLIT(EMAIL,'@')[SAFE_OFFSET(1)],'')) NOT LIKE '%transmission%'`). The vendors
+  were each sent ≥2 test leads on Transmission emails (Nabeel / Shalvi / Jade), which were inflating the
+  Q3 rejection rate (~36%). The SAME filter is mirrored into the status dashboard's Cloudflare CS check
+  (`status_dashboard/job/main.py`, `_CF_TEST_LEAD_FILTER`) so the accuracy monitor doesn't false-alarm.
+- **Unprocessed / New leads removed from the dashboard.** They're our internal backlog, not shown to
+  Cloudflare. Acceptance & rejection rate now use **reviewed = accepted + rejected** as the denominator
+  (so acc% + rej% = 100%); the unprocessed pacing bar, the "pending triage" note, the Comparison-tab
+  Unprocessed % KPI, and the QoQ status-mix New row are all gone. The `cs_qoq` view still emits `New`
+  (harmless; the front-end ignores it). Overview "Total leads" was relabelled **"Accepted leads"** (the
+  KPI always showed the accepted count).
+- **Quarter captions are dynamic.** The dashboard defaults to Q3 but the targets are the Q2 plan, so
+  every "Q2 …" caption read wrong. Captions now follow the selected quarter via `qtrLabel()` (returns
+  `Q3` / `Q2` / `Q2-Q3`, or `Quarter` for a custom range) applied to every `.qlbl` span + the JS-built
+  labels (`renderProgress` / `renderLeadsTarget` / by-region summary / date-scope banner). The QoQ tab
+  gained a caveat line ("Q3 campaigns launched late, so QTD reads light — timing, not a data issue").
+
+### Korea reconciliation (144 vs 164) — Ian to confirm with data
+
+The client (Nabeel) reports **164 Korea leads DELIVERED** (101 Final Funnel + 63 Roverpath); the dash
+KR chip shows **~144**, which is Korea **ACCEPTED** leads. The ~20 gap is almost certainly
+delivered-vs-accepted (rejected + new Korea leads), **not** a country-name or campaign-scoping bug — so
+`sql/10` keeps the exact `= 'KOREA, REPUBLIC OF'` match (a broadened `LIKE '%KOREA%'` would over-count
+AND desync the status-dash check). Confirm the split before changing anything:
+
+```sql
+SELECT
+  CASE WHEN LEAD_STATUS IN ('Accepted','Replied','Unresponsive') THEN 'Accepted'
+       WHEN LEAD_STATUS = 'Rejected' THEN 'Rejected' ELSE 'New/other' END AS bucket,
+  CASE WHEN CAMPAIGN_ID IN ('701RG00001ElJZzYAN','701RG00001ElTu3YAF','701RG00001ElVXdYAN') THEN 'Roverpath'
+       WHEN CAMPAIGN_ID IN ('701RG00001ElUoXYAV','701RG00001ElUa0YAF','701RG00001ElNYkYAN') THEN 'Final Funnel' END AS publisher,
+  COUNT(*) AS leads
+FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
+WHERE UPPER(TRIM(COUNTRY_NAME)) = 'KOREA, REPUBLIC OF'
+  AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_kr_campaign_ids`)
+  AND LOWER(IFNULL(SPLIT(EMAIL,'@')[SAFE_OFFSET(1)],'')) NOT LIKE '%transmission%'
+GROUP BY 1, 2 ORDER BY 2, 1;
+```
+
+If the total across all buckets ≈ 164 and Accepted ≈ 144, the dash is correct and the client is
+quoting *delivered*; frame it that way rather than changing the KR logic. Also try the same query with
+country variants (`LIKE '%KOREA%'`) — if that adds ~20 *accepted*, the fix is a broadened match (apply
+it in BOTH `sql/10` and the status check's KR arm to stay in sync).
 
 - **Korea Leads (KR)** — Country `'Korea, Republic of'` leads in the **6 ORIGINAL El\* CS campaigns
   ONLY** (3 Roverpath + 3 Final Funnel Lead-Gen; seed-driven via `seed_kr_campaign_ids`). ~**164** leads.

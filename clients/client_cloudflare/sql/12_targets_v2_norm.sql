@@ -2,24 +2,23 @@
 -- Over the committed seed client_cloudflare.seed_real_targets (from the version-controlled
 -- targets/real_targets.csv -- the per-client "targets live in BQ from a committed CSV" standard).
 -- The DATE column holds week-start Mondays (matches DATE_TRUNC(DAY, WEEK(MONDAY)) in pacing_model).
--- 2026-06-25: maps the seed's (REGION, COUNTRY) to the 11 media-plan market codes so the targets
--- join the lead REGION_GRP codes 1:1 (sql/10): ANZ->AU/NZ, ASEAN->SIM/ROA, GCR->GCR-CN/TW/HK.
+-- 2026-07-07: rolled the seed's (REGION, COUNTRY) targets back UP to the COARSE 7 market codes so
+-- they join the lead REGION_GRP codes 1:1 (sql/10). The seed's REGION column already IS the coarse
+-- grain (ANZ / ASEAN / SAARC / GCR / JAPAN / KOREA / RIG), so we just normalise JAPAN->JP, KOREA->KR
+-- and SUM the per-country target rows into the 7 buckets (AU+NZ -> ANZ, SIM+RoA -> ASEAN, the three
+-- GCR countries -> GCR). Grand total is unchanged (currently 3216).
 CREATE OR REPLACE VIEW `client_cloudflare.targets_v2_norm` AS
 SELECT
     `DATE` AS WEEK_START,
     CASE
-        WHEN REGION = 'ANZ'   AND COUNTRY = 'Australia'      THEN 'AU'
-        WHEN REGION = 'ANZ'   AND COUNTRY = 'New Zealand'    THEN 'NZ'
-        WHEN REGION = 'ASEAN' AND COUNTRY LIKE 'SIM%'        THEN 'SIM'
-        WHEN REGION = 'ASEAN' AND COUNTRY LIKE 'RoA%'        THEN 'ROA'
-        WHEN REGION = 'SAARC'                                THEN 'SAARC'
-        WHEN REGION = 'GCR'   AND COUNTRY = 'Mainland China' THEN 'GCR-CN'
-        WHEN REGION = 'GCR'   AND COUNTRY = 'Taiwan'         THEN 'GCR-TW'
-        WHEN REGION = 'GCR'   AND COUNTRY = 'Hong Kong'      THEN 'GCR-HK'
-        WHEN REGION = 'JAPAN'                                THEN 'JP'
-        WHEN REGION = 'KOREA'                                THEN 'KR'
-        WHEN REGION = 'RIG'                                  THEN 'RIG'
-    END AS MARKET_REGION,
+        WHEN REGION = 'ANZ'   THEN 'ANZ'
+        WHEN REGION = 'ASEAN' THEN 'ASEAN'
+        WHEN REGION = 'SAARC' THEN 'SAARC'
+        WHEN REGION = 'GCR'   THEN 'GCR'
+        WHEN REGION = 'JAPAN' THEN 'JP'
+        WHEN REGION = 'KOREA' THEN 'KR'
+        WHEN REGION = 'RIG'   THEN 'RIG'
+    END AS MARKET_REGION,   -- unknown REGION -> NULL (dropped), matching the old mapping's no-ELSE behaviour
     TIER,
     SUM(TARGET) AS WEEKLY_TIER_TARGET
 FROM `client_cloudflare.seed_real_targets`
