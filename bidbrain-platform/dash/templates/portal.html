@@ -213,17 +213,25 @@
       if (!cur.blob) return;
       if (!GOOGLE_CLIENT_ID || !(window.google && google.accounts && google.accounts.oauth2)){
         setMsg('Google Slides export is not available here - use Download .pptx.', true); return; }
-      // Open the new tab synchronously on the click (so it is not popup-blocked); redirect once uploaded.
-      var tab = window.open('', '_blank');
-      if (tab){ try { tab.document.write('<title>Opening Google Slides…</title><p style="font:15px system-ui;padding:26px;color:#333">Preparing your Google Slides deck… this tab will open it automatically.</p>'); } catch(e){} }
+      // NOTE: do NOT pre-open a blank tab here. Browsers allow one popup per user gesture, and a
+      // pre-opened tab consumes it so Google's OWN sign-in popup gets blocked -> error_callback fires
+      // as "popup_failed_to_open" (which read as "cancelled"). Let GIS open the single popup; open the
+      // finished deck AFTER upload, with a clickable-link fallback if that async open is blocked.
       if (btnGoogle) btnGoogle.disabled = true;
       setMsg('Requesting Google Drive access…');
-      var fail = function(m){ if (tab){ try { tab.close(); } catch(e){} } if (btnGoogle) btnGoogle.disabled = false; setMsg(m, true); };
+      var fail = function(m){ if (btnGoogle) btnGoogle.disabled = false; setMsg(m, true); };
+      var openResult = function(link){
+        var w = window.open(link, '_blank');   // async (post-upload) -> may be popup-blocked
+        if (w){ setMsg('Opened in Google Slides ✓ (saved to your Drive)'); }
+        else { elMsg.classList.remove('err');
+          elMsg.innerHTML = 'Your deck is in Google Slides — <a href="' + link + '" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">click to open ↗</a> (saved to your Drive).'; }
+        if (btnGoogle) btnGoogle.disabled = false;
+      };
       var tc = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: 'https://www.googleapis.com/auth/drive.file',
         callback: function(resp){
-          if (!resp || resp.error || !resp.access_token){ fail('Google access was declined.'); return; }
+          if (!resp || resp.error || !resp.access_token){ fail('Google declined access (' + ((resp && resp.error) || 'no token') + ').'); return; }
           setMsg('Uploading to Google Slides…');
           var meta = { name: (cur.fileName || cur.name || 'Deck').replace(/\.pptx$/i, ''), mimeType: 'application/vnd.google-apps.presentation' };
           var form = new FormData();
@@ -234,12 +242,15 @@
           }).then(function(r){ return r.json().then(function(j){ return { ok:r.ok, status:r.status, j:j }; }); })
             .then(function(o){
               if (!o.ok) throw new Error((o.j && o.j.error && o.j.error.message) || ('HTTP ' + o.status));
-              var link = o.j.webViewLink || ('https://docs.google.com/presentation/d/' + o.j.id + '/edit');
-              if (tab){ tab.location.href = link; } else { window.open(link, '_blank'); }
-              setMsg('Opened in Google Slides ✓ (saved to your Drive)'); if (btnGoogle) btnGoogle.disabled = false;
+              openResult(o.j.webViewLink || ('https://docs.google.com/presentation/d/' + o.j.id + '/edit'));
             }).catch(function(err){ fail('Google Slides upload failed: ' + ((err && err.message) || err)); });
         },
-        error_callback: function(){ fail('Google access was cancelled.'); }
+        error_callback: function(err){
+          var t = (err && (err.type || err.message)) || '';
+          if (/popup_failed|blocked/i.test(t)) fail('The Google sign-in popup was blocked — allow pop-ups for this site, then retry.');
+          else if (/popup_closed|closed/i.test(t)) fail('Google sign-in was closed before it finished — retry and complete it.');
+          else fail('Could not open Google sign-in' + (t ? ' (' + t + ')' : '') + ' — check pop-ups are allowed for this site.');
+        }
       });
       try { tc.requestAccessToken(); } catch(e){ fail('Could not start Google sign-in: ' + ((e && e.message) || e)); }
     }
