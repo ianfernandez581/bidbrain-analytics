@@ -183,7 +183,27 @@ Populate every required field from the inputs, conform EXACTLY to the schema, an
 # Anthropic web_search. Plain REST via httpx (already a dep) — no extra SDK, no guessed bindings.
 # Enabled iff GEMINI_API_KEY is set; model via GEMINI_MODEL (default below).
 GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
-GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# Gemini runs on VERTEX AI, billed to THIS GCP project via the runtime SA's ADC (no prepay AI-Studio
+# API key -- those credits run dry). Region australia-southeast1; runtime SA needs roles/aiplatform.user.
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "australia-southeast1")
+_VERTEX = {"token": None, "project": None, "exp": 0.0}
+
+
+def _vertex_auth():
+    """(access_token, project) from Application Default Credentials. On Cloud Run this is the dash
+    service's runtime SA. Token cached ~50 min so we don't refresh on every generateContent call."""
+    import time
+    if _VERTEX["token"] and _VERTEX["exp"] > time.time() + 60:
+        return _VERTEX["token"], _VERTEX["project"]
+    import google.auth
+    from google.auth.transport.requests import Request
+    creds, project = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    creds.refresh(Request())
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT") or project
+    if not project:
+        raise RuntimeError("Vertex AI: no GCP project resolved (set GOOGLE_CLOUD_PROJECT)")
+    _VERTEX.update(token=creds.token, project=project, exp=time.time() + 3000)
+    return creds.token, project
 GEMINI_STAGE_A_SYSTEM = (STAGE_A_SYSTEM +
     "\n\n(Tooling note: you are running on Google Gemini with the Google Search tool. Use Google "
     "Search for all live research in place of any web_search/web_fetch references above, and ground "
@@ -424,7 +444,8 @@ def _finalize(report, sources, model, provider):
 
 # ── Gemini fallback helpers ───────────────────────────────────────────────────────────────────
 def _gemini_enabled():
-    return bool(os.environ.get("GEMINI_API_KEY"))
+    # Vertex AI uses the runtime SA's ADC (no API key), so Gemini is always available in-cluster.
+    return True
 
 
 def _should_fallback(e):
@@ -446,7 +467,7 @@ def _should_fallback(e):
     return "credit balance is too low" in msg or "plans & billing" in msg
 
 
-def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json_mode=False):
+def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode=False):
     """One Gemini generateContent call (REST). Key goes in the x-goog-api-key HEADER, never the URL,
     so it can't leak into an httpx error string or a log. Returns (text, grounding_sources)."""
     import httpx
@@ -463,12 +484,15 @@ def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json
         "generationConfig": gen,
     }
     if grounding:
-        body["tools"] = [{"google_search": {}}]
-    r = httpx.post(GEMINI_ENDPOINT.format(model=model),
-                   headers={"x-goog-api-key": key, "content-type": "application/json"},
+        body["tools"] = [{"googleSearch": {}}]
+    token, project = _vertex_auth()
+    host = "aiplatform.googleapis.com" if VERTEX_LOCATION == "global" else f"{VERTEX_LOCATION}-aiplatform.googleapis.com"
+    url = (f"https://{host}/v1/projects/{project}/locations/{VERTEX_LOCATION}"
+           f"/publishers/google/models/{model}:generateContent")
+    r = httpx.post(url, headers={"Authorization": f"Bearer {token}", "content-type": "application/json"},
                    json=body, timeout=300.0)
     if r.status_code != 200:
-        raise RuntimeError(f"Gemini HTTP {r.status_code}")
+        raise RuntimeError(f"Vertex Gemini HTTP {r.status_code}")
     cands = (r.json().get("candidates") or [])
     if not cands:
         raise RuntimeError("Gemini returned no candidates (possibly blocked)")
@@ -487,27 +511,26 @@ def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json
 
 def _gemini_report(brief):
     """Regenerate the whole report on Gemini (Stage A grounded research -> Stage B JSON)."""
-    key = os.environ["GEMINI_API_KEY"]
     model = os.environ.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
     research_msg = ("\n\nResearch and write the analyst notes (headline, what happened, ranked "
                     "drivers, recommended actions, sources used) per your instructions.")
     try:
-        notes, raw_sources = _gemini_generate(model, key, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
+        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
                                               max_tokens=16000, grounding=True)
     except Exception:  # noqa: BLE001 — grounding may be unavailable; degrade to no live web
-        notes, raw_sources = _gemini_generate(model, key, GEMINI_STAGE_A_SYSTEM,
+        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM,
                                               brief + research_msg, max_tokens=16000, grounding=False)
     sources = _sanitize_sources(raw_sources)
     src_lines = "\n".join(f"[{i}] {s['title']} :: {s['url']}" for i, s in enumerate(sources)) or "(none found)"
     user = (brief + "\n\n## ANALYST RESEARCH NOTES (Stage A)\n" + (notes or "(no notes produced)")
             + "\n\n## SOURCE URL LIST (the only URLs that exist; 0-based indices for source_index)\n"
             + src_lines + "\n\nReturn the report JSON.")
-    text, _ = _gemini_generate(model, key, STAGE_B_SYSTEM, user, max_tokens=24000, json_mode=True)
+    text, _ = _gemini_generate(model, STAGE_B_SYSTEM, user, max_tokens=24000, json_mode=True)
     try:
         report = json.loads(text)
     except Exception as e:  # noqa: BLE001
         raise RuntimeError("Gemini structured output was not valid JSON") from e
-    return _finalize(report, sources, f"{model} (Claude fallback)", "gemini")
+    return _finalize(report, sources, model, "gemini")
 
 
 def generate_report(summary):
@@ -517,15 +540,17 @@ def generate_report(summary):
     key is configured, the whole report regenerates on Gemini so a report still comes back. Any
     other Claude failure propagates (so real bugs aren't masked)."""
     brief = _fmt_brief(summary)
+    # DEFAULT = Gemini on Vertex AI (billed to this project; no prepay key). Claude Opus is an
+    # OPTIONAL fallback, tried only if ANTHROPIC_API_KEY is configured AND Vertex fails.
     try:
-        client = _client()
-        notes, sources = _research(client, brief)
-        report = _structure(client, brief, notes, sources)
-        return _finalize(report, sources, MODEL, "claude")
-    except Exception as e:
-        if _gemini_enabled() and _should_fallback(e):
+        return _gemini_report(brief)
+    except Exception as ge:
+        if os.environ.get("ANTHROPIC_API_KEY"):
             try:
-                return _gemini_report(brief)
-            except Exception as ge:  # noqa: BLE001
-                raise RuntimeError(f"Claude unavailable (rate-limit/credit/auth) and the Gemini fallback failed: {ge}") from ge
-        raise
+                client = _client()
+                notes, sources = _research(client, brief)
+                report = _structure(client, brief, notes, sources)
+                return _finalize(report, sources, MODEL, "claude")
+            except Exception:  # noqa: BLE001 -- both providers failed; surface the Gemini error
+                pass
+        raise RuntimeError(f"Gemini (Vertex AI) report generation failed: {ge}") from ge
