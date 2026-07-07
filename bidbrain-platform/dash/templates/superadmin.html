@@ -134,12 +134,12 @@
 </style>
 </head>
 <body>
-  <!-- cursor glow: subtle green+blue light that follows the cursor (decorative, non-interactive) -->
+  <!-- cursor glow: subtle GOLD light that follows the cursor (matches this page's palette; behind content) -->
   <style>
-    .bb-cursor-glow{position:fixed;top:0;left:0;width:520px;height:520px;z-index:9990;pointer-events:none;
+    .bb-cursor-glow{position:fixed;top:0;left:0;width:520px;height:520px;z-index:-1;pointer-events:none;
       border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
-      background:radial-gradient(circle, rgba(61,220,132,.10) 0%, rgba(61,220,132,.04) 32%, transparent 68%),
-                 radial-gradient(circle, rgba(79,140,255,.11) 0%, rgba(79,140,255,.05) 40%, transparent 72%)}
+      background:radial-gradient(circle, rgba(243,201,105,.13) 0%, rgba(243,201,105,.05) 34%, transparent 70%),
+                 radial-gradient(circle, rgba(224,168,24,.09) 0%, rgba(224,168,24,.03) 46%, transparent 74%)}
     @media (prefers-reduced-motion:reduce){ .bb-cursor-glow{display:none} }
   </style>
   <div class="bb-cursor-glow" id="bbGlow" aria-hidden="true"></div>
