@@ -1,0 +1,37 @@
+Platform Allocation Summary,,,,
+Actual platform-level spend. Reconciles to total budget but cuts the view by platform rather than channel bucket.,,,,
+,,,,
+APAC : Platform Allocation,,,,
+Platform,,Budget USD,% of APAC,In-scope GEOs
+LinkedIn,,"$61,022.44",58.4%,"ANZ, ASEAN (SIM + RoA), SAARC India, GCR-HK"
+TTD,,"$43,557.56",41.6%,"All programmatic, incl CN, TW and KR (TTD-only) and a retargeting line in every market"
+Reddit,,$0.00,0.0%,Dropped in Q3 (K2). Its ANZ budget moved to LinkedIn lead gen
+APAC TOTAL,,"$104,580.00",100.0%,
+,,,,
+Japan : Platform Allocation,,,,
+Platform,,Budget USD,% of JP,In-scope
+Google Ads (YouTube),,"$7,553.00",65.0%,"Japan (YouTube via Google Ads, Demand Gen)"
+TTD,,"$4,067.00",35.0%,Japan
+JP TOTAL,,"$11,620.00",100.0%,
+,,,,
+Program total (APAC + JP),,,,
+Platform,,Budget USD,% of Total,
+LinkedIn,,"$61,022.44",52.5%,
+TTD,,"$47,624.56",41.0%,
+Reddit,,$0.00,0.0%,
+Google Ads (YouTube),,"$7,553.00",6.5%,
+TOTAL,,"$116,200.00",100.0%,
+,,,,
+Why TTD is the largest platform,,,,
+"TTD carries $43,558 of APAC because CN, TW and KR run TTD-only (no social platform in those markets) and because every market now has a dedicated TTD retargeting line. LinkedIn carries $61,022 across ANZ, ASEAN, India and HK. Reddit is dropped. The summary tables on the Activation Plan sheets show budget through the channel buckets; this sheet shows the same dollars by platform.",,,,
+,,,,
+TTD reconciliation by market type,,,,
+GEO,Source,Amount,,Note
+"ANZ, ASEAN, India, HK",TTD within social markets,"$28,916.36",,"B2Beacon, whitelist + 3PA and a retargeting line in each"
+"CN, TW, KR",TTD-only markets,"$14,641.20",,"Full market budget on TTD, no social platform in scope"
+APAC TTD TOTAL,,"$43,557.56",,Matches APAC TTD above
+,,,,
+,,,,
+,,,,
+,,,,
+,,,,
