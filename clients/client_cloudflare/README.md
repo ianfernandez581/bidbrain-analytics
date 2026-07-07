@@ -112,23 +112,17 @@ the 11 market codes. To change targets:
 The per-market Q2 totals reconcile to the Q2 media-plan sheet (total **3216**). `tiers.csv`
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
 
-**Q3 FY26 targets (added 2026-07-07).** Q3 rows appended for the 13 week-start Mondays inside
-calendar Q3, `2026-07-06 → 2026-09-28` (grand total now 5660; Q2 rows untouched). Aligned to
-calendar Q3 (`07-01 → 09-30`) so the quarter chips, the QoQ view and the pacing model all share
-one quarter definition. The client's Q3 file
-(`targets/real_targets Q3.xlsx`) is a paid-media **activation plan**, NOT a weekly × tier CS
-pacing table like the Q2 Snowflake source. The CS ("Double Touch MQL") target = the plan's
-**Precision + Conversion "2 Touch MQL" programs = 2444** (APAC 2200 + JP 244) — NOT the
-Persuasion **Commit Leads (252)**, which are the separate *paid-media* LinkedIn/YouTube lead-gen
-motion (that's the Paid Media tab, not CS). The plan gives CS only at APAC+JP aggregate (no
-per-market/tier split), so Q3 per-market×tier = the client's **actual Q2 CS mix scaled by
-2444/3216 = 0.760** — which reconciles *exactly* to the plan's APAC 2200 / JP 244. This preserves
-Q2's market and Tier 2/Tier 3 structure; each combo is spread **evenly across the 14 weeks**
-(largest-remainder integer split). Resulting per-market: AU 874 / NZ 97 / SIM 289 / RoA 125 /
-SAARC 215 / GCR-CN 81 / GCR-TW 80 / GCR-HK 155 / KR 153 / RIG 131 / JP 244. The dashboard's active
-quarter was rolled Q2→Q3 (default range = full Q3, all "Q2" labels → "Q3"; `Q3_START`/`Q3_END` in
-`dash/dashboard.html`). If the client later supplies a real per-market Q3 CS split, replace the
-scaled figures. The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (no Q3 supplied).
+**Q3 FY26 targets — REMOVED, pending client confirmation (2026-07-07).** A first-pass Q3 target
+was briefly seeded (scaled from the client's Q3 activation plan) but has been **pulled**: the Q3
+CS number is **not confirmed by the client yet**, so `targets/real_targets.csv` now carries **Q2
+rows only** (`2026-03-30 → 2026-06-15`) and the dashboard shows Q3 as **actuals-only** — the target
+KPIs read `—` and the pacing cards render the "targets & pacing not set yet" placeholder (see
+*Quarter filter* below). The staged Q3 workbook stays in `targets/real_targets Q3.csv` (NOT loaded
+by the seed) so it's ready to re-derive once the client confirms. **To re-add Q3 when confirmed:**
+append the Q3 week × tier × region rows back into `targets/real_targets.csv`, re-seed
+(`seed_static.py` / the `bq load` below) and run the job with `FORCE_REBUILD=1` — the pacing UI then
+lights up automatically (no dashboard code change needed; captions are already `qtrLabel()`-driven).
+The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (unaffected).
 
 **Since `.venv` may be broken / ADC unauthed, reload the seed with `bq` (gcloud creds, no venv) —
 `bq load` of ONLY `real_targets` is safer than `seed_static.py`, which also loads the gitignored
