@@ -1135,6 +1135,53 @@ def _render_super():
                            tools=_tools_tiles(), **st)
 
 
+# --- Tools tile: The Grid freshness + on-demand sync (superadmin/admin only) --------------
+# "Last synced" = the mtime of the daily-refreshed GCS snapshot the Grid serves on open; "Sync now"
+# triggers the Grid's /refresh (regenerate that snapshot from live BigQuery). Same run.invoker the
+# proxy already has (_tool_headers) + a shared REFRESH_TOKEN (secret pacing-refresh-token).
+PACING_SNAP_BUCKET = os.environ.get("PACING_SNAP_BUCKET", "bidbrain-analytics-pacing-grid")
+
+
+def _pacing_refresh_token():
+    from google.cloud import secretmanager
+    sm = secretmanager.SecretManagerServiceClient()
+    name = f"projects/{PROJECT}/secrets/pacing-refresh-token/versions/latest"
+    return sm.access_secret_version(name=name).payload.data.decode().strip()
+
+
+@app.get("/tools/pacing/status")
+def tools_pacing_status():
+    if session.get("kind") not in ("superadmin", "admin"):
+        abort(403)
+    try:
+        import google.auth
+        import google.auth.transport.requests as gart
+        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/devstorage.read_only"])
+        creds.refresh(gart.Request())
+        r = requests.get(f"https://storage.googleapis.com/storage/v1/b/{PACING_SNAP_BUCKET}/o/snapshot.json",
+                         headers={"Authorization": f"Bearer {creds.token}"}, timeout=15)
+        return jsonify(ok=r.ok, updated=(r.json().get("updated") if r.ok else None))
+    except Exception as e:
+        return jsonify(ok=False, updated=None, error=str(e)[:200])
+
+
+@app.post("/tools/pacing/sync")
+def tools_pacing_sync():
+    if session.get("kind") not in ("superadmin", "admin"):
+        abort(403)
+    base = _upstream_base("pacing")
+    if not base:
+        return jsonify(ok=False, error="The Grid is not configured."), 400
+    try:
+        hdrs = _tool_headers("pacing")            # IAM Bearer for the org-private service
+        hdrs["X-Refresh-Token"] = _pacing_refresh_token()
+        r = requests.post(f"{base}/refresh", headers=hdrs, timeout=180)
+        j = r.json() if "application/json" in r.headers.get("Content-Type", "") else {}
+        return jsonify(ok=r.ok, result=(j if isinstance(j, dict) else {})), (200 if r.ok else 502)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)[:200]), 502
+
+
 @app.get("/admin")
 def admin_tree():
     """The editable agencies→clients→campaigns tree. Reachable by admin (its home) and by super

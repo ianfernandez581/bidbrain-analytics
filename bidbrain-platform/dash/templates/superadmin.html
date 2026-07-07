@@ -208,15 +208,7 @@
     <!-- TOOLS -->
     <div class="sec">
       <div class="shead"><h2>Tools</h2><span class="c">internal — reverse-proxied, staff-only</span></div>
-      <div class="grid2">
-        {% for t in tools %}
-        <div class="card">
-          <div class="knm">{{ t.name }}</div>
-          <div class="ksub">Live pacing across every client — margin at risk, over/under delivery.</div>
-          <div style="margin-top:12px"><a class="btn ghost sm" href="/d/{{ t.key }}/" target="_blank" rel="noopener">Open {{ t.name }} →</a></div>
-        </div>
-        {% endfor %}
-      </div>
+      {% include "_tools_tile.html" %}
     </div>
     {% endif %}
 

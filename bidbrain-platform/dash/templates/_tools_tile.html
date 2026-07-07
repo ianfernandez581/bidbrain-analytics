@@ -1,0 +1,54 @@
+{% if tools %}
+{# Internal Tools tile (The Grid). Shared by admin.html + superadmin.html. Shows Open + a Sync-now
+   button + "Last synced <time>" (the GCS snapshot's freshness) so you can tell if the Grid's data
+   is current before opening it. Endpoints: GET /tools/pacing/status, POST /tools/pacing/sync. #}
+<div class="tools-sec" style="margin:0 0 18px">
+  <div style="font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;opacity:.6;margin-bottom:8px">Tools <span style="font-weight:500;text-transform:none;letter-spacing:0;opacity:.8">· internal, staff-only</span></div>
+  {% for t in tools %}
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:12px 14px;border:1px solid rgba(255,255,255,.12);border-radius:12px;background:rgba(255,255,255,.03);margin-bottom:8px">
+    <div style="min-width:120px">
+      <div style="font-weight:700">{{ t.name }}</div>
+      <div style="font-size:12px;opacity:.6">Live pacing across every client — margin at risk, over/under delivery.</div>
+    </div>
+    <a class="btn primary" href="/d/{{ t.key }}/" target="_blank" rel="noopener">Open {{ t.name }} →</a>
+    <button class="btn" data-pacing-sync type="button" title="Pull the latest numbers from BigQuery into the Grid now">↻ Sync now</button>
+    <span data-pacing-synced style="font-size:12px;opacity:.7;white-space:nowrap">checking…</span>
+  </div>
+  {% endfor %}
+</div>
+<script>
+(function () {
+  function rel(iso) {
+    if (!iso) return "never synced";
+    var s = (Date.now() - Date.parse(iso)) / 1000;
+    if (s < 0) s = 0;
+    if (s < 90) return "just now";
+    if (s < 5400) return Math.round(s / 60) + " min ago";
+    if (s < 172800) return Math.round(s / 3600) + " h ago";
+    return Math.round(s / 86400) + " d ago";
+  }
+  function loadStatus() {
+    fetch("/tools/pacing/status").then(function (r) { return r.json(); }).then(function (j) {
+      document.querySelectorAll("[data-pacing-synced]").forEach(function (el) {
+        el.textContent = "Last synced " + rel(j && j.updated);
+        el.title = (j && j.updated) ? new Date(j.updated).toLocaleString() : "";
+      });
+    }).catch(function () {});
+  }
+  document.querySelectorAll("[data-pacing-sync]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      btn.disabled = true; var t = btn.textContent; btn.textContent = "Syncing…";
+      fetch("/tools/pacing/sync", { method: "POST" }).then(function (r) { return r.json(); }).then(function (j) {
+        btn.textContent = (j && j.ok) ? "✓ Synced" : "Sync failed";
+        loadStatus();
+        setTimeout(function () { btn.textContent = t; btn.disabled = false; }, 3000);
+      }).catch(function () {
+        btn.textContent = "Sync failed";
+        setTimeout(function () { btn.textContent = t; btn.disabled = false; }, 3000);
+      });
+    });
+  });
+  loadStatus();
+})();
+</script>
+{% endif %}

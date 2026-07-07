@@ -230,14 +230,7 @@
       <span id="bbsyncall-msg" class="bbmuted" role="status" aria-live="polite"></span>
     </div>
 
-    {% if tools %}
-    <div class="bbsyncbar" style="margin-top:-4px">
-      <span class="bbmuted" style="font-weight:700;text-transform:uppercase;letter-spacing:.06em;font-size:12px">Tools</span>
-      {% for t in tools %}
-      <a class="btn primary" href="/d/{{ t.key }}/" target="_blank" rel="noopener">{{ t.name }} →</a>
-      {% endfor %}
-    </div>
-    {% endif %}
+    {% include "_tools_tile.html" %}
 
     <div class="toolbar">
       <div class="search">
