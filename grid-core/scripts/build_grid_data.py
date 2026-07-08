@@ -174,6 +174,7 @@ def render_literal(rows):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="print a per-advertiser count, write nothing")
+    ap.add_argument("--no-live", action="store_true", help="skip the BigQuery live-metrics overlay (sheet numbers only)")
     args = ap.parse_args()
 
     raw = _raw_rows()
@@ -185,6 +186,22 @@ def main():
     for k, v in counts.most_common():
         print(f"  {v:3d}  {k}")
     print(f"sheet as-of date (for SNAP): {asof}")
+
+    # Overlay live BigQuery metrics (spend/imps/clicks) onto the sheet-seeded rows,
+    # and write a sheet-vs-BQ reconciliation report. Never blocks the sheet regen:
+    # a BQ hiccup leaves every row on its sheet number, tagged 'sheet'.
+    if not args.no_live:
+        try:
+            import live_metrics
+            live = live_metrics.fetch()
+            base = live_metrics.baseline_from(rows)
+            n = live_metrics.overlay(rows, live)
+            recon = live_metrics.reconcile(base, live)
+            print(f"live overlay: {n} rows now BQ-sourced ({len(live)} live keys); reconciliation -> {recon.relative_to(REPO)}")
+        except Exception as e:  # noqa: BLE001 - degrade to sheet numbers, never crash the regen
+            print(f"live overlay SKIPPED ({e.__class__.__name__}: {str(e)[:200]}); rows stay on sheet numbers")
+            for r in rows:
+                r.setdefault("metricsSource", "sheet")
 
     if args.check:
         return

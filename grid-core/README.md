@@ -68,6 +68,30 @@ re-anchors the grid's pacing `SNAP` date** in `the-grid.html` to the sheet's rea
 so run-rate projections always match the sheet instead of drifting from a stale
 hardcoded date. One run keeps both the campaign list and the pacing math in sync.
 
+### Live metrics from BigQuery (the scraped half)
+
+The plan: the **commercial** columns (budgets, targets, margins, owners, flight
+dates, notes) stay manually typed; the **metric** columns (spend / impressions /
+clicks) are scraped live. `scripts/live_metrics.py` is the scraped half — it reads
+the same BigQuery layer that powers the client dashboards (so the grid matches the
+dashboards number-for-number) and, during a `build_grid_data.py` run, **overlays
+those live numbers onto the sheet-seeded rows**. Overlaid rows are tagged
+`metricsSource:'BQ'` (+ `dataThrough`) and show a **LIVE** badge in the grid;
+everything else stays `'sheet'`. A BQ hiccup never blocks the regen — rows just
+fall back to sheet numbers. Skip the overlay with `--no-live`.
+
+**Coverage is explicit and validated, never guessed.** Only advertisers with a
+reconciled entry in `CLIENTS` (in `live_metrics.py`) are scraped. Add a client by
+adding its per-campaign BQ spend query + a `program → grid campaign` map, and
+**reconcile it first** — every run writes `tmp/reconciliation.csv` comparing sheet
+vs BQ per campaign/channel with a `match` / `DIVERGES ×N` verdict. Today Schneider
+is wired (via `client_schneider.pm_delivery`); the reconciliation shows **LinkedIn
+matches the sheet, Trade Desk diverges ~3×** — impressions match to within a few
+percent (so the join is correct), meaning the TTD gap is a spend *definition*
+mismatch (BQ's TTD spend aligns with the sheet's billed *Client Spent*, not raw
+*Media Spend*), to be resolved before TTD is trusted. Requires `bq` CLI auth as
+`ian@100.digital`.
+
 ## Go-live path (in order)
 
 1. `cp .env.example .env` and fill in whatever credentials you have.
