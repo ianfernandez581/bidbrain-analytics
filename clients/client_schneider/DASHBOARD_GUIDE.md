@@ -164,9 +164,9 @@ Switching campaign snaps you to the first valid tab for that campaign.
 
 ### 6.1 Paid Media tab ("Paid Media: Delivery")
 
-Filters that apply: campaign, region, and date range. If the program has no paid delivery (Heavy and
-Advancing Energy Technology today), a banner explains it is leads-only or pre-launch and points to the
-Content Syndication tab.
+Filters that apply: campaign, region, and date range. If the program has no paid delivery (Heavy
+today), a banner explains it is leads-only or pre-launch and points to the Content Syndication tab.
+(Advancing Energy Technology now shows LinkedIn delivery, live from July 2026.)
 
 **Four KPI cards:**
 

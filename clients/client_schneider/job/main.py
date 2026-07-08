@@ -4,8 +4,9 @@ Stage 2 of the standard pattern: read the BigQuery views in client_schneider/sql
 single schneider.json to the private GCS bucket. The gated web app (client_schneider/dash) serves
 that JSON at /data.json.
 
-This dashboard is a **client_mongodb-style clone** scoped to the 5 Salesforce lead-gen programs
-(water_env / eba / heavy / global_rebrand / airset) behind 9 SF campaign IDs. Three tabs:
+This dashboard is a **client_mongodb-style clone** scoped to 6 programs: the 5 Salesforce lead-gen
+programs (water_env / eba / heavy / global_rebrand / airset) behind 9 SF campaign IDs, plus NEL
+(New Energy Landscape) — an awareness-only program with paid delivery but no CS leads. Three tabs:
   * Paid Media          — DV360 / TradeDesk / LinkedIn delivery for the selected program (pm_delivery,
                           the match_pattern-tagged delivery at program × day × market × platform grain).
   * Content Syndication — Salesforce leads vs the media-plan MQL+HQL target (cs_by_programme / cs_weekly).
@@ -42,8 +43,10 @@ DATASET = f"client_{CLIENT}"
 BUCKET = f"bidbrain-analytics-{CLIENT}-dash"
 DATA_OBJECT = f"{CLIENT}.json"
 
-# The 5 Content-Syndication programs (== the distinct internal ids in seed_salesforce_map).
-CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset"]
+# The programs the dashboard surfaces: the 5 Content-Syndication programs (== the distinct internal
+# ids in seed_salesforce_map) + NEL, an awareness-only program that has paid delivery but no CS leads
+# (renders Paid Media only, like global_rebrand). Drives both the Campaign dropdown and the scorecard.
+CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel"]
 
 
 def num(v):

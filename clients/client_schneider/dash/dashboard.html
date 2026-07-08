@@ -360,12 +360,12 @@
     <div id="tab-scorecard" class="tabpane">
       <div class="section first">
         <h2>Executive Scorecard</h2>
-        <span class="sub">Portfolio view across all five programs — pace to target, efficiency, and the <b>quality of the audience reached</b> (accounts, functions, seniority). Reflects the selected region(s). Each program is framed against the Schneider strategic pillar it advances. All figures are true Salesforce &amp; media-plan source data.</span>
+        <span class="sub">Portfolio view across the full program portfolio — pace to target, efficiency, and the <b>quality of the audience reached</b> (accounts, functions, seniority). Reflects the selected region(s). Each program is framed against the Schneider strategic pillar it advances. All figures are true Salesforce &amp; media-plan source data.</span>
       </div>
 
       <div class="kpis" id="scKpis"></div>
 
-      <div class="section"><h2 style="font-size:15px">Programs vs strategy &amp; target</h2><span class="sub">Each lead-gen program mapped to the Schneider corporate pillar it supports, with pace-to-target (leads vs the even flight pace) and plan CPL.</span></div>
+      <div class="section"><h2 style="font-size:15px">Programs vs strategy &amp; target</h2><span class="sub">Each program mapped to the Schneider corporate pillar it supports, with pace-to-target (leads vs the even flight pace) and plan CPL. Awareness-only programs (no lead target) show as reach plays.</span></div>
       <div id="scPrograms" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-top:14px"></div>
 
       <div class="section"><h2 style="font-size:15px">Who we reached — audience intelligence</h2><span class="sub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens senior marketers value beyond raw volume.</span></div>
@@ -451,11 +451,6 @@
         <div class="group g-pacing"><div class="glbl">Pacing</div><div class="pair">
           <div class="stat"><div class="k">Current pacing</div><div class="v" id="cs_current">—</div><div class="cnt" id="cs_current_cnt"></div></div>
           <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cs_overall">—</div></div>
-        </div></div>
-        <div class="group g-delivery"><div class="glbl">Delivery <span style="font-weight:400;font-size:10px;color:var(--se-mute);text-transform:none;letter-spacing:0">· paid imps / clicks / CTR</span></div><div class="pair triple">
-          <div class="stat"><div class="k">Impressions</div><div class="v" id="cs_imp">—</div></div>
-          <div class="stat"><div class="k">Clicks</div><div class="v" id="cs_clk">—</div></div>
-          <div class="stat"><div class="k">CTR</div><div class="v" id="cs_ctr">—</div></div>
         </div></div>
         <div class="group g-outlook"><div class="glbl">Outlook <span style="font-weight:400;font-size:10px;color:var(--se-mute);text-transform:none;letter-spacing:0">· what's left to hit target</span></div><div class="pair">
           <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">—</div><div class="cnt" id="cs_remaining_cnt">—</div></div>
@@ -675,7 +670,7 @@ const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content
 // "Other Channels" (plan-only lines: Search / publisher / trade / email) was removed from the UI
 // 2026-07-06 (client request — low value). The job still emits it in tabs[]; we filter it out here.
 function campaignTabs(){ const t=(campaign().tabs||[]).filter(x=>x!=='other'); return t.length?t:['cs']; }
-// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) — it spans all 5 programs,
+// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) — it spans every program,
 // so it sits outside the per-campaign tab set.
 function allTabs(){ return campaignTabs().concat(['scorecard']); }
 function marketOk(m){ return activeMarkets.has(m); }
@@ -938,9 +933,6 @@ function renderCS(){
   if(!(p.leads>0 || p.hasTarget)){ note.style.display='block'; note.textContent=`No content-syndication leads or target for ${campaign().label} in the selected region(s).`; }
   else note.style.display='none';
 
-  // delivery (paid imps/clicks for this campaign+region, all dates)
-  let imp=0, clk=0; (DATA.pm_delivery||[]).forEach(r=>{ if(inCamp(r.program) && marketOk(r.market)){ imp+=r.imps||0; clk+=r.clicks||0; } });
-
   // snapshot
   el('cs_target').textContent=p.hasTarget?fmtN(p.target):'—';
   el('cs_total').textContent=fmtN(p.leads);
@@ -949,7 +941,6 @@ function renderCS(){
   const csEst=(p.cpl!=null)?p.leads*p.cpl:null;
   el('cs_current').textContent=p.vsTtd==null?'—':fmtPct(p.vsTtd,0);
   el('cs_overall').textContent=p.hasTarget?fmtPct(p.leadsPct,1):'—';
-  el('cs_imp').textContent=imp?fmtM(imp):'—'; el('cs_clk').textContent=clk?fmtN(clk):'—'; el('cs_ctr').textContent=imp?fmtPct(pct(clk,imp),2):'—';
   const remaining=Math.max(0,p.target-p.leads), daysLeft=p.totalDays!=null?Math.max(0,p.totalDays-p.elapsed):null;
   el('cs_remaining').textContent=p.hasTarget?fmtN(remaining):'—'; el('cs_remaining_cnt').textContent=p.hasTarget?fmtPct(p.leadsPct,0)+' delivered':'—';
   el('cs_daysleft').textContent=daysLeft!=null?fmtN(daysLeft):'—'; el('cs_daysleft_cnt').textContent=p.totalDays!=null?'of '+p.totalDays+' days':'no flight dates';
@@ -1073,6 +1064,7 @@ const PILLAR={
   airset:        {pillar:'Sustainability · SF6-free',   note:'AirSeT switchgear — eliminating SF6 greenhouse gas'},
   water_env:     {pillar:'Water &amp; Environment',      note:'Resilient, efficient water &amp; utilities infrastructure'},
   heavy:         {pillar:'Heavy Industries',            note:'Energy &amp; process efficiency for industry'},
+  nel:           {pillar:'New Energy Landscape',        note:'Awareness for the shift to a decarbonized, electrified energy system'},
 };
 // audience rows for the whole portfolio, filtered to the active regions, for one dimension
 function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
