@@ -34,6 +34,26 @@ _BACKEND = os.environ.get("PLATFORM_BACKEND", "gcs").lower()
 # Every dashboard key the admin UI may attach (the 10 live services + the not-yet-built ones).
 ALL_DASHBOARD_KEYS = sorted(set(list(seed.CLIENTS.keys()) + seed.UNASSIGNED_CLIENTS))
 
+# Canonical paid-media channel keys for the per-client SPEND MULTIPLIER (client-billed "spent to
+# date" vs. real partner/media cost — see the super-admin "Multiplier" panel). Each dashboard maps
+# its own platform names onto these; a channel absent from a client's map defaults to 1.0 (unchanged).
+SPEND_CHANNELS = ["google", "meta", "linkedin", "reddit", "ttd", "dv360", "line", "youdooh"]
+
+
+def clean_multipliers(raw):
+    """Sanitise a {channel: factor} map: keep only known channels with a positive finite float,
+    drop 1.0 (no-op) so the stored map stays minimal. Returns {} when nothing meaningful is set."""
+    out = {}
+    for ch in SPEND_CHANNELS:
+        v = (raw or {}).get(ch)
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if f > 0 and f == f and f != 1.0:   # f==f rejects NaN; skip 1.0 no-ops
+            out[ch] = round(f, 6)
+    return out
+
 
 def _domain_of(email: str) -> str:
     """The domain part of an email, lowercased ('' if malformed). Exact match only — 'x@100.digital'
@@ -406,7 +426,9 @@ class Store:
             # optional placeholder blurb shown on coming_soon tiles + the super console (note=None preserves)
             "note": existing.get("note", "") if note is None else note,
             "password_hash": existing.get("password_hash", ""),
+            "password_plain": existing.get("password_plain", ""),
             "campaigns": existing.get("campaigns", []),
+            "spend_multipliers": existing.get("spend_multipliers", {}),
             "order": existing.get("order", self._next_order(list(clients.values()))),
         }
         if agency_slug:
@@ -478,6 +500,24 @@ class Store:
                 return True
         return False
 
+    # ---- spend multipliers (client-billed "spent" vs real media cost) ----
+    def get_spend_multipliers(self, key):
+        """The per-channel multiplier map for one client ({} when unset). Proxy reads this to inject
+        window.BB_SPEND_MULT into that client's dashboard."""
+        c = self._client(key) or {}
+        return clean_multipliers(c.get("spend_multipliers"))
+
+    def set_spend_multipliers(self, key, mapping):
+        """Write a client's per-channel multiplier map. Sanitised + minimised (1.0 dropped); an empty
+        map removes the adjustment entirely. Returns False for an unknown client key."""
+        doc = self._load()
+        c = doc.get("clients", {}).get(key)
+        if not c:
+            return False
+        c["spend_multipliers"] = clean_multipliers(mapping)
+        self._save(doc)
+        return True
+
     def get_super_state(self):
         """Everything the god-mode console reveals. Dashboard (standalone) passwords are filled in
         by main.py from Secret Manager; here we surface the registry-owned passwords in clear."""
@@ -492,6 +532,7 @@ class Store:
             "key": k, "name": c["name"], "slug": c.get("slug", k),
             "status": c.get("status", "active"), "url": c.get("url", ""),
             "note": c.get("note", ""),
+            "spend_multipliers": clean_multipliers(c.get("spend_multipliers")),
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
         # Which agency owns each dashboard, so the console can group them per agency (100% Digital,
         # Transmission, …) instead of one flat list. Agencies keep their registry `order`; a client

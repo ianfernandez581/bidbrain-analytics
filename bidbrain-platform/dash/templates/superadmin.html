@@ -263,6 +263,10 @@
               <div class="dk"><span class="slug">{{ d.key }}</span></div>
             </div>
             {{ pwfield("dashboard", d.key, d.password, d.password) }}
+            <button type="button" class="btn sm multbtn{{ ' set' if d.spend_multipliers else '' }}"
+                    data-key="{{ d.key }}" data-name="{{ d.name }}" data-mult='{{ d.spend_multipliers|tojson }}'
+                    title="Client-billed spend multiplier (what the client sees as 'spent'), per channel">
+              ×{{ d.spend_multipliers|length if d.spend_multipliers else '' }} Multiplier</button>
             <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
           </div>
           {% elif d.url %}

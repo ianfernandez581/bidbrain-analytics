@@ -1266,6 +1266,21 @@ def super_agency_password():
     return jsonify(ok=True)
 
 
+@app.post("/super/api/spend-multiplier")
+def super_spend_multiplier():
+    """Set a client's per-channel spend multiplier (client-billed "spent to date" vs real media
+    cost). Body: {key, multipliers:{google,meta,ttd,...}}. An empty/all-1.0 map removes it. The proxy
+    reads this live and injects window.BB_SPEND_MULT — no dashboard redeploy needed to change a value."""
+    _require_super()
+    d = request.get_json(silent=True) or {}
+    key = (d.get("key") or "").strip()
+    if key not in store._all_clients():
+        return jsonify(ok=False, error="Unknown dashboard."), 404
+    if not store.set_spend_multipliers(key, d.get("multipliers") or {}):
+        return jsonify(ok=False, error="Unknown dashboard."), 404
+    return jsonify(ok=True, multipliers=store.get_spend_multipliers(key))
+
+
 @app.post("/super/api/user")
 def super_user():
     """Grant / change / revoke a Google account's access (super-admin only). Mirrors the password
@@ -1551,6 +1566,17 @@ def _feedback_widget(client):
     return _FEEDBACK_WIDGET.replace(b"__CLIENT__", client.encode())
 
 
+def _spend_mult_script(client):
+    """A tiny <script> the proxy injects into every proxied dashboard, exposing this client's
+    per-channel spend multiplier as window.BB_SPEND_MULT (client-billed "spent to date" vs real
+    media cost). The dashboard's vendored gross-up shim reads it. {} when unset → shim is a no-op."""
+    import json
+    m = store.get_spend_multipliers(client)          # {} when the super admin hasn't set one
+    payload = json.dumps(m).encode()
+    return (b"<script>window.BB_SPEND_MULT=Object.assign(window.BB_SPEND_MULT||{}," + payload
+            + b");</script>")
+
+
 def _upstream_base(client):
     c = store.get_client(client) or getattr(cfg, "TOOLS", {}).get(client)   # +TOOLS fallback (registry-free)
     url = (c or {}).get("url", "")
@@ -1689,6 +1715,15 @@ def proxy(client, subpath):
         body = body.replace(b"/data.json", f"/d/{client}/data.json".encode())
         body = body.replace(b"'/report'", f"'/d/{client}/report'".encode())  # AI report POST (mongodb)
         body = body.replace(b"/creative-img/", f"/d/{client}/creative-img/".encode())  # cached creative images (resetdata gallery)
+        if is_dashboard:
+            # Expose the per-channel spend multiplier BEFORE the dashboard's own scripts run (the
+            # gross-up shim reads window.BB_SPEND_MULT). Inject high in <head> so it wins even if a
+            # dashboard renders synchronously; fall back to </body> if there's no </head>.
+            mult = _spend_mult_script(client)
+            if b"</head>" in body:
+                body = body.replace(b"</head>", mult + b"</head>", 1)
+            elif b"</body>" in body:
+                body = body.replace(b"</body>", mult + b"</body>", 1)
         if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout + feedback control
             body = body.replace(b"</body>", _LOGOUT_BUTTON + _feedback_widget(client) + b"</body>", 1)
     out = Response(body, status=resp.status_code, content_type=ctype)

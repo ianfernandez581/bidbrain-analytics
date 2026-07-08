@@ -60,8 +60,10 @@ function Set-Secret($name, $val) {
 }
 
 $Key = Resolve-Key $Key "ANTHROPIC_API_KEY" "anthropic-api-key.txt"
-if (-not $Key) { Die "no Claude API key. Pass -Key, set `$env:ANTHROPIC_API_KEY, or create bidbrain-vault\anthropic-api-key.txt" }
-Set-Secret $SECRET $Key
+# Gemini on VERTEX AI is the DEFAULT generator (project-billed via $SA below; no key). The Claude
+# key is OPTIONAL now - only mounted if supplied, in which case Claude becomes a fallback.
+$useClaude = [bool]$Key
+if ($useClaude) { Set-Secret $SECRET $Key } else { Write-Host "no Claude key supplied - decks run on Vertex Gemini only (the default)." }
 
 $GeminiKey = Resolve-Key $GeminiKey "GEMINI_API_KEY" "gemini-api-key.txt"
 $useGemini = [bool]$GeminiKey
@@ -71,12 +73,20 @@ if ($useGemini) { Set-Secret $GSECRET $GeminiKey } else { Write-Host "no Gemini 
 Write-Host "granting storage.objectAdmin on gs://$BUCKET to $SA (report cache) ..."
 gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member="serviceAccount:$SA" --role="roles/storage.objectAdmin" --project $PROJECT | Out-Null; Must "grant bucket write"
 
+# ---- grant the runtime SA Vertex AI access (report.py DEFAULT generator = Gemini on Vertex) ----
+Write-Host "granting roles/aiplatform.user to $SA (Vertex AI Gemini) ..."
+gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:$SA" --role="roles/aiplatform.user" --condition=None --quiet | Out-Null; Must "grant aiplatform.user"
+
 # ---- mount the key(s) + set --timeout on the service -------------------------------------------
-$secrets = "ANTHROPIC_API_KEY=${SECRET}:latest"
-if ($useGemini) { $secrets += ",GEMINI_API_KEY=${GSECRET}:latest" }
-$envvars = if ($useGemini) { @("--update-env-vars", "GEMINI_MODEL=$GeminiModel") } else { @() }
-Write-Host "mounting secret(s) [$secrets] + --timeout=$TIMEOUT on $SERVICE ..."
-gcloud run services update $SERVICE --region $REGION --project $PROJECT --update-secrets $secrets --timeout $TIMEOUT @envvars; Must "update service"
+$secretParts = @()
+if ($useClaude) { $secretParts += "ANTHROPIC_API_KEY=${SECRET}:latest" }
+if ($useGemini) { $secretParts += "GEMINI_API_KEY=${GSECRET}:latest" }
+# GEMINI_MODEL picks the Vertex model (gemini-2.5-flash serves in au; gemini-2.5-pro auto-uses
+# the global endpoint via report.py's region fallback). Always set it.
+$upd = @("--update-env-vars", "GEMINI_MODEL=$GeminiModel", "--timeout", $TIMEOUT)
+if ($secretParts.Count -gt 0) { $upd += @("--update-secrets", ($secretParts -join ",")) }
+Write-Host "updating $SERVICE (GEMINI_MODEL=$GeminiModel, timeout=$TIMEOUT) ..."
+gcloud run services update $SERVICE --region $REGION --project $PROJECT @upd; Must "update service"
 
 Write-Host "`nDONE. The 'Download report' endpoint can now reach $([string]::Join(' + ', @('Claude') + @(if($useGemini){'Gemini fallback'}))). " -ForegroundColor Green
 Write-Host "Redeploy the dashboard image with deploy_dash_geocon.ps1 to ship report.py + the new dashboard.html."

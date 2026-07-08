@@ -87,7 +87,7 @@ UI in `templates/_status_merge.html`. See `bidbrain-platform/README.md`.
 "No second password" = a signed **`bb_sso`** cookie scoped to `.bidbrain.ai` listing the client keys
 you may open; each dashboard's `authed()` was extended (additively — its own password still works) to
 trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shared signer secret
-`platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, +bellshakespeare/geocon/caltex
+`platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, geocon, +bellshakespeare/caltex
 *coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb, stt, +status (the meta
 Pipeline-Status dash, surfaced here so Transmission can watch data health)}; **hireright unassigned**.
 No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.py`), NOT a cookie —
@@ -111,8 +111,9 @@ and the Notes text) are **hand-editable** in the tracker via `POST /feedback/edi
 portal's Overview tab shows a per-client **"Open slides"** button (only for clients with the pipeline —
 `SLIDES_CLIENTS` in `dash/main.py` = {mongodb, cloudflare, schneider, proptrack, geocon}). Clicking it opens that
 client's dashboard in a HIDDEN same-origin iframe at `/d/<c>/?bbslides=1`; the dashboard builds its FULL-FLIGHT
-`summary` payload (`buildDeckPayload()`), POSTs `/report` (a two-stage **Claude Opus 4.8** web-research →
-strict-slide-JSON call with a Gemini fallback — `report.py`), and hands the result to the ONE vendored,
+`summary` payload (`buildDeckPayload()`), POSTs `/report` (a two-stage web-research → strict-slide-JSON
+call — `report.py`; **DEFAULT = Gemini on Vertex AI**, Claude Opus 4.8 an optional fallback — see the
+provider note below), and hands the result to the ONE vendored,
 theme-driven deck builder **`bb_deck.js`** (the MongoDB brand deck's design language — serif headlines, "ALL CAPS"
 mono accent pills, organic corner blobs, logo top-right, dark cover + light content — recoloured per client from a
 `BB_THEME` const in each `dashboard.html`). The iframe returns the `.pptx` as a Blob via `postMessage`; the portal
@@ -123,8 +124,13 @@ no server secrets, nothing link-shared) or **Download .pptx**. Needs the Drive A
 `drive.file` scope allowed on that OAuth client's consent screen; the button is hidden if `GOOGLE_OAUTH_CLIENT_ID`
 is empty (download still works). The old in-dashboard toolbar button + on-screen preview are GONE — the deck is
 reachable ONLY from the agency login. `report.py` is generic + **config-driven** (one `CONFIG` block per client —
-client/currency/business-model/guardrails/category-tokens — the engine + Gemini fallback are identical, vendored
-like `bb_deck.js`). See `bidbrain-platform/README.md`.
+client/currency/business-model/guardrails/category-tokens — the engine is identical, vendored
+like `bb_deck.js`). **PROVIDER (2026-07-07): the default generator is Gemini on VERTEX AI** (billed to this GCP
+project via the dash runtime SA's ADC — `roles/aiplatform.user`; NO prepay/AI-Studio key), because both the
+Anthropic and the AI-Studio Gemini prepay accounts ran dry and 400/429'd. Claude Opus 4.8 is now an OPTIONAL
+fallback, tried only if a funded `ANTHROPIC_API_KEY` is mounted AND Vertex fails. `gemini-2.5-flash` serves in
+`australia-southeast1`; `gemini-2.5-pro` is NOT in au (Vertex 404) so `report.py` auto-falls-back to the Vertex
+`global` endpoint (region-cached per model) — model chosen by the `GEMINI_MODEL` env. See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)
@@ -247,12 +253,14 @@ Reach for the matching one by edit:
   (Teams/M365) login, run `scripts/enable_microsoft_login.ps1 -ClientId <appId> -Tenant <tenantId>` once**
   (create the single-tenant Entra app registration first); same shared allow-list as Google.
   See `bidbrain-platform/README.md`.
-- **"Download slides" / `report.py` (AI decks):** the endpoint needs the shared `anthropic-api-key` (+ optional
-  `gemini-api-key`) secrets mounted + `--timeout 900` + the runtime SA granted `objectAdmin` (report cache). Run
-  **`clients/client_<c>/dash/enable_report_<c>.ps1` once** per client (mongodb + the 3 new Transmission clients each
-  have one; the secrets already exist project-wide so it just binds IAM + mounts + bumps the timeout), THEN
+- **"Download slides" / `report.py` (AI decks):** default generator is **Gemini on Vertex AI**, so the endpoint
+  needs the dash runtime SA granted **`roles/aiplatform.user`** (Vertex) + `objectAdmin` (report cache) + `--timeout 900`.
+  NO LLM key is required (Vertex bills to the project via ADC); `anthropic-api-key` is only needed if you want the
+  optional Claude fallback. Run **`clients/client_<c>/dash/enable_report_<c>.ps1` once** per client (grants both IAM
+  roles, bumps the timeout, and mounts a Claude/Gemini key only if you pass one), THEN
   `deploy_dash_<c>.ps1` (the image must already carry `report.py` + `bb_deck.js`, both in the Dockerfile COPY +
-  `anthropic`/`httpx` in requirements). **`bb_deck.js` is VENDORED** (one canonical copy in
+  `httpx` + `google-cloud-storage`/`google-auth` in requirements; `anthropic` only for the optional fallback).
+  **`bb_deck.js` is VENDORED** (one canonical copy in
   `clients/client_mongodb/dash/`); after editing it, re-copy it into every participating dash and redeploy them.
 
 The one-shot `deploy_<c>.ps1` (still at the `clients/client_<c>/` root) is only for first-time standup (APIs, SAs, IAM, secrets,

@@ -216,7 +216,39 @@ Populate every required field from the inputs, conform EXACTLY to the schema, an
 
 # ── Gemini fallback (fires when Claude is UNUSABLE: rate/capacity limit, out of credits, or auth) ─
 GEMINI_DEFAULT_MODEL = "gemini-2.5-pro"
-GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+# Gemini runs on VERTEX AI, billed to THIS GCP project via the runtime SA's ADC (no prepay AI-Studio
+# API key -- those credits run dry). Region australia-southeast1; runtime SA needs roles/aiplatform.user.
+VERTEX_LOCATION = os.environ.get("VERTEX_LOCATION", "australia-southeast1")
+_VERTEX = {"token": None, "project": None, "exp": 0.0}
+_MODEL_LOC = {}
+
+
+def _vertex_auth():
+    """(access_token, project) from Application Default Credentials. On Cloud Run this is the dash
+    service's runtime SA. Token cached ~50 min so we don't refresh on every generateContent call."""
+    import time
+    if _VERTEX["token"] and _VERTEX["exp"] > time.time() + 60:
+        return _VERTEX["token"], _VERTEX["project"]
+    import google.auth
+    from google.auth.transport.requests import Request
+    creds, project = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+    creds.refresh(Request())
+    project = os.environ.get("GOOGLE_CLOUD_PROJECT") or project
+    if not project:
+        raise RuntimeError("Vertex AI: no GCP project resolved (set GOOGLE_CLOUD_PROJECT)")
+    _VERTEX.update(token=creds.token, project=project, exp=time.time() + 3000)
+    return creds.token, project
+
+
+def _vertex_locations(model):
+    """Locations to try for `model`, in order: cached winner, configured region, then global
+    (dedup). Availability is region-specific -- gemini-2.5-flash serves in australia-southeast1,
+    but gemini-2.5-pro is only at the global endpoint (au returns 404)."""
+    out = []
+    for loc in (_MODEL_LOC.get(model), VERTEX_LOCATION, "global"):
+        if loc and loc not in out:
+            out.append(loc)
+    return out
 GEMINI_STAGE_A_SYSTEM = (STAGE_A_SYSTEM +
     "\n\n(Tooling note: you are running on Google Gemini with the Google Search tool. Use Google "
     "Search for all live research in place of any web_search/web_fetch references above, and ground "
@@ -410,7 +442,8 @@ def _finalize(report, sources, model, provider):
 
 # ── Gemini fallback helpers ───────────────────────────────────────────────────────────────────
 def _gemini_enabled():
-    return bool(os.environ.get("GEMINI_API_KEY"))
+    # Vertex AI uses the runtime SA's ADC (no API key), so Gemini is always available in-cluster.
+    return True
 
 
 def _should_fallback(e):
@@ -427,27 +460,76 @@ def _should_fallback(e):
     return "credit balance is too low" in msg or "plans & billing" in msg
 
 
-def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json_mode=False):
+def _vertex_schema(s):
+    """Convert REPORT_SCHEMA to a Vertex responseSchema (OpenAPI subset): drop
+    additionalProperties; turn anyOf[T,null] into T + nullable. Constrains Stage B output so it
+    cannot ramble past the token budget (the truncation failure) and is always schema-valid."""
+    if not isinstance(s, dict):
+        return s
+    if "anyOf" in s:
+        subs = s["anyOf"]
+        non_null = [x for x in subs if x.get("type") != "null"]
+        base = _vertex_schema(non_null[0]) if non_null else {"type": "string"}
+        if any(x.get("type") == "null" for x in subs):
+            base = dict(base); base["nullable"] = True
+        return base
+    out = {}
+    for k, v in s.items():
+        if k == "additionalProperties":
+            continue
+        if k == "properties":
+            out["properties"] = {pk: _vertex_schema(pv) for pk, pv in v.items()}
+        elif k == "items":
+            out["items"] = _vertex_schema(v)
+        else:
+            out[k] = v
+    return out
+
+
+_VERTEX_REPORT_SCHEMA = _vertex_schema(REPORT_SCHEMA)
+
+
+def _gemini_generate(model, system, user, max_tokens, grounding=False, json_mode=False, schema=None):
     import httpx
-    gen = {"maxOutputTokens": max_tokens, "temperature": 0.4}
+    # gemini-2.5-* are THINKING models: reasoning tokens draw from the SAME output budget, so a
+    # small maxOutputTokens is eaten by thinking and the JSON truncates mid-string (finishReason
+    # MAX_TOKENS, surfaced as "Unterminated string"). Bound thinking + give the output headroom.
+    gen = {"maxOutputTokens": max_tokens, "temperature": 0.4,
+           "thinkingConfig": {"thinkingBudget": 4096}}
     if json_mode:
         gen["responseMimeType"] = "application/json"
+        if schema:
+            gen["responseSchema"] = schema
     body = {
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
         "generationConfig": gen,
     }
     if grounding:
-        body["tools"] = [{"google_search": {}}]
-    r = httpx.post(GEMINI_ENDPOINT.format(model=model),
-                   headers={"x-goog-api-key": key, "content-type": "application/json"},
-                   json=body, timeout=300.0)
-    if r.status_code != 200:
-        raise RuntimeError(f"Gemini HTTP {r.status_code}")
+        body["tools"] = [{"googleSearch": {}}]
+    token, project = _vertex_auth()
+    # Model availability is region-specific: gemini-2.5-flash serves in australia-southeast1, but
+    # gemini-2.5-pro is not in au (404) and lives at the "global" endpoint. Try the configured
+    # region first, fall back to global on a 404, and remember the location that answered.
+    r = None
+    for loc in _vertex_locations(model):
+        host = "aiplatform.googleapis.com" if loc == "global" else f"{loc}-aiplatform.googleapis.com"
+        url = (f"https://{host}/v1/projects/{project}/locations/{loc}"
+               f"/publishers/google/models/{model}:generateContent")
+        r = httpx.post(url, headers={"Authorization": f"Bearer {token}", "content-type": "application/json"},
+                       json=body, timeout=300.0)
+        if r.status_code == 404:
+            continue
+        _MODEL_LOC[model] = loc
+        break
+    if r is None or r.status_code != 200:
+        raise RuntimeError(f"Vertex Gemini HTTP {getattr(r, 'status_code', 'n/a')}")
     cands = (r.json().get("candidates") or [])
     if not cands:
         raise RuntimeError("Gemini returned no candidates (possibly blocked)")
     cand = cands[0]
+    if json_mode and cand.get("finishReason") == "MAX_TOKENS":
+        raise RuntimeError("Gemini output hit the token limit (truncated JSON) - raise maxOutputTokens")
     parts = ((cand.get("content") or {}).get("parts") or [])
     text = "".join(p.get("text", "") for p in parts if isinstance(p, dict))
     sources = []
@@ -459,27 +541,26 @@ def _gemini_generate(model, key, system, user, max_tokens, grounding=False, json
 
 
 def _gemini_report(brief):
-    key = os.environ["GEMINI_API_KEY"]
     model = os.environ.get("GEMINI_MODEL", GEMINI_DEFAULT_MODEL)
     research_msg = ("\n\nResearch and write the analyst notes (headline, what happened, ranked "
                     "drivers, recommended actions, sources used) per your instructions.")
     try:
-        notes, raw_sources = _gemini_generate(model, key, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
-                                              max_tokens=6000, grounding=True)
+        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM, brief + research_msg,
+                                              max_tokens=24000, grounding=True)
     except Exception:  # noqa: BLE001
-        notes, raw_sources = _gemini_generate(model, key, GEMINI_STAGE_A_SYSTEM,
-                                              brief + research_msg, max_tokens=6000, grounding=False)
+        notes, raw_sources = _gemini_generate(model, GEMINI_STAGE_A_SYSTEM,
+                                              brief + research_msg, max_tokens=24000, grounding=False)
     sources = _sanitize_sources(raw_sources)
     src_lines = "\n".join(f"[{i}] {s['title']} :: {s['url']}" for i, s in enumerate(sources)) or "(none found)"
     user = (brief + "\n\n## ANALYST RESEARCH NOTES (Stage A)\n" + (notes or "(no notes produced)")
             + "\n\n## SOURCE URL LIST (the only URLs that exist; 0-based indices for source_index)\n"
             + src_lines + "\n\nReturn the report JSON.")
-    text, _ = _gemini_generate(model, key, STAGE_B_SYSTEM, user, max_tokens=8192, json_mode=True)
+    text, _ = _gemini_generate(model, STAGE_B_SYSTEM, user, max_tokens=48000, json_mode=True, schema=_VERTEX_REPORT_SCHEMA)
     try:
         report = json.loads(text)
     except Exception as e:  # noqa: BLE001
         raise RuntimeError("Gemini structured output was not valid JSON") from e
-    return _finalize(report, sources, f"{model} (Claude fallback)", "gemini")
+    return _finalize(report, sources, model, "gemini")
 
 
 def generate_report(summary):
@@ -489,15 +570,17 @@ def generate_report(summary):
     key is configured, the whole report regenerates on Gemini so a report still comes back. Any other
     Claude failure propagates (so real bugs aren't masked)."""
     brief = _fmt_brief(summary)
+    # DEFAULT = Gemini on Vertex AI (billed to this project; no prepay key). Claude Opus is an
+    # OPTIONAL fallback, tried only if ANTHROPIC_API_KEY is configured AND Vertex fails.
     try:
-        client = _client()
-        notes, sources = _research(client, brief)
-        report = _structure(client, brief, notes, sources)
-        return _finalize(report, sources, MODEL, "claude")
-    except Exception as e:
-        if _gemini_enabled() and _should_fallback(e):
+        return _gemini_report(brief)
+    except Exception as ge:
+        if os.environ.get("ANTHROPIC_API_KEY"):
             try:
-                return _gemini_report(brief)
-            except Exception as ge:  # noqa: BLE001
-                raise RuntimeError(f"Claude unavailable (rate-limit/credit/auth) and the Gemini fallback failed: {ge}") from ge
-        raise
+                client = _client()
+                notes, sources = _research(client, brief)
+                report = _structure(client, brief, notes, sources)
+                return _finalize(report, sources, MODEL, "claude")
+            except Exception:  # noqa: BLE001 -- both providers failed; surface the Gemini error
+                pass
+        raise RuntimeError(f"Gemini (Vertex AI) report generation failed: {ge}") from ge

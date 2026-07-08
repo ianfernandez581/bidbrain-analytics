@@ -1484,7 +1484,7 @@ async function bbHeadlessSlides(){
     const report=await res.json();
     const logos=await bbDeckLogos();
     const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });
-    try{ parent.postMessage({ __bbslides:true, status:'done', blob:out&&out.blob, fileName:out&&out.fileName }, location.origin); }catch(_){}
+    try{ parent.postMessage({ __bbslides:true, status:'done', blob:out&&out.blob, fileName:out&&out.fileName, report:report, theme:BB_THEME }, location.origin); }catch(_){}
   } catch(e){
     try{ parent.postMessage({ __bbslides:true, status:'error', error:(e&&e.message)||String(e) }, location.origin); }catch(_){}
   }
