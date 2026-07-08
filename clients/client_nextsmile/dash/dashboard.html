@@ -14,20 +14,20 @@
 <style>
   :root{
     color-scheme: light;
-    /* ===== Next Smile Australia (Next Smile Australia) — warm sand canvas + a Next Smile royal-blue accent, lit by
+    /* ===== Next Smile Australia (Next Smile Australia) - warm sand canvas + a Next Smile royal-blue accent, lit by
        the Bidbrain house glow (recoloured blue for Next Smile's sand + brown + blue brand). ===== */
     --bg-0:#F5ECDB;                                                   /* warm sand base */
     --panel:#FFFFFF; --panel2:#FBF5EA;                               /* white surfaces */
     --line:#E7DBC7; --line2:#D8C8AC;
     --hair:rgba(0,0,0,.09);
     --card-1:#FFFFFF; --card-2:#FCF7EE;
-    /* ONE glow, reused behind body / tabs / cards / charts — royal blue over the warm sand base. */
+    /* ONE glow, reused behind body / tabs / cards / charts - royal blue over the warm sand base. */
     --glow:rgba(43,108,230,.18);
     --card-glow:0 1px 0 rgba(255,255,255,.7) inset,
                 0 14px 30px -16px rgba(60,44,22,.20),
                 0 0 0 1px rgba(0,0,0,.03);
     --ink:#34281C; --muted:#7A6B57; --muted2:#A2937D;                /* warm brown / greys */
-    --accent:#2B6CE6;  --accent2:#5B8FF0;                            /* Next Smile royal blue — primary / active */
+    --accent:#2B6CE6;  --accent2:#5B8FF0;                            /* Next Smile royal blue - primary / active */
     --forest:#B0895A;  --forest2:#E7D7BC;                            /* brand warm-tan (legacy var names) */
     /* standard metric colours (green = goal/good ONLY → qualified leads) */
     --qualified:#2E8B57; --leads:#B26A2A; --spend:#6E6357; --cost:#C0392B;
@@ -134,7 +134,7 @@
               border-left:4px solid var(--accent);border-radius:12px;padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:var(--muted)}
   .date-scope b{color:var(--ink)}
 
-  /* Preview banner — shown only when meta.placeholder is true (sample data, no live feed yet). */
+  /* Preview banner - shown only when meta.placeholder is true (sample data, no live feed yet). */
   .pholder{display:flex;align-items:center;gap:14px;margin:0 0 18px;padding:13px 16px;border-radius:14px;
            background:color-mix(in srgb,var(--accent) 13%,transparent);
            border:1px solid color-mix(in srgb,var(--accent) 40%,transparent);border-left:4px solid var(--accent);
@@ -173,7 +173,7 @@
   .seg button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;letter-spacing:.3px}
   .seg button.on{background:var(--accent);color:#ffffff} .seg button:not(.on):hover{color:var(--ink)}
 
-  /* KPIs — house dot pattern; clickable cards toggle their hero series */
+  /* KPIs - house dot pattern; clickable cards toggle their hero series */
   .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin:16px 0 8px}
   .nsband{margin:16px 0 8px;font-size:11px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--accent)}
   #ovNorth .nsrow{margin-top:0}
@@ -316,7 +316,7 @@
   <div id="app" style="display:none">
     <div id="placeholderBanner" class="pholder" style="display:none">
       <span class="ph-tag">Data coming soon</span>
-      <div class="ph-copy"><b>This is sample data — not Next Smile Australia's real numbers yet.</b> Every figure, chart
+      <div class="ph-copy"><b>This is sample data - not Next Smile Australia's real numbers yet.</b> Every figure, chart
         and table below is placeholder data so you can preview the finished dashboard. Next Smile Australia's live data
         will appear here automatically once the pipeline is connected.</div>
     </div>
@@ -365,7 +365,7 @@
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tabpane">
       <div class="section first">
-        <h2>Next Smile Australia — demand &amp; qualified leads</h2>
+        <h2>Next Smile Australia - demand &amp; qualified leads</h2>
         <span class="sub" id="introCopy"></span>
       </div>
 
@@ -396,19 +396,19 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date — <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
+      <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
         <div class="card"><h3>Enquiry funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage — where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Enquiries</th><th class="num">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Enquiries</th><th class="num">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
-      <div class="section"><h2>Who &amp; where we reached</h2><span class="sub">Meta audience &amp; placement breakdowns for the Next Smile Australia campaigns — honours the date filter.</span></div>
+      <div class="section"><h2>Who &amp; where we reached</h2><span class="sub">Meta audience &amp; placement breakdowns for the Next Smile Australia campaigns - honours the date filter.</span></div>
       <div class="grid cols-2">
-        <div class="card"><h3>Audience — age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band — where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
-        <div class="card"><h3>Placement — where ads ran</h3><div class="hint">Impressions by Meta placement — <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+        <div class="card"><h3>Audience - age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
+        <div class="card"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="color:var(--accent);font-weight:600">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
       </div>
 
       <div class="section"><h2>What stands out</h2></div>
@@ -422,7 +422,7 @@
       <div class="section first"><h2>Paid media performance</h2><span class="sub">Every figure honours the date range, stage filter and search. Ratios are recomputed from summed components, so any sub-range is exact.</span></div>
 
       <div class="card" style="margin-top:14px">
-        <h3>Performance vs targets — by campaign</h3>
+        <h3>Performance vs targets - by campaign</h3>
         <div class="hint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
         <div class="tablewrap"><table id="benchTable"><thead><tr>
           <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th>
@@ -431,22 +431,22 @@
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Efficiency map — cost per enquiry vs CTR</h3>
-          <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets — the lower-right quadrant is the winners' zone.</div>
+        <div class="card"><h3>Efficiency map - cost per enquiry vs CTR</h3>
+          <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets - the lower-right quadrant is the winners' zone.</div>
           <div class="chartbox tall"><canvas id="effScatter"></canvas></div></div>
         <div class="card"><h3>Cost per enquiry over time</h3>
-          <div class="hint">Weekly cost per enquiry vs the CPL target — is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
+          <div class="hint">Weekly cost per enquiry vs the CPL target - is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
           <div class="chartbox tall"><canvas id="cplTrend"></canvas></div></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> — a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
+        <div class="card"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> - a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
         <div class="card"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
       </div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range — where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
-        <div class="card"><h3>Enquiry type — website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
+        <div class="card"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range - where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
+        <div class="card"><h3>Enquiry type - website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
       </div>
 
       <div class="grid cols-2-1">
@@ -455,7 +455,7 @@
       </div>
 
       <div class="card" style="margin-top:16px">
-        <h3>Ad performance</h3><div class="hint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads — treat its CPL as a weak signal).</div>
+        <h3>Ad performance</h3><div class="hint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).</div>
         <div class="tablewrap"><table id="adTable"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">CTR</th><th class="num">LPV</th><th class="num">Cost/LPV</th><th class="num">Freq.</th><th>Read</th></tr></thead><tbody></tbody></table></div>
       </div>
 
@@ -467,7 +467,7 @@
 
     <!-- ============ CREATIVE ============ -->
     <section id="tab-creative" class="tabpane">
-      <div class="section first"><h2>Creative — top 10</h2><span class="sub">The 10 highest-spend creatives in the selected range — real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; Meta expires those links after a short window, so some cards show a branded tile (the copy + metrics are always live).</span></div>
+      <div class="section first"><h2>Creative - top 10</h2><span class="sub">The 10 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; Meta expires those links after a short window, so some cards show a branded tile (the copy + metrics are always live).</span></div>
       <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
     </section>
 
@@ -498,11 +498,11 @@ function nullable(v){const x=Number(v);return Number.isFinite(x)?x:null;}
 function compact(v){return Intl.NumberFormat('en-AU',{notation:'compact',maximumFractionDigits:1}).format(n(v));}
 function int(v){return Intl.NumberFormat('en-AU',{maximumFractionDigits:0}).format(n(v));}
 function money(v,d=0){return 'A$'+Intl.NumberFormat('en-AU',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n(v));}
-function pct(v,d=1){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(d)+'%':'—';}
-function pctWhole(v){return Number.isFinite(Number(v))?Math.round(Number(v)*100)+'%':'—';}
-function fmtDate(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
-function fmtDateTime(v){if(!v)return '—';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
-function safeName(v){return String(v==null?'—':v).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+function pct(v,d=1){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(d)+'%':'-';}
+function pctWhole(v){return Number.isFinite(Number(v))?Math.round(Number(v)*100)+'%':'-';}
+function fmtDate(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
+function fmtDateTime(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
+function safeName(v){return String(v==null?'-':v).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
 function prettyCampaign(v){const s=String(v==null?'':v).replace(/^Next Smile Australia[_ ]?/i,'').replace(/_/g,' ').trim();return safeName(s||v);}
 function stageColor(s){return STAGE_COLORS[s]||CHART_SERIES[Math.abs(hash(String(s)))%CHART_SERIES.length];}
 function hash(s){let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h)+s.charCodeAt(i)|0;return h;}
@@ -530,7 +530,7 @@ window.DateRange = (function(){
   const addDays=(d,x)=>{const y=new Date(d);y.setDate(y.getDate()+x);return y;};
   const clamp=d=>d<MIN?new Date(MIN):(d>MAX?new Date(MAX):new Date(d));
   const sameDay=(a,b)=>!!a&&!!b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
-  const fmt=d=>d?d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'—';
+  const fmt=d=>d?d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'-';
   const G=id=>document.getElementById(id);
   function presetRange(k){let s,e=new Date(MAX);
     if(/^\d+$/.test(k))s=addDays(MAX,-(parseInt(k,10)-1));
@@ -652,7 +652,7 @@ function renderHeader(){
   const notes={overview:'Demand & qualified leads',paid:'Paid-media performance',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
-  $('introCopy').innerHTML=`${m.lead_source_label||'Meta-reported'} enquiries and modelled <b>qualified leads</b> for the Next Smile Australia launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> — ${int(a.leads)} enquiries · ${money(a.spend)} spend.`;
+  $('introCopy').innerHTML=`${m.lead_source_label||'Meta-reported'} enquiries and modelled <b>qualified leads</b> for the Next Smile Australia launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`;
 }
 function renderPlaceholderBanner(){
   // Show the "sample data" banner + flip the topbar pill to "Preview" whenever the payload is the
@@ -682,24 +682,24 @@ function renderKpis(){
   const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target'),qT=bench('qualified_lead_target');
   const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=q?a.spend/q:null;
   const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
-  // North-star (resetdata pattern): the campaign goal — enquiries at an efficient cost, plus the
+  // North-star (resetdata pattern): the campaign goal - enquiries at an efficient cost, plus the
   // qualified downstream. These are the big tiles; the ones that map to a hero line are clickable.
   const north=[
     {color:MC.leads,north:true,series:'leads',label:'Meta enquiries',value:int(a.leads),
       sub:leadT!=null?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)}`:'Meta-reported'},
-    {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'—',
+    {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
       sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
     {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
       sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${pctWhole(qualRate())} of enquiries`,badge:'modelled · no CRM feed'},
     {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight`:'budget not set'}
   ];
-  // Context — the funnel inputs / delivery quality (static tiles).
+  // Context - the funnel inputs / delivery quality (static tiles).
   const ctx=[
-    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'—'}`},
+    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
     {color:MC.ctr,label:'CTR (link)',value:pct(a.ctr),sub:ctrT!=null?`target ${pct(ctrT)}`:'link CTR'},
-    {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'—'}`},
-    {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'—'}`}
+    {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'-'}`},
+    {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`}
   ];
   $('kpiGridN').innerHTML=north.map(kpiCard).join('');
   $('kpiGrid').innerHTML=ctx.map(kpiCard).join('');
@@ -721,14 +721,14 @@ function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
   const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
-  const cpl=rows.map(r=>n(r.leads)?r.spend/r.leads:null);   // cost-per-enquiry per period — the media-buyer efficiency line
+  const cpl=rows.map(r=>n(r.leads)?r.spend/r.leads:null);   // cost-per-enquiry per period - the media-buyer efficiency line
   const ds=[
     {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(43,108,230,.60)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
     {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
     {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
     {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}
   ];
-  $('trendHint').textContent=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads — the spend-to-outcome view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  $('trendHint').textContent=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads - the spend-to-outcome view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
   const fmtKind={money:v=>money(v),int:v=>int(v)};
   const scales=rel
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
@@ -737,7 +737,7 @@ function renderTrend(){
        y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries / qualified',color:MC.muted2,font:{size:11}}},
        y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}};
   makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'—':f(v)}`;}}}},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'-':f(v)}`;}}}},
     scales}});
   // re-apply KPI toggles to the freshly-built chart
   ['spend','leads','cost','qualified'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
@@ -762,7 +762,7 @@ function renderStageDonut(){
 function renderFunnel(){
   const a=agg(scoped());
   const rows=[{name:'Impressions',value:n(a.impressions),color:MC.reach},{name:'Link clicks',value:n(a.link_clicks),color:MC.ctr},{name:'LP views',value:n(a.lpv),color:MC.lpv},{name:'Meta enquiries',value:n(a.leads),color:MC.leads},{name:'Qualified (modelled)',value:qualified(a.leads),color:MC.qualified}];
-  // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume — so the
+  // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so the
   // 65:1 impressions→click drop no longer flattens every later bar. Impressions is the 100% baseline;
   // each later bar shows how well that step converted (a 4% floor keeps tiny rates visible). Count shown.
   $('funnelList').innerHTML=rows.map((r,i)=>{
@@ -775,12 +775,12 @@ function renderFunnel(){
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
-  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">—</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">—</span>'}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
+  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
   const t=agg(scoped());
-  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${int(t.leads)}</td><td class="num">${t.cpl!=null?money(t.cpl):'—'}</td><td class="num">${pct(t.ctr)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${int(t.leads)}</td><td class="num">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pct(t.ctr)}</td></tr>`;
   $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:20px">No stage spend yet.</td></tr>`)+(body?foot:'');
 }
-// Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) — flight enquiries
+// Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight enquiries
 // + modelled qualified vs their targets.
 function renderGoalProgress(){
   const a=agg(ROWS());const leadT=bench('lead_target'),qT=bench('qualified_lead_target');const q=qualified(a.leads);
@@ -809,7 +809,7 @@ function renderPaceToGoal(){
     plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${int(c.parsed.y)}`}}},
     scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10},maxTicksLimit:10}}),y:axis({beginAtZero:true,title:{display:true,text:'Cumulative enquiries',color:MC.muted2,font:{size:11}}})}}});
 }
-// Weekly cost per enquiry vs the CPL target — the media-buyer's efficiency trajectory. Reflects the
+// Weekly cost per enquiry vs the CPL target - the media-buyer's efficiency trajectory. Reflects the
 // date + stage filters; weekly buckets keep a short flight readable.
 function renderCplTrend(){
   const days=dailyOf(scoped());const m=new Map();
@@ -822,7 +822,7 @@ function renderCplTrend(){
     if(cplT!=null)drawTgt(ctx,chartArea,scales.y.getPixelForValue(cplT),'CPL target '+money(cplT),'rgba(255,255,255,.32)');
     if(cplS!=null)drawTgt(ctx,chartArea,scales.y.getPixelForValue(cplS),'stretch '+money(cplS),MC.good+'AA');}}:null;
   makeChart('cplTrend',{type:'line',data:{labels,datasets:[{label:'Cost per enquiry',data:cpl,borderColor:MC.cost,backgroundColor:'rgba(224,113,78,.14)',fill:true,spanGaps:true,tension:.3,pointRadius:2,borderWidth:2.8}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'—':`Cost per enquiry: ${money(c.parsed.y)}`}}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'-':`Cost per enquiry: ${money(c.parsed.y)}`}}},
     scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)}})}},plugins:tline?[tline]:[]});
 }
 // ---- Tier 1: delivery-quality & timing charts (existing data, no new ingest) ----
@@ -835,7 +835,7 @@ function renderReachFreq(){
     {type:'bar',label:'Reach',data:reach,backgroundColor:MC.reach+'88',borderColor:MC.reach,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:2},
     {type:'line',label:'Frequency',data:freq,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.4,tension:.35,pointRadius:2,spanGaps:true,yAxisID:'y2',order:1}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Frequency'?`Frequency: ${c.parsed.y==null?'—':c.parsed.y.toFixed(2)}`:`Reach: ${int(c.parsed.y)}`}}},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Frequency'?`Frequency: ${c.parsed.y==null?'-':c.parsed.y.toFixed(2)}`:`Reach: ${int(c.parsed.y)}`}}},
     scales:{x:axis({grid:{display:false}}),
       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Reach',color:MC.muted2,font:{size:11}}},
       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Frequency',color:MC.muted2,font:{size:11}}}}}});
@@ -847,7 +847,7 @@ function renderVideo(){
     {type:'bar',label:'Completes',data:vc,backgroundColor:MC.forest+'AA',borderColor:MC.forest,borderRadius:4,maxBarThickness:30,yAxisID:'y1',order:2},
     {type:'line',label:'Completion %',data:rate,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.4,tension:.35,pointRadius:2,spanGaps:true,yAxisID:'y2',order:1}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Completion %'?`Completion: ${c.parsed.y==null?'—':c.parsed.y.toFixed(0)+'%'}`:`${c.dataset.label}: ${int(c.parsed.y)}`}}},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Completion %'?`Completion: ${c.parsed.y==null?'-':c.parsed.y.toFixed(0)+'%'}`:`${c.dataset.label}: ${int(c.parsed.y)}`}}},
     scales:{x:axis({grid:{display:false}}),
       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Video views',color:MC.muted2,font:{size:11}}},
       y2:{position:'right',beginAtZero:true,suggestedMax:100,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>v+'%'},title:{display:true,text:'Completion %',color:MC.muted2,font:{size:11}}}}}});
@@ -860,7 +860,7 @@ function renderDow(){
     {type:'bar',label:'Enquiries',data:leads,backgroundColor:MC.leads+'99',borderColor:MC.leads,borderRadius:4,maxBarThickness:46,yAxisID:'y1',order:2},
     {type:'line',label:'Cost / enquiry',data:cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.4,tension:.35,pointRadius:3,spanGaps:true,yAxisID:'y2',order:1}
   ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Cost / enquiry'?`Cost / enquiry: ${c.parsed.y==null?'—':money(c.parsed.y)}`:`Enquiries: ${int(c.parsed.y)}`}}},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Cost / enquiry'?`Cost / enquiry: ${c.parsed.y==null?'-':money(c.parsed.y)}`:`Enquiries: ${int(c.parsed.y)}`}}},
     scales:{x:axis({grid:{display:false}}),
       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries',color:MC.muted2,font:{size:11}}},
       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}}}});
@@ -870,9 +870,9 @@ function renderLeadType(){
   const a=agg(scoped());const w=n(a.leads_website),f=n(a.leads_onfacebook);const tot=w+f;
   makeChart('leadTypeChart',{type:'doughnut',data:{labels:['Website form','Instant form'],datasets:[{data:[w,f],backgroundColor:[MC.accent,MC.leads],borderColor:'#FFFFFF',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
-  const note=$('leadTypeNote');if(note)note.innerHTML=tot?`<b>${int(w)}</b> website-form · <b>${int(f)}</b> instant-form enquiries in range.`:'No lead-type split reported for this range yet — Meta returns it once instant-form or website leads are recorded.';
+  const note=$('leadTypeNote');if(note)note.innerHTML=tot?`<b>${int(w)}</b> website-form · <b>${int(f)}</b> instant-form enquiries in range.`:'No lead-type split reported for this range yet - Meta returns it once instant-form or website leads are recorded.';
 }
-// ---- Tier 3: audience (age x gender) + placement — from the isolated Meta breakdown table ----
+// ---- Tier 3: audience (age x gender) + placement - from the isolated Meta breakdown table ----
 function bdWithin(type){return (DATA.breakdowns||[]).filter(r=>r.breakdown===type&&inRange(r.date));}
 function renderAudience(){
   if(!$('audienceChart'))return;
@@ -905,30 +905,30 @@ function renderInsights(){
   const pool=Math.max(0,n(a.lpv)-n(a.leads));
   const items=[
     {label:'Modelled qualified leads',value:int(qualified(a.leads)),copy:`${int(a.leads)} enquiries × ${pctWhole(qualRate())} assumed qualification. Wire a CRM feed to measure this for real.`},
-    {label:'Best enquiry path',value:leadStage?safeName(leadStage.stage):'—',copy:leadStage?`${int(leadStage.leads)} enquiries at ${money(leadStage.cpl)} CPL.`:'No stage has produced enquiries yet.'},
-    {label:'Creative to protect',value:bestLead?safeName(bestLead.ad):'—',copy:bestLead?`${int(bestLead.leads)} enquiries at ${money(bestLead.cpl)} CPL.`:'Waiting for a creative signal.'},
-    {label:'Retargeting pool',value:int(pool),copy:'Landing-page visitors who have not yet enquired — the warmest near-term audience.'}
+    {label:'Best enquiry path',value:leadStage?safeName(leadStage.stage):'-',copy:leadStage?`${int(leadStage.leads)} enquiries at ${money(leadStage.cpl)} CPL.`:'No stage has produced enquiries yet.'},
+    {label:'Creative to protect',value:bestLead?safeName(bestLead.ad):'-',copy:bestLead?`${int(bestLead.leads)} enquiries at ${money(bestLead.cpl)} CPL.`:'Waiting for a creative signal.'},
+    {label:'Retargeting pool',value:int(pool),copy:'Landing-page visitors who have not yet enquired - the warmest near-term audience.'}
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> Meta reports <b>raw enquiries</b> only — a "qualified lead" is not measured by the ad platform, so <b>Qualified leads (modelled)</b> = Meta enquiries × a <b>${pctWhole(qualRate())} assumed qualification rate</b> (target ${bench('qualified_lead_target')!=null?int(bench('qualified_lead_target')):'—'}). It is a planning estimate, not an actual — wire a CRM feed to report true qualified leads. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> Meta reports <b>raw enquiries</b> only - a "qualified lead" is not measured by the ad platform, so <b>Qualified leads (modelled)</b> = Meta enquiries × a <b>${pctWhole(qualRate())} assumed qualification rate</b> (target ${bench('qualified_lead_target')!=null?int(bench('qualified_lead_target')):'-'}). It is a planning estimate, not an actual - wire a CRM feed to report true qualified leads. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
 }
 
 // ---- Paid Media ----
-function deltaCell(actual,target,lowerIsBetter){if(actual==null||target==null||!target)return '<span class="muted-text">—</span>';const d=actual/target-1;const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;}
+function deltaCell(actual,target,lowerIsBetter){if(actual==null||target==null||!target)return '<span class="muted-text">-</span>';const d=actual/target-1;const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;}
 function renderBenchTable(){
   const rows=byCampaign(searched(scoped()));const cT=bench('ctr'),mT=bench('cpm'),cpcT=bench('cpc'),cplT=bench('cpl');
   const body=rows.map(r=>`<tr>
     <td class="name-cell">${prettyCampaign(r.campaign)}</td>
     <td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td>
-    <td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">—</span>'}</td>
-    <td class="num">${pct(r.ctr)}<div class="vs">vs ${cT?pct(cT):'—'}</div></td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
-    <td class="num">${money(r.cpm,2)}<div class="vs">vs ${mT?money(mT,2):'—'}</div></td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
-    <td class="num">${money(r.cpc,2)}<div class="vs">vs ${cpcT?money(cpcT,2):'—'}</div></td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
-    <td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">—</span>'}<div class="vs">vs ${cplT?money(cplT):'—'}</div></td><td class="num">${deltaCell(r.cpl,cplT,true)}</td></tr>`).join('');
+    <td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td>
+    <td class="num">${pct(r.ctr)}<div class="vs">vs ${cT?pct(cT):'-'}</div></td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
+    <td class="num">${money(r.cpm,2)}<div class="vs">vs ${mT?money(mT,2):'-'}</div></td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
+    <td class="num">${money(r.cpc,2)}<div class="vs">vs ${cpcT?money(cpcT,2):'-'}</div></td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
+    <td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}<div class="vs">vs ${cplT?money(cplT):'-'}</div></td><td class="num">${deltaCell(r.cpl,cplT,true)}</td></tr>`).join('');
   const tot=agg(searched(scoped()));
-  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${int(tot.leads)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${money(tot.cpm,2)}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${money(tot.cpc,2)}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${tot.cpl!=null?money(tot.cpl):'—'}</td><td class="num">${deltaCell(tot.cpl,cplT,true)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${int(tot.leads)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${money(tot.cpm,2)}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${money(tot.cpc,2)}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${tot.cpl!=null?money(tot.cpl):'-'}</td><td class="num">${deltaCell(tot.cpl,cplT,true)}</td></tr>`;
   $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="12" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
 }
 function renderSegment(){
@@ -941,13 +941,13 @@ function readFor(r){const cplT=bench('cpl'),ctrT=bench('ctr');if(n(r.leads)>0&&r
 function renderTables(){
   const rows=byAd(searched(scoped()));
   $('adTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const[clsv,read]=readFor(r);const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why}">⚠ thin</span>`:'';
-    return `<tr><td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">—</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">—</span>'}</td><td class="num">${pct(r.ctr)}</td><td class="num">${int(r.lpv)}</td><td class="num">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">—</span>'}</td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'—'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td><td class="num">${int(r.lpv)}</td><td class="num">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">-</span>'}</td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
     :`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:28px">No ads match the current filters.</td></tr>`;
 }
 function renderFatigue(){
   const rows=fatigueOf(scoped()).sort((a,b)=>{const af=a.flag==='FATIGUED'?0:1,bf=b.flag==='FATIGUED'?0:1;return af-bf||n(b.frequency)-n(a.frequency);}).slice(0,12);
   $('fatigueTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const clsv=r.flag==='FATIGUED'?'bad-text':'good-text';const fw=nullable(r.freq_wow),cw=nullable(r.ctr_wow);
-    return `<tr><td class="name-cell">${safeName(r.ad)}<div class="tiny">${safeName(r.adset)}</div></td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'—'}</td><td class="num ${fw>0?'bad-text':'good-text'}">${fw==null?'—':(fw>0?'+':'')+fw.toFixed(2)}</td><td class="num">${pct(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'—':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
+    return `<tr><td class="name-cell">${safeName(r.ad)}<div class="tiny">${safeName(r.adset)}</div></td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="num ${fw>0?'bad-text':'good-text'}">${fw==null?'-':(fw>0?'+':'')+fw.toFixed(2)}</td><td class="num">${pct(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'-':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
     :'<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:28px">No weekly fatigue signal yet (need 2+ weeks ≥1,000 impressions).</td></tr>';
 }
 function renderBurn(){
@@ -966,7 +966,7 @@ function renderEffScatter(){
     if(ctrT!=null){const x=scales.x.getPixelForValue(ctrT*100);if(x>chartArea.left&&x<chartArea.right){ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();ctx.fillText('CTR '+pct(ctrT),Math.min(x+5,chartArea.right-60),chartArea.top+12);}}
     ctx.restore();}};
   makeChart('effScatter',{type:'bubble',data:{datasets:Object.keys(grouped).map(s=>({label:s,data:grouped[s],backgroundColor:stageColor(s)+'B0',borderColor:stageColor(s)}))},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const a=c.raw.raw;return [safeName(a.ad),`CPL ${a.cpl!=null?money(a.cpl):'—'} · CTR ${pct(a.ctr)} · ${money(a.spend)} · ${int(a.leads)} enq.`];}}}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const a=c.raw.raw;return [safeName(a.ad),`CPL ${a.cpl!=null?money(a.cpl):'-'} · CTR ${pct(a.ctr)} · ${money(a.spend)} · ${int(a.leads)} enq.`];}}}},
       scales:{x:axis({title:{display:true,text:'CTR %',color:MC.muted2,font:{size:11}},beginAtZero:true}),y:axis({title:{display:true,text:'Cost per enquiry (A$)',color:MC.muted2,font:{size:11}},beginAtZero:true})}},plugins:[targetLines]});
 }
 
@@ -984,7 +984,7 @@ function renderCreative(){
       : `<div class="cc-fallback"><div class="cc-fb-mark">NEXTSMILE</div><div class="cc-fb-h">${head}</div></div>`;
     return `<div class="ccard clickable" onclick="openCreative(${i})">${media}
       <div class="cc-b"><div class="cc-title">${head}</div>${body?`<div class="cc-copy">${body}</div>`:''}
-      <div class="cc-m"><span><b>${money(r.spend)}</b> spend</span><span><b>${int(r.leads)}</b> enq.</span><span>CPL <b>${r.cpl!=null?money(r.cpl):'—'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span></div></div></div>`;
+      <div class="cc-m"><span><b>${money(r.spend)}</b> spend</span><span><b>${int(r.leads)}</b> enq.</span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span></div></div></div>`;
   }).join(''):'<div class="muted-text" style="padding:24px">No creatives with spend in this range.</div>';
 }
 function ccFallback(img){const head=img.getAttribute('data-head')||'Next Smile Australia';const d=document.createElement('div');d.className='cc-fallback';d.innerHTML='<div class="cc-fb-mark">NEXTSMILE</div><div class="cc-fb-h">'+head+'</div>';img.replaceWith(d);}
@@ -996,7 +996,7 @@ function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.c
   const link=r.destination_url?`<a class="ccm-link" href="${r.destination_url}" target="_blank" rel="noopener">Open landing page ↗</a>`:'';
   $('ccModalBody').innerHTML=`<div class="ccm-media">${r.creative_thumbnail_url?`<img class="ccm-img" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`:`<div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark">NEXTSMILE</div><div class="cc-fb-h">${head}</div></div>`}</div>
     <div class="ccm-info"><h3>${safeName(r.creative_title||r.ad)}</h3>${r.creative_body?`<p class="ccm-body">${safeName(r.creative_body)}</p>`:''}
-    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Enquiries <b>${int(r.leads)}</b></span><span>CPL <b>${r.cpl!=null?money(r.cpl):'—'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>LPV <b>${int(r.lpv)}</b></span><span>Freq <b>${r.frequency!=null?r.frequency.toFixed(1):'—'}</b></span></div>${link}</div>`;
+    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Enquiries <b>${int(r.leads)}</b></span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>LPV <b>${int(r.lpv)}</b></span><span>Freq <b>${r.frequency!=null?r.frequency.toFixed(1):'-'}</b></span></div>${link}</div>`;
   $('ccModal').classList.add('on');
 }
 function closeCreative(){$('ccModal').classList.remove('on');}
@@ -1024,7 +1024,7 @@ function renderViewState(){
   document.querySelectorAll('.tabpane').forEach(v=>v.style.display=(v.id==='tab-'+STATE.view)?'block':'none');
   renderHeader();
   // A Chart.js chart drawn into a display:none pane renders into a 0x0 canvas and stays BLANK when the
-  // pane is later shown — and chart.resize() across the none->block flip is unreliable (fires before the
+  // pane is later shown - and chart.resize() across the none->block flip is unreliable (fires before the
   // pane has real dimensions). So RE-RENDER the now-visible tab's charts after the browser has laid out
   // the display change (double rAF = one frame to apply display, one to lay it out), which recreates each
   // chart at its true size. This is why flipping Overview -> Paid Media -> Overview no longer blanks them.
@@ -1064,7 +1064,7 @@ const r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
 function buildReportPayload(){
   const all=ROWS();const a=agg(all);const f=flight();const byS=byStage(all),byC=byCampaign(all).slice(0,12),ads=byAd(all).filter(x=>n(x.spend)>0).slice(0,10);const fat=fatigueOf(all).filter(x=>x.flag==='FATIGUED').slice(0,8);
   const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
-  return {client:'nextsmile',generated_for:'Next Smile Australia — Next Smile Australia',currency:meta().currency||'AUD',
+  return {client:'nextsmile',generated_for:'Next Smile Australia - Next Smile Australia',currency:meta().currency||'AUD',
     context:{campaign:'Next Smile Australia',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),lead_source_label:meta().lead_source_label||'Meta-reported'},
     overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,qualified_modelled:qualified(a.leads),qualification_rate:qualRate(),cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)},
     targets:{cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),qualified_lead_target:bench('qualified_lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace')},
@@ -1077,12 +1077,12 @@ const BB_THEME = {
   bg:'0A130E', panel:'12201A', accent:'C56A4E', accentInk:'0A130E', softBg:'F4EBE2',
   lightBg:'FFFFFF', ink:'23201C', mute:'7A6F63', line:'E1D8CD', onDark:'F2EAE0', onDarkMute:'C3B3A4',
   serif:'Georgia', sans:'Arial', mono:'Courier New',
-  agency:'100% Digital', client:'Next Smile Australia — Next Smile Australia', brand:'100% DIGITAL × NEXTSMILE', filePrefix:'Next Smile Australia_Braddon'
+  agency:'100% Digital', client:'Next Smile Australia - Next Smile Australia', brand:'100% DIGITAL × NEXTSMILE', filePrefix:'Next Smile Australia_Braddon'
 };
 async function bbDeckLogos(){try{const res=await fetch('logo.png',{cache:'force-cache'});if(!res.ok)return{white:null,dark:null};const blob=await res.blob();const uri=await new Promise(function(r){const fr=new FileReader();fr.onload=function(){r(fr.result);};fr.onerror=function(){r(null);};fr.readAsDataURL(blob);});return{white:uri,dark:uri};}catch(e){return{white:null,dark:null};}}
 async function bbHeadlessSlides(){
   try{const payload=buildReportPayload();const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-    if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){}throw new Error('HTTP '+res.status+(d?' — '+d:''));}
+    if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){}throw new Error('HTTP '+res.status+(d?' - '+d:''));}
     const report=await res.json();const logos=await bbDeckLogos();const out=await bbBuildDeck(report,payload,BB_THEME,logos,{download:false});
     try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName},location.origin);}catch(_){}
   }catch(e){try{parent.postMessage({__bbslides:true,status:'error',error:(e&&e.message)||String(e)},location.origin);}catch(_){}}

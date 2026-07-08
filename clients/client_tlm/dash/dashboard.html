@@ -90,7 +90,7 @@ a{color:var(--accent)}
 @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
 .grid{display:grid;gap:14px}
 .kpis{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));margin:16px 0}
-/* KPI cards — each sets its metric colour inline as --kc (from the JS MC map) so the card's dot
+/* KPI cards - each sets its metric colour inline as --kc (from the JS MC map) so the card's dot
    matches that metric's chart-series colour. Soft accent wash + card glow + a glowing colour dot
    on the label give each card its own identity. color-mix keeps it derived from theme tokens. */
 .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--accent)) 15%,transparent),transparent 56%),
@@ -101,7 +101,7 @@ a{color:var(--accent)}
      box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
 .kpi .value{font-size:24px;font-weight:800;margin-top:9px;letter-spacing:-.5px}
 .kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px}
-/* clickable cards — click to hide/show that metric's series on the chart (like a legend). The
+/* clickable cards - click to hide/show that metric's series on the chart (like a legend). The
    glowing dot on the RIGHT of the label hints it's a toggle; the card dims when its series is off. */
 .kpi.clk{cursor:pointer;user-select:none;transition:filter .15s,transform .06s,border-color .15s,opacity .15s}
 .kpi.clk:hover{filter:brightness(1.03);border-color:color-mix(in srgb,var(--kc,var(--accent)) 55%,transparent)}
@@ -120,7 +120,7 @@ a{color:var(--accent)}
 .chartbox.tall{height:340px}
 .chartbox.sm{height:240px}
 /* Donut + value-legend: donut (with its total in the hole) on the left, a clickable value list on
-   the right so the panel isn't half-empty. Click a row to include/exclude that slice — the pie,
+   the right so the panel isn't half-empty. Click a row to include/exclude that slice - the pie,
    the centre total and the %s all update. */
 .donut-wrap{display:flex;align-items:center;gap:16px}
 .donut-wrap .chartbox{flex:0 0 150px;width:150px;height:150px}
@@ -247,7 +247,7 @@ td.name{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-ov
   <section id="tab-ttd" class="hide">
     <div class="note">Trade Desk pixel fires are anonymous slots with no revenue attribution. Revenue / ROAS / AOV / CPA come from Google Ads only. TTD contributes delivery metrics (Impr., Clicks, Spend AUD).</div>
     <div class="panel-box"><h3>Campaigns</h3><p class="hint">Programmatic display delivery (AUD).</p><div class="tablewrap"><table id="ttdCamps"></table></div></div>
-    <div class="panel-box"><div class="panelhead"><div><h3>Top ad formats — what worked</h3><p class="hint">Trade Desk delivery grouped by ad format, ranked by performance. Flip <b>Rank by</b> to see which format wins on engagement, clicks, cost-efficiency or reach. Whole flight — not date-scoped.</p></div><div class="ctrls"><span class="seg" id="ttdRankSeg"><span class="cap">RANK BY</span><button type="button" data-m="ctr" class="on" onclick="setTtdRank('ctr')">Engagement</button><button type="button" data-m="clicks" onclick="setTtdRank('clicks')">Clicks</button><button type="button" data-m="cpc" onclick="setTtdRank('cpc')">Value</button><button type="button" data-m="imps" onclick="setTtdRank('imps')">Reach</button></span></div></div><div id="ttdCreative" class="clist"></div></div>
+    <div class="panel-box"><div class="panelhead"><div><h3>Top ad formats - what worked</h3><p class="hint">Trade Desk delivery grouped by ad format, ranked by performance. Flip <b>Rank by</b> to see which format wins on engagement, clicks, cost-efficiency or reach. Whole flight - not date-scoped.</p></div><div class="ctrls"><span class="seg" id="ttdRankSeg"><span class="cap">RANK BY</span><button type="button" data-m="ctr" class="on" onclick="setTtdRank('ctr')">Engagement</button><button type="button" data-m="clicks" onclick="setTtdRank('clicks')">Clicks</button><button type="button" data-m="cpc" onclick="setTtdRank('cpc')">Value</button><button type="button" data-m="imps" onclick="setTtdRank('imps')">Reach</button></span></div></div><div id="ttdCreative" class="clist"></div></div>
   </section>
 
   <section id="tab-performance" class="hide">
@@ -269,7 +269,7 @@ var perfGrain='month',perfScale='rel';
 var googMonGrain='month',googMonScale='rel';
 var charts={};
 var typeByCampaign={};   // google campaign name -> campaign_type (built on load)
-// Chart palette — kept in sync with :root. Google = brand steel-blue (primary platform),
+// Chart palette - kept in sync with :root. Google = brand steel-blue (primary platform),
 // Trade Desk = terracotta, revenue = green, ROAS = amber.
 var C={google:'#4F7290',ttd:'#BD6B4C',revenue:'#2BA36F',roas:'#D98C1F',accent:'#4F7290',axis:'#6F665A',grid:'rgba(43,41,38,.08)'};
 var typeColor={PERFORMANCE_MAX:'#4F7290',SEARCH:'#2BA36F',SHOPPING:'#D98C1F',Other:'#9C9182'};
@@ -299,8 +299,8 @@ function kpiCard(c){
 }
 
 function $(id){return document.getElementById(id);}
-function fmt(n,d){if(n==null)return'—';return Number(n).toLocaleString('en-AU',{maximumFractionDigits:d||0});}
-function curr(n){if(n==null)return'—';return'$'+Number(n).toLocaleString('en-AU',{maximumFractionDigits:0});}
+function fmt(n,d){if(n==null)return'-';return Number(n).toLocaleString('en-AU',{maximumFractionDigits:d||0});}
+function curr(n){if(n==null)return'-';return'$'+Number(n).toLocaleString('en-AU',{maximumFractionDigits:0});}
 function pct(n){if(n==null||n==0)return'0%';return Number(n).toLocaleString('en-AU',{style:'percent',minimumFractionDigits:1});}
 function parseYMD(s){if(!s)return null;var p=s.split('-');return new Date(+p[0],+p[1]-1,+p[2]);}
 function inDR(ymd){if(!ymd)return true;var d=parseYMD(ymd);if(dateFrom&&d<dateFrom)return false;if(dateTo&&d>dateTo)return false;return true;}
@@ -311,13 +311,13 @@ function fDaily(){return(data.ad_campaign_daily||[]).filter(function(r){return c
 function rollUp(rows,key){var m={};rows.forEach(function(r){var k=r[key];if(!m[k])m[k]={sp:0,cl:0,im:0,cv:0,rv:0};m[k].sp+=r.spend_aud||0;m[k].cl+=r.clicks||0;m[k].im+=r.imps||0;m[k].cv+=r.conversions||0;m[k].rv+=r.revenue||0;});return m;}
 function sumBy(rows,key,field){var m={};rows.forEach(function(r){var k=r[key];m[k]=(m[k]||0)+(r[field]||0);});return m;}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'})[c];});}
-// Filtered campaign-grained slices — the single source the tables/charts roll up, so the
+// Filtered campaign-grained slices - the single source the tables/charts roll up, so the
 // Date + Platform + Campaign filters drive EVERY tab (not just the Overview KPIs).
 function fGoogleMonthly(){return(data.ad_campaign_monthly||[]).filter(function(r){return r.platform==='google'&&campFilter(r)&&inDR(r.month+'-01');});}
 function fTtdMonthly(){return(data.ad_campaign_monthly||[]).filter(function(r){return r.platform==='ttd'&&campFilter(r)&&inDR(r.month+'-01');});}
 function fGoogleWeekly(){return(data.ad_campaign_weekly||[]).filter(function(r){return r.platform==='google'&&campFilter(r)&&inDR(r.week_start);});}
 function fTtdWeekly(){return(data.ad_campaign_weekly||[]).filter(function(r){return r.platform==='ttd'&&campFilter(r)&&inDR(r.week_start);});}
-// Day-grain slices — mirror the weekly helpers; daily rows are keyed by 'day' ('YYYY-MM-DD'),
+// Day-grain slices - mirror the weekly helpers; daily rows are keyed by 'day' ('YYYY-MM-DD'),
 // which inDR() accepts directly (it parses any YYYY-MM-DD).
 function fGoogleDaily(){return(data.ad_campaign_daily||[]).filter(function(r){return r.platform==='google'&&campFilter(r)&&inDR(r.day);});}
 function fTtdDaily(){return(data.ad_campaign_daily||[]).filter(function(r){return r.platform==='ttd'&&campFilter(r)&&inDR(r.day);});}
@@ -330,10 +330,42 @@ function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function ctx(id){var c=$(id);if(!c)return null;return c.getContext('2d');}
 
+// ---- client-billed spend multiplier (injected by the platform front-door) ----
+// Gross RAW media spend up to what the client was billed, per channel; Media-spend, CPC, CPA and the
+// spend donut/bars all derive from summed spend_aud so they follow automatically. ROAS is
+// revenue ÷ GOOGLE spend and must stay on REAL spend, so every ROAS site multiplies by BBG (the
+// google factor) to divide the grossing back out. Idempotent (stashes _rawSpend); no-op when
+// window.BB_SPEND_MULT is unset. TLM: Google + Trade Desk (TTD carries no revenue). (data.monthly is
+// a pre-blended cross-platform total with no per-channel parts, so it is left raw - only its CSV
+// export would differ; every on-screen number reads the per-platform ad_campaign_* arrays.)
+function bbNum(v){var x=Number(v);return isFinite(x)?x:0;}
+function bbMultFor(channel){var m=window.BB_SPEND_MULT||{};var v=Number(m[channel]);return (isFinite(v)&&v>0)?v:1;}
+function bbChannelKey(p){var s=String(p||'').toLowerCase();
+  if(s.indexOf('google')>-1)return 'google';
+  if(s.indexOf('meta')>-1||s.indexOf('facebook')>-1)return 'meta';
+  if(s.indexOf('linkedin')>-1)return 'linkedin';
+  if(s.indexOf('reddit')>-1)return 'reddit';
+  if(s.indexOf('trade')>-1||s==='ttd'||s.indexOf('tradedesk')>-1)return 'ttd';
+  if(s.indexOf('dv360')>-1||s.indexOf('display')>-1)return 'dv360';
+  if(s.indexOf('line')>-1)return 'line';
+  if(s.indexOf('dooh')>-1)return 'youdooh';
+  return '';}
+var BBG=1;   // google multiplier - keeps ROAS on real spend (roas_real = roas_grossed × BBG)
+function bbApplySpendMult(){
+  BBG=bbMultFor('google');
+  ['ad_campaign_monthly','ad_campaign_weekly','ad_campaign_daily','ad_campaigns'].forEach(function(name){
+    (data[name]||[]).forEach(function(r){
+      if(r.spend_aud==null)return;
+      if(r._rawSpend==null)r._rawSpend=bbNum(r.spend_aud);
+      r.spend_aud=r._rawSpend*bbMultFor(bbChannelKey(r.platform));
+    });
+  });
+}
+
 // ===== LOAD =====
 function load(){
   fetch('/data.json',{credentials:'same-origin'}).then(function(r){if(!r.ok)throw Error(r.status);return r.json();})
-  .then(function(d){data=d;boot();}).catch(function(e){console.error(e);});
+  .then(function(d){data=d;bbApplySpendMult();boot();}).catch(function(e){console.error(e);});
 }
 
 function boot(){
@@ -353,7 +385,7 @@ function renderTab(){
   Array.from($('tabs').querySelectorAll('.tab')).forEach(function(t){t.classList.toggle('active',t.dataset.tab===activeTab);});
   ['overview','google','ttd','performance'].forEach(function(id){$('tab-'+id).classList.toggle('hide',activeTab!==id);});
   // Date + Platform + Campaign are global filters shown on every tab and applied uniformly
-  // (campFilter + inDR), so a platform toggle is always visible/reversible — never stuck.
+  // (campFilter + inDR), so a platform toggle is always visible/reversible - never stuck.
   Array.from($('filterbar').children).forEach(function(c){c.style.display='';});
   if(activeTab==='overview')renderOverview();else if(activeTab==='google')renderGoogle();else if(activeTab==='ttd')renderTTD();else if(activeTab==='performance')renderPerf();
 }
@@ -460,7 +492,7 @@ Array.from($('googMonScaleSeg').querySelectorAll('button')).forEach(function(b){
 // ===== RENDER: OVERVIEW =====
 // Reusable value-donut: a doughnut with the TOTAL drawn in the hole + a clickable value legend
 // (colour dot · label · value · % of visible). Click a row (or Enter/Space) to include/exclude that
-// slice — the pie, the centre total and every % update. items=[{label,value,color}]; fmtV formats.
+// slice - the pie, the centre total and every % update. items=[{label,value,color}]; fmtV formats.
 function valueDonut(cvId,legId,items,fmtV){
   var centre={id:'ctr_'+cvId,afterDatasetsDraw:function(ch){
     var vis=0;items.forEach(function(it,i){if(ch.getDataVisibility(i))vis+=it.value;});
@@ -480,7 +512,7 @@ function valueDonut(cvId,legId,items,fmtV){
       return '<div class="dleg-row'+(on?'':' off')+'" data-i="'+i+'" role="button" tabindex="0">'
         +'<span class="dot" style="background:'+it.color+'"></span><span class="lbl">'+it.label+'</span>'
         +'<span class="val">'+fmtV(it.value)+'</span>'
-        +'<span class="pct">'+(on&&vis>0?Math.round(it.value/vis*100)+'%':'—')+'</span></div>';
+        +'<span class="pct">'+(on&&vis>0?Math.round(it.value/vis*100)+'%':'-')+'</span></div>';
     }).join('');
   }
   drawLeg();
@@ -503,18 +535,18 @@ function renderOverview(){
   // ROAS / CPA are Google-attributed: TTD pixel fires carry no revenue, so dividing by Google
   // spend (the only spend with attributable revenue) is the honest efficiency. Total media
   // spend stays visible on the Media-spend card.
-  var roas=gSp>0?rv/gSp:null, aov=cv>0?rv/cv:null, cpa=cv>0?gSp/cv:null;
+  var roas=gSp>0?rv/gSp*BBG:null, aov=cv>0?rv/cv:null, cpa=cv>0?gSp/cv:null;   // ROAS on REAL spend (×BBG)
   // Cards with a matching hero series are clickable (toggle it, legend-style); the rest are plain.
   // Clickable trio FIRST (they toggle the hero chart) so the clickable cards sit together; the
   // rest follow. mc() gives each its standard colour; the glowing right-dot marks the clickable ones.
   var cards=[
     {label:'Media spend',value:curr(sp),sub:tSp>0?'incl. TTD '+curr(tSp):'AUD',toggle:{chart:'heroChart',stack:'spend'}},
     {label:'Revenue',value:curr(rv),sub:'AUD',toggle:{chart:'heroChart',series:'Revenue (AUD)'}},
-    {label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'—',sub:'rev ÷ Google spend',toggle:{chart:'heroChart',series:'ROAS'}},
+    {label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'-',sub:'rev ÷ Google spend',toggle:{chart:'heroChart',series:'ROAS'}},
     {label:'Impressions',value:fmt(im),sub:''},
     {label:'Clicks',value:fmt(cl),sub:'CTR '+pct(im>0?cl/im:0)},
     {label:'Purchases',value:fmt(cv,1),sub:''},
-    {label:'CPA',value:cpa!=null?curr(cpa):'—',sub:'Google spend ÷ purch.'}
+    {label:'CPA',value:cpa!=null?curr(cpa):'-',sub:'Google spend ÷ purch.'}
   ];
   $('ovKpis').innerHTML=cards.map(kpiCard).join('');
 
@@ -525,13 +557,13 @@ function renderOverview(){
   if(heroGrain==='month'&&!heroDrillMonth){
     labels=(data.monthly||[]).filter(function(r){return inDR(r.month+'-01');}).map(function(r){return r.month;});
     var gms=sumBy(fGoogleMonthly(),'month','spend_aud'),tms=sumBy(fTtdMonthly(),'month','spend_aud'),rms=sumBy(fGoogleMonthly(),'month','revenue');
-    labels.forEach(function(m){var g=gms[m]||0,r=rms[m]||0;gArr.push(g);tArr.push(tms[m]||0);rvArr.push(r);roasArr.push(g>0?r/g:0);});
+    labels.forEach(function(m){var g=gms[m]||0,r=rms[m]||0;gArr.push(g);tArr.push(tms[m]||0);rvArr.push(r);roasArr.push(g>0?r/g*BBG:0);});
   } else if(heroGrain==='day'){
     var gd=fGoogleDaily(),td=fTtdDaily();
     var setd={};gd.forEach(function(r){setd[r.day]=1;});td.forEach(function(r){setd[r.day]=1;});
     labels=Object.keys(setd).sort();
     var gds=sumBy(gd,'day','spend_aud'),tds=sumBy(td,'day','spend_aud'),rds=sumBy(gd,'day','revenue');
-    labels.forEach(function(d){var g=gds[d]||0,r=rds[d]||0;gArr.push(g);tArr.push(tds[d]||0);rvArr.push(r);roasArr.push(g>0?r/g:0);});
+    labels.forEach(function(d){var g=gds[d]||0,r=rds[d]||0;gArr.push(g);tArr.push(tds[d]||0);rvArr.push(r);roasArr.push(g>0?r/g*BBG:0);});
   } else {
     // week grain, OR a drilled-into month (shown as its weeks)
     var gw=fGoogleWeekly(),tw=fTtdWeekly();
@@ -542,7 +574,7 @@ function renderOverview(){
     var set={};gw.forEach(function(r){set[r.week_start]=1;});tw.forEach(function(r){set[r.week_start]=1;});
     labels=Object.keys(set).sort();
     var gws=sumBy(gw,'week_start','spend_aud'),tws=sumBy(tw,'week_start','spend_aud'),rws=sumBy(gw,'week_start','revenue');
-    labels.forEach(function(w){var g=gws[w]||0,r=rws[w]||0;gArr.push(g);tArr.push(tws[w]||0);rvArr.push(r);roasArr.push(g>0?r/g:0);});
+    labels.forEach(function(w){var g=gws[w]||0,r=rws[w]||0;gArr.push(g);tArr.push(tws[w]||0);rvArr.push(r);roasArr.push(g>0?r/g*BBG:0);});
   }
   destroyChart('heroChart');
   var isRel=heroScale==='rel';
@@ -573,9 +605,9 @@ function renderOverview(){
 
 // ===== RENDER: GOOGLE ADS =====
 function typeRow(label,o,total){
-  var ctr=o.im>0?o.cl/o.im:0,cpc=o.cl>0?o.sp/o.cl:0,roas=o.sp>0?o.rv/o.sp:null,aov=o.cv>0?o.rv/o.cv:null,cpa=o.cv>0?o.sp/o.cv:null;
+  var ctr=o.im>0?o.cl/o.im:0,cpc=o.cl>0?o.sp/o.cl:0,roas=o.sp>0?o.rv/o.sp*BBG:null,aov=o.cv>0?o.rv/o.cv:null,cpa=o.cv>0?o.sp/o.cv:null;   // ROAS on REAL spend (×BBG); cpc/cpa grossed
   var name=total?'<td>Total</td>':'<td class="name"><span class="pill '+(typeCls[label]||'other')+'">'+esc(label)+'</span></td>';
-  return'<tr'+(total?' style="border-top:2px solid var(--line2);font-weight:700"':'')+'>'+name+'<td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(ctr)+'</td><td>'+curr(cpc)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(roas!=null?roas.toFixed(2)+'×':'—')+'</td><td>'+(aov!=null?curr(aov):'—')+'</td><td>'+(cpa!=null?curr(cpa):'—')+'</td></tr>';
+  return'<tr'+(total?' style="border-top:2px solid var(--line2);font-weight:700"':'')+'>'+name+'<td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(ctr)+'</td><td>'+curr(cpc)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(roas!=null?roas.toFixed(2)+'×':'-')+'</td><td>'+(aov!=null?curr(aov):'-')+'</td><td>'+(cpa!=null?curr(cpa):'-')+'</td></tr>';
 }
 function renderGoogle(){
   if(!data)return;
@@ -590,10 +622,10 @@ function renderGoogle(){
   // Campaign table (filtered)
   var cr=googleCampRollup(),camps=Object.keys(cr).sort(function(a,b){return cr[b].sp-cr[a].sp;});
   var cRows=camps.map(function(name){var o=cr[name],ct=o.type||'Other';
-    return'<tr><td class="name">'+esc(name)+' <span class="pill '+(typeCls[ct]||'other')+'">'+esc(ct)+'</span></td><td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(o.sp>0?(o.rv/o.sp).toFixed(2)+'×':'—')+'</td></tr>';}).join('');
+    return'<tr><td class="name">'+esc(name)+' <span class="pill '+(typeCls[ct]||'other')+'">'+esc(ct)+'</span></td><td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(o.sp>0?(o.rv/o.sp).toFixed(2)+'×':'-')+'</td></tr>';}).join('');
   $('googleCamps').innerHTML='<thead><tr><th>Campaign</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Purch.</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>'+(cRows||'<tr><td colspan="8" style="text-align:center;color:var(--muted2)">No Google delivery in range</td></tr>')+'</tbody>';
 
-  // Spend vs revenue chart (filtered Google spend + revenue) — grain Month/Week/Day, with a
+  // Spend vs revenue chart (filtered Google spend + revenue) - grain Month/Week/Day, with a
   // Relative axis that indexes the revenue line to its own peak=100. Bars (spend) stay
   // absolute on the left axis. SUM additive metrics per bucket.
   destroyChart('googleMonthlyChart');
@@ -625,7 +657,7 @@ function renderGoogle(){
 
 // ===== TTD creative ranking: grouped by ad format, re-rankable by metric =====
 // TTD creative names carry no descriptive title (just campaign-code_size_variant), so we rank by
-// ad FORMAT using friendly IAB names — the real "what worked" lever for display.
+// ad FORMAT using friendly IAB names - the real "what worked" lever for display.
 var ttdRankBy='ctr';   // ctr | clicks | cpc | imps  (driven by the "RANK BY" seg)
 var TTD_METRIC={       // col = index into the [Impr., Clicks, CTR, CPC] columns; low = lower-is-better
   imps:{k:'imps',low:false,col:0},clicks:{k:'clicks',low:false,col:1},
@@ -649,12 +681,12 @@ function renderTTD(){
   var rows=camps.map(function(name){var o=cr[name];return'<tr><td class="name">'+esc(name)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+curr(o.im>0?o.sp/o.im*1000:0)+'</td><td>'+curr(o.sp)+'</td></tr>';}).join('');
   $('ttdCamps').innerHTML='<thead><tr><th>Campaign</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>Spend AUD</th></tr></thead><tbody>'+(rows||'<tr><td colspan="6" style="text-align:center;color:var(--muted2)">No Trade Desk delivery in range</td></tr>')+'</tbody>';
 
-  // Creative ranking — grouped by ad FORMAT (friendly IAB names), re-rankable by the RANK BY seg.
+  // Creative ranking - grouped by ad FORMAT (friendly IAB names), re-rankable by the RANK BY seg.
   // TTD names carry no descriptive title, so ad format is the meaningful "what worked" lever.
   var ttdSel=platformOn.ttd&&(selectedCampaigns===null||(data.ad_campaigns||[]).some(function(r){return r.platform==='ttd'&&selectedCampaigns.indexOf('ttd|'+r.campaign)!==-1;}));
   var raw=(ttdSel?(data.ttd_creative||[]):[]);
   var byF={};   // aggregate delivery by ad format
-  raw.forEach(function(r){var f=(r.ad_format||'—'),o=byF[f]||(byF[f]={imps:0,clicks:0,spend:0,n:0});o.imps+=r.imps||0;o.clicks+=r.clicks||0;o.spend+=r.spend_aud||0;o.n++;});
+  raw.forEach(function(r){var f=(r.ad_format||'-'),o=byF[f]||(byF[f]={imps:0,clicks:0,spend:0,n:0});o.imps+=r.imps||0;o.clicks+=r.clicks||0;o.spend+=r.spend_aud||0;o.n++;});
   var fb=0;
   var tcr=Object.keys(byF).map(function(f){var o=byF[f],m=TTD_FORMAT[f]||{lbl:f,c:TTD_FALLBACK[fb++%TTD_FALLBACK.length]};return{fmt:f,lbl:m.lbl,color:m.c,n:o.n,imps:o.imps,clicks:o.clicks,spend:o.spend,ctr:(o.imps>0?o.clicks/o.imps:0),cpc:(o.clicks>0?o.spend/o.clicks:null)};});
   var act=TTD_METRIC[ttdRankBy]||TTD_METRIC.ctr;
@@ -669,7 +701,7 @@ function renderTTD(){
   var chead='<div class="crow chead"><div>#</div><div>Ad format</div>'+hd.map(function(h,i){return'<div class="rt'+(i===col?' on':'')+'">'+h+'</div>';}).join('')+'</div>';
   var lrows=tcr.map(function(r,i){
     var top=(i===0),dims=r.fmt+' · '+r.n+(r.n===1?' ad':' ads');
-    var cells=[fmt(r.imps),fmt(r.clicks),(r.ctr*100).toFixed(2)+'%',(r.cpc==null?'—':curr(r.cpc))];
+    var cells=[fmt(r.imps),fmt(r.clicks),(r.ctr*100).toFixed(2)+'%',(r.cpc==null?'-':curr(r.cpc))];
     return '<div class="crow'+(top?' top':'')+'">'
       +'<div class="crank">'+(i+1)+'</div>'
       +'<div><div class="cnm"><span class="cdot" style="background:'+r.color+'"></span><span class="nm">'+esc(r.lbl)+'</span><span class="cdim">'+esc(dims)+'</span>'+(top?'<span class="tpill">TOP</span>':'')+'</div><div class="cbar2"><i style="width:'+barW(r)+'%;background:'+r.color+'"></i></div></div>'
@@ -687,16 +719,16 @@ function renderPerf(){
   var fm=fMonthly();
   var gSp=0,tSp=0,cv=0,rv=0;
   fm.forEach(function(r){if(r.platform==='google')gSp+=r.spend_aud||0;else if(r.platform==='ttd')tSp+=r.spend_aud||0;cv+=r.conversions||0;rv+=r.revenue||0;});
-  var sp=gSp+tSp, roas=gSp>0?rv/gSp:null, aov=cv>0?rv/cv:null, cpa=cv>0?gSp/cv:null;
+  var sp=gSp+tSp, roas=gSp>0?rv/gSp*BBG:null, aov=cv>0?rv/cv:null, cpa=cv>0?gSp/cv:null;   // ROAS on REAL spend (×BBG)
   $('perfKpis').innerHTML=[
     {label:'Media spend',value:curr(sp),sub:tSp>0?'incl. TTD '+curr(tSp):'AUD'},
     {label:'Revenue',value:curr(rv),sub:'AUD',toggle:{chart:'perfTrendChart',series:'Revenue (AUD)'}},
-    {label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'—',sub:'rev ÷ Google spend'},
-    {label:'AOV',value:aov!=null?curr(aov):'—',sub:''},
-    {label:'CPA',value:cpa!=null?curr(cpa):'—',sub:'Google spend ÷ purch.'}
+    {label:'ROAS',value:roas!=null?roas.toFixed(2)+'×':'-',sub:'rev ÷ Google spend'},
+    {label:'AOV',value:aov!=null?curr(aov):'-',sub:''},
+    {label:'CPA',value:cpa!=null?curr(cpa):'-',sub:'Google spend ÷ purch.'}
   ].map(kpiCard).join('');
 
-  // Scatter — weekly spend vs revenue (filtered; weekly revenue now carried in the JSON)
+  // Scatter - weekly spend vs revenue (filtered; weekly revenue now carried in the JSON)
   var rw=rollUp(fWeekly(),'week_start');
   var sps=[],rvs=[];
   Object.keys(rw).sort().forEach(function(w){var v=rw[w];if(v.sp>0){sps.push(v.sp);rvs.push(v.rv);}});
@@ -704,7 +736,7 @@ function renderPerf(){
   var pr=pearson(sps,rvs);
   charts.scatterChart=new Chart(ctx('scatterChart'),{type:'scatter',data:{datasets:[{label:'Weekly spend → revenue',data:sps.map(function(s,i){return{x:s,y:rvs[i]};}),backgroundColor:C.accent}]},options:{responsive:true,maintainAspectRatio:false,plugins:{tooltip:{callbacks:{label:function(c){return'Spend: '+curr(c.raw.x)+' | Revenue: '+curr(c.raw.y);}}},subtitle:{display:true,text:pr!==null?'Correlation (Pearson r) = '+pr.toFixed(3):'Not enough weeks for a correlation'}},scales:{x:{title:{display:true,text:'Spend (AUD)'},ticks:{callback:function(v){return curr(v);}}},y:{title:{display:true,text:'Revenue (AUD)'},ticks:{callback:function(v){return curr(v);}}}}}});
 
-  // Trend — revenue (bars) + purchases (overlay line) by period (filtered). Grain
+  // Trend - revenue (bars) + purchases (overlay line) by period (filtered). Grain
   // Month/Week/Day; SUM additive metrics per bucket. Relative axis indexes the purchases
   // line to its own peak=100; revenue bars stay absolute on the left axis.
   destroyChart('perfTrendChart');

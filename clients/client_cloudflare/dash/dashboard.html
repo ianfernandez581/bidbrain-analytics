@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cloudflare - Performance Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
-<!-- PptxGenJS + the shared bb_deck.js builder — power the portal-driven "Download slides" export
+<!-- PptxGenJS + the shared bb_deck.js builder - power the portal-driven "Download slides" export
      (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <script src="bb_deck.js"></script>
@@ -42,7 +42,7 @@
               box-shadow:0 0 0 0 rgba(31,157,85,0.7);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,85,0.6)}70%{box-shadow:0 0 0 8px rgba(31,157,85,0)}100%{box-shadow:0 0 0 0 rgba(31,157,85,0)}}
 
-  /* ===== Quarter filter (Q2/Q3) — sits in the dark topbar, left of the date picker ===== */
+  /* ===== Quarter filter (Q2/Q3) - sits in the dark topbar, left of the date picker ===== */
   .qtr-filter{display:inline-flex;align-items:center;gap:8px}
   .qtr-filter .qtr-lbl{font-size:11px;color:#8ca0b8;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
   .qtr-group{display:inline-flex;gap:3px;background:#0c1524;border:1px solid #25364b;border-radius:8px;padding:3px}
@@ -197,7 +197,7 @@
   .compare-clear{padding:9px 14px;border:1px solid var(--cf-line);border-radius:8px;font-size:12.5px;font-weight:600;
     background:#fff;color:var(--cf-mute);cursor:pointer;font-family:inherit;white-space:nowrap;outline:none}
   .compare-clear:hover{border-color:var(--cf-orange);color:var(--cf-orange)}
-  /* Comparison-panel asset list — full asset names, never truncated */
+  /* Comparison-panel asset list - full asset names, never truncated */
   .cmp-assets{display:flex;flex-direction:column;gap:8px;margin-top:2px}
   .cmp-asset{display:grid;grid-template-columns:1fr auto;column-gap:8px;align-items:baseline;font-size:11.5px}
   .cmp-asset .nm{color:var(--cf-ink);font-weight:500;line-height:1.3}
@@ -420,10 +420,10 @@
     <div id="dateScopeNote" style="display:none;background:#fff;border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5"></div>
 
     <!-- ============================================================ -->
-    <!-- QoQ TAB (Q3 vs Q2, CS accepted leads — actuals only)          -->
+    <!-- QoQ TAB (Q3 vs Q2, CS accepted leads - actuals only)          -->
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-qoq">
-      <div class="qoq-note"><b>Quarter-to-date</b> comparison — <b>Q3</b> vs the <b>same opening window of Q2</b> <span id="qoqAsof"></span>, so it's like-for-like as Q3 ramps (not a few days of Q3 against all of Q2). Content-Syndication <b>accepted</b> leads, the 7 market groups (ANZ / ASEAN / SAARC / GCR / KR / JP / RIG). <b>Actuals only</b> — Q3 targets pending from the client, so no "vs target" pacing yet.<br><span style="color:var(--cf-mute)">Note: Q3 campaigns launched late, so QTD figures read light this early in the quarter. This reflects delivery timing, not a data issue.</span></div>
+      <div class="qoq-note"><b>Quarter-to-date</b> comparison - <b>Q3</b> vs the <b>same opening window of Q2</b> <span id="qoqAsof"></span>, so it's like-for-like as Q3 ramps (not a few days of Q3 against all of Q2). Content-Syndication <b>accepted</b> leads, the 7 market groups (ANZ / ASEAN / SAARC / GCR / KR / JP / RIG). <b>Actuals only</b> - Q3 targets pending from the client, so no "vs target" pacing yet.<br><span style="color:var(--cf-mute)">Note: Q3 campaigns launched late, so QTD figures read light this early in the quarter. This reflects delivery timing, not a data issue.</span></div>
       <div class="qoq-stats" id="qoqStats"></div>
       <div class="card" style="margin-top:14px">
         <div class="card-head"><div><h3>Accepted leads by market</h3><div class="hint">Q3-to-date vs Q2's same opening window. Δ = change vs Q2 same period.</div></div></div>
@@ -431,7 +431,7 @@
         <div id="qoqMarketBars"></div>
       </div>
       <div class="card" style="margin-top:14px">
-        <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected — Q3-to-date vs Q2 same period.</div></div></div>
+        <div class="card-head"><div><h3>Lead status mix</h3><div class="hint">Accepted / Rejected - Q3-to-date vs Q2 same period.</div></div></div>
         <div class="qoq-heatscale">Fewer <span class="grad"></span> more leads</div>
         <div id="qoqStatusBars"></div>
       </div>
@@ -453,22 +453,22 @@
         <div class="group">
           <div class="lbl">Overall</div>
           <div class="pair">
-            <div class="stat"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="kpi_target">—</div></div>
-            <div class="stat"><div class="k">Accepted leads</div><div class="v" id="kpi_total">—</div></div>
+            <div class="stat"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="kpi_target">-</div></div>
+            <div class="stat"><div class="k">Accepted leads</div><div class="v" id="kpi_total">-</div></div>
           </div>
         </div>
         <div class="group">
           <div class="lbl">Pacing</div>
           <div class="pair">
-            <div class="stat"><div class="k">Current pacing</div><div class="v" id="kpi_current">—</div></div>
-            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="kpi_overall">—</div></div>
+            <div class="stat"><div class="k">Current pacing</div><div class="v" id="kpi_current">-</div></div>
+            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="kpi_overall">-</div></div>
           </div>
         </div>
         <div class="group">
           <div class="lbl">Lead quality</div>
           <div class="pair">
-            <div class="stat"><div class="k">Rejection rate</div><div class="v" id="kpi_rej">—</div><div class="cnt" id="kpi_rej_cnt">—</div></div>
-            <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="kpi_acc">—</div><div class="cnt" id="kpi_acc_cnt">—</div></div>
+            <div class="stat"><div class="k">Rejection rate</div><div class="v" id="kpi_rej">-</div><div class="cnt" id="kpi_rej_cnt">-</div></div>
+            <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="kpi_acc">-</div><div class="cnt" id="kpi_acc_cnt">-</div></div>
           </div>
         </div>
       </div>
@@ -552,15 +552,15 @@
             <div class="compare-kpi-group">
               <div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="A_target">—</div></div>
-                <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="A_total">—</div></div>
+                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="A_target">-</div></div>
+                <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="A_total">-</div></div>
               </div>
             </div>
             <div class="compare-kpi-group">
               <div class="grp-lbl">Lead Quality</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="A_rej">—</div><div class="cnt" id="A_rej_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="A_acc">—</div><div class="cnt" id="A_acc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="A_rej">-</div><div class="cnt" id="A_rej_cnt">-</div></div>
+                <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="A_acc">-</div><div class="cnt" id="A_acc_cnt">-</div></div>
               </div>
             </div>
             <div class="compare-chart">
@@ -594,15 +594,15 @@
             <div class="compare-kpi-group">
               <div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="B_target">—</div></div>
-                <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="B_total">—</div></div>
+                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="B_target">-</div></div>
+                <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="B_total">-</div></div>
               </div>
             </div>
             <div class="compare-kpi-group">
               <div class="grp-lbl">Lead Quality</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="B_rej">—</div><div class="cnt" id="B_rej_cnt">—</div></div>
-                <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="B_acc">—</div><div class="cnt" id="B_acc_cnt">—</div></div>
+                <div class="compare-kpi"><div class="k">Rejection %</div><div class="v" id="B_rej">-</div><div class="cnt" id="B_rej_cnt">-</div></div>
+                <div class="compare-kpi"><div class="k">Acceptance %</div><div class="v" id="B_acc">-</div><div class="cnt" id="B_acc_cnt">-</div></div>
               </div>
             </div>
             <div class="compare-chart">
@@ -650,24 +650,24 @@
 
         <div class="kpis">
           <div class="kpi accent"><span class="stripe"></span>
-            <div class="label">Total spend</div><div class="value" id="k_spend">—</div>
-            <div class="delta" id="k_spend_b">—</div>
+            <div class="label">Total spend</div><div class="value" id="k_spend">-</div>
+            <div class="delta" id="k_spend_b">-</div>
           </div>
           <div class="kpi"><span class="stripe"></span>
-            <div class="label">Impressions</div><div class="value" id="k_imp">—</div>
-            <div class="delta" id="k_cpm">—</div>
+            <div class="label">Impressions</div><div class="value" id="k_imp">-</div>
+            <div class="delta" id="k_cpm">-</div>
           </div>
           <div class="kpi"><span class="stripe"></span>
-            <div class="label">Clicks</div><div class="value" id="k_clk">—</div>
-            <div class="delta" id="k_ctr">—</div>
+            <div class="label">Clicks</div><div class="value" id="k_clk">-</div>
+            <div class="delta" id="k_ctr">-</div>
           </div>
           <div class="kpi warn"><span class="stripe"></span>
-            <div class="label">LinkedIn leads</div><div class="value" id="k_leads">—</div>
+            <div class="label">LinkedIn leads</div><div class="value" id="k_leads">-</div>
             <div class="delta">TTD has no lead pixel</div>
           </div>
           <div class="kpi accent"><span class="stripe"></span>
-            <div class="label">Blended CPC</div><div class="value" id="k_cpc">—</div>
-            <div class="delta" id="k_cpc_b">—</div>
+            <div class="label">Blended CPC</div><div class="value" id="k_cpc">-</div>
+            <div class="delta" id="k_cpc_b">-</div>
           </div>
         </div>
 
@@ -841,14 +841,14 @@
           <h3 style="font-size:14px;margin:18px 0 6px 0">Modeled TTD lead volume (using LinkedIn click-to-lead as the floor benchmark)</h3>
           <div class="hint" style="margin-bottom:8px">Because the image pixel isn't deployed, we can only model the missing TTD lead count. LinkedIn click-to-lead rate is computed live from the data. Applied to TTD's measured clicks - before any view-through credit.</div>
           <div class="gap-box">
-            <div class="gap-tile"><div class="lbl">Conservative (50% of LI rate)</div><div class="val" id="gap_low">—</div></div>
-            <div class="gap-tile bad"><div class="lbl">Mid (1× LI rate, click-only)</div><div class="val" id="gap_mid">—</div></div>
-            <div class="gap-tile"><div class="lbl">High (2× LI w/ view-through)</div><div class="val" id="gap_high">—</div></div>
+            <div class="gap-tile"><div class="lbl">Conservative (50% of LI rate)</div><div class="val" id="gap_low">-</div></div>
+            <div class="gap-tile bad"><div class="lbl">Mid (1× LI rate, click-only)</div><div class="val" id="gap_mid">-</div></div>
+            <div class="gap-tile"><div class="lbl">High (2× LI w/ view-through)</div><div class="val" id="gap_high">-</div></div>
           </div>
           <p style="font-size:12.5px;color:var(--cf-mute);margin:10px 0 0 0">Translation: TTD has likely produced a meaningful number of leads that no one is counting. The fix is to deploy the supplied image pixels on the lead-form thank-you page. Note: the LinkedIn benchmark itself is depressed by the phone-field friction - if that's fixed, the modeled TTD number grows accordingly.</p>
         </div>
 
-        <div style="font-size:12px;color:rgba(255,255,255,0.85);text-align:center;padding:8px 0;margin-top:14px" id="paidFooter">—</div>
+        <div style="font-size:12px;color:rgba(255,255,255,0.85);text-align:center;padding:8px 0;margin-top:14px" id="paidFooter">-</div>
 
       </div>
 
@@ -859,7 +859,7 @@
     <!-- ============================================================ -->
     <div id="view-campaign" class="panel-paid-scope" style="display:none">
       <div class="section first" style="display:flex;justify-content:space-between;align-items:baseline">
-        <h2 id="cmp_title" style="color:#fff;margin:0">—</h2>
+        <h2 id="cmp_title" style="color:#fff;margin:0">-</h2>
       </div>
 
       <!-- CF1-view tabs: shown only when this campaign has a content-syndication lane. -->
@@ -879,11 +879,11 @@
           <div class="sub" id="cmpCS_window" style="color:rgba(255,255,255,.85)"></div>
         </div>
         <div class="kpis">
-          <div class="kpi"><span class="stripe"></span><div class="label">Target</div><div class="value" id="cs_target">—</div><div class="delta">Double Touch MQLs</div></div>
-          <div class="kpi accent"><span class="stripe"></span><div class="label">Accepted MQLs</div><div class="value" id="cs_accepted">—</div><div class="delta" id="cs_accepted_b">delivered</div></div>
-          <div class="kpi li"><span class="stripe"></span><div class="label">% to target</div><div class="value" id="cs_pct">—</div><div class="delta" id="cs_pct_b">—</div></div>
-          <div class="kpi warn"><span class="stripe"></span><div class="label">Rejected</div><div class="value" id="cs_rejected">—</div><div class="delta" id="cs_rejected_b">quality control</div></div>
-          <div class="kpi"><span class="stripe"></span><div class="label">Acceptance rate</div><div class="value" id="cs_accrate">—</div><div class="delta" id="cs_accrate_b">—</div></div>
+          <div class="kpi"><span class="stripe"></span><div class="label">Target</div><div class="value" id="cs_target">-</div><div class="delta">Double Touch MQLs</div></div>
+          <div class="kpi accent"><span class="stripe"></span><div class="label">Accepted MQLs</div><div class="value" id="cs_accepted">-</div><div class="delta" id="cs_accepted_b">delivered</div></div>
+          <div class="kpi li"><span class="stripe"></span><div class="label">% to target</div><div class="value" id="cs_pct">-</div><div class="delta" id="cs_pct_b">-</div></div>
+          <div class="kpi warn"><span class="stripe"></span><div class="label">Rejected</div><div class="value" id="cs_rejected">-</div><div class="delta" id="cs_rejected_b">quality control</div></div>
+          <div class="kpi"><span class="stripe"></span><div class="label">Acceptance rate</div><div class="value" id="cs_accrate">-</div><div class="delta" id="cs_accrate_b">-</div></div>
         </div>
         <div class="grid" style="grid-template-columns:2fr 1fr">
           <div class="card card-tall">
@@ -901,7 +901,7 @@
           <h3>By publisher &amp; region</h3>
           <div style="overflow:auto"><table id="cmpCSBreakdown"><thead><tr><th>Segment</th><th>Accepted</th><th>Rejected</th><th>Reviewed</th><th>Acceptance</th></tr></thead><tbody></tbody></table></div>
         </div>
-        <div style="font-size:12px;color:rgba(255,255,255,.85);text-align:center;padding:8px 0;margin-top:14px" id="cmpCSFooter">—</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.85);text-align:center;padding:8px 0;margin-top:14px" id="cmpCSFooter">-</div>
       </div>
 
       <!-- LINKEDIN PAID MEDIA -->
@@ -914,11 +914,11 @@
         <div class="sub" id="cmp_window" style="color:rgba(255,255,255,.85)"></div>
       </div>
       <div class="kpis">
-        <div class="kpi accent li"><span class="stripe"></span><div class="label">Spend</div><div class="value" id="cmp_spend">—</div><div class="delta" id="cmp_spend_b">—</div></div>
-        <div class="kpi li"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="cmp_imp">—</div><div class="delta" id="cmp_cpm">—</div></div>
-        <div class="kpi li"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="cmp_clk">—</div><div class="delta" id="cmp_ctr">—</div></div>
-        <div class="kpi li"><span class="stripe"></span><div class="label">Leads</div><div class="value" id="cmp_leads">—</div><div class="delta" id="cmp_cpl">—</div></div>
-        <div class="kpi accent li"><span class="stripe"></span><div class="label">CPC</div><div class="value" id="cmp_cpc">—</div><div class="delta">LinkedIn</div></div>
+        <div class="kpi accent li"><span class="stripe"></span><div class="label">Spend</div><div class="value" id="cmp_spend">-</div><div class="delta" id="cmp_spend_b">-</div></div>
+        <div class="kpi li"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="cmp_imp">-</div><div class="delta" id="cmp_cpm">-</div></div>
+        <div class="kpi li"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="cmp_clk">-</div><div class="delta" id="cmp_ctr">-</div></div>
+        <div class="kpi li"><span class="stripe"></span><div class="label">Leads</div><div class="value" id="cmp_leads">-</div><div class="delta" id="cmp_cpl">-</div></div>
+        <div class="kpi accent li"><span class="stripe"></span><div class="label">CPC</div><div class="value" id="cmp_cpc">-</div><div class="delta">LinkedIn</div></div>
       </div>
       <div class="card-head" style="margin-bottom:8px"><div></div>
         <div class="ctrls">
@@ -939,7 +939,7 @@
         <h3>Campaigns in this group</h3>
         <div style="overflow:auto"><table id="cmpByCampaign"><thead><tr><th>Campaign</th><th>Spend</th><th>Imps</th><th>Clicks</th><th>CTR</th><th>CPC</th><th>Leads</th></tr></thead><tbody></tbody></table></div>
       </div>
-      <div style="font-size:12px;color:rgba(255,255,255,.85);text-align:center;padding:8px 0;margin-top:14px" id="cmpFooter">—</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.85);text-align:center;padding:8px 0;margin-top:14px" id="cmpFooter">-</div>
       </div><!-- /cmpLI -->
     </div>
 
@@ -955,7 +955,7 @@
 const JSON_URL = '/data.json';   // single combined payload, served (gated) by the Flask app
 let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{...} }
 // CS market universe = the COARSE 7 markets (2026-07-07 grain: rolled back UP from the 2026-06-25
-// 11-chip split at the client's request, so CS markets match the paid-media L3 grain 1:1 —
+// 11-chip split at the client's request, so CS markets match the paid-media L3 grain 1:1 -
 // ANZ = AU+NZ, ASEAN = SG/MY/ID/TH/VN/PH, GCR = CN/TW/HK). KR = Korea in the 6 El* campaigns;
 // Korea leads outside those 6 land in REGION_GRP='OTHER', which is NOT in this list, so they are
 // excluded from every chip AND the headline totals (which sum over these markets). Add 'OTHER' here
@@ -971,6 +971,47 @@ const Q2_END   = new Date('2026-06-30T23:59:59Z');
 // "Rejected" is its own bucket; everything else real (i.e. 'New') is the
 // untriaged "unprocessed" backlog, derived as total - accepted - rejected.
 const ACCEPTED_STATUSES = new Set(['Accepted', 'Replied', 'Unresponsive']);
+
+// ==========================================================================
+// CLIENT-BILLED SPEND MULTIPLIER
+// The platform front-door injects window.BB_SPEND_MULT = {channelKey: factor}.
+// Gross RAW media spend up to what the client was BILLED, per channel, at the
+// EARLIEST raw source (COMBINED.paid_media.rows / .creatives + the per-campaign
+// precomputed spend aggregates) so every downstream rollup AND derived cost-per-X
+// (CPM/CPC/CPL) follows automatically. Idempotent (stashes _rawSpend). Counts,
+// ratios (CTR) and CS leads are untouched; cloudflare has no revenue/ROAS to
+// protect. When BB_SPEND_MULT is unset/empty every factor defaults to 1 (no-op).
+// ==========================================================================
+function bbMultFor(channel){ const m=window.BB_SPEND_MULT||{}; const v=Number(m[channel]); return (Number.isFinite(v)&&v>0)?v:1; }
+function bbChannelKey(p){ var s=String(p||'').toLowerCase();
+  if(s.includes('google'))return 'google';
+  if(s.includes('meta')||s.includes('facebook'))return 'meta';
+  if(s.includes('linkedin'))return 'linkedin';
+  if(s.includes('reddit'))return 'reddit';
+  if(s.includes('trade')||s==='ttd'||s.includes('tradedesk'))return 'ttd';
+  if(s.includes('dv360')||s.includes('display'))return 'dv360';
+  if(s.includes('line'))return 'line';
+  if(s.includes('dooh'))return 'youdooh';
+  return ''; }
+function bbApplySpendMult(){
+  const _n = v => { const x=Number(v); return Number.isFinite(x)?x:0; };
+  const C = COMBINED || {};
+  // Paid-media row-level spend - the raw source adaptPayload() + every rollup read.
+  // Gross spend_usd by the row's OWN channel (multi-channel: TTD/LinkedIn/Reddit/LINE).
+  const pm = C.paid_media || {};
+  (pm.rows || []).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=_n(r.spend_usd); r.spend_usd = r._rawSpend * bbMultFor(bbChannelKey(r.channel)); });
+  (pm.creatives || []).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=_n(r.spend_usd); r.spend_usd = r._rawSpend * bbMultFor(bbChannelKey(r.channel)); });
+  // Single-campaign LinkedIn views (CF1 / peyc / coles_hyper) are LinkedIn-only. Their
+  // `totals` + `by_campaign` are PRECOMPUTED (read directly, not re-derived from `daily`),
+  // so gross all three spend fields by the LinkedIn factor. The CF1 `cs` block is leads.
+  const LI = bbMultFor('linkedin');
+  const cmap = C.campaigns || {};
+  Object.keys(cmap).forEach(k=>{ const c=cmap[k]||{};
+    (c.daily || []).forEach(d=>{ if(d._rawSpend==null) d._rawSpend=_n(d.spend); d.spend = d._rawSpend * LI; });
+    (c.by_campaign || []).forEach(d=>{ if(d._rawSpend==null) d._rawSpend=_n(d.spend); d.spend = d._rawSpend * LI; });
+    const t=c.totals; if(t){ if(t._rawSpend==null) t._rawSpend=_n(t.spend); t.spend = t._rawSpend * LI; }
+  });
+}
 
 // ==========================================================================
 // SHARED DATE-RANGE PICKER (Looker-style). API: DateRange.init({min,max,onApply}),
@@ -995,7 +1036,7 @@ window.DateRange = (function(){
   const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
   const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
   const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '-';
   const $ = id => document.getElementById(id);
 
   function presetRange(k){
@@ -1123,7 +1164,7 @@ window.DateRange = (function(){
 })();
 
 // ==========================================================================
-// QUARTER FILTER (Q2 / Q3) — a coarse control layered over the shared date
+// QUARTER FILTER (Q2 / Q3) - a coarse control layered over the shared date
 // range. Quarters are CONTIGUOUS calendar spans, so a selection maps 1:1 onto
 // a single date range: Q3 -> [Jul 1, dataMax], Q2 -> [Apr 1, Jun 30], both ->
 // [Apr 1, dataMax]. The date range stays the single source of truth; the chips
@@ -1169,7 +1210,7 @@ function renderQuarterChips(){
   updateQuarterLabels();
 }
 // The quarter the user is viewing, as a label. Targets are the Q2 plan (no Q3 targets loaded yet),
-// but the dashboard defaults to Q3 — so every "Q2" caption read wrong when viewing Q3 (client
+// but the dashboard defaults to Q3 - so every "Q2" caption read wrong when viewing Q3 (client
 // feedback 2026-07-07). These captions now follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
 // neutral "Quarter" for a custom calendar range. Any element with class .qlbl gets this text.
 function qtrLabel(){
@@ -1247,10 +1288,10 @@ function initChartToggles(){
     v=>pmGrain=v, v=>pmScale=v, ()=>{renderTtdImpCtr();renderDailyStack();});
   wireToggles('dailyStack_grain','dailyStack_scale',
     v=>pmGrain=v, v=>pmScale=v, ()=>{renderTtdImpCtr();renderDailyStack();});
-  // Efficiency trio (CTR/Clicks/CPC) — one shared control.
+  // Efficiency trio (CTR/Clicks/CPC) - one shared control.
   wireToggles('effTrio_grain','effTrio_scale',
     v=>effGrain=v, v=>effScale=v, renderEffTrio);
-  // Single-campaign cmpDaily + cmpSpend — one shared control.
+  // Single-campaign cmpDaily + cmpSpend - one shared control.
   wireToggles('cmp_grain','cmp_scale',
     v=>cmpGrain=v, v=>cmpScale=v, ()=>{ if(currentCampaignKey) renderCampaign(currentCampaignKey); });
   // CS pacing daily (single line, indexed in rel).
@@ -1284,7 +1325,7 @@ let paidMediaAllMarkets = [];
 const CF = '#F38020', TARGET = '#6E7785', LINE = '#E5E9EE';
 const colors = ['#F38020','#FBAD41','#FCD8AA','#0A66C2','#7A99C0','#1F9D55','#C8362A','#6B3FA0','#5A6B78','#2C3E50','#A14B00','#073D75'];
 
-// Doughnut extras — applied to EVERY doughnut on the dashboard (registered globally,
+// Doughnut extras - applied to EVERY doughnut on the dashboard (registered globally,
 // type-guarded). (1) A "click to show/hide" hint above the legend. (2) A big total in
 // the middle of the ring that SUMS only the currently-VISIBLE slices, so it live-updates
 // when a legend label is toggled (Chart.js hides that slice on legend click by default).
@@ -1322,7 +1363,7 @@ const doughnutExtras = {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = '#1B2834';
     ctx.font = '700 ' + numSize + 'px ' + CHART_FONT;
-    ctx.fillText(anyVisible ? fmt(sum) : '—', arc.x, arc.y - numSize * 0.30);
+    ctx.fillText(anyVisible ? fmt(sum) : '-', arc.x, arc.y - numSize * 0.30);
     ctx.fillStyle = '#5A6B78';
     ctx.font = '600 ' + lblSize + 'px ' + CHART_FONT;
     ctx.fillText(opts.label || 'TOTAL', arc.x, arc.y + numSize * 0.55);
@@ -1339,6 +1380,7 @@ async function boot() {
     const res = await fetch(JSON_URL + '?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status + ' from /data.json');
     COMBINED = await res.json();
+    bbApplySpendMult();   // gross RAW spend -> client-billed BEFORE any render/aggregation
     rawRows = (COMBINED.pacing && COMBINED.pacing.rows) || [];
 
     // Date-range picker bounds = the UNION of both core windows:
@@ -1385,7 +1427,7 @@ async function boot() {
 function setLiveBanner(lastUpdated, rowCount) {
   const lu = lastUpdated ? new Date(lastUpdated.replace(' ', 'T')) : null;
   const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : (lastUpdated || 'unknown');
-  // Most recent day a real lead landed — the freshness of the Content Syndication source data
+  // Most recent day a real lead landed - the freshness of the Content Syndication source data
   let latestDay = null;
   for (const r of rawRows) {
     if (isDummy(r) || r.LEAD_STATUS == null || !r.DAY) continue;
@@ -1403,13 +1445,13 @@ function renderQoQ(){
   const q = (typeof COMBINED !== 'undefined' && COMBINED.qoq) || {};
   const q2 = q.q2 || {}, q3 = q.q3 || {}, asof = q.asof || {};
   const N = v => Number(v||0).toLocaleString('en-US');
-  const dlabel = asof.day ? (asof.day + ' day' + (asof.day>1?'s':'')) : '—';
+  const dlabel = asof.day ? (asof.day + ' day' + (asof.day>1?'s':'')) : '-';
   // Δ Q3 vs the SAME opening window of Q2. null base -> "new".
   const dfmt = (a,b) => {
     a=+a||0; b=+b||0;
-    if (b===0) return a>0 ? '<span class="qd neu">new</span>' : '<span class="qd neu">—</span>';
+    if (b===0) return a>0 ? '<span class="qd neu">new</span>' : '<span class="qd neu">-</span>';
     const up=(a-b)>=0, p=Math.abs((a-b)/b*100).toFixed(0);
-    // client rule: colour POSITIVE (up) green; leave NEGATIVE neutral (no red — early-quarter dips are expected)
+    // client rule: colour POSITIVE (up) green; leave NEGATIVE neutral (no red - early-quarter dips are expected)
     return `<span class="qd ${up?'good':'neu'}">${up?'▲ +':'▼ '}${p}%</span>`;
   };
   const asEl=document.getElementById('qoqAsof');
@@ -1418,7 +1460,7 @@ function renderQoQ(){
   // Acceptance rate EXCLUDES unprocessed/New leads (client rule 2026-07-07): rate = accepted / reviewed.
   const q3rev = (+(q3.by_status||{}).Accepted||0) + (+(q3.by_status||{}).Rejected||0);
   const q3acc = +q3.accepted||0;
-  const accPct = q3rev ? (q3acc/q3rev*100).toFixed(0)+'%' : '—';
+  const accPct = q3rev ? (q3acc/q3rev*100).toFixed(0)+'%' : '-';
   document.getElementById('qoqStats').innerHTML =
      `<div class="stat"><div class="k">Q3 accepted · to date</div><div class="v">${N(q3.accepted)} ${dfmt(q3.accepted,q2.accepted)}</div><div class="cnt">vs Q2 same period</div></div>`
     +`<div class="stat"><div class="k">Q2 accepted · same period</div><div class="v">${N(q2.accepted)}</div><div class="cnt">first ${dlabel} of Q2</div></div>`
@@ -1438,13 +1480,13 @@ function renderQoQ(){
       + keys.map(k => `<div class="rlbl">${k}</div>${heatCell(v2map[k],max)}${heatCell(v3map[k],max)}<div class="qoq-dcell">${dfmt(v3map[k],v2map[k])}</div>`).join('')
       + `</div>`;
   };
-  // by-market — sorted by Q3-to-date volume (biggest current market first)
+  // by-market - sorted by Q3-to-date volume (biggest current market first)
   const m2=q2.by_market||{}, m3=q3.by_market||{};
   const mkts=[...new Set([...Object.keys(m2),...Object.keys(m3)])].sort((a,b)=>(m3[b]||0)-(m3[a]||0)||(m2[b]||0)-(m2[a]||0));
   document.getElementById('qoqMarketBars').innerHTML = mkts.length
     ? heatGrid(mkts, m2, m3)
     : '<div style="text-align:center;color:var(--cf-mute);padding:18px">No accepted leads in this window yet.</div>';
-  // Status mix: Accepted vs Rejected only — unprocessed/New is intentionally omitted (client rule
+  // Status mix: Accepted vs Rejected only - unprocessed/New is intentionally omitted (client rule
   // 2026-07-07: unprocessed leads are our internal backlog, not shown to Cloudflare).
   const s2=q2.by_status||{}, s3=q3.by_status||{};
   document.getElementById('qoqStatusBars').innerHTML = heatGrid(['Accepted','Rejected'], s2, s3);
@@ -1506,7 +1548,7 @@ function renderDateScope(){
 // ==========================================================================
 // HELPERS
 // ==========================================================================
-const fmtN = n => (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString();
+const fmtN = n => (n == null || isNaN(n)) ? '-' : Math.round(n).toLocaleString();
 const isDummy = r => r.LEAD_ID_SF && String(r.LEAD_ID_SF).startsWith('DUMMY_');
 const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -1561,7 +1603,7 @@ function aggregate(filterFn) {
   const timePct = totalMs > 0 ? elapsedMs / totalMs : 0;
 
   const weekMap = new Map();
-  // Per-DAY pacing map ({target, actual, unprocessed}) — the regrainable source
+  // Per-DAY pacing map ({target, actual, unprocessed}) - the regrainable source
   // the weekly pacing + daily charts both re-bucket (month/week/day) client-side.
   const dayFullMap = new Map();
   for (const r of targetRows) {
@@ -1669,11 +1711,11 @@ function selectNoneMarkets() {
 
 function renderKPIs(agg) {
   // No Q2 target rows fall in the selected range (e.g. viewing Q3, which has no
-  // targets loaded yet) -> show '—' rather than a misleading '0'.
-  document.getElementById('kpi_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '—';
+  // targets loaded yet) -> show '-' rather than a misleading '0'.
+  document.getElementById('kpi_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '-';
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
-  document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '—';
-  document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '—';
+  document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '-';
+  document.getElementById('kpi_current').textContent = agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1)+'%' : '-';
   // Acceptance / rejection rate denominator = REVIEWED leads only (accepted + rejected),
   // EXCLUDING unprocessed/New (client rule 2026-07-07, per the Jade call: unprocessed is our
   // internal backlog, not shown to Cloudflare, and must not drag the acceptance rate down).
@@ -1688,7 +1730,7 @@ function renderKPIs(agg) {
 }
 
 // Neutral placeholder shown in the pacing cards when the selected range carries no
-// target rows (Q3 has no targets loaded yet — "targets/pacing TBD" by design).
+// target rows (Q3 has no targets loaded yet - "targets/pacing TBD" by design).
 const NO_TARGET_MSG = '<div style="font-size:12.5px;color:var(--cf-mute);padding:10px 2px">Targets and pacing not set for the selected period yet (showing actuals only).</div>';
 
 function renderLeadsTarget(agg) {
@@ -1860,7 +1902,7 @@ const ASSET_NAMES = {
   'MSM12':'Guangzhou Lianya Network Technology Co., Ltd. [Ueeshop] Case Study (CN)',
   'MAT3':'3 paths to modernize applications and build AI services'
 };
-// Tooltip title for the assets chart: "<ID> — <full name>", word-wrapped to readable
+// Tooltip title for the assets chart: "<ID> - <full name>", word-wrapped to readable
 // lines (Chart.js renders each array element as its own title line).
 function assetTooltipTitle(id) {
   const name = ASSET_NAMES[id];
@@ -1946,7 +1988,7 @@ function renderRegionGrid(agg) {
       <div style="border:1px solid var(--cf-line);border-radius:10px;padding:14px 16px;background:#fff">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
           <div style="font-weight:700;font-size:14px">${mktLabel(market)}</div>
-          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '—'}</div>
+          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '-'}</div>
         </div>
         <div class="reg-row"><div class="reg-lbl">${qtrLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
         <div class="reg-row"><div class="reg-lbl">TTD Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
@@ -1975,8 +2017,8 @@ function renderAll() {
 // ==========================================================================
 // COMPARISON TAB
 // ==========================================================================
-// Panels default to the two markets the client cares about most — AU (the flagship /
-// biggest market) vs SAARC (the #2) — so the comparison shows straight away instead of
+// Panels default to the two markets the client cares about most - AU (the flagship /
+// biggest market) vs SAARC (the #2) - so the comparison shows straight away instead of
 // two empty "Select a region" panels. Overrideable: the dropdowns / Clear still work.
 const COMPARE_DEFAULTS = { A: 'AU', B: 'SAARC' };
 function populateRegionSelects() {
@@ -2025,7 +2067,7 @@ function clearComparePanel(side) {
   renderComparePanel(side); // empty region → shows the empty state and destroys this panel's charts
 }
 
-// Top assets for a comparison panel — full asset names (never truncated), with a
+// Top assets for a comparison panel - full asset names (never truncated), with a
 // proportional bar. agg.assets is [name, service, count][] (top 12, desc).
 function renderCompareAssets(side, agg) {
   const el = document.getElementById(side + '_assets');
@@ -2063,7 +2105,7 @@ function renderComparePanel(side) {
   document.getElementById('empty' + side).style.display = 'none';
   document.getElementById('content' + side).style.display = 'block';
 
-  document.getElementById(side + '_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '—';
+  document.getElementById(side + '_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '-';
   document.getElementById(side + '_total').textContent = fmtN(agg.accepted);
   // Denominator = REVIEWED leads (accepted + rejected), EXCLUDING unprocessed/New (client rule
   // 2026-07-07): acc% + rej% = 100% of triaged leads. The Unprocessed % KPI was removed.
@@ -2128,7 +2170,7 @@ const fmtNum = (n) => _pmNum(n).toLocaleString();
 const fmtN_M = (n) => { n = _pmNum(n); return (n>=1_000_000) ? (n/1_000_000).toFixed(2)+'M' : (n>=1000) ? (n/1000).toFixed(1)+'K' : ''+n; };
 const fmtPct2 = (n,dec=2) => (_pmNum(n)*100).toFixed(dec)+'%';
 
-// PAYLOAD assembled from the combined JSON's paid_media branch — shape matches
+// PAYLOAD assembled from the combined JSON's paid_media branch - shape matches
 // the ORIGINAL_DASH render functions. Keys: li_market_day[], ttd_market_day[],
 // rd_market_day[], line_market_day[], benchmarks{}, benchmarks_market{}, li_weekly[], window{}.
 let PAYLOAD = null;
@@ -2292,7 +2334,7 @@ function selectNonePaidMarkets() {
 // ============== Filter & aggregation helpers ==============
 function passesAll(r) {
   const m = r.m || r.market;
-  // r.date is already 'YYYY-MM-DD' (ymd() in main.py) — lexical compare via dateOk.
+  // r.date is already 'YYYY-MM-DD' (ymd() in main.py) - lexical compare via dateOk.
   return paidMediaActiveMarkets.has(m) && dateOk(r.date);
 }
 function aggregateChannel(rows) {
@@ -2355,20 +2397,20 @@ function renderPaidKPIs() {
   document.getElementById('k_spend_b').textContent =
     `${fmt$(ttd.sp)} TTD · ${fmt$(li.sp)} LinkedIn · ${fmt$(rd.sp)} Reddit · ${fmt$(ln.sp)} LINE`;
   document.getElementById('k_imp').textContent = fmtN_M(imp);
-  document.getElementById('k_cpm').textContent = imp ? `${fmt$(spend/imp*1000,2)} blended CPM` : '—';
+  document.getElementById('k_cpm').textContent = imp ? `${fmt$(spend/imp*1000,2)} blended CPM` : '-';
   document.getElementById('k_clk').textContent = fmtNum(clk);
-  document.getElementById('k_ctr').textContent = imp ? `${fmtPct2(clk/imp,2)} blended CTR` : '—';
+  document.getElementById('k_ctr').textContent = imp ? `${fmtPct2(clk/imp,2)} blended CTR` : '-';
   document.getElementById('k_leads').textContent = li.leads;
-  document.getElementById('k_cpc').textContent = clk ? fmt$(spend/clk,2) : '—';
+  document.getElementById('k_cpc').textContent = clk ? fmt$(spend/clk,2) : '-';
   document.getElementById('k_cpc_b').textContent = clk
     ? `vs plan TTD ${fmt$(PAYLOAD.benchmarks.TTD.cpc,2)} · LI ${fmt$(PAYLOAD.benchmarks.LinkedIn.cpc,2)}`
-    : '—';
+    : '-';
 
   // Modeled-TTD lead gap tiles
   const liClickToLead = li.clk ? li.leads / li.clk : 0;
-  document.getElementById('gap_low').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 0.5) : '—';
-  document.getElementById('gap_mid').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 1.0) : '—';
-  document.getElementById('gap_high').textContent = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 2.0) : '—';
+  document.getElementById('gap_low').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 0.5) : '-';
+  document.getElementById('gap_mid').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 1.0) : '-';
+  document.getElementById('gap_high').textContent = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 2.0) : '-';
 }
 
 function renderTtdImpCtr() {
@@ -2547,7 +2589,7 @@ function renderMarketStack() {
 }
 
 function deltaCell(actual, plan, lower_is_better) {
-  if (!plan || !actual) return '<span class="delta-pm neutral">—</span>';
+  if (!plan || !actual) return '<span class="delta-pm neutral">-</span>';
   const d = (actual - plan) / plan;
   const good = lower_is_better ? d < 0 : d > 0;
   const cls = Math.abs(d) < 0.05 ? 'neutral' : (good ? 'good' : 'bad');
@@ -2614,9 +2656,9 @@ function renderBenchmarkTable() {
   });
   tbody.insertAdjacentHTML('beforeend', `<tr class="total">
     <td>Total</td><td>${fmt$(totSp)}</td><td>${fmtNum(totImp)}</td><td>${fmtNum(totClk)}</td>
-    <td>${totImp ? fmtPct2(totClk/totImp,2) : '—'}</td><td>—</td>
-    <td>${totImp ? fmt$(totSp/totImp*1000,2) : '—'}</td><td>—</td>
-    <td>${totClk ? fmt$(totSp/totClk,2) : '—'}</td><td>—</td>
+    <td>${totImp ? fmtPct2(totClk/totImp,2) : '-'}</td><td>-</td>
+    <td>${totImp ? fmt$(totSp/totImp*1000,2) : '-'}</td><td>-</td>
+    <td>${totClk ? fmt$(totSp/totClk,2) : '-'}</td><td>-</td>
     <td>${totLeads}</td>
   </tr>`);
 }
@@ -2632,7 +2674,7 @@ function creativePill(ch) {
 // Decode Cloudflare's ad-naming convention into a stakeholder-friendly label.
 // Structural metadata (size / market+language / objective / version) decodes cleanly;
 // the 3-letter creative-concept codes (MSM, MAT, MNT, …) are internal series names with
-// no public key, so they're kept verbatim as "concept XXX" — that also keeps otherwise-
+// no public key, so they're kept verbatim as "concept XXX" - that also keeps otherwise-
 // identical rows distinct. Platform (LINE/TTD) is dropped here since the pill already
 // shows it. Anything unrecognised is appended verbatim so no row collapses into another.
 // The raw name is preserved on hover (title attr) in renderCreativeTable().
@@ -2667,7 +2709,7 @@ function prettyCreative(raw) {
     if (/^SOC\d+$/i.test(T)) { obj = 'Social v' + T.replace('SOC', ''); continue; }
     if (/^V\d+$/i.test(T)) { ver = 'v' + T.replace(/^V/i, ''); continue; }
     if (CR_OBJ[T]) { obj = CR_OBJ[T]; continue; }
-    extra.push(T);                                                           // e.g. AIF, AGL — keep verbatim & distinct
+    extra.push(T);                                                           // e.g. AIF, AGL - keep verbatim & distinct
   }
   const msg = [msgAcq ? 'Acquisition' : null, msgCnc ? 'Connectivity Cloud' : null]
     .filter(Boolean).join(' – ');
@@ -2703,7 +2745,7 @@ function renderCreativeTables() {
   renderCreativeChannelSeg();
   const map = new Map();
   for (const r of (PAYLOAD.creatives || [])) {
-    // Creatives are aggregated over the whole flight and carry NO date — so filter by
+    // Creatives are aggregated over the whole flight and carry NO date - so filter by
     // the market chips ONLY, never the date range (see the note below). passesAll()
     // would reject every row here via dateOk(undefined) → the tables would go blank.
     if (!paidMediaActiveMarkets.has(r.market)) continue;
@@ -2740,7 +2782,7 @@ function renderCreativeTable(bodyId, rows) {
     <td>${fmtNum(o.clk)}</td>
     <td><b>${fmtPct2(o.ctr, 2)}</b></td>
     <td>${fmt$(o.sp)}</td>
-    <td>${o.clk ? fmt$(o.cpc, 2) : '—'}</td>
+    <td>${o.clk ? fmt$(o.cpc, 2) : '-'}</td>
   </tr>`).join('');
 }
 
@@ -2818,7 +2860,7 @@ function renderLiFunnel() {
     ? formOpens.toLocaleString()
     : '<span style="color:var(--cf-mute);font-size:13px;font-weight:600">- pending</span>';
   const formStartsSub = formOpens > 0
-    ? `CPS ${fmt$(cpStart,2)} · click→start ${li.clk ? fmtPct2(formOpens/li.clk,2) : '—'}`
+    ? `CPS ${fmt$(cpStart,2)} · click→start ${li.clk ? fmtPct2(formOpens/li.clk,2) : '-'}`
     : 'awaiting next datastream 924 fetch';
   const step = (label, value, sub) => `
     <div style="flex:1 1 0;min-width:0;background:#fff;border:1px solid var(--cf-line);border-left:4px solid ${PM_LI};border-radius:8px;padding:12px 14px">
@@ -2829,7 +2871,7 @@ function renderLiFunnel() {
   const arrow = (pct, label) => `
     <div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;min-width:90px">
       <div style="font-size:18px;color:${pct === null ? 'var(--cf-mute)' : 'var(--bad-red)'};line-height:1">▶</div>
-      <div style="font-size:11px;color:${pct === null ? 'var(--cf-mute)' : 'var(--bad-red)'};font-weight:600;margin-top:2px;text-align:center">${pct === null ? '—' : pct.toFixed(1)+'%'}</div>
+      <div style="font-size:11px;color:${pct === null ? 'var(--cf-mute)' : 'var(--bad-red)'};font-weight:600;margin-top:2px;text-align:center">${pct === null ? '-' : pct.toFixed(1)+'%'}</div>
       <div style="font-size:10.5px;color:var(--cf-mute);margin-top:2px;text-align:center;line-height:1.2">${label}</div>
     </div>`;
   document.getElementById('liFunnel').innerHTML = `
@@ -2840,7 +2882,7 @@ function renderLiFunnel() {
       ${arrow(d_cs, 'click → start')}
       ${step('Lead form starts', formStartsTxt, formStartsSub)}
       ${arrow(d_sl, 'start → submit')}
-      ${step('Submitted leads', li.leads, `CPL ${fmt$(cpl,0)} · click→lead ${li.clk ? fmtPct2(li.leads/li.clk,2) : '—'}`)}
+      ${step('Submitted leads', li.leads, `CPL ${fmt$(cpl,0)} · click→lead ${li.clk ? fmtPct2(li.leads/li.clk,2) : '-'}`)}
     </div>
     <div style="margin-top:10px;font-size:11.5px;color:var(--cf-mute);line-height:1.5">
       <b>Other engagement signals (programme-to-date, populate after each fetch):</b>
@@ -2854,7 +2896,7 @@ function renderLiFunnel() {
 function renderPaidMediaAll() {
   if (!PAYLOAD) return;
   // Render each section in ISOLATION. A single bad value in one chart's slice (e.g. from a
-  // malformed export) must never blank the whole tab with a cryptic error — so we catch per
+  // malformed export) must never blank the whole tab with a cryptic error - so we catch per
   // section, log it, skip that one piece, and keep rendering the rest. Only if EVERY section
   // fails do we surface the styled error card (that means the feed itself is unusable).
   const steps = [
@@ -2874,7 +2916,7 @@ function renderPaidMediaAll() {
     document.getElementById('paid-content').style.display = 'none';
     document.getElementById('paid-error').style.display = 'block';
     document.getElementById('paidErrorDetail').textContent =
-      'The paid-media charts could not be rendered — the latest export may be malformed. This usually clears on the next refresh once the export re-runs.';
+      'The paid-media charts could not be rendered - the latest export may be malformed. This usually clears on the next refresh once the export re-runs.';
   }
 }
 
@@ -2904,10 +2946,10 @@ function renderCampaign(key){
   const tb = document.querySelector('#cmpByCampaign tbody');
   if (!c || !c.daily || !c.daily.length){
     document.getElementById('cmp_window').textContent = '';
-    ['cmp_spend','cmp_imp','cmp_clk','cmp_leads','cmp_cpc','cmp_spend_b','cmp_cpm','cmp_ctr','cmp_cpl'].forEach(id=>document.getElementById(id).textContent='—');
+    ['cmp_spend','cmp_imp','cmp_clk','cmp_leads','cmp_cpc','cmp_spend_b','cmp_cpm','cmp_ctr','cmp_cpl'].forEach(id=>document.getElementById(id).textContent='-');
     destroy('cmpDaily'); destroy('cmpSpend');
     document.getElementById('cmpFunnel').innerHTML = '<div style="color:var(--cf-mute);font-size:13px">No delivery rows for this campaign group yet.</div>';
-    tb.innerHTML=''; document.getElementById('cmpFooter').textContent='—';
+    tb.innerHTML=''; document.getElementById('cmpFooter').textContent='-';
     setupCmpTabs(c);
     return;
   }
@@ -2917,12 +2959,12 @@ function renderCampaign(key){
   document.getElementById('cmp_spend').textContent = fmt$(t.spend);
   document.getElementById('cmp_spend_b').textContent = w.days ? w.days+'d window' : '';
   document.getElementById('cmp_imp').textContent = fmtN_M(t.imps);
-  document.getElementById('cmp_cpm').textContent = t.imps ? fmt$(cpm,2)+' CPM' : '—';
+  document.getElementById('cmp_cpm').textContent = t.imps ? fmt$(cpm,2)+' CPM' : '-';
   document.getElementById('cmp_clk').textContent = fmtNum(t.clicks);
-  document.getElementById('cmp_ctr').textContent = t.imps ? fmtPct2(ctr,2)+' CTR' : '—';
+  document.getElementById('cmp_ctr').textContent = t.imps ? fmtPct2(ctr,2)+' CTR' : '-';
   document.getElementById('cmp_leads').textContent = fmtNum(t.leads);
   document.getElementById('cmp_cpl').textContent = t.leads ? fmt$(cpl,0)+' CPL' : 'no leads';
-  document.getElementById('cmp_cpc').textContent = t.clicks ? fmt$(cpc,2) : '—';
+  document.getElementById('cmp_cpc').textContent = t.clicks ? fmt$(cpc,2) : '-';
   document.getElementById('cmp_window').innerHTML = (w.start&&w.end)?`Window <b style="color:#fff">${w.start} → ${w.end}</b>`:'';
 
   // Bucket the campaign's daily rows by cmpGrain, SUMMING imps/clicks/spend;
@@ -2979,7 +3021,7 @@ function renderCampaign(key){
   const dr=(a,b)=>(a>0&&b!==undefined)?((1-b/a)*100):null;
   const cpc2=clk?t.spend/clk:0, cpl2=leads?t.spend/leads:0, cps=fo?t.spend/fo:0;
   const step=(label,val,sub)=>`<div style="flex:1 1 0;min-width:0;background:#fff;border:1px solid var(--cf-line);border-left:4px solid ${PM_LI};border-radius:8px;padding:12px 14px"><div style="font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.04em;font-weight:600;margin-bottom:4px">${label}</div><div style="font-size:24px;font-weight:700;color:${PM_LI};line-height:1.1">${val}</div><div style="font-size:11.5px;color:var(--cf-mute);margin-top:4px">${sub}</div></div>`;
-  const arrow=(pct,label)=>`<div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;min-width:90px"><div style="font-size:18px;color:${pct===null?'var(--cf-mute)':'var(--bad-red)'};line-height:1">▶</div><div style="font-size:11px;color:${pct===null?'var(--cf-mute)':'var(--bad-red)'};font-weight:600;margin-top:2px">${pct===null?'—':pct.toFixed(1)+'%'}</div><div style="font-size:10.5px;color:var(--cf-mute);margin-top:2px;text-align:center;line-height:1.2">${label}</div></div>`;
+  const arrow=(pct,label)=>`<div style="flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 4px;min-width:90px"><div style="font-size:18px;color:${pct===null?'var(--cf-mute)':'var(--bad-red)'};line-height:1">▶</div><div style="font-size:11px;color:${pct===null?'var(--cf-mute)':'var(--bad-red)'};font-weight:600;margin-top:2px">${pct===null?'-':pct.toFixed(1)+'%'}</div><div style="font-size:10.5px;color:var(--cf-mute);margin-top:2px;text-align:center;line-height:1.2">${label}</div></div>`;
   document.getElementById('cmpFunnel').innerHTML = `<div style="display:flex;align-items:stretch;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:4px 0">
     ${step('Impressions', fmtNum(imps), `CTR ${(imps?clk/imps*100:0).toFixed(2)}%`)}
     ${arrow(dr(imps,clk),'impr → click')}
@@ -2987,13 +3029,13 @@ function renderCampaign(key){
     ${arrow(fo>0?dr(clk,fo):null,'click → form open')}
     ${step('Form opens', fo>0?fmtNum(fo):'<span style="color:var(--cf-mute);font-size:13px;font-weight:600">- n/a</span>', fo>0?`CPS ${fmt$(cps,2)}`:'not tracked for this group')}
     ${arrow(fo>0?dr(fo,leads):null,'form open → lead')}
-    ${step('Leads', fmtNum(leads), `CPL ${fmt$(cpl2,0)} · click→lead ${clk?fmtPct2(leads/clk,2):'—'}`)}
+    ${step('Leads', fmtNum(leads), `CPL ${fmt$(cpl2,0)} · click→lead ${clk?fmtPct2(leads/clk,2):'-'}`)}
   </div>`;
 
   tb.innerHTML='';
   (c.by_campaign||[]).forEach(r=>{
     const rctr=r.imps?r.clicks/r.imps:0, rcpc=r.clicks?r.spend/r.clicks:0;
-    tb.insertAdjacentHTML('beforeend',`<tr><td>${esc(r.campaign)}</td><td>${fmt$(r.spend)}</td><td>${fmtNum(r.imps)}</td><td>${fmtNum(r.clicks)}</td><td>${fmtPct2(rctr,2)}</td><td>${r.clicks?fmt$(rcpc,2):'—'}</td><td>${fmtNum(r.leads)}</td></tr>`);
+    tb.insertAdjacentHTML('beforeend',`<tr><td>${esc(r.campaign)}</td><td>${fmt$(r.spend)}</td><td>${fmtNum(r.imps)}</td><td>${fmtNum(r.clicks)}</td><td>${fmtPct2(rctr,2)}</td><td>${r.clicks?fmt$(rcpc,2):'-'}</td><td>${fmtNum(r.leads)}</td></tr>`);
   });
   document.getElementById('cmpFooter').innerHTML = `Live LinkedIn delivery · Updated <b style="color:#fff">${COMBINED.last_updated||'unknown'}</b> · Source: raw_snowflake.linkedin_ads_apac · Auto-refreshes within ~10 min of new Snowflake data`;
 
@@ -3134,7 +3176,7 @@ function buildDeckPayload(){
     cpm:_r2(a.imp?a.sp/a.imp*1000:0), ctr:_r6(a.imp?a.clk/a.imp:0), cpc:_r2(a.clk?a.sp/a.clk:0) }; }).filter(c=>c.imps||c.spend_usd);
   const tot=chans.reduce((o,[,arr])=>{ const a=sumCh(arr); o.imp+=a.imp; o.clk+=a.clk; o.sp+=a.sp; o.leads+=a.leads; return o; },{imp:0,clk:0,sp:0,leads:0});
   const pmMk={};
-  chans.forEach(([,arr])=>{ (arr||[]).forEach(r=>{ const m=r.market||r.m||'—'; (pmMk[m]=pmMk[m]||{spend:0,imps:0,clicks:0}); pmMk[m].spend+=r.spend||0; pmMk[m].imps+=r.imps||0; pmMk[m].clicks+=r.clk||0; }); });
+  chans.forEach(([,arr])=>{ (arr||[]).forEach(r=>{ const m=r.market||r.m||'-'; (pmMk[m]=pmMk[m]||{spend:0,imps:0,clicks:0}); pmMk[m].spend+=r.spend||0; pmMk[m].imps+=r.imps||0; pmMk[m].clicks+=r.clk||0; }); });
   const paid_by_market=Object.entries(pmMk).sort((a,b)=>b[1].spend-a[1].spend).map(([market,v])=>({market, spend_usd:_r2(v.spend), imps:v.imps, clicks:v.clicks}));
   const cmap=(COMBINED && COMBINED.campaigns) || {};
   const campaigns={};
@@ -3164,14 +3206,14 @@ function buildDeckPayload(){
     campaigns
   };
 }
-// Cloudflare's dashboard mark is a text wordmark, not a rasterisable logo — bb_deck.js renders the
+// Cloudflare's dashboard mark is a text wordmark, not a rasterisable logo - bb_deck.js renders the
 // client name as a serif wordmark on the cover instead.
 async function bbDeckLogos(){ return { white:null, dark:null }; }
 async function bbHeadlessSlides(){
   try {
     const payload=buildDeckPayload();
     const res=await fetch('/report',{ method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' — '+d:'')); }
+    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
     const report=await res.json();
     const logos=await bbDeckLogos();
     const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });

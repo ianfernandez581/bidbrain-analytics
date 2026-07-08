@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Schneider Electric Pacific - Content Syndication</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
-<!-- PptxGenJS + the shared bb_deck.js builder — power the portal-driven "Download slides" export
+<!-- PptxGenJS + the shared bb_deck.js builder - power the portal-driven "Download slides" export
      (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <script src="bb_deck.js"></script>
@@ -17,7 +17,7 @@
     --se-card:#FFFFFF; --se-bg:#F4F6F7; --se-grey:#C9CED4;
     --li:#2867B2; --td:#F2A900; --amber:#B97400;
     --good-green:#1E8E3E; --bad-red:#C8362A; --warn-amber:#B97400;
-    /* consistent per-metric colours — reused on KPI tiles (and, in pass 2, matching chart series) */
+    /* consistent per-metric colours - reused on KPI tiles (and, in pass 2, matching chart series) */
     --m-spend:#007E2A; --m-imp:#3E6396; --m-clk:#C4902E; --m-cpc:#7A6E8C;
     --m-leads:#A6547B; --m-target:#9AA3AC;
     /* premium: white cards float on the Schneider-green canvas with a soft green glow */
@@ -184,7 +184,7 @@
   .kpi.m-cpc{--kc:var(--m-cpc)} .kpi.m-leads{--kc:var(--m-leads)} .kpi.m-target{--kc:var(--m-target)}
   .kpi.accent{--kc:var(--se-green)}
   .kpi.blue{--kc:var(--li)}
-  /* clickable metric cards — grouped first, with a state dot so they're easy to tell from static ones */
+  /* clickable metric cards - grouped first, with a state dot so they're easy to tell from static ones */
   .kpi.clk{cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
   .kpi.clk:hover{border-color:color-mix(in srgb,var(--kc) 55%,var(--se-line));transform:translateY(-1px)}
   .kpi.clk:focus-visible{outline:2px solid var(--kc);outline-offset:2px}
@@ -197,7 +197,7 @@
   .card-hero{margin-top:16px}
   .card-hero .chart-wrap{height:800px}
 
-  /* CS snapshot — each group is its OWN white cell with a green glow behind it (no per-group colour accents) */
+  /* CS snapshot - each group is its OWN white cell with a green glow behind it (no per-group colour accents) */
   .cs-snap{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:14px;margin-top:16px}
   .cs-snap .group{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;box-shadow:var(--shadow-card);padding:15px 17px}
   .cs-snap .glbl{font-size:10.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--se-ink);margin-bottom:12px}
@@ -227,7 +227,7 @@
   .prog-note{font-size:11.5px;color:var(--se-mute);margin-top:10px;line-height:1.45}
   .prog-note b{color:var(--se-ink)}
   .up{color:var(--good-green);font-weight:700} .down{color:var(--bad-red);font-weight:700} .neut{color:var(--se-mute);font-weight:700}
-  /* CS goal bar (leads → target with a pace marker) + verdict badge — glanceable performance */
+  /* CS goal bar (leads → target with a pace marker) + verdict badge - glanceable performance */
   .goal-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin:2px 0 18px}
   .goal-head .lbl{font-size:12px;color:var(--se-mute);font-weight:600}
   .goal-head .val{font-size:19px;font-weight:800;color:var(--se-dark);letter-spacing:-.3px}
@@ -276,7 +276,7 @@
   .compare-kpi .v{font-size:18px;font-weight:700;color:var(--se-dark);margin-top:2px}
   .compare-chart{margin-top:2px}
   .compare-chart-wrap{position:relative;height:280px}
-  .compare-chart-wrap.donut{height:380px}   /* the Leads-by-programme pie — bigger than the weekly bar below */
+  .compare-chart-wrap.donut{height:380px}   /* the Leads-by-programme pie - bigger than the weekly bar below */
 
   .loading{padding:80px 20px;text-align:center;color:var(--on-canvas-mute)}
   .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--se-line);border-top-color:var(--se-green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
@@ -360,7 +360,7 @@
     <div id="tab-scorecard" class="tabpane">
       <div class="section first">
         <h2>Executive Scorecard</h2>
-        <span class="sub">Portfolio view across the full program portfolio — pace to target, efficiency, and the <b>quality of the audience reached</b> (accounts, functions, seniority). Reflects the selected region(s). Each program is framed against the Schneider strategic pillar it advances. All figures are true Salesforce &amp; media-plan source data.</span>
+        <span class="sub">Portfolio view across the full program portfolio - pace to target, efficiency, and the <b>quality of the audience reached</b> (accounts, functions, seniority). Reflects the selected region(s). Each program is framed against the Schneider strategic pillar it advances. All figures are true Salesforce &amp; media-plan source data.</span>
       </div>
 
       <div class="kpis" id="scKpis"></div>
@@ -368,14 +368,14 @@
       <div class="section"><h2 style="font-size:15px">Programs vs strategy &amp; target</h2><span class="sub">Each program mapped to the Schneider corporate pillar it supports, with pace-to-target (leads vs the even flight pace) and plan CPL. Awareness-only programs (no lead target) show as reach plays.</span></div>
       <div id="scPrograms" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-top:14px"></div>
 
-      <div class="section"><h2 style="font-size:15px">Who we reached — audience intelligence</h2><span class="sub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens senior marketers value beyond raw volume.</span></div>
+      <div class="section"><h2 style="font-size:15px">Who we reached - audience intelligence</h2><span class="sub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens senior marketers value beyond raw volume.</span></div>
       <div class="grid">
         <div class="card card-tall"><h3>Leads by job function</h3><div class="hint">Which functions engaged with the content across the portfolio.</div><div class="chart-wrap"><canvas id="scFunc"></canvas></div></div>
         <div class="card card-tall"><h3>Seniority of leads</h3><div class="hint">Job level where disclosed (~40% of leads state a level); the rest are shown honestly as "Not disclosed".</div><div class="chart-wrap"><canvas id="scSen"></canvas></div></div>
       </div>
 
       <div class="card" style="margin-top:16px"><h3>Top accounts reached <span id="scAcctCount" style="font-weight:400;font-size:11.5px;color:var(--se-mute)"></span></h3>
-        <div class="hint">Named companies generating the most content-syndication leads — the account-level view behind the totals.</div>
+        <div class="hint">Named companies generating the most content-syndication leads - the account-level view behind the totals.</div>
         <div id="scAccounts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 24px;margin-top:14px"></div>
       </div>
 
@@ -390,10 +390,10 @@
       </div>
       <div id="pmNote" class="info-note warn" style="display:none"></div>
       <div class="kpis">
-        <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
-        <div class="kpi m-imp clk" data-toggle="Impressions" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Impressions on the chart"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
-        <div class="kpi m-clk clk" data-toggle="Clicks" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Clicks on the chart"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
-        <div class="kpi m-cpc"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
+        <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">-</div><div class="delta" id="pm_spend_sub">-</div></div>
+        <div class="kpi m-imp clk" data-toggle="Impressions" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Impressions on the chart"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">-</div><div class="delta" id="pm_cpm">-</div></div>
+        <div class="kpi m-clk clk" data-toggle="Clicks" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Clicks on the chart"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">-</div><div class="delta" id="pm_ctr">-</div></div>
+        <div class="kpi m-cpc"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">-</div><div class="delta" id="pm_cpc_sub">-</div></div>
       </div>
       <div class="kpihint">Tap Spend, Impressions or Clicks to show or hide it on the chart below. Blended CPC is a read-only efficiency figure.</div>
 
@@ -444,17 +444,17 @@
 
       <div class="cs-snap">
         <div class="group g-overall"><div class="glbl">Overall</div><div class="pair triple">
-          <div class="stat"><div class="k">Target</div><div class="v" id="cs_target">—</div></div>
-          <div class="stat"><div class="k">Total leads</div><div class="v" id="cs_total">—</div></div>
-          <div class="stat"><div class="k">Plan CPL</div><div class="v" id="cs_cpl">—</div><div class="cnt" id="cs_cpl_cnt">—</div></div>
+          <div class="stat"><div class="k">Target</div><div class="v" id="cs_target">-</div></div>
+          <div class="stat"><div class="k">Total leads</div><div class="v" id="cs_total">-</div></div>
+          <div class="stat"><div class="k">Plan CPL</div><div class="v" id="cs_cpl">-</div><div class="cnt" id="cs_cpl_cnt">-</div></div>
         </div></div>
         <div class="group g-pacing"><div class="glbl">Pacing</div><div class="pair">
-          <div class="stat"><div class="k">Current pacing</div><div class="v" id="cs_current">—</div><div class="cnt" id="cs_current_cnt"></div></div>
-          <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cs_overall">—</div></div>
+          <div class="stat"><div class="k">Current pacing</div><div class="v" id="cs_current">-</div><div class="cnt" id="cs_current_cnt"></div></div>
+          <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cs_overall">-</div></div>
         </div></div>
         <div class="group g-outlook"><div class="glbl">Outlook <span style="font-weight:400;font-size:10px;color:var(--se-mute);text-transform:none;letter-spacing:0">· what's left to hit target</span></div><div class="pair">
-          <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">—</div><div class="cnt" id="cs_remaining_cnt">—</div></div>
-          <div class="stat"><div class="k">Days left</div><div class="v" id="cs_daysleft">—</div><div class="cnt" id="cs_daysleft_cnt">—</div></div>
+          <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">-</div><div class="cnt" id="cs_remaining_cnt">-</div></div>
+          <div class="stat"><div class="k">Days left</div><div class="v" id="cs_daysleft">-</div><div class="cnt" id="cs_daysleft_cnt">-</div></div>
         </div></div>
       </div>
 
@@ -496,9 +496,9 @@
           <div class="compare-empty" id="emptyA">Select a market to view data</div>
           <div id="contentA" style="display:none">
             <div class="compare-kpi-group"><div class="grp-lbl">Overall</div><div class="compare-kpis triple">
-              <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">—</div></div>
-              <div class="compare-kpi"><div class="k">Share of program</div><div class="v" id="A_share">—</div></div>
-              <div class="compare-kpi"><div class="k">Last lead</div><div class="v" id="A_last" style="font-size:14px">—</div></div>
+              <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">-</div></div>
+              <div class="compare-kpi"><div class="k">Share of program</div><div class="v" id="A_share">-</div></div>
+              <div class="compare-kpi"><div class="k">Last lead</div><div class="v" id="A_last" style="font-size:14px">-</div></div>
             </div></div>
             <div class="compare-chart"><h4>Leads by programme</h4><div class="compare-chart-wrap donut"><canvas id="A_prog"></canvas></div></div>
             <div class="compare-chart"><h4>Weekly pacing</h4><div class="compare-chart-wrap"><canvas id="A_weekly"></canvas></div></div>
@@ -509,9 +509,9 @@
           <div class="compare-empty" id="emptyB">Select a market to view data</div>
           <div id="contentB" style="display:none">
             <div class="compare-kpi-group"><div class="grp-lbl">Overall</div><div class="compare-kpis triple">
-              <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">—</div></div>
-              <div class="compare-kpi"><div class="k">Share of program</div><div class="v" id="B_share">—</div></div>
-              <div class="compare-kpi"><div class="k">Last lead</div><div class="v" id="B_last" style="font-size:14px">—</div></div>
+              <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">-</div></div>
+              <div class="compare-kpi"><div class="k">Share of program</div><div class="v" id="B_share">-</div></div>
+              <div class="compare-kpi"><div class="k">Last lead</div><div class="v" id="B_last" style="font-size:14px">-</div></div>
             </div></div>
             <div class="compare-chart"><h4>Leads by programme</h4><div class="compare-chart-wrap donut"><canvas id="B_prog"></canvas></div></div>
             <div class="compare-chart"><h4>Weekly pacing</h4><div class="compare-chart-wrap"><canvas id="B_weekly"></canvas></div></div>
@@ -579,7 +579,7 @@ window.DateRange = (function(){
   const addDays=(d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
   const clamp=d=> d<MIN?new Date(MIN):(d>MAX?new Date(MAX):new Date(d));
   const sameDay=(a,b)=>!!a&&!!b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
-  const fmt=d=>d?d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}):'—';
+  const fmt=d=>d?d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}):'-';
   const $=id=>document.getElementById(id);
   function presetRange(k){
     let s, e=new Date(MAX);
@@ -636,14 +636,45 @@ let DATA=null, charts={}, activeTab='cs', activeCampaign=null, activeMarkets=new
 let pmGrain='week', pmScale='rel', compareReady=false;
 let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;
 const el=id=>document.getElementById(id);
-const fmtN=v=>v==null||isNaN(v)?'—':Math.round(v).toLocaleString('en-US');
-const fmtM=v=>v==null||isNaN(v)?'—':(Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'K':''+Math.round(v));
-const fmtPct=(v,d=1)=>v==null||isNaN(v)?'—':(v*100).toFixed(d)+'%';
-const money=(v,d=0)=>v==null||isNaN(v)?'—':'A$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const fmtN=v=>v==null||isNaN(v)?'-':Math.round(v).toLocaleString('en-US');
+const fmtM=v=>v==null||isNaN(v)?'-':(Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'K':''+Math.round(v));
+const fmtPct=(v,d=1)=>v==null||isNaN(v)?'-':(v*100).toFixed(d)+'%';
+const money=(v,d=0)=>v==null||isNaN(v)?'-':'A$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 const pct=(a,b)=>b?a/b:0;
-function dateLabel(d){ return d?new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'}):'—'; }
+function dateLabel(d){ return d?new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'}):'-'; }
 function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
 const FONT={family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
+
+// ---- Client-billed spend multiplier (platform-injected window.BB_SPEND_MULT) -----------------
+// Grosses RAW media spend up to what the client was BILLED, per channel. Counts (imps/clicks/leads),
+// CTR and CS lead economics stay real; cost-per-X (CPM/CPC/CPL) follow automatically because they
+// derive from summed spend downstream. Idempotent (stashes raws first); empty/unset map => every
+// factor defaults to 1 => total no-op. schneider = DV360 · The Trade Desk · LinkedIn (multi-channel).
+function bbMultFor(channel){ const m=window.BB_SPEND_MULT||{}; const v=Number(m[channel]); return (Number.isFinite(v)&&v>0)?v:1; }
+function bbChannelKey(p){ var s=String(p||'').toLowerCase();
+  if(s.includes('google'))return 'google';
+  if(s.includes('meta')||s.includes('facebook'))return 'meta';
+  if(s.includes('linkedin'))return 'linkedin';
+  if(s.includes('reddit'))return 'reddit';
+  if(s.includes('trade')||s==='ttd'||s.includes('tradedesk'))return 'ttd';
+  if(s.includes('dv360')||s.includes('display'))return 'dv360';
+  if(s.includes('line'))return 'line';
+  if(s.includes('dooh'))return 'youdooh';
+  return ''; }
+function bbApplySpendMult(){
+  // paid delivery rows (pm_delivery) - gross each row's carried AUD spend by its platform's billed
+  // factor. CPM/CPC (blended & per-platform) re-derive from summed spend_aud, so they follow.
+  (DATA.pm_delivery||[]).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=Number(r.spend_aud)||0;
+    r.spend_aud=r._rawSpend*bbMultFor(bbChannelKey(r.platform)); });
+  // per-campaign media-plan PAID channel budgets (channels[] group==='paid') - gross by the same
+  // per-channel factor so Spend-vs-budget / budgetPace pacing stays invariant against grossed spend.
+  // cs/other lines are lead-gen (bills-per-lead) / plan-only budgets, NOT paid-media markup - leave
+  // them (committed_spend & cpl_tiers[].spend are CS, no canonical channel key => untouched).
+  (DATA.campaigns||[]).forEach(c=>{ (c.channels||[]).forEach(x=>{ if(x.group!=='paid') return;
+    if(x._rawSpend==null) x._rawSpend=Number(x.spend)||0;
+    x.spend=x._rawSpend*bbMultFor(bbChannelKey(x.name)); }); });
+}
+// ----------------------------------------------------------------------------------------------
 
 // "All campaigns" = a synthesized portfolio pseudo-campaign (totals across the 5 programs) so
 // every per-campaign render path (csPacing, renderCS, renderPaid, compare) works unchanged.
@@ -668,9 +699,9 @@ function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); re
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
 const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
 // "Other Channels" (plan-only lines: Search / publisher / trade / email) was removed from the UI
-// 2026-07-06 (client request — low value). The job still emits it in tabs[]; we filter it out here.
+// 2026-07-06 (client request - low value). The job still emits it in tabs[]; we filter it out here.
 function campaignTabs(){ const t=(campaign().tabs||[]).filter(x=>x!=='other'); return t.length?t:['cs']; }
-// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) — it spans every program,
+// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) - it spans every program,
 // so it sits outside the per-campaign tab set.
 function allTabs(){ return campaignTabs().concat(['scorecard']); }
 function marketOk(m){ return activeMarkets.has(m); }
@@ -730,6 +761,7 @@ async function boot(){
     const res=await fetch(JSON_URL,{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA=await res.json();
+    bbApplySpendMult();   // gross RAW spend to client-billed BEFORE any aggregation/rendering
     const cs=(DATA.campaigns||[]);
     activeCampaign=cs.length?cs[0].id:null;   // default = first program (the "All campaigns" view was retired)
     activeMarkets=new Set(DATA.all_markets||[]);
@@ -764,17 +796,17 @@ function clearRegions(){ activeMarkets=new Set(); renderControls(); renderActive
 function toggleRegion(m){ activeMarkets.has(m)?activeMarkets.delete(m):activeMarkets.add(m); renderControls(); renderActive(); }
 
 function renderControls(){
-  // tab bar — only the tabs (channels) this campaign actually uses
+  // tab bar - only the tabs (channels) this campaign actually uses
   const bar=el('tabBar'); bar.innerHTML='';
   allTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const c=campaign(); const isSc=activeTab==='scorecard';
   const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
-  el('ctrlNote').textContent = isSc ? `Showing all programs · ${mkts}` : `Showing ${c.label||'—'} · ${mkts}`;
-  // the date range only scopes Paid Media (CS leads are shown for the flight) — hide it elsewhere
+  el('ctrlNote').textContent = isSc ? `Showing all programs · ${mkts}` : `Showing ${c.label||'-'} · ${mkts}`;
+  // the date range only scopes Paid Media (CS leads are shown for the flight) - hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
   // the Executive Scorecard is portfolio-wide, so the per-program campaign dropdown is irrelevant there
   const campWrap=document.querySelector('.topbar-camp'); if(campWrap) campWrap.style.display = isSc ? 'none' : '';
-  // campaign selector (top-nav dropdown, Cloudflare pattern) — one option per program (no "All campaigns")
+  // campaign selector (top-nav dropdown, Cloudflare pattern) - one option per program (no "All campaigns")
   const sel=el('campSelect'); sel.innerHTML='';
   (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
   sel.value=activeCampaign;
@@ -815,12 +847,12 @@ function budgetPace(){
   });
   return o;
 }
-// Whole-flight, all-markets measured paid spend for the selected campaign(s) — matches the whole-campaign
+// Whole-flight, all-markets measured paid spend for the selected campaign(s) - matches the whole-campaign
 // budget (ignores the region / date filters, which the plan budget isn't split by).
 function pmSpendFull(){ let s=0; (DATA.pm_delivery||[]).forEach(r=>{ if(inCamp(r.program)) s+=r.spend_aud||0; }); return s; }
 function renderPmBudget(){
   const host=el('pmBudget'); if(!host) return;
-  host.style.display='none'; return;   // Spend vs budget hidden for now (client request 2026-07-03) — delete this line to restore
+  host.style.display='none'; return;   // Spend vs budget hidden for now (client request 2026-07-03) - delete this line to restore
   const b=budgetPace(), budget=b.paid, ttd=b.paidTtd, spent=pmSpendFull();
   if(!(budget>0) && !(spent>0)){ host.style.display='none'; return; }
   host.style.display='';
@@ -934,33 +966,33 @@ function renderCS(){
   else note.style.display='none';
 
   // snapshot
-  el('cs_target').textContent=p.hasTarget?fmtN(p.target):'—';
+  el('cs_target').textContent=p.hasTarget?fmtN(p.target):'-';
   el('cs_total').textContent=fmtN(p.leads);
-  el('cs_cpl').textContent=p.cpl==null?'—':money(p.cpl);
-  el('cs_cpl_cnt').textContent=p.cpl==null?'—':'plan · '+money(p.committed)+' committed';
+  el('cs_cpl').textContent=p.cpl==null?'-':money(p.cpl);
+  el('cs_cpl_cnt').textContent=p.cpl==null?'-':'plan · '+money(p.committed)+' committed';
   const csEst=(p.cpl!=null)?p.leads*p.cpl:null;
-  el('cs_current').textContent=p.vsTtd==null?'—':fmtPct(p.vsTtd,0);
-  el('cs_overall').textContent=p.hasTarget?fmtPct(p.leadsPct,1):'—';
+  el('cs_current').textContent=p.vsTtd==null?'-':fmtPct(p.vsTtd,0);
+  el('cs_overall').textContent=p.hasTarget?fmtPct(p.leadsPct,1):'-';
   const remaining=Math.max(0,p.target-p.leads), daysLeft=p.totalDays!=null?Math.max(0,p.totalDays-p.elapsed):null;
-  el('cs_remaining').textContent=p.hasTarget?fmtN(remaining):'—'; el('cs_remaining_cnt').textContent=p.hasTarget?fmtPct(p.leadsPct,0)+' delivered':'—';
-  el('cs_daysleft').textContent=daysLeft!=null?fmtN(daysLeft):'—'; el('cs_daysleft_cnt').textContent=p.totalDays!=null?'of '+p.totalDays+' days':'no flight dates';
+  el('cs_remaining').textContent=p.hasTarget?fmtN(remaining):'-'; el('cs_remaining_cnt').textContent=p.hasTarget?fmtPct(p.leadsPct,0)+' delivered':'-';
+  el('cs_daysleft').textContent=daysLeft!=null?fmtN(daysLeft):'-'; el('cs_daysleft_cnt').textContent=p.totalDays!=null?'of '+p.totalDays+' days':'no flight dates';
   // colour the headline signals so the client reads media-buying performance at a glance
   const _v=paceVerdict(p.vsTtd), _pc=_v.cls==='up'?'ahead':_v.cls==='down'?'behind':'warn';
   el('cs_current').style.color = p.vsTtd==null?'':(_v.cls==='up'?'var(--se-green2)':_v.cls==='down'?'var(--bad-red)':'var(--warn-amber)');
   const _ccn=el('cs_current_cnt'); if(_ccn) _ccn.innerHTML = p.vsTtd==null?'':`<span class="perf ${_pc}">${_v.txt}</span>`;
   el('cs_total').style.color = p.leads>0?'var(--se-green2)':'';
 
-  // leads vs target — one goal bar (delivered → target) with a "pace to date" marker
+  // leads vs target - one goal bar (delivered → target) with a "pace to date" marker
   // (Ian's committed-CS-budget estimate is folded into the goal-bar note below.)
   const lp=p.hasTarget?Math.min(1,p.leadsPct):0, tp=p.timePct!=null?Math.min(1,p.timePct):0, v=paceVerdict(p.vsTtd);
   const vcls=v.cls==='up'?'ahead':(v.cls==='down'?'behind':'warn'), fillMod=v.cls==='down'?' red':(v.cls==='neut'?' amber':'');
   el('csLeadsTarget').innerHTML=`
-    <div class="goal-head"><span class="lbl">Leads delivered → target</span><span class="val"><b>${fmtN(p.leads)}</b> / ${p.hasTarget?fmtN(p.target):'—'}</span></div>
+    <div class="goal-head"><span class="lbl">Leads delivered → target</span><span class="val"><b>${fmtN(p.leads)}</b> / ${p.hasTarget?fmtN(p.target):'-'}</span></div>
     <div class="goal-bar"><div class="goal-track"><div class="goal-fill" style="width:${(lp*100).toFixed(1)}%"></div></div>${p.timePct!=null?`<div class="goal-marker" data-lbl="pace ${(tp*100).toFixed(0)}%" style="left:${(tp*100).toFixed(1)}%"></div>`:''}</div>
     <div class="goal-legend"><span>0</span><span>${p.hasTarget?fmtPct(p.leadsPct,1)+' of target delivered':'no target set'}</span><span>${p.hasTarget?fmtN(p.target):''}</span></div>
     <div class="prog-note">The <b style="color:var(--se-green2)">green bar</b> is leads delivered; the marker is where an even pace should sit today.${p.vsTtd!=null?` Running at <b>${fmtPct(p.vsTtd,0)}</b> of the to-date pace.`:''}${csEst!=null?` ≈ <b>${money(csEst)}</b> spent of the <b>${money(p.committed)}</b> committed CS budget (bills per lead).`:''} CRM-raw leads (status New).</div>`;
 
-  // progress — headline verdict + leads vs time
+  // progress - headline verdict + leads vs time
   const arrow=v.cls==='up'?'▲':(v.cls==='down'?'▼':'▬');
   el('csProgress').innerHTML=`
     <div class="verdict ${vcls}"><span class="big">${arrow}</span> ${v.txt}${p.vsTtd!=null?` &middot; ${fmtPct(p.vsTtd,0)} of pace`:''}</div>
@@ -1047,8 +1079,8 @@ function renderCSRegionGrid(){
 function renderCSTable(){
   const tb=el('csTable').querySelector('tbody');
   const rows=csRows().filter(r=>r.total>0).sort((a,b)=>b.total-a.total); const tot=rows.reduce((s,r)=>s+r.total,0);
-  tb.innerHTML=rows.map(r=>{ const statuses=[['New',r.new],['Working',r.working],['Qualified',r.qualified],['Disqualified',r.disqualified]].filter(s=>s[1]>0).map(s=>`${s[0]} ${fmtN(s[1])}`).join(', ')||'—';
-    return `<tr><td><b>${r.programme||'—'}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td>${statuses}</td><td class="num">${fmtPct(pct(r.total,tot),0)}</td><td>${dateLabel(r.last_lead_day)}</td></tr>`; }).join('')
+  tb.innerHTML=rows.map(r=>{ const statuses=[['New',r.new],['Working',r.working],['Qualified',r.qualified],['Disqualified',r.disqualified]].filter(s=>s[1]>0).map(s=>`${s[0]} ${fmtN(s[1])}`).join(', ')||'-';
+    return `<tr><td><b>${r.programme||'-'}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td>${statuses}</td><td class="num">${fmtPct(pct(r.total,tot),0)}</td><td>${dateLabel(r.last_lead_day)}</td></tr>`; }).join('')
     || `<tr><td colspan="6" style="text-align:center;color:var(--se-mute);padding:14px">No content-syndication leads for the selected filters.</td></tr>`;
 }
 
@@ -1056,12 +1088,12 @@ function renderCSTable(){
 // EXECUTIVE SCORECARD (portfolio-wide; respects the Region chips)
 //==============================================================================
 // Static mapping of each program to the Schneider corporate pillar it advances (from Schneider's
-// public 2025-26 positioning — CEO Olivier Blum's "electrification, automation and digital" /
-// EcoStruxure "digitize, electrify, decarbonize" / AirSeT SF6-free). Copy only — no data feed.
+// public 2025-26 positioning - CEO Olivier Blum's "electrification, automation and digital" /
+// EcoStruxure "digitize, electrify, decarbonize" / AirSeT SF6-free). Copy only - no data feed.
 const PILLAR={
-  global_rebrand:{pillar:'Advancing Energy Technology', note:'Electrification · Automation · Digital — Schneider’s core corporate narrative'},
+  global_rebrand:{pillar:'Advancing Energy Technology', note:'Electrification · Automation · Digital - Schneider’s core corporate narrative'},
   eba:           {pillar:'EcoStruxure Buildings',       note:'Digitize, electrify &amp; decarbonize the built environment'},
-  airset:        {pillar:'Sustainability · SF6-free',   note:'AirSeT switchgear — eliminating SF6 greenhouse gas'},
+  airset:        {pillar:'Sustainability · SF6-free',   note:'AirSeT switchgear - eliminating SF6 greenhouse gas'},
   water_env:     {pillar:'Water &amp; Environment',      note:'Resilient, efficient water &amp; utilities infrastructure'},
   heavy:         {pillar:'Heavy Industries',            note:'Energy &amp; process efficiency for industry'},
   nel:           {pillar:'New Energy Landscape',        note:'Awareness for the shift to a decarbonized, electrified energy system'},
@@ -1091,9 +1123,9 @@ function renderScorecard(){
   // --- portfolio KPI strip ---
   el('scKpis').innerHTML=[
     scKpi('Leads delivered', fmtN(leads), `of ${fmtN(target)} target`, 'm-spend'),
-    scKpi('Pace vs plan', vsTtd!=null?fmtPct(vsTtd,0):'—', pv.txt, 'm-imp'),
+    scKpi('Pace vs plan', vsTtd!=null?fmtPct(vsTtd,0):'-', pv.txt, 'm-imp'),
     scKpi('Accounts reached', fmtN(nAcct), 'distinct companies', 'm-clk'),
-    scKpi('Blended plan CPL', blendedCpl!=null?money(blendedCpl):'—', 'committed ÷ target', 'm-spend'),
+    scKpi('Blended plan CPL', blendedCpl!=null?money(blendedCpl):'-', 'committed ÷ target', 'm-spend'),
     scKpi('Programs live', fmtN(progs.length), 'lead-gen programs', 'm-imp'),
   ].join('');
 
@@ -1108,8 +1140,8 @@ function renderScorecard(){
       <div style="font-weight:700;font-size:15px;margin-top:3px">${p.label}</div>
       <div style="font-size:11px;color:var(--se-mute);margin:4px 0 11px;min-height:29px;line-height:1.35">${pillar.note}</div>
       <div style="height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pctW}%;background:${col}"></div></div>
-      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px"><span><b>${fmtN(p.leads)}</b> / ${fmtN(p.target)} leads</span><span style="font-weight:700;color:${vcol}">${p.target?fmtPct(p.leadsPct,0):'—'}</span></div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--se-mute)"><span>${pvv.txt}</span><span>${p.cpl!=null?money(p.cpl)+' plan CPL':'plan CPL —'}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px"><span><b>${fmtN(p.leads)}</b> / ${fmtN(p.target)} leads</span><span style="font-weight:700;color:${vcol}">${p.target?fmtPct(p.leadsPct,0):'-'}</span></div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--se-mute)"><span>${pvv.txt}</span><span>${p.cpl!=null?money(p.cpl)+' plan CPL':'plan CPL -'}</span></div>
     </div>`;
   }).join('');
 
@@ -1184,7 +1216,7 @@ function csvCell(v){ if(v==null) return ''; const s=String(v); return /[",\n]/.t
 function dl(name,lines){ const blob=new Blob([lines.join('\n')],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); }
 function tableCSV(section,obj){ const lines=['# '+section]; const keys=Object.keys((obj&&obj[0])||{}); lines.push(keys.join(',')); (obj||[]).forEach(r=>lines.push(keys.map(k=>csvCell(r[k])).join(','))); return lines; }
 //==============================================================================
-// OTHER CHANNELS (plan only — no measured feed)
+// OTHER CHANNELS (plan only - no measured feed)
 //==============================================================================
 // Article (trade-publication thought-leadership) delivery. MANUAL - no warehouse feed. Source:
 // raw_files/Article Reporting.xlsx (Ben Robinson / publisher reports). Update these totals when a new
@@ -1234,9 +1266,9 @@ function renderOther(){
   chans.forEach(c=>{
     const isArt=hasArt && /trade publication/i.test(c.name||'');
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${c.name}</td><td>${c.line_type||'—'}</td>`
+    tr.innerHTML=`<td>${c.name}</td><td>${c.line_type||'-'}</td>`
       +`<td class="num">${fmtN(c.imp_target)}</td><td class="num">${fmtN(c.click_target)}</td>`
-      +`<td class="num">${fmtN(c.lead_target)}</td><td class="num">${c.spend?money(c.spend):'—'}</td>`
+      +`<td class="num">${fmtN(c.lead_target)}</td><td class="num">${c.spend?money(c.spend):'-'}</td>`
       +`<td>${isArt?'<span class="plan-badge" style="color:var(--se-green2);border-color:var(--se-green2)">Actuals below ↓</span>':'<span class="plan-badge">Plan only · no feed</span>'}</td>`;
     tb.appendChild(tr);
   });
@@ -1279,7 +1311,7 @@ function buildReportPayload(){
     programme:r.programme, market:r.market, leads:r.total||0,
     new:r.new||0, working:r.working||0, qualified:r.qualified||0, disqualified:r.disqualified||0, last_lead_day:r.last_lead_day||null }));
   const cmAgg={};
-  crows.forEach(r=>{ const m=r.market||'—'; (cmAgg[m]=cmAgg[m]||{leads:0,new:0,working:0,qualified:0,disqualified:0});
+  crows.forEach(r=>{ const m=r.market||'-'; (cmAgg[m]=cmAgg[m]||{leads:0,new:0,working:0,qualified:0,disqualified:0});
     cmAgg[m].leads+=r.total||0; cmAgg[m].new+=r.new||0; cmAgg[m].working+=r.working||0; cmAgg[m].qualified+=r.qualified||0; cmAgg[m].disqualified+=r.disqualified||0; });
   const cs_by_market=Object.entries(cmAgg).sort((a,b)=>b[1].leads-a[1].leads).map(([market,v])=>({market,...v}));
   const prows=pmRows(), pt=pmTotals(prows);
@@ -1290,7 +1322,7 @@ function buildReportPayload(){
     platform, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks,
     cpm:_r2(v.imps?v.spend/v.imps*1000:0), cpc:_r2(v.clicks?v.spend/v.clicks:0), ctr:_r6(v.imps?v.clicks/v.imps:0) }));
   const pmAgg={};
-  prows.forEach(r=>{ const m=r.market||'—'; (pmAgg[m]=pmAgg[m]||{spend:0,imps:0,clicks:0});
+  prows.forEach(r=>{ const m=r.market||'-'; (pmAgg[m]=pmAgg[m]||{spend:0,imps:0,clicks:0});
     pmAgg[m].spend+=r.spend_aud||0; pmAgg[m].imps+=r.imps||0; pmAgg[m].clicks+=r.clicks||0; });
   const paid_by_market=Object.entries(pmAgg).sort((a,b)=>b[1].spend-a[1].spend).map(([market,v])=>({market, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks}));
   return {
@@ -1306,7 +1338,7 @@ function buildReportPayload(){
       target:p.target, leads:p.leads, leads_pct:_r6(p.leadsPct), ttd_target:Math.round(p.ttd||0), vs_ttd_pct:_r6(p.vsTtd),
       time_pct:_r6(p.timePct), elapsed_days:p.elapsed, total_days:p.totalDays, cpl:_r2(p.cpl), committed_spend:_r2(p.committed),
       quality:{ new:p.byStatus.New, working:p.byStatus.Working, qualified:p.byStatus.Qualified, disqualified:p.byStatus.Disqualified, other:p.byStatus.Other },
-      note:'Lead-status buckets are CRM-raw lifecycle stages (mostly New / un-triaged), NOT graded MQLs — do not infer an acceptance rate.',
+      note:'Lead-status buckets are CRM-raw lifecycle stages (mostly New / un-triaged), NOT graded MQLs - do not infer an acceptance rate.',
       by_programme, by_market:cs_by_market
     },
     paid:{
@@ -1352,7 +1384,7 @@ async function bbHeadlessSlides(){
   try {
     const payload=buildDeckPayload();
     const res=await fetch('/report',{ method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
-    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' — '+d:'')); }
+    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
     const report=await res.json();
     const logos=await bbDeckLogos();
     const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });

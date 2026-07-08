@@ -242,7 +242,7 @@
     <div class="agency">100 DIGITAL<span class="dot"></span></div>
     <div class="topbar-divider"></div>
     <div class="logo-chip">
-      <!-- HireRight wordmark — HIRE (black) · RIGHT (red) with the corner-bracket motif + ®. -->
+      <!-- HireRight wordmark - HIRE (black) · RIGHT (red) with the corner-bracket motif + ®. -->
       <svg viewBox="0 0 300 92" xmlns="http://www.w3.org/2000/svg" aria-label="HireRight">
         <text x="4" y="62" font-family="Arial,Helvetica,sans-serif" font-size="52" font-weight="800" letter-spacing="1.5" fill="#1A1A1A">HIRE<tspan fill="#ED1C24"> RIGHT</tspan></text>
         <path d="M250 10 H292 V40" fill="none" stroke="#1A1A1A" stroke-width="5" stroke-linecap="square"/>
@@ -485,8 +485,8 @@ const C = {
 //==============================================================================
 let DATA = null, charts = {}, activeTab = 'overview';
 let activePlatforms = new Set();   // ad-platform filter (all on by default)
-let activeCampaigns = new Set();   // ad-campaign filter (all on by default) — scopes ad delivery
-let activeMarkets   = new Set();   // market filter (all on by default) — scopes the by-market charts
+let activeCampaigns = new Set();   // ad-campaign filter (all on by default) - scopes ad delivery
+let activeMarkets   = new Set();   // market filter (all on by default) - scopes the by-market charts
 let campaignMenuOpen = false;
 const el = id => document.getElementById(id);
 
@@ -527,12 +527,83 @@ const PLATFORMS = [
   {key:'linkedin',  label:'LinkedIn',  color:'#2867B2', imps:'li_imps', clk:'li_clicks', spend:'li_cost_usd'},
 ];
 
-const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
-const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
-const fmtPct = (v,d=2) => v==null||isNaN(v) ? '—' : (v*100).toFixed(d)+'%';
-const money  = (v,sym='$',d=0) => v==null||isNaN(v) ? '—' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const fmtN   = v => v==null||isNaN(v) ? '-' : Math.round(v).toLocaleString('en-US');
+const fmtM   = v => v==null||isNaN(v) ? '-' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
+const fmtPct = (v,d=2) => v==null||isNaN(v) ? '-' : (v*100).toFixed(d)+'%';
+const money  = (v,sym='$',d=0) => v==null||isNaN(v) ? '-' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
 function pct(part,whole){ return whole? part/whole : 0; }
+
+//==============================================================================
+// CLIENT-BILLED SPEND MULTIPLIER
+// The platform front-door may inject `window.BB_SPEND_MULT = {channelKey: factor}` to
+// gross RAW media spend up to what the client was BILLED, per channel. Counts (imps/
+// clicks/conversions/leads) and ratios (CTR) are left untouched; cost-per-X metrics
+// (CPM/CPC) follow automatically because they derive from summed spend downstream.
+// hireright is pure delivery (DV360/TradeDesk/LinkedIn - no revenue/ROAS/media-plan),
+// so there is no ROAS to keep on real spend. Applied ONCE right after DATA parses and
+// BEFORE any rendering; idempotent (stashes raws) and a total no-op when the map is
+// unset/empty (every factor defaults to 1). USD is the carried currency - we gross the
+// already-converted spend, never the FX rate.
+function bbNum(v){ const x = Number(v); return Number.isFinite(x) ? x : 0; }
+function bbMultFor(channel){ const m = window.BB_SPEND_MULT||{}; const v = Number(m[channel]); return (Number.isFinite(v)&&v>0) ? v : 1; }
+function bbChannelKey(p){ var s=String(p||'').toLowerCase();
+  if(s.includes('google'))return 'google';
+  if(s.includes('meta')||s.includes('facebook'))return 'meta';
+  if(s.includes('linkedin'))return 'linkedin';
+  if(s.includes('reddit'))return 'reddit';
+  if(s.includes('trade')||s==='ttd'||s.includes('tradedesk'))return 'ttd';
+  if(s.includes('dv360')||s.includes('display'))return 'dv360';
+  if(s.includes('line'))return 'line';
+  if(s.includes('dooh'))return 'youdooh';
+  return '';}
+function bbApplySpendMult(){
+  if(!DATA) return;
+  // (a) Row-level, campaign-grained delivery - the source of every on-screen spend/CPM/
+  //     CPC. Gross each row's spend_usd by ITS OWN channel (row carries `platform`).
+  ['ad_campaigns','ad_campaign_monthly','ad_campaign_weekly','ad_campaign_daily','ad_campaign_market'].forEach(key=>{
+    (DATA[key]||[]).forEach(r=>{
+      if(r._rawSpend==null) r._rawSpend = bbNum(r.spend_usd);
+      r.spend_usd = r._rawSpend * bbMultFor(bbChannelKey(r.platform));
+    });
+  });
+  // (b) LinkedIn creative-/campaign-grained rows - cost_usd is LinkedIn spend.
+  const LI = bbMultFor('linkedin');
+  ['li_campaign_creative','li_creative','li_campaigns'].forEach(key=>{
+    (DATA[key]||[]).forEach(r=>{
+      if(r.cost_usd==null) return;
+      if(r._rawSpend==null) r._rawSpend = bbNum(r.cost_usd);
+      r.cost_usd = r._rawSpend * LI;
+    });
+  });
+  // (c) Precomputed blended aggregates NOT re-derived from rows (kpi totals + the
+  //     monthly/weekly/daily export series). Gross each clean single-channel column by
+  //     its channel; keep the blended ad_spend_usd consistent by adding ONLY the
+  //     per-channel grossing increment, so it stays exactly raw when all factors are 1.
+  const CH = [['dv_spend_usd','dv360'],['td_spend_usd','ttd'],['li_cost_usd','linkedin']];
+  const grossBlend = r => {
+    let inc = 0;
+    CH.forEach(([f,ch])=>{ if(r[f]==null) return; const rk='_raw_'+f;
+      if(r[rk]==null) r[rk]=bbNum(r[f]); const g=r[rk]*bbMultFor(ch); inc += g - r[rk]; r[f]=g; });
+    if(r.ad_spend_usd!=null){ if(r._raw_ad_spend_usd==null) r._raw_ad_spend_usd=bbNum(r.ad_spend_usd);
+      r.ad_spend_usd = r._raw_ad_spend_usd + inc; }
+  };
+  if(DATA.kpi) grossBlend(DATA.kpi);
+  (DATA.monthly||[]).forEach(grossBlend);
+  // weekly/daily carry only the blended ad_spend_usd (no per-channel spend split), so
+  // derive each period's grossing increment from the already-grossed campaign-grained
+  // arrays above and add it (exact reconciliation; still a no-op at factor 1).
+  const incBy = (src,keyOf)=>{ const m={}; (DATA[src]||[]).forEach(r=>{ const k=keyOf(r);
+    m[k]=(m[k]||0)+(bbNum(r.spend_usd)-bbNum(r._rawSpend)); }); return m; };
+  const wInc = incBy('ad_campaign_weekly', r=>r.week_start);
+  const dInc = incBy('ad_campaign_daily',  r=>r.day);
+  (DATA.weekly||[]).forEach(r=>{ if(r.ad_spend_usd==null) return;
+    if(r._raw_ad_spend_usd==null) r._raw_ad_spend_usd=bbNum(r.ad_spend_usd);
+    r.ad_spend_usd = r._raw_ad_spend_usd + (wInc[r.week_start]||0); });
+  (DATA.daily||[]).forEach(r=>{ if(r.ad_spend_usd==null) return;
+    if(r._raw_ad_spend_usd==null) r._raw_ad_spend_usd=bbNum(r.ad_spend_usd);
+    r.ad_spend_usd = r._raw_ad_spend_usd + (dInc[r.day]||0); });
+}
 
 // --- Platform filter ---
 const platOk = key => activePlatforms.has(key);
@@ -544,10 +615,10 @@ const PLAT_COLOR = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.color]));
 const marketOk = m => activeMarkets.has(m);
 
 //==============================================================================
-// CAMPAIGN FILTER — aggregate the campaign-grained ad arrays over selected campaigns
+// CAMPAIGN FILTER - aggregate the campaign-grained ad arrays over selected campaigns
 //==============================================================================
 const campOn = name => activeCampaigns.has(name);
-// CAMPAIGN DISPLAY NAMES — generic baseline keeps the raw platform string and just
+// CAMPAIGN DISPLAY NAMES - generic baseline keeps the raw platform string and just
 // de-underscores it for display. The raw string stays the filter KEY everywhere.
 // (Per-client friendly labels can be added here later, like client_STT does.)
 const CAMPAIGN_LABELS = {};
@@ -687,7 +758,7 @@ window.DateRange = (function(){
   const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
   const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
   const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '-';
   const $ = id => document.getElementById(id);
 
   function presetRange(k){
@@ -810,6 +881,7 @@ async function boot(){
     const res = await fetch(JSON_URL, {cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA = await res.json();
+    bbApplySpendMult();   // gross RAW spend → client-billed, per channel, before any render
     activePlatforms = new Set(PLATFORMS.map(p => p.key));
     activeCampaigns = new Set((DATA.ad_campaigns||[]).map(c => c.campaign));
     activeMarkets   = new Set(DATA.markets||[]);
@@ -833,7 +905,7 @@ async function boot(){
 
 function renderMeta(){
   const w = DATA.window||{};
-  const fmt = d => d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const fmt = d => d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '-';
   el('topPeriod').textContent = `${fmt(w.start)} – ${fmt(w.end)}`;
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   el('footMeta').innerHTML = `HireRight paid-media dashboard · data from BigQuery (DV360 · TradeDesk · LinkedIn) · `
@@ -1040,14 +1112,14 @@ function renderOverview(){
   const spendSub = selPlatforms().map(p=>`${money(P[p.key].spend)} ${p.label}`).join(' · ') || 'no platform selected';
   el('ovKpis').innerHTML =
     kpiCard('accent','Media spend (USD)', money(a.spend), spendSub)
-  + kpiCard('accent','Impressions', fmtM(a.imps), selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ')||'—')
+  + kpiCard('accent','Impressions', fmtM(a.imps), selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ')||'-')
   + kpiCard('accent','Clicks', fmtN(a.clk), 'to site')
   + kpiCard('','Blended CTR', fmtPct(ctr,2), 'clicks ÷ impressions')
   + kpiCard('','CPM', money(cpm,'$',2), 'cost per 1,000 impressions')
   + kpiCard('','CPC', money(cpc,'$',2), 'cost per click')
   + kpiCard('accent','Conversions', fmtN(a.conv), 'DV360 + TradeDesk + LinkedIn leads');
 
-  // Hero: spend by platform (stacked bars, USD) + clicks (line) — honors the Period
+  // Hero: spend by platform (stacked bars, USD) + clicks (line) - honors the Period
   // filter. VIEW BY grain (month/week/day) re-aggregates from the matching campaign-
   // grained array; AXIS scale rel/abs indexes the clicks line to its own peak=100 on
   // a shared 0-100 right axis (bars stay absolute on the left).
@@ -1094,7 +1166,7 @@ function renderOverview(){
     plugins:[centerText]
   });
 
-  // Spend by market (bar — DV360 countries; Global air-cover excluded)
+  // Spend by market (bar - DV360 countries; Global air-cover excluded)
   const mk = adMarketArr(null).filter(r=>r.market!=='Global');
   charts.ovMarket = new Chart(el('ovMarket'),{
     type:'bar',
@@ -1172,7 +1244,7 @@ function renderPaid(){
   // platform comparison table
   const row = (key,label,color,win) => {
     const e=P[key]; const c=pct(e.clk,e.imps), cm=e.imps?e.spend/e.imps*1000:0, cc=e.clk?e.spend/e.clk:0;
-    return `<tr><td><span class="pill"><span class="dot" style="background:${color}"></span>${label}</span></td><td>${win.start||'—'} → ${win.end||'—'}</td>
+    return `<tr><td><span class="pill"><span class="dot" style="background:${color}"></span>${label}</span></td><td>${win.start||'-'} → ${win.end||'-'}</td>
       <td class="num">${money(e.spend)}</td><td class="num">${fmtN(e.imps)}</td><td class="num">${fmtN(e.clk)}</td>
       <td class="num">${fmtPct(c,2)}</td><td class="num">${money(cm,'$',2)}</td><td class="num">${money(cc,'$',2)}</td></tr>`;
   };
@@ -1227,7 +1299,7 @@ function renderPaid(){
     ? step('Impressions', fmtM(f.imps), '&nbsp;')
       + arrow + step('Clicks', fmtN(f.clicks), `${fmtPct(pct(f.clicks,f.imps),2)} CTR`)
       + arrow + step('Video views', fmtN(f.video_views), '&nbsp;')
-      + arrow + step('VCR', vcr==null?'—':fmtPct(vcr,1), `${fmtN(f.video_completions)} of ${fmtN(f.video_starts)} starts`)
+      + arrow + step('VCR', vcr==null?'-':fmtPct(vcr,1), `${fmtN(f.video_completions)} of ${fmtN(f.video_starts)} starts`)
       + arrow + step('Lead-form opens', fmtN(f.lead_form_opens), '&nbsp;')
       + arrow + step('Leads', fmtN(f.leads), '&nbsp;')
     : `<div class="cl-empty" style="flex:1">No LinkedIn delivery in the current selection.</div>`;

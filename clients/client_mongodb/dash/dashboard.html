@@ -7,19 +7,19 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <!-- datalabels plugin: renders on-chart values (registered manually per-chart, off by default) -->
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
-<!-- PptxGenJS (pinned, bundled w/ JSZip) + the shared bb_deck.js builder — power the portal-driven
+<!-- PptxGenJS (pinned, bundled w/ JSZip) + the shared bb_deck.js builder - power the portal-driven
      "Download slides" Google-Slides deck export (headless via ?bbslides=1; see bb_deck.js). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <script src="bb_deck.js"></script>
 <style>
   :root{
     color-scheme: dark;
-    /* ===== Bidbrain dark-glow theme — REUSABLE across clients ===== */
+    /* ===== Bidbrain dark-glow theme - REUSABLE across clients ===== */
     /* Dark base, surfaces + text (client-independent) */
     --bg:#05131A; --bg-2:#071C25; --surface:#0B222C; --surface-2:#0F2E39;
     --line:rgba(255,255,255,.08); --line-2:rgba(255,255,255,.15);
     --ink:#EAF3EE; --muted:#94A9AF; --muted-2:#6E858C;
-    /* ---- PER-CLIENT BRAND ACCENT — change ONLY these to reskin another client ---- */
+    /* ---- PER-CLIENT BRAND ACCENT - change ONLY these to reskin another client ---- */
     --brand-accent:#00ED64; --brand-accent-2:#00B87C;      /* MongoDB spring green */
     --glow:rgba(0,237,100,.26); --glow-strong:rgba(0,237,100,.5); --on-accent:#04160E;
     /* ---- semantic (dark-tuned) ---- */
@@ -302,7 +302,7 @@
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
           <div class="exports">
-            <!-- "Download slides" moved to the agency portal (dashboards.bidbrain.ai) — the deck is
+            <!-- "Download slides" moved to the agency portal (dashboards.bidbrain.ai) - the deck is
                  generated headlessly via ?bbslides=1 and built by bb_deck.js. No toolbar button here. -->
             <button class="export-btn" id="exportTabBtn" onclick="exportThisTab()"
                     title="Download the source rows behind this tab (honors the campaign &amp; region filters) as CSV - so the figures can be re-summed and verified">
@@ -368,10 +368,10 @@
       <div id="pmNote" class="info-note" style="display:none"></div>
 
       <div class="kpis">
-        <div class="kpi accent"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">—</div><div class="delta" id="pm_spend_sub">—</div></div>
-        <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">—</div><div class="delta" id="pm_cpm">—</div></div>
-        <div class="kpi"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">—</div><div class="delta" id="pm_ctr">—</div></div>
-        <div class="kpi accent"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">—</div><div class="delta" id="pm_cpc_sub">—</div></div>
+        <div class="kpi accent"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">-</div><div class="delta" id="pm_spend_sub">-</div></div>
+        <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">-</div><div class="delta" id="pm_cpm">-</div></div>
+        <div class="kpi"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">-</div><div class="delta" id="pm_ctr">-</div></div>
+        <div class="kpi accent"><span class="stripe"></span><div class="label">Blended CPC</div><div class="value" id="pm_cpc">-</div><div class="delta" id="pm_cpc_sub">-</div></div>
       </div>
 
       <div class="section">
@@ -457,7 +457,7 @@
         </div>
       </div>
 
-      <!-- ============ CONTENT ENGAGEMENT — Trade Desk Universal Pixel snapshot ============ -->
+      <!-- ============ CONTENT ENGAGEMENT - Trade Desk Universal Pixel snapshot ============ -->
       <div id="pxWrap" style="display:none">
         <div class="section">
           <h2 style="font-size:15px">Content engagement - Trade Desk Universal Pixel
@@ -467,10 +467,10 @@
         </div>
 
         <div class="kpis">
-          <div class="kpi accent"><span class="stripe"></span><div class="label">Content LP views</div><div class="value" id="px_content">—</div><div class="delta" id="px_content_sub">—</div></div>
-          <div class="kpi"><span class="stripe"></span><div class="label">Top content asset</div><div class="value" id="px_top" style="font-size:18px">—</div><div class="delta" id="px_top_sub">—</div></div>
-          <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="px_imp">—</div><div class="delta" id="px_imp_sub">—</div></div>
-          <div class="kpi"><span class="stripe"></span><div class="label">Ad-influenced site visits</div><div class="value" id="px_visits">—</div><div class="delta" id="px_visits_sub">—</div></div>
+          <div class="kpi accent"><span class="stripe"></span><div class="label">Content LP views</div><div class="value" id="px_content">-</div><div class="delta" id="px_content_sub">-</div></div>
+          <div class="kpi"><span class="stripe"></span><div class="label">Top content asset</div><div class="value" id="px_top" style="font-size:18px">-</div><div class="delta" id="px_top_sub">-</div></div>
+          <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="px_imp">-</div><div class="delta" id="px_imp_sub">-</div></div>
+          <div class="kpi"><span class="stripe"></span><div class="label">Ad-influenced site visits</div><div class="value" id="px_visits">-</div><div class="delta" id="px_visits_sub">-</div></div>
         </div>
 
         <div id="pxNote" class="info-note">The large “site visits” figure is the catch-all Universal Pixel’s <b>view-through</b> attribution - someone saw an ad, then later reached mongodb.com without clicking. It's a reach / influence signal, <b>not</b> hard leads. The chart below shows only the named <b>content</b> landing pages.</div>
@@ -496,31 +496,31 @@
         <div class="group">
           <div class="glbl">Overall</div>
           <div class="pair triple">
-            <div class="stat"><div class="k">Target</div><div class="v" id="cs_target">—</div></div>
-            <div class="stat"><div class="k">Total leads</div><div class="v" id="cs_total">—</div></div>
-            <div class="stat"><div class="k">CPL</div><div class="v" id="cs_cpl">—</div><div class="cnt" id="cs_cpl_cnt">—</div></div>
+            <div class="stat"><div class="k">Target</div><div class="v" id="cs_target">-</div></div>
+            <div class="stat"><div class="k">Total leads</div><div class="v" id="cs_total">-</div></div>
+            <div class="stat"><div class="k">CPL</div><div class="v" id="cs_cpl">-</div><div class="cnt" id="cs_cpl_cnt">-</div></div>
           </div>
         </div>
         <div class="group">
           <div class="glbl">Pacing</div>
           <div class="pair">
-            <div class="stat"><div class="k">Current pacing</div><div class="v" id="cs_current">—</div></div>
-            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cs_overall">—</div></div>
+            <div class="stat"><div class="k">Current pacing</div><div class="v" id="cs_current">-</div></div>
+            <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cs_overall">-</div></div>
           </div>
         </div>
         <div class="group">
           <div class="glbl">Delivery <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· Trade Desk impressions, clicks &amp; CTR for the selected campaign / region(s)</span></div>
           <div class="pair triple">
-            <div class="stat"><div class="k">Impressions</div><div class="v" id="cs_imp">—</div></div>
-            <div class="stat"><div class="k">Clicks</div><div class="v" id="cs_clk">—</div></div>
-            <div class="stat"><div class="k">CTR</div><div class="v" id="cs_ctr">—</div></div>
+            <div class="stat"><div class="k">Impressions</div><div class="v" id="cs_imp">-</div></div>
+            <div class="stat"><div class="k">Clicks</div><div class="v" id="cs_clk">-</div></div>
+            <div class="stat"><div class="k">CTR</div><div class="v" id="cs_ctr">-</div></div>
           </div>
         </div>
         <div class="group">
           <div class="glbl">Outlook <span style="font-weight:400;font-size:10px;color:var(--mdb-mute);text-transform:none;letter-spacing:0">· what's left to hit target</span></div>
           <div class="pair">
-            <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">—</div><div class="cnt" id="cs_remaining_cnt">—</div></div>
-            <div class="stat"><div class="k">Days left</div><div class="v" id="cs_daysleft">—</div><div class="cnt" id="cs_daysleft_cnt">—</div></div>
+            <div class="stat"><div class="k">Leads remaining</div><div class="v" id="cs_remaining">-</div><div class="cnt" id="cs_remaining_cnt">-</div></div>
+            <div class="stat"><div class="k">Days left</div><div class="v" id="cs_daysleft">-</div><div class="cnt" id="cs_daysleft_cnt">-</div></div>
           </div>
         </div>
       </div>
@@ -593,15 +593,15 @@
           <div id="contentA" style="display:none">
             <div class="compare-kpi-group"><div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k">Target</div><div class="v" id="A_target">—</div></div>
-                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">—</div></div>
+                <div class="compare-kpi"><div class="k">Target</div><div class="v" id="A_target">-</div></div>
+                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="A_total">-</div></div>
               </div>
             </div>
             <div class="compare-kpi-group"><div class="grp-lbl">Outlook</div>
               <div class="compare-kpis triple">
-                <div class="compare-kpi"><div class="k">Leads remaining</div><div class="v" id="A_remaining">—</div></div>
-                <div class="compare-kpi"><div class="k">Days left</div><div class="v" id="A_daysleft">—</div></div>
-                <div class="compare-kpi"><div class="k">Pace needed</div><div class="v" id="A_needpace">—</div></div>
+                <div class="compare-kpi"><div class="k">Leads remaining</div><div class="v" id="A_remaining">-</div></div>
+                <div class="compare-kpi"><div class="k">Days left</div><div class="v" id="A_daysleft">-</div></div>
+                <div class="compare-kpi"><div class="k">Pace needed</div><div class="v" id="A_needpace">-</div></div>
               </div>
             </div>
             <div class="compare-chart"><h4>Leads vs target</h4><div class="compare-chart-wrap"><canvas id="A_targets"></canvas></div></div>
@@ -617,15 +617,15 @@
           <div id="contentB" style="display:none">
             <div class="compare-kpi-group"><div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k">Target</div><div class="v" id="B_target">—</div></div>
-                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">—</div></div>
+                <div class="compare-kpi"><div class="k">Target</div><div class="v" id="B_target">-</div></div>
+                <div class="compare-kpi"><div class="k">Total leads</div><div class="v" id="B_total">-</div></div>
               </div>
             </div>
             <div class="compare-kpi-group"><div class="grp-lbl">Outlook</div>
               <div class="compare-kpis triple">
-                <div class="compare-kpi"><div class="k">Leads remaining</div><div class="v" id="B_remaining">—</div></div>
-                <div class="compare-kpi"><div class="k">Days left</div><div class="v" id="B_daysleft">—</div></div>
-                <div class="compare-kpi"><div class="k">Pace needed</div><div class="v" id="B_needpace">—</div></div>
+                <div class="compare-kpi"><div class="k">Leads remaining</div><div class="v" id="B_remaining">-</div></div>
+                <div class="compare-kpi"><div class="k">Days left</div><div class="v" id="B_daysleft">-</div></div>
+                <div class="compare-kpi"><div class="k">Pace needed</div><div class="v" id="B_needpace">-</div></div>
               </div>
             </div>
             <div class="compare-chart"><h4>Leads vs target</h4><div class="compare-chart-wrap"><canvas id="B_targets"></canvas></div></div>
@@ -668,7 +668,7 @@ window.DateRange = (function(){
   const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
   const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
   const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '-';
   const $ = id => document.getElementById(id);
 
   function presetRange(k){
@@ -792,7 +792,7 @@ const MDB = {
 
 // ===== Standard metric → colour (SINGLE SOURCE OF TRUTH) =====
 // One distinct colour per metric, reused everywhere it appears (KPI stripes, chart series) so a
-// metric is trackable across the whole dashboard. Distinct hues — NOT all green — for easy scanning.
+// metric is trackable across the whole dashboard. Distinct hues - NOT all green - for easy scanning.
 const MC = {
   'Impressions':'#00ED64','Content LP views':'#00ED64',
   'Clicks':'#38BDF8',
@@ -904,12 +904,12 @@ let compareReady = false;
 // HELPERS
 //==============================================================================
 const el = id => document.getElementById(id);
-const fmt$ = (v, d=0) => v == null || isNaN(v) ? '—' :
+const fmt$ = (v, d=0) => v == null || isNaN(v) ? '-' :
   '$' + Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
-const fmtN = v => v == null || isNaN(v) ? '—' : Number(v).toLocaleString('en-US');
-const fmtN_M = v => v == null || isNaN(v) ? '—' :
+const fmtN = v => v == null || isNaN(v) ? '-' : Number(v).toLocaleString('en-US');
+const fmtN_M = v => v == null || isNaN(v) ? '-' :
   (v>=1e6 ? (v/1e6).toFixed(2)+'M' : v>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
-const fmtPct = (v,d=2) => v == null || isNaN(v) ? '—' : (Number(v)*100).toFixed(d) + '%';
+const fmtPct = (v,d=2) => v == null || isNaN(v) ? '-' : (Number(v)*100).toFixed(d) + '%';
 
 function campaignOf(programme){
   const p = String(programme||'').toUpperCase();
@@ -948,7 +948,7 @@ function progCPL(programme){
   const m = PROG_CPL_TIER.find(x => x.test(p));
   if (!m) return null;
   const t = (DATA.targets||[]).find(t => t.programme === m.tier && t.cpl != null);
-  // Content-syndication lead economics stay on the plan basis — the DNB spend adjustment
+  // Content-syndication lead economics stay on the plan basis - the DNB spend adjustment
   // is a paid-media-only gross-up (a separate budget line from CS CPL / committed CS spend).
   return t ? t.cpl : null;
 }
@@ -972,7 +972,7 @@ function campHasData(c){
 
 // Δ-vs-plan cell. lower=true means a smaller actual is better (CPM/CPC).
 function vsCell(actual, plan, lower){
-  if (!plan || !actual) return '<span class="vs-neut">—</span>';
+  if (!plan || !actual) return '<span class="vs-neut">-</span>';
   const d = (actual - plan) / plan;
   const good = lower ? d < 0 : d > 0;
   const cls = Math.abs(d) < 0.05 ? 'vs-neut' : (good ? 'vs-good' : 'vs-bad');
@@ -988,12 +988,12 @@ function committedBlendedCPC(){
 }
 
 //==============================================================================
-// DNB SPEND ADJUSTMENT — one-time, hardcoded  (see clients/client_mongodb/README.md)
+// DNB SPEND ADJUSTMENT - one-time, hardcoded  (see clients/client_mongodb/README.md)
 //==============================================================================
 // The DNB campaign under-delivered its budget (raw media cost ≈ $16,183.91 vs the billed
-// budget), which is bad for our business model — so DNB's reported paid spend is grossed up
+// budget), which is bad for our business model - so DNB's reported paid spend is grossed up
 // to a fixed client-billed target below. HIDDEN FROM THE CLIENT: there is NO control and no
-// label — the grossed numbers simply read as the real spend. FRONTEND-ONLY: the mongodb.json
+// label - the grossed numbers simply read as the real spend. FRONTEND-ONLY: the mongodb.json
 // in the bucket keeps RAW spend, so the status-dashboard accuracy checks are unaffected.
 //
 // Multiplier = target ÷ raw whole-flight spend, applied to the campaign's spend and its
@@ -1003,9 +1003,16 @@ function committedBlendedCPC(){
 // to remove the adjustment entirely, set it to {}.
 const MARGIN_TARGET = { DNB: 19890 };   // campaign key -> reported paid spend (USD)
 
+// Client-billed spend multiplier (injected by the platform front-door as window.BB_SPEND_MULT).
+// mongodb is a single-channel Trade Desk dashboard, so the 'ttd' factor applies to every campaign;
+// it COMPOSES with the MARGIN_TARGET adjustment below (folded into MULT), so spend + the derived
+// CPM/CPC + the plan benchmarks all gross by it. No revenue/ROAS here. Defaults to 1 (no-op) when
+// unset, so the standalone/internal view is unchanged.
+function bbMultFor(channel){var m=window.BB_SPEND_MULT||{};var v=Number(m[channel]);return (isFinite(v)&&v>0)?v:1;}
+
 let MULT = {};   // campaign key -> multiplier (1 when the campaign has no target)
 
-// Whole-flight RAW (pre-adjustment) paid spend for a campaign — reads the stashed _rawSpend
+// Whole-flight RAW (pre-adjustment) paid spend for a campaign - reads the stashed _rawSpend
 // so the multiplier is stable no matter how many times it's (re-)applied.
 function rawSpendFor(camp){
   let s = 0;
@@ -1020,9 +1027,10 @@ function computeMultipliers(){
   MULT = {};
   const camps = new Set();
   (DATA.rows||[]).forEach(r => camps.add(campaignOf(r.programme)));
+  const bb = bbMultFor('ttd');   // client-billed channel multiplier (mongodb = Trade Desk) - composes
   camps.forEach(c => {
     const target = MARGIN_TARGET[c], raw = rawSpendFor(c);
-    MULT[c] = (target != null && raw > 0) ? target / raw : 1;
+    MULT[c] = ((target != null && raw > 0) ? target / raw : 1) * bb;
   });
 }
 // Bake the multiplier into each row's spend (stash the raw once so it's idempotent).
@@ -1051,7 +1059,7 @@ async function boot() {
     // Margin multiplier: compute per-campaign factor + gross up spend before any render.
     refreshMargin();
 
-    // Date-range picker — bounds from the actual paid-row extent (fall back to the feed window).
+    // Date-range picker - bounds from the actual paid-row extent (fall back to the feed window).
     const _pmDates = (DATA.rows||[]).map(r => String(r.date||'').slice(0,10)).filter(Boolean).sort();
     const _minD = _pmDates[0] || (DATA.window && DATA.window.start);
     const _maxD = _pmDates[_pmDates.length-1] || (DATA.window && DATA.window.end);
@@ -1229,12 +1237,12 @@ function renderPMKPIs(rows) {
   for (const r of rows){ const ch = r.channel || 'Other'; byCh[ch] = (byCh[ch]||0) + (r.spend_usd||0); }
   const split = Object.entries(byCh).sort((a,b)=>b[1]-a[1]).map(([ch,v])=>`${fmt$(v)} ${ch}`).join(' · ');
   el('pm_spend').textContent     = fmt$(t.sp);
-  el('pm_spend_sub').textContent = split || '—';
+  el('pm_spend_sub').textContent = split || '-';
   el('pm_imp').textContent       = fmtN_M(t.imp);
-  el('pm_cpm').textContent       = t.imp ? `${fmt$(t.cpm,2)} blended CPM` : '—';
+  el('pm_cpm').textContent       = t.imp ? `${fmt$(t.cpm,2)} blended CPM` : '-';
   el('pm_clk').textContent       = fmtN(t.clk);
-  el('pm_ctr').textContent       = t.imp ? `${fmtPct(t.ctr,3)} blended CTR` : '—';
-  el('pm_cpc').textContent       = t.clk ? fmt$(t.cpc,2) : '—';
+  el('pm_ctr').textContent       = t.imp ? `${fmtPct(t.ctr,3)} blended CTR` : '-';
+  el('pm_cpc').textContent       = t.clk ? fmt$(t.cpc,2) : '-';
   const estCpc = committedBlendedCPC();
   if (estCpc != null) {
     el('pm_cpc_sub').innerHTML = `Plan ${fmt$(estCpc,2)} &middot; ${t.clk ? vsCell(t.cpc, estCpc, true) : '<span class="vs-neut">&mdash;</span>'}`;
@@ -1272,19 +1280,19 @@ function renderStrategyTable(rows) {
       <td class="num">${fmt$(a.sp)}</td>
       <td class="num">${fmtN(a.imp)}</td>
       <td class="num">${fmtN(a.clk)}</td>
-      <td class="num">${fmtPct(ctr,3)} <span class="bench">vs ${b.ctr!=null?fmtPct(b.ctr,3):'—'}</span></td>
+      <td class="num">${fmtPct(ctr,3)} <span class="bench">vs ${b.ctr!=null?fmtPct(b.ctr,3):'-'}</span></td>
       <td class="num">${vsCell(ctr, b.ctr, false)}</td>
-      <td class="num">${fmt$(cpm,2)} <span class="bench">vs ${bcpm!=null?fmt$(bcpm,2):'—'}</span></td>
+      <td class="num">${fmt$(cpm,2)} <span class="bench">vs ${bcpm!=null?fmt$(bcpm,2):'-'}</span></td>
       <td class="num">${vsCell(cpm, bcpm, true)}</td>
-      <td class="num">${fmt$(cpc,2)} <span class="bench">vs ${bcpc!=null?fmt$(bcpc,2):'—'}</span></td>
+      <td class="num">${fmt$(cpc,2)} <span class="bench">vs ${bcpc!=null?fmt$(bcpc,2):'-'}</span></td>
       <td class="num">${vsCell(cpc, bcpc, true)}</td>
     </tr>`);
   });
   const tCtr = tImp?tClk/tImp:0, tCpm = tImp?tSp/tImp*1000:0, tCpc = tClk?tSp/tClk:0;
   tbody.insertAdjacentHTML('beforeend', `<tr class="total">
     <td>Total</td><td class="num">${fmt$(tSp)}</td><td class="num">${fmtN(tImp)}</td><td class="num">${fmtN(tClk)}</td>
-    <td class="num">${fmtPct(tCtr,3)}</td><td class="num">—</td>
-    <td class="num">${fmt$(tCpm,2)}</td><td class="num">—</td>
+    <td class="num">${fmtPct(tCtr,3)}</td><td class="num">-</td>
+    <td class="num">${fmt$(tCpm,2)}</td><td class="num">-</td>
     <td class="num">${fmt$(tCpc,2)}</td><td class="num">${vsCell(tCpc, committedBlendedCPC(), true)}</td>
   </tr>`);
 }
@@ -1294,7 +1302,7 @@ function renderPMDaily(rows) {
   for (const r of rows){ const k = pmBucketKey(r); if (!k) continue;
     if (!buckets[k]) buckets[k] = {imp:0, clk:0}; buckets[k].imp += r.imps||0; buckets[k].clk += r.clicks||0; }
   const keys = pmBuckets(rows);
-  // Raw (true) series — tooltips always show these, in BOTH modes.
+  // Raw (true) series - tooltips always show these, in BOTH modes.
   const impRaw = keys.map(k=>buckets[k].imp);
   const clkRaw = keys.map(k=>buckets[k].clk);
   const ctrRaw = keys.map(k=>buckets[k].imp ? buckets[k].clk/buckets[k].imp*100 : 0); // ratio of sums
@@ -1477,13 +1485,13 @@ function renderPMMarketTable(rows) {
 }
 
 //==============================================================================
-// CONTENT ENGAGEMENT — Trade Desk Universal Pixel.
+// CONTENT ENGAGEMENT - Trade Desk Universal Pixel.
 // Reads the LIVE DATA.pixel block (raw_snowflake.tradedesk_apac_conversion -> pixel_*
 // views), keyed by campaign. DRIVEN BY the DNB/KGA(IDC) campaign toggle (the same
-// toggle as the Paid Media tab — renderPixelAll runs inside renderPaidAll, which
+// toggle as the Paid Media tab - renderPixelAll runs inside renderPaidAll, which
 // re-runs on a campaign change) but INDEPENDENT of the region/date filters. Hidden
 // only if the feed carries no pixel block, or the selected campaign has no impressions.
-// Under KGA(IDC) the content list is legitimately sparse (~122 LP views) — rendered
+// Under KGA(IDC) the content list is legitimately sparse (~122 LP views) - rendered
 // honestly, not hidden.
 //==============================================================================
 function pxFmtDay(s){ const d = new Date(String(s)+'T00:00:00'); return isNaN(d) ? String(s) : d.toLocaleDateString('en-US',{day:'numeric',month:'short'}); }
@@ -1502,8 +1510,8 @@ function renderPixelAll(){
   el('px_content').textContent     = fmtN(s.content_total);
   el('px_content_sub').textContent = `${fmtN(s.content_click)} clicked · ${fmtN(s.content_view)} view-through`;
   const top = assets.slice().sort((x,y)=>y.total-x.total)[0];
-  el('px_top').textContent     = top ? top.asset : '—';
-  el('px_top_sub').textContent = top ? `${fmtN(top.total)} views · ${s.content_total ? Math.round(top.total/s.content_total*100) : 0}% of content` : '—';
+  el('px_top').textContent     = top ? top.asset : '-';
+  el('px_top_sub').textContent = top ? `${fmtN(top.total)} views · ${s.content_total ? Math.round(top.total/s.content_total*100) : 0}% of content` : '-';
   el('px_imp').textContent     = fmtN_M(s.imps);
   el('px_imp_sub').textContent = `${fmt$(s.cost_usd)} spend · ${fmtN(s.clicks)} clicks`;
   el('px_visits').textContent     = fmtN_M(s.default_total);
@@ -1636,30 +1644,30 @@ function renderCSAll() {
 }
 
 function renderCSSnap(p) {
-  el('cs_target').textContent  = p.hasTarget ? fmtN(p.target) : '—';
+  el('cs_target').textContent  = p.hasTarget ? fmtN(p.target) : '-';
   el('cs_total').textContent   = fmtN(p.leads);
-  el('cs_cpl').textContent     = p.cpl == null ? '—' : fmt$(p.cpl);
-  el('cs_cpl_cnt').textContent = p.cpl == null ? '—' : 'weighted avg · ' + fmt$(p.cost) + ' spend';
-  el('cs_current').textContent = p.vsTtd == null ? '—' : fmtPct(p.vsTtd,0);
-  el('cs_overall').textContent = p.hasTarget ? fmtPct(p.leadsPct,1) : '—';
+  el('cs_cpl').textContent     = p.cpl == null ? '-' : fmt$(p.cpl);
+  el('cs_cpl_cnt').textContent = p.cpl == null ? '-' : 'weighted avg · ' + fmt$(p.cost) + ' spend';
+  el('cs_current').textContent = p.vsTtd == null ? '-' : fmtPct(p.vsTtd,0);
+  el('cs_overall').textContent = p.hasTarget ? fmtPct(p.leadsPct,1) : '-';
 
   const remaining = Math.max(0, p.target - p.leads);
   const daysLeft  = Math.max(0, p.totalDays - p.elapsed);
-  el('cs_remaining').textContent     = p.hasTarget ? fmtN(remaining) : '—';
-  el('cs_remaining_cnt').textContent = p.hasTarget ? fmtPct(p.leadsPct,0) + ' delivered' : '—';
+  el('cs_remaining').textContent     = p.hasTarget ? fmtN(remaining) : '-';
+  el('cs_remaining_cnt').textContent = p.hasTarget ? fmtPct(p.leadsPct,0) + ' delivered' : '-';
   el('cs_daysleft').textContent      = fmtN(daysLeft);
   el('cs_daysleft_cnt').textContent  = 'of ' + p.totalDays + ' days';
 
-  // Delivery — Trade Desk impressions / clicks / CTR for the active campaign and selected
+  // Delivery - Trade Desk impressions / clicks / CTR for the active campaign and selected
   // region(s) (same campaign + region scope as the leads above; no date filter on this tab).
   let imp = 0, clk = 0;
   for (const r of (DATA.rows||[])){
     if (campaignOf(r.programme) !== activeCampaign || !marketOk(r.market)) continue;
     imp += r.imps || 0; clk += r.clicks || 0;
   }
-  el('cs_imp').textContent = imp ? fmtN_M(imp) : '—';
-  el('cs_clk').textContent = clk ? fmtN(clk)   : '—';
-  el('cs_ctr').textContent = imp ? fmtPct(clk/imp,2) : '—';
+  el('cs_imp').textContent = imp ? fmtN_M(imp) : '-';
+  el('cs_clk').textContent = clk ? fmtN(clk)   : '-';
+  el('cs_ctr').textContent = imp ? fmtPct(clk/imp,2) : '-';
 }
 
 function renderCSCpl(){
@@ -1682,10 +1690,10 @@ function renderCSLeadsTarget(p) {
   const maxV = Math.max(p.target, p.ttd, p.leads, 1);
   const w = v => (v/maxV*100).toFixed(1);
   el('csLeadsTarget').innerHTML = `
-    <div class="progress-row"><div>Total target</div><div class="pbar gray"><div class="fill" style="width:${w(p.target)}%"></div></div><div style="text-align:right">${p.hasTarget?fmtN(p.target):'—'}</div></div>
+    <div class="progress-row"><div>Total target</div><div class="pbar gray"><div class="fill" style="width:${w(p.target)}%"></div></div><div style="text-align:right">${p.hasTarget?fmtN(p.target):'-'}</div></div>
     <div class="progress-row"><div>TTD target</div><div class="pbar gray"><div class="fill" style="width:${w(p.ttd)}%"></div></div><div style="text-align:right">${fmtN(p.ttd)}</div></div>
     <div class="progress-row"><div>Delivered</div><div class="pbar"><div class="fill" style="width:${w(p.leads)}%"></div></div><div style="text-align:right">${fmtN(p.leads)}</div></div>
-    <div class="prog-note">Delivered is <b>${p.hasTarget?fmtPct(p.leadsPct,1):'—'}</b> of total target, <b>${p.vsTtd==null?'—':fmtPct(p.vsTtd,1)}</b> of the time-to-date target.</div>`;
+    <div class="prog-note">Delivered is <b>${p.hasTarget?fmtPct(p.leadsPct,1):'-'}</b> of total target, <b>${p.vsTtd==null?'-':fmtPct(p.vsTtd,1)}</b> of the time-to-date target.</div>`;
 }
 
 function renderCSProgress(p) {
@@ -1728,7 +1736,7 @@ function renderCSProgramme() {
   const pal = ['#023430','#00684A','#3FA037','#00ED64','#C3E7CA','#0E6B57','#7FD1A8'];
 
   // A doughnut of a single programme (e.g. KGA / IDC, which has only one) is just
-  // one solid ring — not useful. In that case fall back to a share-of-leads-by-
+  // one solid ring - not useful. In that case fall back to a share-of-leads-by-
   // market view, which is the meaningful split for a single-programme campaign.
   let labels, data;
   if (progPairs.length <= 1) {
@@ -1764,9 +1772,9 @@ function renderCSRegionGrid() {
       <div style="border:1px solid var(--mdb-line);border-radius:10px;padding:14px 16px;background:var(--surface-2)">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
           <div style="font-weight:700;font-size:14px">${m}</div>
-          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${p.ttd ? pace.toFixed(0)+'% pace' : '—'}</div>
+          <div style="font-size:11.5px;color:${paceColor};font-weight:600">${p.ttd ? pace.toFixed(0)+'% pace' : '-'}</div>
         </div>
-        <div class="reg-row"><div class="reg-lbl">Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wT}%"></div></div><div class="reg-num">${p.hasTarget?fmtN(p.target):'—'}</div></div>
+        <div class="reg-row"><div class="reg-lbl">Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wT}%"></div></div><div class="reg-num">${p.hasTarget?fmtN(p.target):'-'}</div></div>
         <div class="reg-row"><div class="reg-lbl">TTD target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(p.ttd)}</div></div>
         <div class="reg-row"><div class="reg-lbl">Delivered</div><div class="reg-bar"><div class="reg-fill green" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(p.leads)}</div></div>
       </div>`);
@@ -1780,7 +1788,7 @@ function renderCSTable() {
   for (const r of rows){
     const cpl  = progCPL(r.programme);
     const cost = cpl == null ? null : (r.total||0) * cpl;
-    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${progLabel(r.programme)}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${fmt$(cpl)}</td><td class="num">${fmt$(cost)}</td><td class="num">${r.last_lead_day||'—'}</td></tr>`);
+    tbody.insertAdjacentHTML('beforeend', `<tr><td><b>${progLabel(r.programme)}</b></td><td>${r.market}</td><td class="num">${fmtN(r.total)}</td><td class="num">${fmt$(cpl)}</td><td class="num">${fmt$(cost)}</td><td class="num">${r.last_lead_day||'-'}</td></tr>`);
   }
   if (!rows.length) tbody.innerHTML = `<tr><td colspan="6" style="color:var(--mdb-mute)">No content-syndication leads for the selected filters.</td></tr>`;
 }
@@ -1821,14 +1829,14 @@ function renderComparePanel(side) {
   const p = csPacing(mPred);
   el('empty'+side).style.display = 'none';
   el('content'+side).style.display = 'block';
-  el(side+'_target').textContent = p.hasTarget ? fmtN(p.target) : '—';
+  el(side+'_target').textContent = p.hasTarget ? fmtN(p.target) : '-';
   el(side+'_total').textContent  = fmtN(p.leads);
   const remaining = Math.max(0, p.target - p.leads);
   const daysLeft  = Math.max(0, p.totalDays - p.elapsed);
   const needPace  = daysLeft > 0 ? remaining / daysLeft : remaining;
-  el(side+'_remaining').textContent = p.hasTarget ? fmtN(remaining) : '—';
+  el(side+'_remaining').textContent = p.hasTarget ? fmtN(remaining) : '-';
   el(side+'_daysleft').textContent  = fmtN(daysLeft);
-  el(side+'_needpace').textContent  = (p.hasTarget && daysLeft > 0) ? Math.ceil(needPace) + '/day' : '—';
+  el(side+'_needpace').textContent  = (p.hasTarget && daysLeft > 0) ? Math.ceil(needPace) + '/day' : '-';
 
   destroy(side+'_targets');
   charts[side+'_targets'] = new Chart(el(side+'_targets'), {
@@ -1882,7 +1890,7 @@ function chartBase(opts={}) {
 }
 
 //==============================================================================
-// DATA EXPORT  (client-side CSV — lets the client tie the on-screen figures
+// DATA EXPORT  (client-side CSV - lets the client tie the on-screen figures
 // back to the underlying source rows and verify them in Excel / Sheets.)
 //==============================================================================
 const campLabel = p => (CAMP[campaignOf(p)] ? CAMP[campaignOf(p)].label : campaignOf(p));
@@ -2052,7 +2060,7 @@ function buildReportPayload(){
     accepted:r.accepted||0, rejected:r.rejected||0, new:r.new||0,
     cpl:r2(progCPL(r.programme)), last_lead_day:r.last_lead_day||null }));
   const mAgg = {};
-  for (const r of csRows){ const m = r.market || '—'; (mAgg[m] = mAgg[m] || {leads:0,accepted:0,rejected:0,new:0});
+  for (const r of csRows){ const m = r.market || '-'; (mAgg[m] = mAgg[m] || {leads:0,accepted:0,rejected:0,new:0});
     mAgg[m].leads += r.total||0; mAgg[m].accepted += r.accepted||0; mAgg[m].rejected += r.rejected||0; mAgg[m].new += r.new||0; }
   const by_market = Object.entries(mAgg).sort((a,b)=>b[1].leads-a[1].leads).map(([market,v]) => ({market, ...v}));
   const isoD = d => (d && !isNaN(d)) ? d.toISOString().slice(0,10) : null;
@@ -2068,7 +2076,7 @@ function buildReportPayload(){
       data_through: DATA.data_through || null, last_updated: DATA.last_updated || null,
       generated_at: new Date().toISOString()
       // NOTE: the margin gross-up is applied to the numbers below (spend/CPM/CPC), but its
-      // existence is deliberately NOT surfaced here — the deck is a client deliverable and
+      // existence is deliberately NOT surfaced here - the deck is a client deliverable and
       // must not reveal the multiplier. It just shows the grossed (spent-in-full) figures.
     },
     paid:{
@@ -2091,11 +2099,11 @@ function buildReportPayload(){
 }
 
 // The slide deck always reports the FULL FLIGHT (campaign start → latest data), regardless of any
-// on-screen date sub-range — only the paid rows honor dateStartSel/End (via dateOk; CS pacing already
-// spans the whole window). So null the date globals, build, and restore — a synchronous round-trip that
+// on-screen date sub-range - only the paid rows honor dateStartSel/End (via dateOk; CS pacing already
+// spans the whole window). So null the date globals, build, and restore - a synchronous round-trip that
 // never disturbs the live view. A stable full-flight payload also means the /report cache key (which
 // includes date_filter + data_through) is steady, so the AI deck regenerates at most once per campaign/
-// region per day — the "runs once a day" behaviour.
+// region per day - the "runs once a day" behaviour.
 function buildDeckPayload(){
   const _s = dateStartSel, _e = dateEndSel;
   dateStartSel = null; dateEndSel = null;

@@ -15,7 +15,7 @@
     --li-blue:#2867B2;
     --good-green:#1E8E3E; --bad-red:#C8362A;
     /* Bidbrain house-style glow, tuned for STT's LIGHT theme: a soft STT-RED bloom + warm card
-       shadows (not a dark-mode blue glow). Colours are UNCHANGED — this only ADDS the glow, using
+       shadows (not a dark-mode blue glow). Colours are UNCHANGED - this only ADDS the glow, using
        the brand red so it harmonises with the light red/teal palette. --shadow-card now carries it,
        so every card that already uses it glows with no per-card change. */
     --glow:rgba(214,40,40,.20);
@@ -75,7 +75,7 @@
   .chip-action{background:none;border:1px dashed var(--stt-line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--stt-mute)}
   .chip-action:hover{color:var(--stt-ink);border-color:var(--stt-mute)}
 
-  /* ---- campaign filter (searchable multi-select dropdown — too many campaigns for chips) ---- */
+  /* ---- campaign filter (searchable multi-select dropdown - too many campaigns for chips) ---- */
   .donut-ctrls{display:flex;gap:8px;align-items:center;margin:0 0 8px;flex-wrap:wrap}
   .campaign-dd{position:relative;display:inline-block}
   .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--stt-line);border-radius:999px;
@@ -180,7 +180,7 @@
   .card-tall .chart-wrap{height:300px}
   .card-med{min-height:262px}
   .chart-wrap{position:relative;flex:1;min-height:170px}
-  /* Let charts glow through — a soft blurred STT-red bloom behind the plot area, decoration only. */
+  /* Let charts glow through - a soft blurred STT-red bloom behind the plot area, decoration only. */
   .chart-wrap::before{content:"";position:absolute;inset:6% 8%;z-index:0;pointer-events:none;
        background:radial-gradient(58% 62% at 50% 46%,var(--glow),transparent 72%);filter:blur(12px);opacity:.42}
   .chart-wrap>canvas{position:relative;z-index:1}
@@ -197,7 +197,7 @@
 
   /* ---- KPIs (house dot pattern: each card carries a STANDARD metric-colour dot via inline --kc,
      matched to that metric's chart-series colour. Clickable cards toggle their series on the hero
-     chart and dim when off. Light theme + colours unchanged — the stripe became a colour dot). ---- */
+     chart and dim when off. Light theme + colours unchanged - the stripe became a colour dot). ---- */
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
   .kpis.five{grid-template-columns:repeat(5,1fr)}
   .kpi{background:linear-gradient(155deg,color-mix(in srgb,var(--kc,var(--stt-red)) 8%,transparent),transparent 56%),var(--stt-card);
@@ -206,7 +206,7 @@
   .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;margin-top:2px;background:var(--kc,var(--stt-red));box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--stt-red)) 20%,transparent)}
   .kpi .value{font-size:22px;font-weight:800;letter-spacing:-.5px;margin-top:8px;color:var(--stt-dark)}
   .kpi .sub{font-size:11px;margin-top:4px;color:var(--stt-mute);line-height:1.35}
-  /* clickable KPI cards — toggle that metric's series on the hero chart (like a legend). A tiny dot
+  /* clickable KPI cards - toggle that metric's series on the hero chart (like a legend). A tiny dot
      on the right hints the toggle; the card dims + desaturates when its series is hidden. */
   .kpi.clk{cursor:pointer;user-select:none;transition:filter .15s,transform .06s,border-color .15s,opacity .15s}
   .kpi.clk:hover{border-color:color-mix(in srgb,var(--kc,var(--stt-red)) 55%,transparent)}
@@ -702,7 +702,7 @@ const BUCKET_COLOR = { Paid:C.red, Organic:C.teal, Direct:C.slate, Referral:C.te
 let DATA = null, charts = {}, activeTab = 'overview';
 let activeCountries = new Set();   // GA4 account_name -> "Country" filter (APAC markets only)
 let activePlatforms = new Set();   // ad-platform filter (all on by default)
-let activeCampaigns = new Set();   // ad-campaign filter (all on by default) — scopes AD DELIVERY only;
+let activeCampaigns = new Set();   // ad-campaign filter (all on by default) - scopes AD DELIVERY only;
                                    // the GA4/website side has no campaign dimension so it stays whole.
 let campaignMenuOpen = false;
 const donutOff = {};               // donut key -> Set(excluded item ids) for the per-donut filters (empty = all selected)
@@ -711,7 +711,7 @@ const el = id => document.getElementById(id);
 
 // ---- Per-chart grain (month/week/day) + scale (rel/abs) toggles. DEFAULT scale =
 // 'rel' (Relative). Each genuine time-series chart keeps its own pre-existing default
-// grain — linkWeekly stays 'week', the rest stay 'month'. The toggle handlers update
+// grain - linkWeekly stays 'week', the rest stay 'month'. The toggle handlers update
 // these then re-render the active tab (STT destroys + rebuilds all charts per tab).
 const grain = { ovHero:'month', ovStack:'month', pmMonthly:'month', webTrend:'month', webKeyEvents:'month', linkWeekly:'week' };
 const scale = { ovHero:'rel',   ovStack:'rel',   pmMonthly:'rel',   webTrend:'rel',   webKeyEvents:'rel',   linkWeekly:'rel' };
@@ -745,7 +745,7 @@ window.DateRange = (function(){
   const addDays = (d,n) => { const x=new Date(d); x.setDate(x.getDate()+n); return x; };
   const clamp = d => d<MIN ? new Date(MIN) : (d>MAX ? new Date(MAX) : new Date(d));
   const sameDay = (a,b) => !!a && !!b && a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
-  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const fmt = d => d ? d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '-';
   const $ = id => document.getElementById(id);
 
   function presetRange(k){
@@ -868,27 +868,87 @@ const PLATFORMS = [
   {key:'linkedin', label:'LinkedIn',   color:'#2867B2', imps:'li_imps', clk:'li_clicks', spend:k=>(k.li_cost_usd||0), ga4:'social_sessions', chan:'Paid Social'},
 ];
 
-const fmtN   = v => v==null||isNaN(v) ? '—' : Math.round(v).toLocaleString('en-US');
-const fmtM   = v => v==null||isNaN(v) ? '—' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
-const fmtPct = (v,d=2) => v==null||isNaN(v) ? '—' : (v*100).toFixed(d)+'%';
-const money  = (v,sym='S$',d=0) => v==null||isNaN(v) ? '—' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
-function dur(sec){ if(sec==null||isNaN(sec)) return '—'; const m=Math.floor(sec/60), s=Math.round(sec%60); return m? `${m}m ${s}s` : `${s}s`; }
+const fmtN   = v => v==null||isNaN(v) ? '-' : Math.round(v).toLocaleString('en-US');
+const fmtM   = v => v==null||isNaN(v) ? '-' : (Math.abs(v)>=1e6 ? (v/1e6).toFixed(2)+'M' : Math.abs(v)>=1e3 ? (v/1e3).toFixed(1)+'K' : ''+Math.round(v));
+const fmtPct = (v,d=2) => v==null||isNaN(v) ? '-' : (v*100).toFixed(d)+'%';
+const money  = (v,sym='S$',d=0) => v==null||isNaN(v) ? '-' : sym+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+function dur(sec){ if(sec==null||isNaN(sec)) return '-'; const m=Math.floor(sec/60), s=Math.round(sec%60); return m? `${m}m ${s}s` : `${s}s`; }
 function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
 function dayLabel(d){ const dt=new Date(d); return dt.toLocaleDateString('en-US',{month:'short',day:'numeric'}); }
 // Period label for a grain'd value: 'month' -> "Jun 25", 'week'/'day' -> "Jun 9".
 const periodLabel = (k,key) => key==='month' ? monthLabel(k) : dayLabel(k);
 // Sorted period keys for a grain, drawn from the blended monthly/weekly/daily view
 // (each carries the union of GA4 + ad dates), honoring the date picker. Returns the
-// raw period strings ('YYYY-MM' | 'YYYY-MM-DD') — the trend charts label them via
+// raw period strings ('YYYY-MM' | 'YYYY-MM-DD') - the trend charts label them via
 // periodLabel and look every series up by the same key.
 function gPeriods(grainKey){
   if(grainKey==='week') return (DATA.weekly||[]).filter(r=>inRangeWeek(r.week_start)).map(r=>r.week_start);
   if(grainKey==='day')  return (DATA.daily||[]).filter(r=>inRangeDay(r.day)).map(r=>r.day);
   return (DATA.monthly||[]).filter(r=>inRangeMonth(r.month)).map(r=>r.month);
 }
-// Index each series to its own peak=100 (Relative scale) — un-indexed via *peak/100 in tooltips.
+// Index each series to its own peak=100 (Relative scale) - un-indexed via *peak/100 in tooltips.
 function indexToPeak(arr){ const mx=Math.max.apply(null,arr.concat([0])); return mx>0 ? arr.map(v=>v/mx*100) : arr.map(()=>0); }
 function pct(part,whole){ return whole? part/whole : 0; }
+
+//==============================================================================
+// CLIENT-BILLED SPEND MULTIPLIER
+// The platform front-door may inject window.BB_SPEND_MULT = {channelKey: factor}
+// to gross RAW media spend up to what the client was BILLED, per channel. We gross
+// each row's spend ONCE (right after the JSON loads, before any aggregation), so
+// every downstream sum - and the CPM/CPC/CPL derived from summed spend - follows.
+// Counts (imps/clicks/sessions) and ratios (CTR) never change. STT has no
+// revenue/ROAS and no flight/pacing/budget object, so nothing else needs guarding.
+// Idempotent: the raw value is stashed on first pass and re-grossed from it.
+// Unset/empty BB_SPEND_MULT → every factor = 1 → total no-op.
+//==============================================================================
+function bbNum(v){ const x = Number(v); return Number.isFinite(x) ? x : 0; }
+function bbMultFor(channel){ const m = window.BB_SPEND_MULT||{}; const v = Number(m[channel]); return (Number.isFinite(v)&&v>0) ? v : 1; }
+function bbChannelKey(p){ const s = String(p||'').toLowerCase();
+  if(s.includes('google'))   return 'google';
+  if(s.includes('meta')||s.includes('facebook')) return 'meta';
+  if(s.includes('linkedin')) return 'linkedin';
+  if(s.includes('reddit'))   return 'reddit';
+  if(s.includes('trade')||s==='ttd'||s.includes('tradedesk')) return 'ttd';
+  if(s.includes('dv360')||s.includes('display')) return 'dv360';
+  if(s.includes('line'))     return 'line';
+  if(s.includes('dooh'))     return 'youdooh';
+  return ''; }
+function bbApplySpendMult(){
+  const D = DATA||{};
+  // Row-level paid-media records: gross spend_sgd by the row's OWN channel (r.platform
+  // ∈ google/dv360/linkedin). GA4/traffic rows carry no spend and are untouched.
+  ['ad_campaigns','ad_campaign_monthly','ad_campaign_weekly','ad_campaign_daily',
+   'ad_campaign_market','ad_campaign_market_monthly'].forEach(key=>{
+    (D[key]||[]).forEach(r=>{
+      if(r._rawSpend==null) r._rawSpend = bbNum(r.spend_sgd);
+      r.spend_sgd = r._rawSpend * bbMultFor(bbChannelKey(r.platform));
+    });
+  });
+  // LinkedIn-only arrays carry cost_usd (channel = linkedin).
+  const LI = bbMultFor('linkedin');
+  ['li_campaigns','li_campaign_creative','li_creative'].forEach(key=>{
+    (D[key]||[]).forEach(r=>{
+      if(r._rawCost==null) r._rawCost = bbNum(r.cost_usd);
+      r.cost_usd = r._rawCost * LI;
+    });
+  });
+  // Wide period-summary arrays (export-only): gross each per-channel spend column by
+  // its own factor, then recompute the blended ad_spend_sgd from the grossed parts
+  // (mirrors the SQL: dv + li + ga). `weekly` has no per-channel spend split, so its
+  // blended ad_spend_sgd cannot be attributed per channel - left raw by design.
+  const GG = bbMultFor('google'), DV = bbMultFor('dv360');
+  ['monthly','daily'].forEach(key=>{
+    (D[key]||[]).forEach(r=>{
+      if(r._raw_ga_spend_sgd==null) r._raw_ga_spend_sgd = bbNum(r.ga_spend_sgd);
+      if(r._raw_dv_spend_sgd==null) r._raw_dv_spend_sgd = bbNum(r.dv_spend_sgd);
+      if(r._raw_li_cost_usd==null)  r._raw_li_cost_usd  = bbNum(r.li_cost_usd);
+      r.ga_spend_sgd = r._raw_ga_spend_sgd * GG;
+      r.dv_spend_sgd = r._raw_dv_spend_sgd * DV;
+      r.li_cost_usd  = r._raw_li_cost_usd  * LI;
+      r.ad_spend_sgd = r.dv_spend_sgd + r.li_cost_usd + r.ga_spend_sgd;
+    });
+  });
+}
 
 function deltaHTML(now, base){
   if(!base) return '';
@@ -898,7 +958,7 @@ function deltaHTML(now, base){
 }
 
 //==============================================================================
-// COUNTRY FILTER — aggregate the market-grained GA4 arrays over selected countries
+// COUNTRY FILTER - aggregate the market-grained GA4 arrays over selected countries
 //==============================================================================
 // APAC markets only. The dashboard is APAC-scoped, so non-APAC entities are
 // filtered out everywhere they would otherwise render: the "Global" GA4 property,
@@ -916,16 +976,16 @@ const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
 const PLAT_COLOR = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.color]));
 
 //==============================================================================
-// CAMPAIGN FILTER — aggregate the campaign-grained ad arrays over selected campaigns
+// CAMPAIGN FILTER - aggregate the campaign-grained ad arrays over selected campaigns
 //==============================================================================
 // All ad-delivery figures are summed from these campaign-grained arrays so the
 // Campaign filter rescales every ad number; the GA4/website side has no campaign
 // dimension and is untouched. `applyPlatform` also folds in the Platform filter
 // (Overview + Ads → Traffic); the Paid Media tab passes false so it shows every
-// platform regardless of the Platform chips — just as it always has.
+// platform regardless of the Platform chips - just as it always has.
 const campOn = name => activeCampaigns.has(name);
 //==============================================================================
-// CAMPAIGN DISPLAY NAMES — raw platform strings -> stakeholder-friendly labels.
+// CAMPAIGN DISPLAY NAMES - raw platform strings -> stakeholder-friendly labels.
 // The raw string stays the filter KEY everywhere (campOn / activeCampaigns); this
 // map only changes what we SHOW. Unmapped campaigns fall back to a de-underscored
 // version of the raw name, so new campaigns never render blank.
@@ -1017,7 +1077,7 @@ function campLabel(raw){ return CAMPAIGN_LABELS[raw] || (raw||'').replace(/_/g,'
 
 function rowOk(r, applyPlatform){ return campOn(r.campaign) && (!applyPlatform || platOk(r.platform)); }
 
-// Per-platform totals {imps,clk,spend} over the selected campaigns — DATE-FILTERED via the daily
+// Per-platform totals {imps,clk,spend} over the selected campaigns - DATE-FILTERED via the daily
 // feed. (Was the whole-flight `ad_campaigns` snapshot, which ignored the date picker.) adDailyMap
 // already applies the campaign/platform filters + inRangeDay, and at "All time" its sums reconcile
 // EXACTLY to the old snapshot totals, so the KPI cards are unchanged at full range and narrow
@@ -1038,7 +1098,7 @@ function adTotals(applyPlatform){
 }
 const adKpi = () => adTotals(true);   // Overview / Ads → Traffic: campaign + platform scoped
 // Per-platform spend scoped to Campaign + Platform AND the Country filter + date
-// picker — for the Overview "Media spend by platform" donut. Reads the market×month
+// picker - for the Overview "Media spend by platform" donut. Reads the market×month
 // feed. LinkedIn carries no market (r.market==null), so it contributes only when the
 // Country filter is at "All" (not narrowed); selecting any country drops it, since no
 // per-country LinkedIn spend exists to attribute. Returns {google,dv360,linkedin}.
@@ -1098,7 +1158,7 @@ function adGrainMap(grainKey, applyPlatform){
        : grainKey==='day'  ? adDailyMap(applyPlatform)
        :                     adMonthlyMap(applyPlatform);
 }
-// One platform's by-market delivery over selected campaigns (Paid Media — campaign only).
+// One platform's by-market delivery over selected campaigns (Paid Media - campaign only).
 function adMarketArr(platformKey){
   const m = {};
   for(const r of (DATA.ad_campaign_market||[])){
@@ -1137,7 +1197,7 @@ function adWindow(platformKey){
 }
 
 // Campaign-driven GA4 sessions = sum of each selected platform's mapped channel (display/social/search).
-// GA4 has no campaign grain, so this is scoped by Platform + Country only — never by Campaign.
+// GA4 has no campaign grain, so this is scoped by Platform + Country only - never by Campaign.
 function campFrom(gobj){ let s=0; for(const p of selPlatforms()) s+=gobj[p.ga4]||0; return s; }
 
 // GA4 totals over the selected countries, DATE-FILTERED to the picker. The ADDITIVE metrics
@@ -1145,7 +1205,7 @@ function campFrom(gobj){ let s=0; for(const p of selPlatforms()) s+=gobj[p.ga4]|
 // which honors inRangeDay and reconciles EXACTLY to the whole-window snapshot at "All time". The
 // remaining fields are NOT summable across days (distinct `users`/`new_users`) or only exist for the
 // whole window (`prior_*` year-ago totals, `page_views`, `eng_duration`): they come from the snapshot
-// when no range is applied, and are `null` when a range IS applied so the UI shows "—" instead of a
+// when no range is applied, and are `null` when a range IS applied so the UI shows "-" instead of a
 // wrong number. (Making these date-correct would need new fields in the daily GA4 view + job.)
 function ga4Kpi(){
   const add = {sessions:0,paid_sessions:0,engaged_sessions:0,conversions:0,
@@ -1191,7 +1251,7 @@ function ga4DailyMap(){
 // Grain dispatcher returning a period -> GA4-fields map with a CONSISTENT `sessions`
 // key across all grains (the weekly view emits `ga4_sessions`, so normalize it). The
 // trend charts read `.sessions/.paid_sessions/.display_sessions`; organic/direct/other
-// exist on month+day (used by ovStack, which is only offered month/week/day — its week
+// exist on month+day (used by ovStack, which is only offered month/week/day - its week
 // branch falls back to 0 for the splits the weekly view doesn't carry, see ovStackSeries).
 function ga4GrainMap(grainKey){
   if(grainKey==='week'){
@@ -1201,7 +1261,7 @@ function ga4GrainMap(grainKey){
   }
   return grainKey==='day' ? ga4DailyMap() : ga4MonthlyMap();
 }
-// Session composition (Paid/Organic/Direct/Other) by period for ovStack — country
+// Session composition (Paid/Organic/Direct/Other) by period for ovStack - country
 // filtered. Month reads ga4_monthly_market; day reads ga4_daily_market; week re-buckets
 // the daily rows onto their Monday ISO week (the weekly view lacks the full split).
 // -> {periods:[sorted], paid:[], organic:[], direct:[], other:[]}.
@@ -1246,19 +1306,19 @@ function ga4Sources(){
   }
   return Object.values(m).sort((a,b)=>b.sessions-a.sessions).slice(0,15);
 }
-// Key events by type, by month — summed over the selected countries.
+// Key events by type, by month - summed over the selected countries.
 // -> {byMonth:{month:{event_name:count}}, types:[event_name] sorted by total desc}.
 function ga4KeyEvents(){
   const byMonth = {}, totals = {};
   for(const r of DATA.ga4_key_events_market||[]){ if(!countryOk(r.market)) continue; if(!inRangeMonth(r.month)) continue;
-    if(r.event_name==='generate_lead') continue;   // negligible (~80) — hidden from the charts at the client's request; still in the data + CSV export
+    if(r.event_name==='generate_lead') continue;   // negligible (~80) - hidden from the charts at the client's request; still in the data + CSV export
     (byMonth[r.month] || (byMonth[r.month] = {}));
     byMonth[r.month][r.event_name] = (byMonth[r.month][r.event_name]||0) + (r.key_events||0);
     totals[r.event_name] = (totals[r.event_name]||0) + (r.key_events||0);
   }
   return { byMonth, types: Object.keys(totals).sort((a,b)=>totals[b]-totals[a]) };
 }
-// Key events by type, by PERIOD (month/week/day) — country-filtered. Month reads the
+// Key events by type, by PERIOD (month/week/day) - country-filtered. Month reads the
 // monthly view; day reads ga4_key_events_daily_market; week re-buckets the daily rows
 // onto their Monday-anchored ISO week (the feed has no key-event weekly view). Returns
 // {byPeriod:{period:{event_name:count}}, types:[event_name] sorted by total desc}.
@@ -1267,7 +1327,7 @@ function ga4KeyEventsGrain(grainKey){
   const byPeriod = {}, totals = {};
   for(const r of (DATA.ga4_key_events_daily_market||[])){ if(!countryOk(r.market)) continue;
     if(grainKey==='day' ? !inRangeDay(r.day) : !inRangeWeek(weekStart(r.day))) continue;
-    if(r.event_name==='generate_lead') continue;   // negligible (~80) — hidden at the client's request
+    if(r.event_name==='generate_lead') continue;   // negligible (~80) - hidden at the client's request
     const k = grainKey==='day' ? r.day : weekStart(r.day);
     (byPeriod[k] || (byPeriod[k] = {}));
     byPeriod[k][r.event_name] = (byPeriod[k][r.event_name]||0) + (r.key_events||0);
@@ -1285,7 +1345,7 @@ function weekStart(ymdStr){
   return `${y}-${m}-${d}`;
 }
 
-// Successful "Contact us" form submits by month (country-filtered) — drives the AI commentary callout.
+// Successful "Contact us" form submits by month (country-filtered) - drives the AI commentary callout.
 // -> {months:[...sorted], vals:[count per month]}.
 function contactSeries(){
   const byMonth = {};
@@ -1306,6 +1366,7 @@ async function boot(){
     const res = await fetch(JSON_URL, {cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA = await res.json();
+    bbApplySpendMult();   // gross RAW spend → client-billed, per channel, BEFORE any aggregation
     // Country filter defaults to the 9 APAC markets (non-APAC properties excluded).
     activeCountries = new Set((DATA.countries||[]).filter(isApac));
     // Platform filter defaults to all platforms on.
@@ -1336,7 +1397,7 @@ async function boot(){
 
 function renderMeta(){
   const w = DATA.window||{};
-  const fmt = d => d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '—';
+  const fmt = d => d? new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}) : '-';
   el('topPeriod').textContent = `${fmt(w.start)} – ${fmt(w.end)}`;
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   el('footMeta').innerHTML = `STT GDC APAC dashboard · data from BigQuery (GA4 · LinkedIn · DV360) · `
@@ -1361,7 +1422,7 @@ function renderControls(){
   const showPlatform = activeTab === 'overview' || activeTab === 'link';
   const showCampaign = activeTab !== 'web';
   // The Date range group filters both the GA4/website and ad-delivery sides, so it shows on EVERY
-  // tab — which also means the filter row never collapses.
+  // tab - which also means the filter row never collapses.
   el('filterRow').style.display     = 'flex';
   el('dateGroup').style.display     = 'flex';
   el('countryGroup').style.display  = showCountry ? 'flex' : 'none';
@@ -1499,7 +1560,7 @@ function renderCampaignList(){
 function toggleCampaign(input, encName){
   const name = decodeURIComponent(encName);
   input.checked ? activeCampaigns.add(name) : activeCampaigns.delete(name);
-  renderCampaignButton(); renderActive();   // list checkbox already reflects state — no full re-render
+  renderCampaignButton(); renderActive();   // list checkbox already reflects state - no full re-render
 }
 function toggleCampaignGroup(platformKey, select){
   (DATA.ad_campaigns||[]).forEach(c => {
@@ -1611,7 +1672,7 @@ function renderDonutList(key){
 function toggleDonutItem(key, enc){
   const id=decodeURIComponent(enc), off=_off(key);
   off.has(id) ? off.delete(id) : off.add(id);
-  renderDonut(key, false);   // the clicked checkbox already reflects its state — don't rebuild the list (keeps scroll)
+  renderDonut(key, false);   // the clicked checkbox already reflects its state - don't rebuild the list (keeps scroll)
 }
 function toggleAllDonut(key, input){ input.checked ? selectAllDonut(key) : clearDonut(key); }
 function selectAllDonut(key){ _off(key).clear(); renderDonut(key, true); }
@@ -1658,7 +1719,7 @@ function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color
 function legendTop(){ return {position:'top',align:'end',
   title:{display:true,text:'Click a label to show or hide it',color:C.mute,font:{size:11,weight:'normal',...FONT},padding:{bottom:6}},
   labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
-// Standard metric colours — one colour per metric, reused as the KPI dot AND (where a matching hero
+// Standard metric colours - one colour per metric, reused as the KPI dot AND (where a matching hero
 // series exists) that series' colour, so a metric reads the same everywhere. Drawn from STT's own
 // palette (no new brand colours introduced).
 const MC = {
@@ -1666,8 +1727,8 @@ const MC = {
   sessions:'#0E7C86', engaged:'#5FB0B6', users:'#2867B2', pageviews:'#5A5A5A',
   avgeng:'#B97400', addriven:'#D62828', keyevents:'#7C3AED'
 };
-// KPI card — house dot pattern. `color` sets the standard metric-colour dot (--kc). Pass `series`
-// (a hero-chart group key) to make the card CLICKABLE — clicking toggles that series on ovHero.
+// KPI card - house dot pattern. `color` sets the standard metric-colour dot (--kc). Pass `series`
+// (a hero-chart group key) to make the card CLICKABLE - clicking toggles that series on ovHero.
 function kpiCard(color,label,value,sub,series){
   const clk = series ? ' clk' : '';
   const attr = series ? ` data-series="${series}" tabindex="0" role="button" aria-pressed="false"` : '';
@@ -1713,7 +1774,7 @@ function renderOverview(){
   const ctr = pct(a.clk, a.imps);
   const adShare = pct(g.paid_sessions, g.sessions);
   const spendSub = selPlatforms().map(p=>`${money(P[p.key].spend)} ${p.label}`).join(' · ') || 'no platform selected';
-  const impSub   = selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ') || '—';
+  const impSub   = selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ') || '-';
   el('ovKpis').innerHTML =
     kpiCard(MC.spend,'Media spend (SGD)', money(a.spend), spendSub, 'spend')
   + kpiCard(MC.imps,'Ad impressions', fmtM(a.imps), impSub)
@@ -1742,7 +1803,7 @@ function renderOverview(){
     backgroundColor:p.color, borderRadius:3, maxBarThickness:26, order:2
   }));
   const ke = ga4KeyEventsGrain(hGrain);
-  const kePal = ['#7C3AED','#DB2777','#15803D','#B97400','#0891B2'];   // distinct hue per key-event type (violet / magenta / green / amber / cyan) — NOT a single purple ramp; all clear of the teal sessions line + red/amber/blue spend bars
+  const kePal = ['#7C3AED','#DB2777','#15803D','#B97400','#0891B2'];   // distinct hue per key-event type (violet / magenta / green / amber / cyan) - NOT a single purple ramp; all clear of the teal sessions line + red/amber/blue spend bars
   // True (un-indexed) overlay values, so Relative re-scales them + tooltips un-index.
   const sessRaw = hPer.map(k=>(hgm[k]||{}).sessions||0);
   const sessPeak = Math.max.apply(null, sessRaw.concat([0]));
@@ -1779,7 +1840,7 @@ function renderOverview(){
   });
   wireOvKpis();   // link the clickable Media spend / Website sessions / Key events cards to ovHero
 
-  // Donut "Where website traffic came from" — channel filter (slice-click + dropdown + Reset). See renderDonut.
+  // Donut "Where website traffic came from" - channel filter (slice-click + dropdown + Reset). See renderDonut.
   renderDonut('ovDonut', true);
 
   // Stacked sessions paid vs rest (country-filtered). Pure composition bars, NO overlay
@@ -1808,9 +1869,9 @@ function renderOverview(){
       scales:{ x:axisX({stacked:true}), y:gridY({stacked:true, max: sRel?100:undefined, ticks:{color:C.mute,font:{size:11},callback:v=> sRel ? v.toFixed(0)+'%' : fmtM(v)}}) } }
   });
 
-  // Spend donut by platform — scoped to Platform + Campaign + Country + date range.
+  // Spend donut by platform - scoped to Platform + Campaign + Country + date range.
   // Only platforms with spend in scope appear (so LinkedIn drops out once a country
-  // is selected — it has no market grain). Its own total drives the centre/tooltips.
+  // is selected - it has no market grain). Its own total drives the centre/tooltips.
   renderDonut('ovSpend', true);   // platform filter (slice-click + dropdown + Reset); honors Country/Platform/Campaign/date
 
   const selN = selCountries().length, totN = (DATA.countries||[]).filter(isApac).length;
@@ -1824,7 +1885,7 @@ function renderOverview(){
     + `"Ad-driven sessions" counts all paid channels (Paid Search, Display, Paid Social, Cross-network); see <b>Ads → Traffic</b> for the spend-matched view.`;
 }
 
-// AI commentary — auto-generated narrative headlining the contact-form trend. Reads the same
+// AI commentary - auto-generated narrative headlining the contact-form trend. Reads the same
 // country-filtered key-event data as the hero, so the numbers track the Country filter live.
 function renderOvCommentary(){
   const box = el('ovCommentary');
@@ -1900,7 +1961,7 @@ const centerText = {
 //==============================================================================
 function renderPaid(){
   // Paid Media shows every platform regardless of the Platform filter, but DOES respect
-  // the Campaign filter — so all ad figures are summed over the selected campaigns only.
+  // the Campaign filter - so all ad figures are summed over the selected campaigns only.
   const P = adByPlatform(false);   // {google,dv360,linkedin} -> {imps,clk,spend}
   const T = adTotals(false);       // blended totals
   const liSgd = P.linkedin.spend;
@@ -1958,7 +2019,7 @@ function renderPaid(){
   + `<tr><td><span class="pill"><span class="dot" style="background:${C.li}"></span>LinkedIn</span></td><td>${win(lw,DATA.li_window)}</td>
       <td class="num">${money(liSgd)}</td><td class="num">${fmtN(P.linkedin.imps)}</td><td class="num">${fmtN(P.linkedin.clk)}</td>
       <td class="num">${fmtPct(liCtr,2)}</td><td class="num">${money(liCpm,'S$',2)}</td><td class="num">${money(liCpc,'S$',2)}</td></tr>`
-  + `<tr class="total"><td>Combined</td><td>—</td><td class="num">${money(T.spend)}</td><td class="num">${fmtN(T.imps)}</td><td class="num">${fmtN(T.clk)}</td>
+  + `<tr class="total"><td>Combined</td><td>-</td><td class="num">${money(T.spend)}</td><td class="num">${fmtN(T.imps)}</td><td class="num">${fmtN(T.clk)}</td>
       <td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,'S$',2)}</td><td class="num">${money(cpc,'S$',2)}</td></tr>`;
 
   // Google Ads by market (selected campaigns)
@@ -1987,7 +2048,7 @@ function renderPaid(){
         y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}} } }
   });
 
-  // LinkedIn creative mix (selected campaigns) — creative-type filter (slice-click + dropdown + Reset).
+  // LinkedIn creative mix (selected campaigns) - creative-type filter (slice-click + dropdown + Reset).
   renderDonut('pmLiCreative', true);
 
   // LinkedIn campaigns table (top 8 of the selected campaigns)
@@ -2009,10 +2070,10 @@ function renderWeb(){
   const avgEng = (g.eng_duration!=null && g.sessions) ? g.eng_duration/g.sessions : null;
   el('webKpis').innerHTML =
     kpiCard(MC.sessions,'Sessions', fmtM(g.sessions), g.prior_sessions!=null ? `${deltaHTML(g.sessions,g.prior_sessions)} vs prior year` : 'in the selected date range')
-  + kpiCard(MC.users,'Total users', g.users!=null?fmtM(g.users):'—', g.new_users!=null ? `${fmtM(g.new_users)} new` : 'full period only')
+  + kpiCard(MC.users,'Total users', g.users!=null?fmtM(g.users):'-', g.new_users!=null ? `${fmtM(g.new_users)} new` : 'full period only')
   + kpiCard(MC.engaged,'Engaged sessions', fmtM(g.engaged_sessions), `${fmtPct(engRate,0)} engagement rate`)
-  + kpiCard(MC.pageviews,'Page views', g.page_views!=null?fmtM(g.page_views):'—', (g.page_views!=null && g.sessions) ? `${(g.page_views/g.sessions).toFixed(1)} per session` : 'full period only')
-  + kpiCard(MC.avgeng,'Avg engagement', avgEng!=null?dur(avgEng):'—', `per session`)
+  + kpiCard(MC.pageviews,'Page views', g.page_views!=null?fmtM(g.page_views):'-', (g.page_views!=null && g.sessions) ? `${(g.page_views/g.sessions).toFixed(1)} per session` : 'full period only')
+  + kpiCard(MC.avgeng,'Avg engagement', avgEng!=null?dur(avgEng):'-', `per session`)
   + kpiCard(MC.keyevents,'Key events', fmtN(g.conversions), `${fmtPct(pct(g.conversions,g.sessions),2)} of sessions · contact / lead-gen / newsletter`)
   + kpiCard(MC.addriven,'Ad-driven sessions', fmtM(g.paid_sessions), `${fmtPct(pct(g.paid_sessions,g.sessions),0)} of sessions`);
 
@@ -2051,7 +2112,7 @@ function renderWeb(){
       scales:{ x:axisX(), y:gridY({min: wtRel?0:undefined, max: wtRel?100:undefined, title: wtRel?{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}}:{display:false}, ticks:{color:C.mute,font:{size:11},callback:v=> wtRel ? v.toFixed(0) : fmtM(v)}}) } }
   });
 
-  // sessions by market (stacked: paid + rest) — only the selected countries
+  // sessions by market (stacked: paid + rest) - only the selected countries
   const mk = ga4MarketsSel();
   charts.webMarkets = new Chart(el('webMarkets'),{
     type:'bar',
@@ -2064,7 +2125,7 @@ function renderWeb(){
       scales:{ x:gridY({stacked:true,ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}}), y:axisX({stacked:true}) } }
   });
 
-  // key events by type, by period (country-filtered, stacked bars — one per event type).
+  // key events by type, by period (country-filtered, stacked bars - one per event type).
   // Pure composition, NO overlay line -> ABSOLUTE = raw counts; RELATIVE (default) =
   // 100%-stacked (each period normalized to its own total). Grain: Month / Week / Day.
   const keGrain = grain.webKeyEvents, keRel = scale.webKeyEvents==='rel';
@@ -2113,7 +2174,7 @@ function renderLink(){
   const campSessions = campFrom(g);                   // GA4 sessions on the selected platforms' channels
   const dsw = r => campFrom(gw[r.week_start]||{});    // same, per week (scatter)
 
-  // before vs during (DV360 launched Nov 2025) — Display sessions for the selected countries.
+  // before vs during (DV360 launched Nov 2025) - Display sessions for the selected countries.
   // This comparison is anchored to a FIXED Nov-2025 split and is intrinsically whole-period, so
   // it sums the monthly display sessions over countries only (ignoring the date-range picker).
   const dispFull = {};
