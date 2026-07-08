@@ -87,7 +87,7 @@ UI in `templates/_status_merge.html`. See `bidbrain-platform/README.md`.
 "No second password" = a signed **`bb_sso`** cookie scoped to `.bidbrain.ai` listing the client keys
 you may open; each dashboard's `authed()` was extended (additively — its own password still works) to
 trust it via the vendored `platform_sso.py` (`SSO_SECRET`+`CLIENT_KEY` env, shared signer secret
-`platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, +bellshakespeare/geocon/caltex
+`platform-sso-key`). Agencies: **100% Digital** {cityperfume, vmch, tlm, resetdata, geocon, +bellshakespeare/caltex
 *coming soon*}, **Transmission** {schneider, cloudflare, proptrack, mongodb, stt, +status (the meta
 Pipeline-Status dash, surfaced here so Transmission can watch data health)}; **hireright unassigned**.
 No-second-password is delivered by the **proxy** (`/d/<client>/` in `dash/main.py`), NOT a cookie —

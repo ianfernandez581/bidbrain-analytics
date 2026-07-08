@@ -31,7 +31,8 @@ $PLATFORM  = "platform-dash"
 $WEB_SA    = "platform-dash-web@${PROJECT}.iam.gserviceaccount.com"
 $SUPER_SECRET = "platform-super-admin-password"
 # Every dashboard whose password the super admin may rotate (skipped gracefully if not deployed).
-$CLIENTS = @("mongodb","cloudflare","stt","schneider","hireright","cityperfume","resetdata","proptrack","tlm","vmch","status")
+$CLIENTS = @("mongodb","cloudflare","stt","schneider","hireright","cityperfume","resetdata","proptrack","tlm","vmch",
+             "geocon","bellshakespeare","caltex","nextsmile","status")
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
