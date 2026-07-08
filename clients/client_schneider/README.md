@@ -54,9 +54,22 @@ payload gains a `plan.budget` block (`paid` / `paid_spend` / `paid_ttd` / `cs_co
 and `report.py`'s per-client guardrail now tells the model to surface an explicit spent-vs-budgeted **budget** KPI
 (paid = measured, CS = estimated / per-lead, kept distinct).
 
+**Update 2026-07-08** (`sql/20_pm_delivery.sql` + `job/main.py` + `dash/dashboard.html`; deployed):
+added **NEL (New Energy Landscape, brief 2053)** as a **6th program**. Unlike the 5 CS programs, NEL is
+**awareness-only** (no Salesforce lead-gen) — it has real LinkedIn + Trade Desk paid delivery (the
+`SE_NEL_2026_ANZ_LI_Awareness` LinkedIn group + `*_NEL_TTD_*` Programmatic, AU + NZ, ~A$5.0k so far) but
+**no CS leads**, so it renders **Paid Media only** (like `global_rebrand`). NEL was already in the seed
+CSVs (`campaign_map`/`media_plan`/`plan_budget`, `internal_campaign_id='nel'`, match_pattern `NEL|New
+Energy Landscape`), so the change was just: add `'nel'` to the `WHERE program IN (…)` in
+[`sql/20_pm_delivery.sql`](sql/20_pm_delivery.sql) and to `CS_PROGRAMS` in [`job/main.py`](job/main.py),
+plus a `PILLAR` entry for it in the dashboard. It sorts last in the Campaign dropdown (0 leads / 0
+target) so the default campaign is unchanged, and it appears as a 0/0 awareness card in the Executive
+Scorecard (same as `global_rebrand`). No seed reload was needed.
+
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
-  programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`).
+  CS programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`) **+ `nel`** (New Energy
+  Landscape — awareness-only, Paid-Media-tab-only, no CS leads; added 2026-07-08).
 - **Programme** (the CS breakdown) = the Salesforce `pillar_label` (9), from `seed_salesforce_map`.
 - **Market / Region chips** = **Australia / New Zealand only** (no ANZ, no Other). CS leads are
   AU/NZ-native; paid delivery's AU/NZ split is resolved from **`AD_GROUP_NAME`** (then `CAMPAIGN_NAME`)
@@ -67,8 +80,8 @@ and `report.py`'s per-client guardrail now tells the model to surface an explici
   `RM AirSeT – Retargeting – ANZ` LinkedIn line, ~$500) into **Australia** so it stays in the paid totals.
 - **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
   lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from `seed_plan_budget`.
-- **Scoped to the 5:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5)`; the CS views read only the
-  9 SF ids via `seed_salesforce_map`. The old Pacific `portfolio` toggle and the other ~20 APAC programs
+- **Scoped to the 6:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel')`; the CS
+  views read only the 9 SF ids via `seed_salesforce_map` (NEL has none, so it never appears in the CS tabs). The old Pacific `portfolio` toggle and the other ~20 APAC programs
   are **gone from the dashboard** — the seed tables still carry them for the `match_pattern` tagging.
   (Historical Pacific-carve-out EDA: [`_eda/pacific_eda.md`](_eda/pacific_eda.md).)
 
@@ -121,8 +134,10 @@ The tab bar is built in `renderControls()`; switching campaign resets to a valid
 1. **Paid Media** — for the selected program: KPI snapshot (spend / imps / clicks / blended CPC), a
    **platform comparison** table (DV360 / TTD / LinkedIn), a daily delivery chart (Month/Week/Day +
    Relative/Absolute toggles), spend-by-platform + spend-by-market, a market table, and the **Flight
-   windows across the portfolio** Gantt. Heavy / Global Rebrand have no paid delivery yet (leads-only) —
-   the tab says so rather than showing zeros.
+   windows across the portfolio** Gantt. **Global Rebrand (Advancing Energy Technology)** now has LinkedIn
+   delivery (its `SE_AET_*` campaigns, live from July 2026 — see *Updating targets* on the `match_pattern`
+   token that tags them to `global_rebrand`); **Heavy** still has no paid delivery yet (leads-only) — the
+   tab says so rather than showing zeros.
 2. **Content Syndication** — Salesforce leads vs the media-plan **MQL+HQL** target: the snapshot strip
    (Overall / Pacing / Delivery / Outlook), the **Plan-CPL** banner, **Leads-vs-target** + **Progress**
    panels, a **Weekly pacing** chart (real dated weekly leads vs the even target pace — both start at the
@@ -149,7 +164,7 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `data/*.csv` (version-controlled — tracked via `.gitignore` `!` exceptions) → re-run `load_seeds.py` | 2 |
 | Other seeds (plan_flighting / channel_split / salesforce_map) | `data/*.csv` → `load_seeds.py` (NB: currently BQ-only, no committed CSV) | 2 |
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
-| Which 5 programs are in scope | `data/salesforce_map.csv` (the 9 SF ids) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
+| Which programs are in scope (the 5 CS programs + `nel`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
 | Login / how JSON is served | `dash/main.py` (rarely) | 3 |

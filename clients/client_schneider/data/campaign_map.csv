@@ -22,7 +22,7 @@ seq,internal_campaign_id,display_name,brief_job_no,objective_type,primary_kpi,pi
 20,airset,AirSeT,2223,Awareness→RT,Reach / engagement,,ANZ,AirSeT|AirSet,Pacific
 21,heavy,Heavy Industries,2281,Awareness,Reach / engagement,,ANZ,Heavy Indust|Heavy_Indust,Pacific
 22,ecoconsult,EcoConsult,2279,LeadGen,Traffic / SQLs / consults,,ANZ,EcoConsult|Eco Consult,Pacific
-23,global_rebrand,Advancing Energy Technology,—,Awareness,Reach / engagement,,ANZ,Global Rebrand|Global_Rebrand|Rebrand Activation,Pacific
+23,global_rebrand,Advancing Energy Technology,—,Awareness,Reach / engagement,,ANZ,Global Rebrand|Global_Rebrand|Rebrand Activation|SE_AET|Advancing Energy,Pacific
 24,healthcare,Healthcare,—,Awareness,Reach / engagement,,ANZ,Healthcare_Vertical_TBC,Pacific
 25,microgrid,Microgrid,—,Awareness,Reach / engagement,,ANZ,Microgrid|Micro Grid|Micro_Grid,Pacific
 26,enterprise_software,Enterprise Software,—,LeadGen,Leads / conversions,,ANZ,Enterprise_Software_TBC|EntSoftware,Pacific
