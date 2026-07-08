@@ -82,15 +82,20 @@ fall back to sheet numbers. Skip the overlay with `--no-live`.
 
 **Coverage is explicit and validated, never guessed.** Only advertisers with a
 reconciled entry in `CLIENTS` (in `live_metrics.py`) are scraped. Add a client by
-adding its per-campaign BQ spend query + a `program → grid campaign` map, and
-**reconcile it first** — every run writes `tmp/reconciliation.csv` comparing sheet
-vs BQ per campaign/channel with a `match` / `DIVERGES ×N` verdict. Today Schneider
-is wired (via `client_schneider.pm_delivery`); the reconciliation shows **LinkedIn
-matches the sheet, Trade Desk diverges ~3×** — impressions match to within a few
-percent (so the join is correct), meaning the TTD gap is a spend *definition*
-mismatch (BQ's TTD spend aligns with the sheet's billed *Client Spent*, not raw
-*Media Spend*), to be resolved before TTD is trusted. Requires `bq` CLI auth as
+adding its per-campaign BQ spend query + a `program → grid campaign` map. Today
+Schneider is wired (via `client_schneider.pm_delivery`). Requires `bq` CLI auth as
 `ian@100.digital`.
+
+**BigQuery is the source of truth for spend — not the sheet.** BQ spend is RAW
+media spend (platform cost + FX only; e.g. schneider TradeDesk `spend_aud =
+COSTS × 1.50`, **no** client-billing multiplier). The **sheet's** "Client Spent"
+column carries a manual billing multiplier (and its "Media Spend" drifts), so
+sheet-vs-BQ will diverge by design — that is expected, not a bug, and the grid
+intentionally shows the raw BQ number (decision 2026-07-09: "just reflect BQ").
+`tmp/reconciliation.csv` (written each run) is kept as a diagnostic, but the real
+trust gate for a new platform is **BQ vs the platform UI**, not BQ vs the retiring
+sheet. If a billed view is wanted later, apply the per-channel multiplier on top of
+the raw BQ spend (same markup the dashboards use) rather than trusting the sheet.
 
 ## Go-live path (in order)
 
