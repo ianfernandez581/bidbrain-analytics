@@ -491,6 +491,21 @@ function hash(s){let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h)+s.charCodeAt(i)
 function destroyChart(id){if(charts[id]){charts[id].destroy();charts[id]=null;}}
 function makeChart(id,cfg){destroyChart(id);if(!$(id))return null;charts[id]=new Chart($(id).getContext('2d'),cfg);return charts[id];}
 
+// ---------- client-billed spend multiplier (BB_SPEND_MULT) ----------
+// The platform front-door injects window.BB_SPEND_MULT = {channel: factor} (super-admin "Multiplier"
+// panel) so the CLIENT sees what they were billed ("spent to date") rather than the raw media cost.
+// We gross the RAW spend once at load; every cost metric (CPM/CPC/CPL/cost-per-LPV), chart, CSV and
+// the AI deck derive from it, so they all follow. Counts/CTR (not money) are untouched; there's no
+// revenue/ROAS on this lead-gen dashboard. Idempotent (stashes _rawSpend); no-op when unset (=direct/
+// internal access shows real cost). Geocon is Meta-only, so a single 'meta' factor covers every row.
+function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}
+function bbApplySpendMult(){
+  const M=bbMultFor('meta');
+  (DATA.rows||[]).forEach(r=>{if(r._rawSpend==null)r._rawSpend=n(r.spend);r.spend=r._rawSpend*M;});
+  const f=DATA.flight;                      // gross the precomputed pacing dollars by the same factor
+  if(f){['spend_to_date','projected_spend','pace_expected','budget'].forEach(k=>{if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);f[k]=f['_raw_'+k]*M;});}
+}
+
 // ---------- targets / benchmarks ----------
 function meta(){return DATA.meta||{};}
 function flight(){return DATA.flight||{};}
@@ -1011,7 +1026,7 @@ async function load(){
   $('error').style.display='none';$('loading').style.display='block';
   try{
     const r=await fetch(JSON_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' from '+JSON_URL);
-    DATA=await r.json();initChartDefaults();
+    DATA=await r.json();bbApplySpendMult();initChartDefaults();
     DateRange.init({min:meta().date_min,max:meta().date_max,onApply:(s,e)=>{STATE.dateStart=s;STATE.dateEnd=e;render();}});
     renderStageChips();render();renderViewState();
     $('loading').style.display='none';$('app').style.display='block';
