@@ -44,6 +44,30 @@ the APIs return true full-flight numbers, so reproducing them would double-count
 
 Verify anytime: `npm test` (runs `derive.test.js` against real sheet rows).
 
+## The campaign data (`const DATA` in `the-grid.html`)
+
+The grid renders every campaign from a `const DATA = [...]` literal embedded in
+`the-grid.html`. That literal is a **transcription of the committed source sheet**
+`bidbrain-platform/Data/Central2.xlsx` ("Live Campaigns"), holding only the raw
+sheet columns — the grid derives pacing/margin/projection at runtime (`derive()`).
+
+**It is generated, not hand-edited.** When the sheet grows (new campaigns, new
+clients, updated spend) the embedded copy goes stale and the grid shows fewer
+campaigns than the sheet. Regenerate it for **all clients at once**:
+
+```
+.venv/Scripts/python.exe grid-core/scripts/build_grid_data.py            # rewrite DATA in place
+.venv/Scripts/python.exe grid-core/scripts/build_grid_data.py --check    # per-client counts, no write
+```
+
+The script re-reads Central2.xlsx and rewrites the single `DATA` line; the
+column→key mapping is pinned in `COLS` at the top of the script. It **also
+re-anchors the grid's pacing `SNAP` date** in `the-grid.html` to the sheet's real
+"as of" date, which it recovers from the `% Flight Elapsed` column
+(`asof = start + pctElapsed × (end − start)`, median across all mid-flight rows) —
+so run-rate projections always match the sheet instead of drifting from a stale
+hardcoded date. One run keeps both the campaign list and the pacing math in sync.
+
 ## Go-live path (in order)
 
 1. `cp .env.example .env` and fill in whatever credentials you have.
