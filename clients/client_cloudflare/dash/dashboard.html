@@ -820,34 +820,6 @@
           <div id="liFunnel"></div>
         </div>
 
-        <!-- Why lead volume looks low -->
-        <div class="why">
-          <h2>Why lead volume looks low - the four-part story</h2>
-          <div class="lede">Headline measured leads under-represent reality. Here is what is actually happening, ordered by impact.</div>
-          <div class="reasons">
-            <div class="reason"><div class="num">1</div><h4>TTD has no lead-level pixel</h4>
-              <p>Cloudflare deployed only the universal pixel, which counts generic site visits and can't isolate a lead-form completion. We supplied per-event <b>image pixels</b> for the lead-form thank-you page; the client opted not to implement them. Until they're live, TTD-driven leads are literally unmeasurable - not low, just invisible.</p>
-            </div>
-            <div class="reason"><div class="num">2</div><h4>The mix is upper-funnel by design</h4>
-              <p>Reading the campaign naming convention, ~78% of spend sits in MOFU/awareness ad sets (<i>AWARENESS</i>, <i>AWR-CONS</i>, <i>SHADOW-AI</i> TOFU). Only the <i>BOFU_RETARGETING_LEAD-GEN</i> slices are optimized for form fills - lead volume should be modest by construction.</p>
-            </div>
-            <div class="reason"><div class="num">3</div><h4>Reddit is on a TOFU goal, not Lead</h4>
-              <p>$2.4K of Reddit spend ran on <i>SHADOW-AI</i> awareness ad sets with goal &ldquo;-&rdquo; (no conversion goal set). Zero leads is on plan for that placement; only the small APAC-ANZ retargeting line was configured for LEAD goal and it received negligible delivery.</p>
-            </div>
-            <div class="reason"><div class="num">4</div><h4>LinkedIn form is the bottleneck</h4>
-              <p>Tracked LinkedIn leads vs clicks indicate ~1.0% click-to-lead. The form requires <b>Work phone number</b> alongside Work email - the rest of the fields are auto-filled. That single required phone field is the likely cause: prospects assume it triggers a sales call.</p>
-            </div>
-          </div>
-          <h3 style="font-size:14px;margin:18px 0 6px 0">Modeled TTD lead volume (using LinkedIn click-to-lead as the floor benchmark)</h3>
-          <div class="hint" style="margin-bottom:8px">Because the image pixel isn't deployed, we can only model the missing TTD lead count. LinkedIn click-to-lead rate is computed live from the data. Applied to TTD's measured clicks - before any view-through credit.</div>
-          <div class="gap-box">
-            <div class="gap-tile"><div class="lbl">Conservative (50% of LI rate)</div><div class="val" id="gap_low">-</div></div>
-            <div class="gap-tile bad"><div class="lbl">Mid (1× LI rate, click-only)</div><div class="val" id="gap_mid">-</div></div>
-            <div class="gap-tile"><div class="lbl">High (2× LI w/ view-through)</div><div class="val" id="gap_high">-</div></div>
-          </div>
-          <p style="font-size:12.5px;color:var(--cf-mute);margin:10px 0 0 0">Translation: TTD has likely produced a meaningful number of leads that no one is counting. The fix is to deploy the supplied image pixels on the lead-form thank-you page. Note: the LinkedIn benchmark itself is depressed by the phone-field friction - if that's fixed, the modeled TTD number grows accordingly.</p>
-        </div>
-
         <div style="font-size:12px;color:rgba(255,255,255,0.85);text-align:center;padding:8px 0;margin-top:14px" id="paidFooter">-</div>
 
       </div>
@@ -2405,12 +2377,6 @@ function renderPaidKPIs() {
   document.getElementById('k_cpc_b').textContent = clk
     ? `vs plan TTD ${fmt$(PAYLOAD.benchmarks.TTD.cpc,2)} · LI ${fmt$(PAYLOAD.benchmarks.LinkedIn.cpc,2)}`
     : '-';
-
-  // Modeled-TTD lead gap tiles
-  const liClickToLead = li.clk ? li.leads / li.clk : 0;
-  document.getElementById('gap_low').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 0.5) : '-';
-  document.getElementById('gap_mid').textContent  = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 1.0) : '-';
-  document.getElementById('gap_high').textContent = liClickToLead ? '~' + Math.round(ttd.clk * liClickToLead * 2.0) : '-';
 }
 
 function renderTtdImpCtr() {
