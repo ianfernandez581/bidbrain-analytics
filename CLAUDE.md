@@ -131,6 +131,18 @@ Anthropic and the AI-Studio Gemini prepay accounts ran dry and 400/429'd. Claude
 fallback, tried only if a funded `ANTHROPIC_API_KEY` is mounted AND Vertex fails. `gemini-2.5-flash` serves in
 `australia-southeast1`; `gemini-2.5-pro` is NOT in au (Vertex 404) so `report.py` auto-falls-back to the Vertex
 `global` endpoint (region-cached per model) — model chosen by the `GEMINI_MODEL` env. See `bidbrain-platform/README.md`.
+**Client-billed spend multiplier (2026-07-08):** a super-admin **"Multiplier"** button (beside each client's
+Open →) sets a PER-CHANNEL factor map (google/meta/linkedin/reddit/ttd/dv360/line/youdooh) stored in the
+registry (`store.get/set_spend_multipliers`, endpoint `/super/api/spend-multiplier`). The proxy injects it into
+each proxied dashboard as **`window.BB_SPEND_MULT`** (live, no redeploy to change a value); every dashboard has a
+vendored gross-up shim (`bbMultFor`/`bbApplySpendMult`, hooked right after `DATA` is parsed) that grosses RAW
+media spend → the client-billed "spent to date", so the client sees billed spend + billed cost metrics
+(CPM/CPC/CPL/CPA/cost-per-X) + billed budget pacing. **Counts/CTR stay raw; revenue/ROAS/MER stay on REAL spend**
+(tlm repoints ROAS ×`BBG`; cityperfume `dash`+`dash_total` read a parallel `rawspend` sum for attributed
+revenue/profit + blended MER; mongodb folds the `ttd` factor into its existing `MARGIN_TARGET` MULT). Empty/unset
+map = total no-op, so **direct/internal access shows real cost, front-door (client) access shows billed**. The
+markup is per-channel because it varies by channel (Google/Meta often ×1, Trade Desk ×3–7 — from the agency's
+central sheet, NOT fed into the pipeline). See `bidbrain-platform/README.md`.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)
@@ -211,6 +223,12 @@ Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,3
   and edit in place. Don't slurp the whole file to change a colour/label/card.
 - Pure visual tweaks (colours, labels, spacing, a new card) live entirely in `dashboard.html`.
   Colours are CSS vars in `:root` at the top.
+- **No em-dashes in client-facing copy.** All 10 dashboards were scrubbed (2026-07-08) — use `-`
+  (hyphen), never `—`, in any visible string/label; a stray em-dash reads as AI-written.
+- **Every dashboard has a spend-multiplier shim** (`bbMultFor`/`bbApplySpendMult`, called right after
+  `DATA` is parsed) that grosses RAW spend by `window.BB_SPEND_MULT` per channel. When you add a NEW
+  spend field or a precomputed spend/budget aggregate, make sure it's grossed too (row spend is stashed
+  as `_rawSpend`); when you add revenue/ROAS/MER, keep it on RAW spend (see the per-client notes above).
 - **Time-series charts carry a grain + scale toggle (all 10 clients).** Every genuine time-series
   line/bar/mixed chart has a `.seg` "VIEW BY" Month/Week/Day control and an "AXIS" Relative/Absolute
   control (**default Relative**). Relative indexes overlay LINE series to peak=100 on a shared 0–100

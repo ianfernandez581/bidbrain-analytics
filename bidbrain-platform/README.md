@@ -369,6 +369,35 @@ shared `anthropic-api-key`/`gemini-api-key`, `objectAdmin` on its data bucket, m
 (CONFIG), `buildDeckPayload()` + `BB_THEME` + the `?bbslides=1` bootstrap, the `/report` + `/bb_deck.js`
 routes, copy `bb_deck.js`, and add its key to `SLIDES_CLIENTS`.
 
+## Client-billed spend multiplier (2026-07-08)
+
+The agency bills clients a marked-up "client spent to date" that is higher than the real media
+(partner) spend our dashboards pull. This lets a super admin show each client the **billed** figure
+without ever feeding the agency's central margin sheet into the pipeline.
+
+- **Where:** super-admin console → a **"Multiplier"** button beside each client's **Open →** → a modal
+  with a per-channel factor (Google / Meta / LinkedIn / Reddit / The Trade Desk / DV360 / LINE /
+  youdooh). Blank/`1` = no change. It's **per-channel** because the markup varies by channel (Google &
+  Meta are often ×1, The Trade Desk ×3–7).
+- **Storage:** `client.spend_multipliers` in the registry (`store.get/set_spend_multipliers`,
+  sanitised by `clean_multipliers` — drops `1.0`/invalid). Endpoint `POST /super/api/spend-multiplier`
+  (`{key, multipliers}`), super-admin only.
+- **Delivery:** the proxy injects `<script>window.BB_SPEND_MULT={…}</script>` into `<head>` of every
+  proxied dashboard (`_spend_mult_script` in `dash/main.py`). **Changing a value is live — no dashboard
+  redeploy.** Empty map ⇒ nothing injected changes anything.
+- **Dashboard side:** each `dashboard.html` has a vendored gross-up shim (`bbMultFor` +
+  `bbApplySpendMult`, called right after `DATA` is parsed) that grosses RAW row spend by the row's
+  channel factor (stashing `_rawSpend`, idempotent). Every cost metric (CPM/CPC/CPL/CPA/cost-per-X) and
+  budget pacing derive from summed spend, so they follow. **Counts/CTR stay raw. Revenue/ROAS/MER stay
+  on REAL spend** — tlm repoints ROAS `×BBG`, cityperfume (`dash` + `dash_total`) reads a parallel
+  `rawspend` sum for attributed revenue/profit + blended MER, mongodb folds the `ttd` factor into its
+  existing `MARGIN_TARGET` MULT.
+- **Behaviour to know:** the multiplier only flows through the **front-door proxy**, so opening a
+  dashboard's own `<c>-dash` URL directly (internal) shows **real** cost; the client (via
+  dashboards.bidbrain.ai) sees **billed**. Budget/pacing dollars are grossed too, so pacing % is
+  invariant. The grossed figure = live spend × the factor (it won't equal a sheet snapshot exactly —
+  the factor is the control).
+
 ## Layout
 ```
 bidbrain-platform/
