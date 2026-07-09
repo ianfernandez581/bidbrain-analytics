@@ -35,8 +35,8 @@
     mount.innerHTML =
       '<div class="bt-wrap">' +
       '<div class="bt-breadcrumb"><button class="bt-crumblink" data-act="home">The Grid</button> <span>›</span> <button class="bt-crumblink" data-act="brain">Brain</button> <span>›</span> ' + esc(clientName(ctx, state.clientId)) + ' <span>›</span> Historical data</div>' +
-      '<div class="bt-header"><div><h2 class="bt-h2">Ingest historical campaign data</h2>' +
-      '<div class="bt-subtitle">Drop PDFs, PowerPoints, or Excel from off-platform campaigns. Brain parses, maps to timeframes, and feeds the MMM.</div></div></div>' +
+      '<div class="bt-header"><div><h2 class="bt-h2">Add past campaign data</h2>' +
+      '<div class="bt-subtitle">Drop in PDFs, PowerPoints, or Excel from campaigns run outside our platforms. Brain reads them, lines them up by date, and adds them to the forecasting model.</div></div></div>' +
       '<div class="bt-hist-controls">' +
       '<label class="bt-fld"><span>Client</span><select id="bh-client" class="bt-select">' + clientOpts + '</select></label>' +
       '<label class="bt-fld"><span>Channel hint</span><select id="bh-chan" class="bt-select">' + chanOpts + '</select></label></div>' +
@@ -179,9 +179,9 @@
     var committed = file.status === 'committed';
 
     box.innerHTML =
-      '<section class="card bt-card bt-sec"><div class="bt-sec-h"><h3>Extracted timeline · ' + esc(file.filename) + '</h3></div>' +
-      '<div class="bt-sec-sub">Brain parsed ' + rows.length + ' campaign flights across ' + Object.keys(months).length + ' month(s). Edit any value inline before committing to warehouse.</div>' +
-      '<div class="tableScroll"><table class="bt-table"><thead><tr><th>Campaign</th><th>Channel</th><th>Flight</th><th>Spend</th><th>Reach</th><th>Source in file</th><th class="bt-num">Conf.</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>' +
+      '<section class="card bt-card bt-sec"><div class="bt-sec-h"><h3>Timeline read from the file · ' + esc(file.filename) + '</h3></div>' +
+      '<div class="bt-sec-sub">Brain read ' + rows.length + ' campaign periods across ' + Object.keys(months).length + ' month(s). Click any value to fix it before you save.</div>' +
+      '<div class="tableScroll"><table class="bt-table"><thead><tr><th>Campaign</th><th>Channel</th><th title="The dates the campaign ran">Dates</th><th>Spend</th><th>Reach</th><th>Source in file</th><th class="bt-num" title="How confident Brain is in this row">Conf.</th></tr></thead><tbody>' + rowsHtml + '</tbody></table></div></section>' +
       '<section class="bt-sidecards"><div class="card bt-card"><div class="card-h"><h3>Time-period mapping</h3></div>' +
       '<div class="seg bt-grain" role="group"><button aria-pressed="false" data-g="day">Day</button><button aria-pressed="true" data-g="week">Week</button><button aria-pressed="false" data-g="month">Month</button></div>' +
       '<div class="bt-grain-note" id="bh-grain-note"></div>' +

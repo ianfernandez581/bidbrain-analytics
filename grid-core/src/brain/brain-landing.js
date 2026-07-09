@@ -48,10 +48,10 @@
       return '<div class="kpi bt-kpi ' + (cls || '') + '"><div class="eyebrow">' + eyebrow + '</div><div class="big">' + big + '</div><div class="bt-kpi-sub">' + sub + '</div></div>';
     };
     return '<section class="kpis bt-kpis">' +
-      card('Open recommendations', review.length, 'across ' + Object.keys(reviewClients).length + ' clients', '') +
-      card('Total est. impact', '<span class="bt-green">+' + k(totalImpact) + '/mo</span>', 'if all approved', '') +
-      card('Awaiting trader', '<span class="bt-amber">' + awaiting + '</span>', 'sent to ClickUp, unactioned', '') +
-      card('Model precision (90d)', '73%', 'shipped recs that beat baseline', '') +
+      card('Open suggestions', review.length, 'waiting for review, across ' + Object.keys(reviewClients).length + ' clients', '') +
+      card('Total est. impact', '<span class="bt-green">+' + k(totalImpact) + '/mo</span>', 'extra value per month if all are approved', '') +
+      card('Waiting on the team', '<span class="bt-amber">' + awaiting + '</span>', 'approved and sent, not yet actioned', '') +
+      card('Track record (90 days)', '73%', 'of shipped suggestions improved results', '') +
       '</section>';
   }
 
@@ -119,9 +119,9 @@
   function siteQualityCard() {
     var rows = [['bloomberg.com', 10], ['tech.slashdot.org', 9], ['theverge.com', 8], ['news-blog-xyz.info', 4], ['crazygames-mobile.co', 1], ['streamz-free-live.tv', 1]];
     return '<div class="card bt-card"><div class="card-h"><h3>Site quality index</h3></div>' +
-      '<div class="card-sub">AI-rated domains. Auto-blacklist candidates flagged.</div>' +
+      '<div class="card-sub">Websites where the ads appeared, scored for quality. Low scores are flagged as candidates to block.</div>' +
       '<div class="bt-sqi">' + rows.map(function (r) { return '<div class="bt-sqi-row"><span class="bt-sqi-dom">' + esc(r[0]) + '</span>' + scorePill(r[1]) + '</div>'; }).join('') + '</div>' +
-      '<div class="bt-cardfoot">Dynamic blacklist: 147 domains · <button class="bt-link" data-act="manage-list">manage list</button></div></div>';
+      '<div class="bt-cardfoot">Blocked sites: 147 domains · <button class="bt-link" data-act="manage-list">manage list</button></div></div>';
   }
   function optLogCard() {
     var items = [
@@ -131,7 +131,7 @@
       ['15 Jun', 'LinkedIn', 'Enabled document ads format', 'grey', '◇ measuring · 5 days in']
     ];
     return '<div class="card bt-card"><div class="card-h"><h3>Optimization log</h3></div>' +
-      '<div class="card-sub">Applied changes and their measured impact.</div>' +
+      '<div class="card-sub">Changes we have already made, and how each one performed.</div>' +
       '<div class="bt-oplog">' + items.map(function (it) {
         return '<div class="bt-op bt-op-' + it[3] + '"><div class="bt-op-h"><span class="bt-op-date">' + it[0] + ' · ' + it[1] + '</span></div>' +
           '<div class="bt-op-title">' + esc(it[2]) + '</div><div class="bt-op-res bt-op-res-' + it[3] + '">' + it[4] + '</div></div>';
@@ -155,7 +155,7 @@
     var head =
       '<div class="bt-breadcrumb">The Grid <span>›</span> Brain</div>' +
       '<div class="bt-header"><div><h2 class="bt-h2">' + ICON.brain + ' Brain · all clients</h2>' +
-      '<div class="bt-subtitle">Recommendations ranked by estimated impact. Cross-client view.</div></div>' +
+      '<div class="bt-subtitle">Automatic suggestions for improving campaigns, highest-value ideas first. Covers every client.</div></div>' +
       '<div class="bt-header-btns"><button class="ibtn" data-act="historical">' + ICON.scan + 'Historical data</button>' +
       '<button class="ibtn" data-act="rescan">' + ICON.scan + 'Rescan now</button>' +
       '<button class="ibtn" data-act="log">' + ICON.log + 'Log</button></div></div>';
@@ -187,7 +187,7 @@
         else if (act === 'rescan') { ctx.toast && ctx.toast.success('Rescan queued · V1 uses cached mock data'); }
         else if (act === 'log') { var c = mount.querySelector('.bt-sidecards'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
         else if (act === 'show-all') { ctx.setFilters({ client: 'all', platform: 'all', type: 'all', min_conf: '0.6' }); }
-        else if (act === 'manage-list') { ctx.toast && ctx.toast.success('Blacklist management ships in V2'); }
+        else if (act === 'manage-list') { ctx.toast && ctx.toast.success('Block-list management ships in V2'); }
       });
     });
   }
