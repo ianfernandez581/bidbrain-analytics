@@ -12,27 +12,29 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#0a0e16; --panel:#101726; --border:rgba(255,255,255,.08);
+    --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
     /* single accent — bright cornflower blue */
     --text:#e8ebf2; --muted:#8a93a6; --accent:#4C8DFF; --accent-2:#6EA8FF; --accent-bg:rgba(76,141,255,.12);
-    --err:#f87171;
+    --green:#3DDC84; --green-bg:rgba(61,220,132,.12); --err:#f87171;
   }
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
        font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       color:var(--text);
+       color:var(--text);overflow-x:hidden;padding:28px 16px;
        background:
          radial-gradient(860px 500px at 50% -6%, rgba(76,141,255,.22), transparent 62%),
          radial-gradient(1000px 560px at 50% -4%, rgba(110,168,255,.11), transparent 64%),
          radial-gradient(1100px 620px at 50% -8%,#152033 0%,#0b1120 52%,#070a11 100%);
        background-repeat:no-repeat;background-attachment:fixed}
-  .card{width:100%;max-width:380px;padding:38px 34px;background:var(--panel);
-        border:1px solid var(--border);border-radius:18px;position:relative;
+  .card{width:100%;max-width:380px;padding:34px 32px;background:var(--panel);
+        border:1px solid var(--border);border-radius:18px;position:relative;z-index:20;
+        transition:max-width .35s ease, box-shadow .25s ease;
         box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02), 0 0 70px rgba(76,141,255,.08)}
+  .card.wide{max-width:700px}
   /* premium: a hairline cornflower-blue glow along the card's top edge */
   .card::before{content:"";position:absolute;left:24px;right:24px;top:-1px;height:1px;
         background:linear-gradient(90deg,transparent,rgba(110,168,255,.65),transparent);opacity:.75}
-  .logo{display:block;height:30px;width:auto;margin:0 auto 22px}
+  .logo{display:block;height:30px;width:auto;margin:0 auto 20px}
   .logo svg{height:30px;width:auto}
   h1{font-size:19px;font-weight:700;margin:0 0 4px;text-align:center}
   p.sub{font-size:13px;color:var(--muted);margin:0 0 24px;text-align:center}
@@ -40,30 +42,76 @@
   input{width:100%;padding:13px 14px;font-size:15px;color:var(--text);background:#0b111d;
         border:1px solid #20293b;border-radius:11px;outline:none;font-family:inherit}
   input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-bg)}
-  button{width:100%;margin-top:16px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
+  button.primary{width:100%;margin-top:16px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
          background:var(--accent);color:#06132b;border:none;border-radius:11px;letter-spacing:.2px;
          box-shadow:0 8px 24px rgba(76,141,255,.30);transition:background .15s,box-shadow .15s,transform .12s}
-  button:hover{background:var(--accent-2);box-shadow:0 10px 30px rgba(76,141,255,.42)}
-  button:active{transform:translateY(1px)}
+  button.primary:hover{background:var(--accent-2);box-shadow:0 10px 30px rgba(76,141,255,.42)}
+  button.primary:active{transform:translateY(1px)}
   .err{margin-top:14px;font-size:13px;color:var(--err);min-height:16px;text-align:center}
-  .foot{margin-top:20px;font-size:11.5px;color:#5b6478;text-align:center;line-height:1.5}
+  .foot{margin-top:18px;font-size:11.5px;color:#5b6478;text-align:center;line-height:1.5}
   .divider{display:flex;align-items:center;gap:12px;margin:18px 0 16px;color:#5b6478;font-size:12px}
   .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--border)}
   .gwrap{display:flex;justify-content:center;min-height:44px}
-  /* "Sign in with Microsoft" — a white pill matched to Google's outline button (which renders white).
-     Class rules beat the generic blue `button{}` above (higher specificity). */
   .msbtn{display:flex;align-items:center;justify-content:center;gap:10px;width:auto;min-width:220px;
-         margin:10px auto 0;padding:0 18px;height:40px;background:#fff;color:#3c4043;
+         margin:10px auto 0;padding:0 18px;height:40px;background:#fff;color:#3c4043;cursor:pointer;
          border:1px solid #dadce0;border-radius:20px;font-size:14px;font-weight:600;letter-spacing:0;
          box-shadow:none;transition:background .15s,box-shadow .15s,transform .12s}
   .msbtn:hover{background:#f8f9fa;box-shadow:0 1px 3px rgba(0,0,0,.25)}
   .msbtn:active{transform:translateY(1px)}
   .msbtn svg{display:block;flex:0 0 auto}
 
+  /* explanation toggle link */
+  .exlink{display:block;margin:16px auto 0;text-align:center;font-size:12px;font-weight:600;color:var(--accent-2);
+          background:none;border:none;cursor:pointer;letter-spacing:.2px;font-family:inherit;padding:4px 8px}
+  .exlink:hover{color:#9cc2ff;text-decoration:underline}
+  .exlink .chev{display:inline-block;transition:transform .25s ease;margin-left:4px}
+  .card.wide .exlink .chev{transform:rotate(180deg)}
+
+  /* ===== the engine explanation (Layer 1 -> Layer 2 -> result) ===== */
+  #explain{overflow:hidden;transition:max-height .4s ease,opacity .3s ease,margin .35s ease;max-height:640px;opacity:1;margin:0 0 8px}
+  #explain.hidden{max-height:0;opacity:0;margin:0}
+  .ex-lead{text-align:center;font-size:12px;color:var(--muted);margin:0 0 14px}
+  .ex-lead b{color:var(--text)}
+
+  .layers{display:grid;grid-template-columns:1fr 30px 1fr;gap:11px;align-items:stretch}
+  .midarrow{display:flex;align-items:center;justify-content:center;color:var(--muted);transition:color .35s ease}
+  .midarrow svg{width:22px;height:22px}
+  .layers.l2on .midarrow{color:var(--green)}
+
+  .layer{position:relative;border:1px solid var(--border);border-radius:14px;padding:15px 13px 13px;
+         background:var(--panel-2);display:flex;flex-direction:column;
+         transition:box-shadow .35s ease,border-color .35s ease,transform .35s ease}
+  .layer.l1{border-left:3px solid rgba(76,141,255,.5)}
+  .layer.l2{border-left:3px solid rgba(61,220,132,.5)}
+  .layer.l1.active{border-color:var(--accent);box-shadow:0 0 26px rgba(76,141,255,.4),inset 0 0 22px rgba(76,141,255,.1);transform:translateY(-2px)}
+  .layer.l2.active{border-color:var(--green);box-shadow:0 0 26px rgba(61,220,132,.4),inset 0 0 22px rgba(61,220,132,.1);transform:translateY(-2px)}
+  .llab{position:absolute;top:-9px;left:13px;font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;
+        padding:2px 9px;border-radius:20px;background:var(--panel)}
+  .layer.l1 .llab{color:var(--accent-2);border:1px solid rgba(76,141,255,.4)}
+  .layer.l2 .llab{color:var(--green);border:1px solid rgba(61,220,132,.4)}
+
+  .l1grid{display:flex;flex-direction:column;gap:8px;margin-top:3px}
+  .eng{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:9px 10px;transition:background .35s ease,border-color .35s ease}
+  .layer.l1.active .eng{background:rgba(76,141,255,.07);border-color:rgba(76,141,255,.28)}
+  .eng .en{font-size:11.5px;font-weight:800;color:#eef2fa;display:flex;align-items:center;gap:7px;margin-bottom:5px;line-height:1.2}
+  .eng .en .ic{width:20px;height:20px;flex:0 0 auto;border-radius:6px;background:var(--accent-bg);color:var(--accent-2);display:grid;place-items:center}
+  .eng .en .ic svg{width:12px;height:12px}
+  .eng ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:3px}
+  .eng li{font-size:10px;color:#aab3c6;line-height:1.3;padding-left:10px;position:relative}
+  .eng li::before{content:"";position:absolute;left:0;top:5px;width:4px;height:4px;border-radius:1px;background:var(--accent);opacity:.7}
+
+  .l2grid{display:flex;flex-direction:column;gap:8px;margin-top:3px;flex:1;justify-content:center}
+  .act{background:rgba(61,220,132,.05);border:1px solid rgba(61,220,132,.18);border-radius:10px;padding:11px 11px;transition:background .35s ease,border-color .35s ease}
+  .layer.l2.active .act{background:rgba(61,220,132,.1);border-color:rgba(61,220,132,.4)}
+  .act .an{font-size:11.5px;font-weight:800;color:#eafff3;display:flex;align-items:center;gap:7px;margin-bottom:4px}
+  .act .an .ic{width:20px;height:20px;flex:0 0 auto;border-radius:6px;background:var(--green-bg);color:var(--green);display:grid;place-items:center}
+  .act .an .ic svg{width:12px;height:12px}
+  .act p{margin:0;font-size:10px;color:#b8c6bd;line-height:1.35}
+
+  .ex-hr{height:1px;background:var(--border);margin:20px 0 4px}
+
   /* ===== Brief → Results background + cursor glow (decorative; behind the card) ===== */
   #bb-stage{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
-  .card{z-index:20;transition:box-shadow .25s ease}
-  /* cursor glow: green + blue blend, rests top-centre, eases to the cursor after first move */
   .bb-cursor-glow{position:fixed;top:0;left:0;width:520px;height:520px;z-index:1;pointer-events:none;
             border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
             background:radial-gradient(circle, rgba(61,220,132,.11) 0%, rgba(61,220,132,.04) 32%, transparent 68%),
@@ -90,15 +138,74 @@
 <body>
   <div id="bb-stage" aria-hidden="true"></div>
   <div class="bb-cursor-glow" id="bbGlow" aria-hidden="true"></div>
-  <form class="card" method="POST" action="/login">
+  <form class="card wide" id="brainCard" method="POST" action="/login">
     <div class="logo">{{ logo_svg | safe }}</div>
-    <h1>Campaign Dashboards</h1>
+
+    <!-- ===== engine explanation (default shown; toggled with the link below) ===== -->
+    <div id="explain">
+      <h1 id="exTitle">How Bidbrain works</h1>
+      <p class="ex-lead">Messy raw signals go in. <b>Structure, decisions and action</b> come out.</p>
+      <div class="layers" id="layers">
+        <!-- LAYER 1 -->
+        <div class="layer l1" id="layer1">
+          <span class="llab">Layer 1 · The Engine</span>
+          <div class="l1grid">
+            <div class="eng">
+              <div class="en"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5M5 8v8l7 5 7-5V8"/></svg></span>20 Yrs Expertise</div>
+              <ul>
+                <li>Confidential best-practice rule book</li>
+                <li>AI note-taker on every meeting</li>
+                <li>Years of optimisation decisions logged</li>
+              </ul>
+            </div>
+            <div class="eng">
+              <div class="en"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg></span>Statistical Analysis</div>
+              <ul>
+                <li>Machine learning</li>
+                <li>Media Mix Modelling (MMM)</li>
+                <li>Proven prediction algorithms</li>
+              </ul>
+            </div>
+            <div class="eng">
+              <div class="en"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>Industry Research</div>
+              <ul>
+                <li>Self-updating scraper of industry &amp; platform intel</li>
+                <li>Always current, in real time</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="midarrow" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l7 6-7 6"/></svg>
+        </div>
+
+        <!-- LAYER 2 -->
+        <div class="layer l2" id="layer2">
+          <span class="llab">Layer 2 · Automated Action</span>
+          <div class="l2grid">
+            <div class="act">
+              <div class="an"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="13" y="3" width="8" height="6" rx="1"/><rect x="3" y="16" width="8" height="5" rx="1"/><rect x="13" y="12" width="8" height="9" rx="1"/></svg></span>Dashboards &amp; Reports</div>
+              <p>Live client dashboards and client-ready reports, built and refreshed automatically.</p>
+            </div>
+            <div class="act">
+              <div class="an"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/><circle cx="12" cy="12" r="3"/></svg></span>Automatic Optimisation &amp; Alerts</div>
+              <p>Budgets, bids and targeting tuned 24/7, with proactive alerts the moment something moves.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="ex-hr"></div>
+    </div>
+
+    <!-- ===== login ===== -->
+    <h1 id="loginTitle" style="display:none">Campaign Dashboards</h1>
     <p class="sub">Enter your agency or dashboard password.</p>
     <label for="pw">Password</label>
     <input id="pw" type="password" name="password" placeholder="••••••••" autofocus
            autocomplete="current-password">
     <input type="hidden" name="next" value="{{ next_url or '' }}">
-    <button type="submit">Continue</button>
+    <button type="submit" class="primary">Continue</button>
     {% if google_client_id or ms_client_id %}
     <div class="divider"><span>or</span></div>
     {% endif %}
@@ -119,6 +226,7 @@
     </button>
     {% endif %}
     <div class="err">{{ error or "" }}</div>
+    <button type="button" class="exlink" id="toggleExplain">Hide explanation <span class="chev">▲</span></button>
     <div class="foot">An agency password opens every dashboard in that agency.<br>A single dashboard password opens just that dashboard.</div>
   </form>
   {% if google_client_id %}
@@ -168,19 +276,44 @@
   </script>
   {% endif %}
   <script>
-  /* Brief → Results background: raw campaign-brief words stream in from the left,
-     the card "processes" them (green pulse), one glowing metric emerges on the right.
+  /* Explanation toggle — default shown; choice remembered in localStorage. */
+  (function(){
+    var card=document.getElementById('brainCard'), explain=document.getElementById('explain'),
+        link=document.getElementById('toggleExplain'),
+        exTitle=document.getElementById('exTitle'), loginTitle=document.getElementById('loginTitle');
+    function setExplain(on){
+      card.classList.toggle('wide', on);
+      explain.classList.toggle('hidden', !on);
+      exTitle.style.display    = on ? '' : 'none';
+      loginTitle.style.display = on ? 'none' : '';
+      link.innerHTML = on ? 'Hide explanation <span class="chev">▲</span>'
+                          : 'See how the engine works <span class="chev">▲</span>';
+      try{ localStorage.setItem('bb_login_explain', on ? '1' : '0'); }catch(e){}
+    }
+    var saved=null; try{ saved=localStorage.getItem('bb_login_explain'); }catch(e){}
+    setExplain(saved !== '0');   // default = shown
+    link.addEventListener('click', function(){ setExplain(explain.classList.contains('hidden')); });
+    window._bbSetExplain=setExplain;
+  })();
+  </script>
+  <script>
+  /* Brief → Results: raw campaign-brief words stream in from the left, the engine "processes"
+     them — Layer 1 lights, then Layer 2, then one glowing metric emerges on the right.
      Decorative + aria-hidden; disabled under prefers-reduced-motion. */
   (function(){
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     var stage = document.getElementById('bb-stage');
-    var card  = document.querySelector('form.card');
+    var card  = document.getElementById('brainCard');
     if (!stage || !card) return;
 
-    var INPUTS = ["Campaign name","Client","Primary market","Start date","End date","Duration",
-      "Budget","Amount","Currency","Primary KPI","Goal","Objective","Audience","Channels",
-      "Dates","Market","Reach target","Creative"];
-    var OUTPUTS = ["ROAS ↑","Conversions ↑","Revenue ↑","CTR ↑","Reach ↑",
+    var layers = document.getElementById('layers'),
+        layer1 = document.getElementById('layer1'),
+        layer2 = document.getElementById('layer2');
+
+    var INPUTS = ["Ad spend","Impressions","Clicks","Conversions","CTR","CPC","CPA","ROAS",
+      "GA4 sessions","Bounce rate","Keywords","Audience","Creative","Placements","Budget pacing",
+      "CRM leads","Competitor spend","Market trend","Platform update","Bid data","Attribution","Frequency"];
+    var OUTPUTS = ["Conversions ↑","CTR ↑","ROAS ↑","Revenue ↑","Reach ↑",
       "CPA ↓","CPC ↓","On-track pacing ✓"];
 
     var timers = [], outIdx = 0;
@@ -194,9 +327,11 @@
       return { cardLeft:c.left, cardRight:c.right, cardCX:c.left+c.width/2, cardCY:c.top+c.height/2,
                W:window.innerWidth, H:window.innerHeight };
     }
+    function explaining(){ return card.classList.contains('wide'); }
+    function litOff(){ if(layer1)layer1.classList.remove('active'); if(layer2)layer2.classList.remove('active'); if(layers)layers.classList.remove('l2on'); }
 
     function spawnInput(text, anchorY, dur){
-      var b = bounds(), startX = -140;
+      var b = bounds(), startX = -150;
       var el = document.createElement('div');
       el.className = 'bb-token in'; el.textContent = text; stage.appendChild(el);
       var start = performance.now(), endX = b.cardCX, endY = b.cardCY - 12;
@@ -207,7 +342,7 @@
         var x = startX + (endX - startX) * e, y = anchorY + (endY - anchorY) * e;
         var op = 1;
         if (t < 0.12) op = t / 0.12;
-        if (x > b.cardLeft - 10) op = Math.max(0, 1 - (x - (b.cardLeft - 10)) / 50); // fade at card's left edge
+        if (x > b.cardLeft - 10) op = Math.max(0, 1 - (x - (b.cardLeft - 10)) / 60); // fade at card's left edge
         el.style.opacity = op;
         el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
         el._x = x; el._y = y;   // viewport coords, for the cursor-proximity "lit" effect
@@ -219,7 +354,7 @@
       var b = bounds();
       var el = document.createElement('div');
       el.className = 'bb-token out'; el.textContent = text; stage.appendChild(el);
-      var startX = b.cardRight - 30, endX = b.W + 160, y = b.cardCY - 20, start = performance.now();
+      var startX = b.cardRight - 30, endX = b.W + 170, y = b.cardCY - 20, start = performance.now();
       (function frame(now){
         var t = (now - start) / dur;
         if (t > 1){ el.remove(); return; }
@@ -239,16 +374,22 @@
     function run(){
       timers.forEach(clearTimeout); timers = [];
       stage.querySelectorAll('.bb-token').forEach(function(e){ e.remove(); });
-      var inDur = 3400;
+      litOff();
+      var inDur = 3300;
       (function batch(){
-        var b = bounds(), lanes = [b.H*0.15, b.cardCY-12, b.H*0.85];
-        for (var k=0; k<9; k++){
-          var text = INPUTS[(outIdx*9 + k) % INPUTS.length];
-          var lane = lanes[k%3] + (Math.random()*40 - 20);
-          timers.push(setTimeout((function(tx,ly){ return function(){ spawnInput(tx, ly, inDur); }; })(text, lane), k*200));
+        litOff();
+        var b = bounds(), lanes = [b.H*0.16, b.cardCY-12, b.H*0.84];
+        for (var k=0; k<10; k++){
+          var text = INPUTS[(outIdx*10 + k) % INPUTS.length];
+          var lane = lanes[k%3] + (Math.random()*44 - 22);
+          timers.push(setTimeout((function(tx,ly){ return function(){ spawnInput(tx, ly, inDur); }; })(text, lane), k*170));
         }
-        timers.push(setTimeout(function(){ pulseCard(); spawnOutput(OUTPUTS[outIdx % OUTPUTS.length], 3600); outIdx++; }, inDur-100));
-        timers.push(setTimeout(batch, inDur + 2900));
+        // staged lighting: Layer 1 → Layer 2 → result
+        timers.push(setTimeout(function(){ if(explaining()&&layer1) layer1.classList.add('active'); }, 2100));
+        timers.push(setTimeout(function(){ if(explaining()&&layer2){ layer2.classList.add('active'); layers.classList.add('l2on'); } }, 3000));
+        timers.push(setTimeout(function(){ pulseCard(); spawnOutput(OUTPUTS[outIdx % OUTPUTS.length], 3600); outIdx++; }, 3800));
+        timers.push(setTimeout(litOff, 5400));
+        timers.push(setTimeout(batch, inDur + 3300));
       })();
     }
 
@@ -257,16 +398,14 @@
     (function loop(){
       gx += (mx - gx) * 0.12; gy += (my - gy) * 0.12;
       if (glow) glow.style.transform = 'translate(' + gx + 'px,' + gy + 'px) translate(-50%,-50%)';
-      // card proximity: dim blue, only after the first cursor move and never while pulsing
       if (!card.classList.contains('bb-pulse')){
         if (moved){
           var cr = card.getBoundingClientRect(), ccx = cr.left + cr.width/2, ccy = cr.top + cr.height/2;
-          var prox = Math.max(0, 1 - Math.hypot(mx - ccx, my - ccy) / 420);
+          var prox = Math.max(0, 1 - Math.hypot(mx - ccx, my - ccy) / 460);
           var spread = 6 + prox*12, blur = 30 + prox*25, alpha = (0.08 + prox*0.22).toFixed(2);
           card.style.boxShadow = CARD_BASE + ', 0 0 ' + blur + 'px ' + spread + 'px rgba(79,140,255,' + alpha + ')';
         } else { card.style.boxShadow = CARD_BASE; }
       }
-      // input tokens light up green when the cursor is near them
       stage.querySelectorAll('.bb-token.in').forEach(function(el){
         if (el._x == null) return;
         if (Math.hypot(mx - el._x, my - el._y) < 120) el.classList.add('lit'); else el.classList.remove('lit');
