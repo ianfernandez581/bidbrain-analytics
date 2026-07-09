@@ -1194,17 +1194,21 @@ function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.ge
 if (window.Chart) Chart.register({
   id:'bbDonutCenter',
   afterDraw(chart){
+   try{
     const o = chart.options && chart.options.plugins && chart.options.plugins.bbCenter;
     if(!o) return;
     const ds = (chart.data.datasets||[])[0]; if(!ds) return;
     const a = chart.chartArea; if(!a) return;
+    // NOTE: never put a FUNCTION in plugin options - Chart.js treats function-valued options as
+    // "scriptable" and auto-invokes them with a context object on read (blanks the chart). So the
+    // format is described by data-only fields: `prefix` (currency string) + plain integer formatting.
     let sum=0; (ds.data||[]).forEach((v,i)=>{ if(chart.getDataVisibility(i)) sum += (+v||0); });
     const cx=(a.left+a.right)/2, cy=(a.top+a.bottom)/2;
     const ring=Math.min(a.right-a.left, a.bottom-a.top);
     const cutout=(typeof chart.options.cutout==='string'?parseFloat(chart.options.cutout)/100:0.5)||0.5;
     const hole=ring*cutout*0.92;                                  // usable width inside the hole
     const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'Inter,system-ui,sans-serif';
-    const val = o.fmt ? o.fmt(sum) : Math.round(sum).toLocaleString();
+    const val = (o.prefix||'') + Math.round(sum).toLocaleString();
     const ctx=chart.ctx; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
     let vs=Math.max(13, Math.min(30, ring*0.17));
     ctx.font='700 '+vs+'px '+fam;
@@ -1214,6 +1218,7 @@ if (window.Chart) Chart.register({
     ctx.font='700 10px '+fam; ctx.fillStyle = o.labelColor || '#8CA0B8';
     ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72);
     ctx.restore();
+   }catch(e){ /* never let a centre-label error blank the chart */ }
   }
 });
 
@@ -1462,20 +1467,20 @@ function renderOverview(){
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
   mkChart('channelDonut',{type:'doughnut',data:{labels:ch.map(c=>c.channel),
     datasets:[{data:ch.map(c=>c.sessions),backgroundColor:ch.map(c=>mc(c.channel))}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Sessions',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Sessions'},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
 
   // spend donut (filtered, in range)
   const sp=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumBy(acm.filter(r=>r.platform===p),'spend_aud')})).filter(x=>x.v>0);
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total spend',fmt:aud},legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total spend',prefix:'A$'},legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
 
   // leads donut (same filter) - read side-by-side with spend to expose efficiency: TTD takes a big
   // slice of spend but reports no leads, so it does not appear here at all.
   const lpd=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:byP[p].conv})).filter(x=>x.v>0);
   mkChart('leadsDonut',{type:'doughnut',data:{labels:lpd.map(x=>PLABEL[x.p]),
     datasets:[{data:lpd.map(x=>x.v),backgroundColor:lpd.map(x=>PCOLOR[x.p])}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total leads',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total leads'},legend:{position:'top',labels:{color:tickClr,boxWidth:11}},
       tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtN(ctx.parsed)+' leads'}}}}});
 
   renderAudience();
@@ -1497,7 +1502,7 @@ function renderAudience(){
   const donut=(id,dim,colors)=>{const d=pick(dim);
     mkChart(id,{type:'doughnut',data:{labels:d.map(r=>r.bucket),
       datasets:[{data:d.map(r=>r.imps),backgroundColor:d.map(r=>colors[r.bucket]||'#475569')}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Impressions',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Impressions'},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}},
         tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtN(ctx.parsed)+' impr'}}}}});};
   donut('genderDonut','gender',{Male:'#0EA5E9',Female:'#F472A0',Undetermined:'#68738A'});
   donut('deviceDonut','device',{Mobile:'#22D3EE',Desktop:'#818CF8',Tablet:'#FDBA74','Connected Tv':'#A3E635',Other:'#68738A'});
@@ -2063,7 +2068,7 @@ function renderCRM(){
   const lcArr=stages.map(s=>({s,n:lcTot[s]||0})).filter(x=>x.n>0);
   mkChart('crmLifecycleDonut',{type:'doughnut',data:{labels:lcArr.map(x=>x.s),
     datasets:[{data:lcArr.map(x=>x.n),backgroundColor:lcArr.map(x=>mc(x.s))}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Contacts',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Contacts'},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
   const lcAgg={}; lo.forEach(r=>{const a=lcAgg[r.lifecycle]=lcAgg[r.lifecycle]||{c:0,s:0,p:0};a.c+=r.contacts;a.s+=r.signups;a.p+=r.paying;});
   let lch='<tr><th>Stage</th><th>Contacts</th><th>Signups</th><th>Paying</th></tr>';
   stages.forEach(s=>{const a=lcAgg[s];if(!a)return;lch+=`<tr><td class="name"><span style="color:${mc(s)}">●</span> ${s}</td><td>${fmtN(a.c)}</td><td>${fmtN(a.s)}</td><td>${fmtN(a.p)}</td></tr>`;});
