@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Bidbrain Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e16; --panel:#101726; --border:rgba(255,255,255,.08);
+    --text:#e8ebf2; --muted:#8a93a6; --accent:#4C8DFF; --accent-2:#6EA8FF; --accent-bg:rgba(76,141,255,.12);
+    --green:#3DDC84; --green-bg:rgba(61,220,132,.12);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       color:var(--text);overflow:hidden;
+       background:
+         radial-gradient(860px 500px at 50% -6%, rgba(76,141,255,.22), transparent 62%),
+         radial-gradient(1000px 560px at 50% -4%, rgba(110,168,255,.11), transparent 64%),
+         radial-gradient(1100px 620px at 50% -8%,#152033 0%,#0b1120 52%,#070a11 100%);
+       background-repeat:no-repeat;background-attachment:fixed}
+
+  /* ===== the brain box ===== */
+  .card{width:100%;max-width:900px;padding:26px 30px 28px;background:var(--panel);
+        border:1px solid var(--border);border-radius:20px;position:relative;z-index:20;
+        transition:box-shadow .25s ease;
+        box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.02), 0 0 70px rgba(76,141,255,.08)}
+  .card::before{content:"";position:absolute;left:26px;right:26px;top:-1px;height:1px;
+        background:linear-gradient(90deg,transparent,rgba(110,168,255,.65),transparent);opacity:.75}
+
+  .head{display:flex;align-items:center;gap:11px;justify-content:center;margin-bottom:4px}
+  .head svg{height:26px;width:auto}
+  .head .t{font-size:13px;font-weight:800;letter-spacing:.4px;color:#fff}
+  .sub{text-align:center;font-size:11.5px;color:var(--muted);margin:0 0 20px}
+
+  /* two layers side by side, left to right, with a flow arrow between them */
+  .layers{display:grid;grid-template-columns:1fr 34px 1fr;gap:12px;align-items:stretch;margin-top:16px}
+  .midarrow{display:flex;align-items:center;justify-content:center;color:var(--green)}
+  .midarrow svg{width:26px;height:26px}
+
+  .layer{position:relative;border:1px solid var(--border);border-radius:14px;padding:15px 14px 14px;
+         background:var(--panel-2, #0d1420);display:flex;flex-direction:column}
+  .layer.l1{border-left:3px solid var(--accent)}
+  .layer.l2{border-left:3px solid var(--green)}
+  .llab{position:absolute;top:-9px;left:14px;font-size:9.5px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;
+        padding:2px 9px;border-radius:20px;background:var(--panel)}
+  .layer.l1 .llab{color:var(--accent-2);border:1px solid rgba(76,141,255,.4)}
+  .layer.l2 .llab{color:var(--green);border:1px solid rgba(61,220,132,.4)}
+
+  .l1grid{display:flex;flex-direction:column;gap:9px;margin-top:4px}
+  .eng{background:rgba(255,255,255,.03);border:1px solid var(--border);border-radius:10px;padding:10px 11px}
+  .eng .en{font-size:12px;font-weight:800;color:#eef2fa;display:flex;align-items:center;gap:7px;margin-bottom:6px;line-height:1.2}
+  .eng .en .ic{width:22px;height:22px;flex:0 0 auto;border-radius:7px;background:var(--accent-bg);color:var(--accent-2);display:grid;place-items:center}
+  .eng .en .ic svg{width:13px;height:13px}
+  .eng ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:4px}
+  .eng li{font-size:10.5px;color:#aab3c6;line-height:1.3;padding-left:11px;position:relative}
+  .eng li::before{content:"";position:absolute;left:0;top:5px;width:5px;height:5px;border-radius:1px;background:var(--accent);opacity:.7}
+
+  .l2grid{display:flex;flex-direction:column;gap:9px;margin-top:4px;flex:1;justify-content:center}
+  .act{background:rgba(61,220,132,.06);border:1px solid rgba(61,220,132,.2);border-radius:10px;padding:12px 12px}
+  .act .an{font-size:12px;font-weight:800;color:#eafff3;display:flex;align-items:center;gap:7px;margin-bottom:5px}
+  .act .an .ic{width:22px;height:22px;flex:0 0 auto;border-radius:7px;background:var(--green-bg);color:var(--green);display:grid;place-items:center}
+  .act .an .ic svg{width:13px;height:13px}
+  .act p{margin:0;font-size:10.5px;color:#b8c6bd;line-height:1.35}
+
+  .side{position:fixed;bottom:26px;font-size:11px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;z-index:20;color:var(--muted)}
+  .side.left{left:34px}
+  .side.right{right:34px;color:var(--green)}
+
+  /* ===== Brief → Results animation (from the live login page) ===== */
+  #bb-stage{position:fixed;inset:0;overflow:hidden;z-index:0;pointer-events:none}
+  .bb-cursor-glow{position:fixed;top:0;left:0;width:520px;height:520px;z-index:1;pointer-events:none;
+            border-radius:50%;transform:translate(-50%,-50%);will-change:transform;
+            background:radial-gradient(circle, rgba(61,220,132,.11) 0%, rgba(61,220,132,.04) 32%, transparent 68%),
+                       radial-gradient(circle, rgba(79,140,255,.12) 0%, rgba(79,140,255,.05) 40%, transparent 72%)}
+  .bb-token{position:absolute;left:0;top:0;white-space:nowrap;font-weight:600;
+            padding:6px 12px;border-radius:8px;will-change:transform,opacity;pointer-events:none;opacity:0;
+            transition:text-shadow .2s ease,color .2s ease,border-color .2s ease}
+  .bb-token.in{font-size:14px;color:#e8edf7;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.10)}
+  .bb-token.in.lit{color:#eafff3;border-color:rgba(61,220,132,.55);text-shadow:0 0 10px rgba(61,220,132,.7)}
+  .bb-token.out{font-size:22px;font-weight:700;color:#eafff3;background:rgba(61,220,132,.16);
+            border:1px solid rgba(61,220,132,.65);padding:10px 22px;border-radius:12px;
+            text-shadow:0 0 8px rgba(61,220,132,.95),0 0 20px rgba(61,220,132,.7);
+            box-shadow:0 0 22px 4px rgba(61,220,132,.55),0 0 45px 10px rgba(61,220,132,.30),inset 0 0 14px rgba(61,220,132,.25)}
+  @keyframes bbCardPulse{
+    0%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)}
+    50%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08),0 0 34px 5px rgba(79,140,255,.5)}
+    100%{box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)}}
+  .card.bb-pulse{animation:bbCardPulse .6s ease}
+  @media (prefers-reduced-motion:reduce){ #bb-stage{display:none} .bb-cursor-glow{display:none} }
+</style>
+</head>
+<body>
+  <div id="bb-stage" aria-hidden="true"></div>
+  <div class="bb-cursor-glow" id="bbGlow" aria-hidden="true"></div>
+
+  <div class="side left">Raw&nbsp;data&nbsp;in&nbsp;&rarr;</div>
+  <div class="side right">&rarr;&nbsp;Results&nbsp;out</div>
+
+  <div class="card" id="brainCard">
+    <div class="head">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200"><g fill="#fff"><path d="M59.9,111.4c1.6,6,3.8,7.8,9.5,10,1.6.6,2.6,2.2,2.3,3.7-.4,2-2.2,2.7-4.1,2.3-1.2-.2-2.2-1.2-3.5-1.3-2.3,0-4.6,1.3-6.2,2.8-3.1,2.9-4.9,6.8-5.6,11-1.4,9.9,6.8,17.3,15.9,18.1-.4-4.4.6-8.2,3.5-11.4-1.2-.7-2.4-.9-3.4-1.7-1.4-1-1.8-2.7-1.1-4.1.9-1.6,2.6-2,4.3-1.2,6,2.8,10.1-.2,11.1,3.6s-3.2,3.2-6.6,7.6c-2.5,3.2-2.4,7.4.3,10.5,2.1,2.5,5.2,3.6,8.5,3.3,7.3-.7,10.4-8.7,10.4-15.5v-24.4c-3.4,3-7.1,5.3-11.5,5.5-1.8,0-3.3-1.3-3.4-2.9s1.1-3.1,2.9-3.3c3.9-.5,7.3-2.8,9.3-6.2s2.6-7,2.6-11v-53.7c0-3.4-.5-6.4-2-9.3-4.3-8.5-15.2-9.6-22.4-4.2-2.4,1.8-4.1,4-5.6,6.8-1.8-1.2-3.5-2.4-5.3-3.8,3.8-6.5,10.1-11.3,17.6-12.4,9.3-1.3,18,3.3,21.9,11.9,6-12.5,19.4-15.5,31.4-10.8,5.8,2.4,10.1,6.8,12.6,12.4,13.4,2.7,22,14.9,19.2,28.3,5.4,2.1,9.2,6.2,11,11.5,2.7,7.9,1.8,16.9-4,23.4,3.5,4.6,4.6,10,3.6,15.7-1.4,7.5-6.3,13.7-13.6,16.2.6,14.8-12.8,27.9-27.5,24.8-4.3,5.5-10.7,8.3-17.6,7.4-6.4-.8-12.4-4.8-15-11.2-1.5,3.1-3.1,5.7-5.7,7.7-7.2,5.7-17.6,4.5-23.1-3-14.8,0-26.4-10.8-24.5-26-14.6-3.4-20.5-20.7-14.1-33.2l-23.5-18.2c-2.7-2.1-2.2-6.4.4-7.9,2.3-1.6,4.5-1.4,6.6.2l24.8,18.7c2.1,1.6,2.7,3.8,2.1,6.2s-3.5,2.5-4.7,3.9c-3.5,5.4-2.7,13,.8,18.2,2.3,3.5,5.6,5.6,9.6,6.3,2-4.6,5.1-8.4,9.5-10.9-2.2-2.9-6.4-11.8-1.2-12.6,1.5-.2,2.9.9,3.3,2.5h0ZM166.7,82.6c-1.8-3.1-4.8-5.1-8.3-5.5-1.8-.2-3.2.6-4.7,1.3s-3,0-3.7-1.3c-.7-1.3-.4-3,.9-4,1.6-1.3,3.5-1.8,5.7-2.2,2.6-8.9-3.2-18.1-11.9-20.7.3,11.4-8.4,20.3-19.7,20.3-2.3,2.6-4.6,5.1-7.7,6.5-1.6.7-3.5.3-4.2-1.1-2.2-4.3,4.9-4.2,8.1-11.2,1.9-4.3.5-8.8-3.5-11.2-1.5-.9-1.7-2.9-1-4.1.8-1.4,2.6-1.8,4.1-1,5.7,2.8,8.2,9,6.8,15.6,7.2-.9,11.9-7.6,11-14.8-.9-6.4-5.8-11.5-12-13.2-7.3-2-16.1-.5-20.2,6.7-1.5,2.7-2.6,5.8-2.6,9.3v98.5c0,3.9,1.8,7.7,4.3,10.3,3.8,4,9.9,4.9,14.7,2.7,3-1.3,5.4-3.9,6.6-6.9.7-1.8,1.6-3,3.6-2.7,1.5.3,2.5,1.7,2.5,3.6,4.8.6,9.2-1.1,12.5-4.3,4.6-4.5,6.7-10.8,5.4-17.2-.6-3.2,4.6-2.3,8.7-5.6,4.6-3.7,6.6-9.8,5.2-15.5-.9-3.5-3.2-6.2-6.2-7.9-1.9-1-3.8-1.5-5.8-2.3-6.4-2.3-12.5-9.2-8-11.7,1.4-.8,3.1-.3,4,1.1,3.7,5.7,8.4,4.6,14,8.1,5.4-5.1,5-13.8,1.5-19.8h0Z"/><path d="M78.8,108.4l-27.2-23.9-9.3,11.5-25.4-19.3,22.8-29.2,25.4,18.8-8.6,11,29,21.3c2.5,2.1,3.2,5.6,1.3,8.2-1.6,2.3-5.5,3.7-8.1,1.4h0Z"/><path d="M72,63.4c-2.2,1.6-4.6,1.7-6.7.1l-25.5-19.1c-2.2-1.7-1.2-5.2.1-6.7,2-2.2,5-2.4,7.3-.7l24.6,17.9c1.5,1.1,2.4,2.3,2.4,4,0,1.8-.7,3.4-2.3,4.5h0Z"/><path d="M138.7,130.2c-1.6,7.6,6.7,7.1,4.7,11.7-.6,1.3-2.5,2.3-4.1,1.6-4.8-2.4-7.9-8-6.8-13.9-6.1-2-10.6-7-11.3-13.4-.2-1.9.6-3.4,2.4-3.7,1.6-.3,3.4.7,3.6,2.5.4,3.4,2.3,6.2,5.3,7.8,4.8,2.5,10.5.8,13.1-3.9.8-1.5,2.8-1.6,4-.8,1.3.9,1.8,2.6,1,4.2-2.2,4.5-6.7,7.2-12,7.9h0Z"/><path d="M124.5,99c-4.6-.6-11.4,1.7-11.7-2.9,0-1.5,1.2-3.2,3-3.2,6.5,0,12.3,0,15.9-6,2.5-4.1,2-8,5.6-7.5,1.3.2,2.3,1.5,2.2,3.1-.5,5-3.1,9.5-7,12.9,2.9,1.6,10.5,9,5.5,11.6-1.2.6-3,.6-3.9-.9-2-3.5-5.2-6.5-9.5-7.1h0Z"/><path d="M117.1,154.1c-1.9.7-3.6-.6-4.1-2s.2-3.1,1.8-3.8c2.7-1.1,4.8-3.7,5-6.7.2-4-2.3-7.2-5.7-8.8-1.4-.6-1.9-2.3-1.5-3.4.5-1.4,1.9-2.4,3.6-2,4.6,1.1,7.8,4.7,9.2,9.1,2.2,7.1-1,14.9-8.3,17.6h0Z"/></g></svg>
+      <span class="t">THE BIDBRAIN ENGINE</span>
+    </div>
+    <p class="sub">Messy raw signals go in. Structure, decisions and action come out.</p>
+
+    <div class="layers">
+    <!-- LAYER 1 -->
+    <div class="layer l1">
+      <span class="llab">Layer 1 &middot; The Engine</span>
+      <div class="l1grid">
+        <div class="eng">
+          <div class="en"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18M5 8l7-5 7 5M5 8v8l7 5 7-5V8"/></svg></span>20 Yrs Expertise</div>
+          <ul>
+            <li>Confidential best-practice rule book</li>
+            <li>AI note-taker on every meeting</li>
+            <li>Years of optimisation decisions logged</li>
+          </ul>
+        </div>
+        <div class="eng">
+          <div class="en"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M7 15l4-5 3 3 5-7"/></svg></span>Statistical Analysis</div>
+          <ul>
+            <li>Machine learning</li>
+            <li>Media Mix Modelling (MMM)</li>
+            <li>Proven prediction algorithms</li>
+          </ul>
+        </div>
+        <div class="eng">
+          <div class="en"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>Industry Research</div>
+          <ul>
+            <li>Self-updating scraper of industry &amp; platform intel</li>
+            <li>Always current, real time</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="midarrow" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M13 6l7 6-7 6"/></svg>
+    </div>
+
+    <!-- LAYER 2 -->
+    <div class="layer l2">
+      <span class="llab">Layer 2 &middot; Automated Action</span>
+      <div class="l2grid">
+        <div class="act">
+          <div class="an"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="10" rx="1"/><rect x="13" y="3" width="8" height="6" rx="1"/><rect x="3" y="16" width="8" height="5" rx="1"/><rect x="13" y="12" width="8" height="9" rx="1"/></svg></span>Dashboards &amp; Reports</div>
+          <p>Live client dashboards and client-ready reports, built and refreshed automatically.</p>
+        </div>
+        <div class="act">
+          <div class="an"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/><circle cx="12" cy="12" r="3"/></svg></span>Automatic Optimisation &amp; Alerts</div>
+          <p>Budgets, bids and targeting tuned 24/7, with proactive alerts the moment something moves.</p>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <script>
+  /* Brief → Results: raw campaign-brief words stream in from the left, the engine "processes"
+     them (green pulse), one glowing metric emerges on the right. Ported from the live login page. */
+  (function(){
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var stage = document.getElementById('bb-stage');
+    var card  = document.getElementById('brainCard');
+    if (!stage || !card) return;
+
+    var INPUTS = ["Ad spend","Impressions","Clicks","Conversions","CTR","CPC","CPA","ROAS",
+      "GA4 sessions","Bounce rate","Keywords","Audience","Creative","Placements","Budget pacing",
+      "CRM leads","Competitor spend","Market trend","Platform update","Bid data","Attribution","Frequency"];
+    var OUTPUTS = ["Conversions ↑","CTR ↑","ROAS ↑","Revenue ↑","Reach ↑",
+      "CPA ↓","CPC ↓","On-track pacing ✓"];
+
+    var timers = [], outIdx = 0;
+    var glow = document.getElementById('bbGlow');
+    var CARD_BASE = '0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02),0 0 70px rgba(76,141,255,.08)';
+    var moved = false, mx = window.innerWidth/2, my = 90, gx = mx, gy = my;
+
+    function bounds(){
+      var c = card.getBoundingClientRect();
+      return { cardLeft:c.left, cardRight:c.right, cardCX:c.left+c.width/2, cardCY:c.top+c.height/2,
+               W:window.innerWidth, H:window.innerHeight };
+    }
+
+    function spawnInput(text, anchorY, dur){
+      var b = bounds(), startX = -160;
+      var el = document.createElement('div');
+      el.className = 'bb-token in'; el.textContent = text; stage.appendChild(el);
+      var start = performance.now(), endX = b.cardCX, endY = b.cardCY - 12;
+      (function frame(now){
+        var t = (now - start) / dur;
+        if (t > 1){ el.remove(); return; }
+        var e = 1 - Math.pow(1 - t, 2);
+        var x = startX + (endX - startX) * e, y = anchorY + (endY - anchorY) * e;
+        var op = 1;
+        if (t < 0.12) op = t / 0.12;
+        if (x > b.cardLeft - 10) op = Math.max(0, 1 - (x - (b.cardLeft - 10)) / 60); // fade at the box's left edge
+        el.style.opacity = op;
+        el.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+        el._x = x; el._y = y;
+        requestAnimationFrame(frame);
+      })(performance.now());
+    }
+
+    function spawnOutput(text, dur){
+      var b = bounds();
+      var el = document.createElement('div');
+      el.className = 'bb-token out'; el.textContent = text; stage.appendChild(el);
+      var startX = b.cardRight - 30, endX = b.W + 180, y = b.cardCY - 20, start = performance.now();
+      (function frame(now){
+        var t = (now - start) / dur;
+        if (t > 1){ el.remove(); return; }
+        var e = 1 - Math.pow(1 - t, 2), x = startX + (endX - startX) * e;
+        var op = 1;
+        if (t < 0.10) op = t / 0.10;
+        if (t > 0.78) op = Math.max(0, (1 - t) / 0.22);
+        el.style.opacity = op;
+        el.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + (0.9 + 0.1*Math.min(1, t*3)) + ')';
+        requestAnimationFrame(frame);
+      })(performance.now());
+    }
+
+    function pulseCard(){ card.classList.remove('bb-pulse'); void card.offsetWidth; card.classList.add('bb-pulse'); }
+    card.addEventListener('animationend', function(){ card.classList.remove('bb-pulse'); });
+
+    function run(){
+      timers.forEach(clearTimeout); timers = [];
+      stage.querySelectorAll('.bb-token').forEach(function(e){ e.remove(); });
+      var inDur = 3400;
+      (function batch(){
+        var b = bounds(), lanes = [b.H*0.16, b.cardCY-12, b.H*0.84];
+        for (var k=0; k<10; k++){
+          var text = INPUTS[(outIdx*10 + k) % INPUTS.length];
+          var lane = lanes[k%3] + (Math.random()*46 - 23);
+          timers.push(setTimeout((function(tx,ly){ return function(){ spawnInput(tx, ly, inDur); }; })(text, lane), k*180));
+        }
+        timers.push(setTimeout(function(){ pulseCard(); spawnOutput(OUTPUTS[outIdx % OUTPUTS.length], 3600); outIdx++; }, inDur-100));
+        timers.push(setTimeout(batch, inDur + 2600));
+      })();
+    }
+
+    window.addEventListener('mousemove', function(e){ moved = true; mx = e.clientX; my = e.clientY; });
+    (function loop(){
+      gx += (mx - gx) * 0.12; gy += (my - gy) * 0.12;
+      if (glow) glow.style.transform = 'translate(' + gx + 'px,' + gy + 'px) translate(-50%,-50%)';
+      if (!card.classList.contains('bb-pulse')){
+        if (moved){
+          var cr = card.getBoundingClientRect(), ccx = cr.left + cr.width/2, ccy = cr.top + cr.height/2;
+          var prox = Math.max(0, 1 - Math.hypot(mx - ccx, my - ccy) / 460);
+          var spread = 6 + prox*12, blur = 30 + prox*25, alpha = (0.08 + prox*0.22).toFixed(2);
+          card.style.boxShadow = CARD_BASE + ', 0 0 ' + blur + 'px ' + spread + 'px rgba(79,140,255,' + alpha + ')';
+        } else { card.style.boxShadow = CARD_BASE; }
+      }
+      stage.querySelectorAll('.bb-token.in').forEach(function(el){
+        if (el._x == null) return;
+        if (Math.hypot(mx - el._x, my - el._y) < 120) el.classList.add('lit'); else el.classList.remove('lit');
+      });
+      requestAnimationFrame(loop);
+    })();
+
+    var rt;
+    window.addEventListener('resize', function(){ clearTimeout(rt); rt = setTimeout(run, 200); });
+    run();
+  })();
+  </script>
+</body>
+</html>
