@@ -1994,10 +1994,12 @@ function renderAll() {
 // ==========================================================================
 // COMPARISON TAB
 // ==========================================================================
-// Panels default to the two markets the client cares about most - AU (the flagship /
-// biggest market) vs SAARC (the #2) - so the comparison shows straight away instead of
-// two empty "Select a region" panels. Overrideable: the dropdowns / Clear still work.
-const COMPARE_DEFAULTS = { A: 'AU', B: 'SAARC' };
+// Panels default to the two markets the client cares about most - ANZ (the flagship /
+// biggest market, AU+NZ) vs SAARC (the #2) - so the comparison shows straight away instead
+// of empty "Select a region" panels. Overrideable: the dropdowns / Clear still work.
+// (Was 'AU' before the 2026-07-07 rollback to 7 market GROUPS; 'AU' is no longer a valid
+//  option in ALL_MARKETS, so panel A was defaulting blank - 'ANZ' is its group.)
+const COMPARE_DEFAULTS = { A: 'ANZ', B: 'SAARC' };
 function populateRegionSelects() {
   ['A', 'B'].forEach(side => {
     const sel = document.getElementById('region' + side);
