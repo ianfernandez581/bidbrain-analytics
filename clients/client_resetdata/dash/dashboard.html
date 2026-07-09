@@ -1183,6 +1183,97 @@ function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.ge
   if(Chart.overrides) ['doughnut','pie','polarArea'].forEach(t=>{                 // donut / pie keep their own legend defaults
     const o=Chart.overrides[t]; if(o&&o.plugins&&o.plugins.legend) wrap(o.plugins.legend); });
 })();
+
+// ===================== Bidbrain shared: donut centre total + sortable tables =====================
+// Vendored identically across every dashboard. Adds BEHAVIOUR only - no restyle.
+
+// Change 2: dynamic donut CENTRE value. Reads options.plugins.bbCenter = {label, fmt}. Sums ONLY the
+// currently-visible slices (Chart.js getDataVisibility reflects the native legend toggles), so hiding
+// a slice drops the centre total live and re-enabling it adds it back. Draws a big value + a small
+// caps label in the ring hole. Hidden labels are already struck-through by Chart.js' native legend.
+if (window.Chart) Chart.register({
+  id:'bbDonutCenter',
+  afterDraw(chart){
+    const o = chart.options && chart.options.plugins && chart.options.plugins.bbCenter;
+    if(!o) return;
+    const ds = (chart.data.datasets||[])[0]; if(!ds) return;
+    const a = chart.chartArea; if(!a) return;
+    let sum=0; (ds.data||[]).forEach((v,i)=>{ if(chart.getDataVisibility(i)) sum += (+v||0); });
+    const cx=(a.left+a.right)/2, cy=(a.top+a.bottom)/2;
+    const ring=Math.min(a.right-a.left, a.bottom-a.top);
+    const cutout=(typeof chart.options.cutout==='string'?parseFloat(chart.options.cutout)/100:0.5)||0.5;
+    const hole=ring*cutout*0.92;                                  // usable width inside the hole
+    const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'Inter,system-ui,sans-serif';
+    const val = o.fmt ? o.fmt(sum) : Math.round(sum).toLocaleString();
+    const ctx=chart.ctx; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    let vs=Math.max(13, Math.min(30, ring*0.17));
+    ctx.font='700 '+vs+'px '+fam;
+    while(vs>10 && ctx.measureText(val).width>hole){ vs-=1; ctx.font='700 '+vs+'px '+fam; }
+    ctx.fillStyle = o.color || '#E8EEF6';
+    ctx.fillText(val, cx, cy - vs*0.12);
+    ctx.font='700 10px '+fam; ctx.fillStyle = o.labelColor || '#8CA0B8';
+    ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72);
+    ctx.restore();
+  }
+});
+
+// Change 1: Looker-style sortable table headers. Click a header -> desc (v); click again -> asc (^);
+// one active column at a time; numeric parse (strips $ , %); non-numeric/empty ("no pixel", "-")
+// always sink to the bottom in BOTH directions; the Total row is pinned at the bottom, never sorted.
+// Survives table re-renders (tables rebuild via innerHTML) via a MutationObserver that re-applies the
+// active sort. A pure-text column falls back to A-Z / Z-A. Styling added via an injected class only.
+(function(){
+  const css='table.bb-sortable th{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}'
+    +'table.bb-sortable th:hover{color:var(--accent,#4C8DFF)}'
+    +'.bb-sort-ind{font-size:.82em;opacity:.85;margin-left:3px}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+
+  const parseNum=t=>{ const x=String(t==null?'':t).replace(/,/g,'').replace(/[^0-9.\-]/g,'');
+    if(x===''||x==='-'||x==='.'||x==='-.') return NaN; const v=parseFloat(x); return isNaN(v)?NaN:v; };
+  const headerRow=t=>{ const rs=[...t.rows]; return rs.find(r=>r.querySelector('th'))||rs[0]||null; };
+  const isTotal=r=>{ const c=r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    if(r.classList.contains('total')||c.classList.contains('total')) return true;
+    return /font-weight\s*:\s*(700|800|900|bold)/i.test((r.getAttribute('style')||'')+(c.getAttribute('style')||'')); };
+  const dataRows=(t,h)=>[...t.rows].filter(r=>r!==h && !r.querySelector('th') && !isTotal(r));
+  const totalRows=(t,h)=>[...t.rows].filter(r=>r!==h && r.querySelector('td') && isTotal(r));
+
+  function decorate(t,h,col,dir){ if(!h) return;
+    [...h.cells].forEach((th,i)=>{ let base=th.getAttribute('data-bbl');
+      if(base==null){ base=th.innerHTML; th.setAttribute('data-bbl',base); }
+      th.innerHTML = (i===col) ? base+' <span class="bb-sort-ind">'+(dir==='asc'?'▲':'▼')+'</span>' : base; });
+  }
+  function sortRows(t,h,st){ const drows=dataRows(t,h); if(drows.length<2) return;
+    let anyNum=false;
+    const vals=drows.map(r=>{ const cell=r.cells[st.col]; const raw=cell?cell.textContent:''; const num=parseNum(raw);
+      if(!isNaN(num)) anyNum=true; return {r,raw:(raw||'').trim(),num}; });
+    vals.sort((a,b)=>{
+      if(anyNum){ const an=isNaN(a.num), bn=isNaN(b.num);
+        if(an&&bn) return 0; if(an) return 1; if(bn) return -1;          // non-numeric always last
+        return st.dir==='asc' ? a.num-b.num : b.num-a.num; }
+      const cmp=a.raw.localeCompare(b.raw, undefined, {numeric:true, sensitivity:'base'});
+      return st.dir==='asc' ? cmp : -cmp; });
+    const parent=h.parentNode;
+    vals.forEach(v=>parent.appendChild(v.r));
+    totalRows(t,h).forEach(tr=>parent.appendChild(tr));                  // keep Total pinned at bottom
+  }
+  function refresh(t){ const mo=t._bbMO; if(mo) mo.disconnect();
+    const h=headerRow(t), st=t._bbSort;
+    if(h && st && st.col!=null) sortRows(t,h,st);
+    decorate(t,h, st?st.col:null, st?st.dir:null);
+    if(mo) mo.observe(t,{childList:true,subtree:true}); }
+  function wire(t){ if(t._bbWired) return; t._bbWired=true; t.classList.add('bb-sortable');
+    t.addEventListener('click',e=>{ const cell=e.target.closest('th,td'); if(!cell) return;
+      const h=headerRow(t); if(!h||cell.parentNode!==h) return;
+      const col=[...h.cells].indexOf(cell); if(col<0) return;
+      const st=t._bbSort||{col:null,dir:'desc'};
+      if(st.col===col) st.dir=(st.dir==='desc'?'asc':'desc'); else { st.col=col; st.dir='desc'; }
+      t._bbSort=st; refresh(t); });
+    t._bbMO=new MutationObserver(()=>refresh(t)); refresh(t); }
+  const wireAll=()=>document.querySelectorAll('table').forEach(wire);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wireAll); else wireAll();
+})();
+
 const gridClr='#1E2D42', tickClr='#8CA0B8';
 // Headroom: raise ONLY the top of value axes by ~8% so peaks/bars never touch the plot edge.
 // No-op on category axes and on axes with an explicit `max` (e.g. the % axes set their own), and
@@ -1371,20 +1462,20 @@ function renderOverview(){
   const ch=DATA.ga4_channels.filter(c=>c.sessions>0);
   mkChart('channelDonut',{type:'doughnut',data:{labels:ch.map(c=>c.channel),
     datasets:[{data:ch.map(c=>c.sessions),backgroundColor:ch.map(c=>mc(c.channel))}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Sessions',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
 
   // spend donut (filtered, in range)
   const sp=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumBy(acm.filter(r=>r.platform===p),'spend_aud')})).filter(x=>x.v>0);
   mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total spend',fmt:aud},legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
 
   // leads donut (same filter) - read side-by-side with spend to expose efficiency: TTD takes a big
   // slice of spend but reports no leads, so it does not appear here at all.
   const lpd=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:byP[p].conv})).filter(x=>x.v>0);
   mkChart('leadsDonut',{type:'doughnut',data:{labels:lpd.map(x=>PLABEL[x.p]),
     datasets:[{data:lpd.map(x=>x.v),backgroundColor:lpd.map(x=>PCOLOR[x.p])}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11}},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total leads',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11}},
       tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtN(ctx.parsed)+' leads'}}}}});
 
   renderAudience();
@@ -1406,7 +1497,7 @@ function renderAudience(){
   const donut=(id,dim,colors)=>{const d=pick(dim);
     mkChart(id,{type:'doughnut',data:{labels:d.map(r=>r.bucket),
       datasets:[{data:d.map(r=>r.imps),backgroundColor:d.map(r=>colors[r.bucket]||'#475569')}]},
-      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Impressions',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}},
         tooltip:{callbacks:{label:ctx=>ctx.label+': '+fmtN(ctx.parsed)+' impr'}}}}});};
   donut('genderDonut','gender',{Male:'#0EA5E9',Female:'#F472A0',Undetermined:'#68738A'});
   donut('deviceDonut','device',{Mobile:'#22D3EE',Desktop:'#818CF8',Tablet:'#FDBA74','Connected Tv':'#A3E635',Other:'#68738A'});
@@ -1972,7 +2063,7 @@ function renderCRM(){
   const lcArr=stages.map(s=>({s,n:lcTot[s]||0})).filter(x=>x.n>0);
   mkChart('crmLifecycleDonut',{type:'doughnut',data:{labels:lcArr.map(x=>x.s),
     datasets:[{data:lcArr.map(x=>x.n),backgroundColor:lcArr.map(x=>mc(x.s))}]},
-    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
+    options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Contacts',fmt:fmtN},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
   const lcAgg={}; lo.forEach(r=>{const a=lcAgg[r.lifecycle]=lcAgg[r.lifecycle]||{c:0,s:0,p:0};a.c+=r.contacts;a.s+=r.signups;a.p+=r.paying;});
   let lch='<tr><th>Stage</th><th>Contacts</th><th>Signups</th><th>Paying</th></tr>';
   stages.forEach(s=>{const a=lcAgg[s];if(!a)return;lch+=`<tr><td class="name"><span style="color:${mc(s)}">●</span> ${s}</td><td>${fmtN(a.c)}</td><td>${fmtN(a.s)}</td><td>${fmtN(a.p)}</td></tr>`;});
