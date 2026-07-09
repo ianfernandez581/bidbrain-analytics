@@ -1158,13 +1158,13 @@ function quarterSpan(keys){
   if(dateMax && e>dateMax) e=dateMax;
   return s>e ? null : [s,e];
 }
-// Toggle a quarter on/off (never allow an empty selection) and push the new span
-// to the shared range; DateRange.setRange -> onApply -> syncQuarterChips re-render.
+// Quarter chips are single-select: clicking one jumps the shared date range to
+// exactly that quarter. (Was additive/union, but with the Q3 chip hidden while Q3
+// is active - see renderQuarterChips - additive toggling left Q2-only unreachable
+// from the chips.) DateRange.setRange -> onApply -> syncQuarterChips re-render. The
+// Q2+Q3 union is still reachable via the calendar and stays labelled "Q2-Q3".
 function toggleQuarter(k){
-  const next = new Set(selQuarters);
-  next.has(k) ? next.delete(k) : next.add(k);
-  if(next.size===0) next.add(k);
-  const span = quarterSpan([...next]);
+  const span = quarterSpan([k]);
   if(span) DateRange.setRange(span[0], span[1]);
 }
 // Derive chip highlight from the current range (range = source of truth).
@@ -1177,8 +1177,13 @@ function syncQuarterChips(){
   renderQuarterChips();
 }
 function renderQuarterChips(){
-  document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b =>
-    b.classList.toggle('on', selQuarters.has(b.dataset.q)));
+  document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b => {
+    b.classList.toggle('on', selQuarters.has(b.dataset.q));
+    // Hide the Q3 chip while Q3 is the active quarter (Q3 is the default view, so its
+    // own chip is redundant then); Q2 stays visible so you can switch to it. Client
+    // request 2026-07-09.
+    if(b.dataset.q === 'Q3') b.style.display = selQuarters.has('Q3') ? 'none' : '';
+  });
   updateQuarterLabels();
 }
 // The quarter the user is viewing, as a label. Targets are the Q2 plan (no Q3 targets loaded yet),
