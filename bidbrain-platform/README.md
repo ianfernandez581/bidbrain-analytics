@@ -105,6 +105,16 @@ moves it into the registry and supersedes the secret). If a dashboard rotation's
 fails (e.g. IAM not yet propagated), the console tells you the exact `gcloud run services update …` to
 finish it by hand.
 
+## Login "How Bidbrain works" explainer (2026-07-09)
+The login page (`templates/login.html`) leads with an animated **"How Bidbrain works"** panel above the
+password/Google/Microsoft controls: messy raw-data tokens stream in from the left (the existing Brief→Results
+background), the box lights **Layer 1 · The Engine** (20-yrs expertise · statistical analysis · industry
+research) then **Layer 2 · Automated Action** (Dashboards & Reports · Automatic Optimisation & Alerts) in
+sequence, then a glowing green result metric (`Conversions ↑`, `ROAS ↑`, `CPA ↓`…) flies out the right.
+A **"Hide explanation"** toggle collapses it to the compact login (link flips to **"See how the engine
+works"**); the choice is remembered in `localStorage` (`bb_login_explain`) and **defaults to shown**. Pure
+front-end / decorative — no server contract changed, auth JS untouched, disabled under `prefers-reduced-motion`.
+
 ## Sign in with Google (native, alongside the password)
 Users can log in **either** with a password **or** with their Google account — Google sign-in is an
 **additive** second path that never replaces the password box. It's off until you switch it on
