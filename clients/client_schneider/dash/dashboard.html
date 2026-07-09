@@ -742,11 +742,105 @@ function axisX(o={}){ return Object.assign({grid:{display:false},ticks:{color:C.
 const LEGEND_HINT={display:true,text:'Click a label to show or hide it',color:C.mute,font:{size:10.5,weight:'600',...FONT},padding:{bottom:8}};
 function legendTop(){ return {position:'top',align:'end',title:LEGEND_HINT,labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
 function legendBottom(){ return {position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:8}},labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}}; }
-const centerText={ id:'centerText', afterDraw(chart){ const o=chart.config.options.cutoutText; if(!o) return;
-  // dynamic: sum only the currently-VISIBLE segments so the centre value tracks legend clicks
-  let line1=o.line1;
-  if(o.dynamic){ const ds=((chart.data.datasets[0]||{}).data)||[]; let s=0; ds.forEach((v,i)=>{ if(chart.getDataVisibility(i)) s+=(+v||0); }); line1=(o.fmt||fmtN)(s); }
-  const {ctx,chartArea:{left,right,top,bottom}}=chart; const x=(left+right)/2,y=(top+bottom)/2; ctx.save(); ctx.textAlign='center'; ctx.fillStyle=C.dark; ctx.font=`700 21px ${FONT.family}`; ctx.fillText(line1,x,y-2); ctx.fillStyle=C.mute; ctx.font=`500 11px ${FONT.family}`; ctx.fillText(o.line2,x,y+16); ctx.restore(); } };
+// ===================== Bidbrain shared: donut centre total + sortable tables =====================
+// Vendored identically across every dashboard (superseding schneider's old `centerText` plugin).
+// Adds BEHAVIOUR only - no restyle. The legend note ("Click a label to show or hide it") is already
+// carried by LEGEND_HINT on every legend here, so setupLegendAffordance is not re-added.
+
+// Change 2: dynamic donut CENTRE value. Reads options.plugins.bbCenter = {label, prefix, color, labelColor}.
+// Sums ONLY the currently-visible slices (Chart.js getDataVisibility reflects the native legend toggles),
+// so hiding a slice drops the centre total live and re-enabling it adds it back. Draws a big value + a
+// small caps label in the ring hole. Hidden labels are already struck-through by Chart.js' native legend.
+if (window.Chart) Chart.register({
+  id:'bbDonutCenter',
+  afterDraw(chart){
+   try{
+    const o = chart.options && chart.options.plugins && chart.options.plugins.bbCenter;
+    if(!o) return;
+    const ds = (chart.data.datasets||[])[0]; if(!ds) return;
+    const a = chart.chartArea; if(!a) return;
+    // NOTE: never put a FUNCTION in plugin options - Chart.js treats function-valued options as
+    // "scriptable" and auto-invokes them with a context object on read (blanks the chart). So the
+    // format is described by data-only fields: `prefix` (currency string) + plain integer formatting.
+    let sum=0; (ds.data||[]).forEach((v,i)=>{ if(chart.getDataVisibility(i)) sum += (+v||0); });
+    const cx=(a.left+a.right)/2, cy=(a.top+a.bottom)/2;
+    const ring=Math.min(a.right-a.left, a.bottom-a.top);
+    const cutout=(typeof chart.options.cutout==='string'?parseFloat(chart.options.cutout)/100:0.5)||0.5;
+    const hole=ring*cutout*0.92;                                  // usable width inside the hole
+    const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'Inter,system-ui,sans-serif';
+    // Default text colour = the canvas's inherited CSS colour, so the centre value auto-adapts to a
+    // light OR dark theme (no per-dashboard colour needed). Overridable via o.color / o.labelColor.
+    let txt='#E8EEF6'; try{ const cs=getComputedStyle(chart.canvas); if(cs&&cs.color) txt=cs.color; }catch(_){ }
+    const val = (o.prefix||'') + Math.round(sum).toLocaleString();
+    const ctx=chart.ctx; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    let vs=Math.max(13, Math.min(30, ring*0.17));
+    ctx.font='700 '+vs+'px '+fam;
+    while(vs>10 && ctx.measureText(val).width>hole){ vs-=1; ctx.font='700 '+vs+'px '+fam; }
+    ctx.fillStyle = o.color || txt;
+    ctx.fillText(val, cx, cy - vs*0.12);
+    ctx.font='700 10px '+fam; ctx.globalAlpha=0.62; ctx.fillStyle = o.labelColor || txt;
+    ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72); ctx.globalAlpha=1;
+    ctx.restore();
+   }catch(e){ /* never let a centre-label error blank the chart */ }
+  }
+});
+
+// Change 1: Looker-style sortable table headers. Click a header -> desc (v); click again -> asc (^);
+// one active column at a time; numeric parse (strips $ , %); non-numeric/empty ("no pixel", "-")
+// always sink to the bottom in BOTH directions; the Total row is pinned at the bottom, never sorted.
+// Survives table re-renders (tables rebuild via innerHTML) via a MutationObserver that re-applies the
+// active sort. A pure-text column falls back to A-Z / Z-A. Styling added via an injected class only.
+(function(){
+  const css='table.bb-sortable th{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}'
+    +'table.bb-sortable th:hover{color:var(--accent,#4C8DFF)}'
+    +'.bb-sort-ind{font-size:.82em;opacity:.85;margin-left:3px}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+
+  const parseNum=t=>{ const x=String(t==null?'':t).replace(/,/g,'').replace(/[^0-9.\-]/g,'');
+    if(x===''||x==='-'||x==='.'||x==='-.') return NaN; const v=parseFloat(x); return isNaN(v)?NaN:v; };
+  const headerRow=t=>{ const rs=[...t.rows]; return rs.find(r=>r.querySelector('th'))||rs[0]||null; };
+  const isTotal=r=>{ const c=r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    if(r.classList.contains('total')||c.classList.contains('total')) return true;
+    return /font-weight\s*:\s*(700|800|900|bold)/i.test((r.getAttribute('style')||'')+(c.getAttribute('style')||'')); };
+  const dataRows=(t,h)=>[...t.rows].filter(r=>r!==h && !r.querySelector('th') && !isTotal(r));
+  const totalRows=(t,h)=>[...t.rows].filter(r=>r!==h && r.querySelector('td') && isTotal(r));
+
+  function decorate(t,h,col,dir){ if(!h) return;
+    [...h.cells].forEach((th,i)=>{ let base=th.getAttribute('data-bbl');
+      if(base==null){ base=th.innerHTML; th.setAttribute('data-bbl',base); }
+      th.innerHTML = (i===col) ? base+' <span class="bb-sort-ind">'+(dir==='asc'?'▲':'▼')+'</span>' : base; });
+  }
+  function sortRows(t,h,st){ const drows=dataRows(t,h); if(drows.length<2) return;
+    let anyNum=false;
+    const vals=drows.map(r=>{ const cell=r.cells[st.col]; const raw=cell?cell.textContent:''; const num=parseNum(raw);
+      if(!isNaN(num)) anyNum=true; return {r,raw:(raw||'').trim(),num}; });
+    vals.sort((a,b)=>{
+      if(anyNum){ const an=isNaN(a.num), bn=isNaN(b.num);
+        if(an&&bn) return 0; if(an) return 1; if(bn) return -1;          // non-numeric always last
+        return st.dir==='asc' ? a.num-b.num : b.num-a.num; }
+      const cmp=a.raw.localeCompare(b.raw, undefined, {numeric:true, sensitivity:'base'});
+      return st.dir==='asc' ? cmp : -cmp; });
+    const parent=h.parentNode;
+    vals.forEach(v=>parent.appendChild(v.r));
+    totalRows(t,h).forEach(tr=>parent.appendChild(tr));                  // keep Total pinned at bottom
+  }
+  function refresh(t){ const mo=t._bbMO; if(mo) mo.disconnect();
+    const h=headerRow(t), st=t._bbSort;
+    if(h && st && st.col!=null) sortRows(t,h,st);
+    decorate(t,h, st?st.col:null, st?st.dir:null);
+    if(mo) mo.observe(t,{childList:true,subtree:true}); }
+  function wire(t){ if(t._bbWired) return; t._bbWired=true; t.classList.add('bb-sortable');
+    t.addEventListener('click',e=>{ const cell=e.target.closest('th,td'); if(!cell) return;
+      const h=headerRow(t); if(!h||cell.parentNode!==h) return;
+      const col=[...h.cells].indexOf(cell); if(col<0) return;
+      const st=t._bbSort||{col:null,dir:'desc'};
+      if(st.col===col) st.dir=(st.dir==='desc'?'asc':'desc'); else { st.col=col; st.dir='desc'; }
+      t._bbSort=st; refresh(t); });
+    t._bbMO=new MutationObserver(()=>refresh(t)); refresh(t); }
+  const wireAll=()=>document.querySelectorAll('table').forEach(wire);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wireAll); else wireAll();
+})();
 function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
 
 // grain bucketing for the paid daily chart
@@ -913,7 +1007,7 @@ function renderPaid(){
   const sp=PLATFORMS.filter(p=>byPlat[p.key].spend>0);
   charts.pmSpendPlat=new Chart(el('pmSpendPlat'),{ type:'doughnut',
     data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>byPlat[p.key].spend), backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} }, cutoutText:{dynamic:true,fmt:money,line2:'spend'} }, plugins:[centerText] });
+    options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), bbCenter:{label:'Total spend',prefix:'A$',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} } } });
 
   // spend by market
   const byMkt={}; rows.forEach(r=>{ byMkt[r.market]=(byMkt[r.market]||0)+(r.spend_aud||0); });
@@ -1065,7 +1159,7 @@ function renderCSProgramme(){
   const tot=data.reduce((s,x)=>s+x,0);
   charts.csProgramme=new Chart(el('csProgramme'),{ type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:labels.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,tot),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
+    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,tot),0)})`}} } } });
 }
 function renderCSRegionGrid(){
   const grid=el('csRegionGrid'); grid.innerHTML='';
@@ -1150,7 +1244,7 @@ function renderScorecard(){
   const ftot=fp.reduce((s,x)=>s+x[1],0);
   if(fp.length) charts.scFunc=new Chart(el('scFunc'),{ type:'doughnut',
     data:{ labels:fp.map(x=>x[0]), datasets:[{ data:fp.map(x=>x[1]), backgroundColor:fp.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,ftot),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
+    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,ftot),0)})`}} } } });
 
   // --- audience: seniority (horizontal bar) ---
   const sn=audAgg('seniority'), order=['Executive','Director','Manager','Other','Not disclosed'];
@@ -1199,7 +1293,7 @@ function renderComparePanel(side){
     el(side+'_total').textContent=fmtN(vis); el(side+'_share').textContent=fmtPct(pct(vis,allLeads),0); el(side+'_last').textContent=dateLabel(lastV); };
   if(charts[side+'_prog']) charts[side+'_prog'].destroy();
   charts[side+'_prog']=new Chart(el(side+'_prog'),{ type:'doughnut', data:{ labels:pairs.map(x=>x[0]), datasets:[{ data:pairs.map(x=>x[1]), backgroundColor:pairs.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'56%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:9.5,...FONT},color:C.ink,padding:5},onClick:(e,it,lg)=>{ const ci=lg.chart; ci.toggleDataVisibility(it.index); ci.update(); syncOverall(); }}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,leads),0)})`}} }, cutoutText:{dynamic:true,line2:'leads'} }, plugins:[centerText] });
+    options:{ maintainAspectRatio:false, cutout:'56%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:9.5,...FONT},color:C.ink,padding:5},onClick:(e,it,lg)=>{ const ci=lg.chart; ci.toggleDataVisibility(it.index); ci.update(); syncOverall(); }}, bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,leads),0)})`}} } } });
   syncOverall();
   // weekly (shared axis with the CS tab)
   const weeks=csDisplayWeeks();

@@ -330,6 +330,136 @@ function fmtDate(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2
 function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
 function ctx(id){var c=$(id);if(!c)return null;return c.getContext('2d');}
 
+// ===================== legend affordance (legends are click-to-toggle) =====================
+// Chart.js legends already toggle their series/slice on click, but nothing signals that. Make it
+// discoverable, right where the eye already is - RIGHT ABOVE THE LABELS - via the legend's own
+// native title (renders inside the legend block, adjacent to the items, for BOTH top & right
+// legends). Plus a pointer cursor + a subtle dim on the hovered label. All via existing theme
+// tokens, no DOM/layout changes. Charts with legend:{display:false} render no legend → no hint,
+// so we never advertise a non-interactive legend.
+(function setupLegendAffordance(){
+  if(!window.Chart) return;
+  const HINT='Click a label to show or hide it';
+  const DIM='#5C7187';                                        // --muted2 (dimmer than the --muted legend text)
+  const keyOf=it=>it.datasetIndex!=null?('d'+it.datasetIndex):('i'+it.index);
+  const onHover=(e,item,legend)=>{ if(e&&e.native&&e.native.target)e.native.target.style.cursor='pointer';
+    const c=legend.chart, k=keyOf(item); if(c.$legHover!==k){ c.$legHover=k; c.update('none'); } };
+  const onLeave=(e,item,legend)=>{ if(e&&e.native&&e.native.target)e.native.target.style.cursor='';
+    const c=legend.chart; if(c.$legHover!=null){ c.$legHover=null; c.update('none'); } };
+  const wrap=obj=>{ if(!obj||obj.__aff)return; obj.__aff=true;
+    // hint as the legend's own title → sits immediately above the labels, on-canvas
+    obj.title=Object.assign(obj.title||{}, {display:true, text:HINT, color:DIM});
+    obj.title.font=Object.assign({size:11, weight:'normal'}, obj.title.font);
+    obj.title.padding=Object.assign({top:0, bottom:6}, obj.title.padding);
+    // pointer + hover dim
+    if(obj.labels && typeof obj.labels.generateLabels==='function'){ const orig=obj.labels.generateLabels;
+      obj.labels.generateLabels=function(chart){ const items=orig.call(this,chart);
+        try{ const h=chart.$legHover; if(h!=null) items.forEach(it=>{ if(keyOf(it)===h) it.fontColor=DIM; }); }catch(_){}
+        return items; }; }
+    obj.onHover=onHover; obj.onLeave=onLeave; };
+  wrap(Chart.defaults.plugins.legend);                        // bar / line / mixed (top legend)
+  if(Chart.overrides) ['doughnut','pie','polarArea'].forEach(t=>{                 // donut / pie keep their own legend defaults
+    const o=Chart.overrides[t]; if(o&&o.plugins&&o.plugins.legend) wrap(o.plugins.legend); });
+})();
+
+// ===================== Bidbrain shared: donut centre total + sortable tables =====================
+// Vendored identically across every dashboard. Adds BEHAVIOUR only - no restyle.
+
+// Change 2: dynamic donut CENTRE value. Reads options.plugins.bbCenter = {label, fmt}. Sums ONLY the
+// currently-visible slices (Chart.js getDataVisibility reflects the native legend toggles), so hiding
+// a slice drops the centre total live and re-enabling it adds it back. Draws a big value + a small
+// caps label in the ring hole. Hidden labels are already struck-through by Chart.js' native legend.
+if (window.Chart) Chart.register({
+  id:'bbDonutCenter',
+  afterDraw(chart){
+   try{
+    const o = chart.options && chart.options.plugins && chart.options.plugins.bbCenter;
+    if(!o) return;
+    const ds = (chart.data.datasets||[])[0]; if(!ds) return;
+    const a = chart.chartArea; if(!a) return;
+    // NOTE: never put a FUNCTION in plugin options - Chart.js treats function-valued options as
+    // "scriptable" and auto-invokes them with a context object on read (blanks the chart). So the
+    // format is described by data-only fields: `prefix` (currency string) + plain integer formatting.
+    let sum=0; (ds.data||[]).forEach((v,i)=>{ if(chart.getDataVisibility(i)) sum += (+v||0); });
+    const cx=(a.left+a.right)/2, cy=(a.top+a.bottom)/2;
+    const ring=Math.min(a.right-a.left, a.bottom-a.top);
+    const cutout=(typeof chart.options.cutout==='string'?parseFloat(chart.options.cutout)/100:0.5)||0.5;
+    const hole=ring*cutout*0.92;                                  // usable width inside the hole
+    const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'Inter,system-ui,sans-serif';
+    // Default text colour = the canvas's inherited CSS colour, so the centre value auto-adapts to a
+    // light OR dark theme (no per-dashboard colour needed). Overridable via o.color / o.labelColor.
+    let txt='#E8EEF6'; try{ const cs=getComputedStyle(chart.canvas); if(cs&&cs.color) txt=cs.color; }catch(_){ }
+    const val = (o.prefix||'') + Math.round(sum).toLocaleString();
+    const ctx=chart.ctx; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    let vs=Math.max(13, Math.min(30, ring*0.17));
+    ctx.font='700 '+vs+'px '+fam;
+    while(vs>10 && ctx.measureText(val).width>hole){ vs-=1; ctx.font='700 '+vs+'px '+fam; }
+    ctx.fillStyle = o.color || txt;
+    ctx.fillText(val, cx, cy - vs*0.12);
+    ctx.font='700 10px '+fam; ctx.globalAlpha=0.62; ctx.fillStyle = o.labelColor || txt;
+    ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72); ctx.globalAlpha=1;
+    ctx.restore();
+   }catch(e){ /* never let a centre-label error blank the chart */ }
+  }
+});
+
+// Change 1: Looker-style sortable table headers. Click a header -> desc (v); click again -> asc (^);
+// one active column at a time; numeric parse (strips $ , %); non-numeric/empty ("no pixel", "-")
+// always sink to the bottom in BOTH directions; the Total row is pinned at the bottom, never sorted.
+// Survives table re-renders (tables rebuild via innerHTML) via a MutationObserver that re-applies the
+// active sort. A pure-text column falls back to A-Z / Z-A. Styling added via an injected class only.
+(function(){
+  const css='table.bb-sortable th{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}'
+    +'table.bb-sortable th:hover{color:var(--accent,#4C8DFF)}'
+    +'.bb-sort-ind{font-size:.82em;opacity:.85;margin-left:3px}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+
+  const parseNum=t=>{ const x=String(t==null?'':t).replace(/,/g,'').replace(/[^0-9.\-]/g,'');
+    if(x===''||x==='-'||x==='.'||x==='-.') return NaN; const v=parseFloat(x); return isNaN(v)?NaN:v; };
+  const headerRow=t=>{ const rs=[...t.rows]; return rs.find(r=>r.querySelector('th'))||rs[0]||null; };
+  const isTotal=r=>{ const c=r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    if(r.classList.contains('total')||c.classList.contains('total')) return true;
+    return /font-weight\s*:\s*(700|800|900|bold)/i.test((r.getAttribute('style')||'')+(c.getAttribute('style')||'')); };
+  const dataRows=(t,h)=>[...t.rows].filter(r=>r!==h && !r.querySelector('th') && !isTotal(r));
+  const totalRows=(t,h)=>[...t.rows].filter(r=>r!==h && r.querySelector('td') && isTotal(r));
+
+  function decorate(t,h,col,dir){ if(!h) return;
+    [...h.cells].forEach((th,i)=>{ let base=th.getAttribute('data-bbl');
+      if(base==null){ base=th.innerHTML; th.setAttribute('data-bbl',base); }
+      th.innerHTML = (i===col) ? base+' <span class="bb-sort-ind">'+(dir==='asc'?'▲':'▼')+'</span>' : base; });
+  }
+  function sortRows(t,h,st){ const drows=dataRows(t,h); if(drows.length<2) return;
+    let anyNum=false;
+    const vals=drows.map(r=>{ const cell=r.cells[st.col]; const raw=cell?cell.textContent:''; const num=parseNum(raw);
+      if(!isNaN(num)) anyNum=true; return {r,raw:(raw||'').trim(),num}; });
+    vals.sort((a,b)=>{
+      if(anyNum){ const an=isNaN(a.num), bn=isNaN(b.num);
+        if(an&&bn) return 0; if(an) return 1; if(bn) return -1;          // non-numeric always last
+        return st.dir==='asc' ? a.num-b.num : b.num-a.num; }
+      const cmp=a.raw.localeCompare(b.raw, undefined, {numeric:true, sensitivity:'base'});
+      return st.dir==='asc' ? cmp : -cmp; });
+    const parent=h.parentNode;
+    vals.forEach(v=>parent.appendChild(v.r));
+    totalRows(t,h).forEach(tr=>parent.appendChild(tr));                  // keep Total pinned at bottom
+  }
+  function refresh(t){ const mo=t._bbMO; if(mo) mo.disconnect();
+    const h=headerRow(t), st=t._bbSort;
+    if(h && st && st.col!=null) sortRows(t,h,st);
+    decorate(t,h, st?st.col:null, st?st.dir:null);
+    if(mo) mo.observe(t,{childList:true,subtree:true}); }
+  function wire(t){ if(t._bbWired) return; t._bbWired=true; t.classList.add('bb-sortable');
+    t.addEventListener('click',e=>{ const cell=e.target.closest('th,td'); if(!cell) return;
+      const h=headerRow(t); if(!h||cell.parentNode!==h) return;
+      const col=[...h.cells].indexOf(cell); if(col<0) return;
+      const st=t._bbSort||{col:null,dir:'desc'};
+      if(st.col===col) st.dir=(st.dir==='desc'?'asc':'desc'); else { st.col=col; st.dir='desc'; }
+      t._bbSort=st; refresh(t); });
+    t._bbMO=new MutationObserver(()=>refresh(t)); refresh(t); }
+  const wireAll=()=>document.querySelectorAll('table').forEach(wire);
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wireAll); else wireAll();
+})();
+
 // ---- client-billed spend multiplier (injected by the platform front-door) ----
 // Gross RAW media spend up to what the client was billed, per channel; Media-spend, CPC, CPA and the
 // spend donut/bars all derive from summed spend_aud so they follow automatically. ROAS is
@@ -494,17 +624,15 @@ Array.from($('googMonScaleSeg').querySelectorAll('button')).forEach(function(b){
 // (colour dot · label · value · % of visible). Click a row (or Enter/Space) to include/exclude that
 // slice - the pie, the centre total and every % update. items=[{label,value,color}]; fmtV formats.
 function valueDonut(cvId,legId,items,fmtV){
-  var centre={id:'ctr_'+cvId,afterDatasetsDraw:function(ch){
-    var vis=0;items.forEach(function(it,i){if(ch.getDataVisibility(i))vis+=it.value;});
-    var a=ch.chartArea;if(!a)return;var g=ch.ctx,x=(a.left+a.right)/2,y=(a.top+a.bottom)/2;
-    g.save();g.textAlign='center';g.textBaseline='middle';
-    g.fillStyle='#2B2926';g.font='700 15px -apple-system,"Inter",sans-serif';g.fillText(fmtV(vis),x,y-3);
-    g.fillStyle='#9C9182';g.font='700 8.5px -apple-system,"Inter",sans-serif';g.fillText('TOTAL',x,y+12);
-    g.restore();}};
+  // Change 2: dynamic centre TOTAL via the shared bbDonutCenter plugin (DATA-ONLY options - never a
+  // function, or Chart.js v4 auto-invokes it as scriptable and blanks the chart). It sums only the
+  // currently-visible slices, so the custom HTML legend's toggle updates it live. Explicit dark
+  // colour '#2B2926' (=--ink) keeps the value high-contrast on TLM's LIGHT (white) donut hole;
+  // prefix '$' matches curr(), the dashboard's currency format. (Replaces the old inline `centre`
+  // plugin - keeping both would double-draw the centre text.)
   var ch=new Chart(ctx(cvId),{type:'doughnut',
     data:{labels:items.map(function(i){return i.label;}),datasets:[{data:items.map(function(i){return i.value;}),backgroundColor:items.map(function(i){return i.color;}),borderColor:'#fff',borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'64%',plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return c.label+': '+fmtV(c.raw);}}}}},
-    plugins:[centre]});
+    options:{responsive:true,maintainAspectRatio:false,cutout:'64%',plugins:{legend:{display:false},bbCenter:{label:'Total',prefix:'$',color:'#2B2926'},tooltip:{callbacks:{label:function(c){return c.label+': '+fmtV(c.raw);}}}}}});
   function drawLeg(){
     var vis=0;items.forEach(function(it,i){if(ch.getDataVisibility(i))vis+=it.value;});
     document.getElementById(legId).innerHTML='<div class="dleg-hint">Click a label to show or hide it</div>'+items.map(function(it,i){
