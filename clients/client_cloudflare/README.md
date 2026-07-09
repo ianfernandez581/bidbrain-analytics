@@ -112,17 +112,18 @@ the 11 market codes. To change targets:
 The per-market Q2 totals reconcile to the Q2 media-plan sheet (total **3216**). `tiers.csv`
 and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshots, not targets.
 
-**Q3 FY26 targets — REMOVED, pending client confirmation (2026-07-07).** A first-pass Q3 target
-was briefly seeded (scaled from the client's Q3 activation plan) but has been **pulled**: the Q3
-CS number is **not confirmed by the client yet**, so `targets/real_targets.csv` now carries **Q2
-rows only** (`2026-03-30 → 2026-06-15`) and the dashboard shows Q3 as **actuals-only** — the target
-KPIs read `—` and the pacing cards render the "targets & pacing not set yet" placeholder (see
-*Quarter filter* below). The staged Q3 workbook stays in `targets/real_targets Q3.csv` (NOT loaded
-by the seed) so it's ready to re-derive once the client confirms. **To re-add Q3 when confirmed:**
-append the Q3 week × tier × region rows back into `targets/real_targets.csv`, re-seed
-(`seed_static.py` / the `bq load` below) and run the job with `FORCE_REBUILD=1` — the pacing UI then
-lights up automatically (no dashboard code change needed; captions are already `qtrLabel()`-driven).
-The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (unaffected).
+**Q3 FY26 targets — ADDED (2026-07-09), client-confirmed.** The client's Core DG Lead Pacing plan
+(`Raw Files/CF_FY26 Q3_Core DG Lead Pacing(Target Format Needed).csv`) was transformed into the seed
+format and appended to `targets/real_targets.csv`, so it now carries **Q2 + Q3** rows (Q2 weeks
+`2026-03-30 → 2026-06-15`, Q3 weeks `2026-07-06 → 2026-09-28`, 13 weeks). Q3 grand total **2290**
+(ANZ 943 / ASEAN 419 / SAARC 220 / GCR 309 / JP 244 / KR 155), reconciled to the plan's own total row.
+The dashboard defaults to Q3, so its target KPIs + pacing cards now light up from these targets (no
+dashboard code change — captions are `qtrLabel()`-driven). **Note: the Q3 "Core DG" plan has NO RIG
+line**, so the RIG chip shows Q3 actuals with no target — that's the client's scope, not a bug. The
+raw plan put each ANZ/ASEAN region total on its lead country (Australia / SIM) and left NZ / RoA blank
+(seeded as `0`); the `targets_v2_norm` view sums per region so the roll-up is unaffected. To change Q3,
+edit `targets/real_targets.csv`, re-seed (`seed_static.py` / the `bq load` below) and run the job with
+`FORCE_REBUILD=1`. The CF1 India lane keeps its own Q2 `li_weekly`/`CF1_CS_TARGET` plan (unaffected).
 
 **Since `.venv` may be broken / ADC unauthed, reload the seed with `bq` (gcloud creds, no venv) —
 `bq load` of ONLY `real_targets` is safer than `seed_static.py`, which also loads the gitignored
@@ -241,13 +242,14 @@ Q3-vs-Q2 by construction and ignores the range). Implemented entirely in `dash/d
 (`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips` + `DateRange.setRange` + `q2`/`q3`
 calendar presets); no data-layer change.
 
-**No Q3 targets/pacing yet:** Q3 has no `ALLOCATED_TARGET` rows loaded, so on the Q3 (or any
-target-less) view the target KPIs show **`—`** and the two pacing cards (`renderLeadsTarget`,
-`renderProgress`) render a neutral *"Targets & pacing not set for the selected period yet — showing
-actuals only"* placeholder instead of a misleading `0` / "0% of expected". When Q3 targets arrive,
-seed them the usual way (`targets/real_targets.csv` → `seed_static.py` → job `FORCE_REBUILD=1`) and
-the pacing UI lights up automatically. Redeploy the dashboard with
-[`dash/deploy_dash_cloudflare.ps1`](dash/deploy_dash_cloudflare.ps1).
+**Q3 targets/pacing are loaded (2026-07-09).** The Q3 target rows are in `seed_real_targets`, so the
+Q3 view now shows real target KPIs + the two pacing cards (`renderLeadsTarget`, `renderProgress`). The
+target-less placeholder (target KPIs `—`, *"Targets & pacing not set for the selected period yet —
+showing actuals only"*) still fires automatically for any span with no `ALLOCATED_TARGET` rows (e.g.
+a custom range past Q3, or RIG under Q3 — the Core DG plan has no RIG line). To reload targets: edit
+`targets/real_targets.csv` → `seed_static.py` (or the targeted `bq load`) → job `FORCE_REBUILD=1`; the
+pacing UI reflects it on the next build (the service serves the bucket live, so **no dashboard redeploy
+is needed** unless `dashboard.html` itself changed).
 
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
