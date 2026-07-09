@@ -234,13 +234,20 @@ per-client "targets in BQ from a committed CSV" standard — see *Updating targe
 The top bar carries a **Quarter** toggle (Q2 · Apr–Jun / Q3 · Jul–Sep) that **defaults to Q3**.
 It's a coarse control layered over the shared Looker-style date-range picker: quarters are
 **contiguous calendar spans**, so a selection maps 1:1 onto a single date range — Q3 → `[Jul 1,
-dataMax]`, Q2 → `[Apr 1, Jun 30]`, **both selected** → `[Apr 1, dataMax]` (the union). The **date
-range is the single source of truth**; the chips are *derived* from it (`syncQuarterChips`), so
-picking an arbitrary range in the calendar simply lights no chip ("custom"). The filter is
-**global** — it drives Paid Media, Content Syndication and CS Comparison alike (the QoQ tab is
-Q3-vs-Q2 by construction and ignores the range). Implemented entirely in `dash/dashboard.html`
-(`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips` + `DateRange.setRange` + `q2`/`q3`
-calendar presets); no data-layer change.
+dataMax]`, Q2 → `[Apr 1, Jun 30]`. The **date range is the single source of truth**; the chips are
+*derived* from it (`syncQuarterChips`), so picking an arbitrary range in the calendar simply lights
+no chip ("custom"). **The chips are SINGLE-SELECT (2026-07-09):** clicking one jumps the range to
+exactly that quarter (`toggleQuarter` sets the span, no longer additive). The **Q2+Q3 union**
+(`[Apr 1, dataMax]`, labelled "Q2-Q3") is therefore no longer reachable from the chips — only by
+selecting a spanning range in the calendar; `syncQuarterChips` still detects + labels it.
+**The Q3 chip is HIDDEN while Q3 is the active quarter** (client request 2026-07-09): Q3 is the
+default view, so its own chip is redundant then, and Q2 stays visible so you can switch to it (the
+Q3 chip reappears once you're off Q3). This is why the chips had to become single-select — under the
+old additive toggle, with the Q3 chip hidden, clicking Q2 produced the union and Q2-only became
+unreachable. The filter is **global** — it drives Paid Media, Content Syndication and CS Comparison
+alike (the QoQ tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in
+`dash/dashboard.html` (`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips`/`renderQuarterChips`
++ `DateRange.setRange` + `q2`/`q3` calendar presets); no data-layer change.
 
 **Q3 targets/pacing are loaded (2026-07-09).** The Q3 target rows are in `seed_real_targets`, so the
 Q3 view now shows real target KPIs + the two pacing cards (`renderLeadsTarget`, `renderProgress`). The
