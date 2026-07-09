@@ -1208,15 +1208,18 @@ if (window.Chart) Chart.register({
     const cutout=(typeof chart.options.cutout==='string'?parseFloat(chart.options.cutout)/100:0.5)||0.5;
     const hole=ring*cutout*0.92;                                  // usable width inside the hole
     const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'Inter,system-ui,sans-serif';
+    // Default text colour = the canvas's inherited CSS colour, so the centre value auto-adapts to a
+    // light OR dark theme (no per-dashboard colour needed). Overridable via o.color / o.labelColor.
+    let txt='#E8EEF6'; try{ const cs=getComputedStyle(chart.canvas); if(cs&&cs.color) txt=cs.color; }catch(_){ }
     const val = (o.prefix||'') + Math.round(sum).toLocaleString();
     const ctx=chart.ctx; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
     let vs=Math.max(13, Math.min(30, ring*0.17));
     ctx.font='700 '+vs+'px '+fam;
     while(vs>10 && ctx.measureText(val).width>hole){ vs-=1; ctx.font='700 '+vs+'px '+fam; }
-    ctx.fillStyle = o.color || '#E8EEF6';
+    ctx.fillStyle = o.color || txt;
     ctx.fillText(val, cx, cy - vs*0.12);
-    ctx.font='700 10px '+fam; ctx.fillStyle = o.labelColor || '#8CA0B8';
-    ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72);
+    ctx.font='700 10px '+fam; ctx.globalAlpha=0.62; ctx.fillStyle = o.labelColor || txt;
+    ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72); ctx.globalAlpha=1;
     ctx.restore();
    }catch(e){ /* never let a centre-label error blank the chart */ }
   }
