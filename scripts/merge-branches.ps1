@@ -238,14 +238,20 @@ function Invoke-SanityGate {
     }
 
     # 3. JSON validity: parse every changed .json (definitions.json, platform.json, etc.).
-    #    -AsHashTable so legitimately-valid JSON that uses empty-string / duplicate keys
-    #    (e.g. every npm package-lock.json v2/v3 keys the root package as "") still validates
-    #    instead of false-failing on ConvertFrom-Json's object-property limitation. Genuinely
-    #    invalid JSON (syntax errors, leftover conflict markers) still throws and fails the gate.
+    #    Validate with the repo's Python (a hard dependency here) so it works on BOTH Windows
+    #    PowerShell 5.1 and pwsh 7 AND tolerates legitimately-valid JSON that uses empty-string /
+    #    duplicate keys (e.g. npm package-lock.json v2/v3 keys the root package as ""). We used to
+    #    pipe to `ConvertFrom-Json -AsHashTable`, but -AsHashTable is pwsh-7-only: on WinPS 5.1 (the
+    #    primary local dev shell) it throws a parameter-binding error and FALSE-FAILS every JSON
+    #    change. Python's json.load keeps-last on dup keys + accepts "" keys (matching that intent);
+    #    genuinely invalid JSON (syntax errors, leftover conflict markers) still exits non-zero and
+    #    fails the gate. utf-8-sig strips any BOM.
+    $py = Join-Path $RepoRoot '.venv\Scripts\python.exe'
+    if (-not (Test-Path $py)) { $py = 'python' }
     $jsonFiles = @($present | Where-Object { $_ -match '\.json$' })
     foreach ($rel in $jsonFiles) {
-        try { Get-Content (Join-Path $RepoRoot $rel) -Raw -ErrorAction Stop | ConvertFrom-Json -AsHashTable -ErrorAction Stop | Out-Null }
-        catch { Write-Host "    [FAIL] invalid JSON: $rel -- $($_.Exception.Message)" -ForegroundColor Red; $ok = $false }
+        $err = & $py -c "import json,sys`njson.load(open(sys.argv[1], encoding='utf-8-sig'))" (Join-Path $RepoRoot $rel) 2>&1
+        if ($LASTEXITCODE -ne 0) { Write-Host "    [FAIL] invalid JSON: $rel -- $err" -ForegroundColor Red; $ok = $false }
     }
 
     return $ok
