@@ -245,3 +245,70 @@ hand-authored:
 - Meridian MMM planning loop feeding budget-shift recommendations
 - Cross-client learning (a win on one client raises confidence for the same play elsewhere)
 - Model-precision metric computed from shipped-rec outcomes (currently hardcoded 73%)
+
+---
+
+# Central (tab)
+
+**Central** replaces the manual `central.xlsx` "Live Campaigns" tracker with a tab in The
+Grid that splits every column into three types and enforces them structurally:
+**CONFIG** (from media plans / editable), **API** (synced spend/impressions — read-only),
+**DERIVED** (computed, never typed). It fixes the sheet's hardcoded-derived-cell and
+divide-by-zero bugs by computing every derived value fresh from `src/central/calc.js` on
+each render, with every division guarded to render `—`.
+
+## Files
+```
+src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). Adds
+                                marginDelta / marginBand / health to the base formulas.
+config/central-seed.js       ← seed rows (calc.js field names). Base CONFIG layer.
+src/central/render-central.js← the tab: table (cloned from renderRegister), grouping,
+                                colour-coding, filters, sort, dropdowns, sync/export.
+                                Holds mapGridRowToCentral() — the ONLY name-translation
+                                point (grid `advertiser/campaign/start/...` → calc names).
+src/central/plan-panel.js    ← media-plan dropzone + slide-in review/commit panel.
+src/central/plan-reader.js   ← server-side extraction (SheetJS grid + parser.js text),
+                                normalization, header-keyword heuristic, candidate match.
+```
+Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register | Dashboards),
+`#view-central`, dispatch in `renderContent()`, hash whitelist, `<script src>` tags.
+
+## Data model + persistence (one store)
+`config/central-seed.js` is the base CONFIG layer. Per-field edits (dropdowns) and
+media-plan commits are stored as **overrides** in SQLite `central_rows` (in the existing
+`src/brain/db.js`, keyed by `rowId = "client::name"`, value JSON-encoded, `source =
+'manual'|'plan'`) and layered over the seed at render time. **DERIVED fields are never
+stored or written** — `db.js` whitelists (`CENTRAL_EDIT_FIELDS`, `CENTRAL_PLAN_FIELDS`) and
+rejects `CENTRAL_DERIVED_FIELDS` on every write path.
+
+## Routes (server.js)
+- `GET  /api/central/rows` → `{overrides}` (layered over seed client-side)
+- `POST /api/central/row/:id/field` → inline dropdown edit (whitelisted; derived → 400)
+- `POST /api/central/sync` → **501 stub** (real BQ-overlay route is the NEXT task)
+- `POST /api/central/plan/upload` → base64 JSON; extract → PENDING draft → `{fields,candidates}`
+- `POST /api/central/plan/:id/commit` → writes USER-CONFIRMED values only; rejects
+  unacknowledged overwrites of existing values (`acknowledgeConflicts`) and derived fields
+- `POST /api/central/plan/:id/discard`
+
+## Media-plan reader
+Drop XLSX/CSV/PDF/DOCX/PPTX → extract CONFIG fields with per-field provenance
+(`{value, sheet, cellRef|page, confidence}`) → review panel (match a campaign or create
+new; edit any field; low-confidence flagged; conflicts resolved keep/replace, default
+KEEP) → commit. Extraction **never** writes a row. Uses Claude when `ANTHROPIC_API_KEY` is
+set, else a deterministic header-keyword heuristic (everything `confidence:'low'`); a
+PDF/DOC with no LLM key falls through to an empty panel for manual entry — never a dead end.
+
+## Decisions baked in
+- **Platform margin is CONFIG**, not API (no connector returns it) — editable, never synced.
+- **Client spend = mediaSpend × spendMult**; when live spend is overlaid without a
+  multiplier the row shows an **"unbilled basis"** badge (never silently bill raw spend).
+- **Join key = (client, campaign-name)**; null `jobNumber` shows a **"no job #"** badge.
+- Stale guard: API columns desaturate when `lastSynced` is null or > 4h old.
+
+## Test
+```
+node test-fixtures/central/make-central-fixtures.js   # (re)build the messy XLSX fixture
+```
+Then the two harnesses used during the build exercise the backend (extraction /
+normalization / provenance / conflict / derived-rejection) and the render path
+(grouping / colouring / filters / sort / null-safety).
