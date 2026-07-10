@@ -82,6 +82,10 @@ PROPERTY_NAMES = {
     "341832593": "http://atlantisevents.com - GA4",
     "341827046": "http://rsvpvacations.com - GA4",
     "358885683": "https://100.digital/",
+    # Schneider Electric GA4 — uncomment + set the real numeric property id once SE grant our account
+    # Viewer access, then create its DTS transfer in the Cloud Console and re-run this script.
+    # client_schneider/sql/40_stg_ga4.sql + 40b_stg_ga4_events.sql filter perf_ga4 by this property_id.
+    # "REPLACE_WITH_SE_GA4_PROPERTY_ID": "Schneider Electric - GA4",
 }
 
 # Optional explicit overrides. GA4: property_id -> (client_slug, agency_slug); wins over

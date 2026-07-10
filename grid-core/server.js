@@ -28,11 +28,24 @@ const crypto = require('crypto');
 const db = require('./src/brain/db');
 const parser = require('./src/brain/parser');
 const bqWriter = require('./src/brain/bq-writer');
+const planReader = require('./src/central/plan-reader');
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
 const TMP = process.env.BRAIN_TMP_DIR || path.join(ROOT, 'tmp', 'brain-uploads');
 fs.mkdirSync(TMP, { recursive: true });
+const CENTRAL_TMP = process.env.CENTRAL_TMP_DIR || path.join(ROOT, 'tmp', 'central-uploads');
+fs.mkdirSync(CENTRAL_TMP, { recursive: true });
+const CENTRAL_OK_EXT = ['xlsx', 'xls', 'csv', 'pdf', 'docx', 'pptx'];
+const CENTRAL_MAX_FILE = 15 * 1024 * 1024;
+const CENTRAL_MIME = {
+  xlsx: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'],
+  xls: ['application/vnd.ms-excel', 'application/octet-stream'],
+  csv: ['text/csv', 'application/vnd.ms-excel', 'text/plain', 'application/octet-stream'],
+  pdf: ['application/pdf'],
+  docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream'],
+  pptx: ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/octet-stream']
+};
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.map': 'application/json' };
 const MAX_FILE = 50 * 1024 * 1024;
@@ -61,6 +74,14 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/brain\/historical\/files\/(.+)\/rows$/)) && req.method === 'GET') return fileRows(res, m[1]);
     if ((m = p.match(/^\/api\/brain\/historical\/files\/(.+)\/commit$/)) && req.method === 'POST') return commit(req, res, m[1]);
     if ((m = p.match(/^\/api\/brain\/historical\/rows\/(.+)$/)) && req.method === 'PATCH') return patchRow(req, res, m[1]);
+
+    // ---- Central: CONFIG store + media-plan reader ----
+    if (p === '/api/central/rows' && req.method === 'GET') return send(res, 200, { overrides: db.getCentralOverrides() });
+    if ((m = p.match(/^\/api\/central\/row\/([^/]+)\/field$/)) && req.method === 'POST') return centralEditField(req, res, decodeURIComponent(m[1]));
+    if (p === '/api/central/sync' && req.method === 'POST') return send(res, 501, { message: 'sync backend pending — next task' });
+    if (p === '/api/central/plan/upload' && req.method === 'POST') return centralPlanUpload(req, res);
+    if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/commit$/)) && req.method === 'POST') return centralPlanCommit(req, res, m[1]);
+    if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/discard$/)) && req.method === 'POST') return centralPlanDiscard(req, res, m[1]);
 
     // ---- Brain ClickUp mock endpoint (now real server-side; the browser interceptor is the file:// fallback) ----
     if (p === '/api/brain/clickup-task' && req.method === 'POST') {
@@ -151,6 +172,115 @@ async function commit(req, res, fileId) {
   try { bq = await bqWriter.writeSnapshot(fileId); } catch (e) { bq = { written: false, error: String(e.message || e).slice(0, 300) }; }
   console.log(`[BRAIN][Commit] file=${fileId} rows=${snap.row_count} spend=$${snap.total_spend_aud} -> ${snap.target_bq_dataset}.${snap.target_bq_table} | BQ ${bq.written ? 'WRITTEN (' + bq.rows + ' rows)' : 'not written: ' + (bq.reason || bq.error)}`);
   send(res, 200, { snapshot: snap, bq });
+}
+
+// ==================== Central handlers ====================
+
+// Inline field edit (dropdowns / contenteditable). Whitelisted; derived rejected.
+async function centralEditField(req, res, rowId) {
+  let body; try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+  const field = body.field, value = body.value;
+  if (!field) return send(res, 400, { error: 'field is required' });
+  const r = db.setCentralField(rowId, field, value, 'edit', {});
+  if (!r.ok) return send(res, 400, { error: r.error });
+  return send(res, 200, { ok: true, rowId, fields: db.getCentralFieldsForId(rowId) });
+}
+
+// Media-plan upload: base64 JSON (see note in header — server has no multer/Express).
+// { filename, data_base64, mime? }. Validates ext + size (+ mime when supplied),
+// runs extraction, persists a PENDING draft, returns fields + candidates. Never
+// echoes raw file contents.
+async function centralPlanUpload(req, res) {
+  let body; try { body = await readBody(req, 40 * 1024 * 1024); } catch (e) { return send(res, 400, { error: e.message }); }
+  const filename = String(body.filename || 'upload').replace(/[^\w.\- ]/g, '_');
+  const ext = filename.split('.').pop().toLowerCase();
+  if (!CENTRAL_OK_EXT.includes(ext)) return send(res, 400, { error: `unsupported format .${ext} — allowed: ${CENTRAL_OK_EXT.join(', ')}` });
+  if (body.mime && CENTRAL_MIME[ext] && !CENTRAL_MIME[ext].includes(String(body.mime))) {
+    return send(res, 400, { error: `file content type (${body.mime}) does not match .${ext}` });
+  }
+  let buf;
+  try { buf = Buffer.from(String(body.data_base64 || '').replace(/^data:[^,]+,/, ''), 'base64'); }
+  catch { return send(res, 400, { error: 'invalid base64 file data' }); }
+  if (!buf.length) return send(res, 400, { error: 'empty file' });
+  if (buf.length > CENTRAL_MAX_FILE) return send(res, 400, { error: `file too large (${(buf.length / 1048576).toFixed(1)}MB > 15MB limit)` });
+
+  const id = crypto.randomUUID();
+  const dir = path.join(CENTRAL_TMP, id); fs.mkdirSync(dir, { recursive: true });
+  const local = path.join(dir, filename);
+  fs.writeFileSync(local, buf);
+  db.createPlanExtraction({ id, filename });
+  console.log(`[CENTRAL][Plan] upload ${id} ${filename} ${buf.length}B`);
+  try {
+    const result = await planReader.extract({ id, filename, file_type: ext, local_path: local });
+    db.db.prepare('UPDATE plan_extractions SET extracted_json=? WHERE id=?').run(JSON.stringify(result), id);
+    return send(res, 200, { id, filename, mode: result.mode, fields: result.fields, candidates: result.candidates, readError: result.readError || null });
+  } catch (e) {
+    console.error('[CENTRAL][Plan] extract failed', e.message);
+    // fail soft: still return an empty, usable set for manual entry
+    const empty = planReader._normalizeFields({});
+    db.db.prepare('UPDATE plan_extractions SET extracted_json=? WHERE id=?').run(JSON.stringify({ fields: empty, mode: 'error', candidates: [] }), id);
+    return send(res, 200, { id, filename, mode: 'error', fields: empty, candidates: [], extractError: 'extraction failed — enter details manually' });
+  }
+}
+
+function valuesEqual(a, b) {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  if (typeof a === 'number' || typeof b === 'number') { const na = Number(a), nb = Number(b); if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb; }
+  return String(a).trim() === String(b).trim();
+}
+
+// Commit USER-CONFIRMED values only. Rejects derived fields, non-CONFIG fields, and
+// any field that would overwrite a DIFFERENT existing value without being listed in
+// acknowledgeConflicts (no silent overwrites).
+async function centralPlanCommit(req, res, id) {
+  let body; try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+  const draft = db.getPlanExtraction(id);
+  if (!draft) return send(res, 404, { error: 'extraction not found' });
+  if (draft.status === 'committed') return send(res, 400, { error: 'this extraction was already committed' });
+  const fields = body.fields || {};
+  const ack = new Set(Array.isArray(body.acknowledgeConflicts) ? body.acknowledgeConflicts : []);
+  const createNew = !!body.createNew;
+
+  let rowId = body.rowId;
+  if (createNew) {
+    const client = fields.client, name = fields.name;
+    if (!client || !name) return send(res, 400, { error: 'a new campaign needs at least a client and a campaign name' });
+    rowId = planReader.centralRowId(client, name);
+  }
+  if (!rowId) return send(res, 400, { error: 'pick a matching campaign or choose "create new" before committing' });
+
+  // provenance (filename + per-field cellRef) from the stored draft
+  let stored = {}; try { stored = JSON.parse(draft.extracted_json || '{}').fields || {}; } catch { }
+  const current = planReader.currentRowValues(rowId);
+
+  // validate everything BEFORE writing anything
+  const names = Object.keys(fields);
+  for (const f of names) {
+    const chk = db.centralFieldAllowed(f, 'plan');
+    if (!chk.ok) return send(res, 400, { error: chk.error });
+    const existing = current[f];
+    if (!createNew && existing != null && !valuesEqual(existing, fields[f]) && !ack.has(f)) {
+      return send(res, 400, { error: `'${f}' already has a value (${existing}) that differs from the plan — resolve it (keep/replace) before committing` });
+    }
+  }
+  // all valid → write
+  let n = 0;
+  for (const f of names) {
+    const meta = { filename: draft.filename, cellRef: stored[f] ? (stored[f].cellRef || (stored[f].page != null ? 'p' + stored[f].page : null)) : null };
+    const r = db.setCentralField(rowId, f, fields[f], 'plan', meta);
+    if (r.ok) n++;
+  }
+  db.setPlanStatus(id, 'committed', rowId);
+  console.log(`[CENTRAL][Plan] commit ${id} -> ${rowId} (${n} fields)`);
+  return send(res, 200, { ok: true, rowId, fieldsWritten: n, fields: db.getCentralFieldsForId(rowId) });
+}
+
+function centralPlanDiscard(req, res, id) {
+  const draft = db.getPlanExtraction(id);
+  if (!draft) return send(res, 404, { error: 'extraction not found' });
+  db.setPlanStatus(id, 'discarded');
+  return send(res, 200, { ok: true });
 }
 
 function serveStatic(res, p) {

@@ -235,6 +235,37 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
 | Refresh | Cloud Scheduler `schneider-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
 | Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/schneider/` (no per-client subdomain) |
 
+## Website (GA4) tab — SHIPPED DISABLED (built 2026-07-10, awaiting GA4 access)
+
+A **Website** tab (GA4 whole-property web analytics) is fully built but dark until Schneider grant
+read-only access. It sits behind the direct-access plan: Schneider add our account (`ian@100.digital`
+or a dedicated service account) as a **Viewer** on their GA4 property — nothing else (no scheduled
+reports / CSV emails).
+
+**How it's wired** (mirrors [`client_vmch`](../client_vmch/README.md), the `perf_ga4`-based reference):
+- `sql/40_stg_ga4.sql` + `sql/40b_stg_ga4_events.sql` read `raw_ga4.perf_ga4(_events)` filtered by a
+  **placeholder property id** (`REPLACE_WITH_SE_GA4_PROPERTY_ID`), so every `ga4_*` view returns 0 rows
+  until it is set. `sql/41-47` roll up KPI / monthly / weekly / channels / sources / key-events / daily.
+- **Whole-site, no market split** — `perf_ga4` carries no country dimension (Schneider is AU/NZ, so this
+  reads as AU/NZ website traffic). `total_users` / `new_users` / `page_views` / `engagement_duration`
+  come back NULL from the DTS source (grain caveat) → those KPIs show `-` until a Windsor GA4 pull is added.
+- `job/main.py` emits an `ga4` block + an `ga4_enabled` flag (wrapped so any GA4 issue can't break the
+  CS/paid dashboard). The dashboard's global **Website** tab (`renderWebsite()`) **auto-appears only once
+  `ga4_enabled` is true** (real sessions have landed) — nothing half-built shows to the client before then.
+
+**TO ENABLE (once SE grant Viewer access + send the numeric Property ID):**
+1. Replace `REPLACE_WITH_SE_GA4_PROPERTY_ID` in `sql/40_stg_ga4.sql` **and** `sql/40b_stg_ga4_events.sql`.
+2. Add the property to `ingest/dts_data_pull/create_views.py` `PROPERTY_NAMES` (a commented placeholder is
+   there) and **create its GA4 BigQuery Data Transfer** in the Cloud Console, then run
+   `python ingest/dts_data_pull/create_views.py` so `raw_ga4.perf_ga4` picks it up.
+3. `python clients/client_schneider/create_views.py` (reapply the SE views).
+4. `gcloud run jobs execute schneider-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait`
+   (a view/source change doesn't advance the freshness gate, so force it).
+5. Redeploy the service (`dash/deploy_dash_schneider.ps1`) if the dashboard HTML changed — the Website tab
+   then appears with data.
+6. (Optional) once SE confirm which GA4 events count as conversions, narrow the `WHERE` in
+   `sql/46_ga4_key_events_market.sql` to those event names.
+
 ## Files
 - [`DASHBOARD_GUIDE.md`](DASHBOARD_GUIDE.md) — **comprehensive client-facing guide** (built from the
   client's `raw_files/` + live BigQuery): what every tab/card/number is and how it's computed, the
@@ -242,7 +273,7 @@ gcloud run services update schneider-dash --image $IMG --region australia-southe
   mismatch). Written for a client review / chatbot Q&A. Start here for "how does this dashboard work".
 - [`data/`](data/) — the human-editable seed CSVs (campaign map / budgets / targets / flighting /
   channel split / media plan / salesforce map), loaded to `seed_*` tables by [`load_seeds.py`](load_seeds.py).
-- [`sql/`](sql/README.md) — the 28 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + unused GA4).
+- [`sql/`](sql/README.md) — the 30 BigQuery views (filter + CS leads + paid delivery + `cs_audience` + the GA4 Website layer `40-47`, shipped disabled).
 - [`job/`](job/README.md) — the export job (stage 2): views + seed tables → `schneider.json`.
 - [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
 - [`INTAKE.md`](INTAKE.md) — the resolved data slice + open items handed to the client.

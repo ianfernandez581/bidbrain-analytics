@@ -43,13 +43,43 @@ CREATE TABLE IF NOT EXISTS committed_snapshots (
   earliest_period TEXT NOT NULL, latest_period TEXT NOT NULL,
   target_bq_dataset TEXT, target_bq_table TEXT
 );
+-- Central: per-field CONFIG overrides layered over config/central-seed.js. ONE store.
+-- value is JSON-encoded so numbers/nulls/strings round-trip losslessly. source =
+-- 'manual' (dropdown/inline edit) | 'plan' (committed from a media-plan extraction).
+CREATE TABLE IF NOT EXISTS central_rows (
+  row_id TEXT NOT NULL, field TEXT NOT NULL, value TEXT,
+  updated_at TEXT NOT NULL, source TEXT NOT NULL DEFAULT 'manual',
+  filename TEXT, cell_ref TEXT,
+  PRIMARY KEY (row_id, field)
+);
+-- Central: media-plan extraction drafts. NEVER writes campaign rows directly —
+-- pending -> human review -> commit (which writes central_rows).
+CREATE TABLE IF NOT EXISTS plan_extractions (
+  id TEXT PRIMARY KEY, filename TEXT NOT NULL, uploaded_at TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', extracted_json TEXT,
+  matched_row_id TEXT, user_id TEXT
+);
 `);
 
 const now = () => new Date().toISOString();
 
+// ---- Central field governance (single source of truth for what may be written) ----
+// Fields the plan-reader commit may write (all [CONFIG] target fields).
+const CENTRAL_PLAN_FIELDS = ['jobNumber', 'client', 'name', 'objective', 'channel', 'managedBy',
+  'startDate', 'endDate', 'platformMargin', 'adServingCost', 'forecastCpm', 'keyKpi', 'kpiTarget',
+  'budgetGross', 'totalBudget', 'spendMult', 'notes'];
+// Fields the inline dropdown/edit route may write.
+const CENTRAL_EDIT_FIELDS = ['managedBy', 'channel', 'status', 'platformMargin', 'notes', 'jobNumber'];
+// DERIVED fields — never writable by anything. Any attempt is rejected (defense in depth).
+const CENTRAL_DERIVED_FIELDS = ['campaignMargin', 'cpmPerformance', 'kpiPerformance', 'budgetRemaining',
+  'pctBudgetSpent', 'pctFlightElapsed', 'pacingStatus', 'marginDelta', 'marginBand', 'health'];
+
 module.exports = {
   db,
   DB_PATH,
+  CENTRAL_PLAN_FIELDS,
+  CENTRAL_EDIT_FIELDS,
+  CENTRAL_DERIVED_FIELDS,
 
   createFile(f) {
     db.prepare(`INSERT INTO uploaded_files (id,filename,file_type,size_bytes,client_id,channel_hint,uploaded_at,local_path,status)
@@ -136,5 +166,66 @@ module.exports = {
         channels: [...new Set(rows.map(r => r.channel))]
       };
     });
+  },
+
+  // ==================== Central: CONFIG overrides (central_rows) ====================
+  // value is JSON-encoded on the way in and parsed on the way out.
+  _decodeVal(v) { if (v == null) return null; try { return JSON.parse(v); } catch { return v; } },
+
+  // Whether a field may be written by a given route. Returns {ok} or {ok:false, error}.
+  centralFieldAllowed(field, scope) {
+    if (CENTRAL_DERIVED_FIELDS.includes(field)) return { ok: false, error: `'${field}' is a DERIVED field and can never be edited` };
+    const list = scope === 'plan' ? CENTRAL_PLAN_FIELDS : CENTRAL_EDIT_FIELDS;
+    if (!list.includes(field)) return { ok: false, error: `'${field}' is not an editable CONFIG field` };
+    return { ok: true };
+  },
+
+  // All overrides, grouped by row_id: { rowId: { field: {value, source, filename, cellRef, updatedAt} } }
+  getCentralOverrides() {
+    const rows = db.prepare('SELECT * FROM central_rows').all();
+    const out = {};
+    for (const r of rows) {
+      (out[r.row_id] || (out[r.row_id] = {}))[r.field] = {
+        value: this._decodeVal(r.value), source: r.source, filename: r.filename || null,
+        cellRef: r.cell_ref || null, updatedAt: r.updated_at
+      };
+    }
+    return out;
+  },
+  // Flat {field: value} for one row (used server-side for conflict detection).
+  getCentralFieldsForId(rowId) {
+    const rows = db.prepare('SELECT field, value FROM central_rows WHERE row_id=?').all(rowId);
+    const out = {}; rows.forEach(r => { out[r.field] = this._decodeVal(r.value); });
+    return out;
+  },
+  // Write ONE field. Enforces the whitelist for `scope` ('edit' | 'plan'). Returns {ok,error?}.
+  setCentralField(rowId, field, value, scope, meta) {
+    const chk = this.centralFieldAllowed(field, scope);
+    if (!chk.ok) return chk;
+    meta = meta || {};
+    db.prepare(`INSERT INTO central_rows (row_id,field,value,updated_at,source,filename,cell_ref)
+      VALUES (@row_id,@field,@value,@updated_at,@source,@filename,@cell_ref)
+      ON CONFLICT(row_id,field) DO UPDATE SET value=@value,updated_at=@updated_at,source=@source,filename=@filename,cell_ref=@cell_ref`)
+      .run({
+        row_id: rowId, field, value: JSON.stringify(value === undefined ? null : value),
+        updated_at: now(), source: scope === 'plan' ? 'plan' : 'manual',
+        filename: meta.filename || null, cell_ref: meta.cellRef || null
+      });
+    return { ok: true };
+  },
+
+  // ==================== Central: plan extraction drafts (plan_extractions) ==========
+  createPlanExtraction(rec) {
+    db.prepare(`INSERT INTO plan_extractions (id,filename,uploaded_at,status,extracted_json,matched_row_id,user_id)
+      VALUES (@id,@filename,@uploaded_at,@status,@extracted_json,@matched_row_id,@user_id)`).run({
+      status: 'pending', extracted_json: null, matched_row_id: null, user_id: null,
+      uploaded_at: now(), ...rec
+    });
+    return this.getPlanExtraction(rec.id);
+  },
+  getPlanExtraction(id) { return db.prepare('SELECT * FROM plan_extractions WHERE id=?').get(id); },
+  setPlanStatus(id, status, matchedRowId) {
+    if (matchedRowId !== undefined) db.prepare('UPDATE plan_extractions SET status=?, matched_row_id=? WHERE id=?').run(status, matchedRowId, id);
+    else db.prepare('UPDATE plan_extractions SET status=? WHERE id=?').run(status, id);
   }
 };

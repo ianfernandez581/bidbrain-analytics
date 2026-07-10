@@ -60,6 +60,9 @@
  * @property {number|null} pctBudgetSpent    clientSpend / totalBudget
  * @property {number|null} pctFlightElapsed  clamp((today - start) / (end - start), 0..1)
  * @property {PacingStatus} pacingStatus     pctBudgetSpent / pctFlightElapsed banded
+ * @property {number|null} marginDelta       campaignMargin - platformMargin                       [DERIVED]
+ * @property {'above'|'near'|'below'|null} marginBand   banded marginDelta (>=0 above; >=-0.10 near; else below; cm<0 below)  [DERIVED]
+ * @property {'winner'|'watch'|'steady'|null} health    portfolio-health bucket from margin + pacing + CPM  [DERIVED]
  */
 
 const DAY_MS = 86400000;
@@ -146,6 +149,75 @@ function pacingStatus(c, today = new Date()) {
   return 'On';
 }
 
+/* ---- margin banding + portfolio health (ADDED; do not touch the formulas above) ---- */
+
+/**
+ * Margin Delta = campaignMargin - platformMargin. Null when either is missing.
+ * @param {Campaign} c
+ * @param {DerivedFields} [d] pre-computed core fields (avoids recomputing campaignMargin)
+ */
+function marginDelta(c, d) {
+  const cm = d ? d.campaignMargin : campaignMargin(c);
+  const pm = num(c.platformMargin);
+  if (cm === null || pm === null) return null;
+  return cm - pm;
+}
+
+/**
+ * Margin Band from the realized-vs-set gap:
+ *   'above'  marginDelta >= 0
+ *   'near'   -0.10 <= marginDelta < 0
+ *   'below'  marginDelta < -0.10  OR  campaignMargin < 0
+ *   null     platformMargin missing (nothing to compare against) or margin unknowable
+ */
+function marginBand(c, d) {
+  const pm = num(c.platformMargin);
+  if (pm === null) return null;                       // no set margin to compare against
+  const cm = d ? d.campaignMargin : campaignMargin(c);
+  if (cm === null) return null;                       // can't judge without a realized margin
+  if (cm < 0) return 'below';                          // losing money is always 'below'
+  const delta = cm - pm;
+  if (delta >= 0) return 'above';
+  if (delta >= -0.10) return 'near';
+  return 'below';
+}
+
+/**
+ * Health bucket. WATCH is evaluated BEFORE WINNER on purpose: an anomalously
+ * cheap CPM (< 0.5x forecast) is a targeting red flag (the "EBA $1.42" detector),
+ * so it must win over an otherwise-green margin/pacing row.
+ *   'winner' marginBand 'above' AND pacing 'On' AND (cpm <= forecastCpm when both present)
+ *   'watch'  marginBand 'below' OR campaignMargin<0 OR pacing 'Over'
+ *            OR (pacing 'Under' AND pctFlightElapsed>0.5)
+ *            OR (forecastCpm && cpm > 2*forecastCpm) OR (forecastCpm && cpm < 0.5*forecastCpm)
+ *   'steady' otherwise
+ *   null     insufficient data to judge (no band, no pacing, no realized margin)
+ */
+function health(c, d) {
+  const band = marginBand(c, d);
+  const pacing = d.pacingStatus;                       // 'On'|'Over'|'Under'|'-'
+  const cm = d.campaignMargin;
+  const cpm = d.cpmPerformance;
+  const fcpm = num(c.forecastCpm);
+  const elapsed = d.pctFlightElapsed;
+
+  // WATCH first (so the cheap-CPM anomaly overrides a would-be winner)
+  if (band === 'below') return 'watch';
+  if (cm !== null && cm < 0) return 'watch';
+  if (pacing === 'Over') return 'watch';
+  if (pacing === 'Under' && elapsed !== null && elapsed > 0.5) return 'watch';
+  if (fcpm !== null && cpm !== null && cpm > 2 * fcpm) return 'watch';
+  if (fcpm !== null && cpm !== null && cpm < 0.5 * fcpm) return 'watch';
+
+  // WINNER
+  if (band === 'above' && pacing === 'On' && (fcpm === null || cpm === null || cpm <= fcpm)) return 'winner';
+
+  // insufficient data → let the UI render "—"
+  if (band === null && pacing === '-' && cm === null) return null;
+
+  return 'steady';
+}
+
 /**
  * Compute every derived field for a row in one pass.
  * @param {Campaign} c
@@ -153,7 +225,7 @@ function pacingStatus(c, today = new Date()) {
  * @returns {DerivedFields}
  */
 function computeRow(c, today = new Date()) {
-  return {
+  const d = {
     campaignMargin: campaignMargin(c),
     cpmPerformance: cpmPerformance(c),
     kpiPerformance: kpiPerformance(c),
@@ -162,12 +234,17 @@ function computeRow(c, today = new Date()) {
     pctFlightElapsed: pctFlightElapsed(c, today),
     pacingStatus: pacingStatus(c, today),
   };
+  d.marginDelta = marginDelta(c, d);
+  d.marginBand = marginBand(c, d);
+  d.health = health(c, d);
+  return d;
 }
 
 const api = {
   num, div, ms,
   budgetRemaining, pctBudgetSpent, pctFlightElapsed,
   campaignMargin, cpmPerformance, kpiPerformance, pacingStatus,
+  marginDelta, marginBand, health,
   computeRow,
 };
 

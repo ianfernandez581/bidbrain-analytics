@@ -412,4 +412,4 @@ function verificationSchema() {
   };
 }
 
-module.exports = { parseFile, HAS_ANTHROPIC, HAS_LLAMA, _heuristicExtract: heuristicExtract, _parseDate: parseDate, _claudePdfExtract: claudePdfExtract };
+module.exports = { parseFile, HAS_ANTHROPIC, HAS_LLAMA, _heuristicExtract: heuristicExtract, _parseDate: parseDate, _claudePdfExtract: claudePdfExtract, _getRawText: getRawText };

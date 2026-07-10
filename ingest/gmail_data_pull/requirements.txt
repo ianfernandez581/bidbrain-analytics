@@ -1,0 +1,9 @@
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-cloud-storage
+google-cloud-secret-manager
+google-cloud-bigquery
+pandas
+pyarrow
+db-dtypes
