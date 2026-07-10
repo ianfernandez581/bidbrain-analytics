@@ -278,6 +278,12 @@
   .qoq-table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute)}
   .qd{font-size:11px;font-weight:700;margin-left:5px;white-space:nowrap}
   .qd.good{color:var(--good-green)} .qd.bad{color:var(--bad-red)} .qd.neu{color:var(--cf-mute)}
+  /* Dev-mode tables (lead detail + Data from Transmission): compact, horizontally scrollable */
+  .dev-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
+  .dev-table th,.dev-table td{padding:6px 10px;border-bottom:1px solid var(--cf-line);text-align:left}
+  .dev-table thead th{position:sticky;top:0;background:#fff;z-index:1;font-size:10.5px;text-transform:uppercase;
+    letter-spacing:.4px;color:var(--cf-mute);border-bottom:2px solid var(--cf-line)}
+  .dev-table tbody tr:hover{background:#FAFBFC}
   /* QoQ heat map: markets / status × (Q2 same window, Q3 to date); cells shaded by lead volume */
   .qoq-heatscale{font-size:11px;color:var(--cf-mute);margin-bottom:12px;display:flex;align-items:center}
   .qoq-heatscale .grad{display:inline-block;width:90px;height:10px;border-radius:5px;margin:0 8px;background:linear-gradient(90deg,rgba(243,128,32,.10),rgba(243,128,32,.92))}
@@ -421,6 +427,8 @@
       <button class="tab" data-tab="main" onclick="switchTab('main')">Content Syndication</button>
       <button class="tab" data-tab="compare" onclick="switchTab('compare')">CS Comparison</button>
       <button class="tab" data-tab="qoq" onclick="switchTab('qoq')">Quarter on Quarter</button>
+      <!-- Dev only (admin / Transmission): a source-table inventory. Hidden for clients. -->
+      <button class="tab" data-tab="txdata" id="txDataTab" style="display:none" onclick="switchTab('txdata')">Data from Transmission</button>
     </div>
 
     <div id="dateScopeNote" style="display:none;background:#fff;border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5"></div>
@@ -538,6 +546,29 @@
         <div id="regionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
       </div>
 
+      <!-- Lead detail (DEV MODE ONLY): every lead in the current view with every field we hold.
+           Contains PII, so it renders only when dev mode is on (admin / Transmission) - never for clients. -->
+      <div class="card" id="leadDetailCard" style="display:none;margin-top:14px">
+        <div class="card-head"><div>
+          <h3>Lead detail - all data we hold (internal)</h3>
+          <div class="hint" id="leadDetailNote">Every lead in the current filter, with every field we receive.</div>
+        </div>
+        <div class="ctrls"><button type="button" class="chip-action" onclick="downloadLeadsCsv()">Download CSV (all fields)</button></div></div>
+        <div id="leadDetailWrap" style="overflow:auto;max-height:540px;border:1px solid var(--cf-line);border-radius:8px;margin-top:10px"></div>
+      </div>
+
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- DATA FROM TRANSMISSION TAB (dev only)                         -->
+    <!-- ============================================================ -->
+    <div class="panel hidden" id="panel-txdata">
+      <div class="card">
+        <h3>Data from Transmission</h3>
+        <div class="hint">Every source table Transmission feeds us (the Snowflake mirrors). <b>In this dashboard?</b> shows whether Cloudflare should expect each one to appear here. Row counts + last-updated are live from BigQuery. Internal view.</div>
+        <div id="txDataWrap" style="overflow:auto;border:1px solid var(--cf-line);border-radius:8px;margin-top:12px"></div>
+        <div class="hint" style="margin-top:10px">Note: LINE (JP) is a <b>manual</b> LINE Ad Manager export, not a Transmission Snowflake feed, so it is not listed above (it still feeds the blended Paid Media totals).</div>
+      </div>
     </div>
 
     <!-- ============================================================ -->
@@ -1594,7 +1625,9 @@ function switchTab(tab) {
   document.getElementById('panel-compare').classList.toggle('hidden', tab !== 'compare');
   document.getElementById('panel-paid').classList.toggle('hidden', tab !== 'paid');
   document.getElementById('panel-qoq').classList.toggle('hidden', tab !== 'qoq');
+  document.getElementById('panel-txdata').classList.toggle('hidden', tab !== 'txdata');
   if (tab === 'qoq') renderQoQ();
+  if (tab === 'txdata') renderTxData();
   if (tab === 'compare') {
     if (document.getElementById('regionA').value) renderComparePanel('A');
     if (document.getElementById('regionB').value) renderComparePanel('B');
@@ -1815,6 +1848,7 @@ function aggregate(filterFn) {
     rejected: rejected.length,
     unprocessed: newLeads.length,          // New/backlog count (surfaced only in dev mode)
     breakdownTotal: breakdownLeads.length,  // accepted (+ unprocessed in dev mode); jtChart 'Other' fold
+    leads: realLeads,                       // filtered real leads (accepted+rejected+new) for the dev lead table
     q2Target, ttdTarget, timePct,
     weekly, daily, dailyFull, pacingDaily, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
   };
@@ -1873,6 +1907,8 @@ function initDevMode() {
   if (t) t.checked = devMode;                                   // default ON reflects in the switch
   const sel = document.getElementById('devCampaign');
   if (sel) sel.style.display = devMode ? '' : 'none';           // show the Source-ID filter when on
+  const txTab = document.getElementById('txDataTab');
+  if (txTab) txTab.style.display = '';                          // reveal the Data-from-Transmission tab
   populateCampaignSelect();
 }
 
@@ -2247,7 +2283,85 @@ function renderAll() {
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);
+  renderLeadDetail(agg);   // dev mode only: full per-lead table at the bottom
   setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);  // keep footer's range note in sync
+}
+
+// ==========================================================================
+// DEV MODE: full lead detail table (all fields) + "Data from Transmission" tab
+// ==========================================================================
+// Every column we hold per lead. Order = most useful first (Source ID, status, date), PII last.
+const LEAD_COLS = [
+  ['DAY','Date added'], ['CAMPAIGN_ID','Source ID'], ['CAMPAIGN','Campaign'], ['LEAD_STATUS','Status'],
+  ['MARKET_REGION','Market'], ['PUBLISHER','Publisher'], ['OFFER_TYPE','Offer'], ['SERVICE','Solution'],
+  ['TIER','Tier'], ['COUNTRY_NAME','Country'], ['STATE','State'], ['COMPANY_NAME','Company'],
+  ['JOB_TITLE','Job title'], ['JOB_FUNCTION','Job function'], ['JOB_LEVEL','Job level'],
+  ['INDUSTRY_NAME','Industry'], ['ASSET_1','Asset'], ['FIRST_NAME','First name'], ['LAST_NAME','Last name'],
+  ['EMAIL','Email'], ['PHONE','Phone'], ['OPT_IN','Opt-in'], ['ANNUAL_REVENUE_','Annual revenue'],
+  ['LEAD_ID_SF','Lead ID'], ['DT_CREATED','Created (raw)'], ['DT_UPDATED','Updated (raw)'], ['DT_FILENAME','Source file'],
+];
+const LEAD_CAP = 1000;   // cap DOM rows; CSV exports the full filtered set
+
+function leadCell(key, v) {
+  if (v === null || v === undefined) return '';
+  if (key === 'DAY') return String(v).slice(0, 10);
+  return String(v);
+}
+// Real leads in the current view (accepted + rejected + new), newest first.
+function currentLeads(agg) {
+  return (agg.leads || []).slice().sort((a, b) => String(b.DAY || '').localeCompare(String(a.DAY || '')));
+}
+
+function renderLeadDetail(agg) {
+  const card = document.getElementById('leadDetailCard');
+  if (!card) return;
+  if (!devMode) { card.style.display = 'none'; return; }   // gated: never shown to clients
+  card.style.display = '';
+  const leads = currentLeads(agg);
+  const shown = leads.slice(0, LEAD_CAP);
+  const note = document.getElementById('leadDetailNote');
+  if (note) note.textContent = leads.length > LEAD_CAP
+    ? `Showing the first ${fmtN(LEAD_CAP)} of ${fmtN(leads.length)} leads in the current filter (newest first). Use Download CSV for every field on every lead. Not shown to the client.`
+    : `${fmtN(leads.length)} lead(s) in the current filter (newest first), with every field we receive. Not shown to the client.`;
+  const th = LEAD_COLS.map(c => `<th>${esc(c[1])}</th>`).join('');
+  const body = shown.map(r => '<tr>' + LEAD_COLS.map(c => `<td>${esc(leadCell(c[0], r[c[0]]))}</td>`).join('') + '</tr>').join('');
+  document.getElementById('leadDetailWrap').innerHTML =
+    `<table class="dev-table"><thead><tr>${th}</tr></thead><tbody>${body}</tbody></table>`;
+}
+
+function downloadLeadsCsv() {
+  const leads = currentLeads(aggregate());
+  const q = s => { s = (s == null ? '' : String(s)); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  const lines = [LEAD_COLS.map(c => q(c[1])).join(',')];
+  for (const r of leads) lines.push(LEAD_COLS.map(c => q(leadCell(c[0], r[c[0]]))).join(','));
+  const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `cloudflare_cs_leads_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 0);
+}
+
+// "Data from Transmission" tab: source-table inventory from COMBINED.transmission_data (job-built).
+function renderTxData() {
+  const wrap = document.getElementById('txDataWrap');
+  if (!wrap) return;
+  const rows = (typeof COMBINED !== 'undefined' && COMBINED.transmission_data) || [];
+  if (!rows.length) {
+    wrap.innerHTML = '<div style="padding:14px;color:var(--cf-mute)">No inventory in this data file yet - re-run the export job to populate it.</div>';
+    return;
+  }
+  const lm = s => { if (!s) return '-'; const d = new Date(s); return isNaN(d) ? String(s).slice(0, 10) : d.toISOString().slice(0, 10); };
+  const body = rows.map(r => {
+    const badge = r.used
+      ? '<span style="color:var(--good-green);font-weight:700">Yes</span>'
+      : '<span style="color:var(--cf-mute);font-weight:600">No</span>';
+    return `<tr><td style="font-family:monospace">${esc(r.table)}</td><td>${esc(r.label)}</td>`
+      + `<td style="text-align:right;font-variant-numeric:tabular-nums">${fmtN(r.rows || 0)}</td>`
+      + `<td>${lm(r.last_modified)}</td><td>${badge}</td><td style="white-space:normal">${esc(r.where || '')}</td></tr>`;
+  }).join('');
+  wrap.innerHTML = `<table class="dev-table"><thead><tr><th>Source table</th><th>What it is</th><th>Rows</th>`
+    + `<th>Last updated (UTC)</th><th>In this dashboard?</th><th>Where / why</th></tr></thead><tbody>${body}</tbody></table>`;
 }
 
 // ==========================================================================
