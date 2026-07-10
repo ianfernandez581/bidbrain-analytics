@@ -410,7 +410,7 @@ if (window.Chart) Chart.register({
 // active sort. A pure-text column falls back to A-Z / Z-A. Styling added via an injected class only.
 (function(){
   const css='table.bb-sortable th{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}'
-    +'table.bb-sortable th:hover{color:var(--accent,#4C8DFF)}'
+    +'table.bb-sortable th:hover{text-decoration:underline;text-underline-offset:3px;opacity:.82}'
     +'.bb-sort-ind{font-size:.82em;opacity:.85;margin-left:3px}';
   const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
 
@@ -451,6 +451,7 @@ if (window.Chart) Chart.register({
   function wire(t){ if(t._bbWired) return; t._bbWired=true; t.classList.add('bb-sortable');
     t.addEventListener('click',e=>{ const cell=e.target.closest('th,td'); if(!cell) return;
       const h=headerRow(t); if(!h||cell.parentNode!==h) return;
+      if([...t.rows].some(r=>r!==h && [...r.cells].some(c=>c.colSpan>1))) return;  // skip grouped tables (colspan section-headers)
       const col=[...h.cells].indexOf(cell); if(col<0) return;
       const st=t._bbSort||{col:null,dir:'desc'};
       if(st.col===col) st.dir=(st.dir==='desc'?'asc':'desc'); else { st.col=col; st.dir='desc'; }
