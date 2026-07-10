@@ -117,9 +117,12 @@ and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshot
 format and appended to `targets/real_targets.csv`, so it now carries **Q2 + Q3** rows (Q2 weeks
 `2026-03-30 → 2026-06-15`, Q3 weeks `2026-07-06 → 2026-09-28`, 13 weeks). Q3 grand total **2290**
 (ANZ 943 / ASEAN 419 / SAARC 220 / GCR 309 / JP 244 / KR 155), reconciled to the plan's own total row.
-The dashboard defaults to Q3, so its target KPIs + pacing cards now light up from these targets (no
-dashboard code change — captions are `qtrLabel()`-driven). **Note: the Q3 "Core DG" plan has NO RIG
-line**, so the RIG chip shows Q3 actuals with no target — that's the client's scope, not a bug. The
+The dashboard **defaults to Q2** (2026-07-09), and selecting Q3 lights up its target KPIs + pacing cards
+from these targets. **The target is quarter-anchored** (the full selected-quarter plan, NOT the in-range
+sum) — otherwise, because the date range clamps to the last day with data, an in-progress quarter like
+Q3 would show only the elapsed weeks' target (the "Q3 Target = 182 instead of 2290" bug, fixed
+2026-07-09 via `pacingWindow`/`quarterTargets` in `aggregate()`). **Note: the Q3 "Core DG" plan has NO
+RIG line**, so the RIG chip shows Q3 actuals with no target — that's the client's scope, not a bug. The
 raw plan put each ANZ/ASEAN region total on its lead country (Australia / SIM) and left NZ / RoA blank
 (seeded as `0`); the `targets_v2_norm` view sums per region so the roll-up is unaffected. To change Q3,
 edit `targets/real_targets.csv`, re-seed (`seed_static.py` / the `bq load` below) and run the job with
@@ -165,8 +168,8 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   Unprocessed % KPI, and the QoQ status-mix New row are all gone. The `cs_qoq` view still emits `New`
   (harmless; the front-end ignores it). Overview "Total leads" was relabelled **"Accepted leads"** (the
   KPI always showed the accepted count).
-- **Quarter captions are dynamic.** The dashboard defaults to Q3 but the targets are the Q2 plan, so
-  every "Q2 …" caption read wrong. Captions now follow the selected quarter via `qtrLabel()` (returns
+- **Quarter captions are dynamic.** Captions must not hardcode a quarter (the default was Q3 at the
+  time, showing a Q2-labelled plan). Captions follow the selected quarter via `qtrLabel()` (returns
   `Q3` / `Q2` / `Q2-Q3`, or `Quarter` for a custom range) applied to every `.qlbl` span + the JS-built
   labels (`renderProgress` / `renderLeadsTarget` / by-region summary / date-scope banner). The QoQ tab
   gained a caveat line ("Q3 campaigns launched late, so QTD reads light — timing, not a data issue").
@@ -229,24 +232,29 @@ RoA 165 / SAARC 282 / GCR-CN 106 / GCR-TW 106 / GCR-HK 204 / KR 202 / RIG 172 / 
 as a **version-controlled committed CSV** (`targets/real_targets.csv` → `seed_real_targets`, the
 per-client "targets in BQ from a committed CSV" standard — see *Updating targets* below).
 
-### Quarter filter (Q2 / Q3) — defaults to Q3
+### Quarter filter (Q2 / Q3) — defaults to Q2
 
-The top bar carries a **Quarter** toggle (Q2 · Apr–Jun / Q3 · Jul–Sep) that **defaults to Q3**.
-It's a coarse control layered over the shared Looker-style date-range picker: quarters are
-**contiguous calendar spans**, so a selection maps 1:1 onto a single date range — Q3 → `[Jul 1,
+The top bar carries a **Quarter** toggle (Q2 · Apr–Jun / Q3 · Jul–Sep) that **defaults to Q2**
+(2026-07-09). It's a coarse control layered over the shared Looker-style date-range picker: quarters
+are **contiguous calendar spans**, so a selection maps 1:1 onto a single date range — Q3 → `[Jul 1,
 dataMax]`, Q2 → `[Apr 1, Jun 30]`. The **date range is the single source of truth**; the chips are
 *derived* from it (`syncQuarterChips`), so picking an arbitrary range in the calendar simply lights
-no chip ("custom"). **The chips are SINGLE-SELECT (2026-07-09):** clicking one jumps the range to
-exactly that quarter (`toggleQuarter` sets the span, no longer additive). The **Q2+Q3 union**
-(`[Apr 1, dataMax]`, labelled "Q2-Q3") is therefore no longer reachable from the chips — only by
-selecting a spanning range in the calendar; `syncQuarterChips` still detects + labels it.
-**The Q3 chip is HIDDEN while Q3 is the active quarter** (client request 2026-07-09): Q3 is the
-default view, so its own chip is redundant then, and Q2 stays visible so you can switch to it (the
-Q3 chip reappears once you're off Q3). This is why the chips had to become single-select — under the
-old additive toggle, with the Q3 chip hidden, clicking Q2 produced the union and Q2-only became
-unreachable. The filter is **global** — it drives Paid Media, Content Syndication and CS Comparison
-alike (the QoQ tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in
-`dash/dashboard.html` (`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips`/`renderQuarterChips`
+no chip ("custom"). **Both chips are ALWAYS visible**, and the active quarter is highlighted. **The
+chips are SINGLE-SELECT:** clicking one jumps the range to exactly that quarter (`toggleQuarter` sets
+the span). The **Q2+Q3 union** (`[Apr 1, dataMax]`, labelled "Q2-Q3") is reachable by selecting a
+spanning range in the calendar; `syncQuarterChips` still detects + labels it.
+
+**RIG drops out of the MARKETS filter under Q3** (client request 2026-07-09 — "remove the RIG filter
+option when Q3 is toggled"): the Core DG Q3 plan carries **no RIG line**, so `visibleMarkets()` hides
+the RIG chip AND excludes RIG from the data (`matchMarket` + the by-region grid) when Q3 is the active
+quarter (Q3 selected, not Q2). RIG stays under Q2 and the Q2+Q3 union (both have RIG Q2 data). In
+practice Q3 has zero RIG rows anyway, so this only removes an irrelevant chip — no headline number
+changes. (The CS Comparison tab's A/B region dropdowns are NOT yet quarter-scoped, so they still list
+RIG; low priority.)
+
+The filter is **global** — it drives Paid Media, Content Syndication and CS Comparison alike (the QoQ
+tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in `dash/dashboard.html`
+(`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips`/`renderQuarterChips`/`visibleMarkets`
 + `DateRange.setRange` + `q2`/`q3` calendar presets); no data-layer change.
 
 **Q3 targets/pacing are loaded (2026-07-09).** The Q3 target rows are in `seed_real_targets`, so the
@@ -257,6 +265,19 @@ a custom range past Q3, or RIG under Q3 — the Core DG plan has no RIG line). T
 `targets/real_targets.csv` → `seed_static.py` (or the targeted `bq load`) → job `FORCE_REBUILD=1`; the
 pacing UI reflects it on the next build (the service serves the bucket live, so **no dashboard redeploy
 is needed** unless `dashboard.html` itself changed).
+
+**Target KPIs + the "Pacing - target vs actual" chart are QUARTER-ANCHORED, not range-clamped
+(2026-07-09).** The shared date range clamps to the last day that has data, so for an in-progress
+quarter (Q3, data only to ~week 1) a range-clamped target/pacing would show only the elapsed weeks
+(the "Q3 Target = 182 instead of 2290" / "Q3 pacing chart shows only week 1" bugs). Fix: `aggregate()`
+computes the target over the full selected-quarter span via `pacingWindow()`/`quarterTargets` (headline
+`q2Target`, `ttdTarget`, `regionRows`), and a dedicated **`pacingDaily`** series (also full-quarter)
+backs `renderWeekly` so Q3 shows every one of its 13 plan weeks like Q2 shows 12. Actuals still appear
+only where leads exist (future weeks carry target + 0 actual; a small pre-plan-week bucket holds any
+leads that arrived before the plan's first Monday). The daily accepted-leads line (`renderDaily`) and
+the CS Comparison panels still read the in-range `dailyFull`/`weekly`. **The pacing chart deviates from
+the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (not Relative) and has
+**Month/Week only** (no Day grain) - client request 2026-07-09.
 
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
