@@ -37,7 +37,7 @@ CONFIG = {
         "opens), Reddit, and LINE (JP-only, already converted JPY->USD at 155). Measured on spend (USD), impressions, "
         "clicks, CTR/CPM/CPC. Display + paid social are awareness/mid-funnel; a display click is NOT a lead.\n"
         "  2) CONTENT SYNDICATION (CS) = the LEAD ENGINE (11 markets: AU, NZ, SIM, ROA, SAARC, GCR-CN, GCR-TW, "
-        "GCR-HK, KR, RIG, JP): Salesforce gated-content leads across a 12-campaign universe, measured against a Q2 "
+        "GCR-HK, KR, RIG, JP): Salesforce gated-content leads across a 13-campaign universe, measured against a Q2 "
         "total lead target (3216) and a time-to-date (TTD) pro-rata target. Lead-status buckets: ACCEPTED = Accepted "
         "+ Replied + Unresponsive (an engaged-lead definition, NOT a graded MQL); Rejected is its own bucket; "
         "everything else ('New') is the UNPROCESSED backlog awaiting triage. Anchor the 'are we winning?' judgement "

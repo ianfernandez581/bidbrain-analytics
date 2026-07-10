@@ -2,7 +2,7 @@
 -- Client request (2026-06-22): surface CF1's content-syndication delivery in the
 -- "CF1 India" single-campaign view. Vendors upload leads to CaptureIQ; Nabeel uploads
 -- them to Integrate; they land in Salesforce -> raw_snowflake.salesforce_cs_apac_all.
--- The 2 CF1 CS campaign IDs below are ALSO in the core 12-campaign filter
+-- The 2 CF1 CS campaign IDs below are ALSO in the core 13-campaign filter
 -- (sql/10_salesforce_leads_live.sql, the "Connectivity Cloud (ANZ)" pair) where they feed
 -- the geographic CS pacing model; THIS view is a separate, CF1-scoped lane that mirrors the
 -- exact query the client sent (Total = New + Accepted, Accepted, Rejected) against the

@@ -1,4 +1,4 @@
--- salesforce_leads_live: Content-Syndication leads with the canonical 12-campaign
+-- salesforce_leads_live: Content-Syndication leads with the canonical 13-campaign
 -- filter + region/publisher/offer derivation. BigQuery port of
 -- CLOUDFLARE_SANDBOX.CS_REPORTING.V_SALESFORCE_LEADS_LIVE, now reading the mirror
 -- raw_snowflake.salesforce_cs_apac_all instead of APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL".
@@ -6,7 +6,8 @@
 -- they live in clients/client_cloudflare/definitions.json (the single source of truth shared with
 -- the status verifier) and are materialised into client_cloudflare.seed_* tables by definitions_seed.py.
 -- Editing them is a one-place change (definitions.json) that reloads the seed tables — this view's
--- structure never changes. The 12 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17).
+-- structure never changes. The 13 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17)
+-- + 1 W* (701RG00001W1FQRYA3, 2026-07-10 — Q3 ANZ VSRM Lead Magnet, Tier 3; PUBLISHER/OFFER 'Unknown').
 --
 -- REGION_GRP = the COARSE 7 markets + a residual OTHER (2026-07-07 grain; rolled back UP from the
 -- 2026-06-25 11-chip split at the client's request -- see the Jade call). The country match is
@@ -84,7 +85,7 @@ SELECT
         ELSE 'Unknown'
     END AS PUBLISHER_OFFER
 FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
--- The 12-campaign filter now comes from the seed table (loaded from definitions.json).
+-- The 13-campaign filter now comes from the seed table (loaded from definitions.json).
 WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_campaign_ids`)
   -- Exclude Transmission TEST leads (2026-07-07, per the Jade call): the vendors were sent
   -- >=2 test leads each, all on Transmission emails (Nabeel/Shalvi/Jade). They inflate the
