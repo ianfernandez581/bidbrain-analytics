@@ -174,17 +174,19 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   labels (`renderProgress` / `renderLeadsTarget` / by-region summary / date-scope banner). The QoQ tab
   gained a caveat line ("Q3 campaigns launched late, so QTD reads light — timing, not a data issue").
 
-### Dev mode (internal) - unprocessed leads + Source-ID filter (2026-07-10)
+### Admin View (internal) - unprocessed leads + Source-ID filter (2026-07-10)
 
 The unprocessed/New leads removed above (client rule) are still viewable INTERNALLY via a role-gated
-**Dev mode** toggle on the CS Overview toolbar. It is **hidden from clients**: it appears only when the
-platform proxy injected `window.BB_DEV=true` - which it does for an **admin / super-admin** session or
-the **Transmission agency** portal (see `bidbrain-platform/dash/main.py` `_dev_flag_script`, injected
+**Client View / Admin View** toggle in the **topbar** (a pill toggle styled like the Q2/Q3 quarter
+control, right of the date picker). **Client View** = exactly what the client sees; **Admin View** turns
+on everything below. It is **hidden from clients**: the toggle appears only when the platform proxy
+injected `window.BB_DEV=true` - which it does for an **admin / super-admin** session or the
+**Transmission agency** portal (see `bidbrain-platform/dash/main.py` `_dev_flag_script`, injected
 alongside `window.BB_SPEND_MULT`). A `?dev=1` URL param is a fallback for direct (non-proxied) access.
-Dev mode is **OFF by default**, so the client-facing view is byte-for-byte unchanged.
+(Internally the flag is still `devMode`; Admin View = `devMode` true.)
 
-Dev mode **defaults ON** for a dev-allowed viewer (so you don't have to find the toggle); clients never
-get `window.BB_DEV` so it stays off/hidden for them. When ON it:
+Admin View **defaults ON** for a dev-allowed viewer (so you don't have to find the toggle); clients never
+get `window.BB_DEV` so they only ever see Client View. When in Admin View it:
 
 - **(a) Unprocessed across all CS Overview charts** - an "Unprocessed" KPI in the Overall group, a
   stacked bar on the pacing chart, an unprocessed line on the Accepted-leads trend, an Unprocessed bar
@@ -192,22 +194,40 @@ get `window.BB_DEV` so it stays off/hidden for them. When ON it:
   donuts (centre totals become accepted + unprocessed).
 - **(b) Source-ID (campaign) dropdown** that filters the CS view to a single `CAMPAIGN_ID`. LEADS only -
   the plan/target stays at the market grain; the acceptance/rejection rate denominator stays reviewed-only.
+  Each option reads `<label> (<CAMPAIGN_ID>) - <n> leads`; the label comes from the `CAMPAIGN_LABELS`
+  const in `dash/dashboard.html` (a MIRROR of `definitions.json` `cs_campaigns[].label` - keep in sync
+  when that file changes), falling back to the raw Salesforce `CAMPAIGN` name for any unmapped ID.
 - **(c) Lead-detail table** at the bottom of the CS Overview - every lead in the current filter with
   EVERY field we hold (Source ID, campaign, status, date, market, publisher/offer, company, title,
   country, name, email, phone, opt-in, lead id, raw timestamps, source file). Sortable + scrollable,
   capped at 1000 DOM rows, with a full-set **CSV export**. Contains PII, so it's `devMode`-gated (never
   client-facing). Frontend-only - the fields are already in `pacing.rows[]`.
-- **(d) "Data from Transmission" tab** (a dev-only tab) - **what Transmission committed** for this
-  dashboard, in two tables: **Source IDs** (the canonical CS campaign/Source-ID list that should be
-  present, from `definitions.json` / `seed_cs_campaign_ids`, with what has actually landed per ID -
-  leads / accepted / rejected / unprocessed + a Present? flag; a red row = committed but not yet
-  delivering), and the **pacing plan** (the target numbers Transmission sent - `targets_v2_norm` over
-  the committed `real_targets.csv` - per market x tier, Q2/Q3 split + totals). **This one needs the
-  job** (`build_transmission()` -> `transmission` in `cloudflare.json`), not just the frontend.
+- **(d) "Data from Transmission" tab** (an Admin-View-only tab, hidden in Client View) - **what
+  Transmission committed** for this dashboard, in two tables: **Source IDs** (the canonical CS
+  campaign/Source-ID list that should be present, from `definitions.json` / `seed_cs_campaign_ids`, with
+  a **Label** column - the curated `CAMPAIGN_LABELS` name - plus a **Sample campaign** column (raw SF
+  name), and what has actually landed per ID: leads / accepted / rejected / unprocessed + a Present?
+  flag; a red row = committed but not yet delivering), and the **pacing plan** (the target numbers
+  Transmission sent - `targets_v2_norm` over the committed `real_targets.csv` - per market x tier, Q2/Q3
+  split + totals). **This one needs the job** (`build_transmission()` -> `transmission` in
+  `cloudflare.json`), not just the frontend.
 
-Frontend gating: `DEV_ALLOWED` (window.BB_DEV or ?dev=1) shows the controls + the tab; `devMode` (the
-toggle, default = `DEV_ALLOWED`) drives the in-CS unprocessed/lead-table rendering; `aggregate()` is the
-single choke point.
+Frontend gating: `DEV_ALLOWED` (window.BB_DEV or ?dev=1) reveals the topbar toggle; `devMode` (Admin
+View, default = `DEV_ALLOWED`) drives the Source-ID controls, the admin-only tab and the in-CS
+unprocessed/lead-table rendering (`applyViewMode()` reflects the mode; `aggregate()` is the single
+choke point). `setAdminView()` flips it.
+
+### Spreadsheet-style tables (sort + search, 2026-07-10)
+
+Every data table is **sortable** (the vendored `bb-sortable` engine - click a header) **and searchable**:
+a small **Search table...** box is injected above each table with more than a handful of rows and
+filters the data rows as you type (header + Total row always stay visible). Both survive the
+`innerHTML` re-renders the dashboard does: a document-level `MutationObserver` re-wires new tables for
+sorting and re-injects the search box (`window.bbEnsureSearch`), and each box's query is remembered per
+host container so it persists across a rebuild. Grouped tables (colspan section-headers) and tiny
+summary tables (< 6 data rows) are intentionally left without a search box. **Cloudflare-only for now** -
+the search half is a local extension of the otherwise-vendored `bb-sortable`; it is NOT yet propagated
+to the canonical copy (`clients/client_resetdata`) or the other dashboards.
 
 ### Korea reconciliation (144 vs 164) — Ian to confirm with data
 
