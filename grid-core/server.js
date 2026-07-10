@@ -30,6 +30,7 @@ const parser = require('./src/brain/parser');
 const bqWriter = require('./src/brain/bq-writer');
 const planReader = require('./src/central/plan-reader');
 const centralView = require('./src/central/render-central'); // for the single mapGridRowToCentral()
+const centralMatch = require('./src/central/match');          // unified exact/contains/rollup rule
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
@@ -404,17 +405,32 @@ async function performCentralSync(opts) {
       if (!spec.validated) { skippedClients.push({ client: spec.client, reason: 'not validated' }); continue; }
       const cres = (doc.clients || {})[spec.client] || { rows: [], errors: [] };
       (cres.errors || []).forEach(er => errors.push(spec.client + ': ' + er));
-      const byBq = {}; (spec.map || []).forEach(mm => { byBq[mm.bqName] = mm; });
+      const rowsF = cres.rows || [];
+      const modeA = (spec.map || []).filter(e => e.bqName && !e.campaignMatch);   // program→campaign (Schneider)
+      const modeB = (spec.map || []).filter(e => e.campaignMatch);                 // per-row match rule
       let cu = 0, cs = 0;
-      for (const row of (cres.rows || [])) {
-        const mm = byBq[row.bqName];
-        if (!mm) { unmatched.push({ client: spec.client, bqName: row.bqName }); continue; }
-        const cid = resolveCampaignId(mm, spec);
-        if (!cid) { unmatched.push({ client: spec.client, bqName: row.bqName, reason: 'campaign not found' }); continue; }
-        const r = db.syncCampaignMetrics(cid, row.impressions, row.mediaSpend, { includeEnded });
+      // Mode A (view): row-driven bqName equality — UNCHANGED behaviour.
+      if (modeA.length) {
+        const byBq = {}; modeA.forEach(mm => { byBq[mm.bqName] = mm; });
+        for (const row of rowsF) {
+          const mm = byBq[row.bqName];
+          if (!mm) { unmatched.push({ client: spec.client, bqName: row.bqName }); continue; }
+          const cid = resolveCampaignId(mm, spec);
+          if (!cid) { unmatched.push({ client: spec.client, bqName: row.bqName, reason: 'campaign not found' }); continue; }
+          const r = db.syncCampaignMetrics(cid, row.impressions, row.mediaSpend, { includeEnded });
+          if (r.ok) { updated++; cu++; } else { cs++; }
+        }
+      }
+      // Mode B (raw): entry-driven — one match rule (exact/contains/rollup) per mapped row.
+      for (const e of modeB) {
+        const cid = resolveCampaignId(e, spec);
+        if (!cid) { cs++; continue; }
+        const met = centralMatch.matchCampaign(rowsF, e);
+        if (met.matched === 0) { cs++; continue; }   // no BQ campaigns matched this row
+        const r = db.syncCampaignMetrics(cid, met.impressions, met.mediaSpend, { includeEnded });
         if (r.ok) { updated++; cu++; } else { cs++; }
       }
-      perClient[spec.client] = { updated: cu, skipped: cs, bqRows: (cres.rows || []).length };
+      perClient[spec.client] = { updated: cu, skipped: cs, bqRows: rowsF.length };
     }
     const syncedAt = new Date().toISOString();
     CENTRAL_LAST_SYNC = { at: syncedAt, updated, unmatched: unmatched.length, errors: errors.length, trigger: opts.trigger || 'manual' };
@@ -455,16 +471,20 @@ async function centralReconcile(req, res, client) {
   let doc;
   try { doc = await runNamesFetcher(client); }
   catch (e) { return send(res, 502, { error: 'reconcile fetcher failed: ' + e.message }); }
-  const bqNames = doc.bqNames || [];
+  // fetch_names returns tagged {bqName,channel,advertiserName}; tolerate a bare-string fixture too
+  const bqTagged = (doc.bqNames || []).map(x => (typeof x === 'string' ? { bqName: x, channel: null, advertiserName: null } : x));
   const centralCampaigns = db.getCampaigns().filter(c => c.client === client && !c.archivedAt)
     .map(c => ({ id: c.id, name: c.name, channel: c.channel, status: c.status }));
   const suggestions = [];
-  for (const bq of bqNames) {
+  for (const bq of bqTagged) {
     let best = null;
-    for (const c of centralCampaigns) { const s = dice(bq, c.name || ''); if (!best || s > best.score) best = { bqName: bq, campaignId: c.id, campaignName: c.name, score: Math.round(s * 100) / 100 }; }
+    for (const c of centralCampaigns) {
+      const s = dice(bq.bqName, c.name || '');
+      if (!best || s > best.score) best = { bqName: bq.bqName, channel: bq.channel, advertiserName: bq.advertiserName, campaignId: c.id, campaignName: c.name, score: Math.round(s * 100) / 100 };
+    }
     if (best) suggestions.push(best);
   }
-  return send(res, 200, { client, bqNames, centralCampaigns, suggestions, error: doc.error || null });
+  return send(res, 200, { client, bqNames: bqTagged.map(x => x.bqName), bqTagged, centralCampaigns, suggestions, error: doc.error || null });
 }
 
 // Write APPROVED pairs into central-clients.json's map + flip validated:true. Explicit only.
@@ -478,10 +498,15 @@ async function centralReconcileApprove(req, res, client) {
   spec.map = spec.map || [];
   let added = 0;
   for (const pr of pairs) {
-    if (!pr.bqName || !pr.campaignId) continue;
-    if (spec.map.some(mm => mm.bqName === pr.bqName)) continue;   // idempotent
-    const camp = db.getCampaign(pr.campaignId);
-    spec.map.push({ bqName: pr.bqName, campaignId: pr.campaignId, campaignName: camp ? camp.name : undefined });
+    if (!pr.campaignId) continue;
+    // per-row match schema (Design A): {campaignId, channel, advertiserName, campaignMatch:{mode,value}}
+    const mode = (pr.mode === 'contains' || pr.mode === 'rollup') ? pr.mode : 'exact';
+    const value = pr.value != null ? pr.value : pr.bqName;   // default: exact match on the approved BQ name
+    if (value == null) continue;
+    if (spec.map.some(mm => mm.campaignId === pr.campaignId && mm.channel === pr.channel && mm.campaignMatch && mm.campaignMatch.value === value)) continue; // idempotent
+    const entry = { campaignId: pr.campaignId, channel: pr.channel || null, advertiserName: pr.advertiserName || null, campaignMatch: { mode, value } };
+    const camp = db.getCampaign(pr.campaignId); if (camp) entry.campaignName = camp.name;
+    spec.map.push(entry);
     added++;
   }
   if (added) spec.validated = true;   // a human confirmed the mapping

@@ -71,6 +71,18 @@ def _num(v):
         return None
 
 
+# which Central channel a raw table represents (for tagging fetched rows/names)
+TABLE_CHANNEL = {
+    "tradedesk_apac_all": "Trade Desk", "perf_the_trade_desk": "Trade Desk",
+    "linkedin_ads_apac": "LinkedIn", "google_ads_apac": "Google Ads", "perf_google_ads": "Google Ads",
+    "perf_meta": "Meta", "reddit_ads_apac_all": "Reddit", "perf_reddit": "Reddit", "dv360_apac": "DV360",
+}
+
+
+def _channel_of(t):
+    return t.get("channel") or TABLE_CHANNEL.get(t.get("table")) or t.get("table")
+
+
 def _source(spec):
     return spec.get("source") or ("view" if spec.get("bq") else "none")
 
@@ -98,10 +110,13 @@ def fetch_client_rows(spec):
                  "mediaSpend": _num(r.get("mediaSpend")), "lastDate": r.get("last_date") or None}
                 for r in _bq_csv(sql)]
     if src == "raw":
-        merged = {}
+        # per-campaign rows, TAGGED with advertiserName + channel (NOT merged) so the sync
+        # path can apply the per-row match rule (exact/contains/rollup) — see src/central/match.js.
+        rows = []
         for t in spec.get("tables", []):
             adv, advVal, camp = t["advertiserColumn"], t["advertiserValue"], t["campaignColumn"]
             imp, cost, date = t.get("impressionColumn"), t.get("costColumn"), t.get("dateColumn")
+            channel = _channel_of(t)
             sel_imp = f"CAST(SUM(SAFE_CAST({imp} AS FLOAT64)) AS INT64)" if imp else "0"
             sel_cost = f"ROUND(SUM(SAFE_CAST({cost} AS FLOAT64)), 2)" if cost else "0"
             where = f"WHERE {adv} = '{_q(advVal)}'"
@@ -114,30 +129,38 @@ def fetch_client_rows(spec):
                 nm = r.get("bqName")
                 if not nm:
                     continue
-                m = merged.setdefault(nm, {"impressions": 0, "mediaSpend": 0.0})
-                m["impressions"] += int(_num(r.get("impressions")) or 0)
-                m["mediaSpend"] += float(_num(r.get("mediaSpend")) or 0)
-        return [{"bqName": k, "impressions": v["impressions"], "mediaSpend": round(v["mediaSpend"], 2), "lastDate": None}
-                for k, v in merged.items()]
+                rows.append({"bqName": nm, "advertiserName": advVal, "channel": channel,
+                             "impressions": int(_num(r.get("impressions")) or 0), "mediaSpend": _num(r.get("mediaSpend"))})
+        return rows
     raise RuntimeError(f"unknown source '{src}'")
 
 
 def fetch_names(spec):
+    """Distinct BQ campaign names for reconcile, TAGGED with channel + advertiserName so
+    the panel/approve can write the per-row match schema. Returns [{bqName, channel, advertiserName}]."""
     src = _source(spec)
     if src == "none":
         return []
     if src == "view":
         ref = _table_ref(spec)
-        return [r.get("bqName") for r in _bq_csv(f"SELECT DISTINCT program AS bqName FROM {ref} WHERE program IS NOT NULL ORDER BY 1") if r.get("bqName")]
-    names = set()
+        return [{"bqName": r.get("bqName"), "channel": None, "advertiserName": None}
+                for r in _bq_csv(f"SELECT DISTINCT program AS bqName FROM {ref} WHERE program IS NOT NULL ORDER BY 1") if r.get("bqName")]
+    out, seen = [], set()
     for t in spec.get("tables", []):
         adv, advVal, camp = t["advertiserColumn"], t["advertiserValue"], t["campaignColumn"]
+        channel = _channel_of(t)
         sql = (f"SELECT DISTINCT CAST({camp} AS STRING) AS bqName FROM `{PROJECT}.{t['dataset']}.{t['table']}` "
                f"WHERE {adv} = '{_q(advVal)}' AND {camp} IS NOT NULL")
         for r in _bq_csv(sql):
-            if r.get("bqName"):
-                names.add(r.get("bqName"))
-    return sorted(names)
+            nm = r.get("bqName")
+            if not nm:
+                continue
+            key = (channel, advVal, nm)
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append({"bqName": nm, "channel": channel, "advertiserName": advVal})
+    return out
 
 
 def run_full_sync():

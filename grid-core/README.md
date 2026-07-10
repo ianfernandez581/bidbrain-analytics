@@ -343,6 +343,19 @@ client dashboards' freshness contract, is a future optimization; v1 is a simple 
 - **Channel chips**: 8 channels (Trade Desk, LinkedIn, Google Ads, Meta, DV360, Reddit, DOOH, LINE),
   matched case/space-insensitively so the sheet's "TradeDesk"/"Linkedin" resolve correctly.
 
+## Per-row match schema (Design A: one row per campaign-per-channel)
+A validated Mode B map row is `{ campaignId, channel, advertiserName, campaignMatch: {mode, value} }`
+(written by reconcile/approve; `advertiserName` is the BQ-side spelling per row, so quirks like the
+trailing space in `"VMCH "`, `"Cityperfume.com.au"`, or the `"PopTrack"` typo are handled per row).
+The sync uses ONE rule shape (`src/central/match.js`, no separate rollup path) over the tagged BQ
+rows the fetcher returns (each `{bqName, advertiserName, channel, impressions, mediaSpend}`):
+- **exact** — campaign name === value (scoped to the row's channel + advertiserName).
+- **contains** — campaign name contains value (same scope).
+- **rollup** — campaign name contains value, but spans ALL advertiser-name spellings for that channel
+  and dedupes by campaign name (the "Always On" case — the same campaign under two account spellings
+  counts once). Then sum. The spendMult rule and DERIVED locking are unchanged. Schneider stays Mode A
+  (view, `map:[{bqName(program), campaignId}]`) — additive, its behaviour is untouched.
+
 ## Coverage expansion (reconcile — Zhen's validation sitting)
 Only Schneider is validated today. To add a client: **Map client** panel → pick the client →
 GET `/reconcile/:client` runs the BQ name list + fuzzy-scores it against that client's Central

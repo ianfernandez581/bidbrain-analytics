@@ -348,11 +348,12 @@
         if (!(d.bqNames || []).length) { host.innerHTML += '<div class="ct-pnl-src" style="padding:8px 0">No BQ campaign names returned for ' + esc(client) + '. (' + camps.length + ' Central campaigns.)</div>'; return; }
         var opts = camps.map(function (c) { return { v: c.id, t: c.name + (c.channel ? ' · ' + c.channel : '') }; });
         host.innerHTML += '<div class="ct-pnl-sec">BQ names → Central (' + d.bqNames.length + ' BQ · ' + camps.length + ' Central)</div>';
-        host.innerHTML += (d.suggestions || []).map(function (s) {
-          var sel = '<select class="ct-input ct-rc-camp" data-bq="' + esc(s.bqName) + '">' +
+        host.innerHTML += (d.suggestions || []).map(function (s, i) {
+          var sel = '<select class="ct-input ct-rc-camp" data-i="' + i + '">' +
             '<option value="">— (skip) —</option>' +
             opts.map(function (o) { return '<option value="' + esc(o.v) + '"' + (o.v === s.campaignId ? ' selected' : '') + '>' + esc(o.t) + '</option>'; }).join('') + '</select>';
-          return '<div class="ct-field ct-rc-row"><label class="ct-rc-lbl"><input type="checkbox" class="ct-rc-ck" data-bq="' + esc(s.bqName) + '"> <b>' + esc(s.bqName) + '</b> <span class="ct-prov">' + Math.round((s.score || 0) * 100) + '%</span></label>' + sel + '</div>';
+          var mode = '<select class="ct-input ct-rc-mode" data-i="' + i + '"><option value="exact">exact</option><option value="contains">contains</option><option value="rollup">rollup</option></select>';
+          return '<div class="ct-field ct-rc-row"><label class="ct-rc-lbl"><input type="checkbox" class="ct-rc-ck" data-i="' + i + '" data-bq="' + esc(s.bqName) + '" data-channel="' + esc(s.channel || '') + '" data-adv="' + esc(s.advertiserName || '') + '"> <b>' + esc(s.bqName) + '</b> <span class="ct-prov">' + (s.channel ? esc(s.channel) + ' · ' : '') + Math.round((s.score || 0) * 100) + '%</span></label>' + sel + mode + '</div>';
         }).join('');
         pnl.querySelector('#ct-rc-approve').disabled = false;
       }).catch(function () { host.innerHTML = '<div class="ct-dzerr">Reconcile failed — server offline?</div>'; });
@@ -362,9 +363,12 @@
     var pairs = [];
     pnl.querySelectorAll('.ct-rc-ck').forEach(function (ck) {
       if (!ck.checked) return;
-      var sel = pnl.querySelector('.ct-rc-camp[data-bq="' + (window.CSS && CSS.escape ? CSS.escape(ck.dataset.bq) : ck.dataset.bq) + '"]');
+      var i = ck.dataset.i;
+      var sel = pnl.querySelector('.ct-rc-camp[data-i="' + i + '"]');
+      var modeSel = pnl.querySelector('.ct-rc-mode[data-i="' + i + '"]');
       var cid = sel ? sel.value : '';
-      if (cid) pairs.push({ bqName: ck.dataset.bq, campaignId: cid });
+      // per-row match schema: channel + advertiserName + campaignMatch{mode,value}
+      if (cid) pairs.push({ campaignId: cid, channel: ck.dataset.channel || null, advertiserName: ck.dataset.adv || null, value: ck.dataset.bq, mode: modeSel ? modeSel.value : 'exact' });
     });
     if (!pairs.length) { toastErr('Tick at least one pair (with a Central campaign) to approve.'); return; }
     var btn = pnl.querySelector('#ct-rc-approve'); btn.disabled = true; btn.textContent = 'Approving…';
