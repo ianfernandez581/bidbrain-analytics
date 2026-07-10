@@ -315,6 +315,13 @@ Response: `{syncedAt, updated, perClient, unmatched, skippedClients, errors, row
 rows so the UI updates without a second fetch). Unmapped BQ names → `unmatched`; validated:false
 clients → `skippedClients`. Tests inject `CENTRAL_SYNC_FIXTURE` (a JSON path) so CI needs no BQ.
 
+**Auto-sync (scheduled):** set env `CENTRAL_AUTOSYNC_MIN=<minutes>` (0/unset = off) and the
+server runs the sync automatically on that interval — via the SAME guarded core as the manual
+route (a tick during a manual sync just skips; a manual sync during a tick gets a 409). The UI
+shows "· auto every Nm" next to the last-synced pill (from `/api/central/sync/status`). Manual
+"Sync now" always works regardless. (A self-gating "only when BQ advanced" refinement, like the
+client dashboards' freshness contract, is a future optimization; v1 is a simple interval.)
+
 ## Coverage expansion (reconcile — Zhen's validation sitting)
 Only Schneider is validated today. To add a client: **Map client** panel → pick the client →
 GET `/reconcile/:client` runs the BQ name list + fuzzy-scores it against that client's Central
@@ -336,6 +343,7 @@ needs a `pm_delivery`-shaped BQ view first (reconcile reports an empty name list
 - `GET  /api/central/rows` → `{overrides}` (per-field provenance, keyed by campaign id)
 - `POST /api/central/row/:id/field` → edit a campaign field (`:id` = campaign id; derived → 400)
 - `POST /api/central/sync[?includeEnded=1]` → live BQ overlay (see "Sync" below); 409 if already running
+- `GET  /api/central/sync/status` → `{running, autosyncMin, lastRun}` (drives the UI's auto-sync note)
 - `GET  /api/central/reconcile/:client` → BQ name list + Central names + fuzzy SUGGESTIONS (never written)
 - `POST /api/central/reconcile/:client/approve` → write APPROVED pairs to the map + validated:true
 - `POST /api/central/plan/upload` → base64 JSON; extract → PENDING draft → `{fields,candidates}`

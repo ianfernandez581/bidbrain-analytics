@@ -99,6 +99,7 @@ const server = http.createServer(async (req, res) => {
     // Sync: DB campaigns → overlay BQ metrics (validated client map only) → UPDATE the
     // API columns + metricsSource/lastSyncedAt; spendMult rule for clientSpend; never CONFIG;
     // skip archived + Ended (unless ?includeEnded=1). See centralSync().
+    if (p === '/api/central/sync/status' && req.method === 'GET') return centralSyncStatus(req, res);
     if (p === '/api/central/sync' && req.method === 'POST') return centralSync(req, res, url);
     if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)\/approve$/)) && req.method === 'POST') return centralReconcileApprove(req, res, decodeURIComponent(m[1]));
     if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)$/)) && req.method === 'GET') return centralReconcile(req, res, decodeURIComponent(m[1]));
@@ -381,16 +382,20 @@ function resolveCampaignId(m, spec) {
 function bigrams(s) { s = String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); const o = []; for (let i = 0; i < s.length - 1; i++) o.push(s.slice(i, i + 2)); return o; }
 function dice(a, b) { const A = bigrams(a), B = bigrams(b); if (!A.length || !B.length) return 0; const m = {}; B.forEach(x => m[x] = (m[x] || 0) + 1); let h = 0; A.forEach(x => { if (m[x] > 0) { h++; m[x]--; } }); return (2 * h) / (A.length + B.length); }
 
-let CENTRAL_SYNCING = false;   // concurrency guard (single-process)
-async function centralSync(req, res, url) {
-  if (CENTRAL_SYNCING) return send(res, 409, { error: 'a sync is already running — try again in a moment' });
-  CENTRAL_SYNCING = true;
-  const includeEnded = url.searchParams.get('includeEnded') === '1';
-  try {
-    let doc;
-    try { doc = await runSyncFetcher(); }
-    catch (e) { return send(res, 502, { error: 'sync fetcher failed: ' + e.message }); }
+let CENTRAL_SYNCING = false;   // concurrency guard (single-process; shared by manual + auto)
+let CENTRAL_LAST_SYNC = null;  // {at, updated, unmatched, errors, trigger} — for the status endpoint
+const CENTRAL_AUTOSYNC_MIN = Number(process.env.CENTRAL_AUTOSYNC_MIN || 0);   // 0 = off (default)
 
+// The shared sync CORE — used by the manual route AND the auto-sync scheduler, so both
+// go through the same guard, rules and last-run tracking. Returns a summary object, or
+// { skipped:true } when a sync is already running. Throws only if the fetcher fails.
+async function performCentralSync(opts) {
+  opts = opts || {};
+  if (CENTRAL_SYNCING) return { skipped: true, reason: 'already-running' };
+  CENTRAL_SYNCING = true;
+  try {
+    const doc = await runSyncFetcher();   // throws → caller maps to 502 / logs
+    const includeEnded = !!opts.includeEnded;
     const cfg = loadCentralClients();
     const perClient = {}, unmatched = [], skippedClients = [], errors = [];
     let updated = 0;
@@ -411,9 +416,32 @@ async function centralSync(req, res, url) {
       }
       perClient[spec.client] = { updated: cu, skipped: cs, bqRows: (cres.rows || []).length };
     }
-    console.log(`[CENTRAL][Sync] updated=${updated} unmatched=${unmatched.length} skippedClients=${skippedClients.length}`);
-    return send(res, 200, { syncedAt: new Date().toISOString(), updated, perClient, unmatched, skippedClients, errors, rows: db.getCampaigns() });
+    const syncedAt = new Date().toISOString();
+    CENTRAL_LAST_SYNC = { at: syncedAt, updated, unmatched: unmatched.length, errors: errors.length, trigger: opts.trigger || 'manual' };
+    console.log(`[CENTRAL][Sync] (${opts.trigger || 'manual'}) updated=${updated} unmatched=${unmatched.length} skippedClients=${skippedClients.length}`);
+    return { syncedAt, updated, perClient, unmatched, skippedClients, errors, rows: db.getCampaigns() };
   } finally { CENTRAL_SYNCING = false; }
+}
+
+async function centralSync(req, res, url) {
+  const includeEnded = url.searchParams.get('includeEnded') === '1';
+  let result;
+  try { result = await performCentralSync({ includeEnded, trigger: 'manual' }); }
+  catch (e) { return send(res, 502, { error: 'sync fetcher failed: ' + e.message }); }
+  if (result.skipped) return send(res, 409, { error: 'a sync is already running — try again in a moment' });
+  return send(res, 200, result);
+}
+
+function centralSyncStatus(req, res) {
+  return send(res, 200, { running: CENTRAL_SYNCING, autosyncMin: CENTRAL_AUTOSYNC_MIN, lastRun: CENTRAL_LAST_SYNC });
+}
+
+// Auto-sync tick — same core as the manual route (guard-safe: a tick during a manual
+// sync just skips). Fire-and-forget; never throws out.
+function centralAutoSyncTick() {
+  performCentralSync({ trigger: 'auto' })
+    .then(r => { if (r && r.skipped) console.log('[CENTRAL][AutoSync] skipped (a sync is already running)'); })
+    .catch(e => console.error('[CENTRAL][AutoSync] failed:', e.message));
 }
 
 // Reconcile ONE client: BQ name list + Central names + fuzzy SUGGESTIONS (never written).
@@ -469,4 +497,11 @@ function serveStatic(res, p) {
 server.listen(PORT, () => {
   console.log(`The Grid + Brain V3 backend on http://localhost:${PORT}/the-grid.html`);
   console.log(`  LLM mode: anthropic=${parser.HAS_ANTHROPIC ? 'LIVE' : 'offline-heuristic'} llama=${parser.HAS_LLAMA ? 'LIVE' : 'offline-mock'}`);
+  // Central auto-sync: env-gated (CENTRAL_AUTOSYNC_MIN minutes; 0/unset = off). Uses the
+  // same guarded core as the manual route, so a tick during a manual sync just skips.
+  if (CENTRAL_AUTOSYNC_MIN > 0) {
+    const iv = setInterval(centralAutoSyncTick, CENTRAL_AUTOSYNC_MIN * 60000);
+    if (iv.unref) iv.unref();
+    console.log(`  Central auto-sync: enabled, every ${CENTRAL_AUTOSYNC_MIN} min`);
+  }
 });

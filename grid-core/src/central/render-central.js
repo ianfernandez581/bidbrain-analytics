@@ -248,10 +248,12 @@
   function loadData() {
     return Promise.all([
       fetch('/api/central/campaigns').then(function (r) { return r.json(); }).catch(function () { return null; }),
-      fetch('/api/central/rows').then(function (r) { return r.json(); }).catch(function () { return null; })
+      fetch('/api/central/rows').then(function (r) { return r.json(); }).catch(function () { return null; }),
+      fetch('/api/central/sync/status').then(function (r) { return r.json(); }).catch(function () { return null; })
     ]).then(function (res) {
       CS.campaigns = (res[0] && Array.isArray(res[0].campaigns)) ? res[0].campaigns : [];
       CS.overrides = (res[1] && res[1].overrides) || {};
+      CS.syncStatus = res[2] || null;
     });
   }
 
@@ -383,7 +385,9 @@
 
   function lastSyncedHtml(stale) {
     var t = CS.lastSynced ? new Date(CS.lastSynced).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'never synced';
-    return '<span class="ct-lastsync' + (stale ? ' stale' : '') + '" title="API columns are ' + (stale ? 'possibly stale' : 'fresh') + '">' + (stale ? '⚠ ' : '') + 'last synced: ' + t + (stale && CS.lastSynced ? ' (stale)' : '') + '</span>';
+    var autoMin = CS.syncStatus && CS.syncStatus.autosyncMin;
+    var auto = autoMin > 0 ? ' <span class="ct-auto" title="Auto-sync runs on the server every ' + autoMin + ' min">· auto every ' + autoMin + 'm</span>' : '';
+    return '<span class="ct-lastsync' + (stale ? ' stale' : '') + '" title="API columns are ' + (stale ? 'possibly stale' : 'fresh') + '">' + (stale ? '⚠ ' : '') + 'last synced: ' + t + (stale && CS.lastSynced ? ' (stale)' : '') + '</span>' + auto;
   }
 
   // ============================ wiring ============================
@@ -551,6 +555,7 @@
       '.ct-btn:hover{color:var(--brand-ink);border-color:var(--brand)}.ct-btn:disabled{opacity:.55;cursor:default}',
       '.ct-btn.ct-spin svg{animation:ct-rot .8s linear infinite}@keyframes ct-rot{to{transform:rotate(360deg)}}',
       '.ct-lastsync{font-size:11px;color:var(--ink-3);font-weight:600}.ct-lastsync.stale{color:var(--warn)}',
+      '.ct-auto{font-size:10.5px;color:var(--ink-3);font-weight:600}',
       '.ct-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);padding:2px 2px 10px}',
       '.ct-lg{display:inline-flex;align-items:center;gap:6px}.ct-lg-r{margin-left:auto;color:var(--ink-3)}',
       '.ct-dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:currentColor}',
