@@ -935,8 +935,6 @@ let COMBINED = null;             // { last_updated, paid_media:{...}, pacing:{..
 const ALL_MARKETS = ['ANZ','ASEAN','SAARC','GCR','KR','JP','RIG'];
 // Display label for a market code (coarse codes are already display-ready).
 const mktLabel = m => m;
-const Q2_START = new Date('2026-04-01T00:00:00Z');
-const Q2_END   = new Date('2026-06-30T23:59:59Z');
 
 // CS lead-status buckets (Salesforce LEAD_STATUS -> dashboard category).
 // "Accepted" spans Accepted/Replied/Unresponsive (all post-acceptance states);
@@ -1144,7 +1142,7 @@ window.DateRange = (function(){
 // ==========================================================================
 const QUARTERS = { Q2:{start:'2026-04-01', end:'2026-06-30'},
                    Q3:{start:'2026-07-01', end:'2026-09-30'} };
-let selQuarters = new Set(['Q3']);           // default view = Q3
+let selQuarters = new Set(['Q2']);           // default view = Q2 (client request 2026-07-09)
 
 // [startISO,endISO] spanning the given quarter keys, clamped to the loaded data
 // window; null if the selection is empty or falls entirely outside the data.
@@ -1157,6 +1155,18 @@ function quarterSpan(keys){
   if(dateMin && s<dateMin) s=dateMin;
   if(dateMax && e>dateMax) e=dateMax;
   return s>e ? null : [s,e];
+}
+// The calendar window the pacing card measures "time elapsed" against: the FULL
+// span of the selected quarter(s), NOT clamped to loaded data, so Time % reads true
+// calendar progress. Q2 (past) -> 100% elapsed; Q3 (current) -> partial. Falls back
+// to the applied date range for a custom (no-chip) selection. Replaces the old
+// hardcoded Q2_START/Q2_END, which made Q3 pacing read as a fully-elapsed quarter.
+function pacingWindow(){
+  let s=null, e=null;
+  for(const k of selQuarters){ const q=QUARTERS[k]; if(!q) continue;
+    if(!s || q.start<s) s=q.start; if(!e || q.end>e) e=q.end; }
+  if(s && e) return [new Date(s+'T00:00:00Z'), new Date(e+'T23:59:59Z')];
+  return [new Date(rangeStart+'T00:00:00Z'), new Date(rangeEnd+'T23:59:59Z')];
 }
 // Quarter chips are single-select: clicking one jumps the shared date range to
 // exactly that quarter. (Was additive/union, but with the Q3 chip hidden while Q3
@@ -1186,9 +1196,8 @@ function renderQuarterChips(){
   });
   updateQuarterLabels();
 }
-// The quarter the user is viewing, as a label. Targets are the Q2 plan (no Q3 targets loaded yet),
-// but the dashboard defaults to Q3 - so every "Q2" caption read wrong when viewing Q3 (client
-// feedback 2026-07-07). These captions now follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
+// The quarter the user is viewing, as a label. Both Q2 and Q3 targets are loaded, and the
+// dashboard defaults to Q2 - captions follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
 // neutral "Quarter" for a custom calendar range. Any element with class .qlbl gets this text.
 function qtrLabel(){
   const has2 = selQuarters.has('Q2'), has3 = selQuarters.has('Q3');
@@ -1459,10 +1468,10 @@ async function boot() {
     const maxOf = (a,b) => a && b ? (a > b ? a : b) : (a || b);
     dateMin = minOf(csMin, pmMin);
     dateMax = maxOf(csMax, pmMax);
-    // Default the shared range to Q3 (the current quarter); fall back to the full
-    // window if there's no Q3 data yet. The Q2/Q3 chips + the calendar both drive it.
-    const q3span = quarterSpan(['Q3']);
-    if(q3span){ rangeStart=q3span[0]; rangeEnd=q3span[1]; }
+    // Default the shared range to Q2 (client request 2026-07-09); fall back to the
+    // full window if there's no Q2 data. The Q2/Q3 chips + the calendar both drive it.
+    const q2span = quarterSpan(['Q2']);
+    if(q2span){ rangeStart=q2span[0]; rangeEnd=q2span[1]; }
     else      { rangeStart=dateMin;  rangeEnd=dateMax; }
     DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
       onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; syncQuarterChips(); applyDateRange(); } });
@@ -1475,7 +1484,7 @@ async function boot() {
     populateRegionSelects();
     initChartToggles();
     renderAll();
-    renderDateScope();   // default range is Q3 (narrowed) -> show the scope banner on load
+    renderDateScope();   // default range is Q2 (narrowed) -> show the scope banner on load
     if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
   } catch (err) {
     document.getElementById('loading').style.display = 'none';
@@ -1658,8 +1667,11 @@ function aggregate(filterFn) {
     .filter(r => r.DAY && new Date(r.DAY) <= now)
     .reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
 
-  const totalMs = Q2_END - Q2_START;
-  const elapsedMs = Math.max(0, Math.min(totalMs, now - Q2_START));
+  // Time-elapsed for pacing is anchored to the SELECTED quarter's full calendar span
+  // (see pacingWindow), so viewing Q3 paces against Q3's timeline, not Q2's.
+  const [pacingStart, pacingEnd] = pacingWindow();
+  const totalMs = pacingEnd - pacingStart;
+  const elapsedMs = Math.max(0, Math.min(totalMs, now - pacingStart));
   const timePct = totalMs > 0 ? elapsedMs / totalMs : 0;
 
   const weekMap = new Map();
@@ -1770,8 +1782,8 @@ function selectNoneMarkets() {
 }
 
 function renderKPIs(agg) {
-  // No Q2 target rows fall in the selected range (e.g. viewing Q3, which has no
-  // targets loaded yet) -> show '-' rather than a misleading '0'.
+  // No target rows fall in the selected range (e.g. a custom range past the loaded
+  // plan) -> show '-' rather than a misleading '0'. Q2 and Q3 both have targets now.
   document.getElementById('kpi_target').textContent = agg.q2Target ? fmtN(agg.q2Target) : '-';
   document.getElementById('kpi_total').textContent = fmtN(agg.accepted);
   document.getElementById('kpi_overall').textContent = agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1)+'%' : '-';
@@ -1790,7 +1802,7 @@ function renderKPIs(agg) {
 }
 
 // Neutral placeholder shown in the pacing cards when the selected range carries no
-// target rows (Q3 has no targets loaded yet - "targets/pacing TBD" by design).
+// target rows (e.g. a custom range outside the loaded Q2/Q3 plan).
 const NO_TARGET_MSG = '<div style="font-size:12.5px;color:var(--cf-mute);padding:10px 2px">Targets and pacing not set for the selected period yet (showing actuals only).</div>';
 
 function renderLeadsTarget(agg) {
