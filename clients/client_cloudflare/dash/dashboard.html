@@ -284,6 +284,7 @@
   .dev-table thead th{position:sticky;top:0;background:#fff;z-index:1;font-size:10.5px;text-transform:uppercase;
     letter-spacing:.4px;color:var(--cf-mute);border-bottom:2px solid var(--cf-line)}
   .dev-table tbody tr:hover{background:#FAFBFC}
+  .dev-table tr.total td{font-weight:700;background:#FAFBFC;border-top:2px solid var(--cf-line);border-bottom:none}
   /* QoQ heat map: markets / status × (Q2 same window, Q3 to date); cells shaded by lead volume */
   .qoq-heatscale{font-size:11px;color:var(--cf-mute);margin-bottom:12px;display:flex;align-items:center}
   .qoq-heatscale .grad{display:inline-block;width:90px;height:10px;border-radius:5px;margin:0 8px;background:linear-gradient(90deg,rgba(243,128,32,.10),rgba(243,128,32,.92))}
@@ -564,10 +565,14 @@
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-txdata">
       <div class="card">
-        <h3>Data from Transmission</h3>
-        <div class="hint">Every source table Transmission feeds us (the Snowflake mirrors). <b>In this dashboard?</b> shows whether Cloudflare should expect each one to appear here. Row counts + last-updated are live from BigQuery. Internal view.</div>
-        <div id="txDataWrap" style="overflow:auto;border:1px solid var(--cf-line);border-radius:8px;margin-top:12px"></div>
-        <div class="hint" style="margin-top:10px">Note: LINE (JP) is a <b>manual</b> LINE Ad Manager export, not a Transmission Snowflake feed, so it is not listed above (it still feeds the blended Paid Media totals).</div>
+        <h3>Source IDs Transmission committed</h3>
+        <div class="hint">The canonical Content-Syndication campaign / Source-ID list that <b>should be present</b> (from <code>definitions.json</code>), with what has actually landed per ID. <b>Present?</b> = at least one lead received. A red row = committed but not yet delivering. Internal view.</div>
+        <div id="txIdsWrap" style="overflow:auto;border:1px solid var(--cf-line);border-radius:8px;margin-top:12px"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>Pacing plan Transmission sent</h3>
+        <div class="hint">The target plan behind the "Pacing - target vs actual" chart (from the committed media-plan CSV Transmission sent), per market and tier, split by quarter. Internal view.</div>
+        <div id="txPacingWrap" style="overflow:auto;border:1px solid var(--cf-line);border-radius:8px;margin-top:12px"></div>
       </div>
     </div>
 
@@ -2342,26 +2347,50 @@ function downloadLeadsCsv() {
   setTimeout(() => URL.revokeObjectURL(a.href), 0);
 }
 
-// "Data from Transmission" tab: source-table inventory from COMBINED.transmission_data (job-built).
+// "Data from Transmission" tab: what Transmission committed - the canonical Source-ID list
+// (should-be-present + what landed) and the pacing/target plan. Reads COMBINED.transmission (job-built).
 function renderTxData() {
-  const wrap = document.getElementById('txDataWrap');
-  if (!wrap) return;
-  const rows = (typeof COMBINED !== 'undefined' && COMBINED.transmission_data) || [];
-  if (!rows.length) {
-    wrap.innerHTML = '<div style="padding:14px;color:var(--cf-mute)">No inventory in this data file yet - re-run the export job to populate it.</div>';
-    return;
+  const idsWrap = document.getElementById('txIdsWrap');
+  const pacWrap = document.getElementById('txPacingWrap');
+  if (!idsWrap || !pacWrap) return;
+  const tx = (typeof COMBINED !== 'undefined' && COMBINED.transmission) || null;
+  const numR = 'text-align:right;font-variant-numeric:tabular-nums';
+  if (!tx) {
+    const msg = '<div style="padding:14px;color:var(--cf-mute)">Not in this data file yet - re-run the export job to populate it.</div>';
+    idsWrap.innerHTML = msg; pacWrap.innerHTML = msg; return;
   }
-  const lm = s => { if (!s) return '-'; const d = new Date(s); return isNaN(d) ? String(s).slice(0, 10) : d.toISOString().slice(0, 10); };
-  const body = rows.map(r => {
-    const badge = r.used
+  // 1) Source IDs: canonical list + actuals. Red-tint any ID that is committed but has no leads.
+  const ids = tx.source_ids || [];
+  const tot = ids.reduce((a, r) => ({
+    leads: a.leads + (r.leads || 0), accepted: a.accepted + (r.accepted || 0),
+    rejected: a.rejected + (r.rejected || 0), unprocessed: a.unprocessed + (r.unprocessed || 0)
+  }), { leads: 0, accepted: 0, rejected: 0, unprocessed: 0 });
+  const idBody = ids.map(r => {
+    const badge = r.present
       ? '<span style="color:var(--good-green);font-weight:700">Yes</span>'
-      : '<span style="color:var(--cf-mute);font-weight:600">No</span>';
-    return `<tr><td style="font-family:monospace">${esc(r.table)}</td><td>${esc(r.label)}</td>`
-      + `<td style="text-align:right;font-variant-numeric:tabular-nums">${fmtN(r.rows || 0)}</td>`
-      + `<td>${lm(r.last_modified)}</td><td>${badge}</td><td style="white-space:normal">${esc(r.where || '')}</td></tr>`;
+      : '<span style="color:var(--bad-red);font-weight:700">No</span>';
+    const tint = r.present ? '' : ' style="background:#FEF2F2"';
+    return `<tr${tint}><td style="font-family:monospace">${esc(r.id)}</td>`
+      + `<td style="white-space:normal">${esc(r.campaign || '')}</td>`
+      + `<td style="text-align:center">${badge}</td>`
+      + `<td style="${numR}">${fmtN(r.leads || 0)}</td><td style="${numR}">${fmtN(r.accepted || 0)}</td>`
+      + `<td style="${numR}">${fmtN(r.rejected || 0)}</td><td style="${numR}">${fmtN(r.unprocessed || 0)}</td></tr>`;
   }).join('');
-  wrap.innerHTML = `<table class="dev-table"><thead><tr><th>Source table</th><th>What it is</th><th>Rows</th>`
-    + `<th>Last updated (UTC)</th><th>In this dashboard?</th><th>Where / why</th></tr></thead><tbody>${body}</tbody></table>`;
+  idsWrap.innerHTML = `<table class="dev-table"><thead><tr><th>Source ID</th><th>Sample campaign</th>`
+    + `<th>Present?</th><th>Leads</th><th>Accepted</th><th>Rejected</th><th>Unprocessed</th></tr></thead><tbody>${idBody}`
+    + `<tr class="total"><td>Total</td><td>${fmtN(ids.length)} IDs</td><td></td><td style="${numR}">${fmtN(tot.leads)}</td>`
+    + `<td style="${numR}">${fmtN(tot.accepted)}</td><td style="${numR}">${fmtN(tot.rejected)}</td>`
+    + `<td style="${numR}">${fmtN(tot.unprocessed)}</td></tr></tbody></table>`;
+  // 2) Pacing plan (targets), per market x tier, Q2/Q3 split.
+  const pac = tx.pacing || { rows: [] };
+  const pBody = (pac.rows || []).map(r =>
+    `<tr><td>${esc(typeof mktLabel === 'function' ? mktLabel(r.market) : r.market)}</td><td>${esc(r.tier || '')}</td>`
+    + `<td style="${numR}">${fmtN(r.q2 || 0)}</td><td style="${numR}">${fmtN(r.q3 || 0)}</td>`
+    + `<td style="${numR}">${fmtN(r.total || 0)}</td></tr>`).join('');
+  pacWrap.innerHTML = `<table class="dev-table"><thead><tr><th>Market</th><th>Tier</th>`
+    + `<th>Q2 target</th><th>Q3 target</th><th>Total</th></tr></thead><tbody>${pBody}`
+    + `<tr class="total"><td>Total</td><td></td><td style="${numR}">${fmtN(pac.q2_total || 0)}</td>`
+    + `<td style="${numR}">${fmtN(pac.q3_total || 0)}</td><td style="${numR}">${fmtN(pac.grand_total || 0)}</td></tr></tbody></table>`;
 }
 
 // ==========================================================================

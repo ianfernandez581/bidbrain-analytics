@@ -197,12 +197,13 @@ get `window.BB_DEV` so it stays off/hidden for them. When ON it:
   country, name, email, phone, opt-in, lead id, raw timestamps, source file). Sortable + scrollable,
   capped at 1000 DOM rows, with a full-set **CSV export**. Contains PII, so it's `devMode`-gated (never
   client-facing). Frontend-only - the fields are already in `pacing.rows[]`.
-- **(d) "Data from Transmission" tab** (a dev-only tab) - an inventory of every `raw_snowflake` mirror
-  Transmission feeds us: what it is, live row count + last-updated (from `__TABLES__`), and whether THIS
-  dashboard surfaces it + where. 4 used (CS / Trade Desk / LinkedIn / Reddit), 4 received-but-unused
-  (DV360 / Google Ads / GA4 / TTD pixel). LINE is a manual export, not a Transmission feed, so it's
-  excluded (noted in a footnote). **This one needs the job** (`build_transmission_data()` + `TX_TABLES`
-  curated meta -> `transmission_data` in `cloudflare.json`), not just the frontend.
+- **(d) "Data from Transmission" tab** (a dev-only tab) - **what Transmission committed** for this
+  dashboard, in two tables: **Source IDs** (the canonical CS campaign/Source-ID list that should be
+  present, from `definitions.json` / `seed_cs_campaign_ids`, with what has actually landed per ID -
+  leads / accepted / rejected / unprocessed + a Present? flag; a red row = committed but not yet
+  delivering), and the **pacing plan** (the target numbers Transmission sent - `targets_v2_norm` over
+  the committed `real_targets.csv` - per market x tier, Q2/Q3 split + totals). **This one needs the
+  job** (`build_transmission()` -> `transmission` in `cloudflare.json`), not just the frontend.
 
 Frontend gating: `DEV_ALLOWED` (window.BB_DEV or ?dev=1) shows the controls + the tab; `devMode` (the
 toggle, default = `DEV_ALLOWED`) drives the in-CS unprocessed/lead-table rendering; `aggregate()` is the
@@ -341,13 +342,19 @@ the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (
                                       "reviewed","data_through","by_publisher":[…],"by_region":[…],"daily":[…] } },
     "coles_hyper": { … }
   },
-  "transmission_data": [ { "table","label","rows","last_modified","used","where" } ]
+  "transmission": {
+    "source_ids": [ { "id","campaign","leads","accepted","rejected","unprocessed","present" } ],
+    "pacing": { "rows":[ {"market","tier","q2","q3","total"} ], "q2_total","q3_total","grand_total" }
+  }
 }
 ```
 
-`transmission_data` (2026-07-10) is the source-table inventory for the dev-only **"Data from
-Transmission" tab** - one row per `raw_snowflake` mirror (live `rows`/`last_modified` from `__TABLES__`,
-`used`/`where` from the curated `TX_TABLES` map in `job/main.py`). See _Dev mode_ above.
+`transmission` (2026-07-10) powers the dev-only **"Data from Transmission" tab** - what Transmission
+committed for this dashboard: `source_ids` = the canonical CS Source-ID list that should be present
+(from `seed_cs_campaign_ids` / `definitions.json`) LEFT-JOINed to `salesforce_leads_live` so each ID
+shows what has landed (+ a `present` flag); `pacing` = the target plan they sent (`targets_v2_norm` over
+the committed `real_targets.csv`), per market x tier with a Q2/Q3 split. Built by
+`build_transmission()` in `job/main.py`. See _Dev mode_ above.
 
 `dashboard.html` reads `paid_media` exactly like the old `paid_media.json`
 (`adaptPayload` is unchanged) and `pacing.rows` exactly like the old

@@ -149,9 +149,9 @@ clients/other agencies. Dashboards with an internal "dev mode" read it; today on
 fallback). Dev mode **defaults ON** for a dev-allowed viewer (clients never get `BB_DEV`, so it stays hidden
 for them) and reveals: unprocessed/New leads across the CS charts, a Source-ID (campaign) filter, a full
 per-lead **detail table** (all fields incl. PII + CSV) at the bottom of the CS Overview, and a dev-only
-**"Data from Transmission" tab** (inventory of every `raw_snowflake` mirror Transmission feeds us + whether
-this dashboard surfaces it — needs the job's `transmission_data` payload). See
-`clients/client_cloudflare/README.md` → Dev mode.
+**"Data from Transmission" tab** (what Transmission committed: the canonical Source-ID list that should be
+present + what has landed per ID, and the pacing/target plan they sent — needs the job's `transmission`
+payload). See `clients/client_cloudflare/README.md` → Dev mode.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)

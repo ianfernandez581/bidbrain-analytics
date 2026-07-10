@@ -66,25 +66,6 @@ WATERMARK_OBJECT = "_freshness.json"
 
 ALL_MARKETS = ["ANZ", "ASEAN", "SAARC", "RIG", "KR", "JP", "GCR"]
 
-# --- "Data from Transmission" inventory --------------------------------------
-# Every Snowflake mirror Transmission feeds us (raw_snowflake.*), with a curated description
-# and whether THIS dashboard surfaces it. The front-door "Data from Transmission" tab renders
-# this so it's clear, per source table, whether Cloudflare should expect it in the dashboard.
-# Live row_count + last_modified are read from __TABLES__ (metadata only, no scan); _sync_state
-# is our own freshness watermark (not a Transmission feed) and is excluded. Tables not in this
-# map still show (labelled by raw name, used=False) so a newly-added Transmission table surfaces.
-TX_TABLES = {
-    "salesforce_cs_apac_all":    ("Salesforce - Content Syndication leads",   True,  "Content Syndication tab (all CS lead reporting)"),
-    "tradedesk_apac_all":        ("The Trade Desk - programmatic delivery",    True,  "Paid Media (Trade Desk spend / impressions / clicks)"),
-    "linkedin_ads_apac":         ("LinkedIn Ads - delivery + leads",           True,  "Paid Media + the single-campaign LinkedIn views"),
-    "reddit_ads_apac_all":       ("Reddit Ads - delivery",                     True,  "Paid Media (Reddit spend / impressions / clicks)"),
-    "dv360_apac":                ("DV360 - programmatic delivery",             False, "Not in Cloudflare's media plan"),
-    "google_ads_apac":           ("Google Ads - search / display delivery",    False, "Not in Cloudflare's media plan"),
-    "google_analytics_apac_all": ("GA4 - web analytics",                       False, "This dashboard has no GA4 / web-analytics section"),
-    "tradedesk_apac_conversion": ("Trade Desk - Universal Pixel conversions",  False, "Not used here (MongoDB's pixel dashboard only)"),
-}
-
-
 def jval(v):
     """JSON-safe value: dates -> ISO strings, NaN -> None (BQ returns native types)."""
     if v is None:
@@ -110,29 +91,55 @@ def rows(bq, sql):
     return [dict(r) for r in bq.query(sql, location=LOC).result()]
 
 
-def build_transmission_data(bq):
-    """Inventory of the raw_snowflake mirrors Transmission feeds us: live row_count +
-    last_modified from __TABLES__ (metadata, no table scan) merged with the curated TX_TABLES
-    meta. 'used' rows first, then alphabetical. Feeds the 'Data from Transmission' tab."""
-    meta = rows(bq, "SELECT table_id, row_count, "
-                    "TIMESTAMP_MILLIS(last_modified_time) AS last_modified "
-                    "FROM `bidbrain-analytics.raw_snowflake.__TABLES__`")
-    out = []
-    for m in meta:
-        tid = m.get("table_id")
-        if tid == "_sync_state":
-            continue
-        label, used, where = TX_TABLES.get(tid, (tid, False, "Not mapped to this dashboard"))
-        out.append({
-            "table": tid,
-            "label": label,
-            "rows": int(jval(m.get("row_count")) or 0),
-            "last_modified": jval(m.get("last_modified")),   # ISO via jval; dates already handled
-            "used": used,
-            "where": where,
-        })
-    out.sort(key=lambda r: (not r["used"], r["table"]))
-    return out
+def build_transmission(bq, t):
+    """What Transmission committed for this dashboard, for the dev-only "Data from Transmission" tab:
+      1. SOURCE IDs - the canonical Content-Syndication campaign/Source-ID list that SHOULD be present
+         (seed_cs_campaign_ids, loaded from definitions.json - the single source of truth), LEFT-JOINed
+         to salesforce_leads_live so each ID shows what has actually landed (leads + accepted/rejected/
+         unprocessed). An ID with 0 leads => present=False (committed but not yet delivering).
+      2. PACING - the target plan they sent (targets_v2_norm over the committed real_targets.csv), per
+         market x tier with a Q2/Q3 split + totals. This is the plan behind the 'Pacing - target vs
+         actual' chart, surfaced raw so it's auditable."""
+    ids = rows(bq, f"""
+        SELECT s.campaign_id AS id,
+               ANY_VALUE(l.CAMPAIGN) AS campaign,
+               COUNT(l.LEAD_ID_SF) AS leads,
+               COUNTIF(l.LEAD_STATUS IN ('Accepted','Replied','Unresponsive')) AS accepted,
+               COUNTIF(l.LEAD_STATUS = 'Rejected') AS rejected,
+               COUNTIF(l.LEAD_STATUS = 'New') AS unprocessed
+        FROM {t('seed_cs_campaign_ids')} s
+        LEFT JOIN {t('salesforce_leads_live')} l ON s.campaign_id = l.CAMPAIGN_ID
+        GROUP BY 1 ORDER BY leads DESC""")
+    source_ids = [{
+        "id": r.get("id"),
+        "campaign": r.get("campaign"),
+        "leads": int(jval(r.get("leads")) or 0),
+        "accepted": int(jval(r.get("accepted")) or 0),
+        "rejected": int(jval(r.get("rejected")) or 0),
+        "unprocessed": int(jval(r.get("unprocessed")) or 0),
+        "present": int(jval(r.get("leads")) or 0) > 0,
+    } for r in ids]
+
+    pac = rows(bq, f"""
+        SELECT MARKET_REGION AS market, TIER AS tier,
+               SUM(IF(WEEK_START <  DATE '2026-07-01', WEEKLY_TIER_TARGET, 0)) AS q2,
+               SUM(IF(WEEK_START >= DATE '2026-07-01', WEEKLY_TIER_TARGET, 0)) AS q3,
+               SUM(WEEKLY_TIER_TARGET) AS total
+        FROM {t('targets_v2_norm')}
+        WHERE MARKET_REGION IS NOT NULL
+        GROUP BY 1,2 ORDER BY market, tier""")
+    prows = [{
+        "market": r.get("market"), "tier": r.get("tier"),
+        "q2": int(jval(r.get("q2")) or 0), "q3": int(jval(r.get("q3")) or 0),
+        "total": int(jval(r.get("total")) or 0),
+    } for r in pac]
+    pacing = {
+        "rows": prows,
+        "q2_total": sum(p["q2"] for p in prows),
+        "q3_total": sum(p["q3"] for p in prows),
+        "grand_total": sum(p["total"] for p in prows),
+    }
+    return {"source_ids": source_ids, "pacing": pacing}
 
 
 def main():
@@ -161,7 +168,7 @@ def main():
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
     cre = rows(bq, f"SELECT * FROM {t('paid_creatives_model')}")
-    tx_data = build_transmission_data(bq)   # "Data from Transmission" source-table inventory
+    tx = build_transmission(bq, t)   # "Data from Transmission" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
     pdates = sorted(d for d in (ymd(r.get("DATE")) for r in pm) if d)
@@ -368,7 +375,7 @@ def main():
         "pacing": pacing_payload,
         "campaigns": campaigns,
         "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
-        "transmission_data": tx_data,   # source-table inventory for the "Data from Transmission" tab
+        "transmission": tx,   # "Data from Transmission" tab: committed Source IDs + the pacing plan
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
