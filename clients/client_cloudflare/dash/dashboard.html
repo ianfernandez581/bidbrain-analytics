@@ -1241,7 +1241,7 @@ const charts = {};
 // (a) surfaces unprocessed/New leads across its charts + KPIs and (b) exposes a Source-ID (campaign)
 // filter. OFF by default, so the client-facing view is byte-for-byte unchanged.
 const DEV_ALLOWED = (typeof window !== 'undefined' && window.BB_DEV === true) || /[?&]dev=1(?:&|$)/.test(location.search || '');
-let devMode = false;
+let devMode = DEV_ALLOWED;   // default ON for admin/super-admin or the Transmission portal; clients never get it
 let selCampaignId = '';   // '' = all Source IDs; only honoured while devMode is on
 
 // ---- Per-chart Grain (month/week/day) + Scale (rel/abs) toggle state ----
@@ -1869,6 +1869,10 @@ function initDevMode() {
   if (!DEV_ALLOWED) return;
   const c = document.getElementById('devCtrls');
   if (c) c.style.display = 'flex';
+  const t = document.getElementById('devToggle');
+  if (t) t.checked = devMode;                                   // default ON reflects in the switch
+  const sel = document.getElementById('devCampaign');
+  if (sel) sel.style.display = devMode ? '' : 'none';           // show the Source-ID filter when on
   populateCampaignSelect();
 }
 
