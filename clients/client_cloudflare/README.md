@@ -174,6 +174,25 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   labels (`renderProgress` / `renderLeadsTarget` / by-region summary / date-scope banner). The QoQ tab
   gained a caveat line ("Q3 campaigns launched late, so QTD reads light — timing, not a data issue").
 
+### Dev mode (internal) - unprocessed leads + Source-ID filter (2026-07-10)
+
+The unprocessed/New leads removed above (client rule) are still viewable INTERNALLY via a role-gated
+**Dev mode** toggle on the CS Overview toolbar. It is **hidden from clients**: it appears only when the
+platform proxy injected `window.BB_DEV=true` - which it does for an **admin / super-admin** session or
+the **Transmission agency** portal (see `bidbrain-platform/dash/main.py` `_dev_flag_script`, injected
+alongside `window.BB_SPEND_MULT`). A `?dev=1` URL param is a fallback for direct (non-proxied) access.
+Dev mode is **OFF by default**, so the client-facing view is byte-for-byte unchanged.
+
+When ON it (a) surfaces the unprocessed backlog across **all** CS Overview charts - an "Unprocessed"
+KPI in the Overall group, a stacked bar on the pacing chart, an unprocessed line on the Accepted-leads
+trend, an Unprocessed bar per market card, and New leads folded into the Solutions / Country /
+demographic / asset composition donuts (centre totals become accepted + unprocessed); and (b) exposes a
+**Source-ID (campaign) dropdown** that filters the CS view to a single `CAMPAIGN_ID`. The filter applies
+to LEADS only - the plan/target stays at the market grain - and the acceptance/rejection rate denominator
+stays reviewed-only (unchanged). All of this is frontend-only (`dash/dashboard.html`): `devMode` +
+`selCampaignId` globals gate it, `aggregate()` is the single choke point, and it reads New leads already
+present in `pacing.rows[]`.
+
 ### Korea reconciliation (144 vs 164) — Ian to confirm with data
 
 The client (Nabeel) reports **164 Korea leads DELIVERED** (101 Final Funnel + 63 Roverpath); the dash

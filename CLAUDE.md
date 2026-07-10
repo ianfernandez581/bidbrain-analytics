@@ -143,6 +143,12 @@ revenue/profit + blended MER; mongodb folds the `ttd` factor into its existing `
 map = total no-op, so **direct/internal access shows real cost, front-door (client) access shows billed**. The
 markup is per-channel because it varies by channel (Google/Meta often ×1, Trade Desk ×3–7 — from the agency's
 central sheet, NOT fed into the pipeline). See `bidbrain-platform/README.md`.
+**Dev-mode flag (2026-07-10):** the proxy ALSO injects **`window.BB_DEV=true`** (twin of the spend-mult
+injection, `_dev_flag_script`) for **admin/super-admin OR the Transmission agency** session only — nothing for
+clients/other agencies. Dashboards with an internal "dev mode" read it; today only **cloudflare** does — a
+role-gated CS-Overview toggle (`?dev=1` is a direct-access fallback) that reveals unprocessed/New leads across
+its charts + a Source-ID (campaign) filter, OFF by default so the client view is unchanged. See
+`clients/client_cloudflare/README.md` → Dev mode.
 
 ## Fixed facts (memorize; never re-derive)
 - GCP project: `bidbrain-analytics` (project # 516554645957)
