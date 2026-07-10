@@ -79,6 +79,12 @@
   .chip:not(.on):hover{background:#F6F8FA;color:var(--cf-ink)}
   .chip-action{font-size:11.5px;color:#0A66C2;background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
   .chip-action:hover{text-decoration:underline}
+  /* Dev mode (internal): a discreet, dashed pill so it never reads as a client control */
+  .dev-ctrls{display:flex}
+  .dev-switch{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--cf-mute);
+    cursor:pointer;border:1px dashed var(--cf-line);border-radius:999px;padding:5px 11px;user-select:none}
+  .dev-switch input{margin:0;cursor:pointer}
+  .dev-ctrls .dash-select{background:#fff;color:var(--cf-ink);border:1px solid var(--cf-line);font-size:12px;padding:6px 26px 6px 10px}
 
   /* ===== Shared date-range picker (Looker-style) ===== */
   .dp{position:relative;display:inline-block;font-size:13px;
@@ -447,14 +453,23 @@
         <div class="chips" id="marketChips"></div>
         <button class="chip-action" onclick="selectAllMarkets()">Select all</button>
         <button class="chip-action" onclick="selectNoneMarkets()">Clear</button>
+        <!-- Dev mode (internal only): hidden unless the platform proxy set window.BB_DEV (admin /
+             Transmission agency) or ?dev=1. Shows unprocessed leads + a Source-ID filter. -->
+        <span class="dev-ctrls" id="devCtrls" style="display:none;margin-left:auto;align-items:center;gap:10px">
+          <label class="dev-switch" title="Internal view - shows unprocessed (New) leads across the charts plus a Source-ID filter. Not shown to the client.">
+            <input type="checkbox" id="devToggle" onchange="toggleDevMode(this.checked)"> Dev mode
+          </label>
+          <select id="devCampaign" class="dash-select" style="display:none" onchange="onCampaignChange(this.value)"></select>
+        </span>
       </div>
 
       <div class="cs-snap">
         <div class="group">
           <div class="lbl">Overall</div>
-          <div class="pair">
+          <div class="pair" id="overallPair">
             <div class="stat"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="kpi_target">-</div></div>
             <div class="stat"><div class="k">Accepted leads</div><div class="v" id="kpi_total">-</div></div>
+            <div class="stat" id="kpi_unprocessed_stat" style="display:none"><div class="k">Unprocessed (New)</div><div class="v" id="kpi_unprocessed">-</div><div class="cnt">internal - not shown to client</div></div>
           </div>
         </div>
         <div class="group">
@@ -1220,6 +1235,15 @@ let activeMarkets = new Set(ALL_MARKETS);
 let activeTab = 'paid';
 const charts = {};
 
+// DEV MODE (internal). Revealed only to admin / super-admin or the Transmission-agency portal:
+// the platform proxy injects window.BB_DEV=true for those sessions (see _dev_flag_script). A local
+// ?dev=1 URL param is a fallback for direct/non-proxied access. When devMode is ON the CS Overview
+// (a) surfaces unprocessed/New leads across its charts + KPIs and (b) exposes a Source-ID (campaign)
+// filter. OFF by default, so the client-facing view is byte-for-byte unchanged.
+const DEV_ALLOWED = (typeof window !== 'undefined' && window.BB_DEV === true) || /[?&]dev=1(?:&|$)/.test(location.search || '');
+let devMode = false;
+let selCampaignId = '';   // '' = all Source IDs; only honoured while devMode is on
+
 // ---- Per-chart Grain (month/week/day) + Scale (rel/abs) toggle state ----
 // Default scale = 'rel' everywhere (relative). Defaults preserve each chart's
 // pre-existing native grain (paid trends + CS daily = day; CS pacing = week).
@@ -1485,6 +1509,7 @@ async function boot() {
     renderChips();
     populateRegionSelects();
     initChartToggles();
+    initDevMode();
     renderAll();
     renderDateScope();   // default range is Q2 (narrowed) -> show the scope banner on load
     if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
@@ -1657,12 +1682,16 @@ function aggregate(filterFn) {
   // Date predicate (shared with Comparison via this same fn). dateOk uses the
   // applied range; default = full union window so this is a no-op on load.
   const inRange = r => dateOk(r.DAY);
+  // Dev-mode Source-ID lens: only bites while dev mode is ON and an ID is chosen, so the normal
+  // client view is never filtered. Applies to LEADS only - targets/plan stay at the market grain.
+  const matchCampaign = r => !(devMode && selCampaignId) || r.CAMPAIGN_ID === selCampaignId;
 
-  const realLeads = rawRows.filter(r => !isDummy(r) && r.LEAD_STATUS != null && matchMarket(r) && inRange(r));
+  const realLeads = rawRows.filter(r => !isDummy(r) && r.LEAD_STATUS != null && matchMarket(r) && inRange(r) && matchCampaign(r));
   const targetRows = rawRows.filter(r => matchMarket(r) && inRange(r));
 
   const accepted = realLeads.filter(r => ACCEPTED_STATUSES.has(r.LEAD_STATUS));
   const rejected = realLeads.filter(r => r.LEAD_STATUS === 'Rejected');
+  const newLeads = realLeads.filter(r => r.LEAD_STATUS === 'New');   // unprocessed backlog (dev mode)
 
   const now = new Date();
   // The TARGET is anchored to the SELECTED quarter's FULL calendar span, NOT the date
@@ -1696,8 +1725,8 @@ function aggregate(filterFn) {
     if (!weekMap.has(wk)) weekMap.set(wk, {target:0, actual:0, unprocessed:0});
     const bucket = weekMap.get(wk);
     bucket.target += Number(r.ALLOCATED_TARGET) || 0;
-    const isAcc = !isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS);
-    const isNew = !isDummy(r) && r.LEAD_STATUS === 'New';
+    const isAcc = !isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS) && matchCampaign(r);
+    const isNew = !isDummy(r) && r.LEAD_STATUS === 'New' && matchCampaign(r);
     if (isAcc) bucket.actual += 1;
     else if (isNew) bucket.unprocessed += 1;
 
@@ -1725,14 +1754,17 @@ function aggregate(filterFn) {
   for (const r of quarterTargets){
     const day = r.DAY ? String(r.DAY).slice(0,10) : null;
     if (!day) continue;
-    if (!paceMap.has(day)) paceMap.set(day, {target:0, actual:0});
+    if (!paceMap.has(day)) paceMap.set(day, {target:0, actual:0, unprocessed:0});
     const pb = paceMap.get(day);
     pb.target += Number(r.ALLOCATED_TARGET) || 0;
-    if (!isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS)) pb.actual += 1;
+    if (!isDummy(r) && matchCampaign(r)) {
+      if (ACCEPTED_STATUSES.has(r.LEAD_STATUS)) pb.actual += 1;
+      else if (r.LEAD_STATUS === 'New') pb.unprocessed += 1;
+    }
   }
   const pacingDaily = [...paceMap.entries()]
     .sort((a,b) => a[0].localeCompare(b[0]))
-    .map(([day, v]) => ({day, target: v.target, actual: v.actual}));
+    .map(([day, v]) => ({day, target: v.target, actual: v.actual, unprocessed: v.unprocessed}));
 
   const dailyMap = new Map();
   for (const r of accepted) {
@@ -1742,14 +1774,19 @@ function aggregate(filterFn) {
   }
   const daily = [...dailyMap.entries()].sort((a,b) => a[0].localeCompare(b[0]));
 
-  const solutions = groupCount(accepted, r => r.SERVICE || 'Unknown');
-  const countries = groupCount(accepted, r => r.COUNTRY_NAME);
-  const jobFunc   = groupCount(accepted, r => r.JOB_FUNCTION);
-  const jobLevel  = groupCount(accepted, r => r.JOB_LEVEL);
-  const jobTitle  = groupCount(accepted, r => r.JOB_TITLE);
+  // Composition charts count DELIVERED = accepted + unprocessed when dev mode is on (so New leads
+  // become visible in every breakdown); accepted-only otherwise (the client view). breakdownTotal
+  // feeds the job-title donut's 'Other' fold so its centre total stays correct either way.
+  const breakdownLeads = devMode ? accepted.concat(newLeads) : accepted;
+
+  const solutions = groupCount(breakdownLeads, r => r.SERVICE || 'Unknown');
+  const countries = groupCount(breakdownLeads, r => r.COUNTRY_NAME);
+  const jobFunc   = groupCount(breakdownLeads, r => r.JOB_FUNCTION);
+  const jobLevel  = groupCount(breakdownLeads, r => r.JOB_LEVEL);
+  const jobTitle  = groupCount(breakdownLeads, r => r.JOB_TITLE);
 
   const assetMap = new Map();
-  for (const r of accepted) {
+  for (const r of breakdownLeads) {
     const asset = r.ASSET_1;
     if (!asset) continue;
     const key = asset + '||' + (r.SERVICE || 'Other');
@@ -1768,13 +1805,16 @@ function aggregate(filterFn) {
     const mTtdTarget = quarterTargets.filter(r => r.MARKET_REGION === m && new Date(String(r.DAY).slice(0,10)) <= now)
       .reduce((s,r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
     const mAccepted = accepted.filter(r => r.MARKET_REGION === m).length;
-    return {market: m, q2: mTarget, ttd: mTtdTarget, accepted: mAccepted};
+    const mUnprocessed = newLeads.filter(r => r.MARKET_REGION === m).length;
+    return {market: m, q2: mTarget, ttd: mTtdTarget, accepted: mAccepted, unprocessed: mUnprocessed};
   });
 
   return {
     total: realLeads.length,
     accepted: accepted.length,
     rejected: rejected.length,
+    unprocessed: newLeads.length,          // New/backlog count (surfaced only in dev mode)
+    breakdownTotal: breakdownLeads.length,  // accepted (+ unprocessed in dev mode); jtChart 'Other' fold
     q2Target, ttdTarget, timePct,
     weekly, daily, dailyFull, pacingDaily, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
   };
@@ -1822,6 +1862,46 @@ function selectNoneMarkets() {
   renderAll();
 }
 
+// ---- Dev mode (internal) -------------------------------------------------
+// Reveal the dev controls only when allowed (platform-injected window.BB_DEV, or ?dev=1). The
+// toggle flips devMode; when on it also shows the Source-ID <select>. Both re-render the Overview.
+function initDevMode() {
+  if (!DEV_ALLOWED) return;
+  const c = document.getElementById('devCtrls');
+  if (c) c.style.display = 'flex';
+  populateCampaignSelect();
+}
+
+function populateCampaignSelect() {
+  const sel = document.getElementById('devCampaign');
+  if (!sel) return;
+  // Distinct Source IDs across the real (non-dummy) CS leads, with a lead count for context.
+  const counts = new Map();
+  for (const r of rawRows) {
+    if (isDummy(r) || r.LEAD_STATUS == null) continue;
+    const id = r.CAMPAIGN_ID;
+    if (!id) continue;
+    counts.set(id, (counts.get(id) || 0) + 1);
+  }
+  const ids = [...counts.keys()].sort();
+  sel.innerHTML = '<option value="">All Source IDs</option>' +
+    ids.map(id => `<option value="${id}">${id} (${counts.get(id)} leads)</option>`).join('');
+  sel.value = selCampaignId;
+}
+
+function toggleDevMode(on) {
+  devMode = !!on;
+  const sel = document.getElementById('devCampaign');
+  if (sel) sel.style.display = devMode ? '' : 'none';
+  if (!devMode) { selCampaignId = ''; if (sel) sel.value = ''; }  // reset the ID filter when leaving dev mode
+  renderAll();
+}
+
+function onCampaignChange(v) {
+  selCampaignId = v || '';
+  renderAll();
+}
+
 function renderKPIs(agg) {
   // No target rows fall in the selected range (e.g. a custom range past the loaded
   // plan) -> show '-' rather than a misleading '0'. Q2 and Q3 both have targets now.
@@ -1840,6 +1920,15 @@ function renderKPIs(agg) {
   document.getElementById('kpi_rej').textContent = (rejRatio*100).toFixed(2)+'%';
   document.getElementById('kpi_acc_cnt').textContent = fmtN(agg.accepted) + ' leads';
   document.getElementById('kpi_rej_cnt').textContent = fmtN(agg.rejected) + ' leads';
+  // Dev mode only: surface the unprocessed/New backlog as an explicit count (kept OUT of the
+  // acceptance-rate denominator above, which stays reviewed-only per the client rule).
+  const upStat = document.getElementById('kpi_unprocessed_stat');
+  if (upStat) {
+    upStat.style.display = devMode ? '' : 'none';
+    const pair = document.getElementById('overallPair');
+    if (pair) pair.classList.toggle('triple', devMode);   // 2-col -> 3-col so the extra stat fits
+    if (devMode) document.getElementById('kpi_unprocessed').textContent = fmtN(agg.unprocessed);
+  }
 }
 
 // Neutral placeholder shown in the pacing cards when the selected range carries no
@@ -1907,12 +1996,12 @@ function renderProgress(agg) {
 function renderWeekly(agg) {
   destroy('weeklyChart');
   // Re-bucket the per-day pacing source by csWeeklyGrain, SUMMING target/actual (accepted).
-  // Unprocessed/New is intentionally dropped (client rule 2026-07-07).
+  // Unprocessed/New is dropped for the client view (rule 2026-07-07); dev mode stacks it back on.
   const m = {};
   for (const d of agg.pacingDaily){
     const k = bucketKey(d.day, csWeeklyGrain); if (!k) continue;
-    const o = m[k] = m[k] || {target:0, actual:0};
-    o.target += d.target; o.actual += d.actual;
+    const o = m[k] = m[k] || {target:0, actual:0, unprocessed:0};
+    o.target += d.target; o.actual += d.actual; o.unprocessed += (d.unprocessed || 0);
   }
   // Fold any leading bucket(s) with NO target into the first target-bearing bucket. The
   // quarter starts mid-week (Q3 starts Wed Jul 1) while the plan's first week is Mon Jul 6,
@@ -1921,11 +2010,11 @@ function renderWeekly(agg) {
   let ks = Object.keys(m).sort();
   const firstTgt = ks.find(k => m[k].target > 0);
   if (firstTgt) for (const k of ks) {
-    if (k < firstTgt) { m[firstTgt].actual += m[k].actual; m[firstTgt].target += m[k].target; delete m[k]; }
+    if (k < firstTgt) { m[firstTgt].actual += m[k].actual; m[firstTgt].target += m[k].target; m[firstTgt].unprocessed += m[k].unprocessed; delete m[k]; }
   }
   const keys = Object.keys(m).sort();
   const labels = keys.map(k => bucketLabel(k, csWeeklyGrain));
-  const tgt = keys.map(k=>m[k].target), act = keys.map(k=>m[k].actual);
+  const tgt = keys.map(k=>m[k].target), act = keys.map(k=>m[k].actual), unp = keys.map(k=>m[k].unprocessed);
   // Absolute = Target vs Accepted-actual bars. Relative = Accepted as % of that period's
   // target (a pacing read); tooltips always show the true accepted count.
   const isRel = csWeeklyScale==='rel';
@@ -1934,7 +2023,9 @@ function renderWeekly(agg) {
       {label:'Accepted vs target', data: pace, backgroundColor:CF, borderRadius:3}
     ] : [
       {label:'Target', data: tgt, backgroundColor:TARGET, borderRadius:3, stack:'plan'},
-      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual'}
+      {label:'Accepted actual', data: act, backgroundColor:CF, borderRadius:3, stack:'actual'},
+      // Dev mode: stack the unprocessed/New backlog on top of accepted so the full delivered bar shows.
+      ...(devMode ? [{label:'Unprocessed', data: unp, backgroundColor:'#B9C2CC', borderRadius:3, stack:'actual'}] : [])
     ];
   charts.weeklyChart = new Chart(document.getElementById('weeklyChart'), {
     type:'bar',
@@ -2075,28 +2166,34 @@ function renderAssets(agg) {
 
 function renderDaily(agg) {
   destroy('dailyChart');
-  // Re-bucket accepted leads by csDailyGrain (SUM of per-day accepted counts).
-  const m = {};
+  // Re-bucket accepted (and, in dev mode, unprocessed/New) leads by csDailyGrain.
+  const m = {}, mu = {};
   for (const d of agg.dailyFull){
     const k = bucketKey(d.day, csDailyGrain); if (!k) continue;
     m[k] = (m[k]||0) + d.actual;
+    mu[k] = (mu[k]||0) + (d.unprocessed||0);
   }
   const keys = Object.keys(m).sort();
   const vals = keys.map(k=>m[k]);
-  // Single series: Relative indexes the line to its own peak=100; tooltip un-indexes.
+  const uvals = keys.map(k=>mu[k]||0);
+  // Relative indexes each value to the ACCEPTED peak=100 (shared scale so the dev-mode
+  // unprocessed line is comparable); tooltip un-indexes. Absolute plots raw counts.
   const isRel = csDailyScale==='rel';
   const mx = Math.max.apply(null, vals.concat([1]));
+  const idx = v => isRel ? v/mx*100 : v;
+  const datasets = [{label:'Accepted leads', data: vals.map(idx),
+        borderColor:CF, backgroundColor:CF+'33', fill:true, tension:0.25, pointRadius:2, borderWidth:2}];
+  if (devMode) datasets.push({label:'Unprocessed', data: uvals.map(idx),
+        borderColor:'#8B97A3', backgroundColor:'transparent', borderDash:[5,4], fill:false, tension:0.25, pointRadius:2, borderWidth:2});
   charts.dailyChart = new Chart(document.getElementById('dailyChart'), {
     type:'line',
-    data:{ labels: keys.map(k=>bucketLabel(k, csDailyGrain)),
-      datasets:[{label:'Accepted leads', data: isRel?vals.map(v=>v/mx*100):vals,
-        borderColor:CF, backgroundColor:CF+'33', fill:true, tension:0.25, pointRadius:2, borderWidth:2}] },
+    data:{ labels: keys.map(k=>bucketLabel(k, csDailyGrain)), datasets },
     options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{display:false},
-        tooltip:{ callbacks:{ label:c=>' Accepted leads: '+fmtN(isRel?c.raw/100*mx:c.raw) } } },
+      plugins:{ legend:{display:devMode, position:'bottom'},
+        tooltip:{ callbacks:{ label:c=>' '+c.dataset.label+': '+fmtN(isRel?c.raw/100*mx:c.raw) } } },
       scales:{ x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}},
-               y:{beginAtZero:true, max:isRel?100:undefined, grid:{color:LINE},
-                  title:{display:true, text:isRel?'Index (peak=100)':'Accepted leads'},
+               y:{beginAtZero:true, max:(isRel && !devMode)?100:undefined, grid:{color:LINE},
+                  title:{display:true, text:isRel?'Index (accepted peak=100)':'Leads'},
                   ticks:{callback:v=>isRel?v.toFixed(0):v}} } }
   });
 }
@@ -2104,15 +2201,20 @@ function renderDaily(agg) {
 function renderRegionGrid(agg) {
   const grid = document.getElementById('regionGrid');
   grid.innerHTML = '';
-  agg.regionRows.forEach(({market, q2, ttd, accepted}) => {
+  agg.regionRows.forEach(({market, q2, ttd, accepted, unprocessed}) => {
     const pace = ttd ? (accepted/ttd*100) : 0;
     const paceColor = !ttd ? 'var(--cf-mute)'
       : (accepted/ttd >= 1 ? 'var(--good-green)'
       : (accepted/ttd >= 0.7 ? '#A14B00' : 'var(--bad-red)'));
-    const denom = Math.max(q2, accepted, 1);
+    const denom = Math.max(q2, accepted, unprocessed || 0, 1);
     const wQ2 = (q2/denom*100).toFixed(1);
     const wTd = (ttd/denom*100).toFixed(1);
     const wA  = (accepted/denom*100).toFixed(1);
+    const wU  = ((unprocessed||0)/denom*100).toFixed(1);
+    // Dev mode only: an extra grey "Unprocessed" bar under Accepted so the New backlog is visible per market.
+    const unpRow = devMode
+      ? `<div class="reg-row"><div class="reg-lbl">Unprocessed</div><div class="reg-bar"><div class="reg-fill" style="width:${wU}%;background:#B9C2CC"></div></div><div class="reg-num">${fmtN(unprocessed||0)}</div></div>`
+      : '';
     grid.insertAdjacentHTML('beforeend', `
       <div style="border:1px solid var(--cf-line);border-radius:10px;padding:14px 16px;background:#fff">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px">
@@ -2122,6 +2224,7 @@ function renderRegionGrid(agg) {
         <div class="reg-row"><div class="reg-lbl">${qtrLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
         <div class="reg-row"><div class="reg-lbl">TTD Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
         <div class="reg-row"><div class="reg-lbl">QTD Accepted</div><div class="reg-bar"><div class="reg-fill orange" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(accepted)}</div></div>
+        ${unpRow}
       </div>`);
   });
 }
@@ -2136,7 +2239,7 @@ function renderAll() {
   donut('countryChart', agg.countries, 10);
   donut('jfChart',      agg.jobFunc,   8);
   donut('jlChart',      agg.jobLevel,  10);
-  donut('jtChart',      agg.jobTitle,  10, agg.accepted);   // + 'Other' tail so it totals all accepted
+  donut('jtChart',      agg.jobTitle,  10, agg.breakdownTotal);   // + 'Other' tail; total = accepted (+unprocessed in dev mode)
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);

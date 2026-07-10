@@ -1577,6 +1577,19 @@ def _spend_mult_script(client):
             + b");</script>")
 
 
+def _dev_flag_script():
+    """Expose window.BB_DEV=true to the proxied dashboard IFF the viewer may see INTERNAL tooling:
+    an admin / super-admin session, or the agency portal of the client's OWNING agency (Transmission
+    owns the CS clients). The dashboards' dev-mode toggle (unprocessed/New leads + a Source-ID filter)
+    stays hidden unless this is set, so client and other-agency sessions never see it. Nothing is
+    injected for those, so window.BB_DEV stays undefined (falsey) and the client-facing view is
+    unchanged. Harmless for dashboards without a dev mode — they just ignore the global."""
+    kind = session.get("kind")
+    allowed = kind in ("admin", "superadmin") or (
+        kind == "agency" and session.get("agency_slug") == "transmission")
+    return b"<script>window.BB_DEV=true;</script>" if allowed else b""
+
+
 def _upstream_base(client):
     c = store.get_client(client) or getattr(cfg, "TOOLS", {}).get(client)   # +TOOLS fallback (registry-free)
     url = (c or {}).get("url", "")
@@ -1716,14 +1729,15 @@ def proxy(client, subpath):
         body = body.replace(b"'/report'", f"'/d/{client}/report'".encode())  # AI report POST (mongodb)
         body = body.replace(b"/creative-img/", f"/d/{client}/creative-img/".encode())  # cached creative images (resetdata gallery)
         if is_dashboard:
-            # Expose the per-channel spend multiplier BEFORE the dashboard's own scripts run (the
-            # gross-up shim reads window.BB_SPEND_MULT). Inject high in <head> so it wins even if a
-            # dashboard renders synchronously; fall back to </body> if there's no </head>.
-            mult = _spend_mult_script(client)
+            # Expose the per-channel spend multiplier + the dev-mode flag BEFORE the dashboard's own
+            # scripts run (the gross-up shim reads window.BB_SPEND_MULT; the CS dev-mode toggle reads
+            # window.BB_DEV). Inject high in <head> so it wins even if a dashboard renders
+            # synchronously; fall back to </body> if there's no </head>.
+            head_inject = _spend_mult_script(client) + _dev_flag_script()
             if b"</head>" in body:
-                body = body.replace(b"</head>", mult + b"</head>", 1)
+                body = body.replace(b"</head>", head_inject + b"</head>", 1)
             elif b"</body>" in body:
-                body = body.replace(b"</body>", mult + b"</body>", 1)
+                body = body.replace(b"</body>", head_inject + b"</body>", 1)
         if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout + feedback control
             body = body.replace(b"</body>", _LOGOUT_BUTTON + _feedback_widget(client) + b"</body>", 1)
     out = Response(body, status=resp.status_code, content_type=ctype)
