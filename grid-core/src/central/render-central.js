@@ -23,7 +23,8 @@
   var DASH = '<span class="ct-muted">—</span>';
   var STALE_MS = 4 * 60 * 60 * 1000;
   var MANAGERS = ['Mel', 'Zhen', 'Sophia'];
-  var STATUSES = ['Active', 'Paused', 'Ended', 'Draft'];
+  // Real sheet vocabulary + app-only Draft. "Not Active" is a real status (never coerced).
+  var STATUSES = ['Active', 'Paused', 'Not Active', 'Ended', 'Draft'];
   var AGENCY_LABEL = { '100% Digital': '100% DIGITAL', 'Transmission': 'TRANSMISSION' };
 
   // ---- per-channel colour (real brand hues; 2-letter code is the backup cue) ----
@@ -53,10 +54,11 @@
 
   // ============================ state ============================
   var CS = {
-    client: 'all', status: 'all', health: 'all',
+    client: 'all', statusView: 'live', health: 'all',   // live-first default
     sortKey: null, sortDir: 1,           // null = grouped; else flat global ranking
-    overrides: null, lastSynced: null, highlightMissing: null
+    campaigns: null, overrides: null, lastSynced: null, highlightMissing: null
   };
+  var LIVE_STATUSES = ['Active', 'Paused', 'Draft'];   // "Live" = day-to-day working set
 
   // SINGLE NAME-TRANSLATION POINT — the ONLY place grid (build_grid_data.py) field
   // names are converted to calc.js names. Seed rows are already calc-shaped (pass
@@ -89,16 +91,17 @@
   function isEmpty(v) { return v == null || v === ''; }
   function needsInput(field, value) { return NEEDS_INPUT.indexOf(field) >= 0 && isEmpty(value); }
 
-  // Live data source: the real DATA array (build_grid_data.py → Central2.xlsx parse).
-  // Falls back to the seed FIXTURE only when DATA is absent (the Node render smoke test).
+  // Central's SOURCE OF TRUTH is the DB (GET /api/central/campaigns). The sheet parse
+  // was a ONE-TIME import, not a pipeline — Central never reads the baked DATA literal.
+  // Falls back to the seed FIXTURE only when the API is unavailable (Node smoke tests).
   function getSourceRows() {
-    try { if (typeof DATA !== 'undefined' && Array.isArray(DATA) && DATA.length) return DATA; } catch (e) { }
-    if (typeof window !== 'undefined' && Array.isArray(window.DATA) && window.DATA.length) return window.DATA;
+    if (Array.isArray(CS.campaigns) && CS.campaigns.length) return CS.campaigns;
     return (window.CentralSeed && window.CentralSeed.CAMPAIGNS) || [];
   }
 
-  // Build render rows: source -> map (single name-translation) -> overlay overrides ->
-  // compute derived FRESH (the sheet's own derived columns are ignored in favour of _d).
+  // Build render rows: campaigns -> map (single name-translation, passthrough) -> attach
+  // per-field provenance (central_rows) -> compute derived FRESH (never stored). The
+  // campaign row IS the value truth; overrides supply only the source/filename/cellRef.
   function buildRows() {
     var src = getSourceRows();
     var calc = window.CentralCalc;
@@ -108,15 +111,17 @@
       // datetime-in-campaign-name sheet quirk → always a clean string, never a Date/serial
       if (r.name instanceof Date) r.name = r.name.toISOString().slice(0, 10);
       else if (typeof r.name === 'string') r.name = r.name.replace(/\s00:00:00$/, '');
-      var id = centralRowId(r.client, r.name);
+      r.section = r.section || r.agency;                 // DB uses 'section'; seed uses 'agency'
+      var id = r.id || centralRowId(r.client, r.name);    // campaign id (seed fixture: client::name)
       r._id = id; r._src = {};
       var o = ov[id] || {};
-      for (var f in o) if (Object.prototype.hasOwnProperty.call(o, f)) { r[f] = o[f].value; r._src[f] = o[f]; }
+      for (var f in o) if (Object.prototype.hasOwnProperty.call(o, f)) r._src[f] = o[f];   // provenance only
       r._d = calc ? calc.computeRow(r, new Date()) : {};
       r._missing = NEEDS_INPUT.filter(function (f) { return isEmpty(r[f]); });
       // unbilled-basis: spend present but no per-channel billing multiplier to certify the
       // client-spend basis. Fires widely BY DESIGN until spendMult is populated per channel.
       r._unbilled = (r.mediaSpend != null || r.clientSpend != null) && (r.spendMult == null || Number(r.spendMult) === 1);
+      r._archived = !!r.archivedAt;
       return r;
     });
   }
@@ -146,7 +151,11 @@
         if (!r.jobNumber) badges += '<span class="ct-badge ct-badge-warn" title="No job number set">no job #</span>';
         if (r._unbilled) badges += '<span class="ct-badge ct-badge-bad" title="No spendMult recorded for this channel — the client-spend billing basis cannot be verified. Expected on most rows until spendMult is populated.">unbilled basis</span>';
         if (r._missing.length) badges += '<button class="ct-badge ct-badge-miss" data-missing="' + esc(r._id) + '" title="' + r._missing.length + ' CONFIG fields empty: ' + esc(r._missing.join(', ')) + '">' + r._missing.length + ' fields missing</button>';
-        return client + '<div class="ct-nm">' + esc(r.name || '—') + '</div>' + (r.objective ? '<div class="ct-sub">' + esc(r.objective) + '</div>' : '') + (badges ? '<div class="ct-badges">' + badges + '</div>' : '');
+        // archive is a soft delete (row action); archived rows show a muted tag instead
+        var act = r._archived
+          ? '<span class="ct-arch-tag">archived</span>'
+          : '<button class="ct-arch" data-archive="' + esc(r._id) + '" title="Archive (keeps it as history under the Archived filter — never deleted)">archive</button>';
+        return client + '<div class="ct-nm">' + esc(r.name || '—') + act + '</div>' + (r.objective ? '<div class="ct-sub">' + esc(r.objective) + '</div>' : '') + (badges ? '<div class="ct-badges">' + badges + '</div>' : '');
       }
     },
     { id: 'channel', label: 'Channel', type: 'config', get: function (r) { return (r.channel || '').toLowerCase(); }, editable: 'channel', cell: function (r) { return channelChip(r.channel) + srcIcon(r, 'channel'); } },
@@ -179,18 +188,24 @@
     { id: 'notes', label: 'Notes', type: 'config', get: function (r) { return (r.notes || '').toLowerCase(); }, cell: function (r) { return r.notes ? esc(r.notes) : DASH; } }
   ];
   var EDIT_COLS = ['channel', 'managedBy', 'status'];  // columns rendered as dropdowns
-  function statusCls(s) { s = (s || '').toLowerCase(); return s.indexOf('active') >= 0 ? 'active' : s.indexOf('paus') >= 0 ? 'paused' : s.indexOf('end') >= 0 ? 'ended' : 'draft'; }
-  function metricsTag(r) { var m = r.metricsSource === 'BQ' ? 'BQ' : 'sheet'; return '<span class="ct-msrc ct-msrc-' + m + '" title="' + (m === 'BQ' ? 'Live from BigQuery' : 'Typed on the sheet (not synced)') + '">' + m + '</span>'; }
+  function statusCls(s) { s = (s || '').toLowerCase(); if (s.indexOf('not active') >= 0) return 'notactive'; return s.indexOf('active') >= 0 ? 'active' : s.indexOf('paus') >= 0 ? 'paused' : s.indexOf('end') >= 0 ? 'ended' : 'draft'; }
+  function metricsTag(r) { var m = (r.metricsSource === 'BQ') ? 'BQ' : (r.metricsSource === 'sheet-import' ? 'sheet' : (r.metricsSource || 'sheet')); return '<span class="ct-msrc ct-msrc-' + (m === 'BQ' ? 'BQ' : 'sheet') + '" title="' + (m === 'BQ' ? 'Live from BigQuery' : 'From the one-time sheet import (not yet synced)') + '">' + m + '</span>'; }
 
   // ============================ filtering / sorting ============================
+  // Composes: status view (live-first) + archived + client + health.
   function filtered(rows) {
     return rows.filter(function (r) {
+      var sv = CS.statusView;
+      if (sv === 'archived') { if (!r._archived) return false; }
+      else if (r._archived) return false;                     // archived hidden except its own chip
+      if (sv === 'live') { if (LIVE_STATUSES.indexOf(r.status) < 0) return false; }
+      else if (sv !== 'all' && sv !== 'archived') { if (r.status !== sv) return false; }
       if (CS.client !== 'all' && r.client !== CS.client) return false;
-      if (CS.status !== 'all' && (r.status || '').toLowerCase() !== CS.status.toLowerCase()) return false;
       if (CS.health !== 'all' && r._d.health !== CS.health) return false;
       return true;
     });
   }
+  function distinctClients() { var s = []; buildRows().forEach(function (r) { if (r.client && s.indexOf(r.client) < 0) s.push(r.client); }); return s.sort(); }
   function sortRows(rows) {
     var col = COLS.find(function (c) { return c.id === CS.sortKey; });
     if (!col) return rows;
@@ -215,49 +230,67 @@
     injectCss();
     var mount = document.getElementById('view-central');
     if (!mount) return;
-    if (CS.overrides == null || opts.reload) {
-      loadOverrides().then(function () { paint(mount); });
-      if (CS.overrides == null) { mount.innerHTML = '<div class="ct-empty">Loading Central…</div>'; return; }
+    if (CS.campaigns == null || opts.reload) {
+      if (CS.campaigns == null) mount.innerHTML = '<div class="ct-empty">Loading Central…</div>';
+      loadData().then(function () { paint(mount); });
+      return;
     }
     paint(mount);
   }
 
-  function loadOverrides() {
-    return fetch('/api/central/rows').then(function (r) { return r.json(); })
-      .then(function (d) { CS.overrides = (d && d.overrides) || {}; })
-      .catch(function () { CS.overrides = CS.overrides || {}; });   // file:// / offline → seed only
+  // Central's SOURCE OF TRUTH is the DB: campaigns (values) + rows (per-field provenance).
+  // The sheet parse was a ONE-TIME import, not a pipeline. Offline (file://) → seed fixture.
+  function loadData() {
+    return Promise.all([
+      fetch('/api/central/campaigns').then(function (r) { return r.json(); }).catch(function () { return null; }),
+      fetch('/api/central/rows').then(function (r) { return r.json(); }).catch(function () { return null; })
+    ]).then(function (res) {
+      CS.campaigns = (res[0] && Array.isArray(res[0].campaigns)) ? res[0].campaigns : [];
+      CS.overrides = (res[1] && res[1].overrides) || {};
+    });
   }
 
   function paint(mount) {
     var all = buildRows();
+    var working = all.filter(function (r) { return !r._archived; });   // archived excluded from the working set
     var rows = filtered(all);
-    var counts = healthCounts(all);
+    var counts = healthCounts(working);
     var stale = CS.lastSynced == null || (Date.now() - CS.lastSynced) > STALE_MS;
 
     var clients = [];
-    all.forEach(function (r) { if (clients.indexOf(r.client) < 0) clients.push(r.client); });
+    working.forEach(function (r) { if (r.client && clients.indexOf(r.client) < 0) clients.push(r.client); });
     clients.sort();
 
+    // live-first counts
+    var liveN = working.filter(function (r) { return LIVE_STATUSES.indexOf(r.status) >= 0; }).length;
+    var totalN = working.length;
+    var archivedN = all.length - working.length;
+    var sCount = function (s) { return working.filter(function (r) { return r.status === s; }).length; };
+
     var html = '<div class="ct-wrap' + (stale ? ' ct-stale-on' : '') + '">';
-    // toolbar
-    html += '<div class="ct-toolbar"><div class="ct-title"><h2>Central</h2><span class="ct-titsub">Live campaigns · margin & pacing</span></div>' +
+    // toolbar — header reads "N live · M total"
+    html += '<div class="ct-toolbar"><div class="ct-title"><h2>Central</h2>' +
+      '<span class="ct-titsub"><b>' + liveN + '</b> live · ' + totalN + ' total</span></div>' +
       '<div class="ct-tools">' + lastSyncedHtml(stale) +
+      '<button class="ct-btn ct-btn-primary" id="ct-add"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Add campaign</button>' +
       '<button class="ct-btn" id="ct-sync"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg><span>Sync now</span></button>' +
       '<button class="ct-btn" id="ct-export"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export CSV</button>' +
       '</div></div>';
     // legend
     html += '<div class="ct-legend"><span class="ct-lg"><i class="ct-dot ct-oh-api"></i>synced (API)</span><span class="ct-lg"><i class="ct-dot ct-oh-config"></i>config</span><span class="ct-lg"><i class="ct-dot ct-oh-derived"></i>derived (locked)</span><span class="ct-lg-r">last synced: ' + (CS.lastSynced ? new Date(CS.lastSynced).toLocaleString('en-GB') : 'never') + '</span></div>';
-    // summary health chips
+    // summary health chips (portfolio, working set)
     html += '<div class="ct-summary">' +
       chip('winner', counts.winner + ' winner' + (counts.winner === 1 ? '' : 's'), 'winner') +
       chip('watch', counts.watch + ' watch', 'watch') +
       chip('steady', counts.steady + ' steady', 'steady') +
       '</div>';
-    // filters
+    // status-view chips (LIVE-FIRST) with counts + client filter
+    var svChips = [['live', 'Live', liveN], ['Active', 'Active', sCount('Active')], ['Paused', 'Paused', sCount('Paused')],
+      ['Not Active', 'Not Active', sCount('Not Active')], ['Ended', 'Ended', sCount('Ended')], ['all', 'All', totalN], ['archived', 'Archived', archivedN]];
     html += '<div class="ct-filters">';
+    html += '<div class="ct-chipset ct-statusview" id="ct-fstatus">' + svChips.map(function (c) { return '<button class="ct-chip' + (CS.statusView === c[0] ? ' on' : '') + '" data-v="' + esc(c[0]) + '">' + esc(c[1]) + ' <span class="ct-chipn">' + c[2] + '</span></button>'; }).join('') + '</div>';
     html += '<label class="ct-fld"><span>Client</span><select id="ct-fclient" class="ct-select"><option value="all"' + (CS.client === 'all' ? ' selected' : '') + '>All clients</option>' +
       clients.map(function (c) { return '<option value="' + esc(c) + '"' + (CS.client === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>';
-    html += '<div class="ct-chipset" id="ct-fstatus">' + ['all'].concat(STATUSES).map(function (s) { return '<button class="ct-chip' + (CS.status === s ? ' on' : '') + '" data-v="' + s + '">' + (s === 'all' ? 'All' : s) + '</button>'; }).join('') + '</div>';
     html += '</div>';
     // table
     var grouped = !CS.sortKey;
@@ -284,11 +317,11 @@
     // the real DATA's UPPERCASE agencies and the seed's Title-Case both group correctly)
     var pref = ['100% digital', 'transmission'];
     var present = [];
-    rows.forEach(function (r) { if (present.indexOf(r.agency) < 0) present.push(r.agency); });
+    rows.forEach(function (r) { if (present.indexOf(r.section) < 0) present.push(r.section); });
     present.sort(function (a, b) { var ia = pref.indexOf(String(a || '').toLowerCase()); var ib = pref.indexOf(String(b || '').toLowerCase()); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
     var html = '';
     present.forEach(function (ag) {
-      var inAg = rows.filter(function (r) { return r.agency === ag; });
+      var inAg = rows.filter(function (r) { return r.section === ag; });
       if (!inAg.length) return;
       var activeN = inAg.filter(function (r) { return (r.status || '').toLowerCase() === 'active'; }).length;
       html += '<tr class="ct-section"><td colspan="' + COLS.length + '">' + esc(String(ag || '—').toUpperCase()) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
@@ -304,7 +337,7 @@
 
   function rowHtml(r, grouped) {
     var hlRow = CS.highlightMissing === r._id;
-    return '<tr class="ct-row" data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
+    return '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + '" data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
       var needs = needsInput(c.id, r[c.id]);        // empty manual [CONFIG] field → needs input
       var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '') + (c.type === 'api' ? 'ct-api-col ' : '');
       if (needs) cls += 'ct-needs ';                 // faint amber to-do tint (never on derived/api)
@@ -357,10 +390,17 @@
     });
     // client filter
     var fc = mount.querySelector('#ct-fclient'); if (fc) fc.addEventListener('change', function () { CS.client = fc.value; paint(mount); });
-    // status chips
-    mount.querySelectorAll('#ct-fstatus .ct-chip').forEach(function (b) { b.addEventListener('click', function () { CS.status = b.dataset.v; paint(mount); }); });
+    // status-view chips (live-first)
+    mount.querySelectorAll('#ct-fstatus .ct-chip').forEach(function (b) { b.addEventListener('click', function () { CS.statusView = b.dataset.v; paint(mount); }); });
     // health chips (click active clears)
     mount.querySelectorAll('.ct-hchip').forEach(function (b) { b.addEventListener('click', function () { var h = b.dataset.health; CS.health = (CS.health === h) ? 'all' : h; paint(mount); }); });
+    // Add campaign
+    var add = mount.querySelector('#ct-add'); if (add) add.addEventListener('click', function () {
+      if (window.CentralPlan && window.CentralPlan.openAdd) window.CentralPlan.openAdd({ clients: distinctClients(), onCreated: function () { render({ reload: true }); } });
+      else toastErr('Add panel unavailable (plan-panel.js not loaded).');
+    });
+    // archive (soft delete)
+    mount.querySelectorAll('[data-archive]').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); onArchive(b.dataset.archive, mount); }); });
     // editable dropdowns (managedBy / channel / status)
     mount.querySelectorAll('.ct-editsel').forEach(function (sel) { sel.addEventListener('change', function () { onEdit(sel, mount); }); });
     // inline-editable empty manual cells (text / number CONFIG) — blur/Enter saves
@@ -406,11 +446,20 @@
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (x) {
         if (!x.ok) { toastErr((x.d && x.d.error) || 'Could not save'); paint(mount); return; }
+        // splice the server-returned campaign back in (the row IS the value truth) + provenance
+        if (x.d && x.d.campaign && Array.isArray(CS.campaigns)) { for (var i = 0; i < CS.campaigns.length; i++) if (CS.campaigns[i].id === id) { CS.campaigns[i] = x.d.campaign; break; } }
         CS.overrides[id] = CS.overrides[id] || {};
         CS.overrides[id][field] = { value: value, source: 'manual' };
         toastOk('Saved ' + field);
         paint(mount);       // tint clears (now populated) + missing-config badge recalculates
       }).catch(function () { toastErr('Save failed (is the server running?)'); paint(mount); });
+  }
+  function onArchive(id, mount) {
+    if (!window.confirm('Archive this campaign? It stays as history under the Archived filter — it is never deleted.')) return;
+    fetch('/api/central/campaigns/' + encodeURIComponent(id) + '/archive', { method: 'POST' })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) { if (!x.ok) { toastErr((x.d && x.d.error) || 'Archive failed'); return; } toastOk('Archived'); render({ reload: true }); })
+      .catch(function () { toastErr('Archive failed (server offline?)'); });
   }
 
   function doSync(btn) {
@@ -520,7 +569,13 @@
       '.ct-chan-code{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:20px;color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.02em}',
       '.ct-mgr{display:inline-block;font-weight:600}',
       '.ct-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px}',
-      '.ct-st-active{background:var(--ok-soft);color:var(--ok)}.ct-st-paused{background:var(--warn-soft);color:var(--warn)}.ct-st-ended{background:var(--line-2);color:var(--ink-3)}.ct-st-draft{background:var(--line-2);color:var(--ink-3)}',
+      '.ct-st-active{background:var(--ok-soft);color:var(--ok)}.ct-st-paused{background:var(--warn-soft);color:var(--warn)}.ct-st-ended{background:var(--line-2);color:var(--ink-3)}.ct-st-notactive{background:var(--line-2);color:var(--ink-2)}.ct-st-draft{background:var(--tx-soft);color:var(--tx-ink)}',
+      '.ct-chipn{font-size:9px;font-weight:800;opacity:.7;margin-left:2px}.ct-chip.on .ct-chipn{opacity:.9}',
+      '.ct-btn-primary{background:var(--pill-bg);color:var(--pill-fg);border-color:var(--pill-bg)}.ct-btn-primary:hover{background:var(--brand-strong);color:var(--pill-fg);border-color:var(--brand-strong)}',
+      '.ct-arch{appearance:none;border:0;background:transparent;color:var(--ink-3);font-family:inherit;font-size:9.5px;font-weight:600;cursor:pointer;margin-left:8px;opacity:0;transition:opacity .12s;text-decoration:underline}',
+      '.ct-row:hover .ct-arch{opacity:.75}.ct-arch:hover{color:var(--bad);opacity:1}',
+      '.ct-arch-tag{font-size:9px;font-weight:700;color:var(--ink-3);background:var(--line-2);padding:1px 6px;border-radius:5px;margin-left:8px;text-transform:uppercase;letter-spacing:.03em}',
+      '.ct-archived td{opacity:.55}.ct-archived:hover td{opacity:.8}',
       '.ct-pace-on{background:var(--ok-soft);color:var(--ok)}.ct-pace-over{background:var(--bad-soft);color:var(--bad)}.ct-pace-under{background:var(--warn-soft);color:var(--warn)}',
       '.ct-h-winner{background:var(--ok-soft);color:var(--ok)}.ct-h-watch{background:var(--bad-soft);color:var(--bad)}.ct-h-steady{background:var(--line-2);color:var(--ink-3)}',
       '.ct-margin{display:inline-block;padding:2px 8px;border-radius:6px;font-weight:600}',
@@ -546,5 +601,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, NEEDS_INPUT: NEEDS_INPUT, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, CS: CS };
 });

@@ -19,7 +19,9 @@
 'use strict';
 
 /**
- * @typedef {'Active'|'Paused'|'Ended'|'Draft'} CampaignStatus
+ * @typedef {'Active'|'Paused'|'Not Active'|'Ended'|'Draft'} CampaignStatus
+ *   Active/Paused/Not Active/Ended come from the sheet verbatim ("Not Active" is a real
+ *   sheet status, never coerced). Draft is app-only: newly created thin rows + blank import.
  * @typedef {'On'|'Over'|'Under'|'-'} PacingStatus
  *
  * The raw campaign shape the Central table renders. DERIVED fields are NOT stored

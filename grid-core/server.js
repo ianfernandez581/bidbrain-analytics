@@ -29,6 +29,7 @@ const db = require('./src/brain/db');
 const parser = require('./src/brain/parser');
 const bqWriter = require('./src/brain/bq-writer');
 const planReader = require('./src/central/plan-reader');
+const centralView = require('./src/central/render-central'); // for the single mapGridRowToCentral()
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
@@ -46,6 +47,20 @@ const CENTRAL_MIME = {
   docx: ['application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/octet-stream'],
   pptx: ['application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/octet-stream']
 };
+
+// ONE-TIME import of the sheet parse into the campaigns DB (the DB is Central's source
+// of truth; this snapshot import is NOT a pipeline). Idempotent guard inside the method.
+(function importCentralSheetOnce() {
+  try {
+    const snapPath = path.join(ROOT, 'config', 'central-import.json');
+    if (!fs.existsSync(snapPath)) return;
+    const snap = JSON.parse(fs.readFileSync(snapPath, 'utf8'));
+    const mapped = snap.map(r => centralView._mapGridRowToCentral(r));
+    const res = db.importCentralSnapshot(mapped);
+    if (res.inserted) console.log(`[CENTRAL] imported ${res.inserted} campaigns from sheet snapshot; by status ${JSON.stringify(res.byStatus)}`);
+    else console.log(`[CENTRAL] campaigns already imported (${res.total} rows) — skipping`);
+  } catch (e) { console.error('[CENTRAL] sheet import failed:', e.message); }
+})();
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.map': 'application/json' };
 const MAX_FILE = 50 * 1024 * 1024;
@@ -75,9 +90,19 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/brain\/historical\/files\/(.+)\/commit$/)) && req.method === 'POST') return commit(req, res, m[1]);
     if ((m = p.match(/^\/api\/brain\/historical\/rows\/(.+)$/)) && req.method === 'PATCH') return patchRow(req, res, m[1]);
 
-    // ---- Central: CONFIG store + media-plan reader ----
+    // ---- Central: campaigns (source of truth) + CONFIG provenance + media-plan reader ----
+    if (p === '/api/central/campaigns' && req.method === 'GET') return send(res, 200, { campaigns: db.getCampaigns() });
+    if (p === '/api/central/campaigns' && req.method === 'POST') return centralCreateCampaign(req, res);
+    if ((m = p.match(/^\/api\/central\/campaigns\/([^/]+)\/archive$/)) && req.method === 'POST') return centralArchive(req, res, decodeURIComponent(m[1]));
     if (p === '/api/central/rows' && req.method === 'GET') return send(res, 200, { overrides: db.getCentralOverrides() });
     if ((m = p.match(/^\/api\/central\/row\/([^/]+)\/field$/)) && req.method === 'POST') return centralEditField(req, res, decodeURIComponent(m[1]));
+    // Sync is STILL STUBBED (501). Contract for the NEXT task:
+    //   POST /api/central/sync will: read campaigns from the DB → overlay BQ metrics per
+    //   the validated client map (live_metrics.py pattern) → UPDATE only the API-metric
+    //   columns (impressions/mediaSpend/clientSpend) + metricsSource + lastSyncedAt on
+    //   matching rows → NEVER touch CONFIG columns → skip archived rows and status='Ended'
+    //   rows unless ?includeEnded=1 → return the refreshed rows. Campaigns with no BQ match
+    //   keep their last values and metricsSource stays 'sheet-import'.
     if (p === '/api/central/sync' && req.method === 'POST') return send(res, 501, { message: 'sync backend pending — next task' });
     if (p === '/api/central/plan/upload' && req.method === 'POST') return centralPlanUpload(req, res);
     if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/commit$/)) && req.method === 'POST') return centralPlanCommit(req, res, m[1]);
@@ -176,14 +201,31 @@ async function commit(req, res, fileId) {
 
 // ==================== Central handlers ====================
 
-// Inline field edit (dropdowns / contenteditable). Whitelisted; derived rejected.
-async function centralEditField(req, res, rowId) {
+// Inline field edit (dropdowns / contenteditable). :id is a campaign id. Writes the
+// campaigns row (source of truth) + appends provenance. Whitelisted; derived rejected.
+async function centralEditField(req, res, id) {
   let body; try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
   const field = body.field, value = body.value;
   if (!field) return send(res, 400, { error: 'field is required' });
-  const r = db.setCentralField(rowId, field, value, 'edit', {});
+  const r = db.updateCampaignField(id, field, value, 'edit', {});
+  if (!r.ok) return send(res, r.error === 'campaign not found' ? 404 : 400, { error: r.error });
+  return send(res, 200, { ok: true, id, campaign: r.campaign });
+}
+
+// Add a campaign (thin Draft row). section+client+name required; derived rejected.
+async function centralCreateCampaign(req, res) {
+  let body; try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+  const r = db.createCampaign(body && typeof body === 'object' ? body : {}, 'manual');
   if (!r.ok) return send(res, 400, { error: r.error });
-  return send(res, 200, { ok: true, rowId, fields: db.getCentralFieldsForId(rowId) });
+  console.log(`[CENTRAL] created campaign ${r.campaign.id} (${r.campaign.client} / ${r.campaign.name})`);
+  return send(res, 200, { ok: true, campaign: r.campaign });
+}
+
+// Soft delete (archive). No hard-delete route exists.
+function centralArchive(req, res, id) {
+  const r = db.archiveCampaign(id);
+  if (!r.ok) return send(res, r.error === 'campaign not found' ? 404 : 400, { error: r.error });
+  return send(res, 200, { ok: true, campaign: r.campaign });
 }
 
 // Media-plan upload: base64 JSON (see note in header — server has no multer/Express).
@@ -246,30 +288,37 @@ async function centralPlanCommit(req, res, id) {
   if (!draft && !manual) return send(res, 404, { error: 'extraction not found' });
   if (draft && draft.status === 'committed') return send(res, 400, { error: 'this extraction was already committed' });
 
-  let rowId = body.rowId;
-  if (createNew) {
-    const client = fields.client, name = fields.name;
-    if (!client || !name) return send(res, 400, { error: 'a new campaign needs at least a client and a campaign name' });
-    rowId = planReader.centralRowId(client, name);
-  }
-  if (!rowId) return send(res, 400, { error: 'pick a matching campaign or choose "create new" before committing' });
-
-  // provenance (filename + per-field cellRef) from the stored draft (none for manual)
-  let stored = {}; if (draft) { try { stored = JSON.parse(draft.extracted_json || '{}').fields || {}; } catch { } }
   const source = draft ? 'plan' : 'manual';
+  let stored = {}; if (draft) { try { stored = JSON.parse(draft.extracted_json || '{}').fields || {}; } catch { } }
+
+  // ---- create-new → a real campaigns row (sourceOfRecord 'plan' | 'manual') ----
+  if (createNew) {
+    if (!fields.client || !fields.name) return send(res, 400, { error: 'a new campaign needs at least a client and a campaign name' });
+    for (const f of Object.keys(fields)) if (db.CENTRAL_DERIVED_FIELDS.includes(f)) return send(res, 400, { error: `'${f}' is a DERIVED field and cannot be set` });
+    let section = fields.section;
+    if (!section) { const ex = db.getCampaigns().find(c => c.client === fields.client); section = ex ? ex.section : '100% Digital'; }
+    const cr = db.createCampaign(Object.assign({ section }, fields), source);
+    if (!cr.ok) return send(res, 400, { error: cr.error });
+    if (draft) db.setPlanStatus(id, 'committed', cr.campaign.id);
+    console.log(`[CENTRAL][Plan] commit ${id} -> NEW ${cr.campaign.id} (${cr.campaign.client}/${cr.campaign.name}, ${source})`);
+    return send(res, 200, { ok: true, rowId: cr.campaign.id, created: true, fieldsWritten: Object.keys(fields).length, campaign: cr.campaign });
+  }
+
+  // ---- match → UPDATE the existing campaign (source of truth) + provenance ----
+  const rowId = body.rowId;
+  if (!rowId) return send(res, 400, { error: 'pick a matching campaign or choose "create new" before committing' });
+  if (!db.getCampaign(rowId)) return send(res, 404, { error: 'matched campaign not found' });
   const current = planReader.currentRowValues(rowId);
 
-  // validate everything BEFORE writing anything
   const names = Object.keys(fields);
-  for (const f of names) {
+  for (const f of names) {                                   // validate BEFORE writing anything
     const chk = db.centralFieldAllowed(f, 'plan');
     if (!chk.ok) return send(res, 400, { error: chk.error });
     const existing = current[f];
-    if (!createNew && existing != null && !valuesEqual(existing, fields[f]) && !ack.has(f)) {
+    if (existing != null && !valuesEqual(existing, fields[f]) && !ack.has(f)) {
       return send(res, 400, { error: `'${f}' already has a value (${existing}) that differs from the plan — resolve it (keep/replace) before committing` });
     }
   }
-  // all valid → write
   let n = 0;
   for (const f of names) {
     const meta = {
@@ -277,12 +326,12 @@ async function centralPlanCommit(req, res, id) {
       cellRef: stored[f] ? (stored[f].cellRef || (stored[f].page != null ? 'p' + stored[f].page : null)) : null,
       source
     };
-    const r = db.setCentralField(rowId, f, fields[f], 'plan', meta);   // scope 'plan' = whitelist; source set via meta
+    const r = db.updateCampaignField(rowId, f, fields[f], 'plan', meta);
     if (r.ok) n++;
   }
   if (draft) db.setPlanStatus(id, 'committed', rowId);
   console.log(`[CENTRAL][Plan] commit ${id} -> ${rowId} (${n} fields, ${source})`);
-  return send(res, 200, { ok: true, rowId, fieldsWritten: n, fields: db.getCentralFieldsForId(rowId) });
+  return send(res, 200, { ok: true, rowId, fieldsWritten: n, campaign: db.getCampaign(rowId) });
 }
 
 function centralPlanDiscard(req, res, id) {

@@ -7,6 +7,7 @@
 'use strict';
 const path = require('path');
 const fs = require('fs');
+const crypto = require('crypto');
 const Database = require('better-sqlite3');
 
 // On Cloud Run the app filesystem is ephemeral; point at /tmp via BRAIN_DATA_DIR.
@@ -53,11 +54,25 @@ CREATE TABLE IF NOT EXISTS central_rows (
   PRIMARY KEY (row_id, field)
 );
 -- Central: media-plan extraction drafts. NEVER writes campaign rows directly —
--- pending -> human review -> commit (which writes central_rows).
+-- pending -> human review -> commit (which writes campaigns + central_rows).
 CREATE TABLE IF NOT EXISTS plan_extractions (
   id TEXT PRIMARY KEY, filename TEXT NOT NULL, uploaded_at TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending', extracted_json TEXT,
   matched_row_id TEXT, user_id TEXT
+);
+-- Central: the SOURCE OF TRUTH for campaign rows (replaces reading the baked DATA
+-- literal). Columns are calc.js CONFIG + API fields. Soft-delete only via archivedAt.
+CREATE TABLE IF NOT EXISTS campaigns (
+  id TEXT PRIMARY KEY,
+  section TEXT, client TEXT, name TEXT,
+  currency TEXT, jobNumber TEXT, objective TEXT, channel TEXT, managedBy TEXT, status TEXT,
+  startDate TEXT, endDate TEXT,
+  platformMargin REAL, adServing TEXT, adServingCost REAL, forecastCpm REAL,
+  keyKpi TEXT, kpiTarget REAL, budgetGross REAL, totalBudget REAL, spendMult REAL,
+  campaignLink TEXT, nextReportingDue TEXT, notes TEXT,
+  impressions REAL, mediaSpend REAL, clientSpend REAL,
+  metricsSource TEXT, lastSyncedAt TEXT,
+  createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, archivedAt TEXT, sourceOfRecord TEXT NOT NULL
 );
 `);
 
@@ -232,5 +247,94 @@ module.exports = {
   setPlanStatus(id, status, matchedRowId) {
     if (matchedRowId !== undefined) db.prepare('UPDATE plan_extractions SET status=?, matched_row_id=? WHERE id=?').run(status, matchedRowId, id);
     else db.prepare('UPDATE plan_extractions SET status=? WHERE id=?').run(status, id);
+  },
+
+  // ==================== Central: campaigns (SOURCE OF TRUTH) ========================
+  _CAMPAIGN_CONFIG_COLS: ['section', 'client', 'name', 'currency', 'jobNumber', 'objective', 'channel',
+    'managedBy', 'status', 'startDate', 'endDate', 'platformMargin', 'adServing', 'adServingCost',
+    'forecastCpm', 'keyKpi', 'kpiTarget', 'budgetGross', 'totalBudget', 'spendMult', 'campaignLink',
+    'nextReportingDue', 'notes'],
+  _CAMPAIGN_ALL_COLS: null,   // filled below
+
+  _genCampaignId() { return 'cmp-' + crypto.randomBytes(6).toString('hex'); },
+
+  // ONE-TIME import of the sheet parse (calc-shaped rows). Idempotency = an
+  // import-once GUARD: if any sheet-import row already exists, do nothing (return
+  // alreadyImported). NOTE: (section,client,name) is NOT unique in the sheet — a
+  // campaign repeats that triple across channels (e.g. "Always On" on Google/Meta/
+  // TradeDesk), so a per-row natural-key dedup would silently DROP real rows. The
+  // guard is lossless and idempotent. Blank name→null (needs-input); blank status→Draft.
+  importCentralSnapshot(rows, opts) {
+    const force = opts && opts.force;
+    const already = db.prepare("SELECT COUNT(*) n FROM campaigns WHERE sourceOfRecord='sheet-import'").get().n;
+    if (already > 0 && !force) {
+      return { inserted: 0, skipped: rows.length, alreadyImported: true, total: db.prepare('SELECT COUNT(*) n FROM campaigns').get().n, byStatus: {} };
+    }
+    const cfg = this._CAMPAIGN_CONFIG_COLS;
+    const insert = db.prepare(`INSERT INTO campaigns (${this._CAMPAIGN_ALL_COLS.join(',')})
+      VALUES (${this._CAMPAIGN_ALL_COLS.map(c => '@' + c).join(',')})`);
+    let inserted = 0; const byStatus = {};
+    const tx = db.transaction((rs) => {
+      for (const row of rs) {
+        const rec = {}; this._CAMPAIGN_ALL_COLS.forEach(c => { rec[c] = null; });
+        cfg.forEach(c => { if (row[c] !== undefined) rec[c] = row[c]; });
+        rec.section = row.section != null ? row.section : (row.agency != null ? row.agency : null);
+        rec.client = row.client != null ? row.client : null;
+        rec.name = (row.name == null || row.name === '') ? null : row.name;
+        rec.status = (row.status == null || row.status === '') ? 'Draft' : row.status;
+        rec.impressions = row.impressions != null ? row.impressions : null;
+        rec.mediaSpend = row.mediaSpend != null ? row.mediaSpend : null;
+        rec.clientSpend = row.clientSpend != null ? row.clientSpend : null;
+        rec.metricsSource = 'sheet-import'; rec.lastSyncedAt = null;
+        rec.id = this._genCampaignId(); rec.createdAt = now(); rec.updatedAt = now();
+        rec.archivedAt = null; rec.sourceOfRecord = 'sheet-import';
+        insert.run(rec); inserted++;
+        byStatus[rec.status] = (byStatus[rec.status] || 0) + 1;
+      }
+    });
+    tx(rows);
+    return { inserted, skipped: 0, total: db.prepare('SELECT COUNT(*) n FROM campaigns').get().n, byStatus };
+  },
+
+  getCampaigns() { return db.prepare('SELECT * FROM campaigns ORDER BY section, client, name').all(); },
+  getCampaign(id) { return db.prepare('SELECT * FROM campaigns WHERE id=?').get(id); },
+
+  // Create a thin campaign (Add button / plan create-new). section+client+name required;
+  // derived rejected; status defaults to 'Draft'. Returns {ok,campaign} or {ok:false,error}.
+  createCampaign(input, sourceOfRecord) {
+    if (!input || !input.section || !input.client || !input.name) return { ok: false, error: 'section, client and name are required' };
+    for (const k in input) if (CENTRAL_DERIVED_FIELDS.includes(k)) return { ok: false, error: `'${k}' is a DERIVED field and cannot be set` };
+    const rec = {}; this._CAMPAIGN_ALL_COLS.forEach(c => { rec[c] = null; });
+    this._CAMPAIGN_CONFIG_COLS.forEach(c => { if (input[c] !== undefined) rec[c] = input[c]; });
+    rec.id = this._genCampaignId(); rec.status = input.status || 'Draft';
+    rec.metricsSource = 'sheet-import'; rec.lastSyncedAt = null;
+    rec.createdAt = now(); rec.updatedAt = now(); rec.archivedAt = null;
+    rec.sourceOfRecord = sourceOfRecord || 'manual';
+    db.prepare(`INSERT INTO campaigns (${this._CAMPAIGN_ALL_COLS.join(',')}) VALUES (${this._CAMPAIGN_ALL_COLS.map(c => '@' + c).join(',')})`).run(rec);
+    return { ok: true, campaign: this.getCampaign(rec.id) };
+  },
+
+  // Write ONE CONFIG field on a campaign (source of truth) AND append provenance to
+  // central_rows. Whitelisted per scope; DERIVED always rejected. field is validated
+  // against the whitelist before it is ever interpolated into SQL.
+  updateCampaignField(id, field, value, scope, meta) {
+    const chk = this.centralFieldAllowed(field, scope);
+    if (!chk.ok) return chk;
+    const cur = this.getCampaign(id);
+    if (!cur) return { ok: false, error: 'campaign not found' };
+    db.prepare(`UPDATE campaigns SET ${field}=@value, updatedAt=@t WHERE id=@id`).run({ value: value === undefined ? null : value, t: now(), id });
+    this.setCentralField(id, field, value, scope, meta);   // provenance (central_rows, row_id=campaign id)
+    return { ok: true, campaign: this.getCampaign(id) };
+  },
+
+  // Soft delete — hidden except the Archived chip. No hard-delete method exists.
+  archiveCampaign(id) {
+    const cur = this.getCampaign(id);
+    if (!cur) return { ok: false, error: 'campaign not found' };
+    db.prepare('UPDATE campaigns SET archivedAt=@t, updatedAt=@t WHERE id=@id').run({ t: now(), id });
+    return { ok: true, campaign: this.getCampaign(id) };
   }
 };
+module.exports._CAMPAIGN_ALL_COLS = ['id'].concat(module.exports._CAMPAIGN_CONFIG_COLS)
+  .concat(['impressions', 'mediaSpend', 'clientSpend', 'metricsSource', 'lastSyncedAt',
+    'createdAt', 'updatedAt', 'archivedAt', 'sourceOfRecord']);

@@ -250,6 +250,54 @@
     return raw;
   }
 
+  // ---------------------------------------------------------------- add campaign
+  // Create a thin campaign row (Task 3.3). section+client+name required; the rest
+  // optional (fill later / via a plan). POSTs /api/central/campaigns.
+  function openAdd(api) {
+    injectCss(); close();
+    var clients = (api && api.clients) || [];
+    var back = document.createElement('div'); back.className = 'ct-pnl-back'; back.id = 'ct-pnl-back';
+    var pnl = document.createElement('aside'); pnl.className = 'ct-pnl'; pnl.id = 'ct-pnl';
+    var dl = '<datalist id="ct-add-clients">' + clients.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>';
+    var fld = function (label, field, attrs) { return '<div class="ct-field"><div class="ct-field-l">' + esc(label) + '</div><input class="ct-input" data-field="' + field + '" ' + (attrs || '') + '></div>'; };
+    pnl.innerHTML =
+      '<div class="ct-pnl-h"><div><h3>Add campaign</h3><div class="ct-pnl-src">Create a thin row now, fill the details in later (by hand or from a media plan). Only Section, Client and Campaign are required.</div></div><button class="ct-pnl-x" id="ct-pnl-x" aria-label="Close">✕</button></div>' +
+      '<div class="ct-pnl-body">' + dl + '<div class="ct-fields">' +
+      '<div class="ct-field"><div class="ct-field-l">Section *</div><select class="ct-input" data-field="section"><option value="100% Digital">100% Digital</option><option value="Transmission">Transmission</option></select></div>' +
+      '<div class="ct-field"><div class="ct-field-l">Client *</div><input class="ct-input" data-field="client" list="ct-add-clients" placeholder="client name"></div>' +
+      fld('Campaign *', 'name', 'placeholder="campaign name"') +
+      fld('Objective', 'objective') + fld('Channel', 'channel', 'placeholder="Trade Desk / LinkedIn / …"') + fld('Managed By', 'managedBy') +
+      '<div class="ct-field"><div class="ct-field-l">Status</div><select class="ct-input" data-field="status"><option value="Draft" selected>Draft</option><option>Active</option><option>Paused</option><option>Not Active</option><option>Ended</option></select></div>' +
+      fld('Platform Margin', 'platformMargin', 'placeholder="0.2 or 20%"') + fld('Forecast CPM', 'forecastCpm') +
+      fld('Budget Gross', 'budgetGross') + fld('Total Budget', 'totalBudget') +
+      fld('Start Date', 'startDate', 'placeholder="YYYY-MM-DD"') + fld('End Date', 'endDate', 'placeholder="YYYY-MM-DD"') +
+      fld('Key KPI', 'keyKpi', 'placeholder="e.g. 300 opt-ins"') + fld('Notes', 'notes') +
+      '</div></div>' +
+      '<div class="ct-pnl-foot"><button class="ct-btn" id="ct-pnl-cancel">Cancel</button><button class="ct-btn ct-btn-primary" id="ct-add-submit">Create</button></div>';
+    back.appendChild(pnl); document.body.appendChild(back);
+    requestAnimationFrame(function () { back.classList.add('in'); });
+    pnl.querySelector('#ct-pnl-x').addEventListener('click', close);
+    pnl.querySelector('#ct-pnl-cancel').addEventListener('click', close);
+    back.addEventListener('click', function (e) { if (e.target === back) close(); });
+    pnl.querySelector('#ct-add-submit').addEventListener('click', function () { submitAdd(pnl, api); });
+  }
+  function numish(field, raw) {
+    if (raw === '') return undefined;
+    if (field === 'platformMargin') { var p = parseFloat(String(raw).replace(/[%\s]/g, '')); if (isNaN(p)) return raw; return (String(raw).indexOf('%') >= 0 || p > 1) ? p / 100 : p; }
+    if (['forecastCpm', 'budgetGross', 'totalBudget', 'spendMult', 'adServingCost'].indexOf(field) >= 0) { var s = String(raw).replace(/[$,\s]/g, ''), m = 1; if (/[kK]$/.test(s)) { m = 1000; s = s.slice(0, -1); } var n = parseFloat(s); return isNaN(n) ? raw : n * m; }
+    return raw;
+  }
+  function submitAdd(pnl, api) {
+    var body = {};
+    pnl.querySelectorAll('[data-field]').forEach(function (el) { var v = (el.value || '').trim(); if (v !== '') { var c = numish(el.dataset.field, v); if (c !== undefined) body[el.dataset.field] = c; } });
+    if (!body.section || !body.client || !body.name) { toastErr('Section, Client and Campaign are required.'); return; }
+    var btn = pnl.querySelector('#ct-add-submit'); btn.disabled = true; btn.textContent = 'Creating…';
+    fetch('/api/central/campaigns', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) { if (!x.ok) { toastErr((x.d && x.d.error) || 'Create failed'); btn.disabled = false; btn.textContent = 'Create'; return; } toastOk('Campaign added'); close(); if (api && api.onCreated) api.onCreated(); })
+      .catch(function () { toastErr('Create failed — server offline?'); btn.disabled = false; btn.textContent = 'Create'; });
+  }
+
   // ---------------------------------------------------------------- css
   function injectCss() {
     if (document.getElementById('ct-pnl-css')) return;
@@ -283,5 +331,5 @@
     document.head.appendChild(s);
   }
 
-  return { mount: mount, _openPanel: openPanel };
+  return { mount: mount, openAdd: openAdd, _openPanel: openPanel };
 });

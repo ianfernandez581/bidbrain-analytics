@@ -261,38 +261,59 @@ each render, with every division guarded to render `—`.
 ```
 src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). Adds
                                 marginDelta / marginBand / health to the base formulas.
-config/central-seed.js       ← TEST FIXTURE (render smoke tests only). The LIVE tab
-                                reads the real `const DATA` array; see getSourceRows().
-src/central/render-central.js← the tab: table (cloned from renderRegister), grouping,
-                                colour-coding, filters, sort, dropdowns, sync/export.
-                                Holds mapGridRowToCentral() — the ONLY name-translation
-                                point (grid `advertiser/campaign/start/...` → calc names).
-src/central/plan-panel.js    ← media-plan dropzone + slide-in review/commit panel.
+config/central-seed.js       ← TEST FIXTURE (render smoke tests only). NOT a runtime source.
+config/central-import.json   ← frozen ONE-TIME import source (the pure-sheet parse); the
+                                server ingests it into the campaigns DB on boot (idempotent).
+src/central/render-central.js← the tab: reads GET /api/central/campaigns (the DB), grouping,
+                                colour-coding, live-first filters, sort, dropdowns, Add,
+                                archive, sync/export. Holds mapGridRowToCentral() — the ONLY
+                                name-translation point (grid `advertiser/…` → calc names).
+src/central/plan-panel.js    ← media-plan dropzone + review/commit panel + Add-campaign panel.
 src/central/plan-reader.js   ← server-side extraction (SheetJS grid + parser.js text),
-                                normalization, header-keyword heuristic, candidate match.
+                                normalization, header-keyword heuristic, candidate match
+                                (against the campaigns DB).
 ```
 Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register | Dashboards),
 `#view-central`, dispatch in `renderContent()`, hash whitelist, `<script src>` tags.
 
-## Data model + persistence (one store)
-The **live data source is the real `const DATA` array** in `the-grid.html` (the full
-`Central2.xlsx` "Live Campaigns" parse from `build_grid_data.py`, ~83 rows) — every row
-flows through `mapGridRowToCentral()` (the single name-translation point) then
-`CentralCalc.computeRow()`. `central-seed.js` is a TEST FIXTURE only. Per-field edits
-(dropdowns + inline cells) and media-plan commits are stored as **overrides** in SQLite
-`central_rows` (in the existing
-`src/brain/db.js`, keyed by `rowId = "client::name"`, value JSON-encoded, `source =
-'manual'|'plan'`) and layered over the seed at render time. **DERIVED fields are never
-stored or written** — `db.js` whitelists (`CENTRAL_EDIT_FIELDS`, `CENTRAL_PLAN_FIELDS`) and
-rejects `CENTRAL_DERIVED_FIELDS` on every write path.
+## Data model + persistence — the DB is the SOURCE OF TRUTH
+Central's source of truth is the SQLite **`campaigns`** table (in `src/brain/db.js`), NOT the
+baked `const DATA` literal and NOT `central-seed.js`. On server boot the pure-sheet parse
+(`config/central-import.json`) is imported once into `campaigns` (idempotent guard: skips if
+sheet-import rows already exist — it is a one-time import, **not a pipeline**). Traders then
+add / edit / end / archive campaigns **in Central directly** — no Excel edit, no script re-run.
+Rows have a stable generated `id`, `sourceOfRecord` (`sheet-import|manual|plan`), and
+`archivedAt` (soft delete only — there is no hard-delete route). Derived values are computed
+fresh per render via `CentralCalc.computeRow()`, never stored. Field edits update the
+`campaigns` row (the value) **and** append provenance to `central_rows` (the source/filename/
+cellRef, keyed by campaign id). **DERIVED fields are never writable** — `db.js` whitelists
+(`CENTRAL_EDIT_FIELDS`, `CENTRAL_PLAN_FIELDS`) and rejects `CENTRAL_DERIVED_FIELDS` everywhere.
+(`the-grid.html`'s `const DATA` still feeds Pulse/Register only — Central no longer reads it.)
+
+## Status model + live-first view
+Statuses: **Active · Paused · Not Active · Ended · Draft**. Active/Paused/Not Active/Ended come
+from the sheet verbatim ("Not Active" is real — never coerced); **Draft** is app-only (new thin
+rows + blank-status import). The default view is **live** = Active + Paused + Draft; the chip row
+is `Live · Active · Paused · Not Active · Ended · All · Archived` (each with a count) and the
+header reads "N live · M total". Ended/Not Active are history, always retrievable, never deleted.
+
+## Lifecycle (traders manage campaigns in Central)
+- **Add campaign** (button by Sync/Export) → panel → `POST /api/central/campaigns`
+  (section+client+name required, rest optional, `status:'Draft'`, `sourceOfRecord:'manual'`).
+- **Status change** via the status dropdown (how campaigns "finish") — no row removal.
+- **Archive** (row action) → `archivedAt` set; hidden except the Archived chip (muted).
+- The plan reader's **create-new** path creates a real `campaigns` row (`sourceOfRecord:'plan'`).
 
 ## Routes (server.js)
-- `GET  /api/central/rows` → `{overrides}` (layered over seed client-side)
-- `POST /api/central/row/:id/field` → inline dropdown edit (whitelisted; derived → 400)
-- `POST /api/central/sync` → **501 stub** (real BQ-overlay route is the NEXT task)
+- `GET  /api/central/campaigns` → `{campaigns}` (the DB — Central's data source)
+- `POST /api/central/campaigns` → create a thin Draft row (section+client+name; derived → 400)
+- `POST /api/central/campaigns/:id/archive` → soft delete (no hard-delete route exists)
+- `GET  /api/central/rows` → `{overrides}` (per-field provenance, keyed by campaign id)
+- `POST /api/central/row/:id/field` → edit a campaign field (`:id` = campaign id; derived → 400)
+- `POST /api/central/sync` → **501 stub** (contract documented at the route; real BQ overlay next)
 - `POST /api/central/plan/upload` → base64 JSON; extract → PENDING draft → `{fields,candidates}`
-- `POST /api/central/plan/:id/commit` → writes USER-CONFIRMED values only; rejects
-  unacknowledged overwrites of existing values (`acknowledgeConflicts`) and derived fields
+- `POST /api/central/plan/:id/commit` → writes USER-CONFIRMED values to `campaigns`; rejects
+  unacknowledged overwrites (`acknowledgeConflicts`) and derived fields; create-new → new row
 - `POST /api/central/plan/:id/discard`
 
 ## Media-plan reader

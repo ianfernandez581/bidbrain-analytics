@@ -275,19 +275,10 @@ function bigrams(s) { s = String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '
 function dice(a, b) { const A = bigrams(a), B = bigrams(b); if (!A.length || !B.length) return 0; const setB = {}; B.forEach(x => setB[x] = (setB[x] || 0) + 1); let hit = 0; A.forEach(x => { if (setB[x] > 0) { hit++; setB[x]--; } }); return (2 * hit) / (A.length + B.length); }
 
 function loadCentralRows() {
-  // CentralSeed is a UMD module — require works server-side. central_rows overrides
-  // are layered on so matches reflect what's actually live.
-  let seed; try { seed = require('../../config/central-seed.js'); } catch { seed = { CAMPAIGNS: [] }; }
+  // Central's source of truth is the campaigns DB (not the seed / DATA literal).
+  // Archived rows are excluded from match candidates.
   const db = require('../brain/db');
-  const overrides = db.getCentralOverrides();
-  return (seed.CAMPAIGNS || []).map(row => {
-    const id = centralRowId(row.client, row.name);
-    const ov = overrides[id] || {};
-    const merged = { ...row };
-    for (const f in ov) merged[f] = ov[f].value;
-    merged._id = id;
-    return merged;
-  });
+  return db.getCampaigns().filter(c => !c.archivedAt).map(c => Object.assign({}, c, { _id: c.id }));
 }
 
 function matchCandidates(fields) {
@@ -346,11 +337,11 @@ async function extract(fileRec) {
   return { fields, mode, candidates: matchCandidates(fields) };
 }
 
-// Current field values for one row (central_rows override layered over the seed),
-// used server-side for commit conflict detection. {} when the row does not exist.
+// Current field values for one campaign, used server-side for commit conflict
+// detection. {} when the campaign does not exist.
 function currentRowValues(rowId) {
-  const row = loadCentralRows().find(r => r._id === rowId);
-  return row || {};
+  const db = require('../brain/db');
+  return db.getCampaign(rowId) || {};
 }
 
 module.exports = {
