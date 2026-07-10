@@ -145,9 +145,12 @@ markup is per-channel because it varies by channel (Google/Meta often ×1, Trade
 central sheet, NOT fed into the pipeline). See `bidbrain-platform/README.md`.
 **Dev-mode flag (2026-07-10):** the proxy ALSO injects **`window.BB_DEV=true`** (twin of the spend-mult
 injection, `_dev_flag_script`) for **admin/super-admin OR the Transmission agency** session only — nothing for
-clients/other agencies. Dashboards with an internal "dev mode" read it; today only **cloudflare** does — a
-role-gated CS-Overview toggle (`?dev=1` is a direct-access fallback) that reveals unprocessed/New leads across
-its charts + a Source-ID (campaign) filter, OFF by default so the client view is unchanged. See
+clients/other agencies. Dashboards with an internal "dev mode" read it; today only **cloudflare** does (`?dev=1` is a direct-access
+fallback). Dev mode **defaults ON** for a dev-allowed viewer (clients never get `BB_DEV`, so it stays hidden
+for them) and reveals: unprocessed/New leads across the CS charts, a Source-ID (campaign) filter, a full
+per-lead **detail table** (all fields incl. PII + CSV) at the bottom of the CS Overview, and a dev-only
+**"Data from Transmission" tab** (inventory of every `raw_snowflake` mirror Transmission feeds us + whether
+this dashboard surfaces it — needs the job's `transmission_data` payload). See
 `clients/client_cloudflare/README.md` → Dev mode.
 
 ## Fixed facts (memorize; never re-derive)

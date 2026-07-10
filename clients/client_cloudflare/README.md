@@ -183,15 +183,30 @@ the **Transmission agency** portal (see `bidbrain-platform/dash/main.py` `_dev_f
 alongside `window.BB_SPEND_MULT`). A `?dev=1` URL param is a fallback for direct (non-proxied) access.
 Dev mode is **OFF by default**, so the client-facing view is byte-for-byte unchanged.
 
-When ON it (a) surfaces the unprocessed backlog across **all** CS Overview charts - an "Unprocessed"
-KPI in the Overall group, a stacked bar on the pacing chart, an unprocessed line on the Accepted-leads
-trend, an Unprocessed bar per market card, and New leads folded into the Solutions / Country /
-demographic / asset composition donuts (centre totals become accepted + unprocessed); and (b) exposes a
-**Source-ID (campaign) dropdown** that filters the CS view to a single `CAMPAIGN_ID`. The filter applies
-to LEADS only - the plan/target stays at the market grain - and the acceptance/rejection rate denominator
-stays reviewed-only (unchanged). All of this is frontend-only (`dash/dashboard.html`): `devMode` +
-`selCampaignId` globals gate it, `aggregate()` is the single choke point, and it reads New leads already
-present in `pacing.rows[]`.
+Dev mode **defaults ON** for a dev-allowed viewer (so you don't have to find the toggle); clients never
+get `window.BB_DEV` so it stays off/hidden for them. When ON it:
+
+- **(a) Unprocessed across all CS Overview charts** - an "Unprocessed" KPI in the Overall group, a
+  stacked bar on the pacing chart, an unprocessed line on the Accepted-leads trend, an Unprocessed bar
+  per market card, and New leads folded into the Solutions / Country / demographic / asset composition
+  donuts (centre totals become accepted + unprocessed).
+- **(b) Source-ID (campaign) dropdown** that filters the CS view to a single `CAMPAIGN_ID`. LEADS only -
+  the plan/target stays at the market grain; the acceptance/rejection rate denominator stays reviewed-only.
+- **(c) Lead-detail table** at the bottom of the CS Overview - every lead in the current filter with
+  EVERY field we hold (Source ID, campaign, status, date, market, publisher/offer, company, title,
+  country, name, email, phone, opt-in, lead id, raw timestamps, source file). Sortable + scrollable,
+  capped at 1000 DOM rows, with a full-set **CSV export**. Contains PII, so it's `devMode`-gated (never
+  client-facing). Frontend-only - the fields are already in `pacing.rows[]`.
+- **(d) "Data from Transmission" tab** (a dev-only tab) - an inventory of every `raw_snowflake` mirror
+  Transmission feeds us: what it is, live row count + last-updated (from `__TABLES__`), and whether THIS
+  dashboard surfaces it + where. 4 used (CS / Trade Desk / LinkedIn / Reddit), 4 received-but-unused
+  (DV360 / Google Ads / GA4 / TTD pixel). LINE is a manual export, not a Transmission feed, so it's
+  excluded (noted in a footnote). **This one needs the job** (`build_transmission_data()` + `TX_TABLES`
+  curated meta -> `transmission_data` in `cloudflare.json`), not just the frontend.
+
+Frontend gating: `DEV_ALLOWED` (window.BB_DEV or ?dev=1) shows the controls + the tab; `devMode` (the
+toggle, default = `DEV_ALLOWED`) drives the in-CS unprocessed/lead-table rendering; `aggregate()` is the
+single choke point.
 
 ### Korea reconciliation (144 vs 164) — Ian to confirm with data
 
@@ -325,9 +340,14 @@ the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (
     "cf1_india":   { …same…, "cs": { "target":110,"metric","accepted","rejected","new","total",
                                       "reviewed","data_through","by_publisher":[…],"by_region":[…],"daily":[…] } },
     "coles_hyper": { … }
-  }
+  },
+  "transmission_data": [ { "table","label","rows","last_modified","used","where" } ]
 }
 ```
+
+`transmission_data` (2026-07-10) is the source-table inventory for the dev-only **"Data from
+Transmission" tab** - one row per `raw_snowflake` mirror (live `rows`/`last_modified` from `__TABLES__`,
+`used`/`where` from the curated `TX_TABLES` map in `job/main.py`). See _Dev mode_ above.
 
 `dashboard.html` reads `paid_media` exactly like the old `paid_media.json`
 (`adaptPayload` is unchanged) and `pacing.rows` exactly like the old
