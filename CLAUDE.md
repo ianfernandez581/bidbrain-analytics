@@ -229,6 +229,17 @@ Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,3
   `DATA` is parsed) that grosses RAW spend by `window.BB_SPEND_MULT` per channel. When you add a NEW
   spend field or a precomputed spend/budget aggregate, make sure it's grossed too (row spend is stashed
   as `_rawSpend`); when you add revenue/ROAS/MER, keep it on RAW spend (see the per-client notes above).
+- **Two vendored chart/table helpers ship in EVERY dashboard (2026-07-10), canonical copy in
+  `clients/client_resetdata/dash/dashboard.html`:** (a) a **`bb-sortable`** engine that makes every
+  data-table header click-to-sort (▼desc/▲asc, numeric parse stripping `$ , %`, non-numeric/empty sink
+  to the bottom both ways, Total row pinned, survives `innerHTML` re-renders via a MutationObserver,
+  skips tables with `colspan` group-header rows); (b) a **`bbDonutCenter`** Chart.js plugin that draws a
+  dynamic centre total summing ONLY visible slices, configured per donut with a **data-only**
+  `options.plugins.bbCenter = {label, prefix?, color?}`. **CRITICAL Chart.js v4 gotcha: NEVER put a
+  FUNCTION in `options.plugins.*`** — Chart.js treats it as a "scriptable option" and auto-invokes it
+  with a context object on read, which throws and BLANKS the chart (this silently blanked a whole
+  dashboard once). Keep plugin options strings/numbers only. proptrack + STT keep their own bespoke
+  `$dim`-selection donut centres (bbCenter dormant there).
 - **Time-series charts carry a grain + scale toggle (all 10 clients).** Every genuine time-series
   line/bar/mixed chart has a `.seg` "VIEW BY" Month/Week/Day control and an "AXIS" Relative/Absolute
   control (**default Relative**). Relative indexes overlay LINE series to peak=100 on a shared 0–100
