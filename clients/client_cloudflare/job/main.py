@@ -240,7 +240,7 @@ def main():
     # Client request (2026-06-22): surface CF1's content-syndication delivery INSIDE the
     # CF1 India single-campaign view. Vendors upload leads to CaptureIQ; Nabeel uploads them
     # to Integrate; they land in Salesforce -> raw_snowflake.salesforce_cs_apac_all, read here
-    # via sql/14_cf1_cs (the 2 CF1 CS campaign IDs -- also in the core 12-campaign filter, but
+    # via sql/14_cf1_cs (the 2 CF1 CS campaign IDs -- also in the core 13-campaign filter, but
     # this is a separate CF1-scoped lane). TARGET = 110 Double Touch MQLs. Every lead in these
     # campaigns is a double-touch lead, so the ACCEPTED count IS the delivered double-touch MQL
     # count. DT_CREATED is a single bulk-load instant (manual Integrate upload), so the cumulative

@@ -1285,7 +1285,7 @@ def _cf_cs_cte(defs):
 
 def _build_cf_cs_checks(defs):
     """Cloudflare's Content-Syndication checks (4 CS quality + Korea, RIG & OTHER residual + 4 CF1), built
-    entirely from definitions.json. Core CS counts span the whole 12-campaign universe (all regions
+    entirely from definitions.json. Core CS counts span the whole 13-campaign universe (all regions
     incl. the OTHER residual) — a pipeline-integrity check on pacing.rows[]. NOTE (2026-07-02): the
     dashboard's *displayed* CS total excludes OTHER (its totals sum over the 11 market chips, and KR is
     now the 6 El* campaigns), so the displayed total runs ~55 below this whole-universe count (live 2026-07-02)."""
@@ -1300,7 +1300,7 @@ def _build_cf_cs_checks(defs):
         return str(s).replace("'", "''")
 
     def total_leads(d):
-        # Whole 12-campaign CS universe — every market (no residual since 2026-06-25). The total
+        # Whole 13-campaign CS universe — every market (no residual since 2026-06-25). The total
         # is unchanged by the re-bucketing; only which market each lead lands in changed.
         return sum(1 for r in d.get("pacing", {}).get("rows", [])
                    if not _is_dummy(r) and r.get("LEAD_STATUS") is not None)
@@ -1324,7 +1324,7 @@ def _build_cf_cs_checks(defs):
          "sql": cte + "SELECT COUNT(*) AS total_leads\nFROM cf_cs\n"
                 "WHERE LEAD_STATUS IS NOT NULL;",
          "note": "SQL = the dash pipeline itself (definitions.json: campaign filter + client-defined "
-                 "REGION_GRP), the whole 12-campaign universe — every one of the 11 markets (no residual). "
+                 "REGION_GRP), the whole 13-campaign universe — every one of the 11 markets (no residual). "
                  "Counts every non-null status (incl. New). vs the same count over pacing.rows[] "
                  "(all markets)." + _CF_CS_NOTE},
         {"label": "CS · Accepted (Accepted+Replied+Unresponsive)", "kind": "count", "group": "Content Syndication",

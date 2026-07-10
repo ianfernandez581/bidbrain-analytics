@@ -224,7 +224,7 @@ NOT our pipeline) keeps the geographic logic, but its KR arm was **also campaign
 (2026-07-02) — that file is a **manual Snowflake DDL our read-only roles can't apply**, so it needs an
 owner/ACCOUNTADMIN to run the `CREATE OR REPLACE` (keep the `copy grants`) before Transmission's own view
 matches. The **status dashboard** reproduces KR / RIG + **reconciles the `OTHER` residual** straight from
-Snowflake; its core CS counts (Total / Accepted / Rejected / New) query the whole 12-campaign universe
+Snowflake; its core CS counts (Total / Accepted / Rejected / New) query the whole 13-campaign universe
 with **no region filter** (so they include the ~55 OTHER leads the dash omits).
 
 **Targets follow the media-plan sheet** per market (Q2 total **3216**: AU 1150 / NZ 127 / SIM 381 /
@@ -325,7 +325,7 @@ dropdown (read from the shared `raw_snowflake.linkedin_ads_apac` mirror, not fro
 Snowflake directly). **CF1 also carries a content-syndication lane** (`campaigns.cf1_india.cs`,
 from `sql/14_cf1_cs`): "Double Touch MQLs" vs a **110 target** — accepted/rejected, by
 publisher/region, and a cumulative-delivery line keyed on the lead `DAY`. It's the 2 CF1
-CS campaign IDs (vendors→CaptureIQ→Integrate→Salesforce; also in the core 12-ID filter, but
+CS campaign IDs (vendors→CaptureIQ→Integrate→Salesforce; also in the core 13-ID filter, but
 this is a separate CF1-scoped view). In the UI the CF1 single-campaign view is split into two
 **tabs** (`#cmpTabs`, mirroring the Core dashboard's tab pattern): **LinkedIn Paid Media**
 (`#cmpLI`, default) and **Content Syndication** (`#cmpCS`). `setupCmpTabs()` shows the tab bar

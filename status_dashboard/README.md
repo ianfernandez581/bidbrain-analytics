@@ -130,7 +130,7 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
   `raw_snowflake.linkedin_ads_apac` mirror.
   - **Core CS counts (Total / Accepted / Rejected / New)** now query the **raw source**
-    `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` on the canonical **12-campaign filter** (sql/10) with
+    `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` on the canonical **13-campaign filter** (sql/10) with
     **NO region filter** — so they span every region **including the ~55-lead OTHER residual** (Accepted =
     Accepted+Replied+Unresponsive, OPPOSITE of mongodb). Note the dashboard's *displayed*
     CS total excludes OTHER (its totals sum over the 11 market chips), so it runs ~55 below this whole-universe
@@ -151,7 +151,7 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   - **CF1 Double-Touch CS lane (2026-06-22)** — the "CF1 India" single-campaign view gained a `cs` block
     (Double Touch MQLs) from `sql/14_cf1_cs`. Four checks (Accepted / Rejected / New / Total) hit the **raw
     source** `APAC_ALL_PLATFORM.PUBLIC."Salesforce_CS_APAC_ALL"` on the 2 CF1 CS campaign IDs
-    (`701RG00001NJd6NYAT` / `701RG00001NIYRKYA5`) — the same IDs are also in the core 12-campaign filter, but
+    (`701RG00001NJd6NYAT` / `701RG00001NIYRKYA5`) — the same IDs are also in the core 13-campaign filter, but
     this is a separate CF1-scoped lane. **Accepted** = the delivered double-touch MQL count (vs the 110
     target); the client's headline **Total** = New + Accepted (excludes Rejected, so NOT `COUNT(*)`).
     Compared against `campaigns.cf1_india.cs.*`.
