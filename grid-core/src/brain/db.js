@@ -208,7 +208,7 @@ module.exports = {
       ON CONFLICT(row_id,field) DO UPDATE SET value=@value,updated_at=@updated_at,source=@source,filename=@filename,cell_ref=@cell_ref`)
       .run({
         row_id: rowId, field, value: JSON.stringify(value === undefined ? null : value),
-        updated_at: now(), source: scope === 'plan' ? 'plan' : 'manual',
+        updated_at: now(), source: meta.source || (scope === 'plan' ? 'plan' : 'manual'),
         filename: meta.filename || null, cell_ref: meta.cellRef || null
       });
     return { ok: true };

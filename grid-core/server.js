@@ -235,12 +235,16 @@ function valuesEqual(a, b) {
 // acknowledgeConflicts (no silent overwrites).
 async function centralPlanCommit(req, res, id) {
   let body; try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
-  const draft = db.getPlanExtraction(id);
-  if (!draft) return send(res, 404, { error: 'extraction not found' });
-  if (draft.status === 'committed') return send(res, 400, { error: 'this extraction was already committed' });
   const fields = body.fields || {};
   const ack = new Set(Array.isArray(body.acknowledgeConflicts) ? body.acknowledgeConflicts : []);
   const createNew = !!body.createNew;
+
+  const draft = db.getPlanExtraction(id);
+  // Manual entry (the "enter details manually" path) has no draft and is always
+  // createNew — allow it; its writes are tagged source 'manual', not 'plan'.
+  const manual = !draft && createNew;
+  if (!draft && !manual) return send(res, 404, { error: 'extraction not found' });
+  if (draft && draft.status === 'committed') return send(res, 400, { error: 'this extraction was already committed' });
 
   let rowId = body.rowId;
   if (createNew) {
@@ -250,8 +254,9 @@ async function centralPlanCommit(req, res, id) {
   }
   if (!rowId) return send(res, 400, { error: 'pick a matching campaign or choose "create new" before committing' });
 
-  // provenance (filename + per-field cellRef) from the stored draft
-  let stored = {}; try { stored = JSON.parse(draft.extracted_json || '{}').fields || {}; } catch { }
+  // provenance (filename + per-field cellRef) from the stored draft (none for manual)
+  let stored = {}; if (draft) { try { stored = JSON.parse(draft.extracted_json || '{}').fields || {}; } catch { } }
+  const source = draft ? 'plan' : 'manual';
   const current = planReader.currentRowValues(rowId);
 
   // validate everything BEFORE writing anything
@@ -267,12 +272,16 @@ async function centralPlanCommit(req, res, id) {
   // all valid → write
   let n = 0;
   for (const f of names) {
-    const meta = { filename: draft.filename, cellRef: stored[f] ? (stored[f].cellRef || (stored[f].page != null ? 'p' + stored[f].page : null)) : null };
-    const r = db.setCentralField(rowId, f, fields[f], 'plan', meta);
+    const meta = {
+      filename: draft ? draft.filename : null,
+      cellRef: stored[f] ? (stored[f].cellRef || (stored[f].page != null ? 'p' + stored[f].page : null)) : null,
+      source
+    };
+    const r = db.setCentralField(rowId, f, fields[f], 'plan', meta);   // scope 'plan' = whitelist; source set via meta
     if (r.ok) n++;
   }
-  db.setPlanStatus(id, 'committed', rowId);
-  console.log(`[CENTRAL][Plan] commit ${id} -> ${rowId} (${n} fields)`);
+  if (draft) db.setPlanStatus(id, 'committed', rowId);
+  console.log(`[CENTRAL][Plan] commit ${id} -> ${rowId} (${n} fields, ${source})`);
   return send(res, 200, { ok: true, rowId, fieldsWritten: n, fields: db.getCentralFieldsForId(rowId) });
 }
 
