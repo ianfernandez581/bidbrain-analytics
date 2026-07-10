@@ -1,8 +1,15 @@
 /**
- * config/central-seed.js — placeholder rows for the Central tab (the "Live Campaigns"
- * skeleton). HAND-SEEDED for this task only: no live data yet. Rows carry ONLY
- * [CONFIG]/[API] fields — every [DERIVED] column is computed by src/central/calc.js
- * at render time, never stored here.
+ * config/central-seed.js — TEST FIXTURE, NOT A RUNTIME DATA SOURCE.
+ * ----------------------------------------------------------------------------
+ * The live Central tab reads the real `const DATA` array (the full Central2.xlsx
+ * "Live Campaigns" parse from build_grid_data.py) — see render-central.js
+ * getSourceRows(). These 7 hand-seeded rows exist ONLY so the render smoke tests
+ * have a small, stable, edge-case-covering dataset (both agencies, multi-campaign
+ * clients, one all-null row for the divide-by-zero guards). Do not point the live
+ * tab at this file.
+ *
+ * Rows carry ONLY [CONFIG]/[API] fields — every [DERIVED] column is computed by
+ * src/central/calc.js at render time, never stored here.
  *
  * Coverage this seed intentionally exercises:
  *   - both agency sections, in order: "100% Digital" then "Transmission"

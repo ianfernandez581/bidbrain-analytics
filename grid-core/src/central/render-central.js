@@ -81,24 +81,42 @@
     return n(client) + '::' + n(name);
   }
 
-  // CONFIG fields that count toward the "missing config" nudge.
-  var CONFIG_REQUIRED = ['jobNumber', 'objective', 'channel', 'managedBy', 'startDate', 'endDate', 'platformMargin', 'forecastCpm', 'keyKpi', 'budgetGross', 'totalBudget'];
+  // Manual-entry [CONFIG] fields — the ones a trader fills by hand. Empty ones get the
+  // needs-input tint + inline edit; the row's missing count is over this set. NEVER
+  // includes [DERIVED] (their — is correct output) or [API] (that is the sync's job).
+  var NEEDS_INPUT = ['managedBy', 'channel', 'status', 'platformMargin', 'jobNumber', 'forecastCpm',
+    'keyKpi', 'totalBudget', 'budgetGross', 'startDate', 'endDate', 'adServingCost', 'notes', 'spendMult'];
+  function isEmpty(v) { return v == null || v === ''; }
+  function needsInput(field, value) { return NEEDS_INPUT.indexOf(field) >= 0 && isEmpty(value); }
 
-  // Build render rows: seed -> map -> overlay overrides -> compute derived.
+  // Live data source: the real DATA array (build_grid_data.py → Central2.xlsx parse).
+  // Falls back to the seed FIXTURE only when DATA is absent (the Node render smoke test).
+  function getSourceRows() {
+    try { if (typeof DATA !== 'undefined' && Array.isArray(DATA) && DATA.length) return DATA; } catch (e) { }
+    if (typeof window !== 'undefined' && Array.isArray(window.DATA) && window.DATA.length) return window.DATA;
+    return (window.CentralSeed && window.CentralSeed.CAMPAIGNS) || [];
+  }
+
+  // Build render rows: source -> map (single name-translation) -> overlay overrides ->
+  // compute derived FRESH (the sheet's own derived columns are ignored in favour of _d).
   function buildRows() {
-    var seed = (window.CentralSeed && window.CentralSeed.CAMPAIGNS) || [];
+    var src = getSourceRows();
     var calc = window.CentralCalc;
     var ov = CS.overrides || {};
-    return seed.map(function (raw) {
+    return src.map(function (raw) {
       var r = Object.assign({}, mapGridRowToCentral(raw));
+      // datetime-in-campaign-name sheet quirk → always a clean string, never a Date/serial
+      if (r.name instanceof Date) r.name = r.name.toISOString().slice(0, 10);
+      else if (typeof r.name === 'string') r.name = r.name.replace(/\s00:00:00$/, '');
       var id = centralRowId(r.client, r.name);
       r._id = id; r._src = {};
       var o = ov[id] || {};
       for (var f in o) if (Object.prototype.hasOwnProperty.call(o, f)) { r[f] = o[f].value; r._src[f] = o[f]; }
       r._d = calc ? calc.computeRow(r, new Date()) : {};
-      r._missing = CONFIG_REQUIRED.filter(function (f) { return r[f] == null || r[f] === ''; });
-      // unbilled-basis: live spend used as client spend without a known multiplier
-      r._unbilled = (r.metricsSource === 'BQ') && (r.spendMult == null || Number(r.spendMult) === 1);
+      r._missing = NEEDS_INPUT.filter(function (f) { return isEmpty(r[f]); });
+      // unbilled-basis: spend present but no per-channel billing multiplier to certify the
+      // client-spend basis. Fires widely BY DESIGN until spendMult is populated per channel.
+      r._unbilled = (r.mediaSpend != null || r.clientSpend != null) && (r.spendMult == null || Number(r.spendMult) === 1);
       return r;
     });
   }
@@ -126,7 +144,7 @@
         var client = grouped ? '' : '<div class="ct-cl">' + esc(r.client || '') + '</div>';
         var badges = '';
         if (!r.jobNumber) badges += '<span class="ct-badge ct-badge-warn" title="No job number set">no job #</span>';
-        if (r._unbilled) badges += '<span class="ct-badge ct-badge-bad" title="Live media spend shown as client spend without a billing multiplier (spendMult). Not a billed figure.">unbilled basis</span>';
+        if (r._unbilled) badges += '<span class="ct-badge ct-badge-bad" title="No spendMult recorded for this channel — the client-spend billing basis cannot be verified. Expected on most rows until spendMult is populated.">unbilled basis</span>';
         if (r._missing.length) badges += '<button class="ct-badge ct-badge-miss" data-missing="' + esc(r._id) + '" title="' + r._missing.length + ' CONFIG fields empty: ' + esc(r._missing.join(', ')) + '">' + r._missing.length + ' fields missing</button>';
         return client + '<div class="ct-nm">' + esc(r.name || '—') + '</div>' + (r.objective ? '<div class="ct-sub">' + esc(r.objective) + '</div>' : '') + (badges ? '<div class="ct-badges">' + badges + '</div>' : '');
       }
@@ -262,14 +280,18 @@
   function bodyHtml(rows, grouped) {
     if (!rows.length) return '<tr><td colspan="' + COLS.length + '"><div class="ct-empty">No campaigns match these filters.</div></td></tr>';
     if (!grouped) return sortRows(rows).map(function (r) { return rowHtml(r, false); }).join('');
-    // grouped: agency sections -> client sub-groups
-    var order = (window.CentralSeed && window.CentralSeed.AGENCY_ORDER) || ['100% Digital', 'Transmission'];
+    // grouped: agency sections (present agencies, preferred order, CASE-INSENSITIVE so
+    // the real DATA's UPPERCASE agencies and the seed's Title-Case both group correctly)
+    var pref = ['100% digital', 'transmission'];
+    var present = [];
+    rows.forEach(function (r) { if (present.indexOf(r.agency) < 0) present.push(r.agency); });
+    present.sort(function (a, b) { var ia = pref.indexOf(String(a || '').toLowerCase()); var ib = pref.indexOf(String(b || '').toLowerCase()); return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib); });
     var html = '';
-    order.forEach(function (ag) {
+    present.forEach(function (ag) {
       var inAg = rows.filter(function (r) { return r.agency === ag; });
       if (!inAg.length) return;
       var activeN = inAg.filter(function (r) { return (r.status || '').toLowerCase() === 'active'; }).length;
-      html += '<tr class="ct-section"><td colspan="' + COLS.length + '">' + esc(AGENCY_LABEL[ag] || ag) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
+      html += '<tr class="ct-section"><td colspan="' + COLS.length + '">' + esc(String(ag || '—').toUpperCase()) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
       var byClient = {}; var clientOrder = [];
       inAg.forEach(function (r) { if (!byClient[r.client]) { byClient[r.client] = []; clientOrder.push(r.client); } byClient[r.client].push(r); });
       clientOrder.forEach(function (cl) {
@@ -281,16 +303,23 @@
   }
 
   function rowHtml(r, grouped) {
-    var hl = CS.highlightMissing === r._id;
+    var hlRow = CS.highlightMissing === r._id;
     return '<tr class="ct-row" data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
+      var needs = needsInput(c.id, r[c.id]);        // empty manual [CONFIG] field → needs input
       var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '') + (c.type === 'api' ? 'ct-api-col ' : '');
-      var missing = hl && c.type === 'config' && (r[c.id] == null || r[c.id] === '');
-      if (missing) cls += 'ct-missing-hl ';
+      if (needs) cls += 'ct-needs ';                 // faint amber to-do tint (never on derived/api)
+      if (hlRow && needs) cls += 'ct-needs-focus ';
       var inner;
-      if (c.editable && EDIT_COLS.indexOf(c.editable) >= 0) inner = editSelect(r, c.editable);
+      if (c.editable && EDIT_COLS.indexOf(c.editable) >= 0) inner = editSelect(r, c.editable);          // dropdown (empty shows —, tinted)
+      else if (needs) inner = editableEmptyCell(r, c.id);                                                // inline-fill an empty manual cell
       else inner = (c.id === 'campaign') ? c.cell(r, grouped) : c.cell(r);
-      return '<td class="' + cls.trim() + '">' + inner + '</td>';
+      return '<td class="' + cls.trim() + '"' + (needs ? ' title="needs input"' : '') + '>' + inner + '</td>';
     }).join('') + '</tr>';
+  }
+  // empty manual text/number cell → contenteditable (reuses brain-historical's pattern);
+  // blur/Enter saves via the whitelisted field route. Placeholder shown while empty.
+  function editableEmptyCell(r, field) {
+    return '<span class="ct-ce" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="' + field + '" data-ph="add"></span>';
   }
 
   function editSelect(r, field) {
@@ -332,10 +361,15 @@
     mount.querySelectorAll('#ct-fstatus .ct-chip').forEach(function (b) { b.addEventListener('click', function () { CS.status = b.dataset.v; paint(mount); }); });
     // health chips (click active clears)
     mount.querySelectorAll('.ct-hchip').forEach(function (b) { b.addEventListener('click', function () { var h = b.dataset.health; CS.health = (CS.health === h) ? 'all' : h; paint(mount); }); });
-    // editable dropdowns
+    // editable dropdowns (managedBy / channel / status)
     mount.querySelectorAll('.ct-editsel').forEach(function (sel) { sel.addEventListener('change', function () { onEdit(sel, mount); }); });
-    // missing-config badge -> highlight empty cells on that row
-    mount.querySelectorAll('[data-missing]').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); CS.highlightMissing = (CS.highlightMissing === b.dataset.missing) ? null : b.dataset.missing; paint(mount); var tr = mount.querySelector('tr[data-id="' + cssEsc(b.dataset.missing) + '"]'); if (tr) tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); }); });
+    // inline-editable empty manual cells (text / number CONFIG) — blur/Enter saves
+    mount.querySelectorAll('.ct-ce').forEach(function (ce) {
+      ce.addEventListener('blur', function () { onInlineEdit(ce, mount); });
+      ce.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); ce.blur(); } else if (e.key === 'Escape') { ce.textContent = ''; ce.blur(); } });
+    });
+    // missing-config badge -> scroll to the row + focus its FIRST needs-input cell
+    mount.querySelectorAll('[data-missing]').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); var id = b.dataset.missing; CS.highlightMissing = (CS.highlightMissing === id) ? null : id; paint(mount); var tr = mount.querySelector('tr[data-id="' + cssEsc(id) + '"]'); if (tr) { tr.scrollIntoView({ block: 'center', behavior: 'smooth' }); var f = tr.querySelector('td.ct-needs .ct-ce, td.ct-needs .ct-editsel'); if (f && f.focus) f.focus(); } }); });
     // sync (stub) + export
     var sync = mount.querySelector('#ct-sync'); if (sync) sync.addEventListener('click', function () { doSync(sync); });
     var exp = mount.querySelector('#ct-export'); if (exp) exp.addEventListener('click', function () { exportCsv(); });
@@ -349,6 +383,24 @@
       if (typed == null || typed.trim() === '') { paint(mount); return; }
       value = typed.trim();
     }
+    postField(id, field, value === '' ? null : value, mount);
+  }
+  function onInlineEdit(ce, mount) {
+    var raw = (ce.textContent || '').trim();
+    if (raw === '') return;                              // nothing typed → stays empty/tinted
+    postField(ce.dataset.id, ce.dataset.field, coerceEdit(ce.dataset.field, raw), mount);
+  }
+  // light client-side coercion so inline-typed values land in the same shape as the seed
+  // (percent → 0-1, "$20k" → 20000); text + dates pass through untouched.
+  function coerceEdit(field, raw) {
+    if (field === 'platformMargin') { var p = parseFloat(String(raw).replace(/[%\s]/g, '')); if (isNaN(p)) return raw; return (String(raw).indexOf('%') >= 0 || p > 1) ? p / 100 : p; }
+    if (['forecastCpm', 'totalBudget', 'budgetGross', 'adServingCost', 'spendMult'].indexOf(field) >= 0) {
+      var s = String(raw).replace(/[$,\s]/g, ''), mult = 1; if (/[kK]$/.test(s)) { mult = 1000; s = s.slice(0, -1); }
+      var n = parseFloat(s); return isNaN(n) ? raw : n * mult;
+    }
+    return raw;
+  }
+  function postField(id, field, value, mount) {
     fetch('/api/central/row/' + encodeURIComponent(id) + '/field', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ field: field, value: value })
     }).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
@@ -357,7 +409,7 @@
         CS.overrides[id] = CS.overrides[id] || {};
         CS.overrides[id][field] = { value: value, source: 'manual' };
         toastOk('Saved ' + field);
-        paint(mount);
+        paint(mount);       // tint clears (now populated) + missing-config badge recalculates
       }).catch(function () { toastErr('Save failed (is the server running?)'); paint(mount); });
   }
 
@@ -457,7 +509,13 @@
       '.ct-badge{font-size:9px;font-weight:700;letter-spacing:.03em;padding:2px 6px;border-radius:6px;border:0;font-family:inherit}',
       '.ct-badge-warn{background:var(--warn-soft);color:var(--warn)}.ct-badge-bad{background:var(--bad-soft);color:var(--bad)}',
       '.ct-badge-miss{background:var(--line-2);color:var(--ink-2);cursor:pointer}.ct-badge-miss:hover{color:var(--ink)}',
-      '.ct-missing-hl{box-shadow:inset 0 0 0 2px var(--warn)!important;background:var(--warn-soft)!important}',
+      // needs-input to-do cue: faint amber tint (derived from the warning token), quiet
+      '.ct-needs{background:color-mix(in srgb, var(--warn) 10%, transparent)}',
+      '.ct-needs:hover{background:color-mix(in srgb, var(--warn) 20%, transparent)}',
+      '.ct-needs-focus{box-shadow:inset 0 0 0 2px var(--warn)}',
+      '.ct-ce{display:inline-block;min-width:46px;min-height:15px;padding:1px 4px;border-radius:4px;cursor:text;outline:none;color:var(--ink)}',
+      '.ct-ce:empty::before{content:attr(data-ph);color:var(--ink-3);opacity:.6}',
+      '.ct-ce:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--panel)}',
       '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px}',
       '.ct-chan-code{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:20px;color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.02em}',
       '.ct-mgr{display:inline-block;font-weight:600}',
@@ -488,5 +546,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, NEEDS_INPUT: NEEDS_INPUT, CS: CS };
 });

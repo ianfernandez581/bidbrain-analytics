@@ -68,8 +68,13 @@ const now = () => new Date().toISOString();
 const CENTRAL_PLAN_FIELDS = ['jobNumber', 'client', 'name', 'objective', 'channel', 'managedBy',
   'startDate', 'endDate', 'platformMargin', 'adServingCost', 'forecastCpm', 'keyKpi', 'kpiTarget',
   'budgetGross', 'totalBudget', 'spendMult', 'notes'];
-// Fields the inline dropdown/edit route may write.
-const CENTRAL_EDIT_FIELDS = ['managedBy', 'channel', 'status', 'platformMargin', 'notes', 'jobNumber'];
+// Fields the inline dropdown/edit route may write — the "manual-entry set": every
+// [CONFIG] field a trader fills by hand (dropdowns + inline-editable cells). Still a
+// strict whitelist; [CONFIG] identity/derived fields stay out (client/name/objective
+// come from the plan-commit path, derived is never writable).
+const CENTRAL_EDIT_FIELDS = ['managedBy', 'channel', 'status', 'platformMargin', 'jobNumber',
+  'forecastCpm', 'keyKpi', 'totalBudget', 'budgetGross', 'startDate', 'endDate', 'adServingCost',
+  'notes', 'spendMult'];
 // DERIVED fields — never writable by anything. Any attempt is rejected (defense in depth).
 const CENTRAL_DERIVED_FIELDS = ['campaignMargin', 'cpmPerformance', 'kpiPerformance', 'budgetRemaining',
   'pctBudgetSpent', 'pctFlightElapsed', 'pacingStatus', 'marginDelta', 'marginBand', 'health'];

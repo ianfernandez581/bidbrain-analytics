@@ -261,7 +261,8 @@ each render, with every division guarded to render `—`.
 ```
 src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). Adds
                                 marginDelta / marginBand / health to the base formulas.
-config/central-seed.js       ← seed rows (calc.js field names). Base CONFIG layer.
+config/central-seed.js       ← TEST FIXTURE (render smoke tests only). The LIVE tab
+                                reads the real `const DATA` array; see getSourceRows().
 src/central/render-central.js← the tab: table (cloned from renderRegister), grouping,
                                 colour-coding, filters, sort, dropdowns, sync/export.
                                 Holds mapGridRowToCentral() — the ONLY name-translation
@@ -274,8 +275,12 @@ Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register |
 `#view-central`, dispatch in `renderContent()`, hash whitelist, `<script src>` tags.
 
 ## Data model + persistence (one store)
-`config/central-seed.js` is the base CONFIG layer. Per-field edits (dropdowns) and
-media-plan commits are stored as **overrides** in SQLite `central_rows` (in the existing
+The **live data source is the real `const DATA` array** in `the-grid.html` (the full
+`Central2.xlsx` "Live Campaigns" parse from `build_grid_data.py`, ~83 rows) — every row
+flows through `mapGridRowToCentral()` (the single name-translation point) then
+`CentralCalc.computeRow()`. `central-seed.js` is a TEST FIXTURE only. Per-field edits
+(dropdowns + inline cells) and media-plan commits are stored as **overrides** in SQLite
+`central_rows` (in the existing
 `src/brain/db.js`, keyed by `rowId = "client::name"`, value JSON-encoded, `source =
 'manual'|'plan'`) and layered over the seed at render time. **DERIVED fields are never
 stored or written** — `db.js` whitelists (`CENTRAL_EDIT_FIELDS`, `CENTRAL_PLAN_FIELDS`) and
@@ -300,10 +305,15 @@ PDF/DOC with no LLM key falls through to an empty panel for manual entry — nev
 
 ## Decisions baked in
 - **Platform margin is CONFIG**, not API (no connector returns it) — editable, never synced.
-- **Client spend = mediaSpend × spendMult**; when live spend is overlaid without a
-  multiplier the row shows an **"unbilled basis"** badge (never silently bill raw spend).
+- **Client spend = mediaSpend × spendMult**; a row with spend but no `spendMult` shows an
+  **"unbilled basis"** badge (billing basis unverified). This fires **widely by design** on
+  the real sheet — no row has `spendMult` yet — and clears once it is populated per channel.
 - **Join key = (client, campaign-name)**; null `jobNumber` shows a **"no job #"** badge.
 - Stale guard: API columns desaturate when `lastSynced` is null or > 4h old.
+- **Needs-input tint:** empty manual [CONFIG] cells get a faint amber to-do tint + inline
+  edit (dropdown or contenteditable → the whitelisted field route). Never on [DERIVED]
+  (their "—" is correct output) or [API] (the sync's job). Agency grouping is
+  case-insensitive so the sheet's UPPERCASE agencies group correctly.
 
 ## Test
 ```
