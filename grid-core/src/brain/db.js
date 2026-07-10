@@ -71,10 +71,13 @@ CREATE TABLE IF NOT EXISTS campaigns (
   keyKpi TEXT, kpiTarget REAL, budgetGross REAL, totalBudget REAL, spendMult REAL,
   campaignLink TEXT, nextReportingDue TEXT, notes TEXT,
   impressions REAL, mediaSpend REAL, clientSpend REAL,
-  metricsSource TEXT, lastSyncedAt TEXT,
+  metricsSource TEXT, lastSyncedAt TEXT, spendBasis TEXT,
   createdAt TEXT NOT NULL, updatedAt TEXT NOT NULL, archivedAt TEXT, sourceOfRecord TEXT NOT NULL
 );
 `);
+// additive migration for DBs created before spendBasis existed (CREATE TABLE IF NOT
+// EXISTS won't add a column to an existing table). Ignore "duplicate column" on re-run.
+try { db.exec('ALTER TABLE campaigns ADD COLUMN spendBasis TEXT'); } catch (e) { /* already present */ }
 
 const now = () => new Date().toISOString();
 
@@ -333,8 +336,38 @@ module.exports = {
     if (!cur) return { ok: false, error: 'campaign not found' };
     db.prepare('UPDATE campaigns SET archivedAt=@t, updatedAt=@t WHERE id=@id').run({ t: now(), id });
     return { ok: true, campaign: this.getCampaign(id) };
+  },
+
+  // Apply SYNCED BQ metrics to one campaign. Writes ONLY API-metric columns (never
+  // CONFIG). The spendMult rule is the whole point:
+  //   spendMult set  → clientSpend = mediaSpend × spendMult, spendBasis 'billed'
+  //   spendMult unset → clientSpend UNTOUCHED (keeps its sheet value), spendBasis 'sheet'
+  // It NEVER writes clientSpend = mediaSpend (the regression that zeroed margins).
+  // Skips archived rows always, and status='Ended' unless opts.includeEnded.
+  syncCampaignMetrics(id, impressions, mediaSpend, opts) {
+    opts = opts || {};
+    const c = this.getCampaign(id);
+    if (!c) return { ok: false, reason: 'not-found' };
+    if (c.archivedAt) return { ok: false, reason: 'archived' };
+    if (c.status === 'Ended' && !opts.includeEnded) return { ok: false, reason: 'ended' };
+    const t = now();
+    const mult = (c.spendMult == null || c.spendMult === '') ? null : Number(c.spendMult);
+    const sets = {
+      impressions: impressions == null ? null : impressions,
+      mediaSpend: mediaSpend == null ? null : mediaSpend,
+      metricsSource: 'bq', lastSyncedAt: t, updatedAt: t
+    };
+    if (mult != null && Number.isFinite(mult)) {
+      sets.clientSpend = (mediaSpend == null ? null : mediaSpend * mult);   // billed = media × mult
+      sets.spendBasis = 'billed';
+    } else {
+      sets.spendBasis = 'sheet';   // NOTE: clientSpend intentionally NOT in `sets` — never overwritten
+    }
+    const cols = Object.keys(sets);
+    db.prepare(`UPDATE campaigns SET ${cols.map(k => k + '=@' + k).join(', ')} WHERE id=@id`).run(Object.assign({ id }, sets));
+    return { ok: true, reason: 'updated', spendBasis: sets.spendBasis, campaign: this.getCampaign(id) };
   }
 };
 module.exports._CAMPAIGN_ALL_COLS = ['id'].concat(module.exports._CAMPAIGN_CONFIG_COLS)
-  .concat(['impressions', 'mediaSpend', 'clientSpend', 'metricsSource', 'lastSyncedAt',
+  .concat(['impressions', 'mediaSpend', 'clientSpend', 'metricsSource', 'lastSyncedAt', 'spendBasis',
     'createdAt', 'updatedAt', 'archivedAt', 'sourceOfRecord']);

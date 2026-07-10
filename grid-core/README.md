@@ -264,6 +264,9 @@ src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). 
 config/central-seed.js       ← TEST FIXTURE (render smoke tests only). NOT a runtime source.
 config/central-import.json   ← frozen ONE-TIME import source (the pure-sheet parse); the
                                 server ingests it into the campaigns DB on boot (idempotent).
+config/central-clients.json  ← sync client mapping (validated clients + bqName→campaignId).
+scripts/central_sync.py      ← BQ metrics fetcher (adapter; reuses live_metrics.py's bq-CLI
+                                approach, does NOT modify it). Emits JSON to stdout.
 src/central/render-central.js← the tab: reads GET /api/central/campaigns (the DB), grouping,
                                 colour-coding, live-first filters, sort, dropdowns, Add,
                                 archive, sync/export. Holds mapGridRowToCentral() — the ONLY
@@ -297,6 +300,28 @@ rows + blank-status import). The default view is **live** = Active + Paused + Dr
 is `Live · Active · Paused · Not Active · Ended · All · Archived` (each with a count) and the
 header reads "N live · M total". Ended/Not Active are history, always retrievable, never deleted.
 
+## Sync (live BQ metrics)
+"Sync now" `POST /api/central/sync` spawns `scripts/central_sync.py` (30s timeout → 502; a
+sync already running → 409), which reads `config/central-clients.json` and queries BQ (bq CLI,
+ian@100.digital) per **validated** client. Matching at sync time uses ONLY the explicit map
+(no fuzzy — that's reconcile). Per mapped, non-archived, non-Ended (unless `?includeEnded=1`)
+campaign it UPDATEs `impressions`/`mediaSpend`, sets `metricsSource:'bq'`+`lastSyncedAt`, and:
+- **spendMult set** → `clientSpend = mediaSpend × spendMult`, `spendBasis:'billed'`.
+- **spendMult unset** → `clientSpend` UNTOUCHED (keeps its sheet value), `spendBasis:'sheet'`,
+  and the row shows LIVE + the unbilled-basis badge ("media spend is live; client spend awaits
+  spendMult"). It **never** writes `clientSpend = mediaSpend` (the regression that zeroed
+  Schneider margins — encoded as a test). CONFIG columns are never written by sync.
+Response: `{syncedAt, updated, perClient, unmatched, skippedClients, errors, rows}` (refreshed
+rows so the UI updates without a second fetch). Unmapped BQ names → `unmatched`; validated:false
+clients → `skippedClients`. Tests inject `CENTRAL_SYNC_FIXTURE` (a JSON path) so CI needs no BQ.
+
+## Coverage expansion (reconcile — Zhen's validation sitting)
+Only Schneider is validated today. To add a client: **Map client** panel → pick the client →
+GET `/reconcile/:client` runs the BQ name list + fuzzy-scores it against that client's Central
+campaigns → the human ticks/approves pairs → POST `/approve` writes them into
+`central-clients.json` and flips `validated:true`. Suggestions are never auto-written. A client
+needs a `pm_delivery`-shaped BQ view first (reconcile reports an empty name list otherwise).
+
 ## Lifecycle (traders manage campaigns in Central)
 - **Add campaign** (button by Sync/Export) → panel → `POST /api/central/campaigns`
   (section+client+name required, rest optional, `status:'Draft'`, `sourceOfRecord:'manual'`).
@@ -310,7 +335,9 @@ header reads "N live · M total". Ended/Not Active are history, always retrievab
 - `POST /api/central/campaigns/:id/archive` → soft delete (no hard-delete route exists)
 - `GET  /api/central/rows` → `{overrides}` (per-field provenance, keyed by campaign id)
 - `POST /api/central/row/:id/field` → edit a campaign field (`:id` = campaign id; derived → 400)
-- `POST /api/central/sync` → **501 stub** (contract documented at the route; real BQ overlay next)
+- `POST /api/central/sync[?includeEnded=1]` → live BQ overlay (see "Sync" below); 409 if already running
+- `GET  /api/central/reconcile/:client` → BQ name list + Central names + fuzzy SUGGESTIONS (never written)
+- `POST /api/central/reconcile/:client/approve` → write APPROVED pairs to the map + validated:true
 - `POST /api/central/plan/upload` → base64 JSON; extract → PENDING draft → `{fields,candidates}`
 - `POST /api/central/plan/:id/commit` → writes USER-CONFIRMED values to `campaigns`; rejects
   unacknowledged overwrites (`acknowledgeConflicts`) and derived fields; create-new → new row

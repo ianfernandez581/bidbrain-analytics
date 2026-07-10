@@ -1,0 +1,26 @@
+{
+  "_comment": "Central sync client mapping. Only validated:true clients are synced; validated:false are SKIPPED (never guessed). Matching at sync time uses ONLY this explicit map (no fuzzy matching in the sync path — fuzzy is reconcile-only, for humans). Each map entry: bqName = the exact BQ identifier (pm_delivery `program`), campaignId = the Central campaigns.id, campaignName = stable (client,name) fallback used only if campaignId is not found (e.g. after a DB rebuild). NOTE: pm_delivery aggregates per program across channels; where a program has >1 Central channel-row the total maps to one representative row (EBA is 1:1). Reconcile (Zhen) refines coverage.",
+  "clients": [
+    {
+      "client": "Schneider",
+      "validated": true,
+      "bq": { "dataset": "client_schneider", "table": "pm_delivery" },
+      "map": [
+        { "bqName": "eba", "campaignId": "cmp-520b4425aafb", "campaignName": "EBA" },
+        { "bqName": "water_env", "campaignId": "cmp-c24b8f4375bc", "campaignName": "Water and Environment" },
+        { "bqName": "airset", "campaignId": "cmp-daf98be2b67e", "campaignName": "Airset" },
+        { "bqName": "global_rebrand", "campaignId": "cmp-210b45ba43b7", "campaignName": "Advancing Energy T" },
+        { "bqName": "nel", "campaignId": "cmp-83551d68037a", "campaignName": "NEL" }
+      ]
+    },
+    { "client": "MongoDB", "validated": false, "bq": { "dataset": "client_mongodb", "table": "pm_delivery" }, "map": [] },
+    { "client": "Cloudflare", "validated": false, "bq": { "dataset": "client_cloudflare", "table": "pm_delivery" }, "map": [] },
+    { "client": "STT", "validated": false, "bq": { "dataset": "client_stt", "table": "pm_delivery" }, "map": [] },
+    { "client": "HireRight", "validated": false, "bq": { "dataset": "client_hireright", "table": "pm_delivery" }, "map": [] },
+    { "client": "City Perfume", "validated": false, "bq": { "dataset": "client_cityperfume", "table": "pm_delivery" }, "map": [] },
+    { "client": "ResetData", "validated": false, "bq": { "dataset": "client_resetdata", "table": "pm_delivery" }, "map": [] },
+    { "client": "PropTrack", "validated": false, "bq": { "dataset": "client_proptrack", "table": "pm_delivery" }, "map": [] },
+    { "client": "The Little Marionette", "validated": false, "bq": { "dataset": "client_tlm", "table": "pm_delivery" }, "map": [] },
+    { "client": "VMCH", "validated": false, "bq": { "dataset": "client_vmch", "table": "pm_delivery" }, "map": [] }
+  ]
+}

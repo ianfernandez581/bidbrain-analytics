@@ -149,7 +149,7 @@
         var client = grouped ? '' : '<div class="ct-cl">' + esc(r.client || '') + '</div>';
         var badges = '';
         if (!r.jobNumber) badges += '<span class="ct-badge ct-badge-warn" title="No job number set">no job #</span>';
-        if (r._unbilled) badges += '<span class="ct-badge ct-badge-bad" title="No spendMult recorded for this channel — the client-spend billing basis cannot be verified. Expected on most rows until spendMult is populated.">unbilled basis</span>';
+        if (r._unbilled) { var utip = isLive(r) ? 'Media spend is live; client spend awaits spendMult (still the sheet-imported value).' : 'No spendMult recorded for this channel — the client-spend billing basis cannot be verified. Expected until spendMult is populated.'; badges += '<span class="ct-badge ct-badge-bad" title="' + esc(utip) + '">unbilled basis</span>'; }
         if (r._missing.length) badges += '<button class="ct-badge ct-badge-miss" data-missing="' + esc(r._id) + '" title="' + r._missing.length + ' CONFIG fields empty: ' + esc(r._missing.join(', ')) + '">' + r._missing.length + ' fields missing</button>';
         // archive is a soft delete (row action); archived rows show a muted tag instead
         var act = r._archived
@@ -189,7 +189,12 @@
   ];
   var EDIT_COLS = ['channel', 'managedBy', 'status'];  // columns rendered as dropdowns
   function statusCls(s) { s = (s || '').toLowerCase(); if (s.indexOf('not active') >= 0) return 'notactive'; return s.indexOf('active') >= 0 ? 'active' : s.indexOf('paus') >= 0 ? 'paused' : s.indexOf('end') >= 0 ? 'ended' : 'draft'; }
-  function metricsTag(r) { var m = (r.metricsSource === 'BQ') ? 'BQ' : (r.metricsSource === 'sheet-import' ? 'sheet' : (r.metricsSource || 'sheet')); return '<span class="ct-msrc ct-msrc-' + (m === 'BQ' ? 'BQ' : 'sheet') + '" title="' + (m === 'BQ' ? 'Live from BigQuery' : 'From the one-time sheet import (not yet synced)') + '">' + m + '</span>'; }
+  function isLive(r) { return r.metricsSource === 'bq' || r.metricsSource === 'BQ'; }
+  function metricsTag(r) {
+    var live = isLive(r);
+    var t = live ? ('Live from BigQuery' + (r.lastSyncedAt ? ' · synced ' + new Date(r.lastSyncedAt).toLocaleString('en-GB') : '')) : 'From the one-time sheet import (not yet synced)';
+    return '<span class="ct-msrc ct-msrc-' + (live ? 'live' : 'sheet') + '" title="' + esc(t) + '">' + (live ? 'LIVE' : 'SHEET') + '</span>';
+  }
 
   // ============================ filtering / sorting ============================
   // Composes: status view (live-first) + archived + client + health.
@@ -255,7 +260,11 @@
     var working = all.filter(function (r) { return !r._archived; });   // archived excluded from the working set
     var rows = filtered(all);
     var counts = healthCounts(working);
-    var stale = CS.lastSynced == null || (Date.now() - CS.lastSynced) > STALE_MS;
+    // stale guard derives from REAL per-row lastSyncedAt (most recent across rows)
+    var lastTs = null;
+    all.forEach(function (r) { if (r.lastSyncedAt) { var t = Date.parse(r.lastSyncedAt); if (!isNaN(t) && (lastTs == null || t > lastTs)) lastTs = t; } });
+    CS.lastSynced = lastTs;
+    var stale = lastTs == null || (Date.now() - lastTs) > STALE_MS;
 
     var clients = [];
     working.forEach(function (r) { if (r.client && clients.indexOf(r.client) < 0) clients.push(r.client); });
@@ -273,6 +282,7 @@
       '<span class="ct-titsub"><b>' + liveN + '</b> live · ' + totalN + ' total</span></div>' +
       '<div class="ct-tools">' + lastSyncedHtml(stale) +
       '<button class="ct-btn ct-btn-primary" id="ct-add"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Add campaign</button>' +
+      '<button class="ct-btn" id="ct-map" title="Map a client\'s BQ campaigns to Central (validation sitting)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>Map client</button>' +
       '<button class="ct-btn" id="ct-sync"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg><span>Sync now</span></button>' +
       '<button class="ct-btn" id="ct-export"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export CSV</button>' +
       '</div></div>';
@@ -399,6 +409,11 @@
       if (window.CentralPlan && window.CentralPlan.openAdd) window.CentralPlan.openAdd({ clients: distinctClients(), onCreated: function () { render({ reload: true }); } });
       else toastErr('Add panel unavailable (plan-panel.js not loaded).');
     });
+    // Map client (reconcile) — suggestions only, human approves
+    var mapb = mount.querySelector('#ct-map'); if (mapb) mapb.addEventListener('click', function () {
+      if (window.CentralPlan && window.CentralPlan.openReconcile) window.CentralPlan.openReconcile({ clients: distinctClients(), onApproved: function () { render({ reload: true }); } });
+      else toastErr('Reconcile panel unavailable (plan-panel.js not loaded).');
+    });
     // archive (soft delete)
     mount.querySelectorAll('[data-archive]').forEach(function (b) { b.addEventListener('click', function (e) { e.stopPropagation(); onArchive(b.dataset.archive, mount); }); });
     // editable dropdowns (managedBy / channel / status)
@@ -465,8 +480,20 @@
   function doSync(btn) {
     btn.classList.add('ct-spin'); btn.disabled = true;
     fetch('/api/central/sync', { method: 'POST' }).then(function (r) { return r.json().then(function (d) { return { s: r.status, d: d }; }); })
-      .then(function (x) { if (x.s === 501) toastInfo((x.d && x.d.message) || 'sync backend coming soon'); else if (x.s < 300) { CS.lastSynced = Date.now(); toastOk('Synced'); } else toastErr('Sync failed'); })
-      .catch(function () { toastErr('Sync failed (server offline)'); })
+      .then(function (x) {
+        var d = x.d || {};
+        if (x.s === 409) { toastErr('A sync is already running — try again in a moment.'); return; }
+        if (x.s === 502) { toastErr('Sync failed: ' + (d.error || 'BQ fetcher error')); return; }
+        if (x.s >= 300) { toastErr(d.error || 'Sync failed'); return; }
+        if (Array.isArray(d.rows)) CS.campaigns = d.rows;   // refreshed rows → no second fetch
+        var msg = (d.updated || 0) + ' row' + (d.updated === 1 ? '' : 's') + ' updated';
+        if (d.unmatched && d.unmatched.length) msg += ' · ' + d.unmatched.length + ' unmatched';
+        var notMapped = (d.skippedClients || []).length;
+        if (notMapped) msg += ' · ' + notMapped + ' client' + (notMapped === 1 ? '' : 's') + ' not yet mapped';
+        toastOk(msg);
+        if (d.errors && d.errors.length) { console.warn('[Central sync] warnings:', d.errors); toastErr(d.errors.length + ' sync warning(s) — see console'); }
+      })
+      .catch(function () { toastErr('Sync failed — is the server running?'); })
       .then(function () { btn.classList.remove('ct-spin'); btn.disabled = false; render(); });
   }
 
@@ -581,7 +608,7 @@
       '.ct-margin{display:inline-block;padding:2px 8px;border-radius:6px;font-weight:600}',
       '.ct-band-above{background:var(--ok-soft);color:var(--ok)}.ct-band-near{background:var(--warn-soft);color:var(--warn)}.ct-band-below{background:var(--bad-soft);color:var(--bad)}',
       '.ct-msrc{font-size:8px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:6px;vertical-align:middle}',
-      '.ct-msrc-BQ{background:var(--ok-soft);color:var(--ok)}.ct-msrc-sheet{background:var(--line-2);color:var(--ink-3)}',
+      '.ct-msrc-live{background:var(--ok-soft);color:var(--ok)}.ct-msrc-sheet{background:var(--line-2);color:var(--ink-3)}',
       '.ct-srcdoc{display:inline-flex;color:var(--brand);margin-left:5px;vertical-align:middle;cursor:help}',
       '.ct-section td{background:var(--grp);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-family:"Space Grotesk";font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--ink-2);padding:8px 12px}',
       '.ct-section .ct-secn{font-weight:500;letter-spacing:0;color:var(--ink-3);font-family:"Inter";text-transform:none;margin-left:8px}',

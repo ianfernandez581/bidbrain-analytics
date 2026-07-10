@@ -298,6 +298,72 @@
       .catch(function () { toastErr('Create failed — server offline?'); btn.disabled = false; btn.textContent = 'Create'; });
   }
 
+  // ---------------------------------------------------------------- reconcile / map client
+  // Suggestions ONLY (fuzzy) — a human ticks the pairs to approve; approved pairs are
+  // written to central-clients.json (validated:true). Nothing is auto-mapped.
+  function openReconcile(api) {
+    injectCss(); close();
+    var clients = (api && api.clients) || [];
+    var back = document.createElement('div'); back.className = 'ct-pnl-back'; back.id = 'ct-pnl-back';
+    var pnl = document.createElement('aside'); pnl.className = 'ct-pnl'; pnl.id = 'ct-pnl';
+    pnl.innerHTML =
+      '<div class="ct-pnl-h"><div><h3>Map a client</h3><div class="ct-pnl-src">Fetch a client\'s BQ campaign names, then approve the pairs to make it live. Suggestions are fuzzy — you confirm each one.</div></div><button class="ct-pnl-x" id="ct-pnl-x" aria-label="Close">✕</button></div>' +
+      '<div class="ct-pnl-body">' +
+      '<div class="ct-filters"><label class="ct-fld"><span>Client</span><select id="ct-rc-client" class="ct-select">' +
+      clients.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('') +
+      '</select></label><button class="ct-btn" id="ct-rc-load">Load BQ names</button></div>' +
+      '<div id="ct-rc-results"><div class="ct-pnl-src" style="padding:10px 0">Pick a client and load its BQ names.</div></div>' +
+      '</div>' +
+      '<div class="ct-pnl-foot"><button class="ct-btn" id="ct-pnl-cancel">Close</button><button class="ct-btn ct-btn-primary" id="ct-rc-approve" disabled>Approve selected</button></div>';
+    back.appendChild(pnl); document.body.appendChild(back);
+    requestAnimationFrame(function () { back.classList.add('in'); });
+    pnl.querySelector('#ct-pnl-x').addEventListener('click', close);
+    pnl.querySelector('#ct-pnl-cancel').addEventListener('click', close);
+    back.addEventListener('click', function (e) { if (e.target === back) close(); });
+    pnl.querySelector('#ct-rc-load').addEventListener('click', function () { loadReconcile(pnl); });
+    pnl.querySelector('#ct-rc-approve').addEventListener('click', function () { approveReconcile(pnl, api); });
+  }
+  function loadReconcile(pnl) {
+    var client = pnl.querySelector('#ct-rc-client').value;
+    var host = pnl.querySelector('#ct-rc-results');
+    host.innerHTML = '<div class="ct-pnl-src" style="padding:10px 0">Loading…</div>';
+    fetch('/api/central/reconcile/' + encodeURIComponent(client)).then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) {
+        pnl.dataset.client = client;
+        if (!x.ok) { host.innerHTML = '<div class="ct-dzerr">' + esc((x.d && x.d.error) || 'Failed to load BQ names') + '</div>'; return; }
+        var d = x.d;
+        var camps = d.centralCampaigns || [];
+        if (d.error) host.innerHTML = '<div class="ct-dzerr">BQ: ' + esc(d.error) + '</div>';
+        else host.innerHTML = '';
+        if (!(d.bqNames || []).length) { host.innerHTML += '<div class="ct-pnl-src" style="padding:8px 0">No BQ campaign names returned for ' + esc(client) + '. (' + camps.length + ' Central campaigns.)</div>'; return; }
+        var opts = camps.map(function (c) { return { v: c.id, t: c.name + (c.channel ? ' · ' + c.channel : '') }; });
+        host.innerHTML += '<div class="ct-pnl-sec">BQ names → Central (' + d.bqNames.length + ' BQ · ' + camps.length + ' Central)</div>';
+        host.innerHTML += (d.suggestions || []).map(function (s) {
+          var sel = '<select class="ct-input ct-rc-camp" data-bq="' + esc(s.bqName) + '">' +
+            '<option value="">— (skip) —</option>' +
+            opts.map(function (o) { return '<option value="' + esc(o.v) + '"' + (o.v === s.campaignId ? ' selected' : '') + '>' + esc(o.t) + '</option>'; }).join('') + '</select>';
+          return '<div class="ct-field ct-rc-row"><label class="ct-rc-lbl"><input type="checkbox" class="ct-rc-ck" data-bq="' + esc(s.bqName) + '"> <b>' + esc(s.bqName) + '</b> <span class="ct-prov">' + Math.round((s.score || 0) * 100) + '%</span></label>' + sel + '</div>';
+        }).join('');
+        pnl.querySelector('#ct-rc-approve').disabled = false;
+      }).catch(function () { host.innerHTML = '<div class="ct-dzerr">Reconcile failed — server offline?</div>'; });
+  }
+  function approveReconcile(pnl, api) {
+    var client = pnl.dataset.client;
+    var pairs = [];
+    pnl.querySelectorAll('.ct-rc-ck').forEach(function (ck) {
+      if (!ck.checked) return;
+      var sel = pnl.querySelector('.ct-rc-camp[data-bq="' + (window.CSS && CSS.escape ? CSS.escape(ck.dataset.bq) : ck.dataset.bq) + '"]');
+      var cid = sel ? sel.value : '';
+      if (cid) pairs.push({ bqName: ck.dataset.bq, campaignId: cid });
+    });
+    if (!pairs.length) { toastErr('Tick at least one pair (with a Central campaign) to approve.'); return; }
+    var btn = pnl.querySelector('#ct-rc-approve'); btn.disabled = true; btn.textContent = 'Approving…';
+    fetch('/api/central/reconcile/' + encodeURIComponent(client) + '/approve', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pairs: pairs }) })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (x) { if (!x.ok) { toastErr((x.d && x.d.error) || 'Approve failed'); btn.disabled = false; btn.textContent = 'Approve selected'; return; } toastOk(x.d.added + ' mapping(s) approved · ' + client + ' now ' + (x.d.validated ? 'validated' : 'unvalidated')); close(); if (api && api.onApproved) api.onApproved(); })
+      .catch(function () { toastErr('Approve failed — server offline?'); btn.disabled = false; btn.textContent = 'Approve selected'; });
+  }
+
   // ---------------------------------------------------------------- css
   function injectCss() {
     if (document.getElementById('ct-pnl-css')) return;
@@ -331,5 +397,5 @@
     document.head.appendChild(s);
   }
 
-  return { mount: mount, openAdd: openAdd, _openPanel: openPanel };
+  return { mount: mount, openAdd: openAdd, openReconcile: openReconcile, _openPanel: openPanel };
 });

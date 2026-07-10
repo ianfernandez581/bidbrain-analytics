@@ -96,14 +96,12 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/central\/campaigns\/([^/]+)\/archive$/)) && req.method === 'POST') return centralArchive(req, res, decodeURIComponent(m[1]));
     if (p === '/api/central/rows' && req.method === 'GET') return send(res, 200, { overrides: db.getCentralOverrides() });
     if ((m = p.match(/^\/api\/central\/row\/([^/]+)\/field$/)) && req.method === 'POST') return centralEditField(req, res, decodeURIComponent(m[1]));
-    // Sync is STILL STUBBED (501). Contract for the NEXT task:
-    //   POST /api/central/sync will: read campaigns from the DB → overlay BQ metrics per
-    //   the validated client map (live_metrics.py pattern) → UPDATE only the API-metric
-    //   columns (impressions/mediaSpend/clientSpend) + metricsSource + lastSyncedAt on
-    //   matching rows → NEVER touch CONFIG columns → skip archived rows and status='Ended'
-    //   rows unless ?includeEnded=1 → return the refreshed rows. Campaigns with no BQ match
-    //   keep their last values and metricsSource stays 'sheet-import'.
-    if (p === '/api/central/sync' && req.method === 'POST') return send(res, 501, { message: 'sync backend pending — next task' });
+    // Sync: DB campaigns → overlay BQ metrics (validated client map only) → UPDATE the
+    // API columns + metricsSource/lastSyncedAt; spendMult rule for clientSpend; never CONFIG;
+    // skip archived + Ended (unless ?includeEnded=1). See centralSync().
+    if (p === '/api/central/sync' && req.method === 'POST') return centralSync(req, res, url);
+    if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)\/approve$/)) && req.method === 'POST') return centralReconcileApprove(req, res, decodeURIComponent(m[1]));
+    if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)$/)) && req.method === 'GET') return centralReconcile(req, res, decodeURIComponent(m[1]));
     if (p === '/api/central/plan/upload' && req.method === 'POST') return centralPlanUpload(req, res);
     if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/commit$/)) && req.method === 'POST') return centralPlanCommit(req, res, m[1]);
     if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/discard$/)) && req.method === 'POST') return centralPlanDiscard(req, res, m[1]);
@@ -339,6 +337,122 @@ function centralPlanDiscard(req, res, id) {
   if (!draft) return send(res, 404, { error: 'extraction not found' });
   db.setPlanStatus(id, 'discarded');
   return send(res, 200, { ok: true });
+}
+
+// ==================== Central sync + reconcile ====================
+const CENTRAL_CLIENTS_PATH = process.env.CENTRAL_CLIENTS_PATH || path.join(ROOT, 'config', 'central-clients.json');
+function loadCentralClients() { try { return JSON.parse(fs.readFileSync(CENTRAL_CLIENTS_PATH, 'utf8')); } catch { return { clients: [] }; } }
+
+// Run the python fetcher. Tests inject CENTRAL_SYNC_FIXTURE / CENTRAL_RECONCILE_FIXTURE
+// (a path to a JSON file) so CI never needs live BQ. central_sync.py prints JSON even on
+// a partial-failure exit(1), so we parse stdout regardless of exit code.
+function execCentral(args) {
+  return new Promise((resolve, reject) => {
+    const py = process.env.PYTHON || 'python';
+    require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'central_sync.py'), ...args],
+      { cwd: ROOT, timeout: 30000, maxBuffer: 8 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        const out = (stdout || '').trim();
+        if (out) { try { const j = JSON.parse(out); j._stderr = (stderr || '').trim().slice(0, 800); return resolve(j); } catch (e) { /* fall through */ } }
+        if (err && err.killed) return reject(new Error('sync timed out after 30s'));
+        return reject(new Error(String((stderr || (err && err.message) || 'sync produced no output')).slice(0, 800)));
+      });
+  });
+}
+function runSyncFetcher() {
+  if (process.env.CENTRAL_SYNC_FIXTURE) {
+    const doc = JSON.parse(fs.readFileSync(process.env.CENTRAL_SYNC_FIXTURE, 'utf8'));
+    const d = Number(process.env.CENTRAL_SYNC_DELAY_MS || 0);   // test-only: hold the guard to prove 409
+    return d > 0 ? new Promise(r => setTimeout(() => r(doc), d)) : Promise.resolve(doc);
+  }
+  return execCentral([]);
+}
+function runNamesFetcher(client) {
+  if (process.env.CENTRAL_RECONCILE_FIXTURE) return Promise.resolve(JSON.parse(fs.readFileSync(process.env.CENTRAL_RECONCILE_FIXTURE, 'utf8')));
+  return execCentral(['--names', client]);
+}
+// resolve a map entry to a current campaign id: prefer campaignId (if it still exists),
+// else fall back to (client, campaignName) so the committed seed survives a DB rebuild.
+function resolveCampaignId(m, spec) {
+  if (m.campaignId && db.getCampaign(m.campaignId)) return m.campaignId;
+  if (m.campaignName) { const hit = db.getCampaigns().find(c => c.client === spec.client && c.name === m.campaignName); return hit ? hit.id : null; }
+  return null;
+}
+function bigrams(s) { s = String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); const o = []; for (let i = 0; i < s.length - 1; i++) o.push(s.slice(i, i + 2)); return o; }
+function dice(a, b) { const A = bigrams(a), B = bigrams(b); if (!A.length || !B.length) return 0; const m = {}; B.forEach(x => m[x] = (m[x] || 0) + 1); let h = 0; A.forEach(x => { if (m[x] > 0) { h++; m[x]--; } }); return (2 * h) / (A.length + B.length); }
+
+let CENTRAL_SYNCING = false;   // concurrency guard (single-process)
+async function centralSync(req, res, url) {
+  if (CENTRAL_SYNCING) return send(res, 409, { error: 'a sync is already running — try again in a moment' });
+  CENTRAL_SYNCING = true;
+  const includeEnded = url.searchParams.get('includeEnded') === '1';
+  try {
+    let doc;
+    try { doc = await runSyncFetcher(); }
+    catch (e) { return send(res, 502, { error: 'sync fetcher failed: ' + e.message }); }
+
+    const cfg = loadCentralClients();
+    const perClient = {}, unmatched = [], skippedClients = [], errors = [];
+    let updated = 0;
+    if (doc._stderr) errors.push('fetcher: ' + doc._stderr);
+    for (const spec of (cfg.clients || [])) {
+      if (!spec.validated) { skippedClients.push({ client: spec.client, reason: 'not validated' }); continue; }
+      const cres = (doc.clients || {})[spec.client] || { rows: [], errors: [] };
+      (cres.errors || []).forEach(er => errors.push(spec.client + ': ' + er));
+      const byBq = {}; (spec.map || []).forEach(mm => { byBq[mm.bqName] = mm; });
+      let cu = 0, cs = 0;
+      for (const row of (cres.rows || [])) {
+        const mm = byBq[row.bqName];
+        if (!mm) { unmatched.push({ client: spec.client, bqName: row.bqName }); continue; }
+        const cid = resolveCampaignId(mm, spec);
+        if (!cid) { unmatched.push({ client: spec.client, bqName: row.bqName, reason: 'campaign not found' }); continue; }
+        const r = db.syncCampaignMetrics(cid, row.impressions, row.mediaSpend, { includeEnded });
+        if (r.ok) { updated++; cu++; } else { cs++; }
+      }
+      perClient[spec.client] = { updated: cu, skipped: cs, bqRows: (cres.rows || []).length };
+    }
+    console.log(`[CENTRAL][Sync] updated=${updated} unmatched=${unmatched.length} skippedClients=${skippedClients.length}`);
+    return send(res, 200, { syncedAt: new Date().toISOString(), updated, perClient, unmatched, skippedClients, errors, rows: db.getCampaigns() });
+  } finally { CENTRAL_SYNCING = false; }
+}
+
+// Reconcile ONE client: BQ name list + Central names + fuzzy SUGGESTIONS (never written).
+async function centralReconcile(req, res, client) {
+  let doc;
+  try { doc = await runNamesFetcher(client); }
+  catch (e) { return send(res, 502, { error: 'reconcile fetcher failed: ' + e.message }); }
+  const bqNames = doc.bqNames || [];
+  const centralCampaigns = db.getCampaigns().filter(c => c.client === client && !c.archivedAt)
+    .map(c => ({ id: c.id, name: c.name, channel: c.channel, status: c.status }));
+  const suggestions = [];
+  for (const bq of bqNames) {
+    let best = null;
+    for (const c of centralCampaigns) { const s = dice(bq, c.name || ''); if (!best || s > best.score) best = { bqName: bq, campaignId: c.id, campaignName: c.name, score: Math.round(s * 100) / 100 }; }
+    if (best) suggestions.push(best);
+  }
+  return send(res, 200, { client, bqNames, centralCampaigns, suggestions, error: doc.error || null });
+}
+
+// Write APPROVED pairs into central-clients.json's map + flip validated:true. Explicit only.
+async function centralReconcileApprove(req, res, client) {
+  let body; try { body = await readBody(req); } catch (e) { return send(res, 400, { error: e.message }); }
+  const pairs = Array.isArray(body.pairs) ? body.pairs : [];
+  if (!pairs.length) return send(res, 400, { error: 'no approved pairs supplied' });
+  const cfg = loadCentralClients();
+  let spec = (cfg.clients || []).find(c => c.client === client);
+  if (!spec) { spec = { client, validated: false, bq: { dataset: 'client_' + String(client).toLowerCase().replace(/[^a-z0-9]+/g, ''), table: 'pm_delivery' }, map: [] }; (cfg.clients = cfg.clients || []).push(spec); }
+  spec.map = spec.map || [];
+  let added = 0;
+  for (const pr of pairs) {
+    if (!pr.bqName || !pr.campaignId) continue;
+    if (spec.map.some(mm => mm.bqName === pr.bqName)) continue;   // idempotent
+    const camp = db.getCampaign(pr.campaignId);
+    spec.map.push({ bqName: pr.bqName, campaignId: pr.campaignId, campaignName: camp ? camp.name : undefined });
+    added++;
+  }
+  if (added) spec.validated = true;   // a human confirmed the mapping
+  fs.writeFileSync(CENTRAL_CLIENTS_PATH, JSON.stringify(cfg, null, 2) + '\n');
+  return send(res, 200, { ok: true, client, added, validated: spec.validated, map: spec.map });
 }
 
 function serveStatic(res, p) {
