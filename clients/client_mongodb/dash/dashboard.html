@@ -959,7 +959,60 @@ if (window.Chart) Chart.register({
       t._bbSort=st; refresh(t); });
     t._bbMO=new MutationObserver(()=>refresh(t)); refresh(t); }
   const wireAll=()=>document.querySelectorAll('table').forEach(wire);
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wireAll); else wireAll();
+  // Re-wire tables that are (re)built via innerHTML after load, and let the search engine (below)
+  // re-inject its box + re-apply the query. Idempotent (_bbWired guard + idempotent ensure), so the
+  // observer never loops; rAF-debounced so a burst of DOM writes costs one pass.
+  function syncAll(){ wireAll(); if(typeof window.bbEnsureSearch==='function') window.bbEnsureSearch(); }
+  let _raf=0;
+  const mo=new MutationObserver(()=>{ if(_raf) return; _raf=requestAnimationFrame(()=>{ _raf=0; syncAll(); }); });
+  const start=()=>{ syncAll(); if(document.body) mo.observe(document.body,{childList:true,subtree:true}); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+
+// Spreadsheet-style search: a per-table search box that filters DATA rows as you type (the header
+// and any Total row always stay visible). Pairs with the bb-sortable engine above - it only touches
+// tables that engine has wired (`table.bb-sortable`), so both survive innerHTML re-renders: the
+// sortable observer calls window.bbEnsureSearch() after each pass, which re-inserts the box and
+// re-applies the persisted query. Query text is kept per host container (the persistent parent that
+// gets its innerHTML replaced), so it survives a rebuild. Small tables (< MIN_ROWS data rows) are
+// left alone so a search box never clutters a 2-3 row summary.
+(function(){
+  const MIN_ROWS=6;
+  const css='.bb-search{display:flex;justify-content:flex-start;margin:2px 0 8px;position:sticky;left:0}'
+    +'.bb-search input{font-family:inherit;font-size:12px;color:#1f2937;background:#fff;'
+    +'border:1px solid #d5dbe1;border-radius:8px;padding:6px 11px;width:230px;max-width:100%}'
+    +'.bb-search input:focus{outline:none;border-color:#9aa7b4;box-shadow:0 0 0 2px rgba(120,140,160,.18)}'
+    +'.bb-search input::placeholder{color:#94a3b8}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+
+  const store=new WeakMap();                                   // host element -> query string
+  const isHeaderRow=r=>!!r.querySelector('th');
+  const isTotalRow=r=>{ const c=r.cells&&r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    return r.classList.contains('total')||c.classList.contains('total'); };
+  const dataRows=t=>[...t.rows].filter(r=>!isHeaderRow(r)&&!isTotalRow(r));
+
+  function applyFilter(t,q){ q=(q||'').trim().toLowerCase();
+    [...t.rows].forEach(r=>{ if(isHeaderRow(r)||isTotalRow(r)){ r.style.display=''; return; }
+      r.style.display=(!q||(r.textContent||'').toLowerCase().includes(q))?'':'none'; }); }
+
+  function ensure(t){
+    if([...t.rows].some(r=>[...r.cells].some(c=>c.colSpan>1))) return;   // skip grouped/section tables
+    const host=t.parentElement; if(!host) return;
+    const prev=t.previousElementSibling;
+    if(prev&&prev.classList&&prev.classList.contains('bb-search')){       // box already there: just re-sync
+      const q=store.get(host)||''; const inp=prev.querySelector('input'); if(inp&&inp.value!==q) inp.value=q;
+      applyFilter(t,q); return; }
+    if(dataRows(t).length<MIN_ROWS) return;
+    const box=document.createElement('div'); box.className='bb-search';
+    const inp=document.createElement('input'); inp.type='search'; inp.placeholder='Search table...';
+    inp.value=store.get(host)||'';
+    inp.addEventListener('input',()=>{ store.set(host,inp.value); applyFilter(t,inp.value); });
+    box.appendChild(inp); host.insertBefore(box,t);
+    applyFilter(t,inp.value);
+  }
+  window.bbEnsureSearch=()=>document.querySelectorAll('table.bb-sortable').forEach(ensure);
+  window.bbEnsureSearch();                                     // first pass for tables already wired
 })();
 
 // Strategy ordering + colour mapping (robust to the exact strategy spelling in the feed)

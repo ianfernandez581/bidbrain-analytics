@@ -6,7 +6,7 @@
   "source_table_snowflake": "APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"",
   "mirror_table_bigquery": "bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all",
 
-  "last_edited_by": "2026-07-10: added 13th CS campaign 701RG00001W1FQRYA3 (2026 Q3 ANZ VSRM Lead Magnet, Tier 3) to cs_campaigns; 22 in-flight ANZ leads (all New)",
+  "last_edited_by": "2026-07-10: added 13th CS campaign 701RG00001W1FQRYA3 (2026 Q3 ANZ VRSM Lead Magnet, Tier 3) to cs_campaigns; 22 in-flight ANZ leads (all New). Label spelling corrected VSRM->VRSM (Ian).",
   "last_edited_at": "2026-07-10",
 
   "_seed_spec": [
@@ -32,7 +32,7 @@
     {"id": "701RG00001PWX5gYAH", "label": "Final Funnel ABM - Modernize Security (ANZ)"},
     {"id": "701RG00001PXLpxYAH", "label": "Roverpath - Modernize Applications (ANZ)"},
     {"id": "701RG00001PXHnzYAH", "label": "Roverpath - Modernize Applications (ANZ)"},
-    {"id": "701RG00001W1FQRYA3", "label": "VSRM Lead Magnet - Tier 3 (ANZ)"}
+    {"id": "701RG00001W1FQRYA3", "label": "VRSM Lead Magnet - Tier 3 (ANZ)"}
   ],
 
   "cf1_cs_campaigns": [

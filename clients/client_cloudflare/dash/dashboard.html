@@ -79,12 +79,12 @@
   .chip:not(.on):hover{background:#F6F8FA;color:var(--cf-ink)}
   .chip-action{font-size:11.5px;color:#0A66C2;background:none;border:none;cursor:pointer;font-weight:600;font-family:inherit}
   .chip-action:hover{text-decoration:underline}
-  /* Dev mode (internal): a discreet, dashed pill so it never reads as a client control */
+  /* Admin View: the Source-ID filter block on the CS filter-row (toggle itself lives in the topbar) */
   .dev-ctrls{display:flex}
-  .dev-switch{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;color:var(--cf-mute);
-    cursor:pointer;border:1px dashed var(--cf-line);border-radius:999px;padding:5px 11px;user-select:none}
-  .dev-switch input{margin:0;cursor:pointer}
   .dev-ctrls .dash-select{background:#fff;color:var(--cf-ink);border:1px solid var(--cf-line);font-size:12px;padding:6px 26px 6px 10px}
+  .dev-tag{font-size:11px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px;font-weight:600}
+  /* Client/Admin view toggle reuses the quarter-chip look, but single-line (no sub-label) */
+  .view-toggle .qtr-chip{flex-direction:row;font-size:12px;padding:6px 13px}
 
   /* ===== Shared date-range picker (Looker-style) ===== */
   .dp{position:relative;display:inline-block;font-size:13px;
@@ -402,6 +402,16 @@
         </div>
       </div>
     </div>
+    <!-- Client / Admin view toggle (internal). Revealed only for a dev-allowed session (window.BB_DEV
+         or ?dev=1). Client View = exactly what the client sees; Admin View also reveals unprocessed
+         leads, the Source-ID filter, the per-lead detail table and the Data-from-Transmission tab. -->
+    <div class="qtr-filter view-toggle" id="viewToggle" style="display:none">
+      <span class="qtr-lbl">View</span>
+      <div class="qtr-group">
+        <button class="qtr-chip" data-view="client" type="button" onclick="setAdminView(false)">Client View</button>
+        <button class="qtr-chip" data-view="admin" type="button" onclick="setAdminView(true)">Admin View</button>
+      </div>
+    </div>
   </div>
   <div class="topbar-right" style="display:flex;align-items:center;gap:14px">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 255.629 39.901" role="img" aria-label="Transmission" style="height:38px;width:auto;display:block"><g fill-rule="evenodd"><path d="M226.901 11.201h-.116v28.253h-5.672V.444h7.908l6.359 23.35h.114V.444h5.616v39.01h-6.473zm-18.28 28.7c-6.186 0-9.568-3.567-9.568-9.808V9.807c-.004-6.242 3.381-9.806 9.568-9.806s9.57 3.566 9.57 9.808v20.283c0 6.241-3.38 9.809-9.57 9.809zm3.267-30.484c0-2.786-1.262-3.845-3.267-3.845s-3.266 1.059-3.266 3.845v21.065c0 2.786 1.263 3.845 3.266 3.845s3.267-1.059 3.267-3.845zM189.771.444h6.3v39.01h-6.3zm-2.522 29.648c0 6.241-3.208 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.266 3.789s3.265-1 3.265-3.789c0-2.842-1.261-4.96-5.385-8.471-5.271-4.514-6.933-7.746-6.933-12.2 0-6.242 3.15-9.808 9.282-9.808s9.281 3.566 9.281 9.808v1.226h-5.959V9.417c0-2.787-1.145-3.846-3.15-3.846s-3.151 1.059-3.151 3.846c0 2.842 1.261 4.959 5.385 8.47 5.279 4.514 6.94 7.746 6.94 12.205zm-20.283 0c0 6.241-3.209 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.265 3.789s3.266-1 3.266-3.789c0-2.842-1.261-4.96-5.386-8.471-5.271-4.514-6.933-7.746-6.933-12.2.012-6.243 3.158-9.807 9.289-9.807s9.282 3.566 9.282 9.808v1.226h-5.959V9.417c0-2.787-1.145-3.846-3.15-3.846s-3.15 1.059-3.15 3.846c0 2.842 1.261 4.959 5.387 8.47 5.269 4.514 6.93 7.746 6.93 12.205zM139.349.444h6.3v39.01h-6.3zm-9.455 11.035h-.114l-4.241 27.975h-5.958l-4.584-27.585h-.115v27.585h-5.5V.444h8.767l4.584 27.7h.114l4.24-27.7h8.762v39.01h-5.958zm-22.92 18.613c0 6.241-3.209 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.266 3.789s3.265-1 3.265-3.789c0-2.842-1.261-4.96-5.385-8.471-5.271-4.514-6.933-7.746-6.933-12.2.003-6.243 3.16-9.807 9.291-9.807s9.282 3.566 9.282 9.808v1.226h-5.959V9.417c0-2.787-1.146-3.846-3.151-3.846s-3.151 1.059-3.151 3.846c0 2.842 1.261 4.959 5.385 8.47 5.271 4.514 6.932 7.746 6.932 12.2zM71.508 11.201h-.114v28.253h-5.672V.444h7.907l6.36 23.35h.115V.444h5.615v39.01h-6.475zM56.549 32.376h-7.731l-1.089 7.078h-5.786L48.359.444h9.226l6.417 39.01h-6.36zM52.714 7.355h-.115l-2.98 19.728h6.073zM33.749 34.662v-6.131c0-3.622-1.261-4.959-4.125-4.959h-2.175v15.882h-6.3V.444h9.511C37.192.444 40 3.398 40 9.416v3.066c0 4.012-1.318 6.576-4.126 7.857v.112c3.145 1.281 4.175 4.179 4.175 8.25v6.018a11.2 11.2 0 0 0 .688 4.737h-6.415c-.345-1.005-.573-1.618-.573-4.794zm-.057-24.633c0-2.786-.975-4.012-3.209-4.012h-3.034v11.984h2.46c2.349 0 3.783-1 3.783-4.124zm-20.8 29.425H6.589V6.017H0V.444h19.481v5.573h-6.589z" fill="#fff"></path><path d="M244.628 39.454v-10.7h11v10.7z" fill="#e60b7f"></path></g></svg>
@@ -462,12 +472,10 @@
         <div class="chips" id="marketChips"></div>
         <button class="chip-action" onclick="selectAllMarkets()">Select all</button>
         <button class="chip-action" onclick="selectNoneMarkets()">Clear</button>
-        <!-- Dev mode (internal only): hidden unless the platform proxy set window.BB_DEV (admin /
-             Transmission agency) or ?dev=1. Shows unprocessed leads + a Source-ID filter. -->
-        <span class="dev-ctrls" id="devCtrls" style="display:none;margin-left:auto;align-items:center;gap:10px">
-          <label class="dev-switch" title="Internal view - shows unprocessed (New) leads across the charts plus a Source-ID filter. Not shown to the client.">
-            <input type="checkbox" id="devToggle" onchange="toggleDevMode(this.checked)"> Dev mode
-          </label>
+        <!-- Admin View only: a Source-ID (campaign) filter for the CS charts. The Client/Admin toggle
+             now lives in the topbar; this whole block is shown only in Admin View. -->
+        <span class="dev-ctrls" id="devCtrls" style="display:none;margin-left:auto;align-items:center;gap:8px">
+          <span class="dev-tag">Source ID</span>
           <select id="devCampaign" class="dash-select" style="display:none" onchange="onCampaignChange(this.value)"></select>
         </span>
       </div>
@@ -1280,6 +1288,25 @@ const DEV_ALLOWED = (typeof window !== 'undefined' && window.BB_DEV === true) ||
 let devMode = DEV_ALLOWED;   // default ON for admin/super-admin or the Transmission portal; clients never get it
 let selCampaignId = '';   // '' = all Source IDs; only honoured while devMode is on
 
+// Curated Source-ID -> campaign label, shown beside each ID in the dev Source-ID filter.
+// MIRROR of definitions.json cs_campaigns[].label (the single source of truth) -- keep in sync
+// when that file changes. Any ID missing here falls back to the raw Salesforce CAMPAIGN name.
+const CAMPAIGN_LABELS = {
+  '701RG00001ElJZzYAN': 'Roverpath - Precision MQL',
+  '701RG00001ElTu3YAF': 'Roverpath - Pulse Survey',
+  '701RG00001ElVXdYAN': 'Roverpath - Qualification Questions',
+  '701RG00001ElUoXYAV': 'Final Funnel - Precision MQL',
+  '701RG00001ElUa0YAF': 'Final Funnel - Pulse Survey',
+  '701RG00001ElNYkYAN': 'Final Funnel - Qualification Questions',
+  '701RG00001NJd6NYAT': 'Roverpath - Connectivity Cloud (ANZ)',
+  '701RG00001NIYRKYA5': 'Final Funnel CF1 - Connectivity Cloud (ANZ)',
+  '701RG00001PXNyDYAX': 'Final Funnel ABM - Modernize Security (ANZ)',
+  '701RG00001PWX5gYAH': 'Final Funnel ABM - Modernize Security (ANZ)',
+  '701RG00001PXLpxYAH': 'Roverpath - Modernize Applications (ANZ)',
+  '701RG00001PXHnzYAH': 'Roverpath - Modernize Applications (ANZ)',
+  '701RG00001W1FQRYA3': 'VRSM Lead Magnet',
+};
+
 // ---- Per-chart Grain (month/week/day) + Scale (rel/abs) toggle state ----
 // Default scale = 'rel' everywhere (relative). Defaults preserve each chart's
 // pre-existing native grain (paid trends + CS daily = day; CS pacing = week).
@@ -1500,7 +1527,60 @@ if (window.Chart) Chart.register({
       t._bbSort=st; refresh(t); });
     t._bbMO=new MutationObserver(()=>refresh(t)); refresh(t); }
   const wireAll=()=>document.querySelectorAll('table').forEach(wire);
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',wireAll); else wireAll();
+  // Re-wire tables that are (re)built via innerHTML after load, and let the search engine (below)
+  // re-inject its box + re-apply the query. Idempotent (_bbWired guard + idempotent ensure), so the
+  // observer never loops; rAF-debounced so a burst of DOM writes costs one pass.
+  function syncAll(){ wireAll(); if(typeof window.bbEnsureSearch==='function') window.bbEnsureSearch(); }
+  let _raf=0;
+  const mo=new MutationObserver(()=>{ if(_raf) return; _raf=requestAnimationFrame(()=>{ _raf=0; syncAll(); }); });
+  const start=()=>{ syncAll(); if(document.body) mo.observe(document.body,{childList:true,subtree:true}); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+
+// Spreadsheet-style search: a per-table search box that filters DATA rows as you type (the header
+// and any Total row always stay visible). Pairs with the bb-sortable engine above - it only touches
+// tables that engine has wired (`table.bb-sortable`), so both survive innerHTML re-renders: the
+// sortable observer calls window.bbEnsureSearch() after each pass, which re-inserts the box and
+// re-applies the persisted query. Query text is kept per host container (the persistent parent that
+// gets its innerHTML replaced), so it survives a rebuild. Small tables (< MIN_ROWS data rows) are
+// left alone so a search box never clutters a 2-3 row summary.
+(function(){
+  const MIN_ROWS=6;
+  const css='.bb-search{display:flex;justify-content:flex-start;margin:2px 0 8px;position:sticky;left:0}'
+    +'.bb-search input{font-family:inherit;font-size:12px;color:var(--cf-ink,#12242e);background:#fff;'
+    +'border:1px solid var(--cf-line,#e2e8ed);border-radius:8px;padding:6px 11px;width:230px;max-width:100%}'
+    +'.bb-search input:focus{outline:none;border-color:var(--cf-orange,#f38020)}'
+    +'.bb-search input::placeholder{color:var(--cf-mute,#5b7183)}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+
+  const store=new WeakMap();                                   // host element -> query string
+  const isHeaderRow=r=>!!r.querySelector('th');
+  const isTotalRow=r=>{ const c=r.cells&&r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    return r.classList.contains('total')||c.classList.contains('total'); };
+  const dataRows=t=>[...t.rows].filter(r=>!isHeaderRow(r)&&!isTotalRow(r));
+
+  function applyFilter(t,q){ q=(q||'').trim().toLowerCase();
+    [...t.rows].forEach(r=>{ if(isHeaderRow(r)||isTotalRow(r)){ r.style.display=''; return; }
+      r.style.display=(!q||(r.textContent||'').toLowerCase().includes(q))?'':'none'; }); }
+
+  function ensure(t){
+    if([...t.rows].some(r=>[...r.cells].some(c=>c.colSpan>1))) return;   // skip grouped/section tables
+    const host=t.parentElement; if(!host) return;
+    const prev=t.previousElementSibling;
+    if(prev&&prev.classList&&prev.classList.contains('bb-search')){       // box already there: just re-sync
+      const q=store.get(host)||''; const inp=prev.querySelector('input'); if(inp&&inp.value!==q) inp.value=q;
+      applyFilter(t,q); return; }
+    if(dataRows(t).length<MIN_ROWS) return;
+    const box=document.createElement('div'); box.className='bb-search';
+    const inp=document.createElement('input'); inp.type='search'; inp.placeholder='Search table...';
+    inp.value=store.get(host)||'';
+    inp.addEventListener('input',()=>{ store.set(host,inp.value); applyFilter(t,inp.value); });
+    box.appendChild(inp); host.insertBefore(box,t);
+    applyFilter(t,inp.value);
+  }
+  window.bbEnsureSearch=()=>document.querySelectorAll('table.bb-sortable').forEach(ensure);
+  window.bbEnsureSearch();                                     // first pass for tables already wired
 })();
 
 // ==========================================================================
@@ -1901,44 +1981,70 @@ function selectNoneMarkets() {
   renderAll();
 }
 
-// ---- Dev mode (internal) -------------------------------------------------
-// Reveal the dev controls only when allowed (platform-injected window.BB_DEV, or ?dev=1). The
-// toggle flips devMode; when on it also shows the Source-ID <select>. Both re-render the Overview.
+// ---- Internal Admin View (Client View <-> Admin View) --------------------
+// The Client/Admin toggle lives in the topbar and is revealed only for a dev-allowed session
+// (platform-injected window.BB_DEV for admin / super-admin / the Transmission agency, or a local
+// ?dev=1 fallback). CLIENT VIEW = exactly what the client sees. ADMIN VIEW additionally reveals
+// unprocessed (New) leads across the CS charts, a Source-ID filter, the per-lead detail table and
+// the "Data from Transmission" tab. `devMode` (true = Admin View) is the single flag the rest of the
+// code keys off. Clients never get the toggle, so their view is byte-for-byte unchanged.
 function initDevMode() {
   if (!DEV_ALLOWED) return;
-  const c = document.getElementById('devCtrls');
-  if (c) c.style.display = 'flex';
-  const t = document.getElementById('devToggle');
-  if (t) t.checked = devMode;                                   // default ON reflects in the switch
-  const sel = document.getElementById('devCampaign');
-  if (sel) sel.style.display = devMode ? '' : 'none';           // show the Source-ID filter when on
-  const txTab = document.getElementById('txDataTab');
-  if (txTab) txTab.style.display = '';                          // reveal the Data-from-Transmission tab
+  const vt = document.getElementById('viewToggle');
+  if (vt) vt.style.display = '';            // reveal the Client/Admin toggle in the topbar
   populateCampaignSelect();
+  applyViewMode();                          // reflect the current mode across chips/controls/tab
+}
+
+// Reflect devMode (Admin View) across every gated control: the topbar chips, the Source-ID filter
+// block in the CS filter-row, and the admin-only "Data from Transmission" tab.
+function applyViewMode() {
+  document.querySelectorAll('#viewToggle .qtr-chip').forEach(b => {
+    b.classList.toggle('on', (b.getAttribute('data-view') === 'admin') === devMode);
+  });
+  const c = document.getElementById('devCtrls');
+  if (c) c.style.display = devMode ? 'flex' : 'none';       // Source-ID controls: Admin View only
+  const sel = document.getElementById('devCampaign');
+  if (sel) sel.style.display = devMode ? '' : 'none';
+  const txTab = document.getElementById('txDataTab');
+  if (txTab) txTab.style.display = devMode ? '' : 'none';   // admin-only tab
 }
 
 function populateCampaignSelect() {
   const sel = document.getElementById('devCampaign');
   if (!sel) return;
-  // Distinct Source IDs across the real (non-dummy) CS leads, with a lead count for context.
+  // Distinct Source IDs across the real (non-dummy) CS leads, with a lead count + campaign label.
   const counts = new Map();
+  const rawName = new Map();   // fallback label = raw Salesforce CAMPAIGN name (first seen per ID)
   for (const r of rawRows) {
     if (isDummy(r) || r.LEAD_STATUS == null) continue;
     const id = r.CAMPAIGN_ID;
     if (!id) continue;
     counts.set(id, (counts.get(id) || 0) + 1);
+    if (!rawName.has(id) && r.CAMPAIGN) rawName.set(id, r.CAMPAIGN);
   }
-  const ids = [...counts.keys()].sort();
-  sel.innerHTML = '<option value="">All Source IDs</option>' +
-    ids.map(id => `<option value="${id}">${id} (${counts.get(id)} leads)</option>`).join('');
+  const labelOf = id => CAMPAIGN_LABELS[id] || rawName.get(id) || '';
+  // Group related campaigns by ordering on the label, then the raw ID.
+  const ids = [...counts.keys()].sort((a, b) => labelOf(a).localeCompare(labelOf(b)) || a.localeCompare(b));
+  const optOf = id => {
+    const lbl = labelOf(id);
+    const head = lbl ? `${lbl} (${id})` : id;   // "VRSM Lead Magnet (701RG00001W1FQRYA3)"
+    return `<option value="${id}">${head} - ${counts.get(id)} leads</option>`;
+  };
+  sel.innerHTML = '<option value="">All Source IDs</option>' + ids.map(optOf).join('');
   sel.value = selCampaignId;
 }
 
-function toggleDevMode(on) {
+// Flip Client View <-> Admin View from the topbar toggle. Admin View = devMode on.
+function setAdminView(on) {
   devMode = !!on;
-  const sel = document.getElementById('devCampaign');
-  if (sel) sel.style.display = devMode ? '' : 'none';
-  if (!devMode) { selCampaignId = ''; if (sel) sel.value = ''; }  // reset the ID filter when leaving dev mode
+  if (!devMode) {                                   // leaving Admin View: reset the Source-ID filter
+    selCampaignId = '';
+    const sel = document.getElementById('devCampaign');
+    if (sel) sel.value = '';
+  }
+  applyViewMode();
+  if (!devMode && activeTab === 'txdata') { switchTab('paid'); return; }  // step off the admin-only tab
   renderAll();
 }
 
@@ -2371,14 +2477,15 @@ function renderTxData() {
       : '<span style="color:var(--bad-red);font-weight:700">No</span>';
     const tint = r.present ? '' : ' style="background:#FEF2F2"';
     return `<tr${tint}><td style="font-family:monospace">${esc(r.id)}</td>`
+      + `<td style="white-space:normal">${esc(CAMPAIGN_LABELS[r.id] || '')}</td>`
       + `<td style="white-space:normal">${esc(r.campaign || '')}</td>`
       + `<td style="text-align:center">${badge}</td>`
       + `<td style="${numR}">${fmtN(r.leads || 0)}</td><td style="${numR}">${fmtN(r.accepted || 0)}</td>`
       + `<td style="${numR}">${fmtN(r.rejected || 0)}</td><td style="${numR}">${fmtN(r.unprocessed || 0)}</td></tr>`;
   }).join('');
-  idsWrap.innerHTML = `<table class="dev-table"><thead><tr><th>Source ID</th><th>Sample campaign</th>`
+  idsWrap.innerHTML = `<table class="dev-table"><thead><tr><th>Source ID</th><th>Label</th><th>Sample campaign</th>`
     + `<th>Present?</th><th>Leads</th><th>Accepted</th><th>Rejected</th><th>Unprocessed</th></tr></thead><tbody>${idBody}`
-    + `<tr class="total"><td>Total</td><td>${fmtN(ids.length)} IDs</td><td></td><td style="${numR}">${fmtN(tot.leads)}</td>`
+    + `<tr class="total"><td>Total</td><td>${fmtN(ids.length)} IDs</td><td></td><td></td><td style="${numR}">${fmtN(tot.leads)}</td>`
     + `<td style="${numR}">${fmtN(tot.accepted)}</td><td style="${numR}">${fmtN(tot.rejected)}</td>`
     + `<td style="${numR}">${fmtN(tot.unprocessed)}</td></tr></tbody></table>`;
   // 2) Pacing plan (targets), per market x tier, Q2/Q3 split.
