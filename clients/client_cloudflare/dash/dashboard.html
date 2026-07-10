@@ -1914,6 +1914,15 @@ function renderWeekly(agg) {
     const o = m[k] = m[k] || {target:0, actual:0};
     o.target += d.target; o.actual += d.actual;
   }
+  // Fold any leading bucket(s) with NO target into the first target-bearing bucket. The
+  // quarter starts mid-week (Q3 starts Wed Jul 1) while the plan's first week is Mon Jul 6,
+  // so Jul 1-5 leads would otherwise show as a stray "06-29" (Monday-of-week) bar before the
+  // plan begins. Folding keeps the chart to the plan weeks and the actual total == the KPI.
+  let ks = Object.keys(m).sort();
+  const firstTgt = ks.find(k => m[k].target > 0);
+  if (firstTgt) for (const k of ks) {
+    if (k < firstTgt) { m[firstTgt].actual += m[k].actual; m[firstTgt].target += m[k].target; delete m[k]; }
+  }
   const keys = Object.keys(m).sort();
   const labels = keys.map(k => bucketLabel(k, csWeeklyGrain));
   const tgt = keys.map(k=>m[k].target), act = keys.map(k=>m[k].actual);
@@ -1941,8 +1950,15 @@ function renderWeekly(agg) {
   });
 }
 
-function donut(id, data, limit) {
-  const arr = data.slice(0, limit || 10);
+function donut(id, data, limit, foldTo) {
+  let arr = data.slice(0, limit || 10);
+  // When foldTo (a total) is given, append an 'Other' slice for everything past the top-N so
+  // the donut sums to foldTo. Used by the Professional-demographic (job-title) chart, which has
+  // a ~25-title long tail: the top-10 slice alone undercounted (showed 40 of the 56 leads).
+  if (foldTo != null) {
+    const shown = arr.reduce((s, d) => s + d[1], 0);
+    if (foldTo - shown > 0) arr = arr.concat([['Other', foldTo - shown]]);
+  }
   destroy(id);
   charts[id] = new Chart(document.getElementById(id), {
     type:'doughnut',
@@ -2120,7 +2136,7 @@ function renderAll() {
   donut('countryChart', agg.countries, 10);
   donut('jfChart',      agg.jobFunc,   8);
   donut('jlChart',      agg.jobLevel,  10);
-  donut('jtChart',      agg.jobTitle,  10);
+  donut('jtChart',      agg.jobTitle,  10, agg.accepted);   // + 'Other' tail so it totals all accepted
   renderAssets(agg);
   renderDaily(agg);
   renderRegionGrid(agg);
