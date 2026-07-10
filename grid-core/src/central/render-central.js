@@ -241,6 +241,11 @@
 
   // ============================ render ============================
   function healthCounts(rows) { var c = { winner: 0, watch: 0, steady: 0 }; rows.forEach(function (r) { if (c[r._d.health] != null) c[r._d.health]++; }); return c; }
+  // Portfolio-health counts over the LIVE set ONLY (Active+Paused). Ended / Not Active /
+  // Draft never colour the health summary — otherwise a wall of long-finished campaigns
+  // dominates the tally (the "53 watch over 39 live rows" bug). Draft has null health anyway.
+  var HEALTH_STATUSES = ['Active', 'Paused'];
+  function healthCountsLive(rows) { return healthCounts(rows.filter(function (r) { return HEALTH_STATUSES.indexOf(r.status) >= 0; })); }
 
   // Summary cards (the boss view). Live count uses the client+health scope (status-agnostic
   // so "live vs total" is meaningful); budget/spend/health sum the DISPLAYED rows; coverage
@@ -258,7 +263,7 @@
     var bMissing = rows.length - bVals.length;
     var mSum = rows.map(function (r) { return r.mediaSpend; }).filter(function (v) { return v != null && v !== ''; }).reduce(function (a, b) { return a + Number(b); }, 0);
     var liveRows = rows.filter(isLive).length, sheetRows = rows.length - liveRows;
-    var hc = healthCounts(rows);
+    var hc = healthCountsLive(working);   // health summary counts Active+Paused only
     var cov = CS.syncStatus && CS.syncStatus.coverage;
     var covPct = cov && cov.total ? Math.round(cov.validated / cov.total * 100) : 0;
     var card = function (eyebrow, big, sub) { return '<div class="ct-card"><div class="ct-card-e">' + eyebrow + '</div><div class="ct-card-b">' + big + '</div><div class="ct-card-s">' + sub + '</div></div>'; };
@@ -303,7 +308,7 @@
     var all = buildRows();
     var working = all.filter(function (r) { return !r._archived; });   // archived excluded from the working set
     var rows = filtered(all);
-    var counts = healthCounts(working);
+    var counts = healthCountsLive(working);   // chips reflect the live (Active+Paused) set only
     // stale guard derives from REAL per-row lastSyncedAt (most recent across rows)
     var lastTs = null;
     all.forEach(function (r) { if (r.lastSyncedAt) { var t = Date.parse(r.lastSyncedAt); if (!isNaN(t) && (lastTs == null || t > lastTs)) lastTs = t; } });
@@ -712,5 +717,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, _healthCounts: healthCounts, _healthCountsLive: healthCountsLive, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, HEALTH_STATUSES: HEALTH_STATUSES, CS: CS };
 });
