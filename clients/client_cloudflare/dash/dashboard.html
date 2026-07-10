@@ -1659,17 +1659,24 @@ function aggregate(filterFn) {
   const accepted = realLeads.filter(r => ACCEPTED_STATUSES.has(r.LEAD_STATUS));
   const rejected = realLeads.filter(r => r.LEAD_STATUS === 'Rejected');
 
-  const q2Target = targetRows.reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
   const now = new Date();
-  // ttdTarget = target time-to-date; targetRows are already in-range, so the
-  // <= now clip just keeps "to-date" semantics on the default full window.
-  const ttdTarget = targetRows
-    .filter(r => r.DAY && new Date(r.DAY) <= now)
+  // The TARGET is anchored to the SELECTED quarter's FULL calendar span, NOT the date
+  // range. The range clamps to the last day that has data, so for an in-progress quarter
+  // (e.g. Q3, data only to ~week 1) an in-range target sum would collapse to just the
+  // elapsed weeks - THE "Q3 Target = 182 instead of 2290" BUG. The banner already promises
+  // the target is "quarter-anchored (full Q3)", so compute it over the whole quarter.
+  const [pacingStart, pacingEnd] = pacingWindow();
+  const inQuarter = r => { if (!r.DAY) return false; const d = new Date(String(r.DAY).slice(0,10)); return d >= pacingStart && d <= pacingEnd; };
+  const quarterTargets = rawRows.filter(r => matchMarket(r) && inQuarter(r));
+
+  // q2Target = full selected-quarter plan; ttdTarget = plan up to today (weeks elapsed).
+  const q2Target = quarterTargets.reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
+  const ttdTarget = quarterTargets
+    .filter(r => new Date(String(r.DAY).slice(0,10)) <= now)
     .reduce((s, r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
 
-  // Time-elapsed for pacing is anchored to the SELECTED quarter's full calendar span
-  // (see pacingWindow), so viewing Q3 paces against Q3's timeline, not Q2's.
-  const [pacingStart, pacingEnd] = pacingWindow();
+  // Time elapsed for pacing = progress through the same full quarter span (Q2 done -> 100%,
+  // Q3 in progress -> partial), so the pace ratio compares like-for-like against q2Target.
   const totalMs = pacingEnd - pacingStart;
   const elapsedMs = Math.max(0, Math.min(totalMs, now - pacingStart));
   const timePct = totalMs > 0 ? elapsedMs / totalMs : 0;
@@ -1730,10 +1737,12 @@ function aggregate(filterFn) {
     .sort((a,b) => b[2] - a[2])
     .slice(0, 12);
 
+  // Per-market targets are quarter-anchored too (full-quarter plan per region), matching
+  // the headline q2Target; mAccepted stays the in-range actual (QTD accepted per region).
   const regionRows = ALL_MARKETS.filter(m => activeMarkets.has(m)).map(m => {
-    const mTarget = targetRows.filter(r => r.MARKET_REGION === m)
+    const mTarget = quarterTargets.filter(r => r.MARKET_REGION === m)
       .reduce((s,r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
-    const mTtdTarget = targetRows.filter(r => r.MARKET_REGION === m && r.DAY && new Date(r.DAY) <= now)
+    const mTtdTarget = quarterTargets.filter(r => r.MARKET_REGION === m && new Date(String(r.DAY).slice(0,10)) <= now)
       .reduce((s,r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
     const mAccepted = accepted.filter(r => r.MARKET_REGION === m).length;
     return {market: m, q2: mTarget, ttd: mTtdTarget, accepted: mAccepted};
