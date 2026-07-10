@@ -333,7 +333,7 @@
         </div>
       </div>
       <div class="control-filters">
-        <div class="filter-grp"><span class="lbl">Region</span><div class="chips" id="regionChips"></div>
+        <div class="filter-grp" id="regionGrp"><span class="lbl">Region</span><div class="chips" id="regionChips"></div>
           <button class="chip-action" onclick="allRegions()">All</button>
           <button class="chip-action" onclick="clearRegions()">Clear</button></div>
         <div class="filter-grp" id="dateGrp" title="Date range applies to the Paid Media tab"><span class="lbl">Date range</span>
@@ -540,6 +540,48 @@
       </div>
     </div>
 
+    <!-- ============ WEBSITE (GA4) ============ -->
+    <div id="tab-website" class="tabpane">
+      <div class="section first">
+        <h2>Website - Google Analytics</h2>
+        <span class="sub">Website traffic from Google Analytics 4 for the whole property (AU/NZ): sessions, engagement and key events over time, by channel and by source. Read-only GA4 access - refreshes automatically.</span>
+      </div>
+      <div id="ga4Empty" class="info-note" style="display:none">
+        <b>Awaiting Google Analytics access.</b> This tab populates automatically once Schneider grant read-only (Viewer) access to their GA4 property and the first sync completes. No scheduled reports or CSV emails needed.
+      </div>
+      <div id="ga4Body" style="display:none">
+        <div class="kpis" id="ga4Kpis"></div>
+
+        <div class="section"><h2 style="font-size:15px">Sessions over time</h2><span class="sub">Website sessions split by channel bucket. <b>Relative</b> shows each period's composition (100%); <b>Absolute</b> shows true session counts.</span></div>
+        <div class="chartctrls">
+          <span class="seg seg-sm" id="gaGrainSeg"><span class="cap">VIEW BY</span>
+            <button type="button" class="seg-btn" data-grain="month" onclick="setGaGrain('month')">Month</button>
+            <button type="button" class="seg-btn" data-grain="week" onclick="setGaGrain('week')">Week</button>
+            <button type="button" class="seg-btn" data-grain="day" onclick="setGaGrain('day')">Day</button></span>
+          <span class="seg seg-sm" id="gaScaleSeg"><span class="cap">AXIS</span>
+            <button type="button" class="seg-btn" data-scale="rel" onclick="setGaScale('rel')">Relative</button>
+            <button type="button" class="seg-btn" data-scale="abs" onclick="setGaScale('abs')">Absolute</button></span>
+        </div>
+        <div class="card card-hero"><div class="chart-wrap"><canvas id="gaTrend"></canvas></div></div>
+
+        <div class="section"><h2 style="font-size:15px">Traffic by channel</h2><span class="sub">Where website sessions come from, and how engaged each channel is.</span></div>
+        <div class="grid">
+          <div class="card card-tall"><h3>Sessions by channel</h3><div class="hint">Share of website sessions by GA4 channel group.</div><div class="chart-wrap"><canvas id="gaChannels"></canvas></div></div>
+          <div class="card card-tall"><h3>Engagement by channel</h3><div class="hint">Engaged sessions vs total sessions per channel.</div><div class="chart-wrap"><canvas id="gaEngage"></canvas></div></div>
+        </div>
+
+        <div class="section"><h2 style="font-size:15px">Top sources</h2><span class="sub">Session source / medium, capped to the 60 largest. Eng. rate = engaged sessions / sessions.</span></div>
+        <div class="card" style="margin-top:14px"><div style="overflow:auto">
+          <table id="gaSourcesTable"><thead><tr><th>Source / medium</th><th>Channel</th><th class="num">Sessions</th><th class="num">Engaged</th><th class="num">Eng. rate</th><th class="num">Key events</th></tr></thead><tbody></tbody></table>
+        </div></div>
+
+        <div class="section"><h2 style="font-size:15px">Top website events</h2><span class="sub">Most frequent GA4 events by volume. Once Schneider confirm which events count as conversions, this narrows to those.</span></div>
+        <div class="card" style="margin-top:14px"><div style="overflow:auto">
+          <table id="gaEventsTable"><thead><tr><th>Event</th><th class="num">Count</th></tr></thead><tbody></tbody></table>
+        </div></div>
+      </div>
+    </div>
+
     <footer id="footMeta"></footer>
   </div>
 </div>
@@ -634,6 +676,7 @@ window.DateRange = (function(){
 //==============================================================================
 let DATA=null, charts={}, activeTab='cs', activeCampaign=null, activeMarkets=new Set();
 let pmGrain='week', pmScale='rel', compareReady=false;
+let gaGrain='month', gaScale='rel';   // Website (GA4) tab grain + axis toggles
 let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;
 const el=id=>document.getElementById(id);
 const fmtN=v=>v==null||isNaN(v)?'-':Math.round(v).toLocaleString('en-US');
@@ -697,13 +740,15 @@ function campaign(){
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
 // The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
-const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels'};
+const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels', website:'Website'};
 // "Other Channels" (plan-only lines: Search / publisher / trade / email) was removed from the UI
 // 2026-07-06 (client request - low value). The job still emits it in tabs[]; we filter it out here.
 function campaignTabs(){ const t=(campaign().tabs||[]).filter(x=>x!=='other'); return t.length?t:['cs']; }
 // The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) - it spans every program,
 // so it sits outside the per-campaign tab set.
-function allTabs(){ return campaignTabs().concat(['scorecard']); }
+// Website (GA4) is a GLOBAL, whole-site tab (like the scorecard). It only appears once real GA4
+// sessions have landed (ga4_enabled), so nothing half-built shows to the client before then.
+function allTabs(){ const g=(DATA&&DATA.ga4_enabled)?['website']:[]; return campaignTabs().concat(['scorecard'],g); }
 function marketOk(m){ return activeMarkets.has(m); }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
@@ -939,6 +984,8 @@ function setTab(t){ if(!allTabs().includes(t)) return; activeTab=t; location.has
 function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(activeTab!=='scorecard' && !t.includes(activeTab)) activeTab=t[0]; renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
+function setGaGrain(g){ gaGrain=g; renderActive(); }
+function setGaScale(s){ gaScale=s; renderActive(); }
 function allRegions(){ activeMarkets=new Set(DATA.all_markets||[]); renderControls(); renderActive(); }
 function clearRegions(){ activeMarkets=new Set(); renderControls(); renderActive(); }
 function toggleRegion(m){ activeMarkets.has(m)?activeMarkets.delete(m):activeMarkets.add(m); renderControls(); renderActive(); }
@@ -947,13 +994,15 @@ function renderControls(){
   // tab bar - only the tabs (channels) this campaign actually uses
   const bar=el('tabBar'); bar.innerHTML='';
   allTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
-  const c=campaign(); const isSc=activeTab==='scorecard';
+  const c=campaign(); const isSc=activeTab==='scorecard'; const isWeb=activeTab==='website'; const isGlobal=isSc||isWeb;
   const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
-  el('ctrlNote').textContent = isSc ? `Showing all programs · ${mkts}` : `Showing ${c.label||'-'} · ${mkts}`;
+  el('ctrlNote').textContent = isWeb ? 'Website analytics · whole property (AU/NZ)' : (isSc ? `Showing all programs · ${mkts}` : `Showing ${c.label||'-'} · ${mkts}`);
   // the date range only scopes Paid Media (CS leads are shown for the flight) - hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
-  // the Executive Scorecard is portfolio-wide, so the per-program campaign dropdown is irrelevant there
-  const campWrap=document.querySelector('.topbar-camp'); if(campWrap) campWrap.style.display = isSc ? 'none' : '';
+  // Website (GA4) is whole-site with no market split, so its region chips do nothing - hide them there
+  if(el('regionGrp')) el('regionGrp').style.display = isWeb ? 'none' : 'flex';
+  // the Executive Scorecard + Website are portfolio / whole-site, so the per-program dropdown is irrelevant
+  const campWrap=document.querySelector('.topbar-camp'); if(campWrap) campWrap.style.display = isGlobal ? 'none' : '';
   // campaign selector (top-nav dropdown, Cloudflare pattern) - one option per program (no "All campaigns")
   const sel=el('campSelect'); sel.innerHTML='';
   (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
@@ -964,16 +1013,78 @@ function renderControls(){
 }
 
 function renderActive(){
-  ['scorecard','paid','cs','compare','other'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
+  ['scorecard','paid','cs','compare','other','website'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
   destroyCharts();
   if(activeTab==='scorecard') renderScorecard();
   else if(activeTab==='paid') renderPaid();
   else if(activeTab==='cs') renderCS();
   else if(activeTab==='other') renderOther();
+  else if(activeTab==='website') renderWebsite();
   else renderCompare();
   // pm toggles reflect state
   document.querySelectorAll('#pmGrainSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.grain===pmGrain));
   document.querySelectorAll('#pmScaleSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.scale===pmScale));
+}
+
+//==============================================================================
+// WEBSITE (GA4)  — global, whole-site tab; hidden until ga4_enabled
+//==============================================================================
+function ga4Kpi(label,value,sub){ return `<div class="kpi"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${sub||''}</div></div>`; }
+function renderWebsite(){
+  const G=DATA.ga4||{}; const daily=G.daily||[];
+  const on=!!(DATA.ga4_enabled && daily.length);
+  el('ga4Empty').style.display=on?'none':'block';
+  el('ga4Body').style.display=on?'block':'none';
+  document.querySelectorAll('#gaGrainSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.grain===gaGrain));
+  document.querySelectorAll('#gaScaleSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.scale===gaScale));
+  if(!on) return;
+
+  const k=G.kpi||{};
+  const engRate=k.sessions?k.engaged_sessions/k.sessions:0;
+  el('ga4Kpis').innerHTML=[
+    ga4Kpi('Sessions', fmtN(k.sessions)),
+    ga4Kpi('Engaged sessions', fmtN(k.engaged_sessions), fmtPct(engRate,1)+' engagement rate'),
+    ga4Kpi('Key events', fmtN(k.conversions), 'GA4 key events'),
+    ga4Kpi('Users', k.users!=null?fmtN(k.users):'-', k.users!=null?'':'not in this GA4 export'),
+  ].join('');
+
+  // sessions over time, split by channel bucket; grain toggle + Relative(100%-stack)/Absolute
+  const m={};
+  daily.forEach(r=>{ const key=grainKey(r.day,gaGrain); const e=m[key]||(m[key]={k:key,paid:0,organic:0,direct:0,other:0,tot:0});
+    e.paid+=r.paid_sessions||0; e.organic+=r.organic_sessions||0; e.direct+=r.direct_sessions||0; e.other+=r.other_sessions||0; e.tot+=r.ga4_sessions||0; });
+  const B=Object.values(m).sort((a,b)=>a.k<b.k?-1:1);
+  const labels=B.map(b=>grainLabel(b.k,gaGrain));
+  const rel=gaScale==='rel';
+  const buckets=[['paid','Paid',C.td],['organic','Organic',C.green2],['direct','Direct',C.slate],['other','Other',C.grey]];
+  const ds=buckets.map(([key,label,color])=>({ label, data:B.map(b=>rel?(b.tot?b[key]/b.tot*100:0):b[key]), _true:B.map(b=>b[key]), backgroundColor:color, stack:'s', maxBarThickness:34, borderRadius:2 }));
+  charts.gaTrend=new Chart(el('gaTrend'),{ type:'bar', data:{labels,datasets:ds},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN((c.dataset._true||[])[c.dataIndex])}`}} },
+      scales:{ x:{stacked:true,grid:{display:false}}, y:{stacked:true,ticks:rel?{callback:v=>v+'%'}:{}} } } });
+
+  // channel doughnut + engagement bar
+  const ch=(G.channels||[]).slice().sort((a,b)=>(b.sessions||0)-(a.sessions||0));
+  charts.gaChannels=new Chart(el('gaChannels'),{ type:'doughnut',
+    data:{ labels:ch.map(c=>c.channel_group), datasets:[{ data:ch.map(c=>c.sessions||0), backgroundColor:ch.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'right',labels:{font:FONT,boxWidth:12}}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)}`}} } } });
+  charts.gaEngage=new Chart(el('gaEngage'),{ type:'bar',
+    data:{ labels:ch.map(c=>c.channel_group), datasets:[
+      {label:'Sessions',data:ch.map(c=>c.sessions||0),backgroundColor:C.grey,borderRadius:3},
+      {label:'Engaged',data:ch.map(c=>c.engaged_sessions||0),backgroundColor:C.green2,borderRadius:3} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:legendTop()}, scales:{x:{grid:{display:false}}} } });
+
+  // top sources table
+  const src=(G.sources||[]).slice().sort((a,b)=>(b.sessions||0)-(a.sessions||0)).slice(0,25);
+  el('gaSourcesTable').querySelector('tbody').innerHTML = src.length
+    ? src.map(s=>`<tr><td>${s.source_medium}</td><td>${s.channel||'-'}</td><td class="num">${fmtN(s.sessions)}</td><td class="num">${fmtN(s.engaged)}</td><td class="num">${fmtPct(s.sessions?s.engaged/s.sessions:0,1)}</td><td class="num">${fmtN(s.conversions)}</td></tr>`).join('')
+    : `<tr><td colspan="6" style="text-align:center;color:var(--se-mute);padding:14px">No source data yet.</td></tr>`;
+
+  // top events table (aggregate across months)
+  const agg={}; (G.events||[]).forEach(e=>{ agg[e.event_name]=(agg[e.event_name]||0)+(e.events||0); });
+  const ev=Object.entries(agg).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  el('gaEventsTable').querySelector('tbody').innerHTML = ev.length
+    ? ev.map(([n,c])=>`<tr><td>${n}</td><td class="num">${fmtN(c)}</td></tr>`).join('')
+    : `<tr><td colspan="2" style="text-align:center;color:var(--se-mute);padding:14px">No event data yet.</td></tr>`;
 }
 
 //==============================================================================
@@ -1427,6 +1538,7 @@ function exportThisTab(){
   if(activeTab==='scorecard') lines=lines.concat(tableCSV('cs_audience (portfolio, filtered)', (DATA.cs_audience||[]).filter(r=>marketOk(r.market))));
   else if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
   else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
+  else if(activeTab==='website') lines=lines.concat(tableCSV('ga4_sources (whole property)', (DATA.ga4&&DATA.ga4.sources)||[]));
   else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows())).concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()));
   dl(`schneider_${activeTab}.csv`, lines);
 }

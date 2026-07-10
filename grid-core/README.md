@@ -245,3 +245,170 @@ hand-authored:
 - Meridian MMM planning loop feeding budget-shift recommendations
 - Cross-client learning (a win on one client raises confidence for the same play elsewhere)
 - Model-precision metric computed from shipped-rec outcomes (currently hardcoded 73%)
+
+---
+
+# Central (tab)
+
+**Central** replaces the manual `central.xlsx` "Live Campaigns" tracker with a tab in The
+Grid that splits every column into three types and enforces them structurally:
+**CONFIG** (from media plans / editable), **API** (synced spend/impressions — read-only),
+**DERIVED** (computed, never typed). It fixes the sheet's hardcoded-derived-cell and
+divide-by-zero bugs by computing every derived value fresh from `src/central/calc.js` on
+each render, with every division guarded to render `—`.
+
+## Files
+```
+src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). Adds
+                                marginDelta / marginBand / health to the base formulas.
+config/central-seed.js       ← TEST FIXTURE (render smoke tests only). NOT a runtime source.
+config/central-import.json   ← frozen ONE-TIME import source (the pure-sheet parse); the
+                                server ingests it into the campaigns DB on boot (idempotent).
+config/central-clients.json  ← sync client mapping. Mode A ("view" = a pm_delivery view,
+                                Schneider) or Mode B ("source":"raw" = raw platform tables[]
+                                with exact advertiserValue + schema column names). source
+                                "none" = no BQ presence.
+scripts/central_sync.py      ← BQ metrics fetcher (adapter; reuses live_metrics.py's bq-CLI
+                                approach, does NOT modify it). Mode A + Mode B (multi-table
+                                merge by campaign name). Emits JSON to stdout.
+scripts/bq_audit.py          ← READ-ONLY discovery: lists raw_snowflake/raw_windsor tables,
+                                reads each schema, finds the real advertiser/campaign/impression/
+                                cost column names, and lists advertisers. Mapping table for the config.
+src/central/render-central.js← the tab: reads GET /api/central/campaigns (the DB), grouping,
+                                colour-coding, live-first filters, sort, dropdowns, Add,
+                                archive, sync/export. Holds mapGridRowToCentral() — the ONLY
+                                name-translation point (grid `advertiser/…` → calc names).
+src/central/plan-panel.js    ← media-plan dropzone + review/commit panel + Add-campaign panel.
+src/central/plan-reader.js   ← server-side extraction (SheetJS grid + parser.js text),
+                                normalization, header-keyword heuristic, candidate match
+                                (against the campaigns DB).
+```
+Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register | Dashboards),
+`#view-central`, dispatch in `renderContent()`, hash whitelist, `<script src>` tags.
+
+## Data model + persistence — the DB is the SOURCE OF TRUTH
+Central's source of truth is the SQLite **`campaigns`** table (in `src/brain/db.js`), NOT the
+baked `const DATA` literal and NOT `central-seed.js`. On server boot the pure-sheet parse
+(`config/central-import.json`) is imported once into `campaigns` (idempotent guard: skips if
+sheet-import rows already exist — it is a one-time import, **not a pipeline**). Traders then
+add / edit / end / archive campaigns **in Central directly** — no Excel edit, no script re-run.
+Rows have a stable generated `id`, `sourceOfRecord` (`sheet-import|manual|plan`), and
+`archivedAt` (soft delete only — there is no hard-delete route). Derived values are computed
+fresh per render via `CentralCalc.computeRow()`, never stored. Field edits update the
+`campaigns` row (the value) **and** append provenance to `central_rows` (the source/filename/
+cellRef, keyed by campaign id). **DERIVED fields are never writable** — `db.js` whitelists
+(`CENTRAL_EDIT_FIELDS`, `CENTRAL_PLAN_FIELDS`) and rejects `CENTRAL_DERIVED_FIELDS` everywhere.
+(`the-grid.html`'s `const DATA` still feeds Pulse/Register only — Central no longer reads it.)
+
+## Status model + live-first view
+Statuses: **Active · Paused · Not Active · Ended · Draft**. Active/Paused/Not Active/Ended come
+from the sheet verbatim ("Not Active" is real — never coerced); **Draft** is app-only (new thin
+rows + blank-status import). The default view is **live** = Active + Paused + Draft; the chip row
+is `Live · Active · Paused · Not Active · Ended · All · Archived` (each with a count) and the
+header reads "N live · M total". Ended/Not Active are history, always retrievable, never deleted.
+
+## Sync (live BQ metrics)
+"Sync now" `POST /api/central/sync` spawns `scripts/central_sync.py` (30s timeout → 502; a
+sync already running → 409), which reads `config/central-clients.json` and queries BQ (bq CLI,
+ian@100.digital) per **validated** client. Matching at sync time uses ONLY the explicit map
+(no fuzzy — that's reconcile). Per mapped, non-archived, non-Ended (unless `?includeEnded=1`)
+campaign it UPDATEs `impressions`/`mediaSpend`, sets `metricsSource:'bq'`+`lastSyncedAt`, and:
+- **spendMult set** → `clientSpend = mediaSpend × spendMult`, `spendBasis:'billed'`.
+- **spendMult unset** → `clientSpend` UNTOUCHED (keeps its sheet value), `spendBasis:'sheet'`,
+  and the row shows LIVE + the unbilled-basis badge ("media spend is live; client spend awaits
+  spendMult"). It **never** writes `clientSpend = mediaSpend` (the regression that zeroed
+  Schneider margins — encoded as a test). CONFIG columns are never written by sync.
+Response: `{syncedAt, updated, perClient, unmatched, skippedClients, errors, rows}` (refreshed
+rows so the UI updates without a second fetch). Unmapped BQ names → `unmatched`; validated:false
+clients → `skippedClients`. Tests inject `CENTRAL_SYNC_FIXTURE` (a JSON path) so CI needs no BQ.
+
+**Auto-sync (scheduled):** set env `CENTRAL_AUTOSYNC_MIN=<minutes>` (0/unset = off) and the
+server runs the sync automatically on that interval — via the SAME guarded core as the manual
+route (a tick during a manual sync just skips; a manual sync during a tick gets a 409). The UI
+shows "· auto every Nm" next to the last-synced pill (from `/api/central/sync/status`). Manual
+"Sync now" always works regardless. (A self-gating "only when BQ advanced" refinement, like the
+client dashboards' freshness contract, is a future optimization; v1 is a simple interval.)
+
+## Summary cards + KPI + channels
+- **Summary cards** (boss view) above the table: Live campaigns (of total), Total budget,
+  Total spend (media, N live · M sheet), Health (winner/watch/steady), BQ coverage (validated
+  clients / total, progress bar). Reactive to filters; nulls excluded from sums (never NaN).
+- **KPI columns** Key KPI + KPI Performance are hand-typed CONFIG text (editable). KPI Performance
+  is colour-coded vs Key KPI where both parse to the same unit (green = meets/beats, red = >30% off;
+  ROAS/CTR/Clicks/Leads higher-better, CPL/CPA/CPM/… lower-better). "#DIV/0!" → "—". Display-only —
+  never stored. (kpiPerformance was reclassified from a never-implemented DERIVED passthrough to CONFIG.)
+- **spend-basis info mark**: a LIVE row whose clientSpend is still sheet-era (no spendMult) gets a
+  neutral "i" on the margin cell ("set the billing multiplier for a live margin") — distinct from the
+  amber needs-input tint, so a config-gap negative margin reads differently from a real one.
+- **Channel chips**: 8 channels (Trade Desk, LinkedIn, Google Ads, Meta, DV360, Reddit, DOOH, LINE),
+  matched case/space-insensitively so the sheet's "TradeDesk"/"Linkedin" resolve correctly.
+
+## Per-row match schema (Design A: one row per campaign-per-channel)
+A validated Mode B map row is `{ campaignId, channel, advertiserName, campaignMatch: {mode, value} }`
+(written by reconcile/approve; `advertiserName` is the BQ-side spelling per row, so quirks like the
+trailing space in `"VMCH "`, `"Cityperfume.com.au"`, or the `"PopTrack"` typo are handled per row).
+The sync uses ONE rule shape (`src/central/match.js`, no separate rollup path) over the tagged BQ
+rows the fetcher returns (each `{bqName, advertiserName, channel, impressions, mediaSpend}`):
+- **exact** — campaign name === value (scoped to the row's channel + advertiserName).
+- **contains** — campaign name contains value (same scope).
+- **rollup** — campaign name contains value, but spans ALL advertiser-name spellings for that channel
+  and dedupes by campaign name (the "Always On" case — the same campaign under two account spellings
+  counts once). Then sum. The spendMult rule and DERIVED locking are unchanged. Schneider stays Mode A
+  (view, `map:[{bqName(program), campaignId}]`) — additive, its behaviour is untouched.
+
+## Coverage expansion (reconcile — Zhen's validation sitting)
+Only Schneider is validated today. To add a client: **Map client** panel → pick the client →
+GET `/reconcile/:client` runs the BQ name list + fuzzy-scores it against that client's Central
+campaigns → the human ticks/approves pairs → POST `/approve` writes them into
+`central-clients.json` and flips `validated:true`. Suggestions are never auto-written. A client
+needs a `pm_delivery`-shaped BQ view first (reconcile reports an empty name list otherwise).
+
+## Lifecycle (traders manage campaigns in Central)
+- **Add campaign** (button by Sync/Export) → panel → `POST /api/central/campaigns`
+  (section+client+name required, rest optional, `status:'Draft'`, `sourceOfRecord:'manual'`).
+- **Status change** via the status dropdown (how campaigns "finish") — no row removal.
+- **Archive** (row action) → `archivedAt` set; hidden except the Archived chip (muted).
+- The plan reader's **create-new** path creates a real `campaigns` row (`sourceOfRecord:'plan'`).
+
+## Routes (server.js)
+- `GET  /api/central/campaigns` → `{campaigns}` (the DB — Central's data source)
+- `POST /api/central/campaigns` → create a thin Draft row (section+client+name; derived → 400)
+- `POST /api/central/campaigns/:id/archive` → soft delete (no hard-delete route exists)
+- `GET  /api/central/rows` → `{overrides}` (per-field provenance, keyed by campaign id)
+- `POST /api/central/row/:id/field` → edit a campaign field (`:id` = campaign id; derived → 400)
+- `POST /api/central/sync[?includeEnded=1]` → live BQ overlay (see "Sync" below); 409 if already running
+- `GET  /api/central/sync/status` → `{running, autosyncMin, lastRun}` (drives the UI's auto-sync note)
+- `GET  /api/central/reconcile/:client` → BQ name list + Central names + fuzzy SUGGESTIONS (never written)
+- `POST /api/central/reconcile/:client/approve` → write APPROVED pairs to the map + validated:true
+- `POST /api/central/plan/upload` → base64 JSON; extract → PENDING draft → `{fields,candidates}`
+- `POST /api/central/plan/:id/commit` → writes USER-CONFIRMED values to `campaigns`; rejects
+  unacknowledged overwrites (`acknowledgeConflicts`) and derived fields; create-new → new row
+- `POST /api/central/plan/:id/discard`
+
+## Media-plan reader
+Drop XLSX/CSV/PDF/DOCX/PPTX → extract CONFIG fields with per-field provenance
+(`{value, sheet, cellRef|page, confidence}`) → review panel (match a campaign or create
+new; edit any field; low-confidence flagged; conflicts resolved keep/replace, default
+KEEP) → commit. Extraction **never** writes a row. Uses Claude when `ANTHROPIC_API_KEY` is
+set, else a deterministic header-keyword heuristic (everything `confidence:'low'`); a
+PDF/DOC with no LLM key falls through to an empty panel for manual entry — never a dead end.
+
+## Decisions baked in
+- **Platform margin is CONFIG**, not API (no connector returns it) — editable, never synced.
+- **Client spend = mediaSpend × spendMult**; a row with spend but no `spendMult` shows an
+  **"unbilled basis"** badge (billing basis unverified). This fires **widely by design** on
+  the real sheet — no row has `spendMult` yet — and clears once it is populated per channel.
+- **Join key = (client, campaign-name)**; null `jobNumber` shows a **"no job #"** badge.
+- Stale guard: API columns desaturate when `lastSynced` is null or > 4h old.
+- **Needs-input tint:** empty manual [CONFIG] cells get a faint amber to-do tint + inline
+  edit (dropdown or contenteditable → the whitelisted field route). Never on [DERIVED]
+  (their "—" is correct output) or [API] (the sync's job). Agency grouping is
+  case-insensitive so the sheet's UPPERCASE agencies group correctly.
+
+## Test
+```
+node test-fixtures/central/make-central-fixtures.js   # (re)build the messy XLSX fixture
+```
+Then the two harnesses used during the build exercise the backend (extraction /
+normalization / provenance / conflict / derived-rejection) and the render path
+(grouping / colouring / filters / sort / null-safety).

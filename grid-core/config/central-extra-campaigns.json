@@ -1,0 +1,8 @@
+{
+  "_comment": "Central campaign rows added OUTSIDE the one-time sheet import (config/central-import.json). sourceOfRecord='scan': live clients found in the central BQ scan (Section 6 / readiness) that have LIVE delivery but no sheet row. Imported idempotently by server.js AFTER the sheet import — guard skips any row whose (client,name,channel) already exists. CONFIG (jobNumber/budget/dates/spendMult/managedBy) is intentionally OMITTED: these land Active-with-missing-config (needs-input tint + missing-config badge) for Mel/Zhen to fill. managedBy is left blank on purpose. The per-row BQ match rule (Design A) lives in config/central-clients.json under the same client. HireRight added 2026-07-10: it has live BQ delivery on Trade Desk (raw_snowflake.tradedesk_apac_all, adv 'HireRight'), LinkedIn (linkedin_ads_apac, adv 'HireRight_TransmissionSG_USD') and DV360 (dv360_apac, adv 'APAC_HireRight_271025_USD') but had no Central row. Section 'TRANSMISSION' (all its BQ accounts are TransmissionSG). Stays validated:false until Zhen confirms via reconcile.",
+  "campaigns": [
+    { "section": "TRANSMISSION", "client": "HireRight", "name": "Digital Air Cover", "channel": "Trade Desk", "status": "Active" },
+    { "section": "TRANSMISSION", "client": "HireRight", "name": "Digital Air Cover", "channel": "LinkedIn", "status": "Active" },
+    { "section": "TRANSMISSION", "client": "HireRight", "name": "HireRight 1802", "channel": "DV360", "status": "Active" }
+  ]
+}

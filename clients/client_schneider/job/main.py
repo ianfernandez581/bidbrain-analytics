@@ -189,6 +189,54 @@ def main():
     wstart, wend = wq["s"], wq["e"]
     wdays = (wend - wstart).days + 1 if (wstart and wend) else None
 
+    # --- GA4 website analytics (whole-property, via raw_ga4.perf_ga4) ----------
+    # SHIPPED DISABLED: the ga4_* views return 0 rows until the SE GA4 property id is set in
+    # sql/40_stg_ga4.sql + sql/40b_stg_ga4_events.sql. ga4_enabled flips true automatically on the first
+    # rebuild after real sessions land, and the dashboard's Website tab appears then. Wrapped so any GA4
+    # hiccup never breaks the CS/paid dashboard. Freshness: GA4 rides the existing gate (a rebuild fires
+    # when the Snowflake CS/paid tables advance daily); once enabled, you MAY add the property's
+    # raw_ga4.ga4_TrafficAcquisition_<id> base table to GATING_TABLES for tighter GA4 freshness.
+    ga4_enabled = False
+    ga4 = {"kpi": None, "daily": [], "channels": [], "sources": [], "events": []}
+    try:
+        gk = rows(bq, "ga4_kpi_market")
+        ga4_enabled = bool(gk and (gk[0].get("sessions") or 0) > 0)
+        if ga4_enabled:
+            k = gk[0]
+            ga4 = {
+                "kpi": {
+                    "sessions": num(k["sessions"]), "engaged_sessions": num(k["engaged_sessions"]),
+                    "users": num(k["users"]), "new_users": num(k["new_users"]),
+                    "page_views": num(k["page_views"]), "eng_duration": num(k["eng_duration"]),
+                    "conversions": num(k["conversions"]), "paid_sessions": num(k["paid_sessions"]),
+                    "display_sessions": num(k["display_sessions"]),
+                    "social_sessions": num(k["social_sessions"]),
+                    "search_sessions": num(k["search_sessions"]),
+                },
+                "daily": [{
+                    "day": ymd(r["day"]), "ga4_sessions": num(r["ga4_sessions"]),
+                    "engaged_sessions": num(r["engaged_sessions"]), "conversions": num(r["conversions"]),
+                    "paid_sessions": num(r["paid_sessions"]), "organic_sessions": num(r["organic_sessions"]),
+                    "direct_sessions": num(r["direct_sessions"]), "other_sessions": num(r["other_sessions"]),
+                } for r in rows(bq, "ga4_daily_market", order_by="day")],
+                "channels": [{
+                    "channel_group": r["channel_group"], "channel_bucket": r["channel_bucket"],
+                    "sessions": num(r["sessions"]), "engaged_sessions": num(r["engaged_sessions"]),
+                    "users": num(r["users"]), "conversions": num(r["conversions"]),
+                } for r in rows(bq, "ga4_channels_market", order_by="sessions DESC")],
+                "sources": [{
+                    "source_medium": r["source_medium"], "channel": r["channel"], "bucket": r["bucket"],
+                    "sessions": num(r["sessions"]), "engaged": num(r["engaged"]),
+                    "conversions": num(r["conversions"]),
+                } for r in rows(bq, "ga4_sources_market", order_by="sessions DESC")],
+                "events": [{
+                    "month": r["month"], "event_name": r["event_name"], "events": num(r["key_events"]),
+                } for r in rows(bq, "ga4_key_events_market")],
+            }
+            print(f"GA4 enabled: {ga4['kpi']['sessions']} sessions, {len(ga4['daily'])} day(s)")
+    except Exception as e:
+        print(f"GA4 block skipped ({e}); dashboard Website tab stays hidden.")
+
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "data_through": (max([v for v in observed.values() if v]).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -217,6 +265,8 @@ def main():
             "campaign": r["campaign"], "market": r["market"], "dim": r["dim"],
             "value": r["value"], "leads": num(r["leads"]),
         } for r in aud],
+        "ga4_enabled": ga4_enabled,
+        "ga4": ga4,
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
