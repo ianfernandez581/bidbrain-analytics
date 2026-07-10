@@ -488,10 +488,10 @@
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-head"><div><h3>Pacing - target vs actual</h3>
-        <div class="hint">Accepted leads per period, against target. <b>Relative</b> = 100%-stacked share.</div></div>
+        <div class="hint">Accepted leads vs target per period, across the full quarter. Toggle <b>Relative</b> for accepted as % of target.</div></div>
         <div class="ctrls">
-          <span class="seg" id="csWeekly_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
-          <span class="seg" id="csWeekly_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
+          <span class="seg" id="csWeekly_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel">Relative</button><button type="button" data-scale="abs" class="on">Absolute</button></span>
+          <span class="seg" id="csWeekly_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button></span>
         </div></div>
         <div class="chart-wrap"><canvas id="weeklyChart"></canvas></div>
       </div>
@@ -1168,11 +1168,10 @@ function pacingWindow(){
   if(s && e) return [new Date(s+'T00:00:00Z'), new Date(e+'T23:59:59Z')];
   return [new Date(rangeStart+'T00:00:00Z'), new Date(rangeEnd+'T23:59:59Z')];
 }
-// Quarter chips are single-select: clicking one jumps the shared date range to
-// exactly that quarter. (Was additive/union, but with the Q3 chip hidden while Q3
-// is active - see renderQuarterChips - additive toggling left Q2-only unreachable
-// from the chips.) DateRange.setRange -> onApply -> syncQuarterChips re-render. The
-// Q2+Q3 union is still reachable via the calendar and stays labelled "Q2-Q3".
+// Quarter chips are single-select: clicking one jumps the shared date range to exactly
+// that quarter (one click = view that quarter). DateRange.setRange -> onApply ->
+// syncQuarterChips re-render. The Q2+Q3 union is still reachable via the calendar and
+// stays labelled "Q2-Q3".
 function toggleQuarter(k){
   const span = quarterSpan([k]);
   if(span) DateRange.setRange(span[0], span[1]);
@@ -1185,15 +1184,17 @@ function syncQuarterChips(){
   else if(match(['Q2'])) selQuarters = new Set(['Q2']);
   else                   selQuarters = new Set();   // custom calendar range -> no chip
   renderQuarterChips();
+  // The visible market set is quarter-dependent (RIG drops out under Q3), so refresh the
+  // market chips whenever the quarter/range changes (renderAll alone doesn't re-chip).
+  if (typeof renderChips === 'function') renderChips();
 }
 function renderQuarterChips(){
-  document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b => {
-    b.classList.toggle('on', selQuarters.has(b.dataset.q));
-    // Hide the Q3 chip while Q3 is the active quarter (Q3 is the default view, so its
-    // own chip is redundant then); Q2 stays visible so you can switch to it. Client
-    // request 2026-07-09.
-    if(b.dataset.q === 'Q3') b.style.display = selQuarters.has('Q3') ? 'none' : '';
-  });
+  // BOTH quarter chips are always visible; the active quarter is just highlighted.
+  // (An earlier build hid the Q3 chip while Q3 was active, which read as "Q3 vanished
+  // when I clicked it" - removed 2026-07-09. What drops out under Q3 is the RIG *market*
+  // chip, not the Q3 quarter chip - see visibleMarkets.)
+  document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b =>
+    b.classList.toggle('on', selQuarters.has(b.dataset.q)));
   updateQuarterLabels();
 }
 // The quarter the user is viewing, as a label. Both Q2 and Q3 targets are loaded, and the
@@ -1226,7 +1227,7 @@ let pmGrain='week',    pmScale='rel';      // shared by ttdImpCtr + dailyStack (
 let effGrain='day',    effScale='rel';     // shared by ctrTrend / clkTrend / cpcTrend
 let cmpGrain='day',    cmpScale='rel';     // shared by cmpDaily + cmpSpend
 let csDailyGrain='day',  csDailyScale='rel';  // dailyChart (accepted leads)
-let csWeeklyGrain='week',csWeeklyScale='rel'; // weeklyChart (pacing 100%-stacked)
+let csWeeklyGrain='week',csWeeklyScale='abs'; // weeklyChart (pacing target vs actual; default Absolute, Month/Week only)
 let currentCampaignKey=null;                  // active single-campaign view key
 let cmpTab='li';                              // CF1-view tab: 'li' (LinkedIn) | 'cs' (content syndication)
 
@@ -1648,7 +1649,10 @@ function destroy(id) {
 // AGGREGATION (shared between Overview and Comparison)
 // ==========================================================================
 function aggregate(filterFn) {
-  const matchMarket = filterFn || (r => activeMarkets.has(r.MARKET_REGION));
+  // Default market filter respects BOTH the active chips AND quarter visibility (RIG is
+  // excluded under Q3 even if it lingers in activeMarkets from a prior Q2 view).
+  const visSet = new Set(visibleMarkets());
+  const matchMarket = filterFn || (r => activeMarkets.has(r.MARKET_REGION) && visSet.has(r.MARKET_REGION));
   // Date predicate (shared with Comparison via this same fn). dateOk uses the
   // applied range; default = full union window so this is a no-op on load.
   const inRange = r => dateOk(r.DAY);
@@ -1711,6 +1715,24 @@ function aggregate(filterFn) {
     .sort((a,b) => a[0].localeCompare(b[0]))
     .map(([day, v]) => ({day, target: v.target, actual: v.actual, unprocessed: v.unprocessed}));
 
+  // Full-quarter pacing series: target + accepted per day across the WHOLE selected quarter
+  // (from quarterTargets, NOT the in-range rows). This is what the "Pacing - target vs actual"
+  // chart reads, so Q3 shows every one of its 13 weeks like Q2 shows all 12 - not just the
+  // weeks that already have data (the range clamps to the last day with data). Actuals appear
+  // only where leads exist; future weeks carry their target with a 0 actual.
+  const paceMap = new Map();
+  for (const r of quarterTargets){
+    const day = r.DAY ? String(r.DAY).slice(0,10) : null;
+    if (!day) continue;
+    if (!paceMap.has(day)) paceMap.set(day, {target:0, actual:0});
+    const pb = paceMap.get(day);
+    pb.target += Number(r.ALLOCATED_TARGET) || 0;
+    if (!isDummy(r) && ACCEPTED_STATUSES.has(r.LEAD_STATUS)) pb.actual += 1;
+  }
+  const pacingDaily = [...paceMap.entries()]
+    .sort((a,b) => a[0].localeCompare(b[0]))
+    .map(([day, v]) => ({day, target: v.target, actual: v.actual}));
+
   const dailyMap = new Map();
   for (const r of accepted) {
     const day = r.DAY ? String(r.DAY).slice(0,10) : null;
@@ -1739,7 +1761,7 @@ function aggregate(filterFn) {
 
   // Per-market targets are quarter-anchored too (full-quarter plan per region), matching
   // the headline q2Target; mAccepted stays the in-range actual (QTD accepted per region).
-  const regionRows = ALL_MARKETS.filter(m => activeMarkets.has(m)).map(m => {
+  const regionRows = visibleMarkets().filter(m => activeMarkets.has(m)).map(m => {
     const mTarget = quarterTargets.filter(r => r.MARKET_REGION === m)
       .reduce((s,r) => s + (Number(r.ALLOCATED_TARGET) || 0), 0);
     const mTtdTarget = quarterTargets.filter(r => r.MARKET_REGION === m && new Date(String(r.DAY).slice(0,10)) <= now)
@@ -1753,17 +1775,26 @@ function aggregate(filterFn) {
     accepted: accepted.length,
     rejected: rejected.length,
     q2Target, ttdTarget, timePct,
-    weekly, daily, dailyFull, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
+    weekly, daily, dailyFull, pacingDaily, solutions, countries, jobFunc, jobLevel, jobTitle, assets, regionRows
   };
 }
 
 // ==========================================================================
 // OVERVIEW TAB RENDERING
 // ==========================================================================
+// The market filter is quarter-dependent: RIG has NO Q3 plan (the Core DG Q3 targets
+// carry no RIG line), so the RIG chip + its data drop out when viewing Q3 (client
+// request 2026-07-09 - "remove the RIG filter option when Q3 is toggled"). RIG stays
+// under Q2 and the Q2+Q3 union (both have RIG Q2 data).
+function visibleMarkets() {
+  const hideRig = selQuarters.has('Q3') && !selQuarters.has('Q2');
+  return hideRig ? ALL_MARKETS.filter(m => m !== 'RIG') : ALL_MARKETS;
+}
+
 function renderChips() {
   const c = document.getElementById('marketChips');
   c.innerHTML = '';
-  ALL_MARKETS.forEach(m => {
+  visibleMarkets().forEach(m => {
     const el = document.createElement('button');
     el.className = 'chip' + (activeMarkets.has(m) ? ' on' : '');
     el.textContent = mktLabel(m);
@@ -1877,7 +1908,7 @@ function renderWeekly(agg) {
   // Re-bucket the per-day pacing source by csWeeklyGrain, SUMMING target/actual (accepted).
   // Unprocessed/New is intentionally dropped (client rule 2026-07-07).
   const m = {};
-  for (const d of agg.dailyFull){
+  for (const d of agg.pacingDaily){
     const k = bucketKey(d.day, csWeeklyGrain); if (!k) continue;
     const o = m[k] = m[k] || {target:0, actual:0};
     o.target += d.target; o.actual += d.actual;
