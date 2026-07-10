@@ -31,6 +31,7 @@ const bqWriter = require('./src/brain/bq-writer');
 const planReader = require('./src/central/plan-reader');
 const centralView = require('./src/central/render-central'); // for the single mapGridRowToCentral()
 const centralMatch = require('./src/central/match');          // unified exact/contains/rollup rule
+const centralReadiness = require('./src/central/readiness');  // live-coverage readiness table builder
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
@@ -61,6 +62,28 @@ const CENTRAL_MIME = {
     if (res.inserted) console.log(`[CENTRAL] imported ${res.inserted} campaigns from sheet snapshot; by status ${JSON.stringify(res.byStatus)}`);
     else console.log(`[CENTRAL] campaigns already imported (${res.total} rows) — skipping`);
   } catch (e) { console.error('[CENTRAL] sheet import failed:', e.message); }
+})();
+
+// Scan-sourced live rows (config/central-extra-campaigns.json) — clients found in the BQ
+// scan that have LIVE delivery but no sheet row (e.g. HireRight). Imported AFTER the sheet
+// import; idempotent by (client,name,channel) so it is safe every start and never dupes.
+// sourceOfRecord='scan' keeps their provenance honest (not 'sheet-import').
+(function importCentralExtraOnce() {
+  try {
+    const p = path.join(ROOT, 'config', 'central-extra-campaigns.json');
+    if (!fs.existsSync(p)) return;
+    const doc = JSON.parse(fs.readFileSync(p, 'utf8'));
+    const rows = Array.isArray(doc) ? doc : (doc.campaigns || []);
+    let created = 0;
+    for (const r of rows) {
+      if (!r || !r.client || !r.name) continue;
+      const dup = db.getCampaigns().some(c => c.client === r.client && c.name === r.name && (c.channel || null) === (r.channel || null) && !c.archivedAt);
+      if (dup) continue;
+      const cr = db.createCampaign(r, 'scan');
+      if (cr.ok) created++;
+    }
+    if (created) console.log(`[CENTRAL] created ${created} scan-sourced live campaign rows (HireRight etc.)`);
+  } catch (e) { console.error('[CENTRAL] extra-campaign import failed:', e.message); }
 })();
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.map': 'application/json' };
@@ -102,6 +125,7 @@ const server = http.createServer(async (req, res) => {
     // skip archived + Ended (unless ?includeEnded=1). See centralSync().
     if (p === '/api/central/sync/status' && req.method === 'GET') return centralSyncStatus(req, res);
     if (p === '/api/central/sync' && req.method === 'POST') return centralSync(req, res, url);
+    if (p === '/api/central/readiness' && req.method === 'GET') return centralReadinessRoute(req, res);
     if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)\/approve$/)) && req.method === 'POST') return centralReconcileApprove(req, res, decodeURIComponent(m[1]));
     if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)$/)) && req.method === 'GET') return centralReconcile(req, res, decodeURIComponent(m[1]));
     if (p === '/api/central/plan/upload' && req.method === 'POST') return centralPlanUpload(req, res);
@@ -464,6 +488,28 @@ function centralAutoSyncTick() {
   performCentralSync({ trigger: 'auto' })
     .then(r => { if (r && r.skipped) console.log('[CENTRAL][AutoSync] skipped (a sync is already running)'); })
     .catch(e => console.error('[CENTRAL][AutoSync] failed:', e.message));
+}
+
+// Readiness fetcher — all live-eligible clients (validated or not), READ-ONLY BQ preview.
+// Tests inject CENTRAL_READINESS_FIXTURE (path to a --readiness JSON doc) so CI needs no BQ.
+function runReadinessFetcher() {
+  if (process.env.CENTRAL_READINESS_FIXTURE) return Promise.resolve(JSON.parse(fs.readFileSync(process.env.CENTRAL_READINESS_FIXTURE, 'utf8')));
+  return execCentral(['--readiness'], 180000);   // scans several clients across raw tables
+}
+
+// GET /api/central/readiness — the live-coverage readiness table (Section 9 item 6). Joins
+// the DB campaigns (source of truth / live set) + the sync config + a read-only BQ preview.
+// Never writes anything.
+async function centralReadinessRoute(req, res) {
+  let doc;
+  try { doc = await runReadinessFetcher(); }
+  catch (e) { return send(res, 502, { error: 'readiness fetcher failed: ' + e.message }); }
+  const rows = centralReadiness.buildReadiness({
+    campaigns: db.getCampaigns(), config: loadCentralClients(), fetched: (doc && doc.clients) || {}
+  });
+  const errors = [];
+  Object.keys((doc && doc.clients) || {}).forEach(c => (doc.clients[c].errors || []).forEach(er => errors.push(c + ': ' + er)));
+  return send(res, 200, { fetchedAt: (doc && doc.fetchedAt) || null, rows, errors });
 }
 
 // Reconcile ONE client: BQ name list + Central names + fuzzy SUGGESTIONS (never written).

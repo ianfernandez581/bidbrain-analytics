@@ -129,7 +129,10 @@ def fetch_client_rows(spec):
                 nm = r.get("bqName")
                 if not nm:
                     continue
+                # dataset/table are additive tags (readiness bqSource); the sync path + match.js
+                # read only bqName/advertiserName/channel/impressions/mediaSpend and ignore them.
                 rows.append({"bqName": nm, "advertiserName": advVal, "channel": channel,
+                             "dataset": t["dataset"], "table": t["table"],
                              "impressions": int(_num(r.get("impressions")) or 0), "mediaSpend": _num(r.get("mediaSpend"))})
         return rows
     raise RuntimeError(f"unknown source '{src}'")
@@ -186,6 +189,29 @@ def run_full_sync():
     return 1 if (validated_total > 0 and validated_ok == 0) else 0
 
 
+def run_readiness():
+    """Readiness preview: per-client tagged rows for EVERY client with a BQ source
+    (source != 'none'), validated OR not — unlike run_full_sync which fetches only
+    validated clients. READ-ONLY. The grid-core readiness builder (src/central/
+    readiness.js) turns this into the live-coverage table. Per-client failures are
+    captured, never crash the run (exit 0)."""
+    cfg = _load_config()
+    clients = {}
+    for spec in cfg.get("clients", []):
+        name = spec.get("client")
+        if _source(spec) == "none":
+            continue
+        entry = {"rows": [], "errors": [], "source": _source(spec), "validated": bool(spec.get("validated"))}
+        try:
+            entry["rows"] = fetch_client_rows(spec)
+        except Exception as e:  # noqa: BLE001 — capture, never crash the whole run
+            entry["errors"].append(str(e)[:600])
+        clients[name] = entry
+    doc = {"fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "clients": clients}
+    print(json.dumps(doc))
+    return 0
+
+
 def run_names(client):
     cfg = _load_config()
     spec = next((c for c in cfg.get("clients", []) if c.get("client") == client), None)
@@ -204,6 +230,8 @@ def run_names(client):
 def main():
     if len(sys.argv) >= 3 and sys.argv[1] == "--names":
         sys.exit(run_names(sys.argv[2]))
+    if len(sys.argv) >= 2 and sys.argv[1] == "--readiness":
+        sys.exit(run_readiness())
     sys.exit(run_full_sync())
 
 

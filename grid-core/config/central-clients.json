@@ -37,6 +37,64 @@
       ]
     },
     {
+      "client": "HireRight",
+      "validated": false,
+      "source": "raw",
+      "note": "Added from the central scan (Section 6 / readiness, 2026-07-10): HireRight has LIVE BQ delivery on Trade Desk / LinkedIn / DV360 but had no Central row (a missing row). advertiserValue per table = the exact BQ spelling from the scan. CONFIG (jobNumber/budget/spendMult/manager/dates) is NOT in the sheet, so the campaign rows land Active-with-missing-config (see config/central-extra-campaigns.json); validated:false until Zhen confirms via reconcile. map[] is the pre-seeded Design A per-row rule (mode contains, value taken from the real BQ campaign names: Trade Desk names all contain 'HireRight_Digital-Air-Cover'; LinkedIn + DV360 names all contain '1802').",
+      "tables": [
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_all",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "HireRight"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "linkedin_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "HireRight_TransmissionSG_USD"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "dv360_apac",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
+          "dateColumn": "DAY",
+          "advertiserValue": "APAC_HireRight_271025_USD"
+        }
+      ],
+      "map": [
+        {
+          "channel": "Trade Desk",
+          "advertiserName": "HireRight",
+          "campaignMatch": { "mode": "contains", "value": "HireRight_Digital-Air-Cover" },
+          "campaignName": "Digital Air Cover"
+        },
+        {
+          "channel": "LinkedIn",
+          "advertiserName": "HireRight_TransmissionSG_USD",
+          "campaignMatch": { "mode": "contains", "value": "1802" },
+          "campaignName": "Digital Air Cover"
+        },
+        {
+          "channel": "DV360",
+          "advertiserName": "APAC_HireRight_271025_USD",
+          "campaignMatch": { "mode": "contains", "value": "1802" },
+          "campaignName": "HireRight 1802"
+        }
+      ]
+    },
+    {
       "client": "Cloudflare",
       "validated": false,
       "source": "raw",
@@ -207,6 +265,18 @@
           "dateColumn": "DAY",
           "advertiserValue": "MongoDB",
           "note": "tradedesk_apac_all rows carry 0 impressions; conversions live in tradedesk_apac_conversion by advertiser id 9c1w83i"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_conversion",
+          "advertiserColumn": "ADVERTISER_ID",
+          "campaignColumn": "FIRST_IMPRESSION_CAMPAIGN_NAME",
+          "costColumn": null,
+          "impressionColumn": "IMPRESSION_COUNT",
+          "dateColumn": "DAY",
+          "advertiserValue": "9c1w83i",
+          "channel": "Trade Desk",
+          "note": "MongoDB's REAL Trade Desk delivery: keyed on ADVERTISER_ID '9c1w83i' (TTD Universal Pixel), NOT the 'MongoDB' NAME row above (0 impressions). ~13 campaigns / 3.48M imps. No cost column in the conversion table (spend stays sheet-based). channel set explicitly (this table is not in central_sync.TABLE_CHANNEL)."
         }
       ],
       "map": []
