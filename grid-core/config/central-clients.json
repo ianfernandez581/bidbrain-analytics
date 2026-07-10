@@ -1,26 +1,417 @@
 {
-  "_comment": "Central sync client mapping. Only validated:true clients are synced; validated:false are SKIPPED (never guessed). Matching at sync time uses ONLY this explicit map (no fuzzy matching in the sync path — fuzzy is reconcile-only, for humans). Each map entry: bqName = the exact BQ identifier (pm_delivery `program`), campaignId = the Central campaigns.id, campaignName = stable (client,name) fallback used only if campaignId is not found (e.g. after a DB rebuild). NOTE: pm_delivery aggregates per program across channels; where a program has >1 Central channel-row the total maps to one representative row (EBA is 1:1). Reconcile (Zhen) refines coverage.",
+  "_comment": "Central sync client mapping. Only validated:true clients are synced; validated:false are SKIPPED (never guessed). Matching at sync time uses ONLY this explicit map (no fuzzy matching in the sync path — fuzzy is reconcile-only, for humans). Each map entry: bqName = the exact BQ identifier (pm_delivery `program`), campaignId = the Central campaigns.id, campaignName = stable (client,name) fallback used only if campaignId is not found (e.g. after a DB rebuild). NOTE: pm_delivery aggregates per program across channels; where a program has >1 Central channel-row the total maps to one representative row (EBA is 1:1). Reconcile (Zhen) refines coverage. | Mode A (\"view\") = a pm_delivery view. Mode B (\"raw\") = raw platform tables (tables[]), each with the exact advertiserValue + real column names from the BQ schema (see scripts/bq_audit.py). Multiple tables merge by campaign name. source \"none\" = no BQ presence. All non-Schneider clients are validated:false until Zhen confirms via the reconcile panel. | Mode A (\"view\") = a pm_delivery view. Mode B (\"raw\") = raw platform tables (tables[]), each with the exact advertiserValue + real column names from the BQ schema (see scripts/bq_audit.py). Multiple tables merge by campaign name. source \"none\" = no BQ presence. All non-Schneider clients are validated:false until Zhen confirms via the reconcile panel.",
   "clients": [
     {
       "client": "Schneider",
       "validated": true,
-      "bq": { "dataset": "client_schneider", "table": "pm_delivery" },
+      "bq": {
+        "dataset": "client_schneider",
+        "table": "pm_delivery"
+      },
       "map": [
-        { "bqName": "eba", "campaignId": "cmp-520b4425aafb", "campaignName": "EBA" },
-        { "bqName": "water_env", "campaignId": "cmp-c24b8f4375bc", "campaignName": "Water and Environment" },
-        { "bqName": "airset", "campaignId": "cmp-daf98be2b67e", "campaignName": "Airset" },
-        { "bqName": "global_rebrand", "campaignId": "cmp-210b45ba43b7", "campaignName": "Advancing Energy T" },
-        { "bqName": "nel", "campaignId": "cmp-83551d68037a", "campaignName": "NEL" }
+        {
+          "bqName": "eba",
+          "campaignId": "cmp-520b4425aafb",
+          "campaignName": "EBA"
+        },
+        {
+          "bqName": "water_env",
+          "campaignId": "cmp-c24b8f4375bc",
+          "campaignName": "Water and Environment"
+        },
+        {
+          "bqName": "airset",
+          "campaignId": "cmp-daf98be2b67e",
+          "campaignName": "Airset"
+        },
+        {
+          "bqName": "global_rebrand",
+          "campaignId": "cmp-210b45ba43b7",
+          "campaignName": "Advancing Energy T"
+        },
+        {
+          "bqName": "nel",
+          "campaignId": "cmp-83551d68037a",
+          "campaignName": "NEL"
+        }
       ]
     },
-    { "client": "MongoDB", "validated": false, "bq": { "dataset": "client_mongodb", "table": "pm_delivery" }, "map": [] },
-    { "client": "Cloudflare", "validated": false, "bq": { "dataset": "client_cloudflare", "table": "pm_delivery" }, "map": [] },
-    { "client": "STT", "validated": false, "bq": { "dataset": "client_stt", "table": "pm_delivery" }, "map": [] },
-    { "client": "HireRight", "validated": false, "bq": { "dataset": "client_hireright", "table": "pm_delivery" }, "map": [] },
-    { "client": "City Perfume", "validated": false, "bq": { "dataset": "client_cityperfume", "table": "pm_delivery" }, "map": [] },
-    { "client": "ResetData", "validated": false, "bq": { "dataset": "client_resetdata", "table": "pm_delivery" }, "map": [] },
-    { "client": "PropTrack", "validated": false, "bq": { "dataset": "client_proptrack", "table": "pm_delivery" }, "map": [] },
-    { "client": "The Little Marionette", "validated": false, "bq": { "dataset": "client_tlm", "table": "pm_delivery" }, "map": [] },
-    { "client": "VMCH", "validated": false, "bq": { "dataset": "client_vmch", "table": "pm_delivery" }, "map": [] }
+    {
+      "client": "Cloudflare",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_snowflake",
+          "table": "linkedin_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "Cloudflare APAC"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_all",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "Cloudflare"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "reddit_ads_apac_all",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "Transmission_Cloudflare"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "STT",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_snowflake",
+          "table": "dv360_apac",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
+          "dateColumn": "DAY",
+          "advertiserValue": "APAC | STT GDC - SGD"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "dv360_apac",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
+          "dateColumn": "DAY",
+          "advertiserValue": "APAC | STTelemdia GDC"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "google_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "STT GDC_SGD"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "google_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "STT Global Data"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "google_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "STT (USD)"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "linkedin_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "APAC - STT GDC - SGD ",
+          "note": "trailing space in BQ value"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "linkedin_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "STTGDC_TransmissionSG_USD"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "PropTrack",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_snowflake",
+          "table": "dv360_apac",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
+          "dateColumn": "DAY",
+          "advertiserValue": "APAC | PropTrack (AUD)"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "linkedin_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "PropTrack_TransmissionSG_AUD"
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_all",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "PopTrack",
+          "note": "BQ advertiser is misspelled \"PopTrack\""
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "MongoDB",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_all",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "MongoDB",
+          "note": "tradedesk_apac_all rows carry 0 impressions; conversions live in tradedesk_apac_conversion by advertiser id 9c1w83i"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "City Perfume",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_google_ads",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "spend",
+          "dateColumn": "metric_date",
+          "advertiserValue": "City Perfume"
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_meta",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "Cityperfume.com.au",
+          "note": "Meta account name differs from client name"
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "City Perfume"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "ResetData",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_google_ads",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "spend",
+          "dateColumn": "metric_date",
+          "advertiserValue": "Reset Data",
+          "note": "Google Ads account is \"Reset Data\" (two words)"
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_reddit",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "spend",
+          "dateColumn": "metric_date",
+          "advertiserValue": "ResetData Ad Account (100Digital)"
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "ResetData"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "VMCH",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "VMCH ",
+          "note": "trailing space in BQ advertiser value"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "The Little Marionette",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "The Little Marionette",
+          "note": "TLM's main Google Ads spend is in raw_google_ads (DTS) which was not in the audited datasets - a coverage gap"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "QTopia",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "Qtopia Sydney",
+          "note": "BQ advertiser \"Qtopia Sydney\" vs Central \"QTopia\""
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "Ad Assembly",
+      "validated": false,
+      "source": "raw",
+      "tables": [
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_meta",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "Ad Assembly - ACRS"
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_meta",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "Ad Assembly - BuyerX"
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "ACRS",
+          "note": "Trade Desk advertiser is \"ACRS\" (Ad Assembly client)"
+        }
+      ],
+      "map": []
+    },
+    {
+      "client": "Gateway",
+      "validated": false,
+      "source": "none",
+      "note": "no advertiser found in raw_snowflake or raw_windsor",
+      "map": []
+    },
+    {
+      "client": "Caltex",
+      "validated": false,
+      "source": "none",
+      "note": "no advertiser found in raw_snowflake or raw_windsor",
+      "map": []
+    },
+    {
+      "client": "Next Smile Australia",
+      "validated": false,
+      "source": "none",
+      "note": "no advertiser found in raw_snowflake or raw_windsor",
+      "map": []
+    },
+    {
+      "client": "Bell Shakespeare",
+      "validated": false,
+      "source": "none",
+      "note": "no advertiser found in raw_snowflake or raw_windsor",
+      "map": []
+    }
   ]
 }

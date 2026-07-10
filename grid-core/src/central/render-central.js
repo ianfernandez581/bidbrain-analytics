@@ -33,10 +33,16 @@
     'LinkedIn': { bg: '#DCEAFB', fg: '#004182', code: 'LI' },
     'Google Ads': { bg: '#E8F0FE', fg: '#174EA6', code: 'GA' },
     'Meta': { bg: '#E0EBFC', fg: '#05308A', code: 'FB' },
-    'DV360': { bg: '#E1F5EE', fg: '#0F6E56', code: 'DV' }
+    'DV360': { bg: '#E1F5EE', fg: '#0F6E56', code: 'DV' },
+    'Reddit': { bg: '#FFE8D1', fg: '#8B3A00', code: 'RD' },
+    'DOOH': { bg: '#F0E6F6', fg: '#5B2D8E', code: 'OOH' },
+    'LINE': { bg: '#E6F9E6', fg: '#1B7A1B', code: 'LN' }
   };
   var CHANNEL_OTHER = { bg: '#F1EFE8', fg: '#444441', code: '—' };
-  function chanTheme(ch) { return CHANNEL_COLORS[ch] || CHANNEL_OTHER; }
+  // normalized lookup so the sheet's "TradeDesk"/"Linkedin" (no space / different case) and
+  // "facebook" all resolve to the right chip instead of falling through to gray.
+  var CHANNEL_NORM = (function () { var m = {}; Object.keys(CHANNEL_COLORS).forEach(function (k) { m[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = CHANNEL_COLORS[k]; }); m.facebook = CHANNEL_COLORS.Meta; return m; })();
+  function chanTheme(ch) { if (!ch) return CHANNEL_OTHER; return CHANNEL_NORM[String(ch).toLowerCase().replace(/[^a-z0-9]/g, '')] || CHANNEL_OTHER; }
   function channelChip(ch) {
     if (!ch) return DASH;
     var t = chanTheme(ch);
@@ -169,7 +175,12 @@
       cell: function (r) {
         var band = r._d.marginBand;
         var val = r._d.campaignMargin == null ? DASH : Math.round(r._d.campaignMargin * 100) + '%';
-        return '<span class="ct-margin ' + (band ? 'ct-band-' + band : '') + '" title="' + esc(marginTip(r)) + '">' + val + '</span>';
+        // config-gap indicator: LIVE media spend but client spend is still sheet-era (no
+        // spendMult) — the margin is real but reads low until the multiplier is set. Distinct
+        // from the amber needs-input tint (a neutral info mark, not a "missing field").
+        var info = (isLive(r) && r.spendBasis === 'sheet')
+          ? '<span class="ct-basis-info" title="Margin uses sheet-era client spend - set the billing multiplier (spendMult) for a live margin.">i</span>' : '';
+        return '<span class="ct-margin ' + (band ? 'ct-band-' + band : '') + '" title="' + esc(marginTip(r)) + '">' + val + '</span>' + info;
       }
     },
     { id: 'cpmPerformance', label: 'CPM Perf', type: 'derived', num: 1, get: function (r) { return r._d.cpmPerformance; }, cell: function (r) { return r._d.cpmPerformance == null ? DASH : '$' + r._d.cpmPerformance.toFixed(2); } },
@@ -184,7 +195,8 @@
     { id: 'budgetRemaining', label: 'Remaining', type: 'derived', num: 1, get: function (r) { return r._d.budgetRemaining; }, cell: function (r) { return money(r._d.budgetRemaining); } },
     { id: 'startDate', label: 'Start', type: 'config', get: function (r) { return r.startDate || ''; }, cell: function (r) { return dateDMY(r.startDate); } },
     { id: 'endDate', label: 'End', type: 'config', get: function (r) { return r.endDate || ''; }, cell: function (r) { return dateDMY(r.endDate); } },
-    { id: 'keyKpi', label: 'Key KPI', type: 'config', get: function (r) { return (r.keyKpi || '').toLowerCase(); }, cell: function (r) { return (r.keyKpi ? esc(r.keyKpi) : DASH) + srcIcon(r, 'keyKpi'); } },
+    { id: 'keyKpi', label: 'Key KPI', type: 'config', get: function (r) { return (r.keyKpi || '').toLowerCase(); }, cell: function (r) { return editableTextCell(r, 'keyKpi') + srcIcon(r, 'keyKpi'); } },
+    { id: 'kpiPerformance', label: 'KPI Perf', type: 'config', get: function (r) { return (r.kpiPerformance || '').toLowerCase(); }, cell: function (r) { var v = kpiVerdict(r.keyKpi, r.kpiPerformance); return editableTextCell(r, 'kpiPerformance', v === 'beat' ? 'ct-kpi-beat' : v === 'miss' ? 'ct-kpi-miss' : '') + srcIcon(r, 'kpiPerformance'); } },
     { id: 'notes', label: 'Notes', type: 'config', get: function (r) { return (r.notes || '').toLowerCase(); }, cell: function (r) { return r.notes ? esc(r.notes) : DASH; } }
   ];
   var EDIT_COLS = ['channel', 'managedBy', 'status'];  // columns rendered as dropdowns
@@ -229,6 +241,36 @@
 
   // ============================ render ============================
   function healthCounts(rows) { var c = { winner: 0, watch: 0, steady: 0 }; rows.forEach(function (r) { if (c[r._d.health] != null) c[r._d.health]++; }); return c; }
+
+  // Summary cards (the boss view). Live count uses the client+health scope (status-agnostic
+  // so "live vs total" is meaningful); budget/spend/health sum the DISPLAYED rows; coverage
+  // is global config. Nulls are excluded from sums — never NaN.
+  function summaryCardsHtml(rows, working) {
+    var scoped = working.filter(function (r) {
+      if (CS.client !== 'all' && r.client !== CS.client) return false;
+      if (CS.health !== 'all' && r._d.health !== CS.health) return false;
+      return true;
+    });
+    var liveN = scoped.filter(function (r) { return LIVE_STATUSES.indexOf(r.status) >= 0; }).length;
+    var totalN = scoped.length;
+    var bVals = rows.map(function (r) { return r.totalBudget; }).filter(function (v) { return v != null && v !== ''; });
+    var bSum = bVals.reduce(function (a, b) { return a + Number(b); }, 0);
+    var bMissing = rows.length - bVals.length;
+    var mSum = rows.map(function (r) { return r.mediaSpend; }).filter(function (v) { return v != null && v !== ''; }).reduce(function (a, b) { return a + Number(b); }, 0);
+    var liveRows = rows.filter(isLive).length, sheetRows = rows.length - liveRows;
+    var hc = healthCounts(rows);
+    var cov = CS.syncStatus && CS.syncStatus.coverage;
+    var covPct = cov && cov.total ? Math.round(cov.validated / cov.total * 100) : 0;
+    var card = function (eyebrow, big, sub) { return '<div class="ct-card"><div class="ct-card-e">' + eyebrow + '</div><div class="ct-card-b">' + big + '</div><div class="ct-card-s">' + sub + '</div></div>'; };
+    var budgetHalfMissing = rows.length && bMissing > rows.length * 0.5;
+    return '<div class="ct-cards">' +
+      card('Live campaigns', liveN, 'of ' + totalN + ' total') +
+      card('Total budget', budgetHalfMissing ? DASH : money(bSum), budgetHalfMissing ? (bMissing + ' of ' + rows.length + ' missing') : (bMissing ? bMissing + ' missing budget' : 'across ' + rows.length + ' shown')) +
+      card('Total spend (media)', money(mSum), liveRows + ' live · ' + sheetRows + ' sheet') +
+      card('Health', '<span class="ct-hc-winner">' + hc.winner + '</span> · <span class="ct-hc-watch">' + hc.watch + '</span> · <span class="ct-hc-steady">' + hc.steady + '</span>', 'winner · watch · steady') +
+      card('BQ coverage', cov ? (cov.validated + ' / ' + cov.total) : DASH, 'clients mapped<div class="ct-cov"><i style="width:' + covPct + '%"></i></div>') +
+      '</div>';
+  }
 
   function render(opts) {
     opts = opts || {};
@@ -288,6 +330,8 @@
       '<button class="ct-btn" id="ct-sync"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg><span>Sync now</span></button>' +
       '<button class="ct-btn" id="ct-export"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>Export CSV</button>' +
       '</div></div>';
+    // summary cards (the boss view) — reactive to the current filters
+    html += summaryCardsHtml(rows, working);
     // legend
     html += '<div class="ct-legend"><span class="ct-lg"><i class="ct-dot ct-oh-api"></i>synced (API)</span><span class="ct-lg"><i class="ct-dot ct-oh-config"></i>config</span><span class="ct-lg"><i class="ct-dot ct-oh-derived"></i>derived (locked)</span><span class="ct-lg-r">last synced: ' + (CS.lastSynced ? new Date(CS.lastSynced).toLocaleString('en-GB') : 'never') + '</span></div>';
     // summary health chips (portfolio, working set)
@@ -366,6 +410,29 @@
   function editableEmptyCell(r, field) {
     return '<span class="ct-ce" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="' + field + '" data-ph="add"></span>';
   }
+  // always-editable free-text CONFIG cell (KPI columns): shows the value + edits inline.
+  // A sheet error (#DIV/0! etc.) renders blank (→ the "—"/placeholder), still editable.
+  function isKpiError(v) { return v != null && /#(div\/0|n\/a|ref|value|name|num)/i.test(String(v)); }
+  function editableTextCell(r, field, cls) {
+    var v = r[field]; var disp = (v == null || v === '' || isKpiError(v)) ? '' : esc(String(v));
+    return '<span class="ct-ce ' + (cls || '') + '" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="' + field + '" data-allow-empty="1" data-ph="add">' + disp + '</span>';
+  }
+  // KPI parse + verdict (DISPLAY ONLY — never stored). "10 ROAS"→{10,ROAS}, "$150 CPL"→{150,CPL},
+  // "0.51% CTR"→{0.51,CTR}. Same unit → green if perf meets/beats target, red if >30% off, else neutral.
+  var KPI_LOWER_BETTER = ['CPL', 'CPA', 'CPR', 'CPM', 'CPC', 'CPV', 'CPI', 'CPE', 'COST'];
+  function parseKpi(s) {
+    if (s == null) return null; s = String(s).trim();
+    if (s === '' || isKpiError(s)) return null;
+    var nm = s.replace(/,/g, '').match(/-?\d+(?:\.\d+)?/); if (!nm) return null;
+    var unit = s.replace(/[-\d.,%$\s]/g, '').toUpperCase();
+    return { num: parseFloat(nm[0]), unit: unit };
+  }
+  function kpiVerdict(target, actual) {
+    var t = parseKpi(target), a = parseKpi(actual);
+    if (!t || !a || !t.unit || t.unit !== a.unit || t.num === 0) return null;   // diff/unparseable units → neutral
+    if (KPI_LOWER_BETTER.indexOf(t.unit) >= 0) { if (a.num <= t.num) return 'beat'; return a.num > t.num * 1.3 ? 'miss' : 'neutral'; }
+    if (a.num >= t.num) return 'beat'; return a.num < t.num * 0.7 ? 'miss' : 'neutral';
+  }
 
   function editSelect(r, field) {
     var cur = r[field] || '';
@@ -415,7 +482,9 @@
     });
     // Map client (reconcile) — suggestions only, human approves
     var mapb = mount.querySelector('#ct-map'); if (mapb) mapb.addEventListener('click', function () {
-      if (window.CentralPlan && window.CentralPlan.openReconcile) window.CentralPlan.openReconcile({ clients: distinctClients(), onApproved: function () { render({ reload: true }); } });
+      var cov = CS.syncStatus && CS.syncStatus.coverage;
+      var clientList = cov && cov.clients && cov.clients.length ? cov.clients.map(function (c) { return c.client; }) : distinctClients();
+      if (window.CentralPlan && window.CentralPlan.openReconcile) window.CentralPlan.openReconcile({ clients: clientList, coverage: cov, onApproved: function () { render({ reload: true }); } });
       else toastErr('Reconcile panel unavailable (plan-panel.js not loaded).');
     });
     // archive (soft delete)
@@ -446,8 +515,9 @@
   }
   function onInlineEdit(ce, mount) {
     var raw = (ce.textContent || '').trim();
-    if (raw === '') return;                              // nothing typed → stays empty/tinted
-    postField(ce.dataset.id, ce.dataset.field, coerceEdit(ce.dataset.field, raw), mount);
+    var allowEmpty = ce.dataset.allowEmpty === '1';     // KPI free-text cells may be cleared to null
+    if (raw === '' && !allowEmpty) return;              // "fill empty" cells: nothing typed → stays tinted
+    postField(ce.dataset.id, ce.dataset.field, raw === '' ? null : coerceEdit(ce.dataset.field, raw), mount);
   }
   // light client-side coercion so inline-typed values land in the same shape as the seed
   // (percent → 0-1, "$20k" → 20000); text + dates pass through untouched.
@@ -556,6 +626,13 @@
       '.ct-btn.ct-spin svg{animation:ct-rot .8s linear infinite}@keyframes ct-rot{to{transform:rotate(360deg)}}',
       '.ct-lastsync{font-size:11px;color:var(--ink-3);font-weight:600}.ct-lastsync.stale{color:var(--warn)}',
       '.ct-auto{font-size:10.5px;color:var(--ink-3);font-weight:600}',
+      // summary cards (boss view)
+      '.ct-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;padding:4px 0 12px}',
+      '.ct-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:13px 15px}',
+      '.ct-card-e{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}',
+      '.ct-card-b{font-family:"Space Grotesk";font-size:23px;font-weight:600;letter-spacing:-.5px;margin:5px 0 2px;line-height:1}',
+      '.ct-card-s{font-size:10.5px;color:var(--ink-2)}',
+      '.ct-cov{height:5px;border-radius:4px;background:var(--line-2);overflow:hidden;margin-top:5px}.ct-cov i{display:block;height:100%;background:var(--brand)}',
       '.ct-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);padding:2px 2px 10px}',
       '.ct-lg{display:inline-flex;align-items:center;gap:6px}.ct-lg-r{margin-left:auto;color:var(--ink-3)}',
       '.ct-dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:currentColor}',
@@ -597,6 +674,8 @@
       '.ct-ce{display:inline-block;min-width:46px;min-height:15px;padding:1px 4px;border-radius:4px;cursor:text;outline:none;color:var(--ink)}',
       '.ct-ce:empty::before{content:attr(data-ph);color:var(--ink-3);opacity:.6}',
       '.ct-ce:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--panel)}',
+      '.ct-kpi-beat{color:var(--ok);font-weight:600}.ct-kpi-miss{color:var(--bad);font-weight:600}',
+      '.ct-basis-info{display:inline-block;margin-left:5px;width:13px;height:13px;line-height:13px;text-align:center;border-radius:50%;background:var(--tx-soft);color:var(--tx-ink);font-size:9px;font-weight:800;cursor:help;vertical-align:middle}',
       '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px}',
       '.ct-chan-code{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:20px;color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.02em}',
       '.ct-mgr{display:inline-block;font-weight:600}',
@@ -633,5 +712,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, CS: CS };
 });

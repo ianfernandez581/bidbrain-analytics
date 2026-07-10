@@ -30,7 +30,9 @@ from pathlib import Path
 
 PROJECT = os.environ.get("CENTRAL_BQ_PROJECT", "bidbrain-analytics")
 ACCOUNT = os.environ.get("CENTRAL_BQ_ACCOUNT", "ian@100.digital")
-CONFIG = Path(__file__).resolve().parents[1] / "config" / "central-clients.json"
+# CENTRAL_CLIENTS_PATH lets the server point the fetcher at the same config file it writes
+# (and lets a validation dry-run use a temp copy). Defaults to the committed config.
+CONFIG = Path(os.environ.get("CENTRAL_CLIENTS_PATH") or (Path(__file__).resolve().parents[1] / "config" / "central-clients.json"))
 
 
 def _bq_csv(sql):
@@ -69,30 +71,73 @@ def _num(v):
         return None
 
 
+def _source(spec):
+    return spec.get("source") or ("view" if spec.get("bq") else "none")
+
+
+def _q(v):
+    """single-quote-escape a SQL string literal (no double quotes — shell quoting)."""
+    return str(v).replace("'", "''")
+
+
 def fetch_client_rows(spec):
-    """Totals per BQ campaign name (pm_delivery `program`) — impressions + media spend
-    (spend_aud, the raw media cost pm_delivery exposes; it does not split partner vs
-    client, so mediaSpend carries the partner/media figure). All-time per program; a
-    map entry may carry flightStart/flightEnd to scope it, else all-time."""
-    ref = _table_ref(spec)
-    sql = (f"SELECT program AS bqName, CAST(SUM(imps) AS INT64) AS impressions, "
-           f"ROUND(SUM(spend_aud), 2) AS mediaSpend, CAST(MAX(metric_date) AS STRING) AS last_date "
-           f"FROM {ref} GROUP BY 1")
-    rows = []
-    for r in _bq_csv(sql):
-        rows.append({
-            "bqName": r.get("bqName"),
-            "impressions": int(_num(r.get("impressions")) or 0),
-            "mediaSpend": _num(r.get("mediaSpend")),
-            "lastDate": r.get("last_date") or None,
-        })
-    return rows
+    """Totals per BQ campaign name — impressions + media spend. Two modes:
+      view : a pm_delivery view (Schneider) — group by `program` (imps/spend_aud).
+      raw  : one or more raw platform tables — group by the configured campaign column,
+             filtered to the advertiser; MULTIPLE tables merge by campaign name (a
+             campaign that spans platforms sums; distinct names stay separate)."""
+    src = _source(spec)
+    if src == "none":
+        return []
+    if src == "view":
+        ref = _table_ref(spec)
+        sql = ("SELECT program AS bqName, CAST(SUM(imps) AS INT64) AS impressions, "
+               "ROUND(SUM(spend_aud), 2) AS mediaSpend, CAST(MAX(metric_date) AS STRING) AS last_date "
+               f"FROM {ref} GROUP BY 1")
+        return [{"bqName": r.get("bqName"), "impressions": int(_num(r.get("impressions")) or 0),
+                 "mediaSpend": _num(r.get("mediaSpend")), "lastDate": r.get("last_date") or None}
+                for r in _bq_csv(sql)]
+    if src == "raw":
+        merged = {}
+        for t in spec.get("tables", []):
+            adv, advVal, camp = t["advertiserColumn"], t["advertiserValue"], t["campaignColumn"]
+            imp, cost, date = t.get("impressionColumn"), t.get("costColumn"), t.get("dateColumn")
+            sel_imp = f"CAST(SUM(SAFE_CAST({imp} AS FLOAT64)) AS INT64)" if imp else "0"
+            sel_cost = f"ROUND(SUM(SAFE_CAST({cost} AS FLOAT64)), 2)" if cost else "0"
+            where = f"WHERE {adv} = '{_q(advVal)}'"
+            fs, fe = t.get("flightStart"), t.get("flightEnd")
+            if date and fs and fe:
+                where += f" AND {date} BETWEEN '{_q(fs)}' AND '{_q(fe)}'"
+            sql = (f"SELECT CAST({camp} AS STRING) AS bqName, {sel_imp} AS impressions, {sel_cost} AS mediaSpend "
+                   f"FROM `{PROJECT}.{t['dataset']}.{t['table']}` {where} GROUP BY 1")
+            for r in _bq_csv(sql):
+                nm = r.get("bqName")
+                if not nm:
+                    continue
+                m = merged.setdefault(nm, {"impressions": 0, "mediaSpend": 0.0})
+                m["impressions"] += int(_num(r.get("impressions")) or 0)
+                m["mediaSpend"] += float(_num(r.get("mediaSpend")) or 0)
+        return [{"bqName": k, "impressions": v["impressions"], "mediaSpend": round(v["mediaSpend"], 2), "lastDate": None}
+                for k, v in merged.items()]
+    raise RuntimeError(f"unknown source '{src}'")
 
 
 def fetch_names(spec):
-    ref = _table_ref(spec)
-    sql = f"SELECT DISTINCT program AS bqName FROM {ref} WHERE program IS NOT NULL ORDER BY 1"
-    return [r.get("bqName") for r in _bq_csv(sql) if r.get("bqName")]
+    src = _source(spec)
+    if src == "none":
+        return []
+    if src == "view":
+        ref = _table_ref(spec)
+        return [r.get("bqName") for r in _bq_csv(f"SELECT DISTINCT program AS bqName FROM {ref} WHERE program IS NOT NULL ORDER BY 1") if r.get("bqName")]
+    names = set()
+    for t in spec.get("tables", []):
+        adv, advVal, camp = t["advertiserColumn"], t["advertiserValue"], t["campaignColumn"]
+        sql = (f"SELECT DISTINCT CAST({camp} AS STRING) AS bqName FROM `{PROJECT}.{t['dataset']}.{t['table']}` "
+               f"WHERE {adv} = '{_q(advVal)}' AND {camp} IS NOT NULL")
+        for r in _bq_csv(sql):
+            if r.get("bqName"):
+                names.add(r.get("bqName"))
+    return sorted(names)
 
 
 def run_full_sync():

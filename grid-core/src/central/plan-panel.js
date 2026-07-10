@@ -306,12 +306,20 @@
     var clients = (api && api.clients) || [];
     var back = document.createElement('div'); back.className = 'ct-pnl-back'; back.id = 'ct-pnl-back';
     var pnl = document.createElement('aside'); pnl.className = 'ct-pnl'; pnl.id = 'ct-pnl';
+    var cov = (api && api.coverage && api.coverage.clients) || [];
+    var covBy = {}; cov.forEach(function (c) { covBy[c.client] = c; });
+    var statusFor = function (name) {
+      var c = covBy[name]; if (!c) return '';
+      if (c.source === 'none') return '<span class="ct-rc-stat ct-rc-none">no BQ data</span>';
+      if (c.validated) return '<span class="ct-rc-stat ct-rc-ok">✓ mapped (' + c.mapped + ')</span>';
+      return '<span class="ct-rc-stat ct-rc-todo">' + c.mapped + ' mapped · not validated</span>';
+    };
     pnl.innerHTML =
       '<div class="ct-pnl-h"><div><h3>Map a client</h3><div class="ct-pnl-src">Fetch a client\'s BQ campaign names, then approve the pairs to make it live. Suggestions are fuzzy — you confirm each one.</div></div><button class="ct-pnl-x" id="ct-pnl-x" aria-label="Close">✕</button></div>' +
       '<div class="ct-pnl-body">' +
       '<div class="ct-filters"><label class="ct-fld"><span>Client</span><select id="ct-rc-client" class="ct-select">' +
       clients.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('') +
-      '</select></label><button class="ct-btn" id="ct-rc-load">Load BQ names</button></div>' +
+      '</select></label><span id="ct-rc-status">' + statusFor(clients[0]) + '</span><button class="ct-btn" id="ct-rc-load">Load BQ names</button></div>' +
       '<div id="ct-rc-results"><div class="ct-pnl-src" style="padding:10px 0">Pick a client and load its BQ names.</div></div>' +
       '</div>' +
       '<div class="ct-pnl-foot"><button class="ct-btn" id="ct-pnl-cancel">Close</button><button class="ct-btn ct-btn-primary" id="ct-rc-approve" disabled>Approve selected</button></div>';
@@ -320,6 +328,8 @@
     pnl.querySelector('#ct-pnl-x').addEventListener('click', close);
     pnl.querySelector('#ct-pnl-cancel').addEventListener('click', close);
     back.addEventListener('click', function (e) { if (e.target === back) close(); });
+    var csel = pnl.querySelector('#ct-rc-client');
+    csel.addEventListener('change', function () { var st = pnl.querySelector('#ct-rc-status'); if (st) st.innerHTML = statusFor(csel.value); });
     pnl.querySelector('#ct-rc-load').addEventListener('click', function () { loadReconcile(pnl); });
     pnl.querySelector('#ct-rc-approve').addEventListener('click', function () { approveReconcile(pnl, api); });
   }
@@ -392,7 +402,10 @@
       '.ct-conflict .ct-input{flex:1 1 100%}',
       '.ct-pnl-foot{display:flex;justify-content:flex-end;gap:9px;padding:13px 20px;border-top:1px solid var(--line)}',
       '.ct-btn{appearance:none;font-family:inherit;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:9px 15px;transition:all .15s}.ct-btn:hover{color:var(--ink);border-color:var(--ink-3)}',
-      '.ct-btn-primary{background:var(--pill-bg);color:var(--pill-fg);border-color:var(--pill-bg)}.ct-btn-primary:hover{background:var(--brand-strong);color:var(--pill-fg)}.ct-btn-primary:disabled{opacity:.45;cursor:default}'
+      '.ct-btn-primary{background:var(--pill-bg);color:var(--pill-fg);border-color:var(--pill-bg)}.ct-btn-primary:hover{background:var(--brand-strong);color:var(--pill-fg)}.ct-btn-primary:disabled{opacity:.45;cursor:default}',
+      '.ct-rc-stat{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}',
+      '.ct-rc-ok{background:var(--ok-soft);color:var(--ok)}.ct-rc-todo{background:var(--warn-soft);color:var(--warn)}.ct-rc-none{background:var(--line-2);color:var(--ink-3)}',
+      '.ct-rc-row{flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}.ct-rc-lbl{display:flex;align-items:center;gap:7px;font-size:12.5px;min-width:200px}.ct-rc-ck{accent-color:var(--brand)}.ct-rc-camp{flex:1 1 180px}'
     ].join('\n');
     document.head.appendChild(s);
   }

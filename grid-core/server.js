@@ -347,11 +347,11 @@ function loadCentralClients() { try { return JSON.parse(fs.readFileSync(CENTRAL_
 // Run the python fetcher. Tests inject CENTRAL_SYNC_FIXTURE / CENTRAL_RECONCILE_FIXTURE
 // (a path to a JSON file) so CI never needs live BQ. central_sync.py prints JSON even on
 // a partial-failure exit(1), so we parse stdout regardless of exit code.
-function execCentral(args) {
+function execCentral(args, timeoutMs) {
   return new Promise((resolve, reject) => {
     const py = process.env.PYTHON || 'python';
     require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'central_sync.py'), ...args],
-      { cwd: ROOT, timeout: 30000, maxBuffer: 8 * 1024 * 1024 },
+      { cwd: ROOT, timeout: timeoutMs || 30000, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
         const out = (stdout || '').trim();
         if (out) { try { const j = JSON.parse(out); j._stderr = (stderr || '').trim().slice(0, 800); return resolve(j); } catch (e) { /* fall through */ } }
@@ -370,7 +370,7 @@ function runSyncFetcher() {
 }
 function runNamesFetcher(client) {
   if (process.env.CENTRAL_RECONCILE_FIXTURE) return Promise.resolve(JSON.parse(fs.readFileSync(process.env.CENTRAL_RECONCILE_FIXTURE, 'utf8')));
-  return execCentral(['--names', client]);
+  return execCentral(['--names', client], 120000);   // reconcile is a one-off human action; allow longer than sync
 }
 // resolve a map entry to a current campaign id: prefer campaignId (if it still exists),
 // else fall back to (client, campaignName) so the committed seed survives a DB rebuild.
@@ -433,7 +433,13 @@ async function centralSync(req, res, url) {
 }
 
 function centralSyncStatus(req, res) {
-  return send(res, 200, { running: CENTRAL_SYNCING, autosyncMin: CENTRAL_AUTOSYNC_MIN, lastRun: CENTRAL_LAST_SYNC });
+  const cfg = loadCentralClients();
+  const clients = (cfg.clients || []).map(c => ({
+    client: c.client, validated: !!c.validated, mapped: (c.map || []).length,
+    source: c.source || (c.bq ? 'view' : 'none')
+  }));
+  const coverage = { validated: clients.filter(c => c.validated).length, total: clients.length, clients };
+  return send(res, 200, { running: CENTRAL_SYNCING, autosyncMin: CENTRAL_AUTOSYNC_MIN, lastRun: CENTRAL_LAST_SYNC, coverage });
 }
 
 // Auto-sync tick — same core as the manual route (guard-safe: a tick during a manual

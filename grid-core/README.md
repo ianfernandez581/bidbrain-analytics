@@ -264,9 +264,16 @@ src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). 
 config/central-seed.js       ← TEST FIXTURE (render smoke tests only). NOT a runtime source.
 config/central-import.json   ← frozen ONE-TIME import source (the pure-sheet parse); the
                                 server ingests it into the campaigns DB on boot (idempotent).
-config/central-clients.json  ← sync client mapping (validated clients + bqName→campaignId).
+config/central-clients.json  ← sync client mapping. Mode A ("view" = a pm_delivery view,
+                                Schneider) or Mode B ("source":"raw" = raw platform tables[]
+                                with exact advertiserValue + schema column names). source
+                                "none" = no BQ presence.
 scripts/central_sync.py      ← BQ metrics fetcher (adapter; reuses live_metrics.py's bq-CLI
-                                approach, does NOT modify it). Emits JSON to stdout.
+                                approach, does NOT modify it). Mode A + Mode B (multi-table
+                                merge by campaign name). Emits JSON to stdout.
+scripts/bq_audit.py          ← READ-ONLY discovery: lists raw_snowflake/raw_windsor tables,
+                                reads each schema, finds the real advertiser/campaign/impression/
+                                cost column names, and lists advertisers. Mapping table for the config.
 src/central/render-central.js← the tab: reads GET /api/central/campaigns (the DB), grouping,
                                 colour-coding, live-first filters, sort, dropdowns, Add,
                                 archive, sync/export. Holds mapGridRowToCentral() — the ONLY
@@ -321,6 +328,20 @@ route (a tick during a manual sync just skips; a manual sync during a tick gets 
 shows "· auto every Nm" next to the last-synced pill (from `/api/central/sync/status`). Manual
 "Sync now" always works regardless. (A self-gating "only when BQ advanced" refinement, like the
 client dashboards' freshness contract, is a future optimization; v1 is a simple interval.)
+
+## Summary cards + KPI + channels
+- **Summary cards** (boss view) above the table: Live campaigns (of total), Total budget,
+  Total spend (media, N live · M sheet), Health (winner/watch/steady), BQ coverage (validated
+  clients / total, progress bar). Reactive to filters; nulls excluded from sums (never NaN).
+- **KPI columns** Key KPI + KPI Performance are hand-typed CONFIG text (editable). KPI Performance
+  is colour-coded vs Key KPI where both parse to the same unit (green = meets/beats, red = >30% off;
+  ROAS/CTR/Clicks/Leads higher-better, CPL/CPA/CPM/… lower-better). "#DIV/0!" → "—". Display-only —
+  never stored. (kpiPerformance was reclassified from a never-implemented DERIVED passthrough to CONFIG.)
+- **spend-basis info mark**: a LIVE row whose clientSpend is still sheet-era (no spendMult) gets a
+  neutral "i" on the margin cell ("set the billing multiplier for a live margin") — distinct from the
+  amber needs-input tint, so a config-gap negative margin reads differently from a real one.
+- **Channel chips**: 8 channels (Trade Desk, LinkedIn, Google Ads, Meta, DV360, Reddit, DOOH, LINE),
+  matched case/space-insensitively so the sheet's "TradeDesk"/"Linkedin" resolve correctly.
 
 ## Coverage expansion (reconcile — Zhen's validation sitting)
 Only Schneider is validated today. To add a client: **Map client** panel → pick the client →

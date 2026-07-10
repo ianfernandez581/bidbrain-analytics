@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
   currency TEXT, jobNumber TEXT, objective TEXT, channel TEXT, managedBy TEXT, status TEXT,
   startDate TEXT, endDate TEXT,
   platformMargin REAL, adServing TEXT, adServingCost REAL, forecastCpm REAL,
-  keyKpi TEXT, kpiTarget REAL, budgetGross REAL, totalBudget REAL, spendMult REAL,
+  keyKpi TEXT, kpiPerformance TEXT, kpiTarget REAL, budgetGross REAL, totalBudget REAL, spendMult REAL,
   campaignLink TEXT, nextReportingDue TEXT, notes TEXT,
   impressions REAL, mediaSpend REAL, clientSpend REAL,
   metricsSource TEXT, lastSyncedAt TEXT, spendBasis TEXT,
@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS campaigns (
 // additive migration for DBs created before spendBasis existed (CREATE TABLE IF NOT
 // EXISTS won't add a column to an existing table). Ignore "duplicate column" on re-run.
 try { db.exec('ALTER TABLE campaigns ADD COLUMN spendBasis TEXT'); } catch (e) { /* already present */ }
+try { db.exec('ALTER TABLE campaigns ADD COLUMN kpiPerformance TEXT'); } catch (e) { /* already present */ }
 
 const now = () => new Date().toISOString();
 
@@ -91,10 +92,12 @@ const CENTRAL_PLAN_FIELDS = ['jobNumber', 'client', 'name', 'objective', 'channe
 // strict whitelist; [CONFIG] identity/derived fields stay out (client/name/objective
 // come from the plan-commit path, derived is never writable).
 const CENTRAL_EDIT_FIELDS = ['managedBy', 'channel', 'status', 'platformMargin', 'jobNumber',
-  'forecastCpm', 'keyKpi', 'totalBudget', 'budgetGross', 'startDate', 'endDate', 'adServingCost',
-  'notes', 'spendMult'];
+  'forecastCpm', 'keyKpi', 'kpiPerformance', 'totalBudget', 'budgetGross', 'startDate', 'endDate',
+  'adServingCost', 'notes', 'spendMult'];
 // DERIVED fields — never writable by anything. Any attempt is rejected (defense in depth).
-const CENTRAL_DERIVED_FIELDS = ['campaignMargin', 'cpmPerformance', 'kpiPerformance', 'budgetRemaining',
+// NOTE: kpiPerformance is NOT derived — the sheet's "KPI Performance" is hand-typed text
+// (calc.js's passthrough was a never-implemented TODO), so it is an editable CONFIG field.
+const CENTRAL_DERIVED_FIELDS = ['campaignMargin', 'cpmPerformance', 'budgetRemaining',
   'pctBudgetSpent', 'pctFlightElapsed', 'pacingStatus', 'marginDelta', 'marginBand', 'health'];
 
 module.exports = {
@@ -255,8 +258,8 @@ module.exports = {
   // ==================== Central: campaigns (SOURCE OF TRUTH) ========================
   _CAMPAIGN_CONFIG_COLS: ['section', 'client', 'name', 'currency', 'jobNumber', 'objective', 'channel',
     'managedBy', 'status', 'startDate', 'endDate', 'platformMargin', 'adServing', 'adServingCost',
-    'forecastCpm', 'keyKpi', 'kpiTarget', 'budgetGross', 'totalBudget', 'spendMult', 'campaignLink',
-    'nextReportingDue', 'notes'],
+    'forecastCpm', 'keyKpi', 'kpiPerformance', 'kpiTarget', 'budgetGross', 'totalBudget', 'spendMult',
+    'campaignLink', 'nextReportingDue', 'notes'],
   _CAMPAIGN_ALL_COLS: null,   // filled below
 
   _genCampaignId() { return 'cmp-' + crypto.randomBytes(6).toString('hex'); },
