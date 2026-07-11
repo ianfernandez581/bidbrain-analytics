@@ -43,10 +43,13 @@
   // "facebook" all resolve to the right chip instead of falling through to gray.
   var CHANNEL_NORM = (function () { var m = {}; Object.keys(CHANNEL_COLORS).forEach(function (k) { m[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = CHANNEL_COLORS[k]; }); m.facebook = CHANNEL_COLORS.Meta; return m; })();
   function chanTheme(ch) { if (!ch) return CHANNEL_OTHER; return CHANNEL_NORM[String(ch).toLowerCase().replace(/[^a-z0-9]/g, '')] || CHANNEL_OTHER; }
+  // Theme-adaptive channel chip: neutral pill on the Grid's own tokens (matches the Grid's
+  // subtle channel tags + follows the Dark/Light toggle), with the channel colour carried by
+  // the small code badge only (a dark badge + white text reads on both themes).
   function channelChip(ch) {
     if (!ch) return DASH;
     var t = chanTheme(ch);
-    return '<span class="ct-chan" style="background:' + t.bg + ';color:' + t.fg + '">' +
+    return '<span class="ct-chan">' +
       '<span class="ct-chan-code" style="background:' + t.fg + '">' + esc(t.code) + '</span>' + esc(ch) + '</span>';
   }
 
@@ -62,7 +65,8 @@
   var CS = {
     client: 'all', statusView: 'live', health: 'all',   // live-first default
     sortKey: null, sortDir: 1,           // null = grouped; else flat global ranking
-    campaigns: null, overrides: null, lastSynced: null, highlightMissing: null
+    campaigns: null, overrides: null, lastSynced: null, highlightMissing: null,
+    openClients: {}                       // client-accordion: which client groups are expanded (default: none)
   };
   var LIVE_STATUSES = ['Active', 'Paused', 'Draft'];   // "Live" = day-to-day working set
 
@@ -371,6 +375,37 @@
     mountDropzone();
   }
 
+  // ---- client-accordion helpers ----
+  function compactNum(n) { n = Number(n) || 0; var a = Math.abs(n); if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return String(Math.round(n)); }
+  // sum an additive column across a client's rows; null when NO row has a value (so a client
+  // with no budgets shows "—", not "$0"). Non-additive columns (margin/CPM/pacing/dates) are
+  // per-row and never summed — the summary shows "—" for them.
+  function sumField(rows, field) { var any = false, s = 0; rows.forEach(function (r) { var v = r[field]; if (v != null && v !== '') { any = true; s += Number(v) || 0; } }); return any ? s : null; }
+  function clientKey(ag, cl) { return String(ag == null ? '' : ag) + '::' + String(cl == null ? '' : cl); }
+  var SUM_COLS = { mediaSpend: 1, clientSpend: 1, totalBudget: 1 };   // the columns that aggregate
+
+  // Collapsible per-client summary row: chevron + name + count (+ total impressions), and
+  // aggregated totals in the additive columns; "—" everywhere aggregation is meaningless.
+  function clientSummaryRow(ag, cl, clientRows) {
+    var key = clientKey(ag, cl), open = !!CS.openClients[key];
+    var impTot = sumField(clientRows, 'impressions');
+    var tds = COLS.map(function (c) {
+      var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '');
+      var inner;
+      if (c.id === 'campaign') {
+        inner = '<button class="ct-cgroup" data-clientkey="' + esc(key) + '" aria-expanded="' + open + '" title="Show / hide this client\'s campaigns">' +
+          '<span class="ct-chev' + (open ? ' open' : '') + '" aria-hidden="true">&#9654;</span>' +
+          '<span class="ct-cgname">' + esc(cl || '—') + '</span>' +
+          '<span class="ct-cgn">' + clientRows.length + ' campaign' + (clientRows.length === 1 ? '' : 's') + (impTot != null ? ' · ' + compactNum(impTot) + ' imp' : '') + '</span></button>';
+      } else if (SUM_COLS[c.id]) {
+        var s = sumField(clientRows, c.id);
+        inner = s == null ? DASH : '<b class="ct-sumval">' + money(s) + '</b>';
+      } else { inner = DASH; }
+      return '<td class="' + cls.trim() + '">' + inner + '</td>';
+    }).join('');
+    return '<tr class="ct-sumrow" data-clientkey="' + esc(key) + '">' + tds + '</tr>';
+  }
+
   function bodyHtml(rows, grouped) {
     if (!rows.length) return '<tr><td colspan="' + COLS.length + '"><div class="ct-empty">No campaigns match these filters.</div></td></tr>';
     if (!grouped) return sortRows(rows).map(function (r) { return rowHtml(r, false); }).join('');
@@ -388,17 +423,22 @@
       html += '<tr class="ct-section"><td colspan="' + COLS.length + '">' + esc(String(ag || '—').toUpperCase()) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
       var byClient = {}; var clientOrder = [];
       inAg.forEach(function (r) { if (!byClient[r.client]) { byClient[r.client] = []; clientOrder.push(r.client); } byClient[r.client].push(r); });
+      // collapsed BY DEFAULT: one summary row per client; the individual campaign-channel
+      // rows are emitted as hidden children, revealed when the client is expanded.
       clientOrder.forEach(function (cl) {
-        html += '<tr class="ct-clientrow"><td colspan="' + COLS.length + '"><span class="ct-clientname">' + esc(cl || '—') + '</span> <span class="ct-clientn">' + byClient[cl].length + '</span></td></tr>';
-        byClient[cl].forEach(function (r) { html += rowHtml(r, true); });
+        var key = clientKey(ag, cl);
+        html += clientSummaryRow(ag, cl, byClient[cl]);
+        byClient[cl].forEach(function (r) { html += rowHtml(r, true, key); });
       });
     });
     return html;
   }
 
-  function rowHtml(r, grouped) {
+  function rowHtml(r, grouped, childKey) {
     var hlRow = CS.highlightMissing === r._id;
-    return '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + '" data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
+    var childCls = '', childAttr = '';
+    if (childKey != null) { childCls = ' ct-childrow' + (CS.openClients[childKey] ? '' : ' ct-hidden'); childAttr = ' data-cchild="' + esc(childKey) + '"'; }
+    return '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + childCls + '"' + childAttr + ' data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
       var needs = needsInput(c.id, r[c.id]);        // empty manual [CONFIG] field → needs input
       var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '') + (c.type === 'api' ? 'ct-api-col ' : '');
       if (needs) cls += 'ct-needs ';                 // faint amber to-do tint (never on derived/api)
@@ -472,6 +512,18 @@
         else if (CS.sortDir === 1) CS.sortDir = -1;
         else { CS.sortKey = null; CS.sortDir = 1; }
         paint(mount);
+      });
+    });
+    // client accordion: expand/collapse a client group (toggle child-row visibility +
+    // chevron in place — no re-paint, so scroll + other open groups are preserved).
+    mount.querySelectorAll('.ct-cgroup').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var key = btn.dataset.clientkey, open = !CS.openClients[key];
+        if (open) CS.openClients[key] = true; else delete CS.openClients[key];
+        mount.querySelectorAll('tr[data-cchild="' + cssEsc(key) + '"]').forEach(function (tr) { tr.classList.toggle('ct-hidden', !open); });
+        var chev = btn.querySelector('.ct-chev'); if (chev) chev.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
     });
     // client filter
@@ -681,7 +733,7 @@
       '.ct-ce:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--panel)}',
       '.ct-kpi-beat{color:var(--ok);font-weight:600}.ct-kpi-miss{color:var(--bad);font-weight:600}',
       '.ct-basis-info{display:inline-block;margin-left:5px;width:13px;height:13px;line-height:13px;text-align:center;border-radius:50%;background:var(--tx-soft);color:var(--tx-ink);font-size:9px;font-weight:800;cursor:help;vertical-align:middle}',
-      '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px}',
+      '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px;background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)}',
       '.ct-chan-code{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:20px;color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.02em}',
       '.ct-mgr{display:inline-block;font-weight:600}',
       '.ct-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px}',
@@ -702,6 +754,18 @@
       '.ct-section td{background:var(--grp);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-family:"Space Grotesk";font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--ink-2);padding:8px 12px}',
       '.ct-section .ct-secn{font-weight:500;letter-spacing:0;color:var(--ink-3);font-family:"Inter";text-transform:none;margin-left:8px}',
       '.ct-clientrow td{background:var(--panel-2);padding:6px 12px}.ct-clientname{font-weight:600;font-size:12px}.ct-clientn{font-size:10.5px;color:var(--ink-3);margin-left:6px}',
+      // client accordion: collapsible summary row + hidden child rows
+      '.ct-sumrow td{background:var(--panel-2);border-bottom:1px solid var(--line);padding:9px 12px}',
+      '.ct-sumrow:hover td{background:var(--grp)}.ct-sumrow:hover td.ct-sticky{background:var(--grp)}',
+      '.ct-sumrow td.ct-sticky{background:var(--panel-2)}',
+      '.ct-cgroup{appearance:none;border:0;background:transparent;cursor:pointer;font-family:inherit;font-size:12.5px;color:var(--ink);display:inline-flex;align-items:center;gap:8px;padding:0;text-align:left;width:100%}',
+      '.ct-chev{display:inline-block;font-size:9px;color:var(--ink-3);transition:transform .15s;flex:0 0 auto}',
+      '.ct-chev.open{transform:rotate(90deg)}',
+      '.ct-cgname{font-weight:700;color:var(--ink)}',
+      '.ct-cgn{font-size:10.5px;font-weight:500;color:var(--ink-3)}',
+      '.ct-sumval{font-weight:700;color:var(--ink)}',
+      '.ct-childrow.ct-hidden{display:none}',
+      '.ct-childrow td.ct-sticky{padding-left:28px;border-left:2px solid var(--line-2)}',
       '.ct-stale-on .ct-api-col{opacity:.5;filter:grayscale(.4)}',
       '.ct-foot{padding:10px 16px;color:var(--ink-3);font-size:11px;border-top:1px solid var(--line-2)}',
       '.ct-muted{color:var(--ink-3)}.ct-empty{padding:36px 18px;text-align:center;color:var(--ink-3);font-size:13px}',
@@ -717,5 +781,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, _healthCounts: healthCounts, _healthCountsLive: healthCountsLive, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, HEALTH_STATUSES: HEALTH_STATUSES, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, _healthCounts: healthCounts, _healthCountsLive: healthCountsLive, _bodyHtml: bodyHtml, _clientKey: clientKey, _sumField: sumField, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, HEALTH_STATUSES: HEALTH_STATUSES, CS: CS };
 });
