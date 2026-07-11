@@ -4,6 +4,26 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Grid · 100% Digital</title>
+<!-- proxy-marker:/data.json -- lets the dashboards.bidbrain.ai proxy see this as an authed app (not a login page); harmless when served directly -->
+<script>
+/* Behind the platform reverse-proxy the app is served under /d/<tool>/ ; rewrite root-absolute
+   same-origin requests (fetch('/api/...')) to that base so they reach THIS app, not the platform
+   origin. No-op when served directly (BASE=''), so local `node server.js` is unchanged. */
+(function () {
+  var m = location.pathname.match(/^(\/d\/[^\/]+)(?:\/|$)/);
+  var BASE = m ? m[1] : '';
+  window.BB_BASE = BASE;
+  if (!BASE || !window.fetch) return;
+  var of = window.fetch.bind(window);
+  window.fetch = function (input, init) {
+    try {
+      if (typeof input === 'string' && input.charAt(0) === '/' && input.charAt(1) !== '/') input = BASE + input;
+      else if (input && typeof input === 'object' && typeof input.url === 'string' && input.url.charAt(0) === '/' && input.url.charAt(1) !== '/') input = new Request(BASE + input.url, input);
+    } catch (e) { /* fall through with original input */ }
+    return of(input, init);
+  };
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
 <style>
