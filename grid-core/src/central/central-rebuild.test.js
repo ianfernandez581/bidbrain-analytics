@@ -56,5 +56,23 @@ check('nav: sideToggle + sideExpand buttons present', /id="sideToggle"/.test(htm
 check('nav: side-collapsed CSS hides the sidebar', /\.app\.side-collapsed \.sidebar\s*\{\s*display:none\}/.test(html));
 check('nav: collapse persists to localStorage (grid-side)', /localStorage\.setItem\('grid-side'/.test(html));
 
+// ---- G. lenient health criteria (Step 1 gate → watch → winner → steady) ----
+const T = new Date('2026-11-01');              // fixed "today" between the test flights
+const H = (c, today) => calc.computeRow(c, today || new Date()).health;
+// Step 1: insufficient-data gate → null (never grade the unmeasurable)
+check('health: 0 impressions → insufficient (null)', H({ impressions: 0, mediaSpend: 100, clientSpend: 100, budgetGross: 1000 }) === null);
+check('health: no budget → insufficient (null)', H({ impressions: 1000, mediaSpend: 100, clientSpend: 100 }) === null);
+check('health: null media/client → insufficient (null)', H({ impressions: 1000, mediaSpend: null, clientSpend: null, budgetGross: 1000 }) === null);
+// Step 2: watch — negative margin
+check('health: negative margin → watch', H({ impressions: 1000, mediaSpend: 200, clientSpend: 100, budgetGross: 1000, forecastCpm: 500 }) === 'watch');
+// Step 3: winner — positive margin + cpm<forecast + pacing 0.7-1.3 (Geocon-shaped)
+check('health: Geocon-shaped → winner', H({ impressions: 879505, mediaSpend: 10283.8, clientSpend: 20567.6, budgetGross: 22500, forecastCpm: 40, startDate: '2026-01-01', endDate: '2026-12-31' }, T) === 'winner');
+// Step 4: steady — has data, margin 0 (not negative), not a standout (ResetData/Meta-shaped)
+check('health: margin 0 + data → steady', H({ impressions: 84197, mediaSpend: 1959.24, clientSpend: 1959.24, budgetGross: 3000, forecastCpm: 40 }) === 'steady');
+// EBA anomaly — CPM >90% below forecast → watch (the "$1.42 vs $28" detector)
+check('health: EBA anomaly (CPM 1.54 vs forecast 20) → watch', H({ impressions: 6075501, mediaSpend: 9346, clientSpend: 27146, budgetGross: 20000, forecastCpm: 20, startDate: '2026-01-01', endDate: '2026-12-31' }, T) === 'watch');
+// normal cheap display (not extreme) is NOT flagged anomalous (ResetData/TD 12% of forecast)
+check('health: normal cheap CPM (12% of forecast) is NOT anomaly-watch', H({ impressions: 430328, mediaSpend: 1426.18, clientSpend: 4949.84, adServing: 5, budgetGross: 7911.69, forecastCpm: 28, startDate: '2026-01-01', endDate: '2026-12-31' }, T) !== 'watch');
+
 console.log('\n' + (fail ? '✗' : '✓') + ' central-rebuild: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);

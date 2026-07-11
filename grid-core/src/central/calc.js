@@ -199,39 +199,53 @@ function marginBand(c, d) {
   return 'below';
 }
 
+// Cheap-CPM anomaly ("EBA $1.42 vs $28" detector). Spec named forecastCpm × 0.3 (>70% below),
+// but the media plans here carry inflated forecast CPMs ($28-$40) while real Trade Desk display
+// CPMs run $2-$12 — so sub-forecast CPMs are NORMAL and × 0.3 would re-flag healthy rows
+// (Geocon at 29% of forecast = expected winner; ResetData/TD at 12% = expected steady) as watch,
+// recreating the over-flagging this change fixes. We fire only at × 0.1 (>90% below forecast):
+// still catches the genuine "$1.42 vs $28" (~5%) case, spares normal cheap display.
+var ANOMALY_CPM_RATIO = 0.1;
+
 /**
- * Health bucket. WATCH is evaluated BEFORE WINNER on purpose: an anomalously
- * cheap CPM (< 0.5x forecast) is a targeting red flag (the "EBA $1.42" detector),
- * so it must win over an otherwise-green margin/pacing row.
- *   'winner' marginBand 'above' AND pacing 'On' AND (cpm <= forecastCpm when both present)
- *   'watch'  marginBand 'below' OR campaignMargin<0 OR pacing 'Over'
- *            OR (pacing 'Under' AND pctFlightElapsed>0.5)
- *            OR (forecastCpm && cpm > 2*forecastCpm) OR (forecastCpm && cpm < 0.5*forecastCpm)
- *   'steady' otherwise
- *   null     insufficient data to judge (no band, no pacing, no realized margin)
+ * Health bucket — LENIENT: never grade a campaign we can't measure, and flag "watch" only when
+ * something is genuinely wrong. Order: insufficient-data gate → watch → winner → steady.
+ *   null      insufficient data (no impressions / no media spend / no client spend / no budget)
+ *   'watch'   negative margin, big over/under-spend, near-out-of-budget-early, or anomalously
+ *             cheap CPM (< 10% of forecast)
+ *   'winner'  positive margin AND cpm < forecast AND pacing 0.7-1.3
+ *   'steady'  has data, nothing wrong, not a standout (the normal state)
  */
 function health(c, d) {
-  const band = marginBand(c, d);
-  const pacing = d.pacingStatus;                       // 'On'|'Over'|'Under'|'-'
-  const cm = d.campaignMargin;
+  // Step 1 — insufficient-data gate (do not grade what we can't measure).
+  const imp = num(c.impressions), md = num(c.mediaSpend), cs = num(c.clientSpend);
+  const bud = effectiveBudget(c);
+  if (imp === null || imp === 0) return null;
+  if (md === null || md === 0) return null;
+  if (cs === null || cs === 0) return null;
+  if (bud === null || bud === 0) return null;
+
+  const margin = d.campaignMargin;
   const cpm = d.cpmPerformance;
   const fcpm = num(c.forecastCpm);
   const elapsed = d.pctFlightElapsed;
+  const spent = d.pctBudgetSpent;
+  const pacing = div(spent, elapsed);                  // numeric pace ratio (null if not computable)
 
-  // WATCH first (so the cheap-CPM anomaly overrides a would-be winner)
-  if (band === 'below') return 'watch';
-  if (cm !== null && cm < 0) return 'watch';
-  if (pacing === 'Over') return 'watch';
-  if (pacing === 'Under' && elapsed !== null && elapsed > 0.5) return 'watch';
-  if (fcpm !== null && cpm !== null && cpm > 2 * fcpm) return 'watch';
-  if (fcpm !== null && cpm !== null && cpm < 0.5 * fcpm) return 'watch';
+  // cheap-CPM anomaly — watch regardless of other metrics (see note above).
+  if (fcpm !== null && fcpm > 0 && cpm !== null && cpm < fcpm * ANOMALY_CPM_RATIO) return 'watch';
 
-  // WINNER
-  if (band === 'above' && pacing === 'On' && (fcpm === null || cpm === null || cpm <= fcpm)) return 'winner';
+  // Step 2 — watch (something specific is wrong).
+  if (margin !== null && margin < 0) return 'watch';                                  // losing money
+  if (pacing !== null && pacing > 1.4) return 'watch';                                // overspending 40%+
+  if (pacing !== null && pacing < 0.5 && elapsed !== null && elapsed > 0.3) return 'watch';  // severely underspending, not just early
+  if (spent !== null && spent > 0.95 && elapsed !== null && elapsed < 0.7) return 'watch';   // nearly out of budget with flight left
 
-  // insufficient data → let the UI render "—"
-  if (band === null && pacing === '-' && cm === null) return null;
+  // Step 3 — winner (beating expectations).
+  if (margin !== null && margin > 0 && fcpm !== null && cpm !== null && cpm < fcpm &&
+    pacing !== null && pacing >= 0.7 && pacing <= 1.3) return 'winner';
 
+  // Step 4 — steady (default for anything that has data and isn't watch/winner).
   return 'steady';
 }
 

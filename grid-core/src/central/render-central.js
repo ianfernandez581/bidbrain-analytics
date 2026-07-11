@@ -274,16 +274,14 @@
     var mSum = rows.map(function (r) { return r.mediaSpend; }).filter(function (v) { return v != null && v !== ''; }).reduce(function (a, b) { return a + Number(b); }, 0);
     var liveRows = rows.filter(isLive).length, sheetRows = rows.length - liveRows;
     var hc = healthCountsLive(working);   // health summary counts Active+Paused only
-    var cov = CS.syncStatus && CS.syncStatus.coverage;
-    var covPct = cov && cov.total ? Math.round(cov.validated / cov.total * 100) : 0;
     var card = function (eyebrow, big, sub) { return '<div class="ct-card"><div class="ct-card-e">' + eyebrow + '</div><div class="ct-card-b">' + big + '</div><div class="ct-card-s">' + sub + '</div></div>'; };
     var budgetHalfMissing = rows.length && bMissing > rows.length * 0.5;
+    // 4 cards (BQ coverage removed — internal build metric, not useful to buyers)
     return '<div class="ct-cards">' +
       card('Live campaigns', liveN, 'of ' + totalN + ' total') +
       card('Total budget', budgetHalfMissing ? DASH : money(bSum), budgetHalfMissing ? (bMissing + ' of ' + rows.length + ' missing') : (bMissing ? bMissing + ' missing budget' : 'across ' + rows.length + ' shown')) +
       card('Total spend (media)', money(mSum), liveRows + ' live · ' + sheetRows + ' sheet') +
       card('Health', '<span class="ct-hc-winner">' + hc.winner + '</span> · <span class="ct-hc-watch">' + hc.watch + '</span> · <span class="ct-hc-steady">' + hc.steady + '</span>', 'winner · watch · steady') +
-      card('BQ coverage', cov ? (cov.validated + ' / ' + cov.total) : DASH, 'clients mapped<div class="ct-cov"><i style="width:' + covPct + '%"></i></div>') +
       '</div>';
   }
 
@@ -703,7 +701,6 @@
       '.ct-card-e{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}',
       '.ct-card-b{font-family:"Space Grotesk";font-size:23px;font-weight:600;letter-spacing:-.5px;margin:5px 0 2px;line-height:1}',
       '.ct-card-s{font-size:10.5px;color:var(--ink-2)}',
-      '.ct-cov{height:5px;border-radius:4px;background:var(--line-2);overflow:hidden;margin-top:5px}.ct-cov i{display:block;height:100%;background:var(--brand)}',
       '.ct-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);padding:2px 2px 10px}',
       '.ct-lg{display:inline-flex;align-items:center;gap:6px}.ct-lg-r{margin-left:auto;color:var(--ink-3)}',
       '.ct-dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:currentColor}',
