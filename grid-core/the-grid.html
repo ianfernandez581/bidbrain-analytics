@@ -47,6 +47,13 @@ body{background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,sans-se
 .logo-box .l2{font-family:"Space Grotesk";font-weight:600;font-size:6px;color:var(--brand);letter-spacing:.16em;margin-top:1px}
 .side-brand h1{font-family:"Space Grotesk";font-size:16px;font-weight:600;margin:0;letter-spacing:-.2px;color:var(--ink)}
 .side-brand small{font-size:10.5px;color:var(--ink-3);letter-spacing:.02em}
+/* collapsible sidebar */
+.side-toggle{margin-left:auto;appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);border-radius:8px;width:26px;height:26px;cursor:pointer;font-size:15px;line-height:1;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+.side-toggle:hover{color:var(--brand-ink);border-color:var(--brand)}
+.app.side-collapsed .sidebar{display:none}
+#sideExpand{display:none;position:fixed;top:12px;left:12px;z-index:200;width:34px;height:34px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);cursor:pointer;font-size:18px;box-shadow:var(--shadow);align-items:center;justify-content:center}
+#sideExpand:hover{color:var(--brand-ink);border-color:var(--brand)}
+.app.side-collapsed #sideExpand{display:flex}
 .rail-search{position:relative;padding:4px 14px 10px}
 .rail-search input{width:100%;font-family:inherit;font-size:12px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 10px 8px 30px;outline:none}
 .rail-search input::placeholder{color:var(--ink-3)}
@@ -246,8 +253,9 @@ tr.detail td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--l
 </head>
 <body>
 <div class="app">
+  <button id="sideExpand" title="Expand sidebar" aria-label="Expand sidebar">›</button>
   <aside class="sidebar">
-    <div class="side-brand"><div class="logo-box"><span class="l1">100%</span><span class="l2">DIGITAL</span></div><div><h1>The Grid</h1><small>100% Digital · Transmission</small></div></div>
+    <div class="side-brand"><div class="logo-box"><span class="l1">100%</span><span class="l2">DIGITAL</span></div><div><h1>The Grid</h1><small>100% Digital · Transmission</small></div><button class="side-toggle" id="sideToggle" title="Collapse sidebar" aria-label="Collapse sidebar">‹</button></div>
     <div class="rail-search">
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
       <input id="railSearch" type="search" placeholder="Find client" autocomplete="off">
@@ -1125,6 +1133,7 @@ document.getElementById('exportBtn').addEventListener('click',exportCSV);
 
 readHash();syncControls();render();
 </script>
+<script>(function(){var app=document.querySelector('.app');if(!app)return;function setSide(c){app.classList.toggle('side-collapsed',c);try{localStorage.setItem('grid-side',c?'collapsed':'open')}catch(e){}}try{if(localStorage.getItem('grid-side')==='collapsed')setSide(true)}catch(e){}var t=document.getElementById('sideToggle'),x=document.getElementById('sideExpand');if(t)t.addEventListener('click',function(){setSide(true)});if(x)x.addEventListener('click',function(){setSide(false)});})();</script>
 <script>(function(){var root=document.documentElement,pill=document.getElementById('themePill');function apply(t){t=(t==='light')?'light':'dark';root.setAttribute('data-theme',t);try{localStorage.setItem('grid-theme',t)}catch(e){}if(pill)pill.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.themeSet===t?'true':'false')});}apply(root.getAttribute('data-theme')||'dark');if(pill)pill.addEventListener('click',function(e){var b=e.target.closest('button[data-theme-set]');if(b)apply(b.dataset.themeSet);});})();</script>
 </body>
 </html>

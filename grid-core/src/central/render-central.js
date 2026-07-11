@@ -28,26 +28,35 @@
   var AGENCY_LABEL = { '100% Digital': '100% DIGITAL', 'Transmission': 'TRANSMISSION' };
 
   // ---- per-channel colour (real brand hues; 2-letter code is the backup cue) ----
+  // Distinct, high-contrast per-channel palette (2-letter code) — instantly distinguishable.
   var CHANNEL_COLORS = {
-    'Trade Desk': { bg: '#E6F4FB', fg: '#0A5A80', code: 'TD' },
-    'LinkedIn': { bg: '#DCEAFB', fg: '#004182', code: 'LI' },
-    'Google Ads': { bg: '#E8F0FE', fg: '#174EA6', code: 'GA' },
-    'Meta': { bg: '#E0EBFC', fg: '#05308A', code: 'FB' },
-    'DV360': { bg: '#E1F5EE', fg: '#0F6E56', code: 'DV' },
-    'Reddit': { bg: '#FFE8D1', fg: '#8B3A00', code: 'RD' },
-    'DOOH': { bg: '#F0E6F6', fg: '#5B2D8E', code: 'OOH' },
-    'LINE': { bg: '#E6F9E6', fg: '#1B7A1B', code: 'LN' }
+    'Trade Desk': { bg: '#dbeafe', fg: '#1d4ed8', code: 'TD' },
+    'LinkedIn': { bg: '#e0e7ff', fg: '#4338ca', code: 'LI' },
+    'Google Ads': { bg: '#fef3c7', fg: '#92400e', code: 'GA' },
+    'Meta': { bg: '#fce7f3', fg: '#be185d', code: 'ME' },
+    'Reddit': { bg: '#fff7ed', fg: '#c2410c', code: 'RD' },
+    'DV360': { bg: '#ccfbf1', fg: '#0f766e', code: 'DV' },
+    'DOOH': { bg: '#f3e8ff', fg: '#6b21a8', code: 'DO' },
+    'LINE': { bg: '#dcfce7', fg: '#166534', code: 'LN' }
   };
   var CHANNEL_OTHER = { bg: '#F1EFE8', fg: '#444441', code: '—' };
   // normalized lookup so the sheet's "TradeDesk"/"Linkedin" (no space / different case) and
   // "facebook" all resolve to the right chip instead of falling through to gray.
   var CHANNEL_NORM = (function () { var m = {}; Object.keys(CHANNEL_COLORS).forEach(function (k) { m[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = CHANNEL_COLORS[k]; }); m.facebook = CHANNEL_COLORS.Meta; return m; })();
   function chanTheme(ch) { if (!ch) return CHANNEL_OTHER; return CHANNEL_NORM[String(ch).toLowerCase().replace(/[^a-z0-9]/g, '')] || CHANNEL_OTHER; }
+  // Channel chip — distinct per-channel colour (bg + fg) + 2-letter code badge, for instant
+  // at-a-glance distinction across the table.
   function channelChip(ch) {
     if (!ch) return DASH;
     var t = chanTheme(ch);
     return '<span class="ct-chan" style="background:' + t.bg + ';color:' + t.fg + '">' +
       '<span class="ct-chan-code" style="background:' + t.fg + '">' + esc(t.code) + '</span>' + esc(ch) + '</span>';
+  }
+  // compact cluster of unique channel code-badges (client summary row)
+  function channelCluster(rows) {
+    var seen = {}, out = [];
+    rows.forEach(function (r) { var ch = r.channel; if (ch && !seen[ch]) { seen[ch] = 1; var t = chanTheme(ch); out.push('<span class="ct-chan-code" style="background:' + t.fg + '" title="' + esc(ch) + '">' + esc(t.code) + '</span>'); } });
+    return out.length ? '<span class="ct-chancluster">' + out.join('') + '</span>' : DASH;
   }
 
   // ---- formatters (Task 3 rules) ----
@@ -62,7 +71,8 @@
   var CS = {
     client: 'all', statusView: 'live', health: 'all',   // live-first default
     sortKey: null, sortDir: 1,           // null = grouped; else flat global ranking
-    campaigns: null, overrides: null, lastSynced: null, highlightMissing: null
+    campaigns: null, overrides: null, lastSynced: null, highlightMissing: null,
+    openClients: {}                       // client-accordion: which client groups are expanded (default: none)
   };
   var LIVE_STATUSES = ['Active', 'Paused', 'Draft'];   // "Live" = day-to-day working set
 
@@ -241,6 +251,11 @@
 
   // ============================ render ============================
   function healthCounts(rows) { var c = { winner: 0, watch: 0, steady: 0 }; rows.forEach(function (r) { if (c[r._d.health] != null) c[r._d.health]++; }); return c; }
+  // Portfolio-health counts over the LIVE set ONLY (Active+Paused). Ended / Not Active /
+  // Draft never colour the health summary — otherwise a wall of long-finished campaigns
+  // dominates the tally (the "53 watch over 39 live rows" bug). Draft has null health anyway.
+  var HEALTH_STATUSES = ['Active', 'Paused'];
+  function healthCountsLive(rows) { return healthCounts(rows.filter(function (r) { return HEALTH_STATUSES.indexOf(r.status) >= 0; })); }
 
   // Summary cards (the boss view). Live count uses the client+health scope (status-agnostic
   // so "live vs total" is meaningful); budget/spend/health sum the DISPLAYED rows; coverage
@@ -258,17 +273,15 @@
     var bMissing = rows.length - bVals.length;
     var mSum = rows.map(function (r) { return r.mediaSpend; }).filter(function (v) { return v != null && v !== ''; }).reduce(function (a, b) { return a + Number(b); }, 0);
     var liveRows = rows.filter(isLive).length, sheetRows = rows.length - liveRows;
-    var hc = healthCounts(rows);
-    var cov = CS.syncStatus && CS.syncStatus.coverage;
-    var covPct = cov && cov.total ? Math.round(cov.validated / cov.total * 100) : 0;
+    var hc = healthCountsLive(working);   // health summary counts Active+Paused only
     var card = function (eyebrow, big, sub) { return '<div class="ct-card"><div class="ct-card-e">' + eyebrow + '</div><div class="ct-card-b">' + big + '</div><div class="ct-card-s">' + sub + '</div></div>'; };
     var budgetHalfMissing = rows.length && bMissing > rows.length * 0.5;
+    // 4 cards (BQ coverage removed — internal build metric, not useful to buyers)
     return '<div class="ct-cards">' +
       card('Live campaigns', liveN, 'of ' + totalN + ' total') +
       card('Total budget', budgetHalfMissing ? DASH : money(bSum), budgetHalfMissing ? (bMissing + ' of ' + rows.length + ' missing') : (bMissing ? bMissing + ' missing budget' : 'across ' + rows.length + ' shown')) +
       card('Total spend (media)', money(mSum), liveRows + ' live · ' + sheetRows + ' sheet') +
       card('Health', '<span class="ct-hc-winner">' + hc.winner + '</span> · <span class="ct-hc-watch">' + hc.watch + '</span> · <span class="ct-hc-steady">' + hc.steady + '</span>', 'winner · watch · steady') +
-      card('BQ coverage', cov ? (cov.validated + ' / ' + cov.total) : DASH, 'clients mapped<div class="ct-cov"><i style="width:' + covPct + '%"></i></div>') +
       '</div>';
   }
 
@@ -303,7 +316,7 @@
     var all = buildRows();
     var working = all.filter(function (r) { return !r._archived; });   // archived excluded from the working set
     var rows = filtered(all);
-    var counts = healthCounts(working);
+    var counts = healthCountsLive(working);   // chips reflect the live (Active+Paused) set only
     // stale guard derives from REAL per-row lastSyncedAt (most recent across rows)
     var lastTs = null;
     all.forEach(function (r) { if (r.lastSyncedAt) { var t = Date.parse(r.lastSyncedAt); if (!isNaN(t) && (lastTs == null || t > lastTs)) lastTs = t; } });
@@ -366,6 +379,45 @@
     mountDropzone();
   }
 
+  // ---- client-accordion helpers ----
+  function compactNum(n) { n = Number(n) || 0; var a = Math.abs(n); if (a >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (a >= 1e3) return (n / 1e3).toFixed(1) + 'K'; return String(Math.round(n)); }
+  // sum an additive column across a client's rows; null when NO row has a value (so a client
+  // with no budgets shows "—", not "$0"). Non-additive columns (margin/CPM/pacing/dates) are
+  // per-row and never summed — the summary shows "—" for them.
+  function sumField(rows, field) { var any = false, s = 0; rows.forEach(function (r) { var v = r[field]; if (v != null && v !== '') { any = true; s += Number(v) || 0; } }); return any ? s : null; }
+  function clientKey(ag, cl) { return String(ag == null ? '' : ag) + '::' + String(cl == null ? '' : cl); }
+  var SUM_COLS = { mediaSpend: 1, clientSpend: 1 };   // additive API columns that aggregate
+  // effective budget per row = budgetGross (client budget) else totalBudget — matches calc.js
+  function effBudgetOf(r) { var g = r.budgetGross; if (g != null && g !== '') return Number(g); return (r.totalBudget != null && r.totalBudget !== '') ? Number(r.totalBudget) : null; }
+  function sumEffBudget(rows) { var any = false, s = 0; rows.forEach(function (r) { var b = effBudgetOf(r); if (b != null) { any = true; s += b; } }); return any ? s : null; }
+
+  // Collapsible per-client summary row: chevron + name + count (+ total impressions), and
+  // aggregated totals in the additive columns; "—" everywhere aggregation is meaningless.
+  function clientSummaryRow(ag, cl, clientRows) {
+    var key = clientKey(ag, cl), open = !!CS.openClients[key];
+    var impTot = sumField(clientRows, 'impressions');
+    var tds = COLS.map(function (c) {
+      var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '');
+      var inner;
+      if (c.id === 'campaign') {
+        inner = '<button class="ct-cgroup" data-clientkey="' + esc(key) + '" aria-expanded="' + open + '" title="Show / hide this client\'s campaigns">' +
+          '<span class="ct-chev' + (open ? ' open' : '') + '" aria-hidden="true">&#9654;</span>' +
+          '<span class="ct-cgname">' + esc(cl || '—') + '</span>' +
+          '<span class="ct-cgn">' + clientRows.length + ' campaign' + (clientRows.length === 1 ? '' : 's') + (impTot != null ? ' · ' + compactNum(impTot) + ' imp' : '') + '</span></button>';
+      } else if (c.id === 'channel') {
+        inner = channelCluster(clientRows);         // all unique channels for this client
+      } else if (c.id === 'totalBudget') {
+        var eb = sumEffBudget(clientRows);           // Σ effective budget (budgetGross||totalBudget)
+        inner = eb == null ? DASH : '<b class="ct-sumval">' + money(eb) + '</b>';
+      } else if (SUM_COLS[c.id]) {
+        var s = sumField(clientRows, c.id);
+        inner = s == null ? DASH : '<b class="ct-sumval">' + money(s) + '</b>';
+      } else { inner = DASH; }
+      return '<td class="' + cls.trim() + '">' + inner + '</td>';
+    }).join('');
+    return '<tr class="ct-sumrow" data-clientkey="' + esc(key) + '">' + tds + '</tr>';
+  }
+
   function bodyHtml(rows, grouped) {
     if (!rows.length) return '<tr><td colspan="' + COLS.length + '"><div class="ct-empty">No campaigns match these filters.</div></td></tr>';
     if (!grouped) return sortRows(rows).map(function (r) { return rowHtml(r, false); }).join('');
@@ -383,17 +435,22 @@
       html += '<tr class="ct-section"><td colspan="' + COLS.length + '">' + esc(String(ag || '—').toUpperCase()) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
       var byClient = {}; var clientOrder = [];
       inAg.forEach(function (r) { if (!byClient[r.client]) { byClient[r.client] = []; clientOrder.push(r.client); } byClient[r.client].push(r); });
+      // collapsed BY DEFAULT: one summary row per client; the individual campaign-channel
+      // rows are emitted as hidden children, revealed when the client is expanded.
       clientOrder.forEach(function (cl) {
-        html += '<tr class="ct-clientrow"><td colspan="' + COLS.length + '"><span class="ct-clientname">' + esc(cl || '—') + '</span> <span class="ct-clientn">' + byClient[cl].length + '</span></td></tr>';
-        byClient[cl].forEach(function (r) { html += rowHtml(r, true); });
+        var key = clientKey(ag, cl);
+        html += clientSummaryRow(ag, cl, byClient[cl]);
+        byClient[cl].forEach(function (r) { html += rowHtml(r, true, key); });
       });
     });
     return html;
   }
 
-  function rowHtml(r, grouped) {
+  function rowHtml(r, grouped, childKey) {
     var hlRow = CS.highlightMissing === r._id;
-    return '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + '" data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
+    var childCls = '', childAttr = '';
+    if (childKey != null) { childCls = ' ct-childrow' + (CS.openClients[childKey] ? '' : ' ct-hidden'); childAttr = ' data-cchild="' + esc(childKey) + '"'; }
+    return '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + childCls + '"' + childAttr + ' data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
       var needs = needsInput(c.id, r[c.id]);        // empty manual [CONFIG] field → needs input
       var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '') + (c.type === 'api' ? 'ct-api-col ' : '');
       if (needs) cls += 'ct-needs ';                 // faint amber to-do tint (never on derived/api)
@@ -467,6 +524,18 @@
         else if (CS.sortDir === 1) CS.sortDir = -1;
         else { CS.sortKey = null; CS.sortDir = 1; }
         paint(mount);
+      });
+    });
+    // client accordion: expand/collapse a client group (toggle child-row visibility +
+    // chevron in place — no re-paint, so scroll + other open groups are preserved).
+    mount.querySelectorAll('.ct-cgroup').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var key = btn.dataset.clientkey, open = !CS.openClients[key];
+        if (open) CS.openClients[key] = true; else delete CS.openClients[key];
+        mount.querySelectorAll('tr[data-cchild="' + cssEsc(key) + '"]').forEach(function (tr) { tr.classList.toggle('ct-hidden', !open); });
+        var chev = btn.querySelector('.ct-chev'); if (chev) chev.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
     });
     // client filter
@@ -632,7 +701,6 @@
       '.ct-card-e{font-size:9.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}',
       '.ct-card-b{font-family:"Space Grotesk";font-size:23px;font-weight:600;letter-spacing:-.5px;margin:5px 0 2px;line-height:1}',
       '.ct-card-s{font-size:10.5px;color:var(--ink-2)}',
-      '.ct-cov{height:5px;border-radius:4px;background:var(--line-2);overflow:hidden;margin-top:5px}.ct-cov i{display:block;height:100%;background:var(--brand)}',
       '.ct-legend{display:flex;align-items:center;gap:16px;flex-wrap:wrap;font-size:11px;color:var(--ink-2);padding:2px 2px 10px}',
       '.ct-lg{display:inline-flex;align-items:center;gap:6px}.ct-lg-r{margin-left:auto;color:var(--ink-3)}',
       '.ct-dot{width:9px;height:9px;border-radius:50%;display:inline-block;background:currentColor}',
@@ -677,6 +745,7 @@
       '.ct-kpi-beat{color:var(--ok);font-weight:600}.ct-kpi-miss{color:var(--bad);font-weight:600}',
       '.ct-basis-info{display:inline-block;margin-left:5px;width:13px;height:13px;line-height:13px;text-align:center;border-radius:50%;background:var(--tx-soft);color:var(--tx-ink);font-size:9px;font-weight:800;cursor:help;vertical-align:middle}',
       '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px}',
+      '.ct-chancluster{display:inline-flex;gap:3px;flex-wrap:wrap}',
       '.ct-chan-code{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:20px;color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.02em}',
       '.ct-mgr{display:inline-block;font-weight:600}',
       '.ct-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px}',
@@ -697,6 +766,18 @@
       '.ct-section td{background:var(--grp);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-family:"Space Grotesk";font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--ink-2);padding:8px 12px}',
       '.ct-section .ct-secn{font-weight:500;letter-spacing:0;color:var(--ink-3);font-family:"Inter";text-transform:none;margin-left:8px}',
       '.ct-clientrow td{background:var(--panel-2);padding:6px 12px}.ct-clientname{font-weight:600;font-size:12px}.ct-clientn{font-size:10.5px;color:var(--ink-3);margin-left:6px}',
+      // client accordion: collapsible summary row + hidden child rows
+      '.ct-sumrow td{background:var(--panel-2);border-bottom:1px solid var(--line);padding:9px 12px}',
+      '.ct-sumrow:hover td{background:var(--grp)}.ct-sumrow:hover td.ct-sticky{background:var(--grp)}',
+      '.ct-sumrow td.ct-sticky{background:var(--panel-2)}',
+      '.ct-cgroup{appearance:none;border:0;background:transparent;cursor:pointer;font-family:inherit;font-size:12.5px;color:var(--ink);display:inline-flex;align-items:center;gap:8px;padding:0;text-align:left;width:100%}',
+      '.ct-chev{display:inline-block;font-size:9px;color:var(--ink-3);transition:transform .15s;flex:0 0 auto}',
+      '.ct-chev.open{transform:rotate(90deg)}',
+      '.ct-cgname{font-weight:700;color:var(--ink)}',
+      '.ct-cgn{font-size:10.5px;font-weight:500;color:var(--ink-3)}',
+      '.ct-sumval{font-weight:700;color:var(--ink)}',
+      '.ct-childrow.ct-hidden{display:none}',
+      '.ct-childrow td.ct-sticky{padding-left:28px;border-left:2px solid var(--line-2)}',
       '.ct-stale-on .ct-api-col{opacity:.5;filter:grayscale(.4)}',
       '.ct-foot{padding:10px 16px;color:var(--ink-3);font-size:11px;border-top:1px solid var(--line-2)}',
       '.ct-muted{color:var(--ink-3)}.ct-empty{padding:36px 18px;text-align:center;color:var(--ink-3);font-size:13px}',
@@ -712,5 +793,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, _healthCounts: healthCounts, _healthCountsLive: healthCountsLive, _bodyHtml: bodyHtml, _clientKey: clientKey, _sumField: sumField, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, HEALTH_STATUSES: HEALTH_STATUSES, CS: CS };
 });
