@@ -229,6 +229,13 @@ TOOLS = {
         "name": "The Grid", "slug": "pacing-grid", "status": "active",
         "url": "https://pacing-grid-p32gk2wuia-ts.a.run.app/",
     },
+    # The Grid + Central (grid-core app: the-grid.html Pulse/Brain/Central/Register/Dashboards).
+    # Own org-private Cloud Run service `central-grid`; same IAM-Bearer + form-login contract as
+    # pacing (password mirrors Secret Manager `central-dash-password`). Staff-only via _may_open.
+    "central": {
+        "name": "The Grid (Central)", "slug": "central-grid", "status": "active",
+        "url": "https://central-grid-p32gk2wuia-ts.a.run.app/",
+    },
 }
 
 # --- Google-account access (email -> what they can open) ----------------------------------
