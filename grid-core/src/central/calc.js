@@ -95,16 +95,21 @@ function ms(d) {
 
 /* ---- derived fields (each a pure function of a Campaign) ---- */
 
-/** Budget Remaining = Total Budget - Client Spend. Null if either is missing. */
+/** Effective budget = Budget Gross (the client-billed budget) where present, else Total
+ * Budget. Budget tracking is on the client-spend basis, so it must use the client budget;
+ * some rows carry the media budget in Total Budget and the client budget in Budget Gross. */
+function effectiveBudget(c) { const g = num(c.budgetGross); return g !== null ? g : num(c.totalBudget); }
+
+/** Budget Remaining = effectiveBudget - Client Spend. Null if either is missing. */
 function budgetRemaining(c) {
-  const tb = num(c.totalBudget), cs = num(c.clientSpend);
-  if (tb === null || cs === null) return null;
-  return tb - cs;
+  const b = effectiveBudget(c), cs = num(c.clientSpend);
+  if (b === null || cs === null) return null;
+  return b - cs;
 }
 
-/** % Budget Spent = Client Spend / Total Budget (0..1). */
+/** % Budget Spent = Client Spend / effectiveBudget (0..1). */
 function pctBudgetSpent(c) {
-  return div(c.clientSpend, c.totalBudget);
+  return div(c.clientSpend, effectiveBudget(c));
 }
 
 /** % Flight Elapsed = clamp((today - start) / (end - start), 0..1). */
@@ -116,16 +121,26 @@ function pctFlightElapsed(c, today = new Date()) {
   return Math.max(0, Math.min(r, 1));
 }
 
-/** Campaign Margin = (clientSpend - mediaSpend - adServingCost) / clientSpend. */
-function campaignMargin(c) {
-  const cs = num(c.clientSpend), md = num(c.mediaSpend), as = num(c.adServingCost);
-  if (cs === null || cs === 0 || md === null || as === null) return null;
-  return (cs - md - as) / cs;
+/** Ad-serving cost = impressions/1000 * ad-serving RATE (c.adServing, e.g. $5 CPM). 0 when
+ * there is no rate or no impressions. DERIVED — the sheet's Adserving-Cost column is discarded. */
+function adServingCost(c) {
+  const rate = num(c.adServing), imp = num(c.impressions);
+  if (rate === null || rate === 0 || imp === null || imp === 0) return 0;
+  return (imp / 1000) * rate;
 }
 
-/** CPM Performance = (clientSpend / impressions) * 1000. */
+/** Campaign Margin = (clientSpend - mediaSpend - adServingCost) / clientSpend. Uses the DERIVED
+ * ad-serving cost. Null (—) when clientSpend is 0/missing or mediaSpend is missing. */
+function campaignMargin(c) {
+  const cs = num(c.clientSpend), md = num(c.mediaSpend);
+  if (cs === null || cs === 0 || md === null) return null;
+  return (cs - md - adServingCost(c)) / cs;
+}
+
+/** CPM Performance = (mediaSpend / impressions) * 1000 — the media-buyer's CPM (cost per 1000
+ * impressions we actually pay), on the SAME basis as Forecast CPM. NOT client-spend based. */
 function cpmPerformance(c) {
-  const r = div(c.clientSpend, c.impressions);
+  const r = div(c.mediaSpend, c.impressions);
   return r === null ? null : r * 1000;
 }
 
@@ -228,6 +243,7 @@ function health(c, d) {
  */
 function computeRow(c, today = new Date()) {
   const d = {
+    adServingCost: adServingCost(c),
     campaignMargin: campaignMargin(c),
     cpmPerformance: cpmPerformance(c),
     kpiPerformance: kpiPerformance(c),
@@ -244,8 +260,8 @@ function computeRow(c, today = new Date()) {
 
 const api = {
   num, div, ms,
-  budgetRemaining, pctBudgetSpent, pctFlightElapsed,
-  campaignMargin, cpmPerformance, kpiPerformance, pacingStatus,
+  effectiveBudget, budgetRemaining, pctBudgetSpent, pctFlightElapsed,
+  adServingCost, campaignMargin, cpmPerformance, kpiPerformance, pacingStatus,
   marginDelta, marginBand, health,
   computeRow,
 };

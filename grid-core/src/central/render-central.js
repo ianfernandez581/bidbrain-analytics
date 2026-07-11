@@ -28,29 +28,35 @@
   var AGENCY_LABEL = { '100% Digital': '100% DIGITAL', 'Transmission': 'TRANSMISSION' };
 
   // ---- per-channel colour (real brand hues; 2-letter code is the backup cue) ----
+  // Distinct, high-contrast per-channel palette (2-letter code) — instantly distinguishable.
   var CHANNEL_COLORS = {
-    'Trade Desk': { bg: '#E6F4FB', fg: '#0A5A80', code: 'TD' },
-    'LinkedIn': { bg: '#DCEAFB', fg: '#004182', code: 'LI' },
-    'Google Ads': { bg: '#E8F0FE', fg: '#174EA6', code: 'GA' },
-    'Meta': { bg: '#E0EBFC', fg: '#05308A', code: 'FB' },
-    'DV360': { bg: '#E1F5EE', fg: '#0F6E56', code: 'DV' },
-    'Reddit': { bg: '#FFE8D1', fg: '#8B3A00', code: 'RD' },
-    'DOOH': { bg: '#F0E6F6', fg: '#5B2D8E', code: 'OOH' },
-    'LINE': { bg: '#E6F9E6', fg: '#1B7A1B', code: 'LN' }
+    'Trade Desk': { bg: '#dbeafe', fg: '#1d4ed8', code: 'TD' },
+    'LinkedIn': { bg: '#e0e7ff', fg: '#4338ca', code: 'LI' },
+    'Google Ads': { bg: '#fef3c7', fg: '#92400e', code: 'GA' },
+    'Meta': { bg: '#fce7f3', fg: '#be185d', code: 'ME' },
+    'Reddit': { bg: '#fff7ed', fg: '#c2410c', code: 'RD' },
+    'DV360': { bg: '#ccfbf1', fg: '#0f766e', code: 'DV' },
+    'DOOH': { bg: '#f3e8ff', fg: '#6b21a8', code: 'DO' },
+    'LINE': { bg: '#dcfce7', fg: '#166534', code: 'LN' }
   };
   var CHANNEL_OTHER = { bg: '#F1EFE8', fg: '#444441', code: '—' };
   // normalized lookup so the sheet's "TradeDesk"/"Linkedin" (no space / different case) and
   // "facebook" all resolve to the right chip instead of falling through to gray.
   var CHANNEL_NORM = (function () { var m = {}; Object.keys(CHANNEL_COLORS).forEach(function (k) { m[k.toLowerCase().replace(/[^a-z0-9]/g, '')] = CHANNEL_COLORS[k]; }); m.facebook = CHANNEL_COLORS.Meta; return m; })();
   function chanTheme(ch) { if (!ch) return CHANNEL_OTHER; return CHANNEL_NORM[String(ch).toLowerCase().replace(/[^a-z0-9]/g, '')] || CHANNEL_OTHER; }
-  // Theme-adaptive channel chip: neutral pill on the Grid's own tokens (matches the Grid's
-  // subtle channel tags + follows the Dark/Light toggle), with the channel colour carried by
-  // the small code badge only (a dark badge + white text reads on both themes).
+  // Channel chip — distinct per-channel colour (bg + fg) + 2-letter code badge, for instant
+  // at-a-glance distinction across the table.
   function channelChip(ch) {
     if (!ch) return DASH;
     var t = chanTheme(ch);
-    return '<span class="ct-chan">' +
+    return '<span class="ct-chan" style="background:' + t.bg + ';color:' + t.fg + '">' +
       '<span class="ct-chan-code" style="background:' + t.fg + '">' + esc(t.code) + '</span>' + esc(ch) + '</span>';
+  }
+  // compact cluster of unique channel code-badges (client summary row)
+  function channelCluster(rows) {
+    var seen = {}, out = [];
+    rows.forEach(function (r) { var ch = r.channel; if (ch && !seen[ch]) { seen[ch] = 1; var t = chanTheme(ch); out.push('<span class="ct-chan-code" style="background:' + t.fg + '" title="' + esc(ch) + '">' + esc(t.code) + '</span>'); } });
+    return out.length ? '<span class="ct-chancluster">' + out.join('') + '</span>' : DASH;
   }
 
   // ---- formatters (Task 3 rules) ----
@@ -382,7 +388,10 @@
   // per-row and never summed — the summary shows "—" for them.
   function sumField(rows, field) { var any = false, s = 0; rows.forEach(function (r) { var v = r[field]; if (v != null && v !== '') { any = true; s += Number(v) || 0; } }); return any ? s : null; }
   function clientKey(ag, cl) { return String(ag == null ? '' : ag) + '::' + String(cl == null ? '' : cl); }
-  var SUM_COLS = { mediaSpend: 1, clientSpend: 1, totalBudget: 1 };   // the columns that aggregate
+  var SUM_COLS = { mediaSpend: 1, clientSpend: 1 };   // additive API columns that aggregate
+  // effective budget per row = budgetGross (client budget) else totalBudget — matches calc.js
+  function effBudgetOf(r) { var g = r.budgetGross; if (g != null && g !== '') return Number(g); return (r.totalBudget != null && r.totalBudget !== '') ? Number(r.totalBudget) : null; }
+  function sumEffBudget(rows) { var any = false, s = 0; rows.forEach(function (r) { var b = effBudgetOf(r); if (b != null) { any = true; s += b; } }); return any ? s : null; }
 
   // Collapsible per-client summary row: chevron + name + count (+ total impressions), and
   // aggregated totals in the additive columns; "—" everywhere aggregation is meaningless.
@@ -397,6 +406,11 @@
           '<span class="ct-chev' + (open ? ' open' : '') + '" aria-hidden="true">&#9654;</span>' +
           '<span class="ct-cgname">' + esc(cl || '—') + '</span>' +
           '<span class="ct-cgn">' + clientRows.length + ' campaign' + (clientRows.length === 1 ? '' : 's') + (impTot != null ? ' · ' + compactNum(impTot) + ' imp' : '') + '</span></button>';
+      } else if (c.id === 'channel') {
+        inner = channelCluster(clientRows);         // all unique channels for this client
+      } else if (c.id === 'totalBudget') {
+        var eb = sumEffBudget(clientRows);           // Σ effective budget (budgetGross||totalBudget)
+        inner = eb == null ? DASH : '<b class="ct-sumval">' + money(eb) + '</b>';
       } else if (SUM_COLS[c.id]) {
         var s = sumField(clientRows, c.id);
         inner = s == null ? DASH : '<b class="ct-sumval">' + money(s) + '</b>';
@@ -733,7 +747,8 @@
       '.ct-ce:focus{box-shadow:inset 0 0 0 2px var(--brand);background:var(--panel)}',
       '.ct-kpi-beat{color:var(--ok);font-weight:600}.ct-kpi-miss{color:var(--bad);font-weight:600}',
       '.ct-basis-info{display:inline-block;margin-left:5px;width:13px;height:13px;line-height:13px;text-align:center;border-radius:50%;background:var(--tx-soft);color:var(--tx-ink);font-size:9px;font-weight:800;cursor:help;vertical-align:middle}',
-      '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px;background:var(--panel-2);color:var(--ink-2);border:1px solid var(--line)}',
+      '.ct-chan{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:2px 9px 2px 3px;border-radius:20px}',
+      '.ct-chancluster{display:inline-flex;gap:3px;flex-wrap:wrap}',
       '.ct-chan-code{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 3px;border-radius:20px;color:#fff;font-size:8.5px;font-weight:800;letter-spacing:.02em}',
       '.ct-mgr{display:inline-block;font-weight:600}',
       '.ct-pill{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 9px;border-radius:20px}',

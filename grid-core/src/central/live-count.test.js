@@ -2,15 +2,12 @@
  * src/central/live-count.test.js — locks the EcoStruxure status fix + the live count.
  *
  * Seeds a temp DB exactly like the server (sheet import + HireRight scan-extra) and asserts:
- *   1. Schneider "Software First EcoStruxure" / LinkedIn imports as Active (the confirmed
- *      source correction — its blank sheet status was a data gap, not a deliberate Draft).
- *   2. The live Active+Paused total is 38.
+ *   1. Schneider "Software First EcoStruxure" / LinkedIn imports as Active (Zhen's updated
+ *      sheet carries it Active — the earlier data-gap is now fixed at source).
+ *   2. The live Active+Paused total is 40.
  *
- * NB on the number: the flip yields 38 Active+Paused (and the app's Live chip, which also
- * counts Draft, stays 39) — NOT 40. EcoStruxure was already a Draft, which the app counts as
- * live, so flipping it to Active RECLASSIFIES an already-live row rather than adding a new one.
- * Reaching 40 would require two more currently-non-live rows to become live (unconfirmed), so
- * this test encodes the verified reality (38), not the 40 target.
+ * NB: after the definitive re-import from Central_Updated.xlsx, Active+Paused = 37 (sheet) +
+ * 3 (HireRight scan rows) = 40 — the target is now genuinely met by the source data.
  */
 'use strict';
 const fs = require('fs'), path = require('path'), os = require('os');
@@ -32,7 +29,7 @@ const AP = all.filter(c => ['Active', 'Paused'].indexOf(c.status) >= 0);
 
 check('EcoStruxure/LinkedIn imports as Active (source fix applied)', eco && eco.status === 'Active', eco && { status: eco.status, channel: eco.channel });
 check('EcoStruxure is counted in the Active+Paused live set', !!AP.find(c => c === eco));
-check('live Active+Paused total = 38 (post-fix reality; see header note re: 40)', AP.length === 38, AP.length);
+check('live Active+Paused total = 40 (37 sheet + 3 HireRight)', AP.length === 40, AP.length);
 
 console.log('\n' + (fail ? '✗' : '✓') + ' live-count: ' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
