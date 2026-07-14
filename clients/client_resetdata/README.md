@@ -145,8 +145,14 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 4. **Ads → Traffic** — monthly spend vs sessions, weekly impressions vs mapped sessions, a **Pearson-r
    correlation scatter**, and conversions / cost-per-lead by platform.
 5. **Signups & CRM** (HubSpot) — answers Caroline's six questions. Reads HubSpot via
-   `raw_windsor.hubspot_contacts` / `hubspot_owners` (a **live snapshot**, NOT scoped by the ad filters,
-   which are hidden on this tab). The funnel Caroline cares about: **Leads → App signups → Loaded balance
+   `raw_windsor.hubspot_contacts` / `hubspot_owners` (a **live snapshot**). The ad Platform/Campaign filters
+   are hidden here, but the tab has its **own date-range picker** — the same Looker widget as the other tabs,
+   repointed to its own **contact-created-date** bounds/state (`crmStart`/`crmEnd`, from `crm.window`). Picking
+   a range windows the **whole tab** to that created-date cohort ("leads *created* in the window → signed up →
+   loaded → paying") at **month grain**; "All time" reproduces the full-snapshot totals exactly. Wiring: each
+   rollup carries a `created_month` (`26b_crm_kpi_monthly` funnel+queue; `created_month` on `28`/`29`/`30`;
+   `27_crm_signups_weekly` buckets by created week); the frontend SUMs the in-window months and re-derives
+   non-additive rates (pay-rate) from the summed parts. The funnel Caroline cares about: **Leads → App signups → Loaded balance
    → Paying → Customers**, where *signup* = created an `app.reset.ai` account (`contact_rd_created_at`),
    *loaded balance* = `rd_billing_balance > 0` (mostly the free $50 credit) and *paying* = `rd_total_spend
    > 0` (actually spent). Sections: the funnel KPI row; **weekly signups stacked by source** + a paying

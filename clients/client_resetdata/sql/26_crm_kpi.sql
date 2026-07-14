@@ -19,5 +19,8 @@ SELECT
   COUNTIF(lead_status = 'NEW' AND (owner_id IS NULL OR owner_id = ''))    AS queue_new_unassigned,
   -- freshness of the CRM slice
   FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', MAX(rd_signup_at))  AS last_signup_at,
-  FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', MAX(hs_created_at)) AS last_contact_at
+  FORMAT_TIMESTAMP('%Y-%m-%dT%H:%M:%SZ', MAX(hs_created_at)) AS last_contact_at,
+  -- created-date span → the Signups & CRM tab date-range picker's calendar bounds
+  FORMAT_DATE('%Y-%m-%d', MIN(DATE(hs_created_at)))         AS first_created_date,
+  FORMAT_DATE('%Y-%m-%d', MAX(DATE(hs_created_at)))         AS last_created_date
 FROM `bidbrain-analytics.client_resetdata.stg_hubspot_contacts`;

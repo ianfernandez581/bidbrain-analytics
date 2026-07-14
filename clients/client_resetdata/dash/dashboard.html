@@ -359,14 +359,14 @@
         </div>
       </div>
     </div>
-    <div class="fgroup">
+    <div class="fgroup" id="pltGroup">
       <div class="lbl">PLATFORM</div>
       <span class="chip google on" data-plt="google" onclick="togglePlatform('google')">Google Ads</span>
       <span class="chip meta on" data-plt="meta" onclick="togglePlatform('meta')">Meta</span>
       <span class="chip ttd on" data-plt="ttd" onclick="togglePlatform('ttd')">Trade Desk</span>
       <span class="chip reddit on" data-plt="reddit" onclick="togglePlatform('reddit')">Reddit</span>
     </div>
-    <div class="fgroup cdrop">
+    <div class="fgroup cdrop" id="campGroup">
       <div class="lbl">CAMPAIGN</div>
       <button class="btn" onclick="toggleCampaignPanel()" id="campBtn">All campaigns ▾</button>
       <div class="panel hide" id="campPanel"></div>
@@ -565,8 +565,11 @@
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box">
         <div class="panelhead">
-          <div><h3>App signups per week</h3>
-          <p class="hint">New <code>app.reset.ai</code> accounts by ISO week - bars are <b>total</b> signups; the green line tracks how many of each week's signups went on to <b>pay</b> (load balance ≠ pay). The source breakdown is in the chart below.</p></div>
+          <div><h3>App signups</h3>
+          <p class="hint">New <code>app.reset.ai</code> accounts over time (by contact-created date) - bars are <b>total</b> signups; the green line tracks how many went on to <b>pay</b> (load balance ≠ pay). <b>View by Day or Week</b>; narrow the range above to zoom in. The source breakdown is in the chart below.</p></div>
+          <div class="ctrls">
+            <span class="seg" id="crmsgGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="week" onclick="setCrmSgGrain('week',this)">Week</button><button type="button" data-grain="day" class="on" onclick="setCrmSgGrain('day',this)">Day</button></span>
+          </div>
         </div>
         <div id="crmWeekCallout" class="crm-callout"></div>
         <div class="chartbox"><canvas id="crmSignupsChart"></canvas></div>
@@ -680,13 +683,26 @@ const inRangeMonth = m => (!rangeStart || m >= rangeStart.slice(0,7)) && (!range
 const inRangeWeek  = w => (!rangeStart || w >= rangeStart) && (!rangeEnd || w <= rangeEnd);
 const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin || rangeEnd !== dateMax));
 
+// ---- Signups & CRM tab has its OWN date range: a window on the contact CREATED date
+// (its span differs from the ad/GA4 window, so it carries its own bounds + selection).
+// The one Looker picker is repointed to this context on the CRM tab (see usePickerCtx).
+let crmStart=null, crmEnd=null, crmMin=null, crmMax=null;   // ISO 'YYYY-MM-DD'
+let pickerCtx='ad';                                          // which context the picker is bound to
+const crmNarrowed  = () => !!(crmStart && crmEnd && crmMin && crmMax && (crmStart !== crmMin || crmEnd !== crmMax));
+const inCrmMonth   = m => !!m && m >= crmStart.slice(0,7) && m <= crmEnd.slice(0,7);
+const inCrmWeek    = w => !!w && w >= crmStart && w <= crmEnd;
+const inCrmDay     = d => !!d && d >= crmStart && d <= crmEnd;
+// month-grained CRM rows in the picked window; whole set when not narrowed (so "All time"
+// keeps rows with a NULL created month, reproducing the all-time totals exactly).
+const crmMonRows   = arr => (crmNarrowed() ? (arr||[]).filter(r=>inCrmMonth(r.month)) : (arr||[]));
+
 // ---- Drill-down grain (Looker-style) + per-chart axis mode ----
 // grain: month | week | day  ·  scale: 'rel' (each line indexed to its own peak) | 'abs' (real values)
 // Default axis = Absolute for every toggled chart. Grain per chart: hero + web (Total vs ad-driven)
 // default Month; paid (Media metrics) + a2tm (Ad spend vs sessions) default Week; the rest Day.
 // syncToggleDefaults() below highlights the matching buttons at load, so these two objects are the
 // single source of truth for the defaults.
-const grain = { hero:'month', web:'month', reddit:'day', paid:'week', ke:'day', a2tm:'week', a2tw:'day' };
+const grain = { hero:'month', web:'month', reddit:'day', paid:'week', ke:'day', a2tm:'week', a2tw:'day', crmsg:'day' };
 const scale = { hero:'abs', web:'abs', reddit:'abs', paid:'abs', ke:'abs', a2tm:'abs', a2tw:'abs' };
 let heroScale = scale.hero;   // kept as a back-compat alias (renderHero reads it)
 let defaultStart = null;      // the "since May" default - used by the drill "↩ All months" reset
@@ -721,6 +737,7 @@ function setRedditScale(s,btn){ scale.reddit=s; segPick(btn); renderReddit(); }
 function setPaidGrain(g,btn){ grain.paid=g; segPick(btn); renderPaid(); }
 function setPaidScale(s,btn){ scale.paid=s; segPick(btn); renderPaid(); }
 function setKeGrain(g,btn){ grain.ke=g; segPick(btn); renderKeyEventsBreakdown(); }
+function setCrmSgGrain(g,btn){ grain.crmsg=g; segPick(btn); renderCRM(); }
 function setKeScale(s,btn){ scale.ke=s; segPick(btn); renderKeyEventsBreakdown(); }
 function setA2tmGrain(g,btn){ grain.a2tm=g; segPick(btn); renderAds2Traffic(); }
 function setA2tmScale(s,btn){ scale.a2tm=s; segPick(btn); renderAds2Traffic(); }
@@ -857,7 +874,7 @@ window.DateRange = (function(){
   ];
   let MIN=null, MAX=null, onApply=null;
   let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
-  let viewYear=0, viewMonth=0, open=false;
+  let viewYear=0, viewMonth=0, open=false, bound=false;
 
   const pad = n => String(n).padStart(2,'0');
   const iso = d => d ? d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()) : null;
@@ -902,8 +919,10 @@ window.DateRange = (function(){
     $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
     // Capture phase: must run BEFORE pickDay()/choosePreset() rebuild the grid/preset
     // innerHTML (which would detach e.target, making closest('#dateRange') return null
-    // and wrongly close the popover on every in-popover click).
-    document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); }, true);
+    // and wrongly close the popover on every in-popover click). Bound ONCE — init() is
+    // re-called on tab switch (to repoint bounds/onApply between the ad tabs and the CRM
+    // tab), so guard the listener or it would stack a new handler on every switch.
+    if(!bound){ document.addEventListener('click', e => { if(open && !e.target.closest('#dateRange')) close(); }, true); bound=true; }
     updateButton();
   }
 
@@ -1055,8 +1074,13 @@ fetch('/data.json').then(r=>r.json()).then(d=>{
   dateMin = DATA.window && DATA.window.start; dateMax = DATA.window && DATA.window.end;
   // Default view: ALL TIME (full data window; user can narrow via the picker).
   rangeStart = defaultStart = dateMin; rangeEnd = dateMax;
+  // Signups & CRM tab: its own created-date window, defaulting to All time (whole snapshot,
+  // matching how the tab has always opened) — the picker is repointed here on that tab.
+  crmMin = (DATA.crm && DATA.crm.window && DATA.crm.window.start) || dateMin;
+  crmMax = (DATA.crm && DATA.crm.window && DATA.crm.window.end)   || dateMax;
+  crmStart = crmMin; crmEnd = crmMax;
   DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
-    onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; document.getElementById('heroBack').classList.remove('show'); renderAll(); } });
+    onApply:applyAdRange });
   document.getElementById('updated').textContent='Updated '+(d.last_updated||'').replace('T',' ').replace('Z',' UTC');
   // default: all campaigns selected
   DATA.ad_campaigns.forEach(r=>selCamp.add(ckey(r.platform,r.campaign)));
@@ -1067,6 +1091,17 @@ fetch('/data.json').then(r=>r.json()).then(d=>{
 }).catch(e=>{document.body.innerHTML='<div style="padding:40px;color:#FB7185">Failed to load data: '+e+'</div>';});
 
 // ===================== tabs =====================
+// The single Looker date picker serves two contexts: the ad tabs (Overview/Paid/Ads→Traffic,
+// media+GA4 window, shared rangeStart/rangeEnd) and the CRM tab (its own contact-created
+// window, crmStart/crmEnd). usePickerCtx repoints the picker's bounds + onApply on switch.
+function applyAdRange(s,e){ rangeStart=s; rangeEnd=e; document.getElementById('heroBack').classList.remove('show'); renderAll(); }
+function applyCrmRange(s,e){ crmStart=s; crmEnd=e; renderCRM(); }
+function usePickerCtx(ctx){
+  if(ctx===pickerCtx) return;                                  // no-op between ad tabs
+  pickerCtx=ctx;
+  if(ctx==='crm') DateRange.init({ min:crmMin, max:crmMax, initialStart:crmStart, initialEnd:crmEnd, onApply:applyCrmRange });
+  else            DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd, onApply:applyAdRange });
+}
 document.getElementById('tabs').addEventListener('click',e=>{
   const t=e.target.closest('.tab'); if(!t)return;
   document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
@@ -1074,8 +1109,14 @@ document.getElementById('tabs').addEventListener('click',e=>{
   const tab=t.dataset.tab;
   activeTab=tab;
   ['overview','paid','website','ads2traffic','crm'].forEach(s=>document.getElementById('tab-'+s).classList.toggle('hide',s!==tab));
-  // filters apply on overview + ads2traffic only (website + CRM are whole-dataset / HubSpot-sourced)
-  document.getElementById('filterbar').style.display=(tab==='website'||tab==='crm')?'none':'flex';
+  // Website has no filters; everywhere else the filterbar shows. On the CRM tab only DATE RANGE
+  // is meaningful (HubSpot-sourced) — hide platform + campaign, and repoint the picker to the
+  // CRM tab's own created-date window.
+  const crmMode = tab==='crm';
+  document.getElementById('filterbar').style.display=(tab==='website')?'none':'flex';
+  document.getElementById('pltGroup').style.display = crmMode ? 'none' : '';
+  document.getElementById('campGroup').style.display = crmMode ? 'none' : '';
+  usePickerCtx(crmMode ? 'crm' : 'ad');
   renderAll();
 });
 
@@ -1139,7 +1180,8 @@ function renderAll(){
 // Banner that states what the date range does (and doesn't) touch, shown when narrowed.
 function renderDateScope(){
   const note=document.getElementById('dateScopeNote'); if(!note) return;
-  if(narrowed() && activeTab!=='website'){
+  // CRM has its own date scope (created-date) surfaced in crmNote, not this ad-KPI banner.
+  if(narrowed() && activeTab!=='website' && activeTab!=='crm'){
     note.style.display='block';
     note.innerHTML='📅 Filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b>. '+
       'KPI cards (<b>month grain</b>), the platform comparison, conversions table, spend donut and the trend charts reflect this range '+
@@ -1965,15 +2007,27 @@ const srcColor=mc;   // GA4 channels/sources & CRM lifecycle both resolve via th
 function qStart(d){const m=+d.slice(5,7);const qm=m<=3?1:m<=6?4:m<=9?7:10;return d.slice(0,4)+'-'+String(qm).padStart(2,'0')+'-01';}
 
 function renderCRM(){
-  const C=DATA.crm; if(!C)return; const k=C.kpi;
+  const C=DATA.crm; if(!C)return;
+  // Funnel + queue counts for the picked created-date window: SUM the in-window months (each
+  // contact sits in exactly one created month, so summing all months == the all-time C.kpi).
+  // Fall back to the all-time C.kpi if an older JSON has no kpi_monthly yet.
+  const KFIELDS=['leads','app_signups','loaded_balance','paying','signups_not_paying','customers',
+                 'with_deal','total_balance','total_rd_spend','total_hs_revenue',
+                 'queue_new','queue_unassigned','queue_new_unassigned'];
+  let k;
+  if(Array.isArray(C.kpi_monthly)){
+    const km=crmMonRows(C.kpi_monthly); k={};
+    KFIELDS.forEach(f=>k[f]=km.reduce((s,r)=>s+(+r[f]||0),0));
+  } else { k=C.kpi; }
+  k.last_signup_at=C.kpi.last_signup_at;
   // ---- funnel KPI cards (app spend): Leads → App signups → Loaded balance → Paying users ----
   //      The HubSpot "Customer" lifecycle count is deliberately NOT a card here - it's a separate
   //      CRM signal (0 overlap with paying: payers are still tagged Lead) and is already shown in the
   //      Lifecycle mix / by-owner section below, so a funnel card would be redundant + misleading.
-  // Weekly series (whole-period; this tab ignores the date range) for the sparklines. Only signups /
+  // Weekly series (in the picked created-date window) for the sparklines. Only signups /
   // paying / loaded_balance exist over time; Free = signups - paying. Leads have no
   // time series -> null -> "no trend data".
-  const sw=C.signups_weekly||[];
+  const sw=crmNarrowed()?(C.signups_weekly||[]).filter(r=>inCrmWeek(r.week_start)):(C.signups_weekly||[]);
   const wks=[...new Set(sw.map(r=>r.week_start))].sort();
   const byW=f=>wks.map(w=>sw.filter(r=>r.week_start===w).reduce((s,r)=>s+(+r[f]||0),0));
   const sgW=byW('signups'), payW=byW('paying'), loadW=byW('loaded_balance');
@@ -1987,40 +2041,49 @@ function renderCRM(){
   ];
   document.getElementById('crmKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
-  // ---- Q1: weekly app signups stacked by source + paying line ----
-  const wk=C.signups_weekly;
-  const weeks=[...new Set(wk.map(r=>r.week_start))].sort();
-  const srcTot={}; wk.forEach(r=>srcTot[r.source]=(srcTot[r.source]||0)+r.signups);
-  const srcs=[...new Set(wk.map(r=>r.source))].sort((a,b)=>srcTot[b]-srcTot[a]);
-  const wi={}; weeks.forEach((w,i)=>wi[w]=i);
-  const bySrc={}; srcs.forEach(s=>bySrc[s]=weeks.map(()=>0));
-  const payLine=weeks.map(()=>0), sgnLine=weeks.map(()=>0);
-  wk.forEach(r=>{const i=wi[r.week_start];bySrc[r.source][i]+=r.signups;payLine[i]+=r.paying;sgnLine[i]+=r.signups;});
-  const wkLabels=weeks.map(w=>new Date(w+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
-  // Change 1: the main chart is the clean TOTALS story - one bar series = total signups/week (single
-  // sky-blue, same as the funnel's "App signups") + the green Paying line. The per-source attribution
-  // that used to clutter this chart now lives in crmSourceMixChart just below.
+  // ---- Q1: app signups over time — Day/Week toggle (created-date basis, in-window). Bars = total
+  //      signups (sky-blue) + green Paying line. Source breakdown is crmSourceMixChart below. ----
+  const _sgG=grain.crmsg;   // 'day' | 'week'
+  // Chart source = DAILY created-date signups, windowed; keyed by day, or rolled up to ISO week
+  // (Mon-anchored) when Week is selected. signups_weekly still backs the QTD callout + sparklines.
+  const _sgD=(C.signups_daily||[]).filter(r=> crmNarrowed()? inCrmDay(r.date) : true);
+  const _keyOf=r=> _sgG==='week' ? weekStartOf(r.date) : r.date;
+  const keys=[...new Set(_sgD.map(_keyOf))].sort();
+  const srcTot={}; _sgD.forEach(r=>srcTot[r.source]=(srcTot[r.source]||0)+r.signups);
+  const srcs=[...new Set(_sgD.map(r=>r.source))].sort((a,b)=>srcTot[b]-srcTot[a]);
+  const ki={}; keys.forEach((w,i)=>ki[w]=i);
+  const bySrc={}; srcs.forEach(s=>bySrc[s]=keys.map(()=>0));
+  const payLine=keys.map(()=>0), sgnLine=keys.map(()=>0);
+  _sgD.forEach(r=>{const i=ki[_keyOf(r)]; if(i==null)return; bySrc[r.source][i]+=r.signups; payLine[i]+=r.paying; sgnLine[i]+=r.signups;});
+  // Labels: append the 2-digit year when the visible span crosses years (what made the all-time
+  // view read as jumbled) so e.g. Feb '24 vs Feb '26 are unambiguous.
+  const _multiYr=keys.length>1 && keys[0].slice(0,4)!==keys[keys.length-1].slice(0,4);
+  const chLabels=keys.map(w=>{ const s=new Date(w+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}); return _multiYr? s+" '"+w.slice(2,4) : s; });
   const SIGNUP_COLOR='#38BDF8';   // matches the funnel's "App signups" bar → signups=sky-blue, paying=green
-  mkChart('crmSignupsChart',{data:{labels:wkLabels,datasets:[
+  mkChart('crmSignupsChart',{data:{labels:chLabels,datasets:[
       {type:'bar',label:'Signups',backgroundColor:SIGNUP_COLOR,data:sgnLine,order:1},
-      {type:'line',label:'Paying',borderColor:mc('Paying'),backgroundColor:mc('Paying'),data:payLine,tension:.3,borderWidth:2.5,pointRadius:2,order:0}]},
+      {type:'line',label:'Paying',borderColor:mc('Paying'),backgroundColor:mc('Paying'),data:payLine,tension:.3,borderWidth:2.5,pointRadius:_sgG==='day'?1.5:2,order:0}]},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}},
         tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Paying'
           ? 'Paying: '+fmtN(ctx.parsed.y)+(sgnLine[ctx.dataIndex]?'  ('+pct(ctx.parsed.y/sgnLine[ctx.dataIndex])+' of signups)':'')
           : 'Signups: '+fmtN(ctx.parsed.y)}}},
       scales:{x:axis(),y:axis({title:{display:true,text:'Signups',color:tickClr}})}}});
-  // this-week / QTD callout (latest week in the data)
+  // this-week / QTD callout — always WEEKLY (from signups_weekly), independent of the chart grain.
+  const _wkC=crmNarrowed()?(C.signups_weekly||[]).filter(r=>inCrmWeek(r.week_start)):(C.signups_weekly||[]);
+  const weeks=[...new Set(_wkC.map(r=>r.week_start))].sort();
+  const wSgn=weeks.map(()=>0), wPay=weeks.map(()=>0), _wi={}; weeks.forEach((w,i)=>_wi[w]=i);
+  _wkC.forEach(r=>{const i=_wi[r.week_start]; wSgn[i]+=r.signups; wPay[i]+=r.paying;});
+  const _wLab=weeks.map(w=>new Date(w+'T00:00:00').toLocaleDateString('en-US',{month:'short',day:'numeric'}));
   const n=weeks.length, lastW=weeks[n-1];
   const qtr=lastW?qStart(lastW):null; let qtdSgn=0,qtdPay=0;
-  weeks.forEach((w,i)=>{if(qtr&&w>=qtr){qtdSgn+=sgnLine[i];qtdPay+=payLine[i];}});
+  weeks.forEach((w,i)=>{if(qtr&&w>=qtr){qtdSgn+=wSgn[i];qtdPay+=wPay[i];}});
   document.getElementById('crmWeekCallout').innerHTML=n?
-    `Week of ${wkLabels[n-1]}: <b>${sgnLine[n-1]}</b> signups (${payLine[n-1]} paying) &nbsp;·&nbsp; Quarter-to-date: <b>${qtdSgn}</b> signups (${qtdPay} paying)`:'';
+    `Week of ${_wLab[n-1]}: <b>${wSgn[n-1]}</b> signups (${wPay[n-1]} paying) &nbsp;·&nbsp; Quarter-to-date: <b>${qtdSgn}</b> signups (${qtdPay} paying)`:'';
 
-  // ---- Change 2a: attribution - same weeks, bars STACKED by source (palette colours), NO legend;
-  //      hover reveals the source name + count (zero slices hidden). The "where from" detail lifted
-  //      off the main chart. HubSpot attribution is thin, so Offline/Direct dominate - that's real. ----
-  mkChart('crmSourceMixChart',{type:'bar',data:{labels:wkLabels,datasets:srcs.map(s=>({label:s,backgroundColor:srcColor(s),data:bySrc[s],stack:'sg'}))},
+  // ---- Change 2a: attribution - same buckets, bars STACKED by source (palette colours), NO legend;
+  //      hover reveals the source name + count (zero slices hidden). ----
+  mkChart('crmSourceMixChart',{type:'bar',data:{labels:chLabels,datasets:srcs.map(s=>({label:s,backgroundColor:srcColor(s),data:bySrc[s],stack:'sg'}))},
     options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{display:false},
         tooltip:{filter:it=>it.parsed.y>0,callbacks:{label:ctx=>{const tot=sgnLine[ctx.dataIndex];
@@ -2028,8 +2091,19 @@ function renderCRM(){
       scales:{x:axis({stacked:true}),y:axis({stacked:true,title:{display:true,text:'Signups by source',color:tickClr}})}}});
 
   // ---- Change 2b: which sources drive PAYING vs FREE signups - one bar per source, paying (green)
-  //      stacked with free-only (grey), biggest first. Per-source all-time, from source_quality. ----
-  const sq=[...C.source_quality].filter(r=>r.signups>0).sort((a,b)=>b.signups-a.signups);
+  //      stacked with free-only (grey), biggest first. Per-source in the picked window. ----
+  // Source quality for the window: SUM the in-window months per source, RE-DERIVE the rate %s
+  // from the summed parts (per-month rates aren't additive). Shared by the pay/free chart, the
+  // source table and the attribution note below.
+  const _sqF=['leads','signups','loaded_balance','paying','free_only','with_deal','customers','ad_attributed','rd_spend'];
+  const _sqMap={};
+  crmMonRows(C.source_quality).forEach(r=>{const a=_sqMap[r.source]=_sqMap[r.source]||{source:r.source};
+    _sqF.forEach(f=>a[f]=(a[f]||0)+(+r[f]||0));});
+  const sqAgg=Object.values(_sqMap).map(a=>Object.assign(a,{
+    pay_rate_pct:a.signups?+(a.paying/a.signups*100).toFixed(1):null,
+    signup_rate_pct:a.leads?+(a.signups/a.leads*100).toFixed(1):null}))
+    .sort((a,b)=>b.paying-a.paying||b.signups-a.signups||b.leads-a.leads);
+  const sq=sqAgg.filter(r=>r.signups>0).slice().sort((a,b)=>b.signups-a.signups);
   mkChart('crmPayFreeChart',{type:'bar',data:{labels:sq.map(r=>r.source),datasets:[
       {label:'Paying',backgroundColor:mc('Paying'),data:sq.map(r=>r.paying),stack:'pf'},
       {label:'Free only',backgroundColor:'#78716C',data:sq.map(r=>r.free_only),stack:'pf'}]},
@@ -2047,17 +2121,21 @@ function renderCRM(){
       tooltip:{callbacks:{label:ctx=>fmtN(ctx.parsed.x)+(k.app_signups?'  ('+pct(ctx.parsed.x/k.app_signups)+' of signups)':'')}}},
       scales:{x:axis({title:{display:true,text:'Contacts',color:tickClr}}),y:axis()}}});
 
-  // ---- Q3+Q5: source quality ----
+  // ---- Q3+Q5: source quality (windowed, from sqAgg) ----
   let sh='<tr><th>Source</th><th>Leads</th><th>Signups</th><th>Paying</th><th>Free only</th><th>Pay rate</th><th>Deals</th><th>Ad-ID</th><th>RD spend</th></tr>';
-  C.source_quality.forEach(r=>{sh+=`<tr><td class="name"><span style="color:${srcColor(r.source)}">●</span> ${r.source}</td>
+  sqAgg.forEach(r=>{sh+=`<tr><td class="name"><span style="color:${srcColor(r.source)}">●</span> ${r.source}</td>
     <td>${fmtN(r.leads)}</td><td>${fmtN(r.signups)}</td><td style="color:var(--good);font-weight:700">${fmtN(r.paying)}</td>
     <td style="color:var(--muted)">${fmtN(r.free_only)}</td><td>${r.pay_rate_pct==null?'-':r.pay_rate_pct+'%'}</td>
     <td>${fmtN(r.with_deal)}</td><td>${r.ad_attributed?'<span class="tag ad">'+fmtN(r.ad_attributed)+'</span>':'-'}</td>
     <td>${aud(r.rd_spend)}</td></tr>`;});
   document.getElementById('crmSourceTable').innerHTML=sh;
 
-  // ---- Q4: lifecycle × owner ----
-  const lo=C.lifecycle_owner;
+  // ---- Q4: lifecycle × owner (sum in-window months per owner × stage) ----
+  const _loMap={};
+  crmMonRows(C.lifecycle_owner).forEach(r=>{const key=r.owner+'||'+r.lifecycle;
+    const a=_loMap[key]=_loMap[key]||{owner:r.owner,lifecycle:r.lifecycle,contacts:0,signups:0,paying:0,with_deal:0};
+    a.contacts+=(+r.contacts||0);a.signups+=(+r.signups||0);a.paying+=(+r.paying||0);a.with_deal+=(+r.with_deal||0);});
+  const lo=Object.values(_loMap);
   const ownerTot={}; lo.forEach(r=>ownerTot[r.owner]=(ownerTot[r.owner]||0)+r.contacts);
   const owners=Object.keys(ownerTot).sort((a,b)=>ownerTot[b]-ownerTot[a]).slice(0,10);
   const stages=LC_ORDER.filter(s=>lo.some(r=>r.lifecycle===s));
@@ -2084,8 +2162,8 @@ function renderCRM(){
     ['k-queue','Unassigned (no owner)',fmtN(k.queue_unassigned),'non-customers'],
   ].map(c=>`<div class="kpi ${c[0]}"><div class="label">${c[1]}</div><div class="value">${c[2]}</div><div class="sub">${c[3]}</div></div>`).join('');
   const byStatus={};
-  C.lead_queue.forEach(r=>{const a=byStatus[r.lead_status]=byStatus[r.lead_status]||{total:0,un:0,owners:{}};
-    a.total+=r.contacts; if(r.unassigned)a.un+=r.contacts; else a.owners[r.owner]=(a.owners[r.owner]||0)+r.contacts;});
+  crmMonRows(C.lead_queue).forEach(r=>{const a=byStatus[r.lead_status]=byStatus[r.lead_status]||{total:0,un:0,owners:{}};
+    a.total+=(+r.contacts||0); if(r.unassigned)a.un+=(+r.contacts||0); else a.owners[r.owner]=(a.owners[r.owner]||0)+(+r.contacts||0);});
   const sr={NEW:1,OPEN:2,ATTEMPTED_TO_CONTACT:3,IN_PROGRESS:4,OPEN_DEAL:5,UNQUALIFIED:6};
   let qh='<tr><th>Lead status</th><th>Leads</th><th>Unassigned</th><th style="text-align:left">Top owners (assigned)</th></tr>';
   Object.keys(byStatus).sort((a,b)=>(sr[a]||9)-(sr[b]||9)).forEach(s=>{const a=byStatus[s];
@@ -2093,13 +2171,17 @@ function renderCRM(){
     qh+=`<tr><td class="name">${s}</td><td style="font-weight:700">${fmtN(a.total)}</td><td style="color:#F59E0B">${fmtN(a.un)}</td><td style="text-align:left;color:var(--muted)">${tops}</td></tr>`;});
   document.getElementById('crmQueueTable').innerHTML=qh;
 
+  const _scope=crmNarrowed()
+    ? `📅 Scoped to contacts <b>created ${crmStart} – ${crmEnd}</b> (month grain). `
+    : '';
   document.getElementById('crmNote').innerHTML=
-    '<b>Source: HubSpot CRM</b> (live snapshot, not scoped by the ad filters above). “Signup” = created an <code>app.reset.ai</code> account; '+
+    _scope+'<b>Source: HubSpot CRM</b> (live snapshot). The <b>date range</b> above windows this tab by contact-created month; '+
+    'the ad Platform/Campaign filters don’t apply here. “Signup” = created an <code>app.reset.ai</code> account; '+
     '“loaded balance” = has account credit (mostly the free $50); “paying” = has actually spent. CRM data through '+
     (k.last_signup_at||'').replace('T',' ').replace('Z',' UTC')+'.';
 
   // Honest attribution-gap callout - protects against over-reading this tab as "ads -> signups".
-  const _sq=C.source_quality||[];
+  const _sq=sqAgg;
   const _adAttr=_sq.reduce((s,r)=>s+(+r.ad_attributed||0),0);
   const _sg=+k.app_signups||0;
   const _offdir=_sq.filter(r=>{const s=(r.source||'').toLowerCase();return s==='offline / sales'||s==='direct';}).reduce((s,r)=>s+(+r.signups||0),0);

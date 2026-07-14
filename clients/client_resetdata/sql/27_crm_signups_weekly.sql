@@ -2,9 +2,12 @@
 -- loaded-balance and paying conversions. Grain: (week_start, source_bucket). Frontend
 -- sums across source for the funnel-over-time line and stacks by source for "where from",
 -- and finds the latest week for the "signed up this week" headline.
+-- week_start = the week the contact was CREATED (hs_created_at), the same created-date basis
+-- the whole Signups & CRM tab scopes on — so this trend chart stays consistent with the
+-- date-range picker (which windows the created-date cohort).
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_resetdata.crm_signups_weekly` AS
 SELECT
-  DATE_TRUNC(DATE(rd_signup_at), WEEK(MONDAY)) AS week_start,
+  DATE_TRUNC(DATE(hs_created_at), WEEK(MONDAY)) AS week_start,
   source_bucket,
   COUNT(*)                              AS signups,
   COUNTIF(loaded_balance)               AS loaded_balance,

@@ -159,7 +159,11 @@ def main():
     ad_campaign_daily = rows(bq, "ad_campaign_daily")
     # --- Signups & CRM tab (HubSpot via raw_windsor.hubspot_contacts/_owners) ----------
     crm_kpi = rows(bq, "crm_kpi")[0]
+    # Same funnel/queue counts broken out by the month each contact was CREATED, so the CRM tab's
+    # date-range picker can scope the whole funnel to a created-date cohort (frontend sums months).
+    crm_kpi_monthly = rows(bq, "crm_kpi_monthly")
     crm_signups_weekly = rows(bq, "crm_signups_weekly")
+    crm_signups_daily = rows(bq, "crm_signups_daily")   # day-grain for the App-signups Day/Week toggle
     crm_source_quality = rows(bq, "crm_source_quality")
     crm_lifecycle_owner = rows(bq, "crm_lifecycle_owner")
     crm_lead_queue = rows(bq, "crm_lead_queue")
@@ -466,6 +470,29 @@ def main():
                 "last_signup_at": crm_kpi["last_signup_at"],
                 "last_contact_at": crm_kpi["last_contact_at"],
             },
+            # created-date span → the CRM tab's date-range picker calendar bounds
+            "window": {
+                "start": crm_kpi["first_created_date"],
+                "end": crm_kpi["last_created_date"],
+            },
+            # funnel + queue counts per created month; the frontend SUMs the in-window months
+            # (summing every month reproduces the all-time `kpi` above exactly).
+            "kpi_monthly": [{
+                "month": r["created_month"],
+                "leads": num(r["leads"]),
+                "app_signups": num(r["app_signups"]),
+                "loaded_balance": num(r["loaded_balance"]),
+                "paying": num(r["paying"]),
+                "signups_not_paying": num(r["signups_not_paying"]),
+                "customers": num(r["customers"]),
+                "with_deal": num(r["with_deal"]),
+                "total_balance": num(r["total_balance"]),
+                "total_rd_spend": num(r["total_rd_spend"]),
+                "total_hs_revenue": num(r["total_hs_revenue"]),
+                "queue_new": num(r["queue_new"]),
+                "queue_unassigned": num(r["queue_unassigned"]),
+                "queue_new_unassigned": num(r["queue_new_unassigned"]),
+            } for r in crm_kpi_monthly],
             "signups_weekly": [{
                 "week_start": ymd(r["week_start"]),
                 "source": r["source_bucket"],
@@ -475,7 +502,17 @@ def main():
                 "ad_attributed": num(r["ad_attributed"]),
                 "rd_spend": num(r["rd_spend"]),
             } for r in crm_signups_weekly],
+            "signups_daily": [{
+                "date": ymd(r["day"]),
+                "source": r["source_bucket"],
+                "signups": num(r["signups"]),
+                "loaded_balance": num(r["loaded_balance"]),
+                "paying": num(r["paying"]),
+                "ad_attributed": num(r["ad_attributed"]),
+                "rd_spend": num(r["rd_spend"]),
+            } for r in crm_signups_daily],
             "source_quality": [{
+                "month": r["created_month"],
                 "source": r["source_bucket"],
                 "leads": num(r["leads"]),
                 "signups": num(r["signups"]),
@@ -490,6 +527,7 @@ def main():
                 "pay_rate_pct": num(r["pay_rate_pct"]),
             } for r in crm_source_quality],
             "lifecycle_owner": [{
+                "month": r["created_month"],
                 "owner": r["owner_name"],
                 "lifecycle": r["lifecycle_stage"],
                 "contacts": num(r["contacts"]),
@@ -498,6 +536,7 @@ def main():
                 "with_deal": num(r["with_deal"]),
             } for r in crm_lifecycle_owner],
             "lead_queue": [{
+                "month": r["created_month"],
                 "lead_status": r["lead_status"],
                 "owner": r["owner_name"],
                 "unassigned": bool(r["unassigned"]),
