@@ -132,6 +132,13 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
    the filters) are static / fixed. The
    **Website Traffic** tab applies the same: **Sessions** and **Ad-driven** are clickable (toggling the
    webTrend "All sessions" / "Ad-driven (paid)" lines); Users / Engaged / Page views / Key events are static.
+   The Overview's **"What the key events are"** stacked chart has ~23 GA4 event types, so instead of a
+   (too-crowded) legend it is **click-to-focus**: click a coloured bar segment to isolate that one event
+   across the whole chart (shows its RAW volume over time - Relative is auto-suppressed for a single
+   event); click the bar again, or the **"Show all events"** link in the on-chart hint banner, to restore
+   the full stack. Wiring: `keFocus` state + `keColor` (stable per-event colour) + `keHelp` (the banner
+   above the chart) + Chart.js `onClick`/`onHover` using `getElementsAtEventForMode('nearest',intersect)`
+   to resolve the exact segment clicked; the segment's event is stashed on the dataset as `_ev`.
 2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by
    platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, a **Creative gallery**
    (Meta ad thumbnails + copy + per-creative delivery), a **"Who we targeted"** panel (top Google Ads search
