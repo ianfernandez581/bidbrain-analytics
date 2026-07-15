@@ -88,6 +88,19 @@
   .chip.meta.on{background:var(--meta);color:#fff}
   .chip.ttd.on{background:var(--ttd);color:#fff}
   .chip.reddit.on{background:var(--reddit);color:#fff}
+  /* on-chart instruction / focus indicator for the key-events chart (no legend - you click a
+     segment to focus on one event). Default = a subtle tip; .focused = accent-tinted state. */
+  .kehelp{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 12px;
+          font-size:11.5px;color:var(--muted);background:var(--panel2);
+          border:1px solid var(--line2);border-radius:8px;padding:7px 11px}
+  .kehelp .keicon{font-size:13px;line-height:1}
+  .kehelp b{color:var(--ink);font-weight:700}
+  .kehelp.focused{color:var(--ink);border-color:color-mix(in srgb,var(--accent) 45%,transparent);
+          background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .kehelp .kereset{margin-left:auto;color:var(--accent);font-weight:700;cursor:pointer;
+          border:1px dashed color-mix(in srgb,var(--accent) 50%,transparent);
+          border-radius:6px;padding:2px 9px;white-space:nowrap}
+  .kehelp .kereset:hover{background:color-mix(in srgb,var(--accent) 16%,transparent)}
   .cdrop{position:relative}
   .cdrop .panel{position:absolute;z-index:50;margin-top:6px;width:360px;max-height:360px;overflow:auto;
         background:var(--panel);border:1px solid var(--line2);border-radius:10px;padding:10px;box-shadow:0 18px 50px rgba(0,0,0,.5)}
@@ -411,6 +424,7 @@
           <span class="seg" id="keGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setKeGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setKeGrain('week',this)">Week</button><button type="button" data-grain="day" onclick="setKeGrain('day',this)">Day</button></span>
         </div>
       </div>
+      <div class="kehelp" id="keHelpOv"></div>
       <div class="chartbox"><canvas id="keyEventsBreakdown"></canvas></div>
     </div>
     <div class="grid cols-3eq" style="margin-top:14px">
@@ -1609,6 +1623,38 @@ function renderHero(){
 // breakdown of what the "Key events" line is made of - GA4 key events by type, stacked per period.
 // Pure stacked composition (no overlay line): "Relative" = 100%-stacked (each period's mix), with
 // tooltips showing the TRUE count; "Absolute" = raw counts. Month/Week/Day grain.
+// ---------- Key events: click a stacked segment to FOCUS on that one event ----------
+// The "What the key events are" stack has ~23 event types, so a legend was too crowded. Instead you
+// CLICK a coloured segment to isolate that event across the whole chart (see just its volume over
+// time); click the bar again, or "Show all", to restore the full stack. keColor gives each event a
+// stable colour; the on-chart hint (keHelp, above the chart) explains it and reflects the focus state.
+let keFocus = null;                     // focused event name, or null = show the full stack
+let _keColorMap=null;
+// Stable event -> colour, computed ONCE from whole-period totals so an event keeps the same colour
+// regardless of grain / date range / focus.
+function keColor(nm){
+  if(!_keColorMap){
+    const PAL=['#F59E0B','#E84A6F','#6366F1','#0EA5E9','#A78BFA','#34D399','#FB7185','#FBBF24','#22D3EE','#94A3B8'];
+    const t={}; (DATA.ga4_key_events||[]).forEach(r=>t[r.event_name]=(t[r.event_name]||0)+(+r.event_count||0));
+    _keColorMap={}; Object.keys(t).sort((a,b)=>(t[b]||0)-(t[a]||0)).forEach((n,i)=>_keColorMap[n]=PAL[i%PAL.length]);
+  }
+  return _keColorMap[nm] || '#94A3B8';
+}
+function keClearFocus(){ keFocus=null; renderKeyEventsBreakdown(); }
+// The instruction / focus-state banner sitting directly above the stacked chart.
+function keHelp(containerId, focused, tot){
+  const el=document.getElementById(containerId); if(!el) return;
+  if(focused){
+    el.className='kehelp focused';
+    el.innerHTML=`<span class="keicon">&#128269;</span><span>Focused on <b>${prettyEvent(focused)}</b>`+
+      `${(tot&&tot[focused]!=null)?` (${fmtN(tot[focused])} in range)`:''} - showing its volume over time.</span>`+
+      `<span class="kereset" onclick="keClearFocus()">&#10005; Show all events</span>`;
+  } else {
+    el.className='kehelp';
+    el.innerHTML=`<span class="keicon">&#128070;</span><span><b>Tip:</b> click a coloured bar segment to focus on that one key event; click it again to show all.</span>`;
+  }
+}
+
 function renderKeyEventsBreakdown(){
   const g=grain.ke;
   // month/week derive from the day feed (real per-day GA4 events); month uses the month feed directly.
@@ -1620,21 +1666,32 @@ function renderKeyEventsBreakdown(){
   const rows=src.filter(r=>inR(keyOf(r)));
   const buckets=[...new Set(rows.map(keyOf))].sort();
   const tot={}; rows.forEach(r=>tot[r.event_name]=(tot[r.event_name]||0)+(+r.event_count||0));
-  const names=[...new Set(rows.map(r=>r.event_name))].sort((a,b)=>(tot[b]||0)-(tot[a]||0));
-  const PAL=['#F59E0B','#E84A6F','#6366F1','#0EA5E9','#A78BFA','#34D399','#FB7185','#FBBF24','#22D3EE','#94A3B8'];
+  const allNames=[...new Set(rows.map(r=>r.event_name))].sort((a,b)=>(tot[b]||0)-(tot[a]||0));
+  // FOCUS: if a segment was clicked, show ONLY that event (its volume over time); else the full stack.
+  const focusOn = keFocus && allNames.includes(keFocus);
+  const names = focusOn ? [keFocus] : allNames;
+  keHelp('keHelpOv', focusOn ? keFocus : null, tot);
   const ci={}; buckets.forEach((b,i)=>ci[b]=i);
   // raw counts per event per bucket
   const raw=names.map(()=>buckets.map(()=>0));
   names.forEach((nm,ni)=>rows.filter(r=>r.event_name===nm).forEach(r=>{raw[ni][ci[keyOf(r)]]+=(+r.event_count||0);}));
   const colTot=buckets.map((_,bi)=>names.reduce((s,_,ni)=>s+raw[ni][bi],0));   // per-period total
-  const rel=(scale.ke==='rel');
+  // Relative (100%-stack) is meaningless for a single focused event (it'd be a flat 100%), so a focused
+  // view always shows that event's RAW counts over time regardless of the AXIS toggle.
+  const rel=(scale.ke==='rel') && !focusOn;
   const ds=names.map((nm,ni)=>({
-    label:prettyEvent(nm), backgroundColor:PAL[ni%PAL.length], stack:'ke',
+    label:prettyEvent(nm), backgroundColor:keColor(nm), stack:'ke', _ev:nm,
     data: rel?raw[ni].map((v,bi)=>colTot[bi]?v/colTot[bi]*100:0):raw[ni], _raw:raw[ni] }));
   const lab=grainLabel(g);
   mkChart('keyEventsBreakdown',{type:'bar',data:{labels:buckets.map(lab),datasets:ds},options:{
-    responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-    plugins:{legend:{display:false},   // legend removed - hover tooltips already name each event type
+    responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:true},
+    // Click a segment to FOCUS on that one event (click again to clear); pointer cursor signals it.
+    onClick:(evt,_els,chart)=>{ const hit=chart.getElementsAtEventForMode(evt,'nearest',{intersect:true},false);
+      if(!hit.length) return; const nm=chart.data.datasets[hit[0].datasetIndex]._ev;
+      keFocus=(keFocus===nm)?null:nm; renderKeyEventsBreakdown(); },
+    onHover:(evt,_els,chart)=>{ const hit=chart.getElementsAtEventForMode(evt,'nearest',{intersect:true},false);
+      if(evt.native&&evt.native.target) evt.native.target.style.cursor=hit.length?'pointer':'default'; },
+    plugins:{legend:{display:false},   // no legend - click-to-focus + the hover tooltip name each event
       tooltip:{callbacks:{label:ctx=>{ const v=ctx.dataset._raw?ctx.dataset._raw[ctx.dataIndex]:ctx.parsed.y;
         return ctx.dataset.label+': '+fmtN(v)+(rel?'  ('+Math.round(ctx.parsed.y)+'%)':''); }}}},
     scales:{x:axis({stacked:true}),y:axis(rel
