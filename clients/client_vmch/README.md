@@ -38,11 +38,18 @@ _Overview consolidated 2026-06-18; **Trade Desk + Website re-added as tabs 2026-
 asked for the delivery/GA4 detail back, plus clickable KPIs and full date-range responsiveness)._
 
 `dash/dashboard.html` — one self-contained file, now **three tabs** (`setTab('overview'|'trade-desk'|'website')`;
-tab bar sits where the old "Performance overview" title was). The only top-bar filter is **Date range**
-(defaults to **all available history**; flight marked on charts) and it drives **all three tabs**. There is
-**no top-bar Campaign dropdown** — campaign selection lives on the **Campaign chips inside the campaign-effect
-panel** (All / RAC / RL / SAH / Disability, `setAttrCampaign`); they drive the statistical model, scale the
-Sessions trend, and highlight a column in the enquiries heat-table. Because everything shares one canvas
+tab bar sits where the old "Performance overview" title was). The top-bar filters are **Date range** and
+**Campaign**, and both drive **all three tabs**. **Date range** defaults to **all available history** (flight
+marked on charts); its MAX now reaches the **latest ad-delivery day** — `dateMax` folds in `ttd_window.end`
+plus the latest `daily` / `ad_campaign_daily` day (2026-07-15 fix), NOT just the last GA4 month, so a **live
+campaign's recent days are selectable** (it previously capped at the last GA4 month, e.g. Jun 28 while TTD ran
+to Jul 13 — see Caveat 15). **Campaign** is a searchable multi-select dropdown (`CampaignFilter`, beside Date
+range, 2026-07-15) that drives the SAME `activeCampaigns` set as the **Campaign chips inside the campaign-effect
+panel** (All / RAC / RL / SAH / Disability, `setAttrCampaign`) — both call `reRender()`, which calls
+`CampaignFilter.sync()` so the two selectors stay consistent. The selection scopes **every Trade Desk figure**
+(KPIs / trends / tables, via `campOn()`), drives the statistical model, scales the Sessions trend, and
+highlights a column in the enquiries heat-table. GA4/website charts have no campaign dimension, so they follow
+the Date range only. Because everything shares one canvas
 namespace, **every tab/grain/scale/chip toggle rebuilds the active tab** (`reRender` → `renderActive` →
 Overview: `OV.render()` + `renderWeb()`; Trade Desk: `renderTradeDesk()`; Website: `renderWebsite()`);
 `destroyCharts()` clears the namespace first so tabs never collide. `OV.setGrain` was repointed at `reRender` too.
@@ -269,3 +276,17 @@ gcloud run jobs execute vmch-export --region australia-southeast1 --wait   # man
     gate edit is committed but **not yet deployed** — `job/deploy_job_vmch.ps1` fails on `iam.serviceaccounts.actAs`
     for the runtime SA and references `vmch-export-job@` (the live SA is `vmch-dash-job@`, per Coordinates); the
     live job still rebuilds daily off the TTD gate, which picks up the refreshed Windsor data regardless.
+
+15. **Date-range MAX + the website gap it exposes (2026-07-15).** The TTD (Trade Desk) feed is LIVE and runs
+    weeks ahead of the GA4/website arrays, which lag because of Caveat 14 (DTS frozen since 2026-06-06, Windsor
+    GA4 last manually pulled 2026-06-18 → website data ends **2026-06-17**). `boot()` was deriving `dateMax`
+    ONLY from the GA4 arrays (`window.end` / `monthly` last month), so "All time" wrongly capped at **Jun 28**
+    and the live campaign's July delivery (Jul 1-13: ~463k imps, ~A$2.1k) was **unselectable** in the Trade
+    Desk / Website tabs. Fixed: `dateMax` now also folds in `ttd_window.end` + the latest `daily` /
+    `ad_campaign_daily` day → **2026-07-13**. Consequence: with the range extended, the **website (GA4) charts
+    honestly end at Jun 17** — that tail is a data-freshness gap (Caveat 14), NOT a traffic collapse; the footer
+    `data through` + the flight marker annotate it. To close the website side, refresh the Windsor GA4 loaders
+    (Caveat 14) or re-auth the DTS. NB the headline "inflation" question: the ~10M TTD impressions = ~5.68M
+    **measured** (Windsor) + **4.30M modelled April** (RAC 1.25M + SAH 3.05M, client-supplied totals spread
+    ÷30/day — see `sql/03b_stg_april_modelled.sql`); reconciles exactly, so it's correct-but-heavily-modelled,
+    not a bug. The new top-bar Campaign filter lets you isolate each service line to see the split.
