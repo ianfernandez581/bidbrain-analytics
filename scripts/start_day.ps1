@@ -1,12 +1,17 @@
 # start_day.ps1  -  bidbrain-analytics morning preflight
-# Verifies BOTH credential systems gcloud uses, plus that the loaders can
-# actually read the Windsor key, so nothing surprises you mid-task -- THEN runs
-# the /go flow so you start the day aligned with the whole team.
+# Verifies BOTH credential systems gcloud uses -- and that BOTH are the RIGHT
+# account (ian@100.digital) -- plus that the loaders can actually read the Windsor
+# key, so nothing surprises you mid-task -- THEN runs the /go flow so you start the
+# day aligned with the whole team.
 #
 #   gcloud CLI creds      -> used by `gcloud secrets ...` (the loaders' key fetch)
 #   application-default   -> used by Python client libs (BigQuery)
 # These expire independently and your org enforces periodic reauth, so both
-# are checked here.
+# are checked here. This box also silently flips the active account to a different
+# org login (info@agoradatadriven.com) that has NO access to bidbrain-analytics, so
+# both the CLI account AND the ADC *identity* are pinned to $WANT_ACCOUNT -- a valid
+# token for the wrong account 403s everything, and checking only "is there a token"
+# missed exactly that.
 #
 # After the creds pass, it runs /go (push-branch.ps1 -> merge-branches.ps1):
 # pushes your work to your dev branch, integrates EVERY dev branch, deploys the
@@ -24,11 +29,30 @@ param(
 )
 
 $PROJECT = "bidbrain-analytics"
+# The ONLY account with access to bidbrain-analytics. This box silently flips the
+# active account to info@agoradatadriven.com (a different org login), which has NO
+# access here -- every gcloud/BigQuery call then 403s (USER_PROJECT_DENIED). Both the
+# CLI account AND the ADC identity are pinned to this below.
+$WANT_ACCOUNT = "ian@100.digital"
 
 Set-Location (Split-Path $PSScriptRoot -Parent)
 
 # Prefer the repo's .venv (created by scripts\setup.ps1); fall back to PATH python.
 $PY = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe" } else { "python" }
+
+# Resolve the EMAIL the current application-default credentials belong to. A valid ADC
+# token is not enough -- it must be $WANT_ACCOUNT, or the Python loaders + BigQuery 403.
+# gcloud has no "print ADC account", so we ask Google's userinfo endpoint with the token
+# (ADC login always carries the userinfo.email scope). Returns $null if no/unverifiable token.
+function Get-AdcEmail {
+    $t = gcloud auth application-default print-access-token 2>$null
+    if (-not $t) { return $null }
+    try {
+        $info = Invoke-RestMethod -Uri "https://www.googleapis.com/oauth2/v3/userinfo" `
+            -Headers @{ Authorization = "Bearer $t" } -ErrorAction Stop
+        return $info.email
+    } catch { return $null }
+}
 
 Write-Host ""
 Write-Host "=== bidbrain-analytics :: start of day ===" -ForegroundColor Cyan
@@ -40,13 +64,35 @@ if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) {
     exit 1
 }
 
-# 2. gcloud CLI credentials (used by `gcloud secrets` in the loaders).
-#    Handle this FIRST so later gcloud calls don't pop a reauth prompt.
+# 2. gcloud CLI account -- ENFORCE $WANT_ACCOUNT (this box flips to the agora login).
+#    Handle this FIRST so later gcloud calls run as the right identity.
+Write-Host "[*] Checking gcloud CLI account..." -ForegroundColor Yellow
+$active = "$(gcloud config get-value account 2>$null)".Trim()
+if ($active -ne $WANT_ACCOUNT) {
+    Write-Host "[!] Active account is '$active' - must be $WANT_ACCOUNT. Switching..." -ForegroundColor Yellow
+    $authed = @(gcloud auth list --format="value(account)" 2>$null | ForEach-Object { $_.Trim() })
+    if ($authed -contains $WANT_ACCOUNT) {
+        gcloud config set account $WANT_ACCOUNT 2>$null | Out-Null
+    } else {
+        Write-Host "[!] $WANT_ACCOUNT is not logged in - opening browser (sign in as $WANT_ACCOUNT)." -ForegroundColor Yellow
+        gcloud auth login $WANT_ACCOUNT
+        gcloud config set account $WANT_ACCOUNT 2>$null | Out-Null
+    }
+    $active = "$(gcloud config get-value account 2>$null)".Trim()
+}
+if ($active -eq $WANT_ACCOUNT) {
+    Write-Host "[OK] CLI account = $active" -ForegroundColor Green
+} else {
+    Write-Host "[X] CLI account is '$active', not $WANT_ACCOUNT. Fix: gcloud auth login $WANT_ACCOUNT" -ForegroundColor Red
+    exit 1
+}
+
+# 2b. That account's token must be valid (org enforces periodic reauth).
 Write-Host "[*] Checking gcloud CLI credentials..." -ForegroundColor Yellow
 $cliToken = gcloud auth print-access-token 2>$null
 if (-not $cliToken) {
-    Write-Host "[!] gcloud CLI needs reauth (org session policy). Opening browser..." -ForegroundColor Yellow
-    gcloud auth login
+    Write-Host "[!] gcloud CLI needs reauth (org session policy). Opening browser (sign in as $WANT_ACCOUNT)..." -ForegroundColor Yellow
+    gcloud auth login $WANT_ACCOUNT
 } else {
     Write-Host "[OK] gcloud CLI credentials valid." -ForegroundColor Green
 }
@@ -55,21 +101,35 @@ if (-not $cliToken) {
 gcloud config set project $PROJECT 2>$null | Out-Null
 Write-Host "[OK] CLI project = $PROJECT" -ForegroundColor Green
 
-# 4. Application-default credentials (used by the Python client libs).
-Write-Host "[*] Checking application-default credentials..." -ForegroundColor Yellow
-$adcToken = gcloud auth application-default print-access-token 2>$null
-if (-not $adcToken) {
-    Write-Host "[!] ADC expired - opening browser to log in." -ForegroundColor Yellow
+# 4. Application-default credentials (used by the Python client libs / BigQuery).
+#    CRITICAL: a valid ADC token is NOT enough -- it must belong to $WANT_ACCOUNT.
+#    ADC login silently grabs info@agoradatadriven.com if that's the browser's default
+#    Google session, and then every BigQuery/loader call 403s. So verify the ADC
+#    *identity*, not just that a token exists (the bug this check was added to catch).
+Write-Host "[*] Checking application-default credentials (token + identity)..." -ForegroundColor Yellow
+$adcEmail = Get-AdcEmail
+if (-not $adcEmail) {
+    Write-Host "[!] ADC missing/expired - opening browser (sign in as $WANT_ACCOUNT)." -ForegroundColor Yellow
     gcloud auth application-default login | Out-Null
+    $adcEmail = Get-AdcEmail
+}
+if ($adcEmail -and $adcEmail -ne $WANT_ACCOUNT) {
+    Write-Host "[!] ADC is logged in as '$adcEmail', not $WANT_ACCOUNT." -ForegroundColor Yellow
+    Write-Host "    Re-running ADC login - in the browser, pick $WANT_ACCOUNT (NOT the agora account)." -ForegroundColor Yellow
+    gcloud auth application-default login | Out-Null
+    $adcEmail = Get-AdcEmail
+}
+if ($adcEmail -eq $WANT_ACCOUNT) {
+    Write-Host "[OK] ADC identity = $adcEmail" -ForegroundColor Green
+} elseif ($adcEmail) {
+    Write-Host "[X] ADC is still '$adcEmail', not $WANT_ACCOUNT - BigQuery + the Python loaders will 403." -ForegroundColor Red
+    Write-Host "    Fix: gcloud auth application-default login  (choose $WANT_ACCOUNT in the browser)" -ForegroundColor Red
+    exit 1
 } else {
-    Write-Host "[OK] ADC valid." -ForegroundColor Green
+    Write-Host "[!] Couldn't verify the ADC identity (token unreadable). Continuing - the BigQuery ping below will confirm." -ForegroundColor Yellow
 }
 gcloud auth application-default set-quota-project $PROJECT 2>$null | Out-Null
 Write-Host "[OK] ADC quota project = $PROJECT" -ForegroundColor Green
-
-# 5. Eyeball the active account
-$account = (gcloud config get-value account 2>$null)
-Write-Host "[OK] Active account: $account" -ForegroundColor Green
 
 # 6. Verify the loaders can read the Windsor key (the exact op they do first).
 #    Captured to $null so the secret never prints to screen.
