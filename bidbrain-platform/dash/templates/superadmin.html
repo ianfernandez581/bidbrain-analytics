@@ -43,6 +43,7 @@
   .btn.sm{font-size:12px;padding:6px 11px}
   .btn.ghost{border-color:rgba(243,201,105,.32);color:var(--gold)}
   .btn.ghost:hover{background:var(--gold-dim)}
+  .multbtn.set{border-color:var(--gold);color:var(--gold);background:var(--gold-dim)}
   /* hero */
   .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--border);
         background:radial-gradient(900px 380px at 18% -40%,rgba(243,201,105,.18) 0%,rgba(243,201,105,0) 60%),
@@ -266,7 +267,7 @@
             <button type="button" class="btn sm multbtn{{ ' set' if d.spend_multipliers else '' }}"
                     data-key="{{ d.key }}" data-name="{{ d.name }}" data-mult='{{ d.spend_multipliers|tojson }}'
                     title="Client-billed spend multiplier (what the client sees as 'spent'), per channel">
-              ×{{ d.spend_multipliers|length if d.spend_multipliers else '' }} Multiplier</button>
+              Multiplier{% if d.spend_multipliers %} &middot; {{ d.spend_multipliers|length }}{% endif %}</button>
             <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open →</a>
           </div>
           {% elif d.url %}
@@ -384,6 +385,30 @@
       <div class="actions">
         <button type="button" class="btn" onclick="closeUser()">Cancel</button>
         <button type="submit" class="btn gold" id="uSave">Grant access</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- spend-multiplier modal (client-billed "spent to date" per channel; channels mirror store.SPEND_CHANNELS) -->
+  <div class="scrim" id="mxscrim">
+    <form class="modal" id="mxmodal" onsubmit="return submitMult(event)">
+      <h3>Spend multiplier: <span id="mxName" style="color:var(--gold)"></span></h3>
+      <p class="msub">Per-channel factor on RAW media spend to show the client-billed "spent to date". <b>1.0 or blank = real cost</b> (no markup); e.g. Trade Desk is often 3-7x. Counts/CTR and revenue/ROAS stay on real spend. Clear all to remove.</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 14px">
+        <div><label for="mx_google">Google</label><input id="mx_google" data-ch="google" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_meta">Meta</label><input id="mx_meta" data-ch="meta" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_linkedin">LinkedIn</label><input id="mx_linkedin" data-ch="linkedin" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_reddit">Reddit</label><input id="mx_reddit" data-ch="reddit" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_ttd">Trade Desk</label><input id="mx_ttd" data-ch="ttd" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_dv360">DV360</label><input id="mx_dv360" data-ch="dv360" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_line">LINE</label><input id="mx_line" data-ch="line" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+        <div><label for="mx_youdooh">YouDooh</label><input id="mx_youdooh" data-ch="youdooh" type="number" step="0.01" min="0" placeholder="1.0" autocomplete="off"></div>
+      </div>
+      <div class="err" id="mxErr"></div>
+      <div class="actions">
+        <button type="button" class="btn" onclick="closeMult()">Cancel</button>
+        <button type="button" class="btn" onclick="clearMult()">Clear all</button>
+        <button type="submit" class="btn gold" id="mxSave">Save</button>
       </div>
     </form>
   </div>
@@ -517,6 +542,54 @@
       }catch(e){ b.disabled=false; alert('Network error.'); }
     });
   });
+
+  // ---- spend multiplier (client-billed "spent to date" per channel) ----
+  const mxscrim = document.getElementById('mxscrim');
+  const mxName = document.getElementById('mxName');
+  const mxErr = document.getElementById('mxErr');
+  const mxSave = document.getElementById('mxSave');
+  const mxInputs = () => Array.from(document.querySelectorAll('#mxmodal input[data-ch]'));
+  let mxKey = null;
+
+  // Open the modal from a client's "Multiplier" button, prefilled from its stored map (data-mult).
+  document.querySelectorAll('.multbtn').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      mxKey = b.dataset.key;
+      mxName.textContent = b.dataset.name || b.dataset.key || '';
+      let cur = {};
+      try{ cur = JSON.parse(b.dataset.mult || '{}') || {}; }catch(e){ cur = {}; }
+      mxInputs().forEach(inp=>{ const v = cur[inp.dataset.ch]; inp.value = (v==null) ? '' : v; });
+      mxErr.textContent=''; mxSave.textContent='Save';
+      mxscrim.classList.add('on');
+      setTimeout(()=>mxInputs()[0] && mxInputs()[0].focus(), 30);
+    });
+  });
+  function closeMult(){ mxscrim.classList.remove('on'); }
+  function clearMult(){ mxInputs().forEach(inp=> inp.value=''); mxErr.textContent=''; }
+  mxscrim.addEventListener('click', e=>{ if(e.target===mxscrim) closeMult(); });
+
+  async function submitMult(e){
+    e.preventDefault();
+    const multipliers = {};
+    for(const inp of mxInputs()){
+      const raw = (inp.value||'').trim();
+      if(raw === '') continue;                      // blank = no markup for that channel
+      const f = parseFloat(raw);
+      if(!isFinite(f) || f <= 0){ mxErr.textContent = 'Multipliers must be positive numbers (or blank).'; return false; }
+      multipliers[inp.dataset.ch] = f;              // backend drops 1.0 no-ops via clean_multipliers
+    }
+    mxErr.textContent=''; mxSave.textContent='Saving…';
+    try{
+      const r = await fetch('/super/api/spend-multiplier', {method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({key: mxKey, multipliers})});
+      const j = await r.json().catch(()=>({ok:false,error:'Bad response.'}));
+      if(j.ok){ location.reload(); return false; } // reload so the button label + "set" state re-render
+      mxErr.textContent = j.error || 'Failed.'; mxSave.textContent='Save';
+    }catch(err){
+      mxErr.textContent = 'Network error: '+err; mxSave.textContent='Save';
+    }
+    return false;
+  }
 </script>
 </body>
 </html>
