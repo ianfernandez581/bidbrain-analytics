@@ -67,12 +67,13 @@
 
   /* ---- campaign filter (searchable multi-select dropdown) ---- */
   .campaign-dd{position:relative;display:inline-block}
-  .campaign-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:999px;
-                padding:6px 12px;font-size:12.5px;cursor:pointer;color:var(--ink);max-width:320px}
+  /* matches .dp-btn (date-range) exactly: warm paper bg, 8px radius, 600 weight, inherited font */
+  .campaign-btn{display:inline-flex;align-items:center;gap:7px;background:var(--paper);
+                border:1px solid var(--line);color:var(--ink);border-radius:8px;
+                padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2;max-width:320px}
   .campaign-btn:hover{border-color:var(--orange)}
-  .campaign-btn.filtered{background:var(--maroon);color:#fff;border-color:var(--maroon)}
-  .campaign-btn .caret{font-size:10px;color:var(--mute)}
-  .campaign-btn.filtered .caret{color:rgba(255,255,255,.7)}
+  .campaign-btn.filtered{border-color:var(--orange)}
+  .campaign-btn .caret{opacity:.55;font-size:11px;margin-left:1px}
   .campaign-btn .lbltxt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .campaign-menu{position:absolute;top:calc(100% + 6px);left:0;z-index:60;width:430px;max-width:88vw;background:#fff;
                  border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 40px rgba(42,30,32,.18);overflow:hidden}
@@ -359,6 +360,27 @@
             </div>
           </div>
         </div>
+        <div class="filter-grp" id="campGroup">
+          <span class="lbl">Campaign</span>
+          <div class="campaign-dd" id="campDd">
+            <button class="campaign-btn" id="campBtn" type="button" onclick="CampaignFilter.toggle(event)">
+              <span class="lbltxt" id="campLbl">All campaigns</span><span class="caret">&#9662;</span>
+            </button>
+            <div class="campaign-menu" id="campMenu" style="display:none">
+              <div class="campaign-menu-head">
+                <input type="text" id="campSearch" placeholder="Search campaigns..." oninput="CampaignFilter.filter(this.value)">
+                <div class="campaign-menu-actions">
+                  <span class="count" id="campCount"></span>
+                  <div class="btns">
+                    <button type="button" class="chip-action" onclick="CampaignFilter.all()">Select all</button>
+                    <button type="button" class="chip-action" onclick="CampaignFilter.clear()">Clear</button>
+                  </div>
+                </div>
+              </div>
+              <div class="campaign-list" id="campList"></div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -632,7 +654,7 @@ function segPick(btn){ if(btn&&btn.parentNode)[...btn.parentNode.children].forEa
 // Single page now: the Overview, the campaign-effect panel, the enquiries heatmap and the Sessions
 // trend all share ONE canvas namespace, so any toggle must rebuild the WHOLE page - destroyCharts()
 // first (a new Chart() over a live canvas throws "Canvas is already in use") then re-render everything.
-function reRender(){ renderActive(); }
+function reRender(){ if(window.CampaignFilter) CampaignFilter.sync(); renderActive(); }
 function setGrain(chart,g,btn){ grain[chart]=g; segPick(btn); reRender(); }
 function setScale(chart,s,btn){ scale[chart]=s; segPick(btn); reRender(); }
 // GA4 campaign-effect panel: re-fit the regression at the chosen grain (rebuilds the page).
@@ -794,6 +816,56 @@ window.DateRange = (function(){
       : (sameDay(selStart,selEnd) ? fmt(selStart) : fmt(selStart)+' – '+fmt(selEnd));
   }
   return { init, toggle, getRange: () => ({ start: iso(selStart), end: iso(selEnd) }) };
+})();
+
+// ===================== top-bar campaign filter (searchable multi-select) =====================
+// Drives the SAME `activeCampaigns` set as the Overview panel chips (setAttrCampaign); both call
+// reRender(), which calls CampaignFilter.sync() so the two selectors stay consistent. Lets a viewer
+// isolate any subset of service-line campaigns to VALIDATE the Trade Desk numbers - every ad figure
+// (KPIs, trends, tables) re-sums to the selection within the chosen date range (see adMap/adTotals/
+// adCampaignRangeRows, all gated by campOn()). GA4/website charts have no campaign dimension, so they
+// are unaffected by this filter (they follow the Date range only).
+window.CampaignFilter = (function(){
+  const DOT = { rac:'#2E8B72', rl:'#C79A3A', sah:'#7A4154', dis:'#EB3300' };
+  let open=false, q='';
+  const $ = id => document.getElementById(id);
+  const all = () => (DATA && DATA.ad_campaigns) ? DATA.ad_campaigns : [];
+  function init(){
+    q=''; const s=$('campSearch'); if(s) s.value='';
+    document.addEventListener('click', e=>{ if(open && !e.target.closest('#campDd')) close(); }, true);
+    render(); sync();
+  }
+  function toggle(ev){ if(ev) ev.stopPropagation(); open ? close() : openMenu(); }
+  function openMenu(){ open=true; $('campMenu').style.display='block'; render(); }
+  function close(){ open=false; $('campMenu').style.display='none'; }
+  function filter(v){ q=(v||'').toLowerCase(); render(); }
+  function selectAll(){ activeCampaigns = new Set(all().map(c=>c.campaign)); reRender(); }
+  function clearAll(){ activeCampaigns = new Set(); reRender(); }
+  function togCamp(enc){ const name=decodeURIComponent(enc);
+    if(activeCampaigns.has(name)) activeCampaigns.delete(name); else activeCampaigns.add(name);
+    reRender(); }
+  function render(){
+    const list=$('campList'); if(!list) return;
+    const rows = all().filter(c => !q || (campLabel(c.campaign)+' '+c.campaign).toLowerCase().includes(q));
+    list.innerHTML = rows.length ? rows.map(c=>{
+      const enc=encodeURIComponent(c.campaign).replace(/'/g,'%27');
+      const dot=DOT[campPrefix(c.campaign)]||'var(--mute)';
+      return `<label class="cl-item"><input type="checkbox" ${activeCampaigns.has(c.campaign)?'checked':''} onchange="CampaignFilter.tog('${enc}')">`
+           + `<span class="ci-main"><span class="ci-name"><span class="campaign-badge" style="background:${dot};margin-right:6px">${(c.campaign||'').split('_')[0]}</span>${campLabel(c.campaign)}</span>`
+           + `<span class="ci-meta">${fmtM(c.imps)} imps &middot; ${money(c.spend_aud)}</span></span></label>`;
+    }).join('') : '<div class="cl-empty">No campaigns match.</div>';
+    const cnt=$('campCount'); if(cnt) cnt.textContent = `${activeCampaigns.size} of ${all().length} selected`;
+  }
+  function sync(){
+    const btn=$('campBtn'), lbl=$('campLbl'); if(!btn||!lbl) return;
+    const t=all().length, s=activeCampaigns.size;
+    if(s===0){ lbl.textContent='No campaigns'; btn.classList.add('filtered'); }
+    else if(s>=t){ lbl.textContent='All campaigns'; btn.classList.remove('filtered'); }
+    else if(s===1){ lbl.textContent=campLabel([...activeCampaigns][0]); btn.classList.add('filtered'); }
+    else { lbl.textContent=`${s} of ${t} campaigns`; btn.classList.add('filtered'); }
+    if(open) render();
+  }
+  return { init, toggle, filter, all:selectAll, clear:clearAll, tog:togCamp, sync };
 })();
 
 //==============================================================================
@@ -1140,6 +1212,14 @@ async function boot(){
     const months = (DATA.monthly||[]).map(r=>r.month).sort();
     const lastWeek = (DATA.weekly||[]).map(r=>r.week_start).sort().pop();
     const monthEnd = months.length ? months[months.length-1]+'-28' : null;
+    // The TTD (Trade Desk) feed is LIVE and usually extends weeks past the GA4/website arrays
+    // (GA4 DTS is frozen + the Windsor GA4 fallback is refreshed manually, so it lags). dateMax
+    // must reach the latest AD-delivery day so a running campaign's recent days are selectable -
+    // otherwise "All time" wrongly caps at the last GA4 month (was showing Jun while TTD ran to Jul).
+    // The website charts simply end where GA4 data ends (an honest gap, flagged by the footer).
+    const ttdEnd    = (DATA.ttd_window||{}).end;
+    const lastDaily = (DATA.daily||[]).map(r=>r.day).filter(Boolean).sort().pop();
+    const lastAdDay = (DATA.ad_campaign_daily||[]).map(r=>r.day).filter(Boolean).sort().pop();
     // Display advertising began 2026-01-19 (first measured spend 2026-01-23, Disability) and has run
     // continuously since - Apr is only when the live TTD feed starts. The flight/campaign window that
     // scopes enquiry attribution + the on-chart flight marker must reflect the real ad-on date, so the
@@ -1147,9 +1227,10 @@ async function boot(){
     // the inflated 2025-H1 taxonomy (~10-17k/mo) stays excluded since this is >= 2026-01.
     FLIGHT_START = '2026-01-19';
     dateMin = months.length ? months[0]+'-01' : ((DATA.window||{}).start || null);
-    dateMax = [ (DATA.window||{}).end, lastWeek, monthEnd ].filter(Boolean).sort().pop();
+    dateMax = [ (DATA.window||{}).end, lastWeek, monthEnd, ttdEnd, lastDaily, lastAdDay ].filter(Boolean).sort().pop();
     rangeStart = dateMin; rangeEnd = dateMax;
     DateRange.init({ min:dateMin, max:dateMax, onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; renderControls(); renderActive(); } });
+    CampaignFilter.init();
     el('loading').style.display='none';
     el('content').style.display='block';
     renderMeta();

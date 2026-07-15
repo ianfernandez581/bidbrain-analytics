@@ -222,6 +222,18 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 
 ## What was skipped / noted (no-blockers)
 
+- **Meta ingest depends on the Windsor Facebook-connector grant for account `465058559225771`** (the
+  "Reset backup – Ad account"). **If that grant lapses, Meta data silently FREEZES** (the daily
+  `windsor-meta-ingest` job requests the account, Windsor returns *"Account … is not available"*, and
+  `meta_loader.py` catches `AccountUnavailableError` and SKIPS it — by design, so one deauthorised account
+  can't abort the others). Symptom: dashboard Meta spend/leads stop advancing while Meta Ads Manager still
+  shows spend. **This happened ~2026-07-08** — Windsor dropped the Reset account (only the Geocon account
+  `3754165911553001` remained configured), freezing Reset Meta at **2026-07-07**. **Detect:**
+  `curl -G https://connectors.windsor.ai/all --data-urlencode api_key=<windsor-api-key> --data-urlencode select_accounts=facebook__465058559225771 --data-urlencode fields=account_name,date,spend --data-urlencode date_from=<recent> --data-urlencode date_to=<recent>`
+  → an `error` naming the account = grant lapsed. **Fix (external, needs Windsor + Meta login):** re-grant at
+  `https://onboard.windsor.ai?datasource=facebook`. **Self-heals after re-grant:** the incremental loader
+  forward-loads from each account's `MAX(metric_date)` (07-07) to yesterday, so the next daily run (or a manual
+  `python ingest/windsor_data_pull/meta/meta_loader.py`) backfills the gap automatically — no truncate.
 - **Revenue / ROAS / AOV / transactions** — omitted entirely (B2B; `total_revenue` & `transactions` are 0).
 - **Trade Desk conversions** — none reported upstream (`conversions` JSON null) → no TTD cost-per-lead.
 - **GA4 conversion volume** — modest; shown honestly as directional (see above).
