@@ -1,0 +1,5 @@
+# Windsor HubSpot ingest Cloud Run job (windsor-hubspot-ingest). Pinned to match the repo .venv.
+# No GCS staging: the loader WRITE_TRUNCATEs via load_table_from_json, so no storage lib needed.
+google-cloud-bigquery==3.41.0
+google-cloud-secret-manager==2.28.0
+requests==2.34.2

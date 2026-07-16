@@ -117,6 +117,8 @@ Windsor key from Secret Manager (`windsor-api-key`).
 | Meta | `windsor-meta-ingest` | `15 21 * * *` (daily) |
 | Trade Desk | `windsor-tradedesk-ingest` | `35 21 * * *` (daily) |
 | Field catalogue | `windsor-fields-ingest` | `45 21 * * *` (daily) |
+| Reddit | `windsor-reddit-ingest` | `50 21 * * *` (daily) |
+| HubSpot | `windsor-hubspot-ingest` | `55 21 * * *` (daily) |
 
 > **Freshness contract — windsor is deliberately DAILY, not `*/10` self-gating.** Unlike the
 > binding `*/10` self-gating rule for *client export jobs* and `snowflake-ingest`, these raw-layer
@@ -125,13 +127,19 @@ Windsor key from Secret Manager (`windsor-api-key`).
 > data. Only `snowflake-ingest` self-gates at `*/10`; neto + windsor stay daily. There is **no
 > `_freshness.json` watermark** in this unit.
 >
-> - **Reddit** has a container (`reddit/Dockerfile`) for a future `windsor-reddit-ingest` job, but
->   it is **not yet wired into `deploy_ingest_jobs.ps1`** — run it from a laptop for now.
+> - **Reddit & HubSpot** are now scheduled (wired into `deploy_ingest_jobs.ps1` on 2026-07-16). The
+>   Reddit job **skips cleanly (exit 0, 0 rows)** if its Windsor connector grant lapses — so it
+>   self-heals the moment the account is re-granted; no code change needed then.
+> - **A lapsed-then-re-granted Windsor connector can change the account id.** Reddit's re-grant on
+>   2026-07-16 minted a NEW opaque id (`a2_iq3fdsq6rem5`, was `a2_igd0szmw7roq`); the loader's
+>   `SELECT_ACCOUNTS` + `REDDIT_ACCOUNT_TO_CLIENT` had to be repointed or it kept skipping. Check the
+>   "configured accounts are: …" hint in the skip warning after any re-grant.
 > - **Google Ads & GA4** also auto-refresh daily via the native **BigQuery Data Transfer Service**
 >   (`raw_google_ads` / `raw_ga4`); the Windsor `google_ads` / `ga4` loaders here coexist with — and
 >   do not replace — those DTS mirrors. They are run from a laptop, not scheduled here.
-> - **Trade Desk** currently exits non-zero until the TTD Windsor connector is re-granted
->   (Windsor data endpoint down as of 2026-06-13).
+> - **Trade Desk** is healthy and flowing (verified 2026-07-16: `windsor-tradedesk-ingest` ran to
+>   success and `perf_the_trade_desk` is fresh). The earlier "connector down" state (from 2026-06-13)
+>   is resolved.
 
 ---
 

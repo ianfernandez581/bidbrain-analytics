@@ -185,8 +185,10 @@ job `<c>-export`, service `<c>-dash`. All LIVE and self-gating `*/10`. The non-d
 **4 shared ingest units** fill the `raw_*` layers for everyone (no dashboard of their own):
 - `ingest/snowflake_data_pull/` → `raw_snowflake` (8 tables, 1:1 mirror). **Self-gating `*/10`** — the exception
   that watermarks BQ `raw_snowflake._sync_state`, not a GCS `_freshness.json` sidecar.
-- `ingest/windsor_data_pull/` → `raw_windsor` (Meta, Trade Desk, GA4 +events, Google Ads, Reddit). **Fixed daily**
-  Cloud Run jobs (`windsor-meta-ingest`, `windsor-tradedesk-ingest`); Reddit not yet wired; TTD connector down.
+- `ingest/windsor_data_pull/` → `raw_windsor` (Meta, Trade Desk, GA4 +events, Google Ads, Reddit, HubSpot). **Fixed daily**
+  Cloud Run jobs: `windsor-meta-ingest`, `windsor-tradedesk-ingest`, `windsor-fields-ingest`, `windsor-reddit-ingest`,
+  `windsor-hubspot-ingest` (all in `scripts/deploy_ingest_jobs.ps1`). GA4/Google Ads ALSO come via native BigQuery DTS (not
+  scheduled here). A lapsed Windsor connector grant can change its account id on re-grant → repoint the loader's `SELECT_ACCOUNTS`.
   Plus `fields/` → `raw_windsor.windsor_fields`, the **field CATALOGUE** (metadata): all ~37.8k Windsor fields ×
   242 connectors from the public `connectors.windsor.ai/all/fields`, refreshed daily (`windsor-fields-ingest`)
   with `first_seen`/`last_seen` so newly-added fields are queryable.

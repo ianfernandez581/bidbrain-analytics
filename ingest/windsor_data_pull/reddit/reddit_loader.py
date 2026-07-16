@@ -103,7 +103,9 @@ GCS_BUCKET = "bidbrain-analytics-staging"
 WINDSOR_URL = "https://connectors.windsor.ai/all"
 ACCOUNT_PREFIX = "reddit__"
 SELECT_ACCOUNTS = [
-    "a2_igd0szmw7roq",   # ResetData Ad Account (100Digital)
+    "a2_iq3fdsq6rem5",   # ResetData Ad Account (100Digital) -- id re-issued by Windsor on the
+                         # 2026-07-16 reddit re-grant (was a2_igd0szmw7roq; Windsor mints a new
+                         # opaque id when the connector is re-authed).
     # Add more bare Reddit account ids here AND map them in REDDIT_ACCOUNT_TO_CLIENT below.
     # Find ids at https://onboard.windsor.ai?datasource=reddit.
 ]
@@ -154,7 +156,9 @@ LOG_FILE = WORK_DIR / "reddit_loader.log"
 # Map a Reddit account id straight to (client_slug, agency_slug). Checked FIRST in infer_slugs --
 # most reliable. Fill using the account_names the probe printed:
 REDDIT_ACCOUNT_TO_CLIENT = {
-    "a2_igd0szmw7roq": ("resetdata", "100-digital"),   # ResetData Ad Account (100Digital)
+    "a2_iq3fdsq6rem5": ("resetdata", "100-digital"),   # ResetData Ad Account (100Digital), re-granted 2026-07-16
+    # NOTE: the pre-2026-07-16 id a2_igd0szmw7roq is retired -- its rows were an under-scoped
+    # duplicate (~1/10th the impressions) and were DELETED from perf_reddit on 2026-07-16.
 }
 
 # Fallback keyword match on account name / campaign (same dict as the other loaders -- keep in
