@@ -43,7 +43,8 @@ frequency = impressions ÷ summed-reach).
 
 **Rebuilt 2026-07 into the Bidbrain dark house style, branded to Gateway Braddon** (deep forest-green
 canvas + a terracotta accent and the shared soft glow; modelled on `client_resetdata`). One file,
-**three topic tabs**: **Overview · Paid Media · Creative**. Everything honours the shared **Looker
+**two topic tabs**: **Overview · Paid Media** (the standalone "Creative" tab was merged into Paid Media
+on 2026-07-16 — see the Top-creatives note below). Everything honours the shared **Looker
 date-range picker**, **stage chips**, and search; time-series charts carry **VIEW BY Month/Week/Day +
 AXIS Relative/Absolute** toggles (default Relative + Month).
 
@@ -55,10 +56,13 @@ AXIS Relative/Absolute** toggles (default Relative + Month).
 - **Overview** — clickable KPI dot-cards (**Qualified · Enquiries · Spend** toggle their series on the
   hero), the delivery hero (spend bars + enquiries + modelled-qualified lines), budget pacing,
   spend-by-stage donut, the enquiry funnel, money-flow, and insight cards.
-- **Paid Media** — a **Performance vs Targets Δ table** (CPL/CTR/CPM/CPC per campaign), spend-by-ad-set,
+- **Paid Media** — **opens with the Top-5 creatives** (see the note below), then a **Performance vs
+  Targets Δ table** (CPL/CTR/CPM/CPC per campaign), spend-by-ad-set,
   budget burn, the per-ad table (thin-volume guard: ⚠ under 15k impressions or <8 leads), and a
   **fatigue watch** (weekly WoW frequency/CTR, ≥1,000-impression guard).
-- **Creative** — the **top 10 creatives by spend**: real ad headline + body copy + metrics, with the
+- **Top creatives (at the top of Paid Media, 2026-07-16; was a standalone "Creative" tab + top 10)** —
+  the **top 5 creatives by spend** (`renderCreative` → `#creativeGrid`, `slice(0,5)`; `render()` populates
+  it regardless of active tab): real ad headline + body copy + metrics, with the
   real Meta ad image, a lightbox showing the full copy + a landing-page link. **Meta signs
   `thumbnail_url` with only a ~4-day validity**, so we cache the image bytes to our own bucket and serve
   them durably: the export job (`job/main.py` → `cache_creative_images`) downloads each top creative's

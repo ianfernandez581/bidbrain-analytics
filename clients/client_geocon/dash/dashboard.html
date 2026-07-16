@@ -307,7 +307,6 @@
         <div class="tabs">
           <button class="tab" data-view="overview">Overview</button>
           <button class="tab" data-view="paid">Paid Media</button>
-          <button class="tab" data-view="creative">Creative</button>
         </div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
@@ -403,6 +402,9 @@
     <section id="tab-paid" class="tabpane">
       <div class="section first"><h2>Paid media performance</h2><span class="sub">Every figure honours the date range, stage filter and search. Ratios are recomputed from summed components, so any sub-range is exact.</span></div>
 
+      <div class="section" style="margin-top:18px"><h2>Top creatives</h2><span class="sub">The 5 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; some cards fall back to a branded tile (the copy + metrics are always live).</span></div>
+      <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
+
       <div class="card" style="margin-top:14px">
         <h3>Performance vs targets - by campaign</h3>
         <div class="hint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
@@ -445,12 +447,6 @@
         <h3>Creative fatigue watch</h3><div class="hint">Weekly per-ad (≥1,000 impressions): frequency ↑ with CTR ↓ = fatigued.</div>
         <div class="tablewrap"><table id="fatigueTable"><thead><tr><th>Ad</th><th class="num">Frequency</th><th class="num">Freq WoW</th><th class="num">CTR</th><th class="num">CTR WoW</th><th>Flag</th></tr></thead><tbody></tbody></table></div>
       </div>
-    </section>
-
-    <!-- ============ CREATIVE ============ -->
-    <section id="tab-creative" class="tabpane">
-      <div class="section first"><h2>Creative - top 10</h2><span class="sub">The 10 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; Meta expires those links after a short window, so some cards show a branded tile (the copy + metrics are always live).</span></div>
-      <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
     </section>
 
     <footer id="footerNote"></footer>
@@ -1058,9 +1054,9 @@ function renderEffScatter(){
 // ---- Creative gallery ----
 let CC_LIST=[];
 function renderCreative(){
-  // Top 10 creatives by spend. Meta's CDN thumbnail links expire, so the <img> may 403 → we swap in
+  // Top 5 creatives by spend. Meta's CDN thumbnail links expire, so the <img> may 403 → we swap in
   // a branded tile (still headed by the REAL headline); the real copy + metrics render regardless.
-  CC_LIST=byAd(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,10);
+  CC_LIST=byAd(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,5);
   $('creativeGrid').innerHTML=CC_LIST.length?CC_LIST.map((r,i)=>{
     const head=safeName(r.creative_title||r.ad);
     const body=r.creative_body?safeName(r.creative_body):'';
@@ -1139,7 +1135,6 @@ function exportAllData(){const cols=['date','campaign','adset','ad','stage','cre
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
   if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}];downloadCSV(`geocon_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
-  else if(STATE.view==='creative'){const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'creative_title',key:'creative_title'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'cpl',key:'cpl'},{label:'ctr',key:'ctr'},{label:'lpv',key:'lpv'}];downloadCSV(`geocon_creative_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
   else{const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'campaign',key:'campaign'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'cpl',key:'cpl'},{label:'ctr',key:'ctr'},{label:'cpm',key:'cpm'},{label:'cpc',key:'cpc'},{label:'lpv',key:'lpv'},{label:'cost_per_lpv',key:'cost_per_lpv'},{label:'frequency',key:'frequency'}];downloadCSV(`geocon_by_ad_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
 }
 
