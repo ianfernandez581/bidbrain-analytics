@@ -42,9 +42,11 @@ Returns ~2,144 `{id, name, type, table, ...}` objects; `table` ∈ {contact, dea
 Pass any `id` in `fields=` to pull it. **Always include `contact_hs_object_id` / `deal_hs_object_id`**
 or Windsor dedupes to distinct value-combos instead of one row per object.
 
-## NOT yet wired (follow-ups)
-- **Not scheduled.** Run from a laptop for now. To productionise, add it to
-  `scripts/deploy_ingest_jobs.ps1` as `windsor-hubspot-ingest` (daily, like meta/tradedesk) — there is
-  **no `_freshness.json` watermark** for windsor loaders (they're fixed-daily by design).
+## Scheduling & follow-ups
+- **Scheduled (2026-07-16).** Wired into `scripts/deploy_ingest_jobs.ps1` as `windsor-hubspot-ingest`,
+  daily at 21:55 UTC via its `Dockerfile` (`requests` + `bigquery` + `secretmanager`; no GCS staging —
+  the loader `WRITE_TRUNCATE`s via `load_table_from_json`). There is **no `_freshness.json` watermark**
+  for windsor loaders (they're fixed-daily by design). Before this, it was a laptop-only run and went
+  ~27 days stale (last real refresh 2026-06-19 → 2026-07-16).
 - **Typed dashboard views + the dashboard itself** are the next step (this unit only lands the raw layer).
   See `create_hubspot_views.sql` for a starter typed view over the STRING columns.

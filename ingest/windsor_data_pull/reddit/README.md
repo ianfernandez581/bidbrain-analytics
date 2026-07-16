@@ -24,7 +24,7 @@ view can line up Reddit spend against the on-site outcome it drove.
 | [`reddit_loader.py`](reddit_loader.py) | **The loader.** Single-pass fetch from Windsor's blended `/all` endpoint (with the `reddit__` account prefix), transforms, and `MERGE`s into `perf_reddit`. Runtime artifacts go to `_run/`. |
 | [`probe_reddit_fields.py`](probe_reddit_fields.py) | **Throwaway diagnostic.** Hits `/all` with the field set against the configured account and prints the hierarchy-ID verdict, the exact `account_id` format, currency, and a populated-vs-NULL summary per field — how the facts below were confirmed. Not part of the normal run. |
 | [`truncate_reddit.py`](truncate_reddit.py) | **Manual reset.** `TRUNCATE`s `perf_reddit`. Use to force a clean full backfill (rarely needed — the loader resumes backfills on its own). |
-| `Dockerfile` / `.dockerignore` / `requirements.txt` | Container for a future Cloud Run ingest job (`windsor-reddit-ingest`). **Built, but not yet wired into [`scripts/deploy_ingest_jobs.ps1`](../../../scripts/deploy_ingest_jobs.ps1)** — run from a laptop for now. |
+| `Dockerfile` / `.dockerignore` / `requirements.txt` | Container for the `windsor-reddit-ingest` Cloud Run job. **Wired into [`scripts/deploy_ingest_jobs.ps1`](../../../scripts/deploy_ingest_jobs.ps1) (2026-07-16)** — scheduled daily at 21:50 UTC. If the Windsor grant lapses the job skips cleanly (exit 0) and self-heals on re-grant. |
 | `README.md` | This file. |
 
 ---

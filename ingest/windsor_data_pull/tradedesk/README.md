@@ -48,9 +48,11 @@ or the `MIN_DATE` floor — auto-discovering how far back data exists.
 **Accounts loaded:** `484` (single TTD account). An ungranted/revoked account is logged and
 skipped (`AccountUnavailableError`) rather than aborting the run.
 
-> **Status (2026-06-13):** the deployed `windsor-tradedesk-ingest` job exits non-zero until the TTD
-> Windsor connector is re-granted at <https://onboard.windsor.ai?datasource=tradedesk> (the Windsor
-> data endpoint is currently down). See the [parent README](../README.md#deployment--scheduling-cloud-run-jobs).
+> **Status (2026-07-16):** healthy and flowing — `windsor-tradedesk-ingest` ran to success and
+> `perf_the_trade_desk` is fresh. The earlier "connector down" state (2026-06-13, endpoint down / grant
+> revoked) is resolved. If it recurs, re-grant at <https://onboard.windsor.ai?datasource=tradedesk>; an
+> ungranted account is logged + skipped (`AccountUnavailableError`), it doesn't abort the run. See the
+> [parent README](../README.md#deployment--scheduling-cloud-run-jobs).
 
 ---
 

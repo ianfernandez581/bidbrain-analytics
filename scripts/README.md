@@ -111,9 +111,11 @@ service account in `australia-southeast1`; images go to the shared `bidbrain` Ar
   daily cron, deliberately staggered just before the 22:00 UTC client exports.
 - **Google Ads + GA4 are NOT here** — they auto-refresh daily via the native BigQuery Data
   Transfer Service (free, region `au`), so no ingest job is needed.
-- **`windsor-tradedesk-ingest` currently exits non-zero** until the TTD connector is re-granted at
-  `https://onboard.windsor.ai?datasource=tradedesk` (the Windsor data endpoint is down) — the
-  script prints this reminder on completion.
+- **`windsor-reddit-ingest` + `windsor-hubspot-ingest`** were added on 2026-07-16 (daily, 21:50 / 21:55
+  UTC). Reddit skips cleanly (exit 0) if its Windsor grant lapses and self-heals on re-grant; note a
+  re-grant can change the Windsor account id (repoint `SELECT_ACCOUNTS` in `reddit_loader.py`).
+- **`windsor-tradedesk-ingest` is healthy** as of 2026-07-16 (the earlier "connector down" note is
+  resolved). If a TTD account is ungranted it is logged + skipped, not fatal.
 
 ---
 

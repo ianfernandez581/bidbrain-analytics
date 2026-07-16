@@ -9,6 +9,9 @@
 #   raw_windsor.perf_meta            <- windsor-meta-ingest       (Meta, all granted accounts)
 #   raw_windsor.perf_the_trade_desk  <- windsor-tradedesk-ingest  (TTD, per-account + self-heal)
 #   raw_windsor.windsor_fields       <- windsor-fields-ingest     (Windsor field catalogue, new-field watch)
+#   raw_windsor.perf_reddit          <- windsor-reddit-ingest     (Reddit Ads, resetdata; skips cleanly if the
+#                                                                  Windsor reddit connector grant has lapsed)
+#   raw_windsor.hubspot_*            <- windsor-hubspot-ingest     (Reset Data CRM snapshot: contacts/deals/owners)
 #   raw_snowflake.*                  <- snowflake-ingest          (Salesforce/TTD/GA/etc, all clients)
 #
 # (Google Ads + GA4 are NOT here — they auto-refresh daily via BigQuery Data Transfer Service.)
@@ -16,8 +19,8 @@
 # Idempotent. Run as yourself (gcloud authed; build & deploy as yourself — never cloudbuild
 # from a laptop). Mirrors the per-client deploy_job_*.ps1 pattern.
 #
-#   .\scripts\deploy_ingest_jobs.ps1                 # build + deploy + (re)schedule all 4
-#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|snowflake
+#   .\scripts\deploy_ingest_jobs.ps1                 # build + deploy + (re)schedule all jobs
+#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|reddit|hubspot|snowflake
 #   .\scripts\deploy_ingest_jobs.ps1 -SkipBuild      # redeploy + reschedule without rebuilding
 #   .\scripts\deploy_ingest_jobs.ps1 -Run            # also execute each job once after deploy
 #
@@ -47,7 +50,9 @@ $JOBS = @(
   @{ key="neto";      dir="ingest/neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
   @{ key="meta";      dir="ingest/windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
   @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" },
-  @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" }
+  @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" },
+  @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
+  @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" }
 )
 
 # ---- one-time shared service account + least-privilege IAM (idempotent) --------------
@@ -95,5 +100,5 @@ foreach ($j in $JOBS) {
 }
 
 Write-Host "`nDONE. Ingest jobs built, deployed, and scheduled (UTC). snowflake-ingest self-gates at */10 (most ticks no-op); neto/windsor stay daily before the exports."
-Write-Host "NOTE: windsor-tradedesk-ingest will exit non-zero until the TTD connector is re-granted"
-Write-Host "      at https://onboard.windsor.ai?datasource=tradedesk (Windsor data endpoint is currently down)."
+Write-Host "NOTE: windsor-reddit-ingest skips cleanly (exit 0, 0 rows) if its Windsor grant lapses; a re-grant"
+Write-Host "      can change the account id -> repoint SELECT_ACCOUNTS in reddit_loader.py. Grants: https://onboard.windsor.ai"
