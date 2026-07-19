@@ -1246,9 +1246,12 @@ def read_definitions(client):
 # Transmission TEST-lead exclusion (2026-07-07, Jade call): the client dashboard now drops any CS lead
 # whose email DOMAIN contains 'transmission' (see clients/client_cloudflare/sql/10). This accuracy
 # check queries the SAME raw source, so it must apply the SAME filter or every CS count would read
-# ~N above the dash (a false mismatch). Byte-identical to sql/10's WHERE clause.
+# ~N above the dash (a false mismatch). NOTE: this runs against SNOWFLAKE, so it uses SPLIT_PART
+# (1-indexed; part 2 = the email domain) — the SEMANTIC equivalent of sql/10's BigQuery
+# `SPLIT(EMAIL,'@')[SAFE_OFFSET(1)]`. Snowflake has no SAFE_OFFSET, so the byte-copy of the BQ clause
+# threw "Unknown function SAFE_OFFSET" on every CS check (fixed 2026-07-16).
 _CF_TEST_LEAD_FILTER = (
-    "\n  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%'")
+    "\n  AND LOWER(COALESCE(SPLIT_PART(EMAIL, '@', 2), '')) NOT LIKE '%transmission%'")
 
 
 def _cf_cs_cte(defs):
@@ -1533,15 +1536,37 @@ def main():
     all_sources = sorted({s for c in CLIENTS for s in c["sources"]})
     all_mirrors = sorted({SF_TO_MIRROR[s] for c in CLIENTS for s in c["sources"]
                           if not c["reads_direct"]})
+    now = now_utc()
+    out_clients = []
+    warehouse_resumes = 0
     try:
-        sf_altered = probe_snowflake_last_altered(cn, all_sources)   # {bare_name: LAST_ALTERED} (free)
-        bq_modified = probe_bq_last_modified(bq, all_mirrors)        # {"ds.table": last_modified} (free)
+        # Snowflake freshness probe. If the shared warehouse can't resume (e.g. Transmission's resource
+        # monitor APACWAREHOUSERESOURCEMONITOR has exhausted its credit quota, so APAC_IN_WH is stuck),
+        # DON'T crash the whole run — carry each Snowflake client's last-known status forward, still
+        # refresh the BQ-native clients below, and still write status.json. A health monitor has to
+        # survive the very outage it exists to report (otherwise the WHOLE dashboard, including the
+        # BQ-native clients that don't even touch Snowflake, goes dark).
+        sf_altered, bq_modified, sf_ok = {}, {}, True
+        try:
+            sf_altered = probe_snowflake_last_altered(cn, all_sources)   # {bare_name: LAST_ALTERED} (free)
+            bq_modified = probe_bq_last_modified(bq, all_mirrors)        # {"ds.table": last_modified} (free)
+        except Exception as e:   # noqa: BLE001 - Snowflake unavailable: degrade, don't die
+            sf_ok = False
+            print(f"  [snowflake] warehouse/probe unavailable — carrying forward last-known "
+                  f"Snowflake-client status: {e}")
+            for spec in CLIENTS:
+                prev_entry = prev_by_client.get(spec["client"])
+                if not prev_entry:
+                    continue
+                carried = dict(prev_entry)
+                fr = dict(carried.get("freshness") or {})
+                fr["snowflake_unavailable"] = True
+                fr["snowflake_error"] = str(e)[:300]
+                carried["freshness"] = fr
+                carried["stale_carryforward"] = True      # last-known values; Snowflake was unreachable this tick
+                out_clients.append(carried)
 
-        now = now_utc()
-        out_clients = []
-        warehouse_resumes = 0
-
-        for spec in CLIENTS:
+        for spec in (CLIENTS if sf_ok else []):
             entry = {"client": spec["client"], "label": spec["label"], "url": spec.get("url"),
                      "reads_direct": spec["reads_direct"]}
 
