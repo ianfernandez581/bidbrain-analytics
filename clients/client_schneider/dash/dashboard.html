@@ -741,9 +741,9 @@ function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); re
 // The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
 const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels', website:'Website'};
-// "Other Channels" (plan-only lines: Search / publisher / trade / email) was removed from the UI
-// 2026-07-06 (client request - low value). The job still emits it in tabs[]; we filter it out here.
-function campaignTabs(){ const t=(campaign().tabs||[]).filter(x=>x!=='other'); return t.length?t:['cs']; }
+// "Other Channels" (plan-only lines: Search / publisher / trade / email). Removed from the UI
+// 2026-07-06, then restored 2026-07-20 (client wanted the Trade Publication line back).
+function campaignTabs(){ const t=(campaign().tabs||[]); return t.length?t:['cs']; }
 // The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) - it spans every program,
 // so it sits outside the per-campaign tab set.
 // Website (GA4) is a GLOBAL, whole-site tab (like the scorecard). It only appears once real GA4
