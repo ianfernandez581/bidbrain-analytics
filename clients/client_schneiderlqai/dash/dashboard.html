@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schneider Electric - Liquid AI Data Center</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- PptxGenJS + the shared bb_deck.js builder - power the portal-driven "Download slides" export
+     (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
+<style>
+  :root{
+    color-scheme: light;
+    --se-green:#009530; --se-green2:#007E2A; --se-deep:#005F20;
+    --se-dark:#1A1A1A; --se-ink:#1F2933; --se-mute:#6B7480; --se-line:#E6E9ED;
+    --se-card:#FFFFFF; --se-bg:#F4F6F7; --se-grey:#C9CED4;
+    --li:#2867B2; --td:#F2A900; --amber:#B97400; --liq:#12B5C9;
+    --good-green:#1E8E3E; --bad-red:#C8362A; --warn-amber:#B97400;
+    /* consistent per-metric colours - reused on KPI tiles (and matching chart series) */
+    --m-spend:#007E2A; --m-imp:#3E6396; --m-clk:#C4902E; --m-cpc:#7A6E8C;
+    --m-ctr:#0E7C86; --m-target:#9AA3AC;
+    /* premium: white cards float on the Schneider-green canvas with a soft green glow */
+    --shadow-card:0 10px 30px rgba(3,20,12,.34),0 0 0 1px rgba(255,255,255,.04),0 0 66px -16px rgba(0,149,48,.78);
+    /* text that sits ON the dark-green canvas (not inside a white card) */
+    --on-canvas:#F2F8F3; --on-canvas-mute:rgba(240,247,241,.82);
+  }
+  *{box-sizing:border-box}
+  html{margin:0;padding:0}
+  body{margin:0;padding:0;min-height:100vh;color:var(--se-ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;
+    background-color:#08361F;
+    background-image:
+      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1440' height='900'><g fill='none' stroke='white' stroke-opacity='0.05' stroke-width='1.4'><path d='M-160 980 A 1180 1180 0 0 1 1620 240'/><path d='M-80 1020 A 1360 1360 0 0 1 1680 360'/><path d='M40 1060 A 1180 1180 0 0 1 1720 520'/></g></svg>"),
+      radial-gradient(1300px 780px at 82% -8%, rgba(0,149,48,.44), transparent 60%),
+      radial-gradient(1100px 760px at 8% 108%, rgba(0,120,42,.60), transparent 62%),
+      linear-gradient(150deg,#05301A 0%,#0A3D23 48%,#0E4A2B 100%);
+    background-repeat:no-repeat; background-position:center top; background-size:cover;
+    background-attachment:fixed;}
+  a{color:var(--se-green);text-decoration:none}
+
+  .topbar{background:linear-gradient(100deg,#04200F,#0A3620);color:#fff;padding:14px 0;border-bottom:1px solid rgba(0,149,48,.35)}
+  .topbar .inner{max-width:1320px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  .topbar-left{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .agency{font-weight:700;letter-spacing:1.2px;font-size:13px;color:#fff;display:flex;align-items:center;gap:8px}
+  .agency .dot{width:6px;height:6px;background:var(--se-green);border-radius:50%}
+  .topbar-divider{width:1px;height:22px;background:rgba(255,255,255,.18)}
+  .logo-chip{background:#fff;padding:7px 13px;border-radius:7px;display:flex;align-items:center}
+  .logo-chip .se-logo{height:24px;width:auto;display:block}
+  .region-tag{font-weight:700;letter-spacing:.6px;font-size:12px;color:#fff;
+    padding:5px 12px;border-radius:6px;background:linear-gradient(120deg,var(--se-green),var(--liq));white-space:nowrap}
+  .phase-pill{font-weight:700;letter-spacing:1px;font-size:10px;text-transform:uppercase;color:#CDEFF4;
+    padding:4px 10px;border-radius:999px;border:1px solid rgba(18,181,201,.5);background:rgba(18,181,201,.12);white-space:nowrap}
+  .topbar-right{font-size:11.5px;color:rgba(255,255,255,.8);text-align:right;line-height:1.5}
+  .topbar-right b{color:#fff}
+  .live{display:inline-block;width:7px;height:7px;background:var(--se-green);border-radius:50%;margin-right:6px;
+    box-shadow:0 0 0 0 rgba(0,149,48,.5);animation:pulse 2.2s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(0,149,48,.6)}70%{box-shadow:0 0 0 8px rgba(0,149,48,0)}100%{box-shadow:0 0 0 0 rgba(0,149,48,0)}}
+
+  .container{max-width:1320px;margin:0 auto;padding:22px 28px 60px}
+
+  .control-bar{background:var(--se-card);border:1px solid var(--se-line);border-radius:10px;
+    box-shadow:var(--shadow-card);padding:4px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--se-line)}
+  .tabs{display:flex;gap:2px}
+  .tab{padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;border:none;background:none;color:var(--se-mute);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+  .tab:hover{color:var(--se-ink)}
+  .tab.on{color:var(--se-dark);border-bottom-color:var(--se-green)}
+  .tabs-right{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:6px 0}
+  .ctrl-note{font-size:11.5px;color:var(--se-mute);padding-right:2px}
+  .exports{display:flex;gap:8px;align-items:center}
+  .export-btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
+    padding:7px 12px;border-radius:7px;border:1px solid var(--se-line);background:#fff;color:var(--se-ink)}
+  .export-btn:hover{border-color:var(--se-green);color:var(--se-green)}
+  .export-btn svg{width:14px;height:14px;flex:none}
+  .control-filters{display:flex;align-items:center;gap:22px;flex-wrap:wrap;padding:12px 0 14px}
+  .filter-grp{display:flex;align-items:center;gap:9px}
+  .lbl{font-size:11px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--se-mute)}
+
+  .seg{display:inline-flex;border:1px solid var(--se-line);border-radius:999px;overflow:hidden;background:#fff;flex-wrap:wrap}
+  .seg-btn{padding:7px 14px;font-size:12.5px;cursor:pointer;border:none;background:#fff;color:var(--se-ink);
+    display:inline-flex;align-items:center;gap:7px;border-right:1px solid var(--se-line)}
+  .seg-btn:last-child{border-right:none}
+  .seg-btn:hover{background:#F2F5F4}
+  .seg-btn.on{background:var(--se-dark);color:#fff}
+  .seg .cap{padding:0 9px;font-size:9px;font-weight:800;letter-spacing:.8px;color:var(--se-mute);display:inline-flex;align-items:center;background:#F7F9F8;border-right:1px solid var(--se-line)}
+  .seg.seg-sm .seg-btn{padding:5px 11px;font-size:11.5px}
+
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{background:#fff;border:1px solid var(--se-line);border-radius:999px;padding:6px 12px;font-size:12.5px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;color:var(--se-ink)}
+  .chip:hover{border-color:var(--se-green)}
+  .chip.on{background:var(--se-dark);color:#fff;border-color:var(--se-dark)}
+  .chip .check{opacity:0;font-size:10px;color:var(--se-green)}
+  .chip.on .check{opacity:1}
+  .chip-action{background:none;border:1px dashed var(--se-line);border-radius:999px;padding:6px 11px;font-size:11.5px;cursor:pointer;color:var(--se-mute)}
+  .chip-action:hover{color:var(--se-ink);border-color:var(--se-mute)}
+
+  /* ===== Shared date-range picker (Looker-style) ===== */
+  .dp{position:relative;display:inline-block;font-size:13px;
+      --dp-accent:var(--se-green);--dp-bg:var(--se-card);--dp-panel:var(--se-bg);
+      --dp-line:var(--se-line);--dp-ink:var(--se-ink);--dp-muted:var(--se-mute)}
+  .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
+  .dp-btn:hover{border-color:var(--dp-accent)}
+  .dp-btn svg{opacity:.75}
+  .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;display:flex;background:var(--dp-bg);border:1px solid var(--dp-line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.18);overflow:hidden;left:auto;right:0}
+  .dp-pop.dp-hide{display:none}
+  .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);font-weight:600;font-size:12.5px;white-space:nowrap}
+  .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)}
+  .dp-presets a.dp-on{background:var(--dp-accent);color:#fff}
+  .dp-cal{padding:12px;width:264px}
+  .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
+  .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
+  .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)}
+  .dp-nav:disabled{opacity:.3;cursor:default}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .dp-dow{font-size:10px;font-weight:700;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;color:var(--dp-ink);border:1px solid transparent;user-select:none}
+  .dp-day:hover{border-color:var(--dp-accent)}
+  .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
+  .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
+  .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 22%,transparent)}
+  .dp-day.dp-sel{background:var(--dp-accent);color:#fff;font-weight:700;border-color:transparent}
+  .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center}
+  .dp-range b{color:var(--dp-ink)}
+  .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--dp-line);font-family:inherit}
+  .dp-cancel{background:transparent;color:var(--dp-muted)}
+  .dp-cancel:hover{color:var(--dp-ink)}
+  .dp-apply{background:var(--dp-accent);color:#fff;border-color:transparent}
+  @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
+
+  .tabpane{display:none}
+  .section{border-top:1px solid rgba(255,255,255,.12);padding-top:18px;margin-top:24px;position:relative;padding-left:15px}
+  .section::before{content:"";position:absolute;left:0;top:20px;width:4px;height:19px;border-radius:3px;
+    background:linear-gradient(180deg,#5FE39B,#00A83A);box-shadow:0 0 12px rgba(0,168,58,.55)}
+  .section.first{border-top:none;padding-top:0;margin-top:4px}
+  .section.first::before{top:2px}
+  .section h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.2px;color:var(--on-canvas);text-shadow:0 1px 3px rgba(0,0,0,.35)}
+  .section .sub{display:block;margin-top:3px;color:var(--on-canvas-mute);font-size:12.5px;max-width:940px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .section .sub b{color:var(--on-canvas)}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .card{background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:16px;box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
+  .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--se-ink)}
+  .card .hint{font-size:11.5px;color:var(--se-mute);margin:4px 0 10px 0}
+  .card-tall .chart-wrap{height:300px}
+  .chart-wrap{position:relative;flex:1;min-height:170px}
+  .chart-wrap::before{content:"";position:absolute;inset:0;pointer-events:none;border-radius:10px;
+    background:radial-gradient(62% 62% at 50% 42%,rgba(0,149,48,.10),transparent 72%)}
+  .chartctrls{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
+  .kpi{--kc:var(--se-green);background:linear-gradient(155deg,color-mix(in srgb,var(--kc) 9%,#fff),#fff 62%);
+    border:1px solid color-mix(in srgb,var(--kc) 22%,var(--se-line));border-radius:12px;padding:14px 16px;
+    position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
+  .kpi .label{font-size:10.5px;color:var(--se-mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600;
+    display:flex;align-items:center;gap:7px}
+  .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;background:var(--kc);
+    box-shadow:0 0 0 3px color-mix(in srgb,var(--kc) 20%,transparent)}
+  .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:8px;color:var(--se-dark)}
+  .kpi .delta{font-size:11px;margin-top:4px;color:var(--se-mute);line-height:1.35}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kc)}
+  .kpi.m-spend{--kc:var(--m-spend)} .kpi.m-imp{--kc:var(--m-imp)} .kpi.m-clk{--kc:var(--m-clk)}
+  .kpi.m-cpc{--kc:var(--m-cpc)} .kpi.m-ctr{--kc:var(--m-ctr)} .kpi.m-target{--kc:var(--m-target)}
+  .kpi.clk{cursor:pointer;transition:border-color .12s,box-shadow .12s,transform .12s}
+  .kpi.clk:hover{border-color:color-mix(in srgb,var(--kc) 55%,var(--se-line));transform:translateY(-1px)}
+  .kpi.clk:focus-visible{outline:2px solid var(--kc);outline-offset:2px}
+  .kpi.clk::after{content:"";position:absolute;top:12px;right:12px;width:9px;height:9px;border-radius:50%;
+    background:var(--kc);box-shadow:0 0 0 2px color-mix(in srgb,var(--kc) 25%,transparent)}
+  .kpi.clk.off{opacity:.55;box-shadow:none}
+  .kpi.clk.off::after{background:transparent;box-shadow:inset 0 0 0 1.5px var(--se-grey)}
+  .kpi.clk.off .value{color:var(--se-mute)}
+  .kpihint{font-size:11.5px;color:var(--on-canvas-mute);margin-top:10px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
+  .card-hero{margin-top:16px}
+  .card-hero .chart-wrap{height:420px}
+
+  .info-note{background:#EEFBF0;border:1px solid #CFEFD5;border-left:4px solid var(--se-green);border-radius:10px;padding:13px 16px;margin-top:16px;font-size:13px;color:#1C3B22}
+  .info-note b{color:#10240F}
+  .info-note.warn{background:#FBF4E6;border-color:#EAD9AE;border-left-color:var(--amber);color:#5A4214}
+  .info-note.warn b{color:#3F2E08}
+
+  /* labelled target-progress rows */
+  .progress-row{display:grid;grid-template-columns:150px 1fr 118px;align-items:center;gap:10px;margin:9px 0;font-size:12px}
+  .progress-row > div:first-child{color:var(--se-mute)}
+  .pbar{position:relative;height:11px;border-radius:999px;background:#EEF1F0;overflow:visible}
+  .pbar .fill{height:100%;border-radius:999px;background:var(--se-green)}
+  .pbar.gray .fill{background:var(--se-grey)}
+  .pbar .fill.red{background:var(--bad-red)} .pbar .fill.amber{background:var(--warn-amber)}
+  .pbar .mark{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--se-dark);opacity:.55}
+  .progress-row > div:last-child{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:var(--se-ink)}
+  .prog-note{font-size:11.5px;color:var(--se-mute);margin-top:12px;line-height:1.45}
+  .prog-note b{color:var(--se-ink)}
+
+  .perf{display:inline-flex;align-items:center;font-size:10px;font-weight:800;letter-spacing:.2px;padding:2px 8px;border-radius:999px}
+  .perf.ahead{color:#0B6B2E;background:rgba(0,149,48,.15);border:1px solid rgba(0,149,48,.32)}
+  .perf.warn{color:#8A5A00;background:rgba(185,116,0,.15);border:1px solid rgba(185,116,0,.34)}
+  .perf.behind{color:#9B241A;background:rgba(200,54,42,.13);border:1px solid rgba(200,54,42,.32)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  table th,table td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--se-line)}
+  table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--se-mute);font-weight:600;background:#FAFBFA}
+  table td.num,table th.num{text-align:right;font-variant-numeric:tabular-nums}
+  table tr:hover td{background:#FAFBFA}
+  table tr.total td{font-weight:700;background:#F1FAF2;border-bottom:none}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600;background:#F1F4F2;color:var(--se-dark)}
+  .pill .dot{width:8px;height:8px;border-radius:50%}
+  .tag{font-size:10px;font-weight:700;letter-spacing:.4px;padding:2px 8px;border-radius:999px;text-transform:uppercase;white-space:nowrap}
+  .tag.live{background:rgba(0,149,48,.13);color:#0B6B2E;border:1px solid rgba(0,149,48,.3)}
+  .tag.plan{background:#F1F3F5;color:var(--se-mute);border:1px solid var(--se-line)}
+
+  .loading{padding:80px 20px;text-align:center;color:var(--on-canvas-mute)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--se-line);border-top-color:var(--se-green);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:#FFEEEC;border:1px solid #F5C3BD;color:#7a1a0e;border-radius:10px;padding:18px;margin:30px auto;max-width:520px;text-align:center;font-size:13px}
+  footer{color:var(--on-canvas-mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid rgba(255,255,255,.12)}
+  footer b{color:var(--on-canvas)}
+
+  @media (max-width:1100px){.grid-3,.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="inner">
+  <div class="topbar-left">
+    <div class="agency">TRANSMISSION<span class="dot"></span></div>
+    <div class="topbar-divider"></div>
+    <div class="logo-chip"><svg class="se-logo" viewBox="0 0 218 64" role="img" aria-label="Schneider Electric" xmlns="http://www.w3.org/2000/svg"><path fill="#009530" d="M24.7 9.47c-4.95-2.18-7.87-3.1-10.8-3.1-3.1 0-5.12 1.1-5.12 2.74 0 5.1 17.56 3.64 17.56 15.48 0 6.56-5.49 10.38-13.17 10.38-6.04 0-8.96-1.64-12.44-3.28v-7.28c4.94 3.28 7.87 4.37 11.7 4.37 3.3 0 5.13-1.1 5.13-3.1C17.56 20.04 0 22.22 0 9.84 0 4 5.12 0 12.99 0c3.84 0 7.31.73 11.7 2.73v6.74Zm24.5 24.04a21.55 21.55 0 0 1-7.86 1.64c-8.23 0-13.36-4.73-13.36-11.84 0-7.1 5.5-12.02 13.17-12.02 2.38 0 5.3.55 7.87 1.46v5.46a12.43 12.43 0 0 0-5.85-1.64c-4.4 0-7.14 2.55-7.14 6.56 0 4 2.75 6.74 6.95 6.74 1.83 0 3.3-.36 6.59-1.64v5.28m67.49-22.4c-7.13 0-12.25 5.1-12.25 12.02 0 7.1 5.3 11.84 13.35 11.84 1.83 0 6.22 0 10.24-3.1v-4.36c-3.47 2.36-5.67 3.27-8.6 3.27-4.56 0-7.3-2.36-7.67-6.37h16.64c.55-8.56-4.94-13.3-11.7-13.3Zm-4.39 9.47c.37-3.28 2.2-5.1 4.94-5.1 2.75 0 4.76 1.82 4.94 5.1h-9.88Zm26.52-9.1h-7.32V34.6h7.32V11.48ZM159.3.55v12.02a14.02 14.02 0 0 0-6.04-1.46c-6.59 0-11.16 4.92-11.16 12.02 0 6.92 4.57 12.02 10.8 12.02 2.37 0 4.38-.72 6.4-2.36v1.82h7.31V.55h-7.32Zm0 27.87c-1.47 1.27-2.75 1.82-4.4 1.82-3.47 0-5.66-2.74-5.66-6.92 0-4.56 2.19-7.3 5.85-7.3 1.28 0 3.1.56 4.02 1.28v11.12h.18Zm22.69-17.31c-7.13 0-12.25 5.1-12.25 12.02 0 7.1 5.3 11.84 13.35 11.84 1.83 0 6.22 0 10.42-3.1v-4.36c-3.47 2.36-5.67 3.27-8.6 3.27-4.57 0-7.31-2.36-7.68-6.37h16.65c.37-8.56-5.12-13.3-11.89-13.3Zm-4.57 9.47c.36-3.28 2.2-5.1 4.94-5.1s4.75 1.82 5.12 5.1h-10.06Zm27.42-2.36c2.2-4.74 4.76-7.1 7.5-7.1 1.47 0 2.75.54 4.76 2.18l-2.01 6.37c-1.83-1.27-3.11-1.64-4.4-1.64-2.74 0-4.38 2.55-6.03 6.74V34.8h-7.31V11.48h7.31v6.74m-65.11-16.4c.73 1.82-.55 4.37-2.75 5.65-2.2 1.27-4.57.9-5.12-.92-.73-1.82.55-4.37 2.75-5.64 2-1.28 4.38-.91 5.12.9Zm-64.2 18.22c0-6.2-4.2-8.74-8.41-8.74-2.93 0-5.3 1.27-7.32 3.82h-.18V.73h-7.32V34.8h7.32V20.22c1.64-2.37 3.1-3.46 4.93-3.46 2.2 0 3.85 1.64 3.85 5.1v8.2a22.9 22.9 0 0 1 7.31-2.37v-7.65m18.12-8.93c-2.93 0-5.3 1.1-7.5 3.83v-3.28h-7.32v15.66c2.56.19 5.67 1.46 7.32 3.28V19.85c1.83-2.91 3.3-3.82 5.12-3.82 2.01 0 3.66 1.27 3.66 4.55v14.03h7.32V20.04c-.19-6.92-5.13-8.93-8.6-8.93Zm12.45 30.06h-8.6v6h8.24v2.56H97.5v6.19h8.78v2.55H94.76V38.62h11.34v2.55Zm9.3-2.55h-2.55v19.85h2.56V38.62Zm9.33 13.66h9.14c0-4.92-2.2-7.1-5.67-7.1-3.66 0-6.03 2.72-6.03 6.55 0 3.64 2.2 6.92 6.4 6.92a9.9 9.9 0 0 0 5.3-1.46v-2.55a7.81 7.81 0 0 1-4.57 1.64c-2.74 0-4.2-1.27-4.57-4Zm3.65-4.92c1.83 0 2.93 1.27 3.11 3.28h-6.58c.18-2 1.46-3.28 3.47-3.28Zm22.52 1.46a5.56 5.56 0 0 0-3.67-1.28c-2.37 0-4.02 1.82-4.02 4.55 0 2.74 1.83 4.38 4.39 4.38a9 9 0 0 0 3.47-.91v2.55a12 12 0 0 1-3.84.72 6.33 6.33 0 0 1-6.58-6.55c0-4.38 2.56-7.1 6.4-7.1 1.46 0 2.56.36 3.84.9v2.74Zm11.87-3.47h4.21v2.37h-4.2v6.74c0 1.46 1.1 2 1.82 2a6.8 6.8 0 0 0 2.93-.9v2.36c-.91.55-2.38.91-3.11.91-2.74 0-4.2-1.82-4.2-4.19v-6.92h-2.2v-.18l4.94-4.74v2.55m13.73 0v3.1c1.28-2.37 2.56-3.28 3.84-3.28 1.1 0 2.01.55 3.11 1.46l-1.46 2.19c-.74-.73-1.83-1.28-2.38-1.28-1.83 0-3.11 1.82-3.11 4v6.93h-2.56V45.35h2.56Zm33.65 3.47a5.56 5.56 0 0 0-3.66-1.28c-2.38 0-4.03 1.82-4.03 4.55 0 2.74 1.83 4.38 4.4 4.38a9.1 9.1 0 0 0 3.47-.91v2.55a12 12 0 0 1-3.84.72 6.33 6.33 0 0 1-6.59-6.55c0-4.38 2.56-7.1 6.4-7.1 1.47 0 2.56.36 3.84.9v2.74Zm-17.2-3.46h-2.56v13.11h2.56V45.36Zm.18-4.74c.18.54-.18 1.46-.91 2-.74.55-1.65.37-1.83-.36-.19-.73.18-1.46.91-2 .73-.37 1.46-.19 1.83.36ZM79 47.18l.74-2.92h7.13c.91-4.19.18-8.01-2.38-10.38-5.12-5.1-15.73-3.28-23.6 4.2-1.27 1.08-2.19 2.36-3.29 3.63H62l-.92 2.92h-5.12c-.55.9-.92 1.82-1.28 2.73h6.03l-.91 2.91h-6.04c-1.1 4.38-.36 8.38 2.2 10.93 4.94 4.92 15.55 3.28 23.6-4.37a18.42 18.42 0 0 0 3.47-4.19h-5.49l.92-2.91h6.4c.55-.91.91-1.82 1.28-2.73H79v.18Zm-1.64-5.47c-.37 0-.73 0-.92.37 0 0-.18.18-.18.36l-2.2 8.75c-.54 3.1-4.38 6.19-9.32 6.19h-6.95l1.28-4.55h4.39c.36 0 .73-.19 1.1-.55.18-.18.18-.37.18-.55l1.83-7.65c.55-3.1 3.84-6.56 8.78-6.56h6.95l-.92 4.2h-4.02Z"/></svg></div>
+    <div class="region-tag">Liquid AI Data Center</div>
+    <div class="phase-pill">TOFU &middot; Awareness</div>
+  </div>
+  <div class="topbar-right">
+    <div><span class="live"></span><b>Live</b> · LinkedIn &amp; The Trade Desk</div>
+    <div id="topPeriod">&nbsp;</div>
+  </div>
+</div></div>
+
+<div class="container">
+  <div id="loading" class="loading"><div class="spinner"></div><div>Fetching dashboard data from BigQuery…</div></div>
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:#fff;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="content" style="display:none">
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs" id="tabBar"></div>
+        <div class="tabs-right">
+          <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
+          <div class="exports">
+            <button class="export-btn" onclick="exportThisTab()" title="Download the rows behind this tab (honors the country & date filters) as CSV">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Export this tab</span>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="control-filters">
+        <div class="filter-grp" id="countryGrp"><span class="lbl">Country</span><div class="chips" id="countryChips"></div>
+          <button class="chip-action" onclick="allCountries()">All</button>
+          <button class="chip-action" onclick="clearCountries()">Clear</button></div>
+        <div class="filter-grp" id="dateGrp" title="Date range applies to the Overview & Creative tabs"><span class="lbl">Date range</span>
+          <div class="dp" id="dateRange">
+            <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span id="dpLabel">All time</span><span class="dp-cap">▾</span>
+            </button>
+            <div class="dp-pop dp-hide" id="dpPop">
+              <div class="dp-presets" id="dpPresets"></div>
+              <div class="dp-cal">
+                <div class="dp-cal-head"><button class="dp-nav" id="dpPrev" type="button">‹</button><span id="dpMonthLbl"></span><button class="dp-nav" id="dpNext" type="button">›</button></div>
+                <div class="dp-grid" id="dpGrid"></div>
+                <div class="dp-range" id="dpRangeLbl"></div>
+                <div class="dp-actions"><button class="dp-cancel" id="dpCancel" type="button">Cancel</button><button class="dp-apply" id="dpApply" type="button">Apply</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <div id="tab-overview" class="tabpane">
+      <div class="section first">
+        <h2>Delivery Overview</h2>
+        <span class="sub">Live LinkedIn &amp; The Trade Desk delivery for the <b>Liquid AI Data Center</b> awareness campaign: spend, impressions, clicks and CTR. Reflects the selected countries &amp; date range. Reporting currency AUD.</span>
+      </div>
+      <div class="kpis">
+        <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">-</div><div class="delta" id="pm_spend_sub">-</div></div>
+        <div class="kpi m-imp clk" data-toggle="Impressions" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Impressions on the chart"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="pm_imp">-</div><div class="delta" id="pm_cpm">-</div></div>
+        <div class="kpi m-clk clk" data-toggle="Clicks" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Clicks on the chart"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="pm_clk">-</div><div class="delta" id="pm_cpc">-</div></div>
+        <div class="kpi m-ctr"><span class="stripe"></span><div class="label">CTR</div><div class="value" id="pm_ctr">-</div><div class="delta" id="pm_ctr_sub">-</div></div>
+      </div>
+      <div class="kpihint">Tap Spend, Impressions or Clicks to show or hide it on the chart below. CTR is a read-only efficiency figure.</div>
+
+      <div class="section"><h2 style="font-size:15px">Pace to plan</h2><span class="sub">Delivered to date vs the media-plan targets for the live Awareness lines (whole flight, all countries - independent of the filters). The marker shows where an even pace should sit today.</span></div>
+      <div class="card" style="margin-top:14px"><div id="pacing"></div></div>
+
+      <div class="section"><h2 style="font-size:15px">Delivery over time</h2><span class="sub">How <b>spend, impressions and clicks</b> track over time. <b>Relative</b> lines up the trends; <b>Absolute</b> shows true values. CTR is dashed.</span></div>
+      <div class="chartctrls">
+        <span class="seg seg-sm" id="pmGrainSeg"><span class="cap">VIEW BY</span>
+          <button type="button" class="seg-btn" data-grain="month" onclick="setPmGrain('month')">Month</button>
+          <button type="button" class="seg-btn" data-grain="week" onclick="setPmGrain('week')">Week</button>
+          <button type="button" class="seg-btn" data-grain="day" onclick="setPmGrain('day')">Day</button></span>
+        <span class="seg seg-sm" id="pmScaleSeg"><span class="cap">AXIS</span>
+          <button type="button" class="seg-btn" data-scale="rel" onclick="setPmScale('rel')">Relative</button>
+          <button type="button" class="seg-btn" data-scale="abs" onclick="setPmScale('abs')">Absolute</button></span>
+      </div>
+      <div class="card card-hero"><div class="chart-wrap"><canvas id="pmDaily"></canvas></div></div>
+
+      <div class="section"><h2 style="font-size:15px">Channel comparison</h2><span class="sub">LinkedIn vs The Trade Desk - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="pmPlatTable"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
+      </div></div>
+
+      <div class="section"><h2 style="font-size:15px">Spend &amp; geography</h2><span class="sub">Where the media budget went - by channel and by country (AUD).</span></div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Spend by channel</h3><div class="hint">Share of media spend (AUD).</div><div class="chart-wrap"><canvas id="pmSpendPlat"></canvas></div></div>
+        <div class="card card-tall"><h3>Spend by country</h3><div class="hint">Across the selected countries (AUD).</div><div class="chart-wrap"><canvas id="pmSpendCountry"></canvas></div></div>
+      </div>
+      <div class="card" style="margin-top:16px"><h3>Country summary</h3><div class="hint">Live values - refresh on country / date change.</div>
+        <div style="overflow:auto"><table id="pmCountryTable"><thead><tr><th>Country</th><th>Region</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- ============ CREATIVE ============ -->
+    <div id="tab-creative" class="tabpane">
+      <div class="section first">
+        <h2>Creative Performance</h2>
+        <span class="sub">How the individual ads performed. <b>LinkedIn</b> ran 3 single-image message concepts; <b>The Trade Desk</b> ran 4 display concepts across 3 banner sizes. Reflects the selected countries &amp; date range.</span>
+      </div>
+      <div class="grid">
+        <div class="card card-tall"><h3>LinkedIn - message concepts</h3><div class="hint">Impressions &amp; clicks by ad message.</div><div class="chart-wrap"><canvas id="crLiConcept"></canvas></div></div>
+        <div class="card card-tall"><h3>Trade Desk - display concepts</h3><div class="hint">Impressions &amp; clicks by creative concept.</div><div class="chart-wrap"><canvas id="crTtdConcept"></canvas></div></div>
+      </div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Trade Desk - banner format mix</h3><div class="hint">Share of impressions by ad size.</div><div class="chart-wrap"><canvas id="crTtdFormat"></canvas></div></div>
+        <div class="card card-tall"><h3>Best-performing creatives</h3><div class="hint">Top creatives by CTR (min 1,000 impressions).</div><div class="chart-wrap"><canvas id="crTopCtr"></canvas></div></div>
+      </div>
+      <div class="section"><h2 style="font-size:15px">Creative detail</h2><span class="sub">Every creative for the selected countries. Click a header to sort; search to filter.</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="crTable"><thead><tr><th>Channel</th><th>Concept</th><th>Format</th><th>Country</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Spend</th></tr></thead><tbody></tbody></table>
+      </div></div>
+    </div>
+
+    <!-- ============ MEDIA PLAN ============ -->
+    <div id="tab-plan" class="tabpane">
+      <div class="section first">
+        <h2>Media Plan &amp; Targets</h2>
+        <span class="sub">The full brief media plan (15 May - 31 Dec 2026). <b>Live</b> lines are delivering into this dashboard now; Search, Reddit and the Retargeting lines are planned (tbc) and not yet running. Budgets are the media plan (AUD).</span>
+      </div>
+      <div class="kpis">
+        <div class="kpi m-spend"><span class="stripe"></span><div class="label">Live budget</div><div class="value" id="pl_live">-</div><div class="delta">LinkedIn + Trade Desk Awareness</div></div>
+        <div class="kpi m-target"><span class="stripe"></span><div class="label">Full plan budget</div><div class="value" id="pl_total">-</div><div class="delta">all channels &amp; phases</div></div>
+        <div class="kpi m-imp"><span class="stripe"></span><div class="label">Spend to date</div><div class="value" id="pl_spent">-</div><div class="delta" id="pl_spent_sub">-</div></div>
+        <div class="kpi m-clk"><span class="stripe"></span><div class="label">Flight elapsed</div><div class="value" id="pl_elapsed">-</div><div class="delta" id="pl_elapsed_sub">-</div></div>
+      </div>
+
+      <div class="section"><h2 style="font-size:15px">Delivered vs target - live channels</h2><span class="sub">Whole-flight, all-country delivery against the plan targets for the live Awareness lines.</span></div>
+      <div class="card" style="margin-top:14px"><div id="planPacing"></div></div>
+
+      <div class="section"><h2 style="font-size:15px">Full media plan</h2><span class="sub">Every line from the brief. Impression / reach / click / spend targets are whole-flight.</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="planTable"><thead><tr><th>Channel</th><th>Phase</th><th>Geo</th><th class="num">Imp target</th><th class="num">Reach target</th><th class="num">Click target</th><th class="num">CTR target</th><th class="num">Spend</th><th>Status</th></tr></thead><tbody></tbody></table>
+      </div></div>
+      <div class="info-note">Reach and CTR targets come from the media plan. Delivered <b>reach</b> is not exposed by the raw ad platforms, so impressions are the delivered reach proxy; delivered CTR is measured. Search / Reddit / Retargeting activate later - their targets are shown for context.</div>
+    </div>
+
+    <footer id="footMeta"></footer>
+  </div>
+</div>
+
+<script>
+//==============================================================================
+// CONFIG
+//==============================================================================
+const JSON_URL = '/data.json';
+const C = {
+  green:'#009530', green2:'#007E2A', deep:'#005F20', dark:'#1A1A1A', ink:'#1F2933',
+  mute:'#6B7480', line:'#E6E9ED', td:'#F2A900', li:'#2867B2',
+  slate:'#5A6B78', amber:'#B97400', liq:'#12B5C9', grey:'#C9CED4', target:'#9AA3AC'
+};
+const PLATFORMS = [
+  {key:'linkedin',  label:'LinkedIn',       color:C.li},
+  {key:'tradedesk', label:'The Trade Desk', color:C.td},
+];
+const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
+const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#12B5C9','#9AD4B5'];
+
+//==============================================================================
+// SHARED DATE-RANGE PICKER (Looker-style)
+//==============================================================================
+window.DateRange = (function(){
+  const PRESETS = [
+    {k:'7',label:'Last 7 days'},{k:'14',label:'Last 14 days'},{k:'28',label:'Last 28 days'},
+    {k:'30',label:'Last 30 days'},{k:'90',label:'Last 90 days'},{k:'month',label:'This month'},
+    {k:'lastmonth',label:'Last month'},{k:'quarter',label:'This quarter'},{k:'all',label:'All time'},
+  ];
+  let MIN=null, MAX=null, onApply=null, selStart=null, selEnd=null, draftStart=null, draftEnd=null, viewYear=0, viewMonth=0, open=false;
+  const pad=n=>String(n).padStart(2,'0');
+  const iso=d=>d?d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()):null;
+  const parse=s=>{ if(!s) return null; const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s)); return m?new Date(+m[1],+m[2]-1,+m[3]):null; };
+  const addDays=(d,n)=>{ const x=new Date(d); x.setDate(x.getDate()+n); return x; };
+  const clamp=d=> d<MIN?new Date(MIN):(d>MAX?new Date(MAX):new Date(d));
+  const sameDay=(a,b)=>!!a&&!!b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+  const fmt=d=>d?d.toLocaleDateString('en-US',{day:'numeric',month:'short',year:'numeric'}):'-';
+  const $=id=>document.getElementById(id);
+  function presetRange(k){
+    let s, e=new Date(MAX);
+    if(/^\d+$/.test(k)) s=addDays(MAX,-(parseInt(k,10)-1));
+    else if(k==='month') s=new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    else if(k==='lastmonth'){ s=new Date(MAX.getFullYear(),MAX.getMonth()-1,1); e=new Date(MAX.getFullYear(),MAX.getMonth(),0); }
+    else if(k==='quarter'){ const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(),q*3,1); }
+    else { s=new Date(MIN); e=new Date(MAX); }
+    return [clamp(s),clamp(e)];
+  }
+  function detectPreset(s,e){ for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; } return 'custom'; }
+  function init(opts){
+    opts=opts||{}; MIN=parse(opts.min); MAX=parse(opts.max);
+    if(!MAX) MAX=new Date(); if(!MIN) MIN=addDays(MAX,-364); if(MIN>MAX){ const t=MIN; MIN=MAX; MAX=t; }
+    onApply=opts.onApply||null;
+    selStart=opts.initialStart?clamp(parse(opts.initialStart)):new Date(MIN);
+    selEnd=opts.initialEnd?clamp(parse(opts.initialEnd)):new Date(MAX);
+    draftStart=new Date(selStart); draftEnd=new Date(selEnd); viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth();
+    $('dpPrev').onclick=()=>nav(-1); $('dpNext').onclick=()=>nav(1);
+    $('dpCancel').onclick=()=>close(); $('dpApply').onclick=()=>apply();
+    $('dpPresets').onclick=e=>{ const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
+    $('dpGrid').onclick=e=>{ const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
+    document.addEventListener('click', e=>{ if(open && !e.target.closest('#dateRange')) close(); }, true);
+    updateButton();
+  }
+  function toggle(ev){ if(ev) ev.stopPropagation(); open?close():openPop(); }
+  function openPop(){ open=true; draftStart=new Date(selStart); draftEnd=new Date(selEnd); viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth(); $('dpPop').classList.remove('dp-hide'); renderPresets(); renderCal(); renderRangeLbl(); }
+  function close(){ open=false; $('dpPop').classList.add('dp-hide'); }
+  function nav(delta){ let y=viewYear,m=viewMonth+delta; if(m<0){m=11;y--;} if(m>11){m=0;y++;} const first=new Date(y,m,1); if(first<new Date(MIN.getFullYear(),MIN.getMonth(),1)) return; if(first>new Date(MAX.getFullYear(),MAX.getMonth(),1)) return; viewYear=y; viewMonth=m; renderCal(); }
+  function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e; viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+  function pickDay(d){ if(!draftStart||(draftStart&&draftEnd)){ draftStart=d; draftEnd=null; } else if(d<draftStart){ draftEnd=draftStart; draftStart=d; } else { draftEnd=d; } renderPresets(); renderCal(); renderRangeLbl(); }
+  function apply(){ if(!draftStart) return; selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart); close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
+  function renderPresets(){ const cur=detectPreset(draftStart, draftEnd||draftStart); $('dpPresets').innerHTML=PRESETS.map(p=>`<a data-k="${p.k}" class="${p.k===cur?'dp-on':''}">${p.label}</a>`).join(''); }
+  function renderCal(){
+    $('dpMonthLbl').textContent=new Date(viewYear,viewMonth,1).toLocaleDateString('en-US',{month:'long',year:'numeric'});
+    $('dpPrev').disabled=new Date(viewYear,viewMonth,1)<=new Date(MIN.getFullYear(),MIN.getMonth(),1);
+    $('dpNext').disabled=new Date(viewYear,viewMonth,1)>=new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    const first=new Date(viewYear,viewMonth,1), start=first.getDay(), dim=new Date(viewYear,viewMonth+1,0).getDate();
+    const lo=draftStart, hi=draftEnd;
+    let html=['Su','Mo','Tu','We','Th','Fr','Sa'].map(d=>`<div class="dp-dow">${d}</div>`).join('');
+    for(let i=0;i<start;i++) html+='<div class="dp-day dp-blank"></div>';
+    for(let d=1;d<=dim;d++){ const cur=new Date(viewYear,viewMonth,d); const dis=cur<MIN||cur>MAX; let cls='dp-day'; if(dis) cls+=' dp-disabled'; else { if(lo&&hi&&cur>=lo&&cur<=hi) cls+=' dp-inrange'; if(sameDay(cur,lo)||sameDay(cur,hi)) cls+=' dp-sel'; } html+=`<div class="${cls}" ${dis?'':`data-iso="${iso(cur)}"`}>${d}</div>`; }
+    $('dpGrid').innerHTML=html;
+  }
+  function renderRangeLbl(){ $('dpRangeLbl').innerHTML=draftStart?`<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`:'Pick a start date'; }
+  function updateButton(){ const k=detectPreset(selStart,selEnd); $('dpLabel').textContent=(k!=='custom')?PRESETS.find(p=>p.k===k).label:(sameDay(selStart,selEnd)?fmt(selStart):fmt(selStart)+' – '+fmt(selEnd)); }
+  return { init, toggle, getRange:()=>({start:iso(selStart),end:iso(selEnd)}) };
+})();
+
+//==============================================================================
+// STATE + HELPERS
+//==============================================================================
+let DATA=null, charts={}, activeTab='overview', activeCountries=new Set();
+let pmGrain='week', pmScale='rel';
+let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;
+const el=id=>document.getElementById(id);
+const fmtN=v=>v==null||isNaN(v)?'-':Math.round(v).toLocaleString('en-US');
+const fmtM=v=>v==null||isNaN(v)?'-':(Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'K':''+Math.round(v));
+const fmtPct=(v,d=1)=>v==null||isNaN(v)?'-':(v*100).toFixed(d)+'%';
+const money=(v,d=0)=>v==null||isNaN(v)?'-':'A$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const pct=(a,b)=>b?a/b:0;
+function dateLabel(d){ return d?new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'}):'-'; }
+function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
+const FONT={family:'-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif'};
+
+// ---- Client-billed spend multiplier (platform-injected window.BB_SPEND_MULT) -----------------
+// Grosses RAW media spend up to what the client was BILLED, per channel. Counts (imps/clicks), CTR
+// stay real; cost-per-X (CPM/CPC) follow because they derive from summed spend. Idempotent (stashes
+// raws first); empty/unset map => every factor defaults to 1 => total no-op. LinkedIn + Trade Desk
+// (Trade Desk often carries a 3-7x agency markup). Plan TARGETS are the media-plan (billed) budget,
+// so they are NOT grossed - delivered (grossed to billed) vs the billed budget paces correctly.
+function bbMultFor(channel){ const m=window.BB_SPEND_MULT||{}; const v=Number(m[channel]); return (Number.isFinite(v)&&v>0)?v:1; }
+function bbChannelKey(p){ var s=String(p||'').toLowerCase();
+  if(s.includes('linkedin'))return 'linkedin';
+  if(s.includes('trade')||s==='ttd'||s.includes('tradedesk'))return 'ttd';
+  return ''; }
+function bbApplySpendMult(){
+  (DATA.delivery||[]).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=Number(r.spend_aud)||0;
+    r.spend_aud=r._rawSpend*bbMultFor(bbChannelKey(r.platform)); });
+  (DATA.creative||[]).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=Number(r.spend_aud)||0;
+    r.spend_aud=r._rawSpend*bbMultFor(bbChannelKey(r.platform)); });
+}
+// ----------------------------------------------------------------------------------------------
+
+const countryOk=c=> activeCountries.has(c);
+const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
+function activeCountryList(){ return (DATA.countries||[]).filter(c=>activeCountries.has(c)); }
+// filtered delivery / creative rows (country chips + date range)
+function pmRows(){ return (DATA.delivery||[]).filter(r=>countryOk(r.country) && inRangeDate(r.date)); }
+function crRows(){ return (DATA.creative||[]).filter(r=>countryOk(r.country)); }
+function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
+
+//==============================================================================
+// CHART HELPERS
+//==============================================================================
+function gridY(o={}){ return Object.assign({grid:{color:'#EEF1F0'},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}},o); }
+function axisX(o={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}},o); }
+const LEGEND_HINT={display:true,text:'Click a label to show or hide it',color:C.mute,font:{size:10.5,weight:'600',...FONT},padding:{bottom:8}};
+function legendTop(){ return {position:'top',align:'end',title:LEGEND_HINT,labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
+function legendBottom(){ return {position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:8}},labels:{boxWidth:10,boxHeight:10,usePointStyle:true,pointStyle:'circle',font:{size:11,...FONT},color:C.ink,padding:9}}; }
+
+// ===================== Bidbrain shared: donut centre total (bbDonutCenter) =====================
+if (window.Chart) Chart.register({
+  id:'bbDonutCenter',
+  afterDraw(chart){
+   try{
+    const o = chart.options && chart.options.plugins && chart.options.plugins.bbCenter;
+    if(!o) return;
+    const ds = (chart.data.datasets||[])[0]; if(!ds) return;
+    const a = chart.chartArea; if(!a) return;
+    let sum=0; (ds.data||[]).forEach((v,i)=>{ if(chart.getDataVisibility(i)) sum += (+v||0); });
+    const cx=(a.left+a.right)/2, cy=(a.top+a.bottom)/2;
+    const ring=Math.min(a.right-a.left, a.bottom-a.top);
+    const cutout=(typeof chart.options.cutout==='string'?parseFloat(chart.options.cutout)/100:0.5)||0.5;
+    const hole=ring*cutout*0.92;
+    const fam=(Chart.defaults.font&&Chart.defaults.font.family)||'Inter,system-ui,sans-serif';
+    let txt='#1A1A1A'; try{ const cs=getComputedStyle(chart.canvas); if(cs&&cs.color) txt=cs.color; }catch(_){ }
+    const val = (o.prefix||'') + Math.round(sum).toLocaleString();
+    const ctx=chart.ctx; ctx.save(); ctx.textAlign='center'; ctx.textBaseline='middle';
+    let vs=Math.max(13, Math.min(30, ring*0.17));
+    ctx.font='700 '+vs+'px '+fam;
+    while(vs>10 && ctx.measureText(val).width>hole){ vs-=1; ctx.font='700 '+vs+'px '+fam; }
+    ctx.fillStyle = o.color || txt;
+    ctx.fillText(val, cx, cy - vs*0.12);
+    ctx.font='700 10px '+fam; ctx.globalAlpha=0.62; ctx.fillStyle = o.labelColor || txt;
+    ctx.fillText(String(o.label||'').toUpperCase(), cx, cy + vs*0.72); ctx.globalAlpha=1;
+    ctx.restore();
+   }catch(e){ }
+  }
+});
+
+// ===================== Bidbrain shared: sortable table headers + search box =====================
+(function(){
+  const css='table.bb-sortable th{cursor:pointer;user-select:none;white-space:nowrap;transition:color .12s}'
+    +'table.bb-sortable th:hover{text-decoration:underline;text-underline-offset:3px;opacity:.82}'
+    +'.bb-sort-ind{font-size:.82em;opacity:.85;margin-left:3px}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+  const parseNum=t=>{ const x=String(t==null?'':t).replace(/,/g,'').replace(/[^0-9.\-]/g,'');
+    if(x===''||x==='-'||x==='.'||x==='-.') return NaN; const v=parseFloat(x); return isNaN(v)?NaN:v; };
+  const headerRow=t=>{ const rs=[...t.rows]; return rs.find(r=>r.querySelector('th'))||rs[0]||null; };
+  const isTotal=r=>{ const c=r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    if(r.classList.contains('total')||c.classList.contains('total')) return true;
+    return /font-weight\s*:\s*(700|800|900|bold)/i.test((r.getAttribute('style')||'')+(c.getAttribute('style')||'')); };
+  const dataRows=(t,h)=>[...t.rows].filter(r=>r!==h && !r.querySelector('th') && !isTotal(r));
+  const totalRows=(t,h)=>[...t.rows].filter(r=>r!==h && r.querySelector('td') && isTotal(r));
+  function decorate(t,h,col,dir){ if(!h) return;
+    [...h.cells].forEach((th,i)=>{ let base=th.getAttribute('data-bbl');
+      if(base==null){ base=th.innerHTML; th.setAttribute('data-bbl',base); }
+      th.innerHTML = (i===col) ? base+' <span class="bb-sort-ind">'+(dir==='asc'?'▲':'▼')+'</span>' : base; });
+  }
+  function sortRows(t,h,st){ const drows=dataRows(t,h); if(drows.length<2) return;
+    let anyNum=false;
+    const vals=drows.map(r=>{ const cell=r.cells[st.col]; const raw=cell?cell.textContent:''; const num=parseNum(raw);
+      if(!isNaN(num)) anyNum=true; return {r,raw:(raw||'').trim(),num}; });
+    vals.sort((a,b)=>{
+      if(anyNum){ const an=isNaN(a.num), bn=isNaN(b.num);
+        if(an&&bn) return 0; if(an) return 1; if(bn) return -1;
+        return st.dir==='asc' ? a.num-b.num : b.num-a.num; }
+      const cmp=a.raw.localeCompare(b.raw, undefined, {numeric:true, sensitivity:'base'});
+      return st.dir==='asc' ? cmp : -cmp; });
+    const parent=h.parentNode;
+    vals.forEach(v=>parent.appendChild(v.r));
+    totalRows(t,h).forEach(tr=>parent.appendChild(tr));
+  }
+  function refresh(t){ const mo=t._bbMO; if(mo) mo.disconnect();
+    const h=headerRow(t), st=t._bbSort;
+    if(h && st && st.col!=null) sortRows(t,h,st);
+    decorate(t,h, st?st.col:null, st?st.dir:null);
+    if(mo) mo.observe(t,{childList:true,subtree:true}); }
+  function wire(t){ if(t._bbWired) return; t._bbWired=true; t.classList.add('bb-sortable');
+    t.addEventListener('click',e=>{ const cell=e.target.closest('th,td'); if(!cell) return;
+      const h=headerRow(t); if(!h||cell.parentNode!==h) return;
+      if([...t.rows].some(r=>r!==h && [...r.cells].some(c=>c.colSpan>1))) return;
+      const col=[...h.cells].indexOf(cell); if(col<0) return;
+      const st=t._bbSort||{col:null,dir:'desc'};
+      if(st.col===col) st.dir=(st.dir==='desc'?'asc':'desc'); else { st.col=col; st.dir='desc'; }
+      t._bbSort=st; refresh(t); });
+    t._bbMO=new MutationObserver(()=>refresh(t)); refresh(t); }
+  const wireAll=()=>document.querySelectorAll('table').forEach(wire);
+  function syncAll(){ wireAll(); if(typeof window.bbEnsureSearch==='function') window.bbEnsureSearch(); }
+  let _raf=0;
+  const mo=new MutationObserver(()=>{ if(_raf) return; _raf=requestAnimationFrame(()=>{ _raf=0; syncAll(); }); });
+  const start=()=>{ syncAll(); if(document.body) mo.observe(document.body,{childList:true,subtree:true}); };
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',start); else start();
+})();
+(function(){
+  const MIN_ROWS=6;
+  const css='.bb-search{display:flex;justify-content:flex-start;margin:2px 0 8px;position:sticky;left:0}'
+    +'.bb-search input{font-family:inherit;font-size:12px;color:#1f2937;background:#fff;'
+    +'border:1px solid #d5dbe1;border-radius:8px;padding:6px 11px;width:230px;max-width:100%}'
+    +'.bb-search input:focus{outline:none;border-color:#9aa7b4;box-shadow:0 0 0 2px rgba(120,140,160,.18)}'
+    +'.bb-search input::placeholder{color:#94a3b8}';
+  const s=document.createElement('style'); s.textContent=css; (document.head||document.documentElement).appendChild(s);
+  const store=new WeakMap();
+  const isHeaderRow=r=>!!r.querySelector('th');
+  const isTotalRow=r=>{ const c=r.cells&&r.cells[0]; if(!c) return false;
+    if((c.textContent||'').trim().toLowerCase().startsWith('total')) return true;
+    return r.classList.contains('total')||c.classList.contains('total'); };
+  const dataRows=t=>[...t.rows].filter(r=>!isHeaderRow(r)&&!isTotalRow(r));
+  function applyFilter(t,q){ q=(q||'').trim().toLowerCase();
+    [...t.rows].forEach(r=>{ if(isHeaderRow(r)||isTotalRow(r)){ r.style.display=''; return; }
+      r.style.display=(!q||(r.textContent||'').toLowerCase().includes(q))?'':'none'; }); }
+  function ensure(t){
+    if([...t.rows].some(r=>[...r.cells].some(c=>c.colSpan>1))) return;
+    const host=t.parentElement; if(!host) return;
+    const prev=t.previousElementSibling;
+    if(prev&&prev.classList&&prev.classList.contains('bb-search')){
+      const q=store.get(host)||''; const inp=prev.querySelector('input'); if(inp&&inp.value!==q) inp.value=q;
+      applyFilter(t,q); return; }
+    if(dataRows(t).length<MIN_ROWS) return;
+    const box=document.createElement('div'); box.className='bb-search';
+    const inp=document.createElement('input'); inp.type='search'; inp.placeholder='Search table...';
+    inp.value=store.get(host)||'';
+    inp.addEventListener('input',()=>{ store.set(host,inp.value); applyFilter(t,inp.value); });
+    box.appendChild(inp); host.insertBefore(box,t);
+    applyFilter(t,inp.value);
+  }
+  window.bbEnsureSearch=()=>document.querySelectorAll('table.bb-sortable').forEach(ensure);
+  window.bbEnsureSearch();
+})();
+function destroyCharts(){ Object.values(charts).forEach(c=>{try{c.destroy()}catch(e){}}); charts={}; }
+function grainKey(d,grain){ const s=String(d).slice(0,10); if(grain==='month') return s.slice(0,7); if(grain==='day') return s; const dt=new Date(s); const day=(dt.getDay()+6)%7; dt.setDate(dt.getDate()-day); return dt.toISOString().slice(0,10); }
+function grainLabel(k,grain){ if(grain==='month') return monthLabel(k); if(grain==='day') return new Date(k).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'}); return 'wk '+new Date(k).toLocaleDateString('en-US',{day:'numeric',month:'short'}); }
+
+//==============================================================================
+// BOOT
+//==============================================================================
+async function boot(){
+  try{
+    const res=await fetch(JSON_URL,{cache:'no-store'});
+    if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
+    DATA=await res.json();
+    bbApplySpendMult();
+    activeCountries=new Set(DATA.countries||[]);
+    dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
+    rangeStart=dateMin; rangeEnd=dateMax;
+    DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
+    const h=(location.hash||'').replace('#','');
+    activeTab=['overview','creative','plan'].includes(h)?h:'overview';
+    el('loading').style.display='none'; el('content').style.display='block';
+    renderMeta(); renderControls(); renderActive();
+  }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
+}
+
+function renderMeta(){
+  const w=DATA.window||{};
+  el('topPeriod').textContent=`${dateLabel(w.start)} – ${dateLabel(w.end)}`;
+  const lu=DATA.last_updated?new Date(DATA.last_updated):null;
+  el('footMeta').innerHTML=`Schneider Electric · Liquid AI Data Center (via Transmission) · data from BigQuery (LinkedIn · The Trade Desk) · reporting currency AUD · `
+    +`Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+}
+
+//==============================================================================
+// CONTROLS
+//==============================================================================
+const TAB_LABEL={overview:'Overview', creative:'Creative', plan:'Media Plan'};
+function setTab(t){ if(!TAB_LABEL[t]) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+function setPmGrain(g){ pmGrain=g; renderActive(); }
+function setPmScale(s){ pmScale=s; renderActive(); }
+function allCountries(){ activeCountries=new Set(DATA.countries||[]); renderControls(); renderActive(); }
+function clearCountries(){ activeCountries=new Set(); renderControls(); renderActive(); }
+function toggleCountry(c){ activeCountries.has(c)?activeCountries.delete(c):activeCountries.add(c); renderControls(); renderActive(); }
+
+function renderControls(){
+  const bar=el('tabBar'); bar.innerHTML='';
+  ['overview','creative','plan'].forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
+  const mkts=activeCountries.size===(DATA.countries||[]).length?'all countries':(activeCountries.size?activeCountryList().join(' · '):'no countries');
+  el('ctrlNote').textContent = activeTab==='plan' ? 'Media plan · whole flight' : `Showing ${mkts}`;
+  el('dateGrp').style.display = activeTab==='plan' ? 'none' : 'flex';
+  el('countryGrp').style.display = activeTab==='plan' ? 'none' : 'flex';
+  const rw=el('countryChips'); rw.innerHTML='';
+  (DATA.countries||[]).forEach(c=>{ const b=document.createElement('button'); b.className='chip'+(activeCountries.has(c)?' on':''); b.innerHTML=`<span class="check">✓</span>${c}`; b.onclick=()=>toggleCountry(c); rw.appendChild(b); });
+}
+
+function renderActive(){
+  ['overview','creative','plan'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
+  destroyCharts();
+  if(activeTab==='overview') renderOverview();
+  else if(activeTab==='creative') renderCreative();
+  else renderPlan();
+  document.querySelectorAll('#pmGrainSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.grain===pmGrain));
+  document.querySelectorAll('#pmScaleSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.scale===pmScale));
+}
+
+//==============================================================================
+// OVERVIEW
+//==============================================================================
+function pmTotals(rows){ const o={imps:0,clk:0,spend:0}; rows.forEach(r=>{o.imps+=r.imps||0;o.clk+=r.clicks||0;o.spend+=r.spend_aud||0;}); return o; }
+// whole-flight, all-country delivery by channel (matches the media-plan budget, ignores filters)
+function fullByChannel(){ const o={}; (DATA.delivery||[]).forEach(r=>{ const e=o[r.platform]||(o[r.platform]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; }); return o; }
+
+function paceBar(label, actual, target, isMoney){
+  const p = target? Math.min(1.3, actual/target) : 0;
+  const fill = p>=1?'':(p>=0.7*(elapsedFrac(DATA.flight&&DATA.flight.start, DATA.flight&&DATA.flight.end)||1)?' amber':' red');
+  const tf = elapsedFrac(DATA.flight&&DATA.flight.start, DATA.flight&&DATA.flight.end);
+  const val = isMoney?money(actual):fmtN(actual);
+  const tgt = isMoney?money(target):fmtN(target);
+  return `<div class="progress-row"><div>${label}</div>
+    <div class="pbar"><div class="fill${fill}" style="width:${(Math.min(1,p)*100).toFixed(1)}%"></div>${tf!=null?`<div class="mark" style="left:${(tf*100).toFixed(1)}%"></div>`:''}</div>
+    <div>${val} / ${tgt}</div></div>`;
+}
+function renderPacing(host){
+  const flight=DATA.flight||{}; const tf=elapsedFrac(flight.start,flight.end);
+  const byCh=fullByChannel();
+  const totalSpend=Object.values(byCh).reduce((a,e)=>a+e.spend,0);
+  const totalImp=Object.values(byCh).reduce((a,e)=>a+e.imps,0);
+  const totalClk=Object.values(byCh).reduce((a,e)=>a+e.clk,0);
+  const budget=(DATA.plan&&DATA.plan.live_budget)||0;
+  const impT=(DATA.plan.channels||[]).reduce((a,c)=>a+(c.imp_target||0),0);
+  const clkT=(DATA.plan.channels||[]).reduce((a,c)=>a+(c.click_target||0),0);
+  const usedPct=pct(totalSpend,budget);
+  const paceRatio=(tf&&tf>0)?usedPct/tf:null;
+  const verdict = paceRatio==null?{cls:'warn',txt:'no flight dates'}:(paceRatio>=0.9?{cls:'ahead',txt:'On / ahead of spend pace'}:(paceRatio>=0.6?{cls:'warn',txt:'Slightly behind pace'}:{cls:'behind',txt:'Behind spend pace'}));
+  host.innerHTML=`
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+      <div style="font-size:13.5px;font-weight:700;color:var(--se-dark)">Awareness flight ${dateLabel(flight.start)} → ${dateLabel(flight.end)}</div>
+      <span class="perf ${verdict.cls}">${verdict.txt}${tf!=null?` · ${fmtPct(tf,0)} elapsed`:''}</span>
+    </div>
+    ${paceBar('Spend', totalSpend, budget, true)}
+    ${paceBar('Impressions', totalImp, impT, false)}
+    ${paceBar('Clicks', totalClk, clkT, false)}
+    <div class="prog-note">Delivered <b>${money(totalSpend)}</b> of the <b>${money(budget)}</b> live Awareness budget (<b>${fmtPct(usedPct,0)}</b>)${tf!=null?`, at <b>${fmtPct(tf,0)}</b> of the flight elapsed`:''}. The dark marker on each bar is the even-pace point for today. Budget &amp; targets are the media plan (LinkedIn + Trade Desk Awareness lines).</div>`;
+}
+
+function renderOverview(){
+  const rows=pmRows(), t=pmTotals(rows);
+  const cpm=t.imps?t.spend/t.imps*1000:0, cpc=t.clk?t.spend/t.clk:0, ctr=pct(t.clk,t.imps);
+  el('pm_spend').textContent=money(t.spend); el('pm_spend_sub').textContent=`${activeCountries.size} of ${(DATA.countries||[]).length} countries`;
+  el('pm_imp').textContent=fmtM(t.imps); el('pm_cpm').textContent=`${money(cpm,2)} CPM`;
+  el('pm_clk').textContent=fmtN(t.clk); el('pm_cpc').textContent=`${money(cpc,2)} CPC`;
+  el('pm_ctr').textContent=fmtPct(ctr,2); el('pm_ctr_sub').textContent='click-through rate';
+
+  renderPacing(el('pacing'));
+
+  // channel comparison table
+  const byPlat={}; PLATFORMS.forEach(p=>byPlat[p.key]={imps:0,clk:0,spend:0});
+  rows.forEach(r=>{ const p=byPlat[r.platform]; if(p){ p.imps+=r.imps||0; p.clk+=r.clicks||0; p.spend+=r.spend_aud||0; } });
+  const tb=el('pmPlatTable').querySelector('tbody');
+  tb.innerHTML=PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
+    + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`;
+  if(!rows.length) tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+
+  // delivery over time chart
+  const m={};
+  rows.forEach(r=>{ const k=grainKey(r.date,pmGrain); const e=m[k]||(m[k]={k,imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
+  const B=Object.values(m).sort((a,b)=>a.k<b.k?-1:1);
+  const labels=B.map(b=>grainLabel(b.k,pmGrain)), imps=B.map(b=>b.imps), clks=B.map(b=>b.clk), ctrs=B.map(b=>pct(b.clk,b.imps)*100), spends=B.map(b=>b.spend);
+  const rel=pmScale==='rel'; const impPeak=Math.max(1,...imps), clkPeak=Math.max(1,...clks), spendPeak=Math.max(1,...spends);
+  charts.pmDaily=new Chart(el('pmDaily'),{ data:{ labels, datasets:[
+    {type:'bar',label:'Spend',data:rel?spends.map(v=>v/spendPeak*100):spends,_true:spends,_money:true,backgroundColor:C.green2,yAxisID:'y',maxBarThickness:34,borderRadius:3},
+    {type:'line',label:'Impressions',data:rel?imps.map(v=>v/impPeak*100):imps,_true:imps,borderColor:'#3E6396',backgroundColor:'#3E6396',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'ySp'},
+    {type:'line',label:'Clicks',data:rel?clks.map(v=>v/clkPeak*100):clks,_true:clks,borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,tension:.3,pointRadius:2,yAxisID:rel?'y':'y1'},
+    {type:'line',label:'CTR %',data:ctrs,_true:ctrs,borderColor:C.slate,borderDash:[5,4],borderWidth:1.6,tension:.3,pointRadius:0,yAxisID:'y2'}
+  ]},
+    options:{ maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(), tooltip:{callbacks:{label:c=>{ const tv=(c.dataset._true||[])[c.dataIndex]; const l=c.dataset.label; const v=l==='CTR %'?(tv||0).toFixed(2)+'%':(c.dataset._money?money(tv):fmtN(tv)); return ` ${l}: ${v}`; }}} },
+      scales:{ x:axisX(), y:gridY(rel?{min:0,max:100,title:{display:true,text:'Index (peak=100)',color:C.mute,font:{size:11}}}:{ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
+        y1:rel?{display:false}:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:11},callback:v=>fmtM(v)}},
+        y2:{position:'right',grid:{display:false},border:{display:false},min:0,ticks:{color:C.mute,font:{size:10},callback:v=>v.toFixed(1)+'%'}},
+        ySp:rel?{display:false}:{position:'right',display:true,grid:{display:false},border:{display:false},ticks:{display:false}} } }
+  });
+  wireKpiToggles();
+
+  // spend by channel doughnut
+  const sp=PLATFORMS.filter(p=>byPlat[p.key].spend>0);
+  charts.pmSpendPlat=new Chart(el('pmSpendPlat'),{ type:'doughnut',
+    data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>byPlat[p.key].spend), backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
+    options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), bbCenter:{label:'Total spend',prefix:'A$',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} } } });
+
+  // spend by country
+  const byC={}; rows.forEach(r=>{ byC[r.country]=(byC[r.country]||0)+(r.spend_aud||0); });
+  const ck=Object.keys(byC).sort((a,b)=>byC[b]-byC[a]);
+  charts.pmSpendCountry=new Chart(el('pmSpendCountry'),{ type:'bar',
+    data:{ labels:ck, datasets:[{ label:'Spend', data:ck.map(x=>byC[x]), backgroundColor:C.green, borderRadius:4, maxBarThickness:46 }]},
+    options:{ maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${money(c.parsed.y)}`}}}, scales:{ x:axisX(), y:gridY({ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } } });
+
+  // country table
+  const byCtry={}; rows.forEach(r=>{ const e=byCtry[r.country]||(byCtry[r.country]={imps:0,clk:0,spend:0,region:r.region}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; });
+  el('pmCountryTable').querySelector('tbody').innerHTML=Object.keys(byCtry).sort((a,b)=>byCtry[b].spend-byCtry[a].spend).map(x=>{ const e=byCtry[x]; return `<tr><td>${x}</td><td>${e.region}</td><td class="num">${money(e.spend)}</td><td class="num">${fmtN(e.imps)}</td><td class="num">${fmtN(e.clk)}</td><td class="num">${fmtPct(pct(e.clk,e.imps),2)}</td><td class="num">${money(e.imps?e.spend/e.imps*1000:0,2)}</td></tr>`; }).join('')
+    + (rows.length?`<tr class="total"><td>Total</td><td></td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td></tr>`:`<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery.</td></tr>`);
+}
+
+function wireKpiToggles(){
+  const chart=charts.pmDaily; if(!chart) return;
+  document.querySelectorAll('#tab-overview .kpi.clk[data-toggle]').forEach(card=>{
+    const di=chart.data.datasets.findIndex(d=>d.label===card.dataset.toggle);
+    if(di<0) return;
+    const sync=()=>{ const vis=chart.isDatasetVisible(di); card.classList.toggle('off',!vis); card.setAttribute('aria-pressed',String(vis)); };
+    card.onclick=()=>{ chart.setDatasetVisibility(di,!chart.isDatasetVisible(di)); chart.update(); sync(); };
+    card.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); card.onclick(); } };
+    sync();
+  });
+}
+
+//==============================================================================
+// CREATIVE
+//==============================================================================
+function conceptAgg(platform){ const o={}; crRows().filter(r=>r.platform===platform).forEach(r=>{ const e=o[r.concept]||(o[r.concept]={imps:0,clk:0,spend:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0; }); return o; }
+function conceptBar(canvasId, agg){
+  const keys=Object.keys(agg).sort((a,b)=>agg[b].imps-agg[a].imps);
+  charts[canvasId]=new Chart(el(canvasId),{ data:{ labels:keys, datasets:[
+    {type:'bar',label:'Impressions',data:keys.map(k=>agg[k].imps),backgroundColor:'#3E6396',borderRadius:3,yAxisID:'y',maxBarThickness:44},
+    {type:'line',label:'Clicks',data:keys.map(k=>agg[k].clk),borderColor:'#C4902E',backgroundColor:'#C4902E',borderWidth:2,pointRadius:3,tension:.3,yAxisID:'y1'} ]},
+    options:{ maintainAspectRatio:false, plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.y)}`}}},
+      scales:{ x:axisX({ticks:{color:C.mute,font:{size:10},maxRotation:24,minRotation:0}}), y:gridY({ticks:{callback:v=>fmtM(v)}}), y1:{position:'right',grid:{display:false},border:{display:false},ticks:{color:C.mute,font:{size:10},callback:v=>fmtN(v)}} } } });
+}
+function renderCreative(){
+  const li=conceptAgg('linkedin'), ttd=conceptAgg('tradedesk');
+  if(Object.keys(li).length) conceptBar('crLiConcept', li); else el('crLiConcept').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No LinkedIn creatives in the selected countries.</div>';
+  if(Object.keys(ttd).length) conceptBar('crTtdConcept', ttd); else el('crTtdConcept').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No Trade Desk creatives in the selected countries.</div>';
+
+  // Trade Desk format mix (banner sizes)
+  const fmt={}; crRows().filter(r=>r.platform==='tradedesk').forEach(r=>{ fmt[r.format]=(fmt[r.format]||0)+(r.imps||0); });
+  const fk=Object.keys(fmt).sort((a,b)=>fmt[b]-fmt[a]);
+  if(fk.length){
+    charts.crTtdFormat=new Chart(el('crTtdFormat'),{ type:'doughnut',
+      data:{ labels:fk, datasets:[{ data:fk.map(k=>fmt[k]), backgroundColor:fk.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
+      options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:legendBottom(), bbCenter:{label:'Impressions',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)}`}} } } });
+  } else el('crTtdFormat').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No Trade Desk display data.</div>';
+
+  // best creatives by CTR (min 1000 imps), aggregated by creative_name across countries
+  const byCr={}; crRows().forEach(r=>{ const key=r.platform+'|'+r.concept+'|'+r.format; const e=byCr[key]||(byCr[key]={platform:r.platform,label:(PLAT_LABEL[r.platform]||r.platform)+' · '+r.concept+(r.format&&r.format!=='Single image'?' '+r.format:''),imps:0,clk:0}); e.imps+=r.imps||0; e.clk+=r.clicks||0; });
+  const top=Object.values(byCr).filter(e=>e.imps>=1000).map(e=>({...e,ctr:pct(e.clk,e.imps)})).sort((a,b)=>b.ctr-a.ctr).slice(0,10);
+  if(top.length){
+    charts.crTopCtr=new Chart(el('crTopCtr'),{ type:'bar',
+      data:{ labels:top.map(e=>e.label), datasets:[{ label:'CTR', data:top.map(e=>e.ctr*100), backgroundColor:top.map(e=>e.platform==='linkedin'?C.li:C.td), borderRadius:4, maxBarThickness:22 }]},
+      options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.parsed.x.toFixed(2)}% CTR · ${fmtN(top[c.dataIndex].imps)} imps`}}}, scales:{ x:gridY({ticks:{callback:v=>v.toFixed(1)+'%'}}), y:axisX({ticks:{color:C.ink,font:{size:10.5}}}) } } });
+  } else el('crTopCtr').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">Not enough impressions yet.</div>';
+
+  // creative detail table
+  const rows=crRows().slice().sort((a,b)=>(b.imps||0)-(a.imps||0));
+  el('crTable').querySelector('tbody').innerHTML = rows.length
+    ? rows.map(r=>`<tr><td><span class="pill"><span class="dot" style="background:${r.platform==='linkedin'?C.li:C.td}"></span>${PLAT_LABEL[r.platform]||r.platform}</span></td><td>${r.concept}</td><td>${r.format}</td><td>${r.country}</td><td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(pct(r.clicks,r.imps),2)}</td><td class="num">${money(r.spend_aud)}</td></tr>`).join('')
+    : `<tr><td colspan="8" style="text-align:center;color:var(--se-mute);padding:14px">No creatives in the selected countries.</td></tr>`;
+}
+
+//==============================================================================
+// MEDIA PLAN
+//==============================================================================
+function renderPlan(){
+  const plan=DATA.plan||{}, flight=DATA.flight||{};
+  const byCh=fullByChannel();
+  const spent=Object.values(byCh).reduce((a,e)=>a+e.spend,0);
+  const tf=elapsedFrac(flight.start,flight.end);
+  el('pl_live').textContent=money(plan.live_budget||0);
+  el('pl_total').textContent=money(plan.total_budget||0);
+  el('pl_spent').textContent=money(spent);
+  el('pl_spent_sub').textContent=plan.live_budget?fmtPct(pct(spent,plan.live_budget),0)+' of live budget':'';
+  el('pl_elapsed').textContent=tf!=null?fmtPct(tf,0):'-';
+  el('pl_elapsed_sub').textContent=`${dateLabel(flight.start)} → ${dateLabel(flight.end)}`;
+
+  // per-live-channel delivered vs target
+  const host=el('planPacing');
+  host.innerHTML=(plan.channels||[]).map(c=>{
+    const d=byCh[c.key]||{imps:0,clk:0,spend:0};
+    return `<div style="margin-bottom:16px">
+      <div style="font-size:13px;font-weight:700;color:var(--se-dark);margin-bottom:4px"><span class="pill"><span class="dot" style="background:${c.key==='linkedin'?C.li:C.td}"></span>${c.label}</span></div>
+      ${paceBar('Spend', d.spend, c.spend_target, true)}
+      ${paceBar('Impressions', d.imps, c.imp_target, false)}
+      ${paceBar('Clicks', d.clk, c.click_target, false)}
+    </div>`;
+  }).join('') || '<div style="color:var(--se-mute);font-size:12.5px">No live channel targets.</div>';
+
+  // full plan table
+  el('planTable').querySelector('tbody').innerHTML=(plan.lines||[]).map(p=>{
+    const live=p.live?'<span class="tag live">Live</span>':'<span class="tag plan">Planned</span>';
+    return `<tr><td>${p.channel}</td><td>${p.phase}</td><td style="max-width:260px;white-space:normal">${p.geo||'-'}</td><td class="num">${p.imp_target!=null?fmtN(p.imp_target):'-'}</td><td class="num">${p.reach_target!=null?fmtN(p.reach_target):'-'}</td><td class="num">${p.click_target!=null?fmtN(p.click_target):'-'}</td><td class="num">${p.ctr_target!=null?fmtPct(p.ctr_target,2):'-'}</td><td class="num">${money(p.spend_target)}</td><td>${live}</td></tr>`;
+  }).join('')
+   + `<tr class="total"><td>Total</td><td></td><td></td><td class="num">${fmtN((plan.lines||[]).reduce((a,p)=>a+(p.imp_target||0),0))}</td><td class="num">${fmtN((plan.lines||[]).reduce((a,p)=>a+(p.reach_target||0),0))}</td><td class="num">${fmtN((plan.lines||[]).reduce((a,p)=>a+(p.click_target||0),0))}</td><td></td><td class="num">${money(plan.total_budget||0)}</td><td></td></tr>`;
+}
+
+//==============================================================================
+// CSV export (this tab)
+//==============================================================================
+function dl(name, rows){ const csv=rows.map(r=>r.map(c=>{ const s=String(c==null?'':c); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; }).join(',')).join('\n'); const blob=new Blob([csv],{type:'text/csv'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+function exportThisTab(){
+  if(activeTab==='overview'){
+    const rows=[['platform','date','country','region','imps','clicks','spend_aud']];
+    pmRows().forEach(r=>rows.push([r.platform,r.date,r.country,r.region,r.imps,r.clicks,r.spend_aud]));
+    dl('lqai_delivery.csv',rows);
+  } else if(activeTab==='creative'){
+    const rows=[['platform','concept','format','country','imps','clicks','ctr','spend_aud']];
+    crRows().forEach(r=>rows.push([r.platform,r.concept,r.format,r.country,r.imps,r.clicks,pct(r.clicks,r.imps),r.spend_aud]));
+    dl('lqai_creative.csv',rows);
+  } else {
+    const rows=[['channel','phase','geo','flight_start','flight_end','imp_target','reach_target','click_target','ctr_target','spend_target','live']];
+    (DATA.plan.lines||[]).forEach(p=>rows.push([p.channel,p.phase,p.geo,p.flight_start,p.flight_end,p.imp_target,p.reach_target,p.click_target,p.ctr_target,p.spend_target,p.live]));
+    dl('lqai_media_plan.csv',rows);
+  }
+}
+
+//==============================================================================
+// Portal-driven "Download slides" (headless via ?bbslides=1)
+//==============================================================================
+const BB_THEME = {
+  bg:'0A3620', panel:'11402A', accent:'009530', accentInk:'FFFFFF', softBg:'EAF6EE',
+  lightBg:'FFFFFF', ink:'1F2933', mute:'6B7480', line:'E6E9ED', onDark:'FFFFFF', onDarkMute:'A7B0B8',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'Transmission', client:'Schneider Electric', brand:'TRANSMISSION × Schneider Electric · Liquid AI', filePrefix:'Schneider_LiquidAI'
+};
+const _r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
+const _r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
+function buildReportPayload(){
+  const rows=pmRows(), pt=pmTotals(rows);
+  const byCh={}; rows.forEach(r=>{ const e=byCh[r.platform]||(byCh[r.platform]={spend:0,imps:0,clicks:0}); e.spend+=r.spend_aud||0; e.imps+=r.imps||0; e.clicks+=r.clicks||0; });
+  const by_channel=Object.entries(byCh).sort((a,b)=>b[1].spend-a[1].spend).map(([k,v])=>({channel:PLAT_LABEL[k]||k, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks, cpm:_r2(v.imps?v.spend/v.imps*1000:0), cpc:_r2(v.clicks?v.spend/v.clicks:0), ctr:_r6(v.imps?v.clicks/v.imps:0)}));
+  const byC={}; rows.forEach(r=>{ const e=byC[r.country]||(byC[r.country]={spend:0,imps:0,clicks:0,region:r.region}); e.spend+=r.spend_aud||0; e.imps+=r.imps||0; e.clicks+=r.clicks||0; });
+  const by_country=Object.entries(byC).sort((a,b)=>b[1].spend-a[1].spend).map(([country,v])=>({country, region:v.region, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks, ctr:_r6(v.imps?v.clicks/v.imps:0)}));
+  const full=fullByChannel(); const fullSpend=Object.values(full).reduce((a,e)=>a+e.spend,0);
+  return {
+    client:'schneiderlqai', agency:'Transmission', generated_for:'Schneider Electric - Liquid AI Data Center', currency:'AUD',
+    context:{ campaign:'Liquid AI Data Center', campaign_key:'lqaidc', phase:'TOFU / Awareness',
+      markets:activeCountryList(), all_markets:DATA.countries||[],
+      date_filtered:false, date_filter:{start:null,end:null},
+      window:DATA.window||{}, data_through:DATA.data_through||null, last_updated:DATA.last_updated||null,
+      generated_at:new Date().toISOString() },
+    paid:{ totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0) },
+      by_channel, by_country,
+      note:'LinkedIn + The Trade Desk TOFU / Awareness delivery for the Liquid AI Data Center (liquid cooling for AI data centers). Awareness only - no leads or conversions; this is a reach + clicks + CTR story across 6 countries.' },
+    plan:{ live_budget:_r2(DATA.plan&&DATA.plan.live_budget), total_budget:_r2(DATA.plan&&DATA.plan.total_budget),
+      paid_spend:_r2(fullSpend), flight_start:DATA.flight&&DATA.flight.start, flight_end:DATA.flight&&DATA.flight.end,
+      channels:(DATA.plan&&DATA.plan.channels||[]).map(c=>({channel:c.label, imp_target:c.imp_target, click_target:c.click_target, spend_target:_r2(c.spend_target)})),
+      note:'Targets are the media plan (Awareness lines, billed budget). paid_spend is measured whole-flight, all-country delivery grossed to billed. Search / Reddit / Retargeting are planned but not yet live.' }
+  };
+}
+function buildDeckPayload(){ const _s=rangeStart, _e=rangeEnd; rangeStart=null; rangeEnd=null; try { return buildReportPayload(); } finally { rangeStart=_s; rangeEnd=_e; } }
+function bbRasterizeLogo(selector, recolor){
+  return new Promise(resolve=>{ try{
+    const src=document.querySelector(selector); if(!src){ resolve(null); return; }
+    const svg=src.cloneNode(true); svg.setAttribute('xmlns','http://www.w3.org/2000/svg');
+    if(recolor) svg.querySelectorAll('[fill]').forEach(p=>{ if((p.getAttribute('fill')||'').toLowerCase()!=='none') p.setAttribute('fill',recolor); });
+    const vb=(src.getAttribute('viewBox')||'0 0 218 64').split(/\s+/).map(Number);
+    const vbw=vb[2]||218, vbh=vb[3]||64, scale=1200/vbw, W=Math.round(vbw*scale), H=Math.round(vbh*scale);
+    svg.setAttribute('width',W); svg.setAttribute('height',H);
+    const url='data:image/svg+xml;charset=utf-8,'+encodeURIComponent(new XMLSerializer().serializeToString(svg));
+    const img=new Image();
+    img.onload=()=>{ try{ const cv=document.createElement('canvas'); cv.width=W; cv.height=H; cv.getContext('2d').drawImage(img,0,0,W,H); resolve(cv.toDataURL('image/png')); }catch(e){ resolve(null); } };
+    img.onerror=()=>resolve(null); img.src=url;
+  }catch(e){ resolve(null); } });
+}
+async function bbDeckLogos(){ return { white: await bbRasterizeLogo('.se-logo','#FFFFFF'), dark: await bbRasterizeLogo('.se-logo', null) }; }
+async function bbHeadlessSlides(){
+  try {
+    const payload=buildDeckPayload();
+    const res=await fetch('/report',{ method:'POST', cache:'no-store', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload) });
+    if(!res.ok){ let d=''; try{ d=(await res.json()).error||''; }catch(_){} throw new Error('HTTP '+res.status+(d?' - '+d:'')); }
+    const report=await res.json();
+    const logos=await bbDeckLogos();
+    const out=await bbBuildDeck(report, payload, BB_THEME, logos, { download:false });
+    try{ parent.postMessage({ __bbslides:true, status:'done', blob:out&&out.blob, fileName:out&&out.fileName, report:report, theme:BB_THEME }, location.origin); }catch(_){}
+  } catch(e){
+    try{ parent.postMessage({ __bbslides:true, status:'error', error:(e&&e.message)||String(e) }, location.origin); }catch(_){}
+  }
+}
+if (new URLSearchParams(location.search).has('bbslides')){
+  (function bbWait(){ if (typeof DATA!=='undefined' && DATA && DATA.last_updated) bbHeadlessSlides(); else setTimeout(bbWait,120); })();
+}
+
+boot();
+</script>
+</body>
+</html>

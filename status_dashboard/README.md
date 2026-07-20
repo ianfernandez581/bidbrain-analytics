@@ -58,6 +58,24 @@ Verdict:
 The headline case: when we're **caught up** and the data still looks old, the verdict is
 `transmission_stale` — *our pipeline is green, the source is what's behind.*
 
+## Source data recency — is the source current to *today*?
+
+`LAST_ALTERED` / `last_modified` say **when a table was last written**, which is not the same as **the
+newest date the data actually covers** — a table re-written this morning can still only hold rows through
+three days ago. So each client entry's `freshness` also carries, per source:
+
+- **`source_dates`** — `[{source, data_through}]`, the newest DATE present in each source
+  (`MAX(TO_DATE(DAY))` for the Snowflake tables, `MAX(metric_date)` for the BQ raw tables — `raw_neto` on
+  `date_placed`; the HubSpot snapshot has no date series and is skipped).
+- **`source_data_through`** — the freshest of those dates (a quick headline).
+
+Probed under the **same freshness gate** as the accuracy counts (recomputed only when the client's source
+advanced, else carried forward, and memoised per tick so a shared table is probed once), so an idle tick
+adds no extra warehouse resumes. The **Data Accuracy tab** renders this as a **"Source data through
+&lt;date&gt;"** strip per client with a per-source breakdown, and flags a source **red at 2+ days behind**
+the viewer's local **today** (today OR yesterday stays green — the normal 1-day ad-reporting lag). The flag
+is computed in the browser, so a carried-forward date turns red on its own the next day with no rebuild.
+
 ## BigQuery-native clients (the 100% Digital agency)
 
 The 6 clients above are **Snowflake-sourced** (Transmission's warehouse). The **100% Digital agency**

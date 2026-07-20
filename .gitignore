@@ -25,6 +25,7 @@ clients/*/data/*
 !clients/client_schneider/data/plan_budget.csv
 !clients/client_schneider/data/targets.csv
 !clients/client_schneider/data/campaign_map.csv
+!clients/client_schneiderlqai/data/media_plan.csv
 
 # Python
 __pycache__/

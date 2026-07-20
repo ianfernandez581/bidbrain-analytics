@@ -44,7 +44,11 @@ with a subtle blue top-glow. It's declared per-file in each template's `:root`, 
 editing **`templates/login.html`, `templates/admin.html`, and the `_FEEDBACK_ADMIN_HTML` string in
 `main.py`**. `templates/_status_merge.html` is SHARED with the portal and keeps its own semantic
 palette (blue = Snowflake, teal = dashboard, green = healthy/match); the admin view only overrides its
-active-tab underline to the accent. Semantic status colours (Completed = green, etc.) are kept separate
+active-tab underline to the accent. Each Data Accuracy card also shows a **"Source data through
+&lt;date&gt;"** strip — the newest DATE each source actually holds (`status.json`'s
+`source_data_through` / `source_dates`, NOT the last-modified timestamp) with a per-source breakdown,
+flagged **red at 2+ days behind** the viewer's local today (today or yesterday stays green; the flag is
+computed in the browser so a stale date turns red on its own the next day). See `status_dashboard/README.md`. Semantic status colours (Completed = green, etc.) are kept separate
 from the accent.
 
 Admin password defaults to `bidbrain-admin-2026` — override with the `ADMIN_PW` env before
