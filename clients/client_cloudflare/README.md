@@ -334,24 +334,28 @@ the CS Comparison panels still read the in-range `dailyFull`/`weekly`. **The pac
 the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (not Relative) and has
 **Month/Week only** (no Day grain) - client request 2026-07-09.
 
-### Q3 budget pacing by channel (2026-07-20)
+### Budget pacing by channel (2026-07-20)
 
 A **pacing section sits directly under the "Channel performance vs media plan benchmarks" table** on the
-Paid Media tab - one horizontal bar per paid channel (Trade Desk, LinkedIn). Each bar's **orange fill =
-billed spend to date this quarter**, a **dashed vertical marker = where spend should be today to finish
-the quarter on budget** (budget x fraction of the Q3 flight elapsed), and the figure on the right is the
+Paid Media tab - one horizontal bar **per channel, each pacing its OWN flight quarter**. Each bar's
+**orange fill = billed spend within that quarter**, a **dashed vertical marker = where spend should be
+today to finish that quarter on budget** (budget x fraction of the quarter elapsed; a *complete* quarter
+pins the marker at 100%, so the bar reads as final delivery vs budget), and the figure on the right is the
 **$ gap to pace** (behind / on / ahead). Frontend-only (`renderPacing()` + the `.pace-*` CSS in
 `dash/dashboard.html`) - no data-contract or job change; it reads the existing `paid_media.rows[]`.
 
-- **Paces Q3 only** (`PACING_FLIGHT` = `2026-07-01 → 2026-09-30`, "today" = the browser clock clamped to
-  the flight). Q2 is complete, so pacing it is meaningless; the section is deliberately **independent of
-  the date-range picker and market chips** (whole-quarter, all-market) - filtering the dashboard does not
-  move it.
-- **Budgets are a hardcoded editable knob** `PACING_BUDGET` in `dash/dashboard.html` (same pattern as
-  mongodb's `MARGIN_TARGET` / the `CF1_CS_TARGET`). Seeded from the Q3 media-plan platform budgets in
-  `targets/real_targets Q3.csv` ("Program total (APAC + JP)"): **Trade Desk $47,624.56, LinkedIn
-  $61,022.44**. These are NOT in the pipeline - to change them, edit the const and redeploy the dash
-  service (no job/view rebuild). Reddit is $0 in Q3 (dropped), so it's omitted.
+- **Per-channel quarter.** `TTD` / `LinkedIn` pace **Q3** (in progress); `Reddit` / `LINE` ran ONLY in
+  **Q2** (now complete, marker at 100%). "today" = the browser clock clamped to the flight. The section is
+  deliberately **independent of the date-range picker and market chips** (whole-quarter, all-market) -
+  filtering the dashboard does not move it.
+- **Budgets are a hardcoded editable knob** `PACING_BUDGET` (+ `PACING_FLIGHTS`) in `dash/dashboard.html`
+  (same pattern as mongodb's `MARGIN_TARGET` / the `CF1_CS_TARGET`); NOT in the pipeline - edit the const
+  and redeploy the dash service (no job/view rebuild).
+  - **TTD $47,624.56 / LinkedIn $61,022.44** - Q3 media-plan platform budgets from
+    `targets/real_targets Q3.csv` ("Program total (APAC + JP)").
+  - **Reddit / LINE use `useActual:true`** - Q2 has no committed spend budget in the repo, so their budget
+    IS their actual Q2 spend (bar reads exactly 100% delivered, $0 gap - a placeholder). Swap `useActual`
+    for a `budget` number once real Q2 budgets are known. (Reddit is $0 in Q3, LINE isn't a Q3 platform.)
 - **Multiplier-aware:** the budget is grossed by the same per-channel client-billed spend multiplier as
   spend (`bbMultFor`), so the pacing % is invariant to raw (direct) vs billed (front-door) access - it
   reconciles with the (also-grossed) spend column in the table above it.

@@ -183,6 +183,7 @@
   .pace-row{display:grid;grid-template-columns:150px 1fr 150px;align-items:center;gap:18px;padding:15px 0;border-top:1px solid var(--cf-line)}
   .pace-row:first-child{border-top:none}
   .pace-ch{display:flex;flex-direction:column;gap:6px;align-items:flex-start}
+  .pace-q{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.5px;color:var(--cf-mute);border:1px solid var(--cf-line);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle}
   .pace-bar{height:22px;background:#F0F4F8;border-radius:6px;position:relative}
   .pace-bar .pfill{height:100%;background:var(--cf-orange);border-radius:6px 0 0 6px}
   .pace-bar .pfill.full{border-radius:6px}
@@ -766,8 +767,8 @@
         </div>
 
         <div class="section" style="margin-top:18px">
-          <h2>Q3 budget pacing by channel</h2>
-          <span class="sub">Billed spend to date vs the Q3 media-plan budget (1 Jul - 30 Sep). The <b>dashed marker</b> is where spend should be today to finish on budget; the figure on the right is the <b>$ gap to pace</b>. Whole-quarter, all-market - not affected by the date or market filters.</span>
+          <h2>Budget pacing by channel</h2>
+          <span class="sub">Billed spend vs each channel's media-plan budget for its flight quarter (TTD/LinkedIn = Q3, in progress; Reddit/LINE = Q2, complete). The <b>dashed marker</b> is where spend should be to finish that quarter on budget; the figure on the right is the <b>$ gap to pace</b>. Whole-quarter, all-market - not affected by the date or market filters.</span>
         </div>
 
         <div class="card">
@@ -1229,17 +1230,27 @@ const QUARTERS = { Q2:{start:'2026-04-01', end:'2026-06-30'},
                    Q3:{start:'2026-07-01', end:'2026-09-30'} };
 let selQuarters = new Set(['Q2']);           // default view = Q2 (client request 2026-07-09)
 
-// ---- Q3 budget pacing (channel spend vs on-pace marker) ---------------------
-// Full-quarter media-plan platform budgets from `targets/real_targets Q3.csv`
-// ("Program total (APAC + JP)"). EDITABLE knobs - change the numbers here to move
-// the pacing bars. Budget is grossed by the same client-billed spend multiplier as
-// spend (bbMultFor) so pacing holds in BOTH raw (direct) and billed (front-door)
-// views. Flight = Q3 (independent of the date/market filters); the "on-pace" marker
-// = budget x fraction of the flight elapsed today. See renderPacing().
-const PACING_FLIGHT = { start:'2026-07-01', end:'2026-09-30' };
-const PACING_BUDGET = {   // channel -> {label, pill class, multiplier key, full-flight budget USD}
-  TTD:      { label:'Trade Desk', pill:'cf', multKey:'ttd',      budget:47624.56 },
-  LinkedIn: { label:'LinkedIn',   pill:'li', multKey:'linkedin', budget:61022.44 },
+// ---- Budget pacing (per-channel spend vs on-pace marker) --------------------
+// Each channel paces its OWN flight quarter. EDITABLE knobs - change the budgets
+// (or a channel's quarter) here to move the bars. Budget is grossed by the same
+// client-billed spend multiplier as spend (bbMultFor) so pacing holds in BOTH raw
+// (direct) and billed (front-door) views. The section is independent of the date/
+// market filters (whole-quarter, all-market); the "on-pace" marker = budget x the
+// fraction of that channel's flight quarter elapsed today (a COMPLETE quarter pins
+// the marker at 100%, so the bar reads as final delivery vs budget). See renderPacing().
+//   - TTD / LinkedIn pace Q3 (in progress) against the media-plan platform budgets
+//     from `targets/real_targets Q3.csv` ("Program total (APAC + JP)").
+//   - Reddit / LINE ran ONLY in Q2 (now complete) and Q2 has no committed spend
+//     budget in the repo, so they use `useActual:true` = budget IS the actual Q2 spend
+//     (bar reads exactly 100% delivered, $0 gap - a placeholder until real Q2 budgets
+//     land; swap `useActual` for a `budget` number then).
+const PACING_FLIGHTS = { Q2:{start:'2026-04-01', end:'2026-06-30'},
+                         Q3:{start:'2026-07-01', end:'2026-09-30'} };
+const PACING_BUDGET = {   // channel -> {label, pill class, multiplier key, flight quarter, budget USD | useActual}
+  TTD:      { label:'Trade Desk', pill:'cf', multKey:'ttd',      quarter:'Q3', budget:47624.56 },
+  LinkedIn: { label:'LinkedIn',   pill:'li', multKey:'linkedin', quarter:'Q3', budget:61022.44 },
+  Reddit:   { label:'Reddit',     pill:'rd', multKey:'reddit',   quarter:'Q2', useActual:true },  // no committed Q2 budget -> pace vs actual spend
+  LINE:     { label:'LINE',       pill:'ln', multKey:'line',     quarter:'Q2', useActual:true },  // no committed Q2 budget -> pace vs actual spend
 };
 
 // [startISO,endISO] spanning the given quarter keys, clamped to the loaded data
@@ -3184,59 +3195,67 @@ function renderBenchmarkTable() {
   </tr>`);
 }
 
-// Q3 budget pacing: one horizontal bar per channel under the benchmark table.
-// Orange fill = billed spend to date this quarter (ALL markets, whole Q3 - deliberately
-// independent of the date/market filters, since it paces the full quarter budget). The
-// dashed marker sits at the fraction of the Q3 flight elapsed today = where spend should be
-// to finish on budget. The risk figure on the right is the $ gap (spent - on-pace spend):
-// behind = under-pacing (budget at risk), ahead = over-pacing. Budget is grossed by the same
-// per-channel billed-spend multiplier as the spend rows (bbMultFor) so pacing % is invariant
-// to raw-vs-billed access. Config = PACING_FLIGHT + PACING_BUDGET.
+// Budget pacing: one horizontal bar per channel under the benchmark table. Orange fill =
+// billed spend within that channel's flight quarter (ALL markets - deliberately independent
+// of the date/market filters, since it paces the full quarter budget). The dashed marker sits
+// at the fraction of that quarter elapsed today = where spend should be to finish on budget (a
+// COMPLETE quarter pins it at 100%, so the bar reads final delivery vs budget). The risk figure
+// on the right is the $ gap (spent - on-pace spend): behind = under-pacing (budget at risk),
+// ahead = over-pacing. Budget is grossed by the same per-channel billed-spend multiplier as the
+// spend rows (bbMultFor) so pacing % is invariant to raw-vs-billed access. Each channel's quarter
+// + budget come from PACING_BUDGET; the flight spans from PACING_FLIGHTS.
 function renderPacing() {
   const host = document.getElementById('pacingRows');
   if (!host) return;
-  const fstart = new Date(PACING_FLIGHT.start + 'T00:00:00Z');
-  const fend   = new Date(PACING_FLIGHT.end   + 'T23:59:59Z');
-  const span   = fend - fstart;
-  // Fraction of the flight elapsed today (0..1); pre-flight clamps to 0, post-flight to 1.
-  const elapsed = span > 0 ? Math.min(1, Math.max(0, (Date.now() - fstart) / span)) : 0;
-
-  // Billed spend within the Q3 window, per channel (all markets; UI filters ignored).
-  const inQ3 = d => d >= PACING_FLIGHT.start && d <= PACING_FLIGHT.end;
-  const spendOf = rows => {
-    let s = 0;
-    for (const r of (rows || [])) if (inQ3(String(r.date || '').slice(0, 10))) s += r.spend || 0;
-    return s;
+  const rowsFor = {
+    TTD: PAYLOAD.ttd_market_day, LinkedIn: PAYLOAD.li_market_day,
+    Reddit: PAYLOAD.rd_market_day, LINE: PAYLOAD.line_market_day,
   };
-  const spent = { TTD: spendOf(PAYLOAD.ttd_market_day), LinkedIn: spendOf(PAYLOAD.li_market_day) };
-
+  const now = Date.now();
   host.innerHTML = '';
   Object.keys(PACING_BUDGET).forEach(ch => {
-    const cfg    = PACING_BUDGET[ch];
-    const budget = cfg.budget * bbMultFor(cfg.multKey);   // gross to billed basis, matching spend
+    const cfg = PACING_BUDGET[ch];
+    const fl  = PACING_FLIGHTS[cfg.quarter];
+    if (!fl) return;
+    const fstart = new Date(fl.start + 'T00:00:00Z');
+    const fend   = new Date(fl.end   + 'T23:59:59Z');
+    const span   = fend - fstart;
+    // Fraction of THIS channel's flight quarter elapsed today (0..1); pre-flight = 0, post = 1.
+    const elapsed  = span > 0 ? Math.min(1, Math.max(0, (now - fstart) / span)) : 0;
+    const complete = elapsed >= 1;
+    let sp = 0;                                           // billed spend within the flight quarter
+    for (const r of (rowsFor[ch] || [])) {
+      const d = String(r.date || '').slice(0, 10);
+      if (d >= fl.start && d <= fl.end) sp += r.spend || 0;
+    }
+    // Budget: an explicit media-plan figure (grossed to the billed basis, matching spend), or -
+    // for a channel with no committed budget - the actual spend itself (useActual => exactly 100%).
+    const budget = cfg.useActual ? sp : cfg.budget * bbMultFor(cfg.multKey);
     if (!(budget > 0)) return;
-    const sp       = spent[ch] || 0;
-    const expected = budget * elapsed;                    // on-pace spend for today
-    const gap      = sp - expected;                       // + ahead / over-pacing, - behind / under-pacing
+    const expected = budget * elapsed;                   // on-pace spend for today
+    const gap      = sp - expected;                      // + ahead / over-pacing, - behind / under-pacing
     const spentPct = (sp / budget) * 100;
     const fillPct  = Math.min(100, Math.max(0, spentPct));
     const markPct  = elapsed * 100;
     const over     = spentPct > 100;
-    const tol      = budget * 0.02;                       // within 2% of budget of the marker = "on pace"
+    const tol      = budget * 0.02;                      // within 2% of budget of the marker = "on pace"
     const dir      = Math.abs(gap) <= tol ? 'on' : (gap < 0 ? 'behind' : 'ahead');
     const riskLbl  = dir === 'on' ? 'on pace' : (dir === 'behind' ? 'behind pace' : 'ahead of pace');
+    const cap2     = complete
+      ? `${spentPct.toFixed(0)}% of budget spent · ${cfg.quarter} flight complete`
+      : `${spentPct.toFixed(0)}% of budget spent · on-pace today ${markPct.toFixed(0)}% (${fmt$(expected)})`;
     host.insertAdjacentHTML('beforeend', `
       <div class="pace-row">
         <div class="pace-ch">
-          <span class="pill ${cfg.pill}">${cfg.label}</span>
+          <span><span class="pill ${cfg.pill}">${cfg.label}</span><span class="pace-q">${cfg.quarter}</span></span>
           <span class="pace-cap">${fmt$(sp)} of ${fmt$(budget)}</span>
         </div>
         <div>
           <div class="pace-bar">
             <div class="pfill ${over ? 'surplus full' : (fillPct >= 100 ? 'full' : '')}" style="width:${fillPct}%"></div>
-            <div class="pace-marker" style="left:${markPct}%" title="On pace for today: ${fmt$(expected)}"></div>
+            <div class="pace-marker" style="left:${markPct}%" title="On pace: ${fmt$(expected)}"></div>
           </div>
-          <div class="pace-cap" style="margin-top:5px">${spentPct.toFixed(0)}% of budget spent · on-pace today ${markPct.toFixed(0)}% (${fmt$(expected)})</div>
+          <div class="pace-cap" style="margin-top:5px">${cap2}</div>
         </div>
         <div class="pace-risk ${dir}">
           <div class="amt">${fmt$(Math.abs(gap))}</div>
