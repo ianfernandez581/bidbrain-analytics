@@ -466,8 +466,11 @@ if ($NoDeploy) {
     # Validate the gcloud token UP FRONT (not just that an account is configured) -- an
     # expired token only fails deep inside the build, after main is already landed. Print-
     # access-token is a cheap, side-effect-free probe that fails fast if reauth is needed.
+    # --quiet: under org session control this probe must NEVER pop an in-terminal reauth
+    # password prompt -- it fails cleanly instead, and we tell you to `gcloud auth login`
+    # (browser) below rather than hanging on a masked terminal prompt.
     $acct = (gcloud config get-value account 2>$null)
-    $null = gcloud auth print-access-token 2>$null
+    $null = gcloud auth print-access-token --quiet 2>$null
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acct) -or $acct -eq '(unset)') {
         Write-Host "[ERROR] gcloud is not authenticated (account='$acct', token invalid)." -ForegroundColor Red
         Write-Host "        main is already landed ($(git rev-parse --short HEAD)) -- nothing was deployed yet." -ForegroundColor Yellow

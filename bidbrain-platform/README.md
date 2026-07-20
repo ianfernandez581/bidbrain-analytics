@@ -239,20 +239,27 @@ domain, but the cookie path would only take over if each *dashboard* got its own
 subdomain too (then you'd switch the registry URLs to `https://<c>.<domain>/`) — today they don't, so it
 stays dormant.
 
-### Tools group — the Pacing Grid (internal, staff-only, org-private proxied)
+### Tools group — The Grid (Central) (internal, staff-only, org-private proxied)
 A **Tools** group (config `TOOLS`, separate from `CLIENTS`/`AGENCIES`) surfaces internal apps that are
-NOT client dashboards. First entry: the **Pacing Grid** (the standalone `pacing-grid` Cloud Run service,
-its own repo at `C:\Users\DELL\pacing-site`) at **`/d/pacing/`** — live pacing/margin-at-risk across every
-client. It renders as a tile on the **admin tree + super-admin console only** (`{% if tools %}`), and
-`_may_open` gates it to **superadmin/admin** — never agency/client, since it exposes cross-client margins.
-Two things differ from a normal dashboard, both keyed on `client in config.TOOLS` (so the 10 real
-dashboards proxy byte-for-byte unchanged): (1) `_upstream_base` falls back to `TOOLS` (registry-free — no
-`--force` re-seed needed); (2) `pacing-grid` is **org-private** (DRS policy forbids `allUsers`), so
-`_tool_headers` mints an **IAM ID token** (platform SA has `run.invoker`) and adds it as a Bearer header on
-the login + every forward — on top of the normal form-login (secret `pacing-dash-password`). The Grid
-conforms to the proxy contract (form `POST /login`, data at `/data.json`). One-time standup: create secret
-`pacing-dash-password`; grant platform SA `secretAccessor` + `run.invoker` on `pacing-grid` and the grid's
-runtime SA `secretAccessor`; redeploy `pacing-grid` with `--update-secrets PACING_PW=pacing-dash-password:latest`.
+NOT client dashboards. The single entry is **The Grid (Central)** — the `grid-core` app
+(`the-grid.html`: Pulse/Brain/Central/Register/Dashboards) on its own `central-grid` Cloud Run service —
+at **`/d/central/`**, live pacing/margin-at-risk across every client. (The older `pacing`/pacing-grid
+tile was **retired 2026-07-20**; Central supersedes it. Its repo `C:\Users\DELL\pacing-site` + the
+`pacing-grid` service still exist but are no longer surfaced here.) It renders as a tile on the
+**super-admin console only** (`{% if tools %}`; the admin tree intentionally omits it), and `_may_open`
+gates it to **superadmin/admin** — never agency/client, since it exposes cross-client margins. Two things
+differ from a normal dashboard, both keyed on `client in config.TOOLS` (so the 10 real dashboards proxy
+byte-for-byte unchanged): (1) `_upstream_base` falls back to `TOOLS` (registry-free — no `--force`
+re-seed needed); (2) `central-grid` is **org-private** (DRS policy forbids `allUsers`), so `_tool_headers`
+mints an **IAM ID token** (platform SA has `run.invoker`) and adds it as a Bearer header on the login +
+every forward — on top of the normal form-login (secret `central-dash-password`). The tile's **Sync now**
+/ **Last synced** drive Central's OWN sync directly through the proxy — `POST /d/central/api/central/sync`
+(BQ metric overlay; Central does not auto-sync by default) and `GET /d/central/api/central/sync/status`
+(returns `{lastRun:{at}}`) — so there is no platform-side sync endpoint; the proxy gives
+`api/central/sync` a 300s timeout (`_forward`) since it scans BigQuery across every client. One-time
+standup: create secret `central-dash-password`; grant platform SA `secretAccessor` + `run.invoker` on
+`central-grid` and the grid's runtime SA `secretAccessor`; redeploy `central-grid` with
+`--update-secrets` for its password.
 
 ## (Future) cookie-based SSO once a domain exists
 The dashboards were already built for this: each sets `SESSION_COOKIE_SAMESITE=None; Secure`, but
