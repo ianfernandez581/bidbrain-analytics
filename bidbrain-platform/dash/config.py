@@ -220,18 +220,13 @@ UNASSIGNED_CLIENTS = ["hireright"]
 
 # --- internal tools (NOT client dashboards) -----------------------------------------------
 # Shown in a "Tools" group visible ONLY to superadmin + admin (internal 100% Digital staff),
-# never to an agency/single-client login — the Pacing Grid exposes cross-CLIENT margins.
-# The pacing-grid Cloud Run service is ORG-PRIVATE (DRS policy forbids allUsers), so the proxy
-# sends an IAM Bearer token (see main.py _tool_headers) ON TOP OF the normal form-login. Its
-# password mirrors Secret Manager `pacing-dash-password` (read by _upstream_pw), like any <c>-dash.
+# never to an agency/single-client login — the Grid exposes cross-CLIENT margins.
+# The Grid (Central) is the grid-core app (the-grid.html Pulse/Brain/Central/Register/Dashboards).
+# Its org-private Cloud Run service `central-grid` (DRS policy forbids allUsers) is proxied with an
+# IAM Bearer token (see main.py _tool_headers) ON TOP OF the normal form-login; its password mirrors
+# Secret Manager `central-dash-password` (read by _upstream_pw), like any <c>-dash. Staff-only via
+# _may_open. (The older `pacing`/pacing-grid tile was retired 2026-07-20 — Central supersedes it.)
 TOOLS = {
-    "pacing": {
-        "name": "The Grid", "slug": "pacing-grid", "status": "active",
-        "url": "https://pacing-grid-p32gk2wuia-ts.a.run.app/",
-    },
-    # The Grid + Central (grid-core app: the-grid.html Pulse/Brain/Central/Register/Dashboards).
-    # Own org-private Cloud Run service `central-grid`; same IAM-Bearer + form-login contract as
-    # pacing (password mirrors Secret Manager `central-dash-password`). Staff-only via _may_open.
     "central": {
         "name": "The Grid (Central)", "slug": "central-grid", "status": "active",
         "url": "https://central-grid-p32gk2wuia-ts.a.run.app/",

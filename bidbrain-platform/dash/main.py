@@ -1135,51 +1135,11 @@ def _render_super():
                            tools=_tools_tiles(), **st)
 
 
-# --- Tools tile: The Grid freshness + on-demand sync (superadmin/admin only) --------------
-# "Last synced" = the mtime of the daily-refreshed GCS snapshot the Grid serves on open; "Sync now"
-# triggers the Grid's /refresh (regenerate that snapshot from live BigQuery). Same run.invoker the
-# proxy already has (_tool_headers) + a shared REFRESH_TOKEN (secret pacing-refresh-token).
-PACING_SNAP_BUCKET = os.environ.get("PACING_SNAP_BUCKET", "bidbrain-analytics-pacing-grid")
-
-
-def _pacing_refresh_token():
-    from google.cloud import secretmanager
-    sm = secretmanager.SecretManagerServiceClient()
-    name = f"projects/{PROJECT}/secrets/pacing-refresh-token/versions/latest"
-    return sm.access_secret_version(name=name).payload.data.decode().strip()
-
-
-@app.get("/tools/pacing/status")
-def tools_pacing_status():
-    if session.get("kind") not in ("superadmin", "admin"):
-        abort(403)
-    try:
-        import google.auth
-        import google.auth.transport.requests as gart
-        creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/devstorage.read_only"])
-        creds.refresh(gart.Request())
-        r = requests.get(f"https://storage.googleapis.com/storage/v1/b/{PACING_SNAP_BUCKET}/o/snapshot.json",
-                         headers={"Authorization": f"Bearer {creds.token}"}, timeout=15)
-        return jsonify(ok=r.ok, updated=(r.json().get("updated") if r.ok else None))
-    except Exception as e:
-        return jsonify(ok=False, updated=None, error=str(e)[:200])
-
-
-@app.post("/tools/pacing/sync")
-def tools_pacing_sync():
-    if session.get("kind") not in ("superadmin", "admin"):
-        abort(403)
-    base = _upstream_base("pacing")
-    if not base:
-        return jsonify(ok=False, error="The Grid is not configured."), 400
-    try:
-        hdrs = _tool_headers("pacing")            # IAM Bearer for the org-private service
-        hdrs["X-Refresh-Token"] = _pacing_refresh_token()
-        r = requests.post(f"{base}/refresh", headers=hdrs, timeout=180)
-        j = r.json() if "application/json" in r.headers.get("Content-Type", "") else {}
-        return jsonify(ok=r.ok, result=(j if isinstance(j, dict) else {})), (200 if r.ok else 502)
-    except Exception as e:
-        return jsonify(ok=False, error=str(e)[:200]), 502
+# --- Tools tile: The Grid (Central) freshness + on-demand sync -----------------------------
+# The tile's "Sync now"/"Last synced" now drive Central's OWN sync directly through the proxy
+# (/d/central/api/central/sync[/status], see _tools_tile.html), so there is no platform-side
+# pacing sync endpoint anymore — the older pacing-grid tile + its /tools/pacing/* routes were
+# retired 2026-07-20 when Central superseded it.
 
 
 @app.get("/admin")
@@ -1685,8 +1645,9 @@ def _may_open(client):
 def _forward(client, subpath, cookies):
     url = f"{_upstream_base(client)}/{subpath}"
     # /report runs a live LLM (web research + structuring, or the Gemini fallback) and can take a
-    # minute-plus to generate a cold (uncached) view; every other route is a fast static/JSON fetch.
-    timeout = 600 if subpath == "report" else 30
+    # minute-plus to generate a cold (uncached) view; The Grid (Central)'s /api/central/sync scans
+    # BigQuery across every client and can run well past 30s; every other route is a fast fetch.
+    timeout = 600 if subpath == "report" else (300 if subpath == "api/central/sync" else 30)
     hdrs = _tool_headers(client)                             # {} for normal dashboards (unchanged)
     if request.method == "POST":
         return requests.post(url, data=request.get_data(), params=request.args, cookies=cookies,

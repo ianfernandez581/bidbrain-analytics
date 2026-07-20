@@ -13,6 +13,16 @@
 # token for the wrong account 403s everything, and checking only "is there a token"
 # missed exactly that.
 #
+# AUTH IS BROWSER-ONLY. Org session control makes a bare gcloud command that needs to
+# refresh an expired credential pop an in-terminal reauth challenge
+# ("Please enter your password:", masked -- so it looks like you can't type). We AVOID
+# that two ways: (1) every credential PROBE below runs with --quiet, so instead of
+# prompting in the terminal it fails cleanly; (2) the re-auth uses
+# `gcloud auth login --launch-browser --force` -- the --force is ESSENTIAL: without it
+# gcloud sees the account already has (session-expired) creds and takes the in-terminal
+# REAUTH shortcut (that password prompt) instead of the browser. --force re-runs the
+# FULL browser web flow every time, so you re-authenticate in the browser, never here.
+#
 # After the creds pass, it runs /go (push-branch.ps1 -> merge-branches.ps1):
 # pushes your work to your dev branch, integrates EVERY dev branch, deploys the
 # changed services, and fast-forwards your local main to origin/main -- so every
@@ -45,7 +55,9 @@ $PY = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe"
 # gcloud has no "print ADC account", so we ask Google's userinfo endpoint with the token
 # (ADC login always carries the userinfo.email scope). Returns $null if no/unverifiable token.
 function Get-AdcEmail {
-    $t = gcloud auth application-default print-access-token 2>$null
+    # --quiet: never let an expired session-controlled ADC pop a terminal reauth
+    # password prompt -- fail cleanly instead; the caller re-auths via the browser.
+    $t = gcloud auth application-default print-access-token --quiet 2>$null
     if (-not $t) { return $null }
     try {
         $info = Invoke-RestMethod -Uri "https://www.googleapis.com/oauth2/v3/userinfo" `
@@ -75,7 +87,7 @@ if ($active -ne $WANT_ACCOUNT) {
         gcloud config set account $WANT_ACCOUNT 2>$null | Out-Null
     } else {
         Write-Host "[!] $WANT_ACCOUNT is not logged in - opening browser (sign in as $WANT_ACCOUNT)." -ForegroundColor Yellow
-        gcloud auth login $WANT_ACCOUNT
+        gcloud auth login $WANT_ACCOUNT --launch-browser --force
         gcloud config set account $WANT_ACCOUNT 2>$null | Out-Null
     }
     $active = "$(gcloud config get-value account 2>$null)".Trim()
@@ -89,10 +101,10 @@ if ($active -eq $WANT_ACCOUNT) {
 
 # 2b. That account's token must be valid (org enforces periodic reauth).
 Write-Host "[*] Checking gcloud CLI credentials..." -ForegroundColor Yellow
-$cliToken = gcloud auth print-access-token 2>$null
+$cliToken = gcloud auth print-access-token --quiet 2>$null
 if (-not $cliToken) {
     Write-Host "[!] gcloud CLI needs reauth (org session policy). Opening browser (sign in as $WANT_ACCOUNT)..." -ForegroundColor Yellow
-    gcloud auth login $WANT_ACCOUNT
+    gcloud auth login $WANT_ACCOUNT --launch-browser --force
 } else {
     Write-Host "[OK] gcloud CLI credentials valid." -ForegroundColor Green
 }
@@ -110,13 +122,13 @@ Write-Host "[*] Checking application-default credentials (token + identity)..." 
 $adcEmail = Get-AdcEmail
 if (-not $adcEmail) {
     Write-Host "[!] ADC missing/expired - opening browser (sign in as $WANT_ACCOUNT)." -ForegroundColor Yellow
-    gcloud auth application-default login | Out-Null
+    gcloud auth application-default login --launch-browser | Out-Null
     $adcEmail = Get-AdcEmail
 }
 if ($adcEmail -and $adcEmail -ne $WANT_ACCOUNT) {
     Write-Host "[!] ADC is logged in as '$adcEmail', not $WANT_ACCOUNT." -ForegroundColor Yellow
     Write-Host "    Re-running ADC login - in the browser, pick $WANT_ACCOUNT (NOT the agora account)." -ForegroundColor Yellow
-    gcloud auth application-default login | Out-Null
+    gcloud auth application-default login --launch-browser | Out-Null
     $adcEmail = Get-AdcEmail
 }
 if ($adcEmail -eq $WANT_ACCOUNT) {
@@ -134,7 +146,7 @@ Write-Host "[OK] ADC quota project = $PROJECT" -ForegroundColor Green
 # 6. Verify the loaders can read the Windsor key (the exact op they do first).
 #    Captured to $null so the secret never prints to screen.
 Write-Host "[*] Checking Secret Manager (windsor-api-key)..." -ForegroundColor Yellow
-$null = gcloud secrets versions access latest --secret windsor-api-key --project $PROJECT 2>$null
+$null = gcloud secrets versions access latest --secret windsor-api-key --project $PROJECT --quiet 2>$null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] Windsor key readable - loaders can authenticate." -ForegroundColor Green
 } else {
@@ -145,7 +157,7 @@ if ($LASTEXITCODE -eq 0) {
 # 6b. Verify the GLM launcher can read the shared key (so a launch doesn't fail
 #     mid-task). Captured to $null so the secret never prints.
 Write-Host "[*] Checking Secret Manager (glm-api-key for GLM launcher)..." -ForegroundColor Yellow
-$null = gcloud secrets versions access latest --secret glm-api-key --project $PROJECT 2>$null
+$null = gcloud secrets versions access latest --secret glm-api-key --project $PROJECT --quiet 2>$null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "[OK] glm-api-key readable - GLM launcher ready." -ForegroundColor Green
 } else {

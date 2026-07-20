@@ -1,16 +1,18 @@
 {% if tools %}
-{# The Grid tile — card styled to match the Access-Keys cards (var(--panel)/--border, 14px radius).
-   No section header of its own: each page supplies one (super-admin .shead / admin label) so it's
-   not duplicated. Open + Sync-now (POST /tools/pacing/sync) + "Last synced" (GET /tools/pacing/status). #}
+{# Internal-tools tile — card styled to match the Access-Keys cards (var(--panel)/--border, 14px
+   radius). No section header of its own: the super-admin console supplies one (.shead) so it's not
+   duplicated. Open + Sync-now + "Last synced" drive the tool's OWN sync THROUGH THE PROXY
+   (/d/<key>/api/central/sync[/status]) — The Grid (Central) syncs its BQ metric overlay on demand
+   (it does not auto-sync by default), and its status endpoint returns {lastRun:{at}}. #}
 <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px">
   {% for t in tools %}
-  <div style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 18px 16px">
+  <div data-tool="{{ t.key }}" style="background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 18px 16px">
     <div style="font-size:14.5px;font-weight:700;margin:0 0 2px">{{ t.name }}</div>
-    <div style="font-size:12px;color:var(--muted);margin:0 0 14px">Live pacing across every client — margin at risk, over/under delivery.</div>
+    <div style="font-size:12px;color:var(--muted);margin:0 0 14px">Live pacing across every client - margin at risk, over/under delivery.</div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <a class="btn primary" href="/d/{{ t.key }}/" target="_blank" rel="noopener">Open {{ t.name }} →</a>
-      <button class="btn" data-pacing-sync type="button" title="Pull the latest numbers from BigQuery into the Grid now">↻ Sync now</button>
-      <span data-pacing-synced style="font-size:12px;color:var(--muted);white-space:nowrap">checking…</span>
+      <button class="btn" data-tool-sync type="button" title="Pull the latest numbers from BigQuery into the Grid now">↻ Sync now</button>
+      <span data-tool-synced style="font-size:12px;color:var(--muted);white-space:nowrap">checking…</span>
     </div>
   </div>
   {% endfor %}
@@ -25,29 +27,33 @@
     if (s < 172800) return Math.round(s / 3600) + " h ago";
     return Math.round(s / 86400) + " d ago";
   }
-  function loadStatus() {
-    fetch("/tools/pacing/status").then(function (r) { return r.json(); }).then(function (j) {
-      document.querySelectorAll("[data-pacing-synced]").forEach(function (el) {
-        el.textContent = "Last synced " + rel(j && j.updated);
-        el.title = (j && j.updated) ? new Date(j.updated).toLocaleString() : "";
-      });
-    }).catch(function () {});
+  function loadStatus(card) {
+    var key = card.getAttribute("data-tool");
+    var el = card.querySelector("[data-tool-synced]");
+    fetch("/d/" + key + "/api/central/sync/status").then(function (r) { return r.json(); }).then(function (j) {
+      var at = j && j.lastRun && j.lastRun.at;
+      el.textContent = "Last synced " + rel(at);
+      el.title = at ? new Date(at).toLocaleString() : "";
+    }).catch(function () { el.textContent = ""; });
   }
-  document.querySelectorAll("[data-pacing-sync]").forEach(function (btn) {
-    btn.addEventListener("click", function () {
+  document.querySelectorAll("[data-tool]").forEach(function (card) {
+    var key = card.getAttribute("data-tool");
+    var btn = card.querySelector("[data-tool-sync]");
+    if (btn) btn.addEventListener("click", function () {
       btn.disabled = true; var t = btn.textContent; btn.textContent = "Syncing…";
-      fetch("/tools/pacing/sync", { method: "POST", headers: { "Content-Length": "0" } })
-        .then(function (r) { return r.json(); }).then(function (j) {
-          btn.textContent = (j && j.ok) ? "✓ Synced" : "Sync failed";
-          loadStatus();
+      fetch("/d/" + key + "/api/central/sync", { method: "POST", headers: { "Content-Length": "0" } })
+        .then(function (r) { return r.ok; })
+        .then(function (ok) {
+          btn.textContent = ok ? "✓ Synced" : "Sync failed";
+          loadStatus(card);
           setTimeout(function () { btn.textContent = t; btn.disabled = false; }, 3000);
         }).catch(function () {
           btn.textContent = "Sync failed";
           setTimeout(function () { btn.textContent = t; btn.disabled = false; }, 3000);
         });
     });
+    loadStatus(card);
   });
-  loadStatus();
 })();
 </script>
 {% endif %}
