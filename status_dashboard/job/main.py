@@ -1449,6 +1449,48 @@ def scalar_bq(bq, sql):
     return int(v) if float(v).is_integer() else float(v)
 
 
+# --- Source data-recency probes ----------------------------------------------
+# "Data through" = the newest DATE actually PRESENT in a source (MAX of its date
+# column), NOT when the table was last written. This answers the question the Data
+# Accuracy tab asks — "is the source current to today?" — which last_modified can't
+# (a table re-written today can still only hold data through 3 days ago). Every
+# Snowflake source keys on DAY; the BQ raw tables on metric_date (raw_neto on
+# date_placed; the HubSpot snapshot has no date series, so it is skipped). Probed
+# under the SAME freshness gate as the accuracy counts, so an idle tick adds no cost.
+_BQ_DATE_EXPR = {
+    "raw_neto.orders": "MAX(DATE(date_placed))",
+}
+_BQ_NO_DATE = {"raw_windsor.hubspot_contacts"}   # whole-account snapshot — no date series
+
+
+def _date_str(v):
+    """Coerce a Snowflake/BigQuery MAX(date) scalar to 'YYYY-MM-DD' (or None)."""
+    if v is None:
+        return None
+    if isinstance(v, (datetime.date, datetime.datetime)):
+        return v.strftime("%Y-%m-%d")
+    return str(v)[:10]
+
+
+def scalar_sf_date(cn, sql):
+    """Run a single MAX(date) Snowflake query -> 'YYYY-MM-DD' string / None."""
+    cur = cn.cursor()
+    try:
+        cur.execute(sql)
+        row = cur.fetchone()
+        return _date_str(row[0] if row else None)
+    finally:
+        cur.close()
+
+
+def scalar_bq_date(bq, sql):
+    """Run a single MAX(date) BigQuery query -> 'YYYY-MM-DD' string / None."""
+    rows = list(bq.query(sql, location=LOC).result())
+    if not rows:
+        return None
+    return _date_str(rows[0][0])
+
+
 def read_json(bucket, obj):
     """Read a client's <client>.json from its bucket -> dict, or None if absent."""
     blob = storage.Client(project=PROJECT).bucket(bucket).blob(obj)
@@ -1539,6 +1581,9 @@ def main():
     now = now_utc()
     out_clients = []
     warehouse_resumes = 0
+    # Newest-data-DATE per source, memoised for this tick so a table shared by several
+    # clients (e.g. "TradeDesk_APAC ALL") is probed once, not once per client.
+    sf_date_cache, bq_date_cache = {}, {}
     try:
         # Snowflake freshness probe. If the shared warehouse can't resume (e.g. Transmission's resource
         # monitor APACWAREHOUSERESOURCEMONITOR has exhausted its credit quota, so APAC_IN_WH is stuck),
@@ -1616,6 +1661,31 @@ def main():
             prev_gate = (prev_entry.get("freshness") or {}).get("transmission_latest")
             gate_unchanged = (not force) and prev_gate is not None and \
                 _iso(transmission_latest) == prev_gate
+
+            # ---- Source recency: the newest DATE each source actually holds --------
+            # MAX(DAY) per source table — "is the source current to today?" (the Data
+            # Accuracy tab's freshness flag). Gated exactly like the accuracy counts:
+            # recomputed only when this client's Snowflake source advanced, else carried
+            # forward — so it adds no warehouse resumes on an idle tick.
+            prev_fresh = prev_entry.get("freshness") or {}
+            if gate_unchanged and prev_fresh.get("source_dates") is not None:
+                entry["freshness"]["source_dates"] = prev_fresh.get("source_dates")
+                entry["freshness"]["source_data_through"] = prev_fresh.get("source_data_through")
+            else:
+                sdates = []
+                for s in spec["sources"]:
+                    if s not in sf_date_cache:
+                        try:
+                            sf_date_cache[s] = scalar_sf_date(
+                                cn, 'SELECT MAX(TO_DATE(DAY)) FROM APAC_ALL_PLATFORM.PUBLIC."%s";' % s)
+                            warehouse_resumes += 1
+                        except Exception as e:   # noqa: BLE001
+                            sf_date_cache[s] = None
+                            print(f"  [{spec['client']}] source-date probe failed for {s}: {e}")
+                    sdates.append({"source": s, "data_through": sf_date_cache[s]})
+                ds = [d["data_through"] for d in sdates if d["data_through"]]
+                entry["freshness"]["source_dates"] = sdates
+                entry["freshness"]["source_data_through"] = max(ds) if ds else None
 
             checks_out = []
             for chk in spec["checks"]:
@@ -1712,6 +1782,29 @@ def main():
             prev_gate = (prev_entry.get("freshness") or {}).get("ingest_latest")
             gate_unchanged = (not force) and prev_gate is not None and \
                 _iso(ingest_latest) == prev_gate
+
+            # ---- Source recency: newest DATE present in each raw table (gated like accuracy) ----
+            prev_fresh = prev_entry.get("freshness") or {}
+            if gate_unchanged and prev_fresh.get("source_dates") is not None:
+                entry["freshness"]["source_dates"] = prev_fresh.get("source_dates")
+                entry["freshness"]["source_data_through"] = prev_fresh.get("source_data_through")
+            else:
+                sdates = []
+                for t in spec["raw_tables"]:
+                    if t in _BQ_NO_DATE:
+                        continue   # snapshot table (e.g. HubSpot) — no date series to age
+                    if t not in bq_date_cache:
+                        expr = _BQ_DATE_EXPR.get(t, "MAX(metric_date)")
+                        try:
+                            bq_date_cache[t] = scalar_bq_date(
+                                bq, "SELECT %s FROM `bidbrain-analytics.%s`;" % (expr, t))
+                        except Exception as e:   # noqa: BLE001
+                            bq_date_cache[t] = None
+                            print(f"  [{spec['client']}] source-date probe failed for {t}: {e}")
+                    sdates.append({"source": t, "data_through": bq_date_cache[t]})
+                ds = [d["data_through"] for d in sdates if d["data_through"]]
+                entry["freshness"]["source_dates"] = sdates
+                entry["freshness"]["source_data_through"] = max(ds) if ds else None
 
             checks_out = []
             for chk in spec["checks"]:

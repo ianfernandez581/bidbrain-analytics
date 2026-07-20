@@ -115,6 +115,22 @@
   .bbbtn.live{background:#34D399;border-color:#34D399;color:#06231A}
   .bbbtn:disabled{opacity:.5;cursor:default}
   .bbed-msg{font-size:12.5px;color:#8A97AD}
+
+  /* Source data-recency strip (Data Accuracy) — the newest DATE the source actually holds. */
+  .bbsrc{display:flex;align-items:center;gap:9px 15px;flex-wrap:wrap;padding:11px 17px;
+         border-bottom:1px solid rgba(255,255,255,.08);background:#111a2b}
+  .bbsrc .lb{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:#8A97AD;font-weight:700}
+  .bbsrc .hd{font-weight:800;font-size:15px;color:#E8EDF6;font-variant-numeric:tabular-nums}
+  .bbsrc .fl{font-weight:700;font-size:11.5px;padding:3px 10px;border-radius:999px;white-space:nowrap}
+  .bbsrc .fl.ok{color:#34D399;background:rgba(52,211,153,.13)}
+  .bbsrc .fl.bad{color:#F87171;background:rgba(248,113,113,.15)}
+  .bbsrc .fl.na{color:#94a3b8;background:rgba(100,116,139,.16)}
+  .bbsrcper{display:flex;gap:7px 13px;flex-wrap:wrap;font-size:11.5px;color:#8A97AD}
+  .bbsrcper .s{display:inline-flex;align-items:center;gap:6px;font-variant-numeric:tabular-nums}
+  .bbsrcper .s .nm{color:#8A97AD}
+  .bbsrcper .s .d{font-weight:700;color:#BFD0EA}
+  .bbsrcper .s.bad .d{color:#F87171}
+  .bbsrcper .s.bad{color:#F87171}
 </style>
 <script>
 (function(){
@@ -138,6 +154,48 @@
     if(m>=1) return m+(m===1?" min ago":" mins ago"); return "just now"; }
   function dot(state){ return '<span class="bbdot '+esc(state||"unknown")+'"></span>'; }
   function tstamp(iso){ return iso ? esc(iso.replace("T"," ").replace("Z"," UTC")) : "no data"; }
+
+  // Whole days between a 'YYYY-MM-DD' data date and the viewer's local today (>=0; null if unparseable).
+  function daysBehind(dstr){
+    if(!dstr) return null;
+    var p=String(dstr).slice(0,10).split("-"); if(p.length!==3) return null;
+    var dv=Date.UTC(+p[0], +p[1]-1, +p[2]); if(isNaN(dv)) return null;
+    var n=new Date(), tv=Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+    return Math.round((tv-dv)/86400000);
+  }
+  // Stale = 2+ days behind today. Today OR yesterday is "current" (normal ad-reporting lag).
+  function freshFlag(dstr){
+    var b=daysBehind(dstr);
+    if(dstr==null||b==null) return {cls:"na", txt:"no date"};
+    if(b<=0) return {cls:"ok", txt:"current (today)"};
+    if(b===1) return {cls:"ok", txt:"current (yesterday)"};
+    return {cls:"bad", txt:b+" days behind"};
+  }
+  // Prettify a source name for the per-source chips (strip raw_<ds>. / perf_ prefixes).
+  function srcName(s){ return String(s||"").replace(/^raw_[a-z0-9]+\./,"").replace(/^perf_/,"").replace(/_/g," "); }
+
+  // The "Source data through <date>" strip: the newest date the source holds + a stale flag on
+  // THAT date, plus a per-source breakdown. If the latest date is current but some individual
+  // sources lag, the headline stays green and appends a "· N sources behind" hint (they show red below).
+  function srcRecencyBar(c){
+    var f=c.freshness||{}, sd=f.source_dates||[], through=f.source_data_through||null;
+    if(!sd.length && !through) return "";
+    var nbad=0, per="";
+    if(sd.length){
+      per=sd.map(function(s){
+        var fl=freshFlag(s.data_through); if(fl.cls==="bad") nbad++;
+        return '<span class="s '+fl.cls+'" title="'+esc(srcName(s.source))+' - '+esc(fl.txt)+'">'+
+          '<span class="nm">'+esc(srcName(s.source))+'</span> <span class="d">'+esc(s.data_through||"—")+'</span>'+
+          (fl.cls==="bad"?' ⚠':'')+'</span>';
+      }).join("");
+    }
+    var h=freshFlag(through), htxt=(h.cls==="bad"?"⚠ ":(h.cls==="ok"?"✓ ":""))+h.txt;
+    if(h.cls==="ok" && nbad>0) htxt+=" · "+nbad+" source"+(nbad>1?"s":"")+" behind";
+    return '<div class="bbsrc"><span class="lb">Source data through</span>'+
+      '<span class="hd">'+esc(through||"—")+'</span>'+
+      '<span class="fl '+h.cls+'">'+esc(htxt)+'</span>'+
+      (per?'<span class="bbsrcper">'+per+'</span>':'')+'</div>';
+  }
 
   var VERDICT_TEXT = { ok:"✓ Healthy", transmission_stale:"⚠ Waiting on Transmission",
     digital_behind:"⏳ 100% Digital catching up", source_stale:"⚠ Upstream data stale",
@@ -207,6 +265,7 @@
     var logo='<img class="bblogo sm" src="/logo/'+esc(c.client)+'" alt="" onerror="this.remove()">';
     return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+
       ' <span class="bbmuted" style="font-size:11px;font-weight:600">source: '+esc(srcLabel)+'</span></div>'+sum+'</div>'+
+      srcRecencyBar(c)+
       '<table class="bbacc"><thead><tr><th>Metric</th><th>'+esc(srcLabel)+'</th><th>Dashboard</th><th>Match</th></tr></thead>'+
       '<tbody>'+(body||'<tr><td colspan="4" class="bbqnote">No checks.</td></tr>')+'</tbody></table></div>';
   }

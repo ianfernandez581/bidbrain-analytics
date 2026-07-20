@@ -533,9 +533,7 @@
       <div class="section" id="articleWrap" style="display:none">
         <h2 style="font-size:15px">Article delivery <span class="plan-badge" id="articleFlightBadge" style="vertical-align:middle"></span></h2>
         <span class="sub" id="articleSub"></span>
-        <div class="card" style="margin-top:12px"><div style="overflow:auto">
-          <table id="articleTable"><thead><tr><th>Publication</th><th class="num">Page views</th><th class="num">Sessions</th><th class="num">Engaged sessions</th><th class="num">Outbound clicks</th><th class="num">Outbound CTR</th></tr></thead><tbody></tbody></table>
-        </div></div>
+        <div id="articleTables"></div>
         <div id="articleNote" style="font-size:12px;color:var(--se-mute);margin-top:12px;line-height:1.55"></div>
       </div>
     </div>
@@ -1478,10 +1476,10 @@ function tableCSV(section,obj){ const lines=['# '+section]; const keys=Object.ke
 // OTHER CHANNELS (plan only - no measured feed)
 //==============================================================================
 // Article (trade-publication thought-leadership) delivery. MANUAL - no warehouse feed. Source:
-// raw_files/Article Reporting.xlsx (Ben Robinson / publisher reports). Update these totals when a new
-// report lands (add publications to the flight, flip live:true). The publisher reports an OVERALL total
-// per flight; the source sheet's identical weekly values are that total split by #weeks, so we report
-// FLIGHT TOTALS here, not a real weekly series.
+// clients/client_cloudflare/raw files/Article Reporting.pdf (Ben Robinson / publisher reports; weekly
+// per-publication series). Update these totals when a new report lands (add/adjust the flight's
+// publications, flip live:true; set partial:true while a flight is mid-run). We report FLIGHT TOTALS
+// per publication = the sum of that flight's reported weeks (May's weeks were identical; July's vary).
 const ARTICLE_DELIVERY = {
   heavy: {
     plan: { click_target:180, spend:10000, note:'~1,200 page views, 950+ sessions, 700+ engaged, 15% outbound CTR; on-months May / Jul / Sep' },
@@ -1490,7 +1488,12 @@ const ARTICLE_DELIVERY = {
         { name:'Mining Magazine', page_views:1188, sessions:1036, engaged:824, clicks:64, ctr:0.0502 },
         { name:'TechPapersWorld', page_views:764,  sessions:668,  engaged:524, clicks:44, ctr:0.0558 },
       ]},
-      { month:'Jul 2026', live:false, publications:[] },
+      // July so far = weeks w/c 7/1 + 7/8 only (7/15+ not yet reported), so this flight is IN PROGRESS.
+      // ctr = outbound clicks / page views (verified per-week against the publisher report).
+      { month:'Jul 2026', live:true, partial:true, publications:[
+        { name:'Mining Magazine', page_views:220, sessions:197, engaged:87, clicks:11, ctr:0.0500 },
+        { name:'TechPapersWorld', page_views:164, sessions:145, engaged:66, clicks:8,  ctr:0.0488 },
+      ]},
       { month:'Sep 2026', live:false, publications:[] },
     ],
   },
@@ -1501,12 +1504,16 @@ function renderArticles(){
   const live=A?A.flights.filter(f=>f.live && f.publications.length):[];
   if(!A || !live.length){ wrap.style.display='none'; return; }
   wrap.style.display='';
-  const pubs=live.flatMap(f=>f.publications);
-  const tot=pubs.reduce((o,p)=>{o.pv+=p.page_views||0;o.se+=p.sessions||0;o.en+=p.engaged||0;o.cl+=p.clicks||0;o.cw+=(p.ctr||0)*(p.page_views||0);return o;},{pv:0,se:0,en:0,cl:0,cw:0});
-  const totCtr=tot.pv?tot.cw/tot.pv:0;   // page-view-weighted mean of the reported per-publication CTRs
-  const tb=el('articleTable').querySelector('tbody');
-  tb.innerHTML=pubs.map(p=>`<tr><td>${p.name}</td><td class="num">${fmtN(p.page_views)}</td><td class="num">${fmtN(p.sessions)}</td><td class="num">${fmtN(p.engaged)}</td><td class="num">${fmtN(p.clicks)}</td><td class="num">${fmtPct(p.ctr,2)}</td></tr>`).join('')
-    + `<tr class="total"><td>Total delivered</td><td class="num">${fmtN(tot.pv)}</td><td class="num">${fmtN(tot.se)}</td><td class="num">${fmtN(tot.en)}</td><td class="num">${fmtN(tot.cl)}</td><td class="num">${fmtPct(totCtr,2)}</td></tr>`;
+  // One sub-table PER flight month, kept separate (each flight reports independently - e.g. May and July).
+  const hdr='<thead><tr><th>Publication</th><th class="num">Page views</th><th class="num">Sessions</th><th class="num">Engaged sessions</th><th class="num">Outbound clicks</th><th class="num">Outbound CTR</th></tr></thead>';
+  el('articleTables').innerHTML=live.map(f=>{
+    const tot=f.publications.reduce((o,p)=>{o.pv+=p.page_views||0;o.se+=p.sessions||0;o.en+=p.engaged||0;o.cl+=p.clicks||0;o.cw+=(p.ctr||0)*(p.page_views||0);return o;},{pv:0,se:0,en:0,cl:0,cw:0});
+    const totCtr=tot.pv?tot.cw/tot.pv:0;   // page-view-weighted mean of the reported per-publication CTRs
+    const rows=f.publications.map(p=>`<tr><td>${p.name}</td><td class="num">${fmtN(p.page_views)}</td><td class="num">${fmtN(p.sessions)}</td><td class="num">${fmtN(p.engaged)}</td><td class="num">${fmtN(p.clicks)}</td><td class="num">${fmtPct(p.ctr,2)}</td></tr>`).join('')
+      + `<tr class="total"><td>Total delivered</td><td class="num">${fmtN(tot.pv)}</td><td class="num">${fmtN(tot.se)}</td><td class="num">${fmtN(tot.en)}</td><td class="num">${fmtN(tot.cl)}</td><td class="num">${fmtPct(totCtr,2)}</td></tr>`;
+    const tag=f.partial?' <span class="plan-badge" style="vertical-align:middle;color:var(--se-mute)">in progress</span>':'';
+    return `<div class="card" style="margin-top:12px"><h3 style="font-size:13px;margin:0 0 8px">${f.month}${tag}</h3><div style="overflow:auto"><table>${hdr}<tbody>${rows}</tbody></table></div></div>`;
+  }).join('');
   el('articleFlightBadge').textContent=live.map(f=>f.month).join(', ')+' delivered';
   el('articleSub').textContent='Heavy Industries thought-leadership articles placed in trade publications (via Ben Robinson). Manual publisher reports - no live data feed.';
   const upcoming=A.flights.filter(f=>!f.live).map(f=>f.month);

@@ -86,7 +86,7 @@ store = Store()
 # Clients whose dashboards ship the AI "Download slides" pipeline (report.py + /report + the headless
 # ?bbslides=1 bootstrap + bb_deck.js). The agency portal shows a per-client "Download slides" button for
 # these (only these — others have no generator). Extend as new clients gain the pipeline.
-SLIDES_CLIENTS = {"mongodb", "cloudflare", "schneider", "proptrack", "geocon"}
+SLIDES_CLIENTS = {"mongodb", "cloudflare", "schneider", "proptrack", "geocon", "schneiderlqai"}
 
 # --- Google sign-in (GIS button + ID-token verification) — a PARALLEL login to the password gate --
 # The login page renders Google's button; the browser posts a signed ID token (JWT) to /auth/google

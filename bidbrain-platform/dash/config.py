@@ -169,6 +169,13 @@ CLIENTS = {
             {"name": "Plan vs Actual", "path": "/plan-vs-actual", "status": "active"},
         ],
     },
+    "schneiderlqai": {
+        "name": "Schneider - Liquid AI Data Center", "slug": "schneider-liquid-ai", "status": "active",
+        "url": _runapp("schneiderlqai"),
+        "campaigns": [
+            {"name": "AI & Liquid Cooling", "path": "/", "status": "active"},
+        ],
+    },
     "cloudflare": {
         "name": "Cloudflare", "slug": "cloudflare", "status": "active",
         "url": _runapp("cloudflare"),
@@ -210,7 +217,7 @@ AGENCIES = [
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
-        "clients": ["schneider", "cloudflare", "proptrack", "mongodb", "stt"],
+        "clients": ["schneider", "schneiderlqai", "cloudflare", "proptrack", "mongodb", "stt"],
     },
 ]
 

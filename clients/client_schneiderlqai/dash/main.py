@@ -1,0 +1,234 @@
+"""Schneider Electric — Liquid AI Data Center dashboard web app (Cloud Run service).
+
+Thin password gate + static server. It renders a login screen, and once a session is
+authenticated it serves `dashboard.html` and proxies the private `schneiderlqai.json` from
+GCS at `/data.json`. All presentation logic — the Overview / Creative / Media Plan tabs and
+every chart — lives in `dashboard.html`; this file only decides *who* may see it, not *what*
+it shows.
+
+Same service pattern as client_STT/dash/main.py (byte-for-byte on the auth/serve/proxy
+logic); only the login-page branding and the default data object differ. The org policy
+that blocks --allow-unauthenticated is handled the same way — the deploy flips
+--no-invoker-iam-check so this app's own password gate is the only door.
+"""
+import os
+import hmac
+import json
+import hashlib
+from pathlib import Path
+from flask import (
+    Flask, request, redirect, session, Response, render_template_string, abort
+)
+from google.cloud import storage
+
+from report import generate_report
+
+app = Flask(__name__)
+app.secret_key = os.environ["SESSION_SECRET"]
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SECURE=True,
+    SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
+    PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
+    MAX_CONTENT_LENGTH=256 * 1024,   # the /report POST is the only sizeable body; everything else is tiny
+)
+
+# --- config (injected by Cloud Run) ------------------------------------------
+DASH_PASSWORD = os.environ["DASH_PASSWORD"].rstrip("\r\n")        # from Secret Manager
+GCS_BUCKET = os.environ["GCS_BUCKET"]                            # private data bucket
+DATA_OBJECT = os.environ.get("DATA_OBJECT", "schneiderlqai.json")  # object inside it
+
+_storage = storage.Client()
+
+# Dashboard HTML is baked into the container at build time, next to this file.
+# Anchor to __file__ so it loads regardless of the process working directory.
+try:
+    DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html").read_text(encoding="utf-8")
+except FileNotFoundError:
+    DASHBOARD_HTML = None
+
+# Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
+# folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it.
+try:
+    BB_DECK_JS = (Path(__file__).resolve().parent / "bb_deck.js").read_text(encoding="utf-8")
+except FileNotFoundError:
+    BB_DECK_JS = ""
+
+# Bump to invalidate every cached report when the prompts/schema change (see report.py).
+REPORT_CACHE_VERSION = "1"
+
+LOGIN_HTML = """<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schneider Electric · Liquid AI Data Center</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
+       font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;
+       background:radial-gradient(1200px 600px at 50% -10%,#243024 0%,#1d241d 55%,#141714 100%)}
+  .card{width:100%;max-width:360px;padding:36px 32px;background:#fff;
+        border:1px solid rgba(0,0,0,.06);border-radius:16px;
+        box-shadow:0 20px 64px rgba(0,0,0,.34)}
+  .logo{display:flex;justify-content:center;align-items:center;margin-bottom:20px}
+  .logo .se-logo{height:34px;width:auto;display:block}
+  .brand{font-size:11px;font-weight:700;letter-spacing:1.6px;color:#007E2A;margin-bottom:14px;text-align:center}
+  h1{font-size:18px;font-weight:700;margin:0 0 4px;color:#1A1A1A;text-align:center}
+  p{font-size:13px;color:#6B7480;margin:0 0 22px;text-align:center}
+  input{width:100%;padding:12px 13px;font-size:15px;color:#1A1A1A;background:#fff;
+        border:1px solid #E6E9ED;border-radius:10px;outline:none}
+  input:focus{border-color:#009530;box-shadow:0 0 0 3px rgba(0,149,48,.18)}
+  button{width:100%;margin-top:12px;padding:12px;font-size:15px;font-weight:700;cursor:pointer;
+         background:#009530;color:#fff;border:none;border-radius:10px}
+  button:hover{background:#007E2A}
+  .err{margin-top:12px;font-size:13px;color:#C8362A;min-height:16px;text-align:center}
+</style>
+</head>
+<body>
+  <form class="card" method="POST" action="/login">
+    <div class="logo">
+      <svg class="se-logo" viewBox="0 0 218 64" role="img" aria-label="Schneider Electric" xmlns="http://www.w3.org/2000/svg"><path fill="#009530" d="M24.7 9.47c-4.95-2.18-7.87-3.1-10.8-3.1-3.1 0-5.12 1.1-5.12 2.74 0 5.1 17.56 3.64 17.56 15.48 0 6.56-5.49 10.38-13.17 10.38-6.04 0-8.96-1.64-12.44-3.28v-7.28c4.94 3.28 7.87 4.37 11.7 4.37 3.3 0 5.13-1.1 5.13-3.1C17.56 20.04 0 22.22 0 9.84 0 4 5.12 0 12.99 0c3.84 0 7.31.73 11.7 2.73v6.74Zm24.5 24.04a21.55 21.55 0 0 1-7.86 1.64c-8.23 0-13.36-4.73-13.36-11.84 0-7.1 5.5-12.02 13.17-12.02 2.38 0 5.3.55 7.87 1.46v5.46a12.43 12.43 0 0 0-5.85-1.64c-4.4 0-7.14 2.55-7.14 6.56 0 4 2.75 6.74 6.95 6.74 1.83 0 3.3-.36 6.59-1.64v5.28m67.49-22.4c-7.13 0-12.25 5.1-12.25 12.02 0 7.1 5.3 11.84 13.35 11.84 1.83 0 6.22 0 10.24-3.1v-4.36c-3.47 2.36-5.67 3.27-8.6 3.27-4.56 0-7.3-2.36-7.67-6.37h16.64c.55-8.56-4.94-13.3-11.7-13.3Zm-4.39 9.47c.37-3.28 2.2-5.1 4.94-5.1 2.75 0 4.76 1.82 4.94 5.1h-9.88Zm26.52-9.1h-7.32V34.6h7.32V11.48ZM159.3.55v12.02a14.02 14.02 0 0 0-6.04-1.46c-6.59 0-11.16 4.92-11.16 12.02 0 6.92 4.57 12.02 10.8 12.02 2.37 0 4.38-.72 6.4-2.36v1.82h7.31V.55h-7.32Zm0 27.87c-1.47 1.27-2.75 1.82-4.4 1.82-3.47 0-5.66-2.74-5.66-6.92 0-4.56 2.19-7.3 5.85-7.3 1.28 0 3.1.56 4.02 1.28v11.12h.18Zm22.69-17.31c-7.13 0-12.25 5.1-12.25 12.02 0 7.1 5.3 11.84 13.35 11.84 1.83 0 6.22 0 10.42-3.1v-4.36c-3.47 2.36-5.67 3.27-8.6 3.27-4.57 0-7.31-2.36-7.68-6.37h16.65c.37-8.56-5.12-13.3-11.89-13.3Zm-4.57 9.47c.36-3.28 2.2-5.1 4.94-5.1s4.75 1.82 5.12 5.1h-10.06Zm27.42-2.36c2.2-4.74 4.76-7.1 7.5-7.1 1.47 0 2.75.54 4.76 2.18l-2.01 6.37c-1.83-1.27-3.11-1.64-4.4-1.64-2.74 0-4.38 2.55-6.03 6.74V34.8h-7.31V11.48h7.31v6.74m-65.11-16.4c.73 1.82-.55 4.37-2.75 5.65-2.2 1.27-4.57.9-5.12-.92-.73-1.82.55-4.37 2.75-5.64 2-1.28 4.38-.91 5.12.9Zm-64.2 18.22c0-6.2-4.2-8.74-8.41-8.74-2.93 0-5.3 1.27-7.32 3.82h-.18V.73h-7.32V34.8h7.32V20.22c1.64-2.37 3.1-3.46 4.93-3.46 2.2 0 3.85 1.64 3.85 5.1v8.2a22.9 22.9 0 0 1 7.31-2.37v-7.65m18.12-8.93c-2.93 0-5.3 1.1-7.5 3.83v-3.28h-7.32v15.66c2.56.19 5.67 1.46 7.32 3.28V19.85c1.83-2.91 3.3-3.82 5.12-3.82 2.01 0 3.66 1.27 3.66 4.55v14.03h7.32V20.04c-.19-6.92-5.13-8.93-8.6-8.93Zm12.45 30.06h-8.6v6h8.24v2.56H97.5v6.19h8.78v2.55H94.76V38.62h11.34v2.55Zm9.3-2.55h-2.55v19.85h2.56V38.62Zm9.33 13.66h9.14c0-4.92-2.2-7.1-5.67-7.1-3.66 0-6.03 2.72-6.03 6.55 0 3.64 2.2 6.92 6.4 6.92a9.9 9.9 0 0 0 5.3-1.46v-2.55a7.81 7.81 0 0 1-4.57 1.64c-2.74 0-4.2-1.27-4.57-4Zm3.65-4.92c1.83 0 2.93 1.27 3.11 3.28h-6.58c.18-2 1.46-3.28 3.47-3.28Zm22.52 1.46a5.56 5.56 0 0 0-3.67-1.28c-2.37 0-4.02 1.82-4.02 4.55 0 2.74 1.83 4.38 4.39 4.38a9 9 0 0 0 3.47-.91v2.55a12 12 0 0 1-3.84.72 6.33 6.33 0 0 1-6.58-6.55c0-4.38 2.56-7.1 6.4-7.1 1.46 0 2.56.36 3.84.9v2.74Zm11.87-3.47h4.21v2.37h-4.2v6.74c0 1.46 1.1 2 1.82 2a6.8 6.8 0 0 0 2.93-.9v2.36c-.91.55-2.38.91-3.11.91-2.74 0-4.2-1.82-4.2-4.19v-6.92h-2.2v-.18l4.94-4.74v2.55m13.73 0v3.1c1.28-2.37 2.56-3.28 3.84-3.28 1.1 0 2.01.55 3.11 1.46l-1.46 2.19c-.74-.73-1.83-1.28-2.38-1.28-1.83 0-3.11 1.82-3.11 4v6.93h-2.56V45.35h2.56Zm33.65 3.47a5.56 5.56 0 0 0-3.66-1.28c-2.38 0-4.03 1.82-4.03 4.55 0 2.74 1.83 4.38 4.4 4.38a9.1 9.1 0 0 0 3.47-.91v2.55a12 12 0 0 1-3.84.72 6.33 6.33 0 0 1-6.59-6.55c0-4.38 2.56-7.1 6.4-7.1 1.47 0 2.56.36 3.84.9v2.74Zm-17.2-3.46h-2.56v13.11h2.56V45.36Zm.18-4.74c.18.54-.18 1.46-.91 2-.74.55-1.65.37-1.83-.36-.19-.73.18-1.46.91-2 .73-.37 1.46-.19 1.83.36ZM79 47.18l.74-2.92h7.13c.91-4.19.18-8.01-2.38-10.38-5.12-5.1-15.73-3.28-23.6 4.2-1.27 1.08-2.19 2.36-3.29 3.63H62l-.92 2.92h-5.12c-.55.9-.92 1.82-1.28 2.73h6.03l-.91 2.91h-6.04c-1.1 4.38-.36 8.38 2.2 10.93 4.94 4.92 15.55 3.28 23.6-4.37a18.42 18.42 0 0 0 3.47-4.19h-5.49l.92-2.91h6.4c.55-.91.91-1.82 1.28-2.73H79v.18Zm-1.64-5.47c-.37 0-.73 0-.92.37 0 0-.18.18-.18.36l-2.2 8.75c-.54 3.1-4.38 6.19-9.32 6.19h-6.95l1.28-4.55h4.39c.36 0 .73-.19 1.1-.55.18-.18.18-.37.18-.55l1.83-7.65c.55-3.1 3.84-6.56 8.78-6.56h6.95l-.92 4.2h-4.02Z"/></svg>
+    </div>
+    <div class="brand">TRANSMISSION · SCHNEIDER ELECTRIC · LIQUID AI</div>
+    <h1>Dashboard access</h1>
+    <p>Enter the password to continue.</p>
+    <input type="password" name="password" placeholder="Password" autofocus
+           autocomplete="current-password">
+    <button type="submit">Unlock</button>
+    <div class="err">{{ error or "" }}</div>
+  </form>
+</body>
+</html>"""
+
+
+def authed():
+    # Authenticated by THIS dashboard's own password (session["ok"]) OR by a platform-issued
+    # SSO cookie from dashboards.bidbrain.ai that lists this client. Fail-closed + fail-safe:
+    # any problem falls back to password-only, so this can never break the existing gate.
+    if session.get("ok") is True:
+        return True
+    try:
+        from platform_sso import sso_allows
+        return sso_allows(request)
+    except Exception:
+        return False
+
+
+@app.get("/")
+def home():
+    if not authed():
+        return render_template_string(LOGIN_HTML, error=None)
+    if DASHBOARD_HTML is None:
+        return Response("dashboard.html is missing from the deploy.", status=500)
+    # no-store so a redeploy of the dashboard is picked up immediately, never
+    # served stale from the browser or any proxy (matches /data.json).
+    return Response(DASHBOARD_HTML, mimetype="text/html",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.post("/login")
+def login():
+    if hmac.compare_digest(request.form.get("password", ""), DASH_PASSWORD):
+        session["ok"] = True
+        session.permanent = True
+        return redirect("/")
+    return render_template_string(LOGIN_HTML, error="Incorrect password."), 401
+
+
+@app.get("/logout")
+def logout():
+    session.clear()
+    return redirect("/")
+
+
+@app.get("/data.json")
+def data():
+    # The dashboard fetches this. Only an authenticated session gets it;
+    # everyone else gets 401. The bucket itself stays private.
+    if not authed():
+        abort(401)
+    blob = _storage.bucket(GCS_BUCKET).blob(DATA_OBJECT)
+    if not blob.exists():
+        abort(404)
+    return Response(
+        blob.download_as_bytes(),
+        mimetype="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.get("/bb_deck.js")
+def bb_deck_js():
+    """The slide-deck builder. Auth-gated like the dashboard (the deck reveals report content)."""
+    if not authed():
+        abort(401)
+    if not BB_DECK_JS:
+        return Response("// bb_deck.js missing from the deploy", status=500, mimetype="application/javascript")
+    return Response(BB_DECK_JS, mimetype="application/javascript",
+                    headers={"Cache-Control": "no-store"})
+
+
+def _json_err(msg, code):
+    return Response(json.dumps({"error": msg}), status=code, mimetype="application/json")
+
+
+@app.post("/report")
+def report_route():
+    # AI account report (the portal "Download slides" deck). Auth-gated like the dashboard. The browser
+    # POSTs the current view's numbers (the same figures it renders); we cache the generated report in the
+    # private bucket keyed by VIEW IDENTITY + DATA VERSION, so re-downloading the same view costs no model
+    # calls and regenerates only when the underlying data advances.
+    if not authed():
+        abort(401)
+    if request.content_length and request.content_length > 256 * 1024:
+        return _json_err("request too large", 413)
+    summary = request.get_json(silent=True)
+    if not isinstance(summary, dict):
+        return _json_err("invalid request body", 400)
+
+    ctx = summary.get("context") or {}
+    key_src = json.dumps({
+        "client": summary.get("client"),
+        "campaign": ctx.get("campaign_key"),
+        "markets": sorted(ctx.get("markets") or []),
+        "date_filter": ctx.get("date_filter") or {},
+        "data_through": ctx.get("data_through"),
+        "v": REPORT_CACHE_VERSION,
+    }, sort_keys=True)
+    h = hashlib.sha256(key_src.encode("utf-8")).hexdigest()[:16]
+    ckey = "".join(c for c in str(summary.get("client") or "schneiderlqai").lower()
+                   if c.isalnum() or c in "-_")[:40] or "client"
+    blob = _storage.bucket(GCS_BUCKET).blob(f"reports/{ckey}_{h}.json")
+
+    try:
+        if blob.exists():
+            cached = json.loads(blob.download_as_bytes())
+            cached["cached"] = True
+            return Response(json.dumps(cached), mimetype="application/json",
+                            headers={"Cache-Control": "no-store"})
+    except Exception:
+        app.logger.exception("report cache read failed")
+
+    try:
+        rpt = generate_report(summary)
+    except Exception as e:
+        app.logger.exception("report generation failed")
+        msg = str(e) if isinstance(e, RuntimeError) else "report generation failed"
+        return _json_err(msg or "report generation failed", 502)
+
+    rpt["cached"] = False
+    try:
+        blob.upload_from_string(json.dumps(rpt), content_type="application/json")
+    except Exception:
+        app.logger.exception("report cache write failed")
+    return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/healthz")
+def healthz():
+    return "ok"
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
