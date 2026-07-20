@@ -337,25 +337,27 @@ the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (
 ### Budget pacing by channel (2026-07-20)
 
 A **pacing section sits directly under the "Channel performance vs media plan benchmarks" table** on the
-Paid Media tab - one horizontal bar **per channel, each pacing its OWN flight quarter**. Each bar's
-**orange fill = billed spend within that quarter**, a **dashed vertical marker = where spend should be
-today to finish that quarter on budget** (budget x fraction of the quarter elapsed; a *complete* quarter
-pins the marker at 100%, so the bar reads as final delivery vs budget), and the figure on the right is the
-**$ gap to pace** (behind / on / ahead). Frontend-only (`renderPacing()` + the `.pace-*` CSS in
-`dash/dashboard.html`) - no data-contract or job change; it reads the existing `paid_media.rows[]`.
+Paid Media tab - one horizontal bar per channel that ran in the **selected quarter** (it **follows the
+Q2/Q3 toggle** via `selQuarters`). Each bar's **orange fill = billed spend within that quarter**, a
+**dashed vertical marker = where spend should be today to finish the quarter on budget** (budget x fraction
+of the quarter elapsed; a *complete* quarter pins the marker at 100%, so the bar reads as final delivery vs
+budget), and the figure on the right is the **$ gap to pace** (behind / on / ahead). Frontend-only
+(`renderPacing()` + the `.pace-*` CSS in `dash/dashboard.html`) - no data-contract or job change; it reads
+the existing `paid_media.rows[]`. Re-renders on every quarter toggle (`applyDateRange → renderPaidMediaAll`).
 
-- **Per-channel quarter.** `TTD` / `LinkedIn` pace **Q3** (in progress); `Reddit` / `LINE` ran ONLY in
-  **Q2** (now complete, marker at 100%). "today" = the browser clock clamped to the flight. The section is
-  deliberately **independent of the date-range picker and market chips** (whole-quarter, all-market) -
-  filtering the dashboard does not move it.
-- **Budgets are a hardcoded editable knob** `PACING_BUDGET` (+ `PACING_FLIGHTS`) in `dash/dashboard.html`
-  (same pattern as mongodb's `MARGIN_TARGET` / the `CF1_CS_TARGET`); NOT in the pipeline - edit the const
-  and redeploy the dash service (no job/view rebuild).
-  - **TTD $47,624.56 / LinkedIn $61,022.44** - Q3 media-plan platform budgets from
+- **Quarter-driven** (`PACING_PLANS` keyed by `Q2`/`Q3`; a custom calendar range with no chip lit shows
+  every quarter). **Q3** shows **TTD + LinkedIn** only (Reddit was dropped in Q3, LINE isn't a Q3 platform);
+  **Q2** shows **all four** (TTD, LinkedIn, Reddit, LINE). "today" = the browser clock clamped to the
+  flight. The section is deliberately **independent of the date-range picker and market chips**
+  (whole-quarter, all-market) - filtering the dashboard does not move it.
+- **Budgets are a hardcoded editable knob** `PACING_PLANS` in `dash/dashboard.html` (same pattern as
+  mongodb's `MARGIN_TARGET` / the `CF1_CS_TARGET`); NOT in the pipeline - edit the const and redeploy the
+  dash service (no job/view rebuild).
+  - **Q3: TTD $47,624.56 / LinkedIn $61,022.44** - media-plan platform budgets from
     `targets/real_targets Q3.csv` ("Program total (APAC + JP)").
-  - **Reddit / LINE use `useActual:true`** - Q2 has no committed spend budget in the repo, so their budget
-    IS their actual Q2 spend (bar reads exactly 100% delivered, $0 gap - a placeholder). Swap `useActual`
-    for a `budget` number once real Q2 budgets are known. (Reddit is $0 in Q3, LINE isn't a Q3 platform.)
+  - **Q2: every channel uses `useActual:true`** - Q2 has NO committed spend budget in the repo, so the
+    budget IS the actual Q2 spend (each bar reads 100% delivered, $0 gap - a placeholder). Swap a channel's
+    `useActual` for a `budget` number once the real Q2 figure is known, and its bar shows real over/under.
 - **Multiplier-aware:** the budget is grossed by the same per-channel client-billed spend multiplier as
   spend (`bbMultFor`), so the pacing % is invariant to raw (direct) vs billed (front-door) access - it
   reconciles with the (also-grossed) spend column in the table above it.
