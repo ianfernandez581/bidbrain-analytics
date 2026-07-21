@@ -298,6 +298,8 @@
           <button class="tab" id="tabPaid"    onclick="setTab('paid')">Paid Media</button>
           <button class="tab" id="tabCS"      onclick="setTab('cs')">Content Syndication</button>
           <button class="tab" id="tabCompare" onclick="setTab('compare')">CS Comparison</button>
+          <!-- LinkedIn tab: auto-hidden until MongoDB LinkedIn delivery lands (see showLinkedInTab). -->
+          <button class="tab" id="tabLinkedIn" onclick="setTab('linkedin')" style="display:none">LinkedIn</button>
         </div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
@@ -633,6 +635,57 @@
           </div>
         </div>
       </div>
+    </div>
+
+    <!-- ============ LINKEDIN TAB ============ -->
+    <!-- Auto-hidden until DATA.linkedin exists (MongoDB LinkedIn delivery). Reuses the control
+         bar's Campaign is n/a here; the date-range picker + the VIEW BY / AXIS toggles apply. -->
+    <div id="tab-linkedin" class="tabpane">
+      <div class="section first">
+        <h2>LinkedIn - Paid Social</h2>
+        <span class="sub" id="liSub">Live LinkedIn delivery for MongoDB's lead-generation campaigns: spend, impressions, clicks, CTR and Lead Gen Form leads. Spend shown in USD.</span>
+      </div>
+
+      <div id="liNote" class="info-note" style="display:none"></div>
+
+      <div class="kpis">
+        <div class="kpi accent"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="li_spend">-</div><div class="delta" id="li_spend_sub">-</div></div>
+        <div class="kpi"><span class="stripe"></span><div class="label">Impressions</div><div class="value" id="li_imp">-</div><div class="delta" id="li_cpm">-</div></div>
+        <div class="kpi"><span class="stripe"></span><div class="label">Clicks</div><div class="value" id="li_clk">-</div><div class="delta" id="li_ctr">-</div></div>
+        <div class="kpi accent"><span class="stripe"></span><div class="label">Leads</div><div class="value" id="li_leads">-</div><div class="delta" id="li_cpl">-</div></div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">Delivery over time</h2>
+        <span class="sub">Daily impressions, clicks &amp; CTR. Use VIEW BY (Month/Week/Day) and AXIS (Relative/Absolute) above; reflects the date range.</span>
+      </div>
+      <div class="grid-2-1">
+        <div class="card card-tall">
+          <h3>Impressions, clicks, CTR</h3>
+          <div class="hint">Impressions (bars), clicks (line), CTR (dashed) on three axes.</div>
+          <div class="chart-wrap"><canvas id="liDaily"></canvas></div>
+        </div>
+        <div class="card card-tall">
+          <h3>Lead-gen funnel</h3>
+          <div class="hint">Lead Gen Form opens vs submitted leads (whole flight).</div>
+          <div class="chart-wrap"><canvas id="liFunnel"></canvas></div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2 style="font-size:15px">By campaign</h2>
+        <span class="sub">Whole-flight delivery per LinkedIn campaign.</span>
+      </div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="liCampTable">
+          <thead><tr>
+            <th>Campaign</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th>
+            <th class="num">CTR</th><th class="num">CPC</th><th class="num">CPM</th>
+            <th class="num">Leads</th><th class="num">Form opens</th><th class="num">CPL</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div></div>
     </div>
 
     <footer id="footMeta"></footer>
@@ -1219,16 +1272,24 @@ async function boot() {
     // Margin multiplier: compute per-campaign factor + gross up spend before any render.
     refreshMargin();
 
-    // Date-range picker - bounds from the actual paid-row extent (fall back to the feed window).
-    const _pmDates = (DATA.rows||[]).map(r => String(r.date||'').slice(0,10)).filter(Boolean).sort();
+    // Date-range picker - bounds from the actual paid-row extent UNION the LinkedIn daily extent
+    // (so LinkedIn dates outside the Trade Desk flight aren't clipped), fall back to the feed window.
+    const _liDates = (DATA.linkedin && DATA.linkedin.daily || []).map(r => String(r.date||'').slice(0,10));
+    const _pmDates = (DATA.rows||[]).map(r => String(r.date||'').slice(0,10))
+      .concat(_liDates).filter(Boolean).sort();
     const _minD = _pmDates[0] || (DATA.window && DATA.window.start);
     const _maxD = _pmDates[_pmDates.length-1] || (DATA.window && DATA.window.end);
     dateStartSel = _minD; dateEndSel = _maxD;
     DateRange.init({ min:_minD, max:_maxD,
       onApply:(s,e)=>{ dateStartSel=s; dateEndSel=e; renderControls(); renderActive(); } });
 
+    // LinkedIn tab shows only when there's real MongoDB LinkedIn delivery in the feed.
+    const hasLinkedIn = !!(DATA.linkedin && DATA.linkedin.summary && (DATA.linkedin.summary.imps||0) > 0);
+    el('tabLinkedIn').style.display = hasLinkedIn ? '' : 'none';
+
     const h = (location.hash || '').replace('#','');
     if (h === 'paid' || h === 'cs' || h === 'compare') activeTab = h;
+    else if (h === 'linkedin' && hasLinkedIn) activeTab = h;
 
     el('loading').style.display = 'none';
     el('content').style.display = 'block';
@@ -1257,9 +1318,18 @@ function renderTopbarMeta() {
 // CONTROLS
 //==============================================================================
 function renderControls() {
-  el('tabPaid').className    = 'tab' + (activeTab === 'paid'    ? ' on' : '');
-  el('tabCS').className      = 'tab' + (activeTab === 'cs'      ? ' on' : '');
-  el('tabCompare').className = 'tab' + (activeTab === 'compare' ? ' on' : '');
+  el('tabPaid').className     = 'tab' + (activeTab === 'paid'     ? ' on' : '');
+  el('tabCS').className       = 'tab' + (activeTab === 'cs'       ? ' on' : '');
+  el('tabCompare').className  = 'tab' + (activeTab === 'compare'  ? ' on' : '');
+  el('tabLinkedIn').className = 'tab' + (activeTab === 'linkedin' ? ' on' : '');
+  // The Campaign (DNB/KGA) and Region chips are Trade-Desk/CS dimensions - they don't apply to
+  // the LinkedIn lane, so hide those two filter groups there (Date range stays, it drives the tab).
+  const filterGrps = document.querySelectorAll('.control-filters .filter-grp');
+  if (filterGrps.length >= 2){
+    const li = activeTab === 'linkedin';
+    filterGrps[0].style.display = li ? 'none' : '';   // Campaign
+    filterGrps[1].style.display = li ? 'none' : '';   // Region
+  }
 
   const seg = el('campSeg'); seg.innerHTML = '';
   CAMP_OPTS.forEach(o => {
@@ -1284,8 +1354,9 @@ function renderControls() {
 
   const regs = activeMarketList();
   const allCount = (DATA.all_markets||[]).length;
-  el('ctrlNote').textContent =
-    `Showing ${CAMP[activeCampaign].label} · ${regs.length === allCount ? 'all regions' :
+  el('ctrlNote').textContent = activeTab === 'linkedin'
+    ? 'LinkedIn - MongoDB lead-generation campaigns'
+    : `Showing ${CAMP[activeCampaign].label} · ${regs.length === allCount ? 'all regions' :
       (regs.length ? regs.join(', ') : 'no region selected')}`;
   el('compareSub').textContent =
     `Pick a region in each panel to compare them directly, for ${CAMP[activeCampaign].label}.`;
@@ -1294,10 +1365,10 @@ function renderControls() {
   // aren't date-stamped in the feed, so grey the control out on the CS / Compare tabs.
   const dpEl = el('dateRange');
   if (dpEl) {
-    const dateable = activeTab === 'paid';
+    const dateable = activeTab === 'paid' || activeTab === 'linkedin';
     dpEl.style.opacity = dateable ? '1' : '.45';
     dpEl.style.pointerEvents = dateable ? 'auto' : 'none';
-    dpEl.title = dateable ? '' : 'Date range applies to Paid Media - Salesforce leads aren’t date-stamped in the feed';
+    dpEl.title = dateable ? '' : 'Date range applies to Paid Media &amp; LinkedIn - Salesforce leads aren’t date-stamped in the feed';
   }
 }
 
@@ -1324,13 +1395,15 @@ function wirePMToggles(){
 // RENDER DISPATCH
 //==============================================================================
 function renderActive() {
-  el('tab-paid').style.display    = activeTab === 'paid'    ? 'block' : 'none';
-  el('tab-cs').style.display      = activeTab === 'cs'      ? 'block' : 'none';
-  el('tab-compare').style.display = activeTab === 'compare' ? 'block' : 'none';
+  el('tab-paid').style.display     = activeTab === 'paid'     ? 'block' : 'none';
+  el('tab-cs').style.display       = activeTab === 'cs'       ? 'block' : 'none';
+  el('tab-compare').style.display  = activeTab === 'compare'  ? 'block' : 'none';
+  el('tab-linkedin').style.display = activeTab === 'linkedin' ? 'block' : 'none';
   destroyAllCharts();
-  if (activeTab === 'paid')      renderPaidAll();
-  else if (activeTab === 'cs')   renderCSAll();
-  else                           renderCompareAll();
+  if (activeTab === 'paid')          renderPaidAll();
+  else if (activeTab === 'cs')       renderCSAll();
+  else if (activeTab === 'linkedin') renderLinkedInAll();
+  else                               renderCompareAll();
 }
 
 //==============================================================================
@@ -2025,6 +2098,126 @@ function renderComparePanel(side) {
 // CHART HELPERS
 //==============================================================================
 function destroy(id){ if (charts[id]) { charts[id].destroy(); charts[id] = null; } }
+//==============================================================================
+// LINKEDIN  (paid-social lane, from raw_windsor.perf_linkedin via linkedin_* views)
+//==============================================================================
+// Client-billed spend multiplier for the LinkedIn channel (composes with the front-door
+// injection). Counts/CTR stay raw; only spend + the cost metrics derived from it are grossed.
+function liMult(){ return bbMultFor('linkedin'); }
+
+// Date-filtered daily rows (the date-range picker drives this tab, like Paid Media).
+function liDailyRows(){ return (DATA.linkedin && DATA.linkedin.daily || []).filter(r => dateOk(r.date)); }
+
+function renderLinkedInAll(){
+  const rows = liDailyRows();
+  const note = el('liNote');
+  if (rows.length === 0){
+    note.style.display = 'block';
+    note.textContent = 'No LinkedIn delivery in the selected date range.';
+  } else {
+    note.style.display = 'none';
+  }
+  renderLIKPIs(rows);
+  renderLIDaily(rows);
+  renderLIFunnel();
+  renderLICampTable();
+}
+
+function renderLIKPIs(rows){
+  const m = liMult();
+  let imp=0, clk=0, sp=0, leads=0, opens=0;
+  for (const r of rows){ imp+=r.imps||0; clk+=r.clicks||0; sp+=(r.spend_usd||0)*m; leads+=r.leads||0; opens+=r.lead_form_opens||0; }
+  const ctr = imp?clk/imp:0, cpm = imp?sp/imp*1000:0, cpc = clk?sp/clk:0, cpl = leads?sp/leads:0;
+  el('li_spend').textContent     = fmt$(sp);
+  el('li_spend_sub').textContent = 'USD' + (m!==1 ? ' (billed)' : '');
+  el('li_imp').textContent       = fmtN_M(imp);
+  el('li_cpm').textContent       = imp ? `${fmt$(cpm,2)} CPM` : '-';
+  el('li_clk').textContent       = fmtN(clk);
+  el('li_ctr').textContent       = imp ? `${fmtPct(ctr,3)} CTR` : '-';
+  el('li_leads').textContent     = fmtN(leads);
+  el('li_cpl').textContent       = leads ? `${fmt$(cpl,2)} CPL` : (opens ? `${fmtN(opens)} form opens` : 'no leads yet');
+}
+
+// Daily chart - identical tri-axis pattern to renderPMDaily (impressions bars, clicks line,
+// CTR dashed), reusing the shared pmGrain / pmScale toggles.
+function renderLIDaily(rows){
+  const buckets = {};
+  for (const r of rows){ const k = pmBucketKey(r); if (!k) continue;
+    if (!buckets[k]) buckets[k] = {imp:0, clk:0}; buckets[k].imp += r.imps||0; buckets[k].clk += r.clicks||0; }
+  const keys = pmBuckets(rows);
+  const impRaw = keys.map(k=>buckets[k].imp);
+  const clkRaw = keys.map(k=>buckets[k].clk);
+  const ctrRaw = keys.map(k=>buckets[k].imp ? buckets[k].clk/buckets[k].imp*100 : 0);
+  const isRel = pmScale === 'rel';
+  const clkPlot = isRel ? pmIndex(clkRaw) : clkRaw;
+  const ctrPlot = isRel ? pmIndex(ctrRaw) : ctrRaw;
+  charts.liDaily = new Chart(el('liDaily'), {
+    data:{ labels: keys.map(pmBucketLabel), datasets:[
+      {type:'bar',  label:'Impressions', data: impRaw, backgroundColor:mc('Impressions')+'33', borderColor:mc('Impressions'), borderWidth:1, yAxisID:'y', order:3, borderRadius:2},
+      {type:'line', label:'Clicks',      data: clkPlot, _raw:clkRaw, _fmt:'clk', borderColor:mc('Clicks'), backgroundColor:mc('Clicks'), tension:.25, pointRadius:2, borderWidth:2, yAxisID:isRel?'yIdx':'yClk', order:1},
+      {type:'line', label:'CTR (%)',     data: ctrPlot, _raw:ctrRaw, _fmt:'ctr', borderColor:mc('CTR'), backgroundColor:mc('CTR'), tension:.25, pointRadius:2, borderWidth:2, borderDash:[4,3], yAxisID:isRel?'yIdx':'yCtr', order:2}
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, color:MDB.ink}, title:{display:true, text:'Click a label to show or hide it', color:MDB.mute, font:{size:9.5,weight:'500'}, padding:{bottom:6}}},
+        datalabels:{ display:ctx=>ctx.dataset.type==='bar' && ctx.chart.getDatasetMeta(ctx.datasetIndex)?.hidden!==true, color:MDB.ink, anchor:'end', align:'end', offset:2, clamp:true, font:{size:9,weight:'600'}, formatter:v=>dlFmt(v) },
+        tooltip:{backgroundColor:'#0A2029', borderColor:MDB.line, borderWidth:1, titleColor:MDB.ink, bodyColor:MDB.ink, padding:10, cornerRadius:6, callbacks:{ label:c=>{
+          const ds=c.dataset; if(ds._fmt==='ctr') return `${ds.label}: ${(ds._raw?ds._raw[c.dataIndex]:c.parsed.y).toFixed(3)}%`;
+          if(ds._fmt==='clk') return `${ds.label}: ${fmtN(ds._raw?ds._raw[c.dataIndex]:c.parsed.y)}`;
+          return `${ds.label}: ${fmtN(c.parsed.y)}`; } } } },
+      scales: isRel ? {
+        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:mc('Impressions'), callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:mc('Impressions')}},
+        yIdx: {beginAtZero:true, position:'right', max:100, grid:{display:false}, ticks:{font:{size:10}, color:MDB.mute}, title:{display:true, text:'Index (peak=100)', color:MDB.mute}},
+        x:    {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}}
+      } : {
+        y:    {beginAtZero:true, position:'left',  grid:{color:MDB.line}, ticks:{font:{size:10}, color:mc('Impressions'), callback:v=>v>=1000?(v/1000)+'k':v}, title:{display:true, text:'Impressions', color:mc('Impressions')}},
+        yClk: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:mc('Clicks')}, title:{display:true, text:'Clicks', color:mc('Clicks')}},
+        yCtr: {beginAtZero:true, position:'right', grid:{display:false}, ticks:{font:{size:10}, color:mc('CTR'), callback:v=>v.toFixed(2)+'%'}, title:{display:true, text:'CTR', color:mc('CTR')}, offset:true, afterFit:a=>{a.width=46}},
+        x:    {grid:{display:false}, ticks:{font:{size:9}, maxRotation:0, autoSkip:true, maxTicksLimit:14}}
+      } }
+  });
+}
+
+// Lead-gen funnel: whole-flight form opens vs submitted leads (both raw counts).
+function renderLIFunnel(){
+  const s = (DATA.linkedin && DATA.linkedin.summary) || {};
+  const opens = s.lead_form_opens||0, leads = s.leads||0;
+  charts.liFunnel = new Chart(el('liFunnel'), {
+    type:'bar',
+    data:{ labels:['Form opens','Leads'], datasets:[{ label:'Count', data:[opens, leads],
+      backgroundColor:[mc('Clicks')+'cc', mc('Leads')+'cc'], borderColor:[mc('Clicks'), mc('Leads')], borderWidth:1, borderRadius:3 }] },
+    options: chartBase({ indexAxis:'y',
+      plugins:{ legend:{display:false},
+        datalabels:{ color:MDB.ink, anchor:'end', align:'end', offset:4, font:{size:11,weight:'600'}, formatter:v=>fmtN(v) },
+        tooltip:{ callbacks:{ label:c=>`${c.label}: ${fmtN(c.parsed.x)}` } } },
+      scales:{ x:{beginAtZero:true, grid:{color:MDB.line}, ticks:{font:{size:10}, color:MDB.mute}}, y:{grid:{display:false}, ticks:{font:{size:11}, color:MDB.ink}} } })
+  });
+}
+
+function renderLICampTable(){
+  const m = liMult();
+  const tbody = el('liCampTable').querySelector('tbody');
+  tbody.innerHTML = '';
+  const camps = (DATA.linkedin && DATA.linkedin.campaigns) || [];
+  let tImp=0,tClk=0,tSp=0,tLeads=0,tOpens=0;
+  camps.forEach(c=>{
+    const sp=(c.spend_usd||0)*m, imp=c.imps||0, clk=c.clicks||0, leads=c.leads||0, opens=c.lead_form_opens||0;
+    tImp+=imp; tClk+=clk; tSp+=sp; tLeads+=leads; tOpens+=opens;
+    const ctr=imp?clk/imp:0, cpc=clk?sp/clk:0, cpm=imp?sp/imp*1000:0, cpl=leads?sp/leads:0;
+    tbody.insertAdjacentHTML('beforeend', `<tr>
+      <td title="${c.campaign||''}">${c.campaign||'-'}</td>
+      <td class="num">${fmt$(sp)}</td><td class="num">${fmtN(imp)}</td><td class="num">${fmtN(clk)}</td>
+      <td class="num">${fmtPct(ctr,3)}</td><td class="num">${clk?fmt$(cpc,2):'-'}</td><td class="num">${imp?fmt$(cpm,2):'-'}</td>
+      <td class="num">${fmtN(leads)}</td><td class="num">${fmtN(opens)}</td><td class="num">${leads?fmt$(cpl,2):'-'}</td>
+    </tr>`);
+  });
+  const tCtr=tImp?tClk/tImp:0, tCpc=tClk?tSp/tClk:0, tCpm=tImp?tSp/tImp*1000:0, tCpl=tLeads?tSp/tLeads:0;
+  tbody.insertAdjacentHTML('beforeend', `<tr class="total">
+    <td>Total</td><td class="num">${fmt$(tSp)}</td><td class="num">${fmtN(tImp)}</td><td class="num">${fmtN(tClk)}</td>
+    <td class="num">${fmtPct(tCtr,3)}</td><td class="num">${tClk?fmt$(tCpc,2):'-'}</td><td class="num">${tImp?fmt$(tCpm,2):'-'}</td>
+    <td class="num">${fmtN(tLeads)}</td><td class="num">${fmtN(tOpens)}</td><td class="num">${tLeads?fmt$(tCpl,2):'-'}</td>
+  </tr>`);
+}
+
 function destroyAllCharts() {
   for (const k in charts) { if (charts[k]) charts[k].destroy(); }
   charts = {};
@@ -2088,6 +2281,14 @@ const EXPORT_COLS = {
     ['programme', r => progLabel(r.programme)],
     ['market',    r => r.market],
     ['target',    r => r.target]
+  ],
+  linkedin: [
+    ['date',            r => r.date],
+    ['impressions',     r => r.imps],
+    ['clicks',          r => r.clicks],
+    ['spend_usd',       r => r.spend_usd],   // RAW USD (pre client-billed multiplier)
+    ['leads',           r => r.leads],
+    ['lead_form_opens', r => r.lead_form_opens]
   ]
 };
 
@@ -2131,6 +2332,9 @@ function tabExport(){
   if (activeTab === 'cs'){
     const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign && marketOk(r.market));
     return {key:'content-syndication', cols:EXPORT_COLS.cs, rows};
+  }
+  if (activeTab === 'linkedin'){
+    return {key:'linkedin', cols:EXPORT_COLS.linkedin, rows:liDailyRows()};
   }
   // CS Comparison compares regions side by side, so export every region for the campaign.
   const rows = (DATA.cs_by_programme||[]).filter(r => campaignOf(r.programme)===activeCampaign);

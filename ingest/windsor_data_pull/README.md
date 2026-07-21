@@ -30,6 +30,7 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 | [`ga4/`](ga4/README.md) | The **Google Analytics 4** loaders + their table-creation scripts. The acquisition loader (`perf_ga4`) — on-site outcomes (sessions, engagement, revenue), one row per (property × date × session source/medium/campaign × channel group) — plus an event-grain sibling (`perf_ga4_events`, one row per property × date × event_name). [Open its README →](ga4/README.md) |
 | [`google_ads/`](google_ads/README.md) | The **Google Ads** loader (`perf_google_ads`) + its table-creation script. One row per (customer × date × campaign), via the dedicated `google_ads` connector (single-pass). [Open its README →](google_ads/README.md) |
 | [`reddit/`](reddit/README.md) | The **Reddit Ads** loader (`perf_reddit`) + its table-creation script. One row per (account × ad × date), via the blended `/all` endpoint. [Open its README →](reddit/README.md) |
+| [`linkedin/`](linkedin/README.md) | The **LinkedIn Ads** loader (`perf_linkedin`) + its table-creation script. One row per (account × creative × date), via the blended `/all` endpoint with a `linkedin__` prefix. **Two-pass fetch** (LinkedIn caps a request at 20 fields); per-account (skips accounts that hard-error). The Windsor-native replacement for `raw_snowflake.linkedin_ads_apac`. [Open its README →](linkedin/README.md) |
 | [`fields/`](fields/README.md) | The **field CATALOGUE** loader (`windsor_fields`) — metadata, not performance. Mirrors Windsor's entire field reference (`https://connectors.windsor.ai/all/fields`, the [data-field/all](https://windsor.ai/data-field/all/) page, ~37.8k fields × 242 connectors) into BigQuery daily with `first_seen`/`last_seen` so new fields are visible. [Open its README →](fields/README.md) |
 | [`hubspot/`](hubspot/README.md) | The **HubSpot CRM** loader (`hubspot_contacts` ~4.7k + `hubspot_deals` ~242) for **Reset Data** (connector `hubspot`, account `45274177`). CRM **state, not a date series** → a WRITE_TRUNCATE snapshot; all-STRING raw + typed `v_hubspot_*` views. Includes Reset Data's custom `contact_rd_*` props (`contact_rd_billing_balance` = **RdBillingBalance**). [Open its README →](hubspot/README.md) |
 | `README.md` | This file. |
@@ -46,6 +47,7 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\create_ga4_events_table.py          # 5. the GA4 events table
 .\.venv\Scripts\python.exe windsor_data_pull\google_ads\create_google_ads_table.py   # 6. the Google Ads table
 .\.venv\Scripts\python.exe windsor_data_pull\reddit\create_reddit_table.py           # 7. the Reddit table
+.\.venv\Scripts\python.exe windsor_data_pull\linkedin\create_linkedin_table.py       # 7b. the LinkedIn table
 .\.venv\Scripts\python.exe windsor_data_pull\fields\create_fields_table.py           # 8. the field catalogue table
 .\.venv\Scripts\python.exe windsor_data_pull\meta\meta_loader.py                     # 8. first load (backfills)
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py
@@ -53,6 +55,7 @@ Ad platforms ──► Windsor.ai API ──[these loaders]──► BigQuery ra
 .\.venv\Scripts\python.exe windsor_data_pull\ga4\events_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\google_ads\google_ads_loader.py
 .\.venv\Scripts\python.exe windsor_data_pull\reddit\reddit_loader.py
+.\.venv\Scripts\python.exe windsor_data_pull\linkedin\linkedin_loader.py             # LinkedIn (per-account backfill)
 .\.venv\Scripts\python.exe windsor_data_pull\fields\fields_loader.py                 # populate the catalogue
 ```
 
@@ -118,6 +121,7 @@ Windsor key from Secret Manager (`windsor-api-key`).
 | Trade Desk | `windsor-tradedesk-ingest` | `35 21 * * *` (daily) |
 | Field catalogue | `windsor-fields-ingest` | `45 21 * * *` (daily) |
 | Reddit | `windsor-reddit-ingest` | `50 21 * * *` (daily) |
+| LinkedIn | `windsor-linkedin-ingest` | `40 21 * * *` (daily) |
 | HubSpot | `windsor-hubspot-ingest` | `55 21 * * *` (daily) |
 
 > **Freshness contract — windsor is deliberately DAILY, not `*/10` self-gating.** Unlike the

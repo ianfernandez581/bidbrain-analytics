@@ -15,7 +15,15 @@ SNOWFLAKE_TABLES = [
     "raw_snowflake.salesforce_cs_apac_all",
     "raw_snowflake.tradedesk_apac_conversion",
 ]
-GATING_TABLES = SNOWFLAKE_TABLES
+# The LinkedIn lane (AWS Immersion Day etc.) reads the shared Windsor raw layer, so gate on it
+# too. It's a SHARED table (all clients' LinkedIn), so its last_modified advances whenever the
+# windsor-linkedin loader runs for ANY client - a cheap over-trigger (mongodb rebuilds ~daily),
+# acceptable per the freshness contract ("gate on what you read"). Kept out of `data_through`
+# (that stays on the MongoDB-specific Snowflake mirrors).
+WINDSOR_TABLES = [
+    "raw_windsor.perf_linkedin",
+]
+GATING_TABLES = SNOWFLAKE_TABLES + WINDSOR_TABLES
 WATERMARK_OBJECT = "_freshness.json"
 
 # --- Project-wide constants ---------------------------------------------------
@@ -108,6 +116,49 @@ def main():
     except Exception as e:
         print(f"pixel views unavailable -> skipping content-engagement block: {e}")
 
+    # LinkedIn lane (AWS Immersion Day + any future MongoDB LinkedIn campaign) - from the shared
+    # Windsor raw layer via the linkedin_* views. Emitted ONLY when there's real delivery
+    # (imps > 0); otherwise stays None and the dashboard auto-hides the LinkedIn tab. Resilient:
+    # if the views aren't present the rest of the dashboard still builds. Empty until the Windsor
+    # connector for the MongoDB ad account is readable (see the linkedin ingest README).
+    linkedin = None
+    try:
+        lsum = rows(bq, f"SELECT * FROM {t('linkedin_summary')}")
+        if lsum and (lsum[0].get("imps") or 0) > 0:
+            s = lsum[0]
+            ldaily = rows(bq, f"SELECT * FROM {t('linkedin_daily')}")
+            lcamps = rows(bq, f"SELECT * FROM {t('linkedin_by_campaign')}")
+            linkedin = {
+                "summary": {
+                    "campaigns": s["campaigns"], "creatives": s["creatives"],
+                    "start": iso(s["start_date"]), "end": iso(s["end_date"]),
+                    "currency": s["currency"],
+                    "imps": s["imps"], "clicks": s["clicks"], "spend_usd": s["spend_usd"],
+                    "spend_native": s["spend_native"], "reach": s["reach"],
+                    "landing_page_clicks": s["landing_page_clicks"],
+                    "leads": s["leads"], "lead_form_opens": s["lead_form_opens"],
+                    "engagements": s["engagements"], "video_views": s["video_views"],
+                    "video_completions": s["video_completions"],
+                    "ext_website_conversions": s["ext_website_conversions"],
+                },
+                "daily": [{"date": iso(r["DAY"]), "week_start": iso(r["WEEK_START"]),
+                           "imps": r["imps"], "clicks": r["clicks"], "spend_usd": r["spend_usd"],
+                           "leads": r["leads"], "lead_form_opens": r["lead_form_opens"]} for r in ldaily],
+                "campaigns": [{"campaign": r["campaign_name"], "group": r["campaign_group_name"],
+                               "objective": r["objective_type"], "currency": r["currency"],
+                               "imps": r["imps"], "clicks": r["clicks"], "spend_usd": r["spend_usd"],
+                               "spend_native": r["spend_native"], "leads": r["leads"],
+                               "lead_form_opens": r["lead_form_opens"], "video_views": r["video_views"],
+                               "engagements": r["engagements"],
+                               "start": iso(r["start_date"]), "end": iso(r["end_date"])} for r in lcamps],
+            }
+            print(f"linkedin lane: {s['imps']} imps, {s['leads']} leads over "
+                  f"{len(linkedin['daily'])} days, {len(linkedin['campaigns'])} campaign(s)")
+        else:
+            print("linkedin lane: no MongoDB LinkedIn delivery yet (tab will auto-hide)")
+    except Exception as e:
+        print(f"linkedin views unavailable -> skipping LinkedIn block: {e}")
+
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         # `data_through` reflects the LIVE ad/lead mirrors only — never the static pixel
@@ -141,6 +192,7 @@ def main():
                 "accepted": r["ACCEPTED"], "rejected": r["REJECTED"], "new": r["NEW_LEADS"],
                 "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
         "pixel": pixel,
+        "linkedin": linkedin,
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
