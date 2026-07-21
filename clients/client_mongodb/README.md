@@ -210,6 +210,25 @@ It rebuilds automatically when new conversions land (the export job's freshness 
 > **History note:** the conversion feed starts **2026-06-01**, whereas the retired CSV seed
 > covered from May 19 — so the section no longer shows May 19–31; it went live 2026-06-17.
 
+## LinkedIn lane (paid social) — from Windsor, NOT Snowflake/TTD
+
+New in **2026-07**: MongoDB's **AWS Immersion Day** lead-gen campaign
+(`MONGODB_2026-Q3_AWS-IMMERSION-DAY_AU_LEAD-GENERATION_LINKEDIN`) runs on **LinkedIn**, not Trade
+Desk, so it's a separate lane sourced from the shared Windsor raw layer:
+
+- **Data:** `raw_windsor.perf_linkedin` (built by [`ingest/windsor_data_pull/linkedin`](../../ingest/windsor_data_pull/linkedin/README.md)) → views `sql/14_stg_linkedin` → `15_linkedin_summary` / `16_linkedin_daily` / `17_linkedin_by_campaign`. Scope = `campaign_name LIKE 'MONGODB%'` (picks up this campaign + any future MongoDB LinkedIn campaign). Spend is FX'd to **USD** (LinkedIn is native AUD; AUD×0.65), so it sits on the same currency as the rest of the dashboard.
+- **Job:** `job/main.py` emits a `linkedin` block **only when there's real delivery** (`imps > 0`); otherwise it's `null`. `raw_windsor.perf_linkedin` is added to `GATING_TABLES` so a LinkedIn refresh triggers a rebuild.
+- **Dashboard:** a **LinkedIn tab** in `dash/dashboard.html` (`renderLinkedInAll`) — KPIs (spend / imps / clicks / leads with CPM/CTR/CPL), a tri-axis daily chart (reusing the VIEW BY / AXIS toggles + the date-range picker), a lead-gen funnel, and a by-campaign table. The tab **auto-hides** until `DATA.linkedin` has delivery (like Schneider's GA4 tab). LinkedIn spend grosses by `bbMultFor('linkedin')`.
+
+> **⚠️ Blocked until a Windsor re-auth.** The campaign is live and delivering in LinkedIn, but its ad
+> account (**`502299829`**) returns a hard **HTTP 500 `'start'`** on every Windsor request — a
+> Windsor-side bug where a campaign missing a start date crashes the account's whole adAnalytics
+> pull. The loader skips that account, so `perf_linkedin` has **no MongoDB rows yet** and the tab
+> stays hidden. **Fix:** re-authorize/re-sync the LinkedIn connector for that account in Windsor
+> (the `'start'` bug usually clears on reconnect), or archive/fix the start-date-less campaign in
+> LinkedIn Campaign Manager. Once readable, `windsor-linkedin-ingest` (daily 21:40 UTC) loads it and
+> the tab lights up automatically — no code change. Verified 2026-07-21; see the ingest README.
+
 ## DNB spend adjustment (one-time, hardcoded)
 
 The **DNB** campaign under-delivered its budget — raw media cost ≈ **$16,183.91** vs the

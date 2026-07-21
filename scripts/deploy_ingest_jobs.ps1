@@ -11,6 +11,8 @@
 #   raw_windsor.windsor_fields       <- windsor-fields-ingest     (Windsor field catalogue, new-field watch)
 #   raw_windsor.perf_reddit          <- windsor-reddit-ingest     (Reddit Ads, resetdata; skips cleanly if the
 #                                                                  Windsor reddit connector grant has lapsed)
+#   raw_windsor.perf_linkedin        <- windsor-linkedin-ingest   (LinkedIn Ads, all granted accounts; per-account
+#                                                                  2-pass, skips accounts that hard-error e.g. 500 'start')
 #   raw_windsor.hubspot_*            <- windsor-hubspot-ingest     (Reset Data CRM snapshot: contacts/deals/owners)
 #   raw_snowflake.*                  <- snowflake-ingest          (Salesforce/TTD/GA/etc, all clients)
 #
@@ -20,7 +22,7 @@
 # from a laptop). Mirrors the per-client deploy_job_*.ps1 pattern.
 #
 #   .\scripts\deploy_ingest_jobs.ps1                 # build + deploy + (re)schedule all jobs
-#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|reddit|hubspot|snowflake
+#   .\scripts\deploy_ingest_jobs.ps1 -Only neto      # just one: neto|meta|tradedesk|fields|reddit|linkedin|hubspot|snowflake
 #   .\scripts\deploy_ingest_jobs.ps1 -SkipBuild      # redeploy + reschedule without rebuilding
 #   .\scripts\deploy_ingest_jobs.ps1 -Run            # also execute each job once after deploy
 #
@@ -52,6 +54,7 @@ $JOBS = @(
   @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" },
   @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" },
   @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
+  @{ key="linkedin";  dir="ingest/windsor_data_pull/linkedin";  job="windsor-linkedin-ingest";  mem="1Gi"; cpu="1"; cron="40 21 * * *" },
   @{ key="hubspot";   dir="ingest/windsor_data_pull/hubspot";   job="windsor-hubspot-ingest";   mem="1Gi"; cpu="1"; cron="55 21 * * *" }
 )
 
