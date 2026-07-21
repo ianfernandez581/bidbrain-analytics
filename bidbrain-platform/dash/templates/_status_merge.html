@@ -98,6 +98,25 @@
   .bbqnote{color:#64748B;font-size:11.5px;margin-top:6px;max-width:680px}
   .bbaccsum{font-size:12.5px;color:#8A97AD;font-weight:600;font-variant-numeric:tabular-nums}
 
+  /* Collapsible accuracy card — folded to a one-line summary by default; the header IS the toggle.
+     At a glance each row answers two questions: is the client's data UPDATED, and is the dashboard
+     ALIGNED with the source. Click the header to drop down the full metric table. */
+  .bbacc-card .bbhd.bbacc-hd{cursor:pointer;user-select:none;transition:background .12s}
+  .bbacc-card .bbhd.bbacc-hd:hover{background:rgba(255,255,255,.03)}
+  .bbacc-card .bbhd.bbacc-hd:focus-visible{outline:2px solid #34D399;outline-offset:-2px}
+  .bbacc-card:not(.open) .bbhd.bbacc-hd{border-bottom:none}
+  .bbacc-body{display:none}
+  .bbacc-card.open .bbacc-body{display:block}
+  .bbhd-status{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .bbstat{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:12px;
+          padding:5px 11px;border-radius:999px;white-space:nowrap}
+  .bbstat.ok{color:#34D399;background:rgba(52,211,153,.13)}
+  .bbstat.warn{color:#FBBF24;background:rgba(251,191,36,.13)}
+  .bbstat.bad{color:#F87171;background:rgba(248,113,113,.13)}
+  .bbstat.na{color:#94a3b8;background:rgba(100,116,139,.16)}
+  .bbcaret{color:#8A97AD;font-size:12px;line-height:1;transition:transform .15s;margin-left:2px}
+  .bbacc-card.open .bbcaret{transform:rotate(180deg)}
+
   /* Editor */
   .bbedit{margin:0;border-top:1px solid rgba(255,255,255,.08);padding:14px 17px 17px}
   .bbedit summary{cursor:pointer;font-size:13px;font-weight:700;color:#34D399}
@@ -143,6 +162,26 @@
       document.querySelectorAll(".bbpane").forEach(function(p){ p.classList.toggle("on", p.id === "pane-"+pane); });
     });
   });
+
+  // Fold each Data-Accuracy client to its summary header; clicking the header drops down the full
+  // metric table. Delegated on the static #bbacc container so it survives renderAll re-renders.
+  // Clicks inside the expanded body (the "show query" <details>) don't hit .bbacc-hd, so they no-op.
+  function toggleAccCard(hd){
+    var card=hd.closest(".bbacc-card"); if(!card) return;
+    var open=card.classList.toggle("open");
+    hd.setAttribute("aria-expanded", open?"true":"false");
+  }
+  var accEl=document.getElementById("bbacc");
+  if(accEl){
+    accEl.addEventListener("click", function(e){
+      var hd=e.target.closest(".bbacc-hd"); if(hd && accEl.contains(hd)) toggleAccCard(hd);
+    });
+    accEl.addEventListener("keydown", function(e){
+      if(e.key!=="Enter" && e.key!==" " && e.key!=="Spacebar") return;
+      var hd=e.target.closest(".bbacc-hd"); if(!hd || !accEl.contains(hd)) return;
+      e.preventDefault(); toggleAccCard(hd);
+    });
+  }
 
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g, function(c){
     return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]; }); }
@@ -253,6 +292,24 @@
       '<td class="bbnum sf">'+fmtNum(sf)+'</td><td class="bbnum dash">'+fmtNum(dv)+'</td><td>'+tag+'</td></tr>';
   }
 
+  // "Updated?" summary for the folded header — is the client's source data current? Combines the
+  // headline recency (source_data_through) with a per-source behind-count, so a green headline that
+  // hides a lagging source is downgraded to a warning (e.g. MongoDB's Salesforce CS running 2 days behind).
+  function updatedStatus(c){
+    var f=c.freshness||{}, sd=f.source_dates||[], through=f.source_data_through||null;
+    if(through==null && !sd.length){
+      var v=f.verdict;
+      if(v==="ok") return {cls:"ok", txt:"✓ up to date", title:"updated "+fmtAge(f.build_at||f.ingest_latest)};
+      if(v==null) return {cls:"na", txt:"no data"};
+      var b=badge(v); return {cls:(b.cls==="na"?"na":(b.cls==="ok"?"ok":(b.cls==="warn"?"warn":"bad"))), txt:"⚠ "+b.label};
+    }
+    var nbad=0; sd.forEach(function(s){ if(freshFlag(s.data_through).cls==="bad") nbad++; });
+    var h=freshFlag(through);
+    if(h.cls==="bad") return {cls:"bad", txt:"⚠ "+h.txt, title:"newest source data "+(through||"?")};
+    if(nbad>0) return {cls:"warn", txt:"⚠ "+nbad+" source"+(nbad>1?"s":"")+" behind", title:"newest source data "+(through||"?")};
+    return {cls:"ok", txt:"✓ up to date", title:"source data through "+(through||"?")};
+  }
+
   function accCard(c, fl){
     // The source-of-truth column is Snowflake for Transmission's clients and BigQuery (the
     // raw Windsor/Neto/DTS layer) for the 100% Digital clients — labelled per c.source_label.
@@ -261,13 +318,28 @@
     checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++; else nNa++; });
     var body="", last=null;
     checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk, srcLabel); });
-    var sum=checks.length?'<span class="bbaccsum">'+nOk+'/'+checks.length+' match'+(nBad?' · '+nBad+' off':'')+(nNa?' · '+nNa+' n/a':'')+'</span>':'';
+
+    // "Aligned?" summary — does the dashboard equal the source across every check?
+    var al;
+    if(!checks.length) al={cls:"na", txt:"no checks"};
+    else if(nBad>0) al={cls:"bad", txt:"✗ "+nBad+" off · "+nOk+"/"+checks.length+" match"};
+    else if(nNa>0) al={cls:"warn", txt:nOk+"/"+checks.length+" match · "+nNa+" n/a"};
+    else al={cls:"ok", txt:"✓ "+nOk+"/"+checks.length+" match"};
+    var up=updatedStatus(c);
+
     var logo='<img class="bblogo sm" src="/logo/'+esc(c.client)+'" alt="" onerror="this.remove()">';
-    return '<div class="bbcard"><div class="bbhd"><div class="bbcname">'+logo+esc(c.label||c.client)+
-      ' <span class="bbmuted" style="font-size:11px;font-weight:600">source: '+esc(srcLabel)+'</span></div>'+sum+'</div>'+
-      srcRecencyBar(c)+
+    var head='<div class="bbhd bbacc-hd" role="button" tabindex="0" aria-expanded="false">'+
+      '<div class="bbcname">'+logo+esc(c.label||c.client)+
+        ' <span class="bbmuted" style="font-size:11px;font-weight:600">source: '+esc(srcLabel)+'</span></div>'+
+      '<div class="bbhd-status">'+
+        '<span class="bbstat '+up.cls+'"'+(up.title?' title="'+esc(up.title)+'"':'')+'>'+esc(up.txt)+'</span>'+
+        '<span class="bbstat '+al.cls+'" title="aligned with '+esc(srcLabel)+'">'+esc(al.txt)+'</span>'+
+        '<span class="bbcaret" aria-hidden="true">▾</span>'+
+      '</div></div>';
+    var inner=srcRecencyBar(c)+
       '<table class="bbacc"><thead><tr><th>Metric</th><th>'+esc(srcLabel)+'</th><th>Dashboard</th><th>Match</th></tr></thead>'+
-      '<tbody>'+(body||'<tr><td colspan="4" class="bbqnote">No checks.</td></tr>')+'</tbody></table></div>';
+      '<tbody>'+(body||'<tr><td colspan="4" class="bbqnote">No checks.</td></tr>')+'</tbody></table>';
+    return '<div class="bbcard bbacc-card">'+head+'<div class="bbacc-body">'+inner+'</div></div>';
   }
 
   function renderSummary(clients){
