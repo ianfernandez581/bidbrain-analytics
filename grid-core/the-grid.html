@@ -1108,8 +1108,8 @@ const EXC=[
    spark:[240,238,231,228,222,219,214,210,208,205,201,198]},
   {key:'schneider',mono:'SE',name:'Schneider',agency:'Transmission',group:'lead',dash:'Schneider',
    obj:'Awareness + Site traffic + LGF',mlbl:'MQL + HQL leads',val:296,unit:'',fmt:'int',
-   target:360,targetLbl:'Plan target (to date)',pace:0.82,noDaily:true,gd:{d:1,w:3,m:7},
-   sum:'All five lead-gen programs are on pace and delivery is tracking the plan target.',
+   target:360,targetLbl:'Plan target (full flight)',pace:0.82,ttdPace:1.05,noDaily:true,gd:{d:1,w:3,m:7},
+   sum:'All lead-gen programs are ahead of the expected pace to date and delivery is tracking the plan.',
    sec:[['A$210','Cost / lead',{t:'3% under plan CPL',tone:'good'}],['5 of 5','Programs on pace',{t:'all active',tone:'flat'}]],
    spark:[232,240,248,255,262,268,274,280,285,289,293,296]},
   {key:'resetdata',mono:'RD',name:'Reset Data',agency:'100% Digital',group:'lead',dash:'ResetData',
@@ -1157,16 +1157,26 @@ const EXC=[
 function exEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
 function exCompact(n){if(n==null)return '—';const a=Math.abs(n);if(a>=1e6)return (n/1e6).toFixed(a>=1e7?1:2).replace(/\.?0+$/,'')+'M';if(a>=1e4)return Math.round(n/1e3)+'k';return n.toLocaleString('en-US');}
 function exFmtVal(c){return c.fmt==='x'?c.val.toFixed(1):exCompact(c.val);}
-function exVerdict(pace,delta){
-  // LENIENT + trend-primary. Targets are FULL-FLIGHT, so a low pace early in a campaign is normal -
-  // pace alone never flags; it only nudges a client that is BOTH well behind target AND slipping.
-  let lvl=delta>=-8?0:delta>=-20?1:delta>=-35?2:3;
-  if(pace!=null&&pace<0.5&&delta<0)lvl=Math.min(3,lvl+1);
+function exVerdict(c,delta){
+  // LENIENT + trend-primary. Targets are FULL-FLIGHT, so a low val/target early in a campaign is
+  // normal - it never flags on its own. When a pace-TO-DATE read exists (ttdPace = delivered vs the
+  // even flight pace so far) it is the real "on plan?" signal: a client at/ahead of plan can only be
+  // nudged to a soft "Watch" by a noisy trend dip, never to "Behind"/"At risk"; only a client BOTH
+  // behind plan-to-date AND slipping escalates.
+  let lvl=delta>=-8?0:delta>=-20?1:delta>=-35?2:3;   // trend bands -> ok/watch/behind/risk
+  const ttd=c.ttdPace;
+  if(ttd!=null){
+    if(ttd>=1.0)      lvl=Math.min(lvl, delta<-35?1:0);   // at/ahead of plan: a wobble is at most Watch
+    else if(ttd>=0.9) lvl=Math.min(lvl, 1);               // right on plan: never worse than Watch
+    else if(ttd<0.6 && delta<0) lvl=Math.min(3, lvl+1);   // behind plan AND slipping: escalate
+  } else if(c.pace!=null && c.pace<0.5 && delta<0){
+    lvl=Math.min(3, lvl+1);                               // no to-date signal: old full-target nudge
+  }
   return ['ok','watch','behind','risk'][lvl];
 }
 function exEff(c){return (EXG==='d'&&c.noDaily)?'w':EXG;}
 function exDelta(c){return c.gd[exEff(c)];}
-function exStat(c){var v=exVerdict(c.pace,exDelta(c));if(c.group==='reach'&&(v==='behind'||v==='risk'))v='watch';return v;}   // awareness/reach delivery varies with flight phase; never a "fire"
+function exStat(c){var v=exVerdict(c,exDelta(c));if(c.group==='reach'&&(v==='behind'||v==='risk'))v='watch';return v;}   // awareness/reach delivery varies with flight phase; never a "fire"
 function exSpk(c){const g=exEff(c);return (c.sk&&c.sk[g])||c.spark;}
 function exSum(c){return (typeof c.sum==='object')?c.sum[exEff(c)]:c.sum;}
 function exSpark(vals){const W=240,H=36,pad=4,mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1;
@@ -1180,8 +1190,12 @@ function exSpark(vals){const W=240,H=36,pad=4,mn=Math.min.apply(null,vals),mx=Ma
 function exCard(c){
   const st=EXS[exStat(c)],delta=exDelta(c),dGood=delta>=0,arrow=delta>0?'▲':delta<0?'▼':'■',dcls=delta===0?'flat':(dGood?'up':'down');
   const degraded=EXG==='d'&&c.noDaily,per=degraded?'week over week (finest for leads)':EXGP[EXG];
+  // marker = where the EVEN FLIGHT PACE sits today (fill past it = ahead of schedule). It stops the
+  // full-flight bar from reading as "behind" early in a long flight.
+  const markPct=(c.pace!=null&&c.ttdPace)?Math.min(100,c.pace/c.ttdPace*100):null;
+  const mark=markPct!=null?'<span class="ex-mark" style="left:'+markPct.toFixed(0)+'%" title="Even flight pace to date - fill past this line means ahead of schedule"></span>':'';
   const meter=c.target!=null
-    ? '<div class="ex-meter"><div class="mr"><span>'+exEsc(c.targetLbl)+'</span><span class="r">'+exFmtVal(c)+' / '+(c.fmt==='x'?c.target.toFixed(1):exCompact(c.target))+'</span></div><div class="ex-track"><div class="ex-fill" style="width:'+Math.min(100,c.pace*100).toFixed(0)+'%;background:'+st.c+'"></div></div></div>'
+    ? '<div class="ex-meter"><div class="mr"><span>'+exEsc(c.targetLbl)+'</span><span class="r">'+exFmtVal(c)+' / '+(c.fmt==='x'?c.target.toFixed(1):exCompact(c.target))+'</span></div><div class="ex-track"><div class="ex-fill" style="width:'+Math.min(100,c.pace*100).toFixed(0)+'%;background:'+st.c+'"></div>'+mark+'</div></div>'
     : '<div class="ex-trend">No plan target, judged on trend</div>';
   const chC={good:'#22C07A',bad:'#F0655A',flat:'var(--ink-2)'},chB={good:'rgba(34,192,122,.14)',bad:'rgba(240,101,90,.14)',flat:'rgba(128,128,128,.12)'};
   const sec=c.sec.map(s=>{const cm=s[2]?'<span class="ex-scmp" style="color:'+chC[s[2].tone]+';background:'+chB[s[2].tone]+'">'+exEsc(s[2].t)+'</span>':'';return '<div class="ex-s"><span class="sv">'+exEsc(s[0])+'</span><span class="sl">'+exEsc(s[1])+'</span>'+cm+'</div>';}).join('');

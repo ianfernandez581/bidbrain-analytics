@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-22T00:41:33+00:00",
+ "generated_at": "2026-07-22T02:23:22+00:00",
  "source": "client data.json (GCS)",
  "clients": [
   {
@@ -13,10 +13,11 @@
    "mlbl": "Accepted CS leads (Q3 to date)",
    "unit": "",
    "fmt": "int",
-   "val": 294.0,
+   "val": 394.0,
    "target": 5506.0,
    "targetLbl": "Q3 target",
-   "pace": 0.0534,
+   "pace": 0.0716,
+   "ttdPace": null,
    "noDaily": true,
    "gd": {
     "d": 0,
@@ -64,12 +65,16 @@
    },
    "sec": [
     [
-     "83%",
+     "84%",
      "Acceptance rate",
      null
     ]
    ],
-   "sum": "Holding roughly flat month over month. At 5% of the q3 target."
+   "sum": {
+    "m": "Holding roughly flat month over month. At 7% of the q3 target.",
+    "w": "Holding roughly flat week over week. At 7% of the q3 target.",
+    "d": "Holding roughly flat vs the prior 3 days. At 7% of the q3 target."
+   }
   },
   {
    "key": "schneider",
@@ -82,15 +87,16 @@
    "mlbl": "MQL + HQL leads",
    "unit": "",
    "fmt": "int",
-   "val": 618.0,
+   "val": 624.0,
    "target": 1117.0,
-   "targetLbl": "Plan target (to date)",
-   "pace": 0.5533,
+   "targetLbl": "Plan target (full flight)",
+   "pace": 0.5586,
+   "ttdPace": 1.4871,
    "noDaily": true,
    "gd": {
-    "d": -70,
-    "w": -70,
-    "m": 70
+    "d": -37,
+    "w": -37,
+    "m": 72
    },
    "sk": {
     "d": [
@@ -102,7 +108,7 @@
      115.0,
      86.0,
      54.0,
-     16.0
+     22.0
     ],
     "w": [
      45.0,
@@ -113,12 +119,12 @@
      115.0,
      86.0,
      54.0,
-     16.0
+     22.0
     ],
     "m": [
      45.0,
      417.0,
-     156.0
+     162.0
     ]
    },
    "sec": [
@@ -128,7 +134,11 @@
      null
     ]
    ],
-   "sum": "Trending up, about 70% month over month. At 55% of the plan target (to date)."
+   "sum": {
+    "m": "Trending up, about 72% month over month. Ahead of plan, at 149% of the expected pace to date.",
+    "w": "Trending down, about 37% week over week. Ahead of plan, at 149% of the expected pace to date.",
+    "d": "Trending down, about 37% vs the prior 3 days. Ahead of plan, at 149% of the expected pace to date."
+   }
   },
   {
    "key": "resetdata",
@@ -145,10 +155,11 @@
    "target": null,
    "targetLbl": null,
    "pace": null,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": -34,
-    "w": 24,
+    "w": -17,
     "m": 9
    },
    "sk": {
@@ -197,7 +208,11 @@
      null
     ]
    ],
-   "sum": "Trending up, about 9% month over month."
+   "sum": {
+    "m": "Trending up, about 9% month over month.",
+    "w": "Trending down, about 17% week over week.",
+    "d": "Trending down, about 34% vs the prior 3 days."
+   }
   },
   {
    "key": "vmch",
@@ -214,6 +229,7 @@
    "target": null,
    "targetLbl": null,
    "pace": null,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": 20,
@@ -263,7 +279,11 @@
      null
     ]
    ],
-   "sum": "Trending down, about 4% month over month."
+   "sum": {
+    "m": "Trending down, about 4% month over month.",
+    "w": "Trending up, about 2% week over week.",
+    "d": "Trending up, about 20% vs the prior 3 days."
+   }
   },
   {
    "key": "stt",
@@ -280,10 +300,11 @@
    "target": null,
    "targetLbl": null,
    "pace": null,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": 15000,
-    "w": -81,
+    "w": -78,
     "m": -17
    },
    "sk": {
@@ -337,7 +358,11 @@
      null
     ]
    ],
-   "sum": "Trending down, about 17% month over month."
+   "sum": {
+    "m": "Trending down, about 17% month over month.",
+    "w": "Trending down, about 78% week over week.",
+    "d": "Trending up, about 15000% vs the prior 3 days."
+   }
   },
   {
    "key": "mongodb",
@@ -354,6 +379,7 @@
    "target": null,
    "targetLbl": null,
    "pace": null,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": -14,
@@ -400,7 +426,11 @@
      null
     ]
    ],
-   "sum": "Trending down, about 66% month over month."
+   "sum": {
+    "m": "Trending down, about 66% month over month.",
+    "w": "Trending down, about 11% week over week.",
+    "d": "Trending down, about 14% vs the prior 3 days."
+   }
   },
   {
    "key": "schneiderlqai",
@@ -417,10 +447,11 @@
    "target": 10121600.0,
    "targetLbl": "Plan (LinkedIn + TTD)",
    "pace": 0.2085,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": -9,
-    "w": -4,
+    "w": 0,
     "m": 17
    },
    "sk": {
@@ -458,7 +489,11 @@
     ]
    },
    "sec": [],
-   "sum": "Trending up, about 17% month over month. At 21% of the plan (linkedin + ttd)."
+   "sum": {
+    "m": "Trending up, about 17% month over month. At 21% of the plan (linkedin + ttd).",
+    "w": "Holding roughly flat week over week. At 21% of the plan (linkedin + ttd).",
+    "d": "Trending down, about 9% vs the prior 3 days. At 21% of the plan (linkedin + ttd)."
+   }
   },
   {
    "key": "proptrack",
@@ -475,10 +510,11 @@
    "target": null,
    "targetLbl": null,
    "pace": null,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": 460,
-    "w": 53,
+    "w": 8,
     "m": -91
    },
    "sk": {
@@ -528,7 +564,11 @@
      null
     ]
    ],
-   "sum": "Trending down, about 91% month over month."
+   "sum": {
+    "m": "Trending down, about 91% month over month.",
+    "w": "Trending up, about 8% week over week.",
+    "d": "Trending up, about 460% vs the prior 3 days."
+   }
   },
   {
    "key": "tlm",
@@ -545,10 +585,11 @@
    "target": null,
    "targetLbl": "Target ROAS",
    "pace": null,
+   "ttdPace": null,
    "noDaily": false,
    "gd": {
     "d": 118,
-    "w": -14,
+    "w": -19,
     "m": 56
    },
    "sk": {
@@ -602,7 +643,11 @@
      null
     ]
    ],
-   "sum": "Trending up, about 56% month over month."
+   "sum": {
+    "m": "Trending up, about 56% month over month.",
+    "w": "Trending down, about 19% week over week.",
+    "d": "Trending up, about 118% vs the prior 3 days."
+   }
   }
  ]
 }
