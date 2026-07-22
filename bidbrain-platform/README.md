@@ -246,7 +246,7 @@ stays dormant.
 ### Tools group — The Grid (Central) (internal, staff-only, org-private proxied)
 A **Tools** group (config `TOOLS`, separate from `CLIENTS`/`AGENCIES`) surfaces internal apps that are
 NOT client dashboards. The single entry is **The Grid (Central)** — the `grid-core` app
-(`the-grid.html`: Pulse/Brain/Central/Register/Dashboards) on its own `central-grid` Cloud Run service —
+(`the-grid.html`: Pulse/Brain/Central/Register/Executive) on its own `central-grid` Cloud Run service —
 at **`/d/central/`**, live pacing/margin-at-risk across every client. (The older `pacing`/pacing-grid
 tile was **retired 2026-07-20**; Central supersedes it. Its repo `C:\Users\DELL\pacing-site` + the
 `pacing-grid` service still exist but are no longer surfaced here.) It renders as a tile on the
