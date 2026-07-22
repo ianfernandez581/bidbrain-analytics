@@ -1,0 +1,312 @@
+{
+  "_comment": "Phase 3 STAGED reconcile candidates - prepared by the session, approved ONLY by a human in the Map client panel. Nothing here is written to the sync map until a human ticks + approves (POST /api/central/reconcile/Schneider/approve). Evidence pulled 2026-07-22 from raw_snowflake (read-only). NOTE: approving ANY pair flips Schneider validated:true (the approve route's standard behavior) - the prerequisites (Mode B split, fresh campaignIds, TTD spendMult=1) were completed this run, so approval IS the re-arm. TTD/LinkedIn values are CAMPAIGN_NAME / CAMPAIGN_GROUP_NAME tokens; DV360 values are INSERTION_ORDER_NAME tokens. 'preview' = whole-history BQ totals for the rule at pull time (AUD). Sheet-vintage cross-checks use SUM to 2026-07-08.",
+  "client": "Schneider",
+  "preparedAt": "2026-07-22",
+  "preparedBy": "Phase 3 session (Claude), evidence-based - see PHASE3_SCHNEIDER_REPORT.md",
+  "platformAudit": "All 19 pairs staged under the hard platform-consistency rule: every rule is scoped to ONE source table (channel tag) + ONE advertiser/account, and match.js filters by both at sync time, so cross-platform token collisions are structurally impossible (EntIT appears in both the TTD and LinkedIn tables - each rule only ever sees its own table's rows). No BQ-name token conflicts with its pair's platform (LQAIDC_TTD/NEL_TTD carry the TTD token and sit on TradeDesk rows). The Mode-A pm_delivery blend (the §9 corruption: cross-platform program totals onto one arbitrary row) is retired - the spec is now Mode B per-channel.",
+  "warnings": [
+    "APPROVING FLIPS validated:true. The approve route sets Schneider validated:true as soon as >=1 pair is written - and the sync route ignores ?client= (PHASE3_CLOUDFLARE_REPORT §10.6), so the next sync anyone runs will include Schneider. Prerequisites are DONE (per-platform Mode B map, fresh campaignIds, spendMult=1 on all 8 TTD rows) - approve only when you accept Schneider syncing.",
+    "TTD COSTS is the CLIENT-BILLED basis (Airset: SUM(COSTS) to 07-08 $2,798 vs sheet billed $2,650; same pattern on all 7 spending TTD rows this run). spendMult was set to 1 on all 8 Schneider TTD rows in Phase 3 prep, so the first sync writes clientSpend = billed COSTS. Post-sync the TTD campaignMargin will read ~0% - cosmetic; TTD profit-at-risk uses Platform Margin (set on all 8 TTD rows).",
+    "EAE (DV360, 2 rows): if you approve these pairs, ALSO set spendMult=1 on both EAE rows (currently unset - the feed is billed REVENUE_ADV_CURRENCY, same rule as TTD) AND set their platformMargin (currently null; DV360 is a Platform-Margin channel, so profit-at-risk falls back to est. 0.60 until set). Both rows are Ended - the one-time backfill needs POST /api/central/sync?includeEnded=1 (the Sync now button does not pass it).",
+    "IA Services · Linkedin (Ended) does NOT reconcile: the 2 BQ groups sum $8,226 vs the sheet's $4,955 clientSpent / $5,425 budget. The Mar-Apr Awareness group alone is $3,487; the May group $4,739. Approve only if you accept BQ as truth for the backfill (spend will roughly double), else skip and keep sheet values.",
+    "Sheet-vintage drift is expected on first sync: sheet spends are the ~2026-07-08 vintage, BQ has kept moving (e.g. Ent IT TTD $21,090 to 07-08 vs $25,375 today). LinkedIn/TTD to-07-08 sums agree with the sheet within 2-6% on every high-confidence pair."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-3b14faf0f7e9",
+      "campaignName": "Airset",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "AirSeT_ANZ_HighImpact",
+      "confidence": "high",
+      "rationale": "2 names (plain + 2223_ prefix vintage, rename 2026-07-06). This is the §1 money-finding cross-check row: SUM(COSTS) to 07-08 $2,798 vs sheet billed clientSpend $2,650 - billed basis confirmed. spendMult already reset to 1.",
+      "preview": { "bqNames": 2, "mediaSpend": 4721 }
+    },
+    {
+      "campaignId": "cmp-53b4975d5b6e",
+      "campaignName": "EBA",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "EBA_Activate",
+      "confidence": "high",
+      "rationale": "2 names (SE_EBA_Activate_AWR_June4 + 2079_ prefix). Whole-history $12,017 matches the old pm_delivery eba total exactly (it was the one 1:1 program). To 07-08: $8,847 vs sheet billed $8,597.",
+      "preview": { "bqNames": 2, "mediaSpend": 12017 }
+    },
+    {
+      "campaignId": "cmp-26c86490efcc",
+      "campaignName": "Ent IT",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "EntIT",
+      "confidence": "high",
+      "rationale": "14 names (PAC/MEA/India/SAM + S2 variants, x2 vintages via 1958_ prefix) - Ent IT was never in pm_delivery, so this is its FIRST mappable coverage. To 07-08: $21,090 vs sheet billed $20,636 (2%). Token EntIT claims all 14 TTD names, nothing else.",
+      "preview": { "bqNames": 14, "mediaSpend": 25375 }
+    },
+    {
+      "campaignId": "cmp-73f509149be8",
+      "campaignName": "Industrial Edge Wave 3 Prefab Unprotected",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "Industrial Edge W3 Prefab",
+      "confidence": "high",
+      "rationale": "1 name (2463_SE_ANZ Industrial Edge W3 Prefab_Programmatic_Awareness, launched 2026-07-06, $6.48 so far). Job 2463 matches the campaign_map brief. Token excludes the 2025 '1839_..Pacific-Industrial_Edge_Campaign' (different program, USD account). Row has no startDate in the Grid - fill it when convenient (needs-input, does not block the map).",
+      "preview": { "bqNames": 1, "mediaSpend": 6 }
+    },
+    {
+      "campaignId": "cmp-e23fbe7cad7a",
+      "campaignName": "LiquidAI",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "LQAIDC_TTD",
+      "confidence": "high",
+      "rationale": "2 names (SE_LQAIDC_TTD_TOFU_May26 + 2306_ prefix). To 07-08: $11,193 vs sheet billed $10,913 (2.6%). LQAIDC = the Liquid AI Data Center brief (job 2306, the schneiderlqai dashboard's campaign).",
+      "preview": { "bqNames": 2, "mediaSpend": 14013 }
+    },
+    {
+      "campaignId": "cmp-81597a0cfd6e",
+      "campaignName": "NEL",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "NEL_TTD",
+      "confidence": "high",
+      "rationale": "4 names (AU+NZ x 2 vintages via 2053_ prefix). Whole-history $2,145 = exactly the TTD share of the old pm_delivery nel blend ($2,145 TTD + $8,209 LinkedIn - the 79%-foreign row in §9). The LinkedIn share now goes to the NEL LinkedIn row below.",
+      "preview": { "bqNames": 4, "mediaSpend": 2145 }
+    },
+    {
+      "campaignId": "cmp-eaf93725e24e",
+      "campaignName": "Software First EcoStruxure",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "EcoStruxureIT",
+      "confidence": "high",
+      "rationale": "2 names (SE_EcoStruxureIT_AWR_2026 + 2305_ prefix). Job 2305 = this Grid row's jobNumber; BQ first day 2026-06-17 = the row's startDate. To 07-08: $2,745 vs sheet billed $2,596.",
+      "preview": { "bqNames": 2, "mediaSpend": 4647 }
+    },
+    {
+      "campaignId": "cmp-08f80e22213d",
+      "campaignName": "Water and Environment",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "mode": "contains",
+      "value": "WaterEnv_P2_AWR",
+      "confidence": "high",
+      "rationale": "4 names (AU+NZ x 2 vintages via 2226_ prefix). Whole-history $2,536 = exactly the TTD share of the old pm_delivery water_env blend. To 07-08: $2,199 vs sheet billed $2,163.",
+      "preview": { "bqNames": 4, "mediaSpend": 2536 }
+    },
+    {
+      "campaignId": "cmp-fdd4e8202dbc",
+      "campaignName": "Advancing Energy T",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "SE_AET",
+      "confidence": "high",
+      "rationale": "4 groups (2061- and 2061_ prefix vintages x Awareness/Consideration). Whole-history $2,741 = exactly the old pm_delivery global_rebrand total (the ONE row the Mode-A blend landed on the right channel by luck, §6.3). SE_AET is the same token the dashboard campaign_map uses for this program.",
+      "preview": { "bqNames": 4, "mediaSpend": 2741 }
+    },
+    {
+      "campaignId": "cmp-663ed48867bd",
+      "campaignName": "Airset",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "AirSeT 2026",
+      "confidence": "high",
+      "rationale": "3 groups (Retargeting LeadGen x2 vintages + Awareness; the group names contain a non-ASCII dash, so the token stops before it). Whole-history $2,376 = exactly the LinkedIn share of the old pm_delivery airset blend. To 07-08: $1,699 vs sheet $1,769.",
+      "preview": { "bqNames": 3, "mediaSpend": 2376 }
+    },
+    {
+      "campaignId": "cmp-212ac9ad4858",
+      "campaignName": "Ent IT",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "EntIT",
+      "confidence": "high",
+      "rationale": "8 groups (PAC/SAM/MEA/India x 2 vintages via 1958_ prefix). To 07-08: $18,379 vs sheet $17,415 (5.5%). LinkedIn COSTS = media = billed (mult 1, matches lesson 4) - this row's spendMult is already 1.",
+      "preview": { "bqNames": 8, "mediaSpend": 22356 }
+    },
+    {
+      "campaignId": "cmp-a678febbdb60",
+      "campaignName": "IA Services",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "AI Services",
+      "confidence": "medium",
+      "rationale": "FLAGGED, not forced: 2 groups (Schneider_Electric_AI Services_Q1_2026, May, $4,739 + '... - Awareness', Mar-Apr, $3,487) sum $8,226 - vs the sheet's $4,955 clientSpent / $5,425 budget. The sheet row appears to cover only PART of the BQ delivery (which part is not provable from the data). Row is Ended - backfill would need includeEnded=1 and would roughly double its recorded spend. Human decision.",
+      "preview": { "bqNames": 2, "mediaSpend": 8226 }
+    },
+    {
+      "campaignId": "cmp-d1dde398e5c5",
+      "campaignName": "Industrial Edge Wave 3 Prefab Unprotected",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "Industrial Edge W3 Prefab",
+      "confidence": "high",
+      "rationale": "1 group (2463_SE_ANZ Industrial Edge W3 Prefab, from 2026-07-07). Membership is unambiguous (job 2463). Small vintage oddity for the record: sheet shows $287 spent by ~07-08 while BQ-to-07-08 is $162 - the sync will true it up either way.",
+      "preview": { "bqNames": 1, "mediaSpend": 1530 }
+    },
+    {
+      "campaignId": "cmp-58f026237774",
+      "campaignName": "LiquidAI",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "LQAIDC_LI",
+      "confidence": "high",
+      "rationale": "2 groups (SE_LQAIDC_LI_TOFU_May26 + 2306_ prefix). To 07-08: $16,507 vs sheet $15,537 (6%). Distinct from the SGD-account 2025 'AI in DC' program (excluded with the whole _SGD account).",
+      "preview": { "bqNames": 2, "mediaSpend": 20438 }
+    },
+    {
+      "campaignId": "cmp-0342ddb8ae0c",
+      "campaignName": "NEL",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "NEL_2026_ANZ_LI",
+      "confidence": "high",
+      "rationale": "6 groups (Awareness/Consideration/Conversion x 2 vintages via 2053_ prefix). Whole-history $8,209 = exactly the LinkedIn share of the old pm_delivery nel blend - the 79% 'foreign spend' that §9 found landing on the TTD row now lands here.",
+      "preview": { "bqNames": 6, "mediaSpend": 8209 }
+    },
+    {
+      "campaignId": "cmp-e2686e30a90d",
+      "campaignName": "Software First EcoStruxure",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "Software First EcoStruxure - AWR",
+      "confidence": "high",
+      "rationale": "1 group (2305_ANZ_SE Software First EcoStruxure - AWR, launched 2026-07-09 = the row's startDate; job 2305 = the row's jobNumber; $1,283 so far). Maps ONLY the Awareness row - this Grid row is one of the THREE same-named LinkedIn rows the source sheet splits by Objective (Awareness / Retargeting 1 / Consideration; §6.1 - NOT duplicates). The other two have no BQ groups yet (not launched).",
+      "preview": { "bqNames": 1, "mediaSpend": 1283 }
+    },
+    {
+      "campaignId": "cmp-f4f329cd3a31",
+      "campaignName": "Water and Environment",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "WaterEnv_P2_2026",
+      "confidence": "high",
+      "rationale": "2 groups (SE_WaterEnv_P2_2026_Apr-Dec + 2226_ prefix). Whole-history $2,952 = exactly the LinkedIn share of the old pm_delivery water_env blend. To 07-08: $2,483 vs sheet $2,421. Token differs from the TTD row's WaterEnv_P2_AWR - and each rule only sees its own table anyway.",
+      "preview": { "bqNames": 2, "mediaSpend": 2952 }
+    },
+    {
+      "campaignId": "cmp-a6c442f9a9df",
+      "campaignName": "EAE Consideration",
+      "gridChannel": "DV360",
+      "channel": "DV360",
+      "advertiserName": "APAC | Schneider Electric AUD",
+      "mode": "contains",
+      "value": "EAE_Consideration",
+      "confidence": "medium",
+      "rationale": "2 insertion orders (1974_SE_ANZ_EAE_Consideration_AU + _NZ). Billed REVENUE within the row's exact 03-04..06-08 flight = $5,713.90 vs the row's $5,714 budget - TO THE DOLLAR. Medium only because: Ended (needs includeEnded=1 backfill), the sheet's clientSpent $5,388 sits 6% below the billed figure (vintage/basis unexplained), and approving requires setting spendMult=1 + platformMargin on this row (see warnings). Membership itself is certain.",
+      "preview": { "bqNames": 2, "mediaSpend": 5714 }
+    },
+    {
+      "campaignId": "cmp-6adcdc06dfd5",
+      "campaignName": "EAE Conversion",
+      "gridChannel": "DV360",
+      "channel": "DV360",
+      "advertiserName": "APAC | Schneider Electric AUD",
+      "mode": "contains",
+      "value": "EAE_Conversion",
+      "confidence": "medium",
+      "rationale": "2 insertion orders (1974_SE_ANZ_EAE_Conversion_AU + _NZ). Billed $2,649 = 93% of the $2,857 budget; flight 03-04..06-09 (one trailing day past the row's end). Sheet clientSpent $1,804 is 47% below billed - the human should sanity-check which figure the agency wants recorded before approving. Same spendMult/platformMargin/includeEnded caveats as EAE Consideration.",
+      "preview": { "bqNames": 2, "mediaSpend": 2649 }
+    }
+  ],
+  "unmatchableGridRows": [
+    {
+      "campaignId": "cmp-1aaf944e0084",
+      "campaignName": "Advancing Energy T",
+      "gridChannel": "Google Ads",
+      "reason": "No Schneider account exists in raw_snowflake.google_ads_apac (verified this run: accounts are STT-only) and the DTS raw_google_ads layer covers 100% Digital clients only. Stays sheet-valued ($38 spend). Not matched across platforms."
+    },
+    {
+      "campaignId": "cmp-2838810ca1f2",
+      "campaignName": "DOOH",
+      "gridChannel": "DOOH",
+      "reason": "No DOOH source in the BQ raw layer and no Schneider TTD campaign name carries a DOOH token (Cloudflare's DOOH ran through TTD; Schneider's has not landed anywhere). Not Active, no budget. Stays sheet-valued."
+    },
+    {
+      "campaignId": "cmp-c59c8e0abec4",
+      "campaignName": "Software First EcoStruxure (Retargeting 1)",
+      "gridChannel": "Linkedin",
+      "reason": "No BQ group yet - the Retargeting 1 campaign has not launched (the sheet notes 'no instructions for setup yet'). Map it when a group lands (expect a 2305_ prefix like the Awareness group). Do NOT archive - the three same-named rows are distinct by Objective (§6.1)."
+    },
+    {
+      "campaignId": "cmp-6f50c2c4f3de",
+      "campaignName": "Software First EcoStruxure (Consideration)",
+      "gridChannel": "Linkedin",
+      "reason": "Same as Retargeting 1 - no BQ group yet, campaign not launched. Do NOT archive."
+    },
+    {
+      "campaignId": "cmp-7c7e9f633893",
+      "campaignName": "Heavy Industries (row 1 of 2)",
+      "gridChannel": "(none)",
+      "reason": "channel is NULL on both Heavy Industries rows (two identical placeholder rows in the source sheet, job 2281) - but REAL TTD delivery exists since 2026-07-15 (2281_SE Heavy Industries_AWR AU, $179). Human: set channel=TradeDesk (+ dates/budget) on ONE row, then map it with contains 'Heavy Industries_AWR'. Decide what the twin row is for (a second channel to come, or a true duplicate) - do not auto-archive (§6.1 precedent)."
+    },
+    {
+      "campaignId": "cmp-ceedb677e344",
+      "campaignName": "Heavy Industries (row 2 of 2)",
+      "gridChannel": "(none)",
+      "reason": "See row 1 of 2."
+    }
+  ],
+  "unmatchedBq": [
+    {
+      "channel": "Trade Desk",
+      "advertiserName": "Schneider Electric",
+      "value": "2281_SE Heavy Industries_AWR AU",
+      "mediaSpend": 179,
+      "note": "Heavy Industries TTD delivery (from 2026-07-15) - claimable once a Heavy Industries Grid row gets channel=TradeDesk (see unmatchable notes). With it claimed, the 8 staged TTD rules + this cover all 32 Schneider TTD names with zero overlap."
+    },
+    {
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "value": "2279_SE_EcoConsult_ECAA_2026_ANZ_Awareness",
+      "mediaSpend": 196,
+      "note": "EcoConsult (brief 2279) launched 2026-07-21 - brand-new, NO Grid row exists. Recommend: Add campaign row 'EcoConsult' (Linkedin) + map contains 'EcoConsult', or leave until the sheet picks it up."
+    },
+    {
+      "channel": "LinkedIn",
+      "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+      "value": "(7 pre-2026 groups: Impact Maker, EcoCare BMS AU/NZ, Digital Power Basket x4)",
+      "mediaSpend": 62355,
+      "note": "2025-history programs in the AUD account with no Grid rows (the Central sheet tracks current campaigns only). Expected, not an error - they will show as weak/no-match in the generic fuzzy list. The _USD/_SGD accounts (C&SP, AI in DC 2025, IOF, Hybrid IT, Modernisation, SPaaS, Digital Buildings, MEA, Cooling Solutions, Active KPX, 1839 Industrial Edge) are excluded at the spec level - no FX in the sync."
+    },
+    {
+      "channel": "DV360",
+      "advertiserName": "APAC | Schneider Electric AUD",
+      "value": "(2025 insertion orders: Ecostrucuture_Automation Sqreem AU/NZ + Dec-2025 Consideration IOs, Power Products, Impact Maker)",
+      "mediaSpend": 19966,
+      "note": "The EAE campaign's own 2025 phase (Sqreem IOs, Dec-Feb, before the Grid rows' Mar-Jun flight) plus other 2025 programs - no Grid rows, expected. The staged EAE rules match only the 1974_SE_ANZ_EAE_* IOs whose flights equal the Grid rows'."
+    }
+  ]
+}

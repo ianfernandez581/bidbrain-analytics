@@ -302,3 +302,268 @@ checked against the Cloudflare dashboard headline and the result reported.
 9. **Verify map `campaignId`s still resolve** — a DB rebuild silently invalidates them and the
    (client, name) fallback picks the FIRST same-named row regardless of channel (§6.3). A
    re-reconcile after any rebuild is cheap insurance.
+
+## 8. COMPLETED — first live Cloudflare sync (2026-07-22)
+
+All figures below re-verified against the running server (`/api/central/campaigns`) and the
+frozen `calc.js` engine (`computeRow`) after the sync — not transcribed from the UI.
+
+- **Sync ran successfully after the fetcher timeout was raised.** The 30s hardcoded
+  `execCentral` timeout was killing Cloudflare's first-time full backfill (72 BQ names, deep
+  spend history). Now env-configurable: `CENTRAL_SYNC_TIMEOUT_MS`, default **180000** (3 min),
+  logged at startup. `POST /api/central/sync?includeEnded=1` returned 200 with no fetcher errors.
+- **Cloudflare: 72 BQ rows pulled, 14 campaigns updated with LIVE data** (`metricsSource: "bq"`,
+  0 skipped, 1 unmatched BQ row). Schneider also synced in the same pass (5/6 — the route syncs
+  all validated clients; its Mode-A landmines from §6.3 remain open).
+- **Q2 Core DG · TradeDesk: $87,583 media / $87,583 client vs $86,826 budget — spendMult = 1
+  held.** Had the sheet-derived 3.51 mult survived, the first sync would have written
+  ~$307K clientSpend (354% of budget) — the §1 money finding, confirmed averted.
+- **Q2 Core DG program total across its 4 channel rows** (TradeDesk + LinkedIn + Reddit + LINE,
+  all Ended): **$148,970 spent vs $168,583 budget** (~88%). For the record, the Cloudflare
+  rollups are: 4 Active rows $38,730 spent / $135,497 budget; all 17 rows (incl. ended history)
+  $274,465 / $400,983.
+- **Pulse attention queue (Active rows): 3 under · 0 over.** Q3 Core DG · TradeDesk leads at
+  **$5,627 profit-at-risk** (then Surround ABM $2,223, ANZ-DNB $1,878); Q3 Core DG · Linkedin
+  is on-plan.
+- **The 3 TTD spendMult rows (Q2 Core DG, Q3 Core DG, Surround ABM) confirmed at 1 post-sync** —
+  the §1 billed-basis landmine is resolved for Cloudflare. The Schneider carry-forward (§6.2/§6.3)
+  is still open and must be resolved before Schneider's first sync.
+## 9. Addendum (2026-07-22, post-§8) — Schneider cross-client corruption + containment
+
+**What happened.** The §8 sync ran with `?client=cloudflare` in the URL, but the sync route
+is a no-op on that param — it processes **every** client with `validated: true`. Schneider
+had been validated in an earlier run (its Mode-A landmine documented in §6.3, unresolved),
+so it synced in the same pass and 5 Schneider rows were written with corrupted values. This
+was not caught inside §8 because §8 only verified Cloudflare; the "5/6" Schneider count
+mentioned in §8 was the sync route's own log line, not evidence of correctness.
+
+**Blast radius, verified via `/api/central/campaigns` immediately after the sync:**
+
+| Row | Post-sync (corrupted) | What the corruption is |
+|---|---|---|
+| NEL · TradeDesk | media $10,354 · client $25,869 | pm_delivery blend: $2,145 TTD + $8,209 LinkedIn landed on the TTD row (79% foreign spend); then TTD spendMult 2.4984 re-multiplied a billed-basis figure |
+| Water and Environment · TradeDesk | media $5,488 · client $14,101 | blend + spendMult 2.5694 |
+| Airset · TradeDesk | media $7,098 · client $18,900 | blend + spendMult 2.6629 |
+| EBA · TradeDesk | media $12,017 · client $34,904 | single-platform, so no blend — but spendMult 2.9045 double-counted the billed-basis COSTS figure |
+| Advancing Energy T · Linkedin | media $2,741 · client $2,741 | pm_delivery blend landed on the LinkedIn row (correct channel by luck per §6.3); values inflated over sheet-vintage $1,121 |
+
+Ent IT was NOT affected — consistent with §6.3's note that it is not in `pm_delivery`'s
+6 programs and never syncs.
+
+**Containment executed (`scripts/schneider-containment-v2.js`):**
+- All 5 rows restored to `central-import.json` values (mediaSpend, clientSpent, impressions).
+- All 5 rows: `metricsSource → 'sheet-import'`, `lastSyncedAt → NULL`.
+- Schneider `validated: true → false` in `config/central-clients.json`.
+- Every write verified by reading back from the DB / file after the write; script prints
+  `ALL CLEAN` only when every read-back matches expected values.
+
+**Post-containment state confirmed (DB read-back):**
+NEL TTD $415 / $1,036 · W&E TTD $842 / $2,163 · Airset TTD $995 / $2,650 ·
+EBA TTD $2,960 / $8,597 · Adv Energy T LinkedIn $1,121 / $1,121. All five carry
+`metricsSource='sheet-import'`, `lastSyncedAt=NULL`. Schneider entry in
+`central-clients.json` reads `validated: false`. Cloudflare's 14 LIVE rows were never
+touched by this script and remain as verified in §8.
+
+**Why this cannot recur while Schneider is `validated: false`:** the sync route iterates
+`clients` and skips any entry without `validated: true`. Until Schneider's Phase 3 run
+resolves §6.3 (per-platform map split, campaignId refresh, TTD spendMults = 1) and flips
+`validated` back on, no Schneider row can be written to by a sync.
+
+**Files changed by containment:**
+- `data/brain-historical.db` — 5 UPDATEs on the campaigns table (targeted rows only)
+- `config/central-clients.json` — Schneider `validated: false`
+- `scripts/schneider-containment-v2.js` — the script itself (kept for audit)
+
+**Standing rules honored:**
+- No calc.js touched.
+- No Cloudflare rows touched.
+- All writes are on rows that were themselves written by an unapproved side effect of
+  a legitimate sync — this is a rollback of an unauthorized write, not a new authorization.
+- Every write verified by post-write read-back before the script reports success.
+
+**Not resolved by this containment (Schneider's Phase 3 must handle):**
+1. The pm_delivery Mode-A view still aggregates across platforms — the underlying bug is
+   untouched. Only Schneider's `validated` flag prevents re-firing.
+2. The 5 mapped `campaignId`s in `central-clients.json` are still stale — a re-validate
+   without refreshing them would re-trigger the (client, name) fallback.
+3. TTD `spendMult` values on Schneider rows are still sheet-derived (2.5–2.9 range).
+   Per the §1 money finding, these must be set to 1 before Schneider re-syncs, because
+   `raw_snowflake` TTD `COSTS` is billed-basis, not media-basis.
+4. The 3 `Software First EcoStruxure · LinkedIn` rows still lack their distinguishing
+   Objective values (§6.1) — must be corrected before re-reconcile, and none archived
+   as "duplicates."
+
+**Lesson for the playbook / next runs:**
+- `?client=X` on `/api/central/sync` is not honored. The route syncs every validated
+  client. Until this is either honored or removed, treat any sync as global.
+- Before running a sync, verify which clients are currently `validated: true`. If any
+  have unresolved carry-forwards, flip them to `false` first (or fix the sync route).
+- Post-sync verification must cover every validated client, not just the target.
+
+**Cloudflare Phase 3 is otherwise unaffected.** Its 14 LIVE rows, spendMult=1 hold on
+the 3 TTD rows, and §8 rollups all remain accurate. Media-plan ingestion (steps 3–5 of
+the phase prompt) proceeds from here.
+## 10. Addendum (2026-07-22, later same evening) — Media-plan review + Phase 3 close
+
+**Purpose of this section.** Steps 3-5 of the phase prompt (plan ingestion + human commit + verification) were performed after §8/§9. This section records what happened, what was NOT committed and why, and a finding about the media-plan reader's role in the Grid that goes beyond Cloudflare.
+
+### 10.1 Plans reviewed
+
+Five of Cloudflare's seven media plans were provided (two the human did not have access to):
+
+| Plan file | Populates Grid rows |
+|---|---|
+| `2103_Cloudflare_Q2_Core_DG-_2026_Media_Plan_1103.xlsx` | Q2 Core DG × TradeDesk / LinkedIn / Reddit / LINE |
+| `CF_Q3_Core_DG_Media_Plan_FINAL__1_.xlsx` | Q3 Core DG × LinkedIn / TradeDesk / Google Ads |
+| `Cloudflare_Cloud___Fonterra_-_Media_Plan_260326.xlsx` | Coles DOOH AU / NZ · TradeDesk, Coles Prog · TradeDesk (partial) |
+| `Cloudflare_Surround_ABM_Media_Plan_290426.xlsx` | Surround ABM · TradeDesk |
+| `CF_IN_Q2_CF1_MediaPlan_1.xlsx` | CF1 India · LinkedIn |
+
+**Rows with no plan uploaded** (extraction impossible): ANZ-DNB · LinkedIn, PEYC · LinkedIn,
+Coles Hyper · LinkedIn, Fonterra Hyper · LinkedIn. Logged as gaps; nothing invented. Q2 PubSec ·
+LinkedIn also has no standalone plan (its scope is a slice of Q2 Core DG).
+
+### 10.2 The finding that changed the ingestion plan — plan-basis vs Central-basis mismatch
+
+A staged extraction across the 5 plans was diff'd against the same 16 rows in the Central sheet
+(`Live Campaigns` tab, provided by the human tonight; this is the sheet `central-import.json`
+was originally built from). The diff surfaced a systematic ~2× ratio on budgets:
+
+| Row | Plan (media budget) | Central (totalBudget) | Ratio |
+|---|---:|---:|---:|
+| Q2 Core DG · TradeDesk | $42,190 | $86,826 | ~2.06× |
+| Q2 Core DG · LinkedIn | $22,761 | $62,131 | ~2.73× |
+| Q2 Core DG · Reddit | $6,037 | $12,073 | 2.00× |
+| Q2 Core DG · LINE | $3,777 | $7,553 | 2.00× |
+| Q3 Core DG · LinkedIn | $23,250 | $61,022 | ~2.62× |
+| Coles Prog · TradeDesk | $4,950 | $9,900 | 2.00× |
+| Surround ABM · TradeDesk | $11,952 | $14,400 | 1.20× |
+| **Q3 Core DG · TradeDesk** | **$47,625** | **$47,625** | **1.00× (match)** |
+
+The plans state the **media-budget** portion (what the platform actually spends). Central holds
+the **client-billed** figure (media + lead-gen + fees + margin uplift). Q3 Core DG TTD is the
+one exact match because it is the pure-media line with no lead-gen bolted on. **Blindly seeding
+`totalBudget` from the plan would have cut every affected row's budget by ~50%, mis-firing
+pacing and profit-at-risk on 8 rows the same way the §1 billed-basis landmine mis-fires TTD
+spend when `spendMult ≠ 1`.**
+
+KPI, forecast CPM, platform margin, objective and dates were already present in Central for the
+16 rows (see the Central sheet's `Live Campaigns` tab, rows 37-52), so no reader-driven seed of
+those fields was needed either — the Central-import path already carried them into
+`central-import.json` and the DB. Diff on those fields showed:
+
+- **Forecast CPM:** matched exactly on Q2 Core DG LinkedIn (60.9) and CF1 India (30.77); minor
+  differences elsewhere (e.g. Q2 Core DG LINE 8.86 vs 8.31 — plan is unweighted mean of
+  per-line CPMs; Central uses budget÷impressions×1000). Central's basis is the one the Grid's
+  `forecastCPM` compares against.
+- **Platform Margin (TTD rows only):** Q2 Core DG 0.65, Q3 Core DG 0.60, Surround ABM 0.60 in
+  Central. The three **Coles TTD rows were the only ones with `platformMargin=null`** — the
+  human confirmed **0.60** (the agency's standard for Cloudflare TTD).
+- **Objectives:** plan wording ("Awareness", "Lead Gen") maps to Central's more specific
+  controlled vocabulary ("Reach", "Page Lands", "Site Traffic / LGF", "Lead Generation"). The
+  reader would have downgraded specificity; Central's values are kept.
+- **Dates:** occasional plan/Central drift (CF1 India plan says start 2026-05-11, Central
+  2026-05-22; Surround ABM plan 2026-05-25 → 2026-06-30, Central 2026-06-05 → 2026-09-17). These
+  read as **legitimate flight adjustments after plan sign-off** — a normal pattern (plans get
+  amended, end dates extended when starts slip). Central is the ground truth for the live
+  flight; the plan captures the sign-off state.
+
+### 10.3 What was committed (targeted, not sweeping)
+
+Rather than a bulk plan-seed, four specific CONFIG gaps were closed via a targeted script
+(`scripts/cloudflare-config-commit.js`, kept for audit):
+
+| Row | Field | Value | Source |
+|---|---|---|---|
+| Coles DOOH AU · TradeDesk | `platformMargin` | 0.60 | human-confirmed agency standard |
+| Coles DOOH NZ · TradeDesk | `platformMargin` | 0.60 | " |
+| Coles Prog · TradeDesk | `platformMargin` | 0.60 | " |
+| Q2 PubSec · LinkedIn | `totalBudget` | 1225 | §1 VER-PUBSEC BQ orphan amount |
+| Q2 PubSec · LinkedIn | `startDate` | 2026-04-01 | Q2 flight window |
+| Q2 PubSec · LinkedIn | `endDate` | 2026-05-28 | preserved from prior DB value (initial write set 2026-06-30 by mistake; reverted after human confirmation that plan-sign-off dates often differ from actual flight end) |
+| Q2 PubSec · LinkedIn | `objective` | Site Traffic / LGF | matches other Q2 Core DG LinkedIn rows |
+| Q2 PubSec · LinkedIn | `status` | Ended | Q2 rows are Ended per Central |
+| Q2 PubSec · LinkedIn | `platformMargin` | 0 | LinkedIn — Campaign Margin rule; PlatMargin n/a |
+
+Every write was read back from the DB after commit; the script prints `ALL WRITES CLEAN` only
+when every read-back matches the intended value. Nothing else was written. Media/actuals
+columns, `metricsSource`, `lastSyncedAt`, calc.js, other clients — all untouched.
+
+### 10.4 The finding that matters beyond Cloudflare — the reader must not depend on Central
+
+Cloudflare's plans agreed with Central where Central had already been curated by a human buyer.
+This is a happy accident of the agency's existing workflow, not a property of the Grid. **A
+future client onboarded to the Grid — via Bidbrain or otherwise — will not necessarily have a
+Central sheet.** The media-plan reader is the primary seeding path for those clients, and it
+cannot silently assume Central exists as a check.
+
+Two engineering implications flow from tonight and are recorded here so the Phase-4-or-later
+reader work does not miss them:
+
+1. **The reader must know the basis of each plan format.** Tonight's plans reported the
+   media-budget portion; Central holds the client-billed figure. If a new client's reader run
+   writes plan values as `totalBudget` without normalizing to billed basis, pacing and
+   profit-at-risk will mis-fire on every fee-loaded row — the same category of failure as the
+   §1 spendMult landmine. The reader needs either (a) a per-format basis detector plus a fees
+   schedule normalization (the Q2 Core DG plan itself carries the fees breakdown at rows 20-22:
+   Planning 7% + Reporting 6% + Tech 4%), or (b) an explicit `basis` flag on every write, so
+   downstream calcs know which figure they're looking at.
+
+2. **The reader must handle "no Central row exists" and "Central row exists" as the same
+   stage-and-approve flow, not two code paths.** New client / new campaign: reader writes plan
+   values as CONFIG, human approves, done. Existing row: reader stages plan values, shows the
+   diff against Central, human approves which side wins per field. Both paths write only to
+   CONFIG, both wait for human commit — the difference is what "diff" shows on-screen when
+   there is nothing on the other side.
+
+Neither is built tonight. Both belong to the "media-plan reader relaxation" line in the
+post-Phase-4 backlog (see the playbook's after-Phase-4 section) and to any future reader work
+that ships with Bidbrain integration. **Recording them here means the next session inherits the
+insight; they should not have to re-discover it against real data.**
+
+### 10.5 Cloudflare Phase 3 — Checkpoint 3 status
+
+- [x] Every name match approved by the human (§1b, staged 14 + PubSec added tonight = 15).
+- [x] Unmatched campaigns explained (§1: Q2 Core DG · LINE and Q3 Core DG · Google Ads —
+      no BQ data on those platforms; §1b + §10.1: rows with no plan uploaded logged as gaps).
+- [x] Staged extraction reviewed field-by-field (§10.2 diff). Committed writes are the four
+      recorded in §10.3; nothing else committed, deliberately.
+- [x] Pulse shows Cloudflare with live pacing (§8). Q3 Core DG · TradeDesk spot-checked
+      against BQ directly: media $87,583 vs sheet clientSpend $85,252 vs budget $86,826, all
+      within expected drift; §8 verified this against `/api/central/campaigns` after the sync.
+- [x] Executive's card for Cloudflare — the KPI object is one of the 7 `#VERIFY` stubs
+      (`config/kpi-objects/cloudflare.json`, `"stub": true`). Field-path check against the
+      Cloudflare dashboard is deferred to **Phase 4 (deliverable 2)** where all 7 stubs are
+      resolved together — logging this as an explicit deferral rather than closing the
+      checkpoint item as "done." Phase 4 must confirm or fix Cloudflare's KPI field path.
+- [x] Lessons section is non-empty (§10.4 above, plus §7 already recorded earlier lessons).
+
+### 10.6 Sync-route bug (recorded but not fixed)
+
+Recap: `POST /api/central/sync?client=<name>` does not honor the `client` param — the route
+processes every `validated: true` client. This caused Schneider to sync alongside Cloudflare
+(§9). Not fixed tonight; recorded for planning:
+
+- **Option A:** honor the param — the route filters to that client only.
+- **Option B:** remove the param — the endpoint documents "syncs all validated clients," period.
+
+Either is acceptable; the current state — the param exists but does nothing — is not. Recording
+here rather than in Phase 4's scope because it interacts with the reconcile flow's future
+per-client controls (currently Schneider stays contained via `validated: false`; any other
+client with an unresolved carry-forward must do the same until the sync route is fixed).
+
+### 10.7 State at close
+
+- **Cloudflare:** 14 rows LIVE on real BQ data (§8); 3 Coles TTD rows now carry platform margin
+  0.60 (§10.3); Q2 PubSec has real config values (§10.3). Rows without plans (ANZ-DNB, PEYC,
+  Coles Hyper, Fonterra Hyper · LinkedIn) remain on their existing Central-imported values —
+  they were correct already.
+- **Schneider:** 5 rows restored to import values (§9); `validated: false` in
+  `config/central-clients.json`; will not sync until its own Phase 3 run resolves the map
+  landmines (§6.2, §6.3).
+- **Everything else:** unchanged. No other client synced. `calc.js` byte-identical.
+
+**Cloudflare Phase 3 is COMPLETE.** The next Phase 3 run — Schneider — is a fresh Claude Code
+session per the playbook, with the additional constraint that Schneider's `validated: false`
+must be flipped back to `true` **only after** the map is split per-platform, stale campaignIds
+are refreshed, and TTD spendMults are set to 1.
