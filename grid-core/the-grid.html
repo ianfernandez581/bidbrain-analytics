@@ -469,6 +469,8 @@ tr.detail td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--l
         .ex-trend::before{content:"";width:14px;height:2px;border-radius:2px;background:var(--brand);display:inline-block;flex:none}
         .ex-scmp{display:inline-flex;align-items:center;margin-top:5px;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;line-height:1.3;white-space:nowrap}
         .ex-cardnote{font-size:10.5px;color:var(--brand-ink);line-height:1.45;background:var(--brand-soft);border-radius:8px;padding:7px 9px}
+        .ex-card.ex-clickable{cursor:pointer}
+        .ex-card.ex-clickable:hover{border-color:var(--brand)}
       </style>
       <div id="view-exec" style="display:none"><div id="execMount"></div></div>
 
@@ -1186,14 +1188,14 @@ function exCard(c){
   const note=c.note?'<div class="ex-cardnote">'+exEsc(c.note)+'</div>':'';
   const dash=c.dash?EX_DASH[c.dash]:null;
   const open=dash?'<div class="ex-foot"><a class="ex-open" href="'+exEsc(dash.link)+'" target="_blank" rel="noopener">Open dashboard ↗</a></div>':'';
-  return '<div class="ex-card"><div class="ex-cbase" style="background:linear-gradient(to top, '+st.dim+', transparent 82%)"></div>'
+  return '<div class="ex-card'+(dash?' ex-clickable':'')+'"'+(dash?' data-dash="'+exEsc(dash.link)+'"':'')+'><div class="ex-cbase" style="background:linear-gradient(to top, '+st.dim+', transparent 82%)"></div>'
     +'<div class="ex-cin">'
     +'<div class="ex-top"><div class="ex-mono">'+exEsc(c.mono)+'</div>'
     +'<div><div class="ex-nm">'+exEsc(c.name)+'</div><div class="ex-ag">'+exEsc(c.agency)+'</div></div>'
     +'<span class="ex-verd" style="color:'+st.c+';background:'+st.dim+';border-color:'+st.c+'">'+st.ic+' '+st.lbl+'</span></div>'
     +'<div class="ex-obj"><b>Plan</b> &nbsp;'+exEsc(c.obj)+'</div>'
     +'<div class="ex-metric"><div><div class="ex-ml">'+exEsc(c.mlbl)+'</div><div class="ex-mv">'+exFmtVal(c)+(c.unit?'<span class="ex-mu">'+c.unit+'</span>':'')+'</div></div>'
-    +'<div class="ex-delta '+dcls+'"><span class="dv">'+arrow+Math.abs(delta)+'%</span><span class="per">'+per+'</span></div></div>'
+    +'<div class="ex-delta '+dcls+'"><span class="dv">'+arrow+(Math.abs(delta)>200?'200+':Math.abs(delta))+'%</span><span class="per">'+per+'</span></div></div>'
     +exSpark(exSpk(c))
     +'<div class="ex-aisum"><span class="ex-aitag">AI</span><span>'+exEsc(exSum(c))+'</span></div>'
     +meter+note
@@ -1258,6 +1260,9 @@ function renderExec(){
   const ob=mount.querySelector('#exObj');if(ob)ob.addEventListener('change',()=>{EXF.objective=ob.value||null;renderExec();});
   const cl=mount.querySelector('#exClear');if(cl)cl.addEventListener('click',()=>{EXF.verdict=null;EXF.agency=null;EXF.objective=null;renderExec();});
   const sb=mount.querySelector('#exSync');if(sb)sb.addEventListener('click',()=>exSync(sb));
+  // Click a client cell -> open that client's full dashboard (the "overview -> detail" drill-down).
+  mount.querySelectorAll('.ex-card[data-dash]').forEach(cd=>cd.addEventListener('click',function(e){
+    if(e.target.closest('a'))return; window.open(cd.getAttribute('data-dash'),'_blank','noopener'); }));
 }
 function renderContent(){
   const rows=visible();

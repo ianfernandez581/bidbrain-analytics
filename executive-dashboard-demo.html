@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Executive Dashboard - Bidbrain (agency overview)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{ /* DARK (default) - near-black + green */
+    --bg:#0A130F;--panel:#111C16;--panel-2:#0D160F;--grp:#16221C;--side:#0D160F;
+    --line:#22302A;--line-2:#1A2620;--ink:#E9F1EC;--ink-2:#A6B5AC;--ink-3:#6F827A;
+    --brand:#26C57E;--brand-soft:rgba(38,197,126,.15);--brand-strong:#34D48C;--brand-ink:#7BE3B4;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.6);--r:14px;--pill-fg:#052012;--pill-bg:var(--brand);
+  }
+  :root[data-theme="light"]{ /* LIGHT - whiter, still green */
+    --bg:#F4F7F5;--panel:#FFFFFF;--panel-2:#FAFCFB;--grp:#EEF4F0;--side:#FFFFFF;
+    --line:#E4EAE6;--line-2:#EEF3F0;--ink:#0F1A14;--ink-2:#566159;--ink-3:#879089;
+    --brand:#1FB573;--brand-soft:#E5F6EE;--brand-strong:#0C8A53;--brand-ink:#0A7647;
+    --shadow:0 1px 2px rgba(15,26,20,.04),0 8px 24px -12px rgba(15,26,20,.12);--r:14px;--pill-fg:#fff;--pill-bg:var(--ink);
+  }
+  *{box-sizing:border-box}html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;-webkit-font-smoothing:antialiased}
+  .topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;border-bottom:1px solid var(--line);background:var(--side);position:sticky;top:0;z-index:20}
+  .topbar .brand{font-family:"Space Grotesk";font-weight:700;font-size:15px}.topbar .brand .g{color:var(--brand)}
+  .topbar .label{font-size:13px;color:var(--ink-3)}
+  .topbar .pill{font-size:10.5px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:var(--pill-fg);background:var(--brand);padding:4px 10px;border-radius:6px}
+  .topbar .sp{flex:1}
+  .topbar button{appearance:none;cursor:pointer;font:600 12px/1 inherit;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
+  .wrap{max-width:1200px;margin:0 auto;padding:16px 28px 64px}
+
+  #view-exec{padding:2px 0 44px}
+  .ex-hero{padding:6px 0 8px}
+  .ex-eyebrow{font-family:"Space Grotesk";font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand)}
+  .ex-hero h2{font-family:"Space Grotesk";font-size:24px;font-weight:600;letter-spacing:-.5px;margin:6px 0 4px;color:var(--ink)}
+  .ex-hero p{margin:0;font-size:12.5px;color:var(--ink-2);max-width:80ch;line-height:1.5}
+  .ex-grainbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0 6px}
+  .ex-glabel{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+  .ex-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+  .ex-seg button{appearance:none;border:0;background:none;color:var(--ink-2);font:600 12px/1 inherit;padding:8px 14px;border-radius:8px;cursor:pointer;transition:color .12s}
+  .ex-seg button:hover{color:var(--ink)}
+  .ex-seg button.on{background:var(--brand);color:var(--pill-fg);font-weight:700}
+  .ex-grainhint{font-size:12px;color:var(--ink-3)}
+  .ex-sel{font:600 12px/1 inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;outline:none}
+  .ex-sel:focus{border-color:var(--brand)}
+  .ex-sync{margin-left:auto;appearance:none;cursor:pointer;font:700 12px/1 inherit;display:inline-flex;align-items:center;gap:7px;color:var(--pill-fg);background:var(--brand);border:1px solid var(--brand);border-radius:9px;padding:8px 15px;box-shadow:var(--shadow)}
+  .ex-synced{font-size:11px;color:var(--ink-3);white-space:nowrap}
+  .ex-fbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 2px}
+  .ex-pill{appearance:none;cursor:pointer;font:600 12px/1 inherit;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;transition:.12s}
+  .ex-pill:hover{color:var(--ink);border-color:var(--brand)} .ex-pill.on{color:var(--pill-fg);background:var(--pill-bg);border-color:var(--pill-bg)}
+  .ex-alllink{font-size:11px;font-weight:600;color:var(--brand-ink);text-decoration:none;margin-left:4px}
+  .ex-count{font-size:12px;color:var(--ink-3)}.ex-count b{color:var(--ink);font-family:"Space Grotesk";font-weight:600}
+  .ex-clear{font-size:12px;color:var(--brand-ink);cursor:pointer;background:none;border:0;font-weight:600}.ex-clear[hidden]{display:none}
+  .ex-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:12px 0 4px}
+  @media(max-width:720px){.ex-summary{grid-template-columns:repeat(2,1fr)}}
+  .ex-scard{appearance:none;text-align:left;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px 13px;position:relative;overflow:hidden;box-shadow:var(--shadow);transition:transform .13s,border-color .13s;color:inherit}
+  .ex-scard:hover{transform:translateY(-1px)} .ex-scard[aria-pressed="true"]{border-color:var(--ink-3)}
+  .ex-scard .base{position:absolute;left:0;right:0;bottom:0;height:3px} .ex-scard[aria-pressed="true"] .base{height:4px}
+  .ex-scard .n{font-family:"Space Grotesk";font-size:26px;font-weight:600;letter-spacing:-.6px;line-height:1;color:var(--ink)}
+  .ex-scard .l{font-size:11.5px;color:var(--ink-2);margin-top:6px;display:flex;align-items:center;gap:7px;font-weight:600}
+  .ex-dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .ex-sec{margin-top:22px}
+  .ex-sec-h{display:flex;align-items:baseline;gap:11px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+  .ex-sec-h h3{font-family:"Space Grotesk";font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:0;color:var(--brand)}
+  .ex-sec-h .d{font-size:12px;color:var(--ink-3)} .ex-sec-h .c{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:500}
+  .ex-att .ex-sec-h h3{color:var(--ink)} .ex-att .ex-sec-h .adot{width:8px;height:8px;border-radius:50%;flex:none}
+  .ex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(312px,1fr));gap:13px}
+  .ex-card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);transition:transform .13s,border-color .13s}
+  .ex-card:hover{transform:translateY(-1px);border-color:var(--line-2)}
+  .ex-card.ex-clickable{cursor:pointer} .ex-card.ex-clickable:hover{border-color:var(--brand)}
+  .ex-cin{padding:15px 16px 15px;position:relative;z-index:1;display:flex;flex-direction:column;gap:10px}
+  .ex-cbase{position:absolute;left:0;right:0;bottom:0;height:44px;z-index:0;pointer-events:none} .ex-cbar{position:absolute;left:0;right:0;bottom:0;height:3px;z-index:2}
+  .ex-top{display:flex;align-items:center;gap:10px}
+  .ex-mono{width:32px;height:32px;flex:none;border-radius:8px;display:grid;place-items:center;font-family:"Space Grotesk";font-weight:700;font-size:12px;background:var(--grp);border:1px solid var(--line);color:var(--ink-2)}
+  .ex-nm{font-family:"Space Grotesk";font-weight:600;font-size:14.5px;color:var(--ink);line-height:1.1}
+  .ex-ag{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+  .ex-verd{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+  .ex-obj{font-size:10.5px;color:var(--ink-2)}.ex-obj b{color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-size:9px;font-weight:700}
+  .ex-metric{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+  .ex-ml{font-size:11px;color:var(--ink-2);margin-bottom:3px}
+  .ex-mv{font-family:"Space Grotesk";font-size:28px;font-weight:600;letter-spacing:-.7px;line-height:1;color:var(--ink)} .ex-mu{font-size:14px;font-weight:600;color:var(--ink-2);margin-left:1px}
+  .ex-delta{text-align:right;white-space:nowrap}
+  .ex-delta .dv{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:3px}
+  .ex-delta.up .dv{color:#22C07A}.ex-delta.down .dv{color:#F0655A}.ex-delta.flat .dv{color:var(--ink-2)}
+  .ex-delta .per{display:block;font-size:9.5px;color:var(--ink-3);font-weight:500;margin-top:1px}
+  .ex-spark{width:100%;height:36px;display:block}
+  .ex-aisum{font-size:11.5px;line-height:1.5;color:var(--ink-2);display:flex;gap:8px;align-items:flex-start}
+  .ex-aitag{flex:none;font-size:8.5px;font-weight:800;letter-spacing:.7px;color:var(--brand);border:1px solid var(--line-2);border-radius:5px;padding:2px 5px;margin-top:1px}
+  .ex-meter .mr{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);margin-bottom:5px} .ex-meter .mr .r{color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .ex-track{height:7px;border-radius:5px;background:var(--line-2);overflow:hidden} .ex-fill{height:100%;border-radius:5px}
+  .ex-trend{font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+  .ex-trend::before{content:"";width:14px;height:2px;border-radius:2px;background:var(--brand);display:inline-block;flex:none}
+  .ex-sec2{display:flex;gap:14px;padding-top:11px;border-top:1px solid var(--line)} .ex-s{flex:1;min-width:0}
+  .ex-s .sv{font-family:"Space Grotesk";font-weight:600;font-size:13px;color:var(--ink)} .ex-s .sl{font-size:10px;color:var(--ink-3);display:block;margin-top:1px}
+  .ex-scmp{display:inline-flex;align-items:center;margin-top:5px;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;line-height:1.3;white-space:nowrap}
+  .ex-cardnote{font-size:10.5px;color:var(--brand-ink);line-height:1.45;background:var(--brand-soft);border-radius:8px;padding:7px 9px}
+  .ex-foot{display:flex;padding-top:2px} .ex-open{font-size:11px;font-weight:600;color:var(--brand-ink);text-decoration:none} .ex-open:hover{text-decoration:underline}
+  .ex-empty{padding:44px 0;text-align:center;color:var(--ink-3);font-size:13px}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">Bidbrain<span class="g">.ai</span></span>
+    <span class="label">Report</span>
+    <span class="pill">Executive</span>
+    <span class="sp"></span>
+    <button id="themeBtn" type="button">Toggle theme</button>
+  </div>
+  <div class="wrap"><div id="view-exec"><div id="execMount"></div></div></div>
+
+<script>
+/* ============================================================================
+ * EXECUTIVE DASHBOARD - standalone demo (agency overview of every client).
+ * Self-contained: real data baked into EXC below (snapshot from each client's
+ * data.json, 2026-07-22). This is the exact design/logic deployed in The Grid's
+ * Executive tab; see EXECUTIVE_DASHBOARD_HANDOVER.md for how to port it.
+ * ==========================================================================*/
+const GEN = "2026-07-22";                       // data snapshot date
+const EX_DASH = {   // client -> its full dashboard (click a cell to drill down). Project-specific.
+  "Cloudflare":{link:"https://cloudflare-dash-p32gk2wuia-ts.a.run.app/"},
+  "Schneider":{link:"https://schneider-dash-p32gk2wuia-ts.a.run.app/#portfolio"},
+  "ResetData":{link:"https://resetdata-dash-p32gk2wuia-ts.a.run.app"},
+  "VMCH":{link:"https://vmch-dash-516554645957.australia-southeast1.run.app/"},
+  "MongoDB":{link:"https://mongodb-dash-p32gk2wuia-ts.a.run.app/"},
+  "STT":{link:"https://stt-dash-p32gk2wuia-ts.a.run.app/#overview"},
+  "The Little Marionette":{link:"https://tlm-dash-p32gk2wuia-ts.a.run.app/"}
+};
+const EXS={ ok:{lbl:'On track',ic:'✓',c:'#22C07A',dim:'rgba(34,192,122,.15)',r:0},
+            watch:{lbl:'Watch',ic:'!',c:'#E3B341',dim:'rgba(227,179,65,.16)',r:1},
+            behind:{lbl:'Behind',ic:'↓',c:'#F08A3E',dim:'rgba(240,138,62,.16)',r:2},
+            risk:{lbl:'At risk',ic:'⚠',c:'#F0655A',dim:'rgba(240,101,90,.16)',r:3} };
+const EXGP={d:'vs prior 3 days',w:'week over week',m:'month over month'};
+const EXGH={d:'Daily compares the last 3 days with the 3 before. Quickest to spot a sudden break.',
+            w:'Weekly is week over week. Noisier, good for early warning.',
+            m:'Monthly is month over month. The steadiest read, best for a real slide.'};
+let EXG='m';
+const EXF={verdict:null,agency:null,objective:null,synced:null};
+
+// Live snapshot pulled from each client's data.json (the same numbers their dashboard shows).
+const EXC=[
+  {key:'cloudflare',mono:'CF',name:'Cloudflare',agency:'Transmission',group:'lead',dash:'Cloudflare',obj:'Lead gen + Site traffic',mlbl:'Accepted CS leads (Q3 to date)',unit:'',fmt:'int',val:294,target:5506,targetLbl:'Q3 target',pace:0.0534,noDaily:true,gd:{d:0,w:0,m:0},sk:{d:[0,0,0,0,0,0,0,0,0,0,0,0],w:[0,0,0,0,0,0,0,0,0,0,0,0],m:[0,0,0,0,0,0,0]},sec:[['83%','Acceptance rate',null]],sum:'Holding roughly flat month over month. At 5% of the Q3 target (Q3 just started).'},
+  {key:'schneider',mono:'SE',name:'Schneider',agency:'Transmission',group:'lead',dash:'Schneider',obj:'Awareness + Site traffic + LGF',mlbl:'MQL + HQL leads',unit:'',fmt:'int',val:618,target:1117,targetLbl:'Plan target (to date)',pace:0.5533,noDaily:true,gd:{d:-70,w:-70,m:70},sk:{d:[45,47,65,72,118,115,86,54,16],w:[45,47,65,72,118,115,86,54,16],m:[45,417,156]},sec:[['4 of 4','Programs on pace',null]],sum:'Trending up, about 70% month over month. At 55% of the plan target (to date).'},
+  {key:'resetdata',mono:'RD',name:'Reset Data',agency:'100% Digital',group:'lead',dash:'ResetData',obj:'Leads',mlbl:'Ad-reported leads',unit:'',fmt:'int',val:520,target:null,targetLbl:null,pace:null,noDaily:false,gd:{d:-34,w:24,m:9},sk:{d:[5,3.29,2.71,0,2,1.04,8.5,11.07,5.85,5.97,1.93,8.93],w:[4,16,16,14,68,82.3,63.7,94.97,54,44,36.4,8.93],m:[3,6,1.5,5.5,51,313.96,138.28]},sec:[['77','Paying customers',null]],sum:'Trending up, about 9% month over month.'},
+  {key:'vmch',mono:'VM',name:'Villa Maria (VMCH)',agency:'100% Digital',group:'lead',dash:'VMCH',obj:'Leads',mlbl:'Ad-attributed enquiries',unit:'',fmt:'int',val:251,target:null,targetLbl:null,pace:null,noDaily:false,gd:{d:20,w:2,m:-4},sk:{d:[45,12,16,48,46,41,45,41,18,23,52,50],w:[227,216,279,292,249,307,241,237,233,262,262,102],m:[891,1086,1109,535]},sec:[['10.2M','Impressions',null]],sum:'Trending down, about 4% month over month.'},
+  {key:'stt',mono:'STT',name:'STT',agency:'Transmission',group:'reach',dash:'STT',obj:'Clicks / site traffic',mlbl:'Clicks',unit:'',fmt:'int',val:434583,target:null,targetLbl:null,pace:null,noDaily:false,gd:{d:15000,w:-81,m:-17},sk:{d:[151,159,170,167,92,40,0,1,0,6,87,58],w:[7824,15565,11098,4871,5201,391,6557,7532,8780,3121,951,152],m:[16206,14929,8263,18759,13390,12480,64947,104979,73350,40769,25723,1761]},sec:[['6,147','Leads - key events',null]],sum:'Trending down, about 17% month over month.'},
+  {key:'mongodb',mono:'MDB',name:'MongoDB',agency:'Transmission',group:'reach',dash:'MongoDB',obj:'Site traffic + Engagement',mlbl:'Impressions',unit:'',fmt:'int',val:10538654,target:null,targetLbl:null,pace:null,noDaily:false,gd:{d:-14,w:-11,m:-66},sk:{d:[62477,64494,61530,55672,63467,62928,59833,63207,54381,49178,50175,52856],w:[1435316,2695343,1663619,1167380,1121395,979420,566543,453613,403169,52856],m:[4130659,5143023,1264972]},sec:[['1,028','CS leads',null]],sum:'Trending down, about 66% month over month.'},
+  {key:'schneiderlqai',mono:'LQ',name:'Schneider LQAIDC',agency:'Transmission',group:'reach',dash:null,obj:'Site traffic / Awareness',mlbl:'Impressions',unit:'',fmt:'int',val:2110589,target:10121600,targetLbl:'Plan (LinkedIn + TTD)',pace:0.2085,noDaily:false,gd:{d:-9,w:-4,m:17},sk:{d:[38537,32462,31195,35998,38071,35678,36215,36441,33030,30263,38435,27212],w:[21247,205624,204996,201896,203598,227956,236262,251391,246276,245696,65647],m:[431867,941978,736744]},sec:[],sum:'Trending up, about 17% month over month. At 21% of the plan (LinkedIn + TTD).'},
+  {key:'proptrack',mono:'PT',name:'PropTrack',agency:'Transmission',group:'reach',dash:null,obj:'Awareness / Consideration (site traffic)',mlbl:'Impressions (flight)',unit:'',fmt:'int',val:3866458,target:null,targetLbl:null,pace:null,noDaily:false,gd:{d:460,w:53,m:-91},sk:{d:[4125,3581,3441,3815,2818,3181,3254,798,1305,2541,13759,13714],w:[11443,13889,11338,1146063,1175926,415794,416835,389780,52270,24967,25235,35371],m:[46673,17292,26293,44011,49948,2321989,1281778,78474]},sec:[['6,831','Clicks - site traffic',null]],sum:'Trending down, about 91% month over month (short flight winding down).'},
+  {key:'tlm',mono:'TLM',name:'The Little Marionette',agency:'100% Digital',group:'sales',dash:'The Little Marionette',obj:'ROAS',mlbl:'ROAS (Google)',unit:'×',fmt:'x',val:5.36,target:null,targetLbl:'Target ROAS',pace:null,noDaily:false,gd:{d:118,w:-14,m:56},sk:{d:[5.86,5.12,0.01,3.19,4.69,7.94,2.1,1.96,3.54,2.79,5.39,8.2],w:[7.59,9.68,6.36,3.11,4.14,6.48,7.57,7.05,10.39,5.18,4.19,8.2],m:[5.65,4.73,5.36,6.28,1.68,0.94,3.57,8.58,9.11,5.41,7.04,5.14]},sec:[['A$141k','Revenue',null]],sum:'Trending up, about 56% month over month.'}
+];
+
+function exEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function exCompact(n){if(n==null)return '—';const a=Math.abs(n);if(a>=1e6)return (n/1e6).toFixed(a>=1e7?1:2).replace(/\.?0+$/,'')+'M';if(a>=1e4)return Math.round(n/1e3)+'k';return n.toLocaleString('en-US');}
+function exFmtVal(c){return c.fmt==='x'?c.val.toFixed(1):exCompact(c.val);}
+function exVerdict(pace,delta){   // LENIENT + trend-primary; a low pace on a full-flight target early is normal
+  let lvl=delta>=-8?0:delta>=-20?1:delta>=-35?2:3;
+  if(pace!=null&&pace<0.5&&delta<0)lvl=Math.min(3,lvl+1);
+  return ['ok','watch','behind','risk'][lvl];
+}
+function exEff(c){return (EXG==='d'&&c.noDaily)?'w':EXG;}
+function exDelta(c){return c.gd[exEff(c)];}
+function exStat(c){var v=exVerdict(c.pace,exDelta(c));if(c.group==='reach'&&(v==='behind'||v==='risk'))v='watch';return v;}
+function exSpk(c){const g=exEff(c);return (c.sk&&c.sk[g])||c.spark;}
+function exSum(c){return (typeof c.sum==='object')?c.sum[exEff(c)]:c.sum;}
+function exSpark(vals){const W=240,H=36,pad=4,mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1;
+  const X=i=>pad+i*(W-2*pad)/(vals.length-1),Y=v=>H-pad-((v-mn)/rng)*(H-2*pad);
+  const pts=vals.map((v,i)=>[X(i),Y(v)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area='M'+pad+' '+(H-pad)+' '+pts.map(p=>'L'+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ')+' L'+(W-pad)+' '+(H-pad)+' Z';
+  const lst=pts[pts.length-1];
+  return '<svg class="ex-spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true"><path d="'+area+'" fill="var(--brand-soft)"/><path d="'+line+'" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+lst[0].toFixed(1)+'" cy="'+lst[1].toFixed(1)+'" r="3.2" fill="var(--brand)" stroke="var(--panel)" stroke-width="2"/></svg>';
+}
+function exCard(c){
+  const st=EXS[exStat(c)],delta=exDelta(c),dGood=delta>=0,arrow=delta>0?'▲':delta<0?'▼':'■',dcls=delta===0?'flat':(dGood?'up':'down');
+  const degraded=EXG==='d'&&c.noDaily,per=degraded?'week over week (finest for leads)':EXGP[EXG];
+  const meter=c.target!=null
+    ? '<div class="ex-meter"><div class="mr"><span>'+exEsc(c.targetLbl)+'</span><span class="r">'+exFmtVal(c)+' / '+(c.fmt==='x'?c.target.toFixed(1):exCompact(c.target))+'</span></div><div class="ex-track"><div class="ex-fill" style="width:'+Math.min(100,c.pace*100).toFixed(0)+'%;background:'+st.c+'"></div></div></div>'
+    : '<div class="ex-trend">No plan target, judged on trend</div>';
+  const chC={good:'#22C07A',bad:'#F0655A',flat:'var(--ink-2)'},chB={good:'rgba(34,192,122,.14)',bad:'rgba(240,101,90,.14)',flat:'rgba(128,128,128,.12)'};
+  const sec=c.sec.map(s=>{const cm=s[2]?'<span class="ex-scmp" style="color:'+chC[s[2].tone]+';background:'+chB[s[2].tone]+'">'+exEsc(s[2].t)+'</span>':'';return '<div class="ex-s"><span class="sv">'+exEsc(s[0])+'</span><span class="sl">'+exEsc(s[1])+'</span>'+cm+'</div>';}).join('');
+  const dash=c.dash?EX_DASH[c.dash]:null;
+  const open=dash?'<div class="ex-foot"><a class="ex-open" href="'+exEsc(dash.link)+'" target="_blank" rel="noopener">Open dashboard →</a></div>':'';
+  const dnum=Math.abs(delta)>200?'200+':Math.abs(delta);
+  return '<div class="ex-card'+(dash?' ex-clickable':'')+'"'+(dash?' data-dash="'+exEsc(dash.link)+'"':'')+'><div class="ex-cbase" style="background:linear-gradient(to top, '+st.dim+', transparent 82%)"></div>'
+    +'<div class="ex-cin">'
+    +'<div class="ex-top"><div class="ex-mono">'+exEsc(c.mono)+'</div>'
+    +'<div><div class="ex-nm">'+exEsc(c.name)+'</div><div class="ex-ag">'+exEsc(c.agency)+'</div></div>'
+    +'<span class="ex-verd" style="color:'+st.c+';background:'+st.dim+';border-color:'+st.c+'">'+st.ic+' '+st.lbl+'</span></div>'
+    +'<div class="ex-obj"><b>Plan</b> &nbsp;'+exEsc(c.obj)+'</div>'
+    +'<div class="ex-metric"><div><div class="ex-ml">'+exEsc(c.mlbl)+'</div><div class="ex-mv">'+exFmtVal(c)+(c.unit?'<span class="ex-mu">'+c.unit+'</span>':'')+'</div></div>'
+    +'<div class="ex-delta '+dcls+'"><span class="dv">'+arrow+dnum+'%</span><span class="per">'+per+'</span></div></div>'
+    +exSpark(exSpk(c))
+    +'<div class="ex-aisum"><span class="ex-aitag">AI</span><span>'+exEsc(exSum(c))+'</span></div>'
+    +meter
+    +'<div class="ex-sec2">'+sec+'</div>'+open
+    +'</div><div class="ex-cbar" style="background:'+st.c+'"></div></div>';
+}
+function renderExec(){
+  const mount=document.getElementById('execMount');if(!mount)return;
+  EXC.forEach(c=>c._v=exStat(c));
+  const cnt={ok:0,watch:0,behind:0,risk:0};EXC.forEach(c=>cnt[c._v]++);
+  const agencies=[...new Set(EXC.map(c=>c.agency))];
+  const showF=c=>(!EXF.verdict||c._v===EXF.verdict)&&(!EXF.agency||c.agency===EXF.agency)&&(!EXF.objective||c.group===EXF.objective);
+  const shown=EXC.filter(showF);
+  const bySev=(a,b)=>EXS[b._v].r-EXS[a._v].r;
+  const GRP=[['lead','Acquisition','the signal is leads / signups'],['reach','Awareness & Traffic','the signal is reach, clicks & site traffic'],['sales','Sales','the signal is ROAS']];
+  let h='<div class="ex-hero"><div class="ex-eyebrow">◆ At a glance</div><h2>Client health, one screen</h2>'
+    +'<p>Every client\'s single most important KPI - leads, ROAS, impressions, clicks - against target, with the trend and a plain read. Anything that needs a look floats to the top. Click a client to open its full dashboard. <span style="color:var(--ink-3)">Live snapshot through '+GEN+'.</span></p></div>';
+  h+='<div class="ex-grainbar"><span class="ex-glabel">Reading</span>'
+    +'<div class="ex-seg" id="exSeg"><button data-g="d"'+(EXG==='d'?' class="on"':'')+'>Daily</button><button data-g="w"'+(EXG==='w'?' class="on"':'')+'>Weekly</button><button data-g="m"'+(EXG==='m'?' class="on"':'')+'>Monthly</button></div>'
+    +'<span class="ex-glabel">Objective</span><select class="ex-sel" id="exObj"><option value="">All objectives</option>'+GRP.map(g=>'<option value="'+g[0]+'"'+(EXF.objective===g[0]?' selected':'')+'>'+g[1]+'</option>').join('')+'</select>'
+    +'<span class="ex-grainhint">'+EXGH[EXG]+'</span>'
+    +'<button class="ex-sync" id="exSync"><span class="sl">Sync now</span></button>'
+    +(EXF.synced?'<span class="ex-synced">Last synced '+EXF.synced+'</span>':'')+'</div>';
+  h+='<div class="ex-summary">'+['risk','behind','watch','ok'].map(k=>{const v=EXS[k];return '<button class="ex-scard" data-verd="'+k+'" aria-pressed="'+(EXF.verdict===k)+'"><div class="base" style="background:'+v.c+'"></div><div class="n">'+cnt[k]+'</div><div class="l"><span class="ex-dot" style="background:'+v.c+'"></span>'+v.lbl+'</div></button>';}).join('')+'</div>';
+  h+='<div class="ex-fbar"><span class="ex-glabel">Agency</span><button class="ex-pill'+(EXF.agency?'':' on')+'" data-ag="">All</button>'
+    +agencies.map(a=>'<button class="ex-pill'+(EXF.agency===a?' on':'')+'" data-ag="'+exEsc(a)+'">'+exEsc(a)+'</button>').join('')
+    +'<span class="ex-count" id="exCount"></span><button class="ex-clear" id="exClear"'+((EXF.verdict||EXF.agency||EXF.objective)?'':' hidden')+'>Clear</button></div>';
+  const flagged=shown.filter(c=>c._v!=='ok').sort(bySev);
+  if(!EXF.verdict&&flagged.length){h+='<div class="ex-sec ex-att"><div class="ex-sec-h"><span class="adot" style="background:'+EXS.risk.c+'"></span><h3>Needs attention</h3><span class="d">off target or trending down</span><span class="c">'+flagged.length+' of '+shown.length+'</span></div><div class="ex-grid">'+flagged.map(exCard).join('')+'</div></div>';}
+  GRP.forEach(g=>{const items=shown.filter(c=>c.group===g[0]).sort(bySev);if(!items.length)return;h+='<div class="ex-sec"><div class="ex-sec-h"><h3>'+g[1]+'</h3><span class="d">'+g[2]+'</span><span class="c">'+items.length+' client'+(items.length===1?'':'s')+'</span></div><div class="ex-grid">'+items.map(exCard).join('')+'</div></div>';});
+  if(!shown.length)h+='<div class="ex-empty">No clients match the current filters.</div>';
+  mount.innerHTML=h;
+  const cntEl=mount.querySelector('#exCount'),active=(EXF.verdict?1:0)+(EXF.agency?1:0)+(EXF.objective?1:0);
+  if(cntEl)cntEl.innerHTML=active?'Showing <b>'+shown.length+'</b> of '+EXC.length:'<b>'+EXC.length+'</b> clients';
+  mount.querySelectorAll('#exSeg button').forEach(b=>b.addEventListener('click',()=>{EXG=b.dataset.g;renderExec();}));
+  mount.querySelectorAll('.ex-scard').forEach(b=>b.addEventListener('click',()=>{EXF.verdict=EXF.verdict===b.dataset.verd?null:b.dataset.verd;renderExec();}));
+  mount.querySelectorAll('.ex-pill[data-ag]').forEach(b=>b.addEventListener('click',()=>{EXF.agency=b.dataset.ag||null;renderExec();}));
+  const ob=mount.querySelector('#exObj');if(ob)ob.addEventListener('change',()=>{EXF.objective=ob.value||null;renderExec();});
+  const cl=mount.querySelector('#exClear');if(cl)cl.addEventListener('click',()=>{EXF.verdict=null;EXF.agency=null;EXF.objective=null;renderExec();});
+  const sb=mount.querySelector('#exSync');if(sb)sb.addEventListener('click',()=>{EXF.synced='just now';renderExec();});
+  mount.querySelectorAll('.ex-card[data-dash]').forEach(cd=>cd.addEventListener('click',function(e){if(e.target.closest('a'))return;window.open(cd.getAttribute('data-dash'),'_blank','noopener');}));
+}
+document.getElementById('themeBtn').addEventListener('click',function(){var r=document.documentElement;r.setAttribute('data-theme',r.getAttribute('data-theme')==='light'?'dark':'light');});
+renderExec();
+</script>
+</body>
+</html>
