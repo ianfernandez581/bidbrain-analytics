@@ -293,7 +293,8 @@ def fetch_json(key):
     return json.loads(blob.download_as_bytes())
 
 
-def build(check=False):
+def build(check=False, to_stdout=False):
+    verbose = check and not to_stdout   # --stdout must emit ONLY the JSON doc (server captures it)
     out, skipped = [], []
     for b in BASE:
         try:
@@ -312,23 +313,26 @@ def build(check=False):
                 "sec": dyn.get("sec", []), "sum": _note(b, val, target, gd),
             }
             out.append(client)
-            if check:
+            if verbose:
                 print(f"  {b['key']:16} val={val} target={target} gd={gd.get('m')}%/mo  ({b['mlbl']})")
         except Exception as e:                              # skip -> front-end keeps its preview card
             skipped.append((b["key"], str(e)[:120]))
-            if check:
+            if verbose:
                 print(f"  {b['key']:16} SKIPPED: {str(e)[:120]}")
     doc = {"generated_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
            "source": "client data.json (GCS)", "clients": out}
+    if to_stdout:                       # server-spawn path: emit ONLY the JSON on stdout
+        sys.stdout.write(json.dumps(doc))
+        return doc
     if not check:
         os.makedirs(os.path.dirname(OUT), exist_ok=True)
         with open(OUT, "w", encoding="utf-8") as f:
             json.dump(doc, f, indent=1)
         print(f"wrote {os.path.relpath(OUT)} - {len(out)} clients live, {len(skipped)} skipped")
-    if skipped:
+    if skipped and verbose:
         print("skipped:", ", ".join(k for k, _ in skipped))
     return doc
 
 
 if __name__ == "__main__":
-    build(check="--check" in sys.argv)
+    build(check="--check" in sys.argv, to_stdout="--stdout" in sys.argv)

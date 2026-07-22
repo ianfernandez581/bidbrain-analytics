@@ -1203,17 +1203,23 @@ function exCard(c){
 function exSync(btn){
   if(btn.classList.contains('busy'))return;
   btn.classList.add('busy');btn.disabled=true;const l=btn.querySelector('.sl');if(l)l.textContent='Syncing';
-  if(EX_SRC==='live'){exLoadLive(renderExec);setTimeout(function(){EXF.synced='just now';renderExec();},400);}   // live: re-pull the built KPI file
-  else setTimeout(function(){EXF.synced='just now';renderExec();},700);                                          // preview: soft refresh
+  fetch('api/exec/sync',{method:'POST',headers:{'Accept':'application/json'}})   // server re-pulls each data.json (~10-20s)
+    .then(r=>r.json().catch(()=>({}))).catch(()=>({}))
+    .then(function(){ exLoadLive(function(){EXF.synced='just now';renderExec();}); });   // then load the fresh cache + repaint
 }
-// Live data seam: config/exec-kpis.json (built by scripts/build_exec_kpis.py from each client's
-// data.json) drops in over the preview EXC — same shape. Absent/offline => preview stays.
+// Live data seam. Order: the live server route api/exec (spawns build_exec_kpis.py against each
+// client's data.json), then the baked config/exec-kpis.json (build-time snapshot), then the preview
+// EXC. Same shape at every layer; fully offline (file://) keeps the preview. Relative paths so they
+// resolve under the platform proxy (/d/central/api/exec -> central-grid /api/exec).
 function exApplyLive(rows){try{EXC.length=0;rows.forEach(r=>EXC.push(r));EX_SRC='live';}catch(e){}}
+function exApplyDoc(j){if(j&&Array.isArray(j.clients)&&j.clients.length){exApplyLive(j.clients);EX_GEN=j.generated_at||null;return true;}return false;}
 function exLoadLive(cb){
-  fetch('config/exec-kpis.json',{headers:{'Accept':'application/json'},cache:'no-store'})
-    .then(r=>r.ok?r.json():Promise.reject(0))
-    .then(j=>{if(j&&Array.isArray(j.clients)&&j.clients.length){exApplyLive(j.clients);EX_GEN=j.generated_at||null;}cb&&cb();})
-    .catch(()=>{cb&&cb();});
+  fetch('api/exec',{headers:{'Accept':'application/json'},cache:'no-store'})
+    .then(r=>r.ok?r.json():null).catch(()=>null)
+    .then(j=>{ if(exApplyDoc(j)){cb&&cb();return;}
+      fetch('config/exec-kpis.json',{headers:{'Accept':'application/json'},cache:'no-store'})
+        .then(r=>r.ok?r.json():null).catch(()=>null)
+        .then(j2=>{exApplyDoc(j2);cb&&cb();}); });
 }
 function renderExec(){
   const mount=document.getElementById('execMount');if(!mount)return;

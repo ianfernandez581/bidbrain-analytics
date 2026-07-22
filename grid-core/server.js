@@ -132,6 +132,11 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/commit$/)) && req.method === 'POST') return centralPlanCommit(req, res, m[1]);
     if ((m = p.match(/^\/api\/central\/plan\/([^/]+)\/discard$/)) && req.method === 'POST') return centralPlanDiscard(req, res, m[1]);
 
+    // ---- Executive tab live KPIs (spawns build_exec_kpis.py --stdout; Python GCS client via the
+    //      runtime SA's ADC, NOT the bq CLI, so it works on Cloud Run) ----
+    if (p === '/api/exec' && req.method === 'GET') return execGet(res);
+    if (p === '/api/exec/sync' && req.method === 'POST') return execSyncRoute(res);
+
     // ---- Brain ClickUp mock endpoint (now real server-side; the browser interceptor is the file:// fallback) ----
     if (p === '/api/brain/clickup-task' && req.method === 'POST') {
       const body = await readBody(req);
@@ -560,6 +565,49 @@ async function centralReconcileApprove(req, res, client) {
   return send(res, 200, { ok: true, client, added, validated: spec.validated, map: spec.map });
 }
 
+// ==================== Executive tab live KPIs ====================
+// The Executive tab needs each client's headline KPI from its data.json. The image filesystem is
+// read-only, so instead of a baked file we refresh in-memory by spawning scripts/build_exec_kpis.py
+// --stdout (Python google-cloud-storage via the runtime SA's ADC - never the bq CLI, which isn't in
+// the container). GET serves the cache (kicking a background refresh when empty/stale); POST /sync
+// forces one. Warmed on boot + on an interval so a click is usually instant.
+const EXEC = { data: null, at: 0, running: false, err: null };
+const EXEC_TTL_MS = 10 * 60 * 1000;
+const EXEC_AUTOSYNC_MIN = Number(process.env.EXEC_AUTOSYNC_MIN || 10);   // 0 = off
+
+function runExecBuilder() {
+  return new Promise((resolve, reject) => {
+    const py = process.env.PYTHON || 'python3';
+    require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'build_exec_kpis.py'), '--stdout'],
+      { cwd: ROOT, timeout: 150000, maxBuffer: 16 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        const out = (stdout || '').trim();
+        if (out) { try { return resolve(JSON.parse(out)); } catch (e) { /* fall through to error */ } }
+        reject(new Error(String((stderr || (err && err.message) || 'exec builder produced no output')).slice(0, 600)));
+      });
+  });
+}
+function computeExec() {
+  if (EXEC.running) return Promise.resolve(false);
+  EXEC.running = true;
+  return runExecBuilder()
+    .then(doc => { EXEC.data = doc; EXEC.at = Date.now(); EXEC.err = null; console.log(`[EXEC] refreshed ${(doc.clients || []).length} clients`); return true; })
+    .catch(e => { EXEC.err = e.message; console.error('[EXEC] refresh failed:', e.message); return false; })
+    .finally(() => { EXEC.running = false; });
+}
+function execGet(res) {
+  const stale = !EXEC.data || (Date.now() - EXEC.at) > EXEC_TTL_MS;
+  if (stale && !EXEC.running) computeExec();                       // background refresh; don't block the GET
+  if (EXEC.data) return send(res, 200, Object.assign({}, EXEC.data, { age_ms: Date.now() - EXEC.at, running: EXEC.running }));
+  return send(res, 200, { clients: [], pending: true, running: EXEC.running, error: EXEC.err });
+}
+async function execSyncRoute(res) {
+  if (EXEC.running) return send(res, 200, { ok: true, running: true, note: 'a refresh is already in progress' });
+  const ok = await computeExec();
+  if (!ok) return send(res, 502, { ok: false, error: EXEC.err || 'refresh failed' });
+  return send(res, 200, { ok: true, generated_at: EXEC.data && EXEC.data.generated_at, clients: ((EXEC.data && EXEC.data.clients) || []).length });
+}
+
 function serveStatic(res, p) {
   if (p === '/' || p === '') p = '/the-grid.html';
   const file = path.resolve(path.join(ROOT, decodeURIComponent(p)));
@@ -580,5 +628,12 @@ server.listen(PORT, () => {
     const iv = setInterval(centralAutoSyncTick, CENTRAL_AUTOSYNC_MIN * 60000);
     if (iv.unref) iv.unref();
     console.log(`  Central auto-sync: enabled, every ${CENTRAL_AUTOSYNC_MIN} min`);
+  }
+  // Executive tab: warm the KPI cache on boot, then refresh on an interval so "Sync now" is instant.
+  computeExec();
+  if (EXEC_AUTOSYNC_MIN > 0) {
+    const iv2 = setInterval(computeExec, EXEC_AUTOSYNC_MIN * 60000);
+    if (iv2.unref) iv2.unref();
+    console.log(`  Executive auto-refresh: enabled, every ${EXEC_AUTOSYNC_MIN} min`);
   }
 });
