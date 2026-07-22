@@ -1,0 +1,205 @@
+{
+  "_comment": "Phase 3 STAGED reconcile candidates - prepared by the session, approved ONLY by a human in the Map client panel. Nothing here is written to the sync map until a human ticks + approves (POST /api/central/reconcile/Cloudflare/approve). Evidence pulled 2026-07-22 from raw_snowflake (read-only). LinkedIn values are CAMPAIGN_GROUP_NAME tokens (see central-clients.json note); TTD/Reddit values are CAMPAIGN_NAME tokens. 'preview' = whole-history BQ totals for the rule at pull time.",
+  "client": "Cloudflare",
+  "preparedAt": "2026-07-22",
+  "preparedBy": "Phase 3 session (Claude), evidence-based - see PHASE3_CLOUDFLARE_REPORT.md",
+  "platformAudit": "RE-STAGED 2026-07-22 after the platform-crossing review: all 14 pairs re-checked under the hard platform-consistency rule (BQ-name token LINKEDIN/TTD/REDDIT/LINE-as-token + source-table channel tag, both must match the Grid row's channel) - 14/14 pass; every BQ name each rule matches carries the token of its pair's platform. The pre-Phase-3 generic matcher preselected 18/72 cross-platform (the reported bug); the matcher now hard-filters candidates by platform and the approve route rejects any crossing outright.",
+  "warnings": [
+    "TTD COSTS is the CLIENT-BILLED basis (verified: Q2 Core DG SUM(COSTS) $87,583 vs sheet clientSpend $85,252 / budget $86,826; Schneider Airset cross-check $2,798 to 07-08 vs billed $2,650). The 3 TTD rows carry spendMult 3.07-3.59, so the first sync would set clientSpend = billed x mult (~3.5x too high). BEFORE the first sync: set spendMult to 1 on the 3 TTD rows (Q2 Core DG, Q3 Core DG, Surround ABM) or leave them unmapped. Same landmine applies to Schneider's already-validated map - flagged in the Phase 3 report.",
+    "Most Cloudflare rows are Ended: the sync skips Ended rows by default. To backfill them once, run POST /api/central/sync?includeEnded=1 (the Sync now button does not pass it).",
+    "Q2 Core DG - LinkedIn: the staged rule (contains CORE-DG, 6 groups, $44,304) EXCLUDES the VER-PUBSEC group ($1,225) - but the sheet's figure ($45,522) appears to INCLUDE it (gap $1,218 = PUBSEC within $7). One contains-rule cannot span both. Options: approve as staged and add a separate PUBSEC row (cleanest), or accept the $1.2k gap. Human decision - do not force."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-d2f492067e08",
+      "campaignName": "ANZ-DNB",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "ANZ-DNB",
+      "confidence": "high",
+      "rationale": "Matches both LinkedIn group vintages (plain + 2446_ prefix, same 2 campaigns). Spend to 07-21 $11,113; sheet $8,678 at ~07-08 vintage - consistent.",
+      "preview": { "bqNames": 2, "mediaSpend": 11113 }
+    },
+    {
+      "campaignId": "cmp-2ef68123009e",
+      "campaignName": "CF1 India",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "CF1-Integrated",
+      "confidence": "high",
+      "rationale": "One group, ended. BQ $6,227 vs sheet $6,225 (0.03% diff).",
+      "preview": { "bqNames": 1, "mediaSpend": 6227 }
+    },
+    {
+      "campaignId": "cmp-149b388070c3",
+      "campaignName": "Coles Hyper",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "Hyper_COLES",
+      "confidence": "high",
+      "rationale": "One group, ended. BQ $13,051 vs sheet $13,050.",
+      "preview": { "bqNames": 1, "mediaSpend": 13051 }
+    },
+    {
+      "campaignId": "cmp-09a9011f693d",
+      "campaignName": "Fonterra Hyper",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "Hyper_FONTERRA",
+      "confidence": "high",
+      "rationale": "One group, ended. BQ $13,054 vs sheet $13,050.",
+      "preview": { "bqNames": 1, "mediaSpend": 13054 }
+    },
+    {
+      "campaignId": "cmp-0c8909173cf3",
+      "campaignName": "PEYC",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "ANZ-PEYC",
+      "confidence": "high",
+      "rationale": "One group (6 campaigns), ended. BQ $26,105 vs sheet $26,099 (0.02% diff). Group grain is what makes PEYC expressible at all - no campaign-name token separates it from ANZ Core DG.",
+      "preview": { "bqNames": 1, "mediaSpend": 26105 }
+    },
+    {
+      "campaignId": "cmp-701ae753e201",
+      "campaignName": "Q2 Core DG",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "CORE-DG",
+      "confidence": "medium",
+      "rationale": "6 groups (ANZ/ASEAN/SIM/ROA/IN/HK-CORE-DG), $44,304 - vs sheet $45,522. Gap $1,218 = the VER-PUBSEC group ($1,225) the sheet apparently folded in but this rule excludes (see warning). Token does NOT collide with Q3's COREDG-Q3 (hyphen differs).",
+      "preview": { "bqNames": 6, "mediaSpend": 44304 }
+    },
+    {
+      "campaignId": "cmp-d2b9cfa22db9",
+      "campaignName": "Q3 Core DG",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "mode": "contains",
+      "value": "COREDG-Q3",
+      "confidence": "high",
+      "rationale": "8 groups (2 name vintages x ANZ/ASEAN/IN/HK), $13,955 to 07-21. Sheet $2,029 is the stale ~07-08 vintage - expect a jump on first sync.",
+      "preview": { "bqNames": 8, "mediaSpend": 13955 }
+    },
+    {
+      "campaignId": "cmp-594b8a2e4378",
+      "campaignName": "Coles DOOH AU",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Cloudflare",
+      "mode": "exact",
+      "value": "CLOUD_ACQ_2026-Q2-DOOH - AU",
+      "confidence": "high",
+      "rationale": "Exact name; BQ $7,920 = budget $7,920 to the dollar (ended). No spendMult on this row - billed basis is safe.",
+      "preview": { "bqNames": 1, "mediaSpend": 7920 }
+    },
+    {
+      "campaignId": "cmp-1970bf89a069",
+      "campaignName": "Coles DOOH NZ",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Cloudflare",
+      "mode": "exact",
+      "value": "CLOUD_ACQ_2026-Q2-DOOH - NZ",
+      "confidence": "high",
+      "rationale": "Exact name; BQ $11,880 = budget $11,880 to the dollar (ended). No spendMult - safe.",
+      "preview": { "bqNames": 1, "mediaSpend": 11880 }
+    },
+    {
+      "campaignId": "cmp-adb903b8046b",
+      "campaignName": "Coles Prog",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Cloudflare",
+      "mode": "exact",
+      "value": "CLOUD_ACQ_2026-Q2-High Impact--HyperlocalGeo - ANZ",
+      "confidence": "high",
+      "rationale": "Name does not say Coles, but: BQ $9,900 = budget $9,900 to the dollar, the May 4-31 flight matches exactly, and it is the ONLY TTD name not claimed by another rule (49/49 covered, zero overlap). No spendMult - safe.",
+      "preview": { "bqNames": 1, "mediaSpend": 9900 }
+    },
+    {
+      "campaignId": "cmp-8b060cbe659b",
+      "campaignName": "Q2 Core DG",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Cloudflare",
+      "mode": "contains",
+      "value": "CORE-DG",
+      "confidence": "high",
+      "rationale": "21 names (2103_ prefixed + unprefixed vintages), $87,583 vs budget $86,826 - membership certain. WARNING: row carries spendMult 3.5145 on a billed-basis COSTS feed - resolve spendMult before first sync (see warnings).",
+      "preview": { "bqNames": 21, "mediaSpend": 87583 }
+    },
+    {
+      "campaignId": "cmp-fbc6bda5aa8c",
+      "campaignName": "Q3 Core DG",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Cloudflare",
+      "mode": "contains",
+      "value": "COREDG-Q3",
+      "confidence": "high",
+      "rationale": "15 names (2479_ prefixed + unprefixed), $8,826 to date, active. WARNING: spendMult 3.074 on billed-basis COSTS - resolve before first sync.",
+      "preview": { "bqNames": 15, "mediaSpend": 8826 }
+    },
+    {
+      "campaignId": "cmp-2be0ce428f6f",
+      "campaignName": "Surround ABM",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Cloudflare",
+      "mode": "contains",
+      "value": "SURROUND-ABM",
+      "confidence": "high",
+      "rationale": "10 names (2193_ prefixed + unprefixed), $4,833 to date, active. WARNING: spendMult 3.586 on billed-basis COSTS - resolve before first sync.",
+      "preview": { "bqNames": 10, "mediaSpend": 4833 }
+    },
+    {
+      "campaignId": "cmp-4cbde1c90ab6",
+      "campaignName": "Q2 Core DG",
+      "gridChannel": "Reddit",
+      "channel": "Reddit",
+      "advertiserName": "Transmission_Cloudflare",
+      "mode": "contains",
+      "value": "REDDIT",
+      "confidence": "medium",
+      "rationale": "AMBIGUOUS - flagged, not forced: Reddit has exactly 2 BQ campaigns, from two different briefs (CNC retargeting $1,811 + MDS SHADOW-AI awareness $8,451 = $10,262 vs sheet $9,891, ~4% over). The sheet row appears to span BOTH; approve only if you agree SHADOW-AI belongs to Q2 Core DG, else approve an exact rule on the CNC name only.",
+      "preview": { "bqNames": 2, "mediaSpend": 10262 }
+    }
+  ],
+  "unmatchableGridRows": [
+    {
+      "campaignId": "cmp-62b2b7a36d9a",
+      "campaignName": "Q2 Core DG",
+      "gridChannel": "LINE",
+      "reason": "No LINE table exists in the BQ raw layer - LINE is a manual LINE-Ad-Manager CSV seed (client_cloudflare.seed_line_cf, JPY converted in the dashboard). Cannot be BQ-synced; stays sheet-valued. Not matched across platforms."
+    },
+    {
+      "campaignId": "cmp-9a3f263242ab",
+      "campaignName": "Q3 Core DG",
+      "gridChannel": "Google Ads",
+      "reason": "No Cloudflare Google Ads presence in the BQ raw layer (raw_snowflake.google_ads_apac accounts are STT-only; the DTS raw_google_ads layer covers 100% Digital clients). Row is Paused with no spend/start. Stays sheet-valued. Not matched across platforms."
+    }
+  ],
+  "unmatchedBq": [
+    {
+      "channel": "LinkedIn",
+      "advertiserName": "Cloudflare APAC",
+      "value": "CLOUD_ACQ_2026-Q2_VER-PUBSEC_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PUBSEC",
+      "mediaSpend": 1225,
+      "note": "VER-PUBSEC group (2 campaigns, Apr 1 - May 28, ended) has NO Grid row. Evidence says the sheet folded it into Q2 Core DG LinkedIn (gap math in warnings). Recommend: Add campaign row 'PubSec' + map contains ANZ-PUBSEC, or accept the documented gap."
+    }
+  ]
+}

@@ -372,20 +372,23 @@ function centralPlanDiscard(req, res, id) {
 
 // ==================== Central sync + reconcile ====================
 const CENTRAL_CLIENTS_PATH = process.env.CENTRAL_CLIENTS_PATH || path.join(ROOT, 'config', 'central-clients.json');
+// Sync fetcher timeout: a first-time full backfill on a large client (Cloudflare: 72 BQ names) needs minutes, not 30s.
+const CENTRAL_SYNC_TIMEOUT_MS = Number(process.env.CENTRAL_SYNC_TIMEOUT_MS) || 180000;
 function loadCentralClients() { try { return JSON.parse(fs.readFileSync(CENTRAL_CLIENTS_PATH, 'utf8')); } catch { return { clients: [] }; } }
 
 // Run the python fetcher. Tests inject CENTRAL_SYNC_FIXTURE / CENTRAL_RECONCILE_FIXTURE
 // (a path to a JSON file) so CI never needs live BQ. central_sync.py prints JSON even on
 // a partial-failure exit(1), so we parse stdout regardless of exit code.
 function execCentral(args, timeoutMs) {
+  const effTimeout = timeoutMs || CENTRAL_SYNC_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
     const py = process.env.PYTHON || 'python';
     require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'central_sync.py'), ...args],
-      { cwd: ROOT, timeout: timeoutMs || 30000, maxBuffer: 8 * 1024 * 1024 },
+      { cwd: ROOT, timeout: effTimeout, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
         const out = (stdout || '').trim();
         if (out) { try { const j = JSON.parse(out); j._stderr = (stderr || '').trim().slice(0, 800); return resolve(j); } catch (e) { /* fall through */ } }
-        if (err && err.killed) return reject(new Error('sync timed out after 30s'));
+        if (err && err.killed) return reject(new Error(`sync timed out after ${Math.round(effTimeout / 1000)}s`));
         return reject(new Error(String((stderr || (err && err.message) || 'sync produced no output')).slice(0, 800)));
       });
   });
@@ -517,7 +520,54 @@ async function centralReadinessRoute(req, res) {
   return send(res, 200, { fetchedAt: (doc && doc.fetchedAt) || null, rows, errors });
 }
 
+// Staged reconcile candidates (Phase 3): a session PREPARES config/reconcile-staged/<client>.json
+// (curated pairs + confidence + rationale + flags); this route only SERVES it — the human still
+// ticks + approves through the same approve endpoint. Absent file → null (generic fuzzy only).
+function loadStagedReconcile(client) {
+  try {
+    const fname = path.basename(String(client)) + '.json';   // basename() forbids path traversal
+    const p = path.join(ROOT, 'config', 'reconcile-staged', fname);
+    if (!fs.existsSync(p)) return null;
+    return JSON.parse(fs.readFileSync(p, 'utf8'));
+  } catch (e) { console.error('[CENTRAL][Reconcile] staged file unreadable:', e.message); return null; }
+}
+
 // Reconcile ONE client: BQ name list + Central names + fuzzy SUGGESTIONS (never written).
+// PLATFORM-CONSISTENCY GATE (hard rule, 2026-07-22 review): a candidate Grid row must be on a
+// compatible platform. Two independent signals, both enforced when present:
+//   (1) the platform token INSIDE the BQ name (LINKEDIN / TTD|TRADE DESK / REDDIT / LINE-as-token);
+//   (2) the channel tag of the raw table the name was fetched from.
+// No compatible Grid row → flag 'no-platform-match', nothing preselected. Within the compatible
+// set: 'weak' (best dice < threshold), 'ambiguous' (runner-up within 0.06, shown).
+const RECONCILE_WEAK_BELOW = 0.35;
+function normChannel(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^ttd$/, 'tradedesk'); }
+// Platform token encoded in a BQ campaign/group name. LINE must be a standalone token —
+// never the substring inside LINKEDIN. Returns null when the name carries no token (e.g.
+// 'CLOUD_ACQ_2026-Q2-DOOH - AU'), in which case only the table tag constrains.
+const _platLogged = new Set();   // TEMP diagnostic (platform-gate review) — remove with the log below
+function platformFromName(name) {
+  const u = String(name || '').toUpperCase();
+  let p = null;
+  if (u.includes('LINKEDIN')) p = 'linkedin';
+  else if (u.includes('TTD') || u.includes('TRADE DESK') || u.includes('TRADEDESK')) p = 'tradedesk';
+  else if (u.includes('REDDIT')) p = 'reddit';
+  else if (u.includes('DV360')) p = 'dv360';
+  else if (/(^|[^A-Z])LINE([^A-Z]|$)/.test(u)) p = 'line';
+  // TEMP: print each BQ name once with its extracted token (asked for in the platform-gate
+  // review — visible in the server terminal on "Load BQ names"). Remove after sign-off.
+  if (!_platLogged.has(u)) { _platLogged.add(u); console.log('[CENTRAL][Reconcile][TEMP] token=' + String(p || '(none)').padEnd(10) + ' <- ' + String(name).slice(0, 95)); }
+  return p;
+}
+// A Grid row is platform-compatible with a BQ name iff it matches BOTH known signals.
+function platformCompatible(gridChannel, bqName, tableChannelTag) {
+  const g = gridChannel ? normChannel(gridChannel) : null;
+  if (!g) return true;                                    // unknown grid channel cannot be excluded
+  const fromName = platformFromName(bqName);
+  if (fromName && g !== fromName) return false;
+  const fromTag = tableChannelTag ? normChannel(tableChannelTag) : null;
+  if (fromTag && g !== fromTag) return false;
+  return true;
+}
 async function centralReconcile(req, res, client) {
   let doc;
   try { doc = await runNamesFetcher(client); }
@@ -528,14 +578,22 @@ async function centralReconcile(req, res, client) {
     .map(c => ({ id: c.id, name: c.name, channel: c.channel, status: c.status }));
   const suggestions = [];
   for (const bq of bqTagged) {
-    let best = null;
-    for (const c of centralCampaigns) {
-      const s = dice(bq.bqName, c.name || '');
-      if (!best || s > best.score) best = { bqName: bq.bqName, channel: bq.channel, advertiserName: bq.advertiserName, campaignId: c.id, campaignName: c.name, score: Math.round(s * 100) / 100 };
+    const eligible = centralCampaigns.filter(c => platformCompatible(c.channel, bq.bqName, bq.channel));
+    if (!eligible.length) {
+      suggestions.push({ bqName: bq.bqName, channel: bq.channel, advertiserName: bq.advertiserName, campaignId: null, campaignName: null, score: 0, flag: 'no-platform-match', runnerUp: null });
+      continue;
     }
-    if (best) suggestions.push(best);
+    const scored = eligible.map(c => ({ c, score: dice(bq.bqName, c.name || '') })).sort((a, b) => b.score - a.score);
+    const best = scored[0], second = scored[1];
+    const flag = best.score < RECONCILE_WEAK_BELOW ? 'weak'
+      : (second && (best.score - second.score) < 0.06 ? 'ambiguous' : null);
+    suggestions.push({
+      bqName: bq.bqName, channel: bq.channel, advertiserName: bq.advertiserName,
+      campaignId: best.c.id, campaignName: best.c.name, score: Math.round(best.score * 100) / 100,
+      flag, runnerUp: flag === 'ambiguous' ? { campaignId: second.c.id, campaignName: second.c.name, score: Math.round(second.score * 100) / 100 } : null
+    });
   }
-  return send(res, 200, { client, bqNames: bqTagged.map(x => x.bqName), bqTagged, centralCampaigns, suggestions, error: doc.error || null });
+  return send(res, 200, { client, bqNames: bqTagged.map(x => x.bqName), bqTagged, centralCampaigns, suggestions, staged: loadStagedReconcile(client), error: doc.error || null });
 }
 
 // Write APPROVED pairs into central-clients.json's map + flip validated:true. Explicit only.
@@ -554,9 +612,16 @@ async function centralReconcileApprove(req, res, client) {
     const mode = (pr.mode === 'contains' || pr.mode === 'rollup') ? pr.mode : 'exact';
     const value = pr.value != null ? pr.value : pr.bqName;   // default: exact match on the approved BQ name
     if (value == null) continue;
+    // PLATFORM-CONSISTENCY GUARD (hard rule): a pair whose BQ-name token or table channel tag
+    // conflicts with the Grid row's channel is REJECTED loudly — never written, never skipped
+    // silently. (LINKEDIN names can never land on a LINE/TradeDesk row, etc.)
+    const camp = db.getCampaign(pr.campaignId);
+    if (camp && camp.channel && !platformCompatible(camp.channel, value, pr.channel)) {
+      return send(res, 400, { error: `platform mismatch: '${value}'${pr.channel ? ' (' + pr.channel + ')' : ''} cannot map to '${camp.name}' on channel '${camp.channel}' — nothing was written` });
+    }
     if (spec.map.some(mm => mm.campaignId === pr.campaignId && mm.channel === pr.channel && mm.campaignMatch && mm.campaignMatch.value === value)) continue; // idempotent
     const entry = { campaignId: pr.campaignId, channel: pr.channel || null, advertiserName: pr.advertiserName || null, campaignMatch: { mode, value } };
-    const camp = db.getCampaign(pr.campaignId); if (camp) entry.campaignName = camp.name;
+    if (camp) entry.campaignName = camp.name;
     spec.map.push(entry);
     added++;
   }
@@ -622,6 +687,7 @@ function serveStatic(res, p) {
 server.listen(PORT, () => {
   console.log(`The Grid + Brain V3 backend on http://localhost:${PORT}/the-grid.html`);
   console.log(`  LLM mode: anthropic=${parser.HAS_ANTHROPIC ? 'LIVE' : 'offline-heuristic'} llama=${parser.HAS_LLAMA ? 'LIVE' : 'offline-mock'}`);
+  console.log(`  Central sync timeout: ${CENTRAL_SYNC_TIMEOUT_MS}ms (CENTRAL_SYNC_TIMEOUT_MS)`);
   // Central auto-sync: env-gated (CENTRAL_AUTOSYNC_MIN minutes; 0/unset = off). Uses the
   // same guarded core as the manual route, so a tick during a manual sync just skips.
   if (CENTRAL_AUTOSYNC_MIN > 0) {

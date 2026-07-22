@@ -77,47 +77,59 @@
         {
           "channel": "Trade Desk",
           "advertiserName": "HireRight",
-          "campaignMatch": { "mode": "contains", "value": "HireRight_Digital-Air-Cover" },
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "HireRight_Digital-Air-Cover"
+          },
           "campaignName": "Digital Air Cover"
         },
         {
           "channel": "LinkedIn",
           "advertiserName": "HireRight_TransmissionSG_USD",
-          "campaignMatch": { "mode": "contains", "value": "1802" },
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "1802"
+          },
           "campaignName": "Digital Air Cover"
         },
         {
           "channel": "DV360",
           "advertiserName": "APAC_HireRight_271025_USD",
-          "campaignMatch": { "mode": "contains", "value": "1802" },
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "1802"
+          },
           "campaignName": "HireRight 1802"
         }
       ]
     },
     {
       "client": "Cloudflare",
-      "validated": false,
+      "validated": true,
       "source": "raw",
+      "note": "Phase 3 (2026-07-22): LinkedIn matches on CAMPAIGN_GROUP_NAME, not CAMPAIGN_NAME - Cloudflare's program membership (PEYC/CF1/Hyper/Core DG) lives in the LinkedIn campaign GROUP; group totals reconcile with the sheet to the dollar (PEYC $26,105 vs sheet $26,099). TTD impressions COALESCE the legacy IMPRESSION column (same per-row rule as client_schneider.stg_tradedesk - most Cloudflare TTD rows populate only the legacy column). TTD COSTS is the CLIENT-BILLED basis (Q2 Core DG: SUM(COSTS) $87,583 vs sheet clientSpend $85,252, budget $86,826) - see PHASE3_CLOUDFLARE_REPORT.md before first sync (spendMult on TTD rows must be resolved or clientSpend inflates ~3.5x).",
       "tables": [
         {
           "dataset": "raw_snowflake",
           "table": "linkedin_ads_apac",
           "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
+          "campaignColumn": "CAMPAIGN_GROUP_NAME",
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "Cloudflare APAC"
+          "advertiserValue": "Cloudflare APAC",
+          "note": "campaignColumn is the GROUP name (program grain) - campaign-level names cannot express program membership (no shared token separates e.g. PEYC's 6 campaigns from ANZ Core DG's 5)"
         },
         {
           "dataset": "raw_snowflake",
           "table": "tradedesk_apac_all",
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "Cloudflare"
+          "advertiserValue": "Cloudflare",
+          "note": "impressions: newer rows populate IMPRESSIONS, most Cloudflare rows only the legacy IMPRESSION - per-row COALESCE like the Schneider staging view"
         },
         {
           "dataset": "raw_snowflake",
@@ -130,7 +142,148 @@
           "advertiserValue": "Transmission_Cloudflare"
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-d2f492067e08",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ANZ-DNB"
+          },
+          "campaignName": "ANZ-DNB"
+        },
+        {
+          "campaignId": "cmp-2ef68123009e",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CF1-Integrated"
+          },
+          "campaignName": "CF1 India"
+        },
+        {
+          "campaignId": "cmp-149b388070c3",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Hyper_COLES"
+          },
+          "campaignName": "Coles Hyper"
+        },
+        {
+          "campaignId": "cmp-09a9011f693d",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Hyper_FONTERRA"
+          },
+          "campaignName": "Fonterra Hyper"
+        },
+        {
+          "campaignId": "cmp-0c8909173cf3",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ANZ-PEYC"
+          },
+          "campaignName": "PEYC"
+        },
+        {
+          "campaignId": "cmp-701ae753e201",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CORE-DG"
+          },
+          "campaignName": "Q2 Core DG"
+        },
+        {
+          "campaignId": "cmp-d2b9cfa22db9",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "COREDG-Q3"
+          },
+          "campaignName": "Q3 Core DG"
+        },
+        {
+          "campaignId": "cmp-594b8a2e4378",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "CLOUD_ACQ_2026-Q2-DOOH - AU"
+          },
+          "campaignName": "Coles DOOH AU"
+        },
+        {
+          "campaignId": "cmp-1970bf89a069",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "CLOUD_ACQ_2026-Q2-DOOH - NZ"
+          },
+          "campaignName": "Coles DOOH NZ"
+        },
+        {
+          "campaignId": "cmp-adb903b8046b",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "CLOUD_ACQ_2026-Q2-High Impact--HyperlocalGeo - ANZ"
+          },
+          "campaignName": "Coles Prog"
+        },
+        {
+          "campaignId": "cmp-8b060cbe659b",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CORE-DG"
+          },
+          "campaignName": "Q2 Core DG"
+        },
+        {
+          "campaignId": "cmp-fbc6bda5aa8c",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "COREDG-Q3"
+          },
+          "campaignName": "Q3 Core DG"
+        },
+        {
+          "campaignId": "cmp-2be0ce428f6f",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "SURROUND-ABM"
+          },
+          "campaignName": "Surround ABM"
+        },
+        {
+          "campaignId": "cmp-4cbde1c90ab6",
+          "channel": "Reddit",
+          "advertiserName": "Transmission_Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "REDDIT"
+          },
+          "campaignName": "Q2 Core DG"
+        }
+      ]
     },
     {
       "client": "STT",

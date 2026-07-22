@@ -1,5 +1,14 @@
 #!/usr/bin/env python
 """
+================================ RETIRED — PHASE 1 ================================
+build_grid_data.py is RETIRED FOR APP DATA. Pulse and Register now read the live
+SQLite DB via /api/central/campaigns + src/central/calc.js (the single engine);
+the `const DATA = [...]` literal this script rewrote NO LONGER EXISTS in
+the-grid.html, and the hardcoded SNAP anchor is replaced by the DB's newest
+lastSyncedAt. Running it now exits immediately (see main()). Phase 4 handles
+final deletion. The description below is kept as historical reference only.
+===================================================================================
+
 build_grid_data.py — regenerate The Grid's embedded campaign array from the
 source pacing sheet.
 
@@ -19,11 +28,18 @@ Usage (from repo root, with the repo venv):
 The two agency header labels and the column order are pinned to the sheet; if the
 sheet's layout changes, update HEADER_ROW / COLS below.
 """
+import sys
+
+# PHASE 1 KILL SWITCH — fires before anything else so retirement is deterministic
+# on every machine. See the retirement header above; Phase 4 deletes this file.
+sys.exit("build_grid_data.py is RETIRED (Phase 1): Pulse/Register read the live "
+         "SQLite DB via /api/central/campaigns + src/central/calc.js. There is no "
+         "const DATA literal to rewrite any more.")
+
 import argparse
 import datetime
 import json
 import re
-import sys
 from pathlib import Path
 
 import openpyxl

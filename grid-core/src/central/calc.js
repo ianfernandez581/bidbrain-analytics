@@ -1,7 +1,8 @@
 /**
- * src/central/calc.js — Central tab: the SINGLE SOURCE OF TRUTH for every derived
- * campaign field. Pure functions, no DOM, no fetching. Mirrors the pattern of
- * src/derive.js (dependency-free, runs in Node + the browser) so the app and any
+ * src/central/calc.js — THE single formula engine for The Grid (Phase 1: Pulse,
+ * Register AND Central all compute through this file; the old src/derive.js is
+ * quarantined in src/_retired/). Pure functions, no DOM, no fetching —
+ * dependency-free, runs in Node + the browser — so the app and any
  * reconciliation harness compute the numbers exactly one way.
  *
  * The whole point of the Central tab is that these formulas live HERE, never
@@ -18,11 +19,19 @@
 
 'use strict';
 
+// IIFE: in the browser this file loads as a CLASSIC script, so top-level const/let
+// would land in the page's shared global lexical scope and collide with the app's
+// own declarations (ASSUMED_MARGIN did exactly that in Phase 1). Only the two
+// exports at the bottom may escape.
+(function () {
+
 /**
  * @typedef {'Active'|'Paused'|'Not Active'|'Ended'|'Draft'} CampaignStatus
  *   Active/Paused/Not Active/Ended come from the sheet verbatim ("Not Active" is a real
  *   sheet status, never coerced). Draft is app-only: newly created thin rows + blank import.
- * @typedef {'On'|'Over'|'Under'|'-'} PacingStatus
+ * @typedef {'On'|'Over'|'Under'|'Early'|'-'} PacingStatus
+ *   'Early' = flight <15% elapsed — the ratio is noise at that point, so pacing is
+ *   deliberately NOT judged (see PACE_EARLY_FLIGHT_THRESHOLD).
  *
  * The raw campaign shape the Central table renders. DERIVED fields are NOT stored
  * on the raw row — they are produced by computeRow() below. Origin tag per field:
@@ -65,6 +74,26 @@
  * @property {number|null} marginDelta       campaignMargin - platformMargin                       [DERIVED]
  * @property {'above'|'near'|'below'|null} marginBand   banded marginDelta (>=0 above; >=-0.10 near; else below; cm<0 below)  [DERIVED]
  * @property {'winner'|'watch'|'steady'|null} health    portfolio-health bucket from margin + pacing + CPM  [DERIVED]
+ *
+ * Phase-1 additions (the Pulse fields, ported from the legacy inline engine in
+ * the-grid.html + the per-channel margin rule) — all [DERIVED]:
+ * @property {'ok'|'over'|'under'|'none'} paceBucket   lowercase twin of pacingStatus (same ratio bands)
+ * @property {number|null} daysTotal        rounded flight length in days
+ * @property {number|null} daysElapsed      rounded days from start to asOf
+ * @property {number|null} daysLeft         rounded days from asOf to end
+ * @property {number|null} runRate          clientSpend / daysElapsed ($ per day, to date)
+ * @property {number|null} reqDaily         budgetRemaining / daysLeft ("needs $X/day")
+ * @property {number|null} projTotal        runRate * daysTotal (projected full-flight client spend)
+ * @property {number|null} projVar          projTotal - effectiveBudget (+over / -under)
+ * @property {'over'|'under'|'onplan'|'none'} projState  projVar banded at ±PROJ_BAND of budget
+ * @property {number|null} effectiveMargin  THE MONEY RULE — see effectiveMargin() below
+ * @property {'platform'|'campaign'|'assumed'|null} effectiveMarginSource  where the value came from
+ * @property {'platform'|'campaign'} effectiveMarginRule  which margin this CHANNEL should use
+ * @property {string|null} marginWarning    'platform-margin-missing' = loud degrade (TTD/DV360 without a set margin)
+ * @property {number|null} profitAtRisk     projected shortfall × effectiveMargin (under-pacing only)
+ * @property {number|null} atStake          profitAtRisk when under, overrun $ when over (queue sort key)
+ * @property {string|null} pacingAction     plain-English recommendation ("Lift daily spend", …)
+ * @property {'over'|'under'|'warn'|'ok'|'none'} pacingActionColor  severity bucket for pacingAction
  */
 
 const DAY_MS = 86400000;
@@ -153,16 +182,33 @@ function kpiPerformance(c) {
   return c.kpiPerformance === undefined || c.kpiPerformance === '' ? null : c.kpiPerformance;
 }
 
+// THE pacing tolerance band — the ONE constant behind pacingStatus, paceBucket, the
+// Pulse scatter wedge and the Off-budget KPI count. Widened 0.95/1.05 -> 0.90/1.10
+// (2026-07-22 planning decision, post-Phase-1) to cut over-flagging: a campaign within
+// ±10% of its ideal spend ratio is "on pace".
+const PACE_BAND_OVER = 1.10;
+const PACE_BAND_UNDER = 0.90;
+
+// Early-flight suppression (2026-07-22 micro-patch): below this % of flight elapsed the
+// pacing ratio is noise, not signal (10% elapsed / 5% spent is a divide-by-almost-zero,
+// not a "too slow" campaign). pacingStatus/paceBucket return the dedicated 'Early'/'early'
+// state instead of judging — the attention queue, the Off-budget KPI and the scatter's
+// warning colours all exclude it.
+const PACE_EARLY_FLIGHT_THRESHOLD = 0.15;
+
 /**
  * Pacing Status from ratio = pctBudgetSpent / pctFlightElapsed:
- *   > 1.05 -> "Over", < 0.95 -> "Under", else "On". "-" when it can't be computed.
+ *   flight < PACE_EARLY_FLIGHT_THRESHOLD elapsed -> "Early" (not judged);
+ *   > PACE_BAND_OVER -> "Over", < PACE_BAND_UNDER -> "Under", else "On".
+ *   "-" when it can't be computed.
  */
 function pacingStatus(c, today = new Date()) {
   const spent = pctBudgetSpent(c), elapsed = pctFlightElapsed(c, today);
+  if (elapsed !== null && elapsed < PACE_EARLY_FLIGHT_THRESHOLD) return 'Early';
   const ratio = div(spent, elapsed);
   if (ratio === null) return '-';
-  if (ratio > 1.05) return 'Over';
-  if (ratio < 0.95) return 'Under';
+  if (ratio > PACE_BAND_OVER) return 'Over';
+  if (ratio < PACE_BAND_UNDER) return 'Under';
   return 'On';
 }
 
@@ -249,6 +295,161 @@ function health(c, d) {
   return 'steady';
 }
 
+/* ==================== Phase 1: the per-channel MARGIN RULE ==================== */
+
+/**
+ * THE MONEY RULE (playbook standing rule, encoded here for the first time):
+ *   TradeDesk + DV360  -> Platform Margin (the set/billed margin on grossed-up media)
+ *   Google Ads, Meta, LinkedIn, Reddit, and ANY channel without a platform-margin
+ *   concept -> Campaign Margin (the realized margin derived from actuals).
+ * Profit-at-risk / margin-at-risk always multiply against the channel's EFFECTIVE
+ * margin — never one blended formula. Ad-serving cost stays its own line (it is
+ * already inside campaignMargin via adServingCost()).
+ */
+const PLATFORM_MARGIN_CHANNELS = /trade\s*desk|tradedesk|\bttd\b|dv\s*-?\s*360|display\s*&?\s*video\s*360/i;
+
+/** Which margin a channel SHOULD use: 'platform' (TTD/DV360) or 'campaign' (everything else). */
+function marginRuleFor(channel) {
+  return PLATFORM_MARGIN_CHANNELS.test(String(channel || '')) ? 'platform' : 'campaign';
+}
+
+// Fallback used when NO usable margin exists on the row (matches the legacy Pulse
+// engine's assumption; always flagged, never silent).
+const ASSUMED_MARGIN = 0.60;
+// A realized campaignMargin at/below this is treated as "unknown" for use as a
+// profit multiplier (the sheet writes 0 as filler; a ~0/negative multiplier would
+// print a meaningless $0 profit-at-risk). Legacy Pulse used the same guard.
+const MARGIN_MIN = 0.001;
+
+/**
+ * effectiveMargin(c, d?) -> { value, source, rule, warning }
+ *   rule    'platform' | 'campaign'          — what the channel should use
+ *   source  'platform' | 'campaign' | 'assumed' — where the value actually came from
+ *   value   number|null                      — the margin to multiply against
+ *   warning 'platform-margin-missing' | null — LOUD degrade marker
+ *
+ * DOCUMENTED DEGRADE BEHAVIOR (deliberate, not silent):
+ *  - Platform-margin channel (TTD/DV360) with platformMargin missing/0/>=1:
+ *    falls back to the realized campaignMargin when usable, else ASSUMED_MARGIN —
+ *    and ALWAYS sets warning='platform-margin-missing' so the UI must render an
+ *    estimated treatment (~value + "set margin" nudge). platformMargin=0 counts as
+ *    missing: the sheet uses 0 as filler and a ×0 multiplier would silently zero
+ *    profit-at-risk, which is exactly the failure mode this rule exists to prevent.
+ *  - Campaign-margin channel with no usable realized margin: ASSUMED_MARGIN with
+ *    source='assumed' (the legacy "est." chip behavior, kept).
+ */
+function effectiveMargin(c, d) {
+  const rule = marginRuleFor(c.channel);
+  const cm = d ? d.campaignMargin : campaignMargin(c);
+  const usableCm = (cm !== null && cm > MARGIN_MIN) ? cm : null;
+  if (rule === 'platform') {
+    const pm = num(c.platformMargin);
+    if (pm !== null && pm > 0 && pm < 1) return { value: pm, source: 'platform', rule, warning: null };
+    if (usableCm !== null) return { value: usableCm, source: 'campaign', rule, warning: 'platform-margin-missing' };
+    return { value: ASSUMED_MARGIN, source: 'assumed', rule, warning: 'platform-margin-missing' };
+  }
+  if (usableCm !== null) return { value: usableCm, source: 'campaign', rule, warning: null };
+  return { value: ASSUMED_MARGIN, source: 'assumed', rule, warning: null };
+}
+
+/* ========== Phase 1: Pulse formulas ported from the legacy inline engine ========== */
+/* (the-grid.html derive()/recommend(), retired this phase — calc.js is now the ONE
+   complete engine. Bands/bases follow the reconciliation table in PHASE1_REPORT.md.) */
+
+const PROJ_BAND = 0.05;   // projection tolerance: ±5% of budget = "on plan"
+
+/** Lowercase pace bucket on the SAME rules as pacingStatus: 'early' below
+ * PACE_EARLY_FLIGHT_THRESHOLD elapsed (ratio not judged), else the
+ * PACE_BAND_OVER/UNDER ratio bands. This deliberately replaces the legacy Pulse gap
+ * band (|spent-elapsed|>0.15) and derive.js's ±0.10 ratio band, so Pulse and Central
+ * can never disagree. */
+function paceBucket(pctSpent, pctElapsed) {
+  const e = num(pctElapsed);
+  if (e !== null && e < PACE_EARLY_FLIGHT_THRESHOLD) return 'early';
+  const ratio = div(pctSpent, pctElapsed);
+  if (ratio === null) return 'none';
+  if (ratio > PACE_BAND_OVER) return 'over';
+  if (ratio < PACE_BAND_UNDER) return 'under';
+  return 'ok';
+}
+
+/** Rounded flight-day counts as of a date. Null-guarded; daysTotal must be > 0. */
+function flightDays(c, asOf = new Date()) {
+  const s = ms(c.startDate), e = ms(c.endDate), t = ms(asOf);
+  if (s === null || e === null || t === null) return { daysTotal: null, daysElapsed: null, daysLeft: null };
+  const daysTotal = Math.round((e - s) / DAY_MS);
+  if (daysTotal <= 0) return { daysTotal: null, daysElapsed: null, daysLeft: null };
+  return { daysTotal, daysElapsed: Math.round((t - s) / DAY_MS), daysLeft: Math.round((e - t) / DAY_MS) };
+}
+
+/**
+ * Run-rate projection (ported 1:1 from legacy Pulse, budget base switched to
+ * effectiveBudget per the reconciliation table):
+ *   runRate  = clientSpend / daysElapsed        (needs daysElapsed > 0)
+ *   projTotal= runRate * daysTotal
+ *   projVar  = projTotal - effectiveBudget      (+ heading over, - heading under)
+ *   reqDaily = budgetRemaining / daysLeft       (needs daysLeft > 0)
+ *   projState= over/under at ±PROJ_BAND×budget, else onplan; 'none' if unknowable
+ */
+function pacingProjection(c, asOf = new Date()) {
+  const { daysTotal, daysElapsed, daysLeft } = flightDays(c, asOf);
+  const out = { daysTotal, daysElapsed, daysLeft, runRate: null, reqDaily: null, projTotal: null, projVar: null, projState: 'none' };
+  const budget = effectiveBudget(c), spend = num(c.clientSpend);
+  if (daysTotal === null || budget === null || budget === 0) return out;
+  if (daysElapsed !== null && daysElapsed > 0 && spend !== null) {
+    out.runRate = spend / daysElapsed;
+    out.projTotal = out.runRate * daysTotal;
+    out.projVar = out.projTotal - budget;
+  }
+  const rem = budgetRemaining(c);
+  if (daysLeft !== null && daysLeft > 0 && rem !== null) out.reqDaily = rem / daysLeft;
+  if (out.projVar !== null) {
+    const tol = PROJ_BAND * budget;
+    out.projState = out.projVar > tol ? 'over' : out.projVar < -tol ? 'under' : 'onplan';
+  }
+  return out;
+}
+
+/**
+ * Profit at risk = projected shortfall × EFFECTIVE margin (per-channel rule above).
+ * atStake = profitAtRisk when heading under budget, the raw overrun $ when heading
+ * over (the "What needs attention" sort key). Both null-guarded.
+ * @param {Campaign} c
+ * @param {{projVar:number|null}} proj  from pacingProjection()
+ * @param {{value:number|null}} em      from effectiveMargin()
+ */
+function profitAtRisk(c, proj, em) {
+  const shortfall = (proj.projVar !== null && proj.projVar < 0) ? -proj.projVar : 0;
+  const overrun = (proj.projVar !== null && proj.projVar > 0) ? proj.projVar : 0;
+  const risk = (shortfall > 0 && em.value !== null) ? shortfall * em.value : null;
+  return { profitAtRisk: risk, atStake: shortfall > 0 ? risk : (overrun > 0 ? overrun : 0) };
+}
+
+/** Plain-English pacing recommendation (ported 1:1 from legacy Pulse recommend()). */
+function pacingAction(proj) {
+  if (proj.daysLeft !== null && proj.daysLeft <= 0) return { action: 'Flight ended', color: 'none' };
+  if (proj.projState === 'over') return { action: 'Cap or rebrief', color: 'over' };
+  if (proj.reqDaily === null || proj.runRate === null || proj.runRate <= 0) return { action: 'No pace data', color: 'none' };
+  const m = proj.reqDaily / proj.runRate;
+  if (m > 3) return { action: 'Unreachable — reallocate', color: 'under' };
+  if (m > 1.5) return { action: 'Push hard / add room', color: 'under' };
+  if (m > 1.1) return { action: 'Lift daily spend', color: 'warn' };
+  if (m < 0.8) return { action: 'Ease off — running ahead', color: 'ok' };
+  return { action: 'Hold — on pace', color: 'ok' };
+}
+
+/** The pacing "as of" moment: the newest lastSyncedAt across rows, or null when no
+ * sync has ever run (callers must FALL BACK LOUDLY — visible badge, never a silent
+ * stale date). */
+function latestSyncAsOf(rows) {
+  let best = null;
+  (rows || []).forEach(r => {
+    const t = ms(r && r.lastSyncedAt);
+    if (t !== null && (best === null || t > best)) best = t;
+  });
+  return best === null ? null : new Date(best);
+}
+
 /**
  * Compute every derived field for a row in one pass.
  * @param {Campaign} c
@@ -269,6 +470,19 @@ function computeRow(c, today = new Date()) {
   d.marginDelta = marginDelta(c, d);
   d.marginBand = marginBand(c, d);
   d.health = health(c, d);
+  // Phase-1 Pulse fields (single engine — see the ported section above)
+  d.paceBucket = paceBucket(d.pctBudgetSpent, d.pctFlightElapsed);
+  const proj = pacingProjection(c, today);
+  d.daysTotal = proj.daysTotal; d.daysElapsed = proj.daysElapsed; d.daysLeft = proj.daysLeft;
+  d.runRate = proj.runRate; d.reqDaily = proj.reqDaily;
+  d.projTotal = proj.projTotal; d.projVar = proj.projVar; d.projState = proj.projState;
+  const em = effectiveMargin(c, d);
+  d.effectiveMargin = em.value; d.effectiveMarginSource = em.source;
+  d.effectiveMarginRule = em.rule; d.marginWarning = em.warning;
+  const risk = profitAtRisk(c, proj, em);
+  d.profitAtRisk = risk.profitAtRisk; d.atStake = risk.atStake;
+  const act = pacingAction(proj);
+  d.pacingAction = act.action; d.pacingActionColor = act.color;
   return d;
 }
 
@@ -277,9 +491,15 @@ const api = {
   effectiveBudget, budgetRemaining, pctBudgetSpent, pctFlightElapsed,
   adServingCost, campaignMargin, cpmPerformance, kpiPerformance, pacingStatus,
   marginDelta, marginBand, health,
+  // Phase-1 single-engine additions
+  marginRuleFor, effectiveMargin, paceBucket, flightDays, pacingProjection,
+  profitAtRisk, pacingAction, latestSyncAsOf,
+  ASSUMED_MARGIN, PROJ_BAND, PACE_BAND_OVER, PACE_BAND_UNDER, PACE_EARLY_FLIGHT_THRESHOLD,
   computeRow,
 };
 
 // dual export: CommonJS (Node / tests) + browser global (classic <script src>)
 if (typeof module !== 'undefined' && module.exports) module.exports = api;
 if (typeof window !== 'undefined') window.CentralCalc = api;
+
+})();

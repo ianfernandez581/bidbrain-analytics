@@ -3,70 +3,70 @@
 The data + calculation core for **The Grid**. This is the layer that turns
 "the probe reaches the platforms" into "the app shows numbers you can trust."
 
-Two consumers import from here:
-- the **live app** (dashboard) calls `orchestrator.fetchLiveCampaigns()`
-- the **reconciliation harness** (`reconcile.js`) calls the same thing, so the
-  dashboard and the spreadsheet can never disagree.
+**ONE SPINE (Phase 1, 2026-07-22):** Pulse and Central read the live
+SQLite `campaigns` table (via `GET /api/central/campaigns`) and compute every
+derived number with **`src/central/calc.js`** — the single formula engine. The old
+baked `const DATA` literal, the inline engine in `the-grid.html`, `src/derive.js`
+and `scripts/build_grid_data.py` are retired (see `PHASE1_REPORT.md` at repo root
+for the formula reconciliation table + the Schneider before/after diff).
+
+**ONE CAMPAIGN TABLE (Phase 2, 2026-07-22):** the **Register tab is gone — merged
+into Central** (`PHASE2_REPORT.md`). Central kept its identity (per-client
+accordion sections, CONFIG/API/DERIVED tagging, LIVE/SHEET markers, inline CONFIG
+editing, media-plan reader + reconcile entry points) and gained Register's column
+groups (Core / Pacing / Budget / Margin / Performance / Links), the
+Group: advertiser vs Flat toggle, search, a Manager filter, per-campaign detail
+rows, and the Register-only columns (Budget Gross, Ad-Serving rate+cost,
+Impressions, Link, Next Report). Draft rows no longer reach Pulse — they live in
+Central until configured.
 
 ## What's here
 
 ```
 src/
-  derive.js                 ← authoritative Live-Campaigns formulas (THE source of truth)
-  derive.test.js            ← proves derive reproduces the sheet's own values
-  orchestrator.js           ← fan out to connectors, tag provenance, run derive
-  reconcile.js              ← compare pulled numbers vs platform UI, to the cent
+  central/calc.js           ← THE single formula engine (margins, pacing, projections,
+                              profit-at-risk, the per-channel effective-margin rule)
+  central/calc.test.js      ← margin-rule + ported-formula unit tests
+  orchestrator.js           ← DORMANT live-API fan-out (not wired into the app)
+  reconcile.js              ← RETIRED CLI (exits loudly; use scripts/compare_pulse_paths.js)
+  _retired/derive.js        ← QUARANTINED legacy engine (audit reference only — nothing imports it)
   connectors/
     connector-base.js       ← ProbeError, httpJson, pollUntil, normalizedRow
     google-ads.js           ← SYNC pattern (reference implementation)
     trade-desk.js           ← CREATE-POLL pattern (reference implementation)
-    meta.js / linkedin.js / reddit.js / dv360.js   ← follow the same two patterns
 ```
 
-Meta, LinkedIn, Reddit follow the `google-ads.js` (SYNC) shape.
-DV360 follows the `trade-desk.js` (CREATE-POLL) shape.
+## The formulas
 
-## The formulas (transcribed from CENTRAL_100__Digital.xlsx → "Live Campaigns")
+All formulas live in `src/central/calc.js` (null-guarded; no NaN/Infinity ever
+reaches the UI). Key definitions after the Phase-1 reconciliation:
 
-| Field | Formula | Sheet col |
-|---|---|---|
-| Ad-serving cost | `impressions/1000 × adServingRate` | M |
-| Campaign margin | `(clientSpent − mediaSpend − adservingCost) / clientSpent` | J |
-| CPM performance | `(clientSpent / impressions) × 1000` | O |
-| Budget remaining | `totalBudget − clientSpent` | W |
-| % budget spent | `clientSpent / totalBudget` | X |
-| % flight elapsed | `MIN((today − start)/(end − start), 1)` | Y |
-| Pacing status | `%spent / %elapsed` (ratio; >1 over, <1 under) | Z |
+| Field | Formula |
+|---|---|
+| Ad-serving cost | `impressions/1000 × adServing rate` (0 when no rate) |
+| Campaign margin | `(clientSpend − mediaSpend − adServingCost) / clientSpend` |
+| CPM performance | `(mediaSpend / impressions) × 1000` (media basis, same as forecast CPM) |
+| Effective budget | `budgetGross` first, else `totalBudget` (client-billed basis) |
+| % budget spent | `clientSpend / effectiveBudget` |
+| % flight elapsed | `clamp((asOf − start)/(end − start), 0..1)` |
+| Pacing | ratio `%spent/%elapsed`; **>1.10 Over, <0.90 Under** (`PACE_BAND_OVER`/`PACE_BAND_UNDER`, widened from 1.05/0.95 on 2026-07-22). **Below 15% flight elapsed → `Early`/`early`** (`PACE_EARLY_FLIGHT_THRESHOLD`): the ratio is noise that early, so pacing is not judged — early rows are excluded from the attention queue, the Off-budget count, and render as muted slate dots/pills |
+| Projection | `runRate = clientSpend/daysElapsed`; `projVar = runRate×daysTotal − effectiveBudget` |
+| Needs $/day | `budgetRemaining / daysLeft` |
+| **Effective margin** | **TradeDesk/DV360 → Platform Margin; every other channel → Campaign Margin** (missing platform margin degrades LOUDLY — falls back realized→assumed with a `platform-margin-missing` warning) |
+| Profit at risk | projected shortfall × effective margin |
 
-**Platform margin (K)** is a manual input, not derived — passed through.
-The sheet's manual `×2` / `÷2` fudge cells are **deliberately not reproduced**;
-the APIs return true full-flight numbers, so reproducing them would double-count.
+Pacing "as of" = the DB's newest `lastSyncedAt` (`calc.latestSyncAsOf`); when no
+sync has ever run the app anchors to now and shows a LOUD amber badge + banner.
 
-Verify anytime: `npm test` (runs `derive.test.js` against real sheet rows).
+Verify anytime: `npm test` (runs `calc.test.js` + the Central suites).
 
-## The campaign data (`const DATA` in `the-grid.html`)
+## The campaign data (live SQLite spine)
 
-The grid renders every campaign from a `const DATA = [...]` literal embedded in
-`the-grid.html`. That literal is a **transcription of the committed source sheet**
-`bidbrain-platform/Data/Central2.xlsx` ("Live Campaigns"), holding only the raw
-sheet columns — the grid derives pacing/margin/projection at runtime (`derive()`).
-
-**It is generated, not hand-edited.** When the sheet grows (new campaigns, new
-clients, updated spend) the embedded copy goes stale and the grid shows fewer
-campaigns than the sheet. Regenerate it for **all clients at once**:
-
-```
-.venv/Scripts/python.exe grid-core/scripts/build_grid_data.py            # rewrite DATA in place
-.venv/Scripts/python.exe grid-core/scripts/build_grid_data.py --check    # per-client counts, no write
-```
-
-The script re-reads Central2.xlsx and rewrites the single `DATA` line; the
-column→key mapping is pinned in `COLS` at the top of the script. It **also
-re-anchors the grid's pacing `SNAP` date** in `the-grid.html` to the sheet's real
-"as of" date, which it recovers from the `% Flight Elapsed` column
-(`asof = start + pctElapsed × (end − start)`, median across all mid-flight rows) —
-so run-rate projections always match the sheet instead of drifting from a stale
-hardcoded date. One run keeps both the campaign list and the pacing math in sync.
+`the-grid.html` boots by fetching `GET /api/central/campaigns` and mapping each DB
+row through `spineRow()` (adapter in the-grid.html) + `CentralCalc.computeRow()`.
+There is **no baked campaign data** — Pulse/Central need `node server.js`
+running and show a loud red banner when it isn't. `scripts/build_grid_data.py` is
+retired for app data (kill switch inside; Phase 4 deletes it).
 
 ### Live metrics from BigQuery (the scraped half)
 
@@ -147,7 +147,7 @@ a recommendation, and one click sends it to ClickUp for a human to action.
 
 ## Where it lives
 
-A tab in the top nav (Pulse · Register · **Brain** · Executive), next to a small
+A tab in the top nav (Pulse · **Brain** · Central · Executive), next to a small
 `NEW` badge. The Grid is a single static HTML app with **hash-based routing**, so:
 
 - `#view=brain` — the cross-client landing page
@@ -283,8 +283,10 @@ src/central/plan-reader.js   ← server-side extraction (SheetJS grid + parser.j
                                 normalization, header-keyword heuristic, candidate match
                                 (against the campaigns DB).
 ```
-Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register | Executive),
+Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Executive),
 `#view-central`, dispatch in `renderContent()`, hash whitelist, `<script src>` tags.
+(Phase 2: the Register tab merged INTO Central — column groups, Group: advertiser/Flat,
+search, Manager filter, detail rows, and the Register-only columns all live here now.)
 
 ## Data model + persistence — the DB is the SOURCE OF TRUTH
 Central's source of truth is the SQLite **`campaigns`** table (in `src/brain/db.js`), NOT the
@@ -298,7 +300,9 @@ fresh per render via `CentralCalc.computeRow()`, never stored. Field edits updat
 `campaigns` row (the value) **and** append provenance to `central_rows` (the source/filename/
 cellRef, keyed by campaign id). **DERIVED fields are never writable** — `db.js` whitelists
 (`CENTRAL_EDIT_FIELDS`, `CENTRAL_PLAN_FIELDS`) and rejects `CENTRAL_DERIVED_FIELDS` everywhere.
-(`the-grid.html`'s `const DATA` still feeds Pulse/Register only — Central no longer reads it.)
+(Phase 1: Pulse reads this same DB through `/api/central/campaigns` too —
+the `const DATA` literal is gone from `the-grid.html`. Phase 2: Pulse excludes
+`Draft` rows — drafts live in Central only until they're configured.)
 
 ## Status model + live-first view
 Statuses: **Active · Paused · Not Active · Ended · Draft**. Active/Paused/Not Active/Ended come
@@ -363,6 +367,29 @@ campaigns → the human ticks/approves pairs → POST `/approve` writes them int
 `central-clients.json` and flips `validated:true`. Suggestions are never auto-written. A client
 needs a `pm_delivery`-shaped BQ view first (reconcile reports an empty name list otherwise).
 
+**Staged candidates (Phase 3, per-client):** a Phase 3 session may pre-curate the pairs into
+`config/reconcile-staged/<Client>.json` (rule + confidence + rationale + BQ preview + warnings).
+The reconcile GET serves it as `staged`; the panel renders it FIRST (unticked — the human still
+ticks + approves through the same `/approve` route; "Select all high-confidence" is a helper, not
+an auto-approve). **Platform-consistency is a HARD rule** (2026-07-22 review): candidates are
+filtered by the platform token in the BQ name (LINKEDIN / TTD|TRADE DESK / REDDIT / LINE-as-token /
+DV360) AND the source-table channel tag — a LINKEDIN name can never be offered against a LINE or
+TradeDesk row, and `/approve` REJECTS (400, nothing written) any pair that crosses platforms.
+Generic fuzzy suggestions carry an honest `flag`: `no-platform-match` (no Grid row on that
+platform) / `weak` (below 0.35 — nothing preselected) / `ambiguous` (runner-up within 0.06, shown).
+NOTE the Schneider Mode A map has no platform dimension (pm_delivery aggregates programs across
+channels onto ONE row) — quantified in `PHASE3_CLOUDFLARE_REPORT.md` §6; fix before Schneider's
+first real sync. Cloudflare's
+staged file (2026-07-22) is the pilot — see `PHASE3_CLOUDFLARE_REPORT.md` (its LinkedIn matches
+on `CAMPAIGN_GROUP_NAME`, and TTD `COSTS` is the CLIENT-BILLED basis — read the report's spendMult
+warning before the first Cloudflare/Schneider TTD sync).
+
+**Unnamed rows:** campaign **name** is inline-fillable in Central when empty (fill-empty affordance
+in the Campaign cell; counted by the missing-fields badge; `name` added to the edit whitelist).
+**Spend Mult is a Central column** (Margin group, beside Plat./Camp. Margin): CONFIG, always
+inline-editable as a plain 2-dp decimal ("1.00"/"3.07" — full precision kept in the DB), tinted +
+badge-counted when empty; clearing it saves null (the unbilled-basis badge returns).
+
 ## Lifecycle (traders manage campaigns in Central)
 - **Add campaign** (button by Sync/Export) → panel → `POST /api/central/campaigns`
   (section+client+name required, rest optional, `status:'Draft'`, `sourceOfRecord:'manual'`).
@@ -421,7 +448,7 @@ normalization / provenance / conflict / derived-rejection) and the render path
 (leads / ROAS / impressions / clicks / enquiries) so a media buyer (or the boss) sees who's performing
 and who needs a look without opening each dashboard. It is deliberately **NOT a pacing view** — budget
 pacing / margin-at-risk live on Pulse and Central; Executive is the client-outcome lens. It **replaced
-the old Dashboards tab** in the top nav (Pulse · Brain · Central · Register · **Executive**). The
+the old Dashboards tab** in the top nav (Pulse · Brain · Central · **Executive**). The
 per-client "Open dashboard ↗" links the Dashboards tab used to carry are folded into each exec card, and
 an "All dashboards ↗" link (the platform front-door) sits in the filter bar. `renderDashboards()` +
 `#view-dashboards` remain in the file but are unreachable from the nav (a stale `#view=dashboards` hash

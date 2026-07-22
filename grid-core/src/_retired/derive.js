@@ -1,5 +1,13 @@
 /**
- * derive.js — the single source of truth for The Grid's calculated fields.
+ * ============================ QUARANTINED — PHASE 1 ============================
+ * derive.js is RETIRED. The single formula engine is src/central/calc.js:
+ * every formula here was either already in calc.js or was ported there in Phase 1
+ * (see PHASE1_REPORT.md for the reconciliation table). NOTHING may import this
+ * file. It is kept only as the audit reference for the old sheet formulas until
+ * Phase 4 deletes it.
+ * ===============================================================================
+ *
+ * derive.js — the single source of truth for The Grid's calculated fields. (STALE CLAIM — see above)
  *
  * Every formula here is transcribed directly from the "Live Campaigns" sheet
  * in CENTRAL_100__Digital.xlsx. Column letters from the sheet are noted so you
