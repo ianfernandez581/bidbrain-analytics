@@ -445,26 +445,44 @@ an agency filter, an **Objective** dropdown (beside the Reading toggle), and a *
 use the grid's own theme vars + Inter/Space Grotesk, so dark/light come for free. `EX_HIDE`-equivalent:
 City Perfume + HireRight are simply not in the `EXC` list.
 
-**Data (live seam + preview fallback):** `renderExec()` fetches **`config/exec-kpis.json`** and, if
-present, drops it in over the baked `EXC` preview (`EX_SRC` -> `'live'`; the hero relabels and shows the
-build date); absent/offline it stays on the labelled preview, so the tab always renders. That file is
-produced by **`scripts/build_exec_kpis.py`**, which reads each client's own `data.json` from GCS
+**Data (LIVE):** the numbers are pulled live from each client's own `data.json`
 (`gs://bidbrain-analytics-<c>-dash/<c>.json` - the exact JSON the dashboard serves, built from BigQuery,
-so exec == dashboard to the digit) and extracts the headline KPI + target + daily/weekly/monthly trend +
-supporting metrics in the `EXC` shape. Run it with ADC creds (`gcloud auth application-default login` as
-ian@100.digital or a key with objectViewer on the client buckets):
+so exec == dashboard to the digit). Three layers, same shape at each:
+1. **`GET /api/exec`** (server.js) - serves an in-memory cache built by spawning
+   `scripts/build_exec_kpis.py --stdout`, which reads the buckets via the **Python GCS client on the
+   runtime SA's ADC** (NOT the `bq` CLI, which isn't in the container). **`POST /api/exec/sync`** forces
+   a rebuild - this is what the **Sync now** button calls. `renderExec()` fetches `api/exec` first.
+2. **`config/exec-kpis.json`** - a build-time snapshot (also written by `build_exec_kpis.py` locally);
+   the front-end falls back to it if the route is unreachable.
+3. the baked **`EXC`** preview array - last resort (fully offline / `file://`).
+
+`build_exec_kpis.py` extracts each client's headline KPI + target + daily/weekly/monthly trend +
+supporting metrics; each client is in its own try/except (a failure is SKIPPED -> its preview card
+stays). Run locally with ADC creds to (re)write the snapshot / validate:
 ```
 .venv/Scripts/python.exe grid-core/scripts/build_exec_kpis.py --check   # print extracted numbers, no write
 .venv/Scripts/python.exe grid-core/scripts/build_exec_kpis.py           # write config/exec-kpis.json
 ```
-Each client extracts in its own try/except (a failure is SKIPPED, so its preview card stays), and the
-per-client paths should be VALIDATED against the dashboards on the first creds run (a couple of nested
-daily-array field names are flagged `#VERIFY`). The Sync button re-fetches the file once it's live.
+A couple of nested daily-array field names are flagged `#VERIFY` - confirm against the dashboards.
+
+**Deploy note (Cloud Run):** the server warms the cache on boot and refreshes every `EXEC_AUTOSYNC_MIN`
+(default 10) minutes, BUT that background work needs **CPU always allocated** - `central-grid` runs with
+`--no-cpu-throttling --min-instances=1` so the scheduled refresh (and the boot warm-up) actually run;
+without it, only the request-scoped Sync button works (background refreshes hit the ~150s timeout under
+throttled CPU). Cheaper alternative if the always-on instance matters: drop `--min-instances`/throttling
+and point a **Cloud Scheduler** `*/10` job at `POST /api/exec/sync` (request-scoped = full CPU), matching
+the repo's freshness pattern. The `central-grid` runtime SA (`516554645957-compute@`) has
+`roles/storage.objectViewer` for the reads.
+
+**Aside - Central's own Sync** (`/api/central/sync`, the platform tile's button) shells out to the `bq`
+CLI, which isn't installed in the container, so it fails on Cloud Run ("never synced"). Unrelated to the
+Executive tab; fix later by switching `central_sync.py` to the `google-cloud-bigquery` client library.
 
 **Verify without a browser:** `exec-verify.js` (this session's scratchpad) stubs the DOM in a `vm` context,
 runs the main script, calls `renderExec()`, prints the per-client KPI/verdict table, and writes a
 green-themed HTML snapshot.
 
-**Roadmap:** validate + schedule `build_exec_kpis.py` (or fold it into `build_grid_data.py` / a
-Central-style sync) so `config/exec-kpis.json` refreshes automatically; AI-written notes (Gemini/Vertex,
-like Central's plan reader) can replace the computed `_note`.
+**Roadmap:** AI-written health notes (Gemini/Vertex, like Central's plan reader) to replace the computed
+`_note`; move the scheduled refresh to a scale-to-0 Cloud Scheduler `*/10` ping if the always-on instance
+cost matters; validate the `#VERIFY` daily-array field names against the dashboards; fix Central's own
+`bq`-CLI sync (switch to the BigQuery client library so the platform-tile Sync works on Cloud Run).
