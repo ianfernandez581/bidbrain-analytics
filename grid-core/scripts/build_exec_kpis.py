@@ -87,11 +87,17 @@ def _spark(series, grain, kind):
     return [round(v, 4) for v in vals[-12:]]
 
 
-def _roll_delta(series, kind, days):
+def _roll_delta(series, kind, days, grain="d", frontier=None):
     """% change of the last `days` vs the prior `days`, as ROLLING day-windows anchored at the latest
     date. Robust to a partial final calendar period AND to weekly-grained series (so a false -90% MoM
-    from comparing an incomplete month against a full one can't happen)."""
+    from comparing an incomplete month against a full one can't happen). For the WEEKLY read we also
+    drop an in-progress final week (given `frontier` = the latest real data date) so a 2-3 day partial
+    week can't masquerade as a full-week collapse."""
     pts = [r for r in series if r[0] is not None]
+    if grain == "w" and frontier and pts:
+        wk = max(r[0] for r in pts)
+        if (frontier - wk).days < 6:            # the latest week is not fully elapsed yet -> exclude it
+            pts = [r for r in pts if r[0] != wk]
     if not pts:
         return 0
     last = max(r[0] for r in pts)
@@ -114,14 +120,14 @@ def _roll_delta(series, kind, days):
     return int(round((c - p) / p * 100)) if p else 0
 
 
-def trend(series, kind="sum", no_daily=False):
+def trend(series, kind="sum", no_daily=False, frontier=None):
     win = {"d": 3, "w": 7, "m": 30}
     gd, sk = {}, {}
     for grain in ("d", "w", "m"):
         if no_daily and grain == "d":
             gd["d"], sk["d"] = None, None      # front-end falls back d->w
             continue
-        gd[grain] = _roll_delta(series, kind, win[grain])
+        gd[grain] = _roll_delta(series, kind, win[grain], grain=grain, frontier=frontier)
         sk[grain] = _spark(series, grain, kind)
     if no_daily:
         gd["d"], sk["d"] = gd["w"], sk["w"]
@@ -146,14 +152,48 @@ def ex_cloudflare(d):
     return dict(val=val, target=target, series=ser, kind="sum", noDaily=True, sec=sec)
 
 
+def _prog_ttd(c, today):
+    """(expected-to-date, delivered) for ONE lead-gen program from its own flight window - the even
+    flight pace so far, i.e. target x (elapsed / total flight days). None for awareness (no target).
+    Targets are FULL-FLIGHT, so this to-date figure - not val/full-target - is the honest 'on plan?'."""
+    tgt = num(c.get("target"), 0) or 0
+    if not tgt:
+        return None
+    leads = num(c.get("leads"), 0) or 0
+    fs, fe = _date(c.get("flight_start")), _date(c.get("flight_end"))
+    if fs and fe and fe > fs:
+        total = (fe - fs).days
+        elapsed = max(0, min(total, (today - fs).days))
+        time_pct = elapsed / total if total else 1.0
+    else:
+        time_pct = 1.0
+    return (tgt * time_pct, leads)
+
+
 def ex_schneider(d):
     camps = g(d, "campaigns", []) or []
     leadgen = [c for c in camps if num(c.get("target"))]
     val = sum(num(c.get("leads"), 0) or 0 for c in leadgen) or None
     target = sum(num(c.get("target"), 0) or 0 for c in leadgen) or None
     ser = [(_date(r.get("week_start")), num(r.get("leads"), 0)) for r in (g(d, "cs_weekly", []) or [])]
-    sec = [[f"{len(leadgen)} of {len(leadgen)}", "Programs on pace", None]]
-    return dict(val=val, target=target, series=ser, kind="sum", noDaily=True, sec=sec)
+    # REAL "programs on pace" (was hardcoded N-of-N) + aggregate pace-TO-DATE: each program judged
+    # against the even flight pace SO FAR, not the full-flight target. on = programs at/above 80% of
+    # their own to-date pace; ttdPace = total delivered / total expected-to-date (drives the verdict).
+    today = dt.date.today()
+    exp = deliv = 0.0
+    on = 0
+    for c in leadgen:
+        t = _prog_ttd(c, today)
+        if not t:
+            continue
+        e, l = t
+        exp += e
+        deliv += l
+        if e <= 0 or l >= 0.8 * e:
+            on += 1
+    ttd_pace = round(deliv / exp, 4) if exp > 0 else None
+    sec = [[f"{on} of {len(leadgen)}", "Programs on pace", None]]
+    return dict(val=val, target=target, series=ser, kind="sum", noDaily=True, sec=sec, ttdPace=ttd_pace)
 
 
 def ex_resetdata(d):
@@ -247,7 +287,7 @@ BASE = [
      "unit": "", "fmt": "int", "targetLbl": "Q3 target"},
     {"key": "schneider", "extract": ex_schneider, "mono": "SE", "name": "Schneider", "agency": "Transmission",
      "group": "lead", "dash": "Schneider", "obj": "Awareness + Site traffic + LGF", "mlbl": "MQL + HQL leads",
-     "unit": "", "fmt": "int", "targetLbl": "Plan target (to date)"},
+     "unit": "", "fmt": "int", "targetLbl": "Plan target (full flight)"},
     {"key": "resetdata", "extract": ex_resetdata, "mono": "RD", "name": "Reset Data", "agency": "100% Digital",
      "group": "lead", "dash": "ResetData", "obj": "Leads", "mlbl": "Ad-reported leads", "unit": "", "fmt": "int",
      "targetLbl": None},
@@ -271,19 +311,35 @@ BASE = [
 ]
 
 
-def _note(b, val, target, gd):
-    """A short, honest 'what's happening' line computed from the numbers (AI-written later)."""
+def _note(b, val, target, gd, ttd_pace=None):
+    """A short, honest 'what's happening' line PER GRAIN, so the card's summary always matches the
+    Reading toggle (it was pinned to monthly, which read as a contradiction next to a weekly headline).
+    Pace is stated against the expected pace TO DATE when a flight window exists - val/full-target is
+    misleadingly low early in a months-long flight, so it must not read as 'behind'."""
     if val is None:
         return "No data yet for this client's headline metric."
-    m = gd.get("m") or 0
-    dirn = "up" if m > 1 else "down" if m < -1 else "flat"
-    lead = {"up": f"Trending up, about {m}% month over month.",
-            "down": f"Trending down, about {abs(m)}% month over month.",
-            "flat": "Holding roughly flat month over month."}[dirn]
-    if target:
-        pct = round(val / target * 100)
-        return f"{lead} At {pct}% of the {b['targetLbl'].lower()}."
-    return lead
+    tl = (b.get("targetLbl") or "target").lower()
+
+    def paceline():
+        if ttd_pace is not None:
+            p = round(ttd_pace * 100)
+            frame = "Ahead of plan" if ttd_pace >= 1.0 else ("On plan" if ttd_pace >= 0.9 else "Behind plan")
+            return f" {frame}, at {p}% of the expected pace to date."
+        if target:
+            return f" At {round(val / target * 100)}% of the {tl}."
+        return ""
+
+    def line(gr, phrase):
+        m = gd.get(gr) or 0
+        dirn = "up" if m > 1 else "down" if m < -1 else "flat"
+        lead = {"up": f"Trending up, about {m}% {phrase}.",
+                "down": f"Trending down, about {abs(m)}% {phrase}.",
+                "flat": f"Holding roughly flat {phrase}."}[dirn]
+        return lead + paceline()
+
+    return {"m": line("m", "month over month"),
+            "w": line("w", "week over week"),
+            "d": line("d", "vs the prior 3 days")}
 
 
 def fetch_json(key):
@@ -300,21 +356,23 @@ def build(check=False, to_stdout=False):
         try:
             data = fetch_json(b["key"])
             dyn = b["extract"](data)
-            gd, sk = trend(dyn["series"], dyn.get("kind", "sum"), dyn.get("noDaily", False))
+            frontier = _date(g(data, "data_through"))
+            gd, sk = trend(dyn["series"], dyn.get("kind", "sum"), dyn.get("noDaily", False), frontier=frontier)
             val, target = dyn["val"], dyn.get("target")
             pace = round(val / target, 4) if (val is not None and target) else None
+            ttd_pace = dyn.get("ttdPace")
             client = {
                 "key": b["key"], "mono": b["mono"], "name": b["name"], "agency": b["agency"], "group": b["group"],
                 "dash": b["dash"], "obj": b["obj"], "mlbl": b["mlbl"], "unit": b["unit"], "fmt": b["fmt"],
                 "val": (round(val, 2) if val is not None else 0),
                 "target": (round(target, 2) if target else None),
-                "targetLbl": b["targetLbl"], "pace": pace,
+                "targetLbl": b["targetLbl"], "pace": pace, "ttdPace": ttd_pace,
                 "noDaily": dyn.get("noDaily", False), "gd": gd, "sk": sk,
-                "sec": dyn.get("sec", []), "sum": _note(b, val, target, gd),
+                "sec": dyn.get("sec", []), "sum": _note(b, val, target, gd, ttd_pace=ttd_pace),
             }
             out.append(client)
             if verbose:
-                print(f"  {b['key']:16} val={val} target={target} gd={gd.get('m')}%/mo  ({b['mlbl']})")
+                print(f"  {b['key']:16} val={val} target={target} ttd={ttd_pace} gd(w/m)={gd.get('w')}/{gd.get('m')}%  ({b['mlbl']})")
         except Exception as e:                              # skip -> front-end keeps its preview card
             skipped.append((b["key"], str(e)[:120]))
             if verbose:
