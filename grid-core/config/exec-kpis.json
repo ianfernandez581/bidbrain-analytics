@@ -1,0 +1,608 @@
+{
+ "generated_at": "2026-07-22T00:41:33+00:00",
+ "source": "client data.json (GCS)",
+ "clients": [
+  {
+   "key": "cloudflare",
+   "mono": "CF",
+   "name": "Cloudflare",
+   "agency": "Transmission",
+   "group": "lead",
+   "dash": "Cloudflare",
+   "obj": "Lead gen + Site traffic",
+   "mlbl": "Accepted CS leads (Q3 to date)",
+   "unit": "",
+   "fmt": "int",
+   "val": 294.0,
+   "target": 5506.0,
+   "targetLbl": "Q3 target",
+   "pace": 0.0534,
+   "noDaily": true,
+   "gd": {
+    "d": 0,
+    "w": 0,
+    "m": 0
+   },
+   "sk": {
+    "d": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "w": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ],
+    "m": [
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0,
+     0.0
+    ]
+   },
+   "sec": [
+    [
+     "83%",
+     "Acceptance rate",
+     null
+    ]
+   ],
+   "sum": "Holding roughly flat month over month. At 5% of the q3 target."
+  },
+  {
+   "key": "schneider",
+   "mono": "SE",
+   "name": "Schneider",
+   "agency": "Transmission",
+   "group": "lead",
+   "dash": "Schneider",
+   "obj": "Awareness + Site traffic + LGF",
+   "mlbl": "MQL + HQL leads",
+   "unit": "",
+   "fmt": "int",
+   "val": 618.0,
+   "target": 1117.0,
+   "targetLbl": "Plan target (to date)",
+   "pace": 0.5533,
+   "noDaily": true,
+   "gd": {
+    "d": -70,
+    "w": -70,
+    "m": 70
+   },
+   "sk": {
+    "d": [
+     45.0,
+     47.0,
+     65.0,
+     72.0,
+     118.0,
+     115.0,
+     86.0,
+     54.0,
+     16.0
+    ],
+    "w": [
+     45.0,
+     47.0,
+     65.0,
+     72.0,
+     118.0,
+     115.0,
+     86.0,
+     54.0,
+     16.0
+    ],
+    "m": [
+     45.0,
+     417.0,
+     156.0
+    ]
+   },
+   "sec": [
+    [
+     "4 of 4",
+     "Programs on pace",
+     null
+    ]
+   ],
+   "sum": "Trending up, about 70% month over month. At 55% of the plan target (to date)."
+  },
+  {
+   "key": "resetdata",
+   "mono": "RD",
+   "name": "Reset Data",
+   "agency": "100% Digital",
+   "group": "lead",
+   "dash": "ResetData",
+   "obj": "Leads",
+   "mlbl": "Ad-reported leads",
+   "unit": "",
+   "fmt": "int",
+   "val": 520.25,
+   "target": null,
+   "targetLbl": null,
+   "pace": null,
+   "noDaily": false,
+   "gd": {
+    "d": -34,
+    "w": 24,
+    "m": 9
+   },
+   "sk": {
+    "d": [
+     5.0,
+     3.2857,
+     2.7143,
+     0.0,
+     2.0,
+     1.0364,
+     8.5,
+     11.0717,
+     5.8545,
+     5.9674,
+     1.9273,
+     8.9273
+    ],
+    "w": [
+     4.0,
+     16.0,
+     16.0,
+     14.0,
+     68.0,
+     82.3363,
+     63.6549,
+     94.97,
+     54.0,
+     44.0,
+     36.3572,
+     8.9273
+    ],
+    "m": [
+     3.0,
+     6.0,
+     1.5,
+     5.5,
+     51.0,
+     313.9612,
+     138.2845
+    ]
+   },
+   "sec": [
+    [
+     "77",
+     "Paying customers",
+     null
+    ]
+   ],
+   "sum": "Trending up, about 9% month over month."
+  },
+  {
+   "key": "vmch",
+   "mono": "VM",
+   "name": "Villa Maria (VMCH)",
+   "agency": "100% Digital",
+   "group": "lead",
+   "dash": "VMCH",
+   "obj": "Leads",
+   "mlbl": "Ad-attributed enquiries",
+   "unit": "",
+   "fmt": "int",
+   "val": 251.0,
+   "target": null,
+   "targetLbl": null,
+   "pace": null,
+   "noDaily": false,
+   "gd": {
+    "d": 20,
+    "w": 2,
+    "m": -4
+   },
+   "sk": {
+    "d": [
+     45.0,
+     12.0,
+     16.0,
+     48.0,
+     46.0,
+     41.0,
+     45.0,
+     41.0,
+     18.0,
+     23.0,
+     52.0,
+     50.0
+    ],
+    "w": [
+     227.0,
+     216.0,
+     279.0,
+     292.0,
+     249.0,
+     307.0,
+     241.0,
+     237.0,
+     233.0,
+     262.0,
+     262.0,
+     102.0
+    ],
+    "m": [
+     891.0,
+     1086.0,
+     1109.0,
+     535.0
+    ]
+   },
+   "sec": [
+    [
+     "10.2M",
+     "Impressions",
+     null
+    ]
+   ],
+   "sum": "Trending down, about 4% month over month."
+  },
+  {
+   "key": "stt",
+   "mono": "STT",
+   "name": "STT",
+   "agency": "Transmission",
+   "group": "reach",
+   "dash": "STT",
+   "obj": "Clicks / site traffic",
+   "mlbl": "Clicks",
+   "unit": "",
+   "fmt": "int",
+   "val": 434583.0,
+   "target": null,
+   "targetLbl": null,
+   "pace": null,
+   "noDaily": false,
+   "gd": {
+    "d": 15000,
+    "w": -81,
+    "m": -17
+   },
+   "sk": {
+    "d": [
+     151.0,
+     159.0,
+     170.0,
+     167.0,
+     92.0,
+     40.0,
+     0.0,
+     1.0,
+     0.0,
+     6.0,
+     87.0,
+     58.0
+    ],
+    "w": [
+     7824.0,
+     15565.0,
+     11098.0,
+     4871.0,
+     5201.0,
+     391.0,
+     6557.0,
+     7532.0,
+     8780.0,
+     3121.0,
+     951.0,
+     152.0
+    ],
+    "m": [
+     16206.0,
+     14929.0,
+     8263.0,
+     18759.0,
+     13390.0,
+     12480.0,
+     64947.0,
+     104979.0,
+     73350.0,
+     40769.0,
+     25723.0,
+     1761.0
+    ]
+   },
+   "sec": [
+    [
+     "6,147",
+     "Leads - key events",
+     null
+    ]
+   ],
+   "sum": "Trending down, about 17% month over month."
+  },
+  {
+   "key": "mongodb",
+   "mono": "MDB",
+   "name": "MongoDB",
+   "agency": "Transmission",
+   "group": "reach",
+   "dash": "MongoDB",
+   "obj": "Site traffic + Engagement",
+   "mlbl": "Impressions",
+   "unit": "",
+   "fmt": "int",
+   "val": 10538654.0,
+   "target": null,
+   "targetLbl": null,
+   "pace": null,
+   "noDaily": false,
+   "gd": {
+    "d": -14,
+    "w": -11,
+    "m": -66
+   },
+   "sk": {
+    "d": [
+     62477.0,
+     64494.0,
+     61530.0,
+     55672.0,
+     63467.0,
+     62928.0,
+     59833.0,
+     63207.0,
+     54381.0,
+     49178.0,
+     50175.0,
+     52856.0
+    ],
+    "w": [
+     1435316.0,
+     2695343.0,
+     1663619.0,
+     1167380.0,
+     1121395.0,
+     979420.0,
+     566543.0,
+     453613.0,
+     403169.0,
+     52856.0
+    ],
+    "m": [
+     4130659.0,
+     5143023.0,
+     1264972.0
+    ]
+   },
+   "sec": [
+    [
+     "1,028",
+     "CS leads",
+     null
+    ]
+   ],
+   "sum": "Trending down, about 66% month over month."
+  },
+  {
+   "key": "schneiderlqai",
+   "mono": "LQ",
+   "name": "Schneider LQAIDC",
+   "agency": "Transmission",
+   "group": "reach",
+   "dash": null,
+   "obj": "Site traffic / Awareness",
+   "mlbl": "Impressions",
+   "unit": "",
+   "fmt": "int",
+   "val": 2110589.0,
+   "target": 10121600.0,
+   "targetLbl": "Plan (LinkedIn + TTD)",
+   "pace": 0.2085,
+   "noDaily": false,
+   "gd": {
+    "d": -9,
+    "w": -4,
+    "m": 17
+   },
+   "sk": {
+    "d": [
+     38537.0,
+     32462.0,
+     31195.0,
+     35998.0,
+     38071.0,
+     35678.0,
+     36215.0,
+     36441.0,
+     33030.0,
+     30263.0,
+     38435.0,
+     27212.0
+    ],
+    "w": [
+     21247.0,
+     205624.0,
+     204996.0,
+     201896.0,
+     203598.0,
+     227956.0,
+     236262.0,
+     251391.0,
+     246276.0,
+     245696.0,
+     65647.0
+    ],
+    "m": [
+     431867.0,
+     941978.0,
+     736744.0
+    ]
+   },
+   "sec": [],
+   "sum": "Trending up, about 17% month over month. At 21% of the plan (linkedin + ttd)."
+  },
+  {
+   "key": "proptrack",
+   "mono": "PT",
+   "name": "PropTrack",
+   "agency": "Transmission",
+   "group": "reach",
+   "dash": null,
+   "obj": "Awareness / Consideration (site traffic)",
+   "mlbl": "Impressions (flight)",
+   "unit": "",
+   "fmt": "int",
+   "val": 3866458.0,
+   "target": null,
+   "targetLbl": null,
+   "pace": null,
+   "noDaily": false,
+   "gd": {
+    "d": 460,
+    "w": 53,
+    "m": -91
+   },
+   "sk": {
+    "d": [
+     4125.0,
+     3581.0,
+     3441.0,
+     3815.0,
+     2818.0,
+     3181.0,
+     3254.0,
+     798.0,
+     1305.0,
+     2541.0,
+     13759.0,
+     13714.0
+    ],
+    "w": [
+     11443.0,
+     13889.0,
+     11338.0,
+     1146063.0,
+     1175926.0,
+     415794.0,
+     416835.0,
+     389780.0,
+     52270.0,
+     24967.0,
+     25235.0,
+     35371.0
+    ],
+    "m": [
+     46673.0,
+     17292.0,
+     26293.0,
+     44011.0,
+     49948.0,
+     2321989.0,
+     1281778.0,
+     78474.0
+    ]
+   },
+   "sec": [
+    [
+     "6,831",
+     "Clicks - site traffic",
+     null
+    ]
+   ],
+   "sum": "Trending down, about 91% month over month."
+  },
+  {
+   "key": "tlm",
+   "mono": "TLM",
+   "name": "The Little Marionette",
+   "agency": "100% Digital",
+   "group": "sales",
+   "dash": "The Little Marionette",
+   "obj": "ROAS",
+   "mlbl": "ROAS (Google)",
+   "unit": "\u00d7",
+   "fmt": "x",
+   "val": 5.36,
+   "target": null,
+   "targetLbl": "Target ROAS",
+   "pace": null,
+   "noDaily": false,
+   "gd": {
+    "d": 118,
+    "w": -14,
+    "m": 56
+   },
+   "sk": {
+    "d": [
+     5.8629,
+     5.1162,
+     0.0124,
+     3.1869,
+     4.6855,
+     7.9411,
+     2.1004,
+     1.9607,
+     3.5358,
+     2.7896,
+     5.3883,
+     8.2038
+    ],
+    "w": [
+     7.5857,
+     9.6829,
+     6.3609,
+     3.1144,
+     4.1391,
+     6.4799,
+     7.5693,
+     7.0454,
+     10.3916,
+     5.1829,
+     4.1925,
+     8.2038
+    ],
+    "m": [
+     5.6487,
+     4.7319,
+     5.3567,
+     6.2773,
+     1.6752,
+     0.937,
+     3.5717,
+     8.5772,
+     9.1086,
+     5.4146,
+     7.0439,
+     5.1378
+    ]
+   },
+   "sec": [
+    [
+     "A$141k",
+     "Revenue",
+     null
+    ]
+   ],
+   "sum": "Trending up, about 56% month over month."
+  }
+ ]
+}

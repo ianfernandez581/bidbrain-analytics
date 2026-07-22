@@ -1,0 +1,129 @@
+{
+  "_note": "Source of truth for the Executive dashboard's pacing targets. One record per client. Filled from each client's MEDIA PLAN via the extraction brief in EXEC_TARGETS_INTAKE.md. Keys starting with _ are ignored by code. null = not stated in the plan (do not guess). Dates are the ACTUAL effective flight dates (honor any override notes on the plan), YYYY-MM-DD. Numbers are raw (no k/M, no currency symbol).",
+  "_updated": "",
+  "clients": {
+    "cloudflare": {
+      "currency": "USD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "accepted_cs_leads",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "cpl": null, "acceptance_rate_pct": null, "linkedin_leads": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "stt": {
+      "currency": "SGD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "clicks",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "clicks_target": null, "ctr_pct": null, "cpc": null, "leads_ga4_key_events": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "schneider": {
+      "currency": "AUD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "mql_hql_leads",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": [
+        { "program": "water_env", "mql_target": null, "hql_target": null, "cpl": null, "committed_spend": null, "flight_start": null, "flight_end": null },
+        { "program": "eba", "mql_target": null, "hql_target": null, "cpl": null, "committed_spend": null, "flight_start": null, "flight_end": null },
+        { "program": "heavy", "mql_target": null, "hql_target": null, "cpl": null, "committed_spend": null, "flight_start": null, "flight_end": null },
+        { "program": "airset", "mql_target": null, "hql_target": null, "cpl": null, "committed_spend": null, "flight_start": null, "flight_end": null },
+        { "program": "global_rebrand", "mql_target": null, "hql_target": null, "cpl": null, "committed_spend": null, "flight_start": null, "flight_end": null }
+      ],
+      "kpi_targets": { "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "resetdata": {
+      "currency": "AUD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "ad_reported_leads",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "cpl": null, "app_signups": null, "paying_customers": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "vmch": {
+      "currency": "AUD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "enquiries",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "reach": null, "impressions": null, "cost_per_enquiry": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "mongodb": {
+      "currency": "USD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "impressions",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "impressions": null, "engagements": null, "cpm": null, "accepted_cs_leads": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "schneiderlqai": {
+      "currency": "AUD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "impressions",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": [
+        { "channel": "linkedin", "impressions_target": null, "spend_target": null },
+        { "channel": "tradedesk", "impressions_target": null, "spend_target": null }
+      ],
+      "kpi_targets": { "ctr_pct": null, "cpm": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "proptrack": {
+      "currency": "AUD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "impressions",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "reach": null, "ctr_pct": null, "clicks": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "tlm": {
+      "currency": "AUD",
+      "flight_start": null,
+      "flight_end": null,
+      "primary_metric": "roas_google",
+      "primary_target_total": null,
+      "primary_target_period": null,
+      "primary_target_by_month": null,
+      "primary_target_breakdown": null,
+      "kpi_targets": { "roas": null, "revenue": null, "cpa": null, "conversions": null, "budget_total": null, "budget_by_month": null },
+      "notes": ""
+    },
+    "hireright": {
+      "currency": "USD",
+      "no_plan": true,
+      "primary_metric": "impressions",
+      "notes": "EXCLUDED from the exec view for now (user, 2026-07-22). Pure delivery, no media plan. Re-add if needed."
+    }
+  }
+}

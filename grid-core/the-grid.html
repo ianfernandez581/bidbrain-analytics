@@ -291,7 +291,7 @@ tr.detail td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--l
         <button data-view="brain" aria-pressed="false" title="Automatic suggestions for improving campaigns">◇ Brain <span class="bt-navnew">NEW</span></button>
         <button data-view="central" aria-pressed="false" title="Live campaigns: margin, pacing and health, with the media-plan reader">◈ Central</button>
         <button data-view="register" aria-pressed="false" title="The full campaign list with every number, budget and date">▦ Register</button>
-        <button data-view="dashboards" aria-pressed="false" title="Open each client's live reporting dashboard">▤ Dashboards</button>
+        <button data-view="exec" aria-pressed="false" title="Executive at-a-glance: every client's health and main KPI in one screen">◆ Executive</button>
       </div>
       <div class="spacer"></div>
       <div class="seg" id="segStatus" role="group" aria-label="Status">
@@ -365,6 +365,112 @@ tr.detail td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--l
       <div id="view-dashboards" style="display:none">
         <div class="dashwrap"><div id="dashGrid"></div></div>
       </div>
+
+      <!-- EXECUTIVE (rendered by renderExec) -->
+      <style id="exec-css">
+        #view-exec{padding:2px 0 44px}
+        .ex-hero{padding:4px 0 8px}
+        .ex-eyebrow{font-family:"Space Grotesk";font-size:11px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:var(--brand)}
+        .ex-hero h2{font-family:"Space Grotesk";font-size:23px;font-weight:600;letter-spacing:-.5px;margin:6px 0 4px;color:var(--ink)}
+        .ex-hero p{margin:0;font-size:12.5px;color:var(--ink-2);max-width:78ch;line-height:1.5}
+        .ex-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:16px 0 4px}
+        .ex-flabel{font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+        .ex-pill{appearance:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;transition:all .13s}
+        .ex-pill:hover{color:var(--ink);border-color:var(--brand)}
+        .ex-pill.on{color:var(--pill-fg);background:var(--pill-bg);border-color:var(--pill-bg)}
+        .ex-right{margin-left:auto;display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+        .ex-count{font-size:12px;color:var(--ink-3);font-weight:500}.ex-count b{color:var(--ink);font-family:"Space Grotesk";font-weight:600}
+        .ex-sync{appearance:none;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;display:inline-flex;align-items:center;gap:7px;color:var(--pill-fg);background:var(--brand);border:1px solid var(--brand);border-radius:9px;padding:8px 15px;box-shadow:var(--shadow);transition:filter .13s}
+        .ex-sync:hover{filter:brightness(1.05)}.ex-sync:disabled{cursor:default;opacity:.85}
+        .ex-sync .sp{display:none;width:12px;height:12px;border-radius:50%;border:2px solid rgba(0,0,0,.28);border-top-color:currentColor}
+        .ex-sync.busy .sp{display:inline-block;animation:ex-spin .7s linear infinite}
+        @keyframes ex-spin{to{transform:rotate(360deg)}}
+        @media (prefers-reduced-motion:reduce){.ex-sync.busy .sp{animation:none}}
+        .ex-synced{font-size:11px;color:var(--ink-3);white-space:nowrap}
+        .ex-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:10px 0 4px}
+        @media(max-width:720px){.ex-summary{grid-template-columns:1fr}}
+        .ex-scard{appearance:none;text-align:left;cursor:pointer;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px 13px;position:relative;overflow:hidden;box-shadow:var(--shadow);transition:transform .13s,border-color .13s;color:inherit}
+        .ex-scard:hover{transform:translateY(-1px)}
+        .ex-scard[aria-pressed="true"]{border-color:var(--ink-3)}
+        .ex-scard .base{position:absolute;left:0;right:0;bottom:0;height:3px}
+        .ex-scard[aria-pressed="true"] .base{height:4px}
+        .ex-scard .n{font-family:"Space Grotesk";font-size:26px;font-weight:600;letter-spacing:-.6px;line-height:1;color:var(--ink)}
+        .ex-scard .l{font-size:11.5px;color:var(--ink-2);margin-top:6px;display:flex;align-items:center;gap:7px;font-weight:600}
+        .ex-dot{width:9px;height:9px;border-radius:50%;flex:none}
+        .ex-sec{margin-top:22px}
+        .ex-sec-h{display:flex;align-items:baseline;gap:11px;margin:0 0 12px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+        .ex-sec-h h3{font-family:"Space Grotesk";font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;margin:0;color:var(--brand)}
+        .ex-sec-h .d{font-size:12px;color:var(--ink-3)}
+        .ex-sec-h .c{margin-left:auto;font-size:11.5px;color:var(--ink-3);font-weight:500}
+        .ex-att .ex-sec-h h3{color:var(--ink)}
+        .ex-att .ex-sec-h .adot{width:8px;height:8px;border-radius:50%;background:var(--bad);flex:none}
+        .ex-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(312px,1fr));gap:13px}
+        .ex-card{position:relative;overflow:hidden;background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);transition:transform .13s,border-color .13s}
+        .ex-card:hover{transform:translateY(-1px);border-color:var(--line-2)}
+        .ex-cin{padding:15px 16px 15px;position:relative;z-index:1;display:flex;flex-direction:column;gap:10px}
+        .ex-cbase{position:absolute;left:0;right:0;bottom:0;height:44px;z-index:0;pointer-events:none}
+        .ex-cbar{position:absolute;left:0;right:0;bottom:0;height:3px;z-index:2}
+        .ex-top{display:flex;align-items:center;gap:10px}
+        .ex-mono{width:32px;height:32px;flex:none;border-radius:8px;display:grid;place-items:center;font-family:"Space Grotesk";font-weight:700;font-size:12px;background:var(--grp);border:1px solid var(--line);color:var(--ink-2)}
+        .ex-nm{font-family:"Space Grotesk";font-weight:600;font-size:14.5px;color:var(--ink);line-height:1.1}
+        .ex-ag{font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+        .ex-verd{margin-left:auto;flex:none;display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:999px;border:1px solid transparent;white-space:nowrap}
+        .ex-obj{font-size:10.5px;color:var(--ink-2)}.ex-obj b{color:var(--ink-3);text-transform:uppercase;letter-spacing:.04em;font-size:9px;font-weight:700}
+        .ex-metric{display:flex;align-items:flex-end;justify-content:space-between;gap:10px}
+        .ex-ml{font-size:11px;color:var(--ink-2);margin-bottom:3px}
+        .ex-mv{font-family:"Space Grotesk";font-size:25px;font-weight:600;letter-spacing:-.6px;line-height:1;color:var(--ink)}
+        .ex-kpi{text-align:right;white-space:nowrap}
+        .ex-kpi .kh{font-family:"Space Grotesk";font-weight:600;font-size:12.5px}
+        .ex-kpi .kt{color:var(--ink-3);font-size:10px;margin-top:1px}
+        .ex-pace .pr{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-2);margin-bottom:4px}
+        .ex-pace .pr b{font-family:"Space Grotesk";color:var(--ink);font-weight:600}
+        .ex-track{position:relative;height:7px;border-radius:5px;background:var(--line-2);overflow:visible}
+        .ex-fill{height:100%;border-radius:5px}
+        .ex-mark{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink-2);opacity:.7;border-radius:2px}
+        .ex-note{font-size:11.5px;line-height:1.5;color:var(--ink-2);display:flex;gap:8px}
+        .ex-note .nb{flex:none;width:14px;height:2px;border-radius:2px;background:var(--brand);margin-top:8px}
+        .ex-sec2{display:flex;gap:14px;padding-top:10px;border-top:1px solid var(--line)}
+        .ex-s{flex:1;min-width:0}
+        .ex-s .sv{font-family:"Space Grotesk";font-weight:600;font-size:13px;color:var(--ink)}
+        .ex-s .sl{font-size:10px;color:var(--ink-3);display:block;margin-top:1px}
+        .ex-foot{display:flex;align-items:center;gap:10px;padding-top:2px}
+        .ex-open{font-size:11px;font-weight:600;color:var(--brand-ink);text-decoration:none}
+        .ex-open:hover{text-decoration:underline}
+        .ex-empty{padding:44px 0;text-align:center;color:var(--ink-3);font-size:13px}
+        /* --- KPI-focused card (client metrics; no pacing) --- */
+        .ex-summary{grid-template-columns:repeat(4,1fr)}
+        @media(max-width:720px){.ex-summary{grid-template-columns:repeat(2,1fr)}}
+        .ex-grainbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0 6px}
+        .ex-glabel{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+        .ex-seg{display:inline-flex;background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:3px}
+        .ex-seg button{appearance:none;border:0;background:none;color:var(--ink-2);font:600 12px/1 inherit;padding:8px 14px;border-radius:8px;cursor:pointer;transition:color .12s}
+        .ex-seg button:hover{color:var(--ink)}
+        .ex-seg button.on{background:var(--brand);color:var(--pill-fg);font-weight:700}
+        .ex-grainhint{font-size:12px;color:var(--ink-3)}
+        .ex-sel{font:600 12px/1 inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;outline:none}
+        .ex-sel:focus{border-color:var(--brand)}
+        .ex-sync{margin-left:auto}
+        .ex-fbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:8px 0 2px}
+        .ex-alllink{font-size:11px;font-weight:600;color:var(--brand-ink);text-decoration:none;margin-left:4px}
+        .ex-alllink:hover{text-decoration:underline}
+        .ex-clear{font-size:12px;color:var(--brand-ink);cursor:pointer;background:none;border:0;font-weight:600}
+        .ex-clear[hidden]{display:none}
+        .ex-mu{font-size:14px;font-weight:600;color:var(--ink-2);margin-left:1px}
+        .ex-delta{text-align:right;white-space:nowrap}
+        .ex-delta .dv{font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;display:inline-flex;align-items:center;gap:3px}
+        .ex-delta.up .dv{color:#22C07A}.ex-delta.down .dv{color:#F0655A}.ex-delta.flat .dv{color:var(--ink-2)}
+        .ex-delta .per{display:block;font-size:9.5px;color:var(--ink-3);font-weight:500;margin-top:1px}
+        .ex-spark{width:100%;height:36px;display:block}
+        .ex-aisum{font-size:11.5px;line-height:1.5;color:var(--ink-2);display:flex;gap:8px;align-items:flex-start}
+        .ex-aitag{flex:none;font-size:8.5px;font-weight:800;letter-spacing:.7px;color:var(--brand);border:1px solid var(--line-2);border-radius:5px;padding:2px 5px;margin-top:1px}
+        .ex-meter .mr{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-2);margin-bottom:5px}
+        .ex-meter .mr .r{color:var(--ink-3);font-variant-numeric:tabular-nums}
+        .ex-trend{font-size:10.5px;color:var(--ink-3);display:flex;align-items:center;gap:6px}
+        .ex-trend::before{content:"";width:14px;height:2px;border-radius:2px;background:var(--brand);display:inline-block;flex:none}
+        .ex-scmp{display:inline-flex;align-items:center;margin-top:5px;font-size:9.5px;font-weight:700;padding:2px 6px;border-radius:5px;line-height:1.3;white-space:nowrap}
+        .ex-cardnote{font-size:10.5px;color:var(--brand-ink);line-height:1.45;background:var(--brand-soft);border-radius:8px;padding:7px 9px}
+      </style>
+      <div id="view-exec" style="display:none"><div id="execMount"></div></div>
 
       <!-- BRAIN (rendered by src/brain/*.js) -->
       <div id="view-brain" style="display:none"></div>
@@ -967,17 +1073,199 @@ function renderDashboards(){
   el.querySelectorAll('.pw-copy').forEach(b=>b.addEventListener('click',()=>{copyText(b.dataset.pw);b.textContent='Copied';b.classList.add('done');setTimeout(()=>{b.textContent='Copy';b.classList.remove('done');},1400);}));
   el.querySelectorAll('[data-grid]').forEach(b=>b.addEventListener('click',()=>{F.client=b.dataset.grid;F.view='pulse';F.expanded.clear();F.collapsed.clear();syncControls();render();}));
 }
+
+/* ============================ EXECUTIVE ============================ *
+ * A per-client, at-a-glance view of the ONE or two metrics each client is paid to
+ * move (leads / ROAS / impressions / clicks / enquiries) against target, with a
+ * short trend and a plain-English read. This is the CLIENT-KPI view: budget pacing
+ * lives on Pulse/Central, NOT here. Verdict colours are semantic; surfaces and text
+ * use the grid's own theme tokens so dark/light + Inter/Space Grotesk come for free.
+ * NOTE: the KPI figures below are illustrative PREVIEW metrics; the live per-client
+ * feed (each dashboard's BigQuery layer) wires in next, and brings the real
+ * daily/weekly/monthly trend behind the Reading toggle.                            */
+const EX_DASH={};DASH.forEach(d=>{if(d.advertiser)EX_DASH[d.advertiser]=d;});
+const EXS={ ok:{lbl:'On track',ic:'✓',c:'#22C07A',dim:'rgba(34,192,122,.15)',r:0},
+            watch:{lbl:'Watch',ic:'!',c:'#E3B341',dim:'rgba(227,179,65,.16)',r:1},
+            behind:{lbl:'Behind',ic:'↓',c:'#F08A3E',dim:'rgba(240,138,62,.16)',r:2},
+            risk:{lbl:'At risk',ic:'⚠',c:'#F0655A',dim:'rgba(240,101,90,.16)',r:3} };
+const EXGP={d:'vs prior 3 days',w:'week over week',m:'month over month'};
+const EXGH={d:'Daily compares the last 3 days with the 3 before. Quickest to spot a sudden break.',
+            w:'Weekly is week over week. Noisier, good for early warning.',
+            m:'Monthly is month over month. The steadiest read, best for a real slide.'};
+let EXG='m';
+const EXF={verdict:null,agency:null,objective:null,synced:null};
+let EX_TRIED=false,EX_SRC='preview',EX_GEN=null;   // live-data load state (config/exec-kpis.json)
+// Per-client KPI definitions (PREVIEW figures until the live feed is wired). group is lead|reach|sales;
+// dash = the DASH advertiser name for the Open-dashboard link (null if none); gd = trend % per grain.
+const EXC=[
+  {key:'cloudflare',mono:'CF',name:'Cloudflare',agency:'Transmission',group:'lead',dash:'Cloudflare',
+   obj:'Lead gen + Site traffic',mlbl:'Accepted CS leads (Q3 to date)',val:2180,unit:'',fmt:'int',
+   target:3216,targetLbl:'Q3 target',pace:0.74,noDaily:true,gd:{d:-1,w:-4,m:-3},
+   sum:"Accepted leads are pacing a little behind the Q3 target. Acceptance rate is steady at 70%, so it's a volume gap, not a quality one.",
+   sec:[['70%','Acceptance rate',{t:'on par with prior',tone:'flat'}],['$150','Cost / lead',{t:'12% over target',tone:'bad'}]],
+   spark:[240,238,231,228,222,219,214,210,208,205,201,198]},
+  {key:'schneider',mono:'SE',name:'Schneider',agency:'Transmission',group:'lead',dash:'Schneider',
+   obj:'Awareness + Site traffic + LGF',mlbl:'MQL + HQL leads',val:296,unit:'',fmt:'int',
+   target:360,targetLbl:'Plan target (to date)',pace:0.82,noDaily:true,gd:{d:1,w:3,m:7},
+   sum:'All five lead-gen programs are on pace and delivery is tracking the plan target.',
+   sec:[['A$210','Cost / lead',{t:'3% under plan CPL',tone:'good'}],['5 of 5','Programs on pace',{t:'all active',tone:'flat'}]],
+   spark:[232,240,248,255,262,268,274,280,285,289,293,296]},
+  {key:'resetdata',mono:'RD',name:'Reset Data',agency:'100% Digital',group:'lead',dash:'ResetData',
+   obj:'Leads',mlbl:'Ad-reported leads',val:311,unit:'',fmt:'int',target:null,gd:{d:3,w:9,m:12},
+   sum:'Ad-reported leads are growing and paying customers keep rising.',
+   sec:[['64','Paying customers',{t:'+18% vs prior',tone:'good'}],['A$88','Cost / lead',{t:'20% under target',tone:'good'}]],
+   spark:[250,258,255,270,278,274,288,294,300,297,306,311]},
+  {key:'vmch',mono:'VM',name:'Villa Maria (VMCH)',agency:'100% Digital',group:'lead',dash:'VMCH',
+   obj:'Leads',mlbl:'Ad-attributed enquiries',val:113,unit:'',fmt:'int',target:null,gd:{d:-3,w:-14,m:-6},
+   sum:{m:'Over the month enquiries are down only about 6% while reach held steady, so this is a normal hiccup, not a trend.',
+        w:'Week over week enquiries look rough, down about 14%, but the month is basically flat so it is likely noise.',
+        d:'The last 3 days are steady with nothing unusual at the daily level.'},
+   sec:[['2.8M','Impressions',{t:'+3% vs prior',tone:'good'}],['25k','Sessions',{t:'flat vs prior',tone:'flat'}]],
+   sk:{w:[132,120,128,116,122,110,118,108,116,106,114,113],m:[120,118,119,117,118,116,117,116,115,114,114,113],d:[120,119,120,118,119,117,118,116,117,115,116,115]}},
+  {key:'stt',mono:'STT',name:'STT',agency:'Transmission',group:'reach',dash:'STT',
+   obj:'Clicks / site traffic',mlbl:'Clicks',val:62000,unit:'',fmt:'int',target:null,gd:{d:2,w:5,m:7},
+   sum:'Clicks are climbing steadily on stable paid delivery, so the site-traffic goal is tracking well.',
+   sec:[['690','Leads - key events',{t:'+8% vs prior',tone:'good'}],['1.3%','CTR',{t:'on benchmark',tone:'flat'}]],
+   spark:[50,52,51,54,55,57,56,58,59,60,61,62]},
+  {key:'mongodb',mono:'MDB',name:'MongoDB',agency:'Transmission',group:'reach',dash:'MongoDB',
+   obj:'Site traffic + Engagement',mlbl:'Impressions',val:4600000,unit:'',fmt:'int',target:null,gd:{d:2,w:5,m:8},
+   sum:'Impressions and engagement are climbing steadily across the ABM programs, in line with the site-traffic and engagement goal.',
+   sec:[['1.8M','Engagements',{t:'+9% vs prior',tone:'good'}],['1,842','CS leads',{t:'tracking well',tone:'good'}]],
+   spark:[3.7,3.9,4.05,4.2,4.3,4.4,4.45,4.5,4.55,4.58,4.59,4.6]},
+  {key:'schneiderlqai',mono:'LQ',name:'Schneider LQAIDC',agency:'Transmission',group:'reach',dash:null,
+   obj:'Site traffic / Awareness',mlbl:'Impressions',val:6800000,unit:'',fmt:'int',
+   target:10100000,targetLbl:'Plan (LinkedIn + TTD)',pace:0.88,gd:{d:2,w:9,m:14},
+   sum:'Impressions are pacing to the LinkedIn and Trade Desk plan with CTR on benchmark.',
+   sec:[['0.42%','CTR',{t:'on benchmark',tone:'flat'}],['A$4.20','CPM',{t:'6% under plan',tone:'good'}]],
+   spark:[3.8,4.2,4.6,5.0,5.3,5.6,5.9,6.2,6.4,6.6,6.7,6.8]},
+  {key:'proptrack',mono:'PT',name:'PropTrack',agency:'Transmission',group:'reach',dash:null,
+   obj:'Awareness / Consideration (site traffic)',mlbl:'Impressions (flight)',val:1900000,unit:'',fmt:'int',target:null,gd:{d:1,w:2,m:2},
+   sum:'The live awareness campaign is delivering steadily. Impressions and clicks are holding in line with the plan.',
+   sec:[['8.1k','Clicks - site traffic',{t:'steady vs prior',tone:'flat'}],['0.21%','CTR',{t:'on benchmark',tone:'flat'}]],
+   spark:[1.74,1.76,1.77,1.79,1.81,1.83,1.84,1.86,1.87,1.88,1.89,1.90]},
+  {key:'tlm',mono:'TLM',name:'The Little Marionette',agency:'100% Digital',group:'sales',dash:'The Little Marionette',
+   obj:'ROAS',mlbl:'ROAS (Google)',val:3.1,unit:'×',fmt:'x',target:null,gd:{d:3,w:-10,m:-24},
+   sum:{m:'Month over month Google ROAS is down 24% in a consistent downward slope, so this is a real slide worth acting on, not a blip.',
+        w:'Week over week ROAS is easing, down about 10%. Check the monthly view to see if it is a slide or noise.',
+        d:'The last 3 days ticked up, but that is too short to trust. The monthly view is the real story here.'},
+   note:"No target set, so this is trend only. Give me a target ROAS and I'll pace to it.",
+   sec:[['A$188k','Revenue',{t:'-19% vs prior mo',tone:'bad'}],['A$61k','Google spend',{t:'+6% as ROAS falls',tone:'bad'}]],
+   sk:{m:[5.2,5.0,4.7,4.4,4.2,3.9,3.7,3.5,3.4,3.2,3.15,3.1],w:[3.7,3.65,3.6,3.55,3.5,3.45,3.4,3.35,3.3,3.25,3.2,3.1],d:[3.0,3.05,3.0,3.1,3.05,3.15,3.1,3.12,3.08,3.14,3.1,3.1]}}
+];
+function exEsc(s){return String(s==null?'':s).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));}
+function exCompact(n){if(n==null)return '—';const a=Math.abs(n);if(a>=1e6)return (n/1e6).toFixed(a>=1e7?1:2).replace(/\.?0+$/,'')+'M';if(a>=1e4)return Math.round(n/1e3)+'k';return n.toLocaleString('en-US');}
+function exFmtVal(c){return c.fmt==='x'?c.val.toFixed(1):exCompact(c.val);}
+function exVerdict(pace,delta){
+  // LENIENT + trend-primary. Targets are FULL-FLIGHT, so a low pace early in a campaign is normal -
+  // pace alone never flags; it only nudges a client that is BOTH well behind target AND slipping.
+  let lvl=delta>=-8?0:delta>=-20?1:delta>=-35?2:3;
+  if(pace!=null&&pace<0.5&&delta<0)lvl=Math.min(3,lvl+1);
+  return ['ok','watch','behind','risk'][lvl];
+}
+function exEff(c){return (EXG==='d'&&c.noDaily)?'w':EXG;}
+function exDelta(c){return c.gd[exEff(c)];}
+function exStat(c){var v=exVerdict(c.pace,exDelta(c));if(c.group==='reach'&&(v==='behind'||v==='risk'))v='watch';return v;}   // awareness/reach delivery varies with flight phase; never a "fire"
+function exSpk(c){const g=exEff(c);return (c.sk&&c.sk[g])||c.spark;}
+function exSum(c){return (typeof c.sum==='object')?c.sum[exEff(c)]:c.sum;}
+function exSpark(vals){const W=240,H=36,pad=4,mn=Math.min.apply(null,vals),mx=Math.max.apply(null,vals),rng=(mx-mn)||1;
+  const X=i=>pad+i*(W-2*pad)/(vals.length-1),Y=v=>H-pad-((v-mn)/rng)*(H-2*pad);
+  const pts=vals.map((v,i)=>[X(i),Y(v)]);
+  const line=pts.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ');
+  const area='M'+pad+' '+(H-pad)+' '+pts.map(p=>'L'+p[0].toFixed(1)+' '+p[1].toFixed(1)).join(' ')+' L'+(W-pad)+' '+(H-pad)+' Z';
+  const lst=pts[pts.length-1];
+  return '<svg class="ex-spark" viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" aria-hidden="true"><path d="'+area+'" fill="var(--brand-soft)"/><path d="'+line+'" fill="none" stroke="var(--brand)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+lst[0].toFixed(1)+'" cy="'+lst[1].toFixed(1)+'" r="3.2" fill="var(--brand)" stroke="var(--panel)" stroke-width="2"/></svg>';
+}
+function exCard(c){
+  const st=EXS[exStat(c)],delta=exDelta(c),dGood=delta>=0,arrow=delta>0?'▲':delta<0?'▼':'■',dcls=delta===0?'flat':(dGood?'up':'down');
+  const degraded=EXG==='d'&&c.noDaily,per=degraded?'week over week (finest for leads)':EXGP[EXG];
+  const meter=c.target!=null
+    ? '<div class="ex-meter"><div class="mr"><span>'+exEsc(c.targetLbl)+'</span><span class="r">'+exFmtVal(c)+' / '+(c.fmt==='x'?c.target.toFixed(1):exCompact(c.target))+'</span></div><div class="ex-track"><div class="ex-fill" style="width:'+Math.min(100,c.pace*100).toFixed(0)+'%;background:'+st.c+'"></div></div></div>'
+    : '<div class="ex-trend">No plan target, judged on trend</div>';
+  const chC={good:'#22C07A',bad:'#F0655A',flat:'var(--ink-2)'},chB={good:'rgba(34,192,122,.14)',bad:'rgba(240,101,90,.14)',flat:'rgba(128,128,128,.12)'};
+  const sec=c.sec.map(s=>{const cm=s[2]?'<span class="ex-scmp" style="color:'+chC[s[2].tone]+';background:'+chB[s[2].tone]+'">'+exEsc(s[2].t)+'</span>':'';return '<div class="ex-s"><span class="sv">'+exEsc(s[0])+'</span><span class="sl">'+exEsc(s[1])+'</span>'+cm+'</div>';}).join('');
+  const note=c.note?'<div class="ex-cardnote">'+exEsc(c.note)+'</div>':'';
+  const dash=c.dash?EX_DASH[c.dash]:null;
+  const open=dash?'<div class="ex-foot"><a class="ex-open" href="'+exEsc(dash.link)+'" target="_blank" rel="noopener">Open dashboard ↗</a></div>':'';
+  return '<div class="ex-card"><div class="ex-cbase" style="background:linear-gradient(to top, '+st.dim+', transparent 82%)"></div>'
+    +'<div class="ex-cin">'
+    +'<div class="ex-top"><div class="ex-mono">'+exEsc(c.mono)+'</div>'
+    +'<div><div class="ex-nm">'+exEsc(c.name)+'</div><div class="ex-ag">'+exEsc(c.agency)+'</div></div>'
+    +'<span class="ex-verd" style="color:'+st.c+';background:'+st.dim+';border-color:'+st.c+'">'+st.ic+' '+st.lbl+'</span></div>'
+    +'<div class="ex-obj"><b>Plan</b> &nbsp;'+exEsc(c.obj)+'</div>'
+    +'<div class="ex-metric"><div><div class="ex-ml">'+exEsc(c.mlbl)+'</div><div class="ex-mv">'+exFmtVal(c)+(c.unit?'<span class="ex-mu">'+c.unit+'</span>':'')+'</div></div>'
+    +'<div class="ex-delta '+dcls+'"><span class="dv">'+arrow+Math.abs(delta)+'%</span><span class="per">'+per+'</span></div></div>'
+    +exSpark(exSpk(c))
+    +'<div class="ex-aisum"><span class="ex-aitag">AI</span><span>'+exEsc(exSum(c))+'</span></div>'
+    +meter+note
+    +'<div class="ex-sec2">'+sec+'</div>'+open
+    +'</div><div class="ex-cbar" style="background:'+st.c+'"></div></div>';
+}
+function exSync(btn){
+  if(btn.classList.contains('busy'))return;
+  btn.classList.add('busy');btn.disabled=true;const l=btn.querySelector('.sl');if(l)l.textContent='Syncing';
+  if(EX_SRC==='live'){exLoadLive(renderExec);setTimeout(function(){EXF.synced='just now';renderExec();},400);}   // live: re-pull the built KPI file
+  else setTimeout(function(){EXF.synced='just now';renderExec();},700);                                          // preview: soft refresh
+}
+// Live data seam: config/exec-kpis.json (built by scripts/build_exec_kpis.py from each client's
+// data.json) drops in over the preview EXC — same shape. Absent/offline => preview stays.
+function exApplyLive(rows){try{EXC.length=0;rows.forEach(r=>EXC.push(r));EX_SRC='live';}catch(e){}}
+function exLoadLive(cb){
+  fetch('config/exec-kpis.json',{headers:{'Accept':'application/json'},cache:'no-store'})
+    .then(r=>r.ok?r.json():Promise.reject(0))
+    .then(j=>{if(j&&Array.isArray(j.clients)&&j.clients.length){exApplyLive(j.clients);EX_GEN=j.generated_at||null;}cb&&cb();})
+    .catch(()=>{cb&&cb();});
+}
+function renderExec(){
+  const mount=document.getElementById('execMount');if(!mount)return;
+  if(!EX_TRIED){EX_TRIED=true;exLoadLive(renderExec);}   // fire once; re-renders if the live file lands
+  EXC.forEach(c=>c._v=exStat(c));
+  const cnt={ok:0,watch:0,behind:0,risk:0};EXC.forEach(c=>cnt[c._v]++);
+  const agencies=[...new Set(EXC.map(c=>c.agency))];
+  const showF=c=>(!EXF.verdict||c._v===EXF.verdict)&&(!EXF.agency||c.agency===EXF.agency)&&(!EXF.objective||c.group===EXF.objective);
+  const shown=EXC.filter(showF);
+  const bySev=(a,b)=>EXS[b._v].r-EXS[a._v].r;
+  const GRP=[['lead','Acquisition','the signal is leads / signups'],['reach','Awareness & Traffic','the signal is reach, clicks & site traffic'],['sales','Sales','the signal is ROAS']];
+  const allLink=(DASH.find(d=>d.advertiser==null&&/all dashboards/i.test(d.name))||{}).link||'https://dashboards.bidbrain.ai/';
+  let h='<div class="ex-hero"><div class="ex-eyebrow">◆ At a glance</div><h2>Executive Dashboard</h2>'
+    +'<p>The one or two metrics each client is actually paid to move, against target, with the trend and a plain read. Anything that needs a look floats to the top. '+(EX_SRC==='live'?'<span style="color:var(--ink-3)">Live metrics'+(EX_GEN?' through '+exEsc(String(EX_GEN).slice(0,10)):'')+'.</span>':'<span style="color:var(--ink-3)">Preview metrics. The live per-client feed (BigQuery) wires in next.</span>')+'</p></div>';
+  h+='<div class="ex-grainbar"><span class="ex-glabel">Reading</span>'
+    +'<div class="ex-seg" id="exSeg"><button data-g="d"'+(EXG==='d'?' class="on"':'')+'>Daily</button><button data-g="w"'+(EXG==='w'?' class="on"':'')+'>Weekly</button><button data-g="m"'+(EXG==='m'?' class="on"':'')+'>Monthly</button></div>'
+    +'<span class="ex-glabel">Objective</span><select class="ex-sel" id="exObj"><option value="">All objectives</option>'+GRP.map(g=>'<option value="'+g[0]+'"'+(EXF.objective===g[0]?' selected':'')+'>'+g[1]+'</option>').join('')+'</select>'
+    +'<span class="ex-grainhint">'+EXGH[EXG]+'</span>'
+    +'<button class="ex-sync" id="exSync"><span class="sp"></span><span class="sl">Sync now</span></button>'
+    +(EXF.synced?'<span class="ex-synced">Last synced '+EXF.synced+'</span>':'')+'</div>';
+  h+='<div class="ex-summary">'+['risk','behind','watch','ok'].map(k=>{const v=EXS[k];return '<button class="ex-scard" data-verd="'+k+'" aria-pressed="'+(EXF.verdict===k)+'"><div class="base" style="background:'+v.c+'"></div><div class="n">'+cnt[k]+'</div><div class="l"><span class="ex-dot" style="background:'+v.c+'"></span>'+v.lbl+'</div></button>';}).join('')+'</div>';
+  h+='<div class="ex-fbar"><span class="ex-flabel">Agency</span><button class="ex-pill'+(EXF.agency?'':' on')+'" data-ag="">All</button>'
+    +agencies.map(a=>'<button class="ex-pill'+(EXF.agency===a?' on':'')+'" data-ag="'+exEsc(a)+'">'+exEsc(a)+'</button>').join('')
+    +'<a class="ex-alllink" href="'+exEsc(allLink)+'" target="_blank" rel="noopener" title="Open the platform front-door with all client dashboards">All dashboards ↗</a>'
+    +'<span class="ex-count" id="exCount"></span><button class="ex-clear" id="exClear"'+((EXF.verdict||EXF.agency||EXF.objective)?'':' hidden')+'>Clear</button></div>';
+  const flagged=shown.filter(c=>c._v!=='ok').sort(bySev);
+  if(!EXF.verdict&&flagged.length){h+='<div class="ex-sec ex-att"><div class="ex-sec-h"><span class="adot" style="background:'+EXS.risk.c+'"></span><h3>Needs attention</h3><span class="d">off target or trending down</span><span class="c">'+flagged.length+' of '+shown.length+'</span></div><div class="ex-grid">'+flagged.map(exCard).join('')+'</div></div>';}
+  GRP.forEach(g=>{const items=shown.filter(c=>c.group===g[0]).sort(bySev);if(!items.length)return;h+='<div class="ex-sec"><div class="ex-sec-h"><h3>'+g[1]+'</h3><span class="d">'+g[2]+'</span><span class="c">'+items.length+' client'+(items.length===1?'':'s')+'</span></div><div class="ex-grid">'+items.map(exCard).join('')+'</div></div>';});
+  if(!shown.length)h+='<div class="ex-empty">No clients match the current filters.</div>';
+  mount.innerHTML=h;
+  const cntEl=mount.querySelector('#exCount'),active=(EXF.verdict?1:0)+(EXF.agency?1:0)+(EXF.objective?1:0);
+  if(cntEl)cntEl.innerHTML=active?'Showing <b>'+shown.length+'</b> of '+EXC.length:'<b>'+EXC.length+'</b> clients';
+  mount.querySelectorAll('#exSeg button').forEach(b=>b.addEventListener('click',()=>{EXG=b.dataset.g;renderExec();}));
+  mount.querySelectorAll('.ex-scard').forEach(b=>b.addEventListener('click',()=>{EXF.verdict=EXF.verdict===b.dataset.verd?null:b.dataset.verd;renderExec();}));
+  mount.querySelectorAll('.ex-pill[data-ag]').forEach(b=>b.addEventListener('click',()=>{EXF.agency=b.dataset.ag||null;renderExec();}));
+  const ob=mount.querySelector('#exObj');if(ob)ob.addEventListener('change',()=>{EXF.objective=ob.value||null;renderExec();});
+  const cl=mount.querySelector('#exClear');if(cl)cl.addEventListener('click',()=>{EXF.verdict=null;EXF.agency=null;EXF.objective=null;renderExec();});
+  const sb=mount.querySelector('#exSync');if(sb)sb.addEventListener('click',()=>exSync(sb));
+}
 function renderContent(){
   const rows=visible();
   const isBrain=F.view==='brain';
   const isCentral=F.view==='central';
-  document.getElementById('ctx').style.display=(isBrain||isCentral)?'none':'';   // Brain + Central have their own header
-  if(!isBrain&&!isCentral)updateCtx(rows);
+  const isExec=F.view==='exec';
+  document.getElementById('ctx').style.display=(isBrain||isCentral||isExec)?'none':'';   // Brain + Central + Executive have their own header
+  if(!isBrain&&!isCentral&&!isExec)updateCtx(rows);
   document.getElementById('view-pulse').style.display=F.view==='pulse'?'':'none';
   document.getElementById('view-register').style.display=F.view==='register'?'':'none';
   document.getElementById('view-dashboards').style.display=F.view==='dashboards'?'':'none';
   document.getElementById('view-brain').style.display=isBrain?'':'none';
   document.getElementById('view-central').style.display=isCentral?'':'none';
+  document.getElementById('view-exec').style.display=isExec?'':'none';
   const isHist=F.view==='historical';
   document.getElementById('view-historical').style.display=isHist?'':'none';
   if(isHist)document.getElementById('ctx').style.display='none';
@@ -986,6 +1274,7 @@ function renderContent(){
   else if(isBrain){renderBrain();}
   else if(isCentral){renderCentral();}
   else if(isHist){renderHistorical();}
+  else if(isExec){renderExec();}
   else{renderDashboards();}
   writeHash();
 }
@@ -1002,7 +1291,7 @@ document.getElementById('viewtabs').addEventListener('click',e=>{const b=e.targe
   if(F.view==='brain')BF.r=null;   // clicking the tab always lands on the Brain landing, not a stale drill-down
   F.sortKey=F.view==='pulse'?'marginAtRisk':'campaign';F.sortDir=F.view==='pulse'?-1:1;renderContent();});
 // manager seg
-(function(){const mgrs=[...new Set(DATA.map(c=>c.managedBy).filter(Boolean))].sort();document.getElementById('segMgr').innerHTML=`<button data-v="all" aria-pressed="true">All mgrs</button>`+mgrs.map(m=>`<button data-v="${m}" aria-pressed="false">${m}</button>`).join('');})();
+(function(){const mgrs=[...new Set(DATA.map(c=>c.managedBy).filter(Boolean))].filter(m=>m.toLowerCase()!=='julfi').sort();document.getElementById('segMgr').innerHTML=`<button data-v="all" aria-pressed="true">All mgrs</button>`+mgrs.map(m=>`<button data-v="${m}" aria-pressed="false">${m}</button>`).join('');})();
 function wireSeg(id,k){document.getElementById(id).addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;F[k]=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.setAttribute('aria-pressed',x===b));renderContent();});}
 wireSeg('segStatus','status');wireSeg('segMgr','mgr');wireSeg('segGroup','group');
 document.querySelectorAll('.chip-t[data-g]').forEach(b=>b.addEventListener('click',()=>{const g=b.dataset.g;F.cols[g]=!F.cols[g];b.setAttribute('aria-pressed',F.cols[g]);renderTableOnly();}));
@@ -1037,7 +1326,7 @@ function writeHash(){try{const s=hashString();history.replaceState(null,'',s?('#
 function readHash(){try{const p=new URLSearchParams(location.hash.replace(/^#/,''));
   const advs=new Set(DATA.map(c=>c.advertiser)),mgrs=new Set(DATA.map(c=>c.managedBy).filter(Boolean));
   const cl=p.get('client');if(cl&&(cl==='all'||AG_ORDER.includes(cl)||advs.has(cl)))F.client=cl;
-  const v=p.get('view');if(v==='pulse'||v==='register'||v==='dashboards'||v==='brain'||v==='historical'||v==='central')F.view=v;
+  const v=p.get('view');if(v==='pulse'||v==='register'||v==='dashboards'||v==='brain'||v==='historical'||v==='central'||v==='exec')F.view=v;
   const st=p.get('status');if(st&&['all','Active','Paused','Ended'].includes(st))F.status=st;
   const mg=p.get('mgr');if(mg&&(mg==='all'||mgrs.has(mg)))F.mgr=mg;
   // Brain state from the hash (drives both direct-URL load and back/forward)

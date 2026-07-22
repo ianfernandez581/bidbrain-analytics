@@ -147,7 +147,7 @@ a recommendation, and one click sends it to ClickUp for a human to action.
 
 ## Where it lives
 
-A tab in the top nav (Pulse · Register · **Brain** · Dashboards), next to a small
+A tab in the top nav (Pulse · Register · **Brain** · Executive), next to a small
 `NEW` badge. The Grid is a single static HTML app with **hash-based routing**, so:
 
 - `#view=brain` — the cross-client landing page
@@ -283,7 +283,7 @@ src/central/plan-reader.js   ← server-side extraction (SheetJS grid + parser.j
                                 normalization, header-keyword heuristic, candidate match
                                 (against the campaigns DB).
 ```
-Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register | Dashboards),
+Wired into `the-grid.html`: nav button (Pulse | Brain | **Central** | Register | Executive),
 `#view-central`, dispatch in `renderContent()`, hash whitelist, `<script src>` tags.
 
 ## Data model + persistence — the DB is the SOURCE OF TRUTH
@@ -412,3 +412,59 @@ node test-fixtures/central/make-central-fixtures.js   # (re)build the messy XLSX
 Then the two harnesses used during the build exercise the backend (extraction /
 normalization / provenance / conflict / derived-rejection) and the render path
 (grouping / colouring / filters / sort / null-safety).
+
+---
+
+# Executive (tab)
+
+**Executive** is an at-a-glance, per-client view of the ONE or two **client KPI metrics** that matter
+(leads / ROAS / impressions / clicks / enquiries) so a media buyer (or the boss) sees who's performing
+and who needs a look without opening each dashboard. It is deliberately **NOT a pacing view** — budget
+pacing / margin-at-risk live on Pulse and Central; Executive is the client-outcome lens. It **replaced
+the old Dashboards tab** in the top nav (Pulse · Brain · Central · Register · **Executive**). The
+per-client "Open dashboard ↗" links the Dashboards tab used to carry are folded into each exec card, and
+an "All dashboards ↗" link (the platform front-door) sits in the filter bar. `renderDashboards()` +
+`#view-dashboards` remain in the file but are unreachable from the nav (a stale `#view=dashboards` hash
+still renders them).
+
+## What it shows (all in `renderExec()` in `the-grid.html`; CSS in the `#exec-css` block)
+Per client, one card led by its **main KPI**:
+- **Headline KPI** — the metric the client is paid to move (e.g. Accepted CS leads, MQL+HQL, ROAS,
+  Impressions, Clicks, Ad-attributed enquiries), with a **trend delta**, a **sparkline**, a **KPI-vs-target
+  meter** (where a target exists), and **supporting metrics with context chips** (e.g. "70% Acceptance
+  rate · on par with prior", "$150 Cost / lead · 12% over target").
+- **Reading toggle (Daily / Weekly / Monthly)** — the trend window; a client can read differently per
+  grain (a rough week can be a normal monthly hiccup, a slow bleed shows monthly). Lead clients whose
+  data is weekly-only fall back from Daily to Weekly with a note.
+- **Verdict** — a deliberately LENIENT 4-level roll-up (On track / Watch / Behind / At risk) in
+  `exVerdict(pace,delta)`: with a target, the KPI-to-target pace band nudged by the trend; trend-only
+  otherwise. Kept generous so the "Needs attention" list stays trustworthy (no crying wolf).
+- **AI "what's happening" note** per client.
+Grouped by objective (Acquisition / Awareness & Traffic / Sales), with clickable verdict summary cards +
+an agency filter, an **Objective** dropdown (beside the Reading toggle), and a **Sync now** button. Verdict colours are fixed semantic tokens; all surfaces/text
+use the grid's own theme vars + Inter/Space Grotesk, so dark/light come for free. `EX_HIDE`-equivalent:
+City Perfume + HireRight are simply not in the `EXC` list.
+
+**Data (live seam + preview fallback):** `renderExec()` fetches **`config/exec-kpis.json`** and, if
+present, drops it in over the baked `EXC` preview (`EX_SRC` -> `'live'`; the hero relabels and shows the
+build date); absent/offline it stays on the labelled preview, so the tab always renders. That file is
+produced by **`scripts/build_exec_kpis.py`**, which reads each client's own `data.json` from GCS
+(`gs://bidbrain-analytics-<c>-dash/<c>.json` - the exact JSON the dashboard serves, built from BigQuery,
+so exec == dashboard to the digit) and extracts the headline KPI + target + daily/weekly/monthly trend +
+supporting metrics in the `EXC` shape. Run it with ADC creds (`gcloud auth application-default login` as
+ian@100.digital or a key with objectViewer on the client buckets):
+```
+.venv/Scripts/python.exe grid-core/scripts/build_exec_kpis.py --check   # print extracted numbers, no write
+.venv/Scripts/python.exe grid-core/scripts/build_exec_kpis.py           # write config/exec-kpis.json
+```
+Each client extracts in its own try/except (a failure is SKIPPED, so its preview card stays), and the
+per-client paths should be VALIDATED against the dashboards on the first creds run (a couple of nested
+daily-array field names are flagged `#VERIFY`). The Sync button re-fetches the file once it's live.
+
+**Verify without a browser:** `exec-verify.js` (this session's scratchpad) stubs the DOM in a `vm` context,
+runs the main script, calls `renderExec()`, prints the per-client KPI/verdict table, and writes a
+green-themed HTML snapshot.
+
+**Roadmap:** validate + schedule `build_exec_kpis.py` (or fold it into `build_grid_data.py` / a
+Central-style sync) so `config/exec-kpis.json` refreshes automatically; AI-written notes (Gemini/Vertex,
+like Central's plan reader) can replace the computed `_note`.
