@@ -1,5 +1,6 @@
 {
   "stub": true,
+  "_exec_field_path_intended": "ex_tlm in scripts/build_exec_kpis.py: headline = kpi.g_revenue / kpi.g_spend_aud (Google-only ROAS), series = daily[].g_revenue/g_spend_aud, secondary = revenue. Verify field names against the TLM data.json once validated (online_purchase KPI in this file has no path yet - TTD pixels are anonymous, no revenue).",
   "client_id": "tlm",
   "client_name": "The Little Marionette",
   "primary_kpi": {
@@ -10,12 +11,26 @@
   },
   "icp_filter": {
     "company_size": "n/a",
-    "industry_in": ["Coffee", "Specialty food & beverage"],
-    "region_in": ["AU-NZ"]
+    "industry_in": [
+      "Coffee",
+      "Specialty food & beverage"
+    ],
+    "region_in": [
+      "AU-NZ"
+    ]
   },
-  "secondary_kpis": ["revenue_aud", "roas"],
-  "guardrail_kpis": ["branded_search_volume", "new_customer_rate"],
-  "connected_sources": ["google_ads", "trade_desk"],
+  "secondary_kpis": [
+    "revenue_aud",
+    "roas"
+  ],
+  "guardrail_kpis": [
+    "branded_search_volume",
+    "new_customer_rate"
+  ],
+  "connected_sources": [
+    "google_ads",
+    "trade_desk"
+  ],
   "raw_sources": {
     "google_ads": "raw_google_ads.perf_google_ads",
     "trade_desk": "raw_snowflake.tradedesk_apac_all"

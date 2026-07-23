@@ -1,7 +1,14 @@
 {
-  "stub": true,
   "client_id": "cloudflare",
   "client_name": "Cloudflare",
+  "exec_kpi_verified": {
+    "date": "2026-07-23",
+    "phase": "Phase 4 item 6 (stub resolved — Cloudflare is a validated client)",
+    "headline": "qoq.q3.accepted (Q3-to-date accepted CS leads; 394 at verification, cross-checks qoq.q3.by_status Accepted 394 / Rejected 77 = 84% acceptance)",
+    "target": "SUM(q3) over transmission.pacing.rows — the canonical market x tier plan table (q3 sum 2290; its q2 sum 3216 equals the dashboard's documented Q2 plan). The pre-fix target summed per-lead ALLOCATED_TARGET to 5,506 (the whole-year total) — corrected in scripts/build_exec_kpis.py the same day",
+    "series": "pacing.rows is PER-LEAD; weekly accepted = count of LEAD_STATUS='Accepted' rows per DAY (STATUS is ~always null and LEAD_VALUE is 0 — the old series was empty)",
+    "db_crosscheck": "Central keyKpi: Q3 Core DG · LinkedIn '210 Leads' + Google Ads '42 Leads' are the PAID-MEDIA lead targets (a different funnel from CS accepted); TTD rows carry CTR KPIs — consistent with this card measuring the CS lane"
+  },
   "primary_kpi": {
     "id": "accepted_lead",
     "label": "Accepted lead",

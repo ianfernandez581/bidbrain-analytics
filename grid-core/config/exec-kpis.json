@@ -14,53 +14,51 @@
    "unit": "",
    "fmt": "int",
    "val": 394.0,
-   "target": 5506.0,
+   "target": 2290.0,
    "targetLbl": "Q3 target",
-   "pace": 0.0716,
-   "ttdPace": null,
+   "pace": 0.1721,
+   "ttdPace": 0.7117,
    "noDaily": true,
    "gd": {
-    "d": 0,
-    "w": 0,
-    "m": 0
+    "d": 230,
+    "w": 230,
+    "m": -15
    },
    "sk": {
     "d": [
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
+     330.0,
+     482.0,
+     388.0,
+     218.0,
+     129.0,
+     140.0,
+     199.0,
+     173.0,
+     38.0,
+     64.0,
+     211.0,
+     100.0
     ],
     "w": [
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
+     330.0,
+     482.0,
+     388.0,
+     218.0,
+     129.0,
+     140.0,
+     199.0,
+     173.0,
+     38.0,
+     64.0,
+     211.0,
+     100.0
     ],
     "m": [
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0,
-     0.0
+     7.0,
+     1622.0,
+     1418.0,
+     658.0,
+     396.0
     ]
    },
    "sec": [
@@ -71,9 +69,9 @@
     ]
    ],
    "sum": {
-    "m": "Holding roughly flat month over month. At 7% of the q3 target.",
-    "w": "Holding roughly flat week over week. At 7% of the q3 target.",
-    "d": "Holding roughly flat vs the prior 3 days. At 7% of the q3 target."
+    "m": "Trending down, about 15% month over month. Behind plan, at 71% of the expected pace to date.",
+    "w": "Trending up, about 230% week over week. Behind plan, at 71% of the expected pace to date.",
+    "d": "Trending up, about 230% vs the prior 3 days. Behind plan, at 71% of the expected pace to date."
    }
   },
   {

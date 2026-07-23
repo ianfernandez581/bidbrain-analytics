@@ -1,5 +1,6 @@
 {
   "stub": true,
+  "_exec_field_path_intended": "NO Executive card exists yet (not in build_exec_kpis.BASE). Intended when validated: headline = delivery impressions or qualified leads from gs://bidbrain-analytics-hireright-dash/hireright.json kpi block (dashboard is pure delivery: DV360+TTD+LinkedIn, no media plan) - pick the field once the card is designed.",
   "client_id": "hireright",
   "client_name": "HireRight",
   "primary_kpi": {
@@ -10,12 +11,29 @@
   },
   "icp_filter": {
     "company_size": ">= 500",
-    "industry_in": ["HR tech", "Staffing", "Enterprise services"],
-    "region_in": ["APAC", "AU-NZ"]
+    "industry_in": [
+      "HR tech",
+      "Staffing",
+      "Enterprise services"
+    ],
+    "region_in": [
+      "APAC",
+      "AU-NZ"
+    ]
   },
-  "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
-  "guardrail_kpis": ["branded_search_volume", "lead_quality_rate"],
-  "connected_sources": ["dv360", "trade_desk", "linkedin"],
+  "secondary_kpis": [
+    "pipeline_created_aud",
+    "engaged_session"
+  ],
+  "guardrail_kpis": [
+    "branded_search_volume",
+    "lead_quality_rate"
+  ],
+  "connected_sources": [
+    "dv360",
+    "trade_desk",
+    "linkedin"
+  ],
   "raw_sources": {
     "dv360": "raw_snowflake.dv360_apac",
     "trade_desk": "raw_snowflake.tradedesk_apac_all",
