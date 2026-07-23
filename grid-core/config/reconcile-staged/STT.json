@@ -1,0 +1,132 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates. THIS CLIENT MUST NOT BE VALIDATED YET - currency landmine (see warnings). Pairs are staged so the evidence is not lost, but approval requires the currency decision first. Evidence pulled 2026-07-22/23 (read-only). 'preview' totals are in the SOURCE's native currency (SGD unless noted).",
+  "client": "STT",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "All 8 pairs are scoped to one table + one account each; tokens verified against the FULL group/campaign lists (LinkedIn: all 7 all-time groups accounted for - 6 claimed by 5 rules + the 2 AI-Infra vintages under 1 rule; zero overlap). USD/legacy sources were removed from the spec this run, so no rule can reach a USD row.",
+  "warnings": [
+    "DO NOT VALIDATE (PHASE4 carry-forward 5): every remaining source is SGD (or the currency-unverified 'STT Global Data') and the sync has NO FX. The sheet is internally inconsistent: 3 rows equal the SGD platform figures almost exactly (Organic Boosting $22,500.12 vs sheet $22,498.31; DV360 billed $63,576.48 vs $62,571.15; Google AI-Readiness June $1,862.06 vs $1,860.95) while the DemandNurture TH/VN rows sit ~16% below (consistent with an SGD->AUD conversion). Someone must decide what currency the Grid's STT rows are in before ANY of these pairs is approved.",
+    "DV360 BASIS switched in the spec to billed REVENUE_ADV_CURRENCY (deliberate pick: billed matches the sheet clientSpend within 1.6%; media $8,481 matches nothing). If the DV360 pair is approved, set spendMult=1 on that row (billed feed, same rule as TTD).",
+    "GOOGLE ACCOUNT MIGRATION: 'STT GDC_SGD' went quiet 2026-05-30; the same campaign names continue under 'STT Global Data' from 05-31. Any rule meant to span both accounts must use mode 'rollup' (contains/exact are advertiser-pinned).",
+    "MONTH-SLICE MISMATCH on the two 'Always On' rows (LinkedIn + the DV360 flight dates): the sheet rows are one-month/one-brief slices of continuously-running platform entities - approving writes the WHOLE history onto the row. Flagged per pair.",
+    "4 of 8 rows are Ended - backfills need ?client=STT&includeEnded=1."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-11d76f61a508",
+      "campaignName": "Always On",
+      "gridChannel": "DV360",
+      "channel": "DV360",
+      "advertiserName": "APAC | STT GDC - SGD",
+      "mode": "contains",
+      "value": "Always On_Nov-Feb",
+      "confidence": "medium",
+      "rationale": "1 campaign '(APAC) - STTGDC_Always On_Nov-Feb - (JN1663)' (2025-11-02..2026-07-01). Billed whole-history S$63,576.48 vs sheet clientSpend $62,571.15 (+1.6% - the sheet number IS the billed SGD figure); media basis S$8,480.62 matches nothing (the sheet's mediaSpend $27,437.68 oddly resembles the OLDER Q12 campaign's billed $27,614.55). Row flight (02-07..06-30) does not match the campaign flight - it reads as a re-brief of the same running campaign; billed within the row's flight window is only S$18,361.71. Medium: currency + flight + basis all need the human. If approved: spendMult=1. Token excludes the older '(APAC) - STTGDC_Always On_2025-2026Q12_25' campaign.",
+      "preview": { "bqNames": 1, "mediaSpend": 63576.48 }
+    },
+    {
+      "campaignId": "cmp-10f2cf76fcde",
+      "campaignName": "Always On",
+      "gridChannel": "Google Ads",
+      "channel": "Google Ads",
+      "advertiserName": "STT Global Data",
+      "mode": "contains",
+      "value": "AI Readiness",
+      "confidence": "medium",
+      "rationale": "THE DETECTIVE FIND: the sheet's June Google row ($1,860.95) matches the June sum of the 2 'STT GDC | AI Readiness | Philippines/Singapore' campaigns ($1,862.06) to 0.06% - NOT the 29 'AlwaysOn26' keyword campaigns (June sum S$8,868.44 across both accounts). The row named 'Always On' is actually the AI Readiness pair. Medium: semantics need the human (rename the row or accept the mapping); currency of 'STT Global Data' unverified.",
+      "preview": { "bqNames": 2, "mediaSpend": 4203.69 }
+    },
+    {
+      "campaignId": "cmp-1ee968dcf539",
+      "campaignName": "AI Infra TH",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "APAC - STT GDC - SGD ",
+      "mode": "contains",
+      "value": "AI Infrastructure Readiness_TH",
+      "confidence": "medium",
+      "rationale": "2 groups (plain vintage 06-25..07-06 + 'PO1663_' prefix from 07-07 - mid-flight rename). To 07-08: $1,589.84 vs sheet clientSpend $1,555.06 (+2.2%). Would be high but for the client-wide currency question. Whole-history $3,029.47 (still delivering).",
+      "preview": { "bqNames": 2, "mediaSpend": 3029.47 }
+    },
+    {
+      "campaignId": "cmp-8747f16b323b",
+      "campaignName": "Always On",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "APAC - STT GDC - SGD ",
+      "mode": "contains",
+      "value": "Always On 2025-2026",
+      "confidence": "medium",
+      "rationale": "FLAGGED month-slice mismatch: 1 group 'PO1663_ST Telemedia GDC_LI_FY25Q2_Always On 2025-2026_Awareness' ran 2025-09-02..2026-06-30 and totals S$46,404.87 - the sheet row is a June-only slice ($1,597.75). Approving writes the whole 10-month history onto a one-month row. Row is Ended (includeEnded=1). Human decision.",
+      "preview": { "bqNames": 1, "mediaSpend": 46404.87 }
+    },
+    {
+      "campaignId": "cmp-c4cf280c45d3",
+      "campaignName": "Demand Nurture ID",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "APAC - STT GDC - SGD ",
+      "mode": "contains",
+      "value": "DemandNurture_ID",
+      "confidence": "medium",
+      "rationale": "1 group, S$15,636.49 (02-22..06-03) vs sheet $14,185.11 (+10.2%) - the gap is consistent with the sheet being an AUD conversion of SGD platform figures. Row flight 02-22..05-31 matches the group. Ended.",
+      "preview": { "bqNames": 1, "mediaSpend": 15636.49 }
+    },
+    {
+      "campaignId": "cmp-565de1dd98a9",
+      "campaignName": "Demand Nurture TH",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "APAC - STT GDC - SGD ",
+      "mode": "contains",
+      "value": "DemandNurture_TH",
+      "confidence": "medium",
+      "rationale": "1 group, S$5,178.33 vs sheet $4,461.22 (+16.1% - the strongest AUD-conversion signal). Ended.",
+      "preview": { "bqNames": 1, "mediaSpend": 5178.33 }
+    },
+    {
+      "campaignId": "cmp-b48660bf662f",
+      "campaignName": "Demand Nurture VN",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "APAC - STT GDC - SGD ",
+      "mode": "contains",
+      "value": "DemandNurture_VN",
+      "confidence": "medium",
+      "rationale": "1 group, S$5,179.36 vs sheet $4,465.96 (+16.0%). Ended.",
+      "preview": { "bqNames": 1, "mediaSpend": 5179.36 }
+    },
+    {
+      "campaignId": "cmp-d6e1fa2e059d",
+      "campaignName": "Organic Boosting",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "APAC - STT GDC - SGD ",
+      "mode": "contains",
+      "value": "Organic Boosting",
+      "confidence": "medium",
+      "rationale": "1 group 'PO1626_Client_LI_FY26Q1_Organic Boosting': S$22,500.12 vs sheet $22,498.31 (0.01% - this row IS in source currency). Note the PO1626 job prefix differs from the row's jobNumber 1663. Row flight 04-06..05-31 vs group 02-17..05-13 (starts 6 weeks earlier - minor). Ended. Medium only for the client-wide currency question; membership is certain.",
+      "preview": { "bqNames": 1, "mediaSpend": 22500.12 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-11d76f61a508", "campaignName": "Always On", "channel": "DV360", "from": 2.2805, "to": 1, "reason": "REVENUE_ADV_CURRENCY = client-billed (spec basis switched this run) - ONLY if the DV360 pair is approved on the billed basis" }
+  ],
+  "unmatchableGridRows": [],
+  "unmatchedBq": [
+    {
+      "channel": "Google Ads",
+      "advertiserName": "STT GDC_SGD + STT Global Data",
+      "value": "(29 'AlwaysOn26' + 1 DemandNurture keyword campaigns)",
+      "mediaSpend": 74371,
+      "note": "The FY25Q2/FY26Q1 'AlwaysOn26' keyword campaigns (S$63,309 in the SGD account + S$11,062 continuing in Global Data) are claimed by NO row under the AI-Readiness interpretation of the June Google row. If the human instead decides the row means the keyword campaigns, replace the staged Google pair with a rollup 'AlwaysOn26' rule spanning both accounts."
+    },
+    {
+      "channel": "(removed from spec)",
+      "advertiserName": "STTGDC_TransmissionSG_USD / STT (USD) / APAC | STTelemdia GDC",
+      "value": "(all 2025-history USD/legacy sources)",
+      "mediaSpend": 74476,
+      "note": "Excluded at spec level this run (LinkedIn USD $37,177 + Google USD $18,014 + DV360 legacy billed $19,285): 2025 programs, no Grid rows, and the sync has no FX."
+    }
+  ]
+}

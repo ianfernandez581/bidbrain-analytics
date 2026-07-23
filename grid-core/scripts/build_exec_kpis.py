@@ -138,18 +138,42 @@ def trend(series, kind="sum", no_daily=False, frontier=None):
 # Each entry returns the DYNAMIC fields (val,target,series,kind,noDaily,sec) from that client's
 # data.json; the static template (name/agency/group/obj/mlbl/unit/fmt/labels/dash) lives in BASE.
 def ex_cloudflare(d):
-    rows = g(d, "pacing.rows", []) or []
+    # Field paths VERIFIED against the live data.json (Phase 4 item 6, 2026-07-23):
+    #  - val: qoq.q3.accepted (Q3-to-date accepted CS leads; cross-checks qoq.q3.by_status).
+    #  - target: SUM(q3) over transmission.pacing.rows — the canonical market x tier media-plan
+    #    table (its q2 sum = 3216, exactly the dashboard's documented Q2 plan). The OLD target
+    #    (sum of ALLOCATED_TARGET over pacing.rows) summed a per-lead-replicated allocation to
+    #    5,506 = the WHOLE-YEAR total, so a Q3-only actual read as 7% pace — false.
+    #  - series: pacing.rows is a PER-LEAD table; the real status column is LEAD_STATUS
+    #    (STATUS is ~always null and LEAD_VALUE is 0 on accepted rows — the old series was
+    #    empty). Weekly accepted = count of LEAD_STATUS='Accepted' rows per DAY.
     val = num(g(d, "qoq.q3.accepted"))
-    target = sum(num(r.get("ALLOCATED_TARGET"), 0) or 0 for r in rows) or None
-    # weekly accepted series from pacing.rows (STATUS accepted, keyed on the Monday DAY)
-    ser = [(_date(r.get("DAY")), num(r.get("LEAD_VALUE"), 0))
-           for r in rows if str(r.get("STATUS", "")).lower() == "accepted"]
+    plan = g(d, "transmission.pacing.rows", []) or []
+    target = sum(num(r.get("q3"), 0) or 0 for r in plan) or None
+    by_day = {}
+    for r in (g(d, "pacing.rows", []) or []):
+        if str(r.get("LEAD_STATUS", "")).lower() != "accepted":
+            continue
+        day = _date(r.get("DAY"))
+        if day:
+            by_day[day] = by_day.get(day, 0) + 1
+    ser = sorted(by_day.items())
     by = g(d, "qoq.q3.by_status", {}) or {}
     acc = num(by.get("Accepted"), 0) or 0
     rej = num(by.get("Rejected"), 0) or 0
     ar = round(acc / (acc + rej) * 100) if (acc + rej) else None
     sec = [[f"{ar}%" if ar is not None else "-", "Acceptance rate", None]]
-    return dict(val=val, target=target, series=ser, kind="sum", noDaily=True, sec=sec)
+    # honest pace-TO-DATE: even pace across the Q3 window (the val/target labels are already
+    # hardcoded to Q3, so the window matches the card's own framing).
+    ttd_pace = None
+    if val is not None and target:
+        today = dt.date.today()
+        qs, qe = dt.date(today.year, 7, 1), dt.date(today.year, 9, 30)
+        total = (qe - qs).days or 1
+        elapsed = max(0, min(total, (today - qs).days))
+        expected = target * (elapsed / total)
+        ttd_pace = round(val / expected, 4) if expected > 0 else None
+    return dict(val=val, target=target, series=ser, kind="sum", noDaily=True, sec=sec, ttdPace=ttd_pace)
 
 
 def _prog_ttd(c, today):

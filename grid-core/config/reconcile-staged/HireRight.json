@@ -1,0 +1,65 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-23 (read-only). ALL FIGURES USD (see warnings). The client already has a PRE-SEEDED map[] in central-clients.json from the 2026-07-10 scan - read the warnings before approving anything.",
+  "client": "HireRight",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "Three tables, one advertiser/account each, one Grid row per channel. TTD: token claims all 4 campaign names. LinkedIn: GROUP grain (spec fixed this run) - token claims exactly 1 of the account's 2 groups; the old campaign-grain '1802' token claimed both programs (over-claim, now corrected). DV360: token claims the single campaign. Zero overlap in every scope.",
+  "warnings": [
+    "ENTIRE CLIENT IS USD (LinkedIn account 'HireRight_TransmissionSG_USD', DV360 advertiser 'APAC_HireRight_271025_USD'; TTD presumed USD). The Grid is AUD-denominated and the sync has NO FX - DO NOT validate until the currency treatment is decided.",
+    "PRE-SEEDED MAP CONFLICT: central-clients.json already carries 3 map entries for HireRight (from the 2026-07-10 scan, WITHOUT campaignIds, and with the over-claiming LinkedIn '1802' rule). Approving these staged pairs APPENDS via the panel - the human must REPLACE the seeded entries at approval time or rows double-map.",
+    "Rows are scan-sourced with NO budgets/dates/spend - even after a sync, pacing and profit-at-risk stay blank until CONFIG is filled (Zhen).",
+    "Delivery is DORMANT: TTD ended 06-22, LinkedIn 04-17, DV360 2026-01-30 (the DV360 row says Active - it is not). Backfills need includeEnded only if statuses are corrected to Ended first.",
+    "DV360 spec basis switched to billed REVENUE_ADV_CURRENCY this run (media $4,017.64 / billed $14,946.02) - if approved set spendMult=1 on that row."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-76a1f5afc793",
+      "campaignName": "Digital Air Cover",
+      "gridChannel": "Trade Desk",
+      "channel": "Trade Desk",
+      "advertiserName": "HireRight",
+      "mode": "contains",
+      "value": "HireRight_Digital-Air-Cover",
+      "confidence": "high",
+      "rationale": "4 campaigns (Compliance+TAL / Contact List / HR+TAL / Purchasing+TAL) summing $6,773.35 / 506,648 imps (2026-03-29..06-22). Membership certain (the seeded token was correct here); currency USD - see warnings. No sheet numbers exist to cross-check (scan row).",
+      "preview": { "bqNames": 4, "mediaSpend": 6773.35 }
+    },
+    {
+      "campaignId": "cmp-daa85ff6911f",
+      "campaignName": "Digital Air Cover",
+      "gridChannel": "LinkedIn",
+      "channel": "LinkedIn",
+      "advertiserName": "HireRight_TransmissionSG_USD",
+      "mode": "contains",
+      "value": "Digital Air Cover",
+      "confidence": "medium",
+      "rationale": "1 group at GROUP grain ('PO1802_HireRight_LI_FY26Q1_Digital Air Cover_Awareness_NAM/EMEA/APAC', 14 campaigns, $12,597.05, 02-11..04-17). CORRECTS the pre-seeded rule: the old campaign-grain '1802' token also claimed the separate 2025 Awareness program ($10,047.96). Medium for the USD question, not membership.",
+      "preview": { "bqNames": 1, "mediaSpend": 12597.05 }
+    },
+    {
+      "campaignId": "cmp-5b2df64e89fc",
+      "campaignName": "HireRight 1802",
+      "gridChannel": "DV360",
+      "channel": "DV360",
+      "advertiserName": "APAC_HireRight_271025_USD",
+      "mode": "contains",
+      "value": "1802",
+      "confidence": "medium",
+      "rationale": "1 campaign ('APAC_HireRIght_2025_HireRight_1802' - note the RIght typo; 3 insertion orders). Billed $14,946.02 / media $4,017.64 USD, 2025-11-16..2026-01-30 - delivery ENDED though the row says Active. Medium: USD + billed-basis pick + row status all need the human. If approved: spendMult=1.",
+      "preview": { "bqNames": 1, "mediaSpend": 14946.02 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-5b2df64e89fc", "campaignName": "HireRight 1802", "channel": "DV360", "from": null, "to": 1, "reason": "REVENUE_ADV_CURRENCY = client-billed (spec basis switched this run) - only with the pair's approval" }
+  ],
+  "unmatchableGridRows": [],
+  "unmatchedBq": [
+    {
+      "channel": "LinkedIn",
+      "advertiserName": "HireRight_TransmissionSG_USD",
+      "value": "1802_2025_HireRight_Awareness",
+      "mediaSpend": 10047.96,
+      "note": "The Oct-Dec 2025 video-awareness program (9 campaigns) - a DIFFERENT program from FY26Q1 Digital Air Cover, no Grid row. This is what the pre-seeded '1802' campaign-grain rule wrongly swept in."
+    }
+  ]
+}

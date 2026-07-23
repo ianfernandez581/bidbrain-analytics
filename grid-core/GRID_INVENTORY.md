@@ -55,7 +55,7 @@ Nav is defined in `the-grid.html` lines 290-294 (`<button data-view=…>`). Disp
 | **ClickUp mock endpoint** | Brain action | **WIRED but MOCK** | Server route mints `CU-MOCK-…` (`server.js:141-146`); browser `fetch` interceptor is the `file://` fallback (`the-grid.html:1384-1400`). |
 | **orchestrator + live connectors** | "Live app" API path | **DORMANT** | `src/orchestrator.js` (`fetchLiveCampaigns`) is imported ONLY by `src/reconcile.js` (a CLI harness), not by `server.js` or `the-grid.html`. It references 6 connectors (`orchestrator.js:16-23`) but only `src/connectors/{google-ads,trade-desk,connector-base}.js` exist — `meta.js`, `dv360.js`, `linkedin.js`, `reddit.js` are absent; `loadConnector()` returns null for them (L25-28). README's "Meta/LinkedIn/Reddit/DV360 follow the same patterns" describes files that are not present. |
 
-**Brain summary (mock vs real):** Real = the whole Brain UI + Historical upload/parse/stage/commit pipeline (V3) + best-effort BQ write (V3.5). Mock/absent = the recommendations themselves (`brain-mock-data.js`), the ClickUp task creation, Site Quality Index + Optimization log (static content), and any engine that turns historical/BQ data into recommendations (the unbuilt V2).
+**Brain summary (mock vs real):** Real = the whole Brain UI + Historical upload/parse/stage/commit pipeline (V3) + best-effort BQ write (V3.5). Mock/absent = the recommendations themselves (`brain-mock-data.js`), the ClickUp task creation, the Optimization log (static content; the Site Quality Index card was removed in Phase 4), and any engine that turns historical/BQ data into recommendations (the unbuilt V2).
 
 ---
 
@@ -137,7 +137,7 @@ Grouped by area (file:line).
 - `src/brain/brain-historical.js:188` / `:207` — "Day and month amortization arrive in V3.5" / "grain coming in V3.5 — currently weekly".
 - `src/brain/parser.js:14,53,96,102` — offline "[MOCK PARSE]" for PDF/PPTX without LlamaParse.
 - `README.md:247` — Brain model-precision "currently hardcoded 73%".
-- Site Quality Index + Optimization log — static content (per `README.md:178`).
+- Optimization log — static content (the Site Quality Index card was removed in Phase 4).
 - Outperformance chart — hand-rolled SVG; day/month toggles are placeholders (`README.md:180`).
 
 **Central**

@@ -122,7 +122,8 @@ const server = http.createServer(async (req, res) => {
     if ((m = p.match(/^\/api\/central\/row\/([^/]+)\/field$/)) && req.method === 'POST') return centralEditField(req, res, decodeURIComponent(m[1]));
     // Sync: DB campaigns → overlay BQ metrics (validated client map only) → UPDATE the
     // API columns + metricsSource/lastSyncedAt; spendMult rule for clientSpend; never CONFIG;
-    // skip archived + Ended (unless ?includeEnded=1). See centralSync().
+    // skip archived + Ended (unless ?includeEnded=1). ?client=<name> scopes the sync to ONE
+    // validated client (unknown/unvalidated → 400, nothing synced). See centralSync().
     if (p === '/api/central/sync/status' && req.method === 'GET') return centralSyncStatus(req, res);
     if (p === '/api/central/sync' && req.method === 'POST') return centralSync(req, res, url);
     if (p === '/api/central/readiness' && req.method === 'GET') return centralReadinessRoute(req, res);
@@ -393,13 +394,13 @@ function execCentral(args, timeoutMs) {
       });
   });
 }
-function runSyncFetcher() {
+function runSyncFetcher(client) {
   if (process.env.CENTRAL_SYNC_FIXTURE) {
     const doc = JSON.parse(fs.readFileSync(process.env.CENTRAL_SYNC_FIXTURE, 'utf8'));
     const d = Number(process.env.CENTRAL_SYNC_DELAY_MS || 0);   // test-only: hold the guard to prove 409
     return d > 0 ? new Promise(r => setTimeout(() => r(doc), d)) : Promise.resolve(doc);
   }
-  return execCentral([]);
+  return execCentral(client ? ['--client', client] : []);
 }
 function runNamesFetcher(client) {
   if (process.env.CENTRAL_RECONCILE_FIXTURE) return Promise.resolve(JSON.parse(fs.readFileSync(process.env.CENTRAL_RECONCILE_FIXTURE, 'utf8')));
@@ -422,18 +423,22 @@ const CENTRAL_AUTOSYNC_MIN = Number(process.env.CENTRAL_AUTOSYNC_MIN || 0);   //
 // The shared sync CORE — used by the manual route AND the auto-sync scheduler, so both
 // go through the same guard, rules and last-run tracking. Returns a summary object, or
 // { skipped:true } when a sync is already running. Throws only if the fetcher fails.
+// opts.client (canonical spec name) scopes the WHOLE sync to that one client: the
+// fetcher only queries its BQ tables and the write loop skips every other spec —
+// added Phase 4 after the §9 cross-client corruption (the param used to be ignored).
 async function performCentralSync(opts) {
   opts = opts || {};
   if (CENTRAL_SYNCING) return { skipped: true, reason: 'already-running' };
   CENTRAL_SYNCING = true;
   try {
-    const doc = await runSyncFetcher();   // throws → caller maps to 502 / logs
+    const doc = await runSyncFetcher(opts.client);   // throws → caller maps to 502 / logs
     const includeEnded = !!opts.includeEnded;
     const cfg = loadCentralClients();
     const perClient = {}, unmatched = [], skippedClients = [], errors = [];
     let updated = 0;
     if (doc._stderr) errors.push('fetcher: ' + doc._stderr);
     for (const spec of (cfg.clients || [])) {
+      if (opts.client && spec.client !== opts.client) { skippedClients.push({ client: spec.client, reason: 'not requested (client filter)' }); continue; }
       if (!spec.validated) { skippedClients.push({ client: spec.client, reason: 'not validated' }); continue; }
       const cres = (doc.clients || {})[spec.client] || { rows: [], errors: [] };
       (cres.errors || []).forEach(er => errors.push(spec.client + ': ' + er));
@@ -465,16 +470,30 @@ async function performCentralSync(opts) {
       perClient[spec.client] = { updated: cu, skipped: cs, bqRows: rowsF.length };
     }
     const syncedAt = new Date().toISOString();
-    CENTRAL_LAST_SYNC = { at: syncedAt, updated, unmatched: unmatched.length, errors: errors.length, trigger: opts.trigger || 'manual' };
-    console.log(`[CENTRAL][Sync] (${opts.trigger || 'manual'}) updated=${updated} unmatched=${unmatched.length} skippedClients=${skippedClients.length}`);
+    CENTRAL_LAST_SYNC = { at: syncedAt, updated, unmatched: unmatched.length, errors: errors.length, trigger: opts.trigger || 'manual', client: opts.client || null };
+    console.log(`[CENTRAL][Sync] (${opts.trigger || 'manual'}${opts.client ? ', client=' + opts.client : ''}) updated=${updated} unmatched=${unmatched.length} skippedClients=${skippedClients.length}`);
     return { syncedAt, updated, perClient, unmatched, skippedClients, errors, rows: db.getCampaigns() };
   } finally { CENTRAL_SYNCING = false; }
 }
 
+// POST /api/central/sync[?client=<name>][&includeEnded=1] — ?client= is HONORED (Phase 4;
+// it used to be silently ignored, which made every sync global — PHASE3_CLOUDFLARE §9/§10.6).
+// With ?client=: case-insensitive match against the spec's client field; unknown or
+// not-validated names are a 400 and NOTHING is synced (never a silent no-op). Without it:
+// all validated clients, as before. includeEnded combines with either form.
 async function centralSync(req, res, url) {
   const includeEnded = url.searchParams.get('includeEnded') === '1';
+  const clientParam = url.searchParams.get('client');
+  let clientFilter = null;
+  if (clientParam != null && clientParam.trim() !== '') {
+    const cfg = loadCentralClients();
+    const spec = (cfg.clients || []).find(c => String(c.client).toLowerCase() === clientParam.trim().toLowerCase());
+    if (!spec) return send(res, 400, { error: `unknown client '${clientParam}' — not in central-clients.json; nothing was synced` });
+    if (!spec.validated) return send(res, 400, { error: `client '${spec.client}' is not validated — approve its mapping in the Map client panel first; nothing was synced` });
+    clientFilter = spec.client;   // canonical spelling from the spec
+  }
   let result;
-  try { result = await performCentralSync({ includeEnded, trigger: 'manual' }); }
+  try { result = await performCentralSync({ includeEnded, client: clientFilter, trigger: 'manual' }); }
   catch (e) { return send(res, 502, { error: 'sync fetcher failed: ' + e.message }); }
   if (result.skipped) return send(res, 409, { error: 'a sync is already running — try again in a moment' });
   return send(res, 200, result);

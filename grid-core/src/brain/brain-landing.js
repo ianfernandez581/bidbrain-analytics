@@ -115,14 +115,10 @@
   }
 
   // ---- side cards -----------------------------------------------------------
-  function scorePill(n) { var cls = n >= 7 ? 'ok' : (n >= 4 ? 'warn' : 'bad'); return '<span class="bt-score bt-score-' + cls + '">' + n + '/10</span>'; }
-  function siteQualityCard() {
-    var rows = [['bloomberg.com', 10], ['tech.slashdot.org', 9], ['theverge.com', 8], ['news-blog-xyz.info', 4], ['crazygames-mobile.co', 1], ['streamz-free-live.tv', 1]];
-    return '<div class="card bt-card"><div class="card-h"><h3>Site quality index</h3></div>' +
-      '<div class="card-sub">Websites where the ads appeared, scored for quality. Low scores are flagged as candidates to block.</div>' +
-      '<div class="bt-sqi">' + rows.map(function (r) { return '<div class="bt-sqi-row"><span class="bt-sqi-dom">' + esc(r[0]) + '</span>' + scorePill(r[1]) + '</div>'; }).join('') + '</div>' +
-      '<div class="bt-cardfoot">Blocked sites: 147 domains · <button class="bt-link" data-act="manage-list">manage list</button></div></div>';
-  }
+  // (the static Site Quality Index card was REMOVED in Phase 4 per the product owner's
+  //  decision — mock domain scores with no data behind them. The Optimization Log below
+  //  is explicitly wanted and stays. Real site-quality scoring, if it ever ships, is the
+  //  V2 Jounce-style integration — blocked today on TTD seat access, see repo memory.)
   function optLogCard() {
     var items = [
       ['3 Jul', 'Trade Desk', 'Added Bloomberg placement line item', 'ok', '▲ +14% CVR over 3 days · keep'],
@@ -164,7 +160,7 @@
       '<th>Client</th><th>Platform</th><th>Recommendation</th><th class="bt-num">Impact</th><th class="bt-num">Confidence</th><th class="bt-num">Status</th>' +
       '</tr></thead><tbody id="bt-tbody">' + (skeleton ? skeletonRows(6) : tableBody(filtered, ctx.colors, ctx.theme)) + '</tbody></table></div>' +
       (skeleton ? '' : scanFooter(filtered.length, data.RECOMMENDATIONS.length)) + '</section>';
-    var sideCards = '<section class="bt-sidecards">' + siteQualityCard() + optLogCard() + '</section>';
+    var sideCards = '<section class="bt-sidecards">' + optLogCard() + '</section>';
     return '<div class="bt-wrap">' + head + kpiCards(data) + filterRow(data, f) + table + sideCards + '</div>';
   }
 
@@ -187,7 +183,6 @@
         else if (act === 'rescan') { ctx.toast && ctx.toast.success('Rescan queued · V1 uses cached mock data'); }
         else if (act === 'log') { var c = mount.querySelector('.bt-sidecards'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
         else if (act === 'show-all') { ctx.setFilters({ client: 'all', platform: 'all', type: 'all', min_conf: '0.6' }); }
-        else if (act === 'manage-list') { ctx.toast && ctx.toast.success('Block-list management ships in V2'); }
       });
     });
   }

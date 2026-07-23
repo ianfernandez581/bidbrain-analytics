@@ -1,7 +1,14 @@
 {
-  "stub": true,
   "client_id": "schneider",
   "client_name": "Schneider",
+  "exec_kpi_verified": {
+    "date": "2026-07-23",
+    "phase": "Phase 4 item 6 (stub resolved — Schneider is a validated client)",
+    "headline": "SUM(campaigns[].leads) over programs with a target (641 over 4 lead-gen programs at verification: heavy 255/619, eba 162/157, airset 133/157, water_env 91/184)",
+    "target": "SUM(campaigns[].target) over the same programs (1117); per-program flight windows (flight_start/flight_end) drive the even pace-to-date and the 'programs on pace' count",
+    "series": "cs_weekly[].week_start / leads (77 weekly points at verification)",
+    "db_crosscheck": "Central keyKpi: NEL '0.10% CTR' + global_rebrand are AWARENESS programs (CTR KPIs, target 0 in data.json) and are correctly EXCLUDED from this lead KPI; the lead-gen rows carry the lead targets"
+  },
   "primary_kpi": {
     "id": "lead_gen_mqhl",
     "label": "MQL + HQL from lead-gen program",

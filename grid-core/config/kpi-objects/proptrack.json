@@ -1,5 +1,6 @@
 {
   "stub": true,
+  "_exec_field_path_intended": "ex_proptrack in scripts/build_exec_kpis.py: headline = kpi.ad_imps, series = ad_campaign_daily[].date/imps, secondary = kpi.ad_clicks. Verify against the PropTrack dashboard headline once validated (ABM engaged-account KPI in this file has NO data path yet).",
   "client_id": "proptrack",
   "client_name": "PropTrack",
   "primary_kpi": {
@@ -10,12 +11,27 @@
   },
   "icp_filter": {
     "company_size": ">= 1000",
-    "industry_in": ["Banking", "Financial services", "Lending"],
-    "region_in": ["AU-NZ"]
+    "industry_in": [
+      "Banking",
+      "Financial services",
+      "Lending"
+    ],
+    "region_in": [
+      "AU-NZ"
+    ]
   },
-  "secondary_kpis": ["pipeline_created_aud", "engaged_session"],
-  "guardrail_kpis": ["branded_search_volume", "account_reach"],
-  "connected_sources": ["linkedin", "trade_desk"],
+  "secondary_kpis": [
+    "pipeline_created_aud",
+    "engaged_session"
+  ],
+  "guardrail_kpis": [
+    "branded_search_volume",
+    "account_reach"
+  ],
+  "connected_sources": [
+    "linkedin",
+    "trade_desk"
+  ],
   "raw_sources": {
     "linkedin": "raw_snowflake.linkedin_ads_apac",
     "trade_desk": "raw_snowflake.tradedesk_apac_all"

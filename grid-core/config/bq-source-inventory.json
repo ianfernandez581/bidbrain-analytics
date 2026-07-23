@@ -1,0 +1,36 @@
+{
+  "_comment": "STEP 0 of the Mission-1 batch Phase-3 prep: which raw BQ tables exist and which advertisers/accounts they contain. Read-only evidence pulled 2026-07-22/23 via the bq CLI (the original session crashed before writing this file; numbers recovered from its transcript + re-verified where missing). Spend figures are whole-history sums in the table's native currency/basis. Use this to triage: a Grid channel with no source here is UNMATCHABLE BY DESIGN.",
+  "generatedAt": "2026-07-23",
+  "datasets": {
+    "raw_snowflake": ["_sync_state", "dv360_apac", "google_ads_apac", "google_analytics_apac_all", "linkedin_ads_apac", "reddit_ads_apac_all", "salesforce_cs_apac_all", "tradedesk_apac_all", "tradedesk_apac_conversion"],
+    "raw_windsor": ["geocon_meta_breakdown", "hubspot_contacts", "hubspot_deals", "hubspot_owners", "perf_ga4", "perf_ga4_events", "perf_google_ads", "perf_linkedin", "perf_meta", "perf_reddit", "perf_the_trade_desk", "v_hubspot_contacts", "v_hubspot_deals", "windsor_fields"],
+    "raw_google_ads": "DTS transfer tables (ads_* for customer 3451896252) + the perf_google_ads bridge VIEW (platform/customer_id/account_name/client_slug/metric_date/campaign_name/impressions/clicks/spend) - the freshest Google Ads source for the 100% Digital clients"
+  },
+  "verdicts": {
+    "meta": "NO Snowflake Meta table exists. Meta lives ONLY in raw_windsor.perf_meta. Accounts: 'Cityperfume.com.au', 'Ad Assembly - ACRS', 'Ad Assembly - BuyerX', 'Reset backup – Ad account' (EN-DASH in the name), '100% Digital - Clients' (Geocon + Cairns campaigns). Gateway and QTopia have NO Meta account anywhere -> their Meta rows are unmatchable by design.",
+    "reddit": "Reddit exists ONLY for Cloudflare, in BOTH sources (raw_snowflake.reddit_ads_apac_all + raw_windsor.perf_reddit, account 'Transmission_Cloudflare', $10,261.80, 2026-04-01..06-30). ResetData's Reddit row is unmatchable by design. WARNING: perf_reddit tags those Cloudflare rows client_slug='resetdata' - a loader mislabel; the resetdata dashboard's Reddit lane may be reading Cloudflare campaigns (escalated in PHASE3_BATCH_PREP_REPORT.md).",
+    "tradedesk": "TWO sources. (1) raw_snowflake.tradedesk_apac_all = Transmission seat: Cloudflare $131,461 / HireRight $6,773 / MongoDB $41,728 / PopTrack $17,113 (misspelling of PropTrack; the corrected spelling 'PropTrack' appeared 2026-07-22 with 0-spend rows - specs need rollup mode to span both) / Schneider Electric $66,934. (2) raw_windsor.perf_the_trade_desk = 100% Digital seat: '100% Digital' $269 / ACRS $980 / Altech $2,640 / City Perfume $7,500 / 'Peaches & Cream' $2,570 (no Grid row, client unknown) / 'Qtopia Sydney' $2,520 / ResetData $18,868 / 'The Little Marionette' $3,279 / 'VMCH ' (trailing space) $27,378 / WEHI $4,114. central_sync.py supports both via per-table specs (TABLE_CHANNEL maps both to 'Trade Desk').",
+    "dv360": "raw_snowflake.dv360_apac ONLY (Transmission): 'APAC | PropTrack (AUD)' (2025 history), 'APAC | STT GDC - SGD', 'APAC | STTelemdia GDC' (2025), 3x Schneider (USD/AUD/SGD), 'APAC_HireRight_271025_USD'. NO 100% Digital DV360 source -> VMCH's and Bell Shakespeare's DV360 rows are unmatchable by design. MEDIA_COST_ADVERTISER_CURRENCY = media basis, REVENUE_ADV_CURRENCY = client-billed.",
+    "linkedin": "raw_snowflake.linkedin_ads_apac (Transmission): 'APAC - STT GDC - SGD ' (TRAILING SPACE, SGD $97,929), Canon SGD, 'Cloudflare APAC', 'HireRight_TransmissionSG_USD' (USD $22,645), 'PropTrack_TransmissionSG_AUD' (AUD $29,362), 'STTGDC_TransmissionSG_USD' (USD 2025 history), 3x SchneiderElectric (AUD/SGD/USD). raw_windsor.perf_linkedin exists but has NO MongoDB rows (verified 2026-07-23: zero rows for account 502299829 / campaign LIKE %MONGODB% - that Windsor connector 500s and is skipped) -> MongoDB's LinkedIn row is unmatchable until re-auth.",
+    "google_ads": "raw_snowflake.google_ads_apac is STT-ONLY (verified): 'STT (USD)' (2025), 'STT GDC_SGD' (SGD, ends 2026-05-30), 'STT Global Data' (successor account from 2026-05-31, currency unverified). raw_google_ads.perf_google_ads (DTS bridge) covers the 100% Digital clients: City Perfume (AUD, $1.56M, STALLED at 2026-06-22), Reset Data (AUD, ->07-21), The Little Marionette (AUD, ->07-21), plus Liberty/Paradise (no Grid rows). raw_windsor.perf_google_ads is a STALER copy (ends 2026-06-05) - specs repointed to the DTS bridge this run.",
+    "dooh": "No DOOH source anywhere. PropTrack's 'COBA Event DOOH' row has a plausible TTD DISPLAY campaign (PROPTRACK_COBA-EVENT2026_JULY2026_DISPLAY_AU, $3,999.92, dates align) - staged as a flagged channel-crossing for human decision.",
+    "line": "No LINE table (known - Cloudflare LINE is a manual seed)."
+  },
+  "costBasisEvidence": {
+    "raw_snowflake.tradedesk_apac_all.COSTS": "CLIENT-BILLED (Schneider/Cloudflare Phase 3 evidence; MongoDB this run: IDE SUM(COSTS) $16,183.91 = sheet clientSpend to the cent). spendMult=1 required on mapped rows.",
+    "raw_windsor.perf_the_trade_desk.cost": "CLIENT-BILLED, NOT raw media (CORRECTS the grid-core README billed-basis table): City Perfume $7,500.02 = sheet clientSpend exactly; QTopia $2,519.86 = budget to the dollar vs sheet media $134.82; TLM to-07-08 $1,484.80 vs sheet billed $1,440.40; VMCH RL consistent with billed $9,826.93. spendMult=1 required on mapped rows. The extreme sheet mults (7.15/10.09/7.76/2.86/3.47) are media-basis back-out artifacts, all resolved.",
+    "raw_snowflake.dv360_apac": "REVENUE_ADV_CURRENCY = client-billed (STT: billed $63,576 vs sheet clientSpend $62,571; HireRight billed $14,946 vs media $4,018). Specs for STT/HireRight switched to the billed column this run (deliberate pick, Schneider precedent); spendMult=1 if approved.",
+    "raw_snowflake.linkedin_ads_apac.COSTS": "media = billed (mult 1), account-native currency - SCOPE BY CURRENCY.",
+    "raw_windsor.perf_meta.cost / raw_google_ads.perf_google_ads.spend": "RAW MEDIA basis (CP Meta June $4,833 vs sheet media $5,143 w/ 2-day ingest gap; TLM Google to-07-08 $3,018.82 vs sheet media $3,036.64). Sheet-derived spendMult STAYS on these rows (e.g. City Perfume Google 1.1655)."
+  },
+  "unassignedBqAdvertisers": [
+    {"source": "perf_the_trade_desk", "advertiser": "Peaches & Cream", "spend": 2570.0, "note": "PNC_TTD_NZ_WinterSillySeasonSale_Display_Jul26 (2026-07-08..13). No Grid row, no known Grid client."},
+    {"source": "perf_the_trade_desk", "advertiser": "100% Digital", "spend": 268.71, "note": "100%Digital_CairnsCrocodiles (May). Agency house campaign; Meta twin 'Cairns Awareness' $307.13 in '100% Digital - Clients'."},
+    {"source": "perf_meta", "advertiser": "100% Digital - Clients", "spend": 11249.24, "note": "Geocon_* campaigns ($11.2k) - Geocon is a dashboard client but has NO Grid rows at all."}
+  ],
+  "freshness": {
+    "raw_google_ads DTS - City Perfume": "STALLED: last metric_date 2026-06-22 while ResetData/TLM run to 2026-07-21. Blocks a clean City Perfume Google June backfill (June 23-30 missing).",
+    "raw_windsor.perf_meta - Reset backup / Cityperfume": "Reset backup ends 2026-07-07; Cityperfume.com.au ends 2026-06-28 (June 29-30 missing for the June row).",
+    "raw_windsor.perf_google_ads": "Stale copy (ends 2026-06-05) - do not use; DTS bridge is canonical."
+  }
+}
