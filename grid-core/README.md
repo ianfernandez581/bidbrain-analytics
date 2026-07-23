@@ -68,34 +68,38 @@ There is **no baked campaign data** — Pulse/Central need `node server.js`
 running and show a loud red banner when it isn't. `scripts/build_grid_data.py` is
 retired for app data (kill switch inside; Phase 4 deletes it).
 
-### Live metrics from BigQuery (the scraped half)
+### Live metrics from BigQuery — the Central sync (the ONLY live-metrics path)
 
-The plan: the **commercial** columns (budgets, targets, margins, owners, flight
-dates, notes) stay manually typed; the **metric** columns (spend / impressions /
-clicks) are scraped live. `scripts/live_metrics.py` is the scraped half — it reads
-the same BigQuery layer that powers the client dashboards (so the grid matches the
-dashboards number-for-number) and, during a `build_grid_data.py` run, **overlays
-those live numbers onto the sheet-seeded rows**. Overlaid rows are tagged
-`metricsSource:'BQ'` (+ `dataThrough`) and show a **LIVE** badge in the grid;
-everything else stays `'sheet'`. A BQ hiccup never blocks the regen — rows just
-fall back to sheet numbers. Skip the overlay with `--no-live`.
+The **commercial** columns (budgets, targets, margins, owners, flight dates, notes)
+stay human-typed CONFIG; the **metric** columns (media spend / impressions, and
+client spend via the spendMult rule) come from the Central sync, which writes the
+SQLite `campaigns` table that both Central AND Pulse read. The old
+`build_grid_data.py` + `live_metrics.py` overlay flow is retired — `live_metrics.py`
+survives only as the query-pattern reference `central_sync.py` was adapted from.
 
-**Coverage is explicit and validated, never guessed.** Only advertisers with a
-reconciled entry in `CLIENTS` (in `live_metrics.py`) are scraped. Add a client by
-adding its per-campaign BQ spend query + a `program → grid campaign` map. Today
-Schneider is wired (via `client_schneider.pm_delivery`). Requires `bq` CLI auth as
-`ian@100.digital`.
+**Coverage is explicit and validated, never guessed** — a client syncs only when a
+human has approved its map in `config/central-clients.json` (`validated: true`).
+Validated today: **Cloudflare and Schneider**, both **Mode B** (per-channel raw-table
+rules). See "Sync (live BQ metrics)" below for the full semantics, and
+"Coverage expansion (reconcile)" for how a client gets validated. Requires `bq` CLI
+auth as `ian@100.digital`.
 
-**BigQuery is the source of truth for spend — not the sheet.** BQ spend is RAW
-media spend (platform cost + FX only; e.g. schneider TradeDesk `spend_aud =
-COSTS × 1.50`, **no** client-billing multiplier). The **sheet's** "Client Spent"
-column carries a manual billing multiplier (and its "Media Spend" drifts), so
-sheet-vs-BQ will diverge by design — that is expected, not a bug, and the grid
-intentionally shows the raw BQ number (decision 2026-07-09: "just reflect BQ").
-`tmp/reconciliation.csv` (written each run) is kept as a diagnostic, but the real
-trust gate for a new platform is **BQ vs the platform UI**, not BQ vs the retiring
-sheet. If a billed view is wanted later, apply the per-channel multiplier on top of
-the raw BQ spend (same markup the dashboards use) rather than trusting the sheet.
+**BigQuery is the source of truth for spend — but KNOW THE COST BASIS of each
+table** (`PHASE3_CLOUDFLARE_REPORT.md` §1, the money finding). Verified per table:
+
+| Raw table | Cost column | Basis | spendMult on synced rows |
+|---|---|---|---|
+| `raw_snowflake.tradedesk_apac_all` | `COSTS` | **CLIENT-BILLED** | **1** (a sheet-derived 2.5-3.5× mult would double-count — the §9 corruption) |
+| `raw_snowflake.dv360_apac` | `REVENUE_ADV_CURRENCY` | **CLIENT-BILLED** (what the client pays) | **1** when mapped this way (Schneider). NOTE: the STT/PropTrack/HireRight specs still use `MEDIA_COST_ADVERTISER_CURRENCY` (media basis) — their Phase 3 runs must decide the basis deliberately |
+| `raw_snowflake.linkedin_ads_apac` | `COSTS` | media = billed | 1 |
+| `raw_snowflake.reddit_ads_apac_all` | `COSTS` | media = billed | 1 |
+| `raw_windsor.*` (Google/Meta/TTD/Reddit) | `spend` / `cost` | raw media | sheet-derived mult stays (not yet re-verified — do the §1 date-bounded check per client before first sync) |
+
+**Currency scoping rule (Schneider lesson 1):** the sync does NO FX conversion. A
+multi-account/multi-currency client must be scoped to ONE currency's account via
+`advertiserValue` (Schneider fetches only `SchneiderElectric_TransmissionSG_AUD`;
+the `_USD`/`_SGD` accounts hold pre-2026 history with no Grid rows). If in-scope
+campaigns genuinely span currencies: stop and flag — the sync cannot handle it.
 
 ## Go-live path (in order)
 
@@ -189,7 +193,9 @@ Mocked:
 ## Where to find things
 
 ```
-config/kpi-objects/<client>.json   ← per-client KPI object schema (resetdata is real, 7 stubs)
+config/kpi-objects/<client>.json   ← per-client KPI object schema (cloudflare/schneider/resetdata
+                                       resolved+verified; 5 stubs left with `_exec_field_path_intended`
+                                       notes — resolve as each client is validated)
 config/brain-mock-data.js          ← RECOMMENDATIONS + helpers (getRecommendationById,
                                        getFilteredRecommendations, updateStatus)
 src/brain/client-colors.js         ← getClientColor(clientId[, theme]) -> {bg,fg,border}
@@ -266,10 +272,16 @@ src/central/calc.js          ← derived-field engine (SINGLE SOURCE OF TRUTH). 
 config/central-seed.js       ← TEST FIXTURE (render smoke tests only). NOT a runtime source.
 config/central-import.json   ← frozen ONE-TIME import source (the pure-sheet parse); the
                                 server ingests it into the campaigns DB on boot (idempotent).
-config/central-clients.json  ← sync client mapping. Mode A ("view" = a pm_delivery view,
-                                Schneider) or Mode B ("source":"raw" = raw platform tables[]
-                                with exact advertiserValue + schema column names). source
-                                "none" = no BQ presence.
+config/central-clients.json  ← sync client mapping. Mode B ("source":"raw" = raw platform
+                                tables[] with exact advertiserValue + real schema column
+                                names, one campaignMatch rule per mapped row) is THE
+                                standard — both validated clients (Cloudflare, Schneider)
+                                use it. Mode A ("view" = a pm_delivery-style view keyed by
+                                bqName) still works but is LEGACY: a program view can
+                                aggregate ACROSS platforms and blend channels onto one row
+                                (the §9 Schneider corruption) — do not use it for any
+                                client whose programs span channels. source "none" = no
+                                BQ presence.
 scripts/central_sync.py      ← BQ metrics fetcher (adapter; reuses live_metrics.py's bq-CLI
                                 approach, does NOT modify it). Mode A + Mode B (multi-table
                                 merge by campaign name). Emits JSON to stdout.
@@ -314,9 +326,22 @@ is `Live · Active · Paused · Not Active · Ended · All · Archived` (each wi
 header reads "N live · M total". Ended/Not Active are history, always retrievable, never deleted.
 
 ## Sync (live BQ metrics)
-"Sync now" `POST /api/central/sync` spawns `scripts/central_sync.py` (30s timeout → 502; a
-sync already running → 409), which reads `config/central-clients.json` and queries BQ (bq CLI,
-ian@100.digital) per **validated** client. Matching at sync time uses ONLY the explicit map
+"Sync now" `POST /api/central/sync` spawns `scripts/central_sync.py` (timeout
+`CENTRAL_SYNC_TIMEOUT_MS`, default 180s — a first-time backfill on a big client needs minutes;
+timeout → 502; a sync already running → 409), which reads `config/central-clients.json` and
+queries BQ (bq CLI, ian@100.digital) per **validated** client.
+
+**Scope (Phase 4 fix — the param is HONORED now):**
+- `POST /api/central/sync` → ALL validated clients (unchanged default).
+- `POST /api/central/sync?client=<name>` → that ONE client only (case-insensitive match on
+  the spec's `client` field). The fetcher is invoked `--client <name>` so other clients' BQ
+  is never even queried, and every other spec is skipped (`not requested (client filter)`).
+  An unknown or not-validated name is a **400 with a clear message and NOTHING synced** —
+  never a silent no-op. Until this fix the param was ignored and every sync was global,
+  which is how a "Cloudflare" sync corrupted 5 Schneider rows (PHASE3_CLOUDFLARE §9/§10.6).
+- `?includeEnded=1` combines with either form (the one-time backfill for Ended rows).
+
+Matching at sync time uses ONLY the explicit map
 (no fuzzy — that's reconcile). Per mapped, non-archived, non-Ended (unless `?includeEnded=1`)
 campaign it UPDATEs `impressions`/`mediaSpend`, sets `metricsSource:'bq'`+`lastSyncedAt`, and:
 - **spendMult set** → `clientSpend = mediaSpend × spendMult`, `spendBasis:'billed'`.
@@ -362,29 +387,32 @@ rows the fetcher returns (each `{bqName, advertiserName, channel, impressions, m
   counts once). Then sum. The spendMult rule and DERIVED locking are unchanged. Schneider stays Mode A
   (view, `map:[{bqName(program), campaignId}]`) — additive, its behaviour is untouched.
 
-## Coverage expansion (reconcile — Zhen's validation sitting)
-Only Schneider is validated today. To add a client: **Map client** panel → pick the client →
-GET `/reconcile/:client` runs the BQ name list + fuzzy-scores it against that client's Central
-campaigns → the human ticks/approves pairs → POST `/approve` writes them into
-`central-clients.json` and flips `validated:true`. Suggestions are never auto-written. A client
-needs a `pm_delivery`-shaped BQ view first (reconcile reports an empty name list otherwise).
+## Coverage expansion (reconcile — the stage-and-approve flow)
+**Validated today: Cloudflare + Schneider** (both Mode B). The flow that got them there is
+THE standard for every next client (Mission 1 runs it in batch):
 
-**Staged candidates (Phase 3, per-client):** a Phase 3 session may pre-curate the pairs into
-`config/reconcile-staged/<Client>.json` (rule + confidence + rationale + BQ preview + warnings).
-The reconcile GET serves it as `staged`; the panel renders it FIRST (unticked — the human still
-ticks + approves through the same `/approve` route; "Select all high-confidence" is a helper, not
-an auto-approve). **Platform-consistency is a HARD rule** (2026-07-22 review): candidates are
+1. A Phase-3-style session **stages** curated candidate pairs into
+   `config/reconcile-staged/<Client>.json` (per pair: match rule `mode`+`value`, confidence,
+   rationale, BQ spend preview; plus warnings / unmatchable rows / BQ orphans). Staging writes
+   NOTHING — the file is a proposal. Evidence beats fuzzy scores: budget/spend agreement at the
+   right grain (campaign / LinkedIn GROUP / DV360 insertion order) is the real signal.
+2. The human opens the **Map client** panel → GET `/reconcile/:client` fetches the live BQ name
+   list, serves the staged block FIRST (unticked; "Select all high-confidence" is a selection
+   helper, not an auto-approve) + generic fuzzy suggestions with honest flags:
+   `no-platform-match` / `weak` (< 0.35, nothing preselected) / `ambiguous` (runner-up shown).
+3. The human ticks + approves → POST `/approve` writes the pairs into `central-clients.json`
+   `map[]` and flips `validated: true`. Suggestions are NEVER auto-written.
+   **The approve click arms the sync** — every prerequisite (spendMult basis, platformMargin,
+   currency scoping) must be resolved BEFORE approving.
+
+**Platform-consistency is a HARD rule at two layers** (2026-07-22 review): candidates are
 filtered by the platform token in the BQ name (LINKEDIN / TTD|TRADE DESK / REDDIT / LINE-as-token /
 DV360) AND the source-table channel tag — a LINKEDIN name can never be offered against a LINE or
 TradeDesk row, and `/approve` REJECTS (400, nothing written) any pair that crosses platforms.
-Generic fuzzy suggestions carry an honest `flag`: `no-platform-match` (no Grid row on that
-platform) / `weak` (below 0.35 — nothing preselected) / `ambiguous` (runner-up within 0.06, shown).
-NOTE the Schneider Mode A map has no platform dimension (pm_delivery aggregates programs across
-channels onto ONE row) — quantified in `PHASE3_CLOUDFLARE_REPORT.md` §6; fix before Schneider's
-first real sync. Cloudflare's
-staged file (2026-07-22) is the pilot — see `PHASE3_CLOUDFLARE_REPORT.md` (its LinkedIn matches
-on `CAMPAIGN_GROUP_NAME`, and TTD `COSTS` is the CLIENT-BILLED basis — read the report's spendMult
-warning before the first Cloudflare/Schneider TTD sync).
+History: Schneider's original Mode A map blended channels onto single rows and corrupted 5 rows
+when a sync ran (PHASE3_CLOUDFLARE §6.3/§9); its Phase 3 run moved it to Mode B (16 approved
+per-channel pairs). Cloudflare's staged file was the pilot (LinkedIn matches on
+`CAMPAIGN_GROUP_NAME` — group grain; TTD impressions `COALESCE(IMPRESSIONS, IMPRESSION)`).
 
 **Unnamed rows:** campaign **name** is inline-fillable in Central when empty (fill-empty affordance
 in the Campaign cell; counted by the missing-fields badge; `name` added to the edit whitelist).
@@ -405,7 +433,8 @@ badge-counted when empty; clearing it saves null (the unbilled-basis badge retur
 - `POST /api/central/campaigns/:id/archive` → soft delete (no hard-delete route exists)
 - `GET  /api/central/rows` → `{overrides}` (per-field provenance, keyed by campaign id)
 - `POST /api/central/row/:id/field` → edit a campaign field (`:id` = campaign id; derived → 400)
-- `POST /api/central/sync[?includeEnded=1]` → live BQ overlay (see "Sync" below); 409 if already running
+- `POST /api/central/sync[?client=<name>][&includeEnded=1]` → live BQ overlay (see "Sync" above;
+  `client` scopes to ONE validated client — unknown/unvalidated → 400, nothing synced); 409 if already running
 - `GET  /api/central/sync/status` → `{running, autosyncMin, lastRun}` (drives the UI's auto-sync note)
 - `GET  /api/central/reconcile/:client` → BQ name list + Central names + fuzzy SUGGESTIONS (never written)
 - `POST /api/central/reconcile/:client/approve` → write APPROVED pairs to the map + validated:true
@@ -428,7 +457,13 @@ PDF/DOC with no LLM key falls through to an empty panel for manual entry — nev
   **"unbilled basis"** badge (billing basis unverified). This fires **widely by design** on
   the real sheet — no row has `spendMult` yet — and clears once it is populated per channel.
 - **Join key = (client, campaign-name)**; null `jobNumber` shows a **"no job #"** badge.
-- Stale guard: API columns desaturate when `lastSynced` is null or > 4h old.
+  (Map entries prefer `campaignId`; the (client, name) fallback picks the FIRST same-named
+  row regardless of channel — re-reconcile after any DB rebuild.)
+- Stale guard: thresholds live in ONE place, `src/central/staleness.js` (**warn > 6h amber,
+  red > 24h**; never-synced is its own loud state, not "fresh"). Central's last-synced pill
+  tiers amber/red; per-client rollups (NO SYNC / N SHEET / age) render on Central's group
+  rows, Pulse's client rail + context heading, and the Executive cards. A sheet-import row
+  inside an otherwise-synced client (the §9 mixed state) gets an amber SHEET tag + row edge.
 - **Needs-input tint:** empty manual [CONFIG] cells get a faint amber to-do tint + inline
   edit (dropdown or contenteditable → the whitelisted field route). Never on [DERIVED]
   (their "—" is correct output) or [API] (the sync's job). Agency grouping is
