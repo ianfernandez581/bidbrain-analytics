@@ -27,7 +27,13 @@
   'use strict';
 
   var DASH = '<span class="ct-muted">—</span>';
-  var STALE_MS = 4 * 60 * 60 * 1000;
+  // Freshness thresholds live in ONE place — src/central/staleness.js (Phase 4 item 4).
+  // Resolved at call time (browser global or Node require), same pattern as getCalc().
+  function getStale() {
+    if (typeof window !== 'undefined' && window.CentralStaleness) return window.CentralStaleness;
+    if (typeof module !== 'undefined' && module.exports) { try { return require('./staleness'); } catch (e) { /* absent */ } }
+    return null;
+  }
   var MANAGERS = ['Mel', 'Zhen', 'Sophia'];
   // Real sheet vocabulary + app-only Draft. "Not Active" is a real status (never coerced).
   var STATUSES = ['Active', 'Paused', 'Not Active', 'Ended', 'Draft'];
@@ -274,10 +280,29 @@
   var EDIT_COLS = ['channel', 'managedBy', 'status'];  // columns rendered as dropdowns
   function statusCls(s) { s = (s || '').toLowerCase(); if (s.indexOf('not active') >= 0) return 'notactive'; return s.indexOf('active') >= 0 ? 'active' : s.indexOf('paus') >= 0 ? 'paused' : s.indexOf('end') >= 0 ? 'ended' : 'draft'; }
   function isLive(r) { return r.metricsSource === 'bq' || r.metricsSource === 'BQ'; }
+  // is this a sheet-import row inside a client that OTHERWISE syncs? (the §9 mixed
+  // state — those rows are silently excluded from every sync and must read as such)
+  function inMixedClient(r) {
+    var ss = CS._clientSync && CS._clientSync[r.client];
+    return !!(ss && ss.mixed && !isLive(r));
+  }
   function metricsTag(r) {
     var live = isLive(r);
-    var t = live ? ('Live from BigQuery' + (r.lastSyncedAt ? ' · synced ' + new Date(r.lastSyncedAt).toLocaleString('en-GB') : '')) : 'From the one-time sheet import (not yet synced)';
-    return '<span class="ct-msrc ct-msrc-' + (live ? 'live' : 'sheet') + '" title="' + esc(t) + '">' + (live ? 'LIVE' : 'SHEET') + '</span>';
+    var mixed = inMixedClient(r);
+    var t = live ? ('Live from BigQuery' + (r.lastSyncedAt ? ' · synced ' + new Date(r.lastSyncedAt).toLocaleString('en-GB') : ''))
+      : mixed ? 'Sheet-import row in an otherwise-synced client — NOT covered by the sync (unmapped or unapproved pair); its numbers never refresh'
+        : 'From the one-time sheet import (not yet synced)';
+    return '<span class="ct-msrc ct-msrc-' + (live ? 'live' : 'sheet') + (mixed ? ' ct-msrc-mixed' : '') + '" title="' + esc(t) + '">' + (live ? 'LIVE' : 'SHEET') + '</span>';
+  }
+  // compact per-client sync chip for the group summary row: NO SYNC / N SHEET / stale age
+  function clientSyncChip(ss) {
+    if (!ss) return '';
+    var stal = getStale();
+    if (ss.live === 0) return '<span class="ct-csync ct-csync-never" title="No row of this client has ever synced — every number is the imported sheet snapshot">NO SYNC</span>';
+    var out = '';
+    if (ss.mixed) out += '<span class="ct-csync ct-csync-mixed" title="' + ss.sheet + ' of ' + ss.total + ' rows are still sheet-import — they are NOT covered by the sync and never refresh">' + ss.sheet + ' SHEET</span>';
+    if (ss.state === 'warn' || ss.state === 'red') out += '<span class="ct-csync ct-csync-' + ss.state + '" title="Newest sync for this client is ' + (stal ? stal.agoLabel(ss.newest) : 'old') + ' (amber > 6h, red > 24h)">' + (stal ? stal.agoLabel(ss.newest) : 'stale') + '</span>';
+    return out;
   }
 
   // ============================ filtering / sorting ============================
@@ -386,11 +411,23 @@
     var working = all.filter(function (r) { return !r._archived; });   // archived excluded from the working set
     var rows = filtered(all);
     var counts = healthCountsLive(working);   // chips reflect the live (Active+Paused) set only
-    // stale guard derives from REAL per-row lastSyncedAt (most recent across rows)
+    // stale guard derives from REAL per-row lastSyncedAt (most recent across rows);
+    // thresholds come from the ONE config location (staleness.js): warn > 6h, red > 24h.
     var lastTs = null;
     all.forEach(function (r) { if (r.lastSyncedAt) { var t = Date.parse(r.lastSyncedAt); if (!isNaN(t) && (lastTs == null || t > lastTs)) lastTs = t; } });
     CS.lastSynced = lastTs;
-    var stale = lastTs == null || (Date.now() - lastTs) > STALE_MS;
+    var stal = getStale();
+    var staleLevel = stal ? stal.classify(lastTs) : (lastTs == null ? 'never' : 'fresh');
+    var stale = staleLevel !== 'fresh';
+    // per-client sync rollup (never / mixed / stale) for the group rows + row markers —
+    // the §9 containment produced sheet-import rows inside an otherwise-synced client
+    // and it was invisible; this map is what makes that state render.
+    CS._clientSync = {};
+    if (stal) {
+      var scByClient = {};
+      working.forEach(function (r) { if (r.client) (scByClient[r.client] = scByClient[r.client] || []).push(r); });
+      Object.keys(scByClient).forEach(function (c) { CS._clientSync[c] = stal.clientSyncState(scByClient[c]); });
+    }
 
     var clients = [];
     working.forEach(function (r) { if (r.client && clients.indexOf(r.client) < 0) clients.push(r.client); });
@@ -405,11 +442,11 @@
     var archivedN = all.length - working.length;
     var sCount = function (s) { return working.filter(function (r) { return r.status === s; }).length; };
 
-    var html = '<div class="ct-wrap' + (stale ? ' ct-stale-on' : '') + '">';
+    var html = '<div class="ct-wrap' + (stale ? ' ct-stale-on' : '') + (staleLevel === 'red' || staleLevel === 'never' ? ' ct-stale-red' : '') + '">';
     // toolbar — header reads "N live · M total"
     html += '<div class="ct-toolbar"><div class="ct-title"><h2>Central</h2>' +
       '<span class="ct-titsub"><b>' + liveN + '</b> live · ' + totalN + ' total</span></div>' +
-      '<div class="ct-tools">' + lastSyncedHtml(stale) +
+      '<div class="ct-tools">' + lastSyncedHtml(staleLevel) +
       '<button class="ct-btn ct-btn-primary" id="ct-add"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>Add campaign</button>' +
       '<button class="ct-btn" id="ct-map" title="Map a client\'s BQ campaigns to Central (validation sitting)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3 3 6v15l6-3 6 3 6-3V3l-6 3-6-3z"/><path d="M9 3v15M15 6v15"/></svg>Map client</button>' +
       '<button class="ct-btn" id="ct-sync"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg><span>Sync now</span></button>' +
@@ -505,7 +542,8 @@
         inner = '<button class="ct-cgroup" data-clientkey="' + esc(key) + '" aria-expanded="' + open + '" title="Show / hide this client\'s campaigns">' +
           '<span class="ct-chev' + (open ? ' open' : '') + '" aria-hidden="true">&#9654;</span>' +
           '<span class="ct-cgname">' + esc(cl || '—') + '</span>' +
-          '<span class="ct-cgn">' + clientRows.length + ' campaign' + (clientRows.length === 1 ? '' : 's') + (impTot != null ? ' · ' + compactNum(impTot) + ' imp' : '') + '</span></button>';
+          '<span class="ct-cgn">' + clientRows.length + ' campaign' + (clientRows.length === 1 ? '' : 's') + (impTot != null ? ' · ' + compactNum(impTot) + ' imp' : '') + '</span></button>' +
+          clientSyncChip(CS._clientSync && CS._clientSync[cl]);
       } else if (c.id === 'channel') {
         inner = channelCluster(clientRows);         // all unique channels for this client
       } else if (c.id === 'totalBudget') {
@@ -562,7 +600,7 @@
     var childCls = '', childAttr = '';
     if (childKey != null) { childCls = ' ct-childrow' + (CS.openClients[childKey] ? '' : ' ct-hidden'); childAttr = ' data-cchild="' + esc(childKey) + '"'; }
     var cols = activeCols();
-    var tr = '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + childCls + '"' + childAttr + ' data-id="' + esc(r._id) + '">' + cols.map(function (c) {
+    var tr = '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + (inMixedClient(r) ? ' ct-row-sheetmixed' : '') + childCls + '"' + childAttr + ' data-id="' + esc(r._id) + '">' + cols.map(function (c) {
       // empty manual [CONFIG] field → needs input. Guarded to CONFIG columns so a same-named
       // derived column (adServingCost) can never render as editable. The campaign column's
       // needs-state keys on 'name' (its cell renders the fill-empty affordance itself).
@@ -663,11 +701,18 @@
 
   function chip(kind, label, healthVal) { return '<button class="ct-hchip ct-hc-' + kind + (CS.health === healthVal ? ' on' : '') + '" data-health="' + healthVal + '">' + esc(label) + '</button>'; }
 
-  function lastSyncedHtml(stale) {
+  // level: 'fresh' | 'warn' (> 6h, amber) | 'red' (> 24h) | 'never' — thresholds in staleness.js.
+  function lastSyncedHtml(level) {
+    var stal = getStale();
     var t = CS.lastSynced ? new Date(CS.lastSynced).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : 'never synced';
+    var ago = (stal && CS.lastSynced) ? ' (' + stal.agoLabel(CS.lastSynced) + ')' : '';
     var autoMin = CS.syncStatus && CS.syncStatus.autosyncMin;
     var auto = autoMin > 0 ? ' <span class="ct-auto" title="Auto-sync runs on the server every ' + autoMin + ' min">· auto every ' + autoMin + 'm</span>' : '';
-    return '<span class="ct-lastsync' + (stale ? ' stale' : '') + '" title="API columns are ' + (stale ? 'possibly stale' : 'fresh') + '">' + (stale ? '⚠ ' : '') + 'last synced: ' + t + (stale && CS.lastSynced ? ' (stale)' : '') + '</span>' + auto;
+    var cls = level === 'fresh' ? '' : (level === 'warn' ? ' stale' : ' stale red');
+    var title = level === 'fresh' ? 'API columns are fresh'
+      : level === 'never' ? 'No BigQuery sync has ever run — every number is the imported sheet snapshot'
+        : 'API columns are stale (amber > 6h, red > 24h — thresholds in src/central/staleness.js)';
+    return '<span class="ct-lastsync' + cls + '" title="' + esc(title) + '">' + (level === 'fresh' ? '' : '⚠ ') + 'last synced: ' + t + ago + '</span>' + auto;
   }
 
   // ============================ wiring ============================
@@ -902,7 +947,7 @@
       '.ct-btn{appearance:none;font-family:inherit;cursor:pointer;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:8px 12px;display:inline-flex;align-items:center;gap:6px;box-shadow:var(--shadow);transition:all .15s}',
       '.ct-btn:hover{color:var(--brand-ink);border-color:var(--brand)}.ct-btn:disabled{opacity:.55;cursor:default}',
       '.ct-btn.ct-spin svg{animation:ct-rot .8s linear infinite}@keyframes ct-rot{to{transform:rotate(360deg)}}',
-      '.ct-lastsync{font-size:11px;color:var(--ink-3);font-weight:600}.ct-lastsync.stale{color:var(--warn)}',
+      '.ct-lastsync{font-size:11px;color:var(--ink-3);font-weight:600}.ct-lastsync.stale{color:var(--warn)}.ct-lastsync.stale.red{color:var(--bad)}',
       '.ct-auto{font-size:10.5px;color:var(--ink-3);font-weight:600}',
       // summary cards (boss view)
       '.ct-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:11px;padding:4px 0 12px}',
@@ -971,6 +1016,13 @@
       '.ct-band-above{background:var(--ok-soft);color:var(--ok)}.ct-band-near{background:var(--warn-soft);color:var(--warn)}.ct-band-below{background:var(--bad-soft);color:var(--bad)}',
       '.ct-msrc{font-size:8px;font-weight:800;padding:1px 4px;border-radius:4px;margin-left:6px;vertical-align:middle}',
       '.ct-msrc-live{background:var(--ok-soft);color:var(--ok)}.ct-msrc-sheet{background:var(--line-2);color:var(--ink-3)}',
+      // mixed state (§9): a sheet row inside an otherwise-synced client — amber, not grey
+      '.ct-msrc-mixed{background:var(--warn-soft);color:var(--warn)}',
+      '.ct-row-sheetmixed td:first-child{box-shadow:inset 3px 0 0 var(--warn)}',
+      '.ct-csync{font-size:8.5px;font-weight:800;letter-spacing:.04em;padding:1.5px 6px;border-radius:4px;margin-left:8px;vertical-align:middle}',
+      '.ct-csync-never{background:var(--line-2);color:var(--ink-3);border:1px dashed var(--ink-3)}',
+      '.ct-csync-mixed,.ct-csync-warn{background:var(--warn-soft);color:var(--warn)}',
+      '.ct-csync-red{background:var(--bad-soft);color:var(--bad)}',
       '.ct-srcdoc{display:inline-flex;color:var(--brand);margin-left:5px;vertical-align:middle;cursor:help}',
       '.ct-section td{background:var(--grp);border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-family:"Space Grotesk";font-weight:700;font-size:11px;letter-spacing:.08em;color:var(--ink-2);padding:8px 12px}',
       '.ct-section .ct-secn{font-weight:500;letter-spacing:0;color:var(--ink-3);font-family:"Inter";text-transform:none;margin-left:8px}',

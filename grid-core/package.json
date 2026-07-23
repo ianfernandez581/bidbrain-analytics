@@ -5,7 +5,7 @@
   "type": "commonjs",
   "main": "src/orchestrator.js",
   "scripts": {
-    "test": "node src/central/calc.test.js && node src/central/readiness.test.js && node src/central/render-central.test.js && node src/central/live-count.test.js && node src/central/accordion.test.js && node src/central/central-rebuild.test.js && node src/central/sync-client-filter.test.js",
+    "test": "node src/central/calc.test.js && node src/central/staleness.test.js && node src/central/readiness.test.js && node src/central/render-central.test.js && node src/central/live-count.test.js && node src/central/accordion.test.js && node src/central/central-rebuild.test.js && node src/central/sync-client-filter.test.js",
     "reconcile": "node src/reconcile.js --expected expected.json",
     "check": "for f in src/central/calc.js src/orchestrator.js src/reconcile.js src/connectors/*.js; do node --check \"$f\"; done",
     "serve": "node server.js",
