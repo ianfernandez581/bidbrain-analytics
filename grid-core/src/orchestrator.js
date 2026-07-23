@@ -10,7 +10,11 @@
  */
 
 'use strict';
-const { derive } = require('./derive');
+// PHASE 1: src/derive.js is QUARANTINED (src/_retired/) — nothing may import it.
+// This layer is DORMANT (only the retired reconcile.js CLI ever loaded it; actuals
+// come via the BQ sync, not connectors). If someone revives it, fail loudly and
+// point at the single engine instead of silently computing with retired formulas.
+const derive = () => { throw new Error('orchestrator: derive.js was retired in Phase 1 - use src/central/calc.js (computeRow) instead'); };
 const { ProbeError } = require('./connectors/connector-base');
 
 const PLATFORMS = {

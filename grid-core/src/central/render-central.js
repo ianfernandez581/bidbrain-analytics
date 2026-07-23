@@ -1,14 +1,20 @@
 /*
- * src/central/render-central.js — the Central tab view.
+ * src/central/render-central.js — the Central tab view (MERGED with Register, Phase 2).
  * ----------------------------------------------------------------------------
- * Renders the live-campaigns table from config/central-seed.js, with every
- * DERIVED cell computed fresh by src/central/calc.js (never stored, never
- * editable). Clones the Register table pattern (declarative COLS) from
- * the-grid.html. Owns its own filter/sort state (does not touch the pulse `F`).
+ * Renders THE one campaign table: every DERIVED cell computed fresh by
+ * src/central/calc.js (never stored, never editable). Owns its own filter/sort
+ * state (does not touch the pulse `F`).
+ *
+ * Phase 2 (2026-07-22) absorbed the Register tab: the column-group filter bar
+ * (Core locked / Pacing / Budget / Margin / Performance / Links), the
+ * Group: advertiser vs Flat toggle, search, a Manager filter, per-campaign
+ * expandable detail rows, header hover hints, the pacing mini-bar and the
+ * Register-only columns (Budget Gross, Ad-Serving rate+cost, Impressions,
+ * Link, Next Report). Register's tab/section in the-grid.html is DELETED.
  *
  * CONFIG edits (Managed By / Channel / Status dropdowns) and plan-reader commits
  * persist to central_rows via the server; here we layer those overrides over the
- * seed at render time and tag each field's source. Sync is stubbed (server 501).
+ * seed at render time and tag each field's source.
  *
  * UMD: browser -> window.CentralView. Reads window.CentralCalc / window.CentralSeed
  * / window.CentralPlan / window.toast at CALL time (all load before this runs).
@@ -70,11 +76,22 @@
   // ============================ state ============================
   var CS = {
     client: 'all', statusView: 'live', health: 'all',   // live-first default
-    sortKey: null, sortDir: 1,           // null = grouped; else flat global ranking
+    sortKey: null, sortDir: 1,           // null = natural order; sorting stays INSIDE groups when grouped
+    q: '', qRaw: '', mgr: 'all',         // search + Manager filter (ported from Register, Phase 2)
+    group: 'advertiser',                 // 'advertiser' (agency sections + client accordion) | 'flat' (ported)
+    // column-group toggles (ported from Register). Core is always on (locked chip).
+    // ALL groups default ON so the merged Central first paints with today's full column set.
+    colGroups: { pacing: true, budget: true, margin: true, perf: true, links: true },
+    openDetails: {},                     // per-campaign expanded detail rows (ported from Register)
     campaigns: null, overrides: null, lastSynced: null, highlightMissing: null,
     openClients: {}                       // client-accordion: which client groups are expanded (default: none)
   };
   var LIVE_STATUSES = ['Active', 'Paused', 'Draft'];   // "Live" = day-to-day working set
+  // calc engine: browser global when loaded as a classic script, require() under Node tests
+  function getCalc() {
+    if (typeof window !== 'undefined' && window.CentralCalc) return window.CentralCalc;
+    try { return require('./calc'); } catch (e) { return null; }
+  }
 
   // SINGLE NAME-TRANSLATION POINT — the ONLY place grid (build_grid_data.py) field
   // names are converted to calc.js names. Seed rows are already calc-shaped (pass
@@ -103,7 +120,8 @@
   // needs-input tint + inline edit; the row's missing count is over this set. NEVER
   // includes [DERIVED] (their — is correct output) or [API] (that is the sync's job).
   var NEEDS_INPUT = ['managedBy', 'channel', 'status', 'platformMargin', 'jobNumber', 'forecastCpm',
-    'keyKpi', 'totalBudget', 'budgetGross', 'startDate', 'endDate', 'adServingCost', 'notes', 'spendMult'];
+    'keyKpi', 'totalBudget', 'budgetGross', 'startDate', 'endDate', 'adServingCost', 'notes', 'spendMult',
+    'name'];   // Phase 3: unnamed-but-real rows repairable inline (fill-empty in the Campaign cell)
   function isEmpty(v) { return v == null || v === ''; }
   function needsInput(field, value) { return NEEDS_INPUT.indexOf(field) >= 0 && isEmpty(value); }
 
@@ -122,6 +140,9 @@
     var src = getSourceRows();
     var calc = window.CentralCalc;
     var ov = CS.overrides || {};
+    // Pacing "as of" = the DB's newest lastSyncedAt (falling back to now), the SAME
+    // anchor Pulse/Register use — so all tabs agree to the digit (Phase 1).
+    var asOf = (calc && calc.latestSyncAsOf && calc.latestSyncAsOf(src)) || new Date();
     return src.map(function (raw) {
       var r = Object.assign({}, mapGridRowToCentral(raw));
       // datetime-in-campaign-name sheet quirk → always a clean string, never a Date/serial
@@ -132,7 +153,7 @@
       r._id = id; r._src = {};
       var o = ov[id] || {};
       for (var f in o) if (Object.prototype.hasOwnProperty.call(o, f)) r._src[f] = o[f];   // provenance only
-      r._d = calc ? calc.computeRow(r, new Date()) : {};
+      r._d = calc ? calc.computeRow(r, asOf) : {};
       r._missing = NEEDS_INPUT.filter(function (f) { return isEmpty(r[f]); });
       // unbilled-basis: spend present but no per-channel billing multiplier to certify the
       // client-spend basis. Fires widely BY DESIGN until spendMult is populated per channel.
@@ -144,6 +165,11 @@
 
   // ============================ columns ============================
   // type: 'config' | 'api' | 'derived'. get() = sort key (numbers or lowercased strings).
+  // g = column GROUP (ported from Register): 'core' is always shown; the other five
+  // toggle from the Columns bar. Columns are ordered group-contiguous (core → pacing →
+  // budget → margin → perf → links) so a toggled group appears/disappears as one block.
+  var COL_GROUPS = [['pacing', 'Pacing'], ['budget', 'Budget'], ['margin', 'Margin'], ['perf', 'Performance'], ['links', 'Links']];
+  var GROUP_LABEL = { core: 'Core', pacing: 'Pacing', budget: 'Budget', margin: 'Margin', perf: 'Performance', links: 'Links & Notes' };
   function srcIcon(r, field) {
     var s = r._src[field];
     if (!s || s.source !== 'plan') return '';
@@ -159,8 +185,9 @@
   var HEALTH_LABEL = { winner: 'Winner', watch: 'Watch', steady: 'Steady' };
 
   var COLS = [
+    // ---- CORE (always shown; the locked chip) ----
     {
-      id: 'campaign', label: 'Campaign', type: 'config', sticky: 1, get: function (r) { return (r.name || '').toLowerCase(); },
+      id: 'campaign', label: 'Campaign', type: 'config', g: 'core', sticky: 1, hint: 'Campaign name and its goal', get: function (r) { return (r.name || '').toLowerCase(); },
       cell: function (r, grouped) {
         var client = grouped ? '' : '<div class="ct-cl">' + esc(r.client || '') + '</div>';
         var badges = '';
@@ -171,17 +198,46 @@
         var act = r._archived
           ? '<span class="ct-arch-tag">archived</span>'
           : '<button class="ct-arch" data-archive="' + esc(r._id) + '" title="Archive (keeps it as history under the Archived filter — never deleted)">archive</button>';
-        return client + '<div class="ct-nm">' + esc(r.name || '—') + act + '</div>' + (r.objective ? '<div class="ct-sub">' + esc(r.objective) + '</div>' : '') + (badges ? '<div class="ct-badges">' + badges + '</div>' : '');
+        // expand caret (ported from Register): toggles the full-detail row for this campaign
+        var open = !!CS.openDetails[r._id];
+        var caret = '<button class="ct-exp' + (open ? ' open' : '') + '" data-detail="' + esc(r._id) + '" aria-expanded="' + open + '" title="Show full detail for this campaign">&#9654;</button>';
+        // unnamed-but-real row → fill-empty affordance (Phase 3): type the name in place
+        var nm = isEmpty(r.name) ? editableEmptyCell(r, 'name', 'add name') : esc(r.name);
+        return client + '<div class="ct-nm">' + caret + nm + act + '</div>' + (r.objective ? '<div class="ct-sub">' + esc(r.objective) + '</div>' : '') + (badges ? '<div class="ct-badges">' + badges + '</div>' : '');
       }
     },
-    { id: 'channel', label: 'Channel', type: 'config', get: function (r) { return (r.channel || '').toLowerCase(); }, editable: 'channel', cell: function (r) { return channelChip(r.channel) + srcIcon(r, 'channel'); } },
-    { id: 'managedBy', label: 'Managed By', type: 'config', get: function (r) { return (r.managedBy || '').toLowerCase(); }, editable: 'managedBy', cell: function (r) { return (r.managedBy ? '<span class="ct-mgr">' + esc(r.managedBy) + '</span>' : DASH) + srcIcon(r, 'managedBy'); } },
-    { id: 'status', label: 'Status', type: 'config', get: function (r) { return (r.status || '').toLowerCase(); }, editable: 'status', cell: function (r) { return '<span class="ct-pill ct-st-' + statusCls(r.status) + '">' + esc(r.status || '—') + '</span>'; } },
-    { id: 'mediaSpend', label: 'Media Spend', type: 'api', num: 1, get: function (r) { return r.mediaSpend; }, cell: function (r) { return '<span class="ct-api-cell">' + money(r.mediaSpend) + metricsTag(r) + '</span>'; } },
-    { id: 'clientSpend', label: 'Client Spend', type: 'api', num: 1, get: function (r) { return r.clientSpend; }, cell: function (r) { return '<span class="ct-api-cell">' + money(r.clientSpend) + '</span>'; } },
-    { id: 'platformMargin', label: 'Plat. Margin', type: 'config', num: 1, get: function (r) { return r.platformMargin; }, cell: function (r) { return (r.platformMargin == null ? DASH : Math.round(r.platformMargin * 100) + '%') + srcIcon(r, 'platformMargin'); } },
+    { id: 'channel', label: 'Channel', type: 'config', g: 'core', hint: 'Ad platform, e.g. Meta, Google, Trade Desk', get: function (r) { return (r.channel || '').toLowerCase(); }, editable: 'channel', cell: function (r) { return channelChip(r.channel) + srcIcon(r, 'channel'); } },
+    { id: 'managedBy', label: 'Managed By', type: 'config', g: 'core', hint: 'Team member managing it', get: function (r) { return (r.managedBy || '').toLowerCase(); }, editable: 'managedBy', cell: function (r) { return (r.managedBy ? '<span class="ct-mgr">' + esc(r.managedBy) + '</span>' : DASH) + srcIcon(r, 'managedBy'); } },
+    { id: 'status', label: 'Status', type: 'config', g: 'core', hint: 'Active, Paused, Not Active, Ended or Draft', get: function (r) { return (r.status || '').toLowerCase(); }, editable: 'status', cell: function (r) { return '<span class="ct-pill ct-st-' + statusCls(r.status) + '">' + esc(r.status || '—') + '</span>'; } },
+    { id: 'startDate', label: 'Start', type: 'config', g: 'core', hint: 'Campaign start date', get: function (r) { return r.startDate || ''; }, cell: function (r) { return dateDMY(r.startDate); } },
+    { id: 'endDate', label: 'End', type: 'config', g: 'core', hint: 'Campaign end date', get: function (r) { return r.endDate || ''; }, cell: function (r) { return dateDMY(r.endDate); } },
+    // ---- PACING ----
+    { id: 'pctBudgetSpent', label: '% Spent', type: 'derived', num: 1, g: 'pacing', hint: 'Share of the budget spent so far', get: function (r) { return r._d.pctBudgetSpent; }, cell: function (r) { return pct1(r._d.pctBudgetSpent); } },
+    { id: 'pctFlightElapsed', label: '% Elapsed', type: 'derived', num: 1, g: 'pacing', hint: 'Share of the campaign run that has passed', get: function (r) { return r._d.pctFlightElapsed; }, cell: function (r) { return pct1(r._d.pctFlightElapsed); } },
     {
-      id: 'campaignMargin', label: 'Camp. Margin', type: 'derived', num: 1, get: function (r) { return r._d.campaignMargin; },
+      id: 'pacingStatus', label: 'Pacing', type: 'derived', g: 'pacing', hint: 'Is spend on schedule, too fast or too slow. Early = under 15% of flight elapsed, deliberately not judged', get: function (r) { return r._d.pacingStatus || ''; },
+      // pill + mini pace bar (bar ported from Register): fill = % spent, marker = % elapsed
+      cell: function (r) {
+        var p = r._d.pacingStatus;
+        if (!p || p === '-') return DASH;
+        var lc = p.toLowerCase();
+        var sp = r._d.pctBudgetSpent != null ? Math.min(100, r._d.pctBudgetSpent * 100) : 0;
+        var el = r._d.pctFlightElapsed != null ? Math.min(100, r._d.pctFlightElapsed * 100) : null;
+        return '<span class="ct-pacecell"><span class="ct-pill ct-pace-' + lc + '">' + p + '</span>' +
+          '<span class="ct-pacebar"><i class="ct-pb-' + lc + '" style="width:' + sp + '%"></i>' + (el != null ? '<u style="left:' + el + '%"></u>' : '') + '</span></span>';
+      }
+    },
+    { id: 'health', label: 'Health', type: 'derived', g: 'pacing', hint: 'Portfolio health from margin + pacing + CPM', get: function (r) { return ({ watch: 0, steady: 1, winner: 2 })[r._d.health]; }, cell: function (r) { var h = r._d.health; return h ? '<span class="ct-pill ct-h-' + h + '">' + HEALTH_LABEL[h] + '</span>' : DASH; } },
+    // ---- BUDGET ----
+    { id: 'mediaSpend', label: 'Media Spend', type: 'api', num: 1, g: 'budget', hint: 'Spend on the ads themselves (media cost)', get: function (r) { return r.mediaSpend; }, cell: function (r) { return '<span class="ct-api-cell">' + money(r.mediaSpend) + metricsTag(r) + '</span>'; } },
+    { id: 'clientSpend', label: 'Client Spend', type: 'api', num: 1, g: 'budget', hint: 'Amount billed to the client so far', get: function (r) { return r.clientSpend; }, cell: function (r) { return '<span class="ct-api-cell">' + money(r.clientSpend) + '</span>'; } },
+    { id: 'totalBudget', label: 'Total Budget', type: 'config', num: 1, g: 'budget', hint: 'Total budget the client is paying', get: function (r) { return r.totalBudget; }, cell: function (r) { return money(r.totalBudget) + srcIcon(r, 'totalBudget'); } },
+    { id: 'budgetGross', label: 'Budget Gross', type: 'config', num: 1, g: 'budget', hint: 'Total budget including fees (gross) — the client-billed budget', get: function (r) { return r.budgetGross; }, cell: function (r) { return money(r.budgetGross) + srcIcon(r, 'budgetGross'); } },
+    { id: 'budgetRemaining', label: 'Remaining', type: 'derived', num: 1, g: 'budget', hint: 'Budget left to spend', get: function (r) { return r._d.budgetRemaining; }, cell: function (r) { return money(r._d.budgetRemaining); } },
+    // ---- MARGIN ----
+    { id: 'platformMargin', label: 'Plat. Margin', type: 'config', num: 1, g: 'margin', hint: 'Profit margin set on the ad-platform spend (used for TTD/DV360 profit-at-risk)', get: function (r) { return r.platformMargin; }, cell: function (r) { return (r.platformMargin == null ? DASH : Math.round(r.platformMargin * 100) + '%') + srcIcon(r, 'platformMargin'); } },
+    {
+      id: 'campaignMargin', label: 'Camp. Margin', type: 'derived', num: 1, g: 'margin', hint: 'Realized profit margin on the whole campaign', get: function (r) { return r._d.campaignMargin; },
       cell: function (r) {
         var band = r._d.marginBand;
         var val = r._d.campaignMargin == null ? DASH : Math.round(r._d.campaignMargin * 100) + '%';
@@ -193,22 +249,28 @@
         return '<span class="ct-margin ' + (band ? 'ct-band-' + band : '') + '" title="' + esc(marginTip(r)) + '">' + val + '</span>' + info;
       }
     },
-    { id: 'cpmPerformance', label: 'CPM Perf', type: 'derived', num: 1, get: function (r) { return r._d.cpmPerformance; }, cell: function (r) { return r._d.cpmPerformance == null ? DASH : '$' + r._d.cpmPerformance.toFixed(2); } },
-    { id: 'forecastCpm', label: 'Forecast CPM', type: 'config', num: 1, get: function (r) { return r.forecastCpm; }, cell: function (r) { return (r.forecastCpm == null ? DASH : '$' + Number(r.forecastCpm).toFixed(2)) + srcIcon(r, 'forecastCpm'); } },
-    { id: 'pctBudgetSpent', label: '% Spent', type: 'derived', num: 1, get: function (r) { return r._d.pctBudgetSpent; }, cell: function (r) { return pct1(r._d.pctBudgetSpent); } },
-    { id: 'pctFlightElapsed', label: '% Elapsed', type: 'derived', num: 1, get: function (r) { return r._d.pctFlightElapsed; }, cell: function (r) { return pct1(r._d.pctFlightElapsed); } },
-    { id: 'pacingStatus', label: 'Pacing', type: 'derived', get: function (r) { return r._d.pacingStatus || ''; }, cell: function (r) { var p = r._d.pacingStatus; return p && p !== '-' ? '<span class="ct-pill ct-pace-' + p.toLowerCase() + '">' + p + '</span>' : DASH; } },
-    { id: 'health', label: 'Health', type: 'derived', get: function (r) { return ({ watch: 0, steady: 1, winner: 2 })[r._d.health]; }, cell: function (r) { var h = r._d.health; return h ? '<span class="ct-pill ct-h-' + h + '">' + HEALTH_LABEL[h] + '</span>' : DASH; } },
-    // ---- overflow columns (horizontal scroll reveals the fuller set) ----
-    { id: 'jobNumber', label: 'Job #', type: 'config', get: function (r) { return (r.jobNumber || '').toLowerCase(); }, cell: function (r) { return (r.jobNumber ? esc(r.jobNumber) : DASH) + srcIcon(r, 'jobNumber'); } },
-    { id: 'totalBudget', label: 'Total Budget', type: 'config', num: 1, get: function (r) { return r.totalBudget; }, cell: function (r) { return money(r.totalBudget) + srcIcon(r, 'totalBudget'); } },
-    { id: 'budgetRemaining', label: 'Remaining', type: 'derived', num: 1, get: function (r) { return r._d.budgetRemaining; }, cell: function (r) { return money(r._d.budgetRemaining); } },
-    { id: 'startDate', label: 'Start', type: 'config', get: function (r) { return r.startDate || ''; }, cell: function (r) { return dateDMY(r.startDate); } },
-    { id: 'endDate', label: 'End', type: 'config', get: function (r) { return r.endDate || ''; }, cell: function (r) { return dateDMY(r.endDate); } },
-    { id: 'keyKpi', label: 'Key KPI', type: 'config', get: function (r) { return (r.keyKpi || '').toLowerCase(); }, cell: function (r) { return editableTextCell(r, 'keyKpi') + srcIcon(r, 'keyKpi'); } },
-    { id: 'kpiPerformance', label: 'KPI Perf', type: 'config', get: function (r) { return (r.kpiPerformance || '').toLowerCase(); }, cell: function (r) { var v = kpiVerdict(r.keyKpi, r.kpiPerformance); return editableTextCell(r, 'kpiPerformance', v === 'beat' ? 'ct-kpi-beat' : v === 'miss' ? 'ct-kpi-miss' : '') + srcIcon(r, 'kpiPerformance'); } },
-    { id: 'notes', label: 'Notes', type: 'config', get: function (r) { return (r.notes || '').toLowerCase(); }, cell: function (r) { return r.notes ? esc(r.notes) : DASH; } }
+    {
+      id: 'spendMult', label: 'Spend Mult', type: 'config', num: 1, g: 'margin',
+      hint: 'Billing multiplier: on sync, client spend = media spend x this (1.00 = billed at cost). Check the feed cost basis before setting - a client-billed feed needs 1 (see PHASE3_CLOUDFLARE_REPORT.md)',
+      get: function (r) { var n = parseFloat(r.spendMult); return isNaN(n) ? null : n; },
+      cell: function (r) { return spendMultCell(r) + srcIcon(r, 'spendMult'); }
+    },
+    { id: 'adServing', label: 'Ad-Serv Rate', type: 'config', num: 1, g: 'margin', hint: 'Ad-serving rate ($ per 1,000 impressions)', get: function (r) { var n = parseFloat(r.adServing); return isNaN(n) ? null : n; }, cell: function (r) { return (r.adServing == null || r.adServing === '' ? DASH : '$' + esc(String(r.adServing))) + srcIcon(r, 'adServing'); } },
+    { id: 'adServingCost', label: 'Ad-Serv Cost', type: 'derived', num: 1, g: 'margin', hint: 'Total ad-serving cost (rate × impressions), computed — the sheet cost column is discarded', get: function (r) { return r._d.adServingCost; }, cell: function (r) { return money(r._d.adServingCost); } },
+    // ---- PERFORMANCE ----
+    { id: 'cpmPerformance', label: 'CPM Perf', type: 'derived', num: 1, g: 'perf', hint: 'Actual cost per 1,000 impressions (media-cost basis, same basis as Forecast CPM)', get: function (r) { return r._d.cpmPerformance; }, cell: function (r) { return r._d.cpmPerformance == null ? DASH : '$' + r._d.cpmPerformance.toFixed(2); } },
+    { id: 'forecastCpm', label: 'Forecast CPM', type: 'config', num: 1, g: 'perf', hint: 'Forecast cost per 1,000 impressions', get: function (r) { return r.forecastCpm; }, cell: function (r) { return (r.forecastCpm == null ? DASH : '$' + Number(r.forecastCpm).toFixed(2)) + srcIcon(r, 'forecastCpm'); } },
+    { id: 'keyKpi', label: 'Key KPI', type: 'config', g: 'perf', hint: 'The main goal metric for this campaign', get: function (r) { return (r.keyKpi || '').toLowerCase(); }, cell: function (r) { return editableTextCell(r, 'keyKpi') + srcIcon(r, 'keyKpi'); } },
+    { id: 'kpiPerformance', label: 'KPI Perf', type: 'config', g: 'perf', hint: 'Actual result vs the goal', get: function (r) { return (r.kpiPerformance || '').toLowerCase(); }, cell: function (r) { var v = kpiVerdict(r.keyKpi, r.kpiPerformance); return editableTextCell(r, 'kpiPerformance', v === 'beat' ? 'ct-kpi-beat' : v === 'miss' ? 'ct-kpi-miss' : '') + srcIcon(r, 'kpiPerformance'); } },
+    { id: 'impressions', label: 'Impressions', type: 'api', num: 1, g: 'perf', hint: 'Number of times the ads were shown', get: function (r) { return r.impressions; }, cell: function (r) { return r.impressions == null ? DASH : Number(r.impressions).toLocaleString('en-US'); } },
+    // ---- LINKS & NOTES ----
+    { id: 'jobNumber', label: 'Job #', type: 'config', g: 'links', hint: 'Internal job number', get: function (r) { return (r.jobNumber || '').toLowerCase(); }, cell: function (r) { return (r.jobNumber ? esc(r.jobNumber) : DASH) + srcIcon(r, 'jobNumber'); } },
+    { id: 'campaignLink', label: 'Link', type: 'config', g: 'links', hint: 'Link to the campaign in the ad platform', get: function (r) { return r.campaignLink ? 1 : 0; }, cell: function (r) { return r.campaignLink ? '<a class="ct-link" href="' + esc(r.campaignLink) + '" target="_blank" rel="noopener" title="Open in the ad platform"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6"/><path d="M10 14 21 3"/></svg></a>' : DASH; } },
+    { id: 'nextReportingDue', label: 'Next Report', type: 'config', g: 'links', hint: 'Date of the next client report', get: function (r) { return r.nextReportingDue || ''; }, cell: function (r) { return dateDMY(r.nextReportingDue); } },
+    { id: 'notes', label: 'Notes', type: 'config', g: 'links', hint: 'Notes on this campaign', get: function (r) { return (r.notes || '').toLowerCase(); }, cell: function (r) { return r.notes ? esc(r.notes) : DASH; } }
   ];
+  // the visible column set = core + every toggled-on group (ported from Register)
+  function activeCols() { return COLS.filter(function (c) { return c.g === 'core' || CS.colGroups[c.g]; }); }
   var EDIT_COLS = ['channel', 'managedBy', 'status'];  // columns rendered as dropdowns
   function statusCls(s) { s = (s || '').toLowerCase(); if (s.indexOf('not active') >= 0) return 'notactive'; return s.indexOf('active') >= 0 ? 'active' : s.indexOf('paus') >= 0 ? 'paused' : s.indexOf('end') >= 0 ? 'ended' : 'draft'; }
   function isLive(r) { return r.metricsSource === 'bq' || r.metricsSource === 'BQ'; }
@@ -219,7 +281,8 @@
   }
 
   // ============================ filtering / sorting ============================
-  // Composes: status view (live-first) + archived + client + health.
+  // Composes: status view (live-first) + archived + client + health + manager + search
+  // (manager + search ported from Register/the top bar, Phase 2).
   function filtered(rows) {
     return rows.filter(function (r) {
       var sv = CS.statusView;
@@ -229,6 +292,12 @@
       else if (sv !== 'all' && sv !== 'archived') { if (r.status !== sv) return false; }
       if (CS.client !== 'all' && r.client !== CS.client) return false;
       if (CS.health !== 'all' && r._d.health !== CS.health) return false;
+      if (CS.mgr !== 'all' && r.managedBy !== CS.mgr) return false;
+      if (CS.q) {
+        var hay = ((r.name || '') + ' ' + (r.client || '') + ' ' + (r.channel || '') + ' ' + (r.objective || '') + ' ' +
+          (r.managedBy || '') + ' ' + (r.keyKpi || '') + ' ' + (r.jobNumber || '') + ' ' + (r.notes || '')).toLowerCase();
+        if (hay.indexOf(CS.q) < 0) return false;
+      }
       return true;
     });
   }
@@ -326,6 +395,9 @@
     var clients = [];
     working.forEach(function (r) { if (r.client && clients.indexOf(r.client) < 0) clients.push(r.client); });
     clients.sort();
+    var mgrs = [];
+    working.forEach(function (r) { if (r.managedBy && mgrs.indexOf(r.managedBy) < 0) mgrs.push(r.managedBy); });
+    mgrs.sort();
 
     // live-first counts
     var liveN = working.filter(function (r) { return LIVE_STATUSES.indexOf(r.status) >= 0; }).length;
@@ -360,15 +432,31 @@
     html += '<div class="ct-chipset ct-statusview" id="ct-fstatus">' + svChips.map(function (c) { return '<button class="ct-chip' + (CS.statusView === c[0] ? ' on' : '') + '" data-v="' + esc(c[0]) + '">' + esc(c[1]) + ' <span class="ct-chipn">' + c[2] + '</span></button>'; }).join('') + '</div>';
     html += '<label class="ct-fld"><span>Client</span><select id="ct-fclient" class="ct-select"><option value="all"' + (CS.client === 'all' ? ' selected' : '') + '>All clients</option>' +
       clients.map(function (c) { return '<option value="' + esc(c) + '"' + (CS.client === c ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></label>';
+    // Manager filter + campaign search (ported from Register / the old top bar)
+    html += '<label class="ct-fld"><span>Manager</span><select id="ct-fmgr" class="ct-select"><option value="all"' + (CS.mgr === 'all' ? ' selected' : '') + '>All mgrs</option>' +
+      mgrs.map(function (m) { return '<option value="' + esc(m) + '"' + (CS.mgr === m ? ' selected' : '') + '>' + esc(m) + '</option>'; }).join('') + '</select></label>';
+    html += '<span class="ct-search"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><input id="ct-q" type="search" placeholder="Search campaigns" autocomplete="off" value="' + esc(CS.qRaw || '') + '"></span>';
     html += '</div>';
-    // table
-    var grouped = !CS.sortKey;
+    // column-group bar + grouping toggle (ported from Register, Phase 2)
+    html += '<div class="ct-colbar"><span class="ct-fld"><span>Columns</span></span>' +
+      '<button class="ct-colchip locked" disabled title="Campaign, channel, manager, status and dates are always shown">Core</button>' +
+      COL_GROUPS.map(function (g) { return '<button class="ct-colchip" data-colg="' + g[0] + '" aria-pressed="' + !!CS.colGroups[g[0]] + '">' + g[1] + '</button>'; }).join('') +
+      '<div class="ct-chipset" id="ct-group" role="group" aria-label="Grouping" style="margin-left:10px">' +
+      '<button class="ct-chip' + (CS.group === 'advertiser' ? ' on' : '') + '" data-v="advertiser" title="Agency sections with one collapsible summary row per client">Group: advertiser</button>' +
+      '<button class="ct-chip' + (CS.group === 'flat' ? ' on' : '') + '" data-v="flat" title="One flat list of campaign rows, sortable across all clients">Flat</button></div></div>';
+    // table — grouped is now the explicit Group toggle (was: implicit "no sort key");
+    // sorting inside advertiser mode ranks rows WITHIN each client (Register behavior).
+    var grouped = CS.group === 'advertiser';
+    var cols = activeCols();
+    var sortCol = COLS.find(function (c) { return c.id === CS.sortKey; });
     html += '<div class="card ct-tablecard"><div class="ct-scroll"><table class="ct-table"><thead><tr>' +
-      COLS.map(function (c) {
+      cols.map(function (c) {
         var active = c.id === CS.sortKey;
-        return '<th class="ct-oh-' + c.type + (c.num ? ' r' : '') + (c.sticky ? ' ct-sticky' : '') + '" data-k="' + c.id + '" data-active="' + active + '">' + esc(c.label) + '<span class="ct-arr">' + (active ? (CS.sortDir > 0 ? '▲' : '▼') : '↕') + '</span></th>';
+        return '<th class="ct-oh-' + c.type + (c.num ? ' r' : '') + (c.sticky ? ' ct-sticky' : '') + '" data-k="' + c.id + '" data-active="' + active + '"' + (c.hint ? ' title="' + esc(c.hint) + '"' : '') + '>' + esc(c.label) + '<span class="ct-arr">' + (active ? (CS.sortDir > 0 ? '▲' : '▼') : '↕') + '</span></th>';
       }).join('') + '</tr></thead><tbody>' + bodyHtml(rows, grouped) + '</tbody></table></div>' +
-      '<div class="ct-foot">' + rows.length + ' campaign' + (rows.length === 1 ? '' : 's') + (grouped ? ' · grouped by agency & client' : ' · sorted by ' + (COLS.find(function (c) { return c.id === CS.sortKey; }) || {}).label) + '</div></div>';
+      '<div class="ct-foot">' + rows.length + ' campaign' + (rows.length === 1 ? '' : 's') +
+      (grouped ? ' · grouped by agency & client' : ' · flat') +
+      (sortCol ? ' · sorted by ' + sortCol.label + (grouped ? ' (within each client)' : '') : '') + '</div></div>';
     // dropzone container (plan reader mounts here)
     html += '<div id="ct-dropzone-host"></div>';
     html += '</div>';
@@ -377,6 +465,12 @@
     CS._rows = all;   // exposed for the plan panel's conflict detection
     wire(mount);
     mountDropzone();
+    // typing in the search box repaints the whole tab — give the input its focus back
+    if (CS._qFocus) {
+      CS._qFocus = false;
+      var qEl = mount.querySelector('#ct-q');
+      if (qEl) { qEl.focus(); var L = qEl.value.length; try { qEl.setSelectionRange(L, L); } catch (e) { /* non-text input state */ } }
+    }
   }
 
   // ---- client-accordion helpers ----
@@ -393,10 +487,18 @@
 
   // Collapsible per-client summary row: chevron + name + count (+ total impressions), and
   // aggregated totals in the additive columns; "—" everywhere aggregation is meaningless.
+  // Phase 2 (ported from Register's advertiser roll-up): the pacing columns show the
+  // client-level % spent (Σ client spend / Σ effective budget) and an aggregate pace dot.
   function clientSummaryRow(ag, cl, clientRows) {
     var key = clientKey(ag, cl), open = !!CS.openClients[key];
     var impTot = sumField(clientRows, 'impressions');
-    var tds = COLS.map(function (c) {
+    var spTot = sumField(clientRows, 'clientSpend'), ebTot = sumEffBudget(clientRows);
+    var deliv = (spTot != null && ebTot != null && ebTot !== 0) ? spTot / ebTot : null;
+    var els = clientRows.map(function (r) { return r._d.pctFlightElapsed; }).filter(function (v) { return v != null; });
+    var avgEl = els.length ? els.reduce(function (a, b) { return a + b; }, 0) / els.length : null;
+    var calc = getCalc();
+    var pace = calc ? calc.paceBucket(deliv, avgEl) : 'none';
+    var tds = activeCols().map(function (c) {
       var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '');
       var inner;
       if (c.id === 'campaign') {
@@ -409,6 +511,12 @@
       } else if (c.id === 'totalBudget') {
         var eb = sumEffBudget(clientRows);           // Σ effective budget (budgetGross||totalBudget)
         inner = eb == null ? DASH : '<b class="ct-sumval">' + money(eb) + '</b>';
+      } else if (c.id === 'pctBudgetSpent') {
+        inner = deliv == null ? DASH : '<b class="ct-sumval">' + pct1(deliv) + '</b>';
+      } else if (c.id === 'pacingStatus') {
+        inner = '<span class="ct-pdot ct-pd-' + pace + '" title="Client aggregate pace: ' + esc(pace) + '"></span>';
+      } else if (c.id === 'impressions') {
+        inner = impTot == null ? DASH : '<b class="ct-sumval">' + compactNum(impTot) + '</b>';
       } else if (SUM_COLS[c.id]) {
         var s = sumField(clientRows, c.id);
         inner = s == null ? DASH : '<b class="ct-sumval">' + money(s) + '</b>';
@@ -419,7 +527,9 @@
   }
 
   function bodyHtml(rows, grouped) {
-    if (!rows.length) return '<tr><td colspan="' + COLS.length + '"><div class="ct-empty">No campaigns match these filters.</div></td></tr>';
+    var ncol = activeCols().length;
+    if (!rows.length) return '<tr><td colspan="' + ncol + '"><div class="ct-empty">No campaigns match these filters.</div></td></tr>';
+    // flat (the Register "Flat" toggle): one global list, sorted when a sort key is set
     if (!grouped) return sortRows(rows).map(function (r) { return rowHtml(r, false); }).join('');
     // grouped: agency sections (present agencies, preferred order, CASE-INSENSITIVE so
     // the real DATA's UPPERCASE agencies and the seed's Title-Case both group correctly)
@@ -432,15 +542,16 @@
       var inAg = rows.filter(function (r) { return r.section === ag; });
       if (!inAg.length) return;
       var activeN = inAg.filter(function (r) { return (r.status || '').toLowerCase() === 'active'; }).length;
-      html += '<tr class="ct-section"><td colspan="' + COLS.length + '">' + esc(String(ag || '—').toUpperCase()) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
+      html += '<tr class="ct-section"><td colspan="' + ncol + '">' + esc(String(ag || '—').toUpperCase()) + ' <span class="ct-secn">' + activeN + ' active · ' + inAg.length + ' total</span></td></tr>';
       var byClient = {}; var clientOrder = [];
       inAg.forEach(function (r) { if (!byClient[r.client]) { byClient[r.client] = []; clientOrder.push(r.client); } byClient[r.client].push(r); });
       // collapsed BY DEFAULT: one summary row per client; the individual campaign-channel
       // rows are emitted as hidden children, revealed when the client is expanded.
+      // A sort key ranks rows WITHIN each client (Register's grouped-sort behavior).
       clientOrder.forEach(function (cl) {
         var key = clientKey(ag, cl);
         html += clientSummaryRow(ag, cl, byClient[cl]);
-        byClient[cl].forEach(function (r) { html += rowHtml(r, true, key); });
+        sortRows(byClient[cl]).forEach(function (r) { html += rowHtml(r, true, key); });
       });
     });
     return html;
@@ -450,22 +561,59 @@
     var hlRow = CS.highlightMissing === r._id;
     var childCls = '', childAttr = '';
     if (childKey != null) { childCls = ' ct-childrow' + (CS.openClients[childKey] ? '' : ' ct-hidden'); childAttr = ' data-cchild="' + esc(childKey) + '"'; }
-    return '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + childCls + '"' + childAttr + ' data-id="' + esc(r._id) + '">' + COLS.map(function (c) {
-      var needs = needsInput(c.id, r[c.id]);        // empty manual [CONFIG] field → needs input
+    var cols = activeCols();
+    var tr = '<tr class="ct-row' + (r._archived ? ' ct-archived' : '') + childCls + '"' + childAttr + ' data-id="' + esc(r._id) + '">' + cols.map(function (c) {
+      // empty manual [CONFIG] field → needs input. Guarded to CONFIG columns so a same-named
+      // derived column (adServingCost) can never render as editable. The campaign column's
+      // needs-state keys on 'name' (its cell renders the fill-empty affordance itself).
+      var needs = c.type === 'config' && (c.id === 'campaign' ? needsInput('name', r.name) : needsInput(c.id, r[c.id]));
       var cls = (c.num ? 'r ' : '') + (c.sticky ? 'ct-sticky ' : '') + (c.type === 'api' ? 'ct-api-col ' : '');
       if (needs) cls += 'ct-needs ';                 // faint amber to-do tint (never on derived/api)
       if (hlRow && needs) cls += 'ct-needs-focus ';
       var inner;
       if (c.editable && EDIT_COLS.indexOf(c.editable) >= 0) inner = editSelect(r, c.editable);          // dropdown (empty shows —, tinted)
-      else if (needs) inner = editableEmptyCell(r, c.id);                                                // inline-fill an empty manual cell
+      else if (needs && c.id !== 'campaign') inner = editableEmptyCell(r, c.id);                         // inline-fill an empty manual cell
       else inner = (c.id === 'campaign') ? c.cell(r, grouped) : c.cell(r);
       return '<td class="' + cls.trim() + '"' + (needs ? ' title="needs input"' : '') + '>' + inner + '</td>';
     }).join('') + '</tr>';
+    // persisted detail expansion (ported from Register): re-emit the open detail row on repaint
+    if (CS.openDetails[r._id]) tr += detailRowHtml(r, cols.length, childKey);
+    return tr;
+  }
+
+  // Full-detail row (ported from Register): every column across ALL groups — including the
+  // ones toggled off — as a read-only field grid, grouped under the column-group headings.
+  function detailVal(r, c) {
+    switch (c.id) {
+      case 'campaign': return esc(r.name || '—');
+      case 'channel': return channelChip(r.channel);
+      case 'managedBy': return r.managedBy ? esc(r.managedBy) : DASH;
+      case 'status': return '<span class="ct-pill ct-st-' + statusCls(r.status) + '">' + esc(r.status || '—') + '</span>';
+      case 'keyKpi': return (r.keyKpi == null || r.keyKpi === '') ? DASH : esc(String(r.keyKpi));
+      case 'kpiPerformance': return (r.kpiPerformance == null || r.kpiPerformance === '' || isKpiError(r.kpiPerformance)) ? DASH : esc(String(r.kpiPerformance));
+      case 'spendMult': { var sm = parseFloat(r.spendMult); return isNaN(sm) ? DASH : esc(sm.toFixed(2)); }
+      default: return c.cell(r);   // remaining cells are already non-interactive renderings
+    }
+  }
+  function detailRowHtml(r, ncol, childKey) {
+    var childCls = '', childAttr = '';
+    if (childKey != null) { childCls = ' ct-childrow' + (CS.openClients[childKey] ? '' : ' ct-hidden'); childAttr = ' data-cchild="' + esc(childKey) + '"'; }
+    var inner = '<div class="ct-detail-inner">';
+    var order = ['core', 'pacing', 'budget', 'margin', 'perf', 'links'];
+    order.forEach(function (g) {
+      var gc = COLS.filter(function (c) { return c.g === g && c.id !== 'campaign'; });
+      if (!gc.length) return;
+      inner += '<div class="ct-dgrp">' + esc(GROUP_LABEL[g]) + '</div>';
+      if (g === 'core') inner += '<div class="ct-field"><div class="k">Objective</div><div class="v">' + (r.objective ? esc(r.objective) : DASH) + '</div></div>';
+      gc.forEach(function (c) { inner += '<div class="ct-field"><div class="k">' + esc(c.label) + '</div><div class="v">' + detailVal(r, c) + '</div></div>'; });
+    });
+    inner += '</div>';
+    return '<tr class="ct-detail' + childCls + '"' + childAttr + ' data-detailrow="' + esc(r._id) + '"><td colspan="' + ncol + '">' + inner + '</td></tr>';
   }
   // empty manual text/number cell → contenteditable (reuses brain-historical's pattern);
   // blur/Enter saves via the whitelisted field route. Placeholder shown while empty.
-  function editableEmptyCell(r, field) {
-    return '<span class="ct-ce" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="' + field + '" data-ph="add"></span>';
+  function editableEmptyCell(r, field, ph) {
+    return '<span class="ct-ce" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="' + field + '" data-ph="' + esc(ph || 'add') + '"></span>';
   }
   // always-editable free-text CONFIG cell (KPI columns): shows the value + edits inline.
   // A sheet error (#DIV/0! etc.) renders blank (→ the "—"/placeholder), still editable.
@@ -473,6 +621,14 @@
   function editableTextCell(r, field, cls) {
     var v = r[field]; var disp = (v == null || v === '' || isKpiError(v)) ? '' : esc(String(v));
     return '<span class="ct-ce ' + (cls || '') + '" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="' + field + '" data-allow-empty="1" data-ph="add">' + disp + '</span>';
+  }
+  // always-editable numeric CONFIG cell (Spend Mult): plain 2-dp decimal ("1.00" / "3.07"),
+  // edits inline like the KPI text cells; clearing it saves null (multiplier unknown → the
+  // unbilled-basis badge returns). Full precision is kept in the DB; 2 dp is display only.
+  function spendMultCell(r) {
+    var n = (r.spendMult == null || r.spendMult === '') ? null : Number(r.spendMult);
+    var disp = (n == null || isNaN(n)) ? '' : n.toFixed(2);
+    return '<span class="ct-ce" contenteditable="true" role="textbox" data-id="' + esc(r._id) + '" data-field="spendMult" data-allow-empty="1" data-ph="add">' + disp + '</span>';
   }
   // KPI parse + verdict (DISPLAY ONLY — never stored). "10 ROAS"→{10,ROAS}, "$150 CPL"→{150,CPL},
   // "0.51% CTR"→{0.51,CTR}. Same unit → green if perf meets/beats target, red if >30% off, else neutral.
@@ -516,14 +672,49 @@
 
   // ============================ wiring ============================
   function wire(mount) {
-    // sort headers: asc -> desc -> off
+    // sort headers, tri-state: default direction -> flipped -> off (natural order).
+    // Register's first-click default ported: numeric columns start DESC, text ASC.
     mount.querySelectorAll('th[data-k]').forEach(function (th) {
       th.addEventListener('click', function () {
         var k = th.dataset.k;
-        if (CS.sortKey !== k) { CS.sortKey = k; CS.sortDir = 1; }
-        else if (CS.sortDir === 1) CS.sortDir = -1;
+        var col = COLS.find(function (c) { return c.id === k; });
+        var first = (col && col.num) ? -1 : 1;
+        if (CS.sortKey !== k) { CS.sortKey = k; CS.sortDir = first; }
+        else if (CS.sortDir === first) CS.sortDir = -first;
         else { CS.sortKey = null; CS.sortDir = 1; }
         paint(mount);
+      });
+    });
+    // column-group chips + grouping toggle (ported from Register)
+    mount.querySelectorAll('.ct-colchip[data-colg]').forEach(function (b) {
+      b.addEventListener('click', function () { var g = b.dataset.colg; CS.colGroups[g] = !CS.colGroups[g]; paint(mount); });
+    });
+    mount.querySelectorAll('#ct-group .ct-chip').forEach(function (b) {
+      b.addEventListener('click', function () { CS.group = b.dataset.v; paint(mount); });
+    });
+    // manager filter + search (ported from Register / the old top bar)
+    var fm = mount.querySelector('#ct-fmgr'); if (fm) fm.addEventListener('change', function () { CS.mgr = fm.value; paint(mount); });
+    var qEl = mount.querySelector('#ct-q'); if (qEl) qEl.addEventListener('input', function () {
+      CS.qRaw = qEl.value; CS.q = qEl.value.toLowerCase().trim(); CS._qFocus = true; paint(mount);
+    });
+    // per-campaign detail expansion (ported from Register): toggle IN PLACE (no repaint,
+    // so scroll position and other open rows are preserved); bodyHtml re-emits open
+    // detail rows on the next full repaint from CS.openDetails.
+    mount.querySelectorAll('[data-detail]').forEach(function (btn) {
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var id = btn.dataset.detail, tr = btn.closest('tr'), open = !CS.openDetails[id];
+        if (open) {
+          CS.openDetails[id] = true;
+          var row = (CS._rows || []).find(function (r) { return r._id === id; });
+          if (row && tr) tr.insertAdjacentHTML('afterend', detailRowHtml(row, activeCols().length, tr.getAttribute('data-cchild')));
+        } else {
+          delete CS.openDetails[id];
+          var nx = tr && tr.nextElementSibling;
+          if (nx && nx.classList.contains('ct-detail')) nx.remove();
+        }
+        btn.classList.toggle('open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
       });
     });
     // client accordion: expand/collapse a client group (toggle child-row visibility +
@@ -640,21 +831,38 @@
       .then(function () { btn.classList.remove('ct-spin'); btn.disabled = false; render(); });
   }
 
+  // CSV = the union of Central's old export and Register's (Phase 2): all raw CONFIG/API
+  // fields + every derived column INCLUDING the Register/Pulse projection + risk math
+  // (needs-per-day, projected landing, effective margin, profit at risk). Respects the
+  // current filters (status view / client / health / manager / search) like both did.
   function exportCsv() {
     var rows = CS.sortKey ? sortRows(filtered(buildRows())) : filtered(buildRows());
     var cols = [
-      ['Agency', function (r) { return r.agency; }], ['Client', function (r) { return r.client; }], ['Campaign', function (r) { return r.name; }],
+      ['Agency', function (r) { return r.section; }], ['Client', function (r) { return r.client; }], ['Campaign', function (r) { return r.name; }],
       ['Objective', function (r) { return r.objective; }], ['Channel', function (r) { return r.channel; }], ['Managed By', function (r) { return r.managedBy; }],
       ['Status', function (r) { return r.status; }], ['Job #', function (r) { return r.jobNumber; }],
       ['Start', function (r) { return r.startDate; }], ['End', function (r) { return r.endDate; }],
       ['Media Spend', function (r) { return r.mediaSpend; }], ['Client Spend', function (r) { return r.clientSpend; }],
-      ['Total Budget', function (r) { return r.totalBudget; }], ['Forecast CPM', function (r) { return r.forecastCpm; }],
-      ['Platform Margin', function (r) { return r.platformMargin; }], ['Key KPI', function (r) { return r.keyKpi; }],
+      ['Total Budget', function (r) { return r.totalBudget; }], ['Budget Gross', function (r) { return r.budgetGross; }],
+      ['Impressions', function (r) { return r.impressions; }],
+      ['Forecast CPM', function (r) { return r.forecastCpm; }],
+      ['Platform Margin', function (r) { return r.platformMargin; }], ['Spend Mult', function (r) { return r.spendMult; }], ['Ad-Serving Rate', function (r) { return r.adServing; }],
+      ['Key KPI', function (r) { return r.keyKpi; }], ['KPI Performance', function (r) { return r.kpiPerformance; }],
+      ['Campaign Link', function (r) { return r.campaignLink; }], ['Next Report', function (r) { return r.nextReportingDue; }],
+      ['Notes', function (r) { return r.notes; }],
       // derived
       ['Campaign Margin', function (r) { return r._d.campaignMargin; }], ['Margin Band', function (r) { return r._d.marginBand; }],
+      ['Ad-Serving Cost', function (r) { return r._d.adServingCost; }],
       ['CPM Performance', function (r) { return r._d.cpmPerformance; }], ['Budget Remaining', function (r) { return r._d.budgetRemaining; }],
       ['% Spent', function (r) { return r._d.pctBudgetSpent; }], ['% Elapsed', function (r) { return r._d.pctFlightElapsed; }],
-      ['Pacing', function (r) { return r._d.pacingStatus; }], ['Health', function (r) { return r._d.health; }]
+      ['Pacing', function (r) { return r._d.pacingStatus; }], ['Health', function (r) { return r._d.health; }],
+      // ported from the Register/Pulse export: projection + money-at-risk math
+      ['Needs Per Day', function (r) { return r._d.reqDaily != null ? Math.round(r._d.reqDaily) : ''; }],
+      ['Projected Total', function (r) { return r._d.projTotal != null ? Math.round(r._d.projTotal) : ''; }],
+      ['Projected Vs Budget', function (r) { return r._d.projVar != null ? Math.round(r._d.projVar) : ''; }],
+      ['Effective Margin', function (r) { return r._d.effectiveMargin; }],
+      ['Margin At Risk', function (r) { return r._d.profitAtRisk != null ? Math.round(r._d.profitAtRisk) : ''; }],
+      ['Margin Estimated', function (r) { return r._d.effectiveMarginSource === 'assumed' ? 'yes' : ''; }]
     ];
     var esc2 = function (v) { return '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"'; };
     var NL = String.fromCharCode(10);
@@ -662,7 +870,8 @@
     var body = rows.map(function (r) { return cols.map(function (c) { return esc2(c[1](r)); }).join(','); }).join(NL);
     var blob = new Blob([head + NL + body], { type: 'text/csv;charset=utf-8;' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = 'central_' + (CS.client === 'all' ? 'all' : CS.client.replace(/[^a-z0-9]+/gi, '-').toLowerCase()) + '.csv';
+    var asOf = (CS.lastSynced ? new Date(CS.lastSynced) : new Date()).toISOString().slice(0, 10);
+    a.download = 'central_' + (CS.client === 'all' ? 'all' : CS.client.replace(/[^a-z0-9]+/gi, '-').toLowerCase()) + '_' + asOf + '.csv';
     document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(a.href); }, 1500);
     toastOk('Exported ' + rows.length + ' rows');
   }
@@ -756,7 +965,7 @@
       '.ct-row:hover .ct-arch{opacity:.75}.ct-arch:hover{color:var(--bad);opacity:1}',
       '.ct-arch-tag{font-size:9px;font-weight:700;color:var(--ink-3);background:var(--line-2);padding:1px 6px;border-radius:5px;margin-left:8px;text-transform:uppercase;letter-spacing:.03em}',
       '.ct-archived td{opacity:.55}.ct-archived:hover td{opacity:.8}',
-      '.ct-pace-on{background:var(--ok-soft);color:var(--ok)}.ct-pace-over{background:var(--bad-soft);color:var(--bad)}.ct-pace-under{background:var(--warn-soft);color:var(--warn)}',
+      '.ct-pace-on{background:var(--ok-soft);color:var(--ok)}.ct-pace-over{background:var(--bad-soft);color:var(--bad)}.ct-pace-under{background:var(--warn-soft);color:var(--warn)}.ct-pace-early{background:var(--line-2);color:#7E93AD}',
       '.ct-h-winner{background:var(--ok-soft);color:var(--ok)}.ct-h-watch{background:var(--bad-soft);color:var(--bad)}.ct-h-steady{background:var(--line-2);color:var(--ink-3)}',
       '.ct-margin{display:inline-block;padding:2px 8px;border-radius:6px;font-weight:600}',
       '.ct-band-above{background:var(--ok-soft);color:var(--ok)}.ct-band-near{background:var(--warn-soft);color:var(--warn)}.ct-band-below{background:var(--bad-soft);color:var(--bad)}',
@@ -781,6 +990,39 @@
       '.ct-stale-on .ct-api-col{opacity:.5;filter:grayscale(.4)}',
       '.ct-foot{padding:10px 16px;color:var(--ink-3);font-size:11px;border-top:1px solid var(--line-2)}',
       '.ct-muted{color:var(--ink-3)}.ct-empty{padding:36px 18px;text-align:center;color:var(--ink-3);font-size:13px}',
+      // ---- Phase 2 (merged Register) ----
+      // column-group bar
+      '.ct-colbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 12px}',
+      '.ct-colchip{appearance:none;font-family:inherit;cursor:pointer;font-size:11.5px;font-weight:500;padding:5px 11px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);transition:all .15s}',
+      '.ct-colchip:hover{color:var(--ink);border-color:var(--ink-3)}',
+      '.ct-colchip[aria-pressed="true"]{background:var(--brand-soft);border-color:var(--brand);color:var(--brand-ink);font-weight:600}',
+      '.ct-colchip.locked{opacity:.55;cursor:default;background:var(--line-2);border-color:var(--line-2);color:var(--ink-3)}',
+      // search
+      '.ct-search{position:relative;display:inline-flex;align-items:center}',
+      '.ct-search svg{position:absolute;left:9px;color:var(--ink-3);pointer-events:none}',
+      '.ct-search input{font-family:inherit;font-size:12px;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 10px 7px 28px;width:190px;outline:none;transition:border .15s,box-shadow .15s}',
+      '.ct-search input:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}',
+      // pacing mini-bar (pill + bar)
+      '.ct-pacecell{display:inline-flex;align-items:center;gap:8px}',
+      '.ct-pacebar{width:56px;height:5px;border-radius:3px;background:var(--line-2);position:relative;overflow:hidden;flex:0 0 auto;display:inline-block}',
+      '.ct-pacebar i{position:absolute;left:0;top:0;bottom:0;border-radius:3px}',
+      '.ct-pacebar u{position:absolute;top:-2px;bottom:-2px;width:1.5px;background:var(--ink);opacity:.55}',
+      '.ct-pb-on{background:var(--ok)}.ct-pb-over{background:var(--bad)}.ct-pb-under{background:var(--warn)}.ct-pb-early{background:#7E93AD}',
+      // client-summary aggregate pace dot
+      '.ct-pdot{display:inline-block;width:9px;height:9px;border-radius:50%}',
+      '.ct-pd-ok{background:var(--ok)}.ct-pd-over{background:var(--bad)}.ct-pd-under{background:var(--warn)}.ct-pd-early{background:#7E93AD}.ct-pd-none{background:var(--ink-3)}',
+      // detail expansion caret + detail row
+      '.ct-exp{appearance:none;border:0;background:transparent;cursor:pointer;color:var(--ink-3);font-size:9px;padding:0 4px 0 0;transition:transform .15s;display:inline-block}',
+      '.ct-exp:hover{color:var(--brand)}.ct-exp.open{transform:rotate(90deg)}',
+      '.ct-detail td{padding:0;background:var(--panel-2);border-bottom:1px solid var(--line)}',
+      '.ct-detail-inner{padding:14px 20px 16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px 24px}',
+      '.ct-dgrp{grid-column:1/-1;font-family:"Space Grotesk";font-size:10.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--brand);margin-top:4px;border-bottom:1px solid var(--line-2);padding-bottom:4px}',
+      '.ct-dgrp:first-child{margin-top:0}',
+      '.ct-field .k{font-size:9.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);margin-bottom:2px}',
+      '.ct-field .v{font-size:12px;color:var(--ink);font-weight:500}',
+      // external campaign link button
+      '.ct-link{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:7px;border:1px solid var(--line);color:var(--ink-2);text-decoration:none}',
+      '.ct-link:hover{border-color:var(--brand);color:var(--brand)}',
       // dropzone
       '.ct-dz{margin-top:14px;border:1.5px dashed var(--line);border-radius:var(--r);padding:22px;text-align:center;color:var(--ink-2);background:var(--panel);transition:all .15s;cursor:pointer}',
       '.ct-dz:hover,.ct-dz.drag{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}',
@@ -793,5 +1035,5 @@
     document.head.appendChild(s);
   }
 
-  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, _healthCounts: healthCounts, _healthCountsLive: healthCountsLive, _bodyHtml: bodyHtml, _clientKey: clientKey, _sumField: sumField, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, HEALTH_STATUSES: HEALTH_STATUSES, CS: CS };
+  return { render: render, _mapGridRowToCentral: mapGridRowToCentral, _centralRowId: centralRowId, _buildRows: buildRows, _filtered: filtered, _needsInput: needsInput, _getSourceRows: getSourceRows, _coerceEdit: coerceEdit, _statusCls: statusCls, _parseKpi: parseKpi, _kpiVerdict: kpiVerdict, _chanTheme: chanTheme, _isKpiError: isKpiError, _healthCounts: healthCounts, _healthCountsLive: healthCountsLive, _bodyHtml: bodyHtml, _clientKey: clientKey, _sumField: sumField, _activeCols: activeCols, _detailRowHtml: detailRowHtml, COLS: COLS, NEEDS_INPUT: NEEDS_INPUT, LIVE_STATUSES: LIVE_STATUSES, HEALTH_STATUSES: HEALTH_STATUSES, CS: CS };
 });

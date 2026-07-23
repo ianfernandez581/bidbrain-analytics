@@ -1,38 +1,206 @@
 {
-  "_comment": "Central sync client mapping. Only validated:true clients are synced; validated:false are SKIPPED (never guessed). Matching at sync time uses ONLY this explicit map (no fuzzy matching in the sync path — fuzzy is reconcile-only, for humans). Each map entry: bqName = the exact BQ identifier (pm_delivery `program`), campaignId = the Central campaigns.id, campaignName = stable (client,name) fallback used only if campaignId is not found (e.g. after a DB rebuild). NOTE: pm_delivery aggregates per program across channels; where a program has >1 Central channel-row the total maps to one representative row (EBA is 1:1). Reconcile (Zhen) refines coverage. | Mode A (\"view\") = a pm_delivery view. Mode B (\"raw\") = raw platform tables (tables[]), each with the exact advertiserValue + real column names from the BQ schema (see scripts/bq_audit.py). Multiple tables merge by campaign name. source \"none\" = no BQ presence. All non-Schneider clients are validated:false until Zhen confirms via the reconcile panel. | Mode A (\"view\") = a pm_delivery view. Mode B (\"raw\") = raw platform tables (tables[]), each with the exact advertiserValue + real column names from the BQ schema (see scripts/bq_audit.py). Multiple tables merge by campaign name. source \"none\" = no BQ presence. All non-Schneider clients are validated:false until Zhen confirms via the reconcile panel.",
+  "_comment": "Central sync client mapping. Only validated:true clients are synced; validated:false are SKIPPED (never guessed). Matching at sync time uses ONLY this explicit map (no fuzzy matching in the sync path — fuzzy is reconcile-only, for humans). Mode A (\"view\") map entry: bqName = the exact BQ identifier, campaignId = the Central campaigns.id, campaignName = stable (client,name) fallback used only if campaignId is not found (e.g. after a DB rebuild — but the fallback picks the FIRST same-named row regardless of channel, so refresh ids after any rebuild). Mode B (\"raw\") = raw platform tables (tables[]), each with the exact advertiserValue + real column names from the BQ schema (see scripts/bq_audit.py); map entries carry a per-row campaignMatch rule (exact/contains/rollup) scoped by channel + advertiserName. source \"none\" = no BQ presence. WARNING: Mode A program views can aggregate ACROSS platforms (the Schneider pm_delivery blend, PHASE3_CLOUDFLARE_REPORT.md §9) — prefer Mode B for any client whose programs span channels. The sync route does NOT honor ?client= (syncs every validated client) — keep unresolved clients validated:false.",
   "clients": [
     {
       "client": "Schneider",
       "validated": true,
-      "bq": {
-        "dataset": "client_schneider",
-        "table": "pm_delivery"
-      },
+      "source": "raw",
+      "note": "Phase 3 Schneider (2026-07-22): moved from Mode A (client_schneider.pm_delivery - program grain, aggregates ACROSS platforms; the blend that corrupted 5 rows, PHASE3_CLOUDFLARE_REPORT.md §9) to Mode B per-channel rules (Cloudflare pattern). The stale Mode-A map (5 program entries whose campaignIds predate the 2026-07-22 DB rebuild and no longer resolve) is REMOVED - the new per-platform map is staged in config/reconcile-staged/Schneider.json and gets written ONLY by human approval in the Map client panel. validated stays FALSE until then. TTD COSTS = CLIENT-BILLED basis (Airset cross-check: SUM(COSTS) to 07-08 $2,798 vs sheet billed $2,650) - all 8 Schneider TTD rows had spendMult set to 1 in Phase 3 prep so first sync writes clientSpend = billed. LinkedIn: ONLY the _AUD account is fetched - SchneiderElectric_TransmissionSG_USD/_SGD hold pre-2026 programs with NO Grid rows, and the sync does no FX conversion (including them risks writing USD/SGD figures into an AUD grid). See PHASE3_SCHNEIDER_REPORT.md.",
+      "tables": [
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_all",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "Schneider Electric",
+          "note": "COSTS = client-billed basis, all rows AUD today. Mid-flight rename 2026-07-06 added numeric job prefixes (2079_/2306_/2223_/...) - contains rules on the stable suffix token span both vintages (Cloudflare lesson 3)."
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "linkedin_ads_apac",
+          "advertiserColumn": "ACCOUNT_NAME",
+          "campaignColumn": "CAMPAIGN_GROUP_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "SchneiderElectric_TransmissionSG_AUD",
+          "note": "GROUP grain (program + objective - e.g. the three NEL objective groups roll to one Grid row, while EcoStruxure's objectives are separate Grid rows AND separate groups). AUD account ONLY - the _USD/_SGD accounts hold 2025 history with no Grid rows, and the sync has no FX."
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "dv360_apac",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "INSERTION_ORDER_NAME",
+          "impressionColumn": "IMPRESSIONS",
+          "costColumn": "REVENUE_ADV_CURRENCY",
+          "dateColumn": "DAY",
+          "advertiserValue": "APAC | Schneider Electric AUD",
+          "note": "INSERTION ORDER grain: the EAE Consideration/Conversion Grid rows only split at IO level (1974_SE_ANZ_EAE_Consideration_AU+NZ billed $5,713.90 = the row's $5,714 budget to the dollar). REVENUE_ADV_CURRENCY = client-billed (what SE pays; same basis the client_schneider stg_dv360 uses) - if EAE pairs are approved, set spendMult=1 on those rows too. AUD advertiser only (the SGD/USD advertisers hold 2025 history; no FX in the sync)."
+        }
+      ],
       "map": [
         {
-          "bqName": "eba",
-          "campaignId": "cmp-520b4425aafb",
-          "campaignName": "EBA"
-        },
-        {
-          "bqName": "water_env",
-          "campaignId": "cmp-c24b8f4375bc",
-          "campaignName": "Water and Environment"
-        },
-        {
-          "bqName": "airset",
-          "campaignId": "cmp-daf98be2b67e",
+          "campaignId": "cmp-3b14faf0f7e9",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "AirSeT_ANZ_HighImpact"
+          },
           "campaignName": "Airset"
         },
         {
-          "bqName": "global_rebrand",
-          "campaignId": "cmp-210b45ba43b7",
+          "campaignId": "cmp-53b4975d5b6e",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "EBA_Activate"
+          },
+          "campaignName": "EBA"
+        },
+        {
+          "campaignId": "cmp-26c86490efcc",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "EntIT"
+          },
+          "campaignName": "Ent IT"
+        },
+        {
+          "campaignId": "cmp-73f509149be8",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Industrial Edge W3 Prefab"
+          },
+          "campaignName": "Industrial Edge Wave 3 Prefab Unprotected"
+        },
+        {
+          "campaignId": "cmp-e23fbe7cad7a",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "LQAIDC_TTD"
+          },
+          "campaignName": "LiquidAI"
+        },
+        {
+          "campaignId": "cmp-81597a0cfd6e",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "NEL_TTD"
+          },
+          "campaignName": "NEL"
+        },
+        {
+          "campaignId": "cmp-eaf93725e24e",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "EcoStruxureIT"
+          },
+          "campaignName": "Software First EcoStruxure"
+        },
+        {
+          "campaignId": "cmp-08f80e22213d",
+          "channel": "Trade Desk",
+          "advertiserName": "Schneider Electric",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "WaterEnv_P2_AWR"
+          },
+          "campaignName": "Water and Environment"
+        },
+        {
+          "campaignId": "cmp-fdd4e8202dbc",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "SE_AET"
+          },
           "campaignName": "Advancing Energy T"
         },
         {
-          "bqName": "nel",
-          "campaignId": "cmp-83551d68037a",
+          "campaignId": "cmp-663ed48867bd",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "AirSeT 2026"
+          },
+          "campaignName": "Airset"
+        },
+        {
+          "campaignId": "cmp-212ac9ad4858",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "EntIT"
+          },
+          "campaignName": "Ent IT"
+        },
+        {
+          "campaignId": "cmp-d1dde398e5c5",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Industrial Edge W3 Prefab"
+          },
+          "campaignName": "Industrial Edge Wave 3 Prefab Unprotected"
+        },
+        {
+          "campaignId": "cmp-58f026237774",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "LQAIDC_LI"
+          },
+          "campaignName": "LiquidAI"
+        },
+        {
+          "campaignId": "cmp-0342ddb8ae0c",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "NEL_2026_ANZ_LI"
+          },
           "campaignName": "NEL"
+        },
+        {
+          "campaignId": "cmp-e2686e30a90d",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Software First EcoStruxure - AWR"
+          },
+          "campaignName": "Software First EcoStruxure"
+        },
+        {
+          "campaignId": "cmp-f4f329cd3a31",
+          "channel": "LinkedIn",
+          "advertiserName": "SchneiderElectric_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "WaterEnv_P2_2026"
+          },
+          "campaignName": "Water and Environment"
         }
       ]
     },
@@ -77,47 +245,59 @@
         {
           "channel": "Trade Desk",
           "advertiserName": "HireRight",
-          "campaignMatch": { "mode": "contains", "value": "HireRight_Digital-Air-Cover" },
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "HireRight_Digital-Air-Cover"
+          },
           "campaignName": "Digital Air Cover"
         },
         {
           "channel": "LinkedIn",
           "advertiserName": "HireRight_TransmissionSG_USD",
-          "campaignMatch": { "mode": "contains", "value": "1802" },
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "1802"
+          },
           "campaignName": "Digital Air Cover"
         },
         {
           "channel": "DV360",
           "advertiserName": "APAC_HireRight_271025_USD",
-          "campaignMatch": { "mode": "contains", "value": "1802" },
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "1802"
+          },
           "campaignName": "HireRight 1802"
         }
       ]
     },
     {
       "client": "Cloudflare",
-      "validated": false,
+      "validated": true,
       "source": "raw",
+      "note": "Phase 3 (2026-07-22): LinkedIn matches on CAMPAIGN_GROUP_NAME, not CAMPAIGN_NAME - Cloudflare's program membership (PEYC/CF1/Hyper/Core DG) lives in the LinkedIn campaign GROUP; group totals reconcile with the sheet to the dollar (PEYC $26,105 vs sheet $26,099). TTD impressions COALESCE the legacy IMPRESSION column (same per-row rule as client_schneider.stg_tradedesk - most Cloudflare TTD rows populate only the legacy column). TTD COSTS is the CLIENT-BILLED basis (Q2 Core DG: SUM(COSTS) $87,583 vs sheet clientSpend $85,252, budget $86,826) - see PHASE3_CLOUDFLARE_REPORT.md before first sync (spendMult on TTD rows must be resolved or clientSpend inflates ~3.5x).",
       "tables": [
         {
           "dataset": "raw_snowflake",
           "table": "linkedin_ads_apac",
           "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
+          "campaignColumn": "CAMPAIGN_GROUP_NAME",
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "Cloudflare APAC"
+          "advertiserValue": "Cloudflare APAC",
+          "note": "campaignColumn is the GROUP name (program grain) - campaign-level names cannot express program membership (no shared token separates e.g. PEYC's 6 campaigns from ANZ Core DG's 5)"
         },
         {
           "dataset": "raw_snowflake",
           "table": "tradedesk_apac_all",
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "Cloudflare"
+          "advertiserValue": "Cloudflare",
+          "note": "impressions: newer rows populate IMPRESSIONS, most Cloudflare rows only the legacy IMPRESSION - per-row COALESCE like the Schneider staging view"
         },
         {
           "dataset": "raw_snowflake",
@@ -130,7 +310,148 @@
           "advertiserValue": "Transmission_Cloudflare"
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-d2f492067e08",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ANZ-DNB"
+          },
+          "campaignName": "ANZ-DNB"
+        },
+        {
+          "campaignId": "cmp-2ef68123009e",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CF1-Integrated"
+          },
+          "campaignName": "CF1 India"
+        },
+        {
+          "campaignId": "cmp-149b388070c3",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Hyper_COLES"
+          },
+          "campaignName": "Coles Hyper"
+        },
+        {
+          "campaignId": "cmp-09a9011f693d",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Hyper_FONTERRA"
+          },
+          "campaignName": "Fonterra Hyper"
+        },
+        {
+          "campaignId": "cmp-0c8909173cf3",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ANZ-PEYC"
+          },
+          "campaignName": "PEYC"
+        },
+        {
+          "campaignId": "cmp-701ae753e201",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CORE-DG"
+          },
+          "campaignName": "Q2 Core DG"
+        },
+        {
+          "campaignId": "cmp-d2b9cfa22db9",
+          "channel": "LinkedIn",
+          "advertiserName": "Cloudflare APAC",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "COREDG-Q3"
+          },
+          "campaignName": "Q3 Core DG"
+        },
+        {
+          "campaignId": "cmp-594b8a2e4378",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "CLOUD_ACQ_2026-Q2-DOOH - AU"
+          },
+          "campaignName": "Coles DOOH AU"
+        },
+        {
+          "campaignId": "cmp-1970bf89a069",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "CLOUD_ACQ_2026-Q2-DOOH - NZ"
+          },
+          "campaignName": "Coles DOOH NZ"
+        },
+        {
+          "campaignId": "cmp-adb903b8046b",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "CLOUD_ACQ_2026-Q2-High Impact--HyperlocalGeo - ANZ"
+          },
+          "campaignName": "Coles Prog"
+        },
+        {
+          "campaignId": "cmp-8b060cbe659b",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CORE-DG"
+          },
+          "campaignName": "Q2 Core DG"
+        },
+        {
+          "campaignId": "cmp-fbc6bda5aa8c",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "COREDG-Q3"
+          },
+          "campaignName": "Q3 Core DG"
+        },
+        {
+          "campaignId": "cmp-2be0ce428f6f",
+          "channel": "Trade Desk",
+          "advertiserName": "Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "SURROUND-ABM"
+          },
+          "campaignName": "Surround ABM"
+        },
+        {
+          "campaignId": "cmp-4cbde1c90ab6",
+          "channel": "Reddit",
+          "advertiserName": "Transmission_Cloudflare",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "REDDIT"
+          },
+          "campaignName": "Q2 Core DG"
+        }
+      ]
     },
     {
       "client": "STT",

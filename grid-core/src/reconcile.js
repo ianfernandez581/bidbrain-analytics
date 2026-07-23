@@ -31,10 +31,21 @@
  */
 
 'use strict';
+
+// ---------------- PHASE 1 KILL SWITCH ----------------
+// This harness computed with src/derive.js, which is QUARANTINED (src/_retired/):
+// the single engine is now src/central/calc.js and the old-vs-new safety net is
+// scripts/compare_pulse_paths.js. Nothing may import derive.js, so this CLI exits
+// loudly instead of crashing on a missing module. Phase 4 decides its final fate.
+console.error('[reconcile] RETIRED in Phase 1 - derive.js is quarantined. Use scripts/compare_pulse_paths.js (old-vs-new diff) or src/central/calc.js directly.');
+process.exit(1);
+
 const fs = require('fs');
 const path = require('path');
 const { fetchLiveCampaigns } = require('./orchestrator');
-const D = require('./derive');
+// (retired) const D = require('./derive'); — quarantined in src/_retired/; the stub
+// below keeps the dead code beneath syntactically alive until Phase 4 deletes it.
+const D = null;
 
 function parseArgs(argv) {
   const a = { env: '.env', expected: null, asof: null };

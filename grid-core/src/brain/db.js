@@ -93,12 +93,19 @@ const CENTRAL_PLAN_FIELDS = ['jobNumber', 'client', 'name', 'objective', 'channe
 // come from the plan-commit path, derived is never writable).
 const CENTRAL_EDIT_FIELDS = ['managedBy', 'channel', 'status', 'platformMargin', 'jobNumber',
   'forecastCpm', 'keyKpi', 'kpiPerformance', 'totalBudget', 'budgetGross', 'startDate', 'endDate',
-  'adServingCost', 'notes', 'spendMult'];
+  'adServingCost', 'notes', 'spendMult',
+  // 'name' added Phase 3 (Cloudflare run, per Phase 2 finding #3): unnamed-but-real rows are
+  // repairable from Central's fill-empty affordance. The UI only offers it when name is EMPTY.
+  'name'];
 // DERIVED fields — never writable by anything. Any attempt is rejected (defense in depth).
 // NOTE: kpiPerformance is NOT derived — the sheet's "KPI Performance" is hand-typed text
 // (calc.js's passthrough was a never-implemented TODO), so it is an editable CONFIG field.
 const CENTRAL_DERIVED_FIELDS = ['campaignMargin', 'cpmPerformance', 'budgetRemaining',
-  'pctBudgetSpent', 'pctFlightElapsed', 'pacingStatus', 'marginDelta', 'marginBand', 'health'];
+  'pctBudgetSpent', 'pctFlightElapsed', 'pacingStatus', 'marginDelta', 'marginBand', 'health',
+  // Phase-1 single-engine additions (Pulse fields + the per-channel margin rule)
+  'paceBucket', 'daysTotal', 'daysElapsed', 'daysLeft', 'runRate', 'reqDaily',
+  'projTotal', 'projVar', 'projState', 'effectiveMargin', 'effectiveMarginSource',
+  'effectiveMarginRule', 'marginWarning', 'profitAtRisk', 'atStake', 'pacingAction', 'pacingActionColor'];
 
 module.exports = {
   db,

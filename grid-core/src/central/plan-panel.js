@@ -333,6 +333,30 @@
     pnl.querySelector('#ct-rc-load').addEventListener('click', function () { loadReconcile(pnl); });
     pnl.querySelector('#ct-rc-approve').addEventListener('click', function () { approveReconcile(pnl, api); });
   }
+  // Staged block (Phase 3): curated pairs a session prepared with evidence — rendered FIRST,
+  // unticked (the human approves each), with confidence chips + rationale + BQ previews.
+  function stagedHtml(st) {
+    if (!st || !(st.pairs || []).length) return '';
+    var h = '<div class="ct-pnl-sec">Prepared matches — staged ' + esc(st.preparedAt || '') + ', you approve</div>';
+    (st.warnings || []).forEach(function (w) { h += '<div class="ct-conflict" style="margin-bottom:7px">' + esc(w) + '</div>'; });
+    h += '<div style="padding:2px 0 8px"><button class="ct-btn" id="ct-rcs-selhigh" type="button">Select all high-confidence</button></div>';
+    h += st.pairs.map(function (p) {
+      var prev = p.preview ? (p.preview.bqNames + ' BQ · $' + Number(p.preview.mediaSpend || 0).toLocaleString('en-US')) : '';
+      return '<div class="ct-field ct-rc-row" title="' + esc(p.rationale || '') + '">' +
+        '<label class="ct-rc-lbl"><input type="checkbox" class="ct-rcs-ck" data-conf="' + esc(p.confidence || 'low') + '" data-cid="' + esc(p.campaignId) + '" data-channel="' + esc(p.channel || '') + '" data-adv="' + esc(p.advertiserName || '') + '" data-value="' + esc(p.value) + '" data-mode="' + esc(p.mode || 'exact') + '">' +
+        ' <b>' + esc(p.campaignName) + '</b> <span class="ct-prov">' + esc(p.gridChannel || p.channel || '') + '</span></label>' +
+        '<span class="ct-rcs-rule">' + esc(p.mode) + ' "' + esc(p.value) + '"</span>' +
+        '<span class="ct-rcs-conf ct-rcs-' + esc(p.confidence || 'low') + '">' + esc(p.confidence || 'low') + '</span>' +
+        (prev ? '<span class="ct-prov">' + esc(prev) + '</span>' : '') + '</div>';
+    }).join('');
+    (st.unmatchableGridRows || []).forEach(function (u) {
+      h += '<div class="ct-pnl-src" style="padding:4px 0">✕ <b>' + esc(u.campaignName) + ' · ' + esc(u.gridChannel) + '</b> — ' + esc(u.reason) + '</div>';
+    });
+    (st.unmatchedBq || []).forEach(function (u) {
+      h += '<div class="ct-pnl-src" style="padding:4px 0">? BQ-only: <b>' + esc(u.value) + '</b> ($' + Number(u.mediaSpend || 0).toLocaleString('en-US') + ') — ' + esc(u.note || '') + '</div>';
+    });
+    return h;
+  }
   function loadReconcile(pnl) {
     var client = pnl.querySelector('#ct-rc-client').value;
     var host = pnl.querySelector('#ct-rc-results');
@@ -343,24 +367,51 @@
         if (!x.ok) { host.innerHTML = '<div class="ct-dzerr">' + esc((x.d && x.d.error) || 'Failed to load BQ names') + '</div>'; return; }
         var d = x.d;
         var camps = d.centralCampaigns || [];
-        if (d.error) host.innerHTML = '<div class="ct-dzerr">BQ: ' + esc(d.error) + '</div>';
-        else host.innerHTML = '';
-        if (!(d.bqNames || []).length) { host.innerHTML += '<div class="ct-pnl-src" style="padding:8px 0">No BQ campaign names returned for ' + esc(client) + '. (' + camps.length + ' Central campaigns.)</div>'; return; }
+        // build the whole panel HTML first, assign ONCE, then wire listeners (innerHTML +=
+        // re-parses the container and would silently drop already-attached handlers)
+        var html = d.error ? '<div class="ct-dzerr">BQ: ' + esc(d.error) + '</div>' : '';
+        html += stagedHtml(d.staged);
+        if (!(d.bqNames || []).length) {
+          html += '<div class="ct-pnl-src" style="padding:8px 0">No BQ campaign names returned for ' + esc(client) + '. (' + camps.length + ' Central campaigns.)</div>';
+          host.innerHTML = html;
+          wireStaged(pnl, host);
+          if (d.staged && (d.staged.pairs || []).length) pnl.querySelector('#ct-rc-approve').disabled = false;
+          return;
+        }
         var opts = camps.map(function (c) { return { v: c.id, t: c.name + (c.channel ? ' · ' + c.channel : '') }; });
-        host.innerHTML += '<div class="ct-pnl-sec">BQ names → Central (' + d.bqNames.length + ' BQ · ' + camps.length + ' Central)</div>';
-        host.innerHTML += (d.suggestions || []).map(function (s, i) {
+        html += '<div class="ct-pnl-sec">BQ names → Central (' + d.bqNames.length + ' BQ · ' + camps.length + ' Central' + (d.staged ? ' · generic fuzzy fallback, see prepared matches above' : '') + ')</div>';
+        html += (d.suggestions || []).map(function (s, i) {
+          // weak / no-platform-match = nothing preselected (never force-match; a Grid row on
+          // the wrong platform is not even offered as the default).
+          var preId = (s.flag === 'weak' || s.flag === 'no-platform-match' || !s.campaignId) ? '' : s.campaignId;
           var sel = '<select class="ct-input ct-rc-camp" data-i="' + i + '">' +
-            '<option value="">— (skip) —</option>' +
-            opts.map(function (o) { return '<option value="' + esc(o.v) + '"' + (o.v === s.campaignId ? ' selected' : '') + '>' + esc(o.t) + '</option>'; }).join('') + '</select>';
+            '<option value=""' + (preId ? '' : ' selected') + '>— (skip) —</option>' +
+            opts.map(function (o) { return '<option value="' + esc(o.v) + '"' + (o.v === preId ? ' selected' : '') + '>' + esc(o.t) + '</option>'; }).join('') + '</select>';
           var mode = '<select class="ct-input ct-rc-mode" data-i="' + i + '"><option value="exact">exact</option><option value="contains">contains</option><option value="rollup">rollup</option></select>';
-          return '<div class="ct-field ct-rc-row"><label class="ct-rc-lbl"><input type="checkbox" class="ct-rc-ck" data-i="' + i + '" data-bq="' + esc(s.bqName) + '" data-channel="' + esc(s.channel || '') + '" data-adv="' + esc(s.advertiserName || '') + '"> <b>' + esc(s.bqName) + '</b> <span class="ct-prov">' + (s.channel ? esc(s.channel) + ' · ' : '') + Math.round((s.score || 0) * 100) + '%</span></label>' + sel + mode + '</div>';
+          var flag = s.flag === 'no-platform-match' ? '<span class="ct-rcs-conf ct-rcs-low" title="no Grid row exists on this BQ name\'s platform — add a row or leave unmatched">no platform match</span>'
+            : s.flag === 'weak' ? '<span class="ct-rcs-conf ct-rcs-low" title="no plausible match — pick manually or skip">no match</span>'
+              : s.flag === 'ambiguous' ? '<span class="ct-rcs-conf ct-rcs-medium" title="also plausible: ' + esc((s.runnerUp && s.runnerUp.campaignName) || '') + '">ambiguous</span>' : '';
+          return '<div class="ct-field ct-rc-row"><label class="ct-rc-lbl"><input type="checkbox" class="ct-rc-ck" data-i="' + i + '" data-bq="' + esc(s.bqName) + '" data-channel="' + esc(s.channel || '') + '" data-adv="' + esc(s.advertiserName || '') + '"> <b>' + esc(s.bqName) + '</b> <span class="ct-prov">' + (s.channel ? esc(s.channel) + ' · ' : '') + Math.round((s.score || 0) * 100) + '%</span></label>' + flag + sel + mode + '</div>';
         }).join('');
+        host.innerHTML = html;
+        wireStaged(pnl, host);
         pnl.querySelector('#ct-rc-approve').disabled = false;
       }).catch(function () { host.innerHTML = '<div class="ct-dzerr">Reconcile failed — server offline?</div>'; });
+  }
+  function wireStaged(pnl, host) {
+    var selHigh = host.querySelector('#ct-rcs-selhigh');
+    if (selHigh) selHigh.addEventListener('click', function () {
+      host.querySelectorAll('.ct-rcs-ck[data-conf="high"]').forEach(function (ck) { ck.checked = true; });
+    });
   }
   function approveReconcile(pnl, api) {
     var client = pnl.dataset.client;
     var pairs = [];
+    // staged (prepared) pairs — fixed rule per row, human ticked it
+    pnl.querySelectorAll('.ct-rcs-ck').forEach(function (ck) {
+      if (!ck.checked) return;
+      pairs.push({ campaignId: ck.dataset.cid, channel: ck.dataset.channel || null, advertiserName: ck.dataset.adv || null, value: ck.dataset.value, mode: ck.dataset.mode || 'exact' });
+    });
     pnl.querySelectorAll('.ct-rc-ck').forEach(function (ck) {
       if (!ck.checked) return;
       var i = ck.dataset.i;
@@ -409,7 +460,12 @@
       '.ct-btn-primary{background:var(--pill-bg);color:var(--pill-fg);border-color:var(--pill-bg)}.ct-btn-primary:hover{background:var(--brand-strong);color:var(--pill-fg)}.ct-btn-primary:disabled{opacity:.45;cursor:default}',
       '.ct-rc-stat{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px}',
       '.ct-rc-ok{background:var(--ok-soft);color:var(--ok)}.ct-rc-todo{background:var(--warn-soft);color:var(--warn)}.ct-rc-none{background:var(--line-2);color:var(--ink-3)}',
-      '.ct-rc-row{flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}.ct-rc-lbl{display:flex;align-items:center;gap:7px;font-size:12.5px;min-width:200px}.ct-rc-ck{accent-color:var(--brand)}.ct-rc-camp{flex:1 1 180px}'
+      '.ct-rc-row{flex-direction:row;align-items:center;gap:10px;flex-wrap:wrap}.ct-rc-lbl{display:flex;align-items:center;gap:7px;font-size:12.5px;min-width:200px}.ct-rc-ck{accent-color:var(--brand)}.ct-rc-camp{flex:1 1 180px}',
+      // staged (prepared) matches — Phase 3
+      '.ct-rcs-ck{accent-color:var(--brand)}',
+      '.ct-rcs-rule{font-size:11px;color:var(--ink-2);background:var(--line-2);border-radius:6px;padding:2px 7px;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+      '.ct-rcs-conf{font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;text-transform:uppercase;letter-spacing:.03em}',
+      '.ct-rcs-high{background:var(--ok-soft);color:var(--ok)}.ct-rcs-medium{background:var(--warn-soft);color:var(--warn)}.ct-rcs-low{background:var(--bad-soft);color:var(--bad)}'
     ].join('\n');
     document.head.appendChild(s);
   }
