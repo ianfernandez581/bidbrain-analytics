@@ -10,6 +10,10 @@ never couples to the shared script.
 
 Modes:
   (default)           full sync fetch — one JSON doc for all validated clients.
+  --client <client>   full sync fetch for ONE validated client only (case-insensitive) —
+                      every other client is skipped and its BQ is never queried. A name
+                      that matches no validated client is reported on stderr (the server
+                      pre-validates, so this is belt-and-braces).
   --names <client>    reconcile mode — distinct BQ campaign names for ONE client
                       (validated or not), for the human-in-the-loop mapping panel.
 
@@ -166,12 +170,21 @@ def fetch_names(spec):
     return out
 
 
-def run_full_sync():
+def run_full_sync(only=None):
+    """only: canonical/CI-insensitive client name — scope the fetch to that ONE validated
+    client (Phase 4 ?client= fix: other clients' BQ is never even queried)."""
     cfg = _load_config()
     clients, skipped = {}, []
     validated_total = validated_ok = 0
+    only_lc = only.lower() if only else None
+    matched_only = False
     for spec in cfg.get("clients", []):
         name = spec.get("client")
+        if only_lc and str(name).lower() != only_lc:
+            skipped.append({"client": name, "reason": "not requested (client filter)"})
+            continue
+        if only_lc:
+            matched_only = True
         if not spec.get("validated"):
             skipped.append({"client": name, "reason": "not validated"})
             continue
@@ -183,6 +196,10 @@ def run_full_sync():
         except Exception as e:  # noqa: BLE001 — capture, never crash the whole run
             entry["errors"].append(str(e)[:600])
         clients[name] = entry
+    if only_lc and not matched_only:
+        print(f"--client '{only}' matches no client in central-clients.json", file=sys.stderr)
+    elif only_lc and validated_total == 0:
+        print(f"--client '{only}' matches a client but it is not validated — nothing fetched", file=sys.stderr)
     doc = {"fetchedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(), "clients": clients, "skipped": skipped}
     print(json.dumps(doc))
     # exit non-zero ONLY if there was work to do and all of it failed
@@ -232,6 +249,8 @@ def main():
         sys.exit(run_names(sys.argv[2]))
     if len(sys.argv) >= 2 and sys.argv[1] == "--readiness":
         sys.exit(run_readiness())
+    if len(sys.argv) >= 3 and sys.argv[1] == "--client":
+        sys.exit(run_full_sync(only=sys.argv[2]))
     sys.exit(run_full_sync())
 
 
