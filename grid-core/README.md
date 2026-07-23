@@ -175,7 +175,9 @@ Mocked:
   the rec's status to `in_clickup` in the in-memory store, and returns
   `{ success, mock_task_id, updated_at }`. V2 deletes the interceptor and stands up a
   real Express route with the **same contract**.
-- **Site Quality Index** and **Optimization log** cards — static content.
+- **Optimization log** card — static content. (The Site Quality Index card was REMOVED in
+  Phase 4 per the product owner's decision; real site-quality scoring stays on the V2
+  backlog and is blocked on TTD seat access.)
 - The outperformance chart is **hand-rolled SVG** (The Grid does not bundle Chart.js);
   the day/week/month toggle shows `week` as the live view, day/month are V1 placeholders.
 
