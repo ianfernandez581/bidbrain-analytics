@@ -1,0 +1,79 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-22/23 (read-only). 'preview' = whole-history BQ totals (AUD). Sheet cross-checks use SUM to 2026-07-08.",
+  "client": "PropTrack",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "TTD rules use mode ROLLUP because the advertiser exists under TWO spellings ('PopTrack' = all spend to date; 'PropTrack' = corrected spelling emitting 0-spend rows since 2026-07-22) - rollup spans spellings and dedupes by campaign name, so the upstream fix-up cannot double-count. The 2 TTD rules split the 3 TTD campaign names 2+1 with zero overlap (BANKING-ABM vs COBA-EVENT2026). LinkedIn rule verified against the account's FULL 6-group list: claims exactly the 4 Banking-ABM groups.",
+  "warnings": [
+    "BILLED BASIS: TTD COSTS is client-billed - set spendMult=1 on the Banking ABM TTD row (currently 2.0337, the sheet's clientSpend/mediaSpend artifact) before/with approval.",
+    "The COBA pair is a DELIBERATE CHANNEL CROSSING (DOOH Grid row -> TTD display campaign) - flagged medium, human decides; there is no DOOH source anywhere.",
+    "ADVERTISER RENAME IN FLIGHT: watch the first syncs after TTD delivery resumes - if new spend lands under the 'PropTrack' spelling the rollup rules still catch it, but the readiness view will show two advertisers.",
+    "LinkedIn platformMargin is 0 on the row (LinkedIn = Campaign-Margin channel, fine); TTD platformMargin 0.60 matches the standard."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-45b37033dee7",
+      "campaignName": "Banking ABM",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "PopTrack",
+      "mode": "rollup",
+      "value": "BANKING-ABM",
+      "confidence": "high",
+      "rationale": "2 campaigns (PROPTRACK_BANKING-ABM_MAY-JUN2026_DISPLAY_AU + _VIDEO_AU) under the misspelled 'PopTrack' advertiser; the corrected 'PropTrack' spelling emits 0-spend duplicates since 07-22 - rollup spans both. To 07-08: $12,928.87 vs sheet clientSpend $12,810.54 (+0.9%). Whole-history $13,112.87. spendMult 2.0337 -> 1 (billed COSTS).",
+      "preview": { "bqNames": 2, "mediaSpend": 13112.87 }
+    },
+    {
+      "campaignId": "cmp-3800776439ae",
+      "campaignName": "Banking ABM",
+      "gridChannel": "Linkedin",
+      "channel": "LinkedIn",
+      "advertiserName": "PropTrack_TransmissionSG_AUD",
+      "mode": "contains",
+      "value": "Banking ABM",
+      "confidence": "high",
+      "rationale": "4 groups at GROUP grain (Awareness+Leadgen x 2 vintages - the '2011_' job prefix arrived 2026-07-07 mid-flight). To 07-08: $10,945.21 vs sheet clientSpend $10,707.40 (+2.2%). AUD account, media=billed, spendMult already 1. Excludes the 2025 groups ('Add PO Number_Proptrack Nov 12', '1750_..COBA event campaign').",
+      "preview": { "bqNames": 4, "mediaSpend": 11312.95 }
+    },
+    {
+      "campaignId": "cmp-00a9e8cb74e5",
+      "campaignName": "COBA Event DOOH",
+      "gridChannel": "DOOH",
+      "channel": "Trade Desk",
+      "advertiserName": "PopTrack",
+      "mode": "rollup",
+      "value": "COBA-EVENT2026",
+      "confidence": "medium",
+      "rationale": "FLAGGED channel crossing: the TTD campaign PROPTRACK_COBA-EVENT2026_JULY2026_DISPLAY_AU ($3,999.92, 07-15..21) matches the row's event (COBA, 07-19..22) but is a DISPLAY campaign on the Trade Desk table - there is no DOOH source, so approving records this row's delivery under channel 'Trade Desk'. Row is Not Active with no budget; if approved also set spendMult=1 and give the row a budget. Distinct from the 2025 LinkedIn COBA group (1750_, $8,499 - different year, different channel).",
+      "preview": { "bqNames": 1, "mediaSpend": 3999.92 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-45b37033dee7", "campaignName": "Banking ABM", "channel": "TradeDesk", "from": 2.0337, "to": 1, "reason": "TTD COSTS = client-billed" },
+    { "campaignId": "cmp-00a9e8cb74e5", "campaignName": "COBA Event DOOH", "channel": "DOOH", "from": null, "to": 1, "reason": "ONLY if the flagged COBA pair is approved (TTD billed feed)" }
+  ],
+  "unmatchableGridRows": [],
+  "unmatchedBq": [
+    {
+      "channel": "LinkedIn",
+      "advertiserName": "PropTrack_TransmissionSG_AUD",
+      "value": "Add PO Number_Proptrack Nov 12",
+      "mediaSpend": 9549.91,
+      "note": "Nov-2025..Feb-2026 creative program (12 campaigns: FOMO / Grow with Confidence / Talent gap etc.) - no Grid row. Expected: the Central sheet tracks current campaigns only."
+    },
+    {
+      "channel": "LinkedIn",
+      "advertiserName": "PropTrack_TransmissionSG_AUD",
+      "value": "1750_PropTrack _COBA event campaign_Website Clicks",
+      "mediaSpend": 8499.25,
+      "note": "The 2025 COBA event (Aug-Sep 2025) - a prior-year edition of the 2026 COBA row; no Grid row."
+    },
+    {
+      "channel": "DV360",
+      "advertiserName": "APAC | PropTrack (AUD)",
+      "value": "(2025 campaigns, Jul-Sep 2025)",
+      "mediaSpend": 9489.14,
+      "note": "Billed total of the 2025 DV360 history - no Grid row reads DV360; the spec entry is kept for reconcile visibility only."
+    }
+  ]
+}

@@ -1,0 +1,91 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-22/23 from raw_windsor.perf_the_trade_desk (read-only; advertiser 'VMCH ' with TRAILING SPACE). 'preview' = whole-history BQ totals (AUD, cost = client-billed).",
+  "client": "VMCH",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "One table, one advertiser, 4 campaign names, 4 rules - a perfect 1:1 partition (RAC_AU / SAH_AU / Disability_AU / RL_AU), zero overlap, 4/4 names covered. The 3 DV360 Grid rows have no source table, so no cross-platform claim is possible.",
+  "warnings": [
+    "STRUCTURAL MONTH-SLICE MISMATCH: the Grid's RAC/SAH rows are MAY slices and Disability Retargeting a JUNE slice of continuous Apr-Jul campaigns - the sync has no per-row date scoping, so approving writes each campaign's WHOLE history onto its row. The deltas are quantified per pair; the human accepts whole-history or keeps sheet values.",
+    "BILLED BASIS: Windsor perf_the_trade_desk cost is CLIENT-BILLED (proven on City Perfume/QTopia/TLM this run) - all 4 TTD rows need spendMult=1 (RL 2.8571 and Disability Retargeting 2.5 are sheet artifacts; RAC/SAH are currently null which would leave clientSpend frozen at sheet values).",
+    "RAC + SAH have NO platformMargin set (TTD is a Platform-Margin channel; standard 0.60-0.65) - set it with the approval.",
+    "3 of 4 TTD rows are Ended - backfill needs ?client=VMCH&includeEnded=1.",
+    "April is UNRELIABLE in this source: TTD's full April never reached Windsor (the vmch dashboard models April RAC/SAH delivery from client monthly totals) - April spend here is a sliver ($38 RAC / $0.10 SAH), which also makes the 3 DV360-labelled Feb-Apr Grid rows unbackfillable even via TTD."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-9f59b9e1903b",
+      "campaignName": "Retirement Living",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "VMCH ",
+      "mode": "contains",
+      "value": "RL_AU",
+      "confidence": "high",
+      "rationale": "1 campaign (RL_AU_ID Digital_VMCH_2026, 05-12..live) whose flight EQUALS the row's (05-12..08-15) - the one clean whole-flight match. May+June $8,678.79 + early July vs sheet clientSpend $9,826.93 (vintage-consistent). Whole-history $11,992.37 and delivering. spendMult 2.8571 -> 1 (billed).",
+      "preview": { "bqNames": 1, "mediaSpend": 11992.37 }
+    },
+    {
+      "campaignId": "cmp-d0a1b0c597f0",
+      "campaignName": "Age Care RAC",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "VMCH ",
+      "mode": "contains",
+      "value": "RAC_AU",
+      "confidence": "medium",
+      "rationale": "1 campaign; May slice $4,632.83 vs sheet $4,391.55 (+5.5%); whole-history $4,670.89 (adds April's $38.07 sliver). Approving writes $4,670.89. Ended -> includeEnded=1.",
+      "preview": { "bqNames": 1, "mediaSpend": 4670.89 }
+    },
+    {
+      "campaignId": "cmp-a35bd9a6cedb",
+      "campaignName": "Age Care SAH",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "VMCH ",
+      "mode": "contains",
+      "value": "SAH_AU",
+      "confidence": "medium",
+      "rationale": "1 campaign; whole-history $6,965.51 = 99.96% of the row's $6,968 budget, but the sheet recorded only $6,000 - approving is a +16% correction. Ended -> includeEnded=1.",
+      "preview": { "bqNames": 1, "mediaSpend": 6965.51 }
+    },
+    {
+      "campaignId": "cmp-2341e1f47044",
+      "campaignName": "Disability Retargeting",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "VMCH ",
+      "mode": "contains",
+      "value": "Disability_AU",
+      "confidence": "medium",
+      "rationale": "FLAGGED: the ONLY Disability campaign in Windsor spans Apr-Jun ($3,749.64 whole; the row's June slice is $992.53). The sheet's $2,981.28 is a mult artifact (1,192.51 x 2.5). The vmch dashboard folds Retargeting INTO Disability - whether this June 'Retargeting' row should own the whole campaign (which overlaps the DV360-labelled April 'Disability' row) is a human call. Ended.",
+      "preview": { "bqNames": 1, "mediaSpend": 3749.64 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-9f59b9e1903b", "campaignName": "Retirement Living", "channel": "TradeDesk", "from": 2.8571, "to": 1, "reason": "Windsor TTD cost = client-billed" },
+    { "campaignId": "cmp-2341e1f47044", "campaignName": "Disability Retargeting", "channel": "TradeDesk", "from": 2.5, "to": 1, "reason": "Windsor TTD cost = client-billed" },
+    { "campaignId": "cmp-d0a1b0c597f0", "campaignName": "Age Care RAC", "channel": "TradeDesk", "from": null, "to": 1, "reason": "unset mult would freeze clientSpend at the sheet value after sync" },
+    { "campaignId": "cmp-a35bd9a6cedb", "campaignName": "Age Care SAH", "channel": "TradeDesk", "from": null, "to": 1, "reason": "unset mult would freeze clientSpend at the sheet value after sync" }
+  ],
+  "unmatchableGridRows": [
+    {
+      "campaignId": "cmp-3363728532bc",
+      "campaignName": "Age Care RAC",
+      "gridChannel": "DV360",
+      "reason": "No VMCH DV360 source exists: raw_snowflake.dv360_apac is Transmission-only (advertiser roster verified) and there is no Windsor DV360 table. The Feb-Apr flight also predates reliable Windsor TTD coverage (April incomplete). Stays sheet-valued ($8,788)."
+    },
+    {
+      "campaignId": "cmp-7a1cc6a31829",
+      "campaignName": "Age Care SAH",
+      "gridChannel": "DV360",
+      "reason": "Same as RAC DV360 - no source. Stays sheet-valued ($13,210)."
+    },
+    {
+      "campaignId": "cmp-e00bdd06f138",
+      "campaignName": "Disability",
+      "gridChannel": "DV360",
+      "reason": "Same - no DV360 source. NOTE: the Windsor TTD Disability campaign DOES include April ($768.36), which overlaps this row's Apr window - one more reason the Disability Retargeting pair is flagged for a human."
+    }
+  ],
+  "unmatchedBq": []
+}

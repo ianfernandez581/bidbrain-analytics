@@ -1,0 +1,66 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-22/23 (read-only). Google/Meta previews are JUNE-scoped (the spec's table entries carry flightStart/flightEnd = the Grid's June rows); the TTD preview is whole-history.",
+  "client": "City Perfume",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "Three tables, one advertiser each, ONE Grid row per channel - the Google/Meta rules are intentional match-alls (empty contains value) inside their channel+account scope, so overlap is impossible by construction (no second rule shares a scope). TTD has exactly 1 campaign name, claimed exactly once.",
+  "warnings": [
+    "EMPTY MATCH VALUE: the Google + Meta rules use contains '' = match-everything within the channel+account (verified against src/central/match.js: an empty string passes the null check and indexOf('') is always 0). There is no shared name token across the 'CP |' / '100D -' / 'CityPerfume_' campaign families, and the row IS the whole account. At approval, confirm the panel preserves the empty value - if it strips it, the rule silently matches nothing.",
+    "FRESHNESS HOLE - DO NOT APPROVE THE GOOGLE PAIR YET: the City Perfume DTS transfer is stalled at 2026-06-22 (ResetData/TLM run to 07-21), so the June-scoped sum is $32,301 vs the sheet's $34,953 media - approving now under-writes June by ~$2.6k. Re-check after the transfer backfills June 23-30.",
+    "Meta ingest for this account currently ends 2026-06-28 - the June sum is missing 2 days ($4,833.25 vs sheet $5,142.97).",
+    "BASIS SPLIT: Google + Meta spend are RAW MEDIA - the sheet mults STAY (Google 1.1655 = the billing markup; Meta 1). TTD cost is CLIENT-BILLED - that row's extreme 7.1541 mult is the artifact and must go to 1.",
+    "All 3 rows are Ended - backfill needs ?client=City Perfume&includeEnded=1.",
+    "TTD platformMargin is 0.40 - below the 0.60-0.65 standard (carry-forward 6). Eyeball before sync."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-e9196d95ec35",
+      "campaignName": "Always On",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "City Perfume",
+      "mode": "contains",
+      "value": "CP_Always_On_Awareness",
+      "confidence": "high",
+      "rationale": "1 campaign (CP_Always_On_Awareness_Display_May_2026_AU). Whole-history cost $7,500.02 = the sheet's clientSpend TO THE CENT - Windsor TTD billed basis proven; the extreme 7.1541 mult is the artifact (media $1,048.36 x 7.1541). Note: the row is dated June but carries the whole May-June flight's billed figure - BQ agrees with the NUMBER, so the entry is deliberately unscoped. spendMult -> 1.",
+      "preview": { "bqNames": 1, "mediaSpend": 7500.02 }
+    },
+    {
+      "campaignId": "cmp-fcde82444363",
+      "campaignName": "Always On",
+      "gridChannel": "Google Ads",
+      "channel": "Google Ads",
+      "advertiserName": "City Perfume",
+      "mode": "contains",
+      "value": "",
+      "confidence": "medium",
+      "rationale": "Match-all within the account, June-scoped by the spec's table entry (2026-06-01..30). June-to-data-end sum ~$32,301 vs sheet mediaSpend $34,953.10 - the gap is the STALLED DTS transfer (data ends 06-22), NOT a mismatch. HOLD approval until the transfer backfills. Media basis: the 1.1655 mult stays (clientSpend $40,739 = media x markup).",
+      "preview": { "bqNames": 45, "mediaSpend": 32301 }
+    },
+    {
+      "campaignId": "cmp-794292110da4",
+      "campaignName": "Always On",
+      "gridChannel": "Meta",
+      "channel": "Meta",
+      "advertiserName": "Cityperfume.com.au",
+      "mode": "contains",
+      "value": "",
+      "confidence": "medium",
+      "rationale": "Match-all within the account, June-scoped. June account total $4,833.25 vs sheet $5,142.97 (-6%: ingest ends 06-28, missing 2 days; the two June-active majors are Advantage+ Retargeting $2,132.73 + ASC Acquisition $2,700.52). Media basis: mult 1 stays.",
+      "preview": { "bqNames": 2, "mediaSpend": 4833.25 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-e9196d95ec35", "campaignName": "Always On", "channel": "TradeDesk", "from": 7.1541, "to": 1, "reason": "Windsor TTD cost = client-billed (proven to the cent on this row)" }
+  ],
+  "unmatchableGridRows": [],
+  "unmatchedBq": [
+    {
+      "channel": "Google Ads + Meta",
+      "advertiserName": "City Perfume / Cityperfume.com.au",
+      "value": "(all pre-June history)",
+      "mediaSpend": 1625000,
+      "note": "The account's 2018..May-2026 history (~$1.56M Google + Meta) is EXCLUDED by the flight-scoped table entries - by design: the Grid imported only the June rows. Import more months as rows before widening the scopes."
+    }
+  ]
+}

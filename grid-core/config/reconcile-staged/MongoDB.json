@@ -1,0 +1,52 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - prepared by the session, approved ONLY by a human in the Map client panel. Nothing here writes to the sync map until a human ticks + approves. Evidence pulled 2026-07-22/23 from raw_snowflake.tradedesk_apac_all (read-only). 'preview' = whole-history BQ totals for the rule at pull time (AUD, COSTS = client-billed). Sheet-vintage cross-checks use SUM to 2026-07-08.",
+  "client": "MongoDB",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "One table (tradedesk_apac_all), one advertiser ('MongoDB'), 15 campaign names total. The two staged tokens (IDE_ / IDC_) are disjoint families: IDE claims 7 names, IDC claims 8 - 15/15 covered, zero overlap, zero leftovers. The LinkedIn row has no source table at all, so no cross-platform claim is possible.",
+  "warnings": [
+    "BILLED BASIS: TTD COSTS is CLIENT-BILLED - proven here to the cent (DNB IDE: SUM(COSTS) $16,183.91 = the sheet's clientSpend exactly). Both TTD rows carry sheet-artifact mults (5.103 / 4.7879 = clientSpend/mediaSpend back-outs); set spendMult=1 on BOTH rows before/with approval or the first sync writes clientSpend at ~5x billed.",
+    "platformMargin is 0.70 on both TTD rows - above the 0.60-0.65 standard (PHASE4 carry-forward 6: hand-typed sheet margins are not trustworthy). Eyeball before first sync.",
+    "MID-FLIGHT RENAME 2026-07-06: every campaign gained a '2265_' job prefix (old-name rows stopped, new-name rows continue; the IDE new-vintage rows exist with $0 spend). The staged tokens are the stable suffixes and span both vintages.",
+    "DNB IDE is Ended - its backfill needs POST /api/central/sync?client=MongoDB&includeEnded=1 (the Sync-now button does not pass includeEnded)."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-d8b548bcc1a2",
+      "campaignName": "DNB IDE",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "MongoDB",
+      "mode": "contains",
+      "value": "IDE_APJ_DEMAND-GENERATION",
+      "confidence": "high",
+      "rationale": "7 names (4 regions unprefixed, 2026-05-19..07-05 + 3 '2265_' vintage with $0). Whole-history SUM(COSTS) $16,183.91 = the sheet's clientSpend TO THE CENT - billed basis proven; the 5.103 mult is the artifact (media $3,171.48 x 5.103). Row is Ended -> includeEnded=1.",
+      "preview": { "bqNames": 7, "mediaSpend": 16183.91 }
+    },
+    {
+      "campaignId": "cmp-c0b9233228f0",
+      "campaignName": "Key Growth Accounts IDC",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "MongoDB",
+      "mode": "contains",
+      "value": "IDC_APJ_DEMAND-GENERATION",
+      "confidence": "high",
+      "rationale": "8 names (4 regions x 2 vintages via the 2265_ prefix, rename 2026-07-06). To 07-08: $19,461.61 vs sheet clientSpend $18,936.31 (+2.8% vintage drift). Whole-history $25,544.47 - still delivering daily. spendMult 4.7879 -> 1.",
+      "preview": { "bqNames": 8, "mediaSpend": 25544.47 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-d8b548bcc1a2", "campaignName": "DNB IDE", "channel": "TradeDesk", "from": 5.103, "to": 1, "reason": "TTD COSTS = client-billed (proven to the cent on this row)" },
+    { "campaignId": "cmp-c0b9233228f0", "campaignName": "Key Growth Accounts IDC", "channel": "TradeDesk", "from": 4.7879, "to": 1, "reason": "TTD COSTS = client-billed" }
+  ],
+  "unmatchableGridRows": [
+    {
+      "campaignId": "cmp-7a65108c5768",
+      "campaignName": "Key Growth Accounts IDC",
+      "gridChannel": "Linkedin",
+      "reason": "No MongoDB LinkedIn source anywhere: not in raw_snowflake.linkedin_ads_apac (account roster verified), and raw_windsor.perf_linkedin has ZERO MongoDB rows (verified 2026-07-23) - the campaign lives in Windsor account 502299829 whose connector returns HTTP 500 and is skipped by the loader (ingest/windsor_data_pull/linkedin/README). Maps automatically become possible once that connector is re-authed; until then the row stays sheet-valued ($592.58)."
+    }
+  ],
+  "unmatchedBq": []
+}

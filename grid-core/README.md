@@ -90,10 +90,11 @@ table** (`PHASE3_CLOUDFLARE_REPORT.md` §1, the money finding). Verified per tab
 | Raw table | Cost column | Basis | spendMult on synced rows |
 |---|---|---|---|
 | `raw_snowflake.tradedesk_apac_all` | `COSTS` | **CLIENT-BILLED** | **1** (a sheet-derived 2.5-3.5× mult would double-count — the §9 corruption) |
-| `raw_snowflake.dv360_apac` | `REVENUE_ADV_CURRENCY` | **CLIENT-BILLED** (what the client pays) | **1** when mapped this way (Schneider). NOTE: the STT/PropTrack/HireRight specs still use `MEDIA_COST_ADVERTISER_CURRENCY` (media basis) — their Phase 3 runs must decide the basis deliberately |
+| `raw_snowflake.dv360_apac` | `REVENUE_ADV_CURRENCY` | **CLIENT-BILLED** (what the client pays) | **1** when mapped this way. Schneider, and since the 2026-07-23 batch prep also the STT + HireRight specs (deliberate pick — billed matches their sheet clientSpend evidence). PropTrack's DV360 entry is 2025-history only (no Grid row) |
 | `raw_snowflake.linkedin_ads_apac` | `COSTS` | media = billed | 1 |
 | `raw_snowflake.reddit_ads_apac_all` | `COSTS` | media = billed | 1 |
-| `raw_windsor.*` (Google/Meta/TTD/Reddit) | `spend` / `cost` | raw media | sheet-derived mult stays (not yet re-verified — do the §1 date-bounded check per client before first sync) |
+| `raw_windsor.perf_the_trade_desk` | `cost` | **CLIENT-BILLED** — verified 2026-07-23 to the cent (City Perfume $7,500.02 = sheet clientSpend; WEHI $4,113.83 vs $4,113.82; QTopia billed = budget to the dollar) | **1** (the extreme sheet mults 7.15/10.09/7.76 were media-basis back-out artifacts) |
+| `raw_windsor.perf_meta` + `raw_google_ads.perf_google_ads` | `cost` / `spend` | raw media (verified 2026-07-23: TLM Google to-07-08 $3,018.82 vs sheet media $3,036.64) | sheet-derived mult STAYS (e.g. City Perfume Google 1.1655) |
 
 **Currency scoping rule (Schneider lesson 1):** the sync does NO FX conversion. A
 multi-account/multi-currency client must be scoped to ONE currency's account via

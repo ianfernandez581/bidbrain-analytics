@@ -1,0 +1,45 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-22/23 (read-only). 'preview' = whole-history BQ totals (AUD, cost = client-billed; all spend falls inside the row's flight).",
+  "client": "QTopia",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "One table (perf_the_trade_desk, advertiser 'Qtopia Sydney'), 3 campaign names, one rule claiming all 3 - zero overlap by construction. Meta + Google rows have no source (see unmatchable).",
+  "warnings": [
+    "THE ACID-TEST ROW of this batch: the sheet's TTD clientSpend $1,360.55 is the extreme-mult artifact (media $134.82 x 10.0916) and UNDERSTATES the billed truth by 85% - BQ billed $2,519.86 equals the row's $2,520 budget to the dollar. Approving corrects the sheet upward; verify the preview before ticking.",
+    "spendMult 10.0916 -> 1 (staged) - Windsor TTD cost = client-billed.",
+    "platformMargin 0.50 is below the 0.60-0.65 standard (carry-forward 6) - eyeball before sync.",
+    "All rows Ended - backfill needs ?client=QTopia&includeEnded=1."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-8373a5ff3124",
+      "campaignName": "PrideFest",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "Qtopia Sydney",
+      "mode": "contains",
+      "value": "QTOPIA_PF26_TTD",
+      "confidence": "high",
+      "rationale": "3 campaigns (CONV_MEL $399.97 + CONV_NSW $620.01 + CONV_SYD $1,499.88) summing $2,519.86 = the row's $2,520 budget to the dollar; all spend within the 06-07..06-29 flight (stray zero-cost rows through 07-20). spendMult 10.0916 -> 1.",
+      "preview": { "bqNames": 3, "mediaSpend": 2519.86 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-8373a5ff3124", "campaignName": "PrideFest", "channel": "TradeDesk", "from": 10.0916, "to": 1, "reason": "Windsor TTD cost = client-billed (billed = budget to the dollar)" }
+  ],
+  "unmatchableGridRows": [
+    {
+      "campaignId": "cmp-f0a0f9866cd2",
+      "campaignName": "PrideFest",
+      "gridChannel": "Meta",
+      "reason": "No QTopia account exists in raw_windsor.perf_meta (account roster verified: Cityperfume / Ad Assembly x2 / Reset backup / 100% Digital - Clients) and there is no Snowflake Meta table at all. Stays sheet-valued (media $2,457.01)."
+    },
+    {
+      "campaignId": "cmp-d7ff35a0699f",
+      "campaignName": "PrideFest",
+      "gridChannel": "Google Ads",
+      "reason": "No QTopia customer in the DTS transfer (customers: City Perfume/Liberty/Paradise/Reset Data/TLM) and raw_snowflake.google_ads_apac is STT-only. Row has no spend recorded anyway. Stays sheet-valued."
+    }
+  ],
+  "unmatchedBq": []
+}

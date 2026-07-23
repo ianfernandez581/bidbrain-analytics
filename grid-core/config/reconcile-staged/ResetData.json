@@ -1,0 +1,71 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-22/23 (read-only). Previews are FLIGHT-SCOPED (2026-06-01..07-31, matching the spec's table entries and the Grid's Jun-Jul rows) unless noted.",
+  "client": "ResetData",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "Three tables, one account each, one Grid row per channel. TTD uses an exact-name rule; Meta's 'ResetData_' token claims all 5 account campaigns (verified full list); Google is an intentional match-all (no shared token across the new AI-product + old bracket-prefixed families) - no scope holds two rules, so overlap is impossible. The Reddit row has NO source (see unmatchable).",
+  "warnings": [
+    "REDDIT DATA BUG (escalate beyond the Grid): perf_reddit's only rows are Cloudflare's ('Transmission_Cloudflare', CLOUD_ACQ_* campaigns) yet they carry client_slug='resetdata' - the resetdata DASHBOARD's Reddit lane filters on that slug and may be showing Cloudflare campaigns as ResetData's. The Grid row itself is unmatchable; the dashboard issue is reported in PHASE3_BATCH_PREP_REPORT.md.",
+    "BASIS SPLIT: TTD cost = CLIENT-BILLED (spendMult 3.4707 -> 1 staged); Google/Meta = raw media (mult 1 stays). The Reddit row's mult 2 is the agency's deliberate x2 billed markup - row unmatchable, leave it.",
+    "Meta ingest for the account currently ends 2026-07-07; Google (DTS) is fresh to 07-21.",
+    "Small residuals vs the sheet (TTD -5.2%, Meta -7.4%, Google -7.8% at the 07-08 vintage) all have the sheet ABOVE BQ - consistent with the sheet's numbers including a few late-May days the flight scope excludes; eyeball at approval."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-60fc34ccd19b",
+      "campaignName": "46113",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "ResetData",
+      "mode": "exact",
+      "value": "ResetData_Apr26",
+      "confidence": "high",
+      "rationale": "1 campaign - the always-on continuation (running since 04-10; the spec flight-scopes to the row's Jun-Jul). June-onward $6,254.28; to 07-08 $4,691.48 vs sheet clientSpend $4,949.84 (-5.2%, see warnings). spendMult 3.4707 -> 1 (billed). Excludes the March GTC burst (separate exact name).",
+      "preview": { "bqNames": 1, "mediaSpend": 6254.28 }
+    },
+    {
+      "campaignId": "cmp-33a87b99e4ff",
+      "campaignName": "46113",
+      "gridChannel": "Meta",
+      "channel": "Meta",
+      "advertiserName": "Reset backup – Ad account",
+      "mode": "contains",
+      "value": "ResetData_",
+      "confidence": "high",
+      "rationale": "Claims all 5 campaigns in the account (Jun26_Acquisition/Jun26_Retargeting/June V1/May26/Apr26 - every name starts 'ResetData_'). June-onward $1,813.88 vs sheet mediaSpend $1,959.24 (-7.4%; ingest ends 07-07). Media basis: mult 1 stays. Account name contains an EN-DASH - the spec carries it exactly.",
+      "preview": { "bqNames": 5, "mediaSpend": 1813.88 }
+    },
+    {
+      "campaignId": "cmp-3179ea67e6e2",
+      "campaignName": "Always On",
+      "gridChannel": "Google Ads",
+      "channel": "Google Ads",
+      "advertiserName": "Reset Data",
+      "mode": "contains",
+      "value": "",
+      "confidence": "medium",
+      "rationale": "Match-all within the account, flight-scoped 06-01..07-31 by the spec (no shared token: new 'AI Inference/Enterprise AI/GPU/MSP' campaigns + old '[BRAND]/[SECTOR]' family). June-onward $5,205.87; to 07-08 $3,797.79 vs sheet mediaSpend $4,119.02 (-7.8%, see warnings). Media basis: mult 1 stays. Confirm the panel preserves the empty match value.",
+      "preview": { "bqNames": 10, "mediaSpend": 5205.87 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-60fc34ccd19b", "campaignName": "46113", "channel": "TradeDesk", "from": 3.4707, "to": 1, "reason": "Windsor TTD cost = client-billed" }
+  ],
+  "unmatchableGridRows": [
+    {
+      "campaignId": "cmp-74790bdcf864",
+      "campaignName": "46113",
+      "gridChannel": "Reddit",
+      "reason": "No ResetData Reddit source exists: perf_reddit + reddit_ads_apac_all contain ONLY Cloudflare ('Transmission_Cloudflare'). The old spec entry pointing at 'ResetData Ad Account (100Digital)' matched nothing and was removed this run. Stays sheet-valued (media $897.94, x2 billed markup)."
+    }
+  ],
+  "unmatchedBq": [
+    {
+      "channel": "Trade Desk",
+      "advertiserName": "ResetData",
+      "value": "ResetData_GTC_March26",
+      "mediaSpend": 4481.28,
+      "note": "The March GTC burst (03-16..20) - no Grid row, and outside the flight scope anyway."
+    }
+  ]
+}

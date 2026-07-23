@@ -1,0 +1,51 @@
+{
+  "_comment": "Mission-1 batch Phase-3 STAGED reconcile candidates - human approves in the Map client panel. Evidence pulled 2026-07-22/23 (read-only). Previews are FLIGHT-SCOPED (2026-06-01..07-31, matching the spec's table entries and the Grid's Jun-Jul rows).",
+  "client": "The Little Marionette",
+  "preparedAt": "2026-07-23",
+  "preparedBy": "Mission-1 batch prep session (Claude) - see PHASE3_BATCH_PREP_REPORT.md",
+  "platformAudit": "Two tables, one account each, one Grid row per channel. TTD is an exact single-name rule; Google is an intentional match-all in its own scope - no scope holds two rules.",
+  "warnings": [
+    "BASIS SPLIT: TTD cost = CLIENT-BILLED - the extreme 7.757 mult is a sheet artifact (media $185.69 x 7.757 = $1,440.40) and goes to 1 (staged). Google = raw media - mult 1 stays.",
+    "The TTD campaign runs since 04-30; pre-June spend ($1,234.41) belongs to no Grid row and is excluded by the spec's flight scope.",
+    "Google pair uses an empty match value (match-all within the account) - confirm the panel preserves it at approval."
+  ],
+  "pairs": [
+    {
+      "campaignId": "cmp-282b8b2e6808",
+      "campaignName": "Always On",
+      "gridChannel": "TradeDesk",
+      "channel": "Trade Desk",
+      "advertiserName": "The Little Marionette",
+      "mode": "exact",
+      "value": "TLM_Always-On_2026",
+      "confidence": "high",
+      "rationale": "1 campaign. Flight-scoped June-onward $2,044.66; to 07-08 $1,484.80 vs sheet clientSpend $1,440.40 (+3.1%) - billed basis confirmed, extreme mult resolved. spendMult 7.757 -> 1.",
+      "preview": { "bqNames": 1, "mediaSpend": 2044.66 }
+    },
+    {
+      "campaignId": "cmp-d077cd013ed3",
+      "campaignName": "Always On",
+      "gridChannel": "Google Ads",
+      "channel": "Google Ads",
+      "advertiserName": "The Little Marionette",
+      "mode": "contains",
+      "value": "",
+      "confidence": "medium",
+      "rationale": "Match-all within the account, flight-scoped 06-01..07-31 (campaign families PMax/[BRAND]/[RETAIL]/[SUBS] share no token). June-onward $4,174.08; to 07-08 $3,018.82 vs sheet mediaSpend $3,036.64 (-0.6% - the cleanest media-basis cross-check of the whole batch). Media basis: mult 1 stays.",
+      "preview": { "bqNames": 13, "mediaSpend": 4174.08 }
+    }
+  ],
+  "spendMultResets": [
+    { "campaignId": "cmp-282b8b2e6808", "campaignName": "Always On", "channel": "TradeDesk", "from": 7.757, "to": 1, "reason": "Windsor TTD cost = client-billed" }
+  ],
+  "unmatchableGridRows": [],
+  "unmatchedBq": [
+    {
+      "channel": "Trade Desk",
+      "advertiserName": "The Little Marionette",
+      "value": "TLM_Always-On_2026 (pre-June slice)",
+      "mediaSpend": 1234.41,
+      "note": "Apr-30..May spend of the same campaign - no Grid row for that period; excluded by the flight scope."
+    }
+  ]
+}
