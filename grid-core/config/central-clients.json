@@ -201,6 +201,26 @@
             "value": "WaterEnv_P2_2026"
           },
           "campaignName": "Water and Environment"
+        },
+        {
+          "campaignId": "cmp-a6c442f9a9df",
+          "channel": "DV360",
+          "advertiserName": "APAC | Schneider Electric AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "EAE_Consideration"
+          },
+          "campaignName": "EAE Consideration"
+        },
+        {
+          "campaignId": "cmp-6adcdc06dfd5",
+          "channel": "DV360",
+          "advertiserName": "APAC | Schneider Electric AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "EAE_Conversion"
+          },
+          "campaignName": "EAE Conversion"
         }
       ]
     },
@@ -208,27 +228,29 @@
       "client": "HireRight",
       "validated": false,
       "source": "raw",
-      "note": "Added from the central scan (Section 6 / readiness, 2026-07-10): HireRight has LIVE BQ delivery on Trade Desk / LinkedIn / DV360 but had no Central row (a missing row). advertiserValue per table = the exact BQ spelling from the scan. CONFIG (jobNumber/budget/spendMult/manager/dates) is NOT in the sheet, so the campaign rows land Active-with-missing-config (see config/central-extra-campaigns.json); validated:false until Zhen confirms via reconcile. map[] is the pre-seeded Design A per-row rule (mode contains, value taken from the real BQ campaign names: Trade Desk names all contain 'HireRight_Digital-Air-Cover'; LinkedIn + DV360 names all contain '1802').",
+      "note": "Added from the central scan (Section 6 / readiness, 2026-07-10): HireRight has LIVE BQ delivery on Trade Desk / LinkedIn / DV360 but had no Central row (a missing row). CONFIG (jobNumber/budget/spendMult/manager/dates) is NOT in the sheet, so the campaign rows land Active-with-missing-config; validated:false until Zhen confirms via reconcile. Batch Phase-3 prep (2026-07-23): ENTIRE CLIENT IS USD (LinkedIn + DV360 accounts are _USD; TTD presumed USD) - no FX in the sync, DO NOT validate until the currency treatment is decided. LinkedIn grain fixed to CAMPAIGN_GROUP_NAME: the pre-seeded map's '1802' campaign-grain token over-claimed the separate 2025 Awareness program ($10,048) - the corrected pair (group grain, token 'Digital Air Cover') is staged in config/reconcile-staged/HireRight.json; at approval the human must REPLACE the pre-seeded map entries (they carry no campaignIds), not append. DV360 basis switched to billed REVENUE_ADV_CURRENCY (media $4,018 / billed $14,946; Schneider precedent) - spendMult=1 if approved.",
       "tables": [
         {
           "dataset": "raw_snowflake",
           "table": "tradedesk_apac_all",
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "HireRight"
+          "advertiserValue": "HireRight",
+          "note": "COSTS = client-billed; currency presumed USD (unverified)."
         },
         {
           "dataset": "raw_snowflake",
           "table": "linkedin_ads_apac",
           "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
+          "campaignColumn": "CAMPAIGN_GROUP_NAME",
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "HireRight_TransmissionSG_USD"
+          "advertiserValue": "HireRight_TransmissionSG_USD",
+          "note": "USD account. Grain fixed to CAMPAIGN_GROUP_NAME 2026-07-23 (was CAMPAIGN_NAME - the '1802' token at campaign grain claimed two distinct programs)."
         },
         {
           "dataset": "raw_snowflake",
@@ -236,9 +258,10 @@
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
           "impressionColumn": "IMPRESSIONS",
-          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
+          "costColumn": "REVENUE_ADV_CURRENCY",
           "dateColumn": "DAY",
-          "advertiserValue": "APAC_HireRight_271025_USD"
+          "advertiserValue": "APAC_HireRight_271025_USD",
+          "note": "USD advertiser. Billed basis picked 2026-07-23 (was MEDIA_COST_ADVERTISER_CURRENCY); delivery ended 2026-01-30."
         }
       ],
       "map": [
@@ -457,6 +480,7 @@
       "client": "STT",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): CURRENCY LANDMINE - DO NOT VALIDATE until the currency question is resolved (PHASE4_REPORT carry-forward 5). Every remaining source is SGD (or the unverified successor 'STT Global Data') and the sync has no FX; the sheet is internally inconsistent (3 rows match SGD platform figures to <0.1%, the DemandNurture rows sit ~16% below - consistent with an AUD conversion). Spec rescoped this run: USD/legacy sources REMOVED (LinkedIn 'STTGDC_TransmissionSG_USD' $37,177 2025 history; Google 'STT (USD)' $18,014 2025; DV360 'APAC | STTelemdia GDC' billed $19,285 2025) - no Grid rows reference them. LinkedIn grain fixed to CAMPAIGN_GROUP_NAME; DV360 basis switched to billed REVENUE_ADV_CURRENCY (deliberate pick: billed $63,576 matches the sheet clientSpend $62,571 within 1.6%; media $8,481 matches nothing) - if the DV360 pair is approved set spendMult=1. Staged pairs: config/reconcile-staged/STT.json.",
       "tables": [
         {
           "dataset": "raw_snowflake",
@@ -464,19 +488,10 @@
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
           "impressionColumn": "IMPRESSIONS",
-          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
+          "costColumn": "REVENUE_ADV_CURRENCY",
           "dateColumn": "DAY",
-          "advertiserValue": "APAC | STT GDC - SGD"
-        },
-        {
-          "dataset": "raw_snowflake",
-          "table": "dv360_apac",
-          "advertiserColumn": "ADVERTISER_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
-          "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
-          "dateColumn": "DAY",
-          "advertiserValue": "APAC | STTelemdia GDC"
+          "advertiserValue": "APAC | STT GDC - SGD",
+          "note": "SGD advertiser. Billed basis (REVENUE_ADV_CURRENCY) picked 2026-07-23 - evidence in reconcile-staged/STT.json; was MEDIA_COST_ADVERTISER_CURRENCY."
         },
         {
           "dataset": "raw_snowflake",
@@ -486,7 +501,8 @@
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "STT GDC_SGD"
+          "advertiserValue": "STT GDC_SGD",
+          "note": "SGD. Account went quiet 2026-05-30; campaigns continue under 'STT Global Data' from 05-31 (same names) - a rule spanning both accounts needs mode 'rollup'."
         },
         {
           "dataset": "raw_snowflake",
@@ -496,38 +512,19 @@
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "STT Global Data"
-        },
-        {
-          "dataset": "raw_snowflake",
-          "table": "google_ads_apac",
-          "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
-          "costColumn": "COSTS",
-          "dateColumn": "DAY",
-          "advertiserValue": "STT (USD)"
+          "advertiserValue": "STT Global Data",
+          "note": "Successor account (from 2026-05-31). Currency UNVERIFIED - the June 'AI Readiness' sum $1,862.06 matches the sheet's $1,860.95 to 0.06%, whatever unit that is."
         },
         {
           "dataset": "raw_snowflake",
           "table": "linkedin_ads_apac",
           "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
+          "campaignColumn": "CAMPAIGN_GROUP_NAME",
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
           "advertiserValue": "APAC - STT GDC - SGD ",
-          "note": "trailing space in BQ value"
-        },
-        {
-          "dataset": "raw_snowflake",
-          "table": "linkedin_ads_apac",
-          "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
-          "costColumn": "COSTS",
-          "dateColumn": "DAY",
-          "advertiserValue": "STTGDC_TransmissionSG_USD"
+          "note": "TRAILING SPACE in BQ value. SGD account. Grain fixed to CAMPAIGN_GROUP_NAME 2026-07-23 (was CAMPAIGN_NAME - LinkedIn rows reconcile at group grain, Cloudflare/Schneider lesson)."
         }
       ],
       "map": []
@@ -536,6 +533,7 @@
       "client": "PropTrack",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): the TTD advertiser misspelling 'PopTrack' started being CORRECTED upstream on 2026-07-22 (a 'PropTrack' advertiser now emits 0-spend rows for the same campaign names) - both spellings are table entries and the staged pairs use mode 'rollup' so the rule spans spellings and dedupes by campaign name. LinkedIn grain fixed to CAMPAIGN_GROUP_NAME. Staged pairs: config/reconcile-staged/PropTrack.json.",
       "tables": [
         {
           "dataset": "raw_snowflake",
@@ -545,28 +543,41 @@
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "MEDIA_COST_ADVERTISER_CURRENCY",
           "dateColumn": "DAY",
-          "advertiserValue": "APAC | PropTrack (AUD)"
+          "advertiserValue": "APAC | PropTrack (AUD)",
+          "note": "2025 history only (Jul-Sep 2025, billed $9,489) - no Grid row reads it; kept for reconcile visibility."
         },
         {
           "dataset": "raw_snowflake",
           "table": "linkedin_ads_apac",
           "advertiserColumn": "ACCOUNT_NAME",
-          "campaignColumn": "CAMPAIGN_NAME",
+          "campaignColumn": "CAMPAIGN_GROUP_NAME",
           "impressionColumn": "IMPRESSIONS",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
-          "advertiserValue": "PropTrack_TransmissionSG_AUD"
+          "advertiserValue": "PropTrack_TransmissionSG_AUD",
+          "note": "AUD account. Grain fixed to CAMPAIGN_GROUP_NAME 2026-07-23 (was CAMPAIGN_NAME)."
         },
         {
           "dataset": "raw_snowflake",
           "table": "tradedesk_apac_all",
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
           "advertiserValue": "PopTrack",
-          "note": "BQ advertiser is misspelled \"PopTrack\""
+          "note": "BQ advertiser misspelled 'PopTrack' (all spend to date). COSTS = client-billed."
+        },
+        {
+          "dataset": "raw_snowflake",
+          "table": "tradedesk_apac_all",
+          "advertiserColumn": "ADVERTISER_NAME",
+          "campaignColumn": "CAMPAIGN_NAME",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
+          "costColumn": "COSTS",
+          "dateColumn": "DAY",
+          "advertiserValue": "PropTrack",
+          "note": "Corrected spelling, appeared 2026-07-22 (0-spend rows so far) - future delivery may land here; rollup pairs span both spellings."
         }
       ],
       "map": []
@@ -575,29 +586,18 @@
       "client": "MongoDB",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): the old '0 impressions' claim was a single-column artifact - with COALESCE(IMPRESSIONS, IMPRESSION) the MongoDB advertiser carries real impressions (e.g. IDC 5.9M), so the tradedesk_apac_conversion pixel-table entry (no cost column, reconcile noise) was REMOVED. LinkedIn: NO MongoDB source anywhere (not in linkedin_ads_apac; perf_linkedin has zero MongoDB rows - the Windsor account 502299829 connector 500s and is skipped) - the LinkedIn Grid row is unmatchable until re-auth. Staged pairs: config/reconcile-staged/MongoDB.json.",
       "tables": [
         {
           "dataset": "raw_snowflake",
           "table": "tradedesk_apac_all",
           "advertiserColumn": "ADVERTISER_NAME",
           "campaignColumn": "CAMPAIGN_NAME",
-          "impressionColumn": "IMPRESSIONS",
+          "impressionColumn": "COALESCE(IMPRESSIONS, IMPRESSION)",
           "costColumn": "COSTS",
           "dateColumn": "DAY",
           "advertiserValue": "MongoDB",
-          "note": "tradedesk_apac_all rows carry 0 impressions; conversions live in tradedesk_apac_conversion by advertiser id 9c1w83i"
-        },
-        {
-          "dataset": "raw_snowflake",
-          "table": "tradedesk_apac_conversion",
-          "advertiserColumn": "ADVERTISER_ID",
-          "campaignColumn": "FIRST_IMPRESSION_CAMPAIGN_NAME",
-          "costColumn": null,
-          "impressionColumn": "IMPRESSION_COUNT",
-          "dateColumn": "DAY",
-          "advertiserValue": "9c1w83i",
-          "channel": "Trade Desk",
-          "note": "MongoDB's REAL Trade Desk delivery: keyed on ADVERTISER_ID '9c1w83i' (TTD Universal Pixel), NOT the 'MongoDB' NAME row above (0 impressions). ~13 campaigns / 3.48M imps. No cost column in the conversion table (spend stays sheet-based). channel set explicitly (this table is not in central_sync.TABLE_CHANNEL)."
+          "note": "COSTS = client-billed (IDE campaigns SUM(COSTS) $16,183.91 = the sheet's clientSpend to the cent). Mid-flight rename 2026-07-06 added the 2265_ job prefix - contains rules target the stable IDE/IDC suffix tokens."
         }
       ],
       "map": []
@@ -606,16 +606,20 @@
       "client": "City Perfume",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): Google repointed from the stale raw_windsor copy (ends 2026-06-05) to the DTS bridge raw_google_ads.perf_google_ads - which is ITSELF stalled for this customer at 2026-06-22 (ResetData/TLM run to 07-21); do not approve the Google pair until the transfer backfills June 23-30. Google + Meta entries are flight-scoped to the June rows the Grid carries (the account's whole history would otherwise sum $1.5M+ onto a June row). Google/Meta spend = raw MEDIA basis (sheet mults stay, e.g. Google 1.1655); perf_the_trade_desk cost = CLIENT-BILLED ($7,500.02 = sheet clientSpend to the cent) so the TTD row needs spendMult=1. Staged pairs: config/reconcile-staged/City Perfume.json.",
       "tables": [
         {
-          "dataset": "raw_windsor",
+          "dataset": "raw_google_ads",
           "table": "perf_google_ads",
           "advertiserColumn": "account_name",
           "campaignColumn": "campaign_name",
           "impressionColumn": "impressions",
           "costColumn": "spend",
           "dateColumn": "metric_date",
-          "advertiserValue": "City Perfume"
+          "advertiserValue": "City Perfume",
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-06-30",
+          "note": "DTS bridge view (AUD, media basis). Flight-scoped to the Grid's June row; widen/add entries if later rows are imported."
         },
         {
           "dataset": "raw_windsor",
@@ -626,7 +630,9 @@
           "costColumn": "cost",
           "dateColumn": "metric_date",
           "advertiserValue": "Cityperfume.com.au",
-          "note": "Meta account name differs from client name"
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-06-30",
+          "note": "Meta account name differs from client name. Media basis. Flight-scoped to the June row; ingest currently ends 2026-06-28."
         },
         {
           "dataset": "raw_windsor",
@@ -636,7 +642,8 @@
           "impressionColumn": "impressions",
           "costColumn": "cost",
           "dateColumn": "metric_date",
-          "advertiserValue": "City Perfume"
+          "advertiserValue": "City Perfume",
+          "note": "cost = CLIENT-BILLED. Unscoped: the sheet's June row carries the whole-flight (May+June) billed figure and BQ agrees with it exactly."
         }
       ],
       "map": []
@@ -645,9 +652,10 @@
       "client": "ResetData",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): the dead Reddit entry was REMOVED - perf_reddit contains ONLY Cloudflare data ('Transmission_Cloudflare', CLOUD_ACQ_* campaigns); the old advertiserValue 'ResetData Ad Account (100Digital)' matches nothing, so the Reddit Grid row is unmatchable by design. (Those Cloudflare rows are mislabelled client_slug='resetdata' in perf_reddit - flagged in PHASE3_BATCH_PREP_REPORT.md.) Google repointed to the DTS bridge (fresh to 07-21; the raw_windsor copy ends 06-05); a Meta entry was ADDED ('Reset backup – Ad account', EN-DASH in the name). Google/Meta = media basis (mults stay); TTD cost = client-billed (spendMult=1 staged). Entries flight-scoped to the Grid's June-July rows. Staged pairs: config/reconcile-staged/ResetData.json.",
       "tables": [
         {
-          "dataset": "raw_windsor",
+          "dataset": "raw_google_ads",
           "table": "perf_google_ads",
           "advertiserColumn": "account_name",
           "campaignColumn": "campaign_name",
@@ -655,17 +663,22 @@
           "costColumn": "spend",
           "dateColumn": "metric_date",
           "advertiserValue": "Reset Data",
-          "note": "Google Ads account is \"Reset Data\" (two words)"
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-07-31",
+          "note": "DTS bridge (AUD, media basis). Account is 'Reset Data' (two words). Flight-scoped to the Grid's Jun-Jul row."
         },
         {
           "dataset": "raw_windsor",
-          "table": "perf_reddit",
+          "table": "perf_meta",
           "advertiserColumn": "account_name",
           "campaignColumn": "campaign_name",
           "impressionColumn": "impressions",
-          "costColumn": "spend",
+          "costColumn": "cost",
           "dateColumn": "metric_date",
-          "advertiserValue": "ResetData Ad Account (100Digital)"
+          "advertiserValue": "Reset backup – Ad account",
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-07-31",
+          "note": "EN-DASH (U+2013) in the account name - copy exactly. Media basis. Ingest currently ends 2026-07-07."
         },
         {
           "dataset": "raw_windsor",
@@ -675,7 +688,10 @@
           "impressionColumn": "impressions",
           "costColumn": "cost",
           "dateColumn": "metric_date",
-          "advertiserValue": "ResetData"
+          "advertiserValue": "ResetData",
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-07-31",
+          "note": "cost = CLIENT-BILLED. Flight-scoped: the always-on campaign runs since April but the Grid row is Jun-Jul; the March GTC burst has no Grid row."
         }
       ],
       "map": []
@@ -684,6 +700,7 @@
       "client": "VMCH",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): the Grid's TTD rows are MONTH SLICES (RAC/SAH = May, Disability Retargeting = June) of continuous Apr-Jul campaigns - approving a pair writes the campaign's WHOLE history onto that row (per-row date scoping does not exist; see the staged file's warnings). The 3 DV360 rows (Feb-Apr) are unmatchable by design: no VMCH DV360 source exists (dv360_apac is Transmission-only) and Windsor's April TTD is known-incomplete (the vmch dashboard models April from client totals). cost = CLIENT-BILLED - all 4 TTD rows need spendMult=1 (staged). Staged pairs: config/reconcile-staged/VMCH.json.",
       "tables": [
         {
           "dataset": "raw_windsor",
@@ -694,7 +711,7 @@
           "costColumn": "cost",
           "dateColumn": "metric_date",
           "advertiserValue": "VMCH ",
-          "note": "trailing space in BQ advertiser value"
+          "note": "TRAILING SPACE in BQ advertiser value. cost = client-billed."
         }
       ],
       "map": []
@@ -703,7 +720,21 @@
       "client": "The Little Marionette",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): the Google coverage gap is CLOSED - a DTS bridge entry was added (fresh to 07-21). Both entries flight-scoped to the Grid's Jun-Jul rows (the TTD campaign runs since 04-30; pre-June $1,234 belongs to no Grid row). Google = media basis (mult 1 stays); TTD cost = client-billed (the 7.757 mult is a sheet artifact - spendMult=1 staged; BQ to-07-08 $1,484.80 vs sheet billed $1,440.40). Staged pairs: config/reconcile-staged/The Little Marionette.json.",
       "tables": [
+        {
+          "dataset": "raw_google_ads",
+          "table": "perf_google_ads",
+          "advertiserColumn": "account_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "spend",
+          "dateColumn": "metric_date",
+          "advertiserValue": "The Little Marionette",
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-07-31",
+          "note": "DTS bridge (AUD, media basis). Added 2026-07-23."
+        },
         {
           "dataset": "raw_windsor",
           "table": "perf_the_trade_desk",
@@ -713,7 +744,9 @@
           "costColumn": "cost",
           "dateColumn": "metric_date",
           "advertiserValue": "The Little Marionette",
-          "note": "TLM's main Google Ads spend is in raw_google_ads (DTS) which was not in the audited datasets - a coverage gap"
+          "flightStart": "2026-06-01",
+          "flightEnd": "2026-07-31",
+          "note": "cost = CLIENT-BILLED. Flight-scoped to the Grid's Jun-Jul row."
         }
       ],
       "map": []
@@ -722,6 +755,7 @@
       "client": "QTopia",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): Meta + Google PrideFest rows are unmatchable by design (no QTopia account in perf_meta, no QTopia customer in DTS, google_ads_apac is STT-only). TTD cost = client-billed: billed $2,519.86 = the row's $2,520 budget to the dollar - the sheet's $1,360.55 clientSpend (extreme 10.09 mult artifact) UNDERSTATES billed by 85%; spendMult=1 staged. Staged pairs: config/reconcile-staged/QTopia.json.",
       "tables": [
         {
           "dataset": "raw_windsor",
@@ -732,7 +766,7 @@
           "costColumn": "cost",
           "dateColumn": "metric_date",
           "advertiserValue": "Qtopia Sydney",
-          "note": "BQ advertiser \"Qtopia Sydney\" vs Central \"QTopia\""
+          "note": "BQ advertiser \"Qtopia Sydney\" vs Central \"QTopia\". cost = client-billed."
         }
       ],
       "map": []
@@ -741,6 +775,7 @@
       "client": "Ad Assembly",
       "validated": false,
       "source": "raw",
+      "note": "Batch Phase-3 prep (2026-07-23): TTD entries ADDED for the Altech + WEHI advertisers (the Grid's 'Altec'/'WEHI' rows; only ACRS was specced). Spelling traps: Grid 'Altec' = BQ advertiser 'Altech'; Grid 'BIONZ' = BQ campaign 'ACRS_BOINZ_...' (inside the ACRS Meta account). The 'Buyer X' row carries a Currency-in-USD remark - resolve before approving (no FX in the sync). TTD cost = client-billed (Altech $2,639.98 vs sheet $2,639.88; WEHI $4,113.83 vs $4,113.82) - spendMult=1 staged on all 3 TTD rows. Nearly all rows Ended/Not Active -> backfill needs includeEnded=1. Staged pairs: config/reconcile-staged/Ad Assembly.json.",
       "tables": [
         {
           "dataset": "raw_windsor",
@@ -750,7 +785,8 @@
           "impressionColumn": "impressions",
           "costColumn": "cost",
           "dateColumn": "metric_date",
-          "advertiserValue": "Ad Assembly - ACRS"
+          "advertiserValue": "Ad Assembly - ACRS",
+          "note": "Holds the ACRS_Always_On campaigns AND the BOINZ (Grid: BIONZ) conference campaign."
         },
         {
           "dataset": "raw_windsor",
@@ -760,7 +796,8 @@
           "impressionColumn": "impressions",
           "costColumn": "cost",
           "dateColumn": "metric_date",
-          "advertiserValue": "Ad Assembly - BuyerX"
+          "advertiserValue": "Ad Assembly - BuyerX",
+          "note": "Possible USD account (the Grid's Buyer X row is flagged 'Currency in USD') - verify before sync."
         },
         {
           "dataset": "raw_windsor",
@@ -771,7 +808,29 @@
           "costColumn": "cost",
           "dateColumn": "metric_date",
           "advertiserValue": "ACRS",
-          "note": "Trade Desk advertiser is \"ACRS\" (Ad Assembly client)"
+          "note": "Trade Desk advertiser is \"ACRS\" (Ad Assembly client). cost = client-billed."
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "Altech",
+          "note": "The Grid row is spelled 'Altec'. Added 2026-07-23. cost = client-billed."
+        },
+        {
+          "dataset": "raw_windsor",
+          "table": "perf_the_trade_desk",
+          "advertiserColumn": "advertiser_name",
+          "campaignColumn": "campaign_name",
+          "impressionColumn": "impressions",
+          "costColumn": "cost",
+          "dateColumn": "metric_date",
+          "advertiserValue": "WEHI",
+          "note": "Added 2026-07-23. cost = client-billed."
         }
       ],
       "map": []
