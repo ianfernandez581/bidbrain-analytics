@@ -136,8 +136,20 @@ The tab bar is built in `renderControls()`; switching campaign resets to a valid
    Relative/Absolute toggles), spend-by-platform + spend-by-market, a market table, and the **Flight
    windows across the portfolio** Gantt. **Global Rebrand (Advancing Energy Technology)** now has LinkedIn
    delivery (its `SE_AET_*` campaigns, live from July 2026 — see *Updating targets* on the `match_pattern`
-   token that tags them to `global_rebrand`); **Heavy** still has no paid delivery yet (leads-only) — the
-   tab says so rather than showing zeros.
+   token that tags them to `global_rebrand`). **Heavy** now has a LinkedIn Lead Generation campaign booked:
+   **`2281_HeavyIndustries_Linkedin_ANZ`** (LinkedIn campaign id 1186555246, account 517045062 =
+   `SchneiderElectric_TransmissionSG_AUD` — already inside the `stg_linkedin` account filter). Its name has
+   NO separator between "Heavy" and "Industries", so heavy's `campaign_map` `match_pattern` gained
+   `HeavyIndustries|2281_` tokens (2026-07-24; `2281_` also catches any sibling line under the same brief,
+   the same way LQAIDC names carry a `2306_` prefix). **The `2281_` token is the one doing the work:**
+   `2281_HeavyIndustries_LinkedIn_ANZ` turned out to be the campaign-GROUP name — the delivering ad sets
+   (Snowflake `CAMPAIGN_NAME`) abbreviate to **`2281_HI_*`** (`2281_HI_P3_OAI_LeadGen_ANZ`,
+   `2281_HI_P2_EnergyTransformation_LeadGen_ANZ`), which no Heavy/HeavyIndustries token matches. LinkedIn
+   delivery is live since 2026-07-23 (day 1: 710 imps / 4 clicks / ~A$54, `_ANZ` → folded to Australia),
+   alongside the **Trade Desk Programmatic** line `2281_SE Heavy Industries_AWR AU` (delivering since
+   2026-07-15; that name HAS the space, so the old `Heavy Indust` token caught it). Lead-gen-form leads
+   (`LEADS`/`LEAD_FORM_OPENS` in the raw) reach the dashboard through the Salesforce CS lane, not
+   `pm_delivery`.
 2. **Content Syndication** — Salesforce leads vs the media-plan **MQL+HQL** target: the snapshot strip
    (Overall / Pacing / Delivery / Outlook), the **Plan-CPL** banner, **Leads-vs-target** + **Progress**
    panels, a **Weekly pacing** chart (real dated weekly leads vs the even target pace — both start at the

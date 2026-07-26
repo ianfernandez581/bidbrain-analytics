@@ -66,6 +66,20 @@ against the outcome it drove. It is the **Windsor-native replacement** for the S
 
 ---
 
+## ⚠️ GRANT LAPSED (observed 2026-07-24) — connector down to 3 accounts
+
+Between the 2026-07-22 and 2026-07-23 nightly runs the connector's LinkedIn grant collapsed from
+**34 accounts to 3** (`547920275, 547920277, 547960230` — three of the previously zero-row accounts).
+Every other account now returns Windsor 400 *"Account … is not available. The configured accounts
+are: …"* — including ALL Transmission accounts (Schneider ×3, STT ×2, PropTrack, HireRight,
+Cloudflare) and ResetData. Delivering accounts froze at `metric_date` **2026-07-21**; the nightly
+`windsor-linkedin-ingest` keeps exiting **green** because per-account "not available" is a designed
+skip (the broken-account pattern) — so the outage is silent in Cloud Run. **Fix: re-authorize at
+<https://onboard.windsor.ai?datasource=linkedin> with the LinkedIn profile that has the 34 accounts
+(whoever authed the 2026-07-21 grant), re-select the accounts, then run the loader — incremental
+mode auto-heals the gap (per-account last-BQ-day lookback). If the re-granted connector comes back
+under different account ids, repoint `SELECT_ACCOUNTS` in `linkedin_loader.py`.**
+
 ## Accounts (34 granted; 10 delivering data as of 2026-07-21)
 
 The connector is granted **34** LinkedIn accounts. A scan over 2025-07 → 2026-07 found **10** with
