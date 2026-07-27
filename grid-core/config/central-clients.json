@@ -692,7 +692,7 @@
     },
     {
       "client": "ResetData",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the dead Reddit entry was REMOVED - perf_reddit contains ONLY Cloudflare data ('Transmission_Cloudflare', CLOUD_ACQ_* campaigns); the old advertiserValue 'ResetData Ad Account (100Digital)' matches nothing, so the Reddit Grid row is unmatchable by design. (Those Cloudflare rows are mislabelled client_slug='resetdata' in perf_reddit - flagged in PHASE3_BATCH_PREP_REPORT.md.) Google repointed to the DTS bridge (fresh to 07-21; the raw_windsor copy ends 06-05); a Meta entry was ADDED ('Reset backup – Ad account', EN-DASH in the name). Google/Meta = media basis (mults stay); TTD cost = client-billed (spendMult=1 staged). Entries flight-scoped to the Grid's June-July rows. Staged pairs: config/reconcile-staged/ResetData.json.",
       "tables": [
@@ -736,7 +736,38 @@
           "note": "cost = CLIENT-BILLED. Flight-scoped: the always-on campaign runs since April but the Grid row is Jun-Jul; the March GTC burst has no Grid row."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-60fc34ccd19b",
+          "channel": "Trade Desk",
+          "advertiserName": "ResetData",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "ResetData_Apr26"
+          },
+          "campaignName": "46113"
+        },
+        {
+          "campaignId": "cmp-33a87b99e4ff",
+          "channel": "Meta",
+          "advertiserName": "Reset backup – Ad account",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ResetData_"
+          },
+          "campaignName": "46113"
+        },
+        {
+          "campaignId": "cmp-3179ea67e6e2",
+          "channel": "Google Ads",
+          "advertiserName": "Reset Data",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": ""
+          },
+          "campaignName": "Always On"
+        }
+      ]
     },
     {
       "client": "VMCH",
