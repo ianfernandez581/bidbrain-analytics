@@ -760,7 +760,7 @@
     },
     {
       "client": "The Little Marionette",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the Google coverage gap is CLOSED - a DTS bridge entry was added (fresh to 07-21). Both entries flight-scoped to the Grid's Jun-Jul rows (the TTD campaign runs since 04-30; pre-June $1,234 belongs to no Grid row). Google = media basis (mult 1 stays); TTD cost = client-billed (the 7.757 mult is a sheet artifact - spendMult=1 staged; BQ to-07-08 $1,484.80 vs sheet billed $1,440.40). Staged pairs: config/reconcile-staged/The Little Marionette.json.",
       "tables": [
@@ -791,7 +791,28 @@
           "note": "cost = CLIENT-BILLED. Flight-scoped to the Grid's Jun-Jul row."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-282b8b2e6808",
+          "channel": "Trade Desk",
+          "advertiserName": "The Little Marionette",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "TLM_Always-On_2026"
+          },
+          "campaignName": "Always On"
+        },
+        {
+          "campaignId": "cmp-d077cd013ed3",
+          "channel": "Google Ads",
+          "advertiserName": "The Little Marionette",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": ""
+          },
+          "campaignName": "Always On"
+        }
+      ]
     },
     {
       "client": "QTopia",
