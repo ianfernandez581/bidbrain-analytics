@@ -202,7 +202,7 @@
     "impressions": null,
     "mediaSpend": null,
     "clientSpent": 4391.55,
-    "spendMult": null,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null
@@ -228,7 +228,7 @@
     "impressions": null,
     "mediaSpend": null,
     "clientSpent": 6000,
-    "spendMult": null,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null
@@ -254,7 +254,7 @@
     "impressions": 59134,
     "mediaSpend": 1192.51,
     "clientSpent": 2981.28,
-    "spendMult": 2.5,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null
@@ -280,7 +280,7 @@
     "impressions": 2035789,
     "mediaSpend": 3439.43,
     "clientSpent": 9826.93,
-    "spendMult": 2.8571,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null

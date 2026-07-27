@@ -740,7 +740,7 @@
     },
     {
       "client": "VMCH",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the Grid's TTD rows are MONTH SLICES (RAC/SAH = May, Disability Retargeting = June) of continuous Apr-Jul campaigns - approving a pair writes the campaign's WHOLE history onto that row (per-row date scoping does not exist; see the staged file's warnings). The 3 DV360 rows (Feb-Apr) are unmatchable by design: no VMCH DV360 source exists (dv360_apac is Transmission-only) and Windsor's April TTD is known-incomplete (the vmch dashboard models April from client totals). cost = CLIENT-BILLED - all 4 TTD rows need spendMult=1 (staged). Staged pairs: config/reconcile-staged/VMCH.json.",
       "tables": [
@@ -756,7 +756,18 @@
           "note": "TRAILING SPACE in BQ advertiser value. cost = client-billed."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-9f59b9e1903b",
+          "channel": "Trade Desk",
+          "advertiserName": "VMCH ",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "RL_AU"
+          },
+          "campaignName": "Retirement Living"
+        }
+      ]
     },
     {
       "client": "The Little Marionette",
