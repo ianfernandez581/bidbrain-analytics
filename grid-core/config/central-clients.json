@@ -889,7 +889,7 @@
     },
     {
       "client": "Ad Assembly",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): TTD entries ADDED for the Altech + WEHI advertisers (the Grid's 'Altec'/'WEHI' rows; only ACRS was specced). Spelling traps: Grid 'Altec' = BQ advertiser 'Altech'; Grid 'BIONZ' = BQ campaign 'ACRS_BOINZ_...' (inside the ACRS Meta account). The 'Buyer X' row carries a Currency-in-USD remark - resolve before approving (no FX in the sync). TTD cost = client-billed (Altech $2,639.98 vs sheet $2,639.88; WEHI $4,113.83 vs $4,113.82) - spendMult=1 staged on all 3 TTD rows. Nearly all rows Ended/Not Active -> backfill needs includeEnded=1. Staged pairs: config/reconcile-staged/Ad Assembly.json.",
       "tables": [
@@ -949,7 +949,58 @@
           "note": "Added 2026-07-23. cost = client-billed."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-646db384e7a1",
+          "channel": "Trade Desk",
+          "advertiserName": "Altech",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Altech_Brand_Awareness"
+          },
+          "campaignName": "Altec"
+        },
+        {
+          "campaignId": "cmp-2ccd7305f14f",
+          "channel": "Trade Desk",
+          "advertiserName": "WEHI",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "WEHI_"
+          },
+          "campaignName": "WEHI"
+        },
+        {
+          "campaignId": "cmp-8cfd899ca0eb",
+          "channel": "Trade Desk",
+          "advertiserName": "ACRS",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ACRS_Always_On_May2026-TTD"
+          },
+          "campaignName": "ACRS AlwaysOn"
+        },
+        {
+          "campaignId": "cmp-a0a8aec66605",
+          "channel": "Meta",
+          "advertiserName": "Ad Assembly - ACRS",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ACRS_Always_On"
+          },
+          "campaignName": "ACRS AlwaysOn"
+        },
+        {
+          "campaignId": "cmp-7eb3380b7a10",
+          "channel": "Meta",
+          "advertiserName": "Ad Assembly - ACRS",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "BOINZ"
+          },
+          "campaignName": "BIONZ"
+        }
+      ]
     },
     {
       "client": "Gateway",

@@ -2178,7 +2178,7 @@
     "impressions": null,
     "mediaSpend": null,
     "clientSpent": 4113.82,
-    "spendMult": null,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null
@@ -2204,7 +2204,7 @@
     "impressions": null,
     "mediaSpend": null,
     "clientSpent": 2639.88,
-    "spendMult": null,
+    "spendMult": 1,
     "campaignLink": "Currency in USD",
     "nextReport": null,
     "notes": null
