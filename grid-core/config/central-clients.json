@@ -816,7 +816,7 @@
     },
     {
       "client": "QTopia",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): Meta + Google PrideFest rows are unmatchable by design (no QTopia account in perf_meta, no QTopia customer in DTS, google_ads_apac is STT-only). TTD cost = client-billed: billed $2,519.86 = the row's $2,520 budget to the dollar - the sheet's $1,360.55 clientSpend (extreme 10.09 mult artifact) UNDERSTATES billed by 85%; spendMult=1 staged. Staged pairs: config/reconcile-staged/QTopia.json.",
       "tables": [
@@ -832,7 +832,18 @@
           "note": "BQ advertiser \"Qtopia Sydney\" vs Central \"QTopia\". cost = client-billed."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-8373a5ff3124",
+          "channel": "Trade Desk",
+          "advertiserName": "Qtopia Sydney",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "QTOPIA_PF26_TTD"
+          },
+          "campaignName": "PrideFest"
+        }
+      ]
     },
     {
       "client": "Ad Assembly",
