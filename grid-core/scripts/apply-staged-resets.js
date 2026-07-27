@@ -29,7 +29,11 @@ const db = require('../src/brain/db');
 
 const CLIENT = process.argv[2];
 const APPLY = process.argv.includes('--apply');
-if (!CLIENT) { console.error('usage: node scripts/apply-staged-resets.js <Client> [--apply]'); process.exit(2); }
+// --skip <id,id> : leave those staged resets un-applied (e.g. a reset that is conditional
+// on a medium pair the human has NOT approved — PropTrack's COBA DOOH case).
+const skipIx = process.argv.indexOf('--skip');
+const SKIP = new Set(skipIx > 0 ? String(process.argv[skipIx + 1] || '').split(',').filter(Boolean) : []);
+if (!CLIENT) { console.error('usage: node scripts/apply-staged-resets.js <Client> [--apply] [--skip id,id]'); process.exit(2); }
 
 const STAGED = path.join(__dirname, '..', 'config', 'reconcile-staged', path.basename(CLIENT) + '.json');
 const IMPORT = path.join(__dirname, '..', 'config', 'central-import.json');
@@ -43,6 +47,7 @@ let failures = 0;
 
 // ---- 1. spendMult resets via the governed path ----
 for (const r of resets) {
+  if (SKIP.has(r.campaignId)) { console.log(`SKIP (--skip): ${r.campaignName} · ${r.channel} (${r.reason || 'conditional'})`); continue; }
   const cur = db.getCampaign(r.campaignId);
   if (!cur) { console.error(`FAIL: ${r.campaignName} — id ${r.campaignId} not found (DB rebuilt?)`); failures++; continue; }
   const curMult = cur.spendMult == null ? null : Number(cur.spendMult);
@@ -85,6 +90,7 @@ for (const c of configWrites) {
 const snap = JSON.parse(fs.readFileSync(IMPORT, 'utf8'));
 let patched = 0;
 for (const r of resets) {
+  if (SKIP.has(r.campaignId)) continue;
   const cur = db.getCampaign(r.campaignId);
   const rows = snap.filter(x => x.advertiser === (staged.client || CLIENT) &&
     x.campaign === (r.campaignName || (cur && cur.name)) && normCh(x.channel) === normCh(r.channel || (cur && cur.channel)));

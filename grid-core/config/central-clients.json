@@ -531,7 +531,7 @@
     },
     {
       "client": "PropTrack",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the TTD advertiser misspelling 'PopTrack' started being CORRECTED upstream on 2026-07-22 (a 'PropTrack' advertiser now emits 0-spend rows for the same campaign names) - both spellings are table entries and the staged pairs use mode 'rollup' so the rule spans spellings and dedupes by campaign name. LinkedIn grain fixed to CAMPAIGN_GROUP_NAME. Staged pairs: config/reconcile-staged/PropTrack.json.",
       "tables": [
@@ -580,7 +580,28 @@
           "note": "Corrected spelling, appeared 2026-07-22 (0-spend rows so far) - future delivery may land here; rollup pairs span both spellings."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-45b37033dee7",
+          "channel": "Trade Desk",
+          "advertiserName": "PopTrack",
+          "campaignMatch": {
+            "mode": "rollup",
+            "value": "BANKING-ABM"
+          },
+          "campaignName": "Banking ABM"
+        },
+        {
+          "campaignId": "cmp-3800776439ae",
+          "channel": "LinkedIn",
+          "advertiserName": "PropTrack_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Banking ABM"
+          },
+          "campaignName": "Banking ABM"
+        }
+      ]
     },
     {
       "client": "MongoDB",
