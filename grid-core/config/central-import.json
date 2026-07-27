@@ -1996,7 +1996,7 @@
     "impressions": 6167818,
     "mediaSpend": 3171.48,
     "clientSpent": 16183.91,
-    "spendMult": 5.103,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null
@@ -2022,7 +2022,7 @@
     "impressions": 3592190,
     "mediaSpend": 3955,
     "clientSpent": 18936.31,
-    "spendMult": 4.7879,
+    "spendMult": 1,
     "campaignLink": null,
     "nextReport": null,
     "notes": null

@@ -584,7 +584,7 @@
     },
     {
       "client": "MongoDB",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the old '0 impressions' claim was a single-column artifact - with COALESCE(IMPRESSIONS, IMPRESSION) the MongoDB advertiser carries real impressions (e.g. IDC 5.9M), so the tradedesk_apac_conversion pixel-table entry (no cost column, reconcile noise) was REMOVED. LinkedIn: NO MongoDB source anywhere (not in linkedin_ads_apac; perf_linkedin has zero MongoDB rows - the Windsor account 502299829 connector 500s and is skipped) - the LinkedIn Grid row is unmatchable until re-auth. Staged pairs: config/reconcile-staged/MongoDB.json.",
       "tables": [
@@ -600,7 +600,28 @@
           "note": "COSTS = client-billed (IDE campaigns SUM(COSTS) $16,183.91 = the sheet's clientSpend to the cent). Mid-flight rename 2026-07-06 added the 2265_ job prefix - contains rules target the stable IDE/IDC suffix tokens."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-d8b548bcc1a2",
+          "channel": "Trade Desk",
+          "advertiserName": "MongoDB",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "IDE_APJ_DEMAND-GENERATION"
+          },
+          "campaignName": "DNB IDE"
+        },
+        {
+          "campaignId": "cmp-c0b9233228f0",
+          "channel": "Trade Desk",
+          "advertiserName": "MongoDB",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "IDC_APJ_DEMAND-GENERATION"
+          },
+          "campaignName": "Key Growth Accounts IDC"
+        }
+      ]
     },
     {
       "client": "City Perfume",
