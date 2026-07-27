@@ -530,7 +530,10 @@ stays). Run locally with ADC creds to (re)write the snapshot / validate:
 ```
 A couple of nested daily-array field names are flagged `#VERIFY` - confirm against the dashboards.
 
-**Deploy note (Cloud Run):** the server warms the cache on boot and refreshes every `EXEC_AUTOSYNC_MIN`
+**Deploy note (Cloud Run):** redeploy The Grid with **`grid-core/deploy_grid.ps1`** (builds the
+one image tagged with the git SHA, swaps it onto `central-grid`; env/flags preserved). The image
+is stateless — commit config changes first, and never do map approvals on the live instance
+(container writes are ephemeral). The server warms the cache on boot and refreshes every `EXEC_AUTOSYNC_MIN`
 (default 10) minutes, BUT that background work needs **CPU always allocated** - `central-grid` runs with
 `--no-cpu-throttling --min-instances=1` so the scheduled refresh (and the boot warm-up) actually run;
 without it, only the request-scoped Sync button works (background refreshes hit the ~150s timeout under
