@@ -646,7 +646,7 @@
     },
     {
       "client": "City Perfume",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): Google repointed from the stale raw_windsor copy (ends 2026-06-05) to the DTS bridge raw_google_ads.perf_google_ads - which is ITSELF stalled for this customer at 2026-06-22 (ResetData/TLM run to 07-21); do not approve the Google pair until the transfer backfills June 23-30. Google + Meta entries are flight-scoped to the June rows the Grid carries (the account's whole history would otherwise sum $1.5M+ onto a June row). Google/Meta spend = raw MEDIA basis (sheet mults stay, e.g. Google 1.1655); perf_the_trade_desk cost = CLIENT-BILLED ($7,500.02 = sheet clientSpend to the cent) so the TTD row needs spendMult=1. Staged pairs: config/reconcile-staged/City Perfume.json.",
       "tables": [
@@ -688,7 +688,28 @@
           "note": "cost = CLIENT-BILLED. Unscoped: the sheet's June row carries the whole-flight (May+June) billed figure and BQ agrees with it exactly."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-e9196d95ec35",
+          "channel": "Trade Desk",
+          "advertiserName": "City Perfume",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CP_Always_On_Awareness"
+          },
+          "campaignName": "Always On"
+        },
+        {
+          "campaignId": "cmp-794292110da4",
+          "channel": "Meta",
+          "advertiserName": "Cityperfume.com.au",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": ""
+          },
+          "campaignName": "Always On"
+        }
+      ]
     },
     {
       "client": "ResetData",
