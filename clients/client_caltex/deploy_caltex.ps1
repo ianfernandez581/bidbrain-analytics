@@ -6,10 +6,10 @@
 #                             serves the baked-in SAMPLE payload (dash/placeholder.json) behind the
 #                             "sample data" banner. This is the Monday-onboarding deliverable.
 #   -WithData              -> ALSO apply the SQL views + build/deploy/run the export job + scheduler.
-#                             Only valid ONCE real Caltex Meta data flows into raw_windsor.perf_meta
-#                             (campaigns prefixed 'Caltex_') AND raw_windsor.caltex_meta_breakdown
-#                             exists (see ingest/meta_breakdown_pull.py). Running the job writes the
-#                             real caltex.json to the bucket, which then AUTOMATICALLY takes over from
+#                             Only valid ONCE real Caltex Trade Desk data flows into
+#                             raw_windsor.perf_the_trade_desk (advertiser id 0lw3hp6, via the shared
+#                             windsor-tradedesk-ingest loader). Running the job writes the real
+#                             caltex.json to the bucket, which then AUTOMATICALLY takes over from
 #                             the placeholder (main.py /data.json prefers the bucket) and the banner
 #                             clears on its own.
 #
@@ -22,8 +22,8 @@
 #   Deploys need the ian@100.digital account (charles@ has no perms). Pin it for the session:
 #       $env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"
 #
-#   DATA SOURCE (Phase 2): Caltex reads raw_windsor.perf_meta (Windsor, self-refreshing) — same as
-#   the geocon template this was cloned from. The job SA gets project-scoped roles/bigquery.dataViewer.
+#   DATA SOURCE (Phase 2): Caltex reads raw_windsor.perf_the_trade_desk (Windsor TTD connector,
+#   self-refreshing via windsor-tradedesk-ingest). The job SA gets project-scoped roles/bigquery.dataViewer.
 
 param([switch]$WithData)
 
@@ -141,7 +141,7 @@ if ($WithData) {
   Write-Host "[6/6] Data pipeline (views + export job + scheduler) ..."
   if (-not (Test-Path $PYTHON)) { Die "repo venv python not found at $PYTHON (needed to apply views)" }
   & $PYTHON clients/client_caltex/seed_static.py; Must "seed targets/budget"
-  & $PYTHON clients/client_caltex/create_views.py; Must "apply views (raw_windsor.perf_meta + caltex_meta_breakdown must exist)"
+  & $PYTHON clients/client_caltex/create_views.py; Must "apply views (raw_windsor.perf_the_trade_desk must exist)"
   $JOB_IMG = "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${JOB}:${SHA}"
   gcloud builds submit clients/client_caltex/job --tag $JOB_IMG --region $REGION --project $PROJECT; Must "build export job image"
   gcloud run jobs deploy $JOB --image $JOB_IMG --region $REGION --service-account $JOB_SA --memory 1Gi --project $PROJECT; Must "deploy export job"

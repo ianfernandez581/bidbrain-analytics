@@ -116,6 +116,7 @@ LOG_FILE = WORK_DIR / "loader.log"
 
 CLIENT_TO_AGENCY = {
     # wehi / altech removed 2026-06-11 -- Windsor no longer grants their TTD accounts.
+    "caltex": "100-digital",       # TTD advertiser 0lw3hp6 (client_caltex dashboard, added 2026-07-29)
     "vmch": "100-digital",
     "rac": "100-digital",
     "sah": "100-digital",

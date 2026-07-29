@@ -3,7 +3,7 @@
   Creates/refreshes a Cloud Scheduler trigger that runs the 'caltex-export'
   Cloud Run Job on a frequent cadence (default */10 min). The job is SELF-GATING:
   each tick it cheaply checks (via BQ __TABLES__.last_modified) whether its upstream
-  raw_windsor.perf_meta table advanced and only rebuilds when it did, so most ticks
+  raw_windsor.perf_the_trade_desk table advanced and only rebuilds when it did, so most ticks
   are a ~3s no-op. Net effect: the dashboard refreshes within ~10 min of new data.
   Idempotent -- safe to re-run. Pass -Cron to override the cadence.
   Run from anywhere:  .\client_caltex\scheduler.ps1
