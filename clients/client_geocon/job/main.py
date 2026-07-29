@@ -97,6 +97,16 @@ def build_env(bq, observed):
     today  = datetime.datetime.now(datetime.timezone.utc).date()
     spend_total = sum(num(r["spend"]) or 0 for r in fact)
     leads_total = sum(int(r["leads"] or 0) for r in fact)
+    # Pacing must compare like-with-like: fact rows start 2026-05-05 (pre-flight activity) but the
+    # budget/pace anchors come from the seeded GATEWAY flight window, so the pacing inputs are
+    # CLAMPED to flight_start..flight_end (fact.date and the seed dates are both DATE -> date).
+    # All-time rollups (rows[], breakdowns, meta.date_min/max, the log summary) stay unclamped.
+    in_flight = lambda d: d is not None and (fstart is None or d >= fstart) and (fend is None or d <= fend)
+    if fstart is None and fend is None:   # no seeded window -> all-time (old behaviour)
+        flight_spend, flight_leads = spend_total, leads_total
+    else:
+        flight_spend = sum(num(r["spend"]) or 0 for r in fact if in_flight(r.get("date")))
+        flight_leads = sum(int(r["leads"] or 0) for r in fact if in_flight(r.get("date")))
 
     days_total = (fend - fstart).days + 1 if (fstart and fend) else None
     days_elapsed = None
@@ -108,15 +118,15 @@ def build_env(bq, observed):
             days_elapsed = max(0, days_elapsed)
     daily_pace = benchmarks["daily_pace"] or (budget / days_total if (budget and days_total) else None)
     pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
-    projected_spend = (spend_total / days_elapsed * days_total) if (days_elapsed and days_total) else None
+    projected_spend = (flight_spend / days_elapsed * days_total) if (days_elapsed and days_total) else None
 
     dates = [r["date"] for r in fact if r.get("date")]
     flight = {
         "start": iso(fstart), "end": iso(fend),
         "budget": budget, "days_total": days_total, "days_elapsed": days_elapsed,
         "daily_pace": daily_pace, "pace_expected": pace_expected,
-        "projected_spend": projected_spend, "spend_to_date": round(spend_total, 2),
-        "leads_to_date": leads_total,
+        "projected_spend": projected_spend, "spend_to_date": round(flight_spend, 2),
+        "leads_to_date": flight_leads,
     }
 
     env = {

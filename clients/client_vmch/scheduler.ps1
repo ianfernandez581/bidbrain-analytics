@@ -1,4 +1,4 @@
-# scheduler.ps1 — set the vmch-export-daily self-gating Cloud Scheduler to */10 UTC.
+# scheduler.ps1 - set the vmch-export-daily self-gating Cloud Scheduler to */10 UTC.
 $PROJECT="bidbrain-analytics"; $REGION="australia-southeast1"
 $JOB="vmch-export"; $JOB_SA="${JOB}-job@${PROJECT}.iam.gserviceaccount.com"
 $SCHEDULE="*/10 * * * *"

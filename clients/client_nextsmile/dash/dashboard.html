@@ -509,6 +509,21 @@ function hash(s){let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h)+s.charCodeAt(i)
 function destroyChart(id){if(charts[id]){charts[id].destroy();charts[id]=null;}}
 function makeChart(id,cfg){destroyChart(id);if(!$(id))return null;charts[id]=new Chart($(id).getContext('2d'),cfg);return charts[id];}
 
+// ---------- client-billed spend multiplier (BB_SPEND_MULT) ----------
+// The platform front-door injects window.BB_SPEND_MULT = {channel: factor} (super-admin "Multiplier"
+// panel) so the CLIENT sees what they were billed ("spent to date") rather than the raw media cost.
+// We gross the RAW spend once at load; every cost metric (CPM/CPC/CPL/cost-per-LPV), chart, CSV and
+// the AI deck derive from it, so they all follow. Counts/CTR (not money) are untouched; there's no
+// revenue/ROAS on this lead-gen dashboard. Idempotent (stashes _rawSpend); no-op when unset (=direct/
+// internal access shows real cost). Next Smile is Meta-only, so a single 'meta' factor covers every row.
+function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}
+function bbApplySpendMult(){
+  const M=bbMultFor('meta');
+  (DATA.rows||[]).forEach(r=>{if(r._rawSpend==null)r._rawSpend=n(r.spend);r.spend=r._rawSpend*M;});
+  const f=DATA.flight;                      // gross the precomputed pacing dollars by the same factor
+  if(f){['spend_to_date','projected_spend','pace_expected','budget'].forEach(k=>{if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);f[k]=f['_raw_'+k]*M;});}
+}
+
 // ---------- targets / benchmarks ----------
 function meta(){return DATA.meta||{};}
 function flight(){return DATA.flight||{};}
@@ -1040,7 +1055,7 @@ async function load(){
   $('error').style.display='none';$('loading').style.display='block';
   try{
     const r=await fetch(JSON_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' from '+JSON_URL);
-    DATA=await r.json();initChartDefaults();
+    DATA=await r.json();bbApplySpendMult();initChartDefaults();
     DateRange.init({min:meta().date_min,max:meta().date_max,onApply:(s,e)=>{STATE.dateStart=s;STATE.dateEnd=e;render();}});
     renderStageChips();render();renderViewState();
     $('loading').style.display='none';$('app').style.display='block';
@@ -1050,7 +1065,7 @@ async function load(){
 // ---------- CSV export ----------
 function toCSV(rows,cols){const esc=v=>{const s=v==null?'':String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.map(c=>esc(c.label)).join(',')].concat(rows.map(r=>cols.map(c=>esc(typeof c.get==='function'?c.get(r):r[c.key])).join(','))).join('\n');}
 function downloadCSV(name,csv){const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
-function exportAllData(){const cols=['date','campaign','adset','ad','stage','creative_title','spend','impressions','reach','clicks','link_clicks','lpv','leads','video_3s_views','video_completes'].map(k=>({label:k,key:k}));downloadCSV(`nextsmile_gateway_braddon_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
+function exportAllData(){const cols=['date','campaign','adset','ad','stage','creative_title','spend','impressions','reach','clicks','link_clicks','lpv','leads','video_3s_views','video_completes'].map(k=>({label:k,key:k}));downloadCSV(`nextsmile_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
   if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}];downloadCSV(`nextsmile_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
@@ -1064,7 +1079,7 @@ const r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
 function buildReportPayload(){
   const all=ROWS();const a=agg(all);const f=flight();const byS=byStage(all),byC=byCampaign(all).slice(0,12),ads=byAd(all).filter(x=>n(x.spend)>0).slice(0,10);const fat=fatigueOf(all).filter(x=>x.flag==='FATIGUED').slice(0,8);
   const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
-  return {client:'nextsmile',generated_for:'Next Smile Australia - Next Smile Australia',currency:meta().currency||'AUD',
+  return {client:'nextsmile',generated_for:'Next Smile Australia',currency:meta().currency||'AUD',
     context:{campaign:'Next Smile Australia',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),lead_source_label:meta().lead_source_label||'Meta-reported'},
     overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,qualified_modelled:qualified(a.leads),qualification_rate:qualRate(),cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)},
     targets:{cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),qualified_lead_target:bench('qualified_lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace')},
@@ -1077,7 +1092,7 @@ const BB_THEME = {
   bg:'0A130E', panel:'12201A', accent:'C56A4E', accentInk:'0A130E', softBg:'F4EBE2',
   lightBg:'FFFFFF', ink:'23201C', mute:'7A6F63', line:'E1D8CD', onDark:'F2EAE0', onDarkMute:'C3B3A4',
   serif:'Georgia', sans:'Arial', mono:'Courier New',
-  agency:'100% Digital', client:'Next Smile Australia - Next Smile Australia', brand:'100% DIGITAL × NEXTSMILE', filePrefix:'Next Smile Australia_Braddon'
+  agency:'100% Digital', client:'Next Smile Australia', brand:'100% DIGITAL × NEXT SMILE', filePrefix:'Next_Smile_Australia'
 };
 async function bbDeckLogos(){try{const res=await fetch('logo.png',{cache:'force-cache'});if(!res.ok)return{white:null,dark:null};const blob=await res.blob();const uri=await new Promise(function(r){const fr=new FileReader();fr.onload=function(){r(fr.result);};fr.onerror=function(){r(null);};fr.readAsDataURL(blob);});return{white:uri,dark:uri};}catch(e){return{white:null,dark:null};}}
 async function bbHeadlessSlides(){

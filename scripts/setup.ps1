@@ -223,8 +223,8 @@ Write-Host "  .\.venv\Scripts\python.exe ingest\windsor_data_pull\meta\meta_load
 Write-Host "  .\.venv\Scripts\python.exe ingest\windsor_data_pull\tradedesk\tradedesk_loader.py"
 Write-Host ""
 Write-Host "Run the MongoDB export job locally (sets env + pulls the Snowflake key):" -ForegroundColor DarkGray
-Write-Host "  .\scripts\run-export-job.ps1 -DryRun   (verify env, no prod write)" -ForegroundColor DarkGray
-Write-Host "  .\scripts\run-export-job.ps1           (runs it; prompts first)" -ForegroundColor DarkGray
+Write-Host "  gcloud run jobs execute mongodb-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait" -ForegroundColor DarkGray
+Write-Host "  (per-client deploy scripts: see 'Redeploy after an edit' in AGENTS.md / CLAUDE.md)" -ForegroundColor DarkGray
 Write-Host ""
 Write-Host "Each new session, run the preflight first:  .\scripts\start_day.ps1" -ForegroundColor DarkGray
 Write-Host ""

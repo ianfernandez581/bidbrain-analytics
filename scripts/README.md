@@ -1,164 +1,113 @@
-# scripts/ — onboarding & daily preflight (Windows) + shared ingest deploy
+# scripts/ - the team workflow (start_day / park / push / ship / go) + machine setup + shared ingest deploy
 
-> The "get this repo running on a fresh Windows laptop" helpers, a quick check
-> you run at the start of each session so nothing surprises you mid-task, plus the
-> one-shot deployer for the shared raw-layer ingest jobs.
+> How a multi-dev, multi-agent team works this repo without stepping on each other, plus the
+> "get this repo running on a fresh Windows laptop" helpers and the deployer for the shared
+> raw-layer ingest jobs. **This page is the single full reference for the team-sync flow** -
+> AGENTS.md carries only the summary.
 
-**Plain English:** these are convenience scripts for the person operating the platform from a
-Windows machine. One sets the laptop up the first time (installs Python + the Google Cloud
-tools, logs you in). One is a 10-second morning check that you're still logged in to
-Google Cloud, so the data loaders don't fail halfway through. The newest one
-([`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1)) builds, deploys, and schedules the five
-shared **ingest** Cloud Run jobs that feed every client dashboard — that one *does* touch
-production (run as yourself, never via cloudbuild from a laptop). The two `setup`/`start_day`
-helpers never touch production beyond logging you in; the cloud serving/export pieces still
-build themselves from each unit's own files.
-
-**Where this sits:** `setup.ps1` / `start_day.ps1` prepare your **local machine** to run the
-[`ingest/windsor_data_pull/`](../ingest/windsor_data_pull/) and [`ingest/snowflake_data_pull/`](../ingest/snowflake_data_pull/)
-loaders and the client export jobs — they don't touch production beyond logging you in.
-`deploy_ingest_jobs.ps1` is the exception: it deploys the cloud-side raw loaders themselves
-(the ingest jobs that those data-pull folders ship as containers).
+**Agent-agnostic by design:** the `/start`-of-day, `/park`, `/push`, `/ship`, `/go` slash commands
+exist only in Claude Code (thin wrappers in `.claude/commands/`). Every command is a plain
+PowerShell script here, and **any agent (Kimi, Codex, Cursor, ...) or human gets identical
+behavior by running the `.ps1` directly**. The scripts do the deterministic mechanical work and
+STOP where judgment is needed (a merge conflict, a gate failure) - at that point any agent
+resolves and re-runs with `-Resume`. The header comment in each script is its SOP.
 
 ---
 
-## What's in here
+## The five commands
 
-| File | What it does | Run it… |
+| Command | Script | What it does |
 |---|---|---|
-| [`setup.ps1`](setup.ps1) | **One-time machine setup.** Installs Python 3.12 and the Google Cloud SDK if missing (via `winget`), verifies the committed `requirements.txt` files are present, creates an isolated `.venv` and installs deps into it, then logs you in to gcloud (both CLI creds **and** application-default creds), and verifies it can read the Windsor secret + reach BigQuery. **Idempotent.** | once, right after cloning |
-| [`start_day.ps1`](start_day.ps1) | **Per-session preflight.** Verifies both credential systems gcloud uses (CLI creds for `gcloud secrets`, and application-default creds for the Python client libraries), pins the project, confirms it can read `windsor-api-key`, and pings BigQuery (`raw_windsor`). Reauths in a browser if anything expired. | start of each work session |
-| [`deploy_ingest_jobs.ps1`](deploy_ingest_jobs.ps1) | **Deploy the shared raw-layer ingest jobs.** Builds, deploys, and schedules the five Cloud Run jobs that land data in the shared `raw_*` BigQuery datasets feeding **every** client dashboard. Ensures the `ingest-runner@` service account + least-privilege IAM first (idempotent). `-Only neto\|meta\|tradedesk\|fields\|snowflake`, `-SkipBuild`, `-Run`. Run as yourself (never cloudbuild from a laptop). | when you change an ingest loader |
-| [`setup.cmd`](setup.cmd) | Double-clickable launcher for `setup.ps1` (runs it with `-ExecutionPolicy Bypass` so you don't fight Windows script policy). | instead of `setup.ps1` if you prefer double-click |
-| [`start_day.cmd`](start_day.cmd) | Double-clickable launcher for `start_day.ps1`. | instead of `start_day.ps1` |
-| [`glm-bypass-mode.ps1`](glm-bypass-mode.ps1) | **Launch Claude Code on Z.ai GLM** ("bypass mode"). Pulls the shared org key from Secret Manager (`glm-api-key`), sets the 5 Anthropic-compatible env vars for the Claude process only (restored on exit so the token never lingers), then launches `claude`. `-NewWindow` opens a fresh terminal. | when you want Claude Code on GLM |
-| [`glm-bypass-mode.cmd`](glm-bypass-mode.cmd) | Double-clickable launcher for `glm-bypass-mode.ps1` (opens a fresh window). | instead of the `.ps1` if you prefer double-click |
+| start_day | `.\scripts\start_day.ps1` | Morning preflight + team alignment. Verifies gcloud CLI creds AND the ADC *identity* (this box silently flips to the no-access agora login), pins the project, checks Secret Manager + BigQuery reachability, removes the dead `bidbrain` remote if present. Then aligns: **parks** uncommitted WIP (never ships it), pushes committed-but-unpushed main work to your dev branch, runs the full ship, pulls main, and **rebases your parked wip/\* branches onto the fresh main** (loud warning if one conflicts or is older than 7 days). `-SkipGo` = creds-only + parked-age warnings. |
+| park | `.\scripts\park.ps1` | Commit + push work-in-progress to `wip/<dev>/<desc>` **WITHOUT shipping it**. Ship/go always skip `wip/*`. Re-running appends to the same branch. You end up ON the wip branch, clean tree, work durably on origin. `-Desc feature-name` for a named park; default `wip/<dev>/work`. |
+| push | `.\scripts\push-branch.ps1` | Commit ALL local work and push it to YOUR `<dev>/<desc>` branch (first time: `-Dev alex` writes gitignored `scripts/.devname`). Secret guard refuses key-looking files. **Run from a `wip/*` branch it PROMOTES the parked work** into the normal flow and deletes the wip branch. |
+| ship | `.\scripts\merge-branches.ps1` | Integrate EVERY dev branch (skipping `wip/*`, with a "N parked branch(es) ignored" line) onto a throwaway `integration/merge` off origin/main, run the sanity gate, fast-forward + push main, **auto-deploy every changed service** (path -> deploy-script map: `Resolve-DeployPlan` in the script), prune merged dev branches, pull local main. `-DryRun` previews everything and changes nothing. |
+| go | push + ship in one click | The agent runs `push-branch.ps1` then `merge-branches.ps1` and drives the whole conflict/gate loop. Mind that its ship half integrates and deploys EVERY dev branch, not only yours. |
+
+**The conflict / gate loop (the only judgment in the pipeline):** when ship stops on a MERGE
+CONFLICT it leaves the conflict IN the working tree (never aborts). Resolve each file
+semantically - preserve BOTH developers' intent, never blindly pick a side - then:
+
+    git add -A ; git commit --no-edit
+    .\scripts\merge-branches.ps1 -Resume    # KEEPS your resolution and continues
+
+Same for a sanity-gate failure (fix on the integrated tree, commit, `-Resume`). A plain re-run
+without `-Resume` rebuilds the integration from scratch and discards your resolution.
+
+**The sanity gate** (no CI suite exists, so this is the land-blocker): leftover conflict markers,
+Python that won't `ast.parse`, invalid JSON, and **secret-looking filenames** (`.env` + variants,
+`*.p8/.pem/.pub/.key`, `*credentials*.json`, `service-account*.json`, bare `*_key`, ssh ids;
+`.example` templates allowed). The same regex guards `push-branch.ps1` and `park.ps1` locally -
+the gate re-checks everything that would LAND because a raw `git push` from another machine
+bypasses the local guards.
+
+## Parking: the full contract
+
+- `wip/<dev>/<desc>` branches are **never integrated, never deployed, never pruned** by ship -
+  parking exists precisely so unfinished work can sit on origin without going in front of clients.
+- **Re-park appends**: park again (same or no `-Desc`) and a new commit lands on the same branch.
+  Carrying a dirty tree onto an existing park branch goes through a stash; a conflicted pop STOPS
+  with the stash intact (`git stash list`, entry `park-carry`) - nothing is ever lost.
+- **Promote** when ready: run `/go` (or `push-branch.ps1`) FROM the wip branch. The content is
+  pushed to `<dev>/<desc>`, ship integrates + deploys it, and the wip branch (remote + local) is
+  deleted. The owner/desc come from the wip branch name, so promoting a branch parked on another
+  machine keeps its identity.
+- **start_day keeps parked work fresh**: each morning it rebases YOUR `wip/<dev>/*` branches onto
+  the just-pulled main and force-with-lease pushes them. If a rebase conflicts it is ABORTED and
+  you get a loud red warning with the manual command - the branch is left exactly as it was. At
+  7+ days parked you get an age warning every morning until you promote or delete it.
+
+## Edge cases - designed behavior
+
+| Situation | What happens |
+|---|---|
+| Dev forgets start_day, works on stale main | Their committed work still integrates on the next push/ship (ship merges every dev branch onto CURRENT origin/main); a textual overlap becomes a conflict the agent resolves semantically in the `-Resume` loop. start_day's final pull realigns the machine. |
+| Two devs edit the same file | Ship stops on the first conflicting branch, conflict left in-tree; the agent merges BOTH intents, commits, `-Resume`. The gate then re-checks the resolved tree before anything lands. |
+| Uncommitted changes when start_day runs | Auto-**parked** (never shipped, never destroyed). Committed-but-unpushed main commits are treated as finished work and pushed to the dev branch. To ship WIP deliberately, commit it and run `/go` yourself. |
+| Ship interrupted mid-run (sleep/crash) | Re-run detects the in-progress merge (`MERGE_HEAD`) and refuses to stomp it: finish the resolution and `-Resume`, or `git merge --abort` and re-run fresh. Everything before landing is local; nothing on origin/production changed yet. |
+| Deploy fails for one service mid-plan | main is ALREADY landed (deploys come after). The script reports exactly which deploy failed and prints the remaining deploy scripts to run directly after fixing the cause - re-running ship will NOT redeploy (no diff vs main anymore). |
+| Secret accidentally staged | `push-branch`/`park` unstage it and refuse; if one sneaks onto a remote dev branch via raw git, the ship gate FAILS the land with the filename. Never force past the guards; gitignore/move the file (see `bidbrain-vault/`). |
+| Dead `bidbrain` remote configured | start_day removes it. `origin` (the ianfernandez581 fork) is the only live remote; all scripts hardcode origin. |
+| gcloud silently flipped to the agora account | start_day pins `CLOUDSDK_ACTIVE_CONFIG_NAME=personal` for its own process, then verifies BOTH the CLI account and the ADC identity are `ian@100.digital` (browser reauth if not). Ship independently refuses to deploy when the active account is not a `100.digital` identity. |
+| Parked branch rots against moving main | start_day auto-rebases + re-pushes it daily; a conflicted rebase warns loudly with the manual resolution command; 7+ days triggers a nagging age warning. |
+| Dev branch already merged but not pruned | Ship's prune step (and `-DeleteMerged` standalone) deletes remote branches fully contained in origin/main - safe by construction, and it never touches `wip/*`. |
+| CRLF/LF churn producing phantom diffs | `.gitattributes` normalizes: LF in-repo, `.ps1/.cmd` checked out CRLF, container files (`Dockerfile`, `*.yaml`, `*.sh`) forced LF. If a machine still shows phantom whole-file diffs, run `git add --renormalize .` once and commit; never "fix" it by flipping `core.autocrlf`. |
 
 ---
 
-## How to use
+## Machine setup + the rest of scripts/
 
-```powershell
-# First time on a new machine (from the repo root):
-.\scripts\setup.ps1          # or double-click scripts\setup.cmd
+| File | What it does |
+|---|---|
+| `setup.ps1` / `setup.cmd` | One-time machine setup: installs Python 3.12 + Cloud SDK (winget), creates `.venv`, installs deps, logs in both credential systems, verifies secret + BigQuery access. Idempotent. |
+| `start_day.cmd` | Double-click launcher for `start_day.ps1`. |
+| `deploy_ingest_jobs.ps1` | Builds, deploys, and schedules the **8 shared ingest Cloud Run jobs** feeding the `raw_*` datasets: `snowflake-ingest` (self-gating `*/10`), `neto-orders-ingest`, `windsor-meta-ingest`, `windsor-tradedesk-ingest`, `windsor-fields-ingest`, `windsor-reddit-ingest`, `windsor-linkedin-ingest`, `windsor-hubspot-ingest` - the daily ones staggered before the client exports (exact schedules: the `$JOBS` array in the script is the source of truth). All run as `ingest-runner@`; `-Only <name>`, `-SkipBuild`, `-Run`. Ship auto-runs this when anything under `ingest/` changes. |
+| `enable_platform_sso.ps1` | Injects `SSO_SECRET`+`CLIENT_KEY` into every client dashboard (all 15). One-time per new dashboard. |
+| `enable_super_admin.ps1` | Grants the platform the IAM to rotate every dashboard password. **Add new dashboards to its `$CLIENTS` list** or the super-admin console 403s on them. |
+| `enable_google_login.ps1` / `enable_microsoft_login.ps1` | One-time switches for the platform's native Google / Microsoft sign-in (create the OAuth/Entra clients in the Console first). |
+| `glm-bypass-mode.ps1` / `.cmd` | Launch Claude Code on Z.ai GLM using the shared `glm-api-key` secret (env vars scoped to the Claude process, restored on exit). Bootstrap the secret once with `create-glm-secret.ps1`. |
+| `_validate_dash_js.py` | Sanity-checks a `dashboard.html`'s inline JS before you deploy it: `.\.venv\Scripts\python.exe scripts\_validate_dash_js.py clients\client_<c>\dash\dashboard.html`. |
+| `push-branch.ps1` / `merge-branches.ps1` / `park.ps1` / `start_day.ps1` | The team flow above. |
 
-# Every session after that:
-.\scripts\start_day.ps1      # or double-click scripts\start_day.cmd
+### Why two credential systems are checked
+gcloud keeps two independent logins and the org enforces periodic reauth on both: **CLI creds**
+(used by `gcloud secrets ...`) and **Application Default Credentials** (used by the Python client
+libraries - this is what keeps the committed code portable, no machine paths baked in). Either can
+expire - or worse, silently belong to the wrong account - so start_day verifies both *identities*,
+not just token existence.
 
-# Launch Claude Code on Z.ai GLM (shared org key from Secret Manager):
-.\scripts\glm-bypass-mode.ps1   # or double-click scripts\glm-bypass-mode.cmd
-
-# Then run a loader with the venv's Python:
-.\.venv\Scripts\python.exe ingest/windsor_data_pull\meta\meta_loader.py
-
-# Deploy the shared ingest jobs to the cloud (build + deploy + schedule all five):
-.\scripts\deploy_ingest_jobs.ps1
-.\scripts\deploy_ingest_jobs.ps1 -Only neto   # just one: neto|meta|tradedesk|fields|snowflake
-.\scripts\deploy_ingest_jobs.ps1 -SkipBuild   # redeploy + reschedule without rebuilding
-.\scripts\deploy_ingest_jobs.ps1 -Run         # also execute each job once after deploy
-```
-
----
-
-## GLM bypass mode (Claude Code on Z.ai GLM)
-
-[`glm-bypass-mode.ps1`](glm-bypass-mode.ps1) launches Claude Code pointed at **Z.ai's
-Anthropic-compatible endpoint** with the **GLM** model family instead of the default Anthropic
-backend. Every dev runs the same setup because the key is shared from Secret Manager, not
-pasted per-machine.
-
-- **The key lives in Secret Manager as `glm-api-key`.** One-time bootstrap: run
-  [`create-glm-secret.ps1`](create-glm-secret.ps1) (prompts for the key, masked) to create it.
-  The launcher then fetches it at runtime
-  (`gcloud secrets versions access`), so it's never committed and never printed. The env vars
-  it sets (`ANTHROPIC_BASE_URL` → `https://api.z.ai/api/anthropic`, `ANTHROPIC_AUTH_TOKEN` ←
-  the key, `ANTHROPIC_DEFAULT_{OPUS,SONNET}_MODEL=glm-5.2`, `...HAIKU...=glm-4.7`) are scoped
-  to the Claude process and **restored on exit**, so the token doesn't linger in your shell.
-- **Prereqs:** `claude` on PATH + gcloud logged in with read access to `glm-api-key`.
-  `setup.ps1` checks both (and prints install instructions if `claude` is missing — it never
-  auto-installs); `start_day.ps1` checks the secret each session.
-- **Access:** devs read secrets through their project role (same as `windsor-api-key`), so no
-  extra IAM is needed for anyone who can already read `windsor-api-key`. If a dev can't:
-  `gcloud secrets add-iam-policy-binding glm-api-key --member=<you> --role=roles/secretmanager.secretAccessor`.
-
-```powershell
-.\scripts\glm-bypass-mode.ps1              # launch in the current terminal
-.\scripts\glm-bypass-mode.ps1 -NewWindow   # launch in a fresh window
-.\scripts\glm-bypass-mode.cmd              # double-click = fresh window
-```
-
----
-
-## The shared ingest jobs (`deploy_ingest_jobs.ps1`)
-
-These are the raw-layer loaders that feed **every** client dashboard. They replace the old
-"run the loader from a laptop" step — each lands data in a shared `raw_*` BigQuery dataset on a
-Cloud Scheduler trigger, staggered **before** the 22:00 UTC `*-export` jobs so every dashboard's
-export reads fresh raw data. All run as the shared `ingest-runner@bidbrain-analytics.iam.gserviceaccount.com`
-service account in `australia-southeast1`; images go to the shared `bidbrain` Artifact Registry repo.
-
-| Raw target | Cloud Run job | Build context | Schedule (UTC) |
-|---|---|---|---|
-| `raw_snowflake.*` (Salesforce/TTD/GA/etc, all clients) | `snowflake-ingest` | `ingest/snowflake_data_pull` | `*/10 * * * *` — **self-gating** |
-| `raw_neto.orders` (City Perfume sales truth) | `neto-orders-ingest` | `ingest/neto_data_pull/orders` | `0 21 * * *` |
-| `raw_windsor.perf_meta` (Meta, all granted accounts) | `windsor-meta-ingest` | `ingest/windsor_data_pull/meta` | `15 21 * * *` |
-| `raw_windsor.perf_the_trade_desk` (TTD, per-account + self-heal) | `windsor-tradedesk-ingest` | `ingest/windsor_data_pull/tradedesk` | `35 21 * * *` |
-| `raw_windsor.windsor_fields` (Windsor field catalogue, new-field watch) | `windsor-fields-ingest` | `ingest/windsor_data_pull/fields` | `45 21 * * *` |
-
-- **`snowflake-ingest` is self-gating** per the freshness contract: it runs every 10 minutes,
-  but each tick cheaply checks per-table freshness (`raw_snowflake._sync_state`, honoring
-  `FORCE_REBUILD=1`) and most ticks are a ~3s no-op. The neto/windsor loaders stay on a fixed
-  daily cron, deliberately staggered just before the 22:00 UTC client exports.
-- **Google Ads + GA4 are NOT here** — they auto-refresh daily via the native BigQuery Data
-  Transfer Service (free, region `au`), so no ingest job is needed.
-- **`windsor-reddit-ingest` + `windsor-hubspot-ingest`** were added on 2026-07-16 (daily, 21:50 / 21:55
-  UTC). Reddit skips cleanly (exit 0) if its Windsor grant lapses and self-heals on re-grant; note a
-  re-grant can change the Windsor account id (repoint `SELECT_ACCOUNTS` in `reddit_loader.py`).
-- **`windsor-tradedesk-ingest` is healthy** as of 2026-07-16 (the earlier "connector down" note is
-  resolved). If a TTD account is ungranted it is logged + skipped, not fatal.
-
----
-
-## Why two credential systems are checked
-
-gcloud keeps **two** independent logins, and the org enforces periodic reauth on both, so
-either can expire without the other:
-
-- **gcloud CLI credentials** — used by `gcloud …` commands, including the `gcloud secrets`
-  call the loaders make to fetch the Windsor key.
-- **Application Default Credentials (ADC)** — used by the Python client libraries
-  (`google-cloud-bigquery`, `-storage`, `-secret-manager`). This is why the committed code is
-  portable: it reads secrets via ADC, with **no machine-specific gcloud path** baked in.
-
-`start_day.ps1` checks both up front so you never hit a surprise reauth prompt halfway through
-a long loader run.
-
----
-
-## Notes & gotchas
-
-- **The committed source is portable as-is.** These scripts are a *convenience* — they never
-  edit tracked files. On macOS/Linux you don't need them: `python -m venv`, `pip install -r
-  requirements.txt`, and `gcloud auth application-default login` are enough (see the root
-  [README Quickstart](../README.md#quickstart)).
-- **The `.venv` is a dev-only superset.** `setup.ps1` installs both
-  [`requirements.txt`](../requirements.txt) (loaders + setup scripts) and
-  [`clients/client_mongodb/job/requirements.txt`](../clients/client_mongodb/job/requirements.txt) (the export
-  job) into one venv — they pin compatible versions so they coexist. The **dash** web app is
-  deliberately excluded (it pins an older `google-cloud-storage` that conflicts). Each Cloud
-  Run unit still builds its own container from its own `requirements.txt`, so this local venv
-  never affects image builds.
-- **`Test-Probe` (in `setup.ps1`):** under `$ErrorActionPreference = "Stop"`, redirecting a
-  native command's stderr (`2>$null`) turns expected probe failures into *terminating* errors
-  that would abort the whole script. `Test-Probe` drops to `Continue` and judges success purely
-  by exit code, so an "expected to fail" check (e.g. not-logged-in) falls through to the login
-  step instead of killing the script.
-- **Known dangling reference:** the closing hints in `setup.ps1` mention
-  `.\scripts\run-export-job.ps1` (a local export-job runner). **That file isn't in the repo
-  yet.** To run the MongoDB export job locally today, use the commands in
-  [`clients/client_mongodb/README.md`](../clients/client_mongodb/README.md) instead.
+### Notes & gotchas
+- These scripts are Windows conveniences; on macOS/Linux `python -m venv` + `pip install -r
+  requirements.txt` + `gcloud auth application-default login` are enough (see the root README).
+- The `.venv` is a dev-only superset (loaders + one export job's deps); every Cloud Run unit still
+  builds its own container from its own `requirements.txt`.
+- `Test-Probe` in `setup.ps1`: probe failures are judged by exit code under `Continue`, so an
+  expected not-logged-in doesn't kill the script.
+- Google Ads + GA4 raw layers refresh via native BigQuery DTS (free, no job here). **Never gate a
+  job on the DTS bridge VIEWS** (`raw_google_ads.perf_google_ads`, `raw_ga4.perf_ga4*`) - their
+  `last_modified` is frozen; gate on the partitioned `p_ads_*` / `p_ga4_*` base tables.
 
 ## See also
-
-- [Root README](../README.md) — the whole-platform map and the cross-platform Quickstart.
-- [`ingest/windsor_data_pull/`](../ingest/windsor_data_pull/README.md) / [`ingest/snowflake_data_pull/`](../ingest/snowflake_data_pull/README.md) — what you run *after* setup.
+- [`AGENTS.md`](../AGENTS.md) - the canonical agent guide (fixed facts, data contract, deploy commands).
+- [Root README](../README.md) - the whole-platform human map.
+- [`ingest/`](../ingest/) unit READMEs - what each loader pulls and how to run it by hand.

@@ -159,6 +159,14 @@ def _sch_cs_total(d):
     return sum(_num(r.get("total")) for r in d.get("cs_by_programme", []))
 
 
+# --- schneiderlqai dash-side extractor ----------------------------------------
+# The LQAIDC dash JSON's delivery[] is a pure day × platform × country pass-through of the
+# stg views, so a per-platform SUM over it equals the raw scope-filtered aggregate exactly.
+def _lqai_delivery(platform, field):
+    return lambda d: sum(_num(r.get(field)) for r in d.get("delivery", [])
+                         if r.get("platform") == platform)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # The per-client spec — the comprehensive list of every important data pull that
 # feeds each dashboard, separated by source (one check per platform × metric,
@@ -314,19 +322,12 @@ CLIENTS = [
                     "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
                     "WHERE CHANNEL = 'Reddit';",
              "note": "vs sum of paid_media.rows[] clicks where channel = Reddit."},
-            {"label": "LINE · Impressions", "kind": "sum", "group": "LINE",
-             "dash": _cf_pm("imps", {"LINE"}),
-             "sql": "SELECT SUM(IMPS) AS imps\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL = 'LINE';",
-             "note": "LINE imps/clicks are clean integers; only its USD spend is FX-derived (JPY/155), so "
-                     "spend is not checked. vs sum of paid_media.rows[] imps where channel = LINE."},
-            {"label": "LINE · Clicks", "kind": "sum", "group": "LINE",
-             "dash": _cf_pm("clicks", {"LINE"}),
-             "sql": "SELECT SUM(CLICKS) AS clicks\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL = 'LINE';",
-             "note": "vs sum of paid_media.rows[] clicks where channel = LINE."},
+            # LINE checks REMOVED (2026-07-29): LINE is seed-sourced since the account migration
+            # (manual LINE-Ad-Manager CSV → client_cloudflare.seed_line_cf) — Snowflake
+            # V_PAID_ADS_FINAL_MODEL is no longer the source of truth for LINE, its totals froze at
+            # the migration (4,942,979 vs the dash's 7,666,095 imps = a permanent false ✗), and this
+            # check loop is Snowflake-only (scalar(cn, …), no BQ engine). A seed-vs-dashboard BQ
+            # check would be tautological anyway — the dashboard is built from the same seed.
 
             # --- Content Syndication checks (CS quality + Korea & RIG + CF1 Double-Touch) are APPENDED
             #     AT RUNTIME from definitions/cloudflare.json — see _build_cf_cs_checks() + main(). ---
@@ -668,6 +669,53 @@ CLIENTS = [
         ],
     },
     {
+        "client": "schneiderlqai", "label": "Schneider Liquid AI Data Center",
+        "url": "https://schneiderlqai.bidbrain.ai",
+        "sources": ["LinkedIn Ads - APAC", "TradeDesk_APAC ALL"],
+        "reads_direct": False,
+        "checks": [
+            # Single-campaign TOFU/Awareness dashboard (LinkedIn + TTD, 6 countries) — NO
+            # leads / conversions / CS / GA4, so the only clean integers are imps + clicks.
+            # Scope = CAMPAIGN_NAME contains 'LQAIDC' (rolls up BOTH raw name forms — the
+            # campaign gained a '2306_' prefix mid-flight); LinkedIn is additionally scoped to
+            # the SchneiderElectric_TransmissionSG% account. SPEND is never checked (FX CASE).
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
+             "dash": _lqai_delivery("linkedin", "imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'\n"
+                    "  AND UPPER(CAMPAIGN_NAME) LIKE '%LQAIDC%';",
+             "note": "LinkedIn's mirror carries the LQAIDC token on the AD-SET-grain CAMPAIGN_NAME "
+                     "(stable across the mid-flight group rename). Built via the raw_snowflake."
+                     "linkedin_ads_apac mirror, so it equals Snowflake only when the mirror is in "
+                     "sync. vs sum(delivery[platform='linkedin'].imps)."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
+             "dash": _lqai_delivery("linkedin", "clicks"),
+             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'\n"
+                    "  AND UPPER(CAMPAIGN_NAME) LIKE '%LQAIDC%';",
+             "note": "vs sum(delivery[platform='linkedin'].clicks)."},
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _lqai_delivery("tradedesk", "imps"),
+             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS td_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric'\n"
+                    "  AND UPPER(CAMPAIGN_NAME) LIKE '%LQAIDC%';",
+             "note": "COALESCE(IMPRESSIONS, IMPRESSION): the source carries both a current and a "
+                     "legacy singular column. The Enterprise IT '1958_SE_EntIT_*' campaigns in the "
+                     "same advertiser are a DIFFERENT brief — the LQAIDC token excludes them. "
+                     "vs sum(delivery[platform='tradedesk'].imps)."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _lqai_delivery("tradedesk", "clicks"),
+             "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric'\n"
+                    "  AND UPPER(CAMPAIGN_NAME) LIKE '%LQAIDC%';",
+             "note": "vs sum(delivery[platform='tradedesk'].clicks)."},
+        ],
+    },
+    {
         "client": "proptrack", "label": "PropTrack APAC", "url": "https://proptrack.bidbrain.ai",
         "sources": ["TradeDesk_APAC ALL", "LinkedIn Ads - APAC"],
         "reads_direct": False,
@@ -763,6 +811,7 @@ CLIENTS = [
              "note": "Both channels use CLICKS. vs kpi.ad_clicks."},
         ],
     },
+    # NOT YET MONITORED: bellshakespeare / nextsmile / caltex — no data/export pipelines yet; add them here once their export jobs exist.
 ]
 
 
@@ -818,7 +867,13 @@ BQ_CLIENTS = [
     {
         "client": "cityperfume", "label": "City Perfume", "engine": "bq",
         "ingest_label": "Neto + Windsor + DTS → raw_* (100% Digital ingest jobs)",
-        "raw_tables": ["raw_neto.orders", "raw_google_ads.perf_google_ads",
+        # perf_google_ads is a bridge VIEW whose __TABLES__.last_modified froze at CREATE
+        # (2026-06-05) — probe the advancing native-DTS base TABLE instead (MCC-shared; verified
+        # advancing daily 2026-07-29). raw_ga4.perf_ga4 is a frozen VIEW too, but City Perfume has
+        # NO advancing base table: its native GA4 transfer (property 254028250, base
+        # raw_ga4.p_ga4_TrafficAcquisition_254028250) stalled 2026-07-02 and the Windsor GA4
+        # fallback loader is manual — left as-is until either advances.
+        "raw_tables": ["raw_neto.orders", "raw_google_ads.p_ads_CampaignBasicStats_3451896252",
                        "raw_windsor.perf_meta", "raw_windsor.perf_the_trade_desk",
                        "raw_ga4.perf_ga4"],
         "checks": [
@@ -908,9 +963,12 @@ BQ_CLIENTS = [
     {
         "client": "resetdata", "label": "ResetData", "engine": "bq",
         "ingest_label": "Windsor + DTS + HubSpot → raw_* (100% Digital ingest jobs)",
-        "raw_tables": ["raw_google_ads.perf_google_ads", "raw_windsor.perf_meta",
+        # perf_google_ads / raw_ga4.perf_ga4 are bridge VIEWS (last_modified frozen at CREATE,
+        # 2026-06-05) — probe the advancing native-DTS base TABLES instead (Google Ads MCC-shared;
+        # GA4 = Reset Data's own property 516276493; both verified advancing 2026-07-29).
+        "raw_tables": ["raw_google_ads.p_ads_CampaignBasicStats_3451896252", "raw_windsor.perf_meta",
                        "raw_windsor.perf_the_trade_desk", "raw_windsor.perf_reddit",
-                       "raw_ga4.perf_ga4", "raw_windsor.hubspot_contacts"],
+                       "raw_ga4.p_ga4_TrafficAcquisition_516276493", "raw_windsor.hubspot_contacts"],
         "checks": [
             # Platform imps/clicks have NO date floor (only GA4 is floored 2025-12-01).
             {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
@@ -1025,7 +1083,9 @@ BQ_CLIENTS = [
     {
         "client": "tlm", "label": "The Little Marionette", "engine": "bq",
         "ingest_label": "Google Ads DTS + Windsor (TTD) → raw_*",
-        "raw_tables": ["raw_google_ads.perf_google_ads", "raw_windsor.perf_the_trade_desk"],
+        # perf_google_ads is a bridge VIEW (last_modified frozen at CREATE, 2026-06-05) — probe the
+        # advancing native-DTS base TABLE instead (MCC-shared; verified advancing 2026-07-29).
+        "raw_tables": ["raw_google_ads.p_ads_CampaignBasicStats_3451896252", "raw_windsor.perf_the_trade_desk"],
         "checks": [
             # NO date floor anywhere (the campaign_start in kpi is a display label, not a filter).
             {"label": "All channels · Impressions", "kind": "sum", "group": "All channels",
@@ -1135,6 +1195,10 @@ BQ_CLIENTS = [
     {
         "client": "vmch", "label": "VMCH", "engine": "bq",
         "ingest_label": "Windsor (TTD) + GA4 (DTS→Windsor fallback) → raw_*",
+        # raw_ga4.perf_ga4 is a bridge VIEW (last_modified frozen at CREATE, 2026-06-05), but VMCH
+        # has NO advancing base table to repoint at: its GA4 DTS transfer (property 287370621) is
+        # failing on a permission error so no native raw_ga4 tables exist for it — its GA4 rides the
+        # raw_windsor.perf_ga4 fallback (already probed above). Left as-is until the DTS is re-authed.
         "raw_tables": ["raw_windsor.perf_the_trade_desk", "raw_windsor.perf_ga4",
                        "raw_ga4.perf_ga4"],
         "checks": [
@@ -1459,6 +1523,11 @@ def scalar_bq(bq, sql):
 # under the SAME freshness gate as the accuracy counts, so an idle tick adds no cost.
 _BQ_DATE_EXPR = {
     "raw_neto.orders": "MAX(DATE(date_placed))",
+    # Native-DTS base tables (probed instead of the frozen perf_* bridge views): Google Ads
+    # stats key on segments_date; the GA4 p_* report tables carry the data date only as the
+    # _PARTITIONDATE pseudo-column (the ga4_* views alias it to _DATA_DATE).
+    "raw_google_ads.p_ads_CampaignBasicStats_3451896252": "MAX(segments_date)",
+    "raw_ga4.p_ga4_TrafficAcquisition_516276493": "MAX(_PARTITIONDATE)",
 }
 _BQ_NO_DATE = {"raw_windsor.hubspot_contacts"}   # whole-account snapshot — no date series
 

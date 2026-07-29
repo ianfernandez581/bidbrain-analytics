@@ -8,14 +8,14 @@
 #   If you get "running scripts is disabled on this system":
 #       Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 #
-#   Uses gcloud + bq + git + the repo venv (.venv, to apply the SQL views via create_views.py —
+#   Uses gcloud + bq + git + the repo venv (.venv, to apply the SQL views via create_views.py -
 #   the BigQuery Python client reads the UTF-8 .sql files directly; piping them through PowerShell
 #   to `bq` stdin corrupts non-ASCII comment chars on Windows PowerShell 5.1). The job is read-only
 #   on BigQuery and reads the shared raw layers
 #   (Google Ads DTS / Windsor / GA4) + the first-party client_cityperfume.v_sales directly; no
 #   Snowflake connection, no src_* landing. So: (dataset already exists) -> apply views ->
 #   build/deploy job -> run -> dash. The dataset client_cityperfume ALREADY EXISTS (v_sales lives
-#   in it) — the Exists check below leaves it (and v_sales) untouched.
+#   in it) - the Exists check below leaves it (and v_sales) untouched.
 
 # ---- config (matches job/cloudbuild.yaml + dash/cloudbuild.yaml) ------------
 $PROJECT  = "bidbrain-analytics"
@@ -61,7 +61,7 @@ if (-not (Exists { gcloud artifacts repositories describe $REPO --location $REGI
 if (-not (Exists { gcloud storage buckets describe "gs://${BUCKET}" --project $PROJECT })) {
   gcloud storage buckets create "gs://${BUCKET}" --project $PROJECT --location $REGION --uniform-bucket-level-access; Must "create bucket"
 }
-# Dataset client_cityperfume already exists (holds v_sales) — only create if somehow missing.
+# Dataset client_cityperfume already exists (holds v_sales) - only create if somehow missing.
 # NEVER drop/recreate it.
 if (-not (Exists { bq --project_id=$PROJECT show --dataset "${PROJECT}:${DATASET}" })) {
   bq --location=$REGION --project_id=$PROJECT mk --dataset "${PROJECT}:${DATASET}"; Must "create dataset"

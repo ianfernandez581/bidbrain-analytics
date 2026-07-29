@@ -1,4 +1,4 @@
-# deploy_dash_vmch.ps1 — rebuild + redeploy the vmch-dash service.
+# deploy_dash_vmch.ps1 - rebuild + redeploy the vmch-dash service.
 param([string]$SHA = "")
 if (-not $SHA) {
   try { $SHA = (git rev-parse --short HEAD 2>$null).Trim() } catch { }

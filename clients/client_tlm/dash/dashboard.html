@@ -751,7 +751,7 @@ function renderGoogle(){
   // Campaign table (filtered)
   var cr=googleCampRollup(),camps=Object.keys(cr).sort(function(a,b){return cr[b].sp-cr[a].sp;});
   var cRows=camps.map(function(name){var o=cr[name],ct=o.type||'Other';
-    return'<tr><td class="name">'+esc(name)+' <span class="pill '+(typeCls[ct]||'other')+'">'+esc(ct)+'</span></td><td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(o.sp>0?(o.rv/o.sp).toFixed(2)+'×':'-')+'</td></tr>';}).join('');
+    return'<tr><td class="name">'+esc(name)+' <span class="pill '+(typeCls[ct]||'other')+'">'+esc(ct)+'</span></td><td>'+curr(o.sp)+'</td><td>'+fmt(o.im)+'</td><td>'+fmt(o.cl)+'</td><td>'+pct(o.im>0?o.cl/o.im:0)+'</td><td>'+fmt(o.cv,1)+'</td><td>'+curr(o.rv)+'</td><td>'+(o.sp>0?(o.rv/o.sp*BBG).toFixed(2)+'×':'-')+'</td></tr>';}).join('');
   $('googleCamps').innerHTML='<thead><tr><th>Campaign</th><th>Spend</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>Purch.</th><th>Revenue</th><th>ROAS</th></tr></thead><tbody>'+(cRows||'<tr><td colspan="8" style="text-align:center;color:var(--muted2)">No Google delivery in range</td></tr>')+'</tbody>';
 
   // Spend vs revenue chart (filtered Google spend + revenue) - grain Month/Week/Day, with a

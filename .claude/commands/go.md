@@ -6,9 +6,14 @@ You are taking the developer's work from local edits all the way to deployed, en
 click: first push their work to their own branch, then integrate + deploy everyone's. This is
 `/push` followed by `/ship`. Loop until it lands (or a genuine blocker needs a human).
 
-Note on scope: step 2 integrates and deploys EVERY dev branch, not just this developer's. If the
+Note on scope: step 2 integrates and deploys EVERY dev branch, not just this developer's -- EXCEPT
+parked `wip/*` branches (see /park), which are always skipped and reported as "ignored". If the
 developer seems unsure what else is in flight, suggest running with `-DryRun` first (it previews the
 land + deploy plan and changes nothing), then re-run for real.
+
+Parked-state note: if the developer is currently ON a `wip/*` branch, step 1 PROMOTES that parked
+work into the integration flow (push-branch detects it, pushes the content to the normal dev branch,
+and deletes the wip branch) -- that is the intended way to ship previously-parked work.
 
 STEP 1 — push my work:
 

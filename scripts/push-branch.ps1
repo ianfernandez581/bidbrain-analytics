@@ -17,6 +17,12 @@
 # Then integrate everyone's branches onto main + deploy with:
 #     .\scripts\merge-branches.ps1
 # (This repo pushes to `origin` -- the live remote; the old `bidbrain` remote is dead.)
+#
+# PARKED-BRANCH PROMOTION: if you run this FROM a wip/* branch (created by
+# scripts/park.ps1), it PROMOTES the parked work into the normal integration flow:
+# the content is pushed to <owner>/<desc> (which merge-branches integrates), and the
+# remote wip/* branch is deleted after a successful push so /ship stops counting it
+# as parked. The owner/desc come from the wip branch name itself.
 # =============================================================================
 
 param(
@@ -46,6 +52,23 @@ if ([string]::IsNullOrWhiteSpace($Dev)) { $Dev = $env:COMPUTERNAME }
 function Slug([string]$s) { return (($s.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')) }
 $name = Slug $Dev
 if ([string]::IsNullOrWhiteSpace($name)) { Die "could not derive a branch name from '$Dev'" }
+
+# PROMOTION (/go from a parked state): HEAD on a wip/* branch (see park.ps1) means
+# "ship this parked work". Keep the wip branch's own owner/desc so promoting a branch
+# parked on another machine keeps its identity; the remote wip branch is deleted after
+# a successful push (below), because the work is no longer parked.
+$curBranch = "$(git rev-parse --abbrev-ref HEAD 2>$null)".Trim()
+$promoteFrom = $null
+if ($curBranch -like 'wip/*') {
+    $parts = $curBranch -split '/', 3
+    if ($parts.Count -eq 3 -and $parts[1] -and $parts[2]) {
+        $promoteFrom = $curBranch
+        $name = $parts[1]
+        if ([string]::IsNullOrWhiteSpace($Desc)) { $Desc = $parts[2] }
+        Write-Host "[push-branch] parked branch detected -- promoting $curBranch into the integration flow" -ForegroundColor Cyan
+    }
+}
+
 $slug = Slug $Desc
 if ([string]::IsNullOrWhiteSpace($slug)) { $slug = "work" }
 $branch = "$name/$slug"
@@ -61,10 +84,12 @@ git add -A
 Must "git add -A"
 
 # 4. Secret guard (defense in depth -- these are gitignored, but never push them anyway).
-#    Mirrors this repo's .gitignore secret patterns (keys, PEMs, credentials, .env, bare *_key).
+#    Mirrors this repo's .gitignore secret patterns (keys, PEMs, credentials, .env + .env.*
+#    variants, bare *_key); .example templates (api-probe/.env.example) are allowed.
+#    Keep this regex in sync with park.ps1 and merge-branches.ps1's sanity gate.
 $staged = (git diff --cached --name-only) -split "`n" | ForEach-Object { $_.Trim() } | Where-Object { $_ }
-$secretRe = '(\.env$)|(\.p8$)|(\.pem$)|(\.pub$)|(\.key$)|(-key\.json$)|(credentials.*\.json$)|(service-account.*\.json$)|(_key$)|(/id_rsa$)|(/id_ecdsa$)|(/id_ed25519$)|(^id_rsa$)|(^id_ecdsa$)|(^id_ed25519$)'
-$danger = $staged | Where-Object { $_ -imatch $secretRe }
+$secretRe = '((^|/)\.env(\..+)?$)|(\.p8$)|(\.pem$)|(\.pub$)|(\.key$)|(-key\.json$)|(credentials.*\.json$)|(service-account.*\.json$)|(_key$)|((^|/)id_(rsa|ecdsa|ed25519)$)'
+$danger = $staged | Where-Object { $_ -imatch $secretRe -and $_ -notmatch '\.example$' }
 if ($danger) {
     git restore --staged $danger 2>$null
     Die "refusing to commit secret-looking files: $($danger -join ', '). They have been unstaged -- gitignore them (see .gitignore + bidbrain-vault/)."
@@ -89,6 +114,15 @@ git fetch --prune origin 2>$null
 #    (it only overwrites if the remote is where we last saw it -- never clobbers someone else).
 git push -u origin $branch --force-with-lease
 Must "push $branch"
+
+# 8. Finish a promotion: the work now rides $branch, so the parked branch is obsolete.
+#    HEAD moved to $branch in step 2, so deleting the local wip ref is safe too.
+if ($promoteFrom) {
+    git push origin --delete $promoteFrom 2>$null | Out-Null
+    if ($LASTEXITCODE -eq 0) { Write-Host "[OK] promoted -- deleted origin/$promoteFrom (no longer parked)" -ForegroundColor Green }
+    else { Write-Host "[warn] could not delete origin/$promoteFrom (already gone?) -- delete it manually if it lingers" -ForegroundColor Yellow }
+    git branch -D $promoteFrom 2>$null | Out-Null
+}
 
 Write-Host ""
 Write-Host "[OK] pushed $branch" -ForegroundColor Green

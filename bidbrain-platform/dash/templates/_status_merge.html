@@ -260,6 +260,12 @@
       var c=by[el.getAttribute("data-for")];
       if(!c||!c.freshness){ el.remove(); return; }
       var b=badge(c.freshness.verdict);
+      // Carry-forward degradation: the source (Snowflake) is unreachable, so the numbers shown are
+      // the LAST KNOWN values - never paint a green "Healthy" over silently frozen data.
+      if(c.stale_carryforward || c.freshness.snowflake_unavailable){
+        b={cls:"warn", label:"Source unreachable - showing last known"};
+        if(c.freshness.snowflake_error) el.title=c.freshness.snowflake_error;
+      } else el.removeAttribute("title");
       el.className="bbhealth "+b.cls;
       el.textContent=b.label+" · updated "+fmtAge(c.freshness.build_at||c.freshness.ingest_latest||c.freshness.data_through||c.freshness.transmission_latest);
     });
@@ -412,7 +418,7 @@
             var nDone=Object.keys(done).length;
             if(syncMsg&&nDone<total){ syncMsg.className="bbmuted"; syncMsg.textContent="Syncing… "+nDone+" of "+total+" updated"; }
             if(nDone>=total||tries>=MAX){ clearInterval(iv); stampSync(); syncSet("done","✓ Synced");
-              if(syncMsg){ syncMsg.className="bbmuted bb-ok"; syncMsg.textContent = nDone>=total ? ("✓ All "+total+" dashboards updated") : ("✓ "+nDone+" of "+total+" updated — the rest are catching up"); }
+              if(syncMsg){ syncMsg.className="bbmuted bb-ok"; syncMsg.textContent = nDone>=total ? ("✓ All "+total+" dashboards updated") : ("✓ "+nDone+" of "+total+" updated - the rest are catching up"); }
               setTimeout(function(){ syncSet("idle","Sync all dashboards now"); },8000); }
           });
         },30000);

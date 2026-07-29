@@ -230,7 +230,7 @@
       <button class="sclose" type="button" aria-label="Close">&times;</button>
       <div class="seyebrow">AI slide deck</div>
       <div class="stitle" id="sTitle">Slide deck</div>
-      <div class="ssub">Cover · What happened · Why · Recommended actions — branded for this client, full flight.</div>
+      <div class="ssub">Cover · What happened · Why · Recommended actions - branded for this client, full flight.</div>
       <div id="sBusy" class="sspin"><i></i><span>Building your deck…</span></div>
       <div id="sPreview" class="spreview" hidden></div>
       <div id="sReady" class="sactions" hidden>
@@ -360,7 +360,7 @@
         var w = window.open(link, '_blank');   // async (post-upload) -> may be popup-blocked
         if (w){ setMsg('Opened in Google Slides ✓ (saved to your Drive)'); }
         else { elMsg.classList.remove('err');
-          elMsg.innerHTML = 'Your deck is in Google Slides — <a href="' + link + '" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">click to open ↗</a> (saved to your Drive).'; }
+          elMsg.innerHTML = 'Your deck is in Google Slides - <a href="' + link + '" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">click to open ↗</a> (saved to your Drive).'; }
         if (btnGoogle) btnGoogle.disabled = false;
       };
       var tc = google.accounts.oauth2.initTokenClient({
@@ -383,9 +383,9 @@
         },
         error_callback: function(err){
           var t = (err && (err.type || err.message)) || '';
-          if (/popup_failed|blocked/i.test(t)) fail('The Google sign-in popup was blocked — allow pop-ups for this site, then retry.');
-          else if (/popup_closed|closed/i.test(t)) fail('Google sign-in was closed before it finished — retry and complete it.');
-          else fail('Could not open Google sign-in' + (t ? ' (' + t + ')' : '') + ' — check pop-ups are allowed for this site.');
+          if (/popup_failed|blocked/i.test(t)) fail('The Google sign-in popup was blocked - allow pop-ups for this site, then retry.');
+          else if (/popup_closed|closed/i.test(t)) fail('Google sign-in was closed before it finished - retry and complete it.');
+          else fail('Could not open Google sign-in' + (t ? ' (' + t + ')' : '') + ' - check pop-ups are allowed for this site.');
         }
       });
       try { tc.requestAccessToken(); } catch(e){ fail('Could not start Google sign-in: ' + ((e && e.message) || e)); }
@@ -398,7 +398,7 @@
       btn.dataset.orig = btn.textContent; btn.dataset.busy = '1'; btn.classList.add('busy'); btn.textContent = '⏳ Building…';
       cur.name = name; cur.done = false; cur.blob = null; cur.fileName = null; cur.btn = btn;
       if (cur.url){ try { URL.revokeObjectURL(cur.url); } catch(e){} cur.url = null; }
-      elTitle.textContent = name + ' — slide deck';
+      elTitle.textContent = name + ' - slide deck';
       if (btnGoogle) btnGoogle.disabled = true; btnDownload.disabled = true;
       showBusy(); modal.hidden = false;
       var iframe = document.createElement('iframe');

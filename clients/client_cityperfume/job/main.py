@@ -41,9 +41,14 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # raw_neto.orders is the first-party sales truth (via v_sales); the rest are ad feeds.
 GATING_TABLES = [
     "raw_neto.orders",
-    "raw_google_ads.perf_google_ads",
+    # Google Ads: gate on the native DTS base TABLE, not the perf_google_ads bridge VIEW —
+    # a view's last_modified is frozen at creation, so the gate never fired.
+    "raw_google_ads.p_ads_CampaignBasicStats_3451896252",
     "raw_windsor.perf_meta",
     "raw_windsor.perf_the_trade_desk",
+    # GA4: these are frozen bridge VIEWS too, but there is no advancing base table to
+    # repoint to (checked 2026-07-29: DTS p_ga4_* for property 254028250 stalled
+    # 2026-07-02, raw_windsor.perf_ga4* stalled 2026-07-15). Repoint once one resumes.
     "raw_ga4.perf_ga4",
     "raw_ga4.perf_ga4_events",
 ]

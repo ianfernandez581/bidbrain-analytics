@@ -115,7 +115,22 @@ def main():
     # only for tables that truly changed. FORCE_REBUILD=1 mirrors everything.
     force = os.environ.get("FORCE_REBUILD") == "1"
     try:
-        observed = probe_snowflake_last_altered(cn, [_bare(s) for s in TABLES])
+        try:
+            observed = probe_snowflake_last_altered(cn, [_bare(s) for s in TABLES])
+        except snowflake.connector.Error as e:
+            # Account resource monitor tripped: Snowflake refuses to service even the
+            # metadata-only probe (090073 "Warehouse ... cannot be resumed because
+            # resource monitor ... has exceeded its quota"). That's a SOURCE-side
+            # outage, not our bug -- the status pipeline reports Snowflake
+            # unavailability separately, so a red execution every */10 tick is pure
+            # noise. Treat it as a clean no-op tick; anything else still raises.
+            msg = str(e).lower()
+            if getattr(e, "errno", None) == 90073 or (
+                    "cannot be resumed" in msg and "resource monitor" in msg):
+                print("WARNING: Snowflake warehouse suspended by resource monitor "
+                      "(source-side outage) - skipping this tick")
+                return
+            raise
         wm = read_sync_state(bq)
         new_wm = dict(wm)
         refreshed, skipped = [], []

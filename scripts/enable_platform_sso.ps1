@@ -22,7 +22,8 @@ $PROJECT = "bidbrain-analytics"
 $REGION  = "australia-southeast1"
 $SSO_SECRET = "platform-sso-key"
 
-$ALL = @("mongodb","cloudflare","stt","schneider","hireright","cityperfume","resetdata","proptrack","tlm","vmch")
+$ALL = @("mongodb","cloudflare","stt","schneider","schneiderlqai","hireright","cityperfume","resetdata","proptrack","tlm","vmch",
+         "geocon","bellshakespeare","caltex","nextsmile")
 $targets = if ($Keys) { $Keys.Split(",") | ForEach-Object { $_.Trim() } | Where-Object { $_ } } else { $ALL }
 
 function Warn($m) { Write-Host "  ! $m" -ForegroundColor Yellow }

@@ -121,7 +121,7 @@ if (-not (Test-Path $PYTHON)) { Die "repo venv python not found at $PYTHON (run 
 Write-Host "     loading data/*.csv -> seed_* tables via load_seeds.py"
 & $PYTHON 'clients/client_schneiderlqai/load_seeds.py'; Must "load seeds"
 # 5b. Apply the SQL views in filename order (NN_ prefix enforces dependency order). Use the BigQuery
-#     Python client (create_views.py), NOT `Get-Content | bq query` — on Windows PowerShell that
+#     Python client (create_views.py), NOT `Get-Content | bq query` - on Windows PowerShell that
 #     pipe corrupts the UTF-8 comments in the .sql files (see scripts memory / windows-gcloud gotchas).
 Write-Host "     applying sql/*.sql via create_views.py"
 & $PYTHON 'clients/client_schneiderlqai/create_views.py'; Must "apply views"

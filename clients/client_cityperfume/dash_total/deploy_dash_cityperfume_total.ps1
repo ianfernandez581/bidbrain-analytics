@@ -2,10 +2,10 @@
 # the ALL-SALES variant (In-store POS + Website + Marketplace), service `cityperfume-total-dash`.
 #
 # This is a FRONT-END-ONLY fork of client_cityperfume/dash. It reuses EVERYTHING from the online-only
-# dashboard's pipeline — the SAME private bucket + SAME cityperfume.json (the export job already ships
+# dashboard's pipeline - the SAME private bucket + SAME cityperfume.json (the export job already ships
 # every channel), the SAME web service account, and the SAME password + session secrets. So there is
 # NO new dataset, view, export job, scheduler, bucket, SA or secret: only a 2nd Cloud Run service that
-# serves this folder's all-sales dashboard.html. Idempotent — safe to re-run (it just swaps the image).
+# serves this folder's all-sales dashboard.html. Idempotent - safe to re-run (it just swaps the image).
 #
 #   HOW TO RUN (from anywhere - paths resolve from the script's own folder):
 #       .\clients\client_cityperfume\dash_total\deploy_dash_cityperfume_total.ps1

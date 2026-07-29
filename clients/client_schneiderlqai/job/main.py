@@ -161,8 +161,8 @@ def main():
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
-    tot_imp = sum(r["imps"] for r in env["delivery"])
-    tot_spend = sum(r["spend_aud"] for r in env["delivery"])
+    tot_imp = sum(r["imps"] or 0 for r in env["delivery"])
+    tot_spend = sum(r["spend_aud"] or 0 for r in env["delivery"])
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['delivery'])} delivery rows, "
           f"{len(env['creative'])} creatives, {len(countries)} countries, "
           f"{tot_imp:,.0f} imps / A${tot_spend:,.0f} spend, "

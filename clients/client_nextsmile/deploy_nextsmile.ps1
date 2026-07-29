@@ -22,7 +22,7 @@
 #   Deploys need the ian@100.digital account (charles@ has no perms). Pin it for the session:
 #       $env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"
 #
-#   DATA SOURCE (Phase 2): Next Smile Australia reads raw_windsor.perf_meta (Windsor, self-refreshing) — same as
+#   DATA SOURCE (Phase 2): Next Smile Australia reads raw_windsor.perf_meta (Windsor, self-refreshing) - same as
 #   the geocon template this was cloned from. The job SA gets project-scoped roles/bigquery.dataViewer.
 
 param([switch]$WithData)

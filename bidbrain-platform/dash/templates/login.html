@@ -259,7 +259,7 @@
   document.getElementById('msBtn').addEventListener('click',function(){
     var err=document.querySelector('.err'); if(err) err.textContent='';
     var app=msalApp();
-    if(!app){ if(err) err.textContent='Still loading — try again in a moment.'; return; }
+    if(!app){ if(err) err.textContent='Still loading - try again in a moment.'; return; }
     app.loginPopup({scopes:['openid','profile','email'],prompt:'select_account'})
      .then(function(res){
         var idt=res&&res.idToken;

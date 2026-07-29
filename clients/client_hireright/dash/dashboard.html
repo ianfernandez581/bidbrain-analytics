@@ -1437,7 +1437,7 @@ function renderPaid(){
 //==============================================================================
 function exportAllData(){
   const lines = [];
-  const push = (section,obj)=>{ lines.push(''); lines.push('# '+section); const keys=Object.keys(obj[0]||{}); lines.push(keys.join(',')); obj.forEach(r=>lines.push(keys.map(k=>csv(r[k])).join(','))); };
+  const push = (section,obj)=>{ lines.push(''); lines.push('# '+section); const keys=Object.keys(obj[0]||{}).filter(k=>!k.startsWith('_')); lines.push(keys.join(',')); obj.forEach(r=>lines.push(keys.map(k=>csv(r[k])).join(','))); };
   lines.push('# HireRight paid-media dashboard export'); lines.push('# window,'+DATA.window.start+','+DATA.window.end);
   lines.push('# fx_aud_usd,'+DATA.fx_aud_usd);
   const totC = (DATA.ad_campaigns||[]).length;
