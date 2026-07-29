@@ -85,7 +85,8 @@ bypasses the local guards.
 | `enable_platform_sso.ps1` | Injects `SSO_SECRET`+`CLIENT_KEY` into every client dashboard (all 15). One-time per new dashboard. |
 | `enable_super_admin.ps1` | Grants the platform the IAM to rotate every dashboard password. **Add new dashboards to its `$CLIENTS` list** or the super-admin console 403s on them. |
 | `enable_google_login.ps1` / `enable_microsoft_login.ps1` | One-time switches for the platform's native Google / Microsoft sign-in (create the OAuth/Entra clients in the Console first). |
-| `glm-bypass-mode.ps1` / `.cmd` | Launch Claude Code on Z.ai GLM using the shared `glm-api-key` secret (env vars scoped to the Claude process, restored on exit). Bootstrap the secret once with `create-glm-secret.ps1`. |
+| `glm-bypass-mode.ps1` / `.cmd` | Launch Claude Code on Z.ai GLM using the shared `glm-api-key` secret (env vars scoped to the Claude process, restored on exit). Bootstrap the secret once with `create-glm-secret.ps1`. TERMINAL sessions only - the VS Code panel needs `claude-panel-mode.ps1`. |
+| `claude-panel-mode.ps1` | Switch the VS CODE PANEL (the Claude extension, which spawns its own process the bypass launchers never reach) between Z.ai GLM and Anthropic by toggling `claudeCode.environmentVariables` in the user settings.json. `status` / `glm` / `claude`; machine-scoped (hits the Agora window too - Agora's twin script toggles the same block for Kimi, last writer wins); reload the window to apply. Twin of Agora's `agora-devtools/claude-panel-mode.ps1`. |
 | `_validate_dash_js.py` | Sanity-checks a `dashboard.html`'s inline JS before you deploy it: `.\.venv\Scripts\python.exe scripts\_validate_dash_js.py clients\client_<c>\dash\dashboard.html`. |
 | `push-branch.ps1` / `merge-branches.ps1` / `park.ps1` / `start_day.ps1` | The team flow above. |
 
