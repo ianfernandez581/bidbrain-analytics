@@ -171,6 +171,15 @@ def main():
         print(f"upstream advanced -> rebuilding | {times}")
 
     env, summary = build_env(bq, observed)
+    # EMPTY-FACT GUARD: until the Caltex advertiser (0lw3hp6) is granted to the Windsor TTD
+    # connector, the fact view is empty. Never upload an empty caltex.json — the dash service
+    # prefers the bucket file over its baked-in sample payload, so an empty upload would replace
+    # the labelled placeholder with a blank dashboard. Exit 0 (and skip the watermark) so the
+    # */10 tick keeps retrying and the FIRST rebuild after real rows land goes live automatically.
+    if not env["rows"]:
+        print("fact is EMPTY (advertiser not in raw_windsor.perf_the_trade_desk yet) -> "
+              "NOT uploading; placeholder stays live. Grant the advertiser in Windsor to go live.")
+        return
     bkt = storage.Client(project=PROJECT).bucket(BUCKET)
     bkt.blob(DATA_OBJECT).upload_from_string(json.dumps(env), content_type="application/json")
     # Watermark only after a successful upload (upload first, watermark second).
