@@ -531,7 +531,7 @@
     },
     {
       "client": "PropTrack",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the TTD advertiser misspelling 'PopTrack' started being CORRECTED upstream on 2026-07-22 (a 'PropTrack' advertiser now emits 0-spend rows for the same campaign names) - both spellings are table entries and the staged pairs use mode 'rollup' so the rule spans spellings and dedupes by campaign name. LinkedIn grain fixed to CAMPAIGN_GROUP_NAME. Staged pairs: config/reconcile-staged/PropTrack.json.",
       "tables": [
@@ -580,11 +580,32 @@
           "note": "Corrected spelling, appeared 2026-07-22 (0-spend rows so far) - future delivery may land here; rollup pairs span both spellings."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-45b37033dee7",
+          "channel": "Trade Desk",
+          "advertiserName": "PopTrack",
+          "campaignMatch": {
+            "mode": "rollup",
+            "value": "BANKING-ABM"
+          },
+          "campaignName": "Banking ABM"
+        },
+        {
+          "campaignId": "cmp-3800776439ae",
+          "channel": "LinkedIn",
+          "advertiserName": "PropTrack_TransmissionSG_AUD",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Banking ABM"
+          },
+          "campaignName": "Banking ABM"
+        }
+      ]
     },
     {
       "client": "MongoDB",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the old '0 impressions' claim was a single-column artifact - with COALESCE(IMPRESSIONS, IMPRESSION) the MongoDB advertiser carries real impressions (e.g. IDC 5.9M), so the tradedesk_apac_conversion pixel-table entry (no cost column, reconcile noise) was REMOVED. LinkedIn: NO MongoDB source anywhere (not in linkedin_ads_apac; perf_linkedin has zero MongoDB rows - the Windsor account 502299829 connector 500s and is skipped) - the LinkedIn Grid row is unmatchable until re-auth. Staged pairs: config/reconcile-staged/MongoDB.json.",
       "tables": [
@@ -600,11 +621,32 @@
           "note": "COSTS = client-billed (IDE campaigns SUM(COSTS) $16,183.91 = the sheet's clientSpend to the cent). Mid-flight rename 2026-07-06 added the 2265_ job prefix - contains rules target the stable IDE/IDC suffix tokens."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-d8b548bcc1a2",
+          "channel": "Trade Desk",
+          "advertiserName": "MongoDB",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "IDE_APJ_DEMAND-GENERATION"
+          },
+          "campaignName": "DNB IDE"
+        },
+        {
+          "campaignId": "cmp-c0b9233228f0",
+          "channel": "Trade Desk",
+          "advertiserName": "MongoDB",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "IDC_APJ_DEMAND-GENERATION"
+          },
+          "campaignName": "Key Growth Accounts IDC"
+        }
+      ]
     },
     {
       "client": "City Perfume",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): Google repointed from the stale raw_windsor copy (ends 2026-06-05) to the DTS bridge raw_google_ads.perf_google_ads - which is ITSELF stalled for this customer at 2026-06-22 (ResetData/TLM run to 07-21); do not approve the Google pair until the transfer backfills June 23-30. Google + Meta entries are flight-scoped to the June rows the Grid carries (the account's whole history would otherwise sum $1.5M+ onto a June row). Google/Meta spend = raw MEDIA basis (sheet mults stay, e.g. Google 1.1655); perf_the_trade_desk cost = CLIENT-BILLED ($7,500.02 = sheet clientSpend to the cent) so the TTD row needs spendMult=1. Staged pairs: config/reconcile-staged/City Perfume.json.",
       "tables": [
@@ -646,11 +688,32 @@
           "note": "cost = CLIENT-BILLED. Unscoped: the sheet's June row carries the whole-flight (May+June) billed figure and BQ agrees with it exactly."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-e9196d95ec35",
+          "channel": "Trade Desk",
+          "advertiserName": "City Perfume",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "CP_Always_On_Awareness"
+          },
+          "campaignName": "Always On"
+        },
+        {
+          "campaignId": "cmp-794292110da4",
+          "channel": "Meta",
+          "advertiserName": "Cityperfume.com.au",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": ""
+          },
+          "campaignName": "Always On"
+        }
+      ]
     },
     {
       "client": "ResetData",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the dead Reddit entry was REMOVED - perf_reddit contains ONLY Cloudflare data ('Transmission_Cloudflare', CLOUD_ACQ_* campaigns); the old advertiserValue 'ResetData Ad Account (100Digital)' matches nothing, so the Reddit Grid row is unmatchable by design. (Those Cloudflare rows are mislabelled client_slug='resetdata' in perf_reddit - flagged in PHASE3_BATCH_PREP_REPORT.md.) Google repointed to the DTS bridge (fresh to 07-21; the raw_windsor copy ends 06-05); a Meta entry was ADDED ('Reset backup – Ad account', EN-DASH in the name). Google/Meta = media basis (mults stay); TTD cost = client-billed (spendMult=1 staged). Entries flight-scoped to the Grid's June-July rows. Staged pairs: config/reconcile-staged/ResetData.json.",
       "tables": [
@@ -694,11 +757,42 @@
           "note": "cost = CLIENT-BILLED. Flight-scoped: the always-on campaign runs since April but the Grid row is Jun-Jul; the March GTC burst has no Grid row."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-60fc34ccd19b",
+          "channel": "Trade Desk",
+          "advertiserName": "ResetData",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "ResetData_Apr26"
+          },
+          "campaignName": "46113"
+        },
+        {
+          "campaignId": "cmp-33a87b99e4ff",
+          "channel": "Meta",
+          "advertiserName": "Reset backup – Ad account",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ResetData_"
+          },
+          "campaignName": "46113"
+        },
+        {
+          "campaignId": "cmp-3179ea67e6e2",
+          "channel": "Google Ads",
+          "advertiserName": "Reset Data",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": ""
+          },
+          "campaignName": "Always On"
+        }
+      ]
     },
     {
       "client": "VMCH",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the Grid's TTD rows are MONTH SLICES (RAC/SAH = May, Disability Retargeting = June) of continuous Apr-Jul campaigns - approving a pair writes the campaign's WHOLE history onto that row (per-row date scoping does not exist; see the staged file's warnings). The 3 DV360 rows (Feb-Apr) are unmatchable by design: no VMCH DV360 source exists (dv360_apac is Transmission-only) and Windsor's April TTD is known-incomplete (the vmch dashboard models April from client totals). cost = CLIENT-BILLED - all 4 TTD rows need spendMult=1 (staged). Staged pairs: config/reconcile-staged/VMCH.json.",
       "tables": [
@@ -714,11 +808,22 @@
           "note": "TRAILING SPACE in BQ advertiser value. cost = client-billed."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-9f59b9e1903b",
+          "channel": "Trade Desk",
+          "advertiserName": "VMCH ",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "RL_AU"
+          },
+          "campaignName": "Retirement Living"
+        }
+      ]
     },
     {
       "client": "The Little Marionette",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): the Google coverage gap is CLOSED - a DTS bridge entry was added (fresh to 07-21). Both entries flight-scoped to the Grid's Jun-Jul rows (the TTD campaign runs since 04-30; pre-June $1,234 belongs to no Grid row). Google = media basis (mult 1 stays); TTD cost = client-billed (the 7.757 mult is a sheet artifact - spendMult=1 staged; BQ to-07-08 $1,484.80 vs sheet billed $1,440.40). Staged pairs: config/reconcile-staged/The Little Marionette.json.",
       "tables": [
@@ -749,11 +854,32 @@
           "note": "cost = CLIENT-BILLED. Flight-scoped to the Grid's Jun-Jul row."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-282b8b2e6808",
+          "channel": "Trade Desk",
+          "advertiserName": "The Little Marionette",
+          "campaignMatch": {
+            "mode": "exact",
+            "value": "TLM_Always-On_2026"
+          },
+          "campaignName": "Always On"
+        },
+        {
+          "campaignId": "cmp-d077cd013ed3",
+          "channel": "Google Ads",
+          "advertiserName": "The Little Marionette",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": ""
+          },
+          "campaignName": "Always On"
+        }
+      ]
     },
     {
       "client": "QTopia",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): Meta + Google PrideFest rows are unmatchable by design (no QTopia account in perf_meta, no QTopia customer in DTS, google_ads_apac is STT-only). TTD cost = client-billed: billed $2,519.86 = the row's $2,520 budget to the dollar - the sheet's $1,360.55 clientSpend (extreme 10.09 mult artifact) UNDERSTATES billed by 85%; spendMult=1 staged. Staged pairs: config/reconcile-staged/QTopia.json.",
       "tables": [
@@ -769,11 +895,22 @@
           "note": "BQ advertiser \"Qtopia Sydney\" vs Central \"QTopia\". cost = client-billed."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-8373a5ff3124",
+          "channel": "Trade Desk",
+          "advertiserName": "Qtopia Sydney",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "QTOPIA_PF26_TTD"
+          },
+          "campaignName": "PrideFest"
+        }
+      ]
     },
     {
       "client": "Ad Assembly",
-      "validated": false,
+      "validated": true,
       "source": "raw",
       "note": "Batch Phase-3 prep (2026-07-23): TTD entries ADDED for the Altech + WEHI advertisers (the Grid's 'Altec'/'WEHI' rows; only ACRS was specced). Spelling traps: Grid 'Altec' = BQ advertiser 'Altech'; Grid 'BIONZ' = BQ campaign 'ACRS_BOINZ_...' (inside the ACRS Meta account). The 'Buyer X' row carries a Currency-in-USD remark - resolve before approving (no FX in the sync). TTD cost = client-billed (Altech $2,639.98 vs sheet $2,639.88; WEHI $4,113.83 vs $4,113.82) - spendMult=1 staged on all 3 TTD rows. Nearly all rows Ended/Not Active -> backfill needs includeEnded=1. Staged pairs: config/reconcile-staged/Ad Assembly.json.",
       "tables": [
@@ -833,7 +970,58 @@
           "note": "Added 2026-07-23. cost = client-billed."
         }
       ],
-      "map": []
+      "map": [
+        {
+          "campaignId": "cmp-646db384e7a1",
+          "channel": "Trade Desk",
+          "advertiserName": "Altech",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "Altech_Brand_Awareness"
+          },
+          "campaignName": "Altec"
+        },
+        {
+          "campaignId": "cmp-2ccd7305f14f",
+          "channel": "Trade Desk",
+          "advertiserName": "WEHI",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "WEHI_"
+          },
+          "campaignName": "WEHI"
+        },
+        {
+          "campaignId": "cmp-8cfd899ca0eb",
+          "channel": "Trade Desk",
+          "advertiserName": "ACRS",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ACRS_Always_On_May2026-TTD"
+          },
+          "campaignName": "ACRS AlwaysOn"
+        },
+        {
+          "campaignId": "cmp-a0a8aec66605",
+          "channel": "Meta",
+          "advertiserName": "Ad Assembly - ACRS",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "ACRS_Always_On"
+          },
+          "campaignName": "ACRS AlwaysOn"
+        },
+        {
+          "campaignId": "cmp-7eb3380b7a10",
+          "channel": "Meta",
+          "advertiserName": "Ad Assembly - ACRS",
+          "campaignMatch": {
+            "mode": "contains",
+            "value": "BOINZ"
+          },
+          "campaignName": "BIONZ"
+        }
+      ]
     },
     {
       "client": "Gateway",

@@ -1,102 +1,46 @@
-# clients/client_mongodb/sql/ — the BigQuery view definitions (the stage-2 transform)
+# clients/client_caltex/sql/ — the BigQuery view definitions (the stage-2 transform)
 
-> The version-controlled `CREATE OR REPLACE VIEW` files that turn the shared raw data into
-> MongoDB's dashboard-ready numbers. The export job ([`../job/main.py`](../job/README.md)) reads
-> these views to build `mongodb.json`.
+> The version-controlled `CREATE OR REPLACE VIEW` files that turn the shared Windsor Trade Desk
+> raw table into Caltex's dashboard-ready fact. The export job ([`../job/main.py`](../job/README.md))
+> reads these views to build `caltex.json`.
 
-**Plain English:** the raw warehouse data is generic and messy. These saved queries are where
-we pick out *only MongoDB's* rows and shape them into the exact figures the dashboard shows —
-leads by market, spend by strategy, targets, benchmarks, budgets. **This is where the business
-logic lives.** If a number on the dashboard looks wrong, it's almost always one of these files.
+**Plain English:** the raw warehouse data is generic and shared. These saved queries pick out
+*only Caltex's* rows (TTD advertiser `0lw3hp6`), parse the ad-group naming into tactic + market,
+classify each row Awareness vs Consideration, and shape ONE compact fact table. **This is where
+the business logic lives.**
 
-These files are the **source of truth** — edit them and re-apply, rather than editing views in
-the BigQuery console (or the two drift). The `NN_` filename prefix sets apply order: staging
-views (`stg_*`) must exist before the models and rollups that read them.
+These files are the **source of truth** — edit them and re-apply, never edit views in the
+BigQuery console (or the two drift). The `NN_` prefix sets apply order.
 
-**Where this sits:** `raw_snowflake.*` → **[these views]** → [`../job/`](../job/README.md) →
-`mongodb.json`.
-
----
+**Where this sits:** `raw_windsor.perf_the_trade_desk` → **[these views]** → [`../job/`](../job/README.md) → `caltex.json`.
 
 ## The views (in dependency order)
 
 | File | View | What it does |
 |---|---|---|
-| [`01_stg_tradedesk.sql`](01_stg_tradedesk.sql) | `stg_tradedesk` | Filters `raw_snowflake.tradedesk_apac_all` to **`ADVERTISER_NAME = "MongoDB"`** and parses the campaign/ad-group naming convention into `PROGRAMME`, `MARKET`, `STRATEGY`, `OBJECTIVE` (via `SPLIT(... , "_")[SAFE_OFFSET(n)]`). |
-| [`02_stg_salesforce.sql`](02_stg_salesforce.sql) | `stg_salesforce` | Filters `raw_snowflake.salesforce_cs_apac_all` to MongoDB's **4 campaign IDs** (3 DNB + KGA/IDC) (no status filter). Maps the 3 DNB IDs → `PROGRAMME_LABEL` (KGA/IDC stays `NULL`) and `UPPER(TRIM(COUNTRY_NAME))` → the 4-market bucket (`ANZ` / `INDIA` / `ASEAN` / `KR-HK-TW`, else `OTHER`). **Case-normalised** so variants (`Republic of Korea`, `INDIA`/`india`) land correctly instead of leaking to `OTHER`; genuinely off-plan countries (China, Japan) stay `OTHER`, which the dash surfaces as its own region (in `all_markets`) so every lead is counted. |
-| [`03_paid_media_model.sql`](03_paid_media_model.sql) | `paid_media_model` | The unified paid-media delivery model: labels channel `"TradeDesk"`, derives `WEEK_START` (Monday), and `SUM`s impressions/clicks/cost/conversions grouped by all dimensions. `LEADS = 0` (TTD has no lead pixel here). |
-| [`04_cs_leads.sql`](04_cs_leads.sql) | `cs_leads` | Lead counts **by market** with three status buckets — `ACCEPTED` (`LEAD_STATUS = "Accepted"`), `REJECTED` (`= "Rejected"`), `NEW_LEADS` (`IN ("Unresponsive","Do Not Contact","New")`, i.e. unprocessed; `Do Not Contact` is IDC-only) — plus `LAST_LEAD_DAY`. **`TOTAL_LEADS` counts only the delivered statuses** `New` / `Unresponsive` / `Accepted` / `Do Not Contact` (the union of the DNB + KGA/IDC definitions below) — it **excludes** `Unqualified` / `Rejected`, so it is **not** `COUNT(*)`. |
-| [`05_cs_leads_by_programme.sql`](05_cs_leads_by_programme.sql) | `cs_leads_by_programme` | Same rollup **by programme × market**. **`TOTAL_LEADS` is the "delivered" count, NOT `COUNT(*)`:** for the 3 **DNB** programmes it's `New + Unresponsive + Accepted` (excludes `Unqualified` / `Rejected` — e.g. 399, not the 402 a raw `COUNT(*)` gives); for **KGA/IDC** (the `NULL`-label programme) it's `Unresponsive + Do Not Contact + New` (IDC has no Accepted/Rejected lifecycle). `ACCEPTED` / `REJECTED` / `NEW_LEADS` (=`Unresponsive+New`) keep the full lifecycle breakdown. |
-| [`06_targets.sql`](06_targets.sql) | `targets` | Lead targets + delivered snapshot **as a hardcoded table** (plan numbers, per programme × market). |
-| [`07_targets_by_programme.sql`](07_targets_by_programme.sql) | `targets_by_programme` | Rolls up `targets` and computes achievement %. |
-| [`08_benchmarks_strategy.sql`](08_benchmarks_strategy.sql) | `benchmarks_strategy` | **Hardcoded** CPM / CTR / frequency-cap / budget-weight plan benchmarks per strategy. |
-| [`09_benchmarks_market.sql`](09_benchmarks_market.sql) | `benchmarks_market` | **Hardcoded** budget-weight per market. |
-| [`10_budget.sql`](10_budget.sql) | `budget` | **Hardcoded** programme budget envelopes (gross/net USD, start/end). |
-| [`11_stg_tradedesk_pixel.sql`](11_stg_tradedesk_pixel.sql) | `stg_tradedesk_pixel` | Content-engagement **live staging**: per-fire TTD Universal Pixel conversions from `raw_snowflake.tradedesk_apac_conversion` (`ADVERTISER_ID='9c1w83i'`), rolled up to **`CAMPAIGN_KEY` × `ASSET_KEY`**. Maps the 7 tracking tags → `ASSET_KEY`/`ASSET`, derives click-vs-view (`DISPLAY_CLICK_COUNT>0`) and per-fire DNB vs KGA(IDC) (`COALESCE(click,impression)` campaign → `SPLIT("_")[2]` → `campaignOf`). **Replaced the retired CSV seed.** |
-| [`12_pixel_assets.sql`](12_pixel_assets.sql) | `pixel_assets` | Content-engagement: Universal Pixel landing-page views per **content asset × campaign** (the 6 named `MDB_UPM_LPView_*` pixels; the catch-all `default` is excluded here). Reads `stg_tradedesk_pixel`. |
-| [`13_pixel_summary.sql`](13_pixel_summary.sql) | `pixel_summary` | **One row per `CAMPAIGN_KEY`** (DNB / KGA(IDC)): window + the `CONTENT_*` (named pixels) vs `DEFAULT_*` (catch-all, view-through-dominated) conversion split (from `stg_tradedesk_pixel`), plus `IMPS`/`COST_USD`/`CLICKS` from the live `paid_media_model` for the same campaign. |
+| [`01_stg_ttd.sql`](01_stg_ttd.sql) | `stg_ttd` | Filters `raw_windsor.perf_the_trade_desk` to **advertiser `0lw3hp6`** (name-fallback `caltex%`). Parses `ad_group_name` "Tactic \| Market" → `tactic` + `market`; classifies `funnel_stage` (Display Standard → Awareness; AI Contextual / Attention-Optimised → Consideration — an ASSUMPTION, revisit with the media plan). Sums the anonymous TTD conversion slots into `post_view_conv` / `post_click_conv` (all 12 slots each; `conversion_touch_*` deliberately unused — see the VMCH duplicate-pair caveat in the file header). |
+| [`02_fact.sql`](02_fact.sql) | `fact` | ONE row per (date × campaign × ad group × creative): sums spend/impressions/clicks/video quartiles/conversions; ad_format kept via `ANY_VALUE`. The job ships this whole as `rows[]`; the dashboard rolls everything up client-side. Ratios are NEVER stored. |
+| [`03_targets.sql`](03_targets.sql) | `targets` | Thin pass-through over `seed_targets` (from `targets/targets.csv` via `../seed_static.py`). Rows with `status='PENDING'` are planning assumptions awaiting sign-off — the UI marks them. |
+| [`04_budget.sql`](04_budget.sql) | `budget` | Thin pass-through over `seed_budget` (from `targets/budget.csv`): flight window + budget for `campaign_key='CALTEX'`. |
 
-> **The pixel views are now LIVE from `raw_snowflake`** (the manual CSV seed was retired).
-> `stg_tradedesk_pixel` reads `raw_snowflake.tradedesk_apac_conversion` (per-fire TTD Universal
-> Pixel; mirrored by [`snowflake_data_pull`](../../../ingest/snowflake_data_pull/README.md)) and
-> `pixel_assets`/`pixel_summary` read it — so the section refreshes on the normal `*/10` cadence
-> with **no manual step**. Each fire carries a derived **`CAMPAIGN_KEY`** (`DNB` / `IDC`) so the
-> dashboard's campaign toggle filters the section (still independent of region/date). The old
-> device / ad-environment / creative-size dimension cuts are **gone** — those columns aren't in the
-> conversion feed (`pixel_dims`, `seed_pixel.py`, and the seed tables were removed).
+> **The per-client filter is the main thing you'd change** copying this folder: the advertiser id
+> in `01_*` and the tactic/stage mapping.
 
-> **The per-client filter is the main thing you change** when copying this folder for a new
-> client: the advertiser in `01_*` and the campaign IDs + market mapping in `02_*`.
-
-> **Plan tables are hardcoded snapshots.** `targets`, `benchmarks_*`, and `budget` are `UNNEST`
-> literals transcribed from the media plan — they are **not** live data. Update them here when
-> the plan changes.
-
-> **CS scope = 4 campaigns (3 DNB + KGA/IDC).** `02_stg_salesforce.sql` pulls the three **DNB**
-> campaign IDs (each mapped to a `PROGRAMME_LABEL`) plus the **KGA/IDC** campaign
-> (`701RG00001NKKwQYAX`). The IDC campaign has a `NULL` `PROGRAMME_LABEL` by design — the dashboard
-> normalises it to the single KGA (IDC) programme (`progLabel`/`campaignOf`). IDC was briefly
-> removed from the pull (2026-06-12) and restored 2026-06-15, so the dashboard's **KGA (IDC)**
-> campaign toggle shows delivered leads again; its media-plan rows live in `targets`/`budget`.
-
----
+> **Conversion-slot caveat:** Caltex's pixel layout is unknown until pixels fire. TTD can export
+> one tracker as a DUPLICATE column pair (VMCH's did) — once real actions appear, verify the slot
+> layout in `raw_row` and, if pairs duplicate, switch `01_stg_ttd.sql` to sum only the first
+> column of each pair (the VMCH `{01,03,05}` pattern).
 
 ## Apply them
 
 ```powershell
-.\.venv\Scripts\python.exe client_mongodb\create_views.py
+.\.venv\Scripts\python.exe clients\client_caltex\create_views.py
+# then force the export (a view edit does not advance the freshness gate):
+gcloud run jobs execute caltex-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 ```
-The runner ([`../create_views.py`](../create_views.py)) applies every `*.sql` here in filename
-order. Then re-run the export job so `mongodb.json` reflects the change.
-
-## Re-sync from the live views (if someone edited a view in the console)
-
-These files are the source of truth, so prefer editing them. But if a view was changed directly
-in BigQuery, re-export to bring git back in sync:
-
-```powershell
-$views = @("stg_tradedesk","stg_salesforce","paid_media_model","cs_leads",
-           "cs_leads_by_programme","targets","targets_by_programme",
-           "benchmarks_strategy","benchmarks_market","budget",
-           "stg_tradedesk_pixel","pixel_assets","pixel_summary")
-$i = 0
-foreach ($v in $views) {
-  $i++
-  $j = bq show --view --format=prettyjson "client_mongodb.$v" | ConvertFrom-Json
-  $name = "{0:D2}_{1}.sql" -f $i, $v
-  "CREATE OR REPLACE VIEW ``client_mongodb.$v`` AS`n" + $j.view.query |
-    Set-Content "clients/client_mongodb/sql/$name" -Encoding utf8
-}
-```
-
-## From-scratch rebuild order
-
-`ingest/windsor_data_pull/create_dataset.py` → `ingest/windsor_data_pull/*/create_*table*.py` →
-`ingest/snowflake_data_pull/create_dataset.py` → `ingest/snowflake_data_pull/loader.py` (lands
-`raw_snowflake.*`) → `clients/client_mongodb/create_views.py` → run the export job.
 
 ## See also
 
 - [`../README.md`](../README.md) — the client overview and the 3-stage pipeline.
 - [`../job/README.md`](../job/README.md) — reads these views; documents the JSON contract.
-- [`../../snowflake_data_pull/`](../../../ingest/snowflake_data_pull/README.md) — fills the `raw_snowflake.*` tables these views read.
+- [`../../../ingest/windsor_data_pull/tradedesk/README.md`](../../../ingest/windsor_data_pull/tradedesk/README.md) — fills `raw_windsor.perf_the_trade_desk`.
