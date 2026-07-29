@@ -23,11 +23,17 @@
 # REAUTH shortcut (that password prompt) instead of the browser. --force re-runs the
 # FULL browser web flow every time, so you re-authenticate in the browser, never here.
 #
-# After the creds pass, it runs /go (push-branch.ps1 -> merge-branches.ps1):
-# pushes your work to your dev branch, integrates EVERY dev branch, deploys the
-# changed services, and fast-forwards your local main to origin/main -- so every
-# dev opens the day on the latest main with everyone's work integrated. Skip that
-# step with -SkipGo (creds-only preflight).
+# After the creds pass, it ALIGNS you with the team:
+#   - UNCOMMITTED changes are PARKED (scripts/park.ps1 -> wip/<dev>/..., pushed,
+#     durable, and explicitly SKIPPED by ship) -- morning alignment never pushes
+#     half-finished WIP in front of clients; shipping is a deliberate /go.
+#   - COMMITTED-but-unpushed work on main is pushed to your dev branch (finished
+#     work integrates like it always has).
+#   - merge-branches.ps1 then integrates EVERY dev branch (ignoring wip/*), deploys
+#     the changed services, and fast-forwards local main to origin/main.
+#   - finally your own parked wip/* branches are rebased onto the fresh main (and
+#     you get a loud warning if one is conflicted or parked > 7 days).
+# Skip all of that with -SkipGo (creds-only preflight + parked-age warnings).
 #
 # Lives in:  bidbrain-analytics/scripts/
 # Run:               .\scripts\start_day.ps1
@@ -45,7 +51,27 @@ $PROJECT = "bidbrain-analytics"
 # CLI account AND the ADC identity are pinned to this below.
 $WANT_ACCOUNT = "ian@100.digital"
 
+# Pin the gcloud CONFIG for this process so the `gcloud config set` calls below can
+# never clobber another window's session (the agora window runs on config 'agora').
+# Inside VS Code the env var is already set per-window; from a bare terminal or
+# start_day.cmd it is NOT -- so default it to 'personal' here (process-scoped only,
+# nothing outside this run is touched).
+if ([string]::IsNullOrWhiteSpace($env:CLOUDSDK_ACTIVE_CONFIG_NAME)) {
+    $env:CLOUDSDK_ACTIVE_CONFIG_NAME = "personal"
+    gcloud config configurations describe personal *>$null
+    if ($LASTEXITCODE -ne 0) { gcloud config configurations create personal *>$null }
+}
+
 Set-Location (Split-Path $PSScriptRoot -Parent)
+
+# The old 'bidbrain' remote (github.com/Bidbrain/bidbrain-analytics) is DEAD (404).
+# Remove it if this clone still has it, so no fetch/push can ever target it -- 'origin'
+# (the ianfernandez581 fork) is the only live remote.
+$remotes = @(git remote 2>$null)
+if ($remotes -contains 'bidbrain') {
+    git remote remove bidbrain 2>$null
+    Write-Host "[OK] removed the dead 'bidbrain' git remote (origin is the only live remote)." -ForegroundColor Green
+}
 
 # Prefer the repo's .venv (created by scripts\setup.ps1); fall back to PATH python.
 $PY = if (Test-Path ".\.venv\Scripts\python.exe") { ".\.venv\Scripts\python.exe" } else { "python" }
@@ -187,14 +213,42 @@ if ($SkipGo) {
     Write-Host "[*] -SkipGo: creds-only preflight. Align with the team later via:  .\scripts\merge-branches.ps1" -ForegroundColor DarkGray
 } else {
     Write-Host ""
-    Write-Host "=== /go :: push my work -> integrate everyone -> deploy -> pull main ===" -ForegroundColor Cyan
+    Write-Host "=== align :: park WIP / push finished work -> integrate everyone -> deploy -> pull main ===" -ForegroundColor Cyan
 
-    Write-Host "[*] Pushing my work to my dev branch..." -ForegroundColor Yellow
-    & "$PSScriptRoot\push-branch.ps1"
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "[!] push-branch stopped -- a file likely looks like a secret (see the message above)." -ForegroundColor Yellow
-        Write-Host "    Nothing was integrated; your local main is unchanged. Gitignore/move the file, then re-run start_day." -ForegroundColor Yellow
-        exit 1
+    # 8a. UNCOMMITTED changes are WIP -- PARK them (wip/<dev>/..., pushed, durable,
+    #     SKIPPED by ship) instead of shipping them: morning alignment must never push
+    #     half-finished overnight work in front of clients. Shipping is a deliberate
+    #     /go or /push. You end up ON the wip branch; step 9 keeps it rebased onto main.
+    if (-not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
+        Write-Host "[*] Uncommitted changes detected -- parking them (they will NOT be shipped)..." -ForegroundColor Yellow
+        & "$PSScriptRoot\park.ps1"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "[!] park stopped -- most likely a secret-looking file or a stash conflict (see above)." -ForegroundColor Yellow
+            Write-Host "    Nothing was integrated; nothing was lost. Fix the cause, then re-run start_day." -ForegroundColor Yellow
+            Write-Host "    (To SHIP finished work instead of parking it, commit it and run /go.)" -ForegroundColor Yellow
+            exit 1
+        }
+    }
+
+    # 8b. COMMITTED-but-unpushed work on main is FINISHED work (a deliberate commit) --
+    #     push it to your dev branch so it integrates like it always has. (If you ALSO
+    #     had uncommitted WIP, 8a moved everything to the parked branch instead; promote
+    #     it with /go when ready.)
+    $curB = "$(git rev-parse --abbrev-ref HEAD 2>$null)".Trim()
+    if ($curB -eq 'main') {
+        git fetch origin *>$null
+        $ahead = 0
+        $aheadRaw = git rev-list --count origin/main..main 2>$null
+        if ($aheadRaw -match '^\d+$') { $ahead = [int]$aheadRaw }
+        if ($ahead -gt 0) {
+            Write-Host "[*] Local main is $ahead commit(s) ahead of origin -- pushing them to your dev branch for integration..." -ForegroundColor Yellow
+            & "$PSScriptRoot\push-branch.ps1"
+            if ($LASTEXITCODE -ne 0) {
+                Write-Host "[!] push-branch stopped (see above). Nothing was integrated." -ForegroundColor Yellow
+                exit 1
+            }
+            git switch main *>$null   # push-branch leaves us on the dev branch
+        }
     }
 
     Write-Host "[*] Integrating all dev branches, deploying changed services, pulling main..." -ForegroundColor Yellow
@@ -202,11 +256,58 @@ if ($SkipGo) {
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
         Write-Host "[!] merge-branches stopped -- most likely a MERGE CONFLICT or a sanity-gate failure." -ForegroundColor Yellow
-        Write-Host "    That needs judgment a preflight can't apply. Finish it in Claude Code: open this repo and run  /go" -ForegroundColor Yellow
+        Write-Host "    That needs judgment a preflight can't apply. Finish it in Claude Code (or your agent): run  /go" -ForegroundColor Yellow
         Write-Host "    (it resolves each conflict semantically, then lands + deploys + pulls main)." -ForegroundColor Yellow
         exit 1
     }
     Write-Host "[OK] Aligned -- local main is up to date with the team; changed services deployed." -ForegroundColor Green
+}
+
+# 9. Parked-work maintenance (scripts/park.ps1): keep MY wip/* branches from rotting
+#    against the moving main. For each of this dev's parked branches: warn if it has
+#    been parked > 7 days; then (unless -SkipGo, where main wasn't refreshed) rebase it
+#    onto the fresh main and re-push. A conflicted rebase is ABORTED and warned about
+#    LOUDLY -- the branch is left exactly as it was, nothing is lost.
+$devFile = Join-Path $PSScriptRoot ".devname"
+$devName = ""
+if (Test-Path $devFile) { $devName = (Get-Content $devFile -Raw).Trim() }
+if ([string]::IsNullOrWhiteSpace($devName)) { $devName = $env:COMPUTERNAME }
+$devName = ($devName.ToLower() -replace '[^a-z0-9]+', '-').Trim('-')
+git fetch origin --prune *>$null
+$myParked = @(git branch -r --format='%(refname:short)' | ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -like "origin/wip/$devName/*" } | ForEach-Object { $_ -replace '^origin/', '' })
+foreach ($wb in $myParked) {
+    $ageDays = -1
+    $ct = git log -1 --format=%ct "origin/$wb" 2>$null
+    if ($ct -match '^\d+$') {
+        $ageDays = [int](((Get-Date).ToUniversalTime() - [DateTimeOffset]::FromUnixTimeSeconds([long]$ct).UtcDateTime).TotalDays)
+    }
+    if ($ageDays -ge 7) {
+        Write-Host "[!] $wb has been parked for $ageDays days -- finish it (/go from that branch) or drop it (git push origin --delete $wb)." -ForegroundColor Yellow
+    }
+    if ($SkipGo) { continue }   # main wasn't refreshed; rebase would be against stale main
+    if (-not [string]::IsNullOrWhiteSpace((git status --porcelain))) {
+        Write-Host "    (working tree not clean -- skipping the auto-rebase of $wb)" -ForegroundColor DarkGray
+        continue
+    }
+    $before = "$(git rev-parse --abbrev-ref HEAD 2>$null)".Trim()
+    git show-ref --verify --quiet "refs/heads/$wb"
+    if ($LASTEXITCODE -ne 0) { git branch $wb "origin/$wb" *>$null }
+    git switch $wb *>$null
+    if ($LASTEXITCODE -ne 0) { Write-Host "    [warn] could not check out $wb -- skipping its rebase" -ForegroundColor Yellow; continue }
+    git merge --ff-only "origin/$wb" *>$null   # catch up if the remote tip moved (another machine parked)
+    git rebase main *>$null
+    if ($LASTEXITCODE -ne 0) {
+        git rebase --abort *>$null
+        Write-Host "[!] PARKED BRANCH $wb NO LONGER REBASES CLEANLY onto main." -ForegroundColor Red
+        Write-Host "    Your work is intact on the branch. Resolve when ready:  git switch $wb ; git rebase main  (fix conflicts, then git rebase --continue)" -ForegroundColor Yellow
+        if ($before -and $before -ne $wb -and $before -ne 'HEAD') { git switch $before *>$null }
+        continue
+    }
+    git push origin $wb --force-with-lease *>$null
+    if ($LASTEXITCODE -eq 0) { Write-Host "[OK] parked branch $wb rebased onto latest main + pushed." -ForegroundColor Green }
+    else { Write-Host "    [warn] rebased $wb locally but the push failed -- push manually: git push origin $wb --force-with-lease" -ForegroundColor Yellow }
+    if ($before -and $before -ne $wb -and $before -ne 'HEAD') { git switch $before *>$null }
 }
 
 Write-Host ""

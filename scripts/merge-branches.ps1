@@ -47,11 +47,16 @@
 # WHAT IT DOES (default, no flags):
 #   0. if your working tree has local changes, commit + push them to THIS machine's own
 #      dev branch first (delegates to push-branch.ps1) so your work is integrated too.
-#   1. fetch + discover every per-developer branch on origin (everything except main).
+#   1. fetch + discover every per-developer branch on origin (everything except main and
+#      the PARKED wip/* branches -- see scripts/park.ps1: parked work is NEVER integrated;
+#      the run prints how many parked branches it ignored).
 #   2. create a throwaway `integration/merge` branch off origin/main.
 #   3. merge each branch in turn -- on the FIRST conflict it LEAVES the conflict in the tree
 #      and STOPS (hand off to the agent per the runbook above; resolve + commit + -Resume).
 #   4. run the local SANITY GATE against the integrated result; STOP if anything is broken.
+#      (conflict markers, Python syntax, JSON validity, AND secret-looking filenames --
+#      the last catches a secret pushed to a dev branch with raw git, which would bypass
+#      push-branch.ps1's local guard.)
 #   5. LAND: fast-forward `main` to the integrated result and push origin main.
 #   6. DEPLOY: diff the integrated result against the old main, map each changed path to
 #      its deploy script, and run each (build-as-yourself -> gcloud run deploy). See the
@@ -153,11 +158,13 @@ function Resolve-DeployPlan {
         elseif ($p -match '^clients/(client_[^/]+)/job/')          { $c = $Matches[1]; DirRow "clients/$c/job"  "client '$($c -replace '^client_','')' (export job)" 'deploy_job_*.ps1'   20 }
         elseif ($p -match '^clients/(client_[^/]+)/dash_total/')   { $c = $Matches[1]; DirRow "clients/$c/dash_total" "client '$($c -replace '^client_','')' (total dash fork)" 'deploy_dash_*.ps1' 35 }
         elseif ($p -match '^clients/(client_[^/]+)/dash/')         { $c = $Matches[1]; DirRow "clients/$c/dash" "client '$($c -replace '^client_','')' (dash service)" 'deploy_dash_*.ps1' 30 }
-        # ---- committed seed inputs: a targets/ CSV change re-seeds ONLY via the client's -----
-        #      seed script (seed_static.py / load_seeds.py) then a FORCE_REBUILD job run --
-        #      NEITHER create_views.py NOR the job does it automatically, so we must NOT
-        #      silently "deploy" (that would rebuild JSON against STALE seed tables). NOTE it.
-        elseif ($p -match '^clients/(client_[^/]+)/targets/') {
+        # ---- committed seed inputs: a targets/ CSV (mongodb/cloudflare pattern) OR a tracked
+        #      data/*.csv (schneider/schneiderlqai consolidated their seed CSVs into data/ via
+        #      .gitignore ! exceptions) re-seeds ONLY via the client's seed script
+        #      (seed_static.py / load_seeds.py) then a FORCE_REBUILD job run -- NEITHER
+        #      create_views.py NOR the job does it automatically, so we must NOT silently
+        #      "deploy" (that would rebuild JSON against STALE seed tables). NOTE it.
+        elseif ($p -match '^clients/(client_[^/]+)/(targets/|data/[^/]+\.csv$)') {
             $c = $Matches[1] -replace '^client_',''
             Write-Host "    [note] seed inputs changed for client '$c' (targets/). Re-materialise the seed then rebuild:" -ForegroundColor Yellow
             Write-Host "           .\.venv\Scripts\python.exe clients\$($Matches[1])\seed_static.py   (schneider: load_seeds.py)" -ForegroundColor Yellow
@@ -173,6 +180,9 @@ function Resolve-DeployPlan {
         elseif ($p -match '^status_dashboard/job/')     { [pscustomobject]@{ Service = 'status-export (job)';                   Script = (Join-Path $RepoRoot 'status_dashboard/job/deploy_job_status.ps1'); Prio = 65 } }
         elseif ($p -match '^status_dashboard/deploy/')  { [pscustomobject]@{ Service = 'status-deploy (job)';                   Script = (Join-Path $RepoRoot 'status_dashboard/deploy/deploy_job_status_deploy.ps1'); Prio = 66 } }
         elseif ($p -match '^status_dashboard/dash/')    { Write-Host "    [note] status_dashboard/dash/ changed but the standalone status web dash is RETIRED (UI merged into platform-dash). Redeploy the platform if its status views moved." -ForegroundColor Yellow }
+        # ---- The Grid (grid-core/ -> the central-grid Cloud Run service, super-admin only). --
+        #      ONE image serves everything; deploy_grid.ps1 is its idempotent redeploy.
+        elseif ($p -match '^grid-core/')                { [pscustomobject]@{ Service = 'central-grid (The Grid)';                Script = (Join-Path $RepoRoot 'grid-core/deploy_grid.ps1'); Prio = 55 } }
         # else: docs/, READMEs, scripts/ (incl. these tools + standup deploy_<c>.ps1),
         #       assets, repo-root files -> nothing to deploy.
     }
@@ -201,6 +211,19 @@ function Invoke-SanityGate {
 
     # Only content-check files that still EXIST on the integrated tree (skip deletions).
     $present = $Changed | ForEach-Object { $_ } | Where-Object { $_ -and (Test-Path (Join-Path $RepoRoot $_)) }
+
+    # 0. Secret-looking files by NAME. push-branch.ps1 guards only what THIS machine
+    #    pushes -- a secret committed to a dev branch with raw `git push` bypasses it, so
+    #    the gate re-checks everything that would LAND. Same regex as push-branch/park;
+    #    .example templates (api-probe/.env.example, grid-core/.env.example) are allowed.
+    $secretRe = '((^|/)\.env(\..+)?$)|(\.p8$)|(\.pem$)|(\.pub$)|(\.key$)|(-key\.json$)|(credentials.*\.json$)|(service-account.*\.json$)|(_key$)|((^|/)id_(rsa|ecdsa|ed25519)$)'
+    $secretHits = @($present | Where-Object { $_ -imatch $secretRe -and $_ -notmatch '\.example$' })
+    if ($secretHits.Count -gt 0) {
+        Write-Host "    [FAIL] secret-looking file(s) in the integrated tree -- must NOT land:" -ForegroundColor Red
+        foreach ($f in $secretHits) { Write-Host "           $f" -ForegroundColor Red }
+        Write-Host "           Remove them from the offending dev branch (git rm; rewrite the branch if already pushed), then re-run." -ForegroundColor Red
+        $ok = $false
+    }
 
     # 1. Leftover conflict markers (a resolution that still has <<<<<<< / >>>>>>> lines).
     #    Only the angle markers -- '=======' also appears legitimately (RST/markdown rules).
@@ -260,11 +283,13 @@ function Invoke-SanityGate {
 # Per-developer dev branches whose commits are ALREADY in origin/main (safe to delete).
 # CRITICAL: exclude the origin/HEAD symref -- its `:short` form is the bare "origin",
 # which is not a real branch; trying to delete it errors out and aborts the prune.
+# wip/* (parked) branches are NEVER pruned here -- park.ps1/push-branch.ps1 own their
+# lifecycle (a promotion deletes its wip branch itself).
 function Get-MergedDevBranches([string[]]$Skip) {
     git branch -r --merged origin/main --format='%(refname:short)' |
         Where-Object { $_ -and $_ -ne 'origin/HEAD' -and $_ -ne 'origin' -and $_ -notlike '*->*' } |
         ForEach-Object { ($_ -replace '^origin/', '').Trim() } |
-        Where-Object { $_ -and ($Skip -notcontains $_) -and ($_ -notlike 'integration/*') }
+        Where-Object { $_ -and ($Skip -notcontains $_) -and ($_ -notlike 'integration/*') -and ($_ -notlike 'wip/*') }
 }
 
 # Delete remote branches one at a time, never aborting the batch if one is already gone.
@@ -349,11 +374,20 @@ if ($Resume) {
     Must "resolve origin/main"
 }
 
-$branches = git branch -r --format='%(refname:short)' |
+$remoteBranches = git branch -r --format='%(refname:short)' |
     ForEach-Object { $_.Trim() } |
     Where-Object { $_ -like 'origin/*' } |
     ForEach-Object { $_ -replace '^origin/', '' } |
     Where-Object { $_ -and ($skip -notcontains $_) -and ($_ -notlike 'integration/*') -and ($_ -ne 'HEAD') }
+
+# PARKED branches (wip/* -- scripts/park.ps1) are NEVER integrated: parking exists
+# precisely so unfinished work can sit safely on origin without shipping. Promote one
+# into the flow by running /go (push-branch) FROM the wip branch.
+$parked   = @($remoteBranches | Where-Object { $_ -like 'wip/*' })
+$branches = @($remoteBranches | Where-Object { $_ -notlike 'wip/*' })
+if ($parked.Count -gt 0) {
+    Write-Host "[..] $($parked.Count) parked branch(es) ignored (wip/*): $($parked -join ', ')" -ForegroundColor DarkGray
+}
 
 if (-not $branches) {
     Write-Host "[OK] no dev branches to merge -- origin/main is already current." -ForegroundColor Green
@@ -469,12 +503,16 @@ if ($NoDeploy) {
     # --quiet: under org session control this probe must NEVER pop an in-terminal reauth
     # password prompt -- it fails cleanly instead, and we tell you to `gcloud auth login`
     # (browser) below rather than hanging on a masked terminal prompt.
+    # Also verify the IDENTITY, not just the token: this box silently flips the active
+    # account to the agora org login (info@agoradatadriven.com), which has NO access to
+    # bidbrain-analytics -- a valid token for the wrong account 403s every build/deploy.
     $acct = (gcloud config get-value account 2>$null)
     $null = gcloud auth print-access-token --quiet 2>$null
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acct) -or $acct -eq '(unset)') {
-        Write-Host "[ERROR] gcloud is not authenticated (account='$acct', token invalid)." -ForegroundColor Red
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($acct) -or $acct -eq '(unset)' -or $acct -notlike '*@100.digital') {
+        Write-Host "[ERROR] gcloud is not ready to deploy (account='$acct' -- token invalid, or not a 100.digital identity: the agora config may have flipped in)." -ForegroundColor Red
         Write-Host "        main is already landed ($(git rev-parse --short HEAD)) -- nothing was deployed yet." -ForegroundColor Yellow
-        Write-Host "        Run 'gcloud auth login', then deploy the service(s) below DIRECTLY:" -ForegroundColor Yellow
+        Write-Host "        Fix the login (gcloud auth login, as your 100.digital account; or run scripts/start_day.ps1 -SkipGo)," -ForegroundColor Yellow
+        Write-Host "        then deploy the service(s) below DIRECTLY:" -ForegroundColor Yellow
         foreach ($s in $plan) { Write-Host "          $($s.Script)" }
         exit 1
     }

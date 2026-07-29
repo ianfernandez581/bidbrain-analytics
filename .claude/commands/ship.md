@@ -25,8 +25,9 @@ resolve conflicts. Loop until it lands (or a genuine blocker needs a human).
    `git add -A ; git commit --no-edit` and re-run with `-Resume`.
 
 4. On success it has landed `main` and deployed the changed services. Report to the developer,
-   concisely: which services deployed (and their URLs if the deploy scripts printed them), and
-   which dev branches were pruned.
+   concisely: which services deployed (and their URLs if the deploy scripts printed them),
+   which dev branches were pruned, and how many parked branches (wip/*) were ignored (the
+   script prints a "parked branch(es) ignored" line -- parked work NEVER ships; see /park).
 
 Hard rules — do not break these: never bypass or weaken the sanity gate; never land a tree that
 fails it; never resolve a conflict by discarding one side's work; never edit a deploy script to
