@@ -171,6 +171,15 @@ def main():
         print(f"upstream advanced -> rebuilding | {times}")
 
     env, summary = build_env(bq, observed)
+
+    # --- Empty-fact guard: advertiser 0lw3hp6 has no rows in raw_windsor.perf_the_trade_desk yet,
+    # so an unconditional upload would replace the live placeholder dashboard with an empty one.
+    # This is about EMPTY DATA, not freshness — it applies even under FORCE_REBUILD=1. No upload,
+    # no watermark (so the next real data still triggers a rebuild).
+    if not env["rows"]:
+        print("fact is EMPTY -> NOT uploading; placeholder stays live")
+        return
+
     bkt = storage.Client(project=PROJECT).bucket(BUCKET)
     bkt.blob(DATA_OBJECT).upload_from_string(json.dumps(env), content_type="application/json")
     # Watermark only after a successful upload (upload first, watermark second).

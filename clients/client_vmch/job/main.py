@@ -27,8 +27,11 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # are the Windsor fallback BASE TABLES that advance when the Windsor loaders run. Watching
 # the Windsor base tables makes the gate fire when GA4 catches up via Windsor.
 GATING_TABLES = [
-    "raw_ga4.perf_ga4",
-    "raw_ga4.perf_ga4_events",
+    # raw_ga4.perf_ga4(+events) removed: they are DTS bridge VIEWS whose
+    # __TABLES__.last_modified is frozen (only moves on DDL), so they never fire —
+    # and NO native DTS base tables exist for VMCH property 287370621 (the transfer
+    # has been failing since ~2026-06-01). The Windsor fallback tables below are the
+    # live gate; re-add the native ga4_* base TABLES when the VMCH GA4 DTS is re-authed.
     "raw_windsor.perf_ga4",
     "raw_windsor.perf_ga4_events",
     "raw_windsor.perf_the_trade_desk",

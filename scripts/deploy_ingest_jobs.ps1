@@ -1,4 +1,4 @@
-# deploy_ingest_jobs.ps1 — build, deploy & schedule the shared INGEST Cloud Run jobs.
+# deploy_ingest_jobs.ps1 - build, deploy & schedule the shared INGEST Cloud Run jobs.
 #
 # These are the raw-layer loaders that feed EVERY client dashboard. They replace the old
 # "run the loader from a laptop" step: each lands data in a shared raw_* BigQuery dataset on
@@ -16,9 +16,9 @@
 #   raw_windsor.hubspot_*            <- windsor-hubspot-ingest     (Reset Data CRM snapshot: contacts/deals/owners)
 #   raw_snowflake.*                  <- snowflake-ingest          (Salesforce/TTD/GA/etc, all clients)
 #
-# (Google Ads + GA4 are NOT here — they auto-refresh daily via BigQuery Data Transfer Service.)
+# (Google Ads + GA4 are NOT here - they auto-refresh daily via BigQuery Data Transfer Service.)
 #
-# Idempotent. Run as yourself (gcloud authed; build & deploy as yourself — never cloudbuild
+# Idempotent. Run as yourself (gcloud authed; build & deploy as yourself - never cloudbuild
 # from a laptop). Mirrors the per-client deploy_job_*.ps1 pattern.
 #
 #   .\scripts\deploy_ingest_jobs.ps1                 # build + deploy + (re)schedule all jobs

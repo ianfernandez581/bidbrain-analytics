@@ -208,11 +208,25 @@ def _login_page(error=None):
                            ms_tenant=MICROSOFT_TENANT if MICROSOFT_ENABLED else "")
 
 
-def _establish_session(kind, payload, json_mode=False):
+def _safe_next(raw):
+    """The login form's hidden 'next' deep link. Returned ONLY when it is a same-origin relative
+    path: a single leading '/' (never '//', which browsers treat as scheme-relative host escape),
+    no backslashes, no control chars (CR/LF header splitting). A scheme ('https:', 'javascript:')
+    can't survive the leading-'/' rule. Anything else -> None, the role-based redirect stands."""
+    nxt = (raw or "").strip()
+    if not nxt.startswith("/") or nxt.startswith("//"):
+        return None
+    if "\\" in nxt or any(ord(ch) < 0x20 for ch in nxt):
+        return None
+    return nxt
+
+
+def _establish_session(kind, payload, json_mode=False, next_path=None):
     """Set the session for a resolved login and return the response with the SSO cookie. The SINGLE
     place that turns a (kind, payload) — from EITHER store.resolve_password or store.resolve_email —
     into a logged-in session, so password and Google sign-in are identical from here on. json_mode
-    returns {ok, next} JSON (for the same-origin Google fetch); otherwise a 302 (password form POST)."""
+    returns {ok, next} JSON (for the same-origin Google fetch); otherwise a 302 (password form POST).
+    next_path, when given, MUST already be validated via _safe_next; it overrides the role redirect."""
     session.clear()
     session.permanent = True
     if kind in ("admin", "superadmin"):
@@ -229,6 +243,8 @@ def _establish_session(kind, payload, json_mode=False):
         session["client_key"] = payload["key"]
         allowed = [payload["key"]]
         nxt = f"/d/{payload['key']}/"
+    if next_path:
+        nxt = next_path   # pre-validated same-origin deep link (see _safe_next)
     resp = make_response(jsonify(ok=True, next=nxt) if json_mode else redirect(nxt))
     return _set_sso(resp, allowed)
 
@@ -276,7 +292,8 @@ def login():
     kind, payload = store.resolve_password(pw)
     if kind is None:
         return _login_page("Incorrect password."), 401
-    return _establish_session(kind, payload)
+    return _establish_session(kind, payload,
+                              next_path=_safe_next(request.form.get("next", "")))
 
 
 @app.post("/auth/google")

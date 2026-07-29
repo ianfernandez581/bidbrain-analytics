@@ -32,13 +32,17 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
 # ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
 GATING_TABLES = [
-    "raw_google_ads.perf_google_ads",
+    # The DTS bridge VIEWS (perf_google_ads / perf_ga4 / perf_ga4_events) have a FROZEN
+    # __TABLES__.last_modified, so gate on the native DTS base TABLES they read instead —
+    # one representative per source (Google Ads = MCC 3451896252; GA4 property 516276493 = Reset Data).
+    "raw_google_ads.p_ads_CampaignBasicStats_3451896252",
     "raw_windsor.perf_meta",
     "raw_windsor.perf_the_trade_desk",
     "raw_windsor.perf_reddit",
-    "raw_ga4.perf_ga4",
-    "raw_ga4.perf_ga4_events",
+    "raw_ga4.p_ga4_TrafficAcquisition_516276493",
+    "raw_ga4.p_ga4_Events_516276493",
     "raw_windsor.hubspot_contacts",   # CRM tab: rebuild when the HubSpot snapshot refreshes
+    "raw_windsor.hubspot_owners",     # CRM tab: owner dim (read via sql/25/29/30)
 ]
 WATERMARK_OBJECT = "_freshness.json"
 

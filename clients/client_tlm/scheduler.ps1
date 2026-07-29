@@ -10,7 +10,7 @@ $SA      = "tlm-dash-job@$PROJECT.iam.gserviceaccount.com"
 # Check if the scheduler already exists
 $existing = gcloud scheduler jobs describe "${JOB}-daily" --location=$REGION --project=$PROJECT 2>$null
 if ($existing) {
-  Write-Host "Scheduler ${JOB}-daily already exists — skipping."
+  Write-Host "Scheduler ${JOB}-daily already exists - skipping."
   exit 0
 }
 

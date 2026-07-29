@@ -2043,17 +2043,19 @@ function pearson(x,y){const n=x.length;if(n<3)return null;
 function exportAllData(){
   const lines=[];
   const k=DATA.kpi;
+  // keys starting with '_' are internal (the spend-mult shim's stashed raw pre-markup
+  // spend: _rawSpend / _raw_ad_spend_aud) - NEVER export them to the client CSV
   lines.push('ResetData dashboard export,'+(DATA.last_updated||''));
   lines.push('');
   lines.push('KPI,Value');
-  Object.entries(k).forEach(([key,v])=>lines.push(key+','+v));
+  Object.entries(k).forEach(([key,v])=>{if(!key.startsWith('_'))lines.push(key+','+v);});
   lines.push('');
   lines.push('Monthly');
-  const mh=Object.keys(DATA.monthly[0]||{});lines.push(mh.join(','));
+  const mh=Object.keys(DATA.monthly[0]||{}).filter(h=>!h.startsWith('_'));lines.push(mh.join(','));
   DATA.monthly.forEach(r=>lines.push(mh.map(h=>r[h]).join(',')));
   lines.push('');
   lines.push('Ad campaigns');
-  const ah=Object.keys(DATA.ad_campaigns[0]||{});lines.push(ah.join(','));
+  const ah=Object.keys(DATA.ad_campaigns[0]||{}).filter(h=>!h.startsWith('_'));lines.push(ah.join(','));
   DATA.ad_campaigns.forEach(r=>lines.push(ah.map(h=>('"'+(''+r[h]).replace(/"/g,'""')+'"')).join(',')));
   const blob=new Blob([lines.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='resetdata_export.csv';a.click();

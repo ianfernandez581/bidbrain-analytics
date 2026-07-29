@@ -29,7 +29,9 @@ from freshness import probe_bq_last_modified, read_watermark, write_watermark, i
 # upstream raw table this job reads has advanced. GATING_TABLES are "dataset.table"
 # ids in this project, probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
 GATING_TABLES = [
-    "raw_google_ads.perf_google_ads",
+    # NOT raw_google_ads.perf_google_ads: that's a VIEW (frozen last_modified, gate never
+    # fires). Watermark the native-DTS base TABLE its stats come from, which advances daily.
+    "raw_google_ads.p_ads_CampaignBasicStats_3451896252",
     "raw_windsor.perf_the_trade_desk",
 ]
 WATERMARK_OBJECT = "_freshness.json"

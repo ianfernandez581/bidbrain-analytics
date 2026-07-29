@@ -195,8 +195,15 @@ class Store:
 
     def seed(self, force=False):
         """Write the config.py seed to the store. Refuses if already populated unless force.
-        On force, a client's dashboard password_hash is PRESERVED unless config supplies one
-        (so a re-seed never blanks a password rotated directly in the store)."""
+
+        WARNING — seed(force=True) is DESTRUCTIVE: it rewrites the live registry WHOLESALE from
+        config.py. Anything that exists only in the registry is LOST or reverted to config values:
+        registry-only clients (e.g. stt), spend multipliers, agency/client/campaign edits made in
+        the admin UI, and any rotated password whose client HAS a password in config.CLIENT_PASSWORDS
+        (config wins). The ONLY things force preserves are a client's rotated password_hash/
+        password_plain when config supplies NO password for it, and live-added Google-account
+        grants in `users` (config rows still re-apply on top). Never call with force=True casually —
+        take a copy of the live platform.json first if in any doubt."""
         existing = self._load()
         if not force and (existing.get("agencies") or existing.get("clients")):
             return False

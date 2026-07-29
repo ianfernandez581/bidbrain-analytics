@@ -1,4 +1,4 @@
-# deploy_job_vmch.ps1 — build + deploy + execute the vmch-export job.
+# deploy_job_vmch.ps1 - build + deploy + execute the vmch-export job.
 param([string]$SHA = "")
 if (-not $SHA) {
   try { $SHA = (git rev-parse --short HEAD 2>$null).Trim() } catch { }

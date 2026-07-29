@@ -10,10 +10,10 @@
 #
 #   Uses gcloud + bq + git + the repo venv. The venv python applies the SQL views via
 #   create_views.py (NOT `Get-Content | bq query`): one of ResetData's filters contains an EN-DASH
-#   (Meta account 'Reset backup – Ad account'), and WinPS Get-Content re-encoding corrupts non-ASCII
+#   (Meta account 'Reset backup [en-dash] Ad account'), and WinPS Get-Content re-encoding corrupts non-ASCII
 #   in the SQL. create_views.py reads the files as UTF-8 so the en-dash survives.
 #
-#   DATA SOURCES: ResetData reads THREE shared raw datasets — raw_google_ads, raw_windsor, raw_ga4.
+#   DATA SOURCES: ResetData reads THREE shared raw datasets - raw_google_ads, raw_windsor, raw_ga4.
 #   The job SA gets project-scoped roles/bigquery.dataViewer (below), which covers all three; do NOT
 #   narrow it to a single dataset.
 
@@ -79,8 +79,8 @@ Ensure-Sa $JOB_SA "ResetData dashboard export job"
 Ensure-Sa $WEB_SA "ResetData dashboard web service"
 
 # JOB SA: run BigQuery jobs + read-only across BigQuery (the views read raw_google_ads + raw_windsor +
-# raw_ga4 — the job writes nothing to BigQuery), and write the data bucket. Dataset-scoped grants need
-# an org allowlist this project doesn't have, so use project-scoped read-only (dataViewer) — which also
+# raw_ga4 - the job writes nothing to BigQuery), and write the data bucket. Dataset-scoped grants need
+# an org allowlist this project doesn't have, so use project-scoped read-only (dataViewer) - which also
 # covers all THREE raw datasets at once. Do NOT narrow this to a single dataset.
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${JOB_SA}" --role="roles/bigquery.jobUser"   --condition=None | Out-Null; Must "grant jobUser"
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${JOB_SA}" --role="roles/bigquery.dataViewer" --condition=None | Out-Null; Must "grant dataViewer"

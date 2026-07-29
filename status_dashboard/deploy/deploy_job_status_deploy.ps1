@@ -49,7 +49,7 @@ Write-Host "[2/5] IAM ..."
 gcloud projects add-iam-policy-binding $PROJECT --member="serviceAccount:${JOB_SA}" --role="roles/bigquery.jobUser" --condition=None | Out-Null; Must "grant jobUser"
 # Read staged/live definitions + write live + delete staged.
 gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" --member="serviceAccount:${JOB_SA}" --role="roles/storage.objectAdmin" | Out-Null; Must "grant objectAdmin (status bucket)"
-# Dataset-level WRITER on each client dataset (NOT project-wide dataEditor — keep the blast radius small).
+# Dataset-level WRITER on each client dataset (NOT project-wide dataEditor - keep the blast radius small).
 foreach ($d in $CLIENT_DATASETS) {
   & $PYTHON $GRANT_PY $d $JOB_SA; Must "grant WRITER on $d"
 }
@@ -73,8 +73,8 @@ gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB
 # ---- 5. Wire the platform front-door to the status pipeline -----------------
 # The platform reads status.json (health + accuracy), reads/writes definitions/<c>(.staged).json,
 # appends the audit log, and TRIGGERS this job. So it needs objectAdmin on the status bucket +
-# run.invoker on this job. (The platform SA is already god-mode-trusted — it rotates every
-# dashboard password — so objectAdmin on this one bucket is consistent with its trust level.)
+# run.invoker on this job. (The platform SA is already god-mode-trusted - it rotates every
+# dashboard password - so objectAdmin on this one bucket is consistent with its trust level.)
 Write-Host "[5/5] Allow the platform front-door to read status + stage definitions + trigger status-deploy ..."
 gcloud run jobs add-iam-policy-binding $JOB --region $REGION --project $PROJECT --member="serviceAccount:${PLAT_SA}" --role="roles/run.invoker" *> $null
 gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" --member="serviceAccount:${PLAT_SA}" --role="roles/storage.objectAdmin" | Out-Null; Must "grant platform objectAdmin on status bucket"

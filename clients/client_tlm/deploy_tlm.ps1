@@ -2,10 +2,10 @@
 #
 # Mirrors deploy_resetdata.ps1. Run this once to create the GCP resources, then
 # use the three fast-path scripts for day-to-day deploys:
-#   sql/deploy_views_tlm.ps1   — re-apply views only
-#   job/deploy_job_tlm.ps1     — rebuild + redeploy the export job
-#   dash/deploy_dash_tlm.ps1   — rebuild + redeploy the web app
-#   scheduler.ps1               — wire the daily */10 timer (once)
+#   sql/deploy_views_tlm.ps1   - re-apply views only
+#   job/deploy_job_tlm.ps1     - rebuild + redeploy the export job
+#   dash/deploy_dash_tlm.ps1   - rebuild + redeploy the web app
+#   scheduler.ps1               - wire the daily */10 timer (once)
 
 $ErrorActionPreference = "Stop"
 
@@ -23,7 +23,7 @@ Write-Host "--- Enabling APIs ---"
 gcloud services enable cloudresourcemanager.googleapis.com artifactregistry.googleapis.com run.googleapis.com cloudbuild.googleapis.com cloudscheduler.googleapis.com bigquery.googleapis.com secretmanager.googleapis.com storage.googleapis.com iam.googleapis.com --project=$PROJECT
 
 # --------------------------------------------------------------------
-# 2. Artifact Registry repo (shared `bidbrain` — skip if exists)
+# 2. Artifact Registry repo (shared `bidbrain` - skip if exists)
 # --------------------------------------------------------------------
 Write-Host "--- Artifact Registry ---"
 $exists = gcloud artifacts repositories describe $REPO --location=$REGION --project=$PROJECT 2>$null
@@ -66,7 +66,7 @@ if (-not $sa) {
 }
 
 # --------------------------------------------------------------------
-# 6. IAM: job SA = bigquery.dataViewer (project-scoped — covers both
+# 6. IAM: job SA = bigquery.dataViewer (project-scoped - covers both
 #    raw_google_ads + raw_windsor) + jobUser + bucket objectAdmin
 # --------------------------------------------------------------------
 Write-Host "--- IAM ---"
