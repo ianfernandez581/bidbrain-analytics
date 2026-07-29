@@ -483,7 +483,21 @@ if ($NoPush -or $DryRun) {
 # =============================================================================
 Write-Host "[..] Landing $intg into main" -ForegroundColor Cyan
 git switch main;                 Must "switch to main"
-git merge --ff-only origin/main; Must "sync local main to origin/main"   # no-op if already current
+# Local main can legitimately be AHEAD of origin/main (a dev committed locally on main, then
+# those commits shipped via the dev branch - start_day 8b / push-branch). If every local-main
+# commit is already contained in the integration result, hard-align local main to origin/main
+# first (nothing is lost: the content lands via $intg just below). If NOT contained, stop -
+# landing would strand commits that were never integrated.
+git merge --ff-only origin/main 2>$null
+if ($LASTEXITCODE -ne 0) {
+    git merge-base --is-ancestor main $intg 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "    [note] local main had diverged but all its commits are in the integration -- aligning to origin/main" -ForegroundColor Yellow
+        git reset --hard origin/main; Must "align local main to origin/main"
+    } else {
+        Die "local main has commit(s) that are NOT in the integration result. Push them first (.\scripts\push-branch.ps1) and re-run."
+    }
+}
 git merge --ff-only $intg;       Must "fast-forward main to $intg"
 git push origin main;            Must "push origin main"
 Write-Host "[OK] landed -- main is now $(git rev-parse --short HEAD)" -ForegroundColor Green
