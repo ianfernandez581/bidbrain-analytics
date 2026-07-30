@@ -1,13 +1,21 @@
 # client_caltex — Caltex (100% Digital) — The Trade Desk display, QLD+WA
 
-> **Status (2026-07-29): REBUILT for The Trade Desk, awaiting data verification.** Originally
-> scaffolded (2026-07-04) from `client_geocon` as a Meta placeholder; the real brief arrived as a
-> **Trade Desk campaign** (advertiser **`0lw3hp6`**, desk.thetradedesk.com URL), so the whole
-> pipeline was repointed: `raw_windsor.perf_the_trade_desk` → `stg_ttd`/`fact` →
-> `caltex-export` → `caltex-dash`. The dashboard serves a baked-in TTD-shaped SAMPLE payload
-> (`dash/placeholder.json`, `meta.placeholder=true`) behind a loud banner until the export job
-> writes the real `caltex.json`. **Go-live steps + the data-verification runbook:
-> [`dash/LIVE_URL.md`](dash/LIVE_URL.md).**
+> **Status (2026-07-29): DEPLOYED; live data lands on the next ingest run.** Originally scaffolded
+> (2026-07-04) from `client_geocon` as a Meta placeholder; the real brief arrived as a **Trade Desk
+> campaign**, so the whole pipeline was repointed: `raw_windsor.perf_the_trade_desk` (advertiser
+> **`0lw3hp6`**) -> `stg_ttd`/`fact` -> `caltex-export` -> `caltex-dash`. Views, seeds, the export
+> job and its `*/10` scheduler are all live; the dash serves a labelled SAMPLE payload until the
+> first real build, which clears the banner automatically.
+>
+> **VERIFIED against the Windsor API (2026-07-29)** — campaign **"Caltex Star Card | QLD+WA |
+> Jul-Oct 2026"** (`campaign_id` `85k1vmm`), **AUD**, all three ad groups present, 2 creatives
+> (`Caltex Star Card - Cube 300x250`, `- Carousel 300x600`), **22,443 impressions / 33 clicks /
+> A$211.95 cost across 2026-07-28 + 07-29** — the campaign's FIRST delivery. No video and no pixel
+> conversions yet (the Video card auto-hides; site actions read "none yet" rather than 0).
+> **Why the table looked empty:** the shared TTD loader walks back from *yesterday*, so its
+> 07-28 21:35 UTC run stopped at 07-27, one day before first delivery. **No Windsor grant is
+> needed** (an earlier note here wrongly said otherwise). Go-live + backfill commands:
+> [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
 
 Self-hosted paid-media dashboard. **Single channel** (The Trade Desk programmatic display),
 **mixed awareness + consideration** brand campaign for Caltex fuel retail across **QLD+WA**,

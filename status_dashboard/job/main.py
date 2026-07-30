@@ -863,6 +863,26 @@ def _json_ts(doc, key):
 _NETO_FROM = ("FROM `bidbrain-analytics.raw_neto.orders` o, UNNEST(o.order_lines) ol\n"
               "WHERE DATE(o.date_placed) >= DATE '2025-01-01';")
 
+# Caltex's TTD "site visits": Windsor exposes TTD conversions only as anonymous numbered slots, and
+# `conversions` is a DOUBLE-ENCODED JSON string (PARSE_JSON(JSON_VALUE(...)) first — a naive
+# JSON_EXTRACT returns 0). client_caltex.stg_ttd sums ALL 12 slots per kind, so the check must too.
+# conversion_touch_* (total pixel fires, not ad-attributed) is deliberately excluded on both sides.
+def _ttd_slots(kind, n=12):
+    return "\n     + ".join(
+        f"COALESCE(SAFE_CAST(JSON_VALUE(_c, '$.{kind}_{i:02d}') AS FLOAT64),0)"
+        for i in range(1, n + 1))
+
+
+# The advertiser filter MUST mirror client_caltex/sql/01_stg_ttd.sql exactly or the check drifts.
+_CALTEX_WHERE = ("WHERE advertiser_id = '0lw3hp6'\n"
+                 "   OR LOWER(TRIM(advertiser_name)) LIKE 'caltex%'")
+_CALTEX_FROM = "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n" + _CALTEX_WHERE
+
+
+def _caltex_conv_sql(kind, alias):
+    return (f"WITH b AS (\n  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS _c\n  "
+            + _CALTEX_FROM.replace("\n", "\n  ") + f"\n)\nSELECT ROUND(SUM({_ttd_slots(kind)}\n     ), 4) AS {alias} FROM b;")
+
 BQ_CLIENTS = [
     {
         "client": "cityperfume", "label": "City Perfume", "engine": "bq",
@@ -1190,6 +1210,42 @@ BQ_CLIENTS = [
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
                     "WHERE STARTS_WITH(campaign_name, 'Geocon_');",
              "note": "vs sum(rows[].clicks)."},
+        ],
+    },
+    {
+        "client": "caltex", "label": "Caltex Star Card", "engine": "bq",
+        "ingest_label": "Windsor (Trade Desk) → raw_windsor.perf_the_trade_desk",
+        "raw_tables": ["raw_windsor.perf_the_trade_desk"],
+        "checks": [
+            # TTD-only, single advertiser (0lw3hp6). rows[] IS the whole flight (no date floor), so
+            # summing it == the raw aggregate. AUD native, no FX. Ratios are never stored, so only
+            # additive components are checked — CPM/CTR/CPC are recomputed in the browser from these.
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("impressions"),
+             "sql": "SELECT SUM(impressions) AS impressions\n" + _CALTEX_FROM + ";",
+             "note": "Advertiser filter mirrors sql/01_stg_ttd.sql (id 0lw3hp6, name-prefix fallback). "
+                     "vs sum(rows[].impressions)."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("clicks"),
+             "sql": "SELECT SUM(clicks) AS clicks\n" + _CALTEX_FROM + ";",
+             "note": "vs sum(rows[].clicks)."},
+            {"label": "Trade Desk · Spend (AUD, no FX)", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("spend"),
+             "sql": "SELECT ROUND(SUM(cost), 2) AS spend\n" + _CALTEX_FROM + ";",
+             "note": "advertiser_cost_adv_currency, already AUD (advertiser_currency_code='AUD') so no FX. "
+                     "The JSON stores RAW media cost — the client-billed gross-up (BB_SPEND_MULT) is applied "
+                     "in the BROWSER only, so this comparison stays exact. vs sum(rows[].spend)."},
+            {"label": "Trade Desk · Site visits post-view", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("pv_conv"),
+             "sql": _caltex_conv_sql("view_through_conversion", "post_view"),
+             "note": "Ad-attributed SITE VISITS (the installed tag is a sitewide base pixel, NOT an "
+                     "application/sign-up tag). All 12 anonymous slots summed, matching stg_ttd. If TTD "
+                     "later exports one tracker as a DUPLICATE column pair (the VMCH {01,03,05} case), "
+                     "BOTH sides must switch to one column per pair. vs sum(rows[].pv_conv)."},
+            {"label": "Trade Desk · Site visits post-click", "kind": "sum", "group": "Trade Desk (display)",
+             "dash": _rows_sum("pc_conv"),
+             "sql": _caltex_conv_sql("click_conversion", "post_click"),
+             "note": "Same 12-slot sum for the click-attributed side. vs sum(rows[].pc_conv)."},
         ],
     },
     {

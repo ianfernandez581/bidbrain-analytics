@@ -24,12 +24,18 @@ TARGETS_DIR = os.path.join(HERE, "targets")
 
 random.seed(42)  # deterministic: re-running yields the identical file (clean diffs)
 
-# --- flight window (mid-flight, so pacing/goal charts show "in progress") --------------------
-FLIGHT_START = date(2026, 7, 14)
-FLIGHT_END = date(2026, 9, 30)
-DATA_THROUGH = date(2026, 7, 27)         # rows run start..DATA_THROUGH (14 of 79 days elapsed)
+# --- flight window: read from the committed budget CSV so the sample can never contradict the
+# seeded (PENDING) targets the dashboard labels. Sample rows cover the first 14 days of the flight.
+def _flight_from_csv():
+    with open(os.path.join(TARGETS_DIR, "budget.csv"), newline="", encoding="utf-8") as f:
+        r = next(csv.DictReader(f))
+    return date.fromisoformat(r["flight_start"]), date.fromisoformat(r["flight_end"])
+
+
+FLIGHT_START, FLIGHT_END = _flight_from_csv()
 DAYS_TOTAL = (FLIGHT_END - FLIGHT_START).days + 1
-DAYS_ELAPSED = (DATA_THROUGH - FLIGHT_START).days + 1
+DAYS_ELAPSED = min(14, DAYS_TOTAL)       # mid-flight, so pacing/goal charts show "in progress"
+DATA_THROUGH = FLIGHT_START + timedelta(days=DAYS_ELAPSED - 1)
 
 CAMPAIGN_ID = "cmp_caltex_qldwa"
 CAMPAIGN = "Caltex | Awareness + Consideration | QLD+WA"

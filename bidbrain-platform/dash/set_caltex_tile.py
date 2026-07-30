@@ -1,24 +1,31 @@
-r"""Surgically add the Caltex 'COMING SOON' tile to the LIVE platform registry — WITHOUT a full
-re-seed (so it can't clobber agency/client edits made through the admin UI).
+r"""Surgically set the Caltex tile in the LIVE platform registry — WITHOUT a full re-seed (so it
+can't clobber agency/client edits made through the admin UI).
 
 `seed_registry.py --force` rewrites every agency + client from config.py; this instead does a single
-targeted upsert against the live registry JSON in GCS: it attaches a `caltex` client (status
-coming_soon) to the 100% Digital agency and gives it one campaign row. Idempotent — safe to re-run.
+targeted upsert against the live registry JSON in GCS: it attaches the `caltex` client to the
+100% Digital agency, sets its status/url, and gives it one campaign row. Idempotent — safe to re-run.
 (config.py is still the source of truth in code; this just makes the change show up on the running
 site now, the same way the admin UI would.)
+
+The constants below are the desired STATE. As of 2026-07-30 the Caltex dashboard is LIVE on real
+Trade Desk data, so STATUS is "active" with the run.app URL and no placeholder note — flipping the
+tile from the greyed "COMING SOON" chip to an openable dashboard. (It began life here as
+add_caltex_placeholder.py, which set status coming_soon.)
 
 Run against the live registry as an account with write access to the platform bucket
 (ian@100.digital) — NOT charles@ (no perms). PowerShell:
 
     $env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"
     $env:GCS_BUCKET="bidbrain-analytics-platform-dash"
-    .\.venv\Scripts\python.exe bidbrain-platform\dash\add_caltex_placeholder.py --yes
+    .\.venv\Scripts\python.exe bidbrain-platform\dash\set_caltex_tile.py --yes
 
 Without --yes it prints what it WOULD do and the current caltex state, then exits (dry run).
 
-To surface the built placeholder dashboard as an OPENABLE tile later (after deploy_caltex.ps1 stands
-up the caltex-dash service), re-run the upsert with status 'active' + the run.app url, or just do it
-in the admin UI.
+NOTE — client ACCESS is separate from this tile. The registry keeps no dashboard password for
+caltex yet (`password_hash` is empty), so to let Caltex log in themselves either set the Caltex
+dashboard password in the SUPER-ADMIN console (it reveals + rotates), or grant their Google/
+Microsoft email to this dashboard in that console's sign-in access panel. Agency-level access
+(the 100% Digital password) would expose every other 100% Digital client, so don't hand that out.
 """
 import os
 import sys
@@ -28,10 +35,10 @@ from store import Store, _BACKEND
 AGENCY = "x100-digital"
 KEY = "caltex"
 NAME = "Caltex"
-STATUS = "coming_soon"          # -> greyed "COMING SOON" tile (no dead link). Flip to "active" post-deploy.
-URL = ""                        # set to the caltex-dash run.app url when going active
-NOTE = "Dashboard isn't live yet - the structure is ready."   # shown on the tile + super console
-CAMPAIGN = ("Paid Media", "/paid-media", "coming_soon")
+STATUS = "active"               # -> openable tile. ("coming_soon" = greyed COMING SOON chip.)
+URL = "https://caltex-dash-516554645957.australia-southeast1.run.app/"
+NOTE = ""                       # placeholder blurb cleared now the dashboard is live
+CAMPAIGN = ("Star Card Display", "/paid-media", "active")
 
 
 def main(write: bool):
@@ -47,7 +54,7 @@ def main(write: bool):
     print(f"live registry: caltex exists={bool(existing)} | attached to {AGENCY}={attached}")
     if not write:
         print("\nDRY RUN. Re-run with --yes to write:")
-        print(f"  + upsert client '{KEY}' ({NAME}, status={STATUS}, note={NOTE!r}) into agency '{AGENCY}'")
+        print(f"  + upsert client '{KEY}' ({NAME}, status={STATUS}, url={URL!r}, note={NOTE!r}) into agency '{AGENCY}'")
         print(f"  + set campaign {CAMPAIGN}")
         return
     st.upsert_client(agency_slug=AGENCY, key=KEY, name=NAME, slug=KEY, status=STATUS, url=URL, note=NOTE)
@@ -56,7 +63,7 @@ def main(write: bool):
     ag = st.get_agency(AGENCY)
     print(f"\nDONE. caltex -> status={c['status']} | campaigns={c.get('campaigns')} "
           f"| in {AGENCY}={KEY in ag.get('client_keys', [])}")
-    print("The 'COMING SOON' Caltex tile is now live on the 100% Digital portal.")
+    print("The Caltex tile is now ACTIVE and openable on the 100% Digital portal.")
 
 
 if __name__ == "__main__":
