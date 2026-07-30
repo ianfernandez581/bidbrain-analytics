@@ -78,8 +78,17 @@ def build_env(bq, observed):
         "ctr":                bnum("ctr_target"),
         "cpc":                bnum("cpc_target_aud"),
         "impressions_target": bnum("impressions_target"),
+        # the plan states impressions as a RANGE (low = the committed target, high = upside)
+        "impressions_target_high": bnum("impressions_target_high"),
+        "monthly_budget":     bnum("monthly_budget_aud"),
         "daily_pace":         bnum("daily_pace_aud"),
         "flight_budget":      bnum("flight_budget_aud"),
+        # Committed in the media plan but NOT measurable from this feed as instrumented - shipped so
+        # the UI can show the commitment and say why it has no actual, instead of hiding it:
+        #   signups   -> needs the application-container tag (only a sitewide base pixel is live)
+        #   viewability -> IAS/DoubleVerify data is not in the Windsor TTD feed at all
+        "signups_target":     bnum("signups_target"),
+        "viewability_target": bnum("viewability_target"),
     }
 
     # --- flight / pacing (flight-window based; independent of the dashboard's date filter) -------
