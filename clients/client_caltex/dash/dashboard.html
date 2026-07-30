@@ -438,7 +438,7 @@
 
       <div class="card" style="margin-top:14px">
         <h3>Performance vs targets - by ad group</h3>
-        <div class="hint">CPM / CTR / CPC against the media-plan benchmarks. Green = beating target. Targets marked pending are planning assumptions awaiting sign-off.</div>
+        <div class="hint">CPM / CTR / CPC per ad group. Once the signed media plan is seeded each metric gains a <b>vs-target</b> delta here (green = beating target); until then the &Delta; columns read "-" rather than compare against an assumed number.</div>
         <div class="tablewrap"><table id="benchTable"><thead><tr>
           <th>Ad group</th><th>Stage</th><th class="num">Spend</th><th class="num">Impressions</th>
           <th class="num">CPM</th><th class="num">Δ</th><th class="num">CTR</th><th class="num">Δ</th>
@@ -984,6 +984,9 @@ function renderNote(){
 }
 
 // ---- Delivery ----
+// "vs <target>" sub-line, rendered ONLY when a target is actually seeded - with no media plan
+// yet a column of "vs -" is noise, and inventing a benchmark to compare against is worse.
+function vsLine(target,fmt){return target!=null?`<div class="vs">vs ${fmt(target)}</div>`:'';}
 function deltaCell(actual,target,lowerIsBetter){if(actual==null||target==null||!target)return '<span class="muted-text">-</span>';const d=actual/target-1;const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;}
 function renderBenchTable(){
   const rows=byAdGroup(searched(scoped()));const mT=bench('cpm'),cT=bench('ctr'),cpcT=bench('cpc');
@@ -991,9 +994,9 @@ function renderBenchTable(){
     <td class="name-cell">${safeName(r.ad_group)}</td>
     <td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td>
     <td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td>
-    <td class="num">${r.cpm!=null?money(r.cpm,2):'-'}<div class="vs">vs ${mT?money(mT,2):'-'}</div></td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
-    <td class="num">${pct(r.ctr)}<div class="vs">vs ${cT?pct(cT):'-'}</div></td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
-    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}<div class="vs">vs ${cpcT?money(cpcT,2):'-'}</div></td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
+    <td class="num">${r.cpm!=null?money(r.cpm,2):'-'}${vsLine(mT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
+    <td class="num">${pct(r.ctr)}${vsLine(cT,v=>pct(v))}</td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
+    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}${vsLine(cpcT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
     <td class="num">${n(r.actions)?int(r.actions):'<span class="muted-text">-</span>'}</td></tr>`).join('');
   const tot=agg(searched(scoped()));
   const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${compact(tot.impressions)}</td><td class="num">${tot.cpm!=null?money(tot.cpm,2):'-'}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${tot.cpc!=null?money(tot.cpc,2):'-'}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${n(tot.actions)?int(tot.actions):'-'}</td></tr>`;
