@@ -641,6 +641,11 @@ function fatigueOf(rows){const m=new Map();rows.forEach(r=>{const k=(r.creative_
     out.push({creative:cur.creative,ad_group:cur.ad_group,week_start:cur.week,impressions:cur.impressions,ctr:cur.ctr,ctr_wow:cw,flag});}});
   return out.sort((a,b)=>n(a.ctr_wow)-n(b.ctr_wow));}
 function stages(){const s=new Set();ROWS().forEach(r=>s.add(r.stage||'Awareness'));return [...s].filter(Boolean);}
+// The real TTD campaign name (e.g. "Caltex Star Card | QLD+WA | Jul-Oct 2026"), read from the data
+// rather than hardcoded, so the header + AI deck always name the live campaign. Falls back for the
+// sample payload / a multi-campaign future.
+function campaignLabel(){const c=[...new Set(ROWS().map(r=>r.campaign).filter(Boolean))];
+  return c.length===1?c[0]:(c.length?`Caltex - ${c.length} campaigns`:'Caltex - The Trade Desk');}
 function statusClass(value,benchmark,lowerIsBetter=true){if(value==null||benchmark==null)return 'neutral';if(lowerIsBetter)return value<=benchmark?'good':value<=benchmark*1.15?'warn':'bad';return value>=benchmark?'good':value>=benchmark*.85?'warn':'bad';}
 function statusLabel(c){return c==='good'?'On track':c==='warn'?'Watch':c==='bad'?'Needs work':'No target';}
 
@@ -786,7 +791,8 @@ function renderHeader(){
   const notes={overview:'Awareness & consideration',paid:'Delivery & efficiency',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
-  $('introCopy').innerHTML=`The Trade Desk programmatic display for Caltex - a mixed <b>awareness + consideration</b> campaign across QLD+WA, bought three ways (standard display, AI contextual, attention-optimised). Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
+  const mk=[...new Set(ROWS().map(r=>r.market).filter(Boolean))].join(' · ')||'QLD+WA';
+  $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a mixed <b>awareness + consideration</b> campaign in ${safeName(mk)}, bought three ways (standard display, AI contextual, attention-optimised). Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
 }
 function renderPlaceholderBanner(){
   // Show the "sample data" banner + flip the topbar pill to "Preview" whenever the payload is the
@@ -1185,7 +1191,7 @@ function buildReportPayload(){
   const all=ROWS();const a=agg(all);const f=flight();const byS=byStage(all),byT=byTactic(all),byG=byAdGroup(all),crs=byCreative(all).filter(x=>n(x.spend)>0).slice(0,10);const fad=fatigueOf(all).filter(x=>x.flag==='FADING').slice(0,8);
   const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
   return {client:'caltex',generated_for:'Caltex',currency:meta().currency||'AUD',
-    context:{campaign:'Caltex - The Trade Desk (QLD+WA)',channel:meta().channel||'The Trade Desk (programmatic display)',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),action_source_label:meta().action_source_label||'TTD pixel-attributed'},
+    context:{campaign:campaignLabel(),channel:meta().channel||'The Trade Desk (programmatic display)',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),action_source_label:meta().action_source_label||'TTD pixel-attributed'},
     overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),impressions:a.impressions,clicks:a.clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),site_actions:a.actions,post_view_actions:a.pv,post_click_actions:a.pc,cost_per_action:r2(a.cpa),video_starts:a.video_starts,video_completes:a.video_completes,video_completion_rate:r6(a.vcr)},
     targets:{cpm_target:bench('cpm'),ctr_target:bench('ctr'),cpc_target:bench('cpc'),impressions_target:bench('impressions_target'),daily_pace:bench('daily_pace')},
     by_stage:byS.map(r=>({stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),actions:r.actions,spend_share:r6(r.spend_share),imp_share:r6(r.imp_share)})),

@@ -1,8 +1,8 @@
 key,value,status
 flight_budget_aud,30000,PENDING
-flight_start,2026-07-14,PENDING
-flight_end,2026-09-30,PENDING
-daily_pace_aud,380,DERIVED
+flight_start,2026-07-28,PENDING
+flight_end,2026-10-31,PENDING
+daily_pace_aud,312.5,DERIVED
 impressions_target,6000000,PENDING
 cpm_target_aud,5,PENDING
 ctr_target,0.0015,PENDING
