@@ -905,9 +905,18 @@ function renderGoalProgress(){
       +`<div class="gtrack"><div class="gfill" style="width:${Math.max(2,pctv)}%;background:${color}"></div></div>`
       +`<div class="gcap">${target!=null?`${Math.round(pctv)}% of goal${hit?' · reached ✓':''}`:'no target set'}${note?' · '+note:''}</div></div>`;
   };
+  const impHi=bench('impressions_target_high');
+  const signT=bench('signups_target');
+  // A committed KPI with no actual is shown as a CAVEAT row, never a zero - a 0/35 bar would read as
+  // "failing" when the truth is "not instrumented yet".
+  const caveat=(label,target,note,fmt)=>{const F=fmt||int;
+    return `<div class="goal"><div class="gh"><span>${label}</span><span class="muted-text">plan ${target!=null?F(target):'-'}</span></div>`
+      +`<div class="gtrack"></div><div class="gcap">${note}</div></div>`;};
   $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
-    +bar('Impressions',a.impressions,impT,MC.imps,targetPending('impressions_target')?'target pending':'',compact)
-    +bar('Site visits',a.actions,null,MC.actions,'ad-attributed, not applications');
+    +bar('Impressions',a.impressions,impT,MC.imps,impHi!=null?`plan range to ${compact(impHi)}`:'',compact)
+    +bar('Site visits',a.actions,null,MC.actions,'ad-attributed, not applications')
+    +(signT!=null?caveat('Star Card sign-ups',signT,'not measured yet - needs the application tag on the form container'):'')
+    +caveat('Viewability',bench('viewability_target'),'not in the Trade Desk feed - report from IAS / DoubleVerify',v=>pctWhole(v));
 }
 // Cumulative impressions across the flight vs the straight-line pace needed to hit the impression
 // target by the end date (full-flight; the client's "are we on track?" read). Above dashed = ahead.
@@ -980,7 +989,7 @@ function renderInsights(){
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the sitewide Trade Desk pixel. <b>What the pixel measures:</b> it fires on every page, so it reports ad-driven <b>site visits</b> - it does <b>not</b> yet measure Star Card applications, because the application-container tag is not installed. Applications therefore are <b>not</b> reported here; when that tag goes in we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets marked <b>pending</b> are planning assumptions awaiting the signed media plan.`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the sitewide Trade Desk pixel. <b>What the pixel measures:</b> it fires on every page, so it reports ad-driven <b>site visits</b> - it does <b>not</b> yet measure Star Card applications, because the application-container tag is not installed. Applications therefore are <b>not</b> reported here; when that tag goes in we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets now come from the <b>signed media plan</b> (A$5,000/month across QLD+WA). Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the application-container tag - only a sitewide pixel is live) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
 }
 
 // ---- Delivery ----
