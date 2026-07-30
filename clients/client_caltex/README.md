@@ -1,21 +1,45 @@
-# client_caltex — Caltex (100% Digital) — The Trade Desk display, QLD+WA
+# client_caltex — Caltex Star Card (100% Digital) — The Trade Desk display, QLD+WA
 
-> **Status (2026-07-29): DEPLOYED; live data lands on the next ingest run.** Originally scaffolded
-> (2026-07-04) from `client_geocon` as a Meta placeholder; the real brief arrived as a **Trade Desk
-> campaign**, so the whole pipeline was repointed: `raw_windsor.perf_the_trade_desk` (advertiser
-> **`0lw3hp6`**) -> `stg_ttd`/`fact` -> `caltex-export` -> `caltex-dash`. Views, seeds, the export
-> job and its `*/10` scheduler are all live; the dash serves a labelled SAMPLE payload until the
-> first real build, which clears the banner automatically.
+> **Status (2026-07-30): LIVE on real data.** Campaign **"Caltex Star Card | QLD+WA | Jul-Oct 2026"**
+> (`campaign_id` `85k1vmm`, TTD advertiser **`0lw3hp6`**), AUD, all three ad groups delivering.
+> The tile is **active** on the 100% Digital portal (`bidbrain-platform/dash/set_caltex_tile.py`),
+> the export self-gates `*/10`, and the dashboard is in `status_dashboard` BQ_CLIENTS (5 accuracy
+> checks) and `SLIDES_CLIENTS` (AI deck enabled: Vertex IAM + 900s timeout via
+> `dash/enable_report_caltex.ps1`).
 >
-> **VERIFIED against the Windsor API (2026-07-29)** — campaign **"Caltex Star Card | QLD+WA |
-> Jul-Oct 2026"** (`campaign_id` `85k1vmm`), **AUD**, all three ad groups present, 2 creatives
-> (`Caltex Star Card - Cube 300x250`, `- Carousel 300x600`), **22,443 impressions / 33 clicks /
-> A$211.95 cost across 2026-07-28 + 07-29** — the campaign's FIRST delivery. No video and no pixel
-> conversions yet (the Video card auto-hides; site actions read "none yet" rather than 0).
-> **Why the table looked empty:** the shared TTD loader walks back from *yesterday*, so its
-> 07-28 21:35 UTC run stopped at 07-27, one day before first delivery. **No Windsor grant is
-> needed** (an earlier note here wrongly said otherwise). Go-live + backfill commands:
-> [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
+> **First delivery was 2026-07-28.** The shared TTD loader walks back from *yesterday*, so its
+> 07-28 21:35 UTC run stopped at 07-27 and the raw table briefly looked empty — that was NOT a
+> Windsor grant problem (the advertiser is granted; verified against the API). It self-heals nightly;
+> force a range with `tradedesk_loader.py <from> <to>` (TTD refuses same-day dates).
+> `job/main.py` also REFUSES to upload an empty fact, so a premature run can never blank the
+> dashboard. Runbook: [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
+
+## What the conversion pixel can and cannot measure (read before promising numbers)
+
+The only tag installed is a **sitewide TTD Universal Pixel** (`z3eu6oa` on advertiser `0lw3hp6`):
+
+```html
+ttdConversionEvents("init",  { advertiserId: "0lw3hp6", pixelIds: ["z3eu6oa"] });
+ttdConversionEvents("event", { advertiserId: "0lw3hp6", pixelIds: ["z3eu6oa"] });
+```
+
+That `event` call carries **no** `value`, `orderid`, or `td1`-`td10` custom data and **no distinct
+event name**, so it fires identically on every page. Consequences:
+
+- What we CAN report: **ad-attributed site visits** — post-view (saw an ad, later landed) and
+  post-click. The whole UI and the AI report say "site visits" for exactly this reason.
+- What we CANNOT report: **Star Card applications / sign-ups.** The application-container tag is
+  not installed. The client has agreed to attribute post-launch applications to the campaign in
+  their own reporting, but that is a commercial agreement, **not** a measurement we hold — never
+  surface an application count, rate or cost from this dashboard.
+- When the application tag IS installed it will appear as a **new numbered slot** in Windsor's
+  anonymous conversion slots; split it out in `sql/01_stg_ttd.sql` (and mirror the split in the
+  status-dash check) to report applications as their own metric.
+- `conversion_touch_*` stays unused: it counts ALL pixel fires, which this base pixel makes large
+  and emphatically not ad-attributed.
+- Slots are summed across all 12 per kind. **When they first fire, verify the layout** — TTD can
+  export one tracker as a duplicate column pair (the VMCH `{01,03,05}` case); if so, switch both
+  `sql/01_stg_ttd.sql` and the status-dash check to one column per pair.
 
 Self-hosted paid-media dashboard. **Single channel** (The Trade Desk programmatic display),
 **mixed awareness + consideration** brand campaign for Caltex fuel retail across **QLD+WA**,

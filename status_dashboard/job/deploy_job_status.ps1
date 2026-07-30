@@ -33,16 +33,22 @@ Write-Host "Deploying Cloud Run job $JOB ..."
 gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB_SA --memory 1Gi `
   --set-secrets "SNOWFLAKE_KEY=${SF_SECRET}:latest" --project $PROJECT; Must "deploy job"
 
-# --- IAM the job needs to VERIFY the BigQuery-native clients (100% Digital agency) ------------
+# --- IAM the job needs to VERIFY every client it monitors -------------------------------------
 # The BQ_CLIENTS accuracy checks read the raw BQ layer (raw_windsor / raw_neto / raw_ga4 /
 # raw_google_ads) directly and read each client's <c>.json from its bucket. These grants are
 # idempotent (add = no-op if present) so it's safe to re-run. Least-privilege = read-only.
-Write-Host "Granting the status SA read on the raw BQ layer + the 100% Digital client buckets ..."
+#
+# ADDING A CLIENT TO status_dashboard? Its bucket MUST be listed here. The job reads every
+# monitored client's <c>.json and a single missing grant makes the WHOLE run exit 1 — so one
+# ungranted bucket freezes status.json (and therefore every client's health badge), not just its
+# own row. That is exactly what happened when schneiderlqai was onboarded (2026-07-20) without a
+# grant; caltex was added to the list when it went live (2026-07-30).
+Write-Host "Granting the status SA read on the raw BQ layer + every monitored client bucket ..."
 gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
   --role roles/bigquery.jobUser   --condition=None --quiet | Out-Null
 gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
   --role roles/bigquery.dataViewer --condition=None --quiet | Out-Null
-foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch")) {
+foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch","caltex","schneiderlqai")) {
   gcloud storage buckets add-iam-policy-binding "gs://bidbrain-analytics-$c-dash" `
     --member "serviceAccount:$JOB_SA" --role roles/storage.objectViewer --quiet | Out-Null
 }

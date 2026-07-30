@@ -48,6 +48,13 @@ try:
 except FileNotFoundError:
     DASHBOARD_HTML = None
 
+# Logo PNG baked into the container (COPY'd in the Dockerfile). Served publicly so the login page
+# and the AI deck builder (bbDeckLogos() fetches 'logo.png') can brand themselves.
+try:
+    LOGO_PNG = (_dash_dir / "logo.png").read_bytes()
+except FileNotFoundError:
+    LOGO_PNG = None
+
 # PLACEHOLDER data baked into the container — a Caltex-branded SAMPLE payload (flagged
 # meta.placeholder=true, which dashboard.html renders behind a loud "sample data" banner). It lets
 # the scaffold render end-to-end BEFORE any real data is connected. The moment the export job writes
@@ -265,6 +272,15 @@ def report_route():
     except Exception:
         app.logger.exception("report cache write failed")
     return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
+
+
+@app.get("/logo.png")
+def logo():
+    """Serve the client logo (baked into the container). Public - no auth needed."""
+    if LOGO_PNG is None:
+        abort(404)
+    return Response(LOGO_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.get("/bb_deck.js")
