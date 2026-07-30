@@ -11,6 +11,54 @@
 **Service URL:** https://caltex-dash-516554645957.australia-southeast1.run.app
 **Password:** Secret Manager secret `caltex-dash-password`. Portal tile is live (100% Digital).
 
+## How the client gets in - the two access paths (verified vs resetdata, 2026-07-31)
+
+There is **no** `caltex.bidbrain.ai` subdomain, and no client has one (`resetdata` documents the same:
+"There is no `resetdata.bidbrain.ai` subdomain"). Every dashboard has exactly two ways in:
+
+| Path | URL | Login | Billed-spend gross-up |
+|---|---|---|---|
+| **Its own dashboard URL** (per-client, what most clients are given) | https://caltex-dash-516554645957.australia-southeast1.run.app | the dashboard's OWN password, Secret Manager `caltex-dash-password` | **NOT applied - shows RAW media cost** |
+| **Platform front-door** | https://dashboards.bidbrain.ai/d/caltex/ | one platform login (password, or Google / Microsoft sign-in) | **Applied** - shows client-billed spend |
+
+Read the dashboard password (never commit it):
+
+```powershell
+gcloud secrets versions access latest --secret=caltex-dash-password
+# rotate (no redeploy - the service reads :latest):
+#   printf '%s' 'NEW' | gcloud secrets versions add caltex-dash-password --data-file=-
+```
+
+The `…run.app` URL is harmless without the password (login screen only); `caltex.json` lives in a
+**private** bucket and is served solely to an authenticated session via `/data.json`, never publicly.
+
+### CHOOSE THE PATH ON WHETHER SPEND IS MARKED UP
+
+`window.BB_SPEND_MULT` (the super-admin "Multiplier" panel) is injected by the **proxy only**, so:
+
+- Caltex is billed **at raw media cost** -> either path is fine.
+- Caltex is billed **above** raw media cost (the agency does do this - e.g. geocon runs `meta` x2.0,
+  and TTD markups of x3-7 are normal here) -> the client MUST come in through the front-door, and a
+  `ttd` multiplier must be set for caltex. Handing out the `…run.app` URL in that case shows the
+  client the REAL media cost and leaks the margin.
+
+As of 2026-07-31 caltex has **no** multiplier set (`spend_multipliers: {}`), so both paths currently
+show identical, raw numbers. Set one before sharing the direct URL if the plan's A$5,000/month is a
+billed rate rather than pass-through media cost.
+
+### Google / Microsoft sign-in (front-door only)
+
+Client-side users can be granted sign-in access scoped to THIS dashboard alone, so they see no other
+100% Digital client:
+
+```powershell
+$env:GCS_BUCKET="bidbrain-analytics-platform-dash"
+.\.venv\Scripts\python.exe -c "from store import Store; Store().upsert_user('someone@client.com', role='client', client_key='caltex')"
+# (or use the super-admin console's "Google sign-in access" panel)
+```
+
+Granted 2026-07-31: `tilly@iddigital.com.au` -> role `client`, scoped to `caltex`.
+
 ## Why it wasn't live on day one (diagnosed 2026-07-29 - NOT a Windsor grant problem)
 
 The advertiser **is** granted and visible in Windsor (verified directly against the API: advertiser
