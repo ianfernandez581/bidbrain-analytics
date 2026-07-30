@@ -199,10 +199,17 @@
     if(!dstr) return null;
     var p=String(dstr).slice(0,10).split("-"); if(p.length!==3) return null;
     var dv=Date.UTC(+p[0], +p[1]-1, +p[2]); if(isNaN(dv)) return null;
-    var n=new Date(), tv=Date.UTC(n.getFullYear(), n.getMonth(), n.getDate());
+    // BOTH sides must be UTC. `source_data_through` is a UTC metric_date, so comparing it against the
+    // VIEWER'S LOCAL calendar date invented a phantom extra day for anyone east of UTC: in AEST/SGT
+    // the local date rolls over at 14:00/16:00 UTC, so from midnight to ~10am local EVERY client
+    // flipped from "current (yesterday)" to a red "2 days behind" while every server-side verdict
+    // still said ok. Use getUTC* so the basis matches the data (fixed 2026-07-31).
+    var n=new Date(), tv=Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
     return Math.round((tv-dv)/86400000);
   }
-  // Stale = 2+ days behind today. Today OR yesterday is "current" (normal ad-reporting lag).
+  // Stale = 2+ days behind today (UTC). Today OR yesterday is "current" (normal ad-reporting lag:
+  // the platforms only publish day D on D+1, and our daily ingest runs 21:35 UTC, so 1 day IS the
+  // healthy steady state -- 2+ means an ingest genuinely missed a run).
   function freshFlag(dstr){
     var b=daysBehind(dstr);
     if(dstr==null||b==null) return {cls:"na", txt:"no date"};
