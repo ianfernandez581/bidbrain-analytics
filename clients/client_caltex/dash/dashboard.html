@@ -414,11 +414,11 @@
       <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative impressions across the flight vs the straight-line pace needed to reach the impression target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks → TTD pixel-attributed site actions (post-view + post-click). Display is upper-funnel: post-view actions rightly dominate.</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks → ad-attributed <b>site visits</b> (post-view + post-click). Display is upper-funnel, so post-view rightly dominates. These are site visits, <b>not</b> applications - see the note at the foot of this tab.</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by tactic</h3><div class="hint">Where the budget is going across the three buying tactics. Click a legend item to hide or show a tactic.</div><div class="chartbox" style="height:280px"><canvas id="tacticDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery and engagement for the awareness lane vs the consideration lane - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Actions</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery and engagement for the awareness lane vs the consideration lane - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Site visits</th></tr></thead><tbody></tbody></table></div></div>
 
       <div class="section"><h2>Where it ran</h2><span class="sub">Delivery by market and by creative format for the Caltex campaign - honours the date filter.</span></div>
       <div class="grid cols-2">
@@ -442,7 +442,7 @@
         <div class="tablewrap"><table id="benchTable"><thead><tr>
           <th>Ad group</th><th>Stage</th><th class="num">Spend</th><th class="num">Impressions</th>
           <th class="num">CPM</th><th class="num">Δ</th><th class="num">CTR</th><th class="num">Δ</th>
-          <th class="num">CPC</th><th class="num">Δ</th><th class="num">Actions</th></tr></thead><tbody></tbody></table></div>
+          <th class="num">CPC</th><th class="num">Δ</th><th class="num">Site visits</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="grid cols-2">
@@ -461,7 +461,7 @@
 
       <div class="grid cols-2">
         <div class="card"><h3>Delivery by day of week</h3><div class="hint">Impressions (bars) and CTR (line) by weekday across the selected range - when Caltex is seen, and when the ads get clicked.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
-        <div class="card"><h3>Site actions - post-view vs post-click</h3><div class="hint">TTD pixel-attributed actions: <b>post-view</b> = saw an ad, later acted on site; <b>post-click</b> = clicked through and acted. Post-view dominating is normal for upper-funnel display.</div><div class="chartbox" style="height:250px"><canvas id="actionSplitChart"></canvas></div><div class="hint" id="actionNote" style="margin-top:8px"></div></div>
+        <div class="card"><h3>Site visits - post-view vs post-click</h3><div class="hint">Ad-attributed visits from the sitewide TTD pixel: <b>post-view</b> = saw an ad, later came to the site; <b>post-click</b> = clicked the ad through. Post-view dominating is normal for upper-funnel display. This is site traffic, <b>not</b> applications.</div><div class="chartbox" style="height:250px"><canvas id="actionSplitChart"></canvas></div><div class="hint" id="actionNote" style="margin-top:8px"></div></div>
       </div>
 
       <div class="grid cols-2-1">
@@ -471,7 +471,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>Creative performance</h3><div class="hint">Per-creative delivery + a thin-volume guard (⚠ thin = under 5k impressions - treat its ratios as a weak signal).</div>
-        <div class="tablewrap"><table id="adTable"><thead><tr><th>Creative</th><th>Ad group</th><th>Stage</th><th>Format</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Actions</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="adTable"><thead><tr><th>Creative</th><th>Ad group</th><th>Stage</th><th>Format</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Site visits</th><th>Read</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -501,7 +501,7 @@ const charts = {};
 const $ = id => document.getElementById(id);
 
 // standard metric colours (read from CSS vars so the KPI dot == the chart-series colour).
-// TTD semantics: --reach = impressions, --leads = clicks, --qualified = site actions (green = goal),
+// TTD semantics: --reach = impressions, --leads = clicks, --qualified = ad-attributed site visits (green = goal),
 // --cost = CPM/CPC, --ctr = CTR, --lpv = video.
 const cv = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const MC = {actions:cv('--qualified'),clicks:cv('--leads'),spend:cv('--spend'),cost:cv('--cost'),ctr:cv('--ctr'),imps:cv('--reach'),video:cv('--lpv'),
@@ -829,8 +829,8 @@ function renderKpis(){
       sub:impT!=null?`${targetPending('impressions_target')?'pending ':''}flight target ${compact(impT)}${impPct!=null?` · ${impPct}% there`:''}`:'people reached (gross)'},
     {color:MC.clicks,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
       sub:`CTR ${pct(a.ctr)}${ctrT!=null?` vs ${pct(ctrT)} target`:''}`},
-    {color:MC.actions,north:true,series:'actions',label:'Site actions',value:a.actions?int(a.actions):'-',
-      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`:'no pixel actions yet',
+    {color:MC.actions,north:true,series:'actions',label:'Site visits (ad-attributed)',value:a.actions?int(a.actions):'-',
+      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`:'none attributed yet',
       badge:a.actions?(meta().action_source_label||'TTD pixel-attributed'):null},
     {color:MC.accent,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight${targetPending('flight_budget_aud')?' (pending)':''}`:'budget not set'}
@@ -858,7 +858,7 @@ function wireKpiToggles(){
   });
 }
 
-// ---- hero trend (spend bars + impressions / clicks / site actions; grain + axis toggles) ----
+// ---- hero trend (spend bars + impressions / clicks / site visits; grain + axis toggles) ----
 function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
@@ -867,9 +867,9 @@ function renderTrend(){
     {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(228,0,43,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
     {label:'Impressions',_group:'imps',type:'line',_raw:imps,_kind:'int',data:rel?indexToPeak(imps):imps,borderColor:MC.imps,backgroundColor:MC.imps,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
     {label:'Clicks',_group:'clicks',type:'line',_raw:clicks,_kind:'int',data:rel?indexToPeak(clicks):clicks,borderColor:MC.clicks,backgroundColor:MC.clicks,borderWidth:2.4,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y3',order:1},
-    {label:'Site actions',_group:'actions',type:'line',_raw:actions,_kind:'int',data:rel?indexToPeak(actions):actions,borderColor:MC.actions,backgroundColor:MC.actions,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y3',order:0}
+    {label:'Site visits',_group:'actions',type:'line',_raw:actions,_kind:'int',data:rel?indexToPeak(actions):actions,borderColor:MC.actions,backgroundColor:MC.actions,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y3',order:0}
   ];
-  $('trendHint').textContent=`${gw} spend (bars) vs impressions, clicks & pixel-attributed site actions - the spend-to-attention view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  $('trendHint').textContent=`${gw} spend (bars) vs impressions, clicks & ad-attributed site visits - the spend-to-attention view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
   const fmtKind={money:v=>money(v),int:v=>int(v)};
   const scales=rel
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
@@ -907,7 +907,7 @@ function renderGoalProgress(){
   };
   $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
     +bar('Impressions',a.impressions,impT,MC.imps,targetPending('impressions_target')?'target pending':'',compact)
-    +bar('Site actions',a.actions,null,MC.actions,'TTD pixel-attributed');
+    +bar('Site visits',a.actions,null,MC.actions,'ad-attributed, not applications');
 }
 // Cumulative impressions across the flight vs the straight-line pace needed to hit the impression
 // target by the end date (full-flight; the client's "are we on track?" read). Above dashed = ahead.
@@ -931,7 +931,7 @@ function renderTacticDonut(){
 }
 function renderFunnel(){
   const a=agg(scoped());
-  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.imps},{name:'Clicks',value:n(a.clicks),color:MC.clicks},{name:'Site actions',value:n(a.actions),color:MC.actions}];
+  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.imps},{name:'Clicks',value:n(a.clicks),color:MC.clicks},{name:'Site visits',value:n(a.actions),color:MC.actions}];
   // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so
   // the huge impressions→click drop doesn't flatten the later bars. Impressions is the 100%
   // baseline; each later bar shows how well that step converted (a 4% floor keeps tiny rates
@@ -942,7 +942,7 @@ function renderFunnel(){
     const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
     const rate=prev?`${pct(conv,2)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
     return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
-  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px">Site actions appear once TTD conversion pixels fire - none recorded in this range yet.</div>');
+  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px">No ad-attributed site visits recorded in this range yet. The site pixel is live; visits appear once someone who saw or clicked an ad lands on the site.</div>');
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
@@ -974,13 +974,13 @@ function renderInsights(){
   const items=[
     {label:'Cheapest attention',value:cheapest?safeName(cheapest.tactic):'-',copy:cheapest?`${money(cheapest.cpm,2)} CPM · ${pct(cheapest.imp_share!=null?cheapest.imp_share:(n(cheapest.impressions)/(n(a.impressions)||1)),0)} of impressions. The volume engine of the awareness lane.`:'Waiting for delivery.'},
     {label:'Most engaging tactic',value:engaging?safeName(engaging.tactic):'-',copy:engaging?`CTR ${pct(engaging.ctr)} vs ${pct(a.ctr)} campaign average - the consideration lane earning the clicks.`:'Waiting for engagement signal.'},
-    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site actions (TTD pixel-attributed).`:`${int(a.clicks)} clicks so far; site actions appear once conversion pixels fire.`},
+    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site visits (ad-attributed).`:`${int(a.clicks)} clicks so far; ad-attributed site visits appear as exposed users reach the site.`},
     {label:'Creative to protect',value:bestCr?safeName(bestCr.creative):'-',copy:bestCr?`CTR ${pct(bestCr.ctr)} at ${money(bestCr.cpm,2)} CPM (${compact(bestCr.impressions)} impressions).`:'Waiting for a creative signal (5k+ impressions).'}
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>TTD pixel-attributed site actions</b> (post-view + post-click). Site actions are the ad platform's attribution, not verified sales - and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets marked <b>pending</b> are planning assumptions awaiting the signed media plan.`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the sitewide Trade Desk pixel. <b>What the pixel measures:</b> it fires on every page, so it reports ad-driven <b>site visits</b> - it does <b>not</b> yet measure Star Card applications, because the application-container tag is not installed. Applications therefore are <b>not</b> reported here; when that tag goes in we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets marked <b>pending</b> are planning assumptions awaiting the signed media plan.`;
 }
 
 // ---- Delivery ----
@@ -1075,8 +1075,8 @@ function renderActionSplit(){
   if(!$('actionSplitChart'))return;
   const a=agg(scoped());const pv=n(a.pv),pc=n(a.pc);const tot=pv+pc;
   makeChart('actionSplitChart',{type:'doughnut',data:{labels:['Post-view','Post-click'],datasets:[{data:[pv,pc],backgroundColor:[MC.actions,MC.clicks],borderColor:'#0A1F27',borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{bbCenter:{label:'Site actions'},legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
-  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click actions in range.`:'No pixel-attributed actions in this range yet - The Trade Desk reports them once site conversion pixels fire.';
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{bbCenter:{label:'Site visits'},legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
+  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click visits in range.`:'No ad-attributed visits in this range yet - they appear once someone exposed to an ad lands on the site.';
 }
 function renderSegment(){
   const groups=byAdGroup(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,12);
@@ -1179,9 +1179,9 @@ function downloadCSV(name,csv){const blob=new Blob(['﻿'+csv],{type:'text/csv;c
 function exportAllData(){const cols=['date','campaign','ad_group','tactic','market','creative','ad_format','stage','spend','impressions','clicks','video_starts','video_completes','pv_conv','pc_conv'].map(k=>({label:k,key:k}));downloadCSV(`caltex_ttd_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
-  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'actions',key:'actions'},{label:'cum_impressions',key:'cum_imps'}];downloadCSV(`caltex_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
-  else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'actions',key:'actions'}];downloadCSV(`caltex_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
-  else{const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'tactic',key:'tactic'},{label:'stage',key:'stage'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'},{label:'actions',key:'actions'}];downloadCSV(`caltex_by_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
+  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'site_visits',key:'actions'},{label:'cum_impressions',key:'cum_imps'}];downloadCSV(`caltex_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
+  else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'site_visits',key:'actions'}];downloadCSV(`caltex_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
+  else{const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'tactic',key:'tactic'},{label:'stage',key:'stage'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'},{label:'site_visits',key:'actions'}];downloadCSV(`caltex_by_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
 }
 
 // ================= AI REPORT PAYLOAD (headless portal deck path) =================
