@@ -82,11 +82,21 @@ shared-schema risk for five TTD clients and display nothing.
 The sitewide base pixel cannot distinguish an application from any other pageview (see the pixel
 section above). Three routes, cheapest first:
 
-1. **A URL-rule conversion tag on the EXISTING pixel, no site access needed.** TTD lets you define a
-   tag under a Universal Pixel that fires only on URLs matching a pattern. If the application
-   confirmation page has its own URL *on the domain where the pixel already runs*, this can be
-   created in the TTD UI today and needs no developer. It will not work if the confirmation lives on
-   a different domain/portal or is an SPA state with no URL change - check first.
+1. **Define a conversion tracker on the EXISTING pixel - almost certainly the real blocker, and it
+   needs NO site access.** EVIDENCE (2026-07-31): all 18 Caltex rows return `conversions` = JSON
+   **null** - not zeros, no slots at all - while VMCH, on the same connector and the same TTD seat,
+   returns real slots (e.g. `{"view_through_conversion_01": 3.0, "conversion_touch_01": 3.0}`).
+   Windsor's numbered slots mirror the advertiser's DEFINED conversion trackers, so null across every
+   row means **no tracking tag has been created against pixel `z3eu6oa`**. The snippet on its own
+   only collects fires; TTD reports nothing until at least one tracker is defined on it. Creating one
+   is a TTD-UI task - no developer, no application-container access - and a tracker can be
+   **URL-matched**, so if the application confirmation page has its own URL on the pixel's domain,
+   "Star Card Application" can be captured today. Check two things first: that the pixel is actually
+   firing (TTD shows fire counts per pixel), and that the confirmation page is a real URL on that
+   domain rather than a separate portal or an SPA state with no URL change. Even a plain "all site
+   visits" tracker is worth creating immediately - it lights up the dashboard's Site visits KPI,
+   which currently reads "none attributed yet". When slots DO appear, check for TTD's duplicate-pair
+   export (VMCH shows `_01`/`_02` byte-identical) before summing them.
 2. **A client-supplied application count** (weekly CSV -> seed table, the `client_cloudflare` LINE
    pattern). This matches what the client already proposes - crediting post-launch applications to
    the campaign - but it is a TOTAL, not ad-attributed, and must be labelled as such.
