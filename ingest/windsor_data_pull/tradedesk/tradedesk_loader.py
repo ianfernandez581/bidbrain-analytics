@@ -41,6 +41,7 @@ response body.
 """
 import json
 import logging
+import os
 import re
 import sys
 import time
@@ -102,7 +103,13 @@ CHUNK_DAYS = 3
 STOP_AFTER_EMPTY_CHUNKS = 5
 MAX_FETCH_FAILURES = 5     # consecutive fetch failures before abandoning an account (Windsor down)
 MIN_DATE = date(2015, 1, 1)
-TIMEOUT_SEC = 120
+# Per-request read timeout. Windsor's TTD endpoint is usually seconds, but it DEGRADES BADLY around
+# the 00:00 UTC day rollover (when TTD finalises the previous day): on 2026-07-31 every attempt at a
+# single-day pull timed out at 120s, 30 times over 67 min, and the run finished with 0 rows. When a
+# request reliably needs MORE than the timeout, no number of retries can ever succeed - so this is
+# env-tunable for slow windows / manual backfills. Default unchanged, so the scheduled job behaves
+# exactly as before unless WINDSOR_TIMEOUT_SEC is set.
+TIMEOUT_SEC = int(os.environ.get("WINDSOR_TIMEOUT_SEC", "120"))
 RETRY_SLEEP_SEC = 5        # fixed delay between retry attempts (no backoff)
 MAX_ATTEMPTS = 30          # per-chunk retry cap; then fail loudly instead of hanging forever
 INTER_CHUNK_SLEEP = 1
