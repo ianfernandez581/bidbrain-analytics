@@ -270,14 +270,54 @@ which is what surfaced the bug ("why are leads arriving after the campaign ended
   start by a day; a plan-window-only axis would silently drop them. Weeks past the last lead render
   a real **0**, which is how under-delivery reads honestly. The target pace is still spread across
   the **plan** weeks only (null outside them).
-- **The plan window itself is unchanged** (`targets/budget.csv` → `seed_budget` → `sql/10_budget`).
-  KGA/IDC is still planned 2026-05-25 → 07-31; delivery simply stopped early. Do not "fix" the chart
-  by editing the media-plan dates - that would hide the under-delivery.
+- **KGA/IDC's flight end was moved 2026-07-31 → 2026-07-05** (client call, 2026-07-31) in
+  `targets/budget.csv` → `seed_budget` → `sql/10_budget` → job `budget` → `campaignWindow()`. The
+  original 07-31 was the signed media-plan end, but delivery under the original TTD campaign names
+  stopped 07-05, so the chart carried four empty trailing weeks. At 07-05 the axis ends on the week
+  of 06-29 (which closes Sun 07-05), the weekly target re-spreads to 609 ÷ 6 = **102/week**, and the
+  pacing card reads **Day 42 of 42**. `campaignWindow()` feeds `csPacing()` ONLY, so this moves the
+  CS pacing card and the weekly chart together and touches nothing on the Paid Media tab.
+  **Caveat:** paid delivery did NOT actually stop on 07-05 - it ran to 07-30 under campaign names
+  that gained a `2265_` brief prefix (see the parsing gotcha below), so 07-05 is the end of
+  *visible* delivery. Revisit this date if that parse is fixed.
+- **Do not edit the media-plan dates to make a chart look tidy.** Shortening a window to hide empty
+  weeks hides under-delivery. This change was the opposite case: the plan end was later than the
+  campaign's real (visible) delivery end, so the empty weeks were an artefact, not a finding.
 - **The date-range picker is still greyed on the CS / Compare tabs.** The KPIs and the market /
   programme splits still read the whole-flight `cs_by_programme`, which has no date grain. `cs_daily`
   carries the full accepted/rejected/new breakdown at day grain specifically so a future date-scoped
   CS view needs no new view - but scoping those aggregates would also change the numbers the
   status-dash accuracy check reconciles against, so it is a deliberate follow-up, not a side effect.
+
+## OPEN DEFECT — the `2265_` campaign-name prefix breaks positional parsing (found 2026-07-31)
+
+**Not yet fixed.** [`sql/01_stg_tradedesk.sql`](sql/01_stg_tradedesk.sql) parses the TTD campaign
+name by FIXED offset (`SPLIT(CAMPAIGN_NAME,"_")[SAFE_OFFSET(2)]` etc). On **2026-07-06** the campaign
+names gained a `2265_` brief-number prefix, which shifts every field one slot:
+
+    old:  MONGODB_2026-Q2_IDC_APJ_DEMAND-GENERATION_ANZ        (to 2026-07-05)
+    new:  2265_MONGODB_2026-Q2_IDC_APJ_DEMAND-GENERATION_ANZ   (from 2026-07-06)
+
+| Field | Should be | Parses as |
+|---|---|---|
+| `PROGRAMME` | `IDC` / `IDE` | `2026-Q2` |
+| `MARKET` | `ANZ` / `ASEAN` / `INDIA` / `KR-HK-TW` | `DEMAND-GENERATION` |
+| `OBJECTIVE` | `DEMAND-GENERATION` | `APJ` |
+
+`STRATEGY` still parses correctly - **`AD_GROUP_NAME` was NOT renamed**, which is why nothing looked
+broken. `DEMAND-GENERATION` is not one of the five market chips and every paid row is gated on
+`marketOk(r.market)` ([`dash/dashboard.html`](dash/dashboard.html) line ~1415, plus the CSV export and
+the AI-deck payload), so **2,949 rows / US$11,670.55 of spend dated 2026-07-06 → 07-30 are silently
+dropped from the dashboard** - about 25% of MongoDB's total TTD spend. All of it belongs to IDC (the
+`2265_*_IDE_*` campaigns carry $0), so KGA/IDC's true spend is ~$29,726 against its $37,200 gross
+budget while the dash shows $18,056. The DNB `MARGIN_TARGET` gross-up is unaffected.
+
+**Fix when actioned:** index from the END of the name instead of the start - the market is always the
+last token and the programme always fourth-from-last in BOTH formats, so
+`ARRAY_REVERSE(SPLIT(CAMPAIGN_NAME,"_"))[SAFE_OFFSET(0)]` / `[SAFE_OFFSET(3)]` parse old and new
+correctly and survive the next prefix. Then `sql/deploy_views_mongodb.ps1` (reapplies + force-runs).
+Same rollout that hit **schneiderlqai** (`2306_` prefix, same date) - that client dodged it by keying
+on `LIKE '%LQAIDC%'` instead of positional splits.
 
 ## See also
 
