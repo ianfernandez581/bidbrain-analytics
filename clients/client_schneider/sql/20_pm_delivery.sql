@@ -1,5 +1,6 @@
--- Schneider Electric — PAID-MEDIA delivery TAGGED to internal program, SCOPED to the 6 dashboard
--- programs (the 5 CS programs + NEL, an awareness-only program with paid delivery but no CS leads).
+-- Schneider Electric — PAID-MEDIA delivery TAGGED to internal program, SCOPED to the 7 dashboard
+-- programs (the 5 CS programs + NEL + Microgrid, awareness-only programs with paid delivery but no
+-- CS leads).
 -- Replicates the dashboard's first-match-wins idOf() join in SQL so the Paid Media tab can filter by
 -- program AND market AND day together (the existing ad_campaign_* arrays split market vs day):
 --   * map      = seed_campaign_map (ALL 28 rows, with seq = match precedence).
@@ -37,4 +38,4 @@ SELECT cm.program, d.platform, d.metric_date,
        d.imps, d.clicks, d.spend_aud
 FROM `bidbrain-analytics.client_schneider.stg_ad_delivery` d
 JOIN camp_map cm USING (campaign)
-WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel');
+WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid');

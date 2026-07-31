@@ -66,10 +66,32 @@ plus a `PILLAR` entry for it in the dashboard. It sorts last in the Campaign dro
 target) so the default campaign is unchanged, and it appears as a 0/0 awareness card in the Executive
 Scorecard (same as `global_rebrand`). No seed reload was needed.
 
+**Update 2026-07-31** (`sql/20_pm_delivery.sql` + `job/main.py` + `dash/dashboard.html` + `data/*.csv`):
+added **Microgrid (brief 2040)** as a **7th program** — the same awareness-only shape as NEL (real paid
+delivery, no Salesforce CS leads, so it renders **Paid Media only**). LinkedIn is the only channel
+delivering: two ad sets in `SchneiderElectric_TransmissionSG_AUD`,
+`2040 SE_Microgrid-Broad_July2026-ANZ-Static` and `…-Video`, **live since 2026-07-27** (first 4 days:
+21,546 imps / 31 clicks / **A$423.98**, CTR 0.14%, CPM A$19.68). **No Trade Desk and no DV360 delivery**
+exists for this brief. `microgrid` was already row `seq=25` in `data/campaign_map.csv` and its existing
+`Microgrid` token tags both ad sets first-match-wins with **no collision**, so enabling it was the NEL
+two-liner: add `'microgrid'` to the `WHERE program IN (…)` in
+[`sql/20_pm_delivery.sql`](sql/20_pm_delivery.sql) and to `CS_PROGRAMS` in [`job/main.py`](job/main.py),
+plus a `PILLAR` entry ("Energy Resilience") in the dashboard. Also set its `brief_job_no` to **2040** and
+added **`2040 SE` + `2040_`** match_pattern tokens — defensive, per the `heavy`/`2281_` lesson that the
+delivering ad-set names can abbreviate away the program word (no such sibling exists today; verified).
+**Targets are PENDING** — there is no signed media plan yet, so `data/media_plan.csv` carries a single
+LinkedIn Awareness line with **blank targets/spend** and `data/plan_budget.csv` a blank `microgrid` row.
+Consequence: its Executive-Scorecard card reads **0 / 0** and its pace shows `-` until the plan lands
+(fill the CSVs and re-run `load_seeds.py` + the job with `FORCE_REBUILD=1`). **Market caveat:** both ad
+sets are named `-ANZ-` with no country token, and LinkedIn has no ad-group column to fall back on the way
+Trade Desk does, so `sql/20`'s AU/NZ normalisation folds **100% of Microgrid delivery into Australia**.
+An AU/NZ split is not derivable from this feed - it needs country-specific campaign names.
+
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
   CS programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`) **+ `nel`** (New Energy
-  Landscape — awareness-only, Paid-Media-tab-only, no CS leads; added 2026-07-08).
+  Landscape; added 2026-07-08) **+ `microgrid`** (brief 2040; added 2026-07-31) — the last two are
+  awareness-only, Paid-Media-tab-only, no CS leads.
 - **Programme** (the CS breakdown) = the Salesforce `pillar_label` (9), from `seed_salesforce_map`.
 - **Market / Region chips** = **Australia / New Zealand only** (no ANZ, no Other). CS leads are
   AU/NZ-native; paid delivery's AU/NZ split is resolved from **`AD_GROUP_NAME`** (then `CAMPAIGN_NAME`)
@@ -80,8 +102,9 @@ Scorecard (same as `global_rebrand`). No seed reload was needed.
   `RM AirSeT – Retargeting – ANZ` LinkedIn line, ~$500) into **Australia** so it stays in the paid totals.
 - **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
   lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from `seed_plan_budget`.
-- **Scoped to the 6:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel')`; the CS
-  views read only the 9 SF ids via `seed_salesforce_map` (NEL has none, so it never appears in the CS tabs). The old Pacific `portfolio` toggle and the other ~20 APAC programs
+- **Scoped to the 7:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel' +
+  'microgrid')`; the CS views read only the 9 SF ids via `seed_salesforce_map` (NEL and Microgrid have
+  none, so they never appear in the CS tabs). The old Pacific `portfolio` toggle and the other ~20 APAC programs
   are **gone from the dashboard** — the seed tables still carry them for the `match_pattern` tagging.
   (Historical Pacific-carve-out EDA: [`_eda/pacific_eda.md`](_eda/pacific_eda.md).)
 
@@ -123,10 +146,9 @@ uses. The job derives `campaigns[].tabs` from that campaign's media-plan channel
 **Paid Media** (a Programmatic/LinkedIn line, or real `pm_delivery`), **Content Syndication** (a
 lead-gen line, or real leads), and **CS Comparison** (only when the campaign has leads). (An **Other
 Channels** tab for plan-only lines — Search, publisher sponsorships, trade press, email — was
-**removed from the UI 2026-07-06** at the client's request, low value; the job still emits `other` in
-`tabs[]` but `campaignTabs()` filters it out, so the `tab-other` pane + `renderOther`/`ARTICLE_DELIVERY`
-code is retained but inert. This also dropped the Heavy Industries trade-publication article-delivery
-table.) Live result: `eba`/`water_env` → Paid·CS·Compare; `airset` → Paid·CS; `heavy` →
+removed from the UI 2026-07-06 at the client's request, then **restored 2026-07-20** when the client
+wanted the Heavy Industries trade-publication article-delivery table back; `campaignTabs()` no longer
+filters `other` out, so the `tab-other` pane + `renderOther`/`ARTICLE_DELIVERY` code is live again.) Live result: `eba`/`water_env` → Paid·CS·Compare; `airset` → Paid·CS; `heavy` →
 Paid·CS·Compare; `global_rebrand` → Paid only. Default campaign = the one with most leads (EBA today);
 default tab = its first per-campaign tab; the global **Executive Scorecard** is shown **last**.
 The tab bar is built in `renderControls()`; switching campaign resets to a valid tab (`setCampaign`).
@@ -176,7 +198,7 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `data/*.csv` (version-controlled — tracked via `.gitignore` `!` exceptions) → re-run `load_seeds.py` | 2 |
 | Other seeds (plan_flighting / channel_split / salesforce_map) | `data/*.csv` → `load_seeds.py` (NB: currently BQ-only, no committed CSV) | 2 |
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
-| Which programs are in scope (the 5 CS programs + `nel`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
+| Which programs are in scope (the 5 CS programs + `nel` + `microgrid`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
 | Login / how JSON is served | `dash/main.py` (rarely) | 3 |

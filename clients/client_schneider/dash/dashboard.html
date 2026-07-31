@@ -1354,6 +1354,7 @@ const PILLAR={
   water_env:     {pillar:'Water &amp; Environment',      note:'Resilient, efficient water &amp; utilities infrastructure'},
   heavy:         {pillar:'Heavy Industries',            note:'Energy &amp; process efficiency for industry'},
   nel:           {pillar:'New Energy Landscape',        note:'Awareness for the shift to a decarbonized, electrified energy system'},
+  microgrid:     {pillar:'Energy Resilience',           note:'Microgrids - distributed, resilient power for a decarbonized grid'},
 };
 // audience rows for the whole portfolio, filtered to the active regions, for one dimension
 function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
