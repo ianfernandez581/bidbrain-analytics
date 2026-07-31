@@ -75,9 +75,22 @@ SELECT
   + COALESCE(SAFE_CAST(JSON_VALUE(_conv, '$.click_conversion_10') AS FLOAT64), 0)
   + COALESCE(SAFE_CAST(JSON_VALUE(_conv, '$.click_conversion_11') AS FLOAT64), 0)
   + COALESCE(SAFE_CAST(JSON_VALUE(_conv, '$.click_conversion_12') AS FLOAT64), 0) ) AS post_click_conv,
-  CASE
-    WHEN LOWER(ad_group_name) LIKE '%contextual%' THEN 'Consideration'
-    WHEN LOWER(ad_group_name) LIKE '%attention%'  THEN 'Consideration'
-    ELSE 'Awareness'
+  -- FUNNEL STAGE: all three ad groups are set to AWARENESS in The Trade Desk (client-confirmed
+  -- 2026-07-31). An earlier version INFERRED the stage from the ad-group name and wrongly tagged
+  -- 'AI Contextual' and 'Attention-Optimised' as Consideration - that was our inference, never TTD's
+  -- setting, and it mislabelled the funnel-stage table.
+  --
+  -- Why it is hard-coded rather than read from the feed: TTD's ad-group "Funnel location" column is
+  -- NOT exposed by the Windsor connector (verified against raw_windsor.windsor_fields - the only
+  -- funnel-ish field is `campaign_objective`, which is CAMPAIGN-level and so cannot distinguish
+  -- ad groups once a consideration phase is added inside the same campaign).
+  --
+  -- TO ADD A CONSIDERATION PHASE LATER: change that ad group's line below. The mapping is keyed on
+  -- the tactic (the part before the '|' in the ad-group name) so a new market inherits it for free.
+  CASE TRIM(SPLIT(ad_group_name, '|')[SAFE_OFFSET(0)])
+    WHEN 'Display Standard'    THEN 'Awareness'
+    WHEN 'AI Contextual'       THEN 'Awareness'
+    WHEN 'Attention-Optimised' THEN 'Awareness'
+    ELSE 'Awareness'                       -- a brand-new ad group defaults to Awareness, never guessed
   END AS funnel_stage
 FROM base
