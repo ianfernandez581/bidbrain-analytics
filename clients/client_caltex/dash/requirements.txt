@@ -7,3 +7,7 @@ google-cloud-storage==2.18.2
 # Floor chosen for Opus 4.8 / web_search_20260209 / output_config support; resolves to the latest.
 anthropic>=0.92.0
 httpx  # report.py: direct REST calls to Vertex AI Gemini (default)
+# Verifies the Google ID token for /auth/google (client sign-in on this service). Both already
+# arrive transitively via google-cloud-storage; pinned explicitly because we now import them.
+google-auth>=2.28
+requests>=2.31

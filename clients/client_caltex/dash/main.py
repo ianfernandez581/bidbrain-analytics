@@ -15,7 +15,7 @@ import json
 import hashlib
 from pathlib import Path
 from flask import (
-    Flask, request, redirect, session, Response, render_template_string, abort
+    Flask, request, redirect, session, Response, render_template_string, abort, jsonify
 )
 from google.cloud import storage
 
@@ -35,6 +35,33 @@ app.config.update(
 
 # --- config (injected by Cloud Run) ------------------------------------------
 DASH_PASSWORD = os.environ["DASH_PASSWORD"].rstrip("\r\n")   # from Secret Manager
+
+# --- "Sign in with Google" on THIS service (the client is NOT given dashboards.bidbrain.ai, which
+# is internal-only). Additive: the password box still works, and if GOOGLE_OAUTH_CLIENT_ID is unset
+# the button simply isn't rendered.
+#   GOOGLE_OAUTH_CLIENT_ID  - the same OAuth client the platform uses; this service's URL must be
+#                             listed as an Authorized JavaScript origin on it or Google refuses the
+#                             button with origin_mismatch.
+#   ALLOWED_EMAILS          - comma-separated exact addresses (the client contacts).
+#   ALLOWED_EMAIL_DOMAINS   - comma-separated domains always allowed (our own staff).
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID", "").strip()
+ALLOWED_EMAILS = {e.strip().lower() for e in os.environ.get("ALLOWED_EMAILS", "").split(",") if e.strip()}
+ALLOWED_EMAIL_DOMAINS = {d.strip().lower().lstrip("@")
+                         for d in os.environ.get("ALLOWED_EMAIL_DOMAINS", "100.digital").split(",") if d.strip()}
+
+
+def email_allowed(email):
+    """Allowlist check on an ALREADY-VERIFIED Google email. Exact address OR trusted domain.
+
+    Split on the LAST '@' and require both halves non-empty, so neither a bare '@domain' nor a
+    lookalike like 'tilly@iddigital.com.au.attacker.com' can match (the latter's domain is the
+    attacker's, not ours). Google has already verified the address by the time we get here; this
+    is the second gate, not the first."""
+    email = (email or "").strip().lower()
+    local, _, domain = email.rpartition("@")
+    if not local or not domain:
+        return False
+    return email in ALLOWED_EMAILS or domain in ALLOWED_EMAIL_DOMAINS
 GCS_BUCKET = os.environ.get("GCS_BUCKET", "")               # private data bucket ("" until standup)
 DATA_OBJECT = os.environ.get("DATA_OBJECT", "caltex.json")   # object inside it
 
@@ -109,7 +136,12 @@ LOGIN_HTML = """<!doctype html>
   button:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(228,0,43,.4)}
   button:active{transform:translateY(0)}
   .err{margin-top:14px;font-size:13px;color:#FFB3C0;min-height:16px;text-align:center}
+  .sep{display:flex;align-items:center;gap:10px;margin:18px 0 4px;color:#6F8B92;font-size:11px;
+       text-transform:uppercase;letter-spacing:1.4px}
+  .sep::before,.sep::after{content:"";flex:1;height:1px;background:rgba(255,255,255,.12)}
+  .gwrap{display:flex;justify-content:center;margin-top:12px;min-height:44px}
 </style>
+{% if google_client_id %}<script src="https://accounts.google.com/gsi/client" async defer></script>{% endif %}
 </head>
 <body>
   <form class="card" method="POST" action="/login">
@@ -123,7 +155,33 @@ LOGIN_HTML = """<!doctype html>
            autocomplete="current-password">
     <button type="submit">Unlock Dashboard</button>
     <div class="err">{{ error or "" }}</div>
+{% if google_client_id %}
+    <div class="sep">or</div>
+    <div class="gwrap" id="gbtn"></div>
+{% endif %}
   </form>
+{% if google_client_id %}
+<script>
+  // GIS posts a signed ID token to /auth/google, which verifies it server-side and checks the
+  // email against the allowlist. Nothing is trusted client-side.
+  function bbGoogleCb(resp){
+    var err=document.querySelector(".err"); err.textContent="Checking your Google account\u2026";
+    fetch("/auth/google",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({credential:(resp&&resp.credential)||""})})
+      .then(function(r){return r.json();})
+      .then(function(j){ if(j&&j.ok){ location.href="/"; } else { err.textContent=(j&&j.error)||"Sign-in failed."; } })
+      .catch(function(){ err.textContent="Sign-in failed - please try the password."; });
+  }
+  // the GIS script is async, so wait for it rather than racing it
+  (function waitGIS(n){
+    if(window.google&&google.accounts&&google.accounts.id){
+      google.accounts.id.initialize({client_id:"{{ google_client_id }}",callback:bbGoogleCb});
+      google.accounts.id.renderButton(document.getElementById("gbtn"),
+        {theme:"filled_black",size:"large",shape:"pill",text:"signin_with",width:260});
+    } else if(n<60){ setTimeout(function(){waitGIS(n+1);},100); }
+  })(0);
+</script>
+{% endif %}
 </body>
 </html>"""
 
@@ -144,7 +202,7 @@ def authed():
 @app.get("/")
 def home():
     if not authed():
-        return render_template_string(LOGIN_HTML, error=None)
+        return render_template_string(LOGIN_HTML, error=None, google_client_id=GOOGLE_CLIENT_ID)
     if DASHBOARD_HTML is None:
         return Response("dashboard.html is missing from the deploy.", status=500)
     # no-store so a redeploy of the tabbed dashboard is picked up immediately,
@@ -159,7 +217,43 @@ def login():
         session["ok"] = True
         session.permanent = True
         return redirect("/")
-    return render_template_string(LOGIN_HTML, error="Incorrect password."), 401
+    return render_template_string(LOGIN_HTML, error="Incorrect password.",
+                                  google_client_id=GOOGLE_CLIENT_ID), 401
+
+
+@app.post("/auth/google")
+def auth_google():
+    """Verify a Google ID token and, if the email is allowlisted, grant the normal session.
+
+    Mirrors the platform's verifier (bidbrain-platform/dash/main.py auth_google): the signature,
+    issuer and audience are checked by google-auth against OUR client id - a token minted for any
+    other app is rejected - and we additionally require email_verified. Only then does the email go
+    through the allowlist. The password path is untouched."""
+    if not GOOGLE_CLIENT_ID:
+        return jsonify(ok=False, error="Google sign-in is not configured for this dashboard."), 400
+    token = ((request.get_json(silent=True) or {}).get("credential") or "").strip()
+    if not token:
+        return jsonify(ok=False, error="Missing Google credential."), 400
+    try:
+        from google.oauth2 import id_token
+        from google.auth.transport import requests as ga_requests
+        info = id_token.verify_oauth2_token(token, ga_requests.Request(), GOOGLE_CLIENT_ID,
+                                            clock_skew_in_seconds=10)
+    except Exception as e:   # malformed/expired, wrong aud, clock skew, cert fetch failure, ...
+        app.logger.warning("google id_token verification failed: %s", e)
+        return jsonify(ok=False, error="Could not verify your Google sign-in."), 401
+    if not info.get("email") or not info.get("email_verified"):
+        return jsonify(ok=False, error="Your Google account has no verified email."), 401
+    email = info["email"].strip().lower()
+    if not email_allowed(email):
+        app.logger.warning("google sign-in DENIED for %s (not allowlisted)", email)
+        return jsonify(ok=False,
+                       error=f"{email} does not have access to this dashboard."), 403
+    session["ok"] = True
+    session["email"] = email
+    session.permanent = True
+    app.logger.info("google sign-in OK for %s", email)
+    return jsonify(ok=True)
 
 
 @app.get("/logout")
