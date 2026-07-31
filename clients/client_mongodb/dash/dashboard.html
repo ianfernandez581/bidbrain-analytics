@@ -544,7 +544,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>Weekly pacing - target vs actual</h3>
-        <div class="hint">Leads per week (bars) vs the weekly target pace (dashed). Actuals are ramped across the elapsed window - Salesforce leads aren't date-stamped in the feed yet.</div>
+        <div class="hint">Leads per week (bars) vs the weekly target pace. Actuals are true Salesforce lead dates, so a week with no delivery reads zero.</div>
         <div class="chart-wrap" style="height:320px"><canvas id="csWeekly"></canvas></div>
       </div>
 
@@ -1361,14 +1361,16 @@ function renderControls() {
   el('compareSub').textContent =
     `Pick a region in each panel to compare them directly, for ${CAMP[activeCampaign].label}.`;
 
-  // The date range only filters Paid Media (daily rows). Content Syndication leads
-  // aren't date-stamped in the feed, so grey the control out on the CS / Compare tabs.
+  // The date range only filters Paid Media (daily rows). Salesforce leads ARE date-stamped
+  // (cs_daily / view 18 feeds the weekly pacing chart), but the CS KPIs and the market /
+  // programme splits still read the whole-flight cs_by_programme aggregate, so the control
+  // stays greyed on the CS / Compare tabs until those are day-scoped too.
   const dpEl = el('dateRange');
   if (dpEl) {
     const dateable = activeTab === 'paid' || activeTab === 'linkedin';
     dpEl.style.opacity = dateable ? '1' : '.45';
     dpEl.style.pointerEvents = dateable ? 'auto' : 'none';
-    dpEl.title = dateable ? '' : 'Date range applies to Paid Media &amp; LinkedIn - Salesforce leads aren’t date-stamped in the feed';
+    dpEl.title = dateable ? '' : 'Date range applies to Paid Media and LinkedIn - Content Syndication totals are whole-flight';
   }
 }
 
@@ -1827,31 +1829,44 @@ function paceVerdict(vsTtd){
   return {cls:'vs-bad', txt:'Behind plan'};
 }
 
-// Ramped weekly target vs actual for the active campaign, scoped by mPred.
+// True weekly target vs actual for the active campaign, scoped by mPred.
+//
+// Bars are REAL per-week lead counts, bucketed from DATA.cs_daily (view 18) into Monday weeks.
+// They used to be a fiction: the whole-flight lead total ramped evenly across the elapsed
+// window, which drew identical bars in weeks that had zero delivery (KGA/IDC stopped on
+// 2026-07-02 but the bars ran to the plan end) and flattened the real delivery shape.
+// The axis spans the PLAN window UNION the weeks that actually carry leads, so delivery
+// outside the planned flight is still visible; the target pace is spread across the plan
+// weeks only.
 function buildWeekly(mPred){
-  const p = csPacing(mPred);
-  if (!p.start || isNaN(p.start)) return {labels:[], targetData:[], actualData:[]};
+  const pred = mPred || marketOk;
+  const c = activeCampaign;
+  const p = csPacing(pred);
+  if (!p.start || isNaN(p.start) || !DATA.cs_daily) return {labels:[], targetData:[], actualData:[]};
+  const monday = d => { const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; };
+
+  // Real leads per Monday week, for this campaign and the selected regions.
+  const byWeek = new Map();
+  for (const r of DATA.cs_daily){
+    if (campaignOf(r.programme) !== c || !pred(r.market)) continue;
+    const d = parseDate(r.date); if (isNaN(d)) continue;
+    const k = +monday(d);
+    byWeek.set(k, (byWeek.get(k) || 0) + (r.total || 0));
+  }
+
+  let first = monday(p.start), last = monday(p.end);
+  for (const k of byWeek.keys()){ const d = new Date(k); if (d < first) first = d; if (d > last) last = d; }
   const weeks = [];
-  let cur = new Date(p.start);
-  cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));   // snap to Monday
-  while (cur <= p.end) { weeks.push(new Date(cur)); cur.setDate(cur.getDate() + 7); }
-  // Weeks are Monday-truncated; if the flight commences mid-week, relabel the first week to the actual
-  // commencement date instead of the prior Monday (the bar only holds post-commencement leads anyway).
-  const labels = weeks.map(x => { const d = (x < p.start) ? p.start : x; return String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); });
+  for (let cur = new Date(first); cur <= last; cur.setDate(cur.getDate()+7)) weeks.push(new Date(cur));
+  const labels = weeks.map(x => String(x.getMonth()+1).padStart(2,'0') + '-' + String(x.getDate()).padStart(2,'0'));
+
+  const inPlan = weeks.map(x => { const e=new Date(x); e.setDate(e.getDate()+6); return x <= p.end && e >= p.start; });
+  const weeklyTarget = p.target / (inPlan.filter(Boolean).length || 1);
+  const targetData = inPlan.map(ok => ok ? Math.round(weeklyTarget) : null);
+
+  // 0 is a real answer (a week with no delivery) - only weeks still in the future are null.
   const today = new Date();
-  const inC = weeks.map(x => { const e=new Date(x); e.setDate(e.getDate()+6); return x <= p.end && e >= p.start; });
-  const activeWeeks = inC.filter(Boolean).length || 1;
-  const weeklyTarget = p.target / activeWeeks;
-  const targetData = inC.map(ok => ok ? Math.round(weeklyTarget) : null);
-  const actualData = weeks.map(x => {
-    const e = new Date(x); e.setDate(e.getDate()+6);
-    if (x > today || e < p.start || x > p.end) return null;
-    const ws = x < p.start ? p.start : x;
-    const we = e > today ? today : e;
-    const days = Math.max(0, Math.round((we - ws)/86400000) + 1);
-    if (days <= 0) return null;
-    return p.elapsed ? Math.round(p.leads * days / p.elapsed) : 0;
-  });
+  const actualData = weeks.map(x => x > today ? null : (byWeek.get(+x) || 0));
   return {labels, targetData, actualData};
 }
 

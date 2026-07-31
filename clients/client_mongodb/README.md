@@ -251,6 +251,34 @@ keeps RAW spend**, so the status-dashboard accuracy checks (JSON vs Snowflake) a
 - **To change the figure:** edit `MARGIN_TARGET`. **To remove the adjustment entirely:** set it to
   `{}`. Redeploy is the standard dashboard-only path: `dash/deploy_dash_mongodb.ps1` (no job/SQL change).
 
+## CS weekly pacing — real lead dates, not a ramp (fixed 2026-07-31)
+
+The Content Syndication **"Weekly pacing - target vs actual"** chart shows **true per-week lead
+counts**. It did not always: until 2026-07-31 `buildWeekly()` had no dates to work with and spread
+the whole-flight lead total evenly across the elapsed window
+(`p.leads * days / p.elapsed`). That drew an identical bar every week regardless of real delivery -
+KGA/IDC read a flat 63 leads/week right through July even though its last lead landed **2026-07-02**,
+which is what surfaced the bug ("why are leads arriving after the campaign ended?").
+
+- **Source:** `sql/18_cs_daily.sql` → `cs_daily` → job key `cs_daily` → `buildWeekly()`. Salesforce
+  leads have always carried a populated `DAY` (0 NULLs); view `05` just aggregated it away.
+- **Reconciliation:** `cs_daily` uses the SAME two delivered-lead definitions as `05`, so the bars
+  sum exactly to the headline Total/Delivered (verified: DNB 413, KGA/IDC 615). **Change one, change
+  both** or the chart stops matching the KPI above it.
+- **Axis = the plan window UNION the weeks that actually carry leads.** KGA/IDC delivered 283 leads
+  (46% of its total) before its seeded plan start of 05-25, and DNB's first lead predates its 04-01
+  start by a day; a plan-window-only axis would silently drop them. Weeks past the last lead render
+  a real **0**, which is how under-delivery reads honestly. The target pace is still spread across
+  the **plan** weeks only (null outside them).
+- **The plan window itself is unchanged** (`targets/budget.csv` → `seed_budget` → `sql/10_budget`).
+  KGA/IDC is still planned 2026-05-25 → 07-31; delivery simply stopped early. Do not "fix" the chart
+  by editing the media-plan dates - that would hide the under-delivery.
+- **The date-range picker is still greyed on the CS / Compare tabs.** The KPIs and the market /
+  programme splits still read the whole-flight `cs_by_programme`, which has no date grain. `cs_daily`
+  carries the full accepted/rejected/new breakdown at day grain specifically so a future date-scoped
+  CS view needs no new view - but scoping those aggregates would also change the numbers the
+  status-dash accuracy check reconciles against, so it is a deliberate follow-up, not a side effect.
+
 ## See also
 
 - [Root README](../../README.md) — the whole-platform map, security model, and naming conventions.

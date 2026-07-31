@@ -35,6 +35,10 @@ views (`stg_*`) must exist before the models and rollups that read them.
 | [`11_stg_tradedesk_pixel.sql`](11_stg_tradedesk_pixel.sql) | `stg_tradedesk_pixel` | Content-engagement **live staging**: per-fire TTD Universal Pixel conversions from `raw_snowflake.tradedesk_apac_conversion` (`ADVERTISER_ID='9c1w83i'`), rolled up to **`CAMPAIGN_KEY` × `ASSET_KEY`**. Maps the 7 tracking tags → `ASSET_KEY`/`ASSET`, derives click-vs-view (`DISPLAY_CLICK_COUNT>0`) and per-fire DNB vs KGA(IDC) (`COALESCE(click,impression)` campaign → `SPLIT("_")[2]` → `campaignOf`). **Replaced the retired CSV seed.** |
 | [`12_pixel_assets.sql`](12_pixel_assets.sql) | `pixel_assets` | Content-engagement: Universal Pixel landing-page views per **content asset × campaign** (the 6 named `MDB_UPM_LPView_*` pixels; the catch-all `default` is excluded here). Reads `stg_tradedesk_pixel`. |
 | [`13_pixel_summary.sql`](13_pixel_summary.sql) | `pixel_summary` | **One row per `CAMPAIGN_KEY`** (DNB / KGA(IDC)): window + the `CONTENT_*` (named pixels) vs `DEFAULT_*` (catch-all, view-through-dominated) conversion split (from `stg_tradedesk_pixel`), plus `IMPS`/`COST_USD`/`CLICKS` from the live `paid_media_model` for the same campaign. |
+| [`18_cs_daily.sql`](18_cs_daily.sql) | `cs_daily` | **Day-grain twin of `05`** - same delivered-lead definitions, one row per programme × market × `DAY`, so it sums back to the headline total. Feeds the CS **Weekly pacing** chart, which buckets it into Monday weeks. Before this view existed the chart had no dates at all: it ramped the whole-flight total evenly across the elapsed window, inventing identical bars in weeks with zero delivery. **Keep both `CASE` arms in step with `05` or the bars stop reconciling.** |
+
+> Views **14-17** (the LinkedIn lane: `stg_linkedin` / `linkedin_summary` / `linkedin_daily` /
+> `linkedin_by_campaign`) are documented in the client README's **LinkedIn lane** section.
 
 > **The pixel views are now LIVE from `raw_snowflake`** (the manual CSV seed was retired).
 > `stg_tradedesk_pixel` reads `raw_snowflake.tradedesk_apac_conversion` (per-fire TTD Universal
