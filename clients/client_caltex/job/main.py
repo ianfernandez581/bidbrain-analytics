@@ -83,10 +83,11 @@ def build_env(bq, observed):
         "monthly_budget":     bnum("monthly_budget_aud"),
         "daily_pace":         bnum("daily_pace_aud"),
         "flight_budget":      bnum("flight_budget_aud"),
-        # Committed in the media plan but NOT measurable from this feed as instrumented - shipped so
-        # the UI can show the commitment and say why it has no actual, instead of hiding it:
-        #   signups   -> needs the application-container tag (only a sitewide base pixel is live)
-        #   viewability -> IAS/DoubleVerify data is not in the Windsor TTD feed at all
+        # Committed in the media plan. signups is still unmeasurable (needs the application-container
+        # tag; only a sitewide base pixel is live). viewability IS carried now - the Windsor TTD feed
+        # does expose sampled_viewed/sampled_tracked - but it returns NOTHING for this advertiser until
+        # viewability measurement is enabled on the ad groups in TTD, so the UI must distinguish
+        # "no sample" from a real 0%.
         "signups_target":     bnum("signups_target"),
         "viewability_target": bnum("viewability_target"),
     }
@@ -121,6 +122,10 @@ def build_env(bq, observed):
         "projected_spend": projected_spend, "spend_to_date": round(spend_total, 2),
         "impressions_to_date": imps_total,
         "actions_to_date": round(actions_total, 1),
+        # Flight-level viewability sample. Kept as the two components (never a pre-divided rate) so
+        # any date sub-range stays exact; None-vs-0 is meaningful - see the benchmarks note above.
+        "vw_viewed_to_date": round(sum(num(r.get("sampled_viewed")) or 0 for r in fact), 0),
+        "vw_tracked_to_date": round(sum(num(r.get("sampled_tracked")) or 0 for r in fact), 0),
     }
 
     env = {
@@ -155,6 +160,9 @@ def build_env(bq, observed):
             "video_50": num(r.get("video_50")), "video_75": num(r.get("video_75")),
             "video_completes": num(r.get("video_completes")),
             "pv_conv": num(r.get("post_view_conv")), "pc_conv": num(r.get("post_click_conv")),
+            # Viewability sample. None (not 0) when TTD is not measuring it, so the UI can say
+            # "not measured" instead of claiming 0% viewable.
+            "vw_viewed": num(r.get("sampled_viewed")), "vw_tracked": num(r.get("sampled_tracked")),
         } for r in fact],
     }
     summary = (f"{len(fact)} fact rows, {imps_total:,} impressions, "

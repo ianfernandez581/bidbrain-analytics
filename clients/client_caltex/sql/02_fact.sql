@@ -32,6 +32,10 @@ SELECT
   SUM(video_50)              AS video_50,
   SUM(video_75)              AS video_75,
   SUM(video_completes)       AS video_completes,
+  -- SUM (not AVG) both sides, then divide ONCE at the top level - averaging per-row rates
+  -- would weight a 10-impression row the same as a 10,000-impression one.
+  SUM(sampled_viewed_impressions)  AS sampled_viewed,
+  SUM(sampled_tracked_impressions) AS sampled_tracked,
   SUM(post_view_conv)        AS post_view_conv,
   SUM(post_click_conv)       AS post_click_conv
 FROM `bidbrain-analytics.client_caltex.stg_ttd`

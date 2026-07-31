@@ -95,6 +95,12 @@ WINDSOR_FIELDS = ",".join([
     # Video
     "player_starts", "player_25_complete", "player_50_complete",
     "player_75_complete", "player_completed_views",
+    # Viewability. TTD reports it as a SAMPLED pair and the rate is viewed/tracked - never
+    # viewed/impressions, since only a sample is measured. Both are NULL/0 for an advertiser that has
+    # no viewability measurement enabled, so treat "no data" and "0% viewable" as different things
+    # downstream. Field names verified accepted by Windsor before adding (a bad name 400s the whole
+    # request and would break every TTD client).
+    "sampled_viewed_impressions", "sampled_tracked_impressions",
     # Conversion slots (anonymous; see module docstring)
     *_CONVERSION_SLOTS,
 ])
@@ -333,6 +339,8 @@ def transform(row, ingested_at_iso):
         "video_50": to_int(g("player_50_complete")),
         "video_75": to_int(g("player_75_complete")),
         "video_completes": to_int(g("player_completed_views")),
+        "sampled_viewed_impressions": to_int(g("sampled_viewed_impressions")),
+        "sampled_tracked_impressions": to_int(g("sampled_tracked_impressions")),
         "ingested_at": ingested_at_iso,
         "source": "windsor.tradedesk",
         "raw_row": json.dumps(row),
@@ -348,6 +356,7 @@ _MERGE_SET_COLS = [
     "client_slug","agency_slug","impressions","clicks","cost","currency",
     "conversions",
     "video_starts","video_25","video_50","video_75","video_completes",
+    "sampled_viewed_impressions","sampled_tracked_impressions",
     "ingested_at","source","raw_row",
 ]
 
