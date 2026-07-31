@@ -18,8 +18,8 @@ There is **no** `caltex.bidbrain.ai` subdomain, and no client has one (`resetdat
 
 | Path | URL | Login | Billed-spend gross-up |
 |---|---|---|---|
-| **Its own dashboard URL** (per-client, what most clients are given) | https://caltex-dash-516554645957.australia-southeast1.run.app | the dashboard's OWN password, Secret Manager `caltex-dash-password` | **NOT applied - shows RAW media cost** |
-| **Platform front-door** | https://dashboards.bidbrain.ai/d/caltex/ | one platform login (password, or Google / Microsoft sign-in) | **Applied** - shows client-billed spend |
+| **Its own dashboard URL** — THE CLIENT PATH (password, or Google sign-in below) | https://caltex-dash-516554645957.australia-southeast1.run.app | the dashboard's OWN password, Secret Manager `caltex-dash-password` | **NOT applied - shows RAW media cost** |
+| **Platform front-door** — STAFF ONLY, never given to clients | https://dashboards.bidbrain.ai/d/caltex/ | one platform login (password, or Google / Microsoft sign-in) | **Applied** - shows client-billed spend |
 
 Read the dashboard password (never commit it):
 
@@ -46,18 +46,39 @@ As of 2026-07-31 caltex has **no** multiplier set (`spend_multipliers: {}`), so 
 show identical, raw numbers. Set one before sharing the direct URL if the plan's A$5,000/month is a
 billed rate rather than pass-through media cost.
 
-### Google / Microsoft sign-in (front-door only)
+### Google sign-in ON THIS SERVICE (how the client actually gets in)
 
-Client-side users can be granted sign-in access scoped to THIS dashboard alone, so they see no other
-100% Digital client:
+**dashboards.bidbrain.ai is INTERNAL ONLY** - clients are never given it. So this service carries its
+own "Sign in with Google", gated by an allowlist, alongside the password box (kept as a fallback so a
+misconfigured OAuth origin can never lock anyone out):
+
+- `GOOGLE_OAUTH_CLIENT_ID` - the same OAuth client the platform uses.
+- `ALLOWED_EMAILS` - comma-separated exact addresses. Currently `tilly@iddigital.com.au`.
+- `ALLOWED_EMAIL_DOMAINS` - defaults to `100.digital`, so our own staff always get in.
+
+`POST /auth/google` verifies the signed ID token with google-auth (signature, issuer and audience
+against OUR client id, plus `email_verified`) and only THEN applies the allowlist - nothing is
+trusted client-side. Add or remove a client contact with no redeploy:
 
 ```powershell
-$env:GCS_BUCKET="bidbrain-analytics-platform-dash"
-.\.venv\Scripts\python.exe -c "from store import Store; Store().upsert_user('someone@client.com', role='client', client_key='caltex')"
-# (or use the super-admin console's "Google sign-in access" panel)
+gcloud run services update caltex-dash --region australia-southeast1 --update-env-vars "ALLOWED_EMAILS=tilly@iddigital.com.au,someone.else@client.com"
 ```
 
-Granted 2026-07-31: `tilly@iddigital.com.au` -> role `client`, scoped to `caltex`.
+**ONE-TIME CONSOLE STEP - required, or the button fails with `origin_mismatch`.** The OAuth client
+must list this service as an Authorized JavaScript origin. There is no gcloud surface for OAuth 2.0
+client IDs, so it has to be done in the Console:
+https://console.cloud.google.com/apis/credentials?project=bidbrain-analytics -> the
+`516554645957-u82i4...` client -> **Authorized JavaScript origins** -> add BOTH hostnames Cloud Run
+answers on (a browser sends whichever one it loaded, so both must be listed):
+
+```
+https://caltex-dash-516554645957.australia-southeast1.run.app
+https://caltex-dash-p32gk2wuia-ts.a.run.app
+```
+
+Until that is saved, the Google button errors and the password is the way in.
+
+Tilly's grant on the internal portal was **REMOVED** 2026-07-31 - the portal stays staff-only.
 
 ## Why it wasn't live on day one (diagnosed 2026-07-29 - NOT a Windsor grant problem)
 
