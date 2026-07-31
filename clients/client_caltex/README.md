@@ -57,25 +57,32 @@ consideration phase exists.
 
 ## Two measurement gaps, both with a verified path (2026-07-31)
 
-### 1. Viewability - the plan promises 70%+, and NOTHING is measuring it
+### 1. Viewability - now carried end-to-end; the remaining step is inside TTD
 
-The media plan commits to **70%+ viewability, IAS / DoubleVerify verified**. Findings:
+The media plan commits to **70%+ viewability, IAS / DoubleVerify verified**. State as of 2026-07-31:
 
-- Windsor DOES expose TTD viewability: `sampled_viewed_impressions` / `sampled_tracked_impressions`
-  (viewability rate = viewed / tracked). Both field names were **probed live and accepted** (HTTP 200).
-- Other advertisers on the same seat (484) return real numbers - account-wide **72.0%** over
-  2026-07-29..30 - so the metric works and is worth carrying.
-- **Caltex returns `sampled_tracked = 0` and `sampled_viewed = 0`.** So viewability is not merely
-  un-charted, it is **un-measured on this campaign**: the 70% commitment cannot be verified by anyone
-  today, including in TTD's own UI.
+- Windsor DOES expose TTD viewability: `sampled_viewed_impressions` / `sampled_tracked_impressions`.
+  Viewability rate = **viewed / tracked** (never viewed/impressions - only a sample is measured).
+- Both field names were probed live and **accepted** (HTTP 200) BEFORE being added to the shared
+  loader, because an unknown field name 400s the whole request and would break ingest for all five
+  TTD clients.
+- **BUILT (2026-07-31):** two nullable columns on `raw_windsor.perf_the_trade_desk`; the pair added
+  to `tradedesk_loader.py` (`WINDSOR_FIELDS`, `transform()`, `_MERGE_SET_COLS` - so a re-pull
+  refreshes it as TTD's sample settles); surfaced through `sql/01_stg_ttd.sql` ->
+  `sql/02_fact.sql` (SUM both sides, divide once) -> `job/main.py` (`vw_viewed`/`vw_tracked` on
+  `rows[]` + flight totals) -> a **Viewability (sampled)** KPI and a goal-panel row measured against
+  the 70% target. Benefits every TTD client, not just caltex.
+- **Caltex still returns NO sample** (`sampled_tracked = 0`), while other advertisers on the same
+  seat return real numbers (**72.0%** account-wide over 2026-07-29..30). So the metric works; it is
+  simply **not enabled on these ad groups in TTD**.
 
-**Remedy, in order:** (a) enable viewability measurement on these ad groups in TTD, or obtain the
-IAS/DoubleVerify report the plan references; (b) once non-zero data exists, carry it end to end -
-add both fields to `ingest/windsor_data_pull/tradedesk/tradedesk_loader.py` (`WINDSOR_FIELDS`,
-`transform()`, `_MERGE_SET_COLS`) plus two nullable columns on `raw_windsor.perf_the_trade_desk`,
-surface them in `sql/01_stg_ttd.sql` -> `02_fact.sql` -> `job/main.py` -> a KPI + a vs-70% target.
-NOT done yet on purpose: with zero data for this advertiser the change would add shared-loader and
-shared-schema risk for five TTD clients and display nothing.
+**THE ONE REMAINING ACTION IS IN THE TTD UI**, not in this repo: enable viewability measurement on
+the Caltex ad groups (or obtain the IAS/DoubleVerify report the plan references). The pipeline will
+pick it up on the next nightly run with no code change.
+
+Because "not measured" and "0% viewable" are very different claims against a 70% commitment, the UI
+distinguishes them: a real rate when `tracked > 0`, and "not measured yet / enable in TTD" when the
+sample is absent. It never renders 0%.
 
 ### 2. Star Card applications - not measurable from the installed tag
 

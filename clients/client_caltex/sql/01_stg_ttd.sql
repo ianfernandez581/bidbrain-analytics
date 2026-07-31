@@ -51,6 +51,11 @@ SELECT
   video_50,
   video_75,
   video_completes,
+  -- Viewability: TTD measures only a SAMPLE, so the rate is viewed/tracked (never
+  -- viewed/impressions). Both are NULL until viewability measurement is enabled on the ad
+  -- groups in TTD, and NULL must stay distinguishable from a real 0% downstream.
+  sampled_viewed_impressions,
+  sampled_tracked_impressions,
   ( COALESCE(SAFE_CAST(JSON_VALUE(_conv, '$.view_through_conversion_01') AS FLOAT64), 0)
   + COALESCE(SAFE_CAST(JSON_VALUE(_conv, '$.view_through_conversion_02') AS FLOAT64), 0)
   + COALESCE(SAFE_CAST(JSON_VALUE(_conv, '$.view_through_conversion_03') AS FLOAT64), 0)

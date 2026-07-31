@@ -380,12 +380,12 @@
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tabpane">
       <div class="section first">
-        <h2>Caltex - awareness &amp; consideration</h2>
+        <h2>Caltex - brand awareness</h2>
         <span class="sub" id="introCopy"></span>
       </div>
 
       <div id="ovNorth">
-        <div class="nsband">Campaign goal &middot; be seen efficiently, be considered</div>
+        <div class="nsband">Campaign goal &middot; reach the right drivers, efficiently</div>
         <div class="kpis nsrow" id="kpiGridN"></div>
         <div class="kpis" id="kpiGrid"></div>
       </div>
@@ -617,7 +617,11 @@ function lowConfidence(r){if(n(r.impressions)<5000)return{low:true,why:'under 5k
 function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
   const spend=s('spend'),imp=s('impressions'),clicks=s('clicks'),vs=s('video_starts'),v25=s('video_25'),v50=s('video_50'),v75=s('video_75'),vc=s('video_completes'),pv=s('pv_conv'),pc=s('pc_conv');
   const actions=pv+pc;
+  // Viewability is SAMPLED: rate = viewed/tracked, and tracked===0 means "not measured", which must
+  // never be rendered as 0% viewable against the plan's 70% commitment.
+  const vwv=s('vw_viewed'),vwt=s('vw_tracked');
   return {spend,impressions:imp,clicks,video_starts:vs,video_25:v25,video_50:v50,video_75:v75,video_completes:vc,pv,pc,actions,
+    vw_viewed:vwv,vw_tracked:vwt,viewability:vwt?vwv/vwt:null,
     ctr:imp?clicks/imp:null,cpm:imp?spend/imp*1000:null,cpc:clicks?spend/clicks:null,cpa:actions?spend/actions:null,vcr:vs?vc/vs:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
 function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Awareness',r0=>({stage:r0.stage||'Awareness'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,ti=g.reduce((a,x)=>a+n(x.impressions),0)||1;g.forEach(x=>{x.spend_share=n(x.spend)/ts;x.imp_share=n(x.impressions)/ti;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
@@ -788,11 +792,11 @@ function render(){
 function renderHeader(){
   const f=flight(),m=meta();
   $('topPeriod').textContent=`${fmtDate(f.start)} – ${fmtDate(f.end)}`;
-  const notes={overview:'Awareness & consideration',paid:'Delivery & efficiency',creative:'Creative library'};
+  const notes={overview:'Brand awareness',paid:'Delivery & efficiency',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
   const mk=[...new Set(ROWS().map(r=>r.market).filter(Boolean))].join(' · ')||'QLD+WA';
-  $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a mixed <b>awareness + consideration</b> campaign in ${safeName(mk)}, bought three ways (standard display, AI contextual, attention-optimised). Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
+  $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a <b>brand awareness</b> campaign in ${safeName(mk)}, bought three ways (standard display, AI contextual, attention-optimised) - all three ad groups are set to Awareness in The Trade Desk, with a consideration phase planned. Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
 }
 function renderPlaceholderBanner(){
   // Show the "sample data" banner + flip the topbar pill to "Preview" whenever the payload is the
@@ -820,6 +824,7 @@ function kpiCard(o){
 function renderKpis(){
   const a=agg(scoped());
   const cpmT=bench('cpm'),ctrT=bench('ctr'),cpcT=bench('cpc'),impT=bench('impressions_target');
+  const vwT=bench('viewability_target');
   const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
   const fImps=n(flight().impressions_to_date);const impPct=(impT&&fImps)?Math.round(fImps/impT*100):null;
   // North-star band: the campaign goals - efficient attention (awareness) + engagement and site
@@ -842,6 +847,12 @@ function renderKpis(){
     {color:MC.cost,label:'CPM',value:a.cpm!=null?money(a.cpm,2):'-',sub:cpmT!=null?`target ${money(cpmT,2)}`:'cost per 1,000 impressions'},
     {color:MC.cost,label:'CPC',value:a.cpc!=null?money(a.cpc,2):'-',sub:cpcT!=null?`target ${money(cpcT,2)}`:'cost per click'},
     {color:MC.video,label:'Video completion',value:a.vcr!=null?pctWhole(a.vcr):'-',sub:a.video_starts?`${compact(a.video_starts)} starts → ${compact(a.video_completes)} completes`:'no video creatives in range'},
+    {color:MC.imps,label:'Viewability (sampled)',
+      value:a.viewability!=null?pctWhole(a.viewability):'-',
+      sub:a.viewability!=null
+            ?`${compact(a.vw_viewed)} of ${compact(a.vw_tracked)} measured${vwT!=null?` · target ${pctWhole(vwT)}`:''}`
+            :(vwT!=null?`not measured yet · plan ${pctWhole(vwT)}`:'not measured yet'),
+      badge:a.viewability==null?'enable in TTD':null},
     {color:MC.ctr,label:'Tactics live',value:int(tactics.length),sub:markets.length?markets.join(' · '):'&nbsp;'}
   ];
   $('kpiGridN').innerHTML=north.map(kpiCard).join('');
@@ -916,7 +927,9 @@ function renderGoalProgress(){
     +bar('Impressions',a.impressions,impT,MC.imps,impHi!=null?`plan range to ${compact(impHi)}`:'',compact)
     +bar('Site visits',a.actions,null,MC.actions,'ad-attributed, not applications')
     +(signT!=null?caveat('Star Card sign-ups',signT,'not measured yet - needs the application tag on the form container'):'')
-    +caveat('Viewability',bench('viewability_target'),'not in the Trade Desk feed - report from IAS / DoubleVerify',v=>pctWhole(v));
+    +(a.viewability!=null
+        ?bar('Viewability',a.viewability,bench('viewability_target'),MC.imps,'sampled by The Trade Desk',v=>pctWhole(v))
+        :caveat('Viewability',bench('viewability_target'),'no sample returned - viewability measurement is not enabled on these ad groups in The Trade Desk',v=>pctWhole(v)));
 }
 // Cumulative impressions across the flight vs the straight-line pace needed to hit the impression
 // target by the end date (full-flight; the client's "are we on track?" read). Above dashed = ahead.
