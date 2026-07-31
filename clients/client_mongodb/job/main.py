@@ -87,6 +87,10 @@ def main():
     bud = rows(bq, f"SELECT * FROM {t('budget')}")
     cso = rows(bq, f"SELECT * FROM {t('cs_leads')}")
     csp = rows(bq, f"SELECT * FROM {t('cs_leads_by_programme')}")
+    # Day-grain CS leads (view 18). Same delivered definitions as cs_leads_by_programme,
+    # so it sums back to the headline total; the dashboard buckets it into Monday weeks
+    # for the "Weekly pacing" chart instead of ramping the flight total across the window.
+    csd = rows(bq, f"SELECT * FROM {t('cs_daily')}")
 
     # Content-engagement snapshot (Trade Desk Universal Pixel) — LIVE from
     # raw_snowflake.tradedesk_apac_conversion via the pixel_* views (the manual CSV
@@ -191,6 +195,9 @@ def main():
         "cs_by_programme": [{"programme": r["PROGRAMME_LABEL"], "market": r["MARKET"], "total": r["TOTAL_LEADS"],
                 "accepted": r["ACCEPTED"], "rejected": r["REJECTED"], "new": r["NEW_LEADS"],
                 "last_lead_day": iso(r["LAST_LEAD_DAY"])} for r in csp],
+        "cs_daily": [{"programme": r["PROGRAMME_LABEL"], "market": r["MARKET"], "date": iso(r["DAY"]),
+                "total": r["TOTAL_LEADS"], "accepted": r["ACCEPTED"], "rejected": r["REJECTED"],
+                "new": r["NEW_LEADS"]} for r in csd],
         "pixel": pixel,
         "linkedin": linkedin,
     }

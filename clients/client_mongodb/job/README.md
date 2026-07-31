@@ -74,6 +74,7 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
   "budget":   [ /* programme, tradedesk_code, gross_usd, net_usd, start, end, est_cpc (committed blended CPC; null for DNB IDE) */ ],
   "cs":              [ /* market, total, accepted, rejected, new, last_lead_day (status buckets: Accepted / Rejected / New=Unresponsive+Do Not Contact+New) */ ],
   "cs_by_programme": [ /* programme, market, total, accepted, rejected, new, last_lead_day (same buckets; for KGA/IDC total & new = Unresponsive+Do Not Contact+New only) */ ],
+  "cs_daily":        [ /* programme, market, date, total, accepted, rejected, new - day grain, same buckets as cs_by_programme (sums back to it). Feeds the CS Weekly pacing chart. */ ],
   "pixel": {                                       // TTD Universal Pixel content-engagement, LIVE & per-campaign; null if the views are absent
     "summary": { /* keyed by CAMPAIGN_KEY "DNB"|"IDC"; each: start, end, days, imps, cost_usd, clicks, all_conv, content_total/click/view (named pixels), default_total/view/click (catch-all) */ },
     "assets":  [ /* { campaign, key, asset, total, click, view } — per named content landing page × campaign (Gartner MQ Leader, AI Readiness, …) */ ]
@@ -83,7 +84,7 @@ dashboard reads these keys **by name** — rename one here and you must fix `das
 
 Source views, one per payload branch: `paid_media_model` → `rows`; `targets` → `targets`;
 `benchmarks_strategy` / `benchmarks_market`; `budget`; `cs_leads` → `cs`;
-`cs_leads_by_programme` → `cs_by_programme`; `pixel_summary` / `pixel_assets` → `pixel`
+`cs_leads_by_programme` → `cs_by_programme`; `cs_daily` → `cs_daily`; `pixel_summary` / `pixel_assets` → `pixel`
 (per-campaign; wrapped in `try/except` → `null` if those views don't exist yet). The `window` is
 computed from the min/max date in `paid_media_model`.
 
