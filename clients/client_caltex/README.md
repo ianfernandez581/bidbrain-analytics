@@ -41,6 +41,60 @@ event name**, so it fires identically on every page. Consequences:
   export one tracker as a duplicate column pair (the VMCH `{01,03,05}` case); if so, switch both
   `sql/01_stg_ttd.sql` and the status-dash check to one column per pair.
 
+## Funnel stage is HARD-CODED to Awareness (2026-07-31)
+
+All three ad groups are set to **Awareness** in The Trade Desk (client-confirmed). An earlier version
+inferred the stage from the ad-group NAME and wrongly tagged `AI Contextual` and
+`Attention-Optimised` as Consideration - our inference, never TTD's setting.
+
+TTD's ad-group **"Funnel location"** column is **not exposed by the Windsor connector** (verified
+against `raw_windsor.windsor_fields`; the only funnel-ish field is `campaign_objective`, which is
+CAMPAIGN-level and so cannot distinguish ad groups once a consideration phase is added inside the
+same campaign). So the mapping is an explicit per-tactic `CASE` in `sql/01_stg_ttd.sql` - change the
+one line for an ad group when its stage really changes. The three-way split still lives on the
+**Spend by tactic** donut; the funnel-stage table intentionally shows a single Awareness row until a
+consideration phase exists.
+
+## Two measurement gaps, both with a verified path (2026-07-31)
+
+### 1. Viewability - the plan promises 70%+, and NOTHING is measuring it
+
+The media plan commits to **70%+ viewability, IAS / DoubleVerify verified**. Findings:
+
+- Windsor DOES expose TTD viewability: `sampled_viewed_impressions` / `sampled_tracked_impressions`
+  (viewability rate = viewed / tracked). Both field names were **probed live and accepted** (HTTP 200).
+- Other advertisers on the same seat (484) return real numbers - account-wide **72.0%** over
+  2026-07-29..30 - so the metric works and is worth carrying.
+- **Caltex returns `sampled_tracked = 0` and `sampled_viewed = 0`.** So viewability is not merely
+  un-charted, it is **un-measured on this campaign**: the 70% commitment cannot be verified by anyone
+  today, including in TTD's own UI.
+
+**Remedy, in order:** (a) enable viewability measurement on these ad groups in TTD, or obtain the
+IAS/DoubleVerify report the plan references; (b) once non-zero data exists, carry it end to end -
+add both fields to `ingest/windsor_data_pull/tradedesk/tradedesk_loader.py` (`WINDSOR_FIELDS`,
+`transform()`, `_MERGE_SET_COLS`) plus two nullable columns on `raw_windsor.perf_the_trade_desk`,
+surface them in `sql/01_stg_ttd.sql` -> `02_fact.sql` -> `job/main.py` -> a KPI + a vs-70% target.
+NOT done yet on purpose: with zero data for this advertiser the change would add shared-loader and
+shared-schema risk for five TTD clients and display nothing.
+
+### 2. Star Card applications - not measurable from the installed tag
+
+The sitewide base pixel cannot distinguish an application from any other pageview (see the pixel
+section above). Three routes, cheapest first:
+
+1. **A URL-rule conversion tag on the EXISTING pixel, no site access needed.** TTD lets you define a
+   tag under a Universal Pixel that fires only on URLs matching a pattern. If the application
+   confirmation page has its own URL *on the domain where the pixel already runs*, this can be
+   created in the TTD UI today and needs no developer. It will not work if the confirmation lives on
+   a different domain/portal or is an SPA state with no URL change - check first.
+2. **A client-supplied application count** (weekly CSV -> seed table, the `client_cloudflare` LINE
+   pattern). This matches what the client already proposes - crediting post-launch applications to
+   the campaign - but it is a TOTAL, not ad-attributed, and must be labelled as such.
+3. **The application-container tag** they are still seeking access for - the only route giving true
+   per-application attribution, and the one that also unlocks the plan's Phase 2 retargeting.
+
+Until one of these lands, the dashboard must not show an application count. It currently says so.
+
 Self-hosted paid-media dashboard. **Single channel** (The Trade Desk programmatic display),
 **mixed awareness + consideration** brand campaign for Caltex fuel retail across **QLD+WA**,
 bought via three tactics = the three TTD ad groups:
