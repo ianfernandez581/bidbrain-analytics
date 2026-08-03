@@ -30,9 +30,50 @@ const DEFAULTS = {
   minFlightFraction: 0.05,  // and not before this fraction of flight elapsed
   recentWindow: 3,          // complete days used for the recent rate
   peakWindow: 3,            // rolling mean width for peak observed rate
-  reachTolerance: 1.15,     // required may exceed peak by this much and still be reachable
+  reachTolerance: 1.15,     // required may exceed the rolling peak by this and stay reachable
+  reachToleranceDegraded: 3, // wider, because an average is a weaker ceiling than a peak
+  rampMultiple: 2,          // latest day this far above the peak means it is accelerating
+  staleDataDays: 3,         // matches the-grid.html's as-of amber badge
   deadDayThreshold: 2       // consecutive zero days from planned start before flagging
 };
+
+/**
+ * Per-platform facts, derived from verified BigQuery evidence and the
+ * Fees & Margins sheet. Never derive one cost figure from another: read the
+ * column that is already the basis you need.
+ *
+ *   billedColumn  which BQ column is the billed (client-facing) figure
+ *   marginOfPartner  margin expressed as a fraction OF PARTNER COST
+ *                    (the fee card reads "60% of partner cost", so billed is
+ *                    partner x 1.6 plus per-impression fees, NOT partner / 0.4)
+ *   adServingCpm  per thousand impressions, in the seat's currency
+ */
+const PLATFORM_RULES = {
+  ttd:       { billedColumn: 'COSTS',                   reportsBilled: true,  marginOfPartner: 0.60 },
+  linkedin:  { billedColumn: 'COSTS',                   reportsBilled: true,  marginOfPartner: 0 },
+  meta:      { billedColumn: 'cost',                    reportsBilled: true,  marginOfPartner: 0 },
+  googleads: { billedColumn: 'spend',                   reportsBilled: true,  marginOfPartner: 0 },
+  dv360:     { billedColumn: 'REVENUE_ADV_CURRENCY',    reportsBilled: true,  marginOfPartner: 0 },
+  reddit:    { billedColumn: 'COSTS',                   reportsBilled: true,  marginOfPartner: 0 }
+};
+
+const AD_SERVING_CPM = { transmission: 1.50, '100digital': 0.90 };
+
+function normPlatform(p) {
+  return String(p || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+    .replace('thetradedesk', 'ttd').replace('tradedesk', 'ttd')
+    .replace('googleads', 'googleads').replace('facebook', 'meta');
+}
+
+/**
+ * Margin comes from the platform, never from a per-row field. Central carries
+ * platformMargin = 0.006 on Caltex where 0.6 was meant; a per-row read makes a
+ * single typo corrupt one campaign's profit figure by 100x.
+ */
+function resolveMargin(platform) {
+  const r = PLATFORM_RULES[normPlatform(platform)];
+  return r ? r.marginOfPartner : 0;
+}
 
 const STATES = {
   NOT_LAUNCHED: 'NOT_LAUNCHED',
@@ -42,7 +83,8 @@ const STATES = {
   BEHIND_RECOVERING: 'BEHIND_RECOVERING',
   BEHIND_NOT_RECOVERING: 'BEHIND_NOT_RECOVERING',
   UNREACHABLE: 'UNREACHABLE',
-  ENDED: 'ENDED'
+  ENDED: 'ENDED',
+  BASIS_UNKNOWN: 'BASIS_UNKNOWN'
 };
 
 function toUTC(d) {
@@ -90,7 +132,22 @@ function computePacing(input) {
 
   if (!(budget > 0)) throw new Error('budget must be a positive number');
   if (end < start) throw new Error('flightEnd is before plannedStart');
-  if (!input.budgetBasis) throw new Error('budgetBasis must be "client" or "media"');
+
+  // Vocabulary follows plan-reader-v2: media | billed | unknown. 'client' is
+  // accepted as a synonym for 'billed' so earlier callers keep working.
+  const rawBasis = String(input.spendBasis || input.budgetBasis || '').toLowerCase();
+  const basis = rawBasis === 'client' ? 'billed' : rawBasis;
+  if (!basis) throw new Error('spendBasis must be "media", "billed" or "unknown"');
+
+  // An unknown basis cannot produce a verdict. plan-reader-v2 R1 requires a
+  // human to choose; a guess here silently halves or doubles every figure.
+  if (basis === 'unknown') {
+    return {
+      state: STATES.BASIS_UNKNOWN, budget, spendBasis: 'unknown', degraded: true,
+      spent: null, paceIndex: null, driftDays: null, requiredDaily: null,
+      reasons: ['spend basis is unknown: a human must choose media or billed before pacing can be judged']
+    };
+  }
 
   // ---- complete days only -------------------------------------------------
   const rows = (input.dailySpend || [])
@@ -98,12 +155,25 @@ function computePacing(input) {
     .filter(r => r.ms >= start && r.ms <= end)
     .sort((a, b) => a.ms - b.ms);
 
+  // Degraded mode. grid-core has no daily series today: central_sync.py collapses
+  // the grain with GROUP BY 1 before anything is stored. So the engine must work
+  // from a single to-date figure, returning null for everything that genuinely
+  // needs the shape of the series rather than inventing it.
+  const degraded = rows.length === 0 && input.spentToDate != null;
+  if (degraded && !input.lastDataDate) {
+    throw new Error('lastDataDate is required with spentToDate: without it, elapsed days are unknowable');
+  }
+
   const complete = rows.filter(r => !r.partial && r.ms < asOf);
   const excluded = rows.length - complete.length;
   if (excluded > 0) reasons.push(`${excluded} row(s) excluded as partial or not yet closed`);
 
-  const spent = round2(complete.reduce((s, r) => s + r.amount, 0));
-  const lastComplete = complete.length ? complete[complete.length - 1].ms : null;
+  const spent = degraded
+    ? round2(Number(input.spentToDate))
+    : round2(complete.reduce((s, r) => s + r.amount, 0));
+  const lastComplete = degraded
+    ? Math.min(toUTC(input.lastDataDate), asOf - DAY)
+    : (complete.length ? complete[complete.length - 1].ms : null);
   const firstSpendRow = complete.find(r => r.amount > 0) || null;
   const firstSpend = firstSpendRow ? firstSpendRow.ms : null;
 
@@ -120,32 +190,46 @@ function computePacing(input) {
   const requiredDaily = remainingDays > 0 ? round2((budget - spent) / remainingDays) : null;
 
   // ---- dead days at launch ------------------------------------------------
-  let deadDays = 0;
-  if (firstSpend !== null) {
+  let deadDays = degraded ? null : 0;
+  if (degraded) {
+    // no series, so the first delivery date is not recoverable
+  } else if (firstSpend !== null) {
     deadDays = Math.max(0, daysInclusive(start, firstSpend) - 1);
   } else if (daysElapsed > 0) {
     deadDays = daysElapsed;
   }
+  if (degraded) reasons.push('no daily series: dead days, recent rate and peak rate are unavailable');
 
   // ---- rate and capacity, delivery days only -----------------------------
   const deliveryRows = firstSpend !== null ? complete.filter(r => r.ms >= firstSpend) : [];
   const deliveryDays = deliveryRows.length;
   const amounts = deliveryRows.map(r => r.amount);
 
-  const observedDaily = deliveryDays > 0 ? round2(spent / deliveryDays) : null;
-  const recentRate = deliveryDays > 0
+  const observedDaily = degraded
+    ? (daysElapsed > 0 ? round2(spent / daysElapsed) : null)
+    : (deliveryDays > 0 ? round2(spent / deliveryDays) : null);
+  const recentRate = (!degraded) && deliveryDays > 0
     ? round2(amounts.slice(-t.recentWindow).reduce((a, b) => a + b, 0) / Math.min(t.recentWindow, deliveryDays))
     : null;
 
-  let peakRate = deliveryDays > 0 ? round2(rollingMax(amounts, t.peakWindow)) : null;
+  let peakRate = (!degraded) && deliveryDays > 0 ? round2(rollingMax(amounts, t.peakWindow)) : null;
   let peakIsFallback = false;
-  if (peakRate === null || deliveryDays < t.peakWindow) {
+  let capacityBasis = degraded ? 'observed_average' : 'rolling_peak';
+  if (degraded) {
+    // The average achieved so far is a weaker capacity proxy than a rolling
+    // peak, so the tolerance widens. It still catches the case that matters:
+    // Water and Environment needs 16x its own average.
+    peakRate = observedDaily != null ? Math.max(observedDaily, 0) : evenDaily;
+    peakIsFallback = true;
+  } else if (peakRate === null || deliveryDays < t.peakWindow) {
     peakRate = Math.max(peakRate || 0, evenDaily);
     peakIsFallback = true;
     reasons.push(`peak rate falls back to even pace: only ${deliveryDays} delivery day(s)`);
   }
 
-  const reachable = requiredDaily === null ? true : requiredDaily <= peakRate * t.reachTolerance;
+  const tol = degraded ? t.reachToleranceDegraded : t.reachTolerance;
+  const reachable = requiredDaily === null ? true
+    : (peakRate > 0 ? requiredDaily <= peakRate * tol : false);
   const recovering = requiredDaily !== null && recentRate !== null && recentRate >= requiredDaily;
   const requiredVsPeak = requiredDaily !== null && peakRate > 0 ? round2(requiredDaily / peakRate) : null;
   // Drift expressed in days of budget. This self-scales: 20% ahead on day 5
@@ -163,10 +247,40 @@ function computePacing(input) {
   const projectionConfidence =
     deliveryDays >= 14 ? 'high' : deliveryDays >= 7 ? 'medium' : 'low';
 
+  // A campaign that has just started scaling will show a rolling peak still
+  // full of near-zero days. Job 2463 reads unreachable today and clears in two
+  // days. Flag it rather than letting people learn to distrust the alert.
+  const latestDay = (!degraded) && amounts.length ? amounts[amounts.length - 1] : null;
+  const ramping = latestDay != null && peakRate > 0 && latestDay >= peakRate * t.rampMultiple;
+  if (ramping) reasons.push('accelerating: latest day is well above the 3-day peak, re-check tomorrow');
+
+  // Data age. BigQuery runs 1 to 2 days behind; the Grid's staleness is app-side
+  // (no scheduler running). A stale verdict is not a current verdict.
+  const dataAgeDays = lastComplete === null ? null : Math.floor((asOf - lastComplete) / DAY);
+  const stale = dataAgeDays !== null && dataAgeDays > t.staleDataDays;
+  if (stale) reasons.push(`spend data is ${dataAgeDays} days old: run a sync before acting on this`);
+
   // ---- state -------------------------------------------------------------
   let state;
   if (remainingDays === 0) {
     state = STATES.ENDED;
+  } else if (degraded) {
+    // No series, so delivery days are unknown. Gate on elapsed flight instead.
+    if (daysElapsed < t.minDeliveryDays || daysElapsed / daysTotal < t.minFlightFraction) {
+      state = STATES.TOO_EARLY;
+      reasons.push(`too early to judge: ${round2(100 * daysElapsed / daysTotal)}% of flight elapsed`);
+    } else if (driftDays > t.driftDaysBand) {
+      state = STATES.TOO_FAST;
+      reasons.push(`${driftDays} days of budget ahead of schedule`);
+    } else if (driftDays >= -t.driftDaysBand) {
+      state = STATES.ON_TRACK;
+    } else if (!reachable) {
+      state = STATES.UNREACHABLE;
+      reasons.push(`needs ${requiredDaily}/day against an average of ${observedDaily}/day achieved so far`);
+    } else {
+      state = STATES.BEHIND_NOT_RECOVERING;
+      reasons.push(`${Math.abs(driftDays)} days behind`);
+    }
   } else if (firstSpend === null) {
     state = deadDays >= t.deadDayThreshold ? STATES.NOT_LAUNCHED : STATES.TOO_EARLY;
     if (state === STATES.NOT_LAUNCHED) reasons.push(`no delivery in ${deadDays} day(s) since planned start`);
@@ -178,7 +292,7 @@ function computePacing(input) {
     reasons.push(`${driftDays} days of budget ahead of schedule`);
   } else if (driftDays >= -t.driftDaysBand) {
     state = STATES.ON_TRACK;
-  } else if (!reachable) {
+  } else if (!reachable && !ramping) {
     state = STATES.UNREACHABLE;
     reasons.push(`needs ${requiredDaily}/day but best observed 3-day rate is ${peakRate}`);
   } else if (recovering) {
@@ -198,10 +312,15 @@ function computePacing(input) {
 
   return {
     state,
+    degraded,
     deadDays,
     deadDayFlag,
+    ramping,
+    dataAgeDays,
+    stale,
+    capacityBasis,
     budget,
-    budgetBasis: input.budgetBasis,
+    spendBasis: basis,
     currency: input.currency || null,
     platform: input.platform || null,
     level: input.level || 'campaign',
@@ -231,13 +350,27 @@ function computePacing(input) {
   };
 }
 
-/** Money the agency loses if the projection holds. Margin is a per-platform fact. */
+/**
+ * Money the agency loses if the projection holds.
+ *
+ * Margin resolves from the platform, not from a per-row field. Pass marginPct
+ * only to override deliberately.
+ *
+ * Caveat worth carrying into the UI: on TradeDesk the fee card reads "60% of
+ * partner cost", and billed also carries per-impression ad serving plus audience
+ * data fees. On Caltex the observed billed-to-partner ratio was 8.16x where the
+ * margin alone predicts 1.6x, so treat this figure as an estimate and label it
+ * as one.
+ */
 function profitAtRisk(pacing, marginPct) {
-  if (!(marginPct >= 0 && marginPct <= 1)) throw new Error('marginPct must be between 0 and 1');
-  if (pacing.budgetBasis !== 'client') {
-    throw new Error('profitAtRisk expects a client-basis budget');
+  const m = marginPct === undefined ? resolveMargin(pacing.platform) : marginPct;
+  if (!(m >= 0 && m < 1)) {
+    throw new Error('margin must be >= 0 and < 1: a margin of 1 or more makes the maths undefined');
   }
-  return round2(pacing.shortfall * marginPct);
+  if (pacing.spendBasis !== 'billed') {
+    return { value: null, estimated: true, reason: 'profit at risk needs a billed-basis budget' };
+  }
+  return { value: round2(pacing.shortfall * m), marginUsed: m, estimated: true };
 }
 
 /** Roll ad-set level results up. Never averages a pace index. */
@@ -262,4 +395,18 @@ function severity(state) {
   }[state] ?? 0;
 }
 
-module.exports = { computePacing, profitAtRisk, rollUp, STATES, DEFAULTS, severity };
+/** Never sum across currencies. Aggregates return one entry per currency. */
+function rollUpByCurrency(results) {
+  const out = {};
+  for (const r of results) {
+    const c = r.currency || 'UNKNOWN';
+    (out[c] = out[c] || []).push(r);
+  }
+  for (const c of Object.keys(out)) out[c] = rollUp(out[c]);
+  return out;
+}
+
+module.exports = {
+  computePacing, profitAtRisk, rollUp, rollUpByCurrency, resolveMargin,
+  STATES, DEFAULTS, PLATFORM_RULES, AD_SERVING_CPM, normPlatform, severity
+};
