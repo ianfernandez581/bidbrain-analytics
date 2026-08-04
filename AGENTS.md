@@ -84,6 +84,10 @@ dates, "verified on") lives there too, never here.**
 - **`grid-core/`** - The Grid: Node/SQLite cross-client cockpit (Pulse pacing, Central table, Exec
   KPIs), service `central-grid`, deployed via `grid-core/deploy_grid.ps1` (auto-run by ship on any
   grid-core change). Its PHASE*_REPORT.md audit trail lives at repo root - cited by live code, keep.
+  Its SQLite state is DURABLE on Cloud Run via `gs://bidbrain-analytics-grid-state` (env
+  `GRID_STATE_BUCKET`; `src/brain/persist.js`) - the ONLY non-`<c>`-derived bucket in the project.
+  `central_sync.py` queries BigQuery through the CLIENT LIBRARY, never the `bq` CLI: there is no
+  gcloud SDK in that image.
 - **`api-probe/`** - zero-dep Node CLI probing reporting-API access across ad platforms; step 2 of
   grid-core's go-live SOP. Not deployed, keep.
 - **`ingest/`** - shared raw-layer loaders: `snowflake_data_pull` (-> `raw_snowflake`, self-gating

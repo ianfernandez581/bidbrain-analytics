@@ -39,10 +39,37 @@ ACCOUNT = os.environ.get("CENTRAL_BQ_ACCOUNT", "ian@100.digital")
 CONFIG = Path(os.environ.get("CENTRAL_CLIENTS_PATH") or (Path(__file__).resolve().parents[1] / "config" / "central-clients.json"))
 
 
+_BQ_CLIENT = None
+
+
 def _bq_csv(sql):
-    """Run a query via the bq CLI, return list[dict] (CSV parsed). shell=True because
-    on Windows `bq` is a .cmd wrapper; the SQL is collapsed to one line and must not
-    contain double quotes (shell quoting). Copied from live_metrics._bq_csv."""
+    """Run a query, return list[dict] shaped EXACTLY like the CSV the bq CLI used to
+    emit: every cell a string, SQL NULL as "". The rest of this file (and _num) was
+    written against that contract, so both backends stay interchangeable.
+
+    The client library is the primary path because the Cloud Run image has no gcloud
+    SDK, so there is no `bq` binary in the container -- that is precisely why the
+    platform's "Sync now" tile could never sync and read "never synced" forever. The
+    CLI stays as a fallback for a machine that has gcloud but not the library.
+    """
+    global _BQ_CLIENT
+    try:
+        from google.cloud import bigquery
+    except ImportError:
+        return _bq_csv_cli(sql)
+    if _BQ_CLIENT is None:                      # one client per process, reused per query
+        _BQ_CLIENT = bigquery.Client(project=PROJECT)
+    job = _BQ_CLIENT.query(" ".join(sql.split()))
+    # str() every value: a DATE comes back as datetime.date, which json.dumps cannot
+    # serialise, and a NUMERIC as Decimal. "" for NULL matches what --format=csv wrote.
+    return [{k: ("" if v is None else str(v)) for k, v in dict(row).items()}
+            for row in job.result()]
+
+
+def _bq_csv_cli(sql):
+    """Fallback: the original bq-CLI path. shell=True because on Windows `bq` is a .cmd
+    wrapper; the SQL is collapsed to one line and must not contain double quotes
+    (shell quoting). That quoting limit does NOT apply to the client-library path."""
     env = dict(os.environ, CLOUDSDK_CORE_ACCOUNT=ACCOUNT)
     one_line = " ".join(sql.split())
     assert '"' not in one_line, "SQL must not contain double quotes (shell quoting)"

@@ -15,8 +15,17 @@ const DATA_DIR = process.env.BRAIN_DATA_DIR || path.join(__dirname, '..', '..', 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 const DB_PATH = path.join(DATA_DIR, 'brain-historical.db');
 
+// Pull the durable copy down BEFORE the first open (no-op unless GRID_STATE_BUCKET is
+// set, so local dev is untouched). Without this the ephemeral /tmp DB is empty on every
+// Cloud Run cold start and a sync has nowhere to land — see persist.js.
+const persist = require('./persist');
+persist.restoreSync(DB_PATH);
+
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
+// WAL keeps recent commits in a sidecar file; fold them in before the .db is uploaded
+// or the snapshot would be missing whatever was written last.
+persist.setCheckpoint(() => db.pragma('wal_checkpoint(TRUNCATE)'));
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS uploaded_files (
@@ -484,3 +493,44 @@ module.exports = {
 module.exports._CAMPAIGN_ALL_COLS = ['id'].concat(module.exports._CAMPAIGN_CONFIG_COLS)
   .concat(['impressions', 'mediaSpend', 'clientSpend', 'metricsSource', 'lastSyncedAt', 'spendBasis',
     'createdAt', 'updatedAt', 'archivedAt', 'sourceOfRecord']);
+
+/* ---------------------------------------------------------------------------
+ * Small key/value store for server state that must outlive the process.
+ * The "last synced" pill read "never synced" on every cold start because it was
+ * a plain in-memory variable in server.js — including right after a successful
+ * sync, once the instance recycled. Now it lives here, so it survives with the DB.
+ * ------------------------------------------------------------------------- */
+db.exec(`CREATE TABLE IF NOT EXISTS grid_meta (k TEXT PRIMARY KEY, v TEXT NOT NULL, updatedAt TEXT NOT NULL);`);
+module.exports.getMeta = function (key) {
+  const r = db.prepare('SELECT v FROM grid_meta WHERE k=?').get(key);
+  if (!r) return null;
+  try { return JSON.parse(r.v); } catch (e) { return null; }
+};
+module.exports.setMeta = function (key, value) {
+  db.prepare('INSERT INTO grid_meta (k,v,updatedAt) VALUES (@k,@v,@t) ' +
+             'ON CONFLICT(k) DO UPDATE SET v=@v, updatedAt=@t')
+    .run({ k: key, v: JSON.stringify(value == null ? null : value), t: now() });
+  return value;
+};
+
+/* ---------------------------------------------------------------------------
+ * DURABILITY HOOK. Every write to this database goes through one of the methods
+ * below, so wrapping them here is the single place that knows "state changed".
+ * persist.saveSoon() is debounced and a no-op unless GRID_STATE_BUCKET is set.
+ * Listed explicitly rather than pattern-matched: a new mutator must be added on
+ * purpose, so nobody silently gets a write that is never persisted.
+ * ------------------------------------------------------------------------- */
+const MUTATORS = ['createFile', 'createJob', 'updateJobRaw', 'updateJobResult',
+  'insertExtractedRows', 'updateExtractedRow', 'commitSnapshot', 'setCentralField',
+  'createPlanExtraction', 'setPlanStatus', 'importCentralSnapshot', '_upsertCentralSnapshot',
+  'createCampaign', 'updateCampaignField', 'archiveCampaign', 'syncCampaignMetrics', 'setMeta'];
+for (const name of MUTATORS) {
+  const fn = module.exports[name];
+  if (typeof fn !== 'function') { console.error(`[STATE][BUG] db.${name} is not a function — writes through it will NOT persist`); continue; }
+  module.exports[name] = function (...args) {
+    const out = fn.apply(this, args);
+    persist.saveSoon();
+    return out;
+  };
+}
+module.exports._MUTATORS = MUTATORS;   // exported so a test can assert the list stays complete

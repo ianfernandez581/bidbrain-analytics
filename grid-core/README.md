@@ -311,7 +311,9 @@ baked `const DATA` literal and NOT `central-seed.js`. On server boot the pure-sh
 sheet-import rows already exist — it is a one-time import, **not a pipeline**). Traders then
 add / edit / end / archive campaigns **in Central directly** — no Excel edit, no script re-run.
 Rows have a stable generated `id`, `sourceOfRecord` (`sheet-import|manual|plan`), and
-`archivedAt` (soft delete only — there is no hard-delete route). Derived values are computed
+`archivedAt` (soft delete only — there is no hard-delete route). On Cloud Run that DB is
+**durable** since 2026-08-04 (loaded from / saved to a GCS object — see the Sync section below
+for the mechanism); locally it is still just `data/brain-historical.db`. Derived values are computed
 fresh per render via `CentralCalc.computeRow()`, never stored. Field edits update the
 `campaigns` row (the value) **and** append provenance to `central_rows` (the source/filename/
 cellRef, keyed by campaign id). **DERIVED fields are never writable** — `db.js` whitelists
@@ -543,9 +545,26 @@ and point a **Cloud Scheduler** `*/10` job at `POST /api/exec/sync` (request-sco
 the repo's freshness pattern. The `central-grid` runtime SA (`516554645957-compute@`) has
 `roles/storage.objectViewer` for the reads.
 
-**Aside - Central's own Sync** (`/api/central/sync`, the platform tile's button) shells out to the `bq`
-CLI, which isn't installed in the container, so it fails on Cloud Run ("never synced"). Unrelated to the
-Executive tab; fix later by switching `central_sync.py` to the `google-cloud-bigquery` client library.
+**Central's own Sync now works on Cloud Run (fixed 2026-08-04).** It used to fail there for three
+independent reasons, all addressed:
+1. `central_sync.py` shelled out to the `bq` CLI, which is not in the image (no gcloud SDK). It now
+   queries through **`google-cloud-bigquery`** (added to the Dockerfile), returning rows in the exact
+   CSV shape the CLI produced - every cell a string, NULL as `""` - so nothing downstream changed.
+   `_bq_csv_cli()` remains as a fallback for a machine with gcloud but not the library.
+2. The SQLite DB lived in ephemeral `/tmp`, so a sync had nowhere to land and every cold start
+   re-seeded from `central-import.json`. It is now loaded on boot and saved (debounced) after every
+   mutation to **`gs://bidbrain-analytics-grid-state/grid-state/brain-historical.db`** -
+   `src/brain/persist.js`, off unless `GRID_STATE_BUCKET` is set, so local dev is unchanged. Writes
+   carry an `ifGenerationMatch` precondition: a second instance can never silently clobber the first
+   (on conflict it REFUSES and logs loudly). The bucket has object versioning, so a bad write can be
+   rolled back. The whole DB is ~100 KB, which is why one GCS object beats a database service.
+3. "Last synced" was a bare in-memory variable, so it read "never synced" after every cold start even
+   right after a successful sync. It now lives in the `grid_meta` table (`db.getMeta/setMeta`).
+
+The runtime SA (`516554645957-compute@`) was granted `roles/bigquery.jobUser` +
+`roles/bigquery.dataViewer` (project) and `roles/storage.objectAdmin` on the state bucket.
+**Map approvals still belong locally + committed** - `/approve` writes `central-clients.json`, which is
+baked into the IMAGE, not the persisted DB. Campaign edits and sync results now survive restarts.
 
 **Verify without a browser:** `exec-verify.js` (this session's scratchpad) stubs the DOM in a `vm` context,
 runs the main script, calls `renderExec()`, prints the per-client KPI/verdict table, and writes a
