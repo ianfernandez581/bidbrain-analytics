@@ -188,6 +188,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,.ibtn:focus-visible{out
 .adv:hover .adv-name{color:var(--brand)}
 .adv-name{font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:7px;min-width:0}
 .adv-name .pdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}.adv-name .an{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.adv-name small{color:var(--ink-3);font-weight:500;font-size:10.5px}
+/* FIX 5: not-launched count sits beside the pace figure, muted - it is context, not an alarm */
+.adv-name small.nl{flex:0 0 auto;white-space:nowrap;padding:1px 6px;border:1px solid var(--line);border-radius:999px;color:var(--ink-3)}
 .track{height:8px;border-radius:5px;background:var(--line-2);position:relative;overflow:hidden}
 .track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--brand)}.track .pace{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55}
 .adv-val{text-align:right;font-size:11.5px;color:var(--ink-2);white-space:nowrap}.adv-val b{color:var(--ink);font-family:"Space Grotesk";font-weight:600}.adv-val .risk{color:var(--money);font-weight:600}
@@ -709,6 +711,7 @@ function spineRow(c, asOf){
     budgetRemaining:d.budgetRemaining, pctSpent:d.pctBudgetSpent, pctElapsed:d.pctFlightElapsed,
   };
   r.budget=calc.effectiveBudget(c); r.spent=r.clientSpent; r.remaining=r.budgetRemaining;
+  r.notLaunched=d.notLaunched;   // FIX 5 - never launched, so it is not underspending (calc.js)
   r.marginPct=d.effectiveMargin;   // per-channel EFFECTIVE margin (platform for TTD/DV360)
   const mature=r.pctSpent!=null&&r.pctSpent>=0.20;
   r.kpiHit=mature?classifyKpi(r.keyKPI,r.kpiPerf):null;
@@ -851,7 +854,11 @@ function updateCtx(rows){
 
 /* ---------- PULSE: KPIs ---------- */
 function renderKPIs(rows){
-  const base=(F.status==='Active')?rows.filter(c=>c.status==='Active'):rows;
+  const all=(F.status==='Active')?rows.filter(c=>c.status==='Active'):rows;
+  // FIX 5: an unlaunched campaign carries a budget it cannot possibly have spent.
+  // Counting it drags the portfolio % down and invents an underspend, so it is out
+  // of every total here and reported as its own count instead.
+  const base=all.filter(c=>!c.notLaunched),nNL=all.length-base.length;
   const allInClient=DATA.filter(c=>(F.client==='all'||c.advertiser===F.client)&&(F.mgr==='all'||c.managedBy===F.mgr));
   const sum=k=>base.reduce((a,c)=>a+(c[k]||0),0);
   const budget=sum('budget'),spent=sum('spent'),deliv=budget>0?spent/budget:0;
@@ -868,11 +875,12 @@ function renderKPIs(rows){
   const mixNote=(curKnown.length>1||curUnrec)
     ?` · <span title="Adds ${curKnown.join(' + ')||'money'}${curUnrec?' plus rows whose source records no currency':''}. No FX rate is applied - converting would require one we do not have." style="color:var(--warn)">mixed currencies, not converted</span>`:'';
   const flagged=base.filter(c=>c.d.paceState==='under'||c.d.paceState==='over').length;
+  const nlNote=nNL?` · <b>${nNL} not launched</b> excluded`:'';
   const single=F.client!=='all'&&!AG_ORDER.includes(F.client);const advLabel=single?`${new Set(base.map(c=>c.channel)).size} channels`:`${new Set(base.map(c=>c.advertiser)).size} advertisers`;
   const cards=[
-    {eb:'Live campaigns',big:String(base.length),sub:`currently running, of <b>${allInClient.length}</b> shown`,cls:'accent'},
-    {eb:'Total budget',big:moneyK(budget),sub:advLabel},
-    {eb:'Spent so far',big:moneyK(spent),sub:`<b>${pctP(deliv)}</b> of planned budget`,spark:pctP(deliv)},
+    {eb:'Live campaigns',big:String(base.length),sub:`currently running, of <b>${allInClient.length}</b> shown${nNL?` · <b>${nNL}</b> not launched`:''}`,cls:'accent'},
+    {eb:'Total budget',big:moneyK(budget),sub:advLabel+(nNL?` · unlaunched budget excluded`:'')},
+    {eb:'Spent so far',big:moneyK(spent),sub:`<b>${pctP(deliv)}</b> of planned budget${nlNote}`,spark:pctP(deliv)},
     {eb:'Profit at risk',big:moneyK(risk),sub:(nEst?`profit we may lose at this pace (${nEst} est. at ${Math.round(ASSUMED_MARGIN*100)}%)`:`profit we may lose if pacing does not correct`)+mixNote,cls:'money',money:true},
     {eb:'Off budget',big:String(flagged),sub:flagged?`spending too fast or too slow`:`all pacing on track`,flag:flagged>0},
   ];
@@ -996,7 +1004,10 @@ function renderRoll(rows){
   document.getElementById('rollSub').textContent=(byChannel?'How much this client has spent on each channel against budget. The marker shows where spending should be today to stay on schedule.':'How much each client has spent against their total budget. The marker shows where spending should be today to stay on schedule. The figure on the right is the profit at risk if a campaign under-delivers.')+' Money is shown as billed, mixing currencies without converting them.';
   const map={};
   rows.filter(c=>c.status==='Active').forEach(c=>{const k=byChannel?(c.channel||'—'):c.advertiser;
-    (map[k] ||= {key:k,budget:0,spent:0,n:0,risk:0,elap:[],sp:[]});
+    (map[k] ||= {key:k,budget:0,spent:0,n:0,nl:0,risk:0,elap:[],sp:[]});
+    // FIX 5: unlaunched rows are counted, never summed - their budget against zero
+    // spend would report the client as behind on money that could not have moved yet.
+    if(c.notLaunched){map[k].nl++;map[k].n++;return;}
     map[k].budget+=c.budget||0;map[k].spent+=c.spent||0;map[k].n++;map[k].risk+=c.d.marginAtRisk||0;
     if(c.pctElapsed!=null)map[k].elap.push(c.pctElapsed);if(c.pctSpent!=null)map[k].sp.push(c.pctSpent);});
   const arr=Object.values(map).sort((a,b)=>(b.risk-a.risk)||(b.budget-a.budget));
@@ -1004,7 +1015,7 @@ function renderRoll(rows){
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   document.getElementById('roll').innerHTML=arr.length?arr.map(a=>{const deliv=a.budget>0?a.spent/a.budget:0,elap=avg(a.elap),sp=avg(a.sp);
     const st=window.CentralCalc.paceBucket(sp,elap);
-    return `<div class="adv" data-key="${a.key}"><div class="adv-name"><span class="pdot" style="background:${PCOL[st]}"></span><span class="an">${a.key}</span><small>×${a.n}</small></div><div class="track"><div class="fill" style="width:${Math.min(100,deliv*100)}%"></div>${elap!=null?`<div class="pace" style="left:${Math.min(100,elap*100)}%"></div>`:''}</div><div class="adv-val">${a.risk>0?`<span class="risk">${moneyK(a.risk)} risk</span>`:`<b>${moneyK(a.spent)}</b>/${moneyK(a.budget)}`}</div></div>`;}).join(''):`<div class="empty">No active spend.</div>`;
+    return `<div class="adv" data-key="${a.key}"><div class="adv-name"><span class="pdot" style="background:${PCOL[st]}"></span><span class="an">${a.key}</span><small>×${a.n}</small>${a.nl?`<small class="nl" title="Not launched: no delivery yet and the flight has not started. Budget held out of this rollup.">${a.nl} not launched</small>`:''}</div><div class="track"><div class="fill" style="width:${Math.min(100,deliv*100)}%"></div>${elap!=null?`<div class="pace" style="left:${Math.min(100,elap*100)}%"></div>`:''}</div><div class="adv-val">${a.risk>0?`<span class="risk">${moneyK(a.risk)} risk</span>`:`<b>${moneyK(a.spent)}</b>/${moneyK(a.budget)}`}</div></div>`;}).join(''):`<div class="empty">No active spend.</div>`;
   if(!byChannel)document.getElementById('roll').querySelectorAll('.adv').forEach(el=>el.addEventListener('click',()=>{F.client=el.dataset.key;render();}));
 }
 
@@ -1015,8 +1026,12 @@ function pSortVal(c,k){if(k==='paceState')return (c.pctSpent!=null&&c.pctElapsed
 function clientAgg(rows){
   const m={};
   rows.forEach(c=>{const k=c.advertiser;let a=m[k];
-    if(!a){a=m[k]={advertiser:k,agency:c.agency,n:0,budget:0,spent:0,remaining:0,reqDaily:0,projTotal:0,projVar:0,marginAtRisk:0,est:false,off:0,over:0,under:0,kpiMiss:0,channels:new Set(),mgrs:new Set(),elapSum:0,elapN:0};}
-    a.n++;a.budget+=c.budget||0;a.spent+=c.spent||0;a.remaining+=c.remaining||0;
+    if(!a){a=m[k]={advertiser:k,agency:c.agency,n:0,nl:0,budget:0,spent:0,remaining:0,reqDaily:0,projTotal:0,projVar:0,marginAtRisk:0,est:false,off:0,over:0,under:0,kpiMiss:0,channels:new Set(),mgrs:new Set(),elapSum:0,elapN:0};}
+    a.n++;
+    // FIX 5: not launched, so it cannot be off-pace. Held out of budget, spend,
+    // projections and the off-budget count; surfaced as its own count instead.
+    if(c.notLaunched){a.nl++;if(c.channel)a.channels.add(c.channel);if(c.managedBy)a.mgrs.add(c.managedBy);return;}
+    a.budget+=c.budget||0;a.spent+=c.spent||0;a.remaining+=c.remaining||0;
     if(c.d.reqDaily!=null)a.reqDaily+=c.d.reqDaily;
     if(c.d.projTotal!=null)a.projTotal+=c.d.projTotal;
     if(c.d.projVar!=null)a.projVar+=c.d.projVar;
@@ -1060,14 +1075,16 @@ function renderPulseTable(rows){
   const aggs=clientAgg(rows).sort((a,b)=>{let A=aggSortVal(a,key),B=aggSortVal(b,key);if(typeof A==='string'){A=A.toLowerCase();B=(''+B).toLowerCase();return A<B?-dir:A>B?dir:0;}return (A-B)*dir;});
   tbody.innerHTML=aggs.map(a=>{const st=a.pace;
     const pill=`<span class="pill pace-${st}">${({ok:'On track',under:'Too slow',over:'Too fast',early:'Early',none:'—'})[st]}</span>`;
-    const offTag=a.off>0?`<span class="c-sub" style="color:${a.over>0?'var(--bad)':'var(--warn)'}">${a.off} of ${a.n} off budget</span>`:`<span class="c-sub">all ${a.n} on schedule</span>`;const perfTag=a.kpiMiss>0?`<div class="c-sub" style="color:var(--bad);margin-top:2px">${a.kpiMiss} missing goal</div>`:'';
+    const nLive=a.n-a.nl;   // FIX 5: pace is judged on launched campaigns only
+    const nlTag=a.nl?`<div class="c-sub" title="No delivery yet and the flight has not started. Held out of the budget, spend and pace figures.">${a.nl} not launched</div>`:'';
+    const offTag=a.off>0?`<span class="c-sub" style="color:${a.over>0?'var(--bad)':'var(--warn)'}">${a.off} of ${nLive} off budget</span>`:(nLive?`<span class="c-sub">all ${nLive} on schedule</span>`:`<span class="c-sub">nothing launched yet</span>`);const perfTag=a.kpiMiss>0?`<div class="c-sub" style="color:var(--bad);margin-top:2px">${a.kpiMiss} missing goal</div>`:'';
     const chans=[...a.channels];const chCell=chans.length?chans.slice(0,3).map(c=>`<span class="chip">${c}</span>`).join(' ')+(chans.length>3?` <span class="c-sub">+${chans.length-3}</span>`:''):'<span class="muted">—</span>';
     const mgrs=[...a.mgrs];const mgrCell=mgrs.length?mgrs.slice(0,3).map(m=>`<span class="mgr" title="${m}" style="margin-left:-5px;box-shadow:0 0 0 1.5px var(--panel)">${m.slice(0,2)}</span>`).join(''):'<span class="muted">—</span>';
     const proj=(a.projVar>-1&&a.projVar<1)?`<span class="c-sub">on budget</span>`:`<span style="color:${a.projVar>0?'var(--bad)':'var(--warn)'};font-weight:600">${a.projVar<0?moneyP(-a.projVar)+' under':'+'+moneyP(a.projVar)+' over'}</span><div class="c-sub">${a.budget>0?pctP(a.projTotal/a.budget):'—'} of budget</div>`;
     const mar=a.marginAtRisk>0?(a.est?`<span style="color:var(--money);font-weight:600">~${moneyP(a.marginAtRisk)}</span> <span class="chip" title="includes margins estimated at ${Math.round(ASSUMED_MARGIN*100)}%">est</span>`:`<span style="color:var(--money);font-weight:600">${moneyP(a.marginAtRisk)}</span>`):`<span class="c-sub">—</span>`;
     const agCol=AG_META[a.agency]?AG_META[a.agency].col:'var(--ink-3)';
     const cls=a.over>0?'f-over':a.under>0?'f-under':'';
-    return `<tr class="data sumrow ${cls}" data-client="${a.advertiser}" role="button" tabindex="0"><td class="c-adv"><span class="cdrill"><span class="agdot" style="background:${agCol}"></span>${a.advertiser}<svg class="drillarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg></span></td><td><div class="c-camp">${a.n} campaign${a.n>1?'s':''}</div></td><td>${chCell}</td><td>${mgrCell}</td><td>${pill}<div style="margin-top:3px">${offTag}${perfTag}</div></td><td><div class="deliv"><div class="dn"><b>${moneyP(a.spent)}</b> <span class="c-sub">/ ${moneyP(a.budget)} · ${pctP(a.deliv)}</span></div><div class="db"><i style="width:${Math.min(100,a.deliv*100)}%"></i>${a.elap!=null?`<u style="left:${Math.min(100,a.elap*100)}%"></u>`:''}</div></div></td><td class="r num">${a.reqDaily>0?moneyP(a.reqDaily):'<span class="muted">—</span>'}</td><td class="r num">${proj}</td><td class="r num">${mar}</td></tr>`;
+    return `<tr class="data sumrow ${cls}" data-client="${a.advertiser}" role="button" tabindex="0"><td class="c-adv"><span class="cdrill"><span class="agdot" style="background:${agCol}"></span>${a.advertiser}<svg class="drillarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg></span></td><td><div class="c-camp">${a.n} campaign${a.n>1?'s':''}</div></td><td>${chCell}</td><td>${mgrCell}</td><td>${pill}<div style="margin-top:3px">${offTag}${nlTag}${perfTag}</div></td><td><div class="deliv"><div class="dn"><b>${moneyP(a.spent)}</b> <span class="c-sub">/ ${moneyP(a.budget)} · ${pctP(a.deliv)}</span></div><div class="db"><i style="width:${Math.min(100,a.deliv*100)}%"></i>${a.elap!=null?`<u style="left:${Math.min(100,a.elap*100)}%"></u>`:''}</div></div></td><td class="r num">${a.reqDaily>0?moneyP(a.reqDaily):'<span class="muted">—</span>'}</td><td class="r num">${proj}</td><td class="r num">${mar}</td></tr>`;
   }).join('')||`<tr><td colspan="9"><div class="empty">No clients match.</div></td></tr>`;
   const drill=el=>{F.client=el.dataset.client;render();};
   tbody.querySelectorAll('tr.sumrow').forEach(tr=>{tr.addEventListener('click',()=>drill(tr));tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();drill(tr);}});});
