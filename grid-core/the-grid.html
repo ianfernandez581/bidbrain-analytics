@@ -1456,9 +1456,11 @@ function updateAsOfBadge(){
   const warn=c=>{el.style.color=`var(--${c})`;if(dot){dot.style.background=`var(--${c})`;dot.style.boxShadow=`0 0 0 3px var(--${c}-soft)`;}};
   if(SPINE_ERROR){el.textContent='Live data unavailable';el.title='Could not reach the Grid server ('+SPINE_ERROR+'). Start it with: node server.js';warn('bad');}
   else if(ASOF_SOURCE==='fallback-now'){el.textContent='No sync yet — as of now';el.title='No BigQuery sync has ever run: spend/impressions are the imported sheet snapshot and pacing is anchored to right now. Open Central and press "Sync now".';warn('warn');}
-  else{const days=Math.floor((new Date()-ASOF)/DAY);
-    el.textContent='Data as of '+ASOF.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' '+ASOF.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-    el.title='Newest BigQuery sync timestamp in the campaign DB — the date all pacing is anchored to.';
+  else{const hrs=(new Date()-ASOF)/36e5,days=Math.floor(hrs/24);
+    // age in hours (the useful grain for a */10 sync); switches to days past 2 days so it stays readable
+    const age=hrs<1?'just now':(hrs<48?Math.round(hrs)+'h ago':days+'d ago');
+    el.textContent='Data as of '+ASOF.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' '+ASOF.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})+' · '+age;
+    el.title='Newest BigQuery sync timestamp in the campaign DB ('+ASOF.toISOString()+', '+Math.round(hrs)+'h ago) — the moment all pacing is anchored to.';
     if(days>3)warn('warn');else{el.style.color='';if(dot){dot.style.background='';dot.style.boxShadow='';}}}
   const banner=document.getElementById('spineBanner');
   if(banner){
@@ -1470,6 +1472,12 @@ function updateAsOfBadge(){
 
 // ---- boot: load the live spine FIRST, then render (the app has no baked data) ----
 loadSpine().then(()=>{buildMgrSeg();readHash();syncControls();render();updateAsOfBadge();});
+
+// ASOF/ASOF_SOURCE were a BOOT-TIME snapshot: a "Sync now" in Central wrote fresh
+// lastSyncedAt to the DB but Pulse kept rendering (and badging) the pre-sync state
+// until a hard reload - so the badge could read "No sync yet" long after a sync landed.
+// render-central.js calls this after a successful sync to re-pull the spine.
+window.gridRefreshSpine=function(){return loadSpine().then(()=>{render();updateAsOfBadge();});};
 </script>
 <script>(function(){var app=document.querySelector('.app');if(!app)return;function setSide(c){app.classList.toggle('side-collapsed',c);try{localStorage.setItem('grid-side',c?'collapsed':'open')}catch(e){}}try{if(localStorage.getItem('grid-side')==='collapsed')setSide(true)}catch(e){}var t=document.getElementById('sideToggle'),x=document.getElementById('sideExpand');if(t)t.addEventListener('click',function(){setSide(true)});if(x)x.addEventListener('click',function(){setSide(false)});})();</script>
 <script>(function(){var root=document.documentElement,pill=document.getElementById('themePill');function apply(t){t=(t==='light')?'light':'dark';root.setAttribute('data-theme',t);try{localStorage.setItem('grid-theme',t)}catch(e){}if(pill)pill.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.themeSet===t?'true':'false')});}apply(root.getAttribute('data-theme')||'dark');if(pill)pill.addEventListener('click',function(e){var b=e.target.closest('button[data-theme-set]');if(b)apply(b.dataset.themeSet);});})();</script>
