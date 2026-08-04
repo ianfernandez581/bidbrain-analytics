@@ -702,6 +702,7 @@ function spineRow(c, asOf){
     campaignLink:c.campaignLink, nextReport:c.nextReportingDue, notes:c.notes,
     metricsSource:(String(c.metricsSource||'').toLowerCase()==='bq')?'BQ':c.metricsSource,
     lastSyncedAt:c.lastSyncedAt||null,
+    currency:c.currency||null,          // measured, never inferred (config/currency-map.json); null = unrecorded
     dataThrough:c.lastSyncedAt?String(c.lastSyncedAt).slice(0,10):null,
     // derived - calc.js is the single engine (see PHASE1_REPORT.md reconciliation table)
     campaignMargin:d.campaignMargin, adservingCost:d.adServingCost, cpmPerf:d.cpmPerformance,
@@ -856,13 +857,23 @@ function renderKPIs(rows){
   const budget=sum('budget'),spent=sum('spent'),deliv=budget>0?spent/budget:0;
   const risk=base.reduce((a,c)=>a+(c.d.marginAtRisk||0),0);
   const nEst=base.filter(c=>c.d.marginAtRisk!=null&&!c.d.marginKnown).length;
+  // FIX 4: this sum ADDS currencies. campaigns.currency is now measured rather than NULL
+  // (config/currency-map.json, via scripts/backfill_currency.js), and it shows the risk
+  // figure mixes AUD with USD while ~half of it sits on rows whose source table records NO
+  // currency at all (LinkedIn/Reddit have no currency column). We do NOT invent an FX rate:
+  // the arithmetic is left alone and the label says plainly that it is not converted.
+  const riskRows=base.filter(c=>c.d.marginAtRisk!=null&&c.d.marginAtRisk!==0);
+  const curKnown=[...new Set(riskRows.map(c=>c.currency).filter(Boolean))].sort();
+  const curUnrec=riskRows.some(c=>!c.currency);
+  const mixNote=(curKnown.length>1||curUnrec)
+    ?` · <span title="Adds ${curKnown.join(' + ')||'money'}${curUnrec?' plus rows whose source records no currency':''}. No FX rate is applied - converting would require one we do not have." style="color:var(--warn)">mixed currencies, not converted</span>`:'';
   const flagged=base.filter(c=>c.d.paceState==='under'||c.d.paceState==='over').length;
   const single=F.client!=='all'&&!AG_ORDER.includes(F.client);const advLabel=single?`${new Set(base.map(c=>c.channel)).size} channels`:`${new Set(base.map(c=>c.advertiser)).size} advertisers`;
   const cards=[
     {eb:'Live campaigns',big:String(base.length),sub:`currently running, of <b>${allInClient.length}</b> shown`,cls:'accent'},
     {eb:'Total budget',big:moneyK(budget),sub:advLabel},
     {eb:'Spent so far',big:moneyK(spent),sub:`<b>${pctP(deliv)}</b> of planned budget`,spark:pctP(deliv)},
-    {eb:'Profit at risk',big:moneyK(risk),sub:nEst?`profit we may lose at this pace (${nEst} est. at ${Math.round(ASSUMED_MARGIN*100)}%)`:`profit we may lose if pacing does not correct`,cls:'money',money:true},
+    {eb:'Profit at risk',big:moneyK(risk),sub:(nEst?`profit we may lose at this pace (${nEst} est. at ${Math.round(ASSUMED_MARGIN*100)}%)`:`profit we may lose if pacing does not correct`)+mixNote,cls:'money',money:true},
     {eb:'Off budget',big:String(flagged),sub:flagged?`spending too fast or too slow`:`all pacing on track`,flag:flagged>0},
   ];
   document.getElementById('kpis').innerHTML=cards.map(c=>`<div class="kpi ${c.cls||''}"><div class="eyebrow">${c.eb}</div>${c.spark?`<div class="spark" style="color:var(--ok)">${c.spark}</div>`:''}<div class="big" ${c.money?'style="color:var(--money)"':c.flag?'style="color:var(--bad)"':''}>${c.big}</div><div class="sub">${c.sub}</div></div>`).join('');
@@ -980,7 +991,9 @@ function renderUnwatched(){
 function renderRoll(rows){
   const byChannel=F.client!=='all'&&!AG_ORDER.includes(F.client);
   document.getElementById('rollTitle').textContent=byChannel?'By channel':'By advertiser';
-  document.getElementById('rollSub').textContent=byChannel?'How much this client has spent on each channel against budget. The marker shows where spending should be today to stay on schedule.':'How much each client has spent against their total budget. The marker shows where spending should be today to stay on schedule. The figure on the right is the profit at risk if a campaign under-delivers.';
+  // FIX 4: these rollups add each client's campaigns together, and a client can run more
+  // than one currency (Schneider bills TTD in AUD and DV360 in USD), so say so here too.
+  document.getElementById('rollSub').textContent=(byChannel?'How much this client has spent on each channel against budget. The marker shows where spending should be today to stay on schedule.':'How much each client has spent against their total budget. The marker shows where spending should be today to stay on schedule. The figure on the right is the profit at risk if a campaign under-delivers.')+' Money is shown as billed, mixing currencies without converting them.';
   const map={};
   rows.filter(c=>c.status==='Active').forEach(c=>{const k=byChannel?(c.channel||'—'):c.advertiser;
     (map[k] ||= {key:k,budget:0,spent:0,n:0,risk:0,elap:[],sp:[]});
