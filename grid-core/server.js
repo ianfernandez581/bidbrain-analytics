@@ -36,6 +36,25 @@ const centralReadiness = require('./src/central/readiness');  // live-coverage r
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
+
+// The ONE python this server spawns. Resolved by ACTUALLY RUNNING each candidate, because
+// the name differs per environment and guessing wrong fails at request time, silently and
+// differently on each side: this image is Debian (python3 only, no `python`) so the sync
+// died with "spawn python ENOENT", while on Windows `python3` is the Microsoft Store stub
+// that exits non-zero without running anything, so the Executive builder returned 0 clients.
+// Both routes now use this. Override with PYTHON=<path> (e.g. a venv interpreter).
+const PY = (() => {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const { spawnSync } = require('child_process');
+  for (const cand of ['python3', 'python']) {
+    try {
+      const r = spawnSync(cand, ['-c', 'import sys; sys.stdout.write("ok")'], { encoding: 'utf8', timeout: 15000 });
+      if (r && r.status === 0 && String(r.stdout || '').includes('ok')) return cand;
+    } catch (e) { /* try the next candidate */ }
+  }
+  console.error('[PY][WARN] no working python found (tried python3, python) — the Central sync and the Executive KPI builder will fail. Set PYTHON=<path>.');
+  return 'python3';
+})();
 const TMP = process.env.BRAIN_TMP_DIR || path.join(ROOT, 'tmp', 'brain-uploads');
 fs.mkdirSync(TMP, { recursive: true });
 const CENTRAL_TMP = process.env.CENTRAL_TMP_DIR || path.join(ROOT, 'tmp', 'central-uploads');
@@ -389,7 +408,7 @@ function loadCentralClients() { try { return JSON.parse(fs.readFileSync(CENTRAL_
 function execCentral(args, timeoutMs) {
   const effTimeout = timeoutMs || CENTRAL_SYNC_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
-    const py = process.env.PYTHON || 'python';
+    const py = PY;   // resolved once at boot (see PY above)
     require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'central_sync.py'), ...args],
       { cwd: ROOT, timeout: effTimeout, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
@@ -671,7 +690,7 @@ const EXEC_AUTOSYNC_MIN = Number(process.env.EXEC_AUTOSYNC_MIN || 10);   // 0 = 
 
 function runExecBuilder() {
   return new Promise((resolve, reject) => {
-    const py = process.env.PYTHON || 'python3';
+    const py = PY;   // resolved once at boot (see PY above)
     require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'build_exec_kpis.py'), '--stdout'],
       { cwd: ROOT, timeout: 150000, maxBuffer: 16 * 1024 * 1024 },
       (err, stdout, stderr) => {
