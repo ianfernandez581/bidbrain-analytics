@@ -339,7 +339,7 @@ module.exports = {
     const insert = db.prepare(`INSERT INTO campaigns (${this._CAMPAIGN_ALL_COLS.join(',')})
       VALUES (${this._CAMPAIGN_ALL_COLS.map(c => '@' + c).join(',')})`);
     let inserted = 0, updated = 0, metricsRefreshed = 0, unmatchedInDb = 0;
-    const byStatus = {}, touched = new Set();
+    const byStatus = {}, touched = new Set(), unnamedSkipped = [];
 
     const apply = (rs) => {
       for (const row of rs) {
@@ -349,6 +349,11 @@ module.exports = {
         const status = (row.status == null || row.status === '') ? 'Draft' : row.status;
         const k = this._snapshotKey(section, client, name, row.channel);
         const hit = existing[k];
+        // A blank name cannot be keyed. The sheet has one such row (Ad Assembly /
+        // TradeDesk) whose DB twin was named later through Central's fill-empty
+        // affordance, so keying on '' would INSERT a duplicate on every forced
+        // re-import. Skip and report: the fix is a name in the sheet, not a guess here.
+        if (!hit && !name) { unnamedSkipped.push({ section, client, channel: row.channel || null }); continue; }
         if (!hit) {
           const rec = {}; this._CAMPAIGN_ALL_COLS.forEach(c => { rec[c] = null; });
           cfg.forEach(c => { if (row[c] !== undefined) rec[c] = row[c]; });
@@ -383,7 +388,7 @@ module.exports = {
     for (const k of Object.keys(existing)) if (!touched.has(existing[k].id)) unmatchedInDb++;
     return {
       upserted: true, dryRun: !!dryRun, inserted, updated, metricsRefreshed,
-      unmatchedInDb, skipped: 0, byStatus,
+      unmatchedInDb, unnamedSkipped, skipped: unnamedSkipped.length, byStatus,
       total: db.prepare('SELECT COUNT(*) n FROM campaigns').get().n
     };
   },
