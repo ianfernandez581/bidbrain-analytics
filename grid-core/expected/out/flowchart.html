@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NEL 2053 - Readiness flowchart</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+    --good-bg: rgba(12,163,12,0.10); --warn-bg: rgba(250,178,25,0.14); --crit-bg: rgba(208,59,59,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --good-bg: rgba(12,163,12,0.16); --warn-bg: rgba(250,178,25,0.14); --crit-bg: rgba(208,59,59,0.18);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .viz-root { max-width: 1360px; margin: 0 auto; padding: 24px 20px 48px; }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  .sub { color: var(--ink-2); font-size: 12.5px; margin-bottom: 18px; }
+  .flow { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; }
+  .stage { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px;
+           min-width: 196px; flex: 1 1 0; padding: 12px 14px; }
+  .stage-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .stage h2 { font-size: 13px; margin: 0; line-height: 1.25; }
+  .badge { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px;
+           border-radius: 99px; margin: 2px 0 8px; display: inline-block; }
+  .good  .dot { background: var(--good); }  .good  .badge { color: var(--good); background: var(--good-bg); }
+  .warn  .dot { background: var(--warn); }  .warn  .badge { color: #8a5b00; background: var(--warn-bg); }
+  .crit  .dot { background: var(--crit); }  .crit  .badge { color: var(--crit); background: var(--crit-bg); }
+  @media (prefers-color-scheme: dark) { .warn .badge { color: var(--warn); } }
+  .stage ul { margin: 0; padding: 0 0 0 2px; list-style: none; }
+  .stage li { font-size: 11.5px; color: var(--ink-2); padding: 4px 0; border-top: 1px solid var(--grid); }
+  .stage li b { color: var(--ink-1); font-weight: 600; }
+  .stage li .ref { color: var(--muted); }
+  .ok-note { font-size: 11.5px; color: var(--ink-2); padding: 4px 0; border-top: 1px solid var(--grid); }
+  .arrow { align-self: center; flex: none; width: 26px; text-align: center; color: var(--axis); font-size: 17px; }
+  .legend { display: flex; gap: 18px; margin-top: 16px; font-size: 12px; color: var(--ink-2); align-items: center; }
+  .legend .dot { display: inline-block; vertical-align: middle; margin-right: 5px; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Readiness flowchart - Schneider Electric, Job 2053 NEL Awareness (ANZ)</h1>
+  <div class="sub">Flight 2026-06-01 to 2026-08-22 - AUD 35,000 - stage status from the 15 items in report.md; item numbers reference that file.</div>
+
+  <div class="flow">
+    <div class="stage warn">
+      <div class="stage-head"><span class="dot"></span><h2>Request Received</h2></div>
+      <span class="badge">! 3 OPEN ITEMS</span>
+      <ul>
+        <li><b>Budget gap:</b> brief $30K vs plan $35,000 <span class="ref">(item 3)</span></li>
+        <li><b>KPI gap:</b> brief wants leads, plan buys impressions <span class="ref">(item 6)</span></li>
+        <li><b>Fee treatment</b> stated nowhere <span class="ref">(item 9)</span></li>
+      </ul>
+    </div>
+    <div class="arrow">&#9654;</div>
+
+    <div class="stage crit">
+      <div class="stage-head"><span class="dot"></span><h2>Media Plan Approved</h2></div>
+      <span class="badge">&#10007; 4 OPEN ITEMS</span>
+      <ul>
+        <li><b>No client sign-off on record</b> for the $35,000 plan <span class="ref">(item 10)</span></li>
+        <li><b>Plan header prints the dead April flight;</b> never re-issued <span class="ref">(item 1)</span></li>
+        <li><b>82 vs 83 days</b> duration error <span class="ref">(item 2)</span></li>
+        <li><b>Legacy sheets</b> from another campaign in the workbook <span class="ref">(item 8)</span></li>
+      </ul>
+    </div>
+    <div class="arrow">&#9654;</div>
+
+    <div class="stage warn">
+      <div class="stage-head"><span class="dot"></span><h2>Raw Materials Complete</h2></div>
+      <span class="badge">! 4 OPEN ITEMS</span>
+      <ul>
+        <li><b>No recorded approval</b> for statics, videos, SIA images <span class="ref">(item 11)</span></li>
+        <li><b>LGF scope moved 5 to 3</b> with no recorded decision <span class="ref">(item 7)</span></li>
+        <li><b>Unreferenced asset:</b> NECA-amended PDF <span class="ref">(item 13)</span></li>
+        <li><b>Duplicate / superseded files</b> in the dump <span class="ref">(item 15)</span></li>
+      </ul>
+    </div>
+    <div class="arrow">&#9654;</div>
+
+    <div class="stage warn">
+      <div class="stage-head"><span class="dot"></span><h2>Campaign Built</h2></div>
+      <span class="badge">! 3 OPEN ITEMS</span>
+      <ul>
+        <li><b>$35,000 label</b> over campaigns that sum to $27,000 <span class="ref">(item 4)</span></li>
+        <li><b>UTMs split</b> across April and June vintages; NZ carries AU ids <span class="ref">(item 5)</span></li>
+        <li><b>3 NZ campaigns</b> under LinkedIn's $10/day floor <span class="ref">(item 14)</span></li>
+      </ul>
+    </div>
+    <div class="arrow">&#9654;</div>
+
+    <div class="stage warn">
+      <div class="stage-head"><span class="dot"></span><h2>Live</h2></div>
+      <span class="badge">! 1 OPEN ITEM</span>
+      <ul>
+        <li><b>Insight Tag test unconfirmed</b> (partner ID 8223628); conversions may be unmeasured mid-flight <span class="ref">(item 12)</span></li>
+      </ul>
+    </div>
+    <div class="arrow">&#9654;</div>
+
+    <div class="stage good">
+      <div class="stage-head"><span class="dot"></span><h2>Pacing</h2></div>
+      <span class="badge">&#10003; READY</span>
+      <div class="ok-note">Expected baseline built: daily_kpi.xlsx / .json + pacing.html. No blocking report items. Actuals join pending (teammate).</div>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot" style="background:var(--good)"></span>&#10003; ready</span>
+    <span><span class="dot" style="background:var(--warn)"></span>! open items, not blocking delivery</span>
+    <span><span class="dot" style="background:var(--crit)"></span>&#10007; stage's defining artifact missing</span>
+  </div>
+  <div class="foot">Generated 2026-08-04 from report.md. Chase drafts for every open item: chase_messages.md.</div>
+</div>
+</body>
+</html>

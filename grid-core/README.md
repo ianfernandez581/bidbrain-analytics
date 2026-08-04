@@ -3,6 +3,11 @@
 The data + calculation core for **The Grid**. This is the layer that turns
 "the probe reaches the platforms" into "the app shows numbers you can trust."
 
+**Expected side (plan baselines): `expected/`** - turns a campaign file dump
+into the daily expected KPI baseline (xlsx + json), a pacing page with an
+actuals join hook, a readiness flowchart, and a gaps report with chase drafts.
+See `expected/README.md`. First campaign: Schneider NEL Job 2053.
+
 **ONE SPINE (Phase 1, 2026-07-22):** Pulse and Central read the live
 SQLite `campaigns` table (via `GET /api/central/campaigns`) and compute every
 derived number with **`src/central/calc.js`** — the single formula engine. The old
