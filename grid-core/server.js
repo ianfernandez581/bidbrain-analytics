@@ -26,6 +26,7 @@ const crypto = require('crypto');
 })();
 
 const db = require('./src/brain/db');
+const persist = require('./src/brain/persist');   // durable state (GCS); no-op without GRID_STATE_BUCKET
 const parser = require('./src/brain/parser');
 const bqWriter = require('./src/brain/bq-writer');
 const planReader = require('./src/central/plan-reader');
@@ -35,6 +36,25 @@ const centralReadiness = require('./src/central/readiness');  // live-coverage r
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
+
+// The ONE python this server spawns. Resolved by ACTUALLY RUNNING each candidate, because
+// the name differs per environment and guessing wrong fails at request time, silently and
+// differently on each side: this image is Debian (python3 only, no `python`) so the sync
+// died with "spawn python ENOENT", while on Windows `python3` is the Microsoft Store stub
+// that exits non-zero without running anything, so the Executive builder returned 0 clients.
+// Both routes now use this. Override with PYTHON=<path> (e.g. a venv interpreter).
+const PY = (() => {
+  if (process.env.PYTHON) return process.env.PYTHON;
+  const { spawnSync } = require('child_process');
+  for (const cand of ['python3', 'python']) {
+    try {
+      const r = spawnSync(cand, ['-c', 'import sys; sys.stdout.write("ok")'], { encoding: 'utf8', timeout: 15000 });
+      if (r && r.status === 0 && String(r.stdout || '').includes('ok')) return cand;
+    } catch (e) { /* try the next candidate */ }
+  }
+  console.error('[PY][WARN] no working python found (tried python3, python) — the Central sync and the Executive KPI builder will fail. Set PYTHON=<path>.');
+  return 'python3';
+})();
 const TMP = process.env.BRAIN_TMP_DIR || path.join(ROOT, 'tmp', 'brain-uploads');
 fs.mkdirSync(TMP, { recursive: true });
 const CENTRAL_TMP = process.env.CENTRAL_TMP_DIR || path.join(ROOT, 'tmp', 'central-uploads');
@@ -388,7 +408,7 @@ function loadCentralClients() { try { return JSON.parse(fs.readFileSync(CENTRAL_
 function execCentral(args, timeoutMs) {
   const effTimeout = timeoutMs || CENTRAL_SYNC_TIMEOUT_MS;
   return new Promise((resolve, reject) => {
-    const py = process.env.PYTHON || 'python';
+    const py = PY;   // resolved once at boot (see PY above)
     require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'central_sync.py'), ...args],
       { cwd: ROOT, timeout: effTimeout, maxBuffer: 8 * 1024 * 1024 },
       (err, stdout, stderr) => {
@@ -422,7 +442,10 @@ function bigrams(s) { s = String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, '
 function dice(a, b) { const A = bigrams(a), B = bigrams(b); if (!A.length || !B.length) return 0; const m = {}; B.forEach(x => m[x] = (m[x] || 0) + 1); let h = 0; A.forEach(x => { if (m[x] > 0) { h++; m[x]--; } }); return (2 * h) / (A.length + B.length); }
 
 let CENTRAL_SYNCING = false;   // concurrency guard (single-process; shared by manual + auto)
-let CENTRAL_LAST_SYNC = null;  // {at, updated, unmatched, errors, trigger} — for the status endpoint
+// {at, updated, unmatched, errors, trigger} — for the status endpoint. Seeded from the DB
+// (grid_meta) because this used to be a bare in-memory variable: every cold start reset it,
+// so the platform tile read "never synced" even minutes after a successful sync.
+let CENTRAL_LAST_SYNC = db.getMeta('centralLastSync');
 const CENTRAL_AUTOSYNC_MIN = Number(process.env.CENTRAL_AUTOSYNC_MIN || 0);   // 0 = off (default)
 
 // The shared sync CORE — used by the manual route AND the auto-sync scheduler, so both
@@ -476,6 +499,7 @@ async function performCentralSync(opts) {
     }
     const syncedAt = new Date().toISOString();
     CENTRAL_LAST_SYNC = { at: syncedAt, updated, unmatched: unmatched.length, errors: errors.length, trigger: opts.trigger || 'manual', client: opts.client || null };
+    db.setMeta('centralLastSync', CENTRAL_LAST_SYNC);   // survives the instance (and triggers the state upload)
     console.log(`[CENTRAL][Sync] (${opts.trigger || 'manual'}${opts.client ? ', client=' + opts.client : ''}) updated=${updated} unmatched=${unmatched.length} skippedClients=${skippedClients.length}`);
     return { syncedAt, updated, perClient, unmatched, skippedClients, errors, rows: db.getCampaigns() };
   } finally { CENTRAL_SYNCING = false; }
@@ -666,7 +690,7 @@ const EXEC_AUTOSYNC_MIN = Number(process.env.EXEC_AUTOSYNC_MIN || 10);   // 0 = 
 
 function runExecBuilder() {
   return new Promise((resolve, reject) => {
-    const py = process.env.PYTHON || 'python3';
+    const py = PY;   // resolved once at boot (see PY above)
     require('child_process').execFile(py, [path.join(ROOT, 'scripts', 'build_exec_kpis.py'), '--stdout'],
       { cwd: ROOT, timeout: 150000, maxBuffer: 16 * 1024 * 1024 },
       (err, stdout, stderr) => {
@@ -722,6 +746,8 @@ server.listen(PORT, () => {
   console.log(`The Grid + Brain V3 backend on http://localhost:${PORT}/the-grid.html`);
   console.log(`  LLM mode: anthropic=${parser.HAS_ANTHROPIC ? 'LIVE' : 'offline-heuristic'} llama=${parser.HAS_LLAMA ? 'LIVE' : 'offline-mock'}`);
   console.log(`  Central sync timeout: ${CENTRAL_SYNC_TIMEOUT_MS}ms (CENTRAL_SYNC_TIMEOUT_MS)`);
+  console.log(`  Durable state: ${persist.enabled() ? 'gs://' + persist.bucket + '/' + persist.object : 'LOCAL FILE ONLY (set GRID_STATE_BUCKET to persist)'}`);
+  persist.installShutdownFlush();   // Cloud Run SIGTERMs an instance before killing it — flush first
   // Central auto-sync: env-gated (CENTRAL_AUTOSYNC_MIN minutes; 0/unset = off). Uses the
   // same guarded core as the manual route, so a tick during a manual sync just skips.
   if (CENTRAL_AUTOSYNC_MIN > 0) {

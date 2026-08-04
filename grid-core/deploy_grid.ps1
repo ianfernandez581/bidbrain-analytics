@@ -2,14 +2,20 @@
 # dashboards.bidbrain.ai/d/central/, super-admin only) after ANY grid-core edit.
 #
 # ONE image serves everything (the-grid.html + server.js + src/ + config/ + scripts/), so
-# unlike the client dashboards there is only this one script - no job/views split. The image
-# is STATELESS: .dockerignore excludes data/ and .env; on Cloud Run the SQLite DB lives in
-# /tmp (BRAIN_DATA_DIR) and re-seeds from config/central-import.json on every cold start.
-# That means:
+# unlike the client dashboards there is only this one script - no job/views split.
+#
+# STATE (changed 2026-08-04): the image is still stateless, but the DB no longer is. The
+# SQLite file lives in /tmp (BRAIN_DATA_DIR) as before, and is now loaded from and saved
+# back to gs://<GRID_STATE_BUCKET>/grid-state/brain-historical.db (src/brain/persist.js).
+# Before this, /tmp died with the instance, so every cold start re-seeded from
+# config/central-import.json and a sync had nowhere to land - which is why the platform
+# tile read "never synced" forever. That is fixed; the notes below still apply:
 #   - what you deploy IS what is committed in config/ (central-clients.json map approvals,
 #     central-import.json, reconcile-staged/, exec-kpis.json) - commit before deploying;
-#   - NEVER do map approvals / inline edits on the LIVE instance - container writes are
-#     ephemeral and vanish on the next cold start. Approve locally, commit, redeploy.
+#   - map approvals STILL belong locally + committed: /approve writes central-clients.json,
+#     which is baked into the image, NOT into the persisted DB. Inline campaign edits and
+#     sync results DO now survive, because they live in the DB.
+#   - the state file is versioned in GCS, so a bad write can be rolled back.
 # `gcloud run services update --image` swaps ONLY the image - env vars and the service's
 # standing flags (--no-cpu-throttling --min-instances=1, needed for the Executive tab's
 # background refresh) are preserved.
@@ -27,6 +33,7 @@ $PROJECT  = "bidbrain-analytics"
 $REGION   = "australia-southeast1"
 $REPO     = "bidbrain"                                 # Artifact Registry docker repo (shared)
 $SERVICE  = "central-grid"
+$STATE_BUCKET = "bidbrain-analytics-grid-state"        # durable SQLite state (see src/brain/persist.js)
 $GRID_DIR = $PSScriptRoot
 
 function Die($m)  { Write-Host "!! Failed: $m." -ForegroundColor Red; exit 1 }
@@ -49,8 +56,11 @@ $SHA = "$SHA".Trim()
 $IMG = "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${SERVICE}:${SHA}"
 Write-Host "Rebuilding The Grid image ($SHA) ..."
 gcloud builds submit $GRID_DIR --tag $IMG --region $REGION --project $PROJECT; Must "build grid image"
-Write-Host "Updating Cloud Run service $SERVICE (image swap only - env/flags preserved) ..."
-gcloud run services update $SERVICE --image $IMG --region $REGION --project $PROJECT; Must "update grid service"
+Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket; other env/flags preserved) ..."
+# --update-env-vars MERGES (it never clears the others), so re-asserting GRID_STATE_BUCKET
+# every deploy is idempotent and self-heals a service that lost it.
+gcloud run services update $SERVICE --image $IMG --region $REGION --project $PROJECT `
+    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET"; Must "update grid service"
 
 $URL = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format "value(status.url)")
 Write-Host ""
