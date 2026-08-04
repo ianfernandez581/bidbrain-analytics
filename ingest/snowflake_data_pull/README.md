@@ -108,10 +108,14 @@ Today's consumers (verified against each client's `sql/` + job, 2026-06-13):
   (see [`clients/client_hireright/sql/`](../../clients/client_hireright/sql/README.md)).
 - **PropTrack** filters `tradedesk_apac_all` and `linkedin_ads_apac` (see
   [`clients/client_proptrack/sql/`](../../clients/client_proptrack/sql/README.md)).
-- **Cloudflare** is *mostly* separate — its core model lives in its own Snowflake schema
-  (`CLOUDFLARE_SANDBOX`) and its job pulls that directly — but it also reads
-  `raw_snowflake.linkedin_ads_apac` from this shared layer for its extra single-campaign
-  LinkedIn cards (see [`clients/client_cloudflare/`](../../clients/client_cloudflare/README.md)).
+- **Cloudflare** filters `tradedesk_apac_all`, `linkedin_ads_apac`, `reddit_ads_apac_all` and
+  `salesforce_cs_apac_all` in its staging views, like every other client. (Until **2026-06-17** it
+  was the exception: its core model lived in Cloudflare's own Snowflake schema `CLOUDFLARE_SANDBOX`
+  and its job pulled that directly. Nothing in the pipeline reads that schema now — it was ported
+  to `clients/client_cloudflare/sql/`, and the status dashboard's accuracy checks were repointed off
+  it on 2026-08-04.) Its 5th channel, **LINE**, has no Snowflake feed at all — it is a manual
+  LINE-Ad-Manager CSV seeded to `client_cloudflare.seed_line_cf`
+  (see [`clients/client_cloudflare/`](../../clients/client_cloudflare/README.md)).
 
 ---
 
