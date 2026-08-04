@@ -30,7 +30,7 @@ CONFIG = {
     "currency": "USD",
     # Stage-A business-model brief — precise enough that the model's reasoning is never generic.
     "business_model": (
-        "Cloudflare's APAC B2B demand-generation account ('Core Demand Generation'), run by Transmission. TWO "
+        "Cloudflare's APAC B2B demand-generation account ('Core DG APJ'), run by Transmission. TWO "
         "DISTINCT ENGINES with DIFFERENT market granularities — keep them STRICTLY separate:\n"
         "  1) PAID MEDIA (7 markets: ANZ, ASEAN, SAARC, KR, JP, GCR, RIG) across FOUR channels — The Trade Desk "
         "(programmatic DISPLAY, upper-funnel reach), LinkedIn (the ONLY channel that also reports leads + lead-form "
