@@ -910,8 +910,11 @@ function renderQueue(rows){
   q.innerHTML=show.map(c=>{const d=c.d,over=d.paceState==='over';
     const stakeLabel=over?'over budget':(d.marginKnown?'profit at risk':'est. profit at risk');
     const stakeVal=over?moneyP(d.projVar):(d.marginKnown?moneyP(d.atStake):'~'+moneyP(d.atStake));
+    // needed/day vs actual/day. mult>1 => actual is BELOW what's needed => spending SLOWER
+    // (mult<1 => running hot => faster, and we invert so the figure always reads >=1x).
     const mult=(d.reqDaily!=null&&d.runRate!=null&&d.runRate>0)?(d.reqDaily/d.runRate):null;
-    const calc=over?`projected to spend <b>${moneyP(d.projTotal)}</b> vs <b>${moneyP(c.budget)}</b> budget`:(d.reqDaily!=null&&d.runRate!=null)?`needs <b>${moneyP(d.reqDaily)}/day</b> · now spending <b>${moneyP(d.runRate)}/day</b>${mult?` (${mult>=10?Math.round(mult):mult.toFixed(1)}× faster)`:''}`:`will land <b>${d.projVar!=null?moneyP(d.projVar)+' under budget':'—'}</b>`;
+    const multX=mult?(mult<1?1/mult:mult):null,multWord=(mult&&mult<1)?'faster':'slower';
+    const calc=over?`projected to spend <b>${moneyP(d.projTotal)}</b> vs <b>${moneyP(c.budget)}</b> budget`:(d.reqDaily!=null&&d.runRate!=null)?`needs <b>${moneyP(d.reqDaily)}/day</b> · now spending <b>${moneyP(d.runRate)}/day</b>${mult?` (${multX>=10?Math.round(multX):multX.toFixed(1)}× ${multWord})`:''}`:`will land <b>${d.projVar!=null?moneyP(d.projVar)+' under budget':'—'}</b>`;
     return `<div class="q-row"><div class="q-top"><div class="q-name"><span class="pill pace-${d.paceState}">${over?'TOO FAST':'TOO SLOW'}</span><span class="nm">${c.campaign}</span></div><div class="q-stake" style="color:${over?'var(--bad)':'var(--money)'}">${stakeVal}<small>${stakeLabel}${(!over&&(!d.marginKnown||d.marginWarning))?' · set margin':''}</small></div></div><div class="q-meta">${c.advertiser} <span class="chip">${c.channel||'—'}</span> <span class="mgr" style="width:18px;height:18px;font-size:9px">${(c.managedBy||'–').slice(0,2)}</span> ${pctP(c.pctSpent)} of budget spent / ${pctP(c.pctElapsed)} of run gone by</div><div class="q-line"><span class="q-action" style="background:${ACTBG[d.actCol]};color:${ACTFG[d.actCol]}">${d.action}</span><span class="q-calc">${calc}</span></div></div>`;
   }).join('')+(items.length>show.length?`<div class="empty" style="padding:14px">+ ${items.length-show.length} more off-pace</div>`:'');
 }
