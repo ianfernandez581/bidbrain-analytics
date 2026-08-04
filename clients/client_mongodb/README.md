@@ -289,9 +289,9 @@ which is what surfaced the bug ("why are leads arriving after the campaign ended
   CS view needs no new view - but scoping those aggregates would also change the numbers the
   status-dash accuracy check reconciles against, so it is a deliberate follow-up, not a side effect.
 
-## OPEN DEFECT — the `2265_` campaign-name prefix breaks positional parsing (found 2026-07-31)
+## The `2265_` campaign-name prefix broke positional parsing (found 2026-07-31, **FIXED 2026-08-04**)
 
-**Not yet fixed.** [`sql/01_stg_tradedesk.sql`](sql/01_stg_tradedesk.sql) parses the TTD campaign
+[`sql/01_stg_tradedesk.sql`](sql/01_stg_tradedesk.sql) parsed the TTD campaign
 name by FIXED offset (`SPLIT(CAMPAIGN_NAME,"_")[SAFE_OFFSET(2)]` etc). On **2026-07-06** the campaign
 names gained a `2265_` brief-number prefix, which shifts every field one slot:
 
@@ -304,20 +304,31 @@ names gained a `2265_` brief-number prefix, which shifts every field one slot:
 | `MARKET` | `ANZ` / `ASEAN` / `INDIA` / `KR-HK-TW` | `DEMAND-GENERATION` |
 | `OBJECTIVE` | `DEMAND-GENERATION` | `APJ` |
 
-`STRATEGY` still parses correctly - **`AD_GROUP_NAME` was NOT renamed**, which is why nothing looked
+`STRATEGY` still parsed correctly - **`AD_GROUP_NAME` was NOT renamed**, which is why nothing looked
 broken. `DEMAND-GENERATION` is not one of the five market chips and every paid row is gated on
-`marketOk(r.market)` ([`dash/dashboard.html`](dash/dashboard.html) line ~1415, plus the CSV export and
-the AI-deck payload), so **2,949 rows / US$11,670.55 of spend dated 2026-07-06 → 07-30 are silently
-dropped from the dashboard** - about 25% of MongoDB's total TTD spend. All of it belongs to IDC (the
-`2265_*_IDE_*` campaigns carry $0), so KGA/IDC's true spend is ~$29,726 against its $37,200 gross
-budget while the dash shows $18,056. The DNB `MARGIN_TARGET` gross-up is unaffected.
+`marketOk(r.market)` ([`dash/dashboard.html`](dash/dashboard.html), plus the CSV export and the
+AI-deck payload), so **1,394,967 imps / $11,906.04 of 2026-07-06 → 07-31 delivery were silently
+dropped from the dashboard**. Worse, `PROGRAMME` = `2026-Q2` contains neither `IDE` nor `DNB`, so
+`campaignOf()` **also mis-tagged those rows to KGA(IDC)**.
 
-**Fix when actioned:** index from the END of the name instead of the start - the market is always the
-last token and the programme always fourth-from-last in BOTH formats, so
-`ARRAY_REVERSE(SPLIT(CAMPAIGN_NAME,"_"))[SAFE_OFFSET(0)]` / `[SAFE_OFFSET(3)]` parse old and new
-correctly and survive the next prefix. Then `sql/deploy_views_mongodb.ps1` (reapplies + force-runs).
-Same rollout that hit **schneiderlqai** (`2306_` prefix, same date) - that client dodged it by keying
-on `LIKE '%LQAIDC%'` instead of positional splits.
+**[`sql/11_stg_tradedesk_pixel.sql`](sql/11_stg_tradedesk_pixel.sql) had the same break, and it was
+worse**, because its parse feeds a `CASE ... ELSE 'IDC'`: a shifted read silently became a KGA(IDC)
+attribution instead of an error. **254,517 DNB pixel fires - 46% of all fires - were reported as
+KGA(IDC)**, inflating IDC to 262,238 against its true 7,721 and understating DNB (294,112 vs 548,629).
+That is why IDC stopped looking "legitimately sparse".
+
+**Fixed 2026-08-04** by stripping the prefix once into `CAMPAIGN_NAME_NORM` and parsing every token
+off that, in both views (the repo-wide pattern - see AGENTS.md *Campaign names are NOT stable keys*).
+`AD_GROUP_NAME` is normalised too, so the next rename cannot break `STRATEGY`; verified a no-op on
+today's data (RETARGETING / BEHAVIOURAL / KEYWORDS / CONTEXTUAL / ABM unchanged).
+
+Verified after the fix: markets back to `INDIA` / `ASEAN` / `KR-HK-TW` / `ANZ` with **no**
+`DEMAND-GENERATION` bucket and zero rows outside `all_markets`; DNB 6,167,818 imps / **$16,183.91 raw
+(unchanged, so `MARGIN_TARGET` still holds)**; IDC 4,856,165 imps / $29,961.85, which lands on the
+~$29,726 this note predicted; pixel DNB 548,629 / IDC 7,721.
+
+Same rollout hit **schneiderlqai** (`2306_`) and **cloudflare** (`1160_`/`2103_`/`2479_`).
+schneiderlqai dodged it by keying on `LIKE '%LQAIDC%'`; cloudflare did not and was fixed the same day.
 
 ## See also
 

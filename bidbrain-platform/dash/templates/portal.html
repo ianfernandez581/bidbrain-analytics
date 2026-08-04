@@ -148,6 +148,55 @@
   .dev{font-size:8px;line-height:1.3;margin-top:3px}
   .dev b{letter-spacing:.6px}
   .dsrc{font-size:8px;line-height:1.45;margin-top:9px;padding-top:7px;border-top:1px solid;opacity:.85}
+
+  /* ── The Grid: spend-pacing drill-down (client -> platform -> campaign) ── */
+  .gsub{color:var(--muted);font-size:13px;margin:0 0 18px;line-height:1.5}
+  .gsub b{color:var(--text)}
+  .grid-table{display:flex;flex-direction:column;gap:8px}
+  .grow{background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  .grow-head{display:flex;align-items:center;gap:14px;padding:14px 16px;cursor:pointer;user-select:none}
+  .grow-head:hover{background:#121b2c}
+  .grow-head.leaf{cursor:default}
+  .grow-head.leaf:hover{background:transparent}
+  .gcaret{flex:none;width:14px;color:var(--muted);font-size:10px;transition:transform .15s}
+  .grow.open > .grow-head .gcaret{transform:rotate(90deg)}
+  .gname{flex:0 0 230px;min-width:0}
+  .gname .t{font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gname .s{font-size:11px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gbar{flex:1;min-width:70px;position:relative;height:10px;border-radius:999px;background:#1a2334}
+  .gbar .fill{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:var(--active)}
+  .gbar .fill.warn{background:#fbbf24}
+  .gbar .fill.over{background:#f87171}
+  .gbar .plan{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:rgba(232,235,242,.22)}
+  .gnums{flex:0 0 160px;text-align:right;font-size:12px;color:var(--muted);white-space:nowrap}
+  .gnums b{color:var(--text);font-size:13.5px}
+  .gchip{flex:0 0 88px;text-align:center;font-size:10px;font-weight:800;letter-spacing:.5px;padding:4px 0;border-radius:999px}
+  .gchip.ok{color:#86efac;background:rgba(34,197,94,.14)}
+  .gchip.warn{color:#fcd34d;background:rgba(251,191,36,.14)}
+  .gchip.over{color:#fca5a5;background:rgba(248,113,113,.14)}
+  .gchip.na{color:#cbd5e1;background:rgba(148,163,184,.16)}
+  .gkids{display:none;border-top:1px solid var(--border);background:var(--panel-2);padding:4px 0}
+  .grow.open > .gkids{display:block}
+  .gkids .grow{border:0;border-radius:0;background:transparent;overflow:visible}
+  .gkids .grow-head{padding:10px 16px 10px 34px}
+  .gkids .gkids{border-top:0;background:rgba(0,0,0,.18)}
+  .gkids .gkids .grow-head{padding-left:56px}
+  .gkids .gname .t{font-size:13px;font-weight:600}
+  @media (max-width:720px){ .gname{flex-basis:150px} .gnums{flex-basis:120px} }
+
+  /* ── The Brain: work-in-progress ── */
+  .braincard{max-width:640px;margin:8px auto 0;background:var(--panel);border:1px solid var(--border);
+             border-radius:16px;padding:38px 34px 32px;text-align:center}
+  .braincard .bicon{font-size:38px}
+  .braincard h2{font-size:20px;font-weight:800;margin:12px 0 8px}
+  .braincard p{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 auto;max-width:480px}
+  .wippill{display:inline-block;margin-top:18px;font-size:10.5px;font-weight:800;letter-spacing:.8px;
+           color:#fbbf24;background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.32);
+           padding:5px 12px;border-radius:999px}
+  .ghostrows{margin-top:24px;display:flex;flex-direction:column;gap:10px}
+  .ghostrow{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px dashed var(--border);
+            border-radius:10px;color:var(--muted);font-size:12.5px;text-align:left;opacity:.55}
+  .ghostrow .dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none}
 </style>
 </head>
 <body>
@@ -185,6 +234,8 @@
     <div class="bbtabs">
       <button class="bbtab on" data-pane="overview">Overview</button>
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
+      <button class="bbtab" data-pane="grid">The Grid</button>
+      <button class="bbtab" data-pane="brain">The Brain</button>
     </div>
     <div class="bbpane on" id="pane-overview">
     <div class="bbsyncbar">
@@ -221,8 +272,152 @@
     </div>
     </div><!-- /pane-overview -->
     <div class="bbpane" id="pane-accuracy"><div id="bbacc"><div class="bbloading">Loading…</div></div></div>
+    <div class="bbpane" id="pane-grid">
+      <p class="gsub">Spend pacing - each bar is the <b>full campaign budget</b>: the colored bar is spend to date, the pale bar behind it is where the plan says spend should be by today (the full budget once a flight has finished). Colored short of pale = behind pace, colored past pale = over. Click a client to break out its platforms, and a platform to see its campaigns.</p>
+      <div id="bbgrid" class="grid-table"><div class="bbloading">Loading…</div></div>
+    </div>
+    <div class="bbpane" id="pane-brain">
+      <div class="braincard">
+        <div class="bicon">🧠</div>
+        <h2>The Brain</h2>
+        <p>Optimization recommendations built from live pacing, cross-client benchmarks and industry trends - where to shift budget, which campaigns need attention, and why.</p>
+        <span class="wippill">WORK IN PROGRESS</span>
+        <div class="ghostrows" aria-hidden="true">
+          <div class="ghostrow"><span class="dot"></span>Budget reallocation suggestions from under- and over-pacing lines</div>
+          <div class="ghostrow"><span class="dot"></span>Creative and channel benchmarks vs industry trend</div>
+          <div class="ghostrow"><span class="dot"></span>Weekly action list, ranked by projected impact</div>
+        </div>
+      </div>
+    </div>
   </div>
   {% include "_status_merge.html" %}
+
+  <script>
+  // ── The Grid: actual-vs-expected spend pacing, drill-down client -> platform -> campaign ──
+  // Data = the agency media-plan snapshot (actual %, expected % straight from the plan tracker).
+  (function(){
+    var host = document.getElementById('bbgrid'); if (!host) return;
+    var AGENCY = {{ agency.slug|tojson }};
+    // [client, brief, campaign, platform, status, start, end, budget, spend, actualPct, expectedPct]
+    var ROWS = {
+      'transmission': [
+        ['STT',1663,'Always On','DV360','Ended','7 Feb','30 Jun',63177.00,62571.15,99.04,100],
+        ['STT',1663,'Always On','LinkedIn','Ended','1 Jun','30 Jun',4528.00,1597.75,35.29,100],
+        ['STT',1663,'Always On','Google Ads','Ended','1 Jun','30 Jun',9300.00,1860.95,20.01,100],
+        ['STT',1663,'Demand Nurture ID','LinkedIn','Ended','22 Feb','31 May',15000.00,14185.11,94.57,100],
+        ['STT',1663,'Demand Nurture VN','LinkedIn','Ended','23 Apr','31 May',5000.00,4465.96,89.32,100],
+        ['STT',1663,'Demand Nurture TH','LinkedIn','Ended','23 Apr','31 May',5000.00,4461.22,89.22,100],
+        ['STT',1663,'Organic Boosting','LinkedIn','Ended','6 Apr','31 May',22499.91,22498.31,99.99,100],
+        ['STT',1663,'AI Infra TH','LinkedIn','Active','24 Jun','3 Aug',4112.00,3399.63,82.68,100],
+        ['Cloudflare',2103,'Q2 Core DG','TradeDesk','Ended','1 Apr','30 Jun',86826.00,85251.96,98.19,100],
+        ['Cloudflare',2103,'Q2 Core DG','LinkedIn','Ended','1 Apr','30 Jun',62131.00,45522.04,73.27,100],
+        ['Cloudflare',2103,'Q2 Core DG','Reddit','Ended','1 Apr','30 Jun',12073.00,9891.45,81.93,100],
+        ['Cloudflare',2103,'Q2 Core DG','LINE','Ended','1 Apr','30 Jun',7553.00,6820.85,90.31,100],
+        ['Schneider',1974,'EAE Consideration','DV360','Ended','4 Mar','8 Jun',5714.00,5387.82,94.29,100],
+        ['Schneider',1974,'EAE Conversion','DV360','Ended','4 Mar','8 Jun',2857.00,1803.54,63.13,100],
+        ['PropTrack',2011,'Banking ABM','TradeDesk','Active','20 Apr','31 Dec',12000.00,17112.80,142.61,41.18],
+        ['PropTrack',2011,'Banking ABM','LinkedIn','Active','6 Apr','30 Jun',12000.00,11309.40,94.25,100],
+        ['MongoDB',2265,'DNB IDE','TradeDesk','Ended','18 May','30 Jun',19920.00,16183.91,81.24,100],
+        ['MongoDB',2265,'Key Growth Accounts IDC','TradeDesk','Active','22 May','30 Jul',30876.00,29961.83,97.04,100],
+        ['MongoDB',2265,'Key Growth Accounts IDC','LinkedIn','Active','25 Jun','30 Jul',4000.00,592.58,14.81,100],
+        ['MongoDB',2265,'Immersion Day','LinkedIn','Active','','',null,null,null,null]
+      ]
+    }[AGENCY] || [];
+
+    if (!ROWS.length){
+      host.innerHTML = '<div class="bbloading">Pacing data for this agency is being connected.</div>';
+      return;
+    }
+
+    function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(m){
+      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]; }); }
+    function fmt$(n){ if (n == null) return '-';
+      return '$' + Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    function pct(n){ return n == null ? '-' : (Math.round(n * 10) / 10) + '%'; }
+    function status(a, e){
+      if (a == null || e == null || !e) return ['na', 'PENDING'];
+      var idx = a / e;
+      if (idx > 1.15) return ['over', 'OVER PACE'];
+      if (idx < 0.9)  return ['warn', 'BEHIND'];
+      return ['ok', 'ON PACE'];
+    }
+    var TODAY = new Date();
+    var MONTH = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+    function pdate(s){ var p = String(s || '').split(' '); return p.length === 2 ? new Date(2026, MONTH[p[1]], +p[0]) : null; }
+    // idealized straight-line pace: % of the flight elapsed as of today (0-100); plan value as fallback
+    function expFor(r){
+      if (r[7] == null) return null;
+      var s = pdate(r[5]), e = pdate(r[6]);
+      if (!s || !e || e <= s) return r[10];
+      return Math.max(0, Math.min(1, (TODAY - s) / (e - s))) * 100;
+    }
+    // budget-weighted rollup: actual = spend/budget; expected = sum(budget x expected)/budget
+    function agg(rows){
+      var b = 0, s = 0, we = 0;
+      rows.forEach(function(r){ if (r[7] != null){ b += r[7]; s += r[8]; we += r[7] * expFor(r); } });
+      if (!b) return { budget:null, spend:null, actual:null, expected:null };
+      return { budget:b, spend:s, actual:s / b * 100, expected:we / b };
+    }
+    // bullet bar, one scale: track = total budget; pale underlay = plan spend to date (100% once the
+    // flight has finished); colored bar on top = actual spend. Short of the pale bar = behind, past it = over.
+    function bar(a, e){
+      var h = '<div class="gbar">';
+      if (e != null) h += '<div class="plan" style="width:' + Math.min(e, 100) + '%"></div>';
+      if (a != null){
+        var st = status(a, e)[0], cls = (st === 'ok' || st === 'na') ? '' : ' ' + st;
+        h += '<div class="fill' + cls + '" style="width:' + Math.min(a, 100) + '%"></div>';
+      }
+      return h + '</div>';
+    }
+    function head(logoKey, name, sub, a, e, numsub, leaf){
+      var st = status(a, e);
+      return '<div class="grow-head' + (leaf ? ' leaf' : '') + '">'
+        + '<span class="gcaret">' + (leaf ? '' : '&#9654;') + '</span>'
+        + (logoKey ? '<img class="bblogo sm" style="flex:none" src="/logo/' + esc(logoKey) + '" alt="" onerror="this.remove()">' : '')
+        + '<span class="gname"><span class="t">' + esc(name) + '</span>'
+        + (sub ? '<span class="s">' + esc(sub) + '</span>' : '') + '</span>'
+        + bar(a, e)
+        + '<span class="gnums"><b>' + pct(a) + '</b>'
+        + (numsub ? '<br>' + esc(numsub) : '') + '</span>'
+        + '<span class="gchip ' + st[0] + '">' + st[1] + '</span></div>';
+    }
+    function groupBy(rows, i){
+      var keys = [], map = {};
+      rows.forEach(function(r){ var k = r[i]; if (!map[k]){ map[k] = []; keys.push(k); } map[k].push(r); });
+      return keys.map(function(k){ return { key:k, rows:map[k] }; });
+    }
+
+    // grid client name -> registry client key (drives the /logo/<key> route, same as the Overview tiles)
+    var LOGO_KEY = { 'STT':'stt', 'Cloudflare':'cloudflare', 'Schneider':'schneider',
+                     'PropTrack':'proptrack', 'MongoDB':'mongodb' };
+    function money(x){ return x.budget == null ? 'awaiting plan data' : fmt$(x.spend) + ' of ' + fmt$(x.budget); }
+    var h = '';
+    groupBy(ROWS, 0).forEach(function(cl){
+      var ca = agg(cl.rows);
+      h += '<div class="grow">' + head(LOGO_KEY[cl.key] || '', cl.key, cl.rows.length + ' campaign line' + (cl.rows.length === 1 ? '' : 's'),
+             ca.actual, ca.expected, money(ca), false) + '<div class="gkids">';
+      groupBy(cl.rows, 3).forEach(function(pl){
+        var pa = agg(pl.rows);
+        h += '<div class="grow">' + head('', pl.key, pl.rows.length + ' campaign' + (pl.rows.length === 1 ? '' : 's'),
+               pa.actual, pa.expected, money(pa), false) + '<div class="gkids">';
+        pl.rows.forEach(function(r){
+          var sub = r[4] + (r[5] ? ' · ' + r[5] + ' - ' + r[6] : '');
+          var numsub = r[7] == null ? 'awaiting plan data' : fmt$(r[8]) + ' of ' + fmt$(r[7]);
+          h += '<div class="grow">' + head('', r[2], sub, r[9], expFor(r), numsub, true) + '</div>';
+        });
+        h += '</div></div>';
+      });
+      h += '</div></div>';
+    });
+    host.innerHTML = h;
+
+    host.addEventListener('click', function(e){
+      var hd = e.target.closest('.grow-head');
+      if (!hd || hd.classList.contains('leaf')) return;
+      hd.parentElement.classList.toggle('open');
+    });
+  })();
+  </script>
 
   <!-- "Open slides" chooser: build the deck (hidden iframe), then Open in Google Slides or Download .pptx -->
   <div id="slidesModal" class="smodal" hidden role="dialog" aria-modal="true" aria-labelledby="sTitle">

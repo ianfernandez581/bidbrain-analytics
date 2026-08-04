@@ -21,6 +21,17 @@ every agency-scoped path: the portal, `/api/status`, the proxy's `_may_open`) an
 restore; the portal then shows a **▸ Viewing agency portal** pill and a **← Back to admin / super
 console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clears everything.
 
+**Portal tabs (2026-08-04):** Overview · Data Accuracy · **The Grid** · **The Brain**. The Grid is a
+spend-pacing drill-down (client → platform → campaign) drawn as BULLET BARS on one scale: track =
+total budget, pale underlay = plan spend-to-date from the flight dates (100% once a flight has
+finished), colored bar on top = actual spend (red + capped at 100% when over). Colored short of pale
+= behind, past it = over — matching the BEHIND/OVER PACE chips (actual÷expected: <0.9 behind, >1.15
+over). Rendered from a **hardcoded media-plan snapshot in `portal.html`** keyed by agency slug (only
+`transmission` has data; other agencies see a "being connected" note) — refresh it by editing the
+`ROWS` array; wiring it to live grid-core/Pulse pacing is the intended follow-up. Client-row logos
+reuse `/logo/<key>` (none uploaded yet, so they self-hide). The Brain is a styled work-in-progress
+placeholder (future pacing/industry-trend optimization recommendations).
+
 ### Agencies (seeded from `dash/config.py`)
 - **100% Digital** (`100d2026`): City Perfume, VMCH, The Little Marionette, ResetData,
   Bell Shakespeare *(coming soon)*, Geocon *(coming soon)*.

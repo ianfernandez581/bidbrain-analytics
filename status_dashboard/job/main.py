@@ -284,36 +284,46 @@ CLIENTS = [
             # 2026-07-29). A frozen/edited legacy view would show a false X against a dashboard that
             # is correct. The filters below MIRROR the staging views 1:1 - keep them in sync with
             # clients/client_cloudflare/sql/01-03 + 05_paid_media_model:
-            #   TTD      stg_tradedesk: ADVERTISER_NAME='Cloudflare'; the model drops MARKET_L3 ''/NULL,
-            #            which is SPLIT_PART(CAMPAIGN_NAME,'_',9) (BQ SAFE_OFFSET(8) = SF part 9).
-            #            Impressions keep the COALESCE(IMPRESSIONS, IMPRESSION) singular fallback.
-            #   LinkedIn stg_linkedin: ACCOUNT_NAME='Cloudflare APAC'; the model keeps CLOUD_ACQ_% only.
+            #   TTD      stg_tradedesk: ADVERTISER_NAME='Cloudflare'. Deliberately NO name parsing
+            #            here - see the note on the two TTD checks below.
+            #   LinkedIn stg_linkedin: ACCOUNT_NAME='Cloudflare APAC'; the model keeps CLOUD_ACQ_% only,
+            #            matched on the brief-number-stripped name (stg_linkedin.CAMPAIGN_NAME_NORM).
             #   Reddit   stg_reddit:   ACCOUNT_NAME='Transmission_Cloudflare' (no further filter).
-            # Verified 2026-08-04: all 7 return identical values to the old sandbox view AND to the
-            # live dashboard (TTD 28,692,751 imps / 104,285 clicks; LI 3,746,467 / 16,908 / 487 leads;
-            # Reddit 5,811,169 / 7,294).
+            # Verified 2026-08-04 after the prefix fix: TTD 36,053,269 imps / 106,208 clicks;
+            # LI 3,746,467 / 16,908 / 487 leads; Reddit 5,811,169 / 7,294.
+            #
+            # The two TTD checks below query the WHOLE advertiser with NO campaign-name parsing,
+            # on purpose. Mirroring the view's parse would make the check circular: the 2026-08-04
+            # incident was a PARSING break (a "<brief>_" prefix shifted every token), and the old
+            # check reproduced the same broken parse on both sides, so it stayed green while 34% of
+            # delivery was missing from the dashboard. Advertiser-total vs dashboard-total is the
+            # one comparison that catches a parsing regression. It is only valid while every
+            # Cloudflare TTD campaign belongs on this dashboard, which is true today (0 rows
+            # off-chip). If Cloudflare ever runs TTD that must be excluded, scope this by campaign
+            # instead - and add a separate orphan-token check so a silent loss cannot return.
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _cf_pm("imps", {"TTD", "TradeDesk"}),
              "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'Cloudflare'\n"
-                    "  AND NVL(SPLIT_PART(CAMPAIGN_NAME, '_', 9), '') <> '';",
-             "note": "Raw Trade Desk source, scoped like stg_tradedesk + paid_media_model (advertiser "
-                     "Cloudflare, campaigns whose name yields a MARKET_L3). vs sum of paid_media.rows[] "
-                     "where channel is TTD/TradeDesk."},
+                    "WHERE ADVERTISER_NAME = 'Cloudflare';",
+             "note": "WHOLE advertiser, no campaign-name parsing (deliberate - catches a parsing "
+                     "regression, which a parse-mirroring check cannot). Impressions keep the "
+                     "COALESCE(IMPRESSIONS, IMPRESSION) fallback: for Cloudflare the two columns are "
+                     "DISJOINT (109,467 rows singular, 60,386 plural), so either alone under-counts. "
+                     "vs sum of paid_media.rows[] where channel is TTD/TradeDesk."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _cf_pm("clicks", {"TTD", "TradeDesk"}),
              "sql": "SELECT SUM(CLICKS) AS clicks\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'Cloudflare'\n"
-                    "  AND NVL(SPLIT_PART(CAMPAIGN_NAME, '_', 9), '') <> '';",
-             "note": "vs sum of paid_media.rows[] clicks where channel is TTD/TradeDesk."},
+                    "WHERE ADVERTISER_NAME = 'Cloudflare';",
+             "note": "Whole advertiser, no name parsing (see the impressions note). vs sum of "
+                     "paid_media.rows[] clicks where channel is TTD/TradeDesk."},
             {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn (paid media)",
              "dash": _cf_pm("imps", {"LinkedIn", "LI"}),
              "sql": "SELECT SUM(IMPRESSIONS) AS imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE ACCOUNT_NAME = 'Cloudflare APAC'\n"
-                    "  AND STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_');",
+                    "  AND STARTSWITH(REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), '^[0-9]+_', ''), 'CLOUD_ACQ_');",
              "note": "Raw LinkedIn source, scoped like stg_linkedin + paid_media_model (Cloudflare APAC "
                      "account, CLOUD_ACQ_ campaigns). vs sum of paid_media.rows[] imps where channel is "
                      "LinkedIn/LI."},
@@ -322,14 +332,14 @@ CLIENTS = [
              "sql": "SELECT SUM(CLICKS) AS clicks\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE ACCOUNT_NAME = 'Cloudflare APAC'\n"
-                    "  AND STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_');",
+                    "  AND STARTSWITH(REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), '^[0-9]+_', ''), 'CLOUD_ACQ_');",
              "note": "vs sum of paid_media.rows[] clicks where channel is LinkedIn/LI."},
             {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn (paid media)",
              "dash": _cf_pm("leads", {"LinkedIn", "LI"}),
              "sql": "SELECT SUM(LEADS) AS leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE ACCOUNT_NAME = 'Cloudflare APAC'\n"
-                    "  AND STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_');",
+                    "  AND STARTSWITH(REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), '^[0-9]+_', ''), 'CLOUD_ACQ_');",
              "note": "LinkedIn is the only paid channel reporting leads (TTD/Reddit/LINE carry 0). "
                      "vs sum of paid_media.rows[] leads where channel is LinkedIn/LI."},
             {"label": "Reddit · Impressions", "kind": "sum", "group": "Reddit",

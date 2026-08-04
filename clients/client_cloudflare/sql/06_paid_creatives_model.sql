@@ -8,20 +8,22 @@ CREATE OR REPLACE VIEW `client_cloudflare.paid_creatives_model` AS
 WITH linkedin AS (
     SELECT
         'LinkedIn' AS CHANNEL,
+        -- CAMPAIGN_NAME_NORM = brief-number prefix stripped (stg_linkedin, 2026-08-04);
+        -- keep these rules identical to paid_media_model's LinkedIn arm.
         CASE
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%apac-anz%'   THEN 'ANZ'
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%apac-asean%' THEN 'ASEAN'
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%apac-in%'    THEN 'SAARC'
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%apac-tcn%'   THEN 'GCR'
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%_jp_%' OR LOWER(CAMPAIGN_NAME) LIKE '%apac-jp%' THEN 'JP'
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%_kr_%' OR LOWER(CAMPAIGN_NAME) LIKE '%apac-kr%' THEN 'KR'
-            WHEN LOWER(CAMPAIGN_NAME) LIKE '%rig%'        THEN 'RIG'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-anz%'   THEN 'ANZ'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-asean%' THEN 'ASEAN'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-in%'    THEN 'SAARC'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-tcn%'   THEN 'GCR'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_jp_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-jp%' THEN 'JP'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_kr_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-kr%' THEN 'KR'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%rig%'        THEN 'RIG'
             ELSE 'UNMAPPED'
         END AS MARKET,
         COALESCE(NULLIF(TRIM(CREATIVE_NAME), ''), NULLIF(TRIM(AD_TITLE), ''), '(unnamed)') AS CREATIVE,
         SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, SUM(LEADS) AS LEADS
     FROM `client_cloudflare.stg_linkedin`
-    WHERE STARTS_WITH(CAMPAIGN_NAME, 'CLOUD_ACQ_')
+    WHERE STARTS_WITH(CAMPAIGN_NAME_NORM, 'CLOUD_ACQ_')
     GROUP BY 2, 3
 ),
 tradedesk AS (
