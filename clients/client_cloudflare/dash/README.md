@@ -18,7 +18,7 @@ authenticates and serves it at `/data.json` → `dashboard.html` draws the chart
 | File | What it does |
 |---|---|
 | [`main.py`](main.py) | The Flask app. **Byte-for-byte the same auth/serve/proxy logic as MongoDB** — only the login-page branding and the default `DATA_OBJECT` (`cloudflare.json`) differ. |
-| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — "Core Demand Generation" plus three single-campaign LinkedIn dashboards. ~2,410 lines (HTML + CSS + inline JS). Fetches `/data.json` once and renders everything client-side. |
+| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — **"Core DG APJ"** (the `core` lane; renamed from "Core Demand Generation" 2026-08-05) plus three single-campaign LinkedIn dashboards, and a **disabled "Core DG EMEA - coming soon"** placeholder in the lane dropdown. ~3,860 lines (HTML + CSS + inline JS). Fetches `/data.json` once and renders everything client-side. |
 | [`DASHBOARD.md`](DASHBOARD.md) | **How `dashboard.html` was built** from Cloudflare's original `index.html`: three small `<script>` edits to read one private `/data.json` instead of two public R2 files. Read this if you re-derive the page from a new design. |
 | [`LIVE_URL.md`](LIVE_URL.md) | The upstream `…run.app` URL, the front-door access path (`dashboards.bidbrain.ai/d/cloudflare/`), and how to re-fetch the URL. |
 | [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py` + `dashboard.html`. |
