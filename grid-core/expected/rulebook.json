@@ -1,0 +1,31 @@
+{
+  "version": "2026-08-04.1",
+  "note": "Parameters for the generic deterministic checks in validate.js. These run identically for every client; per-client facts never live here.",
+  "money": {
+    "budget_sum_tolerance": 0.01,
+    "rate_reconcile_rel_tolerance": 0.01,
+    "rate_reconcile_abs_tolerance": 2
+  },
+  "dates": {
+    "check_stated_duration": true,
+    "check_items_within_flight": true
+  },
+  "platform_minimums": {
+    "linkedin_min_daily_budget": 10
+  },
+  "utm": {
+    "required_params": ["utm_source", "utm_medium", "utm_campaign"],
+    "check_month_token_consistency": true,
+    "month_token_pattern": "^(\\d{4})_([a-z]{3})_",
+    "check_geo_id_prefix": true,
+    "platform_source_map": { "tradedesk": "tradedesk", "the trade desk": "tradedesk", "ttd": "tradedesk", "linkedin": "linkedin", "meta": "facebook", "dv360": "dv360" }
+  },
+  "files": {
+    "flag_unreferenced_media_types": ["image", "video", "pdf"],
+    "flag_duplicates": true
+  },
+  "approvals": {
+    "flag_null_status": true
+  },
+  "stages": ["Request Received", "Media Plan Approved", "Raw Materials Complete", "Campaign Built", "Live", "Pacing"]
+}

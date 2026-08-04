@@ -290,6 +290,7 @@ table.unw td.dim{color:var(--ink-3)}
         <button data-view="brain" aria-pressed="false" title="Automatic suggestions for improving campaigns">◇ Brain <span class="bt-navnew">NEW</span></button>
         <button data-view="central" aria-pressed="false" title="The full campaign list with every number, budget and date: margin, pacing and health, with the media-plan reader">◈ Central</button>
         <button data-view="exec" aria-pressed="false" title="Executive at-a-glance: every client's health and main KPI in one screen">◆ Executive</button>
+        <button data-view="greenlight" id="navGreenlight" aria-pressed="false" style="display:none" title="Greenlight: plan-side campaign checker - upload a file dump, get the pacing baseline, gap analysis and chase drafts">◉ Greenlight <span class="bt-navnew">NEW</span></button>
       </div>
       <div class="spacer"></div>
       <div class="seg" id="segStatus" role="group" aria-label="Status">
@@ -467,6 +468,9 @@ table.unw td.dim{color:var(--ink-3)}
       <div id="view-historical" style="display:none"></div>
       <!-- CENTRAL (rendered by src/central/render-central.js) -->
       <div id="view-central" style="display:none"></div>
+
+      <!-- Greenlight (plan-side checker; feature-flagged via /api/greenlight/enabled) -->
+      <div id="view-greenlight" style="display:none"><div id="greenlightMount"></div></div>
     </div>
   </main>
 </div>
@@ -671,6 +675,7 @@ table.unw td.dim{color:var(--ink-3)}
 <script src="config/central-seed.js"></script>
 <script src="src/central/plan-panel.js"></script>
 <script src="src/central/render-central.js"></script>
+<script src="src/greenlight/greenlight.js"></script>
 
 <script>
 /* ==================== LIVE SPINE (Phase 1; Register merged into Central Phase 2) ====================
@@ -1354,20 +1359,23 @@ function renderContent(){
   const isBrain=F.view==='brain';
   const isCentral=F.view==='central';
   const isExec=F.view==='exec';
-  document.getElementById('ctx').style.display=(isBrain||isCentral||isExec)?'none':'';   // Brain + Central + Executive have their own header
-  if(!isBrain&&!isCentral&&!isExec)updateCtx(rows);
+  const isGreenlight=F.view==='greenlight';
+  document.getElementById('ctx').style.display=(isBrain||isCentral||isExec||isGreenlight)?'none':'';   // Brain + Central + Executive + Greenlight have their own header
+  if(!isBrain&&!isCentral&&!isExec&&!isGreenlight)updateCtx(rows);
   document.getElementById('view-pulse').style.display=F.view==='pulse'?'':'none';
   document.getElementById('view-dashboards').style.display=F.view==='dashboards'?'':'none';
   document.getElementById('view-brain').style.display=isBrain?'':'none';
   document.getElementById('view-central').style.display=isCentral?'':'none';
   document.getElementById('view-exec').style.display=isExec?'':'none';
+  document.getElementById('view-greenlight').style.display=isGreenlight?'':'none';
   const isHist=F.view==='historical';
   document.getElementById('view-historical').style.display=isHist?'':'none';
   if(isHist)document.getElementById('ctx').style.display='none';
   // the top-bar status/mgr/search/CSV controls act on Pulse; Central owns its own
   // richer set (status chips, client+manager filters, search, CSV), so hide the
   // top-bar ones there rather than show two inert twins (Phase 2 merge).
-  const topCtl=!isCentral;
+  // Greenlight has no use for them either.
+  const topCtl=!isCentral&&!isGreenlight;
   document.getElementById('segStatus').style.display=topCtl?'':'none';
   document.getElementById('segMgr').style.display=topCtl?'':'none';
   document.getElementById('exportBtn').style.display=topCtl?'':'none';
@@ -1377,8 +1385,15 @@ function renderContent(){
   else if(isCentral){renderCentral();}
   else if(isHist){renderHistorical();}
   else if(isExec){renderExec();}
+  else if(isGreenlight){renderGreenlight();}
   else{renderDashboards();}
   writeHash();
+}
+// Greenlight tab - module in src/greenlight/greenlight.js (Brain-style classic script)
+function renderGreenlight(){
+  const mount=document.getElementById('greenlightMount');
+  if(window.Greenlight&&window.Greenlight.render)window.Greenlight.render(mount);
+  else mount.innerHTML='<div class="empty">Greenlight module failed to load. Check that src/greenlight/ is served alongside the-grid.html.</div>';
 }
 function render(){renderRail();renderContent();}
 // Central tab — owns its own state + rendering (src/central/render-central.js)
@@ -1427,7 +1442,7 @@ function writeHash(){try{const s=hashString();history.replaceState(null,'',s?('#
 function readHash(){try{const p=new URLSearchParams(location.hash.replace(/^#/,''));
   const advs=new Set(DATA.map(c=>c.advertiser)),mgrs=new Set(DATA.map(c=>c.managedBy).filter(Boolean));
   const cl=p.get('client');if(cl&&(cl==='all'||AG_ORDER.includes(cl)||advs.has(cl)))F.client=cl;
-  const v=p.get('view');if(v==='pulse'||v==='dashboards'||v==='brain'||v==='historical'||v==='central'||v==='exec')F.view=v;   // old #view=register links fall back to Pulse
+  const v=p.get('view');if(v==='pulse'||v==='dashboards'||v==='brain'||v==='historical'||v==='central'||v==='exec'||v==='greenlight')F.view=v;   // old #view=register links fall back to Pulse
   const st=p.get('status');if(st&&['all','Active','Paused','Ended'].includes(st))F.status=st;
   const mg=p.get('mgr');if(mg&&(mg==='all'||mgrs.has(mg)))F.mgr=mg;
   // Brain state from the hash (drives both direct-URL load and back/forward)
@@ -1559,6 +1574,13 @@ function updateAsOfBadge(){
 
 // ---- boot: load the live spine FIRST, then render (the app has no baked data) ----
 loadSpine().then(()=>{buildMgrSeg();readHash();syncControls();render();updateAsOfBadge();});
+// Greenlight feature flag: the nav button ships hidden; the server reveals it
+// when GREENLIGHT_ENABLED=true. Flag off (or probe unreachable) = no tab, and
+// a stale #view=greenlight hash falls back to Pulse.
+fetch('api/greenlight/enabled',{cache:'no-store'}).then(r=>r.json()).then(j=>{
+  if(j&&j.enabled){document.getElementById('navGreenlight').style.display='';}
+  else if(F.view==='greenlight'){F.view='pulse';syncControls();render();}
+}).catch(()=>{if(F.view==='greenlight'){F.view='pulse';syncControls();render();}});
 // the unwatched-spend report is an independent read-only file: never block the spine on it
 loadUnwatched().then(()=>{if(F.view==='pulse')renderUnwatched();});
 

@@ -1,46 +1,139 @@
-# expected - The Grid, Expected side (plan baseline)
+# expected - Greenlight, The Grid's plan-side tab (the Expected side)
 
 Turns a media buyer's campaign file dump into the expected-side baseline the
-Actual side compares against. First campaign: Schneider Electric NEL Awareness,
-Job 2053 (ANZ, AUD 35,000, flight 2026-06-01 to 2026-08-22, TradeDesk 8,000 +
-LinkedIn 27,000 split Video 6,000 / Doc Ads 14,000 / SIA 7,000).
+Actual side compares against. Client-agnostic: no client names, job numbers,
+or plan figures live in code - everything comes from extraction at run time.
 
-## Build
+## Greenlight in The Grid (the production surface)
+
+Greenlight is a nav tab in the-grid.html (after Executive, NEW badge), served
+by grid-core/server.js which mounts routes.js at `/api/greenlight/*`. The UI
+module is `src/greenlight/greenlight.js` (Brain-style classic script rendering
+into #view-greenlight on the Grid's own theme vars; violet = AI-authored).
+
+- **Feature flag:** `GREENLIGHT_ENABLED=true` exposes the API and reveals the
+  nav button (the page probes `GET /api/greenlight/enabled`). Default OFF:
+  the probe answers false, every other greenlight route 404s, no tab in the
+  nav. Flip it on the live service only after review:
+  `gcloud run services update central-grid --region australia-southeast1
+  --update-env-vars GREENLIGHT_ENABLED=true --timeout 600`
+  (--timeout 600: the extraction call runs ~320s synchronously in the request;
+  the default 300s would cut it off. TODO: move to a background job.)
+- **Auth:** the Grid's own model - platform proxy (super-admin) + Cloud Run
+  IAM. Zero auth code in this unit, same as every other tab.
+- **API key:** production reads ANTHROPIC_API_KEY from Secret Manager
+  (`--update-secrets ANTHROPIC_API_KEY=anthropic-api-key:latest`, wired in
+  deploy_grid.ps1; v2+ of that secret is the funded key, v1 is the old
+  unfunded org key). Local dev reads gitignored grid-core/.env. Never a .env
+  in production.
+- **Storage:** uploads stage per file (base64 JSON, 15MB/file - the platform
+  proxy caps forwarded POSTs ~16MB; bigger files are skipped with a note) into
+  GREENLIGHT_DUMPS_DIR/_staging, and each run archives to
+  GREENLIGHT_DUMPS_DIR/<runId>/ (files + out + results.json). On Cloud Run
+  both point at /tmp (Dockerfile) - ephemeral by design for now.
+  TODO(GCS): gs://bidbrain-campaign-dumps via the src/brain/persist.js
+  pattern so the runs library survives cold starts.
+- **Local prestage:** with no uploads staged, a run analyzes grid-core/files
+  (dev convenience; that directory is dockerignored so the deployed image has
+  no prestage - upload is the only path in).
+
+## Pipeline (per run)
 
 ```
+files dump -> preprocess.js -> extract.js (ONE Claude call) -> validate.js -> build_expected.js
+              deterministic     claude-opus-5, strict schema    rulebook.json    outputs in out/
+```
+
+1. `preprocess.js` - deterministic: xlsx sheets to row-numbered CSV, media
+   measured in code (image dims, mp4 duration via ISO-BMFF parse, pdf pages),
+   sha256 dedupe, manifest.
+2. `extract.js` - one structured-output call (model `claude-opus-5`, override
+   with `EXPECTED_MODEL`). Every value cites file | sheet, row. Missing = null.
+   Conflicts carry all candidates; a value is resolved ONLY when the documents
+   themselves resolve it (rationale recorded), else stays null. Judgement
+   findings + chase drafts are model work, tagged origin "model". The schema
+   avoids type unions and nesting (the structured-outputs grammar compiler
+   rejects union-heavy schemas): "" sentinels + numeric strings + pipe-
+   delimited list entries, normalized back to nulls/numbers in code.
+3. `validate.js` + `rulebook.json` - generic deterministic checks, identical
+   for every client: budget sums, claimed-total labels, date math, items in
+   flight, LinkedIn daily minimums, UTM consistency, empty approval fields,
+   unreferenced media, duplicates. Findings tagged origin "code".
+4. `build_expected.js` - plain-code outputs from out/plan.json + findings.json:
+   daily = goal / days, cumulative = elapsed / total x goal (inclusive days,
+   final day exact). Campaigns missing budget/goals/dates become exceptions,
+   never zero rows.
+
+## Run
+
+```
+node grid-core/expected/server.js        # UI at http://localhost:8791 (EXPECTED_PORT)
+node grid-core/expected/extract.js       # headless: [--files <dir>], writes out/
 node grid-core/expected/build_expected.js
+node grid-core/expected/check_key.js     # 1-token key probe (never prints the key)
+node grid-core/expected/test_regression.js  # gate vs the Schneider NEL dump (server must run)
 ```
 
-Regenerates everything in `out/` from plan constants extracted from the source
-files (each constant cited in the script header and the xlsx Info sheet). All
-arithmetic is plain code: daily = goal / days, cumulative = days elapsed /
-total days x goal, 83 days inclusive. Final-day cumulatives equal the plan
-goals exactly; the script throws if the campaign budgets stop summing to 35,000.
+Requires `ANTHROPIC_API_KEY` (env or gitignored `grid-core/.env`). A run costs
+about a dollar (one opus call over ~200KB of sheets) and takes 5-7 minutes.
+
+## Analyses - the per-campaign workspace model (store.js)
+
+An ANALYSIS is a named workspace for one campaign: its own isolated file dump
+(persists across runs, so a buyer's incremental sends accumulate) plus a run
+history. New analysis = fresh empty container - different campaigns' files
+never mix. Names are optional; an auto-named analysis adopts the extracted
+"<client> <job>" after its first successful run. Analyses can be renamed,
+archived (soft, reversible) or deleted (hard, removes files + runs).
+
+- Layout: `dumps/analyses/<id>/{analysis.json, files/**, runs/<runId>/{out/**, results.json}}`.
+  Legacy flat `dumps/<runId>/` dirs are migrated on boot.
+- **Re-run guard:** each run records a content hash of the file set; running
+  again with identical files answers `{unchanged:true}` and the UI asks
+  "Run anyway?" before spending another model call (force:true overrides).
+- **GCS mirror** (GREENLIGHT_BUCKET, prod = gs://bidbrain-campaign-dumps):
+  every write mirrors up best-effort; boot pulls the small metadata index;
+  files/artifacts come down lazily on first read. Local FS stays the source
+  of truth for the instance - a mirror failure logs loudly, never breaks a
+  request. This is what makes the library survive Cloud Run cold starts.
+  Locally the mirror is off (env unset) and everything stays on disk.
+- **Identity guard** (extract.js, deterministic): 4-digit job prefixes in file
+  names partition a dump. More than one distinct job = never blend: a blocker
+  finding lists which files belong to which job, plan.campaigns keeps only the
+  majority job, and the UI renders a red banner.
+- `dumps/` and `out/` are gitignored (generated state; out/ was untracked on
+  2026-08-05 - artifacts rebuild from any run).
 
 ## Outputs (out/)
 
-- `daily_kpi.xlsx` - one row per campaign per day: daily + cumulative spend,
-  impressions, clicks. Info sheet carries goals and per-number citations.
-- `daily_kpi.json` - same numbers from the same rows array, one source of
-  truth. Shape: `{job, client, currency, generated_at, campaigns[{campaign_name,
-  platform, start, end, total_budget, goal_impressions, goal_clicks, daily[]}]}`.
-- `pacing.html` - self-contained pacing page: cumulative expected line per
-  campaign, metric toggle, today marker, hover readout. Actuals join hook for
-  the Actual side: set `window.BB_ACTUALS` or call `joinActuals(rows)` with
-  daily `{date, campaign, spend, impressions, clicks}` rows.
-- `flowchart.html` - self-contained stage flowchart (Request Received through
-  Pacing), colored from the report items.
-- `report.md` - 15 gaps and inconsistencies found in the source files, each
-  citing its source file and sheet.
-- `chase_messages.md` - draft messages (one per recipient) requesting each
-  missing item. A person reviews and sends.
+- `plan.json` - the cited extraction record (the eyeball surface)
+- `findings.json` - code + model findings merged, each tagged `origin`
+- `daily_kpi.xlsx` / `daily_kpi.json` - one row per campaign per day, daily +
+  cumulative spend/impressions/clicks; Info sheet carries goals + citations
+- `pacing.html` - self-contained pacing page; actuals join hook for the Actual
+  side: `window.BB_ACTUALS` or `joinActuals(rows)` with daily
+  `{date, campaign, spend, impressions, clicks}` rows
+- `flowchart.html` - stage readiness computed from findings (blocker = red)
+- `report.md` / `chase_messages.md` / `messages.json` - findings report and
+  model-drafted chase messages (a person reviews and sends)
+- `manifest.json` - the preprocess inventory with code-measured media metadata
 
-## Notes
+## Regression gate
 
-- The source file dump (media plan, setup sheets, creative sheets, TAL lists,
-  creative assets) is NOT committed; it lived at `grid-core/files/` locally.
-- Extraction of the plan constants was a hand-verified model pass this session;
-  automating extraction (Claude API, structured output, citations) is the next
-  milestone, as is a UI server (in progress locally, not yet shipped).
-- Flight-date note: every source document says "82 days" but the June window is
-  83 days inclusive (report.md item 2). The baseline uses 83.
+`test_regression.js` is the ONLY place client numbers live: a cold run on the
+Schneider NEL dump (grid-core/files, local-only) must extract job 2053, AUD
+35,000 split 8,000 TradeDesk + 6,000/14,000/7,000 LinkedIn, flight 2026-06-01
+to 2026-08-22 (83 days), and the CODE validator must re-catch the
+35,000-vs-27,000 build-sheet label and the 82-vs-83 day discrepancy.
+Last green: 2026-08-04, 13/13.
+
+## Known tuning items
+
+- UTM required-param checks fire on reference URLs (SharePoint links, privacy
+  pages) where UTMs do not belong - scope the rulebook check to ad
+  destinations.
+- `referenced_files` uses the names documents cite (e.g. `DCFCREVL001EN.pdf`),
+  which may not match physical file names, so genuinely-used assets can be
+  flagged unreferenced; the extractor flags the mismatch itself.
+- Upload zone accepts file metadata only; byte upload into a per-run staging
+  dir is the next milestone.

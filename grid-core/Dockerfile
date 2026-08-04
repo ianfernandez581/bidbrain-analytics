@@ -21,10 +21,15 @@ RUN npm ci --omit=dev
 COPY . .
 
 # Cloud Run sets PORT=8080; SQLite staging + uploads go to the writable /tmp.
+# Greenlight (plan-side checker, feature-flagged off by default) also writes to
+# /tmp: uploaded dumps + run outputs are ephemeral, viewed or downloaded
+# in-session. TODO(GCS): gs://bidbrain-campaign-dumps for a durable runs library.
 ENV NODE_ENV=production \
     PORT=8080 \
     BRAIN_DATA_DIR=/tmp/brain-data \
-    BRAIN_TMP_DIR=/tmp/brain-uploads
+    BRAIN_TMP_DIR=/tmp/brain-uploads \
+    GREENLIGHT_DUMPS_DIR=/tmp/greenlight-dumps \
+    GREENLIGHT_OUT_DIR=/tmp/greenlight-out
 
 EXPOSE 8080
 CMD ["node", "server.js"]
