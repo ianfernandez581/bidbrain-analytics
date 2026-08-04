@@ -117,8 +117,8 @@ and `line_cf.csv` stay in gitignored `data/` — they are pulled/manual snapshot
 format and appended to `targets/real_targets.csv`, so it now carries **Q2 + Q3** rows (Q2 weeks
 `2026-03-30 → 2026-06-15`, Q3 weeks `2026-07-06 → 2026-09-28`, 13 weeks). Q3 grand total **2290**
 (ANZ 943 / ASEAN 419 / SAARC 220 / GCR 309 / JP 244 / KR 155), reconciled to the plan's own total row.
-The dashboard **defaults to Q2** (2026-07-09), and selecting Q3 lights up its target KPIs + pacing cards
-from these targets. **The target is quarter-anchored** (the full selected-quarter plan, NOT the in-range
+The dashboard **opens on Q3** (2026-08-05; it defaulted to Q2 from 2026-07-09), so these Q3 targets drive
+the target KPIs + pacing cards on load. **The target is quarter-anchored** (the full selected-quarter plan, NOT the in-range
 sum) — otherwise, because the date range clamps to the last day with data, an in-progress quarter like
 Q3 would show only the elapsed weeks' target (the "Q3 Target = 182 instead of 2290" bug, fixed
 2026-07-09 via `pacingWindow`/`quarterTargets` in `aggregate()`). **Note: the Q3 "Core DG" plan has NO
@@ -213,8 +213,8 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
 ### Admin View (internal) - unprocessed leads + Source-ID filter (2026-07-10)
 
 The unprocessed/New leads removed above (client rule) are still viewable INTERNALLY via a role-gated
-**Client View / Admin View** toggle in the **topbar** (a pill toggle styled like the Q2/Q3 quarter
-control, right of the date picker). **Client View** = exactly what the client sees; **Admin View** turns
+**Client View / Admin View** toggle in the **topbar** (a pill toggle, right of the date picker - it
+reuses the `.qtr-*` CSS of the retired Q2/Q3 quarter control, which is why that CSS stays). **Client View** = exactly what the client sees; **Admin View** turns
 on everything below. It is **hidden from clients**: the toggle appears only when the platform proxy
 injected `window.BB_DEV=true` - which it does for an **admin / super-admin** session or the
 **Transmission agency** portal (see `bidbrain-platform/dash/main.py` `_dev_flag_script`, injected
@@ -323,17 +323,63 @@ RoA 165 / SAARC 282 / GCR-CN 106 / GCR-TW 106 / GCR-HK 204 / KR 202 / RIG 172 / 
 as a **version-controlled committed CSV** (`targets/real_targets.csv` → `seed_real_targets`, the
 per-client "targets in BQ from a committed CSV" standard — see *Updating targets* below).
 
-### Quarter filter (Q2 / Q3) — defaults to Q2
+### Lane dropdown: "Core DG APJ" + an EMEA placeholder (2026-08-05)
 
-The top bar carries a **Quarter** toggle (Q2 · Apr–Jun / Q3 · Jul–Sep) that **defaults to Q2**
-(2026-07-09). It's a coarse control layered over the shared Looker-style date-range picker: quarters
-are **contiguous calendar spans**, so a selection maps 1:1 onto a single date range — Q3 → `[Jul 1,
-dataMax]`, Q2 → `[Apr 1, Jun 30]`. The **date range is the single source of truth**; the chips are
-*derived* from it (`syncQuarterChips`), so picking an arbitrary range in the calendar simply lights
-no chip ("custom"). **Both chips are ALWAYS visible**, and the active quarter is highlighted. **The
-chips are SINGLE-SELECT:** clicking one jumps the range to exactly that quarter (`toggleQuarter` sets
-the span). The **Q2+Q3 union** (`[Apr 1, dataMax]`, labelled "Q2-Q3") is reachable by selecting a
-spanning range in the calendar; `syncQuarterChips` still detects + labels it.
+The topbar dropdown's first entry was renamed **"Core Demand Generation" → "Core DG APJ"** (client
+request, JM) ahead of **Core DG EMEA** launching the week of 2026-08-05. The `<option>` **value is
+still `core`** — only the label changed — so `switchDashboard()`, `activeTab`, every core-tab render
+path and the whole payload are untouched by the rename. Two display strings follow it: the AI deck's
+`context.campaign` in `buildDeckPayload()` and the Stage-A `business_model` brief in `dash/report.py`.
+`campaign_key` stays `core_demand_gen` (the stable identifier `/report` summaries carry, so cached
+decks don't orphan).
+
+**Core DG EMEA sits in the dropdown DISABLED** — `<option value="core_emea" disabled>Core DG EMEA -
+coming soon</option>`. It is a deliberate placeholder, not a wired lane: `switchDashboard()` sends any
+non-`core` value to `renderCampaign()`, which would find no `COMBINED.campaigns.core_emea` and render
+its empty *"No data / No delivery rows for this campaign group yet"* state — that reads as **broken**
+rather than **pending**, so the option is greyed until there is real data behind it.
+
+#### Adding Core DG EMEA
+
+EMEA is a **second regional lane of the same programme**, not a single-campaign view, so it needs its
+own model + payload branch rather than a `campaigns[]` entry:
+
+1. **Data layer** — EMEA rows have to arrive in `raw_snowflake.*` (paid) and the Salesforce CS feed.
+   Confirm the campaign-name/market tokens EMEA uses before writing any parse (APJ's markets are the
+   7 APAC groups; EMEA will carry its own set) and add its CS campaign IDs to `definitions.json`.
+2. **Model** — either add a `REGION` column through `paid_media_model` / `pacing_model` and split in
+   the job, or clone the `sql/` chain per region. Prefer the column: one set of views, one gate.
+3. **Payload** — emit an EMEA branch (e.g. `paid_media_emea` / `pacing_emea`, or a `region` key on
+   the existing rows) from `job/main.py`, and extend the data-contract table below.
+4. **Frontend** — drop `disabled`, then give `switchDashboard()` a branch that repoints the core
+   panels at the EMEA payload (its `ALL_MARKETS`, targets and `PACING_PLANS` all differ from APJ's).
+   `QUARTERS`/`activeChans()` need no change - both are region-agnostic.
+5. Rebuild with `FORCE_REBUILD=1` (view/seed changes are invisible to the freshness gate) and
+   redeploy the dash service.
+
+### Quarter selection — opens on the CURRENT quarter, picked in the calendar (2026-08-05)
+
+**The dashboard opens on the quarter today falls in — Q3 (Jul 1 – Sep 30) as of 2026-08-05** — and
+the quarter is chosen **in the date-range calendar**, whose first two presets are `Q3 (Jul-Sep)` /
+`Q2 (Apr-Jun)`. **The topbar Q2/Q3 chip pair is GONE** (client request 2026-08-05: a row of quarter
+buttons doesn't scale as quarters accumulate) — one control, not two.
+
+- `QUARTERS` (now declared **above** the `DateRange` IIFE) is the single source of truth for every
+  quarter span, and the calendar's quarter presets are **generated from it** (`QUARTER_ORDER`,
+  newest first) — the old duplicate hardcoded `q2`/`q3` preset dates are gone. **Add a quarter to
+  `QUARTERS` and it appears in the calendar automatically**; nothing else to touch.
+- The quarter presets are listed **first** deliberately: `detectPreset()` returns the first matching
+  preset, so the picker button reads "Q3 (Jul-Sep)" instead of the identical-but-vaguer
+  "This quarter" (both produce the same range while Q3 is current).
+- The default comes from **`currentQuarterKey()`** (the quarter containing today, pinned to the
+  nearest one outside the defined set), so it **rolls forward on its own** — no annual edit. It
+  falls back to the full data window if that quarter has no data yet.
+- The **date range stays the single source of truth**; the selected quarter is *derived* from it by
+  **`syncQuarterFromRange()`** (was `syncQuarterChips`; `toggleQuarter`/`renderQuarterChips` were
+  deleted with the chips). A custom calendar range resolves to **no** quarter and `qtrLabel()`
+  captions read a neutral "Quarter". The **Q2+Q3 union** (`[Apr 1, dataMax]`, labelled "Q2-Q3") is
+  still reachable by selecting a spanning range.
+- The `.qtr-filter`/`.qtr-group`/`.qtr-chip` **CSS stays** — the Client/Admin view toggle reuses it.
 
 **RIG drops out of the MARKETS filter under Q3** (client request 2026-07-09 — "remove the RIG filter
 option when Q3 is toggled"): the Core DG Q3 plan carries **no RIG line**, so `visibleMarkets()` hides
@@ -343,10 +389,12 @@ practice Q3 has zero RIG rows anyway, so this only removes an irrelevant chip �
 changes. (The CS Comparison tab's A/B region dropdowns are NOT yet quarter-scoped, so they still list
 RIG; low priority.)
 
-The filter is **global** — it drives Paid Media, Content Syndication and CS Comparison alike (the QoQ
-tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in `dash/dashboard.html`
-(`QUARTERS`/`quarterSpan`/`toggleQuarter`/`syncQuarterChips`/`renderQuarterChips`/`visibleMarkets`
-+ `DateRange.setRange` + `q2`/`q3` calendar presets); no data-layer change.
+The selection is **global** — it drives Paid Media, Content Syndication and CS Comparison alike (the
+QoQ tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in
+`dash/dashboard.html` (`QUARTERS`/`QUARTER_ORDER`/`quarterSpan`/`currentQuarterKey`/
+`syncQuarterFromRange`/`visibleMarkets` + the generated quarter presets); no data-layer change.
+**Because the default is now Q3, the RIG market chip is hidden on load** (see above) — expected, not
+a bug.
 
 **Q3 targets/pacing are loaded (2026-07-09).** The Q3 target rows are in `seed_real_targets`, so the
 Q3 view now shows real target KPIs + the two pacing cards (`renderLeadsTarget`, `renderProgress`). The
@@ -373,16 +421,16 @@ the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (
 ### Budget pacing by channel (2026-07-20)
 
 A **pacing section sits directly under the "Channel performance vs media plan benchmarks" table** on the
-Paid Media tab - one horizontal bar per channel that ran in the **selected quarter** (it **follows the
-Q2/Q3 toggle** via `selQuarters`). Each bar's **orange fill = billed spend within that quarter**, a
+Paid Media tab - one horizontal bar per channel that ran in the **selected quarter** (it **follows
+`selQuarters`**, itself derived from the calendar range). Each bar's **orange fill = billed spend within that quarter**, a
 **dashed vertical marker = where spend should be today to finish the quarter on budget** (budget x fraction
 of the quarter elapsed; a *complete* quarter pins the marker at 100%, so the bar reads as final delivery vs
 budget), and the figure on the right is the **$ gap to pace** (behind / on / ahead). Frontend-only
 (`renderPacing()` + the `.pace-*` CSS in `dash/dashboard.html`) - no data-contract or job change; it reads
-the existing `paid_media.rows[]`. Re-renders on every quarter toggle (`applyDateRange → renderPaidMediaAll`).
+the existing `paid_media.rows[]`. Re-renders on every quarter change (`applyDateRange → renderPaidMediaAll`).
 
-- **Quarter-driven** (`PACING_PLANS` keyed by `Q2`/`Q3`; a custom calendar range with no chip lit shows
-  every quarter). **Q3** shows **TTD + LinkedIn** only (Reddit was dropped in Q3, LINE isn't a Q3 platform);
+- **Quarter-driven** (`PACING_PLANS` keyed by `Q2`/`Q3`; a custom calendar range that resolves to no
+  quarter shows every quarter). **Q3** shows **TTD + LinkedIn** only (Reddit was dropped in Q3, LINE isn't a Q3 platform);
   **Q2** shows **all four** (TTD, LinkedIn, Reddit, LINE). "today" = the browser clock clamped to the
   flight. The section is deliberately **independent of the date-range picker and market chips**
   (whole-quarter, all-market) - filtering the dashboard does not move it.
@@ -397,6 +445,49 @@ the existing `paid_media.rows[]`. Re-renders on every quarter toggle (`applyDate
 - **Multiplier-aware:** the budget is grossed by the same per-channel client-billed spend multiplier as
   spend (`bbMultFor`), so the pacing % is invariant to raw (direct) vs billed (front-door) access - it
   reconciles with the (also-grossed) spend column in the table above it.
+
+### Paid Media shows only the channels that RAN in the selection (2026-08-05)
+
+Client request alongside the Q3 default: **a channel with no activity in the selected period must not
+appear at all** - Reddit and LINE are Q2-only, and under Q3 they were drawing empty zero rows,
+zero-width donut slices and flat zero trend lines that read like under-delivery.
+
+**`PM_CHANS` in `dash/dashboard.html` is now the ONE channel roster** (`key` / `label` / `long` /
+`abbr` / `pill` / `color` / `pre` field-prefix / `mkey` market field / `rows()` accessor) and
+**`activeChans()`** filters it to the channels with real delivery (spend **or** impressions **or**
+clicks) inside the applied **date range** - so it follows the calendar, and a channel reappears the
+moment a range covering its flight is selected. Everything channel-shaped renders from it:
+
+| Piece | Behaviour |
+|---|---|
+| Spend KPI caption, blended spend/imps/clicks/CPM/CTR/CPC, "vs plan" CPC caption | live channels only (`renderPaidKPIs`) |
+| "Spend by channel" donut + its hint line | one slice per live channel; hint reads e.g. "Trade Desk + LinkedIn mix." |
+| "Daily spend - all channels stacked" | one stacked series per live channel |
+| Daily efficiency trio (CTR / Clicks / CPC) | one line per live channel - was a hardcoded TTD/LinkedIn/Reddit trio, so **LINE now plots too under Q2** (`channelByGrain` gained the missing `ln_imp`/`ln_clk` sums) |
+| "Channel performance vs media plan benchmarks" table | one row per live channel + an explicit empty-state row |
+| "Market breakdown - …" heading, market stack / bar / table | heading names the live channels; stacked series + market totals sum only over them (`chanTotal`) |
+| Creative channel filter + both creative tables | only live channels are offered and included; a pick that goes inactive falls back to "All channels" |
+| TTD section (heading + "TTD daily" card) | hidden unless TTD delivered |
+| LinkedIn funnel card | hidden unless LinkedIn delivered |
+| Paid footer "Source: …" | lists the live channels |
+
+**"LinkedIn leads vs weekly target" now hides outside its plan window.** `li_weekly`
+(`sql/09_li_weekly_targets.sql`) is the **fixed 13-week Q2 plan** (Mar 30 - Jun 30), so the block
+renders only while the selected range overlaps that window. This also fixes a real defect the Q3
+default would have exposed: `weekIndex()` matched "any date >= the last week start", so **every
+post-Q2 lead was piling into the W13 bar** - it now returns -1 outside `[planStart, planEnd]` (both
+parsed from the plan's own `period` strings).
+
+Market rows follow the same rule (`spendByMarket()` already dropped zero-spend markets). Frontend-only
+- no `sql/`, `job/main.py` or data-contract change.
+
+**Liveness keys on the DATE RANGE ONLY, deliberately not on the market chips.** If it also honoured
+the chips, a channel whose markets all failed to parse would **vanish** from the tab instead of
+showing a visible zero row - precisely the silent row-loss failure mode the [brief-number prefix
+fix](#brief-number-campaign-prefixes-broke-paid-media-market-parsing-fixed-2026-08-04) chased down
+(unmapped `MARKET_L3` passes the model's non-empty guard, then matches no chip, then `passesAll()`
+drops it from every aggregate). A parsing regression must stay loud. It also keeps the channel list
+stable while chips are toggled, instead of channels appearing/disappearing under the cursor.
 
 ## The data contract (`cloudflare.json` -> `/data.json`)
 

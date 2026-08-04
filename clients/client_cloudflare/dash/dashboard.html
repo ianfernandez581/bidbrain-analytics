@@ -42,7 +42,8 @@
               box-shadow:0 0 0 0 rgba(31,157,85,0.7);animation:pulse 2s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(31,157,85,0.6)}70%{box-shadow:0 0 0 8px rgba(31,157,85,0)}100%{box-shadow:0 0 0 0 rgba(31,157,85,0)}}
 
-  /* ===== Quarter filter (Q2/Q3) - sits in the dark topbar, left of the date picker ===== */
+  /* ===== Topbar pill-toggle look. Was the Q2/Q3 quarter filter (retired - quarters are now
+     picked in the calendar); the Client/Admin view toggle below still uses these classes. ===== */
   .qtr-filter{display:inline-flex;align-items:center;gap:8px}
   .qtr-filter .qtr-lbl{font-size:11px;color:#8ca0b8;text-transform:uppercase;letter-spacing:.5px;font-weight:700}
   .qtr-group{display:inline-flex;gap:3px;background:#0c1524;border:1px solid #25364b;border-radius:8px;padding:3px}
@@ -383,19 +384,23 @@
       <span class="cf-name">CLOUDFLARE</span>
     </div>
     <div class="topbar-divider"></div>
+    <!-- Lane selector. `core` is the APJ Core DG lane - renamed "Core Demand Generation" ->
+         "Core DG APJ" 2026-08-05 (client request) ahead of Core DG EMEA launching. The VALUE
+         stays `core`, so switchDashboard + every core-tab path is untouched by the rename.
+         Core DG EMEA has NO data lane yet, so it sits here DISABLED as a visible placeholder:
+         selecting it would land on renderCampaign's empty "No data" view, which reads as broken
+         rather than pending. To light it up see the client README -> "Adding Core DG EMEA". -->
     <select id="dashSelect" class="dash-select" onchange="switchDashboard(this.value)">
-      <option value="core" selected>Core Demand Generation</option>
+      <option value="core" selected>Core DG APJ</option>
+      <option value="core_emea" disabled>Core DG EMEA - coming soon</option>
       <option value="peyc">ANZ PEYC</option>
       <option value="cf1_india">CF1 India</option>
       <option value="coles_hyper">Coles Hyper</option>
     </select>
-    <div class="qtr-filter" id="qtrFilter">
-      <span class="qtr-lbl">Quarter</span>
-      <div class="qtr-group">
-        <button class="qtr-chip" data-q="Q2" type="button" onclick="toggleQuarter('Q2')">Q2<span>Apr-Jun</span></button>
-        <button class="qtr-chip" data-q="Q3" type="button" onclick="toggleQuarter('Q3')">Q3<span>Jul-Sep</span></button>
-      </div>
-    </div>
+    <!-- Quarter selection lives IN the calendar (the "Q3 (Jul-Sep)" / "Q2 (Apr-Jun)" presets), not
+         in a row of quarter buttons - one control, and it stays clean as quarters accumulate.
+         The dashboard opens on the current quarter; the quarter the range maps to is derived
+         from it (syncQuarterFromRange) and drives every .qlbl caption. -->
     <div class="dp" id="dateRange">
       <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -502,7 +507,7 @@
         <div class="group">
           <div class="lbl">Overall</div>
           <div class="pair" id="overallPair">
-            <div class="stat"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="kpi_target">-</div></div>
+            <div class="stat"><div class="k"><span class="qlbl">Q3</span> Target</div><div class="v" id="kpi_target">-</div></div>
             <div class="stat"><div class="k">Accepted leads</div><div class="v" id="kpi_total">-</div></div>
             <div class="stat" id="kpi_unprocessed_stat" style="display:none"><div class="k">Unprocessed (New)</div><div class="v" id="kpi_unprocessed">-</div><div class="cnt">internal - not shown to client</div></div>
           </div>
@@ -526,12 +531,12 @@
       <div class="grid">
         <div class="card">
           <h3>Leads vs target</h3>
-          <div class="hint"><span class="qlbl">Q2</span> target, time-to-date target, and accepted leads QTD.</div>
+          <div class="hint"><span class="qlbl">Q3</span> target, time-to-date target, and accepted leads QTD.</div>
           <div id="leadsTarget"></div>
         </div>
         <div class="card">
           <h3>Progress</h3>
-          <div class="hint">Leads vs target / Time vs <span class="qlbl">Q2</span> days elapsed.</div>
+          <div class="hint">Leads vs target / Time vs <span class="qlbl">Q3</span> days elapsed.</div>
           <div id="progress"></div>
         </div>
       </div>
@@ -569,7 +574,7 @@
 
       <div class="card">
         <h3>By-region summary</h3>
-        <div class="hint">Three bars per region, scaled to the region's <span class="qlbl">Q2</span> target.</div>
+        <div class="hint">Three bars per region, scaled to the region's <span class="qlbl">Q3</span> target.</div>
         <div id="regionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
       </div>
 
@@ -629,7 +634,7 @@
             <div class="compare-kpi-group">
               <div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="A_target">-</div></div>
+                <div class="compare-kpi"><div class="k"><span class="qlbl">Q3</span> Target</div><div class="v" id="A_target">-</div></div>
                 <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="A_total">-</div></div>
               </div>
             </div>
@@ -671,7 +676,7 @@
             <div class="compare-kpi-group">
               <div class="grp-lbl">Overall</div>
               <div class="compare-kpis">
-                <div class="compare-kpi"><div class="k"><span class="qlbl">Q2</span> Target</div><div class="v" id="B_target">-</div></div>
+                <div class="compare-kpi"><div class="k"><span class="qlbl">Q3</span> Target</div><div class="v" id="B_target">-</div></div>
                 <div class="compare-kpi"><div class="k">Accepted leads</div><div class="v" id="B_total">-</div></div>
               </div>
             </div>
@@ -768,20 +773,21 @@
 
         <div class="section" style="margin-top:18px">
           <h2>Budget pacing by channel</h2>
-          <span class="sub">Billed spend vs media-plan budget for the <b>selected quarter</b> (use the Q2/Q3 toggle above). The <b>dashed marker</b> is where spend should be today to finish the quarter on budget; the figure on the right is the <b>$ gap to pace</b>. Whole-quarter, all-market - not affected by the date or market filters.</span>
+          <span class="sub">Billed spend vs media-plan budget for the <b>selected quarter</b> (pick a quarter in the calendar above). The <b>dashed marker</b> is where spend should be today to finish the quarter on budget; the figure on the right is the <b>$ gap to pace</b>. Whole-quarter, all-market - not affected by the date or market filters.</span>
         </div>
 
         <div class="card">
           <div id="pacingRows"></div>
         </div>
 
-        <div class="section first" style="border-top:none;padding-top:0;margin-top:18px">
+        <!-- TTD-specific section: hidden when TTD didn't deliver in the selected range. -->
+        <div class="section first" id="ttdSection" style="border-top:none;padding-top:0;margin-top:18px">
           <h2>TTD - Impressions, Clicks &amp; CTR</h2>
           <span class="sub">Programmatic upper-funnel delivery</span>
         </div>
 
         <div class="grid">
-          <div class="card card-tall">
+          <div class="card card-tall" id="ttdCard">
             <div class="card-head"><div><h3>TTD daily - impressions, clicks, CTR</h3>
             <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div></div>
             <div class="ctrls">
@@ -792,7 +798,7 @@
           </div>
           <div class="card card-tall">
             <h3>Spend by channel</h3>
-            <div class="hint">TTD + LinkedIn + Reddit + LINE mix.</div>
+            <div class="hint" id="channelMixHint">Channel mix.</div>
             <div class="chart-wrap"><canvas id="channelMix"></canvas></div>
           </div>
         </div>
@@ -839,7 +845,7 @@
         </div>
 
         <div class="section">
-          <h2>Market breakdown - LinkedIn + TTD + Reddit + LINE</h2>
+          <h2 id="marketBreakdownHead">Market breakdown</h2>
           <span class="sub">Stacked spend by region with full-funnel summary table. Actuals follow the date range; the <b>"vs plan" columns are full period</b>.</span>
         </div>
 
@@ -889,18 +895,22 @@
           </div>
         </div>
 
-        <div class="section">
-          <h2>LinkedIn leads vs weekly target</h2>
-          <span class="sub">13-week Q2 plan: 11 leads/wk (144 cumulative). Actual bars/line follow the date range; the <b>target lines are the fixed Q2 plan (full period)</b>.</span>
+        <!-- The weekly lead plan is the FIXED 13-week Q2 LinkedIn plan, so this block only
+             shows while the selected range overlaps that plan window (see renderWeeklyTarget). -->
+        <div id="weeklyTargetBlock">
+          <div class="section">
+            <h2>LinkedIn leads vs weekly target</h2>
+            <span class="sub">13-week Q2 plan: 11 leads/wk (144 cumulative). Actual bars/line follow the date range; the <b>target lines are the fixed Q2 plan (full period)</b>.</span>
+          </div>
+
+          <div class="card">
+            <h3>Weekly leads vs target</h3>
+            <div class="hint">Bars = weekly. Lines = cumulative actual vs cumulative target.</div>
+            <div class="chart-wrap" style="height:320px"><canvas id="weeklyTarget"></canvas></div>
+          </div>
         </div>
 
-        <div class="card">
-          <h3>Weekly leads vs target</h3>
-          <div class="hint">Bars = weekly. Lines = cumulative actual vs cumulative target.</div>
-          <div class="chart-wrap" style="height:320px"><canvas id="weeklyTarget"></canvas></div>
-        </div>
-
-        <div class="card" style="margin-top:14px">
+        <div class="card" id="liFunnelCard" style="margin-top:14px">
           <h3>LinkedIn funnel - impressions → click → form start → submitted lead</h3>
           <div class="hint">Lead-form-start metric (oneClickLeadFormOpens) on datastream 924; numbers populate after each fetch.</div>
           <div id="liFunnel"></div>
@@ -1070,18 +1080,29 @@ function bbApplySpendMult(){
 }
 
 // ==========================================================================
+// THE QUARTERS - one source of truth for every quarter span (calendar presets,
+// the derived quarter label, CS target anchoring and budget pacing all read this).
+// Add a quarter here and it appears in the calendar automatically.
+// ==========================================================================
+const QUARTERS = { Q2:{start:'2026-04-01', end:'2026-06-30', label:'Q2 (Apr-Jun)'},
+                   Q3:{start:'2026-07-01', end:'2026-09-30', label:'Q3 (Jul-Sep)'} };
+const QUARTER_ORDER = ['Q3','Q2'];      // newest first - the order they list in the calendar
+
+// ==========================================================================
 // SHARED DATE-RANGE PICKER (Looker-style). API: DateRange.init({min,max,onApply}),
 // DateRange.getRange(). onApply(startISO,endISO) fires on Apply. Default = full window.
+// The quarter presets come FIRST: they are how you move between quarters now that the
+// topbar quarter chips are gone, and being first also means detectPreset() labels the
+// button "Q3 (Jul-Sep)" rather than the identical-but-vaguer "This quarter".
 // ==========================================================================
 window.DateRange = (function(){
-  const PRESETS = [
+  const PRESETS = QUARTER_ORDER.map(k => ({k:k.toLowerCase(), label:QUARTERS[k].label})).concat([
     {k:'7',  label:'Last 7 days'},  {k:'14', label:'Last 14 days'},
     {k:'28', label:'Last 28 days'}, {k:'30', label:'Last 30 days'},
     {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
     {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
-    {k:'q2', label:'Q2 (Apr-Jun)'}, {k:'q3', label:'Q3 (Jul-Sep)'},
     {k:'all', label:'All time'},
-  ];
+  ]);
   let MIN=null, MAX=null, onApply=null;
   let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
   let viewYear=0, viewMonth=0, open=false;
@@ -1102,8 +1123,8 @@ window.DateRange = (function(){
     else if(k==='lastmonth'){     s = new Date(MAX.getFullYear(), MAX.getMonth()-1, 1);
                                   e = new Date(MAX.getFullYear(), MAX.getMonth(), 0); }
     else if(k==='quarter'){       const q=Math.floor(MAX.getMonth()/3); s=new Date(MAX.getFullYear(), q*3, 1); }
-    else if(k==='q2'){            s=new Date(2026,3,1);  e=new Date(2026,5,30); }   // Apr 1 – Jun 30
-    else if(k==='q3'){            s=new Date(2026,6,1);  e=new Date(2026,8,30); }   // Jul 1 – Sep 30
+    else if(QUARTERS[k.toUpperCase()]){ const q=QUARTERS[k.toUpperCase()];   // a defined quarter, e.g. 'q3'
+                                  s=parse(q.start); e=parse(q.end); }
     else                          { s=new Date(MIN); e=new Date(MAX); }   // all
     return [clamp(s), clamp(e)];
   }
@@ -1164,7 +1185,8 @@ window.DateRange = (function(){
     selStart=new Date(draftStart); selEnd=new Date(draftEnd||draftStart);
     close(); updateButton(); if(onApply) onApply(iso(selStart), iso(selEnd)); }
 
-  // Programmatically set the selected range (used by the Q2/Q3 quarter chips).
+  // Programmatically set the selected range (kept on the public API for callers that
+  // need to jump the range without a click - the retired quarter chips used it).
   // Clamps to [MIN,MAX], syncs the calendar view + button, and fires onApply so
   // the rest of the dashboard re-renders exactly as if applied from the calendar.
   function setRange(sISO, eISO){
@@ -1220,20 +1242,20 @@ window.DateRange = (function(){
 })();
 
 // ==========================================================================
-// QUARTER FILTER (Q2 / Q3) - a coarse control layered over the shared date
-// range. Quarters are CONTIGUOUS calendar spans, so a selection maps 1:1 onto
-// a single date range: Q3 -> [Jul 1, dataMax], Q2 -> [Apr 1, Jun 30], both ->
-// [Apr 1, dataMax]. The date range stays the single source of truth; the chips
-// are derived from it (so a custom calendar range simply lights no chip).
+// THE SELECTED QUARTER - DERIVED from the date range, never a control of its own.
+// Quarters are CONTIGUOUS calendar spans, so a range maps 1:1 onto a quarter:
+// [Jul 1, dataMax] -> Q3, [Apr 1, Jun 30] -> Q2, [Apr 1, dataMax] -> both. The
+// date range is the single source of truth (the calendar's quarter presets are how
+// you switch), so a custom range simply resolves to no quarter.
+// The dashboard OPENS on the current quarter - Q3 (2026-08-05, client request); it
+// used to open on Q2 and the topbar carried Q2/Q3 chips, both retired.
 // ==========================================================================
-const QUARTERS = { Q2:{start:'2026-04-01', end:'2026-06-30'},
-                   Q3:{start:'2026-07-01', end:'2026-09-30'} };
-let selQuarters = new Set(['Q2']);           // default view = Q2 (client request 2026-07-09)
+let selQuarters = new Set(['Q3']);           // kept in sync by syncQuarterFromRange()
 
 // ---- Budget pacing (per-quarter, per-channel) -------------------------------
-// The pacing section FOLLOWS the Q2/Q3 quarter toggle (reads selQuarters): it shows the
-// channels that ran in the selected quarter, each paced against that quarter's flight +
-// budget. EDITABLE knobs below. Budget is grossed by the same client-billed spend
+// The pacing section FOLLOWS the selected quarter (reads selQuarters, itself derived from the
+// calendar range): it shows the channels that ran in that quarter, each paced against that
+// quarter's flight + budget. EDITABLE knobs below. Budget is grossed by the same client-billed spend
 // multiplier as spend (bbMultFor) so pacing holds in BOTH raw (direct) and billed (front-
 // door) views. The section is independent of the date/market filters (whole-quarter, all-
 // market); the "on-pace" marker = budget x the fraction of the quarter elapsed today (a
@@ -1271,6 +1293,17 @@ function quarterSpan(keys){
   if(dateMax && e>dateMax) e=dateMax;
   return s>e ? null : [s,e];
 }
+// The quarter TODAY sits in - what the dashboard opens on. Past the last defined quarter
+// (or before the first) it pins to the nearest one, so the default is always a real
+// quarter rather than "no quarter".
+function currentQuarterKey(){
+  const d = new Date();
+  const today = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  const keys = Object.keys(QUARTERS).sort((a,b)=>QUARTERS[a].start<QUARTERS[b].start?-1:1);
+  for(const k of keys){ if(today >= QUARTERS[k].start && today <= QUARTERS[k].end) return k; }
+  if(today < QUARTERS[keys[0]].start) return keys[0];
+  return keys[keys.length-1];
+}
 // The calendar window the pacing card measures "time elapsed" against: the FULL
 // span of the selected quarter(s), NOT clamped to loaded data, so Time % reads true
 // calendar progress. Q2 (past) -> 100% elapsed; Q3 (current) -> partial. Falls back
@@ -1283,37 +1316,23 @@ function pacingWindow(){
   if(s && e) return [new Date(s+'T00:00:00Z'), new Date(e+'T23:59:59Z')];
   return [new Date(rangeStart+'T00:00:00Z'), new Date(rangeEnd+'T23:59:59Z')];
 }
-// Quarter chips are single-select: clicking one jumps the shared date range to exactly
-// that quarter (one click = view that quarter). DateRange.setRange -> onApply ->
-// syncQuarterChips re-render. The Q2+Q3 union is still reachable via the calendar and
-// stays labelled "Q2-Q3".
-function toggleQuarter(k){
-  const span = quarterSpan([k]);
-  if(span) DateRange.setRange(span[0], span[1]);
-}
-// Derive chip highlight from the current range (range = source of truth).
-function syncQuarterChips(){
+// Resolve the applied date range to the quarter(s) it covers (range = source of truth).
+// Called on load and from the picker's onApply, so selecting "Q3 (Jul-Sep)" in the
+// calendar - or any range that happens to span exactly a quarter - re-anchors every
+// quarter-scoped caption, target and pacing card.
+function syncQuarterFromRange(){
   const match = keys => { const sp=quarterSpan(keys); return sp && sp[0]===rangeStart && sp[1]===rangeEnd; };
   if(match(['Q2','Q3'])) selQuarters = new Set(['Q2','Q3']);
   else if(match(['Q3'])) selQuarters = new Set(['Q3']);
   else if(match(['Q2'])) selQuarters = new Set(['Q2']);
-  else                   selQuarters = new Set();   // custom calendar range -> no chip
-  renderQuarterChips();
+  else                   selQuarters = new Set();   // custom calendar range -> no quarter
+  updateQuarterLabels();
   // The visible market set is quarter-dependent (RIG drops out under Q3), so refresh the
   // market chips whenever the quarter/range changes (renderAll alone doesn't re-chip).
   if (typeof renderChips === 'function') renderChips();
 }
-function renderQuarterChips(){
-  // BOTH quarter chips are always visible; the active quarter is just highlighted.
-  // (An earlier build hid the Q3 chip while Q3 was active, which read as "Q3 vanished
-  // when I clicked it" - removed 2026-07-09. What drops out under Q3 is the RIG *market*
-  // chip, not the Q3 quarter chip - see visibleMarkets.)
-  document.querySelectorAll('#qtrFilter .qtr-chip').forEach(b =>
-    b.classList.toggle('on', selQuarters.has(b.dataset.q)));
-  updateQuarterLabels();
-}
 // The quarter the user is viewing, as a label. Both Q2 and Q3 targets are loaded, and the
-// dashboard defaults to Q2 - captions follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
+// dashboard opens on Q3 - captions follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
 // neutral "Quarter" for a custom calendar range. Any element with class .qlbl gets this text.
 function qtrLabel(){
   const has2 = selQuarters.has('Q2'), has3 = selQuarters.has('Q3');
@@ -1666,14 +1685,16 @@ async function boot() {
     const maxOf = (a,b) => a && b ? (a > b ? a : b) : (a || b);
     dateMin = minOf(csMin, pmMin);
     dateMax = maxOf(csMax, pmMax);
-    // Default the shared range to Q2 (client request 2026-07-09); fall back to the
-    // full window if there's no Q2 data. The Q2/Q3 chips + the calendar both drive it.
-    const q2span = quarterSpan(['Q2']);
-    if(q2span){ rangeStart=q2span[0]; rangeEnd=q2span[1]; }
-    else      { rangeStart=dateMin;  rangeEnd=dateMax; }
+    // Open on the CURRENT quarter (Q3 from 2026-07-01; client request 2026-08-05 - it used to
+    // open on Q2). currentQuarterKey() picks the quarter today falls in, so this rolls forward
+    // on its own as quarters are added to QUARTERS; fall back to the full window if that
+    // quarter has no data yet. From here on the calendar's quarter presets drive the switch.
+    const qspan = quarterSpan([currentQuarterKey()]);
+    if(qspan){ rangeStart=qspan[0]; rangeEnd=qspan[1]; }
+    else     { rangeStart=dateMin;  rangeEnd=dateMax; }
     DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
-      onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; syncQuarterChips(); applyDateRange(); } });
-    syncQuarterChips();
+      onApply:(s,e)=>{ rangeStart=s; rangeEnd=e; syncQuarterFromRange(); applyDateRange(); } });
+    syncQuarterFromRange();
 
     setLiveBanner(COMBINED.last_updated, rawRows.length);
     document.getElementById('loading').style.display = 'none';
@@ -1683,7 +1704,7 @@ async function boot() {
     initChartToggles();
     initDevMode();
     renderAll();
-    renderDateScope();   // default range is Q2 (narrowed) -> show the scope banner on load
+    renderDateScope();   // default range is the current quarter (narrowed) -> show the scope banner on load
     if (activeTab === 'paid' && !paidMediaLoaded) loadPaidMedia();
   } catch (err) {
     document.getElementById('loading').style.display = 'none';
@@ -2698,6 +2719,46 @@ const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#0A66C2', PM_RD='#FF4500',
       PM_LN='#06C755', PM_INK='#1B2834', PM_LINE='#E5E9EE',
       PM_TARGET='#6E7785', PM_PURPLE='#6B3FA0';
 
+// ==========================================================================
+// CHANNEL ROSTER - ONE source of truth for the paid channels on this tab.
+//   key  = the channel name in the feed + the benchmarks map
+//   label/long/abbr = chart & table label / prose name / tight KPI-caption name
+//   pre  = the per-channel field prefix in dailyByChannel()/channelByGrain()
+//   mkey = the market field on that channel's rows (TTD/Reddit carry `m`, LI/LINE `market`)
+// Order here is the order channels render in everywhere.
+// ==========================================================================
+const PM_CHANS = [
+  {key:'TTD',      label:'TTD',      long:'Trade Desk', abbr:'TTD',    pill:'cf', color:PM_CF, pre:'ttd', mkey:'m',      rows:()=>(PAYLOAD && PAYLOAD.ttd_market_day)  || []},
+  {key:'LinkedIn', label:'LinkedIn', long:'LinkedIn',   abbr:'LI',     pill:'li', color:PM_LI, pre:'li',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.li_market_day)   || []},
+  {key:'Reddit',   label:'Reddit',   long:'Reddit',     abbr:'Reddit', pill:'rd', color:PM_RD, pre:'rd',  mkey:'m',      rows:()=>(PAYLOAD && PAYLOAD.rd_market_day)   || []},
+  {key:'LINE',     label:'LINE',     long:'LINE',       abbr:'LINE',   pill:'ln', color:PM_LN, pre:'ln',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.line_market_day)|| []},
+];
+// A channel is LIVE when it delivered (spend / impressions / clicks) inside the applied DATE
+// RANGE. EVERY channel-shaped thing on this tab (KPI captions, the mix donut, the stacked
+// spend + efficiency trends, the benchmark and market tables, the creative channel filter,
+// the section headings and the footer source list) renders from activeChans(), so a channel
+// that did not run in the selected quarter - Reddit and LINE from Q3 on - is simply absent
+// instead of drawing an empty zero row that reads like under-delivery. Client request 2026-08-05.
+//
+// DELIBERATELY the date range ONLY, NOT the market chips: a channel whose markets all fail to
+// parse would otherwise VANISH rather than show a visible zero row, which is exactly the silent
+// row-loss class of bug the 2026-08-04 brief-number-prefix fix chased down (see the client
+// README). Keeping this date-only also means the channel list doesn't shift as chips are toggled.
+function activeChans(){
+  return PM_CHANS.filter(c => c.rows().some(r =>
+    dateOk(r.date) && ((r.spend||0) > 0 || (r.imps||0) > 0 || (r.clk||0) > 0)));
+}
+const chanIsActive = key => activeChans().some(c => c.key === key);
+// Prose list of the live channels, e.g. "Trade Desk + LinkedIn".
+function activeChanList(sep){
+  const names = activeChans().map(c => c.long);
+  return names.length ? names.join(sep || ' + ') : 'no channels';
+}
+// Sum a spendByMarket() row across the channels it holds.
+const chanTotal = v => PM_CHANS.reduce((s,c) => s + (v[c.pre] || 0), 0);
+// Show/hide a channel-specific block (its channel didn't run -> don't render the section).
+function pmShow(id, on){ const el = document.getElementById(id); if (el) el.style.display = on ? '' : 'none'; }
+
 // Formatters
 // Coerce input to a finite number WITHOUT ever calling Number() on an object (which itself
 // throws "Cannot convert object to primitive value" for a Chart.js proxy / odd object). Only
@@ -2838,14 +2899,13 @@ function adaptPayload(data) {
 function setPaidFooter(rowCount) {
   const lu = paidMediaLastUpdated ? new Date(paidMediaLastUpdated.replace(' ', 'T')) : null;
   const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : (paidMediaLastUpdated || 'unknown');
-  const totalRows = PAYLOAD.li_market_day.length + PAYLOAD.ttd_market_day.length
-                  + PAYLOAD.rd_market_day.length + PAYLOAD.line_market_day.length;
+  const totalRows = PM_CHANS.reduce((s,c) => s + c.rows().length, 0);
   const w = PAYLOAD.window || {};
   const winText = (w.start && w.end) ? ` · Window ${w.start} → ${w.end}` : '';
   // When the date range is narrowed, echo the active filter so the footer doesn't contradict it.
   const rangeText = narrowed() ? ` · Filtered to ${rangeStart} → ${rangeEnd}` : '';
   document.getElementById('paidFooter').innerHTML =
-    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: Trade Desk, LinkedIn, Reddit, LINE · Auto-refreshes within ~10 min of new data`;
+    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: ${activeChanList(', ')} · Auto-refreshes within ~10 min of new data`;
 }
 
 function renderPaidMediaChips() {
@@ -2916,14 +2976,17 @@ function dailyByChannel() {
 }
 function spendByMarket() {
   const out = {};
-  for (const m of paidMediaAllMarkets) out[m] = {li:0,ttd:0,rd:0,ln:0,imp:0,clk:0,leads:0};
-  for (const r of PAYLOAD.li_market_day)  if (passesAll(r) && out[r.market]) { out[r.market].li += r.spend; out[r.market].imp += r.imps; out[r.market].clk += r.clk; out[r.market].leads += r.leads; }
-  for (const r of PAYLOAD.ttd_market_day) if (passesAll(r) && out[r.m])      { out[r.m].ttd += r.spend; out[r.m].imp += r.imps; out[r.m].clk += r.clk; }
-  for (const r of PAYLOAD.rd_market_day)  if (passesAll(r) && out[r.m])      { out[r.m].rd  += r.spend; out[r.m].imp += r.imps; out[r.m].clk += r.clk; }
-  for (const r of (PAYLOAD.line_market_day||[])) if (passesAll(r) && out[r.market]) { out[r.market].ln += r.spend; out[r.market].imp += r.imps; out[r.market].clk += r.clk; }
+  const blank = () => { const o = {imp:0, clk:0, leads:0}; PM_CHANS.forEach(c => o[c.pre] = 0); return o; };
+  for (const m of paidMediaAllMarkets) out[m] = blank();
+  for (const c of PM_CHANS) for (const r of c.rows()) {
+    const o = out[r[c.mkey]];
+    if (!o || !passesAll(r)) continue;
+    o[c.pre] += r.spend || 0; o.imp += r.imps || 0; o.clk += r.clk || 0; o.leads += r.leads || 0;
+  }
+  // Markets with no delivery in the selection drop out entirely (same rule as channels).
   return Object.entries(out)
-    .filter(([k,v]) => (v.li+v.ttd+v.rd+v.ln) > 0)
-    .sort(([,a],[,b]) => (b.li+b.ttd+b.rd+b.ln) - (a.li+a.ttd+a.rd+a.ln));
+    .filter(([,v]) => chanTotal(v) > 0)
+    .sort(([,a],[,b]) => chanTotal(b) - chanTotal(a));
 }
 
 const lineDS = (label, color, data) => ({label, data,
@@ -2932,28 +2995,34 @@ const lineDS = (label, color, data) => ({label, data,
 
 // ============== Render functions (adapted from ORIGINAL_DASH) ==============
 function renderPaidKPIs() {
-  const li = aggregateChannel(PAYLOAD.li_market_day);
-  const ttd= aggregateChannel(PAYLOAD.ttd_market_day);
-  const rd = aggregateChannel(PAYLOAD.rd_market_day);
-  const ln = aggregateChannel(PAYLOAD.line_market_day);
-  const spend = li.sp + ttd.sp + rd.sp + ln.sp;
-  const imp   = li.imp + ttd.imp + rd.imp + ln.imp;
-  const clk   = li.clk + ttd.clk + rd.clk + ln.clk;
+  // Only the LIVE channels contribute to the blended KPIs and to the per-channel captions,
+  // so a quarter that ran two channels reads as a two-channel programme.
+  const act = activeChans().map(c => ({c, a: aggregateChannel(c.rows())}));
+  const spend = act.reduce((s,x) => s + x.a.sp,  0);
+  const imp   = act.reduce((s,x) => s + x.a.imp, 0);
+  const clk   = act.reduce((s,x) => s + x.a.clk, 0);
+  const li    = (act.find(x => x.c.key === 'LinkedIn') || {a:{leads:0}}).a;   // leads are LinkedIn-only
   document.getElementById('k_spend').textContent = fmt$(spend);
   document.getElementById('k_spend_b').textContent =
-    `${fmt$(ttd.sp)} TTD · ${fmt$(li.sp)} LinkedIn · ${fmt$(rd.sp)} Reddit · ${fmt$(ln.sp)} LINE`;
+    act.length ? act.map(x => `${fmt$(x.a.sp)} ${x.c.long}`).join(' · ') : 'no delivery in this selection';
   document.getElementById('k_imp').textContent = fmtN_M(imp);
   document.getElementById('k_cpm').textContent = imp ? `${fmt$(spend/imp*1000,2)} blended CPM` : '-';
   document.getElementById('k_clk').textContent = fmtNum(clk);
   document.getElementById('k_ctr').textContent = imp ? `${fmtPct2(clk/imp,2)} blended CTR` : '-';
   document.getElementById('k_leads').textContent = li.leads;
   document.getElementById('k_cpc').textContent = clk ? fmt$(spend/clk,2) : '-';
-  document.getElementById('k_cpc_b').textContent = clk
-    ? `vs plan TTD ${fmt$(PAYLOAD.benchmarks.TTD.cpc,2)} · LI ${fmt$(PAYLOAD.benchmarks.LinkedIn.cpc,2)}`
-    : '-';
+  const plans = act.map(x => [x.c.abbr, PAYLOAD.benchmarks[x.c.key]])
+                   .filter(([,bm]) => bm && bm.cpc)
+                   .map(([ab,bm]) => `${ab} ${fmt$(bm.cpc,2)}`);
+  document.getElementById('k_cpc_b').textContent =
+    (clk && plans.length) ? `vs plan ${plans.join(' · ')}` : '-';
 }
 
 function renderTtdImpCtr() {
+  // TTD-only section - if TTD didn't run in this selection there is nothing to draw.
+  const live = chanIsActive('TTD');
+  pmShow('ttdSection', live); pmShow('ttdCard', live);
+  if (!live) { destroy('ttdImpCtr'); return; }
   // Bucket TTD delivery by pmGrain, SUMMING imps/clicks; CTR derived from the
   // summed totals (never an average of daily CTRs).
   const buckets = {};
@@ -2998,20 +3067,20 @@ function renderTtdImpCtr() {
 }
 
 function renderChannelMix() {
-  const li = aggregateChannel(PAYLOAD.li_market_day);
-  const ttd= aggregateChannel(PAYLOAD.ttd_market_day);
-  const rd = aggregateChannel(PAYLOAD.rd_market_day);
-  const ln = aggregateChannel(PAYLOAD.line_market_day);
+  const act = activeChans().map(c => ({c, a: aggregateChannel(c.rows())}));
+  const tot = act.reduce((s,x) => s + x.a.sp, 0);
+  const hint = document.getElementById('channelMixHint');
+  if (hint) hint.textContent = act.length ? activeChanList() + ' mix.'
+                                          : 'No channel delivered in this selection.';
   destroy('channelMix');
   charts.channelMix = new Chart(document.getElementById('channelMix'), {type:'doughnut', data:{
-    labels:['TTD','LinkedIn','Reddit','LINE'],
-    datasets:[{data:[ttd.sp, li.sp, rd.sp, ln.sp], backgroundColor:[PM_CF, PM_LI, PM_RD, PM_LN], borderColor:'#fff', borderWidth:2}]
+    labels: act.map(x => x.c.label),
+    datasets:[{data: act.map(x => x.a.sp), backgroundColor: act.map(x => x.c.color), borderColor:'#fff', borderWidth:2}]
   }, options:{responsive:true, maintainAspectRatio:false, cutout:'62%',
     plugins:{legend:{position:'bottom'}, bbCenter:{label:'Total spend', prefix:'$'},
-      tooltip:{callbacks:{label: c => {
-        const tot = ttd.sp + li.sp + rd.sp + ln.sp;
-        return `${c.label}: ${fmt$(c.parsed,0)} (${tot ? (c.parsed/tot*100).toFixed(1) : 0}%)`;
-      }}}}}});
+      tooltip:{callbacks:{label: c =>
+        `${c.label}: ${fmt$(c.parsed,0)} (${tot ? (c.parsed/tot*100).toFixed(1) : 0}%)`
+      }}}}});
 }
 
 // Re-bucket dailyByChannel() rows into pmGrain buckets, SUMMING all channel
@@ -3019,33 +3088,30 @@ function renderChannelMix() {
 function channelByGrain(grain){
   const daily = dailyByChannel();
   const out = {};
+  const metrics = ['sp','imp','clk'];
   for (const d of daily){
     const k = bucketKey(d.date, grain); if (!k) continue;
-    const o = out[k] = out[k] || {key:k, li_sp:0,ttd_sp:0,rd_sp:0,ln_sp:0,
-      li_imp:0,ttd_imp:0,rd_imp:0,
-      li_clk:0,ttd_clk:0,rd_clk:0};
-    o.li_sp+=d.li_sp; o.ttd_sp+=d.ttd_sp; o.rd_sp+=d.rd_sp; o.ln_sp+=d.ln_sp;
-    o.li_imp+=d.li_imp; o.ttd_imp+=d.ttd_imp; o.rd_imp+=d.rd_imp;
-    o.li_clk+=d.li_clk; o.ttd_clk+=d.ttd_clk; o.rd_clk+=d.rd_clk;
+    let o = out[k];
+    if (!o) { o = out[k] = {key:k}; PM_CHANS.forEach(c => metrics.forEach(m => o[c.pre+'_'+m] = 0)); }
+    PM_CHANS.forEach(c => metrics.forEach(m => o[c.pre+'_'+m] += d[c.pre+'_'+m] || 0));
   }
   return Object.keys(out).sort().map(k=>out[k]);
 }
 function renderDailyStack() {
   const rows = channelByGrain(pmGrain);
+  const act = activeChans();
   const labels = rows.map(d => bucketLabel(d.key, pmGrain));
   // Pure composition chart: Relative = 100%-stacked (each period normalized to
   // its own total). Tooltip always shows the true dollar value.
   const isRel = pmScale==='rel';
-  const tot = rows.map(d => d.ttd_sp + d.li_sp + d.rd_sp + d.ln_sp);
+  const tot = rows.map(d => act.reduce((s,c) => s + (d[c.pre+'_sp'] || 0), 0));
   const norm = (vals) => isRel ? vals.map((v,i)=>tot[i]?v/tot[i]*100:0) : vals;
-  const raw = {TTD:rows.map(d=>d.ttd_sp), LinkedIn:rows.map(d=>d.li_sp), Reddit:rows.map(d=>d.rd_sp), LINE:rows.map(d=>d.ln_sp)};
+  const raw = {};
+  act.forEach(c => raw[c.label] = rows.map(d => d[c.pre+'_sp'] || 0));
   destroy('dailyStack');
-  charts.dailyStack = new Chart(document.getElementById('dailyStack'), {type:'bar', data:{labels, datasets:[
-    {label:'TTD',      data:norm(raw.TTD),      backgroundColor:PM_CF},
-    {label:'LinkedIn', data:norm(raw.LinkedIn), backgroundColor:PM_LI},
-    {label:'Reddit',   data:norm(raw.Reddit),   backgroundColor:PM_RD},
-    {label:'LINE',     data:norm(raw.LINE),     backgroundColor:PM_LN},
-  ]}, options:{responsive:true, maintainAspectRatio:false,
+  charts.dailyStack = new Chart(document.getElementById('dailyStack'), {type:'bar', data:{labels,
+    datasets: act.map(c => ({label:c.label, data:norm(raw[c.label]), backgroundColor:c.color}))
+  }, options:{responsive:true, maintainAspectRatio:false,
     plugins:{legend:{position:'bottom'}, tooltip:{callbacks:{label:function(c){
       const v = raw[c.dataset.label][c.dataIndex];
       return isRel ? ` ${c.dataset.label}: ${fmt$(v,0)} (${c.parsed.y.toFixed(1)}%)`
@@ -3060,7 +3126,7 @@ function renderMarketBar() {
   destroy('marketBar');
   charts.marketBar = new Chart(document.getElementById('marketBar'), {type:'bar', data:{
     labels: arr.map(([m])=>m),
-    datasets:[{label:'Total spend', data: arr.map(([,v])=>v.li+v.ttd+v.rd+v.ln), backgroundColor: PM_CF, borderRadius:4}]
+    datasets:[{label:'Total spend', data: arr.map(([,v])=>chanTotal(v)), backgroundColor: PM_CF, borderRadius:4}]
   }, options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
     plugins:{legend:{display:false}, tooltip:{callbacks:{label:c=>` ${fmt$(c.parsed.x)}`}}},
     scales:{x:{grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v}}, y:{grid:{display:false}}}}});
@@ -3092,36 +3158,27 @@ function renderEffTrio() {
           x:{grid:{display:false}, ticks:{maxRotation:0, autoSkip:true, maxTicksLimit:10}}}}});
   }
 
-  effChart('ctrTrend', [
-    {label:'TTD',      color:PM_CF, data:rows.map(d=>d.ttd_imp?d.ttd_clk/d.ttd_imp*100:0)},
-    {label:'LinkedIn', color:PM_LI, data:rows.map(d=>d.li_imp ?d.li_clk /d.li_imp *100:0)},
-    {label:'Reddit',   color:PM_RD, data:rows.map(d=>d.rd_imp ?d.rd_clk /d.rd_imp *100:0)},
-  ], 'CTR (%)', v=>v.toFixed(3)+'%', v=>v.toFixed(2)+'%');
+  // One line per LIVE channel (was a hardcoded TTD/LinkedIn/Reddit trio).
+  const series = fn => activeChans().map(c => ({label:c.label, color:c.color, data:rows.map(d => fn(d, c.pre))}));
 
-  effChart('clkTrend', [
-    {label:'TTD',      color:PM_CF, data:rows.map(d=>d.ttd_clk)},
-    {label:'LinkedIn', color:PM_LI, data:rows.map(d=>d.li_clk)},
-    {label:'Reddit',   color:PM_RD, data:rows.map(d=>d.rd_clk)},
-  ], 'Clicks', v=>fmtNum(Math.round(v)), v=>v);
+  effChart('ctrTrend', series((d,p) => d[p+'_imp'] ? d[p+'_clk']/d[p+'_imp']*100 : 0),
+    'CTR (%)', v=>v.toFixed(3)+'%', v=>v.toFixed(2)+'%');
 
-  effChart('cpcTrend', [
-    {label:'TTD',      color:PM_CF, data:rows.map(d=>d.ttd_clk?d.ttd_sp/d.ttd_clk:0)},
-    {label:'LinkedIn', color:PM_LI, data:rows.map(d=>d.li_clk ?d.li_sp /d.li_clk :0)},
-    {label:'Reddit',   color:PM_RD, data:rows.map(d=>d.rd_clk ?d.rd_sp /d.rd_clk :0)},
-  ], 'CPC ($)', v=>'$'+v.toFixed(2), v=>'$'+v.toFixed(2));
+  effChart('clkTrend', series((d,p) => d[p+'_clk']),
+    'Clicks', v=>fmtNum(Math.round(v)), v=>v);
+
+  effChart('cpcTrend', series((d,p) => d[p+'_clk'] ? d[p+'_sp']/d[p+'_clk'] : 0),
+    'CPC ($)', v=>'$'+v.toFixed(2), v=>'$'+v.toFixed(2));
 }
 
 function renderMarketStack() {
   const arr = spendByMarket();
+  const head = document.getElementById('marketBreakdownHead');
+  if (head) head.textContent = 'Market breakdown - ' + activeChanList();
   destroy('marketStack');
   charts.marketStack = new Chart(document.getElementById('marketStack'), {type:'bar', data:{
     labels: arr.map(([m])=>m),
-    datasets:[
-      {label:'TTD',      data:arr.map(([,v])=>v.ttd), backgroundColor:PM_CF},
-      {label:'LinkedIn', data:arr.map(([,v])=>v.li),  backgroundColor:PM_LI},
-      {label:'Reddit',   data:arr.map(([,v])=>v.rd),  backgroundColor:PM_RD},
-      {label:'LINE',     data:arr.map(([,v])=>v.ln),  backgroundColor:PM_LN},
-    ]
+    datasets: activeChans().map(c => ({label:c.label, data:arr.map(([,v])=>v[c.pre]), backgroundColor:c.color}))
   }, options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
     plugins:{legend:{position:'bottom'}},
     scales:{x:{stacked:true, grid:{color:PM_LINE}, ticks:{callback:v=>'$'+v}},
@@ -3142,7 +3199,7 @@ function renderMarketTable() {
   const tbody = document.querySelector('#marketTable tbody');
   tbody.innerHTML = '';
   arr.forEach(([m, v]) => {
-    const spend = v.li + v.ttd + v.rd + v.ln;
+    const spend = chanTotal(v);
     const ctr = v.imp ? v.clk / v.imp : 0;
     const cpc = v.clk ? spend / v.clk : 0;
     const bm = PAYLOAD.benchmarks_market[m] || {ctr:0, cpc:0};
@@ -3161,19 +3218,19 @@ function renderMarketTable() {
 }
 
 function renderBenchmarkTable() {
-  const li = aggregateChannel(PAYLOAD.li_market_day);
-  const ttd= aggregateChannel(PAYLOAD.ttd_market_day);
-  const rd = aggregateChannel(PAYLOAD.rd_market_day);
-  const ln = aggregateChannel(PAYLOAD.line_market_day);
-  const rows = [
-    {ch:'TTD',      pill:'cf', data:ttd, bm:PAYLOAD.benchmarks.TTD,      leads:'<span class="bench">no pixel</span>'},
-    {ch:'LinkedIn', pill:'li', data:li,  bm:PAYLOAD.benchmarks.LinkedIn, leads:li.leads},
-    {ch:'Reddit',   pill:'rd', data:rd,  bm:PAYLOAD.benchmarks.Reddit,   leads:rd.leads || 0},
-    {ch:'LINE',     pill:'ln', data:ln,  bm:PAYLOAD.benchmarks.LINE,     leads:ln.leads || 0},
-  ];
+  // One row per LIVE channel. TTD has no lead pixel, so its Leads cell stays a note.
+  const rows = activeChans().map(c => {
+    const data = aggregateChannel(c.rows());
+    return {ch:c.label, pill:c.pill, data, bm:PAYLOAD.benchmarks[c.key] || {ctr:0, cpm:0, cpc:0},
+            leads: c.key === 'TTD' ? '<span class="bench">no pixel</span>' : (data.leads || 0)};
+  });
   let totSp=0, totImp=0, totClk=0, totLeads=0;
   const tbody = document.querySelector('#benchmarkTable tbody');
   tbody.innerHTML = '';
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--cf-mute)">No channel delivered in the selected date range.</td></tr>';
+    return;
+  }
   rows.forEach(r => {
     const ctr = r.data.imp ? r.data.clk/r.data.imp : 0;
     const cpm = r.data.imp ? r.data.sp/r.data.imp*1000 : 0;
@@ -3204,7 +3261,7 @@ function renderBenchmarkTable() {
 }
 
 // Budget pacing: horizontal bars under the benchmark table, one per channel in the SELECTED
-// quarter (follows the Q2/Q3 toggle via selQuarters). Orange fill = billed spend within that
+// quarter (follows selQuarters, derived from the calendar range). Orange fill = billed spend within that
 // quarter (ALL markets - deliberately independent of the date/market filters, since it paces the
 // full-quarter budget). The dashed marker sits at the fraction of the quarter elapsed today =
 // where spend should be to finish on budget (a COMPLETE quarter pins it at 100%, so the bar reads
@@ -3215,12 +3272,10 @@ function renderBenchmarkTable() {
 function renderPacing() {
   const host = document.getElementById('pacingRows');
   if (!host) return;
-  const rowsFor = {
-    TTD: PAYLOAD.ttd_market_day, LinkedIn: PAYLOAD.li_market_day,
-    Reddit: PAYLOAD.rd_market_day, LINE: PAYLOAD.line_market_day,
-  };
-  // Follow the quarter toggle. selQuarters is the source of truth; a custom calendar range
-  // (no chip lit) falls back to showing every defined quarter.
+  const rowsFor = {};                                  // PACING_PLANS[].key -> that channel's rows
+  PM_CHANS.forEach(c => rowsFor[c.key] = c.rows());
+  // Follow the selected quarter. selQuarters is the source of truth; a custom calendar range
+  // (no quarter resolved) falls back to showing every defined quarter.
   let quarters = PACING_QUARTER_ORDER.filter(q => selQuarters.has(q));
   if (!quarters.length) quarters = PACING_QUARTER_ORDER.slice();
   const now = Date.now();
@@ -3346,16 +3401,17 @@ function prettyCreative(raw) {
 // dominate the CTR ranking and bury LinkedIn. Stacks with the existing market filter.
 let creativeChannel = 'all';
 const CH_LABEL = {TTD:'Trade Desk', LinkedIn:'LinkedIn', Reddit:'Reddit', LINE:'LINE'};
-const CH_ORDER = ['LinkedIn','TTD','Reddit','LINE'];
 function renderCreativeChannelSeg() {
   const seg = document.getElementById('creativeChannelSeg');
   if (!seg) return;
+  // Offer only channels that BOTH have creatives in the feed AND ran in the current
+  // selection - a channel that didn't run has nothing to say about creative performance.
   const present = new Set((PAYLOAD.creatives || []).map(r => r.channel).filter(Boolean));
-  const chans = CH_ORDER.filter(c => present.has(c))
-    .concat([...present].filter(c => !CH_ORDER.includes(c)));
+  const chans = activeChans().map(c => c.key).filter(c => present.has(c));
+  // A pick that is no longer offered (its channel stopped delivering in the new range) falls back to All.
+  if (creativeChannel !== 'all' && !chans.includes(creativeChannel)) creativeChannel = 'all';
   if (chans.length <= 1) { seg.style.display = 'none'; return; }   // nothing to filter
   seg.style.display = '';
-  if (creativeChannel !== 'all' && !present.has(creativeChannel)) creativeChannel = 'all';
   const opts = [['all','All channels']].concat(chans.map(c => [c, CH_LABEL[c] || c]));
   seg.innerHTML = '<span class="cap">CHANNEL</span>' + opts.map(([v,l]) =>
     `<button type="button" data-ch="${v}" class="${creativeChannel===v?'on':''}" onclick="setCreativeChannel('${v}')">${l}</button>`).join('');
@@ -3363,12 +3419,16 @@ function renderCreativeChannelSeg() {
 function setCreativeChannel(v) { creativeChannel = v; renderCreativeTables(); }
 function renderCreativeTables() {
   renderCreativeChannelSeg();
+  const live = new Set(activeChans().map(c => c.key));
   const map = new Map();
   for (const r of (PAYLOAD.creatives || [])) {
     // Creatives are aggregated over the whole flight and carry NO date - so filter by
     // the market chips ONLY, never the date range (see the note below). passesAll()
     // would reject every row here via dateOk(undefined) → the tables would go blank.
     if (!paidMediaActiveMarkets.has(r.market)) continue;
+    // A channel that didn't run in the selection contributes no creatives either, so its
+    // whole-flight creatives can't sneak into a quarter it wasn't live in.
+    if (!live.has(r.channel)) continue;
     if (creativeChannel !== 'all' && r.channel !== creativeChannel) continue;
     const key = r.channel + '||' + r.creative;
     let o = map.get(key);
@@ -3387,7 +3447,8 @@ function renderCreativeTables() {
     + `with ≥ ${CREATIVE_MIN_IMPS.toLocaleString()} impressions`
     + (creativeChannel !== 'all' ? ` on ${CH_LABEL[creativeChannel] || creativeChannel}` : '')
     + ` in the selected markets `
-    + `(full period - creatives have no date dimension, so the date range doesn't apply here).`;
+    + `(full period - creatives have no date dimension, so the date range doesn't narrow them; `
+    + `only channels that ran in the selected range are listed).`;
 }
 function renderCreativeTable(bodyId, rows) {
   const tbody = document.getElementById(bodyId);
@@ -3409,14 +3470,28 @@ function renderCreativeTable(bodyId, rows) {
 function renderWeeklyTarget() {
   destroy('weeklyTarget');
   const w = PAYLOAD.li_weekly || [];
-  if (!w.length) return;
-  const monthMap = {Mar:'03', Apr:'04', May:'05', Jun:'06'};
-  const weekStarts = w.map(x => {
-    const start = (x.period || '').split(' - ')[0]; // "Mar 30"
-    const [mon, dd] = start.split(' ');
-    return `2026-${monthMap[mon] || '04'}-${(dd||'01').padStart(2,'0')}`;
-  });
+  // li_weekly is the FIXED 13-week Q2 LinkedIn lead plan (sql/09_li_weekly_targets.sql), so it
+  // only means anything inside its own window. Outside it (a Q3 view) the whole block hides
+  // rather than drawing Q2 target bars with an empty actual series - and out-of-plan leads are
+  // never bucketed, which previously piled every post-Q2 lead into the final week's bar.
+  const show = chanIsActive('LinkedIn') && w.length;
+  pmShow('weeklyTargetBlock', show);
+  if (!show) return;
+  const monthMap = {Jan:'01', Feb:'02', Mar:'03', Apr:'04', May:'05', Jun:'06',
+                    Jul:'07', Aug:'08', Sep:'09', Oct:'10', Nov:'11', Dec:'12'};
+  const mdISO = (s) => { const [mon, dd] = String(s || '').trim().split(' ');
+    return `2026-${monthMap[mon] || '04'}-${(dd || '01').padStart(2,'0')}`; };
+  const lastPeriod = String(w[w.length-1].period || '');                    // "Jun 22 - Jun 30"
+  const lastEnd    = (lastPeriod.split(' - ')[1] || '').trim();             // "Jun 30"
+  const weekStarts = w.map(x => mdISO((x.period || '').split(' - ')[0]));   // "Mar 30"
+  const planStart  = weekStarts[0];
+  // The last plan week runs 9 days (Jun 22-30), so parse its real end rather than assuming 7.
+  // A month-less end ("Jun 22 - 30") borrows the month from the period's start.
+  const planEnd    = mdISO(/[A-Za-z]/.test(lastEnd) ? lastEnd : (lastPeriod.split(' ')[0] + ' ' + lastEnd));
+  // No overlap between the applied range and the plan window -> the chart has nothing to say.
+  if (rangeEnd < planStart || rangeStart > planEnd) { pmShow('weeklyTargetBlock', false); return; }
   function weekIndex(dateStr) {
+    if (dateStr < planStart || dateStr > planEnd) return -1;   // outside the plan - never bucket it
     for (let i = weekStarts.length - 1; i >= 0; i--) {
       if (dateStr >= weekStarts[i]) return i;
     }
@@ -3457,6 +3532,10 @@ function renderWeeklyTarget() {
 }
 
 function renderLiFunnel() {
+  // LinkedIn-only card - hidden when LinkedIn didn't deliver in this selection.
+  const liLive = chanIsActive('LinkedIn');
+  pmShow('liFunnelCard', liLive);
+  if (!liLive) return;
   const li = aggregateChannel(PAYLOAD.li_market_day);
   let formOpens = 0, landingPageClicks = 0, actionClicks = 0, videoStarts = 0, videoCompletions = 0;
   for (const r of PAYLOAD.li_market_day) {
@@ -3804,7 +3883,9 @@ function buildDeckPayload(){
   return {
     client:'cloudflare', agency:'Transmission', generated_for:'Cloudflare APAC', currency:'USD',
     context:{
-      campaign:'Core Demand Generation', campaign_key:'core_demand_gen',
+      // Display name follows the dropdown ("Core DG APJ"); campaign_key stays the stable
+      // identifier the /report summary is keyed on, so cached decks don't orphan.
+      campaign:'Core DG APJ', campaign_key:'core_demand_gen',
       markets:[], all_markets:ALL_MARKETS.slice(),
       date_filtered:false, date_filter:{start:null,end:null},
       window:(P.window||{}), data_through:(COMBINED&&COMBINED.data_through)||null, last_updated:(COMBINED&&COMBINED.last_updated)||null,

@@ -21,16 +21,45 @@ every agency-scoped path: the portal, `/api/status`, the proxy's `_may_open`) an
 restore; the portal then shows a **▸ Viewing agency portal** pill and a **← Back to admin / super
 console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clears everything.
 
-**Portal tabs (2026-08-04):** Overview · Data Accuracy · **The Grid** · **The Brain**. The Grid is a
-spend-pacing drill-down (client → platform → campaign) drawn as BULLET BARS on one scale: track =
-total budget, pale underlay = plan spend-to-date from the flight dates (100% once a flight has
-finished), colored bar on top = actual spend (red + capped at 100% when over). Colored short of pale
-= behind, past it = over — matching the BEHIND/OVER PACE chips (actual÷expected: <0.9 behind, >1.15
-over). Rendered from a **hardcoded media-plan snapshot in `portal.html`** keyed by agency slug (only
-`transmission` has data; other agencies see a "being connected" note) — refresh it by editing the
-`ROWS` array; wiring it to live grid-core/Pulse pacing is the intended follow-up. Client-row logos
-reuse `/logo/<key>` (none uploaded yet, so they self-hide). The Brain is a styled work-in-progress
-placeholder (future pacing/industry-trend optimization recommendations).
+**Portal tabs (2026-08-04):** Overview · Data Accuracy · **The Grid** · **The Brain**. The Brain is a
+styled work-in-progress placeholder (future pacing/industry-trend optimization recommendations).
+
+### The Grid tab — spend pacing (rebuilt 2026-08-05)
+A **client accordion**: one collapsed row per client, expanding to one **bullet bar per campaign
+flight**. Track = the full campaign budget; the pale underlay + the bright 2px marker (`#a8b8d8`) sit
+at **% of the flight elapsed**; the colored fill is **% of budget spent** (capped at 100%). Fill short
+of the marker = behind, past it = over. Client rows roll up spend÷budget with elapsed **weighted by
+each line's budget**. Campaign rows carry a channel tag, both flight dates, `$spent of $budget` and a
+hover tooltip (`Spent X% | Expected Y%`); the channel is a TAG, not a grouping level (the old
+client→platform→campaign drill-down was replaced).
+
+**Pacing thresholds are deliberately lenient** so a normal delivery wobble doesn't read as an alarm:
+`% elapsed <= 5%` → **EARLY** (grey — a ratio off a near-zero denominator is meaningless, so it is
+NOT colored green), else ratio = `% spent ÷ % elapsed` → `>1.25` **OVER PACE** (red), `<0.65`
+**BEHIND** (amber), otherwise **ON PACE** (green). The pane carries its own scoped palette
+(`#pane-grid{--p-*}`) so the pacing colors don't disturb the shared `:root` portal theme.
+
+**Data = a FROZEN SNAPSHOT hardcoded in `portal.html`**, keyed by agency slug (only `transmission`
+has data; other agencies see a "being connected" note). Source of truth is the committed
+**`Data/pacing_data.xlsx`** ("Pacing Data" tab) — a manual export of the Transmission section of the
+Live Campaigns Google Sheet, pre-filtered to **Active campaigns with spend > $0** (lines still at $0
+are listed on the xlsx's Notes tab and excluded). To refresh: re-export the xlsx, re-transcribe the
+`ROWS` object (grouped by client: `[campaign, channel, start, end, budget, spent, pctSpent,
+pctElapsed]` = cols B,C,D,E,F,G,H,I) and bump `SNAPSHOT` to the export date, which is stamped on
+screen. **Never recompute `% elapsed` from today's date** (the pre-rebuild code did): spend cannot be
+refreshed the same way, so a live-moving marker against frozen spend drags every line toward BEHIND
+on its own. Statuses are recomputed in JS from H/I rather than read from col K — verified to
+reproduce all 31 of the xlsx's own `Pacing Status` values, so the thresholds live in exactly one
+place. Client-row logos reuse `/logo/<key>` (none uploaded yet, so they self-hide). Wiring this to
+live grid-core/Pulse pacing is the intended follow-up.
+
+**Source-data caveats to expect on screen** (faithful to the xlsx, not render bugs): the three
+`Ecoconsult AWR/CNS/CVS` lines carry an **identical $2,247.52 spend** (looks like a placeholder in the
+sheet); two `Industrial Edge W3 Prefab` LinkedIn lines share one campaign name and differ only by
+budget ($7,000 / $7,500); and `Ecoconsult CVS` shows 21.4% spent against **0% elapsed** (flight starts
+the day the snapshot was taken) so it reads EARLY. Campaign names are displayed with the brief-number
+prefix stripped (`2463_SE_ANZ …` → `SE ANZ …`) and `_` → space, per the repo-wide "campaign names are
+not stable keys" rule.
 
 ### Agencies (seeded from `dash/config.py`)
 - **100% Digital** (`100d2026`): City Perfume, VMCH, The Little Marionette, ResetData,
