@@ -23,10 +23,18 @@
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_mongodb.stg_tradedesk_pixel` AS
 WITH fires AS (
   SELECT
+    -- 2026-08-04 BRIEF-NUMBER PREFIX FIX: strip a leading '<brief>_' before splitting,
+    -- exactly like 01_stg_tradedesk. The 2026-07-06 '2265_' rename shifted this field so
+    -- offset 2 read '2026-Q2', which matches neither IDE nor DNB and therefore fell into
+    -- the ELSE arm: 254,517 DNB fires (46% of all fires) were being reported as KGA(IDC),
+    -- inflating IDC from its true 7,721 to 262,238 and understating DNB by the same.
+    -- The ELSE-defaults-to-IDC shape is what made it silent, so keep this normalisation
+    -- and 01_stg_tradedesk's in lockstep.
     CASE
       WHEN REGEXP_CONTAINS(UPPER(
-             SPLIT(COALESCE(FIRST_DISPLAY_CLICK_CAMPAIGN_NAME,
-                            FIRST_IMPRESSION_CAMPAIGN_NAME), "_")[SAFE_OFFSET(2)]
+             SPLIT(REGEXP_REPLACE(TRIM(COALESCE(FIRST_DISPLAY_CLICK_CAMPAIGN_NAME,
+                                                FIRST_IMPRESSION_CAMPAIGN_NAME)),
+                                  r'^[0-9]+_', ''), "_")[SAFE_OFFSET(2)]
            ), r'IDE|DNB') THEN 'DNB'
       ELSE 'IDC'                 -- KGA (IDC); no fire is left unattributed by the COALESCE above
     END AS CAMPAIGN_KEY,

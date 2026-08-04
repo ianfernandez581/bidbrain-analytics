@@ -150,8 +150,16 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
   V_PAID_ADS_FINAL_MODEL`. That schema is Cloudflare's/Transmission's legacy model — nothing in our pipeline
   has read it since the BQ port, we cannot change it, and it drifts on their schedule (LINE already froze
   there and its checks had to be deleted), so it could only ever produce a false ✗ against a correct
-  dashboard. Values verified identical on the swap. Keep the filters in sync with
-  `clients/client_cloudflare/sql/01-03` + `05_paid_media_model`.
+  dashboard. Values verified identical on the swap.
+  - **The 2 Trade Desk checks query the WHOLE advertiser with NO campaign-name parsing, deliberately.**
+    Later the same day a *parsing* break was found (a `"<brief>_"` prefix shifted every name token, hiding
+    34% of TTD delivery — see `clients/client_cloudflare/sql/README.md`). The old check mirrored the view's
+    parse on both sides, so it went **circular and stayed green** through the whole incident. Advertiser
+    total vs dashboard total is the only shape that catches a parsing regression. This holds while every
+    Cloudflare TTD campaign belongs on the dashboard (true today, 0 rows off-chip); if that stops being
+    true, scope by campaign **and** add a separate orphan-token check. Post-fix values: TTD 36,053,269 imps
+    / 106,208 clicks, LinkedIn 3,746,467 / 16,908 / 487 leads, Reddit 5,811,169 / 7,294.
+  - LinkedIn checks match on the brief-number-stripped name, in lockstep with `stg_linkedin.CAMPAIGN_NAME_NORM`.
   The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
   `raw_snowflake.linkedin_ads_apac` mirror.
   - **Core CS counts (Total / Accepted / Rejected / New)** now query the **raw source**

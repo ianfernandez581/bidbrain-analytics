@@ -142,6 +142,42 @@ gcloud run jobs execute cloudflare-export --region australia-southeast1 --update
 ```
 Then rebuild + deploy the dash service (see CLAUDE.md → *Redeploy after an edit*).
 
+### Brief-number campaign prefixes broke paid-media market parsing (FIXED 2026-08-04)
+
+Transmission is progressively renaming campaigns with a leading brief number (`1160_`, `2103_`,
+`2479_` ...). Trade Desk market derivation was a **fixed offset** into the underscore-split name, so
+every token shifted one position: `MARKET_L3` came back as `APAC-ANZ` instead of `ANZ`, `JAPAN-JPN`
+instead of `JP`. Those are non-empty, so the rows passed `paid_media_model`'s `MARKET_L3 <> ''`
+guard, landed in `paid_media.rows[]`, and then matched **no** dashboard market chip - and
+`passesAll()` in `dash/dashboard.html` filters every aggregate by chip. Silent loss, no error.
+
+Two leaks, both closed:
+
+| leak | imps | why | fix |
+|---|---:|---|---|
+| off-chip after remap | 4,989,809 | prefix shifted the offset (`APAC-*`, `JAPAN-JPN`); plus `TW`/`HK` were never in `PM_MARKET_REMAP` | parse off `CAMPAIGN_NAME_NORM`; add `TW`/`HK` → `GCR` |
+| dropped at the model | 7,360,518 | short-form names (DOOH / High Impact, Q2 May-Jun) have no offset-8 token at all | `" - AU"/" - NZ"/" - ANZ"` suffix fallback in `03_stg_tradedesk.sql` |
+
+**Trade Desk impressions rendered on the dash: 23,702,942 → 36,053,269 (+52%).** Spend and clicks
+move with it. The second row is Q2 history that was never displayed before, so Q2 totals change; to
+revert just that part, delete the suffix-fallback `CASE` arm in `03_stg_tradedesk.sql`.
+
+The same campaign exists under **both** name forms in the feed (15 raw names = 8 real campaigns for
+the Q3 MDS line), so any name-keyed aggregate was also splitting in half. Normalising unions them.
+Reference figure to check against, from the media-buyer sheet pull: the 8 `*_MDS_TTD_*COREDG-Q3`
+campaigns = **5,516,027 imps / 4,788 clicks / $14,499.98**.
+
+**LinkedIn was hardened the same way but no number changed** (3,746,467 / 16,908 / 487 before and
+after). Its `CAMPAIGN_NAME` is the *ad set* name, which has not been renamed yet; the parent campaign
+names in the sheet already carry prefixes, and a rename would have zeroed the channel via
+`STARTS_WITH(CAMPAIGN_NAME,'CLOUD_ACQ_')`. That now reads `CAMPAIGN_NAME_NORM`.
+
+**Google Ads is NOT wireable yet.** The sheet's Cloudflare Google Ads campaign
+(`CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting`, id `24037386856`) appears in **none** of our
+sources - 0/28 name overlap against `raw_snowflake.google_ads_apac`, `raw_google_ads.perf_google_ads`
+(native DTS) and `raw_windsor.perf_google_ads`. That account is not ingested at all. It needs linking
+to MCC 345-189-6252 + a DTS transfer before a Google Ads lane can exist here.
+
 ### 7 coarse market groups (2026-07-07 rollback of the 2026-06-25 11-chip split, per the Jade call)
 
 The CS markets are the **coarse 7 groups**, plus a residual `OTHER` that is **not a chip** (so it's
