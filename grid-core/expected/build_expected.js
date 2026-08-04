@@ -1,104 +1,140 @@
-// Expected-side plan baseline for Job 2053 (Schneider Electric NEL, ANZ).
-// Produces out/daily_kpi.xlsx and out/pacing.html.
+// Expected-side output builder. GENERIC: reads out/plan.json + out/findings.json
+// (written by extract.js) and emits out/daily_kpi.xlsx, out/daily_kpi.json,
+// out/pacing.html, out/flowchart.html, out/report.md. No client names, job
+// numbers, or plan figures live in this file - they all come from plan.json.
 //
-// EVERY number below is extracted from the media buyer's files; every derived
-// figure is computed here in plain code. Nothing numeric is model-generated.
-//
-// Extraction sources:
-//   budgets / impressions / clicks / CPM per line:
-//     "2053_SE_ANZ_New Energy Landscape Awareness - Media Plan.xlsx",
-//     sheet "Media Plan", rows 11 (TradeDesk), 12 (Video), 18 (Doc Ads), 19 (SIA);
-//     overall budget AUD 35,000 row 8.
-//   flight 2026-06-01 to 2026-08-22:
-//     "2053_SE_NEL_LinkedIn_Setup_Sheet.xlsx", sheet "2. Campaign Setup Grid",
-//     Flight Start / Flight End on all 12 rows; same dates on every row of the
-//     TTD bulk upload ("2053_SE_NEL_TTD_Creative_Bulk_Upload.xlsx", Hosted Display).
-//     The media plan header's 28-Apr to 18-Jul window is superseded (its own
-//     annotation says "revise to june start through august") - see report.md.
+// All arithmetic is plain code: daily = goal / days,
+// cumulative = (days elapsed / total days) x goal, days inclusive of both ends.
+// A campaign missing budget, dates, or rate goals produces an exception entry,
+// never zero-valued rows. Final-day cumulatives equal the goals exactly.
 'use strict';
 
 const fs = require('fs');
 const path = require('path');
 const XLSX = require('xlsx');
 
-const FLIGHT_START = Date.UTC(2026, 5, 1);   // 2026-06-01
-const FLIGHT_END = Date.UTC(2026, 7, 22);    // 2026-08-22
+const ROOT = __dirname;
+const OUT = path.join(ROOT, 'out');
 const DAY_MS = 86400000;
-const TOTAL_DAYS = Math.round((FLIGHT_END - FLIGHT_START) / DAY_MS) + 1; // 83 inclusive
-const CURRENCY = 'AUD';
 
-const CAMPAIGNS = [
-  { name: 'TradeDesk Display', platform: 'TradeDesk', spend: 8000, impressions: 444444, clicks: 444 },
-  { name: 'LinkedIn Video', platform: 'LinkedIn', spend: 6000, impressions: 100000, clicks: 650 },
-  { name: 'LinkedIn Doc Ads', platform: 'LinkedIn', spend: 14000, impressions: 175000, clicks: 1138 },
-  { name: 'LinkedIn SIA', platform: 'LinkedIn', spend: 7000, impressions: 93333, clicks: 513 },
-];
-
-const TOTAL_SPEND = CAMPAIGNS.reduce((a, c) => a + c.spend, 0);
-if (TOTAL_SPEND !== 35000) throw new Error(`sanity: campaign spends sum to ${TOTAL_SPEND}, expected 35000`);
-
+const val = (node) => (node && node.value != null ? node.value : null);
+const citeStr = (node) => {
+  if (!node || !node.citation) return '';
+  return `${node.citation.file}${node.citation.location ? ', ' + node.citation.location : ''}`;
+};
+const parseDate = (s) => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3]) : null;
+};
 const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
 const r2 = (x) => Math.round(x * 100) / 100;
 
-// One row per campaign per day. Cumulative = (days elapsed / total days) x goal.
+// ---------------------------------------------------------------- load
+const plan = JSON.parse(fs.readFileSync(path.join(OUT, 'plan.json'), 'utf8'));
+const findingsDoc = JSON.parse(fs.readFileSync(path.join(OUT, 'findings.json'), 'utf8'));
+const rulebook = JSON.parse(fs.readFileSync(path.join(ROOT, 'rulebook.json'), 'utf8'));
+
+const client = val(plan.client) || 'Unknown client';
+const job = val(plan.job_number) || 'unknown-job';
+const campaignName = val(plan.campaign_name) || 'Unknown campaign';
+const currency = val(plan.currency) || 'UNKNOWN';
+const flightStartS = val(plan.flight_start);
+const flightEndS = val(plan.flight_end);
+const FLIGHT_START = parseDate(flightStartS);
+const FLIGHT_END = parseDate(flightEndS);
+if (FLIGHT_START == null || FLIGHT_END == null || FLIGHT_END < FLIGHT_START) {
+  console.error('[build] BLOCKED: flight dates unresolved in plan.json (start=' + flightStartS + ', end=' + flightEndS + '). The extractor recorded the conflict; resolve it before a baseline can exist.');
+  process.exit(3);
+}
+const TOTAL_DAYS = Math.round((FLIGHT_END - FLIGHT_START) / DAY_MS) + 1;
+
+// ---------------------------------------------------------------- rows
+const usable = [];
+const exceptions = [];
+for (const c of plan.campaigns || []) {
+  const missing = [];
+  if (val(c.budget) == null) missing.push('budget');
+  if (val(c.goal_impressions) == null && val(c.goal_clicks) == null) missing.push('volume goals');
+  const start = parseDate(c.start) ?? FLIGHT_START;
+  const end = parseDate(c.end) ?? FLIGHT_END;
+  if (start == null || end == null || end < start) missing.push('dates');
+  if (missing.length) {
+    exceptions.push({ campaign: c.campaign_name, missing, note: 'no rows emitted - resolve and rerun' });
+    continue;
+  }
+  usable.push({
+    name: c.campaign_name,
+    platform: c.platform || null,
+    spend: val(c.budget),
+    impressions: val(c.goal_impressions),
+    clicks: val(c.goal_clicks),
+    start, end,
+    days: Math.round((end - start) / DAY_MS) + 1,
+    citation: citeStr(c.budget),
+  });
+}
+if (!usable.length) {
+  console.error('[build] BLOCKED: no campaign has enough data (budget + goals + dates) to emit rows. Exceptions: ' + JSON.stringify(exceptions));
+  process.exit(3);
+}
+
 const rows = [];
-for (let k = 1; k <= TOTAL_DAYS; k++) {
-  const date = iso(FLIGHT_START + (k - 1) * DAY_MS);
-  for (const c of CAMPAIGNS) {
-    const share = k / TOTAL_DAYS;
-    const prev = (k - 1) / TOTAL_DAYS;
+for (const c of usable) {
+  for (let k = 1; k <= c.days; k++) {
+    const share = k / c.days;
+    const prev = (k - 1) / c.days;
     rows.push({
-      date,
+      date: iso(c.start + (k - 1) * DAY_MS),
       campaign: c.name,
       platform: c.platform,
       expected_spend: r2(c.spend * (share - prev)),
-      expected_impressions: r2(c.impressions * (share - prev)),
-      expected_clicks: r2(c.clicks * (share - prev)),
+      expected_impressions: c.impressions != null ? r2(c.impressions * (share - prev)) : null,
+      expected_clicks: c.clicks != null ? r2(c.clicks * (share - prev)) : null,
       cum_spend: r2(c.spend * share),
-      cum_impressions: r2(c.impressions * share),
-      cum_clicks: r2(c.clicks * share),
+      cum_impressions: c.impressions != null ? r2(c.impressions * share) : null,
+      cum_clicks: c.clicks != null ? r2(c.clicks * share) : null,
       days_elapsed: k,
-      days_remaining: TOTAL_DAYS - k,
+      days_remaining: c.days - k,
     });
   }
 }
+rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.campaign.localeCompare(b.campaign)));
+const TOTAL_SPEND = usable.reduce((a, c) => a + c.spend, 0);
 
 // ---------------------------------------------------------------- xlsx
-const OUT = path.join(__dirname, 'out');
 fs.mkdirSync(OUT, { recursive: true });
-
 const wb = XLSX.utils.book_new();
 XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), 'Daily KPI');
 XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-  ['Client', 'Schneider Electric'],
-  ['Campaign', '2053 SE ANZ New Energy Landscape (NEL) Awareness'],
-  ['Currency', CURRENCY],
-  ['Flight', `${iso(FLIGHT_START)} to ${iso(FLIGHT_END)} (${TOTAL_DAYS} days inclusive)`],
-  ['Total budget', TOTAL_SPEND],
+  ['Client', client],
+  ['Campaign', campaignName],
+  ['Job', job],
+  ['Currency', currency],
+  ['Flight', `${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days inclusive)`],
+  ['Campaign budgets sum', TOTAL_SPEND],
+  ['Stated plan total', val(plan.total_budget) != null ? val(plan.total_budget) : 'not stated'],
   ['Curve', 'flat (no source specified a weighted curve)'],
   ['Cumulative formula', '(days elapsed / total days) x goal'],
+  ['Extractor', plan.extractor ? `${plan.extractor.model} at ${plan.extractor.generated_at}` : 'unknown'],
   ['Generated', new Date().toISOString()],
   [],
-  ['Campaign', 'Platform', 'Spend goal', 'Impressions goal', 'Clicks goal', 'Source'],
-  ...CAMPAIGNS.map((c, i) => [c.name, c.platform, c.spend, c.impressions, c.clicks,
-    `Media Plan.xlsx, sheet "Media Plan", row ${[11, 12, 18, 19][i]}`]),
+  ['Campaign', 'Platform', 'Spend goal', 'Impressions goal', 'Clicks goal', 'Days', 'Source'],
+  ...usable.map((c) => [c.name, c.platform, c.spend, c.impressions, c.clicks, c.days, c.citation]),
   [],
-  ['Flight source', 'LinkedIn_Setup_Sheet.xlsx "2. Campaign Setup Grid" + TTD bulk upload flight dates (plan header window superseded, see report.md)'],
+  ...(exceptions.length ? [['EXCEPTIONS (no rows emitted)'], ...exceptions.map((e) => [e.campaign, e.missing.join(', '), e.note])] : [['Exceptions', 'none']]),
 ]), 'Info');
 XLSX.writeFile(wb, path.join(OUT, 'daily_kpi.xlsx'));
 
-// ---------------------------------------------------------------- json
-// Same source of truth: built from the identical `rows` array the xlsx uses.
+// ---------------------------------------------------------------- json (same rows array = same numbers)
 const kpiJson = {
-  job: '2053',
-  client: 'Schneider Electric',
-  currency: CURRENCY,
+  job, client, currency,
   generated_at: new Date().toISOString(),
-  campaigns: CAMPAIGNS.map((c) => ({
+  exceptions,
+  campaigns: usable.map((c) => ({
     campaign_name: c.name,
     platform: c.platform,
-    start: iso(FLIGHT_START),
-    end: iso(FLIGHT_END),
+    start: iso(c.start),
+    end: iso(c.end),
     total_budget: c.spend,
     goal_impressions: c.impressions,
     goal_clicks: c.clicks,
@@ -115,28 +151,29 @@ const kpiJson = {
 };
 fs.writeFileSync(path.join(OUT, 'daily_kpi.json'), JSON.stringify(kpiJson, null, 2));
 
-// ---------------------------------------------------------------- html
-// Series data for the page: per-campaign cumulative arrays straight from rows.
+// ---------------------------------------------------------------- pacing.html
 const dates = [];
 for (let k = 1; k <= TOTAL_DAYS; k++) dates.push(iso(FLIGHT_START + (k - 1) * DAY_MS));
-const series = CAMPAIGNS.map((c) => ({
-  name: c.name,
-  goal: { spend: c.spend, impressions: c.impressions, clicks: c.clicks },
-  cum: {
-    spend: rows.filter((r) => r.campaign === c.name).map((r) => r.cum_spend),
-    impressions: rows.filter((r) => r.campaign === c.name).map((r) => r.cum_impressions),
-    clicks: rows.filter((r) => r.campaign === c.name).map((r) => r.cum_clicks),
-  },
-}));
+const series = kpiJson.campaigns.map((c) => {
+  const byDate = new Map(c.daily.map((d) => [d.date, d]));
+  let last = { expected_spend_cum: 0, expected_impressions_cum: 0, expected_clicks_cum: 0 };
+  const cum = { spend: [], impressions: [], clicks: [] };
+  for (const d of dates) {
+    if (byDate.has(d)) last = byDate.get(d);
+    cum.spend.push(last.expected_spend_cum);
+    cum.impressions.push(last.expected_impressions_cum);
+    cum.clicks.push(last.expected_clicks_cum);
+  }
+  return { name: c.campaign_name, goal: { spend: c.total_budget, impressions: c.goal_impressions, clicks: c.goal_clicks }, cum };
+});
+const DATA = { dates, series, currency, totalDays: TOTAL_DAYS, client, job, campaignName, flight: `${flightStartS} to ${flightEndS}` };
 
-const DATA = { dates, series, currency: CURRENCY, totalDays: TOTAL_DAYS, client: 'Schneider Electric', job: '2053 NEL Awareness (ANZ)' };
-
-const html = `<!doctype html>
+const pacingHtml = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>NEL 2053 - Expected pacing</title>
+<title>${client} ${job} - Expected pacing</title>
 <style>
   :root { color-scheme: light dark; }
   .viz-root {
@@ -145,6 +182,7 @@ const html = `<!doctype html>
     --ink-1: #0b0b0b; --ink-2: #52514e; --muted: #898781;
     --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
     --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
+    --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
   }
   @media (prefers-color-scheme: dark) {
     .viz-root {
@@ -153,6 +191,7 @@ const html = `<!doctype html>
       --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
       --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
       --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
+      --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
     }
   }
   * { box-sizing: border-box; }
@@ -184,8 +223,8 @@ const html = `<!doctype html>
 </head>
 <body>
 <div class="viz-root">
-  <h1>Expected pacing - Schneider Electric, Job 2053 NEL Awareness (ANZ)</h1>
-  <div class="sub">Flight 2026-06-01 to 2026-08-22 (83 days) - AUD 35,000 - flat curve - cumulative expected per campaign. Source: out/daily_kpi.xlsx</div>
+  <h1>Expected pacing - ${client}, ${campaignName}</h1>
+  <div class="sub">Flight ${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days) - ${currency} ${TOTAL_SPEND.toLocaleString()} - flat curve - built from out/daily_kpi.xlsx / .json</div>
   <div class="card" style="position:relative">
     <div class="row">
       <div class="tgl" role="group" aria-label="Metric">
@@ -200,15 +239,14 @@ const html = `<!doctype html>
   </div>
   <table id="tbl"></table>
   <div class="note">Actuals are not joined yet. Teammate hook: set <code>window.BB_ACTUALS</code> to
-  an array of {date:"YYYY-MM-DD", campaign:"LinkedIn Video", spend, impressions, clicks} rows
-  (daily actuals, not cumulative) before this script runs, or call <code>joinActuals(rows)</code>
-  later. Actuals draw as thicker solid lines in each campaign's own colour; expected stays the thin line.</div>
+  daily rows {date:"YYYY-MM-DD", campaign, spend, impressions, clicks} before this script runs, or call
+  <code>joinActuals(rows)</code> later. Actuals draw as thicker lines in each campaign's own colour.</div>
 </div>
 <script>
 var DATA = __DATA__;
-var COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)'];
+var COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)','var(--s8)'];
 var METRIC = 'spend';
-var ACTUALS = null; // populated by joinActuals / window.BB_ACTUALS
+var ACTUALS = null;
 
 var svg = document.getElementById('chart');
 var tip = document.getElementById('tip');
@@ -246,22 +284,20 @@ function draw() {
   var iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
   var n = DATA.dates.length;
   var maxY = 0;
-  DATA.series.forEach(function (s) { maxY = Math.max(maxY, s.cum[METRIC][n - 1]); });
+  DATA.series.forEach(function (s) { maxY = Math.max(maxY, s.cum[METRIC][n - 1] || 0); });
   if (ACTUALS) DATA.series.forEach(function (s) {
     var a = actualCum(s.name, METRIC);
     if (a && a.length) maxY = Math.max(maxY, a[a.length - 1]);
   });
-  maxY = maxY * 1.05;
+  maxY = (maxY || 1) * 1.05;
   var x = function (i) { return PAD.l + (i / (n - 1)) * iw; };
   var y = function (v) { return PAD.t + ih - (v / maxY) * ih; };
 
-  // gridlines + y labels
   for (var g = 0; g <= 4; g++) {
     var vy = y(maxY * g / 4);
     svg.appendChild(el('line', { x1: PAD.l, x2: PAD.l + iw, y1: vy, y2: vy, stroke: 'var(--grid)', 'stroke-width': 1 }));
     svg.appendChild(el('text', { x: PAD.l - 8, y: vy + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'var(--muted)' }, fmt(maxY * g / 4, METRIC)));
   }
-  // x labels: first of each month + last day
   DATA.dates.forEach(function (d, i) {
     if (d.slice(8) === '01' || i === n - 1) {
       svg.appendChild(el('text', { x: x(i), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted)' }, d.slice(5)));
@@ -270,7 +306,6 @@ function draw() {
   });
   svg.appendChild(el('line', { x1: PAD.l, x2: PAD.l + iw, y1: PAD.t + ih, y2: PAD.t + ih, stroke: 'var(--axis)', 'stroke-width': 1 }));
 
-  // today marker
   var today = new Date().toISOString().slice(0, 10);
   var ti = DATA.dates.indexOf(today);
   if (ti >= 0) {
@@ -278,19 +313,20 @@ function draw() {
     svg.appendChild(el('text', { x: x(ti) + 4, y: PAD.t + 12, 'font-size': 10.5, fill: 'var(--muted)' }, 'today'));
   }
 
-  // expected lines + direct labels
   DATA.series.forEach(function (s, si) {
-    var pts = s.cum[METRIC].map(function (v, i) { return x(i) + ',' + y(v); }).join(' ');
-    svg.appendChild(el('polyline', { points: pts, fill: 'none', stroke: COLORS[si], 'stroke-width': 2, 'stroke-linejoin': 'round' }));
-    svg.appendChild(el('text', { x: x(n - 1) + 7, y: y(s.cum[METRIC][n - 1]) + 4, 'font-size': 11.5, fill: 'var(--ink-2)' }, s.name));
+    var color = COLORS[si % COLORS.length];
+    var pts = s.cum[METRIC].map(function (v, i) { return x(i) + ',' + y(v || 0); }).join(' ');
+    svg.appendChild(el('polyline', { points: pts, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
+    if (DATA.series.length <= 4) {
+      svg.appendChild(el('text', { x: x(n - 1) + 7, y: y(s.cum[METRIC][n - 1] || 0) + 4, 'font-size': 11.5, fill: 'var(--ink-2)' }, s.name));
+    }
     var a = ACTUALS && actualCum(s.name, METRIC);
     if (a && a.length > 1) {
       var apts = a.map(function (v, i) { return x(i) + ',' + y(v); }).join(' ');
-      svg.appendChild(el('polyline', { points: apts, fill: 'none', stroke: COLORS[si], 'stroke-width': 3.5, 'stroke-linecap': 'round', opacity: 0.9 }));
+      svg.appendChild(el('polyline', { points: apts, fill: 'none', stroke: color, 'stroke-width': 3.5, 'stroke-linecap': 'round', opacity: 0.9 }));
     }
   });
 
-  // hover crosshair + tooltip
   var hover = el('line', { y1: PAD.t, y2: PAD.t + ih, stroke: 'var(--axis)', 'stroke-width': 1, visibility: 'hidden' });
   svg.appendChild(hover);
   var hit = el('rect', { x: PAD.l, y: PAD.t, width: iw, height: ih, fill: 'transparent' });
@@ -304,8 +340,8 @@ function draw() {
     var total = 0;
     var html = '<div style="color:var(--ink-2);margin-bottom:4px">' + DATA.dates[i] + ' (day ' + (i + 1) + ' of ' + n + ')</div>';
     DATA.series.forEach(function (s, si) {
-      total += s.cum[METRIC][i];
-      html += '<div><span class="sw" style="background:' + COLORS[si] + ';display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px"></span>'
+      total += (s.cum[METRIC][i] || 0);
+      html += '<div><span style="background:' + COLORS[si % COLORS.length] + ';display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px"></span>'
            + s.name + ' <b style="float:right;margin-left:12px">' + fmt(s.cum[METRIC][i], METRIC) + '</b></div>';
     });
     html += '<div style="border-top:1px solid var(--grid);margin-top:4px;padding-top:3px">Total <b style="float:right">' + fmt(total, METRIC) + '</b></div>';
@@ -324,7 +360,7 @@ function legend() {
   lg.innerHTML = '';
   DATA.series.forEach(function (s, si) {
     var sp = document.createElement('span');
-    sp.innerHTML = '<span class="sw" style="background:' + COLORS[si] + '"></span>' + s.name;
+    sp.innerHTML = '<span class="sw" style="background:' + COLORS[si % COLORS.length] + '"></span>' + s.name;
     lg.appendChild(sp);
   });
   var a = document.createElement('span');
@@ -340,15 +376,15 @@ function table() {
   var h = '<tr><th>Campaign</th><th>Spend goal</th><th>Impressions goal</th><th>Clicks goal</th><th>Spend / day</th>'
         + (ti >= 0 ? '<th>Expected spend to date</th>' : '') + '</tr>';
   DATA.series.forEach(function (s, si) {
-    h += '<tr><td><span class="sw" style="background:' + COLORS[si] + ';display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px"></span>' + s.name + '</td>'
+    h += '<tr><td><span class="sw" style="background:' + COLORS[si % COLORS.length] + ';display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px"></span>' + s.name + '</td>'
       + '<td>' + fmt(s.goal.spend, 'spend') + '</td><td>' + fmt(s.goal.impressions, 'n') + '</td><td>' + fmt(s.goal.clicks, 'n') + '</td>'
       + '<td>' + fmt(s.goal.spend / DATA.totalDays, 'spend') + '</td>'
       + (ti >= 0 ? '<td>' + fmt(s.cum.spend[ti], 'spend') + '</td>' : '') + '</tr>';
   });
-  var totalGoal = DATA.series.reduce(function (a, s) { return a + s.goal.spend; }, 0);
+  var totalGoal = DATA.series.reduce(function (a, s) { return a + (s.goal.spend || 0); }, 0);
   h += '<tr><td><b>Total</b></td><td><b>' + fmt(totalGoal, 'spend') + '</b></td><td></td><td></td><td>'
     + fmt(totalGoal / DATA.totalDays, 'spend') + '</td>'
-    + (ti >= 0 ? '<td><b>' + fmt(DATA.series.reduce(function (a, s) { return a + s.cum.spend[ti]; }, 0), 'spend') + '</b></td>' : '') + '</tr>';
+    + (ti >= 0 ? '<td><b>' + fmt(DATA.series.reduce(function (a, s) { return a + (s.cum.spend[ti] || 0); }, 0), 'spend') + '</b></td>' : '') + '</tr>';
   t.innerHTML = h;
 }
 
@@ -369,15 +405,129 @@ legend(); table(); draw();
 </body>
 </html>
 `;
+fs.writeFileSync(path.join(OUT, 'pacing.html'), pacingHtml.replace('__DATA__', JSON.stringify(DATA)));
 
-fs.writeFileSync(path.join(OUT, 'pacing.html'), html.replace('__DATA__', JSON.stringify(DATA)));
+// ---------------------------------------------------------------- flowchart.html (from findings)
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const findings = findingsDoc.findings || [];
+const stages = rulebook.stages;
+const stageCards = stages.map((stage) => {
+  const items = findings.filter((f) => f.stage === stage);
+  const cls = items.some((f) => f.severity === 'blocker') ? 'crit' : (items.length ? 'warn' : 'good');
+  const badge = cls === 'crit' ? `&#10007; ${items.length} OPEN ITEM${items.length === 1 ? '' : 'S'}`
+    : cls === 'warn' ? `! ${items.length} OPEN ITEM${items.length === 1 ? '' : 'S'}`
+    : '&#10003; READY';
+  const list = items.length
+    ? '<ul>' + items.map((f) => `<li><b>${esc(f.title)}</b>${f.origin === 'model' ? ' <span class="ref">(AI)</span>' : ''}</li>`).join('') + '</ul>'
+    : (stage === 'Pacing'
+      ? '<div class="ok-note">Expected baseline built: daily_kpi.xlsx / .json + pacing.html. Actuals join pending.</div>'
+      : '<div class="ok-note">No open items found in the dump.</div>');
+  return `    <div class="stage ${cls}">
+      <div class="stage-head"><span class="dot"></span><h2>${esc(stage)}</h2></div>
+      <span class="badge">${badge}</span>
+${list}
+    </div>`;
+}).join('\n    <div class="arrow">&#9654;</div>\n');
+
+const flowchartHtml = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${esc(client)} ${esc(job)} - Readiness flowchart</title>
+<style>
+  :root { color-scheme: light dark; }
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --ink-1: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
+    --good: #0ca30c; --warn: #fab219; --crit: #d03b3b;
+    --good-bg: rgba(12,163,12,0.10); --warn-bg: rgba(250,178,25,0.14); --crit-bg: rgba(208,59,59,0.10);
+  }
+  @media (prefers-color-scheme: dark) {
+    .viz-root {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
+      --good-bg: rgba(12,163,12,0.16); --warn-bg: rgba(250,178,25,0.14); --crit-bg: rgba(208,59,59,0.18);
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--ink-1);
+         font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .viz-root { max-width: 1360px; margin: 0 auto; padding: 24px 20px 48px; }
+  h1 { font-size: 19px; margin: 0 0 2px; }
+  .sub { color: var(--ink-2); font-size: 12.5px; margin-bottom: 18px; }
+  .flow { display: flex; align-items: stretch; gap: 0; overflow-x: auto; padding-bottom: 8px; }
+  .stage { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px;
+           min-width: 196px; flex: 1 1 0; padding: 12px 14px; }
+  .stage-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+  .dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+  .stage h2 { font-size: 13px; margin: 0; line-height: 1.25; }
+  .badge { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 7px;
+           border-radius: 99px; margin: 2px 0 8px; display: inline-block; }
+  .good  .dot { background: var(--good); }  .good  .badge { color: var(--good); background: var(--good-bg); }
+  .warn  .dot { background: var(--warn); }  .warn  .badge { color: #8a5b00; background: var(--warn-bg); }
+  .crit  .dot { background: var(--crit); }  .crit  .badge { color: var(--crit); background: var(--crit-bg); }
+  @media (prefers-color-scheme: dark) { .warn .badge { color: var(--warn); } }
+  .stage ul { margin: 0; padding: 0 0 0 2px; list-style: none; }
+  .stage li { font-size: 11.5px; color: var(--ink-2); padding: 4px 0; border-top: 1px solid var(--grid); }
+  .stage li b { color: var(--ink-1); font-weight: 600; }
+  .stage li .ref { color: var(--muted); }
+  .ok-note { font-size: 11.5px; color: var(--ink-2); padding: 4px 0; border-top: 1px solid var(--grid); }
+  .arrow { align-self: center; flex: none; width: 26px; text-align: center; color: var(--axis); font-size: 17px; }
+  .legend { display: flex; gap: 18px; margin-top: 16px; font-size: 12px; color: var(--ink-2); align-items: center; }
+  .legend .dot { display: inline-block; vertical-align: middle; margin-right: 5px; }
+  .foot { color: var(--muted); font-size: 12px; margin-top: 10px; }
+</style>
+</head>
+<body>
+<div class="viz-root">
+  <h1>Readiness flowchart - ${esc(client)}, ${esc(campaignName)}</h1>
+  <div class="sub">Flight ${esc(flightStartS)} to ${esc(flightEndS)} - ${esc(currency)} ${TOTAL_SPEND.toLocaleString()} - stage status computed from findings.json (items marked AI were model-authored; the rest are code checks).</div>
+  <div class="flow">
+${stageCards}
+  </div>
+  <div class="legend">
+    <span><span class="dot" style="background:var(--good)"></span>&#10003; ready</span>
+    <span><span class="dot" style="background:var(--warn)"></span>! open items, not blocking</span>
+    <span><span class="dot" style="background:var(--crit)"></span>&#10007; blocker in this stage</span>
+  </div>
+  <div class="foot">Generated ${new Date().toISOString().slice(0, 10)} from findings.json (${findingsDoc.origins.code} code checks, ${findingsDoc.origins.model} AI-authored). Details: report.md. Chase drafts: chase_messages.md.</div>
+</div>
+</body>
+</html>
+`;
+fs.writeFileSync(path.join(OUT, 'flowchart.html'), flowchartHtml);
+
+// ---------------------------------------------------------------- report.md (from findings)
+const sevOrder = ['blocker', 'missing', 'gap', 'inconsistent', 'watch', 'housekeeping'];
+const rep = [];
+rep.push(`# ${client} ${campaignName} (job ${job}): gaps and inconsistencies\n`);
+rep.push(`Extracted by ${plan.extractor ? plan.extractor.model : 'unknown model'} from the file dump; arithmetic checks computed in code. ${findingsDoc.origins.code} code findings + ${findingsDoc.origins.model} AI-authored findings. Baseline: ${currency} ${TOTAL_SPEND.toLocaleString()}, flight ${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days).\n`);
+let n = 0;
+for (const sev of sevOrder) {
+  const group = findings.filter((f) => f.severity === sev);
+  if (!group.length) continue;
+  rep.push(`## ${sev.charAt(0).toUpperCase() + sev.slice(1)}\n`);
+  for (const f of group) {
+    n++;
+    rep.push(`${n}. **${f.title}** [${f.origin === 'model' ? 'AI-authored' : 'code check'}, stage: ${f.stage}]`);
+    if (f.detail) rep.push(`   ${f.detail}`);
+    rep.push(`   Source: ${f.source || 'n/a'}\n`);
+  }
+}
+if (exceptions.length) {
+  rep.push('## Baseline exceptions\n');
+  for (const e of exceptions) rep.push(`- ${e.campaign}: missing ${e.missing.join(', ')} - ${e.note}`);
+}
+fs.writeFileSync(path.join(OUT, 'report.md'), rep.join('\n') + '\n');
 
 // ---------------------------------------------------------------- verify
-const last = rows.slice(-CAMPAIGNS.length);
-const finalSpend = last.reduce((a, r) => a + r.cum_spend, 0);
-console.log(`rows: ${rows.length} (${TOTAL_DAYS} days x ${CAMPAIGNS.length} campaigns)`);
-console.log(`final-day cumulative spend: ${finalSpend} (must be 35000)`);
-for (const r of last) console.log(`  ${r.campaign}: cum_spend ${r.cum_spend}, cum_impressions ${r.cum_impressions}, cum_clicks ${r.cum_clicks}`);
-console.log('wrote', path.join(OUT, 'daily_kpi.xlsx'));
-console.log('wrote', path.join(OUT, 'daily_kpi.json'));
-console.log('wrote', path.join(OUT, 'pacing.html'));
+const finalByCampaign = kpiJson.campaigns.map((c) => `${c.campaign_name}: ${c.daily[c.daily.length - 1].expected_spend_cum}`);
+console.log(`[build] ${client} job ${job}: ${rows.length} rows (${usable.length} campaigns, flight ${TOTAL_DAYS} days), total ${TOTAL_SPEND}`);
+for (const line of finalByCampaign) console.log('  final cum spend ' + line);
+if (exceptions.length) console.log('[build] exceptions: ' + JSON.stringify(exceptions));
+console.log('[build] wrote daily_kpi.xlsx, daily_kpi.json, pacing.html, flowchart.html, report.md');

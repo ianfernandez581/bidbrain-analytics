@@ -101,8 +101,12 @@ iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#
 .chip.warn{background:var(--warn-soft);color:var(--warn)}
 .chip.ok{background:var(--ok-soft);color:var(--ok)}
 .chip.dim{background:var(--hover);color:var(--ink-3)}
-.f-row{display:grid;grid-template-columns:118px 168px 1fr 260px;gap:14px;align-items:start;padding:10px 8px;border-top:1px solid var(--line-2);font-size:12.5px}
+.f-row{display:grid;grid-template-columns:118px 168px 1fr 260px;gap:14px;align-items:start;padding:10px 8px;border-top:1px solid var(--line-2);font-size:12.5px;border-left:3px solid transparent}
+.f-row.ai{border-left:3px solid var(--ai);background:var(--ai-soft)}
 .f-row:hover{background:var(--hover);border-radius:8px}
+.orig{font-size:8.5px;font-weight:700;letter-spacing:.06em;border-radius:5px;padding:2px 6px;vertical-align:middle;margin-left:7px}
+.orig.ai{color:var(--ai-ink);background:var(--ai-soft)}
+.orig.code{color:var(--ink-3);background:var(--hover)}
 .f-row .stage{color:var(--ink-3);font-size:11.5px;padding-top:2px}
 .f-row .t{font-weight:600}
 .f-row .d{color:var(--ink-2);font-size:11.5px;margin-top:2px}
@@ -176,9 +180,9 @@ iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#
       <iframe id="flowFrame" title="Readiness flowchart" height="460"></iframe>
     </div>
 
-    <div class="card ai">
-      <h2>Findings <span class="ai-tag">AI-AUTHORED</span></h2>
-      <div class="desc">Extracted by Claude from the source files; arithmetic checks computed in code. Sorted by severity. Item ids match report.md.</div>
+    <div class="card">
+      <h2>Findings</h2>
+      <div class="desc" id="fDesc">Violet rows were authored by the model this run; plain rows are deterministic rulebook checks computed in code. Sorted by severity.</div>
       <div class="f-summary" id="fSummary"></div>
       <div class="f-head"><span>Status</span><span>Stage</span><span>Finding</span><span>Source</span></div>
       <div id="fRows"></div>
@@ -186,16 +190,18 @@ iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#
 
     <div class="card ai">
       <h2>Chase messages <span class="ai-tag">AI-AUTHORED</span></h2>
-      <div class="desc">Drafts only. A person reviews and sends. One message per recipient, everything they owe consolidated.</div>
+      <div class="desc" id="mDesc">Drafts only. A person reviews and sends. One message per recipient, everything they owe consolidated.</div>
       <div id="msgs"></div>
     </div>
 
     <div class="card">
       <h2>Downloads</h2>
-      <div class="desc">The four artifacts this run produced.</div>
+      <div class="desc">The artifacts this run produced.</div>
       <div id="downloads">
         <a class="dl" href="/out/daily_kpi.xlsx" download><span class="fic xls">XLS</span>daily_kpi.xlsx</a>
         <a class="dl" href="/out/daily_kpi.json" download><span class="fic csv">JSON</span>daily_kpi.json</a>
+        <a class="dl" href="/out/plan.json" download><span class="fic csv">JSON</span>plan.json</a>
+        <a class="dl" href="/out/findings.json" download><span class="fic csv">JSON</span>findings.json</a>
         <a class="dl" href="/out/report.md" download><span class="fic doc">MD</span>report.md</a>
         <a class="dl" href="/out/chase_messages.md" download><span class="fic doc">MD</span>chase_messages.md</a>
       </div>
@@ -326,6 +332,9 @@ function chipClass(sev){
   if(sev==='housekeeping')return'dim';
   return'dim';
 }
+function escHtml(s){
+  return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 function renderResults(res){
   document.getElementById('results').style.display='block';
   document.getElementById('downloads').style.display='flex';
@@ -333,13 +342,17 @@ function renderResults(res){
   pill.style.display='inline-flex';
   document.getElementById('jobPillText').textContent=res.meta.client+' · Job '+res.meta.job+' · '+res.meta.currency+' '+res.meta.total.toLocaleString();
 
+  var prov='Run '+res.run.id+' · extracted by '+res.run.model+' · finished '+res.run.finished_at.replace('T',' ').slice(0,19)+' UTC';
+  document.getElementById('fDesc').textContent=prov+'. Violet rows were authored by the model this run ('+res.origins.model+'); plain rows are deterministic rulebook checks computed in code ('+res.origins.code+'). Sorted by severity.';
+  document.getElementById('mDesc').textContent='Drafted by '+res.run.model+' in run '+res.run.id+'. A person reviews and sends. One message per recipient.';
+
   var bust='?t='+Date.now();
   document.getElementById('pacingFrame').src='/out/pacing.html'+bust;
   document.getElementById('flowFrame').src='/out/flowchart.html'+bust;
 
   /* findings */
   var order={blocker:0,missing:1,gap:2,inconsistent:3,watch:4,housekeeping:5};
-  var fs=res.findings.slice().sort(function(a,b){return(order[a.severity]||9)-(order[b.severity]||9)||a.id-b.id});
+  var fs=res.findings.slice().sort(function(a,b){return(order[a.severity]||9)-(order[b.severity]||9)});
   var counts={};
   fs.forEach(function(f){counts[f.severity]=(counts[f.severity]||0)+1});
   var sm=document.getElementById('fSummary');
@@ -354,12 +367,15 @@ function renderResults(res){
   var rows=document.getElementById('fRows');
   rows.innerHTML='';
   fs.forEach(function(f){
+    var isAi=f.origin==='model';
     var div=document.createElement('div');
-    div.className='f-row';
-    div.innerHTML='<span><span class="chip '+chipClass(f.severity)+'">'+f.chip+'</span></span>'
-      +'<span class="stage">'+f.stage+'</span>'
-      +'<span><div class="t">'+f.title+' <span style="color:var(--ink-3);font-weight:400">(item '+f.id+')</span></div><div class="d">'+f.detail+'</div></span>'
-      +'<span class="src">'+f.source+'</span>';
+    div.className='f-row'+(isAi?' ai':'');
+    div.innerHTML='<span><span class="chip '+chipClass(f.severity)+'">'+escHtml(f.chip)+'</span></span>'
+      +'<span class="stage">'+escHtml(f.stage)+'</span>'
+      +'<span><div class="t">'+escHtml(f.title)
+      +'<span class="orig '+(isAi?'ai':'code')+'">'+(isAi?'AI':'CODE')+'</span></div>'
+      +'<div class="d">'+escHtml(f.detail)+'</div></span>'
+      +'<span class="src">'+escHtml(f.source)+'</span>';
     rows.appendChild(div);
   });
 
@@ -371,7 +387,7 @@ function renderResults(res){
     div.className='msg';
     var head=document.createElement('div');
     head.className='msg-head';
-    head.innerHTML='<span class="t">'+m.title+'</span>';
+    head.innerHTML='<span class="t">'+escHtml(m.title)+(m.recipient?' <span style="color:var(--ink-3);font-weight:400">to '+escHtml(m.recipient)+'</span>':'')+'</span>';
     var btn=document.createElement('button');
     btn.className='copy-btn';
     btn.textContent='Copy';
