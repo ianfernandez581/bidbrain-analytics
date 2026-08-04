@@ -16,7 +16,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { computePacing, profitAtRisk, rollUp, STATES } = require('./pacing');
+const { computePacing, profitAtRisk, rollUp, rollUpByCurrency, resolveMargin, STATES } = require('./pacing');
 
 const AS_OF = '2026-08-03';
 
@@ -38,7 +38,7 @@ function evenSeries(start, days, total) {
 // ---------------------------------------------------------------------------
 test('EcoConsult reads healthy and slightly ahead', () => {
   const r = computePacing({
-    budget: 10500, budgetBasis: 'client', currency: 'AUD', platform: 'linkedin',
+    budget: 10500, spendBasis: 'billed', currency: 'AUD', platform: 'linkedin',
     plannedStart: '2026-07-21', flightEnd: '2026-09-19',
     dailySpend: evenSeries('2026-07-21', 13, 2396.10),
     asOf: AS_OF
@@ -68,7 +68,7 @@ test('EcoConsult reads healthy and slightly ahead', () => {
 // ---------------------------------------------------------------------------
 test('Caltex reads healthy on a client-basis budget', () => {
   const r = computePacing({
-    budget: 15000, budgetBasis: 'client', currency: 'AUD', platform: 'ttd',
+    budget: 15000, spendBasis: 'billed', currency: 'AUD', platform: 'ttd',
     plannedStart: '2026-07-29', flightEnd: '2026-10-29',
     dailySpend: evenSeries('2026-07-29', 5, 976.24),
     asOf: AS_OF
@@ -84,7 +84,7 @@ test('Caltex reads healthy on a client-basis budget', () => {
 
 test('Caltex on a media-basis budget is a false alarm, which is why basis is explicit', () => {
   const wrong = computePacing({
-    budget: 6000, budgetBasis: 'media', currency: 'AUD', platform: 'ttd',
+    budget: 6000, spendBasis: 'media', currency: 'AUD', platform: 'ttd',
     plannedStart: '2026-07-29', flightEnd: '2026-10-29',
     dailySpend: evenSeries('2026-07-29', 5, 976.24),
     asOf: AS_OF
@@ -106,7 +106,7 @@ const JOB_2463 = {
   flightEnd: '2026-11-30',
   platform: 'ttd',
   currency: 'AUD',
-  budgetBasis: 'client'
+  spendBasis: 'billed'
 };
 
 function withDeadJuly(firstSpendSeries) {
@@ -202,7 +202,7 @@ test('the 19 dollar incident is caught as unreachable', () => {
     series.push({ date: `2026-06-${String(d).padStart(2, '0')}`, amount: 19 / 30 });
   }
   const r = computePacing({
-    budget: 1000, budgetBasis: 'client', currency: 'USD', platform: 'ttd',
+    budget: 1000, spendBasis: 'billed', currency: 'USD', platform: 'ttd',
     plannedStart: '2026-06-01', flightEnd: '2026-06-30',
     dailySpend: series, asOf: '2026-07-01'
   });
@@ -217,7 +217,7 @@ test('the same campaign is flagged unreachable on day five, not at month end', (
     series.push({ date: `2026-06-${String(d).padStart(2, '0')}`, amount: 19 / 30 });
   }
   const r = computePacing({
-    budget: 1000, budgetBasis: 'client', currency: 'USD', platform: 'ttd',
+    budget: 1000, spendBasis: 'billed', currency: 'USD', platform: 'ttd',
     plannedStart: '2026-06-01', flightEnd: '2026-06-30',
     dailySpend: series, asOf: '2026-06-06'
   });
@@ -232,7 +232,7 @@ test('the same campaign is flagged unreachable on day five, not at month end', (
 // ---------------------------------------------------------------------------
 test('today is excluded from every calculation', () => {
   const base = {
-    budget: 1000, budgetBasis: 'client', plannedStart: '2026-07-01',
+    budget: 1000, spendBasis: 'billed', plannedStart: '2026-07-01',
     flightEnd: '2026-07-31', asOf: '2026-07-11'
   };
   const withoutToday = computePacing(Object.assign({}, base, {
@@ -247,7 +247,7 @@ test('today is excluded from every calculation', () => {
 
 test('rows explicitly marked partial are excluded', () => {
   const r = computePacing({
-    budget: 1000, budgetBasis: 'client', plannedStart: '2026-07-01',
+    budget: 1000, spendBasis: 'billed', plannedStart: '2026-07-01',
     flightEnd: '2026-07-31', asOf: '2026-07-11',
     dailySpend: evenSeries('2026-07-01', 9, 270).concat([
       { date: '2026-07-10', amount: 999, partial: true }
@@ -259,12 +259,12 @@ test('rows explicitly marked partial are excluded', () => {
 
 test('a late launch raises required daily rather than forgiving the target', () => {
   const onTime = computePacing({
-    budget: 900, budgetBasis: 'client', plannedStart: '2026-07-01',
+    budget: 900, spendBasis: 'billed', plannedStart: '2026-07-01',
     flightEnd: '2026-07-30', asOf: '2026-07-11',
     dailySpend: evenSeries('2026-07-01', 10, 300)
   });
   const late = computePacing({
-    budget: 900, budgetBasis: 'client', plannedStart: '2026-07-01',
+    budget: 900, spendBasis: 'billed', plannedStart: '2026-07-01',
     flightEnd: '2026-07-30', asOf: '2026-07-11',
     dailySpend: evenSeries('2026-07-01', 5, 0).concat(evenSeries('2026-07-06', 5, 150))
   });
@@ -275,7 +275,7 @@ test('a late launch raises required daily rather than forgiving the target', () 
 
 test('peak rate is a rolling three day mean, not a single spiky day', () => {
   const r = computePacing({
-    budget: 1000, budgetBasis: 'client', plannedStart: '2026-07-01',
+    budget: 1000, spendBasis: 'billed', plannedStart: '2026-07-01',
     flightEnd: '2026-07-31', asOf: '2026-07-11',
     dailySpend: [
       { date: '2026-07-01', amount: 10 }, { date: '2026-07-02', amount: 10 },
@@ -289,20 +289,35 @@ test('peak rate is a rolling three day mean, not a single spiky day', () => {
   assert.ok(r.peakRate > 100);
 });
 
-test('profit at risk uses the client basis and the platform margin', () => {
+test('profit at risk resolves margin from the platform and stays labelled an estimate', () => {
   const r = computePacing({
-    budget: 10000, budgetBasis: 'client', platform: 'ttd',
+    budget: 10000, spendBasis: 'billed', platform: 'ttd',
     plannedStart: '2026-07-01', flightEnd: '2026-07-31', asOf: '2026-07-11',
     dailySpend: evenSeries('2026-07-01', 10, 1000)
   });
   assert.ok(r.shortfall > 5000);
-  assert.equal(profitAtRisk(r, 0.6), Math.round(r.shortfall * 0.6 * 100) / 100);
-  assert.throws(() => profitAtRisk(Object.assign({}, r, { budgetBasis: 'media' }), 0.6));
+
+  // margin comes from PLATFORM_RULES, not from a per-row field
+  const p = profitAtRisk(r);
+  assert.equal(p.marginUsed, 0.6);
+  assert.equal(p.estimated, true);
+  assert.equal(p.value, Math.round(r.shortfall * 0.6 * 100) / 100);
+
+  // LinkedIn carries no margin, so nothing is at risk beyond the media itself
+  assert.equal(resolveMargin('Linkedin'), 0);
+  assert.equal(resolveMargin('TradeDesk'), 0.6);
+
+  // a media-basis budget cannot yield a profit figure
+  assert.equal(profitAtRisk(Object.assign({}, r, { spendBasis: 'media' })).value, null);
+
+  // a margin of 1 or more is undefined, not silently clamped
+  assert.throws(() => profitAtRisk(r, 1));
 });
+
 
 test('a campaign with no spend at all does not divide by zero', () => {
   const r = computePacing({
-    budget: 5000, budgetBasis: 'client', plannedStart: '2026-08-01',
+    budget: 5000, spendBasis: 'billed', plannedStart: '2026-08-01',
     flightEnd: '2026-10-31', asOf: '2026-08-03', dailySpend: []
   });
   assert.equal(r.spent, 0);
@@ -313,11 +328,87 @@ test('a campaign with no spend at all does not divide by zero', () => {
 
 test('the final day does not divide by zero remaining days', () => {
   const r = computePacing({
-    budget: 300, budgetBasis: 'client', plannedStart: '2026-07-01',
+    budget: 300, spendBasis: 'billed', plannedStart: '2026-07-01',
     flightEnd: '2026-07-10', asOf: '2026-07-11',
     dailySpend: evenSeries('2026-07-01', 10, 290)
   });
   assert.equal(r.remainingDays, 0);
   assert.equal(r.requiredDaily, null);
   assert.equal(r.state, STATES.ENDED);
+});
+
+// ---------------------------------------------------------------------------
+// Degraded mode: what the Grid can do today, before a daily series exists.
+// ---------------------------------------------------------------------------
+test('degraded mode still catches Water and Environment from a to-date figure alone', () => {
+  const r = computePacing({
+    budget: 106800, spendBasis: 'billed', currency: 'AUD', platform: 'TradeDesk',
+    plannedStart: '2026-04-30', flightEnd: '2027-03-01',
+    spentToDate: 2942.68, lastDataDate: '2026-08-02', asOf: '2026-08-03'
+  });
+  assert.equal(r.degraded, true);
+  assert.equal(r.capacityBasis, 'observed_average');
+  assert.equal(r.deadDays, null, 'dead days are unknowable without a series');
+  assert.equal(r.recentRate, null);
+  assert.equal(r.driftDays, -86.57);
+  assert.equal(r.requiredDaily, 492.21);
+  assert.equal(r.state, STATES.UNREACHABLE, 'the case that matters still fires');
+  assert.ok(r.reasons.some(x => x.includes('no daily series')));
+});
+
+test('degraded mode requires a data date rather than assuming today', () => {
+  assert.throws(() => computePacing({
+    budget: 1000, spendBasis: 'billed', plannedStart: '2026-07-01',
+    flightEnd: '2026-07-31', spentToDate: 100, asOf: '2026-07-11'
+  }), /lastDataDate is required/);
+});
+
+test('stale spend data is flagged rather than presented as current', () => {
+  const r = computePacing({
+    budget: 106800, spendBasis: 'billed', platform: 'ttd',
+    plannedStart: '2026-04-30', flightEnd: '2027-03-01',
+    spentToDate: 2942.68, lastDataDate: '2026-07-27', asOf: '2026-08-03'
+  });
+  assert.equal(r.dataAgeDays, 7);
+  assert.equal(r.stale, true);
+  assert.ok(r.reasons.some(x => x.includes('7 days old')));
+});
+
+test('an unknown spend basis refuses to produce a verdict', () => {
+  const r = computePacing({
+    budget: 9150, spendBasis: 'unknown', plannedStart: '2026-06-29',
+    flightEnd: '2026-11-30', spentToDate: 56.12, lastDataDate: '2026-08-02', asOf: '2026-08-03'
+  });
+  assert.equal(r.state, STATES.BASIS_UNKNOWN);
+  assert.equal(r.paceIndex, null);
+});
+
+test('a ramping campaign is not declared unreachable', () => {
+  const zeros = [];
+  for (let d = 29; d <= 30; d++) zeros.push({ date: `2026-06-${d}`, amount: 0 });
+  const series = zeros.concat([
+    { date: '2026-07-30', amount: 0.61 },
+    { date: '2026-07-31', amount: 0.89 },
+    { date: '2026-08-01', amount: 0.62 },
+    { date: '2026-08-02', amount: 42.66 }
+  ]);
+  const r = computePacing({
+    budget: 9150, spendBasis: 'billed', platform: 'ttd',
+    plannedStart: '2026-06-29', flightEnd: '2026-11-30', dailySpend: series, asOf: '2026-08-03'
+  });
+  assert.equal(r.ramping, true);
+  assert.notEqual(r.state, STATES.UNREACHABLE);
+  assert.ok(r.reasons.some(x => x.includes('accelerating')));
+});
+
+test('currencies are never summed together', () => {
+  const mk = (cur, budget) => computePacing({
+    budget, spendBasis: 'billed', currency: cur, platform: 'ttd',
+    plannedStart: '2026-07-01', flightEnd: '2026-07-31',
+    spentToDate: budget * 0.1, lastDataDate: '2026-07-10', asOf: '2026-07-11'
+  });
+  const by = rollUpByCurrency([mk('AUD', 10000), mk('AUD', 5000), mk('USD', 20000)]);
+  assert.deepEqual(Object.keys(by).sort(), ['AUD', 'USD']);
+  assert.equal(by.AUD.budget, 15000);
+  assert.equal(by.USD.budget, 20000);
 });

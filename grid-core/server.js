@@ -138,6 +138,11 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/exec' && req.method === 'GET') return execGet(res);
     if (p === '/api/exec/sync' && req.method === 'POST') return execSyncRoute(res);
 
+    // ---- Unwatched spend (READ-ONLY): the report written by scripts/unwatched.js - BQ
+    //      campaigns with spend that resolve to no campaign row, so they carry no budget
+    //      and get no pacing verdict. The route never queries BQ and never writes. ----
+    if (p === '/api/unwatched' && req.method === 'GET') return unwatchedGet(res);
+
     // ---- Brain ClickUp mock endpoint (now real server-side; the browser interceptor is the file:// fallback) ----
     if (p === '/api/brain/clickup-task' && req.method === 'POST') {
       const body = await readBody(req);
@@ -690,6 +695,16 @@ async function execSyncRoute(res) {
   const ok = await computeExec();
   if (!ok) return send(res, 502, { ok: false, error: EXEC.err || 'refresh failed' });
   return send(res, 200, { ok: true, generated_at: EXEC.data && EXEC.data.generated_at, clients: ((EXEC.data && EXEC.data.clients) || []).length });
+}
+
+// Serve data/unwatched.json as-is. Absent file = an empty, explicitly "never run" payload
+// so the panel can say so rather than implying zero unwatched spend.
+function unwatchedGet(res) {
+  fs.readFile(path.join(ROOT, 'data', 'unwatched.json'), 'utf8', (err, txt) => {
+    if (err) return send(res, 200, { rows: [], unwatchedCount: 0, total: 0, byCurrency: {}, generatedAt: null, neverRun: true });
+    try { return send(res, 200, JSON.parse(txt)); }
+    catch (e) { return send(res, 500, { error: 'unwatched.json is not valid JSON: ' + e.message }); }
+  });
 }
 
 function serveStatic(res, p) {

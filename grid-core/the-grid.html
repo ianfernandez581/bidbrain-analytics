@@ -188,6 +188,8 @@ button:focus-visible,a:focus-visible,input:focus-visible,.ibtn:focus-visible{out
 .adv:hover .adv-name{color:var(--brand)}
 .adv-name{font-weight:600;font-size:12.5px;display:flex;align-items:center;gap:7px;min-width:0}
 .adv-name .pdot{width:8px;height:8px;border-radius:50%;flex:0 0 auto}.adv-name .an{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.adv-name small{color:var(--ink-3);font-weight:500;font-size:10.5px}
+/* FIX 5: not-launched count sits beside the pace figure, muted - it is context, not an alarm */
+.adv-name small.nl{flex:0 0 auto;white-space:nowrap;padding:1px 6px;border:1px solid var(--line);border-radius:999px;color:var(--ink-3)}
 .track{height:8px;border-radius:5px;background:var(--line-2);position:relative;overflow:hidden}
 .track .fill{position:absolute;left:0;top:0;bottom:0;border-radius:5px;background:var(--brand)}.track .pace{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55}
 .adv-val{text-align:right;font-size:11.5px;color:var(--ink-2);white-space:nowrap}.adv-val b{color:var(--ink);font-family:"Space Grotesk";font-weight:600}.adv-val .risk{color:var(--money);font-weight:600}
@@ -244,6 +246,18 @@ td.r{text-align:right}.c-adv{font-weight:600}.c-camp{color:var(--ink)}.c-sub{col
 .end-camp{font-size:12.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .end-adv{font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .end-rem{flex:0 0 auto;font-size:11.5px;font-weight:600;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap}
+/* Unwatched spend - panel #111C16 (--panel), borders #22302A (--line), amber #E0912F (--warn) on the money */
+.unw-wrap{margin-top:12px;overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table.unw{width:100%;border-collapse:collapse;font-size:11.5px}
+table.unw th{position:sticky;top:0;background:var(--panel);text-align:left;font-size:10px;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3);font-weight:600;padding:9px 11px;border-bottom:1px solid var(--line);white-space:nowrap}
+table.unw td{padding:8px 11px;border-bottom:1px solid var(--line-2);color:var(--ink-2);white-space:nowrap}
+table.unw tr:last-child td{border-bottom:0}
+table.unw td.camp{color:var(--ink);font-weight:600;max-width:340px;overflow:hidden;text-overflow:ellipsis}
+table.unw td.spend,table.unw th.spend{text-align:right;font-variant-numeric:tabular-nums}
+table.unw td.spend{color:var(--warn);font-weight:700}
+table.unw td.dim{color:var(--ink-3)}
+.unw-foot{display:flex;flex-wrap:wrap;gap:8px 18px;align-items:center;margin-top:10px;font-size:11px;color:var(--ink-3)}
+.unw-tot{font-weight:700;color:var(--warn);font-variant-numeric:tabular-nums}
 @media(max-width:1100px){.kpis{grid-template-columns:repeat(2,1fr)}.grid-2{grid-template-columns:1fr}.roll-grid{grid-template-columns:1fr}}
 @media(max-width:820px){
   .app{flex-direction:column}
@@ -308,6 +322,12 @@ td.r{text-align:right}.c-adv{font-weight:600}.c-camp{color:var(--ink)}.c-sub{col
             <div class="card-sub">Campaigns spending too fast or too slow, with the most money at stake at the top. Start at the top and work down.</div>
             <div class="queue" id="queue"></div>
           </div>
+        </section>
+        <section class="card" id="unwatchedCard" style="margin-top:13px;display:none">
+          <div class="card-h"><h3>Unwatched spend</h3><span class="meta" id="unwMeta"></span></div>
+          <div class="card-sub">Campaigns delivering in BigQuery with no budget recorded, so no pacing verdict is possible.</div>
+          <div class="unw-wrap"><table class="unw" id="unwTable"></table></div>
+          <div class="unw-foot" id="unwFoot"></div>
         </section>
         <section class="card" id="endingCard" style="margin-top:13px">
           <div class="card-h"><h3>Wrapping up soon</h3><span class="meta" id="endMeta"></span></div>
@@ -684,12 +704,14 @@ function spineRow(c, asOf){
     campaignLink:c.campaignLink, nextReport:c.nextReportingDue, notes:c.notes,
     metricsSource:(String(c.metricsSource||'').toLowerCase()==='bq')?'BQ':c.metricsSource,
     lastSyncedAt:c.lastSyncedAt||null,
+    currency:c.currency||null,          // measured, never inferred (config/currency-map.json); null = unrecorded
     dataThrough:c.lastSyncedAt?String(c.lastSyncedAt).slice(0,10):null,
     // derived - calc.js is the single engine (see PHASE1_REPORT.md reconciliation table)
     campaignMargin:d.campaignMargin, adservingCost:d.adServingCost, cpmPerf:d.cpmPerformance,
     budgetRemaining:d.budgetRemaining, pctSpent:d.pctBudgetSpent, pctElapsed:d.pctFlightElapsed,
   };
   r.budget=calc.effectiveBudget(c); r.spent=r.clientSpent; r.remaining=r.budgetRemaining;
+  r.notLaunched=d.notLaunched;   // FIX 5 - never launched, so it is not underspending (calc.js)
   r.marginPct=d.effectiveMargin;   // per-channel EFFECTIVE margin (platform for TTD/DV360)
   const mature=r.pctSpent!=null&&r.pctSpent>=0.20;
   r.kpiHit=mature?classifyKpi(r.keyKPI,r.kpiPerf):null;
@@ -832,19 +854,34 @@ function updateCtx(rows){
 
 /* ---------- PULSE: KPIs ---------- */
 function renderKPIs(rows){
-  const base=(F.status==='Active')?rows.filter(c=>c.status==='Active'):rows;
+  const all=(F.status==='Active')?rows.filter(c=>c.status==='Active'):rows;
+  // FIX 5: an unlaunched campaign carries a budget it cannot possibly have spent.
+  // Counting it drags the portfolio % down and invents an underspend, so it is out
+  // of every total here and reported as its own count instead.
+  const base=all.filter(c=>!c.notLaunched),nNL=all.length-base.length;
   const allInClient=DATA.filter(c=>(F.client==='all'||c.advertiser===F.client)&&(F.mgr==='all'||c.managedBy===F.mgr));
   const sum=k=>base.reduce((a,c)=>a+(c[k]||0),0);
   const budget=sum('budget'),spent=sum('spent'),deliv=budget>0?spent/budget:0;
   const risk=base.reduce((a,c)=>a+(c.d.marginAtRisk||0),0);
   const nEst=base.filter(c=>c.d.marginAtRisk!=null&&!c.d.marginKnown).length;
+  // FIX 4: this sum ADDS currencies. campaigns.currency is now measured rather than NULL
+  // (config/currency-map.json, via scripts/backfill_currency.js), and it shows the risk
+  // figure mixes AUD with USD while ~half of it sits on rows whose source table records NO
+  // currency at all (LinkedIn/Reddit have no currency column). We do NOT invent an FX rate:
+  // the arithmetic is left alone and the label says plainly that it is not converted.
+  const riskRows=base.filter(c=>c.d.marginAtRisk!=null&&c.d.marginAtRisk!==0);
+  const curKnown=[...new Set(riskRows.map(c=>c.currency).filter(Boolean))].sort();
+  const curUnrec=riskRows.some(c=>!c.currency);
+  const mixNote=(curKnown.length>1||curUnrec)
+    ?` · <span title="Adds ${curKnown.join(' + ')||'money'}${curUnrec?' plus rows whose source records no currency':''}. No FX rate is applied - converting would require one we do not have." style="color:var(--warn)">mixed currencies, not converted</span>`:'';
   const flagged=base.filter(c=>c.d.paceState==='under'||c.d.paceState==='over').length;
+  const nlNote=nNL?` · <b>${nNL} not launched</b> excluded`:'';
   const single=F.client!=='all'&&!AG_ORDER.includes(F.client);const advLabel=single?`${new Set(base.map(c=>c.channel)).size} channels`:`${new Set(base.map(c=>c.advertiser)).size} advertisers`;
   const cards=[
-    {eb:'Live campaigns',big:String(base.length),sub:`currently running, of <b>${allInClient.length}</b> shown`,cls:'accent'},
-    {eb:'Total budget',big:moneyK(budget),sub:advLabel},
-    {eb:'Spent so far',big:moneyK(spent),sub:`<b>${pctP(deliv)}</b> of planned budget`,spark:pctP(deliv)},
-    {eb:'Profit at risk',big:moneyK(risk),sub:nEst?`profit we may lose at this pace (${nEst} est. at ${Math.round(ASSUMED_MARGIN*100)}%)`:`profit we may lose if pacing does not correct`,cls:'money',money:true},
+    {eb:'Live campaigns',big:String(base.length),sub:`currently running, of <b>${allInClient.length}</b> shown${nNL?` · <b>${nNL}</b> not launched`:''}`,cls:'accent'},
+    {eb:'Total budget',big:moneyK(budget),sub:advLabel+(nNL?` · unlaunched budget excluded`:'')},
+    {eb:'Spent so far',big:moneyK(spent),sub:`<b>${pctP(deliv)}</b> of planned budget${nlNote}`,spark:pctP(deliv)},
+    {eb:'Profit at risk',big:moneyK(risk),sub:(nEst?`profit we may lose at this pace (${nEst} est. at ${Math.round(ASSUMED_MARGIN*100)}%)`:`profit we may lose if pacing does not correct`)+mixNote,cls:'money',money:true},
     {eb:'Off budget',big:String(flagged),sub:flagged?`spending too fast or too slow`:`all pacing on track`,flag:flagged>0},
   ];
   document.getElementById('kpis').innerHTML=cards.map(c=>`<div class="kpi ${c.cls||''}"><div class="eyebrow">${c.eb}</div>${c.spark?`<div class="spark" style="color:var(--ok)">${c.spark}</div>`:''}<div class="big" ${c.money?'style="color:var(--money)"':c.flag?'style="color:var(--bad)"':''}>${c.big}</div><div class="sub">${c.sub}</div></div>`).join('');
@@ -910,20 +947,67 @@ function renderQueue(rows){
   q.innerHTML=show.map(c=>{const d=c.d,over=d.paceState==='over';
     const stakeLabel=over?'over budget':(d.marginKnown?'profit at risk':'est. profit at risk');
     const stakeVal=over?moneyP(d.projVar):(d.marginKnown?moneyP(d.atStake):'~'+moneyP(d.atStake));
+    // needed/day vs actual/day. mult>1 => actual is BELOW what's needed => spending SLOWER
+    // (mult<1 => running hot => faster, and we invert so the figure always reads >=1x).
     const mult=(d.reqDaily!=null&&d.runRate!=null&&d.runRate>0)?(d.reqDaily/d.runRate):null;
-    const calc=over?`projected to spend <b>${moneyP(d.projTotal)}</b> vs <b>${moneyP(c.budget)}</b> budget`:(d.reqDaily!=null&&d.runRate!=null)?`needs <b>${moneyP(d.reqDaily)}/day</b> · now spending <b>${moneyP(d.runRate)}/day</b>${mult?` (${mult>=10?Math.round(mult):mult.toFixed(1)}× faster)`:''}`:`will land <b>${d.projVar!=null?moneyP(d.projVar)+' under budget':'—'}</b>`;
+    const multX=mult?(mult<1?1/mult:mult):null,multWord=(mult&&mult<1)?'faster':'slower';
+    const calc=over?`projected to spend <b>${moneyP(d.projTotal)}</b> vs <b>${moneyP(c.budget)}</b> budget`:(d.reqDaily!=null&&d.runRate!=null)?`needs <b>${moneyP(d.reqDaily)}/day</b> · now spending <b>${moneyP(d.runRate)}/day</b>${mult?` (${multX>=10?Math.round(multX):multX.toFixed(1)}× ${multWord})`:''}`:`will land <b>${d.projVar!=null?moneyP(d.projVar)+' under budget':'—'}</b>`;
     return `<div class="q-row"><div class="q-top"><div class="q-name"><span class="pill pace-${d.paceState}">${over?'TOO FAST':'TOO SLOW'}</span><span class="nm">${c.campaign}</span></div><div class="q-stake" style="color:${over?'var(--bad)':'var(--money)'}">${stakeVal}<small>${stakeLabel}${(!over&&(!d.marginKnown||d.marginWarning))?' · set margin':''}</small></div></div><div class="q-meta">${c.advertiser} <span class="chip">${c.channel||'—'}</span> <span class="mgr" style="width:18px;height:18px;font-size:9px">${(c.managedBy||'–').slice(0,2)}</span> ${pctP(c.pctSpent)} of budget spent / ${pctP(c.pctElapsed)} of run gone by</div><div class="q-line"><span class="q-action" style="background:${ACTBG[d.actCol]};color:${ACTFG[d.actCol]}">${d.action}</span><span class="q-calc">${calc}</span></div></div>`;
   }).join('')+(items.length>show.length?`<div class="empty" style="padding:14px">+ ${items.length-show.length} more off-pace</div>`:'');
+}
+
+/* ---------- PULSE: unwatched spend ----------
+ * The Grid can only pace what is in the campaigns table (a spreadsheet import), so
+ * campaigns that spend money but were never typed in are invisible: no budget, no pacing
+ * verdict, and their spend is absent from every portfolio figure. data/unwatched.json is
+ * produced by scripts/unwatched.js (BQ names that resolve to no campaign row via
+ * src/central/match.js + the NNNN_-prefix-tolerant key). This panel REPORTS only - it
+ * never creates rows and never guesses a budget. Fetched once at boot; absent file =
+ * hidden panel (never a misleading zero). */
+let UNWATCHED=null;
+// local HTML escaper: these names come straight from BQ, and the only `esc` in this file
+// is the CSV quoter scoped inside exportCSV().
+const hesc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function loadUnwatched(){
+  return fetch('api/unwatched',{headers:{'Accept':'application/json'},cache:'no-store'})
+    .then(r=>r.ok?r.json():null).then(j=>{UNWATCHED=j;}).catch(()=>{UNWATCHED=null;});
+}
+function renderUnwatched(){
+  const card=document.getElementById('unwatchedCard');if(!card)return;
+  const d=UNWATCHED,rows=(d&&d.rows)||[];
+  if(!d||d.neverRun||!rows.length){card.style.display='none';return;}
+  card.style.display='';
+  // Totals stay PER CURRENCY - mixing AUD with an unmeasured currency would be a fiction.
+  const cur={};rows.forEach(r=>{const k=r.currency||'unknown';cur[k]=(cur[k]||0)+(r.spend||0);});
+  const keys=Object.keys(cur).sort();
+  const totTxt=keys.map(k=>`<span class="unw-tot">${k==='unknown'?'':k+' '}${moneyP(cur[k])}</span>${k==='unknown'?' <span style="color:var(--ink-3)">currency not recorded</span>':''}`).join(' · ');
+  document.getElementById('unwMeta').innerHTML=`<span style="color:var(--warn);font-weight:600">${rows.length} campaign${rows.length===1?'':'s'}</span> · ${totTxt}`;
+  const show=rows.slice(0,25);
+  document.getElementById('unwTable').innerHTML=
+    '<thead><tr><th>Platform</th><th>Advertiser</th><th>Campaign</th><th class="spend">Spend to date</th><th>Cur</th><th>First spend</th><th>Last spend</th></tr></thead><tbody>'
+    +show.map(r=>`<tr><td>${hesc(r.platform||'—')}</td><td class="dim">${hesc(r.advertiser||'—')}</td><td class="camp" title="${hesc(r.campaign||'')}">${hesc(r.campaign||'—')}</td><td class="spend">${moneyP(r.spend)}</td><td class="dim">${hesc(r.currency||'?')}</td><td class="dim">${hesc(r.firstDate||'—')}</td><td class="dim">${hesc(r.lastDate||'—')}</td></tr>`).join('')
+    +'</tbody>';
+  const parts=[];
+  if(rows.length>show.length)parts.push(`+ ${rows.length-show.length} more not shown`);
+  parts.push('Totals are per currency and are never added together.');
+  if(cur.unknown!=null)parts.push('"currency not recorded" = the source table has no currency column (LinkedIn, Reddit), so it is left unmeasured rather than assumed.');
+  if(d.generatedAt)parts.push('Measured '+new Date(d.generatedAt).toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' by scripts/unwatched.js.');
+  document.getElementById('unwFoot').innerHTML=parts.map(hesc).join(' &nbsp;·&nbsp; ');
 }
 
 /* ---------- PULSE: rollup (adaptive) ---------- */
 function renderRoll(rows){
   const byChannel=F.client!=='all'&&!AG_ORDER.includes(F.client);
   document.getElementById('rollTitle').textContent=byChannel?'By channel':'By advertiser';
-  document.getElementById('rollSub').textContent=byChannel?'How much this client has spent on each channel against budget. The marker shows where spending should be today to stay on schedule.':'How much each client has spent against their total budget. The marker shows where spending should be today to stay on schedule. The figure on the right is the profit at risk if a campaign under-delivers.';
+  // FIX 4: these rollups add each client's campaigns together, and a client can run more
+  // than one currency (Schneider bills TTD in AUD and DV360 in USD), so say so here too.
+  document.getElementById('rollSub').textContent=(byChannel?'How much this client has spent on each channel against budget. The marker shows where spending should be today to stay on schedule.':'How much each client has spent against their total budget. The marker shows where spending should be today to stay on schedule. The figure on the right is the profit at risk if a campaign under-delivers.')+' Money is shown as billed, mixing currencies without converting them.';
   const map={};
   rows.filter(c=>c.status==='Active').forEach(c=>{const k=byChannel?(c.channel||'—'):c.advertiser;
-    (map[k] ||= {key:k,budget:0,spent:0,n:0,risk:0,elap:[],sp:[]});
+    (map[k] ||= {key:k,budget:0,spent:0,n:0,nl:0,risk:0,elap:[],sp:[]});
+    // FIX 5: unlaunched rows are counted, never summed - their budget against zero
+    // spend would report the client as behind on money that could not have moved yet.
+    if(c.notLaunched){map[k].nl++;map[k].n++;return;}
     map[k].budget+=c.budget||0;map[k].spent+=c.spent||0;map[k].n++;map[k].risk+=c.d.marginAtRisk||0;
     if(c.pctElapsed!=null)map[k].elap.push(c.pctElapsed);if(c.pctSpent!=null)map[k].sp.push(c.pctSpent);});
   const arr=Object.values(map).sort((a,b)=>(b.risk-a.risk)||(b.budget-a.budget));
@@ -931,7 +1015,7 @@ function renderRoll(rows){
   const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
   document.getElementById('roll').innerHTML=arr.length?arr.map(a=>{const deliv=a.budget>0?a.spent/a.budget:0,elap=avg(a.elap),sp=avg(a.sp);
     const st=window.CentralCalc.paceBucket(sp,elap);
-    return `<div class="adv" data-key="${a.key}"><div class="adv-name"><span class="pdot" style="background:${PCOL[st]}"></span><span class="an">${a.key}</span><small>×${a.n}</small></div><div class="track"><div class="fill" style="width:${Math.min(100,deliv*100)}%"></div>${elap!=null?`<div class="pace" style="left:${Math.min(100,elap*100)}%"></div>`:''}</div><div class="adv-val">${a.risk>0?`<span class="risk">${moneyK(a.risk)} risk</span>`:`<b>${moneyK(a.spent)}</b>/${moneyK(a.budget)}`}</div></div>`;}).join(''):`<div class="empty">No active spend.</div>`;
+    return `<div class="adv" data-key="${a.key}"><div class="adv-name"><span class="pdot" style="background:${PCOL[st]}"></span><span class="an">${a.key}</span><small>×${a.n}</small>${a.nl?`<small class="nl" title="Not launched: no delivery yet and the flight has not started. Budget held out of this rollup.">${a.nl} not launched</small>`:''}</div><div class="track"><div class="fill" style="width:${Math.min(100,deliv*100)}%"></div>${elap!=null?`<div class="pace" style="left:${Math.min(100,elap*100)}%"></div>`:''}</div><div class="adv-val">${a.risk>0?`<span class="risk">${moneyK(a.risk)} risk</span>`:`<b>${moneyK(a.spent)}</b>/${moneyK(a.budget)}`}</div></div>`;}).join(''):`<div class="empty">No active spend.</div>`;
   if(!byChannel)document.getElementById('roll').querySelectorAll('.adv').forEach(el=>el.addEventListener('click',()=>{F.client=el.dataset.key;render();}));
 }
 
@@ -942,8 +1026,12 @@ function pSortVal(c,k){if(k==='paceState')return (c.pctSpent!=null&&c.pctElapsed
 function clientAgg(rows){
   const m={};
   rows.forEach(c=>{const k=c.advertiser;let a=m[k];
-    if(!a){a=m[k]={advertiser:k,agency:c.agency,n:0,budget:0,spent:0,remaining:0,reqDaily:0,projTotal:0,projVar:0,marginAtRisk:0,est:false,off:0,over:0,under:0,kpiMiss:0,channels:new Set(),mgrs:new Set(),elapSum:0,elapN:0};}
-    a.n++;a.budget+=c.budget||0;a.spent+=c.spent||0;a.remaining+=c.remaining||0;
+    if(!a){a=m[k]={advertiser:k,agency:c.agency,n:0,nl:0,budget:0,spent:0,remaining:0,reqDaily:0,projTotal:0,projVar:0,marginAtRisk:0,est:false,off:0,over:0,under:0,kpiMiss:0,channels:new Set(),mgrs:new Set(),elapSum:0,elapN:0};}
+    a.n++;
+    // FIX 5: not launched, so it cannot be off-pace. Held out of budget, spend,
+    // projections and the off-budget count; surfaced as its own count instead.
+    if(c.notLaunched){a.nl++;if(c.channel)a.channels.add(c.channel);if(c.managedBy)a.mgrs.add(c.managedBy);return;}
+    a.budget+=c.budget||0;a.spent+=c.spent||0;a.remaining+=c.remaining||0;
     if(c.d.reqDaily!=null)a.reqDaily+=c.d.reqDaily;
     if(c.d.projTotal!=null)a.projTotal+=c.d.projTotal;
     if(c.d.projVar!=null)a.projVar+=c.d.projVar;
@@ -987,14 +1075,16 @@ function renderPulseTable(rows){
   const aggs=clientAgg(rows).sort((a,b)=>{let A=aggSortVal(a,key),B=aggSortVal(b,key);if(typeof A==='string'){A=A.toLowerCase();B=(''+B).toLowerCase();return A<B?-dir:A>B?dir:0;}return (A-B)*dir;});
   tbody.innerHTML=aggs.map(a=>{const st=a.pace;
     const pill=`<span class="pill pace-${st}">${({ok:'On track',under:'Too slow',over:'Too fast',early:'Early',none:'—'})[st]}</span>`;
-    const offTag=a.off>0?`<span class="c-sub" style="color:${a.over>0?'var(--bad)':'var(--warn)'}">${a.off} of ${a.n} off budget</span>`:`<span class="c-sub">all ${a.n} on schedule</span>`;const perfTag=a.kpiMiss>0?`<div class="c-sub" style="color:var(--bad);margin-top:2px">${a.kpiMiss} missing goal</div>`:'';
+    const nLive=a.n-a.nl;   // FIX 5: pace is judged on launched campaigns only
+    const nlTag=a.nl?`<div class="c-sub" title="No delivery yet and the flight has not started. Held out of the budget, spend and pace figures.">${a.nl} not launched</div>`:'';
+    const offTag=a.off>0?`<span class="c-sub" style="color:${a.over>0?'var(--bad)':'var(--warn)'}">${a.off} of ${nLive} off budget</span>`:(nLive?`<span class="c-sub">all ${nLive} on schedule</span>`:`<span class="c-sub">nothing launched yet</span>`);const perfTag=a.kpiMiss>0?`<div class="c-sub" style="color:var(--bad);margin-top:2px">${a.kpiMiss} missing goal</div>`:'';
     const chans=[...a.channels];const chCell=chans.length?chans.slice(0,3).map(c=>`<span class="chip">${c}</span>`).join(' ')+(chans.length>3?` <span class="c-sub">+${chans.length-3}</span>`:''):'<span class="muted">—</span>';
     const mgrs=[...a.mgrs];const mgrCell=mgrs.length?mgrs.slice(0,3).map(m=>`<span class="mgr" title="${m}" style="margin-left:-5px;box-shadow:0 0 0 1.5px var(--panel)">${m.slice(0,2)}</span>`).join(''):'<span class="muted">—</span>';
     const proj=(a.projVar>-1&&a.projVar<1)?`<span class="c-sub">on budget</span>`:`<span style="color:${a.projVar>0?'var(--bad)':'var(--warn)'};font-weight:600">${a.projVar<0?moneyP(-a.projVar)+' under':'+'+moneyP(a.projVar)+' over'}</span><div class="c-sub">${a.budget>0?pctP(a.projTotal/a.budget):'—'} of budget</div>`;
     const mar=a.marginAtRisk>0?(a.est?`<span style="color:var(--money);font-weight:600">~${moneyP(a.marginAtRisk)}</span> <span class="chip" title="includes margins estimated at ${Math.round(ASSUMED_MARGIN*100)}%">est</span>`:`<span style="color:var(--money);font-weight:600">${moneyP(a.marginAtRisk)}</span>`):`<span class="c-sub">—</span>`;
     const agCol=AG_META[a.agency]?AG_META[a.agency].col:'var(--ink-3)';
     const cls=a.over>0?'f-over':a.under>0?'f-under':'';
-    return `<tr class="data sumrow ${cls}" data-client="${a.advertiser}" role="button" tabindex="0"><td class="c-adv"><span class="cdrill"><span class="agdot" style="background:${agCol}"></span>${a.advertiser}<svg class="drillarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg></span></td><td><div class="c-camp">${a.n} campaign${a.n>1?'s':''}</div></td><td>${chCell}</td><td>${mgrCell}</td><td>${pill}<div style="margin-top:3px">${offTag}${perfTag}</div></td><td><div class="deliv"><div class="dn"><b>${moneyP(a.spent)}</b> <span class="c-sub">/ ${moneyP(a.budget)} · ${pctP(a.deliv)}</span></div><div class="db"><i style="width:${Math.min(100,a.deliv*100)}%"></i>${a.elap!=null?`<u style="left:${Math.min(100,a.elap*100)}%"></u>`:''}</div></div></td><td class="r num">${a.reqDaily>0?moneyP(a.reqDaily):'<span class="muted">—</span>'}</td><td class="r num">${proj}</td><td class="r num">${mar}</td></tr>`;
+    return `<tr class="data sumrow ${cls}" data-client="${a.advertiser}" role="button" tabindex="0"><td class="c-adv"><span class="cdrill"><span class="agdot" style="background:${agCol}"></span>${a.advertiser}<svg class="drillarr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg></span></td><td><div class="c-camp">${a.n} campaign${a.n>1?'s':''}</div></td><td>${chCell}</td><td>${mgrCell}</td><td>${pill}<div style="margin-top:3px">${offTag}${nlTag}${perfTag}</div></td><td><div class="deliv"><div class="dn"><b>${moneyP(a.spent)}</b> <span class="c-sub">/ ${moneyP(a.budget)} · ${pctP(a.deliv)}</span></div><div class="db"><i style="width:${Math.min(100,a.deliv*100)}%"></i>${a.elap!=null?`<u style="left:${Math.min(100,a.elap*100)}%"></u>`:''}</div></div></td><td class="r num">${a.reqDaily>0?moneyP(a.reqDaily):'<span class="muted">—</span>'}</td><td class="r num">${proj}</td><td class="r num">${mar}</td></tr>`;
   }).join('')||`<tr><td colspan="9"><div class="empty">No clients match.</div></td></tr>`;
   const drill=el=>{F.client=el.dataset.client;render();};
   tbody.querySelectorAll('tr.sumrow').forEach(tr=>{tr.addEventListener('click',()=>drill(tr));tr.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();drill(tr);}});});
@@ -1282,7 +1372,7 @@ function renderContent(){
   document.getElementById('segMgr').style.display=topCtl?'':'none';
   document.getElementById('exportBtn').style.display=topCtl?'':'none';
   document.querySelector('.topbar .search').style.display=topCtl?'':'none';
-  if(F.view==='pulse'){renderKPIs(rows);renderMap(rows);renderQueue(rows);renderEnding(rows);renderRoll(rows);renderPulseTable(rows);}
+  if(F.view==='pulse'){renderKPIs(rows);renderMap(rows);renderQueue(rows);renderUnwatched();renderEnding(rows);renderRoll(rows);renderPulseTable(rows);}
   else if(isBrain){renderBrain();}
   else if(isCentral){renderCentral();}
   else if(isHist){renderHistorical();}
@@ -1453,9 +1543,11 @@ function updateAsOfBadge(){
   const warn=c=>{el.style.color=`var(--${c})`;if(dot){dot.style.background=`var(--${c})`;dot.style.boxShadow=`0 0 0 3px var(--${c}-soft)`;}};
   if(SPINE_ERROR){el.textContent='Live data unavailable';el.title='Could not reach the Grid server ('+SPINE_ERROR+'). Start it with: node server.js';warn('bad');}
   else if(ASOF_SOURCE==='fallback-now'){el.textContent='No sync yet — as of now';el.title='No BigQuery sync has ever run: spend/impressions are the imported sheet snapshot and pacing is anchored to right now. Open Central and press "Sync now".';warn('warn');}
-  else{const days=Math.floor((new Date()-ASOF)/DAY);
-    el.textContent='Data as of '+ASOF.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' '+ASOF.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'});
-    el.title='Newest BigQuery sync timestamp in the campaign DB — the date all pacing is anchored to.';
+  else{const hrs=(new Date()-ASOF)/36e5,days=Math.floor(hrs/24);
+    // age in hours (the useful grain for a */10 sync); switches to days past 2 days so it stays readable
+    const age=hrs<1?'just now':(hrs<48?Math.round(hrs)+'h ago':days+'d ago');
+    el.textContent='Data as of '+ASOF.toLocaleDateString('en-AU',{day:'numeric',month:'short'})+' '+ASOF.toLocaleTimeString('en-AU',{hour:'2-digit',minute:'2-digit'})+' · '+age;
+    el.title='Newest BigQuery sync timestamp in the campaign DB ('+ASOF.toISOString()+', '+Math.round(hrs)+'h ago) — the moment all pacing is anchored to.';
     if(days>3)warn('warn');else{el.style.color='';if(dot){dot.style.background='';dot.style.boxShadow='';}}}
   const banner=document.getElementById('spineBanner');
   if(banner){
@@ -1467,6 +1559,14 @@ function updateAsOfBadge(){
 
 // ---- boot: load the live spine FIRST, then render (the app has no baked data) ----
 loadSpine().then(()=>{buildMgrSeg();readHash();syncControls();render();updateAsOfBadge();});
+// the unwatched-spend report is an independent read-only file: never block the spine on it
+loadUnwatched().then(()=>{if(F.view==='pulse')renderUnwatched();});
+
+// ASOF/ASOF_SOURCE were a BOOT-TIME snapshot: a "Sync now" in Central wrote fresh
+// lastSyncedAt to the DB but Pulse kept rendering (and badging) the pre-sync state
+// until a hard reload - so the badge could read "No sync yet" long after a sync landed.
+// render-central.js calls this after a successful sync to re-pull the spine.
+window.gridRefreshSpine=function(){return loadSpine().then(()=>{render();updateAsOfBadge();});};
 </script>
 <script>(function(){var app=document.querySelector('.app');if(!app)return;function setSide(c){app.classList.toggle('side-collapsed',c);try{localStorage.setItem('grid-side',c?'collapsed':'open')}catch(e){}}try{if(localStorage.getItem('grid-side')==='collapsed')setSide(true)}catch(e){}var t=document.getElementById('sideToggle'),x=document.getElementById('sideExpand');if(t)t.addEventListener('click',function(){setSide(true)});if(x)x.addEventListener('click',function(){setSide(false)});})();</script>
 <script>(function(){var root=document.documentElement,pill=document.getElementById('themePill');function apply(t){t=(t==='light')?'light':'dark';root.setAttribute('data-theme',t);try{localStorage.setItem('grid-theme',t)}catch(e){}if(pill)pill.querySelectorAll('button').forEach(function(b){b.setAttribute('aria-pressed',b.dataset.themeSet===t?'true':'false')});}apply(root.getAttribute('data-theme')||'dark');if(pill)pill.addEventListener('click',function(e){var b=e.target.closest('button[data-theme-set]');if(b)apply(b.dataset.themeSet);});})();</script>

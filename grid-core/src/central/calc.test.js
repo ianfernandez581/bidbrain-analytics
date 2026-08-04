@@ -163,6 +163,24 @@ const ASOF = new Date('2026-07-01T00:00:00');
   check('projection uses effectiveBudget (budgetGross-first)', d.projState === 'onplan', d.projState + ' projVar=' + d.projVar);
 }
 
+// ---- FIX 5: notLaunched — a campaign that never started is not underspending ----
+{
+  const T = new Date('2026-08-04T00:00:00');
+  const nl = (o) => C.notLaunched(o, T);
+  check('no start date + no spend -> not launched', nl({ totalBudget: 13000 }) === true);
+  check('future start + no spend -> not launched', nl({ totalBudget: 13000, startDate: '2026-09-01' }) === true);
+  check('PAST start + no spend -> LAUNCHED (late or broken, must stay in the rollup)',
+    nl({ totalBudget: 13000, startDate: '2026-07-09' }) === false);
+  check('start today -> launched (today is not the future)',
+    nl({ totalBudget: 13000, startDate: '2026-08-04' }) === false);
+  check('spend present -> launched even with no start date', nl({ clientSpend: 240 }) === false);
+  // the sync leaves clientSpend null when spendMult is unset, but mediaSpend proves delivery
+  check('mediaSpend only (null clientSpend) -> launched, never excluded',
+    nl({ clientSpend: null, mediaSpend: 2560.09 }) === false);
+  check('zero spend is zero, not delivery', nl({ clientSpend: 0, mediaSpend: 0 }) === true);
+  check('computeRow exposes notLaunched', C.computeRow({ totalBudget: 100 }, T).notLaunched === true);
+}
+
 // ---- latestSyncAsOf: newest lastSyncedAt wins; null when never synced ----
 {
   const rows = [{ lastSyncedAt: '2026-07-10T02:00:00Z' }, { lastSyncedAt: '2026-07-12T02:00:00Z' }, {}];

@@ -277,12 +277,25 @@ module.exports = {
   // campaign repeats that triple across channels (e.g. "Always On" on Google/Meta/
   // TradeDesk), so a per-row natural-key dedup would silently DROP real rows. The
   // guard is lossless and idempotent. Blank name→null (needs-input); blank status→Draft.
+  // force:true switches to UPSERT so build_central_import.js output can be re-applied
+  // when Zhen sends a new sheet (added 2026-08-04). Natural key = (section, client,
+  // name, channel) — CHANNEL IS PART OF IT, because the sheet legitimately repeats
+  // (section,client,name) across channels (see the note above), so a 3-part key would
+  // collapse real rows into one.
+  //
+  // On update it writes CONFIG columns only. The API metric columns (impressions /
+  // mediaSpend / clientSpend / metricsSource / lastSyncedAt / spendBasis) are refreshed
+  // from the sheet ONLY on rows that have never synced (metricsSource='sheet-import');
+  // on a synced row the sheet figures are older than BigQuery and would undo the sync.
+  // opts.dryRun computes the plan and writes nothing.
   importCentralSnapshot(rows, opts) {
     const force = opts && opts.force;
+    const dryRun = opts && opts.dryRun;
     const already = db.prepare("SELECT COUNT(*) n FROM campaigns WHERE sourceOfRecord='sheet-import'").get().n;
     if (already > 0 && !force) {
       return { inserted: 0, skipped: rows.length, alreadyImported: true, total: db.prepare('SELECT COUNT(*) n FROM campaigns').get().n, byStatus: {} };
     }
+    if (force && already > 0) return this._upsertCentralSnapshot(rows, { dryRun });
     const cfg = this._CAMPAIGN_CONFIG_COLS;
     const insert = db.prepare(`INSERT INTO campaigns (${this._CAMPAIGN_ALL_COLS.join(',')})
       VALUES (${this._CAMPAIGN_ALL_COLS.map(c => '@' + c).join(',')})`);
@@ -307,6 +320,77 @@ module.exports = {
     });
     tx(rows);
     return { inserted, skipped: 0, total: db.prepare('SELECT COUNT(*) n FROM campaigns').get().n, byStatus };
+  },
+
+  // The force:true half of importCentralSnapshot. Never called directly.
+  _snapshotKey(section, client, name, channel) {
+    const n = v => String(v == null ? '' : v).trim().toLowerCase().replace(/\s+/g, ' ');
+    return [n(section), n(client), n(name), n(channel)].join('||');
+  },
+  _upsertCentralSnapshot(rows, opts) {
+    const dryRun = opts && opts.dryRun;
+    const cfg = this._CAMPAIGN_CONFIG_COLS;
+    const METRIC_COLS = ['impressions', 'mediaSpend', 'clientSpend'];
+    const existing = {};
+    for (const c of db.prepare('SELECT * FROM campaigns').all()) {
+      const k = this._snapshotKey(c.section, c.client, c.name, c.channel);
+      if (!existing[k]) existing[k] = c;                 // first wins; dupes reported below
+    }
+    const insert = db.prepare(`INSERT INTO campaigns (${this._CAMPAIGN_ALL_COLS.join(',')})
+      VALUES (${this._CAMPAIGN_ALL_COLS.map(c => '@' + c).join(',')})`);
+    let inserted = 0, updated = 0, metricsRefreshed = 0, unmatchedInDb = 0;
+    const byStatus = {}, touched = new Set(), unnamedSkipped = [];
+
+    const apply = (rs) => {
+      for (const row of rs) {
+        const section = row.section != null ? row.section : (row.agency != null ? row.agency : null);
+        const client = row.client != null ? row.client : null;
+        const name = (row.name == null || row.name === '') ? null : row.name;
+        const status = (row.status == null || row.status === '') ? 'Draft' : row.status;
+        const k = this._snapshotKey(section, client, name, row.channel);
+        const hit = existing[k];
+        // A blank name cannot be keyed. The sheet has one such row (Ad Assembly /
+        // TradeDesk) whose DB twin was named later through Central's fill-empty
+        // affordance, so keying on '' would INSERT a duplicate on every forced
+        // re-import. Skip and report: the fix is a name in the sheet, not a guess here.
+        if (!hit && !name) { unnamedSkipped.push({ section, client, channel: row.channel || null }); continue; }
+        if (!hit) {
+          const rec = {}; this._CAMPAIGN_ALL_COLS.forEach(c => { rec[c] = null; });
+          cfg.forEach(c => { if (row[c] !== undefined) rec[c] = row[c]; });
+          rec.section = section; rec.client = client; rec.name = name; rec.status = status;
+          METRIC_COLS.forEach(c => { rec[c] = row[c] != null ? row[c] : null; });
+          rec.metricsSource = 'sheet-import'; rec.lastSyncedAt = null;
+          rec.id = this._genCampaignId(); rec.createdAt = now(); rec.updatedAt = now();
+          rec.archivedAt = null; rec.sourceOfRecord = 'sheet-import';
+          if (!dryRun) insert.run(rec);
+          inserted++; byStatus[status] = (byStatus[status] || 0) + 1;
+          continue;
+        }
+        touched.add(hit.id);
+        const sets = { status };
+        cfg.forEach(c => { if (row[c] !== undefined && c !== 'status') sets[c] = row[c]; });
+        sets.section = section; sets.client = client; sets.name = name;
+        // sheet metrics only on a row BigQuery has never touched
+        const neverSynced = String(hit.metricsSource || '') !== 'bq';
+        if (neverSynced) {
+          METRIC_COLS.forEach(c => { if (row[c] !== undefined) sets[c] = row[c] != null ? row[c] : null; });
+          metricsRefreshed++;
+        }
+        sets.updatedAt = now();
+        const cols = Object.keys(sets);
+        if (!dryRun) db.prepare(`UPDATE campaigns SET ${cols.map(c => c + '=@' + c).join(', ')} WHERE id=@id`)
+          .run(Object.assign({ id: hit.id }, sets));
+        updated++; byStatus[status] = (byStatus[status] || 0) + 1;
+      }
+    };
+    if (dryRun) apply(rows); else db.transaction(apply)(rows);
+
+    for (const k of Object.keys(existing)) if (!touched.has(existing[k].id)) unmatchedInDb++;
+    return {
+      upserted: true, dryRun: !!dryRun, inserted, updated, metricsRefreshed,
+      unmatchedInDb, unnamedSkipped, skipped: unnamedSkipped.length, byStatus,
+      total: db.prepare('SELECT COUNT(*) n FROM campaigns').get().n
+    };
   },
 
   getCampaigns() { return db.prepare('SELECT * FROM campaigns ORDER BY section, client, name').all(); },
@@ -350,9 +434,24 @@ module.exports = {
 
   // Apply SYNCED BQ metrics to one campaign. Writes ONLY API-metric columns (never
   // CONFIG). The spendMult rule is the whole point:
-  //   spendMult set  → clientSpend = mediaSpend × spendMult, spendBasis 'billed'
-  //   spendMult unset → clientSpend UNTOUCHED (keeps its sheet value), spendBasis 'sheet'
-  // It NEVER writes clientSpend = mediaSpend (the regression that zeroed margins).
+  //   spendMult set   → clientSpend = mediaSpend × spendMult, spendBasis 'billed'
+  //   spendMult unset AND clientSpend IS NULL → clientSpend = mediaSpend, spendBasis 'billed'
+  //   spendMult unset AND clientSpend HAS a value → clientSpend UNTOUCHED, spendBasis 'sheet'
+  //
+  // The middle arm was added 2026-08-04. Before it, a null spendMult left clientSpend
+  // null while mediaSpend updated, so every consumer reading clientSpend saw ZERO spend
+  // on a delivering campaign — this hid Schneider "Software First EcoStruxure"
+  // (LinkedIn, A$2,451.20 delivered, reported as 0% spent). Writing mediaSpend is
+  // correct on a NULL because TradeDesk's BQ cost column IS the billed figure (verified
+  // to the cent: MongoDB DNB IDE SUM(COSTS)=16,183.91 and VMCH Disability
+  // SUM(cost)=2,981.28 both equal the sheet's clientSpend), and on every other platform
+  // margin is zero so media equals billed (pacing/pacing.js PLATFORM_RULES).
+  //
+  // It still NEVER overwrites a clientSpend that already holds a DIFFERENT value (the
+  // regression that zeroed margins). Those rows carry a real pre-sync sheet figure on a
+  // basis we cannot infer — e.g. VMCH Disability Retargeting, media 1,192.51 vs client
+  // 2,981.28, a ratio of exactly 1/(1-0.6). Overwriting would move a correct billed
+  // figure onto a media basis. They are left alone and reported for a human decision.
   // Skips archived rows always, and status='Ended' unless opts.includeEnded.
   syncCampaignMetrics(id, impressions, mediaSpend, opts) {
     opts = opts || {};
@@ -367,8 +466,12 @@ module.exports = {
       mediaSpend: mediaSpend == null ? null : mediaSpend,
       metricsSource: 'bq', lastSyncedAt: t, updatedAt: t
     };
+    const clientSpendIsNull = (c.clientSpend == null || c.clientSpend === '');
     if (mult != null && Number.isFinite(mult)) {
       sets.clientSpend = (mediaSpend == null ? null : mediaSpend * mult);   // billed = media × mult
+      sets.spendBasis = 'billed';
+    } else if (clientSpendIsNull) {
+      sets.clientSpend = (mediaSpend == null ? null : mediaSpend);          // no mult, nothing to lose
       sets.spendBasis = 'billed';
     } else {
       sets.spendBasis = 'sheet';   // NOTE: clientSpend intentionally NOT in `sets` — never overwritten

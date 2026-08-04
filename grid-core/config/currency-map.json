@@ -1,0 +1,151 @@
+{
+ "_comment": "Currency per (dataset.table || advertiserValue), measured read-only from BigQuery on 2026-08-04. config/central-clients.json carries NO currency field - it appears only in free-text notes, two of which are wrong (HireRight is documented as \"presumed USD (unverified)\" but BigQuery says AUD; Ad Assembly BuyerX is documented as \"Possible USD\" but BigQuery says AUD). Every one of the 35 pairs below resolves to exactly ONE currency, verified. raw_snowflake.linkedin_ads_apac and raw_snowflake.reddit_ads_apac_all have NO currency column, so rows sourced only from them stay NULL by design rather than being inferred from an account-name suffix.",
+ "generatedAt": "2026-08-04",
+ "method": "SELECT advertiser, currency, COUNT(*) GROUP BY 1,2 per table; asserted one currency per pair",
+ "noCurrencyColumn": [
+  "raw_snowflake.linkedin_ads_apac",
+  "raw_snowflake.reddit_ads_apac_all"
+ ],
+ "pairs": {
+  "raw_google_ads.perf_google_ads||City Perfume": {
+   "currency": "AUD",
+   "rows": 22464
+  },
+  "raw_google_ads.perf_google_ads||Reset Data": {
+   "currency": "AUD",
+   "rows": 1281
+  },
+  "raw_google_ads.perf_google_ads||The Little Marionette": {
+   "currency": "AUD",
+   "rows": 1450
+  },
+  "raw_snowflake.dv360_apac||APAC | PropTrack (AUD)": {
+   "currency": "AUD",
+   "rows": 3173
+  },
+  "raw_snowflake.dv360_apac||APAC | STT GDC - SGD": {
+   "currency": "SGD",
+   "rows": 73177
+  },
+  "raw_snowflake.dv360_apac||APAC | STTelemdia GDC": {
+   "currency": "USD",
+   "rows": 13148
+  },
+  "raw_snowflake.dv360_apac||APAC | Schneider Electric (USD)": {
+   "currency": "USD",
+   "rows": 55335
+  },
+  "raw_snowflake.dv360_apac||APAC | Schneider Electric AUD": {
+   "currency": "AUD",
+   "rows": 236228
+  },
+  "raw_snowflake.dv360_apac||APAC | Schneider Electric SGD": {
+   "currency": "SGD",
+   "rows": 10296
+  },
+  "raw_snowflake.dv360_apac||APAC_HireRight_271025_USD": {
+   "currency": "USD",
+   "rows": 18490
+  },
+  "raw_snowflake.google_ads_apac||STT (USD)": {
+   "currency": "USD",
+   "rows": 5601
+  },
+  "raw_snowflake.google_ads_apac||STT GDC_SGD": {
+   "currency": "SGD",
+   "rows": 37282
+  },
+  "raw_snowflake.google_ads_apac||STT Global Data": {
+   "currency": "SGD",
+   "rows": 6765
+  },
+  "raw_snowflake.tradedesk_apac_all||Cloudflare": {
+   "currency": "USD",
+   "rows": 169853
+  },
+  "raw_snowflake.tradedesk_apac_all||HireRight": {
+   "currency": "AUD",
+   "rows": 2195
+  },
+  "raw_snowflake.tradedesk_apac_all||MongoDB": {
+   "currency": "USD",
+   "rows": 13395
+  },
+  "raw_snowflake.tradedesk_apac_all||PopTrack": {
+   "currency": "AUD",
+   "rows": 9180
+  },
+  "raw_snowflake.tradedesk_apac_all||PropTrack": {
+   "currency": "AUD",
+   "rows": 195
+  },
+  "raw_snowflake.tradedesk_apac_all||Schneider Electric": {
+   "currency": "AUD",
+   "rows": 73766
+  },
+  "raw_windsor.perf_meta||100% Digital - Clients": {
+   "currency": "AUD",
+   "rows": 267
+  },
+  "raw_windsor.perf_meta||Ad Assembly - ACRS": {
+   "currency": "AUD",
+   "rows": 124
+  },
+  "raw_windsor.perf_meta||Ad Assembly - BuyerX": {
+   "currency": "AUD",
+   "rows": 574
+  },
+  "raw_windsor.perf_meta||Cityperfume.com.au": {
+   "currency": "AUD",
+   "rows": 2972
+  },
+  "raw_windsor.perf_meta||Reset backup \u00e2\u20ac\u201c Ad account": {
+   "currency": "AUD",
+   "rows": 318
+  },
+  "raw_windsor.perf_the_trade_desk||100% Digital": {
+   "currency": "AUD",
+   "rows": 30
+  },
+  "raw_windsor.perf_the_trade_desk||ACRS": {
+   "currency": "AUD",
+   "rows": 1085
+  },
+  "raw_windsor.perf_the_trade_desk||Altech": {
+   "currency": "USD",
+   "rows": 1324
+  },
+  "raw_windsor.perf_the_trade_desk||Caltex": {
+   "currency": "AUD",
+   "rows": 36
+  },
+  "raw_windsor.perf_the_trade_desk||City Perfume": {
+   "currency": "AUD",
+   "rows": 474
+  },
+  "raw_windsor.perf_the_trade_desk||Peaches & Cream": {
+   "currency": "AUD",
+   "rows": 88
+  },
+  "raw_windsor.perf_the_trade_desk||Qtopia Sydney": {
+   "currency": "AUD",
+   "rows": 375
+  },
+  "raw_windsor.perf_the_trade_desk||ResetData": {
+   "currency": "USD",
+   "rows": 4267
+  },
+  "raw_windsor.perf_the_trade_desk||The Little Marionette": {
+   "currency": "AUD",
+   "rows": 2177
+  },
+  "raw_windsor.perf_the_trade_desk||VMCH ": {
+   "currency": "AUD",
+   "rows": 8983
+  },
+  "raw_windsor.perf_the_trade_desk||WEHI": {
+   "currency": "AUD",
+   "rows": 3145
+  }
+ }
+}

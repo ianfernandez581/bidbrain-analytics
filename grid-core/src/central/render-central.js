@@ -870,6 +870,9 @@
         var notMapped = (d.skippedClients || []).length;
         if (notMapped) msg += ' · ' + notMapped + ' client' + (notMapped === 1 ? '' : 's') + ' not yet mapped';
         toastOk(msg);
+        // Pulse's spine + "Data as of" badge are computed at boot from lastSyncedAt, so
+        // without this they keep showing the PRE-sync state (incl. "No sync yet") until reload.
+        if (typeof window.gridRefreshSpine === 'function') { try { window.gridRefreshSpine(); } catch (e) { console.warn('[Central sync] spine refresh failed:', e); } }
         if (d.errors && d.errors.length) { console.warn('[Central sync] warnings:', d.errors); toastErr(d.errors.length + ' sync warning(s) — see console'); }
       })
       .catch(function () { toastErr('Sync failed — is the server running?'); })

@@ -141,6 +141,45 @@ function pctBudgetSpent(c) {
   return div(c.clientSpend, effectiveBudget(c));
 }
 
+/**
+ * FIX 5 — has this campaign launched? A campaign that has not launched is NOT
+ * underspending, so rollups exclude it rather than counting its budget against
+ * zero spend (which invents an underspend and drags the client's % down).
+ *
+ * NOT LAUNCHED = nothing has ever delivered AND the flight has not begun
+ * (no start date at all, or a start date still in the future).
+ *
+ * Delivery is tested on clientSpend OR mediaSpend, never clientSpend alone: the
+ * sync leaves clientSpend null on a row with no spendMult while writing a real
+ * mediaSpend (db.js syncCampaignMetrics), and that campaign HAS launched.
+ *
+ * A zero-delivery row whose start date is already PAST stays in the rollup on
+ * purpose — that one is late or broken, which is exactly the thing pacing exists
+ * to surface.
+ */
+function notLaunched(c, asOf = new Date()) {
+  const spent = num(c.clientSpend), media = num(c.mediaSpend);
+  if ((spent !== null && spent > 0) || (media !== null && media > 0)) return false;
+  const s = dayKey(c.startDate);
+  if (s === null) return true;              // no start date — never launched
+  const t = dayKey(asOf);
+  return t !== null && s > t;               // flight starts in the future
+}
+
+/** 'YYYY-MM-DD' for a date-only string or a Date, compared at DAY granularity.
+ * A date-only string parses as UTC midnight while `new Date()` is a local instant,
+ * so raw ms comparison calls a campaign starting TODAY "the future" for the first
+ * hours of the day in any timezone ahead of UTC. Dates in this DB are day-grained,
+ * so compare them as days. */
+function dayKey(v) {
+  if (v === null || v === undefined || v === '') return null;
+  if (typeof v === 'string') { const m = v.match(/^(\d{4}-\d{2}-\d{2})/); if (m) return m[1]; }
+  const d = v instanceof Date ? v : new Date(v);
+  if (!(d instanceof Date) || !Number.isFinite(d.getTime())) return null;
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
 /** % Flight Elapsed = clamp((today - start) / (end - start), 0..1). */
 function pctFlightElapsed(c, today = new Date()) {
   const s = ms(c.startDate), e = ms(c.endDate), t = ms(today);
@@ -466,6 +505,7 @@ function computeRow(c, today = new Date()) {
     pctBudgetSpent: pctBudgetSpent(c),
     pctFlightElapsed: pctFlightElapsed(c, today),
     pacingStatus: pacingStatus(c, today),
+    notLaunched: notLaunched(c, today),   // FIX 5 — excluded from every rollup
   };
   d.marginDelta = marginDelta(c, d);
   d.marginBand = marginBand(c, d);
@@ -488,7 +528,7 @@ function computeRow(c, today = new Date()) {
 
 const api = {
   num, div, ms,
-  effectiveBudget, budgetRemaining, pctBudgetSpent, pctFlightElapsed,
+  effectiveBudget, budgetRemaining, pctBudgetSpent, pctFlightElapsed, notLaunched,
   adServingCost, campaignMargin, cpmPerformance, kpiPerformance, pacingStatus,
   marginDelta, marginBand, health,
   // Phase-1 single-engine additions
