@@ -21,16 +21,88 @@ every agency-scoped path: the portal, `/api/status`, the proxy's `_may_open`) an
 restore; the portal then shows a **▸ Viewing agency portal** pill and a **← Back to admin / super
 console** link (`GET /enter-agency/<slug>` · `GET /exit-agency`). Log out clears everything.
 
-**Portal tabs (2026-08-04):** Overview · Data Accuracy · **The Grid** · **The Brain**. The Grid is a
-spend-pacing drill-down (client → platform → campaign) drawn as BULLET BARS on one scale: track =
-total budget, pale underlay = plan spend-to-date from the flight dates (100% once a flight has
-finished), colored bar on top = actual spend (red + capped at 100% when over). Colored short of pale
-= behind, past it = over — matching the BEHIND/OVER PACE chips (actual÷expected: <0.9 behind, >1.15
-over). Rendered from a **hardcoded media-plan snapshot in `portal.html`** keyed by agency slug (only
-`transmission` has data; other agencies see a "being connected" note) — refresh it by editing the
-`ROWS` array; wiring it to live grid-core/Pulse pacing is the intended follow-up. Client-row logos
-reuse `/logo/<key>` (none uploaded yet, so they self-hide). The Brain is a styled work-in-progress
-placeholder (future pacing/industry-trend optimization recommendations).
+**Portal tabs (2026-08-04):** Overview · Data Accuracy · **The Grid** · **The Brain**. The Brain is a
+styled work-in-progress placeholder (future pacing/industry-trend optimization recommendations).
+
+### The Grid tab — spend pacing (rebuilt 2026-08-05)
+Pane header (gradient "Spend Pacing" wordmark + agency/Active chips) → the **executive pacing line**
+(`#bbgrid-exec`) → a **client accordion**: one collapsed row per client, expanding to one **bullet bar
+per campaign flight**.
+
+**Executive pacing line** = ONE 12px bar pooling **all** campaigns across every client
+(budget-weighted, identical maths to a client row), with a status badge and a one-item legend. It is
+**deliberately figure-free** — no dollars, no percentages, no ratio (a 4-cell KPI scorecard was built
+first and replaced on request, 2026-08-05); the badge states the read in words. The harness asserts no
+`$`, `%` or `×` can appear inside it, so don't "helpfully" add one back.
+
+> **The expected-pace reference is deliberately NOT rendered on this bar (2026-08-05).** Both the pale
+> "expected" underlay and the "where spend should be today" marker are omitted, leaving only the
+> spend-to-date fill. Reason: the central Live Campaigns sheet behind `ROWS` is not current, so the
+> apparent underspend is largely **reporting lag, not real under-delivery** — most of those lines are
+> believed to be on pace. Marking a stale expectation would tell the client we are behind when we are
+> not. The CSS (`.exectrack .e` / `.m`, `.execlegend i.mk`) is still in place and the script carries the
+> exact three spans to paste back; the **accordion below intentionally keeps its per-campaign markers**,
+> and the harness asserts both facts (marker absent above, present below) so neither drifts.
+> **Known gap while this stands:** the campaign rows still show markers *and* amber BEHIND badges driven
+> by the same stale expectations, so the detail view can still read "behind" even though the headline no
+> longer does. Fixing that properly means refreshing the sheet, not hiding more UI.
+
+**Caveat on pooling:** it makes the headline read ON PACE (≈0.72×) while Schneider — 75% of the book at
+$624k — is BEHIND, because the finished STT/MongoDB/PropTrack flights sit near 100% spent and lift the
+blend. Reviewed and accepted (2026-08-05): the per-client accordion sits directly underneath, so the
+detail is one click away and nothing is hidden. **Note the badge is still computed from `t.pe`** — the
+same expected figures the marker was pulled for — so if the sheet lag ever pushes the pooled ratio below
+0.65 the headline will flip to BEHIND on data we do not trust.
+Track = the full campaign budget; the pale underlay + the bright 2px marker (`#a8b8d8`) sit at **% of
+the flight elapsed**; the colored fill is **% of budget spent** (capped at 100%). Fill short of the
+marker = behind, past it = over. Client rows roll up spend÷budget with elapsed **weighted by each
+line's budget**. Campaign rows carry a channel tag, both flight dates, `$spent of $budget` and a hover
+tooltip (`Spent X% | Expected Y%`); the channel is a TAG, not a grouping level (the old
+client→platform→campaign drill-down was replaced).
+
+**Bar widths are applied by JS, not inline** — every fill ships as `data-w="<pct>"` with CSS
+`width:0`, and `reveal()` sets the real width on the next frame so bars grow into place (client bars
+on load; a client's campaign bars the first time it expands, since they sit inside a `max-height:0`
+panel). The expected-marker fades in via `.campaign-list.revealed`. Both are `transition:none` under
+`prefers-reduced-motion`. **Consequence: a `data-w` attribute with no matching JS = an empty bar**, so
+if you add a bar, give it `data-w` and make sure it is inside a scope `reveal()` is called on.
+
+**Pacing thresholds are deliberately lenient** so a normal delivery wobble doesn't read as an alarm:
+`% elapsed <= 5%` → **EARLY** (grey — a ratio off a near-zero denominator is meaningless, so it is
+NOT colored green), else ratio = `% spent ÷ % elapsed` → `>1.25` **OVER PACE** (red), `<0.65`
+**BEHIND** (amber), otherwise **ON PACE** (green). The pane carries its own scoped palette
+(`#pane-grid{--p-*}`) so the pacing colors don't disturb the shared `:root` portal theme.
+
+**Data = a FROZEN SNAPSHOT hardcoded in `portal.html`**, keyed by agency slug (only `transmission`
+has data; other agencies see a "being connected" note). Base source is the committed
+**`Data/pacing_data.xlsx`** ("Pacing Data" tab) — a manual export of the Transmission section of the
+Live Campaigns Google Sheet, pre-filtered to **Active campaigns with spend > $0** (lines still at $0
+are listed on the xlsx's Notes tab and excluded). To refresh: re-export the xlsx and re-transcribe the
+`ROWS` object (grouped by client: `[campaign, channel, start, end, budget, spent, pctSpent,
+pctElapsed]` = cols B,C,D,E,F,G,H,I). The data date is recorded **only in the `ROWS` comment** — an
+on-screen "Snapshot · <date>" chip was built and then removed on request (2026-08-05), so nothing in
+the UI reveals how old the numbers are. **Never recompute `% elapsed` from today's date** (the
+pre-rebuild code did): spend cannot be refreshed the same way, so a live-moving marker against frozen
+spend drags every line toward BEHIND on its own — which, with no date shown, would now be invisible.
+Statuses are recomputed in JS from `pctSpent`/`pctElapsed` rather than read from the sheet's col K —
+verified to reproduce every one of the xlsx's own `Pacing Status` values, so the thresholds live in
+exactly one place. Client-row logos reuse `/logo/<key>` (none uploaded yet, so they self-hide). Wiring
+this to live grid-core/Pulse pacing is the intended follow-up.
+
+> **The 3 `Ecoconsult` lines are a MANUAL OVERRIDE (2026-08-05) and the xlsx does NOT agree with them.**
+> The sheet had all three at `$10,500 / $2,247.52` — one figure copied across all three rows. Correct
+> values (from Charles): AWR `$10,500 / $2,623.97`, 21 Jul→19 Sep, ON PACE · CNS `$9,000 / $167.43`,
+> 3 Aug→30 Nov, EARLY · CVS `$4,500 / $42.83`, 4 Aug→30 Nov, EARLY. Budgets, flight dates AND spend all
+> differ from the sheet, so **re-exporting the xlsx will silently reintroduce the stale numbers** — fix
+> the source sheet, or re-apply the override block (it is comment-marked in `ROWS`). These three are
+> also dated **2026-08-05** while the other 28 rows are the **2026-08-04** export; the stamp shows the
+> newer date, so 28 rows are at most one day generously dated (immaterial to elapsed %).
+
+**Remaining source-data caveat** (faithful to the sheet, not a render bug): two `Industrial Edge W3
+Prefab` LinkedIn lines share one campaign name and differ only by budget ($7,000 / $7,500), so they
+render as near-identical adjacent rows. Campaign names display with the brief-number prefix stripped
+(`2463_SE_ANZ …` → `SE ANZ …`) and `_` → space, per the repo-wide "campaign names are not stable
+keys" rule.
 
 ### Agencies (seeded from `dash/config.py`)
 - **100% Digital** (`100d2026`): City Perfume, VMCH, The Little Marionette, ResetData,
