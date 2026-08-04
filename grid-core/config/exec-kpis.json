@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-07-22T02:23:22+00:00",
+ "generated_at": "2026-08-04T00:37:18+00:00",
  "source": "client data.json (GCS)",
  "clients": [
   {
@@ -13,20 +13,19 @@
    "mlbl": "Accepted CS leads (Q3 to date)",
    "unit": "",
    "fmt": "int",
-   "val": 394.0,
+   "val": 655.0,
    "target": 2290.0,
    "targetLbl": "Q3 target",
-   "pace": 0.1721,
-   "ttdPace": 0.7117,
+   "pace": 0.286,
+   "ttdPace": 0.7655,
    "noDaily": true,
    "gd": {
-    "d": 230,
-    "w": 230,
-    "m": -15
+    "d": -22,
+    "w": -22,
+    "m": 6
    },
    "sk": {
     "d": [
-     330.0,
      482.0,
      388.0,
      218.0,
@@ -35,12 +34,12 @@
      199.0,
      173.0,
      38.0,
-     64.0,
-     211.0,
-     100.0
+     65.0,
+     214.0,
+     200.0,
+     162.0
     ],
     "w": [
-     330.0,
      482.0,
      388.0,
      218.0,
@@ -49,29 +48,30 @@
      199.0,
      173.0,
      38.0,
-     64.0,
-     211.0,
-     100.0
+     65.0,
+     214.0,
+     200.0,
+     162.0
     ],
     "m": [
      7.0,
      1622.0,
      1418.0,
      658.0,
-     396.0
+     662.0
     ]
    },
    "sec": [
     [
-     "84%",
+     "79%",
      "Acceptance rate",
      null
     ]
    ],
    "sum": {
-    "m": "Trending down, about 15% month over month. Behind plan, at 71% of the expected pace to date.",
-    "w": "Trending up, about 230% week over week. Behind plan, at 71% of the expected pace to date.",
-    "d": "Trending up, about 230% vs the prior 3 days. Behind plan, at 71% of the expected pace to date."
+    "m": "Trending up, about 6% month over month. Behind plan, at 77% of the expected pace to date.",
+    "w": "Trending down, about 22% week over week. Behind plan, at 77% of the expected pace to date.",
+    "d": "Trending down, about 22% vs the prior 3 days. Behind plan, at 77% of the expected pace to date."
    }
   },
   {
@@ -85,44 +85,46 @@
    "mlbl": "MQL + HQL leads",
    "unit": "",
    "fmt": "int",
-   "val": 624.0,
+   "val": 846.0,
    "target": 1117.0,
    "targetLbl": "Plan target (full flight)",
-   "pace": 0.5586,
-   "ttdPace": 1.4871,
+   "pace": 0.7574,
+   "ttdPace": 1.5914,
    "noDaily": true,
    "gd": {
-    "d": -37,
-    "w": -37,
-    "m": 72
+    "d": 35,
+    "w": 35,
+    "m": 57
    },
    "sk": {
     "d": [
-     45.0,
-     47.0,
+     48.0,
+     55.0,
      65.0,
      72.0,
      118.0,
      115.0,
      86.0,
-     54.0,
-     22.0
+     71.0,
+     92.0,
+     124.0
     ],
     "w": [
-     45.0,
-     47.0,
+     48.0,
+     55.0,
      65.0,
      72.0,
      118.0,
      115.0,
      86.0,
-     54.0,
-     22.0
+     71.0,
+     92.0,
+     124.0
     ],
     "m": [
-     45.0,
-     417.0,
-     162.0
+     48.0,
+     425.0,
+     373.0
     ]
    },
    "sec": [
@@ -133,9 +135,9 @@
     ]
    ],
    "sum": {
-    "m": "Trending up, about 72% month over month. Ahead of plan, at 149% of the expected pace to date.",
-    "w": "Trending down, about 37% week over week. Ahead of plan, at 149% of the expected pace to date.",
-    "d": "Trending down, about 37% vs the prior 3 days. Ahead of plan, at 149% of the expected pace to date."
+    "m": "Trending up, about 57% month over month. Ahead of plan, at 159% of the expected pace to date.",
+    "w": "Trending up, about 35% week over week. Ahead of plan, at 159% of the expected pace to date.",
+    "d": "Trending up, about 35% vs the prior 3 days. Ahead of plan, at 159% of the expected pace to date."
    }
   },
   {
@@ -149,34 +151,33 @@
    "mlbl": "Ad-reported leads",
    "unit": "",
    "fmt": "int",
-   "val": 520.25,
+   "val": 574.18,
    "target": null,
    "targetLbl": null,
    "pace": null,
    "ttdPace": null,
    "noDaily": false,
    "gd": {
-    "d": -34,
-    "w": -17,
-    "m": 9
+    "d": -69,
+    "w": 51,
+    "m": -48
    },
    "sk": {
     "d": [
+     4.9753,
+     3.0,
+     1.0,
+     2.9842,
+     3.0,
+     7.034,
      5.0,
-     3.2857,
-     2.7143,
+     11.966,
+     5.9319,
      0.0,
-     2.0,
-     1.0364,
-     8.5,
-     11.0717,
-     5.8545,
-     5.9674,
-     1.9273,
-     8.9273
+     3.0,
+     4.0
     ],
     "w": [
-     4.0,
      16.0,
      16.0,
      14.0,
@@ -186,8 +187,9 @@
      94.97,
      54.0,
      44.0,
-     36.3572,
-     8.9273
+     37.3572,
+     24.9273,
+     36.9319
     ],
     "m": [
      3.0,
@@ -196,20 +198,21 @@
      5.5,
      51.0,
      313.9612,
-     138.2845
+     185.2164,
+     7.0
     ]
    },
    "sec": [
     [
-     "77",
+     "121",
      "Paying customers",
      null
     ]
    ],
    "sum": {
-    "m": "Trending up, about 9% month over month.",
-    "w": "Trending down, about 17% week over week.",
-    "d": "Trending down, about 34% vs the prior 3 days."
+    "m": "Trending down, about 48% month over month.",
+    "w": "Trending up, about 51% week over week.",
+    "d": "Trending down, about 69% vs the prior 3 days."
    }
   },
   {
@@ -223,7 +226,7 @@
    "mlbl": "Ad-attributed enquiries",
    "unit": "",
    "fmt": "int",
-   "val": 251.0,
+   "val": 303.0,
    "target": null,
    "targetLbl": null,
    "pace": null,
@@ -272,7 +275,7 @@
    },
    "sec": [
     [
-     "10.2M",
+     "10.6M",
      "Impressions",
      null
     ]
@@ -294,35 +297,33 @@
    "mlbl": "Clicks",
    "unit": "",
    "fmt": "int",
-   "val": 434583.0,
+   "val": 437641.0,
    "target": null,
    "targetLbl": null,
    "pace": null,
    "ttdPace": null,
    "noDaily": false,
    "gd": {
-    "d": 15000,
-    "w": -78,
-    "m": -17
+    "d": -24,
+    "w": -19,
+    "m": -82
    },
    "sk": {
     "d": [
-     151.0,
-     159.0,
-     170.0,
-     167.0,
-     92.0,
-     40.0,
-     0.0,
-     1.0,
-     0.0,
-     6.0,
-     87.0,
-     58.0
+     283.0,
+     284.0,
+     296.0,
+     297.0,
+     145.0,
+     157.0,
+     268.0,
+     171.0,
+     224.0,
+     193.0,
+     173.0,
+     141.0
     ],
     "w": [
-     7824.0,
-     15565.0,
      11098.0,
      4871.0,
      5201.0,
@@ -332,10 +333,11 @@
      8780.0,
      3121.0,
      951.0,
-     152.0
+     325.0,
+     1717.0,
+     1170.0
     ],
     "m": [
-     16206.0,
      14929.0,
      8263.0,
      18759.0,
@@ -346,20 +348,21 @@
      73350.0,
      40769.0,
      25723.0,
-     1761.0
+     4680.0,
+     141.0
     ]
    },
    "sec": [
     [
-     "6,147",
+     "6,288",
      "Leads - key events",
      null
     ]
    ],
    "sum": {
-    "m": "Trending down, about 17% month over month.",
-    "w": "Trending down, about 78% week over week.",
-    "d": "Trending up, about 15000% vs the prior 3 days."
+    "m": "Trending down, about 82% month over month.",
+    "w": "Trending down, about 19% week over week.",
+    "d": "Trending down, about 24% vs the prior 3 days."
    }
   },
   {
@@ -373,31 +376,31 @@
    "mlbl": "Impressions",
    "unit": "",
    "fmt": "int",
-   "val": 10538654.0,
+   "val": 11023983.0,
    "target": null,
    "targetLbl": null,
    "pace": null,
    "ttdPace": null,
    "noDaily": false,
    "gd": {
-    "d": -14,
-    "w": -11,
+    "d": -88,
+    "w": -34,
     "m": -66
    },
    "sk": {
     "d": [
-     62477.0,
-     64494.0,
-     61530.0,
-     55672.0,
-     63467.0,
-     62928.0,
-     59833.0,
-     63207.0,
-     54381.0,
-     49178.0,
-     50175.0,
-     52856.0
+     52477.0,
+     51908.0,
+     48712.0,
+     43610.0,
+     43952.0,
+     49433.0,
+     44062.0,
+     43564.0,
+     38802.0,
+     15154.0,
+     0.0,
+     0.0
     ],
     "w": [
      1435316.0,
@@ -409,12 +412,14 @@
      566543.0,
      453613.0,
      403169.0,
-     52856.0
+     347170.0,
+     191015.0
     ],
     "m": [
      4130659.0,
      5143023.0,
-     1264972.0
+     1750301.0,
+     0.0
     ]
    },
    "sec": [
@@ -426,8 +431,8 @@
    ],
    "sum": {
     "m": "Trending down, about 66% month over month.",
-    "w": "Trending down, about 11% week over week.",
-    "d": "Trending down, about 14% vs the prior 3 days."
+    "w": "Trending down, about 34% week over week.",
+    "d": "Trending down, about 88% vs the prior 3 days."
    }
   },
   {
@@ -441,34 +446,33 @@
    "mlbl": "Impressions",
    "unit": "",
    "fmt": "int",
-   "val": 2110589.0,
+   "val": 2486181.0,
    "target": 10121600.0,
    "targetLbl": "Plan (LinkedIn + TTD)",
-   "pace": 0.2085,
+   "pace": 0.2456,
    "ttdPace": null,
    "noDaily": false,
    "gd": {
-    "d": -9,
-    "w": 0,
-    "m": 17
+    "d": -11,
+    "w": -19,
+    "m": -1
    },
    "sk": {
     "d": [
-     38537.0,
-     32462.0,
-     31195.0,
-     35998.0,
-     38071.0,
-     35678.0,
-     36215.0,
-     36441.0,
-     33030.0,
-     30263.0,
-     38435.0,
-     27212.0
+     34479.0,
+     32506.0,
+     28612.0,
+     24633.0,
+     26543.0,
+     28351.0,
+     26878.0,
+     27207.0,
+     27215.0,
+     26699.0,
+     25945.0,
+     19792.0
     ],
     "w": [
-     21247.0,
      205624.0,
      204996.0,
      201896.0,
@@ -478,19 +482,22 @@
      251391.0,
      246276.0,
      245696.0,
-     65647.0
+     232609.0,
+     188838.0,
+     19792.0
     ],
     "m": [
      431867.0,
      941978.0,
-     736744.0
+     1039900.0,
+     72436.0
     ]
    },
    "sec": [],
    "sum": {
-    "m": "Trending up, about 17% month over month. At 21% of the plan (linkedin + ttd).",
-    "w": "Holding roughly flat week over week. At 21% of the plan (linkedin + ttd).",
-    "d": "Trending down, about 9% vs the prior 3 days. At 21% of the plan (linkedin + ttd)."
+    "m": "Holding roughly flat month over month. At 25% of the plan (linkedin + ttd).",
+    "w": "Trending down, about 19% week over week. At 25% of the plan (linkedin + ttd).",
+    "d": "Trending down, about 11% vs the prior 3 days. At 25% of the plan (linkedin + ttd)."
    }
   },
   {
@@ -512,7 +519,7 @@
    "noDaily": false,
    "gd": {
     "d": 460,
-    "w": 8,
+    "w": 53,
     "m": -91
    },
    "sk": {
@@ -564,7 +571,7 @@
    ],
    "sum": {
     "m": "Trending down, about 91% month over month.",
-    "w": "Trending up, about 8% week over week.",
+    "w": "Trending up, about 53% week over week.",
     "d": "Trending up, about 460% vs the prior 3 days."
    }
   },
@@ -579,34 +586,33 @@
    "mlbl": "ROAS (Google)",
    "unit": "\u00d7",
    "fmt": "x",
-   "val": 5.36,
+   "val": 5.38,
    "target": null,
    "targetLbl": "Target ROAS",
    "pace": null,
    "ttdPace": null,
    "noDaily": false,
    "gd": {
-    "d": 118,
-    "w": -19,
-    "m": 56
+    "d": 135,
+    "w": -9,
+    "m": -30
    },
    "sk": {
     "d": [
-     5.8629,
-     5.1162,
-     0.0124,
-     3.1869,
-     4.6855,
-     7.9411,
-     2.1004,
-     1.9607,
-     3.5358,
-     2.7896,
-     5.3883,
-     8.2038
+     5.8324,
+     1.8641,
+     4.8129,
+     5.6273,
+     8.1787,
+     9.1604,
+     2.0038,
+     7.2899,
+     1.6676,
+     2.6228,
+     5.7649,
+     18.7981
     ],
     "w": [
-     7.5857,
      9.6829,
      6.3609,
      3.1144,
@@ -616,11 +622,11 @@
      7.0454,
      10.3916,
      5.1829,
-     4.1925,
-     8.2038
+     4.2292,
+     6.0821,
+     6.3103
     ],
     "m": [
-     5.6487,
      4.7319,
      5.3567,
      6.2773,
@@ -631,20 +637,21 @@
      9.1086,
      5.4146,
      7.0439,
-     5.1378
+     5.1444,
+     11.7072
     ]
    },
    "sec": [
     [
-     "A$141k",
+     "A$147k",
      "Revenue",
      null
     ]
    ],
    "sum": {
-    "m": "Trending up, about 56% month over month.",
-    "w": "Trending down, about 19% week over week.",
-    "d": "Trending up, about 118% vs the prior 3 days."
+    "m": "Trending down, about 30% month over month.",
+    "w": "Trending down, about 9% week over week.",
+    "d": "Trending up, about 135% vs the prior 3 days."
    }
   }
  ]
