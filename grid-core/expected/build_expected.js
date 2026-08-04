@@ -14,7 +14,7 @@ const path = require('path');
 const XLSX = require('xlsx');
 
 const ROOT = __dirname;
-const OUT = path.join(ROOT, 'out');
+const OUT = process.env.GREENLIGHT_OUT_DIR || path.join(ROOT, 'out');
 const DAY_MS = 86400000;
 
 const val = (node) => (node && node.value != null ? node.value : null);

@@ -42,6 +42,8 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",system-u
 .hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
 .theme-btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);border-radius:9px;width:32px;height:32px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
 .theme-btn:hover{background:var(--hover)}
+.runs-sel{appearance:none;font-family:inherit;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:7px 26px 7px 11px;outline:none;cursor:pointer;max-width:280px}
+.runs-sel:hover{background:var(--hover)}
 
 /* cards */
 .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
@@ -140,6 +142,8 @@ iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#
     </div>
     <span id="jobPill"><span class="dot"></span><span id="jobPillText"></span></span>
     <div class="hdr-right">
+      <select class="runs-sel" id="runsSel" title="Past runs"><option value="">Past runs</option></select>
+      <button class="btn" id="newBtn" title="Clear and start a fresh analysis">New analysis</button>
       <button class="theme-btn" id="themeBtn" title="Toggle light / dark">&#9788;</button>
     </div>
   </div>
@@ -168,6 +172,10 @@ iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#
   </div>
 
   <div id="results">
+    <div class="card" id="guardCard" style="display:none;border-left:3px solid var(--bad)">
+      <h2 style="color:var(--bad)">Multiple campaigns detected</h2>
+      <div class="desc" id="guardMsg" style="color:var(--ink-2);font-size:12.5px;margin-bottom:0"></div>
+    </div>
     <div class="card">
       <h2>Pacing <span class="chip ok">COMPUTED IN CODE</span></h2>
       <div class="desc">Cumulative expected per campaign, flat curve. Actuals join later (teammate hook in the page).</div>
@@ -198,12 +206,12 @@ iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#
       <h2>Downloads</h2>
       <div class="desc">The artifacts this run produced.</div>
       <div id="downloads">
-        <a class="dl" href="/out/daily_kpi.xlsx" download><span class="fic xls">XLS</span>daily_kpi.xlsx</a>
-        <a class="dl" href="/out/daily_kpi.json" download><span class="fic csv">JSON</span>daily_kpi.json</a>
-        <a class="dl" href="/out/plan.json" download><span class="fic csv">JSON</span>plan.json</a>
-        <a class="dl" href="/out/findings.json" download><span class="fic csv">JSON</span>findings.json</a>
-        <a class="dl" href="/out/report.md" download><span class="fic doc">MD</span>report.md</a>
-        <a class="dl" href="/out/chase_messages.md" download><span class="fic doc">MD</span>chase_messages.md</a>
+        <a class="dl" data-file="daily_kpi.xlsx" href="/out/daily_kpi.xlsx" download><span class="fic xls">XLS</span>daily_kpi.xlsx</a>
+        <a class="dl" data-file="daily_kpi.json" href="/out/daily_kpi.json" download><span class="fic csv">JSON</span>daily_kpi.json</a>
+        <a class="dl" data-file="plan.json" href="/out/plan.json" download><span class="fic csv">JSON</span>plan.json</a>
+        <a class="dl" data-file="findings.json" href="/out/findings.json" download><span class="fic csv">JSON</span>findings.json</a>
+        <a class="dl" data-file="report.md" href="/out/report.md" download><span class="fic doc">MD</span>report.md</a>
+        <a class="dl" data-file="chase_messages.md" href="/out/chase_messages.md" download><span class="fic doc">MD</span>chase_messages.md</a>
       </div>
     </div>
   </div>
@@ -321,9 +329,63 @@ function poll(id){
     running=false;
     runBtn.disabled=false;
     runBtn.textContent='Run Again';
-    renderResults(run.results);
+    renderResults(run.results,'/dumps/'+run.results.run.id);
+    loadLibrary(run.results.run.id);
   }).catch(function(e){ finishError(String(e.message||e)); });
 }
+
+/* runs library: no database, the server scans dumps/<id>/out/plan.json */
+var runsSel=document.getElementById('runsSel');
+function libLabel(r){
+  var d=r.date?r.date.replace('T',' ').slice(0,16):'unknown date';
+  return r.client+' '+r.job+', '+d;
+}
+function loadLibrary(selectId){
+  fetch('/api/expected/library').then(function(r){return r.json()}).then(function(j){
+    var runs=(j.runs||[]).filter(function(r){return r.has_results});
+    runsSel.innerHTML='';
+    var ph=document.createElement('option');
+    ph.value='';
+    ph.textContent='Past runs ('+runs.length+')';
+    runsSel.appendChild(ph);
+    runs.forEach(function(r){
+      var o=document.createElement('option');
+      o.value=r.id;
+      o.textContent=libLabel(r);
+      runsSel.appendChild(o);
+    });
+    runsSel.value=selectId&&runs.some(function(r){return r.id===selectId})?selectId:'';
+  }).catch(function(){});
+}
+runsSel.addEventListener('change',function(){
+  var id=runsSel.value;
+  if(!id)return;
+  fetch('/api/expected/library/'+id+'/results').then(function(r){
+    if(!r.ok)throw new Error('could not load run '+id);
+    return r.json();
+  }).then(function(res){
+    document.getElementById('errCard').style.display='none';
+    document.getElementById('progress').style.display='none';
+    renderResults(res,'/dumps/'+id);
+  }).catch(function(e){ showError(String(e.message||e)); });
+});
+document.getElementById('newBtn').addEventListener('click',function(){
+  if(running)return;
+  document.getElementById('results').style.display='none';
+  document.getElementById('errCard').style.display='none';
+  document.getElementById('progress').style.display='none';
+  document.getElementById('jobPill').style.display='none';
+  runsSel.value='';
+  runBtn.textContent='Run Analysis';
+  staged=[];
+  renderFiles();
+  fetch('/api/expected/files').then(function(r){return r.json()}).then(function(j){
+    staged=(j.files||[]).map(function(f){return{name:f.name,bytes:f.bytes,prestaged:true}});
+    renderFiles();
+  }).catch(function(){});
+  window.scrollTo({top:0,behavior:'smooth'});
+});
+loadLibrary();
 
 /* results */
 function chipClass(sev){
@@ -335,20 +397,28 @@ function chipClass(sev){
 function escHtml(s){
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function renderResults(res){
+function renderResults(res,base){
+  base=base||'';
   document.getElementById('results').style.display='block';
   document.getElementById('downloads').style.display='flex';
   var pill=document.getElementById('jobPill');
   pill.style.display='inline-flex';
   document.getElementById('jobPillText').textContent=res.meta.client+' · Job '+res.meta.job+' · '+res.meta.currency+' '+res.meta.total.toLocaleString();
 
+  var guard=res.meta&&res.meta.guard;
+  document.getElementById('guardCard').style.display=guard?'block':'none';
+  if(guard)document.getElementById('guardMsg').textContent=guard.message;
+
   var prov='Run '+res.run.id+' · extracted by '+res.run.model+' · finished '+res.run.finished_at.replace('T',' ').slice(0,19)+' UTC';
   document.getElementById('fDesc').textContent=prov+'. Violet rows were authored by the model this run ('+res.origins.model+'); plain rows are deterministic rulebook checks computed in code ('+res.origins.code+'). Sorted by severity.';
   document.getElementById('mDesc').textContent='Drafted by '+res.run.model+' in run '+res.run.id+'. A person reviews and sends. One message per recipient.';
 
   var bust='?t='+Date.now();
-  document.getElementById('pacingFrame').src='/out/pacing.html'+bust;
-  document.getElementById('flowFrame').src='/out/flowchart.html'+bust;
+  document.getElementById('pacingFrame').src=base+'/out/pacing.html'+bust;
+  document.getElementById('flowFrame').src=base+'/out/flowchart.html'+bust;
+  document.querySelectorAll('#downloads .dl').forEach(function(a){
+    a.setAttribute('href',base+'/out/'+a.getAttribute('data-file'));
+  });
 
   /* findings */
   var order={blocker:0,missing:1,gap:2,inconsistent:3,watch:4,housekeeping:5};

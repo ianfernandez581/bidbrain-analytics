@@ -56,11 +56,36 @@ $SHA = "$SHA".Trim()
 $IMG = "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${SERVICE}:${SHA}"
 Write-Host "Rebuilding The Grid image ($SHA) ..."
 gcloud builds submit $GRID_DIR --tag $IMG --region $REGION --project $PROJECT; Must "build grid image"
-Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket; other env/flags preserved) ..."
-# --update-env-vars MERGES (it never clears the others), so re-asserting GRID_STATE_BUCKET
-# every deploy is idempotent and self-heals a service that lost it.
+# Greenlight (plan-side checker tab) needs the Anthropic key at runtime. The
+# funded key is version 2+ of the anthropic-api-key secret (v1 is the old
+# unfunded org key - if extraction 400s on billing, check which version is
+# latest and whether the account still has credits). Grant is idempotent.
+$RUNTIME_SA = "516554645957-compute@developer.gserviceaccount.com"
+gcloud secrets add-iam-policy-binding anthropic-api-key --member="serviceAccount:$RUNTIME_SA" `
+    --role="roles/secretmanager.secretAccessor" --project $PROJECT *> $null
+
+# Greenlight analyses (per-campaign file dumps + run history) mirror to GCS so
+# the library survives Cloud Run cold starts (/tmp does not). Idempotent.
+$DUMPS_BUCKET = "bidbrain-campaign-dumps"
+gcloud storage buckets describe "gs://$DUMPS_BUCKET" --project $PROJECT *> $null
+if ($LASTEXITCODE -ne 0) {
+  gcloud storage buckets create "gs://$DUMPS_BUCKET" --location $REGION --project $PROJECT --uniform-bucket-level-access; Must "create dumps bucket"
+}
+gcloud storage buckets add-iam-policy-binding "gs://$DUMPS_BUCKET" --member="serviceAccount:$RUNTIME_SA" `
+    --role="roles/storage.objectAdmin" --project $PROJECT *> $null
+
+Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket + secrets; other env/flags preserved) ..."
+# --update-env-vars / --update-secrets MERGE (they never clear the others), so
+# re-asserting these every deploy is idempotent and self-heals a service that
+# lost them. GREENLIGHT_ENABLED is deliberately NOT set here: the tab ships
+# dark by default; flip it manually when Ian signs off:
+#   gcloud run services update central-grid --region australia-southeast1 `
+#     --update-env-vars GREENLIGHT_ENABLED=true --timeout 600
+# (--timeout 600 because the extraction call runs ~320s synchronously in the
+# request; Cloud Run's default 300s would cut it off. TODO: background job.)
 gcloud run services update $SERVICE --image $IMG --region $REGION --project $PROJECT `
-    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET"; Must "update grid service"
+    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET,GREENLIGHT_BUCKET=$DUMPS_BUCKET" `
+    --update-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest"; Must "update grid service"
 
 $URL = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format "value(status.url)")
 Write-Host ""

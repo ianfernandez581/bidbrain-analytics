@@ -6,3 +6,6 @@ data
 test-fixtures
 *.md
 sample data
+files
+expected/dumps
+expected/out

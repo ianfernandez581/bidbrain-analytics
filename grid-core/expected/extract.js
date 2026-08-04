@@ -18,7 +18,7 @@ const { preprocess } = require('./preprocess');
 const { validate } = require('./validate');
 
 const ROOT = __dirname;
-const OUT = path.join(ROOT, 'out');
+const OUT = process.env.GREENLIGHT_OUT_DIR || path.join(ROOT, 'out');
 const MODEL = process.env.EXPECTED_MODEL || 'claude-opus-5';
 
 // ---- minimal .env loader (repo has no dotenv; grid-core/.env is gitignored)
@@ -32,66 +32,49 @@ function loadDotEnv() {
   }
 }
 
-// ---- schema helpers (structured outputs require additionalProperties:false
-// and a full required list on every object; nullability via type unions)
+// ---- schema helpers. The structured-outputs compiler caps union-typed
+// parameters (nullable type arrays) at 16, so this schema uses NO unions:
+// every field is a plain string, "" means missing/unknown, and numeric fields
+// are numeric STRINGS. normalizePlan() converts back to nulls and numbers.
 const obj = (props) => ({ type: 'object', properties: props, required: Object.keys(props), additionalProperties: false });
 const arr = (items) => ({ type: 'array', items });
 const str = { type: 'string' };
-const nstr = { type: ['string', 'null'] };
-const nnum = { type: ['number', 'null'] };
 
-const CITATION = obj({ file: str, location: nstr });
-const NCITATION = { ...CITATION, type: ['object', 'null'] };
-const CITED_NUM = obj({ value: nnum, citation: NCITATION });
-const CITED_STR = obj({ value: nstr, citation: NCITATION });
-const DATE_FIELD = obj({
-  value: nstr,
-  candidates: arr(obj({ value: str, file: str, location: nstr, note: nstr })),
-  resolution_rationale: nstr,
-});
+const CITED = obj({ value: str, source: str });
+const DATE_FIELD = obj({ value: str, candidates: arr(str), resolution_rationale: str });
 
 const SCHEMA = obj({
   plan: obj({
-    client: CITED_STR,
-    job_number: CITED_STR,
-    campaign_name: CITED_STR,
+    client: CITED,
+    job_number: CITED,
+    campaign_name: CITED,
     identification_confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
-    currency: CITED_STR,
-    total_budget: CITED_NUM,
-    fee_treatment: CITED_STR,
+    currency: CITED,
+    total_budget: CITED,
+    fee_treatment: CITED,
     flight_start: DATE_FIELD,
     flight_end: DATE_FIELD,
-    stated_duration_days: CITED_NUM,
+    stated_duration_days: CITED,
     campaigns: arr(obj({
       campaign_name: str,
       platform: str,
-      budget: CITED_NUM,
-      rate_type: nstr,
-      rate_value: CITED_NUM,
-      goal_impressions: CITED_NUM,
-      goal_clicks: CITED_NUM,
-      goal_ctr: nnum,
-      start: nstr,
-      end: nstr,
+      budget: str,
+      rate_type: str,
+      rate_value: str,
+      goal_impressions: str,
+      goal_clicks: str,
+      goal_ctr: str,
+      start: str,
+      end: str,
+      source: str,
     })),
-    platform_campaigns: obj({
-      rows: arr(obj({ name: str, group: nstr, platform: str, budget: nnum, start: nstr, end: nstr, geo: nstr })),
-      claimed_total: CITED_NUM,
-      source: NCITATION,
-    }),
-    urls: arr(obj({ url: str, platform: nstr, geo: nstr, context: str })),
-    approval_records: arr(obj({ scope: str, status: nstr, source: nstr })),
+    platform_campaign_rows: arr(str),
+    platform_campaigns_claimed_total: CITED,
+    urls: arr(str),
+    approval_records: arr(str),
     referenced_files: arr(str),
-    notes: arr(str),
   }),
-  judgement_findings: arr(obj({
-    severity: { type: 'string', enum: ['blocker', 'missing', 'gap', 'inconsistent', 'watch', 'housekeeping'] },
-    chip: str,
-    stage: { type: 'string', enum: ['Request Received', 'Media Plan Approved', 'Raw Materials Complete', 'Campaign Built', 'Live', 'Pacing'] },
-    title: str,
-    detail: str,
-    source: str,
-  })),
+  judgement_findings: arr(str),
   chase_messages: arr(obj({ recipient: str, title: str, body: str })),
 });
 
@@ -103,7 +86,14 @@ HARD RULES
 - Conflicting values: list every candidate with its source. Set the resolved value ONLY when the documents themselves resolve it (later documents are unanimous, or the earlier document carries its own revision annotation); explain in resolution_rationale. If no documented resolution exists, value stays null.
 - Do no arithmetic. Code reconciles sums, dates, and rates after you. Your job is faithful extraction plus judgement.
 - If the dump might contain two different clients or campaigns conflated, set identification_confidence to low and emit a blocker finding: merging two clients' data is the worst failure this system can produce.
-- Dates are ISO YYYY-MM-DD. Currency amounts are plain numbers (no symbols). Use "-" only, never em or en dashes, anywhere in any text you produce.
+- Dates are ISO YYYY-MM-DD. Use "-" only, never em or en dashes, anywhere in any text you produce.
+- OUTPUT CONVENTIONS (the schema has no nulls): an empty string "" means missing/unknown - use it for any value, source, date, or status you cannot ground in a document. Numeric values (budgets, totals, impressions, clicks, rates, CTRs, durations) are numeric STRINGS with no symbols or thousands separators, e.g. "35000", "18", "0.004". Every source string has the form: FILE | LOCATION, e.g. "media_plan.xlsx | sheet 'Media Plan', row 8". A campaign line's single source covers all its numbers (they come from one plan row).
+- PIPE-DELIMITED LIST FORMATS (one string per entry, fields separated by " | ", "" for an unknown field, the LAST field may itself contain pipes):
+  - flight candidates: VALUE | NOTE | SOURCE  (e.g. "2026-06-01 | all 12 setup rows agree | setup.xlsx | sheet 'Grid', rows 4-15")
+  - platform_campaign_rows: NAME | PLATFORM | BUDGET | START | END | GEO
+  - urls: PLATFORM | GEO | CONTEXT | URL  (URL last so its query string never breaks the format)
+  - approval_records: SCOPE | STATUS | SOURCE  (STATUS "" means the approval field exists but nothing is recorded)
+  - judgement_findings: SEVERITY | STAGE | CHIP | TITLE | DETAIL | SOURCE  (SEVERITY one of blocker/missing/gap/inconsistent/watch/housekeeping; STAGE one of Request Received/Media Plan Approved/Raw Materials Complete/Campaign Built/Live/Pacing; CHIP a short uppercase label)
 
 FIELD GUIDANCE
 - campaigns: the media plan's budget lines, the pacing grain - one entry per plan line that carries its own budget, cost rate, and volume goals (impressions/clicks). Do NOT put platform build rows here.
@@ -119,7 +109,7 @@ CHASE MESSAGES
 Draft one message per recipient, consolidating everything that recipient owes (typically: one to the client contact, one internal to the media team). Tone rules: warm opener naming the campaign; acknowledge what has already been received; the specific list of what is needed with exact specifications; why it matters framed as impact on their campaign; a clear date derived from real arithmetic (flight end, wash-up), never an invented deadline; an offer of help. Never assign blame - no "as previously requested", no "still waiting". Short paragraphs a person can act on from a phone. Plain text, no markdown headers inside the body.`;
 
 function sanitize(x) {
-  if (typeof x === 'string') return x.replace(/[–—]/g, '-');
+  if (typeof x === 'string') return x.replace(/[\u2013\u2014]/g, '-');
   if (Array.isArray(x)) return x.map(sanitize);
   if (x && typeof x === 'object') {
     const o = {};
@@ -127,6 +117,152 @@ function sanitize(x) {
     return o;
   }
   return x;
+}
+
+// ---- normalization: the schema uses "" sentinels and numeric strings (no
+// unions allowed); downstream contract is real nulls and numbers.
+const normStr = (s) => (s == null || s === '' ? null : s);
+const normNum = (s) => {
+  if (s == null || s === '') return null;
+  const n = Number(String(s).replace(/[, ]/g, ''));
+  return Number.isFinite(n) ? n : null;
+};
+const parseSource = (s) => {
+  const t = normStr(s);
+  if (!t) return null;
+  const i = t.indexOf('|');
+  if (i < 0) return { file: t.trim(), location: null };
+  return { file: t.slice(0, i).trim(), location: normStr(t.slice(i + 1).trim()) };
+};
+// Split a pipe-delimited entry into exactly n fields; the last field keeps
+// any remaining pipes (URLs, sources with sheet locations).
+const splitPipes = (s, n) => {
+  const parts = String(s).split('|').map((x) => x.trim());
+  if (parts.length <= n) return [...parts, ...Array(n - parts.length).fill('')];
+  return [...parts.slice(0, n - 1), parts.slice(n - 1).join(' | ')];
+};
+const normCited = (node, numeric) => ({
+  value: node ? (numeric ? normNum(node.value) : normStr(node.value)) : null,
+  citation: node ? parseSource(node.source) : null,
+});
+const normDate = (f) => ({
+  value: f ? normStr(f.value) : null,
+  candidates: ((f && f.candidates) || []).map((line) => {
+    const [value, note, source] = splitPipes(line, 3);
+    const cit = parseSource(source);
+    return { value: normStr(value), file: cit ? cit.file : null, location: cit ? cit.location : null, note: normStr(note) };
+  }).filter((c) => c.value),
+  resolution_rationale: f ? normStr(f.resolution_rationale) : null,
+});
+
+function normalizePlan(p) {
+  const pc = p.platform_campaigns || {};
+  return {
+    client: normCited(p.client),
+    job_number: normCited(p.job_number),
+    campaign_name: normCited(p.campaign_name),
+    identification_confidence: p.identification_confidence,
+    currency: normCited(p.currency),
+    total_budget: normCited(p.total_budget, true),
+    fee_treatment: normCited(p.fee_treatment),
+    flight_start: normDate(p.flight_start),
+    flight_end: normDate(p.flight_end),
+    stated_duration_days: normCited(p.stated_duration_days, true),
+    campaigns: (p.campaigns || []).map((c) => {
+      const cit = parseSource(c.source);
+      const cited = (v, numeric) => ({ value: numeric ? normNum(v) : normStr(v), citation: cit });
+      return {
+        campaign_name: c.campaign_name,
+        platform: normStr(c.platform),
+        budget: cited(c.budget, true),
+        rate_type: normStr(c.rate_type),
+        rate_value: cited(c.rate_value, true),
+        goal_impressions: cited(c.goal_impressions, true),
+        goal_clicks: cited(c.goal_clicks, true),
+        goal_ctr: normNum(c.goal_ctr),
+        start: normStr(c.start),
+        end: normStr(c.end),
+      };
+    }),
+    platform_campaigns: {
+      rows: (p.platform_campaign_rows || []).map((line) => {
+        const [name, platform, budget, start, end, geo] = splitPipes(line, 6);
+        return { name: normStr(name), platform: normStr(platform), budget: normNum(budget), start: normStr(start), end: normStr(end), geo: normStr(geo) };
+      }).filter((r) => r.name),
+      claimed_total: normCited(p.platform_campaigns_claimed_total, true),
+    },
+    urls: (p.urls || []).map((line) => {
+      const [platform, geo, context, url] = splitPipes(line, 4);
+      return { url: normStr(url), platform: normStr(platform), geo: normStr(geo), context: normStr(context) || 'url' };
+    }).filter((u) => u.url),
+    approval_records: (p.approval_records || []).map((line) => {
+      const [scope, status, source] = splitPipes(line, 3);
+      return { scope: normStr(scope), status: normStr(status), source: normStr(source) };
+    }).filter((a) => a.scope),
+    referenced_files: p.referenced_files || [],
+    notes: [],
+  };
+}
+
+// ---- campaign identity guard (deterministic, multi-campaign safety).
+// Job numbers ride 4-digit filename prefixes (2053_SE_..., 2279_...). If the
+// dump partitions across more than one job, never blend: keep the majority
+// job's campaigns, emit a blocker listing which files belong to which job,
+// and stamp plan.identity_guard so the UI can warn prominently.
+function identityGuard(manifest, plan) {
+  const jobs = new Map();
+  for (const f of manifest.files) {
+    const base = f.file.split('/').pop();
+    const m = /^(\d{4})[_\s-]/.exec(base);
+    if (!m) continue;
+    if (!jobs.has(m[1])) jobs.set(m[1], []);
+    jobs.get(m[1]).push(f.file);
+  }
+  if (jobs.size <= 1) return null;
+  const sorted = [...jobs.entries()].sort((a, b) => b[1].length - a[1].length);
+  const majority = sorted[0][0];
+  const counts = sorted.map(([j, fl]) => `${j} (${fl.length} file${fl.length === 1 ? '' : 's'})`).join(', ');
+  return {
+    majority,
+    jobs: Object.fromEntries(sorted),
+    message: `This dump appears to contain files from multiple campaigns: ${counts}. Analysis ran on ${majority} only. Remove or re-upload the others separately.`,
+  };
+}
+
+function applyIdentityGuard(guard, plan) {
+  plan.identity_guard = guard;
+  // Keep only campaigns whose citation traces to a majority-job file (or to a
+  // file carrying no job prefix, e.g. an unprefixed media plan).
+  plan.campaigns = (plan.campaigns || []).filter((c) => {
+    const file = (c.budget && c.budget.citation && c.budget.citation.file) || '';
+    const m = /^(\d{4})[_\s-]/.exec(file.split('/').pop());
+    return !m || m[1] === guard.majority;
+  });
+  return {
+    id: 'guard_multi_job',
+    severity: 'blocker',
+    stage: 'Request Received',
+    chip: 'MULTIPLE CAMPAIGNS',
+    title: `Dump contains files from ${Object.keys(guard.jobs).length} different campaigns - not blended`,
+    detail: guard.message + ' Files by job: ' + Object.entries(guard.jobs).map(([j, fl]) => `${j}: ${fl.join(', ')}`).join(' ;; '),
+    source: 'file inventory (4-digit job prefixes)',
+    origin: 'code',
+  };
+}
+
+const SEVERITIES = ['blocker', 'missing', 'gap', 'inconsistent', 'watch', 'housekeeping'];
+const STAGES = ['Request Received', 'Media Plan Approved', 'Raw Materials Complete', 'Campaign Built', 'Live', 'Pacing'];
+function parseFindings(lines) {
+  return (lines || []).map((line) => {
+    const [severity, stage, chip, title, detail, source] = splitPipes(line, 6);
+    if (!title) return null;
+    return {
+      severity: SEVERITIES.includes((severity || '').toLowerCase()) ? severity.toLowerCase() : 'watch',
+      stage: STAGES.includes(stage) ? stage : 'Media Plan Approved',
+      chip: (chip || 'NOTE').toUpperCase(),
+      title, detail: detail || '', source: source || '',
+    };
+  }).filter(Boolean);
 }
 
 async function callClaude(client, bundleText) {
@@ -192,19 +328,26 @@ async function main() {
   console.log(`[stage] preprocess-done files=${manifest.files.length} bundle_chars=${bundleText.length}`);
 
   const Anthropic = require('@anthropic-ai/sdk');
-  const client = new Anthropic();
+  // Generous retries: this is one large request (~125K input tokens), so a
+  // tier rate-limit window needs patience, not a fast fail. The SDK honors
+  // retry-after on 429 and backs off on 5xx/529.
+  const client = new Anthropic({ maxRetries: 6 });
   console.log(`[stage] model-start model=${MODEL}`);
   const raw = await callClaude(client, bundleText);
   const result = sanitize(raw);
   console.log('[stage] model-done');
 
-  const plan = result.plan;
+  const plan = normalizePlan(result.plan);
   plan.extractor = { model: MODEL, generated_at: new Date().toISOString(), dump_dir: filesDir, one_call: true };
+  const guard = identityGuard(manifest, plan);
+  const guardFinding = guard ? applyIdentityGuard(guard, plan) : null;
+  if (guard) console.log('[extract] IDENTITY GUARD: ' + guard.message);
   fs.writeFileSync(path.join(OUT, 'plan.json'), JSON.stringify(plan, null, 2));
 
   const rulebook = JSON.parse(fs.readFileSync(path.join(ROOT, 'rulebook.json'), 'utf8'));
   const codeFindings = validate(plan, manifest, rulebook);
-  const modelFindings = (result.judgement_findings || []).map((f) => ({ ...f, origin: 'model' }));
+  if (guardFinding) codeFindings.unshift(guardFinding);
+  const modelFindings = parseFindings(result.judgement_findings).map((f) => ({ ...f, origin: 'model' }));
   const order = { blocker: 0, missing: 1, gap: 2, inconsistent: 3, watch: 4, housekeeping: 5 };
   const findings = [...codeFindings, ...modelFindings]
     .sort((a, b) => (order[a.severity] ?? 9) - (order[b.severity] ?? 9));
@@ -222,6 +365,10 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error('[extract] FAILED:', e && e.message || e);
+  const status = e && e.status ? ` (HTTP ${e.status})` : '';
+  const hint = e && e.status === 429
+    ? ' - rate limited even after retries; the key\'s per-minute token window is exhausted. Wait a minute and run again.'
+    : (e && e.status >= 500 ? ' - Anthropic service issue; run again shortly.' : '');
+  console.error(`[extract] FAILED${status}:`, (e && e.message || e) + hint);
   process.exit(1);
 });

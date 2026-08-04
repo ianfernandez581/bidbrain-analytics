@@ -33,6 +33,8 @@ const planReader = require('./src/central/plan-reader');
 const centralView = require('./src/central/render-central'); // for the single mapGridRowToCentral()
 const centralMatch = require('./src/central/match');          // unified exact/contains/rollup rule
 const centralReadiness = require('./src/central/readiness');  // live-coverage readiness table builder
+const greenlight = require('./expected/routes');              // Greenlight tab (plan-side checker; feature-flagged)
+const GREENLIGHT_ENABLED = String(process.env.GREENLIGHT_ENABLED || '').toLowerCase() === 'true';
 
 const ROOT = __dirname;
 const PORT = process.env.PORT || 8787;
@@ -169,6 +171,19 @@ const server = http.createServer(async (req, res) => {
       console.log('[BRAIN][ClickUp] task payload:', JSON.stringify(body).slice(0, 300));
       const taskId = 'CU-MOCK-' + crypto.randomBytes(3).toString('hex');
       return send(res, 200, { success: true, mock_task_id: taskId, updated_at: new Date().toISOString() });
+    }
+
+    // ---- Greenlight (plan-side campaign checker tab; expected/routes.js) ----
+    // Feature-flagged: GREENLIGHT_ENABLED=true exposes the API + the nav tab
+    // (the page probes /enabled and reveals the button). Default OFF: the
+    // probe answers false and every other greenlight route 404s. Auth is the
+    // Grid's own model (platform proxy + Cloud Run IAM) - no auth code here,
+    // same as every other tab. See expected/README.md.
+    if (p === '/api/greenlight/enabled' && req.method === 'GET') return send(res, 200, { enabled: GREENLIGHT_ENABLED });
+    if (p.startsWith('/api/greenlight/')) {
+      if (!GREENLIGHT_ENABLED) return send(res, 404, { error: 'not found' });
+      if (await greenlight.handle(req, res, url, '/api/greenlight')) return;
+      return send(res, 404, { error: 'not found' });
     }
 
     // ---- static ----
