@@ -272,55 +272,76 @@ CLIENTS = [
         "cs_from_definitions": "cloudflare",   # CS checks built from definitions/cloudflare.json at runtime
         "checks": [
             # --- Paid media ---
-            # The dashboard's paid_media.rows[] are now derived in BigQuery (stg_* over the
-            # raw_snowflake mirrors → paid_media_model). The SQL below still queries Snowflake's
-            # V_PAID_ADS_FINAL_MODEL as the independent source of truth, so this validates the
-            # whole chain (mirror sync + BQ port). These channel sums are append-only/daily, so
-            # they match exactly when the mirror is in sync.
+            # The dashboard's paid_media.rows[] are derived in BigQuery (stg_* over the
+            # raw_snowflake mirrors -> paid_media_model). The SQL below re-states each channel's
+            # scope against the RAW Snowflake source tables, so it stays an independent check of
+            # the whole chain (mirror sync + BQ port) exactly like every other client here.
+            #
+            # 2026-08-04: repointed OFF CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL.
+            # That schema is Cloudflare's/Transmission's LEGACY model — nothing in our pipeline has
+            # read it since the 2026-06-17 BQ port, we can't change it, and it drifts on their
+            # schedule not ours (LINE already froze there and its checks had to be deleted on
+            # 2026-07-29). A frozen/edited legacy view would have shown a false ✗ against a
+            # dashboard that is correct. The filters below MIRROR the staging views 1:1 —
+            # keep them in sync with clients/client_cloudflare/sql/01-03 + 05_paid_media_model:
+            #   TTD      stg_tradedesk: ADVERTISER_NAME='Cloudflare'; model drops MARKET_L3 ''/NULL,
+            #            which is SPLIT_PART(CAMPAIGN_NAME,'_',9) (BQ SAFE_OFFSET(8) = SF part 9).
+            #            Impressions keep the COALESCE(IMPRESSIONS, IMPRESSION) singular fallback.
+            #   LinkedIn stg_linkedin: ACCOUNT_NAME='Cloudflare APAC'; model keeps CLOUD_ACQ_% only.
+            #   Reddit   stg_reddit:   ACCOUNT_NAME='Transmission_Cloudflare' (no further filter).
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _cf_pm("imps", {"TTD", "TradeDesk"}),
-             "sql": "SELECT SUM(IMPS) AS imps\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL IN ('TTD','TradeDesk');",
-             "note": "Reads the CF modelled view directly (not the raw mirror). vs sum of paid_media.rows[] "
-                     "where channel is TTD/TradeDesk."},
+             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Cloudflare'\n"
+                    "  AND NVL(SPLIT_PART(CAMPAIGN_NAME, '_', 9), '') <> '';",
+             "note": "Raw TTD source, scoped like stg_tradedesk + paid_media_model (advertiser Cloudflare, "
+                     "campaigns whose name yields a MARKET_L3). vs sum of paid_media.rows[] where channel "
+                     "is TTD/TradeDesk."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _cf_pm("clicks", {"TTD", "TradeDesk"}),
              "sql": "SELECT SUM(CLICKS) AS clicks\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL IN ('TTD','TradeDesk');",
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Cloudflare'\n"
+                    "  AND NVL(SPLIT_PART(CAMPAIGN_NAME, '_', 9), '') <> '';",
              "note": "vs sum of paid_media.rows[] clicks where channel is TTD/TradeDesk."},
             {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn (paid media)",
              "dash": _cf_pm("imps", {"LinkedIn", "LI"}),
-             "sql": "SELECT SUM(IMPS) AS imps\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL IN ('LinkedIn','LI');",
-             "note": "vs sum of paid_media.rows[] imps where channel is LinkedIn/LI."},
+             "sql": "SELECT SUM(IMPRESSIONS) AS imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'Cloudflare APAC'\n"
+                    "  AND STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_');",
+             "note": "Raw LinkedIn source, scoped like stg_linkedin + paid_media_model (Cloudflare APAC "
+                     "account, CLOUD_ACQ_ campaigns). vs sum of paid_media.rows[] imps where channel is "
+                     "LinkedIn/LI."},
             {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn (paid media)",
              "dash": _cf_pm("clicks", {"LinkedIn", "LI"}),
              "sql": "SELECT SUM(CLICKS) AS clicks\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL IN ('LinkedIn','LI');",
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'Cloudflare APAC'\n"
+                    "  AND STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_');",
              "note": "vs sum of paid_media.rows[] clicks where channel is LinkedIn/LI."},
             {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn (paid media)",
              "dash": _cf_pm("leads", {"LinkedIn", "LI"}),
              "sql": "SELECT SUM(LEADS) AS leads\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL IN ('LinkedIn','LI');",
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME = 'Cloudflare APAC'\n"
+                    "  AND STARTSWITH(CAMPAIGN_NAME, 'CLOUD_ACQ_');",
              "note": "LinkedIn is the only paid channel reporting leads (TTD/Reddit/LINE carry 0). "
                      "vs sum of paid_media.rows[] leads where channel is LinkedIn/LI."},
             {"label": "Reddit · Impressions", "kind": "sum", "group": "Reddit",
              "dash": _cf_pm("imps", {"Reddit"}),
-             "sql": "SELECT SUM(IMPS) AS imps\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL = 'Reddit';",
-             "note": "Reddit spend is native USD here (no ×2 markup — that is resetdata-only). "
-                     "vs sum of paid_media.rows[] imps where channel = Reddit."},
+             "sql": "SELECT SUM(IMPRESSIONS) AS imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Reddit Ads - APAC_ALL\"\n"
+                    "WHERE ACCOUNT_NAME = 'Transmission_Cloudflare';",
+             "note": "Raw Reddit source, scoped like stg_reddit (the whole Transmission_Cloudflare account). "
+                     "Reddit spend is native USD here (no x2 markup - that is resetdata-only). vs sum of "
+                     "paid_media.rows[] imps where channel = Reddit."},
             {"label": "Reddit · Clicks", "kind": "sum", "group": "Reddit",
              "dash": _cf_pm("clicks", {"Reddit"}),
              "sql": "SELECT SUM(CLICKS) AS clicks\n"
-                    "FROM CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL\n"
-                    "WHERE CHANNEL = 'Reddit';",
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"Reddit Ads - APAC_ALL\"\n"
+                    "WHERE ACCOUNT_NAME = 'Transmission_Cloudflare';",
              "note": "vs sum of paid_media.rows[] clicks where channel = Reddit."},
             # LINE checks REMOVED (2026-07-29): LINE is seed-sourced since the account migration
             # (manual LINE-Ad-Manager CSV → client_cloudflare.seed_line_cf) — Snowflake

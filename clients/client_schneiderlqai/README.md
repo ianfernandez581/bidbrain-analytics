@@ -11,7 +11,9 @@ the multi-program Schneider Pacific dashboard.
 - **Awareness only** — objective is Website visits / display reach. **No leads, no conversions, no
   Salesforce/CS, no GA4.** The story is reach (impressions), clicks, CTR, cost efficiency (CPM/CPC),
   and pacing vs the media-plan targets.
-- **Currency:** AUD (both channels native AUD; targets treated as AUD — see INTAKE.md).
+- **Currency:** displayed in **EUR**; the data is AUD (both channels native AUD; targets treated as
+  AUD — see INTAKE.md). The dashboard converts on render at a fixed **AUD -> EUR 0.57** — see
+  *Reporting currency* below.
 - **Flight:** 15 May → 31 Dec 2026. Data started 16 May (LinkedIn) / 18 May (Trade Desk).
 
 ## Live
@@ -52,6 +54,25 @@ raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}          (shared mirrors, 
 - **Spend multiplier:** the dashboard's `bbApplySpendMult` grosses delivered `spend_aud` by
   `window.BB_SPEND_MULT` per channel (linkedin / ttd). Plan **targets are NOT grossed** — they are the
   media-plan (billed) budget, so grossed-delivery-vs-billed-budget paces correctly on the front-door.
+
+## Reporting currency — EUR, converted in the DASHBOARD only
+The client reads this dashboard in **EUR**, but every upstream number is **AUD** (both platforms bill
+AUD; the media plan is an AUD budget). The conversion is **display-only**, at a fixed rate:
+
+- One constant in `dash/dashboard.html`: `const FX_AUD_EUR = 0.57;` (A$1 = EUR 0.57), applied by
+  `bbApplyEur()` in `boot()` **right after** `bbApplySpendMult()` so the billed gross-up happens first.
+- It converts **both sides of every comparison**: delivered spend (`delivery[]`/`creative[]` rows get a
+  derived `spend_eur`, which is what the whole UI + the CSV exports now read) **and** the plan money
+  (`plan.live_budget`, `plan.total_budget`, `plan.channels[].spend_target`, `plan.lines[].spend_target`
+  converted in place, AUD originals stashed on `_aud*` keys). Pacing bars, CPM/CPC and the AI-deck
+  payload (`currency:'EUR'`, plus `dash/report.py` `CONFIG["currency"]`) therefore all read true.
+- **The pipeline stays AUD on purpose:** `sql/*.sql` still emits `spend_aud` and the bucket JSON is
+  still AUD, so The Grid's cross-client rollups, `status_dashboard/exec_targets.json` and the
+  status-dash accuracy checks keep a single currency across clients. (Status checks never compare
+  spend anyway — imps/clicks only.)
+- **To change the rate:** edit `FX_AUD_EUR`, run `dash/deploy_dash_schneiderlqai.ps1`. Nothing else in
+  the pipeline moves (no view reapply, no job run). To go back to AUD, set it to `1`, flip the `money()`
+  symbol back to `A$` and the labels back (grep `EUR`).
 
 ## Freshness
 Self-gating `*/10` UTC (`schneiderlqai-export-daily`). Gate watches

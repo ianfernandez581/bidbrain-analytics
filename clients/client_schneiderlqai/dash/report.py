@@ -27,7 +27,10 @@ CONFIG = {
     "client": "schneiderlqai",
     "client_name": "Schneider Electric - Liquid AI Data Center",
     "agency": "Transmission",
-    "currency": "AUD",
+    # Reporting currency EUR. Both channels bill in AUD and the media plan is an AUD budget; the
+    # dashboard converts for display at a fixed AUD->EUR 0.57 (see dashboard.html FX_AUD_EUR) and
+    # the payload it posts here is already EUR, so every figure the deck quotes is EUR.
+    "currency": "EUR",
     # Stage-A business-model brief — precise enough that the model's reasoning is never generic.
     "business_model": (
         "Schneider Electric's 'Liquid AI Data Center' (LQAIDC) campaign, run by Transmission — a TOP-OF-FUNNEL "
