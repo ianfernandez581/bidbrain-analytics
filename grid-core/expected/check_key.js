@@ -23,17 +23,20 @@ console.log(`probing key: prefix=${key.slice(0, 10)}... len=${key.length}`);
 const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic({ maxRetries: 0 });
 
+// process.exitCode + natural exit, never process.exit(): an explicit exit
+// while the HTTP client still holds handles trips a libuv teardown assertion
+// on Node/Windows and corrupts the exit code even on success.
 client.messages.create({
   model: 'claude-haiku-4-5',
   max_tokens: 1,
   messages: [{ role: 'user', content: 'Say OK.' }],
 }).then((msg) => {
   console.log(`KEY OK: call succeeded on ${msg.model} (this key is funded and usable)`);
-  process.exit(0);
+  process.exitCode = 0;
 }).catch((e) => {
   const s = String(e && e.message || e);
   if (/credit balance is too low/i.test(s)) console.log('KEY VALID BUT NO CREDITS: the account behind this key has no API credits');
   else if (e && e.status === 401) console.log('KEY INVALID: authentication failed (wrong or revoked key)');
   else console.log('KEY CHECK FAILED: ' + s.slice(0, 200));
-  process.exit(1);
+  process.exitCode = 1;
 });
