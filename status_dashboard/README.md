@@ -141,10 +141,17 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
     is the signal; the **Sync tab** is the authority on pipeline health. Paid-media counts are append-only and
     match exactly.
 - **cloudflare** — **BQ owns its model since 2026-06-17** (it used to read Snowflake modelled views directly;
-  now it reads the `raw_snowflake.*` mirrors like everyone else). The accuracy SQL still queries Snowflake's
-  modelled views as the independent **source of truth** — paid media against
-  `…PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL` (per channel: TTD/LinkedIn/Reddit/LINE; LinkedIn is the only
-  channel with leads) — so a green check validates the whole chain (mirror sync + BQ port).
+  now it reads the `raw_snowflake.*` mirrors like everyone else). The accuracy SQL queries the **raw Snowflake
+  source tables** as the independent **source of truth**, re-stating each channel's scope the way the staging
+  views do (TTD `ADVERTISER_NAME='Cloudflare'` + a parseable `MARKET_L3`; LinkedIn `ACCOUNT_NAME='Cloudflare
+  APAC'` + `CLOUD_ACQ_%`; Reddit `ACCOUNT_NAME='Transmission_Cloudflare'`; LinkedIn is the only channel with
+  leads) — so a green check validates the whole chain (mirror sync + BQ port).
+  **2026-08-04:** these 7 paid-media checks were repointed **off** `CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.
+  V_PAID_ADS_FINAL_MODEL`. That schema is Cloudflare's/Transmission's legacy model — nothing in our pipeline
+  has read it since the BQ port, we cannot change it, and it drifts on their schedule (LINE already froze
+  there and its checks had to be deleted), so it could only ever produce a false ✗ against a correct
+  dashboard. Values verified identical on the swap. Keep the filters in sync with
+  `clients/client_cloudflare/sql/01-03` + `05_paid_media_model`.
   The 3 single-campaign LinkedIn dashboards check their exact `CAMPAIGN_GROUP_NAME` slices of the
   `raw_snowflake.linkedin_ads_apac` mirror.
   - **Core CS counts (Total / Accepted / Rejected / New)** now query the **raw source**

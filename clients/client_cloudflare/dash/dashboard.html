@@ -2843,7 +2843,7 @@ function setPaidFooter(rowCount) {
   // When the date range is narrowed, echo the active filter so the footer doesn't contradict it.
   const rangeText = narrowed() ? ` · Filtered to ${rangeStart} → ${rangeEnd}` : '';
   document.getElementById('paidFooter').innerHTML =
-    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: Snowflake V_PAID_ADS_FINAL_MODEL · Auto-refreshes within ~10 min of new Snowflake data`;
+    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: Trade Desk, LinkedIn, Reddit, LINE · Auto-refreshes within ~10 min of new data`;
 }
 
 function renderPaidMediaChips() {
