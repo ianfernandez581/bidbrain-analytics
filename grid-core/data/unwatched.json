@@ -1,0 +1,377 @@
+{
+ "generatedAt": "2026-08-04T00:40:33.542Z",
+ "scope": {
+  "clients": [
+   "Schneider",
+   "Cloudflare",
+   "PropTrack",
+   "MongoDB",
+   "Ad Assembly"
+  ],
+  "queries": 16
+ },
+ "bytesScanned": 239057088,
+ "bqCampaignsSeen": 182,
+ "watched": 150,
+ "unwatchedCount": 32,
+ "total": 186432.36,
+ "byCurrency": {
+  "unknown": 93752.33,
+  "AUD": 92680.03
+ },
+ "note": "Campaigns delivering in BigQuery with no campaign row, so no budget and no pacing verdict. Currency is measured (config/currency-map.json); null = the source table has no currency column. total is a face-value sum and MIXES currencies - read byCurrency.",
+ "rows": [
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "1914_SE_ANZ_Impact_Maker",
+   "spend": 33336.67,
+   "currency": null,
+   "firstDate": "2025-12-03",
+   "lastDate": "2026-03-26",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "SE_ANZ_Impact_Maker_Bombora_AU",
+   "spend": 21333.55,
+   "currency": "AUD",
+   "firstDate": "2025-12-08",
+   "lastDate": "2026-03-26",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "1916_SE_ANZ_Power_Products_AU",
+   "spend": 16799.62,
+   "currency": "AUD",
+   "firstDate": "2025-11-26",
+   "lastDate": "2026-04-01",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "1974_SE_ANZ_Ecostrucuture_Automation_Sqreem_AU",
+   "spend": 15929.12,
+   "currency": "AUD",
+   "firstDate": "2025-12-01",
+   "lastDate": "2026-02-28",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "PO_1967_SE_ANZ_2025_Ecocare_BMS_AU",
+   "spend": 10977.17,
+   "currency": null,
+   "firstDate": "2025-11-10",
+   "lastDate": "2025-12-05",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "PropTrack",
+   "platform": "LinkedIn",
+   "advertiser": "PropTrack_TransmissionSG_AUD",
+   "campaign": "Add PO Number_Proptrack Nov 12",
+   "spend": 9549.91,
+   "currency": null,
+   "firstDate": "2025-11-12",
+   "lastDate": "2026-02-28",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "PropTrack",
+   "platform": "LinkedIn",
+   "advertiser": "PropTrack_TransmissionSG_AUD",
+   "campaign": "1750_PropTrack _COBA event campaign_Website Clicks",
+   "spend": 8499.25,
+   "currency": null,
+   "firstDate": "2025-08-07",
+   "lastDate": "2025-09-01",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "1995_SE_ANZ_Digital Power Basket_AU",
+   "spend": 7344.09,
+   "currency": null,
+   "firstDate": "2025-12-03",
+   "lastDate": "2026-03-01",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Ad Assembly",
+   "platform": "Meta",
+   "advertiser": "Ad Assembly - BuyerX",
+   "campaign": "Buyer_AlwaysOn_May2026-Meta_Conversion_AU",
+   "spend": 5811.69,
+   "currency": "AUD",
+   "firstDate": "2026-05-01",
+   "lastDate": "2026-05-29",
+   "source": "raw_windsor.perf_meta"
+  },
+  {
+   "client": "PropTrack",
+   "platform": "DV360",
+   "advertiser": "APAC | PropTrack (AUD)",
+   "campaign": "1750_PropTrack_COBA campaign",
+   "spend": 5493.1,
+   "currency": "AUD",
+   "firstDate": "2025-07-23",
+   "lastDate": "2025-09-16",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "SE_ANZ_Impact_Maker_Bombora_NZ",
+   "spend": 5333.99,
+   "currency": "AUD",
+   "firstDate": "2025-12-08",
+   "lastDate": "2026-03-26",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "SE_ANZ_Impact_Maker_AU",
+   "spend": 5151.42,
+   "currency": "AUD",
+   "firstDate": "2025-11-30",
+   "lastDate": "2026-03-26",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "Schneider_Electric_AI Services_Q1_2026",
+   "spend": 4738.72,
+   "currency": null,
+   "firstDate": "2026-05-01",
+   "lastDate": "2026-06-01",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "1995_SE_ANZ_Digital Power Basket_AU_TAL",
+   "spend": 4619.99,
+   "currency": null,
+   "firstDate": "2026-01-14",
+   "lastDate": "2026-02-28",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "1916_SE_ANZ_Power_Products_NZ",
+   "spend": 4200,
+   "currency": "AUD",
+   "firstDate": "2025-11-26",
+   "lastDate": "2026-03-31",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "PropTrack",
+   "platform": "Trade Desk",
+   "advertiser": "PopTrack",
+   "campaign": "PROPTRACK_COBA-EVENT2026_JULY2026_DISPLAY_AU",
+   "spend": 3999.92,
+   "currency": "AUD",
+   "firstDate": "2026-07-15",
+   "lastDate": "2026-07-21",
+   "source": "raw_snowflake.tradedesk_apac_all"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "1974_SE_ANZ_Ecostrucuture_Automation_Sqreem_NZ",
+   "spend": 3967.03,
+   "currency": "AUD",
+   "firstDate": "2025-12-01",
+   "lastDate": "2026-03-01",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "Schneider_Electric_AI Services_Q1_2026 - Awareness",
+   "spend": 3486.89,
+   "currency": null,
+   "firstDate": "2026-03-10",
+   "lastDate": "2026-04-30",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "PO_1967_SE_ANZ_2025_Ecocare_BMS_NZ",
+   "spend": 2746,
+   "currency": null,
+   "firstDate": "2025-11-10",
+   "lastDate": "2025-12-05",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "2279_SE_EcoConsult_ECAA_2026_ANZ_Awareness",
+   "spend": 2450.85,
+   "currency": null,
+   "firstDate": "2026-07-21",
+   "lastDate": "2026-08-03",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "1995_SE_ANZ_Digital Power Basket_NZ",
+   "spend": 1835.81,
+   "currency": null,
+   "firstDate": "2025-12-03",
+   "lastDate": "2026-02-02",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "PropTrack",
+   "platform": "Trade Desk",
+   "advertiser": "PropTrack",
+   "campaign": "PROPTRACK_COBA-EVENT2026_JULY2026_DISPLAY_AU",
+   "spend": 1724.88,
+   "currency": "AUD",
+   "firstDate": "2026-07-22",
+   "lastDate": "2026-07-31",
+   "source": "raw_snowflake.tradedesk_apac_all"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "1995_SE_ANZ_Digital Power Basket_NZ_TAL",
+   "spend": 1495.41,
+   "currency": null,
+   "firstDate": "2026-01-14",
+   "lastDate": "2026-02-28",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "Trade Desk",
+   "advertiser": "Schneider Electric",
+   "campaign": "2281_SE Heavy Industries_AWR AU",
+   "spend": 1348.54,
+   "currency": "AUD",
+   "firstDate": "2026-07-15",
+   "lastDate": "2026-08-02",
+   "source": "raw_snowflake.tradedesk_apac_all"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "SE_ANZ_Impact_Maker_NZ",
+   "spend": 1287.87,
+   "currency": "AUD",
+   "firstDate": "2025-11-30",
+   "lastDate": "2026-03-27",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Cloudflare",
+   "platform": "LinkedIn",
+   "advertiser": "Cloudflare APAC",
+   "campaign": "CLOUD_ACQ_2026-Q2_VER-PUBSEC_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PUBSEC",
+   "spend": 1224.67,
+   "currency": null,
+   "firstDate": "2026-04-01",
+   "lastDate": "2026-05-28",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "2040 SE_Microgrid_Awareness_July2026-AU",
+   "spend": 762.7,
+   "currency": null,
+   "firstDate": "2026-07-27",
+   "lastDate": "2026-08-03",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "2281_HeavyIndustries_LinkedIn_ANZ",
+   "spend": 598.03,
+   "currency": null,
+   "firstDate": "2026-07-23",
+   "lastDate": "2026-08-03",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "Impact Maker_Whitelist_and_Affinity+In-Market",
+   "spend": 229.17,
+   "currency": "AUD",
+   "firstDate": "2026-01-28",
+   "lastDate": "2026-02-12",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "LinkedIn",
+   "advertiser": "SchneiderElectric_TransmissionSG_AUD",
+   "campaign": "2279_SE_EcoConsult_ECAA_2026_ANZ_Consideration",
+   "spend": 86.17,
+   "currency": null,
+   "firstDate": "2026-08-03",
+   "lastDate": "2026-08-03",
+   "source": "raw_snowflake.linkedin_ads_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "1974_SE_ANZ_Ecostrucuture_Automation_Consideration_AU",
+   "spend": 45.34,
+   "currency": "AUD",
+   "firstDate": "2025-12-02",
+   "lastDate": "2025-12-09",
+   "source": "raw_snowflake.dv360_apac"
+  },
+  {
+   "client": "Schneider",
+   "platform": "DV360",
+   "advertiser": "APAC | Schneider Electric AUD",
+   "campaign": "1974_SE_ANZ_Ecostrucuture_Automation_Consideration_NZ",
+   "spend": 24.79,
+   "currency": "AUD",
+   "firstDate": "2025-12-06",
+   "lastDate": "2025-12-09",
+   "source": "raw_snowflake.dv360_apac"
+  }
+ ]
+}
