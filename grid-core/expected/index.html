@@ -1,0 +1,395 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Grid, Expected Side</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Pulse visual language: same tokens as the-grid.html */
+:root{ /* DARK default */
+  --bg:#0A130F;--panel:#111C16;--panel-2:#0D160F;--hover:#16221C;--modal:#1B2921;
+  --line:#22302A;--line-2:#1A2620;--ink:#E9F1EC;--ink-2:#A6B5AC;--ink-3:#6F827A;
+  --brand:#26C57E;--brand-soft:rgba(38,197,126,.15);--brand-strong:#34D48C;--brand-ink:#7BE3B4;
+  --ai:#8E93FF;--ai-soft:rgba(142,147,255,.16);--ai-ink:#B9BCFF;
+  --ok:#22C07A;--ok-soft:rgba(34,192,122,.15);--warn:#E0912F;--warn-soft:rgba(224,145,47,.16);--bad:#FF5A4D;--bad-soft:rgba(255,90,77,.15);
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 10px 30px -14px rgba(0,0,0,.6);--r:14px;
+  --pill-bg:var(--brand);--pill-fg:#052012;
+}
+:root[data-theme="light"]{
+  --bg:#F4F7F5;--panel:#FFFFFF;--panel-2:#FAFCFB;--hover:#EEF4F0;--modal:#FFFFFF;
+  --line:#E4EAE6;--line-2:#EEF3F0;--ink:#0F1A14;--ink-2:#566159;--ink-3:#879089;
+  --brand:#1FB573;--brand-soft:#E5F6EE;--brand-strong:#0C8A53;--brand-ink:#0A7647;
+  --ai:#4338CA;--ai-soft:#EEF0FF;--ai-ink:#3730A3;
+  --ok:#0E9F6E;--ok-soft:#E6F6EF;--warn:#B45309;--warn-soft:#FBF1E4;--bad:#D92D20;--bad-soft:#FCEBEA;
+  --shadow:0 1px 2px rgba(15,26,20,.04),0 8px 24px -12px rgba(15,26,20,.12);--r:14px;
+  --pill-bg:var(--ink);--pill-fg:#fff;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Inter",system-ui,sans-serif;font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1240px;margin:0 auto;padding:22px 24px 60px}
+
+/* header */
+.hdr{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.logo-box{width:44px;height:40px;border:2.5px solid var(--brand);border-radius:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+.logo-box .l1{font-family:"Space Grotesk";font-weight:700;font-size:13px;color:var(--brand);letter-spacing:-.5px}
+.logo-box .l2{font-family:"Space Grotesk";font-weight:600;font-size:5.5px;color:var(--brand);letter-spacing:.16em;margin-top:1px}
+.hdr h1{font-family:"Space Grotesk";font-size:18px;font-weight:700;margin:0;letter-spacing:-.2px}
+.hdr .sub{color:var(--ink-3);font-size:11.5px;margin-top:1px}
+#jobPill{display:none;align-items:center;gap:7px;background:var(--brand-soft);color:var(--brand-ink);border:1px solid var(--line);border-radius:999px;padding:6px 14px;font-weight:600;font-size:12px}
+#jobPill .dot{width:7px;height:7px;border-radius:50%;background:var(--brand)}
+.hdr-right{margin-left:auto;display:flex;gap:8px;align-items:center}
+.theme-btn{appearance:none;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);border-radius:9px;width:32px;height:32px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.theme-btn:hover{background:var(--hover)}
+
+/* cards */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;margin-bottom:16px}
+.card h2{font-family:"Space Grotesk";font-size:13.5px;font-weight:600;margin:0 0 3px;display:flex;align-items:center;gap:9px}
+.card .desc{color:var(--ink-3);font-size:11.5px;margin-bottom:12px}
+.card.ai{border-left:3px solid var(--ai)}
+.ai-tag{font-size:9.5px;font-weight:700;letter-spacing:.07em;color:var(--ai-ink);background:var(--ai-soft);border-radius:6px;padding:2px 7px}
+
+/* upload */
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:26px 18px;text-align:center;cursor:pointer;background:var(--panel-2);transition:all .15s;color:var(--ink-2)}
+.drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+.drop b{color:var(--ink)}
+.files{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:5px 18px;max-height:220px;overflow-y:auto}
+.file{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:8px;font-size:12px;color:var(--ink-2)}
+.file:hover{background:var(--hover)}
+.fic{flex:0 0 auto;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:8.5px;font-weight:700;letter-spacing:.03em;border-radius:5px;padding:2.5px 5px;min-width:30px;text-align:center}
+.fic.xls{background:var(--ok-soft);color:var(--ok)}
+.fic.pdf{background:var(--bad-soft);color:var(--bad)}
+.fic.img{background:var(--ai-soft);color:var(--ai-ink)}
+.fic.vid{background:var(--warn-soft);color:var(--warn)}
+.fic.doc{background:var(--brand-soft);color:var(--brand-ink)}
+.fic.csv{background:var(--ok-soft);color:var(--ok)}
+.file .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.file .sz{margin-left:auto;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:0 0 auto}
+.upl-foot{display:flex;align-items:center;gap:12px;margin-top:14px}
+.btn{appearance:none;font-family:inherit;cursor:pointer;font-size:12.5px;font-weight:600;border-radius:999px;padding:9px 20px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);transition:all .15s}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--pill-bg);color:var(--pill-fg);border-color:transparent}
+.btn.primary:hover{background:var(--brand-strong)}
+.btn:disabled{opacity:.45;cursor:default}
+.count-note{color:var(--ink-3);font-size:11.5px}
+
+/* progress */
+#progress{display:none;margin-top:14px;border-top:1px solid var(--line-2);padding-top:12px}
+.step{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:12.5px;color:var(--ink-3)}
+.step .ic{width:18px;height:18px;border-radius:50%;flex:0 0 auto;display:flex;align-items:center;justify-content:center;font-size:11px;border:1.5px solid var(--line);color:transparent}
+.step.active{color:var(--ink)}
+.step.active .ic{border-color:var(--brand);border-top-color:transparent;animation:spin .8s linear infinite}
+.step.done{color:var(--ink-2)}
+.step.done .ic{border-color:var(--ok);background:var(--ok-soft);color:var(--ok)}
+.step.error .ic{border-color:var(--bad);background:var(--bad-soft);color:var(--bad)}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* error */
+#errCard{display:none;border-left:3px solid var(--bad)}
+#errCard h2{color:var(--bad)}
+#errMsg{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11.5px;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:10px 12px;white-space:pre-wrap}
+
+/* results */
+#results{display:none}
+iframe{width:100%;border:1px solid var(--line-2);border-radius:10px;background:#fff}
+
+/* findings */
+.f-summary{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.chip{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;border-radius:6px;padding:3px 8px;white-space:nowrap}
+.chip.bad{background:var(--bad-soft);color:var(--bad)}
+.chip.warn{background:var(--warn-soft);color:var(--warn)}
+.chip.ok{background:var(--ok-soft);color:var(--ok)}
+.chip.dim{background:var(--hover);color:var(--ink-3)}
+.f-row{display:grid;grid-template-columns:118px 168px 1fr 260px;gap:14px;align-items:start;padding:10px 8px;border-top:1px solid var(--line-2);font-size:12.5px}
+.f-row:hover{background:var(--hover);border-radius:8px}
+.f-row .stage{color:var(--ink-3);font-size:11.5px;padding-top:2px}
+.f-row .t{font-weight:600}
+.f-row .d{color:var(--ink-2);font-size:11.5px;margin-top:2px}
+.f-row .src{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10px;color:var(--ink-3);word-break:break-word;padding-top:2px}
+.f-head{display:grid;grid-template-columns:118px 168px 1fr 260px;gap:14px;padding:0 8px 7px;font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+
+/* messages */
+.msg{background:var(--panel-2);border:1px solid var(--line-2);border-left:3px solid var(--ai);border-radius:10px;padding:14px 16px;margin-top:10px}
+.msg-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.msg-head .t{font-weight:600;font-size:12.5px}
+.msg-head button{margin-left:auto}
+.msg pre{margin:0;white-space:pre-wrap;font-family:inherit;font-size:12px;color:var(--ink-2);max-height:300px;overflow-y:auto}
+.copy-btn{appearance:none;font-family:inherit;cursor:pointer;font-size:11px;font-weight:600;color:var(--ai-ink);background:var(--ai-soft);border:1px solid transparent;border-radius:7px;padding:5px 12px;transition:all .15s}
+.copy-btn:hover{border-color:var(--ai)}
+
+/* footer downloads */
+#downloads{display:none;align-items:center;gap:10px;margin-top:4px;flex-wrap:wrap}
+.dl{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 14px;transition:all .15s}
+.dl:hover{background:var(--hover);color:var(--ink)}
+.dl .fic{min-width:26px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="hdr">
+    <div class="logo-box"><span class="l1">BB</span><span class="l2">GRID</span></div>
+    <div>
+      <h1>The Grid, Expected Side</h1>
+      <div class="sub">Plan-side baseline: drop the campaign file dump, get pacing, gaps and chase drafts</div>
+    </div>
+    <span id="jobPill"><span class="dot"></span><span id="jobPillText"></span></span>
+    <div class="hdr-right">
+      <button class="theme-btn" id="themeBtn" title="Toggle light / dark">&#9788;</button>
+    </div>
+  </div>
+
+  <div class="card" id="uploadCard">
+    <h2>Campaign files</h2>
+    <div class="desc">Everything the media buyer holds, in any state. No curation required.</div>
+    <div class="drop" id="drop">Drop files here or <b>browse</b><input type="file" id="picker" multiple style="display:none"></div>
+    <div class="files" id="fileList"></div>
+    <div class="upl-foot">
+      <button class="btn primary" id="runBtn">Run Analysis</button>
+      <span class="count-note" id="countNote"></span>
+    </div>
+    <div id="progress">
+      <div class="step" data-k="extract"><span class="ic">&#10003;</span>Extracting files</div>
+      <div class="step" data-k="plan"><span class="ic">&#10003;</span>Reading plan</div>
+      <div class="step" data-k="gaps"><span class="ic">&#10003;</span>Checking gaps</div>
+      <div class="step" data-k="outputs"><span class="ic">&#10003;</span>Building outputs</div>
+    </div>
+  </div>
+
+  <div class="card" id="errCard">
+    <h2>Run failed</h2>
+    <div class="desc">The pipeline stopped. Nothing below is stale: results stay hidden until a run succeeds.</div>
+    <div id="errMsg"></div>
+  </div>
+
+  <div id="results">
+    <div class="card">
+      <h2>Pacing <span class="chip ok">COMPUTED IN CODE</span></h2>
+      <div class="desc">Cumulative expected per campaign, flat curve. Actuals join later (teammate hook in the page).</div>
+      <iframe id="pacingFrame" title="Expected pacing" height="640"></iframe>
+    </div>
+
+    <div class="card">
+      <h2>Process flowchart <span class="chip ok">COMPUTED IN CODE</span></h2>
+      <div class="desc">Stage status from the report items. Red means the stage's defining artifact is missing.</div>
+      <iframe id="flowFrame" title="Readiness flowchart" height="460"></iframe>
+    </div>
+
+    <div class="card ai">
+      <h2>Findings <span class="ai-tag">AI-AUTHORED</span></h2>
+      <div class="desc">Extracted by Claude from the source files; arithmetic checks computed in code. Sorted by severity. Item ids match report.md.</div>
+      <div class="f-summary" id="fSummary"></div>
+      <div class="f-head"><span>Status</span><span>Stage</span><span>Finding</span><span>Source</span></div>
+      <div id="fRows"></div>
+    </div>
+
+    <div class="card ai">
+      <h2>Chase messages <span class="ai-tag">AI-AUTHORED</span></h2>
+      <div class="desc">Drafts only. A person reviews and sends. One message per recipient, everything they owe consolidated.</div>
+      <div id="msgs"></div>
+    </div>
+
+    <div class="card">
+      <h2>Downloads</h2>
+      <div class="desc">The four artifacts this run produced.</div>
+      <div id="downloads">
+        <a class="dl" href="/out/daily_kpi.xlsx" download><span class="fic xls">XLS</span>daily_kpi.xlsx</a>
+        <a class="dl" href="/out/daily_kpi.json" download><span class="fic csv">JSON</span>daily_kpi.json</a>
+        <a class="dl" href="/out/report.md" download><span class="fic doc">MD</span>report.md</a>
+        <a class="dl" href="/out/chase_messages.md" download><span class="fic doc">MD</span>chase_messages.md</a>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script>
+(function(){
+'use strict';
+
+/* theme: same key + attr mechanism as the-grid.html */
+var root=document.documentElement;
+try{root.setAttribute('data-theme',localStorage.getItem('grid-theme')||'dark')}catch(e){}
+document.getElementById('themeBtn').addEventListener('click',function(){
+  var next=root.getAttribute('data-theme')==='dark'?'light':'dark';
+  root.setAttribute('data-theme',next);
+  try{localStorage.setItem('grid-theme',next)}catch(e){}
+});
+
+var staged=[];            /* [{name,bytes,prestaged}] */
+var running=false;
+
+function icFor(name){
+  var e=(name.split('.').pop()||'').toLowerCase();
+  if(e==='xlsx'||e==='xlsm'||e==='xls')return['xls','XLS'];
+  if(e==='pdf')return['pdf','PDF'];
+  if(e==='jpg'||e==='jpeg'||e==='png'||e==='gif'||e==='webp')return['img','IMG'];
+  if(e==='mp4'||e==='mov')return['vid','MP4'];
+  if(e==='csv'||e==='tsv'||e==='json')return['csv',e.toUpperCase()];
+  if(e==='docx'||e==='pptx'||e==='md')return['doc',e.slice(0,3).toUpperCase()];
+  return['doc','FILE'];
+}
+function fmtSize(b){
+  if(b>=1048576)return (b/1048576).toFixed(1)+' MB';
+  if(b>=1024)return (b/1024).toFixed(0)+' KB';
+  return b+' B';
+}
+function renderFiles(){
+  var el=document.getElementById('fileList');
+  el.innerHTML='';
+  staged.forEach(function(f){
+    var ic=icFor(f.name);
+    var div=document.createElement('div');
+    div.className='file';
+    div.innerHTML='<span class="fic '+ic[0]+'">'+ic[1]+'</span><span class="nm" title="'+f.name.replace(/"/g,'&quot;')+'">'+f.name+'</span><span class="sz">'+fmtSize(f.bytes)+'</span>';
+    el.appendChild(div);
+  });
+  var pre=staged.filter(function(f){return f.prestaged}).length;
+  document.getElementById('countNote').textContent=staged.length+' files staged'+(pre?' ('+pre+' prestaged from grid-core/files)':'');
+}
+
+/* prestage the server-side dump so the demo runs with zero dragging */
+fetch('/api/expected/files').then(function(r){return r.json()}).then(function(j){
+  staged=(j.files||[]).map(function(f){return{name:f.name,bytes:f.bytes,prestaged:true}});
+  renderFiles();
+}).catch(function(){ renderFiles(); });
+
+/* drag and drop + picker: stages metadata client-side */
+var drop=document.getElementById('drop');
+var picker=document.getElementById('picker');
+drop.addEventListener('click',function(){picker.click()});
+picker.addEventListener('change',function(){addFiles(picker.files)});
+['dragover','dragenter'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.add('over')})});
+['dragleave','drop'].forEach(function(ev){drop.addEventListener(ev,function(e){e.preventDefault();drop.classList.remove('over')})});
+drop.addEventListener('drop',function(e){ if(e.dataTransfer&&e.dataTransfer.files)addFiles(e.dataTransfer.files); });
+function addFiles(list){
+  for(var i=0;i<list.length;i++){
+    var f=list[i];
+    if(!staged.some(function(s){return s.name===f.name&&s.bytes===f.size}))
+      staged.push({name:f.name,bytes:f.size,prestaged:false});
+  }
+  renderFiles();
+}
+
+/* run + poll */
+var runBtn=document.getElementById('runBtn');
+runBtn.addEventListener('click',function(){ if(!running)startRun(); });
+
+function setStep(key,state){
+  var el=document.querySelector('.step[data-k="'+key+'"]');
+  if(el)el.className='step '+(state||'');
+}
+function showError(msg){
+  document.getElementById('errCard').style.display='block';
+  document.getElementById('errMsg').textContent=msg;
+}
+function startRun(){
+  running=true;
+  runBtn.disabled=true;
+  runBtn.textContent='Running...';
+  document.getElementById('errCard').style.display='none';
+  document.getElementById('progress').style.display='block';
+  ['extract','plan','gaps','outputs'].forEach(function(k){setStep(k,'')});
+  fetch('/api/expected/analyze',{method:'POST',headers:{'content-type':'application/json'},
+    body:JSON.stringify({files:staged.map(function(f){return{name:f.name,bytes:f.bytes}})})})
+  .then(function(r){ if(!r.ok)throw new Error('analyze returned HTTP '+r.status); return r.json(); })
+  .then(function(j){ poll(j.runId); })
+  .catch(function(e){ finishError(String(e.message||e)); });
+}
+function finishError(msg){
+  running=false;
+  runBtn.disabled=false;
+  runBtn.textContent='Run Analysis';
+  var active=document.querySelector('.step.active');
+  if(active)active.className='step error';
+  showError(msg);
+}
+function poll(id){
+  fetch('/api/expected/runs/'+id).then(function(r){
+    if(!r.ok)throw new Error('poll returned HTTP '+r.status);
+    return r.json();
+  }).then(function(run){
+    (run.stages||[]).forEach(function(s){setStep(s.key,s.state)});
+    if(run.status==='running'){ setTimeout(function(){poll(id)},400); return; }
+    if(run.status==='error'){ finishError(run.error||'unknown failure'); return; }
+    running=false;
+    runBtn.disabled=false;
+    runBtn.textContent='Run Again';
+    renderResults(run.results);
+  }).catch(function(e){ finishError(String(e.message||e)); });
+}
+
+/* results */
+function chipClass(sev){
+  if(sev==='blocker')return'bad';
+  if(sev==='missing'||sev==='gap'||sev==='inconsistent')return'warn';
+  if(sev==='housekeeping')return'dim';
+  return'dim';
+}
+function renderResults(res){
+  document.getElementById('results').style.display='block';
+  document.getElementById('downloads').style.display='flex';
+  var pill=document.getElementById('jobPill');
+  pill.style.display='inline-flex';
+  document.getElementById('jobPillText').textContent=res.meta.client+' · Job '+res.meta.job+' · '+res.meta.currency+' '+res.meta.total.toLocaleString();
+
+  var bust='?t='+Date.now();
+  document.getElementById('pacingFrame').src='/out/pacing.html'+bust;
+  document.getElementById('flowFrame').src='/out/flowchart.html'+bust;
+
+  /* findings */
+  var order={blocker:0,missing:1,gap:2,inconsistent:3,watch:4,housekeeping:5};
+  var fs=res.findings.slice().sort(function(a,b){return(order[a.severity]||9)-(order[b.severity]||9)||a.id-b.id});
+  var counts={};
+  fs.forEach(function(f){counts[f.severity]=(counts[f.severity]||0)+1});
+  var sm=document.getElementById('fSummary');
+  sm.innerHTML='';
+  Object.keys(order).forEach(function(sev){
+    if(!counts[sev])return;
+    var sp=document.createElement('span');
+    sp.className='chip '+chipClass(sev);
+    sp.textContent=counts[sev]+' '+sev.toUpperCase();
+    sm.appendChild(sp);
+  });
+  var rows=document.getElementById('fRows');
+  rows.innerHTML='';
+  fs.forEach(function(f){
+    var div=document.createElement('div');
+    div.className='f-row';
+    div.innerHTML='<span><span class="chip '+chipClass(f.severity)+'">'+f.chip+'</span></span>'
+      +'<span class="stage">'+f.stage+'</span>'
+      +'<span><div class="t">'+f.title+' <span style="color:var(--ink-3);font-weight:400">(item '+f.id+')</span></div><div class="d">'+f.detail+'</div></span>'
+      +'<span class="src">'+f.source+'</span>';
+    rows.appendChild(div);
+  });
+
+  /* messages */
+  var ms=document.getElementById('msgs');
+  ms.innerHTML='';
+  res.messages.forEach(function(m){
+    var div=document.createElement('div');
+    div.className='msg';
+    var head=document.createElement('div');
+    head.className='msg-head';
+    head.innerHTML='<span class="t">'+m.title+'</span>';
+    var btn=document.createElement('button');
+    btn.className='copy-btn';
+    btn.textContent='Copy';
+    btn.addEventListener('click',function(){
+      navigator.clipboard.writeText(m.body).then(function(){
+        btn.textContent='Copied';
+        setTimeout(function(){btn.textContent='Copy'},1400);
+      }).catch(function(){ btn.textContent='Copy failed'; });
+    });
+    head.appendChild(btn);
+    var pre=document.createElement('pre');
+    pre.textContent=m.body;
+    div.appendChild(head);
+    div.appendChild(pre);
+    ms.appendChild(div);
+  });
+}
+})();
+</script>
+</body>
+</html>
