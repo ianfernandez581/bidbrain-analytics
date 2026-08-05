@@ -1355,6 +1355,7 @@ const PILLAR={
   heavy:         {pillar:'Heavy Industries',            note:'Energy &amp; process efficiency for industry'},
   nel:           {pillar:'New Energy Landscape',        note:'Awareness for the shift to a decarbonized, electrified energy system'},
   microgrid:     {pillar:'Energy Resilience',           note:'Microgrids - distributed, resilient power for a decarbonized grid'},
+  ecoconsult:    {pillar:'Services &amp; Consulting',    note:'EcoConsult expert advisory - electrical distribution safety, reliability &amp; modernisation'},
 };
 // audience rows for the whole portfolio, filtered to the active regions, for one dimension
 function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
