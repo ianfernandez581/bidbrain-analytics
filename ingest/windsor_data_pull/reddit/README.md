@@ -140,15 +140,16 @@ no-args mode is **incremental per-account** (same shape as the other loaders):
 .\.venv\Scripts\python.exe windsor_data_pull\reddit\reddit_loader.py 2026-05-15 2026-05-30 --force  # ignore cache
 ```
 
-**Accounts loaded:** `a2_iq3fdsq6rem5` (**Transmission_Cloudflare** — the account the 2026-07-16
-Windsor re-grant actually connected; mis-mapped to `resetdata` until the 2026-08-05 correction).
-**ResetData's own account is NOT currently granted**: its old id `a2_igd0szmw7roq` 400s
-"not available", and its Feb–Jun 2026 rows were deleted from `perf_reddit` on 2026-07-16 on the
-false premise they duplicated the new account. To restore ResetData Reddit: re-grant at
-<https://onboard.windsor.ai?datasource=reddit> with the 100 Digital reddit login, add the newly
-minted id to `SELECT_ACCOUNTS` + `REDDIT_ACCOUNT_TO_CLIENT`, and the backward-walk backfill
-reloads the history. One revoked/ungranted account is logged and **skipped**
-(`AccountUnavailableError`) rather than aborting the run — Reddit access can be revoked
+**Accounts loaded:** `a2_igd0szmw7roq` (**ResetData Ad Account (100Digital)** → `resetdata`) and
+`a2_iq3fdsq6rem5` (**Transmission_Cloudflare** → `cloudflare`; no dashboard reads it — Cloudflare's
+Reddit lane comes from `raw_snowflake`). History: the 2026-07-16 Windsor re-grant connected the
+Cloudflare account but mis-mapped it to `resetdata` AND deleted ResetData's real Feb–Jun rows as a
+presumed duplicate. Corrected 2026-08-05: the ResetData account was re-granted and Windsor restored
+its **original** id (no new mint this time), the Cloudflare rows were retagged and ResetData's
+Feb–Jul history re-backfilled via a fixed-range `--force` re-pull, and the ingest job image was
+redeployed. **Before mapping any opaque `a2_...` id, verify its `account_name` against the Windsor
+API** — an id proves nothing about whose account it is. One revoked/ungranted account is logged and
+**skipped** (`AccountUnavailableError`) rather than aborting the run — Reddit access can be revoked
 per-account, like the Trade Desk's was.
 
 **To add an account:** append its bare Reddit account id to `SELECT_ACCOUNTS` in

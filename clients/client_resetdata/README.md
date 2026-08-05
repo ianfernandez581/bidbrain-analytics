@@ -42,22 +42,27 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 > tag it `resetdata` (no hyphen). Each `stg_*` view filters by the **stable per-table key** above
 > (account / advertiser name, or `client_slug` for Reddit), not a single shared slug.
 >
-> **Reddit notes:** 3 top-of-funnel "Community" campaigns (Feb–Jun 2026), objectives CONVERSIONS + CLICKS.
+> **Reddit notes:** 3 top-of-funnel "Community" campaigns, objectives CONVERSIONS + CLICKS: two fixed
+> FebMar26 flights (Feb–Mar 2026) + **AlwaysOn26, which is ONGOING** — steady ~A$25-30/day billed with
+> no taper through 2026-07-31 (the latest Windsor day as of 2026-08-05), so expect current-month spend
+> to keep appearing as the nightly loads land.
 > Native engagement (upvotes/downvotes/comments) and all video metrics are NULL upstream, so only delivery
 > + page visits + sparse conversions are surfaced. `reach` is non-additive across days, so it is not summed.
 >
-> **⚠ Reddit OUTAGE (found 2026-08-05):** the 2026-07-16 Windsor reddit re-grant connected the WRONG
-> account — `a2_iq3fdsq6rem5` is **Transmission_Cloudflare's** seat, but the loader mapped it
-> `client_slug='resetdata'`, so the dashboard's Reddit lane showed **Cloudflare's** CLOUD_ACQ Apr–Jun
-> campaigns; worse, ResetData's REAL Feb–Jun rows (old id `a2_igd0szmw7roq`) were deleted from
-> `perf_reddit` the same day as a presumed duplicate. The loader mapping is corrected
-> (`→ cloudflare/transmission`), but ResetData Reddit stays EMPTY until a human re-grants the
-> ResetData account at <https://onboard.windsor.ai?datasource=reddit> (100 Digital login), adds the new
-> id to `SELECT_ACCOUNTS`+`REDDIT_ACCOUNT_TO_CLIENT`, and the backfill reloads Feb–Jun. Also run the
-> fixed-range retag re-pull (see `REDDIT_ACCOUNT_TO_CLIENT` comment) + `resetdata-export` with
-> `FORCE_REBUILD=1`. `data/resetdata_reddit_febmar26.csv` corroborates the real Feb–Mar delivery.
+> **⚠ Reddit MIS-MAP incident (2026-07-16 → RESOLVED 2026-08-05):** the 2026-07-16 Windsor reddit
+> re-grant connected the WRONG account — `a2_iq3fdsq6rem5` is **Transmission_Cloudflare's** seat, but
+> the loader mapped it `client_slug='resetdata'`, so the dashboard's Reddit lane showed **Cloudflare's**
+> CLOUD_ACQ Apr–Jun campaigns; worse, ResetData's REAL Feb–Jun rows (id `a2_igd0szmw7roq`) were deleted
+> from `perf_reddit` the same day as a presumed duplicate. **Fixed 2026-08-05:** the ResetData account
+> was re-granted in Windsor and came back under its **original id** (`a2_igd0szmw7roq` — no new mint,
+> contrary to the 07-16 assumption); a fixed-range `--force` re-pull (2026-02-01..2026-08-04) retagged
+> the Cloudflare rows `→ cloudflare/transmission` and re-backfilled ResetData's real Feb–Jul history
+> (1,827 rows, raw A$4,571.56 → A$9,143 at the ×2 billed rate, 30 conversions, data through
+> 2026-07-31); `windsor-reddit-ingest` was redeployed with both accounts mapped and `resetdata-export`
+> force-rebuilt. `data/resetdata_reddit_febmar26.csv` corroborates the recovered Feb–Mar delivery.
 > NB: the status-dash Reddit accuracy checks mirror the same `client_slug='resetdata'` filter, so they
-> stayed GREEN through this (the circular-check trap in AGENTS.md).
+> stayed GREEN through this (the circular-check trap in AGENTS.md) — hardening them to compare
+> account-level Windsor totals instead is an open follow-up.
 >
 > **Audience / creative / keywords (added 2026-07-02; views 31–33):** Overview **Audience** = **Google Ads**
 > inferred age / gender / device (`ga_audience`, from the `ads_AgeRange*`/`ads_Gender*` DTS tables scoped to
@@ -188,6 +193,16 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
    names via the owner dim); and the **BDM lead queue** (NEW / unassigned by status & owner — Q6).
    **Caveat surfaced in-app: HubSpot's own attribution is thin** (most signups land `Offline`/`Direct`),
    so the `gclid`/`fbclid` "Ad-ID" column and the Paid Media / Ads→Traffic tabs are the reliable ad signals.
+   **Plain-language "?" tooltips (2026-08-05):** the CRM funnel terms (KPI cards, both panel titles, the
+   week/QTD callout, table headers) carry a small `?` badge — hover/focus shows the shared `#bbTipBubble`.
+   Reusable anywhere in this dash: `tipIcon('text')` in JS-built HTML, or a
+   `<span class="bb-tip" tabindex="0" data-tip="text">?</span>` in static HTML (client-local helper, not
+   vendored repo-wide). The signups + funnel Chart.js hover tooltips also append definition lines
+   (`footer`/`afterBody` callbacks — callbacks live under `tooltip.callbacks`, never directly on `plugins.*`).
+   **Canvas-drawn LEGENDS** (hero, CRM signups, pay/free) get the same bubble via the `LEGEND_TIPS`
+   registry (canvas id → legend label → text), shown by the global legend-affordance `onHover` at the
+   cursor (`bbTipShowAt`) — a DOM badge can't attach to a Chart.js legend, so to add legend definitions
+   to any other chart just add its canvas id to `LEGEND_TIPS`.
 
 > **CRM data source (HubSpot).** The Signups & CRM tab is fed by the shared `ingest/windsor_data_pull/hubspot/`
 > loader (`raw_windsor.hubspot_contacts` ~4.7k, `hubspot_deals` ~242, `hubspot_owners` ~26 — a WRITE_TRUNCATE

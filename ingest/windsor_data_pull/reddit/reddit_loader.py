@@ -103,14 +103,16 @@ GCS_BUCKET = "bidbrain-analytics-staging"
 WINDSOR_URL = "https://connectors.windsor.ai/all"
 ACCOUNT_PREFIX = "reddit__"
 SELECT_ACCOUNTS = [
+    "a2_igd0szmw7roq",   # ResetData Ad Account (100Digital) -- RE-GRANTED 2026-08-05, and Windsor
+                         # restored the ORIGINAL id (no new mint this time, contrary to the
+                         # 2026-07-16 experience; verified live via /all+reddit__ probe:
+                         # 'TOF | ... | Resetdata | ...' campaigns, delivery through 2026-07-31).
     "a2_iq3fdsq6rem5",   # Transmission_Cloudflare -- the account the 2026-07-16 Windsor reddit
-                         # re-grant ACTUALLY connected. The re-grant assumed this was ResetData's
-                         # re-issued id; it is not (verified against the Windsor API 2026-08-05:
-                         # account_name='Transmission_Cloudflare', CLOUD_ACQ_* campaigns).
-    # ResetData Ad Account (100Digital) is NOT currently granted in Windsor (its old id
-    # a2_igd0szmw7roq now 400s "not available"). Re-grant at
-    # https://onboard.windsor.ai?datasource=reddit with the 100 Digital reddit login, then add
-    # the newly minted a2_... id here AND map it in REDDIT_ACCOUNT_TO_CLIENT below.
+                         # re-grant ACTUALLY connected (mis-mapped to resetdata until 2026-08-05).
+                         # Kept ingesting under its true tags; no dashboard reads it (Cloudflare's
+                         # Reddit lane comes from raw_snowflake).
+    # Add more bare Reddit account ids here AND map them in REDDIT_ACCOUNT_TO_CLIENT below.
+    # Find ids at https://onboard.windsor.ai?datasource=reddit.
 ]
 
 # --- Fields (single pass: no GA4 9/10 cap on /all) ---
@@ -159,18 +161,16 @@ LOG_FILE = WORK_DIR / "reddit_loader.log"
 # Map a Reddit account id straight to (client_slug, agency_slug). Checked FIRST in infer_slugs --
 # most reliable. Fill using the account_names the probe printed:
 REDDIT_ACCOUNT_TO_CLIENT = {
-    # 2026-08-05 CORRECTION: a2_iq3fdsq6rem5 is Transmission_Cloudflare's Reddit seat, NOT
-    # ResetData's re-issued id as the 2026-07-16 re-grant assumed. The old mapping tagged
-    # Cloudflare's Apr-Jun 2026 CLOUD_ACQ_* delivery client_slug='resetdata', leaking it into
-    # the ResetData dashboard. After deploying this fix, retag the existing rows with a
-    # fixed-range re-pull (the MERGE re-stamps client_slug on matched keys):
-    #   .\.venv\Scripts\python.exe ingest\windsor_data_pull\reddit\reddit_loader.py 2026-04-01 2026-06-29 --force
-    "a2_iq3fdsq6rem5": ("cloudflare", "transmission"),
-    # NOTE: the pre-2026-07-16 id a2_igd0szmw7roq was ResetData's real account. Its rows (the
-    # 3 Feb-Jun 2026 Community campaigns) were DELETED from perf_reddit on 2026-07-16 on the
-    # false premise that they were an under-scoped duplicate of the new account. They were the
-    # genuine ResetData history -- recover by re-granting the account in Windsor (new id) and
-    # letting the backward-walk backfill reload it.
+    "a2_igd0szmw7roq": ("resetdata", "100-digital"),   # ResetData Ad Account (100Digital);
+                                                       # re-granted 2026-08-05 with the SAME id.
+    "a2_iq3fdsq6rem5": ("cloudflare", "transmission"),  # Transmission_Cloudflare's Reddit seat.
+    # HISTORY: the 2026-07-16 re-grant connected a2_iq3fdsq6rem5 (Cloudflare) but mapped it
+    # client_slug='resetdata', leaking Cloudflare's Apr-Jun CLOUD_ACQ_* delivery into the
+    # ResetData dashboard, AND deleted ResetData's real Feb-Jun rows (a2_igd0szmw7roq) as a
+    # presumed under-scoped duplicate (ResetData is simply ~1/10th Cloudflare's Reddit spend).
+    # Fixed 2026-08-05: Cloudflare rows retagged + ResetData history re-backfilled via a
+    # fixed-range --force re-pull (the MERGE re-stamps client_slug on matched keys). Before
+    # mapping ANY new opaque a2_... id, verify its account_name against the Windsor API first.
 }
 
 # Fallback keyword match on account name / campaign (same dict as the other loaders -- keep in
