@@ -1554,6 +1554,44 @@ def _build_cf_cs_checks(defs):
     ]
 
 
+def _build_mdb_scope_check(bq):
+    """mongodb's paid-media CAMPAIGN SCOPE PIN check (2026-08-05), built at runtime from the LIVE
+    seed table (client_mongodb.seed_campaign_ids <- targets/campaign_ids.csv, the committed mirror
+    of Transmission's campaign-reference sheet — the same single source of truth stg_tradedesk and
+    stg_linkedin scope on, so the list is never duplicated here). The Snowflake side counts ANY
+    MongoDB advertiser delivery whose NORMALISED campaign name (brief prefix stripped, both name
+    forms fold together) is outside the seeded set; the dash side is the constant 0 — so any
+    unseeded delivery turns the check red instead of silently vanishing from the dashboard.
+    Non-circular by design: the SQL scopes on ADVERTISER_NAME only, never the view's own filter.
+    (LinkedIn's twin lives in the export job's scope-pin audit — its raw layer is Windsor/BQ,
+    which this Snowflake-engine client card can't query.)"""
+    names = sorted({r["n"] for r in bq.query(
+        "SELECT DISTINCT REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '') AS n "
+        "FROM `bidbrain-analytics.client_mongodb.seed_campaign_ids` "
+        "WHERE PLATFORM = 'tradedesk'").result()})
+    if not names:
+        raise RuntimeError("seed_campaign_ids has no tradedesk rows")
+    in_list = ",\n         ".join("'" + n.replace("'", "''") + "'" for n in names)
+    return [{
+        "label": "Trade Desk · Delivery outside the seeded campaign scope",
+        "kind": "sum", "group": "Trade Desk",
+        "dash": lambda d: 0,
+        "sql": ("SELECT COALESCE(SUM(COALESCE(IMPRESSIONS, IMPRESSION)), 0) AS unseeded_imps\n"
+                "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                "WHERE ADVERTISER_NAME = 'MongoDB'\n"
+                "  AND REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), '^[0-9]+_', '') NOT IN (\n"
+                f"         {in_list});"),
+        "note": "MUST be 0. The dashboard pulls ONLY the campaigns in "
+                "clients/client_mongodb/targets/campaign_ids.csv (the committed mirror of the "
+                "campaign-reference sheet; seeded IDs 4l7ib47/baz7v1b/wmz7jza/37o75q3 = IDC, "
+                "q74u9xp/amaf13d/sf35fze/357odo1 = IDE). Red = a MongoDB TTD campaign is "
+                "delivering OUTSIDE that list (new campaign, or a rename broke the normalised-name "
+                "join) and is EXCLUDED from the dash: update the sheet + campaign_ids.csv, re-run "
+                "seed_static.py, force mongodb-export. The IN-list is generated from the live seed "
+                "table each tick — never hand-edit it here.",
+    }]
+
+
 def _snowflake_key_bytes():
     """Snowflake private key (PEM) as bytes. Cloud Run injects SNOWFLAKE_KEY
     (--set-secrets); locally it falls back to Secret Manager via ADC. Mirrors
@@ -1727,6 +1765,17 @@ def main():
             spec["checks"] = list(spec["checks"]) + _build_cf_cs_checks(read_definitions(dkey))
         except Exception as e:   # noqa: BLE001 - never let a missing/bad doc abort the whole run
             print(f"  [{spec['client']}] definitions load failed — CS checks skipped: {e}")
+
+    # mongodb's campaign scope-pin check, built from the live seed_campaign_ids table (the
+    # committed campaign_ids.csv mirror of the campaign-reference sheet). Same splice-don't-die
+    # contract as the definitions checks above.
+    for spec in CLIENTS:
+        if spec["client"] != "mongodb":
+            continue
+        try:
+            spec["checks"] = list(spec["checks"]) + _build_mdb_scope_check(bq)
+        except Exception as e:   # noqa: BLE001
+            print(f"  [mongodb] seed_campaign_ids load failed — scope check skipped: {e}")
 
     # Previous status.json -> carry forward gated accuracy numbers when a client's
     # Snowflake source hasn't advanced (avoids resuming the warehouse needlessly).

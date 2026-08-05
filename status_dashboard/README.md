@@ -27,6 +27,13 @@ definitions from the platform's Data Accuracy tab changes BOTH the dashboard (vi
 check. "Make this live" triggers the **`status-deploy`** job (`status_dashboard/deploy/`, SA
 `status-deploy@`) — the privileged worker that applies a staged edit and re-runs the affected export jobs.
 
+mongodb's *"Trade Desk · Delivery outside the seeded campaign scope"* check is built the same
+runtime-splice way (`_build_mdb_scope_check`), but from the LIVE BigQuery seed table
+`client_mongodb.seed_campaign_ids` (the committed `targets/campaign_ids.csv` mirror of Transmission's
+campaign-reference sheet). It must read **0**: any MongoDB advertiser delivery whose normalised campaign
+name is outside the seeded set turns it red (a campaign is live that the sheet/CSV doesn't know about,
+and it is EXCLUDED from the dashboard until the seed is updated).
+
 ## How it decides who's to blame
 
 For each client the export job probes three stages and compares them:

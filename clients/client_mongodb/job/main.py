@@ -163,6 +163,39 @@ def main():
     except Exception as e:
         print(f"linkedin views unavailable -> skipping LinkedIn block: {e}")
 
+    # --- Campaign scope-pin audit (2026-08-05). seed_campaign_ids (targets/campaign_ids.csv,
+    # the committed mirror of Transmission's campaign-reference sheet) is the paid-media scope:
+    # stg_tradedesk / stg_linkedin EXCLUDE anything outside it, so excluded delivery must be
+    # made loud here (the status dashboard's runtime-built scope-drift check reds on the TTD
+    # side too). A WARNING here = a campaign is live that the sheet/CSV doesn't know about:
+    # update the sheet + targets/campaign_ids.csv, re-run seed_static.py, force this job.
+    try:
+        drift = rows(bq, f"""
+            SELECT 'tradedesk' AS platform, CAMPAIGN_NAME AS name,
+                   SUM(CAST(COALESCE(IMPRESSIONS, IMPRESSION) AS INT64)) AS imps
+            FROM `{PROJECT}.raw_snowflake.tradedesk_apac_all`
+            WHERE ADVERTISER_NAME = 'MongoDB'
+              AND REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '') NOT IN (
+                    SELECT REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '')
+                    FROM {t('seed_campaign_ids')} WHERE PLATFORM = 'tradedesk')
+            GROUP BY name
+            UNION ALL
+            SELECT 'linkedin', CONCAT(campaign_name, ' (id ', campaign_id, ')'), SUM(impressions)
+            FROM `{PROJECT}.raw_windsor.perf_linkedin`
+            WHERE UPPER(campaign_name) LIKE 'MONGODB%'
+              AND TRIM(campaign_id) NOT IN (
+                    SELECT TRIM(CAMPAIGN_ID) FROM {t('seed_campaign_ids')}
+                    WHERE PLATFORM = 'linkedin')
+            GROUP BY 2""")
+        for d in drift:
+            print(f"WARNING: unseeded {d['platform']} campaign EXCLUDED from the dash: "
+                  f"{d['name']} ({d['imps']} imps) -> update the reference sheet + "
+                  f"targets/campaign_ids.csv, re-run seed_static.py")
+        if not drift:
+            print("campaign scope pin: all observed MongoDB delivery is inside seed_campaign_ids")
+    except Exception as e:
+        print(f"scope-pin audit failed (non-fatal): {e}")
+
     env = {
         "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         # `data_through` reflects the LIVE ad/lead mirrors only — never the static pixel

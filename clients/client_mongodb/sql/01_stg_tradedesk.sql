@@ -1,27 +1,32 @@
--- stg_tradedesk: MongoDB's Trade Desk slice + the campaign-name parsing.
+-- stg_tradedesk: MongoDB's Trade Desk slice, SCOPE-PINNED to seed_campaign_ids.
 --
--- 2026-08-04 - BRIEF-NUMBER PREFIX FIX (this was the OPEN DEFECT recorded in AGENTS.md).
--- On ~2026-07-06 the campaigns were renamed with a leading brief number ('2265_...'),
--- which shifts every underscore field one position. The FIXED offsets below then read
--- the wrong fields: PROGRAMME came back as '2026-Q2' and MARKET as 'DEMAND-GENERATION'.
--- Consequences, both silent:
---   * MARKET 'DEMAND-GENERATION' matches no market chip, so marketOk() dropped the rows
---     from every paid KPI, chart, CSV and AI deck - 1,394,967 imps / $11,906.04 of
---     2026-07-06..07-31 delivery.
---   * PROGRAMME '2026-Q2' contains neither 'IDE' nor 'DNB', so the dashboard's
---     campaignOf() ALSO mis-tagged those rows to KGA(IDC) instead of DNB.
--- FIX: strip the prefix once into CAMPAIGN_NAME_NORM / AD_GROUP_NAME_NORM and parse every
--- token off those. AD_GROUP_NAME was never renamed (so STRATEGY was unaffected), but it is
--- normalised too so the same rollout cannot break it later - verified a no-op on today's
--- data. Raw CAMPAIGN_NAME / AD_GROUP_NAME are still carried through for display.
--- See AGENTS.md "Campaign names are NOT stable keys" for the repo-wide rule.
+-- 2026-08-05 - CAMPAIGN SCOPE PIN. Scope + PROGRAMME/MARKET now come from
+-- client_mongodb.seed_campaign_ids (targets/campaign_ids.csv, the committed mirror of
+-- Transmission's campaign-reference sheet, which carries the TTD campaign IDs 4l7ib47 etc.).
+-- The delivery mirror (raw_snowflake.tradedesk_apac_all) has NO campaign-id column - names
+-- only - so the seed is joined on the NORMALISED campaign name (brief-number prefix stripped
+-- on BOTH sides; the same campaign exists under both '2265_MONGODB_...' and 'MONGODB_...'
+-- forms in the feed and both must land on one seed row). The join:
+--   * pins the dashboard to exactly the sheet's campaigns (an unseeded campaign is EXCLUDED,
+--     never silently included - the status dashboard's scope-drift check + this job's log
+--     warning surface it instead of the dash absorbing it);
+--   * carries CAMPAIGN_ID onto every row (the stable anchor names can't provide);
+--   * takes PROGRAMME (IDC/IDE) + MARKET from the seed, so a future rename can shift name
+--     tokens without silently re-tagging delivery (the 2026-08-04 '2265_' defect class).
+-- STRATEGY/OBJECTIVE stay name-parsed off the *_NORM fields (ad-group grain / cosmetic).
+--
+-- 2026-08-04 - BRIEF-NUMBER PREFIX FIX (kept): the fixed-offset SPLIT parsing broke when the
+-- '2265_' prefix landed ~2026-07-06 (PROGRAMME read '2026-Q2', MARKET 'DEMAND-GENERATION'),
+-- silently dropping 1,394,967 imps / $11,906.04 from every paid KPI and mis-tagging rows to
+-- KGA(IDC). See AGENTS.md "Campaign names are NOT stable keys" for the repo-wide rule.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_mongodb.stg_tradedesk` AS
-SELECT DAY, CAMPAIGN_NAME, AD_GROUP_NAME, CREATIVE_FORMAT, PUBLISHER,
-  IMPRESSIONS, COSTS, CLICKS, CONVERSIONS,
-  SPLIT(CAMPAIGN_NAME_NORM, "_")[SAFE_OFFSET(2)] AS PROGRAMME,
-  SPLIT(CAMPAIGN_NAME_NORM, "_")[SAFE_OFFSET(5)] AS MARKET,
-  SPLIT(AD_GROUP_NAME_NORM, "_")[SAFE_OFFSET(6)] AS STRATEGY,
-  SPLIT(CAMPAIGN_NAME_NORM, "_")[SAFE_OFFSET(4)] AS OBJECTIVE
+SELECT r.DAY, r.CAMPAIGN_NAME, r.AD_GROUP_NAME, r.CREATIVE_FORMAT, r.PUBLISHER,
+  r.IMPRESSIONS, r.COSTS, r.CLICKS, r.CONVERSIONS,
+  s.PROGRAMME,
+  s.MARKET,
+  SPLIT(r.AD_GROUP_NAME_NORM, "_")[SAFE_OFFSET(6)] AS STRATEGY,
+  SPLIT(r.CAMPAIGN_NAME_NORM, "_")[SAFE_OFFSET(4)] AS OBJECTIVE,
+  s.CAMPAIGN_ID
 FROM (
   -- Was client_mongodb.src_tradedesk (landed by the export job's TD_SQL).
   -- Now reads the shared raw mirror (snowflake_data_pull) and reproduces the
@@ -36,4 +41,10 @@ FROM (
          TOTAL_CLICK_PLUS_VIEW_CONVERSIONS AS CONVERSIONS
   FROM `bidbrain-analytics.raw_snowflake.tradedesk_apac_all`
   WHERE ADVERTISER_NAME = "MongoDB"
-)
+) r
+JOIN (
+  SELECT CAMPAIGN_ID, PROGRAMME, MARKET,
+         REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '') AS CAMPAIGN_NAME_NORM
+  FROM `bidbrain-analytics.client_mongodb.seed_campaign_ids`
+  WHERE PLATFORM = "tradedesk"
+) s USING (CAMPAIGN_NAME_NORM)
