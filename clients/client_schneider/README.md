@@ -87,11 +87,34 @@ sets are named `-ANZ-` with no country token, and LinkedIn has no ad-group colum
 Trade Desk does, so `sql/20`'s AU/NZ normalisation folds **100% of Microgrid delivery into Australia**.
 An AU/NZ split is not derivable from this feed - it needs country-specific campaign names.
 
+**Update 2026-08-05** (`sql/20_pm_delivery.sql` + `job/main.py` + `dash/dashboard.html` + `data/*.csv`):
+added **EcoConsult (brief 2279)** as an **8th program** — paid-only like NEL/Microgrid (real paid
+delivery, no Salesforce CS leads, renders **Paid Media only**). LinkedIn is the only channel (no TTD,
+no DV360): 6 ad sets in `SchneiderElectric_TransmissionSG_AUD` under 3 campaign groups
+(`2279_SE_EcoConsult_ECAA_2026_ANZ_{Awareness,Consideration,Conversion}`), **live since 2026-07-21**
+(through 08-04: 72,587 imps / 128 clicks / **A$2,859.49**). The delivering ad-set names are
+`2279_SE_EcoConsult_2026_ANZ_Persona{A-CSuite,B-Eng,BC-EngOps,C-Ops}_{Carousel,DocAd,SingleImg}` —
+`ecoconsult` was already row `seq=22` in `data/campaign_map.csv` and its `EcoConsult` token tags all 6
+first-match-wins with no collision (verified), so enabling it was the NEL two-liner: add `'ecoconsult'`
+to the `WHERE program IN (…)` in [`sql/20_pm_delivery.sql`](sql/20_pm_delivery.sql) and to
+`CS_PROGRAMS` in [`job/main.py`](job/main.py), plus a `PILLAR` entry ("Services & Consulting") in the
+dashboard. **`ECAA` + `2279_`** match_pattern tokens added — defensive, per the `heavy`/`2281_` lesson.
+**Targets are PENDING** — no signed media plan in the repo, so `data/media_plan.csv` carries a single
+LinkedIn Awareness line with blank targets (`data/plan_budget.csv` already had ecoconsult at A$30,000
+ex-fees from the Pacific intake, no flight dates) — its scorecard card reads 0 leads / 0 target and
+pace `-` until the plan lands (fill the CSVs, re-run `load_seeds.py` + the job `FORCE_REBUILD=1`).
+**Market caveat (same as Microgrid):** every ad-set name is `_ANZ_` with no country token and LinkedIn
+has no ad-group fallback, so `sql/20` folds **100% of EcoConsult delivery into Australia**.
+**Lead-gen caveat:** 2 of the 3 groups are LinkedIn Lead Generation objective and lead-form leads are
+already landing in the raw (`LEADS` — 3 so far, on the Consideration DocAd), but they do NOT reach the
+dashboard: the CS lane is Salesforce-only (the `heavy` precedent). When SE provision a Salesforce
+campaign for EcoConsult, add its SF id to `salesforce_map` to light up the CS tabs.
+
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
   CS programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`) **+ `nel`** (New Energy
-  Landscape; added 2026-07-08) **+ `microgrid`** (brief 2040; added 2026-07-31) — the last two are
-  awareness-only, Paid-Media-tab-only, no CS leads.
+  Landscape; added 2026-07-08) **+ `microgrid`** (brief 2040; added 2026-07-31) **+ `ecoconsult`**
+  (brief 2279; added 2026-08-05) — the last three are paid-only, Paid-Media-tab-only, no CS leads.
 - **Programme** (the CS breakdown) = the Salesforce `pillar_label` (9), from `seed_salesforce_map`.
 - **Market / Region chips** = **Australia / New Zealand only** (no ANZ, no Other). CS leads are
   AU/NZ-native; paid delivery's AU/NZ split is resolved from **`AD_GROUP_NAME`** (then `CAMPAIGN_NAME`)
@@ -102,9 +125,9 @@ An AU/NZ split is not derivable from this feed - it needs country-specific campa
   `RM AirSeT – Retargeting – ANZ` LinkedIn line, ~$500) into **Australia** so it stays in the paid totals.
 - **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
   lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from `seed_plan_budget`.
-- **Scoped to the 7:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel' +
-  'microgrid')`; the CS views read only the 9 SF ids via `seed_salesforce_map` (NEL and Microgrid have
-  none, so they never appear in the CS tabs). The old Pacific `portfolio` toggle and the other ~20 APAC programs
+- **Scoped to the 8:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel' +
+  'microgrid' + 'ecoconsult')`; the CS views read only the 9 SF ids via `seed_salesforce_map` (NEL,
+  Microgrid and EcoConsult have none, so they never appear in the CS tabs). The old Pacific `portfolio` toggle and the other ~20 APAC programs
   are **gone from the dashboard** — the seed tables still carry them for the `match_pattern` tagging.
   (Historical Pacific-carve-out EDA: [`_eda/pacific_eda.md`](_eda/pacific_eda.md).)
 
@@ -198,7 +221,7 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `data/*.csv` (version-controlled — tracked via `.gitignore` `!` exceptions) → re-run `load_seeds.py` | 2 |
 | Other seeds (plan_flighting / channel_split / salesforce_map) | `data/*.csv` → `load_seeds.py` (NB: currently BQ-only, no committed CSV) | 2 |
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
-| Which programs are in scope (the 5 CS programs + `nel` + `microgrid`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
+| Which programs are in scope (the 5 CS programs + `nel` + `microgrid` + `ecoconsult`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
 | Login / how JSON is served | `dash/main.py` (rarely) | 3 |

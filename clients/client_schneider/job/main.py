@@ -45,9 +45,12 @@ BUCKET = f"bidbrain-analytics-{CLIENT}-dash"
 DATA_OBJECT = f"{CLIENT}.json"
 
 # The programs the dashboard surfaces: the 5 Content-Syndication programs (== the distinct internal
-# ids in seed_salesforce_map) + NEL and Microgrid, awareness-only programs that have paid delivery but
-# no CS leads (render Paid Media only, like global_rebrand). Drives the Campaign dropdown + scorecard.
-CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel", "microgrid"]
+# ids in seed_salesforce_map) + NEL, Microgrid and EcoConsult, paid-only programs that have delivery
+# but no Salesforce CS leads (render Paid Media only, like global_rebrand). Drives the Campaign
+# dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the dashboard until
+# SE provision a Salesforce campaign for it — the CS lane is Salesforce-only, same as heavy.)
+CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel", "microgrid",
+               "ecoconsult"]
 
 
 def num(v):
