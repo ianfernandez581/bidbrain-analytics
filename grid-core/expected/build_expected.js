@@ -38,15 +38,68 @@ const client = val(plan.client) || 'Unknown client';
 const job = val(plan.job_number) || 'unknown-job';
 const campaignName = val(plan.campaign_name) || 'Unknown campaign';
 const currency = val(plan.currency) || 'UNKNOWN';
-const flightStartS = val(plan.flight_start);
-const flightEndS = val(plan.flight_end);
-const FLIGHT_START = parseDate(flightStartS);
-const FLIGHT_END = parseDate(flightEndS);
+
+// ------------------------------------------------- flight window (ladder)
+// All three rungs are deterministic - no guessing:
+//   1. the extractor's resolved plan-level values (as always);
+//   2. min/max of the campaign lines' OWN cited dates;
+//   3. an endpoint whose candidate list holds exactly ONE distinct parseable
+//      date adopts it - and the assumption is written into findings.json so
+//      it shows as a visible gap, never silently.
+// Only when all three fail is the baseline blocked (exit 3): at that point
+// any window would be an invention.
+let flightStartS = val(plan.flight_start);
+let flightEndS = val(plan.flight_end);
+let FLIGHT_START = parseDate(flightStartS);
+let FLIGHT_END = parseDate(flightEndS);
+let flightNote = null;
 if (FLIGHT_START == null || FLIGHT_END == null || FLIGHT_END < FLIGHT_START) {
-  console.error('[build] BLOCKED: flight dates unresolved in plan.json (start=' + flightStartS + ', end=' + flightEndS + '). The extractor recorded the conflict; resolve it before a baseline can exist.');
-  process.exit(3);
+  const starts = (plan.campaigns || []).map((c) => parseDate(c.start)).filter((x) => x != null);
+  const ends = (plan.campaigns || []).map((c) => parseDate(c.end)).filter((x) => x != null);
+  const soleCandidate = (node) => {
+    const vals = [...new Set(((node && node.candidates) || []).map((c) => c.value).filter((v) => parseDate(v) != null))];
+    return vals.length === 1 ? vals[0] : null;
+  };
+  if (starts.length && ends.length && Math.max(...ends) >= Math.min(...starts)) {
+    FLIGHT_START = Math.min(...starts);
+    FLIGHT_END = Math.max(...ends);
+    flightNote = 'derived from the campaign lines\' own dates - the plan never states a resolved overall flight';
+  } else {
+    const s = FLIGHT_START != null ? flightStartS : soleCandidate(plan.flight_start);
+    const e = FLIGHT_END != null ? flightEndS : soleCandidate(plan.flight_end);
+    if (parseDate(s) != null && parseDate(e) != null && parseDate(e) >= parseDate(s)) {
+      FLIGHT_START = parseDate(s);
+      FLIGHT_END = parseDate(e);
+      flightNote = 'assumed from the only dated candidate the dump contains for each endpoint - confirm with the client';
+    }
+  }
+  if (flightNote) {
+    flightStartS = iso(FLIGHT_START);
+    flightEndS = iso(FLIGHT_END);
+    console.log(`[build] flight window ${flightStartS}..${flightEndS} (${flightNote})`);
+  } else {
+    console.error('[build] BLOCKED: flight dates unresolved in plan.json (start=' + flightStartS + ', end=' + flightEndS + '), no campaign line carries its own dates, and the recorded candidates do not single out one date per endpoint. Resolve the dates (plan revision or client confirmation) and rerun.');
+    process.exit(3);
+  }
 }
 const TOTAL_DAYS = Math.round((FLIGHT_END - FLIGHT_START) / DAY_MS) + 1;
+
+// A ladder-resolved window is a real finding: make it impossible to miss.
+if (flightNote) {
+  findingsDoc.findings = findingsDoc.findings || [];
+  findingsDoc.findings.unshift({
+    severity: 'gap',
+    stage: 'Media Plan Approved',
+    chip: 'ASSUMED FLIGHT',
+    title: `Baseline flight ${flightStartS} to ${flightEndS} is not a resolved plan value`,
+    detail: `The dump never resolves the overall flight window; the baseline window was ${flightNote}. If the real dates differ, every daily expected value shifts - confirm before relying on pacing.`,
+    source: 'build_expected.js flight-window ladder',
+    origin: 'code',
+  });
+  findingsDoc.origins = findingsDoc.origins || {};
+  findingsDoc.origins.code = (findingsDoc.origins.code || 0) + 1;
+  fs.writeFileSync(path.join(OUT, 'findings.json'), JSON.stringify(findingsDoc, null, 2));
+}
 
 // ---------------------------------------------------------------- rows
 const usable = [];
@@ -110,7 +163,7 @@ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
   ['Campaign', campaignName],
   ['Job', job],
   ['Currency', currency],
-  ['Flight', `${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days inclusive)`],
+  ['Flight', `${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days inclusive${flightNote ? '; ' + flightNote : ''})`],
   ['Campaign budgets sum', TOTAL_SPEND],
   ['Stated plan total', val(plan.total_budget) != null ? val(plan.total_budget) : 'not stated'],
   ['Curve', 'flat (no source specified a weighted curve)'],

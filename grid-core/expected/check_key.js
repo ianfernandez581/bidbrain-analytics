@@ -9,8 +9,8 @@ const path = require('path');
 const envPath = path.join(__dirname, '..', '.env');
 if (!process.env.ANTHROPIC_API_KEY && fs.existsSync(envPath)) {
   for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-    const m = /^\s*ANTHROPIC_API_KEY\s*=\s*(.*)\s*$/.exec(line);
-    if (m) process.env.ANTHROPIC_API_KEY = m[1].replace(/^["']|["']$/g, '');
+    const m = /^\s*(ANTHROPIC_API_KEY|ANTHROPIC_BASE_URL|EXPECTED_MODEL)\s*=\s*(.*)\s*$/.exec(line);
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '');
   }
 }
 const key = process.env.ANTHROPIC_API_KEY || '';
@@ -18,7 +18,10 @@ if (!key) {
   console.log('NO KEY: nothing in the environment or grid-core/.env');
   process.exit(2);
 }
-console.log(`probing key: prefix=${key.slice(0, 10)}... len=${key.length}`);
+// Probe whatever provider .env points at (ANTHROPIC_BASE_URL may route to a
+// Claude-compatible endpoint, e.g. Kimi's api.kimi.com/coding).
+const model = process.env.EXPECTED_MODEL || 'claude-haiku-4-5';
+console.log(`probing key: prefix=${key.slice(0, 10)}... len=${key.length} base=${process.env.ANTHROPIC_BASE_URL || 'api.anthropic.com'} model=${model}`);
 
 const Anthropic = require('@anthropic-ai/sdk');
 const client = new Anthropic({ maxRetries: 0 });
@@ -27,8 +30,8 @@ const client = new Anthropic({ maxRetries: 0 });
 // while the HTTP client still holds handles trips a libuv teardown assertion
 // on Node/Windows and corrupts the exit code even on success.
 client.messages.create({
-  model: 'claude-haiku-4-5',
-  max_tokens: 1,
+  model,
+  max_tokens: 16,
   messages: [{ role: 'user', content: 'Say OK.' }],
 }).then((msg) => {
   console.log(`KEY OK: call succeeded on ${msg.model} (this key is funded and usable)`);

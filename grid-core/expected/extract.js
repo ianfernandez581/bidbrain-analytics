@@ -9,7 +9,10 @@
 // model work, tagged origin "model"; all arithmetic checks run in validate.js.
 //
 // Usage: node extract.js [--files <dir>]   (default dir: ../files)
-// Env: ANTHROPIC_API_KEY (or grid-core/.env), EXPECTED_MODEL (default claude-opus-5)
+// Env: ANTHROPIC_API_KEY (or grid-core/.env), EXPECTED_MODEL (default claude-opus-5).
+// GREENLIGHT_API_KEY / GREENLIGHT_BASE_URL, when set, override the ANTHROPIC_*
+// pair for THIS stage only - lets Greenlight run on a different Claude-compatible
+// provider (e.g. Kimi) without moving the rest of the grid's model calls.
 'use strict';
 
 const fs = require('fs');
@@ -19,7 +22,7 @@ const { validate } = require('./validate');
 
 const ROOT = __dirname;
 const OUT = process.env.GREENLIGHT_OUT_DIR || path.join(ROOT, 'out');
-const MODEL = process.env.EXPECTED_MODEL || 'claude-opus-5';
+let MODEL = process.env.EXPECTED_MODEL || 'claude-opus-5'; // re-resolved in main() after loadDotEnv
 
 // ---- minimal .env loader (repo has no dotenv; grid-core/.env is gitignored)
 function loadDotEnv() {
@@ -316,8 +319,9 @@ async function main() {
   const argIdx = process.argv.indexOf('--files');
   const filesDir = argIdx > -1 ? process.argv[argIdx + 1] : path.join(ROOT, '..', 'files');
   loadDotEnv();
-  if (!process.env.ANTHROPIC_API_KEY) {
-    console.error('[extract] BLOCKED: no ANTHROPIC_API_KEY in the environment or grid-core/.env');
+  MODEL = process.env.EXPECTED_MODEL || MODEL; // .env may have supplied it just now
+  if (!process.env.GREENLIGHT_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+    console.error('[extract] BLOCKED: no GREENLIGHT_API_KEY or ANTHROPIC_API_KEY in the environment or grid-core/.env');
     process.exit(2);
   }
 
@@ -331,7 +335,13 @@ async function main() {
   // Generous retries: this is one large request (~125K input tokens), so a
   // tier rate-limit window needs patience, not a fast fail. The SDK honors
   // retry-after on 429 and backs off on 5xx/529.
-  const client = new Anthropic({ maxRetries: 6 });
+  // GREENLIGHT_* wins over ANTHROPIC_* so this stage can bill a different
+  // provider (Kimi subscription) while Brain/plan-reader keep the Anthropic key.
+  const client = new Anthropic({
+    maxRetries: 6,
+    apiKey: process.env.GREENLIGHT_API_KEY || process.env.ANTHROPIC_API_KEY,
+    baseURL: process.env.GREENLIGHT_BASE_URL || process.env.ANTHROPIC_BASE_URL || undefined,
+  });
   console.log(`[stage] model-start model=${MODEL}`);
   const raw = await callClaude(client, bundleText);
   const result = sanitize(raw);

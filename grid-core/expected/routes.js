@@ -57,7 +57,11 @@ function readBody(req, cap) {
 }
 
 // ---------------------------------------------------------------- run engine
-function startRun(analysisId, inputDir, filesHash) {
+// opts.resume: skip the model call and rebuild outputs from the analysis's
+// saved last extraction (store.saveExtract slot) - the "retry the failed
+// step" path. The extract stages render as done immediately.
+function startRun(analysisId, inputDir, filesHash, opts) {
+  opts = opts || {};
   const id = crypto.randomBytes(6).toString('hex');
   const run = {
     id,
@@ -92,23 +96,8 @@ function startRun(analysisId, inputDir, filesHash) {
   // synchronous; the real fix is a background job once Greenlight sees
   // real traffic. Deliberately not built yet.
   const env = { ...process.env, GREENLIGHT_OUT_DIR: OUT };
-  const ex = spawn(process.execPath, [path.join(ROOT, 'extract.js'), '--files', inputDir], { cwd: ROOT, env });
-  let exErr = '';
-  let exOut = '';
-  ex.stderr.on('data', (d) => { exErr += d; });
-  ex.stdout.on('data', (d) => {
-    exOut += d;
-    const s = String(d);
-    if (s.includes('[stage] preprocess-done')) { stage('extract', 'done'); stage('plan', 'active'); }
-    if (s.includes('[stage] model-done')) { stage('plan', 'done'); stage('gaps', 'active'); }
-    if (s.includes('[stage] validate-done')) { stage('gaps', 'done'); }
-  });
-  ex.on('error', (e) => fail(String(e.message || e)));
-  ex.on('close', (code) => {
-    if (run.status === 'error') return;
-    if (code === 2) return fail('No ANTHROPIC_API_KEY available. Locally: grid-core/.env. Deployed: the anthropic-api-key secret binding (see expected/README.md).');
-    if (code !== 0) return fail(`extract.js exited ${code}\n${(exErr || exOut).slice(-1500)}`);
 
+  const runBuild = () => {
     stage('outputs', 'active');
     const b = spawn(process.execPath, [path.join(ROOT, 'build_expected.js')], { cwd: ROOT, env });
     let bErr = '';
@@ -157,6 +146,41 @@ function startRun(analysisId, inputDir, filesHash) {
         fail(String(e.message || e));
       }
     });
+  };
+
+  if (opts.resume) {
+    // Build-only rerun: restore the saved extraction (no model call).
+    store.loadExtract(analysisId, OUT).then((meta) => {
+      if (run.status === 'error') return;
+      if (!meta) return fail('no saved extraction to reuse - run the full analysis');
+      ['extract', 'plan', 'gaps'].forEach((k) => stage(k, 'done'));
+      runBuild();
+    }).catch((e) => fail(String(e.message || e)));
+    return id;
+  }
+
+  const ex = spawn(process.execPath, [path.join(ROOT, 'extract.js'), '--files', inputDir], { cwd: ROOT, env });
+  let exErr = '';
+  let exOut = '';
+  ex.stderr.on('data', (d) => { exErr += d; });
+  ex.stdout.on('data', (d) => {
+    exOut += d;
+    const s = String(d);
+    if (s.includes('[stage] preprocess-done')) { stage('extract', 'done'); stage('plan', 'active'); }
+    if (s.includes('[stage] model-done')) { stage('plan', 'done'); stage('gaps', 'active'); }
+    if (s.includes('[stage] validate-done')) { stage('gaps', 'done'); }
+  });
+  ex.on('error', (e) => fail(String(e.message || e)));
+  ex.on('close', (code) => {
+    if (run.status === 'error') return;
+    if (code === 2) return fail('No API key available (GREENLIGHT_API_KEY or ANTHROPIC_API_KEY). Locally: grid-core/.env. Deployed: the kimi-api-key / anthropic-api-key secret bindings (see expected/README.md).');
+    if (code !== 0) return fail(`extract.js exited ${code}\n${(exErr || exOut).slice(-1500)}`);
+
+    // The model call is paid for - save its output BEFORE building, so a
+    // build failure can be retried via /rebuild without another extraction.
+    store.saveExtract(analysisId, OUT, filesHash)
+      .catch((e) => console.error('[greenlight] saveExtract failed (rebuild will need a full run):', e.message))
+      .then(() => { if (run.status !== 'error') runBuild(); });
   });
   return id;
 }
@@ -244,6 +268,24 @@ async function handle(req, res, url, prefix) {
       return true;
     }
     send(res, 200, { runId: startRun(m[1], store.aFilesDir(m[1]), hash) });
+    return true;
+  }
+
+  // ---- rebuild outputs only (retry the failed step; reuses the saved
+  //      extraction, so it costs no model call) ----
+  if ((m = /^\/analyses\/([a-f0-9]+)\/rebuild$/.exec(sub)) && req.method === 'POST') {
+    await readBody(req).catch(() => ({}));
+    const a = store.analysisDetail(m[1]);
+    if (!a) { send(res, 404, { error: 'unknown analysis' }); return true; }
+    if (anyRunning()) { send(res, 409, { error: 'a run is already in progress' }); return true; }
+    const meta = await store.extractMeta(m[1]);
+    if (!meta) { send(res, 409, { error: 'no saved extraction for this analysis - run the full analysis' }); return true; }
+    const hash = store.filesHash(m[1]);
+    if (meta.files_hash && hash && meta.files_hash !== hash) {
+      send(res, 409, { error: 'files changed since the last extraction - run the full analysis so the model sees the new files' });
+      return true;
+    }
+    send(res, 200, { runId: startRun(m[1], store.aFilesDir(m[1]), hash, { resume: true }) });
     return true;
   }
 

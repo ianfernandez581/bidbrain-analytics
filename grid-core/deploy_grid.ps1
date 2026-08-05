@@ -63,6 +63,14 @@ gcloud builds submit $GRID_DIR --tag $IMG --region $REGION --project $PROJECT; M
 $RUNTIME_SA = "516554645957-compute@developer.gserviceaccount.com"
 gcloud secrets add-iam-policy-binding anthropic-api-key --member="serviceAccount:$RUNTIME_SA" `
     --role="roles/secretmanager.secretAccessor" --project $PROJECT *> $null
+# Greenlight ONLY runs on the Kimi Code subscription key (kimi-api-key secret,
+# Charles's kimi.com plan) via the GREENLIGHT_* env pair - extract.js prefers
+# GREENLIGHT_API_KEY/GREENLIGHT_BASE_URL over ANTHROPIC_*, so Brain/plan-reader
+# stay on the Anthropic key above. To revert Greenlight to Anthropic:
+#   gcloud run services update central-grid --region australia-southeast1 `
+#     --remove-env-vars GREENLIGHT_BASE_URL,EXPECTED_MODEL --remove-secrets GREENLIGHT_API_KEY
+gcloud secrets add-iam-policy-binding kimi-api-key --member="serviceAccount:$RUNTIME_SA" `
+    --role="roles/secretmanager.secretAccessor" --project $PROJECT *> $null
 
 # Greenlight analyses (per-campaign file dumps + run history) mirror to GCS so
 # the library survives Cloud Run cold starts (/tmp does not). Idempotent.
@@ -84,8 +92,8 @@ Write-Host "Updating Cloud Run service $SERVICE (image swap + state bucket + sec
 # (--timeout 600 because the extraction call runs ~320s synchronously in the
 # request; Cloud Run's default 300s would cut it off. TODO: background job.)
 gcloud run services update $SERVICE --image $IMG --region $REGION --project $PROJECT `
-    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET,GREENLIGHT_BUCKET=$DUMPS_BUCKET" `
-    --update-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest"; Must "update grid service"
+    --update-env-vars "GRID_STATE_BUCKET=$STATE_BUCKET,GREENLIGHT_BUCKET=$DUMPS_BUCKET,GREENLIGHT_BASE_URL=https://api.kimi.com/coding,EXPECTED_MODEL=kimi-for-coding" `
+    --update-secrets "ANTHROPIC_API_KEY=anthropic-api-key:latest,GREENLIGHT_API_KEY=kimi-api-key:latest"; Must "update grid service"
 
 $URL = (gcloud run services describe $SERVICE --region $REGION --project $PROJECT --format "value(status.url)")
 Write-Host ""

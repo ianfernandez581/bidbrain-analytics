@@ -7,9 +7,11 @@ The data + calculation core for **The Grid**. This is the layer that turns
 a nav tab (after Executive, feature-flagged by GREENLIGHT_ENABLED, default off)
 that turns a campaign file dump into the daily expected KPI baseline (xlsx +
 json), a pacing page with an actuals join hook, a readiness flowchart, and a
-gaps report with chase drafts. One Claude call per run (~USD 1.40); key from
-the anthropic-api-key secret in prod, grid-core/.env locally. See
-`expected/README.md`. First campaign: Schneider NEL Job 2053.
+gaps report with chase drafts. One model call per run - on the Kimi Code
+subscription since 2026-08-05 (kimi-api-key secret -> GREENLIGHT_API_KEY +
+GREENLIGHT_BASE_URL, scoped to this stage only; Brain/plan-reader stay on the
+anthropic-api-key secret), grid-core/.env locally. See `expected/README.md`.
+First campaign: Schneider NEL Job 2053.
 
 **ONE SPINE (Phase 1, 2026-07-22):** Pulse and Central read the live
 SQLite `campaigns` table (via `GET /api/central/campaigns`) and compute every
