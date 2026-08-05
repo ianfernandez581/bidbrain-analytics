@@ -8,6 +8,8 @@
 -- Editing them is a one-place change (definitions.json) that reloads the seed tables — this view's
 -- structure never changes. The 13 IDs: 6 El* + 2 N* (2026-06-10) + 4 P* Modernize (2026-06-17)
 -- + 1 W* (701RG00001W1FQRYA3, 2026-07-10 — Q3 ANZ VSRM Lead Magnet, Tier 3; PUBLISHER/OFFER 'Unknown').
+-- The 4 P* campaigns are Q2-ONLY since 2026-08-05: their leads created on/after 2026-07-01 are
+-- excluded (replacement leads were polluting Q3 - see the WHERE clause + definitions.json).
 --
 -- REGION_GRP = the COARSE 7 markets + a residual OTHER (2026-07-07 grain; rolled back UP from the
 -- 2026-06-25 11-chip split at the client's request -- see the Jade call). The country match is
@@ -91,4 +93,14 @@ WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudfl
   -- >=2 test leads each, all on Transmission emails (Nabeel/Shalvi/Jade). They inflate the
   -- rejection rate and every count, so drop any lead whose email DOMAIN contains 'transmission'
   -- (covers transmission.com / transmissionagency.com / any Transmission variant). Real leads keep.
-  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%';
+  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%'
+  -- Q2-ONLY campaigns (2026-08-05, client request): the 4 P* Surround-ABM/Modernize campaigns are
+  -- Q2 campaigns that still receive REPLACEMENT leads for rejected Q2 leads; the replacements
+  -- carry Q3 created dates (DAY) and were surfacing on the Q3 side of the dashboard. Their leads
+  -- count ONLY when created before Q3 - on/after the cutoff they are excluded EVERYWHERE (Q3 view,
+  -- QoQ, pacing). The ids stay in seed_cs_campaign_ids so Q2 history is untouched. Seed-driven ids
+  -- (seed_cs_q2_only_campaign_ids <- definitions.json cs_q2_only_campaigns); the 2026-07-01 cutoff
+  -- is mirrored from definitions.json (low-churn literal, like the geographic CASE arms - change
+  -- both together). The status verifier applies the SAME cap, built from the same file.
+  AND NOT (DAY >= DATE '2026-07-01'
+           AND CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cs_q2_only_campaign_ids`));

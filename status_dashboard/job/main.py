@@ -1413,7 +1413,9 @@ def _cf_cs_cte(defs):
     byte-equivalent to sql/10: country match is case-normalised (UPPER(TRIM)), KR = Korea in the 6
     El* campaigns (2026-07-02, seed_kr_campaign_ids), and the geographic arms are the 11-market grain.
     RIG then KR are evaluated BEFORE the geographic buckets; the geographic arms follow in declared
-    order. REGION_GRP='OTHER' (the ELSE) now holds Korea leads outside the 6 KR campaigns."""
+    order. REGION_GRP='OTHER' (the ELSE) now holds Korea leads outside the 6 KR campaigns.
+    2026-08-05: also applies the cs_q2_only_campaigns date cap (Q2 campaigns whose replacement
+    leads carry Q3 created dates - mirrored from sql/10's WHERE)."""
     def esc(s):
         return str(s).replace("'", "''")
     def upinlist(vals):   # uppercased in-list to match sql/10's UPPER(TRIM(COUNTRY_NAME))
@@ -1431,12 +1433,21 @@ def _cf_cs_cte(defs):
         if region_name.startswith("_"):
             continue
         arms.append("          WHEN UPPER(TRIM(COUNTRY_NAME)) IN (%s) THEN '%s'" % (upinlist(countries), region_name))
+    # Q2-ONLY campaign cap (2026-08-05): definitions.cs_q2_only_campaigns lists Q2 campaigns whose
+    # replacement leads carry Q3 created dates; sql/10 excludes their leads with DAY >= cutoff, so
+    # this check SQL must apply the SAME cap or every CS count would read above the dash (a false
+    # mismatch). Guarded: an older live definitions doc without the key changes nothing.
+    q2only = defs.get("cs_q2_only_campaigns") or {}
+    cap = ""
+    if q2only.get("campaigns"):
+        cap = "\n  AND NOT (DAY >= DATE '%s' AND CAMPAIGN_ID IN (%s))" % (
+            esc(q2only["cutoff"]), _sql_inlist([c["id"] for c in q2only["campaigns"]]))
     return ("WITH cf_cs AS (\n"
             "  SELECT LEAD_STATUS,\n"
             "    CASE\n" + "\n".join(arms) + "\n          ELSE 'OTHER'\n    END AS REGION_GRP\n"
             "  FROM " + src + "\n"
             "  WHERE CAMPAIGN_ID IN (" + _sql_inlist(cs_ids) + ")"
-            + _CF_TEST_LEAD_FILTER + "\n"
+            + _CF_TEST_LEAD_FILTER + cap + "\n"
             ")\n")
 
 

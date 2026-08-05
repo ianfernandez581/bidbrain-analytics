@@ -210,6 +210,22 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   labels (`renderProgress` / `renderLeadsTarget` / by-region summary / date-scope banner). The QoQ tab
   gained a caveat line ("Q3 campaigns launched late, so QTD reads light — timing, not a data issue").
 
+### Q2-only campaigns - the 4 P* Surround-ABM/Modernize ids capped at Q2 (2026-08-05)
+
+Client request (via Transmission): the 4 P* campaigns (`701RG00001PXLpxYAH` / `701RG00001PXHnzYAH`
+Roverpath Modernize Applications, `701RG00001PXNyDYAX` / `701RG00001PWX5gYAH` Final Funnel ABM
+Modernize Security) are **Q2 campaigns that still receive REPLACEMENT leads** for rejected Q2 leads.
+Replacements land with **Q3 created dates** (`DAY`), and since the dashboard buckets quarters by
+created date they were surfacing on the Q3 side. Fix: a **date cap, not removal** - the ids stay in
+`cs_campaigns` (Q2 history untouched), but a new `definitions.json` block **`cs_q2_only_campaigns`**
+(cutoff `2026-07-01`) seeds `seed_cs_q2_only_campaign_ids`, and `sql/10`'s WHERE excludes their leads
+with `DAY >= DATE '2026-07-01'` **everywhere** (CS Overview, QoQ Q3 side, pacing, lead table, CSV).
+The status verifier builds the SAME cap from the same file (`_cf_cs_cte` in
+`status_dashboard/job/main.py`), so the accuracy checks stay green. Caveats: replacement leads created
+on/after Jul 1 appear **nowhere** (they don't backfill Q2 - the quarter is still a created-date range),
+and the cutoff date is a mirrored literal in `sql/10` (change it in both files together). To lift the
+cap, empty the `campaigns` list in `cs_q2_only_campaigns` and re-run `definitions_seed.py`.
+
 ### Admin View (internal) - unprocessed leads + Source-ID filter (2026-07-10)
 
 The unprocessed/New leads removed above (client rule) are still viewable INTERNALLY via a role-gated
