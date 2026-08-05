@@ -434,11 +434,22 @@ ride along as plain form fields; both stored on the record, blank when not given
 
 ## Internal Notes + Internal Assistant (staff-only, on every dashboard — 2026-08-05)
 
-Every proxied dashboard carries a **staff-only widget**: two gold pills bottom-left — **"Internal
-Notes"** (the secret tab) and **"Assistant"** (the internal chatbot). It is injected by `proxy()`
-exactly like the feedback widget, but **only when `_internal_allowed(client)`** — session kind
-`superadmin` / `admin` / the client's **owning agency** (via `_may_open`). A **client session never
-receives a byte of it**, and a raw `<c>-dash` run.app URL never shows it (no proxy → no injection).
+Every proxied dashboard carries a **staff-only widget**: an **"Internal Notes" TAB** appended to
+the dashboard's own tab rail, plus an **"Assistant"** pill bottom-left (the internal chatbot). It
+is injected by `proxy()` exactly like the feedback widget, but **only when
+`_internal_allowed(client)`** — session kind `superadmin` / `admin` / the client's **owning
+agency** (via `_may_open`). A **client session never receives a byte of it**, and a raw `<c>-dash`
+run.app URL never shows it (no proxy → no injection).
+
+**How the tab works:** every dashboard marks up its rail as `.tabs > .tab`, so the script clones
+the rail's last `.tab` (native look for free), strips its `id`/`onclick`/`data-*`/`style` wiring,
+labels it "Internal Notes" and appends it. Its click handler runs in the **capture phase with
+`stopPropagation`** so host dashboards with DELEGATED rail listeners (resetdata/tlm read
+`e.target.dataset.tab`) never see the click; opening shows a full-screen overlay (`#bbin-ovl`)
+with the notes UI, and clicking any native tab / the backdrop / Esc / the X closes it. The active
+class is detected per dashboard (`active`/`on`/`selected`) and moved onto the injected tab while
+open. A MutationObserver re-appends the tab on rails that are REBUILT per render
+(schneider/schneiderlqai). Fallback when no rail exists: a floating "Internal Notes" pill.
 
 - **Internal Notes** — free-text team notes per dashboard, add/edit/delete straight from the panel.
   Storage = ONE private JSON per client, `gs://bidbrain-analytics-platform-dash/internal_notes/
