@@ -1,0 +1,537 @@
+{
+  "repo": "ianfernandez581/bidbrain-analytics",
+  "project_title": "Greenlight",
+  "labels": [
+    {
+      "name": "P0 Critical",
+      "color": "B60205",
+      "description": "Drop other work. Money, data loss, or a release blocker."
+    },
+    {
+      "name": "P1 High",
+      "color": "D93F0B",
+      "description": "Needed for the milestone. Schedule it deliberately."
+    },
+    {
+      "name": "P2 Medium",
+      "color": "FBCA04",
+      "description": "Real work, not urgent. Pull when a milestone has room."
+    },
+    {
+      "name": "P3 Low",
+      "color": "0E8A16",
+      "description": "Nice to have. Safe to carry across milestones."
+    },
+    {
+      "name": "feature",
+      "color": "1D76DB",
+      "description": "New capability that did not exist."
+    },
+    {
+      "name": "enhancement",
+      "color": "5DADE2",
+      "description": "Improves something that already works."
+    },
+    {
+      "name": "bug",
+      "color": "D73A4A",
+      "description": "Behaves incorrectly against a stated expectation."
+    },
+    {
+      "name": "refactor",
+      "color": "8E44AD",
+      "description": "Same behaviour, better structure."
+    },
+    {
+      "name": "testing",
+      "color": "0E8A16",
+      "description": "Tests, fixtures, or a quality gate."
+    },
+    {
+      "name": "documentation",
+      "color": "0075CA",
+      "description": "Docs, ADRs, runbooks."
+    },
+    {
+      "name": "task",
+      "color": "BFD4F2",
+      "description": "Operational work with a definite end."
+    },
+    {
+      "name": "area:grid-core",
+      "color": "C2E0C6",
+      "description": "grid-core/. Deploys via grid-core/deploy_grid.ps1."
+    },
+    {
+      "name": "area:ingest",
+      "color": "C2E0C6",
+      "description": "ingest/. Deploys via scripts/deploy_ingest_jobs.ps1."
+    },
+    {
+      "name": "area:ops-scripts",
+      "color": "C2E0C6",
+      "description": "scripts/ and repo policy. Deploys nothing."
+    },
+    {
+      "name": "area:docs",
+      "color": "C2E0C6",
+      "description": "Documentation only."
+    },
+    {
+      "name": "epic:greenlight-hardening",
+      "color": "E99695",
+      "description": "Make the shipped prototype production-safe."
+    },
+    {
+      "name": "epic:actual-side",
+      "color": "E99695",
+      "description": "Pacing vs API data: join BigQuery actuals."
+    },
+    {
+      "name": "epic:inputs-checklist",
+      "color": "E99695",
+      "description": "Conversations receiver, platform asset checklist, tuning."
+    },
+    {
+      "name": "epic:rollout",
+      "color": "E99695",
+      "description": "Second pilot, backfill, linkage, docs."
+    },
+    {
+      "name": "epic:adjacent-debt",
+      "color": "E99695",
+      "description": "Pre-existing defects the feature would otherwise inherit."
+    },
+    {
+      "name": "blocked",
+      "color": "000000",
+      "description": "Cannot proceed; blocker named in the issue."
+    },
+    {
+      "name": "needs-decision",
+      "color": "5319E7",
+      "description": "Waiting on a product or commercial call."
+    },
+    {
+      "name": "good-first-issue",
+      "color": "7057FF",
+      "description": "Small, well-bounded, low blast radius."
+    }
+  ],
+  "milestones": [
+    {
+      "title": "M1 Greenlight Hardening",
+      "due_on": "2026-08-11T23:59:59Z",
+      "description": "Make what shipped production-safe: background extraction, repo hygiene, CI, flag-on. Matches the meeting's 'build this week'. Done when: GREENLIGHT_ENABLED=true on the live service, extraction survives Cloud Run timeouts, no client raw material tracked in git, CI green."
+    },
+    {
+      "title": "M2 Actual Side - Pacing vs API Data",
+      "due_on": "2026-08-25T23:59:59Z",
+      "description": "Join daily BigQuery actuals into the pacing plan and light up the Pacing stage. The meeting's Output 2, second half. Done when: pacing.html draws expected vs actual lines for the NEL pilot; the Pacing stage shows a real on/behind/ahead verdict; unmatched delivery raises a finding."
+    },
+    {
+      "title": "M3 Inputs and Checklist",
+      "due_on": "2026-09-08T23:59:59Z",
+      "description": "Conversations receiver (Teams/Fathom), the per-platform required-vs-missing asset checklist, finding-to-source deep links, and the two known false-positive fixes. Done when: A Fathom transcript is a citable source; every platform on the plan shows required vs present assets; clicking a finding opens its source."
+    },
+    {
+      "title": "M4 Rollout and Docs",
+      "due_on": "2026-09-22T23:59:59Z",
+      "description": "Second pilot on a different agency's format, backfill across in-flight campaigns, Central linkage chip, docs current. Done when: Two pilots green in the regression gate, every in-flight campaign has an analysis, AGENTS.md and both READMEs describe reality."
+    }
+  ],
+  "issues": [
+    {
+      "backlog_id": "GL-01",
+      "title": "Move Greenlight extraction to a background job",
+      "body": "The extraction run executes ~320s synchronously inside the HTTP request (grid-core/expected/routes.js:89, marked TODO(background-job)). The deploy works around it with --timeout 600 on Cloud Run, so a slow model call or a bigger dump kills the run at the timeout and the buyer sees a dead request. Runs must start, detach, and be pollable.\n\n## Acceptance criteria\n\n- [ ] POST run returns immediately with a runId and status 'running'\n- [ ] The UI polls run status and renders progress; a page reload re-attaches to the running run\n- [ ] A run that dies (crash, restart) is marked failed, never left 'running' forever\n- [ ] The --timeout 600 crutch note in expected/README.md is removed once landed\n- [ ] Re-run guard (content-hash unchanged check) still works\n- [ ] Regression gate still passes end to end\n\n## Notes\n\nThe GCS mirror in store.js already makes run artifacts durable, so the job can write progress there. Keep the no-Express convention: server.js is plain node:http.\n\n**Suggested branch:** `feat/greenlight-background-run`\n\n*Backlog id GL-01 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P0 Critical",
+        "refactor",
+        "area:grid-core",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "ian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-02",
+      "title": "Purge committed client raw material and fix the ignore policy",
+      "body": "61MB of Schneider NEL raw client material is now tracked under grid-core/files/ (38 files, including a 49MB campaign PPTX and a 10MB creative workbook) while expected/README.md calls that directory 'local-only' and it is dockerignored. Separately, .gitignore:21 implements 'raw client exports, never committed' as clients/*/data/* only, so clients/*/raw_files/ and 'raw files/' bypass it; clients/client_resetdata/data/resetdata_reddit_febmar26.csv is tracked despite being matched by the rule; clients/client_vmch/VMCH_Campaign_Analysis.html (266KB of real client data) is dead code.\n\n## Acceptance criteria\n\n- [ ] grid-core/files/ is gitignored and its contents removed from tracking (git rm --cached); the regression dump stays on disk locally and in gs://bidbrain-campaign-dumps\n- [ ] test_regression.js documents where a fresh clone obtains the NEL dump\n- [ ] The ignore rule covers clients/*/raw_files/, clients/*/raw files/ and grid-core/files/\n- [ ] Existing tracked raw exports are removed or given explicit !exceptions with a reason\n- [ ] VMCH_Campaign_Analysis.html is deleted (its data was already ported into the dashboard)\n- [ ] A decision is recorded on whether committing client media plans is ever acceptable\n\n## Notes\n\nHistory is still shallow enough that removal is real: main history remains squash-merged WIP commits. Do this before the repo accumulates more; a 49MB PPTX in git also slows every clone.\n\n**Suggested branch:** `fix/purge-client-raw-material`\n\n*Backlog id GL-02 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P0 Critical",
+        "bug",
+        "area:ops-scripts",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "ian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-03",
+      "title": "Enable Greenlight on the live Grid (flag, secret, bucket, smoke run)",
+      "body": "Everything ships flag-off. Turning it on for real means: GREENLIGHT_ENABLED=true on central-grid, ANTHROPIC_API_KEY wired from Secret Manager (v2+ of the secret is the funded key; v1 is the old unfunded org key), GREENLIGHT_BUCKET pointed at gs://bidbrain-campaign-dumps, and a witnessed smoke run.\n\n## Acceptance criteria\n\n- [ ] gcloud run services update central-grid applies the flag, the secret (anthropic-api-key:latest resolving to the funded key) and the bucket env\n- [ ] The nav button appears at /d/central/ for super-admin and the /enabled probe answers true\n- [ ] A full upload-run-review cycle on the NEL analysis completes on the live service\n- [ ] The run library survives a forced cold start (GCS mirror proves itself in prod)\n- [ ] Cost of the smoke run is noted (~USD 1 expected per run)\n\n## Notes\n\nBlocked by GL-01 if the live run exceeds the request timeout; sequence after it or accept the --timeout 600 crutch for the first smoke.\n\n**Depends on:** GL-01\n\n**Suggested branch:** `task/greenlight-enable-prod`\n\n*Backlog id GL-03 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "task",
+        "area:grid-core",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "ian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-04",
+      "title": "CI workflow: run the test suites; regression gate on demand",
+      "body": "No CI exists (no .github/ anywhere). grid-core has 8 npm-test suites nothing runs, pacing/pacing.test.js (21 passing) is orphaned outside the chain, and Greenlight added test_regression.js which needs a running server plus a funded API key (~USD 1/run) so it cannot run on every push. Split accordingly: free deterministic suites on every push, the regression gate as a manually-triggered workflow with the key as a repo secret.\n\n## Acceptance criteria\n\n- [ ] .github/workflows/ci.yml runs npm ci + npm test in grid-core on push and PR\n- [ ] npm test passes from a clean checkout (better-sqlite3 native build included)\n- [ ] pacing.test.js joins the npm test chain; a decision is recorded for src/_retired/derive.test.js\n- [ ] A separate workflow_dispatch job runs test_regression.js with ANTHROPIC_API_KEY from repo secrets\n- [ ] A deliberately broken assertion fails the push workflow, verified once then reverted\n\n## Notes\n\nThis changes nothing about how anyone pushes: workflows report, they do not block, unless later wired as required checks under branch protection (still parked).\n\n**Suggested branch:** `ci/grid-core-workflows`\n\n*Backlog id GL-04 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "testing",
+        "area:grid-core",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "jerome",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-05",
+      "title": "Close the drift inside expected/README.md",
+      "body": "The README disagrees with itself: the top section says storage is ephemeral on /tmp with a TODO(GCS), while the Analyses section documents the GCS mirror as implemented (it is: store.js). Line 139 says the upload zone accepts metadata only, while the storage section documents per-file base64 staging at 15MB. Stale instructions are worse than none.\n\n## Acceptance criteria\n\n- [ ] One pass over expected/README.md removes every statement contradicted by the code\n- [ ] The TODO(GCS) block is deleted or rewritten to describe the shipped mirror\n- [ ] The upload description matches routes.js reality\n- [ ] Remaining genuine TODOs (background job until GL-01 lands) stay\n\n**Suggested branch:** `docs/expected-readme-drift`\n\n*Backlog id GL-05 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "documentation",
+        "area:docs",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "christian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-06",
+      "title": "Wire dashboard JS validation into the sanity gate",
+      "body": "Invoke-SanityGate (scripts/merge-branches.ps1:208) checks secret filenames, conflict markers, Python syntax and JSON validity but no JavaScript, though ~29 dashboard HTML files of inline Chart.js are most of the product surface. scripts/_validate_dash_js.py already exists, unwired. A dashboard syntax error lands and deploys today.\n\n## Acceptance criteria\n\n- [ ] The gate runs _validate_dash_js.py on every changed clients/*/dash/*.html\n- [ ] A deliberate syntax error fails the gate, verified then reverted\n- [ ] scripts/README.md and the AGENTS.md gate description are updated in the same change\n\n**Suggested branch:** `gate/validate-dash-js`\n\n*Backlog id GL-06 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "testing",
+        "area:ops-scripts",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "juan",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-07",
+      "title": "Surface run cost and duration in the run history",
+      "body": "Each run costs about a dollar and takes 5-7 minutes. The re-run guard already prevents accidental identical re-runs; showing cost and duration per run in the analysis history keeps usage honest as more buyers get access.\n\n## Acceptance criteria\n\n- [ ] Each run row shows wall-clock duration and token usage or estimated cost\n- [ ] Totals per analysis are visible\n- [ ] No figure is invented: if the API response lacks usage data, show duration only\n\n**Suggested branch:** `feat/greenlight-run-cost`\n\n*Backlog id GL-07 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P3 Low",
+        "enhancement",
+        "area:grid-core",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "juan",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-23",
+      "title": "Guard the HubSpot deals truncate against an empty response",
+      "body": "ingest/windsor_data_pull/hubspot/hubspot_loader.py loads deals with WRITE_TRUNCATE and no emptiness guard: contacts aborts on empty (:204) and owners is guarded (:218), but a transient Windsor response with zero deals truncates raw_windsor.hubspot_deals to nothing, silently breaking Reset Data's deal views until the next good run. One `if deals:` fixes it.\n\n## Acceptance criteria\n\n- [ ] An empty deals response aborts with a non-zero exit instead of truncating\n- [ ] The guard matches the contacts pattern already in the file\n- [ ] A comment records why, mirroring the contacts guard's comment\n\n**Suggested branch:** `fix/hubspot-deals-guard`\n\n*Backlog id GL-23 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "bug",
+        "area:ingest",
+        "epic:adjacent-debt"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "juan",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-27",
+      "title": "Fix the dead clone URL and stale client list in ONBOARDING.md",
+      "body": "ONBOARDING.md:25 still tells a new developer to clone github.com/Bidbrain/bidbrain-analytics.git, which is dead (404); AGENTS.md records it as dead and start_day.ps1 removes the remote if found. The doc also lists 10 client keys against 15 client folders. A new hire fails at step one.\n\n## Acceptance criteria\n\n- [ ] The clone URL points at the live remote\n- [ ] The client-keys list is reconciled with the actual folders\n- [ ] One pass for other stale facts in the same file\n\n**Suggested branch:** `docs/fix-onboarding`\n\n*Backlog id GL-27 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P3 Low",
+        "documentation",
+        "area:docs",
+        "epic:adjacent-debt"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "christian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-28",
+      "title": "Finish the client-material upload path (byte staging into the analysis dump)",
+      "body": "The deployed image has no prestage (grid-core/files is dockerignored), so upload is the ONLY way client material reaches a production analysis - this path gates everything else. It is mid-build on a dev branch now. Current shape: uploads stage per file as base64 JSON, capped at 15MB/file by the platform proxy (~16MB POST cap), bigger files skipped with a note. Finish and harden it: bytes for every accepted type land in the analysis's isolated dump, oversize files have a documented route, and uploads are mirrored to GCS so a cold start cannot lose a buyer's dump.\n\n## Acceptance criteria\n\n- [ ] Every accepted file type uploads BYTES (not metadata only) into the analysis's isolated dump\n- [ ] Files over the 15MB proxy cap are skipped with a visible note and a documented alternative route (e.g. a direct drop into the gs://bidbrain-campaign-dumps path)\n- [ ] Per-file upload state (pending / done / failed) renders in the tab; a failed file is retryable without re-sending the rest\n- [ ] Uploads mirror to GCS on write (store.js pattern) and survive a forced cold start\n- [ ] Duplicate uploads dedupe by sha256, consistent with the preprocess manifest\n- [ ] expected/README.md storage section matches the final behaviour (coordinate with GL-05)\n\n## Notes\n\nIN PROGRESS as of 2026-08-05 - confirm the current state with Charles before scoping the remainder; this ticket captures the finish line, not a restart. The 49MB NEL campaign PPTX is a real oversize example: without the alternative route, big decks simply cannot reach a production analysis.\n\n**Suggested branch:** `feat/greenlight-upload-staging`\n\n*Backlog id GL-28 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:greenlight-hardening"
+      ],
+      "milestone_title": "M1 Greenlight Hardening",
+      "assignee_hint": "charles",
+      "status": "In Progress"
+    },
+    {
+      "backlog_id": "GL-08",
+      "title": "ADR: actuals data contract and campaign matching for the Pacing join",
+      "body": "Before code: decide where daily actuals come from per platform (raw_windsor.*, raw_snowflake.*, raw_google_ads.* \u2014 sources differ per client), the join grain ({date, campaign, spend, impressions, clicks} per build_expected.js's documented hook), currency handling, and how plan campaign names match warehouse names. Record it as an ADR in the style of grid-core/docs/.\n\n## Acceptance criteria\n\n- [ ] Names the source table per platform and per client family\n- [ ] Defines the matching rule: brief-number prefixes stripped once, then the Central match.js semantics, never raw-name equality\n- [ ] Defines currency treatment: plan currency vs source currency, and stop-on-mismatch like the sync\n- [ ] Defines what happens to unmatched delivery and unmatched plan campaigns (findings, never silence)\n- [ ] States whether the join is computed at run time or on a schedule\n\n## Notes\n\nAGENTS.md rule that governs the whole design: campaign names are NOT stable keys \u2014 Transmission prefixes brief numbers onto names mid-flight, and fixed-offset or exact-name matching has silently dropped delivery twice.\n\n**Suggested branch:** `docs/adr-actuals-contract`\n\n*Backlog id GL-08 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "documentation",
+        "area:docs",
+        "epic:actual-side"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "ian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-09",
+      "title": "Actuals feed: daily platform actuals endpoint per analysis",
+      "body": "GET /api/greenlight/:analysisId/actuals returning daily {date, campaign, spend, impressions, clicks} rows for the analysis's campaigns, read from BigQuery via the client library (central_sync.py pattern \u2014 there is no bq CLI in the image). This is the data the meeting wants compared against the pacing plan.\n\n## Acceptance criteria\n\n- [ ] Endpoint returns daily rows across the plan's flight window per matched campaign\n- [ ] BigQuery access uses the client library, never the bq CLI\n- [ ] Source per platform follows the GL-08 ADR\n- [ ] Currency is reported with the rows; a mismatch with the plan currency is an error, not a silent conversion\n- [ ] A campaign with no delivery yet returns empty rows, distinguished from a match failure\n- [ ] Response is cacheable; repeated polls do not re-scan BigQuery unbounded\n\n**Depends on:** GL-08\n\n**Suggested branch:** `feat/greenlight-actuals-feed`\n\n*Backlog id GL-09 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:actual-side"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "jerome",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-10",
+      "title": "Campaign matching: plan names to warehouse names, unmatched raises a finding",
+      "body": "Match the extracted plan campaigns to warehouse campaign names using normalised forms (brief prefix stripped once) and the existing match.js semantics. Any delivery in the advertiser's account that matches no plan campaign \u2014 and any plan campaign that matches no delivery after go-live \u2014 becomes a finding. This is the meeting's tracking-gap problem ('live but missing from the dashboard') made structural.\n\n## Acceptance criteria\n\n- [ ] Matching reuses src/central/match.js semantics; no second matcher is written\n- [ ] Both name forms of a mid-flight renamed campaign fold to one match\n- [ ] Unmatched warehouse delivery raises a finding naming the campaigns and their spend\n- [ ] A plan campaign with no delivery after flight start raises a finding\n- [ ] The check scopes on the advertiser/account total so a parse regression cannot hide (never circular)\n- [ ] Unit-tested against renamed-campaign fixtures\n\n## Notes\n\nThe mongodb scope-pin check that just landed in status_dashboard/job/main.py is the same idea done right (non-circular by design) \u2014 crib its approach.\n\n**Depends on:** GL-08\n\n**Suggested branch:** `feat/greenlight-campaign-matching`\n\n*Backlog id GL-10 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:actual-side"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "ian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-11",
+      "title": "Join actuals into pacing.html and persist the joined snapshot",
+      "body": "build_expected.js already ships the hook: window.BB_ACTUALS / joinActuals(rows), with actuals drawn as thicker lines per campaign. Wire the Grid tab to fetch the actuals feed and join it, and persist the joined snapshot into the run's artifacts so a report is reproducible after the fact.\n\n## Acceptance criteria\n\n- [ ] Opening a run's pacing view joins live actuals via the existing hook, no rebuild of pacing.html required\n- [ ] The joined snapshot is persisted with the run artifacts (and mirrored to GCS)\n- [ ] Expected vs actual renders legibly for the NEL pilot's 4 campaigns\n- [ ] A campaign with no actuals renders its expected line with an explicit 'no delivery yet' marker, never a fake zero line\n\n## Notes\n\nProject rule: no figure on screen without a source; remove the element rather than render a placeholder.\n\n**Depends on:** GL-09,GL-10\n\n**Suggested branch:** `feat/greenlight-join-actuals`\n\n*Backlog id GL-11 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:actual-side"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "juan",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-12",
+      "title": "Pacing stage verdict in the flowchart",
+      "body": "The sixth stage (Pacing) currently reflects expected-side data only. With actuals joined, compute a real verdict per campaign: cumulative actual vs cumulative expected as of today, classified on/behind/ahead with the thresholds in rulebook.json, and roll it into the stage card.\n\n## Acceptance criteria\n\n- [ ] Per-campaign pacing status: on-track / behind / ahead with the deviation shown\n- [ ] Stage card aggregates worst-first and names the campaigns driving it\n- [ ] Thresholds live in rulebook.json, not in code\n- [ ] A campaign missing goals or dates stays an exception, never a fake verdict\n- [ ] Verdicts carry the as-of date of the actuals they used\n\n**Depends on:** GL-11\n\n**Suggested branch:** `feat/greenlight-pacing-verdict`\n\n*Backlog id GL-12 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:actual-side"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "charles",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-13",
+      "title": "Pacing variance findings with rulebook tolerances",
+      "body": "When a campaign's pacing deviation crosses the rulebook tolerance, emit a finding (origin 'code') so it appears in report.md and can carry a chase draft \u2014 over/underspend becomes a flagged, citable event rather than a chart the buyer has to notice.\n\n## Acceptance criteria\n\n- [ ] A tolerance breach emits a finding naming campaign, metric, expected, actual and deviation\n- [ ] Tolerances configurable in rulebook.json\n- [ ] Findings deduplicate across runs (same breach does not stack per run)\n- [ ] Chase-draft generation picks pacing findings up like any other finding\n\n**Depends on:** GL-12\n\n**Suggested branch:** `feat/greenlight-pacing-findings`\n\n*Backlog id GL-13 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "feature",
+        "area:grid-core",
+        "epic:actual-side"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "charles",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-24",
+      "title": "Ingest loaders must fail the run when BigQuery loads fail",
+      "body": "meta_loader.py:529-531 catches BigQuery load failures, logs, and continues \u2014 a scheduled run where every load failed still exits 0 and reports success, so the Pacing actuals would silently go stale. The same shape was copied into the sibling Windsor loaders.\n\n## Acceptance criteria\n\n- [ ] A failed BQ load marks the run failed (non-zero exit) after the loop completes remaining chunks\n- [ ] The same fix is applied to every sibling loader with the copied pattern\n- [ ] Cloud Run job executions show red on load failure (verify once)\n- [ ] Per-account skip behaviour (AccountUnavailableError) is unchanged\n\n## Notes\n\nMatters more once Pacing depends on these tables: silent staleness under an actuals join is exactly the failure AGENTS.md warns about.\n\n**Suggested branch:** `fix/loader-exit-codes`\n\n*Backlog id GL-24 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "bug",
+        "area:ingest",
+        "epic:adjacent-debt"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "christian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-25",
+      "title": "Derive the DTS backfill end date instead of hardcoding it",
+      "body": "ingest/dts_data_pull/backfill.py:40 pins END_DATE = date(2026, 6, 5), so the GA4 backfill has covered nothing after 2026-06-04 for two months. Derive from date.today() (end-exclusive, DTS rejects today/future).\n\n## Acceptance criteria\n\n- [ ] END_DATE derives from today\n- [ ] The end-exclusive comment stays accurate\n- [ ] A catch-up run is executed for the gap once merged\n\n**Suggested branch:** `fix/dts-backfill-end-date`\n\n*Backlog id GL-25 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "bug",
+        "area:ingest",
+        "epic:adjacent-debt"
+      ],
+      "milestone_title": "M2 Actual Side - Pacing vs API Data",
+      "assignee_hint": "christian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-14",
+      "title": "Conversations receiver: transcripts as citable sources",
+      "body": "The meeting's receiver should accept 'all raw campaign files AND conversations (from Teams, Fathom, etc.)'. Today the pipeline is files-only. Accept transcript text (paste or file upload) into the analysis dump, and let the extractor treat it as a source with citations pointing at the transcript and its line/timestamp \u2014 so a decision made in a call ('client agreed to move flight end to Aug 22') can resolve a conflict with a recorded rationale.\n\n## Acceptance criteria\n\n- [ ] A transcript (pasted text or .txt/.md/.vtt upload) lands in the analysis dump like any file\n- [ ] preprocess.js inventories it; extract.js can cite it as file + line/timestamp\n- [ ] A value resolved by a conversation carries that citation in plan.json\n- [ ] Conflicting sources (sheet says X, call says Y) keep both candidates with the resolution rationale, per the existing null-never-guess rule\n- [ ] The regression gate gains a transcript fixture exercising a conversation-resolved value\n\n## Notes\n\nThe extraction schema already carries candidates + resolution_rationale on date fields \u2014 extend the same shape rather than inventing a parallel one.\n\n**Suggested branch:** `feat/greenlight-conversations`\n\n*Backlog id GL-14 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:inputs-checklist"
+      ],
+      "milestone_title": "M3 Inputs and Checklist",
+      "assignee_hint": "ian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-15",
+      "title": "Per-platform required-vs-missing asset checklist",
+      "body": "The meeting's UI concept: under the flowchart, one checklist per platform showing required vs present. Requirements live in rulebook.json per platform (LinkedIn: lead-gen form sheet, insight tag implementation, statics at 1200x1200; TTD: creative bulk-upload sheet, statics at 300x600 + 320x100 per geo; UTM sheet; approvals recorded), evaluated against the manifest's code-measured media metadata and the extraction.\n\n## Acceptance criteria\n\n- [ ] Requirements are data in rulebook.json keyed by platform, not code\n- [ ] Each platform on the plan renders required vs present vs missing, with the evidencing file linked\n- [ ] Image dimensions come from the manifest's code-measured metadata, not from filenames\n- [ ] A platform on the plan with zero materials renders as missing-everything, not absent\n- [ ] Missing items feed findings so they surface in report.md and chase drafts\n- [ ] The NEL dump renders a correct checklist for LinkedIn and TTD (known ground truth)\n\n## Notes\n\nThe PlatformChecklist sheet in the workbook is the starting requirements matrix \u2014 lift it into rulebook entries with the media team's corrections.\n\n**Suggested branch:** `feat/greenlight-platform-checklist`\n\n*Backlog id GL-15 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "feature",
+        "area:grid-core",
+        "epic:inputs-checklist"
+      ],
+      "milestone_title": "M3 Inputs and Checklist",
+      "assignee_hint": "charles",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-16",
+      "title": "Finding-to-source deep links in the tab",
+      "body": "The meeting's key feature: 'each flag must link directly to its source file/conversation for context.' greenlight.js already renders each finding's source as text (line ~475). Make it a link: clicking opens the cited file from the analysis dump (download or inline preview) positioned at the cited sheet/row where feasible, and transcript citations jump to the line.\n\n## Acceptance criteria\n\n- [ ] Every finding's citation is clickable\n- [ ] Cited files open from the analysis dump (inline preview for images/PDF/text, download otherwise)\n- [ ] Sheet/row citations are shown with the preview so the reader can locate the cell\n- [ ] Transcript citations open the transcript at the cited line\n- [ ] A citation whose file is missing from the dump says so rather than 404ing silently\n\n**Depends on:** GL-14\n\n**Suggested branch:** `feat/greenlight-source-links`\n\n*Backlog id GL-16 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "enhancement",
+        "area:grid-core",
+        "epic:inputs-checklist"
+      ],
+      "milestone_title": "M3 Inputs and Checklist",
+      "assignee_hint": "juan",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-17",
+      "title": "Scope UTM checks to ad destinations",
+      "body": "Known tuning item from expected/README.md: the UTM required-param check fires on reference URLs (SharePoint links, privacy pages) where UTMs do not belong, producing noise findings that erode trust in the audit.\n\n## Acceptance criteria\n\n- [ ] The rulebook check applies only to URLs classified as ad destinations\n- [ ] Classification rule lives in rulebook.json and is explainable per URL\n- [ ] The NEL dump produces zero UTM false positives while keeping the true ones\n- [ ] Regression gate updated accordingly\n\n**Suggested branch:** `fix/utm-scope`\n\n*Backlog id GL-17 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "bug",
+        "area:grid-core",
+        "epic:inputs-checklist"
+      ],
+      "milestone_title": "M3 Inputs and Checklist",
+      "assignee_hint": "jerome",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-18",
+      "title": "Referenced-files matching: kill the false 'unreferenced asset' flags",
+      "body": "Known tuning item: documents cite assets by internal names (e.g. DCFCREVL001EN.pdf) that do not match physical file names, so genuinely-used assets get flagged unreferenced. Add tolerant matching (normalised names, stems, sha-duplicate awareness) before flagging.\n\n## Acceptance criteria\n\n- [ ] Cited-name vs physical-name matching tolerates renames, copies and case/underscore drift\n- [ ] The extractor's own mismatch flag and the validator's unreferenced check agree\n- [ ] The NEL dump's known false positives disappear; true orphans still flag\n- [ ] Regression gate updated\n\n**Suggested branch:** `fix/referenced-files-matching`\n\n*Backlog id GL-18 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "bug",
+        "area:grid-core",
+        "epic:inputs-checklist"
+      ],
+      "milestone_title": "M3 Inputs and Checklist",
+      "assignee_hint": "jerome",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-26",
+      "title": "Add guards to the production table truncate scripts",
+      "body": "ingest/windsor_data_pull/{ga4,google_ads,linkedin,reddit}/truncate_*.py each TRUNCATE a production BigQuery table at import time with no confirmation, no --yes flag, no dry-run. One stray execution wipes a raw table.\n\n## Acceptance criteria\n\n- [ ] Each script requires an explicit --yes (or equivalent) and prints the target table first\n- [ ] Running without the flag performs nothing\n- [ ] The guard pattern is identical across all four\n\n**Suggested branch:** `fix/truncate-guards`\n\n*Backlog id GL-26 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "bug",
+        "area:ingest",
+        "epic:adjacent-debt"
+      ],
+      "milestone_title": "M3 Inputs and Checklist",
+      "assignee_hint": "christian",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-19",
+      "title": "Second pilot: a different agency's format end to end",
+      "body": "The regression gate proves Schneider NEL (Transmission's format). Client-agnosticism is the design claim \u2014 prove it on a second real campaign from a different agency/format family (e.g. a 100-Digital client like Reset Data, or Cloudflare's cover-sheet workbooks), fix what breaks, and extend the gate to two dumps.\n\n## Acceptance criteria\n\n- [ ] A second real campaign dump runs end to end: extraction, findings, pacing plan, flowchart, chase drafts\n- [ ] Format gaps found become rulebook/prompt fixes, not client-named code (grep proves no client names in expected/)\n- [ ] test_regression.js gains the second dump with its own expected keys\n- [ ] Both gates green in the same run\n\n**Depends on:** GL-03\n\n**Suggested branch:** `test/second-pilot`\n\n*Backlog id GL-19 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P1 High",
+        "testing",
+        "area:grid-core",
+        "epic:rollout"
+      ],
+      "milestone_title": "M4 Rollout and Docs",
+      "assignee_hint": "charles",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-20",
+      "title": "Backfill analyses for in-flight campaigns and triage the findings",
+      "body": "Run an analysis for each in-flight campaign where the file dump can be assembled, then triage: real issues become chase messages or fixes, false positives become rulebook tuning. This is the rollout moment where the tool starts paying rent \u2014 and where false greens must be treated as release blockers.\n\n## Acceptance criteria\n\n- [ ] Every in-flight campaign with an assemblable dump has an analysis\n- [ ] Findings triaged with the media team; each is actioned, chased or tuned\n- [ ] Recurring false positives become rulebook changes with the reason recorded\n- [ ] Campaigns whose dumps cannot be assembled are listed with what is missing\n- [ ] A false green found in triage blocks wider rollout until fixed\n\n**Depends on:** GL-19\n\n**Suggested branch:** `task/greenlight-backfill`\n\n*Backlog id GL-20 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "task",
+        "area:grid-core",
+        "epic:rollout"
+      ],
+      "milestone_title": "M4 Rollout and Docs",
+      "assignee_hint": "charles",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-21",
+      "title": "Greenlight status chip on Central rows",
+      "body": "Light linkage, not a bridge: tag an analysis with the Central campaign id(s) it covers, and show a small Greenlight readiness chip on the Central table row that deep-links to the analysis. No writes from Greenlight into Central \u2014 display only.\n\n## Acceptance criteria\n\n- [ ] An analysis can be associated with Central campaign id(s)\n- [ ] Central rows with an analysis show a readiness chip linking to the Greenlight tab\n- [ ] No Greenlight code path writes to the campaigns table\n- [ ] Unlinked analyses and unlinked campaigns are both fine (no forced pairing)\n\n## Notes\n\nCommitting extracted plan values into Central (the old plan-reader v2 basis-gate design) stays out of scope \u2014 revisit only after rollout proves the extraction trustworthy.\n\n**Suggested branch:** `feat/greenlight-central-chip`\n\n*Backlog id GL-21 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P3 Low",
+        "enhancement",
+        "area:grid-core",
+        "epic:rollout"
+      ],
+      "milestone_title": "M4 Rollout and Docs",
+      "assignee_hint": "juan",
+      "status": "Backlog"
+    },
+    {
+      "backlog_id": "GL-22",
+      "title": "Docs: AGENTS.md, grid-core/README.md and expected/README.md reflect the shipped feature",
+      "body": "The repo's definition-of-done rule: after any change, update whatever it made stale, in the same change. The Greenlight epic makes several docs stale at once, so it gets an explicit closing ticket.\n\n## Acceptance criteria\n\n- [ ] AGENTS.md's grid-core section names the Greenlight tab, its flag and its deploy nuances\n- [ ] grid-core/README.md documents the tab, the pipeline and the API surface\n- [ ] expected/README.md matches the final state (post GL-01/GL-05)\n- [ ] No narrative summary .md about the work itself is created, per the repo rule\n\n**Depends on:** GL-20\n\n**Suggested branch:** `docs/greenlight-docs`\n\n*Backlog id GL-22 - greenlight-backlog-v2.xlsx*",
+      "labels": [
+        "P2 Medium",
+        "documentation",
+        "area:docs",
+        "epic:rollout"
+      ],
+      "milestone_title": "M4 Rollout and Docs",
+      "assignee_hint": "christian",
+      "status": "Backlog"
+    }
+  ]
+}
