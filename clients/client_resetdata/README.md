@@ -46,6 +46,19 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 > Native engagement (upvotes/downvotes/comments) and all video metrics are NULL upstream, so only delivery
 > + page visits + sparse conversions are surfaced. `reach` is non-additive across days, so it is not summed.
 >
+> **⚠ Reddit OUTAGE (found 2026-08-05):** the 2026-07-16 Windsor reddit re-grant connected the WRONG
+> account — `a2_iq3fdsq6rem5` is **Transmission_Cloudflare's** seat, but the loader mapped it
+> `client_slug='resetdata'`, so the dashboard's Reddit lane showed **Cloudflare's** CLOUD_ACQ Apr–Jun
+> campaigns; worse, ResetData's REAL Feb–Jun rows (old id `a2_igd0szmw7roq`) were deleted from
+> `perf_reddit` the same day as a presumed duplicate. The loader mapping is corrected
+> (`→ cloudflare/transmission`), but ResetData Reddit stays EMPTY until a human re-grants the
+> ResetData account at <https://onboard.windsor.ai?datasource=reddit> (100 Digital login), adds the new
+> id to `SELECT_ACCOUNTS`+`REDDIT_ACCOUNT_TO_CLIENT`, and the backfill reloads Feb–Jun. Also run the
+> fixed-range retag re-pull (see `REDDIT_ACCOUNT_TO_CLIENT` comment) + `resetdata-export` with
+> `FORCE_REBUILD=1`. `data/resetdata_reddit_febmar26.csv` corroborates the real Feb–Mar delivery.
+> NB: the status-dash Reddit accuracy checks mirror the same `client_slug='resetdata'` filter, so they
+> stayed GREEN through this (the circular-check trap in AGENTS.md).
+>
 > **Audience / creative / keywords (added 2026-07-02; views 31–33):** Overview **Audience** = **Google Ads**
 > inferred age / gender / device (`ga_audience`, from the `ads_AgeRange*`/`ads_Gender*` DTS tables scoped to
 > customer_id `1054407474`; `cost_micros`/1e6 → AUD). It is "who the **ads** reached", **not** site visitors —
@@ -116,11 +129,17 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · **total HubSpot leads · total
    paying customers** · ad-driven sessions · engaged), and the **"Ad spend & its effects"** hero: monthly
    **spend (stacked by platform) bars** vs three trend lines — **website sessions** (dotted) + **HubSpot
-   confirmed leads** + **paying customers** (2026-07-02 rework: dropped the old clicks/impressions/key-events
-   lines per the client; the leads/paying trends come from `crm_outcomes_daily` = HubSpot lifecycle dates
-   `..._lead_date` / `..._customer_date`, bucketed to the hero grain by `tsCrm`, **whole-account CRM — NOT
-   filter-scoped**; "paying customers" line uses the Customer-stage date as the dated proxy for the 64
-   `rd_total_spend>0` payers). A **launch marker** for the inference product go-live is planned once Sofia/Ben
+   confirmed leads** + **new paying customers** (2026-07-02 rework: dropped the old clicks/impressions/key-events
+   lines per the client; the CRM trends come from `crm_outcomes_daily`, bucketed to the hero grain by
+   `tsCrm`, **whole-account CRM — NOT filter-scoped**). **REWORKED 2026-08-05 (client request): the hero
+   line now plots the REAL payers** — `rd_total_spend>0` contacts dated by `hs_created_at` (the
+   `new_payers` series; HubSpot records NO first-payment date, and created-date matches the Signups & CRM
+   tab's cohort basis) — so it **sums exactly to the all-time Paying customers card** (119 on 2026-08-04).
+   It previously plotted lifecycle Customer-STAGE dates (`..._customer_date`, ~2-3/month, ~zero overlap
+   with the payers — ResetData's HubSpot never advances lifecycle when a contact starts paying, payers
+   mostly stay stage Lead), which made the header 119 vs the tiny line read as a bug; that
+   `new_customers` series stays in the JSON as reference only. A cleaner future basis would be CRM-side:
+   a HubSpot workflow setting lifecycle=Customer on first spend, or an `rd_first_payment_at` property. A **launch marker** for the inference product go-live is planned once Sofia/Ben
    confirm the date. Plus channel-mix / spend-by-platform donuts and an **Audience** section (age bar + gender
    / device donuts = Google Ads *ad-audience* demographics; see the data-source note). **KPI cards that map to
    a chart line are clickable toggles**: Media spend, Website sessions, Total HubSpot leads and Total paying

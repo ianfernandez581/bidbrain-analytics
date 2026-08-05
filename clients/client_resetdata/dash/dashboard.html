@@ -403,7 +403,7 @@
       <div class="panelhead">
         <div>
           <h3>Ad spend &rarr; leads &rarr; paying</h3>
-          <p class="hint">Stacked bars = media spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>cost per lead</b> (Google·Meta·Reddit spend &divide; leads), plus <b>paying customers</b> (whole-account HubSpot CRM - not filter-scoped). <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses dedicated axes (leads/paying counts vs cost-per-lead AUD). Click a month bar to drill into its weeks.</p>
+          <p class="hint">Stacked bars = media spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>cost per lead</b> (Google·Meta·Reddit spend &divide; leads), plus <b>new paying customers</b> = HubSpot contacts who have gone on to spend on app billing, dated by when the contact was created (HubSpot records no first-payment date; same basis as the Signups &amp; CRM tab). This line is whole-account (not filter-scoped) and sums to the all-time <b>Paying customers</b> card. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses dedicated axes (leads / paying counts vs cost-per-lead AUD). Click a month bar to drill into its weeks.</p>
         </div>
         <div class="ctrls">
           <span class="drillback" id="heroBack" onclick="heroDrillReset()">↩ All months</span>
@@ -617,7 +617,7 @@
 
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box"><h3>Lifecycle stage by owner</h3><p class="hint">Live contacts per owner, stacked by lifecycle stage (top owners by volume).</p><div class="chartbox tall"><canvas id="crmOwnerChart"></canvas></div></div>
-      <div class="panel-box"><h3>Lifecycle mix</h3><p class="hint">All contacts by stage.</p><div class="chartbox sm"><canvas id="crmLifecycleDonut"></canvas></div>
+      <div class="panel-box"><h3>Lifecycle mix</h3><p class="hint">All contacts by stage. NB: lifecycle is maintained by sales and does NOT auto-advance when a contact starts paying in the app - the Customer stage and the app-billing "paying" flag are separate, non-overlapping signals today (most payers still sit at Lead).</p><div class="chartbox sm"><canvas id="crmLifecycleDonut"></canvas></div>
       <div class="tablewrap" style="margin-top:10px"><table id="crmLifecycleTable"></table></div></div>
     </div>
 
@@ -649,7 +649,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) - globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
-  'Leads':'#3B82F6','Cost / lead':'#F97316','Paying customers':'#34D399',
+  'Leads':'#3B82F6','Cost / lead':'#F97316','New paying customers':'#34D399',
   'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
@@ -1377,15 +1377,19 @@ function tsAd(g, keys, filt){
   return { spendByPlt, convByPlt, clicks:clk, imps:im, spend:sp, conv:cv };
 }
 // CRM outcomes (whole-account HubSpot, NOT filter-scoped) bucketed to the hero's grain keys: new
-// confirmed leads + new paying customers per period. crmKey maps a YYYY-MM-DD to the same key the
-// GA4/ad feeds use (month 'YYYY-MM' / ISO week_start / day), so the lines align to the timeline.
+// confirmed leads + lifecycle Customer-stage contacts (reference) + NEW PAYING CUSTOMERS (the hero
+// line: rd_total_spend>0 payers by contact CREATED date - HubSpot records no first-payment date, so
+// created is the dated basis, matching the CRM tab; sums to crm.kpi.paying). crmKey maps a
+// YYYY-MM-DD to the same key the GA4/ad feeds use (month/ISO week_start/day) so lines align.
 function crmKey(d,g){ const s=String(d).slice(0,10); return g==='day'?s : g==='week'?weekStartOf(s) : s.slice(0,7); }
 function tsCrm(g, keys){
   const src=(DATA.crm && DATA.crm.outcomes_daily) || [];
   const ci={}; keys.forEach((k,i)=>ci[k]=i);
-  const leads=keys.map(()=>0), cust=keys.map(()=>0);
-  src.forEach(r=>{ const i=ci[crmKey(r.date,g)]; if(i==null)return; leads[i]+=(+r.new_leads||0); cust[i]+=(+r.new_customers||0); });
-  return { leads, cust };
+  const leads=keys.map(()=>0), cust=keys.map(()=>0), pay=keys.map(()=>0);
+  src.forEach(r=>{ const i=ci[crmKey(r.date,g)]; if(i==null)return; leads[i]+=(+r.new_leads||0); cust[i]+=(+r.new_customers||0); pay[i]+=(+r.new_payers||0); });
+  // older JSON (pre new_payers) -> fall back to the lifecycle-customer series rather than a flat 0 line
+  const hasPay=src.some(r=>r.new_payers!=null);
+  return { leads, cust, pay: hasPay?pay:cust };
 }
 
 // ---------- Overview ----------
@@ -1490,7 +1494,9 @@ function renderOverview(){
   // ── North star: the campaign goal in one row - ad-reported leads → cost per lead → paying customers →
   // ad spend. Leads/CPL are AD-ATTRIBUTED (Google·Meta·Reddit, filter-scoped); TTD display reports no
   // leads so it's EXCLUDED from the CPL basis (its spend is noted on the Ad-spend card). Paying customers
-  // is the whole-account HubSpot snapshot (all-time, NOT filter-scoped) - the downstream of the funnel.
+  // = crm.kpi.paying = rd_total_spend>0 (app billing, all-time, NOT filter-scoped). Its card toggles the
+  // hero's 'New paying customers' line - the SAME payers dated by contact created date (HubSpot records
+  // no first-payment date), so the line sums to this card. NOT lifecycle 'Customer' (77, ~zero overlap).
   const LEADP=['google','meta','reddit'];
   const byP={}; PLATFORMS.forEach(p=>byP[p]={spend:0,conv:0});
   acm.forEach(r=>{const a=byP[r.platform]; if(a){a.spend+=+r.spend_aud||0; a.conv+=+r.conversions||0;}});
@@ -1505,7 +1511,7 @@ function renderOverview(){
   document.getElementById('ovNorthStar').innerHTML=[
     nsCard('k-ns-leads','Ad-reported leads',fmtN(adLeads),'Google · Meta · Reddit conversions', leadsBy, false, {chart:H,series:'Leads'}),
     nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, {chart:H,series:'Cost / lead'}),
-    nsCard('k-ns-paying','Paying customers',fmtN(+crmKpi.paying||0),'all-time · HubSpot CRM (not filter-scoped)', null, false, {chart:H,series:'Paying customers'}),
+    nsCard('k-ns-paying','Paying customers',fmtN(+crmKpi.paying||0),'all-time · app billing (has spent) · not filter-scoped', null, false, {chart:H,series:'New paying customers'}),
     nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels'), acmBy('spend_aud'), false, {chart:H,stack:'spend'}),
   ].join('');
 
@@ -1569,10 +1575,13 @@ function renderAudience(){
 }
 
 // hero: the campaign funnel over time - ad spend (stacked bars) → LEADS (ad-reported) + COST-PER-LEAD
-// (efficiency) + PAYING CUSTOMERS (the downstream goal). "Relative" indexes each line to its OWN peak;
-// "Absolute" puts leads/paying on a count axis and cost-per-lead on an AUD axis. Month/Week/Day + drill.
-// NB: leads + cost-per-lead are AD-ATTRIBUTED (they move with the filters); PAYING is the whole-account
-// HubSpot snapshot (tsCrm) - NOT filter-scoped - so it stays put when you change platform/campaign.
+// (efficiency) + NEW PAYING CUSTOMERS (the downstream goal). "Relative" indexes each line to its OWN
+// peak; "Absolute" puts leads/paying on a count axis and cost-per-lead on an AUD axis. Month/Week/Day
+// + drill. NB: leads + cost-per-lead are AD-ATTRIBUTED (they move with the filters); the paying line is
+// the whole-account HubSpot snapshot (tsCrm) - NOT filter-scoped - so it stays put when you change
+// platform/campaign. It plots the rd_total_spend>0 payers by contact CREATED date (HubSpot records no
+// first-payment date; same basis as the CRM tab) and SUMS to the 'Paying customers' card. The lifecycle
+// Customer-stage series (~2-3/mo, ~zero overlap with payers) stays in the JSON as reference only.
 function renderHero(){
   const g=grain.hero;
   const ga=tsGA4(g), keys=ga.keys;
@@ -1581,7 +1590,7 @@ function renderHero(){
   const spendByPlt=ad.spendByPlt;
   const crm=tsCrm(g, keys);                          // whole-account CRM: new paying customers per period
   // Ad leads = ad-reported conversions (TTD display reports none). Cost-per-lead is on the LEAD channels
-  // only (Google·Meta·Reddit spend ÷ leads). Paying customers is the CRM downstream (NOT filter-scoped).
+  // only (Google·Meta·Reddit spend ÷ leads). New paying customers is the CRM downstream (NOT filter-scoped).
   const leads=ad.conv;
   const leadSpend=keys.map((_,i)=>spendByPlt.google[i]+spendByPlt.meta[i]+spendByPlt.reddit[i]);
   const cplLine=leads.map((n,i)=>n?leadSpend[i]/n:null);
@@ -1590,7 +1599,7 @@ function renderHero(){
   const effects=[
     {label:'Leads',            color:mc('Leads'),       data:leads,    w:2.8, axis:'y1'},
     {label:'Cost / lead',      color:mc('Cost / lead'), data:cplLine,  w:2.2, money:true, axis:'y2'},
-    {label:'Paying customers', color:mc('Paying'),      data:crm.cust, w:2.5, dash:true,  axis:'y1'},
+    {label:'New paying customers', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
   ].filter(e=>e.data);
   const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
     type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
@@ -1608,7 +1617,7 @@ function renderHero(){
           title:{display:true,text:'Effects: % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Leads / paying customers',color:tickClr}}),
+        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Leads / new paying customers',color:tickClr}}),
         y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost per lead (AUD)',color:tickClr}}) };
   mkChart('heroChart',{data:{labels,datasets:ds},options:{
     responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
