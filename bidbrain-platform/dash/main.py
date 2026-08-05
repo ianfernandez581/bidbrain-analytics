@@ -1548,11 +1548,19 @@ def _feedback_widget(client):
 # The staff-only Internal Notes + Assistant widget, injected ONLY when _internal_allowed(client)
 # (superadmin / admin / owning agency - clients never receive a byte of it). Same approach as the
 # feedback widget: fully inline-styled, scoped under #bbin-*, max z-index, client key baked in at
-# injection time. Two gold pills bottom-left: "Internal Notes" (the secret tab - list / add / edit /
-# delete, stored via /internal-notes/<c>) and "Assistant" (the internal chatbot - /internal-chat/<c>,
-# renders the model's thinking as a collapsible block per reply, and refreshes the notes list when
-# the assistant edits notes via its tools). If the dashboard page contains a #bbNotesMount element
-# (cloudflare's renamed "Internal Notes" tab), the same notes UI is ALSO mounted inline there.
+# injection time.
+# - "Internal Notes" is a REAL TAB: the script clones the last `.tab` in the dashboard's `.tabs`
+#   rail (every dashboard uses that markup), strips its id/onclick/data-* wiring so the host
+#   dashboard's own tab logic ignores it, labels it "Internal Notes" and appends it. Clicking it
+#   opens a full-screen overlay holding the notes UI (list / add / edit / delete via
+#   /internal-notes/<c>); clicking any native tab, the backdrop, Esc or the X closes it. A
+#   MutationObserver re-appends the tab on dashboards that REBUILD their rail per render
+#   (schneider / schneiderlqai). Fallback when no rail is found: a floating pill bottom-left.
+# - If the page contains #bbNotesMount (cloudflare's native Admin-View "Internal Notes" tab), the
+#   notes UI mounts inline there instead and NO generic tab is injected (it would duplicate).
+# - "Assistant" stays a floating pill bottom-left (the internal chatbot - /internal-chat/<c>,
+#   renders the model's thinking as a collapsible block per reply, and refreshes the notes list
+#   when the assistant edits notes via its tools).
 _INTERNAL_WIDGET = (
     "<style>"
     "#bbin-dock{position:fixed;bottom:18px;left:18px;z-index:2147483645;display:flex;gap:8px}"
@@ -1586,6 +1594,15 @@ _INTERNAL_WIDGET = (
     ".bbin-ma code{background:rgba(255,255,255,.09);border-radius:4px;padding:1px 4px;font-size:12px}"
     ".bbin-wait:after{display:inline-block;content:'';animation:bbindots 1.2s steps(4,end) infinite}"
     "@keyframes bbindots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}"
+    "#bbin-ovl{position:fixed;inset:0;z-index:2147483644;display:none;align-items:flex-start;"
+    "justify-content:center;padding:6vh 18px 18px;background:rgba(0,0,0,.55);"
+    "backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}"
+    "#bbin-ovl.open{display:flex}"
+    "#bbin-ovl-panel{width:min(880px,94vw);max-height:84vh;display:flex;flex-direction:column;"
+    "border-radius:14px;overflow:hidden;background:#14161b;color:#f3f4f6;"
+    "border:1px solid rgba(255,255,255,.14);box-shadow:0 18px 60px rgba(0,0,0,.6);"
+    "font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}"
+    "#bbin-ovl-body{padding:16px 20px;overflow-y:auto}"
     "</style>"
     "<div id='bbin-dock'>"
     "<button id='bbin-notes-btn' class='bbin-pill' type='button'>"
@@ -1603,6 +1620,12 @@ _INTERNAL_WIDGET = (
     "<button class='bbin-x' id='bbin-notes-x' type='button' aria-label='Close'>&times;</button></div>"
     "<div id='bbin-notes-body'></div>"
     "</div>"
+    "<div id='bbin-ovl' role='dialog' aria-label='Internal notes'>"
+    "<div id='bbin-ovl-panel'>"
+    "<div class='bbin-hd'><h3>Internal Notes</h3><span class='bbin-badge'>INTERNAL</span>"
+    "<button class='bbin-x' id='bbin-ovl-x' type='button' aria-label='Close'>&times;</button></div>"
+    "<div id='bbin-ovl-body'></div>"
+    "</div></div>"
     "<div id='bbin-chat' class='bbin-panel' role='dialog' aria-label='Internal assistant'>"
     "<div class='bbin-hd'><h3>Assistant</h3><span class='bbin-badge'>INTERNAL</span>"
     "<button class='bbin-x' id='bbin-chat-x' type='button' aria-label='Close'>&times;</button></div>"
@@ -1687,12 +1710,51 @@ _INTERNAL_WIDGET = (
     "el('bbin-cin').focus();};"
     "el('bbin-notes-x').onclick=function(){np.classList.remove('open');};"
     "el('bbin-chat-x').onclick=function(){cp.classList.remove('open');};"
-    "buildNotesUI(el('bbin-notes-body'));"
+    # ---- the Internal Notes TAB: clone a native .tab, open a full-screen overlay ----
+    "var ovl=el('bbin-ovl');"
+    "function injectTab(){"
+    "var rails=document.querySelectorAll('.tabs'),rail=null,model=null;"
+    "for(var i=0;i<rails.length;i++){var ts=rails[i].querySelectorAll('.tab');"
+    "if(ts.length){rail=rails[i];model=ts[ts.length-1];break;}}"
+    "if(!rail)return false;"
+    "var t=model.cloneNode(true);"
+    "['id','onclick','data-tab','data-view','aria-selected','style'].forEach(function(a){t.removeAttribute(a);});"
+    "['active','on','selected','current'].forEach(function(c){t.classList.remove(c);});"
+    "t.id='bbinTab';t.textContent='Internal Notes';t.title='Internal only - clients never see this tab';"
+    "var ac=rail.querySelector('.tab.active')?'active':rail.querySelector('.tab.on')?'on':"
+    "rail.querySelector('.tab.selected')?'selected':'';"
+    "var remembered=null;"
+    "function openOvl(){ovl.classList.add('open');"
+    "if(ac){remembered=null;rail.querySelectorAll('.tab.'+ac).forEach(function(b){"
+    "if(b!==t){remembered=b;b.classList.remove(ac);}});t.classList.add(ac);}}"
+    "function closeOvl(){ovl.classList.remove('open');"
+    "if(ac){t.classList.remove(ac);"
+    "if(remembered&&!rail.querySelector('.tab.'+ac))remembered.classList.add(ac);}}"
+    # capture-phase handler + stopPropagation: the host dashboard's own delegated rail listeners
+    # (resetdata/tlm read e.target.dataset.tab) must never see a click on our tab
+    "t.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();"
+    "if(ovl.classList.contains('open')){closeOvl();}else{openOvl();}},true);"
+    "rail.addEventListener('click',function(e){"
+    "var tb=e.target&&e.target.closest?e.target.closest('.tab'):null;"
+    "if(tb&&tb!==t&&ovl.classList.contains('open'))closeOvl();});"
+    "rail.appendChild(t);"
+    # schneider/schneiderlqai rebuild the rail every render - re-append when wiped
+    "new MutationObserver(function(){if(!rail.contains(t))rail.appendChild(t);})"
+    ".observe(rail,{childList:true});"
+    "el('bbin-ovl-x').onclick=closeOvl;"
+    "ovl.addEventListener('click',function(e){if(e.target===ovl)closeOvl();});"
+    "document.addEventListener('keydown',function(e){"
+    "if(e.key==='Escape'&&ovl.classList.contains('open'))closeOvl();});"
+    "return true;}"
     "var mount=document.getElementById('bbNotesMount');"
     "if(mount){var h=document.createElement('div');"
     "h.setAttribute('style','font-size:12px;color:#9ca3af;margin:0 0 10px');"
     "h.textContent='Visible to Bidbrain staff and the owning agency only - never the client.';"
-    "mount.appendChild(h);buildNotesUI(mount);}"
+    "mount.appendChild(h);buildNotesUI(mount);"
+    "el('bbin-notes-btn').style.display='none';}"
+    "else if(injectTab()){buildNotesUI(el('bbin-ovl-body'));"
+    "el('bbin-notes-btn').style.display='none';}"
+    "else{buildNotesUI(el('bbin-notes-body'));}"
     "loadNotes();"
     # ---- assistant chat (thinking shown per reply) ----
     "var clog=el('bbin-clog'),cin=el('bbin-cin'),csend=el('bbin-csend');"
