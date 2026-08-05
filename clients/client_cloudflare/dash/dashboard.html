@@ -367,7 +367,7 @@
   .qoq-table th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute)}
   .qd{font-size:11px;font-weight:700;margin-left:5px;white-space:nowrap}
   .qd.good{color:var(--good-green)} .qd.bad{color:var(--bad-red)} .qd.neu{color:var(--cf-mute)}
-  /* Dev-mode tables (lead detail + Data from Transmission): compact, horizontally scrollable */
+  /* Dev-mode tables (lead detail + Internal Notes tab): compact, horizontally scrollable */
   .dev-table{width:100%;border-collapse:collapse;font-size:12px;white-space:nowrap}
   .dev-table th,.dev-table td{padding:6px 10px;border-bottom:1px solid var(--cf-line);text-align:left}
   .dev-table thead th{position:sticky;top:0;background:var(--surface-2);z-index:1;font-size:10.5px;text-transform:uppercase;
@@ -503,8 +503,10 @@
         <button class="tab" data-tab="main" onclick="switchTab('main')">Content Syndication</button>
         <button class="tab" data-tab="compare" onclick="switchTab('compare')">CS Comparison</button>
         <button class="tab" data-tab="qoq" onclick="switchTab('qoq')">Quarter on Quarter</button>
-        <!-- Dev only (admin / Transmission): a source-table inventory. Hidden for clients. -->
-        <button class="tab" data-tab="txdata" id="txDataTab" style="display:none" onclick="switchTab('txdata')">Data from Transmission</button>
+        <!-- Dev only (admin / Transmission): internal notes + the source-table inventory. Hidden for clients.
+             Renamed from "Data from Transmission" 2026-08-05; the notes UI itself is platform-injected
+             into #bbNotesMount (superadmin / agency sessions through dashboards.bidbrain.ai). -->
+        <button class="tab" data-tab="txdata" id="txDataTab" style="display:none" onclick="switchTab('txdata')">Internal Notes</button>
       </div>
       <div class="control-right">
         <!-- Quarter selection lives IN the calendar (the "Q3 (Jul-Sep)" / "Q2 (Apr-Jun)" presets), not
@@ -676,10 +678,17 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- DATA FROM TRANSMISSION TAB (dev only)                         -->
+    <!-- INTERNAL NOTES TAB (dev only; was "Data from Transmission")   -->
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-txdata">
       <div class="card">
+        <h3>Internal notes</h3>
+        <div class="hint">Team notes on this dashboard - add, edit or delete freely. Internal view, never shown to Cloudflare.</div>
+        <!-- The notes UI is injected here by the platform proxy (staff sessions only). On a raw
+             run.app URL there is no injection, so the mount stays empty and only the hint shows. -->
+        <div id="bbNotesMount" style="margin-top:12px"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
         <h3>Source IDs Transmission committed</h3>
         <div class="hint">The canonical Content-Syndication campaign / Source-ID list that <b>should be present</b> (from <code>definitions.json</code>), with what has actually landed per ID. <b>Present?</b> = at least one lead received. A red row = committed but not yet delivering. Internal view.</div>
         <div id="txIdsWrap" style="overflow:auto;border:1px solid var(--cf-line);border-radius:8px;margin-top:12px"></div>
@@ -2168,7 +2177,7 @@ function selectNoneMarkets() {
 // (platform-injected window.BB_DEV for admin / super-admin / the Transmission agency, or a local
 // ?dev=1 fallback). CLIENT VIEW = exactly what the client sees. ADMIN VIEW additionally reveals
 // unprocessed (New) leads across the CS charts, a Source-ID filter, the per-lead detail table and
-// the "Data from Transmission" tab. `devMode` (true = Admin View) is the single flag the rest of the
+// the "Internal Notes" tab. `devMode` (true = Admin View) is the single flag the rest of the
 // code keys off. Clients never get the toggle, so their view is byte-for-byte unchanged.
 function initDevMode() {
   if (!DEV_ALLOWED) return;
@@ -2179,7 +2188,7 @@ function initDevMode() {
 }
 
 // Reflect devMode (Admin View) across every gated control: the topbar chips, the Source-ID filter
-// block in the CS filter-row, and the admin-only "Data from Transmission" tab.
+// block in the CS filter-row, and the admin-only "Internal Notes" tab.
 function applyViewMode() {
   document.querySelectorAll('#viewToggle .qtr-chip').forEach(b => {
     b.classList.toggle('on', (b.getAttribute('data-view') === 'admin') === devMode);
@@ -2581,7 +2590,7 @@ function renderAll() {
 }
 
 // ==========================================================================
-// DEV MODE: full lead detail table (all fields) + "Data from Transmission" tab
+// DEV MODE: full lead detail table (all fields) + "Internal Notes" tab
 // ==========================================================================
 // Every column we hold per lead. Order = most useful first (Source ID, status, date), PII last.
 const LEAD_COLS = [
@@ -2635,8 +2644,9 @@ function downloadLeadsCsv() {
   setTimeout(() => URL.revokeObjectURL(a.href), 0);
 }
 
-// "Data from Transmission" tab: what Transmission committed - the canonical Source-ID list
-// (should-be-present + what landed) and the pacing/target plan. Reads COMBINED.transmission (job-built).
+// "Internal Notes" tab (was "Data from Transmission"): what Transmission committed - the canonical
+// Source-ID list (should-be-present + what landed) and the pacing/target plan. Reads
+// COMBINED.transmission (job-built). The editable notes UI above these tables is platform-injected.
 function renderTxData() {
   const idsWrap = document.getElementById('txIdsWrap');
   const pacWrap = document.getElementById('txPacingWrap');

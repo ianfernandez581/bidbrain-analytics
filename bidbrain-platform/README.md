@@ -432,6 +432,43 @@ ride along as plain form fields; both stored on the record, blank when not given
   imperfectly) and `html2canvas` is lazy-loaded from a CDN — if blocked, the note just sends without
   an image. Both are vendorable later if needed.
 
+## Internal Notes + Internal Assistant (staff-only, on every dashboard — 2026-08-05)
+
+Every proxied dashboard carries a **staff-only widget**: two gold pills bottom-left — **"Internal
+Notes"** (the secret tab) and **"Assistant"** (the internal chatbot). It is injected by `proxy()`
+exactly like the feedback widget, but **only when `_internal_allowed(client)`** — session kind
+`superadmin` / `admin` / the client's **owning agency** (via `_may_open`). A **client session never
+receives a byte of it**, and a raw `<c>-dash` run.app URL never shows it (no proxy → no injection).
+
+- **Internal Notes** — free-text team notes per dashboard, add/edit/delete straight from the panel.
+  Storage = ONE private JSON per client, `gs://bidbrain-analytics-platform-dash/internal_notes/
+  <client>.json` (`internal_notes.py`; same trust boundary as the registry/feedback). Routes:
+  `GET|POST /internal-notes/<client>` (+ `/edit`, `/delete`), all gated by `_internal_allowed`.
+  Note author = the signed-in email (or tier). **Cloudflare's dashboard additionally mounts the
+  same notes UI inline** into its Admin-View **"Internal Notes" tab** (renamed 2026-08-05 from
+  "Data from Transmission"; the committed Source-ID/pacing tables remain below the notes) — the
+  widget looks for a `#bbNotesMount` element and mounts there too; any dashboard can opt in by
+  adding that div.
+- **Assistant** — `POST /internal-chat/<client>` (`internal_chat.py`) runs ONE Gemini turn
+  (`gemini-2.5-flash`, same `GEMINI_API_KEY` as feedback) over: the client's **live `data.json`**
+  (fetched via the proxy's own upstream login, 5-min cache `_CHAT_DATA_CACHE`), a committed
+  **lineage digest** (`dash/lineage/<c>.txt` — client README + every `sql/*.sql` header, built by
+  `build_lineage.py`; re-run it after meaningful README/sql changes), and the current internal
+  notes. So it can state any number on the dashboard AND its provenance (raw source → BigQuery
+  view → job key → screen). It has **function-calling tools to add/edit/delete the internal
+  notes** (executed server-side against `internal_notes.py`; the widget refreshes the notes list
+  when `notes_changed` comes back). **Thinking is shown**: `thinkingConfig.includeThoughts` — the
+  thought summaries render as a collapsible THINKING block on each reply.
+- **Gemini gotchas (both bitten 2026-08-05):** (1) a synthetic `model:"Understood."` primer turn
+  before the real question makes flash intermittently return `finishReason=STOP` with **zero
+  parts** on large contexts — the DATA/LINEAGE/NOTES context therefore rides in
+  `systemInstruction`, and `contents` is purely the real conversation; don't move it back.
+  (2) a `functionCall` part carries a `thoughtSignature` that MUST be echoed back **verbatim**
+  in the follow-up round — `chat()` appends the original part dicts, not rebuilt ones.
+- The spend multiplier is irrelevant here by design: the audience is internal, so the assistant
+  reasons over RAW spend (its system prompt says it may discuss billed-vs-raw openly). Keep it
+  that way — never inject this widget for client sessions.
+
 ## Open slides (AI decks — the "Open slides" button)
 
 The agency portal's **Overview** tab shows a per-client **"Open slides"** button (rendered only for
@@ -513,6 +550,10 @@ bidbrain-platform/
     platform_sso.py              shared SSO token (issuer here; VENDORED into every dashboard as the verifier)
     feedback.py                  feedback capture: save()/list_recent()/update_record()/load_blob() over the platform's GCS bucket
     feedback_ai.py               one Gemini call: transcribe the voice note + interpret feedback into summary + action items
+    internal_notes.py            staff-only Internal Notes store (one JSON per client in the platform bucket)
+    internal_chat.py             staff-only Assistant: Gemini turn over live data.json + lineage digest, with note tools + visible thinking
+    build_lineage.py             builds lineage/<c>.txt digests from clients/*/README.md + sql/ headers (run after doc/sql changes)
+    lineage/                     committed per-client lineage digests, shipped in the image (COPY lineage)
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
