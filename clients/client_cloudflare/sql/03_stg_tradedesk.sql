@@ -27,6 +27,14 @@ WITH src AS (
         REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '') AS CAMPAIGN_NAME_NORM
     FROM `bidbrain-analytics.raw_snowflake.tradedesk_apac_all`
     WHERE ADVERTISER_NAME = 'Cloudflare'
+      -- 2026-08-05 client request: DOOH is out of scope for the dashboard entirely
+      -- (CLOUD_ACQ_2026-Q2-DOOH - AU/NZ, 12 creatives, 1,362,226 imps / $19,799.59,
+      -- 0 clicks - out-of-home can't click, so it filled the bottom-10 creatives
+      -- table). Substring match on the RAW name so a brief-number prefix can't
+      -- dodge it. MIRRORED in status_dashboard/job/main.py's two TTD checks
+      -- (whole-advertiser totals) - keep both sides in sync or the accuracy
+      -- monitor goes red.
+      AND LOWER(IFNULL(CAMPAIGN_NAME, '')) NOT LIKE '%dooh%'
 )
 SELECT
     DAY,
@@ -45,10 +53,11 @@ SELECT
         -- normal long-form names: the market token is the 9th underscore field
         NULLIF(IFNULL(SPLIT(CAMPAIGN_NAME_NORM, '_')[SAFE_OFFSET(8)], ''), ''),
         -- short-form names carry no underscore market token and were dropped entirely
-        -- by the `MARKET_L3 <> ''` filter downstream (DOOH / High Impact, 7,360,518
-        -- imps / $29,699.60, Q2 May-Jun). They end in a " - AU" / " - NZ" / " - ANZ"
-        -- suffix, so read that instead. Unknown suffixes still fall through to '' and
-        -- are dropped exactly as before. Delete this arm to revert to the old scope.
+        -- by the `MARKET_L3 <> ''` filter downstream (DOOH / High Impact, Q2 May-Jun).
+        -- They end in a " - AU" / " - NZ" / " - ANZ" suffix, so read that instead.
+        -- Since the 2026-08-05 DOOH exclusion above, this arm only rescues High
+        -- Impact--HyperlocalGeo (5,998,292 imps / $9,900.01). Unknown suffixes still
+        -- fall through to '' and are dropped exactly as before.
         CASE UPPER(IFNULL(REGEXP_EXTRACT(CAMPAIGN_NAME_NORM, r'-\s*([A-Za-z]{2,3})\s*$'), ''))
             WHEN 'AU'  THEN 'ANZ'
             WHEN 'NZ'  THEN 'ANZ'

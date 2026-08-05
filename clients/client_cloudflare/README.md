@@ -162,6 +162,22 @@ Two leaks, both closed:
 move with it. The second row is Q2 history that was never displayed before, so Q2 totals change; to
 revert just that part, delete the suffix-fallback `CASE` arm in `03_stg_tradedesk.sql`.
 
+### DOOH excluded from the dashboard (2026-08-05, client request)
+
+The suffix-fallback fix above surfaced the two Q2 DOOH campaigns (`CLOUD_ACQ_2026-Q2-DOOH - AU`/
+`- NZ`, ran 2026-05-12 → 05-31: 12 creatives, **1,362,226 imps / $19,799.59 / 0 clicks**). DOOH is
+out-of-home - it structurally cannot click - so all 12 creatives sat at 0% CTR and filled the
+whole bottom-10 creatives table (which is whole-flight, not date-scoped, so they showed even under
+Q3). Client asked for **full removal**: `03_stg_tradedesk.sql` drops any campaign whose RAW name
+contains `dooh` (substring, so brief-number prefixes can't dodge it), which removes DOOH from
+spend, imps and every KPI/chart/creative table (both `paid_media_model` and `paid_creatives_model`
+read that view). Q3 KPIs don't move (DOOH ended in May); Q2 totals drop by the figures above.
+**Mirrored** as an explicit `NOT ILIKE '%DOOH%'` in the two whole-advertiser TTD checks in
+`status_dashboard/job/main.py` - keep both sides in sync or the accuracy monitor goes red. The
+sibling short-form campaign `High Impact--HyperlocalGeo - ANZ` (5,998,292 imps / $9,900.01 /
+1,923 clicks) is real clickable display and **stays**. To revert: delete the `NOT LIKE '%dooh%'`
+predicate in the view + the two `NOT ILIKE` lines in the status checks.
+
 The same campaign exists under **both** name forms in the feed (15 raw names = 8 real campaigns for
 the Q3 MDS line), so any name-keyed aggregate was also splitting in half. Normalising unions them.
 Reference figure to check against, from the media-buyer sheet pull: the 8 `*_MDS_TTD_*COREDG-Q3`
