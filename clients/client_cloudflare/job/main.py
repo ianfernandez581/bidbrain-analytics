@@ -92,7 +92,8 @@ def rows(bq, sql):
 
 
 def build_transmission(bq, t):
-    """What Transmission committed for this dashboard, for the dev-only "Data from Transmission" tab:
+    """What Transmission committed for this dashboard, for the dev-only "Internal Notes" tab (named
+    "Data from Transmission" until 2026-08-05):
       1. SOURCE IDs - the canonical Content-Syndication campaign/Source-ID list that SHOULD be present
          (seed_cs_campaign_ids, loaded from definitions.json - the single source of truth), LEFT-JOINed
          to salesforce_leads_live so each ID shows what has actually landed (leads + accepted/rejected/
@@ -168,7 +169,7 @@ def main():
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
     cre = rows(bq, f"SELECT * FROM {t('paid_creatives_model')}")
-    tx = build_transmission(bq, t)   # "Data from Transmission" tab: committed Source IDs + pacing plan
+    tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
     pdates = sorted(d for d in (ymd(r.get("DATE")) for r in pm) if d)
@@ -375,7 +376,7 @@ def main():
         "pacing": pacing_payload,
         "campaigns": campaigns,
         "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
-        "transmission": tx,   # "Data from Transmission" tab: committed Source IDs + the pacing plan
+        "transmission": tx,   # "Internal Notes" tab: committed Source IDs + the pacing plan
     }
 
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(

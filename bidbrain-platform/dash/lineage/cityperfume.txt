@@ -1,0 +1,506 @@
+# Lineage digest for dashboard 'cityperfume' (from clients/client_cityperfume/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
+# clients/client_cityperfume/ — City Perfume (AU e-commerce perfume/beauty) · **LIVE**
+
+A self-hosted, password-gated marketing dashboard for **City Perfume**, built on the same
+three-stage pattern as every other client (shared raw layers → per-client BigQuery views →
+Cloud Run export job writes `cityperfume.json` to a private bucket → password-gated Cloud Run
+web app serves it). It pairs the **STT backend + auth model** with an **e-commerce front-end**
+(modelled on the Adriatic sample) plus a first-party **Sales** tab neither of them had.
+
+Status: **LIVE** at https://cityperfume-dash-p32gk2wuia-ts.a.run.app (password-gated) — first
+deployed + verified 2026-06-06; since extended (YoY tab, day-grained views, global Sales-channel +
+date-range filters). The export job runs (PII-free `cityperfume.json` in the private bucket), the
+dashboard serves all 6 tabs, and the auth flow is confirmed (401 unauth → 200 authed). **36 views**
+now applied. Refreshes within ~10 min of new upstream data (self-gating `*/10` scheduler). Both logos
+(100% Digital + City Perfume) are embedded in the topbar + login.
+
+### Two dashboards off ONE pipeline (online-only + all-sales)
+
+There are **two Cloud Run web services** over the *same* `cityperfume.json` (the export job already
+ships every channel — `sales_by_channel*` carry all `channel_group`s):
+
+- **`cityperfume-dash`** (`dash/`) — **defaults to Website-only** (in-store POS excluded entirely;
+  Marketplace excluded by default — not ad-addressable — but still a selectable Sales-channel chip).
+  Headline = the **ad spend → attributed revenue → ad-attributed profit** chain. **This is the default deliverable.**
+- **`cityperfume-total-dash`** (`dash_total/`) — the **all-sales** variant: In-store POS + Website +
+  Marketplace (In-store POS is the *largest* channel — ~A$13.5M vs Website ~A$6.4M vs Marketplace
+  ~A$1.7M). Headline = **blended Marketing Efficiency Ratio** (all sales ÷ ad spend); the incremental
+  online margin-ROAS is kept as a stricter secondary lens. **Front-end-only fork** — same bucket, JSON,
+  web SA and password/session secrets, so one login opens it. See [`dash_total/README.md`](dash_total/README.md).
+
+## The story it tells
+
+City Perfume is e-commerce, so the outcome is **revenue / orders / margin / ROAS**, not sessions —
+and the headline is **"ads → actual profit."** The **first-party order ledger** (`v_sales`) is the
+single source of truth for revenue, margin, orders, AOV and customers. The three ad platforms
+(Google, Meta, Trade Desk) and GA4 each *claim* their own attributed revenue, and they disagree
+wildly (Google ~22%, Meta ~4%, GA4 ~2% of true sales), so we never sum them — platform-claimed
+figures are **context only**.
+
+`dash/` **defaults to Website-only** (in-store POS excluded entirely; **Marketplace excluded by
+default** — ads don't click through to marketplaces so we don't credit them — but it stays a
+*selectable* Sales-channel chip for drill-down). It answers the client's literal question —
+**"how many dollars did we spend, and how many did that make?"** — as a **spend → attributed revenue
+→ ad-attributed profit** chain (margin/ROAS/profit track the *selected* channels, live from
+`v_sales`/Maropost COGS), NOT a total-revenue ÷ spend ratio:
+
+- **Ad spend** (working media) — the hard fact (~A$0.69M full window).
+- **Attributed revenue** = spend × **7× incremental revenue ROAS** (regression-based planning estimate,
+  band 4–9×) — the modeled *incremental* website revenue ads caused (~A$4.8M full window).
+- **Ad-attributed profit** = attributed revenue × **~38.5% Website gross margin** (Maropost COGS) =
+  spend × **~2.69× margin ROAS** (~A$1.86M gross; net ~1.69× after the ad cost).
+- The old ratio headline (≈31× blended / ≈11.7× online) overstated ad impact ~10× — retired; platform-
+  claimed revenue is context only, never a ROAS input.
+- **This is the interim "quick" calc** (acceptable for the immediate deliverable). The real
+  regression/Maropost-margin productionisation + the spend-down / geo holdout that would turn
+  `7×`/`2.69×` from planning estimates into measured constants are **follow-ups**. `7×` is one constant
+  (`REV_ROAS_ONLINE` in `dash/dashboard.html`), so re-baselining is a one-line change.
+
+Full methodology, the reproducible regressions and the validation plan live in
+[`analysis/`](analysis) (`city_perfume_roas_handoff.md`, `city_perfume_incrementality.py`,
+`validation_plan.md`). Everything is **AUD** — **no FX**. Window rolls from **2025-01-01** to latest.
+
+## The 6 dashboard tabs (`dash/dashboard.html`)
+
+1. **Overview** — KPIs telling the **spend → attributed revenue → ad-attributed profit** story
+   (ad spend · attributed revenue · ad-attributed profit · actual Website revenue · AOV · margin% ·
+   sessions), AI commentary, monthly spend-by-platform vs *actual* website-revenue hero, revenue-by-
+   channel donut, a **Margin ROAS (incremental)** callout (now showing the profit dollars), and spend share.
+2. **Paid Media** — all platforms (ignores the Platform chips; Campaign filter applies); monthly
+   spend + ROAS, spend share, platform comparison table **incl. platform-claimed ROAS**, Google by
+   campaign type, Meta creative mix (video/image) + a creative gallery, top-campaigns table.
+3. **Website & GA4** — sessions by channel, GA4 revenue by channel, the on-site funnel
+   (sessions → view_item → add_to_cart → begin_checkout → purchase), monthly sessions by bucket,
+   top source/mediums. Carries a visible **"GA4 tracking degraded from Oct 2025"** data-quality note.
+4. **Sales & Products** *(unique)* — first-party truth: revenue/margin/AOV trend, **prominent
+   new-vs-returning section** (cards + monthly stacked revenue + returning-share + split donut),
+   revenue by channel, category mix (EDP/EDT/Parfum/Gift Set & Hamper/Other), top products by
+   revenue **or** margin, sales-by-channel detail.
+5. **Ads → Revenue** — spend→sales funnel, weekly spend vs online revenue, weekly correlation scatter
+   (Pearson r, flagged as largely seasonal), the **monthly profit band** (base online margin + ad spend
+   + net ad-driven profit), and a stat strip (Margin ROAS incremental, net ROAS, cost/order, platform-
+   claimed as % of true online sales). Carries the methodology footnote linking the analysis handoff.
+6. **Year on Year** — plain-dollar finance view (AUD): each month against the same calendar month a year
+   earlier, $ + YoY%, from the `yoy_monthly` view. The in-progress month is compared **month-to-date**
+   (same day-count both years) so it stays fair. The Date range acts as a **month filter** and the Sales
+   channel chips scope revenue; ad spend stays whole (ad data has no channel split). Prior-year baseline
+   is our own first-party `v_sales` (to be reconciled with the client's old tracker).
+
+**Filters (global, in the topbar):**
+- **Date range** — a Looker-style picker (presets + custom range). The finest grain is the **DAY**: every
+  `*_daily` view is clipped to the selected range, aggregated up for KPIs/donuts/tables, and bucketed to
+  day/week/month for trend charts by span. When the range is **not** narrowed, the full-period arrays stay
+  the exact source (so the default view is unchanged and distinct-customer counts stay exact). On the
+  Year-on-Year tab the range acts as a **month filter**.
+- **Platform** (Google · Meta · Trade Desk) and **Campaign** (searchable multi-select, grouped by platform,
+  sorted by spend) rescale the **ad side** client-side.
+- **Sales channel** chips (Website / Marketplace = the online `channel_group` values) scope the **online**
+  revenue side. There is no in-store and no All/Online toggle — the dashboard is online-only. No Country
+  filter (no geo dimension).
+
+## How it works (3 stages — same shape as every client)
+
+1. **`sql/`** — 36 `CREATE OR REPLACE VIEW`s, `NN_` ordered (01–06 stg filters → 10–40 full-period
+   rollups → 50–59 day-grained rollups). Apply with `python clients/client_cityperfume/create_views.py`
+   (or `sql/deploy_views_cityperfume.ps1`). The filter strings + the `2025-01-01` window live once in
+   the `01–06 stg_*` views. (See [`sql/README.md`](sql/README.md) for the per-view map.)
+2. **`job/`** — `cityperfume-export` Cloud Run job reads the rollup views and writes
+   `cityperfume.json` to the private bucket. **Aggregates only** — it never reads `v_sales`/`stg_sales`
+   directly and a `assert_no_pii` guard refuses to write if `customer_id`/`email` ever appear. It is
+   **self-gating** (`freshness.py`): on each `*/10` UTC scheduler tick it probes the BigQuery
+   `__TABLES__.last_modified` of the raw tables it reads (`raw_neto.orders`, `raw_google_ads.perf_google_ads`,
+   `raw_windsor.perf_meta` / `perf_the_trade_desk`, `raw_ga4.perf_ga4` / `perf_ga4_events`) against the
+   `_freshness.json` watermark in the bucket and rebuilds **only** when one advanced (else exits 0).
+   `FORCE_REBUILD=1` bypasses the gate. See [`job/README.md`](job/README.md).
+3. **`dash/`** — `cityperfume-dash` Cloud Run service: a Flask password gate that serves
+   `dashboard.html` and proxies `cityperfume.json` at `/data.json` to authenticated sessions only.
+   Auth logic is byte-for-byte STT; only the login branding + data object differ.
+
+## The data contract (matched by name across three files)
+
+    sql/*.sql view column  →  job/main.py JSON key  →  dashboard.html data.* key
+
+The job uses a generic `clean()` mapper, so JSON keys mirror the view columns exactly. Rename a
+column in a view and you must re-run the job; the dashboard reads the same names. **All-campaigns
+selection reproduces the whole-window ad totals exactly** (verified: kpi = monthly = weekly =
+ad_campaigns = platform_summary = **A$517,729**; sales views all = **A$16,053,034**).
+
+## Deploy / refresh (copy-paste, PowerShell — build & deploy as yourself, never cloudbuild from a laptop)
+
+```powershell
+# FIRST-TIME STANDUP (idempotent; prompts for the dashboard password; dataset already exists → preserved):
+.\client_cityperfume\deploy_cityperfume.ps1
+
+# edited a sql/*.sql view → reapply views + re-run the job:
+.\client_cityperfume\sql\deploy_views_cityperfume.ps1
+
+# edited job/main.py (JSON shape) → rebuild + deploy + run the job:
+.\client_cityperfume\job\deploy_job_cityperfume.ps1
+
+# edited dash/dashboard.html or dash/main.py → rebuild + redeploy the service:
+.\client_cityperfume\dash\deploy_dash_cityperfume.ps1
+
+# adjust the refresh cadence (the scheduler defaults to */10 UTC, self-gating):
+.\client_cityperfume\scheduler.ps1 -Schedule "*/10 * * * *"
+```
+
+The service serves `dashboard.html` with `Cache-Control: no-store`, so a redeploy shows immediately,
+and it always reads whatever JSON is currently in the bucket.
+
+## EDA decisions (recorded in `BUILD_CHECKLIST.md`)
+
+AUD-only (no FX) · window 2025-01-01→latest · v_sales = truth · `dash/` DEFAULTS to Website-only
+(in-store POS excluded entirely; Marketplace excluded by default — not ad-addressable — still selectable) ·
+spend → attributed revenue (×7 incremental rev ROAS) → ad-attributed profit (×~38.5% Website Maropost
+margin = ~2.69× margin ROAS); interim quick calc, real regression/Maropost calc is a follow-up ·
+margin/ROAS track the SELECTED channels · platform-claimed shown separately ·
+Meta includes all `effective_status` (paused/archived hold ~50% of spend) ·
+TTD stays upper-funnel (parsed `conversion_touch_03`, no revenue) · concentration category via regex ·
+new-vs-returning via first-ever-order over full history. **Flagged to client:** GA4 tracking broke
+~Oct 2025; margin has zero-cost-price / negative-promo noise.
+
+## Coordinates
+
+| | |
+|---|---|
+| GCP project | `bidbrain-analytics` (au-southeast1) |
+| Dataset | `client_cityperfume` (pre-existing — holds `v_sales`) |
+| Bucket / object | `bidbrain-analytics-cityperfume-dash` / `cityperfume.json` |
+| Job / services | `cityperfume-export` / `cityperfume-dash` (online-only) + `cityperfume-total-dash` (all-sales, `dash_total/`) |
+| SAs | `cityperfume-dash-job@…` (job) · `cityperfume-dash-web@…` (web) |
+| Secrets | `cityperfume-dash-password` · `cityperfume-dash-session-key` |
+| Access path | via the platform front-door — `https://dashboards.bidbrain.ai/d/cityperfume/` (no per-client subdomain) |
+
+## Files
+
+- `create_views.py` — applies `sql/*.sql` in order.
+- `sql/` (36 views) — 01–06 staging, 10–12 headline/trend, 13–16 GA4, 20–25 sales, 30–35
+  campaign/platform, 40 year-on-year, 50–59 day-grained (the range-filter source). See
+  [`sql/README.md`](sql/README.md).
+- `job/` — `main.py` (export), `freshness.py` (self-gating helper), Dockerfile, requirements,
+  cloudbuild, `deploy_job_cityperfume.ps1`. See [`job/README.md`](job/README.md).
+- `dash/` — `main.py` (auth gate), `dashboard.html`, Dockerfile, requirements, cloudbuild,
+  `deploy_dash_cityperfume.ps1`, `LIVE_URL.md`. See [`dash/README.md`](dash/README.md).
+- `dash_total/` — the **all-sales** 2nd dashboard (`cityperfume-total-dash`): forked `dashboard.html`
+  + `main.py` + `deploy_dash_cityperfume_total.ps1`. Reuses `dash/`'s pipeline/SA/secrets. See
+  [`dash_total/README.md`](dash_total/README.md).
+- `analysis/` — ROAS analysis handoff, reproducible incrementality script + chart, T7 validation plan.
+- `deploy_cityperfume.ps1` (one-shot) · `scheduler.ps1` · `BUILD_CHECKLIST.md`.
+
+## See also
+
+- Root `README.md` — the full platform map, security model, add-a-client playbook.
+- `clients/client_STT/` — the backend + auth template this client mirrors.
+
+
+## BigQuery views (sql/) - each header documents what the view computes and its raw sources
+
+### 01_stg_google.sql
+-- City Perfume — Google Ads staging (filter the shared raw layer once, here).
+--
+-- Source: bidbrain-analytics.raw_google_ads.perf_google_ads, account_name='City Perfume'.
+-- Campaign x day grain. ALL AUD (currency_code='AUD' on 100% of rows) so NO FX is
+-- applied anywhere in this client. `spend` is NUMERIC dollars already (NOT micros —
+-- verified: SUM=1.54M AUD vs 177M imps => ~AUD 8.7 CPM; do not divide by 1e6).
+-- conversions_value is Google-CLAIMED revenue (shown separately, never summed into the
+-- blended headline). Reporting window 2025-01-01 -> latest is applied once, here.
+
+### 02_stg_meta.sql
+-- City Perfume — Meta staging (filter the shared raw layer once, here).
+--
+-- Source: bidbrain-analytics.raw_windsor.perf_meta, account_name='Cityperfume.com.au'
+-- (note the .com.au string — different from the Google/TTD 'City Perfume' string).
+-- AD x day grain (true key = ad_id, 133 distinct; ad_name is reused/relabelled).
+-- ALL AUD (currency='AUD' on 100% of rows) — `cost` IS spend in account currency, no FX.
+--
+-- effective_status is current-config delivery state, NOT a per-date spend flag:
+-- paused/archived rows hold ~50% of lifetime spend & purchases, so we DO NOT filter on
+-- it — all delivered rows count toward historical totals.
+--
+-- purchases / purchase_value are Meta-CLAIMED (omni) conversions — shown separately,
+-- never summed into the blended headline. There is no native creative_type column, so
+-- we derive video vs image from the presence of any video play. creative_link_url is
+-- always NULL and destination_url is sparse (~32%) — neither is used; the thumbnail +
+-- title + body + creative_id power the creative gallery instead.
+
+### 03_stg_ttd.sql
+-- City Perfume — The Trade Desk staging (filter the shared raw layer once, here).
+--
+-- Source: bidbrain-analytics.raw_windsor.perf_the_trade_desk, advertiser_name='City Perfume'.
+-- Small upper-funnel DISPLAY awareness pilot: 105 rows, 1 campaign, ~AUD 1,044 spend,
+-- 2026-05-17..05-31. ALL AUD. No video inventory (all video_* are 0).
+--
+-- `conversions` is a JSON column but DOUBLE-ENCODED: it holds a JSON *string* scalar
+-- (or a JSON null on 45/105 rows), NOT a native object. A naive JSON_EXTRACT on the raw
+-- column silently returns 0/NULL for everything — you MUST PARSE_JSON(JSON_VALUE(...))
+-- first. We surface the `_03` attribution window (the only consistently populated one):
+-- conversion_touch_03 = total/multi-touch (=397 over the flight), with the click/view
+-- split available. These are view-through/multi-touch DSP attribution counts only —
+-- there is NO revenue/value in the JSON, so TTD never contributes platform_revenue.
+
+### 04_stg_ad_delivery.sql
+-- City Perfume — unified ad-delivery base (the single source for the Campaign filter).
+--
+-- One long-format row per platform x campaign x day, folding the three paid channels
+-- (Google paid search/PMax/shopping, Meta paid social, Trade Desk display) into the SAME
+-- shape so every campaign-grained roll-up (ad_campaigns / ad_campaign_monthly /
+-- ad_campaign_weekly) is built once on top of it. Mirrors STT's stg_ad_delivery.
+--
+-- spend_aud is AUD for all three (no FX anywhere in this client). platform_conversions /
+-- platform_revenue are each platform's OWN-CLAIMED numbers (Google conversions/value,
+-- Meta purchases/purchase_value, TTD multi-touch conversions/NULL value) — surfaced for
+-- the per-platform "platform-claimed" panels and NEVER summed into the blended headline,
+-- which divides v_sales revenue by total spend instead. creative_type is Meta-only
+-- (video/image), NULL for Google/TTD. Conversions/revenue cast to FLOAT64 so the three
+-- branches union cleanly (Google NUMERIC, Meta INT/NUMERIC, TTD FLOAT64).
+
+### 05_stg_ga4.sql
+-- City Perfume — GA4 acquisition staging (filter the shared raw layer once, here).
+--
+-- Source: bidbrain-analytics.raw_ga4.perf_ga4, account_name='City Perfume'.
+-- Session x source/medium x channel-group daily grain. No currency column — values are
+-- AUD by assumption (AU retailer). Reporting window 2025-01-01 -> latest applied here.
+--
+-- DATA-QUALITY CAVEAT: GA4 tracking is BROKEN from ~Oct 2025 (row counts collapse from
+-- ~2,500/mo to <120/mo, purchase_revenue/transactions go null). GA4 is only reliable
+-- Jun-Sep 2025. The dashboard surfaces GA4 with a visible "tracking degraded from Oct
+-- 2025" note and leans on the healthy window; GA4 is NEVER used as a revenue source of
+-- truth (v_sales is). Kept windowed/aligned so the break is visible rather than hidden.
+--
+-- channel_bucket folds the 16 GA4 channel groups into 6 coarse buckets. IMPORTANT:
+-- 'Cross-network' = Performance Max / cross-network ads = PAID (it is the single largest
+-- group) — do not let it fall into Other.
+
+### 06_stg_sales.sql
+-- City Perfume — first-party SALES staging (the source of truth). Filter/clean once here.
+--
+-- Source: bidbrain-analytics.client_cityperfume.v_sales (order-line grain, 358,695 lines).
+-- This is the ground truth for revenue / margin / orders / AOV / customers — the blended
+-- ROAS denominator. AUD (no currency column; AU business). Window 2025-01-01 -> latest.
+--
+-- PRIVACY: customer_id is carried here ONLY to compute the new-vs-returning flag and the
+-- distinct-customer counts inside BigQuery. It (and email) MUST NEVER be selected by any
+-- roll-up the export job reads, and MUST NEVER reach cityperfume.json. The 20..24 sales
+-- roll-ups emit aggregates only. email is dropped entirely (it is also 35% null; customer_id
+-- is the identity key).
+--
+-- NEW vs RETURNING: computed over the customer's FULL order history (not just the window) —
+-- an order is "new-customer" only if it is that customer's first-ever order. We therefore
+-- rank every order across all history, then keep only window rows. (Windowing before
+-- ranking would mislabel a 2023-acquired customer's 2025 order as "new".)
+--
+-- channel_group folds the 20 sales_channel values into In-store POS / Website / Marketplace
+-- / Other (the long tail of junk/zero channels). category is a CONCENTRATION class derived
+-- by regex on product_name (75%+ carry a size token; ~0 nulls). Margin is net-as-reported
+-- and has known data-quality noise (zero-cost-price lines inflate it; promo lines go
+-- negative) — surfaced honestly with a dashboard caveat, not silently scrubbed.
+
+### 10_kpi.sql
+-- City Perfume — headline KPI row (the single row the dashboard reads for the big numbers).
+--
+-- Window = 2025-01-01 -> latest sales day (applied in every stg_*). ALL AUD, no FX.
+--
+-- ATTRIBUTION STANCE (blended / marketing-efficiency-ratio):
+--   * v_sales is the SINGLE source of truth for revenue / margin / orders / AOV / customers.
+--   * roas_blended = total sales revenue / total ad spend (the MER — no per-channel
+--     attribution assumed; respects the omnichannel halo onto in-store).
+--   * roas_online = online-only revenue (excl. In-store POS) / total ad spend — the
+--     secondary, stricter "ad-attributable" lens.
+--   * google_rev_claimed / meta_rev_claimed are each platform's OWN-CLAIMED revenue,
+--     surfaced for context and NEVER summed into the headline.
+
+### 11_monthly.sql
+-- City Perfume — monthly trend (month x {ad spend by platform, sessions, sales, margin}).
+-- The Overview hero (monthly ad spend by platform vs sales revenue vs ROAS). FULL OUTER
+-- JOIN across the three sources on month so a month with sales but no GA4 (post-Oct-2025
+-- GA4 break) or vice-versa still appears. All AUD.
+
+### 12_weekly.sql
+-- City Perfume — weekly trend (ISO week, Monday-anchored) for the Ads -> Revenue tab:
+-- weekly ad spend vs sales revenue (correlation scatter + dual-axis line). All AUD.
+-- Sales has no campaign dimension, so the sales columns are whole-store every week; only
+-- the ad columns rescale under the Campaign filter (the dashboard recomputes client-side).
+
+### 13_ga4_channels.sql
+-- City Perfume — GA4 sessions & ecommerce by channel group (Website tab). One row per
+-- GA4 default channel group, with its coarse Paid/Organic/Direct/Referral/Email/Other
+-- bucket. Caveat: GA4 tracking degraded from Oct 2025 (dashboard flags this).
+
+### 14_ga4_monthly_channel.sql
+-- City Perfume — GA4 sessions by coarse channel bucket per month (Website tab stacked
+-- trend; makes the Oct-2025 tracking break visible). All AUD.
+
+### 15_ga4_sources.sql
+-- City Perfume — top GA4 source/mediums by sessions (Website tab). is_paid flags the ad
+-- sources (any row in this source/medium bucketed Paid — e.g. google/cpc, fb/paid,
+-- ig/paid). Top 25 by sessions. Caveat: GA4 degraded from Oct 2025.
+
+### 16_ga4_funnel.sql
+-- City Perfume — site-wide GA4 ecommerce funnel (Website tab): sessions -> view_item ->
+-- add_to_cart -> begin_checkout -> purchase. Assembled from BOTH GA4 tables: sessions
+-- from the acquisition table (stg_ga4), the mid/lower-funnel event counts from the
+-- event-grain table (perf_ga4_events, which has NO source dimension) — so the funnel is
+-- WHOLE-SITE only, not segmentable by channel. event_name='purchase' is the canonical
+-- step (is_conversion_event is unreliable across the date range). Window 2025-01-01 ->.
+
+### 20_sales_kpi.sql
+-- City Perfume — first-party sales headline row (Sales & Products tab). Aggregates only —
+-- no customer_id/email ever leaves here. New-vs-returning is computed from the order's
+-- first-ever-order flag (stg_sales.is_new_customer_order, over full history). Margin is
+-- net-as-reported (known caveats: zero-cost-price lines inflate it, promo lines go
+-- negative) — surfaced honestly, flagged in the dashboard.
+
+### 21_sales_monthly.sql
+-- City Perfume — monthly sales trend (Sales tab): revenue/margin/AOV/orders + the new-vs-
+-- returning split per month. All AUD, aggregates only.
+
+### 22_sales_products.sql
+-- City Perfume — top products (Sales tab). Top 50 by revenue UNION top 50 by margin, so
+-- the dashboard can render both a "top by revenue" and a "top by margin" list from one
+-- set (rev_rank / margin_rank flag membership). Grain = product_name (more granular than
+-- sku here; 23k names). Aggregates only.
+
+### 23_sales_by_channel.sql
+-- City Perfume — sales by channel (Sales tab). One row per raw sales_channel with its
+-- coarse channel_group (In-store POS / Website / Marketplace / Other), so the dashboard
+-- can show both the grouped split and the channel detail. Aggregates only.
+
+### 24_sales_new_returning.sql
+-- City Perfume — new vs returning customers, monthly (Sales tab — surfaced prominently).
+-- An order is "new" if it is the customer's FIRST-EVER order (computed over full history
+-- in stg_sales, then windowed); "returning" otherwise. Customer counts use customer_id
+-- as the identity key (100% populated; email is 35% null). Aggregates only — no ids leave.
+
+### 25_sales_category.sql
+-- City Perfume — sales by concentration category (Sales tab). Category derived by regex on
+-- product_name in stg_sales (EDP / EDT / Parfum-Other / Gift Set & Hamper / Other).
+-- Aggregates only.
+
+### 30_ad_campaigns.sql
+-- City Perfume — ad delivery by campaign (whole window): the Campaign filter's option list
+-- + per-campaign totals. One row per platform x campaign, delivering campaigns only
+-- (zero-impression/zero-spend shells dropped). Ordered by spend so the searchable
+-- multi-select surfaces what matters first. The dashboard sums the selected campaigns
+-- client-side to rescale every ad-delivery figure (sales side stays whole). Mirrors STT.
+
+### 31_ad_campaign_monthly.sql
+-- City Perfume — ad delivery by campaign x month. Lets the Overview/Paid-Media monthly ad
+-- spend recompute when a subset of campaigns is selected (the all-campaigns sum reproduces
+-- monthly.ad_spend exactly — the STT invariant). All AUD.
+
+### 32_ad_campaign_weekly.sql
+-- City Perfume — ad delivery by campaign x ISO week (Monday). Powers the Ads -> Revenue
+-- weekly spend line under the Campaign filter (sales revenue stays whole-store weekly).
+
+### 33_meta_creative.sql
+-- City Perfume — Meta creative performance (Paid Media tab). One row per creative_id
+-- (~124), carrying the derived creative_type (video/image), objective, thumbnail/title for
+-- the gallery, and spend/imps/clicks/purchases/purchase_value. The dashboard aggregates
+-- creative_type for the mix donut and shows the top creatives by spend with thumbnails.
+-- purchases/purchase_value are Meta-CLAIMED (shown as such, never in the blended headline).
+
+### 34_platform_summary.sql
+-- City Perfume — per-platform delivery summary (Paid Media comparison table). Includes
+-- each platform's PLATFORM-CLAIMED ROAS (its own conversions_value/purchase_value over its
+-- own spend) shown SEPARATELY and clearly labelled — this is NOT the blended ROAS and is
+-- never summed across platforms. TTD has no revenue in-source so its claimed ROAS is NULL
+-- (it stays an upper-funnel/awareness channel; platform_conversions = view-through count).
+
+### 35_google_campaign_type.sql
+-- City Perfume — Google Ads by campaign_type (Paid Media tab). PERFORMANCE_MAX dominates
+-- spend (~61%), then SHOPPING / SEARCH. roas_claimed is Google-claimed conversions_value
+-- over spend (context, never the blended headline). All AUD.
+
+### 40_yoy_monthly.sql
+-- City Perfume — YEAR-ON-YEAR monthly comparison (the finance "Year on Year" tab).
+-- Pairs each month with the SAME calendar month one year earlier, in plain AUD dollars
+-- plus the YoY growth %, for ad spend, revenue (total + online), margin, orders and the
+-- blended ROAS. Built by self-joining the `monthly` rollup on month = prior-year month,
+-- so it inherits monthly's FULL OUTER JOIN coverage (a month with sales but no ads, or
+-- vice-versa, still appears) and its definitions stay single-sourced.
+--
+-- Data availability (CURRENT pipeline — no client tracker baseline yet): first-party
+-- sales AND total ad spend both run from 2025-01, so every 2026 month has a real 2025
+-- comparison. Months with no prior-year row get NULL *_py / *_yoy (rendered as "no
+-- comparison"). The newest month is the in-progress current month (partial); the
+-- dashboard flags it and excludes it from year-to-date totals.
+--
+-- NOTE (flagged to client): the prior-year baseline here is our own first-party v_sales,
+-- NOT City Perfume's old sales tracker. When Thanh provides the tracker figures we can
+-- swap/reconcile the *_py revenue source without touching the dashboard.
+
+### 50_sales_daily.sql
+-- City Perfume — first-party sales per DAY (the range-aware spine of the Sales/Overview tabs).
+-- Day grain so the dashboard clips to the exact selected date range and aggregates up (and
+-- buckets to day/week/month for trend charts by range span). Additive columns only; the
+-- dashboard derives margin_pct / aov / repeat-rate / shares from the summed columns.
+-- NOTE on customers: new_customers is EXACT when summed over any range (a customer is "new"
+-- on exactly one day — their first-ever order); returning_customers over-counts across days
+-- (shown as ≈ in the UI). Aggregates only — no customer_id/email ever leaves here.
+
+### 51_sales_by_channel_daily.sql
+-- City Perfume — sales by channel per DAY (range-aware source for the channel donut + table
+-- AND the GLOBAL sales-channel filter). Day grain; the dashboard clips to the range, filters to
+-- the selected channel_group(s), and re-aggregates — deriving aov / margin_pct / returning-share
+-- from the summed columns. This is the single channel-grained sales source: it carries the same
+-- measures as sales_daily (incl. new/returning revenue & customers) so the dashboard can rebuild
+-- every sales KPI/trend for any channel subset. Aggregates only.
+
+### 52_sales_category_daily.sql
+-- City Perfume — sales by concentration category per DAY (range-aware source for the Sales-tab
+-- category chart). category derived by regex on product_name in stg_sales. Day grain; the
+-- dashboard clips + re-aggregates per category and derives margin_pct. Aggregates only.
+
+### 53_sales_products_daily.sql
+-- City Perfume — top products per DAY (range-aware source for the products table).
+-- Ships a POOL — every product in the full-period top 80 by revenue OR top 80 by margin — at
+-- day grain, so the dashboard clips to the range, re-aggregates per product, and re-ranks to the
+-- top 50 over the selected window. Day rows are sparse (a product only appears on days it sold),
+-- so this stays compact. APPROXIMATION: a product tiny over the whole window but big within a
+-- short sub-range could fall outside the 80/80 pool. Additive columns only. Aggregates only.
+
+### 54_ga4_channels_daily.sql
+-- City Perfume — GA4 sessions & ecommerce by channel group per DAY (range-aware source for the
+-- Website-tab headline cards, channel bars, revenue donut, and the sessions-by-bucket trend).
+-- Day grain; the dashboard clips + re-aggregates per channel and buckets the trend. Carries
+-- channel_bucket for colouring. Additive columns only. Caveat: GA4 degraded from ~Oct 2025.
+
+### 55_ga4_sources_daily.sql
+-- City Perfume — GA4 source/medium per DAY (range-aware source for the top-sources table).
+-- Ships the full-period top 30 sources by sessions, at day grain; the dashboard clips to the
+-- range, re-aggregates per source, and shows the top sources over the window. is_paid is OR-ed
+-- across the day's rows. Additive columns only. Caveat: GA4 degraded from ~Oct 2025.
+
+### 56_ga4_funnel_daily.sql
+-- City Perfume — site-wide GA4 ecommerce funnel per DAY (range-aware source for the funnel).
+-- Sessions from the acquisition table (stg_ga4); the mid/lower-funnel event counts from the
+-- event-grain table (perf_ga4_events, no source dimension) — whole-site only. All steps are
+-- additive session/event counts, so the dashboard sums the days in range. FULL OUTER JOIN on
+-- day so a day present in one table but not the other still appears. Window 2025-01-01 ->.
+
+### 57_ad_campaign_daily.sql
+-- City Perfume — ad delivery by campaign x DAY (range-aware spine of every ad-side figure:
+-- Overview/Paid KPIs, spend donuts, platform-compare table, top-campaigns table, and the
+-- spend/ROAS trend charts). Day grain so the dashboard clips to the exact range, applies the
+-- Campaign/Platform filters client-side, and aggregates up. The all-campaigns sum reproduces
+-- the whole-period ad_campaigns totals exactly. platform_revenue is each platform's own-CLAIMED
+-- revenue (context, never the blended headline). All AUD.
+
+### 58_google_campaign_type_daily.sql
+-- City Perfume — Google Ads by campaign_type x DAY (range-aware source for the Paid-Media
+-- campaign-type chart). Day grain; the dashboard clips + re-aggregates per type and derives
+-- ctr / roas_claimed (Google-claimed conversions_value / spend — context, never the blended
+-- headline) from the summed columns. All AUD.
+
+### 59_meta_creative_daily.sql
+-- City Perfume — Meta creative performance x DAY (range-aware source for the creative-mix donut
+-- and the top-creative gallery). One row per creative_id x day, carrying the (day-invariant)
+-- creative metadata via ANY_VALUE plus the daily delivery sums. The dashboard clips to the range,
+-- re-aggregates per creative_id, then rebuilds the mix donut and the top gallery over the window.
+-- campaign_name is carried so the Campaign multi-select still applies. purchases /
+-- purchase_value_claimed are Meta-CLAIMED (never in the blended headline); roas_claimed / ctr
+-- derived in the dashboard. Day rows are sparse (only days a creative delivered).

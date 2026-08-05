@@ -3,6 +3,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py store.py config.py platform_sso.py feedback.py feedback_ai.py logo.svg ./
+COPY internal_notes.py internal_chat.py ./
+COPY lineage ./lineage
 COPY agency_transmission.svg agency_x100-digital.png ./
 COPY admlogo_transmission.png admlogo_x100-digital.png ./
 COPY favicon.ico favicon-32.png apple-touch-icon.png ./

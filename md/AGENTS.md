@@ -77,7 +77,12 @@ dates, "verified on") lives there too, never here.**
   or Microsoft), a reverse proxy serving every dashboard at `/d/<c>/` (no second password), agency
   portals, admin tree, super-admin god-mode console (reveals/rotates every password), pipeline
   health + Data Accuracy tabs, feedback widget, AI slide decks ("Open slides", Gemini-on-Vertex),
-  and the per-channel **client-billed spend multiplier** injected as `window.BB_SPEND_MULT`.
+  the per-channel **client-billed spend multiplier** injected as `window.BB_SPEND_MULT`, and the
+  **staff-only Internal Notes + Assistant widget** proxy-injected into every dashboard for
+  superadmin/admin/owning-agency sessions ONLY (notes in the platform bucket; the assistant is a
+  Gemini turn over live data.json + committed `dash/lineage/` digests, with note-editing tools and
+  visible thinking - see the platform README's two Gemini gotchas before touching it; re-run
+  `build_lineage.py` after meaningful client README/sql changes).
   Registry = one private JSON in GCS. Service `platform-dash`.
 - **`status_dashboard/`** - pipeline-health data + deploy plumbing (UI is merged into the platform;
   the standalone `status-dash` service is retired and its `dash/` source deleted). `status-export`

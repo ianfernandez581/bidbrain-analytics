@@ -1,0 +1,659 @@
+# Lineage digest for dashboard 'resetdata' (from clients/client_resetdata/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
+# clients/client_resetdata/ — ResetData (Australia) · B2B sovereign-AI / data-centre
+
+> The effect of paid media on the ResetData website: spend → traffic → engagement → leads / key
+> events. Built on the [`client_STT`](../client_STT/README.md) archetype (the lean "ads → website
+> traffic" pattern that reads straight from the shared raw layers, no Snowflake final-model step).
+> **ResetData tells the same B2B story as STT — NOT the e-commerce shape:** there is no
+> revenue / ROAS / AOV / transactions. Conversions here are leads / form-fills / key events.
+
+**Plain English:** ResetData is an Australian sovereign-AI / data-centre infrastructure brand, run
+by the agency **100 Digital**. It advertises on **Google Ads** (paid search), **Meta** (paid social),
+**The Trade Desk** (programmatic display) and **Reddit** (community awareness / traffic). This
+dashboard puts that ad spend next to what happened on the ResetData **website** (Google Analytics 4) —
+sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-credit click, file downloads).
+
+**Reporting currency: AUD.** Status: built 2026-06-08; see [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
+
+---
+
+## What's different from `client_STT` (the deltas)
+
+| | STT | **ResetData** |
+|---|---|---|
+| Platforms | Google Ads · LinkedIn · DV360 | **Google Ads · Meta · The Trade Desk · Reddit** |
+| Source datasets | all `raw_snowflake` | **three layers**: `raw_google_ads` · `raw_windsor` · `raw_ga4` |
+| GA4 source | Snowflake event-grain (reconstructed) | **`raw_ga4.perf_ga4`** — already Traffic-Acquisition grain → `stg_ga4` is a plain filter |
+| Currency | SGD (FX_USD_SGD=1.34) | **AUD** (FX_USD_AUD=1.50, TTD only) |
+| Geography | 9 APAC markets + Country filter | **AU-only — no Country filter** |
+| Conversions | GA4 key events | GA4 key events **+ platform-reported** (Google solid, Meta sparse, TTD none) |
+
+## The six sources (three raw datasets) + the exact slice filters
+
+| Source | Raw table | ResetData filter | Currency | Contributes |
+|---|---|---|---|---|
+| **Google Ads** (paid search) | `raw_google_ads.perf_google_ads` | `account_name = 'Reset Data'` | AUD | imps / clicks / **spend (already AUD — not micros)** / conversions (83) |
+| **Meta** (paid social) | `raw_windsor.perf_meta` | `account_name = 'Reset backup – Ad account'` (**en-dash –**) | AUD | imps / clicks / spend / **leads** (the "Signup Button" custom pixel conversion) / creative mix |
+| **The Trade Desk** (display) | `raw_windsor.perf_the_trade_desk` | `advertiser_name = 'ResetData'` | **USD → AUD ×1.50** | imps / clicks / spend |
+| **Reddit** (community awareness / traffic) | `raw_windsor.perf_reddit` | `client_slug = 'resetdata'` | AUD (native) | imps / clicks / spend / **page visits** / sign-up+lead conversions (sparse) |
+| **GA4** (the outcome) | `raw_ga4.perf_ga4` | `client_slug = 'reset-data'` | — | sessions / users / engagement / channels / conversions |
+| **GA4 events** | `raw_ga4.perf_ga4_events` | `client_slug = 'reset-data'` | — | key events by name (leads / sign-ups / …) |
+
+> **Slug split (important):** Google Ads + GA4 tag the client `reset-data` (hyphen); Meta + TTD + Reddit
+> tag it `resetdata` (no hyphen). Each `stg_*` view filters by the **stable per-table key** above
+> (account / advertiser name, or `client_slug` for Reddit), not a single shared slug.
+>
+> **Reddit notes:** 3 top-of-funnel "Community" campaigns, objectives CONVERSIONS + CLICKS: two fixed
+> FebMar26 flights (Feb–Mar 2026) + **AlwaysOn26, which is ONGOING** — steady ~A$25-30/day billed with
+> no taper through 2026-07-31 (the latest Windsor day as of 2026-08-05), so expect current-month spend
+> to keep appearing as the nightly loads land.
+> Native engagement (upvotes/downvotes/comments) and all video metrics are NULL upstream, so only delivery
+> + page visits + sparse conversions are surfaced. `reach` is non-additive across days, so it is not summed.
+>
+> **⚠ Reddit MIS-MAP incident (2026-07-16 → RESOLVED 2026-08-05):** the 2026-07-16 Windsor reddit
+> re-grant connected the WRONG account — `a2_iq3fdsq6rem5` is **Transmission_Cloudflare's** seat, but
+> the loader mapped it `client_slug='resetdata'`, so the dashboard's Reddit lane showed **Cloudflare's**
+> CLOUD_ACQ Apr–Jun campaigns; worse, ResetData's REAL Feb–Jun rows (id `a2_igd0szmw7roq`) were deleted
+> from `perf_reddit` the same day as a presumed duplicate. **Fixed 2026-08-05:** the ResetData account
+> was re-granted in Windsor and came back under its **original id** (`a2_igd0szmw7roq` — no new mint,
+> contrary to the 07-16 assumption); a fixed-range `--force` re-pull (2026-02-01..2026-08-04) retagged
+> the Cloudflare rows `→ cloudflare/transmission` and re-backfilled ResetData's real Feb–Jul history
+> (1,827 rows, raw A$4,571.56 → A$9,143 at the ×2 billed rate, 30 conversions, data through
+> 2026-07-31); `windsor-reddit-ingest` was redeployed with both accounts mapped and `resetdata-export`
+> force-rebuilt. `data/resetdata_reddit_febmar26.csv` corroborates the recovered Feb–Mar delivery.
+> NB: the status-dash Reddit accuracy checks mirror the same `client_slug='resetdata'` filter, so they
+> stayed GREEN through this (the circular-check trap in AGENTS.md) — hardening them to compare
+> account-level Windsor totals instead is an open follow-up.
+>
+> **Audience / creative / keywords (added 2026-07-02; views 31–33):** Overview **Audience** = **Google Ads**
+> inferred age / gender / device (`ga_audience`, from the `ads_AgeRange*`/`ads_Gender*` DTS tables scoped to
+> customer_id `1054407474`; `cost_micros`/1e6 → AUD). It is "who the **ads** reached", **not** site visitors —
+> **GA4 `DemographicDetails` is EMPTY** (Google thresholds demographics on this low-traffic property) and Google
+> Ads **geo is country-only** (~all Australia), so neither is used; label it as Google-Ads-only + directional.
+> Paid-Media **Creative gallery** = **Meta** `meta_creatives` (thumbnail / title / body / `link_url` per `creative_id`;
+> `creative_thumbnail_url` is a Meta CDN link that can EXPIRE — the view keeps the most-recent URL and the export
+> refreshes it each rebuild, with a graceful "preview unavailable" fallback). Shows the **top 10 by impressions**;
+> **clicking a card opens a zoom lightbox** (`openCreative`) with the enlarged image + FULL copy + metrics + an
+> "Open ad destination" link (`link_url`) — so the creative is readable even when the thumbnail link has expired
+> (Meta exposes no public campaign URL, so we link to the ad's destination, not a campaign page).
+> **Image persistence (2026-07-02):** Meta thumbnail URLs are signed + short-lived and 403 once an ad ends, so the
+> export job **caches the top-10 images to the bucket** (`cache_creative_images` → `gs://…-resetdata-dash/creatives/<id>`,
+> best-effort, never breaks the export) and emits `img_cached`; the dash serves the permanent copy at **`/creative-img/<id>`**
+> (same auth as `/data.json`). When there's no cached image the card shows a **branded headline tile** (`ccFallback`),
+> not a blank box. Caveat: this only preserves creatives whose URL is still live at export time — already-expired ones
+> can't be recovered without the Meta Marketing API. **"Who we targeted"** = top **Google
+> Ads keywords** (`ga_keywords`, search intent — more meaningful than audience segments for a search account).
+> Job emits `ga_audience` / `ga_keywords` / `meta_creatives`.
+
+## Currency & FX
+
+Everything is **AUD**. Google Ads `spend` from the native DTS table is **already whole AUD dollars**
+(verified ~A$8 CPM — do **not** divide by 1,000,000). Meta `cost` is already AUD. Reddit's
+`account_currency` is **AUD native** (no FX). The Trade Desk bills **USD**, converted once in
+[`sql/04_stg_ttd.sql`](sql/04_stg_ttd.sql) at **`FX_USD_AUD = 1.50`** (the same constant
+`client_schneider` uses) and surfaced as `kpi.fx_usd_aud`. _If the real rate differs, edit the
+`1.50` in `04_stg_ttd.sql` and re-run the views._
+
+## GA4 conversion health (read honestly)
+
+GA4 key-event tracking **is live and does populate**, but volumes are **modest** for this B2B / low-traffic
+site (~72 key events over the window). The configured GA4 conversion event is **`Leadform_submit`**; other
+demand events — `sign_up`, `start_$50_free_credit_click`, `file_download`, `learn_more_click` — also fire.
+The dashboard shows these as **directional demand signals, not a high-volume funnel**, and flags the
+caveat in-app. Platform-reported conversions are separate: **Google Ads = 83 (reliable)**, **Meta leads ≈ 51**
+(the advertiser's **"Signup Button"** custom pixel conversion, `signup_button_conversions` — the generic
+`actions_lead` is ~2 noise and is kept only as `platform_leads_actions`), **The Trade Desk = none reported
+upstream** (its `conversions` JSON is null → cost-per-lead "—").
+
+**GA4 channel blend:** Paid Search ≈ Google Ads (clean); Paid Social also carries Reddit traffic; Display
+also carries Google PMax/Demand-Gen — so the platform↔channel mapping (Google↔Search, Meta↔Social,
+TTD↔Display) is approximate. The Ads→Traffic correlation uses mapped paid sessions for the selected platforms.
+
+## The 5 dashboard tabs (`dash/dashboard.html`)
+
+Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows none):
+- **Platform** — Google Ads · Meta · Trade Desk · Reddit. Scopes ad-delivery figures; on Ads → Traffic also
+  scopes the mapped GA4 channel sessions (Meta + Reddit both map to Paid Social — counted once). (Paid Media
+  ignores Platform — it always compares all four.)
+- **Campaign** — searchable multi-select of every delivering campaign (grouped by platform, sorted by
+  spend), all selected by default. Scopes **ad delivery only**; the GA4/website side stays whole. Powered
+  by the campaign-grained `ad_campaign*` views, summed client-side.
+
+> **Campaign display names are auto-cleaned** by `cleanCampaign()` (the "naming agent" in `dash/dashboard.html`):
+> raw ad-platform names — Google Ads' `[TAG] Theme | S | Max Conv` / `100D | S | HT | Theme` convention — are
+> normalised on the fly (strip the `[TAG]` + account/channel/bid-strategy codes, expand HT→High-Intent / GPU /
+> LLM / ANZ…, Title-Case while preserving acronyms & good casing), so **new campaigns need no hand-editing**.
+> Rules-based (deterministic), **display-only** — the raw name stays the join/filter key. `CAMPAIGN_LABELS` is
+> now just an **override** map for the few names where the auto-label isn't ideal:
+> `displayName = CAMPAIGN_LABELS[raw] || cleanCampaign(raw)`, used by the filter dropdown + every campaign table.
+
+> **Chart toggles default to Absolute + Day** (client preference, 2026-07-02) — this client deliberately
+> diverges from the repo-wide "Relative" default. The defaults live in the `grain`/`scale` objects in
+> `dash/dashboard.html` (`syncToggleDefaults()` highlights the matching AXIS/VIEW-BY buttons at load);
+> don't "fix" them back to Relative/Month.
+
+1. **Overview** — north-star strip (ad-reported leads · cost per lead · paying customers · ad spend) +
+   supporting KPI cards, and the **"Ad spend → leads → paying"** hero: **spend (stacked by platform)
+   bars** vs **two trend lines** — **ad-reported leads** + **new paying customers** (the CRM trend comes
+   from `crm_outcomes_daily`, bucketed to the hero grain by `tsCrm`, **whole-account CRM — NOT
+   filter-scoped**). **2026-08-05 (client request): the Cost/lead line was REMOVED from the hero**
+   (CPL lives on its north-star card, now a static card, not a chart toggle) **and the paying line was
+   aligned to the Signups & CRM tab's Paying series — the hero plots the REAL payers** —
+   `rd_total_spend>0` contacts dated by `hs_created_at` (the
+   `new_payers` series; HubSpot records NO first-payment date, and created-date matches the Signups & CRM
+   tab's cohort basis) — so it **sums exactly to the all-time Paying customers card** (119 on 2026-08-04).
+   It previously plotted lifecycle Customer-STAGE dates (`..._customer_date`, ~2-3/month, ~zero overlap
+   with the payers — ResetData's HubSpot never advances lifecycle when a contact starts paying, payers
+   mostly stay stage Lead), which made the header 119 vs the tiny line read as a bug; that
+   `new_customers` series stays in the JSON as reference only. A cleaner future basis would be CRM-side:
+   a HubSpot workflow setting lifecycle=Customer on first spend, or an `rd_first_payment_at` property. A **launch marker** for the inference product go-live is planned once Sofia/Ben
+   confirm the date. Plus channel-mix / spend-by-platform donuts and an **Audience** section (age bar + gender
+   / device donuts = Google Ads *ad-audience* demographics; see the data-source note). **KPI cards that map to
+   a chart line are clickable toggles**: Media spend, Website sessions, Total HubSpot leads and Total paying
+   customers hide/show their matching hero series (the card dims when off) — same effect as the chart legend,
+   driven from the card. Wired via `trendCard`'s `toggle` spec → `toggleKpiCard`/`applyKpiToChart` (keyed by
+   chart-series label, so `mkChart` reapplies it on every grain/date re-render). **Clickable cards are grouped
+   on the LEFT, static cards on the RIGHT** of each KPI row, so it reads which respond. Impressions, Clicks,
+   Ad-driven & Engaged sessions (no hero line) and the two HubSpot totals (all-time snapshot, don't move with
+   the filters) are static / fixed. The
+   **Website Traffic** tab applies the same: **Sessions** and **Ad-driven** are clickable (toggling the
+   webTrend "All sessions" / "Ad-driven (paid)" lines); Users / Engaged / Page views / Key events are static.
+   The Overview's **"What the key events are"** stacked chart has ~23 GA4 event types, so instead of a
+   (too-crowded) legend it is **click-to-focus**: click a coloured bar segment to isolate that one event
+   across the whole chart (shows its RAW volume over time - Relative is auto-suppressed for a single
+   event); click the bar again, or the **"Show all events"** link in the on-chart hint banner, to restore
+   the full stack. Wiring: `keFocus` state + `keColor` (stable per-event colour) + `keHelp` (the banner
+   above the chart) + Chart.js `onClick`/`onHover` using `getElementsAtEventForMode('nearest',intersect)`
+   to resolve the exact segment clicked; the segment's event is stashed on the dataset as `_ev`.
+2. **Paid Media** — platform comparison table (CTR/CPM/CPC/conv/CPL across all four), monthly spend by
+   platform, per-platform campaign tables (Google / Meta / TTD), the Meta creative mix, a **Creative gallery**
+   (Meta ad thumbnails + copy + per-creative delivery), a **"Who we targeted"** panel (top Google Ads search
+   keywords + conversions), and a **Reddit
+   community-awareness deep-dive** (KPI cards with cost-per-outcome, an **efficiency trend** — impressions
+   bars vs CPM/CPC lines, reframing the old spend-vs-impressions view so the *rising cost of a narrow AU
+   auction*, not performance, explains the impression taper — and the 3 campaigns by objective with page
+   visits + sign-up/lead conversions).
+3. **Website Traffic** (GA4) — sessions / users / engagement KPIs, sessions by channel, total-vs-ad-driven
+   trend, **key events by type**, and top sources/mediums (ad platforms flagged `AD`).
+4. **Ads → Traffic** — monthly spend vs sessions, weekly impressions vs mapped sessions, a **Pearson-r
+   correlation scatter**, and conversions / cost-per-lead by platform.
+5. **Signups & CRM** (HubSpot) — answers Caroline's six questions. Reads HubSpot via
+   `raw_windsor.hubspot_contacts` / `hubspot_owners` (a **live snapshot**). The ad Platform/Campaign filters
+   are hidden here, but the tab has its **own date-range picker** — the same Looker widget as the other tabs,
+   repointed to its own **contact-created-date** bounds/state (`crmStart`/`crmEnd`, from `crm.window`). Picking
+   a range windows the **whole tab** to that created-date cohort ("leads *created* in the window → signed up →
+   loaded → paying") at **month grain**; "All time" reproduces the full-snapshot totals exactly. Wiring: each
+   rollup carries a `created_month` (`26b_crm_kpi_monthly` funnel+queue; `created_month` on `28`/`29`/`30`;
+   `27_crm_signups_weekly` buckets by created week); the frontend SUMs the in-window months and re-derives
+   non-additive rates (pay-rate) from the summed parts. The funnel Caroline cares about: **Leads → App signups → Loaded balance
+   → Paying → Customers**, where *signup* = created an `app.reset.ai` account (`contact_rd_created_at`),
+   *loaded balance* = `rd_billing_balance > 0` (mostly the free $50 credit) and *paying* = `rd_total_spend
+   > 0` (actually spent). Sections: the funnel KPI row; **weekly signups stacked by source** + a paying
+   line + this-week/QTD callout (Q1+Q2); a **source-quality table** (paying vs free-only, pay-rate, deals,
+   ad-id matches — Q3+Q5); **lifecycle × owner** stacked bar + lifecycle donut (Q4, owner ids resolved to
+   names via the owner dim); and the **BDM lead queue** (NEW / unassigned by status & owner — Q6).
+   **Caveat surfaced in-app: HubSpot's own attribution is thin** (most signups land `Offline`/`Direct`),
+   so the `gclid`/`fbclid` "Ad-ID" column and the Paid Media / Ads→Traffic tabs are the reliable ad signals.
+   **Plain-language "?" tooltips (2026-08-05):** the CRM funnel terms (KPI cards, both panel titles, the
+   week/QTD callout, table headers) carry a small `?` badge — hover/focus shows the shared `#bbTipBubble`.
+   Reusable anywhere in this dash: `tipIcon('text')` in JS-built HTML, or a
+   `<span class="bb-tip" tabindex="0" data-tip="text">?</span>` in static HTML (client-local helper, not
+   vendored repo-wide). The signups + funnel Chart.js hover tooltips also append definition lines
+   (`footer`/`afterBody` callbacks — callbacks live under `tooltip.callbacks`, never directly on `plugins.*`).
+   **Canvas-drawn LEGENDS** (hero, CRM signups, pay/free) get the same bubble via the `LEGEND_TIPS`
+   registry (canvas id → legend label → text), shown by the global legend-affordance `onHover` at the
+   cursor (`bbTipShowAt`) — a DOM badge can't attach to a Chart.js legend, so to add legend definitions
+   to any other chart just add its canvas id to `LEGEND_TIPS`.
+
+> **CRM data source (HubSpot).** The Signups & CRM tab is fed by the shared `ingest/windsor_data_pull/hubspot/`
+> loader (`raw_windsor.hubspot_contacts` ~4.7k, `hubspot_deals` ~242, `hubspot_owners` ~26 — a WRITE_TRUNCATE
+> snapshot, all-STRING). The client views (`sql/24_stg_hubspot` … `30_crm_lead_queue`) type + aggregate that
+> slice. The export job now also **gates on `raw_windsor.hubspot_contacts`**. The HubSpot loader is **not yet
+> scheduled** — re-run it from a laptop to refresh the CRM numbers (`.\.venv\Scripts\python.exe
+> ingest\windsor_data_pull\hubspot\hubspot_loader.py`); the daily ad-data ticks will then re-export the dash.
+
+## How it works (3 stages — same shape as every client)
+
+```
+ (1) SOURCE → RAW (shared)              (2) RAW → VIEWS → JSON              (3) JSON → FRONTEND
+ raw_google_ads.perf_google_ads         clients/client_resetdata/sql/*.sql filter   resetdata-dash (Cloud Run service)
+ raw_windsor.perf_meta / _the_trade_desk ResetData's slice + roll it up;     shows a login page, then
+ raw_ga4.perf_ga4 / perf_ga4_events     resetdata-export (Cloud Run JOB)     dashboard.html, which fetches
+                                        reads the views → writes             /data.json and draws the charts
+                                        resetdata.json to the private bucket
+```
+
+The job is **read-only on BigQuery** (it only SELECTs the views, across all three raw datasets, and writes
+JSON to GCS). The data contract is matched by name across three files:
+`sql/*.sql view column → job/main.py env key → dashboard.html data.* key`.
+
+## Deploy / refresh (PowerShell, project `bidbrain-analytics`, region `australia-southeast1`)
+
+**First-time stand-up:** `.\client_resetdata\deploy_resetdata.ps1` once (idempotent — bucket, dataset,
+SAs, IAM, secrets, both Cloud Run units, the daily scheduler). The job SA gets **project-scoped**
+`roles/bigquery.dataViewer`, which covers all three raw datasets — don't narrow it. After that:
+
+```powershell
+# ① edited a view (sql/*.sql) → reapply + re-run the job:
+.\client_resetdata\sql\deploy_views_resetdata.ps1
+# ② edited job/main.py (JSON shape) → rebuild + deploy + run the job:
+.\client_resetdata\job\deploy_job_resetdata.ps1
+# ③ edited dash/dashboard.html or dash/main.py → rebuild + redeploy the service:
+.\client_resetdata\dash\deploy_dash_resetdata.ps1
+```
+
+> **Views are applied via `create_views.py` (the venv python BigQuery client), NOT `Get-Content | bq query`** —
+> one filter contains an en-dash (`Reset backup – Ad account`) and WinPS `Get-Content` re-encoding corrupts
+> non-ASCII SQL. `create_views.py` reads files as UTF-8. (It needs ADC authed as an account with access to
+> `bidbrain-analytics` — `gcloud auth application-default login`.) Never run `gcloud builds submit --config
+> cloudbuild.yaml` from a laptop (fails on `iam.serviceaccounts.actAs`); build the image + deploy as yourself.
+
+## Branding
+
+Skinned to **ResetData's brand**: crimson-pink accent (`#E84A6F`, from the logo + website) on deep navy.
+The **100% Digital** agency mark and the **ResetData** wordmark are inlined as base64 (sourced from
+[`creatives/`](creatives/README.md)) — agency mark · divider · client wordmark in the topbar and on the login
+page. `agency_slug` in the data is `100-digital`. To re-skin later, edit the `:root` palette + the `.logo`
+block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
+
+## What was skipped / noted (no-blockers)
+
+- **Meta ingest depends on the Windsor Facebook-connector grant for account `465058559225771`** (the
+  "Reset backup – Ad account"). **If that grant lapses, Meta data silently FREEZES** (the daily
+  `windsor-meta-ingest` job requests the account, Windsor returns *"Account … is not available"*, and
+  `meta_loader.py` catches `AccountUnavailableError` and SKIPS it — by design, so one deauthorised account
+  can't abort the others). Symptom: dashboard Meta spend/leads stop advancing while Meta Ads Manager still
+  shows spend. **This happened ~2026-07-08** — Windsor dropped the Reset account (only the Geocon account
+  `3754165911553001` remained configured), freezing Reset Meta at **2026-07-07**. **Detect:**
+  `curl -G https://connectors.windsor.ai/all --data-urlencode api_key=<windsor-api-key> --data-urlencode select_accounts=facebook__465058559225771 --data-urlencode fields=account_name,date,spend --data-urlencode date_from=<recent> --data-urlencode date_to=<recent>`
+  → an `error` naming the account = grant lapsed. **Fix (external, needs Windsor + Meta login):** re-grant at
+  `https://onboard.windsor.ai?datasource=facebook`. **Self-heals after re-grant:** the incremental loader
+  forward-loads from each account's `MAX(metric_date)` (07-07) to yesterday, so the next daily run (or a manual
+  `python ingest/windsor_data_pull/meta/meta_loader.py`) backfills the gap automatically — no truncate.
+- **Revenue / ROAS / AOV / transactions** — omitted entirely (B2B; `total_revenue` & `transactions` are 0).
+- **Trade Desk conversions** — none reported upstream (`conversions` JSON null) → no TTD cost-per-lead.
+- **GA4 conversion volume** — modest; shown honestly as directional (see above).
+- **Country filter** — none (AU-only).
+
+## Coordinates
+
+| | |
+|---|---|
+| BigQuery dataset | `client_resetdata` (31 views — 23 ads/GA4 + 7 HubSpot CRM, reading `raw_windsor.hubspot_*`) |
+| Data bucket / object | `bidbrain-analytics-resetdata-dash` / `resetdata.json` |
+| Export job | `resetdata-export` (runtime SA `resetdata-dash-job@…`, read-only BQ + bucket write) |
+| Web service | `resetdata-dash` (runtime SA `resetdata-dash-web@…`) → [`dash/LIVE_URL.md`](dash/LIVE_URL.md) |
+| Secrets | `resetdata-dash-password` · `resetdata-dash-session-key` |
+| Refresh | Cloud Scheduler `resetdata-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
+
+## Files
+
+- [`sql/`](sql/README.md) — 31 BigQuery views (filter + model; 24–30 are the HubSpot CRM layer); `create_views.py` applies them in `NN_` order.
+- [`job/`](job/README.md) — the export job (stage 2): views → `resetdata.json`.
+- [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
+- [`creatives/`](creatives/README.md) — branding source assets (the ResetData wordmark + a site
+  screenshot), now wired in as inline base64 / the sampled palette.
+- [`data/`](data) — a one-off reference export (`resetdata_reddit_febmar26.csv`, Reddit Feb–Mar 2026
+  ad delivery). **Not read by the views/job** — it predates the live Reddit wiring and is kept only as a
+  manual reference. Reddit is now a first-class platform: the pipeline reads `raw_windsor.perf_reddit`
+  via [`sql/04b_stg_reddit.sql`](sql/04b_stg_reddit.sql) (Reddit traffic also still blends into the GA4
+  Paid Social channel).
+
+
+## BigQuery views (sql/) - each header documents what the view computes and its raw sources
+
+### 01_stg_ga4.sql
+-- ResetData — staged GA4 website analytics (the OUTCOME of the paid media).
+--
+-- Source raw_ga4.perf_ga4 is ALREADY at Traffic-Acquisition grain (one row per
+-- day x session_source_medium x channel x campaign), with session columns sitting
+-- right on the row — so this is a PLAIN filter + channel_bucket CASE, NOT the
+-- Snowflake event-grained reconstruction client_STT's stg_ga4 needed. The ResetData
+-- slice is client_slug = 'reset-data' (account_name = 'Reset Data').
+--
+-- ResetData is B2B: total_revenue / transactions are ~0 upstream (verified), so no
+-- revenue columns are carried — `conversions` (GA4 key events) is the outcome metric.
+-- AU-only, so no market/country dimension (drop STT's COUNTRY split entirely).
+
+### 02_stg_google.sql
+-- ResetData — staged Google Ads (paid search — the "Always On" keyword campaigns).
+--
+-- Source is the native BigQuery Data Transfer Service table raw_google_ads.perf_google_ads
+-- (NOT Windsor). The ResetData slice is account_name = 'Reset Data' (this DTS table also
+-- carries client_slug = 'reset-data', but the account name is the stable key). EDA: 100%
+-- campaign_type = SEARCH, 22 campaigns, currency AUD.
+--
+-- CURRENCY TRAP RESOLVED: this DTS loader has ALREADY converted micros → currency, so the
+-- `spend` column is in whole AUD dollars (verified: ~$8 CPM over 1.59M imps). Do NOT divide
+-- by 1,000,000. conversions / conversions_value come straight from Google Ads' own tracking
+-- (83 conversions to date — the most reliable platform-reported conversion of the three).
+
+### 03_stg_meta.sql
+-- ResetData — staged Meta paid social (the awareness / lead-gen driver).
+--
+-- The ResetData filter lives here once: account_name = 'Reset backup – Ad account'
+-- (note the EN-DASH "–", not a hyphen "-"). EDA: this is the ONLY Reset account on Meta —
+-- there is NO separate "primary" account, the "backup" name notwithstanding. Its
+-- client_slug is 'resetdata' (no hyphen), unlike Google Ads / GA4 which use 'reset-data',
+-- so the account name is the stable key here.
+--
+-- Currency is already AUD (currency = 'AUD'), so `cost` maps straight to spend_aud — no FX.
+-- Objective is uniformly OUTCOME_LEADS. The platform-reported LEAD is the advertiser's custom
+-- pixel conversion **"Signup Button"** (signup_button_conversions, ~51 across the flight) — the
+-- deliberate lead tracker for this account. We use it as `conversions` instead of the generic
+-- `leads` action (actions_lead), which is near-zero noise here (2). creative_name /
+-- creative_title power the creative-mix view; landing_page_views + link_clicks are soft signals.
+
+### 04_stg_ttd.sql
+-- ResetData — staged The Trade Desk programmatic display.
+--
+-- The ResetData filter lives here once: advertiser_name = 'ResetData'. EDA: 1 campaign
+-- (ResetData_Apr26) across three standard display sizes (300x600 / 300x250 / 728x90 in
+-- ad_format), short flight (mid-May 2026 →), client_slug 'resetdata' (no hyphen).
+--
+-- CURRENCY TRAP RESOLVED: TTD bills in USD (currency = 'USD'), so cost is converted to the
+-- AUD reporting currency at the shared fixed rate FX_USD_AUD = 1.50 (the same constant used
+-- by client_schneider; surfaced in `kpi`). The CASE keeps it robust if an AUD row ever lands.
+-- conversions upstream is a JSON blob that is NULL for every ResetData row — TTD reports no
+-- usable conversions, so none are emitted (the README notes this gap). ad_format = creative size.
+
+### 04b_stg_reddit.sql
+-- ResetData — staged Reddit (top-of-funnel community awareness + traffic).
+--
+-- Source raw_windsor.perf_reddit, ResetData slice client_slug = 'resetdata' (the ONLY client
+-- on Reddit to date; account 'ResetData Ad Account (100Digital)', agency 100-digital). EDA:
+-- 3 community TOF campaigns / 33 ads, Feb–Jun 2026, objectives CONVERSIONS + CLICKS. Reddit's
+-- native engagement (upvotes / downvotes / comments) and all video metrics are NULL upstream,
+-- so they are not surfaced. Numbered 04b so it sits in the stg_* block (after stg_ttd, before
+-- stg_ad_delivery / the roll-ups that read it) — create_views.py applies files in name order.
+--
+-- Currency: account_currency = AUD — native, no FX (matches the AUD reporting currency).
+-- spend_aud is the AUD billed rate. conversions = sign-up + lead clicks (the demand-gen
+-- conversions Reddit reports — sparse, like Meta leads). page_visits = page-visit clicks + views
+-- (Reddit's traffic-driving signal, analogous to Meta landing-page views). reach is unique
+-- people and NON-ADDITIVE across days, so it is deliberately not summed here.
+
+### 05_stg_ga4_events.sql
+-- ResetData — staged GA4 key events (the demand-gen / lead events, by name).
+--
+-- stg_ga4 collapses every key event into a single `conversions` total; this view keeps the
+-- per-EVENT_NAME split so the Website tab can show WHICH events fired (Leadform_submit /
+-- sign_up / start_$50_free_credit_click / file_download / learn_more_click / form_start …).
+-- Plain filter on raw_ga4.perf_ga4_events, client_slug = 'reset-data'.
+--
+-- is_conversion_event flags GA4-configured conversions (today only Leadform_submit), so the
+-- dashboard can separate "configured conversions" from broader engagement events. Volumes are
+-- modest (B2B, low traffic) — surfaced honestly, never inflated. event_value is mostly 0.
+
+### 06_stg_ad_delivery.sql
+-- ResetData — unified ad-delivery base (the single source for the Campaign filter).
+--
+-- One long-format row per platform × campaign × day, folding the four paid channels
+-- (Google Ads paid search, Meta paid social, The Trade Desk programmatic display, Reddit
+-- community awareness) into the SAME shape so the campaign-grained roll-ups (ad_campaigns /
+-- ad_campaign_monthly / ad_campaign_weekly) can be built once on top of it. Mirrors
+-- client_STT's stg_ad_delivery.
+--
+-- Currency: spend_aud is AUD for all four — Google + Meta + Reddit are already AUD, TTD's stg
+-- view converts USD→AUD @1.50. conversions is platform-reported (Google `conversions`, Meta
+-- `leads`, Reddit sign-up + lead clicks); TTD reports none upstream, so 0. creative is the
+-- per-platform creative dimension (Meta creative_name, TTD ad_format size, NULL for Google /
+-- Reddit) — handy for slicing if needed.
+
+### 07_kpi.sql
+-- ResetData — headline KPI row (the single row the dashboard reads for the big numbers).
+--
+-- B2B "ads → traffic / leads": GA4 website outcomes next to Google + Meta + TTD + Reddit
+-- delivery. Window = 2025-12-01 → latest GA4 day (the live data starts mid-Dec 2025).
+-- FX_USD_AUD (1.50) converts TTD's USD spend into the AUD reporting currency (Google + Meta +
+-- Reddit already AUD), so a single combined media-spend figure is valid. ad_* = Google + Meta
+-- + TTD + Reddit combined.
+-- NO revenue/ROAS/transactions (B2B — those are ~0 upstream). conversions = GA4 key events;
+-- platform conversions kept per-platform (Google solid, Meta sparse, TTD none).
+
+### 08_monthly.sql
+-- ResetData — monthly trend: the hero "ad spend vs website sessions" series.
+--
+-- One row per month: GA4 sessions split by bucket (and the ad-mapped channels Paid Search =
+-- Google, Paid Social = Meta + Reddit, Display = TTD) + GA4 key events, alongside Google + Meta
+-- + TTD + Reddit delivery for the same month. From 2025-12 (the start of the live data). ad_*
+-- folds the four platforms in (TTD already USD→AUD in its stg view). NO revenue (B2B).
+
+### 09_weekly.sql
+-- ResetData — weekly ads-vs-traffic correlation series (campaign window).
+--
+-- One row per ISO week (Mon-anchored). Pairs the week's ad delivery (Google + Meta + TTD +
+-- Reddit impressions/clicks/spend) with the website sessions on the channels those ads map to
+-- — Paid Search (Google), Paid Social (Meta + Reddit), Display (TTD) — plus all paid and all
+-- sessions. This is what the "Ads → Traffic" tab plots and correlates. Per-platform impressions
+-- kept so the Platform filter can recompute the ad series client-side.
+
+### 10_ga4_channels.sql
+-- ResetData — GA4 sessions / engaged / key events by channel group (whole window).
+-- Powers the Overview channel-mix donut and the Website tab's channel breakdown.
+
+### 11_ga4_key_events.sql
+-- ResetData — GA4 key events by event_name × month (the demand-gen / lead signal).
+--
+-- Goes to the event-grained stg_ga4_events (NOT stg_ga4, which has already collapsed events
+-- into a single `conversions`) so the dashboard can show WHICH events fired month by month
+-- (Leadform_submit / sign_up / start_$50_free_credit_click / file_download / learn_more_click …).
+-- is_conversion_event is carried so the frontend can flag GA4-configured conversions
+-- (today only Leadform_submit) vs broader engagement events. Volumes are modest — shown as-is.
+-- Drops the high-volume non-key pageview-class events so the breakdown reads as "demand", not traffic.
+
+### 12_ga4_sources.sql
+-- ResetData — top GA4 source/medium by sessions (global top-N), ad platforms flagged.
+--
+-- The Website tab's "top sources" table. is_ad flags the rows that come from the three paid
+-- platforms (google / cpc, meta + ig + facebook, tradedesk + ttd + adsrvr) so stakeholders can
+-- see paid vs organic/direct sources at a glance. Top 25 by sessions.
+
+### 13_google_campaigns.sql
+-- ResetData — Google Ads delivery by campaign (whole flight) + platform-reported conversions.
+-- Per-campaign table on the Paid Media tab. Cost-per-lead is derived client-side (spend/conv).
+-- Delivering rows only via an outer WHERE (not HAVING SUM(alias), which BigQuery would read as
+-- an aggregation-of-aggregation against the SELECT alias).
+
+### 14_meta_campaigns.sql
+-- ResetData — Meta delivery by campaign (whole flight) + platform-reported leads.
+-- Per-campaign table on the Paid Media tab. Leads are sparse (B2B) — shown as-is.
+-- Delivering rows only via an outer WHERE (see 13 for the aggregation-of-aggregation note).
+
+### 15_ttd_campaigns.sql
+-- ResetData — Trade Desk delivery by campaign (whole flight). Spend AUD (USD→AUD @1.50 in
+-- stg_ttd). No conversions column — TTD reports none upstream. Per-campaign table on Paid Media.
+-- Delivering rows only via an outer WHERE (see 13 for the aggregation-of-aggregation note).
+
+### 16_meta_creative.sql
+-- ResetData — Meta delivery by creative (the creative-mix chart on the Paid Media tab).
+-- Meta carries a creative dimension (creative_title / creative_body / creative_id, ~18 creatives,
+-- surfaced as creative_name in stg_meta); group by it so stakeholders can see which creatives ran
+-- and how they delivered. Top by impressions. Outer WHERE for the delivering filter (see 13).
+
+### 17_ad_campaigns.sql
+-- ResetData — ad delivery by campaign (whole flight): the Campaign filter's option list +
+-- per-campaign totals. One row per platform × campaign, delivering campaigns only. Ordered by
+-- spend so the dropdown surfaces the campaigns that matter first. The dashboard sums the
+-- selected campaigns client-side to rescale every ad-delivery figure (GA4/website side has no
+-- campaign dimension, so website metrics stay whole). Mirrors client_STT's ad_campaigns.
+-- Outer WHERE (not HAVING) so the SUM aliases aren't re-aggregated.
+
+### 18_ad_campaign_monthly.sql
+-- ResetData — ad delivery by campaign × month, for the Campaign-filtered monthly charts
+-- (Overview hero spend + Paid Media spend-by-platform). The dashboard sums the selected
+-- campaigns per month/platform. Month key matches `monthly` (FORMAT_DATE %Y-%m). Delivering
+-- rows only (outer WHERE).
+
+### 19_ad_campaign_weekly.sql
+-- ResetData — ad delivery by campaign × ISO week (campaign window), for the Campaign-filtered
+-- Ads → Traffic weekly chart + correlation scatter. Week is Monday-anchored to match `weekly`.
+-- From 2025-12-01 so the week list lines up with the GA4 weekly series. Delivering rows only.
+
+### 20_reddit_campaigns.sql
+-- ResetData — Reddit delivery by campaign (whole flight): the community-awareness deep-dive
+-- table on the Paid Media tab. One row per campaign with its objective + traffic signal.
+-- spend_aud is AUD; conversions = sign-up + lead clicks (sparse, B2B); page_visits = page-visit
+-- clicks + views (Reddit's traffic-driving signal). Delivering rows only via an outer WHERE
+-- (see 13 for the aggregation-of-aggregation note). Ordered by spend so the heaviest flight leads.
+
+### 21_daily.sql
+-- ResetData — DAILY trend (the day-grain analogue of `monthly`/`weekly`).
+--
+-- One row per calendar day: GA4 sessions split by bucket (and the ad-mapped channels Paid
+-- Search = Google, Paid Social = Meta + Reddit, Display = TTD) + GA4 key events, alongside
+-- Google + Meta + TTD + Reddit delivery for the same day. Powers the "View by → Day" grain on
+-- the Overview hero, Website "Total vs ad-driven" and Ads → Traffic trend charts. From
+-- 2025-12-01 (the start of the live data), matching `monthly`/`weekly`. raw_ga4.perf_ga4 is
+-- already day-grained, so this is real per-day data (NOT interpolated). NO revenue (B2B).
+
+### 22_ad_campaign_daily.sql
+-- ResetData — ad delivery by campaign × DAY (the day-grain analogue of ad_campaign_weekly /
+-- ad_campaign_monthly), for the Campaign-filtered "View by → Day" grain on the Overview hero,
+-- Paid Media spend-by-platform, Reddit-over-time and Ads → Traffic trend charts. Day key
+-- ('YYYY-MM-DD') matches `daily`. From 2025-12-01 so the day list lines up with the GA4 daily
+-- series. Delivering rows only (outer WHERE), like ad_campaign_weekly / ad_campaign_monthly.
+
+### 23_ga4_key_events_daily.sql
+-- ResetData — GA4 key events by event_name × DAY (the day-grain analogue of ga4_key_events).
+--
+-- Same source + filter as ga4_key_events (the event-grained stg_ga4_events), but keyed by
+-- calendar day so the Overview "What the key events are" breakdown supports the View-by → Day
+-- grain. Drops the same high-volume pageview-class events so the breakdown reads as "demand",
+-- not traffic. is_conversion_event carried so the frontend can flag GA4-configured conversions.
+-- raw_ga4.perf_ga4_events is already day-grained, so this is real per-day data. Volumes modest.
+
+### 24_stg_hubspot.sql
+-- 24_stg_hubspot.sql — typed, flag-derived Contact base for the Signups & CRM tab.
+-- Reads the shared raw mirror raw_windsor.hubspot_contacts (all-STRING, account 45274177
+-- = Reset Data's only HubSpot) and casts + normalises + derives the funnel flags ONCE so
+-- every CRM rollup below reads from here. (Numeric/count fields arrive as "1.0" strings, so
+-- cast via FLOAT64 before INT64.)
+
+### 25_hubspot_owners.sql
+-- 25_hubspot_owners.sql — owner_id -> display name (resolves the numeric HubSpot owner
+-- id on contacts/deals to a person for the "who owns this lead" / BDM-queue views).
+
+### 26_crm_kpi.sql
+-- 26_crm_kpi.sql — ONE-row headline funnel + queue counts for the Signups & CRM tab.
+-- The signup funnel Caroline cares about: Leads -> App signups -> Loaded balance -> Paying.
+-- (Time-based cuts "this week / QTD" are derived frontend-side from crm_signups_weekly.)
+
+### 26b_crm_kpi_monthly.sql
+-- 26b_crm_kpi_monthly.sql — the crm_kpi funnel + queue counts, but broken out by the
+-- month each contact was CREATED in HubSpot (FORMAT_TIMESTAMP over hs_created_at). This
+-- backs the Signups & CRM tab's date-range picker: the frontend SUMs the in-window months
+-- to scope the whole funnel to a created-date cohort ("leads created in the window ->
+-- signed up -> loaded balance -> paying"), matching how the ad tabs scope KPIs at month grain.
+-- Every metric is a COUNTIF/SUM over contacts and each contact has exactly one created month,
+-- so summing all months reproduces the all-time crm_kpi exactly. Contacts with a NULL created
+-- month land in the NULL bucket (included only at "All time", excluded once a range is picked).
+
+### 27_crm_signups_weekly.sql
+-- 27_crm_signups_weekly.sql — Q1+Q2: app signups per ISO week × source, with the
+-- loaded-balance and paying conversions. Grain: (week_start, source_bucket). Frontend
+-- sums across source for the funnel-over-time line and stacks by source for "where from",
+-- and finds the latest week for the "signed up this week" headline.
+-- week_start = the week the contact was CREATED (hs_created_at), the same created-date basis
+-- the whole Signups & CRM tab scopes on — so this trend chart stays consistent with the
+-- date-range picker (which windows the created-date cohort).
+
+### 27b_crm_signups_daily.sql
+-- 27b_crm_signups_daily.sql -- DAY-grain companion to crm_signups_weekly: app signups per
+-- created DAY x source (the same created-date basis the whole Signups & CRM tab scopes on).
+-- Backs the "App signups" chart's Day/Week toggle — the frontend renders this at day grain, or
+-- rolls it up to ISO weeks (Mon-anchored, matching crm_signups_weekly) when Week is selected.
+
+### 28_crm_source_quality.sql
+-- 28_crm_source_quality.sql — Q3+Q5: by Original Source, the full quality funnel so you
+-- can see which sources drive real PAYING customers vs free signups only, and which
+-- produce the best-quality leads (signup-rate, pay-rate, deal-rate).
+-- Grain: (created_month, source_bucket) — created_month = the month the contact was created
+-- in HubSpot, so the Signups & CRM tab's date-range picker can scope the source table to a
+-- created-date cohort. The frontend SUMs the in-window months per source and RE-DERIVES the
+-- rate %s from the summed parts (rates aren't additive across months — the per-row *_pct here
+-- are per-month values, kept for reference but not summed).
+-- NB: HubSpot's own attribution is thin (most signups are Offline/Direct) — `ad_attributed`
+-- (carries a gclid/fbclid) is the more reliable paid signal; real ad/campaign attribution
+-- lives in the Paid Media / Ads→Traffic tabs.
+
+### 29_crm_lifecycle_owner.sql
+-- 29_crm_lifecycle_owner.sql — Q4: which lifecycle stage are my leads in and who owns them?
+-- Grain: (created_month, owner_name, lifecycle_stage) with contact counts + paying/signup
+-- context. created_month = the month the contact was created in HubSpot, so the Signups &
+-- CRM tab's date-range picker can scope owner × stage to a created-date cohort (the frontend
+-- SUMs the in-window months per owner × stage). Unassigned contacts roll up under
+-- 'Unassigned'. Frontend pivots owner × stage.
+
+### 30_crm_lead_queue.sql
+-- 30_crm_lead_queue.sql — Q6: what leads does the BDM still need to sort through?
+-- The working queue = non-customer leads that carry a sales lead-status (NEW / OPEN /
+-- IN_PROGRESS / ATTEMPTED_TO_CONTACT / …). Grain: (created_month, lead_status, owner_name)
+-- with an "unassigned" split. created_month = the month the contact was created in HubSpot,
+-- so the Signups & CRM tab's date-range picker can scope the queue to a created-date cohort
+-- (the frontend SUMs the in-window months). (The big status-less pool is mostly a bulk
+-- import — surfaced as crm_kpi.queue_unassigned, not exploded here.) Frontend leads on
+-- NEW + unassigned.
+
+### 31_ga_audience.sql
+-- ResetData — Google Ads AD-AUDIENCE demographics (age / gender / device) for the Overview.
+--
+-- "Who the ADS reached" — Google's inferred demographics of the people the Google Ads campaigns
+-- served to. NOT website-visitor demographics: GA4's DemographicDetails export for this property is
+-- EMPTY (Google thresholds demographics on low-traffic sites), so Google Ads is the only source of
+-- audience insight here. Frame it in-app as "ad audience reached (Google Ads)".
+--
+-- Source = the native BigQuery DTS tables in raw_google_ads (the same daily transfer the
+-- perf_google_ads bridge reads), scoped to ResetData's customer_id 1054407474 (manager/login-customer
+-- 3451896252 is the dataset suffix). Age/gender labels come from Google Ads' fixed global criterion
+-- IDs; device from segments_device (summed over the age table's age×device grain = device totals).
+-- cost_micros -> AUD via /1e6 (the RAW DTS metric is micros, unlike the perf_google_ads bridge).
+
+### 32_ga_keywords.sql
+-- ResetData — Google Ads keywords: the "who we targeted" panel on the Paid Media tab.
+--
+-- For a search-heavy B2B account the real "targeting" is the search intent we bid on, so this
+-- surfaces the top keywords (text + match type) with their delivery + conversions. Far more
+-- meaningful here than audience segments (which for search are sparse and need extra dimension
+-- tables to resolve). Reveals what converts: e.g. "sovereign ai solutions" / "ai consulting
+-- australia" drive leads; brand ("resetdata") drives the most clicks.
+--
+-- Source = native DTS: ads_Keyword (the keyword text + match type) joined to ads_KeywordBasicStats
+-- (metrics) on the ad-group-criterion id, scoped to ResetData's customer_id 1054407474. cost_micros
+-- -> AUD via /1e6. Aggregated across ad groups by (keyword, match_type) so a keyword used in several
+-- ad groups shows once. Top 50 by impressions (the dashboard shows the leaders).
+
+### 33_meta_creatives.sql
+-- ResetData — Meta creatives WITH preview thumbnails: the creative gallery on the Paid Media tab.
+--
+-- The existing meta_creative view groups by creative_name for the mix chart; this one is the visual
+-- gallery — one row per creative_id carrying the actual ad: thumbnail image + title + body copy +
+-- destination link, alongside delivery + the "Signup Button" lead conversions. 39 creatives, all with
+-- a thumbnail. reads raw_windsor.perf_meta directly (stg_meta drops the thumbnail/url columns).
+--
+-- CAVEAT: creative_thumbnail_url is a Meta CDN URL that can EXPIRE. We take the MOST RECENT non-null
+-- thumbnail per creative (ARRAY_AGG ... ORDER BY metric_date DESC) so each export refreshes the URL;
+-- as long as Meta ingestion keeps running the images stay live. If Meta ingestion stalls, some may 404.
+
+### 34_crm_outcomes_daily.sql
+-- ResetData — CRM outcomes as a DAILY time series, for the Overview hero chart's trend lines
+-- ("Ad spend & its effects": spend bars vs leads + cost-per-lead + new paying customers over time).
+--
+-- The HubSpot snapshot (raw_windsor.hubspot_contacts) carries per-contact LIFECYCLE dates, so even
+-- though the table is a current-state snapshot we can reconstruct WHEN each contact reached a stage:
+--   * confirmed leads  = contact_hs_lifecyclestage_lead_date      (dense: ~4,651 of 4,701 contacts)
+--   * lifecycle customers = contact_hs_lifecyclestage_customer_date (the ~77 who reached Customer —
+--     kept for reference, but ~ZERO overlap with the real payers: sales never advances lifecycle
+--     when a contact starts paying in the app, so payers mostly stay stage Lead)
+--   * NEW PAYING CUSTOMERS (2026-08-05, the hero's line) = contacts with rd_total_spend > 0, dated
+--     by hs_created_at — HubSpot records NO first-payment date (the rd_* family has only
+--     created/last-login/last-api-call), so the contact CREATED date is the dated basis, chosen to
+--     match the Signups & CRM tab (crm_signups_weekly / the whole created-date-cohort model). This
+--     series SUMS to crm_kpi.paying exactly, so the hero line agrees with the headline card.
+-- Lifecycle dates are ISO strings ('2024-02-15T22:50:30.173Z'); the first 10 chars are YYYY-MM-DD.
+-- Grain = one row per day; the dashboard buckets to month/week/day and aligns to the hero's timeline.
+-- NB: whole-account CRM (NOT scoped by the ad platform/campaign/date filters), same as the CRM tab.

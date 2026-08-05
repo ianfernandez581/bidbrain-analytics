@@ -1,0 +1,409 @@
+# Lineage digest for dashboard 'stt' (from clients/client_STT/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
+# clients/client_STT/ — ST Telemedia GDC (APAC) · **LIVE**
+
+> The effect of paid media on STT GDC website traffic. Built on the
+> [`client_mongodb`](../client_mongodb/README.md) template: filter the shared raw layers down to
+> STT's slice, model it in BigQuery views, export one JSON, serve it from a password-gated web app.
+>
+> **STT is itself the archetype** for the leaner paid-media clients that read straight from the
+> shared raw layers (no Snowflake final-model `src_*` step): [`client_schneider`](../client_schneider/README.md)
+> (plan-vs-actual portfolio, AUD) and [`client_hireright`](../client_hireright/README.md)
+> (delivery-only baseline, USD) were both copied from here.
+
+**Plain English:** STT GDC (ST Telemedia Global Data Centres), via the agency **Transmission**, runs
+an FY25-26 "Always On" campaign across APAC on **Google Ads** (paid search), **LinkedIn** (paid social)
+and **DV360** (programmatic display). This dashboard puts that ad spend next to what actually happened on the STT GDC **websites**
+(Google Analytics 4) — so stakeholders can see the campaign lifting site traffic, not just ad metrics.
+
+**Status:** ✅ **Live** (password-gated). See [`dash/LIVE_URL.md`](dash/LIVE_URL.md) for the URL + password.
+
+---
+
+## The story it tells
+
+Four live sources — three ad platforms plus GA4 website analytics — joined into one "ads → traffic" narrative:
+
+| Source | Raw table (shared) | STT filter | What it contributes |
+|---|---|---|---|
+| **GA4** website analytics | `raw_snowflake.google_analytics_apac_all` | `PROPERTY_ID = '318963196'` (the "STT GDC Web All" roll-up property) | sessions / users / engagement, split by channel; market = visitor country — **the outcome** |
+| **Google Ads** paid search | `raw_snowflake.google_ads_apac` | `CAMPAIGN_NAME LIKE '%STT%'` | keyword delivery (USD→SGD); market from the campaign name |
+| **DV360** programmatic display | `raw_snowflake.dv360_apac` | `ADVERTISER_ID IN ('7572338345','6466367438')` (the Always On flight — two delivering campaigns) | prospecting delivery (SGD) |
+| **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_ID IN ('515691430','511609128')` (the SGD + USD accounts; USD spend converted @1.34) | awareness delivery |
+
+Headline (campaign window 2025-06-01 → 2026-05-30, now complete): **~604k website sessions**, **~226k
+ad-driven**, with **~S$341k** of Google Ads + LinkedIn + DV360 media behind **~24.2M** impressions.
+Programmatic-display sessions rose sharply after the DV360 flight launched (Nov 2025) — the dashboard's
+**Ads → Traffic** tab makes that link explicit (Paid Search ← Google Ads, Display ← DV360, Paid Social ←
+LinkedIn; weekly correlation + before/during lift).
+
+**Reporting currency is SGD.** The USD-account rows on LinkedIn and Google Ads are converted at a fixed
+`FX_USD_SGD = 1.34`, applied where each source is staged (`sql/02_stg_linkedin.sql`, `03_stg_dv360.sql`,
+`03b_stg_google.sql`) and surfaced as the `fx_usd_sgd` constant in `sql/04_kpi.sql`; the roll-ups just
+sum the already-SGD figures. Paid Search in GA4 is Google Ads, which is now in this spend dataset, so
+the spend-matched "Ads → Traffic" view covers Paid Search + Display + Paid Social.
+
+---
+
+## The 4 dashboard tabs (`dash/dashboard.html`)
+
+Three filters at the top of the page:
+- **Country** — slices every website-traffic figure by GA4 property (`account_name` → market),
+  **Global deselected by default**. Shown on every tab except Paid Media.
+- **Platform** — Google Ads · DV360 · LinkedIn (the three platforms with STT data; Meta & Trade
+  Desk had none). Scopes the ad-delivery figures, and on **Ads → Traffic** also scopes the matched
+  GA4 channels (Google Ads↔Paid Search, DV360↔Display, LinkedIn↔Paid Social). Shown on Overview
+  and Ads → Traffic.
+- **Campaign** — a searchable multi-select dropdown of every delivering campaign (~80; grouped by
+  platform, sorted by spend), **all selected by default**. Scopes **ad delivery only** — every spend /
+  impressions / clicks figure on Overview, Paid Media and Ads → Traffic is summed over the selected
+  campaigns. The GA4/website side has no campaign dimension, so website metrics stay whole. Shown on
+  every tab except Website Traffic. Composes with Platform (a campaign counts only if its platform is
+  also selected, except on Paid Media which ignores the Platform filter). Powered by the campaign-grained
+  `ad_campaign*` views, summed client-side — the same pattern as the Country filter's market views.
+
+Spend is reported in SGD: LinkedIn (USD) and Google Ads' USD account rows are converted at the
+fixed `FX_USD_SGD = 1.34`.
+
+1. **Overview** — media spend / impressions / clicks vs website sessions; the monthly hero chart, the
+   channel-mix donut, paid-vs-rest stacked sessions, and spend-by-platform.
+2. **Paid Media** — LinkedIn + DV360 delivery: monthly impressions & spend, platform comparison table,
+   DV360 by market, LinkedIn creative mix + campaigns.
+3. **Website Traffic** — GA4: sessions by channel, total-vs-ad-driven trend, sessions by market
+   (paid overlaid), top sources/mediums (the ad platforms flagged `AD`).
+4. **Ads → Traffic** — the connection: weekly ad-impressions-vs-sessions, a correlation scatter (Pearson r),
+   and the before-vs-during display-session lift.
+
+---
+
+## How it works (3 stages — same shape as every client)
+
+```
+ (1) SOURCE → RAW (shared)             (2) RAW → VIEWS → JSON            (3) JSON → FRONTEND
+ ───────────────────────              ─────────────────────             ──────────────────
+ snowflake_data_pull fills             clients/client_STT/sql/*.sql filter        stt-dash (Cloud Run service)
+ raw_snowflake.{google_analytics_apac  STT's slice + roll it up;          shows a login page, then
+ _all, linkedin_ads, dv360,            stt-export (Cloud Run JOB)         dashboard.html, which fetches
+ google_ads}_apac                      reads the views → writes           /data.json and draws the charts
+                                       stt.json to the private bucket
+```
+
+**Divergence from the template:** STT reads its four sources straight from the shared raw layers, so
+there is **no `src_*` landing step** and **no bootstrap-first-failure** (unlike `client_cloudflare`).
+The job is read-only on BigQuery — it only `SELECT`s the views and writes JSON to GCS.
+
+| What to change | Edit | Stage |
+|---|---|---|
+| STT's filter (accounts / campaign IDs) | `sql/01_stg_ga4.sql` · `02_stg_linkedin.sql` · `03_stg_dv360.sql` · `03b_stg_google.sql` | 2 |
+| FX rate / campaign window | the `1.34` constant in `sql/02,03,03b,04` / the `DATE '2025-06-01'` window in `sql/04,12` (and the GA4 market views `13–17,21`) | 2 |
+| Roll-ups / new metrics | the relevant `sql/*.sql` view | 2 |
+| JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
+| Charts / tabs / branding | `dash/dashboard.html` | 3 |
+| Login / how JSON is served | `dash/main.py` (rarely) | 3 |
+
+---
+
+## Deploy / refresh (copy-paste, PowerShell)
+
+Project `bidbrain-analytics`, region `australia-southeast1`. Use the repo `.venv`
+(`.\.venv\Scripts\python.exe`). **First-time stand-up:** run [`deploy_stt.ps1`](deploy_stt.ps1) once
+(idempotent — bucket, dataset, SAs, IAM, secrets, both Cloud Run units, the `stt-export-daily` scheduler).
+> **Note:** `deploy_stt.ps1` first creates that scheduler on a fixed daily cron; the live cadence is the
+> `*/10` UTC self-gating tick — run [`scheduler.ps1`](scheduler.ps1) to (re)apply it. The job name keeps the
+> legacy `-daily` suffix regardless of cadence. After standup:
+
+**① Refresh the data now** (the `stt-export-daily` Cloud Scheduler runs `*/10` UTC, self-gating):
+```powershell
+# (optional) refresh the shared raw layer first if you want the very latest source data
+# (all four STT sources — GA4, LinkedIn, DV360, Google Ads — now come from Snowflake):
+.\.venv\Scripts\python.exe snowflake_data_pull\loader.py
+gcloud run jobs execute stt-export --region australia-southeast1 --wait    # views -> stt.json
+```
+
+**② You edited a view (`sql/*.sql`)** — apply, then re-run the job:
+```powershell
+.\.venv\Scripts\python.exe client_STT\create_views.py
+gcloud run jobs execute stt-export --region australia-southeast1 --wait
+```
+
+**③ You edited `job/main.py`** (the JSON shape) — build, deploy, run:
+```powershell
+$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/stt-export:$(git rev-parse --short HEAD)"
+gcloud builds submit clients/client_STT/job --tag $IMG --region australia-southeast1
+gcloud run jobs deploy stt-export --image $IMG --region australia-southeast1 --service-account stt-dash-job@bidbrain-analytics.iam.gserviceaccount.com --memory 1Gi
+gcloud run jobs execute stt-export --region australia-southeast1 --wait
+```
+
+**④ You edited `dash/dashboard.html` or `dash/main.py`** — build + redeploy the service:
+```powershell
+$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/stt-dash:$(git rev-parse --short HEAD)"
+gcloud builds submit clients/client_STT/dash --tag $IMG --region australia-southeast1
+gcloud run services update stt-dash --image $IMG --region australia-southeast1
+```
+The service goes live as soon as the new revision is ready; it reads whatever JSON is in the bucket.
+
+> Don't use `gcloud builds submit --config cloudbuild.yaml` from a laptop — its deploy step fails on
+> `iam.serviceaccounts.actAs` (Cloud Build's SA can't act as the runtime SA). Build the image, deploy
+> as yourself (above). The `cloudbuild.yaml` files are for a future push-to-main trigger.
+
+---
+
+## Coordinates
+
+| | |
+|---|---|
+| GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
+| BigQuery dataset | `client_stt` (24 views — 5 `stg_*` staging + 19 roll-ups) |
+| Data bucket / object | `bidbrain-analytics-stt-dash` / `stt.json` |
+| Export job | `stt-export` (runtime SA `stt-dash-job@…`, read-only BigQuery + bucket write) |
+| Web service | `stt-dash` → see [`dash/LIVE_URL.md`](dash/LIVE_URL.md) (runtime SA `stt-dash-web@…`) |
+| Secrets | `stt-dash-password` · `stt-dash-session-key` |
+| Refresh | Cloud Scheduler `stt-export-daily` — `*/10` UTC, **self-gating** (rebuilds within ~10 min of new upstream data; most ticks no-op) |
+
+## Files
+
+- [`sql/`](sql/README.md) — the 24 BigQuery views (5 `stg_*` filters + 19 roll-ups); `create_views.py` applies them.
+- [`job/`](job/README.md) — the export job (stage 2): views → `stt.json`.
+- [`dash/`](dash/README.md) — the web app (stage 3): password gate + `dashboard.html`.
+- [`INTAKE.md`](INTAKE.md) — the original pre-build scoping notes (historical).
+
+## See also
+
+- [Root README](../../README.md) — platform map, security model, naming, add-a-client playbook.
+- [`../client_mongodb/`](../client_mongodb/README.md) — the template this follows.
+- [`../client_schneider/`](../client_schneider/README.md) · [`../client_hireright/`](../client_hireright/README.md) — the lean paid-media clients copied from this one.
+- [`../snowflake_data_pull/`](../../ingest/snowflake_data_pull/README.md) — where all four STT raw layers (GA4, LinkedIn, DV360, Google Ads) come from.
+
+
+## BigQuery views (sql/) - each header documents what the view computes and its raw sources
+
+### 01_stg_ga4.sql
+-- STT GDC — staged GA4 website analytics, now sourced DIRECTLY from Snowflake
+-- (raw_snowflake.google_analytics_apac_all, property 318963196 = "STT GDC Web All"),
+-- replacing the Windsor perf_ga4 source. Compatibility shim: emits the SAME column
+-- names the downstream rollups (04-17) expect, so nothing else in sql/ changes.
+-- Source is EVENT-grained (one row per day x country x channel x source x city x event),
+-- and SESSIONS repeats on every event row, so session/user metrics are taken ONLY from
+-- the per-session events (session_start / first_visit) to avoid multiplying by event count.
+-- engaged_sessions is derived from the user_engagement event (see below); engagement
+-- DURATION is still absent upstream (NULL -> dashboard "—" for avg-engagement only).
+-- "market" is the visitor COUNTRY_NAME, normalized to the canonical APAC labels the
+-- paid platforms emit (stg_google / stg_dv360 map 'KR' -> 'Korea'). GA4 spells Korea
+-- "South Korea", which would otherwise fail the dashboard's APAC_MARKETS whitelist and
+-- silently drop all Korea website sessions; the other 8 APAC markets already match.
+
+### 02_stg_linkedin.sql
+-- STT GDC — staged LinkedIn Ads (the paid-social / awareness driver).
+--
+-- The STT LinkedIn filter lives here once: the Transmission-run USD account
+-- (STTGDC_TransmissionSG_USD), which carried the FY25-26 Always On social
+-- activity Jun–Dec 2025. Spend is USD (account is "_USD"); the dashboard
+-- converts to SGD with the FX constant in `kpi` / `monthly` / `weekly`.
+--
+-- CREATIVE_TYPE is 'STANDARD' for the single-image Sponsored Content and NULL
+-- for the rest (video / other formats); label it so the creative-mix chart reads
+-- cleanly.
+
+### 03_stg_dv360.sql
+-- STT GDC — staged DV360 programmatic display (the always-on prospecting driver).
+--
+-- The STT DV360 filter lives here once: ADVERTISER_ID IN ('7572338345','6466367438'),
+-- which carries the FY25-26 Always On programmatic flight across the 9 APAC markets
+-- (two delivering campaigns — "…Nov-Feb…" and "…2025-2026Q12_25…" — plus a few
+-- zero-delivery shells). Spend is already SGD (CURRENCY = 'SGD').
+--
+-- Spend = REVENUE_ADV_CURRENCY: in DV360 this is the advertiser-billed cost
+-- (media + fees), i.e. what STT actually paid — the figure stakeholders expect,
+-- not the bare MEDIA_COST. COUNTRY_NAME is a 2-letter code → mapped to the same
+-- market labels as GA4 so the two line up. CAMPAIGN_NAME is carried through so the
+-- dashboard's Campaign filter can slice DV360 delivery client-side.
+
+### 03b_stg_google.sql
+-- STT GDC — staged Google Ads (paid search — the "Always On" keyword campaigns).
+--
+-- The STT Google Ads filter lives here once: CAMPAIGN_NAME LIKE '%STT%'. Like the
+-- other platforms it flips account mid-flight (USD account "STT (USD)" Jun–Aug 2025,
+-- then SGD "STT GDC_SGD" from Sep 2025), so COSTS is MIXED currency — convert the USD
+-- rows to SGD at the same FX the rest of the dashboard uses (1.34). The market is
+-- encoded in the campaign name (…_AlwaysOn26_<MARKET>_Keywords… / …_DemandNurture_…),
+-- mapped to the same labels as GA4 / DV360.
+
+### 03c_stg_ad_delivery.sql
+-- STT GDC — unified ad-delivery base (the single source for the Campaign filter).
+--
+-- One long-format row per platform × campaign × day, folding the three paid
+-- channels (Google Ads paid search, DV360 programmatic display, LinkedIn paid
+-- social) into the SAME shape so the campaign-grained roll-ups (ad_campaigns /
+-- ad_campaign_monthly / ad_campaign_weekly / ad_campaign_market) can be built once
+-- on top of it. Mirrors how the GA4 market-grained views power the Country filter.
+--
+-- Currency: spend_sgd is SGD for all three. Google + DV360 already convert USD rows
+-- in their stg_* views; LinkedIn's stg_linkedin.cost_usd already holds SGD too (the
+-- USD account is multiplied by FX at staging), so it is aliased straight to spend_sgd.
+-- market is the GA4/DV360 market label for Google + DV360 and NULL for LinkedIn
+-- (LinkedIn isn't charted by market); creative_type is LinkedIn-only (NULL elsewhere).
+
+### 04_kpi.sql
+-- STT GDC — headline KPI row (single row the dashboard reads for the big numbers).
+--
+-- Campaign window = 2025-06-01 → latest GA4 day (FY25-26 Always On, SOW 2).
+-- FX_USD_SGD (1.34) converts the LinkedIn USD spend into the SGD reporting
+-- currency so a single combined media-spend figure can sit next to DV360's SGD
+-- and Google Ads' (already SGD-converted in stg_google). The prior-year window
+-- gives a rough pre-campaign baseline for the sessions Δ. ad_* = LinkedIn + DV360
+-- + Google Ads combined.
+
+### 05_monthly.sql
+-- STT GDC — monthly trend (Jan 2025 → now): the hero "ads vs website traffic" series.
+--
+-- One row per month, GA4 sessions split by bucket (and the ad-mapped channels
+-- Display = DV360, Paid Social = LinkedIn, Paid Search = Google Ads) alongside the
+-- LinkedIn + DV360 + Google Ads delivery for the same month. Starts at 2025-01 so
+-- the chart shows a pre-campaign baseline before the paid ramp. ad_* folds all
+-- three platforms in (LinkedIn USD + Google USD at FX).
+
+### 06_ga4_key_events.sql
+-- STT GDC — GA4 key events broken down BY event name, BY month, BY market.
+-- The rest of the GA4 views collapse every key event into a single `conversions`
+-- total at stg_ga4 (01_stg_ga4.sql) — EVENT_NAME is gone by then. This view goes
+-- back to the raw event-grained source to KEEP the per-type split, so the dashboard
+-- can show which key events fired (contact / lead / newsletter / …) month by month.
+--
+-- "All key events" = any EVENT_NAME GA4 counts as a key event (KEY_EVENTS > 0), NOT
+-- the fixed contact/lead/newsletter allowlist stg_ga4 sums into `conversions` — so a
+-- newly-configured GA4 key event shows up here automatically (e.g. file_download,
+-- which the stg_ga4 allowlist misses). Same property filter, market mapping and
+-- 2025-01 floor as the other ga4_*_market views, so the dashboard sums it over the
+-- selected countries exactly like ga4_monthly_market.
+--
+-- The EVENT_NAME = LOWER(EVENT_NAME) guard drops the Snowflake feed's pseudo-metric
+-- rows: it emits a capitalised 'Sessions' row whose KEY_EVENTS just mirrors
+-- EVENT_COUNT (~659k), which is NOT a key event. Real GA4 events are lowercase
+-- snake_case — this is exactly why stg_ga4 hand-picks names instead of trusting
+-- KEY_EVENTS blindly.
+
+### 09_li_creative.sql
+-- STT GDC — LinkedIn delivery by creative type (whole flight).
+
+### 10_li_campaigns.sql
+-- STT GDC — LinkedIn delivery by campaign (whole flight), for the detail table.
+
+### 11_dv_markets.sql
+-- STT GDC — DV360 programmatic delivery by market (whole flight). Spend is SGD.
+
+### 12_weekly.sql
+-- STT GDC — weekly ads-vs-traffic correlation series (campaign window).
+--
+-- One row per ISO week (Mon-anchored). Pairs the week's ad delivery (LinkedIn +
+-- DV360 + Google Ads impressions/clicks/spend) with the website sessions on the
+-- three channels those ads map to — Display (DV360), Paid Social (LinkedIn) and
+-- Paid Search (Google Ads) — plus all paid and all sessions. This is what the
+-- "Ads → Traffic" tab plots and correlates. Per-platform impressions are kept so
+-- the dashboard's Platform filter can recompute the ad series client-side.
+
+### 13_ga4_kpi_market.sql
+-- STT GDC — GA4 headline metrics BY market/property (campaign window) + prior-year baseline.
+--
+-- Powers the Country filter: the dashboard sums these rows over the selected
+-- countries to recompute every GA4 KPI live. One row per market.
+
+### 14_ga4_monthly_market.sql
+-- STT GDC — GA4 monthly sessions BY market (from 2025-01), for the Country-filtered trend charts.
+-- The dashboard sums the selected countries per month onto the (whole-campaign) ad series.
+
+### 15_ga4_weekly_market.sql
+-- STT GDC — GA4 weekly sessions BY market (campaign window), for the Country-filtered
+-- Ads→Traffic correlation. Sessions on the two ad-mapped channels (Display, Paid Social) per week.
+
+### 16_ga4_channels_market.sql
+-- STT GDC — GA4 sessions by channel group BY market (campaign window).
+-- The dashboard sums the selected countries per channel for the Country-filtered channel charts.
+
+### 17_ga4_sources_market.sql
+-- STT GDC — GA4 top source/medium BY market (campaign window).
+-- Restricted to the 60 globally-largest source/mediums so the payload stays small; the dashboard
+-- sums the selected countries and re-ranks the top 15 for the Country-filtered sources table.
+
+### 18_google_markets.sql
+-- STT GDC — Google Ads paid-search delivery by market (whole flight). Spend is SGD (USD rows converted).
+
+### 19_ad_campaigns.sql
+-- STT GDC — ad delivery by campaign (whole flight), the Campaign filter's option
+-- list + per-campaign totals. One row per platform × campaign, delivering campaigns
+-- only (zero-impression / zero-spend shells dropped). Ordered by spend so the
+-- dashboard's dropdown surfaces the campaigns that matter at the top. The dashboard
+-- sums the selected campaigns client-side to rescale every ad-delivery figure.
+-- (Delivering filter is an outer WHERE, not HAVING, so the SUM aliases below don't
+-- get re-aggregated — BigQuery resolves HAVING against SELECT aliases.)
+
+### 20_ad_campaign_monthly.sql
+-- STT GDC — ad delivery by campaign × month, for the Campaign-filtered monthly
+-- charts (Overview hero impressions + Paid Media spend-by-platform). The dashboard
+-- sums the selected campaigns per month/platform. Mirrors the month key in `monthly`
+-- (FORMAT_DATE %Y-%m). Delivering rows only (outer WHERE, not HAVING — see 19).
+
+### 21_ad_campaign_weekly.sql
+-- STT GDC — ad delivery by campaign × ISO week (campaign window), for the
+-- Campaign-filtered Ads → Traffic weekly chart + correlation scatter. Week is
+-- Monday-anchored to match `weekly`. From 2025-06-01 (the campaign window) so the
+-- week list lines up with the GA4 weekly series. Delivering rows only (outer WHERE).
+
+### 22_ad_campaign_market.sql
+-- STT GDC — ad delivery by campaign × market (whole flight), for the
+-- Campaign-filtered Paid Media by-market charts (Google Ads + DV360). LinkedIn has
+-- no market grain (market IS NULL) so it is excluded here — it isn't charted by
+-- market anyway. The dashboard sums the selected campaigns per market/platform.
+
+### 23_li_campaign_creative.sql
+-- STT GDC — LinkedIn delivery by campaign × creative type, for the Campaign-filtered
+-- creative-mix donut on the Paid Media tab. Reads stg_linkedin directly (creative_type,
+-- video_views and engagements live there, not in the unified stg_ad_delivery). cost_usd
+-- already holds SGD. The dashboard sums the selected LinkedIn campaigns per creative type.
+
+### 24_ad_campaign_market_monthly.sql
+-- STT GDC — ad delivery by campaign × market × month, for the Overview
+-- "Media spend by platform" donut so it honours the Country filter AND the date
+-- picker at once (Platform + Campaign already applied client-side).
+--
+-- This is the market grain of `ad_campaign_monthly` (20) — same source, plus the
+-- `market` column. UNLIKE `ad_campaign_market` (22) we KEEP `market IS NULL` rows:
+-- LinkedIn carries no market (see 03c), so its spend lives only in NULL-market rows.
+-- The dashboard includes those NULL rows ONLY when the Country filter is at "All"
+-- (no country narrowing); selecting specific countries drops LinkedIn, since no
+-- per-country LinkedIn spend exists to attribute.
+
+### 25_daily.sql
+-- STT GDC — DAILY ads-vs-traffic series (campaign window). Day-grain mirror of
+-- `monthly` (05) + `weekly` (12): the dashboard's "VIEW BY → Day" toggle reads this
+-- so the hero / web-trend charts can drill to daily resolution. One row per
+-- metric_date. Carries the same GA4 session split + LinkedIn/DV360/Google delivery
+-- as the coarser views, so the day branch sums identically. From 2025-06-01 (the
+-- campaign window) to keep the day list bounded — day grain is only meaningful in
+-- the active flight, and the monthly view already shows the 2025-01 baseline.
+
+### 26_ga4_daily_market.sql
+-- STT GDC — GA4 DAILY sessions BY market (campaign window). Day-grain mirror of
+-- ga4_monthly_market (14) + ga4_weekly_market (15): the dashboard sums the selected
+-- countries per day onto the (whole-campaign) ad series when "VIEW BY → Day" is set.
+-- Same session split as the coarser views. From 2025-06-01 to bound the day list.
+
+### 27_ga4_key_events_daily_market.sql
+-- STT GDC — GA4 key events by event name × DAY × market. Day-grain mirror of
+-- ga4_key_events_market (06): powers the Website tab's key-events chart under
+-- "VIEW BY → Day". Goes back to the raw event-grained source (same as 06) to KEEP
+-- the per-type split that stg_ga4 collapses into a single `conversions` total.
+--
+-- Same PROPERTY_ID filter, KEY_EVENTS > 0 / lowercase-EVENT_NAME guards and market
+-- mapping as 06, so the dashboard's day branch sums it over the selected countries
+-- exactly like the month branch reads ga4_key_events_market. From 2025-06-01 to
+-- bound the day list (day grain is only meaningful in the active flight).
+
+### 28_ad_campaign_daily.sql
+-- STT GDC — ad delivery by campaign × DAY (campaign window). Day-grain mirror of
+-- ad_campaign_monthly (20) + ad_campaign_weekly (21): the Campaign filter sums the
+-- selected campaigns per day/platform when "VIEW BY → Day" is set on the hero /
+-- paid-monthly / link-weekly charts. From 2025-06-01 (the campaign window) so the
+-- day list lines up with the GA4 daily series. Delivering rows only (outer WHERE).

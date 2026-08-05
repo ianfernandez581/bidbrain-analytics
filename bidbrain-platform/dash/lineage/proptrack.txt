@@ -1,0 +1,142 @@
+# Lineage digest for dashboard 'proptrack' (from clients/client_proptrack/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
+# clients/client_proptrack/ — PropTrack (REA Group), via Transmission
+
+Paid-media dashboard for PropTrack's **Banking ABM** story: an always-on **LinkedIn** presence plus a
+concentrated May–Jun 2026 programmatic ABM burst on **The Trade Desk**. Built on the
+[`client_STT`](../client_STT/README.md) scaffold — the lean, paid-media-only archetype that reads
+straight from the shared `raw_snowflake` layer (no `src_*` step). **Single currency = AUD; there is no FX.**
+
+**3 stages (same shape as every client):** `sql/*.sql` filter + roll up PropTrack's two sources →
+`job/main.py` writes one `proptrack.json` to a private bucket → `dash/` serves it behind a password gate.
+
+**Two sources, two spellings of the client (same advertiser):**
+- **The Trade Desk** — `raw_snowflake.tradedesk_apac_all`, `ADVERTISER_NAME = 'PopTrack'`. ⚠️ Impressions
+  come from `IMPRESSION` (singular); the plural `IMPRESSIONS` is NULL here. Conversions are pixel conv.
+- **LinkedIn** — `raw_snowflake.linkedin_ads_apac`, `ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD'`. Spend
+  is native AUD (no ×1.34). Delivery is intermittent (real gaps Sep/Oct 2025, Mar/Apr 2026).
+
+**Freshness:** the export job is **self-gating** (vendored `job/freshness.py`) — on each `*/10` UTC scheduler
+tick it cheaply probes `__TABLES__.last_modified_time` for the two `raw_snowflake` tables it reads and rebuilds
+`proptrack.json` only when one advanced past the `_freshness.json` watermark in the bucket (else exits 0).
+`FORCE_REBUILD=1` bypasses the gate. The dashboard shows the build time (`last_updated`), never a fixed refresh hour.
+
+**Deploy (PowerShell, project `bidbrain-analytics` / `australia-southeast1`):**
+- First-time stand-up: `.\client_proptrack\deploy_proptrack.ps1` (idempotent — bucket, dataset, SAs, IAM, secrets, job, scheduler, service). It seeds the scheduler at a fixed daily `0 22 * * *`; run `.\client_proptrack\scheduler.ps1` afterwards to flip it to the `*/10` UTC self-gating cadence.
+- Edited a view → `.\client_proptrack\sql\deploy_views_proptrack.ps1` · edited `job/main.py` → `.\client_proptrack\job\deploy_job_proptrack.ps1` · edited `dash/` → `.\client_proptrack\dash\deploy_dash_proptrack.ps1`.
+
+`Creative/` holds the brand assets used in the topbar/login (PropTrack + Transmission logos, a reference screenshot) — added 2026-06-12.
+
+| | |
+|---|---|
+| Dataset / bucket / object | `client_proptrack` / `bidbrain-analytics-proptrack-dash` / `proptrack.json` |
+| Export job / web service | `proptrack-export` / `proptrack-dash` (SAs `proptrack-dash-job@…` / `proptrack-dash-web@…`) |
+| Secrets / scheduler | `proptrack-dash-password` · `proptrack-dash-session-key` / `proptrack-export-daily` (target `*/10` UTC, self-gating) |
+
+
+## BigQuery views (sql/) - each header documents what the view computes and its raw sources
+
+### 01_stg_tradedesk.sql
+-- PropTrack (Transmission) — staged The Trade Desk delivery (the May–Jun 2026 Banking-ABM burst).
+--
+-- The TradeDesk filter lives here once: ADVERTISER_NAME = 'PopTrack' (TradeDesk spells the
+-- client "PopTrack", LinkedIn spells it "PropTrack" — same client, use each source's spelling).
+-- Spend is native AUD (COSTS) — there is NO FX conversion anywhere in this client.
+--
+-- ⚠️ Impressions come from IMPRESSION (singular). IMPRESSIONS (plural) is entirely NULL for
+-- this advertiser — using it would zero the whole programmatic tab.
+--
+-- `segment` = the ABM audience: AD_GROUP_NAME with the campaign prefix stripped
+-- (PARTNER-BROKER-DISTRIBUTION, LENDING-BANKING, MARKETING, TAL_ABM_DM, CREDIT-RISK).
+-- `creative_size` = AD_TYPE (e.g. 728x90, 300x250, 480x360). `media_type` = Display | Video.
+
+### 02_stg_linkedin.sql
+-- PropTrack (Transmission) — staged LinkedIn Ads (the always-on paid-social presence).
+--
+-- The LinkedIn filter lives here once: ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD'
+-- (ACCOUNT_ID 510177932). Spend is native AUD (COSTS) — NO FX conversion (unlike STT's
+-- stg_linkedin, which multiplied a USD account by 1.34; that logic does not exist here).
+--
+-- Delivery is intermittent across 2025-08 → 2026-06 (real spend in Aug/Nov/Dec'25,
+-- Jan/Feb/May/Jun'26; nothing in Sep/Oct'25, Mar/Apr'26) — the monthly chart shows gaps,
+-- and that is correct. IMPRESSIONS (plural) IS populated here (unlike TradeDesk).
+--
+-- CREATIVE_TYPE is STANDARD (single-image Sponsored Content) or VIDEO. CAMPAIGN_GROUP_NAME
+-- is the objective/initiative grouping — the primary breakdown for the LinkedIn tab.
+
+### 03_stg_ad_delivery.sql
+-- PropTrack (Transmission) — unified ad-delivery base (the single source for the Campaign filter).
+--
+-- One long-format row per platform × campaign × day, folding the two paid channels (The Trade
+-- Desk programmatic + LinkedIn paid social) into the SAME shape so the campaign-grained roll-ups
+-- (ad_campaigns / ad_campaign_monthly / ad_campaign_daily) can be built once on top of it. The
+-- dashboard sums the selected campaigns client-side to rescale every combined ad-delivery figure.
+--
+-- Currency: spend_aud is native AUD for both platforms — no FX anywhere.
+
+### 04_kpi.sql
+-- PropTrack (Transmission) — headline KPI row (single row the dashboard reads for the big numbers).
+--
+-- Combined window = earliest delivery day → latest, across both platforms (2025-08-07 → 2026-06-09).
+-- Spend is AUD throughout (no FX). ad_* = The Trade Desk + LinkedIn combined. All conversions are
+-- TradeDesk pixel conversions (LinkedIn conversions = 0); the click / view-through split is kept.
+
+### 05_monthly.sql
+-- PropTrack (Transmission) — monthly trend (from 2025-08): the Overview hero series.
+--
+-- One row per month with The Trade Desk and LinkedIn delivery side by side, plus combined ad_*.
+-- TradeDesk only delivered in May–Jun 2026, so it appears at the tail; LinkedIn is always-on with
+-- real gaps (no delivery Sep/Oct'25, Mar/Apr'26). FULL OUTER JOIN on month so every delivering
+-- month from either platform appears; IFNULL(...,0) fills the other side. Spend is AUD (no FX).
+
+### 06_td_media_type.sql
+-- PropTrack (Transmission) — The Trade Desk delivery by media type (Display vs Video, whole flight).
+-- Video is pure awareness — it drove 0 conversions (all 924 conversions are Display).
+
+### 07_td_segments.sql
+-- PropTrack (Transmission) — The Trade Desk delivery by ABM audience segment (whole flight).
+-- segment = AD_GROUP_NAME with the campaign prefix stripped (see stg_tradedesk). 5 segments;
+-- PARTNER-BROKER-DISTRIBUTION dominates (~80% of spend). Ordered by spend desc.
+
+### 08_td_creative_sizes.sql
+-- PropTrack (Transmission) — The Trade Desk delivery by creative size (AD_TYPE, whole flight).
+-- e.g. 728x90, 320x100, 300x250, 160x600, 300x600 (Display) and 480x360 (Video). By impressions.
+
+### 09_td_daily.sql
+-- PropTrack (Transmission) — The Trade Desk daily delivery (the ~3-week burst, 2026-05-20 → 06-09).
+-- Impressions (bars) + spend (line) per day on the Programmatic tab.
+
+### 10_li_groups.sql
+-- PropTrack (Transmission) — LinkedIn delivery by campaign group / objective (whole flight).
+-- CAMPAIGN_GROUP_NAME is the initiative grouping; the dashboard maps the 4 raw groups to friendly
+-- labels (COBA Event, General — Nov 2025, Banking ABM — Awareness, Banking ABM — Lead Gen).
+-- Ordered by spend desc.
+
+### 11_li_creative.sql
+-- PropTrack (Transmission) — LinkedIn delivery by creative type (whole flight).
+-- Two values: 'Sponsored Content (Standard)' and 'Video' (labelled in stg_linkedin). By impressions.
+
+### 12_li_campaigns.sql
+-- PropTrack (Transmission) — LinkedIn delivery by campaign (whole flight), for the detail table.
+-- 16 campaigns; the dashboard shows the raw name with a light de-underscore fallback. Spend AUD.
+
+### 13_ad_campaigns.sql
+-- PropTrack (Transmission) — ad delivery by campaign (whole flight): the Campaign filter's option
+-- list + per-campaign totals. One row per platform × campaign, delivering campaigns only (zero
+-- shells dropped via an outer WHERE, not HAVING, so the SUM aliases aren't re-aggregated). Ordered
+-- by spend desc so the dropdown surfaces the campaigns that matter at the top. The dashboard sums
+-- the selected campaigns client-side to rescale every combined ad-delivery figure.
+
+### 14_ad_campaign_monthly.sql
+-- PropTrack (Transmission) — ad delivery by campaign × month, for the Campaign-filtered Overview
+-- hero (stacked spend by platform + impressions). The dashboard sums the selected campaigns per
+-- month/platform. Month key matches `monthly` (FORMAT_DATE %Y-%m). Delivering rows only (outer WHERE).
+
+### 15_ad_campaign_daily.sql
+-- PropTrack (Transmission) — ad delivery by campaign × day, for the Campaign-filtered TradeDesk
+-- daily chart (Programmatic tab). The dashboard sums the selected campaigns per day/platform.
+-- Delivering rows only (outer WHERE). (LinkedIn rows exist too, but the daily chart reads the
+-- tradedesk platform only — kept here so the contract stays platform-agnostic.)

@@ -39,6 +39,8 @@ import config as cfg
 import platform_sso
 import feedback
 import feedback_ai
+import internal_notes
+import internal_chat
 from store import Store
 
 app = Flask(__name__)
@@ -1543,6 +1545,190 @@ def _feedback_widget(client):
     return _FEEDBACK_WIDGET.replace(b"__CLIENT__", client.encode())
 
 
+# The staff-only Internal Notes + Assistant widget, injected ONLY when _internal_allowed(client)
+# (superadmin / admin / owning agency - clients never receive a byte of it). Same approach as the
+# feedback widget: fully inline-styled, scoped under #bbin-*, max z-index, client key baked in at
+# injection time. Two gold pills bottom-left: "Internal Notes" (the secret tab - list / add / edit /
+# delete, stored via /internal-notes/<c>) and "Assistant" (the internal chatbot - /internal-chat/<c>,
+# renders the model's thinking as a collapsible block per reply, and refreshes the notes list when
+# the assistant edits notes via its tools). If the dashboard page contains a #bbNotesMount element
+# (cloudflare's renamed "Internal Notes" tab), the same notes UI is ALSO mounted inline there.
+_INTERNAL_WIDGET = (
+    "<style>"
+    "#bbin-dock{position:fixed;bottom:18px;left:18px;z-index:2147483645;display:flex;gap:8px}"
+    ".bbin-pill{display:inline-flex;align-items:center;gap:7px;padding:10px 15px;border-radius:999px;"
+    "border:1px solid rgba(255,205,112,.38);font:600 13px/1 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;"
+    "color:#ffdf9e;cursor:pointer;background:rgba(26,21,12,.9);box-shadow:0 2px 12px rgba(0,0,0,.32);"
+    "backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px)}"
+    ".bbin-panel{position:fixed;bottom:66px;left:18px;z-index:2147483645;width:420px;max-width:calc(100vw - 36px);"
+    "max-height:min(74vh,640px);display:none;flex-direction:column;border-radius:14px;overflow:hidden;"
+    "background:#14161b;color:#f3f4f6;border:1px solid rgba(255,255,255,.14);box-shadow:0 12px 44px rgba(0,0,0,.5);"
+    "font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}"
+    ".bbin-panel.open{display:flex}"
+    ".bbin-hd{display:flex;align-items:center;gap:8px;padding:13px 16px;border-bottom:1px solid rgba(255,255,255,.1)}"
+    ".bbin-hd h3{margin:0;font-size:15px;font-weight:700;flex:1}"
+    ".bbin-badge{font:700 10px/1 system-ui,sans-serif;letter-spacing:.09em;color:#1a150c;background:#e8b955;"
+    "border-radius:5px;padding:4px 7px}"
+    ".bbin-x{background:none;border:none;color:#9ca3af;font-size:19px;cursor:pointer;padding:0 2px;line-height:1}"
+    "#bbin-notes-body{padding:14px 16px;overflow-y:auto}"
+    "#bbin-clog{flex:1;min-height:220px;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:10px}"
+    "#bbin-crow{display:flex;gap:8px;padding:12px 16px;border-top:1px solid rgba(255,255,255,.1)}"
+    "#bbin-cin{flex:1;resize:none;padding:9px 10px;border-radius:9px;background:#0e1014;color:#f3f4f6;"
+    "border:1px solid rgba(255,255,255,.16);font:inherit;outline:none}"
+    "#bbin-cin:focus{border-color:#e8b955}"
+    ".bbin-send{padding:8px 14px;border-radius:9px;border:1px solid #e8b955;background:#e8b955;color:#1a150c;"
+    "font:700 13px/1 inherit;cursor:pointer;align-self:flex-end}"
+    ".bbin-send:disabled{opacity:.5;cursor:default}"
+    ".bbin-mu{align-self:flex-end;max-width:86%;background:rgba(232,185,85,.16);border:1px solid rgba(232,185,85,.3);"
+    "border-radius:12px 12px 3px 12px;padding:8px 11px;font-size:13px;white-space:pre-wrap}"
+    ".bbin-ma{align-self:flex-start;max-width:92%;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);"
+    "border-radius:12px 12px 12px 3px;padding:9px 12px;font-size:13px}"
+    ".bbin-ma code{background:rgba(255,255,255,.09);border-radius:4px;padding:1px 4px;font-size:12px}"
+    ".bbin-wait:after{display:inline-block;content:'';animation:bbindots 1.2s steps(4,end) infinite}"
+    "@keyframes bbindots{0%{content:''}25%{content:'.'}50%{content:'..'}75%{content:'...'}}"
+    "</style>"
+    "<div id='bbin-dock'>"
+    "<button id='bbin-notes-btn' class='bbin-pill' type='button'>"
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' "
+    "stroke-linecap='round' stroke-linejoin='round'><path d='M12 20h9'></path>"
+    "<path d='M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z'></path></svg>Internal Notes</button>"
+    "<button id='bbin-chat-btn' class='bbin-pill' type='button'>"
+    "<svg width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' "
+    "stroke-linecap='round' stroke-linejoin='round'><path d='M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 "
+    "8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5 "
+    "a8.48 8.48 0 0 1 8 8v.5z'></path></svg>Assistant</button>"
+    "</div>"
+    "<div id='bbin-notes' class='bbin-panel' role='dialog' aria-label='Internal notes'>"
+    "<div class='bbin-hd'><h3>Internal Notes</h3><span class='bbin-badge'>INTERNAL</span>"
+    "<button class='bbin-x' id='bbin-notes-x' type='button' aria-label='Close'>&times;</button></div>"
+    "<div id='bbin-notes-body'></div>"
+    "</div>"
+    "<div id='bbin-chat' class='bbin-panel' role='dialog' aria-label='Internal assistant'>"
+    "<div class='bbin-hd'><h3>Assistant</h3><span class='bbin-badge'>INTERNAL</span>"
+    "<button class='bbin-x' id='bbin-chat-x' type='button' aria-label='Close'>&times;</button></div>"
+    "<div id='bbin-clog'></div>"
+    "<div id='bbin-crow'><textarea id='bbin-cin' rows='2' "
+    "placeholder='Ask about any number on this dashboard...'></textarea>"
+    "<button id='bbin-csend' class='bbin-send' type='button'>Send</button></div>"
+    "</div>"
+    "<script>(function(){"
+    "var CLIENT='__CLIENT__';"
+    "var TA='width:100%;min-height:64px;resize:vertical;padding:9px 10px;border-radius:9px;background:#0e1014;"
+    "color:#f3f4f6;border:1px solid rgba(255,255,255,.16);font:inherit;font-size:13px;outline:none;box-sizing:border-box';"
+    "var BTN='align-self:flex-start;padding:8px 14px;border-radius:9px;border:1px solid #e8b955;background:#e8b955;"
+    "color:#1a150c;font:700 13px/1 system-ui,sans-serif;cursor:pointer';"
+    "var LNK='background:none;border:none;color:#9ca3af;font:600 11px/1 system-ui,sans-serif;cursor:pointer;padding:2px 4px';"
+    "var CARD='border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:10px 12px;background:rgba(255,255,255,.03);"
+    "display:flex;flex-direction:column;gap:6px';"
+    "function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')"
+    ".replace(/>/g,'&gt;').replace(/\"/g,'&quot;');}"
+    "function md(s){s=esc(s);s=s.replace(/\\*\\*([^*]+)\\*\\*/g,'<b>$1</b>')"
+    ".replace(/`([^`]+)`/g,'<code>$1</code>');return s.replace(/\\n/g,'<br>');}"
+    "function fmtTs(t){if(!t)return'';var d=new Date(t*1000);"
+    "return d.toLocaleDateString()+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});}"
+    "function post(u,b){return fetch(u,{method:'POST',credentials:'same-origin',"
+    "headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})"
+    ".then(function(r){return r.json();}).catch(function(){return null;});}"
+    # ---- notes: one shared model, rendered into every registered list container ----
+    "var notes=[],LISTS=[];"
+    "function loadNotes(){fetch('/internal-notes/'+CLIENT,{credentials:'same-origin'})"
+    ".then(function(r){return r.json();}).then(function(j){if(j&&j.ok){notes=j.notes||[];LISTS.forEach(renderList);}})"
+    ".catch(function(){});}"
+    "function mkLink(t){var b=document.createElement('button');b.type='button';b.textContent=t;"
+    "b.setAttribute('style',LNK);return b;}"
+    "function noteCard(n){"
+    "var card=document.createElement('div');card.setAttribute('style',CARD);"
+    "var meta=document.createElement('div');meta.setAttribute('style',"
+    "'display:flex;align-items:center;gap:6px;font-size:11px;color:#9ca3af');"
+    "var who=document.createElement('span');who.setAttribute('style','flex:1');"
+    "who.textContent=(n.author||'unknown')+' \\u00b7 '+fmtTs(n.created_at)+"
+    "((n.updated_at||0)>(n.created_at||0)?' \\u00b7 edited':'');"
+    "var ed=mkLink('Edit'),del=mkLink('Delete');"
+    "meta.appendChild(who);meta.appendChild(ed);meta.appendChild(del);"
+    "var body=document.createElement('div');body.setAttribute('style',"
+    "'white-space:pre-wrap;font-size:13px;color:#e5e7eb;overflow-wrap:anywhere');body.textContent=n.text;"
+    "card.appendChild(meta);card.appendChild(body);"
+    "del.onclick=function(){if(!confirm('Delete this internal note?'))return;"
+    "post('/internal-notes/'+CLIENT+'/delete',{id:n.id}).then(loadNotes);};"
+    "ed.onclick=function(){"
+    "if(card.querySelector('textarea'))return;"
+    "var ta=document.createElement('textarea');ta.value=n.text;ta.setAttribute('style',TA);"
+    "var row=document.createElement('div');row.setAttribute('style','display:flex;gap:8px');"
+    "var sv=document.createElement('button');sv.type='button';sv.textContent='Save';sv.setAttribute('style',BTN);"
+    "var cx=mkLink('Cancel');"
+    "row.appendChild(sv);row.appendChild(cx);"
+    "card.replaceChild(ta,body);card.appendChild(row);ta.focus();"
+    "cx.onclick=function(){card.replaceChild(body,ta);card.removeChild(row);};"
+    "sv.onclick=function(){var t=ta.value.trim();if(!t)return;sv.disabled=true;"
+    "post('/internal-notes/'+CLIENT+'/edit',{id:n.id,text:t}).then(loadNotes);};};"
+    "return card;}"
+    "function renderList(list){list.innerHTML='';"
+    "if(!notes.length){var e=document.createElement('div');"
+    "e.setAttribute('style','font-size:12px;color:#9ca3af');"
+    "e.textContent='No internal notes yet - add the first one above.';list.appendChild(e);return;}"
+    "notes.forEach(function(n){list.appendChild(noteCard(n));});}"
+    "function buildNotesUI(host){"
+    "var wrap=document.createElement('div');wrap.setAttribute('style',"
+    "'display:flex;flex-direction:column;gap:12px;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif');"
+    "var ta=document.createElement('textarea');ta.setAttribute('style',TA);"
+    "ta.placeholder='Add an internal note... (never visible to the client)';"
+    "var add=document.createElement('button');add.type='button';add.textContent='Add note';add.setAttribute('style',BTN);"
+    "add.onclick=function(){var t=ta.value.trim();if(!t)return;add.disabled=true;"
+    "post('/internal-notes/'+CLIENT,{text:t}).then(function(j){add.disabled=false;"
+    "if(j&&j.ok){ta.value='';loadNotes();}});};"
+    "var list=document.createElement('div');list.setAttribute('style','display:flex;flex-direction:column;gap:8px');"
+    "wrap.appendChild(ta);wrap.appendChild(add);wrap.appendChild(list);host.appendChild(wrap);"
+    "LISTS.push(list);renderList(list);}"
+    # ---- panels ----
+    "function el(i){return document.getElementById(i);}"
+    "var np=el('bbin-notes'),cp=el('bbin-chat');"
+    "el('bbin-notes-btn').onclick=function(){cp.classList.remove('open');np.classList.toggle('open');};"
+    "el('bbin-chat-btn').onclick=function(){np.classList.remove('open');cp.classList.toggle('open');"
+    "el('bbin-cin').focus();};"
+    "el('bbin-notes-x').onclick=function(){np.classList.remove('open');};"
+    "el('bbin-chat-x').onclick=function(){cp.classList.remove('open');};"
+    "buildNotesUI(el('bbin-notes-body'));"
+    "var mount=document.getElementById('bbNotesMount');"
+    "if(mount){var h=document.createElement('div');"
+    "h.setAttribute('style','font-size:12px;color:#9ca3af;margin:0 0 10px');"
+    "h.textContent='Visible to Bidbrain staff and the owning agency only - never the client.';"
+    "mount.appendChild(h);buildNotesUI(mount);}"
+    "loadNotes();"
+    # ---- assistant chat (thinking shown per reply) ----
+    "var clog=el('bbin-clog'),cin=el('bbin-cin'),csend=el('bbin-csend');"
+    "var hist=[],busy=false;"
+    "function bubble(cls,html){var d=document.createElement('div');d.className=cls;d.innerHTML=html;"
+    "clog.appendChild(d);clog.scrollTop=clog.scrollHeight;return d;}"
+    "bubble('bbin-ma','Hi - ask me about any number on this dashboard. I know the data behind every '"
+    "+'figure and where it comes from (raw source \\u2192 BigQuery view \\u2192 dashboard), and I can '"
+    "+'add or edit the internal notes for you.');"
+    "function think(t){return '<details style=\"margin:0 0 8px;border:1px dashed rgba(232,185,85,.35);'"
+    "+'border-radius:8px;padding:6px 9px;background:rgba(232,185,85,.05)\">'"
+    "+'<summary style=\"cursor:pointer;font:700 10px/1 system-ui,sans-serif;letter-spacing:.09em;'"
+    "+'color:#e8b955\">THINKING</summary>'"
+    "+'<div style=\"margin-top:6px;font-size:12px;color:#9ca3af;white-space:pre-wrap\">'+esc(t)+'</div></details>';}"
+    "function doSend(){var q=cin.value.trim();if(!q||busy)return;busy=true;csend.disabled=true;"
+    "hist.push({role:'user',content:q});bubble('bbin-mu',esc(q));cin.value='';"
+    "var p=bubble('bbin-ma','<span class=\"bbin-wait\" style=\"color:#9ca3af\">Thinking</span>');"
+    "post('/internal-chat/'+CLIENT,{messages:hist}).then(function(j){busy=false;csend.disabled=false;"
+    "if(!j||!j.ok){p.innerHTML='<span style=\"color:#f87171\">'"
+    "+esc((j&&j.error)||'Could not reach the assistant - please try again.')+'</span>';hist.pop();return;}"
+    "var h='';if(j.thinking)h+=think(j.thinking);h+=md(j.answer);"
+    "(j.actions||[]).forEach(function(a){h+='<div style=\"margin-top:7px;font:600 11px/1 system-ui,sans-serif;"
+    "color:#7dd3a0\">\\u270e '+esc(a)+'</div>';});"
+    "p.innerHTML=h;clog.scrollTop=clog.scrollHeight;"
+    "hist.push({role:'assistant',content:j.answer});"
+    "if(j.notes_changed)loadNotes();});}"
+    "csend.onclick=doSend;"
+    "cin.addEventListener('keydown',function(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();doSend();}});"
+    "})();</script>"
+).encode()
+
+
+def _internal_widget(client):
+    return _INTERNAL_WIDGET.replace(b"__CLIENT__", client.encode())
+
+
 def _spend_mult_script(client):
     """A tiny <script> the proxy injects into every proxied dashboard, exposing this client's
     per-channel spend multiplier as window.BB_SPEND_MULT (client-billed "spent to date" vs real
@@ -1565,6 +1751,120 @@ def _dev_flag_script():
     allowed = kind in ("admin", "superadmin") or (
         kind == "agency" and session.get("agency_slug") == "transmission")
     return b"<script>window.BB_DEV=true;</script>" if allowed else b""
+
+
+# --- Internal Notes + Internal AI assistant (staff-only, injected by the proxy) --------------
+# Visible ONLY to superadmin / admin / the client's OWNING agency (per _may_open) — never to a
+# client session, and never on a raw <c>-dash run.app URL (the widget only exists through the
+# proxy). Notes live in the platform's private bucket (internal_notes.py); the assistant is a
+# Gemini turn over the dashboard's LIVE data.json + a committed lineage digest (internal_chat.py),
+# with tool access to the same notes.
+def _internal_allowed(client):
+    return session.get("kind") in ("superadmin", "admin", "agency") and _may_open(client)
+
+
+def _actor():
+    """Who to record as a note's author: the signed-in email when there is one, else the tier."""
+    return session.get("email") or session.get("kind") or ""
+
+
+@app.get("/internal-notes/<client>")
+def internal_notes_list(client):
+    if not _internal_allowed(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    try:
+        return jsonify(ok=True, notes=internal_notes.list_notes(client))
+    except Exception:
+        app.logger.exception("internal notes list failed")
+        return jsonify(ok=False, error="could not load notes"), 500
+
+
+@app.post("/internal-notes/<client>")
+def internal_notes_add(client):
+    if not _internal_allowed(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    text = ((request.get_json(silent=True) or {}).get("text") or "").strip()
+    if not text:
+        return jsonify(ok=False, error="empty note"), 400
+    try:
+        return jsonify(ok=True, note=internal_notes.add_note(client, text, author=_actor()))
+    except Exception:
+        app.logger.exception("internal note add failed")
+        return jsonify(ok=False, error="could not save note"), 500
+
+
+@app.post("/internal-notes/<client>/edit")
+def internal_notes_edit(client):
+    if not _internal_allowed(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    j = request.get_json(silent=True) or {}
+    text = (j.get("text") or "").strip()
+    if not text or not j.get("id"):
+        return jsonify(ok=False, error="id and text required"), 400
+    try:
+        rec = internal_notes.edit_note(client, j["id"], text, author=_actor())
+    except Exception:
+        app.logger.exception("internal note edit failed")
+        return jsonify(ok=False, error="could not save note"), 500
+    if rec is None:
+        return jsonify(ok=False, error="no such note"), 404
+    return jsonify(ok=True, note=rec)
+
+
+@app.post("/internal-notes/<client>/delete")
+def internal_notes_delete(client):
+    if not _internal_allowed(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    j = request.get_json(silent=True) or {}
+    try:
+        ok = internal_notes.delete_note(client, j.get("id") or "")
+    except Exception:
+        app.logger.exception("internal note delete failed")
+        return jsonify(ok=False, error="could not delete note"), 500
+    return (jsonify(ok=True) if ok else (jsonify(ok=False, error="no such note"), 404))
+
+
+_CHAT_DATA_CACHE = {}   # client -> (fetched_at, data.json text); 5-min TTL keeps chat turns snappy
+
+
+def _upstream_data_json(client):
+    """The client's live data.json, fetched through the same upstream login the proxy uses."""
+    now = time.time()
+    hit = _CHAT_DATA_CACHE.get(client)
+    if hit and now - hit[0] < 300:
+        return hit[1]
+    url = f"{_upstream_base(client)}/data.json"
+    hdrs = _tool_headers(client)
+    cookies = _UPSTREAM_COOKIES.get(client) or _upstream_login(client)
+    r = requests.get(url, cookies=cookies, headers=hdrs, timeout=30)
+    if r.status_code == 401:                       # cached upstream session expired -> re-login once
+        _UPSTREAM_PW.pop(client, None)
+        r = requests.get(url, cookies=_upstream_login(client), headers=hdrs, timeout=30)
+    r.raise_for_status()
+    _CHAT_DATA_CACHE[client] = (now, r.text)
+    return r.text
+
+
+@app.post("/internal-chat/<client>")
+def internal_chat_turn(client):
+    if not _internal_allowed(client):
+        return jsonify(ok=False, error="not allowed"), 403
+    if not internal_chat.enabled():
+        return jsonify(ok=False, error="assistant not configured (GEMINI_API_KEY unset)"), 503
+    msgs = (request.get_json(silent=True) or {}).get("messages")
+    if not isinstance(msgs, list) or not msgs:
+        return jsonify(ok=False, error="no messages"), 400
+    try:
+        data_txt = _upstream_data_json(client)
+    except Exception:                               # answer from lineage/notes alone rather than 500
+        app.logger.exception("internal chat: data.json fetch failed")
+        data_txt = "(live data.json unavailable right now)"
+    try:
+        res = internal_chat.chat(client, msgs, data_txt, author=_actor())
+    except Exception:
+        app.logger.exception("internal chat turn failed")
+        return jsonify(ok=False, error="assistant error - please try again"), 502
+    return jsonify(ok=True, **res)
 
 
 def _upstream_base(client):
@@ -1717,7 +2017,10 @@ def proxy(client, subpath):
             elif b"</body>" in body:
                 body = body.replace(b"</body>", head_inject + b"</body>", 1)
         if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout + feedback control
-            body = body.replace(b"</body>", _LOGOUT_BUTTON + _feedback_widget(client) + b"</body>", 1)
+            tail = _LOGOUT_BUTTON + _feedback_widget(client)
+            if _internal_allowed(client):           # staff-only: Internal Notes + Assistant widget
+                tail += _internal_widget(client)
+            body = body.replace(b"</body>", tail + b"</body>", 1)
     out = Response(body, status=resp.status_code, content_type=ctype)
     out.headers["Cache-Control"] = "no-store"
     loc = resp.headers.get("Location")

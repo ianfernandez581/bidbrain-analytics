@@ -1,0 +1,252 @@
+# Lineage digest for dashboard 'tlm' (from clients/client_tlm/)
+# Data contract: sql/<view>.sql (BigQuery view) -> job/main.py (data.json key) -> dashboard.html.
+
+## README.md (data contract, cookbook, gotchas)
+
+# The Little Marionette — Performance Dashboard
+
+Australian specialty-coffee roaster / e-commerce retailer, run by the agency
+**100% Digital** (agency slug `100-digital`). This is an e-commerce / ROAS build:
+Google Ads `conversions_value` is revenue (AUD), the source of ROAS / AOV / CPA.
+
+## EDA Summary (14 Jun 2026)
+
+| Source | Table | Account/Advertiser | Rows | Window | Spend | Conv | Revenue |
+|--------|-------|--------------------|------|--------|-------|------|---------|
+| Google Ads (DTS) | `raw_google_ads.perf_google_ads` | The Little Marionette | 1,169 | 2025-08-05 → 2026-06-13 | $23,353 AUD | 1,161 purchases | $120,993 AUD |
+| Trade Desk (Windsor) | `raw_windsor.perf_the_trade_desk` | The Little Marionette | 1,147 | 2026-04-30 → 2026-06-12 | $1,687 AUD | — | — |
+
+**Decision gates (all resolved):**
+
+| Gate | Finding | Decision |
+|------|---------|----------|
+| `conversions_value > 0`? | $120,993 AUD | **E-commerce/ROAS shape** (ROAS ~5.18) |
+| `campaign_type` column exists? | YES — PERFORMANCE_MAX, SEARCH, SHOPPING | **google_by_type breakdown built** |
+| TTD currency = USD? | **AUD** (Windsor already AUD) | CASE passes through; fx_usd_aud=1.50 documented |
+| TTD video populated? | video_starts=0, video_completes=0 | **No video funnel** |
+| TTD conversions JSON? | All 1,147 rows non-NULL | "Pixel fires (anonymous slots — no revenue attribution)" callout |
+| Window start? | 2025-08-01 (first-of-month of Google min) | |
+| Spend units? | CPM=$23.97 | **Already whole AUD** — NOT micros |
+| TTD stale? | Max 2026-06-12 vs Google 2026-06-13 (1 day) | **Not stale** |
+
+## Deltas from ResetData
+
+| Dimension | ResetData | TLM |
+|-----------|-----------|-----|
+| Business shape | B2B / leads-as-conversions | E-commerce / ROAS |
+| Sources | 5 (GA, Meta, TTD, GA4, GA4 events) | 2 (Google Ads DTS + Trade Desk Windsor) |
+| Revenue | Omitted (0 upstream) | Google conversions_value = revenue |
+| Tabs | Overview / Paid Media / Website Traffic / Ads→Traffic | Overview / Google Ads / Trade Desk / Performance |
+| Website/sessions layer | Yes (GA4) | No (no GA4 source) |
+| Country filter | Yes | No (single market) |
+| Google Ads source | Windsor (USD, divide 1e6) | Native DTS (already AUD, no division) |
+| TTD currency | Windsor USD → AUD ×1.50 | Windsor AUD (pass-through) |
+| Google by type | Heuristic only | Native campaign_type column |
+| Video funnel | TTD populated | TTD video empty (skip) |
+| Spend unit | Windsor micros → /1e6 | DTS already whole AUD |
+
+## Coordinates
+
+| Thing | Value |
+|-------|-------|
+| Folder / dataset | `clients/client_tlm/` / `client_tlm` |
+| Data bucket | `bidbrain-analytics-tlm-dash` |
+| Export job | `tlm-export` (SA: `tlm-dash-job@bidbrain-analytics.iam.gserviceaccount.com`) |
+| Web service | `tlm-dash` (SA: `tlm-dash-web@bidbrain-analytics.iam.gserviceaccount.com`) |
+| Secrets | `tlm-dash-password`, `tlm-dash-session-key` |
+| Scheduler | `tlm-export-daily` (`*/10 * * * *` UTC, self-gating) |
+| JSON object | `tlm.json` |
+
+## Deploy / refresh
+
+**First stand-up** (provisions everything — run once):
+
+```powershell
+.\clients\client_tlm\deploy_tlm.ps1
+```
+
+**Day-to-day:**
+
+```powershell
+# Re-apply views (any SQL change)
+.\clients\client_tlm\sql\deploy_views_tlm.ps1
+
+# Rebuild + redeploy export job
+.\clients\client_tlm\job\deploy_job_tlm.ps1
+
+# Rebuild + redeploy web app
+.\clients\client_tlm\dash\deploy_dash_tlm.ps1
+
+# Run export manually
+gcloud run jobs execute tlm-export --region australia-southeast1 --wait
+```
+
+## Caveats
+
+1. **TTD Windsor is already AUD** — EDA shows `currency = 'AUD'` for all TLM rows. The FX case at 1.50 in `stg_ttd` is present but not exercised. If a USD row ever lands from Windsor, it'll convert correctly.
+2. **Google spend is whole AUD** — The native DTS loader has already converted micros to currency units. Do NOT divide by 1,000,000 (CPM sanity check: ~$23.97). This differs from Windsor-based Google Ads clients.
+3. **TTD video fields are 0** — No video creative in this flight, so the dashboard skips the video funnel chart.
+4. **No GA4, no Meta, no Reddit** — TLM is a two-source build. The "Website Traffic" and "Ads → Traffic" tabs do not exist.
+5. **Branding (done)** — Real The Little Marionette logo is inlined: the **dashboard is light cream
+   + slate-blue** (`#4F7290`, sampled from thelittlemarionette.com) with a navy-recoloured wordmark;
+   the **login keeps a dark slate ground** so the supplied white logo reads. Logos are injected from
+   `creatives/TLM__logo_white.avif` by `creatives/inject_logos.py` (idempotent — re-run to refresh).
+6. **ROAS / CPA are Google-only (attributed)** — ROAS = revenue ÷ **Google** spend (≈5.18×), CPA =
+   Google spend ÷ purchases. TTD pixel fires carry no attributable revenue, so they're excluded from
+   the efficiency ratios (blended-on-total would read ≈4.83×). The **Media spend** KPI still shows
+   total spend (Google + TTD), with TTD called out in its sub-label.
+7. **Weekly revenue now flows** — `ad_campaign_weekly` carries `conversions` + `revenue` (Google-only;
+   TTD NULL). Without it the Performance scatter, the week-grain hero revenue/ROAS line, and the
+   week-grain trend silently read zero. Three-stage contract: view 13 → `job/main.py` → `dashboard.html`.
+8. **`ttd_creative` is whole-flight** — the creative × ad-format table has no date grain, so it is NOT
+   date-scoped (labelled as such); it does honour the Platform/Campaign selection. Everything else on
+   every tab honours Date + Platform + Campaign.
+9. **"Top creatives — what worked" carries NO real artwork (by design).** The Trade Desk tab shows a
+   **CTR leaderboard** — top 10 banners by click-through, name + size + Impr./Clicks/CTR/Spend, #1 pilled
+   (`renderTTD`, `.clist`/`.crow` in `dash/dashboard.html`) — NOT a thumbnail gallery. Reason (researched
+   2026-07-03, all three ingest paths): TTD lands only `creative_name` + `ad_format` into
+   `raw_windsor.perf_the_trade_desk` (26 cols, no image column); Windsor's 3 `the_trade_desk` image
+   fields are all "(Deprecated)" and **live-return NULL**; the TTD Platform API that could serve previews
+   is closed/credentialed (we're read-only). Google Ads via DTS exports no images either (empty columns,
+   no Asset tables). Snowflake is irrelevant (TLM never reads it). A ResetData-style thumbnail gallery
+   works ONLY because Meta uniquely serves `creative_thumbnail_url`.
+   - **Real TTD artwork → manual seed of the top ~10 banners:** agency exports ~10 images from the TTD
+     UI (advertiser `mor6pp1`), seed keyed by `creative_name`, thread through `sql/10` → `job/main.py`
+     (`ttd_creative[]`) → `dashboard.html` (mirror ResetData's `33_meta_creatives.sql` render). No API access.
+   - **Google PMax/Shopping product images are obtainable** (Search is text-only): via a Windsor pull of
+     `google_ads` "Asset image asset full size url" + `google_merchant` "Product Image Link", or the Google
+     Ads API `asset` resource — needs Windsor connector scope / Merchant Center auth / a dev token. TLM's
+     Google customer id = `1869745895` (shared MCC `3451896252`).
+
+## BigQuery views (sql/) - each header documents what the view computes and its raw sources
+
+### 01_stg_google.sql
+-- TLM — staged Google Ads (paid search + shopping + Performance Max).
+--
+-- Source is the native BigQuery Data Transfer Service table raw_google_ads.perf_google_ads
+-- (NOT Windsor). The TLM slice is account_name = 'The Little Marionette'. EDA: campaign_type
+-- present (PERFORMANCE_MAX / SEARCH / SHOPPING), currency AUD, 20+ campaigns, conversions
+-- and conversions_value (revenue) populated — this is the e-commerce money source.
+--
+-- CURRENCY TRAP RESOLVED: this DTS loader has ALREADY converted micros → currency, so the
+-- `spend` column is in whole AUD dollars (verified: CPM ~$23.97). Do NOT divide by 1,000,000.
+-- conversions = purchases (Google Ads tracked); conversions_value = revenue (AUD) — the ROAS
+-- numerator. ROAS / AOV / CPA are derived client-side, never stored here.
+
+### 02_stg_ttd.sql
+-- TLM — staged The Trade Desk programmatic display.
+--
+-- The TLM filter lives here once: advertiser_name = 'The Little Marionette'. EDA: 1 campaign
+-- across 6 ad formats, flight Apr 2026 →, currency AUD (Windsor already AUD — not USD).
+-- video_starts/video_completes are 0 (no video creative); conversions JSON is non-null but
+-- anonymous — pixel fires with no revenue attribution, surfaced only as a callout.
+--
+-- CURRENCY: EDA shows currency = 'AUD' for all rows. The CASE keeps us robust if a USD row
+-- ever lands (multiply by 1.50, the shared FX_USD_AUD constant). Since Windsor already
+-- delivers AUD, the CASE passes it through unchanged.
+
+### 03_stg_ad_delivery.sql
+-- TLM — unified ad-delivery base (the single source for the Campaign filter).
+--
+-- One long-format row per platform × campaign × day, folding Google Ads + The Trade Desk into
+-- the SAME shape so the campaign-grained roll-ups (ad_campaigns / ad_campaign_monthly /
+-- ad_campaign_weekly) can be built once on top of it. TLM has only two paid channels (Google +
+-- TTD — no Meta, no GA4), so this is leaner than ResetData's three-platform version.
+--
+-- Currency: spend_aud is AUD for both — Google already AUD, TTD's stg view passes AUD through
+-- (FX case at 1.50 is present but unused since Windsor delivers AUD for TLM).
+-- conversions + revenue come from Google only (TTD reports anonymous pixel fires, no revenue).
+-- creative = TTD ad_format (or creative_name); NULL for Google.
+
+### 04_kpi.sql
+-- TLM — headline KPI row (the single row the dashboard reads for the big numbers).
+--
+-- E-commerce "ads → revenue / ROAS": Google Ads delivery + conversions/revenue alongside
+-- Trade Desk delivery only. Google is the revenue source (conversions_value = revenue AUD;
+-- conversions = purchases). TTD contributes spend/impressions/clicks but no conversions
+-- or revenue (pixel fires are anonymous). Window = 2025-08-01 → latest metric_date across
+-- both platforms. FX_USD_AUD (1.50) kept for completeness (TTD EDA shows AUD already,
+-- but the CASE is present in stg_ttd for robustness). ad_* = Google + TTD combined.
+-- ROAS / AOV / CPA are derived client-side, never stored here.
+
+### 05_monthly.sql
+-- TLM — monthly trend: the hero "ad spend vs revenue / ROAS" series.
+--
+-- One row per month. Pairs Google Ads delivery (conversions + revenue are the e-commerce
+-- story) with Trade Desk delivery (spend/imps/clicks only). From 2025-08 (the start of
+-- the live data per EDA). ad_* folds the two platforms together. NO website/GA4 layer.
+-- ROAS / AOV / CPA are derived client-side from these additive base metrics.
+
+### 06_weekly.sql
+-- TLM — weekly ad-delivery + revenue correlation series (campaign window).
+--
+-- One row per ISO week (Mon-anchored). Pairs the week's Google Ads delivery (conversions
+-- + revenue — the e-commerce signal) with Trade Desk delivery (spend/imps/clicks only).
+-- From 2025-08-01 (window start per EDA). This is what the Performance tab plots and
+-- correlates. Per-platform impressions kept so the Platform filter can recompute the ad
+-- series client-side. NO website/sessions layer — TLM has no GA4.
+
+### 07_google_campaigns.sql
+-- TLM — Google Ads delivery by campaign (whole flight) + platform-reported conversions/revenue.
+-- Per-campaign table on the Google Ads tab. ROAS / AOV / CPA are derived client-side.
+-- Delivering rows only via an outer WHERE (not HAVING SUM(alias), which BigQuery would read as
+-- an aggregation-of-aggregation against the SELECT alias).
+
+### 08_google_by_type.sql
+-- TLM — Google Ads delivery by campaign_type: the e-commerce breakdown.
+--
+-- EDA shows three campaign_types: PERFORMANCE_MAX (7 campaigns, $13.8K spend, 4.66 ROAS),
+-- SEARCH (13 campaigns, $9.3K spend, 6.08 ROAS), and SHOPPING (1 campaign, $236 spend,
+-- 0 conversions). This view surfaces that split so the Google Ads tab can show the type
+-- donut + table. ROAS/AOV/CPA are derived client-side.
+
+### 09_ttd_campaigns.sql
+-- TLM — Trade Desk delivery by campaign (whole flight). Spend AUD (Windsor already AUD;
+-- FX case at 1.50 in stg_ttd is present but passes through unchanged). No conversions
+-- column — TTD pixel fires are anonymous with no revenue attribution. Per-campaign table
+-- on the Trade Desk tab. Delivering rows only via outer WHERE.
+
+### 10_ttd_creative.sql
+-- TLM — Trade Desk delivery by creative_name + ad_format. Top by imps.
+-- Video funnel columns (video_starts/25/50/75/completes) are included in the
+-- stg view but EDA shows they are all 0 for TLM — no video creative. The
+-- dashboard skips the video funnel chart when these are empty.
+
+### 11_ad_campaigns.sql
+-- TLM — ad delivery by campaign (whole flight): the Campaign filter's option list +
+-- per-campaign totals. One row per platform × campaign, delivering campaigns only.
+-- Ordered by spend so the dropdown surfaces the campaigns that matter first. The dashboard
+-- sums the selected campaigns client-side to rescale every ad-delivery figure. Revenue
+-- and conversions come from Google only (TTD has NULL). Outer WHERE (not HAVING) so the
+-- SUM aliases aren't re-aggregated.
+
+### 12_ad_campaign_monthly.sql
+-- TLM — ad delivery by campaign × month, for the Campaign-filtered monthly charts
+-- (Overview hero spend + Google Ads monthly chart). The dashboard sums the selected
+-- campaigns per month/platform. Month key matches `monthly` (FORMAT_DATE %Y-%m).
+-- Delivering rows only (outer WHERE). Revenue and conversions are Google-only.
+
+### 13_ad_campaign_weekly.sql
+-- TLM — ad delivery by campaign × ISO week (campaign window), for the Campaign-filtered
+-- Performance tab weekly chart + Pearson correlation scatter. Week is Monday-anchored to
+-- match `weekly`. From 2025-08-01 (window start per EDA). Delivering rows only.
+-- conversions + revenue are carried (Google-only; TTD is NULL) so the weekly scatter, the
+-- week-grain hero revenue/ROAS line, and the week-grain perf trend stay campaign-filterable
+-- instead of silently reading zero.
+
+### 14_blended_daily.sql
+-- TLM — daily trend: the hero "ad spend vs revenue / ROAS" series at day grain.
+--
+-- One row per day. Mirrors `monthly` (05_monthly.sql) but keyed on the raw metric_date
+-- ('YYYY-MM-DD') instead of FORMAT_DATE('%Y-%m'). Pairs Google Ads delivery (conversions +
+-- revenue = the e-commerce story) with Trade Desk delivery (spend/imps/clicks only). From
+-- 2025-08-01 (window start per EDA, matching `weekly`). ad_* folds the two platforms
+-- together. NO website/GA4 layer. ROAS / AOV / CPA are derived client-side.
+
+### 15_ad_campaign_daily.sql
+-- TLM — ad delivery by campaign × day (campaign window), for the Campaign-filtered
+-- day-grain charts (Overview hero, Google Ads monthly→daily chart, Performance trend).
+-- Mirrors 13_ad_campaign_weekly.sql but groups on the raw metric_date ('YYYY-MM-DD')
+-- instead of DATE_TRUNC(...,WEEK). From 2025-08-01 (window start per EDA). Delivering
+-- rows only. conversions + revenue are carried (Google-only; TTD is NULL) so the day-grain
+-- hero revenue/ROAS line and perf trend stay campaign-filterable instead of reading zero.
