@@ -178,7 +178,7 @@
     box-shadow:0 0 0 3px color-mix(in srgb,var(--kc) 20%,transparent)}
   .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:8px;color:var(--se-dark)}
   .kpi .delta{font-size:11px;margin-top:4px;color:var(--se-mute);line-height:1.35}
-  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--kc)}
+  .kpi .stripe{position:absolute;left:0;right:0;bottom:0;top:auto;height:3px;background:var(--kc);box-shadow:0 -2px 12px 0 color-mix(in srgb,var(--kc) 50%,transparent)}
   /* consistent per-metric accent (same colour wherever the metric appears) */
   .kpi.m-spend{--kc:var(--m-spend)} .kpi.m-imp{--kc:var(--m-imp)} .kpi.m-clk{--kc:var(--m-clk)}
   .kpi.m-cpc{--kc:var(--m-cpc)} .kpi.m-leads{--kc:var(--m-leads)} .kpi.m-target{--kc:var(--m-target)}
