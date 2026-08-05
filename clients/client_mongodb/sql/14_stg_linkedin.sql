@@ -4,12 +4,14 @@
 -- Desk, so it comes from raw_windsor.perf_linkedin (built by ingest/windsor_data_pull/linkedin)
 -- rather than raw_snowflake. Grain there is (account x creative x date).
 --
--- SCOPE = every MongoDB campaign, by campaign-name prefix. The Windsor loader tags rows
--- client_slug='mongodb' via a keyword fallback, but we filter on the campaign NAME here so
--- the lane is explicit and independent of that tagging: campaign names look like
---   MONGODB_2026-Q3_AWS-IMMERSION-DAY_AU_LEAD-GENERATION_LINKEDIN
--- so `UPPER(campaign_name) LIKE 'MONGODB%'` picks up this campaign and any future MongoDB
--- LinkedIn campaign automatically.
+-- SCOPE = the seeded LinkedIn campaign IDs in client_mongodb.seed_campaign_ids
+-- (targets/campaign_ids.csv, the committed mirror of Transmission's campaign-reference
+-- sheet - 2026-08-05, replacing the old `campaign_name LIKE 'MONGODB%'` prefix match:
+-- campaign names are NOT stable keys, see AGENTS.md). perf_linkedin carries campaign_id
+-- natively, so this lane pins on the ID itself. A MongoDB campaign that is not yet in the
+-- sheet/CSV is EXCLUDED (never silently included) - the export job logs a warning naming
+-- any MONGODB-prefixed campaign it sees outside the seed, which is the cue to update the
+-- sheet + campaign_ids.csv + re-run seed_static.py.
 --
 -- CURRENCY: LinkedIn spend is in the account's NATIVE currency (`currency`; the AU account is
 -- AUD). The MongoDB dashboard reports USD (Trade Desk), so spend is converted to USD here via
@@ -69,4 +71,7 @@ SELECT
   share_title,
   creative_status
 FROM `bidbrain-analytics.raw_windsor.perf_linkedin`
-WHERE UPPER(campaign_name) LIKE 'MONGODB%';
+WHERE TRIM(campaign_id) IN (
+  SELECT TRIM(CAMPAIGN_ID)
+  FROM `bidbrain-analytics.client_mongodb.seed_campaign_ids`
+  WHERE PLATFORM = 'linkedin');

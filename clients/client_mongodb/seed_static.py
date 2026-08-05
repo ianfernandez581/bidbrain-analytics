@@ -9,6 +9,13 @@ seed_targets / seed_budget; the views sql/06 + sql/10 just SELECT from those see
 CSV, re-run this, then run the export job with FORCE_REBUILD=1 (a seed change is invisible to the
 freshness gate). targets/ is version-controlled (NOT the gitignored data/).
 
+campaign_ids.csv -> seed_campaign_ids (added 2026-08-05) is the PAID-MEDIA CAMPAIGN SCOPE PIN:
+the committed mirror of Transmission's "Campaign & Ad Group / Ad Set Reference" sheet
+(docs.google.com/spreadsheets/d/1sqiZOYa4ffE6S9k0xYXIYZi0ZGNUGyJCGcslyczdqXo). stg_tradedesk and
+stg_linkedin scope on this table (names are NOT stable keys - see AGENTS.md), and the status
+dashboard builds a drift check from it at runtime. New/renamed campaign => update the sheet AND
+this CSV together, re-run this, then force the export job.
+
 Run:  .\.venv\Scripts\python.exe clients\client_mongodb\seed_static.py
 """
 import os
@@ -30,6 +37,10 @@ SEEDS = {
         SF("PROGRAMME_LABEL", "STRING"), SF("TRADEDESK_CODE", "STRING"),
         SF("GROSS_BUDGET_USD", "INT64"), SF("NET_BUDGET_USD", "INT64"),
         SF("START_DATE", "DATE"), SF("END_DATE", "DATE"), SF("EST_CPC", "FLOAT64"),
+    ]),
+    "campaign_ids.csv": ("seed_campaign_ids", [
+        SF("PLATFORM", "STRING"), SF("CAMPAIGN_ID", "STRING"), SF("CAMPAIGN_NAME", "STRING"),
+        SF("PROGRAMME", "STRING"), SF("MARKET", "STRING"), SF("ACCOUNT_NAME", "STRING"),
     ]),
 }
 

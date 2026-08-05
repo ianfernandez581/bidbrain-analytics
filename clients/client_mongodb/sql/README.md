@@ -22,7 +22,7 @@ views (`stg_*`) must exist before the models and rollups that read them.
 
 | File | View | What it does |
 |---|---|---|
-| [`01_stg_tradedesk.sql`](01_stg_tradedesk.sql) | `stg_tradedesk` | Filters `raw_snowflake.tradedesk_apac_all` to **`ADVERTISER_NAME = "MongoDB"`** and parses the campaign/ad-group naming convention into `PROGRAMME`, `MARKET`, `STRATEGY`, `OBJECTIVE` (via `SPLIT(... , "_")[SAFE_OFFSET(n)]`). **Offsets read `CAMPAIGN_NAME_NORM` / `AD_GROUP_NAME_NORM`, NOT the raw names** - a leading `"<brief>_"` token (`2265_`, added 2026-07-06) shifts every field and silently drops the delivery. Never revert this to the raw column; see the client README. |
+| [`01_stg_tradedesk.sql`](01_stg_tradedesk.sql) | `stg_tradedesk` | Filters `raw_snowflake.tradedesk_apac_all` to **`ADVERTISER_NAME = "MongoDB"` AND the seeded campaign scope** (2026-08-05: INNER JOIN `seed_campaign_ids` on the NORMALISED campaign name - the delivery mirror has no ID column). Carries the seed's **`CAMPAIGN_ID`** onto every row and takes **`PROGRAMME` + `MARKET` from the seed** (rename-proof); `STRATEGY`/`OBJECTIVE` stay parsed off `AD_GROUP_NAME_NORM`/`CAMPAIGN_NAME_NORM` (**never the raw names** - a leading `"<brief>_"` token, `2265_` added 2026-07-06, shifts every field). An unseeded campaign is EXCLUDED - the status-dash scope check + job audit alarm on it; see the client README **Campaign scope** section. |
 | [`02_stg_salesforce.sql`](02_stg_salesforce.sql) | `stg_salesforce` | Filters `raw_snowflake.salesforce_cs_apac_all` to MongoDB's **4 campaign IDs** (3 DNB + KGA/IDC) (no status filter). Maps the 3 DNB IDs → `PROGRAMME_LABEL` (KGA/IDC stays `NULL`) and `UPPER(TRIM(COUNTRY_NAME))` → the 4-market bucket (`ANZ` / `INDIA` / `ASEAN` / `KR-HK-TW`, else `OTHER`). **Case-normalised** so variants (`Republic of Korea`, `INDIA`/`india`) land correctly instead of leaking to `OTHER`; genuinely off-plan countries (China, Japan) stay `OTHER`, which the dash surfaces as its own region (in `all_markets`) so every lead is counted. |
 | [`03_paid_media_model.sql`](03_paid_media_model.sql) | `paid_media_model` | The unified paid-media delivery model: labels channel `"TradeDesk"`, derives `WEEK_START` (Monday), and `SUM`s impressions/clicks/cost/conversions grouped by all dimensions. `LEADS = 0` (TTD has no lead pixel here). |
 | [`04_cs_leads.sql`](04_cs_leads.sql) | `cs_leads` | Lead counts **by market** with three status buckets — `ACCEPTED` (`LEAD_STATUS = "Accepted"`), `REJECTED` (`= "Rejected"`), `NEW_LEADS` (`IN ("Unresponsive","Do Not Contact","New")`, i.e. unprocessed; `Do Not Contact` is IDC-only) — plus `LAST_LEAD_DAY`. **`TOTAL_LEADS` counts only the delivered statuses** `New` / `Unresponsive` / `Accepted` / `Do Not Contact` (the union of the DNB + KGA/IDC definitions below) — it **excludes** `Unqualified` / `Rejected`, so it is **not** `COUNT(*)`. |
@@ -50,7 +50,8 @@ views (`stg_*`) must exist before the models and rollups that read them.
 > conversion feed (`pixel_dims`, `seed_pixel.py`, and the seed tables were removed).
 
 > **The per-client filter is the main thing you change** when copying this folder for a new
-> client: the advertiser in `01_*` and the campaign IDs + market mapping in `02_*`.
+> client: the advertiser + seeded campaign scope in `01_*` (see `targets/campaign_ids.csv`) and
+> the campaign IDs + market mapping in `02_*`.
 
 > **Plan tables are hardcoded snapshots.** `targets`, `benchmarks_*`, and `budget` are `UNNEST`
 > literals transcribed from the media plan — they are **not** live data. Update them here when

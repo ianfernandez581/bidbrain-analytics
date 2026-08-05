@@ -56,7 +56,7 @@ The BigQuery **views** (`sql/`) are the stage-2 transform; apply them with
 | I want to change…                                            | Edit this                                      | Stage |
 |--------------------------------------------------------------|------------------------------------------------|:-----:|
 | Pull a new Snowflake **source table** (for everyone)         | `../snowflake_data_pull/loader.py` (`TABLES`)  |   1   |
-| This client's **filter** (campaign IDs, advertiser, leads)   | `sql/01_stg_tradedesk.sql` / `02_stg_salesforce.sql` | 2 |
+| This client's **filter** (campaign IDs, advertiser, leads)   | paid media: `targets/campaign_ids.csv` → `seed_static.py` (the scope pin, see below) · CS: `sql/02_stg_salesforce.sql` | 2 |
 | How data is grouped / bucketed (lead-status buckets, etc.)   | the relevant view in `sql/*.sql`               |   2   |
 | **Lead targets / media-plan budget**                         | `targets/targets.csv` · `targets/budget.csv` → `seed_static.py` → export `FORCE_REBUILD=1` | 2 |
 | The shape/keys of the JSON the frontend receives             | `job/main.py` → the `env = {...}` dict         |   2   |
@@ -171,6 +171,7 @@ reads whatever JSON is currently in the bucket.
 | `scheduler.ps1` | Creates/refreshes the Cloud Scheduler `*/10` UTC trigger that runs the self-gating `mongodb-export` job. |
 | `sql/*.sql` | BigQuery view definitions (the stage-2 transform); `01/02_stg_*` hold this client's filter; `11_stg_tradedesk_pixel`→`12_pixel_assets`/`13_pixel_summary` are the content-engagement views (LIVE from `raw_snowflake.tradedesk_apac_conversion`) |
 | `create_views.py` | Applies every `sql/*.sql` view to BigQuery |
+| `targets/*.csv` + `seed_static.py` | Committed seed CSVs → BQ `seed_*` tables: `targets.csv`/`budget.csv` (media plan) and `campaign_ids.csv` (the **paid-media campaign scope pin** — mirror of the campaign-reference sheet, see below) |
 | `dash/main.py` | The web app — login + serves `dashboard.html` and the JSON (stage 3) |
 | `dash/dashboard.html` | The actual dashboard UI (all charts/tabs live here) |
 | `dash/cloudbuild.yaml`, `dash/Dockerfile` | How the service is built/deployed |
@@ -329,6 +330,74 @@ Verified after the fix: markets back to `INDIA` / `ASEAN` / `KR-HK-TW` / `ANZ` w
 
 Same rollout hit **schneiderlqai** (`2306_`) and **cloudflare** (`1160_`/`2103_`/`2479_`).
 schneiderlqai dodged it by keying on `LIKE '%LQAIDC%'`; cloudflare did not and was fixed the same day.
+
+## Campaign scope is PINNED to the reference sheet (2026-08-05)
+
+The paid-media scope (TTD + LinkedIn) is no longer "whatever the advertiser/name-prefix matches" -
+it is **exactly the campaigns in Transmission's "Campaign & Ad Group / Ad Set Reference" sheet**
+(docs.google.com/spreadsheets/d/1sqiZOYa4ffE6S9k0xYXIYZi0ZGNUGyJCGcslyczdqXo), mirrored in the
+committed [`targets/campaign_ids.csv`](targets/campaign_ids.csv) →
+`client_mongodb.seed_campaign_ids` (via [`seed_static.py`](seed_static.py)):
+
+| Platform | Campaign ID | Campaign (sheet name, `2265_` form) | Programme | Market |
+|---|---|---|---|---|
+| tradedesk | `4l7ib47` | `..._IDC_APJ_DEMAND-GENERATION_ANZ` | IDC | ANZ |
+| tradedesk | `baz7v1b` | `..._IDC_APJ_DEMAND-GENERATION_ASEAN` | IDC | ASEAN |
+| tradedesk | `wmz7jza` | `..._IDC_APJ_DEMAND-GENERATION_INDIA` | IDC | INDIA |
+| tradedesk | `37o75q3` | `..._IDC_APJ_DEMAND-GENERATION_KR-HK-TW` | IDC | KR-HK-TW |
+| tradedesk | `q74u9xp` | `..._IDE_APJ_DEMAND-GENERATION_ANZ` | IDE | ANZ |
+| tradedesk | `amaf13d` | `..._IDE_APJ_DEMAND-GENERATION_ASEAN` | IDE | ASEAN |
+| tradedesk | `sf35fze` | `..._IDE_APJ_DEMAND-GENERATION_INDIA` | IDE | INDIA |
+| tradedesk | `357odo1` | `..._IDE_APJ_DEMAND-GENERATION_KR-HK-TW` | IDE | KR-HK-TW |
+| linkedin | `1151909984` | `..._IDC_APJ_DEMAND-GENERATION_LINKEDIN` | IDC | APJ |
+| linkedin | `1159829644` | `..._AWS-IMMERSION-DAY_AU_LEAD-GENERATION_LINKEDIN` | - | AU |
+
+How the pin is enforced:
+
+- [`sql/01_stg_tradedesk.sql`](sql/01_stg_tradedesk.sql) **JOINs the seed on the NORMALISED
+  campaign name** (brief prefix stripped both sides - the raw feed carries the same campaign under
+  both the `MONGODB_...` and `2265_MONGODB_...` forms and both fold onto one seed row). The TTD
+  delivery mirror (`raw_snowflake.tradedesk_apac_all`) has **NO campaign-id column** - names only -
+  so the name join is unavoidable; the seed carries the ID onto every row (`CAMPAIGN_ID`), and
+  **PROGRAMME + MARKET now come from the seed, not positional name parsing**, so the next rename
+  cannot silently re-tag delivery. STRATEGY/OBJECTIVE stay parsed off the `*_NORM` names.
+- [`sql/14_stg_linkedin.sql`](sql/14_stg_linkedin.sql) filters **directly on the seeded
+  `campaign_id`** (`raw_windsor.perf_linkedin` carries it natively), replacing the old
+  `campaign_name LIKE 'MONGODB%'` prefix match.
+- **Two guardrails make drift loud, never silent** (a campaign outside the seed is EXCLUDED from
+  the dash, so exclusion must alarm): the status dashboard's *"Trade Desk · Delivery outside the
+  seeded campaign scope"* check (built each tick from the live seed table; **must be 0**), and the
+  export job's scope-pin audit, which logs a WARNING naming any unseeded TTD/LinkedIn campaign it
+  sees in the raw layer.
+
+**Cookbook - a new campaign launches (or one is renamed):** add/fix it in the reference sheet,
+mirror the row into `targets/campaign_ids.csv`, run
+`.\.venv\Scripts\python.exe clients\client_mongodb\seed_static.py`, then force the export job
+(`gcloud run jobs execute mongodb-export --region australia-southeast1 --update-env-vars
+FORCE_REBUILD=1 --wait`). Until you do, the campaign is excluded and the drift check is red.
+
+**Sheet ↔ raw-layer reconciliation (verified 2026-08-05):**
+
+- The sheet's 8 TTD campaign IDs were verified against
+  `raw_snowflake.tradedesk_apac_conversion.FIRST_IMPRESSION_CAMPAIGN_ID` (the only place TTD IDs
+  appear in our raw layer): 7 of 8 observed with exactly the expected names, under BOTH name forms.
+  `wmz7jza` (IDC INDIA) has no impression-attributed pixel fires so it never appears there - mapped
+  by its (unambiguous) campaign name. Ad-group IDs from the sheet are NOT enforced: no TTD mirror
+  carries ad-group IDs at delivery grain (names only).
+- `q74u9xp` (IDE ANZ) has **no `2265_`-form rows** in the delivery mirror: it stopped delivering
+  2026-06-30, before the 07-06 rename. The prefixed IDE campaigns deliver 0 imps/0 spend since
+  07-06; IDC ran to 07-31. Not a defect - flight wind-down.
+- **LinkedIn: neither sheet ID is findable in our raw layer today.** The "MongoDB, Inc." ad account
+  (Windsor account `502299829`) still 500s pending re-auth, and it is NOT in Transmission's
+  Snowflake LinkedIn export either (`raw_snowflake.linkedin_ads_apac` has 9 accounts, none
+  MongoDB). The seed pins both IDs now so the lane lights up correctly scoped the moment the
+  connector is re-authed.
+- **Sheet errata to fix upstream:** the LinkedIn tab labels the Cloudflare campaign
+  `2479_CLOUD_ACQ_..._HK-COREDG-Q3` as account "MongoDB, Inc." (it is Cloudflare APAC - brief
+  `2479_` is Cloudflare's, and the same campaign appears under the right account one row down); one
+  MongoDB IDC ad-set row has a blank Account cell; and the account name differs per platform export
+  ("MongoDB, Inc." on LinkedIn vs "MongoDB" on TTD) - the seed's `ACCOUNT_NAME` column records the
+  per-platform name so the difference is explicit, and views never key on it.
 
 ## See also
 
