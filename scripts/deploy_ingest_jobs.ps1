@@ -9,7 +9,8 @@
 #   raw_windsor.perf_meta            <- windsor-meta-ingest       (Meta, all granted accounts)
 #   raw_windsor.perf_the_trade_desk  <- windsor-tradedesk-ingest  (TTD, per-account + self-heal)
 #   raw_windsor.windsor_fields       <- windsor-fields-ingest     (Windsor field catalogue, new-field watch)
-#   raw_windsor.perf_reddit          <- windsor-reddit-ingest     (Reddit Ads, resetdata; skips cleanly if the
+#   raw_windsor.perf_reddit          <- windsor-reddit-ingest     (Reddit Ads: resetdata + a cloudflare-tagged
+#                                                                  Transmission seat; skips cleanly if the
 #                                                                  Windsor reddit connector grant has lapsed)
 #   raw_windsor.perf_linkedin        <- windsor-linkedin-ingest   (LinkedIn Ads, all granted accounts; per-account
 #                                                                  2-pass, skips accounts that hard-error e.g. 500 'start')
@@ -103,5 +104,6 @@ foreach ($j in $JOBS) {
 }
 
 Write-Host "`nDONE. Ingest jobs built, deployed, and scheduled (UTC). snowflake-ingest self-gates at */10 (most ticks no-op); neto/windsor stay daily before the exports."
-Write-Host "NOTE: windsor-reddit-ingest skips cleanly (exit 0, 0 rows) if its Windsor grant lapses; a re-grant"
-Write-Host "      can change the account id -> repoint SELECT_ACCOUNTS in reddit_loader.py. Grants: https://onboard.windsor.ai"
+Write-Host "NOTE: windsor-reddit-ingest skips cleanly (exit 0, 0 rows) if its Windsor grant lapses. After a"
+Write-Host "      re-grant, VERIFY the account_name via the API before repointing SELECT_ACCOUNTS - an opaque id"
+Write-Host "      can belong to a DIFFERENT advertiser (the 2026-07/08 resetdata-vs-cloudflare mix-up). Grants: https://onboard.windsor.ai"

@@ -134,10 +134,13 @@ Windsor key from Secret Manager (`windsor-api-key`).
 > - **Reddit & HubSpot** are now scheduled (wired into `deploy_ingest_jobs.ps1` on 2026-07-16). The
 >   Reddit job **skips cleanly (exit 0, 0 rows)** if its Windsor connector grant lapses — so it
 >   self-heals the moment the account is re-granted; no code change needed then.
-> - **A lapsed-then-re-granted Windsor connector can change the account id.** Reddit's re-grant on
->   2026-07-16 minted a NEW opaque id (`a2_iq3fdsq6rem5`, was `a2_igd0szmw7roq`); the loader's
->   `SELECT_ACCOUNTS` + `REDDIT_ACCOUNT_TO_CLIENT` had to be repointed or it kept skipping. Check the
->   "configured accounts are: …" hint in the skip warning after any re-grant.
+> - **After a Windsor re-grant, VERIFY the account_name before repointing any id.** The 2026-07-16
+>   reddit re-grant appeared to mint a new id (`a2_iq3fdsq6rem5`) and the loader was repointed to it —
+>   but that id was actually **Transmission_Cloudflare's** Reddit account, so Cloudflare delivery flowed
+>   into the ResetData dashboard for 3 weeks (and ResetData's real rows were deleted as a presumed
+>   duplicate). The 2026-08-05 re-grant restored ResetData's **original** id (`a2_igd0szmw7roq`) — ids
+>   are not reliably re-minted. An opaque `a2_...` id proves nothing about whose account it is: probe
+>   the API for `account_name` first (see `reddit/README.md` for the full incident + recovery).
 > - **Google Ads & GA4** also auto-refresh daily via the native **BigQuery Data Transfer Service**
 >   (`raw_google_ads` / `raw_ga4`); the Windsor `google_ads` / `ga4` loaders here coexist with — and
 >   do not replace — those DTS mirrors. They are run from a laptop, not scheduled here.

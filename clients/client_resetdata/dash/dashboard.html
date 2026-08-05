@@ -172,6 +172,18 @@
   .crm-callout{font-size:12.5px;color:var(--muted);margin:-2px 0 8px}
   .crm-callout b{color:var(--accent);font-size:15px}
   .crm-funnelstep::before{background:var(--accent)!important}
+  /* "?" plain-language tooltips: any .bb-tip[data-tip] shows the ONE shared #bbTipBubble on
+     hover/focus (JS-positioned + viewport-clamped in bbTipInit, so it never clips inside a card
+     the way a pure-CSS ::after would). */
+  .bb-tip{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;
+    border-radius:50%;border:1px solid var(--muted2);color:var(--muted);font-size:10px;
+    font-weight:700;font-style:normal;cursor:help;vertical-align:2px;margin-left:6px;
+    user-select:none;-webkit-user-select:none}
+  .bb-tip:hover,.bb-tip:focus{border-color:var(--accent);color:var(--accent);outline:none}
+  #bbTipBubble{position:absolute;max-width:280px;background:var(--panel);border:1px solid var(--line2);
+    border-radius:9px;padding:9px 11px;font-size:12px;line-height:1.5;color:var(--ink);
+    box-shadow:0 10px 26px rgba(0,0,0,.55);z-index:99;opacity:0;pointer-events:none;transition:opacity .12s}
+  #bbTipBubble.on{opacity:1}
   /* KPI / stat cards - colour-matched aesthetic (no trendline, no pacing). Each card sets its accent
      colour inline as --kc (from the JS KACCENT map) so it matches that metric's chart-series colour.
      A soft accent wash + a tinted border + a glowing colour dot on the label give each card its own
@@ -579,7 +591,7 @@
     <div class="grid cols-2" style="margin-top:14px">
       <div class="panel-box">
         <div class="panelhead">
-          <div><h3>App signups</h3>
+          <div><h3>App signups <span class="bb-tip" tabindex="0" data-tip="Each bar counts people who created an app.reset.ai account that day or week (by the date their contact was created in the CRM). The green line shows how many of those same people have gone on to spend real money as of today - it is not payments made in that week, so the newest weeks are usually still at 0.">?</span></h3>
           <p class="hint">New <code>app.reset.ai</code> accounts over time (by contact-created date) - bars are <b>total</b> signups; the green line tracks how many went on to <b>pay</b> (load balance ≠ pay). <b>View by Day or Week</b>; narrow the range above to zoom in. The source breakdown is in the chart below.</p></div>
           <div class="ctrls">
             <span class="seg" id="crmsgGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="week" onclick="setCrmSgGrain('week',this)">Week</button><button type="button" data-grain="day" class="on" onclick="setCrmSgGrain('day',this)">Day</button></span>
@@ -589,7 +601,7 @@
         <div class="chartbox"><canvas id="crmSignupsChart"></canvas></div>
       </div>
       <div class="panel-box">
-        <div class="panelhead"><div><h3>Signup → paying funnel</h3>
+        <div class="panelhead"><div><h3>Signup → paying funnel <span class="bb-tip" tabindex="0" data-tip="Read top to bottom: everyone who signed up for the app, how many have credit in their account (the free $50 welcome credit counts, so this is nearly everyone), how many have spent real money (Paying), and how many never spent anything (Free only). Hover each bar for its exact meaning.">?</span></h3>
         <p class="hint">Of all app signups: how many loaded a balance (mostly the free $50 credit) and how many actually <b>spent</b> = paying. “Free only” = signed up but never spent.</p></div></div>
         <div class="chartbox"><canvas id="crmFunnelChart"></canvas></div>
       </div>
@@ -1208,6 +1220,55 @@ function renderDateScope(){
 }
 function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,cfg);applyKpiToChart(id);}
 
+// ===================== "?" plain-language tooltips =====================
+// tipIcon(text) returns a small "?" badge; hovering/focusing ANY .bb-tip[data-tip] (built by
+// tipIcon or written straight in the HTML) shows the one shared #bbTipBubble. stopPropagation so
+// a "?" inside a clickable KPI card doesn't toggle the card's chart series.
+const tipIcon=t=>` <span class="bb-tip" tabindex="0" data-tip="${(''+t).replace(/"/g,'&quot;')}" onclick="event.stopPropagation()">?</span>`;
+(function bbTipInit(){
+  const b=document.createElement('div'); b.id='bbTipBubble'; document.body.appendChild(b);
+  let cur=null;
+  const show=el=>{cur=el; b.textContent=el.getAttribute('data-tip')||''; b.classList.add('on');
+    b.style.left='0px'; b.style.top='0px';                 // measure at origin, then place clamped
+    const r=el.getBoundingClientRect(), w=b.offsetWidth, h=b.offsetHeight;
+    const x=Math.max(8,Math.min(r.left+r.width/2-w/2,innerWidth-w-8));
+    const y=(r.top-h-8>=8)? r.top-h-8 : r.bottom+8;        // above the icon, or below near the top edge
+    b.style.left=(x+scrollX)+'px'; b.style.top=(y+scrollY)+'px';};
+  const hide=()=>{cur=null; b.classList.remove('on');};
+  // Exposed for CANVAS-DRAWN Chart.js legends (see LEGEND_TIPS below): same bubble, positioned
+  // by the cursor instead of a DOM element.
+  window.bbTipShowAt=(t,cx,cy)=>{ b.textContent=t||''; b.classList.add('on');
+    b.style.left='0px'; b.style.top='0px';
+    const w=b.offsetWidth, h=b.offsetHeight;
+    const x=Math.max(8,Math.min(cx-w/2,innerWidth-w-8));
+    const y=(cy-h-16>=8)? cy-h-16 : cy+18;                 // above the cursor, or below near the top edge
+    b.style.left=(x+scrollX)+'px'; b.style.top=(y+scrollY)+'px'; };
+  window.bbTipHide=()=>hide();
+  document.addEventListener('mouseover',e=>{const el=e.target&&e.target.closest?e.target.closest('.bb-tip'):null;
+    if(el){if(el!==cur)show(el);} else if(cur)hide();});
+  document.addEventListener('focusin',e=>{const el=e.target&&e.target.closest?e.target.closest('.bb-tip'):null; if(el)show(el);});
+  document.addEventListener('focusout',()=>hide());
+})();
+
+// Plain-language definitions for CANVAS-DRAWN chart legends (Chart.js paints these legends onto
+// the canvas, so the DOM .bb-tip badges can't attach there). Keyed canvas id → legend label →
+// text; the legend affordance below shows the shared #bbTipBubble on hover. To give any other
+// chart's legend definitions, just add its canvas id here.
+const LEGEND_TIPS={
+  heroChart:{
+    'Google Ads':'Bars = money spent on Google Ads (paid search) in that period, in AUD.',
+    'Meta':'Bars = money spent on Meta ads (Facebook / Instagram) in that period, in AUD.',
+    'Trade Desk':'Bars = money spent on The Trade Desk (programmatic display ads) in that period, in AUD.',
+    'Reddit':'Bars = money spent on Reddit ads in that period, in AUD.',
+    'Leads':'Leads the ad platforms themselves reported for that period (form fills / sign-up conversions attributed to ads). Follows the platform + campaign filters. Trade Desk display reports none.',
+    'New paying customers':'People who became paying app customers, plotted by the date their contact was created (the CRM records no first-payment date). Whole-account CRM data - this line does NOT move with the platform/campaign filters. Same basis as Paying on the Signups & CRM tab.'},
+  crmSignupsChart:{
+    'Signups':'New app.reset.ai accounts created in that period.',
+    'Paying':'How many of the signups from that period have spent real money as of today (not payments made in the period).'},
+  crmPayFreeChart:{
+    'Paying':'Signups from this source who have spent real money at least once.',
+    'Free only':'Signups from this source who never spent anything.'}};
+
 // ===================== legend affordance (legends are click-to-toggle) =====================
 // Chart.js legends already toggle their series/slice on click, but nothing signals that. Make it
 // discoverable, right where the eye already is - RIGHT ABOVE THE LABELS - via the legend's own
@@ -1221,9 +1282,12 @@ function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.ge
   const DIM='#5C7187';                                        // --muted2 (dimmer than the --muted legend text)
   const keyOf=it=>it.datasetIndex!=null?('d'+it.datasetIndex):('i'+it.index);
   const onHover=(e,item,legend)=>{ if(e&&e.native&&e.native.target)e.native.target.style.cursor='pointer';
-    const c=legend.chart, k=keyOf(item); if(c.$legHover!==k){ c.$legHover=k; c.update('none'); } };
+    const c=legend.chart, k=keyOf(item); if(c.$legHover!==k){ c.$legHover=k; c.update('none'); }
+    // plain-language legend definitions (LEGEND_TIPS above) → the shared bubble, at the cursor
+    const tips=LEGEND_TIPS[c.canvas&&c.canvas.id], t=tips&&tips[item.text];
+    if(t&&e&&e.native)bbTipShowAt(t,e.native.clientX,e.native.clientY); else bbTipHide(); };
   const onLeave=(e,item,legend)=>{ if(e&&e.native&&e.native.target)e.native.target.style.cursor='';
-    const c=legend.chart; if(c.$legHover!=null){ c.$legHover=null; c.update('none'); } };
+    const c=legend.chart; if(c.$legHover!=null){ c.$legHover=null; c.update('none'); } bbTipHide(); };
   const wrap=obj=>{ if(!obj||obj.__aff)return; obj.__aff=true;
     // hint as the legend's own title → sits immediately above the labels, on-canvas
     obj.title=Object.assign(obj.title||{}, {display:true, text:HINT, color:DIM});
@@ -2098,11 +2162,11 @@ function renderCRM(){
   const sgW=byW('signups'), payW=byW('paying'), loadW=byW('loaded_balance');
   const freeW=wks.map((w,i)=>sgW[i]-payW[i]);
   const cards=[
-    ['kc-leads','Leads (contacts)',fmtN(k.leads),'all HubSpot contacts', null],
-    ['kc-signup','App signups',fmtN(k.app_signups),'created app.reset.ai account', sgW, {chart:'crmSignupsChart',series:'Signups'}],
-    ['kc-paying','Paying users',fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'-')+' of signups · '+aud(k.total_rd_spend)+' app spend', payW, {chart:'crmSignupsChart',series:'Paying'}],
-    ['kc-loaded','Loaded balance',fmtN(k.loaded_balance),aud(k.total_balance)+' on account', loadW],
-    ['kc-free','Free signups',fmtN(k.signups_not_paying),'signed up, never spent', freeW],
+    ['kc-leads','Leads (contacts)'+tipIcon('Every person in the HubSpot CRM - anyone ever captured as a contact (form fills, imports, sales adds), whether or not they went on to create an app account.'),fmtN(k.leads),'all HubSpot contacts', null],
+    ['kc-signup','App signups'+tipIcon('People who created an account on app.reset.ai. Counted by the date their contact was created in the CRM.'),fmtN(k.app_signups),'created app.reset.ai account', sgW, {chart:'crmSignupsChart',series:'Signups'}],
+    ['kc-paying','Paying users'+tipIcon('Signups who have spent real money in the app at least once. Using only the free $50 credit does not count as paying.'),fmtN(k.paying),(k.app_signups?pct(k.paying/k.app_signups):'-')+' of signups · '+aud(k.total_rd_spend)+' app spend', payW, {chart:'crmSignupsChart',series:'Paying'}],
+    ['kc-loaded','Loaded balance'+tipIcon('Signups whose app account holds credit right now. New accounts get a free $50 credit, so this is nearly everyone - it does NOT mean they paid.'),fmtN(k.loaded_balance),aud(k.total_balance)+' on account', loadW],
+    ['kc-free','Free signups'+tipIcon('Signed up but never spent anything: App signups minus Paying users.'),fmtN(k.signups_not_paying),'signed up, never spent', freeW],
   ];
   document.getElementById('crmKpis').innerHTML=cards.map(c=>trendCard(c[0],c[1],c[2],c[3],c[4],c[5])).join('');
 
@@ -2132,7 +2196,8 @@ function renderCRM(){
       plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}},
         tooltip:{callbacks:{label:ctx=>ctx.dataset.label==='Paying'
           ? 'Paying: '+fmtN(ctx.parsed.y)+(sgnLine[ctx.dataIndex]?'  ('+pct(ctx.parsed.y/sgnLine[ctx.dataIndex])+' of signups)':'')
-          : 'Signups: '+fmtN(ctx.parsed.y)}}},
+          : 'Signups: '+fmtN(ctx.parsed.y),
+          footer:()=>['Signups = new app accounts created this period.','Paying = how many of them have spent real money','as of today (not payments made this period).']}}},
       scales:{x:axis(),y:axis({title:{display:true,text:'Signups',color:tickClr}})}}});
   // this-week / QTD callout — always WEEKLY (from signups_weekly), independent of the chart grain.
   const _wkC=crmNarrowed()?(C.signups_weekly||[]).filter(r=>inCrmWeek(r.week_start)):(C.signups_weekly||[]);
@@ -2144,7 +2209,8 @@ function renderCRM(){
   const qtr=lastW?qStart(lastW):null; let qtdSgn=0,qtdPay=0;
   weeks.forEach((w,i)=>{if(qtr&&w>=qtr){qtdSgn+=wSgn[i];qtdPay+=wPay[i];}});
   document.getElementById('crmWeekCallout').innerHTML=n?
-    `Week of ${_wLab[n-1]}: <b>${wSgn[n-1]}</b> signups (${wPay[n-1]} paying) &nbsp;·&nbsp; Quarter-to-date: <b>${qtdSgn}</b> signups (${qtdPay} paying)`:'';
+    `Week of ${_wLab[n-1]}: <b>${wSgn[n-1]}</b> signups (${wPay[n-1]} paying) &nbsp;·&nbsp; Quarter-to-date: <b>${qtdSgn}</b> signups (${qtdPay} paying)`
+    +tipIcon('Week of = the newest bar: people who signed up that week, and how many of them have paid so far. Quarter-to-date = all signups since the current calendar quarter began (1 Jan / 1 Apr / 1 Jul / 1 Oct) and how many of those have paid. New signups often take a while to start spending, so 0 paying in the latest week is normal.'):'';
 
   // ---- Change 2a: attribution - same buckets, bars STACKED by source (palette colours), NO legend;
   //      hover reveals the source name + count (zero slices hidden). ----
@@ -2175,19 +2241,32 @@ function renderCRM(){
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
       plugins:{legend:{labels:{color:tickClr,boxWidth:11,font:{size:10}}},
         tooltip:{callbacks:{afterBody:items=>{const r=sq[items[0].dataIndex];
-          return r&&r.pay_rate_pct!=null?'Pay rate: '+r.pay_rate_pct+'%':'';}}}},
+          const lines=r&&r.pay_rate_pct!=null?['Pay rate: '+r.pay_rate_pct+'%']:[];
+          lines.push('Paying = spent real money; Free only = never spent.');
+          return lines;}}}},
       scales:{x:axis({stacked:true,title:{display:true,text:'Signups',color:tickClr}}),y:axis({stacked:true})}}});
 
   // ---- Q2: signup → paying funnel ----
+  // Plain-language definition of each bar, appended to its hover tooltip (arrays = wrapped lines).
+  const FUNNEL_TIPS={
+    'App signups':['Created an account on app.reset.ai.'],
+    'Loaded balance':['Has credit in the account right now. The free $50','welcome credit counts, so this does NOT mean they paid.'],
+    'Paying':['Has spent real money in the app at least once.'],
+    'Free only':['Signed up but never spent anything','(App signups minus Paying).']};
   mkChart('crmFunnelChart',{type:'bar',data:{labels:['App signups','Loaded balance','Paying','Free only'],
     datasets:[{data:[k.app_signups,k.loaded_balance,k.paying,k.signups_not_paying],
       backgroundColor:['#38BDF8','#FBBF24',mc('Paying'),'#78716C']}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
-      tooltip:{callbacks:{label:ctx=>fmtN(ctx.parsed.x)+(k.app_signups?'  ('+pct(ctx.parsed.x/k.app_signups)+' of signups)':'')}}},
+      tooltip:{callbacks:{label:ctx=>fmtN(ctx.parsed.x)+(k.app_signups?'  ('+pct(ctx.parsed.x/k.app_signups)+' of signups)':''),
+        afterBody:items=>FUNNEL_TIPS[items[0].label]||[]}}},
       scales:{x:axis({title:{display:true,text:'Contacts',color:tickClr}}),y:axis()}}});
 
   // ---- Q3+Q5: source quality (windowed, from sqAgg) ----
-  let sh='<tr><th>Source</th><th>Leads</th><th>Signups</th><th>Paying</th><th>Free only</th><th>Pay rate</th><th>Deals</th><th>Ad-ID</th><th>RD spend</th></tr>';
+  let sh='<tr><th>Source</th><th>Leads</th><th>Signups</th><th>Paying</th>'
+    +'<th>Free only'+tipIcon('Signed up but never spent anything (signups minus paying).')+'</th>'
+    +'<th>Pay rate'+tipIcon('Paying users as a share of app signups from this source.')+'</th><th>Deals</th>'
+    +'<th>Ad-ID'+tipIcon('The contact carries a Google (gclid) or Meta (fbclid) ad click id - hard proof an ad brought them in.')+'</th>'
+    +'<th>RD spend'+tipIcon('Total real money these contacts have spent in the app.')+'</th></tr>';
   sqAgg.forEach(r=>{sh+=`<tr><td class="name"><span style="color:${srcColor(r.source)}">●</span> ${r.source}</td>
     <td>${fmtN(r.leads)}</td><td>${fmtN(r.signups)}</td><td style="color:var(--good);font-weight:700">${fmtN(r.paying)}</td>
     <td style="color:var(--muted)">${fmtN(r.free_only)}</td><td>${r.pay_rate_pct==null?'-':r.pay_rate_pct+'%'}</td>
