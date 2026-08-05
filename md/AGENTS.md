@@ -8,7 +8,9 @@ placeholders), plus the **platform front-door** (dashboards.bidbrain.ai), the
 cockpit, service `central-grid`, proxied super-admin-only at `/d/central/`).
 
 **This file is the canonical shared-agent doc**, read natively by Codex/Kimi/most coding agents;
-Claude Code loads it through the one-line `@AGENTS.md` import in `CLAUDE.md`. Keep it LEAN:
+Claude Code loads it through the one-line `@md/AGENTS.md` import in root `CLAUDE.md` (this file
+lives in `md/`; other agents that only look at the repo root will not find it unless pointed here).
+Keep it LEAN:
 repo-wide rules and fixed facts ONLY. Depth lives one level down, and an agent should complete a
 routine task **from the docs alone, scanning nothing**:
 
@@ -83,7 +85,7 @@ dates, "verified on") lives there too, never here.**
   worker; CS verification queries are BUILT from each client's `definitions.json`.
 - **`grid-core/`** - The Grid: Node/SQLite cross-client cockpit (Pulse pacing, Central table, Exec
   KPIs), service `central-grid`, deployed via `grid-core/deploy_grid.ps1` (auto-run by ship on any
-  grid-core change). Its PHASE*_REPORT.md audit trail lives at repo root - cited by live code, keep.
+  grid-core change). Its PHASE*_REPORT.md audit trail lives in `md/` - cited by live code, keep.
   Its SQLite state is DURABLE on Cloud Run via `gs://bidbrain-analytics-grid-state` (env
   `GRID_STATE_BUCKET`; `src/brain/persist.js`) - the ONLY non-`<c>`-derived bucket in the project.
   `central_sync.py` queries BigQuery through the CLIENT LIBRARY, never the `bq` CLI: there is no
