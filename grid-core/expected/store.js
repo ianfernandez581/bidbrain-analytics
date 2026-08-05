@@ -272,6 +272,50 @@ function filesHash(id) {
   return files.length ? h.digest('hex') : null;
 }
 
+// ------------------------------------------------- last-extract slot
+// The model call is the expensive stage. After every successful extraction its
+// artifacts are saved here so a failed BUILD can be retried without paying for
+// (and waiting on) another model call. One slot per analysis, newest wins.
+const EXTRACT_FILES = ['manifest.json', 'plan.json', 'findings.json', 'messages.json', 'chase_messages.md'];
+
+function extractSlot(id) { return path.join(aDir(id), 'last_extract'); }
+
+async function saveExtract(id, outDir, filesHash) {
+  const dest = extractSlot(id);
+  fs.mkdirSync(dest, { recursive: true });
+  for (const f of EXTRACT_FILES) {
+    const src = path.join(outDir, f);
+    if (fs.existsSync(src)) fs.copyFileSync(src, path.join(dest, f));
+  }
+  fs.writeFileSync(path.join(dest, 'meta.json'), JSON.stringify({ at: new Date().toISOString(), files_hash: filesHash || null }, null, 2));
+  await mirrorUploadDir(dest);
+}
+
+/** The slot's meta (or null), pulling from the GCS mirror on a fresh instance. */
+async function extractMeta(id) {
+  const abs = path.join(extractSlot(id), 'meta.json');
+  if (!fs.existsSync(abs)) await mirrorFetch(abs);
+  try { return JSON.parse(fs.readFileSync(abs, 'utf8')); } catch { return null; }
+}
+
+/** Restore the saved extraction into outDir for a build-only rerun. Returns
+ *  the slot meta, or null when the slot is missing/incomplete. */
+async function loadExtract(id, outDir) {
+  const meta = await extractMeta(id);
+  if (!meta) return null;
+  fs.mkdirSync(outDir, { recursive: true });
+  for (const f of EXTRACT_FILES) {
+    const abs = path.join(extractSlot(id), f);
+    if (!fs.existsSync(abs)) await mirrorFetch(abs);
+    if (!fs.existsSync(abs)) {
+      if (f === 'chase_messages.md') continue; // renderable without it
+      return null;
+    }
+    fs.copyFileSync(abs, path.join(outDir, f));
+  }
+  return meta;
+}
+
 /** Archive a finished run: copy the OUT artifacts + results into the
  *  analysis's run dir and mirror everything to GCS. */
 async function archiveRun(id, runId, outDir, results) {
@@ -356,5 +400,6 @@ module.exports = {
   createAnalysis, listAnalyses, analysisDetail, renameAnalysis, recordRun,
   setArchived, deleteAnalysis, stageFile, removeFile, filesHash,
   archiveRun, runArtifact, runResults, findRun,
+  saveExtract, loadExtract, extractMeta,
   aFilesDir, walk,
 };

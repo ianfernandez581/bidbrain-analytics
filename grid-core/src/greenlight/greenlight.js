@@ -161,7 +161,9 @@
     '      <div class="gl-step" data-k="outputs"><span class="ic">&#10003;</span>Building outputs</div>',
     '    </div>',
     '  </div>',
-    '  <div class="gl-card gl-err" id="glErr"><h3>Run failed</h3><div class="gl-desc">The pipeline stopped. Results stay hidden until a run succeeds.</div><div class="gl-errmsg" id="glErrMsg"></div></div>',
+    '  <div class="gl-card gl-err" id="glErr"><h3>Run failed</h3><div class="gl-desc">The pipeline stopped. Results stay hidden until a run succeeds.</div><div class="gl-errmsg" id="glErrMsg"></div>',
+    '    <div class="gl-foot" id="glRetryRow" style="display:none"><button class="gl-btn small" id="glRetryBtn">Retry failed step</button><span class="gl-note">Reuses this run\'s extraction - rebuilds the outputs only, no new AI call.</span></div>',
+    '  </div>',
     '  <div class="gl-results" id="glResults">',
     '    <div class="gl-card gl-guard" id="glGuard"><h3>Multiple campaigns detected</h3><div class="gl-desc" id="glGuardMsg" style="margin-bottom:0"></div></div>',
     '    <div class="gl-card"><h3>Pacing <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">Cumulative expected per campaign, flat curve. Actuals join later.</div><iframe id="glPacing" title="Expected pacing" height="640"></iframe></div>',
@@ -369,12 +371,15 @@
     el('glErr').style.display = 'block';
     el('glErrMsg').textContent = msg;
   }
-  function finishError(msg) {
+  // canRetry: the extraction succeeded and only the build step failed, so the
+  // saved extraction can be reused - offer "retry failed step" (no model call).
+  function finishError(msg, canRetry) {
     S.running = false;
     el('glRunBtn').disabled = false;
     el('glRunBtn').textContent = 'Run Analysis';
     var active = document.querySelector('#view-greenlight .gl-step.active');
     if (active) active.className = 'gl-step error';
+    el('glRetryRow').style.display = canRetry ? 'flex' : 'none';
     showError(msg);
   }
 
@@ -385,6 +390,7 @@
     el('glRunBtn').disabled = true;
     el('glRunBtn').textContent = 'Running...';
     el('glErr').style.display = 'none';
+    el('glRetryRow').style.display = 'none';
     el('glGuardRow').style.display = 'none';
     el('glProg').style.display = 'block';
     ['extract', 'plan', 'gaps', 'outputs'].forEach(function (k) { setStep(k, ''); });
@@ -404,6 +410,24 @@
       .catch(function (e) { finishError(String(e.message || e)); });
   }
 
+  // Retry the failed step: rebuild outputs from the saved extraction. The
+  // model stages complete instantly server-side; only the build reruns.
+  function startRebuild() {
+    if (!S.current || S.running) return;
+    var aid = S.current.analysis.id;
+    S.running = true;
+    el('glRunBtn').disabled = true;
+    el('glRunBtn').textContent = 'Running...';
+    el('glErr').style.display = 'none';
+    el('glRetryRow').style.display = 'none';
+    el('glGuardRow').style.display = 'none';
+    el('glProg').style.display = 'block';
+    ['extract', 'plan', 'gaps', 'outputs'].forEach(function (k) { setStep(k, ''); });
+    jfetch(API + '/analyses/' + aid + '/rebuild', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })
+      .then(function (j) { poll(j.runId); })
+      .catch(function (e) { finishError(String(e.message || e)); });
+  }
+
   function poll(id) {
     fetch(API + '/runs/' + id, { cache: 'no-store' }).then(function (r) {
       if (!r.ok) throw new Error('poll returned HTTP ' + r.status);
@@ -411,7 +435,11 @@
     }).then(function (run) {
       (run.stages || []).forEach(function (s) { setStep(s.key, s.state); });
       if (run.status === 'running') { setTimeout(function () { poll(id); }, 1500); return; }
-      if (run.status === 'error') { finishError(run.error || 'unknown failure'); return; }
+      if (run.status === 'error') {
+        var failed = (run.stages || []).filter(function (s) { return s.state === 'error'; })[0];
+        finishError(run.error || 'unknown failure', !!(failed && failed.key === 'outputs'));
+        return;
+      }
       S.running = false;
       el('glRunBtn').disabled = false;
       el('glRunBtn').textContent = 'Run Again';
@@ -572,6 +600,7 @@
 
     el('glRunBtn').addEventListener('click', function () { if (!S.running && !S.uploading) startRun(false); });
     el('glForceBtn').addEventListener('click', function () { if (!S.running) startRun(true); });
+    el('glRetryBtn').addEventListener('click', function () { startRebuild(); });
     el('glGuardCancel').addEventListener('click', function () { el('glGuardRow').style.display = 'none'; });
 
     el('glRunSel').addEventListener('change', function () {

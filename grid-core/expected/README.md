@@ -26,6 +26,19 @@ into #view-greenlight on the Grid's own theme vars; violet = AI-authored).
   deploy_grid.ps1; v2+ of that secret is the funded key, v1 is the old
   unfunded org key). Local dev reads gitignored grid-core/.env. Never a .env
   in production.
+- **Greenlight runs on Kimi, not Anthropic (since 2026-08-05):** extract.js
+  prefers `GREENLIGHT_API_KEY`/`GREENLIGHT_BASE_URL` over the `ANTHROPIC_*`
+  pair, so THIS stage bills the Kimi Code subscription (kimi.com "Extra Usage"
+  balance, Charles's plan) while Brain/plan-reader keep the Anthropic key.
+  Deployed: `kimi-api-key` secret -> `GREENLIGHT_API_KEY` +
+  `GREENLIGHT_BASE_URL=https://api.kimi.com/coding` + `EXPECTED_MODEL=kimi-for-coding`,
+  re-asserted every deploy by deploy_grid.ps1 (revert command in its comments).
+  Locally grid-core/.env points the whole local grid at Kimi via
+  `ANTHROPIC_BASE_URL`/`EXPECTED_MODEL` (commented Anthropic key = rollback).
+  Verified 2026-08-05: the Kimi endpoint enforces `output_config` json_schema,
+  accepts the fallback-beta shape, and maps claude-* model names. extract.js
+  re-resolves EXPECTED_MODEL after its .env load; check_key.js probes whatever
+  .env points at.
 - **Storage:** uploads stage per file (base64 JSON, 15MB/file - the platform
   proxy caps forwarded POSTs ~16MB; bigger files are skipped with a note) into
   GREENLIGHT_DUMPS_DIR/_staging, and each run archives to
@@ -62,7 +75,24 @@ files dump -> preprocess.js -> extract.js (ONE Claude call) -> validate.js -> bu
 4. `build_expected.js` - plain-code outputs from out/plan.json + findings.json:
    daily = goal / days, cumulative = elapsed / total x goal (inclusive days,
    final day exact). Campaigns missing budget/goals/dates become exceptions,
-   never zero rows.
+   never zero rows. **Flight-window ladder (2026-08-05):** when the plan-level
+   flight is unresolved it falls back deterministically - (a) min/max of the
+   campaign lines' own dates, then (b) an endpoint whose candidate list holds
+   exactly ONE distinct parseable date adopts it - and the assumption is
+   APPENDED to findings.json as a `gap` ("ASSUMED FLIGHT") so it is loud in the
+   UI/report. Only when both rungs fail does it exit 3 (any window would be an
+   invention). Background: extraction is non-deterministic on borderline date
+   conflicts (EcoConsult 2279: the same dump resolved 2026-05-01..2027-02-28
+   on one run, null on another - media plan header vs 'Start-June' activation
+   phrasing), so the builder must not turn that coin-flip into a dead run.
+
+**Retry the failed step (2026-08-05):** after every successful extraction its
+artifacts are saved to `analyses/<id>/last_extract/` (`store.saveExtract`, GCS-
+mirrored). `POST /analyses/:id/rebuild` restores that slot and reruns ONLY
+`build_expected.js` - no model call, no cost - refused (409) when the files
+changed since the extraction (hash check) so a stale plan can never be built
+against new files. The UI offers "Retry failed step" on the error card when
+the failed stage was `outputs`.
 
 ## Run
 

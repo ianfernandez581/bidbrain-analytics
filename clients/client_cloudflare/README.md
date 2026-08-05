@@ -337,7 +337,7 @@ variants of the same tokens:
 
 | | canvas | cards | header | navigation |
 |---|---|---|---|---|
-| **MongoDB** | dark base (`--bg:#05131A`) + brand-accent glow | dark surfaces | agency wordmark · divider · **client logo on a white chip** · Live | one **sticky glass control bar**: tab rail + exports + filters |
+| **MongoDB** | dark base (`--bg:#05131A`) + brand-accent glow | dark surfaces | agency wordmark · divider · **client logo** (supplied artwork, inlined) · Live | one **sticky glass control bar**: tab rail + exports + filters |
 | **Schneider** | **brand colour AS the background** (deep green + 2 radial glows + arc pattern) | **WHITE, floating** with a green glow shadow | agency · divider · white logo chip · region tag · campaign select | tab rail in the bar |
 | **Cloudflare (before)** | flat bright-orange gradient | white | **flat black bar**, wordmark knocked out in white, no chip | a white pill tab bar floating loose on the canvas + the date picker up in the topbar |
 
@@ -360,9 +360,15 @@ glow, near-white text on dark surfaces. Changes, all in `dash/dashboard.html`:
   pace" colour on the progress + pacing bars; at its old near-black it was invisible on dark.
 - **Body** - MongoDby's gradient recipe with orange: a glow blooming from the top, a second top-right,
   a warm lift bottom-left, over a near-black warm base. (The Schneider arc-pattern SVG was dropped.)
-- **Header** - the Cloudflare mark sits on a **white chip** (`.logo-chip`, the one intentional white
-  surface left) with the wordmark inked; MongoDB's surface-to-base topbar gradient with the accent
-  glow spilling downward; the Transmission logo stays top-right, so there is no text agency wordmark.
+- **Header** - the Cloudflare mark is the **supplied artwork** (`creatives/Cloudlfare logo.jpg`, a white
+  logo on its own orange field) **inlined as a base64 data URI** in `.logo-chip` -> `img.cf-logo`,
+  height 36px. It replaced the hand-drawn SVG cloud + inked `CLOUDFLARE` wordmark on a white chip
+  (2026-08-05); the chip no longer paints white, because a white surround would frame the artwork as
+  an orange tile - so there is now **no white surface left** in the theme. **Inline, never a path:**
+  the `dash/` Docker build context excludes `creatives/`, so a `src="..."` file reference or a `/logo`
+  route would 404 in the deployed service. To swap it again, drop the new file in `creatives/` and
+  re-inline it. MongoDB's surface-to-base topbar gradient with the accent glow spilling downward;
+  the Transmission logo stays top-right, so there is no text agency wordmark.
 - **Navigation** - a **sticky dark-glass `.control-bar`** holds the tab rail **and** the shared
   date-range picker + the internal View toggle, which used to live in the black topbar. Tabs use
   MongoDB's underline-on-a-hairline treatment (`.control-tabs`) with an accent drop-shadow.
@@ -460,6 +466,20 @@ quarter (Q3 selected, not Q2). RIG stays under Q2 and the Q2+Q3 union (both have
 practice Q3 has zero RIG rows anyway, so this only removes an irrelevant chip — no headline number
 changes. (The CS Comparison tab's A/B region dropdowns are NOT yet quarter-scoped, so they still list
 RIG; low priority.)
+
+**RIG is now Q3-hidden EVERYWHERE, not just the CS Overview (2026-08-05** — client: "RIG shouldn't be
+detailed in the market focus for Q3"**)**: (1) the **Paid Media tab** got the same quarter gate —
+`paidRigHidden()`/`paidVisibleMarkets()` mirror `visibleMarkets()`, so under a Q3-only selection the
+RIG chip, its market-table/chart rows, its KPI contribution (`passesAll`) and its whole-flight
+creative rows all drop out; `syncQuarterFromRange()` re-chips the paid tab too. This also killed the
+phantom **$0.00 RIG row** the client saw under Q3: TTD's `ALL` token remaps to RIG and ~6 imps /
+$0.002 of trailing post-Q2 `ALL` rows kept the row alive (`spendByMarket()` only drops EXACT-zero
+markets). (2) the **QoQ tab's "Accepted leads by market" grid** drops the RIG row unconditionally
+(that tab is Q3-vs-Q2 by construction; a RIG row read as a false collapse — Q2 74 leads vs a Q3 that
+was never booked). RIG leads still count inside the QoQ status totals; only the market detail row is
+gone. RIG still shows under Q2 / Q2-Q3 / custom ranges on the paid tab, and the deck payload stays
+whole-flight all-markets (RIG's Q2 data belongs there). If a REAL `ALL`-market campaign ever runs in
+Q3, un-gate `paidRigHidden()` and give it its own token — the data is only hidden, never discarded.
 
 The selection is **global** — it drives Paid Media, Content Syndication and CS Comparison alike (the
 QoQ tab is Q3-vs-Q2 by construction and ignores the range). Implemented entirely in
