@@ -479,6 +479,9 @@ open. A MutationObserver re-appends the tab on rails that are REBUILT per render
 - The spend multiplier is irrelevant here by design: the audience is internal, so the assistant
   reasons over RAW spend (its system prompt says it may discuss billed-vs-raw openly). Keep it
   that way — never inject this widget for client sessions.
+- **Voice input:** the Assistant's mic button dictates into the textarea via the browser's free
+  built-in Web Speech API (`webkitSpeechRecognition` — Chrome/Edge/Safari; the button hides itself
+  where the API is missing, e.g. Firefox). Dictation is reviewable text — Send still submits.
 
 ## Open slides (AI decks — the "Open slides" button)
 
