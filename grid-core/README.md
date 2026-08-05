@@ -6,8 +6,9 @@ The data + calculation core for **The Grid**. This is the layer that turns
 **Greenlight (Expected side, plan baselines): `expected/` + `src/greenlight/`** -
 a nav tab (after Executive, feature-flagged by GREENLIGHT_ENABLED, default off)
 that turns a campaign file dump into the daily expected KPI baseline (xlsx +
-json), a pacing page with an actuals join hook, a readiness flowchart, and a
-gaps report with chase drafts. One model call per run - on the Kimi Code
+json), a baseline table page (per-line goals, windows and source citations;
+actuals join hook - the cumulative chart was removed 2026-08-05), a readiness
+flowchart, and a gaps report with chase drafts. One model call per run - on the Kimi Code
 subscription since 2026-08-05 (kimi-api-key secret -> GREENLIGHT_API_KEY +
 GREENLIGHT_BASE_URL, scoped to this stage only; Brain/plan-reader stay on the
 anthropic-api-key secret), grid-core/.env locally. See `expected/README.md`.

@@ -166,7 +166,7 @@
     '  </div>',
     '  <div class="gl-results" id="glResults">',
     '    <div class="gl-card gl-guard" id="glGuard"><h3>Multiple campaigns detected</h3><div class="gl-desc" id="glGuardMsg" style="margin-bottom:0"></div></div>',
-    '    <div class="gl-card"><h3>Pacing <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">Cumulative expected per campaign, flat curve. Actuals join later.</div><iframe id="glPacing" title="Expected pacing" height="640"></iframe></div>',
+    '    <div class="gl-card"><h3>Expected baseline <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">One row per media-plan line: goals, window, spend/day and expected-to-date, with the source cell it came from. The daily curve lives in daily_kpi.xlsx / .json; actuals join later.</div><iframe id="glPacing" title="Expected baseline" height="440"></iframe></div>',
     '    <div class="gl-card"><h3>Process flowchart <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">Stage status from findings. Red means a blocker sits in that stage.</div><iframe id="glFlow" title="Readiness flowchart" height="460"></iframe></div>',
     '    <div class="gl-card"><h3>Findings</h3><div class="gl-desc" id="glFDesc"></div><div class="gl-fsum" id="glFSum"></div><div class="gl-fhead"><span>Status</span><span>Stage</span><span>Finding</span><span>Source</span></div><div id="glFRows"></div></div>',
     '    <div class="gl-card ai"><h3>Chase messages <span class="gl-aitag">AI-AUTHORED</span></h3><div class="gl-desc" id="glMDesc">Drafts only. A person reviews and sends.</div><div id="glMsgs"></div></div>',

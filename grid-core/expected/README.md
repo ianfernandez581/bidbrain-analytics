@@ -140,9 +140,11 @@ archived (soft, reversible) or deleted (hard, removes files + runs).
 - `findings.json` - code + model findings merged, each tagged `origin`
 - `daily_kpi.xlsx` / `daily_kpi.json` - one row per campaign per day, daily +
   cumulative spend/impressions/clicks; Info sheet carries goals + citations
-- `pacing.html` - self-contained pacing page; actuals join hook for the Actual
-  side: `window.BB_ACTUALS` or `joinActuals(rows)` with daily
-  `{date, campaign, spend, impressions, clicks}` rows
+- `pacing.html` - self-contained baseline TABLE page (chart removed
+  2026-08-05): one row per plan line with full campaign name + source
+  citation, window, goals, spend/day, expected-to-date; actuals join hook for
+  the Actual side: `window.BB_ACTUALS` or `joinActuals(rows)` with daily
+  `{date, campaign, spend}` rows (adds Actual-to-date + vs-expected columns)
 - `flowchart.html` - stage readiness computed from findings (blocker = red)
 - `report.md` / `chase_messages.md` / `messages.json` - findings report and
   model-drafted chase messages (a person reviews and sends)

@@ -205,255 +205,159 @@ const kpiJson = {
 fs.writeFileSync(path.join(OUT, 'daily_kpi.json'), JSON.stringify(kpiJson, null, 2));
 
 // ---------------------------------------------------------------- pacing.html
-const dates = [];
-for (let k = 1; k <= TOTAL_DAYS; k++) dates.push(iso(FLIGHT_START + (k - 1) * DAY_MS));
-const series = kpiJson.campaigns.map((c) => {
-  const byDate = new Map(c.daily.map((d) => [d.date, d]));
-  let last = { expected_spend_cum: 0, expected_impressions_cum: 0, expected_clicks_cum: 0 };
-  const cum = { spend: [], impressions: [], clicks: [] };
-  for (const d of dates) {
-    if (byDate.has(d)) last = byDate.get(d);
-    cum.spend.push(last.expected_spend_cum);
-    cum.impressions.push(last.expected_impressions_cum);
-    cum.clicks.push(last.expected_clicks_cum);
-  }
-  return { name: c.campaign_name, goal: { spend: c.total_budget, impressions: c.goal_impressions, clicks: c.goal_clicks }, cum };
-});
-const DATA = { dates, series, currency, totalDays: TOTAL_DAYS, client, job, campaignName, flight: `${flightStartS} to ${flightEndS}` };
+// Table-first baseline page (the cumulative chart was removed 2026-08-05 -
+// the daily curve still lives in daily_kpi.xlsx/.json for the actuals join;
+// this page is the human-readable summary). One row per plan line, with its
+// own flight window and source citation so every row traces back to a real
+// media-plan line. Expected-to-date is computed client-side from the viewer's
+// "today", clamped to each line's window - same math as the daily rows.
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const DATA = {
+  client, job, campaignName, currency,
+  flight: { start: flightStartS, end: flightEndS, days: TOTAL_DAYS, note: flightNote },
+  campaigns: usable.map((c) => ({
+    name: c.name,
+    platform: c.platform,
+    source: c.citation,
+    start: iso(c.start),
+    end: iso(c.end),
+    days: c.days,
+    spend: c.spend,
+    impressions: c.impressions,
+    clicks: c.clicks,
+  })),
+  exceptions,
+  generated: new Date().toISOString().slice(0, 10),
+};
 
 const pacingHtml = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${client} ${job} - Expected pacing</title>
+<title>${esc(client)} ${esc(job)} - Expected baseline</title>
 <style>
   :root { color-scheme: light dark; }
   .viz-root {
     color-scheme: light;
     --surface-1: #fcfcfb; --page: #f9f9f7;
     --ink-1: #0b0b0b; --ink-2: #52514e; --muted: #898781;
-    --grid: #e1e0d9; --axis: #c3c2b7; --ring: rgba(11,11,11,0.10);
-    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100;
-    --s5: #e87ba4; --s6: #008300; --s7: #4a3aa7; --s8: #e34948;
+    --grid: #e1e0d9; --ring: rgba(11,11,11,0.10);
+    --warn-bg: rgba(250,178,25,0.14); --warn-ink: #8a5b00;
   }
   @media (prefers-color-scheme: dark) {
     .viz-root {
       color-scheme: dark;
       --surface-1: #1a1a19; --page: #0d0d0d;
       --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
-      --grid: #2c2c2a; --axis: #383835; --ring: rgba(255,255,255,0.10);
-      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
-      --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767;
+      --grid: #2c2c2a; --ring: rgba(255,255,255,0.10);
+      --warn-ink: #fab219;
     }
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--page); color: var(--ink-1);
          font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .viz-root { max-width: 1060px; margin: 0 auto; padding: 24px 20px 48px; }
+  .viz-root { max-width: 1160px; margin: 0 auto; padding: 24px 20px 40px; }
   h1 { font-size: 19px; margin: 0 0 2px; }
-  .sub { color: var(--ink-2); font-size: 12.5px; margin-bottom: 18px; }
-  .card { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px; padding: 18px 18px 10px; }
-  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-  .tgl { display: inline-flex; border: 1px solid var(--ring); border-radius: 8px; overflow: hidden; }
-  .tgl button { border: 0; background: transparent; color: var(--ink-2); padding: 6px 14px; cursor: pointer; font: inherit; font-size: 12.5px; }
-  .tgl button[aria-pressed="true"] { background: var(--ink-1); color: var(--surface-1); font-weight: 600; }
-  .legend { display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto; font-size: 12px; color: var(--ink-2); }
-  .legend .sw { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; }
-  .legend .actuals { color: var(--muted); font-style: italic; }
-  #chart { width: 100%; }
-  .tip { position: absolute; pointer-events: none; background: var(--surface-1); border: 1px solid var(--ring);
-         border-radius: 8px; padding: 8px 10px; font-size: 12px; color: var(--ink-1);
-         box-shadow: 0 4px 14px rgba(0,0,0,0.12); display: none; min-width: 190px; z-index: 3; }
-  .tip b { font-variant-numeric: tabular-nums; }
-  table { border-collapse: collapse; width: 100%; margin-top: 20px; background: var(--surface-1);
-          border: 1px solid var(--ring); border-radius: 10px; overflow: hidden; font-size: 13px; }
-  th, td { text-align: right; padding: 8px 12px; border-top: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
-  th { color: var(--ink-2); font-weight: 600; font-size: 12px; border-top: 0; }
-  th:first-child, td:first-child { text-align: left; }
+  .sub { color: var(--ink-2); font-size: 12.5px; margin-bottom: 6px; }
+  .flightnote { display: inline-block; background: var(--warn-bg); color: var(--warn-ink);
+                border-radius: 8px; padding: 3px 9px; font-size: 12px; margin-bottom: 12px; }
+  .card { background: var(--surface-1); border: 1px solid var(--ring); border-radius: 10px;
+          padding: 6px 14px 12px; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  th, td { text-align: right; padding: 9px 12px; border-top: 1px solid var(--grid);
+           font-variant-numeric: tabular-nums; white-space: nowrap; }
+  thead th { color: var(--ink-2); font-weight: 600; font-size: 12px; border-top: 0; }
+  th:first-child, td:first-child { text-align: left; white-space: normal; min-width: 260px; }
+  .cname { font-weight: 600; }
+  .cplat { color: var(--ink-2); font-size: 11.5px; }
+  .csrc { color: var(--muted); font-size: 11px; margin-top: 2px; }
+  tfoot td { font-weight: 700; border-top: 2px solid var(--grid); }
   .note { color: var(--muted); font-size: 12px; margin-top: 10px; }
 </style>
 </head>
 <body>
 <div class="viz-root">
-  <h1>Expected pacing - ${client}, ${campaignName}</h1>
-  <div class="sub">Flight ${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days) - ${currency} ${TOTAL_SPEND.toLocaleString()} - flat curve - built from out/daily_kpi.xlsx / .json</div>
-  <div class="card" style="position:relative">
-    <div class="row">
-      <div class="tgl" role="group" aria-label="Metric">
-        <button data-m="spend" aria-pressed="true">Spend</button>
-        <button data-m="impressions" aria-pressed="false">Impressions</button>
-        <button data-m="clicks" aria-pressed="false">Clicks</button>
-      </div>
-      <div class="legend" id="legend"></div>
-    </div>
-    <svg id="chart" height="420" role="img" aria-label="Cumulative expected pacing lines per campaign"></svg>
-    <div class="tip" id="tip"></div>
+  <h1>Expected baseline - ${esc(client)}, ${esc(campaignName)}</h1>
+  <div class="sub">Flight ${esc(flightStartS)} to ${esc(flightEndS)} (${TOTAL_DAYS} days) - ${esc(currency)} ${TOTAL_SPEND.toLocaleString()} total - flat curve - daily values in out/daily_kpi.xlsx / .json</div>
+  ${flightNote ? `<div class="flightnote">Flight window ${esc(flightNote)}</div>` : ''}
+  <div class="card">
+    <table id="tbl"></table>
   </div>
-  <table id="tbl"></table>
-  <div class="note">Actuals are not joined yet. Teammate hook: set <code>window.BB_ACTUALS</code> to
-  daily rows {date:"YYYY-MM-DD", campaign, spend, impressions, clicks} before this script runs, or call
-  <code>joinActuals(rows)</code> later. Actuals draw as thicker lines in each campaign's own colour.</div>
+  <div class="note" id="foot"></div>
 </div>
 <script>
 var DATA = __DATA__;
-var COLORS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)','var(--s8)'];
-var METRIC = 'spend';
+var HAS_IMPS = DATA.campaigns.some(function (c) { return c.impressions != null; });
+var HAS_CLICKS = DATA.campaigns.some(function (c) { return c.clicks != null; });
 var ACTUALS = null;
 
-var svg = document.getElementById('chart');
-var tip = document.getElementById('tip');
-var NS = 'http://www.w3.org/2000/svg';
-var PAD = { l: 62, r: 150, t: 16, b: 34 };
+function money(v) { return v == null ? '' : '$' + Math.round(v).toLocaleString(); }
+function num(v) { return v == null ? '' : Math.round(v).toLocaleString(); }
+function esc(s) { var d = document.createElement('div'); d.textContent = String(s == null ? '' : s); return d.innerHTML; }
 
-function fmt(v, m) {
-  if (v == null) return '';
-  if (m === 'spend') return '$' + Math.round(v).toLocaleString();
-  return Math.round(v).toLocaleString();
+// expected-to-date = goal x clamp(days elapsed / line days, 0..1), inclusive
+// days - the same arithmetic that produced the daily rows in daily_kpi.
+function expectedToDate(c, today) {
+  if (today < c.start) return 0;
+  if (today >= c.end) return c.spend;
+  var elapsed = (Date.parse(today) - Date.parse(c.start)) / 86400000 + 1;
+  return c.spend * Math.min(1, Math.max(0, elapsed / c.days));
 }
-function el(tag, attrs, text) {
-  var e = document.createElementNS(NS, tag);
-  for (var k in attrs) e.setAttribute(k, attrs[k]);
-  if (text != null) e.textContent = text;
-  return e;
-}
-function actualCum(name, m) {
+function actualToDate(name, today) {
   if (!ACTUALS) return null;
-  var byDate = {};
-  ACTUALS.forEach(function (r) { if (r.campaign === name) byDate[r.date] = (byDate[r.date] || 0) + (r[m] || 0); });
-  var cum = 0, out = [];
-  for (var i = 0; i < DATA.dates.length; i++) {
-    var d = DATA.dates[i];
-    if (byDate[d] == null && out.length && Object.keys(byDate).every(function (x) { return x < d; })) break;
-    cum += (byDate[d] || 0);
-    out.push(cum);
-  }
-  return out;
+  var sum = 0;
+  ACTUALS.forEach(function (r) { if (r.campaign === name && r.date <= today) sum += (r.spend || 0); });
+  return sum;
 }
-function draw() {
-  while (svg.firstChild) svg.removeChild(svg.firstChild);
-  var W = svg.clientWidth || 1000, H = 420;
-  svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
-  var iw = W - PAD.l - PAD.r, ih = H - PAD.t - PAD.b;
-  var n = DATA.dates.length;
-  var maxY = 0;
-  DATA.series.forEach(function (s) { maxY = Math.max(maxY, s.cum[METRIC][n - 1] || 0); });
-  if (ACTUALS) DATA.series.forEach(function (s) {
-    var a = actualCum(s.name, METRIC);
-    if (a && a.length) maxY = Math.max(maxY, a[a.length - 1]);
-  });
-  maxY = (maxY || 1) * 1.05;
-  var x = function (i) { return PAD.l + (i / (n - 1)) * iw; };
-  var y = function (v) { return PAD.t + ih - (v / maxY) * ih; };
 
-  for (var g = 0; g <= 4; g++) {
-    var vy = y(maxY * g / 4);
-    svg.appendChild(el('line', { x1: PAD.l, x2: PAD.l + iw, y1: vy, y2: vy, stroke: 'var(--grid)', 'stroke-width': 1 }));
-    svg.appendChild(el('text', { x: PAD.l - 8, y: vy + 4, 'text-anchor': 'end', 'font-size': 11, fill: 'var(--muted)' }, fmt(maxY * g / 4, METRIC)));
-  }
-  DATA.dates.forEach(function (d, i) {
-    if (d.slice(8) === '01' || i === n - 1) {
-      svg.appendChild(el('text', { x: x(i), y: H - 12, 'text-anchor': 'middle', 'font-size': 11, fill: 'var(--muted)' }, d.slice(5)));
-      svg.appendChild(el('line', { x1: x(i), x2: x(i), y1: PAD.t + ih, y2: PAD.t + ih + 4, stroke: 'var(--axis)' }));
-    }
-  });
-  svg.appendChild(el('line', { x1: PAD.l, x2: PAD.l + iw, y1: PAD.t + ih, y2: PAD.t + ih, stroke: 'var(--axis)', 'stroke-width': 1 }));
-
+function render() {
   var today = new Date().toISOString().slice(0, 10);
-  var ti = DATA.dates.indexOf(today);
-  if (ti >= 0) {
-    svg.appendChild(el('line', { x1: x(ti), x2: x(ti), y1: PAD.t, y2: PAD.t + ih, stroke: 'var(--muted)', 'stroke-width': 1, 'stroke-dasharray': '3 4' }));
-    svg.appendChild(el('text', { x: x(ti) + 4, y: PAD.t + 12, 'font-size': 10.5, fill: 'var(--muted)' }, 'today'));
+  var inFlight = today >= DATA.flight.start && today <= DATA.flight.end;
+  var h = '<thead><tr><th>Campaign</th><th>Window</th><th>Days</th><th>Spend goal</th>'
+    + (HAS_IMPS ? '<th>Impressions goal</th>' : '') + (HAS_CLICKS ? '<th>Clicks goal</th>' : '')
+    + '<th>Spend / day</th>'
+    + (inFlight ? '<th>Expected to date</th>' : '')
+    + (ACTUALS ? '<th>Actual to date</th><th>vs expected</th>' : '')
+    + '</tr></thead><tbody>';
+  var totals = { spend: 0, exp: 0, act: 0 };
+  DATA.campaigns.forEach(function (c) {
+    var exp = expectedToDate(c, today);
+    var act = actualToDate(c.name, today);
+    totals.spend += c.spend; totals.exp += exp; if (act != null) totals.act += act;
+    h += '<tr><td><div class="cname">' + esc(c.name) + '</div>'
+      + (c.platform ? '<div class="cplat">' + esc(c.platform) + '</div>' : '')
+      + (c.source ? '<div class="csrc">Source: ' + esc(c.source) + '</div>' : '') + '</td>'
+      + '<td>' + c.start + ' to ' + c.end + '</td>'
+      + '<td>' + c.days + '</td>'
+      + '<td>' + money(c.spend) + '</td>'
+      + (HAS_IMPS ? '<td>' + num(c.impressions) + '</td>' : '')
+      + (HAS_CLICKS ? '<td>' + num(c.clicks) + '</td>' : '')
+      + '<td>' + money(c.spend / c.days) + '</td>'
+      + (inFlight ? '<td>' + money(exp) + '</td>' : '')
+      + (ACTUALS ? '<td>' + money(act) + '</td><td>' + (act == null ? '' : money(act - exp)) + '</td>' : '')
+      + '</tr>';
+  });
+  h += '</tbody><tfoot><tr><td>Total</td><td></td><td></td><td>' + money(totals.spend) + '</td>'
+    + (HAS_IMPS ? '<td></td>' : '') + (HAS_CLICKS ? '<td></td>' : '')
+    + '<td>' + money(totals.spend / DATA.flight.days) + '</td>'
+    + (inFlight ? '<td>' + money(totals.exp) + '</td>' : '')
+    + (ACTUALS ? '<td>' + money(totals.act) + '</td><td>' + money(totals.act - totals.exp) + '</td>' : '')
+    + '</tr></tfoot>';
+  document.getElementById('tbl').innerHTML = h;
+
+  var foot = 'Generated ' + DATA.generated + '. Spend / day and expected-to-date use each line\\'s own window, flat curve.';
+  if (DATA.exceptions && DATA.exceptions.length) {
+    foot += ' Exceptions (no baseline rows): ' + DATA.exceptions.map(function (e) { return e.campaign + ' (missing ' + e.missing.join(', ') + ')'; }).join('; ') + '.';
   }
-
-  DATA.series.forEach(function (s, si) {
-    var color = COLORS[si % COLORS.length];
-    var pts = s.cum[METRIC].map(function (v, i) { return x(i) + ',' + y(v || 0); }).join(' ');
-    svg.appendChild(el('polyline', { points: pts, fill: 'none', stroke: color, 'stroke-width': 2, 'stroke-linejoin': 'round' }));
-    if (DATA.series.length <= 4) {
-      svg.appendChild(el('text', { x: x(n - 1) + 7, y: y(s.cum[METRIC][n - 1] || 0) + 4, 'font-size': 11.5, fill: 'var(--ink-2)' }, s.name));
-    }
-    var a = ACTUALS && actualCum(s.name, METRIC);
-    if (a && a.length > 1) {
-      var apts = a.map(function (v, i) { return x(i) + ',' + y(v); }).join(' ');
-      svg.appendChild(el('polyline', { points: apts, fill: 'none', stroke: color, 'stroke-width': 3.5, 'stroke-linecap': 'round', opacity: 0.9 }));
-    }
-  });
-
-  var hover = el('line', { y1: PAD.t, y2: PAD.t + ih, stroke: 'var(--axis)', 'stroke-width': 1, visibility: 'hidden' });
-  svg.appendChild(hover);
-  var hit = el('rect', { x: PAD.l, y: PAD.t, width: iw, height: ih, fill: 'transparent' });
-  svg.appendChild(hit);
-  hit.addEventListener('mousemove', function (ev) {
-    var box = svg.getBoundingClientRect();
-    var i = Math.round(((ev.clientX - box.left) - PAD.l) / iw * (n - 1));
-    i = Math.max(0, Math.min(n - 1, i));
-    hover.setAttribute('x1', x(i)); hover.setAttribute('x2', x(i));
-    hover.setAttribute('visibility', 'visible');
-    var total = 0;
-    var html = '<div style="color:var(--ink-2);margin-bottom:4px">' + DATA.dates[i] + ' (day ' + (i + 1) + ' of ' + n + ')</div>';
-    DATA.series.forEach(function (s, si) {
-      total += (s.cum[METRIC][i] || 0);
-      html += '<div><span style="background:' + COLORS[si % COLORS.length] + ';display:inline-block;width:10px;height:3px;border-radius:2px;vertical-align:middle;margin-right:5px"></span>'
-           + s.name + ' <b style="float:right;margin-left:12px">' + fmt(s.cum[METRIC][i], METRIC) + '</b></div>';
-    });
-    html += '<div style="border-top:1px solid var(--grid);margin-top:4px;padding-top:3px">Total <b style="float:right">' + fmt(total, METRIC) + '</b></div>';
-    tip.innerHTML = html;
-    tip.style.display = 'block';
-    var left = ev.clientX - box.left + 14;
-    if (left > W - 230) left = ev.clientX - box.left - 214;
-    tip.style.left = left + 'px';
-    tip.style.top = (ev.clientY - box.top - 20) + 'px';
-  });
-  hit.addEventListener('mouseleave', function () { hover.setAttribute('visibility', 'hidden'); tip.style.display = 'none'; });
+  foot += ACTUALS ? ' Actuals joined.' : ' Actuals not joined yet - teammate hook: window.BB_ACTUALS = daily rows {date:"YYYY-MM-DD", campaign, spend} before this script runs, or call joinActuals(rows) later.';
+  document.getElementById('foot').textContent = foot;
 }
 
-function legend() {
-  var lg = document.getElementById('legend');
-  lg.innerHTML = '';
-  DATA.series.forEach(function (s, si) {
-    var sp = document.createElement('span');
-    sp.innerHTML = '<span class="sw" style="background:' + COLORS[si % COLORS.length] + '"></span>' + s.name;
-    lg.appendChild(sp);
-  });
-  var a = document.createElement('span');
-  a.className = 'actuals';
-  a.textContent = ACTUALS ? 'Actuals: joined (thick lines)' : 'Actuals: awaiting join';
-  lg.appendChild(a);
-}
-
-function table() {
-  var t = document.getElementById('tbl');
-  var today = new Date().toISOString().slice(0, 10);
-  var ti = DATA.dates.indexOf(today);
-  var h = '<tr><th>Campaign</th><th>Spend goal</th><th>Impressions goal</th><th>Clicks goal</th><th>Spend / day</th>'
-        + (ti >= 0 ? '<th>Expected spend to date</th>' : '') + '</tr>';
-  DATA.series.forEach(function (s, si) {
-    h += '<tr><td><span class="sw" style="background:' + COLORS[si % COLORS.length] + ';display:inline-block;width:12px;height:3px;border-radius:2px;vertical-align:middle;margin-right:6px"></span>' + s.name + '</td>'
-      + '<td>' + fmt(s.goal.spend, 'spend') + '</td><td>' + fmt(s.goal.impressions, 'n') + '</td><td>' + fmt(s.goal.clicks, 'n') + '</td>'
-      + '<td>' + fmt(s.goal.spend / DATA.totalDays, 'spend') + '</td>'
-      + (ti >= 0 ? '<td>' + fmt(s.cum.spend[ti], 'spend') + '</td>' : '') + '</tr>';
-  });
-  var totalGoal = DATA.series.reduce(function (a, s) { return a + (s.goal.spend || 0); }, 0);
-  h += '<tr><td><b>Total</b></td><td><b>' + fmt(totalGoal, 'spend') + '</b></td><td></td><td></td><td>'
-    + fmt(totalGoal / DATA.totalDays, 'spend') + '</td>'
-    + (ti >= 0 ? '<td><b>' + fmt(DATA.series.reduce(function (a, s) { return a + (s.cum.spend[ti] || 0); }, 0), 'spend') + '</b></td>' : '') + '</tr>';
-  t.innerHTML = h;
-}
-
-function joinActuals(rowsIn) { ACTUALS = rowsIn; legend(); draw(); }
+function joinActuals(rowsIn) { ACTUALS = rowsIn; render(); }
 window.joinActuals = joinActuals;
 if (window.BB_ACTUALS) ACTUALS = window.BB_ACTUALS;
-
-document.querySelectorAll('.tgl button').forEach(function (b) {
-  b.addEventListener('click', function () {
-    METRIC = b.getAttribute('data-m');
-    document.querySelectorAll('.tgl button').forEach(function (o) { o.setAttribute('aria-pressed', String(o === b)); });
-    draw();
-  });
-});
-window.addEventListener('resize', draw);
-legend(); table(); draw();
+render();
 </script>
 </body>
 </html>
@@ -461,7 +365,6 @@ legend(); table(); draw();
 fs.writeFileSync(path.join(OUT, 'pacing.html'), pacingHtml.replace('__DATA__', JSON.stringify(DATA)));
 
 // ---------------------------------------------------------------- flowchart.html (from findings)
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const findings = findingsDoc.findings || [];
 const stages = rulebook.stages;
 const stageCards = stages.map((stage) => {
