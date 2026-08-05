@@ -6,12 +6,13 @@
   "source_table_snowflake": "APAC_ALL_PLATFORM.PUBLIC.\"Salesforce_CS_APAC_ALL\"",
   "mirror_table_bigquery": "bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all",
 
-  "last_edited_by": "2026-07-10: added 13th CS campaign 701RG00001W1FQRYA3 (2026 Q3 ANZ VRSM Lead Magnet, Tier 3) to cs_campaigns; 22 in-flight ANZ leads (all New). Label spelling corrected VSRM->VRSM (Ian).",
-  "last_edited_at": "2026-07-10",
+  "last_edited_by": "2026-08-05: added cs_q2_only_campaigns - the 4 P* ABM/Modernize Q2 campaigns still receive REPLACEMENT leads with Q3 created dates; their leads now count only when created before 2026-07-01 so replacements stop surfacing on the Q3 side (client request via Transmission). Both sides (sql/10 + the status verifier) apply the same cap (Ian).",
+  "last_edited_at": "2026-08-05",
 
   "_seed_spec": [
     {"table": "seed_cs_campaign_ids",  "column": "campaign_id", "path": "cs_campaigns[].id"},
     {"table": "seed_cf1_cs_campaign_ids", "column": "campaign_id", "path": "cf1_cs_campaigns[].id"},
+    {"table": "seed_cs_q2_only_campaign_ids", "column": "campaign_id", "path": "cs_q2_only_campaigns.campaigns[].id"},
     {"table": "seed_rig_campaign_ids", "column": "campaign_id", "path": "segments.RIG.campaign_ids"},
     {"table": "seed_rig_assets",       "column": "asset_2",     "path": "segments.RIG.asset_2"},
     {"table": "seed_kr_campaign_ids",  "column": "campaign_id", "path": "segments.KR.campaign_ids"}
@@ -39,6 +40,17 @@
     {"id": "701RG00001NJd6NYAT", "label": "Roverpath - Connectivity Cloud (CF1)"},
     {"id": "701RG00001NIYRKYA5", "label": "Final Funnel CF1 - Connectivity Cloud"}
   ],
+
+  "cs_q2_only_campaigns": {
+    "_note": "2026-08-05 (client request via Transmission): these 4 Q2 campaigns still receive REPLACEMENT leads for rejected Q2 leads, and the replacements carry Q3 created dates (DAY) - so they were surfacing on the Q3 side of the dashboard (the quarter is a created-date range). A lead in one of these campaigns counts ONLY when DAY < cutoff; on/after the cutoff it is excluded EVERYWHERE (Q3 view, QoQ, pacing, the verifier). The ids STAY in cs_campaigns so their Q2 history is untouched. The cutoff date is mirrored as a literal in sql/10 (low-churn structural logic, like the geographic CASE arms) - change both together; the verifier reads it from here.",
+    "cutoff": "2026-07-01",
+    "campaigns": [
+      {"id": "701RG00001PXLpxYAH", "label": "CF Surround ABM MQL (RP)"},
+      {"id": "701RG00001PXHnzYAH", "label": "CF Surround ABM Pulse Survey (RP)"},
+      {"id": "701RG00001PXNyDYAX", "label": "CF Surround ABM MQL (FF)"},
+      {"id": "701RG00001PWX5gYAH", "label": "CF Surround ABM Pulse Survey (FF)"}
+    ]
+  },
 
   "segments": {
     "_note": "Evaluated BEFORE the geographic_regions buckets: RIG first, then KR. RIG = the Modernize-Applications gaming asset on the 3 Final Funnel campaigns, non-Korea (~172, asset-based so it spans countries). KR (2026-07-02) = Korea leads in the 6 ORIGINAL El* CS campaigns ONLY (3 Roverpath + 3 Final Funnel Lead-Gen, ~164) — reverts the 2026-06-25 'all Korea in the 12 campaigns' rule at the client's request. Korea leads from the other 6 campaigns (Connectivity Cloud / Modernize Security / Modernize Applications) now fall through to the OTHER residual (see status_buckets._note).",
