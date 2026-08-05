@@ -167,7 +167,7 @@
         box-shadow:var(--shadow-card);display:flex;flex-direction:column;min-width:0}
   .card h3{margin:0;font-size:13.5px;font-weight:600;color:var(--ink)}
   .card .hint{font-size:11.5px;color:var(--muted);margin:4px 0 10px 0}
-  .card-tall .chart-wrap{height:280px}
+  .card-tall .chart-wrap{height:340px}
   .card-med{min-height:262px}
   .chart-wrap{position:relative;flex:1;min-height:160px}
 
@@ -883,6 +883,18 @@ if (window.ChartDataLabels){ Chart.register(ChartDataLabels); Chart.defaults.set
 function dlFmt(v){ v=Number(v)||0; const a=Math.abs(v); return a>=1e6?(v/1e6).toFixed(a>=1e7?0:1)+'M':a>=1e3?(v/1e3).toFixed(a>=1e4?0:1)+'k':fmtN(v); }
 // Shared datalabels config for bar/doughnut summary charts (hidden datasets drop their labels automatically).
 const DL_BARS = {display:ctx=>ctx.chart.getDatasetMeta(ctx.datasetIndex)?.hidden!==true, color:MDB.ink, anchor:'end', align:'end', offset:2, clamp:true, font:{size:9,weight:'600'}, formatter:(v)=>dlFmt(v)};
+// Stacked-bar datalabels: per-segment numbers overlap and clip at stack density (and in
+// Relative mode they print normalized percentages), so label ONLY the stack TOTAL - once,
+// past the end of the top visible segment, $-formatted from the raw series (`_raw` when the
+// plotted data is normalized). Per-segment values stay on the tooltip; identity on the legend.
+function dlStackTotal(prefix){
+  const pre = prefix == null ? '$' : prefix;
+  const topVis = c => { let top=-1; c.data.datasets.forEach((ds,i)=>{ if(c.getDatasetMeta(i)?.hidden!==true) top=i; }); return top; };
+  const visTot = (c,i) => c.data.datasets.reduce((t,ds,di)=> c.getDatasetMeta(di)?.hidden===true ? t : t + (Number((ds._raw||ds.data)[i])||0), 0);
+  return { display: ctx => ctx.datasetIndex===topVis(ctx.chart) && visTot(ctx.chart, ctx.dataIndex)>0,
+    anchor:'end', align:'end', offset:2, clamp:false, color:MDB.ink, font:{size:10,weight:'700'},
+    formatter:(v,ctx)=>pre+dlFmt(Math.round(visTot(ctx.chart, ctx.dataIndex))) };
+}
 
 // ===================== legend affordance (legends are click-to-toggle) =====================
 // Chart.js legends already toggle their series/slice on click, but nothing signals that. Make it
@@ -1069,11 +1081,14 @@ if (window.Chart) Chart.register({
 })();
 
 // Strategy ordering + colour mapping (robust to the exact strategy spelling in the feed)
+// Colours stay in the green family but are stepped hard on lightness + a hue lean
+// (dark teal -> mid emerald -> pale mint -> vivid spring) so adjacent stacked
+// segments separate at a glance (the earlier four mid-greens were near-identical).
 const STRAT_RANK = [
-  {test:k=>k.startsWith('CONTEXT'),                                             rank:0, color:'#0FA968'},
-  {test:k=>k.startsWith('KEYWORD'),                                             rank:1, color:'#23C57F'},
-  {test:k=>k.includes('ABM')||k.includes('ACCOUNT')||k.startsWith('AUDIENCE'),  rank:2, color:'#BFEFD3'},
-  {test:k=>k.startsWith('BEHAV'),                                               rank:3, color:'#5FD07A'},
+  {test:k=>k.startsWith('CONTEXT'),                                             rank:0, color:'#0F7E6C'},
+  {test:k=>k.startsWith('KEYWORD'),                                             rank:1, color:'#2ABD70'},
+  {test:k=>k.includes('ABM')||k.includes('ACCOUNT')||k.startsWith('AUDIENCE'),  rank:2, color:'#69D89E'},
+  {test:k=>k.startsWith('BEHAV'),                                               rank:3, color:'#BDF2CF'},
   {test:k=>k.startsWith('RETARGET'),                                            rank:4, color:'#00ED64'}
 ];
 const STRAT_FALLBACK = ['#2FBF87','#7FD1A8','#43C98A','#1F9E6B','#9AD4B5','#58D89C'];
@@ -1604,12 +1619,13 @@ function renderPMDailyStack(rows) {
   const datasets = keys.map(s => {
     const raw = buckets.map(k => (byBktStrat[s] && byBktStrat[s][k]) || 0);
     const plot = isRel ? raw.map((v,i)=> totals[i] ? v/totals[i]*100 : 0) : raw;
-    return { label:s, data: plot, _raw:raw, backgroundColor: stratColor(s), borderRadius:2 };
+    return { label:s, data: plot, _raw:raw, backgroundColor: stratColor(s), borderColor:'#0B222C', borderWidth:1, borderRadius:2 };
   });
   charts.pmDailyStack = new Chart(el('pmDailyStack'), {
     type:'bar', data:{ labels: buckets.map(pmBucketLabel), datasets },
     options: chartBase({
-      plugins:{ tooltip:{ callbacks:{ label:c=>{
+      layout:{padding:{top:26}},
+      plugins:{ datalabels: dlStackTotal(), tooltip:{ callbacks:{ label:c=>{
         const raw = c.dataset._raw ? c.dataset._raw[c.dataIndex] : c.parsed.y;
         const t = totals[c.dataIndex];
         return ` ${c.dataset.label}: ${fmt$(raw)}` + (isRel && t ? ` (${(raw/t*100).toFixed(1)}%)` : '');
@@ -1626,11 +1642,18 @@ function renderPMSpendMarket(rows) {
   const markets = activeMarketList();
   const byMkt = {}; for (const m of markets) byMkt[m] = 0;
   for (const r of rows){ if (byMkt[r.market] != null) byMkt[r.market] += r.spend_usd||0; }
+  // Green shades per market (client request 2026-08-05) - a DELIBERATE exception to the
+  // MC metric-colour system (Spend is purple everywhere else). Keyed by market name so a
+  // region chip toggle never repaints the survivors; fixed dark->light ramp in list order.
+  const MKT_GREEN = {ANZ:'#0F8A5F', ASEAN:'#27B96F', INDIA:'#4FD98B', 'KR-HK-TW':'#93ECB7', OTHER:'#CFF7DF'};
   charts.pmSpendMarket = new Chart(el('pmSpendMarket'), {
-    type:'bar', data:{ labels: markets, datasets:[{ label:'Spend', data: markets.map(m=>byMkt[m]||0), backgroundColor: mc('Spend'), borderRadius:4 }] },
+    type:'bar', data:{ labels: markets, datasets:[{ label:'Spend', data: markets.map(m=>byMkt[m]||0), backgroundColor: markets.map(m=>MKT_GREEN[m]||MDB.green), borderRadius:4 }] },
     options: chartBase({
       indexAxis:'y',
-      plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>` ${fmt$(c.parsed.x)}` } } },
+      layout:{padding:{right:48}},
+      plugins:{ legend:{display:false},
+        datalabels:{...DL_BARS, display:ctx=>(Number(ctx.dataset.data[ctx.dataIndex])||0)>0, formatter:v=>'$'+dlFmt(v)},
+        tooltip:{ callbacks:{ label:c=>` ${fmt$(c.parsed.x)}` } } },
       scales:{ x:{beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+Number(v).toLocaleString()}}, y:{grid:{display:false}} }
     })
   });
@@ -1687,12 +1710,13 @@ function renderPMMarketStack(rows) {
     if (!agg[r.market]) agg[r.market] = {};
     agg[r.market][s] = (agg[r.market][s]||0) + (r.spend_usd||0);
   }
-  const datasets = keys.map(s => ({ label:s, data: markets.map(m => (agg[m] && agg[m][s]) || 0), backgroundColor: stratColor(s), borderRadius:2 }));
+  const datasets = keys.map(s => ({ label:s, data: markets.map(m => (agg[m] && agg[m][s]) || 0), backgroundColor: stratColor(s), borderColor:'#0B222C', borderWidth:1, borderRadius:2 }));
   charts.pmMarketStack = new Chart(el('pmMarketStack'), {
     type:'bar', data:{ labels: markets, datasets },
     options: chartBase({
       indexAxis:'y',
-      plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.x)}` } } },
+      layout:{padding:{right:48}},
+      plugins:{ datalabels: dlStackTotal(), tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmt$(c.parsed.x)}` } } },
       scales:{ x:{stacked:true, beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>'$'+Number(v).toLocaleString()}}, y:{stacked:true, grid:{display:false}} }
     })
   });
@@ -1761,12 +1785,13 @@ function renderPxAssets(assets){
   charts.pxAssets = new Chart(el('pxAssets'), {
     type:'bar',
     data:{ labels:a.map(r=>r.asset), datasets:[
-      {label:'Clicked',      data:a.map(r=>r.click), backgroundColor:MDB.green, borderRadius:3, stack:'c'},
-      {label:'View-through', data:a.map(r=>r.view),  backgroundColor:MDB.mint,  borderRadius:3, stack:'c'},
+      {label:'Clicked',      data:a.map(r=>r.click), backgroundColor:MDB.green, borderColor:'#0B222C', borderWidth:1, borderRadius:3, stack:'c'},
+      {label:'View-through', data:a.map(r=>r.view),  backgroundColor:MDB.mint,  borderColor:'#0B222C', borderWidth:1, borderRadius:3, stack:'c'},
     ]},
     options: chartBase({
       indexAxis:'y',
-      plugins:{ tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.x)}` } } },
+      layout:{padding:{right:44}},
+      plugins:{ datalabels: dlStackTotal(''), tooltip:{ callbacks:{ label:c=>` ${c.dataset.label}: ${fmtN(c.parsed.x)}` } } },
       scales:{ x:{stacked:true, beginAtZero:true, grid:{color:MDB.line}, ticks:{callback:v=>Number(v).toLocaleString()}},
                y:{stacked:true, grid:{display:false}, ticks:{font:{size:11}}} }
     })
