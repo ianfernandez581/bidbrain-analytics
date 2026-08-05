@@ -403,7 +403,7 @@
       <div class="panelhead">
         <div>
           <h3>Ad spend &rarr; leads &rarr; paying</h3>
-          <p class="hint">Stacked bars = media spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>cost per lead</b> (Google·Meta·Reddit spend &divide; leads), plus <b>new paying customers</b> = HubSpot contacts who have gone on to spend on app billing, dated by when the contact was created (HubSpot records no first-payment date; same basis as the Signups &amp; CRM tab). This line is whole-account (not filter-scoped) and sums to the all-time <b>Paying customers</b> card. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> uses dedicated axes (leads / paying counts vs cost-per-lead AUD). Click a month bar to drill into its weeks.</p>
+          <p class="hint">Stacked bars = media spend by platform (AUD, filter-scoped). Lines = the funnel over time: <b>leads</b> (ad-reported) and <b>new paying customers</b> = HubSpot contacts who have gone on to spend on app billing, dated by when the contact was created (HubSpot records no first-payment date; the same Paying series as the Signups &amp; CRM tab). The paying line is whole-account (not filter-scoped) and sums to the all-time <b>Paying customers</b> card. <b>Relative</b> indexes each line to its own peak; <b>Absolute</b> plots both on a shared count axis. Click a month bar to drill into its weeks.</p>
         </div>
         <div class="ctrls">
           <span class="drillback" id="heroBack" onclick="heroDrillReset()">↩ All months</span>
@@ -649,7 +649,7 @@ const MC = {
   // performance metrics (KPI accents + trend lines) - globally unique
   'Ad spend':'#64748B','Impressions':'#22D3EE','Clicks':'#A3E635','Sessions':'#E84A6F',
   'Key events':'#F59E0B','Ad-driven (paid)':'#8B5CF6','Engaged sessions':'#2DD4BF','Paying':'#34D399',
-  'Leads':'#3B82F6','Cost / lead':'#F97316','New paying customers':'#34D399',
+  'Leads':'#3B82F6','New paying customers':'#34D399',
   'CPM':'#FDE047','CPC':'#FB7185',
   // GA4 traffic channels / signup sources
   'Direct':'#38BDF8','Organic Search':'#14B8A6','Organic Social':'#C084FC','Paid Search':'#818CF8',
@@ -1507,10 +1507,10 @@ function renderOverview(){
   const acmLeadBy=field=>ovMonths.map(mo=>acm.filter(r=>r.month===mo&&LEADP.includes(r.platform)).reduce((s,r)=>s+(+r[field]||0),0));
   const leadsBy=acmLeadBy('conversions'), leadSpendBy=acmLeadBy('spend_aud');
   const cplBy=leadSpendBy.map((s,i)=>leadsBy[i]?s/leadsBy[i]:null);
-  const H='heroChart';   // north-star tiles are clickable → toggle their matching hero series/bars
+  const H='heroChart';   // tiles with a hero series/stack are clickable toggles (CPL has no hero line - static card)
   document.getElementById('ovNorthStar').innerHTML=[
     nsCard('k-ns-leads','Ad-reported leads',fmtN(adLeads),'Google · Meta · Reddit conversions', leadsBy, false, {chart:H,series:'Leads'}),
-    nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, {chart:H,series:'Cost / lead'}),
+    nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, null),
     nsCard('k-ns-paying','Paying customers',fmtN(+crmKpi.paying||0),'all-time · app billing (has spent) · not filter-scoped', null, false, {chart:H,series:'New paying customers'}),
     nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels'), acmBy('spend_aud'), false, {chart:H,stack:'spend'}),
   ].join('');
@@ -1574,14 +1574,15 @@ function renderAudience(){
   donut('deviceDonut','device',{Mobile:'#22D3EE',Desktop:'#818CF8',Tablet:'#FDBA74','Connected Tv':'#A3E635',Other:'#68738A'});
 }
 
-// hero: the campaign funnel over time - ad spend (stacked bars) → LEADS (ad-reported) + COST-PER-LEAD
-// (efficiency) + NEW PAYING CUSTOMERS (the downstream goal). "Relative" indexes each line to its OWN
-// peak; "Absolute" puts leads/paying on a count axis and cost-per-lead on an AUD axis. Month/Week/Day
-// + drill. NB: leads + cost-per-lead are AD-ATTRIBUTED (they move with the filters); the paying line is
-// the whole-account HubSpot snapshot (tsCrm) - NOT filter-scoped - so it stays put when you change
-// platform/campaign. It plots the rd_total_spend>0 payers by contact CREATED date (HubSpot records no
-// first-payment date; same basis as the CRM tab) and SUMS to the 'Paying customers' card. The lifecycle
-// Customer-stage series (~2-3/mo, ~zero overlap with payers) stays in the JSON as reference only.
+// hero: the campaign funnel over time - ad spend (stacked bars) → LEADS (ad-reported) + NEW PAYING
+// CUSTOMERS (the downstream goal). "Relative" indexes each line to its OWN peak; "Absolute" puts both
+// on a shared count axis. Month/Week/Day + drill. NB: leads are AD-ATTRIBUTED (they move with the
+// filters); the paying line is the whole-account HubSpot snapshot (tsCrm) - NOT filter-scoped - so it
+// stays put when you change platform/campaign. It plots the rd_total_spend>0 payers by contact CREATED
+// date (HubSpot records no first-payment date; the same Paying series as the CRM tab) and SUMS to the
+// 'Paying customers' card. The lifecycle Customer-stage series (~2-3/mo, ~zero overlap with payers)
+// stays in the JSON as reference only. (The Cost/lead line was removed 2026-08-05 - CPL lives on its
+// north-star card; the lifecycle-Customer "New CRM customers" line is gone with it.)
 function renderHero(){
   const g=grain.hero;
   const ga=tsGA4(g), keys=ga.keys;
@@ -1589,16 +1590,13 @@ function renderHero(){
   const ad=tsAd(g, keys, campActive);
   const spendByPlt=ad.spendByPlt;
   const crm=tsCrm(g, keys);                          // whole-account CRM: new paying customers per period
-  // Ad leads = ad-reported conversions (TTD display reports none). Cost-per-lead is on the LEAD channels
-  // only (Google·Meta·Reddit spend ÷ leads). New paying customers is the CRM downstream (NOT filter-scoped).
+  // Ad leads = ad-reported conversions (TTD display reports none). New paying customers is the CRM
+  // downstream (NOT filter-scoped).
   const leads=ad.conv;
-  const leadSpend=keys.map((_,i)=>spendByPlt.google[i]+spendByPlt.meta[i]+spendByPlt.reddit[i]);
-  const cplLine=leads.map((n,i)=>n?leadSpend[i]/n:null);
   const labels=keys.map(grainLabel(g));
   const rel=(scale.hero==='rel');
   const effects=[
     {label:'Leads',            color:mc('Leads'),       data:leads,    w:2.8, axis:'y1'},
-    {label:'Cost / lead',      color:mc('Cost / lead'), data:cplLine,  w:2.2, money:true, axis:'y2'},
     {label:'New paying customers', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
   ].filter(e=>e.data);
   const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
@@ -1617,8 +1615,7 @@ function renderHero(){
           title:{display:true,text:'Effects: % of own peak',color:tickClr},ticks:{color:tickClr,stepSize:20,callback:v=>v>100?'':v+'%'}}) }
     : { x:axis({stacked:true}),
         y:axis({stacked:true,position:'left',title:{display:true,text:'Spend (AUD)',color:tickClr}}),
-        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Leads / new paying customers',color:tickClr}}),
-        y2:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Cost per lead (AUD)',color:tickClr}}) };
+        y1:axis({position:'right',grid:{drawOnChartArea:false},title:{display:true,text:'Leads / new paying customers',color:tickClr}}) };
   mkChart('heroChart',{data:{labels,datasets:ds},options:{
     responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     onClick:(evt,els)=>{ if(grain.hero==='month'&&els&&els.length){ const m=keys[els[0].index]; if(m)heroDrill(m); } },

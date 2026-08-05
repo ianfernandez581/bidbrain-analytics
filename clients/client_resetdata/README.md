@@ -126,13 +126,14 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
 > `dash/dashboard.html` (`syncToggleDefaults()` highlights the matching AXIS/VIEW-BY buttons at load);
 > don't "fix" them back to Relative/Month.
 
-1. **Overview** — KPI cards (media spend · impressions · clicks · sessions · **total HubSpot leads · total
-   paying customers** · ad-driven sessions · engaged), and the **"Ad spend & its effects"** hero: monthly
-   **spend (stacked by platform) bars** vs three trend lines — **website sessions** (dotted) + **HubSpot
-   confirmed leads** + **new paying customers** (2026-07-02 rework: dropped the old clicks/impressions/key-events
-   lines per the client; the CRM trends come from `crm_outcomes_daily`, bucketed to the hero grain by
-   `tsCrm`, **whole-account CRM — NOT filter-scoped**). **REWORKED 2026-08-05 (client request): the hero
-   line now plots the REAL payers** — `rd_total_spend>0` contacts dated by `hs_created_at` (the
+1. **Overview** — north-star strip (ad-reported leads · cost per lead · paying customers · ad spend) +
+   supporting KPI cards, and the **"Ad spend → leads → paying"** hero: **spend (stacked by platform)
+   bars** vs **two trend lines** — **ad-reported leads** + **new paying customers** (the CRM trend comes
+   from `crm_outcomes_daily`, bucketed to the hero grain by `tsCrm`, **whole-account CRM — NOT
+   filter-scoped**). **2026-08-05 (client request): the Cost/lead line was REMOVED from the hero**
+   (CPL lives on its north-star card, now a static card, not a chart toggle) **and the paying line was
+   aligned to the Signups & CRM tab's Paying series — the hero plots the REAL payers** —
+   `rd_total_spend>0` contacts dated by `hs_created_at` (the
    `new_payers` series; HubSpot records NO first-payment date, and created-date matches the Signups & CRM
    tab's cohort basis) — so it **sums exactly to the all-time Paying customers card** (119 on 2026-08-04).
    It previously plotted lifecycle Customer-STAGE dates (`..._customer_date`, ~2-3/month, ~zero overlap
