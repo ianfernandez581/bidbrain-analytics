@@ -548,12 +548,14 @@ def main():
                 "unworked": num(r["unworked"]),
                 "signups": num(r["signups"]),
             } for r in crm_lead_queue],
-            # Daily new leads + new customers (whole-account, from HubSpot lifecycle dates) — the
-            # Overview hero chart buckets these to its grain for the "confirmed leads" / "paying" trends.
+            # Daily new leads + lifecycle customers + PAYING customers (whole-account) — the Overview
+            # hero buckets these to its grain. new_payers = rd_total_spend>0 contacts by CREATED date
+            # (HubSpot has no first-payment date; same basis as the CRM tab) and sums to kpi.paying.
             "outcomes_daily": [{
                 "date": ymd(r["day"]),
                 "new_leads": num(r["new_leads"]),
                 "new_customers": num(r["new_customers"]),
+                "new_payers": num(r["new_payers"]),
             } for r in crm_outcomes],
         },
     }

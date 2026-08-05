@@ -103,11 +103,14 @@ GCS_BUCKET = "bidbrain-analytics-staging"
 WINDSOR_URL = "https://connectors.windsor.ai/all"
 ACCOUNT_PREFIX = "reddit__"
 SELECT_ACCOUNTS = [
-    "a2_iq3fdsq6rem5",   # ResetData Ad Account (100Digital) -- id re-issued by Windsor on the
-                         # 2026-07-16 reddit re-grant (was a2_igd0szmw7roq; Windsor mints a new
-                         # opaque id when the connector is re-authed).
-    # Add more bare Reddit account ids here AND map them in REDDIT_ACCOUNT_TO_CLIENT below.
-    # Find ids at https://onboard.windsor.ai?datasource=reddit.
+    "a2_iq3fdsq6rem5",   # Transmission_Cloudflare -- the account the 2026-07-16 Windsor reddit
+                         # re-grant ACTUALLY connected. The re-grant assumed this was ResetData's
+                         # re-issued id; it is not (verified against the Windsor API 2026-08-05:
+                         # account_name='Transmission_Cloudflare', CLOUD_ACQ_* campaigns).
+    # ResetData Ad Account (100Digital) is NOT currently granted in Windsor (its old id
+    # a2_igd0szmw7roq now 400s "not available"). Re-grant at
+    # https://onboard.windsor.ai?datasource=reddit with the 100 Digital reddit login, then add
+    # the newly minted a2_... id here AND map it in REDDIT_ACCOUNT_TO_CLIENT below.
 ]
 
 # --- Fields (single pass: no GA4 9/10 cap on /all) ---
@@ -156,9 +159,18 @@ LOG_FILE = WORK_DIR / "reddit_loader.log"
 # Map a Reddit account id straight to (client_slug, agency_slug). Checked FIRST in infer_slugs --
 # most reliable. Fill using the account_names the probe printed:
 REDDIT_ACCOUNT_TO_CLIENT = {
-    "a2_iq3fdsq6rem5": ("resetdata", "100-digital"),   # ResetData Ad Account (100Digital), re-granted 2026-07-16
-    # NOTE: the pre-2026-07-16 id a2_igd0szmw7roq is retired -- its rows were an under-scoped
-    # duplicate (~1/10th the impressions) and were DELETED from perf_reddit on 2026-07-16.
+    # 2026-08-05 CORRECTION: a2_iq3fdsq6rem5 is Transmission_Cloudflare's Reddit seat, NOT
+    # ResetData's re-issued id as the 2026-07-16 re-grant assumed. The old mapping tagged
+    # Cloudflare's Apr-Jun 2026 CLOUD_ACQ_* delivery client_slug='resetdata', leaking it into
+    # the ResetData dashboard. After deploying this fix, retag the existing rows with a
+    # fixed-range re-pull (the MERGE re-stamps client_slug on matched keys):
+    #   .\.venv\Scripts\python.exe ingest\windsor_data_pull\reddit\reddit_loader.py 2026-04-01 2026-06-29 --force
+    "a2_iq3fdsq6rem5": ("cloudflare", "transmission"),
+    # NOTE: the pre-2026-07-16 id a2_igd0szmw7roq was ResetData's real account. Its rows (the
+    # 3 Feb-Jun 2026 Community campaigns) were DELETED from perf_reddit on 2026-07-16 on the
+    # false premise that they were an under-scoped duplicate of the new account. They were the
+    # genuine ResetData history -- recover by re-granting the account in Windsor (new id) and
+    # letting the backward-walk backfill reload it.
 }
 
 # Fallback keyword match on account name / campaign (same dict as the other loaders -- keep in
