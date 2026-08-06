@@ -123,6 +123,37 @@ per-call price this code can read, and an invented number is worse than none -
 the same rule the extractor follows for plan values. Runs report duration
 always, and tokens only when the provider reported them.
 
+**Run state is durable and self-healing (2026-08-06).** A run outlives the
+request that started it (the child is spawned, the response returns at once)
+and can outlive the INSTANCE, so run state is written to
+`analyses/<id>/live_run.json` on every stage transition plus a 15s heartbeat:
+
+- **Per-analysis lock, not global.** A run on campaign A no longer blocks
+  campaign B. `activeRunFor(id)` checks memory first, then the durable record.
+- **A dead run expires.** No heartbeat for 4 minutes and the run reads as
+  `error: this run stopped reporting`, instead of holding the lock forever.
+  This is what wedged production: an instance recycled mid-run left
+  `anyRunning()` permanently true and every subsequent run answered
+  `409 a run is already in progress`, with nothing able to see or clear it.
+- **Cross-instance polls work.** `GET /runs/:id` falls back to the durable
+  record (`store.findLiveRun`), so a poll answered by a different instance
+  finds the run rather than reporting a live one dead.
+- **409s explain themselves** - which run, how long it has been going, which
+  stage it is on.
+- **`GET /analyses/:id` returns `active_run`**, so a reload or a second tab
+  re-attaches to a run in flight instead of showing a Run button that 409s.
+- **Per-run work dir** (`_work/<runId>`, removed when the run settles). One
+  shared `out/` let concurrent runs interleave artifacts and archive each
+  other's output; it was only the global lock that hid this. The legacy flat
+  `/out/:file` route now serves the last completed run's archived copy.
+
+**Run log - the pipeline is visible (2026-08-06).** Child stdout/stderr used to
+be accumulated into a string and shown only if the run failed, so a healthy run
+printed NOTHING to Cloud Run logs and a stuck one was undiagnosable. Every line
+now goes to both the container log (prefixed `[greenlight][run <id>]`) and the
+run record (last 400 lines), and the tab renders it live under **Run log** in
+the progress modal.
+
 **Retry the failed step (2026-08-05):** after every successful extraction its
 artifacts are saved to `analyses/<id>/last_extract/` (`store.saveExtract`, GCS-
 mirrored). `POST /analyses/:id/rebuild` restores that slot and reruns ONLY
@@ -253,7 +284,7 @@ Last green: 2026-08-04, 13/13.
 - **Files over 15MB still cannot reach an analysis** (the platform proxy caps
   forwarded POSTs ~16MB). They are now recorded and shown persistently instead
   of vanishing, but the fix is a direct-to-GCS signed upload. (GL-28)
-- The run registry (`routes.js` `runs` Map) is still per-instance, so a status
-  poll answered by a different instance reports a live run as dead. (GL-01;
-  note its premise needs correcting - the run is already detached from the
-  request, the problem is durable run state, not backgrounding.)
+- Runs are still not resumable: if the instance dies mid-run the work is lost
+  (the run is correctly reported dead, but nothing picks it back up). GL-01
+  covers this; note its premise needs correcting - the run was always detached
+  from the request, so the remaining work is resumability, not backgrounding.
