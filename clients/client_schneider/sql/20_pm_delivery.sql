@@ -35,7 +35,12 @@ SELECT cm.program, d.platform, d.metric_date,
        -- into Australia (the dominant Pacific market) so it stays in the paid totals rather than
        -- being dropped. This is the only market roll-up — there is no ANZ / Other bucket.
        CASE WHEN d.market = 'New Zealand' THEN 'New Zealand' ELSE 'Australia' END AS market,
-       d.imps, d.clicks, d.spend_aud
+       d.imps, d.clicks, d.spend_aud,
+       -- LinkedIn on-platform LEAD-FORM leads (NULL on DV360/TradeDesk - see stg_ad_delivery).
+       -- Separate lane from the Salesforce CS leads: EcoConsult's Lead Generation ad sets report
+       -- lead-form leads while it has no Salesforce campaign at all, so this is the ONLY place
+       -- that delivery surfaces. Never sum it into a CS figure.
+       d.leads, d.lead_form_opens
 FROM `bidbrain-analytics.client_schneider.stg_ad_delivery` d
 JOIN camp_map cm USING (campaign)
 WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid','ecoconsult');
