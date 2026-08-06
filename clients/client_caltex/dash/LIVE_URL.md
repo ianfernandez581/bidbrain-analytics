@@ -157,9 +157,10 @@ set the **ttd spend multiplier** for caltex if the client is billed above raw me
 1. **Conversion slots:** if site actions appear, check whether TTD exported duplicate tracker
    pairs (`SELECT raw_row ... LIMIT 5`) — if so, switch `sql/01_stg_ttd.sql` to one column per
    pair (the VMCH `{01,03,05}` pattern) and re-run the export.
-2. **Targets:** replace the `PENDING` placeholders in `targets/*.csv` (flight window, A$30k
-   budget, CPM/CTR/CPC/impression targets) with the signed media plan → `seed_static.py` →
-   export `FORCE_REBUILD=1`.
+2. **Targets:** DONE 2026-08 — `targets/*.csv` now hold the signed media plan (flight
+   2026-07-28→10-28, A$15k, 475k imps, CPM A$25.86, CTR 0.30%), seeded and `HARD`. Only
+   `viewability_target`/`signups_target` remain `UNMEASURED`. Re-seed after any plan change:
+   `seed_static.py` → export `FORCE_REBUILD=1`.
 3. **Stage mapping:** confirm with the client that Attention-Optimised sits in the Consideration
    lane (one-line CASE in `sql/01_stg_ttd.sql`).
 4. **Status dashboard:** add caltex to `status_dashboard`'s `BQ_CLIENTS` spec so the platform's
