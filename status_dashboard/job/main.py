@@ -1308,7 +1308,9 @@ BQ_CLIENTS = [
         "raw_tables": ["raw_windsor.perf_the_trade_desk", "raw_windsor.perf_ga4",
                        "raw_ga4.perf_ga4"],
         "checks": [
-            # TTD advertiser filter has a TRAILING SPACE: 'VMCH '. The headline imps/clicks KPIs add a
+            # TTD filter = advertiser_id 'sif8zx0' + trimmed-name fallback (2026-08-06, mirrors
+            # client_vmch/sql/03_stg_ttd.sql; the feed's advertiser_name carries a TRAILING SPACE
+            # 'VMCH ' the old exact-match depended on). The headline imps/clicks KPIs add a
             # MODELLED April (a hardcoded constant in sql/03b) that has no raw source, so we check the
             # MEASURED delivery (the ttd_adgroups breakdown reads stg_ttd directly = 100% measured).
             {"label": "Trade Desk · Impressions (measured delivery)", "kind": "sum",
@@ -1316,8 +1318,8 @@ BQ_CLIENTS = [
              "dash": _rows_sum("imps", "ttd_adgroups"),
              "sql": "SELECT SUM(impressions) AS imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'VMCH ';",
-             "note": "Advertiser 'VMCH ' (TRAILING SPACE). This is the MEASURED whole-flight delivery "
+                    "WHERE advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%';",
+             "note": "Advertiser id sif8zx0 (feed name 'VMCH ' has a trailing space - filter spans both). This is the MEASURED whole-flight delivery "
                      "(=stg_ttd = the ttd_adgroups breakdown). The headline KPI (kpi.ttd_imps) additionally "
                      "adds ~4,301,841 MODELLED April impressions (a hardcoded overlay in sql/03b, no raw "
                      "source), so it will read higher by design. vs sum(ttd_adgroups[].imps)."},
@@ -1326,7 +1328,7 @@ BQ_CLIENTS = [
              "dash": _rows_sum("clicks", "ttd_adgroups"),
              "sql": "SELECT SUM(clicks) AS clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'VMCH ';",
+                    "WHERE advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%';",
              "note": "Measured whole-flight clicks; the headline adds ~6,581 modelled-April clicks. "
                      "vs sum(ttd_adgroups[].clicks)."},
             {"label": "Trade Desk · Post-view conversions", "kind": "sum",
@@ -1340,7 +1342,7 @@ BQ_CLIENTS = [
                     "FROM (\n"
                     "  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS c\n"
                     "  FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "  WHERE advertiser_name = 'VMCH '\n"
+                    "  WHERE (advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%')\n"
                     "    AND NOT (metric_date BETWEEN DATE '2026-04-01' AND DATE '2026-04-30'\n"
                     "             AND campaign_name IN ('RAC_AU_ID Digital_VMCH_2026','SAH_AU_ID Digital_VMCH_2026'))\n"
                     ");",
@@ -1359,7 +1361,7 @@ BQ_CLIENTS = [
                     "FROM (\n"
                     "  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS c\n"
                     "  FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "  WHERE advertiser_name = 'VMCH '\n"
+                    "  WHERE (advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%')\n"
                     "    AND NOT (metric_date BETWEEN DATE '2026-04-01' AND DATE '2026-04-30'\n"
                     "             AND campaign_name IN ('RAC_AU_ID Digital_VMCH_2026','SAH_AU_ID Digital_VMCH_2026'))\n"
                     ");",

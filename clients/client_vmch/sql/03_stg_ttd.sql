@@ -1,6 +1,9 @@
 -- VMCH — staged The Trade Desk programmatic display.
 --
--- The VMCH filter lives here once: advertiser_name = 'VMCH ' (with trailing space).
+-- The VMCH filter lives here once: advertiser_id = 'sif8zx0' with a trimmed-name fallback
+-- (2026-08-06, the caltex ID-first pattern; was advertiser_name = 'VMCH ' - the feed's name
+-- carries a TRAILING SPACE the TTD UI doesn't show, so the exact-match would silently zero
+-- the day Windsor trims it. Verified identical on switch day: 9,113 rows / $29,298.27).
 -- Cost is ALREADY in AUD (advertiser_currency_code = 'AUD' upstream), so NO FX
 -- conversion is applied — the reporting currency IS AUD. No geo/market column exists
 -- in the source (VMCH is AU-only), so market is omitted from the staging layer.
@@ -25,7 +28,8 @@ CREATE OR REPLACE VIEW `bidbrain-analytics.client_vmch.stg_ttd` AS
 WITH base AS (
   SELECT *, PARSE_JSON(JSON_VALUE(conversions)) AS _conv
   FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`
-  WHERE advertiser_name = 'VMCH '
+  WHERE advertiser_id = 'sif8zx0'
+     OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%'
 )
 SELECT
   metric_date,
