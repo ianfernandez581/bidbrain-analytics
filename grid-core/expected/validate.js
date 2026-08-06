@@ -208,6 +208,40 @@ function validate(plan, manifest, rulebook) {
     out.push(finding(`f_orphan_${f.file}`, 'watch', 'Raw Materials Complete', 'UNREFERENCED',
       `Media file referenced by nothing: ${f.file}`, 'Present in the dump but cited by no plan document. Purpose unknown.', 'file inventory (hashes computed in code)'));
   }
+  // -------- files: referenced by a document but ABSENT from the dump.
+  // The mirror image of the orphan check above: that one asks "what is here that
+  // nothing cites", this asks "what do the documents cite that nobody sent".
+  // These are the files a buyer still owes, so each one names itself - the run
+  // continues on what did arrive and the gap is explicit rather than silent.
+  const present = manFiles.map((f) => f.file.toLowerCase());
+  const missingRefs = [];
+  for (const ref of plan.referenced_files || []) {
+    const name = String(ref).trim();
+    if (!name) continue;
+    const lower = name.toLowerCase();
+    const found = present.some((p) => p === lower || p.endsWith('/' + lower) || p.split('/').pop() === lower);
+    if (!found) missingRefs.push(name);
+  }
+  if (missingRefs.length) {
+    out.push(finding('f_missing', 'missing', 'Raw Materials Complete', 'NOT SUPPLIED',
+      `${missingRefs.length} file(s) referenced by the campaign documents were not supplied`,
+      `Upload these to complete the audit: ${missingRefs.join('; ')}. Everything else was analysed; only checks that need these files are outstanding.`,
+      'referenced file names vs the file inventory'));
+  }
+
+  // -------- files: present in the dump but never READ (no converter here).
+  // Their content never reached the model, so any figure or approval inside
+  // them is invisible to this run - say so rather than letting the audit imply
+  // the file was considered.
+  const unread = manFiles.filter((f) => f.converted === false || f.parse_error);
+  if (unread.length) {
+    out.push(finding('f_unread', 'missing', 'Raw Materials Complete', 'NOT READ',
+      `${unread.length} supplied file(s) could not be read, so their contents were not audited`,
+      unread.map((f) => `${f.file}${f.parse_error ? ` (parse error: ${f.parse_error})` : ' (no converter for this format)'}`).join('; ')
+        + '. Re-supply these as .xlsx/.csv/.pdf if they carry plan figures, approvals or asset lists.',
+      'file inventory (conversion results computed in code)'));
+  }
+
   if (rb.files.flag_duplicates) {
     const dups = manFiles.filter((f) => f.duplicate_of);
     if (dups.length) {

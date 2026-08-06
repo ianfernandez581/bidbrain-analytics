@@ -11,8 +11,18 @@
 // Usage: node extract.js [--files <dir>]   (default dir: ../files)
 // Env: ANTHROPIC_API_KEY (or grid-core/.env), EXPECTED_MODEL (default claude-opus-5).
 // GREENLIGHT_API_KEY / GREENLIGHT_BASE_URL, when set, override the ANTHROPIC_*
-// pair for THIS stage only - lets Greenlight run on a different Claude-compatible
-// provider (e.g. Kimi) without moving the rest of the grid's model calls.
+// pair for THIS stage only - lets Greenlight run on a different provider without
+// moving the rest of the grid's model calls.
+//
+// TWO WIRE FORMATS, one prompt + one schema (GREENLIGHT_PROVIDER=groq|anthropic;
+// inferred from the base URL when unset):
+//   anthropic - the Anthropic SDK (also serves Anthropic-compatible endpoints
+//               such as Kimi's, which mirror /v1/messages + output_config).
+//   groq      - OpenAI-compatible /chat/completions over plain fetch (Node 18+;
+//               no SDK, no new dependency). Groq exposes NO Anthropic endpoint,
+//               so this is a different call shape, not a base-URL swap.
+// The SYSTEM prompt and SCHEMA below are shared verbatim by both paths, so the
+// extraction contract does not fork per provider.
 'use strict';
 
 const fs = require('fs');
@@ -24,9 +34,24 @@ const ROOT = __dirname;
 const OUT = process.env.GREENLIGHT_OUT_DIR || path.join(ROOT, 'out');
 let MODEL = process.env.EXPECTED_MODEL || 'claude-opus-5'; // re-resolved in main() after loadDotEnv
 
+// Groq caps every model at 131,072 tokens of CONTEXT (prompt + completion) and
+// 65,536 of completion - and, unlike Anthropic, it bills the RESERVATION: this
+// number is added to the prompt when the per-minute token budget is checked, so
+// an unused reservation is not free. Measured records run 1,500-2,000 output
+// tokens (about half of that the model's own reasoning) on a small dump, so
+// 12000 is generous headroom while cutting 20,000 tokens off what every request
+// costs against that budget. Raise via GREENLIGHT_MAX_OUTPUT if a very large
+// dump ever truncates - the error says so explicitly rather than failing at
+// JSON.parse.
+const GROQ_MAX_OUTPUT = Number(process.env.GREENLIGHT_MAX_OUTPUT || 12000);
+const GROQ_DEFAULT_BASE = 'https://api.groq.com/openai/v1';
+
 // ---- minimal .env loader (repo has no dotenv; grid-core/.env is gitignored)
+// Never overwrites a variable the environment already set (below), so it is
+// safe to always read the file. It used to bail out early whenever
+// ANTHROPIC_API_KEY happened to be exported, which silently skipped the rest of
+// the file - including the provider/model settings this stage now needs.
 function loadDotEnv() {
-  if (process.env.ANTHROPIC_API_KEY) return;
   const envPath = path.join(ROOT, '..', '.env');
   if (!fs.existsSync(envPath)) return;
   for (const line of fs.readFileSync(envPath, 'utf8').split(/\r?\n/)) {
@@ -268,6 +293,134 @@ function parseFindings(lines) {
   }).filter(Boolean);
 }
 
+// ---- provider selection. Explicit GREENLIGHT_PROVIDER wins; otherwise a groq
+// base URL implies the groq wire format, and everything else stays Anthropic
+// (which keeps Kimi and the real Anthropic endpoint on the path they were
+// verified on).
+function resolveProvider() {
+  const explicit = (process.env.GREENLIGHT_PROVIDER || '').trim().toLowerCase();
+  if (explicit) return explicit;
+  const base = process.env.GREENLIGHT_BASE_URL || process.env.ANTHROPIC_BASE_URL || '';
+  return /groq\.com/i.test(base) ? 'groq' : 'anthropic';
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ---- groq: OpenAI-compatible /chat/completions. Same SYSTEM + SCHEMA as the
+// Anthropic path; only the envelope differs (system as a message rather than a
+// top-level field, response_format instead of output_config).
+// Retries mirror the Anthropic SDK's posture (6 attempts, honor retry-after):
+// this is one large request, so a rate-limit window needs patience, not a fast
+// fail. Written against fetch so the unit takes no new dependency.
+async function callGroq(bundleText) {
+  let base = process.env.GREENLIGHT_BASE_URL || GROQ_DEFAULT_BASE;
+  while (base.endsWith('/')) base = base.slice(0, -1);
+  const url = `${base}/chat/completions`;
+  const apiKey = process.env.GREENLIGHT_API_KEY || process.env.GROQ_API_KEY || process.env.ANTHROPIC_API_KEY;
+  const body = {
+    model: MODEL,
+    max_completion_tokens: GROQ_MAX_OUTPUT,
+    messages: [
+      { role: 'system', content: SYSTEM },
+      { role: 'user', content: `Extract the campaign record from this dump.\n\n${bundleText}` },
+    ],
+    // strict mode requires every object to carry additionalProperties:false and
+    // list every property in required - which the obj() helper above already
+    // guarantees, so the schema compiles unchanged.
+    response_format: {
+      type: 'json_schema',
+      json_schema: { name: 'campaign_record', strict: true, schema: SCHEMA },
+    },
+  };
+
+  // The reservation is negotiable, the prompt is not. Groq counts
+  // prompt + max_completion_tokens against the per-minute budget, so on a small
+  // tier the reservation alone can blow the budget for a dump that would
+  // otherwise fit comfortably. Shrink it to what the tier leaves room for
+  // rather than failing (see the 413 handler below).
+  const MIN_USEFUL_OUTPUT = 1200; // below this a record cannot finish; fail honestly instead
+  const TPM_SAFETY_MARGIN = 250;  // our token estimate is not byte-exact with theirs
+  let maxOut = GROQ_MAX_OUTPUT;
+
+  let lastErr = null;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    body.max_completion_tokens = maxOut;
+    if (attempt) {
+      const wait = lastErr && lastErr.retryAfterMs != null ? lastErr.retryAfterMs : Math.min(30000, 2000 * 2 ** (attempt - 1));
+      console.log(`[extract] retry ${attempt}/5 in ${Math.round(wait / 1000)}s (${lastErr && lastErr.message})`);
+      await sleep(wait);
+    }
+    let res;
+    try {
+      res = await fetch(url, {
+        method: 'POST',
+        headers: { authorization: `Bearer ${apiKey}`, 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    } catch (e) {
+      lastErr = new Error(`network error: ${e.message}`);
+      continue;
+    }
+    const text = await res.text();
+    if (!res.ok) {
+      let detail = text.slice(0, 600);
+      try { detail = JSON.parse(text).error.message || detail; } catch { /* keep raw body */ }
+      const err = new Error(detail);
+      err.status = res.status;
+
+      // 413 = the request exceeds the per-minute token budget outright (it is
+      // rejected, never queued, so no backoff helps). The message carries the
+      // numbers we need: "Limit 8000, Requested 15432". Requested is
+      // prompt + our reservation, so the prompt is recoverable by subtraction -
+      // and if the tier has room for the prompt, we can simply reserve less
+      // output and go again. This is what makes a small dump work on a small
+      // tier instead of failing on a budget we chose ourselves.
+      if (res.status === 413) {
+        const m = /Limit (\d+), Requested (\d+)/.exec(detail);
+        if (m) {
+          const limit = Number(m[1]);
+          const promptTokens = Number(m[2]) - maxOut;
+          const fitted = limit - promptTokens - TPM_SAFETY_MARGIN;
+          if (fitted >= MIN_USEFUL_OUTPUT) {
+            console.log(`[extract] tier allows ${limit} tok/min and this prompt is ~${promptTokens}; refitting output reservation ${maxOut} -> ${fitted} and retrying`);
+            maxOut = fitted;
+            err.retryAfterMs = 0; // a rejected request consumed no budget
+            lastErr = err;
+            continue;
+          }
+          throw new Error(`this dump does not fit the account's ${limit} tokens/minute budget: the prompt alone is ~${promptTokens} tokens, leaving no room for a usable response. Reduce the dump (fewer files per analysis) or raise the tier.`);
+        }
+      }
+      // A 400 complaining about the GENERATED json is a model flake, not a bad
+      // request. Groq validates structured output AFTER generation instead of
+      // constraining decoding (unlike Anthropic's structured outputs), so the
+      // model can emit a stray shape on one attempt and a clean one on the next
+      // - measured 2 failures in 3 attempts on this schema, all three requests
+      // otherwise identical. Retry those; every other 4xx is our bug (bad model
+      // name, bad key, malformed schema) and fails now.
+      const modelFlake = res.status === 400 && /does not match the expected schema|Failed to validate JSON/i.test(detail);
+      if (res.status !== 429 && res.status < 500 && !modelFlake) throw err;
+      const ra = Number(res.headers.get('retry-after'));
+      if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = ra * 1000;
+      lastErr = err;
+      continue;
+    }
+    const msg = JSON.parse(text);
+    const choice = msg.choices && msg.choices[0];
+    if (!choice) throw new Error('no choices in response');
+    // A length stop means the JSON is cut mid-object; JSON.parse would fail with
+    // a meaningless syntax error, so say what actually happened.
+    if (choice.finish_reason === 'length') {
+      throw new Error(`response hit the ${GROQ_MAX_OUTPUT}-token completion cap and is truncated - raise GREENLIGHT_MAX_OUTPUT or reduce the dump`);
+    }
+    const usage = msg.usage || {};
+    const reasoning = usage.completion_tokens_details && usage.completion_tokens_details.reasoning_tokens;
+    console.log(`[extract] model ${msg.model} in=${usage.prompt_tokens} out=${usage.completion_tokens}${reasoning != null ? ` (reasoning ${reasoning})` : ''}`);
+    return JSON.parse(choice.message.content);
+  }
+  throw lastErr || new Error('groq request failed after retries');
+}
+
 async function callClaude(client, bundleText) {
   const base = {
     model: MODEL,
@@ -320,8 +473,9 @@ async function main() {
   const filesDir = argIdx > -1 ? process.argv[argIdx + 1] : path.join(ROOT, '..', 'files');
   loadDotEnv();
   MODEL = process.env.EXPECTED_MODEL || MODEL; // .env may have supplied it just now
-  if (!process.env.GREENLIGHT_API_KEY && !process.env.ANTHROPIC_API_KEY) {
-    console.error('[extract] BLOCKED: no GREENLIGHT_API_KEY or ANTHROPIC_API_KEY in the environment or grid-core/.env');
+  const provider = resolveProvider();
+  if (!process.env.GREENLIGHT_API_KEY && !process.env.GROQ_API_KEY && !process.env.ANTHROPIC_API_KEY) {
+    console.error('[extract] BLOCKED: no GREENLIGHT_API_KEY, GROQ_API_KEY or ANTHROPIC_API_KEY in the environment or grid-core/.env');
     process.exit(2);
   }
 
@@ -331,24 +485,31 @@ async function main() {
   fs.writeFileSync(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 2));
   console.log(`[stage] preprocess-done files=${manifest.files.length} bundle_chars=${bundleText.length}`);
 
-  const Anthropic = require('@anthropic-ai/sdk');
-  // Generous retries: this is one large request (~125K input tokens), so a
-  // tier rate-limit window needs patience, not a fast fail. The SDK honors
-  // retry-after on 429 and backs off on 5xx/529.
-  // GREENLIGHT_* wins over ANTHROPIC_* so this stage can bill a different
-  // provider (Kimi subscription) while Brain/plan-reader keep the Anthropic key.
-  const client = new Anthropic({
-    maxRetries: 6,
-    apiKey: process.env.GREENLIGHT_API_KEY || process.env.ANTHROPIC_API_KEY,
-    baseURL: process.env.GREENLIGHT_BASE_URL || process.env.ANTHROPIC_BASE_URL || undefined,
-  });
-  console.log(`[stage] model-start model=${MODEL}`);
-  const raw = await callClaude(client, bundleText);
+  console.log(`[stage] model-start model=${MODEL} provider=${provider}`);
+  let raw;
+  if (provider === 'groq') {
+    // Plain fetch, no SDK: Groq speaks OpenAI's /chat/completions, not
+    // Anthropic's /v1/messages, so the Anthropic client cannot reach it.
+    raw = await callGroq(bundleText);
+  } else {
+    const Anthropic = require('@anthropic-ai/sdk');
+    // Generous retries: this is one large request (~125K input tokens), so a
+    // tier rate-limit window needs patience, not a fast fail. The SDK honors
+    // retry-after on 429 and backs off on 5xx/529.
+    // GREENLIGHT_* wins over ANTHROPIC_* so this stage can bill a different
+    // provider (Kimi subscription) while Brain/plan-reader keep the Anthropic key.
+    const client = new Anthropic({
+      maxRetries: 6,
+      apiKey: process.env.GREENLIGHT_API_KEY || process.env.ANTHROPIC_API_KEY,
+      baseURL: process.env.GREENLIGHT_BASE_URL || process.env.ANTHROPIC_BASE_URL || undefined,
+    });
+    raw = await callClaude(client, bundleText);
+  }
   const result = sanitize(raw);
   console.log('[stage] model-done');
 
   const plan = normalizePlan(result.plan);
-  plan.extractor = { model: MODEL, generated_at: new Date().toISOString(), dump_dir: filesDir, one_call: true };
+  plan.extractor = { model: MODEL, provider, generated_at: new Date().toISOString(), dump_dir: filesDir, one_call: true };
   const guard = identityGuard(manifest, plan);
   const guardFinding = guard ? applyIdentityGuard(guard, plan) : null;
   if (guard) console.log('[extract] IDENTITY GUARD: ' + guard.message);
@@ -378,7 +539,7 @@ main().catch((e) => {
   const status = e && e.status ? ` (HTTP ${e.status})` : '';
   const hint = e && e.status === 429
     ? ' - rate limited even after retries; the key\'s per-minute token window is exhausted. Wait a minute and run again.'
-    : (e && e.status >= 500 ? ' - Anthropic service issue; run again shortly.' : '');
+    : (e && e.status >= 500 ? ' - provider-side service issue; run again shortly.' : '');
   console.error(`[extract] FAILED${status}:`, (e && e.message || e) + hint);
   process.exit(1);
 });
