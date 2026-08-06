@@ -77,6 +77,40 @@ async function mirrorFetch(abs) {
   } catch { return false; }
 }
 
+/** Pull an analysis's UPLOADED DUMP back down from the mirror.
+ *
+ *  On Cloud Run the local copy lives in /tmp, which is wiped on every instance
+ *  restart. The mirror is the durable copy, so without this an analysis comes
+ *  back listing ZERO files: a re-run then analyses only whatever is uploaded
+ *  next and returns a confident, fully-cited baseline built from a fraction of
+ *  the paperwork. Nothing looks wrong, which is worse than an error.
+ *
+ *  Cheap when warm: one list call, and downloads only what is missing. */
+async function ensureFiles(id) {
+  const b = gcs();
+  if (!b) return { pulled: 0, remote: null };
+  const prefix = `analyses/${id}/files/`;
+  try {
+    const [objects] = await b.getFiles({ prefix });
+    const missing = objects.filter((f) => !f.name.endsWith('/') && !fs.existsSync(path.join(DUMPS, ...f.name.split('/'))));
+    // bounded parallelism: a big dump is hundreds of files, serial is minutes
+    const queue = missing.slice();
+    const worker = async () => {
+      for (let f = queue.shift(); f; f = queue.shift()) {
+        const abs = path.join(DUMPS, ...f.name.split('/'));
+        fs.mkdirSync(path.dirname(abs), { recursive: true });
+        await f.download({ destination: abs });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(8, queue.length) }, worker));
+    if (missing.length) console.log(`[greenlight][gcs] rehydrated ${missing.length} file(s) for analysis ${id}`);
+    return { pulled: missing.length, remote: objects.filter((f) => !f.name.endsWith('/')).length };
+  } catch (e) {
+    console.error(`[greenlight][gcs] rehydrate failed for ${id}:`, e.message);
+    return { pulled: 0, remote: null };
+  }
+}
+
 /** Boot sync: pull every analyses/<id>/analysis.json so the library lists
  *  runs made by previous instances. Artifacts come down lazily on read. */
 async function bootSync() {
@@ -232,7 +266,7 @@ function safeRel(name) {
   return clean || null;
 }
 
-function stageFile(id, name, dataB64, maxBytes) {
+async function stageFile(id, name, dataB64, maxBytes) {
   if (!readAnalysis(id)) throw new Error('unknown analysis');
   const rel = safeRel(name);
   if (!rel) throw new Error('missing or invalid file name');
@@ -242,7 +276,11 @@ function stageFile(id, name, dataB64, maxBytes) {
   const dest = path.join(aFilesDir(id), ...rel.split('/'));
   fs.mkdirSync(path.dirname(dest), { recursive: true });
   fs.writeFileSync(dest, data);
-  mirrorUpload(dest);
+  // Awaited on purpose: the mirror is the only durable copy, so returning 200
+  // before it lands means a crash in that window loses the file silently.
+  await mirrorUpload(dest);
+  clearSkipped(id, rel);   // a retry that succeeded clears its own warning
+  recordFileCount(id);
   return { staged: rel, bytes: data.length };
 }
 
@@ -255,7 +293,48 @@ function removeFile(id, name) {
     fs.rmSync(target, { force: true });
     mirrorDeletePrefix(relKey(target));
   }
+  recordFileCount(id);
   return { removed: rel };
+}
+
+/** Record a file the browser could NOT upload (over the size limit, or the
+ *  request failed). This used to live only in the page's memory and was wiped
+ *  the moment the upload batch finished, so the dump quietly shrank with no
+ *  explanation. Persisted here it survives the refresh and a reload. */
+function recordSkipped(id, name, bytes, reason) {
+  const a = readAnalysis(id);
+  if (!a) throw new Error('unknown analysis');
+  const rel = safeRel(name);
+  if (!rel) throw new Error('missing or invalid file name');
+  a.skipped = (a.skipped || []).filter((s) => s.name !== rel);
+  a.skipped.push({ name: rel, bytes: Number(bytes) || 0, reason: String(reason || 'upload failed').slice(0, 200), at: new Date().toISOString() });
+  writeAnalysis(a);
+  return { skipped: rel };
+}
+
+/** Drop a name from the skipped list (it arrived after all, or was dismissed). */
+function clearSkipped(id, name) {
+  const a = readAnalysis(id);
+  if (!a || !a.skipped) return { cleared: 0 };
+  const rel = name ? safeRel(name) : null;
+  const before = a.skipped.length;
+  a.skipped = rel ? a.skipped.filter((s) => s.name !== rel) : [];
+  if (a.skipped.length !== before) writeAnalysis(a);
+  return { cleared: before - a.skipped.length };
+}
+
+/** How many files this analysis is SUPPOSED to have, stamped whenever the set
+ *  changes. A local count below it means the dump did not come back (see
+ *  ensureFiles) and the run must refuse rather than analyse a partial dump. */
+function recordFileCount(id) {
+  const a = readAnalysis(id);
+  if (!a) return null;
+  a.files_expected = walk(aFilesDir(id), aFilesDir(id), []).length;
+  return writeAnalysis(a);
+}
+
+function localFileCount(id) {
+  return walk(aFilesDir(id), aFilesDir(id), []).length;
 }
 
 /** Content hash of an analysis's file set - the re-run guard compares this
@@ -399,6 +478,7 @@ module.exports = {
   DUMPS, ANALYSES, BUCKET,
   createAnalysis, listAnalyses, analysisDetail, renameAnalysis, recordRun,
   setArchived, deleteAnalysis, stageFile, removeFile, filesHash,
+  ensureFiles, recordFileCount, localFileCount, recordSkipped, clearSkipped,
   archiveRun, runArtifact, runResults, findRun,
   saveExtract, loadExtract, extractMeta,
   aFilesDir, walk,

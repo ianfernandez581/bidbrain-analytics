@@ -14,7 +14,16 @@ const crypto = require('crypto');
 const XLSX = require('xlsx');
 
 const SHEET_CHAR_CAP = 30000;
-const DATA_CSV_ROW_CAP = 15; // data CSVs (audience lists etc) get a head sample only
+const DATA_CSV_ROW_CAP = 15; // head sample for BIG data CSVs (audience lists etc)
+// A CSV at or under this many data rows is bundled WHOLE: a media plan exported
+// to CSV is 30-60 rows and losing everything past row 15 silently drops budget
+// lines. Only genuine data exports (audience lists) exceed it.
+const CSV_FULL_ROW_MAX = 200;
+const TEXT_CHAR_CAP = 30000;
+// Types that could carry campaign content but that this stage cannot read. They
+// are labelled in the inventory (so the model knows the content was WITHHELD,
+// not absent) and raised as findings by validate.js - never silently dropped.
+const UNREAD_TYPES = ['pdf', 'deck', 'doc', 'other'];
 
 function walk(dir, acc = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
@@ -27,8 +36,12 @@ function walk(dir, acc = []) {
 
 function classify(rel) {
   const ext = path.extname(rel).toLowerCase();
-  if (ext === '.xlsx' || ext === '.xlsm') return 'sheet';
+  // .xls/.xlsb are BIFF/binary workbooks that SheetJS reads through the same
+  // XLSX.read call - a legacy media plan used to fall through to 'other' and
+  // was never opened at all.
+  if (['.xlsx', '.xlsm', '.xls', '.xlsb'].includes(ext)) return 'sheet';
   if (ext === '.csv' || ext === '.tsv') return 'table';
+  if (['.txt', '.md'].includes(ext)) return 'text';
   if (['.jpg', '.jpeg', '.png', '.gif', '.webp'].includes(ext)) return 'image';
   if (ext === '.mp4' || ext === '.mov') return 'video';
   if (ext === '.pdf') return 'pdf';
@@ -122,9 +135,73 @@ function numberedCsv(ws) {
   return lines.map((l, i) => `R${i + 1}: ${l}`).join('\n');
 }
 
+// ---- content extraction, one branch per readable type. Stamps the entry with
+// whatever was LOST (truncated/empty sheets, head-sampled rows, parse errors)
+// so validate.js can raise it - preprocess never drops content silently.
+function extractSheet(entry, buf, rel, bundle) {
+  try {
+    const wb = XLSX.read(buf, { type: 'buffer' });
+    entry.sheets = wb.SheetNames;
+    entry.truncated_sheets = [];
+    entry.empty_sheets = [];
+    for (const name of wb.SheetNames) {
+      let text = numberedCsv(wb.Sheets[name]);
+      if (!text) { entry.empty_sheets.push(name); continue; }
+      if (text.length > SHEET_CHAR_CAP) {
+        entry.truncated_sheets.push(name);
+        text = text.slice(0, SHEET_CHAR_CAP) + '\n[TRUNCATED at ' + SHEET_CHAR_CAP + ' chars]';
+      }
+      bundle.push(`=== FILE: ${rel} | SHEET: ${name} ===\n${text}`);
+    }
+  } catch (e) {
+    entry.parse_error = String(e.message || e);
+  }
+}
+
+function extractTable(entry, buf, rel, bundle) {
+  const lines = buf.toString('utf8').split(/\r?\n/).filter((l) => l.length);
+  entry.rows = Math.max(0, lines.length - 1); // data rows excluding header
+  // Small CSV = probably a plan or a tracker: bundle it whole. Big CSV = an
+  // audience/data export: a head sample is the right call.
+  entry.sampled = entry.rows > CSV_FULL_ROW_MAX;
+  const keep = entry.sampled ? DATA_CSV_ROW_CAP : lines.length;
+  const body = lines.slice(0, keep).map((l, i) => `R${i + 1}: ${l}`).join('\n');
+  const label = entry.sampled
+    ? `DATA CSV (${entry.rows} data rows; head sample only)`
+    : `CSV (${entry.rows} data rows; complete)`;
+  bundle.push(`=== FILE: ${rel} | ${label} ===\n${body}`);
+}
+
+function extractText(entry, buf, rel, bundle) {
+  let text = buf.toString('utf8');
+  if (text.length > TEXT_CHAR_CAP) {
+    entry.truncated = true;
+    text = text.slice(0, TEXT_CHAR_CAP) + '\n[TRUNCATED at ' + TEXT_CHAR_CAP + ' chars]';
+  }
+  if (text.trim()) bundle.push(`=== FILE: ${rel} | TEXT ===\n${text}`);
+}
+
+const EXTRACTORS = { sheet: extractSheet, table: extractTable, text: extractText };
+
+/** What the pipeline actually saw, so a run over PART of a dump can never look
+ *  identical to a run over all of it. */
+function intakeSummary(files) {
+  const live = files.filter((f) => !f.duplicate_of);
+  return {
+    files_total: files.length,
+    duplicates: files.length - live.length,
+    content_read: live.filter((f) => EXTRACTORS[f.type] && !f.parse_error).length,
+    unread: live.filter((f) => f.unread).map((f) => f.file),
+    parse_errors: live.filter((f) => f.parse_error).map((f) => ({ file: f.file, error: f.parse_error })),
+    truncated_sheets: live.flatMap((f) => (f.truncated_sheets || []).map((s) => `${f.file} | sheet '${s}'`)),
+    sampled_csvs: live.filter((f) => f.sampled).map((f) => `${f.file} (${f.rows} rows)`),
+  };
+}
+
 /**
  * preprocess(dir) -> { manifest, bundleText }
- * manifest.files: [{file, bytes, sha256, type, sheets?, measured?, rows?, duplicate_of?}]
+ * manifest.files: [{file, bytes, sha256, type, sheets?, measured?, rows?, duplicate_of?, unread?, parse_error?}]
+ * manifest.intake: the reconciliation summary (see intakeSummary)
  * bundleText: the converted-sheets text for the model call.
  */
 function preprocess(rootDir) {
@@ -147,43 +224,33 @@ function preprocess(rootDir) {
     const m = measure(abs, buf);
     if (m) entry.measured = m;
 
-    if (entry.type === 'sheet') {
-      try {
-        const wb = XLSX.read(buf, { type: 'buffer' });
-        entry.sheets = wb.SheetNames;
-        for (const name of wb.SheetNames) {
-          let text = numberedCsv(wb.Sheets[name]);
-          if (!text) continue;
-          if (text.length > SHEET_CHAR_CAP) text = text.slice(0, SHEET_CHAR_CAP) + '\n[TRUNCATED at ' + SHEET_CHAR_CAP + ' chars]';
-          bundle.push(`=== FILE: ${rel} | SHEET: ${name} ===\n${text}`);
-        }
-      } catch (e) {
-        entry.parse_error = String(e.message || e);
-      }
-    } else if (entry.type === 'table') {
-      const text = buf.toString('utf8');
-      const lines = text.split(/\r?\n/).filter((l) => l.length);
-      entry.rows = Math.max(0, lines.length - 1); // data rows excluding header
-      const sample = lines.slice(0, DATA_CSV_ROW_CAP).map((l, i) => `R${i + 1}: ${l}`).join('\n');
-      bundle.push(`=== FILE: ${rel} | DATA CSV (${entry.rows} data rows; head sample only) ===\n${sample}`);
-    }
+    const extractor = EXTRACTORS[entry.type];
+    if (extractor) extractor(entry, buf, rel, bundle);
+    else if (UNREAD_TYPES.includes(entry.type)) entry.unread = true;
     files.push(entry);
   }
 
   files.sort((a, b) => a.file.localeCompare(b.file));
 
   // Manifest header block for the model: file inventory + code measurements.
+  // Anything whose content was withheld says so EXPLICITLY, so the model treats
+  // it as unavailable rather than as an empty or irrelevant file.
   const inv = files.map((f) => {
     const bits = [`${f.file} (${f.type}, ${f.bytes} bytes)`];
     if (f.duplicate_of) bits.push(`BYTE-IDENTICAL DUPLICATE of ${f.duplicate_of}`);
     if (f.measured) bits.push('measured: ' + JSON.stringify(f.measured));
     if (f.rows != null) bits.push(`${f.rows} data rows`);
-    if (f.type === 'deck' || f.type === 'doc') bits.push('NOT CONVERTED (content unavailable to this run)');
+    if (f.sampled) bits.push('HEAD SAMPLE ONLY (rows beyond the sample were not supplied)');
+    if (f.parse_error) bits.push(`COULD NOT BE PARSED (${f.parse_error}) - content unavailable to this run`);
+    if (f.truncated_sheets && f.truncated_sheets.length) bits.push(`TRUNCATED SHEETS: ${f.truncated_sheets.join(', ')}`);
+    if (f.unread) bits.push('CONTENT NOT EXTRACTED (this file type is not read by this run; its content is unavailable, not absent)');
     return '- ' + bits.join(' | ');
   }).join('\n');
 
+  const intake = intakeSummary(files);
+
   const bundleText = `=== FILE INVENTORY (measured in code) ===\n${inv}\n\n${bundle.join('\n\n')}`;
-  return { manifest: { root: rootDir, generated_at: new Date().toISOString(), files }, bundleText };
+  return { manifest: { root: rootDir, generated_at: new Date().toISOString(), intake, files }, bundleText };
 }
 
-module.exports = { preprocess };
+module.exports = { preprocess, classify, CSV_FULL_ROW_MAX, SHEET_CHAR_CAP, UNREAD_TYPES };

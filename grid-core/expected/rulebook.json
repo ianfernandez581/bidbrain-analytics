@@ -24,6 +24,13 @@
     "flag_unreferenced_media_types": ["image", "video", "pdf"],
     "flag_duplicates": true
   },
+  "intake": {
+    "note": "Anything the pipeline could not read becomes a finding. Missing stays missing applies to INPUTS, not just to extracted values.",
+    "flag_unread_files": true,
+    "flag_parse_errors": true,
+    "flag_truncated_sheets": true,
+    "flag_sampled_csvs": true
+  },
   "approvals": {
     "flag_null_status": true
   },

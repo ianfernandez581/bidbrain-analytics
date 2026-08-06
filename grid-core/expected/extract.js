@@ -158,9 +158,32 @@ const normDate = (f) => ({
   resolution_rationale: f ? normStr(f.resolution_rationale) : null,
 });
 
+// build_expected groups daily rows BY CAMPAIGN NAME, so two lines sharing a
+// name silently merge each other's rows and double the line. The prompt asks
+// for unique names; a prompt is not a constraint, so enforce it here and record
+// each collision for validate.js to raise.
+function uniquifyNames(campaigns, collisions) {
+  const seen = new Map();
+  for (const c of campaigns) {
+    const name = c.campaign_name || 'Unnamed line';
+    const n = (seen.get(name) || 0) + 1;
+    seen.set(name, n);
+    if (n > 1) {
+      const renamed = `${name} (${n})`;
+      collisions.push({ name, renamed_to: renamed });
+      c.campaign_name = renamed;
+    } else {
+      c.campaign_name = name;
+    }
+  }
+  return campaigns;
+}
+
 function normalizePlan(p) {
   const pc = p.platform_campaigns || {};
+  const nameCollisions = [];
   return {
+    name_collisions: nameCollisions,
     client: normCited(p.client),
     job_number: normCited(p.job_number),
     campaign_name: normCited(p.campaign_name),
@@ -171,7 +194,7 @@ function normalizePlan(p) {
     flight_start: normDate(p.flight_start),
     flight_end: normDate(p.flight_end),
     stated_duration_days: normCited(p.stated_duration_days, true),
-    campaigns: (p.campaigns || []).map((c) => {
+    campaigns: uniquifyNames(p.campaigns || [], nameCollisions).map((c) => {
       const cit = parseSource(c.source);
       const cited = (v, numeric) => ({ value: numeric ? normNum(v) : normStr(v), citation: cit });
       return {
@@ -268,10 +291,16 @@ function parseFindings(lines) {
   }).filter(Boolean);
 }
 
+let lastUsage = null;   // set by callClaude, folded into plan.extractor by main()
+
+// Thinking and output share this ceiling, so it is also what the preflight
+// estimate reports as the output bound.
+const MAX_OUTPUT_TOKENS = 64000;
+
 async function callClaude(client, bundleText) {
   const base = {
     model: MODEL,
-    max_tokens: 64000,
+    max_tokens: MAX_OUTPUT_TOKENS,
     output_config: { format: { type: 'json_schema', schema: SCHEMA } },
     system: SYSTEM,
     messages: [{
@@ -300,11 +329,35 @@ async function callClaude(client, bundleText) {
     throw new Error('the model declined this request (stop_reason refusal)' +
       (msg.stop_details && msg.stop_details.category ? `, category ${msg.stop_details.category}` : ''));
   }
+  // A truncated response is partial JSON. Without this the run dies on an
+  // opaque "Unexpected end of JSON input" and nothing points at the real fix -
+  // after a call that has already been paid for. Thinking and output share the
+  // max_tokens budget, so the ceiling is the thing to raise.
+  if (msg.stop_reason === 'max_tokens') {
+    throw new Error(`response hit max_tokens (${base.max_tokens}) and is truncated - thinking and output `
+      + `share that budget on ${MODEL}. Raise max_tokens, or reduce the dump so the record is smaller.`);
+  }
   const text = msg.content.find((b) => b.type === 'text');
   if (!text) throw new Error(`no text block in response (stop_reason ${msg.stop_reason})`);
   const usage = msg.usage || {};
   console.log(`[extract] model ${msg.model} in=${usage.input_tokens} out=${usage.output_tokens}`);
-  return JSON.parse(text.text);
+  // Stash for plan.extractor: this is what calibrates the pre-run estimate and
+  // what the run history shows. A provider that reports no usage leaves nulls -
+  // the UI then shows duration only rather than an invented figure.
+  lastUsage = {
+    input_tokens: usage.input_tokens != null ? usage.input_tokens : null,
+    output_tokens: usage.output_tokens != null ? usage.output_tokens : null,
+  };
+  try {
+    return JSON.parse(text.text);
+  } catch (e) {
+    // Never lose a paid response to a parse error: keep it for diagnosis so the
+    // next attempt starts from evidence rather than from scratch.
+    const dump = path.join(OUT, 'raw_response.txt');
+    try { fs.mkdirSync(OUT, { recursive: true }); fs.writeFileSync(dump, text.text); } catch { /* best effort */ }
+    throw new Error(`could not parse the model response as JSON (stop_reason ${msg.stop_reason}): `
+      + `${e.message}. The raw response was saved to ${dump} for diagnosis.`);
+  }
 }
 
 function renderChaseMd(messages) {
@@ -343,12 +396,24 @@ async function main() {
     baseURL: process.env.GREENLIGHT_BASE_URL || process.env.ANTHROPIC_BASE_URL || undefined,
   });
   console.log(`[stage] model-start model=${MODEL}`);
+  const modelStart = Date.now();
   const raw = await callClaude(client, bundleText);
+  const modelMs = Date.now() - modelStart;
   const result = sanitize(raw);
   console.log('[stage] model-done');
 
   const plan = normalizePlan(result.plan);
-  plan.extractor = { model: MODEL, generated_at: new Date().toISOString(), dump_dir: filesDir, one_call: true };
+  plan.extractor = {
+    model: MODEL,
+    generated_at: new Date().toISOString(),
+    dump_dir: filesDir,
+    one_call: true,
+    // What the call actually cost, and the bundle it was measured against -
+    // together these calibrate the pre-run estimate (see tokens.js).
+    usage: lastUsage,
+    bundle_chars: bundleText.length,
+    model_ms: modelMs,
+  };
   const guard = identityGuard(manifest, plan);
   const guardFinding = guard ? applyIdentityGuard(guard, plan) : null;
   if (guard) console.log('[extract] IDENTITY GUARD: ' + guard.message);
@@ -374,11 +439,21 @@ async function main() {
   console.log('[extract] wrote plan.json, findings.json, messages.json, chase_messages.md, manifest.json');
 }
 
-main().catch((e) => {
-  const status = e && e.status ? ` (HTTP ${e.status})` : '';
-  const hint = e && e.status === 429
-    ? ' - rate limited even after retries; the key\'s per-minute token window is exhausted. Wait a minute and run again.'
-    : (e && e.status >= 500 ? ' - Anthropic service issue; run again shortly.' : '');
-  console.error(`[extract] FAILED${status}:`, (e && e.message || e) + hint);
-  process.exit(1);
-});
+// Run only as a CLI (the run engine spawns this file). Requiring it must be
+// side-effect free so routes.js can read the prompt size and token ceiling for
+// the preflight estimate, and so the pure helpers can be unit-tested.
+if (require.main === module) {
+  main().catch((e) => {
+    const status = e && e.status ? ` (HTTP ${e.status})` : '';
+    const hint = e && e.status === 429
+      ? ' - rate limited even after retries; the key\'s per-minute token window is exhausted. Wait a minute and run again.'
+      : (e && e.status >= 500 ? ' - provider service issue; run again shortly.' : '');
+    console.error(`[extract] FAILED${status}:`, (e && e.message || e) + hint);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  SYSTEM, MAX_OUTPUT_TOKENS,
+  normalizePlan, uniquifyNames, parseFindings, splitPipes, sanitize, identityGuard,
+};

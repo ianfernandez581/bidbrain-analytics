@@ -61,6 +61,12 @@
     '#view-greenlight .gl-file .st{flex:0 0 auto;font-size:9px;font-weight:700;letter-spacing:.05em;border-radius:5px;padding:2px 5px}',
     '#view-greenlight .gl-file .st.skip{background:var(--warn-soft);color:var(--warn)}',
     '#view-greenlight .gl-file .st.fail{background:var(--bad-soft);color:var(--bad)}',
+    '#view-greenlight .gl-skipped{display:none;margin-top:11px;border:1px solid var(--warn);border-radius:10px;background:var(--warn-soft);padding:9px 13px}',
+    '#view-greenlight .gl-skiphead{font-size:12px;font-weight:600;color:var(--ink);margin-bottom:6px}',
+    '#view-greenlight .gl-skiprow{display:flex;align-items:center;gap:10px;font-size:11.5px;color:var(--ink-2);padding:3px 0}',
+    '#view-greenlight .gl-skiprow .nm{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:280px}',
+    '#view-greenlight .gl-skiprow .rs{color:var(--ink-3)}',
+    '#view-greenlight .gl-skiprow .sz{margin-left:auto;font-variant-numeric:tabular-nums}',
     '#view-greenlight .gl-foot{display:flex;align-items:center;gap:12px;margin-top:13px;flex-wrap:wrap}',
     '#view-greenlight .gl-btn{appearance:none;font-family:inherit;cursor:pointer;font-size:12.5px;font-weight:600;border-radius:999px;padding:8px 18px;border:1px solid var(--line);background:var(--panel);color:var(--ink-2);transition:all .15s}',
     '#view-greenlight .gl-btn:hover:not(:disabled){background:var(--grp)}',
@@ -114,6 +120,31 @@
     '#view-greenlight .gl-dl{display:inline-flex;align-items:center;gap:7px;text-decoration:none;font-size:12px;font-weight:600;color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:7px 13px;margin:0 8px 8px 0}',
     '#view-greenlight .gl-dl:hover{background:var(--grp);color:var(--ink)}',
     '#view-greenlight .gl-empty{text-align:center;color:var(--ink-3);font-size:13px;padding:44px 16px}',
+    // ---- run modal: what will be read, what will not, what it will cost ----
+    '#glModal{position:fixed;inset:0;z-index:9000;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);backdrop-filter:blur(2px)}',
+    '#glModal.on{display:flex}',
+    '#glModal .mbox{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:0 18px 50px rgba(0,0,0,.35);width:min(860px,94vw);max-height:88vh;display:flex;flex-direction:column}',
+    '#glModal .mhead{padding:16px 20px 12px;border-bottom:1px solid var(--line-2)}',
+    '#glModal .mhead h3{font-family:"Space Grotesk";font-size:15px;font-weight:700;margin:0 0 3px;color:var(--ink)}',
+    '#glModal .mhead .sub{font-size:11.5px;color:var(--ink-3)}',
+    '#glModal .mbody{padding:14px 20px;overflow-y:auto;flex:1}',
+    '#glModal .mfoot{padding:12px 20px 16px;border-top:1px solid var(--line-2);display:flex;align-items:center;gap:10px;flex-wrap:wrap}',
+    '#glModal .mfoot .sp{margin-left:auto}',
+    '#glModal .mstat{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}',
+    '#glModal .mtok{border:1px solid var(--line-2);border-radius:10px;background:var(--panel-2);padding:10px 13px;margin-bottom:13px}',
+    '#glModal .mtok .big{font-family:"Space Grotesk";font-size:19px;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}',
+    '#glModal .mtok .cap{font-size:11px;color:var(--ink-3);margin-top:2px}',
+    '#glModal .mwarn{border:1px solid var(--warn);background:var(--warn-soft);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:12px;color:var(--ink)}',
+    '#glModal .mbad{border:1px solid var(--bad);background:var(--bad-soft);border-radius:10px;padding:9px 13px;margin-bottom:12px;font-size:12px;color:var(--ink)}',
+    '#glModal .mgrp{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin:12px 0 5px}',
+    '#glModal .mrow{display:flex;align-items:center;gap:9px;padding:5px 8px;border-radius:8px;font-size:12px;color:var(--ink-2)}',
+    '#glModal .mrow:hover{background:var(--grp)}',
+    '#glModal .mrow .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:300px;flex:0 0 auto}',
+    '#glModal .mrow .why{color:var(--ink-3);font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
+    '#glModal .mrow .sz{margin-left:auto;color:var(--ink-3);font-variant-numeric:tabular-nums;flex:0 0 auto}',
+    '#glModal .mprog{display:none;border-top:1px solid var(--line-2);margin-top:12px;padding-top:11px}',
+    '#glModal.running .mprog{display:block}',
+    '#glModal.running .mpre{display:none}',
   ].join('\n');
 
   var HTML = [
@@ -146,6 +177,7 @@
     '      <input type="file" id="glPickDir" webkitdirectory style="display:none">',
     '    </div>',
     '    <div class="gl-files" id="glFiles"></div>',
+    '    <div class="gl-skipped" id="glSkipped"></div>',
     '    <div class="gl-foot">',
     '      <button class="gl-btn primary" id="glRunBtn">Run Analysis</button>',
     '      <span class="gl-note" id="glCount"></span>',
@@ -179,6 +211,26 @@
     '      <a class="gl-dl" data-file="chase_messages.md" download><span class="gl-fic doc">MD</span>chase_messages.md</a>',
     '    </div></div>',
     '  </div>',
+    '  </div>',
+    '</div>',
+    '<div id="glModal">',
+    '  <div class="mbox">',
+    '    <div class="mhead"><h3 id="glMTitle">Ready to run</h3><div class="sub" id="glMSub"></div></div>',
+    '    <div class="mbody">',
+    '      <div class="mpre" id="glMPre"></div>',
+    '      <div class="mprog" id="glMProg">',
+    '        <div class="gl-step" data-k="extract"><span class="ic">&#10003;</span>Extracting files</div>',
+    '        <div class="gl-step" data-k="plan"><span class="ic">&#10003;</span>Reading plan</div>',
+    '        <div class="gl-step" data-k="gaps"><span class="ic">&#10003;</span>Checking gaps</div>',
+    '        <div class="gl-step" data-k="outputs"><span class="ic">&#10003;</span>Building outputs</div>',
+    '      </div>',
+    '    </div>',
+    '    <div class="mfoot">',
+    '      <span class="gl-note" id="glMNote"></span>',
+    '      <span class="sp"></span>',
+    '      <button class="gl-btn" id="glMCancel">Cancel</button>',
+    '      <button class="gl-btn primary" id="glMStart">Start run</button>',
+    '    </div>',
     '  </div>',
     '</div>',
   ].join('\n');
@@ -313,8 +365,50 @@
       div.innerHTML = '<span class="gl-fic ' + ic[0] + '">' + ic[1] + '</span><span class="nm">' + esc(u.name) + '</span>' + st + '<span class="sz">' + fmtSize(u.bytes) + '</span>';
       box.appendChild(div);
     });
-    var skipped = S.uploads.filter(function (u) { return u.state === 'skipped'; }).length;
-    el('glCount').textContent = serverFiles.length + ' file' + (serverFiles.length === 1 ? '' : 's') + ' in this analysis' + (skipped ? ' - ' + skipped + ' skipped (over 15MB)' : '');
+    el('glCount').textContent = serverFiles.length + ' file' + (serverFiles.length === 1 ? '' : 's') + ' in this analysis';
+    renderSkipped();
+  }
+
+  // Tell the server about a file that never made it in. The old code only
+  // flagged these in page memory, which openAnalysis() cleared as soon as the
+  // batch finished - so the dump silently shrank. Recorded server-side the
+  // warning survives the refresh and the reload. Never rejects: a failed
+  // notification must not stall the upload queue.
+  function noteSkipped(aid, name, bytes, reason) {
+    return jfetch(API + '/analyses/' + aid + '/files/skipped', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: name, bytes: bytes, reason: reason }),
+    }).catch(function () {});
+  }
+
+  function clearSkipped(name) {
+    if (!S.current) return;
+    jfetch(API + '/analyses/' + S.current.analysis.id + '/files/skipped/clear', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: name || null }),
+    }).then(function () { return openAnalysis(S.current.analysis.id, true); })
+      .catch(function (e) { showError(String(e.message || e)); });
+  }
+
+  // Persistent "these files are NOT in the analysis" banner, rendered from the
+  // server record rather than from in-flight upload state.
+  function renderSkipped() {
+    var box = el('glSkipped');
+    var list = (S.current && S.current.analysis.skipped) || [];
+    if (!list.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var h = '<div class="gl-skiphead">' + list.length + ' file' + (list.length === 1 ? '' : 's')
+      + ' could not be added to this analysis. The run will NOT include ' + (list.length === 1 ? 'it' : 'them') + '.</div>';
+    list.forEach(function (s) {
+      h += '<div class="gl-skiprow"><span class="nm">' + esc(s.name) + '</span>'
+        + '<span class="rs">' + esc(s.reason) + '</span>'
+        + '<span class="sz">' + fmtSize(s.bytes) + '</span>'
+        + '<button class="gl-btn small" data-clear="' + esc(s.name) + '">Dismiss</button></div>';
+    });
+    box.innerHTML = h;
+    box.style.display = 'block';
+    box.querySelectorAll('button[data-clear]').forEach(function (b) {
+      b.addEventListener('click', function () { clearSkipped(b.getAttribute('data-clear')); });
+    });
   }
 
   function uploadFiles(fileList) {
@@ -339,9 +433,9 @@
       renderFiles();
       if (f.size > MAX_UPLOAD) {
         entry.state = 'skipped';
-        entry.note = 'over the 15MB per-file limit; analysis proceeds without it';
+        entry.note = 'over the 15MB per-file limit';
         renderFiles();
-        return next();
+        return noteSkipped(aid, rel, f.size, 'over the 15MB per-file limit').then(next);
       }
       var reader = new FileReader();
       reader.onload = function () {
@@ -350,22 +444,116 @@
           .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
           .then(function (o) {
             entry.state = o.ok ? 'uploaded' : 'failed';
-            if (!o.ok) entry.note = o.j && o.j.error || 'upload failed';
+            if (o.ok) { renderFiles(); return next(); }
+            entry.note = o.j && o.j.error || 'upload failed';
             renderFiles();
-            next();
+            return noteSkipped(aid, rel, f.size, entry.note).then(next);
           })
-          .catch(function (e) { entry.state = 'failed'; entry.note = String(e); renderFiles(); next(); });
+          .catch(function (e) { entry.state = 'failed'; entry.note = String(e); renderFiles(); noteSkipped(aid, rel, f.size, String(e)).then(next); });
       };
-      reader.onerror = function () { entry.state = 'failed'; entry.note = 'could not read file'; renderFiles(); next(); };
+      reader.onerror = function () { entry.state = 'failed'; entry.note = 'could not read file'; renderFiles(); noteSkipped(aid, rel, f.size, 'could not read file').then(next); };
       reader.readAsDataURL(f);
     }
     next();
   }
 
+  // ---------------------------------------------------------------- preflight modal
+  // Stage 0 is deterministic and free, so the run can be previewed exactly:
+  // which files get read, which are ignored and why, and what the model call
+  // will cost in tokens. Nothing here spends anything.
+  function fmtInt(n) { return n == null ? '?' : Number(n).toLocaleString(); }
+
+  function openModal(pre) {
+    var m = el('glModal');
+    m.className = 'on';
+    el('glMTitle').textContent = 'Ready to run';
+    el('glMSub').textContent = 'Checked the dump in ' + pre.ms + 'ms. Nothing has been spent yet.';
+    el('glMStart').style.display = '';
+    el('glMCancel').textContent = 'Cancel';
+
+    var read = pre.files.filter(function (f) { return f.read; });
+    var notRead = pre.files.filter(function (f) { return !f.read; });
+    var est = pre.estimate;
+    var band = Math.round(est.input_tokens * est.accuracy);
+    var h = '';
+
+    if (pre.short_dump) h += '<div class="mbad"><b>Files are missing.</b> ' + esc(pre.short_dump) + '</div>';
+
+    h += '<div class="mtok"><div class="big">~' + fmtInt(est.input_tokens) + ' input tokens</div>'
+      + '<div class="cap">' + fmtInt(Math.max(0, est.input_tokens - band)) + ' to ' + fmtInt(est.input_tokens + band)
+      + ', from ' + fmtInt(est.chars) + ' characters at ' + est.chars_per_token + ' chars/token'
+      + (est.calibrated ? ' (measured over ' + est.samples + ' previous run' + (est.samples === 1 ? '' : 's') + ')' : ' (estimated - no run measured yet)')
+      + '. Output is capped at ' + fmtInt(est.output_tokens_max) + ' tokens, shared between thinking and the record.</div></div>';
+
+    h += '<div class="mstat">'
+      + '<span class="gl-chip ok">' + read.length + ' READ</span>'
+      + (notRead.length ? '<span class="gl-chip warn">' + notRead.length + ' NOT READ</span>' : '')
+      + (pre.skipped.length ? '<span class="gl-chip bad">' + pre.skipped.length + ' NEVER UPLOADED</span>' : '')
+      + (pre.intake.duplicates ? '<span class="gl-chip dim">' + pre.intake.duplicates + ' DUPLICATE</span>' : '')
+      + '</div>';
+
+    if (pre.skipped.length) {
+      h += '<div class="mgrp">Never reached the analysis</div>';
+      pre.skipped.forEach(function (s) {
+        h += '<div class="mrow"><span class="gl-chip bad">MISSING</span><span class="nm">' + esc(s.name)
+          + '</span><span class="why">' + esc(s.reason) + '</span><span class="sz">' + fmtSize(s.bytes) + '</span></div>';
+      });
+    }
+    if (notRead.length) {
+      h += '<div class="mgrp">In the dump, but their content will NOT be extracted</div>';
+      notRead.forEach(function (f) {
+        h += '<div class="mrow"><span class="gl-chip warn">' + esc(String(f.type).toUpperCase()) + '</span><span class="nm">' + esc(f.file)
+          + '</span><span class="why">' + esc(f.reason || '') + '</span><span class="sz">' + fmtSize(f.bytes) + '</span></div>';
+      });
+    }
+    h += '<div class="mgrp">Content going to the model</div>';
+    read.forEach(function (f) {
+      h += '<div class="mrow"><span class="gl-chip ok">' + esc(String(f.type).toUpperCase()) + '</span><span class="nm">' + esc(f.file)
+        + '</span><span class="why">' + esc(f.reason || '') + '</span><span class="sz">' + fmtSize(f.bytes) + '</span></div>';
+    });
+
+    el('glMPre').innerHTML = h;
+    el('glMNote').textContent = notRead.length || pre.skipped.length
+      ? 'Anything listed above as not read will be absent from the baseline, and raised as a finding.'
+      : 'Every file in this analysis will be read.';
+  }
+
+  function closeModal() { el('glModal').className = ''; }
+
+  // The modal stays open through the run and becomes the progress view, so the
+  // intake breakdown is still on screen while the stages tick over.
+  function modalToRunning() {
+    el('glModal').className = 'on running';
+    el('glMTitle').textContent = 'Running';
+    el('glMSub').textContent = 'The model call takes about 5 to 7 minutes. You can close this and it keeps running.';
+    el('glMStart').style.display = 'none';
+    el('glMCancel').textContent = 'Close';
+    el('glMNote').textContent = '';
+  }
+
+  function preflight(force) {
+    if (!S.current || S.running) return;
+    var btn = el('glRunBtn');
+    btn.disabled = true;
+    btn.textContent = 'Checking...';
+    jfetch(API + '/analyses/' + S.current.analysis.id + '/preflight', {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}',
+    }).then(function (pre) {
+      btn.disabled = false;
+      btn.textContent = S.current.runs.length ? 'Run Again' : 'Run Analysis';
+      S.pendingForce = !!force;
+      openModal(pre);
+    }).catch(function (e) {
+      btn.disabled = false;
+      btn.textContent = 'Run Analysis';
+      showError(String(e.message || e));
+    });
+  }
+
   // ---------------------------------------------------------------- runs
   function setStep(key, state) {
-    var s = document.querySelector('#view-greenlight .gl-step[data-k="' + key + '"]');
-    if (s) s.className = 'gl-step ' + (state || '');
+    var nodes = document.querySelectorAll('.gl-step[data-k="' + key + '"]');
+    for (var i = 0; i < nodes.length; i++) nodes[i].className = 'gl-step ' + (state || '');
   }
   function showError(msg) {
     el('glErr').style.display = 'block';
@@ -375,6 +563,7 @@
   // saved extraction can be reused - offer "retry failed step" (no model call).
   function finishError(msg, canRetry) {
     S.running = false;
+    closeModal();
     el('glRunBtn').disabled = false;
     el('glRunBtn').textContent = 'Run Analysis';
     var active = document.querySelector('#view-greenlight .gl-step.active');
@@ -398,6 +587,7 @@
       .then(function (j) {
         if (j.unchanged) {
           S.running = false;
+          closeModal();
           el('glRunBtn').disabled = false;
           el('glRunBtn').textContent = 'Run Analysis';
           el('glProg').style.display = 'none';
@@ -441,6 +631,7 @@
         return;
       }
       S.running = false;
+      closeModal();
       el('glRunBtn').disabled = false;
       el('glRunBtn').textContent = 'Run Again';
       renderResults(run.results);
@@ -468,7 +659,18 @@
     el('glGuard').style.display = guard ? 'block' : 'none';
     if (guard) el('glGuardMsg').textContent = guard.message;
 
-    el('glFDesc').textContent = 'Run ' + res.run.id + ' · extracted by ' + res.run.model + ' · finished ' + res.run.finished_at.replace('T', ' ').slice(0, 19) + ' UTC. Violet rows were authored by the model this run (' + res.origins.model + '); plain rows are deterministic rulebook checks computed in code (' + res.origins.code + ').';
+    // What the run actually cost. Duration always; tokens only when the
+    // provider reported them - never an invented figure.
+    var cost = '';
+    if (res.run.duration_ms) {
+      var s = Math.round(res.run.duration_ms / 1000);
+      cost = ' · took ' + (s >= 60 ? Math.floor(s / 60) + 'm ' + (s % 60) + 's' : s + 's');
+    }
+    if (res.run.usage && res.run.usage.input_tokens) {
+      cost += ' · ' + Number(res.run.usage.input_tokens).toLocaleString() + ' in'
+        + (res.run.usage.output_tokens ? ' / ' + Number(res.run.usage.output_tokens).toLocaleString() + ' out' : '') + ' tokens';
+    }
+    el('glFDesc').textContent = 'Run ' + res.run.id + ' · extracted by ' + res.run.model + ' · finished ' + res.run.finished_at.replace('T', ' ').slice(0, 19) + ' UTC' + cost + '. Violet rows were authored by the model this run (' + res.origins.model + '); plain rows are deterministic rulebook checks computed in code (' + res.origins.code + ').';
     el('glMDesc').textContent = 'Drafted by ' + res.run.model + ' in run ' + res.run.id + '. A person reviews and sends. One message per recipient.';
 
     var bust = '?t=' + Date.now();
@@ -598,8 +800,20 @@
     ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
     drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files) uploadFiles(e.dataTransfer.files); });
 
-    el('glRunBtn').addEventListener('click', function () { if (!S.running && !S.uploading) startRun(false); });
-    el('glForceBtn').addEventListener('click', function () { if (!S.running) startRun(true); });
+    // Run always goes through the preflight modal: see what will be read and
+    // what it will cost before anything is spent.
+    el('glRunBtn').addEventListener('click', function () { if (!S.running && !S.uploading) preflight(false); });
+    el('glForceBtn').addEventListener('click', function () { if (!S.running) preflight(true); });
+    el('glMStart').addEventListener('click', function () {
+      if (S.running) return;
+      modalToRunning();
+      startRun(S.pendingForce);
+    });
+    el('glMCancel').addEventListener('click', closeModal);
+    el('glModal').addEventListener('click', function (e) { if (e.target === el('glModal')) closeModal(); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && el('glModal') && el('glModal').className.indexOf('on') > -1) closeModal();
+    });
     el('glRetryBtn').addEventListener('click', function () { startRebuild(); });
     el('glGuardCancel').addEventListener('click', function () { el('glGuardRow').style.display = 'none'; });
 
