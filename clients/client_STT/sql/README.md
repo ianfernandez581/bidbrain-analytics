@@ -10,7 +10,7 @@ filter views first, then the roll-ups that read them). The export job
 | `01_stg_ga4.sql` | `stg_ga4` | **GA4 filter** — Snowflake `google_analytics_apac_all`, `PROPERTY_ID = '318963196'` ("STT GDC Web All"). `market` = visitor `COUNTRY_NAME`; derives a coarse `channel_bucket` (Paid/Organic/Direct/Referral/Other). Event-grained source, so session/user metrics are taken from the per-session events only. |
 | `02_stg_linkedin.sql` | `stg_linkedin` | **LinkedIn filter** — `ACCOUNT_ID IN ('515691430','511609128')` (SGD + USD accounts); the USD account's spend converted to SGD @1.34. |
 | `03_stg_dv360.sql` | `stg_dv360` | **DV360 filter** — the Always On flight (`ADVERTISER_ID IN …`; two delivering campaigns, SGD). Maps `COUNTRY_NAME` → market; carries `campaign_name`. |
-| `03b_stg_google.sql` | `stg_google` | **Google Ads filter** — `CAMPAIGN_NAME LIKE '%STT%'` (mixed USD/SGD → SGD @1.34). Market parsed from the campaign name. |
+| `03b_stg_google.sql` | `stg_google` | **Google Ads filter** — `ACCOUNT_ID IN ('1641370256','4825242697')` (the USD + SGD customer accounts; was `CAMPAIGN_NAME LIKE '%STT%'` until 2026-08-06 — account 4825242697's name was renamed on the platform, IDs are the stable key). Mixed USD/SGD → SGD @1.34. Market parsed from the campaign name. |
 | `03c_stg_ad_delivery.sql` | `stg_ad_delivery` | **Unified ad-delivery base** — long-format union of the three platforms (platform · campaign · day · market · creative_type · imps · clicks · spend_sgd). The single source for the campaign-grained roll-ups below. |
 | `18_google_markets.sql` | `google_markets` | Google Ads paid-search delivery by market. |
 | `04_kpi.sql` | `kpi` | One-row headline metrics for the campaign window + prior-year baseline. Holds `FX_USD_SGD = 1.34`. |

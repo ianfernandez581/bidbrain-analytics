@@ -428,18 +428,21 @@ CLIENTS = [
                     "LinkedIn Ads - APAC", "DV360 - APAC"],
         "reads_direct": False,
         "checks": [
-            # --- Google Ads (CAMPAIGN_NAME LIKE '%STT%') --------------------------
+            # --- Google Ads (ACCOUNT_ID IN the two STT customer accounts) ---------
+            # 2026-08-06: mirrors sql/03b_stg_google.sql's move off CAMPAIGN_NAME LIKE
+            # '%STT%' (account 4825242697 was renamed 'STT GDC_SGD' -> 'STT Global
+            # Data' 2026-05-31; IDs are the stable key). Keep both sides in sync.
             {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
              "dash": _kpi("ga_imps"),
              "sql": "SELECT SUM(IMPRESSIONS) AS ga_imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "WHERE CAMPAIGN_NAME LIKE '%STT%';",
-             "note": "Whole flight, no date floor — the '%STT%' campaign-name LIKE is the only filter. vs kpi.ga_imps."},
+                    "WHERE ACCOUNT_ID IN ('1641370256','4825242697');",
+             "note": "Whole flight, no date floor — the two STT customer accounts (USD + SGD) are the only filter. vs kpi.ga_imps."},
             {"label": "Google Ads · Clicks", "kind": "sum", "group": "Google Ads",
              "dash": _kpi("ga_clicks"),
              "sql": "SELECT SUM(CLICKS) AS ga_clicks\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "WHERE CAMPAIGN_NAME LIKE '%STT%';",
+                    "WHERE ACCOUNT_ID IN ('1641370256','4825242697');",
              "note": "vs kpi.ga_clicks."},
             # --- LinkedIn (ACCOUNT_ID IN the two STT accounts) --------------------
             {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
@@ -476,7 +479,7 @@ CLIENTS = [
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE ADVERTISER_ID IN ('7572338345','6466367438'))\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "     WHERE CAMPAIGN_NAME LIKE '%STT%') AS total_ad_imps;",
+                    "     WHERE ACCOUNT_ID IN ('1641370256','4825242697')) AS total_ad_imps;",
              "note": "LinkedIn + DV360 + Google Ads. Clean integer sums (spend is FX-converted, never checked). vs kpi.ad_imps."},
             {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
              "dash": _kpi("ad_clicks"),
@@ -486,7 +489,7 @@ CLIENTS = [
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE ADVERTISER_ID IN ('7572338345','6466367438'))\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "     WHERE CAMPAIGN_NAME LIKE '%STT%') AS total_ad_clicks;",
+                    "     WHERE ACCOUNT_ID IN ('1641370256','4825242697')) AS total_ad_clicks;",
              "note": "Same three filters as impressions. vs kpi.ad_clicks."},
             # --- GA4 website (PROPERTY_ID 318963196, campaign-window date floor) ---
             {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website)",
