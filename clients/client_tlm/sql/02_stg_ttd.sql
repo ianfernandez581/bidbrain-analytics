@@ -1,6 +1,7 @@
 -- TLM — staged The Trade Desk programmatic display.
 --
--- The TLM filter lives here once: advertiser_name = 'The Little Marionette'. EDA: 1 campaign
+-- The TLM filter lives here once: advertiser_id = 'mor6pp1' with a trimmed-name fallback
+-- (2026-08-06, the caltex ID-first pattern; feed-verified identical rows). EDA: 1 campaign
 -- across 6 ad formats, flight Apr 2026 →, currency AUD (Windsor already AUD — not USD).
 -- video_starts/video_completes are 0 (no video creative); conversions JSON is non-null but
 -- anonymous — pixel fires with no revenue attribution, surfaced only as a callout.
@@ -27,4 +28,5 @@ SELECT
   video_75,
   video_completes
 FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`
-WHERE advertiser_name = 'The Little Marionette';
+WHERE advertiser_id = 'mor6pp1'
+   OR LOWER(TRIM(advertiser_name)) = 'the little marionette';

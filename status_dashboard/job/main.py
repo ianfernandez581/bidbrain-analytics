@@ -1063,26 +1063,26 @@ BQ_CLIENTS = [
              "dash": _kpi("me_imps"),
              "sql": "SELECT SUM(impressions) AS me_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE account_name = 'Reset backup – Ad account';",
-             "note": "The account name contains a U+2013 EN DASH ('Reset backup – Ad account'), not a "
+                    "WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%';",
+             "note": "Scoped on account_id 465058559225771 (2026-08-06, mirrors stg_meta - the account NAME contains a U+2013 EN DASH 'Reset backup – Ad account', not a "
                      "hyphen — copy it verbatim or it matches nothing. vs kpi.me_imps."},
             {"label": "Meta · Clicks", "kind": "sum", "group": "Meta",
              "dash": _kpi("me_clicks"),
              "sql": "SELECT SUM(clicks) AS me_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE account_name = 'Reset backup – Ad account';",
+                    "WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%';",
              "note": "EN-DASH account name. vs kpi.me_clicks."},
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_imps"),
              "sql": "SELECT SUM(impressions) AS td_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'ResetData';",
+                    "WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata';",
              "note": "Advertiser 'ResetData' (no space). TTD emits no conversions for this client. vs kpi.td_imps."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_clicks"),
              "sql": "SELECT SUM(clicks) AS td_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'ResetData';",
+                    "WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata';",
              "note": "vs kpi.td_clicks."},
             {"label": "Reddit · Impressions", "kind": "sum", "group": "Reddit",
              "dash": _kpi("rd_imps"),
@@ -1101,16 +1101,16 @@ BQ_CLIENTS = [
              "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
-                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_name='Reset backup – Ad account')\n"
-                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_imps;",
              "note": "Google + Meta + TTD + Reddit. vs kpi.ad_imps."},
             {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
              "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
-                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_name='Reset backup – Ad account')\n"
-                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_clicks;",
              "note": "vs kpi.ad_clicks."},
             {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website)",
@@ -1164,7 +1164,7 @@ BQ_CLIENTS = [
                     "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
                     "     WHERE account_name = 'The Little Marionette')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "     WHERE advertiser_name = 'The Little Marionette') AS imps;",
+                    "     WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette') AS imps;",
              "note": "Google (DTS) + Trade Desk (Windsor), name-only filters, NO date floor. vs kpi.imps (=kpi.ad_imps)."},
             {"label": "All channels · Clicks", "kind": "sum", "group": "All channels",
              "dash": _kpi("clicks"),
@@ -1172,7 +1172,7 @@ BQ_CLIENTS = [
                     "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
                     "     WHERE account_name = 'The Little Marionette')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "     WHERE advertiser_name = 'The Little Marionette') AS clicks;",
+                    "     WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette') AS clicks;",
              "note": "vs kpi.clicks."},
             {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
              "dash": _kpi("g_imps"),
@@ -1204,13 +1204,13 @@ BQ_CLIENTS = [
              "dash": _kpi("t_imps"),
              "sql": "SELECT SUM(impressions) AS t_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'The Little Marionette';",
+                    "WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette';",
              "note": "vs kpi.t_imps."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("t_clicks"),
              "sql": "SELECT SUM(clicks) AS t_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'The Little Marionette';",
+                    "WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette';",
              "note": "vs kpi.t_clicks."},
         ],
     },
@@ -1308,7 +1308,9 @@ BQ_CLIENTS = [
         "raw_tables": ["raw_windsor.perf_the_trade_desk", "raw_windsor.perf_ga4",
                        "raw_ga4.perf_ga4"],
         "checks": [
-            # TTD advertiser filter has a TRAILING SPACE: 'VMCH '. The headline imps/clicks KPIs add a
+            # TTD filter = advertiser_id 'sif8zx0' + trimmed-name fallback (2026-08-06, mirrors
+            # client_vmch/sql/03_stg_ttd.sql; the feed's advertiser_name carries a TRAILING SPACE
+            # 'VMCH ' the old exact-match depended on). The headline imps/clicks KPIs add a
             # MODELLED April (a hardcoded constant in sql/03b) that has no raw source, so we check the
             # MEASURED delivery (the ttd_adgroups breakdown reads stg_ttd directly = 100% measured).
             {"label": "Trade Desk · Impressions (measured delivery)", "kind": "sum",
@@ -1316,8 +1318,8 @@ BQ_CLIENTS = [
              "dash": _rows_sum("imps", "ttd_adgroups"),
              "sql": "SELECT SUM(impressions) AS imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'VMCH ';",
-             "note": "Advertiser 'VMCH ' (TRAILING SPACE). This is the MEASURED whole-flight delivery "
+                    "WHERE advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%';",
+             "note": "Advertiser id sif8zx0 (feed name 'VMCH ' has a trailing space - filter spans both). This is the MEASURED whole-flight delivery "
                      "(=stg_ttd = the ttd_adgroups breakdown). The headline KPI (kpi.ttd_imps) additionally "
                      "adds ~4,301,841 MODELLED April impressions (a hardcoded overlay in sql/03b, no raw "
                      "source), so it will read higher by design. vs sum(ttd_adgroups[].imps)."},
@@ -1326,7 +1328,7 @@ BQ_CLIENTS = [
              "dash": _rows_sum("clicks", "ttd_adgroups"),
              "sql": "SELECT SUM(clicks) AS clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'VMCH ';",
+                    "WHERE advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%';",
              "note": "Measured whole-flight clicks; the headline adds ~6,581 modelled-April clicks. "
                      "vs sum(ttd_adgroups[].clicks)."},
             {"label": "Trade Desk · Post-view conversions", "kind": "sum",
@@ -1340,7 +1342,7 @@ BQ_CLIENTS = [
                     "FROM (\n"
                     "  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS c\n"
                     "  FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "  WHERE advertiser_name = 'VMCH '\n"
+                    "  WHERE (advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%')\n"
                     "    AND NOT (metric_date BETWEEN DATE '2026-04-01' AND DATE '2026-04-30'\n"
                     "             AND campaign_name IN ('RAC_AU_ID Digital_VMCH_2026','SAH_AU_ID Digital_VMCH_2026'))\n"
                     ");",
@@ -1359,7 +1361,7 @@ BQ_CLIENTS = [
                     "FROM (\n"
                     "  SELECT SAFE.PARSE_JSON(JSON_VALUE(conversions)) AS c\n"
                     "  FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "  WHERE advertiser_name = 'VMCH '\n"
+                    "  WHERE (advertiser_id = 'sif8zx0' OR LOWER(TRIM(advertiser_name)) LIKE 'vmch%')\n"
                     "    AND NOT (metric_date BETWEEN DATE '2026-04-01' AND DATE '2026-04-30'\n"
                     "             AND campaign_name IN ('RAC_AU_ID Digital_VMCH_2026','SAH_AU_ID Digital_VMCH_2026'))\n"
                     ");",

@@ -149,11 +149,63 @@ Advertiser-level scoping alone would return the same rows only coincidentally, a
 the failure mode from loud to silent. New MongoDB campaign -> update the sheet +
 `targets/campaign_ids.csv` -> `seed_static.py` -> forced job run.
 
-## 100% Digital clients - placeholder
+## 100% Digital clients (standardized 2026-08-06, second pass)
 
-To be filled in by the 100% Digital standardization task. Known starting points (observed
-2026-08-06, unchanged): geocon / bellshakespeare / nextsmile Meta filters are campaign-name-prefix
-only over the shared `perf_meta` (add the account scope; the shared account hosts multiple
-clients, so keep the prefix too); VMCH's TTD filter depends on a trailing space
-(`advertiser_name = 'VMCH '`) and should adopt the caltex ID-first pattern; ResetData's Meta
-literal contains a fragile en-dash; caltex is already canonical.
+All 100% Digital pipelines ride Windsor feeds, which DO carry ID columns
+(`perf_the_trade_desk.advertiser_id`, `perf_meta.account_id`) - so unlike the Snowflake-fed
+Transmission pipelines, every filter here is ID-first. Verification:
+[md/SCOPING_VERIFICATION_100DIGITAL_2026-08-06.md](../md/SCOPING_VERIFICATION_100DIGITAL_2026-08-06.md).
+
+### TTD advertisers (100% Digital seat, Windsor account `484`)
+
+| Client | Advertiser ID | Filter status |
+|---|---|---|
+| Caltex | `0lw3hp6` | canonical (the reference pattern) |
+| ResetData | `lxp46o9` | ID-first since 2026-08-06 |
+| The Little Marionette | `mor6pp1` | ID-first since 2026-08-06 |
+| VMCH | `sif8zx0` | ID-first since 2026-08-06 (retired the trailing-space name literal `'VMCH '`) |
+| City Perfume | `l4dj1fw` (observed in the Windsor feed, 2026-08-06 - **confirm in the TTD UI before switching**) | still `advertiser_name = 'City Perfume'` - PENDING |
+
+### Meta ad accounts (`raw_windsor.perf_meta`)
+
+| Account | account_id | Client(s) |
+|---|---|---|
+| 100% Digital - Clients | `3754165911553001` | geocon + bellshakespeare + nextsmile (SHARED - see below) |
+| Cityperfume.com.au | `1126027130805483` | cityperfume |
+| Reset backup – Ad account (name carries an EN-DASH - filter on the ID) | `465058559225771` | resetdata |
+| Ad Assembly - BuyerX / ACRS | `927205350157043` / `910485528634664` | not ours - excluded by account scope |
+
+### Google Ads customer accounts (DTS bridge `perf_google_ads`)
+
+| Client | Customer ID |
+|---|---|
+| City Perfume | `2617916504` |
+| ResetData | `1054407474` |
+| The Little Marionette | `1869745895` |
+
+Client views filter the bridge's `account_name` slice ('City Perfume' / 'Reset Data' / 'The
+Little Marionette') - names WE assign in `ingest/dts_data_pull/sql/perf_google_ads.sql`'s CASE
+map keyed on these customer IDs, so they are stable by construction (unlike platform-side names).
+
+### The shared-Meta-account case - when a client filter IS required on top of account scope
+
+The `100% Digital - Clients` Meta account (act `3754165911553001`) genuinely hosts multiple
+clients - geocon, bellshakespeare and nextsmile all run inside it. This is the codebase's one
+confirmed case where account scope alone cannot separate clients, so the standard there is
+**account ID AND campaign prefix, both required**:
+
+```sql
+WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
+  AND STARTS_WITH(campaign_name, 'Geocon_')
+```
+
+- The account_id keeps other advertisers' campaigns out no matter what they are named
+  (perf_meta is shared across six accounts including other agencies').
+- The prefix splits the co-tenants apart - and remains a naming-convention dependency
+  (`Geocon_` / `Bell Shakespeare_` / `Next Smile Australia_`): a campaign launched in this
+  account WITHOUT the client prefix will not reach any dashboard. That is the price of
+  co-tenancy; prefer giving each client its own ad account when there is a choice.
+- ResetData Reddit is the same shape one level down: `perf_reddit` is shared, the
+  `client_slug` tag comes from the loader's `REDDIT_ACCOUNT_TO_CLIENT` map, and the 2026-07
+  incident (Cloudflare's account mis-mapped to resetdata) shows the map IS the scope - verify
+  it whenever a Reddit account is granted/re-granted (verified correct 2026-08-06).

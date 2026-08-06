@@ -1,8 +1,12 @@
 -- 01_stg_meta: filter raw_windsor.perf_meta to Next Smile Australia campaigns, daily x campaign x adset x ad grain.
 -- This is the client's slice + the per-row funnel_stage classification. The raw layer IS
 -- raw_windsor.perf_meta (Windsor-sourced, self-refreshing) -- this is NOT Snowflake.
--- The prefix filter STARTS_WITH('Next Smile Australia_') lets future Next Smile Australia campaigns (e.g. The Irving) flow
--- in automatically and is immune to the trailing-space quirk in 'Next Smile Australia_Traffic_MayJune 2026'.
+-- Scope = ad account AND campaign prefix, BOTH required (2026-08-06): perf_meta is a SHARED
+-- table carrying six Meta ad accounts incl. other agencies', so the account_id pins the slice
+-- to the 100% Digital - Clients account (act 3754165911553001); and that account hosts SEVERAL
+-- 100-digital clients (geocon, bellshakespeare, nextsmile), so the prefix is still needed to
+-- split them. STARTS_WITH('Next Smile Australia_') lets future Next Smile campaigns flow in
+-- automatically and is immune to trailing-space quirks in campaign names.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_nextsmile.stg_meta` AS
 SELECT
   metric_date                                                          AS date,
@@ -44,4 +48,5 @@ SELECT
     ELSE 'Other'
   END AS funnel_stage
 FROM `bidbrain-analytics.raw_windsor.perf_meta`
-WHERE STARTS_WITH(campaign_name, 'Next Smile Australia_')
+WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
+  AND STARTS_WITH(campaign_name, 'Next Smile Australia_')

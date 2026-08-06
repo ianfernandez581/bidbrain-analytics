@@ -335,11 +335,13 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 ### 03_stg_meta.sql
 -- ResetData — staged Meta paid social (the awareness / lead-gen driver).
 --
--- The ResetData filter lives here once: account_name = 'Reset backup – Ad account'
--- (note the EN-DASH "–", not a hyphen "-"). EDA: this is the ONLY Reset account on Meta —
--- there is NO separate "primary" account, the "backup" name notwithstanding. Its
--- client_slug is 'resetdata' (no hyphen), unlike Google Ads / GA4 which use 'reset-data',
--- so the account name is the stable key here.
+-- The ResetData filter lives here once: account_id = '465058559225771' with an
+-- account-name-prefix fallback (2026-08-06; was an exact match on
+-- 'Reset backup – Ad account' whose EN-DASH "–" was a retype-it-and-it-silently-zeroes
+-- trap - the LIKE stops before the dash, and the ID doesn't care). EDA: this is the
+-- ONLY Reset account on Meta — there is NO separate "primary" account, the "backup"
+-- name notwithstanding. Its client_slug is 'resetdata' (no hyphen), unlike
+-- Google Ads / GA4 which use 'reset-data'.
 --
 -- Currency is already AUD (currency = 'AUD'), so `cost` maps straight to spend_aud — no FX.
 -- Objective is uniformly OUTCOME_LEADS. The platform-reported LEAD is the advertiser's custom
@@ -351,7 +353,8 @@ block in `dash/dashboard.html` and the `LOGIN_HTML` block in `dash/main.py`.
 ### 04_stg_ttd.sql
 -- ResetData — staged The Trade Desk programmatic display.
 --
--- The ResetData filter lives here once: advertiser_name = 'ResetData'. EDA: 1 campaign
+-- The ResetData filter lives here once: advertiser_id = 'lxp46o9' with a trimmed-name fallback
+-- (2026-08-06, the caltex ID-first pattern; feed-verified identical rows). EDA: 1 campaign
 -- (ResetData_Apr26) across three standard display sizes (300x600 / 300x250 / 728x90 in
 -- ad_format), short flight (mid-May 2026 →), client_slug 'resetdata' (no hyphen).
 --

@@ -22,7 +22,7 @@ WITH agg AS (
     ROUND(SUM(cost), 2)             AS spend_aud,
     SUM(signup_button_conversions)  AS conversions
   FROM `bidbrain-analytics.raw_windsor.perf_meta`
-  WHERE account_name = 'Reset backup – Ad account'
+  WHERE (account_id = '465058559225771' OR account_name LIKE 'Reset backup%')
   GROUP BY creative_id
 )
 SELECT * FROM agg

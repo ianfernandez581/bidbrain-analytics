@@ -1,6 +1,7 @@
 -- ResetData — staged The Trade Desk programmatic display.
 --
--- The ResetData filter lives here once: advertiser_name = 'ResetData'. EDA: 1 campaign
+-- The ResetData filter lives here once: advertiser_id = 'lxp46o9' with a trimmed-name fallback
+-- (2026-08-06, the caltex ID-first pattern; feed-verified identical rows). EDA: 1 campaign
 -- (ResetData_Apr26) across three standard display sizes (300x600 / 300x250 / 728x90 in
 -- ad_format), short flight (mid-May 2026 →), client_slug 'resetdata' (no hyphen).
 --
@@ -22,4 +23,5 @@ SELECT
     ELSE cost                                      -- already AUD
   END                                             AS spend_aud
 FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`
-WHERE advertiser_name = 'ResetData';
+WHERE advertiser_id = 'lxp46o9'
+   OR LOWER(TRIM(advertiser_name)) = 'resetdata';

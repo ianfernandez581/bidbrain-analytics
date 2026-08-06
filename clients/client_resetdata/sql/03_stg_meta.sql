@@ -1,10 +1,12 @@
 -- ResetData — staged Meta paid social (the awareness / lead-gen driver).
 --
--- The ResetData filter lives here once: account_name = 'Reset backup – Ad account'
--- (note the EN-DASH "–", not a hyphen "-"). EDA: this is the ONLY Reset account on Meta —
--- there is NO separate "primary" account, the "backup" name notwithstanding. Its
--- client_slug is 'resetdata' (no hyphen), unlike Google Ads / GA4 which use 'reset-data',
--- so the account name is the stable key here.
+-- The ResetData filter lives here once: account_id = '465058559225771' with an
+-- account-name-prefix fallback (2026-08-06; was an exact match on
+-- 'Reset backup – Ad account' whose EN-DASH "–" was a retype-it-and-it-silently-zeroes
+-- trap - the LIKE stops before the dash, and the ID doesn't care). EDA: this is the
+-- ONLY Reset account on Meta — there is NO separate "primary" account, the "backup"
+-- name notwithstanding. Its client_slug is 'resetdata' (no hyphen), unlike
+-- Google Ads / GA4 which use 'reset-data'.
 --
 -- Currency is already AUD (currency = 'AUD'), so `cost` maps straight to spend_aud — no FX.
 -- Objective is uniformly OUTCOME_LEADS. The platform-reported LEAD is the advertiser's custom
@@ -26,4 +28,5 @@ SELECT
   signup_button_conversions                       AS conversions,              -- "Signup Button" custom pixel = the lead
   leads                                           AS platform_leads_actions    -- generic actions_lead (sparse; kept for reference)
 FROM `bidbrain-analytics.raw_windsor.perf_meta`
-WHERE account_name = 'Reset backup – Ad account';
+WHERE account_id = '465058559225771'
+   OR account_name LIKE 'Reset backup%';
