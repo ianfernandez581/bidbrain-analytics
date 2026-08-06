@@ -8,7 +8,7 @@ throughout — there is no FX conversion anywhere.
 
 | File | View | What it does |
 |---|---|---|
-| `01_stg_tradedesk.sql` | `stg_tradedesk` | **Trade Desk filter** — `tradedesk_apac_all`, `ADVERTISER_NAME = 'PopTrack'`. ⚠️ `imps = IMPRESSION` (singular; plural is NULL). Derives `segment` (AD_GROUP_NAME prefix stripped), `media_type`, `creative_size` (AD_TYPE), and the click / view-through conversion split. |
+| `01_stg_tradedesk.sql` | `stg_tradedesk` | **Trade Desk filter** — `tradedesk_apac_all`, `LOWER(TRIM(ADVERTISER_NAME)) IN ('poptrack','proptrack')` (advertiser renamed PopTrack→PropTrack on the platform 2026-07-22; disjoint date ranges, no double-count). ⚠️ `imps = IMPRESSION` (singular; plural is NULL). Derives `segment` (AD_GROUP_NAME prefix stripped), `media_type`, `creative_size` (AD_TYPE), and the click / view-through conversion split. |
 | `02_stg_linkedin.sql` | `stg_linkedin` | **LinkedIn filter** — `ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD'`. Native AUD (no ×1.34). Labels `creative_type`; carries `campaign_group`, engagements, video views, leads, lead-form opens. |
 | `03_stg_ad_delivery.sql` | `stg_ad_delivery` | **Unified ad-delivery base** — long-format union of both platforms (platform · campaign · day · imps · clicks · spend_aud · conversions). The single source for the campaign-grained roll-ups. |
 | `04_kpi.sql` | `kpi` | One-row headline metrics: combined window + per-platform windows, combined / Trade Desk / LinkedIn totals. |
@@ -31,7 +31,7 @@ client-side to rescale the **combined** ad-delivery figures (Overview + the Trad
 per-platform breakdowns (`06–12`) have no campaign grain and stay whole-flight.
 
 **The two filters + their column names are the only PropTrack-specific bits.** The Trade Desk
-`ADVERTISER_NAME = 'PopTrack'` lives once in `stg_tradedesk`; the LinkedIn `ACCOUNT_NAME` lives once in
-`stg_linkedin`; everything downstream reads those staging views.
+advertiser filter (both PopTrack/PropTrack spellings) lives once in `stg_tradedesk`; the LinkedIn
+`ACCOUNT_NAME` lives once in `stg_linkedin`; everything downstream reads those staging views.
 
 Apply:  `python clients/client_proptrack/create_views.py`

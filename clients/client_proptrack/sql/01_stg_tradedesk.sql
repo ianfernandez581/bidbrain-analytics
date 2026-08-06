@@ -1,7 +1,11 @@
 -- PropTrack (Transmission) — staged The Trade Desk delivery (the May–Jun 2026 Banking-ABM burst).
 --
--- The TradeDesk filter lives here once: ADVERTISER_NAME = 'PopTrack' (TradeDesk spells the
--- client "PopTrack", LinkedIn spells it "PropTrack" — same client, use each source's spelling).
+-- The TradeDesk filter lives here once: LOWER(TRIM(ADVERTISER_NAME)) IN ('poptrack','proptrack').
+-- TTD originally spelled the client "PopTrack"; the platform corrected the advertiser name to
+-- "PropTrack" on 2026-07-22 (misspelled rows stop 07-21, corrected rows start 07-22 - the date
+-- ranges are DISJOINT, so spanning both spellings cannot double-count). Name-keyed because
+-- tradedesk_apac_all has NO advertiser-id column (the TTD UI id is gb75r2p - switch to it if the
+-- mirror ever grows the column). LinkedIn spells it "PropTrack" - same client, per-source spelling.
 -- Spend is native AUD (COSTS) — there is NO FX conversion anywhere in this client.
 --
 -- ⚠️ Impressions come from IMPRESSION (singular). IMPRESSIONS (plural) is entirely NULL for
@@ -24,4 +28,4 @@ SELECT
   VIEW_THROUGH_CONVERSION           AS vt_conv,
   TOTAL_CLICK_PLUS_VIEW_CONVERSIONS AS conversions
 FROM `bidbrain-analytics.raw_snowflake.tradedesk_apac_all`
-WHERE ADVERTISER_NAME = 'PopTrack';
+WHERE LOWER(TRIM(ADVERTISER_NAME)) IN ('poptrack', 'proptrack');
