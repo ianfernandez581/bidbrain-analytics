@@ -25,7 +25,7 @@ Four live sources — three ad platforms plus GA4 website analytics — joined i
 | Source | Raw table (shared) | STT filter | What it contributes |
 |---|---|---|---|
 | **GA4** website analytics | `raw_snowflake.google_analytics_apac_all` | `PROPERTY_ID = '318963196'` (the "STT GDC Web All" roll-up property) | sessions / users / engagement, split by channel; market = visitor country — **the outcome** |
-| **Google Ads** paid search | `raw_snowflake.google_ads_apac` | `CAMPAIGN_NAME LIKE '%STT%'` | keyword delivery (USD→SGD); market from the campaign name |
+| **Google Ads** paid search | `raw_snowflake.google_ads_apac` | `ACCOUNT_ID IN ('1641370256','4825242697')` (USD + SGD accounts; the SGD account's NAME was renamed 'STT GDC_SGD' → 'STT Global Data' 2026-05-31, so never filter on names here) | keyword delivery (USD→SGD); market from the campaign name |
 | **DV360** programmatic display | `raw_snowflake.dv360_apac` | `ADVERTISER_ID IN ('7572338345','6466367438')` (the Always On flight — two delivering campaigns) | prospecting delivery (SGD) |
 | **LinkedIn** paid social | `raw_snowflake.linkedin_ads_apac` | `ACCOUNT_ID IN ('515691430','511609128')` (the SGD + USD accounts; USD spend converted @1.34) | awareness delivery |
 

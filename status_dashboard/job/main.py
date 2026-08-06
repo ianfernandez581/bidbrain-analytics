@@ -428,18 +428,21 @@ CLIENTS = [
                     "LinkedIn Ads - APAC", "DV360 - APAC"],
         "reads_direct": False,
         "checks": [
-            # --- Google Ads (CAMPAIGN_NAME LIKE '%STT%') --------------------------
+            # --- Google Ads (ACCOUNT_ID IN the two STT customer accounts) ---------
+            # 2026-08-06: mirrors sql/03b_stg_google.sql's move off CAMPAIGN_NAME LIKE
+            # '%STT%' (account 4825242697 was renamed 'STT GDC_SGD' -> 'STT Global
+            # Data' 2026-05-31; IDs are the stable key). Keep both sides in sync.
             {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
              "dash": _kpi("ga_imps"),
              "sql": "SELECT SUM(IMPRESSIONS) AS ga_imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "WHERE CAMPAIGN_NAME LIKE '%STT%';",
-             "note": "Whole flight, no date floor — the '%STT%' campaign-name LIKE is the only filter. vs kpi.ga_imps."},
+                    "WHERE ACCOUNT_ID IN ('1641370256','4825242697');",
+             "note": "Whole flight, no date floor — the two STT customer accounts (USD + SGD) are the only filter. vs kpi.ga_imps."},
             {"label": "Google Ads · Clicks", "kind": "sum", "group": "Google Ads",
              "dash": _kpi("ga_clicks"),
              "sql": "SELECT SUM(CLICKS) AS ga_clicks\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "WHERE CAMPAIGN_NAME LIKE '%STT%';",
+                    "WHERE ACCOUNT_ID IN ('1641370256','4825242697');",
              "note": "vs kpi.ga_clicks."},
             # --- LinkedIn (ACCOUNT_ID IN the two STT accounts) --------------------
             {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
@@ -476,7 +479,7 @@ CLIENTS = [
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE ADVERTISER_ID IN ('7572338345','6466367438'))\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "     WHERE CAMPAIGN_NAME LIKE '%STT%') AS total_ad_imps;",
+                    "     WHERE ACCOUNT_ID IN ('1641370256','4825242697')) AS total_ad_imps;",
              "note": "LinkedIn + DV360 + Google Ads. Clean integer sums (spend is FX-converted, never checked). vs kpi.ad_imps."},
             {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
              "dash": _kpi("ad_clicks"),
@@ -486,7 +489,7 @@ CLIENTS = [
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE ADVERTISER_ID IN ('7572338345','6466367438'))\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"Google Ads - APAC\"\n"
-                    "     WHERE CAMPAIGN_NAME LIKE '%STT%') AS total_ad_clicks;",
+                    "     WHERE ACCOUNT_ID IN ('1641370256','4825242697')) AS total_ad_clicks;",
              "note": "Same three filters as impressions. vs kpi.ad_clicks."},
             # --- GA4 website (PROPERTY_ID 318963196, campaign-window date floor) ---
             {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website)",
@@ -763,39 +766,43 @@ CLIENTS = [
         "sources": ["TradeDesk_APAC ALL", "LinkedIn Ads - APAC"],
         "reads_direct": False,
         "checks": [
-            # --- Trade Desk (ADVERTISER_NAME = 'PopTrack' — note the spelling) ----
-            # TradeDesk impressions live in the SINGULAR column IMPRESSION (the plural
-            # IMPRESSIONS is NULL for this advertiser); LinkedIn uses the plural.
+            # --- Trade Desk (ADVERTISER_NAME IN both spellings) -------------------
+            # TTD spelled the advertiser 'PopTrack' until the platform corrected it to
+            # 'PropTrack' on 2026-07-22 (disjoint date ranges, no double-count) - the
+            # checks span both, mirroring client_proptrack/sql/01_stg_tradedesk.sql
+            # (2026-08-06). TradeDesk impressions live in the SINGULAR column
+            # IMPRESSION (the plural IMPRESSIONS is NULL for this advertiser);
+            # LinkedIn uses the plural.
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_imps"),
              "sql": "SELECT SUM(IMPRESSION) AS td_imps\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+                    "WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack');",
              "note": "MUST use IMPRESSION (singular) — the plural is NULL here. Advertiser spelled 'PopTrack' "
-                     "on TradeDesk. vs kpi.td_imps."},
+                     "until 2026-07-22, 'PropTrack' since — the filter spans both. vs kpi.td_imps."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_clicks"),
              "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+                    "WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack');",
              "note": "vs kpi.td_clicks."},
             {"label": "Trade Desk · Conversions (click+view total)", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_conv"),
              "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+                    "WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack');",
              "note": "Should equal td_click_conv + td_vt_conv below. vs kpi.td_conv."},
             {"label": "Trade Desk · Click conversions", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_click_conv"),
              "sql": "SELECT SUM(CLICK_CONVERSION) AS td_click_conv\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+                    "WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack');",
              "note": "Column CLICK_CONVERSION (singular). vs kpi.td_click_conv."},
             {"label": "Trade Desk · View-through conversions", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_vt_conv"),
              "sql": "SELECT SUM(VIEW_THROUGH_CONVERSION) AS td_vt_conv\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "WHERE ADVERTISER_NAME = 'PopTrack';",
+                    "WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack');",
              "note": "Column VIEW_THROUGH_CONVERSION (singular). vs kpi.td_vt_conv."},
             # --- LinkedIn (ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD') ---------
             {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
@@ -839,7 +846,7 @@ CLIENTS = [
              "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(IMPRESSION),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "     WHERE ADVERTISER_NAME = 'PopTrack')\n"
+                    "     WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack'))\n"
                     "+ (SELECT COALESCE(SUM(IMPRESSIONS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD') AS ad_imps;",
              "note": "The blend mixes IMPRESSION (TradeDesk, singular) with IMPRESSIONS (LinkedIn, plural) — "
@@ -848,7 +855,7 @@ CLIENTS = [
              "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
-                    "     WHERE ADVERTISER_NAME = 'PopTrack')\n"
+                    "     WHERE ADVERTISER_NAME IN ('PopTrack', 'PropTrack'))\n"
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD') AS ad_clicks;",
              "note": "Both channels use CLICKS. vs kpi.ad_clicks."},

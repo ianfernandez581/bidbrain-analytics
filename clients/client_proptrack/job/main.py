@@ -7,7 +7,7 @@ bucket. The gated web app (client_proptrack/dash) serves that JSON at /data.json
 The PropTrack story is "Banking ABM": an always-on LinkedIn presence plus a
 concentrated May–Jun 2026 programmatic ABM burst on The Trade Desk. The payload pairs
 the two paid sources the views already filtered + rolled up:
-  * The Trade Desk (raw_snowflake.tradedesk_apac_all, ADVERTISER_NAME 'PopTrack') -> programmatic display+video
+  * The Trade Desk (raw_snowflake.tradedesk_apac_all, ADVERTISER_NAME 'PopTrack'/'PropTrack' - renamed on-platform 2026-07-22) -> programmatic display+video
   * LinkedIn       (raw_snowflake.linkedin_ads_apac, ACCOUNT_NAME 'PropTrack_TransmissionSG_AUD') -> paid social
 
 Single currency = AUD everywhere; there is NO FX conversion. This job is read-only on

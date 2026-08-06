@@ -1,11 +1,15 @@
 -- STT GDC — staged Google Ads (paid search — the "Always On" keyword campaigns).
 --
--- The STT Google Ads filter lives here once: CAMPAIGN_NAME LIKE '%STT%'. Like the
--- other platforms it flips account mid-flight (USD account "STT (USD)" Jun–Aug 2025,
--- then SGD "STT GDC_SGD" from Sep 2025), so COSTS is MIXED currency — convert the USD
--- rows to SGD at the same FX the rest of the dashboard uses (1.34). The market is
--- encoded in the campaign name (…_AlwaysOn26_<MARKET>_Keywords… / …_DemandNurture_…),
--- mapped to the same labels as GA4 / DV360.
+-- The STT Google Ads filter lives here once: ACCOUNT_ID IN ('1641370256','4825242697')
+-- (the USD + SGD customer accounts; 2026-08-06, replacing CAMPAIGN_NAME LIKE '%STT%' -
+-- verified row-identical on switch day: 49,648 rows / $100,333.17 / 22 campaigns either
+-- way). Scope on the IDs, never the names: account 4825242697's NAME was itself renamed
+-- 'STT GDC_SGD' -> 'STT Global Data' on 2026-05-31, and campaign names are not stable
+-- keys repo-wide (AGENTS.md). Like the other platforms it flips account mid-flight (USD
+-- account "STT (USD)" Jun–Aug 2025, then SGD from Sep 2025), so COSTS is MIXED currency
+-- — convert the USD rows to SGD at the same FX the rest of the dashboard uses (1.34).
+-- The market is encoded in the campaign name (…_AlwaysOn26_<MARKET>_Keywords… /
+-- …_DemandNurture_…), mapped to the same labels as GA4 / DV360.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_stt.stg_google` AS
 SELECT
   DAY AS metric_date,
@@ -30,4 +34,4 @@ SELECT
   IF(CURRENCY = 'USD', COSTS * 1.34, COSTS) AS spend_sgd,
   CONVERSIONS AS conversions
 FROM `bidbrain-analytics.raw_snowflake.google_ads_apac`
-WHERE CAMPAIGN_NAME LIKE '%STT%';
+WHERE ACCOUNT_ID IN ('1641370256', '4825242697');

@@ -9,7 +9,10 @@ straight from the shared `raw_snowflake` layer (no `src_*` step). **Single curre
 `job/main.py` writes one `proptrack.json` to a private bucket → `dash/` serves it behind a password gate.
 
 **Two sources, two spellings of the client (same advertiser):**
-- **The Trade Desk** — `raw_snowflake.tradedesk_apac_all`, `ADVERTISER_NAME = 'PopTrack'`. ⚠️ Impressions
+- **The Trade Desk** — `raw_snowflake.tradedesk_apac_all`, `LOWER(TRIM(ADVERTISER_NAME)) IN ('poptrack','proptrack')`
+  (TTD's original 'PopTrack' misspelling was corrected to 'PropTrack' on the platform 2026-07-22; the filter spans
+  both since 2026-08-06 - the old `= 'PopTrack'` filter was blind to 07-22→08-05 delivery, $1,724.88. Date ranges
+  are disjoint so no double-count. TTD advertiser id `gb75r2p`; the mirror has no id column). ⚠️ Impressions
   come from `IMPRESSION` (singular); the plural `IMPRESSIONS` is NULL here. Conversions are pixel conv.
 - **LinkedIn** — `raw_snowflake.linkedin_ads_apac`, `ACCOUNT_NAME = 'PropTrack_TransmissionSG_AUD'`. Spend
   is native AUD (no ×1.34). Delivery is intermittent (real gaps Sep/Oct 2025, Mar/Apr 2026).
