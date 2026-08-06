@@ -4,13 +4,12 @@ Stage 2 of the standard pattern: read the BigQuery views in client_schneider/sql
 single schneider.json to the private GCS bucket. The gated web app (client_schneider/dash) serves
 that JSON at /data.json.
 
-This dashboard is a **client_mongodb-style clone** scoped to 8 programs: the 5 Salesforce lead-gen
-programs (water_env / eba / heavy / global_rebrand / airset) behind 11 SF campaign IDs, plus NEL
-(New Energy Landscape), Microgrid and EcoConsult — paid-only programs with delivery but no CS leads.
+This dashboard is a **client_mongodb-style clone** scoped to 7 programs: the 5 Salesforce lead-gen
+programs (water_env / eba / heavy / global_rebrand / airset) behind 9 SF campaign IDs, plus NEL
+(New Energy Landscape) and Microgrid — awareness-only programs with paid delivery but no CS leads.
 Three tabs:
   * Paid Media          — DV360 / TradeDesk / LinkedIn delivery for the selected program (pm_delivery,
-                          the match_pattern-tagged delivery at program × day × market × platform grain),
-                          incl. LinkedIn's on-platform lead-form leads (`leads`/`lead_form_opens`).
+                          the match_pattern-tagged delivery at program × day × market × platform grain).
   * Content Syndication — Salesforce leads vs the media-plan MQL+HQL target (cs_by_programme / cs_weekly).
   * CS Comparison       — market A vs B for the selected program.
 The campaign→programme→market model: CAMPAIGN = internal program, PROGRAMME = SF pillar_label,
@@ -48,9 +47,8 @@ DATA_OBJECT = f"{CLIENT}.json"
 # The programs the dashboard surfaces: the 5 Content-Syndication programs (== the distinct internal
 # ids in seed_salesforce_map) + NEL, Microgrid and EcoConsult, paid-only programs that have delivery
 # but no Salesforce CS leads (render Paid Media only, like global_rebrand). Drives the Campaign
-# dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the CS lane until SE
-# provision a Salesforce campaign for it — that lane is Salesforce-only, same as heavy — but they DO
-# surface as paid `pm_delivery.leads`, LinkedIn's own on-platform lead-form count.)
+# dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the dashboard until
+# SE provision a Salesforce campaign for it — the CS lane is Salesforce-only, same as heavy.)
 CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel", "microgrid",
                "ecoconsult"]
 
@@ -112,21 +110,6 @@ def main():
     # Programs that have ACTUAL paid delivery (rows in pm_delivery), for the per-campaign tab logic.
     paid_programs = {r["program"] for r in pm}
 
-    # OBSERVED delivery window + on-platform lead-form leads per program. The observed window is the
-    # fallback flight for programs whose media plan is still unsigned (Microgrid / EcoConsult have
-    # BLANK flight_start/flight_end in seed_plan_budget), so the dashboard can say "live since <date>"
-    # instead of "no flight dates" for a program that is demonstrably delivering. Plan dates always
-    # win when present, and a plan start with an open end (global_rebrand) is left open on purpose.
-    obs_start, obs_end, li_leads = {}, {}, {}
-    for r in pm:
-        p, d = r["program"], r["metric_date"]
-        if d is not None:
-            if p not in obs_start or d < obs_start[p]:
-                obs_start[p] = d
-            if p not in obs_end or d > obs_end[p]:
-                obs_end[p] = d
-        li_leads[p] = li_leads.get(p, 0) + (r["leads"] or 0)
-
     def chan_group(line_type, channel):
         """Bucket a media-plan line into the reporting channel it feeds:
           cs    — lead-gen (LeadGen-MQL/HQL) → Salesforce Content Syndication,
@@ -184,27 +167,13 @@ def main():
         if not tabs:
             tabs = ["cs"]
 
-        # Flight: the media plan wins. Only when it seeds NO start at all do we fall back to the
-        # observed first delivery day (flight_source='observed' so the UI can label it honestly as
-        # "live since" rather than a planned flight). The end is NEVER synthesized — an unsigned plan
-        # has no agreed end date, and the dashboard already treats a missing end as ongoing.
-        f_start, f_end = ymd(b.get("flight_start")), ymd(b.get("flight_end"))
-        f_source = "plan" if f_start else None
-        if not f_start and cid in obs_start:
-            f_start, f_source = ymd(obs_start[cid]), "observed"
-
         campaigns.append({
             "id": cid,
             "label": display.get(cid, cid),
             "target_mql": mql, "target_hql": hql, "target": mql + hql,
             "cpl_tiers": cpl_tiers, "committed_spend": committed,
-            "flight_start": f_start, "flight_end": f_end, "flight_source": f_source,
-            "plan_budget": num(b.get("budget_aud")),
-            "first_delivery": ymd(obs_start.get(cid)), "last_delivery": ymd(obs_end.get(cid)),
+            "flight_start": ymd(b.get("flight_start")), "flight_end": ymd(b.get("flight_end")),
             "leads": n_leads,
-            # LinkedIn on-platform lead-form leads (whole flight, all markets). A PAID metric, kept
-            # strictly out of `leads` (Salesforce CS) - see the CS_PROGRAMS note.
-            "li_leads": num(li_leads.get(cid, 0)),
             "channels": channels, "tabs": tabs,
         })
     # default campaign = most leads, then biggest target (dashboard reads campaigns[0] as default).
@@ -295,9 +264,6 @@ def main():
             "program": r["program"], "platform": r["platform"], "date": ymd(r["metric_date"]),
             "market": r["market"], "imps": num(r["imps"]), "clicks": num(r["clicks"]),
             "spend_aud": num(r["spend_aud"]),
-            # LinkedIn-only on-platform lead-form counts (NULL on DV360/TradeDesk). PAID metrics -
-            # never fold into cs_by_programme.
-            "leads": num(r["leads"]), "lead_form_opens": num(r["lead_form_opens"]),
         } for r in pm],
         "cs_audience": [{
             "campaign": r["campaign"], "market": r["market"], "dim": r["dim"],
@@ -311,10 +277,8 @@ def main():
         json.dumps(env), content_type="application/json")
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     n_leads = sum(r["total"] for r in env["cs_by_programme"])
-    n_li = sum(c["li_leads"] or 0 for c in env["campaigns"])
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['campaigns'])} programs, "
-          f"{n_leads} CS leads, {n_li} LinkedIn lead-form leads, "
-          f"{len(env['pm_delivery'])} paid-delivery rows, "
+          f"{n_leads} CS leads, {len(env['pm_delivery'])} paid-delivery rows, "
           f"window {env['window']['start']}..{env['window']['end']}")
 
 

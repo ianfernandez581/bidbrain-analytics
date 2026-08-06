@@ -8,12 +8,6 @@
 -- brief reporting region for all three (DV360 from COUNTRY_NAME; LinkedIn/TradeDesk parsed
 -- from CAMPAIGN_NAME). channel_objective is NULL for now (reserved — the brief leaves it
 -- NULL until an objective convention is confirmed). creative_type is LinkedIn-only.
---
--- leads / lead_form_opens are LinkedIn-ONLY on-platform LEAD-FORM counts (LinkedIn's own
--- LEADS / LEAD_FORM_OPENS columns, carried through stg_linkedin). They are NOT Salesforce CS
--- leads and must never be added to a CS total — a paid-only program (EcoConsult) can report
--- lead-form leads with no Salesforce campaign at all. NULL (not 0) for DV360 / TradeDesk:
--- those staging views carry no conversion feed, so 0 would read as "measured none".
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneider.stg_ad_delivery` AS
 SELECT
   'dv360'                   AS platform,
@@ -24,9 +18,7 @@ SELECT
   CAST(NULL AS STRING)      AS creative_type,
   imps,
   clicks,
-  spend_aud,
-  CAST(NULL AS FLOAT64)     AS leads,            -- DV360 carries no lead-form feed
-  CAST(NULL AS FLOAT64)     AS lead_form_opens
+  spend_aud
 FROM `bidbrain-analytics.client_schneider.stg_dv360`
 UNION ALL
 SELECT
@@ -38,9 +30,7 @@ SELECT
   CAST(NULL AS STRING)      AS creative_type,
   imps,
   clicks,
-  spend_aud,
-  CAST(NULL AS FLOAT64)     AS leads,            -- TradeDesk conversions not staged for SE
-  CAST(NULL AS FLOAT64)     AS lead_form_opens
+  spend_aud
 FROM `bidbrain-analytics.client_schneider.stg_tradedesk`
 UNION ALL
 SELECT
@@ -52,7 +42,5 @@ SELECT
   creative_type,
   imps,
   clicks,
-  cost_aud                  AS spend_aud,  -- cost_aud already holds AUD (see stg_linkedin)
-  CAST(leads AS FLOAT64)            AS leads,
-  CAST(lead_form_opens AS FLOAT64)  AS lead_form_opens
+  cost_aud                  AS spend_aud   -- cost_aud already holds AUD (see stg_linkedin)
 FROM `bidbrain-analytics.client_schneider.stg_linkedin`;
