@@ -180,12 +180,18 @@ function analysisDetail(id) {
       if (!/^[a-f0-9]+$/.test(rid)) continue;
       let label = rid;
       let at = null;
+      let partial = false;
+      let needsUpload = 0;
       try {
         const res = JSON.parse(fs.readFileSync(path.join(aRunDir(id, rid), 'results.json'), 'utf8'));
         at = res.run && res.run.finished_at || null;
         label = (res.meta ? `${res.meta.client} ${res.meta.job}` : rid);
+        // Carried into the run picker so a partial run is identifiable BEFORE
+        // opening it - otherwise it looks like any other completed run.
+        partial = !!(res.run && res.run.partial);
+        needsUpload = (res.needs_upload || []).length;
       } catch { /* run without results (failed mid-archive) stays id-labelled */ }
-      runs.push({ id: rid, at, label });
+      runs.push({ id: rid, at, label, partial, needs_upload: needsUpload });
     }
     runs.sort((x, y) => String(y.at || '').localeCompare(String(x.at || '')));
   }

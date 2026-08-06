@@ -306,6 +306,44 @@ function resolveProvider() {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Below this a record cannot finish, so refitting further is self-deception.
+const MIN_USEFUL_OUTPUT = 1200;
+const TPM_SAFETY_MARGIN = 250; // our token estimate is not byte-exact with theirs
+
+// What a non-2xx from Groq actually means. Four outcomes, deliberately named
+// after the CAUSE rather than the status code, because the status code alone
+// does not distinguish "our request is wrong" from "the model rolled badly":
+//   fatal - our bug (bad model, bad key, malformed schema). Stop.
+//   refit - the reservation pushed us over the per-minute budget. Ask for less.
+//   wait  - 429/5xx. The model never ran; nothing to learn, just retry later.
+//   flake - the model generated something that failed schema validation. Reroll.
+function classifyGroqFailure(res, detail, maxOut) {
+  if (res.status === 413) {
+    const m = /Limit (\d+), Requested (\d+)/.exec(detail);
+    if (m) {
+      const limit = Number(m[1]);
+      const promptTokens = Number(m[2]) - maxOut;
+      const fitted = limit - promptTokens - TPM_SAFETY_MARGIN;
+      if (fitted >= MIN_USEFUL_OUTPUT) return { kind: 'refit', fitted, limit, promptTokens };
+      return {
+        kind: 'fatal',
+        message: `this dump does not fit the account's ${limit} tokens/minute budget: the prompt alone is ~${promptTokens} tokens, leaving no room for a usable response. Reduce the dump (fewer files per analysis) or raise the tier.`,
+      };
+    }
+  }
+  // Groq validates structured output AFTER generation rather than constraining
+  // decoding (unlike Anthropic), so a 400 about the GENERATED json is a dice
+  // roll, not a bad request - measured 2 failures in 3 identical attempts.
+  if (res.status === 400 && /does not match the expected schema|Failed to (validate|generate) JSON/i.test(detail)) {
+    return { kind: 'flake' };
+  }
+  if (res.status === 429 || res.status >= 500) {
+    const ra = Number(res.headers.get('retry-after'));
+    return { kind: 'wait', retryAfterMs: Number.isFinite(ra) && ra > 0 ? ra * 1000 : null };
+  }
+  return { kind: 'fatal', message: detail };
+}
+
 // ---- groq: OpenAI-compatible /chat/completions. Same SYSTEM + SCHEMA as the
 // Anthropic path; only the envelope differs (system as a message rather than a
 // top-level field, response_format instead of output_config).
@@ -336,19 +374,29 @@ async function callGroq(bundleText) {
   // The reservation is negotiable, the prompt is not. Groq counts
   // prompt + max_completion_tokens against the per-minute budget, so on a small
   // tier the reservation alone can blow the budget for a dump that would
-  // otherwise fit comfortably. Shrink it to what the tier leaves room for
-  // rather than failing (see the 413 handler below).
-  const MIN_USEFUL_OUTPUT = 1200; // below this a record cannot finish; fail honestly instead
-  const TPM_SAFETY_MARGIN = 250;  // our token estimate is not byte-exact with theirs
+  // otherwise fit comfortably (see classifyGroqFailure's 'refit').
   let maxOut = GROQ_MAX_OUTPUT;
 
+  // Two independent budgets, because two unrelated things go wrong here and
+  // sharing one counter lets the cheap one starve the important one. Observed
+  // on a small tier: a 6-attempt budget was consumed by 413/429/flake/429/flake,
+  // so the model only got three real chances before the run was declared dead.
+  //   GENERATION attempts - the model produced something and it did not validate.
+  //     This is the budget that matters; each one is a genuine roll of the dice.
+  //   WAITS - 429 (budget refills) and 413 (we asked for too much and refit).
+  //     The model never ran, so these must not consume generation attempts.
+  const MAX_GENERATION_ATTEMPTS = 6;
+  const MAX_WAITS = 10;
+  let genAttempts = 0;
+  let waits = 0;
+
   let lastErr = null;
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (;;) {
     body.max_completion_tokens = maxOut;
-    if (attempt) {
-      const wait = lastErr && lastErr.retryAfterMs != null ? lastErr.retryAfterMs : Math.min(30000, 2000 * 2 ** (attempt - 1));
-      console.log(`[extract] retry ${attempt}/5 in ${Math.round(wait / 1000)}s (${lastErr && lastErr.message})`);
-      await sleep(wait);
+    if (lastErr) {
+      const wait = lastErr.retryAfterMs != null ? lastErr.retryAfterMs : Math.min(30000, 2000 * 2 ** Math.max(0, genAttempts - 1));
+      console.log(`[extract] retry (generation ${genAttempts}/${MAX_GENERATION_ATTEMPTS}, waits ${waits}/${MAX_WAITS}) in ${Math.round(wait / 1000)}s (${lastErr.message})`);
+      if (wait) await sleep(wait);
     }
     let res;
     try {
@@ -359,6 +407,7 @@ async function callGroq(bundleText) {
       });
     } catch (e) {
       lastErr = new Error(`network error: ${e.message}`);
+      if (++waits > MAX_WAITS) throw lastErr;
       continue;
     }
     const text = await res.text();
@@ -367,42 +416,28 @@ async function callGroq(bundleText) {
       try { detail = JSON.parse(text).error.message || detail; } catch { /* keep raw body */ }
       const err = new Error(detail);
       err.status = res.status;
+      const verdict = classifyGroqFailure(res, detail, maxOut);
 
-      // 413 = the request exceeds the per-minute token budget outright (it is
-      // rejected, never queued, so no backoff helps). The message carries the
-      // numbers we need: "Limit 8000, Requested 15432". Requested is
-      // prompt + our reservation, so the prompt is recoverable by subtraction -
-      // and if the tier has room for the prompt, we can simply reserve less
-      // output and go again. This is what makes a small dump work on a small
-      // tier instead of failing on a budget we chose ourselves.
-      if (res.status === 413) {
-        const m = /Limit (\d+), Requested (\d+)/.exec(detail);
-        if (m) {
-          const limit = Number(m[1]);
-          const promptTokens = Number(m[2]) - maxOut;
-          const fitted = limit - promptTokens - TPM_SAFETY_MARGIN;
-          if (fitted >= MIN_USEFUL_OUTPUT) {
-            console.log(`[extract] tier allows ${limit} tok/min and this prompt is ~${promptTokens}; refitting output reservation ${maxOut} -> ${fitted} and retrying`);
-            maxOut = fitted;
-            err.retryAfterMs = 0; // a rejected request consumed no budget
-            lastErr = err;
-            continue;
-          }
-          throw new Error(`this dump does not fit the account's ${limit} tokens/minute budget: the prompt alone is ~${promptTokens} tokens, leaving no room for a usable response. Reduce the dump (fewer files per analysis) or raise the tier.`);
-        }
+      if (verdict.kind === 'fatal') {
+        if (verdict.message === detail) throw err;
+        throw new Error(verdict.message);
       }
-      // A 400 complaining about the GENERATED json is a model flake, not a bad
-      // request. Groq validates structured output AFTER generation instead of
-      // constraining decoding (unlike Anthropic's structured outputs), so the
-      // model can emit a stray shape on one attempt and a clean one on the next
-      // - measured 2 failures in 3 attempts on this schema, all three requests
-      // otherwise identical. Retry those; every other 4xx is our bug (bad model
-      // name, bad key, malformed schema) and fails now.
-      const modelFlake = res.status === 400 && /does not match the expected schema|Failed to validate JSON/i.test(detail);
-      if (res.status !== 429 && res.status < 500 && !modelFlake) throw err;
-      const ra = Number(res.headers.get('retry-after'));
-      if (Number.isFinite(ra) && ra > 0) err.retryAfterMs = ra * 1000;
+      if (verdict.kind === 'refit') {
+        console.log(`[extract] tier allows ${verdict.limit} tok/min and this prompt is ~${verdict.promptTokens}; refitting output reservation ${maxOut} -> ${verdict.fitted} and retrying`);
+        maxOut = verdict.fitted;
+        err.retryAfterMs = 0; // a rejected request consumed no budget
+      } else if (verdict.kind === 'wait') {
+        err.retryAfterMs = verdict.retryAfterMs;
+      }
       lastErr = err;
+
+      if (verdict.kind === 'flake') {
+        if (++genAttempts >= MAX_GENERATION_ATTEMPTS) {
+          throw new Error(`the model failed to produce schema-valid JSON ${genAttempts} times in a row. Groq validates structured output after generation rather than constraining it, so this is a model-reliability limit, not a request error. Last complaint: ${detail}`);
+        }
+      } else if (++waits > MAX_WAITS) {
+        throw err;
+      }
       continue;
     }
     const msg = JSON.parse(text);
