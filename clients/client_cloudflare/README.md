@@ -613,6 +613,32 @@ fix](#brief-number-campaign-prefixes-broke-paid-media-market-parsing-fixed-2026-
 drops it from every aggregate). A parsing regression must stay loud. It also keeps the channel list
 stable while chips are toggled, instead of channels appearing/disappearing under the cursor.
 
+### Q3 LinkedIn lead-gen commit plan - weekly pacing + benchmark "vs plan" lead columns (2026-08-06)
+
+Client sheet (via JM): Q3 lead-gen is **LinkedIn only** and runs **only in 4 markets** -
+ANZ $18,051 / CPL $301 / 60 leads, ASEAN $10,066 / $126 / 80, SAARC(India) $6,798 / $115 / 59,
+GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, all in
+`dash/dashboard.html`:
+
+- **`LI_LEADGEN_PLANS`** is the hardcoded editable knob (same pattern as `PACING_PLANS`); keys match
+  the market chips (SAARC = India, GCR = HK). Edit it + redeploy the dash service to change the plan.
+- **"LinkedIn leads vs weekly target" is now quarter-aware** (`renderWeeklyTarget` dispatches): a
+  range touching Q3 renders the Q3 plan **paced FLAT by day** over Jul 1 - Sep 30 (`liPlanWeeks` -
+  Monday-aligned weeks clamped to the quarter, so the partial first/last weeks get proportionally
+  smaller targets and the cumulative target lands exactly on the commit); otherwise the fixed Q2
+  `li_weekly` path renders unchanged. **Targets follow the market chips** (`liPlanScope`: all chips =
+  210 total; one market selected = that market's commit), actuals follow chips + date range as
+  before. The Q3 block **shows even with zero LinkedIn delivery** (a commit plan with no delivery
+  must read behind, not vanish) - unlike the Q2 path, which still hides via `chanIsActive`.
+- **The "Channel performance vs media plan benchmarks" table gained right-hand `Leads / vs plan /
+  CPL / vs plan` columns** (LinkedIn row only; TTD has no pixel). Leads are graded against the
+  **flat pace-to-date** (commit x fraction of Q3 elapsed, `liQ3PlanCtx`) with the whole-quarter
+  commit in the bench note; CPL vs the blended planning CPL of the selected markets. Renders only
+  under a **pure-Q3 selection** (a quarter commit can't grade Q2 or a custom sub-range - cells fall
+  back to `-`). CAVEAT: actual CPL uses ALL LinkedIn spend (the feed has no campaign-objective
+  split), so it reads conservative vs the lead-gen-line plan CPL - noted in the cell tooltip;
+  splitting lead-gen campaigns out would need a `sql/` change.
+
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
 ```json

@@ -854,16 +854,19 @@
         </div>
 
         <div class="card">
+          <div style="overflow:auto">
           <table id="benchmarkTable">
             <thead><tr>
               <th>Channel</th><th>Spend</th><th>Imps</th><th>Clicks</th>
               <th>CTR</th><th>vs plan</th>
               <th>CPM</th><th>vs plan</th>
               <th>CPC</th><th>vs plan</th>
-              <th>Leads</th>
+              <th>Leads</th><th>vs plan</th>
+              <th>CPL</th><th>vs plan</th>
             </tr></thead>
             <tbody></tbody>
           </table>
+          </div>
         </div>
 
         <div class="section" style="margin-top:18px">
@@ -995,7 +998,8 @@
         <div id="weeklyTargetBlock">
           <div class="section">
             <h2>LinkedIn leads vs weekly target</h2>
-            <span class="sub">13-week Q2 plan: 11 leads/wk (144 cumulative). Actual bars/line follow the date range; the <b>target lines are the fixed Q2 plan (full period)</b>.</span>
+            <!-- Caption is quarter-dependent: renderWeeklyTargetQ3/Q2 rewrite it on render. -->
+            <span class="sub" id="wtSub">13-week Q2 plan: 11 leads/wk (144 cumulative). Actual bars/line follow the date range; the <b>target lines are the fixed Q2 plan (full period)</b>.</span>
           </div>
 
           <div class="card">
@@ -1375,6 +1379,23 @@ const PACING_PLANS = {
   ]},
 };
 const PACING_QUARTER_ORDER = ['Q2', 'Q3'];
+
+// ---- Q3 FY26 LinkedIn LEAD-GEN commit plan (client sheet, 2026-08-06) -----------------------
+// LinkedIn is the ONLY lead channel in Q3 and lead-gen runs ONLY in these 4 markets. Keys match
+// the paid-media market chips (SAARC = India, GCR = Hong Kong). budget / cpl are the planning
+// figures; commit = committed leads for the quarter, paced FLAT (by day) across the flight -
+// see liPlanWeeks(). Same hardcoded-editable-knob pattern as PACING_PLANS above; swap for a
+// seeded view if it ever needs to leave the frontend. CAVEAT: cpl is the LEAD-GEN-line planning
+// CPL, while dashboard LinkedIn spend is ALL LinkedIn delivery (the feed carries no campaign-
+// objective split), so actual-vs-plan CPL reads conservative (high).
+const LI_LEADGEN_PLANS = {
+  Q3: { start:'2026-07-01', end:'2026-09-30', markets:{
+    ANZ:   { label:'ANZ',           budget:18051, cpl:301, commit:60 },
+    ASEAN: { label:'ASEAN',         budget:10066, cpl:126, commit:80 },
+    SAARC: { label:'SAARC (India)', budget:6798,  cpl:115, commit:59 },
+    GCR:   { label:'GCR (HK)',      budget:2858,  cpl:260, commit:11 },
+  }},
+};
 
 // [startISO,endISO] spanning the given quarter keys, clamped to the loaded data
 // window; null if the selection is empty or falls entirely outside the data.
@@ -3359,24 +3380,42 @@ function renderMarketTable() {
 
 function renderBenchmarkTable() {
   // One row per LIVE channel. TTD has no lead pixel, so its Leads cell stays a note.
+  // The right-hand Leads/CPL "vs plan" columns grade LinkedIn against the Q3 lead-gen commit
+  // plan (LI_LEADGEN_PLANS, scoped to the selected market chips). Leads are graded against the
+  // FLAT pace-to-date expectation (commit x fraction of Q3 elapsed) so mid-quarter reads fair;
+  // the bench note carries the whole-quarter commit. Only under a pure-Q3 selection - a quarter
+  // commit cannot grade Q2 or a custom sub-range, so the cells fall back to "-" there.
+  const lp = liQ3PlanCtx();
   const rows = activeChans().map(c => {
     const data = aggregateChannel(c.rows());
-    return {ch:c.label, pill:c.pill, data, bm:PAYLOAD.benchmarks[c.key] || {ctr:0, cpm:0, cpc:0},
+    return {key:c.key, ch:c.label, pill:c.pill, data, bm:PAYLOAD.benchmarks[c.key] || {ctr:0, cpm:0, cpc:0},
             leads: c.key === 'TTD' ? '<span class="bench">no pixel</span>' : (data.leads || 0)};
   });
   let totSp=0, totImp=0, totClk=0, totLeads=0;
   const tbody = document.querySelector('#benchmarkTable tbody');
   tbody.innerHTML = '';
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;color:var(--cf-mute)">No channel delivered in the selected date range.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="14" style="text-align:center;color:var(--cf-mute)">No channel delivered in the selected date range.</td></tr>';
     return;
   }
+  const neutral = '<span class="delta-pm neutral">-</span>';
   rows.forEach(r => {
     const ctr = r.data.imp ? r.data.clk/r.data.imp : 0;
     const cpm = r.data.imp ? r.data.sp/r.data.imp*1000 : 0;
     const cpc = r.data.clk ? r.data.sp/r.data.clk : 0;
     totSp += r.data.sp; totImp += r.data.imp; totClk += r.data.clk;
     if (typeof r.leads === 'number') totLeads += r.leads;
+    let leadsCell = r.leads, leadsVs = neutral, cplCell = '-', cplVs = neutral, cplTitle = '';
+    if (lp && r.key === 'LinkedIn' && typeof r.leads === 'number') {
+      leadsCell = `${r.leads} <span class="bench">of ${lp.commit} commit · pace ${Math.round(lp.pace)}</span>`;
+      leadsVs = deltaCell(r.leads, lp.pace, false);
+      if (r.leads > 0) {
+        const cplAct = r.data.sp / r.leads;
+        cplCell = `${fmt$(cplAct,0)} <span class="bench">vs ${fmt$(lp.cpl,0)} plan</span>`;
+        cplVs = deltaCell(cplAct, lp.cpl, true);
+        cplTitle = ' title="Actual CPL uses ALL LinkedIn spend (the feed has no campaign-objective split); the plan CPL is the lead-gen line only, so this reads conservative."';
+      }
+    }
     tbody.insertAdjacentHTML('beforeend', `<tr>
       <td><span class="pill ${r.pill}">${r.ch}</span></td>
       <td>${fmt$(r.data.sp)}</td>
@@ -3388,7 +3427,10 @@ function renderBenchmarkTable() {
       <td>${deltaCell(cpm, r.bm.cpm, true)}</td>
       <td>${fmt$(cpc,2)} <span class="bench">vs ${fmt$(r.bm.cpc,2)}</span></td>
       <td>${deltaCell(cpc, r.bm.cpc, true)}</td>
-      <td>${r.leads}</td>
+      <td>${leadsCell}</td>
+      <td>${leadsVs}</td>
+      <td${cplTitle}>${cplCell}</td>
+      <td>${cplVs}</td>
     </tr>`);
   });
   tbody.insertAdjacentHTML('beforeend', `<tr class="total">
@@ -3396,7 +3438,7 @@ function renderBenchmarkTable() {
     <td>${totImp ? fmtPct2(totClk/totImp,2) : '-'}</td><td>-</td>
     <td>${totImp ? fmt$(totSp/totImp*1000,2) : '-'}</td><td>-</td>
     <td>${totClk ? fmt$(totSp/totClk,2) : '-'}</td><td>-</td>
-    <td>${totLeads}</td>
+    <td>${totLeads}</td><td>-</td><td>-</td><td>-</td>
   </tr>`);
 }
 
@@ -3609,8 +3651,125 @@ function renderCreativeTable(bodyId, rows) {
   </tr>`).join('');
 }
 
+// -- Q3 LinkedIn lead-gen plan helpers (LI_LEADGEN_PLANS) -------------------------------------
+// Monday-aligned week buckets covering [start, end], clamped to the flight. frac = the week's
+// share of the flight's days, so a FLAT plan gives the partial first/last weeks proportionally
+// smaller targets and the cumulative target line lands exactly on the commit.
+function liPlanWeeks(start, end) {
+  const DAY = 86400000;
+  const toD = s => new Date(s + 'T00:00:00Z');
+  const iso = d => d.toISOString().slice(0, 10);
+  const MON3 = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const md  = s => { const d = toD(s); return MON3[d.getUTCMonth()] + ' ' + d.getUTCDate(); };
+  const totalDays = Math.round((toD(end) - toD(start)) / DAY) + 1;
+  let m = new Date(toD(start).getTime() - ((toD(start).getUTCDay() + 6) % 7) * DAY);  // Monday on/before start
+  const weeks = [];
+  while (iso(m) <= end) {
+    const ws = iso(m) < start ? start : iso(m);
+    let we = iso(new Date(m.getTime() + 6 * DAY));
+    if (we > end) we = end;
+    const days = Math.round((toD(we) - toD(ws)) / DAY) + 1;
+    weeks.push({ week:'W' + (weeks.length + 1), period: md(ws) + ' - ' + md(we),
+                 start: ws, end: we, frac: days / totalDays });
+    m = new Date(m.getTime() + 7 * DAY);
+  }
+  return weeks;
+}
+// The plan scoped to the CURRENT market-chip selection: total commit/budget over the selected
+// plan markets, blended planning CPL, and the flat pace-to-date expectation. Budget (and so CPL)
+// is grossed by the LinkedIn billed-spend multiplier, matching the spend rows, so plan
+// comparisons hold in both raw (direct) and billed (front-door) views. Commit counts stay raw.
+function liPlanScope(plan) {
+  const keys = Object.keys(plan.markets);
+  const sel  = keys.filter(m => paidMediaActiveMarkets.has(m));
+  const mult = (typeof bbMultFor === 'function') ? bbMultFor('linkedin') : 1;
+  const commit = sel.reduce((s, m) => s + plan.markets[m].commit, 0);
+  const budget = sel.reduce((s, m) => s + plan.markets[m].budget, 0) * mult;
+  const t0 = new Date(plan.start + 'T00:00:00Z').getTime();
+  const t1 = new Date(plan.end   + 'T23:59:59Z').getTime();
+  const elapsed = Math.min(1, Math.max(0, (Date.now() - t0) / (t1 - t0)));
+  return { sel, isAll: sel.length === keys.length, commit, budget,
+           cpl: commit ? budget / commit : 0, pace: commit * elapsed, elapsed };
+}
+// The commit plan is QUARTER-shaped, so the benchmark table's "vs plan" lead columns only make
+// a claim under a pure-Q3 selection - a quarter commit cannot grade Q2 or a custom sub-range.
+function liQ3PlanCtx() {
+  if (!(selQuarters.has('Q3') && !selQuarters.has('Q2'))) return null;
+  const scope = liPlanScope(LI_LEADGEN_PLANS.Q3);
+  return scope.commit > 0 ? scope : null;
+}
+
 function renderWeeklyTarget() {
   destroy('weeklyTarget');
+  // Two plans live in this block: the FIXED 13-week Q2 plan (li_weekly payload, below) and the
+  // Q3 lead-gen commit plan (LI_LEADGEN_PLANS, flat-paced). The Q3 view wins whenever the
+  // applied range touches Q3 - that is where the live pacing story is; select Q2 to see Q2.
+  const q3 = LI_LEADGEN_PLANS.Q3;
+  if (!(rangeEnd < q3.start || rangeStart > q3.end)) { renderWeeklyTargetQ3(q3); return; }
+  renderWeeklyTargetQ2();
+}
+
+function renderWeeklyTargetQ3(plan) {
+  // Always shown while the range touches Q3 - even with ZERO LinkedIn delivery. A commit plan
+  // with no delivery must read as loudly behind, not vanish (unlike the other LinkedIn blocks,
+  // which hide via chanIsActive when the channel didn't run in the selection).
+  pmShow('weeklyTargetBlock', true);
+  const scope = liPlanScope(plan);
+  const weeks = liPlanWeeks(plan.start, plan.end);
+  const target = weeks.map(w => scope.commit * w.frac);
+  let ct = 0;
+  const cumTarget = target.map(v => +(ct += v).toFixed(1));
+  const weeklyActual = weeks.map(() => 0);
+  const weeklyHas    = weeks.map(() => false);
+  for (const r of PAYLOAD.li_market_day) {
+    // ACTUALS honor the market chips and the date range, like every other paid aggregate.
+    if (!paidMediaActiveMarkets.has(r.market) || !dateOk(r.date)) continue;
+    const d = String(r.date || '').slice(0, 10);
+    if (d < plan.start || d > plan.end) continue;
+    for (let i = weeks.length - 1; i >= 0; i--) {
+      if (d >= weeks[i].start) { weeklyActual[i] += (r.leads || 0); weeklyHas[i] = true; break; }
+    }
+  }
+  const actualSeries = weeklyActual.map((v, i) => weeklyHas[i] ? v : null);
+  let cumA = 0;
+  const cumActualSeries = weeklyActual.map((v, i) => {
+    if (!weeklyHas[i]) return null;
+    cumA += v; return cumA;
+  });
+  const sub = document.getElementById('wtSub');
+  if (sub) {
+    const totalCommit = Object.keys(plan.markets).reduce((s, m) => s + plan.markets[m].commit, 0);
+    const planList = Object.keys(plan.markets)
+      .map(m => plan.markets[m].label + ' ' + plan.markets[m].commit).join(' · ');
+    const scopeTxt = scope.isAll
+      ? 'All plan markets - <b>' + scope.commit + ' committed leads</b>'
+      : (scope.sel.length
+          ? scope.sel.join(' + ') + ' - <b>' + scope.commit + ' committed leads</b>'
+          : '<b>no plan market selected</b> (lead-gen runs only in the 4 plan markets)');
+    sub.innerHTML = 'Q3 plan: <b>' + totalCommit + ' committed LinkedIn leads</b> (' + planList +
+      '), paced <b>flat over Jul 1 - Sep 30</b>. LinkedIn is the only lead channel in Q3. ' +
+      'Targets and actuals follow the market chips; selected: ' + scopeTxt + '.';
+  }
+  const targetSuffix = scope.isAll ? '' : ' (selected markets)';
+  charts.weeklyTarget = new Chart(document.getElementById('weeklyTarget'), {data:{
+    labels: weeks.map(x => `${x.week}\n${x.period}`),
+    datasets:[
+      {type:'bar',  label:'Weekly target'+targetSuffix,     data: target.map(v => +v.toFixed(1)), backgroundColor: PM_TARGET, order:3, borderRadius:3},
+      {type:'bar',  label:'Weekly actual',                  data: actualSeries,    backgroundColor: PM_LI,     order:2, borderRadius:3},
+      {type:'line', label:'Cumulative target'+targetSuffix, data: cumTarget,       borderColor: PM_TARGET, borderDash:[6,4], pointRadius:0, borderWidth:2, yAxisID:'y2', fill:false, order:1},
+      {type:'line', label:'Cumulative actual',              data: cumActualSeries, borderColor: PM_LI,     pointRadius:3, borderWidth:2.5, yAxisID:'y2', fill:false, order:0, spanGaps:false},
+    ]
+  }, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8}}},
+    scales:{x:{grid:{display:false}, ticks:{font:{size:10}}},
+            y:{beginAtZero:true, grid:{color:PM_LINE}, title:{display:true, text:'Leads / week'}},
+            y2:{beginAtZero:true, grid:{display:false}, position:'right', title:{display:true, text:'Cumulative'}}}}});
+}
+
+function renderWeeklyTargetQ2() {
+  // The caption is shared with the Q3 view, so restore the Q2 wording when this path renders.
+  const sub = document.getElementById('wtSub');
+  if (sub) sub.innerHTML = '13-week Q2 plan: 11 leads/wk (144 cumulative). Actual bars/line follow the date range; the <b>target lines are the fixed Q2 plan (full period)</b>.';
   const w = PAYLOAD.li_weekly || [];
   // li_weekly is the FIXED 13-week Q2 LinkedIn lead plan (sql/09_li_weekly_targets.sql), so it
   // only means anything inside its own window. Outside it (a Q3 view) the whole block hides
