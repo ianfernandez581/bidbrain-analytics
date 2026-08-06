@@ -1063,14 +1063,14 @@ BQ_CLIENTS = [
              "dash": _kpi("me_imps"),
              "sql": "SELECT SUM(impressions) AS me_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE account_name = 'Reset backup – Ad account';",
-             "note": "The account name contains a U+2013 EN DASH ('Reset backup – Ad account'), not a "
+                    "WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%';",
+             "note": "Scoped on account_id 465058559225771 (2026-08-06, mirrors stg_meta - the account NAME contains a U+2013 EN DASH 'Reset backup – Ad account', not a "
                      "hyphen — copy it verbatim or it matches nothing. vs kpi.me_imps."},
             {"label": "Meta · Clicks", "kind": "sum", "group": "Meta",
              "dash": _kpi("me_clicks"),
              "sql": "SELECT SUM(clicks) AS me_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_meta`\n"
-                    "WHERE account_name = 'Reset backup – Ad account';",
+                    "WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%';",
              "note": "EN-DASH account name. vs kpi.me_clicks."},
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_imps"),
@@ -1101,7 +1101,7 @@ BQ_CLIENTS = [
              "dash": _kpi("ad_imps"),
              "sql": "SELECT\n"
                     "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
-                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_name='Reset backup – Ad account')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_imps;",
              "note": "Google + Meta + TTD + Reddit. vs kpi.ad_imps."},
@@ -1109,7 +1109,7 @@ BQ_CLIENTS = [
              "dash": _kpi("ad_clicks"),
              "sql": "SELECT\n"
                     "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
-                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_name='Reset backup – Ad account')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_clicks;",
              "note": "vs kpi.ad_clicks."},
