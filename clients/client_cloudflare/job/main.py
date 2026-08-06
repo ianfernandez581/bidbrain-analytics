@@ -231,6 +231,16 @@ def main():
     # raw_snowflake.linkedin_ads_apac is already in BigQuery (snowflake_data_pull),
     # so read it directly. EDA-confirmed names: DAY (daily grain), IMPRESSIONS, CLICKS,
     # COSTS (USD), LEADS (FLOAT64), LEAD_FORM_OPENS (FLOAT64, null for these AWR-CONS groups).
+    #
+    # 2026-08-06: the match is now PREFIX-NORMALISED + account-scoped. On the platform all
+    # three groups have since gained brief-number prefixes (PEYC -> 2388_, COLES -> 2356_,
+    # CF1 -> 2413_; PEYC/COLES paused), so an exact raw-name IN () would zero the moment a
+    # renamed row lands in the mirror (campaign names are NOT stable keys - AGENTS.md). The
+    # SQL strips the prefix on the feed side and RETURNS the normalised name as
+    # CAMPAIGN_GROUP_NAME, so the literals below stay un-prefixed and the per-group filter
+    # further down needs no change. All three Q2 groups stopped delivering 2026-06-30; no
+    # prefixed rows exist in the mirror yet (verified 2026-08-06, before == after: 450
+    # day-grain rows / $45,382.74 / 910,994 imps) - the normalisation is future-proofing.
     CAMPAIGN_GROUPS = {
         "peyc":        ("ANZ PEYC",    "CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-PEYC"),
         "cf1_india":   ("CF1 India",   "CLOUD_ACQ_2026-Q2_CNC_LINKEDIN_GENERAL_SI_APAC-IN_IN_MOFU_GENERAL_X_AWR-CONS_CF1-Integrated"),
@@ -240,7 +250,7 @@ def main():
     li_sql = f"""
       SELECT
         DAY                                       AS DATE,
-        CAMPAIGN_GROUP_NAME,
+        REGEXP_REPLACE(TRIM(CAMPAIGN_GROUP_NAME), r'^[0-9]+_', '') AS CAMPAIGN_GROUP_NAME,
         CAMPAIGN_NAME,
         SUM(IMPRESSIONS)                          AS IMPS,
         SUM(CLICKS)                               AS CLICKS,
@@ -248,7 +258,8 @@ def main():
         SUM(IFNULL(LEADS,0))                      AS LEADS,
         SUM(IFNULL(LEAD_FORM_OPENS,0))            AS FORM_OPENS
       FROM `{PROJECT}.raw_snowflake.linkedin_ads_apac`
-      WHERE CAMPAIGN_GROUP_NAME IN ({groups_sql})
+      WHERE REGEXP_REPLACE(TRIM(CAMPAIGN_GROUP_NAME), r'^[0-9]+_', '') IN ({groups_sql})
+        AND ACCOUNT_NAME = 'Cloudflare APAC'
       GROUP BY DAY, CAMPAIGN_GROUP_NAME, CAMPAIGN_NAME
       ORDER BY DAY
     """
