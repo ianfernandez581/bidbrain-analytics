@@ -125,10 +125,11 @@ over time, **S4** slow.
 | F2 | **No check for a cut-off AI response** | run fails with "Unexpected end of JSON input" after paying for the call | S1 | **FIXED** `max_tokens` guard + raw reply saved |
 | F3 | **Two campaign lines with the same name double up** | daily rows duplicated; the JSON stops matching the spreadsheet | S1 | **FIXED** uniquified in `normalizePlan` + finding |
 | F18 | **Daily column does not sum to the cumulative column** | pivoting daily spend gives 6,000.07 against a stated 6,000 | S2 | **FIXED** (found while testing) daily is now the diff of rounded cumulatives |
-| F4 | **Run status is stored in memory on one server** | "Run failed - poll returned HTTP 404" while the run is actually still going | S2 | open - `routes.js:36,293-302` |
-| F5 | **One run at a time, everywhere, and all runs share one output folder** | analysis B waits on analysis A; stale files swept into the wrong archive | S2 | open - `routes.js:25,188` |
-| F6 | **A run killed mid-flight stays "running" forever** | the spinner never stops | S2 | open - `greenlight.js:437` |
-| F7 | **Reloading the page mid-run loses the run** | Run button is live again; clicking it errors with 409 | S2 | open - `greenlight.js:244-262` |
+| F4 | **Run status is stored in memory on one server** | "Run failed - poll returned HTTP 404" while the run is actually still going | S2 | **FIXED** durable `live_run.json` + cross-instance fallback |
+| F5 | **One run at a time, everywhere, and all runs share one output folder** | analysis B waits on analysis A; stale files swept into the wrong archive | S2 | **FIXED** per-analysis lock + per-run work dir |
+| F6 | **A run killed mid-flight stays "running" forever** | the spinner never stops, and the lock never clears | S2 | **FIXED** 15s heartbeat, dead after 4min - this wedged prod 2026-08-06 |
+| F7 | **Reloading the page mid-run loses the run** | Run button is live again; clicking it errors with 409 | S2 | **FIXED** `active_run` in detail, tab re-attaches |
+| F19 | **The pipeline printed nothing to the logs** | a stuck run was undiagnosable from anywhere | S2 | **FIXED** (found in prod) child output to console + a Run log in the tab |
 | F8 | **Uploads are slow, and the "skipped" warning erases itself** | fewer files in the list than you dragged in, no explanation | S3 | **PART FIXED** warning now persists; uploads still serial, 15MB cap stands |
 | F9 | **No sense of what changed between runs** | cannot tell new findings from ones you already triaged | S3 | open - `extract.js:258-268` |
 | F10 | **Cost and duration are logged then thrown away** | no idea what a run cost | S3 | **FIXED** usage + duration on every run, plus a free pre-run estimate |
@@ -138,6 +139,28 @@ over time, **S4** slow.
 | F14 | **The two-campaign guard filters files, not campaign lines** | blocker fires, but the blend can still happen | S2 | open - `extract.js:239-243` |
 | F15 | **The maths has no unit tests** | every bug above could have been caught for free | S3 | **FIXED** 92 tests, ~2s, no key (`npm run test:greenlight`) |
 | F17 | **Docs contradict the code in four places** | next person builds the wrong thing | S2 | **FIXED** in `expected/README.md` |
+
+### What the run-engine fixes were actually about (2026-08-06, from production)
+
+F4 to F7 were open findings until the first real run wedged the tab. An
+instance was recycled mid-run, its in-memory `runs` Map died with it, and the
+run it held stayed `status: running` forever. From then on every attempt
+answered `409 a run is already in progress` - for **every** analysis, because
+the lock was global - and nothing in the product could see or clear it. The
+tab showed "Run failed - a run is already in progress" with no run anywhere in
+the history.
+
+Worse, it was undiagnosable: `routes.js` accumulated the child's stdout into a
+string and only surfaced it on failure, so a healthy run printed **nothing** to
+Cloud Run logs. A two-hour log search for the run returned three GCS boot-sync
+lines and no pipeline output at all.
+
+The fix is the heartbeat: a run writes `live_run.json` every 15s, and one that
+stops writing for 4 minutes reads as dead rather than holding the lock. Add a
+per-analysis lock (campaign A no longer blocks campaign B), a per-run work
+directory (the shared `out/` was only safe *because* of the global lock), the
+durable record as a cross-instance poll fallback, and every pipeline line going
+to both the container log and a Run log panel in the tab.
 
 ### The three that matter most
 

@@ -395,6 +395,53 @@ async function loadExtract(id, outDir) {
   return meta;
 }
 
+// ------------------------------------------------- live run state
+// The in-memory run Map dies with the instance, so a poll answered elsewhere
+// used to 404 and the tab reported a live run as dead. This is the shared
+// truth: written on every stage transition and heartbeat.
+//
+// Deliberately LOCAL-ONLY (no GCS mirror). It is written every few seconds and
+// is only meaningful while the run is alive; mirroring it would be a lot of
+// traffic for state that is stale the moment the instance goes. Cross-instance
+// visibility within an instance's lifetime is what matters, and the archived
+// results.json is the durable record once a run finishes.
+function runStatePath(id) { return path.join(aDir(id), 'live_run.json'); }
+
+function saveRunState(id, runId, run) {
+  try {
+    fs.mkdirSync(aDir(id), { recursive: true });
+    fs.writeFileSync(runStatePath(id), JSON.stringify({
+      id: runId,
+      analysis_id: id,
+      status: run.status,
+      started_at: run.started_at,
+      heartbeat_at: run.heartbeat_at,
+      stages: run.stages,
+      error: run.error,
+      log: (run.log || []).slice(-120),
+    }, null, 2));
+  } catch (e) {
+    console.error('[greenlight] could not persist run state:', e.message);
+  }
+}
+
+function loadRunState(id) {
+  try { return JSON.parse(fs.readFileSync(runStatePath(id), 'utf8')); }
+  catch { return null; }
+}
+
+/** Find a LIVE run by its id across every analysis. findRun() only locates
+ *  runs that already archived, which a still-running one has not. */
+function findLiveRun(runId) {
+  if (!fs.existsSync(ANALYSES)) return null;
+  for (const id of fs.readdirSync(ANALYSES)) {
+    if (!/^[a-f0-9]+$/.test(id)) continue;
+    const rec = loadRunState(id);
+    if (rec && rec.id === runId) return rec;
+  }
+  return null;
+}
+
 /** Archive a finished run: copy the OUT artifacts + results into the
  *  analysis's run dir and mirror everything to GCS. */
 async function archiveRun(id, runId, outDir, results) {
@@ -479,7 +526,7 @@ module.exports = {
   createAnalysis, listAnalyses, analysisDetail, renameAnalysis, recordRun,
   setArchived, deleteAnalysis, stageFile, removeFile, filesHash,
   ensureFiles, recordFileCount, localFileCount, recordSkipped, clearSkipped,
-  archiveRun, runArtifact, runResults, findRun,
+  archiveRun, runArtifact, runResults, findRun, saveRunState, loadRunState, findLiveRun,
   saveExtract, loadExtract, extractMeta,
   aFilesDir, walk,
 };

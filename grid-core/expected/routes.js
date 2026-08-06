@@ -40,6 +40,10 @@ const MIME = {
 };
 
 const runs = new Map(); // in-flight + recent run state, id -> run
+// Runs now write into a PER-RUN work dir that is removed when they settle, so
+// the legacy flat `/out/:file` route (the dev UI + test_regression.js) needs a
+// pointer to the last completed run's archived artifacts.
+let lastCompleted = null; // {analysisId, runId}
 
 function send(res, code, obj) {
   res.writeHead(code, { 'content-type': 'application/json; charset=utf-8' });
@@ -79,6 +83,38 @@ function readBody(req, cap) {
 }
 
 // ---------------------------------------------------------------- run engine
+// A run outlives the request that started it (the child process is spawned and
+// the response returns immediately), and it can outlive the INSTANCE too. So
+// run state is written to disk and mirrored on every transition:
+//
+//   - polls answered by a different instance find the run instead of 404ing
+//     and reporting a live run as dead;
+//   - a run whose heartbeat goes stale is treated as dead rather than holding
+//     the lock forever, which is what wedged production;
+//   - the child's output is captured AND forwarded to the console, so the
+//     pipeline is visible in Cloud Run logs and in the tab.
+const HEARTBEAT_MS = 15000;        // how often a live run touches its record
+const STALE_AFTER_MS = 4 * 60000;  // no heartbeat for this long = the run died
+const LOG_KEEP = 400;              // lines retained per run
+
+/** A run record is dead-but-marked-running if its heartbeat has gone stale. */
+function isStale(rec) {
+  if (!rec || rec.status !== 'running') return false;
+  const beat = Date.parse(rec.heartbeat_at || rec.started_at || 0) || 0;
+  return Date.now() - beat > STALE_AFTER_MS;
+}
+
+/** The run as a caller should see it: a stale 'running' becomes an error. */
+function viewRun(rec) {
+  if (!isStale(rec)) return rec;
+  return Object.assign({}, rec, {
+    status: 'error',
+    error: 'this run stopped reporting - the instance was most likely recycled mid-run. '
+      + 'Nothing was archived. Run it again.',
+    stages: (rec.stages || []).map((s) => (s.state === 'active' ? Object.assign({}, s, { state: 'error' }) : s)),
+  });
+}
+
 // opts.resume: skip the model call and rebuild outputs from the analysis's
 // saved last extraction (store.saveExtract slot) - the "retry the failed
 // step" path. The extract stages render as done immediately.
@@ -89,6 +125,7 @@ function startRun(analysisId, inputDir, filesHash, opts) {
     id,
     analysis_id: analysisId,
     started_at: new Date().toISOString(),
+    heartbeat_at: new Date().toISOString(),
     status: 'running',
     stages: [
       { key: 'extract', label: 'Extracting files', state: 'active' },
@@ -96,45 +133,77 @@ function startRun(analysisId, inputDir, filesHash, opts) {
       { key: 'gaps', label: 'Checking gaps', state: 'pending' },
       { key: 'outputs', label: 'Building outputs', state: 'pending' },
     ],
+    log: [],
     error: null,
     results: null,
   };
   runs.set(id, run);
 
+  // Each run gets its own working directory. Sharing one OUT across runs let
+  // concurrent runs interleave artifacts and archive each other's output, and
+  // left stale files to be swept into the next run's archive.
+  const workDir = path.join(store.DUMPS, '_work', id);
+  fs.mkdirSync(workDir, { recursive: true });
+
+  const persist = () => { store.saveRunState(analysisId, id, run); };
+  const beat = setInterval(() => {
+    if (run.status !== 'running') return;
+    run.heartbeat_at = new Date().toISOString();
+    persist();
+  }, HEARTBEAT_MS);
+  const settle = () => {
+    clearInterval(beat);
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    persist();
+  };
+
+  // Every line the pipeline prints goes to BOTH the container log (so Cloud
+  // Run captures it) and the run record (so the tab can show it).
+  const logLine = (src, text) => {
+    String(text).split(/\r?\n/).forEach((line) => {
+      if (!line.trim()) return;
+      console.log(`[greenlight][run ${id}] ${line}`);
+      run.log.push({ at: new Date().toISOString(), src, line: line.slice(0, 500) });
+    });
+    if (run.log.length > LOG_KEEP) run.log = run.log.slice(-LOG_KEEP);
+  };
+
   const stage = (key, state) => {
     const s = run.stages.find((x) => x.key === key);
     if (s) s.state = state;
+    run.heartbeat_at = new Date().toISOString();
+    persist();
   };
   const fail = (msg) => {
     const active = run.stages.find((s) => s.state === 'active');
     if (active) active.state = 'error';
     run.status = 'error';
     run.error = msg;
+    logLine('system', 'FAILED: ' + msg);
+    settle();
   };
 
   // TODO(background-job): extract + build run synchronously inside this
-  // request lifecycle (~320s for the model call). Cloud Run's default request
-  // timeout is 300s - the service needs --timeout 600 while this stays
-  // synchronous; the real fix is a background job once Greenlight sees
-  // real traffic. Deliberately not built yet.
-  const env = { ...process.env, GREENLIGHT_OUT_DIR: OUT };
+  // The child outlives the request that started it (the response returns as
+  // soon as the run id exists). --no-cpu-throttling keeps it running.
+  const env = { ...process.env, GREENLIGHT_OUT_DIR: workDir };
 
   const runBuild = () => {
     stage('outputs', 'active');
     const b = spawn(process.execPath, [path.join(ROOT, 'build_expected.js')], { cwd: ROOT, env });
     let bErr = '';
     let bOut = '';
-    b.stderr.on('data', (d) => { bErr += d; });
-    b.stdout.on('data', (d) => { bOut += d; });
+    b.stderr.on('data', (d) => { bErr += d; logLine('build', d); });
+    b.stdout.on('data', (d) => { bOut += d; logLine('build', d); });
     b.on('error', (e) => fail(String(e.message || e)));
     b.on('close', async (bcode) => {
       if (run.status === 'error') return;
       if (bcode !== 0) return fail(`build_expected.js exited ${bcode}\n${(bErr || bOut).slice(-1500)}`);
       try {
-        const plan = JSON.parse(fs.readFileSync(path.join(OUT, 'plan.json'), 'utf8'));
-        const kpi = JSON.parse(fs.readFileSync(path.join(OUT, 'daily_kpi.json'), 'utf8'));
-        const findingsDoc = JSON.parse(fs.readFileSync(path.join(OUT, 'findings.json'), 'utf8'));
-        const messages = JSON.parse(fs.readFileSync(path.join(OUT, 'messages.json'), 'utf8'));
+        const plan = JSON.parse(fs.readFileSync(path.join(workDir, 'plan.json'), 'utf8'));
+        const kpi = JSON.parse(fs.readFileSync(path.join(workDir, 'daily_kpi.json'), 'utf8'));
+        const findingsDoc = JSON.parse(fs.readFileSync(path.join(workDir, 'findings.json'), 'utf8'));
+        const messages = JSON.parse(fs.readFileSync(path.join(workDir, 'messages.json'), 'utf8'));
         const v = (node) => (node && node.value != null ? node.value : null);
         const ex = plan.extractor || {};
         // Feed the real cost back into the estimator so the next preflight is
@@ -168,12 +237,15 @@ function startRun(analysisId, inputDir, filesHash, opts) {
           origins: findingsDoc.origins,
           messages,
         };
-        await store.archiveRun(analysisId, id, OUT, results);
+        await store.archiveRun(analysisId, id, workDir, results);
         const label = `${kpi.client || 'Unknown client'} ${kpi.job || ''}`.trim();
         store.recordRun(analysisId, id, filesHash, label);
         stage('outputs', 'done');
         run.status = 'done';
         run.results = results;
+        lastCompleted = { analysisId, runId: id };
+        logLine('system', `done in ${Math.round(results.run.duration_ms / 1000)}s`);
+        settle();
       } catch (e) {
         fail(String(e.message || e));
       }
@@ -182,7 +254,8 @@ function startRun(analysisId, inputDir, filesHash, opts) {
 
   if (opts.resume) {
     // Build-only rerun: restore the saved extraction (no model call).
-    store.loadExtract(analysisId, OUT).then((meta) => {
+    logLine('system', 'rebuilding outputs from the saved extraction - no model call');
+    store.loadExtract(analysisId, workDir).then((meta) => {
       if (run.status === 'error') return;
       if (!meta) return fail('no saved extraction to reuse - run the full analysis');
       ['extract', 'plan', 'gaps'].forEach((k) => stage(k, 'done'));
@@ -191,12 +264,14 @@ function startRun(analysisId, inputDir, filesHash, opts) {
     return id;
   }
 
+  logLine('system', `starting extraction over ${inputDir}`);
   const ex = spawn(process.execPath, [path.join(ROOT, 'extract.js'), '--files', inputDir], { cwd: ROOT, env });
   let exErr = '';
   let exOut = '';
-  ex.stderr.on('data', (d) => { exErr += d; });
+  ex.stderr.on('data', (d) => { exErr += d; logLine('extract', d); });
   ex.stdout.on('data', (d) => {
     exOut += d;
+    logLine('extract', d);
     const s = String(d);
     if (s.includes('[stage] preprocess-done')) { stage('extract', 'done'); stage('plan', 'active'); }
     if (s.includes('[stage] model-done')) { stage('plan', 'done'); stage('gaps', 'active'); }
@@ -210,15 +285,41 @@ function startRun(analysisId, inputDir, filesHash, opts) {
 
     // The model call is paid for - save its output BEFORE building, so a
     // build failure can be retried via /rebuild without another extraction.
-    store.saveExtract(analysisId, OUT, filesHash)
+    store.saveExtract(analysisId, workDir, filesHash)
       .catch((e) => console.error('[greenlight] saveExtract failed (rebuild will need a full run):', e.message))
       .then(() => { if (run.status !== 'error') runBuild(); });
   });
   return id;
 }
 
+/** Global "is anything running", used only by the LEGACY one-shot route (the
+ *  dev harness / regression gate), where it is a cost guard rather than a
+ *  correctness one. Stale-aware, so a dead run cannot wedge it either. */
 function anyRunning() {
-  return [...runs.values()].some((r) => r.status === 'running');
+  return [...runs.values()].some((r) => r.status === 'running' && !isStale(r));
+}
+
+/** The live run for ONE analysis, or null. Scoped per analysis rather than
+ *  globally: a run for campaign A has no reason to block campaign B. A run
+ *  whose heartbeat has gone stale does not count - that is what left the tab
+ *  answering "a run is already in progress" with no way to clear it. */
+function activeRunFor(analysisId) {
+  for (const r of runs.values()) {
+    if (r.analysis_id === analysisId && r.status === 'running' && !isStale(r)) return r;
+  }
+  // Another instance may be running it; the durable record is the shared truth.
+  const rec = store.loadRunState(analysisId);
+  if (rec && rec.status === 'running' && !isStale(rec) && !runs.has(rec.id)) return rec;
+  return null;
+}
+
+/** Human-readable "why you cannot start" for the analyze/rebuild routes. */
+function busyMessage(active) {
+  const secs = Math.round((Date.now() - Date.parse(active.started_at)) / 1000);
+  const stageName = (active.stages || []).find((s) => s.state === 'active');
+  return `a run for this analysis is already in progress (run ${active.id}, started ${secs}s ago`
+    + (stageName ? `, currently: ${stageName.label.toLowerCase()}` : '') + '). '
+    + 'Watch it finish, or wait for it to time out if the instance was recycled.';
 }
 
 /** Refuse rather than analyse a dump that did not fully come back.
@@ -263,8 +364,12 @@ async function handle(req, res, url, prefix) {
     // empty, and without this the analysis reports zero files.
     await store.ensureFiles(m[1]);
     const d = store.analysisDetail(m[1]);
-    if (!d) send(res, 404, { error: 'unknown analysis' });
-    else send(res, 200, d);
+    if (!d) { send(res, 404, { error: 'unknown analysis' }); return true; }
+    // So a reload (or a second tab) re-attaches to a run in flight instead of
+    // offering a Run button that immediately 409s.
+    const live = activeRunFor(m[1]);
+    d.active_run = live ? { id: live.id, started_at: live.started_at, stages: live.stages } : null;
+    send(res, 200, d);
     return true;
   }
 
@@ -376,7 +481,8 @@ async function handle(req, res, url, prefix) {
     await store.ensureFiles(m[1]);
     const a = store.analysisDetail(m[1]);
     if (!a) { send(res, 404, { error: 'unknown analysis' }); return true; }
-    if (anyRunning()) { send(res, 409, { error: 'a run is already in progress' }); return true; }
+    const busy = activeRunFor(m[1]);
+    if (busy) { send(res, 409, { error: busyMessage(busy), run_id: busy.id }); return true; }
     if (!a.files.length) { send(res, 400, { error: 'this analysis has no files yet - upload the campaign dump first' }); return true; }
     const short = shortDump(a);
     if (short) { send(res, 409, { error: short }); return true; }
@@ -397,7 +503,8 @@ async function handle(req, res, url, prefix) {
     await store.ensureFiles(m[1]);
     const a = store.analysisDetail(m[1]);
     if (!a) { send(res, 404, { error: 'unknown analysis' }); return true; }
-    if (anyRunning()) { send(res, 409, { error: 'a run is already in progress' }); return true; }
+    const busyR = activeRunFor(m[1]);
+    if (busyR) { send(res, 409, { error: busyMessage(busyR), run_id: busyR.id }); return true; }
     const meta = await store.extractMeta(m[1]);
     if (!meta) { send(res, 409, { error: 'no saved extraction for this analysis - run the full analysis' }); return true; }
     const hash = store.filesHash(m[1]);
@@ -412,7 +519,11 @@ async function handle(req, res, url, prefix) {
   // ---- run state + per-run artifacts ----
   if ((m = /^\/runs\/([a-f0-9]+)$/.exec(sub)) && req.method === 'GET') {
     const run = runs.get(m[1]);
-    if (run) { send(res, 200, run); return true; }
+    if (run) { send(res, 200, viewRun(run)); return true; }
+    // Another instance may hold it live; its durable record is the fallback
+    // BEFORE we give up and call the run unknown.
+    const live = store.findLiveRun(m[1]);
+    if (live) { send(res, 200, viewRun(live)); return true; }
     // not in memory (other instance / restart): serve archived results if they exist
     const aid = store.findRun(m[1]);
     if (!aid) { send(res, 404, { error: 'unknown run id' }); return true; }
@@ -483,6 +594,13 @@ async function handle(req, res, url, prefix) {
   }
 
   if ((m = /^\/out\/([^/\\]+)$/.exec(sub)) && req.method === 'GET') {
+    // Legacy flat artifact path. Runs archive per-run now, so serve the last
+    // completed run's copy; fall back to the shared dir for a bare
+    // `node build_expected.js` written straight into it.
+    if (lastCompleted) {
+      serveFile(res, await store.runArtifact(lastCompleted.analysisId, lastCompleted.runId, m[1]));
+      return true;
+    }
     serveFile(res, path.join(OUT, path.basename(m[1])));
     return true;
   }

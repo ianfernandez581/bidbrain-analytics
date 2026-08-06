@@ -145,6 +145,17 @@
     '#glModal .mprog{display:none;border-top:1px solid var(--line-2);margin-top:12px;padding-top:11px}',
     '#glModal.running .mprog{display:block}',
     '#glModal.running .mpre{display:none}',
+    '#glModal .mlog{margin-top:12px;border-top:1px solid var(--line-2);padding-top:10px}',
+    '#glModal .mlogh{display:flex;align-items:center;gap:8px;font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);margin-bottom:6px}',
+    '#glModal .mlogh button{appearance:none;font-family:inherit;font-size:10px;font-weight:700;letter-spacing:.05em;cursor:pointer;color:var(--ink-3);background:transparent;border:1px solid var(--line);border-radius:6px;padding:2px 8px;margin-left:auto}',
+    '#glModal .mlogh button:hover{color:var(--ink);background:var(--grp)}',
+    '#glModal .mlogbox{display:none;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:10.5px;line-height:1.55;color:var(--ink-2);background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;padding:9px 11px;max-height:210px;overflow-y:auto;white-space:pre-wrap;word-break:break-word}',
+    '#glModal .mlogbox.on{display:block}',
+    '#glModal .mlogbox .t{color:var(--ink-3)}',
+    '#glModal .mlogbox .s-extract{color:var(--brand-ink)}',
+    '#glModal .mlogbox .s-build{color:var(--tx-ink)}',
+    '#glModal .mlogbox .s-system{color:var(--warn)}',
+    '#glModal .mempty{color:var(--ink-3);font-style:italic}',
   ].join('\n');
 
   var HTML = [
@@ -223,6 +234,10 @@
     '        <div class="gl-step" data-k="plan"><span class="ic">&#10003;</span>Reading plan</div>',
     '        <div class="gl-step" data-k="gaps"><span class="ic">&#10003;</span>Checking gaps</div>',
     '        <div class="gl-step" data-k="outputs"><span class="ic">&#10003;</span>Building outputs</div>',
+    '        <div class="mlog">',
+    '          <div class="mlogh"><span>Run log</span><button id="glLogToggle">Show</button></div>',
+    '          <div class="mlogbox" id="glLogBox"></div>',
+    '        </div>',
     '      </div>',
     '    </div>',
     '    <div class="mfoot">',
@@ -308,6 +323,9 @@
       el('glASel').value = id;
       renderAnalysisHead();
       renderFiles();
+      // A run already in flight wins over showing old results: re-attach to it
+      // rather than offering a Run button that would immediately 409.
+      if (d.active_run && !S.running) { resumeRun(d.active_run); return; }
       // auto-open the latest run's results when there is one
       if (!keepResults && d.runs.length) loadRunResults(d.runs[0].id);
     }).catch(function (e) { showError(String(e.message || e)); });
@@ -520,6 +538,39 @@
 
   function closeModal() { el('glModal').className = ''; }
 
+  // Live pipeline output, so a run that looks stuck can be diagnosed from the
+  // tab instead of from Cloud Run logs. Same lines the container prints.
+  function renderLog(lines) {
+    var box = el('glLogBox');
+    if (!box) return;
+    if (!lines || !lines.length) {
+      box.innerHTML = '<span class="mempty">No output yet. The first stage prints as soon as it starts.</span>';
+      return;
+    }
+    var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+    box.innerHTML = lines.map(function (l) {
+      return '<div><span class="t">' + esc(String(l.at).slice(11, 19)) + '</span> '
+        + '<span class="s-' + esc(l.src) + '">' + esc(l.line) + '</span></div>';
+    }).join('');
+    if (atBottom) box.scrollTop = box.scrollHeight;   // follow, unless scrolled up
+  }
+
+  // Re-attach to a run already in flight (page reload, second tab, or a run
+  // started before the instance we are talking to now).
+  function resumeRun(active) {
+    S.running = true;
+    S.pendingForce = false;
+    el('glRunBtn').disabled = true;
+    el('glRunBtn').textContent = 'Running...';
+    el('glErr').style.display = 'none';
+    el('glProg').style.display = 'block';
+    modalToRunning();
+    el('glMSub').textContent = 'Re-attached to a run already in progress (started '
+      + String(active.started_at).replace('T', ' ').slice(0, 19) + ' UTC).';
+    (active.stages || []).forEach(function (s) { setStep(s.key, s.state); });
+    poll(active.id);
+  }
+
   // The modal stays open through the run and becomes the progress view, so the
   // intake breakdown is still on screen while the stages tick over.
   function modalToRunning() {
@@ -624,6 +675,7 @@
       return r.json();
     }).then(function (run) {
       (run.stages || []).forEach(function (s) { setStep(s.key, s.state); });
+      renderLog(run.log);
       if (run.status === 'running') { setTimeout(function () { poll(id); }, 1500); return; }
       if (run.status === 'error') {
         var failed = (run.stages || []).filter(function (s) { return s.state === 'error'; })[0];
@@ -810,6 +862,13 @@
       startRun(S.pendingForce);
     });
     el('glMCancel').addEventListener('click', closeModal);
+    el('glLogToggle').addEventListener('click', function () {
+      var box = el('glLogBox');
+      var on = box.className.indexOf('on') > -1;
+      box.className = on ? 'mlogbox' : 'mlogbox on';
+      el('glLogToggle').textContent = on ? 'Show' : 'Hide';
+      if (!on) box.scrollTop = box.scrollHeight;
+    });
     el('glModal').addEventListener('click', function (e) { if (e.target === el('glModal')) closeModal(); });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape' && el('glModal') && el('glModal').className.indexOf('on') > -1) closeModal();
