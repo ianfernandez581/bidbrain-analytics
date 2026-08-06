@@ -1076,13 +1076,13 @@ BQ_CLIENTS = [
              "dash": _kpi("td_imps"),
              "sql": "SELECT SUM(impressions) AS td_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'ResetData';",
+                    "WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata';",
              "note": "Advertiser 'ResetData' (no space). TTD emits no conversions for this client. vs kpi.td_imps."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_clicks"),
              "sql": "SELECT SUM(clicks) AS td_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'ResetData';",
+                    "WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata';",
              "note": "vs kpi.td_clicks."},
             {"label": "Reddit · Impressions", "kind": "sum", "group": "Reddit",
              "dash": _kpi("rd_imps"),
@@ -1102,7 +1102,7 @@ BQ_CLIENTS = [
              "sql": "SELECT\n"
                     "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%')\n"
-                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
+                    "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_imps;",
              "note": "Google + Meta + TTD + Reddit. vs kpi.ad_imps."},
             {"label": "All paid channels · Clicks", "kind": "sum", "group": "All paid channels",
@@ -1110,7 +1110,7 @@ BQ_CLIENTS = [
              "sql": "SELECT\n"
                     "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads` WHERE account_name='Reset Data')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_meta`          WHERE account_id = '465058559225771' OR account_name LIKE 'Reset backup%')\n"
-                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_name='ResetData')\n"
+                    "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk` WHERE advertiser_id = 'lxp46o9' OR LOWER(TRIM(advertiser_name)) = 'resetdata')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_reddit`         WHERE client_slug='resetdata') AS ad_clicks;",
              "note": "vs kpi.ad_clicks."},
             {"label": "GA4 · Sessions", "kind": "sum", "group": "GA4 (website)",
@@ -1164,7 +1164,7 @@ BQ_CLIENTS = [
                     "  (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
                     "     WHERE account_name = 'The Little Marionette')\n"
                     "+ (SELECT SUM(impressions) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "     WHERE advertiser_name = 'The Little Marionette') AS imps;",
+                    "     WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette') AS imps;",
              "note": "Google (DTS) + Trade Desk (Windsor), name-only filters, NO date floor. vs kpi.imps (=kpi.ad_imps)."},
             {"label": "All channels · Clicks", "kind": "sum", "group": "All channels",
              "dash": _kpi("clicks"),
@@ -1172,7 +1172,7 @@ BQ_CLIENTS = [
                     "  (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_google_ads.perf_google_ads`\n"
                     "     WHERE account_name = 'The Little Marionette')\n"
                     "+ (SELECT SUM(clicks) FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "     WHERE advertiser_name = 'The Little Marionette') AS clicks;",
+                    "     WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette') AS clicks;",
              "note": "vs kpi.clicks."},
             {"label": "Google Ads · Impressions", "kind": "sum", "group": "Google Ads",
              "dash": _kpi("g_imps"),
@@ -1204,13 +1204,13 @@ BQ_CLIENTS = [
              "dash": _kpi("t_imps"),
              "sql": "SELECT SUM(impressions) AS t_imps\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'The Little Marionette';",
+                    "WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette';",
              "note": "vs kpi.t_imps."},
             {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("t_clicks"),
              "sql": "SELECT SUM(clicks) AS t_clicks\n"
                     "FROM `bidbrain-analytics.raw_windsor.perf_the_trade_desk`\n"
-                    "WHERE advertiser_name = 'The Little Marionette';",
+                    "WHERE advertiser_id = 'mor6pp1' OR LOWER(TRIM(advertiser_name)) = 'the little marionette';",
              "note": "vs kpi.t_clicks."},
         ],
     },
