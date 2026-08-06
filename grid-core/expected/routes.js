@@ -20,6 +20,12 @@ const path = require('path');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const store = require('./store');
+const tokens = require('./tokens');
+const { preprocess } = require('./preprocess');
+// extract.js is side-effect free on require (it only runs as require.main) -
+// the preflight estimate needs its prompt size and output ceiling.
+const { SYSTEM, MAX_OUTPUT_TOKENS } = require('./extract');
+const SYSTEM_PROMPT_CHARS = SYSTEM.length;
 
 const ROOT = __dirname;
 const OUT = process.env.GREENLIGHT_OUT_DIR || path.join(ROOT, 'out');
@@ -40,15 +46,31 @@ function send(res, code, obj) {
   res.end(JSON.stringify(obj));
 }
 
+// Read a JSON body, refusing anything past `cap`.
+//
+// On overflow it stops BUFFERING but keeps draining, so the handler can still
+// write a real 413 - destroying the socket here instead sent the client an
+// ECONNRESET with no explanation. A hard ceiling well past the cap stops a
+// genuinely abusive body from being drained forever.
 function readBody(req, cap) {
+  const limit = cap || 64 * 1024 * 1024;
+  const hardCeiling = limit * 4;
   return new Promise((resolve, reject) => {
     let size = 0;
-    const chunks = [];
+    let over = false;
+    let chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > (cap || 64 * 1024 * 1024)) { reject(new Error('body too large')); req.destroy(); } else chunks.push(c);
+      if (over) { if (size > hardCeiling) req.destroy(); return; }
+      if (size > limit) { over = true; chunks = []; return; }
+      chunks.push(c);
     });
     req.on('end', () => {
+      if (over) {
+        return reject(new Error(`request body too large (${(size / 1048576).toFixed(1)}MB; limit `
+          + `${(limit / 1048576).toFixed(0)}MB). For a file, the per-file limit is `
+          + `${(MAX_UPLOAD_BYTES / 1048576).toFixed(0)}MB.`));
+      }
       try { resolve(chunks.length ? JSON.parse(Buffer.concat(chunks).toString('utf8')) : {}); }
       catch { reject(new Error('invalid JSON body')); }
     });
@@ -114,13 +136,23 @@ function startRun(analysisId, inputDir, filesHash, opts) {
         const findingsDoc = JSON.parse(fs.readFileSync(path.join(OUT, 'findings.json'), 'utf8'));
         const messages = JSON.parse(fs.readFileSync(path.join(OUT, 'messages.json'), 'utf8'));
         const v = (node) => (node && node.value != null ? node.value : null);
+        const ex = plan.extractor || {};
+        // Feed the real cost back into the estimator so the next preflight is
+        // measured rather than guessed.
+        if (ex.bundle_chars && ex.usage && ex.usage.input_tokens) {
+          tokens.observe(store.DUMPS, ex.bundle_chars, ex.usage.input_tokens);
+        }
+        const finished = new Date().toISOString();
         const results = {
           run: {
             id,
             analysis_id: analysisId,
             started_at: run.started_at,
-            finished_at: new Date().toISOString(),
-            model: plan.extractor ? plan.extractor.model : 'unknown',
+            finished_at: finished,
+            model: ex.model || 'unknown',
+            duration_ms: Date.parse(finished) - Date.parse(run.started_at),
+            usage: ex.usage || null,
+            bundle_chars: ex.bundle_chars || null,
           },
           meta: {
             client: kpi.client,
@@ -189,6 +221,23 @@ function anyRunning() {
   return [...runs.values()].some((r) => r.status === 'running');
 }
 
+/** Refuse rather than analyse a dump that did not fully come back.
+ *
+ *  analysis.json records how many files were uploaded. If fewer are on disk
+ *  after ensureFiles has run, the mirror could not restore them - and running
+ *  anyway would produce a clean, cited baseline built from part of the
+ *  paperwork, which is the failure this whole unit exists to prevent.
+ *  Returns an error string, or null when the dump is whole. */
+function shortDump(detail) {
+  const expected = detail.analysis.files_expected;
+  if (typeof expected !== 'number') return null;   // pre-dating the counter
+  const have = detail.files.length;
+  if (have >= expected) return null;
+  return `this analysis should hold ${expected} file(s) but only ${have} are available - `
+    + `${expected - have} could not be restored from storage. Re-upload the missing files before running, `
+    + 'so the baseline is not built from part of the dump.';
+}
+
 // ---------------------------------------------------------------- dispatcher
 /**
  * Route dispatcher. prefix e.g. '/api/greenlight' or '/api/expected'.
@@ -210,6 +259,9 @@ async function handle(req, res, url, prefix) {
   }
 
   if ((m = /^\/analyses\/([a-f0-9]+)$/.exec(sub)) && req.method === 'GET') {
+    // Rehydrate the dump from the mirror first: on a fresh instance /tmp is
+    // empty, and without this the analysis reports zero files.
+    await store.ensureFiles(m[1]);
     const d = store.analysisDetail(m[1]);
     if (!d) send(res, 404, { error: 'unknown analysis' });
     else send(res, 200, d);
@@ -240,8 +292,30 @@ async function handle(req, res, url, prefix) {
   // ---- per-analysis files ----
   if ((m = /^\/analyses\/([a-f0-9]+)\/files$/.exec(sub)) && req.method === 'POST') {
     try {
-      const body = await readBody(req);
-      send(res, 200, store.stageFile(m[1], body.name, body.data_b64, MAX_UPLOAD_BYTES));
+      // Cap the body at 2x the per-file limit rather than the 64MB default:
+      // base64 inflates ~33%, so this still lets a modestly-oversize file reach
+      // stageFile and get the precise "file too large (NN MB)" message, while
+      // an absurd body is refused before it is buffered.
+      const body = await readBody(req, MAX_UPLOAD_BYTES * 2);
+      send(res, 200, await store.stageFile(m[1], body.name, body.data_b64, MAX_UPLOAD_BYTES));
+    } catch (e) { send(res, 400, { error: String(e.message || e) }); }
+    return true;
+  }
+
+  // Files the browser could not upload. Recorded server-side so the warning
+  // outlives the upload batch and the page reload.
+  if ((m = /^\/analyses\/([a-f0-9]+)\/files\/skipped$/.exec(sub)) && req.method === 'POST') {
+    try {
+      const body = await readBody(req, 64 * 1024);
+      send(res, 200, store.recordSkipped(m[1], body.name, body.bytes, body.reason));
+    } catch (e) { send(res, 400, { error: String(e.message || e) }); }
+    return true;
+  }
+
+  if ((m = /^\/analyses\/([a-f0-9]+)\/files\/skipped\/clear$/.exec(sub)) && req.method === 'POST') {
+    try {
+      const body = await readBody(req, 64 * 1024);
+      send(res, 200, store.clearSkipped(m[1], body.name || null));
     } catch (e) { send(res, 400, { error: String(e.message || e) }); }
     return true;
   }
@@ -254,13 +328,58 @@ async function handle(req, res, url, prefix) {
     return true;
   }
 
+  // ---- preflight: what WOULD this run read, and what would it cost?
+  // Stage 0 only - deterministic, no model, no network, no charge. This is the
+  // one honest way to answer "which of my files actually get read" before
+  // paying for a call, and it is the same preprocess the real run uses, so it
+  // cannot drift from it.
+  if ((m = /^\/analyses\/([a-f0-9]+)\/preflight$/.exec(sub)) && req.method === 'POST') {
+    await readBody(req, 64 * 1024).catch(() => ({}));
+    await store.ensureFiles(m[1]);
+    const a = store.analysisDetail(m[1]);
+    if (!a) { send(res, 404, { error: 'unknown analysis' }); return true; }
+    if (!a.files.length) { send(res, 400, { error: 'this analysis has no files yet - upload the campaign dump first' }); return true; }
+    const t0 = Date.now();
+    let manifest, bundleText;
+    try {
+      ({ manifest, bundleText } = preprocess(store.aFilesDir(m[1])));
+    } catch (e) {
+      send(res, 500, { error: `preflight could not read the dump: ${String(e.message || e)}` });
+      return true;
+    }
+    const readable = new Set(['sheet', 'table', 'text']);
+    send(res, 200, {
+      ms: Date.now() - t0,
+      intake: manifest.intake,
+      short_dump: shortDump(a),
+      skipped: a.analysis.skipped || [],
+      files: manifest.files.map((f) => ({
+        file: f.file,
+        type: f.type,
+        bytes: f.bytes,
+        read: !f.duplicate_of && readable.has(f.type) && !f.parse_error,
+        reason: f.duplicate_of ? `byte-identical copy of ${f.duplicate_of}`
+          : f.parse_error ? `could not be parsed: ${f.parse_error}`
+            : f.unread ? 'this file type is not read - its content will be missing from the extraction'
+              : f.sampled ? `only the first rows are sent (${f.rows} data rows)`
+                : (f.truncated_sheets && f.truncated_sheets.length) ? `truncated sheet(s): ${f.truncated_sheets.join(', ')}`
+                  : null,
+      })),
+      estimate: tokens.estimate(store.DUMPS, bundleText.length, SYSTEM_PROMPT_CHARS, MAX_OUTPUT_TOKENS),
+    });
+    return true;
+  }
+
   // ---- run within an analysis (with the unchanged-files guard) ----
   if ((m = /^\/analyses\/([a-f0-9]+)\/analyze$/.exec(sub)) && req.method === 'POST') {
     const body = await readBody(req).catch(() => ({}));
+    await store.ensureFiles(m[1]);
     const a = store.analysisDetail(m[1]);
     if (!a) { send(res, 404, { error: 'unknown analysis' }); return true; }
     if (anyRunning()) { send(res, 409, { error: 'a run is already in progress' }); return true; }
     if (!a.files.length) { send(res, 400, { error: 'this analysis has no files yet - upload the campaign dump first' }); return true; }
+    const short = shortDump(a);
+    if (short) { send(res, 409, { error: short }); return true; }
     const hash = store.filesHash(m[1]);
     const last = a.analysis.last_run;
     if (!body.force && last && last.files_hash && last.files_hash === hash) {
@@ -275,6 +394,7 @@ async function handle(req, res, url, prefix) {
   //      extraction, so it costs no model call) ----
   if ((m = /^\/analyses\/([a-f0-9]+)\/rebuild$/.exec(sub)) && req.method === 'POST') {
     await readBody(req).catch(() => ({}));
+    await store.ensureFiles(m[1]);
     const a = store.analysisDetail(m[1]);
     if (!a) { send(res, 404, { error: 'unknown analysis' }); return true; }
     if (anyRunning()) { send(res, 409, { error: 'a run is already in progress' }); return true; }

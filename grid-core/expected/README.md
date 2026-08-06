@@ -40,12 +40,11 @@ into #view-greenlight on the Grid's own theme vars; violet = AI-authored).
   re-resolves EXPECTED_MODEL after its .env load; check_key.js probes whatever
   .env points at.
 - **Storage:** uploads stage per file (base64 JSON, 15MB/file - the platform
-  proxy caps forwarded POSTs ~16MB; bigger files are skipped with a note) into
-  GREENLIGHT_DUMPS_DIR/_staging, and each run archives to
-  GREENLIGHT_DUMPS_DIR/<runId>/ (files + out + results.json). On Cloud Run
-  both point at /tmp (Dockerfile) - ephemeral by design for now.
-  TODO(GCS): gs://bidbrain-campaign-dumps via the src/brain/persist.js
-  pattern so the runs library survives cold starts.
+  proxy caps forwarded POSTs ~16MB) into the analysis's own `files/` dir under
+  GREENLIGHT_DUMPS_DIR, and each run archives to
+  `analyses/<id>/runs/<runId>/` (out + results.json). On Cloud Run those point
+  at /tmp (Dockerfile), which is wiped on every instance restart - the GCS
+  mirror below is the durable copy. See "Analyses" for the full model.
 - **Local prestage:** with no uploads staged, a run analyzes grid-core/files
   (dev convenience; that directory is dockerignored so the deployed image has
   no prestage - upload is the only path in).
@@ -57,9 +56,22 @@ files dump -> preprocess.js -> extract.js (ONE Claude call) -> validate.js -> bu
               deterministic     claude-opus-5, strict schema    rulebook.json    outputs in out/
 ```
 
-1. `preprocess.js` - deterministic: xlsx sheets to row-numbered CSV, media
+1. `preprocess.js` - deterministic: workbook sheets to row-numbered CSV, media
    measured in code (image dims, mp4 duration via ISO-BMFF parse, pdf pages),
    sha256 dedupe, manifest.
+   **Types whose CONTENT is read:** `.xlsx/.xlsm/.xls/.xlsb` (SheetJS reads the
+   legacy binary formats through the same call - a media plan saved as `.xls`
+   used to classify as 'other' and never be opened), `.csv/.tsv`, `.txt/.md`.
+   **Not read:** pdf, pptx, docx and anything else - these are inventoried and
+   labelled `CONTENT NOT EXTRACTED` so the model treats them as WITHHELD rather
+   than absent, and `validate.js` raises a `missing` finding naming them.
+   **Nothing is dropped silently.** Every omission is recorded on the manifest
+   entry and summarised in `manifest.intake` (`unread`, `parse_errors`,
+   `truncated_sheets`, `sampled_csvs`, `content_read`, `duplicates`), and each
+   becomes a finding. A CSV at or under `CSV_FULL_ROW_MAX` (200) data rows is
+   bundled WHOLE - only bigger ones are head-sampled, because a media plan
+   exported to CSV is 30-60 rows and the old flat 15-row cap silently dropped
+   its budget lines.
 2. `extract.js` - one structured-output call (model `claude-opus-5`, override
    with `EXPECTED_MODEL`). Every value cites file | sheet, row. Missing = null.
    Conflicts carry all candidates; a value is resolved ONLY when the documents
@@ -71,7 +83,9 @@ files dump -> preprocess.js -> extract.js (ONE Claude call) -> validate.js -> bu
 3. `validate.js` + `rulebook.json` - generic deterministic checks, identical
    for every client: budget sums, claimed-total labels, date math, items in
    flight, LinkedIn daily minimums, UTM consistency, empty approval fields,
-   unreferenced media, duplicates. Findings tagged origin "code".
+   unreferenced media, duplicates, **plus the intake checks** (files not read,
+   workbooks that would not parse, truncated sheets, head-sampled CSVs) and
+   **duplicate campaign names**. Findings tagged origin "code".
 4. `build_expected.js` - plain-code outputs from out/plan.json + findings.json:
    daily = goal / days, cumulative = elapsed / total x goal (inclusive days,
    final day exact). Campaigns missing budget/goals/dates become exceptions,
@@ -85,6 +99,29 @@ files dump -> preprocess.js -> extract.js (ONE Claude call) -> validate.js -> bu
    conflicts (EcoConsult 2279: the same dump resolved 2026-05-01..2027-02-28
    on one run, null on another - media plan header vs 'Start-June' activation
    phrasing), so the builder must not turn that coin-flip into a dead run.
+
+**Preflight - see the run before paying for it (2026-08-06).** Stage 0 is
+deterministic, offline and takes well under a second, so the whole run can be
+previewed for free. `POST /analyses/:id/preflight` runs `preprocess` ONLY (the
+same call the real run makes, so it cannot drift) and returns: every file
+tagged read / not read with the reason, the `intake` summary, any uploads that
+never arrived, whether the dump is short, and a **token estimate**. The tab
+opens this as a modal on "Run Analysis" - Start or Cancel - and the modal then
+becomes the live progress view, so the intake breakdown stays on screen while
+the stages tick over.
+
+`tokens.js` produces the estimate and **self-calibrates**: every successful run
+records its real chars-per-token (`plan.extractor.usage` + `bundle_chars`,
+folded in by `routes.js`), and later estimates use the measured mean over the
+last 20 runs instead of the 2.5 seed. Implausible ratios are rejected so one
+bad observation cannot poison it, and the payload says whether a figure is
+measured or estimated, with a +/-10% band once calibrated and +/-25% before.
+Row-numbered CSV tokenizes much denser than prose, which is why the seed is 2.5
+rather than the usual ~4 - the first real run replaces it anyway.
+**No dollar figures anywhere:** Greenlight bills a Kimi subscription with no
+per-call price this code can read, and an invented number is worse than none -
+the same rule the extractor follows for plan values. Runs report duration
+always, and tokens only when the provider reported them.
 
 **Retry the failed step (2026-08-05):** after every successful extraction its
 artifacts are saved to `analyses/<id>/last_extract/` (`store.saveExtract`, GCS-
@@ -101,6 +138,7 @@ node grid-core/expected/server.js        # UI at http://localhost:8791 (EXPECTED
 node grid-core/expected/extract.js       # headless: [--files <dir>], writes out/
 node grid-core/expected/build_expected.js
 node grid-core/expected/check_key.js     # 1-token key probe (never prints the key)
+npm --prefix grid-core run test:greenlight  # free deterministic suites (~2s, no key)
 node grid-core/expected/test_regression.js  # gate vs the Schneider NEL dump (server must run)
 ```
 
@@ -122,11 +160,27 @@ archived (soft, reversible) or deleted (hard, removes files + runs).
   again with identical files answers `{unchanged:true}` and the UI asks
   "Run anyway?" before spending another model call (force:true overrides).
 - **GCS mirror** (GREENLIGHT_BUCKET, prod = gs://bidbrain-campaign-dumps):
-  every write mirrors up best-effort; boot pulls the small metadata index;
-  files/artifacts come down lazily on first read. Local FS stays the source
-  of truth for the instance - a mirror failure logs loudly, never breaks a
-  request. This is what makes the library survive Cloud Run cold starts.
+  every write mirrors up (file uploads are AWAITED - the mirror is the only
+  durable copy, so returning 200 first would lose a file to a crash in that
+  window); boot pulls the small metadata index; artifacts come down lazily on
+  first read. Local FS stays the source of truth for the instance - a mirror
+  failure logs loudly, never breaks a request.
   Locally the mirror is off (env unset) and everything stays on disk.
+- **Dump rehydration (`store.ensureFiles`, awaited by the detail, analyze and
+  rebuild routes):** /tmp does not survive an instance restart, so without this
+  an analysis comes back listing ZERO files and a re-run analyses only whatever
+  is uploaded next - returning a clean, fully-cited baseline built from a
+  fraction of the paperwork, with nothing looking wrong. `ensureFiles` lists
+  `analyses/<id>/files/` in the bucket and pulls back anything missing, 8 at a
+  time. Belt and braces: `analysis.json` records `files_expected` on every
+  stage/remove, and a run whose local count is short is **refused with a 409**
+  naming how many files are missing rather than analysing a partial dump.
+- **Skipped uploads are recorded server-side** (`analysis.json.skipped`, via
+  `POST /analyses/:id/files/skipped`). They used to live only in page memory
+  and were cleared the moment the upload batch finished, so an oversize or
+  failed file vanished from the dump with no explanation. The tab now shows a
+  persistent warning that survives a reload, and staging the same name again
+  clears it.
 - **Identity guard** (extract.js, deterministic): 4-digit job prefixes in file
   names partition a dump. More than one distinct job = never blend: a blocker
   finding lists which files belong to which job, plan.campaigns keeps only the
@@ -150,6 +204,31 @@ archived (soft, reversible) or deleted (hard, removes files + runs).
   model-drafted chase messages (a person reviews and sends)
 - `manifest.json` - the preprocess inventory with code-measured media metadata
 
+## Tests
+
+Two tiers, deliberately split by what they cost.
+
+**Free, deterministic, every push** - no key, no server, no network, ~2s total.
+`npm run test:greenlight` (also inside `npm test`):
+
+```
+expected/tokens.test.js     the pre-run estimate: seeded vs measured, the
+                            self-calibration loop, and that an implausible
+                            observation is rejected rather than averaged in
+expected/intake.test.js     preprocess: which types are read, and that every
+                            omission (unread type, parse error, truncation,
+                            head-sampled CSV, duplicate) is recorded
+expected/validate.test.js   every rulebook check FIRES on a real discrepancy
+                            and does NOT fire on figures that reconcile
+expected/build.test.js      spawns the real build_expected.js against fixture
+                            plans: inclusive day counts, exact final
+                            cumulatives, daily column summing to the goal,
+                            exceptions, all three flight-ladder rungs, exit 3
+```
+
+**Paid, end to end, on demand** - the regression gate below (needs a server,
+the private dump and a funded key).
+
 ## Regression gate
 
 `test_regression.js` is the ONLY place client numbers live: a cold run on the
@@ -163,9 +242,18 @@ Last green: 2026-08-04, 13/13.
 
 - UTM required-param checks fire on reference URLs (SharePoint links, privacy
   pages) where UTMs do not belong - scope the rulebook check to ad
-  destinations.
+  destinations. (GL-17)
 - `referenced_files` uses the names documents cite (e.g. `DCFCREVL001EN.pdf`),
   which may not match physical file names, so genuinely-used assets can be
-  flagged unreferenced; the extractor flags the mismatch itself.
-- Upload zone accepts file metadata only; byte upload into a per-run staging
-  dir is the next milestone.
+  flagged unreferenced; the extractor flags the mismatch itself. (GL-18)
+- **PDF text is still not extracted.** PDFs are inventoried, labelled
+  `CONTENT NOT EXTRACTED` and raised as a `missing` finding, so a PDF brief can
+  no longer pass unnoticed - but reading it is real work still to do. Same for
+  `.pptx`/`.docx`.
+- **Files over 15MB still cannot reach an analysis** (the platform proxy caps
+  forwarded POSTs ~16MB). They are now recorded and shown persistently instead
+  of vanishing, but the fix is a direct-to-GCS signed upload. (GL-28)
+- The run registry (`routes.js` `runs` Map) is still per-instance, so a status
+  poll answered by a different instance reports a live run as dead. (GL-01;
+  note its premise needs correcting - the run is already detached from the
+  request, the problem is durable run state, not backgrounding.)

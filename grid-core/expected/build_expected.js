@@ -133,19 +133,24 @@ if (!usable.length) {
 
 const rows = [];
 for (const c of usable) {
+  // Daily = the difference between consecutive ROUNDED cumulatives, so the
+  // daily column telescopes to the goal exactly AND agrees with the cumulative
+  // column. Rounding each day's share independently instead left the two
+  // disagreeing under summation (6,000 summed to 6,000.07 over 83 days), so a
+  // pivot of the daily column did not match the stated total.
+  const cumAt = (total, k) => (total == null ? null : r2((total * k) / c.days));
+  const dayAt = (total, k) => (total == null ? null : r2(cumAt(total, k) - cumAt(total, k - 1)));
   for (let k = 1; k <= c.days; k++) {
-    const share = k / c.days;
-    const prev = (k - 1) / c.days;
     rows.push({
       date: iso(c.start + (k - 1) * DAY_MS),
       campaign: c.name,
       platform: c.platform,
-      expected_spend: r2(c.spend * (share - prev)),
-      expected_impressions: c.impressions != null ? r2(c.impressions * (share - prev)) : null,
-      expected_clicks: c.clicks != null ? r2(c.clicks * (share - prev)) : null,
-      cum_spend: r2(c.spend * share),
-      cum_impressions: c.impressions != null ? r2(c.impressions * share) : null,
-      cum_clicks: c.clicks != null ? r2(c.clicks * share) : null,
+      expected_spend: dayAt(c.spend, k),
+      expected_impressions: dayAt(c.impressions, k),
+      expected_clicks: dayAt(c.clicks, k),
+      cum_spend: cumAt(c.spend, k),
+      cum_impressions: cumAt(c.impressions, k),
+      cum_clicks: cumAt(c.clicks, k),
       days_elapsed: k,
       days_remaining: c.days - k,
     });

@@ -217,6 +217,64 @@ function validate(plan, manifest, rulebook) {
     }
   }
 
+  // -------- intake: everything the pipeline could NOT read.
+  // "Missing stays missing" applies to inputs too: a file whose content never
+  // reached the extractor must be visible, or a run over part of a dump looks
+  // exactly like a run over all of it.
+  // (an older manifest restored from the extract slot has no intake block -
+  // default every list so a rebuild against it cannot throw)
+  const mi = (manifest && manifest.intake) || null;
+  const intake = mi && {
+    unread: mi.unread || [],
+    parse_errors: mi.parse_errors || [],
+    truncated_sheets: mi.truncated_sheets || [],
+    sampled_csvs: mi.sampled_csvs || [],
+  };
+  const rbi = rb.intake || {};
+  if (intake) {
+    if (rbi.flag_unread_files && intake.unread.length) {
+      out.push(finding('i_unread', 'missing', 'Raw Materials Complete', 'NOT READ',
+        `${intake.unread.length} file(s) were not read: their content never reached the extractor`,
+        `This run reads spreadsheets, CSVs and plain text only. Not read: ${intake.unread.join(', ')}. `
+        + 'Anything these documents contain (plan figures, dates, approvals) is absent from the extraction - '
+        + 'supply it as a spreadsheet or CSV if it matters to the baseline.',
+        'file inventory (types classified in code)'));
+    }
+    if (rbi.flag_parse_errors) {
+      for (const pe of intake.parse_errors) {
+        out.push(finding(`i_parse_${pe.file}`, 'inconsistent', 'Raw Materials Complete', 'UNREADABLE',
+          `Workbook could not be parsed: ${pe.file}`,
+          `${pe.error}. The file is present in the dump but none of its content reached the extractor. `
+          + 'Corrupt or password-protected files must be re-sent unlocked.',
+          'preprocess (parse attempted in code)'));
+      }
+    }
+    if (rbi.flag_truncated_sheets && intake.truncated_sheets.length) {
+      out.push(finding('i_trunc', 'watch', 'Raw Materials Complete', 'TRUNCATED',
+        `${intake.truncated_sheets.length} sheet(s) were truncated before extraction`,
+        `Only the first part of each was supplied: ${intake.truncated_sheets.join('; ')}. `
+        + 'Rows past the cut are not in the extraction - check that no plan lines sit beyond it.',
+        'preprocess sheet character cap'));
+    }
+    if (rbi.flag_sampled_csvs && intake.sampled_csvs.length) {
+      out.push(finding('i_sampled', 'watch', 'Raw Materials Complete', 'SAMPLED',
+        `${intake.sampled_csvs.length} large CSV(s) were head-sampled, not read in full`,
+        `Treated as data exports rather than plan documents: ${intake.sampled_csvs.join('; ')}.`,
+        'preprocess CSV row cap'));
+    }
+  }
+
+  // -------- extraction hygiene: campaign names the extractor repeated.
+  // build_expected groups daily rows BY NAME, so a collision would silently
+  // double a line's rows. normalizePlan uniquifies them and records it here.
+  for (const col of plan.name_collisions || []) {
+    out.push(finding(`x_dupname_${col.renamed_to}`, 'inconsistent', 'Media Plan Approved', 'DUPLICATE NAME',
+      `Two plan lines were extracted with the same name: "${col.name}"`,
+      `The second was renamed to "${col.renamed_to}" so the baseline keeps them apart. `
+      + 'Check the plan: either these are genuinely two lines that need distinct names, or one line was extracted twice.',
+      'extraction (campaign name collision)'));
+  }
+
   return out;
 }
 
