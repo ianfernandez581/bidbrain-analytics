@@ -824,7 +824,7 @@ function kpiCard(o){
 function renderKpis(){
   const a=agg(scoped());
   const cpmT=bench('cpm'),ctrT=bench('ctr'),cpcT=bench('cpc'),impT=bench('impressions_target');
-  const vwT=bench('viewability_target');
+  // viewability_target is still read in renderGoals() for the plan-commitment caveat row.
   const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
   const fImps=n(flight().impressions_to_date);const impPct=(impT&&fImps)?Math.round(fImps/impT*100):null;
   // North-star band: the campaign goals - efficient attention (awareness) + engagement and site
@@ -846,13 +846,11 @@ function renderKpis(){
   const ctx=[
     {color:MC.cost,label:'CPM',value:a.cpm!=null?money(a.cpm,2):'-',sub:cpmT!=null?`target ${money(cpmT,2)}`:'cost per 1,000 impressions'},
     {color:MC.cost,label:'CPC',value:a.cpc!=null?money(a.cpc,2):'-',sub:cpcT!=null?`target ${money(cpcT,2)}`:'cost per click'},
-    {color:MC.video,label:'Video completion',value:a.vcr!=null?pctWhole(a.vcr):'-',sub:a.video_starts?`${compact(a.video_starts)} starts → ${compact(a.video_completes)} completes`:'no video creatives in range'},
-    {color:MC.imps,label:'Viewability (sampled)',
-      value:a.viewability!=null?pctWhole(a.viewability):'-',
-      sub:a.viewability!=null
-            ?`${compact(a.vw_viewed)} of ${compact(a.vw_tracked)} measured${vwT!=null?` · target ${pctWhole(vwT)}`:''}`
-            :(vwT!=null?`not measured yet · plan ${pctWhole(vwT)}`:'not measured yet'),
-      badge:a.viewability==null?'enable in TTD':null},
+    // Video completion + Viewability (sampled) were REMOVED from this row 2026-08-05 (client
+    // request): neither is measurable on this campaign - there are no video creatives, and
+    // viewability verification is not enabled on these ad groups in TTD - so both only ever
+    // rendered a "-" tile. The underlying vcr/viewability fields are still computed and still
+    // feed the goal-progress caveat row, so nothing needs re-deriving if they are reinstated.
     {color:MC.ctr,label:'Tactics live',value:int(tactics.length),sub:markets.length?markets.join(' · '):'&nbsp;'}
   ];
   $('kpiGridN').innerHTML=north.map(kpiCard).join('');

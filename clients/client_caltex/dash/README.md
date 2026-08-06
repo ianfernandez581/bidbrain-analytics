@@ -36,7 +36,8 @@ north-star KPI bloom, halo on active chips/tabs, lit pacing bar, card hover bloo
   Consideration) · search (ad group / creative / tactic). Every figure recomputes from the shipped
   fact `rows[]` client-side, so any sub-range is exact.
 - **Overview** — north-star KPI band (Impressions · Clicks · Site actions · Spend; clickable —
-  each toggles its hero series), context KPIs (CPM / CPC / video completion / tactics live), the
+  each toggles its hero series), context KPIs (CPM / CPC / tactics live — the video-completion and
+  viewability tiles were removed 2026-08-05, neither being measurable on this campaign), the
   delivery hero (spend bars vs impressions/clicks/actions lines, VIEW BY Month/Week/Day + AXIS
   Relative/Absolute), budget pacing + progress-to-goal, cumulative impressions vs target pace,
   the attention funnel (impressions → clicks → site actions), spend-by-tactic donut (live centre
