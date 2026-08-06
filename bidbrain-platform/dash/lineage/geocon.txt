@@ -182,8 +182,12 @@ rebuild; this is inherent to the gate and matches the other clients.)
 -- 01_stg_meta: filter raw_windsor.perf_meta to Geocon campaigns, daily x campaign x adset x ad grain.
 -- This is the client's slice + the per-row funnel_stage classification. The raw layer IS
 -- raw_windsor.perf_meta (Windsor-sourced, self-refreshing) -- this is NOT Snowflake.
--- The prefix filter STARTS_WITH('Geocon_') lets future Geocon campaigns (e.g. The Irving) flow
--- in automatically and is immune to the trailing-space quirk in 'Geocon_Traffic_MayJune 2026'.
+-- Scope = ad account AND campaign prefix, BOTH required (2026-08-06): perf_meta is a SHARED
+-- table carrying six Meta ad accounts incl. other agencies', so the account_id pins the slice
+-- to the 100% Digital - Clients account (act 3754165911553001); and that account hosts SEVERAL
+-- 100-digital clients (geocon, bellshakespeare, nextsmile), so the prefix is still needed to
+-- split them. STARTS_WITH('Geocon_') lets future Geocon campaigns (e.g. The Irving) flow in
+-- automatically and is immune to the trailing-space quirk in 'Geocon_Traffic_MayJune 2026'.
 
 ### 02_fact.sql
 -- 02_fact: the single per-(date x campaign x adset x ad) fact table the export job ships whole.
