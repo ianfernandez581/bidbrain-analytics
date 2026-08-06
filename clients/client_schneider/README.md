@@ -79,9 +79,10 @@ two-liner: add `'microgrid'` to the `WHERE program IN (…)` in
 plus a `PILLAR` entry ("Energy Resilience") in the dashboard. Also set its `brief_job_no` to **2040** and
 added **`2040 SE` + `2040_`** match_pattern tokens — defensive, per the `heavy`/`2281_` lesson that the
 delivering ad-set names can abbreviate away the program word (no such sibling exists today; verified).
-**Targets are PENDING** — there is no signed media plan yet, so `data/media_plan.csv` carries a single
-LinkedIn Awareness line with **blank targets/spend** and `data/plan_budget.csv` a blank `microgrid` row.
-Consequence: its Executive-Scorecard card reads **0 / 0** and its pace shows `-` until the plan lands
+**Targets: impressions seeded, rest PENDING** — the client confirmed a **70,680 impression target**
+(2026-08-06, seeded on `data/media_plan.csv`'s LinkedIn Awareness line via `load_seeds.py` + a forced
+job run), so the scorecard card now paces reach against it. Spend/flight dates are still blank
+(`data/plan_budget.csv` still has a blank `microgrid` row) until a signed media plan lands
 (fill the CSVs and re-run `load_seeds.py` + the job with `FORCE_REBUILD=1`). **Market caveat:** both ad
 sets are named `-ANZ-` with no country token, and LinkedIn has no ad-group column to fall back on the way
 Trade Desk does, so `sql/20`'s AU/NZ normalisation folds **100% of Microgrid delivery into Australia**.
@@ -99,10 +100,11 @@ first-match-wins with no collision (verified), so enabling it was the NEL two-li
 to the `WHERE program IN (…)` in [`sql/20_pm_delivery.sql`](sql/20_pm_delivery.sql) and to
 `CS_PROGRAMS` in [`job/main.py`](job/main.py), plus a `PILLAR` entry ("Services & Consulting") in the
 dashboard. **`ECAA` + `2279_`** match_pattern tokens added — defensive, per the `heavy`/`2281_` lesson.
-**Targets are PENDING** — no signed media plan in the repo, so `data/media_plan.csv` carries a single
-LinkedIn Awareness line with blank targets (`data/plan_budget.csv` already had ecoconsult at A$30,000
-ex-fees from the Pacific intake, no flight dates) — its scorecard card reads 0 leads / 0 target and
-pace `-` until the plan lands (fill the CSVs, re-run `load_seeds.py` + the job `FORCE_REBUILD=1`).
+**Targets: impressions seeded, rest PENDING** — the client confirmed a **333,333 impression target**
+(2026-08-06, seeded on `data/media_plan.csv`'s LinkedIn Awareness line via `load_seeds.py` + a forced
+job run), so the scorecard card now paces reach against it. The rest of the plan is still blank
+(`data/plan_budget.csv` already had ecoconsult at A$30,000 ex-fees from the Pacific intake, no flight
+dates) until the signed plan lands (fill the CSVs, re-run `load_seeds.py` + the job `FORCE_REBUILD=1`).
 **Market caveat (same as Microgrid):** every ad-set name is `_ANZ_` with no country token and LinkedIn
 has no ad-group fallback, so `sql/20` folds **100% of EcoConsult delivery into Australia**.
 **Lead-gen caveat:** 2 of the 3 groups are LinkedIn Lead Generation objective. Those lead-form leads
