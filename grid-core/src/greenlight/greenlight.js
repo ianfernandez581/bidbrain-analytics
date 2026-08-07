@@ -156,6 +156,27 @@
     '#glModal .mlogbox .s-build{color:var(--tx-ink)}',
     '#glModal .mlogbox .s-system{color:var(--warn)}',
     '#glModal .mempty{color:var(--ink-3);font-style:italic}',
+    // partial run: the stepper's last step stopped short on purpose, so it needs
+    // its own state - without this it renders as an unstyled blank circle.
+    '#view-greenlight .gl-step.warn{color:var(--ink-2)}',
+    '#view-greenlight .gl-step.warn .ic{border-color:var(--warn);background:var(--warn-soft);color:var(--warn)}',
+    // "files still needed" - the call to action on an incomplete dump. Deliberately
+    // the loudest thing on the results panel: it is the only part the buyer can act on.
+    '#view-greenlight .gl-needs{display:none;border-left:3px solid var(--warn)}',
+    '#view-greenlight .gl-needs h3{color:var(--ink)}',
+    '#view-greenlight .gl-need{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-top:1px solid var(--line-2);font-size:12.5px}',
+    '#view-greenlight .gl-need .t{font-weight:600;color:var(--ink)}',
+    '#view-greenlight .gl-need .d{color:var(--ink-2);font-size:11.5px;margin-top:3px;word-break:break-word}',
+    '#view-greenlight .gl-partialbar{display:none;align-items:flex-start;gap:10px;margin-bottom:14px;padding:11px 14px;border:1px solid var(--warn);border-radius:10px;background:var(--warn-soft);font-size:12.5px;color:var(--ink)}',
+    '#view-greenlight .gl-partialbar b{display:block;margin-bottom:2px}',
+    '#view-greenlight .gl-partialbar .why{color:var(--ink-2);font-size:11.5px}',
+    '#view-greenlight .gl-live{display:none;margin-top:9px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+    '#view-greenlight .gl-logbox{max-height:320px;overflow:auto;margin:0;padding:10px 12px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap}',
+    // severity chips double as filters once a real dump pushes findings past ~30
+    '#view-greenlight .gl-fsum .gl-chip{cursor:pointer;user-select:none;border:1px solid transparent}',
+    '#view-greenlight .gl-fsum .gl-chip.off{opacity:.35}',
+    '#view-greenlight .gl-fsum .gl-chip:hover{border-color:currentColor}',
+    '#view-greenlight .gl-fempty{color:var(--ink-3);font-size:12px;padding:14px 8px}',
   ].join('\n');
 
   var HTML = [
@@ -202,25 +223,28 @@
     '      <div class="gl-step" data-k="plan"><span class="ic">&#10003;</span>Reading plan</div>',
     '      <div class="gl-step" data-k="gaps"><span class="ic">&#10003;</span>Checking gaps</div>',
     '      <div class="gl-step" data-k="outputs"><span class="ic">&#10003;</span>Building outputs</div>',
+    '      <div class="gl-live" id="glLive"></div>',
     '    </div>',
     '  </div>',
-    '  <div class="gl-card gl-err" id="glErr"><h3>Run failed</h3><div class="gl-desc">The pipeline stopped. Results stay hidden until a run succeeds.</div><div class="gl-errmsg" id="glErrMsg"></div>',
+    '  <div class="gl-card gl-err" id="glErr"><h3>Run failed</h3><div class="gl-desc">The pipeline stopped and produced nothing. This is not the same as an incomplete dump - a dump that is merely missing files still returns a partial audit.</div><div class="gl-errmsg" id="glErrMsg"></div>',
     '    <div class="gl-foot" id="glRetryRow" style="display:none"><button class="gl-btn small" id="glRetryBtn">Retry failed step</button><span class="gl-note">Reuses this run\'s extraction - rebuilds the outputs only, no new AI call.</span></div>',
     '  </div>',
     '  <div class="gl-results" id="glResults">',
+    '    <div class="gl-partialbar" id="glPartialBar"><span>&#9888;</span><span><b>Partial audit - no baseline was built</b>',
+    '      <span class="why" id="glPartialWhy"></span>',
+    '      <span class="why">Everything that could be checked, was. Add the files below and run again to complete it.</span></span></div>',
+    '    <div class="gl-card gl-needs" id="glNeeds"><h3>Files still needed <span class="gl-chip warn" id="glNeedsCount"></span></h3>',
+    '      <div class="gl-desc">What the documents expect but this analysis does not have. Upload them into this same analysis - your existing files stay - then run again.</div>',
+    '      <div id="glNeedRows"></div>',
+    '      <div class="gl-foot"><button class="gl-btn primary small" id="glNeedsAdd">Add the missing files</button></div>',
+    '    </div>',
     '    <div class="gl-card gl-guard" id="glGuard"><h3>Multiple campaigns detected</h3><div class="gl-desc" id="glGuardMsg" style="margin-bottom:0"></div></div>',
-    '    <div class="gl-card"><h3>Expected baseline <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">One row per media-plan line: goals, window, spend/day and expected-to-date, with the source cell it came from. The daily curve lives in daily_kpi.xlsx / .json; actuals join later.</div><iframe id="glPacing" title="Expected baseline" height="440"></iframe></div>',
-    '    <div class="gl-card"><h3>Process flowchart <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">Stage status from findings. Red means a blocker sits in that stage.</div><iframe id="glFlow" title="Readiness flowchart" height="460"></iframe></div>',
+    '    <div class="gl-card" id="glBaselineCard"><h3>Expected baseline <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">One row per media-plan line: goals, window, spend/day and expected-to-date, with the source cell it came from. The daily curve lives in daily_kpi.xlsx / .json; actuals join later.</div><iframe id="glPacing" title="Expected baseline" height="440"></iframe></div>',
+    '    <div class="gl-card" id="glFlowCard"><h3>Process flowchart <span class="gl-chip ok">COMPUTED IN CODE</span></h3><div class="gl-desc">Stage status from findings. Red means a blocker sits in that stage.</div><iframe id="glFlow" title="Readiness flowchart" height="460"></iframe></div>',
     '    <div class="gl-card"><h3>Findings</h3><div class="gl-desc" id="glFDesc"></div><div class="gl-fsum" id="glFSum"></div><div class="gl-fhead"><span>Status</span><span>Stage</span><span>Finding</span><span>Source</span></div><div id="glFRows"></div></div>',
     '    <div class="gl-card ai"><h3>Chase messages <span class="gl-aitag">AI-AUTHORED</span></h3><div class="gl-desc" id="glMDesc">Drafts only. A person reviews and sends.</div><div id="glMsgs"></div></div>',
-    '    <div class="gl-card"><h3>Downloads</h3><div class="gl-desc">The artifacts this run produced.</div><div id="glDls">',
-    '      <a class="gl-dl" data-file="daily_kpi.xlsx" download><span class="gl-fic xls">XLS</span>daily_kpi.xlsx</a>',
-    '      <a class="gl-dl" data-file="daily_kpi.json" download><span class="gl-fic doc">JSON</span>daily_kpi.json</a>',
-    '      <a class="gl-dl" data-file="plan.json" download><span class="gl-fic doc">JSON</span>plan.json</a>',
-    '      <a class="gl-dl" data-file="findings.json" download><span class="gl-fic doc">JSON</span>findings.json</a>',
-    '      <a class="gl-dl" data-file="report.md" download><span class="gl-fic doc">MD</span>report.md</a>',
-    '      <a class="gl-dl" data-file="chase_messages.md" download><span class="gl-fic doc">MD</span>chase_messages.md</a>',
-    '    </div></div>',
+    '    <div class="gl-card"><h3>Downloads</h3><div class="gl-desc">The artifacts this run produced. A partial run writes fewer - only what it could.</div><div id="glDls"></div></div>',
+    '    <div class="gl-card"><h3>Run log</h3><div class="gl-desc">Everything this run did, in order, with token usage and the outcome. Useful on a run that succeeded, not just one that failed.</div><pre class="gl-logbox" id="glLog">loading...</pre></div>',
     '  </div>',
     '  </div>',
     '</div>',
@@ -343,7 +367,10 @@
       S.current.runs.forEach(function (r, i) {
         var o = document.createElement('option');
         o.value = r.id;
-        o.textContent = 'Run ' + (S.current.runs.length - i) + ' · ' + (r.at ? r.at.replace('T', ' ').slice(0, 16) : r.id);
+        // Mark partial runs in the picker: without it an incomplete audit is
+        // indistinguishable from a complete one until you open it.
+        o.textContent = 'Run ' + (S.current.runs.length - i) + ' · ' + (r.at ? r.at.replace('T', ' ').slice(0, 16) : r.id)
+          + (r.partial ? ' · PARTIAL' + (r.needs_upload ? ' (' + r.needs_upload + ' to upload)' : '') : '');
         runSel.appendChild(o);
       });
     } else {
@@ -676,7 +703,19 @@
     }).then(function (run) {
       (run.stages || []).forEach(function (s) { setStep(s.key, s.state); });
       renderLog(run.log);
+      // The model call is minutes of silence otherwise. The server already
+      // narrates into run.log; mirror its last line under the stepper so the
+      // run looks alive even with the modal log collapsed. Entries are
+      // {at, src, line} objects (routes.js logLine); tolerate legacy strings.
+      var live = el('glLive');
+      var lines = run.log || [];
+      if (lines.length) {
+        var last = lines[lines.length - 1];
+        live.style.display = 'block';
+        live.textContent = last && last.line != null ? last.line : String(last).replace(/^\S+\s/, '');
+      }
       if (run.status === 'running') { setTimeout(function () { poll(id); }, 1500); return; }
+      live.style.display = 'none';
       if (run.status === 'error') {
         var failed = (run.stages || []).filter(function (s) { return s.state === 'error'; })[0];
         finishError(run.error || 'unknown failure', !!(failed && failed.key === 'outputs'));
@@ -703,9 +742,77 @@
     }).catch(function (e) { showError(String(e.message || e)); });
   }
 
+  // A partial run (build_expected exit 3) writes plan/findings/messages but NO
+  // baseline: no daily_kpi.*, no pacing.html, no flowchart.html, no report.md.
+  // Rendering those anyway gave two broken iframes and three dead download
+  // links on a run the UI still presented as complete.
+  // report.md and flowchart.html need only findings.json, so build_expected
+  // writes them before the baseline gate - a partial run has both.
+  var FULL_ONLY = ['daily_kpi.xlsx', 'daily_kpi.json'];
+  var ALWAYS = ['report.md', 'plan.json', 'findings.json', 'chase_messages.md', 'manifest.json', 'run.log'];
+  var FILE_ICON = { 'daily_kpi.xlsx': ['xls', 'XLS'], 'run.log': ['doc', 'LOG'] };
+
+  function renderDownloads(base, partial) {
+    var box = el('glDls');
+    box.innerHTML = '';
+    var files = (partial ? [] : FULL_ONLY).concat(ALWAYS);
+    files.forEach(function (name) {
+      var ic = FILE_ICON[name] || icFor(name);
+      var a = document.createElement('a');
+      a.className = 'gl-dl';
+      a.setAttribute('href', base + '/out/' + name);
+      a.setAttribute('download', '');
+      a.innerHTML = '<span class="gl-fic ' + ic[0] + '">' + ic[1] + '</span>' + esc(name);
+      box.appendChild(a);
+    });
+  }
+
+  function renderNeedsUpload(res) {
+    var needs = res.needs_upload || [];
+    var card = el('glNeeds');
+    if (!needs.length) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    el('glNeedsCount').textContent = needs.length + (needs.length === 1 ? ' ITEM' : ' ITEMS');
+    var box = el('glNeedRows');
+    box.innerHTML = '';
+    needs.forEach(function (n) {
+      var div = document.createElement('div');
+      div.className = 'gl-need';
+      div.innerHTML = '<span><span class="gl-chip warn">' + esc(n.chip) + '</span></span>'
+        + '<span><div class="t">' + esc(n.title) + '</div><div class="d">' + esc(n.detail) + '</div></span>';
+      box.appendChild(div);
+    });
+  }
+
+  function renderRunLog(base) {
+    var box = el('glLog');
+    box.textContent = 'loading...';
+    fetch(base + '/out/run.log', { cache: 'no-store' })
+      .then(function (r) { return r.ok ? r.text() : ''; })
+      .then(function (t) {
+        // Runs archived before run.log existed simply have none - say so rather
+        // than showing an empty box that reads like a failure.
+        box.textContent = t && t.trim() ? t : 'No log recorded for this run (it predates run logging).';
+      })
+      .catch(function () { box.textContent = 'Log unavailable.'; });
+  }
+
   function renderResults(res) {
     var base = API + '/analyses/' + res.run.analysis_id + '/runs/' + res.run.id;
     el('glResults').style.display = 'block';
+    var partial = !!(res.run && res.run.partial);
+
+    // Partial: say so up front, and hide the two panels whose source files were
+    // never written rather than embedding a 404.
+    el('glPartialBar').style.display = partial ? 'flex' : 'none';
+    if (partial) el('glPartialWhy').textContent = res.run.blocked_reason || 'The dump does not resolve a flight window or any complete media-plan line.';
+    // Only the baseline panel depends on files a partial run skipped; the
+    // flowchart is findings-derived and is written either way.
+    el('glBaselineCard').style.display = partial ? 'none' : 'block';
+
+    renderNeedsUpload(res);
+    renderDownloads(base, partial);
+    renderRunLog(base);
 
     var guard = res.meta && res.meta.guard;
     el('glGuard').style.display = guard ? 'block' : 'none';
@@ -722,20 +829,44 @@
       cost += ' · ' + Number(res.run.usage.input_tokens).toLocaleString() + ' in'
         + (res.run.usage.output_tokens ? ' / ' + Number(res.run.usage.output_tokens).toLocaleString() + ' out' : '') + ' tokens';
     }
-    el('glFDesc').textContent = 'Run ' + res.run.id + ' · extracted by ' + res.run.model + ' · finished ' + res.run.finished_at.replace('T', ' ').slice(0, 19) + ' UTC' + cost + '. Violet rows were authored by the model this run (' + res.origins.model + '); plain rows are deterministic rulebook checks computed in code (' + res.origins.code + ').';
+    el('glFDesc').textContent = 'Run ' + res.run.id + (partial ? ' (partial)' : '') + ' · extracted by ' + res.run.model + ' · finished ' + res.run.finished_at.replace('T', ' ').slice(0, 19) + ' UTC' + cost + '. Violet rows were authored by the model this run (' + res.origins.model + '); plain rows are deterministic rulebook checks computed in code (' + res.origins.code + ').';
     el('glMDesc').textContent = 'Drafted by ' + res.run.model + ' in run ' + res.run.id + '. A person reviews and sends. One message per recipient.';
 
     var bust = '?t=' + Date.now();
-    el('glPacing').src = base + '/out/pacing.html' + bust;
     el('glFlow').src = base + '/out/flowchart.html' + bust;
-    document.querySelectorAll('#glDls .gl-dl').forEach(function (a) {
-      a.setAttribute('href', base + '/out/' + a.getAttribute('data-file'));
-    });
+    // pacing.html exists only on a complete run - never point at a 404.
+    if (partial) el('glPacing').removeAttribute('src');
+    else el('glPacing').src = base + '/out/pacing.html' + bust;
 
     var order = { blocker: 0, missing: 1, gap: 2, inconsistent: 3, watch: 4, housekeeping: 5 };
     var fsSorted = res.findings.slice().sort(function (a, b) { return (order[a.severity] || 9) - (order[b.severity] || 9); });
     var counts = {};
     fsSorted.forEach(function (f) { counts[f.severity] = (counts[f.severity] || 0) + 1; });
+
+    // Severity chips are filters. Everything starts visible; clicking a chip
+    // hides that severity, so a 30-finding dump can be read one class at a time
+    // without losing the totals - the counts stay on the chips.
+    var hidden = {};
+    function drawRows() {
+      var box = el('glFRows');
+      box.innerHTML = '';
+      var shown = fsSorted.filter(function (f) { return !hidden[f.severity]; });
+      if (!shown.length) {
+        box.innerHTML = '<div class="gl-fempty">Every severity is filtered out. Click a chip above to bring findings back.</div>';
+        return;
+      }
+      shown.forEach(function (f) {
+        var isAi = f.origin === 'model';
+        var div = document.createElement('div');
+        div.className = 'gl-frow' + (isAi ? ' ai' : '');
+        div.innerHTML = '<span><span class="gl-chip ' + chipClass(f.severity) + '">' + esc(f.chip) + '</span></span>'
+          + '<span class="stage">' + esc(f.stage) + '</span>'
+          + '<span><div class="t">' + esc(f.title) + '<span class="gl-orig ' + (isAi ? 'ai' : 'code') + '">' + (isAi ? 'AI' : 'CODE') + '</span></div><div class="d">' + esc(f.detail) + '</div></span>'
+          + '<span class="src">' + esc(f.source) + '</span>';
+        box.appendChild(div);
+      });
+    }
+
     var sum = el('glFSum');
     sum.innerHTML = '';
     Object.keys(order).forEach(function (sev) {
@@ -743,20 +874,15 @@
       var sp = document.createElement('span');
       sp.className = 'gl-chip ' + chipClass(sev);
       sp.textContent = counts[sev] + ' ' + sev.toUpperCase();
+      sp.title = 'Click to show or hide ' + sev + ' findings';
+      sp.addEventListener('click', function () {
+        hidden[sev] = !hidden[sev];
+        sp.className = 'gl-chip ' + chipClass(sev) + (hidden[sev] ? ' off' : '');
+        drawRows();
+      });
       sum.appendChild(sp);
     });
-    var rows = el('glFRows');
-    rows.innerHTML = '';
-    fsSorted.forEach(function (f) {
-      var isAi = f.origin === 'model';
-      var div = document.createElement('div');
-      div.className = 'gl-frow' + (isAi ? ' ai' : '');
-      div.innerHTML = '<span><span class="gl-chip ' + chipClass(f.severity) + '">' + esc(f.chip) + '</span></span>'
-        + '<span class="stage">' + esc(f.stage) + '</span>'
-        + '<span><div class="t">' + esc(f.title) + '<span class="gl-orig ' + (isAi ? 'ai' : 'code') + '">' + (isAi ? 'AI' : 'CODE') + '</span></div><div class="d">' + esc(f.detail) + '</div></span>'
-        + '<span class="src">' + esc(f.source) + '</span>';
-      rows.appendChild(div);
-    });
+    drawRows();
 
     var ms = el('glMsgs');
     ms.innerHTML = '';
@@ -851,6 +977,13 @@
     ['dragover', 'dragenter'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.add('over'); }); });
     ['dragleave', 'drop'].forEach(function (ev) { drop.addEventListener(ev, function (e) { e.preventDefault(); drop.classList.remove('over'); }); });
     drop.addEventListener('drop', function (e) { if (e.dataTransfer && e.dataTransfer.files) uploadFiles(e.dataTransfer.files); });
+
+    // The whole point of the needs-upload card is the next action, so put the
+    // file picker one click away instead of making the user scroll back up.
+    el('glNeedsAdd').addEventListener('click', function () {
+      drop.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      pickFiles.click();
+    });
 
     // Run always goes through the preflight modal: see what will be read and
     // what it will cost before anything is spent.

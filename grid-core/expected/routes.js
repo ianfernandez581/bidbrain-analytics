@@ -36,6 +36,7 @@ const MIME = {
   '.html': 'text/html; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
+  '.log': 'text/plain; charset=utf-8',
   '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 };
 
@@ -157,13 +158,18 @@ function startRun(analysisId, inputDir, filesHash, opts) {
     persist();
   };
 
-  // Every line the pipeline prints goes to BOTH the container log (so Cloud
-  // Run captures it) and the run record (so the tab can show it).
+  // Every line the pipeline prints goes to THREE places: the container log (so
+  // Cloud Run captures it), the run record (so the tab can show it live), and
+  // <workDir>/run.log (so it archives with the other artifacts - archiveRun
+  // copies the whole work dir - and can be read back per run, including for a
+  // run that SUCCEEDED, not just one that failed).
+  const logPath = path.join(workDir, 'run.log');
   const logLine = (src, text) => {
     String(text).split(/\r?\n/).forEach((line) => {
       if (!line.trim()) return;
       console.log(`[greenlight][run ${id}] ${line}`);
       run.log.push({ at: new Date().toISOString(), src, line: line.slice(0, 500) });
+      try { fs.appendFileSync(logPath, `${new Date().toISOString()} ${line}\n`); } catch { /* logging must never break a run */ }
     });
     if (run.log.length > LOG_KEEP) run.log = run.log.slice(-LOG_KEEP);
   };
@@ -174,6 +180,9 @@ function startRun(analysisId, inputDir, filesHash, opts) {
     run.heartbeat_at = new Date().toISOString();
     persist();
   };
+
+  try { fs.writeFileSync(logPath, ''); } catch { /* ignore */ }
+  logLine('system', `run ${id} started for analysis ${analysisId}${opts.resume ? ' (rebuild only, no model call)' : ''}`);
   const fail = (msg) => {
     const active = run.stages.find((s) => s.state === 'active');
     if (active) active.state = 'error';
@@ -198,12 +207,23 @@ function startRun(analysisId, inputDir, filesHash, opts) {
     b.on('error', (e) => fail(String(e.message || e)));
     b.on('close', async (bcode) => {
       if (run.status === 'error') return;
-      if (bcode !== 0) return fail(`build_expected.js exited ${bcode}\n${(bErr || bOut).slice(-1500)}`);
+      // Exit 3 is build_expected's deliberate "I will not invent a baseline"
+      // (no resolvable flight, or no campaign line with budget + goals + dates).
+      // That is an INCOMPLETE DUMP, not a broken run: the extraction and every
+      // deterministic check already succeeded, and their findings are exactly
+      // the list of what the buyer still owes. Failing here threw that away and
+      // showed an exit code instead. Keep the run, mark it partial, and let the
+      // findings - including NOT SUPPLIED / NOT READ - reach the UI so the next
+      // upload is an informed one.
+      const partial = bcode === 3;
+      if (bcode !== 0 && !partial) return fail(`build_expected.js exited ${bcode}\n${(bErr || bOut).slice(-1500)}`);
       try {
-        const plan = JSON.parse(fs.readFileSync(path.join(workDir, 'plan.json'), 'utf8'));
-        const kpi = JSON.parse(fs.readFileSync(path.join(workDir, 'daily_kpi.json'), 'utf8'));
-        const findingsDoc = JSON.parse(fs.readFileSync(path.join(workDir, 'findings.json'), 'utf8'));
-        const messages = JSON.parse(fs.readFileSync(path.join(workDir, 'messages.json'), 'utf8'));
+        const readOut = (f) => JSON.parse(fs.readFileSync(path.join(workDir, f), 'utf8'));
+        const plan = readOut('plan.json');
+        // daily_kpi.json only exists when a baseline was actually built.
+        const kpi = partial ? null : readOut('daily_kpi.json');
+        const findingsDoc = readOut('findings.json');
+        const messages = readOut('messages.json');
         const v = (node) => (node && node.value != null ? node.value : null);
         const ex = plan.extractor || {};
         // Feed the real cost back into the estimator so the next preflight is
@@ -212,6 +232,8 @@ function startRun(analysisId, inputDir, filesHash, opts) {
           tokens.observe(store.DUMPS, ex.bundle_chars, ex.usage.input_tokens);
         }
         const finished = new Date().toISOString();
+        const blockedReason = partial ? (bErr || bOut).trim().split('\n').filter(Boolean).pop() : null;
+        const needFiles = findingsDoc.findings.filter((f) => f.chip === 'NOT SUPPLIED' || f.chip === 'NOT READ');
         const results = {
           run: {
             id,
@@ -222,29 +244,44 @@ function startRun(analysisId, inputDir, filesHash, opts) {
             duration_ms: Date.parse(finished) - Date.parse(run.started_at),
             usage: ex.usage || null,
             bundle_chars: ex.bundle_chars || null,
+            partial,
+            blocked_reason: blockedReason,
           },
+          // What the buyer has to send before a baseline can be built. Empty on
+          // a complete run; the UI's call to action when it is not.
+          needs_upload: needFiles.map((f) => ({ chip: f.chip, title: f.title, detail: f.detail })),
           meta: {
-            client: kpi.client,
-            job: kpi.job,
+            client: kpi ? kpi.client : v(plan.client) || 'Unknown client',
+            job: kpi ? kpi.job : v(plan.job_number) || 'unknown-job',
             campaign: v(plan.campaign_name) || '',
-            currency: kpi.currency,
-            total: kpi.campaigns.reduce((a, c) => a + (c.total_budget || 0), 0),
-            flight: kpi.campaigns.length ? `${kpi.campaigns[0].start} to ${kpi.campaigns[0].end}` : 'unresolved',
-            exceptions: kpi.exceptions || [],
+            currency: kpi ? kpi.currency : v(plan.currency) || 'UNKNOWN',
+            total: kpi ? kpi.campaigns.reduce((a, c) => a + (c.total_budget || 0), 0) : null,
+            flight: kpi && kpi.campaigns.length ? `${kpi.campaigns[0].start} to ${kpi.campaigns[0].end}` : 'unresolved',
+            exceptions: kpi ? kpi.exceptions || [] : [],
             guard: plan.identity_guard || null,
           },
           findings: findingsDoc.findings,
           origins: findingsDoc.origins,
           messages,
         };
+        // Log the outcome BEFORE archiving, so the archived run.log is complete
+        // rather than stopping one line short of the result.
+        const bySeverity = {};
+        for (const f of findingsDoc.findings) bySeverity[f.severity] = (bySeverity[f.severity] || 0) + 1;
+        const summary = Object.entries(bySeverity).map(([k, n]) => `${n} ${k}`).join(', ') || 'none';
+        logLine('system', `${partial ? 'PARTIAL' : 'done'} in ${Math.round(results.run.duration_ms / 1000)}s: ${findingsDoc.findings.length} finding(s) (${summary})`);
+        if (partial) logLine('system', `baseline not built: ${blockedReason}`);
+        for (const f of needFiles) logLine('system', `ACTION NEEDED - ${f.chip}: ${f.title}`);
         await store.archiveRun(analysisId, id, workDir, results);
-        const label = `${kpi.client || 'Unknown client'} ${kpi.job || ''}`.trim();
+        const label = `${results.meta.client} ${results.meta.job || ''}`.trim();
         store.recordRun(analysisId, id, filesHash, label);
-        stage('outputs', 'done');
+        // Partial runs render as done-with-a-warning, not as a spinner stuck on
+        // the last stage - the work that could be done, was done.
+        stage('outputs', partial ? 'warn' : 'done');
         run.status = 'done';
+        run.partial = partial;
         run.results = results;
         lastCompleted = { analysisId, runId: id };
-        logLine('system', `done in ${Math.round(results.run.duration_ms / 1000)}s`);
         settle();
       } catch (e) {
         fail(String(e.message || e));

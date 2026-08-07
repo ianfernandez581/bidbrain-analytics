@@ -129,9 +129,48 @@ function measure(file, buf) {
   return null;
 }
 
+// Two shapes in vendor workbooks cost real prompt tokens and carry no campaign
+// information. Both are summarized rather than inlined - the sheet still
+// appears (so the model knows it exists and can cite it) but its bulk does not.
+// Measured on the Schneider NEL dump: 2,925 tokens, 7% of the bundle.
+//   - header-only: a template tab with column headers and zero data rows, e.g.
+//     the 8 unused format tabs in a Trade Desk bulk-upload workbook.
+//   - enumeration: a long, narrow static reference list, e.g. that workbook's
+//     496-row IANA time-zone tab and 105-row publisher list.
+const ENUM_MIN_ROWS = 40;
+const ENUM_MAX_COLS = 2;
+const ENUM_SAMPLE = 5;
+
+function classifySheet(rows) {
+  if (rows.length <= 1) return 'header-only';
+  const cols = Math.max(...rows.map((r) => r.split(',').length));
+  if (cols <= ENUM_MAX_COLS && rows.length >= ENUM_MIN_ROWS) return 'enumeration';
+  return 'data';
+}
+
+// Character scan rather than /,+$/: a regex anchored on a repeated class
+// backtracks super-linearly, and a wide sheet can end a row with hundreds of
+// empty cells.
+function trimTrailingCommas(s) {
+  let end = s.length;
+  while (end > 0 && s.codePointAt(end - 1) === 44 /* , */) end--;
+  return end === s.length ? s : s.slice(0, end);
+}
+
 function numberedCsv(ws) {
   const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false });
-  const lines = csv.split('\n').filter((l) => l.length);
+  // Trailing empty cells are pure padding on every row of a ragged sheet.
+  const lines = csv.split('\n').map(trimTrailingCommas).filter((l) => l.length);
+  if (!lines.length) return '';
+
+  const kind = classifySheet(lines);
+  if (kind === 'header-only') {
+    return `R1: ${lines[0]}\n[TEMPLATE TAB: column headers only, no data rows]`;
+  }
+  if (kind === 'enumeration') {
+    const sample = lines.slice(0, ENUM_SAMPLE).map((l, i) => `R${i + 1}: ${l}`).join('\n');
+    return `${sample}\n[STATIC REFERENCE LIST: ${lines.length} rows total, first ${ENUM_SAMPLE} shown - not campaign data]`;
+  }
   return lines.map((l, i) => `R${i + 1}: ${l}`).join('\n');
 }
 
@@ -226,7 +265,16 @@ function preprocess(rootDir) {
 
     const extractor = EXTRACTORS[entry.type];
     if (extractor) extractor(entry, buf, rel, bundle);
-    else if (UNREAD_TYPES.includes(entry.type)) entry.unread = true;
+    else if (UNREAD_TYPES.includes(entry.type)) {
+      // No converter for this type: the file reaches the model as a filename
+      // and nothing else. Flag it on the manifest (not just in the inventory
+      // prose) so validate.js can raise it as a real finding - a file that was
+      // PRESENT but UNREAD is a silent hole in the audit otherwise. `unread`
+      // feeds the intake summary (i_unread); `converted:false` is the per-file
+      // marker validate.js's f_unread check reads.
+      entry.unread = true;
+      entry.converted = false;
+    }
     files.push(entry);
   }
 
