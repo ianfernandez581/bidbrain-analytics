@@ -130,6 +130,11 @@
     '#view-greenlight .gl-partialbar .why{color:var(--ink-2);font-size:11.5px}',
     '#view-greenlight .gl-live{display:none;margin-top:9px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
     '#view-greenlight .gl-logbox{max-height:320px;overflow:auto;margin:0;padding:10px 12px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:8px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;line-height:1.5;color:var(--ink-2);white-space:pre-wrap}',
+    // severity chips double as filters once a real dump pushes findings past ~30
+    '#view-greenlight .gl-fsum .gl-chip{cursor:pointer;user-select:none;border:1px solid transparent}',
+    '#view-greenlight .gl-fsum .gl-chip.off{opacity:.35}',
+    '#view-greenlight .gl-fsum .gl-chip:hover{border-color:currentColor}',
+    '#view-greenlight .gl-fempty{color:var(--ink-3);font-size:12px;padding:14px 8px}',
   ].join('\n');
 
   var HTML = [
@@ -495,8 +500,10 @@
   // baseline: no daily_kpi.*, no pacing.html, no flowchart.html, no report.md.
   // Rendering those anyway gave two broken iframes and three dead download
   // links on a run the UI still presented as complete.
-  var FULL_ONLY = ['daily_kpi.xlsx', 'daily_kpi.json', 'report.md'];
-  var ALWAYS = ['plan.json', 'findings.json', 'chase_messages.md', 'manifest.json', 'run.log'];
+  // report.md and flowchart.html need only findings.json, so build_expected
+  // writes them before the baseline gate - a partial run has both.
+  var FULL_ONLY = ['daily_kpi.xlsx', 'daily_kpi.json'];
+  var ALWAYS = ['report.md', 'plan.json', 'findings.json', 'chase_messages.md', 'manifest.json', 'run.log'];
   var FILE_ICON = { 'daily_kpi.xlsx': ['xls', 'XLS'], 'run.log': ['doc', 'LOG'] };
 
   function renderDownloads(base, partial) {
@@ -553,8 +560,9 @@
     // never written rather than embedding a 404.
     el('glPartialBar').style.display = partial ? 'flex' : 'none';
     if (partial) el('glPartialWhy').textContent = res.run.blocked_reason || 'The dump does not resolve a flight window or any complete media-plan line.';
+    // Only the baseline panel depends on files a partial run skipped; the
+    // flowchart is findings-derived and is written either way.
     el('glBaselineCard').style.display = partial ? 'none' : 'block';
-    el('glFlowCard').style.display = partial ? 'none' : 'block';
 
     renderNeedsUpload(res);
     renderDownloads(base, partial);
@@ -567,20 +575,41 @@
     el('glFDesc').textContent = 'Run ' + res.run.id + (partial ? ' (partial)' : '') + ' · extracted by ' + res.run.model + ' · finished ' + res.run.finished_at.replace('T', ' ').slice(0, 19) + ' UTC. Violet rows were authored by the model this run (' + res.origins.model + '); plain rows are deterministic rulebook checks computed in code (' + res.origins.code + ').';
     el('glMDesc').textContent = 'Drafted by ' + res.run.model + ' in run ' + res.run.id + '. A person reviews and sends. One message per recipient.';
 
-    // Only point the iframes at files a complete run actually wrote.
-    if (!partial) {
-      var bust = '?t=' + Date.now();
-      el('glPacing').src = base + '/out/pacing.html' + bust;
-      el('glFlow').src = base + '/out/flowchart.html' + bust;
-    } else {
-      el('glPacing').removeAttribute('src');
-      el('glFlow').removeAttribute('src');
-    }
+    var bust = '?t=' + Date.now();
+    el('glFlow').src = base + '/out/flowchart.html' + bust;
+    // pacing.html exists only on a complete run - never point at a 404.
+    if (partial) el('glPacing').removeAttribute('src');
+    else el('glPacing').src = base + '/out/pacing.html' + bust;
 
     var order = { blocker: 0, missing: 1, gap: 2, inconsistent: 3, watch: 4, housekeeping: 5 };
     var fsSorted = res.findings.slice().sort(function (a, b) { return (order[a.severity] || 9) - (order[b.severity] || 9); });
     var counts = {};
     fsSorted.forEach(function (f) { counts[f.severity] = (counts[f.severity] || 0) + 1; });
+
+    // Severity chips are filters. Everything starts visible; clicking a chip
+    // hides that severity, so a 30-finding dump can be read one class at a time
+    // without losing the totals - the counts stay on the chips.
+    var hidden = {};
+    function drawRows() {
+      var box = el('glFRows');
+      box.innerHTML = '';
+      var shown = fsSorted.filter(function (f) { return !hidden[f.severity]; });
+      if (!shown.length) {
+        box.innerHTML = '<div class="gl-fempty">Every severity is filtered out. Click a chip above to bring findings back.</div>';
+        return;
+      }
+      shown.forEach(function (f) {
+        var isAi = f.origin === 'model';
+        var div = document.createElement('div');
+        div.className = 'gl-frow' + (isAi ? ' ai' : '');
+        div.innerHTML = '<span><span class="gl-chip ' + chipClass(f.severity) + '">' + esc(f.chip) + '</span></span>'
+          + '<span class="stage">' + esc(f.stage) + '</span>'
+          + '<span><div class="t">' + esc(f.title) + '<span class="gl-orig ' + (isAi ? 'ai' : 'code') + '">' + (isAi ? 'AI' : 'CODE') + '</span></div><div class="d">' + esc(f.detail) + '</div></span>'
+          + '<span class="src">' + esc(f.source) + '</span>';
+        box.appendChild(div);
+      });
+    }
+
     var sum = el('glFSum');
     sum.innerHTML = '';
     Object.keys(order).forEach(function (sev) {
@@ -588,20 +617,15 @@
       var sp = document.createElement('span');
       sp.className = 'gl-chip ' + chipClass(sev);
       sp.textContent = counts[sev] + ' ' + sev.toUpperCase();
+      sp.title = 'Click to show or hide ' + sev + ' findings';
+      sp.addEventListener('click', function () {
+        hidden[sev] = !hidden[sev];
+        sp.className = 'gl-chip ' + chipClass(sev) + (hidden[sev] ? ' off' : '');
+        drawRows();
+      });
       sum.appendChild(sp);
     });
-    var rows = el('glFRows');
-    rows.innerHTML = '';
-    fsSorted.forEach(function (f) {
-      var isAi = f.origin === 'model';
-      var div = document.createElement('div');
-      div.className = 'gl-frow' + (isAi ? ' ai' : '');
-      div.innerHTML = '<span><span class="gl-chip ' + chipClass(f.severity) + '">' + esc(f.chip) + '</span></span>'
-        + '<span class="stage">' + esc(f.stage) + '</span>'
-        + '<span><div class="t">' + esc(f.title) + '<span class="gl-orig ' + (isAi ? 'ai' : 'code') + '">' + (isAi ? 'AI' : 'CODE') + '</span></div><div class="d">' + esc(f.detail) + '</div></span>'
-        + '<span class="src">' + esc(f.source) + '</span>';
-      rows.appendChild(div);
-    });
+    drawRows();
 
     var ms = el('glMsgs');
     ms.innerHTML = '';

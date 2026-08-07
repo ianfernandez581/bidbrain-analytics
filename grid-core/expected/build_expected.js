@@ -46,8 +46,12 @@ const currency = val(plan.currency) || 'UNKNOWN';
 //   3. an endpoint whose candidate list holds exactly ONE distinct parseable
 //      date adopts it - and the assumption is written into findings.json so
 //      it shows as a visible gap, never silently.
-// Only when all three fail is the baseline blocked (exit 3): at that point
-// any window would be an invention.
+// Only when all three fail is the BASELINE blocked (exit 3): at that point any
+// window would be an invention. Blocking the baseline is NOT blocking the run -
+// the findings report and readiness flowchart depend only on findings.json, so
+// they are still written below and exit 3 happens last. An incomplete dump is
+// exactly when a buyer most needs to read what was found.
+let blockedReason = null;
 let flightStartS = val(plan.flight_start);
 let flightEndS = val(plan.flight_end);
 let FLIGHT_START = parseDate(flightStartS);
@@ -78,11 +82,10 @@ if (FLIGHT_START == null || FLIGHT_END == null || FLIGHT_END < FLIGHT_START) {
     flightEndS = iso(FLIGHT_END);
     console.log(`[build] flight window ${flightStartS}..${flightEndS} (${flightNote})`);
   } else {
-    console.error('[build] BLOCKED: flight dates unresolved in plan.json (start=' + flightStartS + ', end=' + flightEndS + '), no campaign line carries its own dates, and the recorded candidates do not single out one date per endpoint. Resolve the dates (plan revision or client confirmation) and rerun.');
-    process.exit(3);
+    blockedReason = 'flight dates unresolved in plan.json (start=' + flightStartS + ', end=' + flightEndS + '), no campaign line carries its own dates, and the recorded candidates do not single out one date per endpoint. Resolve the dates (plan revision or client confirmation) and rerun.';
   }
 }
-const TOTAL_DAYS = Math.round((FLIGHT_END - FLIGHT_START) / DAY_MS) + 1;
+const TOTAL_DAYS = FLIGHT_START != null && FLIGHT_END != null ? Math.round((FLIGHT_END - FLIGHT_START) / DAY_MS) + 1 : null;
 
 // A ladder-resolved window is a real finding: make it impossible to miss.
 if (flightNote) {
@@ -126,9 +129,8 @@ for (const c of plan.campaigns || []) {
     citation: citeStr(c.budget),
   });
 }
-if (!usable.length) {
-  console.error('[build] BLOCKED: no campaign has enough data (budget + goals + dates) to emit rows. Exceptions: ' + JSON.stringify(exceptions));
-  process.exit(3);
+if (!usable.length && !blockedReason) {
+  blockedReason = 'no campaign has enough data (budget + goals + dates) to emit rows. Exceptions: ' + JSON.stringify(exceptions);
 }
 
 const rows = [];
@@ -176,7 +178,7 @@ XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
   [],
   ...(exceptions.length ? [['EXCEPTIONS (no rows emitted)'], ...exceptions.map((e) => [e.campaign, e.missing.join(', '), e.note])] : [['Exceptions', 'none']]),
 ]), 'Info');
-XLSX.writeFile(wb, path.join(OUT, 'daily_kpi.xlsx'));
+if (!blockedReason) XLSX.writeFile(wb, path.join(OUT, 'daily_kpi.xlsx'));
 
 // ---------------------------------------------------------------- json (same rows array = same numbers)
 const kpiJson = {
@@ -202,7 +204,7 @@ const kpiJson = {
     })),
   })),
 };
-fs.writeFileSync(path.join(OUT, 'daily_kpi.json'), JSON.stringify(kpiJson, null, 2));
+if (!blockedReason) fs.writeFileSync(path.join(OUT, 'daily_kpi.json'), JSON.stringify(kpiJson, null, 2));
 
 // ---------------------------------------------------------------- pacing.html
 // Table-first baseline page (the cumulative chart was removed 2026-08-05 -
@@ -362,7 +364,7 @@ render();
 </body>
 </html>
 `;
-fs.writeFileSync(path.join(OUT, 'pacing.html'), pacingHtml.replace('__DATA__', JSON.stringify(DATA)));
+if (!blockedReason) fs.writeFileSync(path.join(OUT, 'pacing.html'), pacingHtml.replace('__DATA__', JSON.stringify(DATA)));
 
 // ---------------------------------------------------------------- flowchart.html (from findings)
 const findings = findingsDoc.findings || [];
@@ -442,7 +444,9 @@ const flowchartHtml = `<!doctype html>
 <body>
 <div class="viz-root">
   <h1>Readiness flowchart - ${esc(client)}, ${esc(campaignName)}</h1>
-  <div class="sub">Flight ${esc(flightStartS)} to ${esc(flightEndS)} - ${esc(currency)} ${TOTAL_SPEND.toLocaleString()} - stage status computed from findings.json (items marked AI were model-authored; the rest are code checks).</div>
+  <div class="sub">${blockedReason
+    ? 'No expected baseline could be built from this dump, so no flight or budget is stated here. Stage status below is still computed from findings.json'
+    : `Flight ${esc(flightStartS)} to ${esc(flightEndS)} - ${esc(currency)} ${TOTAL_SPEND.toLocaleString()} - stage status computed from findings.json`} (items marked AI were model-authored; the rest are code checks).</div>
   <div class="flow">
 ${stageCards}
   </div>
@@ -462,7 +466,13 @@ fs.writeFileSync(path.join(OUT, 'flowchart.html'), flowchartHtml);
 const sevOrder = ['blocker', 'missing', 'gap', 'inconsistent', 'watch', 'housekeeping'];
 const rep = [];
 rep.push(`# ${client} ${campaignName} (job ${job}): gaps and inconsistencies\n`);
-rep.push(`Extracted by ${plan.extractor ? plan.extractor.model : 'unknown model'} from the file dump; arithmetic checks computed in code. ${findingsDoc.origins.code} code findings + ${findingsDoc.origins.model} AI-authored findings. Baseline: ${currency} ${TOTAL_SPEND.toLocaleString()}, flight ${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days).\n`);
+rep.push(`Extracted by ${plan.extractor ? plan.extractor.model : 'unknown model'} from the file dump; arithmetic checks computed in code. ${findingsDoc.origins.code} code findings + ${findingsDoc.origins.model} AI-authored findings.\n`);
+if (blockedReason) {
+  rep.push(`> PARTIAL AUDIT - no expected baseline was built: ${blockedReason}\n`);
+  rep.push('> Every check that did not need the baseline still ran, and its findings are below.\n');
+} else {
+  rep.push(`Baseline: ${currency} ${TOTAL_SPEND.toLocaleString()}, flight ${flightStartS} to ${flightEndS} (${TOTAL_DAYS} days).\n`);
+}
 let n = 0;
 for (const sev of sevOrder) {
   const group = findings.filter((f) => f.severity === sev);
@@ -482,6 +492,15 @@ if (exceptions.length) {
 fs.writeFileSync(path.join(OUT, 'report.md'), rep.join('\n') + '\n');
 
 // ---------------------------------------------------------------- verify
+// The findings report and flowchart are on disk by now either way. Exit 3 tells
+// the caller "no baseline", not "nothing to show" - routes.js reads it as a
+// PARTIAL run and still archives everything written above.
+if (blockedReason) {
+  console.log('[build] wrote report.md, flowchart.html (findings only - no baseline)');
+  console.error('[build] BLOCKED: ' + blockedReason);
+  process.exit(3);
+}
+
 const finalByCampaign = kpiJson.campaigns.map((c) => `${c.campaign_name}: ${c.daily[c.daily.length - 1].expected_spend_cum}`);
 console.log(`[build] ${client} job ${job}: ${rows.length} rows (${usable.length} campaigns, flight ${TOTAL_DAYS} days), total ${TOTAL_SPEND}`);
 for (const line of finalByCampaign) console.log('  final cum spend ' + line);

@@ -27,6 +27,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { preprocess } = require('./preprocess');
 const { validate } = require('./validate');
 
@@ -280,14 +281,29 @@ function applyIdentityGuard(guard, plan) {
 
 const SEVERITIES = ['blocker', 'missing', 'gap', 'inconsistent', 'watch', 'housekeeping'];
 const STAGES = ['Request Received', 'Media Plan Approved', 'Raw Materials Complete', 'Campaign Built', 'Live', 'Pacing'];
+
+// Model findings arrive as free text with no identity, so nothing downstream can
+// refer to one: feedback ("this is a false positive"), memory lessons and
+// cross-run comparison all need a handle that survives a re-run. Derive it from
+// the finding's own content - the same finding on the next run hashes the same,
+// while a genuinely different one does not. Prefixed so a model id can never
+// collide with a code finding's hand-written id.
+function findingId(stage, chip, title) {
+  const basis = `${stage}|${chip}|${title}`.toLowerCase().replace(/\s+/g, ' ').trim();
+  return 'm_' + crypto.createHash('sha256').update(basis).digest('hex').slice(0, 12);
+}
+
 function parseFindings(lines) {
   return (lines || []).map((line) => {
     const [severity, stage, chip, title, detail, source] = splitPipes(line, 6);
     if (!title) return null;
+    const st = STAGES.includes(stage) ? stage : 'Media Plan Approved';
+    const ch = (chip || 'NOTE').toUpperCase();
     return {
+      id: findingId(st, ch, title),
       severity: SEVERITIES.includes((severity || '').toLowerCase()) ? severity.toLowerCase() : 'watch',
-      stage: STAGES.includes(stage) ? stage : 'Media Plan Approved',
-      chip: (chip || 'NOTE').toUpperCase(),
+      stage: st,
+      chip: ch,
       title, detail: detail || '', source: source || '',
     };
   }).filter(Boolean);
