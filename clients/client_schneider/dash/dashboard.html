@@ -1001,7 +1001,7 @@ function renderMeta(){
   el('topPeriod').textContent=`${dateLabel(w.start)} – ${dateLabel(w.end)}`;
   const lu=DATA.last_updated?new Date(DATA.last_updated):null;
   el('footMeta').innerHTML=`Schneider Electric Pacific · Content Syndication (via Transmission) · data from BigQuery (DV360 · TradeDesk · LinkedIn · Salesforce) · `
-    +`FX US$1=A$${DATA.fx_usd_aud} · S$1=A$${DATA.fx_sgd_aud} · Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+    +`FX US$1=A$${DATA.fx_usd_aud} · S$1=A$${DATA.fx_sgd_aud} · Updated <b>${lu&&!isNaN(lu)?lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'unknown'}</b>`;
 }
 
 //==============================================================================

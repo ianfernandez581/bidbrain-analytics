@@ -500,7 +500,7 @@ function load(){
 }
 
 function boot(){
-  $('updated').textContent='Updated '+new Date(data.last_updated).toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Melbourne'})+' AEST';
+  $('updated').textContent='Updated '+new Date(data.last_updated).toLocaleString('en-AU',{dateStyle:'medium',timeStyle:'short',timeZone:'Australia/Brisbane'})+' AEST';
   (data.google_campaigns||[]).forEach(function(r){typeByCampaign[r.campaign]=r.campaign_type;});
   if(window.Chart){Chart.defaults.color=C.axis;Chart.defaults.borderColor=C.grid;Chart.defaults.font.family='-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif';}
   initDatePicker();

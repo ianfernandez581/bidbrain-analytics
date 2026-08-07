@@ -1325,7 +1325,7 @@ async function boot() {
 
 function renderTopbarMeta() {
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
-  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace(/ GMT$/,'') : 'unknown';
+  const luText = lu && !isNaN(lu) ? lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST' : 'unknown';
   el('footMeta').textContent = 'Updated ' + luText;
 }
 

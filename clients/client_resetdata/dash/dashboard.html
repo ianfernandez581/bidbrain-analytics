@@ -1107,7 +1107,7 @@ fetch('/data.json').then(r=>r.json()).then(d=>{
   crmStart = crmMin; crmEnd = crmMax;
   DateRange.init({ min:dateMin, max:dateMax, initialStart:rangeStart, initialEnd:rangeEnd,
     onApply:applyAdRange });
-  document.getElementById('updated').textContent='Updated '+(d.last_updated||'').replace('T',' ').replace('Z',' UTC');
+  document.getElementById('updated').textContent='Updated '+(d.last_updated?new Date(d.last_updated).toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'');
   // default: all campaigns selected
   DATA.ad_campaigns.forEach(r=>selCamp.add(ckey(r.platform,r.campaign)));
   buildCampaignPanel();
@@ -2322,7 +2322,7 @@ function renderCRM(){
     _scope+'<b>Source: HubSpot CRM</b> (live snapshot). The <b>date range</b> above windows this tab by contact-created month; '+
     'the ad Platform/Campaign filters don’t apply here. “Signup” = created an <code>app.reset.ai</code> account; '+
     '“loaded balance” = has account credit (mostly the free $50); “paying” = has actually spent. CRM data through '+
-    (k.last_signup_at||'').replace('T',' ').replace('Z',' UTC')+'.';
+    (k.last_signup_at?new Date(k.last_signup_at).toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'')+'.';
 
   // Honest attribution-gap callout - protects against over-reading this tab as "ads -> signups".
   const _sq=sqAgg;

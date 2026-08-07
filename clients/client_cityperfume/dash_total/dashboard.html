@@ -1703,7 +1703,7 @@ function renderLink(){
 function renderMeta(){
   const w=DATA.window||{}, period=(monthLabel(w.start)+' – '+monthLabel(w.end));
   el('topPeriod').textContent=period; el('topPeriod2').textContent=period;
-  const lu=DATA.last_updated ? new Date(DATA.last_updated).toLocaleString('en-AU',{timeZone:'Australia/Sydney'}) : '-';
+  const lu=DATA.last_updated ? new Date(DATA.last_updated).toLocaleString('en-AU',{timeZone:'Australia/Brisbane'}) : '-';
   el('footMeta').innerHTML='Sources: first-party sales (Neto/v_sales), Google Ads, Meta, The Trade Desk, GA4 · Currency: AUD · '
     +'Window '+(w.start||'')+' → '+(w.end||'')+' · Last updated '+lu+' (AEST).<br>'
     +'<b>All sales</b> (in-store POS + website + marketplaces). Revenue, margin &amp; orders are first-party sales (source of truth). '

@@ -479,7 +479,7 @@ function money(v,d=0){return 'A$'+Intl.NumberFormat('en-AU',{minimumFractionDigi
 function pct(v,d=1){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(d)+'%':'-';}
 function pctWhole(v){return Number.isFinite(Number(v))?Math.round(Number(v)*100)+'%':'-';}
 function fmtDate(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
-function fmtDateTime(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('en-AU',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});}
+function fmtDateTime(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' AEST';}
 function safeName(v){return String(v==null?'-':v).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
 function prettyCampaign(v){const s=String(v==null?'':v).replace(/^Geocon[_ ]?/i,'').replace(/_/g,' ').trim();return safeName(s||v);}
 function stageColor(s){return STAGE_COLORS[s]||CHART_SERIES[Math.abs(hash(String(s)))%CHART_SERIES.length];}

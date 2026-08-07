@@ -1854,7 +1854,7 @@ async function boot() {
 
 function setLiveBanner(lastUpdated, rowCount) {
   const lu = lastUpdated ? new Date(lastUpdated.replace(' ', 'T')) : null;
-  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : (lastUpdated || 'unknown');
+  const luText = lu && !isNaN(lu) ? lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST' : (lastUpdated || 'unknown');
   // Most recent day a real lead landed - the freshness of the Content Syndication source data
   let latestDay = null;
   for (const r of rawRows) {
@@ -3056,7 +3056,7 @@ function adaptPayload(data) {
 
 function setPaidFooter(rowCount) {
   const lu = paidMediaLastUpdated ? new Date(paidMediaLastUpdated.replace(' ', 'T')) : null;
-  const luText = lu && !isNaN(lu) ? lu.toUTCString().replace('GMT','UTC') : (paidMediaLastUpdated || 'unknown');
+  const luText = lu && !isNaN(lu) ? lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST' : (paidMediaLastUpdated || 'unknown');
   const totalRows = PM_CHANS.reduce((s,c) => s + c.rows().length, 0);
   const w = PAYLOAD.window || {};
   const winText = (w.start && w.end) ? ` · Window ${w.start} → ${w.end}` : '';

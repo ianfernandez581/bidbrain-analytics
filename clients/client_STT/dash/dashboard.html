@@ -1401,7 +1401,7 @@ function renderMeta(){
   el('topPeriod').textContent = `${fmt(w.start)} – ${fmt(w.end)}`;
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   el('footMeta').innerHTML = `STT GDC APAC dashboard · data from BigQuery (GA4 · LinkedIn · DV360) · `
-    + `FX US$1 = S$${DATA.fx_usd_sgd} · Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+    + `FX US$1 = S$${DATA.fx_usd_sgd} · Updated <b>${lu&&!isNaN(lu)?lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'unknown'}</b>`;
 }
 
 function renderControls(){

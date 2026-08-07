@@ -1250,8 +1250,8 @@ function renderMeta(){
   const lu = DATA.last_updated ? new Date(DATA.last_updated) : null;
   const dt = DATA.data_through ? new Date(DATA.data_through) : null;
   el('footMeta').innerHTML = `VMCH dashboard · data from BigQuery (GA4 · The Trade Desk) · AUD, no FX · `
-    + `Data through <b>${dt&&!isNaN(dt)?dt.toUTCString().replace(/ GMT$/,' UTC'):'-'}</b> · `
-    + `Updated <b>${lu&&!isNaN(lu)?lu.toUTCString().replace(/ GMT$/,' UTC'):'unknown'}</b>`;
+    + `Data through <b>${dt&&!isNaN(dt)?dt.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'-'}</b> · `
+    + `Updated <b>${lu&&!isNaN(lu)?lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'unknown'}</b>`;
 }
 
 function renderControls(){
