@@ -118,7 +118,7 @@ Windsor key from Secret Manager (`windsor-api-key`).
 | Loader | Cloud Run job | Cron (UTC) |
 |---|---|---|
 | Meta | `windsor-meta-ingest` | `15 21 * * *` (daily) |
-| Trade Desk | `windsor-tradedesk-ingest` | `35 21 * * *` (daily) |
+| Trade Desk | `windsor-tradedesk-ingest` | `35 1,21 * * *` (twice daily; the 01:35 UTC = 11:35 AEST run lands Sydney-yesterday data the same Sydney day — added 2026-08-07 for caltex freshness, benefits every TTD dashboard) |
 | Field catalogue | `windsor-fields-ingest` | `45 21 * * *` (daily) |
 | Reddit | `windsor-reddit-ingest` | `50 21 * * *` (daily) |
 | LinkedIn | `windsor-linkedin-ingest` | `40 21 * * *` (daily) |
@@ -128,8 +128,9 @@ Windsor key from Secret Manager (`windsor-api-key`).
 > binding `*/10` self-gating rule for *client export jobs* and `snowflake-ingest`, these raw-layer
 > Windsor loaders run on a **fixed daily** Cloud Scheduler trigger (`<job>-daily`), staggered to
 > land **before the 22:00 UTC `*-export` jobs** so every dashboard's nightly export reads fresh raw
-> data. Only `snowflake-ingest` self-gates at `*/10`; neto + windsor stay daily. There is **no
-> `_freshness.json` watermark** in this unit.
+> data. Only `snowflake-ingest` self-gates at `*/10`; neto + windsor stay on fixed crons (tradedesk
+> is the one twice-daily exception, see the table). There is **no `_freshness.json` watermark** in
+> this unit.
 >
 > - **Reddit & HubSpot** are now scheduled (wired into `deploy_ingest_jobs.ps1` on 2026-07-16). The
 >   Reddit job **skips cleanly (exit 0, 0 rows)** if its Windsor connector grant lapses — so it

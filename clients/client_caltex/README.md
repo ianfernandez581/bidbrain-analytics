@@ -258,6 +258,13 @@ gcloud run jobs execute caltex-export --region australia-southeast1 --update-env
 watermark) and rebuilds only when it advanced. Seed changes (targets/budget) and view-only edits
 need `FORCE_REBUILD=1`.
 
+**Expected lag is 1 day, never 0** — TTD refuses same-day dates, and the shared loader caps every
+pull at yesterday UTC. Since 2026-08-07 `windsor-tradedesk-ingest` runs **twice daily**
+(`35 1,21 * * *` UTC): the 01:35 UTC (= 11:35 AEST) run lands Sydney-yesterday data by ~midday
+Sydney, so the dashboard shows through yesterday instead of 2 days back. The newest day can still
+firm up slightly on the next 21:35 UTC re-pull (MERGE is idempotent). Client comms precedent: the
+lag was explained to Tilly (Caltex) 2026-08-07 as a TTD platform limit.
+
 ## Coordinates
 
 | | |
