@@ -20,6 +20,12 @@ Governing principle: flag, never guess, never drop silently. Every judgment
 call lands in review_report.txt with its row number; a human checks the
 reconciliation counts before the file ships.
 
+Merging: rows that share client+campaign+month, or the same submitted-deck URL
+for the same client, are ONE report - their feedback lines are combined under a
+single card instead of emitting duplicates. Every merge (and any field conflict
+it papers over) is logged in review_report.txt. The same URL appearing under two
+DIFFERENT clients is never merged - it is flagged for a human instead.
+
 Usage (from the repo root, with the repo venv):
     .\\.venv\\Scripts\\python.exe prototypes\\transmission-feedback-v0\\sheet_to_json.py export.csv
 """
@@ -193,7 +199,11 @@ def main():
                  "pass in the sheet afterwards; this script does not infer.")
 
     reports, feedback = [], []
-    seen = {}
+    report_rows = []   # first source row number of each emitted report (for merge messages)
+    by_ccm = {}        # (client, campaign_lower, period) -> report index
+    by_url = {}        # (client, submitted_url)          -> report index
+    url_owner = {}     # submitted_url -> (client, rownum), for cross-client URL reuse detection
+    merged_rows = 0
     blank_rows = 0
     canon_lower = {c.lower(): c for c in CANONICAL_CLIENTS}
 
@@ -242,26 +252,72 @@ def main():
         campaign = cell(row, "campaign")
         if not campaign:
             flags.append((rownum, "campaign cell is empty - card title will be blank"))
+        campaign_l = campaign.lower()
 
-        dup_key = (client, campaign.lower(), period)
-        if dup_key in seen:
-            flags.append((rownum, "duplicate of row %d (same client/campaign/month) - "
-                          "both emitted; merge them in the sheet if unintended" % seen[dup_key]))
+        # ---- merge detection: same client+campaign+month, else same submitted URL + client.
+        # A null period never matches on the ccm key (unknown month is not "the same month").
+        idx = how = None
+        k_ccm = (client, campaign_l, period)
+        if period is not None and k_ccm in by_ccm:
+            idx = by_ccm[k_ccm]
+            how = "same client/campaign/month as row %d" % report_rows[idx]
+        elif submitted and (client, submitted) in by_url:
+            idx = by_url[(client, submitted)]
+            how = "same submitted-deck URL as row %d" % report_rows[idx]
+        if submitted:
+            owner = url_owner.get(submitted)
+            if owner and owner[0] != client:
+                flags.append((rownum, "submitted-deck URL already used by %s (row %d) - NOT "
+                              "merged across clients; check the sheet" % (owner[0], owner[1])))
+
+        if idx is not None:
+            merged_rows += 1
+            r = reports[idx]
+            conflicts = []
+            if campaign and not r["campaign"]:
+                r["campaign"] = campaign
+            elif campaign and campaign_l != r["campaign"].lower():
+                conflicts.append("campaign differs ('%s' kept)" % r["campaign"])
+            if period and not r["period"]:
+                r["period"] = period
+                by_ccm.setdefault((client, r["campaign"].lower(), period), idx)
+            elif period and r["period"] and period != r["period"]:
+                conflicts.append("month differs ('%s' kept)" % r["period"])
+            if submitted and not r["deck_submitted_url"]:
+                r["deck_submitted_url"] = submitted
+                by_url[(client, submitted)] = idx
+                url_owner.setdefault(submitted, (client, rownum))
+            elif submitted and r["deck_submitted_url"] and submitted != r["deck_submitted_url"]:
+                conflicts.append("submitted URL differs (first kept)")
+            if final and final == r["deck_submitted_url"]:
+                conflicts.append("final URL equals the report's submitted URL - ignored (rule 6)")
+                final = None
+            if final and not r["deck_final_url"]:
+                r["deck_final_url"] = final
+            elif final and r["deck_final_url"] and final != r["deck_final_url"]:
+                conflicts.append("final URL differs (first kept)")
+            rid = r["id"]
+            flags.append((rownum, "MERGED into report %s (%s) - feedback combined, no duplicate "
+                          "card%s" % (rid, how, ("; " + "; ".join(conflicts)) if conflicts else "")))
         else:
-            seen[dup_key] = rownum
-
-        rid = "r-%03d" % (len(reports) + 1)
-        reports.append({
-            "id": rid,
-            "client": client,
-            "campaign": campaign,
-            "period": period,
-            "deck_submitted_url": submitted,
-            "deck_final_url": final,
-            "sent_on": None,
-            "sent_by": "",
-            "notes": "",
-        })
+            rid = "r-%03d" % (len(reports) + 1)
+            reports.append({
+                "id": rid,
+                "client": client,
+                "campaign": campaign,
+                "period": period,
+                "deck_submitted_url": submitted,
+                "deck_final_url": final,
+                "sent_on": None,
+                "sent_by": "",
+                "notes": "",
+            })
+            report_rows.append(rownum)
+            if period is not None:
+                by_ccm[k_ccm] = len(reports) - 1
+            if submitted:
+                by_url[(client, submitted)] = len(reports) - 1
+                url_owner.setdefault(submitted, (client, rownum))
 
         raw_cell = cell(row, "feedback")
         for verbatim in split_feedback(raw_cell):
@@ -310,13 +366,15 @@ def main():
               "RECONCILIATION - check these before the file ships",
               "Source data rows: %d (%d blank skipped)" % (len(data_rows), blank_rows),
               "Reports emitted: %d" % len(reports),
+              "Rows merged into existing reports: %d" % merged_rows,
               "Feedback entries emitted: %d" % len(feedback),
               "Review flags: %d" % len(flags),
               ""]
     (out_dir / "review_report.txt").write_text("\n".join(lines), encoding="utf-8")
 
     print("Source data rows:        %d (%d blank skipped)" % (len(data_rows), blank_rows))
-    print("Reports emitted:         %d" % len(reports))
+    print("Reports emitted:         %d (%d rows merged into existing reports)"
+          % (len(reports), merged_rows))
     print("Feedback entries emitted: %d" % len(feedback))
     print("Review flags:            %d  -> %s" % (len(flags), out_dir / "review_report.txt"))
     print("")

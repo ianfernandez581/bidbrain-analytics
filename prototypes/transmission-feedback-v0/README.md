@@ -35,6 +35,9 @@ tab in the agency portal (`bidbrain-platform/`).
 Rows the script splits from a multi-item cell arrive untagged (`neutral / general / other`, full
 raw cell in the Note line). Tagging sentiment/type/source is a manual pass in the sheet; the
 script never infers. Reports with an unparseable month surface in the page under **Needs review**.
+Rows sharing client+campaign+month — or the same submitted-deck URL for the same client — are
+**merged into one report** with their feedback combined; every merge is logged in
+`review_report.txt` (the same URL under two different clients is flagged, never merged).
 
 ## Repo notes
 
