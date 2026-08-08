@@ -303,8 +303,14 @@
     else tag='<span class="bbmtag na">'+dot("unknown")+'no data</span>';
     var note=chk.note?'<div class="bbqnote">'+esc(chk.note)+'</div>':'';
     var err=chk.error?'<div class="bbqnote" style="color:#F87171">'+esc(chk.error)+'</div>':'';
-    return '<tr><td><div style="font-weight:600">'+esc(chk.label)+'</div>'+
-      '<details class="bbq"><summary>show the '+esc(srcLabel)+' query</summary><pre class="bbsql">'+esc(chk.snowflake_query)+'</pre>'+note+err+'</details></td>'+
+    // The query/note block only renders when the payload carries a query. External tenants get a
+    // reduced payload with no `snowflake_query` (it maps our warehouse) and no `note` (written for
+    // our engineers - one of them states a channel's agency markup), so the row shows the numbers
+    // and the match verdict, and no disclosure block at all. Unchanged for every internal session.
+    var q=chk.snowflake_query
+      ? '<details class="bbq"><summary>show the '+esc(srcLabel)+' query</summary><pre class="bbsql">'+esc(chk.snowflake_query)+'</pre>'+note+err+'</details>'
+      : (err||'');
+    return '<tr><td><div style="font-weight:600">'+esc(chk.label)+'</div>'+q+'</td>'+
       '<td class="bbnum sf">'+fmtNum(sf)+'</td><td class="bbnum dash">'+fmtNum(dv)+'</td><td>'+tag+'</td></tr>';
   }
 

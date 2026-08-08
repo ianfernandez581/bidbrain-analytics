@@ -236,22 +236,25 @@ AGENCIES = [
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
         "clients": ["schneider", "schneiderlqai", "cloudflare", "proptrack", "mongodb", "stt"],
     },
-    # Extrablack — DUAL VISIBILITY: geocon + resetdata stay in 100% Digital above AND appear here
-    # (one client record, referenced by two agencies' client_keys — never duplicated). Per-agency
-    # flags (all default True/absent for the other agencies, so their portals are untouched):
-    #   show_sync=False       -> no "Sync all dashboards now" button (an outside agency must not
-    #                            trigger another agency's export pipeline); the read-only
-    #                            "Last synced" stamp still shows (from status.json generated_at).
-    #   show_grid_brain=False -> portal tabs are Overview + Data Accuracy only.
-    #   internal_notes=False  -> the staff-only Internal Notes + Assistant widget is NEVER injected
-    #                            into dashboards opened by an extrablack session (it exposes raw
-    #                            vs billed spend and internal team notes).
-    #   google_allowlist=[]   -> the INERT v1 Google seam: emails listed here sign in with Google
-    #                            straight into this portal (store.resolve_email). Empty = can't fire.
+    # Extrablack — the first EXTERNAL tenant (an outside company, not part of 100% Digital).
+    #
+    # `external: True` is the ONLY switch needed: it resolves EVERY optional per-agency setting to
+    # its restrictive value (see store.EXTERNAL_SAFE_DEFAULTS) — no sync trigger, no Grid/Brain
+    # tabs or pacing snapshot, no staff Internal Notes/Assistant, no AI deck generator, no
+    # definitions edit/deploy, no check SQL or internal note text, no feedback endpoint, no
+    # client-billed markup factor, and payload scrubbing of named individuals. It ALSO puts the
+    # session on a deny-by-default route allowlist (main.py _EXTERNAL_ALLOWED_ENDPOINTS), so any
+    # route added in future is closed to external tenants until explicitly opened.
+    # Adding the next external agency is this one flag. Per-setting overrides remain possible for
+    # a genuine exception (e.g. "allow_feedback": True alongside "external": True).
+    #
+    # DUAL VISIBILITY: geocon + resetdata stay in 100% Digital above AND appear here — one client
+    # record referenced by two agencies' client_keys, never duplicated.
+    # google_allowlist=[] is the INERT v1 Google seam (store.resolve_email); empty = can't fire.
     {
         "name": "Extrablack", "slug": "extrablack", "password": AGENCY_EXTRABLACK_PW,
         "clients": ["geocon", "resetdata", "geyervalmont"],
-        "show_sync": False, "show_grid_brain": False, "internal_notes": False,
+        "external": True,
         "google_allowlist": [],
     },
 ]

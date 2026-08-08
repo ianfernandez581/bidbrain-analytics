@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Public URL, named for the tenant and therefore guessable: keep it out of search indexes.
+     The route also sends an X-Robots-Tag header (main.py _extrablack_login_page). -->
+<meta name="robots" content="noindex, nofollow, noarchive">
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" type="image/png" href="/favicon-32.png">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -206,7 +209,10 @@
         </div>
         <button type="submit" class="btn-primary">Enter Portal</button>
       </form>
-      <p class="login-foot">One login for live campaign reporting across Geocon, ResetData &amp; Geyer&nbsp;Valmont.</p>
+      <!-- Deliberately generic: this page is PUBLIC, so naming the client accounts here would
+           disclose the roster to anyone who finds the URL. (The concept mock's line listing the
+           three clients is superseded by that requirement.) -->
+      <p class="login-foot">One login for your live campaign reporting.</p>
     </div>
     <div class="powered">Powered by Bidbrain</div>
   </main>
