@@ -45,7 +45,14 @@ NEW_CLIENT = {
     "show_pending_row": True,
     "campaigns": [{"name": "Workplace", "path": "/workplace", "status": "coming_soon"}],
 }
-AGENCY_FLAGS = {"show_sync": False, "show_grid_brain": False,
+# `external: True` is the MASTER switch and must be present: the deny-by-default route allow-list,
+# billed-only spend, payload scrubbing, the AI-deck suppression and the definitions lock-out all key
+# off it (store.is_external / agency_setting). WITHOUT it the tenant silently inherits INTERNAL
+# defaults - raw spend, the markup factor, check SQL, named individuals, /definitions - even though
+# the four explicit flags below are set. The four are kept as belt-and-braces so the most damaging
+# settings stay safe even if `external` were ever removed.
+AGENCY_FLAGS = {"external": True,
+                "show_sync": False, "show_grid_brain": False,
                 "internal_notes": False, "google_allowlist": []}
 
 
@@ -81,11 +88,21 @@ def main(write: bool):
         print(f"  + '{DUAL_HOME}' is left untouched (dual visibility)")
         return
 
-    # 1. geyervalmont client (create or refresh the placeholder fields; keep any live extras).
+    # 1. geyervalmont client.
+    #    CREATE it with the placeholder defaults if absent. If it ALREADY EXISTS, leave every
+    #    identity field alone and only add the one field this script owns (`show_pending_row`).
+    #    A parallel workstream stood this client up with a real deployed dashboard URL and its own
+    #    campaign naming; blindly applying our defaults would blank that URL and rename the
+    #    campaign. This script's job is to attach the client to Extrablack, not to define it.
     clients = doc.setdefault("clients", {})
     existing = clients.get(NEW_CLIENT["key"], {})
-    merged = dict(existing)
-    merged.update(NEW_CLIENT)
+    if existing:
+        merged = dict(existing)
+        merged["show_pending_row"] = True
+        print(f"  note: '{NEW_CLIENT['key']}' already exists - keeping its status/url/note/campaigns "
+              f"as-is, only adding show_pending_row")
+    else:
+        merged = dict(NEW_CLIENT)
     merged.setdefault("password_hash", "")
     merged.setdefault("password_plain", "")
     merged.setdefault("order", max([c.get("order", 0) for c in clients.values()], default=-1) + 1)
