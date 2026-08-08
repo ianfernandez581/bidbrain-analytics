@@ -162,6 +162,18 @@ CLIENTS = {
             {"name": "Consult Bookings", "path": "/all-on-4", "status": "coming_soon"},
         ],
     },
+    # Onboarding: client_geyervalmont/ is a built, Geyer Valmont-branded (white surfaces + the brand
+    # lime accent on navy ink) placeholder dashboard on SAMPLE data. Campaigns have not launched, so
+    # there is deliberately NO sql/ + job/ in that folder yet — the dashboard serves the baked-in
+    # placeholder.json. coming_soon (hidden from clients) but deployed, so super-admin can preview.
+    "geyervalmont": {
+        "name": "Geyer Valmont", "slug": "geyer-valmont", "status": "coming_soon",
+        "url": _runapp("geyervalmont"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
+        "note": "Dashboard isn't live yet - the structure is ready.",
+        "campaigns": [
+            {"name": "Workplace Design", "path": "/paid-media", "status": "coming_soon"},
+        ],
+    },
     "schneider": {
         "name": "Schneider Electric", "slug": "schneider-electric", "status": "active",
         "url": _runapp("schneider"),
@@ -213,7 +225,8 @@ CLIENT_PASSWORDS = {
 AGENCIES = [
     {
         "name": "100% Digital", "slug": "x100-digital", "password": AGENCY_100D_PW,
-        "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex", "nextsmile"],
+        "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex",
+                    "nextsmile", "geyervalmont"],
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,

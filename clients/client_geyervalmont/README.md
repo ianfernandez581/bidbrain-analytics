@@ -1,0 +1,140 @@
+# client_geyervalmont — Geyer Valmont (PREVIEW, no data)
+
+Geyer Valmont (geyervalmont.com) is a **100% Digital** client: a workplace / interior design
+consultancy with studios in Sydney, Melbourne, Brisbane, Perth and Singapore.
+
+**Status: PREVIEW.** Their campaigns have not launched. There is **no Snowflake/Windsor/BigQuery data
+for this client**, and this folder deliberately ships **no `sql/`, no `job/`, no `create_views.py`,
+no `seed_static.py`, no `scheduler.ps1`, and no BigQuery dataset**. The dashboard renders a baked-in
+sample payload behind a "Data coming soon" banner — the same play used for Bell Shakespeare, Next
+Smile Australia, and for Caltex before its Trade Desk data landed.
+
+Everywhere the data pipeline will eventually plug in is marked `TODO(geyervalmont)`.
+
+## File map
+
+| Path | What it is |
+|---|---|
+| `dash/dashboard.html` | The whole UI, one file. Overview · Paid Media · Creative tabs. GV theme + the lime-stroke chart plugin. |
+| `dash/main.py` | Flask password gate + static server. Serves `/data.json`, `/logo.png`, `/bb_deck.js`, `/report`. |
+| `dash/placeholder.json` | The SAMPLE payload (`meta.placeholder=true`). Generated — never hand-edit. |
+| `dash/logo.png` | The supplied GV monogram (black GV on lime). Also inlined into `dashboard.html`. |
+| `dash/platform_sso.py`, `dash/report.py`, `dash/bb_deck.js` | Vendored, unchanged from the template. |
+| `gen_placeholder.py` | Builds `dash/placeholder.json` from `targets/*.csv`. Deterministic (`random.seed(42)`). |
+| `targets/targets.csv`, `targets/budget.csv` | Committed targets. **All `PENDING`** — no signed media plan yet. |
+| `deploy_geyervalmont.ps1` | One-shot preview standup (service only — no dataset/job/scheduler). |
+| `dash/deploy_dash_geyervalmont.ps1` | Redeploy just the service after a UI edit. |
+
+## Branding
+
+Sampled from the GV logo and site. The tokens live in one `:root` block at the top of
+`dash/dashboard.html`; the login page in `dash/main.py` mirrors them as literals.
+
+| Token | Hex | Role |
+|---|---|---|
+| `--accent` | `#E6FF31` | Signature lime. **Fill only** — chips, bars, hero chart series, KPI tints. |
+| `--accent-soft` | `#E9FD5E` | Lighter lime tint — large fills, hover, gradients. |
+| `--accent-edge` | `#B9CE00` | Deep citron. Borders/underlines, where raw lime washes out on white. |
+| `--accent2` | `#57411E` | Olive-brown (their site header). The **text** accent — links, labels. |
+| `--on-accent` | `#131B46` | Navy ink placed **on** a lime fill. |
+| `--ink` | `#131B46` | Navy-black body text, headings, tables. |
+
+**Three rules that will break the design if ignored:**
+
+1. **Never white-on-lime and never lime-on-white text.** Both fail contrast badly. Text on a lime
+   fill is always `var(--on-accent)`. An accent that must *be* text is `var(--accent2)`. The template
+   this was cloned from had eight `color:#ffffff` rules paired with `background:var(--accent)` — all
+   were converted, so don't reintroduce one by copying a rule from another client's dashboard.
+2. **Lime is an accent, never a page background.** Content surfaces stay white (`--panel`); the
+   canvas is a faintly lime-washed white (`--bg-0`) plus the radial glow.
+3. **Lime borders on white need `--accent-edge`.** Raw `#E6FF31` at 1px is effectively invisible.
+
+Typography is **Space Grotesk** (a close free stand-in for their brand grotesque) with Inter as the
+numeric fallback. Charts use lime as the hero series, navy second, olive third (`CHART_SERIES`).
+
+### The lime-stroke chart plugin
+
+Lime fills disappear against a white chart background. `bbLimeStroke` in `dash/dashboard.html` is a
+**registered** Chart.js plugin that gives any lime dataset a navy hairline, centrally, so no
+individual chart can forget. It is registered via `Chart.register(...)` — **never** parked in
+`options.plugins.*`, which Chart.js v4 treats as a scriptable option, auto-invokes, and which
+silently blanks the whole chart (the repo-wide gotcha in `md/AGENTS.md`). Charts that already set an
+explicit border (the donuts use white) are left alone.
+
+### The logo ships twice, on purpose
+
+- **Inlined** as a base64 data URI in `dashboard.html`'s topbar — because the dashboard is also
+  served through the platform reverse proxy at `/d/geyervalmont/`, where a root-relative asset path
+  does not resolve (the cloudflare lesson).
+- **As `dash/logo.png`**, COPY'd by the Dockerfile and served at `/logo.png` for the login page (which
+  this service always serves directly) and the AI deck builder. The dashboard favicon is derived from
+  the already-inlined mark at runtime rather than embedding the artwork a third time.
+
+## Preview mechanism
+
+Identical to Bell Shakespeare / Next Smile — nothing here is bespoke:
+
+- `dash/placeholder.json` carries `meta.placeholder = true`. That flag is the **only** tell.
+- `main.py`'s `/data.json` prefers the real object in the GCS bucket and falls back to the baked-in
+  placeholder. The bucket is created **empty**, so today the fallback always wins.
+- `renderPlaceholderBanner()` shows the "Data coming soon" banner and flips the topbar pill from
+  "Live" to "Data coming soon · sample data".
+- **The banner clears itself.** Real data has no `placeholder` flag, so the moment an export job
+  writes `geyervalmont.json` into the bucket the dashboard switches over with **no code change**.
+
+Sample data is GV-shaped (workplace-design campaigns, B2B decision-maker demographics, ~$165 CPL
+against a $180 target), and the flight window is a **current** one — the Bell/Next Smile placeholders
+were seeded with a window that has since ended, which reads as "flight over" on every pacing card.
+
+## Data contract (TODO — this is the shape the pipeline must emit)
+
+`sql/*.sql` view column → `job/main.py` env dict key → `dashboard.html` `data.*` key, matched **by
+name**. None of the first two exist yet; `gen_placeholder.py` is the written-down contract in the
+meantime. Top-level keys: `meta`, `flight`, `benchmarks`, `targets`, `rows[]`, `breakdowns[]`.
+
+`rows[]` is per date × campaign × adset × ad: `spend`, `impressions`, `reach`, `clicks`,
+`link_clicks`, `lpv`, `leads`, `leads_website`, `leads_onfacebook`, `video_3s_views`,
+`video_completes`, `thruplays`, plus `stage` (Awareness / Traffic / Conversion / Retargeting, which
+must match `STAGE_COLORS`) and the creative fields. `breakdowns[]` is `age_gender` + `placement`.
+
+**Channel set is the template default (Meta).** The media mix is not confirmed — the UI is driven by
+what is present in the payload, so channels are toggled by what the pipeline emits, not by editing
+the HTML. Confirm the mix when the media plan lands.
+
+## FLIPPING PREVIEW → LIVE
+
+Do these in order. Steps 1–4 are the work; 5–8 are the flip.
+
+1. **Confirm the media plan**: channels, flight dates, budget, lead targets. Replace the `PENDING`
+   rows in `targets/targets.csv` + `targets/budget.csv` with the signed numbers, then re-run
+   `.\.venv\Scripts\python.exe clients\client_geyervalmont\gen_placeholder.py` so the sample can
+   never contradict the seed.
+2. **Confirm the channels.** If the mix is not Meta-only, the cloned Meta model does not fit as-is —
+   fix the model before the UI (see the client rows in `md/AGENTS.md` for the multi-channel patterns).
+3. **Get data flowing** into the raw layer (for Meta: `raw_windsor.perf_meta`, plus a
+   `raw_windsor.geyervalmont_meta_breakdown` table for the audience/placement charts — Bell Shakespeare
+   ships `ingest/meta_breakdown_pull.py` for exactly this and can be copied). **Verify the campaigns
+   actually exist in the raw table before building anything on top of them.**
+4. **Build the pipeline**: BigQuery dataset `client_geyervalmont`, `sql/` views, `seed_static.py`,
+   `create_views.py`, `job/` (vendor `job/freshness.py` — the export job must be self-gating on a
+   `*/10` tick per the freshness contract), and the scheduler. Copy Bell Shakespeare's, which is the
+   nearest complete Meta example. **Never key a view off a raw campaign name** — strip any brief-number
+   prefix into `CAMPAIGN_NAME_NORM` first (`md/AGENTS.md`).
+5. **Run the job once** with `FORCE_REBUILD=1`. It writes `geyervalmont.json` to
+   `gs://bidbrain-analytics-geyervalmont-dash`. The dashboard picks it up and the sample banner
+   clears on its own — **no dashboard edit, no redeploy**.
+6. **Set the dashboard password** so the client can log in: either set it in the super-admin console
+   (which reveals + rotates), or grant their Google/Microsoft email to this dashboard in that
+   console's sign-in access panel. Do **not** hand out the 100% Digital agency password — it opens
+   every other 100% Digital client.
+7. **Flip the tile**: in `bidbrain-platform/dash/set_geyervalmont_tile.py` set `STATUS = "active"`,
+   `NOTE = ""` and the campaign tuple's status to `"active"`, then run it with `--yes`. Make the same
+   change in `bidbrain-platform/dash/config.py` (the source of truth in code) so a future re-seed
+   doesn't revert it. This is exactly the path `set_caltex_tile.py` took.
+8. **Register it for monitoring**: add `geyervalmont` to `BQ_CLIENTS` (and `SLIDES_CLIENTS` if the AI
+   deck is wanted) in `status_dashboard/job/main.py`, and remove it from the "NOT YET MONITORED"
+   comment there. Enable `/report` with `dash/enable_report_geyervalmont.ps1` (needs
+   `roles/aiplatform.user`), which is dormant until then.
+
+Finally, update this client's row in `md/AGENTS.md` (reports / currency / views / gotchas) in the
+same change — that table is the repo's index and a stale row is worse than none.
