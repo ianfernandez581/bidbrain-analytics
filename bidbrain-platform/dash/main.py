@@ -175,6 +175,42 @@ def _load_agency_logos():
 AGENCY_LOGOS = _load_agency_logos()
 
 
+# --- Per-agency portal THEME (presentation only) --------------------------------------------
+# PURELY COSMETIC: a token map the portal template paints into a scoped <style> override. An agency
+# with NO entry here gets NO override block emitted at all, so every other portal renders
+# byte-for-byte as before. Nothing here touches routing, auth, payloads or the registry.
+#
+# `header_logo` swaps the "Bidbrain.ai · Campaign Dashboards" lockup for the agency's own mark in
+# the top bar (the pre-existing AGENCY_LOGOS slot is the page HERO, not the header - see the note
+# in the re-skin write-up).
+# `powered_by` renders a quiet "Powered by Bidbrain" line at the foot of the page; it is the
+# platform's attribution once the Bidbrain lockup leaves the header. FLAGGED FOR CONFIRMATION.
+#
+# Semantic colours are deliberately ABSENT from this map: ACTIVE badges and health chips stay
+# green because they carry meaning, not decoration.
+AGENCY_THEMES = {
+    "extrablack": {
+        "bg": "#060606",            # page ground
+        "panel": "#0e0d0c",         # card surface
+        "panel_2": "#131110",
+        "border": "rgba(255,255,255,.08)",
+        "border_strong": "rgba(255,255,255,.16)",
+        "text": "#f5f2ec",
+        "muted": "rgba(245,242,236,.56)",
+        "accent": "#ffa02e",        # active tab underline, hover border, focus ring
+        "accent_deep": "#ff6a00",
+        "cream": "#fff6ea",         # primary actions
+        "chip_bg": "#141110",
+        "chip_text": "rgba(245,242,236,.56)",
+        "topbar": "#0a0908",
+        "tile_hover": "#151211",
+        "font": "'Helvetica Neue', Helvetica, -apple-system, 'Segoe UI', Arial, sans-serif",
+        "header_logo": "extrablack",
+        "powered_by": True,
+    },
+}
+
+
 # Admin-tree ONLY agency badges — the black-background marks, shown on a dark square tile in the
 # accordion header. Deliberately SEPARATE from AGENCY_LOGOS (the portal's) so the admin page can use
 # a different, badge-shaped logo without changing the portal. Drop an `admlogo_<slug>.svg/.jpg/.png`
@@ -388,6 +424,10 @@ def home():
                                # pacing snapshot in the page source).
                                show_sync=agency_setting(agency, "show_sync"),
                                show_grid_brain=agency_setting(agency, "show_grid_brain"),
+                               # Cosmetic per-agency theme (AGENCY_THEMES). None for every agency
+                               # without an entry, and the template then emits NO override block -
+                               # so those portals are byte-identical to before.
+                               theme=AGENCY_THEMES.get(agency["slug"]),
                                admin_return=session.get("admin_return"))
         return _fill_feedback_loop(page)
     if kind == "client":

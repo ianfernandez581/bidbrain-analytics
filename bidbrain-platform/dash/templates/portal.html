@@ -322,6 +322,97 @@
             border-radius:10px;color:var(--muted);font-size:12.5px;text-align:left;opacity:.55}
   .ghostrow .dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none}
 </style>
+{% if theme %}
+<style>
+  /* ===========================================================================
+     PER-AGENCY THEME OVERRIDE — presentation only, emitted ONLY when the agency
+     has an entry in main.AGENCY_THEMES. Agencies without one get no block at all,
+     so their portals render byte-for-byte as before. Nothing here changes markup,
+     routes, permissions or data.
+
+     SEMANTIC COLOUR IS DELIBERATELY UNTOUCHED: ACTIVE badges (.pill.active) and the
+     health chips (.bbhealth.ok / .bbstat.ok) stay green because they carry MEANING.
+     Only decoration is re-coloured.
+     =========================================================================== */
+  :root{
+    --bg:{{ theme.bg }}; --panel:{{ theme.panel }}; --panel-2:{{ theme.panel_2 }};
+    --border:{{ theme.border }};
+    --text:{{ theme.text }}; --muted:{{ theme.muted }};
+    --accent:{{ theme.accent }};
+    --chip-bg:{{ theme.chip_bg }}; --chip-text:{{ theme.chip_text }};
+    /* --active (semantic green) is intentionally NOT overridden. */
+  }
+  body{
+    /* `| safe`: the font stack contains single quotes around multi-word family names, and Jinja's
+       HTML autoescaping turns them into &#39; which makes the declaration INVALID - the browser
+       drops it and the base font silently wins. The value is a hardcoded constant in
+       main.AGENCY_THEMES, never user input. */
+    font-family:{{ theme.font | safe }};
+    /* Quiet ambient amber glow only. The mock's halftone field and scrolling services
+       rail belong to the LOGIN page - portal chrome stays quiet, so they are not carried here. */
+    background:
+      radial-gradient(900px 520px at 50% -8%, {{ theme.accent }}29, transparent 64%),
+      radial-gradient(620px 360px at 50% -2%, {{ theme.accent_deep }}1a, transparent 68%),
+      var(--bg);
+    background-repeat:no-repeat;background-attachment:fixed;
+  }
+  .topbar{background:{{ theme.topbar }}}
+  .tile.live:hover{background:{{ theme.tile_hover }}}
+  .btn:hover{background:{{ theme.tile_hover }}}
+  /* Primary action = cream, per the mock. */
+  .btn.primary,.sbtn.primary{background:{{ theme.cream }};color:#0a0a0a;border-color:{{ theme.cream }}}
+  /* Focus must stay obvious on the dark ground: amber ring on every interactive element. */
+  a:focus-visible,button:focus-visible,[role="button"]:focus-visible,.tile:focus-visible,
+  .bbtab:focus-visible,input:focus-visible{
+    outline:2px solid {{ theme.accent }}; outline-offset:3px; border-radius:6px;
+  }
+  /* Decorative cursor glow: retinted green/blue -> amber so the chrome reads as one palette. */
+  .bb-cursor-glow{
+    background:radial-gradient(circle, {{ theme.accent }}17 0%, {{ theme.accent }}09 32%, transparent 68%),
+               radial-gradient(circle, {{ theme.accent_deep }}12 0%, {{ theme.accent_deep }}08 40%, transparent 72%)}
+  /* The "word-machine" (brief-word tokens flying across and pulsing the hero) is HIDDEN on a
+     themed portal, not retinted. The brief asks for restraint - a faint ambient glow only, with
+     portal chrome quiet - and retinting made it MORE prominent, not less: glowing amber tokens
+     drifting over the tiles. It is purely decorative and already aria-hidden, so hiding it removes
+     nothing meaningful. Other agencies keep it exactly as-is. FLAGGED in the re-skin note. */
+  .bbh-stage{display:none}
+  #bbHero.bbh-pulse{animation:none}
+
+  /* --- the shared _status_merge.html chrome (tabs, sync chip, accuracy cards) ---
+     That partial hard-codes its own navy palette and is SHARED with the admin console, so it
+     cannot be re-tinted globally.
+     EVERY selector below is prefixed with `body ` ON PURPOSE: _status_merge.html injects its
+     <style> at the END of the document, i.e. AFTER this block, so at equal specificity ITS rules
+     would win on source order. The extra element bumps specificity so these win regardless of
+     order - without it the tabs stay green while everything around them turns amber. */
+  body .bbtabs{border-bottom-color:{{ theme.border }}}
+  body .bbtab{color:{{ theme.muted }}}
+  body .bbtab:hover{color:{{ theme.text }}}
+  body .bbtab.on{color:{{ theme.text }};border-bottom-color:{{ theme.accent }}}
+  body .bbsynctime{color:{{ theme.muted }};background:rgba(255,255,255,.05);border-color:{{ theme.border }}}
+  body .bbmuted,body .bbloading{color:{{ theme.muted }}}
+  body .bbcard{background:{{ theme.panel }};border-color:{{ theme.border }}}
+  body .bbcard .bbhd{border-bottom-color:{{ theme.border }}}
+  body .bbcname{color:{{ theme.text }}}
+  body .bbacc-card .bbhd.bbacc-hd:hover{background:rgba(255,255,255,.03)}
+  body .bbacc-card .bbhd.bbacc-hd:focus-visible{outline-color:{{ theme.accent }}}
+  body table.bbacc td,body table.bbacc th{border-top-color:{{ theme.border }}}
+  body table.bbacc th{color:{{ theme.muted }}}
+  body table.bbacc tr.grp td{color:{{ theme.accent }};background:{{ theme.panel_2 }}}
+  body .bbnum.dash{color:{{ theme.accent }}}
+  body .bbsrc{background:{{ theme.panel_2 }};border-bottom-color:{{ theme.border }}}
+  body .bbsrc .lb,body .bbsrcper{color:{{ theme.muted }}}
+  body .bbsrc .hd{color:{{ theme.text }}}
+  body .bbcaret{color:{{ theme.muted }}}
+  /* Agency mark in the top bar: never on a white chip - the supplied art is white-on-black. */
+  .topbar .agencymark{display:flex;align-items:center}
+  .topbar .agencymark svg{height:22px;width:auto;display:block}
+  .topbar .agencymark img{height:22px;width:auto;display:block;background:transparent}
+  .poweredby{margin:44px 0 0;text-align:center;font-size:10px;letter-spacing:.3em;
+    text-transform:uppercase;color:rgba(245,242,236,.22);
+    font-family:ui-monospace,'SF Mono',Consolas,monospace}
+</style>
+{% endif %}
 </head>
 <body>
   <!-- cursor glow: subtle green+blue light that follows the cursor (decorative, non-interactive) -->
@@ -345,8 +436,14 @@
   })();
   </script>
   <div class="topbar">
+    {# Themed agencies with a header_logo show THEIR mark instead of the Bidbrain lockup.
+       Falls back to the standard lockup for every other agency (unchanged markup). #}
+    {% if theme and theme.header_logo and agency_logo %}
+    <span class="agencymark" role="img" aria-label="{{ agency.name }}">{{ agency_logo.html | safe }}</span>
+    {% else %}
     <span class="logo">{{ logo_svg | safe }}</span>
     <span class="label">Campaign Dashboards</span>
+    {% endif %}
     {% if admin_return %}<span class="viewpill">▸ Viewing agency portal</span>{% endif %}
     <span class="spacer"></span>
     {% if admin_return %}<a class="btn back" href="/exit-agency">← Back to {{ 'super console' if admin_return == 'superadmin' else 'admin' }}</a>{% endif %}
@@ -434,6 +531,10 @@
     {# Feedback Loop renders INLINE as a sibling .bbpane (not an iframe), so the portal's
        own background, cursor glow and hover feel continue across it unbroken. #}
     {% if agency.slug == 'transmission' %}{% include "_feedback_loop_pane.html" %}{% endif %}
+    {# Platform attribution, once the Bidbrain lockup leaves the header for a themed agency.
+       Placed quietly at the foot, matching the login page's treatment.
+       FLAGGED FOR CONFIRMATION - see the re-skin note; remove by setting powered_by False. #}
+    {% if theme and theme.powered_by %}<p class="poweredby">Powered by Bidbrain</p>{% endif %}
   </div>
   {% include "_status_merge.html" %}
 

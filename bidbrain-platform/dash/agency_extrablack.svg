@@ -1,6 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 232 64" role="img" aria-label="Extrablack">
-  <!-- Extrablack wordmark (white grotesque type on the dark portal ground), per the concept mock:
-       font-weight 500, tight tracking. System font stack keeps the page free of external requests. -->
-  <text x="0" y="46" font-family="'Helvetica Neue',Helvetica,Arial,sans-serif" font-size="44"
-        font-weight="500" letter-spacing="-1" fill="#f5f2ec">Extrablack</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 64" role="img" aria-label="Extrablack">
+  <!-- Extrablack wordmark: white grotesque on the dark portal ground, matching the supplied
+       white-on-black mark. Drawn as TYPE in a system grotesque stack so the page makes zero
+       external requests and needs no font file.
+       NOTE: this is a typographic reproduction, not the client's original artwork file - swap
+       this file for their real asset (SVG preferred; a transparent PNG also works, the loader
+       treats .png as a dark-theme mark and adds no white chip). -->
+  <title>Extrablack</title>
+  <text x="0" y="47" fill="#ffffff"
+        font-family="'Helvetica Neue',Helvetica,Arial,'Segoe UI',sans-serif"
+        font-size="46" font-weight="700" letter-spacing="-1.4">Extrablack</text>
 </svg>
