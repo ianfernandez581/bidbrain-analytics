@@ -98,10 +98,10 @@ html.fbl-on::-webkit-scrollbar-thumb:hover{ background: rgba(52,211,153,.35); }
 }
 .feedback-loop-pane .ctrl:hover{ border-color: var(--border-hover); background: var(--card-hover); }
 .feedback-loop-pane .ctrl:focus{ border-color: var(--green); box-shadow: 0 0 0 3px rgba(52,211,153,.12); outline: none; }
-.feedback-loop-pane input.ctrl{ flex: 1; min-width: 180px; }
+.feedback-loop-pane input.ctrl{ flex: 1 1 130px; min-width: 0; }
 .feedback-loop-pane input.ctrl::placeholder{ color: var(--muted); }
 .feedback-loop-pane select.ctrl option{ background: var(--card); color: var(--text); }
-.feedback-loop-pane .spacer{ flex: 1; min-width: 4px; }
+.feedback-loop-pane .spacer{ flex: 0 1 0; min-width: 0; }
 .feedback-loop-pane .btn{
   height: 34px; padding: 0 16px;
   border: none; border-radius: var(--radius-pill);
@@ -314,11 +314,21 @@ html.fbl-on{ scrollbar-width: auto; scrollbar-color: auto; }
 .feedback-loop-pane .fbl-head{display:flex;align-items:center;justify-content:space-between;
   gap:12px;flex-wrap:wrap;margin:0 0 4px}
 .feedback-loop-pane .fbl-head .window-line{text-align:left;margin:0}
+.feedback-loop-pane .fbl-head-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 /* the portal's .wrap already sets the page gutter — pass through inside the pane */
 .feedback-loop-pane .wrap{max-width:none;margin:0;padding:0}
-/* stick below the portal's own sticky topbar (height measured at runtime) */
+/* Sticks below the portal's own sticky topbar (height measured at runtime).
+   It is INVISIBLE until it actually sticks: a flat opaque bar sitting on the portal's
+   gradient reads as a separate dark box with a hard border, which is exactly what makes
+   an inline pane look bolted on. Margins/padding stay constant in both states so gaining
+   the background on scroll cannot shift the layout. */
 .feedback-loop-pane .toolbar{top:var(--fbl-top,52px);margin:0 -28px;padding:0 28px;
-  background:rgba(10,14,22,.92)}
+  background:transparent;border-bottom:0;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  transition:background .18s ease,border-color .18s ease}
+.feedback-loop-pane .toolbar.stuck{background:rgba(10,14,22,.92);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border)}
 .feedback-loop-pane .toolbar .wrap{max-width:none}
 @media print{
   /* printing the portal with this tab open: drop the portal chrome too, keep the wordmark */
@@ -329,7 +339,7 @@ html.fbl-on{ scrollbar-width: auto; scrollbar-color: auto; }
 <div class="bbpane feedback-loop-pane" id="pane-feedbackloop">
   <div class="fbl-head">
     <p class="window-line" id="fbl-windowLine"></p>
-    <span class="sample-pill" id="fbl-samplePill">Sample data</span>
+    <div class="fbl-head-actions"><button class="btn btn-secondary" id="fbl-btnPrint">Print summary</button><span class="sample-pill" id="fbl-samplePill">Sample data</span></div>
   </div>
 <div class="toolbar">
   <div class="wrap toolbar-inner">
@@ -357,7 +367,6 @@ html.fbl-on{ scrollbar-width: auto; scrollbar-color: auto; }
     <span class="spacer"></span>
     <button class="btn-clear" id="fbl-btnClear">Filtered — clear all</button>
     <button class="btn btn-primary" id="fbl-btnLog" title="Opens the compilation sheet — add a row there, then re-run the data refresh">＋ Log feedback</button>
-    <button class="btn btn-secondary" id="fbl-btnPrint">Print summary</button>
   </div>
 </div>
 <div class="wrap">
@@ -673,6 +682,19 @@ html.fbl-on{ scrollbar-width: auto; scrollbar-color: auto; }
   // Safety net for any other code path that shows/hides panes (MutationObserver is async).
   new MutationObserver(sync).observe(pane, { attributes:true, attributeFilter:['class'] });
   window.addEventListener('resize', sync);
+
+  // The toolbar only paints a background once it is actually stuck, so at rest it is
+  // invisible against the portal's gradient instead of a dark band with a border.
+  var tb = pane.querySelector('.toolbar');
+  function stuck(){
+    if (!tb) return;
+    var top = parseFloat(getComputedStyle(tb).top) || 0;
+    tb.classList.toggle('stuck', tb.getBoundingClientRect().top <= top + 1);
+  }
+  window.addEventListener('scroll', stuck, { passive:true });
+  window.addEventListener('resize', stuck);
+
   sync();
+  stuck();
 })();
 </script>

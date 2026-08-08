@@ -182,10 +182,22 @@ def main():
     window_line = re.search(r'(<p class="window-line"[^>]*></p>)', body).group(1)
     sample_pill = re.search(r'(<span class="sample-pill"[^>]*>.*?</span>)', body, re.S).group(1)
 
+    # Print summary moves out of the toolbar and up into the header row. The portal's content
+    # column is 1080px wide — narrower than the standalone page — and with `flex-wrap: wrap`
+    # the browser wraps rather than shrinks, so once the "Filtered — clear all" link appears
+    # the row overflowed and orphaned a single button on a second line. Print is the secondary
+    # action and the header row is nearly empty, so it lands there next to the sample pill and
+    # the search box keeps a usable width.
+    print_btn = re.search(r'(<button class="btn btn-secondary" id="btnPrint">.*?</button>)', toolbar, re.S)
+    if not print_btn:
+        raise SystemExit("ERROR: Print summary button not found in the toolbar")
+    toolbar = toolbar.replace(print_btn.group(1), "").replace("\n    \n", "\n")
+
     pane = (
         '<div class="bbpane feedback-loop-pane" id="pane-feedbackloop">\n'
-        '  <div class="fbl-head">\n    %s\n    %s\n  </div>\n%s\n%s\n%s\n</div>'
-        % (window_line, sample_pill, toolbar, content, footer)
+        '  <div class="fbl-head">\n    %s\n'
+        '    <div class="fbl-head-actions">%s%s</div>\n  </div>\n%s\n%s\n%s\n</div>'
+        % (window_line, print_btn.group(1), sample_pill, toolbar, content, footer)
     )
 
     # pane-local styling that only makes sense inline
@@ -194,11 +206,21 @@ def main():
 .feedback-loop-pane .fbl-head{display:flex;align-items:center;justify-content:space-between;
   gap:12px;flex-wrap:wrap;margin:0 0 4px}
 .feedback-loop-pane .fbl-head .window-line{text-align:left;margin:0}
+.feedback-loop-pane .fbl-head-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto}
 /* the portal's .wrap already sets the page gutter — pass through inside the pane */
 .feedback-loop-pane .wrap{max-width:none;margin:0;padding:0}
-/* stick below the portal's own sticky topbar (height measured at runtime) */
+/* Sticks below the portal's own sticky topbar (height measured at runtime).
+   It is INVISIBLE until it actually sticks: a flat opaque bar sitting on the portal's
+   gradient reads as a separate dark box with a hard border, which is exactly what makes
+   an inline pane look bolted on. Margins/padding stay constant in both states so gaining
+   the background on scroll cannot shift the layout. */
 .feedback-loop-pane .toolbar{top:var(--fbl-top,52px);margin:0 -28px;padding:0 28px;
-  background:rgba(10,14,22,.92)}
+  background:transparent;border-bottom:0;
+  backdrop-filter:none;-webkit-backdrop-filter:none;
+  transition:background .18s ease,border-color .18s ease}
+.feedback-loop-pane .toolbar.stuck{background:rgba(10,14,22,.92);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid var(--border)}
 .feedback-loop-pane .toolbar .wrap{max-width:none}
 @media print{
   /* printing the portal with this tab open: drop the portal chrome too, keep the wordmark */
@@ -235,7 +257,20 @@ def main():
   // Safety net for any other code path that shows/hides panes (MutationObserver is async).
   new MutationObserver(sync).observe(pane, { attributes:true, attributeFilter:['class'] });
   window.addEventListener('resize', sync);
+
+  // The toolbar only paints a background once it is actually stuck, so at rest it is
+  // invisible against the portal's gradient instead of a dark band with a border.
+  var tb = pane.querySelector('.toolbar');
+  function stuck(){
+    if (!tb) return;
+    var top = parseFloat(getComputedStyle(tb).top) || 0;
+    tb.classList.toggle('stuck', tb.getBoundingClientRect().top <= top + 1);
+  }
+  window.addEventListener('scroll', stuck, { passive:true });
+  window.addEventListener('resize', stuck);
+
   sync();
+  stuck();
 })();
 """
 

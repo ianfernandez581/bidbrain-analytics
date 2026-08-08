@@ -173,12 +173,16 @@ select.ctrl {
 }
 .ctrl:hover { border-color: var(--border-hover); background: var(--card-hover); }
 .ctrl:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(52,211,153,.12); outline: none; }
-input.ctrl { flex: 1; min-width: 180px; }
+/* Must be able to shrink: when the "Filtered — clear all" link appears it adds ~110px to the
+   row, and a hard min-width here pushed a single button onto a second line. */
+input.ctrl { flex: 1 1 130px; min-width: 0; }
 input.ctrl::placeholder { color: var(--muted); }
 /* the native option list is painted from the select's own background — keep it opaque */
 select.ctrl option { background: var(--card); color: var(--text); }
 
-.spacer { flex: 1; min-width: 4px; }
+/* Collapsed: the search input is the single flexible element, so it absorbs the free space
+   and the buttons stay hard right without a second growing item competing with it. */
+.spacer { flex: 0 1 0; min-width: 0; }
 
 .btn {
   height: 34px; padding: 0 16px;
