@@ -174,6 +174,14 @@ Build as yourself via the per-stage scripts (each self-contained, idempotent, in
   `enable_google_login.ps1`, `enable_microsoft_login.ps1`, `clients/client_<c>/dash/enable_report_<c>.ps1`
   (AI decks need `roles/aiplatform.user` + `--timeout 900`; `bb_deck.js` is vendored - canonical copy
   in `clients/client_mongodb/dash/`, re-copy everywhere after editing).
+- **NEW CLIENT: grant `platform-dash-web@` `secretAccessor` on `<c>-dash-password`.** The front door
+  proxies `/d/<c>/` and logs into the dashboard ON THE USER'S BEHALF (`_upstream_pw`/`_upstream_login`),
+  so without it the portal tile's Open button returns a bare **500** (`PermissionDenied` on
+  `secretmanager.versions.access` in the platform-dash log; NOTHING in the client's own log, since the
+  request never reaches it). Every pre-2026-08 client has it, but the template deploy scripts never
+  granted it - it was done out-of-band, so a brand-new client silently lacks it (bit geyervalmont
+  2026-08-08). Add the client to `$CLIENTS` in `scripts/enable_super_admin.ps1` too, which maintains
+  the god-mode pair (`secretVersionAdder` + `iam.serviceAccountUser`) that powers reveal/rotate.
 - **`/ship` (or `/go`) auto-deploys every changed service** after landing on main - the path ->
   deploy-script map is `Resolve-DeployPlan` in `scripts/merge-branches.ps1`. Doc-only changes deploy nothing.
 - **Any view-only or seed/static change requires a forced job run** (the gate does not watch views
