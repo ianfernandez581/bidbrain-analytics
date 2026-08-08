@@ -1,0 +1,18 @@
+Transmission Feedback Loop - review report (placeholder)
+
+The real review report is emitted by sheet_to_json.py on every refresh, NEXT TO the
+real-data build in the gitignored staging area:
+
+    staging/transmission-feedback-v0/review_report.txt
+
+It is kept out of the tracked prototype folder deliberately: flagged rows can quote
+client verbatims, and client verbatims must never enter git history (see QA_NOTES.md,
+"Conflicts flagged").
+
+What it contains, per run:
+  NOTES           - once-per-run structural notes (e.g. columns the sheet lacks)
+  FLAGS (n)       - every judgment call with its sheet row number: unparseable or
+                    year-less months, non-canonical client names (with the nearest
+                    canonical suggestion), missing/identical deck links, duplicates
+  RECONCILIATION  - source rows vs reports vs feedback entries vs flag count;
+                    a human checks these before the file ships
