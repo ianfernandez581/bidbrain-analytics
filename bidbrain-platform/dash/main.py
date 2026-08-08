@@ -25,6 +25,7 @@ Serving pattern mirrors every other dash in this repo: thin Flask gate, gunicorn
 private by default, deployed with --no-invoker-iam-check so this app's gate is the only door.
 """
 import os
+import re
 import time
 import base64
 from pathlib import Path
@@ -2382,7 +2383,214 @@ _SCRUB_KEYS = frozenset({
     "email", "contact_email", "user_email", "contact_name", "first_name", "last_name",
     "full_name", "person", "phone",
 })
-_EMAILISH = __import__("re").compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+_EMAILISH = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+# --- BILLED-ONLY spend for EXTERNAL tenants -------------------------------------------------
+# An external tenant sees the SAME figures the client sees - the client-billed (grossed) spend -
+# never the raw media cost. Raw-only would have closed margin derivation but left Extrablack's
+# screen showing a LOWER number than Geocon's on the same dashboard, and that discrepancy is
+# itself disclosure.
+#
+# HOW: the client's own session receives the RAW payload plus window.BB_SPEND_MULT, and the
+# dashboard's shim grosses it in the browser. For an external tenant we do the SAME arithmetic
+# SERVER-SIDE and inject no factor, so the browser shim is a no-op and both sessions render
+# identical numbers. Every derived metric (CPM/CPC/CPL/cost-per-LPV/pacing) is computed in the
+# browser FROM these fields, so grossing the inputs grosses the whole chain by construction.
+#
+# The spec below mirrors each dashboard's own shim. Three fields the shims leave RAW
+# (geocon `breakdowns[].spend`, resetdata `weekly` + `ga_audience`) are grossed here as well:
+# none is rendered, but leaving a raw figure beside a grossed one hands over the ratio.
+_EXTERNAL_SPEND_SPEC = {
+    "geocon": {
+        # Meta-only client; mirrors clients/client_geocon/dash/dashboard.html bbApplySpendMult().
+        "fixed_arrays": {"rows": ("spend", "meta"), "breakdowns": ("spend", "meta")},
+        "objects": {
+            "flight": (["spend_to_date", "projected_spend", "pace_expected", "budget"], "meta"),
+            # The campaign budget appears a SECOND time here, ungrossed. Raw beside the grossed
+            # flight.budget would give the factor by division, so gross these too. (The dashboard's
+            # own shim grosses flight.budget but NOT these - a pre-existing inconsistency in the
+            # client-facing view, flagged for a human in EXTRABLACK_EXPOSURE_2.md.)
+            "benchmarks": (["flight_budget", "daily_pace"], "meta"),
+        },
+        # `targets` entries are {value, status}; same duplicate-budget problem, one level deeper.
+        "value_objects": {"targets": (["flight_budget_aud", "daily_pace_aud"], "meta")},
+    },
+    "resetdata": {
+        # Mirrors clients/client_resetdata/dash/dashboard.html bbGrossRows/bbGrossWide.
+        "platform_arrays": ["ad_campaigns", "ad_campaign_daily", "ad_campaign_weekly",
+                            "ad_campaign_monthly"],
+        "fixed_arrays": {
+            "google_campaigns": ("spend_aud", "google"), "ga_keywords": ("spend_aud", "google"),
+            "ga_audience": ("spend_aud", "google"), "meta_campaigns": ("spend_aud", "meta"),
+            "meta_creative": ("spend_aud", "meta"), "meta_creatives": ("spend_aud", "meta"),
+            "ttd_campaigns": ("spend_aud", "ttd"), "reddit_campaigns": ("spend_aud", "reddit"),
+        },
+        "wide_objects": ["kpi"],
+        "wide_arrays": ["monthly", "daily", "weekly"],
+    },
+}
+# Per-channel parts carried by the "wide" records, and the blended total rebuilt from them.
+_WIDE_PARTS = [("ga_spend_aud", "google"), ("me_spend_aud", "meta"),
+               ("td_spend_aud", "ttd"), ("rd_spend_aud", "reddit")]
+_WIDE_TOTAL = "ad_spend_aud"
+# Anything left that looks like money after the spec has run is SUPPRESSED, not passed through -
+# a field added to a payload later must not leak raw cost just because this spec predates it.
+_SPENDISH = re.compile(r"(^|_)(spend|cost|cpm|cpc|cpl|cpa|budget)(_|$)", re.I)
+# `rd_spend` is ResetData's own customers' product spend, not media cost, and never carried a
+# multiplier. It only exists inside the crm block, which is removed wholesale for external
+# tenants - listed so the fail-closed sweep does not flag it if that ever changes.
+_SPEND_SWEEP_EXEMPT = frozenset({
+    "rd_spend", "total_rd_spend", "total_hs_revenue",
+    # PER-UNIT PLAN TARGETS (cost-per-lead/click/mille goals from the media plan). They pass through
+    # RAW so the external tenant's screen matches the client's, and they cannot betray the markup:
+    # a plan target is an independent commitment, not a figure derived from what we paid. The
+    # MONEY-level plan figures (flight_budget/daily_pace) are grossed above, because those ARE the
+    # same quantity as flight.budget and would give the ratio by division.
+    "cpl", "cpl_stretch", "cpc", "cpm", "cost_per_lpv",
+    "cpl_target_aud", "cpl_stretch_aud", "cpc_target_aud", "cpm_target_aud",
+    "cost_per_lpv_target_aud",
+})
+
+
+def _mult_for(mults, channel):
+    """The factor for a channel, or None when none is DEFINED.
+
+    None means "we cannot produce the billed figure for this channel", and every caller then
+    SUPPRESSES the value rather than falling through to x1.0 — because x1.0 silently ships the raw
+    media cost. A channel that genuinely carries no markup must therefore be set to 1.0
+    EXPLICITLY, which makes "billed == raw here" a deliberate human statement instead of a default.
+    Note the consequence: an undefined channel is suppressed for an external tenant while the
+    client still sees it, so define a factor for EVERY channel a client runs to keep the two views
+    identical."""
+    if not channel or channel not in (mults or {}):
+        return None
+    try:
+        v = float(mults[channel])
+    except (TypeError, ValueError):
+        return None
+    return v if v > 0 else None
+
+
+def _channel_key(platform):
+    """Mirror of the dashboards' bbChannelKey()."""
+    s = str(platform or "").lower()
+    for token, key in (("google", "google"), ("facebook", "meta"), ("meta", "meta"),
+                       ("linkedin", "linkedin"), ("reddit", "reddit"), ("trade", "ttd"),
+                       ("tradedesk", "ttd"), ("dv360", "dv360"), ("display", "dv360"),
+                       ("line", "line"), ("dooh", "youdooh")):
+        if token in s:
+            return key
+    return "ttd" if s == "ttd" else ""
+
+
+def _gross_external_payload(client, doc, mults):
+    """Return (doc, suppressed_fields). Grosses every spend field per the client's spec, then
+    SUPPRESSES (sets to None) any money-shaped field the spec did not cover - fail closed."""
+    spec = _EXTERNAL_SPEND_SPEC.get(client, {})
+    done = set()                                   # (id(dict), field) already handled
+    no_factor = set()                              # channels seen with no defined factor
+
+    def gross(rec, field, chan):
+        """Gross one field, or SUPPRESS it when this channel has no defined factor."""
+        if not isinstance(rec, dict) or rec.get(field) is None:
+            return
+        f = _mult_for(mults, chan)
+        if f is None:                       # no factor for this channel -> never fall back to raw
+            rec[field] = None
+            done.add((id(rec), field))
+            no_factor.add(chan or "<unmapped>")
+            return
+        try:
+            rec[field] = float(rec[field]) * f
+            done.add((id(rec), field))
+        except (TypeError, ValueError):
+            rec[field] = None
+            done.add((id(rec), field))
+
+    for name, (field, chan) in (spec.get("fixed_arrays") or {}).items():
+        for row in (doc.get(name) or []):
+            gross(row, field, chan)
+    for name in (spec.get("platform_arrays") or []):
+        for row in (doc.get(name) or []):
+            gross(row, "spend_aud", _channel_key((row or {}).get("platform")))
+    for name, (fields, chan) in (spec.get("objects") or {}).items():
+        for f in fields:
+            gross(doc.get(name), f, chan)
+    for name, (keys, chan) in (spec.get("value_objects") or {}).items():
+        container = doc.get(name) or {}
+        for k in keys:
+            gross(container.get(k), "value", chan)
+
+    def wide(rec):
+        if not isinstance(rec, dict):
+            return
+        total, has, missing = 0.0, False, False
+        for key, chan in _WIDE_PARTS:
+            if rec.get(key) is None:
+                continue
+            has = True
+            gross(rec, key, chan)
+            if rec[key] is None:                   # part suppressed -> the blend is unknowable
+                missing = True
+            else:
+                total += float(rec[key])
+        if has and rec.get(_WIDE_TOTAL) is not None:
+            # Rebuild the blended total from the grossed parts (mirrors the dashboards' bbGrossWide).
+            # If ANY part was suppressed the total would be a partial sum reading as a real figure,
+            # so suppress it instead.
+            rec[_WIDE_TOTAL] = None if missing else total
+            done.add((id(rec), _WIDE_TOTAL))
+
+    for name in (spec.get("wide_objects") or []):
+        wide(doc.get(name))
+    for name in (spec.get("wide_arrays") or []):
+        for row in (doc.get(name) or []):
+            wide(row)
+
+    # Fail-closed sweep: any money-shaped field the spec missed is suppressed, never forwarded raw.
+    suppressed = set()
+
+    def sweep(o):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if (isinstance(v, (int, float)) and not isinstance(v, bool)
+                        and _SPENDISH.search(str(k)) and str(k) not in _SPEND_SWEEP_EXEMPT
+                        and (id(o), k) not in done):
+                    o[k] = None
+                    suppressed.add(str(k))
+                else:
+                    sweep(v)
+        elif isinstance(o, list):
+            for v in o:
+                sweep(v)
+
+    sweep(doc)
+    if no_factor:
+        app.logger.warning("external billed-spend: no factor defined for channel(s) %s on client=%s "
+                           "- those figures were SUPPRESSED, not shown raw", sorted(no_factor), client)
+        suppressed |= {f"<channel:{c}>" for c in no_factor}
+    return doc, suppressed
+
+
+# --- Whole blocks/tabs an EXTERNAL tenant does not receive ----------------------------------
+# ResetData's "Signups & CRM" tab is a contractual exclusion, not a field-filtering one: it
+# reports a CLIENT'S OWN sales operation (lead handling, lifecycle, per-owner outcomes). The
+# `crm` block is removed from the payload wholesale, and the tab is removed from the rail so the
+# UI never shows an empty tab. Campaign-level lead counts remain where they live as media
+# performance (kpi/ad_campaigns), which is unaffected.
+_EXTERNAL_EXCLUDED_BLOCKS = {"resetdata": ("crm",)}
+# Tab buttons removed from the rail for external tenants, keyed on the dashboards' own
+# `data-tab` value. Removing the button AND its pane; if the tab were the active one the
+# dashboard's own default (overview) still applies because we never make it active.
+_EXTERNAL_EXCLUDED_TABS = {"resetdata": ("crm",)}
+_EXCLUDED_TABS_SCRIPT = (
+    b"<script>(function(){try{var T=" +
+    __import__("json").dumps(_EXTERNAL_EXCLUDED_TABS).encode() +
+    b";var c=(location.pathname.split('/')[2]||'');var t=T[c]||[];t.forEach(function(k){"
+    b"document.querySelectorAll('[data-tab=\"'+k+'\"]').forEach(function(el){el.remove();});"
+    b"var p=document.getElementById('tab-'+k); if(p) p.remove();});}catch(e){}})();</script>"
+)
 
 
 def _scrub_external_payload(obj, client, _found=None):
@@ -2479,18 +2687,39 @@ def proxy(client, subpath):
                 tail += _feedback_widget(client)
             if _internal_allowed(client):           # staff-only: Internal Notes + Assistant widget
                 tail += _internal_widget(client)
+            if _ext_setting("scrub_payload"):       # external: strip excluded tabs from the rail
+                tail += _EXCLUDED_TABS_SCRIPT
             body = body.replace(b"</body>", tail + b"</body>", 1)
     elif "json" in ctype and _ext_setting("scrub_payload") and resp.status_code == 200:
-        # Scrub the dashboard payload for an external tenant (named individuals etc.). Applies to
-        # EVERY json response through the proxy, so data.json and any future json route a dashboard
-        # fetches are covered. FAILS CLOSED: if the body can't be parsed and scrubbed we return an
-        # error rather than forwarding it, because passing the original through on error would ship
-        # exactly the fields this exists to remove.
+        # Prepare the payload for an external tenant, in one parse:
+        #   1. remove excluded blocks wholesale (the ResetData CRM tab's data),
+        #   2. gross spend to the CLIENT-BILLED figure and suppress anything money-shaped the spec
+        #      didn't cover,
+        #   3. scrub named individuals.
+        # FAILS CLOSED throughout: any error returns 502 rather than forwarding the original, since
+        # passing it through on error would ship exactly what this exists to remove.
         try:
             import json as _json
-            body = _json.dumps(_scrub_external_payload(_json.loads(body), client)).encode()
+            doc = _json.loads(body)
+            if isinstance(doc, dict):
+                for blk in _EXTERNAL_EXCLUDED_BLOCKS.get(client, ()):
+                    doc.pop(blk, None)
+                mults = store.get_spend_multipliers(client)
+                if not mults:
+                    # No markup factor configured => we cannot produce the billed figure, and we must
+                    # NOT fall through to raw. Suppress every money-shaped field instead.
+                    doc, supp = _gross_external_payload(client, doc, {})
+                    app.logger.warning("external billed-spend UNAVAILABLE client=%s (no multiplier) "
+                                       "- suppressed %d money fields", client, len(supp))
+                else:
+                    doc, supp = _gross_external_payload(client, doc, mults)
+                    if supp:
+                        app.logger.warning("external spend sweep suppressed uncovered money fields "
+                                           "client=%s fields=%s", client, sorted(supp))
+                doc = _scrub_external_payload(doc, client)
+            body = _json.dumps(doc).encode()
         except Exception:
-            app.logger.exception("external payload scrub failed client=%s subpath=%s", client, subpath)
+            app.logger.exception("external payload prep failed client=%s subpath=%s", client, subpath)
             return jsonify(ok=False, error="This data could not be prepared for your account."), 502
     out = Response(body, status=resp.status_code, content_type=ctype)
     out.headers["Cache-Control"] = "no-store"
