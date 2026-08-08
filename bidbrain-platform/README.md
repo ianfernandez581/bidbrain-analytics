@@ -178,8 +178,25 @@ multipliers configured shows an external tenant **no spend figures at all** unti
 ### Whole tabs excluded for an external tenant
 
 `_EXTERNAL_EXCLUDED_BLOCKS` / `_EXTERNAL_EXCLUDED_TABS` remove a tab's **payload and its tab
-button** — currently ResetData's "Signups & CRM", a contractual exclusion (it reports a client's own
-sales operation). Campaign-level lead counts remain in `kpi`/`ad_campaigns` as media performance.
+button**. **Both are EMPTY today** — nothing is excluded. ResetData's "Signups & CRM" used to be
+removed here; that was reversed 2026-08-09 because the tab reports CAMPAIGN OUTCOME (signups, source
+quality, lead volumes, balances, paying customers), which an agency sharing the client needs. It
+carries `crm.lifecycle_owner[].owner` / `lead_queue[].owner` — **17 named ResetData staff**, shipped
+deliberately via `_SCRUB_EXEMPT_BLOCKS`; drop `"crm"` from that map to scrub the names (the tab still
+renders, the two by-owner sections just lose their split).
+
+**Before excluding anything, find what else reads it.** Excluding `crm` also blanked the *Overview*
+"Paying customers" card and the hero's paying line, which rendered **`0` instead of 143** — a zero is
+a factual claim, and it was being made on data we had chosen not to send.
+
+### Withheld ≠ zero (both dashboards)
+
+Suppression sets a field to `null`. The dashboards now keep `null` intact to the formatter, which
+renders the existing `-` placeholder: `nAdd`/`nMul`/`sumMoney`/`heldNum` + a `div` that guards a null
+numerator (`null/5` is **0** in JS — that one coercion was turning every withheld figure into a
+confident `A$0`). Charts plot `null` as a gap, and a chart whose data is entirely withheld is removed
+with a one-line note rather than drawn empty. Scope is **money only**: a null *count*
+(`conversions`/`users`/`leads`) already means "none reported" and is left alone.
 
 ### Local runs cannot mutate production
 

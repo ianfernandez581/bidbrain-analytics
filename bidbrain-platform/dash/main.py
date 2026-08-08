@@ -2662,16 +2662,21 @@ def _gross_external_payload(client, doc, mults):
 
 
 # --- Whole blocks/tabs an EXTERNAL tenant does not receive ----------------------------------
-# ResetData's "Signups & CRM" tab is a contractual exclusion, not a field-filtering one: it
-# reports a CLIENT'S OWN sales operation (lead handling, lifecycle, per-owner outcomes). The
-# `crm` block is removed from the payload wholesale, and the tab is removed from the rail so the
-# UI never shows an empty tab. Campaign-level lead counts remain where they live as media
-# performance (kpi/ad_campaigns), which is unaffected.
-_EXTERNAL_EXCLUDED_BLOCKS = {"resetdata": ("crm",)}
+# Nothing is excluded today. ResetData's "Signups & CRM" block+tab USED to be removed wholesale as
+# a contractual exclusion; that was reversed (2026-08-09) because, despite the tab's name, what it
+# reports is CAMPAIGN OUTCOME - signups, source quality, lead volumes, loaded balances and the
+# paying-customer figures - which is exactly what an agency sharing the client needs. Removing it
+# also produced FALSE ZEROS off-tab: the Overview "Paying customers" card and the hero's paying
+# line read 0 (not 143) because they source the same block.
+#
+# The machinery is kept (not deleted) so a genuine future exclusion is one entry, not a rewrite.
+# If you ever add one, check what ELSE reads that block first - a card whose data is withheld must
+# render the withheld placeholder, never a zero. See _WITHHELD in the dashboards.
+_EXTERNAL_EXCLUDED_BLOCKS = {}
 # Tab buttons removed from the rail for external tenants, keyed on the dashboards' own
 # `data-tab` value. Removing the button AND its pane; if the tab were the active one the
 # dashboard's own default (overview) still applies because we never make it active.
-_EXTERNAL_EXCLUDED_TABS = {"resetdata": ("crm",)}
+_EXTERNAL_EXCLUDED_TABS = {}
 _EXCLUDED_TABS_SCRIPT = (
     b"<script>(function(){try{var T=" +
     __import__("json").dumps(_EXTERNAL_EXCLUDED_TABS).encode() +
@@ -2681,10 +2686,36 @@ _EXCLUDED_TABS_SCRIPT = (
 )
 
 
+# Top-level blocks whose named individuals are DELIBERATELY shipped to an external tenant, exempt
+# from the _SCRUB_KEYS sweep.
+#
+# ResetData's `crm` block carries `owner` (the ResetData staffer who owns each lead) on
+# lifecycle_owner + lead_queue - 17 real names. The by-owner views are the point of those two
+# sections, and scrubbing the key would leave the tab rendering "undefined" rows instead of the
+# identical-to-internal view that was asked for. FLAGGED FOR A HUMAN: this is the one field in the
+# restored tab that names individuals; drop "crm" from this map to scrub it and the rest of the tab
+# still renders (the two by-owner sections lose their split). Nothing else in `crm` is personal -
+# verified no email-shaped values anywhere in the block.
+_SCRUB_EXEMPT_BLOCKS = {"resetdata": ("crm",)}
+
+
 def _scrub_external_payload(obj, client, _found=None):
     """Recursively drop _SCRUB_KEYS; log (don't ship) anything email-shaped. Returns the scrubbed
     object. Pure data transform - no I/O."""
     found = _found if _found is not None else {"keys": set(), "emailish": 0}
+    if _found is None and isinstance(obj, dict):
+        # Detach the exempt blocks, scrub the rest, then put them back untouched.
+        exempt = {b: obj[b] for b in _SCRUB_EXEMPT_BLOCKS.get(client, ()) if b in obj}
+        if exempt:
+            rest = {k: v for k, v in obj.items() if k not in exempt}
+            out = _scrub_external_payload(rest, client, found)
+            out.update(exempt)
+            app.logger.info("external-scrub client=%s exempt_blocks=%s (named individuals shipped "
+                            "deliberately - see _SCRUB_EXEMPT_BLOCKS)", client, sorted(exempt))
+            if found["keys"] or found["emailish"]:
+                app.logger.info("external-scrub client=%s removed_fields=%s emailish_values_seen=%d",
+                                client, sorted(found["keys"]), found["emailish"])
+            return out
     if isinstance(obj, dict):
         out = {}
         for k, v in obj.items():

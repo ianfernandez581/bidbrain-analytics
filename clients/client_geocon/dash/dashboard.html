@@ -476,7 +476,16 @@ function n(v){const x=Number(v);return Number.isFinite(x)?x:0;}
 function nullable(v){const x=Number(v);return Number.isFinite(x)?x:null;}
 function compact(v){return Intl.NumberFormat('en-AU',{notation:'compact',maximumFractionDigits:1}).format(n(v));}
 function int(v){return Intl.NumberFormat('en-AU',{maximumFractionDigits:0}).format(n(v));}
-function money(v,d=0){return 'A$'+Intl.NumberFormat('en-AU',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n(v));}
+// ===================== withheld values =====================
+// The platform front-door SUPPRESSES a money field it cannot express as a client-billed figure by
+// setting it to null (fail-closed - it never ships raw media cost). null therefore means WITHHELD,
+// not zero, and zero is a factual claim we must not make on data we were not given. money() renders
+// the same '-' placeholder the rest of the dashboard already uses for "no value".
+// MONEY ONLY: a null count (leads / link_clicks / video_completes) is common in a normal payload
+// and keeps its existing "none reported" meaning via n().
+const nAdd=(a,b)=>(a==null||b==null)?null:a+b;
+const nMul=(a,b)=>(a==null||b==null)?null:a*b;   // guards `spend/imp*1000` (null*1000 is 0 in JS)
+function money(v,d=0){if(v==null)return '-';return 'A$'+Intl.NumberFormat('en-AU',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n(v));}
 function pct(v,d=1){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(d)+'%':'-';}
 function pctWhole(v){return Number.isFinite(Number(v))?Math.round(Number(v)*100)+'%':'-';}
 function fmtDate(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
@@ -498,9 +507,10 @@ function makeChart(id,cfg){destroyChart(id);if(!$(id))return null;charts[id]=new
 function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}
 function bbApplySpendMult(){
   const M=bbMultFor('meta');
-  (DATA.rows||[]).forEach(r=>{if(r._rawSpend==null)r._rawSpend=n(r.spend);r.spend=r._rawSpend*M;});
+  // r.spend === null means WITHHELD by the proxy - leave it null, never let n() turn it into 0.
+  (DATA.rows||[]).forEach(r=>{if(r.spend===null)return;if(r._rawSpend==null)r._rawSpend=n(r.spend);r.spend=r._rawSpend*M;});
   const f=DATA.flight;                      // gross the precomputed pacing dollars by the same factor
-  if(f){['spend_to_date','projected_spend','pace_expected','budget'].forEach(k=>{if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);f[k]=f['_raw_'+k]*M;});}
+  if(f){['spend_to_date','projected_spend','pace_expected','budget'].forEach(k=>{if(f[k]===null)return;if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);f[k]=f['_raw_'+k]*M;});}
 }
 
 // ---------- targets / benchmarks ----------
@@ -578,18 +588,29 @@ function deltaWindows(){const[a,b]=rangeBounds();if(!a||!b)return null;const len
   if(prev.length)return{cur:scoped(),prev,label:`vs prev ${len}d`};if(len>=4){const mid=addDaysStr(a,Math.floor(len/2));return{cur:rowsBetween(mid,b),prev:rowsBetween(a,addDaysStr(mid,-1)),label:'2nd half vs 1st'};}return null;}
 function lowConfidence(r){if(n(r.impressions)<15000)return{low:true,why:'under 15k impressions'};if(r.cpl!=null&&n(r.leads)<8)return{low:true,why:'fewer than 8 leads'};return{low:false,why:''};}
 function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
-  const spend=s('spend'),imp=s('impressions'),reach=s('reach'),clicks=s('clicks'),lc=s('link_clicks'),lpv=s('lpv'),leads=s('leads'),v3=s('video_3s_views'),vc=s('video_completes');
+  // MONEY sum: a withheld row makes the total unknown rather than a partial sum that reads real.
+  const sMoney=k=>rows.reduce((a,r)=>(r[k]===null?null:nAdd(a,n(r[k]))),0);
+  const spend=sMoney('spend');
+  const imp=s('impressions'),reach=s('reach'),clicks=s('clicks'),lc=s('link_clicks'),lpv=s('lpv'),leads=s('leads'),v3=s('video_3s_views'),vc=s('video_completes');
   const tp=s('thruplays'),lw=s('leads_website'),lof=s('leads_onfacebook');
+  // every cost-per-X stays unknown when spend is - without the guard `null/imp` is 0 in JS and the
+  // card would report a confident A$0 CPM/CPC/CPL.
+  const per=(d)=>(spend==null||!d)?null:spend/d;
   return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,thruplays:tp,leads_website:lw,leads_onfacebook:lof,
-    ctr:imp?lc/imp:null,cpm:imp?spend/imp*1000:null,cpc:lc?spend/lc:null,cpl:leads?spend/leads:null,cost_per_lpv:lpv?spend/lpv:null,frequency:reach?imp/reach:null,count:rows.length};}
+    ctr:imp?lc/imp:null,cpm:nMul(per(imp),1000),cpc:per(lc),cpl:per(leads),cost_per_lpv:per(lpv),frequency:reach?imp/reach:null,count:rows.length};}
 function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
-function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;g.forEach(x=>{x.spend_share=n(x.spend)/ts;x.lead_share=n(x.leads)/tl;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
+function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;
+  // a withheld spend has no share of total - null renders '-', not "0% of spend"
+  g.forEach(x=>{x.spend_share=x.spend==null?null:n(x.spend)/ts;x.lead_share=n(x.leads)/tl;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
 function byCampaign(rows){return groupRollup(rows,r=>r.campaign,r0=>({campaign:r0.campaign,stage:r0.stage||'Other'})).sort((a,b)=>n(b.spend)-n(a.spend));}
 function byAdset(rows){return groupRollup(rows,r=>r.adset_id||r.adset,r0=>({adset:r0.adset,campaign:r0.campaign,stage:r0.stage||'Other'})).sort((a,b)=>n(b.spend)-n(a.spend));}
 function latest(rs,key){for(let i=rs.length-1;i>=0;i--){if(rs[i][key])return rs[i][key];}return null;}
 function byAd(rows){return groupRollup(rows,r=>r.ad_id||r.ad,(r0,rs)=>({ad:r0.ad,adset:r0.adset,campaign:r0.campaign,stage:r0.stage||'Other',creative_id:latest(rs,'creative_id'),creative_title:latest(rs,'creative_title'),creative_body:latest(rs,'creative_body'),creative_thumbnail_url:latest(rs,'creative_thumbnail_url'),destination_url:latest(rs,'destination_url')})).sort((a,b)=>n(b.spend)-n(a.spend));}
 function dailyOf(rows){const m=new Map();rows.forEach(r=>{const d=String(r.date).slice(0,10);if(!m.has(d))m.set(d,[]);m.get(d).push(r);});const days=[...m.keys()].sort().map(d=>Object.assign({date:d},agg(m.get(d))));
-  let cs=0,cl=0;days.forEach((d,i)=>{cs+=n(d.spend);cl+=n(d.leads);d.cum_spend=cs;d.cum_leads=cl;let ws=0,wl=0;for(let j=Math.max(0,i-6);j<=i;j++){ws+=n(days[j].spend);wl+=n(days[j].leads);}d.cpl_7d=wl?ws/wl:null;});return days;}
+  // cum_spend / the 7d CPL stay unknown once any contributing day was withheld
+  let cs=0,cl=0;days.forEach((d,i)=>{cs=nAdd(cs,d.spend==null?null:n(d.spend));cl+=n(d.leads);d.cum_spend=cs;d.cum_leads=cl;
+    let ws=0,wl=0;for(let j=Math.max(0,i-6);j<=i;j++){ws=nAdd(ws,days[j].spend==null?null:n(days[j].spend));wl+=n(days[j].leads);}
+    d.cpl_7d=(ws==null||!wl)?null:ws/wl;});return days;}
 function isoWeek(d){const dt=new Date(d+'T00:00:00Z');dt.setUTCDate(dt.getUTCDate()-((dt.getUTCDay()+6)%7));return dt.toISOString().slice(0,10);}
 function fatigueOf(rows){const m=new Map();rows.forEach(r=>{const k=(r.ad_id||r.ad)+'|'+isoWeek(r.date);if(!m.has(k))m.set(k,{ad:r.ad,adset:r.adset,key:(r.ad_id||r.ad),week:isoWeek(r.date),rows:[]});m.get(k).rows.push(r);});
   const weekly=[...m.values()].map(w=>{const a=agg(w.rows);return{ad:w.ad,adset:w.adset,key:w.key,week:w.week,impressions:a.impressions,frequency:a.frequency,ctr:a.ctr};}).filter(w=>n(w.impressions)>=1000).sort((a,b)=>a.week.localeCompare(b.week));
@@ -607,7 +628,7 @@ function trendBucketLabel(dateStr,grain){const d=new Date(dateStr+'T00:00:00Z');
   return{key:d.toISOString().slice(0,10),label:d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})};}
 function trendRows(){const days=dailyOf(scoped());
   if(STATE.grain==='day')return days.map(d=>({label:fmtDate(d.date),spend:d.spend,leads:d.leads,cum_leads:d.cum_leads,days:1}));
-  const m=new Map();days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.grain);let o=m.get(bk.key);if(!o){o={key:bk.key,label:bk.label,spend:0,leads:0,cum_leads:0,days:0};m.set(bk.key,o);}o.spend+=n(d.spend);o.leads+=n(d.leads);o.cum_leads=Math.max(o.cum_leads,n(d.cum_leads));o.days++;});
+  const m=new Map();days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.grain);let o=m.get(bk.key);if(!o){o={key:bk.key,label:bk.label,spend:0,leads:0,cum_leads:0,days:0};m.set(bk.key,o);}o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.leads+=n(d.leads);o.cum_leads=Math.max(o.cum_leads,n(d.cum_leads));o.days++;});
   return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,days:o.days}));}
 
 // ---------- chart defaults / helpers ----------
@@ -762,8 +783,9 @@ function kpiCard(o){
 function renderKpis(){
   const a=agg(scoped());
   const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target'),qT=bench('qualified_lead_target');
-  const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=q?a.spend/q:null;
-  const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
+  const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=(a.spend==null||!q)?null:a.spend/q;
+  const budget=flight().budget==null?null:n(flight().budget);
+  const spendPct=(a.spend==null||!budget)?null:Math.round(a.spend/budget*100);
   // North-star (resetdata pattern): the campaign goal - enquiries at an efficient cost, plus the
   // qualified downstream. These are the big tiles; the ones that map to a hero line are clickable.
   const north=[
@@ -774,7 +796,7 @@ function renderKpis(){
     {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
       sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${pctWhole(qualRate())} of enquiries`,badge:'modelled · no CRM feed'},
     {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
-      sub:budget?`${spendPct}% of ${money(budget)} flight`:'budget not set'}
+      sub:spendPct!=null?`${spendPct}% of ${money(budget)} flight`:(budget?`of ${money(budget)} flight`:'budget not set')}
   ];
   // Context - the funnel inputs / delivery quality (static tiles).
   const ctx=[
@@ -803,7 +825,7 @@ function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
   const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
-  const cpl=rows.map(r=>n(r.leads)?r.spend/r.leads:null);   // cost-per-enquiry per period - the media-buyer efficiency line
+  const cpl=rows.map(r=>(r.spend==null||!n(r.leads))?null:r.spend/r.leads);   // cost-per-enquiry per period - the media-buyer efficiency line (withheld spend => gap, not 0)
   const ds=[
     {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(237,237,235,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
     {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
@@ -827,17 +849,32 @@ function renderTrend(){
 }
 
 function renderPacing(){
-  const f=flight();const budget=n(f.budget),spend=n(f.spend_to_date),expected=n(f.pace_expected);
-  const actualPct=budget?Math.min(100,spend/budget*100):0,expectedPct=budget?Math.min(100,expected/budget*100):0;
+  const f=flight();
+  // Pacing is ENTIRELY money. A withheld spend_to_date must not paint a 0%-width bar labelled A$0,
+  // which reads as "nothing has been spent" - the strongest false zero on this dashboard.
+  const held=v=>v==null?null:n(v);
+  const budget=held(f.budget),spend=held(f.spend_to_date),expected=held(f.pace_expected);
+  const actualPct=(spend==null||!budget)?0:Math.min(100,spend/budget*100);
+  const expectedPct=(expected==null||!budget)?0:Math.min(100,expected/budget*100);
   $('paceActual').style.width=actualPct+'%';$('paceActual').textContent=money(spend);
   $('paceExpected').style.left=expectedPct+'%';
   $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;$('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
-  const ratio=expected?spend/expected:null,projected=n(f.projected_spend);
+  const ratio=(spend==null||!expected)?null:spend/expected,projected=held(f.projected_spend);
   const clsv=ratio==null?'neutral':ratio>1.08?'bad':ratio<.9?'warn':'good';
   $('paceSummary').innerHTML=[`<span class="status ${clsv}">${ratio==null?'No pace':ratio>1.08?'Over pace':ratio<.9?'Under pace':'On pace'}</span>`,`<span class="pillc">Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
 }
 function renderStageDonut(){
-  const rows=byStage(scoped()).filter(r=>n(r.spend)>0);const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
+  const all=byStage(scoped());
+  // every stage withheld => the ring carries no information; remove it rather than draw an empty one
+  if(all.length&&all.every(r=>r.spend==null)){
+    const c=$('stageDonut');
+    if(c){c.style.display='none';
+      const box=c.closest('.card')||c.parentElement;
+      if(box&&!box.querySelector('.held-note')){const p=document.createElement('div');p.className='hint held-note';p.textContent='Spend split is not available for this account.';box.appendChild(p);}}
+    destroyChart('stageDonut');return;
+  }
+  const c0=$('stageDonut');if(c0){c0.style.display='';const nb=(c0.closest('.card')||c0.parentElement);const nn=nb&&nb.querySelector('.held-note');if(nn)nn.remove();}
+  const rows=all.filter(r=>n(r.spend)>0);const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
   makeChart('stageDonut',{type:'doughnut',data:{labels:rows.map(r=>r.stage),datasets:[{data:rows.map(r=>n(r.spend)),backgroundColor:rows.map(r=>stageColor(r.stage)),borderColor:'#0B0B0A',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{bbCenter:{label:'Total spend',prefix:'A$'},legend:{position:'bottom',title:{display:false},labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:10,font:{size:11}}},tooltip:{callbacks:{label:c=>`${c.label}: ${money(c.parsed)} (${pct(c.parsed/total,0)})`}}}}});
 }
@@ -857,9 +894,9 @@ function renderFunnel(){
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
-  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
+  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${r.spend==null?'<span class="muted-text">-</span>':pct(n(r.spend)/total,0)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
   const t=agg(scoped());
-  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${int(t.leads)}</td><td class="num">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pct(t.ctr)}</td></tr>`;
+  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">${t.spend==null?'-':'100%'}</td><td class="num">${int(t.leads)}</td><td class="num">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pct(t.ctr)}</td></tr>`;
   $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:20px">No stage spend yet.</td></tr>`)+(body?foot:'');
 }
 // Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight enquiries
@@ -895,9 +932,9 @@ function renderPaceToGoal(){
 // date + stage filters; weekly buckets keep a short flight readable.
 function renderCplTrend(){
   const days=dailyOf(scoped());const m=new Map();
-  days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,spend:0,leads:0};m.set(w,o);}o.spend+=n(d.spend);o.leads+=n(d.leads);});
+  days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,spend:0,leads:0};m.set(w,o);}o.spend=nAdd(o.spend,d.spend==null?null:n(d.spend));o.leads+=n(d.leads);});
   const wk=[...m.values()].sort((a,b)=>a.w.localeCompare(b.w));
-  const labels=wk.map(o=>fmtDate(o.w));const cpl=wk.map(o=>o.leads?o.spend/o.leads:null);
+  const labels=wk.map(o=>fmtDate(o.w));const cpl=wk.map(o=>(o.spend==null||!o.leads)?null:o.spend/o.leads);
   const cplT=bench('cpl'),cplS=bench('cpl_stretch');
   const drawTgt=(ctx,ca,y,label,color)=>{if(y<=ca.top||y>=ca.bottom)return;ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ca.left,y);ctx.lineTo(ca.right,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=color;ctx.font='700 10px '+FONT.family;ctx.fillText(label,ca.left+6,y-4);ctx.restore();};
   const tline=(cplT!=null||cplS!=null)?{id:'cplTgt',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.y)return;
@@ -936,8 +973,8 @@ function renderVideo(){
 }
 function renderDow(){
   const names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];const b=names.map(()=>({spend:0,leads:0}));
-  scoped().forEach(r=>{const d=new Date(String(r.date).slice(0,10)+'T00:00:00Z');if(Number.isNaN(d.getTime()))return;const i=(d.getUTCDay()+6)%7;b[i].spend+=n(r.spend);b[i].leads+=n(r.leads);});
-  const leads=b.map(x=>x.leads);const cpl=b.map(x=>x.leads?x.spend/x.leads:null);
+  scoped().forEach(r=>{const d=new Date(String(r.date).slice(0,10)+'T00:00:00Z');if(Number.isNaN(d.getTime()))return;const i=(d.getUTCDay()+6)%7;b[i].spend=nAdd(b[i].spend,r.spend===null?null:n(r.spend));b[i].leads+=n(r.leads);});
+  const leads=b.map(x=>x.leads);const cpl=b.map(x=>(x.spend==null||!x.leads)?null:x.spend/x.leads);
   makeChart('dowChart',{data:{labels:names,datasets:[
     {type:'bar',label:'Enquiries',data:leads,backgroundColor:MC.leads+'99',borderColor:MC.leads,borderRadius:4,maxBarThickness:46,yAxisID:'y1',order:2},
     {type:'line',label:'Cost / enquiry',data:cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.4,tension:.35,pointRadius:3,spanGaps:true,yAxisID:'y2',order:1}
@@ -971,7 +1008,7 @@ function renderAudience(){
 function renderPlacement(){
   if(!$('placementChart'))return;
   const rows=bdWithin('placement');const m=new Map();
-  rows.forEach(r=>{const k=r.seg1||'unknown';let o=m.get(k);if(!o){o={seg:k,imps:0,leads:0,spend:0};m.set(k,o);}o.imps+=n(r.impressions);o.leads+=n(r.leads);o.spend+=n(r.spend);});
+  rows.forEach(r=>{const k=r.seg1||'unknown';let o=m.get(k);if(!o){o={seg:k,imps:0,leads:0,spend:0};m.set(k,o);}o.imps+=n(r.impressions);o.leads+=n(r.leads);o.spend=nAdd(o.spend,r.spend===null?null:n(r.spend));});
   const NICE={feed:'Feed',facebook_reels:'FB Reels',facebook_reels_overlay:'FB Reels overlay',instagram_reels:'IG Reels',instagram_stories:'IG Stories',facebook_stories:'FB Stories',instream_video:'In-stream video',an_classic:'Audience Network',marketplace:'Marketplace',right_hand_column:'Right column',search:'Search',facebook_profile_feed:'FB profile feed',facebook_notification:'Notifications',threads_feed:'Threads',instagram_search:'IG Search'};
   const isIG=s=>String(s).startsWith('instagram')||s==='threads_feed';
   const arr=[...m.values()].filter(o=>o.imps>0).sort((a,b)=>b.imps-a.imps).slice(0,10);
@@ -1034,7 +1071,8 @@ function renderFatigue(){
 }
 function renderBurn(){
   const rows=byCampaign(searched(scoped())).slice(0,12);const all=byCampaign(scoped());const ts=all.reduce((a,r)=>a+n(r.spend),0)||1,tl=all.reduce((a,r)=>a+n(r.leads),0)||1;
-  $('burnList').innerHTML=rows.map(r=>{const ss=n(r.spend)/ts,ls=n(r.leads)/tl;return `<div class="flow-row"><div class="flow-name"><span class="dot" style="background:${stageColor(r.stage)}"></span><span class="fn">${prettyCampaign(r.campaign)}</span></div><div class="flow-bar"><div class="flow-fill" style="width:${Math.max(2,ss*100)}%;background:${stageColor(r.stage)}"></div></div><div class="flow-meta">${pct(ss,0)} spend · ${pct(ls,0)} leads</div></div>`;}).join('')||'<div class="muted-text">No campaign spend yet.</div>';
+  // a withheld spend has no share of budget - show '-', never "0% spend" (which reads as "we spent nothing here")
+  $('burnList').innerHTML=rows.map(r=>{const ss=r.spend==null?null:n(r.spend)/ts,ls=n(r.leads)/tl;return `<div class="flow-row"><div class="flow-name"><span class="dot" style="background:${stageColor(r.stage)}"></span><span class="fn">${prettyCampaign(r.campaign)}</span></div><div class="flow-bar"><div class="flow-fill" style="width:${Math.max(2,(ss||0)*100)}%;background:${stageColor(r.stage)}"></div></div><div class="flow-meta">${ss==null?'-':pct(ss,0)} spend · ${pct(ls,0)} leads</div></div>`;}).join('')||'<div class="muted-text">No campaign spend yet.</div>';
 }
 // Efficiency map (Paid Media): each ad plotted CPL (y, lower better) vs CTR% (x, higher better); bubble
 // size = spend, colour = funnel stage. Dashed lines mark the CPL + CTR targets → lower-right = winners.
