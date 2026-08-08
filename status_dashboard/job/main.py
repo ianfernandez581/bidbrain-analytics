@@ -861,7 +861,7 @@ CLIENTS = [
              "note": "Both channels use CLICKS. vs kpi.ad_clicks."},
         ],
     },
-    # NOT YET MONITORED: bellshakespeare / nextsmile / caltex — no data/export pipelines yet; add them here once their export jobs exist.
+    # NOT YET MONITORED: bellshakespeare / nextsmile / geyervalmont — no data/export pipelines yet; add them here once their export jobs exist.
 ]
 
 

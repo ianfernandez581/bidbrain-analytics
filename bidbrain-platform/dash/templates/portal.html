@@ -358,16 +358,25 @@
     <div class="bbtabs">
       <button class="bbtab on" data-pane="overview">Overview</button>
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
-      <button class="bbtab" data-pane="grid">The Grid</button>
-      <button class="bbtab" data-pane="brain">The Brain</button>
+      {% if show_grid_brain %}<button class="bbtab" data-pane="grid">The Grid</button>
+      <button class="bbtab" data-pane="brain">The Brain</button>{% endif %}
       {% if agency.slug == 'transmission' %}<button class="bbtab" data-pane="feedbackloop">Feedback Loop</button>{% endif %}
     </div>
     <div class="bbpane on" id="pane-overview">
+    {% if show_sync %}
     <div class="bbsyncbar">
       <button id="bbsyncall" class="bbbtn"><span class="bbspin" aria-hidden="true"></span><span class="bblabel">Sync all dashboards now</span></button>
       <span id="bbsyncall-time" class="bbsynctime"></span>
       <span id="bbsyncall-msg" class="bbmuted" role="status" aria-live="polite"></span>
     </div>
+    {% else %}
+    {# show_sync=False (extrablack): NO sync trigger — an outside agency must not fire another
+       agency's export pipeline. The read-only stamp is filled by _status_merge.html from
+       status.json's own generated_at (the pipeline's last real check), not click-time localStorage. #}
+    <div class="bbsyncbar">
+      <span id="bbsyncall-time" class="bbsynctime"></span>
+    </div>
+    {% endif %}
     <div class="grid">
       {% for c in clients %}
         {% if c.status == 'active' %}
@@ -397,6 +406,7 @@
     </div>
     </div><!-- /pane-overview -->
     <div class="bbpane" id="pane-accuracy"><div id="bbacc"><div class="bbloading">Loading…</div></div></div>
+    {% if show_grid_brain %}
     <div class="bbpane" id="pane-grid">
       <div class="ghead">
         <h2>Spend Pacing</h2>
@@ -420,13 +430,17 @@
         </div>
       </div>
     </div>
-    {% if agency.slug == 'transmission' %}<div class="bbpane" id="pane-feedbackloop">
-      <iframe src="/feedback-loop" title="Feedback Loop" loading="lazy"
-              style="width:100%;height:calc(100vh - 150px);min-height:640px;border:0"></iframe>
-    </div>{% endif %}
+    {% endif %}
+    {# Feedback Loop renders INLINE as a sibling .bbpane (not an iframe), so the portal's
+       own background, cursor glow and hover feel continue across it unbroken. #}
+    {% if agency.slug == 'transmission' %}{% include "_feedback_loop_pane.html" %}{% endif %}
   </div>
   {% include "_status_merge.html" %}
 
+  {% if show_grid_brain %}
+  {# Gated WITH the pane: the frozen ROWS snapshot below embeds Transmission clients' budgets and
+     spend in the page SOURCE, so it must not ship to an agency whose portal hides the Grid
+     (extrablack). Agencies with the tab (the default) keep this script exactly as before. #}
   <script>
   // ── The Grid: spend pacing — client accordion, one bar per campaign flight ──────────────────
   // Each bar's track is the full campaign budget: pale underlay + bright marker = % of the flight
@@ -641,6 +655,7 @@
     });
   })();
   </script>
+  {% endif %}
 
   <!-- "Open slides" chooser: build the deck (hidden iframe), then Open in Google Slides or Download .pptx -->
   <div id="slidesModal" class="smodal" hidden role="dialog" aria-modal="true" aria-labelledby="sTitle">

@@ -55,6 +55,46 @@ def clean_multipliers(raw):
     return out
 
 
+# --- agency type: internal (default) vs EXTERNAL -------------------------------------------
+# An agency marked `"external": True` is an OUTSIDE company — a partner agency that shares
+# visibility of a client, not part of 100% Digital. ONE flag flips EVERY optional setting to its
+# restrictive value, so adding the next external tenant is one key rather than a checklist, and a
+# NEW setting added later is safe for external tenants by default (add it to the map below with
+# its safe value). Internal agencies carry no `external` key and resolve to INTERNAL_DEFAULTS —
+# today's behaviour, byte for byte.
+#
+# An explicit per-agency key always wins, so a genuine exception can still be granted one setting
+# at a time (e.g. `{"external": True, "allow_feedback": True}`).
+EXTERNAL_SAFE_DEFAULTS = {
+    "show_sync":            False,  # no "Sync all dashboards now" trigger
+    "show_grid_brain":      False,  # no Grid/Brain tabs — and no pacing snapshot in the page source
+    "internal_notes":       False,  # no staff-only Internal Notes / Assistant widget
+    "show_slides":          False,  # no AI deck generator (paid runs, writes narrative in our voice)
+    "edit_definitions":     False,  # cannot stage or deploy accuracy-check definitions
+    "show_check_internals": False,  # no check SQL / internal note text / raw table names
+    "allow_feedback":       False,  # no feedback widget or endpoint
+    "show_spend_multiplier": False,  # never receive the client-billed markup factor
+    "scrub_payload":        True,   # scrub named individuals etc. from proxied payloads
+}
+# Today's behaviour for every internal agency. `scrub_payload` False = payloads pass through
+# untouched, exactly as before.
+INTERNAL_DEFAULTS = dict.fromkeys(EXTERNAL_SAFE_DEFAULTS, True)
+INTERNAL_DEFAULTS["scrub_payload"] = False
+
+
+def is_external(agency) -> bool:
+    return bool((agency or {}).get("external"))
+
+
+def agency_setting(agency, name: str) -> bool:
+    """Resolve one per-agency setting. Explicit key wins; otherwise the agency TYPE decides.
+    `agency` None (admin/superadmin/no agency) resolves to the internal default."""
+    if agency is not None and name in agency:
+        return bool(agency[name])
+    table = EXTERNAL_SAFE_DEFAULTS if is_external(agency) else INTERNAL_DEFAULTS
+    return bool(table.get(name, not is_external(agency)))
+
+
 def _domain_of(email: str) -> str:
     """The domain part of an email, lowercased ('' if malformed). Exact match only — 'x@100.digital'
     -> '100.digital', but 'x@evil.100.digital' -> 'evil.100.digital' (a subdomain is NOT the domain)."""
@@ -121,11 +161,18 @@ def _seed_doc():
         "agencies": [], "clients": {},
     }
     for i, a in enumerate(seed.AGENCIES):
-        doc["agencies"].append({
+        ag = {
             "name": a["name"], "slug": a["slug"],
             "password_hash": hash_pw(a["password"]), "password_plain": a.get("password", ""),
             "client_keys": list(a["clients"]), "order": i,
-        })
+        }
+        # Optional per-agency keys: the agency TYPE (`external`) plus any explicit per-setting
+        # override and the Google allow-list. Copied only when the seed sets them, so agencies
+        # without them (100% Digital / Transmission) keep their exact registry shape.
+        for opt in ("external", "google_allowlist", *EXTERNAL_SAFE_DEFAULTS):
+            if opt in a:
+                ag[opt] = a[opt]
+        doc["agencies"].append(ag)
     for i, (k, c) in enumerate(seed.CLIENTS.items()):
         pw = seed.CLIENT_PASSWORDS.get(k, "")
         doc["clients"][k] = {
@@ -134,6 +181,11 @@ def _seed_doc():
             "password_hash": hash_pw(pw), "password_plain": pw,
             "campaigns": [dict(cm) for cm in c.get("campaigns", [])], "order": i,
         }
+        # Opt-in Data Accuracy placeholder (geyervalmont): renders a greyed "awaiting connection"
+        # row for a client that has no status-export check spec yet. Copied only when set, so
+        # every other spec-less client (bellshakespeare/nextsmile) keeps today's no-row behaviour.
+        if c.get("show_pending_row"):
+            doc["clients"][k]["show_pending_row"] = True
     for k in seed.UNASSIGNED_CLIENTS:
         doc["clients"].setdefault(k, {
             "key": k, "name": k.upper(), "slug": k, "status": "active",
@@ -313,6 +365,16 @@ class Store:
         doc = self._load()
         rec = doc.get("users", {}).get(email) or _seed_users().get(email)
         if not rec:
+            # Per-agency Google allow-list (the v1 seam, shipped EMPTY so it cannot fire): an email
+            # listed on an agency's `google_allowlist` signs in straight into that agency's portal.
+            # Precedence: an explicit `users` record (above) always wins; this beats the domain
+            # auto-admin fallback below because an explicit per-agency grant is more specific than
+            # an implicit domain-wide one. Enable by adding emails to the agency's google_allowlist
+            # in the live registry (see bidbrain-platform/README.md "Extrablack").
+            for a in sorted(doc.get("agencies", []), key=lambda a: a.get("order", 0)):
+                allow = [str(x).strip().lower() for x in a.get("google_allowlist", []) or []]
+                if email in allow:
+                    return "agency", a
             # Domain fallback: a verified account on an admin domain (e.g. @100.digital) is an admin by
             # default, even before its email is recorded — so the very FIRST Google login succeeds. An
             # explicit record above always wins, so a domain user re-scoped/removed in the console keeps
@@ -411,6 +473,12 @@ class Store:
             "client_keys": (existing or {}).get("client_keys", []),
             "order": (existing or {}).get("order", self._next_order(agencies)),
         }
+        # Preserve the agency TYPE + any per-setting override across an admin-UI edit (same
+        # keep-what-exists contract as client_keys above; absent = platform defaults). Without
+        # this an admin renaming an external agency would silently promote it to internal.
+        for opt in ("external", "google_allowlist", *EXTERNAL_SAFE_DEFAULTS):
+            if existing and opt in existing:
+                new_agency[opt] = existing[opt]
         agencies = [a for a in agencies if a["slug"] not in ({orig_slug, slug} if orig_slug else {slug})]
         agencies.append(new_agency)
         doc["agencies"] = agencies
@@ -438,6 +506,8 @@ class Store:
             "spend_multipliers": existing.get("spend_multipliers", {}),
             "order": existing.get("order", self._next_order(list(clients.values()))),
         }
+        if existing.get("show_pending_row"):   # preserve the Data Accuracy placeholder flag on edit
+            clients[key]["show_pending_row"] = True
         if agency_slug:
             for a in doc["agencies"]:
                 keys = a.get("client_keys", [])
