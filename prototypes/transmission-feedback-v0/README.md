@@ -39,6 +39,22 @@ Rows sharing client+campaign+month — or the same submitted-deck URL for the sa
 **merged into one report** with their feedback combined; every merge is logged in
 `review_report.txt` (the same URL under two different clients is flagged, never merged).
 
+## Live in the portal (v0, sample data)
+
+The prototype is wired into the agency portal as the **Feedback Loop** tab (Transmission only):
+`bidbrain-platform/dash/main.py` route `/feedback-loop` serves the vendored template
+`bidbrain-platform/dash/templates/feedback_loop.html` (this folder's `index.html` with the data
+block replaced by a `__FEEDBACK_DATA_JSON__` sentinel) + `feedback_loop_sample.json` (this
+folder's `sample_data.json`), inside an iframe pane in `templates/portal.html`. The page hides its
+standalone chrome when framed (`.embedded`). **After editing `index.html` or `sample_data.json`,
+re-vendor and redeploy:**
+
+    .\.venv\Scripts\python.exe prototypes\transmission-feedback-v0\make_portal_template.py
+    .\bidbrain-platform\dash\deploy_dash_platform.ps1
+
+Real-data swap (planned): change the route's sample-file read to a GCS read of the refresh output
+(one line, marked in `main.py`); `sheet_to_json.py` stays the CSV -> JSON refresh path.
+
 ## Repo notes
 
 Lives on its own branch; nothing is wired into the production app and no repo file outside this

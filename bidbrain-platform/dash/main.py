@@ -288,6 +288,27 @@ def home():
     return _login_page()
 
 
+# ── Feedback Loop (Transmission-only portal tab) ─────────────────────────────────────────────
+# Serves the vendored prototype page inside the portal's "Feedback Loop" tab iframe (canonical
+# source: prototypes/transmission-feedback-v0/ — re-vendor with its make_portal_template.py
+# after any edit). v0 ships SAMPLE DATA ONLY (synthetic, meta.sample=true), baked into the image
+# beside the template. Auth = the same session the portal tabs ride on: a Transmission agency
+# session (incl. admins viewing the agency portal) or an admin/super-admin session.
+# REAL-DATA SWAP (planned; client verbatims never enter git): replace the sample read below with
+# the refresh output in GCS, same pattern as the client dashboards, e.g.
+#   data_json = _gcs_bucket(_PLATFORM_BUCKET).blob("feedback-loop/data.json").download_as_text()
+@app.get("/feedback-loop")
+def feedback_loop():
+    kind = session.get("kind")
+    if not (kind in ("admin", "superadmin")
+            or (kind == "agency" and session.get("agency_slug") == "transmission")):
+        return redirect("/")
+    page = (_HERE / "templates" / "feedback_loop.html").read_text(encoding="utf-8")
+    data_json = (_HERE / "templates" / "feedback_loop_sample.json").read_text(encoding="utf-8")
+    # "</" is escaped so untrusted text inside the JSON can never close the <script> block early
+    return page.replace("__FEEDBACK_DATA_JSON__", data_json.replace("</", "<\\/"))
+
+
 @app.post("/login")
 def login():
     pw = request.form.get("password", "")

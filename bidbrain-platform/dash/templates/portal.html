@@ -360,6 +360,7 @@
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
       <button class="bbtab" data-pane="grid">The Grid</button>
       <button class="bbtab" data-pane="brain">The Brain</button>
+      {% if agency.slug == 'transmission' %}<button class="bbtab" data-pane="feedbackloop">Feedback Loop</button>{% endif %}
     </div>
     <div class="bbpane on" id="pane-overview">
     <div class="bbsyncbar">
@@ -419,6 +420,10 @@
         </div>
       </div>
     </div>
+    {% if agency.slug == 'transmission' %}<div class="bbpane" id="pane-feedbackloop">
+      <iframe src="/feedback-loop" title="Feedback Loop" loading="lazy"
+              style="width:100%;height:calc(100vh - 150px);min-height:640px;border:0"></iframe>
+    </div>{% endif %}
   </div>
   {% include "_status_merge.html" %}
 

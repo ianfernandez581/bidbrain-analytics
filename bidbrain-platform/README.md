@@ -371,6 +371,21 @@ password — nothing breaks): each dashboard must (1) run the rebuilt image that
 `platform_sso.py` + the extended `authed()`, and (2) be served on `<c>.bidbrain.ai` (a raw
 `*.run.app` host never receives a `.bidbrain.ai` cookie).
 
+## Feedback Loop tab (Transmission portal only — 2026-08-08, SAMPLE DATA)
+A fifth portal tab after The Brain, rendered ONLY for the `transmission` agency slug (conditional
+in `templates/portal.html`): a registry of every report deck sent + every piece of client feedback
+(submit -> feedback -> final loop). The pane is an `<iframe src="/feedback-loop">`; the route
+(`main.py feedback_loop()`) gates on the same session the portal rides — a transmission agency
+session (incl. admins viewing the portal) or admin/super-admin — and serves
+`templates/feedback_loop.html` with `templates/feedback_loop_sample.json` substituted for the
+`__FEEDBACK_DATA_JSON__` sentinel at request time. **v0 is synthetic sample data only**
+(`meta.sample: true`, amber SAMPLE DATA pill). Real-data swap = one line in the route: read the
+refresh output from GCS instead of the sample file (client verbatims never enter git; the sheet ->
+JSON refresh lives in `prototypes/transmission-feedback-v0/sheet_to_json.py`). Both template files
+are VENDORED copies — canonical source is `prototypes/transmission-feedback-v0/`; after editing it
+re-run `prototypes/transmission-feedback-v0/make_portal_template.py` and redeploy. The page hides
+its standalone chrome when framed (`.embedded` class, set in its own `<head>`).
+
 ## Feedback (every dashboard: text / voice / screenshot, with AI interpretation)
 A small **Feedback** pill is injected into the bottom-right of every proxied dashboard — the exact
 same `</body>`-injection mechanism as the logout pill, so all 10 dashboards get it from ONE
