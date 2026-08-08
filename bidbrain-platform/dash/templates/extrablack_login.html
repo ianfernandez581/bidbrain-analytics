@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" href="/favicon-32.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<title>Extrablack · Agency Portal</title>
+<style>
+  /* ============================================================
+     Extrablack branded login (dashboards.bidbrain.ai/extrablack)
+     Ported from the approved concept mock (extrablack-portal-mock.html):
+     black field, white grotesque type, amber fluid glow, halftone
+     dots, tracked service words. Zero external requests - system
+     fonts only. This page is EXTRABLACK-ONLY: it must never restyle
+     the platform's standard login (templates/login.html) or any
+     other gate.
+     ============================================================ */
+  :root{
+    --bg:#060606;
+    --line:rgba(255,255,255,.08);
+    --line-strong:rgba(255,255,255,.16);
+    --text:#f5f2ec;
+    --muted:rgba(245,242,236,.56);
+    --faint:rgba(245,242,236,.30);
+    --amber:#ffa02e;
+    --cream:#fff6ea;
+    --sans:"Helvetica Neue", Helvetica, -apple-system, "Segoe UI", Arial, sans-serif;
+    --mono:ui-monospace, "SF Mono", "Cascadia Code", Consolas, "Liberation Mono", monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    font-size:15px;
+    line-height:1.5;
+  }
+  button{font-family:var(--sans); cursor:pointer;}
+  :focus-visible{outline:2px solid var(--amber); outline-offset:3px; border-radius:4px;}
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:10.5px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--muted);
+  }
+  .wordmark{
+    font-weight:500;
+    letter-spacing:-0.02em;
+    color:var(--text);
+  }
+
+  /* ---------- ambient brand field (glow + halftone) ---------- */
+  .brandfield{position:fixed; inset:0; pointer-events:none; z-index:0;}
+  .brandfield .glow{
+    position:absolute; left:50%; bottom:-38vh; width:130vw; height:95vh;
+    transform:translateX(-50%);
+    background:
+      radial-gradient(42% 46% at 52% 55%, rgba(255,150,40,.30), transparent 70%),
+      radial-gradient(60% 62% at 48% 62%, rgba(200,70,10,.20), transparent 72%),
+      radial-gradient(80% 80% at 50% 70%, rgba(120,35,5,.14), transparent 75%);
+  }
+  .brandfield .halftone{
+    position:absolute; left:50%; bottom:-6vh; width:110vw; height:64vh;
+    transform:translateX(-50%);
+    background-image:radial-gradient(circle, rgba(255,180,80,.55) 1.05px, transparent 1.6px);
+    background-size:19px 19px;
+    opacity:.16;
+    -webkit-mask-image:radial-gradient(55% 62% at 50% 68%, #000 30%, transparent 78%);
+            mask-image:radial-gradient(55% 62% at 50% 68%, #000 30%, transparent 78%);
+  }
+
+  /* ---------- services rail (from extrablack.com.au) ---------- */
+  .services-rail{
+    position:fixed; top:0; right:4.5vw; height:100vh; overflow:hidden;
+    z-index:0; pointer-events:none;
+  }
+  .services-rail ul{
+    list-style:none;
+    animation:railScroll 80s linear infinite;
+  }
+  .services-rail li{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:.34em;
+    text-transform:uppercase;
+    color:rgba(245,242,236,.14);
+    padding:14px 0;
+    white-space:nowrap;
+  }
+  @keyframes railScroll{from{transform:translateY(0);} to{transform:translateY(-50%);}}
+  @media (prefers-reduced-motion: reduce){
+    .services-rail ul{animation:none;}
+  }
+  @media (max-width: 960px){ .services-rail{display:none;} }
+
+  /* ---------- login card ---------- */
+  main{
+    position:relative; z-index:1;
+    min-height:100vh;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    padding:48px 24px;
+  }
+  .login-card{
+    width:100%; max-width:420px;
+    background:rgba(14,13,12,.82);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:44px 40px 36px;
+    backdrop-filter:blur(2px);
+    box-shadow:0 30px 80px rgba(0,0,0,.55), 0 0 60px rgba(255,120,20,.06);
+  }
+  .login-card .wordmark{font-size:30px; margin-bottom:26px;}
+  .login-card .eyebrow{margin-bottom:10px;}
+  .login-card h1{font-size:23px; font-weight:600; letter-spacing:-.01em; margin-bottom:6px;}
+  .login-card .sub{color:var(--muted); font-size:14px; margin-bottom:26px;}
+  .field label{
+    display:block; font-family:var(--mono); font-size:10px;
+    letter-spacing:.24em; text-transform:uppercase;
+    color:var(--faint); margin-bottom:8px;
+  }
+  .field input{
+    width:100%;
+    background:#0a0908;
+    border:1px solid var(--line-strong);
+    border-radius:9px;
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:15px;
+    padding:13px 14px;
+    margin-bottom:16px;
+  }
+  .field input::placeholder{color:var(--faint);}
+  .field input:focus{border-color:var(--amber); outline:none; box-shadow:0 0 0 3px rgba(255,150,40,.16);}
+  .btn-primary{
+    width:100%;
+    background:var(--cream);
+    color:#0a0a0a;
+    border:none;
+    border-radius:9px;
+    font-size:15px;
+    font-weight:600;
+    padding:13px 16px;
+    transition:box-shadow .18s ease, transform .12s ease;
+  }
+  .btn-primary:hover{box-shadow:0 0 26px rgba(255,140,30,.38); transform:translateY(-1px);}
+  .error{
+    color:#ff8d7a;
+    background:rgba(255,80,40,.10);
+    border:1px solid rgba(255,120,80,.35);
+    border-radius:9px;
+    font-size:13px;
+    padding:10px 12px;
+    margin-bottom:16px;
+  }
+  .login-foot{
+    margin-top:22px;
+    color:var(--faint);
+    font-size:12.5px;
+    line-height:1.55;
+  }
+  .powered{
+    position:relative; z-index:1;
+    margin-top:34px;
+    font-family:var(--mono); font-size:10px;
+    letter-spacing:.3em; text-transform:uppercase;
+    color:rgba(245,242,236,.22);
+  }
+</style>
+</head>
+<body>
+
+  <!-- ambient brand field: amber glow + halftone dots -->
+  <div class="brandfield" aria-hidden="true">
+    <div class="glow"></div>
+    <div class="halftone"></div>
+  </div>
+
+  <!-- vertical services rail, lifted from extrablack.com.au -->
+  <div class="services-rail" aria-hidden="true">
+    <ul id="railList">
+      <li>Campaign</li><li>Storytelling</li><li>Strategy</li><li>Branding</li>
+      <li>Placemaking</li><li>Property Marketing</li><li>Art Direction</li>
+      <li>Web Design</li><li>Signage &amp; Wayfinding</li><li>Experiential Design</li>
+    </ul>
+  </div>
+
+  <main>
+    <div class="login-card">
+      <div class="wordmark">Extrablack</div>
+      <div class="eyebrow">Bidbrain · Extrablack</div>
+      <h1>Agency Portal</h1>
+      <p class="sub">Enter the password to continue.</p>
+      {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" action="/extrablack">
+        <div class="field">
+          <label for="pw">Password</label>
+          <input id="pw" name="password" type="password" placeholder="Password"
+                 autocomplete="current-password" autofocus>
+        </div>
+        <button type="submit" class="btn-primary">Enter Portal</button>
+      </form>
+      <p class="login-foot">One login for live campaign reporting across Geocon, ResetData &amp; Geyer&nbsp;Valmont.</p>
+    </div>
+    <div class="powered">Powered by Bidbrain</div>
+  </main>
+
+<script>
+(function(){
+  // duplicate rail items so the loop is seamless (same trick as the mock)
+  var rail = document.getElementById('railList');
+  if (rail) rail.innerHTML += rail.innerHTML;
+})();
+</script>
+</body>
+</html>

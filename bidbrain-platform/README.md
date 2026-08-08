@@ -110,8 +110,73 @@ keys" rule.
 - **Transmission** (`transmission2026`): Schneider Electric, Cloudflare, PropTrack, MongoDB, STT,
   Pipeline Status *(the meta `status-dash`, surfaced here so Transmission can watch data health;
   proxied like any client — the platform SA has `secretAccessor` on `status-dash-password`)*.
+- **Extrablack** (`extrablack` — no committed password, see below): Geocon, ResetData
+  *(both DUAL-VISIBILITY — the same client records also sit in 100% Digital)*, Geyer Valmont
+  *(coming soon)*. Branded login at **`/extrablack`**; portal tabs Overview + Data Accuracy only;
+  no sync button. See [Extrablack](#extrablack-agency-portal) below.
 - **Unassigned** (not in any agency, reachable only by their own dashboard password): **HireRight**.
   Add clients to an agency anytime via the admin UI.
+
+## Extrablack agency portal
+
+Extrablack is a standard registry agency with four extra knobs (all OPTIONAL per-agency keys —
+absent on 100% Digital/Transmission, so their portals are byte-for-byte unchanged):
+
+| registry key | extrablack value | effect (default when absent) |
+|---|---|---|
+| `show_sync` | `false` | hides "Sync all dashboards now" — an outside agency must not trigger another agency's export jobs. The read-only "Last synced" stamp still renders, fed from `status.json`'s `generated_at` (default: button shown) |
+| `show_grid_brain` | `false` | portal tabs are Overview + Data Accuracy only (default: The Grid + The Brain tabs shown) |
+| `internal_notes` | `false` | the staff-only Internal Notes + Assistant widget is NEVER injected into dashboards opened by this agency's sessions — it exposes internal team notes and raw-vs-billed spend (default: injected for the client's agency, `_internal_allowed`) |
+| `google_allowlist` | `[]` | INERT v1 Google seam: a verified Google email on this list signs in straight into this portal via the MAIN login page's Google button (`store.resolve_email`; precedence: explicit `users` record → agency allowlist → `@100.digital` domain auto-admin). Empty = cannot fire |
+
+**Dual visibility.** `geocon` + `resetdata` are ONE client record each, referenced from both
+agencies' `client_keys`. Everything per-client (passwords, spend multipliers, campaigns, logos,
+status.json accuracy rows) is shared automatically. Two caveats: (1) the **admin UI's client
+"Edit" form single-homes** — saving geocon/resetdata with an agency selected strips the other
+membership (`store.upsert_client`'s detach loop); re-run `enable_extrablack.py` to restore.
+(2) The super-admin console groups each dashboard under its FIRST agency by registry order, so
+both show under 100% Digital there; the admin headline client count dedupes (one record = one).
+
+**Branded login.** `GET/POST /extrablack` (`templates/extrablack_login.html`, black/amber
+Extrablack brand per the approved mock — self-contained, no external requests, and deliberately
+separate from `templates/login.html`, which is untouched). The POST verifies against ONLY the
+extrablack agency's registry hash — a Transmission/admin password typed there is rejected, and an
+unset password fails closed. A correct password establishes the exact same agency session as the
+main login, so `/api/status` scoping and the `/d/<client>/` proxy behave identically. The main
+login page still works for Extrablack too (`resolve_password` checks every agency).
+
+**Data Accuracy.** Geocon (6 Meta checks) + ResetData (13 checks) rows come from the existing
+`status_dashboard` BQ_CLIENTS specs — nothing new. Geyer Valmont has no check spec yet, so its
+client record carries **`show_pending_row: true`**: `/api/status` returns it in a `pending` list
+and `_status_merge.html` renders a greyed header-only row with an "awaiting connection" chip.
+The flag is opt-in per client precisely so the OTHER spec-less clients (Bell Shakespeare,
+Next Smile) keep their no-row behaviour everywhere.
+
+**Setting the Extrablack password** (never committed; `AGENCY_EXTRABLACK_PW` defaults to empty =
+fail closed):
+```powershell
+$env:CLOUDSDK_CORE_ACCOUNT="ian@100.digital"
+$env:GCS_BUCKET="bidbrain-analytics-platform-dash"
+$env:AGENCY_EXTRABLACK_PW="<from the password manager>"
+.\.venv\Scripts\python.exe bidbrain-platform\dash\enable_extrablack.py --yes   # dry-run without --yes
+```
+`enable_extrablack.py` is the one-time (idempotent) live-registry standup: it creates/updates the
+agency + flags + dual client_keys + the geyervalmont placeholder, never touches 100% Digital, and
+only sets the password when the env var is present. Rotate later by re-running with the env set,
+or in the super-admin console (agency passwords are registry-owned).
+
+**Enabling Google sign-in for Extrablack later:** add the person's Gmail/Workspace address to the
+extrablack agency's `google_allowlist` in the live registry (load `platform.json`, append to the
+list, save — or extend `enable_extrablack.py`). They then use the "Sign in with Google" button on
+the MAIN login page (`/`); `resolve_email` maps the verified email to the extrablack portal. No
+new OAuth setup — it reuses the existing `GOOGLE_OAUTH_CLIENT_ID`.
+
+**Flipping Geyer Valmont live** once its dashboard exists: build/deploy `geyervalmont-dash` the
+normal way, then set `status: "active"` + the run.app `url` on the client record (admin UI or a
+`set_caltex_tile.py`-style upsert) — the tile becomes openable and the proxy serves it at
+`/d/geyervalmont/`. When its export pipeline lands, add a `BQ_CLIENTS` spec in
+`status_dashboard/job/main.py` (the geocon entry is the worked example) and remove
+`show_pending_row` so the real accuracy row replaces the placeholder.
 
 The **admin agencies page** (`templates/admin.html`) renders these as per-agency **accordion cards**
 (collapsed by default; open state kept client-side in `sessionStorage`) in the house style, each

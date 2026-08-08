@@ -41,7 +41,7 @@ import feedback
 import feedback_ai
 import internal_notes
 import internal_chat
-from store import Store
+from store import Store, verify_pw
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]            # platform's own session (separate from SSO)
@@ -279,6 +279,12 @@ def home():
                                clients=clients,
                                slides_clients=list(SLIDES_CLIENTS),
                                google_client_id=GOOGLE_CLIENT_ID,
+                               # Per-agency portal flags (absent from the registry = today's
+                               # behaviour). extrablack sets both False: no sync button (it must
+                               # not trigger another agency's export pipeline) and no Grid/Brain
+                               # tabs (Overview + Data Accuracy only).
+                               show_sync=agency.get("show_sync", True),
+                               show_grid_brain=agency.get("show_grid_brain", True),
                                admin_return=session.get("admin_return"))
     if kind == "client":
         key = session.get("client_key")
@@ -296,6 +302,38 @@ def login():
         return _login_page("Incorrect password."), 401
     return _establish_session(kind, payload,
                               next_path=_safe_next(request.form.get("next", "")))
+
+
+# ── Extrablack branded login (dashboards.bidbrain.ai/extrablack) ────────────────────────────
+# A SEPARATE, fully-branded login page for the Extrablack agency (black field / amber glow /
+# services rail, per the approved concept mock). It verifies the typed password against ONLY the
+# extrablack agency's registry hash — never resolve_password — so a Transmission/admin password
+# typed here is rejected rather than silently opening a different tier. A correct password
+# establishes the exact same agency session the main login would (_establish_session), so the
+# portal, /api/status scoping and the /d/<client>/ proxy behave identically from there on.
+# Google sign-in for Extrablack rides the MAIN login page via the agency `google_allowlist`
+# (store.resolve_email) once emails are added — this page stays password-only by design.
+def _extrablack_login_page(error=None):
+    return render_template("extrablack_login.html", error=error)
+
+
+@app.get("/extrablack")
+def extrablack_login_form():
+    if session.get("kind") == "agency" and session.get("agency_slug") == "extrablack":
+        return redirect("/")
+    return _extrablack_login_page()
+
+
+@app.post("/extrablack")
+def extrablack_login():
+    pw = request.form.get("password", "")
+    a = store.get_agency("extrablack")
+    # Fail closed: no agency, no stored hash (password never set), or a wrong password all land
+    # on the same message. verify_pw rejects an empty stored hash, so an unconfigured agency can
+    # never be opened with an empty/any password.
+    if not (a and pw and verify_pw(pw, a.get("password_hash", ""))):
+        return _extrablack_login_page("Incorrect password."), 401
+    return _establish_session("agency", a)
 
 
 @app.post("/auth/google")
@@ -960,9 +998,22 @@ def api_status():
     clients = [c for c in doc.get("clients", []) if _may_open(c.get("client", ""))]
     flags = {c["client"]: {"can_edit": _can_edit(c["client"]), "has_definitions": _has_definitions(c["client"])}
              for c in clients if c.get("client")}
+    # Opt-in placeholders: registry clients flagged `show_pending_row` that have NO status.json
+    # entry render as a greyed "awaiting connection" row on the Data Accuracy tab (geyervalmont).
+    # Explicitly per-client so other spec-less clients (bellshakespeare/nextsmile) keep today's
+    # no-row behaviour; still scoped through _may_open like everything else. Best-effort — a
+    # registry read failure must not take down the status API.
+    pending = []
+    try:
+        have = {c.get("client") for c in clients}
+        for key, c in store._all_clients().items():
+            if c.get("show_pending_row") and key not in have and _may_open(key):
+                pending.append({"client": key, "label": c.get("name", key)})
+    except Exception:
+        app.logger.exception("pending-row scan failed")
     return jsonify(generated_at=doc.get("generated_at"),
                    tolerance_minutes=doc.get("tolerance_minutes"),
-                   clients=clients, flags=flags)
+                   clients=clients, flags=flags, pending=pending)
 
 
 def _icon_response(data, ctype):
@@ -1850,7 +1901,19 @@ def _dev_flag_script():
 # Gemini turn over the dashboard's LIVE data.json + a committed lineage digest (internal_chat.py),
 # with tool access to the same notes.
 def _internal_allowed(client):
-    return session.get("kind") in ("superadmin", "admin", "agency") and _may_open(client)
+    kind = session.get("kind")
+    if kind in ("superadmin", "admin"):
+        return _may_open(client)
+    if kind == "agency":
+        # Dual-visibility gate (extrablack): an agency record can set internal_notes=False so its
+        # sessions NEVER receive the staff-only Internal Notes + Assistant widget — the widget
+        # exposes internal team notes and raw-vs-billed spend, which must not leak to an outside
+        # agency that merely shares visibility of a client. Absent flag = today's behaviour.
+        a = store.get_agency(session.get("agency_slug", ""))
+        if a is not None and a.get("internal_notes", True) is False:
+            return False
+        return _may_open(client)
+    return False
 
 
 def _actor():

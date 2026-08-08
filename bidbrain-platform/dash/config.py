@@ -33,6 +33,10 @@ ADMIN_PW = os.environ.get("ADMIN_PW", "bidbrain-admin-2026")
 SUPER_ADMIN_PW = os.environ.get("SUPER_ADMIN_PW", "")
 AGENCY_100D_PW = os.environ.get("AGENCY_100D_PW", "100d2026")
 AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "transmission2026")
+# Extrablack has NO committed default on purpose (same fail-closed posture as SUPER_ADMIN_PW):
+# empty => the extrablack login can never succeed until a real password is injected via this env
+# at seed time, or set live in the super-admin console (registry hash). Never commit a real value.
+AGENCY_EXTRABLACK_PW = os.environ.get("AGENCY_EXTRABLACK_PW", "")
 
 # --- Google sign-in (native "Sign in with Google" alongside the password box) --------------
 # A user can log in EITHER with a password (above) OR with their Google account. Google login is
@@ -162,6 +166,19 @@ CLIENTS = {
             {"name": "Consult Bookings", "path": "/all-on-4", "status": "coming_soon"},
         ],
     },
+    # Onboarding (Extrablack): no dashboard built yet — a pure COMING SOON tile, wired exactly like
+    # bellshakespeare/nextsmile (status coming_soon, disabled link). `show_pending_row` additionally
+    # gives it a greyed "awaiting connection" row on the Data Accuracy tab (the ONLY client with the
+    # flag — spec-less clients WITHOUT it, e.g. bellshakespeare/nextsmile, keep today's no-row look).
+    "geyervalmont": {
+        "name": "Geyer Valmont", "slug": "geyer-valmont", "status": "coming_soon",
+        "url": "",
+        "note": "Dashboard in build - the structure is on its way.",
+        "show_pending_row": True,
+        "campaigns": [
+            {"name": "Workplace", "path": "/workplace", "status": "coming_soon"},
+        ],
+    },
     "schneider": {
         "name": "Schneider Electric", "slug": "schneider-electric", "status": "active",
         "url": _runapp("schneider"),
@@ -218,6 +235,24 @@ AGENCIES = [
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
         "clients": ["schneider", "schneiderlqai", "cloudflare", "proptrack", "mongodb", "stt"],
+    },
+    # Extrablack — DUAL VISIBILITY: geocon + resetdata stay in 100% Digital above AND appear here
+    # (one client record, referenced by two agencies' client_keys — never duplicated). Per-agency
+    # flags (all default True/absent for the other agencies, so their portals are untouched):
+    #   show_sync=False       -> no "Sync all dashboards now" button (an outside agency must not
+    #                            trigger another agency's export pipeline); the read-only
+    #                            "Last synced" stamp still shows (from status.json generated_at).
+    #   show_grid_brain=False -> portal tabs are Overview + Data Accuracy only.
+    #   internal_notes=False  -> the staff-only Internal Notes + Assistant widget is NEVER injected
+    #                            into dashboards opened by an extrablack session (it exposes raw
+    #                            vs billed spend and internal team notes).
+    #   google_allowlist=[]   -> the INERT v1 Google seam: emails listed here sign in with Google
+    #                            straight into this portal (store.resolve_email). Empty = can't fire.
+    {
+        "name": "Extrablack", "slug": "extrablack", "password": AGENCY_EXTRABLACK_PW,
+        "clients": ["geocon", "resetdata", "geyervalmont"],
+        "show_sync": False, "show_grid_brain": False, "internal_notes": False,
+        "google_allowlist": [],
     },
 ]
 

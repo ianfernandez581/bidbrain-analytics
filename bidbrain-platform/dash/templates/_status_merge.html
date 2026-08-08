@@ -116,6 +116,9 @@
   .bbstat.na{color:#94a3b8;background:rgba(100,116,139,.16)}
   .bbcaret{color:#8A97AD;font-size:12px;line-height:1;transition:transform .15s;margin-left:2px}
   .bbacc-card.open .bbcaret{transform:rotate(180deg)}
+  /* Greyed placeholder row for a client with NO checks wired yet (opt-in via the registry's
+     show_pending_row — geyervalmont). Header only, not expandable, muted "awaiting connection". */
+  .bbacc-card.bbacc-pending{opacity:.6}
 
   /* Editor */
   .bbedit{margin:0;border-top:1px solid rgba(255,255,255,.08);padding:14px 17px 17px}
@@ -365,17 +368,30 @@
     var el=document.getElementById("bbsummary"); if(el) el.innerHTML=p.join("");
   }
 
+  // Placeholder row for a client with NO check spec yet (server opt-in via `pending`): greyed,
+  // header-only (no .bbacc-hd class, so the expand toggle and caret never apply), muted chip.
+  function pendingCard(p){
+    var logo='<img class="bblogo sm" src="/logo/'+esc(p.client)+'" alt="" onerror="this.remove()">';
+    return '<div class="bbcard bbacc-card bbacc-pending"><div class="bbhd">'+
+      '<div class="bbcname">'+logo+esc(p.label||p.client)+
+        ' <span class="bbmuted" style="font-size:11px;font-weight:600">source: —</span></div>'+
+      '<div class="bbhd-status"><span class="bbstat na">awaiting connection</span></div>'+
+      '</div></div>';
+  }
+
   function renderAll(){
     fillBadges();
+    setSyncTimeLabel();   // read-only portals derive the stamp from ACC.data (no-op change otherwise)
     var sync=document.getElementById("bbsync"), acc=document.getElementById("bbacc");
     if(ACC.err || !ACC.data){ var msg='<div class="bbloading">Couldn’t load data health - please refresh.</div>';
       if(sync)sync.innerHTML=msg; if(acc)acc.innerHTML=msg; return; }
-    var clients=ACC.data.clients||[], flags=ACC.data.flags||{};
+    var clients=ACC.data.clients||[], flags=ACC.data.flags||{}, pending=ACC.data.pending||[];
     renderSummary(clients);
-    if(!clients.length){ var none='<div class="bbloading">No data-health data for the dashboards you can open. (Only Snowflake-sourced clients have checks.)</div>';
+    if(!clients.length && !pending.length){ var none='<div class="bbloading">No data-health data for the dashboards you can open. (Only Snowflake-sourced clients have checks.)</div>';
       if(sync)sync.innerHTML=none; if(acc)acc.innerHTML=none; return; }
     if(sync) sync.innerHTML=clients.map(syncCard).join("");
-    if(acc){ acc.innerHTML=clients.map(function(c){ return accCard(c, flags[c.client]||{}); }).join(""); }
+    if(acc){ acc.innerHTML=clients.map(function(c){ return accCard(c, flags[c.client]||{}); }).join("")
+             + pending.map(pendingCard).join(""); }
   }
 
   function refetch(){ return fetch("/api/status", {credentials:"same-origin"}).then(function(r){ return r.ok?r.json():null; })
@@ -390,6 +406,10 @@
   // "2 mins ago" stays current without a refresh.
   function setSyncTimeLabel(){ if(!syncTime) return; var iso=null;
     try{ iso=localStorage.getItem(SYNC_KEY); }catch(e){}
+    // No sync button on this page (a read-only portal, e.g. extrablack): show the pipeline's OWN
+    // last-check stamp (status.json generated_at) instead of the browser-local click time. Pages
+    // WITH the button keep the exact previous behaviour.
+    if(!syncBtn) iso=(ACC.data&&ACC.data.generated_at)||null;
     syncTime.textContent = iso ? ("Last synced "+fmtAge(iso)) : ""; }
   function stampSync(){ try{ localStorage.setItem(SYNC_KEY,new Date().toISOString()); }catch(e){} setSyncTimeLabel(); }
   function syncSet(state,label){ if(!syncBtn) return;
