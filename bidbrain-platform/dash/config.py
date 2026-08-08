@@ -166,17 +166,22 @@ CLIENTS = {
             {"name": "Consult Bookings", "path": "/all-on-4", "status": "coming_soon"},
         ],
     },
-    # Onboarding (Extrablack): no dashboard built yet — a pure COMING SOON tile, wired exactly like
-    # bellshakespeare/nextsmile (status coming_soon, disabled link). `show_pending_row` additionally
-    # gives it a greyed "awaiting connection" row on the Data Accuracy tab (the ONLY client with the
-    # flag — spec-less clients WITHOUT it, e.g. bellshakespeare/nextsmile, keep today's no-row look).
+    # Onboarding: client_geyervalmont/ is a built, Geyer Valmont-branded (white surfaces + the brand
+    # lime accent on navy ink) placeholder dashboard on SAMPLE data. Campaigns have not launched, so
+    # there is deliberately NO sql/ + job/ in that folder yet — the dashboard serves the baked-in
+    # placeholder.json. coming_soon (hidden from clients) but DEPLOYED, so super-admin can preview it
+    # via "Open preview →" (this entry was a url-less COMING SOON tile until the dashboard was built
+    # and deployed on 2026-08-08 — hence the real _runapp url and the standard preview note now).
+    # `show_pending_row` additionally gives it a greyed "awaiting connection" row on the Data Accuracy
+    # tab (the ONLY client with the flag — spec-less clients WITHOUT it, e.g. bellshakespeare/
+    # nextsmile, keep today's no-row look). It still applies: there is no data pipeline yet.
     "geyervalmont": {
         "name": "Geyer Valmont", "slug": "geyer-valmont", "status": "coming_soon",
-        "url": "",
-        "note": "Dashboard in build - the structure is on its way.",
+        "url": _runapp("geyervalmont"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
+        "note": "Dashboard isn't live yet - the structure is ready.",
         "show_pending_row": True,
         "campaigns": [
-            {"name": "Workplace", "path": "/workplace", "status": "coming_soon"},
+            {"name": "Workplace Design", "path": "/paid-media", "status": "coming_soon"},
         ],
     },
     "schneider": {
@@ -230,7 +235,8 @@ CLIENT_PASSWORDS = {
 AGENCIES = [
     {
         "name": "100% Digital", "slug": "x100-digital", "password": AGENCY_100D_PW,
-        "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex", "nextsmile"],
+        "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex",
+                    "nextsmile", "geyervalmont"],
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
