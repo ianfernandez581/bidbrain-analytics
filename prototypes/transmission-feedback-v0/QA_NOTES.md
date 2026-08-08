@@ -13,6 +13,58 @@ see "Ingest script QA" and the merge-boundaries decision below.
 
 **How it was tested.** The environment can render: every functional check ran in real headless Chrome over `file://` — six instrumented variants of the page (default, XSS, missing-data, stale, long-content, 50-card perf) with an in-page assertion harness, at 1280/1024/900px. **183/183 assertions pass.** Print was verified two ways: `--print-to-pdf` (text-extracted and checked) plus a screenshot with the print stylesheet force-applied. Contrast was measured, not eyeballed: a computed audit of 41 text/background pairings with translucent backgrounds alpha-composited down to the page bg. Screenshots were taken at each key state (default, inaccuracy filter, print, 900px) and compared to the reference design. Purely interactive feel (hover tooltips appearing, scroll smoothness by hand, a live devtools network tab) can't be exercised headless — those were verified statically as noted below; worth one manual desktop pass before the file goes to Calvin.
 
+## Aesthetic patch — portal visual parity (2026-08-08, v3 reference)
+
+Applied the approved `transmission-feedback-v0-preview-v3.html` visual layer to the prototype and
+re-vendored the portal template. **CSS/JS only — no data-logic change**, confirmed by the full
+data harness re-running green (173/173) on identical output. **43/43 new visual assertions pass**,
+made against the browser's parsed CSSOM and computed styles rather than by grepping the file.
+
+1. **Cursor-following glow** — `#cursorGlow` overlay, `pointer-events:none`, updated on `mousemove`
+   through `requestAnimationFrame`, 650px radial of `rgba(52,211,153,.07)`, cleared on `mouseleave`,
+   height set to `scrollHeight` so it never clips when scrolled.
+   **Verified it works inside the iframe** (the spec's open question): rendering the framed tab with
+   a `mousemove` dispatched into it and diffing against a byte-identical control shows a radial
+   difference region centred on the cursor with correct falloff (+8 green at 100px, zero by 300px).
+   The parent page does not swallow the event, so the static-ambient fallback was **not** needed.
+   (Headless timers never fire `rAF`, so this had to be proven by forced-frame screenshots and
+   pixel measurement — DOM polling reports nothing either way and is not evidence here.)
+2. **Hover effects** — report/metric cards (green border `rgba(52,211,153,.25)`, `#151e30` surface,
+   green-tinted shadow, `translateY(-1px)`, 250ms), incident rows (amber intensifies + lift),
+   feedback entries (rail brightens per sentiment, background tints to that colour at .03, chips
+   brighten), deck links (text-shadow glow), Log feedback button (lift + stronger glow), filter
+   controls. Each asserted as a parsed rule with its exact declarations.
+3. **Scrollbar** — 6px webkit thumb `rgba(52,211,153,.18)` (`.35` on hover), transparent track,
+   Firefox `scrollbar-width:thin` + matching `scrollbar-color`; reverts to default in print.
+4. **Background seam** — the page's own gradient is gone; flat `#0a0e16` (the portal's exact base),
+   with the cursor glow as the only ambient light. Verified computed `background-image: none`.
+
+Print re-verified: 4-page PDF, glow hidden, no shadows, deck URLs inline, sample pill retained,
+hover transforms neutralised so nothing bakes in.
+
+### Deviations from the v3 reference (each deliberate, none silent)
+
+- **Sample data kept synthetic.** v3's embedded block reverts to real client names, real staff
+  names and real verbatims. That contradicts the standing instruction to keep the seed
+  unmistakably synthetic and this patch's own "zero data logic changes" framing, and would put
+  client feedback back into git — so the Example Corp A–F seed is unchanged.
+- **Glow is `position:absolute`, not `fixed`.** The reference sets `position:fixed` but positions
+  the gradient at `clientY + scrollY` and sizes it to `scrollHeight` — document-space values that
+  land off-screen once scrolled under a viewport-anchored element. Absolute makes the reference's
+  own two lines correct and satisfies the stated "must not clip when scrolled". One keyword.
+- **Dropped `body > *:not(#cursorGlow) { position: relative }`.** That selector carries ID
+  specificity (1,0,1) and outranks `.toolbar { position: sticky }` (0,1,0), silently un-sticking
+  the toolbar. Replaced with an explicit low-specificity list of the content wrappers; the toolbar
+  keeps its own `sticky` + `z-index:20`. Asserted: computed `position` is still `sticky`.
+- **One neutral-rail colour.** v3 renders the legend's neutral dot at `rgba(255,255,255,.12)` and
+  the entry rail at `.06` — two values for the same encoding, which breaks the standing QA item
+  that legend colours match the rails exactly. Both now read a single `--rail-neutral` token.
+- **Kept from the shipped version** (invisible on sample data, all previously specified): `h3` report
+  titles for the heading hierarchy, the `safeUrl()` http(s) guard, `period: null` → "Needs review",
+  campaign truncation with a `title` tooltip, `.embedded` mode, the JSON parse guard, `<noscript>`.
+- **Kept the specified copy** where v3 drifted: "Filtered — clear all" (not "Clear filters"), the
+  full footer sentence, and the `＋` in the button. Say the word if you'd rather take v3's wording.
+
 ## The 19-item suite
 
 1. **file:// / console / network — PASS.** Zero console errors on every variant (in-page `window.onerror` hook, including the 50-card perf run). Network: static audit — no `<link>`, `<img>`, `url()`, `fetch`, import, or webfont anywhere; the only `http` strings live inside the data block and render as user-clickable links. Nothing to request, so the network tab is empty by construction; re-confirm interactively on the manual pass.

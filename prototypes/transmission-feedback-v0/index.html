@@ -6,217 +6,429 @@
 <title>Transmission — Feedback Loop (v0)</title>
 <script>if(self!==top)document.documentElement.classList.add('embedded')</script>
 <style>
-/* Tokens are the portal's own (see DISCOVERY.md §2 for source file paths):
-   surfaces/text from portal.html :root, greens/amber/red from _status_merge.html,
-   magenta from agency_transmission.svg. Layout follows the approved reference design. */
-:root{
-  --bg:#0a0e16; --card:#101726; --card-2:#0d1420;
-  --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
-  --text:#e8ebf2; --text2:#9aa6bd; --muted:#8a93a6;
-  --link:#3b82f6;
-  --green:#34D399; --green-ink:#06210f; --green-hover:#4ee0aa;
-  --red:#F87171; --amber:#FBBF24; --pink:#e60b7f;
-  --rail-neutral:#3a4a60;
-  --chip-bg:#1a2334; --chip-text:#9aa6bd;
-  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
-  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-}
-*{box-sizing:border-box}
-body{
-  margin:0;color:var(--text);font:15px/1.55 var(--sans);
-  /* ambient glow: the portal's own cornflower-blue radial stack, verbatim (portal.html body) */
-  background:
-    radial-gradient(840px 480px at 50% -6%, rgba(76,141,255,.18), transparent 62%),
-    radial-gradient(560px 340px at 50% -2%, rgba(110,168,255,.10), transparent 66%),
-    var(--bg);
-  background-repeat:no-repeat;background-attachment:fixed;
-}
-.container{max-width:1180px;margin:0 auto;padding:0 24px}
-a{color:var(--link)}
-:focus-visible{outline:2px solid #A7F3D0;outline-offset:2px;border-radius:6px;
-  box-shadow:0 0 14px rgba(52,211,153,.45)}
+/* Visual layer matches transmission-feedback-v0-preview-v3.html; tokens trace to the portal
+   (portal.html :root, _status_merge.html, agency_transmission.svg) — see DISCOVERY.md §2. */
+:root {
+  --bg: #0a0e16;
+  --card: #101726;
+  --card-hover: #151e30;
+  --border: rgba(255,255,255,.08);
+  --border-hover: rgba(255,255,255,.18);
+  --border-active: rgba(52,211,153,.25);
 
-.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;
-  padding:13px 24px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
-.topbar .brand b{color:var(--text);font-weight:700}
-.topbar .brand span{margin-left:14px;color:var(--muted);font-weight:500}
-.sample-pill{color:var(--amber);background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.32);
-  padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.4px;
-  white-space:nowrap;box-shadow:0 0 14px rgba(251,191,36,.28)}
+  --text: #e2e8f0;
+  --text-bright: #f1f5f9;
+  --text2: #94a3b8;
+  --muted: #64748b;
 
-.wordmark{text-align:center;margin:38px 0 4px;color:#fff;text-transform:uppercase;
-  font-family:"Arial Narrow","Helvetica Neue Condensed","Helvetica Neue",Arial,var(--sans);
-  font-weight:800;font-size:44px;letter-spacing:.5px}
-.wordmark .dot{color:var(--pink)}
-.window-line{text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 22px}
-.window-line .stale{color:var(--amber)}
+  --green: #34D399;
+  --green-dim: rgba(52,211,153,.12);
+  --green-border: rgba(52,211,153,.25);
+  --green-glow: rgba(52,211,153,.30);
+  --green-btn-bg: #06210f;
 
-.tabs{display:flex;gap:26px;justify-content:center;border-bottom:1px solid var(--border-strong);
-  font-size:14px;font-weight:600;flex-wrap:wrap}
-.tab{padding:12px 2px;color:var(--muted);border-bottom:2.5px solid transparent;margin-bottom:-1px}
-.tab.active{color:#E8EDF6;border-bottom-color:var(--green);
-  box-shadow:0 12px 18px -12px rgba(52,211,153,.55)}
+  --red: #F87171;
+  --red-dim: rgba(248,113,122,.10);
+  --red-border: rgba(248,113,122,.28);
 
-.toolbar{position:sticky;top:0;z-index:20;background:rgba(10,14,22,.92);
-  backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
-.toolbar-inner{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0}
-select,input[type=search],button.btn{
-  background:var(--card);border:1px solid var(--border-strong);color:var(--text);
-  border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600;font-family:var(--sans)}
-select:hover,input[type=search]:hover,button.btn:hover{background:#16202f}
-input[type=search]{flex:1;min-width:190px;font-weight:400}
-input[type=search]::placeholder{color:var(--muted)}
-button.btn{cursor:pointer}
-button.link{display:none;background:none;border:none;color:var(--link);
-  font-size:13px;cursor:pointer;padding:8px 4px;font-family:var(--sans)}
-button.link.show{display:inline-block}
-/* green primary — the portal's #bbsyncall button, verbatim (_status_merge.html) */
-.btn.primary{background:var(--green);border-color:var(--green);color:var(--green-ink);
-  font-weight:800;letter-spacing:.2px;padding:9px 16px;border-radius:10px;
-  box-shadow:0 2px 12px rgba(52,211,153,.30);white-space:nowrap;
-  transition:background .14s,box-shadow .14s,transform .07s}
-.btn.primary:hover{background:var(--green-hover);border-color:var(--green-hover);
-  box-shadow:0 5px 18px rgba(52,211,153,.42)}
-.btn.primary:active{transform:translateY(1px)}
+  --amber: #FBBF24;
+  --amber-dim: rgba(251,191,36,.10);
+  --amber-border: rgba(251,191,36,.25);
 
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin:20px 0 6px}
-.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
-.metric .label{font-size:12px;color:var(--muted);margin-bottom:6px}
-.metric .val{font-size:26px;font-weight:800;color:#fff;line-height:1.1}
-.metric .of{font-size:13px;color:var(--muted);font-weight:400}
-.metric .val.red{color:var(--red);text-shadow:0 0 12px rgba(248,113,113,.35)}
-.metric .val.amber{color:var(--amber);text-shadow:0 0 12px rgba(251,191,36,.35)}
-.metric .split{font-size:13.5px;font-weight:600;margin-top:6px;line-height:1.8}
-.split .p{color:var(--green)} .split .n{color:var(--red)} .split .u{color:var(--muted)}
-.legend{font-size:12px;color:var(--muted);margin:2px 0 4px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
-.lg{display:inline-flex;align-items:center;gap:6px;color:var(--text2)}
-.ldot{width:8px;height:8px;border-radius:2px;display:inline-block}
+  --blue: #3b82f6;
+  --pink: #e60b7f;
 
-.client-section{margin:28px 0}
-.client-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
-.client-head h2{font-size:18px;color:#fff;font-weight:700;margin:0}
-.client-count{font-size:12.5px;color:var(--muted)}
-.empty-client{border:1px dashed rgba(255,255,255,.14);border-radius:12px;padding:12px 16px;
-  color:var(--muted);font-size:13.5px}
+  /* one token for the neutral sentiment rail so the legend dot can never drift from it */
+  --rail-neutral: rgba(255,255,255,.12);
 
-.incident{display:flex;gap:12px;align-items:flex-start;background:rgba(251,191,36,.10);
-  border:1px solid rgba(251,191,36,.32);border-radius:12px;padding:13px 16px;margin-bottom:10px;
-  box-shadow:0 0 22px rgba(251,191,36,.10)}
-.incident .itag{flex-shrink:0;background:rgba(0,0,0,.25);color:var(--amber);
-  border:1px solid rgba(251,191,36,.32);padding:2px 10px;border-radius:999px;
-  font-size:11.5px;font-weight:700;margin-top:2px}
-.incident .itxt{font-size:14.5px;color:var(--text)}
-.incident .imeta{font-size:12px;color:var(--amber);opacity:.9;margin-top:3px}
+  --sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, 'Cascadia Code', 'Consolas', monospace;
 
-.report{background:var(--card);border:1px solid var(--border);border-radius:12px;
-  margin-bottom:12px;overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease}
-.report:hover{border-color:rgba(76,141,255,.38);box-shadow:0 0 24px rgba(76,141,255,.10)}
-.report-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 16px;
-  border-bottom:1px solid var(--border)}
-.period{font-family:var(--mono);font-size:12px;color:var(--green);background:rgba(52,211,153,.10);
-  padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 0 10px rgba(52,211,153,.16)}
-.period.nr{color:var(--amber);background:rgba(251,191,36,.12);box-shadow:0 0 10px rgba(251,191,36,.16)}
-h3.rtitle{font-weight:600;color:#fff;font-size:15px;margin:0;max-width:38ch;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rmeta{font-size:12.5px;color:var(--muted)}
-.spacer{flex:1}
-.badge-fb{font-size:12px;color:var(--text2);white-space:nowrap}
-.badge-inacc{font-size:11.5px;font-weight:700;background:rgba(248,113,113,.13);color:var(--red);
-  border:1px solid rgba(248,113,113,.35);padding:2px 9px;border-radius:999px;white-space:nowrap;
-  box-shadow:0 0 12px rgba(248,113,113,.26)}
-a.deck{font-size:13.5px;text-decoration:none;white-space:nowrap}
-a.deck:hover{text-decoration:underline}
-a.deck.final{color:var(--green)}
-.nr-note{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
-  color:var(--amber);margin:16px 0 8px}
-
-.fb{padding:12px 16px 13px 13px;border-left:3px solid var(--rail-neutral);
-  border-bottom:1px solid rgba(255,255,255,.05)}
-.fb:last-child{border-bottom:none}
-.fb.s-positive{border-left-color:var(--green)}
-.fb.s-negative{border-left-color:var(--red)}
-.fb-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:7px;font-size:12px}
-.chip{padding:2px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.14);
-  background:var(--chip-bg);color:var(--chip-text);font-size:11.5px}
-.type{padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
-  background:rgba(255,255,255,.05);color:var(--text2);cursor:help}
-.type.t-inaccuracy{background:rgba(248,113,113,.13);color:var(--red);border:1px solid rgba(248,113,113,.35)}
-.type.t-incident{background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.32)}
-.who{color:var(--muted)}
-.verbatim{font-family:Georgia,"Times New Roman",serif;font-size:16.5px;line-height:1.6;
-  color:var(--text);margin:0;overflow-wrap:break-word}
-.ctx{font-size:12.5px;color:var(--muted);margin:6px 0 0;overflow-wrap:break-word}
-.nofb{padding:12px 16px;color:var(--muted);font-size:13px;font-style:italic}
-.subhead{padding:11px 16px;font-size:12px;font-weight:700;color:var(--muted);
-  letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--border)}
-
-.zero{padding:56px 24px;text-align:center;color:var(--muted)}
-.zero p{margin:0 0 14px;font-size:15px}
-
-footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40px}
-
-@media (max-width:960px){
-  .wordmark{font-size:34px}
-  .report-head{gap:8px}
-  h3.rtitle{max-width:26ch}
+  --radius: 10px;
+  --radius-sm: 6px;
+  --radius-pill: 999px;
 }
 
-/* Embedded as the portal's Feedback Loop tab (iframe on /feedback-loop): the portal page already
-   provides the wordmark + real tab rail, so the standalone chrome hides; the SAMPLE DATA pill and
-   the window/freshness line stay visible. Standalone (file://) rendering is unchanged. */
-.embedded .wordmark,.embedded .tabs{display:none}
-.embedded .topbar{padding-top:8px;padding-bottom:8px;border-bottom:0}
-.embedded .topbar .brand{visibility:hidden}
-.embedded .window-line{margin:0 0 14px}
+/* ═══ SCROLLBAR — branded, subtle ═══ */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(52,211,153,.18) transparent;
+}
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(52,211,153,.18);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(52,211,153,.35); }
 
-@media print{
-  :root{
-    --bg:#fff; --card:#fff; --card-2:#fff;
-    --border:#d8dde4; --border-strong:#c9d0d9;
-    --text:#111; --text2:#444; --muted:#666;
-    --link:#0a58c2;
-    --green:#0c7a45; --green-ink:#fff; --green-hover:#0c7a45;
-    --red:#b91c1c; --amber:#8a5a08; --pink:#d81b6a;
-    --rail-neutral:#c6cdd6;
-    --chip-bg:#f0f2f5; --chip-text:#444;
+/* ═══ RESET ═══ */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);            /* flat base — no static gradient, so no seam against the portal */
+  color: var(--text);
+  font: 400 14px/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
+  min-height: 100vh;
+  position: relative;
+}
+
+/* Cursor-following glow layer — sits behind all content.
+   ABSOLUTE (not fixed) so the document-space coordinates the script uses
+   (clientY + scrollY, height = scrollHeight) stay under the cursor when scrolled. */
+#cursorGlow {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0;
+  transition: background .15s ease;
+}
+/* Content sits above the glow. Listed explicitly rather than `body > *:not(#cursorGlow)`:
+   that selector carries ID specificity and would beat `.toolbar { position: sticky }`,
+   silently un-sticking the toolbar. .toolbar sets its own position/z-index below. */
+.topbar, .wordmark, .window-line, .wrap, footer { position: relative; z-index: 1; }
+
+a { color: var(--green); text-decoration: none; }
+a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; border-radius: 4px; }
+
+/* ═══ LAYOUT ═══ */
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 28px; }
+
+/* ═══ HEADER ═══ */
+.topbar {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 28px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px; color: var(--text2);
+}
+.brand b { color: var(--text-bright); font-weight: 600; letter-spacing: -.02em; }
+.brand span { margin-left: 12px; color: var(--muted); font-size: 12px; }
+.sample-pill {
+  font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+  background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border);
+  padding: 4px 12px; border-radius: var(--radius-pill);
+  box-shadow: 0 0 12px rgba(251,191,36,.18);
+  white-space: nowrap;
+}
+
+/* ═══ WORDMARK ═══ */
+.wordmark {
+  text-align: center;
+  font-family: 'Arial Narrow', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 800; font-size: 38px; letter-spacing: 2px;
+  margin: 32px 0 0; color: #fff; text-transform: uppercase;
+}
+.wordmark .dot { color: var(--pink); }
+.window-line {
+  text-align: center; color: var(--muted); font-size: 12px;
+  margin: 6px 0 20px; letter-spacing: .01em;
+}
+.window-line .stale { color: var(--amber); }
+
+/* ═══ TABS ═══ */
+.tabs {
+  display: flex; gap: 0; justify-content: center;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px; font-weight: 500;
+}
+.tab {
+  padding: 12px 18px; color: var(--muted);
+  border-bottom: 2px solid transparent;
+  transition: color .15s; cursor: default;
+}
+.tab:hover { color: var(--text2); }
+.tab.active {
+  color: var(--text-bright); font-weight: 600;
+  border-bottom-color: var(--green);
+  box-shadow: 0 4px 12px -4px var(--green-glow);
+}
+
+/* ═══ TOOLBAR ═══ */
+.toolbar {
+  position: sticky; top: 0; z-index: 20;
+  background: rgba(10,14,22,.92);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--border);
+}
+.toolbar-inner {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 0; flex-wrap: wrap;
+}
+
+.ctrl {
+  height: 34px;
+  background: var(--card); border: 1px solid var(--border); color: var(--text);
+  border-radius: var(--radius-sm); padding: 0 10px;
+  font: 400 12.5px/34px var(--sans);
+  transition: border-color .2s, box-shadow .2s, background .2s;
+  appearance: none; -webkit-appearance: none;
+}
+select.ctrl {
+  padding-right: 28px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='7'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 10px center;
+  cursor: pointer;
+}
+.ctrl:hover { border-color: var(--border-hover); background: var(--card-hover); }
+.ctrl:focus { border-color: var(--green); box-shadow: 0 0 0 3px rgba(52,211,153,.12); outline: none; }
+input.ctrl { flex: 1; min-width: 180px; }
+input.ctrl::placeholder { color: var(--muted); }
+/* the native option list is painted from the select's own background — keep it opaque */
+select.ctrl option { background: var(--card); color: var(--text); }
+
+.spacer { flex: 1; min-width: 4px; }
+
+.btn {
+  height: 34px; padding: 0 16px;
+  border: none; border-radius: var(--radius-pill);
+  font: 500 12.5px var(--sans); cursor: pointer;
+  transition: all .2s; white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.btn-primary {
+  background: var(--green); color: var(--green-btn-bg);
+  box-shadow: 0 0 16px var(--green-glow);
+}
+.btn-primary:hover {
+  background: #2ec48d; transform: translateY(-1px);
+  box-shadow: 0 0 28px rgba(52,211,153,.50), 0 4px 12px rgba(0,0,0,.3);
+}
+.btn-secondary {
+  background: var(--card); color: var(--text2);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover { border-color: var(--border-hover); color: var(--text); background: var(--card-hover); }
+
+.btn-clear {
+  background: none; border: none; color: var(--blue); font: 400 12px var(--sans);
+  cursor: pointer; padding: 0 6px; display: none;
+}
+.btn-clear.show { display: inline-flex; align-items: center; }
+
+/* ═══ METRICS ═══ */
+.metrics {
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px;
+  margin: 18px 0 4px;
+}
+@media (max-width: 900px) { .metrics { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); } }
+.metric {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 12px 14px;
+  transition: border-color .25s, box-shadow .25s, background .25s, transform .25s;
+}
+.metric:hover {
+  border-color: var(--border-active);
+  background: var(--card-hover);
+  box-shadow: 0 0 20px rgba(52,211,153,.08);
+  transform: translateY(-1px);
+}
+.metric .label { font-size: 11.5px; color: var(--muted); margin-bottom: 4px; letter-spacing: .02em; }
+.metric .val { font-size: 22px; font-weight: 600; color: var(--text-bright); line-height: 1.15; }
+.metric .of { font-size: 12px; color: var(--muted); font-weight: 400; }
+.metric .val.red { color: var(--red); text-shadow: 0 0 10px rgba(248,113,122,.30); }
+.metric .val.amber { color: var(--amber); text-shadow: 0 0 10px rgba(251,191,36,.30); }
+.metric .split { font-size: 12px; font-weight: 500; margin-top: 4px; line-height: 1.7; }
+.split .p { color: var(--green); } .split .n { color: var(--red); } .split .u { color: var(--muted); }
+
+.legend {
+  font-size: 11px; color: var(--muted); margin: 6px 0 2px;
+  display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+}
+.lg { display: inline-flex; align-items: center; gap: 5px; color: var(--text2); font-size: 11px; }
+.ldot { width: 7px; height: 7px; border-radius: 2px; }
+
+/* ═══ CLIENT SECTIONS ═══ */
+.client-section { margin: 24px 0; }
+.client-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+.client-head h2 { font-size: 16px; font-weight: 600; color: var(--text-bright); margin: 0; }
+.client-count { font-size: 12px; color: var(--muted); }
+.empty-client {
+  border: 1px dashed rgba(255,255,255,.10); border-radius: var(--radius);
+  padding: 12px 16px; color: var(--muted); font-size: 12.5px;
+}
+
+/* ═══ INCIDENT ═══ */
+.incident {
+  display: flex; gap: 12px; align-items: flex-start;
+  background: var(--amber-dim); border: 1px solid var(--amber-border);
+  border-radius: var(--radius); padding: 12px 16px; margin-bottom: 8px;
+  box-shadow: 0 0 18px rgba(251,191,36,.06);
+  transition: border-color .25s, box-shadow .25s, transform .25s;
+}
+.incident:hover {
+  border-color: rgba(251,191,36,.40);
+  box-shadow: 0 0 28px rgba(251,191,36,.12);
+  transform: translateY(-1px);
+}
+.itag {
+  flex-shrink: 0;
+  background: rgba(0,0,0,.25); color: var(--amber);
+  border: 1px solid var(--amber-border);
+  padding: 2px 10px; border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 600; margin-top: 1px;
+}
+.itxt { font-size: 13.5px; color: var(--text); line-height: 1.5; }
+.imeta { font-size: 11.5px; color: var(--amber); opacity: .75; margin-top: 3px; }
+
+/* ═══ REPORT CARD — dramatic hover matching portal ═══ */
+.report {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: var(--radius); margin-bottom: 8px; overflow: hidden;
+  transition: border-color .25s, box-shadow .25s, background .25s, transform .25s;
+}
+.report:hover {
+  border-color: var(--border-active);
+  background: var(--card-hover);
+  box-shadow: 0 0 24px rgba(52,211,153,.08), 0 4px 16px rgba(0,0,0,.15);
+  transform: translateY(-1px);
+}
+.report-head {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 11px 16px; border-bottom: 1px solid var(--border);
+}
+.period {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--green); background: var(--green-dim);
+  padding: 2px 8px; border-radius: var(--radius-sm);
+  box-shadow: 0 0 8px rgba(52,211,153,.10);
+  white-space: nowrap;
+}
+.period.nr { color: var(--amber); background: var(--amber-dim); box-shadow: 0 0 8px rgba(251,191,36,.12); }
+h3.rtitle {
+  font-weight: 600; color: var(--text-bright); font-size: 13.5px; margin: 0;
+  max-width: 40ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rmeta { font-size: 11.5px; color: var(--muted); }
+.rspacer { flex: 1; }
+.badge-fb { font-size: 11.5px; color: var(--text2); white-space: nowrap; }
+.badge-inacc {
+  font-size: 10.5px; font-weight: 600;
+  background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border);
+  padding: 2px 8px; border-radius: var(--radius-pill); white-space: nowrap;
+  box-shadow: 0 0 10px rgba(248,113,122,.18);
+}
+a.deck {
+  font-size: 12px; text-decoration: none; white-space: nowrap;
+  color: var(--text2); transition: color .2s, text-shadow .2s;
+}
+a.deck:hover { color: var(--green); text-decoration: none; text-shadow: 0 0 8px rgba(52,211,153,.3); }
+a.deck.final { color: var(--green); }
+a.deck.final:hover { color: #5fe8b5; text-shadow: 0 0 12px rgba(52,211,153,.4); }
+.nr-note {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--amber); margin: 14px 0 6px;
+}
+
+/* ═══ FEEDBACK ENTRY ═══ */
+.fb {
+  padding: 11px 16px 12px 14px;
+  border-left: 3px solid var(--rail-neutral);
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .2s, border-left-color .2s;
+}
+.fb:hover { background: rgba(255,255,255,.025); }
+.fb:last-child { border-bottom: none; }
+.fb.s-positive { border-left-color: var(--green); }
+.fb.s-positive:hover { border-left-color: #5fe8b5; background: rgba(52,211,153,.03); }
+.fb.s-negative { border-left-color: var(--red); }
+.fb.s-negative:hover { border-left-color: #fb9a9e; background: rgba(248,113,122,.03); }
+.fb:not(.s-positive):not(.s-negative):hover { border-left-color: rgba(255,255,255,.22); }
+.fb-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+
+.chip {
+  padding: 1px 8px; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); color: var(--text2);
+  font-size: 11px; font-weight: 500;
+  transition: border-color .2s;
+}
+.fb:hover .chip { border-color: var(--border-hover); }
+.type {
+  padding: 1px 8px; border-radius: var(--radius-pill);
+  font-size: 11px; font-weight: 600;
+  background: rgba(255,255,255,.05); color: var(--text2);
+  cursor: help;
+}
+.type.t-inaccuracy { background: var(--red-dim); color: var(--red); border: 1px solid var(--red-border); }
+.type.t-incident { background: var(--amber-dim); color: var(--amber); border: 1px solid var(--amber-border); }
+.who { font-size: 11px; color: var(--muted); }
+
+.verbatim {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 15px; line-height: 1.65; color: var(--text-bright);
+  margin: 0; font-style: italic; overflow-wrap: break-word;
+}
+.ctx { font-size: 11.5px; color: var(--muted); margin: 5px 0 0; font-style: normal; overflow-wrap: break-word; }
+.nofb { padding: 10px 16px; color: var(--muted); font-size: 12px; font-style: italic; }
+.subhead {
+  padding: 9px 16px; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+  color: var(--muted); text-transform: uppercase; border-bottom: 1px solid var(--border);
+}
+
+.zero { padding: 48px 24px; text-align: center; color: var(--muted); }
+.zero p { margin: 0 0 12px; font-size: 14px; }
+
+footer {
+  color: var(--muted); font-size: 11px; text-align: center;
+  padding: 28px 0 36px; line-height: 1.6;
+}
+
+/* Embedded as the portal's Feedback Loop tab (iframe on /feedback-loop): the portal page
+   already provides the wordmark and the real tab rail, so the standalone chrome hides.
+   The SAMPLE DATA pill, the window/freshness line and the cursor glow all stay. */
+.embedded .wordmark, .embedded .tabs { display: none; }
+.embedded .topbar { padding-top: 8px; padding-bottom: 8px; border-bottom: 0; }
+.embedded .topbar .brand { visibility: hidden; }
+.embedded .window-line { margin: 0 0 14px; }
+
+/* ═══ PRINT ═══ */
+@media print {
+  :root {
+    --bg:#fff; --card:#fff; --card-hover:#fff; --border:#e2e8f0;
+    --border-hover:#cbd5e1; --border-active:#cbd5e1;
+    --text:#111; --text-bright:#111; --text2:#475569; --muted:#64748b;
+    --green:#059669; --green-dim:#ecfdf5; --green-border:#bfe5cf; --green-btn-bg:#fff;
+    --red:#b91c1c; --red-dim:#fef2f2; --red-border:#f3c1c1;
+    --amber:#92400e; --amber-dim:#fffbeb; --amber-border:#eed9ae;
+    --blue:#1d4ed8; --pink:#be185d;
+    --rail-neutral:#cbd5e1;
   }
-  body{background:#fff;background-image:none;font-size:12.5px;color:#111}
-  *{box-shadow:none !important;text-shadow:none !important}
-  .toolbar{display:none}
-  .topbar{border-bottom:1px solid #ddd}
-  .sample-pill{background:#fdf3e1;border-color:#eed9ae}
-  .wordmark{color:#111}
-  .tabs{border-bottom-color:#ddd}
-  .tab{color:#888}
-  .tab.active{color:#111;border-bottom-color:var(--green)}
-  .metric .val{color:#111}
-  .report,.incident,.metric{break-inside:avoid;page-break-inside:avoid}
-  .incident{background:#fdf3e1;border-color:#eed9ae}
-  .incident .itag{background:#fff;color:#8a5a08;border-color:#eed9ae}
-  .incident .imeta{color:#8a5a08}
-  .period{background:#e8f6ee;color:#0c7a45}
-  .period.nr{background:#fdf3e1;color:#8a5a08}
-  .badge-inacc{background:#fdecec;border-color:#f3c1c1}
-  .type.t-inaccuracy{background:#fdecec;border-color:#f3c1c1}
-  .type.t-incident{background:#fdf3e1;border-color:#eed9ae}
-  h3.rtitle,.client-head h2{color:#111}
-  .verbatim{color:#111}
-  .empty-client{border-color:#c9d0d9}
-  a.deck::after{content:" (" attr(href) ")";font-size:9px;color:#777}
+  html { scrollbar-width: auto; scrollbar-color: auto; }
+  body { background:#fff; font-size:11.5px; color:#111; }
+  * { box-shadow:none !important; text-shadow:none !important; }
+  #cursorGlow { display: none; }
+  .toolbar { display:none; }
+  .topbar { border-bottom:1px solid #e2e8f0; }
+  .report,.incident,.metric { break-inside:avoid; page-break-inside:avoid; }
+  .report:hover,.incident:hover,.metric:hover { transform:none; background:var(--card); border-color:var(--border); }
+  .wordmark { color:#111; font-size:28px; }
+  .tab { color:#94a3b8; } .tab.active { color:#111; border-bottom-color:var(--green); }
+  .metric .val { color:#111; }
+  .client-head h2, h3.rtitle { color:#111; }
+  a.deck { color:#1d4ed8; }
+  a.deck::after { content:" (" attr(href) ")"; font-size:8px; color:#94a3b8; }
+  .fb { border-left-width:2px; }
+  .fb:hover { background:transparent; }
+  .verbatim { color:#111; }
+  .empty-client { border-color:#cbd5e1; }
 }
 </style>
 </head>
 <body>
 
+<!-- Cursor-following glow — replicates the portal's ambient light effect -->
+<div id="cursorGlow"></div>
+
 <div class="topbar">
   <div class="brand"><b>Bidbrain.ai</b><span>Campaign Dashboards · Agency portal</span></div>
-  <span class="sample-pill" id="samplePill">SAMPLE DATA</span>
+  <span class="sample-pill" id="samplePill">Sample data</span>
 </div>
 
 <h1 class="wordmark">Transmission<span class="dot">.</span></h1>
 <p class="window-line" id="windowLine"></p>
 
-<div class="container">
+<div class="wrap">
   <nav class="tabs" aria-label="Portal sections">
     <span class="tab">Overview</span>
     <span class="tab">Data Accuracy</span>
@@ -227,14 +439,14 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40p
 </div>
 
 <div class="toolbar">
-  <div class="container toolbar-inner">
-    <select id="fClient" aria-label="Filter by client"></select>
-    <select id="fPeriod" aria-label="Filter by period">
+  <div class="wrap toolbar-inner">
+    <select class="ctrl" id="fClient" aria-label="Filter by client"></select>
+    <select class="ctrl" id="fPeriod" aria-label="Filter by period">
       <option value="3m">Last 3 months</option>
       <option value="1m">Last month</option>
       <option value="all">All time</option>
     </select>
-    <select id="fType" aria-label="Filter by feedback type">
+    <select class="ctrl" id="fType" aria-label="Filter by feedback type">
       <option value="all">All types</option>
       <option value="inaccuracy">Inaccuracy</option>
       <option value="incident">Incident</option>
@@ -242,20 +454,21 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40p
       <option value="delivery">Delivery</option>
       <option value="general">General</option>
     </select>
-    <select id="fSent" aria-label="Filter by sentiment">
+    <select class="ctrl" id="fSent" aria-label="Filter by sentiment">
       <option value="all">All sentiment</option>
       <option value="positive">Positive</option>
       <option value="negative">Needs improvement</option>
       <option value="neutral">Neutral</option>
     </select>
-    <input type="search" id="fQ" placeholder="Search verbatims, authors, campaigns…" aria-label="Search feedback">
-    <button class="link" id="btnClear">Filtered — clear all</button>
-    <button class="btn primary" id="btnLog" title="Opens the compilation sheet — add a row there, then re-run the data refresh">＋ Log feedback</button>
-    <button class="btn" id="btnPrint">Print summary</button>
+    <input type="search" class="ctrl" id="fQ" placeholder="Search verbatims, authors, campaigns…" aria-label="Search feedback">
+    <span class="spacer"></span>
+    <button class="btn-clear" id="btnClear">Filtered — clear all</button>
+    <button class="btn btn-primary" id="btnLog" title="Opens the compilation sheet — add a row there, then re-run the data refresh">＋ Log feedback</button>
+    <button class="btn btn-secondary" id="btnPrint">Print summary</button>
   </div>
 </div>
 
-<div class="container">
+<div class="wrap">
   <div class="metrics" id="metrics" aria-live="polite"></div>
   <p class="legend">Entry rail:
     <span class="lg"><span class="ldot" style="background:var(--green)"></span>Positive</span>
@@ -285,339 +498,64 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40p
     "Example Corp F"
   ],
   "reports": [
-    {
-      "id": "r-001",
-      "client": "Example Corp C",
-      "campaign": "Sample Campaign Charlie",
-      "period": "2026-06",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": "https://docs.google.com/presentation/",
-      "sent_on": "2026-07-03",
-      "sent_by": "Staffer One",
-      "notes": ""
-    },
-    {
-      "id": "r-002",
-      "client": "Example Corp C",
-      "campaign": "Sample Campaign Charlie",
-      "period": "2026-07",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-08-04",
-      "sent_by": "Staffer One",
-      "notes": ""
-    },
-    {
-      "id": "r-003",
-      "client": "Example Corp A",
-      "campaign": "Sample Campaign Alpha",
-      "period": "2026-06",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-07-06",
-      "sent_by": "Staffer Two",
-      "notes": ""
-    },
-    {
-      "id": "r-004",
-      "client": "Example Corp A",
-      "campaign": "Sample Campaign Alpha",
-      "period": "2026-07",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-08-05",
-      "sent_by": "Staffer Two",
-      "notes": ""
-    },
-    {
-      "id": "r-005",
-      "client": "Example Corp B",
-      "campaign": "Sample Campaign Bravo",
-      "period": "2026-06",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-07-07",
-      "sent_by": "Staffer Three",
-      "notes": ""
-    },
-    {
-      "id": "r-006",
-      "client": "Example Corp B",
-      "campaign": "Sample Campaign Bravo",
-      "period": "2026-07",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-08-06",
-      "sent_by": "Staffer Three",
-      "notes": ""
-    },
-    {
-      "id": "r-007",
-      "client": "Example Corp D",
-      "campaign": "Sample Campaign Delta",
-      "period": "2026-05",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": "https://docs.google.com/presentation/",
-      "sent_on": "2026-06-04",
-      "sent_by": "Staffer One",
-      "notes": ""
-    },
-    {
-      "id": "r-008",
-      "client": "Example Corp D",
-      "campaign": "Sample Campaign Delta",
-      "period": "2026-06",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-07-03",
-      "sent_by": "Staffer One",
-      "notes": ""
-    },
-    {
-      "id": "r-009",
-      "client": "Example Corp E",
-      "campaign": "Sample Campaign Echo",
-      "period": "2026-06",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-07-08",
-      "sent_by": "Staffer Four",
-      "notes": ""
-    },
-    {
-      "id": "r-010",
-      "client": "Example Corp F",
-      "campaign": "Sample Campaign Foxtrot",
-      "period": "2026-07",
-      "deck_submitted_url": "https://docs.google.com/presentation/",
-      "deck_final_url": null,
-      "sent_on": "2026-08-03",
-      "sent_by": "Staffer Two",
-      "notes": ""
-    }
+    { "id": "r-001", "client": "Example Corp C", "campaign": "Sample Campaign Charlie", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": "https://docs.google.com/presentation/", "sent_on": "2026-07-03", "sent_by": "Staffer One", "notes": "" },
+    { "id": "r-002", "client": "Example Corp C", "campaign": "Sample Campaign Charlie", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-04", "sent_by": "Staffer One", "notes": "" },
+    { "id": "r-003", "client": "Example Corp A", "campaign": "Sample Campaign Alpha", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-06", "sent_by": "Staffer Two", "notes": "" },
+    { "id": "r-004", "client": "Example Corp A", "campaign": "Sample Campaign Alpha", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-05", "sent_by": "Staffer Two", "notes": "" },
+    { "id": "r-005", "client": "Example Corp B", "campaign": "Sample Campaign Bravo", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-07", "sent_by": "Staffer Three", "notes": "" },
+    { "id": "r-006", "client": "Example Corp B", "campaign": "Sample Campaign Bravo", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-06", "sent_by": "Staffer Three", "notes": "" },
+    { "id": "r-007", "client": "Example Corp D", "campaign": "Sample Campaign Delta", "period": "2026-05", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": "https://docs.google.com/presentation/", "sent_on": "2026-06-04", "sent_by": "Staffer One", "notes": "" },
+    { "id": "r-008", "client": "Example Corp D", "campaign": "Sample Campaign Delta", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-03", "sent_by": "Staffer One", "notes": "" },
+    { "id": "r-009", "client": "Example Corp E", "campaign": "Sample Campaign Echo", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-08", "sent_by": "Staffer Four", "notes": "" },
+    { "id": "r-010", "client": "Example Corp F", "campaign": "Sample Campaign Foxtrot", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-03", "sent_by": "Staffer Two", "notes": "" }
   ],
   "feedback": [
-    {
-      "id": "f-001",
-      "report_id": "r-001",
-      "client": "Example Corp C",
-      "date": "2026-07-08",
-      "author": "Sample Contact C1",
-      "source": "deck_comment",
-      "sentiment": "negative",
-      "type": "quality",
-      "verbatim": "Sample quality note: this placeholder deck needs another polish pass before it goes out.",
-      "context": ""
-    },
-    {
-      "id": "f-002",
-      "report_id": "r-001",
-      "client": "Example Corp C",
-      "date": "2026-07-10",
-      "author": "Sample Contact C2 (Example Corp C)",
-      "source": "email",
-      "sentiment": "negative",
-      "type": "inaccuracy",
-      "verbatim": "Sample inaccuracy: the figure on slide 9 of this placeholder deck does not match the sample tracker.",
-      "context": "Sample resolution note: traced to two sample systems counting differently; corrected placeholder figures re-sent."
-    },
-    {
-      "id": "f-003",
-      "report_id": "r-001",
-      "client": "Example Corp C",
-      "date": "2026-07-15",
-      "author": "Sample Contact C1",
-      "source": "meeting",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: the commentary section of this placeholder report was useful; keep it.",
-      "context": ""
-    },
-    {
-      "id": "f-004",
-      "report_id": "r-002",
-      "client": "Example Corp C",
-      "date": "2026-08-05",
-      "author": "Sample Contact C2 (Example Corp C)",
-      "source": "slack",
-      "sentiment": "neutral",
-      "type": "delivery",
-      "verbatim": "Sample timing request: could future placeholder reports arrive a couple of days earlier?",
-      "context": ""
-    },
-    {
-      "id": "f-005",
-      "report_id": "r-003",
-      "client": "Example Corp A",
-      "date": "2026-07-09",
-      "author": "Sample Contact A1 (Example Corp A)",
-      "source": "email",
-      "sentiment": "negative",
-      "type": "inaccuracy",
-      "verbatim": "Sample inaccuracy: the currency conversion in this placeholder table does not tie back to the sample records.",
-      "context": ""
-    },
-    {
-      "id": "f-006",
-      "report_id": "r-003",
-      "client": "Example Corp A",
-      "date": "2026-07-14",
-      "author": "Sample Contact A1 (Example Corp A)",
-      "source": "meeting",
-      "sentiment": "neutral",
-      "type": "general",
-      "verbatim": "Sample note: understood on the placeholder delay; keep the sample team posted weekly.",
-      "context": ""
-    },
-    {
-      "id": "f-007",
-      "report_id": null,
-      "client": "Example Corp A",
-      "date": "2026-07-02",
-      "author": "Internal (sample)",
-      "source": "other",
-      "sentiment": "negative",
-      "type": "incident",
-      "verbatim": "Sample incident: placeholder campaign spend paused for several weeks before it was caught (synthetic example, no real campaign).",
-      "context": ""
-    },
-    {
-      "id": "f-008",
-      "report_id": "r-004",
-      "client": "Example Corp A",
-      "date": "2026-08-06",
-      "author": "Sample Contact A1 (Example Corp A)",
-      "source": "email",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: this month's placeholder pacing looks much tighter; thanks for the quick sample turnaround.",
-      "context": ""
-    },
-    {
-      "id": "f-009",
-      "report_id": "r-005",
-      "client": "Example Corp B",
-      "date": "2026-07-11",
-      "author": "Sample Contact B1 (Example Corp B)",
-      "source": "deck_comment",
-      "sentiment": "neutral",
-      "type": "quality",
-      "verbatim": "Sample quality note: the chart on slide 12 of this placeholder deck is hard to read; larger labels please.",
-      "context": ""
-    },
-    {
-      "id": "f-010",
-      "report_id": "r-005",
-      "client": "Example Corp B",
-      "date": "2026-07-18",
-      "author": "Sample Contact B1 (Example Corp B)",
-      "source": "call",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: the placeholder walkthrough call landed well with the sample stakeholders.",
-      "context": ""
-    },
-    {
-      "id": "f-011",
-      "report_id": "r-007",
-      "client": "Example Corp D",
-      "date": "2026-06-06",
-      "author": "Sample Contact D1 (Example Corp D)",
-      "source": "email",
-      "sentiment": "negative",
-      "type": "inaccuracy",
-      "verbatim": "Sample inaccuracy: the appendix of this placeholder deck lists two sample entries that should have been removed; please re-issue.",
-      "context": "Sample deck re-issued (the Final link on this card); see the follow-up entry below."
-    },
-    {
-      "id": "f-012",
-      "report_id": "r-007",
-      "client": "Example Corp D",
-      "date": "2026-06-09",
-      "author": "Sample Contact D1 (Example Corp D)",
-      "source": "email",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: the re-issued placeholder version is correct; appreciate the fast sample fix.",
-      "context": ""
-    },
-    {
-      "id": "f-013",
-      "report_id": "r-008",
-      "client": "Example Corp D",
-      "date": "2026-07-17",
-      "author": "Sample Contact D1 (Example Corp D)",
-      "source": "meeting",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: the placeholder engagement story is landing well with the sample leadership group.",
-      "context": ""
-    },
-    {
-      "id": "f-014",
-      "report_id": "r-009",
-      "client": "Example Corp E",
-      "date": "2026-07-09",
-      "author": "Sample Contact E1 (Example Corp E)",
-      "source": "slack",
-      "sentiment": "negative",
-      "type": "delivery",
-      "verbatim": "Sample delivery issue: the placeholder tab split requested last month has not been made; third sample follow-up.",
-      "context": ""
-    },
-    {
-      "id": "f-015",
-      "report_id": "r-009",
-      "client": "Example Corp E",
-      "date": "2026-07-12",
-      "author": "Sample Contact E1 (Example Corp E)",
-      "source": "deck_comment",
-      "sentiment": "neutral",
-      "type": "quality",
-      "verbatim": "Sample quality note: define the placeholder term in the glossary; new sample readers keep asking.",
-      "context": ""
-    },
-    {
-      "id": "f-016",
-      "report_id": "r-009",
-      "client": "Example Corp E",
-      "date": "2026-07-20",
-      "author": "Sample Contact E1 (Example Corp E)",
-      "source": "email",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: the placeholder pacing view is exactly what the sample quarterly review needed.",
-      "context": ""
-    },
-    {
-      "id": "f-017",
-      "report_id": "r-010",
-      "client": "Example Corp F",
-      "date": "2026-08-04",
-      "author": "Sample Contact F1 (Example Corp F)",
-      "source": "email",
-      "sentiment": "positive",
-      "type": "general",
-      "verbatim": "Sample praise: clean placeholder report, no sample notes this month.",
-      "context": ""
-    },
-    {
-      "id": "f-018",
-      "report_id": null,
-      "client": "Example Corp F",
-      "date": "2026-07-21",
-      "author": "Sample Contact F1 (Example Corp F)",
-      "source": "meeting",
-      "sentiment": "neutral",
-      "type": "general",
-      "verbatim": "Sample request: longer term, add placeholder quarterly rollups alongside the sample monthlies.",
-      "context": ""
-    }
+    { "id": "f-001", "report_id": "r-001", "client": "Example Corp C", "date": "2026-07-08", "author": "Sample Contact C1", "source": "deck_comment", "sentiment": "negative", "type": "quality", "verbatim": "Sample quality note: this placeholder deck needs another polish pass before it goes out.", "context": "" },
+    { "id": "f-002", "report_id": "r-001", "client": "Example Corp C", "date": "2026-07-10", "author": "Sample Contact C2 (Example Corp C)", "source": "email", "sentiment": "negative", "type": "inaccuracy", "verbatim": "Sample inaccuracy: the figure on slide 9 of this placeholder deck does not match the sample tracker.", "context": "Sample resolution note: traced to two sample systems counting differently; corrected placeholder figures re-sent." },
+    { "id": "f-003", "report_id": "r-001", "client": "Example Corp C", "date": "2026-07-15", "author": "Sample Contact C1", "source": "meeting", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: the commentary section of this placeholder report was useful; keep it.", "context": "" },
+    { "id": "f-004", "report_id": "r-002", "client": "Example Corp C", "date": "2026-08-05", "author": "Sample Contact C2 (Example Corp C)", "source": "slack", "sentiment": "neutral", "type": "delivery", "verbatim": "Sample timing request: could future placeholder reports arrive a couple of days earlier?", "context": "" },
+    { "id": "f-005", "report_id": "r-003", "client": "Example Corp A", "date": "2026-07-09", "author": "Sample Contact A1 (Example Corp A)", "source": "email", "sentiment": "negative", "type": "inaccuracy", "verbatim": "Sample inaccuracy: the currency conversion in this placeholder table does not tie back to the sample records.", "context": "" },
+    { "id": "f-006", "report_id": "r-003", "client": "Example Corp A", "date": "2026-07-14", "author": "Sample Contact A1 (Example Corp A)", "source": "meeting", "sentiment": "neutral", "type": "general", "verbatim": "Sample note: understood on the placeholder delay; keep the sample team posted weekly.", "context": "" },
+    { "id": "f-007", "report_id": null, "client": "Example Corp A", "date": "2026-07-02", "author": "Internal (sample)", "source": "other", "sentiment": "negative", "type": "incident", "verbatim": "Sample incident: placeholder campaign spend paused for several weeks before it was caught (synthetic example, no real campaign).", "context": "" },
+    { "id": "f-008", "report_id": "r-004", "client": "Example Corp A", "date": "2026-08-06", "author": "Sample Contact A1 (Example Corp A)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: this month's placeholder pacing looks much tighter; thanks for the quick sample turnaround.", "context": "" },
+    { "id": "f-009", "report_id": "r-005", "client": "Example Corp B", "date": "2026-07-11", "author": "Sample Contact B1 (Example Corp B)", "source": "deck_comment", "sentiment": "neutral", "type": "quality", "verbatim": "Sample quality note: the chart on slide 12 of this placeholder deck is hard to read; larger labels please.", "context": "" },
+    { "id": "f-010", "report_id": "r-005", "client": "Example Corp B", "date": "2026-07-18", "author": "Sample Contact B1 (Example Corp B)", "source": "call", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: the placeholder walkthrough call landed well with the sample stakeholders.", "context": "" },
+    { "id": "f-011", "report_id": "r-007", "client": "Example Corp D", "date": "2026-06-06", "author": "Sample Contact D1 (Example Corp D)", "source": "email", "sentiment": "negative", "type": "inaccuracy", "verbatim": "Sample inaccuracy: the appendix of this placeholder deck lists two sample entries that should have been removed; please re-issue.", "context": "Sample deck re-issued (the Final link on this card); see the follow-up entry below." },
+    { "id": "f-012", "report_id": "r-007", "client": "Example Corp D", "date": "2026-06-09", "author": "Sample Contact D1 (Example Corp D)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: the re-issued placeholder version is correct; appreciate the fast sample fix.", "context": "" },
+    { "id": "f-013", "report_id": "r-008", "client": "Example Corp D", "date": "2026-07-17", "author": "Sample Contact D1 (Example Corp D)", "source": "meeting", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: the placeholder engagement story is landing well with the sample leadership group.", "context": "" },
+    { "id": "f-014", "report_id": "r-009", "client": "Example Corp E", "date": "2026-07-09", "author": "Sample Contact E1 (Example Corp E)", "source": "slack", "sentiment": "negative", "type": "delivery", "verbatim": "Sample delivery issue: the placeholder tab split requested last month has not been made; third sample follow-up.", "context": "" },
+    { "id": "f-015", "report_id": "r-009", "client": "Example Corp E", "date": "2026-07-12", "author": "Sample Contact E1 (Example Corp E)", "source": "deck_comment", "sentiment": "neutral", "type": "quality", "verbatim": "Sample quality note: define the placeholder term in the glossary; new sample readers keep asking.", "context": "" },
+    { "id": "f-016", "report_id": "r-009", "client": "Example Corp E", "date": "2026-07-20", "author": "Sample Contact E1 (Example Corp E)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: the placeholder pacing view is exactly what the sample quarterly review needed.", "context": "" },
+    { "id": "f-017", "report_id": "r-010", "client": "Example Corp F", "date": "2026-08-04", "author": "Sample Contact F1 (Example Corp F)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "Sample praise: clean placeholder report, no sample notes this month.", "context": "" },
+    { "id": "f-018", "report_id": null, "client": "Example Corp F", "date": "2026-07-21", "author": "Sample Contact F1 (Example Corp F)", "source": "meeting", "sentiment": "neutral", "type": "general", "verbatim": "Sample request: longer term, add placeholder quarterly rollups alongside the sample monthlies.", "context": "" }
   ]
 }
 </script>
 
 <script>
+/* ═══ CURSOR-FOLLOWING GLOW ═══
+   Mirrors the portal's ambient light. The iframe is its own document, so it does not
+   inherit the parent's effect — mousemove fires here whenever the cursor is over the frame. */
+(function(){
+  'use strict';
+  var glow = document.getElementById('cursorGlow');
+  if (!glow) return;
+  var raf = null;
+  document.addEventListener('mousemove', function(e){
+    if (raf) return;
+    var x = e.clientX, y = e.clientY;
+    raf = requestAnimationFrame(function(){
+      // document-space coordinates, so the glow stays under the cursor when scrolled
+      glow.style.height = document.documentElement.scrollHeight + 'px';
+      glow.style.background =
+        'radial-gradient(650px circle at ' + x + 'px ' + (y + window.scrollY) + 'px, rgba(52,211,153,.07), transparent 40%)';
+      raf = null;
+    });
+  });
+  document.addEventListener('mouseleave', function(){ glow.style.background = 'none'; });
+})();
+
+/* ═══ APP ═══ */
 (function(){
   'use strict';
 
@@ -656,7 +594,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40p
     if(!p) return '';
     var d = new Date(p + '-01T00:00:00');
     if(isNaN(d)) return p;
-    return d.toLocaleDateString('en-AU', { month:'short', year:'numeric' });
+    return d.toLocaleDateString('en-AU', { month:'long', year:'numeric' });
   }
   function plural(n, one, many){ return n + ' ' + (n === 1 ? one : many); }
 
@@ -716,7 +654,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40p
     var html = '<article class="report"><div class="report-head">' + chip +
       '<h3 class="rtitle" title="' + esc(r.campaign) + '">' + esc(r.campaign) + '</h3>' +
       (sent ? '<span class="rmeta">' + sent + '</span>' : '') +
-      '<span class="spacer"></span>' +
+      '<span class="rspacer"></span>' +
       (inaccN ? '<span class="badge-inacc">' + plural(inaccN, 'inaccuracy', 'inaccuracies') + '</span>' : '') +
       '<span class="badge-fb">' + plural(x.entries.length, 'feedback item', 'feedback items') + '</span>' +
       (sub ? '<a class="deck" href="' + esc(sub) + '" target="_blank" rel="noopener" aria-label="Open submitted deck — ' +
@@ -824,7 +762,7 @@ footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40p
 
     if(m.reports + m.fb === 0){
       html = '<div class="zero"><p>Nothing matches the current filters.</p>' +
-             '<button class="btn" id="btnZeroClear">Clear filters</button></div>';
+             '<button class="btn btn-secondary" id="btnZeroClear">Clear filters</button></div>';
     }
     document.getElementById('app').innerHTML = html;
     var zc = document.getElementById('btnZeroClear');
