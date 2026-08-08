@@ -1,0 +1,588 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Transmission — Feedback Loop (v0)</title>
+<style>
+/* Tokens are the portal's own (see DISCOVERY.md §2 for source file paths):
+   surfaces/text from portal.html :root, greens/amber/red from _status_merge.html,
+   magenta from agency_transmission.svg. Layout follows the approved reference design. */
+:root{
+  --bg:#0a0e16; --card:#101726; --card-2:#0d1420;
+  --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
+  --text:#e8ebf2; --text2:#9aa6bd; --muted:#8a93a6;
+  --link:#3b82f6;
+  --green:#34D399; --green-ink:#06210f; --green-hover:#4ee0aa;
+  --red:#F87171; --amber:#FBBF24; --pink:#e60b7f;
+  --rail-neutral:#3a4a60;
+  --chip-bg:#1a2334; --chip-text:#9aa6bd;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;color:var(--text);font:15px/1.55 var(--sans);
+  /* ambient glow: the portal's own cornflower-blue radial stack, verbatim (portal.html body) */
+  background:
+    radial-gradient(840px 480px at 50% -6%, rgba(76,141,255,.18), transparent 62%),
+    radial-gradient(560px 340px at 50% -2%, rgba(110,168,255,.10), transparent 66%),
+    var(--bg);
+  background-repeat:no-repeat;background-attachment:fixed;
+}
+.container{max-width:1180px;margin:0 auto;padding:0 24px}
+a{color:var(--link)}
+:focus-visible{outline:2px solid #A7F3D0;outline-offset:2px;border-radius:6px;
+  box-shadow:0 0 14px rgba(52,211,153,.45)}
+
+.topbar{display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:13px 24px;border-bottom:1px solid var(--border);font-size:13px;color:var(--muted)}
+.topbar .brand b{color:var(--text);font-weight:700}
+.topbar .brand span{margin-left:14px;color:var(--muted);font-weight:500}
+.sample-pill{color:var(--amber);background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.32);
+  padding:4px 12px;border-radius:999px;font-size:11px;font-weight:700;letter-spacing:.4px;
+  white-space:nowrap;box-shadow:0 0 14px rgba(251,191,36,.28)}
+
+.wordmark{text-align:center;margin:38px 0 4px;color:#fff;text-transform:uppercase;
+  font-family:"Arial Narrow","Helvetica Neue Condensed","Helvetica Neue",Arial,var(--sans);
+  font-weight:800;font-size:44px;letter-spacing:.5px}
+.wordmark .dot{color:var(--pink)}
+.window-line{text-align:center;color:var(--muted);font-size:12.5px;margin:0 0 22px}
+.window-line .stale{color:var(--amber)}
+
+.tabs{display:flex;gap:26px;justify-content:center;border-bottom:1px solid var(--border-strong);
+  font-size:14px;font-weight:600;flex-wrap:wrap}
+.tab{padding:12px 2px;color:var(--muted);border-bottom:2.5px solid transparent;margin-bottom:-1px}
+.tab.active{color:#E8EDF6;border-bottom-color:var(--green);
+  box-shadow:0 12px 18px -12px rgba(52,211,153,.55)}
+
+.toolbar{position:sticky;top:0;z-index:20;background:rgba(10,14,22,.92);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--border)}
+.toolbar-inner{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 0}
+select,input[type=search],button.btn{
+  background:var(--card);border:1px solid var(--border-strong);color:var(--text);
+  border-radius:9px;padding:8px 12px;font-size:13px;font-weight:600;font-family:var(--sans)}
+select:hover,input[type=search]:hover,button.btn:hover{background:#16202f}
+input[type=search]{flex:1;min-width:190px;font-weight:400}
+input[type=search]::placeholder{color:var(--muted)}
+button.btn{cursor:pointer}
+button.link{display:none;background:none;border:none;color:var(--link);
+  font-size:13px;cursor:pointer;padding:8px 4px;font-family:var(--sans)}
+button.link.show{display:inline-block}
+/* green primary — the portal's #bbsyncall button, verbatim (_status_merge.html) */
+.btn.primary{background:var(--green);border-color:var(--green);color:var(--green-ink);
+  font-weight:800;letter-spacing:.2px;padding:9px 16px;border-radius:10px;
+  box-shadow:0 2px 12px rgba(52,211,153,.30);white-space:nowrap;
+  transition:background .14s,box-shadow .14s,transform .07s}
+.btn.primary:hover{background:var(--green-hover);border-color:var(--green-hover);
+  box-shadow:0 5px 18px rgba(52,211,153,.42)}
+.btn.primary:active{transform:translateY(1px)}
+
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(158px,1fr));gap:12px;margin:20px 0 6px}
+.metric{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.metric .label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.metric .val{font-size:26px;font-weight:800;color:#fff;line-height:1.1}
+.metric .of{font-size:13px;color:var(--muted);font-weight:400}
+.metric .val.red{color:var(--red);text-shadow:0 0 12px rgba(248,113,113,.35)}
+.metric .val.amber{color:var(--amber);text-shadow:0 0 12px rgba(251,191,36,.35)}
+.metric .split{font-size:13.5px;font-weight:600;margin-top:6px;line-height:1.8}
+.split .p{color:var(--green)} .split .n{color:var(--red)} .split .u{color:var(--muted)}
+.legend{font-size:12px;color:var(--muted);margin:2px 0 4px;display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.lg{display:inline-flex;align-items:center;gap:6px;color:var(--text2)}
+.ldot{width:8px;height:8px;border-radius:2px;display:inline-block}
+
+.client-section{margin:28px 0}
+.client-head{display:flex;align-items:baseline;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.client-head h2{font-size:18px;color:#fff;font-weight:700;margin:0}
+.client-count{font-size:12.5px;color:var(--muted)}
+.empty-client{border:1px dashed rgba(255,255,255,.14);border-radius:12px;padding:12px 16px;
+  color:var(--muted);font-size:13.5px}
+
+.incident{display:flex;gap:12px;align-items:flex-start;background:rgba(251,191,36,.10);
+  border:1px solid rgba(251,191,36,.32);border-radius:12px;padding:13px 16px;margin-bottom:10px;
+  box-shadow:0 0 22px rgba(251,191,36,.10)}
+.incident .itag{flex-shrink:0;background:rgba(0,0,0,.25);color:var(--amber);
+  border:1px solid rgba(251,191,36,.32);padding:2px 10px;border-radius:999px;
+  font-size:11.5px;font-weight:700;margin-top:2px}
+.incident .itxt{font-size:14.5px;color:var(--text)}
+.incident .imeta{font-size:12px;color:var(--amber);opacity:.9;margin-top:3px}
+
+.report{background:var(--card);border:1px solid var(--border);border-radius:12px;
+  margin-bottom:12px;overflow:hidden;transition:border-color .15s ease,box-shadow .15s ease}
+.report:hover{border-color:rgba(76,141,255,.38);box-shadow:0 0 24px rgba(76,141,255,.10)}
+.report-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;padding:14px 16px;
+  border-bottom:1px solid var(--border)}
+.period{font-family:var(--mono);font-size:12px;color:var(--green);background:rgba(52,211,153,.10);
+  padding:3px 8px;border-radius:6px;white-space:nowrap;box-shadow:0 0 10px rgba(52,211,153,.16)}
+.period.nr{color:var(--amber);background:rgba(251,191,36,.12);box-shadow:0 0 10px rgba(251,191,36,.16)}
+h3.rtitle{font-weight:600;color:#fff;font-size:15px;margin:0;max-width:38ch;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rmeta{font-size:12.5px;color:var(--muted)}
+.spacer{flex:1}
+.badge-fb{font-size:12px;color:var(--text2);white-space:nowrap}
+.badge-inacc{font-size:11.5px;font-weight:700;background:rgba(248,113,113,.13);color:var(--red);
+  border:1px solid rgba(248,113,113,.35);padding:2px 9px;border-radius:999px;white-space:nowrap;
+  box-shadow:0 0 12px rgba(248,113,113,.26)}
+a.deck{font-size:13.5px;text-decoration:none;white-space:nowrap}
+a.deck:hover{text-decoration:underline}
+a.deck.final{color:var(--green)}
+.nr-note{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--amber);margin:16px 0 8px}
+
+.fb{padding:12px 16px 13px 13px;border-left:3px solid var(--rail-neutral);
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.fb:last-child{border-bottom:none}
+.fb.s-positive{border-left-color:var(--green)}
+.fb.s-negative{border-left-color:var(--red)}
+.fb-meta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:7px;font-size:12px}
+.chip{padding:2px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.14);
+  background:var(--chip-bg);color:var(--chip-text);font-size:11.5px}
+.type{padding:2px 9px;border-radius:999px;font-size:11.5px;font-weight:600;
+  background:rgba(255,255,255,.05);color:var(--text2);cursor:help}
+.type.t-inaccuracy{background:rgba(248,113,113,.13);color:var(--red);border:1px solid rgba(248,113,113,.35)}
+.type.t-incident{background:rgba(251,191,36,.12);color:var(--amber);border:1px solid rgba(251,191,36,.32)}
+.who{color:var(--muted)}
+.verbatim{font-family:Georgia,"Times New Roman",serif;font-size:16.5px;line-height:1.6;
+  color:var(--text);margin:0;overflow-wrap:break-word}
+.ctx{font-size:12.5px;color:var(--muted);margin:6px 0 0;overflow-wrap:break-word}
+.nofb{padding:12px 16px;color:var(--muted);font-size:13px;font-style:italic}
+.subhead{padding:11px 16px;font-size:12px;font-weight:700;color:var(--muted);
+  letter-spacing:.04em;text-transform:uppercase;border-bottom:1px solid var(--border)}
+
+.zero{padding:56px 24px;text-align:center;color:var(--muted)}
+.zero p{margin:0 0 14px;font-size:15px}
+
+footer{color:var(--muted);font-size:12px;text-align:center;padding:30px 24px 40px}
+
+@media (max-width:960px){
+  .wordmark{font-size:34px}
+  .report-head{gap:8px}
+  h3.rtitle{max-width:26ch}
+}
+
+@media print{
+  :root{
+    --bg:#fff; --card:#fff; --card-2:#fff;
+    --border:#d8dde4; --border-strong:#c9d0d9;
+    --text:#111; --text2:#444; --muted:#666;
+    --link:#0a58c2;
+    --green:#0c7a45; --green-ink:#fff; --green-hover:#0c7a45;
+    --red:#b91c1c; --amber:#8a5a08; --pink:#d81b6a;
+    --rail-neutral:#c6cdd6;
+    --chip-bg:#f0f2f5; --chip-text:#444;
+  }
+  body{background:#fff;background-image:none;font-size:12.5px;color:#111}
+  *{box-shadow:none !important;text-shadow:none !important}
+  .toolbar{display:none}
+  .topbar{border-bottom:1px solid #ddd}
+  .sample-pill{background:#fdf3e1;border-color:#eed9ae}
+  .wordmark{color:#111}
+  .tabs{border-bottom-color:#ddd}
+  .tab{color:#888}
+  .tab.active{color:#111;border-bottom-color:var(--green)}
+  .metric .val{color:#111}
+  .report,.incident,.metric{break-inside:avoid;page-break-inside:avoid}
+  .incident{background:#fdf3e1;border-color:#eed9ae}
+  .incident .itag{background:#fff;color:#8a5a08;border-color:#eed9ae}
+  .incident .imeta{color:#8a5a08}
+  .period{background:#e8f6ee;color:#0c7a45}
+  .period.nr{background:#fdf3e1;color:#8a5a08}
+  .badge-inacc{background:#fdecec;border-color:#f3c1c1}
+  .type.t-inaccuracy{background:#fdecec;border-color:#f3c1c1}
+  .type.t-incident{background:#fdf3e1;border-color:#eed9ae}
+  h3.rtitle,.client-head h2{color:#111}
+  .verbatim{color:#111}
+  .empty-client{border-color:#c9d0d9}
+  a.deck::after{content:" (" attr(href) ")";font-size:9px;color:#777}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><b>Bidbrain.ai</b><span>Campaign Dashboards · Agency portal</span></div>
+  <span class="sample-pill" id="samplePill">SAMPLE DATA</span>
+</div>
+
+<h1 class="wordmark">Transmission<span class="dot">.</span></h1>
+<p class="window-line" id="windowLine"></p>
+
+<div class="container">
+  <nav class="tabs" aria-label="Portal sections">
+    <span class="tab">Overview</span>
+    <span class="tab">Data Accuracy</span>
+    <span class="tab">The Grid</span>
+    <span class="tab">The Brain</span>
+    <span class="tab active" aria-current="page">Feedback Loop</span>
+  </nav>
+</div>
+
+<div class="toolbar">
+  <div class="container toolbar-inner">
+    <select id="fClient" aria-label="Filter by client"></select>
+    <select id="fPeriod" aria-label="Filter by period">
+      <option value="3m">Last 3 months</option>
+      <option value="1m">Last month</option>
+      <option value="all">All time</option>
+    </select>
+    <select id="fType" aria-label="Filter by feedback type">
+      <option value="all">All types</option>
+      <option value="inaccuracy">Inaccuracy</option>
+      <option value="incident">Incident</option>
+      <option value="quality">Quality</option>
+      <option value="delivery">Delivery</option>
+      <option value="general">General</option>
+    </select>
+    <select id="fSent" aria-label="Filter by sentiment">
+      <option value="all">All sentiment</option>
+      <option value="positive">Positive</option>
+      <option value="negative">Needs improvement</option>
+      <option value="neutral">Neutral</option>
+    </select>
+    <input type="search" id="fQ" placeholder="Search verbatims, authors, campaigns…" aria-label="Search feedback">
+    <button class="link" id="btnClear">Filtered — clear all</button>
+    <button class="btn primary" id="btnLog" title="Opens the compilation sheet — add a row there, then re-run the data refresh">＋ Log feedback</button>
+    <button class="btn" id="btnPrint">Print summary</button>
+  </div>
+</div>
+
+<div class="container">
+  <div class="metrics" id="metrics" aria-live="polite"></div>
+  <p class="legend">Entry rail:
+    <span class="lg"><span class="ldot" style="background:var(--green)"></span>Positive</span>
+    <span class="lg"><span class="ldot" style="background:var(--red)"></span>Needs improvement</span>
+    <span class="lg"><span class="ldot" style="background:var(--rail-neutral)"></span>Neutral</span>
+  </p>
+  <main id="app"><noscript>This page needs JavaScript to render the registry — the data itself is in the embedded block below.</noscript></main>
+</div>
+
+<footer>Internal — agency portal only · Data source: the Transmission compilation sheet. To log feedback: ＋ Log feedback → add a row → re-run the refresh.</footer>
+
+<script id="data" type="application/json">
+{
+  "meta": {
+    "generated_at": "2026-08-08T14:00:00+08:00",
+    "sample": true,
+    "window_start": "2026-05-01",
+    "window_end": "2026-08-08",
+    "sheet_url": "https://docs.google.com/spreadsheets/d/1dyYciW_xYFDErSrD_SFttmNbIQpsX56_vncVVPMGEbU/edit"
+  },
+  "clients": [
+    "Schneider Electric",
+    "Schneider - Liquid AI Data Center",
+    "Cloudflare",
+    "PropTrack",
+    "MongoDB",
+    "STT"
+  ],
+  "reports": [
+    { "id": "r-001", "client": "Cloudflare", "campaign": "Always-On Media", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": "https://docs.google.com/presentation/", "sent_on": "2026-07-03", "sent_by": "Sofia", "notes": "" },
+    { "id": "r-002", "client": "Cloudflare", "campaign": "Always-On Media", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-04", "sent_by": "Sofia", "notes": "" },
+    { "id": "r-003", "client": "Schneider Electric", "campaign": "Plan vs Actual", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-06", "sent_by": "Charles", "notes": "" },
+    { "id": "r-004", "client": "Schneider Electric", "campaign": "Plan vs Actual", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-05", "sent_by": "Charles", "notes": "" },
+    { "id": "r-005", "client": "Schneider - Liquid AI Data Center", "campaign": "AI & Liquid Cooling", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-07", "sent_by": "Zhen", "notes": "" },
+    { "id": "r-006", "client": "Schneider - Liquid AI Data Center", "campaign": "AI & Liquid Cooling", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-06", "sent_by": "Zhen", "notes": "" },
+    { "id": "r-007", "client": "PropTrack", "campaign": "Banking ABM", "period": "2026-05", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": "https://docs.google.com/presentation/", "sent_on": "2026-06-04", "sent_by": "Sofia", "notes": "" },
+    { "id": "r-008", "client": "PropTrack", "campaign": "Banking ABM", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-03", "sent_by": "Sofia", "notes": "" },
+    { "id": "r-009", "client": "MongoDB", "campaign": "Paid Media + CS", "period": "2026-06", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-07-08", "sent_by": "Melissa", "notes": "" },
+    { "id": "r-010", "client": "STT", "campaign": "Data Centre Awareness", "period": "2026-07", "deck_submitted_url": "https://docs.google.com/presentation/", "deck_final_url": null, "sent_on": "2026-08-03", "sent_by": "Charles", "notes": "" }
+  ],
+  "feedback": [
+    { "id": "f-001", "report_id": "r-001", "client": "Cloudflare", "date": "2026-07-08", "author": "Shalvi", "source": "deck_comment", "sentiment": "negative", "type": "quality", "verbatim": "This deck is obviously AI — needs a proper review before it goes out.", "context": "" },
+    { "id": "f-002", "report_id": "r-001", "client": "Cloudflare", "date": "2026-07-10", "author": "Marcus (Cloudflare)", "source": "email", "sentiment": "negative", "type": "inaccuracy", "verbatim": "Lead volume on slide 9 doesn't match what we're seeing in SFDC — can you re-check the source?", "context": "Traced to differing attribution windows (GA4 vs SFDC); corrected figures re-sent 12 Jul." },
+    { "id": "f-003", "report_id": "r-001", "client": "Cloudflare", "date": "2026-07-15", "author": "Shalvi", "source": "meeting", "sentiment": "positive", "type": "general", "verbatim": "The channel mix commentary this month was genuinely useful — keep that section.", "context": "" },
+    { "id": "f-004", "report_id": "r-002", "client": "Cloudflare", "date": "2026-08-05", "author": "Marcus (Cloudflare)", "source": "slack", "sentiment": "neutral", "type": "delivery", "verbatim": "Can we get these a couple of days earlier next month? Board pack goes out on the 5th.", "context": "" },
+    { "id": "f-005", "report_id": "r-003", "client": "Schneider Electric", "date": "2026-07-09", "author": "Priya (Schneider)", "source": "email", "sentiment": "negative", "type": "inaccuracy", "verbatim": "FX conversion on the Pacific lines looks off — the AUD figures don't tie back to our internal tracker.", "context": "" },
+    { "id": "f-006", "report_id": "r-003", "client": "Schneider Electric", "date": "2026-07-14", "author": "Priya (Schneider)", "source": "meeting", "sentiment": "neutral", "type": "general", "verbatim": "Understood on the passkey delay — just keep us posted weekly.", "context": "" },
+    { "id": "f-007", "report_id": null, "client": "Schneider Electric", "date": "2026-07-02", "author": "Internal", "source": "other", "sentiment": "negative", "type": "incident", "verbatim": "Search campaign spend stopped 3 Jun – 1 Jul before it was caught; flagged by the client in the July review.", "context": "" },
+    { "id": "f-008", "report_id": "r-004", "client": "Schneider Electric", "date": "2026-08-06", "author": "Priya (Schneider)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "July pacing looks much tighter — thanks for the quick turnaround on the fixes.", "context": "" },
+    { "id": "f-009", "report_id": "r-005", "client": "Schneider - Liquid AI Data Center", "date": "2026-07-11", "author": "Daniel (Schneider)", "source": "deck_comment", "sentiment": "neutral", "type": "quality", "verbatim": "Slide 12 chart is hard to read on a projector — bigger labels please.", "context": "" },
+    { "id": "f-010", "report_id": "r-005", "client": "Schneider - Liquid AI Data Center", "date": "2026-07-18", "author": "Daniel (Schneider)", "source": "call", "sentiment": "positive", "type": "general", "verbatim": "Walked our exec team through the June numbers on Friday's call — the liquid cooling story landed really well.", "context": "" },
+    { "id": "f-011", "report_id": "r-007", "client": "PropTrack", "date": "2026-06-06", "author": "Kate (PropTrack)", "source": "email", "sentiment": "negative", "type": "inaccuracy", "verbatim": "The account list in the appendix includes two banks we excluded in April — please remove and re-issue.", "context": "Deck re-issued 9 Jun (the Final link on this card) — see the follow-up entry below." },
+    { "id": "f-012", "report_id": "r-007", "client": "PropTrack", "date": "2026-06-09", "author": "Kate (PropTrack)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "Re-issued version is spot on — appreciate the fast fix.", "context": "" },
+    { "id": "f-013", "report_id": "r-008", "client": "PropTrack", "date": "2026-07-17", "author": "Kate (PropTrack)", "source": "meeting", "sentiment": "positive", "type": "general", "verbatim": "The ABM engagement story is landing well internally — leadership referenced it twice this week.", "context": "" },
+    { "id": "f-014", "report_id": "r-009", "client": "MongoDB", "date": "2026-07-09", "author": "Alex (MongoDB)", "source": "slack", "sentiment": "negative", "type": "delivery", "verbatim": "We asked for the CS split as a separate tab last month and it's still merged with paid media — third time raising this.", "context": "" },
+    { "id": "f-015", "report_id": "r-009", "client": "MongoDB", "date": "2026-07-12", "author": "Alex (MongoDB)", "source": "deck_comment", "sentiment": "neutral", "type": "quality", "verbatim": "Define 'qualified' in the glossary — new stakeholders keep asking.", "context": "" },
+    { "id": "f-016", "report_id": "r-009", "client": "MongoDB", "date": "2026-07-20", "author": "Alex (MongoDB)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "The content syndication pacing view is exactly what we needed for the QBR — thank you.", "context": "" },
+    { "id": "f-017", "report_id": "r-010", "client": "STT", "date": "2026-08-04", "author": "Wei (STT)", "source": "email", "sentiment": "positive", "type": "general", "verbatim": "Clean report, no notes this month — nice work.", "context": "" },
+    { "id": "f-018", "report_id": null, "client": "STT", "date": "2026-07-21", "author": "Wei (STT)", "source": "meeting", "sentiment": "neutral", "type": "general", "verbatim": "Longer term, we'd like quarterly rollups alongside the monthlies.", "context": "" }
+  ]
+}
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  // the single escape gate — every piece of data-derived text passes through here
+  function esc(s){ return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  var DATA;
+  try { DATA = JSON.parse(document.getElementById('data').textContent); }
+  catch(e){
+    document.getElementById('app').textContent = 'The embedded data block failed to parse: ' + e.message;
+    return;
+  }
+
+  var state = { client:'all', period:'3m', type:'all', sent:'all', q:'' };
+  var SRC = { deck_comment:'Deck comment', email:'Email', slack:'Slack', meeting:'Meeting', call:'Call', other:'Other' };
+  var TYP = { inaccuracy:'Inaccuracy', incident:'Incident', quality:'Quality', delivery:'Delivery', general:'General' };
+  var TYPE_HELP = {
+    inaccuracy:'The numbers or data in the report were wrong',
+    incident:'An operational failure, not feedback on a report',
+    quality:'The craft of the report itself — design, clarity, polish',
+    delivery:'Timing or process of getting the report out',
+    general:'Everything else, including praise'
+  };
+
+  // deck/sheet URLs come from the data block (untrusted) — only ever link to http(s)
+  function safeUrl(u){ return (typeof u === 'string' && /^https?:\/\//i.test(u)) ? u : null; }
+
+  function fmtDate(iso){
+    if(!iso) return '';
+    var d = new Date(iso + 'T00:00:00');
+    if(isNaN(d)) return iso;
+    return d.toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' });
+  }
+  function fmtPeriod(p){
+    if(!p) return '';
+    var d = new Date(p + '-01T00:00:00');
+    if(isNaN(d)) return p;
+    return d.toLocaleDateString('en-AU', { month:'short', year:'numeric' });
+  }
+  function plural(n, one, many){ return n + ' ' + (n === 1 ? one : many); }
+
+  function periodCutoff(){
+    if(state.period === 'all') return null;
+    var end = new Date(DATA.meta.window_end + 'T00:00:00');
+    var back = state.period === '1m' ? 0 : 2;
+    var d = new Date(end.getFullYear(), end.getMonth() - back, 1);
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function inWindowPeriod(p){ var c = periodCutoff(); return !c || (p && p >= c); }
+  function inWindowDate(iso){ var c = periodCutoff(); return !c || (iso && iso.slice(0,7) >= c); }
+
+  function matchQ(){
+    var q = state.q.trim().toLowerCase();
+    if(!q) return true;
+    for(var i = 0; i < arguments.length; i++){
+      if(String(arguments[i] || '').toLowerCase().indexOf(q) !== -1) return true;
+    }
+    return false;
+  }
+  function entryPass(f, r){
+    if(state.type !== 'all' && f.type !== state.type) return false;
+    if(state.sent !== 'all' && f.sentiment !== state.sent) return false;
+    return matchQ(f.verbatim, f.author, f.client, r ? r.campaign : '');
+  }
+  function entryFiltersActive(){ return state.type !== 'all' || state.sent !== 'all' || state.q.trim() !== ''; }
+  function anyFilter(){ return state.client !== 'all' || state.period !== '3m' || entryFiltersActive(); }
+
+  function fbRow(f){
+    var who = esc(f.author || 'Unattributed') + (f.date ? ' · ' + esc(fmtDate(f.date)) : '');
+    return '<div class="fb s-' + esc(f.sentiment) + '">' +
+      '<div class="fb-meta">' +
+        '<span class="chip">' + esc(SRC[f.source] || f.source) + '</span>' +
+        '<span class="type t-' + esc(f.type) + '" title="' + esc(TYPE_HELP[f.type] || '') + '">' + esc(TYP[f.type] || f.type) + '</span>' +
+        '<span class="who">' + who + '</span>' +
+      '</div>' +
+      '<p class="verbatim">“' + esc(f.verbatim) + '”</p>' +
+      (f.context ? '<p class="ctx">Note: ' + esc(f.context) + '</p>' : '') +
+    '</div>';
+  }
+
+  function sentLine(r){
+    if(r.sent_on) return 'Sent ' + esc(fmtDate(r.sent_on)) + (r.sent_by ? ' by ' + esc(r.sent_by) : '');
+    if(r.sent_by) return 'Sent by ' + esc(r.sent_by);
+    return '';
+  }
+
+  function reportCard(x, c){
+    var r = x.r;
+    var inaccN = x.entries.filter(function(f){ return f.type === 'inaccuracy'; }).length;
+    var sub = safeUrl(r.deck_submitted_url), fin = safeUrl(r.deck_final_url);
+    var chip = r.period
+      ? '<span class="period">' + esc(fmtPeriod(r.period)) + '</span>'
+      : '<span class="period nr" title="Period missing from the source sheet — flagged in review_report.txt">Needs review</span>';
+    var sent = sentLine(r);
+    var html = '<article class="report"><div class="report-head">' + chip +
+      '<h3 class="rtitle" title="' + esc(r.campaign) + '">' + esc(r.campaign) + '</h3>' +
+      (sent ? '<span class="rmeta">' + sent + '</span>' : '') +
+      '<span class="spacer"></span>' +
+      (inaccN ? '<span class="badge-inacc">' + plural(inaccN, 'inaccuracy', 'inaccuracies') + '</span>' : '') +
+      '<span class="badge-fb">' + plural(x.entries.length, 'feedback item', 'feedback items') + '</span>' +
+      (sub ? '<a class="deck" href="' + esc(sub) + '" target="_blank" rel="noopener" aria-label="Open submitted deck — ' +
+              esc(c) + ' ' + esc(r.campaign) + ' ' + esc(fmtPeriod(r.period)) + '">Submitted →</a>' : '') +
+      (fin ? '<a class="deck final" href="' + esc(fin) + '" target="_blank" rel="noopener" aria-label="Open final deck — ' +
+              esc(c) + ' ' + esc(r.campaign) + ' ' + esc(fmtPeriod(r.period)) + '">Final →</a>' : '') +
+    '</div>';
+    if(x.entries.length){ html += x.entries.map(fbRow).join(''); }
+    else { html += '<div class="nofb">No feedback logged.</div>'; }
+    return html + '</article>';
+  }
+
+  function build(){
+    var m = { reports:0, fb:0, inacc:0, inc:0, pos:0, neg:0, neu:0 };
+    var T = {
+      reports: DATA.reports.length,
+      fb: DATA.feedback.length,
+      inacc: DATA.feedback.filter(function(f){ return f.type === 'inaccuracy'; }).length,
+      inc: DATA.feedback.filter(function(f){ return f.type === 'incident'; }).length
+    };
+    function tally(f){
+      m.fb++;
+      if(f.type === 'inaccuracy') m.inacc++;
+      if(f.type === 'incident') m.inc++;
+      if(f.sentiment === 'positive') m.pos++;
+      else if(f.sentiment === 'negative') m.neg++;
+      else m.neu++;
+    }
+
+    var html = '';
+    DATA.clients.forEach(function(c){
+      if(state.client !== 'all' && c !== state.client) return;
+
+      var incidents = DATA.feedback.filter(function(f){
+        return f.client === c && !f.report_id && f.type === 'incident' && inWindowDate(f.date) && entryPass(f);
+      });
+      var general = DATA.feedback.filter(function(f){
+        return f.client === c && !f.report_id && f.type !== 'incident' && inWindowDate(f.date) && entryPass(f);
+      });
+      function withEntries(r){
+        return { r:r, entries: DATA.feedback.filter(function(f){ return f.report_id === r.id && entryPass(f, r); }) };
+      }
+      function keepCard(x){
+        if(x.entries.length > 0) return true;
+        if(!entryFiltersActive()) return true;
+        return state.type === 'all' && state.sent === 'all' && matchQ(x.r.campaign, x.r.client, x.r.sent_by);
+      }
+      var dated = DATA.reports
+        .filter(function(r){ return r.client === c && r.period && inWindowPeriod(r.period); })
+        .sort(function(a, b){ return a.period < b.period ? 1 : -1; })
+        .map(withEntries).filter(keepCard);
+      // period:null rows can't be windowed — they always surface, under "Needs review"
+      var undated = DATA.reports
+        .filter(function(r){ return r.client === c && !r.period; })
+        .map(withEntries).filter(keepCard);
+
+      var cards = dated.concat(undated);
+      var visFb = incidents.length + general.length +
+        cards.reduce(function(a, x){ return a + x.entries.length; }, 0);
+      var visInacc = general.concat.apply(general, cards.map(function(x){ return x.entries; }))
+        .filter(function(f){ return f.type === 'inaccuracy'; }).length;
+
+      html += '<section class="client-section"><div class="client-head"><h2>' + esc(c) + '</h2>' +
+        '<span class="client-count">' + plural(cards.length, 'report', 'reports') + ' · ' +
+        plural(visFb, 'feedback item', 'feedback items') +
+        (visInacc ? ' · ' + plural(visInacc, 'inaccuracy', 'inaccuracies') : '') + '</span></div>';
+
+      if(!cards.length && !incidents.length && !general.length){
+        html += '<div class="empty-client">No items in this window.</div></section>';
+        return;
+      }
+
+      incidents.forEach(function(f){
+        tally(f);
+        html += '<div class="incident"><span class="itag">Incident</span><div>' +
+          '<div class="itxt">' + esc(f.verbatim) + '</div>' +
+          '<div class="imeta">Client-level · ' + esc(SRC[f.source] || f.source) + ' · ' +
+            esc(f.author || 'Unattributed') + (f.date ? ' · ' + esc(fmtDate(f.date)) : '') + '</div>' +
+          (f.context ? '<p class="ctx">Note: ' + esc(f.context) + '</p>' : '') +
+        '</div></div>';
+      });
+
+      dated.forEach(function(x){
+        m.reports++;
+        x.entries.forEach(tally);
+        html += reportCard(x, c);
+      });
+
+      if(undated.length){
+        html += '<div class="nr-note">Needs review — period missing in the source sheet</div>';
+        undated.forEach(function(x){
+          m.reports++;
+          x.entries.forEach(tally);
+          html += reportCard(x, c);
+        });
+      }
+
+      if(general.length){
+        html += '<article class="report general-group"><div class="subhead">General feedback — not tied to a report</div>';
+        general.forEach(function(f){ tally(f); html += fbRow(f); });
+        html += '</article>';
+      }
+      html += '</section>';
+    });
+
+    if(m.reports + m.fb === 0){
+      html = '<div class="zero"><p>Nothing matches the current filters.</p>' +
+             '<button class="btn" id="btnZeroClear">Clear filters</button></div>';
+    }
+    document.getElementById('app').innerHTML = html;
+    var zc = document.getElementById('btnZeroClear');
+    if(zc) zc.addEventListener('click', clearAll);
+
+    var filt = anyFilter();
+    function ofN(n, t, cls){
+      return '<span class="val' + (cls ? ' ' + cls : '') + '">' + n +
+        (filt ? ' <span class="of">of ' + t + '</span>' : '') + '</span>';
+    }
+    document.getElementById('metrics').innerHTML =
+      '<div class="metric"><div class="label">Reports on file</div>' + ofN(m.reports, T.reports) + '</div>' +
+      '<div class="metric"><div class="label">Feedback items</div>' + ofN(m.fb, T.fb) + '</div>' +
+      '<div class="metric"><div class="label">Inaccuracies</div>' + ofN(m.inacc, T.inacc, 'red') + '</div>' +
+      '<div class="metric"><div class="label">Incidents</div>' + ofN(m.inc, T.inc, 'amber') + '</div>' +
+      '<div class="metric"><div class="label">Sentiment</div><div class="split">' +
+        '<span class="p">' + m.pos + ' positive</span> · ' +
+        '<span class="n">' + m.neg + (m.neg === 1 ? ' needs improvement' : ' need improvement') + '</span> · ' +
+        '<span class="u">' + m.neu + ' neutral</span></div></div>';
+
+    document.getElementById('btnClear').classList.toggle('show', filt);
+  }
+
+  function clearAll(){
+    state = { client:'all', period:'3m', type:'all', sent:'all', q:'' };
+    document.getElementById('fClient').value = 'all';
+    document.getElementById('fPeriod').value = '3m';
+    document.getElementById('fType').value = 'all';
+    document.getElementById('fSent').value = 'all';
+    document.getElementById('fQ').value = '';
+    build();
+  }
+
+  var cs = document.getElementById('fClient');
+  cs.innerHTML = '<option value="all">All clients</option>' + DATA.clients.map(function(c){
+    return '<option value="' + esc(c) + '">' + esc(c) + '</option>';
+  }).join('');
+
+  // window + freshness line — the reader's first calibration
+  (function(){
+    var gen = new Date(String(DATA.meta.generated_at).slice(0,10) + 'T00:00:00');
+    var days = isNaN(gen) ? 0 : Math.max(0, Math.floor((Date.now() - gen.getTime()) / 86400000));
+    var fresh = days === 0 ? 'refreshed today' : days === 1 ? 'refreshed yesterday' : 'refreshed ' + days + ' days ago';
+    var stale = days > 7 ? ' <span class="stale">— refresh before using in a meeting</span>' : '';
+    document.getElementById('windowLine').innerHTML =
+      'Reporting window ' + esc(fmtDate(DATA.meta.window_start)) + ' – ' +
+      esc(fmtDate(DATA.meta.window_end)) + ' · ' + fresh + stale;
+  })();
+  if(!DATA.meta.sample) document.getElementById('samplePill').remove();
+
+  cs.addEventListener('change', function(){ state.client = this.value; build(); });
+  document.getElementById('fPeriod').addEventListener('change', function(){ state.period = this.value; build(); });
+  document.getElementById('fType').addEventListener('change', function(){ state.type = this.value; build(); });
+  document.getElementById('fSent').addEventListener('change', function(){ state.sent = this.value; build(); });
+  document.getElementById('fQ').addEventListener('input', function(){ state.q = this.value; build(); });
+  document.getElementById('btnClear').addEventListener('click', clearAll);
+  document.getElementById('btnPrint').addEventListener('click', function(){ window.print(); });
+
+  var lg = document.getElementById('btnLog');
+  var sheet = safeUrl(DATA.meta.sheet_url);
+  if(sheet){ lg.addEventListener('click', function(){ window.open(sheet, '_blank', 'noopener'); }); }
+  else { lg.remove(); }
+
+  build();
+})();
+</script>
+</body>
+</html>
