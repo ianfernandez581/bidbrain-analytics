@@ -90,6 +90,21 @@ if (-not (Exists { gcloud secrets describe $SESSION_SECRET --project $PROJECT })
 gcloud secrets add-iam-policy-binding $PW_SECRET      --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT | Out-Null; Must "bind $PW_SECRET to web SA"
 gcloud secrets add-iam-policy-binding $SESSION_SECRET --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT | Out-Null; Must "bind $SESSION_SECRET to web SA"
 
+# The PLATFORM also needs to read this dashboard's password. dashboards.bidbrain.ai proxies the
+# dashboard at /d/geyervalmont/ and logs into the upstream ON THE USER'S BEHALF (main.py
+# _upstream_pw -> _upstream_login), so without secretAccessor for platform-dash-web@ the tile's
+# "Open preview ->" button 500s with PermissionDenied on secretmanager.versions.access - which is
+# EXACTLY what happened on the 2026-08-08 standup. Every other client already had this binding; the
+# template deploy scripts just never included it, so it was being granted out-of-band. Now it is
+# part of the client's own idempotent standup.
+# secretVersionAdder + serviceAccountUser are the super-admin god-mode pair (reveal/rotate the
+# password, open any dashboard) - scripts/enable_super_admin.ps1 grants these for its own $CLIENTS
+# list, and geyervalmont is in it, but granting here too keeps this script self-contained.
+$PLATFORM_SA = "platform-dash-web@${PROJECT}.iam.gserviceaccount.com"
+gcloud secrets add-iam-policy-binding $PW_SECRET --member="serviceAccount:${PLATFORM_SA}" --role="roles/secretmanager.secretAccessor"    --project $PROJECT | Out-Null; Must "bind $PW_SECRET to the platform SA (proxy login)"
+gcloud secrets add-iam-policy-binding $PW_SECRET --member="serviceAccount:${PLATFORM_SA}" --role="roles/secretmanager.secretVersionAdder" --project $PROJECT | Out-Null; Must "bind $PW_SECRET rotate to the platform SA"
+gcloud iam service-accounts add-iam-policy-binding $WEB_SA --member="serviceAccount:${PLATFORM_SA}" --role="roles/iam.serviceAccountUser" --project $PROJECT | Out-Null; Must "grant the platform SA actAs on the web SA"
+
 $SHA = $null
 try { $SHA = (& git rev-parse --short HEAD 2>$null) } catch { $SHA = $null }
 if (-not $SHA -or $LASTEXITCODE -ne 0) { $SHA = "manual-$(Get-Date -Format 'yyyyMMddHHmmss')" }
