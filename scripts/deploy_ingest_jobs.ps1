@@ -2,7 +2,8 @@
 #
 # These are the raw-layer loaders that feed EVERY client dashboard. They replace the old
 # "run the loader from a laptop" step: each lands data in a shared raw_* BigQuery dataset on
-# a daily Cloud Scheduler trigger, staggered BEFORE the 22:00 UTC *-export jobs so every
+# a daily Cloud Scheduler trigger (tradedesk: twice daily - the 01:35 UTC run gets Sydney-yesterday
+# data live by ~midday AEST), staggered BEFORE the 22:00 UTC *-export jobs so every
 # dashboard's nightly export reads fresh raw data.
 #
 #   raw_neto.orders                  <- neto-orders-ingest        (City Perfume sales truth)
@@ -52,7 +53,7 @@ $JOBS = @(
   @{ key="snowflake"; dir="ingest/snowflake_data_pull";         job="snowflake-ingest";         mem="4Gi"; cpu="2"; cron="*/10 * * * *" },
   @{ key="neto";      dir="ingest/neto_data_pull/orders";       job="neto-orders-ingest";       mem="1Gi"; cpu="1"; cron="0 21 * * *"  },
   @{ key="meta";      dir="ingest/windsor_data_pull/meta";      job="windsor-meta-ingest";      mem="1Gi"; cpu="1"; cron="15 21 * * *" },
-  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 21 * * *" },
+  @{ key="tradedesk"; dir="ingest/windsor_data_pull/tradedesk"; job="windsor-tradedesk-ingest"; mem="1Gi"; cpu="1"; cron="35 1,21 * * *" },  # 2nd run 01:35 UTC = 11:35 AEST: pulls Sydney-yesterday same (Sydney) day, halving the dashboard lag (applied live 2026-08-07)
   @{ key="fields";    dir="ingest/windsor_data_pull/fields";    job="windsor-fields-ingest";    mem="1Gi"; cpu="1"; cron="45 21 * * *" },
   @{ key="reddit";    dir="ingest/windsor_data_pull/reddit";    job="windsor-reddit-ingest";    mem="1Gi"; cpu="1"; cron="50 21 * * *" },
   @{ key="linkedin";  dir="ingest/windsor_data_pull/linkedin";  job="windsor-linkedin-ingest";  mem="1Gi"; cpu="1"; cron="40 21 * * *" },
