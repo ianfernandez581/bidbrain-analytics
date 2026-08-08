@@ -156,14 +156,30 @@ Permitted: the branded login, the portal, `/api/status` (already client-scoped),
 logos, the proxied dashboards for their own clients, logout, and the public health/icon routes.
 Every denial is logged (`WARNING external-deny agency=… endpoint=… path=…`).
 
-### Spend figures shown to an external tenant
+### Spend figures shown to an external tenant — BILLED ONLY
 
-An external session receives **RAW media cost**: the markup factor is never injected, so the
-dashboard's gross-up shim is a no-op. This is what closes margin derivation (raw + factor together
-would give the ratio). **Consequence to know:** the external partner therefore sees a *lower*
-figure than the client sees on the same dashboard wherever a multiplier is set. Showing the billed
-figure instead would mean grossing the payload server-side and never shipping raw — a deliberate
-commercial decision, not a code default.
+An external session sees **the same figures the client sees**: the payload is grossed by the markup
+factor **server-side** (`_gross_external_payload`) and no factor is injected, so the dashboard's own
+shim is a no-op and both sessions render identical numbers. Raw media cost is never sent. Every
+derived metric (CPM/CPC/CPL/cost-per-LPV/pacing) follows automatically because the dashboards
+compute them in the browser from these fields.
+
+`_EXTERNAL_SPEND_SPEC` mirrors each dashboard's own shim; a few fields the shims leave raw
+(`geocon.breakdowns[].spend`, `resetdata.ga_audience`) are grossed here too, because a raw figure
+sitting beside a grossed one for the same money gives the ratio by division.
+
+**Fail closed, and it is strict.** A channel with **no factor defined** is SUPPRESSED (`null`),
+never shown raw — as is an unmapped platform, and a blended total whose parts were suppressed.
+So **a channel that genuinely carries no markup must be set to `1` explicitly**; that is a
+deliberate human statement, distinct from "nobody has decided yet". (`clean_multipliers` now stores
+an explicit `1`; it previously discarded it as a no-op.) Practical consequence: a client with no
+multipliers configured shows an external tenant **no spend figures at all** until they are set.
+
+### Whole tabs excluded for an external tenant
+
+`_EXTERNAL_EXCLUDED_BLOCKS` / `_EXTERNAL_EXCLUDED_TABS` remove a tab's **payload and its tab
+button** — currently ResetData's "Signups & CRM", a contractual exclusion (it reports a client's own
+sales operation). Campaign-level lead counts remain in `kpi`/`ad_campaigns` as media performance.
 
 ### Local runs cannot mutate production
 

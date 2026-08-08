@@ -41,16 +41,24 @@ SPEND_CHANNELS = ["google", "meta", "linkedin", "reddit", "ttd", "dv360", "line"
 
 
 def clean_multipliers(raw):
-    """Sanitise a {channel: factor} map: keep only known channels with a positive finite float,
-    drop 1.0 (no-op) so the stored map stays minimal. Returns {} when nothing meaningful is set."""
+    """Sanitise a {channel: factor} map: keep known channels with a positive finite float.
+
+    An explicit 1.0 is now KEPT (it used to be dropped as a no-op). It is numerically a no-op for
+    every dashboard — the gross-up shim multiplies by 1 — but it is not a no-op as a STATEMENT: for
+    an EXTERNAL tenant the platform must show the client-billed figure and suppresses any channel
+    with no factor defined, rather than falling back to raw media cost. Storing 1.0 is therefore how
+    a human says "this channel genuinely carries no markup", which is different from "nobody has
+    decided yet". Blank/invalid entries are still skipped, so an untouched channel stays undefined."""
     out = {}
     for ch in SPEND_CHANNELS:
         v = (raw or {}).get(ch)
+        if v is None or v == "":
+            continue
         try:
             f = float(v)
         except (TypeError, ValueError):
             continue
-        if f > 0 and f == f and f != 1.0:   # f==f rejects NaN; skip 1.0 no-ops
+        if f > 0 and f == f:                # f==f rejects NaN
             out[ch] = round(f, 6)
     return out
 
