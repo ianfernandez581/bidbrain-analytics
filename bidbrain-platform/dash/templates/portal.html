@@ -323,6 +323,9 @@
   .ghostrow .dot{width:8px;height:8px;border-radius:50%;background:#34d399;flex:none}
 </style>
 {% if theme %}
+{# Quiet, client-facing freshness wording on the tiles (see _status_merge.html fillBadges).
+   Themed portals only; every other portal keeps the full verdict chip. #}
+<script>window.BB_QUIET_HEALTH=true;</script>
 <style>
   /* ===========================================================================
      PER-AGENCY THEME OVERRIDE — presentation only, emitted ONLY when the agency
@@ -404,11 +407,74 @@
   body .bbsrc .lb,body .bbsrcper{color:{{ theme.muted }}}
   body .bbsrc .hd{color:{{ theme.text }}}
   body .bbcaret{color:{{ theme.muted }}}
-  /* Agency mark in the top bar: never on a white chip - the supplied art is white-on-black. */
+  /* Agency mark in the top bar. The supplied artwork had a solid black field and no alpha; rather
+     than relying on mix-blend-mode we keyed the field out into a real transparent PNG, so it needs
+     no blend trick and shows no box or halo on any surface. */
   .topbar .agencymark{display:flex;align-items:center}
-  .topbar .agencymark svg{height:22px;width:auto;display:block}
-  .topbar .agencymark img{height:22px;width:auto;display:block;background:transparent}
-  .poweredby{margin:44px 0 0;text-align:center;font-size:10px;letter-spacing:.3em;
+  .topbar .agencymark svg,.topbar .agencymark img{height:20px;width:auto;display:block;background:transparent}
+
+  /* ---------- A2: client marks on the tiles ----------
+     One fixed max-height with width:auto so wildly different aspect ratios (a wide wordmark, a
+     square monogram) sit on the SAME optical line, never stretched or cropped. */
+  .clientmark{display:block;height:26px;max-width:190px;width:auto;object-fit:contain;background:transparent}
+  .clientmark svg{height:26px;width:auto;display:block}
+
+  /* ---------- A1: quiet freshness ----------
+     The shared partial paints this chip red and calls it "Pipeline behind" - control-room language
+     for what is a client-facing display. On a themed portal it becomes a plain muted line: still
+     honest about how current the data is, without the alarm. Healthy and stale now read the SAME
+     way, differing only in the words. The Data Accuracy tab keeps the full, detailed treatment. */
+  body .bbhealth,body .bbhealth.ok,body .bbhealth.warn,body .bbhealth.bad,body .bbhealth.na{
+    background:none;padding:0;margin-top:10px;border-radius:0;
+    font-size:12px;font-weight:500;letter-spacing:.01em;color:{{ theme.muted }}}
+
+  /* ---------- A3: depth ----------
+     Tiles sit IN the ambient field rather than as flat rectangles on top of it: a translucent
+     surface with a soft blur, so the glow behind shows through. */
+  .tile{
+    background:linear-gradient(180deg, rgba(255,255,255,.045), rgba(255,255,255,.015));
+    backdrop-filter:blur(9px) saturate(115%);
+    -webkit-backdrop-filter:blur(9px) saturate(115%);
+    border-color:{{ theme.border }};
+    border-radius:16px;padding:24px 24px 22px;
+    transition:transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
+  }
+  .tile.live:hover{
+    background:linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02));
+    border-color:{{ theme.accent }}66;
+    box-shadow:0 10px 34px rgba(0,0,0,.45), 0 0 22px {{ theme.accent }}14;
+    transform:translateY(-3px);
+  }
+  .tile.soon{opacity:.72}
+  .tile.soon.preview{opacity:1;border-style:dashed;text-decoration:none;color:inherit;display:block}
+  .tile.soon.preview:hover{border-color:{{ theme.accent }}55;transform:translateY(-3px)}
+  .notlive{font-size:11px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+    color:{{ theme.muted }};border:1px solid {{ theme.border }};border-radius:999px;padding:3px 9px}
+
+  /* ---------- A3: typography + rhythm ---------- */
+  .agencylogo{margin-bottom:34px}
+  .agencylogo svg,.agencylogo img{height:44px}
+  h1#bbHero{letter-spacing:-.035em;font-weight:600}
+  .grid{gap:24px}
+  .tile h2{font-size:17.5px;letter-spacing:-.015em}
+  .tile .camps li{padding:5px 0}
+  .openrow{margin-top:18px}
+  .open{font-size:13px;letter-spacing:.005em}
+
+  /* ---------- A3: entrance ----------
+     ONE fade-and-rise, lightly staggered, on load only. `animation-fill-mode:both` holds the final
+     state; nothing re-triggers it on a re-render because the tiles are never re-created. */
+  @keyframes bbTileIn{from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none}}
+  .tile{animation:bbTileIn .36s cubic-bezier(.22,.61,.36,1) both;
+        animation-delay:calc(var(--i,0) * 70ms)}
+
+  /* Reduced motion: final state immediately, no animation, no transition, no layout shift. */
+  @media (prefers-reduced-motion:reduce){
+    .tile{animation:none}
+    .tile,.tile.live:hover,.tile.soon.preview:hover{transition:none;transform:none}
+  }
+
+  .poweredby{margin:52px 0 0;text-align:center;font-size:10px;letter-spacing:.3em;
     text-transform:uppercase;color:rgba(245,242,236,.22);
     font-family:ui-monospace,'SF Mono',Consolas,monospace}
 </style>
@@ -476,9 +542,21 @@
     {% endif %}
     <div class="grid">
       {% for c in clients %}
+        {# Committed per-client mark, else the text name. Never an empty tile header. #}
+        {% set cl = (client_logos or {}).get(c.key) %}
         {% if c.status == 'active' %}
-        <a class="tile live" href="/d/{{ c.key }}/" data-client="{{ c.key }}">
-          <div class="row"><img class="bblogo" src="/logo/{{ c.key }}" alt="" onerror="this.remove()"><h2>{{ c.name }}</h2><span class="pill active">ACTIVE</span></div>
+        <a class="tile live" href="/d/{{ c.key }}/" data-client="{{ c.key }}"{% if theme %} style="--i:{{ loop.index0 }}"{% endif %}>
+          {# Themed portals use the committed client mark (with a text-name fallback). EVERY other
+             agency keeps the original row markup byte-for-byte, including the admin-uploaded
+             /logo/<key> image - dropping it here would have silently removed logos from
+             Transmission's and 100% Digital's tiles. #}
+          <div class="row">{% if theme %}
+            {% if cl and cl.src %}<img class="clientmark" src="{{ cl.src }}" alt="{{ c.name }}"
+                 onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:this.alt}))">
+            {% elif cl and cl.svg %}<span class="clientmark" role="img" aria-label="{{ c.name }}">{{ cl.svg | safe }}</span>
+            {% else %}<h2>{{ c.name }}</h2>{% endif %}
+            <span class="pill active">ACTIVE</span>
+          {% else %}<img class="bblogo" src="/logo/{{ c.key }}" alt="" onerror="this.remove()"><h2>{{ c.name }}</h2><span class="pill active">ACTIVE</span>{% endif %}</div>
           <span class="bbhealth" data-for="{{ c.key }}"></span>
           <ul class="camps">
             {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
@@ -491,6 +569,33 @@
           </div>
         </a>
         {% else %}
+        {% if theme %}
+        {# THEMED portals only. A coming_soon client WITH a dashboard URL becomes a PREVIEW: the
+           bellshakespeare / nextsmile pattern - a deployed dashboard rendering sample data behind
+           its own "not live" banner. It links through the PROXY like any other client (never a raw
+           run.app URL) and stays visually distinct from ACTIVE so it cannot be mistaken for live
+           reporting. A coming_soon client with no url keeps the unlinked treatment.
+           NOTE this is deliberately gated: 100% Digital also holds coming_soon clients WITH urls
+           (Bell Shakespeare, Next Smile, Geyer Valmont), and turning their tiles into links would
+           be a behaviour change outside this brief's scope. #}
+        <a class="tile soon{{ ' preview' if c.url else '' }}"
+           {% if c.url %}href="/d/{{ c.key }}/" data-client="{{ c.key }}"{% endif %}
+           style="--i:{{ loop.index0 }}">
+          <div class="row">
+            {% if cl and cl.src %}<img class="clientmark" src="{{ cl.src }}" alt="{{ c.name }}"
+                 onerror="this.replaceWith(Object.assign(document.createElement('h2'),{textContent:this.alt}))">
+            {% elif cl and cl.svg %}<span class="clientmark" role="img" aria-label="{{ c.name }}">{{ cl.svg | safe }}</span>
+            {% else %}<h2>{{ c.name }}</h2>{% endif %}
+            <span class="pill soon">{{ 'PREVIEW' if c.url else 'COMING SOON' }}</span>
+          </div>
+          <ul class="camps">
+            {% for cm in c.campaigns %}<li><span class="path">{{ cm.path }}</span> {{ cm.name }}</li>{% endfor %}
+          </ul>
+          {% if c.url %}<div class="openrow"><span class="open">Preview →</span>
+            <span class="notlive">Sample data</span></div>
+          {% else %}<div class="open" style="color:var(--muted)">{{ c.note or 'Not yet available' }}</div>{% endif %}
+        </a>
+        {% else %}
         <div class="tile soon">
           <div class="row"><h2>{{ c.name }}</h2><span class="pill soon">COMING SOON</span></div>
           <ul class="camps">
@@ -498,6 +603,7 @@
           </ul>
           <div class="open" style="color:var(--muted)">{{ c.note or 'Not yet available' }}</div>
         </div>
+        {% endif %}
         {% endif %}
       {% endfor %}
     </div>

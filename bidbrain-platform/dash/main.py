@@ -175,6 +175,32 @@ def _load_agency_logos():
 AGENCY_LOGOS = _load_agency_logos()
 
 
+# Per-CLIENT logos shipped in the repo, inlined into the portal tiles. Separate from the
+# admin-uploaded `/logo/<client>` route (which reads the GCS bucket and stays untouched): these are
+# committed assets, so a portal never depends on someone having uploaded one. Drop a
+# `clientlogo_<key>.png/.svg/.jpg` beside this file and the Dockerfile's wildcard ships it.
+# A client with NO file simply isn't in the map, and the template falls back to its text name -
+# there is never an empty tile header.
+def _load_client_logos():
+    here = Path(__file__).resolve().parent
+    logos = {}
+    for f in here.glob("clientlogo_*"):
+        key = f.stem[len("clientlogo_"):]
+        try:
+            if f.suffix == ".svg":
+                logos[key] = {"svg": f.read_text(encoding="utf-8")}
+            elif f.suffix in (".jpg", ".jpeg", ".png"):
+                mime = "png" if f.suffix == ".png" else "jpeg"
+                logos[key] = {"src": f"data:image/{mime};base64,"
+                                     + base64.b64encode(f.read_bytes()).decode()}
+        except OSError:
+            pass
+    return logos
+
+
+CLIENT_LOGOS = _load_client_logos()
+
+
 # --- Per-agency portal THEME (presentation only) --------------------------------------------
 # PURELY COSMETIC: a token map the portal template paints into a scoped <style> override. An agency
 # with NO entry here gets NO override block emitted at all, so every other portal renders
@@ -428,6 +454,9 @@ def home():
                                # without an entry, and the template then emits NO override block -
                                # so those portals are byte-identical to before.
                                theme=AGENCY_THEMES.get(agency["slug"]),
+                               # Committed per-client marks for the tiles; a client without one
+                               # falls back to its text name in the template.
+                               client_logos=CLIENT_LOGOS,
                                admin_return=session.get("admin_return"))
         return _fill_feedback_loop(page)
     if kind == "client":
