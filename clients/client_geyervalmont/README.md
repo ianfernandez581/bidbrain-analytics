@@ -70,6 +70,24 @@ explicit border (the donuts use white) are left alone.
   this service always serves directly) and the AI deck builder. The dashboard favicon is derived from
   the already-inlined mark at runtime rather than embedding the artwork a third time.
 
+## Gotcha: the platform proxy needs to read this client's password
+
+`dashboards.bidbrain.ai/d/geyervalmont/` proxies this dashboard and **logs into it on the user's
+behalf** (`bidbrain-platform/dash/main.py` → `_upstream_pw` → `_upstream_login`). So
+`platform-dash-web@` needs `roles/secretmanager.secretAccessor` on `geyervalmont-dash-password`.
+Without it the portal tile's "Open preview →" returns a bare **500 Internal Server Error** —
+`PermissionDenied: 403 secretmanager.versions.access` in the platform-dash logs, nothing in this
+client's own logs, because the request never reaches this service.
+
+That bit on the 2026-08-08 standup: every other client already had the binding, but the template
+deploy scripts never granted it (it was being done out-of-band), so a brand-new client silently
+lacked it. `deploy_geyervalmont.ps1` now grants it, along with the god-mode pair
+(`secretVersionAdder` on the password + `iam.serviceAccountUser` on the web SA) that lets the
+super-admin console reveal/rotate the password. `geyervalmont` was also added to `$CLIENTS` in
+`scripts/enable_super_admin.ps1`, which is where those god-mode grants are maintained centrally.
+
+**If a new client's tile 500s, check this binding first** — it is not a code bug.
+
 ## Preview mechanism
 
 Identical to Bell Shakespeare / Next Smile — nothing here is bespoke:
