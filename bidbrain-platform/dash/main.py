@@ -332,6 +332,24 @@ def _establish_session(kind, payload, json_mode=False, next_path=None):
     return _set_sso(resp, allowed)
 
 
+# ── Feedback Loop (Transmission-only portal tab) ─────────────────────────────────────────────
+# The pane renders INLINE in portal.html (templates/_feedback_loop_pane.html, a sibling .bbpane —
+# not an iframe), so the portal's background, cursor glow and hover feel run across it unbroken.
+# Canonical source is prototypes/transmission-feedback-v0/; re-vendor with its
+# make_portal_template.py after any edit. The template carries a __FEEDBACK_DATA_JSON__ sentinel
+# that this fills at request time; it is a no-op for any agency whose portal omits the pane.
+# v0 ships SAMPLE DATA ONLY (synthetic, meta.sample=true), baked into the image beside the
+# template. REAL-DATA SWAP (client verbatims never enter git): read the refresh output from GCS
+# here instead, same pattern as the client dashboards, e.g.
+#   data_json = _gcs_bucket(_PLATFORM_BUCKET).blob("feedback-loop/data.json").download_as_text()
+def _fill_feedback_loop(page):
+    if "__FEEDBACK_DATA_JSON__" not in page:
+        return page
+    data_json = (_HERE / "templates" / "feedback_loop_sample.json").read_text(encoding="utf-8")
+    # "</" is escaped so untrusted text inside the JSON can never close the <script> block early
+    return page.replace("__FEEDBACK_DATA_JSON__", data_json.replace("</", "<\\/"))
+
+
 def _tools_tiles():
     """The internal-tools tile list (config.TOOLS) for the admin tree + super-admin console.
     Empty unless TOOLS is populated, so the '{% if tools %}' block stays hidden otherwise."""
@@ -354,7 +372,7 @@ def home():
             session.clear()
             return _login_page()
         clients = store.agency_clients(agency)
-        return render_template("portal.html", logo_svg=LOGO_SVG,
+        page = render_template("portal.html", logo_svg=LOGO_SVG,
                                agency={"name": agency["name"], "slug": agency["slug"]},
                                agency_logo=AGENCY_LOGOS.get(agency["slug"]),
                                clients=clients,
@@ -371,6 +389,7 @@ def home():
                                show_sync=agency_setting(agency, "show_sync"),
                                show_grid_brain=agency_setting(agency, "show_grid_brain"),
                                admin_return=session.get("admin_return"))
+        return _fill_feedback_loop(page)
     if kind == "client":
         key = session.get("client_key")
         if key:

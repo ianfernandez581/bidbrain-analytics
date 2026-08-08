@@ -360,6 +360,7 @@
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
       {% if show_grid_brain %}<button class="bbtab" data-pane="grid">The Grid</button>
       <button class="bbtab" data-pane="brain">The Brain</button>{% endif %}
+      {% if agency.slug == 'transmission' %}<button class="bbtab" data-pane="feedbackloop">Feedback Loop</button>{% endif %}
     </div>
     <div class="bbpane on" id="pane-overview">
     {% if show_sync %}
@@ -430,6 +431,9 @@
       </div>
     </div>
     {% endif %}
+    {# Feedback Loop renders INLINE as a sibling .bbpane (not an iframe), so the portal's
+       own background, cursor glow and hover feel continue across it unbroken. #}
+    {% if agency.slug == 'transmission' %}{% include "_feedback_loop_pane.html" %}{% endif %}
   </div>
   {% include "_status_merge.html" %}
 
