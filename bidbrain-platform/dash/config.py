@@ -33,6 +33,10 @@ ADMIN_PW = os.environ.get("ADMIN_PW", "bidbrain-admin-2026")
 SUPER_ADMIN_PW = os.environ.get("SUPER_ADMIN_PW", "")
 AGENCY_100D_PW = os.environ.get("AGENCY_100D_PW", "100d2026")
 AGENCY_TRANSMISSION_PW = os.environ.get("AGENCY_TRANSMISSION_PW", "transmission2026")
+# Extrablack has NO committed default on purpose (same fail-closed posture as SUPER_ADMIN_PW):
+# empty => the extrablack login can never succeed until a real password is injected via this env
+# at seed time, or set live in the super-admin console (registry hash). Never commit a real value.
+AGENCY_EXTRABLACK_PW = os.environ.get("AGENCY_EXTRABLACK_PW", "")
 
 # --- Google sign-in (native "Sign in with Google" alongside the password box) --------------
 # A user can log in EITHER with a password (above) OR with their Google account. Google login is
@@ -162,6 +166,19 @@ CLIENTS = {
             {"name": "Consult Bookings", "path": "/all-on-4", "status": "coming_soon"},
         ],
     },
+    # Onboarding (Extrablack): no dashboard built yet — a pure COMING SOON tile, wired exactly like
+    # bellshakespeare/nextsmile (status coming_soon, disabled link). `show_pending_row` additionally
+    # gives it a greyed "awaiting connection" row on the Data Accuracy tab (the ONLY client with the
+    # flag — spec-less clients WITHOUT it, e.g. bellshakespeare/nextsmile, keep today's no-row look).
+    "geyervalmont": {
+        "name": "Geyer Valmont", "slug": "geyer-valmont", "status": "coming_soon",
+        "url": "",
+        "note": "Dashboard in build - the structure is on its way.",
+        "show_pending_row": True,
+        "campaigns": [
+            {"name": "Workplace", "path": "/workplace", "status": "coming_soon"},
+        ],
+    },
     "schneider": {
         "name": "Schneider Electric", "slug": "schneider-electric", "status": "active",
         "url": _runapp("schneider"),
@@ -218,6 +235,27 @@ AGENCIES = [
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
         "clients": ["schneider", "schneiderlqai", "cloudflare", "proptrack", "mongodb", "stt"],
+    },
+    # Extrablack — the first EXTERNAL tenant (an outside company, not part of 100% Digital).
+    #
+    # `external: True` is the ONLY switch needed: it resolves EVERY optional per-agency setting to
+    # its restrictive value (see store.EXTERNAL_SAFE_DEFAULTS) — no sync trigger, no Grid/Brain
+    # tabs or pacing snapshot, no staff Internal Notes/Assistant, no AI deck generator, no
+    # definitions edit/deploy, no check SQL or internal note text, no feedback endpoint, no
+    # client-billed markup factor, and payload scrubbing of named individuals. It ALSO puts the
+    # session on a deny-by-default route allowlist (main.py _EXTERNAL_ALLOWED_ENDPOINTS), so any
+    # route added in future is closed to external tenants until explicitly opened.
+    # Adding the next external agency is this one flag. Per-setting overrides remain possible for
+    # a genuine exception (e.g. "allow_feedback": True alongside "external": True).
+    #
+    # DUAL VISIBILITY: geocon + resetdata stay in 100% Digital above AND appear here — one client
+    # record referenced by two agencies' client_keys, never duplicated.
+    # google_allowlist=[] is the INERT v1 Google seam (store.resolve_email); empty = can't fire.
+    {
+        "name": "Extrablack", "slug": "extrablack", "password": AGENCY_EXTRABLACK_PW,
+        "clients": ["geocon", "resetdata", "geyervalmont"],
+        "external": True,
+        "google_allowlist": [],
     },
 ]
 

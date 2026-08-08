@@ -41,7 +41,7 @@ import feedback
 import feedback_ai
 import internal_notes
 import internal_chat
-from store import Store
+from store import Store, verify_pw, is_external, agency_setting
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]            # platform's own session (separate from SSO)
@@ -109,6 +109,33 @@ MICROSOFT_TENANT = os.environ.get("MICROSOFT_OAUTH_TENANT", "") or getattr(cfg, 
 # Microsoft login is live only when BOTH are set (single-tenant needs the tenant).
 MICROSOFT_ENABLED = bool(MICROSOFT_CLIENT_ID and MICROSOFT_TENANT)
 _MS_JWKS_CLIENT = None   # lazily-built, cached jwt.PyJWKClient (fetches + caches the tenant's signing keys)
+
+
+# --- Local-run safety: never mutate PRODUCTION from a laptop -------------------------------
+# A local run (DEV=1) still authenticates with REAL application-default credentials and reads
+# REAL buckets/secrets — so a state-changing call (a Cloud Run `jobs:run`, a definitions write,
+# a password rotation) reaches PRODUCTION exactly as it would from the deployed service. That is
+# how a routine endpoint probe once fired seven live export jobs. Every such call now routes
+# through _prod_mutation_blocked() and FAILS LOUDLY on a local run.
+#   - Blocks: triggering export/deploy jobs, writing staged definitions, rotating passwords,
+#     uploading logos, saving feedback — i.e. anything that writes outside this process.
+#   - Does NOT block: reads. A local run still shows live data (that is what makes it useful for
+#     review), so treat anything you SEE locally as production truth.
+#   - Deliberate override for a real operator task: ALLOW_PROD_MUTATIONS=1.
+_LOCAL_RUN = os.environ.get("DEV") == "1"
+_ALLOW_PROD_MUTATIONS = os.environ.get("ALLOW_PROD_MUTATIONS") == "1"
+
+
+def _prod_mutation_blocked(what):
+    """Return a 503 response when a local run must not mutate production, else None."""
+    if _LOCAL_RUN and not _ALLOW_PROD_MUTATIONS:
+        app.logger.error("BLOCKED production mutation from a local run: %s", what)
+        return jsonify(
+            ok=False, blocked=True,
+            error=(f"Blocked: '{what}' would change PRODUCTION from a local run. "
+                   "Re-run with ALLOW_PROD_MUTATIONS=1 only if that is genuinely intended."),
+        ), 503
+    return None
 
 
 @app.after_request
@@ -188,6 +215,59 @@ def _clear_sso(resp):
     resp.set_cookie(platform_sso.COOKIE_NAME, "", expires=0,
                     domain=COOKIE_DOMAIN or None, path="/")
     return resp
+
+
+# ── EXTERNAL tenants: deny every route by default ──────────────────────────────────────────
+# An external agency (store.is_external) may reach ONLY the endpoints named here. This is keyed on
+# Flask ENDPOINT NAMES (the view function), not URL strings, so a route added in future is CLOSED
+# to external tenants until someone deliberately adds it to this set — unknown surface is shut by
+# construction rather than by remembering to gate it. Every denial is logged.
+#
+# What is permitted, and why: the branded login, the portal shell, the Data Accuracy data
+# (/api/status, already scoped to the session's own clients), their own clients' logos, the
+# proxied dashboards for their own clients (the proxy independently enforces _may_open), logout,
+# and the public health/icon routes.
+_EXTERNAL_ALLOWED_ENDPOINTS = frozenset({
+    "home", "logout", "healthz", "static",
+    "login", "extrablack_login_form", "extrablack_login", "auth_google", "auth_microsoft",
+    "api_status", "client_logo", "proxy",
+    "favicon_ico", "favicon_png", "apple_touch_icon",
+})
+
+# Proxy sub-paths an external tenant may NOT request on a dashboard it can otherwise open.
+# `report` runs the paid AI deck generator server-side; the button is already suppressed for
+# external tenants, and this closes the direct call behind it.
+_EXTERNAL_BLOCKED_SUBPATHS = frozenset({"report"})
+
+
+def _session_agency():
+    """The registry agency dict for an agency session, else None (admin/super/client/anon)."""
+    if session.get("kind") != "agency":
+        return None
+    return store.get_agency(session.get("agency_slug", ""))
+
+
+def _is_external_session():
+    return is_external(_session_agency())
+
+
+def _ext_setting(name):
+    """Resolve a per-agency setting for the CURRENT session. Admin/super/client sessions and
+    internal agencies resolve to today's (permissive) behaviour."""
+    return agency_setting(_session_agency(), name)
+
+
+@app.before_request
+def _external_deny_by_default():
+    a = _session_agency()
+    if not is_external(a):
+        return None                      # internal agency / admin / client / anonymous: unchanged
+    ep = request.endpoint or ""
+    if ep in _EXTERNAL_ALLOWED_ENDPOINTS:
+        return None
+    app.logger.warning("external-deny agency=%s endpoint=%s method=%s path=%s",
+                       a.get("slug"), ep or "<unmatched>", request.method, request.path)
+    return jsonify(ok=False, error="Not available for this account."), 403
 
 
 def _require_admin():
@@ -277,8 +357,18 @@ def home():
                                agency={"name": agency["name"], "slug": agency["slug"]},
                                agency_logo=AGENCY_LOGOS.get(agency["slug"]),
                                clients=clients,
-                               slides_clients=list(SLIDES_CLIENTS),
+                               # AI deck generator: suppressed for external tenants (paid runs,
+                               # and it writes narrative commentary in our voice). Empty list =>
+                               # the button renders for no client.
+                               slides_clients=(list(SLIDES_CLIENTS)
+                                               if agency_setting(agency, "show_slides") else []),
                                google_client_id=GOOGLE_CLIENT_ID,
+                               # Per-agency settings resolved by agency TYPE (store.agency_setting):
+                               # internal agencies get today's values; an `external` agency gets the
+                               # restrictive ones - no sync trigger, no Grid/Brain tabs (and no
+                               # pacing snapshot in the page source).
+                               show_sync=agency_setting(agency, "show_sync"),
+                               show_grid_brain=agency_setting(agency, "show_grid_brain"),
                                admin_return=session.get("admin_return"))
     if kind == "client":
         key = session.get("client_key")
@@ -296,6 +386,107 @@ def login():
         return _login_page("Incorrect password."), 401
     return _establish_session(kind, payload,
                               next_path=_safe_next(request.form.get("next", "")))
+
+
+# ── Extrablack branded login (dashboards.bidbrain.ai/extrablack) ────────────────────────────
+# A SEPARATE, fully-branded login page for the Extrablack agency (black field / amber glow /
+# services rail, per the approved concept mock). It verifies the typed password against ONLY the
+# extrablack agency's registry hash — never resolve_password — so a Transmission/admin password
+# typed here is rejected rather than silently opening a different tier. A correct password
+# establishes the exact same agency session the main login would (_establish_session), so the
+# portal, /api/status scoping and the /d/<client>/ proxy behave identically from there on.
+# Google sign-in for Extrablack rides the MAIN login page via the agency `google_allowlist`
+# (store.resolve_email) once emails are added — this page stays password-only by design.
+def _extrablack_login_page(error=None, status=200):
+    resp = make_response(render_template("extrablack_login.html", error=error), status)
+    # Belt-and-braces with the page's own <meta name="robots">: this URL is public and, being
+    # named for the tenant, is guessable. Keep it out of search indexes entirely.
+    resp.headers["X-Robots-Tag"] = "noindex, nofollow, noarchive"
+    return resp
+
+
+# --- failed-login throttle for /extrablack --------------------------------------------------
+# One shared password guards an outside company's portal on a public URL, so unlimited guessing
+# is the wrong default. After _LOGIN_MAX_FAILS failures from one IP inside _LOGIN_WINDOW, that IP
+# is locked out for _LOGIN_LOCKOUT and every attempt is logged.
+#
+# LIMITS, STATED PLAINLY: this counter is per PROCESS and in memory. Cloud Run runs several
+# instances, so the effective limit is (instances x _LOGIN_MAX_FAILS), and a restart clears it.
+# It stops casual and scripted guessing; it is NOT a substitute for edge rate-limiting
+# (Cloudflare WAF on dashboards.bidbrain.ai), which remains the real control.
+_LOGIN_MAX_FAILS = 5
+_LOGIN_WINDOW = 15 * 60
+_LOGIN_LOCKOUT = 15 * 60
+_login_fails = {}          # ip -> [count, window_started_at, locked_until]
+
+
+def _client_ip():
+    fwd = request.headers.get("X-Forwarded-For", "")
+    return (fwd.split(",")[0].strip() if fwd else request.remote_addr) or "?"
+
+
+def _login_locked(ip):
+    """Seconds remaining on a lockout, or 0."""
+    rec = _login_fails.get(ip)
+    if not rec:
+        return 0
+    now = time.time()
+    if rec[2] > now:
+        return int(rec[2] - now)
+    if now - rec[1] > _LOGIN_WINDOW:      # window elapsed with no lockout -> forget it
+        _login_fails.pop(ip, None)
+    return 0
+
+
+def _login_note_failure(ip):
+    now = time.time()
+    rec = _login_fails.get(ip)
+    if not rec or now - rec[1] > _LOGIN_WINDOW:
+        rec = [0, now, 0.0]
+    rec[0] += 1
+    if rec[0] >= _LOGIN_MAX_FAILS:
+        rec[2] = now + _LOGIN_LOCKOUT
+        app.logger.warning("extrablack login LOCKED OUT ip=%s after %d failures", ip, rec[0])
+    else:
+        app.logger.warning("extrablack login failed ip=%s (%d/%d in window)",
+                           ip, rec[0], _LOGIN_MAX_FAILS)
+    _login_fails[ip] = rec
+
+
+def _extrablack_login_page_locked(secs):
+    mins = max(1, secs // 60)
+    return _extrablack_login_page(
+        f"Too many incorrect attempts. Try again in about {mins} minute"
+        f"{'' if mins == 1 else 's'}.", status=429)
+
+
+@app.get("/extrablack")
+def extrablack_login_form():
+    if session.get("kind") == "agency" and session.get("agency_slug") == "extrablack":
+        return redirect("/")
+    return _extrablack_login_page()
+
+
+@app.post("/extrablack")
+def extrablack_login():
+    ip = _client_ip()
+    locked = _login_locked(ip)
+    if locked:
+        app.logger.warning("extrablack login attempt while locked out ip=%s", ip)
+        return _extrablack_login_page_locked(locked)
+    pw = request.form.get("password", "")
+    a = store.get_agency("extrablack")
+    # Fail closed: no agency, no stored hash (password never set), or a wrong password all land
+    # on the same message. verify_pw rejects an empty stored hash, so an unconfigured agency can
+    # never be opened with an empty/any password.
+    if not (a and pw and verify_pw(pw, a.get("password_hash", ""))):
+        _login_note_failure(ip)
+        if _login_locked(ip):
+            return _extrablack_login_page_locked(_LOGIN_LOCKOUT)
+        return _extrablack_login_page("Incorrect password.", status=401)
+    _login_fails.pop(ip, None)           # clean slate on success
+    app.logger.info("extrablack login ok ip=%s", ip)
+    return _establish_session("agency", a)
 
 
 @app.post("/auth/google")
@@ -420,6 +611,11 @@ def feedback_submit():
     client = (request.form.get("client") or "").strip()
     if not client or not _may_open(client):
         return jsonify(ok=False, error="not allowed"), 403
+    if not _ext_setting("allow_feedback"):     # external tenants: widget suppressed + route closed
+        return jsonify(ok=False, error="not allowed"), 403
+    blocked = _prod_mutation_blocked("save feedback")
+    if blocked:
+        return blocked
     text = request.form.get("text") or ""
     audio_bytes, audio_ctype = None, ""
     f = request.files.get("audio")
@@ -920,9 +1116,15 @@ def _has_definitions(client):
 
 
 def _can_edit(client):
-    """Editing is OPEN: anyone who can OPEN the client may edit its definitions (the only hard gate
-    is a typed name). _may_open already encodes per-role visibility; _EDIT_ROLES is the broad knob."""
-    return session.get("kind") in _EDIT_ROLES and _may_open(client)
+    """Editing is OPEN to internal tiers: anyone who can OPEN the client may edit its definitions
+    (the only hard gate is a typed name). _may_open encodes per-role visibility; _EDIT_ROLES is the
+    broad knob. EXTERNAL tenants are excluded outright — staging a definitions edit and deploying
+    it re-runs privileged export jobs, which an outside agency must never reach.
+    (NOTE for review: internal AGENCY sessions can still reach this, which is pre-existing and
+    deliberate — Transmission edits Cloudflare's CS definitions from the Data Accuracy tab. Whether
+    that should become admin-only is a separate decision, flagged in the exposure notes.)"""
+    return (session.get("kind") in _EDIT_ROLES and _may_open(client)
+            and _ext_setting("edit_definitions"))
 
 
 def _run_status_deploy(client):
@@ -950,6 +1152,56 @@ def _append_audit(client, name, action):
         app.logger.exception("audit append failed")
 
 
+def _pretty_source(name):
+    """'raw_windsor.perf_meta' -> 'meta'. Strips the internal dataset/table naming an external
+    tenant has no business seeing (the browser already displays it this way)."""
+    s = str(name or "")
+    if "." in s:
+        s = s.split(".", 1)[1]
+    return s[5:] if s.startswith("perf_") else s
+
+
+def _status_entry_for_external(c):
+    """Rebuild ONE status.json client entry from an explicit ALLOW-LIST of fields for an external
+    tenant. Allow-list, not blocklist: a field added to status.json in future does not silently
+    start shipping to an outside agency.
+
+    Dropped deliberately:
+      - `snowflake_query` — the full check SQL: internal dataset/table names, platform account and
+        advertiser IDs, and our filtering logic. A readable map of the warehouse.
+      - `note` — written for our own engineers. ResetData's Reddit note states in plain English
+        that Reddit spend carries a x2 agency markup: a direct margin disclosure.
+      - `error` / `computed_at` — internal diagnostics.
+      - `freshness.transmission_tables`, `ingest_label` — internal table names and pipeline wording.
+      - per-source table names are prettified (see _pretty_source).
+    Kept: exactly what the Data Accuracy chips and metric table need to render truthfully."""
+    f = c.get("freshness") or {}
+    out = {
+        "client": c.get("client"), "label": c.get("label"),
+        "source_label": c.get("source_label"),
+        "freshness": {
+            "verdict": f.get("verdict"),
+            "build_at": f.get("build_at"),
+            "ingest_latest": f.get("ingest_latest"),
+            "data_through": f.get("data_through"),
+            "source_data_through": f.get("source_data_through"),
+            "source_dates": [{"source": _pretty_source(s.get("source")),
+                              "data_through": s.get("data_through")}
+                             for s in (f.get("source_dates") or [])],
+        },
+        "accuracy": [{
+            "label": k.get("label"), "group": k.get("group", ""),
+            "metric_kind": k.get("metric_kind"),
+            "snowflake_value": k.get("snowflake_value"),
+            "dashboard_value": k.get("dashboard_value"),
+            "match": k.get("match"),
+        } for k in (c.get("accuracy") or [])],
+    }
+    if c.get("stale_carryforward"):
+        out["stale_carryforward"] = True
+    return out
+
+
 @app.get("/api/status")
 def api_status():
     """status.json filtered to the clients this session may open, + per-client edit/definitions flags.
@@ -958,11 +1210,26 @@ def api_status():
         abort(403)
     doc = _status_doc()
     clients = [c for c in doc.get("clients", []) if _may_open(c.get("client", ""))]
+    if not _ext_setting("show_check_internals"):
+        clients = [_status_entry_for_external(c) for c in clients]
     flags = {c["client"]: {"can_edit": _can_edit(c["client"]), "has_definitions": _has_definitions(c["client"])}
              for c in clients if c.get("client")}
+    # Opt-in placeholders: registry clients flagged `show_pending_row` that have NO status.json
+    # entry render as a greyed "awaiting connection" row on the Data Accuracy tab (geyervalmont).
+    # Explicitly per-client so other spec-less clients (bellshakespeare/nextsmile) keep today's
+    # no-row behaviour; still scoped through _may_open like everything else. Best-effort — a
+    # registry read failure must not take down the status API.
+    pending = []
+    try:
+        have = {c.get("client") for c in clients}
+        for key, c in store._all_clients().items():
+            if c.get("show_pending_row") and key not in have and _may_open(key):
+                pending.append({"client": key, "label": c.get("name", key)})
+    except Exception:
+        app.logger.exception("pending-row scan failed")
     return jsonify(generated_at=doc.get("generated_at"),
                    tolerance_minutes=doc.get("tolerance_minutes"),
-                   clients=clients, flags=flags)
+                   clients=clients, flags=flags, pending=pending)
 
 
 def _icon_response(data, ctype):
@@ -991,8 +1258,15 @@ def apple_touch_icon():
 
 @app.get("/logo/<client>")
 def client_logo(client):
-    """Stream a client's uploaded logo from the platform bucket (any logged-in session). 404 if none."""
+    """Stream a client's uploaded logo from the platform bucket. 404 if none.
+
+    Scoping: admin/super may fetch any client's logo (the admin tree and super console list every
+    client). An AGENCY or CLIENT session is limited to clients it may open — previously any
+    logged-in session could fetch any client's logo, which leaked nothing but the mark itself and
+    is closed here."""
     if session.get("kind") not in _EDIT_ROLES:
+        abort(403)
+    if session.get("kind") not in ("admin", "superadmin") and not _may_open(client):
         abort(403)
     try:
         blob = _gcs_bucket(_PLATFORM_BUCKET).blob(f"logos/{client}")
@@ -1020,6 +1294,9 @@ def api_client_logo():
     ctype = f.mimetype or "image/png"
     if not ctype.startswith("image/"):
         return jsonify(ok=False, error="File must be an image."), 400
+    blocked = _prod_mutation_blocked(f"upload logo for {client}")
+    if blocked:
+        return blocked
     try:
         _gcs_bucket(_PLATFORM_BUCKET).blob(f"logos/{client}").upload_from_string(data, content_type=ctype)
     except Exception as e:
@@ -1051,6 +1328,9 @@ def stage_definitions(client):
         return jsonify(ok=False, error="Your name is required - it is recorded as the editor."), 400
     if not isinstance(defs, dict):
         return jsonify(ok=False, error="Invalid definitions payload."), 400
+    blocked = _prod_mutation_blocked(f"stage definitions for {client}")
+    if blocked:
+        return blocked
     live = _read_definitions(client) or {}
     for k in ("client", "dataset", "source_table_snowflake", "mirror_table_bigquery",
               "_seed_spec", "_smoke_views"):
@@ -1078,6 +1358,9 @@ def deploy_definitions(client):
     staged = _read_definitions(client, staged=True)
     if staged is None:
         return jsonify(ok=False, error="Nothing staged - save your edits first."), 400
+    blocked = _prod_mutation_blocked(f"deploy definitions for {client} (runs status-deploy)")
+    if blocked:
+        return blocked
     try:
         _run_status_deploy(client)
     except Exception as e:
@@ -1100,6 +1383,17 @@ def sync_all():
     next few minutes and the Overview timestamps reset as each finishes."""
     if session.get("kind") not in _EDIT_ROLES:
         abort(403)
+    # Defence in depth: the before_request allowlist already denies this endpoint to an external
+    # tenant. This second, local check means the endpoint stays closed even if that allowlist is
+    # ever bypassed or an external session reaches it by another path — an outside agency must
+    # never be able to start ANOTHER agency's export pipeline.
+    if not _ext_setting("show_sync"):
+        app.logger.warning("sync-all denied for external agency=%s",
+                           session.get("agency_slug", ""))
+        return jsonify(ok=False, error="Not available for this account."), 403
+    blocked = _prod_mutation_blocked("sync-all (runs every export job)")
+    if blocked:
+        return blocked
     import google.auth
     from google.auth.transport.requests import AuthorizedSession
     creds, _ = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
@@ -1302,6 +1596,9 @@ def super_dashboard_password():
     pw = (d.get("password") or "").strip()
     if not client or not pw:
         return jsonify(ok=False, error="Dashboard and password required."), 400
+    blocked = _prod_mutation_blocked(f"rotate {client}-dash-password (Secret Manager + service restart)")
+    if blocked:
+        return blocked
     if client not in store.active_client_keys():
         return jsonify(ok=False, error="Unknown or inactive dashboard."), 404
     try:
@@ -1824,7 +2121,15 @@ def _spend_mult_script(client):
     per-channel spend multiplier as window.BB_SPEND_MULT (client-billed "spent to date" vs real
     media cost). The dashboard's vendored gross-up shim reads it. {} when unset → shim is a no-op."""
     import json
-    m = store.get_spend_multipliers(client)          # {} when the super admin hasn't set one
+    # EXTERNAL tenants never receive the markup factor. It is the ratio between what we pay the
+    # platform and what the client is billed, so shipping it alongside the raw spend in data.json
+    # would let an outside agency derive our margin exactly. Suppressed at the SOURCE (nothing is
+    # injected), not merely hidden in the UI.
+    # CONSEQUENCE, FLAGGED FOR A COMMERCIAL DECISION: with no factor the dashboard renders RAW
+    # media cost, which is what we pay - NOT the grossed figure the client sees on the same
+    # dashboard. Showing the billed figure instead would mean grossing the payload server-side
+    # (and never shipping raw). See EXTRABLACK_EXPOSURE_2.md - "Commercial decisions".
+    m = {} if not _ext_setting("show_spend_multiplier") else store.get_spend_multipliers(client)
     payload = json.dumps(m).encode()
     return (b"<script>window.BB_SPEND_MULT=Object.assign(window.BB_SPEND_MULT||{}," + payload
             + b");</script>")
@@ -1850,7 +2155,18 @@ def _dev_flag_script():
 # Gemini turn over the dashboard's LIVE data.json + a committed lineage digest (internal_chat.py),
 # with tool access to the same notes.
 def _internal_allowed(client):
-    return session.get("kind") in ("superadmin", "admin", "agency") and _may_open(client)
+    kind = session.get("kind")
+    if kind in ("superadmin", "admin"):
+        return _may_open(client)
+    if kind == "agency":
+        # Dual-visibility gate: an EXTERNAL agency never receives the staff-only Internal Notes +
+        # Assistant widget — it exposes internal team notes and discusses raw-vs-billed spend
+        # openly, which must not reach an outside agency that merely shares visibility of a
+        # client. Internal agencies are unaffected (resolves True).
+        if not _ext_setting("internal_notes"):
+            return False
+        return _may_open(client)
+    return False
 
 
 def _actor():
@@ -2049,6 +2365,50 @@ def _may_open(client):
     return False
 
 
+# --- Payload scrubbing for EXTERNAL tenants -------------------------------------------------
+# The dashboards' data.json is built for the OWNING agency and the client, so it carries fields an
+# outside partner should not receive. These are removed from the PAYLOAD in transit (not hidden in
+# the UI), so they are absent from the network response, the browser and any CSV the page exports.
+#
+# WHY A BLOCK-LIST HERE, when everything else in this pass is deny-by-default: the payload is 27
+# top-level blocks of dashboard data whose whole purpose is to be rendered. An allow-list of field
+# names would have to enumerate ~250 metric fields per client and would silently blank a chart the
+# first time a dashboard added a metric - failing unsafe in the OTHER direction (a broken client
+# deliverable). So: named fields are removed, AND anything that merely LOOKS like a person or an
+# email is logged (never silently passed) so a new leak surfaces in the logs instead of in a
+# partner's browser. Reviewed as a deliberate exception - see EXTRABLACK_EXPOSURE_2.md.
+_SCRUB_KEYS = frozenset({
+    "owner", "owner_name", "owner_email", "rep", "sales_owner", "assigned_to",
+    "email", "contact_email", "user_email", "contact_name", "first_name", "last_name",
+    "full_name", "person", "phone",
+})
+_EMAILISH = __import__("re").compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+
+
+def _scrub_external_payload(obj, client, _found=None):
+    """Recursively drop _SCRUB_KEYS; log (don't ship) anything email-shaped. Returns the scrubbed
+    object. Pure data transform - no I/O."""
+    found = _found if _found is not None else {"keys": set(), "emailish": 0}
+    if isinstance(obj, dict):
+        out = {}
+        for k, v in obj.items():
+            if str(k).lower() in _SCRUB_KEYS:
+                found["keys"].add(str(k))
+                continue
+            out[k] = _scrub_external_payload(v, client, found)
+        result = out
+    elif isinstance(obj, list):
+        result = [_scrub_external_payload(v, client, found) for v in obj]
+    else:
+        if isinstance(obj, str) and "@" in obj and _EMAILISH.search(obj):
+            found["emailish"] += 1
+        result = obj
+    if _found is None and (found["keys"] or found["emailish"]):
+        app.logger.info("external-scrub client=%s removed_fields=%s emailish_values_seen=%d",
+                        client, sorted(found["keys"]), found["emailish"])
+    return result
+
+
 def _forward(client, subpath, cookies):
     url = f"{_upstream_base(client)}/{subpath}"
     # /report runs a live LLM (web research + structuring, or the Gemini fallback) and can take a
@@ -2078,6 +2438,13 @@ def _unauth(resp, subpath):
 def proxy(client, subpath):
     if not _may_open(client):
         return redirect("/")
+    # External tenants: block the privileged sub-paths behind an otherwise-permitted dashboard
+    # (today `report`, the paid AI deck generator). Checked on the normalised first path segment
+    # so a nested or trailing-slash form can't slip past.
+    if _is_external_session() and (subpath or "").strip("/").split("/")[0] in _EXTERNAL_BLOCKED_SUBPATHS:
+        app.logger.warning("external-deny agency=%s client=%s subpath=%s",
+                           session.get("agency_slug", ""), client, subpath)
+        return jsonify(ok=False, error="Not available for this account."), 403
     if not _upstream_base(client):
         abort(404)
     cookies = _UPSTREAM_COOKIES.get(client) or _upstream_login(client)
@@ -2107,10 +2474,24 @@ def proxy(client, subpath):
             elif b"</body>" in body:
                 body = body.replace(b"</body>", head_inject + b"</body>", 1)
         if is_dashboard and b"</body>" in body:     # give the proxied dashboard a logout + feedback control
-            tail = _LOGOUT_BUTTON + _feedback_widget(client)
+            tail = _LOGOUT_BUTTON
+            if _ext_setting("allow_feedback"):      # external tenants: no feedback widget (route closed too)
+                tail += _feedback_widget(client)
             if _internal_allowed(client):           # staff-only: Internal Notes + Assistant widget
                 tail += _internal_widget(client)
             body = body.replace(b"</body>", tail + b"</body>", 1)
+    elif "json" in ctype and _ext_setting("scrub_payload") and resp.status_code == 200:
+        # Scrub the dashboard payload for an external tenant (named individuals etc.). Applies to
+        # EVERY json response through the proxy, so data.json and any future json route a dashboard
+        # fetches are covered. FAILS CLOSED: if the body can't be parsed and scrubbed we return an
+        # error rather than forwarding it, because passing the original through on error would ship
+        # exactly the fields this exists to remove.
+        try:
+            import json as _json
+            body = _json.dumps(_scrub_external_payload(_json.loads(body), client)).encode()
+        except Exception:
+            app.logger.exception("external payload scrub failed client=%s subpath=%s", client, subpath)
+            return jsonify(ok=False, error="This data could not be prepared for your account."), 502
     out = Response(body, status=resp.status_code, content_type=ctype)
     out.headers["Cache-Control"] = "no-store"
     loc = resp.headers.get("Location")

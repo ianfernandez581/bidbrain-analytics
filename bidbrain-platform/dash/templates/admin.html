@@ -210,8 +210,11 @@
       <div>
         <p class="eyebrow">Campaign dashboards</p>
         <h1>Agencies</h1>
-        {% set ns = namespace(c=0) %}{% for a in agencies %}{% set ns.c = ns.c + a.clients|length %}{% endfor %}
-        <p class="subtitle">{{ ns.c }} client{{ '' if ns.c == 1 else 's' }} across {{ agencies|length }} agenc{{ 'y' if agencies|length == 1 else 'ies' }}{% if unassigned %} · {{ unassigned|length }} unassigned{% endif %}</p>
+        {# Headline counts UNIQUE clients: a dual-visibility client (geocon/resetdata sit in both
+           100% Digital and Extrablack) is one client record, so it must count once here. The
+           per-agency card counts below stay per-membership on purpose. #}
+        {% set ns = namespace(keys=[]) %}{% for a in agencies %}{% for c in a.clients %}{% if c.key not in ns.keys %}{% set ns.keys = ns.keys + [c.key] %}{% endif %}{% endfor %}{% endfor %}
+        <p class="subtitle">{{ ns.keys|length }} client{{ '' if ns.keys|length == 1 else 's' }} across {{ agencies|length }} agenc{{ 'y' if agencies|length == 1 else 'ies' }}{% if unassigned %} · {{ unassigned|length }} unassigned{% endif %}</p>
       </div>
       <div class="head-actions">
         <button class="btn primary" onclick="openAgency()">+ Add agency</button>
