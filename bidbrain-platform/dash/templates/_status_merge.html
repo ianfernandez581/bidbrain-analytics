@@ -307,6 +307,10 @@
     else if(m===true) tag='<span class="bbmtag ok">✓ MATCH</span>';
     else if(m===false){ var diff=(sf!=null&&dv!=null)?Math.abs(Number(sf)-Number(dv)):null;
       tag='<span class="bbmtag bad">✗ off by '+(diff!=null?fmtNum(diff):"?")+'</span>'; }
+    // Not comparable YET: the source moved after this dashboard was last built, so the two
+    // columns are different snapshots of an append-only series. The export job rebuilds on its
+    // own */10 tick and the check settles by itself - showing it as "off" would be a false alarm.
+    else if(chk.pending==="rebuild") tag='<span class="bbmtag na" title="the source advanced after this dashboard was last built - the two sides are different snapshots. The export job rebuilds on its next run and this check settles on its own.">⏳ rebuild pending</span>';
     else tag='<span class="bbmtag na">'+dot("unknown")+'no data</span>';
     var note=chk.note?'<div class="bbqnote">'+esc(chk.note)+'</div>':'';
     var err=chk.error?'<div class="bbqnote" style="color:#F87171">'+esc(chk.error)+'</div>':'';
@@ -343,8 +347,9 @@
     // The source-of-truth column is Snowflake for Transmission's clients and BigQuery (the
     // raw Windsor/Neto/DTS layer) for the 100% Digital clients — labelled per c.source_label.
     var srcLabel=c.source_label||"Snowflake";
-    var checks=c.accuracy||[], nOk=0,nBad=0,nNa=0;
-    checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++; else nNa++; });
+    var checks=c.accuracy||[], nOk=0,nBad=0,nNa=0,nPend=0;
+    checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++;
+      else if(k.pending)nPend++; else nNa++; });
     var body="", last=null;
     checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk, srcLabel); });
 
@@ -352,7 +357,11 @@
     var al;
     if(!checks.length) al={cls:"na", txt:"no checks"};
     else if(nBad>0) al={cls:"bad", txt:"✗ "+nBad+" off · "+nOk+"/"+checks.length+" match"};
-    else if(nNa>0) al={cls:"warn", txt:nOk+"/"+checks.length+" match · "+nNa+" n/a"};
+    // "rebuilding" is a WAITING state, not a wrong number - it must never read like "off".
+    else if(nPend>0||nNa>0){ var bits=[];
+      if(nPend) bits.push(nPend+" rebuilding");
+      if(nNa)   bits.push(nNa+" n/a");
+      al={cls:"warn", txt:nOk+"/"+checks.length+" match · "+bits.join(" · ")}; }
     else al={cls:"ok", txt:"✓ "+nOk+"/"+checks.length+" match"};
     var up=updatedStatus(c);
 

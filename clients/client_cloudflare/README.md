@@ -214,6 +214,11 @@ columns in `sql/13` (they had silently gone to zero under the 11-chip codes).
   were each sent ≥2 test leads on Transmission emails (Nabeel / Shalvi / Jade), which were inflating the
   Q3 rejection rate (~36%). The SAME filter is mirrored into the status dashboard's Cloudflare CS check
   (`status_dashboard/job/main.py`, `_CF_TEST_LEAD_FILTER`) so the accuracy monitor doesn't false-alarm.
+  **`sql/14_cf1_cs` was MISSED by this change and fixed 2026-08-09** — the CF1 Double-Touch lane predates
+  the filter, so 3 Transmission test leads were reported as CF1 rejections (**20 instead of 17**, rejection
+  rate 14.1% -> the true 12.2%; `reviewed` 142 -> 139). Accepted was unaffected (no test lead is Accepted),
+  which is why only the one check went red. **Any new CS lane must carry this filter** — the status dash's
+  CF1 checks had it on the source side from day one and are what caught the gap. Keep the two identical.
 - **Unprocessed / New leads removed from the dashboard.** They're our internal backlog, not shown to
   Cloudflare. Acceptance & rejection rate now use **reviewed = accepted + rejected** as the denominator
   (so acc% + rej% = 100%); the unprocessed pacing bar, the "pending triage" note, the Comparison-tab

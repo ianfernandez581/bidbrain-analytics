@@ -134,6 +134,27 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
 - **Compared against un-scoped JSON values** (the whole-flight `kpi.*` block, or the raw `rows[]`/`pacing`
   arrays for mongodb/cloudflare), never the on-screen KPI — those are scoped by the campaign/market/date
   pickers, whereas the JSON is the faithful pass-through.
+- **Both sides must be the SAME snapshot, or the check is `pending`, not `off` (2026-08-09).** A check
+  equates a source aggregate with a value in `<client>.json`, which only means anything if that build SAW
+  that source data. Two things break that, and both used to render as a red ✗ against numbers that were
+  perfectly correct:
+  1. **Read order.** The source aggregates take minutes (Snowflake resumes; BQ scans) and every client
+     export job rebuilds on its own `*/10` tick, so reading the client JSON *before* them compared an OLD
+     build against a NEW source read. The job now collects the source values FIRST, then **re-reads
+     `<client>.json`** (`reread_build`) so a rebuild that landed mid-run is picked up.
+  2. **The rebuild window.** The nightly Windsor loaders bump a raw table's `last_modified` **several times
+     per run** (`perf_the_trade_desk` landed at 21:49:57, 21:50:05 *and* 21:52:03 on 2026-08-09), so for a
+     few minutes the source legitimately holds rows the build does not. When the build provably predates
+     the source snapshot AND that source landed within `REBUILD_GRACE` (60 min), the check is emitted with
+     `match: null` + `pending: "rebuild"` and the tab renders **"⏳ rebuild pending"** / a `N rebuilding`
+     header count. **Past the grace we assert again** — a permanently-behind export job must not be able to
+     silence its own accuracy checks (and the Sync tab is already red by then).
+  The tell for this class of false alarm is that the diff is always ONE load's worth of rows and always in
+  the same direction (**source > dashboard**) across every append-only count at once. It self-heals on the
+  next tick. On 2026-08-09 this was 8 red checks across resetdata/tlm/vmch that were all exactly right.
+  Related: the BQ carry-forward gate is its own `accuracy_gate` field, NOT `freshness.ingest_latest` — the
+  re-probe advances the reported ingest time, and gating on that would carry forward source numbers never
+  computed against the final table state (a mismatch in the OPPOSITE direction once the client rebuilds).
 - **mongodb Content Syndication — DNB and KGA(IDC) are now SEPARATE groups** (previously KGA/IDC was
   invisible; only one combined DNB check existed):
   - **DNB** = the 3 programme campaigns (`701RG00001DtQczYAF`/`HcDIVYA3`/`GvvrDYAR`), which carry a non-null

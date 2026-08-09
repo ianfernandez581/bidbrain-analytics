@@ -39,6 +39,13 @@ WITH base AS (
   FROM `bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all`
   -- The 2 CF1 CS campaign IDs are seed-driven (definitions.json -> seed_cf1_cs_campaign_ids).
   WHERE CAMPAIGN_ID IN (SELECT campaign_id FROM `bidbrain-analytics.client_cloudflare.seed_cf1_cs_campaign_ids`)
+  -- Transmission's OWN test leads land in these campaigns as 'Rejected' and inflate the
+  -- rejection rate, so drop any lead whose email DOMAIN contains 'transmission' -- the SAME
+  -- exclusion sql/10 applies to the core CS lane. It was added to sql/10 on 2026-07-07 but
+  -- MISSED here (this lane predates it), so CF1 reported 20 rejections instead of the true 17
+  -- (3 test leads) -- caught 2026-08-09 by the status dash's CF1 Rejected check, which had the
+  -- filter on the source side all along. Keep the two expressions identical.
+  AND LOWER(IFNULL(SPLIT(EMAIL, '@')[SAFE_OFFSET(1)], '')) NOT LIKE '%transmission%'
 )
 SELECT DAY, PUBLISHER, REGION, TOPIC, STATUS_BUCKET, COUNT(*) AS LEADS
 FROM base

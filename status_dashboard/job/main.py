@@ -53,6 +53,15 @@ DATA_OBJECT = "status.json"
 # ingest cadence is */10–*/15, so a brief lag after a source change is expected, not a fault).
 INGEST_LAG_TOLERANCE = datetime.timedelta(minutes=45)
 
+# How long a client's export job gets to rebuild past a fresh source landing before we hold it
+# against the ACCURACY numbers. An accuracy check equates the source aggregate with the value in
+# <client>.json, which is only meaningful if the build SAW that source data. Every export job
+# rebuilds on its own */10 tick, so for a few minutes after each nightly loader window the source
+# legitimately holds rows the build does not, and every append-only count reads "off by one load"
+# (always source > dashboard). Inside this grace such a check is reported PENDING, not off; past
+# it the build really is stuck, so we assert again (the Sync tab is already red by then).
+REBUILD_GRACE = datetime.timedelta(minutes=60)
+
 # --- Snowflake source table -> BigQuery raw mirror (from ingest/snowflake_data_pull/loader.py).
 # Used to label the freshness chain and to probe both stages.
 SF_TO_MIRROR = {
@@ -1725,6 +1734,48 @@ def read_json(bucket, obj):
     return json.loads(blob.download_as_text())
 
 
+def reread_build(client, cur_doc, cur_build):
+    """Re-read <client>.json AFTER this client's accuracy queries have run.
+
+    The aggregates take minutes (Snowflake resumes; several BQ scans), and every client export
+    job rebuilds on its own */10 tick, so the doc read at the top of a client's turn is often
+    already superseded by the time we have the source numbers to compare it against. Comparing
+    the two then measures our own read skew, not the pipeline. Returns (doc, build_at) — the
+    NEWER of the two reads, or the originals unchanged on any failure.
+    """
+    try:
+        doc = read_json(f"bidbrain-analytics-{client}-dash", f"{client}.json")
+    except Exception as e:   # noqa: BLE001 - a transient GCS error must not fail the tick
+        print(f"  [{client}] build re-read failed (keeping the earlier read): {e}")
+        return cur_doc, cur_build
+    if doc is None:
+        return cur_doc, cur_build
+    b = _json_ts(doc, "last_updated")
+    if cur_build is not None and (b is None or b <= cur_build):
+        return cur_doc, cur_build
+    return doc, b
+
+
+def _pending_rebuild(build_at, source_at, now):
+    """True when an accuracy comparison must be DEFERRED rather than called a mismatch.
+
+    The dashboard JSON provably predates the source snapshot the accuracy queries just read
+    (build_at < source_at), and that source landed recently enough that the client's next
+    scheduled rebuild has not had its chance yet (within REBUILD_GRACE). The two sides are then
+    different snapshots of an append-only series: the diff is one load's worth of rows, always
+    in the same direction (source > dashboard), and it self-heals on the next tick. Reporting
+    that as "off" is a false alarm — the numbers are not wrong, they are not yet comparable.
+
+    Outside the grace the build is genuinely stuck, so we keep asserting: a permanently behind
+    export job must NOT be able to silence its own accuracy checks.
+    """
+    if source_at is None:
+        return False
+    if build_at is not None and build_at >= source_at:
+        return False
+    return (now - source_at) <= REBUILD_GRACE
+
+
 def now_utc():
     return datetime.datetime.now(datetime.timezone.utc).replace(microsecond=0)
 
@@ -1924,8 +1975,34 @@ def main():
                 entry["freshness"]["source_dates"] = sdates
                 entry["freshness"]["source_data_through"] = max(ds) if ds else None
 
-            checks_out = []
+            # ---- SOURCE side first, dashboard side second (ORDER MATTERS) ----------
+            # These aggregates resume the warehouse and take minutes. Extracting the dashboard
+            # value BEFORE them compared an OLD build against a NEW source read, which turned
+            # every append-only count red for a few minutes after each nightly landing. Collect
+            # the source numbers, THEN re-read the build (see reread_build).
+            src_vals = []
             for chk in spec["checks"]:
+                pc = prev_checks.get(chk["label"], {})
+                if gate_unchanged and "snowflake_value" in pc and pc.get("error") is None:
+                    src_vals.append((pc["snowflake_value"], pc.get("computed_at"), None))
+                    continue
+                try:
+                    src_vals.append((scalar(cn, chk["sql"]), _iso(now), None))
+                    warehouse_resumes += 1
+                except Exception as e:   # noqa: BLE001
+                    src_vals.append((None, _iso(now), str(e)))
+                    print(f"  [{spec['client']}] snowflake query failed for {chk['label']}: {e}")
+
+            client_json, build_at = reread_build(spec["client"], client_json, build_at)
+            entry["freshness"]["build_at"] = _iso(build_at)
+            # The dashboard reads the BQ mirror, the queries above read live Snowflake, so the
+            # snapshot the build had to have seen is the NEWEST point on the source side of the
+            # chain — whichever of the source change / our mirror write is later.
+            source_at = max([t for t in (transmission_latest, ingest_latest) if t], default=None)
+            pending = _pending_rebuild(build_at, source_at, now)
+
+            checks_out = []
+            for chk, (sf_val, computed_at, err) in zip(spec["checks"], src_vals):
                 dash_val = None
                 if client_json is not None:
                     try:
@@ -1934,33 +2011,21 @@ def main():
                         dash_val = None
                         print(f"  [{spec['client']}] dash extract failed for {chk['label']}: {e}")
 
-                pc = prev_checks.get(chk["label"], {})
-                if gate_unchanged and "snowflake_value" in pc and pc.get("error") is None:
-                    sf_val = pc["snowflake_value"]
-                    computed_at = pc.get("computed_at")
-                    err = None
-                else:
-                    try:
-                        sf_val = scalar(cn, chk["sql"])
-                        warehouse_resumes += 1
-                        computed_at = _iso(now)
-                        err = None
-                    except Exception as e:   # noqa: BLE001
-                        sf_val = None
-                        computed_at = _iso(now)
-                        err = str(e)
-                        print(f"  [{spec['client']}] snowflake query failed for {chk['label']}: {e}")
-
                 match = (sf_val is not None and dash_val is not None
                          and round(float(sf_val)) == round(float(dash_val)))
-                checks_out.append({
+                match = (None if (sf_val is None or dash_val is None) else match)
+                row = {
                     "label": chk["label"], "metric_kind": chk["kind"],
                     "group": chk.get("group", ""),
                     "snowflake_value": sf_val, "dashboard_value": dash_val,
-                    "match": (None if (sf_val is None or dash_val is None) else match),
+                    "match": match,
                     "snowflake_query": chk["sql"], "note": chk.get("note", ""),
                     "computed_at": computed_at, "error": err,
-                })
+                }
+                if pending and match is False:
+                    row["match"] = None       # not comparable yet — never render this as "off"
+                    row["pending"] = "rebuild"
+                checks_out.append(row)
 
             entry["accuracy"] = checks_out
             out_clients.append(entry)
@@ -2014,11 +2079,19 @@ def main():
             }
 
             # Gate the BQ accuracy queries on raw freshness (carry forward when unchanged).
+            # The gate is its OWN field, not freshness.ingest_latest: the re-probe further down
+            # advances the reported ingest time to whatever the loader wrote while the queries
+            # ran, and gating on that would let the next tick carry forward source values that
+            # were never computed against the final table state (a mismatch in the OPPOSITE
+            # direction once the client rebuilds off it). `accuracy_gate` records the snapshot
+            # the numbers WERE computed against, so a later write always forces one recompute.
             prev_entry = prev_by_client.get(spec["client"], {})
             prev_checks = {c.get("label"): c for c in prev_entry.get("accuracy", [])}
-            prev_gate = (prev_entry.get("freshness") or {}).get("ingest_latest")
+            prev_gate = prev_entry.get("accuracy_gate") \
+                or (prev_entry.get("freshness") or {}).get("ingest_latest")
             gate_unchanged = (not force) and prev_gate is not None and \
                 _iso(ingest_latest) == prev_gate
+            entry["accuracy_gate"] = _iso(ingest_latest)
 
             # ---- Source recency: newest DATE present in each raw table (gated like accuracy) ----
             prev_fresh = prev_entry.get("freshness") or {}
@@ -2043,8 +2116,54 @@ def main():
                 entry["freshness"]["source_dates"] = sdates
                 entry["freshness"]["source_data_through"] = max(ds) if ds else None
 
-            checks_out = []
+            # ---- SOURCE side first, dashboard side second (ORDER MATTERS; see the
+            # Snowflake path above and reread_build). The nightly Windsor loaders bump a raw
+            # table's last_modified SEVERAL times per run (perf_the_trade_desk landed at
+            # 21:49:57, 21:50:05 and 21:52:03 on 2026-08-09), so a client can build off a
+            # part-loaded table and rebuild minutes later — which is exactly the window where
+            # comparing an old build against a fresh raw scan invents a mismatch.
+            src_vals = []
             for chk in spec["checks"]:
+                pc = prev_checks.get(chk["label"], {})
+                if gate_unchanged and "snowflake_value" in pc and pc.get("error") is None:
+                    src_vals.append((pc["snowflake_value"], pc.get("computed_at"), None))
+                    continue
+                try:
+                    src_vals.append((scalar_bq(bq, chk["sql"]), _iso(now), None))
+                except Exception as e:   # noqa: BLE001
+                    src_vals.append((None, _iso(now), str(e)))
+                    print(f"  [{spec['client']}] bigquery query failed for {chk['label']}: {e}")
+
+            # Re-read the build, then re-probe the raw layer: both sides may have moved while the
+            # queries above ran, and the verdict here is derived from build_at, so a rebuild that
+            # landed mid-run must not still read as "Pipeline behind".
+            client_json, build_at = reread_build(spec["client"], client_json, build_at)
+            try:
+                after = probe_bq_last_modified(bq, spec["raw_tables"])
+                ingest_after = max([v for v in after.values() if v], default=ingest_latest)
+            except Exception as e:   # noqa: BLE001 - keep the first probe on any failure
+                print(f"  [{spec['client']}] raw re-probe failed (keeping the earlier probe): {e}")
+                after, ingest_after = {}, ingest_latest
+            if ingest_after and (ingest_latest is None or ingest_after > ingest_latest):
+                ingest_latest = ingest_after
+                entry["freshness"]["transmission_latest"] = _iso(ingest_latest)
+                entry["freshness"]["ingest_latest"] = _iso(ingest_latest)
+                for r in raw_rows:
+                    r["last_modified"] = _iso(after.get(r["raw_table"])) or r["last_modified"]
+            verdict, t_state, d_state = _verdict_bq(
+                ingest_latest, build_at, client_json is not None, now)
+            entry["freshness"].update({
+                "build_at": _iso(build_at),
+                "data_through": _iso(_json_ts(client_json, "data_through")),
+                "caught_up": (verdict in ("ok", "source_stale")),
+                "verdict": verdict,
+                "transmission_state": t_state,
+                "digital_state": d_state,
+            })
+            pending = _pending_rebuild(build_at, ingest_latest, now)
+
+            checks_out = []
+            for chk, (sf_val, computed_at, err) in zip(spec["checks"], src_vals):
                 dash_val = None
                 if client_json is not None:
                     try:
@@ -2053,35 +2172,24 @@ def main():
                         dash_val = None
                         print(f"  [{spec['client']}] dash extract failed for {chk['label']}: {e}")
 
-                pc = prev_checks.get(chk["label"], {})
-                if gate_unchanged and "snowflake_value" in pc and pc.get("error") is None:
-                    sf_val = pc["snowflake_value"]
-                    computed_at = pc.get("computed_at")
-                    err = None
-                else:
-                    try:
-                        sf_val = scalar_bq(bq, chk["sql"])
-                        computed_at = _iso(now)
-                        err = None
-                    except Exception as e:   # noqa: BLE001
-                        sf_val = None
-                        computed_at = _iso(now)
-                        err = str(e)
-                        print(f"  [{spec['client']}] bigquery query failed for {chk['label']}: {e}")
-
                 match = (sf_val is not None and dash_val is not None
                          and round(float(sf_val)) == round(float(dash_val)))
-                checks_out.append({
+                match = (None if (sf_val is None or dash_val is None) else match)
+                row = {
                     # `snowflake_*` key names are reused for the source value/query (the front-end
                     # relabels them per the client's source_label = "BigQuery") to keep the JSON
                     # schema identical for both engines.
                     "label": chk["label"], "metric_kind": chk["kind"],
                     "group": chk.get("group", ""),
                     "snowflake_value": sf_val, "dashboard_value": dash_val,
-                    "match": (None if (sf_val is None or dash_val is None) else match),
+                    "match": match,
                     "snowflake_query": chk["sql"], "note": chk.get("note", ""),
                     "computed_at": computed_at, "error": err,
-                })
+                }
+                if pending and match is False:
+                    row["match"] = None       # not comparable yet — never render this as "off"
+                    row["pending"] = "rebuild"
+                checks_out.append(row)
 
             entry["accuracy"] = checks_out
             out_clients.append(entry)
