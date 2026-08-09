@@ -62,6 +62,53 @@ INGEST_LAG_TOLERANCE = datetime.timedelta(minutes=45)
 # it the build really is stuck, so we assert again (the Sync tab is already red by then).
 REBUILD_GRACE = datetime.timedelta(minutes=60)
 
+# --- Source delivery expectations: "behind" vs "idle" ------------------------------------------
+# A source that stops advancing is a FAULT only if something was still expected to land in it. The
+# flat "2+ days behind = red" rule could not tell the difference, so it cried wolf on three
+# non-faults: a campaign that had simply ENDED, a CRM over a WEEKEND, and a dormant FALLBACK path
+# whose primary was current. Those now report as **idle** (neutral, not counted as behind); a
+# source that IS still expected to deliver stays behind, and the thresholds live in the front end
+# (`_status_merge.html` -> freshFlag) so a carried-forward date ages on its own with no rebuild.
+#
+#   daily    (DEFAULT, omit) - expect data through yesterday; behind at STALE_DAYS+ calendar days.
+#   weekdays - business days only, so Sat/Sun don't age it (a CRM gets no leads at the weekend).
+#   ended    - the flight is over, so the source is SUPPOSED to be frozen -> always idle.
+#   fallback - a standby path kept only for the dates its primary lacks -> always idle.
+#
+# Keyed by client, then by the source name EXACTLY as it appears in that client's `sources`
+# (Snowflake bare name) or `raw_tables` (dataset.table). `why` is the tooltip shown on the chip.
+# Emitted fresh every tick as freshness.source_expectations (static config, no probe), so it is
+# never subject to the source_dates carry-forward.
+SOURCE_EXPECTATIONS = {
+    "mongodb": {
+        "Salesforce_CS_APAC_ALL": {"mode": "weekdays",
+            "why": "Salesforce CS leads arrive on business days - a weekend gap is normal"},
+    },
+    "cloudflare": {
+        "Salesforce_CS_APAC_ALL": {"mode": "weekdays",
+            "why": "Salesforce CS leads arrive on business days - a weekend gap is normal"},
+        # Cloudflare's Reddit lane ran in Q2 ONLY and wrapped 2026-06-30 (which is why the paid
+        # tab's activeChans() hides Reddit under Q3). The table is correctly frozen: re-point this
+        # to "daily" the day Reddit is booked again, or the restart will not be flagged.
+        "Reddit Ads - APAC_ALL": {"mode": "ended",
+            "why": "Reddit ran in Q2 only; the campaign wrapped 2026-06-30, so the source is frozen by design"},
+    },
+    "schneider": {
+        "Salesforce_CS_APAC_ALL": {"mode": "weekdays",
+            "why": "Salesforce CS leads arrive on business days - a weekend gap is normal"},
+    },
+    "vmch": {
+        # The GA4 Windsor loader is a laptop-run FALLBACK, read per-date only where the DTS
+        # transfer has no row (sql/01_stg_ga4 is DTS-first). raw_ga4.perf_ga4 is the primary and
+        # is current, so this table being frozen says nothing about VMCH's GA4 freshness.
+        "raw_windsor.perf_ga4": {"mode": "fallback",
+            "why": "standby GA4 path (laptop-run); the DTS primary raw_ga4.perf_ga4 is the freshness signal"},
+    },
+    # NOT listed on purpose - "DV360 - APAC" (stt / hireright / schneider). It is frozen at
+    # 2026-07-01 with live campaigns still running, which is a REAL upstream fault at
+    # Transmission and must keep reading behind.
+}
+
 # --- Snowflake source table -> BigQuery raw mirror (from ingest/snowflake_data_pull/loader.py).
 # Used to label the freshness chain and to probe both stages.
 SF_TO_MIRROR = {
@@ -1935,6 +1982,7 @@ def main():
                 "transmission_tables": src_rows,
                 "ingest_latest": _iso(ingest_latest),
                 "ingest_label": ingest_label,
+                "source_expectations": SOURCE_EXPECTATIONS.get(spec["client"], {}),
                 "build_at": _iso(build_at),
                 "data_through": _iso(data_through),
                 "caught_up": caught_up,
@@ -2070,6 +2118,7 @@ def main():
                 "transmission_tables": raw_rows,
                 "ingest_latest": _iso(ingest_latest),
                 "ingest_label": spec.get("ingest_label", "BigQuery raw layer"),
+                "source_expectations": SOURCE_EXPECTATIONS.get(spec["client"], {}),
                 "build_at": _iso(build_at),
                 "data_through": _iso(data_through),
                 "caught_up": (verdict in ("ok", "source_stale")),

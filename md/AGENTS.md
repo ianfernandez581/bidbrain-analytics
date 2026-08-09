@@ -204,6 +204,10 @@ own `*/10` tick, so a source read taken after the build it is compared against i
 one load's worth of rows, always source > dashboard, across every append-only count at once. Read the
 source first, THEN re-read `<client>.json`, and report "pending" (never "off") while the build
 provably predates the source. See `status_dashboard/README.md` -> Data Accuracy.
+**And a source that stopped advancing is a fault ONLY if delivery was still expected.** An ended
+flight, a CRM at the weekend and a standby fallback whose primary is current are all frozen BY
+DESIGN and must report "idle", not "behind" - per-source modes live in `SOURCE_EXPECTATIONS`
+(`status_dashboard/job/main.py`); a genuinely stale live feed (DV360) still goes red at 3+ days.
 
 ## Team flow - start_day / park / push / ship / go (full doc: scripts/README.md)
 Slash commands are thin Claude Code wrappers in `.claude/commands/`; **every other agent or human

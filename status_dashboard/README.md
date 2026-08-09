@@ -79,9 +79,33 @@ three days ago. So each client entry's `freshness` also carries, per source:
 Probed under the **same freshness gate** as the accuracy counts (recomputed only when the client's source
 advanced, else carried forward, and memoised per tick so a shared table is probed once), so an idle tick
 adds no extra warehouse resumes. The **Data Accuracy tab** renders this as a **"Source data through
-&lt;date&gt;"** strip per client with a per-source breakdown, and flags a source **red at 2+ days behind**
-the viewer's local **today** (today OR yesterday stays green — the normal 1-day ad-reporting lag). The flag
-is computed in the browser, so a carried-forward date turns red on its own the next day with no rebuild.
+&lt;date&gt;"** strip per client with a per-source breakdown. The flag is computed **in the browser** (UTC
+basis, matching the data), so a carried-forward date ages on its own with no rebuild.
+
+### "behind" vs "idle" — a frozen source is only a fault if delivery was expected (2026-08-09)
+
+The original flat rule (**red at 2+ days behind**) could not tell a broken pipeline from a finished one, so
+it cried wolf on three non-faults: a campaign that had **ended**, a CRM over a **weekend**, and a dormant
+**fallback** path whose primary was current. Each source now carries a delivery expectation —
+`SOURCE_EXPECTATIONS` in `job/main.py`, emitted every tick as `freshness.source_expectations` (static
+config, so it is never subject to the `source_dates` carry-forward) and applied by `freshFlag()` in
+`bidbrain-platform/dash/templates/_status_merge.html`:
+
+| mode | meaning | verdict |
+|---|---|---|
+| `daily` (default, omit) | expect data through yesterday | **behind at 3+ calendar days** (`STALE_DAYS`) |
+| `weekdays` | business days only — a CRM gets no leads at the weekend | **behind at 3+ *business* days** (Fri→Mon is 1, not 3) |
+| `ended` | the flight is over, the source is *supposed* to be frozen | **idle**, always |
+| `fallback` | standby path, read only for dates its primary lacks | **idle**, always |
+
+An **idle** source is neutral: excluded from the "N sources behind" tally **and** from the headline
+"source data through" date (a finished campaign must not make a healthy client read stale), and shown
+dimmed in the per-source strip with its reason on hover. Live entries today: Salesforce CS = `weekdays`
+(mongodb / cloudflare / schneider); cloudflare's `Reddit Ads - APAC_ALL` = `ended` (Q2-only lane, wrapped
+2026-06-30 — **flip it back to `daily` the day Reddit is re-booked, or the restart won't be flagged**);
+vmch's `raw_windsor.perf_ga4` = `fallback` (the DTS primary `raw_ga4.perf_ga4` is the real signal).
+**`DV360 - APAC` is deliberately NOT listed** — it is frozen at 2026-07-01 with live campaigns still
+running, a genuine upstream fault at Transmission, and must keep reading behind.
 
 ## BigQuery-native clients (the 100% Digital agency)
 
