@@ -2258,6 +2258,23 @@ def _internal_allowed(client):
     return False
 
 
+def _internal_flag_script(client):
+    """Expose window.BB_INTERNAL=true to the proxied dashboard IFF this session ALSO receives the
+    staff-only Internal Notes + Assistant widget - same `_internal_allowed` predicate, evaluated in
+    the same request, so the flag and the widget can never disagree.
+
+    Why it exists: a dashboard that renders its OWN internal-notes surface (cloudflare's native
+    "Internal Notes" tab, which hosts #bbNotesMount) has no other way to know whether the widget
+    will arrive. Without this it renders the heading and an empty mount - which is exactly what
+    Transmission saw after `internal_notes:false` (an empty shell that reads as broken). Injected in
+    <head>, BEFORE the dashboard's own scripts build their tab rail, so nothing flashes.
+
+    Nothing is injected otherwise, so window.BB_INTERNAL stays undefined (falsey). Dashboards
+    without such a surface ignore it, exactly like window.BB_DEV. NOT a permission - the notes
+    endpoints enforce _internal_allowed server-side regardless of what any page believes."""
+    return b"<script>window.BB_INTERNAL=true;</script>" if _internal_allowed(client) else b""
+
+
 def _actor():
     """Who to record as a note's author: the signed-in email when there is one, else the tier."""
     return session.get("email") or session.get("kind") or ""
@@ -2795,7 +2812,8 @@ def proxy(client, subpath):
             # scripts run (the gross-up shim reads window.BB_SPEND_MULT; the CS dev-mode toggle reads
             # window.BB_DEV). Inject high in <head> so it wins even if a dashboard renders
             # synchronously; fall back to </body> if there's no </head>.
-            head_inject = _spend_mult_script(client) + _dev_flag_script()
+            head_inject = (_spend_mult_script(client) + _dev_flag_script()
+                           + _internal_flag_script(client))
             if b"</head>" in body:
                 body = body.replace(b"</head>", head_inject + b"</head>", 1)
             elif b"</body>" in body:

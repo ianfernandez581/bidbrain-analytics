@@ -683,7 +683,10 @@
     <!-- INTERNAL NOTES TAB (dev only; was "Data from Transmission")   -->
     <!-- ============================================================ -->
     <div class="panel hidden" id="panel-txdata">
-      <div class="card">
+      <!-- Notes card: HIDDEN unless the platform will actually inject the notes UI into
+           #bbNotesMount (window.BB_INTERNAL - see applyViewMode). The other two cards on this tab
+           are Transmission's OWN committed data and are NOT gated by it. -->
+      <div class="card" id="txNotesCard" style="display:none">
         <h3>Internal notes</h3>
         <div class="hint">Team notes on this dashboard - add, edit or delete freely. Internal view, never shown to Cloudflare.</div>
         <!-- The notes UI is injected here by the platform proxy (staff sessions only). On a raw
@@ -2228,6 +2231,16 @@ function applyViewMode() {
   if (sel) sel.style.display = devMode ? '' : 'none';
   const txTab = document.getElementById('txDataTab');
   if (txTab) txTab.style.display = devMode ? '' : 'none';   // admin-only tab
+  // The notes CARD is gated separately from the tab. window.BB_INTERNAL is injected by the platform
+  // proxy exactly when it will also inject the notes UI into #bbNotesMount (staff sessions). Without
+  // it the card rendered a heading over an empty mount - which is what Transmission saw once their
+  // agency was set internal_notes:false, and on any raw run.app URL. The tab itself STAYS: its other
+  // two cards are Transmission's own committed Source-ID list and pacing plan, which are theirs to
+  // see. Relabel it so the name matches what it actually holds.
+  const notesCard = document.getElementById('txNotesCard');
+  const notesAllowed = !!window.BB_INTERNAL;
+  if (notesCard) notesCard.style.display = notesAllowed ? '' : 'none';
+  if (txTab) txTab.textContent = notesAllowed ? 'Internal Notes' : 'Transmission data';
 }
 
 function populateCampaignSelect() {
