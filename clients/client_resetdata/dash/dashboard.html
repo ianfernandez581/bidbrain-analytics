@@ -736,7 +736,9 @@ const MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','De
 const moLabel = m => { const a=String(m).split('-'); return (MON[(+a[1]||1)-1]||'')+' '+a[0]; };
 const wkLabel = w => { const a=String(w).split('-'); return (+a[2])+' '+(MON[(+a[1]||1)-1]||''); };
 const dyLabel = d => { const a=String(d).split('-'); return (+a[2])+' '+(MON[(+a[1]||1)-1]||''); };
-const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
+// Withheld points stay null through indexing - otherwise `null/mx*100` is 0 and the gap we just
+// preserved reappears as a confident zero the moment the chart is switched to Relative.
+const indexed = arr => { const mx=Math.max(0,...arr.filter(v=>v!=null)); return arr.map(v=>v==null?null:(mx?v/mx*100:0)); };
 // ISO Monday-anchored week_start ('YYYY-MM-DD') for a 'YYYY-MM-DD' day - used to roll day rows up to weeks.
 function weekStartOf(dStr){ const a=String(dStr).split('-').map(Number); const dt=new Date(Date.UTC(a[0],a[1]-1,a[2]));
   const dow=(dt.getUTCDay()+6)%7; dt.setUTCDate(dt.getUTCDate()-dow);
@@ -792,7 +794,28 @@ const fmt1=v=>v==null?'-':(+v).toLocaleString(undefined,{maximumFractionDigits:1
 const aud=v=>v==null?'-':'A$'+Math.round(v).toLocaleString();
 const aud2=v=>v==null?'-':'A$'+(+v).toLocaleString(undefined,{maximumFractionDigits:2});
 const pct=v=>v==null?'-':(v*100).toFixed(2)+'%';
-const div=(a,b)=>(!b)?null:a/b;
+// div: unknown numerator stays unknown. Without the a==null guard `null/5` is 0 in JS, which is how
+// a WITHHELD spend used to reach a cost-per-X card as a confident "A$0".
+const div=(a,b)=>(a==null||!b)?null:a/b;
+
+// ===================== withheld values (external sessions) =====================
+// The platform front-door SUPPRESSES a money field it cannot express as a client-billed figure by
+// setting it to null (fail-closed: it never ships raw media cost). null therefore means WITHHELD,
+// not zero - and zero is a factual claim we must not make on data we were not given. Everything
+// below keeps null intact all the way to the formatters, which already render '-'.
+//
+// Scope is deliberately MONEY ONLY. A null COUNT (conversions / users / leads) has a long-standing
+// and different meaning in this feed - "none reported" - and 1,000+ of them exist in a normal
+// internal payload, so the plain sumBy/`||0` treatment stays exactly as it was for counts.
+const nAdd=(a,b)=>(a==null||b==null)?null:a+b;   // any unknown part => unknown total
+const nMul=(a,b)=>(a==null||b==null)?null:a*b;   // guards `div(...)*1000` (null*1000 is 0 in JS)
+// Sum a MONEY field: unknown if any contributing row was withheld (mirrors the proxy's own rule
+// that a partial sum reading as a real figure is worse than an honest gap).
+function sumMoney(rows,key){let s=0;for(const r of (rows||[])){const v=r&&r[key];if(v===null)return null;s+=+v||0;}return s;}
+// Chart series: a withheld point must be a GAP, not a zero plotted on the axis. Chart.js skips null.
+const heldSeries=a=>a.some(v=>v==null)?a.map(()=>null):a;
+// Read a value that may be absent because its whole BLOCK was withheld: null (=> '-'), never 0.
+const heldNum=v=>v==null?null:(+v||0);
 
 // ----- label formatting -----
 // snake_case GA4 event names -> Title Case (with common acronyms upper-cased); tokens like "$50" pass through.
@@ -1050,6 +1073,7 @@ function bbChannelKey(p){var s=String(p||'').toLowerCase();
 function bbGrossRows(rows, chan){
   if(!Array.isArray(rows))return;
   rows.forEach(r=>{ if(!r)return;
+    if(r.spend_aud===null) return;          // WITHHELD by the proxy - keep it null, never 0
     if(r._rawSpend==null) r._rawSpend=Number(r.spend_aud)||0;
     r.spend_aud = r._rawSpend * bbMultFor(chan || bbChannelKey(r.platform));
   });
@@ -1059,15 +1083,17 @@ function bbGrossRows(rows, chan){
 function bbGrossWide(rec){
   if(!rec)return;
   const parts=[['ga_spend_aud','google'],['me_spend_aud','meta'],['td_spend_aud','ttd'],['rd_spend_aud','reddit']];
-  let hasParts=false, total=0;
+  let hasParts=false, total=0, missing=false;
   parts.forEach(([key,chan])=>{
+    if(rec[key]===null){ missing=true; return; }   // WITHHELD part - the blend is unknowable
     if(rec[key]==null)return; hasParts=true;
     if(rec['_raw_'+key]==null) rec['_raw_'+key]=Number(rec[key])||0;
     rec[key]=rec['_raw_'+key]*bbMultFor(chan); total+=rec[key];
   });
   if(hasParts && rec.ad_spend_aud!=null){
     if(rec._raw_ad_spend_aud==null) rec._raw_ad_spend_aud=Number(rec.ad_spend_aud)||0;
-    rec.ad_spend_aud=total;
+    // A partial sum would read as a real total, so an unknown part makes the blend unknown.
+    rec.ad_spend_aud=missing?null:total;
   }
 }
 function bbApplySpendMult(){
@@ -1218,7 +1244,29 @@ function renderDateScope(){
     note.style.display='none';
   }
 }
-function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;charts[id]=new Chart(el,cfg);applyKpiToChart(id);}
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();const el=document.getElementById(id);if(!el)return;unheldChart(id);charts[id]=new Chart(el,cfg);applyKpiToChart(id);}
+// A chart with NOTHING behind it (every value withheld) is removed, not drawn empty: an empty axis
+// still reads as "we measured this and it was nil". Hides the whole enclosing panel and leaves one
+// line saying why. Returns true when it hid, so callers `if(heldChart(id))return;`. Idempotent -
+// re-render (filter/date change) restores the panel when data is available again.
+function heldChart(id,msg){
+  const el=document.getElementById(id); if(!el)return false;
+  const box=el.closest('.panel-box')||el.closest('.panel')||el.parentElement;
+  if(!box)return false;
+  let note=box.querySelector('.held-note');
+  if(!note){note=document.createElement('p');note.className='hint held-note';box.appendChild(note);}
+  note.textContent=msg||'Not available for this account.';
+  note.style.display=''; el.style.display='none';
+  if(charts[id]){charts[id].destroy();charts[id]=null;}
+  return true;
+}
+// The counterpart: put a previously hidden canvas back before drawing into it.
+function unheldChart(id){
+  const el=document.getElementById(id); if(!el)return;
+  el.style.display='';
+  const box=el.closest('.panel-box')||el.closest('.panel')||el.parentElement;
+  const note=box&&box.querySelector('.held-note'); if(note)note.style.display='none';
+}
 
 // ===================== "?" plain-language tooltips =====================
 // tipIcon(text) returns a small "?" badge; hovering/focusing ANY .bb-tip[data-tip] (built by
@@ -1435,8 +1483,10 @@ function tsAd(g, keys, filt){
   PLATFORMS.forEach(p=>{spendByPlt[p]=keys.map(()=>0); convByPlt[p]=keys.map(()=>0);});
   src.filter(r=>filt(r.platform,r.campaign)&&inR(r[kf])).forEach(r=>{
     const i=ci[r[kf]]; if(i==null)return;
-    spendByPlt[r.platform][i]+=(+r.spend_aud||0); convByPlt[r.platform][i]+=(+r.conversions||0);
-    clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0); sp[i]+=(+r.spend_aud||0); cv[i]+=(+r.conversions||0);
+    // WITHHELD spend (null) poisons its bucket to null so the bar/line shows a GAP, not a zero.
+    const s=r.spend_aud===null?null:(+r.spend_aud||0);
+    spendByPlt[r.platform][i]=nAdd(spendByPlt[r.platform][i],s); convByPlt[r.platform][i]+=(+r.conversions||0);
+    clk[i]+=(+r.clicks||0); im[i]+=(+r.imps||0); sp[i]=nAdd(sp[i],s); cv[i]+=(+r.conversions||0);
   });
   return { spendByPlt, convByPlt, clicks:clk, imps:im, spend:sp, conv:cv };
 }
@@ -1447,6 +1497,13 @@ function tsAd(g, keys, filt){
 // YYYY-MM-DD to the same key the GA4/ad feeds use (month/ISO week_start/day) so lines align.
 function crmKey(d,g){ const s=String(d).slice(0,10); return g==='day'?s : g==='week'?weekStartOf(s) : s.slice(0,7); }
 function tsCrm(g, keys){
+  // The whole crm block can be absent for a session that is not given it. Plotting zeros would
+  // claim "no leads, no paying customers" - report it as withheld instead and let the caller drop
+  // the series from the chart entirely.
+  if(!(DATA.crm && DATA.crm.outcomes_daily)){
+    const gap=keys.map(()=>null);
+    return { leads:gap, cust:gap, pay:gap, held:true };
+  }
   const src=(DATA.crm && DATA.crm.outcomes_daily) || [];
   const ci={}; keys.forEach((k,i)=>ci[k]=i);
   const leads=keys.map(()=>0), cust=keys.map(()=>0), pay=keys.map(()=>0);
@@ -1537,7 +1594,7 @@ function renderOverview(){
   // from ad_campaign_monthly (Platform + Campaign scoped), GA4 outcomes from monthly. Selecting all
   // campaigns + "All time" reproduces the whole-flight totals exactly.
   const acm=DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month));
-  const spend=sumBy(acm,'spend_aud'), imps=sumBy(acm,'imps'), clicks=sumBy(acm,'clicks');
+  const spend=sumMoney(acm,'spend_aud'), imps=sumBy(acm,'imps'), clicks=sumBy(acm,'clicks');
   const mr=DATA.monthly.filter(m=>inRangeMonth(m.month));
   const sessions=sumBy(mr,'sessions'), keyEvents=sumBy(mr,'conversions');
   // ad-driven sessions = mapped channel sessions for SELECTED platforms (Meta + Reddit share Paid Social - count once)
@@ -1550,6 +1607,7 @@ function renderOverview(){
   const ovMonths=[...new Set(mr.map(m=>m.month))].sort();
   const mrBy=f=>ovMonths.map(mo=>{const r=mr.find(x=>x.month===mo);return r?(+r[f]||0):0;});
   const acmBy=f=>ovMonths.map(mo=>acm.filter(r=>r.month===mo).reduce((s,r)=>s+(+r[f]||0),0));
+  const acmMoneyBy=f=>ovMonths.map(mo=>sumMoney(acm.filter(r=>r.month===mo),f));   // withheld => gap
   const adDrivenBy=ovMonths.map(mo=>{const r=mr.find(x=>x.month===mo); if(!r)return 0; let s=0;
     if(selPlt.has('google'))s+=+r.search_sessions||0;
     if(selPlt.has('meta')||selPlt.has('reddit'))s+=+r.social_sessions||0;
@@ -1563,20 +1621,22 @@ function renderOverview(){
   // no first-payment date), so the line sums to this card. NOT lifecycle 'Customer' (77, ~zero overlap).
   const LEADP=['google','meta','reddit'];
   const byP={}; PLATFORMS.forEach(p=>byP[p]={spend:0,conv:0});
-  acm.forEach(r=>{const a=byP[r.platform]; if(a){a.spend+=+r.spend_aud||0; a.conv+=+r.conversions||0;}});
+  // spend uses nAdd so a WITHHELD row makes that platform's spend unknown, not a partial sum.
+  acm.forEach(r=>{const a=byP[r.platform]; if(a){a.spend=nAdd(a.spend,r.spend_aud===null?null:(+r.spend_aud||0)); a.conv+=+r.conversions||0;}});
   const adLeads=LEADP.reduce((s,p)=>s+byP[p].conv,0);
-  const leadSpend=LEADP.reduce((s,p)=>s+byP[p].spend,0);
+  const leadSpend=LEADP.reduce((s,p)=>nAdd(s,byP[p].spend),0);
   const ttdSpend=byP.ttd.spend;
   const cpl=div(leadSpend,adLeads);
   const acmLeadBy=field=>ovMonths.map(mo=>acm.filter(r=>r.month===mo&&LEADP.includes(r.platform)).reduce((s,r)=>s+(+r[field]||0),0));
-  const leadsBy=acmLeadBy('conversions'), leadSpendBy=acmLeadBy('spend_aud');
-  const cplBy=leadSpendBy.map((s,i)=>leadsBy[i]?s/leadsBy[i]:null);
+  const acmLeadMoneyBy=field=>ovMonths.map(mo=>sumMoney(acm.filter(r=>r.month===mo&&LEADP.includes(r.platform)),field));
+  const leadsBy=acmLeadBy('conversions'), leadSpendBy=acmLeadMoneyBy('spend_aud');
+  const cplBy=leadSpendBy.map((s,i)=>(s==null||!leadsBy[i])?null:s/leadsBy[i]);
   const H='heroChart';   // tiles with a hero series/stack are clickable toggles (CPL has no hero line - static card)
   document.getElementById('ovNorthStar').innerHTML=[
     nsCard('k-ns-leads','Ad-reported leads',fmtN(adLeads),'Google · Meta · Reddit conversions', leadsBy, false, {chart:H,series:'Leads'}),
     nsCard('k-ns-cpl','Cost per lead',aud(cpl),'lead-channel spend &divide; leads', cplBy, true, null),
-    nsCard('k-ns-paying','Paying customers',fmtN(+crmKpi.paying||0),'all-time · app billing (has spent) · not filter-scoped', null, false, {chart:H,series:'New paying customers'}),
-    nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels'), acmBy('spend_aud'), false, {chart:H,stack:'spend'}),
+    nsCard('k-ns-paying','Paying customers',fmtN(heldNum(crmKpi.paying)),'all-time · app billing (has spent) · not filter-scoped', null, false, {chart:H,series:'New paying customers'}),
+    nsCard('k-ns-spend','Ad spend',aud(spend),(ttdSpend==null?'Trade Desk display spend not available':(ttdSpend?aud(ttdSpend)+' on Trade Desk display (no lead tracking)':'all lead channels')), acmMoneyBy('spend_aud'), false, {chart:H,stack:'spend'}),
   ].join('');
 
   // KPI row = supporting context (static). The GOAL metrics live in the north-star strip above and the
@@ -1584,7 +1644,7 @@ function renderOverview(){
   const cards=[
     ['k-sessions','Website sessions',fmtN(sessions),'whole site', null],
     ['k-ke','GA4 key events',fmtN(keyEvents),'on-site (modest)', null],
-    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000), null],
+    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(nMul(div(spend,imps),1000)), null],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps)), null],
     ['k-addriven','Ad-driven sessions',fmtN(adDriven),pct(div(adDriven,sessions))+' of sessions', null],
   ];
@@ -1599,9 +1659,13 @@ function renderOverview(){
     datasets:[{data:ch.map(c=>c.sessions),backgroundColor:ch.map(c=>mc(c.channel))}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Sessions'},legend:{position:'top',labels:{color:tickClr,boxWidth:11,font:{size:11}}}}}});
 
-  // spend donut (filtered, in range)
-  const sp=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumBy(acm.filter(r=>r.platform===p),'spend_aud')})).filter(x=>x.v>0);
-  mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
+  // spend donut (filtered, in range). A withheld platform contributes null, not 0 - if EVERY
+  // selected platform is withheld the donut carries no information at all, so it is removed
+  // rather than drawn as an empty ring (which reads as "no spend").
+  const spAll=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({p,v:sumMoney(acm.filter(r=>r.platform===p),'spend_aud')}));
+  const sp=spAll.filter(x=>x.v>0);
+  if(spAll.length&&spAll.every(x=>x.v==null)){ heldChart('spendDonut','Spend split not available for this account.'); }
+  else mkChart('spendDonut',{type:'doughnut',data:{labels:sp.map(x=>PLABEL[x.p]),
     datasets:[{data:sp.map(x=>x.v),backgroundColor:sp.map(x=>PCOLOR[x.p])}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{bbCenter:{label:'Total spend',prefix:'A$'},legend:{position:'top',labels:{color:tickClr,boxWidth:11}}}}});
 
@@ -1661,9 +1725,13 @@ function renderHero(){
   const rel=(scale.hero==='rel');
   const effects=[
     {label:'Leads',            color:mc('Leads'),       data:leads,    w:2.8, axis:'y1'},
-    {label:'New paying customers', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
-  ].filter(e=>e.data);
-  const ds=PLATFORMS.filter(p=>selPlt.has(p)).map(p=>({
+    // crm.held => the block was not given to this session. Drop the series rather than plotting a
+    // flat zero line, which would read as "no-one ever became a paying customer".
+    crm.held?null:{label:'New paying customers', color:mc('Paying'),  data:crm.pay,  w:2.5, dash:true,  axis:'y1'},
+  ].filter(e=>e&&e.data);
+  // A platform whose spend is withheld carries an all-null series; drop its bar rather than
+  // stacking a zero-height bar that reads as "this platform spent nothing".
+  const ds=PLATFORMS.filter(p=>selPlt.has(p)).filter(p=>spendByPlt[p].some(v=>v!=null)).map(p=>({
     type:'bar',label:PLABEL[p],stack:'spend',backgroundColor:PCOLOR[p],data:spendByPlt[p],yAxisID:'y',order:5
   }));
   effects.forEach(e=>ds.push({
@@ -1775,27 +1843,29 @@ function renderPaid(){
   const rows=DATA.ad_campaign_monthly.filter(r=>campSel(r.platform,r.campaign) && inRangeMonth(r.month));
   const per={};
   PLATFORMS.forEach(p=>per[p]={imps:0,clicks:0,spend:0,conv:0});
-  rows.forEach(r=>{const a=per[r.platform];a.imps+=+r.imps||0;a.clicks+=+r.clicks||0;a.spend+=+r.spend_aud||0;a.conv+=+r.conversions||0;});
+  rows.forEach(r=>{const a=per[r.platform];a.imps+=+r.imps||0;a.clicks+=+r.clicks||0;
+    a.spend=nAdd(a.spend,r.spend_aud===null?null:(+r.spend_aud||0));a.conv+=+r.conversions||0;});
   const convReported={google:true,meta:true,ttd:false,reddit:true};
   const LEADP2=['google','meta','reddit'];        // lead-reporting channels (TTD display reports none)
   // rank platforms by cost-per-lead, best first; platforms with no reported leads (TTD) sort last.
   const order=PLATFORMS.slice().sort((x,y)=>{
-    const cx=(convReported[x]&&per[x].conv)?per[x].spend/per[x].conv:Infinity;
-    const cy=(convReported[y]&&per[y].conv)?per[y].spend/per[y].conv:Infinity;
+    // a withheld spend can't be ranked on cost-per-lead - sort those last, alongside no-lead platforms
+    const cx=(convReported[x]&&per[x].conv&&per[x].spend!=null)?per[x].spend/per[x].conv:Infinity;
+    const cy=(convReported[y]&&per[y].conv&&per[y].spend!=null)?per[y].spend/per[y].conv:Infinity;
     return cx-cy;
   });
   let body='<tr><th>Platform</th><th>Spend</th><th>Leads</th><th>Cost / lead</th><th>Impr.</th><th>Clicks</th><th>CTR</th><th>CPM</th><th>CPC</th></tr>';
   let tot={imps:0,clicks:0,spend:0,conv:0}, leadTot={spend:0,conv:0};
-  order.forEach(p=>{const a=per[p];tot.imps+=a.imps;tot.clicks+=a.clicks;tot.spend+=a.spend;tot.conv+=a.conv;
-    if(LEADP2.includes(p)){leadTot.spend+=a.spend;leadTot.conv+=a.conv;}
+  order.forEach(p=>{const a=per[p];tot.imps+=a.imps;tot.clicks+=a.clicks;tot.spend=nAdd(tot.spend,a.spend);tot.conv+=a.conv;
+    if(LEADP2.includes(p)){leadTot.spend=nAdd(leadTot.spend,a.spend);leadTot.conv+=a.conv;}
     body+=`<tr><td class="name"><span class="pill ${p}">${PLABEL[p]}</span></td><td>${aud(a.spend)}</td>
       <td>${convReported[p]?fmtN(a.conv):'-'}</td><td>${convReported[p]?aud(div(a.spend,a.conv)):'-'}</td>
       <td>${fmtN(a.imps)}</td><td>${fmtN(a.clicks)}</td><td>${pct(div(a.clicks,a.imps))}</td>
-      <td>${aud2(div(a.spend,a.imps)*1000)}</td><td>${aud2(div(a.spend,a.clicks))}</td></tr>`;});
+      <td>${aud2(nMul(div(a.spend,a.imps),1000))}</td><td>${aud2(div(a.spend,a.clicks))}</td></tr>`;});
   body+=`<tr style="font-weight:800"><td class="name">Total</td><td>${aud(tot.spend)}</td>
     <td>${fmtN(leadTot.conv)}</td><td>${aud(div(leadTot.spend,leadTot.conv))}</td>
     <td>${fmtN(tot.imps)}</td><td>${fmtN(tot.clicks)}</td><td>${pct(div(tot.clicks,tot.imps))}</td>
-    <td>${aud2(div(tot.spend,tot.imps)*1000)}</td><td>${aud2(div(tot.spend,tot.clicks))}</td></tr>`;
+    <td>${aud2(nMul(div(tot.spend,tot.imps),1000))}</td><td>${aud2(div(tot.spend,tot.clicks))}</td></tr>`;
   document.getElementById('platformTable').innerHTML=body;
 
   // media metrics over time (campaign-filtered): total ad spend (bars, AUD) + impressions & clicks
@@ -1911,11 +1981,11 @@ function renderKeywords(){
 // page visits (page-visit clicks + views); sign-up/lead conversions are sparse, like Meta.
 function renderReddit(){
   const rc=DATA.reddit_campaigns.filter(r=>campSel('reddit',r.campaign));
-  const spend=sumBy(rc,'spend_aud'), imps=sumBy(rc,'imps'), clicks=sumBy(rc,'clicks'),
+  const spend=sumMoney(rc,'spend_aud'), imps=sumBy(rc,'imps'), clicks=sumBy(rc,'clicks'),
         conv=sumBy(rc,'conversions'), pv=sumBy(rc,'page_visits');
   const cards=[
     ['k-spend','Reddit spend',aud(spend),'CPC '+aud2(div(spend,clicks))],
-    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(div(spend,imps)*1000)],
+    ['k-imps','Impressions',fmtN(imps),'CPM '+aud2(nMul(div(spend,imps),1000))],
     ['k-clicks','Clicks',fmtN(clicks),'CTR '+pct(div(clicks,imps))],
     ['k-addriven','Page visits',fmtN(pv),pv?'cost / visit '+aud2(div(spend,pv)):'traffic-driving signal'],
     ['k-leads','Sign-ups / leads',fmtN(conv),conv?'cost / sign-up '+aud2(div(spend,conv)):'sparse (B2B)'],
@@ -1935,11 +2005,13 @@ function renderReddit(){
   const agg={};
   src.filter(r=>r.platform==='reddit'&&campSel('reddit',r.campaign)&&inR(r[kf])).forEach(r=>{
     const k=r[kf]; (agg[k]=agg[k]||{imps:0,spend:0,clicks:0});
-    agg[k].imps+=+r.imps||0; agg[k].spend+=+r.spend_aud||0; agg[k].clicks+=+r.clicks||0;});
+    agg[k].imps+=+r.imps||0; agg[k].spend=nAdd(agg[k].spend,r.spend_aud===null?null:(+r.spend_aud||0)); agg[k].clicks+=+r.clicks||0;});
   const keys=Object.keys(agg).sort();
   const impArr=keys.map(k=>agg[k].imps);
-  const cpmArr=keys.map(k=>{const a=agg[k];return a.imps?a.spend/a.imps*1000:0;});
-  const cpcArr=keys.map(k=>{const a=agg[k];return a.clicks?a.spend/a.clicks:0;});
+  // withheld spend => a null cost point (gap on the line), never a 0 plotted on the cost axis.
+  // The zero-denominator arms are left exactly as they were, so nothing moves for internal sessions.
+  const cpmArr=keys.map(k=>{const a=agg[k];return a.spend==null?null:(a.imps?a.spend/a.imps*1000:0);});
+  const cpcArr=keys.map(k=>{const a=agg[k];return a.spend==null?null:(a.clicks?a.spend/a.clicks:0);});
   const relR=(scale.reddit==='rel');
   mkChart('redditTrend',{data:{labels:keys.map(grainLabel(gr)),datasets:[
     {type:'bar',label:'Impressions',backgroundColor:mc('Impressions'),data:impArr,yAxisID:'y',order:5},
@@ -2083,18 +2155,28 @@ function renderAds2Traffic(){
   // sessions + Pearson r, on the fixed Mon-anchored weekly grain.
   const fw=DATA.weekly.filter(w=>inRangeWeek(w.week_start));
   const spByWeek={};
-  DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign) && inRangeWeek(r.week_start)).forEach(r=>{spByWeek[r.week_start]=(spByWeek[r.week_start]||0)+(+r.spend_aud||0);});
+  DATA.ad_campaign_weekly.filter(r=>campActive(r.platform,r.campaign) && inRangeWeek(r.week_start)).forEach(r=>{
+    const k=r.week_start; if(!(k in spByWeek))spByWeek[k]=0;
+    spByWeek[k]=nAdd(spByWeek[k],r.spend_aud===null?null:(+r.spend_aud||0));});
+  // The whole chart IS spend-vs-sessions: with spend withheld every point would collapse onto x=0
+  // and Pearson r would be computed from manufactured zeros. Remove it and say so instead.
+  const spendHeld=Object.keys(spByWeek).length>0 && Object.keys(spByWeek).every(k=>spByWeek[k]==null);
+  if(spendHeld){
+    heldChart('a2tScatter','Spend is not available for this account, so the spend-vs-sessions correlation cannot be shown.');
+    document.getElementById('corrHint').innerHTML='Weekly ad spend vs mapped paid sessions - <b>not available for this account</b>.';
+  }else{
   const pts=fw.map(w=>({x:spByWeek[w.week_start]||0,y:mappedSess(w)})).filter(p=>p.x>0||p.y>0);
   mkChart('a2tScatter',{type:'scatter',data:{datasets:[{label:'Week',data:pts,backgroundColor:mc('Sessions')}]},
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
       scales:{x:axis({title:{display:true,text:'Weekly ad spend (AUD)',color:tickClr}}),y:axis({title:{display:true,text:'Mapped paid sessions',color:tickClr}})}}});
   const r=pearson(pts.map(p=>p.x),pts.map(p=>p.y));
   document.getElementById('corrHint').innerHTML='Weekly ad spend vs mapped paid sessions. Pearson r = <b style="color:var(--accent)">'+(r==null?'-':r.toFixed(2))+'</b> ('+pts.length+' weeks).';
+  }
 
   // conversions / CPL by platform (Platform + Campaign scoped, honors the date range via ad_campaign_monthly)
   const acm=DATA.ad_campaign_monthly.filter(r=>campActive(r.platform,r.campaign) && inRangeMonth(r.month));
   const per={};PLATFORMS.forEach(p=>per[p]={spend:0,conv:0});
-  acm.forEach(r=>{per[r.platform].spend+=+r.spend_aud||0;per[r.platform].conv+=+r.conversions||0;});
+  acm.forEach(r=>{per[r.platform].spend=nAdd(per[r.platform].spend,r.spend_aud===null?null:(+r.spend_aud||0));per[r.platform].conv+=+r.conversions||0;});
   const reported={google:'Google-reported',meta:'Signup Button (Meta pixel)',ttd:'None reported',reddit:'Reddit sign-ups/leads (sparse)'};
   const has={google:true,meta:true,ttd:false,reddit:true};
   let h='<tr><th>Platform</th><th>Spend</th><th>Conversions</th><th>Cost / lead</th><th style="text-align:left">Source</th></tr>';
@@ -2118,15 +2200,17 @@ function exportAllData(){
   lines.push('ResetData dashboard export,'+(DATA.last_updated||''));
   lines.push('');
   lines.push('KPI,Value');
-  Object.entries(k).forEach(([key,v])=>{if(!key.startsWith('_'))lines.push(key+','+v);});
+  // a WITHHELD value exports as an empty cell, never as 0 (and never as the string "null")
+  const csvv=v=>v==null?'':v;
+  Object.entries(k).forEach(([key,v])=>{if(!key.startsWith('_'))lines.push(key+','+csvv(v));});
   lines.push('');
   lines.push('Monthly');
   const mh=Object.keys(DATA.monthly[0]||{}).filter(h=>!h.startsWith('_'));lines.push(mh.join(','));
-  DATA.monthly.forEach(r=>lines.push(mh.map(h=>r[h]).join(',')));
+  DATA.monthly.forEach(r=>lines.push(mh.map(h=>csvv(r[h])).join(',')));
   lines.push('');
   lines.push('Ad campaigns');
   const ah=Object.keys(DATA.ad_campaigns[0]||{}).filter(h=>!h.startsWith('_'));lines.push(ah.join(','));
-  DATA.ad_campaigns.forEach(r=>lines.push(ah.map(h=>('"'+(''+r[h]).replace(/"/g,'""')+'"')).join(',')));
+  DATA.ad_campaigns.forEach(r=>lines.push(ah.map(h=>('"'+(''+csvv(r[h])).replace(/"/g,'""')+'"')).join(',')));
   const blob=new Blob([lines.join('\n')],{type:'text/csv'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='resetdata_export.csv';a.click();
 }

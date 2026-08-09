@@ -276,8 +276,15 @@
         b={cls:"warn", label:"Source unreachable - showing last known"};
         if(c.freshness.snowflake_error) el.title=c.freshness.snowflake_error;
       } else el.removeAttribute("title");
+      var age=fmtAge(c.freshness.build_at||c.freshness.ingest_latest||c.freshness.data_through||c.freshness.transmission_latest);
+      // QUIET mode (set only by a themed, client-facing portal - see portal.html): drop the
+      // verdict wording and the alarm class, keep the recency. A partner showing this screen in a
+      // client meeting should still see HOW CURRENT the data is, without "Pipeline behind" reading
+      // as an incident. The Data Accuracy tab is untouched and remains the honest detailed view.
+      if(window.BB_QUIET_HEALTH){ el.className="bbhealth"; el.textContent="Updated "+age;
+        el.title=b.label; return; }
       el.className="bbhealth "+b.cls;
-      el.textContent=b.label+" · updated "+fmtAge(c.freshness.build_at||c.freshness.ingest_latest||c.freshness.data_through||c.freshness.transmission_latest);
+      el.textContent=b.label+" · updated "+age;
     });
   }
 

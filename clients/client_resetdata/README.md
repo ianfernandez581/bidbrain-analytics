@@ -176,7 +176,12 @@ Two filters (top of page, on Overview + Ads → Traffic; Website Traffic shows n
    trend, **key events by type**, and top sources/mediums (ad platforms flagged `AD`).
 4. **Ads → Traffic** — monthly spend vs sessions, weekly impressions vs mapped sessions, a **Pearson-r
    correlation scatter**, and conversions / cost-per-lead by platform.
-5. **Signups & CRM** (HubSpot) — answers Caroline's six questions. Reads HubSpot via
+5. **Signups & CRM** (HubSpot) — **shown to EXTERNAL tenants too** (Extrablack) since 2026-08-09: the
+   tab is campaign OUTCOME, not internal admin. It briefly wasn't, and the side effect was the giveaway —
+   the *Overview* "Paying customers" card and the hero's paying line read **`0` instead of 143**, because
+   both source `crm`. If you ever re-exclude a block, sweep what else reads it first; every money/CRM
+   figure here now renders `-` when withheld, never `0`. NB the tab ships `owner` (named ResetData staff)
+   via the platform's `_SCRUB_EXEMPT_BLOCKS`. Answers Caroline's six questions. Reads HubSpot via
    `raw_windsor.hubspot_contacts` / `hubspot_owners` (a **live snapshot**). The ad Platform/Campaign filters
    are hidden here, but the tab has its **own date-range picker** — the same Looker widget as the other tabs,
    repointed to its own **contact-created-date** bounds/state (`crmStart`/`crmEnd`, from `crm.window`). Picking
