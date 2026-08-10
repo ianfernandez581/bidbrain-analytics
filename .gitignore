@@ -76,3 +76,8 @@ grid-core/files/CREATIVE/Consideration - LinkedIn Document ads/
 /*_NOTES.md
 /*_ASSESSMENT.md
 /*_EXPOSURE*.md
+
+# Office lock/owner files (created while a workbook or doc is OPEN, e.g.
+# ~$pacing_intake_template.xlsx). Never work product; they are locked by Office
+# so they cannot even be deleted before a push, and /push commits ALL local work.
+~$*

@@ -26,10 +26,17 @@ BigQuery console (or the two drift). The `NN_` prefix sets apply order.
 > **The per-client filter is the main thing you'd change** copying this folder: the advertiser id
 > in `01_*` and the tactic/stage mapping.
 
-> **Conversion-slot caveat:** Caltex's pixel layout is unknown until pixels fire. TTD can export
-> one tracker as a DUPLICATE column pair (VMCH's did) — once real actions appear, verify the slot
-> layout in `raw_row` and, if pairs duplicate, switch `01_stg_ttd.sql` to sum only the first
-> column of each pair (the VMCH `{01,03,05}` pattern).
+> **Conversion slots = "Site visits" (live 2026-08-10).** Exactly ONE tracker is attached to the
+> campaign's conversion reporting: the URL-scoped `Landing Page Visit` (`4tyuvnj`), so the slots
+> count ad-attributed visits to the **Star Card landing page** — not all site traffic, not
+> applications. `01_stg_ttd.sql` sums all 12 slots per kind (the rest are zero) so a future second
+> tracker is never silently dropped — but when one IS attached (applications, once the pixel reaches
+> `oa.starcard.com.au`) it must be **split out** into its own metric, here and in the status-dash
+> check, never folded into site visits.
+>
+> **Duplicate-pair caveat (VMCH):** TTD can export one tracker as a DUPLICATE column pair. If the
+> per-slot breakdown ever shows byte-identical neighbours, switch `01_stg_ttd.sql` to sum only the
+> first column of each pair (the VMCH `{01,03,05}` pattern).
 
 ## Apply them
 

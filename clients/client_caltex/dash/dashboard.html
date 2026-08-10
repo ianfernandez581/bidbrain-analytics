@@ -414,7 +414,7 @@
       <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative impressions across the flight vs the straight-line pace needed to reach the impression target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks → ad-attributed <b>site visits</b> (post-view + post-click). Display is upper-funnel, so post-view rightly dominates. These are site visits, <b>not</b> applications - see the note at the foot of this tab.</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks → ad-attributed <b>site visits</b> (post-view + post-click) on the Star Card landing page. Display is upper-funnel, so post-view rightly dominates. These are page visits, <b>not</b> applications - see the note at the foot of this tab.</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by tactic</h3><div class="hint">Where the budget is going across the three buying tactics. Click a legend item to hide or show a tactic.</div><div class="chartbox" style="height:280px"><canvas id="tacticDonut"></canvas></div></div>
       </div>
 
@@ -461,7 +461,7 @@
 
       <div class="grid cols-2">
         <div class="card"><h3>Delivery by day of week</h3><div class="hint">Impressions (bars) and CTR (line) by weekday across the selected range - when Caltex is seen, and when the ads get clicked.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
-        <div class="card"><h3>Site visits - post-view vs post-click</h3><div class="hint">Ad-attributed visits from the sitewide TTD pixel: <b>post-view</b> = saw an ad, later came to the site; <b>post-click</b> = clicked the ad through. Post-view dominating is normal for upper-funnel display. This is site traffic, <b>not</b> applications.</div><div class="chartbox" style="height:250px"><canvas id="actionSplitChart"></canvas></div><div class="hint" id="actionNote" style="margin-top:8px"></div></div>
+        <div class="card"><h3>Site visits - post-view vs post-click</h3><div class="hint">Ad-attributed visits to the <b>Star Card landing page</b>, measured by the Trade Desk "Landing Page Visit" tracker: <b>post-view</b> = saw an ad, later landed on the page; <b>post-click</b> = clicked the ad through. Post-view dominating is normal for upper-funnel display. These are <b>page visits, not applications</b>.</div><div class="chartbox" style="height:250px"><canvas id="actionSplitChart"></canvas></div><div class="hint" id="actionNote" style="margin-top:8px"></div></div>
       </div>
 
       <div class="grid cols-2-1">
@@ -835,7 +835,7 @@ function renderKpis(){
     {color:MC.clicks,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
       sub:`CTR ${pct(a.ctr)}${ctrT!=null?` vs ${pct(ctrT)} target`:''}`},
     {color:MC.actions,north:true,series:'actions',label:'Site visits (ad-attributed)',value:a.actions?int(a.actions):'-',
-      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`:'none attributed yet',
+      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`:'tracking live - none attributed in range yet',
       badge:a.actions?(meta().action_source_label||'TTD pixel-attributed'):null},
     {color:MC.accent,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight${targetPending('flight_budget_aud')?' (pending)':''}`:'budget not set'}
@@ -962,7 +962,7 @@ function renderFunnel(){
     const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
     const rate=prev?`${pct(conv,2)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
     return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
-  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px">No ad-attributed site visits recorded in this range yet. The site pixel is live; visits appear once someone who saw or clicked an ad lands on the site.</div>');
+  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px">No ad-attributed site visits recorded in this range yet. The Star Card landing-page tracker is live; visits appear once someone who saw or clicked an ad reaches that page.</div>');
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
@@ -994,13 +994,13 @@ function renderInsights(){
   const items=[
     {label:'Cheapest attention',value:cheapest?safeName(cheapest.tactic):'-',copy:cheapest?`${money(cheapest.cpm,2)} CPM · ${pct(cheapest.imp_share!=null?cheapest.imp_share:(n(cheapest.impressions)/(n(a.impressions)||1)),0)} of impressions. The volume engine of the awareness lane.`:'Waiting for delivery.'},
     {label:'Most engaging tactic',value:engaging?safeName(engaging.tactic):'-',copy:engaging?`CTR ${pct(engaging.ctr)} vs ${pct(a.ctr)} campaign average - the consideration lane earning the clicks.`:'Waiting for engagement signal.'},
-    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site visits (ad-attributed).`:`${int(a.clicks)} clicks so far; ad-attributed site visits appear as exposed users reach the site.`},
+    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site visits (ad-attributed).`:`${int(a.clicks)} clicks so far; ad-attributed site visits appear as exposed users reach the Star Card page.`},
     {label:'Creative to protect',value:bestCr?safeName(bestCr.creative):'-',copy:bestCr?`CTR ${pct(bestCr.ctr)} at ${money(bestCr.cpm,2)} CPM (${compact(bestCr.impressions)} impressions).`:'Waiting for a creative signal (5k+ impressions).'}
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the sitewide Trade Desk pixel. <b>What the pixel measures:</b> it fires on every page, so it reports ad-driven <b>site visits</b> - it does <b>not</b> yet measure Star Card applications, because the application-container tag is not installed. Applications therefore are <b>not</b> reported here; when that tag goes in we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets now come from the <b>signed media plan</b> (A$5,000/month across QLD+WA). Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the application-container tag - only a sitewide pixel is live) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the Trade Desk <b>Landing Page Visit</b> tracker. <b>What is measured:</b> that tracker is scoped to the <b>Star Card landing page</b>, so the figure counts people who saw or clicked an ad and then reached that page - ad-driven <b>page visits</b>. It does <b>not</b> measure Star Card applications: the application step sits on a separate domain the pixel is not installed on, so applications are <b>not</b> reported here; once that install lands we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets now come from the <b>signed media plan</b> (A$5,000/month across QLD+WA). Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the pixel installed on the application domain) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
 }
 
 // ---- Delivery ----
@@ -1099,7 +1099,7 @@ function renderActionSplit(){
   const a=agg(scoped());const pv=n(a.pv),pc=n(a.pc);const tot=pv+pc;
   makeChart('actionSplitChart',{type:'doughnut',data:{labels:['Post-view','Post-click'],datasets:[{data:[pv,pc],backgroundColor:[MC.actions,MC.clicks],borderColor:'#0A1F27',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{bbCenter:{label:'Site visits'},legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
-  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click visits in range.`:'No ad-attributed visits in this range yet - they appear once someone exposed to an ad lands on the site.';
+  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click visits to the Star Card page in range.`:'No ad-attributed visits in this range yet - they appear once someone exposed to an ad reaches the Star Card landing page.';
 }
 function renderSegment(){
   const groups=byAdGroup(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,12);

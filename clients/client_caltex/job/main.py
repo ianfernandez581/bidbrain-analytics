@@ -83,8 +83,9 @@ def build_env(bq, observed):
         "monthly_budget":     bnum("monthly_budget_aud"),
         "daily_pace":         bnum("daily_pace_aud"),
         "flight_budget":      bnum("flight_budget_aud"),
-        # Committed in the media plan. signups is still unmeasurable (needs the application-container
-        # tag; only a sitewide base pixel is live). viewability IS carried now - the Windsor TTD feed
+        # Committed in the media plan. signups is still unmeasurable (the apply step is on
+        # oa.starcard.com.au, a domain the pixel is not installed on; the tracker that IS attached is
+        # scoped to the Star Card landing page). viewability IS carried now - the Windsor TTD feed
         # does expose sampled_viewed/sampled_tracked - but it returns NOTHING for this advertiser until
         # viewability measurement is enabled on the ad groups in TTD, so the UI must distinguish
         # "no sample" from a real 0%.
@@ -133,7 +134,12 @@ def build_env(bq, observed):
             "client": CLIENT,
             "title": "Caltex",
             "currency": (fact[0].get("currency") if fact else None) or "AUD",
-            "action_source_label": "TTD pixel-attributed",
+            # Badge under the "Site visits (ad-attributed)" KPI. Names the TRACKER, not just the
+            # platform: the campaign's conversion reporting carries the URL-scoped "Landing Page
+            # Visit" tag (4tyuvnj, TTD event type "Site visit"), scoped to the Star Card landing
+            # page - NOT the sitewide Default tag. If a second tracker is ever attached, this
+            # label and the copy in dash/dashboard.html must be re-checked together.
+            "action_source_label": "Star Card page · TTD-attributed",
             "channel": "The Trade Desk (programmatic display)",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(

@@ -17,13 +17,27 @@
 --   Attention-Optimised   -> Consideration  (paying for engaged attention, judged on CTR quality)
 -- Anything new/unmatched defaults to Awareness so a fresh ad group is never dropped.
 --
--- ATTRIBUTED CONVERSIONS: Windsor's `conversions` column is a double-encoded JSON string holding
--- TTD's anonymous numbered slots (view_through_conversion_NN = post-view, click_conversion_NN =
--- post-click). conversion_touch_NN (TOTAL pixel fires, mostly NOT ad-attributed) is deliberately NOT
--- used -- see client_vmch/sql/03_stg_ttd.sql. We sum ALL 12 slots per kind because Caltex's pixel
--- layout is unknown until pixels fire. CAVEAT (from VMCH): TTD can export one tracker as a DUPLICATE
--- PAIR of columns -- once Caltex pixels fire, verify the slot layout and, if pairs duplicate, sum
--- only the first column of each pair (the VMCH {01,03,05} pattern).
+-- ATTRIBUTED CONVERSIONS ("Site visits" in the UI): Windsor's `conversions` column is a
+-- double-encoded JSON string holding TTD's anonymous numbered slots (view_through_conversion_NN =
+-- post-view, click_conversion_NN = post-click). conversion_touch_NN (TOTAL pixel fires, mostly NOT
+-- ad-attributed) is deliberately NOT used -- see client_vmch/sql/03_stg_ttd.sql.
+--
+-- WHAT THESE SLOTS ACTUALLY COUNT (live 2026-08-10): the campaign's conversion reporting carries ONE
+-- tracking tag -- the URL-scoped `Landing Page Visit` (`4tyuvnj`, TTD event type "Site visit", rule
+-- contains business-solutions/starcard/caltex-starcard). So the number is ad-attributed visits to
+-- the STAR CARD LANDING PAGE, not all site traffic and NOT applications. Before that date every
+-- Caltex row returned `conversions` = JSON null: the tag existed and fired at the pixel level but
+-- was never attached to the CAMPAIGN's conversion reporting, so TTD reported nothing to Windsor.
+-- The sitewide `Universal Pixel - Default` tag (`8za7r9n`, ~429k hits/30d) is NOT attached and must
+-- never be substituted -- it is ~150x this number and counts all traffic, ad-exposed or not.
+--
+-- We still sum ALL 12 slots per kind: only one tracker is attached today, so the extra slots are
+-- zero, and summing keeps a second tracker (e.g. applications, once the pixel reaches
+-- oa.starcard.com.au) from being silently dropped. WHEN A SECOND TRACKER IS ATTACHED it will appear
+-- as a NEW numbered slot and must be SPLIT OUT here (and mirrored in the status-dash check) rather
+-- than left folded into this total -- applications must never be added to site visits.
+-- CAVEAT (from VMCH): TTD can export one tracker as a DUPLICATE PAIR of columns; if that ever shows
+-- up here, sum only the first column of each pair (the VMCH {01,03,05} pattern).
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_caltex.stg_ttd` AS
 WITH base AS (
   SELECT *, PARSE_JSON(JSON_VALUE(conversions)) AS _conv

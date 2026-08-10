@@ -51,8 +51,10 @@ north-star KPI bloom, halo on active chips/tabs, lit pacing bar, card hover bloo
   (no reach/frequency exists in the TTD feed, so wear-out is read from weekly CTR decline).
 - **Creative** — top-10 creatives by spend as branded tiles (TTD reports names/formats, not image
   previews) with per-creative metrics + a detail modal.
-- **Site actions honesty:** post-view + post-click TTD pixel attribution only, never framed as
-  sales; `conversion_touch` is never used. When no pixels fire the UI says so instead of showing 0s.
+- **Site visits honesty:** post-view + post-click TTD attribution only, never framed as sales;
+  `conversion_touch` is never used. The attached tracker is the URL-scoped `Landing Page Visit` tag
+  (live 2026-08-10), so the KPI means **Star Card landing-page visits**, not all site traffic and
+  not applications. When nothing is attributed in range the UI says so instead of showing 0s.
 
 ## Routes (`main.py`)
 

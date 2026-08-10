@@ -271,11 +271,29 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, account, force=False):
             body = (e.response.text[:500] if e.response is not None else "")
             if status == 400 and "not available" in body.lower():
                 # Account isn't granted to this Windsor connector -- skippable per-account.
-                raise AccountUnavailableError(account, parse_available_accounts(body), body)
+                raise AccountUnavailableError(account, parse_available_accounts(body), body) from None
+            # An EMPTY-BODIED 400 is Windsor LOAD-SHEDDING, not a bad request (2026-08-10): while its
+            # TTD endpoint was degraded, requests timed out repeatedly and then returned a fast 400
+            # with NO body. A real bad-field/auth 400 always explains itself in the body, so an empty
+            # one carries no diagnostic information and must NOT be treated as permanent -- doing so
+            # aborted the whole nightly run for EVERY TTD client on the first load-shed response.
+            # Retry it like a 429/5xx; a bodied 400 still fails fast, as intended.
+            if status == 400 and not body.strip():
+                if attempt >= MAX_ATTEMPTS:
+                    raise ChunkFetchError(
+                        f"Chunk {d_from}..{d_to}: gave up after {attempt} attempts on "
+                        f"empty-bodied HTTP 400 (Windsor load-shedding)."
+                    ) from None
+                log.warning(f"    attempt {attempt}/{MAX_ATTEMPTS} HTTP 400 with EMPTY body "
+                            f"(Windsor load-shedding, not a bad request); retrying in {RETRY_SLEEP_SEC}s")
+                time.sleep(RETRY_SLEEP_SEC)
+                continue
+            # `from None` suppresses the chained HTTPError: its message embeds the full request URL,
+            # which carries `api_key=...` -- that was leaking the Windsor secret into Cloud Logging.
             raise RuntimeError(
                 f"Chunk {d_from}..{d_to} got permanent HTTP {status}. This will NOT "
                 f"recover by retrying -- likely a bad field name or auth. Body:\n{body}"
-            )
+            ) from None
         except requests.exceptions.RequestException as e:
             # Includes ConnectionError/RemoteDisconnected -- Windsor dropping the
             # connection on a real data pull (its TTD data endpoint timing out/crashing).

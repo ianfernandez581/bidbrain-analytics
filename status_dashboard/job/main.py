@@ -1344,10 +1344,13 @@ BQ_CLIENTS = [
             {"label": "Trade Desk · Site visits post-view", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pv_conv"),
              "sql": _caltex_conv_sql("view_through_conversion", "post_view"),
-             "note": "Ad-attributed SITE VISITS (the installed tag is a sitewide base pixel, NOT an "
-                     "application/sign-up tag). All 12 anonymous slots summed, matching stg_ttd. If TTD "
-                     "later exports one tracker as a DUPLICATE column pair (the VMCH {01,03,05} case), "
-                     "BOTH sides must switch to one column per pair. vs sum(rows[].pv_conv)."},
+             "note": "Ad-attributed visits to the STAR CARD LANDING PAGE - the attached tracker is the "
+                     "URL-scoped 'Landing Page Visit' tag (4tyuvnj, live 2026-08-10), NOT the sitewide "
+                     "Default tag and NOT an application/sign-up tag. All 12 anonymous slots summed, "
+                     "matching stg_ttd; when a SECOND tracker is attached (applications) it must be split "
+                     "out on BOTH sides, never folded in here. If TTD later exports one tracker as a "
+                     "DUPLICATE column pair (the VMCH {01,03,05} case), BOTH sides must switch to one "
+                     "column per pair. vs sum(rows[].pv_conv)."},
             {"label": "Trade Desk · Site visits post-click", "kind": "sum", "group": "Trade Desk (display)",
              "dash": _rows_sum("pc_conv"),
              "sql": _caltex_conv_sql("click_conversion", "post_click"),
