@@ -27,9 +27,26 @@ camp_rank AS (
 ),
 camp_map AS (SELECT campaign, program FROM camp_rank WHERE rn = 1)
 SELECT cm.program, d.platform, d.metric_date,
+<<<<<<< HEAD
        -- MARKET: normalized to the two markets the CS leads use (Australia / New Zealand) so the
        -- Region chips stay strictly AU vs NZ across the Paid Media + CS tabs. After stg_tradedesk
        -- resolves the AU/NZ split from ad-group names, in-scope delivery is almost entirely
+=======
+<<<<<<< Updated upstream
+       -- Normalize to the two markets the CS leads use (Australia / New Zealand) so the global
+       -- Region chips are strictly AU vs NZ across the Paid Media + CS tabs. After stg_tradedesk
+       -- resolves the AU/NZ split from ad-group names, in-scope delivery is almost entirely
+       -- country-specific; the small residual that is genuinely cross-market and can't be split
+       -- by country (e.g. airset's 'RM AirSeT – Retargeting – ANZ' LinkedIn line, ~$500) is folded
+       -- into Australia (the dominant Pacific market) so it stays in the paid totals rather than
+       -- being dropped. This is the only market roll-up — there is no ANZ / Other bucket.
+       CASE WHEN d.market = 'New Zealand' THEN 'New Zealand' ELSE 'Australia' END AS market,
+       d.imps, d.clicks, d.spend_aud,
+=======
+       -- MARKET: normalized to the two markets the CS leads use (Australia / New Zealand) so the
+       -- Region chips stay strictly AU vs NZ across the Paid Media + CS tabs. After stg_tradedesk
+       -- resolves the AU/NZ split from ad-group names, in-scope delivery is almost entirely
+>>>>>>> 18be5ac (park: WIP from charles)
        -- country-specific; the small residual that is genuinely cross-market and can't be split by
        -- country (e.g. airset's 'RM AirSeT – Retargeting – ANZ' LinkedIn line, ~$500) is folded into
        -- Australia (the dominant Pacific market) so it stays in the paid totals rather than being
@@ -50,6 +67,10 @@ SELECT cm.program, d.platform, d.metric_date,
          ELSE 'Australia'
        END AS market,
        SUM(d.imps) AS imps, SUM(d.clicks) AS clicks, SUM(d.spend_aud) AS spend_aud,
+<<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
+>>>>>>> 18be5ac (park: WIP from charles)
        -- LinkedIn on-platform LEAD-FORM leads (NULL on DV360/TradeDesk - see stg_ad_delivery).
        -- Separate lane from the Salesforce CS leads: EcoConsult's Lead Generation ad sets report
        -- lead-form leads while it has no Salesforce campaign at all, so this is the ONLY place
@@ -58,10 +79,17 @@ SELECT cm.program, d.platform, d.metric_date,
        SUM(d.leads) AS leads, SUM(d.lead_form_opens) AS lead_form_opens
 FROM `bidbrain-analytics.client_schneider.stg_ad_delivery` d
 JOIN camp_map cm USING (campaign)
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid','ecoconsult');
+=======
+>>>>>>> 18be5ac (park: WIP from charles)
 -- SCOPE = the client's own intake sheet, NOT everything delivering under the Schneider advertiser.
 -- Three programs with live delivery are deliberately OUT (client, 2026-08-10 - separate campaigns,
 -- separate stakeholders): ent_it (1958), ind_edge (2463), software_first (2305). See the CS_PROGRAMS
 -- note in job/main.py - both lists must stay in sync.
+<<<<<<< HEAD
 -- mcset (MCSeT + EvoPacT, brief 2389) added 2026-08-11 at the client's request. Paid-only, awareness,
 -- ANZ: LinkedIn `SE_MCSet_ANZ_AWAR_TAL - AU`/`- NZ` (live 2026-08-06) + TTD `SE_MCSet_ANZ_Aug2026 -
 -- AWAR` (live 2026-08-05). Its seeded match_pattern was `Cooling Solutions`, which matched NONE of
@@ -71,9 +99,16 @@ JOIN camp_map cm USING (campaign)
 -- program. NOTE its TTD line is ANZ-wide (market='ANZ'), so the AU/NZ fold below books that spend as
 -- Australia while LinkedIn splits AU/NZ properly - the same treatment airset's ANZ line already gets.
 WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid','ecoconsult','mcset')
+=======
+WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid','ecoconsult')
+>>>>>>> 18be5ac (park: WIP from charles)
 -- AGGREGATED to the grain this view actually exposes (program × platform × day × market). It carries
 -- NO campaign column, so the ungrouped version emitted one duplicate row per delivering campaign/ad
 -- group and every consumer summed them anyway - which had pushed schneider.json to 13.6 MB. Grouping
 -- restores ~0.4 MB with byte-identical totals. Keep this GROUP BY - if a campaign-grain view is ever
 -- needed, add a SEPARATE view rather than un-grouping this one.
 GROUP BY 1, 2, 3, 4;
+<<<<<<< HEAD
+=======
+>>>>>>> Stashed changes
+>>>>>>> 18be5ac (park: WIP from charles)

@@ -51,16 +51,29 @@ DATA_OBJECT = f"{CLIENT}.json"
 # dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the CS lane until SE
 # provision a Salesforce campaign for it — that lane is Salesforce-only, same as heavy — but they DO
 # surface as paid `pm_delivery.leads`, LinkedIn's own on-platform lead-form count.)
+<<<<<<< HEAD
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> 18be5ac (park: WIP from charles)
 #
 # SCOPE RULE (client, 2026-08-10): this dashboard shows ONLY the programs on the client's own intake
 # sheet. Enterprise IT Expansion (1958), Industrial Edge (2463) and Software First EcoStruxure (2305)
 # were added on 2026-08-10 and REMOVED the same day at the client's request — they are separate
+<<<<<<< HEAD
 # campaigns with separate stakeholders. Delivering != in scope: do not re-add a program just because
 # it has live delivery under the Schneider advertiser/account. They now have their OWN dashboard,
 # client_schneidersecpwr ("Schneider Electric - Secure Power"), because a different group of people
 # views them. See clients/client_schneider/README.md for what re-adding each here would take (ent_it
 # in particular needs the multi-region market arm restored in sql/20, or its non-Pacific spend
 # reports as Australia).
+=======
+# campaigns with separate stakeholders. Delivering ≠ in scope: do not re-add a program just because it
+# has live delivery under the Schneider advertiser/account. See clients/client_schneider/README.md
+# for what re-adding each would take (ent_it in particular needs the multi-region market arm restored
+# in sql/20, or its non-Pacific spend reports as Australia).
+>>>>>>> Stashed changes
+>>>>>>> 18be5ac (park: WIP from charles)
 CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel", "microgrid",
                "ecoconsult", "mcset"]
 
