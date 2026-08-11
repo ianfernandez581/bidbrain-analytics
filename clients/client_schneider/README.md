@@ -112,69 +112,75 @@ are **NOT** Salesforce CS leads — the CS lane stays Salesforce-only (the `heav
 provision a Salesforce campaign for EcoConsult, add its SF id to `salesforce_map` to light up the CS
 tabs. They now surface as a separate **paid** metric on the Paid Media tab — see *Update 2026-08-06*.
 
-**Update 2026-08-10** (`sql/20_pm_delivery.sql` + `job/main.py` + `dash/dashboard.html` + `data/*.csv`):
-added **Enterprise IT Expansion (`ent_it`, brief 1958)** as a **9th program** — paid-only (no Salesforce
-campaign, renders **Paid Media only**) and the **FIRST multi-region program on this dashboard**.
-LinkedIn (21 ad sets, account `517045062` = `SchneiderElectric_TransmissionSG_AUD`) + Trade Desk
-(12 campaigns, advertiser `Schneider Electric`), live **2026-05-06 → ongoing**; through 2026-08-09:
-**2,880,437 imps / 6,827 clicks / A$59,631**. Both raw name forms are in the feed (`SE_EntIT_*` and the
-prefixed `1958_SE_EntIT_*`) and both tag to `ent_it` off the `EntIT` token at `seq=5`, first-match-wins,
-no collision (verified against all 28 map rows; `pm_delivery` returns zero out-of-scope programs).
+## SCOPE RULE — the dashboard shows the client's intake sheet, NOT everything that delivers
+**Client, 2026-08-10:** *"there are 3 campaigns on the dashboard that shouldn't be. These are separate
+campaigns with separate stakeholders. Please only put the campaigns that we have input to the sheet."*
+On 2026-08-10 three programs were added and **REMOVED the same day** on that instruction:
+**Enterprise IT Expansion (`ent_it`, 1958)**, **Industrial Edge / Prefab (`ind_edge`, 2463)** and
+**Software First EcoStruxure (`software_first`, 2305)**.
 
-**The market model had to change for it, and this is the part to not undo.** EntIT ad groups are
-REGION-coded (`SE_EntIT_2026_{PAC,India,MEA,SAM}_*`) with **no country token**, and only ~12% of its
-delivery is Pacific. `sql/20`'s AU/NZ normalisation would therefore have reported
-**A$44,346 of MEA / India / South America spend AS AUSTRALIA**. So `sql/20` now has two market modes:
-programs in the `WHEN cm.program IN ('ent_it')` arm keep the region `stg_ad_delivery` already resolved
-(India / MEA / South America / Pacific), everything else keeps the AU/NZ fold. To match, the Region
-chips are now built **per campaign** from a new `campaigns[].markets` (job `camp_markets`), rendered by
-`marketRoster()`/`syncMarketRoster()` in the dashboard — a global union would have hung a dead India
-chip on Water & Environment and a dead Australia chip on EntIT. The two GLOBAL tabs (Executive
-Scorecard, Website) keep the full union, and `syncMarketRoster()` re-points the chips whenever the
-roster changes (campaign switch, or moving between a campaign tab and a global one).
-**Consequence to know:** the Executive Scorecard is portfolio-wide, so its impressions/spend KPIs now
-include EntIT's non-Pacific delivery. Deselect the non-AU/NZ chips there for a Pacific-only read.
+**Delivering under the Schneider advertiser/account does NOT mean in scope.** Before adding any
+program here, confirm it is on the client's intake sheet. The scope lives in exactly two places that
+must stay in sync — `CS_PROGRAMS` in [`job/main.py`](job/main.py) and the `WHERE program IN (…)` in
+[`sql/20_pm_delivery.sql`](sql/20_pm_delivery.sql).
 
-**Targets: NONE by client decision (2026-08-10) — delivery-only reporting.** `data/plan_budget.csv`
-carries A$100,000 ex-fees and the program flight `2026-04-15 → 2026-10-31`; the two new
-`data/media_plan.csv` rows carry the **per-channel** flights (LinkedIn to **2026-09-30**, Programmatic
-to **2026-10-31**) with every target column blank. `channels[]` now carries `flight_start`/`flight_end`
-so a program whose channels end on different dates can say so. With no imp target the scorecard card
-renders the reach shape with the target slot empty, and `reachVerdict` says **"abm - delivery only, no
-target set"** — it takes the word from a new `campaigns[].objective` (seeded `objective_type`), because
-it previously called every no-target program "awareness", which is wrong for an ABM brief.
-If SE later send a plan, fill the media-plan rows and re-run `load_seeds.py` + the job `FORCE_REBUILD=1`.
+### What the removal did and did not touch
+Reverted: both scope lists; the `WHEN cm.program IN ('ent_it')` multi-region market arm in `sql/20`;
+`ind_edge`'s `match_pattern` (back to the bare `Industrial Edge`); the `software_first` row in
+`campaign_map.csv`; the two `ent_it` rows in `media_plan.csv`; `ent_it`'s `plan_budget` flight_end.
+The seed CSVs are byte-identical to their pre-2026-08-10 state, and all 8 remaining programs verified
+unchanged after the revert.
+**KEPT** (independent of those campaigns, both still correct and in use):
+- **`pm_delivery` is AGGREGATED** — see below.
+- **Per-campaign Region chips** (`campaigns[].markets` + `marketRoster()`/`syncMarketRoster()`),
+  `channels[].flight_start/_end`, `campaigns[].objective` + `objWord()`. One visible effect: a program
+  with delivery in only one country now shows only that chip (EcoConsult and Microgrid show
+  **Australia** only, where the old global roster showed a dead New Zealand chip too).
 
-**Same day — Industrial Edge / Prefab (`ind_edge`, brief 2463) added as the 10th program**, paid-only,
-delivery-only, **standard AU/NZ market model** (NOT multi-region — its 2026 names carry real country
-tokens). LinkedIn (7 ad sets across 2 campaign groups in account `517045062`) + Trade Desk (3 lines,
-advertiser `Schneider Electric`); through 2026-08-09: **212,962 imps / 293 clicks / A$4,278**, AU
-199,153 imps + NZ 5,407 on LinkedIn, AU 5,620 + NZ 2,782 on TTD, plus **1 LinkedIn lead-form lead /
-71 form opens** (paid metric — the CS lane stays off, no Salesforce campaign). `plan_budget` carries
-A$49,596 ex-fees with **blank flight dates**, so the flight falls back to `flight_source='observed'`
-→ "live since 2026-07-06"; `objective='LeadGen'` and no lead target, so the card reads
-"**lead gen** - delivery only, no target set".
+### If any of the three is ever re-added — what it took (so it isn't re-derived)
+- **`ent_it` needs the multi-region market arm restored FIRST.** Its ad groups are region-coded
+  (`SE_EntIT_2026_{PAC,India,MEA,SAM}_*`) with **no country token**, and only ~12% of its delivery is
+  Pacific — `sql/20`'s AU/NZ fold is an `ELSE`, so adding it to the scope list alone silently reports
+  **A$44,346 of MEA / India / South America spend AS AUSTRALIA**. The arm and the reasoning are
+  recorded in the `sql/20` market comment. Scale at removal: LinkedIn 21 ad sets + TTD 12 campaigns,
+  2,880,437 imps / **A$60,039**, live since 2026-05-06. Note it also raised the **portfolio Executive
+  Scorecard** totals, which are whole-portfolio and region-filtered.
+- **`ind_edge` needs its match_pattern narrowed.** The bare `Industrial Edge` token also sweeps in the
+  **2025 `1839_Schneider_Electric_Pacific_*` wave** (Sep-Dec 2025, A$8,662) — a different brief. The
+  client scoped it to **Wave 3 / 2463 only**, which needs
+  `SE_Industrial Edge_|Industrial Edge Wave3|Industrial Edge W3|2463_` (simulated clean: exactly the
+  10 Wave-3 lines, zero 2025 rows, zero collisions). Scale: 213,660 imps / **A$4,323**, AU+NZ, live
+  since 2026-07-06, plus 1 LinkedIn lead-form lead / 71 form opens.
+  *LinkedIn campaign-GROUP names are unreliable here — a group named
+  `2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named `2463_SE_Industrial Edge Wave3_*`,
+  while the `2463_…` group holds the un-prefixed `SE_Industrial Edge_*` campaigns. Key off CAMPAIGN
+  names, never the group's brief number.*
+- **`software_first` has NO `campaign_map` row** — its delivery is unmatched and invisible to every
+  view. Re-adding needs a row appended **at the highest `seq`** (last place means first-match-wins can
+  only give it campaigns nothing else claims, so it cannot steal delivery from an existing program),
+  tokens `Software First|EcoStruxureIT|2305_`. **`2305_` alone is NOT enough:** the TTD line ran as
+  `SE_EcoStruxureIT_AWR_2026` from 2026-06-17 and gained the prefix on 07-06, so a prefix-only token
+  drops A$2,296 (the repo-wide "campaign names are NOT stable keys" rule). Scale: 448,433 imps /
+  **A$9,821**. Its display name says "Software First EcoStruxure" while the TTD line says
+  "EcoStruxureIT" — same brief. `seq=26` `enterprise_software` remains an inert placeholder
+  (`Enterprise_Software_TBC`); merge only if SE confirm 2305 IS that programme.
 
-**The match_pattern had to be RETUNED, and this is the gotcha to remember.** `ind_edge`'s token was the
-bare `Industrial Edge`, which ALSO swept in the **2025 `1839_Schneider_Electric_Pacific_*` wave**
-(Sep-Dec 2025, A$8,662) — a different brief. The client scoped the dashboard to **Wave 3 / 2463 only**
-(2026-08-10), so the pattern is now
-**`SE_Industrial Edge_|Industrial Edge Wave3|Industrial Edge W3|2463_`**, simulated against every
-Schneider campaign before committing: it matches **exactly the 10 Wave-3 lines, zero 2025 rows, zero
-collisions** with any other program's tokens, and all nine pre-existing programs' totals came back
-byte-identical. `pm_delivery` now holds **zero pre-2026 rows**. Consequence: the four 2025 `1839_`
-campaigns are no longer tagged to any program and show up in the unmatched audit — deliberate.
-*(Also note the LinkedIn campaign-GROUP names are unreliable here: a group named
-`2305_SE_ANZ Industrial Edge W3 Prefab` holds campaigns named `2463_SE_Industrial Edge Wave3_*`, while
-the group named `2463_…` holds the un-prefixed `SE_Industrial Edge_*` campaigns. Key off CAMPAIGN
-names, never the group's brief number.)*
+### Known unmatched delivery (deliberate — audit output, not a bug to fix blindly)
+Since 2026-07-01, delivery under the Schneider advertiser/account that maps to **no** program:
+the 5 `software_first` lines (A$8,144+), and **`mcset` (brief 2389), which is MIS-SEEDED** — its
+`match_pattern` is `Cooling Solutions`, matching none of its real `SE_MCSet_*` campaign names
+(A$542 and growing since 2026-08-05). MCSeT is **deliberately deferred** (client, 2026-08-10: revisit
+after the platform launch) and needs BOTH a token fix and a scope decision. Programs that are mapped
+but simply out of scope (e.g. `ai_lc`, which has its own **schneiderlqai** dashboard) are not "gaps".
 
-**Also in this change: `pm_delivery` is now AGGREGATED** (`GROUP BY program, platform, metric_date,
-market`). It carries no campaign column, so the ungrouped version emitted one duplicate row per
-delivering campaign/ad group and every consumer summed them anyway; EntIT's 42 lines pushed
-`schneider.json` to **13.6 MB**. Grouping cut it to **0.43 MB** (73,509 → 1,827 rows) with identical
-totals. `SUM(leads)` over an all-NULL DV360/TTD group still returns NULL, so the "NULL not 0 off
-LinkedIn" contract survives. If a campaign-grain view is ever needed, add a separate one.
+### `pm_delivery` is AGGREGATED (2026-08-10, kept)
+`GROUP BY program, platform, metric_date, market`. The view carries **no campaign column**, so the
+ungrouped version emitted one duplicate row per delivering campaign/ad group and every consumer summed
+them anyway — which had pushed `schneider.json` to **13.6 MB** (73,509 rows). Grouping cut it to
+**~0.3 MB / ~1,400 rows** with byte-identical totals, verified program-by-program against the
+ungrouped output (every delta exactly zero). `SUM(leads)` over an all-NULL DV360/TTD group still
+returns NULL, so the "NULL not 0 off LinkedIn" contract survives the rollup. **Keep this GROUP BY** —
+if a campaign-grain view is ever needed, add a SEPARATE view rather than un-grouping this one.
 
 **Update 2026-08-06** (`sql/04_stg_ad_delivery.sql` + `sql/20_pm_delivery.sql` + `job/main.py` +
 `dash/dashboard.html`): four fixes, all triggered by the Executive Scorecard drawing **`0 / 0 leads` +
@@ -232,9 +238,9 @@ Underscore keys are now dropped from the header and every row (the repo-wide rul
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
   CS programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`) **+ `nel`** (New Energy
   Landscape; added 2026-07-08) **+ `microgrid`** (brief 2040; added 2026-07-31) **+ `ecoconsult`**
-  (brief 2279; added 2026-08-05) **+ `ent_it`** (Enterprise IT Expansion, brief 1958; added
-  2026-08-10) **+ `ind_edge`** (Industrial Edge / Prefab, brief 2463, **Wave 3 only**; added
-  2026-08-10) — the last five are paid-only, Paid-Media-tab-only, no CS leads.
+  (brief 2279; added 2026-08-05) — the last three are paid-only, Paid-Media-tab-only, no CS leads.
+  **Scope = the client's intake sheet** — three other delivering programs were added and removed again
+  on 2026-08-10 at the client's request; see the SCOPE RULE section above before adding a 9th.
 - **Programme** (the CS breakdown) = the Salesforce `pillar_label` (9), from `seed_salesforce_map`.
 - **Market / Region chips** are **PER CAMPAIGN** (`campaigns[].markets`), not one global list:
   - Pacific programs = **Australia / New Zealand only** (no ANZ, no Other). CS leads are AU/NZ-native;
@@ -244,21 +250,23 @@ Underscore keys are now dropped from the header and every row (the repo-wide rul
     campaign-name-only parse stranded that delivery (notably **all of EBA's Trade Desk** — 5.2M imps)
     in an Unmapped/Other bucket. `sql/20_pm_delivery.sql` folds any tiny unsplittable combined-ANZ
     residual (e.g. AirSeT's `RM AirSeT – Retargeting – ANZ` LinkedIn line, ~$500) into **Australia**.
-  - **Multi-region programs** (`ent_it` today, the `WHEN cm.program IN (…)` arm in `sql/20`) keep the
-    region `stg_ad_delivery` resolved — **India / MEA / South America / Pacific**. Adding a program
-    here without adding it to that arm silently reports its whole world as Australia.
+  - Every program in scope today is AU/NZ, so a program with delivery in only one country shows only
+    that chip (EcoConsult, Microgrid = **Australia** only).
+  - **A non-AU/NZ program needs a multi-region arm added to `sql/20` FIRST** — the AU/NZ fold is an
+    `ELSE`, so without it 100% of that program's foreign delivery reports as Australia, silently. The
+    arm and the worked example (`ent_it`) are in the `sql/20` market comment.
   - The GLOBAL tabs (Executive Scorecard, Website) use the portfolio union `all_markets`.
 - **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
   lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from
   `seed_plan_budget` (program-level) — **per-CHANNEL flights** live on `channels[].flight_start/_end`
-  from `seed_media_plan`, for a program whose channels end on different dates (`ent_it`).
-- **Scoped to the 10:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel' +
-  'microgrid' + 'ecoconsult' + 'ent_it' + 'ind_edge')`; the CS views read only the 9 SF ids via
-  `seed_salesforce_map` (NEL, Microgrid, EcoConsult, Enterprise IT and Industrial Edge have none, so
-  they never appear in the CS tabs). The old Pacific `portfolio` toggle and the other ~18 APAC programs
+  from `seed_media_plan`, for a program whose channels end on different dates.
+- **Scoped to the 8:** `pm_delivery` (`sql/20`) is `WHERE program IN (the 5 CS programs + 'nel' +
+  'microgrid' + 'ecoconsult')`; the CS views read only the 9 SF ids via `seed_salesforce_map` (NEL,
+  Microgrid and EcoConsult have none, so they never appear in the CS tabs). The old Pacific
+  `portfolio` toggle and the other ~20 APAC programs
   are **gone from the dashboard** — the seed tables still carry them for the `match_pattern` tagging.
-- **A program's SCOPE is its `match_pattern`, not just the IN-list.** `ind_edge` (2026-08-10) had to
-  have its tokens narrowed to exclude an older wave of the same programme name — before adding any
+- **A program's SCOPE is its `match_pattern`, not just the IN-list.** A programme name can span several
+  waves/briefs (`ind_edge`'s bare `Industrial Edge` token also catches a 2025 wave) — before adding any
   program, simulate its pattern against `SELECT DISTINCT campaign FROM stg_ad_delivery` and check both
   what it catches and what else claims those campaigns.
   (Historical Pacific-carve-out EDA: [`_eda/pacific_eda.md`](_eda/pacific_eda.md).)
@@ -282,10 +290,8 @@ Underscore keys are now dropped from the header and every row (the repo-wide rul
   remaining dimension seeds also read from `data/` (gitignored / BQ-only — see *Updating targets*).
 
 ## The dashboard tabs (`dash/dashboard.html`) — a global **Executive Scorecard** + **per-campaign** tabs
-**Executive Scorecard** (default tab, added 2026-07-06) is **global / portfolio-wide** — it spans every
-program (region-filterable on the portfolio union `all_markets`, so since 2026-08-10 its impressions /
-spend include EntIT's India / MEA / South America delivery; deselect those chips for a Pacific-only
-read. The Campaign dropdown is hidden here) and reframes the dashboard from lead
+**Executive Scorecard** (default tab, added 2026-07-06) is **global / portfolio-wide** — it spans all 5
+programs (region-filterable; the Campaign dropdown is hidden here) and reframes the dashboard from lead
 *volume* to lead *quality*, per the deep-research finding that senior B2B marketers value quality/pacing
 over raw counts. It shows: portfolio KPIs (leads vs target, pace vs plan, **accounts reached**, blended
 plan CPL); **program × Schneider-strategy-pillar** pace cards (each program tagged with the corporate
@@ -362,9 +368,10 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
 | A new **paid delivery metric** (must pass the unified base first) | `sql/04_stg_ad_delivery.sql` → `sql/20_pm_delivery.sql` → `job/main.py` (`pm_delivery` rows) → `dash/dashboard.html` (`pmTotals`) — 04 silently dropping a column is how LinkedIn's lead-form leads went missing (see Update 2026-08-06) | 2+3 |
 | Flight window for a program | `data/plan_budget.csv` (`flight_start`/`flight_end`) → `load_seeds.py`; blank start ⇒ `job/main.py` falls back to first delivery and flags `flight_source='observed'` | 2 |
-| Which programs are in scope (the 5 CS programs + `nel` + `microgrid` + `ecoconsult` + `ent_it` + `ind_edge`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
+| Which programs are in scope (the 5 CS programs + `nel` + `microgrid` + `ecoconsult`) — **confirm it is on the client's intake sheet first** | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
+| Add a program that has NO map row yet (its delivery is currently unmatched/invisible) | append a row to `data/campaign_map.csv` **at the highest `seq`** — last place means first-match-wins can only give it campaigns nothing else claims — then the 2 scope edits above | 3 |
 | Which CAMPAIGNS a program claims (e.g. scoping to one wave of a repeating brief) | `match_pattern` in `data/campaign_map.csv` → `load_seeds.py` → the first-match-wins join in `sql/20`. Simulate before committing — see `ind_edge` Wave 3 | 1 |
-| Add a program that runs OUTSIDE Australia/New Zealand | the two above **PLUS** its id in `sql/20_pm_delivery.sql`'s `WHEN cm.program IN ('ent_it')` market arm — miss this and 100% of its non-Pacific delivery reports as Australia | 3 |
+| Add a program that runs OUTSIDE Australia/New Zealand | the two above **PLUS** a multi-region arm ahead of the AU/NZ fold in `sql/20_pm_delivery.sql` (`WHEN cm.program IN ('<id>') THEN d.market`; the comment there has the worked example) — miss this and 100% of its foreign delivery reports as Australia, silently | 3 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
 | Login / how JSON is served | `dash/main.py` (rarely) | 3 |

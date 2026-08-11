@@ -901,8 +901,24 @@ function renderPacing(){
   $('paceExpected').style.left=expectedPct+'%';
   $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;$('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
   const ratio=expected?spend/expected:null,projected=n(f.projected_spend);
-  const clsv=ratio==null?'neutral':ratio>1.08?'bad':ratio<.9?'warn':'good';
-  $('paceSummary').innerHTML=[`<span class="status ${clsv}">${ratio==null?'No pace':ratio>1.08?'Over pace':ratio<.9?'Under pace':'On pace'}</span>`,`<span class="pillc">Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
+  // VERDICT (deliberately lenient, 2026-08-11). What actually matters on a flight is whether it
+  // LANDS ON BUDGET by the end date, not whether it sits exactly on the straight line today. Daily
+  // delivery on programmatic display is lumpy (TTD's own pacing algorithm front/back-loads, and a
+  // cheap-CPM day buys more impressions for fewer dollars), so a strict band cried wolf constantly:
+  // on 2026-08-11 a ratio of 0.886 read "Under pace" while the flight was projecting to land within
+  // 11.4% of budget with 78 of 93 days still to run.
+  // So: if the PROJECTION lands within 15% of budget, it is on pace - full stop. Only when the
+  // projection misses do we fall back to the day ratio, and that band is widened to 0.80-1.20
+  // (was 0.90-1.08). Raise LAND_TOL / widen the ratio band to soften further; tighten to sharpen.
+  const LAND_TOL=0.15, RATIO_LO=0.80, RATIO_HI=1.20;
+  const landsOnBudget=(budget&&projected)?Math.abs(projected-budget)/budget<=LAND_TOL:false;
+  const verdict=ratio==null?['neutral','No pace']
+    :landsOnBudget?['good','On pace']
+    :ratio>RATIO_HI?['bad','Over pace']
+    :ratio<RATIO_LO?['warn','Under pace']
+    :['good','On pace'];
+  const projNote=(budget&&projected)?` title="Projected to finish at ${money(projected)} of a ${money(budget)} budget - within ${Math.round(LAND_TOL*100)}% counts as on pace."`:'';
+  $('paceSummary').innerHTML=[`<span class="status ${verdict[0]}">${verdict[1]}</span>`,`<span class="pillc"${projNote}>Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
 }
 // Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight
 // impressions vs the impression target, plus the consideration signals for context.

@@ -198,6 +198,17 @@ CLIENTS = {
             {"name": "AI & Liquid Cooling", "path": "/", "status": "active"},
         ],
     },
+    # The THIRD Schneider dashboard. Separate from the Pacific book on purpose: these three briefs
+    # have their own stakeholders, so a different group of people views them.
+    "schneidersecpwr": {
+        "name": "Schneider - Secure Power", "slug": "schneider-secure-power", "status": "active",
+        "url": _runapp("schneidersecpwr"),
+        "campaigns": [
+            {"name": "Enterprise IT Expansion", "path": "/", "status": "active"},
+            {"name": "Industrial Edge / Prefab", "path": "/", "status": "active"},
+            {"name": "Software First EcoStruxure", "path": "/", "status": "active"},
+        ],
+    },
     "cloudflare": {
         "name": "Cloudflare", "slug": "cloudflare", "status": "active",
         "url": _runapp("cloudflare"),
@@ -240,7 +251,7 @@ AGENCIES = [
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
-        "clients": ["schneider", "schneiderlqai", "cloudflare", "proptrack", "mongodb", "stt"],
+        "clients": ["schneider", "schneiderlqai", "schneidersecpwr", "cloudflare", "proptrack", "mongodb", "stt"],
     },
     # Extrablack — the first EXTERNAL tenant (an outside company, not part of 100% Digital).
     #

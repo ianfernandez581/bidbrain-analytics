@@ -1,0 +1,7 @@
+# Cloud Run export job: BigQuery views -> stt.json -> GCS.
+# Pinned for reproducible container builds. Like client_mongodb/job, this job
+# only reads BigQuery views and writes JSON to GCS — it never touches Snowflake
+# or Windsor (the shared raw layers are filled by their own loaders), so it needs
+# nothing beyond the BigQuery + Storage clients.
+google-cloud-bigquery==3.41.0
+google-cloud-storage==3.10.1

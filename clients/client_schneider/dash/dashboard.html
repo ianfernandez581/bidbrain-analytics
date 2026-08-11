@@ -761,22 +761,7 @@ function campaignTabs(){ const t=(campaign().tabs||[]); return t.length?t:['cs']
 function allTabs(){ const g=(DATA&&DATA.ga4_enabled)?['website']:[]; return campaignTabs().concat(['scorecard'],g); }
 function marketOk(m){ return activeMarkets.has(m); }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
-// ---- Region roster ------------------------------------------------------------------------------
-// The chip roster is PER CAMPAIGN, not global. Programs used to be AU/NZ only so one global list was
-// fine; ent_it (Enterprise IT, added 2026-08-10) delivers across India / MEA / South America /
-// Pacific, and a global union would hang a dead India chip on Water & Environment and a dead
-// Australia chip on Enterprise IT. The two GLOBAL tabs (Executive Scorecard, Website) span every
-// program, so they keep the full union.
-function marketRoster(){
-  if(activeTab==='scorecard'||activeTab==='website') return DATA.all_markets||[];
-  const m=(campaign().markets)||[];
-  return m.length?m:(DATA.all_markets||[]);
-}
-// Re-point activeMarkets at the roster in view. Called whenever the roster can change (campaign
-// switch, or moving between a per-campaign tab and a global one) - without it the chips would keep
-// a selection from a different region vocabulary and silently zero every number.
-function syncMarketRoster(){ activeMarkets=new Set(marketRoster()); }
-function activeMarketList(){ return marketRoster().filter(m=>activeMarkets.has(m)); }
+function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
 
 // ---- Platform (ad-engine) filter ---------------------------------------------------------------
 // Programs run across DV360 / TradeDesk / LinkedIn simultaneously, so every PAID figure honors this.
@@ -998,6 +983,7 @@ async function boot(){
     bbApplySpendMult();   // gross RAW spend to client-billed BEFORE any aggregation/rendering
     const cs=(DATA.campaigns||[]);
     activeCampaign=cs.length?cs[0].id:null;   // default = first program (the "All campaigns" view was retired)
+    activeMarkets=new Set(DATA.all_markets||[]);
     activePlatforms=new Set(platformsInData().map(p=>p.key));   // default = every engine with delivery
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
@@ -1005,7 +991,6 @@ async function boot(){
     const h=(location.hash||'').replace('#','');
     const validTabs=allTabs();              // the default campaign's tabs + scorecard (last)
     activeTab=validTabs.includes(h)?h:campaignTabs()[0];   // default to the campaign's first tab
-    syncMarketRoster();                     // AFTER activeTab - the roster depends on which tab is open
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
@@ -1022,15 +1007,13 @@ function renderMeta(){
 //==============================================================================
 // CONTROLS
 //==============================================================================
-function setTab(t){ if(!allTabs().includes(t)) return; const before=marketRoster().join('|'); activeTab=t; location.hash=t;
-  if(marketRoster().join('|')!==before) syncMarketRoster();   // global tab <-> campaign tab: rosters differ
-  renderControls(); renderActive(); }
-function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(activeTab!=='scorecard' && !t.includes(activeTab)) activeTab=t[0]; syncMarketRoster(); renderControls(); renderActive(); }
+function setTab(t){ if(!allTabs().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(activeTab!=='scorecard' && !t.includes(activeTab)) activeTab=t[0]; renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function setGaGrain(g){ gaGrain=g; renderActive(); }
 function setGaScale(s){ gaScale=s; renderActive(); }
-function allRegions(){ syncMarketRoster(); renderControls(); renderActive(); }
+function allRegions(){ activeMarkets=new Set(DATA.all_markets||[]); renderControls(); renderActive(); }
 function clearRegions(){ activeMarkets=new Set(); renderControls(); renderActive(); }
 function toggleRegion(m){ activeMarkets.has(m)?activeMarkets.delete(m):activeMarkets.add(m); renderControls(); renderActive(); }
 function allPlatforms(){ activePlatforms=new Set(platformsInData().map(p=>p.key)); renderControls(); renderActive(); }
@@ -1042,8 +1025,7 @@ function renderControls(){
   const bar=el('tabBar'); bar.innerHTML='';
   allTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const c=campaign(); const isSc=activeTab==='scorecard'; const isWeb=activeTab==='website'; const isGlobal=isSc||isWeb;
-  const roster=marketRoster();
-  const mkts=activeMarkets.size===roster.length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
+  const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
   // the platform filter only means something where the numbers come from paid delivery
   const platScoped=(activeTab==='paid'||isSc);
   const plats=platScoped?` · ${platformNote()}`:'';
@@ -1060,7 +1042,7 @@ function renderControls(){
   sel.value=activeCampaign;
   // region chips
   const rw=el('regionChips'); rw.innerHTML='';
-  roster.forEach(m=>{ const b=document.createElement('button'); b.className='chip'+(activeMarkets.has(m)?' on':''); b.innerHTML=`<span class="check">✓</span>${m}`; b.onclick=()=>toggleRegion(m); rw.appendChild(b); });
+  (DATA.all_markets||[]).forEach(m=>{ const b=document.createElement('button'); b.className='chip'+(activeMarkets.has(m)?' on':''); b.innerHTML=`<span class="check">✓</span>${m}`; b.onclick=()=>toggleRegion(m); rw.appendChild(b); });
   // platform chips - shown only on the paid-delivery tabs (Paid Media + Executive Scorecard reach).
   // CS / CS Comparison / Other / Website carry no platform dimension, so the group hides there
   // rather than sitting inert next to numbers it cannot move.
@@ -1469,20 +1451,14 @@ function progPacing(cid){
           vsTtd:ttd?leads/ttd:null, leadsPct:target?leads/target:0, label:c.label||cid,
           imps:paid.imps, clicks:paid.clicks, spend:paid.spend, liLeads:paid.liLeads,
           impTarget, impPct:impTarget?paid.imps/impTarget:0, vsImpTtd:impTtd?paid.imps/impTtd:null,
-          objective:c.objective||null,
           flightStart:c.flight_start||null, flightSource:c.flight_source||null,
           firstDelivery:c.first_delivery||null, planBudget:c.plan_budget||0};
 }
 // Awareness verdict - a reach play is paced on impressions, and says so plainly when no plan is signed
 // yet (the old code fell through to paceVerdict's null arm and mislabelled it "no flight dates").
-// Objective word for the verdict line. Seeded per program (Awareness / LeadGen / ABM / Event) - an ABM
-// program like Enterprise IT read "awareness - ..." before this, which was simply wrong.
-function objWord(p){ return (p.objective||'Awareness').toLowerCase()==='leadgen'?'lead gen':(p.objective||'Awareness').toLowerCase(); }
 function reachVerdict(p){
-  // No impression target at all: either an unsigned plan, or a program the client runs DELIVERY-ONLY
-  // (Enterprise IT). Either way there is nothing to pace against, so say so instead of drawing 0%.
-  if(!p.impTarget) return {cls:'neut', txt: p.imps>0 ? objWord(p)+' - delivery only, no target set' : objWord(p)+' - no delivery yet'};
-  if(p.vsImpTtd==null) return {cls:'neut',txt:objWord(p)+' - no flight dates'};
+  if(!p.impTarget) return {cls:'neut', txt: p.imps>0 ? 'awareness - targets pending' : 'awareness - no delivery yet'};
+  if(p.vsImpTtd==null) return {cls:'neut',txt:'awareness - no flight dates'};
   if(p.vsImpTtd>=1) return {cls:'up',txt:'Ahead of reach plan ✓'};
   if(p.vsImpTtd>=0.7) return {cls:'neut',txt:'Slightly behind reach plan'};
   return {cls:'down',txt:'Behind reach plan'};
@@ -1594,8 +1570,7 @@ function renderScorecard(){
 // CS COMPARISON
 //==============================================================================
 function renderCompare(){
-  // CS Comparison is per-campaign, so its market selects list the CAMPAIGN's regions, not the union.
-  if(!compareReady){ ['A','B'].forEach(side=>{ const sel=el('region'+side); sel.innerHTML='<option value="">Select market</option>'+marketRoster().map(m=>`<option value="${m}">${m}</option>`).join(''); });
+  if(!compareReady){ ['A','B'].forEach(side=>{ const sel=el('region'+side); sel.innerHTML='<option value="">Select market</option>'+(DATA.all_markets||[]).map(m=>`<option value="${m}">${m}</option>`).join(''); });
     const mk=activeMarketList(); if(mk[0]) el('regionA').value=mk[0]; if(mk[1]) el('regionB').value=mk[1]; compareReady=true; }
   el('compareSub').textContent=`Comparing markets for ${campaign().label}. Targets are program-level (Content Syndication tab); here we compare lead volume, mix and pacing.`;
   renderComparePanel('A'); renderComparePanel('B');
@@ -1760,7 +1735,7 @@ function buildReportPayload(){
     client:'schneider', agency:'Transmission', generated_for:'Schneider Electric Pacific', currency:'AUD',
     context:{
       campaign:c.label||activeCampaign, campaign_key:activeCampaign,
-      markets:activeMarketList(), all_markets:marketRoster(),
+      markets:activeMarketList(), all_markets:DATA.all_markets||[],
       platforms:activePlatformList().map(x=>x.label), all_platforms:platformsInData().map(x=>x.label),
       date_filtered:false, date_filter:{start:null,end:null},
       window:DATA.window||{}, data_through:DATA.data_through||null, last_updated:DATA.last_updated||null,
