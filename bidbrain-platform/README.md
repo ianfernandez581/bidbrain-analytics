@@ -277,9 +277,14 @@ palette (blue = Snowflake, teal = dashboard, green = healthy/match); the admin v
 active-tab underline to the accent. Each Data Accuracy card also shows a **"Source data through
 &lt;date&gt;"** strip — the newest DATE each source actually holds (`status.json`'s
 `source_data_through` / `source_dates`, NOT the last-modified timestamp) with a per-source breakdown,
-flagged **red at 2+ days behind** the viewer's local today (today or yesterday stays green; the flag is
-computed in the browser so a stale date turns red on its own the next day). See `status_dashboard/README.md`. Semantic status colours (Completed = green, etc.) are kept separate
-from the accent.
+flagged **red at 3+ days behind** today in UTC, and only for sources that were still EXPECTED to
+deliver — a source whose flight has ended, or a standby fallback whose primary is current, reports a
+neutral **"idle"** instead (per-source modes come from `status.json`'s
+`freshness.source_expectations`; `weekdays` sources such as Salesforce CS age in business days, so a
+weekend gap is not staleness). The flag is computed in the browser, so a stale date turns red on its
+own the next day. `freshFlag()` in `_status_merge.html` is the one place the thresholds live. See
+`status_dashboard/README.md` -> "behind vs idle". Semantic status colours (Completed = green, etc.) are
+kept separate from the accent.
 
 Admin password defaults to `bidbrain-admin-2026` — override with the `ADMIN_PW` env before
 seeding, or rotate later by re-seeding with a new `ADMIN_PW`.

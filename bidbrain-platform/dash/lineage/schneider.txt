@@ -84,9 +84,10 @@ two-liner: add `'microgrid'` to the `WHERE program IN (…)` in
 plus a `PILLAR` entry ("Energy Resilience") in the dashboard. Also set its `brief_job_no` to **2040** and
 added **`2040 SE` + `2040_`** match_pattern tokens — defensive, per the `heavy`/`2281_` lesson that the
 delivering ad-set names can abbreviate away the program word (no such sibling exists today; verified).
-**Targets are PENDING** — there is no signed media plan yet, so `data/media_plan.csv` carries a single
-LinkedIn Awareness line with **blank targets/spend** and `data/plan_budget.csv` a blank `microgrid` row.
-Consequence: its Executive-Scorecard card reads **0 / 0** and its pace shows `-` until the plan lands
+**Targets: impressions seeded, rest PENDING** — the client confirmed a **70,680 impression target**
+(2026-08-06, seeded on `data/media_plan.csv`'s LinkedIn Awareness line via `load_seeds.py` + a forced
+job run), so the scorecard card now paces reach against it. Spend/flight dates are still blank
+(`data/plan_budget.csv` still has a blank `microgrid` row) until a signed media plan lands
 (fill the CSVs and re-run `load_seeds.py` + the job with `FORCE_REBUILD=1`). **Market caveat:** both ad
 sets are named `-ANZ-` with no country token, and LinkedIn has no ad-group column to fall back on the way
 Trade Desk does, so `sql/20`'s AU/NZ normalisation folds **100% of Microgrid delivery into Australia**.
@@ -104,16 +105,69 @@ first-match-wins with no collision (verified), so enabling it was the NEL two-li
 to the `WHERE program IN (…)` in [`sql/20_pm_delivery.sql`](sql/20_pm_delivery.sql) and to
 `CS_PROGRAMS` in [`job/main.py`](job/main.py), plus a `PILLAR` entry ("Services & Consulting") in the
 dashboard. **`ECAA` + `2279_`** match_pattern tokens added — defensive, per the `heavy`/`2281_` lesson.
-**Targets are PENDING** — no signed media plan in the repo, so `data/media_plan.csv` carries a single
-LinkedIn Awareness line with blank targets (`data/plan_budget.csv` already had ecoconsult at A$30,000
-ex-fees from the Pacific intake, no flight dates) — its scorecard card reads 0 leads / 0 target and
-pace `-` until the plan lands (fill the CSVs, re-run `load_seeds.py` + the job `FORCE_REBUILD=1`).
+**Targets: impressions seeded, rest PENDING** — the client confirmed a **333,333 impression target**
+(2026-08-06, seeded on `data/media_plan.csv`'s LinkedIn Awareness line via `load_seeds.py` + a forced
+job run), so the scorecard card now paces reach against it. The rest of the plan is still blank
+(`data/plan_budget.csv` already had ecoconsult at A$30,000 ex-fees from the Pacific intake, no flight
+dates) until the signed plan lands (fill the CSVs, re-run `load_seeds.py` + the job `FORCE_REBUILD=1`).
 **Market caveat (same as Microgrid):** every ad-set name is `_ANZ_` with no country token and LinkedIn
 has no ad-group fallback, so `sql/20` folds **100% of EcoConsult delivery into Australia**.
-**Lead-gen caveat:** 2 of the 3 groups are LinkedIn Lead Generation objective and lead-form leads are
-already landing in the raw (`LEADS` — 3 so far, on the Consideration DocAd), but they do NOT reach the
-dashboard: the CS lane is Salesforce-only (the `heavy` precedent). When SE provision a Salesforce
-campaign for EcoConsult, add its SF id to `salesforce_map` to light up the CS tabs.
+**Lead-gen caveat:** 2 of the 3 groups are LinkedIn Lead Generation objective. Those lead-form leads
+are **NOT** Salesforce CS leads — the CS lane stays Salesforce-only (the `heavy` precedent), so when SE
+provision a Salesforce campaign for EcoConsult, add its SF id to `salesforce_map` to light up the CS
+tabs. They now surface as a separate **paid** metric on the Paid Media tab — see *Update 2026-08-06*.
+
+**Update 2026-08-06** (`sql/04_stg_ad_delivery.sql` + `sql/20_pm_delivery.sql` + `job/main.py` +
+`dash/dashboard.html`): four fixes, all triggered by the Executive Scorecard drawing **`0 / 0 leads` +
+`no flight dates`** on EcoConsult and Microgrid while both were demonstrably delivering.
+
+1. **LinkedIn lead-form leads now reach the dashboard.** `stg_linkedin` had always carried LinkedIn's
+   own `LEADS` / `LEAD_FORM_OPENS`, but **`sql/04_stg_ad_delivery.sql` dropped them** (it selected only
+   imps/clicks/spend), so `pm_delivery` never saw them and EcoConsult's leads existed nowhere on the
+   dash. Both columns are now carried 04 → 20 → `job/main.py` → the UI, **`NULL` (not 0) for
+   DV360/TradeDesk** — those staging views have no conversion feed, and 0 would read as "measured none".
+   Verified against LinkedIn's own reporting: **EcoConsult 3 leads / 13 form opens** (all on the
+   Consideration `PersonaBC-EngOps_DocAd` ad set), and this also surfaced **5 previously-invisible NEL
+   lead-form leads** (4 AU + 1 NZ). Surfaced as: a **Lead-form leads** KPI card + a **Lead-form leads**
+   column on the platform table (both auto-hidden when the filtered selection has none, so an awareness
+   program never shows an implied 0-lead failure), an awareness-card footer line, `paid.totals
+   .lead_form_leads` / `by_platform[].lead_form_leads` in the AI-deck payload, and the CSV exports.
+   **They are a PAID metric and must never be summed into a CS lead total** — the whole point of the
+   `heavy` precedent. Every layer carries that warning in a comment.
+2. **Flight dates fall back to OBSERVED delivery.** `flight_start`/`flight_end` come from
+   `data/plan_budget.csv` → `seed_plan_budget` → `job/main.py`; EcoConsult has a budget but **blank
+   dates**, Microgrid is **blank entirely**, because neither media plan is signed. `job/main.py` now
+   falls back to the program's **first delivery day** when the plan seeds no start at all, and emits
+   **`flight_source`** (`'plan'` | `'observed'`) + `first_delivery` / `last_delivery`. The **end is
+   never synthesized** (an unsigned plan has no agreed end, and a missing end already means "ongoing"),
+   and a plan start with an open end — `global_rebrand` — is left exactly as seeded. The UI labels an
+   observed window **"live since 21 Jul"**, never "flight". Deck payload carries `flight_source` with a
+   note not to describe an observed window as a planned flight.
+3. **Awareness programs are paced on REACH, not leads.** The scorecard card had one shape (leads vs
+   target) and `paceVerdict` returned the literal string `'no flight dates'` for *any* null pace —
+   including a null caused by a **0 lead target**, which is why NEL showed "no flight dates" despite
+   having them. Cards now branch: a program with no MQL+HQL target renders **impressions vs the media
+   plan's paid `imp_target`** (`progImpTarget`, summed over `channels[]` where `group==='paid'`), with
+   delivered CPM, spend to date, lead-form leads and the flight anchor, and its own `reachVerdict`
+   (*Ahead of / Behind reach plan* · **awareness - targets pending** when no plan is signed · *awareness
+   - no delivery yet*). NEL therefore gets a real pace (**340,695 of 814,861 planned impressions**);
+   EcoConsult/Microgrid read "targets pending" with their true reach instead of a 0%-filled lead bar.
+   The portfolio strip gained an **Impressions delivered** KPI and its "Programs live" caption now
+   splits *lead-gen · awareness* (it used to call all 8 "lead-gen programs").
+4. **`Platform` filter (new, resetdata pattern, Schneider-styled).** Programs run several engines at
+   once, so a **DV360 / TradeDesk / LinkedIn** chip group sits ahead of the Region chips (same `.chip`
+   pill, platform brand dot instead of the tick; `All` / `Clear` actions; a chip **dims** when that
+   engine has no delivery for the selected program but stays togglable). State = `activePlatforms`,
+   predicate = `platOk()`, wired into **`pmRows()`** (so the whole Paid Media tab — KPIs, hero chart,
+   platform + market tables, doughnuts, CSV) and **`progPaid()`** (so the scorecard's reach KPIs and
+   awareness cards follow it too). It is deliberately **hidden on Content Syndication / CS Comparison /
+   Other / Website**: Salesforce leads have no delivering platform, so filtering them by engine would
+   silently zero a real number. `buildDeckPayload()` **restores all platforms** before building (like
+   it already nulls the date range) so a chip left off on screen can't drop an engine from a client deck.
+
+Also fixed in passing: **`tableCSV()` leaked `_`-prefixed internal stashes** — `bbApplySpendMult` parks
+each row's pre-markup spend on `_rawSpend`, and `pm_delivery` exports were shipping it to the client.
+Underscore keys are now dropped from the header and every row (the repo-wide rule in `md/AGENTS.md`).
 
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
@@ -166,8 +220,13 @@ Environment / Heavy Industries); a **job-function** doughnut + **seniority** bar
 `COMPANY_NAME`/`JOB_FUNCTION`/`JOB_LEVEL` — verified 100%/100%/~40% populated; industry/asset/state/revenue
 are empty for SE so are intentionally not shown). `renderScorecard()` in `dashboard.html`.
 
-The remaining tabs are **per-campaign**. Filters: **Campaign** (the 5 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
-**Region** chips (Australia / New Zealand) + **Date range** stay on the control bar under the tabs.
+The remaining tabs are **per-campaign**. Filters: **Campaign** (the 8 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
+**Platform** chips (DV360 / TradeDesk / LinkedIn — added 2026-08-06), **Region** chips (Australia /
+New Zealand) + **Date range** stay on the control bar under the tabs. **Platform scopes paid delivery
+only** — it drives `pmRows()` (the whole Paid Media tab) and `progPaid()` (the scorecard's reach KPIs +
+awareness cards), and is **hidden on Content Syndication / CS Comparison / Other / Website**, where the
+numbers are Salesforce leads with no delivering platform. A chip **dims** when that engine has no
+delivery for the selected program. `Date range` likewise only scopes Paid Media.
 **The tab bar adapts to the selected campaign** — each campaign shows only the channels it actually
 uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
 ([`data/media_plan.csv`](data/media_plan.csv) `channel` column, bucketed by `chan_group`):
@@ -226,6 +285,8 @@ Read-only on BigQuery (it only SELECTs views + writes JSON). No `src_*` landing,
 | Media-plan **targets** (media_plan / targets / plan_budget) + **campaign_map** (display names / match_patterns) | `data/*.csv` (version-controlled — tracked via `.gitignore` `!` exceptions) → re-run `load_seeds.py` | 2 |
 | Other seeds (plan_flighting / channel_split / salesforce_map) | `data/*.csv` → `load_seeds.py` (NB: currently BQ-only, no committed CSV) | 2 |
 | CS + paid views (`stg_salesforce` / `cs_by_programme` / `cs_weekly` / `pm_delivery`) | `sql/17–20_*.sql` | 2 |
+| A new **paid delivery metric** (must pass the unified base first) | `sql/04_stg_ad_delivery.sql` → `sql/20_pm_delivery.sql` → `job/main.py` (`pm_delivery` rows) → `dash/dashboard.html` (`pmTotals`) — 04 silently dropping a column is how LinkedIn's lead-form leads went missing (see Update 2026-08-06) | 2+3 |
+| Flight window for a program | `data/plan_budget.csv` (`flight_start`/`flight_end`) → `load_seeds.py`; blank start ⇒ `job/main.py` falls back to first delivery and flags `flight_source='observed'` | 2 |
 | Which programs are in scope (the 5 CS programs + `nel` + `microgrid` + `ecoconsult`) | `data/salesforce_map.csv` (the 9 SF ids, CS only) + the `CS_PROGRAMS` list in `job/main.py` + `WHERE program IN (…)` in `sql/20_pm_delivery.sql` | 2 |
 | JSON shape | `job/main.py` (the `env = {...}` dict) | 2 |
 | Charts / tabs / branding | `dash/dashboard.html` | 3 |
@@ -410,6 +471,12 @@ reports / CSV emails).
 -- brief reporting region for all three (DV360 from COUNTRY_NAME; LinkedIn/TradeDesk parsed
 -- from CAMPAIGN_NAME). channel_objective is NULL for now (reserved — the brief leaves it
 -- NULL until an objective convention is confirmed). creative_type is LinkedIn-only.
+--
+-- leads / lead_form_opens are LinkedIn-ONLY on-platform LEAD-FORM counts (LinkedIn's own
+-- LEADS / LEAD_FORM_OPENS columns, carried through stg_linkedin). They are NOT Salesforce CS
+-- leads and must never be added to a CS total — a paid-only program (EcoConsult) can report
+-- lead-form leads with no Salesforce campaign at all. NULL (not 0) for DV360 / TradeDesk:
+-- those staging views carry no conversion feed, so 0 would read as "measured none".
 
 ### 05_kpi.sql
 -- Schneider Electric — headline KPI row (single row the dashboard reads for the big numbers).

@@ -16,20 +16,27 @@
 
 ## What the conversion pixel can and cannot measure (read before promising numbers)
 
-The tag carrying the data is a **sitewide TTD Universal Pixel** (`z3eu6oa` on advertiser `0lw3hp6`).
-(Two URL-scoped tracking tags were later found sitting under it — see **Pixel wiring status** below —
-but neither reaches the campaign report, so the effective measurement is still just this base pixel.)
+**Site visits became measurable on 2026-08-10**, when the client attached the URL-scoped
+**`Landing Page Visit`** tracking tag (`4tyuvnj`, TTD event type **Site visit**, rule contains
+`business-solutions/starcard/caltex-starcard`) to the **campaign's conversion reporting**. That was
+the one missing step diagnosed below — the tag had always been firing at the *pixel* level, it just
+never reached the campaign report, and therefore never reached Windsor.
+
+All the underlying tags sit on the sitewide TTD Universal Pixel `z3eu6oa` (advertiser `0lw3hp6`):
 
 ```html
 ttdConversionEvents("init",  { advertiserId: "0lw3hp6", pixelIds: ["z3eu6oa"] });
 ttdConversionEvents("event", { advertiserId: "0lw3hp6", pixelIds: ["z3eu6oa"] });
 ```
 
-That `event` call carries **no** `value`, `orderid`, or `td1`-`td10` custom data and **no distinct
-event name**, so it fires identically on every page. Consequences:
+Consequences, and the exact claim the dashboard is allowed to make:
 
-- What we CAN report: **ad-attributed site visits** — post-view (saw an ad, later landed) and
-  post-click. The whole UI and the AI report say "site visits" for exactly this reason.
+- What we CAN report: **ad-attributed visits to the Star Card LANDING PAGE** — post-view (saw an
+  ad, later landed) and post-click. Because the attached tracker is **URL-scoped**, this is NOT
+  "all site traffic": it is specifically the Star Card page. The UI, the AI report and the
+  `action_source_label` badge ("Star Card page · TTD-attributed") all say so.
+- **Never substitute the sitewide `Universal Pixel - Default` tag (`8za7r9n`)** for this number. At
+  ~429k hits/30d it is ~150x the landing-page figure and counts all traffic, ad-exposed or not.
 - What we CANNOT report: **Star Card applications / sign-ups.** A tracking tag for them EXISTS
   (`7y9naeh`) but has never fired, because the pixel is not installed on the application domain
   `oa.starcard.com.au` — see **Pixel wiring status** below. The client has agreed to attribute
@@ -45,10 +52,20 @@ event name**, so it fires identically on every page. Consequences:
   export one tracker as a duplicate column pair (the VMCH `{01,03,05}` case); if so, switch both
   `sql/01_stg_ttd.sql` and the status-dash check to one column per pair.
 
-## Pixel wiring status (verified 2026-08-05) — the pixel FIRES, the campaign reports nothing
+## Pixel wiring status — site visits RESOLVED 2026-08-10, applications still blocked
+
+**Half of this is now fixed.** The 2026-08-05 diagnosis below was correct and its **step (1) has
+been actioned**: the client attached `Landing Page Visit` (`4tyuvnj`) to the campaign's conversion
+reporting on 2026-08-10, so ad-attributed **Star Card landing-page visits** now flow
+TTD → Windsor → `raw_windsor.perf_the_trade_desk.conversions` → `stg_ttd` → the dashboard KPI with
+no code change (the pipeline had been built and waiting since 2026-07-30).
+
+**Step (2) is still open:** applications remain unmeasurable until the pixel is installed on
+`oa.starcard.com.au`. Keep the rest of this section — it is the standing diagnosis for that half,
+and the reference for anyone who sees a zero and assumes a loader bug.
 
 **Do not re-diagnose this as "the pixel is broken" or "Windsor is missing conversions" — neither is
-true.** Measured state, both sides:
+true.** Measured state as of the 2026-08-05 investigation, both sides:
 
 **TTD UI** — pixel `z3eu6oa` is firing hard: **52,337 hits/1d · 213,344/7d · 429,374/30d**. It has
 three child tracking tags:
@@ -71,9 +88,11 @@ sees nothing. Nothing in this repo can fix that; it is a TTD-UI setting, exactly
 
 **Two separate problems, do not conflate them:**
 
-1. **Site visits are measurable TODAY.** `4tyuvnj` is healthy — right URL scope, right event type,
-   2,851 hits/30d. It only needs **attaching to the campaign's conversion tracking**. That single
-   change lights up the "Site visits (ad-attributed)" KPI with no code change here.
+1. **Site visits — DONE 2026-08-10.** `4tyuvnj` was healthy all along (right URL scope, right event
+   type, 2,851 hits/30d); it only needed **attaching to the campaign's conversion tracking**. That
+   single change lit up the "Site visits (ad-attributed)" KPI with no code change here, exactly as
+   predicted. Because the tracker is URL-scoped, the KPI means **Star Card landing-page visits**,
+   not all site traffic — label it that way.
 2. **Applications are not, and the reason is the DOMAIN.** `7y9naeh` shows 0 hits *and* 0 active IDs
    in every window. Its rule targets `oa.starcard.com.au`, a different host from the landing page —
    and a Universal Pixel only fires where its snippet is installed. Zero-hits-with-zero-active-IDs is
@@ -87,10 +106,10 @@ number and is all site traffic, ad-exposed or not. The client's "attribute all s
 campaign" position is a commercial agreement, not a measurement — it still needs something firing on
 the apply page, and today nothing is.
 
-**Order of operations in TTD:** (1) attach `4tyuvnj` to the campaign → site visits flow; (2) get the
-pixel onto `oa.starcard.com.au` → `7y9naeh` starts counting → attach it too; (3) confirm the
-post-view / post-click attribution windows. Then re-read the duplicate-pair caveat above before
-trusting the first totals.
+**Order of operations in TTD:** ~~(1) attach `4tyuvnj` to the campaign → site visits flow~~ **DONE
+2026-08-10**; (2) get the pixel onto `oa.starcard.com.au` → `7y9naeh` starts counting → attach it
+too; (3) confirm the post-view / post-click attribution windows. The duplicate-pair caveat above was
+checked against the first real totals — see the slot-layout note in `sql/01_stg_ttd.sql`.
 
 ## Funnel stage is HARD-CODED to Awareness (2026-07-31)
 
@@ -140,10 +159,16 @@ Because "not measured" and "0% viewable" are very different claims against a 70%
 distinguishes them: a real rate when `tracked > 0`, and "not measured yet / enable in TTD" when the
 sample is absent. It never renders 0%.
 
-### 2. Star Card applications - not measurable from the installed tag
+### 2. Star Card applications - STILL not measurable (site visits ARE, since 2026-08-10)
 
-The sitewide base pixel cannot distinguish an application from any other pageview (see the pixel
-section above). Three routes, cheapest first:
+> **Superseded in part.** Route 1 below was the correct diagnosis and has been actioned: a tracker
+> (`Landing Page Visit`) is now attached, so **landing-page visits are measured**. What remains
+> unsolved is *applications specifically* - the apply step lives on `oa.starcard.com.au`, a domain
+> the pixel is not installed on, so no tracker can see it. Route 3 (or simply the pixel snippet on
+> that domain) is the remaining ask; route 2 is the fallback. History kept for the reasoning.
+
+The measured tracker is scoped to the Star Card landing page, so it cannot see an application
+completing on a different host (see the pixel section above). Three routes, cheapest first:
 
 1. **Define a conversion tracker on the EXISTING pixel - almost certainly the real blocker, and it
    needs NO site access.** EVIDENCE (2026-07-31): all 18 Caltex rows return `conversions` = JSON
@@ -210,9 +235,11 @@ are never stored, always recomputed from summed components, so any sub-range is 
 
 ## Honesty rules baked in
 
-- **Site actions = TTD pixel-attributed** (post-view + post-click), summed from Windsor's
-  anonymous conversion slots. `conversion_touch_*` (total pixel fires, mostly not ad-attributed)
-  is never used. Post-view dominating is *normal* for display and the UI says so.
+- **Site visits = TTD-attributed visits to the Star Card LANDING PAGE** (post-view + post-click),
+  summed from Windsor's anonymous conversion slots and fed by the URL-scoped `Landing Page Visit`
+  tracker. NOT all site traffic, and NOT applications. `conversion_touch_*` (total pixel fires,
+  mostly not ad-attributed) is never used. Post-view dominating is *normal* for display and the UI
+  says so.
 - **Conversion-slot caveat:** once Caltex pixels actually fire, verify the slot layout — TTD can
   export one tracker as a duplicate column pair (VMCH's did; see `sql/01_stg_ttd.sql` header).
 - **No reach/frequency** exists in the Windsor TTD feed → creative wear-out is read from weekly

@@ -153,6 +153,11 @@
   .bbsrcper .s .d{font-weight:700;color:#BFD0EA}
   .bbsrcper .s.bad .d{color:#F87171}
   .bbsrcper .s.bad{color:#F87171}
+  /* idle = frozen ON PURPOSE (flight ended / standby fallback). Deliberately DIMMER than a live
+     source, never red: it is not a fault, and it must not read as one at a glance. */
+  .bbsrcper .s.idle{color:#7C8AA0;opacity:.72}
+  .bbsrcper .s.idle .nm{color:#7C8AA0}
+  .bbsrcper .s.idle .d{color:#9AA8BC;font-weight:600}
 </style>
 <script>
 (function(){
@@ -210,16 +215,41 @@
     var n=new Date(), tv=Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate());
     return Math.round((tv-dv)/86400000);
   }
-  // Stale = 2+ days behind today (UTC). Today OR yesterday is "current" (normal ad-reporting lag:
-  // the platforms only publish day D on D+1, and our daily ingest runs 21:35 UTC, so 1 day IS the
-  // healthy steady state -- 2+ means an ingest genuinely missed a run).
-  function freshFlag(dstr){
-    var b=daysBehind(dstr);
-    if(dstr==null||b==null) return {cls:"na", txt:"no date"};
-    if(b<=0) return {cls:"ok", txt:"current (today)"};
-    if(b===1) return {cls:"ok", txt:"current (yesterday)"};
-    return {cls:"bad", txt:b+" days behind"};
+  // BUSINESS days with no delivery (UTC). Fri -> Mon is 1, not 3: a source that only receives on
+  // business days (a CRM) must not age over a weekend, which is what made every CS source flip red
+  // on a Sunday. A weekend data date counts from the following Monday.
+  function weekdaysBehind(dstr){
+    var b=daysBehind(dstr); if(b==null) return null;
+    if(b<=0) return 0;
+    var p=String(dstr).slice(0,10).split("-"), d=Date.UTC(+p[0], +p[1]-1, +p[2]), n=0;
+    for(var i=1;i<=b;i++){ var wd=new Date(d+i*86400000).getUTCDay(); if(wd!==0 && wd!==6) n++; }
+    return n;
   }
+  // Stale = STALE_DAYS+ days behind today (UTC). The platforms publish day D on D+1 and our daily
+  // ingest runs 21:35 UTC, so 1 day IS the healthy steady state. Was 2+, which turned red on any
+  // single missed nightly run and on every weekend; 3+ means runs have genuinely been missed.
+  var STALE_DAYS = 3;
+  // A source is BEHIND only if delivery into it was still EXPECTED. The per-source expectation
+  // comes from freshness.source_expectations (SOURCE_EXPECTATIONS in status_dashboard/job/main.py):
+  //   ended / fallback -> IDLE by design (flight over, or a standby path whose primary is current).
+  //                       Neutral, and never counted in the "N sources behind" tally.
+  //   weekdays         -> aged in business days, so a weekend gap is not staleness.
+  //   daily (default)  -> aged in calendar days.
+  // Thresholds stay HERE, in the browser, so a carried-forward date ages on its own with no rebuild.
+  function freshFlag(dstr, exp){
+    var mode=(exp && exp.mode) || "daily", why=(exp && exp.why) || "";
+    if(mode==="ended")    return {cls:"idle", txt:"campaign ended", why:why};
+    if(mode==="fallback") return {cls:"idle", txt:"standby",        why:why};
+    var wd=(mode==="weekdays");
+    var b=wd ? weekdaysBehind(dstr) : daysBehind(dstr);
+    if(dstr==null||b==null) return {cls:"na", txt:"no date", why:why};
+    if(b<=0)  return {cls:"ok", txt:"current (today)", why:why};
+    if(b===1) return {cls:"ok", txt:"current (yesterday)", why:why};
+    if(b<STALE_DAYS) return {cls:"ok", txt:"current ("+b+(wd?" business days":" days")+" ago)", why:why};
+    return {cls:"bad", txt:b+(wd?" business days behind":" days behind"), why:why};
+  }
+  // Per-source expectation for a client entry (missing -> the daily default).
+  function expOf(c, src){ return ((c.freshness||{}).source_expectations||{})[src] || null; }
   // Prettify a source name for the per-source chips (strip raw_<ds>. / perf_ prefixes).
   function srcName(s){ return String(s||"").replace(/^raw_[a-z0-9]+\./,"").replace(/^perf_/,"").replace(/_/g," "); }
 
@@ -229,17 +259,24 @@
   function srcRecencyBar(c){
     var f=c.freshness||{}, sd=f.source_dates||[], through=f.source_data_through||null;
     if(!sd.length && !through) return "";
-    var nbad=0, per="";
+    var nbad=0, nidle=0, per="";
     if(sd.length){
       per=sd.map(function(s){
-        var fl=freshFlag(s.data_through); if(fl.cls==="bad") nbad++;
-        return '<span class="s '+fl.cls+'" title="'+esc(srcName(s.source))+' - '+esc(fl.txt)+'">'+
+        var fl=freshFlag(s.data_through, expOf(c, s.source));
+        if(fl.cls==="bad") nbad++; else if(fl.cls==="idle") nidle++;
+        var tip=srcName(s.source)+" - "+fl.txt+(fl.why?" ("+fl.why+")":"");
+        return '<span class="s '+fl.cls+'" title="'+esc(tip)+'">'+
           '<span class="nm">'+esc(srcName(s.source))+'</span> <span class="d">'+esc(s.data_through||"—")+'</span>'+
-          (fl.cls==="bad"?' ⚠':'')+'</span>';
+          (fl.cls==="bad"?' ⚠':(fl.cls==="idle"?' <span class="nm">· '+esc(fl.txt)+'</span>':''))+'</span>';
       }).join("");
     }
+    // Headline date = the freshest LIVE source. An idle source is frozen by design, so letting it
+    // set the headline would report a client as stale for a campaign that has finished.
+    var live=sd.filter(function(s){ return freshFlag(s.data_through, expOf(c, s.source)).cls!=="idle"; });
+    if(live.length){ var lm=null; live.forEach(function(s){ if(s.data_through && (!lm || s.data_through>lm)) lm=s.data_through; }); if(lm) through=lm; }
     var h=freshFlag(through), htxt=(h.cls==="bad"?"⚠ ":(h.cls==="ok"?"✓ ":""))+h.txt;
     if(h.cls==="ok" && nbad>0) htxt+=" · "+nbad+" source"+(nbad>1?"s":"")+" behind";
+    if(h.cls==="ok" && !nbad && nidle) htxt+=" · "+nidle+" idle";
     return '<div class="bbsrc"><span class="lb">Source data through</span>'+
       '<span class="hd">'+esc(through||"—")+'</span>'+
       '<span class="fl '+h.cls+'">'+esc(htxt)+'</span>'+
@@ -307,6 +344,10 @@
     else if(m===true) tag='<span class="bbmtag ok">✓ MATCH</span>';
     else if(m===false){ var diff=(sf!=null&&dv!=null)?Math.abs(Number(sf)-Number(dv)):null;
       tag='<span class="bbmtag bad">✗ off by '+(diff!=null?fmtNum(diff):"?")+'</span>'; }
+    // Not comparable YET: the source moved after this dashboard was last built, so the two
+    // columns are different snapshots of an append-only series. The export job rebuilds on its
+    // own */10 tick and the check settles by itself - showing it as "off" would be a false alarm.
+    else if(chk.pending==="rebuild") tag='<span class="bbmtag na" title="the source advanced after this dashboard was last built - the two sides are different snapshots. The export job rebuilds on its next run and this check settles on its own.">⏳ rebuild pending</span>';
     else tag='<span class="bbmtag na">'+dot("unknown")+'no data</span>';
     var note=chk.note?'<div class="bbqnote">'+esc(chk.note)+'</div>':'';
     var err=chk.error?'<div class="bbqnote" style="color:#F87171">'+esc(chk.error)+'</div>':'';
@@ -332,10 +373,21 @@
       if(v==null) return {cls:"na", txt:"no data"};
       var b=badge(v); return {cls:(b.cls==="na"?"na":(b.cls==="ok"?"ok":(b.cls==="warn"?"warn":"bad"))), txt:"⚠ "+b.label};
     }
-    var nbad=0; sd.forEach(function(s){ if(freshFlag(s.data_through).cls==="bad") nbad++; });
+    // Idle sources (ended flight / standby fallback) are excluded from BOTH the behind-count and
+    // the headline date - they are frozen on purpose, so counting them reads as a fault that isn't.
+    var nbad=0, nidle=0, lm=null;
+    sd.forEach(function(s){
+      var fl=freshFlag(s.data_through, expOf(c, s.source));
+      if(fl.cls==="idle"){ nidle++; return; }
+      if(fl.cls==="bad") nbad++;
+      if(s.data_through && (!lm || s.data_through>lm)) lm=s.data_through;
+    });
+    if(lm) through=lm;
     var h=freshFlag(through);
     if(h.cls==="bad") return {cls:"bad", txt:"⚠ "+h.txt, title:"newest source data "+(through||"?")};
     if(nbad>0) return {cls:"warn", txt:"⚠ "+nbad+" source"+(nbad>1?"s":"")+" behind", title:"newest source data "+(through||"?")};
+    if(nidle>0) return {cls:"ok", txt:"✓ up to date · "+nidle+" idle",
+      title:"source data through "+(through||"?")+" · "+nidle+" source"+(nidle>1?"s":"")+" idle by design (ended flight / standby path)"};
     return {cls:"ok", txt:"✓ up to date", title:"source data through "+(through||"?")};
   }
 
@@ -343,8 +395,9 @@
     // The source-of-truth column is Snowflake for Transmission's clients and BigQuery (the
     // raw Windsor/Neto/DTS layer) for the 100% Digital clients — labelled per c.source_label.
     var srcLabel=c.source_label||"Snowflake";
-    var checks=c.accuracy||[], nOk=0,nBad=0,nNa=0;
-    checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++; else nNa++; });
+    var checks=c.accuracy||[], nOk=0,nBad=0,nNa=0,nPend=0;
+    checks.forEach(function(k){ if(k.match===true)nOk++; else if(k.match===false)nBad++;
+      else if(k.pending)nPend++; else nNa++; });
     var body="", last=null;
     checks.forEach(function(chk){ var g=chk.group||""; if(g!==last){ last=g; if(g) body+='<tr class="grp"><td colspan="4">'+esc(g)+'</td></tr>'; } body+=accRow(chk, srcLabel); });
 
@@ -352,7 +405,11 @@
     var al;
     if(!checks.length) al={cls:"na", txt:"no checks"};
     else if(nBad>0) al={cls:"bad", txt:"✗ "+nBad+" off · "+nOk+"/"+checks.length+" match"};
-    else if(nNa>0) al={cls:"warn", txt:nOk+"/"+checks.length+" match · "+nNa+" n/a"};
+    // "rebuilding" is a WAITING state, not a wrong number - it must never read like "off".
+    else if(nPend>0||nNa>0){ var bits=[];
+      if(nPend) bits.push(nPend+" rebuilding");
+      if(nNa)   bits.push(nNa+" n/a");
+      al={cls:"warn", txt:nOk+"/"+checks.length+" match · "+bits.join(" · ")}; }
     else al={cls:"ok", txt:"✓ "+nOk+"/"+checks.length+" match"};
     var up=updatedStatus(c);
 

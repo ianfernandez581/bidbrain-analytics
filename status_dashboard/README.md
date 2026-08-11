@@ -79,9 +79,33 @@ three days ago. So each client entry's `freshness` also carries, per source:
 Probed under the **same freshness gate** as the accuracy counts (recomputed only when the client's source
 advanced, else carried forward, and memoised per tick so a shared table is probed once), so an idle tick
 adds no extra warehouse resumes. The **Data Accuracy tab** renders this as a **"Source data through
-&lt;date&gt;"** strip per client with a per-source breakdown, and flags a source **red at 2+ days behind**
-the viewer's local **today** (today OR yesterday stays green — the normal 1-day ad-reporting lag). The flag
-is computed in the browser, so a carried-forward date turns red on its own the next day with no rebuild.
+&lt;date&gt;"** strip per client with a per-source breakdown. The flag is computed **in the browser** (UTC
+basis, matching the data), so a carried-forward date ages on its own with no rebuild.
+
+### "behind" vs "idle" — a frozen source is only a fault if delivery was expected (2026-08-09)
+
+The original flat rule (**red at 2+ days behind**) could not tell a broken pipeline from a finished one, so
+it cried wolf on three non-faults: a campaign that had **ended**, a CRM over a **weekend**, and a dormant
+**fallback** path whose primary was current. Each source now carries a delivery expectation —
+`SOURCE_EXPECTATIONS` in `job/main.py`, emitted every tick as `freshness.source_expectations` (static
+config, so it is never subject to the `source_dates` carry-forward) and applied by `freshFlag()` in
+`bidbrain-platform/dash/templates/_status_merge.html`:
+
+| mode | meaning | verdict |
+|---|---|---|
+| `daily` (default, omit) | expect data through yesterday | **behind at 3+ calendar days** (`STALE_DAYS`) |
+| `weekdays` | business days only — a CRM gets no leads at the weekend | **behind at 3+ *business* days** (Fri→Mon is 1, not 3) |
+| `ended` | the flight is over, the source is *supposed* to be frozen | **idle**, always |
+| `fallback` | standby path, read only for dates its primary lacks | **idle**, always |
+
+An **idle** source is neutral: excluded from the "N sources behind" tally **and** from the headline
+"source data through" date (a finished campaign must not make a healthy client read stale), and shown
+dimmed in the per-source strip with its reason on hover. Live entries today: Salesforce CS = `weekdays`
+(mongodb / cloudflare / schneider); cloudflare's `Reddit Ads - APAC_ALL` = `ended` (Q2-only lane, wrapped
+2026-06-30 — **flip it back to `daily` the day Reddit is re-booked, or the restart won't be flagged**);
+vmch's `raw_windsor.perf_ga4` = `fallback` (the DTS primary `raw_ga4.perf_ga4` is the real signal).
+**`DV360 - APAC` is deliberately NOT listed** — it is frozen at 2026-07-01 with live campaigns still
+running, a genuine upstream fault at Transmission, and must keep reading behind.
 
 ## BigQuery-native clients (the 100% Digital agency)
 
@@ -134,6 +158,27 @@ query is a true like-for-like. Each card shows an `n/n match` summary in its hea
 - **Compared against un-scoped JSON values** (the whole-flight `kpi.*` block, or the raw `rows[]`/`pacing`
   arrays for mongodb/cloudflare), never the on-screen KPI — those are scoped by the campaign/market/date
   pickers, whereas the JSON is the faithful pass-through.
+- **Both sides must be the SAME snapshot, or the check is `pending`, not `off` (2026-08-09).** A check
+  equates a source aggregate with a value in `<client>.json`, which only means anything if that build SAW
+  that source data. Two things break that, and both used to render as a red ✗ against numbers that were
+  perfectly correct:
+  1. **Read order.** The source aggregates take minutes (Snowflake resumes; BQ scans) and every client
+     export job rebuilds on its own `*/10` tick, so reading the client JSON *before* them compared an OLD
+     build against a NEW source read. The job now collects the source values FIRST, then **re-reads
+     `<client>.json`** (`reread_build`) so a rebuild that landed mid-run is picked up.
+  2. **The rebuild window.** The nightly Windsor loaders bump a raw table's `last_modified` **several times
+     per run** (`perf_the_trade_desk` landed at 21:49:57, 21:50:05 *and* 21:52:03 on 2026-08-09), so for a
+     few minutes the source legitimately holds rows the build does not. When the build provably predates
+     the source snapshot AND that source landed within `REBUILD_GRACE` (60 min), the check is emitted with
+     `match: null` + `pending: "rebuild"` and the tab renders **"⏳ rebuild pending"** / a `N rebuilding`
+     header count. **Past the grace we assert again** — a permanently-behind export job must not be able to
+     silence its own accuracy checks (and the Sync tab is already red by then).
+  The tell for this class of false alarm is that the diff is always ONE load's worth of rows and always in
+  the same direction (**source > dashboard**) across every append-only count at once. It self-heals on the
+  next tick. On 2026-08-09 this was 8 red checks across resetdata/tlm/vmch that were all exactly right.
+  Related: the BQ carry-forward gate is its own `accuracy_gate` field, NOT `freshness.ingest_latest` — the
+  re-probe advances the reported ingest time, and gating on that would carry forward source numbers never
+  computed against the final table state (a mismatch in the OPPOSITE direction once the client rebuilds).
 - **mongodb Content Syndication — DNB and KGA(IDC) are now SEPARATE groups** (previously KGA/IDC was
   invisible; only one combined DNB check existed):
   - **DNB** = the 3 programme campaigns (`701RG00001DtQczYAF`/`HcDIVYA3`/`GvvrDYAR`), which carry a non-null

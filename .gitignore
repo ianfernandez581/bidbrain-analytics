@@ -56,3 +56,28 @@ grid-core/files/CREATIVE/LinkedIn Video Ads/
 grid-core/files/CREATIVE/Consideration - LinkedIn Document ads/
 *.zip
 *.mp4
+
+# Session working documents - the narrative notes/assessments a session writes WHILE working
+# (health assessments, exposure analyses, QA/build scratch). The git log is the changelog, so these
+# are never committed; without this, push-branch.ps1 (which commits ALL local work) sweeps them
+# into main. The files stay on disk - this only stops them being tracked.
+#
+# ROOT-ANCHORED ("/" prefix) ON PURPOSE. These docs are always written at the repo root, and an
+# unanchored *_NOTES.md would also swallow deliberately-tracked nested deliverables - specifically
+# prototypes/transmission-feedback-v0/QA_NOTES.md. Keep the leading slash when adding entries.
+/PLATFORM_HEALTH_ASSESSMENT.md
+/EXTRABLACK_NOTES.md
+/EXTRABLACK_EXPOSURE.md
+/EXTRABLACK_EXPOSURE_2.md
+/EXTRABLACK_DEPLOY.md
+/DATA_ACCURACY_NOTES.md
+/QA_NOTES.md
+/BUILD_NOTES.md
+/*_NOTES.md
+/*_ASSESSMENT.md
+/*_EXPOSURE*.md
+
+# Office lock/owner files (created while a workbook or doc is OPEN, e.g.
+# ~$pacing_intake_template.xlsx). Never work product; they are locked by Office
+# so they cannot even be deleted before a push, and /push commits ALL local work.
+~$*

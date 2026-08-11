@@ -46,13 +46,24 @@ BUCKET = f"bidbrain-analytics-{CLIENT}-dash"
 DATA_OBJECT = f"{CLIENT}.json"
 
 # The programs the dashboard surfaces: the 5 Content-Syndication programs (== the distinct internal
-# ids in seed_salesforce_map) + NEL, Microgrid and EcoConsult, paid-only programs that have delivery
-# but no Salesforce CS leads (render Paid Media only, like global_rebrand). Drives the Campaign
-# dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the CS lane until SE
-# provision a Salesforce campaign for it — that lane is Salesforce-only, same as heavy — but they DO
-# surface as paid `pm_delivery.leads`, LinkedIn's own on-platform lead-form count.)
+# ids in seed_salesforce_map) + NEL, Microgrid, EcoConsult and Enterprise IT, paid-only programs that
+# have delivery but no Salesforce CS leads (render Paid Media only, like global_rebrand). Drives the
+# Campaign dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the CS lane
+# until SE provision a Salesforce campaign for it — that lane is Salesforce-only, same as heavy — but
+# they DO surface as paid `pm_delivery.leads`, LinkedIn's own on-platform lead-form count.)
+#
+# ent_it (Enterprise IT Expansion, brief 1958) joined 2026-08-10 and is the FIRST multi-region program:
+# it delivers across India / MEA / South America / Pacific, not just AU/NZ, so sql/20 passes its real
+# region through instead of folding to Australia and the dashboard builds its Region chips from
+# campaigns[].markets rather than the global union. Delivery-only by client decision — no media-plan
+# targets — so it renders as a reach play with the target slot empty (see reachVerdict).
+#
+# ind_edge (Industrial Edge / Prefab, brief 2463) joined 2026-08-10, scoped to WAVE 3 ONLY (client
+# decision): its seed_campaign_map match_pattern was retuned from the bare `Industrial Edge` token —
+# which also swept in the 2025 `1839_Schneider_Electric_Pacific_*` wave — to Wave-3-specific tokens.
+# Standard AU/NZ market model (NOT multi-region), delivery-only, no targets.
 CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel", "microgrid",
-               "ecoconsult"]
+               "ecoconsult", "ent_it", "ind_edge"]
 
 
 def num(v):
@@ -100,8 +111,8 @@ def main():
     aud = rows(bq, "cs_audience")   # Executive Scorecard: account / function / seniority mix
     media = rows(bq, "seed_media_plan")
     budget = {b["internal_campaign_id"]: b for b in rows(bq, "seed_plan_budget")}
-    display = {m["internal_campaign_id"]: m["display_name"]
-               for m in rows(bq, "seed_campaign_map", order_by="seq")}
+    cmap = {m["internal_campaign_id"]: m for m in rows(bq, "seed_campaign_map", order_by="seq")}
+    display = {k: m["display_name"] for k, m in cmap.items()}
     fx = rows(bq, "kpi")[0]   # FX constants + (unused here) headline
 
     # --- Per-campaign aggregates: target (MQL+HQL), plan-CPL tiers, committed spend, flight ----
@@ -126,6 +137,23 @@ def main():
             if p not in obs_end or d > obs_end[p]:
                 obs_end[p] = d
         li_leads[p] = li_leads.get(p, 0) + (r["leads"] or 0)
+
+    # PER-CAMPAIGN market vocab. The Region chips used to be built from the GLOBAL all_markets union,
+    # which was fine while every program was AU/NZ. ent_it (multi-region: India/MEA/South America/
+    # Pacific) breaks that — a global roster would show an India chip on Water & Environment and an
+    # Australia chip on Enterprise IT, both dead. So each campaign carries the regions it actually
+    # has delivery or leads in, and the dashboard renders chips from the SELECTED campaign.
+    camp_markets = {}
+    for r in pm:
+        camp_markets.setdefault(r["program"], set()).add(r["market"])
+    for r in cs:
+        camp_markets.setdefault(r["campaign"], set()).add(r["market"])
+
+    # AU/NZ first (the Pacific programs), then everything else alphabetically, 'Other'/'Unmapped' last.
+    MK_ORDER = {"Australia": 0, "New Zealand": 1, "ANZ": 2, "Other": 9, "Unmapped": 9}
+
+    def mk_sort(markets):
+        return sorted(markets, key=lambda m: (MK_ORDER.get(m, 5), m))
 
     def chan_group(line_type, channel):
         """Bucket a media-plan line into the reporting channel it feeds:
@@ -166,6 +194,10 @@ def main():
                 "spend": num(m["spend_aud"]), "imp_target": m["imp_target"],
                 "click_target": m["click_target"], "lead_target": m["lead_target"],
                 "has_target": bool(has_target),
+                # Per-channel flight window. Usually the same as the program's, but a program can
+                # run its channels to DIFFERENT end dates (ent_it: LinkedIn to 2026-09-30, the
+                # Trade Desk line to 2026-10-31), which the single program-level flight can't say.
+                "flight_start": ymd(m.get("flight_start")), "flight_end": ymd(m.get("flight_end")),
             })
         n_leads = leads_by_camp.get(cid, 0)
         has_paid = any(c["group"] == "paid" for c in channels) or (cid in paid_programs)
@@ -196,6 +228,11 @@ def main():
         campaigns.append({
             "id": cid,
             "label": display.get(cid, cid),
+            # Regions THIS program actually delivers/leads in - the Region chips are built from it.
+            "markets": mk_sort(camp_markets.get(cid, set())),
+            # Seeded objective (Awareness / LeadGen / ABM / Event). Used only to label a program that
+            # has no targets honestly - an ABM program read "awareness - targets pending" otherwise.
+            "objective": (cmap.get(cid) or {}).get("objective_type"),
             "target_mql": mql, "target_hql": hql, "target": mql + hql,
             "cpl_tiers": cpl_tiers, "committed_spend": committed,
             "flight_start": f_start, "flight_end": f_end, "flight_source": f_source,
@@ -211,9 +248,9 @@ def main():
     campaigns.sort(key=lambda c: (-c["leads"], -c["target"], c["label"]))
 
     # --- Shared market vocab (union of CS + paid markets), ordered ------------
-    mk_order = {"Australia": 0, "New Zealand": 1, "ANZ": 2, "Other": 9}
-    all_markets = sorted({r["market"] for r in cs} | {r["market"] for r in pm},
-                         key=lambda m: (mk_order.get(m, 5), m))
+    # Still the portfolio-wide roster: the Executive Scorecard is global, so it filters on this.
+    # Per-campaign chips come from campaigns[].markets instead (see camp_markets above).
+    all_markets = mk_sort({r["market"] for r in cs} | {r["market"] for r in pm})
 
     # --- Overall data window (paid delivery + leads) for the date picker ------
     wq = list(bq.query(
