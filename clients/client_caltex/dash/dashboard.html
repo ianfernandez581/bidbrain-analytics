@@ -182,6 +182,11 @@
   .kpi .label::before{content:"";width:8px;height:8px;border-radius:50%;flex:none;margin-top:3px;background:var(--kc,var(--accent));box-shadow:0 0 0 3px color-mix(in srgb,var(--kc,var(--accent)) 22%,transparent)}
   .kpi .value{font-size:26px;font-weight:800;margin-top:9px;letter-spacing:-.5px;color:var(--ink)}
   #ovNorth .kpi.north .value{font-size:32px;line-height:1.1}
+  /* A metric that is instrumented but not yet reporting. Rendered in place of the number so the
+     tile reads as "on its way" rather than as a stark "-" (which clients read as broken or as a
+     real zero). Deliberately smaller + muted so it never competes with the live KPI figures. */
+  .kpi .value .v-pending{font-size:16px;font-weight:700;letter-spacing:0;color:var(--muted)}
+  #ovNorth .kpi.north .value .v-pending{font-size:18px}
   .kpi .sub{font-size:11px;color:var(--muted2);margin-top:4px;line-height:1.35}
   .kpi .badge{display:inline-block;font-size:9px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:2px 6px;border-radius:5px;margin-top:6px;
         background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
@@ -834,9 +839,15 @@ function renderKpis(){
       sub:impT!=null?`${targetPending('impressions_target')?'pending ':''}flight target ${compact(impT)}${impPct!=null?` · ${impPct}% there`:''}`:'people reached (gross)'},
     {color:MC.clicks,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
       sub:`CTR ${pct(a.ctr)}${ctrT!=null?` vs ${pct(ctrT)} target`:''}`},
-    {color:MC.actions,north:true,series:'actions',label:'Site visits (ad-attributed)',value:a.actions?int(a.actions):'-',
-      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`:'tracking live - none attributed in range yet',
-      badge:a.actions?(meta().action_source_label||'TTD pixel-attributed'):null},
+    // Until the Trade Desk tracker reports, this tile shows a PENDING state rather than a "-" or a
+    // 0: both read as "broken" or "nobody visited" to a client, when the truth is "instrumented,
+    // not yet flowing". It flips to the real number automatically the moment data lands - no code
+    // change, no redeploy. Keep the copy free of any promised date; we do not control the timing.
+    {color:MC.actions,north:true,series:'actions',label:'Site visits (ad-attributed)',
+      value:a.actions?int(a.actions):'<span class="v-pending">Coming soon</span>',
+      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`
+                   :'Tracking is being finalised with The Trade Desk. Visits appear here automatically once data starts flowing.',
+      badge:a.actions?(meta().action_source_label||'TTD pixel-attributed'):'Awaiting Trade Desk data'},
     {color:MC.accent,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight${targetPending('flight_budget_aud')?' (pending)':''}`:'budget not set'}
   ];
@@ -978,7 +989,7 @@ function renderFunnel(){
     const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
     const rate=prev?`${pct(conv,2)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
     return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
-  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px">No ad-attributed site visits recorded in this range yet. The Star Card landing-page tracker is live; visits appear once someone who saw or clicked an ad reaches that page.</div>');
+  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px"><b>Site visits: coming soon.</b> Tracking for the Star Card landing page is being finalised with The Trade Desk. This step fills in automatically once visits start reporting.</div>');
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
@@ -1010,7 +1021,7 @@ function renderInsights(){
   const items=[
     {label:'Cheapest attention',value:cheapest?safeName(cheapest.tactic):'-',copy:cheapest?`${money(cheapest.cpm,2)} CPM · ${pct(cheapest.imp_share!=null?cheapest.imp_share:(n(cheapest.impressions)/(n(a.impressions)||1)),0)} of impressions. The volume engine of the awareness lane.`:'Waiting for delivery.'},
     {label:'Most engaging tactic',value:engaging?safeName(engaging.tactic):'-',copy:engaging?`CTR ${pct(engaging.ctr)} vs ${pct(a.ctr)} campaign average - the consideration lane earning the clicks.`:'Waiting for engagement signal.'},
-    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site visits (ad-attributed).`:`${int(a.clicks)} clicks so far; ad-attributed site visits appear as exposed users reach the Star Card page.`},
+    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site visits (ad-attributed).`:`${int(a.clicks)} clicks so far. Ad-attributed site visits are coming soon - that tracking is being finalised with The Trade Desk.`},
     {label:'Creative to protect',value:bestCr?safeName(bestCr.creative):'-',copy:bestCr?`CTR ${pct(bestCr.ctr)} at ${money(bestCr.cpm,2)} CPM (${compact(bestCr.impressions)} impressions).`:'Waiting for a creative signal (5k+ impressions).'}
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
@@ -1115,7 +1126,7 @@ function renderActionSplit(){
   const a=agg(scoped());const pv=n(a.pv),pc=n(a.pc);const tot=pv+pc;
   makeChart('actionSplitChart',{type:'doughnut',data:{labels:['Post-view','Post-click'],datasets:[{data:[pv,pc],backgroundColor:[MC.actions,MC.clicks],borderColor:'#0A1F27',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{bbCenter:{label:'Site visits'},legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
-  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click visits to the Star Card page in range.`:'No ad-attributed visits in this range yet - they appear once someone exposed to an ad reaches the Star Card landing page.';
+  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click visits to the Star Card page in range.`:'<b>Coming soon.</b> Site-visit tracking is being finalised with The Trade Desk. This chart populates automatically once visits start reporting.';
 }
 function renderSegment(){
   const groups=byAdGroup(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,12);
