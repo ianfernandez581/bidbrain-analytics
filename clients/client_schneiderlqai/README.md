@@ -11,7 +11,12 @@ the multi-program Schneider Pacific dashboard.
 - **Awareness only** — objective is Website visits / display reach. **No leads, no conversions, no
   Salesforce/CS, no GA4.** The story is reach (impressions), clicks, CTR, cost efficiency (CPM/CPC),
   and pacing vs the media-plan targets.
-- **Currency:** AUD (both channels native AUD; targets treated as AUD — see INTAKE.md).
+- **Currency:** **displayed in EUR; stored in AUD.** Both channels are native AUD and the warehouse
+  keeps AUD (targets treated as AUD — see INTAKE.md). The dashboard converts AUD→EUR **in the browser
+  only** (`bbApplyFx()` in `dash/dashboard.html`, rate constant `AUD_TO_EUR`, printed in the footer).
+  This is the only EUR dashboard in the estate. The conversion must stay front-end: `spend_aud` is
+  built from shared `raw_snowflake` views that `client_schneider` and `client_schneidersecpwr` also
+  read, so converting in SQL or the export job would re-denominate their numbers too.
 - **Flight:** 15 May → 31 Dec 2026. Data started 16 May (LinkedIn) / 18 May (Trade Desk).
 
 ## Live
