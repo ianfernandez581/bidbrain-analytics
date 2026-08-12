@@ -31,6 +31,21 @@ SEEDS = {
         SF("campaign_key", "STRING"), SF("budget_aud", "FLOAT64"),
         SF("flight_start", "DATE"), SF("flight_end", "DATE"),
     ]),
+    # PROPERTY (development) map - the client_schneider seed_campaign_map pattern, scaled down.
+    # `seq` is MATCH PRECEDENCE (lowest wins, exactly like schneider's first-match-wins idOf join);
+    # `match_pattern` is '|'-separated case-insensitive SUBSTRING tokens matched against the Meta
+    # campaign name. The CATCH-ALL row carries an EMPTY pattern and the HIGHEST seq, so anything
+    # unmatched lands there - that is what keeps Gateway Braddon's numbers stable when a new
+    # development appears. `status` drives the dashboard selector: `coming_soon` renders disabled
+    # until real rows arrive, then it enables itself.
+    #
+    # ADDING A DEVELOPMENT IS NOW A CSV EDIT, NOT A SQL EDIT: add a row, run this script, re-run
+    # the export. Simulate the pattern first, exactly as the schneider README instructs:
+    #     SELECT DISTINCT campaign_name, property FROM `...client_geocon.stg_meta` ORDER BY 1;
+    "property_map.csv": ("seed_property_map", [
+        SF("seq", "INT64"), SF("property_key", "STRING"), SF("display_name", "STRING"),
+        SF("match_pattern", "STRING"), SF("status", "STRING"),
+    ]),
 }
 
 

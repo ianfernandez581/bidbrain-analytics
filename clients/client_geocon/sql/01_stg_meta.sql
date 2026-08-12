@@ -8,6 +8,30 @@
 -- split them. STARTS_WITH('Geocon_') lets future Geocon campaigns (e.g. The Irving) flow in
 -- automatically and is immune to the trailing-space quirk in 'Geocon_Traffic_MayJune 2026'.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_geocon.stg_meta` AS
+-- PROPERTY MAP JOIN (client_schneider seed_campaign_map pattern, de-correlated). BigQuery cannot
+-- run the map as a correlated scalar subquery, so it is resolved exactly as schneider's idOf()
+-- replica does: rank every (campaign x matching map row) by `seq` and keep rn=1. The catch-all row
+-- has an EMPTY pattern at the highest seq, so every campaign matches at least one row and the join
+-- can never drop delivery.
+WITH map AS (
+  SELECT seq, property_key, LOWER(COALESCE(match_pattern, '')) AS pat
+  FROM `bidbrain-analytics.client_geocon.seed_property_map`
+),
+base AS (
+  SELECT * FROM `bidbrain-analytics.raw_windsor.perf_meta`
+  WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
+    AND STARTS_WITH(campaign_name, 'Geocon_')
+),
+camps AS (SELECT DISTINCT TRIM(campaign_name) AS cname FROM base),
+camp_rank AS (
+  SELECT c.cname, m.property_key,
+         ROW_NUMBER() OVER (PARTITION BY c.cname ORDER BY m.seq) AS rn
+  FROM camps c, map m
+  WHERE m.pat = ''
+     OR EXISTS (SELECT 1 FROM UNNEST(SPLIT(m.pat, '|')) tok
+                 WHERE TRIM(tok) != '' AND STRPOS(LOWER(c.cname), TRIM(tok)) > 0)
+),
+camp_map AS (SELECT cname, property_key FROM camp_rank WHERE rn = 1)
 SELECT
   metric_date                                                          AS date,
   campaign_id,
@@ -54,17 +78,6 @@ SELECT
   -- started spending - inflating leads, spend and CPL on a live client dashboard with no error
   -- anywhere. The dashboard filters on this, so the two developments stay separate by default.
   --
-  -- Northbourne's real campaign names are NOT known yet, so the match is deliberately broad
-  -- (any of 'Northbourne' / 'NBG' / 'North Bourne', case-insensitive, anywhere in the name).
-  -- CONFIRM IT the day the campaigns go live:
-  --     SELECT DISTINCT campaign_name, property FROM `...client_geocon.stg_meta`;
-  -- and tighten this arm if the naming turns out different. Everything that is not Northbourne
-  -- stays 'Gateway Braddon' - the ELSE keeps today's three campaigns exactly where they were,
-  -- so no existing number moves.
-  CASE
-    WHEN REGEXP_CONTAINS(campaign_name, r'(?i)north\s*bourne|nbg') THEN 'Northbourne Gateway'
-    ELSE 'Gateway Braddon'
-  END AS property
-FROM `bidbrain-analytics.raw_windsor.perf_meta`
-WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
-  AND STARTS_WITH(campaign_name, 'Geocon_')
+  cm.property_key                                                      AS property
+FROM base b
+JOIN camp_map cm ON TRIM(b.campaign_name) = cm.cname
