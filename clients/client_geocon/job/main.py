@@ -154,6 +154,9 @@ def build_env(bq, observed):
             "adset_id": r.get("adset_id"), "adset": r.get("adset_name"),
             "ad_id": r.get("ad_id"), "ad": r.get("ad_name"),
             "stage": r.get("funnel_stage") or "Other",
+            # The development this campaign sells. Falls back to Gateway Braddon so a row from
+            # before the column existed can never land in the wrong property (see sql/01_stg_meta).
+            "property": r.get("property") or "Gateway Braddon",
             "creative_id": r.get("creative_id"), "creative_title": r.get("creative_title"),
             "creative_body": r.get("creative_body"), "creative_thumbnail_url": r.get("creative_thumbnail_url"),
             "destination_url": r.get("destination_url"),
@@ -170,6 +173,8 @@ def build_env(bq, observed):
         "breakdowns": [{
             "date": iso(r["date"]), "breakdown": r.get("breakdown"),
             "seg1": r.get("seg1"), "seg2": r.get("seg2"),
+            # Same fallback as rows[] - a pre-column row can never land in the wrong property.
+            "property": r.get("property") or "Gateway Braddon",
             "impressions": num(r["impressions"]), "reach": num(r["reach"]),
             "clicks": num(r["clicks"]), "link_clicks": num(r["link_clicks"]),
             "spend": num(r["spend"]), "leads": num(r["leads"]),
