@@ -62,7 +62,15 @@ JOIN camp_map cm USING (campaign)
 -- Three programs with live delivery are deliberately OUT (client, 2026-08-10 - separate campaigns,
 -- separate stakeholders): ent_it (1958), ind_edge (2463), software_first (2305). See the CS_PROGRAMS
 -- note in job/main.py - both lists must stay in sync.
-WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid','ecoconsult')
+-- mcset (MCSeT + EvoPacT, brief 2389) added 2026-08-11 at the client's request. Paid-only, awareness,
+-- ANZ: LinkedIn `SE_MCSet_ANZ_AWAR_TAL - AU`/`- NZ` (live 2026-08-06) + TTD `SE_MCSet_ANZ_Aug2026 -
+-- AWAR` (live 2026-08-05). Its seeded match_pattern was `Cooling Solutions`, which matched NONE of
+-- those and instead claimed two brief-1130 campaigns from Aug-Sep 2025 - a different, finished event
+-- brief. The pattern is now `MCSet|EvoPact|2389_`; simulating the swap against stg_ad_delivery moved
+-- exactly 5 campaigns (3 gained, the 2 stale 1130 ones released) and stole nothing from any other
+-- program. NOTE its TTD line is ANZ-wide (market='ANZ'), so the AU/NZ fold below books that spend as
+-- Australia while LinkedIn splits AU/NZ properly - the same treatment airset's ANZ line already gets.
+WHERE cm.program IN ('water_env','eba','heavy','global_rebrand','airset','nel','microgrid','ecoconsult','mcset')
 -- AGGREGATED to the grain this view actually exposes (program × platform × day × market). It carries
 -- NO campaign column, so the ungrouped version emitted one duplicate row per delivering campaign/ad
 -- group and every consumer summed them anyway - which had pushed schneider.json to 13.6 MB. Grouping

@@ -62,7 +62,7 @@ DATA_OBJECT = f"{CLIENT}.json"
 # in particular needs the multi-region market arm restored in sql/20, or its non-Pacific spend
 # reports as Australia).
 CS_PROGRAMS = ["water_env", "eba", "heavy", "global_rebrand", "airset", "nel", "microgrid",
-               "ecoconsult"]
+               "ecoconsult", "mcset"]
 
 
 def num(v):

@@ -167,11 +167,17 @@ unchanged after the revert.
 
 ### Known unmatched delivery (deliberate — audit output, not a bug to fix blindly)
 Since 2026-07-01, delivery under the Schneider advertiser/account that maps to **no** program:
-the 5 `software_first` lines (A$8,144+), and **`mcset` (brief 2389), which is MIS-SEEDED** — its
-`match_pattern` is `Cooling Solutions`, matching none of its real `SE_MCSet_*` campaign names
-(A$542 and growing since 2026-08-05). MCSeT is **deliberately deferred** (client, 2026-08-10: revisit
-after the platform launch) and needs BOTH a token fix and a scope decision. Programs that are mapped
-but simply out of scope (e.g. `ai_lc`, which has its own **schneiderlqai** dashboard) are not "gaps".
+the 5 `software_first` lines (A$8,144+). Programs that are mapped but simply out of scope (e.g.
+`ai_lc`, which has its own **schneiderlqai** dashboard) are not "gaps".
+
+**`mcset` was on this list until 2026-08-11 — now RESOLVED and IN SCOPE** (client request). Its
+`match_pattern` really was mis-seeded as `Cooling Solutions`, which matched none of its
+`SE_MCSet_*` names and instead claimed two **brief-1130** campaigns from Aug-Sep 2025 (a finished,
+unrelated Cooling Solutions event: A$7,558 across LinkedIn + DV360). Dropping that token was the
+"scope decision" this note called for — folding a year-old brief into a 2026 launch would have
+inflated it roughly 9x and stretched its date axis across a year. The pattern is now
+`MCSet|EvoPact|2389_`; the swap was simulated against `stg_ad_delivery` first and moved exactly
+5 campaigns (3 gained, the 2 stale 1130 ones released), stealing nothing from any other program.
 
 ### `pm_delivery` is AGGREGATED (2026-08-10, kept)
 `GROUP BY program, platform, metric_date, market`. The view carries **no campaign column**, so the
