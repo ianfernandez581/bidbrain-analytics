@@ -272,22 +272,36 @@ def fetch_chunk(api_key, d_from, d_to, idx, total, account, force=False):
             if status == 400 and "not available" in body.lower():
                 # Account isn't granted to this Windsor connector -- skippable per-account.
                 raise AccountUnavailableError(account, parse_available_accounts(body), body) from None
-            # An EMPTY-BODIED 400 is Windsor LOAD-SHEDDING, not a bad request (2026-08-10): while its
-            # TTD endpoint was degraded, requests timed out repeatedly and then returned a fast 400
-            # with NO body. A real bad-field/auth 400 always explains itself in the body, so an empty
-            # one carries no diagnostic information and must NOT be treated as permanent -- doing so
-            # aborted the whole nightly run for EVERY TTD client on the first load-shed response.
-            # Retry it like a 429/5xx; a bodied 400 still fails fast, as intended.
-            if status == 400 and not body.strip():
-                if attempt >= MAX_ATTEMPTS:
-                    raise ChunkFetchError(
-                        f"Chunk {d_from}..{d_to}: gave up after {attempt} attempts on "
-                        f"empty-bodied HTTP 400 (Windsor load-shedding)."
-                    ) from None
-                log.warning(f"    attempt {attempt}/{MAX_ATTEMPTS} HTTP 400 with EMPTY body "
-                            f"(Windsor load-shedding, not a bad request); retrying in {RETRY_SLEEP_SEC}s")
-                time.sleep(RETRY_SLEEP_SEC)
+            # DATA NOT PUBLISHED YET (root-caused 2026-08-11). Windsor/TTD answers a range whose END
+            # DATE it has not finalised with an INSTANT, EMPTY-BODIED 400 (~1s, no retries involved).
+            # This is NOT load-shedding and NOT a bad field: proven by bisection on the same day --
+            #     2026-08-08..2026-08-10 -> HTTP 400 in 0.9s
+            #     2026-08-08..2026-08-09 -> 200, 288 rows
+            # The backward walk always starts at yesterday, so the 01:35 UTC run asked for a day that
+            # is never ready at that hour, got the 400, and -- because a bodied-or-not 400 was treated
+            # as PERMANENT -- aborted the ENTIRE run for ALL FIVE TTD clients. It failed every single
+            # night (verified on 08-10, 08-11 and 08-12) while only the 21:35 run ever succeeded.
+            #
+            # Retrying is useless (the date cannot become published while we wait), so instead STEP
+            # THE WINDOW BACK a day at a time and re-ask. That recovers every day TTD *has* published
+            # inside the chunk rather than losing the whole chunk, and it self-adapts to whatever hour
+            # TTD finalises on -- no schedule change and no per-run configuration.
+            if status == 400 and not body.strip() and d_to > d_from:
+                d_to = d_to - timedelta(days=1)
+                params["date_to"] = d_to.isoformat()
+                # Re-key the on-disk cache to the window we ACTUALLY fetched, or a later non-force
+                # run would read narrower rows back under the original (wider) range's filename.
+                cache_file = chunk_filename(d_from, d_to, account)
+                log.warning(f"    HTTP 400 with empty body in {elapsed:.1f}s -- TTD has not published "
+                            f"that day yet; stepping the window back to {d_from}..{d_to} and retrying")
+                attempt = 0                      # a narrower window is a NEW request, not a retry
                 continue
+            # Single-day window and still an empty 400 => that one day simply is not available yet.
+            # Return empty rather than killing the account; the next run picks it up once published.
+            if status == 400 and not body.strip():
+                log.warning(f"  [{tag}] {d_from} not published by TTD yet -- skipping this chunk "
+                            f"(it will land on a later run). NOT an error.")
+                return []
             # `from None` suppresses the chained HTTPError: its message embeds the full request URL,
             # which carries `api_key=...` -- that was leaking the Windsor secret into Cloud Logging.
             raise RuntimeError(
