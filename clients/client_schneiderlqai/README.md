@@ -13,7 +13,9 @@ the multi-program Schneider Pacific dashboard.
   and pacing vs the media-plan targets.
 - **Currency:** **displayed in EUR; stored in AUD.** Both channels are native AUD and the warehouse
   keeps AUD (targets treated as AUD — see INTAKE.md). The dashboard converts AUD→EUR **in the browser
-  only** (`bbApplyFx()` in `dash/dashboard.html`, rate constant `AUD_TO_EUR`, printed in the footer).
+  only** (`bbApplyFx()` in `dash/dashboard.html`, rate constant `AUD_TO_EUR`). The rate is **not displayed
+  anywhere in the UI** (client request 2026-08-11), so that constant and this line are the only
+  record of it - keep them in step, because a wrong rate would be silently unfalsifiable on screen.
   This is the only EUR dashboard in the estate. The conversion must stay front-end: `spend_aud` is
   built from shared `raw_snowflake` views that `client_schneider` and `client_schneidersecpwr` also
   read, so converting in SQL or the export job would re-denominate their numbers too.
