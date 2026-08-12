@@ -23,6 +23,8 @@ SELECT
   ad_id,
   ANY_VALUE(ad_name)                AS ad_name,
   ANY_VALUE(funnel_stage)           AS funnel_stage,
+  -- Constant within a campaign, so ANY_VALUE is exact at this grain (same as funnel_stage).
+  ANY_VALUE(property)               AS property,
   ANY_VALUE(currency)               AS currency,
   ANY_VALUE(creative_id)            AS creative_id,
   ANY_VALUE(creative_title)         AS creative_title,

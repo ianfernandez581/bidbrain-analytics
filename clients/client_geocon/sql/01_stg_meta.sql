@@ -46,7 +46,25 @@ SELECT
     WHEN campaign_name LIKE '%Retargeting%'  THEN 'Retargeting'
     WHEN campaign_name LIKE '%Traffic%'      THEN 'Traffic'
     ELSE 'Other'
-  END AS funnel_stage
+  END AS funnel_stage,
+  -- PROPERTY (the development the campaign sells). Added 2026-08-12 ahead of the Northbourne
+  -- Gateway launch, and it is a SAFETY RAIL, not decoration: the account+prefix scope above
+  -- deliberately lets ANY new `Geocon_` campaign flow in automatically, so without this column
+  -- Northbourne's delivery would have silently merged into Gateway Braddon's KPIs the moment it
+  -- started spending - inflating leads, spend and CPL on a live client dashboard with no error
+  -- anywhere. The dashboard filters on this, so the two developments stay separate by default.
+  --
+  -- Northbourne's real campaign names are NOT known yet, so the match is deliberately broad
+  -- (any of 'Northbourne' / 'NBG' / 'North Bourne', case-insensitive, anywhere in the name).
+  -- CONFIRM IT the day the campaigns go live:
+  --     SELECT DISTINCT campaign_name, property FROM `...client_geocon.stg_meta`;
+  -- and tighten this arm if the naming turns out different. Everything that is not Northbourne
+  -- stays 'Gateway Braddon' - the ELSE keeps today's three campaigns exactly where they were,
+  -- so no existing number moves.
+  CASE
+    WHEN REGEXP_CONTAINS(campaign_name, r'(?i)north\s*bourne|nbg') THEN 'Northbourne Gateway'
+    ELSE 'Gateway Braddon'
+  END AS property
 FROM `bidbrain-analytics.raw_windsor.perf_meta`
 WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
   AND STARTS_WITH(campaign_name, 'Geocon_')

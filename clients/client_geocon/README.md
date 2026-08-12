@@ -5,6 +5,59 @@ Self-hosted paid-media dashboard for **Geocon's Gateway Braddon** residential la
 **lead generation** (Meta-reported enquiries). No Snowflake / Trade Desk / Salesforce /
 Content-Syndication lane here — it is a lean, Meta-only client.
 
+## Multiple developments — the `property` selector (added 2026-08-12)
+
+This dashboard covers a CLIENT (Geocon), not a single development. **Gateway Braddon** is live;
+**Northbourne Gateway** is being set up and shows in the top-nav selector as *"- coming soon"*.
+
+**Why this exists is a safety rail, not a feature.** `sql/01_stg_meta.sql` scopes on
+`STARTS_WITH(campaign_name,'Geocon_')` so any new Geocon campaign flows in AUTOMATICALLY. Without a
+property split, Northbourne's delivery would have merged straight into Gateway Braddon's KPIs the
+day it started spending — inflating spend, leads and CPL on a live client dashboard, with no error
+anywhere to catch it.
+
+**How the split works.** One regex, duplicated in exactly two places that MUST stay identical:
+
+| Where | Why |
+|---|---|
+| `sql/01_stg_meta.sql` → `property` | drives `fact` → `rows[]` → every KPI, chart, table, CSV |
+| `sql/05_breakdowns.sql` → `property` | drives the audience / placement charts |
+
+If they drift, the breakdown charts will disagree with the KPIs above them. Everything not matching
+Northbourne falls to `'Gateway Braddon'` via the `ELSE`, so no existing number can move.
+
+**The dashboard filters in ONE place** — `ROWS()` in `dash/dashboard.html` (plus `bdWithin` for the
+breakdowns). Every rollup derives from those, so the whole page scopes together.
+
+### Going live when Northbourne starts delivering — normally NOTHING to do
+
+The selector is data-driven: `initProperty()` builds the options from the payload, renders a
+development with no rows as disabled *"- coming soon"*, and enables it the moment its first row
+lands. The nightly export picks the campaigns up on its own.
+
+**The ONE thing to check on day one** is that the campaign names actually match the regex
+(`Northbourne` / `North Bourne` / `NBG`, case-insensitive) — the naming was not known when this was
+written:
+
+```sql
+SELECT DISTINCT campaign_name, property
+FROM `bidbrain-analytics.client_geocon.stg_meta` ORDER BY 1;
+```
+
+Any Northbourne campaign showing `Gateway Braddon` means the regex missed it — widen the arm in
+BOTH sql files, reapply views, and re-run the export with `FORCE_REBUILD=1`. Verify the split adds
+up before anyone reads it:
+
+```sql
+SELECT property, SUM(spend) spend, SUM(leads) leads
+FROM `bidbrain-analytics.client_geocon.fact` GROUP BY 1;
+```
+
+**Still to decide when it goes live:** `targets/` (flight window, budget, lead target) is
+single-development today, so the pacing card and goal bars apply the Gateway Braddon plan to
+whichever development is selected. Northbourne needs its own seeded targets, or its pacing will be
+measured against Gateway Braddon's plan.
+
 ## Architecture — one fact table, rolled up in the browser (rebuilt 2026-06)
 
 This client uses the **MongoDB pattern**: the export ships ONE compact per-(date × campaign × adset ×
