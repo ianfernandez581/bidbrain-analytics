@@ -510,7 +510,11 @@ function bbApplySpendMult(){
 // PLAN TARGETS CONVERT TOO. They are media-plan budgets in AUD; leaving them would compare EUR
 // delivery against an AUD budget and make the campaign look ~40% under-spent.
 //
-// >>> THE RATE IS THE ONE KNOB. Confirm it with the team/client and change it here. <<<
+// >>> THE RATE IS THE ONE KNOB. Confirm it with the team and change it here. <<<
+// Deliberately NOT shown anywhere in the UI (client request 2026-08-11): the rate is an internal
+// number and printing it invites the client to audit a figure they never asked for. That makes
+// this constant the ONLY record of what the euros mean, so keep it and the README in step - if
+// it is ever wrong, nothing on screen will contradict it.
 const AUD_TO_EUR = 0.58;                 // 1 AUD = 0.58 EUR
 let _fxApplied = false;
 function bbApplyFx(){
@@ -693,7 +697,7 @@ function renderMeta(){
   const w=DATA.window||{};
   el('topPeriod').textContent=`${dateLabel(w.start)} – ${dateLabel(w.end)}`;
   const lu=DATA.last_updated?new Date(DATA.last_updated):null;
-  el('footMeta').innerHTML=`Schneider Electric · Liquid AI Data Center (via Transmission) · data from BigQuery (LinkedIn · The Trade Desk) · reporting currency EUR (converted from AUD at 1 AUD = ${AUD_TO_EUR} EUR) · `
+  el('footMeta').innerHTML=`Schneider Electric · Liquid AI Data Center (via Transmission) · data from BigQuery (LinkedIn · The Trade Desk) · reporting currency EUR · `
     +`Updated <b>${lu&&!isNaN(lu)?lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'unknown'}</b>`;
 }
 
