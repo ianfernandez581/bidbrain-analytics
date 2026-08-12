@@ -27,7 +27,12 @@ CONFIG = {
     "client": "schneiderlqai",
     "client_name": "Schneider Electric - Liquid AI Data Center",
     "agency": "Transmission",
-    "currency": "AUD",
+    # EUR, not AUD (2026-08-11). This client reports in euros - the ONLY dashboard that does. The
+    # figures reaching this report come from the dashboard's deck payload, which converts AUD->EUR
+    # in the browser (see bbApplyFx in dashboard.html), so the numbers ARE euros by the time they
+    # get here. This label only tells the model what to call them; leaving it "AUD" would have the
+    # deck narrate euro figures as Australian dollars. Nothing server-side or in BigQuery changes.
+    "currency": "EUR",
     # Stage-A business-model brief — precise enough that the model's reasoning is never generic.
     "business_model": (
         "Schneider Electric's 'Liquid AI Data Center' (LQAIDC) campaign, run by Transmission — a TOP-OF-FUNNEL "

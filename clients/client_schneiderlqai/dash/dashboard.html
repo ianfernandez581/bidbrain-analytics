@@ -287,7 +287,7 @@
     <div id="tab-overview" class="tabpane">
       <div class="section first">
         <h2>Delivery Overview</h2>
-        <span class="sub">Live LinkedIn &amp; The Trade Desk delivery for the <b>Liquid AI Data Center</b> awareness campaign: spend, impressions, clicks and CTR. Reflects the selected countries &amp; date range. Reporting currency AUD.</span>
+        <span class="sub">Live LinkedIn &amp; The Trade Desk delivery for the <b>Liquid AI Data Center</b> awareness campaign: spend, impressions, clicks and CTR. Reflects the selected countries &amp; date range. Reporting currency EUR.</span>
       </div>
       <div class="kpis">
         <div class="kpi m-spend clk" data-toggle="Spend" tabindex="0" role="button" aria-pressed="true" title="Click to show / hide Spend on the chart"><span class="stripe"></span><div class="label">Total spend</div><div class="value" id="pm_spend">-</div><div class="delta" id="pm_spend_sub">-</div></div>
@@ -312,15 +312,15 @@
       </div>
       <div class="card card-hero"><div class="chart-wrap"><canvas id="pmDaily"></canvas></div></div>
 
-      <div class="section"><h2 style="font-size:15px">Channel comparison</h2><span class="sub">LinkedIn vs The Trade Desk - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
+      <div class="section"><h2 style="font-size:15px">Channel comparison</h2><span class="sub">LinkedIn vs The Trade Desk - efficiency side by side (CTR / CPM / CPC in EUR).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="pmPlatTable"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
 
-      <div class="section"><h2 style="font-size:15px">Spend &amp; geography</h2><span class="sub">Where the media budget went - by channel and by country (AUD).</span></div>
+      <div class="section"><h2 style="font-size:15px">Spend &amp; geography</h2><span class="sub">Where the media budget went - by channel and by country (EUR).</span></div>
       <div class="grid">
-        <div class="card card-tall"><h3>Spend by channel</h3><div class="hint">Share of media spend (AUD).</div><div class="chart-wrap"><canvas id="pmSpendPlat"></canvas></div></div>
-        <div class="card card-tall"><h3>Spend by country</h3><div class="hint">Across the selected countries (AUD).</div><div class="chart-wrap"><canvas id="pmSpendCountry"></canvas></div></div>
+        <div class="card card-tall"><h3>Spend by channel</h3><div class="hint">Share of media spend (EUR).</div><div class="chart-wrap"><canvas id="pmSpendPlat"></canvas></div></div>
+        <div class="card card-tall"><h3>Spend by country</h3><div class="hint">Across the selected countries (EUR).</div><div class="chart-wrap"><canvas id="pmSpendCountry"></canvas></div></div>
       </div>
       <div class="card" style="margin-top:16px"><h3>Country summary</h3><div class="hint">Live values - refresh on country / date change.</div>
         <div style="overflow:auto"><table id="pmCountryTable"><thead><tr><th>Country</th><th>Region</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th></tr></thead><tbody></tbody></table></div>
@@ -351,7 +351,7 @@
     <div id="tab-plan" class="tabpane">
       <div class="section first">
         <h2>Media Plan &amp; Targets</h2>
-        <span class="sub">The full brief media plan (15 May - 31 Dec 2026). <b>Live</b> lines are delivering into this dashboard now; Search, Reddit and the Retargeting lines are planned (tbc) and not yet running. Budgets are the media plan (AUD).</span>
+        <span class="sub">The full brief media plan (15 May - 31 Dec 2026). <b>Live</b> lines are delivering into this dashboard now; Search, Reddit and the Retargeting lines are planned (tbc) and not yet running. Budgets are the media plan, shown in EUR.</span>
       </div>
       <div class="kpis">
         <div class="kpi m-spend"><span class="stripe"></span><div class="label">Live budget</div><div class="value" id="pl_live">-</div><div class="delta">LinkedIn + Trade Desk Awareness</div></div>
@@ -467,7 +467,7 @@ const el=id=>document.getElementById(id);
 const fmtN=v=>v==null||isNaN(v)?'-':Math.round(v).toLocaleString('en-US');
 const fmtM=v=>v==null||isNaN(v)?'-':(Math.abs(v)>=1e6?(v/1e6).toFixed(2)+'M':Math.abs(v)>=1e3?(v/1e3).toFixed(1)+'K':''+Math.round(v));
 const fmtPct=(v,d=1)=>v==null||isNaN(v)?'-':(v*100).toFixed(d)+'%';
-const money=(v,d=0)=>v==null||isNaN(v)?'-':'A$'+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
+const money=(v,d=0)=>v==null||isNaN(v)?'-':'€'+Number(v).toLocaleString('en-US',{maximumFractionDigits:d,minimumFractionDigits:d});
 const pct=(a,b)=>b?a/b:0;
 function dateLabel(d){ return d?new Date(d).toLocaleDateString('en-US',{day:'numeric',month:'short',year:'2-digit'}):'-'; }
 function monthLabel(m){ const [y,mo]=m.split('-'); return new Date(+y,+mo-1,1).toLocaleDateString('en-US',{month:'short',year:'2-digit'}); }
@@ -489,6 +489,41 @@ function bbApplySpendMult(){
     r.spend_aud=r._rawSpend*bbMultFor(bbChannelKey(r.platform)); });
   (DATA.creative||[]).forEach(r=>{ if(r._rawSpend==null) r._rawSpend=Number(r.spend_aud)||0;
     r.spend_aud=r._rawSpend*bbMultFor(bbChannelKey(r.platform)); });
+}
+
+// ---- EUR PRESENTATION (front-end only, 2026-08-11) -------------------------------------------
+// Schneider Liquid AI Data Center reports in EUROS. It is the ONLY dashboard in the estate that
+// does - every other client (incl. the other two Schneider dashboards) stays on its own currency.
+//
+// The conversion is DELIBERATELY front-end only. The warehouse keeps AUD: `spend_aud` is built from
+// shared views over raw_snowflake that client_schneider and client_schneidersecpwr also read, so
+// converting in SQL or in the export job would silently re-denominate THEIR numbers too. Nothing
+// server-side changes; `schneiderlqai.json` still ships AUD, and the status-dashboard accuracy
+// checks (which compare the JSON against BigQuery) keep passing because both sides stay AUD.
+//
+// Applied ONCE at boot, immediately after bbApplySpendMult, so the order is:
+//     raw media cost  ->  x client-billed multiplier (AUD)  ->  x FX (EUR)
+// Every downstream figure is derived by SUMMING these fields (verified: all 40 `.spend` references
+// accumulate `r.spend_aud`), so KPIs, CPM, CPC, charts, tables, pacing, the CSV export and the AI
+// deck all follow automatically - there is no per-render formatting to keep in sync.
+//
+// PLAN TARGETS CONVERT TOO. They are media-plan budgets in AUD; leaving them would compare EUR
+// delivery against an AUD budget and make the campaign look ~40% under-spent.
+//
+// >>> THE RATE IS THE ONE KNOB. Confirm it with the team/client and change it here. <<<
+const AUD_TO_EUR = 0.58;                 // 1 AUD = 0.58 EUR
+let _fxApplied = false;
+function bbApplyFx(){
+  if(_fxApplied) return;                 // idempotent: never double-convert on a re-render
+  const R = AUD_TO_EUR;
+  (DATA.delivery||[]).forEach(r=>{ r.spend_aud = (Number(r.spend_aud)||0) * R; });
+  (DATA.creative||[]).forEach(r=>{ r.spend_aud = (Number(r.spend_aud)||0) * R; });
+  const p = DATA.plan || {};
+  (p.channels||[]).forEach(c=>{ if(c.spend_target!=null) c.spend_target = Number(c.spend_target)*R; });
+  (p.lines   ||[]).forEach(l=>{ if(l.spend_target!=null) l.spend_target = Number(l.spend_target)*R; });
+  if(p.live_budget  != null) p.live_budget  = Number(p.live_budget)  * R;
+  if(p.total_budget != null) p.total_budget = Number(p.total_budget) * R;
+  _fxApplied = true;
 }
 // ----------------------------------------------------------------------------------------------
 
@@ -642,6 +677,7 @@ async function boot(){
     if(!res.ok) throw new Error('HTTP '+res.status+' fetching data.json');
     DATA=await res.json();
     bbApplySpendMult();
+    bbApplyFx();          // AUD -> EUR, presentation only (see bbApplyFx)
     activeCountries=new Set(DATA.countries||[]);
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
@@ -657,7 +693,7 @@ function renderMeta(){
   const w=DATA.window||{};
   el('topPeriod').textContent=`${dateLabel(w.start)} – ${dateLabel(w.end)}`;
   const lu=DATA.last_updated?new Date(DATA.last_updated):null;
-  el('footMeta').innerHTML=`Schneider Electric · Liquid AI Data Center (via Transmission) · data from BigQuery (LinkedIn · The Trade Desk) · reporting currency AUD · `
+  el('footMeta').innerHTML=`Schneider Electric · Liquid AI Data Center (via Transmission) · data from BigQuery (LinkedIn · The Trade Desk) · reporting currency EUR (converted from AUD at 1 AUD = ${AUD_TO_EUR} EUR) · `
     +`Updated <b>${lu&&!isNaN(lu)?lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST':'unknown'}</b>`;
 }
 
@@ -776,7 +812,7 @@ function renderOverview(){
   const sp=PLATFORMS.filter(p=>byPlat[p.key].spend>0);
   charts.pmSpendPlat=new Chart(el('pmSpendPlat'),{ type:'doughnut',
     data:{ labels:sp.map(p=>p.label), datasets:[{ data:sp.map(p=>byPlat[p.key].spend), backgroundColor:sp.map(p=>p.color), borderColor:'#fff', borderWidth:2 }]},
-    options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), bbCenter:{label:'Total spend',prefix:'A$',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} } } });
+    options:{ maintainAspectRatio:false, cutout:'60%', plugins:{ legend:legendBottom(), bbCenter:{label:'Total spend',prefix:'€',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${money(c.parsed)} (${fmtPct(pct(c.parsed,t.spend),0)})`}} } } });
 
   // spend by country
   const byC={}; rows.forEach(r=>{ byC[r.country]=(byC[r.country]||0)+(r.spend_aud||0); });
@@ -919,7 +955,7 @@ function buildReportPayload(){
   const by_country=Object.entries(byC).sort((a,b)=>b[1].spend-a[1].spend).map(([country,v])=>({country, region:v.region, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks, ctr:_r6(v.imps?v.clicks/v.imps:0)}));
   const full=fullByChannel(); const fullSpend=Object.values(full).reduce((a,e)=>a+e.spend,0);
   return {
-    client:'schneiderlqai', agency:'Transmission', generated_for:'Schneider Electric - Liquid AI Data Center', currency:'AUD',
+    client:'schneiderlqai', agency:'Transmission', generated_for:'Schneider Electric - Liquid AI Data Center', currency:'EUR',
     context:{ campaign:'Liquid AI Data Center', campaign_key:'lqaidc', phase:'TOFU / Awareness',
       markets:activeCountryList(), all_markets:DATA.countries||[],
       date_filtered:false, date_filter:{start:null,end:null},
