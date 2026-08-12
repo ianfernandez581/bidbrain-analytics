@@ -59,6 +59,12 @@ def build_env(bq, observed):
     fact = rows(bq, f"SELECT * FROM {t('fact')} ORDER BY date, campaign_name, adset_name, ad_name")
     tgt  = rows(bq, f"SELECT * FROM {t('targets')}")
     bud  = rows(bq, f"SELECT * FROM {t('budget')} WHERE campaign_key = '{FLIGHT_KEY}' LIMIT 1")
+    # The development (property) map, shipped so the dashboard's selector is fully data-driven:
+    # adding a development is then a targets/property_map.csv edit + re-seed, with NO SQL and NO
+    # dashboard change. `status` ('live' | 'coming_soon') is the seeded intent; the dashboard still
+    # requires REAL ROWS before it enables an option, so a mis-seeded status cannot open an empty view.
+    props = rows(bq, f"SELECT seq, property_key, display_name, status "
+                     f"FROM `{PROJECT}.{DATASET}.seed_property_map` ORDER BY seq")
     # Isolated Meta breakdown facts (audience age/gender + placement) — geocon-only table.
     # Tolerate absence so the export never breaks if the breakdown pull hasn't run.
     try:
@@ -170,6 +176,8 @@ def build_env(bq, observed):
         } for r in fact],
         # Audience (age x gender) + placement breakdowns — per (date x campaign x seg); the
         # dashboard date-filters + rolls up. seg2 is gender for age_gender, null otherwise.
+        "properties": [{"key": r["property_key"], "label": r.get("display_name") or r["property_key"],
+                        "status": r.get("status") or "live"} for r in props],
         "breakdowns": [{
             "date": iso(r["date"]), "breakdown": r.get("breakdown"),
             "seg1": r.get("seg1"), "seg2": r.get("seg2"),

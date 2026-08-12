@@ -604,21 +604,37 @@ function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00Z')-new Date(a
 //
 // The list is DATA-DRIVEN: a development with no rows yet renders disabled as "- coming soon" and
 // switches itself on when its first row lands. Adding a third development needs one line here.
-const PROPERTIES=['Gateway Braddon','Northbourne Gateway'];
+// Built from the payload (DATA.properties <- seed_property_map), so adding a development is a
+// targets/property_map.csv edit + re-seed with NO change here. The literal is only a fallback for
+// an older payload published before the job emitted the map.
+const PROPERTY_DEFS=()=>((DATA.properties||[]).length?DATA.properties
+  :[{key:'Gateway Braddon',label:'Gateway Braddon',status:'live'},
+    {key:'Northbourne Gateway',label:'Northbourne Gateway',status:'coming_soon'}]);
+// Display order: developments that are actually DELIVERING first (so the live one leads and is the
+// default), pending ones after. `seq` in the seed is MATCH PRECEDENCE, not display order - the
+// catch-all deliberately sorts last there, which would otherwise bury the live development.
+const PROPERTIES_ORDERED=()=>{const d=PROPERTY_DEFS();
+  return d.filter(p=>propHasData(p.key)).concat(d.filter(p=>!propHasData(p.key)));};
+const labelOfProp=k=>((PROPERTY_DEFS().find(p=>p.key===k)||{}).label)||k;
+// Local HTML escape: the only `esc` in this file is scoped INSIDE toCSV, so it is not callable
+// here. Property names come from a committed CSV, but they are still interpolated into markup.
+const escProp=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const propOf=r=>r.property||'Gateway Braddon';
 const propHasData=p=>(DATA.rows||[]).some(r=>propOf(r)===p);
 const propOk=r=>!STATE.property||propOf(r)===STATE.property;
 function initProperty(){
-  // Default to the first development that actually has delivery, so today's view is unchanged.
-  STATE.property=PROPERTIES.find(propHasData)||PROPERTIES[0];
+  const defs=PROPERTIES_ORDERED();
+  // Default to the first development that actually HAS delivery, so today's view is unchanged and
+  // a mis-seeded status can never land the user on an empty dashboard.
+  STATE.property=(defs.find(p=>propHasData(p.key))||defs[0]||{}).key||null;
   const sel=document.getElementById('propSelect'),div=document.getElementById('propDivider');
   if(!sel)return;
-  const live=PROPERTIES.filter(propHasData);
-  // One development live and nothing pending => no selector at all (today's single-campaign view).
-  if(live.length<2&&PROPERTIES.length<2){sel.style.display='none';return;}
-  sel.innerHTML=PROPERTIES.map(p=>{const on=propHasData(p);
-    return `<option value="${p}"${on?'':' disabled'}${p===STATE.property?' selected':''}>`
-      +`${p}${on?'':' - coming soon'}</option>`;}).join('');
+  if(defs.length<2){sel.style.display='none';return;}   // single development => no selector at all
+  sel.innerHTML=defs.map(p=>{const on=propHasData(p.key);
+    // ENABLED is driven by REAL ROWS, never by the seeded status - the status only supplies the
+    // wording. So a development flips itself on the moment its first row lands, with no edit here.
+    return `<option value="${escProp(p.key)}"${on?'':' disabled'}${p.key===STATE.property?' selected':''}>`
+      +`${escProp(p.label||p.key)}${on?'':' - coming soon'}</option>`;}).join('');
   sel.style.display='';if(div)div.style.display='';
 }
 function setProperty(v){ if(!propHasData(v))return; STATE.property=v; render(); }
