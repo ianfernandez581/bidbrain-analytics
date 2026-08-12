@@ -7,7 +7,7 @@ seq,internal_campaign_id,display_name,brief_job_no,objective_type,primary_kpi,pi
 5,ent_it,Enterprise IT Expansion,1958,ABM,Hand-raisers + MQLs,,multi,EntIT,APAC-other
 6,water_env,Water & Environment,2026,Awareness,Reach / Clicks / LP lands,3 pillars,ANZ,WaterEnv,Pacific
 7,ind_edge,Industrial Edge / Prefab,2463,LeadGen,Qualified leads / CPL / CVR,,Pacific,Industrial Edge,APAC-other
-8,mcset,MCSeT + EvoPacT,2389,Event,Roadshow registrations,,ANZ,Cooling Solutions,Pacific
+8,mcset,MCSeT + EvoPacT,2389,Event,Roadshow registrations,,ANZ,MCSet|EvoPact|2389_,Pacific
 9,ia_services,IA Services,2280,Awareness→RT,"Reach / freq, VCR",,ANZ,AI Services,APAC-other
 10,impact_maker,Impact Maker,1914,Awareness,Reach / engagement,,ANZ,Impact_Maker|Imapct_Maker,APAC-other
 11,iof,Industries of the Future,1899,Awareness,Engagement,,multi,IOF|Industries of the Future,APAC-other
