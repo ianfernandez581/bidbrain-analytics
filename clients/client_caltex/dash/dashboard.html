@@ -800,7 +800,13 @@ function renderHeader(){
   const notes={overview:'Brand awareness',paid:'Delivery & efficiency',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
-  const mk=[...new Set(ROWS().map(r=>r.market).filter(Boolean))].join(' · ')||'QLD+WA';
+  // States from the REAL geo feed (volume-ordered), falling back to the ad-group `market` token.
+  // That token is the BUYING label and still reads 'QLD+WA' on every ad group, so it would have
+  // kept the intro saying QLD+WA while the States card below showed SA - a visible contradiction.
+  // SA was added at the client's request (2026-08-12); this line now follows delivery on its own.
+  const _geo=geoRows().filter(r=>r.impressions>0).map(r=>r.code);
+  const mk=_geo.length?_geo.join(' · ')
+    :([...new Set(ROWS().map(r=>r.market).filter(Boolean))].join(' · ')||'QLD+WA');
   $('introCopy').innerHTML=`The Trade Desk programmatic display for <b>${safeName(campaignLabel())}</b> - a <b>brand awareness</b> campaign in ${safeName(mk)}, bought three ways (standard display, AI contextual, attention-optimised) - all three ad groups are set to Awareness in The Trade Desk, with a consideration phase planned. Showing <b>${rangeLabel()}</b> - ${compact(a.impressions)} impressions · ${int(a.clicks)} clicks · ${money(a.spend)} spend.`;
 }
 function renderPlaceholderBanner(){
@@ -1052,7 +1058,7 @@ function renderInsights(){
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the Trade Desk <b>Landing Page Visit</b> tracker. <b>What is measured:</b> that tracker is scoped to the <b>Star Card landing page</b>, so the figure counts people who saw or clicked an ad and then reached that page - ad-driven <b>page visits</b>. It does <b>not</b> measure Star Card applications: the application step sits on a separate domain the pixel is not installed on, so applications are <b>not</b> reported here; once that install lands we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets now come from the <b>signed media plan</b> (A$5,000/month across QLD+WA). Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the pixel installed on the application domain) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the Trade Desk <b>Landing Page Visit</b> tracker. <b>What is measured:</b> that tracker is scoped to the <b>Star Card landing page</b>, so the figure counts people who saw or clicked an ad and then reached that page - ad-driven <b>page visits</b>. It does <b>not</b> measure Star Card applications: the application step sits on a separate domain the pixel is not installed on, so applications are <b>not</b> reported here; once that install lands we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets now come from the <b>signed media plan</b> (A$5,000/month), which was written for <b>QLD+WA</b>; <b>South Australia was added afterwards at the client's request</b>, so the plan figures still describe the original two-state buy while the <b>States reached</b> card shows where delivery actually went. Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the pixel installed on the application domain) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
 }
 
 // ---- Delivery ----
