@@ -62,6 +62,17 @@ def build_env(bq, observed):
     fact = rows(bq, f"SELECT * FROM {t('fact')} ORDER BY date, ad_group_name, creative_name")
     tgt  = rows(bq, f"SELECT * FROM {t('targets')}")
     bud  = rows(bq, f"SELECT * FROM {t('budget')} WHERE campaign_key = '{FLIGHT_KEY}' LIMIT 1")
+    # REAL delivery by Australian state (sql/06_geo over the caltex-only geo table). Separate lane
+    # from the ad-group `market` label: that says 'QLD+WA' on every row and can never show a third
+    # state, while this shows where the ads actually served - including SOUTH AUSTRALIA. Rolled up
+    # per state x day here so the browser can date-filter it like everything else. Tolerate absence
+    # so a missing/stale geo table can never break the export (the pull is manual, not gated).
+    try:
+        geo = rows(bq, f"SELECT date, state, state_code, "
+                       f"SUM(impressions) AS impressions, SUM(clicks) AS clicks, SUM(spend) AS spend "
+                       f"FROM {t('geo')} GROUP BY 1,2,3 ORDER BY 1, 4 DESC")
+    except Exception:
+        geo = []
 
     # --- targets: flat {key: {value, status}}; value parsed to float where possible (dates stay str)
     def tgt_value(raw):
@@ -153,6 +164,9 @@ def build_env(bq, observed):
         "targets": targets,
         # The single fact table — one row per (date x campaign x ad group x creative). The dashboard
         # rolls up everything from this, filtered by the date range. Ratios recomputed client-side.
+        "geo": [{"date": iso(r["date"]), "state": r.get("state"),
+                 "state_code": r.get("state_code"), "impressions": num(r["impressions"]),
+                 "clicks": num(r["clicks"]), "spend": num(r["spend"])} for r in geo],
         "rows": [{
             "date": iso(r["date"]),
             "campaign_id": r.get("campaign_id"), "campaign": r.get("campaign_name"),

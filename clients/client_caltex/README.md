@@ -111,6 +111,53 @@ the apply page, and today nothing is.
 too; (3) confirm the post-view / post-click attribution windows. The duplicate-pair caveat above was
 checked against the first real totals — see the slot-layout note in `sql/01_stg_ttd.sql`.
 
+## Geo: REAL states (QLD / WA / SA), not the ad-group label (added 2026-08-12)
+
+The client asked to see **South Australia**. It turned out SA was **already delivering** - it was
+just invisible, because every "market" on this dashboard was parsed out of the ad-group NAME
+(`"Tactic | Market"`), which reads `QLD+WA` on all three ad groups and can never show a third state.
+
+**Whole flight (2026-07-28 -> 08-11), from The Trade Desk's own region data:**
+
+| State | Impressions | Share | Clicks | Spend |
+|---|---|---|---|---|
+| QLD | 100,463 | 60.1% | 68 | A$1,407.33 |
+| WA | 63,508 | 38.0% | 51 | A$846.18 |
+| **SA** | **3,067** | **1.8%** | 0 | A$49.39 |
+
+167,038 impressions / 119 clicks - **reconciles exactly** to `stg_ttd` and to `rows[]`. Re-check
+that after any re-pull: a geo split that does not sum to the headline is worse than no split.
+
+> **Worth raising with the client:** the campaign is *bought* as QLD+WA (campaign name, media plan
+> and ad-group labels all say so), yet 1.8% of impressions served into SA and earned **0 clicks**.
+> Either SA was added to targeting deliberately (which the ask implies) or it is a small targeting
+> leak. The dashboard now shows it either way; the buying label was hiding it.
+
+### How it works, and why it is a separate lane
+
+`ingest/ttd_geo_pull.py` -> `raw_windsor.caltex_ttd_geo` -> `sql/06_geo.sql` -> job `geo[]` ->
+the **States reached** card. The ad-group `market` stays as the BUYING label; this is the DELIVERY
+truth.
+
+**The shared `perf_the_trade_desk` deliberately does NOT carry `region`.** Adding it multiplies the
+grain ~29x (measured: 50 -> 1,462 rows for one seat over three days) and that table feeds FIVE TTD
+clients. So this uses an isolated caltex-only table - the same reasoning as
+`client_geocon/ingest/meta_breakdown_pull.py`.
+
+### Refreshing it (MANUAL - not scheduled, not gated)
+
+```powershell
+$env:WINDSOR_API_KEY = (gcloud secrets versions access latest --secret=windsor-api-key).Trim()
+.\.venv\Scripts\python.exe clients\client_caltex\ingest	td_geo_pull.py 2026-07-28 <today-1> out.ndjson
+bq load --replace --source_format=NEWLINE_DELIMITED_JSON raw_windsor.caltex_ttd_geo out.ndjson `
+  "date:DATE,campaign:STRING,ad_group_name:STRING,region:STRING,state:STRING,impressions:INTEGER,clicks:INTEGER,spend:FLOAT"
+gcloud run jobs execute caltex-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+```
+
+The pull is CHUNKED (3 days) because `region` makes a whole-flight request time out. Because it is
+manual, the geo card can lag the main feed; the export tolerates a missing/stale table rather than
+failing. **Schedule it** (scheduler.ps1) once the client relies on this day to day.
+
 ## Funnel stage is HARD-CODED to Awareness (2026-07-31)
 
 All three ad groups are set to **Awareness** in The Trade Desk (client-confirmed). An earlier version
