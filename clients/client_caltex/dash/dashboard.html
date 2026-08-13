@@ -427,7 +427,7 @@
 
       <div class="section"><h2>Where it ran</h2><span class="sub">Delivery by market and by creative format for the Caltex campaign - honours the date filter.</span></div>
       <div class="grid cols-2">
-        <div class="card"><h3>Markets</h3><div class="hint">Impressions by market, parsed from the ad group naming (e.g. QLD+WA). Tooltip shows spend and clicks.</div><div class="chartbox tall"><canvas id="marketChart"></canvas></div></div>
+        <div class="card"><h3>States reached</h3><div class="hint">Where the ads actually served, from The Trade Desk's own region data - <b>not</b> the ad group name. Tooltip shows spend, clicks and share.</div><div class="chartbox tall"><canvas id="geoChart"></canvas></div><div class="tiny" id="geoNote" style="margin-top:8px"></div></div>
         <div class="card"><h3>Creative formats</h3><div class="hint">Impressions by ad format - which shapes and placements carry the campaign.</div><div class="chartbox tall"><canvas id="formatChart"></canvas></div></div>
       </div>
 
@@ -998,13 +998,38 @@ function renderStageTable(){
   const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${compact(t.impressions)}</td><td class="num">${t.cpm!=null?money(t.cpm,2):'-'}</td><td class="num">${int(t.clicks)}</td><td class="num">${pct(t.ctr)}</td><td class="num">${n(t.actions)?int(t.actions):'-'}</td></tr>`;
   $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="8" style="text-align:center;color:var(--muted2);padding:20px">No delivery yet.</td></tr>`)+(body?foot:'');
 }
-// ---- Where it ran: markets + creative formats (both parsed straight from the fact rows) ----
+// ---- Where it ran: STATES (real TTD region data) + creative formats ----
+// This replaced a "Markets" chart that read the ad-group NAME, so it drew ONE bar reading 'QLD+WA'
+// and could never show a third state however the campaign actually delivered. DATA.geo comes from
+// The Trade Desk's own region field via the caltex-only geo table, and it reconciles exactly to the
+// headline (167,038 imps / 119 clicks on 2026-08-12). It honours the date filter like everything
+// else. If the geo pull has not run, DATA.geo is empty and the card says so rather than drawing an
+// empty axis - the pull is manual, so it CAN legitimately lag the main feed.
+function geoRows(){
+  const g=(DATA.geo||[]).filter(r=>inRange(r.date));
+  const m=new Map();
+  g.forEach(r=>{const k=r.state_code||r.state||'Unattributed';
+    const o=m.get(k)||{code:k,state:r.state||k,impressions:0,clicks:0,spend:0};
+    o.impressions+=n(r.impressions);o.clicks+=n(r.clicks);o.spend+=n(r.spend);m.set(k,o);});
+  return [...m.values()].sort((a,b)=>b.impressions-a.impressions);
+}
 function renderMarkets(){
-  const rows=byMarket(scoped()).filter(r=>n(r.impressions)>0).slice(0,8);
-  makeChart('marketChart',{type:'bar',data:{labels:rows.map(r=>r.market),datasets:[{label:'Impressions',data:rows.map(r=>n(r.impressions)),backgroundColor:MC.imps+'CC',borderColor:MC.imps,borderWidth:1,borderRadius:5}]},
+  const rows=geoRows();
+  const note=$('geoNote');
+  if(!rows.length){
+    makeChart('geoChart',{type:'bar',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});
+    if(note)note.innerHTML='State-level delivery is not loaded for this range yet.';
+    return;
+  }
+  const tot=rows.reduce((a,r)=>a+r.impressions,0)||1;
+  makeChart('geoChart',{type:'bar',data:{labels:rows.map(r=>r.code),datasets:[{label:'Impressions',data:rows.map(r=>r.impressions),backgroundColor:MC.imps+'CC',borderColor:MC.imps,borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=rows[c.dataIndex];return [`${compact(o.impressions)} impressions`,`${money(o.spend)} · ${int(o.clicks)} clicks · CTR ${pct(o.ctr)}`];}}}},
-      scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}}}}}});
+      plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>rows[c[0].dataIndex].state,
+        label:c=>{const o=rows[c.dataIndex];return [`${compact(o.impressions)} impressions (${(o.impressions/tot*100).toFixed(1)}%)`,
+          `${money(o.spend)} · ${int(o.clicks)} clicks`];}}}},
+      scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:12}}}}}});
+  if(note)note.innerHTML=rows.map(r=>`<b>${safeName(r.code)}</b> ${(r.impressions/tot*100).toFixed(1)}%`).join(' · ')
+    +' &nbsp;·&nbsp; from The Trade Desk region data';
 }
 function renderFormats(){
   const rows=byFormat(scoped()).filter(r=>n(r.impressions)>0).slice(0,10);
