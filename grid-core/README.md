@@ -375,6 +375,51 @@ shows "· auto every Nm" next to the last-synced pill (from `/api/central/sync/s
 "Sync now" always works regardless. (A self-gating "only when BQ advanced" refinement, like the
 client dashboards' freshness contract, is a future optimization; v1 is a simple interval.)
 
+## Pacing sync (`pacing_intake/`) — the second, intake-driven metrics path
+
+A parallel sync that resolves campaigns from a **reviewed** join file rather than from
+`central-clients.json`, built so budget pacing is right per campaign rather than per client.
+It shares the destination — `db.syncCampaignMetrics` — so the spendMult rule and the
+never-overwrite-a-sheet-`clientSpend` guard behave identically, and pacing stays DERIVED in
+`calc.js`. Nothing in this path writes `pacingStatus`.
+
+    pacing_intake_FINAL.xlsx (the trader's sheet)
+      -> build_match_audit.js   -> campaign_match_audit.xlsx  (HUMAN REVIEW GATE)
+                                -> campaign_match_config.json (the approved join)
+      -> import_campaigns.js    -> Central CONFIG rows (budget, flight, status)
+      -> pacing_sync.js         -> Central METRIC columns (mediaSpend, impressions)
+
+- **`build_match_audit.js`** — joins every intake row to BigQuery and writes a 4-sheet workbook:
+  *Confirm these* (no match, with candidate names), *Needs review*, *Rollup - goes to Central*,
+  *All rows*. Regenerate it whenever the intake changes; **do not hand-edit the config**.
+- **`import_campaigns.js`** — DRY RUN by default. `--apply` creates rows and fills empty fields;
+  `--overwrite` also changes values Central already holds. `PROTECT_BUDGET` names rows whose
+  budget the intake must never rewrite (whole-programme figures the intake carries per line).
+- **`pacing_sync.js`** — ONE batched query per platform table (8 today, regardless of campaign
+  count). Exports `runPacingSync({apply, quiet, includeEnded})`; `POST /api/central/pacing-sync`
+  (`?dryRun=1` reports without writing) and a tick on `CENTRAL_AUTOSYNC_MIN`, offset half an
+  interval from the Central sync so the two never contend.
+- **`resolve_central.js`** — the shared intake-row-to-Central-row rule. Both writers use it so
+  they can never disagree about which row a campaign is; two copies would drift silently.
+
+Five things this pipeline exists to get right, each of which produced a wrong number first:
+- **`|` is not a delimiter.** It separates campaigns AND appears inside names
+  (`Caltex Star Card | QLD+WA | Jul-Oct 2026`). Full names match by delimiter-bounded
+  containment against the raw cell; only the machine-abbreviated `2193_..._ANZ` forms are split.
+- **Renamed advertisers keep both spellings.** Trade Desk carries `PopTrack` AND `PropTrack`;
+  the new one holds a 0.00 row and the old one holds the money, so a strict account filter
+  selects the empty twin. Accounts match with rename tolerance and the twins merge.
+- **Mirrors overlap.** Trade Desk, Google Ads and LinkedIn each live in two tables. Spend is
+  never summed across feeds; the fresher one is primary and the other is reported for comparison.
+- **Spend must be clamped to the flight.** An always-on campaign read 237% of a monthly budget
+  purely because it predates its window.
+- **Central can hold several rows under one name.** `Software First EcoStruxure` exists three
+  times on LinkedIn, one per plan line, distinguished only by budget — so duplicate names are
+  assigned ONE-TO-ONE by budget, never merged.
+
+The intake is at media-plan-LINE grain while the platforms report at CAMPAIGN grain, so 72 intake
+rows collapse to 44 campaigns. Importing per line would count some spend up to eight times.
+
 ## Summary cards + KPI + channels
 - **Summary cards** (boss view) above the table: Live campaigns (of total), Total budget,
   Total spend (media, N live · M sheet), Health (winner/watch/steady), BQ coverage (validated

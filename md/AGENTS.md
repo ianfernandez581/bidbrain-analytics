@@ -95,7 +95,12 @@ dates, "verified on") lives there too, never here.**
   Its SQLite state is DURABLE on Cloud Run via `gs://bidbrain-analytics-grid-state` (env
   `GRID_STATE_BUCKET`; `src/brain/persist.js`) - the ONLY non-`<c>`-derived bucket in the project.
   `central_sync.py` queries BigQuery through the CLIENT LIBRARY, never the `bq` CLI: there is no
-  gcloud SDK in that image.
+  gcloud SDK in that image. **`grid-core/pacing_intake/` is the second, intake-driven metrics
+  path** (campaign-level budget pacing): the trader's sheet -> `build_match_audit.js` -> a
+  HUMAN-REVIEWED `campaign_match_config.json` -> `import_campaigns.js` (CONFIG) +
+  `pacing_sync.js` (metrics, ONE batched query per platform table, spend clamped to each flight).
+  Both writers share `resolve_central.js` and end at `db.syncCampaignMetrics`; pacing stays
+  DERIVED in `calc.js`. Regenerate the config, never hand-edit it. See `grid-core/README.md`.
 - **`api-probe/`** - zero-dep Node CLI probing reporting-API access across ad platforms; step 2 of
   grid-core's go-live SOP. Not deployed, keep.
 - **`ingest/`** - shared raw-layer loaders: `snowflake_data_pull` (-> `raw_snowflake`, self-gating
