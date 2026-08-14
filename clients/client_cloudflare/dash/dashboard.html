@@ -197,6 +197,21 @@
   .dp-day.dp-sel{background:var(--dp-accent);color:#fff;font-weight:700;border-color:transparent}
   .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center}
   .dp-range b{color:var(--dp-ink)}
+  /* Custom range: type an exact start/end instead of hunting for it on the calendar.
+     Always present (the calendar and these inputs edit the SAME draft range), and the
+     "Custom range" preset scrolls focus here. */
+  .dp-custom{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+  /* min-width:0 - without it a flex item refuses to shrink below the native date input's
+     intrinsic width and the pair overflows the 264px calendar column. */
+  .dp-custom label{flex:1 1 112px;min-width:0;display:flex;flex-direction:column;gap:4px;font-size:10px;
+      font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--dp-muted)}
+  .dp-custom input{background:var(--dp-panel);border:1px solid var(--dp-line);color:var(--dp-ink);
+      border-radius:7px;padding:6px 8px;font-size:12px;font-family:inherit;width:100%;
+      font-weight:600;color-scheme:dark}
+  .dp-custom input:focus{outline:none;border-color:var(--dp-accent)}
+  /* Chrome paints the native picker glyph near-black on this dark surface - invert it. */
+  .dp-custom input::-webkit-calendar-picker-indicator{filter:invert(1);opacity:.6;cursor:pointer}
+  .dp-custom input::-webkit-calendar-picker-indicator:hover{opacity:1}
   .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
   .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;
       border:1px solid var(--dp-line);font-family:inherit}
@@ -470,6 +485,10 @@
     <select id="dashSelect" class="dash-select" onchange="switchDashboard(this.value)">
       <option value="core" selected>Core DG APJ</option>
       <option value="core_emea" disabled>Core DG EMEA - coming soon</option>
+      <!-- Surround ABM (brief 2193) - split out of Core DG 2026-08-14 at the client's
+           request. A PROGRAM lane, not a single-campaign view: it reuses the whole Paid
+           Media tab, scoped by the paid rows' `program` field. See PROGRAMS below. -->
+      <option value="surround_abm">Surround ABM</option>
       <option value="peyc">ANZ PEYC</option>
       <option value="cf1_india">CF1 India</option>
       <option value="coles_hyper">Coles Hyper</option>
@@ -532,6 +551,12 @@
               </div>
               <div class="dp-grid" id="dpGrid"></div>
               <div class="dp-range" id="dpRangeLbl"></div>
+              <!-- Custom range: type/pick an exact start + end. Edits the same draft the
+                   calendar does, so either input reflects in the other; Apply commits. -->
+              <div class="dp-custom" id="dpCustom">
+                <label for="dpFrom">From<input type="date" id="dpFrom"></label>
+                <label for="dpTo">To<input type="date" id="dpTo"></label>
+              </div>
               <div class="dp-actions">
                 <button class="dp-cancel" id="dpCancel" type="button">Cancel</button>
                 <button class="dp-apply" id="dpApply" type="button">Apply</button>
@@ -552,6 +577,10 @@
       </div>
       </div>
     </div>
+
+    <!-- Lane banner: what the selected brief is and what it deliberately omits. Empty (and
+         hidden) on Core DG APJ, so the default client view is byte-for-byte unchanged. -->
+    <div id="laneNote" style="display:none;background:var(--surface);border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:12px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5;box-shadow:var(--shadow-card)"></div>
 
     <div id="dateScopeNote" style="display:none;background:var(--surface);border:1px solid var(--cf-line);border-left:4px solid var(--cf-orange);border-radius:12px;padding:11px 14px;margin-bottom:14px;font-size:12.5px;color:var(--cf-ink);line-height:1.5;box-shadow:var(--shadow-card)"></div>
 
@@ -872,6 +901,10 @@
           </div>
         </div>
 
+        <!-- Budget pacing is Core DG's media plan (PACING_PLANS). A lane with no committed
+             budget of its own hides the whole block - grading Surround ABM's spend against
+             Core DG's budget would be worse than showing nothing. See PROGRAMS[].plans. -->
+        <div id="pacingBlock">
         <div class="section" style="margin-top:18px">
           <h2>Budget pacing by channel</h2>
           <span class="sub">Billed spend vs media-plan budget for the <b>selected quarter</b> (pick a quarter in the calendar above). The <b>dashed marker</b> is where spend should be today to finish the quarter on budget; the figure on the right is the <b>$ gap to pace</b>. Whole-quarter, all-market - not affected by the date or market filters.</span>
@@ -879,6 +912,7 @@
 
         <div class="card">
           <div id="pacingRows"></div>
+        </div>
         </div>
 
         <!-- TTD-specific section: hidden when TTD didn't deliver in the selected range. -->
@@ -1204,7 +1238,13 @@ window.DateRange = (function(){
     {k:'90', label:'Last 90 days'}, {k:'month',     label:'This month'},
     {k:'lastmonth', label:'Last month'}, {k:'quarter', label:'This quarter'},
     {k:'all', label:'All time'},
+    // Custom range is LAST and is not a span of its own - it is the "none of the above"
+    // state. It lights up automatically whenever the selection matches no preset, and
+    // clicking it jumps focus to the From input rather than changing the range (see
+    // choosePreset / CUSTOM_KEY). presetRange() is never called for it.
+    {k:'custom', label:'Custom range'},
   ]);
+  const CUSTOM_KEY = 'custom';
   let MIN=null, MAX=null, onApply=null;
   let selStart=null, selEnd=null, draftStart=null, draftEnd=null;
   let viewYear=0, viewMonth=0, open=false;
@@ -1231,8 +1271,11 @@ window.DateRange = (function(){
     return [clamp(s), clamp(e)];
   }
   function detectPreset(s,e){
-    for(const p of PRESETS){ const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
-    return 'custom';
+    // Skip CUSTOM_KEY: it has no span, and presetRange() would fall through its else arm
+    // and answer [MIN,MAX] - i.e. it would masquerade as "All time".
+    for(const p of PRESETS){ if(p.k===CUSTOM_KEY) continue;
+      const [ps,pe]=presetRange(p.k); if(iso(ps)===iso(s)&&iso(pe)===iso(e)) return p.k; }
+    return CUSTOM_KEY;
   }
 
   function init(opts){
@@ -1252,6 +1295,11 @@ window.DateRange = (function(){
     $('dpApply').onclick  = () => { apply(); };
     $('dpPresets').onclick = e => { const a=e.target.closest('a[data-k]'); if(a) choosePreset(a.dataset.k); };
     $('dpGrid').onclick    = e => { const c=e.target.closest('.dp-day[data-iso]'); if(c) pickDay(parse(c.dataset.iso)); };
+    // `change`, not `input`: a date input fires input on every partial keystroke (2026-0…),
+    // which would clamp a half-typed year to MIN and fight the typist.
+    $('dpFrom').onchange = onCustomInput;
+    $('dpTo').onchange   = onCustomInput;
+    renderCustom();
     // Capture phase: must run BEFORE pickDay()/choosePreset() rebuild the grid/preset
     // innerHTML (which would detach e.target, making closest('#dateRange') return null
     // and wrongly close the popover on every in-popover click).
@@ -1275,8 +1323,32 @@ window.DateRange = (function(){
     if(first > new Date(MAX.getFullYear(),MAX.getMonth(),1)) return;
     viewYear=y; viewMonth=m; renderCal();
   }
-  function choosePreset(k){ const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
+  function choosePreset(k){
+    // "Custom range" is a mode, not a span: keep whatever is drafted and send the user to
+    // the From field. Overwriting the draft here would throw away a range they had just
+    // clicked out on the calendar.
+    if(k===CUSTOM_KEY){ renderPresets(); const f=$('dpFrom'); if(f){ f.focus(); if(f.showPicker) { try{ f.showPicker(); }catch(_){} } } return; }
+    const [s,e]=presetRange(k); draftStart=s; draftEnd=e;
     viewYear=e.getFullYear(); viewMonth=e.getMonth(); renderPresets(); renderCal(); renderRangeLbl(); }
+  // The two typed date inputs and the calendar edit the SAME draft, so they always agree.
+  // An out-of-order pair is swapped rather than rejected (typing the end first is normal).
+  function onCustomInput(){
+    const s=parse($('dpFrom').value), e=parse($('dpTo').value);
+    if(!s && !e) return;
+    let lo = s ? clamp(s) : draftStart, hi = e ? clamp(e) : draftEnd;
+    if(lo && hi && lo>hi){ const t=lo; lo=hi; hi=t; }
+    draftStart = lo || hi; draftEnd = hi || lo;
+    if(draftEnd){ viewYear=draftEnd.getFullYear(); viewMonth=draftEnd.getMonth(); }
+    renderPresets(); renderCal(); renderRangeLbl();
+  }
+  // Mirror the draft into the inputs (they are also bounded to the data window, so the
+  // native picker can't offer a day the payload has no rows for).
+  function renderCustom(){
+    const f=$('dpFrom'), t=$('dpTo');
+    if(!f || !t) return;
+    f.min = t.min = iso(MIN); f.max = t.max = iso(MAX);
+    f.value = iso(draftStart) || ''; t.value = iso(draftEnd||draftStart) || '';
+  }
   function pickDay(d){
     if(!draftStart || (draftStart && draftEnd)){ draftStart=d; draftEnd=null; }
     else if(d < draftStart){ draftEnd=draftStart; draftStart=d; }
@@ -1332,6 +1404,7 @@ window.DateRange = (function(){
     $('dpRangeLbl').innerHTML = draftStart
       ? `<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`
       : 'Pick a start date';
+    renderCustom();   // every draft change flows through here, so the inputs never drift
   }
   function updateButton(){
     const k = detectPreset(selStart, selEnd);
@@ -2241,6 +2314,9 @@ function applyViewMode() {
   const notesAllowed = !!window.BB_INTERNAL;
   if (notesCard) notesCard.style.display = notesAllowed ? '' : 'none';
   if (txTab) txTab.textContent = notesAllowed ? 'Internal Notes' : 'Transmission data';
+  // The LANE has the final say on which tabs exist at all (Surround ABM is Paid Media only),
+  // so re-apply it after the dev gate above has had its turn on #txDataTab.
+  applyLaneTabs();
 }
 
 function populateCampaignSelect() {
@@ -2884,6 +2960,51 @@ const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#3B93E8', PM_RD='#FF6A3D',
 //   mkey = the market field on that channel's rows (TTD/Reddit carry `m`, LI/LINE `market`)
 // Order here is the order channels render in everywhere.
 // ==========================================================================
+// ==========================================================================
+// THE LANES (top-nav dropdown). Two KINDS of entry live in that select:
+//   PROGRAM lanes  - the full core shell (tab rail + shared date range + market chips),
+//                    scoped to ONE brief by the paid rows' `program` field.
+//   CAMPAIGN lanes - the single-campaign LinkedIn views (peyc / cf1_india / coles_hyper),
+//                    which render through renderCampaign() off COMBINED.campaigns.
+//
+// 2026-08-14 (client request): SURROUND ABM (brief 2193) was split out of Core DG. It was
+// summing into Core's Q2 KPIs, charts, market tables and creatives; the two briefs are
+// separate books, so Core DG APJ now means briefs 1160 / 2103 (Q2) / 2479 (Q3) ONLY, and
+// Surround ABM is its own lane. Adding a lane = one entry here + one arm in the PROGRAM
+// CASE in sql/03_stg_tradedesk.sql (+ 01_stg_linkedin.sql). Anything unmatched stays
+// CORE_DG, so a new brief can never fall out of the dashboard entirely - it just needs
+// splitting out here once someone notices it.
+//   prog  - the PROGRAM value in the feed (sql -> job `program` -> row.prog)
+//   tabs  - which core tabs this lane is allowed to show
+//   plans - does this lane have the Core DG media-plan budgets + LinkedIn lead commit?
+//           (PACING_PLANS / LI_LEADGEN_PLANS are Core DG's numbers; showing them under
+//           another brief would grade its spend against a budget that isn't its own)
+const PROGRAMS = {
+  core: {
+    prog: 'CORE_DG', label: 'Core DG APJ',
+    tabs: ['paid','main','compare','qoq','txdata'], plans: true, note: ''
+  },
+  surround_abm: {
+    prog: 'SURROUND_ABM', label: 'Surround ABM',
+    tabs: ['paid'], plans: false,
+    // NOTE the flight: the campaign NAMES read "2026-Q2" but delivery started 2026-06-12 and is
+    // still running - roughly a third of it is Q2 and two thirds Q3. Do not describe this lane as
+    // Q2-only on the strength of the names (verified against the feed 2026-08-14).
+    note: '<b>Surround ABM</b> (brief 2193) - Trade Desk display, live since <b>12 Jun 2026</b> and '
+        + 'spanning Q2 and Q3 (the campaign names read "2026-Q2", but delivery continues). '
+        + 'Paid delivery only: this brief has no Content-Syndication lane on the dashboard and no '
+        + 'committed media-plan budget, so the CS tabs and the budget / lead-commit pacing (which '
+        + 'are Core DG\'s plans) are not shown. Widen the date range to see the whole flight.'
+  }
+};
+let currentLane  = 'core';                 // the selected dropdown entry
+let paidProgram  = PROGRAMS.core.prog;     // the PROGRAM the paid tab is scoped to
+const laneCfg = () => PROGRAMS[currentLane] || PROGRAMS.core;
+// The single program predicate. Rows written before this field existed have no `prog`, so
+// they default to CORE_DG - an older cached payload degrades to exactly today's behaviour
+// rather than rendering an empty dashboard.
+const progOk = r => (r.prog || 'CORE_DG') === paidProgram;
+
 const PM_CHANS = [
   {key:'TTD',      label:'TTD',      long:'Trade Desk', abbr:'TTD',    pill:'cf', color:PM_CF, pre:'ttd', mkey:'m',      rows:()=>(PAYLOAD && PAYLOAD.ttd_market_day)  || []},
   {key:'LinkedIn', label:'LinkedIn', long:'LinkedIn',   abbr:'LI',     pill:'li', color:PM_LI, pre:'li',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.li_market_day)   || []},
@@ -2901,9 +3022,12 @@ const PM_CHANS = [
 // parse would otherwise VANISH rather than show a visible zero row, which is exactly the silent
 // row-loss class of bug the 2026-08-04 brief-number-prefix fix chased down (see the client
 // README). Keeping this date-only also means the channel list doesn't shift as chips are toggled.
+// The PROGRAM filter applies here too (a channel that ran only for the OTHER brief must not
+// be listed as live for this one - Surround ABM is Trade Desk only, so LinkedIn/Reddit/LINE
+// vanish from its tab). Still date-scoped, still NOT chip-scoped, for the reason above.
 function activeChans(){
   return PM_CHANS.filter(c => c.rows().some(r =>
-    dateOk(r.date) && ((r.spend||0) > 0 || (r.imps||0) > 0 || (r.clk||0) > 0)));
+    progOk(r) && dateOk(r.date) && ((r.spend||0) > 0 || (r.imps||0) > 0 || (r.clk||0) > 0)));
 }
 const chanIsActive = key => activeChans().some(c => c.key === key);
 // Prose list of the live channels, e.g. "Trade Desk + LinkedIn".
@@ -2972,7 +3096,7 @@ function loadPaidMedia() {
 
     document.getElementById('paid-loading').style.display = 'none';
     document.getElementById('paid-content').style.display = 'block';
-    setPaidFooter(data.row_count);
+    setPaidFooter();
     renderPaidMediaChips();
     renderPaidMediaAll();
   } catch (err) {
@@ -3013,19 +3137,23 @@ function adaptPayload(data) {
     const clk = Number(r.clicks) || 0;
     const spend = Number(r.spend_usd) || 0;
     const leads = Number(r.leads) || 0;
+    // Which brief the row belongs to (the lane selector). Missing on payloads written
+    // before 2026-08-14, so default to CORE_DG - an old cached JSON then behaves exactly
+    // as it did, instead of filtering to nothing.
+    const prog = r.program || 'CORE_DG';
     if (ch === 'LinkedIn' || ch === 'LI') {
-      li.push({ch:'LI', date, market, imps, clk, spend, leads,
+      li.push({ch:'LI', date, market, prog, imps, clk, spend, leads,
         formOpens: Number(r.form_opens) || 0,
         linkClicks: Number(r.link_clicks) || 0,
         actionClicks: Number(r.action_clicks) || 0,
         videoStarts: Number(r.video_starts) || 0,
         videoCompletions: Number(r.video_completions) || 0});
     } else if (ch === 'TTD' || ch === 'TradeDesk') {
-      ttd.push({date, m: market, imps, clk, spend});
+      ttd.push({date, m: market, prog, imps, clk, spend});
     } else if (ch === 'Reddit') {
-      rd.push({date, m: market, imps, clk, spend});
+      rd.push({date, m: market, prog, imps, clk, spend});
     } else if (ch === 'LINE') {
-      line.push({ch:'LINE', date, market, imps, clk, spend, leads,
+      line.push({ch:'LINE', date, market, prog, imps, clk, spend, leads,
         spend_jpy: Number(r.spend_jpy) || 0,
         fx_usd_jpy: Number(r.fx_usd_jpy) || 0});
     }
@@ -3034,6 +3162,7 @@ function adaptPayload(data) {
   // so the chips filter them too. Ranked client-side in renderCreativeTables().
   const creatives = (data.creatives || []).map(r => ({
     channel: r.channel,
+    prog: r.program || 'CORE_DG',
     market: normalizeMarket(r.market),
     creative: r.creative || '(unnamed)',
     imps: Number(r.imps) || 0,
@@ -3067,16 +3196,27 @@ function adaptPayload(data) {
   };
 }
 
-function setPaidFooter(rowCount) {
+function setPaidFooter() {
   const lu = paidMediaLastUpdated ? new Date(paidMediaLastUpdated.replace(' ', 'T')) : null;
   const luText = lu && !isNaN(lu) ? lu.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false})+' AEST' : (paidMediaLastUpdated || 'unknown');
-  const totalRows = PM_CHANS.reduce((s,c) => s + c.rows().length, 0);
-  const w = PAYLOAD.window || {};
+  // Row count AND window are LANE-scoped: PAYLOAD.window spans the whole paid book, so on
+  // the Surround ABM lane it would advertise Core DG's flight over Surround ABM's numbers.
+  // (rowCount, the payload-level count, is ignored for the same reason.)
+  let totalRows = 0, wMin = null, wMax = null;
+  for (const c of PM_CHANS) for (const r of c.rows()) {
+    if (!progOk(r)) continue;
+    totalRows++;
+    const d = String(r.date || '').slice(0, 10);
+    if (!d) continue;
+    if (!wMin || d < wMin) wMin = d;
+    if (!wMax || d > wMax) wMax = d;
+  }
+  const w = (wMin && wMax) ? {start: wMin, end: wMax} : (PAYLOAD.window || {});
   const winText = (w.start && w.end) ? ` · Window ${w.start} → ${w.end}` : '';
   // When the date range is narrowed, echo the active filter so the footer doesn't contradict it.
   const rangeText = narrowed() ? ` · Filtered to ${rangeStart} → ${rangeEnd}` : '';
   document.getElementById('paidFooter').innerHTML =
-    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${(rowCount || totalRows).toLocaleString()} rows${winText}${rangeText} · Source: ${activeChanList(', ')} · Auto-refreshes within ~10 min of new data`;
+    `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${totalRows.toLocaleString()} rows${winText}${rangeText} · Source: ${activeChanList(', ')} · Auto-refreshes within ~10 min of new data`;
 }
 
 function renderPaidMediaChips() {
@@ -3111,6 +3251,9 @@ function selectNonePaidMarkets() {
 // ============== Filter & aggregation helpers ==============
 function passesAll(r) {
   const m = r.m || r.market;
+  // The selected LANE first: every paid KPI, chart, table and CSV funnels through here, so
+  // one predicate keeps Core DG and Surround ABM from ever summing together.
+  if (!progOk(r)) return false;
   // RIG is excluded under a Q3-only selection even if it lingers in paidMediaActiveMarkets
   // from a prior Q2 view (same guard as the CS side's visSet in aggregate()).
   if (m === 'RIG' && paidRigHidden()) return false;
@@ -3467,6 +3610,10 @@ function renderBenchmarkTable() {
 function renderPacing() {
   const host = document.getElementById('pacingRows');
   if (!host) return;
+  // PACING_PLANS holds CORE DG's committed platform budgets. A lane without its own plan
+  // hides the block entirely rather than pacing its spend against another brief's budget.
+  pmShow('pacingBlock', laneCfg().plans);
+  if (!laneCfg().plans) { host.innerHTML = ''; return; }
   const rowsFor = {};                                  // PACING_PLANS[].key -> that channel's rows
   PM_CHANS.forEach(c => rowsFor[c.key] = c.rows());
   // Follow the selected quarter. selQuarters is the source of truth; a custom calendar range
@@ -3601,7 +3748,7 @@ function renderCreativeChannelSeg() {
   if (!seg) return;
   // Offer only channels that BOTH have creatives in the feed AND ran in the current
   // selection - a channel that didn't run has nothing to say about creative performance.
-  const present = new Set((PAYLOAD.creatives || []).map(r => r.channel).filter(Boolean));
+  const present = new Set((PAYLOAD.creatives || []).filter(progOk).map(r => r.channel).filter(Boolean));
   const chans = activeChans().map(c => c.key).filter(c => present.has(c));
   // A pick that is no longer offered (its channel stopped delivering in the new range) falls back to All.
   if (creativeChannel !== 'all' && !chans.includes(creativeChannel)) creativeChannel = 'all';
@@ -3621,6 +3768,9 @@ function renderCreativeTables() {
     // the market chips ONLY, never the date range (see the note below). passesAll()
     // would reject every row here via dateOk(undefined) → the tables would go blank.
     // RIG follows the same quarter gate as the rest of the tab (no Q3 plan).
+    // The LANE filter is NOT optional here: creatives carry no date, so without it the
+    // Surround ABM tab would list Core DG's creatives and nothing else could separate them.
+    if (!progOk(r)) continue;
     if (!paidMediaActiveMarkets.has(r.market)) continue;
     if (r.market === 'RIG' && paidRigHidden()) continue;
     // A channel that didn't run in the selection contributes no creatives either, so its
@@ -3707,6 +3857,7 @@ function liPlanScope(plan) {
 // The commit plan is QUARTER-shaped, so the benchmark table's "vs plan" lead columns only make
 // a claim under a pure-Q3 selection - a quarter commit cannot grade Q2 or a custom sub-range.
 function liQ3PlanCtx() {
+  if (!laneCfg().plans) return null;   // Core DG's commit - never grade another lane by it
   if (!(selQuarters.has('Q3') && !selQuarters.has('Q2'))) return null;
   const scope = liPlanScope(LI_LEADGEN_PLANS.Q3);
   return scope.commit > 0 ? scope : null;
@@ -3714,6 +3865,10 @@ function liQ3PlanCtx() {
 
 function renderWeeklyTarget() {
   destroy('weeklyTarget');
+  // Both plans below (the Q2 li_weekly payload and the Q3 lead-gen commit) are CORE DG's.
+  // The Q3 path deliberately renders even with zero delivery, so without this gate the
+  // Surround ABM lane would draw Core DG's 210-lead commit against its own empty LinkedIn.
+  if (!laneCfg().plans) { pmShow('weeklyTargetBlock', false); return; }
   // Two plans live in this block: the FIXED 13-week Q2 plan (li_weekly payload, below) and the
   // Q3 lead-gen commit plan (LI_LEADGEN_PLANS, flat-paced). The Q3 view wins whenever the
   // applied range touches Q3 - that is where the live pacing story is; select Q2 to see Q2.
@@ -3934,23 +4089,57 @@ function renderPaidMediaAll() {
 }
 
 function switchDashboard(val){
-  const isCore = (val === 'core');
+  // A PROGRAM lane (core / surround_abm) renders the full core shell scoped to one brief;
+  // anything else is a single-campaign LinkedIn view. See PROGRAMS.
+  const lane = PROGRAMS[val];
+  const isProgram = !!lane;
   // The tab rail AND the shared date control both live in the sticky control bar now, so a
   // single-campaign view hides the whole bar (hiding just .tabs would leave an empty strip).
   const bar = document.getElementById('controlBar');
-  if (bar) bar.style.display = isCore ? '' : 'none';
-  document.getElementById('view-campaign').style.display = isCore ? 'none' : 'block';
+  if (bar) bar.style.display = isProgram ? '' : 'none';
+  document.getElementById('view-campaign').style.display = isProgram ? 'none' : 'block';
   document.getElementById('panel-main').classList.add('hidden');
   document.getElementById('panel-compare').classList.add('hidden');
   document.getElementById('panel-paid').classList.add('hidden');
   // The shared date control only governs the core tabs; the single-campaign view
   // uses precomputed whole-window totals, so hide the control there.
   const dpEl = document.getElementById('dateRange');
-  if (dpEl) dpEl.style.display = isCore ? '' : 'none';
+  if (dpEl) dpEl.style.display = isProgram ? '' : 'none';
   const note = document.getElementById('dateScopeNote');
-  if (note && !isCore) note.style.display = 'none';
-  if (isCore) switchTab(activeTab);
-  else renderCampaign(val);
+  if (note && !isProgram) note.style.display = 'none';
+  if (!isProgram) { renderLaneNote(false); renderCampaign(val); return; }
+
+  currentLane = val;
+  paidProgram = lane.prog;
+  applyLaneTabs();
+  // A lane may not carry the tab you were on (Surround ABM is Paid Media only), so fall
+  // back to its first allowed tab instead of leaving every panel hidden.
+  if (lane.tabs.indexOf(activeTab) < 0) activeTab = lane.tabs[0];
+  renderLaneNote(true);
+  switchTab(activeTab);
+}
+
+// Show only the tabs this lane is allowed to render. Layered ON TOP of the Admin-View gate:
+// "Internal Notes" needs BOTH the lane to allow it and devMode to be on.
+function applyLaneTabs(){
+  const allowed = laneCfg().tabs;
+  document.querySelectorAll('#controlBar .tabs .tab').forEach(t => {
+    const k = t.dataset.tab;
+    let show = allowed.indexOf(k) >= 0;
+    if (k === 'txdata') show = show && devMode;
+    t.style.display = show ? '' : 'none';
+  });
+}
+
+// One-line explanation of a non-default lane: what it is and what it deliberately omits.
+// Core DG's note is empty (it IS the default), so the client's normal view is unchanged;
+// the single-campaign views pass false and never show it.
+function renderLaneNote(onProgramLane){
+  const el = document.getElementById('laneNote');
+  if (!el) return;
+  const n = onProgramLane ? (laneCfg().note || '') : '';
+  el.innerHTML = n;
+  el.style.display = n ? '' : 'none';
 }
 
 function renderCampaign(key){
@@ -4186,7 +4375,13 @@ function buildDeckPayload(){
   // Paid: build from COMBINED.paid_media (adaptPayload is idempotent + doesn't need the tab to be opened).
   const P = PAYLOAD || adaptPayload((COMBINED && COMBINED.paid_media) || {});
   const sumCh=arr=>{ let imp=0,clk=0,sp=0,leads=0; (arr||[]).forEach(r=>{ imp+=r.imps||0; clk+=r.clk||0; sp+=r.spend||0; leads+=r.leads||0; }); return {imp,clk,sp,leads}; };
-  const chans=[['TTD',P.ttd_market_day],['LinkedIn',P.li_market_day],['Reddit',P.rd_market_day],['LINE',P.line_market_day]];
+  // The deck is the CORE DG deliverable (context.campaign / report.py's brief both say so),
+  // and it is whole-flight - it ignores the market chips and the date range on purpose. So it
+  // must ignore the lane selector too, and be scoped to CORE_DG explicitly: Surround ABM is a
+  // separate brief and must not be summed into Core's deck whichever lane is on screen.
+  const _core = arr => (arr||[]).filter(r => (r.prog || 'CORE_DG') === 'CORE_DG');
+  const chans=[['TTD',_core(P.ttd_market_day)],['LinkedIn',_core(P.li_market_day)],
+               ['Reddit',_core(P.rd_market_day)],['LINE',_core(P.line_market_day)]];
   const by_channel=chans.map(([channel,arr])=>{ const a=sumCh(arr); return { channel, spend_usd:_r2(a.sp), imps:a.imp, clicks:a.clk, leads:a.leads,
     cpm:_r2(a.imp?a.sp/a.imp*1000:0), ctr:_r6(a.imp?a.clk/a.imp:0), cpc:_r2(a.clk?a.sp/a.clk:0) }; }).filter(c=>c.imps||c.spend_usd);
   const tot=chans.reduce((o,[,arr])=>{ const a=sumCh(arr); o.imp+=a.imp; o.clk+=a.clk; o.sp+=a.sp; o.leads+=a.leads; return o; },{imp:0,clk:0,sp:0,leads:0});

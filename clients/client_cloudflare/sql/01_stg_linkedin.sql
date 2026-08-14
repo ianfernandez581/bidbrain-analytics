@@ -14,9 +14,21 @@
 -- STARTS_WITH drops the whole channel to zero. Normalise once here and key the
 -- downstream rules off CAMPAIGN_NAME_NORM so that cannot happen. Same treatment as
 -- stg_tradedesk, where the equivalent break was already live.
+--
+-- PROGRAM (2026-08-14) - the dashboard's lane selector, kept IDENTICAL to
+-- stg_tradedesk's arm so a campaign can never land in two lanes. LinkedIn has no
+-- Surround ABM (brief 2193) delivery today - the brief is TTD-only - but carrying the
+-- same rule here means an ad set that IS renamed into it routes to the right lane
+-- instead of quietly inflating Core DG. Substring match on the RAW name (prefix-proof).
 CREATE OR REPLACE VIEW `client_cloudflare.stg_linkedin` AS
 SELECT
     *,
-    REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '') AS CAMPAIGN_NAME_NORM
+    REGEXP_REPLACE(TRIM(CAMPAIGN_NAME), r'^[0-9]+_', '') AS CAMPAIGN_NAME_NORM,
+    CASE
+        WHEN LOWER(IFNULL(CAMPAIGN_NAME, '')) LIKE '%surround%abm%'
+          OR STARTS_WITH(TRIM(IFNULL(CAMPAIGN_NAME, '')), '2193_')
+            THEN 'SURROUND_ABM'
+        ELSE 'CORE_DG'
+    END AS PROGRAM
 FROM `bidbrain-analytics.raw_snowflake.linkedin_ads_apac`
 WHERE ACCOUNT_NAME = 'Cloudflare APAC';

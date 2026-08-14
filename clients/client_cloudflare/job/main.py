@@ -186,6 +186,11 @@ def main():
         "all_markets": ALL_MARKETS,
         "rows": [{
             "channel":           r.get("CHANNEL"),
+            # Which brief this delivery belongs to -> the dashboard's lane selector.
+            # CORE_DG (default) or SURROUND_ABM (brief 2193, TTD-only; the names say
+            # "2026-Q2" but delivery spans Q2 AND Q3 - do not date-gate it). Set in
+            # sql/03_stg_tradedesk + 01_stg_linkedin; see PROGRAMS in dashboard.html.
+            "program":           r.get("PROGRAM") or "CORE_DG",
             "date":              ymd(r.get("DATE")),
             "week_start":        ymd(r.get("WEEK_START")),
             "market":            r.get("MARKET"),
@@ -203,6 +208,7 @@ def main():
         } for r in pm],
         "creatives": [{
             "channel":   r.get("CHANNEL"),
+            "program":   r.get("PROGRAM") or "CORE_DG",
             "market":    r.get("MARKET"),
             "creative":  r.get("CREATIVE"),
             "imps":      jval(r.get("IMPS")),
@@ -393,6 +399,20 @@ def main():
     storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
         json.dumps(env, default=_json_default), content_type="application/json")
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | paid {len(pm)} rows, pacing {len(pac)} rows, creatives {len(cre)} rows")
+
+    # Lane audit (2026-08-14): print the CORE_DG / SURROUND_ABM split every run. The two
+    # lanes are name-parsed, so this is the cheap reconciliation that makes a parsing
+    # regression LOUD - if SURROUND_ABM ever drops to 0 rows while brief 2193 is live, or
+    # a new brief lands entirely in CORE_DG, it shows here instead of silently merging.
+    prog_split = {}
+    for r in pm:
+        o = prog_split.setdefault(r.get("PROGRAM") or "CORE_DG", {"rows": 0, "imps": 0, "spend": 0.0})
+        o["rows"]  += 1
+        o["imps"]  += int(jval(r.get("IMPS")) or 0)
+        o["spend"] += float(jval(r.get("SPEND_USD")) or 0)
+    for p in sorted(prog_split):
+        o = prog_split[p]
+        print(f"  program {p:13s} rows={o['rows']:>5} imps={o['imps']:>12,} spend=${o['spend']:>12,.2f}")
 
     # Record the watermark ONLY after a successful upload, so a failed upload
     # leaves the old watermark in place and simply retries on the next tick.

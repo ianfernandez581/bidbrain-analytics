@@ -8,10 +8,20 @@
 --   LIKE 'CLOUD\_ACQ\_%' ESCAPE  -> STARTS_WITH(CAMPAIGN_NAME,'CLOUD_ACQ_')
 -- Column/label contract (CHANNEL, MARKET strings) is unchanged from the dashboard's
 -- expectations (TTD/LinkedIn/Reddit/LINE; the 7 L1 markets + raw TTD MARKET_L3).
+--
+-- 2026-08-14 - PROGRAM is the second column of EVERY arm (the union is `SELECT *`, so
+-- position matters). It splits the paid book into the dashboard's two lanes:
+--   CORE_DG      - Core DG APJ (briefs 1160 / 2103 Q2 / 2479 Q3), the default
+--   SURROUND_ABM - Surround ABM (brief 2193, TTD-only; names say Q2, delivery spans Q2+Q3)
+-- The rule lives in stg_tradedesk / stg_linkedin so both are literally the same
+-- expression; Reddit repeats it inline (it has no staging view of its own) and LINE is
+-- a constant (a manual LINE Ad Manager CSV with no campaign names - it is Core DG's JP
+-- channel and there is no Surround ABM LINE buy).
 CREATE OR REPLACE VIEW `client_cloudflare.paid_media_model` AS
 WITH linkedin AS (
     SELECT
         'LinkedIn'                       AS CHANNEL,
+        PROGRAM                          AS PROGRAM,
         DAY                              AS DATE,
         DATE_TRUNC(DAY, WEEK(MONDAY))    AS WEEK_START,
         -- Market rules key off CAMPAIGN_NAME_NORM (brief-number prefix stripped in
@@ -39,11 +49,12 @@ WITH linkedin AS (
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_linkedin`
     WHERE STARTS_WITH(CAMPAIGN_NAME_NORM, 'CLOUD_ACQ_')
-    GROUP BY 2, 3, 4
+    GROUP BY 2, 3, 4, 5
 ),
 tradedesk AS (
     SELECT
         'TTD'                            AS CHANNEL,
+        PROGRAM                          AS PROGRAM,
         DAY                              AS DATE,
         DATE_TRUNC(DAY, WEEK(MONDAY))    AS WEEK_START,
         MARKET_L3                        AS MARKET,
@@ -60,11 +71,17 @@ tradedesk AS (
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_tradedesk`
     WHERE MARKET_L3 IS NOT NULL AND MARKET_L3 <> ''
-    GROUP BY 2, 3, 4
+    GROUP BY 2, 3, 4, 5
 ),
 reddit AS (
     SELECT
         'Reddit'                         AS CHANNEL,
+        CASE
+            WHEN LOWER(IFNULL(CAMPAIGN_NAME, '')) LIKE '%surround%abm%'
+              OR STARTS_WITH(TRIM(IFNULL(CAMPAIGN_NAME, '')), '2193_')
+                THEN 'SURROUND_ABM'
+            ELSE 'CORE_DG'
+        END                              AS PROGRAM,
         DAY                              AS DATE,
         DATE_TRUNC(DAY, WEEK(MONDAY))    AS WEEK_START,
         CASE
@@ -89,11 +106,12 @@ reddit AS (
         CAST(NULL AS FLOAT64)            AS SPEND_JPY,
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_reddit`
-    GROUP BY 2, 3, 4
+    GROUP BY 2, 3, 4, 5
 ),
 line_jp AS (
     SELECT
         'LINE'                           AS CHANNEL,
+        'CORE_DG'                        AS PROGRAM,
         DAY                              AS DATE,
         DATE_TRUNC(DAY, WEEK(MONDAY))    AS WEEK_START,
         'JP'                             AS MARKET,
@@ -109,7 +127,7 @@ line_jp AS (
         CAST(SUM(COST) AS FLOAT64)       AS SPEND_JPY,
         155.0                            AS FX_USD_JPY
     FROM `client_cloudflare.stg_line`
-    GROUP BY 2, 3
+    GROUP BY 3, 4
 )
 SELECT * FROM linkedin
 UNION ALL SELECT * FROM tradedesk

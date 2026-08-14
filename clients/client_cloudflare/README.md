@@ -438,6 +438,97 @@ element ids intact.** Gotchas worth knowing:
 - `switchDashboard()` hides `#controlBar` (not `.tabs`) for single-campaign views, since the shared
   date control lives in the bar too - hiding only the tabs would leave an empty glass strip.
 
+### Surround ABM split out of Core DG - the lane model (2026-08-14, client request)
+
+Brief **2193 "Surround ABM"** was summing into Core DG. It is a separate book with separate
+numbers, so the client asked for it in the dropdown on its own. The dropdown now holds two KINDS
+of entry, and this is the distinction to hold on to:
+
+| kind | entries | renders |
+|---|---|---|
+| **PROGRAM lane** | `core` (Core DG APJ) · `surround_abm` (Surround ABM) | the FULL core shell - tab rail, shared date range, market chips - scoped to one brief |
+| **CAMPAIGN lane** | `peyc` · `cf1_india` · `coles_hyper` | the single-campaign LinkedIn view (`renderCampaign`, whole-window totals, no date control) |
+
+`core_emea` remains a disabled placeholder (see below) - it is a THIRD regional lane of the same
+programme and still needs its own payload branch, which the program split does NOT give it.
+
+**The split is a data-layer dimension, not a front-end filter over campaign names.** A `PROGRAM`
+column flows the whole contract: `sql/03_stg_tradedesk` (+ `01_stg_linkedin`) → `05_paid_media_model`
+/ `06_paid_creatives_model` → `job/main.py` `program` → `dashboard.html` `row.prog`. Values:
+
+- **`CORE_DG`** - briefs 1160 (High Impact/HyperlocalGeo) / 2103 (Q2 Core DG) / 2479 (Q3 Core DG),
+  plus all LinkedIn, Reddit and LINE. The `ELSE` arm, so a brand-new brief lands here rather than
+  vanishing - it just needs splitting out once someone notices it.
+- **`SURROUND_ABM`** - brief 2193: **Trade Desk only**, 5 campaigns
+  (`..._{ANZ,ASEAN,GCR,KR,IN}-SURROUND-ABM`, TTD ids `6cm53fr` / `y2kxvxf` / `9lg1jx3` / `on8odve` /
+  `hebzbzj`). Matched by **substring on the RAW name** (`'%surround%abm%'`, plus a `2193_` prefix
+  arm) - never a fixed offset, and it spans both name vintages in the feed (the same campaign exists
+  prefixed and un-prefixed - see the brief-number section above). Verified 2026-08-14: **10 distinct
+  raw names = 5 campaigns x 2 vintages**, which is exactly why the substring rule is not optional.
+
+**It is NOT a Q2 brief, despite the names.** Every campaign name reads `2026-Q2`, but delivery
+started **2026-06-12** and is still running: **Q2 38,095 imps / $2,722.20, Q3 81,013 imps /
+$4,714.45** (whole flight to 2026-08-12: **119,108 imps / 290 clicks / $7,436.65**; markets
+IN 61,921 · AUNZ 30,609 · HKTW 11,496 · SGMYIDPHTH 10,560 · KR 4,522 - all five remap cleanly
+through `PM_MARKET_REMAP`). Two thirds of it is Q3, so **never date-gate this lane to Q2** and don't
+call it a Q2 campaign - the name is not the flight. The dashboard opens on Q3, so the lane's default
+view is the Q3 portion; widen the range for the whole flight.
+
+**Core DG's Q2 numbers MOVE.** Q2 spend / impressions / clicks / market rows / creatives all drop by
+Surround ABM's delivery, because that is what "separate them" means. Q3 is unaffected (Surround ABM
+never ran in Q3). The AI deck (`buildDeckPayload`) is pinned to `CORE_DG` explicitly - it is the Core
+DG deliverable and is whole-flight, so it must not follow the lane selector.
+
+**The status-dashboard accuracy checks are unaffected, by design.** `paid_media.rows[]` still carries
+EVERY row - a `program` column was ADDED, nothing was removed - and the two TTD checks compare the
+whole Snowflake advertiser total against the sum of `rows[]`. So the split is a rendering dimension,
+not a data exclusion, and the monitor stays green with no mirrored edit. **Keep it that way:** if a
+lane is ever implemented by dropping rows from the payload instead of tagging them, those checks go
+red and the whole "advertiser-total vs dashboard-total catches a parsing regression" guarantee dies.
+
+**What the Surround ABM lane deliberately does NOT show** (`PROGRAMS[].tabs` / `.plans` in
+`dash/dashboard.html`, and the banner in `#laneNote` says so on screen):
+
+- **Only the Paid Media tab.** Content Syndication / CS Comparison / QoQ / Internal Notes are
+  CS-driven and are NOT program-scoped, so they would silently show Core DG's leads under a Surround
+  ABM heading.
+- **No budget pacing and no LinkedIn lead-commit block.** `PACING_PLANS` and `LI_LEADGEN_PLANS` are
+  Core DG's committed plans; grading another brief's spend against them would be worse than showing
+  nothing. `renderPacing` / `renderWeeklyTarget` / `liQ3PlanCtx` all gate on `laneCfg().plans`.
+- The lane's footer row-count and window are **lane-scoped**, so it never advertises Core DG's flight
+  over Surround ABM's numbers.
+
+**Surround ABM has Content-Syndication campaigns too, and they are still in CORE.** The 4 P*
+Salesforce ids labelled `CF Surround ABM *` in `definitions.json` (Q2-capped, see above) remain in
+the core 13-ID CS filter exactly as before - this change touched the PAID model only. Moving them
+would change the client's headline CS totals AND desync the status-dashboard CS checks, so it is a
+separate, deliberate piece of work if they ever ask for it.
+
+**To add another lane** (e.g. a future brief): one `WHEN` arm in the `PROGRAM` CASE in
+`sql/03_stg_tradedesk.sql` (mirror it in `01_stg_linkedin.sql` - keep the two byte-identical), one
+entry in `PROGRAMS` in `dash/dashboard.html`, one `<option>` in `#dashSelect`. Then reapply the views
+and run the job with `FORCE_REBUILD=1` (a view change is invisible to the freshness gate). The job
+prints a per-program `rows / imps / spend` line every run - that is the cheap check that the name
+parse still works, and the thing to read first if a lane ever goes empty.
+
+### Custom date range in the picker (2026-08-14)
+
+The calendar always allowed an arbitrary range by clicking a start then an end day, but there was no
+way to *type* a date and nothing in the preset list said "custom" - so a specific window (a flight, a
+client's reporting fortnight) meant paging the calendar. Added, in `dash/dashboard.html` only:
+
+- A **`Custom range`** preset, listed **last**. It is the "none of the above" state: it highlights
+  automatically whenever the selection matches no preset, and clicking it does NOT change the range -
+  it focuses the From field (overwriting a range you had just clicked out would be the wrong move).
+  `detectPreset()` skips it explicitly, or `presetRange()`'s `else` arm would make it masquerade as
+  "All time".
+- **From / To date inputs** under the calendar (`#dpFrom` / `#dpTo`). They edit the SAME draft the
+  calendar does, so the two always agree; `min`/`max` are bound to the data window, an out-of-window
+  entry clamps, and a reversed pair is swapped rather than rejected. Bound to `change`, not `input` -
+  a date input fires `input` on every partial keystroke and would clamp a half-typed year.
+- Apply commits as normal, so the quarter derivation (`syncQuarterFromRange`), the `.qlbl` captions
+  ("Quarter" for a custom span) and every tab re-render are unchanged.
+
 ### Lane dropdown: "Core DG APJ" + an EMEA placeholder (2026-08-05)
 
 The topbar dropdown's first entry was renamed **"Core Demand Generation" → "Core DG APJ"** (client
@@ -654,10 +745,10 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
     "row_count": 0,
     "window": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD", "days": 0 },
     "all_markets": ["ANZ","ASEAN","SAARC","RIG","KR","JP","GCR"],
-    "rows": [ { "channel","date","week_start","market","imps","clicks","spend_usd",
+    "rows": [ { "channel","program","date","week_start","market","imps","clicks","spend_usd",
                 "leads","form_opens","link_clicks","action_clicks","video_starts",
                 "video_completions","spend_jpy","fx_usd_jpy" } ],
-    "creatives": [ { "channel","market","creative","imps","clicks","spend_usd","leads" } ],
+    "creatives": [ { "channel","program","market","creative","imps","clicks","spend_usd","leads" } ],
     "benchmarks":        { "<channel>": { "ctr","cpm","cpc" } },
     "benchmarks_market": { "<market>":  { "ctr","cpm","cpc" } },
     "li_weekly": [ { "week","period","week_start","target","cum_target" } ]

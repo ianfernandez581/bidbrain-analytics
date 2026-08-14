@@ -59,10 +59,12 @@ dashboard's `adaptPayload` / `rawRows` code is unchanged:
     "row_count": 0,
     "window": { "start": "…", "end": "…", "days": 0 },
     "all_markets": ["ANZ","ASEAN","SAARC","RIG","KR","JP","GCR"],
-    "rows": [ { channel, date, week_start, market, imps, clicks, spend_usd, leads,
+    // `program` = the dashboard's lane: CORE_DG (default) or SURROUND_ABM (brief 2193).
+    // Set in sql/03_stg_tradedesk + 01_stg_linkedin; the build log prints the split each run.
+    "rows": [ { channel, program, date, week_start, market, imps, clicks, spend_usd, leads,
                 form_opens, link_clicks, action_clicks, video_starts, video_completions,
                 spend_jpy, fx_usd_jpy } ],
-    "creatives": [ { channel, market, creative, imps, clicks, spend_usd, leads } ],
+    "creatives": [ { channel, program, market, creative, imps, clicks, spend_usd, leads } ],
     "benchmarks":        { "<channel>": { ctr, cpm, cpc } },
     "benchmarks_market": { "<market>":  { ctr, cpm, cpc } },
     "li_weekly": [ { week, period, week_start, target, cum_target } ]
