@@ -38,7 +38,6 @@ read `client_schneider`'s views, so a scope change there cannot move numbers her
    and campaign × market breakdowns and a spend-by-campaign / impressions-by-region pair of charts.
 3. **Creative** — concepts, formats, best creatives by CTR, and a sortable/searchable detail table.
 
-<<<<<<< HEAD
 Filters: a **Campaign dropdown in the top nav bar** (the `client_schneider` / Cloudflare pattern -
 `#campSelect` + `setCampaign()`), plus **Market** chips and a **date range** (Overview + Campaigns;
 the Creative feed carries no date column, so the picker is hidden there).
@@ -50,10 +49,6 @@ point of this dashboard, so it is the default. Switching campaign **re-opens eve
 markets, so carrying a market selection across would silently zero the incoming campaign's numbers.
 **`.dash-select` must keep a SOLID background** - Chrome paints the native `<option>` list from the
 select's own background, so a translucent value makes every option invisible on the dark nav bar.
-=======
-Filters: **Campaign** chips · **Market** chips · **date range** (Overview + Campaigns; the Creative
-feed carries no date column, so the picker is hidden there).
->>>>>>> 18be5ac (park: WIP from charles)
 
 ## Architecture (standard 3-stage pattern)
 ```
