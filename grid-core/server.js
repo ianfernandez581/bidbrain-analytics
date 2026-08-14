@@ -34,6 +34,7 @@ const centralView = require('./src/central/render-central'); // for the single m
 const centralMatch = require('./src/central/match');          // unified exact/contains/rollup rule
 const centralReadiness = require('./src/central/readiness');  // live-coverage readiness table builder
 const greenlight = require('./expected/routes');              // Greenlight tab (plan-side checker; feature-flagged)
+const pacingSync = require('./pacing_intake/pacing_sync');    // batched BQ -> Central metrics, from the reviewed intake join
 const GREENLIGHT_ENABLED = String(process.env.GREENLIGHT_ENABLED || '').toLowerCase() === 'true';
 
 const ROOT = __dirname;
@@ -148,6 +149,10 @@ const server = http.createServer(async (req, res) => {
     // validated client (unknown/unvalidated → 400, nothing synced). See centralSync().
     if (p === '/api/central/sync/status' && req.method === 'GET') return centralSyncStatus(req, res);
     if (p === '/api/central/sync' && req.method === 'POST') return centralSync(req, res, url);
+    // Pacing sync: the reviewed intake join (pacing_intake/campaign_match_config.json)
+    // -> ONE batched BQ query per platform table -> the same db.syncCampaignMetrics
+    // the Central sync uses. ?dryRun=1 reports without writing. See pacingSync().
+    if (p === '/api/central/pacing-sync' && req.method === 'POST') return pacingSyncRoute(req, res, url);
     if (p === '/api/central/readiness' && req.method === 'GET') return centralReadinessRoute(req, res);
     if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)\/approve$/)) && req.method === 'POST') return centralReconcileApprove(req, res, decodeURIComponent(m[1]));
     if ((m = p.match(/^\/api\/central\/reconcile\/([^/]+)$/)) && req.method === 'GET') return centralReconcile(req, res, decodeURIComponent(m[1]));
@@ -462,6 +467,11 @@ let CENTRAL_SYNCING = false;   // concurrency guard (single-process; shared by m
 // so the platform tile read "never synced" even minutes after a successful sync.
 let CENTRAL_LAST_SYNC = db.getMeta('centralLastSync');
 const CENTRAL_AUTOSYNC_MIN = Number(process.env.CENTRAL_AUTOSYNC_MIN || 0);   // 0 = off (default)
+// Pacing sync gets its OWN interval, defaulting to Central's. Central's autosync
+// has always been off in production, so hanging pacing on that one variable meant
+// enabling pacing would silently switch Central's scheduled sync on as well.
+// Set PACING_AUTOSYNC_MIN alone to run pacing on a schedule and leave Central manual.
+const PACING_AUTOSYNC_MIN = Number(process.env.PACING_AUTOSYNC_MIN || CENTRAL_AUTOSYNC_MIN || 0);
 
 // The shared sync CORE — used by the manual route AND the auto-sync scheduler, so both
 // go through the same guard, rules and last-run tracking. Returns a summary object, or
@@ -551,6 +561,45 @@ function centralSyncStatus(req, res) {
   }));
   const coverage = { validated: clients.filter(c => c.validated).length, total: clients.length, clients };
   return send(res, 200, { running: CENTRAL_SYNCING, autosyncMin: CENTRAL_AUTOSYNC_MIN, lastRun: CENTRAL_LAST_SYNC, coverage });
+}
+
+// ---- Pacing sync (pacing_intake/) ----
+// Separate from the Central sync above because it resolves campaigns from the
+// REVIEWED intake join rather than central-clients.json, and it clamps spend to
+// each campaign's flight window. It shares the destination: db.syncCampaignMetrics,
+// so the spendMult rule and the clientSpend guard behave identically, and pacing
+// stays DERIVED in calc.js. Its own running guard keeps two ticks from overlapping.
+let PACING_SYNCING = false;
+let PACING_LAST_SYNC = db.getMeta ? (db.getMeta('pacingLastSync') || null) : null;
+
+async function pacingSyncRoute(req, res, url) {
+  if (PACING_SYNCING) return send(res, 409, { error: 'a pacing sync is already running — try again in a moment' });
+  const dryRun = url.searchParams.get('dryRun') === '1';
+  PACING_SYNCING = true;
+  try {
+    const r = await pacingSync.runPacingSync({ apply: !dryRun, quiet: true });
+    if (!dryRun) { PACING_LAST_SYNC = { at: r.syncedAt, updated: r.updated }; }
+    console.log(`[CENTRAL][PacingSync] ${dryRun ? 'dry run' : 'applied'} matched=${r.matched} updated=${r.updated} unmatched=${r.unmatched} queries=${r.queries}`);
+    return send(res, 200, Object.assign({ rows: db.getCampaigns() }, r));
+  } catch (e) {
+    console.error('[CENTRAL][PacingSync] failed:', e.message);
+    return send(res, 502, { error: 'pacing sync failed: ' + e.message });
+  } finally { PACING_SYNCING = false; }
+}
+
+// Tick on the same cadence as the Central auto-sync. Fire-and-forget; a tick
+// that lands while one is running simply skips, and a failure is logged rather
+// than thrown, so a bad BQ moment can never take the server down.
+function pacingAutoSyncTick() {
+  if (PACING_SYNCING) { console.log('[CENTRAL][PacingSync] skipped (already running)'); return; }
+  PACING_SYNCING = true;
+  pacingSync.runPacingSync({ apply: true, quiet: true })
+    .then((r) => {
+      PACING_LAST_SYNC = { at: r.syncedAt, updated: r.updated };
+      console.log(`[CENTRAL][PacingSync] auto: updated=${r.updated} of ${r.matched} matched (${r.unmatched} unmatched)`);
+    })
+    .catch((e) => console.error('[CENTRAL][PacingSync] auto failed:', e.message))
+    .finally(() => { PACING_SYNCING = false; });
 }
 
 // Auto-sync tick — same core as the manual route (guard-safe: a tick during a manual
@@ -769,6 +818,15 @@ server.listen(PORT, () => {
     const iv = setInterval(centralAutoSyncTick, CENTRAL_AUTOSYNC_MIN * 60000);
     if (iv.unref) iv.unref();
     console.log(`  Central auto-sync: enabled, every ${CENTRAL_AUTOSYNC_MIN} min`);
+  }
+  // Pacing sync runs on its own interval, offset half a period so that when both
+  // are enabled they never contend for BigQuery or for the same campaign row.
+  if (PACING_AUTOSYNC_MIN > 0) {
+    const ivp = setInterval(pacingAutoSyncTick, PACING_AUTOSYNC_MIN * 60000);
+    if (ivp.unref) ivp.unref();
+    const warm = setTimeout(pacingAutoSyncTick, PACING_AUTOSYNC_MIN * 30000);
+    if (warm.unref) warm.unref();
+    console.log(`  Pacing sync: enabled, every ${PACING_AUTOSYNC_MIN} min (first run in ${PACING_AUTOSYNC_MIN / 2} min)`);
   }
   // Executive tab: warm the KPI cache on boot, then refresh on an interval so "Sync now" is instant.
   computeExec();

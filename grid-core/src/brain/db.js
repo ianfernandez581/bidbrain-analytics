@@ -105,7 +105,12 @@ const CENTRAL_EDIT_FIELDS = ['managedBy', 'channel', 'status', 'platformMargin',
   'adServingCost', 'notes', 'spendMult',
   // 'name' added Phase 3 (Cloudflare run, per Phase 2 finding #3): unnamed-but-real rows are
   // repairable from Central's fill-empty affordance. The UI only offers it when name is EMPTY.
-  'name'];
+  'name',
+  // 'currency' added 2026-08-15: it was settable only at create time, on no whitelist, so
+  // 14 rows the pacing intake knows the currency for could be corrected by hand in the UI
+  // and by nothing else. It is a plain CONFIG label - it denominates the figures rather
+  // than changing them, and no calc reads it - so a strict-whitelist entry is the fix.
+  'currency'];
 // DERIVED fields — never writable by anything. Any attempt is rejected (defense in depth).
 // NOTE: kpiPerformance is NOT derived — the sheet's "KPI Performance" is hand-typed text
 // (calc.js's passthrough was a never-implemented TODO), so it is an editable CONFIG field.

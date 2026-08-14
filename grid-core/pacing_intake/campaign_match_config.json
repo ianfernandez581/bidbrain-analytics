@@ -1,0 +1,1340 @@
+{
+  "generatedAt": "2026-08-14T22:11:36Z",
+  "source": "pacing_intake_FINAL.xlsx",
+  "note": "Reviewed against platform screenshots and approved. Regenerate with build_match_audit.js; do not hand-edit.",
+  "campaigns": [
+    {
+      "client": "Gateway",
+      "platform": "Meta",
+      "campaign": "Gateway Project",
+      "table": "raw_windsor.perf_meta",
+      "matchNames": [
+        "Geocon_Retargeting_JunJul2026",
+        "Geocon_Leads_MayJune2026"
+      ],
+      "matchNameKeys": [
+        "geocon_retargeting_junjul2026",
+        "geocon_leads_mayjune2026"
+      ],
+      "matchIds": [
+        "120248473109820573",
+        "120246353948120573"
+      ],
+      "pendingIds": [
+        "120250096915350"
+      ],
+      "pendingNames": [],
+      "budget": 3750,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-27",
+      "flightEnd": "2026-08-13",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "VMCH",
+      "platform": "Trade Desk",
+      "campaign": "Retirement Living",
+      "table": "raw_windsor.perf_the_trade_desk",
+      "matchNames": [
+        "RL_AU_ID Digital_VMCH_2026"
+      ],
+      "matchNameKeys": [
+        "rl_au_id digital_vmch_2026"
+      ],
+      "matchIds": [
+        "5sgza8b"
+      ],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 15000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-05-12",
+      "flightEnd": "2026-08-15",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "The Little Marionette",
+      "platform": "Google Ads",
+      "campaign": "Always On",
+      "table": "raw_google_ads.perf_google_ads",
+      "matchNames": [
+        "[RETAIL] Coffee Pods",
+        "PMax | Brand | RMKT | All Inventory",
+        "[SUBS] Coffee Beans - Subscription",
+        "[SUBS] Coffee Pod Subscription",
+        "[RETAIL] Drip and Steep Bags",
+        "[RETAIL] Decaf Coffee",
+        "PMax Combined | All Inventory",
+        "[RETAIL] Single Origin Coffee"
+      ],
+      "matchNameKeys": [
+        "[retail] coffee pods",
+        "pmax | brand | rmkt | all inventory",
+        "[subs] coffee beans - subscription",
+        "[subs] coffee pod subscription",
+        "[retail] drip and steep bags",
+        "[retail] decaf coffee",
+        "pmax combined | all inventory",
+        "[retail] single origin coffee"
+      ],
+      "matchIds": [
+        "23671025677",
+        "23876442384",
+        "23661012363",
+        "23671025662",
+        "23671025680",
+        "23671025674",
+        "21543805142",
+        "23671025671"
+      ],
+      "pendingIds": [
+        "23671025686",
+        "23671025665"
+      ],
+      "pendingNames": [],
+      "budget": 7500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-01",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "The Little Marionette",
+      "platform": "Trade Desk",
+      "campaign": "Always On",
+      "table": "raw_windsor.perf_the_trade_desk",
+      "matchNames": [
+        "TLM_Always-On_2026"
+      ],
+      "matchNameKeys": [
+        "tlm_always-on_2026"
+      ],
+      "matchIds": [
+        "k2j56mu"
+      ],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 2500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-01",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "ResetData",
+      "platform": "Trade Desk",
+      "campaign": "Always On",
+      "table": "raw_windsor.perf_the_trade_desk",
+      "matchNames": [
+        "ResetData_Apr26"
+      ],
+      "matchNameKeys": [
+        "resetdata_apr26"
+      ],
+      "matchIds": [
+        "7vy8z2a"
+      ],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 7911.69,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-01",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "ResetData",
+      "platform": "Reddit",
+      "campaign": "Always On",
+      "table": "raw_windsor.perf_reddit",
+      "matchNames": [
+        "TOF | Conversion | Community | Resetdata | AlwaysOn26 | AU"
+      ],
+      "matchNameKeys": [
+        "tof | conversion | community | resetdata | alwayson26 | au"
+      ],
+      "matchIds": [
+        "2475773031867677073"
+      ],
+      "pendingIds": [
+        "2522428009033302847"
+      ],
+      "pendingNames": [],
+      "budget": 1500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-01",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "ResetData",
+      "platform": "Meta",
+      "campaign": "Always On",
+      "table": "raw_windsor.perf_meta",
+      "matchNames": [
+        "ResetData_Jun26_Retargeting",
+        "ResetData_Jun26_Acquisition"
+      ],
+      "matchNameKeys": [
+        "resetdata_jun26_retargeting",
+        "resetdata_jun26_acquisition"
+      ],
+      "matchIds": [
+        "120249083612410421",
+        "120248343662330421"
+      ],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 3000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-01",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "ResetData",
+      "platform": "Google Ads",
+      "campaign": "Always On",
+      "table": "raw_google_ads.perf_google_ads",
+      "matchNames": [
+        "AI Inference Platform & Sovereign LLMs",
+        "Enterprise AI Solutions",
+        "MSP Channel Program ANZ",
+        "[CLOUD] HT | S | Max Conv",
+        "GPU-as-a-Service & Sovereign GPU Compute",
+        "AI Inference Platform",
+        "[BRAND] ResetData | S | Max Conv",
+        "[SECTOR] Enterprise AI - Finance and Health | S | Max Conv",
+        "[SECTOR] Research and Education | S | Max Conv"
+      ],
+      "matchNameKeys": [
+        "ai inference platform & sovereign llms",
+        "enterprise ai solutions",
+        "msp channel program anz",
+        "[cloud] ht | s | max conv",
+        "gpu-as-a-service & sovereign gpu compute",
+        "ai inference platform",
+        "[brand] resetdata | s | max conv",
+        "[sector] enterprise ai - finance and health | s | max conv",
+        "[sector] research and education | s | max conv"
+      ],
+      "matchIds": [
+        "23888415306",
+        "23888620716",
+        "23888620722",
+        "23547295813",
+        "23888620719",
+        "23889335965",
+        "23671053568",
+        "23671053589",
+        "23671053592"
+      ],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 6000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-01",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Caltex",
+      "platform": "Trade Desk",
+      "campaign": "Star Card",
+      "table": "raw_windsor.perf_the_trade_desk",
+      "matchNames": [
+        "Caltex Star Card | QLD+WA | Jul–Oct 2026"
+      ],
+      "matchNameKeys": [
+        "caltex star card | qld+wa | jul-oct 2026"
+      ],
+      "matchIds": [
+        "85k1vmm"
+      ],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 15000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-29",
+      "flightEnd": "2026-10-29",
+      "status": "Active",
+      "manager": "Charles",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "STT",
+      "platform": "LinkedIn",
+      "campaign": "AI Infra TH",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "PO1663_ST Telemedia GDC_LI_FY26_AI Infrastructure Readiness_TH"
+      ],
+      "matchNameKeys": [
+        "po1663_st telemedia gdc_li_fy26_ai infrastructure readiness_th"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 4112,
+      "currency": "SGD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-24",
+      "flightEnd": "2026-08-03",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Cloudflare",
+      "platform": "Trade Desk",
+      "campaign": "Surround ABM",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2193_CLOUD_ACQ_2026-Q2_CNC_TTD_GENERAL_SI_APAC-ANZ_AUNZ_MOFU_GENERAL_X_AWARENESS_ANZ-SURROUND-ABM",
+        "2193_CLOUD_ACQ_2026-Q2_CNC_TTD_GENERAL_SI_APAC-ASEAN_SGMYIDPHTH_MOFU_GENERAL_X_AWARENESS_ASEAN-SURROUND-ABM",
+        "2193_CLOUD_ACQ_2026-Q2_CNC_TTD_GENERAL_SI_APAC-GCR_HKTW_MOFU_GENERAL_X_AWARENESS_GCR-SURROUND-ABM",
+        "2193_CLOUD_ACQ_2026-Q2_CNC_TTD_GENERAL_SI_APAC-KOR_KR_MOFU_GENERAL_X_AWARENESS_KR-SURROUND-ABM",
+        "2193_CLOUD_ACQ_2026-Q2_CNC_TTD_GENERAL_SI_APAC-SAARC_IN_MOFU_GENERAL_X_AWARENESS_IN-SURROUND-ABM"
+      ],
+      "matchNameKeys": [
+        "cloud_acq_2026-q2_cnc_ttd_general_si_apac-anz_aunz_mofu_general_x_awareness_anz-surround-abm",
+        "cloud_acq_2026-q2_cnc_ttd_general_si_apac-asean_sgmyidphth_mofu_general_x_awareness_asean-surround-abm",
+        "cloud_acq_2026-q2_cnc_ttd_general_si_apac-gcr_hktw_mofu_general_x_awareness_gcr-surround-abm",
+        "cloud_acq_2026-q2_cnc_ttd_general_si_apac-kor_kr_mofu_general_x_awareness_kr-surround-abm",
+        "cloud_acq_2026-q2_cnc_ttd_general_si_apac-saarc_in_mofu_general_x_awareness_in-surround-abm"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 14400,
+      "currency": "USD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-05",
+      "flightEnd": "2026-09-17",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "PARTIAL",
+      "joinMethod": "name_pattern",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Cloudflare",
+      "platform": "Trade Desk",
+      "campaign": "Q3 Core DG",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-ANZ_ANZ_GENERAL_GENERAL_X_GENERAL_ANZ-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-ASEAN_ASEAN_GENERAL_GENERAL_X_GENERAL_ASEAN-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-IN_IN_GENERAL_GENERAL_X_GENERAL_IN-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-KR_KR_GENERAL_GENERAL_X_GENERAL_KR-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-TCN_HK_GENERAL_GENERAL_X_GENERAL_HK-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-TCN_TW_GENERAL_GENERAL_X_GENERAL_TW-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_JAPAN-JPN_JP_GENERAL_GENERAL_X_GENERAL_JP-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_TTD_GENERAL_GENERAL_APAC-SCN_CN_GENERAL_GENERAL_X_GENERAL_CN-COREDG-Q3"
+      ],
+      "matchNameKeys": [
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-anz_anz_general_general_x_general_anz-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-asean_asean_general_general_x_general_asean-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-in_in_general_general_x_general_in-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-kr_kr_general_general_x_general_kr-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-tcn_hk_general_general_x_general_hk-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-tcn_tw_general_general_x_general_tw-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_japan-jpn_jp_general_general_x_general_jp-coredg-q3",
+        "cloud_acq_2026-q3_mds_ttd_general_general_apac-scn_cn_general_general_x_general_cn-coredg-q3"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 47624,
+      "currency": "USD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-01",
+      "flightEnd": "2026-09-30",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "PARTIAL",
+      "joinMethod": "name_pattern",
+      "intakeRowsMerged": 2
+    },
+    {
+      "client": "Cloudflare",
+      "platform": "LinkedIn",
+      "campaign": "Q3 Core DG",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2479_CLOUD_ACQ_2026-Q3_MDS_LINKEDIN_GENERAL_GENERAL_APAC-IN_IN_GENERAL_GENERAL_X_GENERAL_IN-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_LINKEDIN_GENERAL_GENERAL_APAC-ASEAN_ASEAN_GENERAL_GENERAL_X_GENERAL_ASEAN-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_LINKEDIN_GENERAL_GENERAL_APAC-ANZ_ANZ_GENERAL_GENERAL_X_GENERAL_ANZ-COREDG-Q3",
+        "2479_CLOUD_ACQ_2026-Q3_MDS_LINKEDIN_GENERAL_GENERAL_APAC-TCN_HK_GENERAL_GENERAL_X_GENERAL_HK-COREDG-Q3"
+      ],
+      "matchNameKeys": [
+        "cloud_acq_2026-q3_mds_linkedin_general_general_apac-in_in_general_general_x_general_in-coredg-q3",
+        "cloud_acq_2026-q3_mds_linkedin_general_general_apac-asean_asean_general_general_x_general_asean-coredg-q3",
+        "cloud_acq_2026-q3_mds_linkedin_general_general_apac-anz_anz_general_general_x_general_anz-coredg-q3",
+        "cloud_acq_2026-q3_mds_linkedin_general_general_apac-tcn_hk_general_general_x_general_hk-coredg-q3"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 61022,
+      "currency": "USD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-01",
+      "flightEnd": "2026-09-30",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "PARTIAL",
+      "joinMethod": "name_pattern",
+      "intakeRowsMerged": 2
+    },
+    {
+      "client": "Cloudflare",
+      "platform": "Google Ads",
+      "campaign": "Q3 Core DG",
+      "table": "raw_snowflake.google_ads_apac",
+      "matchNames": [
+        "CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting"
+      ],
+      "matchNameKeys": [
+        "cf_jp_q3_tofu_youtube_videoviews_prospecting"
+      ],
+      "matchIds": [
+        "24037386856"
+      ],
+      "pendingIds": [
+        "24029396370"
+      ],
+      "pendingNames": [],
+      "budget": 10574,
+      "currency": "USD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-15",
+      "flightEnd": "2026-09-30",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 2
+    },
+    {
+      "client": "Cloudflare",
+      "platform": "LinkedIn",
+      "campaign": "ANZ-DNB",
+      "table": "raw_windsor.perf_linkedin",
+      "matchNames": [
+        "2446_CLOUD_ACQ_2026-Q2_DNB_LINKEDIN_GENERAL_SI_APAC-ANZ_ANZ_MOFU_GENERAL_X_AWR-CONS_ANZ-DNB"
+      ],
+      "matchNameKeys": [
+        "cloud_acq_2026-q2_dnb_linkedin_general_si_apac-anz_anz_mofu_general_x_awr-cons_anz-dnb"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 12450,
+      "currency": "USD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-21",
+      "flightEnd": "2026-07-31",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "PARTIAL",
+      "joinMethod": "name_pattern",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "Water and Environment",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2226_SE_WaterEnv_P2_AWR - AU",
+        "2226_SE_WaterEnv_P2_AWR - NZ"
+      ],
+      "matchNameKeys": [
+        "se_waterenv_p2_awr - au",
+        "se_waterenv_p2_awr - nz"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 12192,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-04-30",
+      "flightEnd": "2027-03-01",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 2
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "Water and Environment",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2226_SE_WaterEnv_P2_2026_Apr-Dec"
+      ],
+      "matchNameKeys": [
+        "se_waterenv_p2_2026_apr-dec"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 9975,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-04-28",
+      "flightEnd": "2027-03-01",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "Ent IT",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "1958_SE_EntIT_2026_India",
+        "1958_SE_EntIT_2026_MEA",
+        "1958_SE_EntIT_2026_PAC",
+        "1958_SE_EntIT_2026_S2_India",
+        "1958_SE_EntIT_2026_S2_MEA",
+        "1958_SE_EntIT_2026_S2_SAM",
+        "1958_SE_EntIT_2026_SAM"
+      ],
+      "matchNameKeys": [
+        "se_entit_2026_india",
+        "se_entit_2026_mea",
+        "se_entit_2026_pac",
+        "se_entit_2026_s2_india",
+        "se_entit_2026_s2_mea",
+        "se_entit_2026_s2_sam",
+        "se_entit_2026_sam"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 60064,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-05-13",
+      "flightEnd": "2026-10-31",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "Ent IT",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "1958_SE_EntIT_2026_India",
+        "1958_SE_EntIT_2026_MEA",
+        "1958_SE_EntIT_2026_PAC",
+        "1958_SE_EntIT_2026_SAM"
+      ],
+      "matchNameKeys": [
+        "se_entit_2026_india",
+        "se_entit_2026_mea",
+        "se_entit_2026_pac",
+        "se_entit_2026_sam"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 39936,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-05-13",
+      "flightEnd": "2026-09-30",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "LiquidAI",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2306_SE_LQAIDC_TTD_TOFU_May26",
+        "2306_SE_LQAIDC_TTD_PREMIUM__Aug26 - 1"
+      ],
+      "matchNameKeys": [
+        "se_lqaidc_ttd_tofu_may26",
+        "se_lqaidc_ttd_premium__aug26 - 1"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 53400,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-05-17",
+      "flightEnd": "2026-12-31",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "LiquidAI",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2306_SE_LQAIDC_LI_AWAR_May26"
+      ],
+      "matchNameKeys": [
+        "se_lqaidc_li_awar_may26"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [
+        "2306_SE_LQAIDC_LI_RTG_Aug26"
+      ],
+      "budget": 69420,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-04-20",
+      "flightEnd": "2026-12-31",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "NEL",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2053_SE_NEL_TTD_AWR_AU_Jun26",
+        "2053_SE_NEL_TTD_AWR_NZ_Jun26"
+      ],
+      "matchNameKeys": [
+        "se_nel_ttd_awr_au_jun26",
+        "se_nel_ttd_awr_nz_jun26"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 8000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-16",
+      "flightEnd": "2026-09-02",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "NEL",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2053_SE_NEL_2026_ANZ_LI_Awareness",
+        "2053_SE_NEL_2026_ANZ_LI_Conversion",
+        "2053_SE_NEL_2026_ANZ_LI_Consideration"
+      ],
+      "matchNameKeys": [
+        "se_nel_2026_anz_li_awareness",
+        "se_nel_2026_anz_li_conversion",
+        "se_nel_2026_anz_li_consideration"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 27000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-20",
+      "flightEnd": "2026-09-26",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "MCSet Awareness",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2389_SE_ANZ_MCSet EvoPact_AWAR"
+      ],
+      "matchNameKeys": [
+        "se_anz_mcset evopact_awar"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 14500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-08-05",
+      "flightEnd": "2026-11-30",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Google Ads",
+      "campaign": "MCSet Awareness",
+      "table": "raw_google_ads.perf_google_ads",
+      "matchNames": [],
+      "matchNameKeys": [],
+      "matchIds": [],
+      "pendingIds": [
+        "24114699045",
+        "24125299186"
+      ],
+      "pendingNames": [],
+      "budget": 4000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-08-11",
+      "flightEnd": "2026-11-30",
+      "status": "Active",
+      "manager": "Charles",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id (pending)",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "2223_SE_Airset SM_ANZ_display_AWR",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2223_SE AirSeT_ANZ_HighImpact_AWR_2026"
+      ],
+      "matchNameKeys": [
+        "se airset_anz_highimpact_awr_2026"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": null,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-19",
+      "flightEnd": "2026-12-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 2
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2223_SE_Airset SM_ANZ_post_AWR",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "SE AirSeT 2026 – Awareness",
+        "2223_SE AirSeT 2026 – Retargeting LeadGen"
+      ],
+      "matchNameKeys": [
+        "se airset 2026 - awareness",
+        "se airset 2026 - retargeting leadgen"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 37500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-11",
+      "flightEnd": "2026-12-31",
+      "status": "Not launched",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 4
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "2079_SE_Ecostruxure Building Activate_ANZ_display_AWR",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2079_SE_EBA_Activate_AWR_June4"
+      ],
+      "matchNameKeys": [
+        "se_eba_activate_awr_june4"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 20000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-05",
+      "flightEnd": "2026-08-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2061_SE_Advancing Energy Technology_ANZ_image+carousel_AWR",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2061-SE_AET_2026_ANZ_LI_Consideration",
+        "2061-SE_AET_2026_ANZ_LI_Awareness"
+      ],
+      "matchNameKeys": [
+        "se_aet_2026_anz_li_consideration",
+        "se_aet_2026_anz_li_awareness"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 26000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-02",
+      "flightEnd": "2026-12-11",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 3
+    },
+    {
+      "client": "Schneider",
+      "platform": "Google Ads",
+      "campaign": "2061_SE_Advancing Energy Technology_ANZ_keywords_CNV",
+      "table": "raw_snowflake.google_ads_apac",
+      "matchNames": [
+        "AET - Schneider Electric Branded - AU",
+        "AET - Schneider Electric Branded - NZ",
+        "AET - Energy Management - AU",
+        "AET - Electrification & Automation - AU",
+        "AET - Electrification & Automation - NZ",
+        "AET - Sustainability & Net Zero - AU",
+        "AET - Energy Technology Category - AU",
+        "AET - Energy Management - NZ",
+        "AET - Sustainability & Net Zero - NZ"
+      ],
+      "matchNameKeys": [
+        "aet - schneider electric branded - au",
+        "aet - schneider electric branded - nz",
+        "aet - energy management - au",
+        "aet - electrification & automation - au",
+        "aet - electrification & automation - nz",
+        "aet - sustainability & net zero - au",
+        "aet - energy technology category - au",
+        "aet - energy management - nz",
+        "aet - sustainability & net zero - nz"
+      ],
+      "matchIds": [
+        "23984735922",
+        "23984735925",
+        "23984735928",
+        "23994285343",
+        "23994285346",
+        "23994285349",
+        "23984735916",
+        "23984735931",
+        "23994285352"
+      ],
+      "pendingIds": [
+        "23984735919"
+      ],
+      "pendingNames": [],
+      "budget": 11000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-07",
+      "flightEnd": "2026-12-11",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "EXACT",
+      "joinMethod": "campaign_id",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "2305_SE_Software First EcoStruxure_ANZ_display_AWR",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2305_SE_Software First EcoStruxure_AWR_ANZ_display"
+      ],
+      "matchNameKeys": [
+        "se_software first ecostruxure_awr_anz_display"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 13200,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-17",
+      "flightEnd": "2026-09-30",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2305_SE_Software First EcoStruxure_ANZ_static_AWR",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2463_SE_Software First EcoStruxure_AWR_ANZ_static"
+      ],
+      "matchNameKeys": [
+        "se_software first ecostruxure_awr_anz_static"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 10200,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-06-22",
+      "flightEnd": "2026-09-30",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2305_SE_Software First EcoStruxure_ANZ_image_RTG1",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2305_SE_Software First EcoStruxure_RTG1_ANZ_image"
+      ],
+      "matchNameKeys": [
+        "se_software first ecostruxure_rtg1_anz_image"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 2500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": null,
+      "flightEnd": "2026-08-31",
+      "status": "Not launched",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2305_SE_Software First EcoStruxure_ANZ_document_CNS",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2463_SE_Software First EcoStruxure_CNS_ANZ_document"
+      ],
+      "matchNameKeys": [
+        "se_software first ecostruxure_cns_anz_document"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 13000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": null,
+      "flightEnd": "2026-10-31",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "2463_SE_Industrial Edge Wave3_ANZ_display_AWR",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2463_SE_Industrial Edge Wave3_AWR_ANZ_display"
+      ],
+      "matchNameKeys": [
+        "se_industrial edge wave3_awr_anz_display"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 9150,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-01",
+      "flightEnd": "2026-11-30",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "Trade Desk",
+      "campaign": "2281_SE_Heavy Industries_ANZ_display_P1_AWR",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2281_SE Heavy Industries_AWR ANZ"
+      ],
+      "matchNameKeys": [
+        "se heavy industries_awr anz"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [
+        "2281_SE Heavy Industries_CONS"
+      ],
+      "budget": 27681,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-15",
+      "flightEnd": "2026-12-11",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 8
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2281_SE_Heavy Industries_ANZ_leadgen_P2_CNV",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2281_HeavyIndustries_LinkedIn_ANZ"
+      ],
+      "matchNameKeys": [
+        "heavyindustries_linkedin_anz"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 6649,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-15",
+      "flightEnd": "2026-12-11",
+      "status": "Active",
+      "manager": "Zhen",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 2
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "2040_SE_Microgrid_Awareness_july2026_AU",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2040 SE_Microgrid_Awareness_July2026-AU"
+      ],
+      "matchNameKeys": [
+        "se_microgrid_awareness_july2026-au"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [
+        "MicroGrid"
+      ],
+      "budget": 7775,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-27",
+      "flightEnd": "2026-10-18",
+      "status": "Active",
+      "manager": "Charles",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "Ecoconsult AWR",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2279_SE_EcoConsult_ECAA_2026_ANZ_Awareness"
+      ],
+      "matchNameKeys": [
+        "se_ecoconsult_ecaa_2026_anz_awareness"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 10500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-07-21",
+      "flightEnd": "2026-09-19",
+      "status": "Active",
+      "manager": "Charles",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "Ecoconsult CNS",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2279_SE_EcoConsult_ECAA_2026_ANZ_Consideration"
+      ],
+      "matchNameKeys": [
+        "se_ecoconsult_ecaa_2026_anz_consideration"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 9000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-08-01",
+      "flightEnd": "2026-11-30",
+      "status": "Active",
+      "manager": "Charles",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "Schneider",
+      "platform": "LinkedIn",
+      "campaign": "Ecoconsult CVS",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2279_SE_EcoConsult_ECAA_2026_ANZ_Conversion"
+      ],
+      "matchNameKeys": [
+        "se_ecoconsult_ecaa_2026_anz_conversion"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 4500,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-08-04",
+      "flightEnd": "2026-11-30",
+      "status": "Active",
+      "manager": "Charles",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "PropTrack",
+      "platform": "Trade Desk",
+      "campaign": "Banking ABM",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "PROPTRACK_BANKING-ABM_MAY-JUN2026_DISPLAY_AU",
+        "PROPTRACK_BANKING-ABM_MAY-JUN2026_VIDEO_AU"
+      ],
+      "matchNameKeys": [
+        "proptrack_banking-abm_may-jun2026_display_au",
+        "proptrack_banking-abm_may-jun2026_video_au"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 12000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-04-20",
+      "flightEnd": "2026-12-31",
+      "status": "Paused",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "PropTrack",
+      "platform": "LinkedIn",
+      "campaign": "Banking ABM",
+      "table": "raw_snowflake.linkedin_ads_apac",
+      "matchNames": [
+        "2011_PropTrack_Banking ABM_AU_Leadgen",
+        "2011_PropTrack_Banking ABM_AU_Awareness"
+      ],
+      "matchNameKeys": [
+        "proptrack_banking abm_au_leadgen",
+        "proptrack_banking abm_au_awareness"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 12000,
+      "currency": "AUD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-04-06",
+      "flightEnd": "2026-06-30",
+      "status": "Paused",
+      "manager": "Mel",
+      "confidence": "HIGH",
+      "joinMethod": "group_name",
+      "intakeRowsMerged": 1
+    },
+    {
+      "client": "MongoDB",
+      "platform": "Trade Desk",
+      "campaign": "Key Growth Accounts IDC",
+      "table": "raw_snowflake.tradedesk_apac_all",
+      "matchNames": [
+        "2265_MONGODB_2026-Q2_IDE_APJ_DEMAND-GENERATION_ASEAN",
+        "2265_MONGODB_2026-Q2_IDE_APJ_DEMAND-GENERATION_INDIA",
+        "2265_MONGODB_2026-Q2_IDE_APJ_DEMAND-GENERATION_KR-HK-TW",
+        "2265_MONGODB_2026-Q2_IDC_APJ_DEMAND-GENERATION_ANZ",
+        "2265_MONGODB_2026-Q2_IDC_APJ_DEMAND-GENERATION_ASEAN",
+        "2265_MONGODB_2026-Q2_IDC_APJ_DEMAND-GENERATION_INDIA",
+        "2265_MONGODB_2026-Q2_IDC_APJ_DEMAND-GENERATION_KR-HK-TW"
+      ],
+      "matchNameKeys": [
+        "mongodb_2026-q2_ide_apj_demand-generation_asean",
+        "mongodb_2026-q2_ide_apj_demand-generation_india",
+        "mongodb_2026-q2_ide_apj_demand-generation_kr-hk-tw",
+        "mongodb_2026-q2_idc_apj_demand-generation_anz",
+        "mongodb_2026-q2_idc_apj_demand-generation_asean",
+        "mongodb_2026-q2_idc_apj_demand-generation_india",
+        "mongodb_2026-q2_idc_apj_demand-generation_kr-hk-tw"
+      ],
+      "matchIds": [],
+      "pendingIds": [],
+      "pendingNames": [],
+      "budget": 30876,
+      "currency": "USD",
+      "budgetBasis": "CLIENT_BILLED",
+      "spendMult": 1,
+      "flightStart": "2026-05-22",
+      "flightEnd": "2026-07-30",
+      "status": "Active",
+      "manager": "Mel",
+      "confidence": "PARTIAL",
+      "joinMethod": "name_pattern",
+      "intakeRowsMerged": 1
+    }
+  ]
+}
