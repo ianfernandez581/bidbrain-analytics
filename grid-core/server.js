@@ -467,6 +467,11 @@ let CENTRAL_SYNCING = false;   // concurrency guard (single-process; shared by m
 // so the platform tile read "never synced" even minutes after a successful sync.
 let CENTRAL_LAST_SYNC = db.getMeta('centralLastSync');
 const CENTRAL_AUTOSYNC_MIN = Number(process.env.CENTRAL_AUTOSYNC_MIN || 0);   // 0 = off (default)
+// Pacing sync gets its OWN interval, defaulting to Central's. Central's autosync
+// has always been off in production, so hanging pacing on that one variable meant
+// enabling pacing would silently switch Central's scheduled sync on as well.
+// Set PACING_AUTOSYNC_MIN alone to run pacing on a schedule and leave Central manual.
+const PACING_AUTOSYNC_MIN = Number(process.env.PACING_AUTOSYNC_MIN || CENTRAL_AUTOSYNC_MIN || 0);
 
 // The shared sync CORE — used by the manual route AND the auto-sync scheduler, so both
 // go through the same guard, rules and last-run tracking. Returns a summary object, or
@@ -813,12 +818,15 @@ server.listen(PORT, () => {
     const iv = setInterval(centralAutoSyncTick, CENTRAL_AUTOSYNC_MIN * 60000);
     if (iv.unref) iv.unref();
     console.log(`  Central auto-sync: enabled, every ${CENTRAL_AUTOSYNC_MIN} min`);
-    // Pacing sync rides the same cadence, offset by half an interval so the two
-    // never contend for BigQuery or for the same campaign row on one tick.
-    const ivp = setInterval(pacingAutoSyncTick, CENTRAL_AUTOSYNC_MIN * 60000);
+  }
+  // Pacing sync runs on its own interval, offset half a period so that when both
+  // are enabled they never contend for BigQuery or for the same campaign row.
+  if (PACING_AUTOSYNC_MIN > 0) {
+    const ivp = setInterval(pacingAutoSyncTick, PACING_AUTOSYNC_MIN * 60000);
     if (ivp.unref) ivp.unref();
-    setTimeout(pacingAutoSyncTick, CENTRAL_AUTOSYNC_MIN * 30000).unref?.();
-    console.log(`  Pacing sync: enabled, every ${CENTRAL_AUTOSYNC_MIN} min (offset ${CENTRAL_AUTOSYNC_MIN / 2} min)`);
+    const warm = setTimeout(pacingAutoSyncTick, PACING_AUTOSYNC_MIN * 30000);
+    if (warm.unref) warm.unref();
+    console.log(`  Pacing sync: enabled, every ${PACING_AUTOSYNC_MIN} min (first run in ${PACING_AUTOSYNC_MIN / 2} min)`);
   }
   // Executive tab: warm the KPI cache on boot, then refresh on an interval so "Sync now" is instant.
   computeExec();

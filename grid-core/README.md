@@ -397,8 +397,15 @@ never-overwrite-a-sheet-`clientSpend` guard behave identically, and pacing stays
   budget the intake must never rewrite (whole-programme figures the intake carries per line).
 - **`pacing_sync.js`** — ONE batched query per platform table (8 today, regardless of campaign
   count). Exports `runPacingSync({apply, quiet, includeEnded})`; `POST /api/central/pacing-sync`
-  (`?dryRun=1` reports without writing) and a tick on `CENTRAL_AUTOSYNC_MIN`, offset half an
-  interval from the Central sync so the two never contend.
+  (`?dryRun=1` reports without writing) and an optional scheduled tick.
+- **Scheduling:** `PACING_AUTOSYNC_MIN=<minutes>` (0/unset = off). It falls back to
+  `CENTRAL_AUTOSYNC_MIN` when unset, but it is a SEPARATE knob on purpose - Central's autosync
+  has always been off in production, so a shared variable would mean enabling pacing silently
+  switched Central's scheduled sync on too. Set `PACING_AUTOSYNC_MIN` alone to run pacing on a
+  schedule and leave Central on its manual "Sync now". The pacing tick is offset half a period
+  so that when both are on they never contend for BigQuery or for the same campaign row.
+  60 min suits the data: the raw feeds are daily-grain and land nightly (Windsor) or every 10
+  min (Snowflake), so a shorter interval re-scans the same eight tables for the same numbers.
 - **`resolve_central.js`** — the shared intake-row-to-Central-row rule. Both writers use it so
   they can never disagree about which row a campaign is; two copies would drift silently.
 

@@ -44,7 +44,11 @@ const imp = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'config'
 const gw = imp.find(r => r.advertiser === 'Gateway');
 const rd = imp.find(r => r.advertiser === 'ResetData' && /tradedesk/i.test(r.channel || ''));
 check('import: spendMult computed (Gateway = 2)', gw && gw.spendMult === 2, gw && gw.spendMult);
-check('import: ResetData/TD spendMult = 3.4707 (client/media, 4dp)', rd && rd.spendMult === 3.4707, rd && rd.spendMult);
+// ResetData/TD is 1, not the 3.4707 the sheet's client/media ratio implied: the
+// batch-8 validation (d792d2b) confirmed Trade Desk's BQ cost column IS the billed
+// figure for this advertiser, so there is no markup to apply. The assertion lagged
+// that commit and failed for weeks; it asserts the confirmed value now.
+check('import: ResetData/TD spendMult = 1 (TTD cost is already billed)', rd && rd.spendMult === 1, rd && rd.spendMult);
 check('import: ResetData/TD adServing RATE = 5', rd && rd.adServing === 5);
 check('import: no platformMargin outside [0,1]', imp.every(r => r.platformMargin == null || (r.platformMargin >= 0 && r.platformMargin <= 1)));
 check('import: "NA" platformMargin → null (ResetData/Meta)', (imp.find(r => r.advertiser === 'ResetData' && /meta/i.test(r.channel || '')) || {}).platformMargin === null);
