@@ -18,7 +18,7 @@ authenticates and serves it at `/data.json` → `dashboard.html` draws the chart
 | File | What it does |
 |---|---|
 | [`main.py`](main.py) | The Flask app. **Byte-for-byte the same auth/serve/proxy logic as MongoDB** — only the login-page branding and the default `DATA_OBJECT` (`cloudflare.json`) differ. |
-| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — **"Core DG APJ"** (the `core` lane; renamed from "Core Demand Generation" 2026-08-05) plus three single-campaign LinkedIn dashboards, and a **disabled "Core DG EMEA - coming soon"** placeholder in the lane dropdown. ~3,860 lines (HTML + CSS + inline JS). Fetches `/data.json` once and renders everything client-side. |
+| [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — two program lanes, **"Core DG APJ"** (`core`; renamed from "Core Demand Generation" 2026-08-05) and **"Surround ABM"** (`surround_abm`, brief 2193, split out 2026-08-14), plus three single-campaign LinkedIn dashboards, and a **disabled "Core DG EMEA - coming soon"** placeholder in the lane dropdown. ~3,900 lines (HTML + CSS + inline JS). Fetches `/data.json` once and renders everything client-side. |
 | [`DASHBOARD.md`](DASHBOARD.md) | **How `dashboard.html` was built** from Cloudflare's original `index.html`: three small `<script>` edits to read one private `/data.json` instead of two public R2 files. Read this if you re-derive the page from a new design. |
 | [`LIVE_URL.md`](LIVE_URL.md) | The upstream `…run.app` URL, the front-door access path (`dashboards.bidbrain.ai/d/cloudflare/`), and how to re-fetch the URL. |
 | [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py` + `dashboard.html`. |
@@ -46,10 +46,19 @@ screen.
 Branding: Cloudflare orange gradient, Cloudflare + Transmission logos, title "Core Demand
 Generation". One external library: Chart.js 4.5.0.
 
-A top-bar **dashboard selector** (`#dashSelect`) switches between the main **Core Demand
-Generation** view and three **single-campaign LinkedIn dashboards** — *ANZ PEYC*, *CF1 India*,
-*Coles Hyper* — which render the `campaigns` branch of the payload (sourced from the shared
-`raw_snowflake.linkedin_ads_apac` BigQuery mirror). The Core view has three tabs:
+A top-bar **lane selector** (`#dashSelect`) holds two KINDS of entry (see the client README →
+*Surround ABM split out of Core DG*):
+
+- **PROGRAM lanes** — **Core DG APJ** (`core`) and **Surround ABM** (`surround_abm`, brief 2193,
+  added 2026-08-14). Both render the FULL core shell below, scoped to one brief by the paid rows'
+  `program` field (`PROGRAMS` / `progOk` in `dashboard.html`). Surround ABM is Trade Desk only and
+  is restricted to the **Paid Media tab**, with budget pacing and the LinkedIn lead-commit block
+  hidden — those plans are Core DG's.
+- **CAMPAIGN lanes** — three **single-campaign LinkedIn dashboards**, *ANZ PEYC*, *CF1 India*,
+  *Coles Hyper*, which render the `campaigns` branch of the payload (sourced from the shared
+  `raw_snowflake.linkedin_ads_apac` BigQuery mirror).
+
+The Core view has three tabs:
 
 1. **Paid Media** — multi-channel delivery across **TTD, LinkedIn, Reddit, LINE**. KPI tiles
    (spend, impressions/CPM, clicks/CTR, LinkedIn leads, blended CPC), a channel-vs-benchmark
@@ -66,7 +75,9 @@ Generation** view and three **single-campaign LinkedIn dashboards** — *ANZ PEY
    pacing charts).
 
 Filters: **market chips** for the seven markets (`ANZ, ASEAN, SAARC, GCR, KR, JP, RIG`), with
-select-all / clear-all, per tab, plus a shared date-range picker for the Core tabs. It reads the
+select-all / clear-all, per tab, plus a shared date-range picker for the Core tabs — quarter
+presets, the usual relative presets, and (2026-08-14) a **Custom range** preset with typed
+**From / To** date inputs bound to the same draft as the calendar. It reads the
 combined payload's `paid_media`, `pacing.rows`, and `campaigns` branches — see the
 [JSON contract](../job/README.md#the-json-contract-it-produces). The footer shows `last_updated`
 (build time) and source-data-through, and notes that the dashboard auto-refreshes within ~10 min

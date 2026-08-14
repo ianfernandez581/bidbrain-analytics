@@ -18,12 +18,12 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
 
 | file | view | reads | ported from (Snowflake) |
 |---|---|---|---|
-| `01_stg_linkedin.sql`        | `stg_linkedin`        | `raw_snowflake.linkedin_ads_apac` (ACCOUNT_NAME='Cloudflare APAC') + `CAMPAIGN_NAME_NORM` | `V_STG_LINKEDIN_CF` |
+| `01_stg_linkedin.sql`        | `stg_linkedin`        | `raw_snowflake.linkedin_ads_apac` (ACCOUNT_NAME='Cloudflare APAC') + `CAMPAIGN_NAME_NORM` + `PROGRAM` | `V_STG_LINKEDIN_CF` |
 | `02_stg_reddit.sql`          | `stg_reddit`          | `raw_snowflake.reddit_ads_apac_all` (ACCOUNT_NAME='Transmission_Cloudflare') | `V_STG_REDDIT_CF` |
-| `03_stg_tradedesk.sql`       | `stg_tradedesk`       | `raw_snowflake.tradedesk_apac_all` (ADVERTISER_NAME='Cloudflare') + campaign-name parsing **off `CAMPAIGN_NAME_NORM`** | `V_STG_TRADEDESK_CF` |
+| `03_stg_tradedesk.sql`       | `stg_tradedesk`       | `raw_snowflake.tradedesk_apac_all` (ADVERTISER_NAME='Cloudflare') + campaign-name parsing **off `CAMPAIGN_NAME_NORM`** + `PROGRAM` | `V_STG_TRADEDESK_CF` |
 | `04_stg_line.sql`            | `stg_line`            | `seed_line_cf` (static) | `V_STG_LINE_CF` |
-| `05_paid_media_model.sql`    | `paid_media_model`    | the four `stg_*` (union, market CASE, week key, JPY→USD@155) | `V_PAID_ADS_FINAL_MODEL` |
-| `06_paid_creatives_model.sql`| `paid_creatives_model`| the four `stg_*` at creative grain | (was `PAID_CREATIVES_SQL` in the job) |
+| `05_paid_media_model.sql`    | `paid_media_model`    | the four `stg_*` (union, **`PROGRAM` as col 2**, market CASE, week key, JPY→USD@155) | `V_PAID_ADS_FINAL_MODEL` |
+| `06_paid_creatives_model.sql`| `paid_creatives_model`| the four `stg_*` at creative grain (**+ `PROGRAM`**) | (was `PAID_CREATIVES_SQL` in the job) |
 | `07_benchmarks_channel.sql`  | `benchmarks_channel`  | — (literal constants) | `V_BENCHMARKS_CHANNEL` |
 | `08_benchmarks_market.sql`   | `benchmarks_market`   | — (literal constants) | `V_BENCHMARKS_MARKET` |
 | `09_li_weekly_targets.sql`   | `li_weekly_targets`   | — (literal constants) | `V_LI_WEEKLY_TARGETS` |
@@ -50,6 +50,20 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
   (now recovered via a `" - AU"/" - NZ"/" - ANZ"` suffix fallback). Total 36,053,269 imps now render, vs
   23,702,942 before. The reference check is Ian's normalised-name pull: the 8 `*_MDS_TTD_*COREDG-Q3`
   campaigns = **5,516,027 imps / 4,788 clicks / $14,499.98**.
+- **`PROGRAM` splits the paid book into the dashboard's two lanes (2026-08-14).** `CORE_DG` (briefs
+  1160 / 2103 Q2 / 2479 Q3) or `SURROUND_ABM` (brief **2193**, Trade Desk only — 5 campaigns named
+  `..._<MKT>-SURROUND-ABM`). Defined ONCE, identically, in `03_stg_tradedesk.sql` and
+  `01_stg_linkedin.sql`; `05` carries it as **column 2 of every union arm** (the union is `SELECT *`,
+  so position matters) and `06` carries it too, because creative rows have no date and nothing else
+  could separate them. LinkedIn/Reddit repeat the rule defensively (neither has Surround ABM delivery
+  today); LINE is a constant `'CORE_DG'` (manual CSV, no campaign names).
+  It is a **substring match on the RAW name** (`'%surround%abm%'`, plus a `2193_` prefix arm), never a
+  fixed offset — the same rule as the prefix fix above, and it spans both name vintages in the feed.
+  The `ELSE` is `CORE_DG`, so a brand-new brief joins Core rather than disappearing; splitting it out
+  is one extra `WHEN` here plus one entry in `PROGRAMS` in `dash/dashboard.html`.
+  **Adding an arm moves numbers out of Core DG** — that is the point, but say so before shipping.
+  The export job prints a per-program rows/imps/spend line every run, which is the cheap check that
+  the parse still works.
 - `REGEXP_REPLACE(...,'i')` → RE2 `(?i)` inline flag; `UUID_STRING()` → `GENERATE_UUID()`; `QUALIFY` is native.
 - The 13-ID CS campaign filter lives in `10_salesforce_leads_live.sql` (this is now its source of truth, not the Snowflake view).
 - **KR + RIG are client-defined CS segments (2026-06-19), redefined in `10_salesforce_leads_live.sql`'s `REGION_GRP`** — they are NO LONGER purely geographic, and the BQ region logic now DIVERGES from the reference Snowflake view (`snowflake_v_salesforce_leads_live.sql`, which keeps the old geographic logic for Cloudflare's own legacy R2 export):

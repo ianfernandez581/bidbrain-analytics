@@ -66,6 +66,26 @@ SELECT
         END,
         ''
     ) AS MARKET_L3,
+    -- PROGRAM: which BRIEF this delivery belongs to - the dashboard's lane selector.
+    -- 2026-08-14 (client request): Surround ABM (brief 2193, TTD-only, 5 campaigns named
+    -- "..._<MKT>-SURROUND-ABM") is its OWN dashboard lane and must NOT be summed
+    -- into Core DG (briefs 1160 / 2103 Q2 / 2479 Q3). Everything that is not Surround
+    -- ABM stays CORE_DG, so this cannot silently strand delivery - a new brief joins
+    -- Core until it is given its own arm here.
+    -- SUBSTRING match on the RAW name, never a fixed offset: campaign names are NOT
+    -- stable keys (AGENTS.md) and are progressively gaining a "<brief>_" prefix, which
+    -- shifts every underscore token. '%surround%abm%' spans SURROUND-ABM / SURROUND_ABM /
+    -- "Surround ABM"; the 2193_ prefix is a belt-and-braces second arm. Verified against the
+    -- feed 2026-08-14: 10 distinct raw names = the 5 campaigns under BOTH name vintages
+    -- (prefixed + un-prefixed), 119,108 imps / 290 clicks / $7,436.65.
+    -- The names say "2026-Q2" but delivery runs 2026-06-12 -> ongoing (~1/3 Q2, ~2/3 Q3):
+    -- do NOT treat this brief as Q2-only, and do not date-gate it anywhere.
+    CASE
+        WHEN LOWER(IFNULL(CAMPAIGN_NAME, '')) LIKE '%surround%abm%'
+          OR STARTS_WITH(TRIM(IFNULL(CAMPAIGN_NAME, '')), '2193_')
+            THEN 'SURROUND_ABM'
+        ELSE 'CORE_DG'
+    END AS PROGRAM,
     IFNULL(SPLIT(CAMPAIGN_NAME_NORM, '_')[SAFE_OFFSET(9)],  '') AS FUNNEL_STAGE,
     IFNULL(SPLIT(CAMPAIGN_NAME_NORM, '_')[SAFE_OFFSET(12)], '') AS RAW_OBJECTIVE,
     CASE
