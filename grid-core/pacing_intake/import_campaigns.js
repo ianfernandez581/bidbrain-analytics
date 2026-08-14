@@ -101,13 +101,13 @@ function mergeConfigs(group) {
 // campaignMatch rules on, for no gain. Channel is matched case- and
 // space-insensitively instead.
 // scope: which governance whitelist the field sits on in db.js. 'plan' is
-// CENTRAL_PLAN_FIELDS, 'edit' is CENTRAL_EDIT_FIELDS - status is only on the
-// latter. `currency` is on NEITHER, so it can be set when a row is created but
-// never written afterwards; those are reported instead of failing silently.
-const CREATE_ONLY = ['currency'];
+// CENTRAL_PLAN_FIELDS, 'edit' is CENTRAL_EDIT_FIELDS - status and currency are
+// only on the latter. Nothing is create-only any more; keep the list so a future
+// field that IS create-only reports itself rather than failing silently.
+const CREATE_ONLY = [];
 const PLAN_FIELDS = [
   ['totalBudget', (c) => (c.budget == null ? null : Number(c.budget)), 'plan'],
-  ['currency', (c) => c.currency || null, null],
+  ['currency', (c) => c.currency || null, 'edit'],
   ['startDate', (c) => c.flightStart || null, 'plan'],
   ['endDate', (c) => c.flightEnd || null, 'plan'],
   ['spendMult', (c) => (c.spendMult && c.spendMult !== 1 ? Number(c.spendMult) : null), 'plan'],
