@@ -23,52 +23,43 @@
 const fs = require('fs');
 const path = require('path');
 const db = require(path.join(__dirname, '..', 'src', 'brain', 'db.js'));
+const { resolveAll, similarity, norm, tok, chan } = require(path.join(__dirname, 'resolve_central.js'));
+const persist = require(path.join(__dirname, '..', 'src', 'brain', 'persist.js'));
+
+/** Push the DB back to GCS. The CLI has no shutdown hook and persist.saveSoon()
+ *  is debounced, so a script that exits immediately would write the local file
+ *  and never upload - the whole run would silently not reach production. A
+ *  generation conflict means another instance wrote first; the upload is
+ *  refused rather than clobbering it, and that is reported as a failure. */
+async function flushState() {
+  if (!persist.enabled()) { console.log('\nstate: local file only (GRID_STATE_BUCKET unset) - nothing uploaded'); return true; }
+  const r = await persist.save();
+  if (r.ok) { console.log(`\nstate: uploaded to gs://${persist.bucket}/${persist.object} (generation ${r.generation})`); return true; }
+  console.error(`\nSTATE NOT UPLOADED: ${r.reason}`);
+  if (r.reason === 'generation-conflict') console.error('another process wrote the state file first. Nothing was published; re-run once it is idle.');
+  return false;
+}
+
 
 const APPLY = process.argv.includes('--apply');
 const OVERWRITE = process.argv.includes('--overwrite');
 const CONFIG = path.join(__dirname, 'campaign_match_config.json');
 
-const norm = (s) => String(s == null ? '' : s).trim().toLowerCase();
-const tok = (s) => norm(s).replace(/[^a-z0-9]+/g, '');
-// "TradeDesk" / "Trade Desk" / "TTD" are the same channel; Central holds all three.
-const chan = (s) => tok(s).replace(/^ttd$/, 'tradedesk');
 
-/** Dice coefficient on character bigrams - the same shape the reconcile route
- *  uses, so a name here scores the way a name there does. */
-function similarity(a, b) {
-  const grams = (s) => { const g = new Set(); const t = tok(s); for (let i = 0; i < t.length - 1; i++) g.add(t.slice(i, i + 2)); return g; };
-  const A = grams(a); const B = grams(b);
-  if (!A.size || !B.size) return 0;
-  let hit = 0;
-  A.forEach((g) => { if (B.has(g)) hit++; });
-  return (2 * hit) / (A.size + B.size);
-}
-
-/** Find the Central row this config campaign already is, if any. Client and
- *  channel must agree - a name is never allowed to pull a match across a
- *  client boundary or onto the wrong platform. */
-function findExisting(cfgCamp, campaigns) {
-  const pool = campaigns.filter((c) => !c.archivedAt
-    && norm(c.client) === norm(cfgCamp.client)
-    && chan(c.channel) === chan(cfgCamp.platform));
-  if (!pool.length) return { row: null, score: 0, pool: 0 };
-  const exact = pool.find((c) => tok(c.name) === tok(cfgCamp.campaign));
-  if (exact) return { row: exact, score: 1, pool: pool.length };
-  let best = null; let bestScore = 0;
-  for (const c of pool) {
-    const s = similarity(c.name, cfgCamp.campaign);
-    if (s > bestScore) { bestScore = s; best = c; }
-  }
-  return { row: bestScore >= 0.6 ? best : null, score: bestScore, pool: pool.length, near: best };
-}
 
 // Budgets Central owns and the intake must never rewrite. These rows carry a
 // WHOLE-PROGRAMME budget while the intake carries a single media-plan line, so
 // the intake figure is not smaller, it is a different quantity. Reconciled
 // with the trader out of band; remove an entry once its row is split per line.
 const PROTECT_BUDGET = [
-  { client: 'Schneider', channel: 'Trade Desk', name: 'Water and Environment' },
-  { client: 'Schneider', channel: 'LinkedIn', name: 'LiquidAI' },
+  { client: 'Schneider', channel: 'Trade Desk', name: 'Water and Environment' },   // 106,800
+  { client: 'Schneider', channel: 'LinkedIn', name: 'LiquidAI' },                  // 144,180
+  // Added once aliasing exposed them - same shape, same reason. Airset is the
+  // one that would have gone UP (12,500 -> 37,500) because four intake lines
+  // merge onto that row and their budgets sum, which is just as wrong.
+  { client: 'Schneider', channel: 'LinkedIn', name: 'Airset' },                    // 12,500
+  { client: 'Schneider', channel: 'LinkedIn', name: 'Advancing Energy T' },        // 38,000
+  { client: 'Schneider', channel: 'Trade Desk', name: 'Industrial Edge Wave 3 Prefab Unprotected' }, // 20,000
 ];
 const budgetProtected = (row) => PROTECT_BUDGET.some((p) => norm(p.client) === norm(row.client)
   && chan(p.channel) === chan(row.channel) && tok(p.name) === tok(row.name));
@@ -116,7 +107,7 @@ const PLAN_FIELDS = [
 ];
 const scopeOf = (f) => (PLAN_FIELDS.find((x) => x[0] === f) || [])[2] || 'plan';
 
-function main() {
+async function main() {
   if (!fs.existsSync(CONFIG)) {
     console.error(`missing ${CONFIG} - run build_match_audit.js first`);
     process.exitCode = 1; return;
@@ -128,42 +119,11 @@ function main() {
 
   const creates = []; const updates = []; const unchanged = []; const ambiguous = []; const protectedSkips = []; const createOnlySkips = [];
 
-  // Resolve every config campaign first, then MERGE the ones that landed on the
-  // same Central row before diffing - diffing per line would produce competing
-  // writes to one row.
-  const resolved = cfg.campaigns.map((c) => Object.assign({ c }, findExisting(c, campaigns)));
-
-  // Central can hold SEVERAL rows under one name - "Software First EcoStruxure"
-  // exists three times on LinkedIn, one per plan line, distinguished only by
-  // budget. Name matching alone hands all three intake lines to whichever row
-  // came first, and merging them then double-counts budget that already sits on
-  // the siblings. So where a name is not unique, assign ONE-TO-ONE: claim the
-  // sibling whose budget the intake line agrees with, then fall back to flight
-  // dates, and leave anything still ambiguous to the merge path.
-  const nameGroups = new Map();
-  resolved.filter((r) => r.row).forEach((r) => {
-    const k = [norm(r.row.client), chan(r.row.channel), tok(r.row.name)].join('|');
-    if (!nameGroups.has(k)) nameGroups.set(k, []);
-    nameGroups.get(k).push(r);
-  });
-  const reassigned = [];
-  for (const [k, lines] of nameGroups) {
-    if (lines.length < 2) continue;
-    const siblings = campaigns.filter((x) => !x.archivedAt
-      && [norm(x.client), chan(x.channel), tok(x.name)].join('|') === k);
-    if (siblings.length < 2) continue;               // genuinely one row: merge path handles it
-    const taken = new Set();
-    for (const r of lines) {
-      const want = Number(r.c.budget);
-      let pick = siblings.find((s) => !taken.has(s.id) && Number.isFinite(want) && Number(s.totalBudget) === want);
-      if (!pick) pick = siblings.find((s) => !taken.has(s.id) && r.c.flightEnd && s.endDate === r.c.flightEnd);
-      if (!pick) pick = siblings.find((s) => !taken.has(s.id));
-      if (!pick) continue;
-      taken.add(pick.id);
-      if (pick.id !== r.row.id) reassigned.push({ line: r.c.campaign, from: r.row.id, to: pick.id, budget: want });
-      r.row = pick;
-    }
-  }
+  // ONE resolution pass, from the SHARED module. This file used to carry its own
+  // copy of the rule, which is exactly the drift the module exists to stop: the
+  // copy never learned about campaign_aliases.json, so with aliases in place the
+  // sync wrote to a live row while the import still called it new.
+  const { resolved, reassigned } = resolveAll(cfg.campaigns, campaigns);
   if (reassigned.length) {
     console.log(`=== ONE-TO-ONE REASSIGNMENT (${reassigned.length}) - duplicate Central names split by budget ===`);
     reassigned.forEach((x) => console.log(`  "${x.line}" (budget ${x.budget}) -> ${x.to}  (was heading for ${x.from})`));
@@ -184,8 +144,14 @@ function main() {
     targets.push({ c: merged, row: g[0].row, score: Math.min(...g.map((x) => x.score)) });
   }
 
-  resolved.filter((r) => !r.row).forEach(({ c, score, pool, near }) => {
-    creates.push({ c, note: pool ? `no name match among ${pool} ${c.client}/${c.platform} row(s)` + (near ? `; closest "${near.name}" at ${score.toFixed(2)}` : '') : `no existing ${c.client}/${c.platform} row` });
+  // Only APPROVED creates become rows. Anything blocked is reported and skipped -
+  // an unmatched campaign is never assumed new, because Central names campaigns
+  // short and the intake names them by plan line, so "not found" usually means
+  // "found under another name".
+  const blocked = [];
+  resolved.filter((r) => !r.row).forEach((r) => {
+    if (r.approvedCreate) creates.push({ c: r.c, note: 'approved as new in campaign_aliases.json' });
+    else blocked.push({ c: r.c, why: r.blocked || 'no decision recorded' });
   });
 
   for (const { c, row, score } of targets) {
@@ -226,7 +192,7 @@ function main() {
   // Nothing is blocked any more: colliding lines are merged above, so each
   // Central row is written from exactly one merged intake record.
   const collisions = [...byTarget.entries()].filter(([, v]) => v.length > 1);
-  const blocked = new Set();
+  const blockedRows = new Set();
 
   const money = (v) => (v == null || v === '' ? '(empty)' : v);
   if (merges.length) {
@@ -258,7 +224,7 @@ function main() {
     ambiguous.forEach(({ c, row, score }) => console.log(`  ${score.toFixed(2)}  intake "${c.campaign}"  ->  central "${row.name}"  (${c.client} / ${c.platform}, ${row.id})`));
     console.log('');
   }
-  const fillable = updates.filter((u) => u.diffs.length && !blocked.has(u.row.id));
+  const fillable = updates.filter((u) => u.diffs.length && !blockedRows.has(u.row.id));
   if (fillable.length) {
     console.log(`=== FILL EMPTY FIELDS (${fillable.length}) - safe, applied by default ===`);
     fillable.forEach(({ c, row, diffs }) => {
@@ -267,7 +233,7 @@ function main() {
     });
     console.log('');
   }
-  const conflicted = updates.filter((u) => u.conflicts.length && !blocked.has(u.row.id));
+  const conflicted = updates.filter((u) => u.conflicts.length && !blockedRows.has(u.row.id));
   if (conflicted.length) {
     console.log(`=== VALUE CONFLICTS (${conflicted.length}) - Central already holds a different value, needs --overwrite ===`);
     conflicted.forEach(({ c, row, conflicts }) => {
@@ -276,9 +242,9 @@ function main() {
     });
     console.log('');
   }
-  if (blocked.size) {
-    console.log(`=== BLOCKED (${blocked.size}) - several intake rows target one Central row with DIFFERENT values ===`);
-    collisions.filter(([id]) => blocked.has(id)).forEach(([id, group]) => {
+  if (blockedRows.size) {
+    console.log(`=== BLOCKED (${blockedRows.size}) - several intake rows target one Central row with DIFFERENT values ===`);
+    collisions.filter(([id]) => blockedRows.has(id)).forEach(([id, group]) => {
       console.log(`  ${group[0].row.client} | ${group[0].row.name}  (${id})  <- ${group.length} intake rows`);
       group.forEach((u) => {
         const all = u.diffs.concat(u.conflicts).map((d) => `${d.field}=${d.to}`).join(', ');
@@ -288,8 +254,15 @@ function main() {
     });
     console.log('');
   }
+  if (blocked.length) {
+    console.log(`=== BLOCKED - no alias/create decision (${blocked.length}) ===`);
+    blocked.forEach((b) => console.log(`  ${b.c.client} | ${b.c.platform} | ${b.c.campaign}
+      ${b.why}
+      decide it in campaign_aliases.json (build_alias_audit.js), then re-run`));
+    console.log('');
+  }
   console.log('=== SUMMARY ===');
-  console.log(`  create ${creates.length}   fill-empty ${fillable.length}   conflicts ${conflicted.length}   blocked ${blocked.size}   already correct ${unchanged.length}   fuzzy ${ambiguous.length}`);
+  console.log(`  create ${creates.length}   fill-empty ${fillable.length}   conflicts ${conflicted.length}   undecided ${blocked.length}   already correct ${unchanged.length}   fuzzy ${ambiguous.length}`);
 
   if (!APPLY) {
     console.log('\nDRY RUN - nothing was written. Re-run with --apply to create rows and fill empty fields.');
@@ -305,7 +278,7 @@ function main() {
     if (r.ok) made++; else errors.push(`create ${c.client}/${c.campaign}: ${r.error}`);
   }
   for (const u of updates) {
-    if (blocked.has(u.row.id)) continue;
+    if (blockedRows.has(u.row.id)) continue;
     const todo = u.diffs.concat(OVERWRITE ? u.conflicts : []);
     for (const d of todo) {
       const r = db.updateCampaignField(u.row.id, d.field, d.to, scopeOf(d.field), { source: 'pacing-intake' });
@@ -313,8 +286,9 @@ function main() {
     }
   }
   console.log(`\nAPPLIED: ${made} campaigns created, ${changed} fields written${OVERWRITE ? ' (including overwrites)' : ''}.`);
-  if (blocked.size) console.log(`${blocked.size} row(s) left untouched - see BLOCKED above.`);
+  if (blockedRows.size) console.log(`${blockedRows.size} row(s) left untouched - see BLOCKED above.`);
   if (errors.length) { console.log('errors:'); errors.forEach((e) => console.log('  ' + e)); process.exitCode = 1; }
+  if (!(await flushState())) process.exitCode = 1;
 }
 
-main();
+main().catch((e) => { console.error('FAILED:', e.message); process.exit(1); });

@@ -25,6 +25,22 @@ const GRID = path.join(__dirname, '..');
 const db = require(path.join(GRID, 'src', 'brain', 'db.js'));
 const { BigQuery } = require(path.join(GRID, 'node_modules', '@google-cloud', 'bigquery'));
 const { resolveAll } = require(path.join(__dirname, 'resolve_central.js'));
+const persist = require(path.join(GRID, 'src', 'brain', 'persist.js'));
+
+/** Push the DB back to GCS. The CLI has no shutdown hook and persist.saveSoon()
+ *  is debounced, so a script that exits immediately would write the local file
+ *  and never upload - the whole run would silently not reach production. A
+ *  generation conflict means another instance wrote first; the upload is
+ *  refused rather than clobbering it, and that is reported as a failure. */
+async function flushState() {
+  if (!persist.enabled()) { console.log('\nstate: local file only (GRID_STATE_BUCKET unset) - nothing uploaded'); return true; }
+  const r = await persist.save();
+  if (r.ok) { console.log(`\nstate: uploaded to gs://${persist.bucket}/${persist.object} (generation ${r.generation})`); return true; }
+  console.error(`\nSTATE NOT UPLOADED: ${r.reason}`);
+  if (r.reason === 'generation-conflict') console.error('another process wrote the state file first. Nothing was published; re-run once it is idle.');
+  return false;
+}
+
 
 const APPLY = process.argv.includes('--apply');
 const INCLUDE_ENDED = process.argv.includes('--includeEnded');
@@ -147,5 +163,6 @@ module.exports = { runPacingSync };
 // sync as a side effect of the import.
 if (require.main === module) {
   runPacingSync({ apply: APPLY, includeEnded: INCLUDE_ENDED })
+    .then(async (r) => { if (r && r.applied && !(await flushState())) process.exitCode = 1; })
     .catch((e) => { console.error('FAILED:', e.message); process.exit(1); });
 }

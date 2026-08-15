@@ -1,0 +1,108 @@
+{
+  "generatedAt": "2026-08-15T00:12:54Z",
+  "note": "Reviewed alias/create decisions for intake campaigns Central does not match by name. resolve_central.js reads this BEFORE any name matching. Regenerate with build_alias_audit.js.",
+  "aliases": {
+    "ResetData|Trade Desk|Always On": {
+      "rowId": "cmp-60fc34ccd19b",
+      "rowName": "46113",
+      "basis": "rule",
+      "why": "BQ campaign shared via exact \"ResetData_Apr26\""
+    },
+    "ResetData|Reddit|Always On": {
+      "rowId": "cmp-74790bdcf864",
+      "rowName": "46113",
+      "basis": "human",
+      "why": "confirmed alias of ResetData \"46113\" (Reddit)"
+    },
+    "ResetData|Meta|Always On": {
+      "rowId": "cmp-33a87b99e4ff",
+      "rowName": "46113",
+      "basis": "rule",
+      "why": "BQ campaign shared via contains \"ResetData_\""
+    },
+    "Schneider|LinkedIn|MCSet Awareness": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed: just launched"
+    },
+    "Schneider|Google Ads|MCSet Awareness": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed: just launched"
+    },
+    "Schneider|Trade Desk|2223_SE_Airset SM_ANZ_display_AWR": {
+      "rowId": "cmp-3b14faf0f7e9",
+      "rowName": "Airset",
+      "basis": "rule",
+      "why": "BQ campaign shared via contains \"AirSeT_ANZ_HighImpact\""
+    },
+    "Schneider|LinkedIn|2223_SE_Airset SM_ANZ_post_AWR": {
+      "rowId": "cmp-663ed48867bd",
+      "rowName": "Airset",
+      "basis": "rule",
+      "why": "BQ campaign shared via contains \"AirSeT 2026\""
+    },
+    "Schneider|Trade Desk|2079_SE_Ecostruxure Building Activate_ANZ_display_AWR": {
+      "rowId": "cmp-53b4975d5b6e",
+      "rowName": "EBA",
+      "basis": "rule",
+      "why": "BQ campaign shared via contains \"EBA_Activate\""
+    },
+    "Schneider|LinkedIn|2061_SE_Advancing Energy Technology_ANZ_image+carousel_AWR": {
+      "rowId": "cmp-fdd4e8202dbc",
+      "rowName": "Advancing Energy T",
+      "basis": "rule",
+      "why": "BQ campaign shared via contains \"SE_AET\""
+    },
+    "Schneider|Google Ads|2061_SE_Advancing Energy Technology_ANZ_keywords_CNV": {
+      "rowId": "cmp-1aaf944e0084",
+      "rowName": "Advancing Energy T",
+      "basis": "human",
+      "why": "confirmed alias of \"Advancing Energy T\" (Google Ads)"
+    },
+    "Schneider|Trade Desk|2463_SE_Industrial Edge Wave3_ANZ_display_AWR": {
+      "rowId": "cmp-73f509149be8",
+      "rowName": "Industrial Edge Wave 3 Prefab Unprotected",
+      "basis": "human",
+      "why": "confirmed alias of \"Industrial Edge Wave 3 Prefab Unprotected\" (TradeDesk)"
+    },
+    "Schneider|Trade Desk|2281_SE_Heavy Industries_ANZ_display_P1_AWR": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed new: the two blank-channel \"Heavy Industries\" rows are inert placeholders, not this lane"
+    },
+    "Schneider|LinkedIn|2281_SE_Heavy Industries_ANZ_leadgen_P2_CNV": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed new: the two blank-channel \"Heavy Industries\" rows are inert placeholders, not this lane"
+    },
+    "Schneider|LinkedIn|2040_SE_Microgrid_Awareness_july2026_AU": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed: not in Central yet"
+    },
+    "Schneider|LinkedIn|Ecoconsult AWR": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed: never in Central"
+    },
+    "Schneider|LinkedIn|Ecoconsult CNS": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed: never in Central"
+    },
+    "Schneider|LinkedIn|Ecoconsult CVS": {
+      "rowId": null,
+      "create": true,
+      "basis": "human",
+      "why": "confirmed: never in Central"
+    }
+  }
+}
