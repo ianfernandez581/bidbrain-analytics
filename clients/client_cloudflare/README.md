@@ -88,9 +88,12 @@ and it sat above the JP arm. Both Google Ads arms now use the boundary-anchored
 `REGEXP_CONTAINS(LOWER(x), r'(^|[ _-])jp([ _-]|$)')` form; `apac-xx` variants stay plain
 `CONTAINS_SUBSTR` (a hyphen is not a wildcard). **Never match a 2-3 letter market token with `LIKE`.**
 See the repo-wide note in `md/AGENTS.md`.
-**Still loose (harmless today):** the pre-existing `'%_jp_%'` / `'%_kr_%'` arms in `stg_linkedin` and
-the LinkedIn arms of `paid_media_model` / `paid_creatives_model`. They only survive because the
-`apac-xx` arms above them fire first on every current LinkedIn name. Harden when next in that file.
+**Hardened 2026-08-15:** the pre-existing `'%_jp_%'` / `'%_kr_%'` arms in the LinkedIn arms of
+`paid_media_model` / `paid_creatives_model` now use the same boundary-anchored form. They only
+survived because the `apac-xx` arms above them fire first on every current LinkedIn name.
+**Verified a strict no-op** — channel × market × imps × spend identical before and after across all
+five channels (LinkedIn has no JP/KR delivery today, so this is forward protection only). **No
+`LIKE '%_xx_%'` market token remains in live code in this client.**
 
 ## Channel filter chips (Paid Media tab, 2026-08-15)
 A resetdata-style coloured chip row above the Markets chips: `renderPaidChannelChips()` /
