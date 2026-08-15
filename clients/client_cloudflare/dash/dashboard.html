@@ -2950,7 +2950,8 @@ function renderComparePanel(side) {
 // Color palette (paid-media-specific; doesn't clash with existing CF/LINE)
 const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#3B93E8', PM_RD='#FF6A3D',
       PM_LN='#22D97A', PM_INK='#E7D6C6', PM_LINE='rgba(255,255,255,.09)',
-      PM_TARGET='#8A7263', PM_PURPLE='#B98AE8';
+      PM_TARGET='#8A7263', PM_PURPLE='#B98AE8',
+      PM_GA='#F5C542';   // Google Ads (joined 2026-08-11) - warm yellow, distinct from CF orange
 
 // ==========================================================================
 // CHANNEL ROSTER - ONE source of truth for the paid channels on this tab.
@@ -3010,6 +3011,12 @@ const PM_CHANS = [
   {key:'LinkedIn', label:'LinkedIn', long:'LinkedIn',   abbr:'LI',     pill:'li', color:PM_LI, pre:'li',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.li_market_day)   || []},
   {key:'Reddit',   label:'Reddit',   long:'Reddit',     abbr:'Reddit', pill:'rd', color:PM_RD, pre:'rd',  mkey:'m',      rows:()=>(PAYLOAD && PAYLOAD.rd_market_day)   || []},
   {key:'LINE',     label:'LINE',     long:'LINE',       abbr:'LINE',   pill:'ln', color:PM_LN, pre:'ln',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.line_market_day)|| []},
+  // Google Ads joined 2026-08-11 (Q3 Core DG, brief 2479). Its live buy is a JP YouTube
+  // VideoViews campaign, and this mirror carries NO video columns - so impressions and clicks are
+  // all we can report and the resulting ~0.05% CTR is normal for video, not underperformance.
+  // `note` is surfaced next to the channel so nobody reads it as a failing search campaign.
+  {key:'GoogleAds', label:'Google Ads', long:'Google Ads', abbr:'GAds', pill:'ga', color:PM_GA, pre:'ga', mkey:'m', rows:()=>(PAYLOAD && PAYLOAD.ga_market_day) || [],
+   note:'YouTube video buy - impressions are the reach metric; video views are not in the feed yet, so CTR reads low by nature'},
 ];
 // A channel is LIVE when it delivered (spend / impressions / clicks) inside the applied DATE
 // RANGE. EVERY channel-shaped thing on this tab (KPI captions, the mix donut, the stacked
@@ -3090,6 +3097,7 @@ function loadPaidMedia() {
       : PAID_ALL_MARKETS.filter(m => PAYLOAD.li_market_day.some(r=>r.market===m)
                                   || PAYLOAD.ttd_market_day.some(r=>r.m===m)
                                   || PAYLOAD.rd_market_day.some(r=>r.m===m)
+                                  || (PAYLOAD.ga_market_day||[]).some(r=>r.m===m)
                                   || PAYLOAD.line_market_day.some(r=>r.market===m));
     paidMediaActiveMarkets = new Set(paidMediaAllMarkets);
     paidMediaLoaded = true;
@@ -3128,7 +3136,7 @@ function normalizeMarket(m) { return PM_MARKET_REMAP[m] || m; }
 
 function adaptPayload(data) {
   const rows = data.rows || [];
-  const li = [], ttd = [], rd = [], line = [];
+  const li = [], ttd = [], rd = [], line = [], ga = [];
   for (const r of rows) {
     const ch = r.channel;
     const date = String(r.date || '').slice(0, 10);
@@ -3152,6 +3160,8 @@ function adaptPayload(data) {
       ttd.push({date, m: market, prog, imps, clk, spend});
     } else if (ch === 'Reddit') {
       rd.push({date, m: market, prog, imps, clk, spend});
+    } else if (ch === 'Google Ads' || ch === 'GoogleAds') {
+      ga.push({date, m: market, prog, imps, clk, spend});
     } else if (ch === 'LINE') {
       line.push({ch:'LINE', date, market, prog, imps, clk, spend, leads,
         spend_jpy: Number(r.spend_jpy) || 0,
@@ -3175,6 +3185,7 @@ function adaptPayload(data) {
     ttd_market_day: ttd,
     rd_market_day: rd,
     line_market_day: line,
+    ga_market_day: ga,
     creatives,
     benchmarks: data.benchmarks || {
       TTD:      {ctr:0.00112, cpm:10.07, cpc:9.02},
@@ -3272,6 +3283,7 @@ function dailyByChannel() {
   const blank = (date) => ({date, li_imp:0, li_clk:0, li_sp:0, li_leads:0,
                             ttd_imp:0, ttd_clk:0, ttd_sp:0,
                             rd_imp:0, rd_clk:0, rd_sp:0,
+                            ga_imp:0, ga_clk:0, ga_sp:0,
                             ln_imp:0, ln_clk:0, ln_sp:0});
   for (const r of PAYLOAD.li_market_day)  if (passesAll(r)) {
     const o = out[r.date] = out[r.date] || blank(r.date);
@@ -3284,6 +3296,10 @@ function dailyByChannel() {
   for (const r of PAYLOAD.rd_market_day)  if (passesAll(r)) {
     const o = out[r.date] = out[r.date] || blank(r.date);
     o.rd_imp+=r.imps; o.rd_clk+=r.clk; o.rd_sp+=r.spend;
+  }
+  for (const r of (PAYLOAD.ga_market_day||[])) if (passesAll(r)) {
+    const o = out[r.date] = out[r.date] || blank(r.date);
+    o.ga_imp+=r.imps; o.ga_clk+=r.clk; o.ga_sp+=r.spend;
   }
   for (const r of (PAYLOAD.line_market_day||[])) if (passesAll(r)) {
     const o = out[r.date] = out[r.date] || blank(r.date);
@@ -4381,7 +4397,8 @@ function buildDeckPayload(){
   // separate brief and must not be summed into Core's deck whichever lane is on screen.
   const _core = arr => (arr||[]).filter(r => (r.prog || 'CORE_DG') === 'CORE_DG');
   const chans=[['TTD',_core(P.ttd_market_day)],['LinkedIn',_core(P.li_market_day)],
-               ['Reddit',_core(P.rd_market_day)],['LINE',_core(P.line_market_day)]];
+               ['Reddit',_core(P.rd_market_day)],['Google Ads',_core(P.ga_market_day)],
+               ['LINE',_core(P.line_market_day)]];
   const by_channel=chans.map(([channel,arr])=>{ const a=sumCh(arr); return { channel, spend_usd:_r2(a.sp), imps:a.imp, clicks:a.clk, leads:a.leads,
     cpm:_r2(a.imp?a.sp/a.imp*1000:0), ctr:_r6(a.imp?a.clk/a.imp:0), cpc:_r2(a.clk?a.sp/a.clk:0) }; }).filter(c=>c.imps||c.spend_usd);
   const tot=chans.reduce((o,[,arr])=>{ const a=sumCh(arr); o.imp+=a.imp; o.clk+=a.clk; o.sp+=a.sp; o.leads+=a.leads; return o; },{imp:0,clk:0,sp:0,leads:0});
