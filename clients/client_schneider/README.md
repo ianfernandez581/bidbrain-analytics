@@ -240,6 +240,16 @@ Also fixed in passing: **`tableCSV()` leaked `_`-prefixed internal stashes** —
 each row's pre-markup spend on `_rawSpend`, and `pm_delivery` exports were shipping it to the client.
 Underscore keys are now dropped from the header and every row (the repo-wide rule in `md/AGENTS.md`).
 
+## Platform (channel) chips — only engines this program actually ran
+**2026-08-15 (client):** the Platform chip group used to render engines that delivered for OTHER
+programs as a **dim** chip on the selected one. That is gone - `renderControls()` now filters the
+roster to `platformsInCampaign()`, so a LinkedIn-only program shows ONE chip, not three, and nobody
+asks why DV360 is empty on a program that never bought DV360. The group also hides itself when a
+single engine is left (a lone chip you cannot untick is clutter, not a control). Unchanged: the
+filter is still hidden on the CS / Compare / Other / Website tabs, where Salesforce leads have no
+delivering platform. The same rule is applied on `client_cloudflare`, `client_schneidersecpwr` and
+`client_schneiderlqai`.
+
 ## Data model (mongodb concept → Schneider source)
 - **Campaign** (**top-nav dropdown** in the nav bar — the Cloudflare `dash-select` pattern) = the 5
   CS programs (`water_env` · `eba` · `heavy` · `global_rebrand` · `airset`) **+ `nel`** (New Energy
