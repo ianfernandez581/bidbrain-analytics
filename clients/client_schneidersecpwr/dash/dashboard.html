@@ -274,6 +274,8 @@
         </div>
       </div>
       <div class="control-filters">
+        <div class="filter-grp" id="channelGrp"><span class="lbl">Channel</span><div class="chips" id="channelChips"></div>
+          <button class="chip-action" onclick="allChannels()">All</button></div>
         <div class="filter-grp" id="marketGrp"><span class="lbl">Market</span><div class="chips" id="marketChips"></div>
           <button class="chip-action" onclick="allMarkets()">All</button>
           <button class="chip-action" onclick="clearMarkets()">Clear</button></div>
@@ -518,6 +520,18 @@ const marketOk=c=> activeMarkets.has(c);
 // a first-class dimension alongside market - every delivery and creative figure honors it.
 const campOk=k=> activeCampaign===ALL_CAMPAIGNS || k===activeCampaign;
 const allCampaignsView=()=> activeCampaign===ALL_CAMPAIGNS;
+// Channel filter (LinkedIn / The Trade Desk). Empty set == all channels, so a channel added later
+// can never leave the page blank; the last remaining channel cannot be unticked.
+let activeChannels=new Set();
+const platOk=p=> activeChannels.size===0 || activeChannels.has(p);
+function allChannels(){ activeChannels=new Set(); renderControls(); renderActive(); }
+function toggleChannel(k){
+  if(activeChannels.size===0) activeChannels=new Set(PLATFORMS.map(p=>p.key));
+  if(activeChannels.has(k)){ if(activeChannels.size>1) activeChannels.delete(k); }
+  else activeChannels.add(k);
+  if(activeChannels.size===PLATFORMS.length) activeChannels=new Set();
+  renderControls(); renderActive();
+}
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.markets||[]).filter(c=>activeMarkets.has(c)); }
 function campaignList(){ return (DATA.campaigns||[]); }
@@ -526,8 +540,8 @@ function campLabel(k){ const c=campaignList().find(x=>x.key===k); return c?c.lab
 // filtered delivery / creative rows (campaign chips + market chips + date range).
 // NOTE: creative rows carry NO date (whole-flight view), so the date picker deliberately does not
 // narrow them - the Creative tab says so.
-function pmRows(){ return (DATA.delivery||[]).filter(r=>campOk(r.campaign) && marketOk(r.market) && inRangeDate(r.date)); }
-function crRows(){ return (DATA.creative||[]).filter(r=>campOk(r.campaign) && marketOk(r.market)); }
+function pmRows(){ return (DATA.delivery||[]).filter(r=>campOk(r.campaign) && platOk(r.platform) && marketOk(r.market) && inRangeDate(r.date)); }
+function crRows(){ return (DATA.creative||[]).filter(r=>campOk(r.campaign) && platOk(r.platform) && marketOk(r.market)); }
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
 
 //==============================================================================
@@ -729,7 +743,8 @@ function renderControls(){
   const roster=marketRoster();
   const mkts=activeMarkets.size===roster.length?'all markets':(activeMarkets.size?activeMarketList().join(' · '):'no markets');
   const camps=allCampaignsView()?'all 3 campaigns':(campaignList().find(c=>c.key===activeCampaign)||{}).label||'-';
-  el('ctrlNote').textContent=`Showing ${camps} · ${mkts}`;
+  const chans=activeChannels.size===0?'all channels':PLATFORMS.filter(p=>activeChannels.has(p.key)).map(p=>p.label).join(' · ');
+  el('ctrlNote').textContent=`Showing ${camps} · ${chans} · ${mkts}`;
   // The date picker scopes delivery only; creative rows carry no date (whole-flight), so it is
   // hidden on that tab rather than sitting inert next to numbers it cannot move.
   el('dateGrp').style.display = activeTab==='creative' ? 'none' : 'flex';
@@ -741,6 +756,16 @@ function renderControls(){
   const optAll=document.createElement('option'); optAll.value=ALL_CAMPAIGNS; optAll.textContent='All campaigns'; sel.appendChild(optAll);
   campaignList().forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=`${c.label} (${c.brief})`; sel.appendChild(o); });
   sel.value=activeCampaign;
+
+  // Channel chips - coloured with each engine's own colour when ON, matching the charts and pills.
+  const cw2=el('channelChips'); cw2.innerHTML='';
+  PLATFORMS.forEach(p=>{ const on=platOk(p.key);
+    const b=document.createElement('button');
+    b.className='chip'+(on?' on':'');
+    b.style.cssText = on ? `background:${p.color};border-color:${p.color};color:#fff` : '';
+    b.title=`Show / hide ${p.label}`;
+    b.innerHTML=`<span class="check">✓</span>${p.label}`;
+    b.onclick=()=>toggleChannel(p.key); cw2.appendChild(b); });
 
   // Market chips follow the selected campaign's own markets.
   const rw=el('marketChips'); rw.innerHTML='';
