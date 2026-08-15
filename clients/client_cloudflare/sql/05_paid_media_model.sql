@@ -1,7 +1,8 @@
 -- paid_media_model: per-channel/market/day paid delivery for the dashboard.
 -- BigQuery port of CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL:
--- a UNION ALL of the four staging views with market derivation, weekly rollup key,
+-- a UNION ALL of the FIVE staging views with market derivation, weekly rollup key,
 -- and JPY->USD@155 for LINE. Replaces the old thin pass-through of src_paid_media.
+-- (Google Ads joined 2026-08-11 as the fifth channel - Q3 Core DG, brief 2479.)
 -- Snowflake -> BigQuery ports:
 --   DATE_TRUNC('WEEK', d)::DATE  -> DATE_TRUNC(d, WEEK(MONDAY))  (Snowflake weeks start Monday)
 --   ILIKE '%x%'                  -> LOWER(col) LIKE '%x%'
@@ -108,6 +109,42 @@ reddit AS (
     FROM `client_cloudflare.stg_reddit`
     GROUP BY 2, 3, 4, 5
 ),
+google_ads AS (
+    -- Added 2026-08-11. Market is parsed from the campaign name with the SAME token rules the
+    -- other channels use (the live buy is `CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting`, whose
+    -- `_JP_` token resolves to JP). Google Ads has no lead-form or video columns in this mirror,
+    -- so those slots are NULL - NOT 0 - which lets the dashboard hide them rather than draw a
+    -- false zero. See 04b_stg_google_ads.sql for the feed gap on YouTube video metrics.
+    SELECT
+        'Google Ads'                     AS CHANNEL,
+        PROGRAM                          AS PROGRAM,
+        DAY                              AS DATE,
+        DATE_TRUNC(DAY, WEEK(MONDAY))    AS WEEK_START,
+        CASE
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-anz%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_anz_%' THEN 'ANZ'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-asean%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_asean_%' THEN 'ASEAN'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-in%'  OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_in_%'  THEN 'SAARC'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-tcn%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_tw_%'
+              OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_hk_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_cn_%' THEN 'GCR'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_jp_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-jp%' THEN 'JP'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_kr_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-kr%' THEN 'KR'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%rig%'  THEN 'RIG'
+            ELSE 'UNMAPPED'
+        END                              AS MARKET,
+        SUM(IMPRESSIONS)                 AS IMPS,
+        SUM(CLICKS)                      AS CLICKS,
+        SUM(COSTS)                       AS SPEND_USD,
+        CAST(NULL AS FLOAT64)            AS LEADS,
+        CAST(NULL AS FLOAT64)            AS FORM_OPENS,
+        CAST(NULL AS FLOAT64)            AS LINK_CLICKS,
+        CAST(NULL AS FLOAT64)            AS ACTION_CLICKS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_STARTS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_COMPLETIONS,
+        CAST(NULL AS FLOAT64)            AS SPEND_JPY,
+        CAST(NULL AS FLOAT64)            AS FX_USD_JPY
+    FROM `client_cloudflare.stg_google_ads`
+    GROUP BY 2, 3, 4, 5
+),
 line_jp AS (
     SELECT
         'LINE'                           AS CHANNEL,
@@ -132,4 +169,5 @@ line_jp AS (
 SELECT * FROM linkedin
 UNION ALL SELECT * FROM tradedesk
 UNION ALL SELECT * FROM reddit
+UNION ALL SELECT * FROM google_ads
 UNION ALL SELECT * FROM line_jp;

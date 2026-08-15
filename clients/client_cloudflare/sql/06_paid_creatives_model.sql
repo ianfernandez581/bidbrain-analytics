@@ -67,6 +67,29 @@ reddit AS (
     FROM `client_cloudflare.stg_reddit`
     GROUP BY 2, 3, 4
 ),
+google_ads AS (
+    -- Added 2026-08-11. Google Ads has no creative-name column in this mirror, so the AD GROUP is
+    -- the finest grain we can show (the live buy splits `TOFU | Persona` vs `TOFU | Custom Intent`,
+    -- which is genuinely the useful cut). Market rules mirror paid_media_model's Google Ads arm.
+    SELECT
+        'Google Ads' AS CHANNEL,
+        PROGRAM AS PROGRAM,
+        CASE
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-anz%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_anz_%' THEN 'ANZ'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-asean%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_asean_%' THEN 'ASEAN'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-in%'  OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_in_%'  THEN 'SAARC'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-tcn%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_tw_%'
+              OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_hk_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%_cn_%' THEN 'GCR'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_jp_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-jp%' THEN 'JP'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_kr_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-kr%' THEN 'KR'
+            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%rig%'  THEN 'RIG'
+            ELSE 'UNMAPPED'
+        END AS MARKET,
+        COALESCE(NULLIF(TRIM(AD_GROUP_NAME), ''), '(unnamed)') AS CREATIVE,
+        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
+    FROM `client_cloudflare.stg_google_ads`
+    GROUP BY 2, 3, 4
+),
 line_jp AS (
     SELECT
         'LINE' AS CHANNEL,
@@ -83,6 +106,7 @@ FROM (
     SELECT * FROM linkedin
     UNION ALL SELECT * FROM tradedesk
     UNION ALL SELECT * FROM reddit
+    UNION ALL SELECT * FROM google_ads
     UNION ALL SELECT * FROM line_jp
 )
 WHERE IMPS > 0;
