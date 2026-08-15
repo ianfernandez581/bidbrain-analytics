@@ -43,6 +43,69 @@ same Flask password gate MongoDB uses.
 > up via the manual order in [One-time replicate / deploy order](#one-time-replicate--deploy-order)
 > below. (Only STT has a one-shot stand-up script, `clients/client_STT/deploy_stt.ps1`.)
 
+## Google Ads — the 5th paid channel (added 2026-08-11)
+
+Transmission connected the **`Cloudflare APAC`** Google Ads account (`ACCOUNT_ID 3034487647`) into
+`raw_snowflake.google_ads_apac` around **2026-07-22**. It feeds **Q3 Core DG (brief 2479)**.
+
+**Live today — one campaign:**
+
+| | |
+|---|---|
+| Campaign | `CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting` (id `24037386856`) |
+| Ad groups | `TOFU \| Persona` · `TOFU \| Custom Intent` |
+| Market / lane | **JP** · `CORE_DG` |
+| Delivery | 172,396 imps · 90 clicks · **US$765.16** (07-22 → 08-08) |
+| Currency | **USD** — already the reporting currency, so there is **no FX step** |
+
+**Files:** `sql/04b_stg_google_ads.sql` (new staging view) → a `google_ads` arm in
+[`sql/05_paid_media_model.sql`](sql/05_paid_media_model.sql) and
+[`sql/06_paid_creatives_model.sql`](sql/06_paid_creatives_model.sql) → dashboard `PM_CHANS` entry +
+`PM_GA`/`.pill.ga` colour + a `ga_market_day` array in `adaptPayload`.
+**`job/main.py` needed NO change** — it emits generic `rows[]` keyed by `channel`, so a new channel
+flows through on its own. That property is worth preserving.
+
+### Scoped by ACCOUNT, not campaign name — deliberately
+The media sheet lists **two** Google Ads lines against 2479 (Awareness from 15-Jul, Lead Generation
+from 17-Jul) but **only Awareness is connected**. Filtering on `ACCOUNT_NAME = 'Cloudflare APAC'`
+means the Lead Generation campaign starts reporting the moment Transmission connects it, with **no
+code change here**. It also avoids the repo-wide "campaign names are NOT stable keys" trap — these
+names do **not** follow the `CLOUD_ACQ_` convention every other channel uses, so a name filter would
+be both fragile and wrong.
+
+### Two known gaps (Transmission's side — do not paper over)
+1. **The Lead Generation campaign is not connected yet.** Our side is already scoped to catch it.
+2. **No video columns in the mirror.** `google_ads_apac` carries impressions / clicks / cost /
+   conversions only — and this is a **YouTube VideoViews** buy, so its actual KPI (video views,
+   quartiles) is absent. 90 clicks on 172k impressions is a **0.05% CTR that is normal for video,
+   not underperformance**. `PM_CHANS[].note` says exactly that on screen so nobody reads it as a
+   failing search campaign. Ask Transmission to add the video columns.
+
+### The market bug this shipped with, and the rule that came out of it
+The first deploy put this campaign in **SAARC**, not JP. Cause: **`_` is a single-character WILDCARD
+in SQL `LIKE`**, so the India arm's `LIKE '%_in_%'` matched the `t-in-g` inside `..._Prospecting`,
+and it sat above the JP arm. Both Google Ads arms now use the boundary-anchored
+`REGEXP_CONTAINS(LOWER(x), r'(^|[ _-])jp([ _-]|$)')` form; `apac-xx` variants stay plain
+`CONTAINS_SUBSTR` (a hyphen is not a wildcard). **Never match a 2-3 letter market token with `LIKE`.**
+See the repo-wide note in `md/AGENTS.md`.
+**Still loose (harmless today):** the pre-existing `'%_jp_%'` / `'%_kr_%'` arms in `stg_linkedin` and
+the LinkedIn arms of `paid_media_model` / `paid_creatives_model`. They only survive because the
+`apac-xx` arms above them fire first on every current LinkedIn name. Harden when next in that file.
+
+## Channel filter chips (Paid Media tab, 2026-08-15)
+A resetdata-style coloured chip row above the Markets chips: `renderPaidChannelChips()` /
+`togglePaidChannel()`, with `deliveredChans()` (delivery in the date range + lane) as the roster and
+`activeChans()` = roster ∩ selection. Everything channel-shaped already read `activeChans()`, so one
+click removes a channel from the KPIs, charts, tables, creatives and footer at once.
+- **Only channels WITH DELIVERY are rendered** (client, 2026-08-15) — nothing greyed out. Reddit and
+  LINE are Q2-only buys, so under a Q3 view they are simply absent. Never advertise a channel this
+  lane/range does not have.
+- The **last channel cannot be unticked** (no blank tab), and the whole row **hides itself when only
+  one channel is left** — a lone chip you can't untick is clutter, not a control.
+- "Everything ticked" is stored as the **empty set**, so a channel added later can never be silently
+  excluded, and the reset compares against the DELIVERED roster (not all of `PM_CHANS`) or you could
+  never return to the all-selected state under a range where some channels never ran.
+
 ## BigQuery owns the model (was the Snowflake-modelled exception)
 
 Until 2026-06-17 Cloudflare was the **only** client that didn't follow the repo
@@ -748,6 +811,9 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
     "rows": [ { "channel","program","date","week_start","market","imps","clicks","spend_usd",
                 "leads","form_opens","link_clicks","action_clicks","video_starts",
                 "video_completions","spend_jpy","fx_usd_jpy" } ],
+    // `channel` is one of TTD / LinkedIn / Reddit / LINE / Google Ads. The job does NOT enumerate
+    // channels - it copies whatever paid_media_model emits - so adding a channel is a SQL + frontend
+    // change only (that is how Google Ads landed 2026-08-11 with no job edit).
     "creatives": [ { "channel","program","market","creative","imps","clicks","spend_usd","leads" } ],
     "benchmarks":        { "<channel>": { "ctr","cpm","cpc" } },
     "benchmarks_market": { "<market>":  { "ctr","cpm","cpc" } },

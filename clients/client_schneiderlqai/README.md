@@ -28,6 +28,12 @@ the multi-program Schneider Pacific dashboard.
   there is no second password via the front-door.
 
 ## Tabs
+> **Channel chips (2026-08-15):** a coloured LinkedIn / Trade Desk chip pair in the control bar,
+> honoured by `pmRows()` + `crRows()` via `platOk()`. **Only engines with delivery in the current
+> country/date selection are rendered** (client rule - never advertise a channel this campaign does
+> not have), the last engine cannot be unticked, and the group hides itself on the Media Plan tab
+> (plan targets, not measured delivery) and whenever one engine is left.
+
 1. **Overview** — delivery KPIs (spend / impressions / clicks / CTR + CPM/CPC), a **pace-to-plan** card
    (delivered vs media-plan targets over the flight), a delivery-over-time hero chart (grain + Relative/
    Absolute toggles), a LinkedIn-vs-Trade-Desk channel table, spend-by-channel + spend-by-country charts,

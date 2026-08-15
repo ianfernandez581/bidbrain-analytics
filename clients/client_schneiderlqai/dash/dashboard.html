@@ -260,6 +260,8 @@
         </div>
       </div>
       <div class="control-filters">
+        <div class="filter-grp" id="channelGrp"><span class="lbl">Channel</span><div class="chips" id="channelChips"></div>
+          <button class="chip-action" onclick="allChannels()">All</button></div>
         <div class="filter-grp" id="countryGrp"><span class="lbl">Country</span><div class="chips" id="countryChips"></div>
           <button class="chip-action" onclick="allCountries()">All</button>
           <button class="chip-action" onclick="clearCountries()">Clear</button></div>
@@ -532,11 +534,23 @@ function bbApplyFx(){
 // ----------------------------------------------------------------------------------------------
 
 const countryOk=c=> activeCountries.has(c);
+// Channel filter (LinkedIn / The Trade Desk). Empty set == all channels, so a channel added later
+// can never leave the page blank; the last remaining channel cannot be unticked.
+let activeChannels=new Set();
+const platOk=p=> activeChannels.size===0 || activeChannels.has(p);
+function allChannels(){ activeChannels=new Set(); renderControls(); renderActive(); }
+function toggleChannel(k){
+  if(activeChannels.size===0) activeChannels=new Set(PLATFORMS.map(p=>p.key));
+  if(activeChannels.has(k)){ if(activeChannels.size>1) activeChannels.delete(k); }
+  else activeChannels.add(k);
+  if(activeChannels.size===PLATFORMS.length) activeChannels=new Set();
+  renderControls(); renderActive();
+}
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeCountryList(){ return (DATA.countries||[]).filter(c=>activeCountries.has(c)); }
 // filtered delivery / creative rows (country chips + date range)
-function pmRows(){ return (DATA.delivery||[]).filter(r=>countryOk(r.country) && inRangeDate(r.date)); }
-function crRows(){ return (DATA.creative||[]).filter(r=>countryOk(r.country)); }
+function pmRows(){ return (DATA.delivery||[]).filter(r=>platOk(r.platform) && countryOk(r.country) && inRangeDate(r.date)); }
+function crRows(){ return (DATA.creative||[]).filter(r=>platOk(r.platform) && countryOk(r.country)); }
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
 
 //==============================================================================
@@ -716,9 +730,29 @@ function renderControls(){
   const bar=el('tabBar'); bar.innerHTML='';
   ['overview','creative','plan'].forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const mkts=activeCountries.size===(DATA.countries||[]).length?'all countries':(activeCountries.size?activeCountryList().join(' · '):'no countries');
-  el('ctrlNote').textContent = activeTab==='plan' ? 'Media plan · whole flight' : `Showing ${mkts}`;
+  const chans=activeChannels.size===0?'all channels':PLATFORMS.filter(p=>activeChannels.has(p.key)).map(p=>p.label).join(' · ');
+  el('ctrlNote').textContent = activeTab==='plan' ? 'Media plan · whole flight' : `Showing ${chans} · ${mkts}`;
   el('dateGrp').style.display = activeTab==='plan' ? 'none' : 'flex';
   el('countryGrp').style.display = activeTab==='plan' ? 'none' : 'flex';
+
+  // Channel chips - ONLY engines with delivery in the current country/date selection (client rule,
+  // 2026-08-15: never advertise a channel this campaign does not have). The roster ignores the
+  // channel filter itself, or unticking one would erase its own chip. Hidden entirely on the Media
+  // Plan tab (that tab is plan targets, not measured delivery) and whenever one engine is left,
+  // since a lone chip you cannot untick is clutter rather than a control.
+  const livePlats=new Set((DATA.delivery||[])
+    .filter(r=>countryOk(r.country) && inRangeDate(r.date)).map(r=>r.platform));
+  const shownPlats=PLATFORMS.filter(p=>livePlats.has(p.key));
+  const cw=el('channelChips'); cw.innerHTML='';
+  shownPlats.forEach(p=>{ const on=platOk(p.key);
+    const b=document.createElement('button');
+    b.className='chip'+(on?' on':'');
+    b.style.cssText = on ? `background:${p.color};border-color:${p.color};color:#fff` : '';
+    b.title=`Show / hide ${p.label}`;
+    b.innerHTML=`<span class="check">✓</span>${p.label}`;
+    b.onclick=()=>toggleChannel(p.key); cw.appendChild(b); });
+  el('channelGrp').style.display = (activeTab!=='plan' && shownPlats.length>1) ? 'flex' : 'none';
+
   const rw=el('countryChips'); rw.innerHTML='';
   (DATA.countries||[]).forEach(c=>{ const b=document.createElement('button'); b.className='chip'+(activeCountries.has(c)?' on':''); b.innerHTML=`<span class="check">✓</span>${c}`; b.onclick=()=>toggleCountry(c); rw.appendChild(b); });
 }

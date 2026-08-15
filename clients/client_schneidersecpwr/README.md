@@ -38,6 +38,13 @@ read `client_schneider`'s views, so a scope change there cannot move numbers her
    and campaign × market breakdowns and a spend-by-campaign / impressions-by-region pair of charts.
 3. **Creative** — concepts, formats, best creatives by CTR, and a sortable/searchable detail table.
 
+**Channel chips (2026-08-15):** a coloured chip per engine, next to the Campaign dropdown, honoured
+by every delivery and creative figure via `platOk()`. **Only engines the SELECTED campaign actually
+ran are rendered** (client rule - never advertise a channel a campaign does not have); the roster is
+derived from the data ignoring the channel filter itself, the last engine cannot be unticked, and the
+whole group hides when one engine is left. Same rule now applies on `client_cloudflare`,
+`client_schneider` and `client_schneiderlqai`.
+
 Filters: a **Campaign dropdown in the top nav bar** (the `client_schneider` / Cloudflare pattern -
 `#campSelect` + `setCampaign()`), plus **Market** chips and a **date range** (Overview + Campaigns;
 the Creative feed carries no date column, so the picker is hidden there).
