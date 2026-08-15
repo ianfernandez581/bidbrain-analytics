@@ -1,7 +1,8 @@
 -- paid_media_model: per-channel/market/day paid delivery for the dashboard.
 -- BigQuery port of CLOUDFLARE_SANDBOX.PAID_MEDIA_REPORTING.V_PAID_ADS_FINAL_MODEL:
--- a UNION ALL of the four staging views with market derivation, weekly rollup key,
+-- a UNION ALL of the FIVE staging views with market derivation, weekly rollup key,
 -- and JPY->USD@155 for LINE. Replaces the old thin pass-through of src_paid_media.
+-- (Google Ads joined 2026-08-11 as the fifth channel - Q3 Core DG, brief 2479.)
 -- Snowflake -> BigQuery ports:
 --   DATE_TRUNC('WEEK', d)::DATE  -> DATE_TRUNC(d, WEEK(MONDAY))  (Snowflake weeks start Monday)
 --   ILIKE '%x%'                  -> LOWER(col) LIKE '%x%'
@@ -108,6 +109,54 @@ reddit AS (
     FROM `client_cloudflare.stg_reddit`
     GROUP BY 2, 3, 4, 5
 ),
+google_ads AS (
+    -- Added 2026-08-11. Market is parsed from the campaign name with the SAME token rules the
+    -- other channels use (the live buy is `CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting`, whose
+    -- `_JP_` token resolves to JP). Google Ads has no lead-form or video columns in this mirror,
+    -- so those slots are NULL - NOT 0 - which lets the dashboard hide them rather than draw a
+    -- false zero. See 04b_stg_google_ads.sql for the feed gap on YouTube video metrics.
+    SELECT
+        'Google Ads'                     AS CHANNEL,
+        PROGRAM                          AS PROGRAM,
+        DAY                              AS DATE,
+        DATE_TRUNC(DAY, WEEK(MONDAY))    AS WEEK_START,
+        -- DELIMITER-AWARE REGEX, NOT `LIKE '%_xx_%'`. In SQL LIKE, `_` is a SINGLE-CHARACTER
+        -- WILDCARD, not a literal underscore - so '%_in_%' matches "prospecTINGg"-style text and
+        -- this campaign (CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting) was resolving to SAARC
+        -- instead of JP on its first deploy (caught in QA 2026-08-11). The country codes here are
+        -- 2-3 letters, so a bare LIKE is never safe for them; use the same boundary-anchored
+        -- REGEXP_CONTAINS that client_schneider's parsers use. The `apac-xx` forms carry a hyphen
+        -- and are matched as plain substrings, which is safe.
+        CASE
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-anz')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])anz([ _-]|$)') THEN 'ANZ'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-asean')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])asean([ _-]|$)') THEN 'ASEAN'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-jp')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(jp|japan)([ _-]|$)') THEN 'JP'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-kr')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(kr|korea)([ _-]|$)') THEN 'KR'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-tcn')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(tw|hk|cn|gcr)([ _-]|$)') THEN 'GCR'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-in')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(in|india|saarc)([ _-]|$)') THEN 'SAARC'
+            WHEN REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])rig([ _-]|$)') THEN 'RIG'
+            ELSE 'UNMAPPED'
+        END                              AS MARKET,
+        SUM(IMPRESSIONS)                 AS IMPS,
+        SUM(CLICKS)                      AS CLICKS,
+        SUM(COSTS)                       AS SPEND_USD,
+        CAST(NULL AS FLOAT64)            AS LEADS,
+        CAST(NULL AS FLOAT64)            AS FORM_OPENS,
+        CAST(NULL AS FLOAT64)            AS LINK_CLICKS,
+        CAST(NULL AS FLOAT64)            AS ACTION_CLICKS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_STARTS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_COMPLETIONS,
+        CAST(NULL AS FLOAT64)            AS SPEND_JPY,
+        CAST(NULL AS FLOAT64)            AS FX_USD_JPY
+    FROM `client_cloudflare.stg_google_ads`
+    GROUP BY 2, 3, 4, 5
+),
 line_jp AS (
     SELECT
         'LINE'                           AS CHANNEL,
@@ -132,4 +181,5 @@ line_jp AS (
 SELECT * FROM linkedin
 UNION ALL SELECT * FROM tradedesk
 UNION ALL SELECT * FROM reddit
+UNION ALL SELECT * FROM google_ads
 UNION ALL SELECT * FROM line_jp;

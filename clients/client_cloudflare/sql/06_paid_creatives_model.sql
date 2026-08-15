@@ -67,6 +67,37 @@ reddit AS (
     FROM `client_cloudflare.stg_reddit`
     GROUP BY 2, 3, 4
 ),
+google_ads AS (
+    -- Added 2026-08-11. Google Ads has no creative-name column in this mirror, so the AD GROUP is
+    -- the finest grain we can show (the live buy splits `TOFU | Persona` vs `TOFU | Custom Intent`,
+    -- which is genuinely the useful cut). Market rules mirror paid_media_model's Google Ads arm.
+    SELECT
+        'Google Ads' AS CHANNEL,
+        PROGRAM AS PROGRAM,
+        -- Boundary-anchored regex, NOT `LIKE '%_xx_%'` - `_` is a single-character WILDCARD in LIKE,
+        -- which sent this campaign to SAARC instead of JP on first deploy. Keep IDENTICAL to
+        -- paid_media_model's Google Ads arm or the creative table will disagree with the KPIs.
+        CASE
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-anz')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])anz([ _-]|$)') THEN 'ANZ'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-asean')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])asean([ _-]|$)') THEN 'ASEAN'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-jp')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(jp|japan)([ _-]|$)') THEN 'JP'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-kr')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(kr|korea)([ _-]|$)') THEN 'KR'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-tcn')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(tw|hk|cn|gcr)([ _-]|$)') THEN 'GCR'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-in')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])(in|india|saarc)([ _-]|$)') THEN 'SAARC'
+            WHEN REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])rig([ _-]|$)') THEN 'RIG'
+            ELSE 'UNMAPPED'
+        END AS MARKET,
+        COALESCE(NULLIF(TRIM(AD_GROUP_NAME), ''), '(unnamed)') AS CREATIVE,
+        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
+    FROM `client_cloudflare.stg_google_ads`
+    GROUP BY 2, 3, 4
+),
 line_jp AS (
     SELECT
         'LINE' AS CHANNEL,
@@ -83,6 +114,7 @@ FROM (
     SELECT * FROM linkedin
     UNION ALL SELECT * FROM tradedesk
     UNION ALL SELECT * FROM reddit
+    UNION ALL SELECT * FROM google_ads
     UNION ALL SELECT * FROM line_jp
 )
 WHERE IMPS > 0;
