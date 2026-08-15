@@ -372,6 +372,25 @@
   .pill.li{background:rgba(59,147,232,.18);color:#9CCBF5;border:1px solid rgba(59,147,232,.34)}
   .pill.rd{background:rgba(255,69,0,.18);color:#FFB49B;border:1px solid rgba(255,69,0,.34)}
   .pill.ln{background:rgba(6,199,85,.16);color:#8FE9B7;border:1px solid rgba(6,199,85,.32)}
+  .pill.ga{background:rgba(245,197,66,.18);color:#FFDF8C;border:1px solid rgba(245,197,66,.36)}
+
+  /* Channel filter chips (Paid Media tab). Each carries its channel's own colour when ON, so the
+     filter reads at a glance and matches the pills + chart series. Same interaction model as the
+     market chips; OFF is the neutral outline so the active set is obvious. */
+  .cchip{display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;
+    font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;letter-spacing:.2px;
+    background:transparent;color:var(--text-mute);border:1px solid var(--hairline);
+    transition:background .12s ease,color .12s ease,border-color .12s ease}
+  .cchip:hover{border-color:var(--brand-accent);color:var(--text)}
+  .cchip .cdot{width:8px;height:8px;border-radius:50%;background:currentColor;opacity:.9}
+  .cchip.on{color:#12100E}
+  .cchip.on.c-ttd{background:#F38020;border-color:#F38020}
+  .cchip.on.c-li {background:#3B93E8;border-color:#3B93E8}
+  .cchip.on.c-rd {background:#FF6A3D;border-color:#FF6A3D}
+  .cchip.on.c-ln {background:#22D97A;border-color:#22D97A}
+  .cchip.on.c-ga {background:#F5C542;border-color:#F5C542}
+  .cchip[disabled]{opacity:.32;cursor:not-allowed}
+  .cchip[disabled]:hover{border-color:var(--hairline);color:var(--text-mute)}
   .delta-pm{font-size:11px;font-weight:600;display:inline-block;margin-left:4px}
   .delta-pm.good{color:var(--good-green)} .delta-pm.bad{color:var(--bad-red)} .delta-pm.neutral{color:var(--cf-mute)}
   /* QoQ tab */
@@ -849,6 +868,12 @@
       </div>
 
       <div id="paid-content" style="display:none">
+
+        <div class="filter-row">
+          <span class="lbl">Channels</span>
+          <div class="chips" id="paidChannelChips"></div>
+          <button class="chip-action" onclick="selectAllPaidChannels()">Select all</button>
+        </div>
 
         <div class="filter-row">
           <span class="lbl">Markets</span>
@@ -1524,6 +1549,8 @@ function syncQuarterFromRange(){
   // Same for the Paid Media tab's chips (paidVisibleMarkets is quarter-dependent too).
   if (typeof renderChips === 'function') renderChips();
   if (typeof renderPaidMediaChips === 'function' && paidMediaLoaded) renderPaidMediaChips();
+  // The Channel roster is date/lane dependent too (deliveredChans), so redraw it here as well.
+  if (typeof renderPaidChannelChips === 'function' && paidMediaLoaded) renderPaidChannelChips();
 }
 // The quarter the user is viewing, as a label. Both Q2 and Q3 targets are loaded, and the
 // dashboard opens on Q3 - captions follow the selected quarter: Q3 / Q2 / Q2-Q3, or a
@@ -3032,9 +3059,17 @@ const PM_CHANS = [
 // The PROGRAM filter applies here too (a channel that ran only for the OTHER brief must not
 // be listed as live for this one - Surround ABM is Trade Desk only, so LinkedIn/Reddit/LINE
 // vanish from its tab). Still date-scoped, still NOT chip-scoped, for the reason above.
-function activeChans(){
+// deliveredChans() = "what actually ran in this date range / lane" - the roster the Channel chips
+// are drawn from, so a channel you switched OFF still shows as a chip you can switch back on.
+function deliveredChans(){
   return PM_CHANS.filter(c => c.rows().some(r =>
     progOk(r) && dateOk(r.date) && ((r.spend||0) > 0 || (r.imps||0) > 0 || (r.clk||0) > 0)));
+}
+// activeChans() = delivered AND selected in the Channel filter. Everything channel-shaped reads
+// this, so unticking a chip removes it from the KPIs, charts, tables, creatives and footer in one
+// move - there is no second place to keep in sync.
+function activeChans(){
+  return deliveredChans().filter(c => chanSelected(c.key));
 }
 const chanIsActive = key => activeChans().some(c => c.key === key);
 // Prose list of the live channels, e.g. "Trade Desk + LinkedIn".
@@ -3105,6 +3140,7 @@ function loadPaidMedia() {
     document.getElementById('paid-loading').style.display = 'none';
     document.getElementById('paid-content').style.display = 'block';
     setPaidFooter();
+    renderPaidChannelChips();
     renderPaidMediaChips();
     renderPaidMediaAll();
   } catch (err) {
@@ -3228,6 +3264,51 @@ function setPaidFooter() {
   const rangeText = narrowed() ? ` · Filtered to ${rangeStart} → ${rangeEnd}` : '';
   document.getElementById('paidFooter').innerHTML =
     `Live paid media · Updated <b style="color:#fff">${luText}</b> · ${totalRows.toLocaleString()} rows${winText}${rangeText} · Source: ${activeChanList(', ')} · Auto-refreshes within ~10 min of new data`;
+}
+
+// ---- Channel filter (Paid Media tab) ---------------------------------------------------------
+// User-facing channel picker, the resetdata pattern: one coloured chip per channel, click to
+// include/exclude. It is deliberately SEPARATE from activeChans(), which answers a different
+// question - "did this channel deliver in the selected date range". A channel that did not deliver
+// is shown DISABLED rather than hidden, so the roster stays stable as you move the date range and
+// nobody wonders where a channel went.
+// Empty set == every channel (the natural default), so an old bookmark or a channel added later
+// can never leave the tab blank.
+let paidActiveChannels = new Set();
+function chanSelected(key) { return paidActiveChannels.size === 0 || paidActiveChannels.has(key); }
+function selectAllPaidChannels() {
+  paidActiveChannels = new Set();
+  renderPaidChannelChips(); renderPaidMediaAll();
+}
+function togglePaidChannel(key) {
+  // Start from the explicit full set so the first click reads as "drop this one".
+  if (paidActiveChannels.size === 0) paidActiveChannels = new Set(PM_CHANS.map(c => c.key));
+  if (paidActiveChannels.has(key)) {
+    if (paidActiveChannels.size > 1) paidActiveChannels.delete(key);   // never allow zero channels
+  } else {
+    paidActiveChannels.add(key);
+  }
+  if (paidActiveChannels.size === PM_CHANS.length) paidActiveChannels = new Set();   // back to "all"
+  renderPaidChannelChips(); renderPaidMediaAll();
+}
+const CHAN_CLS = {TTD:'c-ttd', LinkedIn:'c-li', Reddit:'c-rd', LINE:'c-ln', GoogleAds:'c-ga'};
+function renderPaidChannelChips() {
+  const host = document.getElementById('paidChannelChips');
+  if (!host) return;
+  host.innerHTML = '';
+  const live = new Set(deliveredChans().map(c => c.key));
+  PM_CHANS.forEach(c => {
+    const delivered = live.has(c.key);
+    const on = delivered && chanSelected(c.key);
+    const b = document.createElement('button');
+    b.className = 'cchip ' + (CHAN_CLS[c.key] || '') + (on ? ' on' : '');
+    b.innerHTML = `<span class="cdot" style="${on ? '' : 'background:' + c.color}"></span>${c.label}`;
+    b.title = delivered
+      ? (c.note ? `${c.long} - ${c.note}` : `Show / hide ${c.long}`)
+      : `${c.long} - no delivery in the selected date range`;
+    if (!delivered) b.disabled = true; else b.onclick = () => togglePaidChannel(c.key);
+    host.appendChild(b);
+  });
 }
 
 function renderPaidMediaChips() {
