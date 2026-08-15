@@ -5,6 +5,14 @@
 // wrong row still looks like a number.
 //
 // Rules, in order:
+//   0. campaign_aliases.json wins outright. Central names campaigns short
+//      ("Airset", "EBA", "46113") where the intake names them by media-plan line
+//      ("2223_SE_Airset SM_ANZ_display_AWR"), which scores far below any safe
+//      similarity threshold. Without this file the importer calls those NEW and
+//      creates duplicate rows beside live campaigns already carrying the spend.
+//      An entry marked `create: true` means genuinely new; an entry with no
+//      decision blocks the row entirely rather than letting it fall through to
+//      guessing.
 //   1. client and channel must agree. A name never pulls a match across a
 //      client boundary or onto another platform.
 //   2. exact name (separator-insensitive), else bigram similarity >= 0.6.
@@ -41,8 +49,38 @@ function findExisting(c, campaigns) {
 
 /** Returns [{ c, row, score, pool, near }] plus the reassignments made, so a
  *  caller can print what rule 3 moved. */
+function loadAliases() {
+  try {
+    const p = require('path').join(__dirname, 'campaign_aliases.json');
+    return (JSON.parse(require('fs').readFileSync(p, 'utf8')).aliases) || {};
+  } catch (e) { return {}; }   // absent file = name matching only, as before
+}
+
 function resolveAll(configCampaigns, campaigns) {
-  const resolved = configCampaigns.map((c) => Object.assign({ c }, findExisting(c, campaigns)));
+  const aliases = loadAliases();
+  const resolved = configCampaigns.map((c) => {
+    const a = aliases[`${c.client}|${c.platform}|${c.campaign}`];
+    if (a && a.rowId) {
+      const row = campaigns.find((x) => x.id === a.rowId && !x.archivedAt);
+      if (row) return { c, row, score: 1, pool: 1, alias: a };
+      // A recorded alias pointing at a row that no longer exists must NOT fall
+      // back to name matching - that is how a duplicate gets created quietly.
+      return { c, row: null, score: 0, pool: 0, blocked: `alias ${a.rowId} is not a live Central row` };
+    }
+    if (a && a.create) {
+      // "Approved as new" is only true until the import actually creates it.
+      // After that the row exists and must be found, or the sync writes metrics
+      // to nothing and the campaign sits at zero spend forever.
+      const made = findExisting(c, campaigns);
+      if (made.row) return Object.assign({ c }, made, { approvedCreate: false });
+      return { c, row: null, score: 0, pool: 0, approvedCreate: true };
+    }
+    const hit = findExisting(c, campaigns);
+    // Unmatched AND undecided: block it. Everything Central cannot find by name
+    // has to be ruled on in campaign_aliases.json first.
+    if (!hit.row) return Object.assign({ c, blocked: 'no name match and no recorded alias/create decision' }, hit);
+    return Object.assign({ c }, hit);
+  });
   const keyOf = (r) => [norm(r.client), chan(r.channel), tok(r.name)].join('|');
 
   const groups = new Map();
