@@ -3269,9 +3269,12 @@ function setPaidFooter() {
 // ---- Channel filter (Paid Media tab) ---------------------------------------------------------
 // User-facing channel picker, the resetdata pattern: one coloured chip per channel, click to
 // include/exclude. It is deliberately SEPARATE from activeChans(), which answers a different
-// question - "did this channel deliver in the selected date range". A channel that did not deliver
-// is shown DISABLED rather than hidden, so the roster stays stable as you move the date range and
-// nobody wonders where a channel went.
+// question - "did this channel deliver in the selected date range".
+//
+// ONLY CHANNELS WITH ACTUAL DELIVERY ARE SHOWN (client, 2026-08-15): a channel that did not run for
+// the selected lane / date range is not rendered at all, not greyed out. Reddit and LINE are Q2-only
+// buys, so under a Q3 view they are simply absent - the same rule the KPIs, charts and tables
+// already follow via activeChans(). Never advertise a channel this campaign does not have.
 // Empty set == every channel (the natural default), so an old bookmark or a channel added later
 // can never leave the tab blank.
 let paidActiveChannels = new Set();
@@ -3281,14 +3284,16 @@ function selectAllPaidChannels() {
   renderPaidChannelChips(); renderPaidMediaAll();
 }
 function togglePaidChannel(key) {
-  // Start from the explicit full set so the first click reads as "drop this one".
-  if (paidActiveChannels.size === 0) paidActiveChannels = new Set(PM_CHANS.map(c => c.key));
+  // Work against the DELIVERED roster, not all of PM_CHANS - otherwise "everything ticked" could
+  // never be reached under a range where only some channels ran.
+  const live = deliveredChans().map(c => c.key);
+  if (paidActiveChannels.size === 0) paidActiveChannels = new Set(live);
   if (paidActiveChannels.has(key)) {
     if (paidActiveChannels.size > 1) paidActiveChannels.delete(key);   // never allow zero channels
   } else {
     paidActiveChannels.add(key);
   }
-  if (paidActiveChannels.size === PM_CHANS.length) paidActiveChannels = new Set();   // back to "all"
+  if (live.every(k => paidActiveChannels.has(k))) paidActiveChannels = new Set();   // back to "all"
   renderPaidChannelChips(); renderPaidMediaAll();
 }
 const CHAN_CLS = {TTD:'c-ttd', LinkedIn:'c-li', Reddit:'c-rd', LINE:'c-ln', GoogleAds:'c-ga'};
@@ -3296,19 +3301,20 @@ function renderPaidChannelChips() {
   const host = document.getElementById('paidChannelChips');
   if (!host) return;
   host.innerHTML = '';
-  const live = new Set(deliveredChans().map(c => c.key));
-  PM_CHANS.forEach(c => {
-    const delivered = live.has(c.key);
-    const on = delivered && chanSelected(c.key);
+  // Delivered channels ONLY - nothing greyed, nothing advertised that this lane/range doesn't have.
+  const shown = deliveredChans();
+  shown.forEach(c => {
+    const on = chanSelected(c.key);
     const b = document.createElement('button');
     b.className = 'cchip ' + (CHAN_CLS[c.key] || '') + (on ? ' on' : '');
     b.innerHTML = `<span class="cdot" style="${on ? '' : 'background:' + c.color}"></span>${c.label}`;
-    b.title = delivered
-      ? (c.note ? `${c.long} - ${c.note}` : `Show / hide ${c.long}`)
-      : `${c.long} - no delivery in the selected date range`;
-    if (!delivered) b.disabled = true; else b.onclick = () => togglePaidChannel(c.key);
+    b.title = c.note ? `${c.long} - ${c.note}` : `Show / hide ${c.long}`;
+    b.onclick = () => togglePaidChannel(c.key);
     host.appendChild(b);
   });
+  // With one channel there is nothing to filter - hide the whole row rather than show a lone chip.
+  const grp = host.closest('.filter-row');
+  if (grp) grp.style.display = shown.length > 1 ? '' : 'none';
 }
 
 function renderPaidMediaChips() {

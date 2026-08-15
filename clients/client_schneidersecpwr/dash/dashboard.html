@@ -757,15 +757,24 @@ function renderControls(){
   campaignList().forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=`${c.label} (${c.brief})`; sel.appendChild(o); });
   sel.value=activeCampaign;
 
-  // Channel chips - coloured with each engine's own colour when ON, matching the charts and pills.
+  // Channel chips - coloured with each engine's own colour when ON, matching the charts.
+  // ONLY engines the SELECTED campaign actually ran (client, 2026-08-15). Never advertise a channel
+  // this campaign does not have: the roster is derived from the data, ignoring the channel filter
+  // itself (otherwise unticking one would erase its own chip).
   const cw2=el('channelChips'); cw2.innerHTML='';
-  PLATFORMS.forEach(p=>{ const on=platOk(p.key);
+  const livePlats=new Set((DATA.delivery||[])
+    .filter(r=>campOk(r.campaign) && marketOk(r.market) && inRangeDate(r.date))
+    .map(r=>r.platform));
+  const shownPlats=PLATFORMS.filter(p=>livePlats.has(p.key));
+  shownPlats.forEach(p=>{ const on=platOk(p.key);
     const b=document.createElement('button');
     b.className='chip'+(on?' on':'');
     b.style.cssText = on ? `background:${p.color};border-color:${p.color};color:#fff` : '';
     b.title=`Show / hide ${p.label}`;
     b.innerHTML=`<span class="check">✓</span>${p.label}`;
     b.onclick=()=>toggleChannel(p.key); cw2.appendChild(b); });
+  // Nothing to filter with one engine - hide the group rather than show a lone chip.
+  el('channelGrp').style.display = shownPlats.length>1 ? 'flex' : 'none';
 
   // Market chips follow the selected campaign's own markets.
   const rw=el('marketChips'); rw.innerHTML='';

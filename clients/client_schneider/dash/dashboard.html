@@ -1051,13 +1051,18 @@ function renderControls(){
     const all=platformsInData();
     pg.style.display=(platScoped && all.length)?'flex':'none';
     const pw=el('platformChips'); pw.innerHTML='';
+    // ONLY engines that actually delivered for the SELECTED program (client, 2026-08-15). Engines
+    // that ran for other programs used to render "dim" here; showing a channel this campaign does
+    // not have invites the question "why is DV360 empty?" for a program that never bought DV360.
     const campPlats=platformsInCampaign();   // NOT named inCamp - that's the global campaign predicate
-    all.forEach(p=>{ const b=document.createElement('button');
-      // dim = this engine ran for other programs but not the selected one (still togglable)
-      b.className='chip'+(activePlatforms.has(p.key)?' on':'')+(campPlats.has(p.key)?'':' dim');
-      b.title=campPlats.has(p.key)?`${p.label} delivery`:`${p.label} - no delivery for this program`;
+    const shown=all.filter(p=>campPlats.has(p.key));
+    shown.forEach(p=>{ const b=document.createElement('button');
+      b.className='chip'+(activePlatforms.has(p.key)?' on':'');
+      b.title=`Show / hide ${p.label}`;
       b.innerHTML=`<span class="pdot" style="background:${p.color}"></span>${p.label}`;
       b.onclick=()=>togglePlatform(p.key); pw.appendChild(b); });
+    // Nothing to filter on a single-engine program - hide the group rather than show a lone chip.
+    if(pg) pg.style.display=(platScoped && shown.length>1)?'flex':'none';
   }
 }
 
