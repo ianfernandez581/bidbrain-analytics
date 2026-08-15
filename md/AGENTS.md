@@ -158,10 +158,13 @@ this misfires constantly on ordinary words.
 `REGEXP_CONTAINS(LOWER(x), r'(^|[ _-])jp([ _-]|$)')`. Hyphenated forms (`apac-jp`) are safe as plain
 `CONTAINS_SUBSTR`. Reference impl: `clients/client_cloudflare/sql/05_paid_media_model.sql` (Google
 Ads arm) and every parser in `clients/client_schneider/sql/02_stg_linkedin.sql`.
-**Still outstanding:** the pre-existing `'%_jp_%'` / `'%_kr_%'` arms in cloudflare's `stg_linkedin` +
-`paid_media_model`/`paid_creatives_model` LinkedIn arms have the same loose shape. They are harmless
-TODAY only because the `apac-xx` arms above them fire first on every current LinkedIn name - a
-campaign named without an `APAC-xx` token would mis-resolve. Harden them when next in that file.
+**Repo-wide audit CLOSED 2026-08-15:** the pre-existing loose `'%_jp_%'` / `'%_kr_%'` arms in
+cloudflare's `paid_media_model` + `paid_creatives_model` LinkedIn arms are now boundary-anchored too.
+They were harmless only because the `apac-xx` arms above them fire first on every current LinkedIn
+name; a campaign named without an `APAC-xx` token would have mis-resolved. **Verified a strict no-op**
+before/after (channel x market x imps x spend identical across all 5 channels) - LinkedIn has no
+JP/KR delivery today, so the fix is purely forward protection. No `LIKE '%_xx_%'` market token
+remains in live code anywhere in the repo; if you add one, you are re-introducing this bug.
 
 ## Dashboard edits - the common task
 Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,300-2,400 lines).

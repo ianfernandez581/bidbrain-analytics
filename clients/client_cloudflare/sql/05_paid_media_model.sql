@@ -32,8 +32,15 @@ WITH linkedin AS (
             WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-asean%' THEN 'ASEAN'
             WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-in%'    THEN 'SAARC'
             WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-tcn%'   THEN 'GCR'
-            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_jp_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-jp%' THEN 'JP'
-            WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%_kr_%' OR LOWER(CAMPAIGN_NAME_NORM) LIKE '%apac-kr%' THEN 'KR'
+            -- Boundary-anchored, NOT `LIKE '%_jp_%'`: `_` is a single-character WILDCARD in LIKE, so
+            -- that form also matches any-char+jp+any-char inside an ordinary word. Harmless while the
+            -- apac-xx arms above catch every current name, but it is a live trap for a campaign named
+            -- without an APAC-xx token - exactly how the Google Ads arm sent JP delivery to SAARC
+            -- (2026-08-11). Hardened 2026-08-15; verified a no-op against the current LinkedIn book.
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-jp')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])jp([ _-]|$)') THEN 'JP'
+            WHEN CONTAINS_SUBSTR(LOWER(CAMPAIGN_NAME_NORM), 'apac-kr')
+              OR REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])kr([ _-]|$)') THEN 'KR'
             WHEN LOWER(CAMPAIGN_NAME_NORM) LIKE '%rig%'        THEN 'RIG'
             ELSE 'UNMAPPED'
         END                              AS MARKET,
