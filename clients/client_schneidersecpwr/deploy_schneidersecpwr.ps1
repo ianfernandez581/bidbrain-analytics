@@ -115,11 +115,16 @@ $SHA = "$SHA".Trim()
 
 # ---- 5. Views + export job ---------------------------------------------------
 Write-Host "[5/7] Applying views + building/deploying the export job ..."
-# NO seed step: these three campaigns are DELIVERY-ONLY (no media plan, no targets), so there is no
-# data/*.csv and no seed_* table. If a signed plan ever lands, add data/media_plan.csv + load_seeds.py
+# NO TARGET seed: these three campaigns are DELIVERY-ONLY (no media plan, no targets), so there is
+# no data/*.csv of plan numbers. If a signed plan ever lands, add data/media_plan.csv + load_seeds.py
 # the repo-standard way and call it HERE, before create_views.py.
+# There IS one seed: targeting/adset_targeting.csv -> seed_adset_targeting, the hand-recorded
+# LinkedIn ad-set audience behind the Reports tab. sql/05_linkedin_adsets JOINs it, so it must be
+# loaded BEFORE the views are applied or that view fails to create.
 $PYTHON = ".\.venv\Scripts\python.exe"
 if (-not (Test-Path $PYTHON)) { Die "repo venv python not found at $PYTHON (run scripts\setup.ps1 first)" }
+Write-Host "     loading targeting/adset_targeting.csv -> seed_adset_targeting"
+& $PYTHON 'clients/client_schneidersecpwr/load_targeting.py'; Must "load targeting seed"
 # Apply the SQL views in filename order (NN_ prefix enforces dependency order). Use the BigQuery
 # Python client (create_views.py), NOT `Get-Content | bq query` - on Windows PowerShell that pipe
 # corrupts the UTF-8 comments in the .sql files (see scripts memory / windows-gcloud gotchas).

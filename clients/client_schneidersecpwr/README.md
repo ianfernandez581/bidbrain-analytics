@@ -37,6 +37,8 @@ read `client_schneider`'s views, so a scope change there cannot move numbers her
    and LinkedIn lead-form leads where a brief runs Lead Generation ad sets), plus campaign × channel
    and campaign × market breakdowns and a spend-by-campaign / impressions-by-region pair of charts.
 3. **Creative** — concepts, formats, best creatives by CTR, and a sortable/searchable detail table.
+4. **Reports** — two client-ready documents Campaign Manager cannot export in one click, rendered on
+   screen and downloadable as formatted `.xlsx`. See "The Reports tab" below.
 
 **Channel chips (2026-08-15):** a coloured chip per engine, next to the Campaign dropdown, honoured
 by every delivery and creative figure via `platOk()`. **Only engines the SELECTED campaign actually
@@ -62,10 +64,106 @@ select's own background, so a translucent value makes every option invisible on 
 raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}      (shared mirrors, filled by ingest/)
   -> sql/01_stg_linkedin, 02_stg_tradedesk                 (scope: 3 briefs; campaign + market tagging)
   -> sql/03_delivery (campaign x platform x market x day)  + sql/04_creative (whole-flight)
-  -> job/main.py -> gs://bidbrain-analytics-schneidersecpwr-dash/schneidersecpwr.json
+     + sql/05_linkedin_adsets (one row per ad set; JOINs seed_adset_targeting)
+  -> job/main.py -> gs://...-schneidersecpwr-dash/schneidersecpwr.json           (client payload)
+                 -> gs://...-schneidersecpwr-dash/schneidersecpwr_internal.json  (STAFF ONLY: adsets)
   -> dash/main.py (Flask password gate) serves dashboard.html + /data.json
+                   + /internal/reports.json                 (staff-only Reports payload)
+                   + /reports/tal/parse + /reports/xlsx     (the Reports tab; dash/xlsx_reports.py)
 ```
-There is **no seed table and no `data/` dir** — nothing to seed, because there are no targets.
+There is **no target seed and no `data/` dir** — no media plan, so nothing to pace against. The one
+seed is `seed_adset_targeting` (`targeting/adset_targeting.csv` -> `load_targeting.py`), which holds
+the hand-recorded LinkedIn ad-set audience for the Reports tab and nothing else.
+
+## The Reports tab
+Two documents the media buyer used to assemble by hand.
+
+### Who can see it — STAFF ONLY
+**This tab is for 100% Digital and the owning agency. The end client must never see it.** Three
+layers, because hiding a tab in a browser is not on its own worth anything:
+
+1. **The tab only exists when `window.BB_INTERNAL` is set** — injected into `<head>` by the platform
+   proxy for **superadmin / admin / owning-agency** sessions only (the same `_internal_allowed`
+   predicate that decides whether the staff Internal Notes widget is injected;
+   `client_cloudflare` gates its notes card on it the same way). A client session, and any raw
+   `*.run.app` URL, never receives it — so the tab is not built, its pane stays hidden, and a
+   `#reports` deep link falls back to Overview. `STAFF_TABS` / `tabAllowed()` in `dashboard.html`.
+2. **The targeting data is not in the client's payload.** `adsets` lives in its own bucket object,
+   `schneidersecpwr_internal.json`, served by `GET /internal/reports.json` and fetched lazily only
+   when the tab is opened. `data.json` carries nothing about ad-set targeting.
+3. **The two builder routes hold no client data** — they are pure functions over what the caller
+   posts, and return nothing the caller did not already send.
+
+**Known limit, deliberate:** layer 1 is a UI gate, not an authorization boundary. This service cannot
+yet distinguish a staff session from a client one by itself — the `bb_sso` cookie carries the
+allowed-client list, not the role — so `/internal/reports.json` authenticates (401 without a
+session) but does not authorize by role. Closing that means adding the role to the SSO token in
+`platform_sso.py`, which is **vendored into every dashboard** and signed by the platform, so it is a
+platform + all-dashboards change rather than a local one. Until then, treat the ad-set targeting as
+"not shown to the client" rather than "cryptographically withheld from the client".
+
+Both reports are scoped by the **top-nav Campaign dropdown only** — the market, channel and date filters are hidden there, because a targeting setup
+and a matched-company list are whole-account facts and filtering them would produce a document that
+quietly disagrees with Campaign Manager.
+
+Workbooks are built **server-side** (`dash/xlsx_reports.py`, openpyxl) rather than in the browser:
+the free browser-side spreadsheet libraries write values but not fonts or fills, and here the
+formatting *is* the deliverable. House style — grey `D9D9D9` headers, Calibri 9, alternating `F7F7F7`
+rows, `#,##0`, frozen header, auto-filter — lives in one STYLE block at the top of that file and was
+matched against the reference workbooks the client supplied. Change it there and both reports move.
+
+### 1. Targeting Breakdown
+One row per LinkedIn ad set: Phase · Ad Set · Geo · Targeting Method · Include Criteria · Industries ·
+Company List/TAL · Exclude Criteria · Audience Size, plus a "Job Titles Summary" sheet grouping every
+targeted title by funnel phase.
+
+**The rows are always real, the criteria are seeded.** Which ad sets exist, their current name, phase
+and geo come from live delivery (`sql/05_linkedin_adsets`), so the report can never invent an ad set
+or miss one. The audience columns come from `targeting/adset_targeting.csv`, because **LinkedIn's
+ad-set targeting is in no feed this repo has** — `raw_snowflake.linkedin_ads_apac` is 33 columns of
+delivery metrics and Windsor's `perf_linkedin` is the same shape. The only machine source is the
+Marketing API (`GET /rest/adCampaigns/{id}` -> `targetingCriteria`, then `adTargetingEntities` to
+turn each URN into a label), which needs a developer app carrying the **Advertising API** product and
+a member token with a VIEWER+ role on ad account **517045062** — Transmission's account.
+
+Recording the targeting:
+```powershell
+# 1. refresh the ad-set list from live delivery (preserves everything already filled in)
+.\.venv\Scripts\python.exe clients\client_schneidersecpwr\load_targeting.py --scaffold
+# 2. fill in the audience columns in clients\client_schneidersecpwr\targeting\adset_targeting.csv
+# 3. push it to BigQuery and rebuild the JSON
+.\clients\client_schneidersecpwr\sql\deploy_views_schneidersecpwr.ps1
+```
+The CSV's `campaign` / `adset_name` / `phase` / `geo` columns are **reference only** — rewritten by
+`--scaffold`, ignored by the view. The join key is the numeric `adset_id`, so a LinkedIn rename can
+never orphan a filled-in row. An ad set that stops delivering is parked at the end of the CSV with a
+`no longer delivering` note rather than deleted, so hand-entered work is never silently lost.
+
+Until a row is filled in, the tab says **"Audience criteria not recorded yet"** and prints *not
+recorded* in each empty cell — never a convincing-looking blank. A **"Preview with sample data"**
+toggle fills illustrative criteria so the layout can be checked; everything it produces is watermarked
+`SAMPLE` in the banner, the workbook subtitle *and* the file name.
+
+### 2. Matched TAL Audience
+Drop the Campaign Manager export (**Plan > Companies**, filtered by the campaign's company list) onto
+the tab. The service parses it, builds the summary (total matched, the five-level engagement split
+with percentages, reached vs not-yet-reached by paid), sorts by paid impressions and returns the
+formatted workbook. The upload is parsed in memory and never stored.
+
+**Why this one is an upload and not an API call:** the matching endpoint is LinkedIn's **Company
+Intelligence API** (`GET /rest/accountIntelligence`) — whose response fields are a 1:1 match for this
+report's 13 columns — and it is documented as *"a private API available only to previously approved
+developers. We are not currently accepting new applications."* It is reachable only through
+LinkedIn's certified attribution partners, so no app configuration on our side unlocks it. That one
+export stays manual; everything after it does not. If access is ever granted, keep
+`tal_parse.normalise()` and swap the caller — the API's field names are already accepted as aliases.
+
+The parser (`dash/tal_parse.py`) is deliberately tolerant: it accepts `.csv` and `.xlsx`, finds the
+header row by content (Campaign Manager prefixes a variable number of metadata lines), matches
+headers on a squashed key so "Paid Impressions" / "paid impressions" / "paidImpressions" all land in
+the same column, drops any trailing Total row, and reports unrecognised columns on screen instead of
+dropping them silently. Verified against both reference exports: 197 and 1,629 companies, summaries
+reproducing the supplied workbooks exactly.
 
 ## Campaign tagging — the part to get right
 Every match is a **substring token on CAMPAIGN_NAME**, never a fixed offset, because Transmission is
@@ -122,9 +220,12 @@ than overwriting a good JSON, so a scope regression (a renamed campaign no token
 a failed run instead of a dashboard that reads "campaign stopped".
 
 ## Deploy / edit (root CLAUDE.md is the canonical command source)
-- Edited `dash/dashboard.html` or `dash/main.py` -> `dash/deploy_dash_schneidersecpwr.ps1`
+- Edited `dash/dashboard.html`, `dash/main.py`, `dash/xlsx_reports.py` or `dash/tal_parse.py` ->
+  `dash/deploy_dash_schneidersecpwr.ps1`
 - Edited `job/main.py` -> `job/deploy_job_schneidersecpwr.ps1`
-- Edited a `sql/*.sql` view -> `sql/deploy_views_schneidersecpwr.ps1` (reapplies + forces a job run)
+- Edited a `sql/*.sql` view **or `targeting/adset_targeting.csv`** ->
+  `sql/deploy_views_schneidersecpwr.ps1` (loads the seed, reapplies the views, forces a job run —
+  the freshness gate watches neither views nor seed tables)
 - First-time standup (idempotent) -> `deploy_schneidersecpwr.ps1`
 - Sanity-check the dashboard JS before deploying:
   `.\.venv\Scripts\python.exe scripts\_validate_dash_js.py clients\client_schneidersecpwr\dash\dashboard.html`
@@ -156,6 +257,13 @@ a failed run instead of a dashboard that reads "campaign stopped".
      lead-form count is a **paid platform metric, not a qualified/Salesforce lead**.
   Runs on **Vertex Gemini** (no Anthropic key supplied); re-run the enable script with `-Key` to add
   Claude. `buildReportPayload()` already emits the three-campaign shape (`paid.by_campaign`).
+- **LinkedIn Marketing API access** would make the Reports tab fully automatic. Two separate asks,
+  and only the first is obtainable: (a) the **Advertising API** product on a LinkedIn developer app
+  plus a token with a VIEWER+ role on ad account 517045062 (Transmission's) would replace the
+  hand-recorded `targeting/adset_targeting.csv` with a real loader; (b) the **Company Intelligence
+  API** would replace the Companies-export upload, but it is private and **closed to new
+  applications**, so treat the upload as permanent unless LinkedIn reopens it or Schneider already
+  work with one of the certified partners (Dreamdata, Factors.ai, Channel99, Octane11, Fibbler).
 - **If a media plan ever lands** for any brief, add it the repo-standard way — a committed
   `data/media_plan.csv` -> `seed_media_plan` via a `load_seeds.py`, read by `job/main.py` — and port
   `paceBar()` / `renderPacing()` back from `client_schneiderlqai/dash/dashboard.html`. Do not

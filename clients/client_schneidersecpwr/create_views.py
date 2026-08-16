@@ -1,21 +1,26 @@
-"""
+r"""
 Apply the client_schneidersecpwr BigQuery view definitions from version-controlled SQL.
 
 Each *.sql file in client_schneidersecpwr/sql/ holds one CREATE OR REPLACE VIEW, applied in filename
 order (the NN_ prefix enforces dependency order: 01/02 stg_linkedin/stg_tradedesk -> 03 delivery ->
-04 creative). The export job (client_schneidersecpwr/job/main.py) SELECTs from these views to
-assemble schneidersecpwr.json.
+04 creative -> 05 linkedin_adsets). The export job (client_schneidersecpwr/job/main.py) SELECTs from
+these views to assemble schneidersecpwr.json.
 
 This is the Schneider Electric "Secure Power" dashboard - the three briefs held OUT of
 client_schneider because they have separate stakeholders (Enterprise IT Expansion 1958, Industrial
 Edge / Prefab 2463, Software First EcoStruxure 2305). It reads its sources straight from the shared
-raw layer (raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}), so there is NO src_* landing step
-and NO seed table - the campaigns are delivery-only (no media plan, no targets).
+raw layer (raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}), so there is NO src_* landing step,
+and no TARGET seed - the campaigns are delivery-only (no media plan, no targets).
+
+The one seed is `seed_adset_targeting` (the Reports tab's hand-recorded LinkedIn ad-set audience),
+loaded from targeting/adset_targeting.csv by load_targeting.py. sql/05_linkedin_adsets LEFT JOINs it,
+so it MUST exist before this script runs.
 
 Order:
     1. create the client_schneidersecpwr dataset + GCS bucket
-    2. python clients/client_schneidersecpwr/create_views.py
-    3. run the export job to build schneidersecpwr.json
+    2. python clients/client_schneidersecpwr/load_targeting.py      <- seed first, sql/05 joins it
+    3. python clients/client_schneidersecpwr/create_views.py
+    4. run the export job to build schneidersecpwr.json
 
 NEVER edit these views in the BigQuery console - sql/*.sql is the source of truth or they drift.
 

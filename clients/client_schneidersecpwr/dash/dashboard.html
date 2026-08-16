@@ -194,6 +194,35 @@
   .info-note.warn{background:#FBF4E6;border-color:#EAD9AE;border-left-color:var(--amber);color:#5A4214}
   .info-note.warn b{color:#3F2E08}
 
+  /* Reports tab - report picker, upload dropzone, and the on-screen preview of each workbook */
+  .rep-pick{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .rep-btn{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;cursor:pointer;
+           background:var(--se-card);border:1px solid var(--se-line);border-radius:12px;padding:12px 16px;
+           min-width:230px;box-shadow:var(--shadow-card);color:var(--se-ink)}
+  .rep-btn:hover{border-color:var(--se-green)}
+  .rep-btn.on{border-color:var(--se-green);box-shadow:0 0 0 2px rgba(0,149,48,.16),var(--shadow-card)}
+  .rep-btn .t{font-size:13.5px;font-weight:700}
+  .rep-btn .d{font-size:11.5px;color:var(--se-mute)}
+  .rep-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+  .btn-x{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700;cursor:pointer;
+         background:var(--se-green);color:#fff;border:none;border-radius:9px;padding:9px 15px}
+  .btn-x:hover{background:var(--se-green2)}
+  .btn-x[disabled]{background:var(--se-grey);cursor:not-allowed}
+  .btn-x svg{width:14px;height:14px;flex:none}
+  .btn-ghost{background:none;border:1px dashed var(--se-line);color:var(--se-mute);border-radius:9px;
+             padding:9px 14px;font-size:12px;cursor:pointer}
+  .btn-ghost:hover{color:var(--se-ink);border-color:var(--se-mute)}
+  .btn-ghost.on{color:var(--se-green2);border-color:var(--se-green);border-style:solid;font-weight:600}
+  .drop{margin-top:14px;border:1.5px dashed var(--se-line);border-radius:12px;padding:26px 18px;text-align:center;
+        background:var(--se-card);cursor:pointer;color:var(--se-mute);font-size:13px}
+  .drop:hover,.drop.over{border-color:var(--se-green);background:#F4FBF6;color:var(--se-ink)}
+  .drop b{color:var(--se-ink)}
+  .drop .sm{display:block;margin-top:5px;font-size:11.5px}
+  .miss{color:var(--se-grey);font-style:italic}
+  .lvlbar{height:7px;border-radius:4px;background:var(--se-green);min-width:2px;display:block}
+  .rep-meta{font-size:11.5px;color:var(--se-mute);margin-top:10px}
+  .rep-crit{font-size:11.5px;line-height:1.5;white-space:pre-line}
+
   /* labelled target-progress rows */
   .progress-row{display:grid;grid-template-columns:150px 1fr 118px;align-items:center;gap:10px;margin:9px 0;font-size:12px}
   .progress-row > div:first-child{color:var(--se-mute)}
@@ -387,6 +416,21 @@
         <div style="overflow:auto"><table id="campMarketTable"><thead><tr><th>Campaign</th><th>Market</th><th>Region</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="info-note"><b>Delivery-only reporting.</b> None of these three briefs has a signed media plan, so there are no impression, click or lead targets and no pacing figures - each campaign's flight is shown as <b>observed</b> ("live since" its first delivery day), not as a booked window. LinkedIn lead-form counts, where a brief runs Lead Generation ad sets, are a <b>paid</b> metric only and are not Salesforce leads.</div>
+    </div>
+
+    <!-- ============ REPORTS ============ -->
+    <!-- Two client-ready deliverables LinkedIn has no one-click export for. The report is scoped by
+         the top-nav Campaign dropdown; the market / channel / date filters are hidden here because
+         neither report is date- or market-scoped (a targeting setup and a matched-company list are
+         whole-account facts, and filtering them would produce a document that quietly disagrees with
+         Campaign Manager). Both download as .xlsx built by the service (dash/xlsx_reports.py). -->
+    <div id="tab-reports" class="tabpane">
+      <div class="section first">
+        <h2>Client reports</h2>
+        <span class="sub">Two reports Campaign Manager cannot export in one click. Choose a campaign in the top bar, pick a report, then download it as a formatted workbook.</span>
+      </div>
+      <div class="rep-pick" id="repPick"></div>
+      <div id="repBody"></div>
     </div>
 
     <footer id="footMeta"></footer>
@@ -692,7 +736,7 @@ async function boot(){
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
     const h=(location.hash||'').replace('#','');
-    activeTab=['overview','campaigns','creative'].includes(h)?h:'overview';
+    activeTab=(TAB_LABEL[h] && tabAllowed(h))?h:'overview';
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
   }catch(e){ el('loading').style.display='none'; el('error').style.display='block'; el('errDetail').textContent=e.message; }
@@ -713,9 +757,22 @@ function renderMeta(){
 // three briefs has a signed media plan, so there are no targets to pace against and an empty plan
 // tab would be worse than none. Its slot is taken by "Campaigns", which is what this dashboard is
 // actually for - three separate briefs, side by side.
-const TAB_LABEL={overview:'Overview', campaigns:'Campaigns', creative:'Creative'};
-const TAB_ORDER=['overview','campaigns','creative'];
-function setTab(t){ if(!TAB_LABEL[t]) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
+// "Reports" sits last: it is a document builder rather than a view of the delivery data, and the
+// three analysis tabs read as one group ahead of it.
+const TAB_LABEL={overview:'Overview', campaigns:'Campaigns', creative:'Creative', reports:'Reports'};
+const TAB_ORDER=['overview','campaigns','creative','reports'];
+// STAFF-ONLY TABS. `window.BB_INTERNAL` is injected in <head> by the platform proxy, before this
+// script runs, ONLY for superadmin / admin / owning-agency sessions - the same predicate that
+// decides whether the staff Internal Notes widget is injected (client_cloudflare gates its notes
+// card on it the same way). A client session, and any raw *.run.app URL, never gets it, so the tab
+// is not built, its pane stays hidden, and #reports in the URL falls back to Overview.
+// The targeting data is NOT in data.json either - it is fetched from /internal/reports.json only
+// when this tab is opened, so hiding the tab is not the only thing protecting it.
+const STAFF_TABS={reports:true};
+const isStaff=()=>!!window.BB_INTERNAL;
+const tabAllowed=t=>!STAFF_TABS[t] || isStaff();
+const visibleTabs=()=>TAB_ORDER.filter(tabAllowed);
+function setTab(t){ if(!TAB_LABEL[t] || !tabAllowed(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function allMarkets(){ activeMarkets=new Set(DATA.markets||[]); renderControls(); renderActive(); }
@@ -739,16 +796,22 @@ function marketRoster(){
 
 function renderControls(){
   const bar=el('tabBar'); bar.innerHTML='';
-  TAB_ORDER.forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
+  visibleTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]; b.onclick=()=>setTab(t); bar.appendChild(b); });
   const roster=marketRoster();
   const mkts=activeMarkets.size===roster.length?'all markets':(activeMarkets.size?activeMarketList().join(' · '):'no markets');
   const camps=allCampaignsView()?'all 3 campaigns':(campaignList().find(c=>c.key===activeCampaign)||{}).label||'-';
   const chans=activeChannels.size===0?'all channels':PLATFORMS.filter(p=>activeChannels.has(p.key)).map(p=>p.label).join(' · ');
   el('ctrlNote').textContent=`Showing ${camps} · ${chans} · ${mkts}`;
   // The date picker scopes delivery only; creative rows carry no date (whole-flight), so it is
-  // hidden on that tab rather than sitting inert next to numbers it cannot move.
-  el('dateGrp').style.display = activeTab==='creative' ? 'none' : 'flex';
+  // hidden on that tab rather than sitting inert next to numbers it cannot move. On Reports NONE of
+  // the three filters applies (see that tab's comment), so the whole filter row and the CSV button
+  // are hidden - a visible control that moves nothing is worse than no control.
+  // (channelGrp / marketGrp keep their own display rules further down; hiding the container wins.)
+  const isReports = activeTab==='reports';
+  el('dateGrp').style.display = (activeTab==='creative'||isReports) ? 'none' : 'flex';
   el('marketGrp').style.display='flex';
+  document.querySelector('.control-filters').style.display = isReports ? 'none' : 'flex';
+  document.querySelector('.exports').style.display = isReports ? 'none' : 'flex';
 
   // Campaign selector (top-nav dropdown, the client_schneider pattern). "All campaigns" stays as the
   // first option here - unlike client_schneider, the combined view is the point of this dashboard.
@@ -784,8 +847,10 @@ function renderControls(){
 function renderActive(){
   TAB_ORDER.forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
   destroyCharts();
+  if(!tabAllowed(activeTab)) activeTab='overview';
   if(activeTab==='overview') renderOverview();
   else if(activeTab==='creative') renderCreative();
+  else if(activeTab==='reports') renderReports();
   else renderCampaigns();
   document.querySelectorAll('#pmGrainSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.grain===pmGrain));
   document.querySelectorAll('#pmScaleSeg .seg-btn').forEach(b=>b.classList.toggle('on',b.dataset.scale===pmScale));
@@ -1009,6 +1074,345 @@ function renderCampaigns(){
       return `<tr><td>${campLabel(ck)}</td><td>${mk}</td><td>${rg}</td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td></tr>`; }).join('')
     : `<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
   if(window.bbEnsureSearch) window.bbEnsureSearch();
+}
+
+//==============================================================================
+// REPORTS
+//==============================================================================
+// Two client deliverables Campaign Manager cannot export in one click, rendered on screen and
+// downloadable as formatted .xlsx (the workbooks are built by the service - dash/xlsx_reports.py -
+// because a browser-side spreadsheet library writes values but not the styling, and here the
+// formatting IS the deliverable).
+//
+// WHERE THE DATA COMES FROM, and why it is not simply an API call in both cases:
+//   * Targeting Breakdown - LinkedIn's ad-set targeting lives only in the Marketing API
+//     (adCampaigns.targetingCriteria + adTargetingEntities to resolve the URNs), which needs a
+//     developer app carrying the Advertising API product AND a member token with a role on ad
+//     account 517045062 - Transmission's account. Until that grant exists the audience columns come
+//     from a committed seed the buyer fills in once per ad set
+//     (clients/client_schneidersecpwr/targeting/adset_targeting.csv -> seed_adset_targeting ->
+//     sql/05_linkedin_adsets -> DATA.adsets). The ROWS are always real: which ad sets exist, their
+//     current name, phase and geo come from live delivery, so the report can never invent an ad set.
+//   * Matched TAL Audience - the matching endpoint (Company Intelligence API,
+//     /rest/accountIntelligence) is private and closed to new applicants, so the Campaign Manager
+//     export stays the source. The tab takes over where the manual work actually is: parsing,
+//     summarising, sorting and formatting.
+const REPORTS=[
+  {key:'targeting', title:'Targeting Breakdown', desc:'One row per ad set: phase, geo, audience criteria and TAL.'},
+  {key:'tal',       title:'Matched TAL Audience', desc:'Matched companies and their engagement, from a Companies export.'},
+];
+let activeReport='targeting';
+let repSample=false;          // preview the targeting layout with illustrative values
+let talData=null;             // parsed Companies export, this session only (never uploaded anywhere)
+let talBusy=false, talError='';
+const TAL_ONSCREEN=250;       // the workbook carries every row; the DOM does not need to
+
+// Illustrative targeting, used ONLY behind the "Preview with sample data" toggle so the layout can be
+// checked before the real setup is recorded. Keyed by phase because that is what varies. Everything
+// it produces is watermarked SAMPLE - in the on-screen banner, the workbook subtitle AND the file
+// name - so a preview can never be mistaken for the client's real audience.
+const SAMPLE_TARGETING={
+  Awareness:{targeting_method:'Attributes + TAL',
+    job_titles:'Operations Manager; Plant Manager; Head of Engineering; Maintenance Manager',
+    job_seniorities:'Manager; Director; VP', job_functions:'Engineering; Operations',
+    industries:'Industrial Automation; Mining; Utilities', company_list:'Wave 3 TAL',
+    exclusions:'Schneider Electric employees', audience_size:'124000'},
+  Consideration:{targeting_method:'Attributes + TAL',
+    job_titles:'Operations Manager; Plant Manager; Head of Engineering',
+    job_seniorities:'Manager; Director', job_functions:'Engineering; Operations',
+    industries:'Industrial Automation; Mining', company_list:'Wave 3 TAL',
+    exclusions:'Existing customers', audience_size:'86000'},
+  Conversion:{targeting_method:'TAL only', job_titles:'Operations Manager; Plant Manager',
+    job_seniorities:'Director', job_functions:'Operations', industries:'',
+    company_list:'Wave 3 TAL', exclusions:'Existing customers; converters', audience_size:'42000'},
+  Retargeting:{targeting_method:'Website + engagement retargeting', job_titles:'',
+    job_seniorities:'', job_functions:'', industries:'',
+    company_list:'Site visitors 90d; video viewers 50%+', exclusions:'Converters', audience_size:'18000'},
+  Unspecified:{targeting_method:'Attributes', job_titles:'IT Manager; Head of Infrastructure',
+    job_seniorities:'Manager; Director', job_functions:'Information Technology',
+    industries:'IT Services; Manufacturing', company_list:'', exclusions:'', audience_size:'95000'},
+};
+const TARGETING_FIELDS=['targeting_method','job_titles','job_seniorities','job_functions',
+                        'industries','company_list','exclusions','audience_size'];
+
+function setReport(k){ activeReport=k; renderReports(); }
+function toggleRepSample(){ repSample=!repSample; renderReports(); }
+
+// The staff-only Reports payload. Deliberately NOT part of data.json: ad-set targeting is ours and
+// the owning agency's, not the client's, so it lives in its own bucket object behind
+// /internal/reports.json and is fetched only when a staff session opens this tab.
+let internalData=null, internalBusy=false, internalErr='';
+async function ensureInternal(){
+  if(internalData || internalBusy || internalErr) return;
+  internalBusy=true;
+  try{
+    const res=await fetch('/internal/reports.json');
+    if(res.status===404) throw new Error('The Reports payload has not been built yet - run the export job.');
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    internalData=await res.json();
+  }catch(e){ internalErr=e.message||String(e); }
+  internalBusy=false;
+  if(activeTab==='reports') renderReports();
+}
+// Ad sets for the selected campaign. Whole-flight by design - a targeting setup is not a dated fact.
+function repAdsets(){ return ((internalData&&internalData.adsets)||[]).filter(a=>campOk(a.campaign)); }
+function repScopeLabel(){ return allCampaignsView() ? 'All campaigns' : campLabel(activeCampaign); }
+function repScopeBrief(){
+  const c=campaignList().find(x=>x.key===activeCampaign);
+  return c ? `${c.brief} ${c.label}` : 'Secure Power - all campaigns';
+}
+function repFileSlug(){
+  return (repScopeBrief().replace(/[^A-Za-z0-9]+/g,'_').replace(/^_|_$/g,'')) || 'Secure_Power';
+}
+// A row as the report sees it: the seeded targeting, or the sample when previewing.
+function repRow(a){
+  if(!repSample) return a;
+  const s=SAMPLE_TARGETING[a.phase]||SAMPLE_TARGETING.Unspecified;
+  const out=Object.assign({},a); TARGETING_FIELDS.forEach(f=>out[f]=s[f]||''); return out;
+}
+const repCell=v=> (v==null||v==='') ? '<span class="miss">not recorded</span>' : esc(v);
+// Audience size is text in the seed on purpose - Campaign Manager shows either a forecast number or
+// a range ("50,000-100,000"). Format it when it is a number, print it verbatim when it is not.
+function audienceCell(v){
+  if(v==null||v==='') return '<span class="miss">-</span>';
+  const n=Number(String(v).replace(/,/g,''));
+  return (String(v).trim()!=='' && Number.isFinite(n)) ? fmtN(n) : esc(v);
+}
+function esc(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+function renderReports(){
+  const pick=el('repPick'); pick.innerHTML='';
+  REPORTS.forEach(r=>{
+    const b=document.createElement('button');
+    b.className='rep-btn'+(activeReport===r.key?' on':'');
+    b.innerHTML=`<span class="t">${r.title}</span><span class="d">${r.desc}</span>`;
+    b.onclick=()=>setReport(r.key);
+    pick.appendChild(b);
+  });
+  if(activeReport==='targeting') renderTargetingReport(); else renderTalReport();
+  if(window.bbEnsureSearch) window.bbEnsureSearch();
+}
+
+// ---- Report 1: Targeting Breakdown ----------------------------------------------------------
+function renderTargetingReport(){
+  const body=el('repBody');
+  // The ad-set data arrives from the staff-only endpoint, so this report has a loading state the
+  // TAL one does not.
+  if(!internalData){
+    ensureInternal();
+    body.innerHTML = internalErr
+      ? `<div class="info-note warn"><b>Couldn't load the Reports data.</b> ${esc(internalErr)}</div>`
+      : `<div class="loading" style="padding:40px"><div class="spinner"></div><div>Loading ad-set setup...</div></div>`;
+    return;
+  }
+  const raw=repAdsets(), rows=raw.map(repRow);
+  const recorded=raw.filter(a=>a.has_targeting).length;
+  if(!raw.length){
+    body.innerHTML=`<div class="info-note warn"><b>No LinkedIn ad sets for ${esc(repScopeLabel())}.</b> This report covers LinkedIn only - a campaign that ran on The Trade Desk alone has no ad-set targeting to describe.</div>`;
+    return;
+  }
+  // State banner. Three honest states: real data, nothing recorded yet, or a sample preview.
+  let banner;
+  if(repSample){
+    banner=`<div class="info-note warn"><b>Sample data - not this campaign's real targeting.</b> The ad sets, phases and geos below are real; the audience criteria are illustrative placeholders so the layout can be checked. Every export made in this mode is named <b>SAMPLE_</b> and says so inside the workbook.</div>`;
+  } else if(!recorded){
+    banner=`<div class="info-note warn"><b>Audience criteria not recorded yet.</b> ${raw.length} live ad set${raw.length===1?'':'s'} listed below, straight from delivery. LinkedIn does not expose ad-set targeting in any feed this dashboard reads, so the criteria are filled in once per ad set in <b>targeting/adset_targeting.csv</b> (see the client README). Turn on the preview to check the layout meanwhile.</div>`;
+  } else {
+    banner=`<div class="info-note"><b>${recorded} of ${raw.length} ad set${raw.length===1?'':'s'}</b> have their audience recorded. Ad sets, phases and geos come from live delivery; the criteria come from the recorded targeting sheet.</div>`;
+  }
+
+  const head=['Phase','Ad Set','Geo','Targeting Method','Include Criteria','Industries','Company List / TAL','Exclude Criteria','Audience Size'];
+  const trs=rows.map(r=>{
+    const inc=[['Job titles',r.job_titles],['Seniorities',r.job_seniorities],['Functions',r.job_functions]]
+      .filter(x=>x[1]).map(x=>`${x[0]}: ${esc(x[1])}`).join('\n');
+    const alias=(r.aliases&&r.aliases.length)
+      ? `<div class="rep-meta" title="Earlier name(s) this ad set delivered under">also ran as ${esc(r.aliases.join(' · '))}</div>` : '';
+    return `<tr>
+      <td>${esc(r.phase||'-')}</td>
+      <td>${esc(r.adset_name||'-')}${alias}</td>
+      <td>${esc(r.geo||'-')}</td>
+      <td>${repCell(r.targeting_method)}</td>
+      <td class="rep-crit">${inc||'<span class="miss">not recorded</span>'}</td>
+      <td>${repCell(r.industries)}</td>
+      <td>${repCell(r.company_list)}</td>
+      <td>${repCell(r.exclusions)}</td>
+      <td class="num">${audienceCell(r.audience_size)}</td>
+    </tr>`;
+  }).join('');
+
+  body.innerHTML=`
+    ${banner}
+    <div class="rep-actions">
+      <button class="btn-x" onclick="downloadReport('targeting',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Export to Excel</span></button>
+      <button class="btn-ghost${repSample?' on':''}" onclick="toggleRepSample()">${repSample?'Showing sample data':'Preview with sample data'}</button>
+      <span class="rep-meta">${esc(repScopeLabel())} · ${raw.length} ad set${raw.length===1?'':'s'} · LinkedIn only</span>
+    </div>
+    <div class="section"><h2 style="font-size:15px">Targeting breakdown</h2><span class="sub">One row per LinkedIn ad set, ordered by funnel phase. Sheet 1 of the workbook.</span></div>
+    <div class="card" style="margin-top:14px"><div style="overflow:auto">
+      <table class="bb-sortable"><thead><tr>${head.map((h,i)=>`<th${i===8?' class="num"':''}>${h}</th>`).join('')}</tr></thead><tbody>${trs}</tbody></table>
+    </div></div>
+    ${renderJobTitleSummary(rows)}`;
+}
+
+function renderJobTitleSummary(rows){
+  const grouped={};
+  rows.forEach(r=>{
+    String(r.job_titles||'').split(/[;\n]/).map(t=>t.trim()).filter(Boolean).forEach(t=>{
+      const p=r.phase||'Unspecified';
+      (grouped[p]=grouped[p]||{})[t]=(grouped[p][t]||new Set()); grouped[p][t].add(r.adset_name||'');
+    });
+  });
+  const order={Awareness:0,Consideration:1,Conversion:2,Retargeting:3,Unspecified:9};
+  // (no `??` here on purpose - the repo's dashboard JS validator predates ES2020, see md/AGENTS.md)
+  const ord=p=>(order[p]===undefined?8:order[p]);
+  const phases=Object.keys(grouped).sort((a,b)=>ord(a)-ord(b)||a.localeCompare(b));
+  const body = phases.length
+    ? phases.map(p=>Object.keys(grouped[p]).sort().map(t=>
+        `<tr><td>${esc(p)}</td><td>${esc(t)}</td><td class="num">${grouped[p][t].size}</td><td>${esc([...grouped[p][t]].sort().join('; '))}</td></tr>`).join('')).join('')
+    : `<tr><td colspan="4" style="text-align:center;color:var(--se-mute);padding:14px">No job titles recorded yet.</td></tr>`;
+  return `<div class="section"><h2 style="font-size:15px">Job titles summary</h2><span class="sub">Every job title targeted, grouped by funnel phase. Sheet 2 of the workbook.</span></div>
+    <div class="card" style="margin-top:14px"><div style="overflow:auto">
+      <table class="bb-sortable"><thead><tr><th>Phase</th><th>Job Title</th><th class="num">Ad Sets</th><th>Used in</th></tr></thead><tbody>${body}</tbody></table>
+    </div></div>`;
+}
+
+// ---- Report 2: Matched TAL Audience ---------------------------------------------------------
+const LEVELS=['Very High','High','Medium','Low','Very Low'];
+
+function renderTalReport(){
+  const body=el('repBody');
+  if(!talData){
+    body.innerHTML=`
+      <div class="info-note"><b>Start from the Campaign Manager export.</b> In LinkedIn go to <b>Plan &gt; Companies</b>, filter by this campaign's company list and export the CSV - then drop it here. The dashboard does the rest: the summary, the engagement split, the sort and the client-ready formatting.
+      <br><br>LinkedIn's own company-engagement API is private and closed to new applicants, so that one export stays a manual step; everything after it does not. The file is read in memory to build the report and is never stored.</div>
+      ${talError?`<div class="info-note warn"><b>Could not read that file.</b> ${esc(talError)}</div>`:''}
+      <div class="drop" id="talDrop">${talBusy?'Reading the export...':'<b>Drop the Companies export here</b>, or click to choose a file<span class="sm">.csv or .xlsx from Campaign Manager &gt; Plan &gt; Companies</span>'}</div>
+      <input type="file" id="talFile" accept=".csv,.xlsx,text/csv" style="display:none">`;
+    wireTalDrop();
+    return;
+  }
+  const s=talData.summary||{}, rows=talData.rows||[], total=s.total||rows.length;
+  const shown=rows.slice(0,TAL_ONSCREEN);
+  const lvl=LEVELS.map(l=>{
+    const n=(s.by_level||{})[l]||0, p=total?n/total:0;
+    return `<tr><td>${l}</td><td class="num">${fmtN(n)}</td><td class="num">${fmtPct(p)}</td>
+      <td style="width:34%"><span class="lvlbar" style="width:${(p*100).toFixed(1)}%"></span></td></tr>`;
+  }).join('');
+  const cols=['Company Name','LinkedIn URL','Engagement Level','Organic Impressions','Organic Engagements',
+              'Paid Impressions','Paid Clicks','Paid Engagements','Paid Video Views','Paid Conversions',
+              'Paid Leads','Paid Qualified Leads','Cost per Qualified Lead'];
+  const keys=['company_name','company_url','engagement_level','organic_impressions','organic_engagements',
+              'paid_impressions','paid_clicks','paid_engagements','paid_video_views','paid_conversions',
+              'paid_leads','paid_qualified_leads','cost_per_qualified_lead'];
+  const trs=shown.map(r=>'<tr>'+keys.map((k,i)=>{
+    const v=r[k];
+    if(i===0) return `<td>${esc(v||'-')}</td>`;
+    if(i===1) return `<td>${v?`<a href="${esc(v)}" target="_blank" rel="noopener">${esc(String(v).replace(/^https?:\/\/(www\.)?linkedin\.com\/company\//,''))}</a>`:'<span class="miss">-</span>'}</td>`;
+    if(i===2) return `<td>${esc(v||'-')}</td>`;
+    if(k==='cost_per_qualified_lead') return `<td class="num">${v==null?'<span class="miss">-</span>':money(v,2)}</td>`;
+    return `<td class="num">${v==null?'<span class="miss">-</span>':fmtN(v)}</td>`;
+  }).join('')+'</tr>').join('');
+
+  body.innerHTML=`
+    ${(talData.warnings||[]).length?`<div class="info-note warn"><b>Worth knowing.</b> ${talData.warnings.map(esc).join('<br>')}</div>`:''}
+    <div class="rep-actions">
+      <button class="btn-x" onclick="downloadReport('tal',this)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Export to Excel</span></button>
+      <button class="btn-ghost" onclick="clearTal()">Use a different export</button>
+      <span class="rep-meta">${esc(repScopeLabel())} · ${esc(talData.source_filename||'uploaded export')} · ${fmtN(total)} companies</span>
+    </div>
+    <div class="section"><h2 style="font-size:15px">Summary</h2><span class="sub">Sheet 1 of the workbook.</span></div>
+    <div class="grid">
+      <div class="card"><h3>Matched companies</h3><div class="hint">Companies matched from the list attached to this campaign.</div>
+        <div style="font-size:30px;font-weight:800;letter-spacing:-.5px">${fmtN(total)}</div>
+        <div class="rep-meta">${fmtN(s.reached||0)} reached by paid ads · ${fmtN(s.not_reached||0)} not yet reached</div>
+        <div style="overflow:auto;margin-top:12px"><table><tbody>
+          <tr><td>Paid impressions</td><td class="num">${fmtN(s.paid_impressions||0)}</td></tr>
+          <tr><td>Paid clicks</td><td class="num">${fmtN(s.paid_clicks||0)}</td></tr>
+          <tr><td>Paid leads</td><td class="num">${fmtN(s.paid_leads||0)}</td></tr>
+        </tbody></table></div>
+      </div>
+      <div class="card"><h3>Engagement level</h3><div class="hint">LinkedIn's own company engagement banding.</div>
+        <div style="overflow:auto"><table><thead><tr><th>Level</th><th class="num">Companies</th><th class="num">% of total</th><th></th></tr></thead><tbody>${lvl}</tbody></table></div>
+        ${s.unclassified?`<div class="rep-meta">${fmtN(s.unclassified)} company/ies carry a level this report does not band.</div>`:''}
+      </div>
+    </div>
+    <div class="section"><h2 style="font-size:15px">Matched companies</h2><span class="sub">Sorted by paid impressions, highest first. Sheet 2 of the workbook.${rows.length>TAL_ONSCREEN?` Showing the top ${TAL_ONSCREEN} on screen; the export carries all ${fmtN(rows.length)}.`:''}</span></div>
+    <div class="card" style="margin-top:14px"><div style="overflow:auto">
+      <table class="bb-sortable"><thead><tr>${cols.map((c,i)=>`<th${i>=3?' class="num"':''}>${c}</th>`).join('')}</tr></thead><tbody>${trs}</tbody></table>
+    </div></div>`;
+}
+
+function clearTal(){ talData=null; talError=''; renderReports(); }
+
+function wireTalDrop(){
+  const drop=el('talDrop'), input=el('talFile');
+  if(!drop||!input) return;
+  drop.onclick=()=>input.click();
+  input.onchange=()=>{ if(input.files&&input.files[0]) uploadTal(input.files[0]); };
+  ['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{ e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop',e=>{ const f=e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files[0]; if(f) uploadTal(f); });
+}
+
+async function uploadTal(file){
+  talBusy=true; talError=''; renderReports();
+  try{
+    const fd=new FormData(); fd.append('file',file);
+    const res=await fetch('/reports/tal/parse',{method:'POST',body:fd});
+    const j=await res.json().catch(()=>({}));
+    if(!res.ok) throw new Error(j.error||`HTTP ${res.status}`);
+    talData=j;
+  }catch(e){ talError=e.message||String(e); talData=null; }
+  talBusy=false; renderReports();
+}
+
+// ---- Workbook download -----------------------------------------------------------------------
+// The service builds the .xlsx; the browser only names the file and saves the response.
+async function downloadReport(kind, btn){
+  if(btn) btn.disabled=true;
+  try{
+    const body = kind==='targeting' ? targetingPayload() : talPayload();
+    const res=await fetch('/reports/xlsx',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({kind, filename:body._filename, payload:body.payload})});
+    if(!res.ok){ const j=await res.json().catch(()=>({})); throw new Error(j.error||`HTTP ${res.status}`); }
+    const blob=await res.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=body._filename; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+  }catch(e){ alert('Could not build that workbook: '+(e.message||e)); }
+  finally{ if(btn) btn.disabled=false; }
+}
+
+function targetingPayload(){
+  const rows=repAdsets().map(repRow).map(r=>({
+    phase:r.phase, adset_name:r.adset_name, geo:r.geo, targeting_method:r.targeting_method,
+    job_titles:r.job_titles, job_seniorities:r.job_seniorities, job_functions:r.job_functions,
+    industries:r.industries, company_list:r.company_list, exclusions:r.exclusions,
+    audience_size:r.audience_size,
+  }));
+  const stamp=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  return {
+    _filename:`${repSample?'SAMPLE_':''}${repFileSlug()}_Targeting_Breakdown.xlsx`,
+    payload:{
+      title:`${repScopeBrief()} - Targeting Breakdown`,
+      subtitle:(repSample?'SAMPLE DATA - illustrative criteria, not this campaign\'s real targeting. ':'')
+        +`LinkedIn ad-set targeting | Account 517045062 | Prepared ${stamp}`,
+      rows,
+    }};
+}
+
+function talPayload(){
+  const stamp=new Date().toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'});
+  return {
+    _filename:`${repFileSlug()}_Matched_TAL_Accounts.xlsx`,
+    payload:{
+      title:`${repScopeBrief()} - Matched TAL Report`,
+      subtitle:`LinkedIn Campaign Manager | Account 517045062 | Prepared ${stamp}`,
+      rows:talData.rows||[], summary:talData.summary||{},
+    }};
 }
 
 //==============================================================================

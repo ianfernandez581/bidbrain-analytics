@@ -12,6 +12,7 @@ that blocks --allow-unauthenticated is handled the same way — the deploy flips
 --no-invoker-iam-check so this app's own password gate is the only door.
 """
 import os
+import re
 import hmac
 import json
 import hashlib
@@ -22,6 +23,8 @@ from flask import (
 from google.cloud import storage
 
 from report import generate_report
+import tal_parse
+import xlsx_reports
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]
@@ -30,13 +33,21 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
-    MAX_CONTENT_LENGTH=256 * 1024,   # the /report POST is the only sizeable body; everything else is tiny
+    # Sized for the Reports tab's Campaign-Manager CSV upload (a 1,600-company export is ~250 KB;
+    # the cap allows a large account's export with headroom). Every other route keeps its own,
+    # tighter, explicit content_length check - see /report's 256 KB guard below.
+    MAX_CONTENT_LENGTH=12 * 1024 * 1024,
 )
+REPORT_BODY_LIMIT = 256 * 1024     # the AI-deck POST: the dashboard's own numbers, always small
+UPLOAD_LIMIT = 12 * 1024 * 1024    # the Companies export upload
 
 # --- config (injected by Cloud Run) ------------------------------------------
 DASH_PASSWORD = os.environ["DASH_PASSWORD"].rstrip("\r\n")        # from Secret Manager
 GCS_BUCKET = os.environ["GCS_BUCKET"]                            # private data bucket
 DATA_OBJECT = os.environ.get("DATA_OBJECT", "schneidersecpwr.json")  # object inside it
+# Staff-only payload for the Reports tab (ad-set targeting). A SEPARATE object so it never rides
+# inside the client's /data.json - see /internal/reports.json below.
+INTERNAL_OBJECT = os.environ.get("INTERNAL_OBJECT", "schneidersecpwr_internal.json")
 
 _storage = storage.Client()
 
@@ -181,7 +192,7 @@ def report_route():
     # calls and regenerates only when the underlying data advances.
     if not authed():
         abort(401)
-    if request.content_length and request.content_length > 256 * 1024:
+    if request.content_length and request.content_length > REPORT_BODY_LIMIT:
         return _json_err("request too large", 413)
     summary = request.get_json(silent=True)
     if not isinstance(summary, dict):
@@ -223,6 +234,113 @@ def report_route():
     except Exception:
         app.logger.exception("report cache write failed")
     return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
+
+
+# --- Reports tab (STAFF-ONLY) -------------------------------------------------
+# Two client-ready reports the media buyer used to compile by hand. The dashboard renders them on
+# screen from the JSON these routes return / accept, and both download as .xlsx built server-side by
+# xlsx_reports.py (browser-side spreadsheet libraries write values but not styling, and these are
+# client deliverables where the formatting IS the deliverable).
+#
+# VISIBILITY: the tab is for 100% Digital and the owning agency, NEVER the end client. Three layers:
+#   1. the tab only renders when `window.BB_INTERNAL` is set, which the platform proxy injects ONLY
+#      for superadmin / admin / owning-agency sessions (the Internal Notes predicate). A client
+#      session - and any raw *.run.app URL - never receives it, so the tab does not exist for them.
+#   2. the ad-set targeting is NOT in the client's /data.json. It is a separate bucket object served
+#      by /internal/reports.json, so hiding the tab is not the only thing standing between a client
+#      and the data.
+#   3. the two builder routes below are pure functions over what the CALLER posts - they hold no
+#      client data of their own and return nothing the caller did not already send.
+# Layer 1 is a UI gate, not an authorization boundary: this service cannot yet tell a staff session
+# from a client one on its own (the bb_sso cookie carries the allowed-client list, not the role).
+# Closing that would mean adding the role to platform_sso.py, which is vendored into every dashboard.
+# See the client README -> "Who can see the Reports tab".
+
+def _safe_filename(name, default):
+    """A Content-Disposition filename that cannot carry a header injection or a path."""
+    base = re.sub(r"[^A-Za-z0-9 ._-]", "_", str(name or "")).strip(" ._-")[:120]
+    if not base.lower().endswith(".xlsx"):
+        base = f"{base}.xlsx" if base else default
+    return base or default
+
+
+@app.get("/internal/reports.json")
+def internal_reports():
+    """The staff-only Reports payload (LinkedIn ad-set targeting).
+
+    Fetched lazily by the dashboard when a staff session opens the Reports tab, so the client's own
+    /data.json never carries it. 404s cleanly when the job has not written the object yet (an older
+    JSON, or a first deploy) - the tab then says the data has not been built rather than erroring.
+    """
+    if not authed():
+        abort(401)
+    blob = _storage.bucket(GCS_BUCKET).blob(INTERNAL_OBJECT)
+    if not blob.exists():
+        abort(404)
+    return Response(
+        blob.download_as_bytes(),
+        mimetype="application/json",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@app.post("/reports/tal/parse")
+def reports_tal_parse():
+    """Normalise an uploaded Campaign Manager 'Companies' export (CSV or XLSX).
+
+    This is an upload rather than an API call by necessity, not by preference: the matching API
+    (LinkedIn's Company Intelligence API) is private and closed to new applicants - see the module
+    docstring in tal_parse.py. The upload is parsed in memory and never stored; only the browser that
+    sent it sees the result.
+    """
+    if not authed():
+        abort(401)
+    f = request.files.get("file")
+    if f is None:
+        return _json_err("no file was uploaded", 400)
+    data = f.read(UPLOAD_LIMIT + 1)
+    if len(data) > UPLOAD_LIMIT:
+        return _json_err("that file is too large (12 MB limit)", 413)
+    try:
+        out = tal_parse.normalise(data, f.filename or "")
+    except tal_parse.ParseError as e:
+        return _json_err(str(e), 400)
+    except Exception:
+        app.logger.exception("TAL export parse failed")
+        return _json_err("could not read that file - is it the Campaign Manager Companies export?", 400)
+    out["source_filename"] = f.filename or ""
+    return Response(json.dumps(out), mimetype="application/json",
+                    headers={"Cache-Control": "no-store"})
+
+
+@app.post("/reports/xlsx")
+def reports_xlsx():
+    """Build a formatted .xlsx from a report payload the dashboard has already rendered."""
+    if not authed():
+        abort(401)
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict):
+        return _json_err("invalid request body", 400)
+    kind = body.get("kind")
+    payload = body.get("payload")
+    if not isinstance(payload, dict):
+        return _json_err("missing report payload", 400)
+    builders = {"targeting": xlsx_reports.build_targeting_xlsx,
+                "tal": xlsx_reports.build_tal_xlsx}
+    if kind not in builders:
+        return _json_err(f"unknown report type: {kind}", 400)
+    try:
+        blob = builders[kind](payload)
+    except Exception:
+        app.logger.exception("xlsx build failed (%s)", kind)
+        return _json_err("could not build that workbook", 500)
+    fname = _safe_filename(body.get("filename"), f"schneider_secure_power_{kind}.xlsx")
+    return Response(
+        blob,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"',
+                 "Cache-Control": "no-store"},
+    )
 
 
 @app.get("/healthz")

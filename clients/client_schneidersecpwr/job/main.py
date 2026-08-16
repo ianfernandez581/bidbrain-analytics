@@ -47,6 +47,11 @@ CLIENT = "schneidersecpwr"
 DATASET = f"client_{CLIENT}"
 BUCKET = f"bidbrain-analytics-{CLIENT}-dash"
 DATA_OBJECT = f"{CLIENT}.json"
+# STAFF-ONLY payload, written as a SEPARATE object. The Reports tab is for 100% Digital / the owning
+# agency, never the client, so its ad-set targeting must not ride inside the client's data.json -
+# hiding a tab in the browser does nothing about a payload the client can simply open. Served by the
+# dash at /internal/reports.json and fetched only when a staff session opens the tab.
+INTERNAL_OBJECT = f"{CLIENT}_internal.json"
 
 # Campaign key -> display metadata. The keys MUST match the CASE arms in sql/01 + sql/02.
 # Deliberately a code-level map, not a seed table: there are no targets to edit, so the only content
@@ -107,6 +112,11 @@ def main():
     # --- Read the views -------------------------------------------------------
     delivery = rows(bq, "delivery", order_by="metric_date, campaign, platform, market")
     creative = rows(bq, "creative")
+    # One row per LinkedIn ad set - the skeleton of the Reports tab's "Targeting Breakdown", plus the
+    # hand-recorded audience columns seeded from targeting/adset_targeting.csv. Small (tens of rows)
+    # and NOT date-scoped: the report describes how each ad set is SET UP, which is a whole-flight
+    # fact, so it is emitted unfiltered and the dashboard's date picker is hidden on that tab.
+    adsets = rows(bq, "linkedin_adsets", order_by="campaign, phase, geo, adset_name")
 
     # REFUSE TO PUBLISH AN EMPTY FACT. A scope regression (a renamed campaign that no token matches)
     # would otherwise silently overwrite a good JSON with an empty one and the dashboard would read as
@@ -188,13 +198,41 @@ def main():
         } for r in creative],
     }
 
-    storage.Client(project=PROJECT).bucket(BUCKET).blob(DATA_OBJECT).upload_from_string(
+    # --- STAFF-ONLY payload (separate object; see INTERNAL_OBJECT) -------------
+    internal = {
+        "last_updated": env["last_updated"],
+        "window": env["window"],
+        # LinkedIn ad-set setup for the Reports tab. `has_targeting` is false until the buyer fills
+        # targeting/adset_targeting.csv in - the report then labels itself "not yet recorded" rather
+        # than printing blanks that read as "no targeting applied".
+        "adsets": [{
+            "adset_id": r["adset_id"], "campaign": r["campaign"], "adset_name": r["adset_name"],
+            "group_name": r["group_name"], "phase": r["phase"], "geo": r["geo"],
+            "aliases": list(r["aliases"] or []),
+            "first_delivery": ymd(r["first_delivery"]), "last_delivery": ymd(r["last_delivery"]),
+            "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
+            "leads": num(r["leads"]),
+            "targeting_method": r["targeting_method"], "job_titles": r["job_titles"],
+            "job_seniorities": r["job_seniorities"], "job_functions": r["job_functions"],
+            "industries": r["industries"], "company_list": r["company_list"],
+            "exclusions": r["exclusions"], "audience_size": r["audience_size"],
+            "notes": r["notes"], "has_targeting": bool(r["has_targeting"]),
+        } for r in adsets],
+    }
+
+    bucket = storage.Client(project=PROJECT).bucket(BUCKET)
+    bucket.blob(DATA_OBJECT).upload_from_string(
         json.dumps(env), content_type="application/json")
+    bucket.blob(INTERNAL_OBJECT).upload_from_string(
+        json.dumps(internal), content_type="application/json")
     write_watermark(BUCKET, WATERMARK_OBJECT, observed)
     tot_imp = sum(r["imps"] or 0 for r in env["delivery"])
     tot_spend = sum(r["spend_aud"] or 0 for r in env["delivery"])
     per_camp = " | ".join(f"{c['label']}: {c['imps']:,.0f} imp / A${c['spend_aud']:,.0f}"
                           for c in campaigns)
+    n_targeted = sum(1 for a in internal["adsets"] if a["has_targeting"])
+    print(f"wrote gs://{BUCKET}/{INTERNAL_OBJECT} (staff-only) | {len(internal['adsets'])} "
+          f"LinkedIn ad sets, {n_targeted} with targeting recorded")
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['delivery'])} delivery rows, "
           f"{len(env['creative'])} creatives, {len(markets)} markets, "
           f"{tot_imp:,.0f} imps / A${tot_spend:,.0f} spend, "

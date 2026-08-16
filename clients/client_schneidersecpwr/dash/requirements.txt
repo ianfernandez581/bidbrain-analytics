@@ -5,3 +5,6 @@ google-cloud-storage==2.18.2
 # Floor chosen for Opus 4.8 / web_search_20260209 / output_config support; resolves to the latest.
 anthropic>=0.92.0
 httpx
+# Powers the Reports tab (xlsx_reports.py / tal_parse.py): builds the two client-ready .xlsx
+# deliverables with real cell styling, and reads .xlsx uploads of the Campaign Manager export.
+openpyxl==3.1.5
