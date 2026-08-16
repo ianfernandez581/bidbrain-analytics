@@ -135,6 +135,14 @@ Windsor key from Secret Manager (`windsor-api-key`).
 > - **Reddit & HubSpot** are now scheduled (wired into `deploy_ingest_jobs.ps1` on 2026-07-16). The
 >   Reddit job **skips cleanly (exit 0, 0 rows)** if its Windsor connector grant lapses — so it
 >   self-heals the moment the account is re-granted; no code change needed then.
+> - **A TOTAL outage now FAILS the job (2026-08-17).** One unavailable account stays a designed skip,
+>   but when the skipped set covers **every** configured account, `meta` / `linkedin` / `reddit` exit
+>   1 naming the re-auth URL. Before this, a lapsed grant looked identical to a quiet night: the
+>   **Meta grant lapsed 2026-08-11**, all 6 accounts returned HTTP 400 `not available` every night,
+>   the job completed successfully with `Rows fetched: 0`, and geocon's dashboard silently stopped
+>   advancing for six days while its campaigns were still ACTIVE — the only symptom being a
+>   `source_stale` badge that reads as somebody else's problem. Re-auth:
+>   <https://onboard.windsor.ai> (`?datasource=facebook` / `linkedin` / `reddit`).
 > - **After a Windsor re-grant, VERIFY the account_name before repointing any id.** The 2026-07-16
 >   reddit re-grant appeared to mint a new id (`a2_iq3fdsq6rem5`) and the loader was repointed to it —
 >   but that id was actually **Transmission_Cloudflare's** Reddit account, so Cloudflare delivery flowed
