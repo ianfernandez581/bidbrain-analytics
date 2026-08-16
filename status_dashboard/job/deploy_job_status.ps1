@@ -42,13 +42,15 @@ gcloud run jobs deploy $JOB --image $IMG --region $REGION --service-account $JOB
 # monitored client's <c>.json and a single missing grant makes the WHOLE run exit 1 — so one
 # ungranted bucket freezes status.json (and therefore every client's health badge), not just its
 # own row. That is exactly what happened when schneiderlqai was onboarded (2026-07-20) without a
-# grant; caltex was added to the list when it went live (2026-07-30).
+# grant; caltex was added to the list when it went live (2026-07-30); and again with
+# schneidersecpwr (2026-08-17) - the run exited 1 on a 403 for its bucket and no status.json was
+# written until it was added here.
 Write-Host "Granting the status SA read on the raw BQ layer + every monitored client bucket ..."
 gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
   --role roles/bigquery.jobUser   --condition=None --quiet | Out-Null
 gcloud projects add-iam-policy-binding $PROJECT --member "serviceAccount:$JOB_SA" `
   --role roles/bigquery.dataViewer --condition=None --quiet | Out-Null
-foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch","caltex","schneiderlqai")) {
+foreach ($c in @("cityperfume","resetdata","tlm","geocon","vmch","caltex","schneiderlqai","schneidersecpwr")) {
   gcloud storage buckets add-iam-policy-binding "gs://bidbrain-analytics-$c-dash" `
     --member "serviceAccount:$JOB_SA" --role roles/storage.objectViewer --quiet | Out-Null
 }

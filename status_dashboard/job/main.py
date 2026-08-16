@@ -218,6 +218,17 @@ def _sch_cs_total(d):
 # --- schneiderlqai dash-side extractor ----------------------------------------
 # The LQAIDC dash JSON's delivery[] is a pure day × platform × country pass-through of the
 # stg views, so a per-platform SUM over it equals the raw scope-filtered aggregate exactly.
+def _coalesce_additive(sf_val, kind, err):
+    """A SUCCESSFUL sum/count query that matched no rows returns SQL NULL, which means ZERO for an
+    additive metric - not "unknown". Without this the check renders as permanently not-comparable
+    against a dashboard that correctly shows 0, and a check that is never green is a check people
+    learn to ignore. Real failures are carried by `err`, so this can only fire on a clean query.
+    (Live example: schneider's "Global Rebrand Activation - CS leads" - that programme has 0 CS
+    leads by design, so Snowflake returns NULL and the dashboard shows 0.)"""
+    if err is None and sf_val is None and kind in ("sum", "count"):
+        return 0
+    return sf_val
+
 def _lqai_delivery(platform, field):
     return lambda d: sum(_num(r.get(field)) for r in d.get("delivery", [])
                          if r.get("platform") == platform)
@@ -2133,6 +2144,7 @@ def main():
                         dash_val = None
                         print(f"  [{spec['client']}] dash extract failed for {chk['label']}: {e}")
 
+                sf_val = _coalesce_additive(sf_val, chk["kind"], err)
                 match = (sf_val is not None and dash_val is not None
                          and round(float(sf_val)) == round(float(dash_val)))
                 match = (None if (sf_val is None or dash_val is None) else match)
@@ -2295,6 +2307,7 @@ def main():
                         dash_val = None
                         print(f"  [{spec['client']}] dash extract failed for {chk['label']}: {e}")
 
+                sf_val = _coalesce_additive(sf_val, chk["kind"], err)
                 match = (sf_val is not None and dash_val is not None
                          and round(float(sf_val)) == round(float(dash_val)))
                 match = (None if (sf_val is None or dash_val is None) else match)
