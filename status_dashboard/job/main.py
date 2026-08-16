@@ -223,6 +223,31 @@ def _lqai_delivery(platform, field):
                          if r.get("platform") == platform)
 
 
+# Both paid-only Schneider dashboards (schneiderlqai, schneidersecpwr) emit the SAME delivery[]
+# shape (platform / imps / clicks per row), so one accessor serves both. Aliased rather than
+# renamed so lqai's four existing checks keep their exact call sites.
+_secpwr_delivery = _lqai_delivery
+
+# Secure Power's three-brief scope, written with CONTAINS / STARTSWITH rather than LIKE.
+# `_` IS A WILDCARD IN LIKE (repo-wide rule in md/AGENTS.md), and the ind_edge token is literally
+# `SE_Industrial Edge_` - a LIKE would match far more than intended. Mirrors the CASE arms in
+# clients/client_schneidersecpwr/sql/01_stg_linkedin.sql + 02_stg_tradedesk.sql.
+# NOTE this check necessarily re-states the view's own scope: the three briefs are a SUBSET of the
+# Schneider advertiser (which also carries the Pacific book and LQAIDC), so a whole-advertiser total
+# would not equal this dashboard. It therefore catches an INGEST or BUILD regression, not a
+# scope-token regression - for that, compare against the campaign list in the client README.
+_SECPWR_SCOPE = (
+    "  AND (CONTAINS(CAMPAIGN_NAME, 'EntIT')\n"
+    "    OR CONTAINS(CAMPAIGN_NAME, 'SE_Industrial Edge_')\n"
+    "    OR CONTAINS(CAMPAIGN_NAME, 'Industrial Edge Wave3')\n"
+    "    OR CONTAINS(CAMPAIGN_NAME, 'Industrial Edge W3')\n"
+    "    OR STARTSWITH(TRIM(CAMPAIGN_NAME), '2463_')\n"
+    "    OR CONTAINS(CAMPAIGN_NAME, 'Software First')\n"
+    "    OR CONTAINS(CAMPAIGN_NAME, 'EcoStruxureIT')\n"
+    "    OR STARTSWITH(TRIM(CAMPAIGN_NAME), '2305_'))"
+)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # The per-client spec — the comprehensive list of every important data pull that
 # feeds each dashboard, separated by source (one check per platform × metric,
@@ -814,6 +839,52 @@ CLIENTS = [
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
                     "WHERE ADVERTISER_NAME = 'Schneider Electric'\n"
                     "  AND UPPER(CAMPAIGN_NAME) LIKE '%LQAIDC%';",
+             "note": "vs sum(delivery[platform='tradedesk'].clicks)."},
+        ],
+    },
+    {
+        # The THIRD Schneider dashboard - the three Secure Power briefs held out of the Pacific book
+        # because they have separate stakeholders (Enterprise IT 1958, Industrial Edge W3 2463,
+        # Software First 2305). Paid media only: no CS, no GA4, no conversions, and NO TARGETS - so
+        # like schneiderlqai the only clean integers are impressions and clicks. SPEND is never
+        # checked (the staging views apply an FX CASE per account currency).
+        "client": "schneidersecpwr", "label": "Schneider Secure Power",
+        "url": "https://schneidersecpwr.bidbrain.ai",
+        "sources": ["LinkedIn Ads - APAC", "TradeDesk_APAC ALL"],
+        "reads_direct": False,
+        "checks": [
+            {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
+             "dash": _secpwr_delivery("linkedin", "imps"),
+             "sql": "SELECT SUM(IMPRESSIONS) AS li_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'\n"
+                    + _SECPWR_SCOPE + ";",
+             "note": "The three Secure Power briefs only. Built via the raw_snowflake."
+                     "linkedin_ads_apac mirror, so it equals Snowflake only when the mirror is in "
+                     "sync. vs sum(delivery[platform='linkedin'].imps)."},
+            {"label": "LinkedIn · Clicks", "kind": "sum", "group": "LinkedIn",
+             "dash": _secpwr_delivery("linkedin", "clicks"),
+             "sql": "SELECT SUM(CLICKS) AS li_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
+                    "WHERE ACCOUNT_NAME LIKE 'SchneiderElectric_TransmissionSG%'\n"
+                    + _SECPWR_SCOPE + ";",
+             "note": "vs sum(delivery[platform='linkedin'].clicks)."},
+            {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
+             "dash": _secpwr_delivery("tradedesk", "imps"),
+             "sql": "SELECT SUM(COALESCE(IMPRESSIONS, IMPRESSION)) AS td_imps\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric'\n"
+                    + _SECPWR_SCOPE + ";",
+             "note": "COALESCE(IMPRESSIONS, IMPRESSION): the source carries both a current and a "
+                     "legacy singular column. The LQAIDC campaigns in the same advertiser are a "
+                     "DIFFERENT brief and are excluded by these tokens. "
+                     "vs sum(delivery[platform='tradedesk'].imps)."},
+            {"label": "Trade Desk · Clicks", "kind": "sum", "group": "Trade Desk",
+             "dash": _secpwr_delivery("tradedesk", "clicks"),
+             "sql": "SELECT SUM(CLICKS) AS td_clicks\n"
+                    "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
+                    "WHERE ADVERTISER_NAME = 'Schneider Electric'\n"
+                    + _SECPWR_SCOPE + ";",
              "note": "vs sum(delivery[platform='tradedesk'].clicks)."},
         ],
     },

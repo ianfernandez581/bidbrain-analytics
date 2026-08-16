@@ -95,6 +95,22 @@ Parser: ad-group first then campaign name on Trade Desk (Industrial Edge and Sof
 their country only in the ad-group name); campaign name on LinkedIn. Country tokens beat coarse
 region tokens, ANZ beats Pacific, first match wins — the same proven parser `client_schneider` uses.
 
+## Monitoring
+In the status pipeline's `CLIENTS` roster (`status_dashboard/job/main.py`) since 2026-08-17, with
+**4 accuracy checks** — LinkedIn and Trade Desk impressions + clicks, each comparing the dashboard
+JSON against Snowflake. Spend is deliberately NOT checked (the staging views apply an FX CASE per
+account currency). The scope predicate uses Snowflake `CONTAINS` / `STARTSWITH`, never `LIKE`:
+`_` is a LIKE wildcard and the ind_edge token is literally `SE_Industrial Edge_`.
+
+Because the three briefs are a SUBSET of the Schneider advertiser (which also carries the Pacific
+book and LQAIDC), the check necessarily re-states the view's own scope — so it catches an **ingest or
+build** regression, not a scope-token regression. For that, compare the live campaign list against
+"Campaign tagging" above. Verified against the mirror on 2026-08-17: LinkedIn 1,359,802 imps / 3,202
+clicks, Trade Desk 2,424,557 imps / 5,876 clicks — all four exact.
+
+Not in `SLIDES_CLIENTS` (the platform's "Open slides" roster) on purpose: `/report` is wired but not
+enabled here — see Known follow-ups.
+
 ## Freshness
 Self-gating `*/10` UTC (`schneidersecpwr-export-daily`). The gate watches
 `raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}` `__TABLES__.last_modified`; watermark =
