@@ -125,11 +125,21 @@ a failed run instead of a dashboard that reads "campaign stopped".
   `scripts/enable_super_admin.ps1` so god-mode reveal/rotate works.
 
 ## Known follow-ups
-- **AI slide deck (`/report`) is DORMANT.** `dash/report.py` + `bb_deck.js` are vendored so the routes
-  exist, but the prompts are still LQAI's single-campaign awareness language and the service has no
-  `roles/aiplatform.user`. Re-template the prompts for three separate briefs BEFORE running
-  an `enable_report_*` script. `buildReportPayload()` already emits the correct three-campaign shape
-  and explicitly tells the model there are no targets.
+- ~~AI slide deck dormant~~ — **ENABLED 2026-08-15.** `dash/enable_report_schneidersecpwr.ps1` was
+  created and run (grants `roles/aiplatform.user` + bucket write for the report cache, mounts
+  `GEMINI_MODEL=gemini-2.5-pro`, bumps the Cloud Run timeout to **900s** for the two-stage
+  research + structuring call), and `dash/report.py`'s `CONFIG` block was **re-templated off LQAI's
+  single-campaign awareness language** onto this dashboard's reality. The three things the prompt now
+  enforces, because getting any of them wrong would put a falsehood in a client deck:
+  1. **THREE separate briefs**, never one blended programme — and Enterprise IT is **multi-region**
+     (India/MEA/South America/Pacific, only ~1/8 Pacific), so it must not be called an ANZ campaign.
+  2. **NO TARGETS EXIST** — the guardrail forbids any target, budget, quota, "% to plan",
+     "on track" or "ahead/behind" language, and tells the model to write a delivery/efficiency KPI
+     wherever it would normally write a pacing one. `plan.has_targets:false` in the payload backs it.
+  3. **Flights are OBSERVED** ("live since <date>", never "x days remaining"), and any LinkedIn
+     lead-form count is a **paid platform metric, not a qualified/Salesforce lead**.
+  Runs on **Vertex Gemini** (no Anthropic key supplied); re-run the enable script with `-Key` to add
+  Claude. `buildReportPayload()` already emits the three-campaign shape (`paid.by_campaign`).
 - **If a media plan ever lands** for any brief, add it the repo-standard way — a committed
   `data/media_plan.csv` -> `seed_media_plan` via a `load_seeds.py`, read by `job/main.py` — and port
   `paceBar()` / `renderPacing()` back from `client_schneiderlqai/dash/dashboard.html`. Do not

@@ -24,39 +24,49 @@ import os
 # ── PER-CLIENT CONFIG ────────────────────────────────────────────────────────────────────────
 # Edit ONLY this block per client. Everything below it is the shared engine.
 CONFIG = {
-    "client": "schneiderlqai",
-    "client_name": "Schneider Electric - Liquid AI Data Center",
+    "client": "schneidersecpwr",
+    "client_name": "Schneider Electric - Secure Power",
     "agency": "Transmission",
     "currency": "AUD",
     # Stage-A business-model brief — precise enough that the model's reasoning is never generic.
     "business_model": (
-        "Schneider Electric's 'Liquid AI Data Center' (LQAIDC) campaign, run by Transmission — a TOP-OF-FUNNEL "
-        "AWARENESS push for Schneider's LIQUID COOLING for AI DATA CENTERS proposition (high-density thermal "
-        "management for AI/GPU compute; competitors include Vertiv). It runs on TWO paid channels — LinkedIn "
-        "(single-image Sponsored Content) and The Trade Desk (programmatic DISPLAY banners) — across SIX countries: "
-        "India (by far the largest), Brazil, Chile, Saudi Arabia, UAE and Australia (media-plan regions: South "
-        "America, MEA, Pacific, India).\n"
-        "  THIS IS AWARENESS ONLY. There are NO leads and NO conversions — the LinkedIn objective is Website "
-        "visits and Trade Desk is display reach. So judge success on REACH (impressions), CLICKS, CTR and cost "
-        "efficiency (CPM / CPC), and on PACING vs the media-plan targets (impression / click / spend targets for "
-        "the live Awareness lines, over a 15 May - 31 Dec 2026 flight). Clicks are a weak intent proxy on display; "
-        "frame this as brand/reach delivery, NOT lead generation. Do NOT invent leads, pipeline, MQLs or ROAS.\n"
-        "  The media plan also lists Search, Reddit and Retargeting lines that are PLANNED but NOT YET LIVE (no "
-        "delivery data) — mention them only as upcoming, never as delivered."
+        "Schneider Electric 'Secure Power', run by Transmission — a PAID-MEDIA-ONLY report covering THREE "
+        "SEPARATE BRIEFS that share a stakeholder group distinct from Schneider's Pacific book. Treat them as "
+        "three distinct campaigns, never as one blended programme:\n"
+        "   1. ENTERPRISE IT EXPANSION (brief 1958) — an ABM push, and the largest by far. It is MULTI-REGION: "
+        "India, MEA, South America and Pacific. Only about an eighth of its delivery is Pacific, so do NOT "
+        "describe it as an ANZ campaign.\n"
+        "   2. INDUSTRIAL EDGE / PREFAB (brief 2463, Wave 3 only) — Australia and New Zealand.\n"
+        "   3. SOFTWARE FIRST ECOSTRUXURE (brief 2305) — Australia and New Zealand.\n"
+        "  All three run on TWO paid channels: LinkedIn and The Trade Desk (programmatic display).\n"
+        "  THERE ARE NO TARGETS. No media plan has been supplied for ANY of the three, so there is no impression, "
+        "click, lead or spend target, no budget to pace against, and NO PACING FIGURE OF ANY KIND. Each campaign's "
+        "flight is OBSERVED — 'live since' its first delivery day — not a booked window. Judge and describe the "
+        "work on DELIVERED reach (impressions), clicks, CTR and cost efficiency (CPM / CPC), and on how the three "
+        "briefs and their markets compare with each other.\n"
+        "  There are NO Salesforce leads, NO content syndication, NO conversions and NO website/GA4 data here. "
+        "Industrial Edge does run LinkedIn Lead Generation ad sets, so a small LinkedIn on-platform LEAD-FORM count "
+        "may appear: that is a PAID platform metric only and is NOT a Salesforce/CS lead — never present it as "
+        "pipeline, MQLs or qualified leads."
     ),
     # Extra client-specific honesty rules woven into both stages.
     "guardrails": (
-        "AWARENESS CAMPAIGN — NO LEADS EXIST. Never mention leads, MQLs, conversions, pipeline, revenue or ROAS as "
-        "delivered outcomes; the only measured outcomes are impressions, clicks, CTR, and cost (CPM/CPC). Anchor "
-        "'are we winning?' on DELIVERY and PACING vs the media-plan targets (paid.totals + plan.channels targets + "
-        "plan.paid_spend vs plan.live_budget over the flight) and on efficiency (CPM/CPC/CTR by channel and "
-        "country). India dominates delivery — call that out rather than treating countries as even. Reach is not "
-        "exposed by the raw platforms, so impressions are the reach proxy (say so if you reference reach). Include "
-        "at least one slide-1 KPI (category 'budget') stating spend vs the live media-plan budget. Search / Reddit "
-        "/ Retargeting are planned-not-live — do not credit them with any delivery."
+        "DELIVERY-ONLY REPORT — NO TARGETS EXIST, so there is nothing to pace against. NEVER state or imply a "
+        "target, goal, budget, quota, 'x% to plan', 'ahead/behind schedule', 'on track', or that anything was met "
+        "or missed. The payload sets plan.has_targets=false; honour it. If you would normally write a pacing KPI, "
+        "write a DELIVERY or EFFICIENCY one instead.\n"
+        "Anchor 'are we winning?' on delivered impressions, clicks, CTR and CPM/CPC, compared ACROSS the three "
+        "briefs (paid.by_campaign) and across markets (paid.by_market) and channels (paid.by_channel). Enterprise "
+        "IT dominates spend and impressions — say so explicitly rather than treating the three as even, and keep "
+        "its multi-region footprint (India / MEA / South America / Pacific) distinct from the AU/NZ-only briefs.\n"
+        "NEVER mention leads, MQLs, conversions, pipeline, revenue or ROAS as delivered outcomes. If a LinkedIn "
+        "lead-form count appears, label it clearly as a LinkedIn on-platform form metric, not a qualified lead.\n"
+        "Each campaign's flight is OBSERVED: say 'live since <date>', never 'flight ends' or 'x days remaining'. "
+        "Reach is not exposed by the raw platforms, so impressions are the reach proxy — say so if you use the "
+        "word reach. Do NOT invent a budget figure for any slide-1 KPI; use delivered spend instead."
     ),
     # Short lowercase tokens for the on-slide category chip (bb_deck.js maps known ones to labels).
-    "category_tokens": "paid_media (LinkedIn/Trade Desk awareness delivery), reach, efficiency, budget, overall",
+    "category_tokens": "paid_media (LinkedIn/Trade Desk delivery across the 3 briefs), reach, efficiency, overall",
 }
 
 CLIENT = CONFIG["client"]
