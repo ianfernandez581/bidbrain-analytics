@@ -210,6 +210,14 @@ select.ctrl option { background: var(--card); color: var(--text); }
   cursor: pointer; padding: 0 6px; display: none;
 }
 .btn-clear.show { display: inline-flex; align-items: center; }
+/* Staff-only visibility switch. Amber (the page's warning colour) while the tab is ours alone,
+   green once the agency can see it too — the same read as the health colours elsewhere in the
+   portal, so the risky state is the one that catches the eye. */
+.vis { display: inline-flex; align-items: center; gap: 7px; }
+.visdot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber);
+  box-shadow: 0 0 8px rgba(251,191,36,.55); flex: 0 0 auto; }
+.vis-on .visdot { background: var(--green); box-shadow: 0 0 8px rgba(52,211,153,.55); }
+.vis[disabled] { opacity: .6; cursor: progress; }
 
 /* ═══ METRICS ═══ */
 .metrics {
@@ -467,7 +475,8 @@ footer {
     <input type="search" class="ctrl" id="fQ" placeholder="Search verbatims, authors, campaigns…" aria-label="Search feedback">
     <span class="spacer"></span>
     <button class="btn-clear" id="btnClear">Filtered — clear all</button>
-    <button class="btn btn-primary" id="btnLog" title="Opens the compilation sheet — add a row there, then re-run the data refresh">＋ Log feedback</button>
+    <button class="btn btn-primary" id="btnLog" title="Opens the compilation sheet">＋ Log feedback</button>
+    <button class="btn btn-secondary vis" id="btnVis" hidden></button>
     <button class="btn btn-secondary" id="btnPrint">Print summary</button>
   </div>
 </div>
@@ -482,7 +491,7 @@ footer {
   <main id="app"><noscript>This page needs JavaScript to render the registry — the data itself is in the embedded block below.</noscript></main>
 </div>
 
-<footer>Internal — agency portal only · Data source: the Transmission compilation sheet. To log feedback: ＋ Log feedback → add a row → re-run the refresh.</footer>
+<footer id="footNote">Internal — agency portal only · Data source: the Transmission compilation sheet.</footer>
 
 <script id="data" type="application/json">
 {
@@ -817,6 +826,21 @@ footer {
   })();
   if(!DATA.meta.sample) document.getElementById('samplePill').remove();
 
+  // Two lives, one page: in the portal the sheet is read LIVE on every load
+  // (meta.live), while a standalone build is a snapshot taken at refresh time.
+  // Say which, so nobody trusts a stale file or hunts for a refresh that no
+  // longer needs running.
+  (function(){
+    var live = !!DATA.meta.live;
+    var foot = document.getElementById('footNote');
+    if(foot) foot.textContent = 'Internal - agency portal only · Data source: the Transmission ' +
+      'compilation sheet, ' + (live ? 'read live - a row added there shows up here within a minute.'
+                                    : 'snapshot taken at the last refresh.');
+    var log = document.getElementById('btnLog');
+    if(log) log.title = live ? 'Opens the compilation sheet - add a row there and it appears here within a minute'
+                             : 'Opens the compilation sheet - add a row there, then re-run the data refresh';
+  })();
+
   cs.addEventListener('change', function(){ state.client = this.value; build(); });
   document.getElementById('fPeriod').addEventListener('change', function(){ state.period = this.value; build(); });
   document.getElementById('fType').addEventListener('change', function(){ state.type = this.value; build(); });
@@ -829,6 +853,45 @@ footer {
   var sheet = safeUrl(DATA.meta.sheet_url);
   if(sheet){ lg.addEventListener('click', function(){ window.open(sheet, '_blank', 'noopener'); }); }
   else { lg.remove(); }
+
+  // Staff-only visibility switch. 100% Digital admins decide whether the agency's OWN login sees
+  // this tab; we always do. The portal sets BB_FBL_ADMIN / BB_FBL_VISIBLE immediately before the
+  // pane - a standalone file sets neither, so the button simply stays hidden there. The button is
+  // a convenience, never the security boundary: the server re-checks the admin identity on the
+  // POST, and re-decides the whole gate on the next page render.
+  (function(){
+    var btn = document.getElementById('btnVis');
+    if(!btn) return;
+    if(!window.BB_FBL_ADMIN){ btn.remove(); return; }
+    var on = !!window.BB_FBL_VISIBLE, busy = false;
+    function paint(){
+      btn.hidden = false;
+      btn.classList.toggle('vis-on', on);
+      btn.innerHTML = '<span class="visdot"></span>' +
+        (on ? 'Visible to the agency' : 'Hidden from the agency');
+      btn.title = on
+        ? 'Transmission can see this tab when they log in. Click to hide it from them again.'
+        : 'Only 100% Digital can see this tab. Click to show it to Transmission as well.';
+    }
+    btn.addEventListener('click', function(){
+      if(busy) return;
+      busy = true; btn.disabled = true;
+      fetch('/admin/api/feedback-loop-visibility', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ visible: !on })
+      }).then(function(r){
+        return r.json().catch(function(){ return {}; }).then(function(j){
+          if(!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+          on = !!j.visible;
+          paint();
+        });
+      }).catch(function(e){
+        btn.innerHTML = '<span class="visdot"></span>Could not save - ' + esc(e.message);
+      }).then(function(){ busy = false; btn.disabled = false; });
+    });
+    paint();
+  })();
 
   build();
 })();

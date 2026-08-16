@@ -523,20 +523,65 @@ password — nothing breaks): each dashboard must (1) run the rebuilt image that
 `platform_sso.py` + the extended `authed()`, and (2) be served on `<c>.bidbrain.ai` (a raw
 `*.run.app` host never receives a `.bidbrain.ai` cookie).
 
-## Feedback Loop tab (Transmission portal only — 2026-08-08, SAMPLE DATA)
-A fifth portal tab after The Brain, rendered ONLY for the `transmission` agency slug (conditional
-in `templates/portal.html`): a registry of every report deck sent + every piece of client feedback
-(submit -> feedback -> final loop). The pane is an `<iframe src="/feedback-loop">`; the route
-(`main.py feedback_loop()`) gates on the same session the portal rides — a transmission agency
-session (incl. admins viewing the portal) or admin/super-admin — and serves
-`templates/feedback_loop.html` with `templates/feedback_loop_sample.json` substituted for the
-`__FEEDBACK_DATA_JSON__` sentinel at request time. **v0 is synthetic sample data only**
-(`meta.sample: true`, amber SAMPLE DATA pill). Real-data swap = one line in the route: read the
-refresh output from GCS instead of the sample file (client verbatims never enter git; the sheet ->
-JSON refresh lives in `prototypes/transmission-feedback-v0/sheet_to_json.py`). Both template files
-are VENDORED copies — canonical source is `prototypes/transmission-feedback-v0/`; after editing it
-re-run `prototypes/transmission-feedback-v0/make_portal_template.py` and redeploy. The page hides
-its standalone chrome when framed (`.embedded` class, set in its own `<head>`).
+## Feedback Loop tab (Transmission portal, STAFF-ONLY — LIVE on the real sheet since 2026-08-17)
+A fifth portal tab after The Brain: a registry of every report deck sent + every piece of client
+feedback (submit -> feedback -> final loop).
+
+**Who sees it (`_feedback_loop_flags()` in `main.py`, the ONE place all three flags resolve):**
+100% Digital staff ALWAYS do — any admin/super-admin viewing that portal via `/enter-agency`.
+The agency's OWN login sees it only while the per-agency **`feedback_loop`** setting is on, and it
+is **off by default for every agency type** (`INTERNAL_DEFAULTS["feedback_loop"] = False` in
+`store.py` — the one setting that is opt-in even for an internal agency, because Transmission
+carries no `external` flag and type-based defaults would otherwise have handed its own login a
+registry of what went wrong on whose report).
+
+Staff flip it from the tab itself: a **visibility button** in the pane toolbar reading "Hidden
+from the agency" (amber dot) / "Visible to the agency" (green dot), POSTing to
+`/admin/api/feedback-loop-visibility` -> `store.set_agency_setting(slug, "feedback_loop", bool)`.
+That route guards on `_admin_kind()`, NOT `_require_admin()`, because it is clicked from inside
+the agency portal where `session["kind"]` is `"agency"` for the duration of the visit. The button
+is a convenience, never the boundary: the server re-checks the admin identity on the POST and
+re-decides the gate on the next render. `window.BB_FBL_ADMIN` / `BB_FBL_VISIBLE` (emitted in
+`portal.html` immediately before the include, staff sessions only) are what reveal the button —
+an agency session gets neither, so its page carries no hint the control exists.
+
+**The gate is the Jinja `{% if %}` around the include, never CSS** — the verbatims are inlined
+into the portal HTML, so a merely hidden pane would still sit in view source; skipping the include
+also means the sheet is never read for that session. It renders as an INLINE `.bbpane`
+(`templates/_feedback_loop_pane.html`, included by `portal.html`), not an iframe, so the portal's
+background, cursor glow and hover feel run across it unbroken; `main.py _fill_feedback_loop()`
+substitutes the data for the pane's `__FEEDBACK_DATA_JSON__` sentinel at request time.
+
+**Data is READ LIVE from the compilation sheet** ("Report Feedback Tracker", owner
+calvin@100.digital) by `dash/feedback_loop_data.py` — its CSV export, no auth (the sheet is
+link-shared, so there is no service account or OAuth token to hold), transformed into the pane's
+contract on the way through. **Nothing to re-run after someone adds a row**: the read is cached
+~60s per instance (`FEEDBACK_SHEET_TTL`), so a new row appears within a minute and `?fbl=fresh`
+bypasses the cache. Overridable by env: `FEEDBACK_SHEET_ID` / `FEEDBACK_SHEET_GID` /
+`FEEDBACK_SHEET_TTL` / `FEEDBACK_SHEET_TIMEOUT` (defaults are baked in, so a plain deploy works).
+
+Fallback chain, so a Google hiccup can never blank the pane: fresh fetch -> the instance's own
+copy even if stale -> last-known-good at `gs://bidbrain-analytics-platform-dash/feedback-loop/
+data.json` (written on every successful read; private bucket, the same trust boundary as the
+feedback widget's recordings — client verbatims never enter git) -> the vendored
+`templates/feedback_loop_sample.json`, which flies the amber SAMPLE DATA pill so a reader can
+always tell a degraded pane from a real one. `build()` also REFUSES to publish an empty registry
+(the caltex pattern), so a mangled sheet keeps the last good data instead of blanking the tab.
+Which source served is in the request log (`feedback-loop: served from ...`).
+
+`feedback_loop_data.py` is the SINGLE source of truth for the sheet -> JSON rules (month parsing,
+client canonicalisation, report merging, flagging); `prototypes/transmission-feedback-v0/
+sheet_to_json.py` imports `build()` from it and is now only for producing a hand-shareable
+SNAPSHOT file (`meta.live: false`, and the page says so) plus the review report of every judgment
+call. Required sheet columns: `Client | Campaign | Month | Link to submitted deck | Link to final
+deck | Client feedback`. Optional and honoured the moment they exist — no code change, no
+redeploy: `Sent on | Sent by | Notes | Sentiment | Type | Source | Author | Feedback date`. Until
+a Sentiment/Type column exists every entry is neutral/general (the Inaccuracies and Incidents
+metrics therefore read 0); nothing is ever inferred from the verbatim text.
+
+The pane template + sample JSON are VENDORED copies — canonical source is
+`prototypes/transmission-feedback-v0/`; after editing `index.html` there re-run its
+`make_portal_template.py` and redeploy the platform.
 
 ## Feedback (every dashboard: text / voice / screenshot, with AI interpretation)
 A small **Feedback** pill is injected into the bottom-right of every proxied dashboard — the exact

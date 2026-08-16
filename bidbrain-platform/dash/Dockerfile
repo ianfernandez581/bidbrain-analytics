@@ -3,7 +3,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY main.py store.py config.py platform_sso.py feedback.py feedback_ai.py logo.svg ./
-COPY internal_notes.py internal_chat.py ./
+COPY internal_notes.py internal_chat.py feedback_loop_data.py ./
 COPY lineage ./lineage
 # Agency logos: copied by WILDCARD, because main.py discovers them by globbing `agency_*` /
 # `admlogo_*` at startup. Naming each file here meant a new agency's logo was committed but never
