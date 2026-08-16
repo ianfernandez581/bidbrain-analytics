@@ -110,5 +110,11 @@ if __name__ == "__main__":
     paths = sys.argv[1:]
     if not paths:
         raise SystemExit("usage: _validate_dash_js.py <dashboard.html> [more.html ...]")
-    all_ok = all(validate(p) for p in paths)
-    raise SystemExit(0 if all_ok else 1)
+    # NOT `all(validate(p) for p in paths)` - a generator short-circuits on the first False, so
+    # sweeping the estate (clients/*/dash/dashboard.html) would stop at the first broken file and
+    # report every dashboard after it as if it had passed. Evaluate the whole list, then reduce.
+    results = [validate(p) for p in paths]
+    failed = [p for p, ok in zip(paths, results) if not ok]
+    if failed:
+        print(f"\n{len(failed)} of {len(paths)} file(s) FAILED: " + ", ".join(failed))
+    raise SystemExit(0 if not failed else 1)
