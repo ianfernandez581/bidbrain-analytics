@@ -622,6 +622,18 @@ def main():
                 skipped.append(account)
         if skipped:
             log.warning(f"{len(skipped)} account(s) skipped (unavailable in Windsor): {', '.join(skipped)}")
+        # ONE unavailable account is a designed skip. EVERY account unavailable is a lapsed
+        # connector grant, and that must NOT exit green: on 2026-08-11 the Meta grant lapsed, all
+        # 6 accounts began returning HTTP 400 "not available", the nightly job kept succeeding, and
+        # nobody noticed for six days - geocon's dashboard simply stopped advancing while its
+        # campaigns were still ACTIVE. Fail loudly so the outage surfaces the same night.
+        # Re-authorize at https://onboard.windsor.ai?datasource=facebook
+        if skipped and len(skipped) == len(SELECT_ACCOUNTS):
+            raise SystemExit(
+                f"ABORT: ALL {len(skipped)} configured Meta account(s) are unavailable in Windsor - "
+                "this is a lapsed connector grant, not a per-account problem. No data was ingested. "
+                "Re-authorize at https://onboard.windsor.ai?datasource=facebook and re-run; "
+                "incremental mode backfills the gap on its own.")
 
     overall = (time.monotonic() - overall_start) / 60
     log.info("=" * 60)

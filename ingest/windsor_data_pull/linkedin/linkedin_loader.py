@@ -676,6 +676,16 @@ def main():
                 skipped.append(account)
         if skipped:
             log.warning(f"{len(skipped)} account(s) skipped (broken/unavailable in Windsor): {', '.join(skipped)}")
+        # ONE unavailable account is a designed skip. EVERY account unavailable is a lapsed
+        # connector grant, and that must NOT exit green - the outage is then invisible in Cloud Run
+        # (the LinkedIn grant lapsed once and went unnoticed for days for exactly this reason).
+        # Re-authorize at https://onboard.windsor.ai?datasource=linkedin
+        if skipped and len(skipped) == len(SELECT_ACCOUNTS):
+            raise SystemExit(
+                f"ABORT: ALL {len(skipped)} configured LinkedIn account(s) are unavailable in Windsor - "
+                "this is a lapsed connector grant, not a per-account problem. No data was ingested. "
+                "Re-authorize at https://onboard.windsor.ai?datasource=linkedin and re-run; "
+                "incremental mode backfills the gap on its own.")
 
     overall = (time.monotonic() - overall_start) / 60
     log.info("=" * 60)
