@@ -907,7 +907,7 @@
 
         <div class="section" style="margin-top:18px">
           <h2>Channel performance vs media plan benchmarks</h2>
-          <span class="sub">Δ shows actual vs planned. Green = beating plan, red = below. Actuals follow the date range; <b>plan benchmarks are full period</b>.</span>
+          <span class="sub">Δ shows actual vs planned. Green = beating plan, red = below. Actuals follow the date range; <b>plan benchmarks are full period</b>. Leads and CPL are graded against the <b>LinkedIn lead commit for the whole quarter</b> (not pro-rated) for the selected markets; the weekly target chart below shows pacing within the quarter.</span>
         </div>
 
         <div class="card">
@@ -3640,10 +3640,10 @@ function renderMarketTable() {
 function renderBenchmarkTable() {
   // One row per LIVE channel. TTD has no lead pixel, so its Leads cell stays a note.
   // The right-hand Leads/CPL "vs plan" columns grade LinkedIn against the Q3 lead-gen commit
-  // plan (LI_LEADGEN_PLANS, scoped to the selected market chips). Leads are graded against the
-  // FLAT pace-to-date expectation (commit x fraction of Q3 elapsed) so mid-quarter reads fair;
-  // the bench note carries the whole-quarter commit. Only under a pure-Q3 selection - a quarter
-  // commit cannot grade Q2 or a custom sub-range, so the cells fall back to "-" there.
+  // plan (LI_LEADGEN_PLANS, scoped to the selected market chips): leads vs the whole-quarter
+  // commit, CPL vs the blended planning CPL - the same full-period-benchmark shape every other
+  // column uses. Only under a pure-Q3 selection - a quarter commit cannot grade Q2 or a custom
+  // sub-range, so the cells fall back to "-" there.
   const lp = liQ3PlanCtx();
   const rows = activeChans().map(c => {
     const data = aggregateChannel(c.rows());
@@ -3664,13 +3664,24 @@ function renderBenchmarkTable() {
     const cpc = r.data.clk ? r.data.sp/r.data.clk : 0;
     totSp += r.data.sp; totImp += r.data.imp; totClk += r.data.clk;
     if (typeof r.leads === 'number') totLeads += r.leads;
-    let leadsCell = r.leads, leadsVs = neutral, cplCell = '-', cplVs = neutral, cplTitle = '';
+    let leadsCell = r.leads, leadsVs = neutral, leadsTitle = '', cplCell = '-', cplVs = neutral, cplTitle = '';
     if (lp && r.key === 'LinkedIn' && typeof r.leads === 'number') {
-      leadsCell = `${r.leads} <span class="bench">of ${lp.commit} commit · pace ${Math.round(lp.pace)}</span>`;
-      leadsVs = deltaCell(r.leads, lp.pace, false);
+      // Both bench notes are the table's plain `actual vs plan` shape (client request, 2026-08-07)
+      // - they used to read "of N commit / pace X" and "vs $N plan", the only two cells that broke
+      // the pattern. The delta MUST grade the two numbers on screen: it used to grade the flat
+      // pace-to-date while the cell printed the whole-quarter commit, which was self-explaining
+      // only because "pace 85" was printed next to it. Shortened, that would have read as
+      // "352 vs 210 -> +314%" and invited the client to check the arithmetic and lose trust.
+      // So Leads now grade the COMMIT, matching every other column (full-period plan benchmark,
+      // date-ranged actual). The pace-to-date is not lost: it is in the cell tooltip, and the
+      // "LinkedIn leads vs weekly target" chart below tells the flat-pacing story properly, with
+      // a cumulative target line - which is the block designed for it.
+      leadsCell = `${r.leads} <span class="bench">vs ${lp.commit}</span>`;
+      leadsVs = deltaCell(r.leads, lp.commit, false);
+      leadsTitle = ` title="Q3 commit for the selected markets: ${lp.commit} leads for the whole quarter. Flat pace to date is ${Math.round(lp.pace)} leads by today - see the weekly lead target chart below."`;
       if (r.leads > 0) {
         const cplAct = r.data.sp / r.leads;
-        cplCell = `${fmt$(cplAct,0)} <span class="bench">vs ${fmt$(lp.cpl,0)} plan</span>`;
+        cplCell = `${fmt$(cplAct,0)} <span class="bench">vs ${fmt$(lp.cpl,0)}</span>`;
         cplVs = deltaCell(cplAct, lp.cpl, true);
         cplTitle = ' title="Actual CPL uses ALL LinkedIn spend (the feed has no campaign-objective split); the plan CPL is the lead-gen line only, so this reads conservative."';
       }
@@ -3686,7 +3697,7 @@ function renderBenchmarkTable() {
       <td>${deltaCell(cpm, r.bm.cpm, true)}</td>
       <td>${fmt$(cpc,2)} <span class="bench">vs ${fmt$(r.bm.cpc,2)}</span></td>
       <td>${deltaCell(cpc, r.bm.cpc, true)}</td>
-      <td>${leadsCell}</td>
+      <td${leadsTitle}>${leadsCell}</td>
       <td>${leadsVs}</td>
       <td${cplTitle}>${cplCell}</td>
       <td>${cplVs}</td>
