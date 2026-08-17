@@ -794,8 +794,18 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
   must read behind, not vanish) - unlike the Q2 path, which still hides via `chanIsActive`.
 - **The "Channel performance vs media plan benchmarks" table gained right-hand `Leads / vs plan /
   CPL / vs plan` columns** (LinkedIn row only; TTD has no pixel). Leads are graded against the
-  **flat pace-to-date** (commit x fraction of Q3 elapsed, `liQ3PlanCtx`) with the whole-quarter
-  commit in the bench note; CPL vs the blended planning CPL of the selected markets. Renders only
+  **whole-quarter commit** (`liQ3PlanCtx`, scoped to the selected market chips); CPL vs the blended
+  planning CPL of those markets. **Both cells read the table's plain `actual vs plan` shape**
+  (`352 vs 210`, `$94 vs $180`) since 2026-08-17 - they were the only two with extra wording
+  (`of 210 commit - pace 85`, `vs $180 plan`). Leads used to be graded against the **flat
+  pace-to-date** (commit x fraction of Q3 elapsed) while the cell printed the commit, which only
+  self-explained because `pace 85` was printed beside it; shortened, that reads as
+  `352 vs 210 -> +314%` and invites the client to check the arithmetic. **The delta must grade the
+  two numbers on screen**, so Leads now grade the commit like every other column (full-period plan
+  benchmark, date-ranged actual). The pace-to-date is not lost - it is in the cell's `title`
+  tooltip, and the "LinkedIn leads vs weekly target" chart below is the block that tells the
+  flat-pacing story properly (cumulative target line). `liPlanScope().pace` is still computed and
+  is the knob if a pro-rated grade is ever wanted back. Renders only
   under a **pure-Q3 selection** (a quarter commit can't grade Q2 or a custom sub-range - cells fall
   back to `-`). CAVEAT: actual CPL uses ALL LinkedIn spend (the feed has no campaign-objective
   split), so it reads conservative vs the lead-gen-line plan CPL - noted in the cell tooltip;
