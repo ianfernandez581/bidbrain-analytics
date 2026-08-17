@@ -40,6 +40,7 @@ import config as cfg
 import platform_sso
 import feedback
 import feedback_ai
+import feedback_loop_data
 import internal_notes
 import internal_chat
 from store import Store, verify_pw, is_external, agency_setting
@@ -400,14 +401,72 @@ def _establish_session(kind, payload, json_mode=False, next_path=None):
 # Canonical source is prototypes/transmission-feedback-v0/; re-vendor with its
 # make_portal_template.py after any edit. The template carries a __FEEDBACK_DATA_JSON__ sentinel
 # that this fills at request time; it is a no-op for any agency whose portal omits the pane.
-# v0 ships SAMPLE DATA ONLY (synthetic, meta.sample=true), baked into the image beside the
-# template. REAL-DATA SWAP (client verbatims never enter git): read the refresh output from GCS
-# here instead, same pattern as the client dashboards, e.g.
-#   data_json = _gcs_bucket(_PLATFORM_BUCKET).blob("feedback-loop/data.json").download_as_text()
+# The data is READ LIVE from the compilation sheet on request (feedback_loop_data.load_json:
+# CSV export -> the pane's contract, cached ~60s per instance, last-known-good mirrored to
+# gs://<platform bucket>/feedback-loop/data.json). Client verbatims therefore never enter git.
+# The vendored sample file is the LAST resort only - it flies the amber SAMPLE DATA pill, so a
+# reader can always tell a degraded pane from a real one. `?fbl=fresh` bypasses the cache.
+FEEDBACK_LOOP_AGENCY = "transmission"     # the one portal that carries the tab today
+
+
+def _feedback_loop_flags(agency):
+    """The three template flags behind the tab, resolved in ONE place so the gate, the button and
+    the button's state can never disagree:
+
+      show_feedback_loop   render the tab + pane at all (staff always; the agency only when the
+                           `feedback_loop` setting is on). This is the real gate - the pane is
+                           inlined into the page, so a merely hidden tab would still leak the
+                           verbatims into view source, and skipping the include also means the
+                           sheet is never read for that session.
+      fbl_can_toggle       show the staff visibility button (100% Digital admin/super-admin only,
+                           incl. while viewing the portal via /enter-agency).
+      fbl_agency_visible   what that button currently reads, i.e. can the agency's own login see it.
+    """
+    staff = _admin_kind() in ("admin", "superadmin")
+    visible_to_agency = agency_setting(agency, "feedback_loop")
+    return {
+        "show_feedback_loop": (agency["slug"] == FEEDBACK_LOOP_AGENCY
+                               and (staff or visible_to_agency)),
+        "fbl_can_toggle": staff,
+        "fbl_agency_visible": bool(visible_to_agency),
+    }
+
+
+@app.post("/admin/api/feedback-loop-visibility")
+def api_feedback_loop_visibility():
+    """Turn the Feedback Loop tab on/off for the AGENCY's own login. 100% Digital staff only -
+    and `_admin_kind()`, not `_require_admin()`, because the button is clicked from inside the
+    agency portal, where session["kind"] is "agency" for the duration of the visit."""
+    if _admin_kind() not in ("admin", "superadmin"):
+        abort(403)
+    d = request.get_json(silent=True) or {}
+    slug = (d.get("slug") or FEEDBACK_LOOP_AGENCY).strip()
+    visible = bool(d.get("visible"))
+    try:
+        stored = store.set_agency_setting(slug, "feedback_loop", visible)
+    except ValueError as e:
+        return jsonify(ok=False, error=str(e)), 400
+    if stored is None:
+        return jsonify(ok=False, error="Unknown agency '%s'." % slug), 404
+    app.logger.info("feedback-loop: visibility for %s set to %s by %s",
+                    slug, stored, _admin_kind())
+    return jsonify(ok=True, visible=stored)
+
+
 def _fill_feedback_loop(page):
     if "__FEEDBACK_DATA_JSON__" not in page:
         return page
-    data_json = (_HERE / "templates" / "feedback_loop_sample.json").read_text(encoding="utf-8")
+    force = False
+    try:
+        force = request.args.get("fbl") == "fresh"
+    except Exception:
+        pass
+    data_json, source = feedback_loop_data.load_json(force=force)
+    if data_json:
+        app.logger.info("feedback-loop: served from %s", source)
+    else:
+        app.logger.error("feedback-loop: live read failed (%s) - falling back to sample", source)
+        data_json = (_HERE / "templates" / "feedback_loop_sample.json").read_text(encoding="utf-8")
     # "</" is escaped so untrusted text inside the JSON can never close the <script> block early
     return page.replace("__FEEDBACK_DATA_JSON__", data_json.replace("</", "<\\/"))
 
@@ -457,6 +516,13 @@ def home():
                                # Committed per-client marks for the tiles; a client without one
                                # falls back to its text name in the template.
                                client_logos=CLIENT_LOGOS,
+                               # Feedback Loop. The registry is a candid record of what went wrong
+                               # on whose reports, so 100% Digital staff ALWAYS see it (any admin/
+                               # super-admin viewing this portal via /enter-agency) while the
+                               # agency's OWN login sees it only while the `feedback_loop` setting
+                               # is on - default off for an external agency, flipped from the
+                               # button in the tab itself (/admin/api/feedback-loop-visibility).
+                               **_feedback_loop_flags(agency),
                                admin_return=session.get("admin_return"))
         return _fill_feedback_loop(page)
     if kind == "client":

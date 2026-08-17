@@ -50,7 +50,8 @@ SENTINEL = "__FEEDBACK_DATA_JSON__"
 
 # ids that get an `fbl-` prefix in both the markup and the script
 IDS = ["data", "samplePill", "windowLine", "fClient", "fPeriod", "fType", "fSent",
-       "fQ", "btnClear", "btnLog", "btnPrint", "metrics", "app", "btnZeroClear"]
+       "fQ", "btnClear", "btnLog", "btnPrint", "metrics", "app", "btnZeroClear",
+       "footNote", "btnVis"]
 
 # selectors that exist only to support the standalone page — dropped wholesale
 DROP_SELECTORS = {
@@ -178,7 +179,7 @@ def main():
     toolbar = re.search(r'(<div class="toolbar">.*?</div>\s*</div>)', body, re.S).group(1)
     # greedy on purpose: run to the LAST </div> before <footer>, i.e. the wrap's own close
     content = re.search(r'(<div class="wrap">\s*<div class="metrics".*</div>)\s*<footer', body, re.S).group(1)
-    footer = re.search(r"(<footer>.*?</footer>)", body, re.S).group(1)
+    footer = re.search(r"(<footer\b[^>]*>.*?</footer>)", body, re.S).group(1)
     window_line = re.search(r'(<p class="window-line"[^>]*></p>)', body).group(1)
     sample_pill = re.search(r'(<span class="sample-pill"[^>]*>.*?</span>)', body, re.S).group(1)
 

@@ -83,11 +83,19 @@ EXTERNAL_SAFE_DEFAULTS = {
     "allow_feedback":       False,  # no feedback widget or endpoint
     "show_spend_multiplier": False,  # never receive the client-billed markup factor
     "scrub_payload":        True,   # scrub named individuals etc. from proxied payloads
+    "feedback_loop":        False,  # no Feedback Loop tab: it records, verbatim, what went wrong
+                                    # on whose report, so the agency it is ABOUT only sees it once
+                                    # a 100% Digital admin turns it on from the tab itself
 }
 # Today's behaviour for every internal agency. `scrub_payload` False = payloads pass through
 # untouched, exactly as before.
 INTERNAL_DEFAULTS = dict.fromkeys(EXTERNAL_SAFE_DEFAULTS, True)
 INTERNAL_DEFAULTS["scrub_payload"] = False
+# The ONE setting that is opt-in for EVERY agency type, internal included. Transmission carries no
+# `external` flag (its restrictions were granted key by key), so type-based defaults would have
+# handed its own login the Feedback Loop tab - a registry of what went wrong on whose report. Safe
+# state is off; the tab appears for an agency only once an admin explicitly turns it on.
+INTERNAL_DEFAULTS["feedback_loop"] = False
 
 
 def is_external(agency) -> bool:
@@ -584,6 +592,22 @@ class Store:
                 self._save(doc)
                 return True
         return False
+
+    def set_agency_setting(self, slug, name, value):
+        """Write ONE per-agency setting override - the explicit key `agency_setting()` honours
+        ahead of the agency TYPE default. Restricted to the known settings map so a typo cannot
+        quietly persist a key nothing will ever read. -> the stored bool, or None if no such
+        agency. `upsert_agency` already preserves these keys, so an admin-UI rename cannot
+        silently drop the override."""
+        if name not in EXTERNAL_SAFE_DEFAULTS:
+            raise ValueError("unknown agency setting '%s'" % name)
+        doc = self._load()
+        for a in doc.get("agencies", []):
+            if a.get("slug") == slug:
+                a[name] = bool(value)
+                self._save(doc)
+                return bool(value)
+        return None
 
     # ---- spend multipliers (client-billed "spent" vs real media cost) ----
     def get_spend_multipliers(self, key):

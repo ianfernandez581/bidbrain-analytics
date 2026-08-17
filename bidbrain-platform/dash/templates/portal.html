@@ -523,7 +523,7 @@
       <button class="bbtab" data-pane="accuracy">Data Accuracy</button>
       {% if show_grid_brain %}<button class="bbtab" data-pane="grid">The Grid</button>
       <button class="bbtab" data-pane="brain">The Brain</button>{% endif %}
-      {% if agency.slug == 'transmission' %}<button class="bbtab" data-pane="feedbackloop">Feedback Loop</button>{% endif %}
+      {% if show_feedback_loop %}<button class="bbtab" data-pane="feedbackloop">Feedback Loop</button>{% endif %}
     </div>
     <div class="bbpane on" id="pane-overview">
     {% if show_sync %}
@@ -635,8 +635,18 @@
     </div>
     {% endif %}
     {# Feedback Loop renders INLINE as a sibling .bbpane (not an iframe), so the portal's
-       own background, cursor glow and hover feel continue across it unbroken. #}
-    {% if agency.slug == 'transmission' %}{% include "_feedback_loop_pane.html" %}{% endif %}
+       own background, cursor glow and hover feel continue across it unbroken.
+       STAFF-ONLY (show_feedback_loop, set in main.py home()): the registry names who got which
+       thing wrong, so it must never reach the agency it is about. The gate is this include, not
+       CSS - the verbatims are inlined into the page, so a hidden pane would still sit in view
+       source. Skipping the include also means the sheet is never even read for that session. #}
+    {% if show_feedback_loop %}
+      {# Staff-only visibility switch inside the pane reads these. Set BEFORE the include, since
+         the pane's script runs where it sits. Never emitted for the agency's own session, so
+         that page carries no hint the control exists. #}
+      {% if fbl_can_toggle %}<script>window.BB_FBL_ADMIN=true;window.BB_FBL_VISIBLE={{ 'true' if fbl_agency_visible else 'false' }};</script>{% endif %}
+      {% include "_feedback_loop_pane.html" %}
+    {% endif %}
     {# Platform attribution, once the Bidbrain lockup leaves the header for a themed agency.
        Placed quietly at the foot, matching the login page's treatment.
        FLAGGED FOR CONFIRMATION - see the re-skin note; remove by setting powered_by False. #}

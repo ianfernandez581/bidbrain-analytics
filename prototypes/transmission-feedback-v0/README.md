@@ -2,33 +2,49 @@
 
 A single-file, offline registry of every report deck sent to a Transmission client and every
 piece of feedback received on it — the submit → feedback → final loop, filterable and printable.
-**Internal only; never client-facing.** Approval prototype for Calvin; if approved it becomes a
-tab in the agency portal (`bidbrain-platform/`).
+**Internal only; never client-facing.** It SHIPPED as the Feedback Loop tab in the Transmission
+agency portal (`bidbrain-platform/`), where it runs on the live sheet. 100% Digital staff always
+see it; the agency's own login sees it only while an admin has switched it on with the visibility
+button in the pane toolbar (off by default — the content names what went wrong on whose report).
+The button hides itself unless `window.BB_FBL_ADMIN` is set, so it never appears in a standalone
+build of this file. This folder stays the canonical source of the page and of the sheet -> JSON
+contract.
 
 - `index.html` — the page, self-contained, opens by double-click (`file://`), zero network.
   The tracked copy is seeded with **sample data** (`meta.sample: true`, amber SAMPLE DATA pill).
 - `sample_data.json` — the seed, identical to the block embedded in `index.html`.
-- `sheet_to_json.py` — turns a CSV export of the compilation sheet into a **real-data build**.
+- `sheet_to_json.py` — builds a hand-shareable **snapshot file** from the compilation sheet.
 - `DISCOVERY.md` / `QA_NOTES.md` — Phase 0 findings and the executed QA suite.
-- `review_report.txt` — pointer; the real one is generated per refresh (see below).
+- `review_report.txt` — pointer; the real one is generated per snapshot build (see below).
 
-## Refresh procedure (real data)
+## The portal needs no refresh (since 2026-08-17)
 
-1. Open the compilation sheet (the ＋ Log feedback button in the page links to it) and
-   **File → Download → CSV** the tab. Expected columns:
-   `Client | Campaign | Month | Link to submitted deck | Link to final deck | Client feedback`
-   (the legacy header `Link to report deck` is accepted for the submitted column).
-2. From the repo root:
+The Feedback Loop tab in the agency portal **reads the sheet live** on every load
+(`bidbrain-platform/dash/feedback_loop_data.py`, cached ~60s), so adding a row to the sheet is
+the whole workflow — there is nothing to re-run and nothing to redeploy. The transform rules live
+in that module now; this folder's script imports `build()` from it rather than keeping a second
+copy that could drift.
 
-       .\.venv\Scripts\python.exe prototypes\transmission-feedback-v0\sheet_to_json.py <export.csv>
+## Snapshot procedure (a real-data file to hand someone)
 
+1. From the repo root:
+
+       .\.venv\Scripts\python.exe prototypes\transmission-feedback-v0\sheet_to_json.py
+
+   It pulls the sheet's own CSV export. Pass a path instead to build from a
+   **File → Download → CSV** export (needed only if link sharing is ever turned off). Expected
+   columns: `Client | Campaign | Month | Link to submitted deck | Link to final deck | Client
+   feedback` (the legacy header `Link to report deck` is accepted for the submitted column;
+   `Sent on`, `Sent by`, `Notes`, `Sentiment`, `Type`, `Source`, `Author` and `Feedback date`
+   are honoured when present, in the file AND in the portal).
    Output lands in **`staging/transmission-feedback-v0/`** (gitignored — client verbatims must
    never enter git history): `index.html` (the shareable build), `data.json`, `review_report.txt`.
 3. **Verify the reconciliation counts** the script prints (source rows vs reports vs feedback
    entries vs flags) and read `review_report.txt` — every judgment call is listed with its row
    number. Fix flagged rows in the sheet and re-run rather than hand-editing output.
-4. Open the staging `index.html` and **confirm the amber SAMPLE DATA pill is gone** and the
-   window line reads "refreshed today".
+4. Open the staging `index.html` and **confirm the amber SAMPLE DATA pill is gone**, the window
+   line reads "refreshed today", and the footer says the file is a snapshot (a live build says so
+   instead — the page reads `meta.live`).
 5. Share that file **via direct message only (e.g. a Slack DM), never a public link or channel** —
    it aggregates candid client feedback and an incident log.
 
@@ -39,25 +55,20 @@ Rows sharing client+campaign+month — or the same submitted-deck URL for the sa
 **merged into one report** with their feedback combined; every merge is logged in
 `review_report.txt` (the same URL under two different clients is flagged, never merged).
 
-## Live in the portal (v0, sample data)
+## Live in the portal
 
-The prototype is wired into the agency portal as the **Feedback Loop** tab (Transmission only):
-`bidbrain-platform/dash/main.py` route `/feedback-loop` serves the vendored template
-`bidbrain-platform/dash/templates/feedback_loop.html` (this folder's `index.html` with the data
-block replaced by a `__FEEDBACK_DATA_JSON__` sentinel) + `feedback_loop_sample.json` (this
-folder's `sample_data.json`), inside an iframe pane in `templates/portal.html`. The page hides its
-standalone chrome when framed (`.embedded`). **After editing `index.html` or `sample_data.json`,
-re-vendor and redeploy:**
+This page IS the portal's Feedback Loop tab (Transmission only): `make_portal_template.py` scopes
+it into the inline pane `bidbrain-platform/dash/templates/_feedback_loop_pane.html` (a `.bbpane`
+sibling of the other tabs, not an iframe) plus `feedback_loop_sample.json` (this folder's
+`sample_data.json`, now only the last-resort fallback). `main.py _fill_feedback_loop()` fills the
+`__FEEDBACK_DATA_JSON__` sentinel with the LIVE sheet read at request time — see
+`bidbrain-platform/README.md` -> "Feedback Loop tab" for the fallback chain and the sheet columns.
+**After editing `index.html` or `sample_data.json`, re-vendor and redeploy:**
 
     .\.venv\Scripts\python.exe prototypes\transmission-feedback-v0\make_portal_template.py
     .\bidbrain-platform\dash\deploy_dash_platform.ps1
 
-Real-data swap (planned): change the route's sample-file read to a GCS read of the refresh output
-(one line, marked in `main.py`); `sheet_to_json.py` stays the CSV -> JSON refresh path.
-
 ## Repo notes
 
-Lives on its own branch; nothing is wired into the production app and no repo file outside this
-folder is touched. Keep the branch local (or park it as `wip/…`) until Calvin signs off — a pushed
-dev branch gets integrated onto main by the next `/ship`. The tracked `index.html` must always
-carry sample data; real-data builds exist only under `staging/`.
+The tracked `index.html` must always carry sample data; real-data builds exist only under
+`staging/` (gitignored). The live portal path never writes a file into the repo at all.
