@@ -1304,7 +1304,7 @@ def api_status():
     flags = {c["client"]: {"can_edit": _can_edit(c["client"]), "has_definitions": _has_definitions(c["client"])}
              for c in clients if c.get("client")}
     # Opt-in placeholders: registry clients flagged `show_pending_row` that have NO status.json
-    # entry render as a greyed "awaiting connection" row on the Data Accuracy tab (geyervalmont).
+    # entry render as a greyed "awaiting connection" row on the Data Accuracy tab (geyervalmont, sophiie).
     # Explicitly per-client so other spec-less clients (bellshakespeare/nextsmile) keep today's
     # no-row behaviour; still scoped through _may_open like everything else. Best-effort — a
     # registry read failure must not take down the status API.
@@ -1460,6 +1460,12 @@ def deploy_definitions(client):
 
 
 # The Snowflake-sourced clients whose export jobs "Sync all now" force-refreshes.
+#
+# EVERY NAME HERE MUST BE A JOB THAT EXISTS: the Run Admin API 404s an unknown job, which lands it in
+# the response's `failed` list and makes the Overview's "Sync all" report a red failure forever. So a
+# PREVIEW client (one with a deployed dashboard but no export job yet — bellshakespeare, nextsmile,
+# geyervalmont, sophiie) is deliberately ABSENT, and gets added here as one line the moment its
+# `<c>-export` job is deployed. That is step 8 of each client README's FLIPPING PREVIEW -> LIVE.
 _SYNC_EXPORT_JOBS = ["mongodb-export", "cloudflare-export", "stt-export",
                      "hireright-export", "schneider-export", "proptrack-export"]
 

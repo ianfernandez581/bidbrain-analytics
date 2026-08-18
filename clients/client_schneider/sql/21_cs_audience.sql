@@ -1,4 +1,7 @@
--- Schneider Electric — AUDIENCE INTELLIGENCE for the Executive Scorecard tab.
+-- Schneider Electric — AUDIENCE INTELLIGENCE for the Content Syndication tab.
+-- (Built for the Executive Scorecard tab, which was REMOVED 2026-08-18 at the client request; the
+--  charts moved onto Content Syndication, where they are scoped by the Campaign dropdown. This view
+--  and the job payload are UNCHANGED - the data moved tab, it was not dropped.)
 -- Reframes the CS leads from "how many" to "WHO we reached" — the lead-QUALITY story senior B2B
 -- marketers value (Forrester: lead volume alone is a weak KPI). Built ENTIRELY from fields already
 -- in the Salesforce feed (see stg_salesforce 17): the account (company), the job FUNCTION, and the

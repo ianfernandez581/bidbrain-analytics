@@ -184,6 +184,22 @@ CLIENTS = {
             {"name": "Workplace Design", "path": "/paid-media", "status": "coming_soon"},
         ],
     },
+    # Onboarding: client_sophiie/ is a built, Sophiie AI-branded placeholder dashboard on SAMPLE
+    # data — the estate's only ANIMATED skin (the three-layer aurora borealis background). Sophiie's
+    # Meta campaigns are still being BUILT, so there is deliberately NO sql/ + job/ in that folder
+    # yet and the dashboard serves its baked-in placeholder.json. coming_soon (hidden from clients)
+    # but DEPLOYED, so a super admin can preview it via "Open preview →".
+    # `show_pending_row` also gives it a greyed "awaiting connection" row on the Data Accuracy tab
+    # (geyervalmont is the only other client with the flag) — it still applies: no pipeline yet.
+    "sophiie": {
+        "name": "Sophiie AI", "slug": "sophiie-ai", "status": "coming_soon",
+        "url": _runapp("sophiie"),   # deployed preview: super-admin-openable, hidden from clients (coming_soon)
+        "note": "Dashboard isn't live yet - the structure is ready.",
+        "show_pending_row": True,
+        "campaigns": [
+            {"name": "Demand & Qualified Leads", "path": "/paid-media", "status": "coming_soon"},
+        ],
+    },
     "schneider": {
         "name": "Schneider Electric", "slug": "schneider-electric", "status": "active",
         "url": _runapp("schneider"),
@@ -247,7 +263,7 @@ AGENCIES = [
     {
         "name": "100% Digital", "slug": "x100-digital", "password": AGENCY_100D_PW,
         "clients": ["cityperfume", "vmch", "tlm", "resetdata", "bellshakespeare", "geocon", "caltex",
-                    "nextsmile", "geyervalmont"],
+                    "nextsmile", "geyervalmont", "sophiie"],
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,

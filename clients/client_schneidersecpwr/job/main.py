@@ -18,6 +18,12 @@ CTR and cost efficiency, plus each campaign's OBSERVED flight ("live since <firs
 signed plan ever lands, add it the repo-standard way (a committed data/media_plan.csv -> seed table
 read here), exactly as client_schneiderlqai does - do not hardcode targets in this file.
 
+Delivery and creative rows carry a `tactic` - the media-plan LINE ITEM (Awareness / Consideration /
+Retargeting / Conversion, or 'Unspecified' where a brief names its ad sets by vertical instead of
+funnel stage). Added 2026-08-18 on the client's request: the plan is bought as line items but the
+dashboard could only break delivery down by CHANNEL, so there was no way to compare Awareness against
+Consideration against Conversion. The parse lives in sql/01 + sql/02; this file only orders it.
+
 There are no leads/conversions in the Salesforce sense here. LinkedIn's own on-platform LEAD-FORM
 counts do come through (Industrial Edge runs Lead Generation ad sets) and are reported as a PAID
 metric only; they are never a content-syndication lead total.
@@ -59,6 +65,13 @@ CAMPAIGN_META = [
 CAMPAIGN_ORDER = {k: i for i, (k, _) in enumerate(CAMPAIGN_META)}
 
 CHAN_LABEL = {"linkedin": "LinkedIn", "tradedesk": "The Trade Desk"}
+# Media-plan LINE ITEM (funnel stage), parsed in sql/01 + sql/02. Ordered down the funnel so every
+# chip row, table and chart reads Awareness -> Consideration -> Retargeting -> Conversion regardless
+# of which stages a given brief runs. 'Unspecified' sorts last: Enterprise IT names its ad sets by
+# VERTICAL rather than funnel stage, so that is a true description of the brief, not a parse failure -
+# but any stage token we stop recognising would land there too, and it should be visible when it does.
+TACTIC_ORDER = {"Awareness": 0, "Consideration": 1, "Retargeting": 2, "Conversion": 3,
+                "Unspecified": 9}
 # Fine markets first (AU/NZ), then the coarse regions, then anything unparsed - 'Unmapped' sorts last
 # on purpose so a parsing regression shows up as a loud trailing chip instead of hiding mid-list.
 MARKET_ORDER = {"Australia": 0, "New Zealand": 1, "ANZ": 2, "Pacific": 3,
@@ -105,7 +118,7 @@ def main():
         print(f"upstream advanced -> rebuilding | {times}")
 
     # --- Read the views -------------------------------------------------------
-    delivery = rows(bq, "delivery", order_by="metric_date, campaign, platform, market")
+    delivery = rows(bq, "delivery", order_by="metric_date, campaign, platform, market, tactic")
     creative = rows(bq, "creative")
 
     # REFUSE TO PUBLISH AN EMPTY FACT. A scope regression (a renamed campaign that no token matches)
@@ -119,6 +132,7 @@ def main():
 
     # --- Vocabulary actually present in the data ------------------------------
     markets = sorted({r["market"] for r in delivery}, key=lambda m: (MARKET_ORDER.get(m, 7), m))
+    tactics = sorted({r["tactic"] for r in delivery}, key=lambda t: (TACTIC_ORDER.get(t, 5), t))
     regions = sorted({r["region"] for r in delivery}, key=lambda r: (REGION_ORDER.get(r, 5), r))
     live_platforms = {r["platform"] for r in delivery}
     channels = [{"key": k, "label": CHAN_LABEL.get(k, k)}
@@ -132,7 +146,7 @@ def main():
             # Seeded but not delivering: emit it with zeros rather than dropping it, so a campaign
             # that stops shows as an explicit zero instead of quietly vanishing from the dashboard.
             campaigns.append({"key": key, "label": meta["label"], "brief": meta["brief"],
-                              "markets": [], "platforms": [], "imps": 0, "clicks": 0,
+                              "markets": [], "platforms": [], "tactics": [], "imps": 0, "clicks": 0,
                               "spend_aud": 0, "leads": None, "first_delivery": None,
                               "last_delivery": None})
             continue
@@ -143,6 +157,10 @@ def main():
             "markets": sorted({r["market"] for r in crows},
                               key=lambda m: (MARKET_ORDER.get(m, 7), m)),
             "platforms": sorted({r["platform"] for r in crows}),
+            # The line items this brief actually ran - the chip roster follows the campaign, exactly
+            # as `markets` does, so picking a brief cannot leave a chip for a stage it never bought.
+            "tactics": sorted({r["tactic"] for r in crows},
+                              key=lambda t: (TACTIC_ORDER.get(t, 5), t)),
             "imps": sum(r["imps"] or 0 for r in crows),
             "clicks": sum(r["clicks"] or 0 for r in crows),
             "spend_aud": num(sum(float(r["spend_aud"] or 0) for r in crows)),
@@ -172,17 +190,18 @@ def main():
         "window": {"start": ymd(wstart), "end": ymd(wend), "days": wdays},
         "campaigns": campaigns,
         "markets": markets,
+        "tactics": tactics,
         "regions": regions,
         "channels": channels,
         "delivery": [{
             "campaign": r["campaign"], "platform": r["platform"], "date": ymd(r["metric_date"]),
-            "market": r["market"], "region": r["region"],
+            "market": r["market"], "region": r["region"], "tactic": r["tactic"],
             "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
             "leads": num(r["leads"]), "lead_form_opens": num(r["lead_form_opens"]),
         } for r in delivery],
         "creative": [{
             "campaign": r["campaign"], "platform": r["platform"], "market": r["market"],
-            "concept": r["concept"], "format": r["creative_format"],
+            "tactic": r["tactic"], "concept": r["concept"], "format": r["creative_format"],
             "creative_name": r["creative_name"],
             "imps": num(r["imps"]), "clicks": num(r["clicks"]), "spend_aud": num(r["spend_aud"]),
         } for r in creative],
@@ -197,6 +216,7 @@ def main():
                           for c in campaigns)
     print(f"wrote gs://{BUCKET}/{DATA_OBJECT} | {len(env['delivery'])} delivery rows, "
           f"{len(env['creative'])} creatives, {len(markets)} markets, "
+          f"line items [{', '.join(tactics)}], "
           f"{tot_imp:,.0f} imps / A${tot_spend:,.0f} spend, "
           f"window {env['window']['start']}..{env['window']['end']}")
     print(f"  per campaign -> {per_camp}")

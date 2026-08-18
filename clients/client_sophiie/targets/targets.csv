@@ -1,0 +1,14 @@
+key,value,status
+flight_budget_aud,18000,PENDING
+flight_start,2026-08-03,PENDING
+flight_end,2026-10-26,PENDING
+daily_pace_aud,214,DERIVED
+cpl_target_aud,45,PENDING
+cpl_stretch_aud,32,PENDING
+ctr_target,0.011,PENDING
+cpm_target_aud,9.5,PENDING
+cpc_target_aud,0.95,PENDING
+cost_per_lpv_target_aud,1.6,PENDING
+flight_lead_target,400,PENDING
+qualified_lead_target,120,PENDING
+qualification_rate_target,0.3,PENDING

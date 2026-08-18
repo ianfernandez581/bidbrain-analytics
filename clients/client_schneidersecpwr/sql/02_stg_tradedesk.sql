@@ -8,10 +8,20 @@
 --
 -- MARKET is resolved AD GROUP FIRST, then campaign name — the same two-stage parser client_schneider
 -- uses, and it matters here: Industrial Edge and Software First carry their country only in the AD
--- GROUP name (e.g. an `..._AWR_2026` campaign whose ad groups split AU vs NZ), so a campaign-name-only
--- parse would strand that delivery. Enterprise IT is the opposite — its region sits in the campaign
--- name (`SE_EntIT_2026_S2_{MEA,India,SAM}`) with no country token at all, which is why markets are
--- NOT folded to Australia/New Zealand on this dashboard.
+-- GROUP name (e.g. an `..._AWR_ANZ_display` campaign whose ad groups split AU vs NZ), so a
+-- campaign-name-only parse would strand that delivery in a phantom combined-ANZ market. Enterprise IT
+-- is the opposite — its region sits in the campaign name (`SE_EntIT_2026_S2_{MEA,India,SAM}`) with no
+-- country token at all, which is why markets are NOT folded to Australia/New Zealand on this
+-- dashboard. (LinkedIn has no ad-group grain to fall back on, so it reconciles a coarse token against
+-- the ad set's current name instead — see 01_stg_linkedin's header.)
+--
+-- TACTIC is the media-plan LINE ITEM (funnel stage), resolved with the SAME two-stage precedence as
+-- market — ad group first, campaign name second — because Trade Desk carries the stage in either
+-- depending on the brief: Industrial Edge's ad groups are `Awareness_Premium IT_{AU,NZ}` while its
+-- campaign name says `..._AWR_...`. The ladder itself (Retargeting > Conversion > Consideration >
+-- Awareness, delimiter-anchored short tokens) is identical to 01_stg_linkedin's, which carries the
+-- reasoning. Enterprise IT names its ad groups by VERTICAL rather than funnel stage, so it lands on
+-- 'Unspecified' by design.
 --
 -- Impressions = COALESCE(IMPRESSIONS, IMPRESSION): the mirror carries both spellings. Spend is AUD
 -- (CURRENCY is AUD today; the USD@1.50 / SGD@1.15 arms are kept for robustness).
@@ -32,6 +42,36 @@ WITH scoped AS (
     END AS campaign
   FROM `bidbrain-analytics.raw_snowflake.tradedesk_apac_all`
   WHERE ADVERTISER_NAME = 'Schneider Electric'
+),
+parsed AS (
+  SELECT
+    *,
+    -- Funnel stage as the AD GROUP name reads it, and as the CAMPAIGN name reads it. Kept as two
+    -- columns so the ad-group answer can win only when it actually found a stage - COALESCE below.
+    CASE
+      WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])(RTG[0-9]*|RT[0-9])([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(AD_GROUP_NAME), 'RETARGET')            THEN 'Retargeting'
+      WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])CNV([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(AD_GROUP_NAME), 'CONVERSION')          THEN 'Conversion'
+      WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])(CNS|CON)([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(AD_GROUP_NAME), 'CONSIDERATION')       THEN 'Consideration'
+      WHEN REGEXP_CONTAINS(UPPER(AD_GROUP_NAME), r'(^|[ _-])AWR([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(AD_GROUP_NAME), 'AWARENESS')           THEN 'Awareness'
+      ELSE NULL
+    END AS tactic_group,
+    CASE
+      WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(RTG[0-9]*|RT[0-9])([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(CAMPAIGN_NAME), 'RETARGET')            THEN 'Retargeting'
+      WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])CNV([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(CAMPAIGN_NAME), 'CONVERSION')          THEN 'Conversion'
+      WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])(CNS|CON)([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(CAMPAIGN_NAME), 'CONSIDERATION')       THEN 'Consideration'
+      WHEN REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])AWR([ _-]|$)')
+        OR CONTAINS_SUBSTR(UPPER(CAMPAIGN_NAME), 'AWARENESS')           THEN 'Awareness'
+      ELSE NULL
+    END AS tactic_campaign
+  FROM scoped
+  WHERE campaign IS NOT NULL
 )
 SELECT
   DATE(DAY)                                AS metric_date,
@@ -56,6 +96,8 @@ SELECT
     WHEN CONTAINS_SUBSTR(CAMPAIGN_NAME, 'Pacific') OR REGEXP_CONTAINS(UPPER(CAMPAIGN_NAME), r'(^|[ _-])PAC([ _-]|$)') THEN 'Pacific'
     ELSE 'Unmapped'
   END                                      AS market,
+  -- Ad group wins when it names a stage at all, campaign name second, 'Unspecified' if neither does.
+  COALESCE(tactic_group, tactic_campaign, 'Unspecified') AS tactic,
   -- Display creative: the concept is the creative name (no consistent concept token across these
   -- three briefs, unlike LQAIDC's AccelAI/CoolPerf codes), the format is the banner size.
   COALESCE(NULLIF(TRIM(CREATIVE_NAME), ''), '(unnamed)') AS concept,
@@ -72,5 +114,4 @@ SELECT
   -- than draw a real zero - same contract as client_schneider's stg_ad_delivery.
   CAST(NULL AS INT64)                      AS leads,
   CAST(NULL AS INT64)                      AS lead_form_opens
-FROM scoped
-WHERE campaign IS NOT NULL;
+FROM parsed;

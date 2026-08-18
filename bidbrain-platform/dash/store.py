@@ -189,7 +189,7 @@ def _seed_doc():
             "password_hash": hash_pw(pw), "password_plain": pw,
             "campaigns": [dict(cm) for cm in c.get("campaigns", [])], "order": i,
         }
-        # Opt-in Data Accuracy placeholder (geyervalmont): renders a greyed "awaiting connection"
+        # Opt-in Data Accuracy placeholder (geyervalmont, sophiie): renders a greyed "awaiting connection"
         # row for a client that has no status-export check spec yet. Copied only when set, so
         # every other spec-less client (bellshakespeare/nextsmile) keeps today's no-row behaviour.
         if c.get("show_pending_row"):

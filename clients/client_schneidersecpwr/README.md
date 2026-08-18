@@ -8,11 +8,12 @@ people views this dashboard:
 | Campaign | Brief | Channels | Markets |
 |---|---|---|---|
 | **Enterprise IT Expansion** (`ent_it`) | 1958 | LinkedIn + Trade Desk | India · MEA · South America · Pacific |
-| **Industrial Edge / Prefab** (`ind_edge`) | 2463 | LinkedIn + Trade Desk | Australia · New Zealand (+ combined ANZ) |
+| **Industrial Edge / Prefab** (`ind_edge`) | 2463 | LinkedIn + Trade Desk | Australia · New Zealand |
 | **Software First EcoStruxure** (`software_first`) | 2305 | LinkedIn + Trade Desk | Australia · New Zealand |
 
 - **Paid media only.** No Salesforce / content syndication, no GA4, no conversions. The story is
-  reach (impressions), clicks, CTR and cost efficiency (CPM / CPC) per brief, per market.
+  reach (impressions), clicks, CTR and cost efficiency (CPM / CPC) per brief, per **media-plan line
+  item** (funnel stage), per market.
 - **DELIVERY-ONLY — there are NO targets.** None of the three has a signed media plan, so there is no
   pacing card, no budget tile and no vs-plan column anywhere. Each campaign's flight is **observed**
   ("live since <first delivery day>"), never presented as a booked window.
@@ -32,15 +33,40 @@ read `client_schneider`'s views, so a scope change there cannot move numbers her
 1. **Overview** — delivery KPIs (spend / impressions / clicks / CTR + CPM/CPC), a **campaign
    comparison** table (which replaces LQAI's pace-to-plan card, since there are no targets), a
    delivery-over-time hero chart with grain + Relative/Absolute toggles, a LinkedIn-vs-Trade-Desk
-   channel table, spend by channel + by market, and a market summary.
+   channel table, a **Line item performance** table (line item × channel — see "Line items" below),
+   spend by channel + by market, and a market summary.
 2. **Campaigns** — one card per brief (spend / imps / clicks / CTR, channels, markets, live-since,
+<<<<<<< Updated upstream
    and LinkedIn lead-form leads where a brief runs Lead Generation ad sets), plus campaign × channel
    and campaign × market breakdowns and a spend-by-campaign / impressions-by-region pair of charts.
 3. **Creative** — concepts, formats, best creatives by CTR, and a sortable/searchable detail table.
+=======
+   and LinkedIn lead-form leads where a brief runs Lead Generation ad sets), plus campaign × channel,
+   **campaign × line item** (with a stacked impressions-by-line-item chart) and campaign × market
+   breakdowns, and a spend-by-campaign / impressions-by-region pair of charts.
+3. **Creative** — concepts, formats, best creatives by CTR, and a sortable/searchable detail table
+   carrying a **Line item** column (the same creative is often reused across funnel stages).
+4. **Reports** — two client-ready documents Campaign Manager cannot export in one click, rendered on
+   screen and downloadable as formatted `.xlsx`. See "The Reports tab" below.
+
+**Channel chips (2026-08-15):** a coloured chip per engine, next to the Campaign dropdown, honoured
+by every delivery and creative figure via `platOk()`. **Only engines the SELECTED campaign actually
+ran are rendered** (client rule - never advertise a channel a campaign does not have); the roster is
+derived from the data ignoring the channel filter itself, the last engine cannot be unticked, and the
+whole group hides when one engine is left. Same rule now applies on `client_cloudflare`,
+`client_schneider` and `client_schneiderlqai`.
+>>>>>>> Stashed changes
 
 Filters: a **Campaign dropdown in the top nav bar** (the `client_schneider` / Cloudflare pattern -
-`#campSelect` + `setCampaign()`), plus **Market** chips and a **date range** (Overview + Campaigns;
-the Creative feed carries no date column, so the picker is hidden there).
+`#campSelect` + `setCampaign()`), plus **Line item** chips, **Market** chips and a **date range**
+(Overview + Campaigns; the Creative feed carries no date column, so the picker is hidden there).
+
+**Line-item chips (2026-08-18)** follow the channel-chip rules: only line items the SELECTED campaign
+actually bought are rendered, and the whole group hides when there is nothing to choose between -
+Enterprise IT names its ad sets by vertical rather than funnel stage, so it has a single `Unspecified`
+line and a lone chip there would imply a filter that cannot change anything. Switching campaign
+re-opens every line-item chip as well as every market chip, for the same reason given below for
+markets: the three briefs buy DIFFERENT line items.
 
 **The Campaign dropdown is single-select** and leads with **"All campaigns"** - unlike
 `client_schneider`, whose portfolio option was retired, the combined three-brief view is the whole
@@ -53,9 +79,19 @@ select's own background, so a translucent value makes every option invisible on 
 ## Architecture (standard 3-stage pattern)
 ```
 raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}      (shared mirrors, filled by ingest/)
+<<<<<<< Updated upstream
   -> sql/01_stg_linkedin, 02_stg_tradedesk                 (scope: 3 briefs; campaign + market tagging)
   -> sql/03_delivery (campaign x platform x market x day)  + sql/04_creative (whole-flight)
   -> job/main.py -> gs://bidbrain-analytics-schneidersecpwr-dash/schneidersecpwr.json
+=======
+  -> sql/01_stg_linkedin, 02_stg_tradedesk                 (scope: 3 briefs; campaign + market +
+                                                           line-item/tactic tagging)
+  -> sql/03_delivery (campaign x platform x tactic         + sql/04_creative (whole-flight,
+                      x market x day)                         carries tactic too)
+     + sql/05_linkedin_adsets (one row per ad set; JOINs seed_adset_targeting)
+  -> job/main.py -> gs://...-schneidersecpwr-dash/schneidersecpwr.json           (client payload)
+                 -> gs://...-schneidersecpwr-dash/schneidersecpwr_internal.json  (STAFF ONLY: adsets)
+>>>>>>> Stashed changes
   -> dash/main.py (Flask password gate) serves dashboard.html + /data.json
 ```
 There is **no seed table and no `data/` dir** — nothing to seed, because there are no targets.
@@ -88,6 +124,91 @@ Parser: ad-group first then campaign name on Trade Desk (Industrial Edge and Sof
 their country only in the ad-group name); campaign name on LinkedIn. Country tokens beat coarse
 region tokens, ANZ beats Pacific, first match wins — the same proven parser `client_schneider` uses.
 
+<<<<<<< Updated upstream
+=======
+### ...but a rename artefact is not a third market (2026-08-18, client)
+Industrial Edge displayed **Australia, New Zealand *and* ANZ**, and the client rightly asked why a
+two-market campaign had three market lines. It never ran a combined-ANZ line. Transmission renamed
+five LinkedIn ad sets from `SE_Industrial Edge_<Phase>_{AU,NZ}` to `2463_..._<PH>_ANZ_<fmt>` on
+**2026-08-07** and back to the per-country form on **08-13**, so six days of each ad set's delivery
+(5,619 imps / A$855) parsed as a phantom `ANZ` market. **The ad set ID never moved.**
+
+`01_stg_linkedin` now reconciles this: when a row's OWN name resolves to a coarse token but that ad
+set's **current** name (the most recent day it delivered) names a specific country, the row takes the
+ad set's current country. Deliberately narrow in both directions:
+
+- a row whose own name already names a country is **never** rewritten, so genuine per-country history
+  is not retro-relabelled if an ad set really does change geo later;
+- an ad set **still** named with a coarse token keeps it — Enterprise IT's `_PAC_` ad sets stay
+  `Pacific` — so a genuinely combined-market line is never invented into a country it never had.
+
+Same principle `05_linkedin_adsets` already applied to the ad-set name: the **ad set is the key, the
+name is not** (md/AGENTS.md). Verified a strict **no-op on ent_it and software_first** — it moves
+exactly the six ind_edge rows, and the campaign's totals are unchanged (229,595 imps / A$6,156;
+AU 219,086 / NZ 10,509, was AU 214,535 / NZ 9,441 / ANZ 5,619). The `ANZ` arm stays in
+`03_delivery`'s region rollup as a defensive residual.
+
+**Trade Desk needed no change** — its ad-group-first parse already split the `..._AWR_ANZ_display`
+campaign into `Awareness_Premium IT_AU` / `_NZ`, which is why only LinkedIn showed the phantom.
+
+## Line items (media-plan tactics)
+The 2463 media plan is bought as **line items** — Awareness on Programmatic *and* on LinkedIn,
+Consideration (retargeting), Conversion (lead-gen form) — but the dashboard could only break delivery
+down by **channel**, so an Awareness-vs-Consideration-vs-Conversion view was impossible. The client
+asked for it on 2026-08-18. `tactic` is now a first-class dimension the whole way through:
+
+    sql/01+02 (tactic)  ->  sql/03_delivery + sql/04_creative  ->  job/main.py (tactic, tactics)
+                        ->  dashboard.html (Line item chips, tables, chart, CSV, deck payload)
+
+Vocabulary and display order: **Awareness -> Consideration -> Retargeting -> Conversion ->
+Unspecified** (`TACTIC_ORDER` in `job/main.py`, `TACTICS` in `dashboard.html` — keep them in step).
+Each stage has a **fixed** colour, not one assigned by index, so Conversion does not change colour
+when a campaign without a Consideration line is selected.
+
+Parsed from the ad-set name (LinkedIn) or **ad group first then campaign name** (Trade Desk), matching
+most-specific token first: **Retargeting before Conversion before Consideration before Awareness**,
+because `CONVERSION` contains `CON` and a Consideration-first ladder mislabels every conversion ad
+set. Short tokens are delimiter-anchored so `CON` cannot match inside a word. The retargeting arm
+accepts the numbered forms Transmission actually uses (`RTG` / `RTG1` / `RT1`) — the previous
+`RTG|RT1|RT2` set could not match `..._RTG1_ANZ_image` at all, because the digit sits between `RTG`
+and the delimiter, so Software First's retargeting ad set was reported as `Unspecified`.
+
+`stg_linkedin.tactic` is the **single definition**: `05_linkedin_adsets` reads its `phase` from it
+rather than re-deriving the ladder, so the staff Reports tab and the delivery tables can never
+disagree about which stage an ad set sits in.
+
+**`Unspecified` is a true answer, not a gap.** Enterprise IT names its ad sets by VERTICAL
+(Hero / Generic / Manufacturing / Healthcare / Finance / Retail / Education), not by funnel stage, so
+all of its delivery lands there — and the UI says so, hiding the line-item chips, table and chart
+entirely when a single stage is in play rather than drawing a one-row "breakdown" of the totals above
+it. The AI-deck payload carries the same warning in `paid.line_item_note`.
+
+What each brief runs today: **ind_edge** Awareness (LinkedIn + Trade Desk) · Consideration · Conversion;
+**software_first** Awareness (both) · Consideration · Retargeting; **ent_it** Unspecified only.
+
+**Lead-form leads** appear as a column on the campaign × line-item table only when a line shows lead
+form ACTIVITY (`leads > 0 OR lead_form_opens > 0`), never merely a non-null count: LinkedIn reports
+`leads = 0` on every ad set, awareness ones included, and a `0` there reads as "this line was asked
+for leads and got none". Form opens separate the two, so a Conversion line that genuinely converted
+nobody still prints a real `0` while an Awareness line prints `-`. Trade Desk always prints `-`.
+
+## Monitoring
+In the status pipeline's `CLIENTS` roster (`status_dashboard/job/main.py`) since 2026-08-17, with
+**4 accuracy checks** — LinkedIn and Trade Desk impressions + clicks, each comparing the dashboard
+JSON against Snowflake. Spend is deliberately NOT checked (the staging views apply an FX CASE per
+account currency). The scope predicate uses Snowflake `CONTAINS` / `STARTSWITH`, never `LIKE`:
+`_` is a LIKE wildcard and the ind_edge token is literally `SE_Industrial Edge_`.
+
+Because the three briefs are a SUBSET of the Schneider advertiser (which also carries the Pacific
+book and LQAIDC), the check necessarily re-states the view's own scope — so it catches an **ingest or
+build** regression, not a scope-token regression. For that, compare the live campaign list against
+"Campaign tagging" above. Verified against the mirror on 2026-08-17: LinkedIn 1,359,802 imps / 3,202
+clicks, Trade Desk 2,424,557 imps / 5,876 clicks — all four exact.
+
+Not in `SLIDES_CLIENTS` (the platform's "Open slides" roster) on purpose: `/report` is wired but not
+enabled here — see Known follow-ups.
+
+>>>>>>> Stashed changes
 ## Freshness
 Self-gating `*/10` UTC (`schneidersecpwr-export-daily`). The gate watches
 `raw_snowflake.{linkedin_ads_apac, tradedesk_apac_all}` `__TABLES__.last_modified`; watermark =
@@ -118,6 +239,7 @@ a failed run instead of a dashboard that reads "campaign stopped".
   `scripts/enable_super_admin.ps1` so god-mode reveal/rotate works.
 
 ## Known follow-ups
+<<<<<<< Updated upstream
 - **AI slide deck (`/report`) is DORMANT.** `dash/report.py` + `bb_deck.js` are vendored so the routes
   exist, but the prompts are still LQAI's single-campaign awareness language and the service has no
   `roles/aiplatform.user`. Re-template the prompts for three separate briefs BEFORE running
@@ -127,3 +249,45 @@ a failed run instead of a dashboard that reads "campaign stopped".
   `data/media_plan.csv` -> `seed_media_plan` via a `load_seeds.py`, read by `job/main.py` — and port
   `paceBar()` / `renderPacing()` back from `client_schneiderlqai/dash/dashboard.html`. Do not
   hardcode targets.
+=======
+- ~~AI slide deck dormant~~ — **ENABLED 2026-08-15.** `dash/enable_report_schneidersecpwr.ps1` was
+  created and run (grants `roles/aiplatform.user` + bucket write for the report cache, mounts
+  `GEMINI_MODEL=gemini-2.5-pro`, bumps the Cloud Run timeout to **900s** for the two-stage
+  research + structuring call), and `dash/report.py`'s `CONFIG` block was **re-templated off LQAI's
+  single-campaign awareness language** onto this dashboard's reality. The three things the prompt now
+  enforces, because getting any of them wrong would put a falsehood in a client deck:
+  1. **THREE separate briefs**, never one blended programme — and Enterprise IT is **multi-region**
+     (India/MEA/South America/Pacific, only ~1/8 Pacific), so it must not be called an ANZ campaign.
+  2. **NO TARGETS EXIST** — the guardrail forbids any target, budget, quota, "% to plan",
+     "on track" or "ahead/behind" language, and tells the model to write a delivery/efficiency KPI
+     wherever it would normally write a pacing one. `plan.has_targets:false` in the payload backs it.
+  3. **Flights are OBSERVED** ("live since <date>", never "x days remaining"), and any LinkedIn
+     lead-form count is a **paid platform metric, not a qualified/Salesforce lead**.
+  Runs on **Vertex Gemini** (no Anthropic key supplied); re-run the enable script with `-Key` to add
+  Claude. `buildReportPayload()` already emits the three-campaign shape (`paid.by_campaign`).
+- **LinkedIn Marketing API access** would make the Reports tab fully automatic. Two separate asks,
+  and only the first is obtainable: (a) the **Advertising API** product on a LinkedIn developer app
+  plus a token with a VIEWER+ role on ad account 517045062 (Transmission's) would replace the
+  hand-recorded `targeting/adset_targeting.csv` with a real loader; (b) the **Company Intelligence
+  API** would replace the Companies-export upload, but it is private and **closed to new
+  applications**, so treat the upload as permanent unless LinkedIn reopens it or Schneider already
+  work with one of the certified partners (Dreamdata, Factors.ai, Channel99, Octane11, Fibbler).
+- **A MEDIA PLAN NOW EXISTS FOR ind_edge (2463) — and is deliberately NOT wired up yet.** The client
+  supplied *"2463 Final media plan - SEE Industrial Edge Wave 3 Media Plan.xlsx"* on 2026-08-18 as the
+  reference for the line-item split (that is all the 2026-08-18 change used it for). It carries real
+  targets: flight **2026-07-01 -> 10-31**, budget **A$52,150**, 85,999 planned impressions, and per-line
+  targets — Awareness/Programmatic 61,000 imps @ A$9,150 (CPM A$15) · Awareness/LinkedIn 9,333 @ A$7,000
+  (CPM A$75) · Consideration/LinkedIn 7,333 @ A$5,500 · Conversion/LinkedIn lead-gen 8,333 @ A$7,500 ·
+  plus a **Direct IT** line (40 HQLs @ A$575 CPL, A$23,000) that is an **offline lead vendor with no
+  media delivery** and therefore has no row in this warehouse at all.
+  Wiring it means turning this dashboard from delivery-only into partly-paced, which touches more than
+  a view: `has_targets` is `false` today and the **AI-deck guardrail in `dash/report.py` forbids all
+  target / pacing / "on track" language** on that basis. So it needs, in one change: a committed
+  `data/media_plan.csv` -> `seed_media_plan` via a `load_seeds.py` read by `job/main.py`; `paceBar()` /
+  `renderPacing()` ported from `client_schneiderlqai/dash/dashboard.html`; **per-brief** `has_targets`
+  (ent_it and software_first still have no plan, so a single global flag would promise pacing the other
+  two cannot deliver); the report prompt re-templated; and a decision on how to present the Direct IT
+  line, which will otherwise read as a 0%-delivered line item. Do not hardcode targets, and do not
+  half-wire it — a plan on one of three briefs is exactly the case the current copy ("no media plan has
+  been supplied for any of them") would start lying about.
+>>>>>>> Stashed changes

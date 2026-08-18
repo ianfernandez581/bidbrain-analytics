@@ -917,7 +917,8 @@ CLIENTS = [
              "note": "Both channels use CLICKS. vs kpi.ad_clicks."},
         ],
     },
-    # NOT YET MONITORED: bellshakespeare / nextsmile / geyervalmont — no data/export pipelines yet; add them here once their export jobs exist.
+    # NOT YET MONITORED: bellshakespeare / nextsmile / geyervalmont / sophiie — no data/export pipelines yet; add them here once their export jobs exist.
+    # (sophiie is Meta-sourced, so when it lands it belongs in BQ_CLIENTS below, not in this Snowflake list.)
 ]
 
 
