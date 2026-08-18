@@ -57,8 +57,8 @@ injected by Cloud Run.
 ## What the dashboard shows (`dashboard.html`)
 
 **"Chronicle - marble"** over a toned-down aurora: an editorial-print skin - Fraunces italic titles,
-IBM Plex Mono for every measured figure, hairlines instead of cards, and a very pale marble texture on
-five surfaces. Read the skin section of [`../README.md`](../README.md) **before touching the styling**:
+IBM Plex Mono for every measured figure, rounded tiles lifted on shadow (no borders anywhere), and a very
+pale marble texture on five surfaces. Read the skin section of [`../README.md`](../README.md) **before touching the styling**:
 it records where the marble may and may not go, why the legacy colour tokens must not be renamed, the
 two cascade traps that bit this restyle, and the rule that toning the aurora down is done with alpha
 and strip count, never by darkening. One external chart library: Chart.js 4.5.0.

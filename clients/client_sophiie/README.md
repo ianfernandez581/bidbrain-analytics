@@ -40,8 +40,9 @@ skin is unique in the estate.
 Two layers of identity, applied in that order:
 
 **Chronicle - marble** (2026-08-18) is an EDITORIAL PRINT treatment: a display serif for titles, a
-monospace for every measured figure, structure from hairlines and whitespace instead of floating
-cards, and a very pale marble texture on a small number of surfaces. It replaced a skin that read
+monospace for every measured figure, and a very pale marble texture on a small number of surfaces.
+It began as a hairline-divided slab; the client reversed that on the same day, so the panels are now
+separated, rounded and lifted on shadow with no borders anywhere (see "The KPI tiles"). It replaced a skin that read
 "competent but generic SaaS". **Applied to the Overview tab; Paid Media and Creative inherit the type
 and tokens but have not had their own pass yet.**
 
@@ -80,15 +81,31 @@ reading as stone and just looks like dirty white. Current washes: masthead .36, 
 Each of the eight KPI cells gets a **different `background-position`** - repeating veins across a grid
 is the tell that it is a texture file rather than a material.
 
-### The KPI slab
+### The KPI tiles
 
-The eight cells are **not** eight cards. The grid has `gap:1px` over a `--rule-strong` background, so
-the gap itself renders as a hairline and the eight read as one carved slab divided into panels. The
-two grids (`#kpiGridN`, `#kpiGrid`) are separate DOM nodes, so `#kpiGrid` carries the seam rule.
+Eight tiles in a 4x2 grid, **separated by whitespace, rounded (`--radius` 14px) and lifted on shadow
+with no outline at all**. They were briefly one hairline-divided slab; the client asked for separated
+rounded tiles instead (2026-08-18), which also removed every panel border across the dashboard - a
+rule around each panel reads as a wireframe rather than as a surface.
 
-**One cell is set in the serif**: "Qualified leads (modelled)", 34px Fraunces italic with a 2px ink
-left border, because it is the only MODELLED figure on the page - it reads differently because it *is*
-different. **Do not extend this to another cell**; if every cell is special, none are.
+Elevation is two tokens and two steps only, `--elev-1` at rest and `--elev-2` on hover, both in the
+same ink hue so a shadow never looks blue or muddy. Every tile, card, insight and creative card lifts
+on hover (`translateY(-3px)`, or -2px for the large panels, where 3px reads as the page twitching).
+
+**Any element painting a wash or a texture over a rounded surface needs `border-radius: inherit` on
+its `::after`**, or the overlay paints square corners over the rounded tile. `.kpi`, `.card.marble`,
+`.pholder` and `.cc-fallback` all do this.
+
+**One tile is set in the serif**: "Qualified leads (modelled)", 34px Fraunces italic, because it is
+the only MODELLED figure on the page - it reads differently because it *is* different. It used to
+carry a 2px ink left border as well; that went when the corners were rounded, since a one-sided
+border on a rounded corner always looks like a mistake. The serif figure plus a slightly deeper rest
+shadow now carry it alone. **Do not extend this to another tile**; if every tile is special, none are.
+
+**Label heights are reserved on purpose.** `.kpi .label` has `min-height:27px` (two lines) and
+`letter-spacing:.18em` rather than .24em: at 4-up, a label like "QUALIFIED LEADS (MODELLED)" wraps,
+and without the reserved height the tiles in a row went ragged and the values stopped sharing a
+baseline.
 
 ### Two cascade traps this restyle hit (both cost a render to find)
 
@@ -122,17 +139,23 @@ design rather than decoration. Three fixed, `pointer-events:none`, `z-index:0` l
 Every piece of page chrome sits at `z-index:1`. Cost is one `requestAnimationFrame` loop plus CSS
 keyframes on nine fixed divs — it never touches layout, so it cannot reflow the dashboard.
 
-**Toning it down: do it with alpha and with COUNT, never with darkness.** The first attempt at
+**Tuning it: alpha and strip COUNT are the dials - never darkness.** The first attempt at
 "desaturating" the aurora darkened its hues, and ~27 overlapping semi-transparent dark curtains plus
 five dark bands accumulated into a grey-brown wash over the warm `#EFEEEB` shell - the page looked
 dirty. The palette must stay LIGHT-mid and COOL, close to the shell's own luminance; subtlety comes
 from lower alpha and from **fewer strips** (the curtain count went from `W/55` to `W/105`, the
-cheapest way to cut accumulation). To make it louder again, raise the alphas together.
+cheapest way to cut accumulation). Saturation is safe; darkness is not.
+
+The aurora has now been through three settings: the original (saturated cyan, "too overpowering"),
+a very quiet pass, and the current one - colour and motion back up, still short of the original.
+Current dials: orb/band alphas ~.28-.48, curtain count `W/75`, curtain opacity `0.13+0.17`, and the
+canvas time step `time += 0.019` (0.004 reads as static; past ~0.03 it distracts from the data).
+Durations were shortened ~35% so the movement is actually noticeable.
 
 **Four rules that will break this design if ignored** (they are also written into the `:root` block):
 
-1. **The aurora is the only background.** Content surfaces stay **solid white** with a hairline and a
-   soft shadow, and carry **no `backdrop-filter`**. A translucent or blurred card sitting over moving
+1. **The aurora is the only background.** Content surfaces stay **solid white**, lifted on shadow
+   with no border, and carry **no `backdrop-filter`**. A translucent or blurred card sitting over moving
    light shimmers, and reads as a rendering fault rather than a style. The sticky `.control-bar` is
    solid white for the same reason — translucent, the curtains slide under the tab labels.
 2. **The palette is ~90% blue/cyan.** `--a-teal` and `--a-pink` are HINTS that separate one chart
