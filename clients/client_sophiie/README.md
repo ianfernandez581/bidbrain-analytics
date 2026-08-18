@@ -25,6 +25,7 @@ skin is unique in the estate.
 | `dash/dashboard.html` | The whole UI, one file. Overview · Paid Media · Creative tabs, plus **the three-layer aurora background**. |
 | `dash/main.py` | Flask password gate + static server. Serves `/data.json`, `/logo.png`, `/bb_deck.js`, `/report`. Its `LOGIN_HTML` carries a CSS-only aurora (no canvas). |
 | `dash/placeholder.json` | The SAMPLE payload (`meta.placeholder=true`). Generated — never hand-edit. |
+| `dash/marble-*.jpg` | The three marble textures, baked into the image and served by `main.py` from a name whitelist. Referenced RELATIVELY in CSS so they resolve behind the proxy. |
 | `dash/logo.png` | Sophiie's **supplied mark** (the headset) - a copy of `creatives/sophiie_logo.png`, baked into the image. |
 | `dash/report.py` | AI deck generator, prompts re-templated for Sophiie's business. **Dormant** until `/report` is enabled. |
 | `dash/platform_sso.py`, `dash/bb_deck.js` | Vendored, unchanged from the template. |
@@ -34,7 +35,80 @@ skin is unique in the estate.
 | `deploy_sophiie.ps1` | One-shot preview standup (service only — no dataset/job/scheduler). |
 | `dash/deploy_dash_sophiie.ps1` | Redeploy just the service after a UI edit. |
 
-## The aurora skin — what makes this dashboard different
+## The skin: Chronicle - marble, over the aurora
+
+Two layers of identity, applied in that order:
+
+**Chronicle - marble** (2026-08-18) is an EDITORIAL PRINT treatment: a display serif for titles, a
+monospace for every measured figure, structure from hairlines and whitespace instead of floating
+cards, and a very pale marble texture on a small number of surfaces. It replaced a skin that read
+"competent but generic SaaS". **Applied to the Overview tab; Paid Media and Creative inherit the type
+and tokens but have not had their own pass yet.**
+
+**The aurora** underneath survives, TONED DOWN to roughly a third of its former intensity at the
+client's request ("too overpowering"). It is still the client's signature and still animates.
+
+### Type
+
+| Role | Face | Where |
+|---|---|---|
+| Display | **Fraunces** italic 500 | Page + section + card titles, campaign and stage names, the ONE modelled KPI figure |
+| UI | **Inter** 400/500 | Labels, eyebrows, body copy, tabs, chips, table headers |
+| Figures | **IBM Plex Mono** 400/500 | Every number that represents a measurement, always `tabular-nums` |
+
+**No weight above 500 anywhere** - hierarchy is size, face and colour. The old build ran to 800 and
+that heaviness was most of why it read generic. A sweep pulled 24 stray `600/700/800` rules down to
+500; adding one back re-introduces the thing this direction removed.
+
+### Where the marble goes - and where it must not
+
+Exactly **five surfaces** on Overview: the **masthead** (`marble-band.jpg`), the **sample-data
+notice**, the **eight-cell KPI slab**, the **budget-pacing panel** and the **"on track to goal?"
+panel** (all `marble-cell.jpg`). `marble-tile.jpg` is used only for the Creative tab's fallback tiles.
+
+**It must NOT go behind** the funnel-stage table, the delivery-over-time chart, the funnel bar list,
+the donut, the tab bar or the filter row. Texture behind dense data is where this design gets cheap -
+that is the one failure mode to avoid, and `.card.marble` is opt-in precisely so it cannot creep.
+
+**Two independent levers.** The ASSET controls how much vein exists (three exports of the same slab,
+each amplified for the size it renders at - band least, tile most; one file for all three jobs makes
+the small crops go flat). The CSS `--wash` controls how much you let through, and it is the volume
+knob: **raise** the percentage to make the marble quieter. Never past ~55%, beyond which it stops
+reading as stone and just looks like dirty white. Current washes: masthead .36, notice .46, KPI cells
+.40 (the modelled cell .30), pacing .44, goal .50.
+
+Each of the eight KPI cells gets a **different `background-position`** - repeating veins across a grid
+is the tell that it is a texture file rather than a material.
+
+### The KPI slab
+
+The eight cells are **not** eight cards. The grid has `gap:1px` over a `--rule-strong` background, so
+the gap itself renders as a hairline and the eight read as one carved slab divided into panels. The
+two grids (`#kpiGridN`, `#kpiGrid`) are separate DOM nodes, so `#kpiGrid` carries the seam rule.
+
+**One cell is set in the serif**: "Qualified leads (modelled)", 34px Fraunces italic with a 2px ink
+left border, because it is the only MODELLED figure on the page - it reads differently because it *is*
+different. **Do not extend this to another cell**; if every cell is special, none are.
+
+### Two cascade traps this restyle hit (both cost a render to find)
+
+1. **A breakpoint declared before the base rule it overrides simply loses.** The KPI slab's
+   `repeat(4,1fr)` sits further down the stylesheet than the media query did, so at 680px it stayed
+   4-up. All breakpoints now live in one block at the END of the stylesheet - keep new ones there.
+2. **Same for `.grid`.** A `gap:1px` override placed near `.container` lost to the original
+   `.grid{gap:16px}` further down, and the 16px gaps showed the slab background as a grey band. Patch
+   the base rule, not a copy of it.
+
+### Do not "tidy up" the legacy token names
+
+`--accent`, `--panel`, `--muted`, `--leads`, `--qualified` and friends are read by ~600 CSS rules AND
+by the JS `MC` map that colours every chart. Chronicle **remaps** them onto the ink ramp rather than
+renaming them, which is what kept this a CSS change. Renaming them without editing the JS blanks the
+chart palette. One side effect to know: `--accent` now resolves to near-black, so any chart using it
+as a FILL went ink-black (the placement bars and the lead-type donut did; both were repointed to a
+light/dark blue pair). Check any new chart fill against that.
+
+## The aurora skin — the layer underneath
 
 This is **the only dashboard in the estate with an animated background**, and it is the point of the
 design rather than decoration. Three fixed, `pointer-events:none`, `z-index:0` layers, bottom to top:
@@ -47,6 +121,13 @@ design rather than decoration. Three fixed, `pointer-events:none`, `z-index:0` l
 
 Every piece of page chrome sits at `z-index:1`. Cost is one `requestAnimationFrame` loop plus CSS
 keyframes on nine fixed divs — it never touches layout, so it cannot reflow the dashboard.
+
+**Toning it down: do it with alpha and with COUNT, never with darkness.** The first attempt at
+"desaturating" the aurora darkened its hues, and ~27 overlapping semi-transparent dark curtains plus
+five dark bands accumulated into a grey-brown wash over the warm `#EFEEEB` shell - the page looked
+dirty. The palette must stay LIGHT-mid and COOL, close to the shell's own luminance; subtlety comes
+from lower alpha and from **fewer strips** (the curtain count went from `W/55` to `W/105`, the
+cheapest way to cut accumulation). To make it louder again, raise the alphas together.
 
 **Four rules that will break this design if ignored** (they are also written into the `:root` block):
 

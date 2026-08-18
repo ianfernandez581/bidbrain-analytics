@@ -13,65 +13,83 @@
 <script src="bb_deck.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Inter IS Sophiie's brand typeface (sophiie.ai/brand-kit) - one family, 300-800. The aurora skin
-     builds hierarchy from weight + colour, so there is deliberately no second face to load. -->
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<!-- Chronicle: THREE faces, one request. Fraunces italic = display (titles, campaign names, the one
+     modelled figure); Inter = UI (labels, eyebrows, body); IBM Plex Mono = every measured number.
+     Weights 400/500 ONLY - the hierarchy comes from size, face and colour, never from bold. Inter is
+     still Sophiie's brand face (sophiie.ai/brand-kit); the serif and the mono are the editorial layer. -->
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root{
     color-scheme: light;
-    /* ===== Sophiie AI - "the aurora skin". Clean white cards floating on a LIVING aurora-borealis
-       canvas (three animated layers, see the AURORA block below), in Sophiie's own brand blues.
-       This is the only dashboard in the estate with an animated background - it is the point of the
-       design, not decoration, so treat the three layers as brand assets. =====
+    /* ===== Sophiie AI - "Chronicle - marble" on the aurora. An EDITORIAL PRINT skin: a display serif
+       for titles, a monospace for every measured figure, hairlines and whitespace instead of floating
+       cards - laid over the (now much quieter) animated aurora, which stays because it is the client's
+       signature. =====
 
-       Sophiie brand (sophiie.ai/brand-kit): primary #2b84b4, secondary #206387, deep navy #140934,
-       ink #111827, secondary text #475569.
+       WHY THE LEGACY NAMES SURVIVE: --accent / --panel / --muted / --leads / --qualified etc. are read
+       by ~600 rules below AND by the JS `MC` map that colours every chart. They are REMAPPED onto the
+       Chronicle palette rather than renamed, so this restyle stayed a CSS change. Do not "clean them
+       up" into new names without also editing the JS.
 
-       FOUR RULES THAT WILL BREAK THIS DESIGN IF IGNORED:
-         1. The AURORA is the only background. Content surfaces stay SOLID white (--panel) with a
-            hairline + soft shadow, and carry NO backdrop-filter: a translucent/blurred card sitting
-            over moving light shimmers, and reads as a rendering fault rather than a style.
-         2. The palette is ~90% blue/cyan. Teal-green (--a-teal) and soft pink (--a-pink) are HINTS
-            used to separate one series from another - never fields, never a card background.
-         3. Text on an accent fill is WHITE (--on-accent). Sophiie's blue is dark enough to carry it.
-            This is the OPPOSITE of the lime-brand clients (geyervalmont), whose --on-accent is ink -
-            do not paste an "ink on accent" rule in here from one of those files.
-         4. Every animation must stop under prefers-reduced-motion (the canvas hides itself and the
-            CSS keyframes are cancelled at the bottom of this stylesheet). */
-    --bg-0:#F8FAFF;                                                  /* the flat page under the aurora */
-    --panel:#FFFFFF; --panel2:#FFFFFF;                               /* solid white surfaces */
-    --line:rgba(17,24,39,.07); --line2:rgba(17,24,39,.11);
-    --hair:rgba(17,24,39,.06);
-    --card-1:#FFFFFF; --card-2:#FFFFFF;
-    /* ONE glow, reused behind cards / charts / hovers - Sophiie blue, never a neutral grey shadow. */
-    --glow:rgba(43,132,180,.16);
-    --card-shadow:0 1px 3px rgba(17,24,39,.04),0 4px 16px rgba(17,24,39,.05);
-    --card-glow:var(--card-shadow);                                  /* legacy name, same recipe */
-    --hover-glow:0 4px 24px rgba(43,132,180,.15),0 0 0 1px rgba(43,132,180,.08);
-    --ink:#111827; --muted:#475569; --muted2:#8592A6;
-    --accent:#2b84b4;  --accent2:#206387;                            /* primary FILL / secondary TEXT */
-    --accent-soft:#4FA8DA;                                           /* lighter blue - large fills, hover */
-    --accent-edge:#2b84b4;                                           /* borders on white (blue holds at 1px) */
-    --on-accent:#FFFFFF;                                             /* text placed ON an accent fill */
-    --deep:#140934;                                                  /* brand deep navy - dark chips, tooltips */
-    --forest:#140934;  --forest2:#DCE6F2;                            /* legacy var names -> brand navy */
-    /* the aurora spectrum - also the chart series palette */
-    --a-blue:#2b84b4; --a-sky:#50AAE6; --a-cyan:#22D3EE; --a-azure:#64BEF5;
-    --a-purple:#8B5CF6; --a-teal:#0E9C7B; --a-pink:#D77BA6;
-    /* standard metric colours (teal = goal/good ONLY -> qualified leads) */
-    --qualified:#0E9C7B; --leads:#2b84b4; --spend:#111827; --cost:#7C4DDB;
-    --ctr:#206387; --reach:#1AA9C7; --lpv:#8B5CF6;
-    --good:#0E9C7B; --warn:#B7791F; --bad:#DC2626;
+       FOUR RULES (this is a restyle with a narrow point; breaking any of them loses it):
+         1. NO font weight above 500. The old build ran to 800 and that heaviness is most of why it read
+            generic. Hierarchy = size + face + colour.
+         2. Every measured number is IBM Plex Mono with `font-variant-numeric: tabular-nums`, so no
+            column jitters when the date filter moves.
+         3. MARBLE LIVES ON FIVE SURFACES ONLY (masthead, sample-data notice, the KPI slab, the pacing
+            panel, the goal panel). Behind the tables, the charts or the tab bar it stops being a
+            material and becomes wallpaper - that is the one failure mode to avoid.
+         4. NO shadows anywhere. Structure comes from 0.5px rules. */
+
+    /* ink ramp */
+    --ink:#0F0E0D; --ink-2:#3A3733; --ink-3:#6A6660; --ink-4:#A8A29A;
+    --rule:rgba(15,14,13,.10); --rule-strong:rgba(15,14,13,.20);
+    --paper:#FFFFFF;
+    --shell:#EFEEEB;                 /* warm-neutral page, under the aurora (was a pale blue gradient) */
+
+    /* legacy names -> the ramp above */
+    --bg-0:var(--shell);
+    --panel:var(--paper); --panel2:var(--paper);
+    --line:var(--rule); --line2:var(--rule-strong); --hair:var(--rule);
+    --card-1:var(--paper); --card-2:var(--paper);
+    --muted:var(--ink-2); --muted2:var(--ink-3);
+    --accent:var(--ink); --accent2:var(--ink-2); --accent-soft:var(--ink-2); --accent-edge:var(--ink);
+    --on-accent:#FFFFFF;             /* white on an ink fill */
+    --deep:var(--ink); --forest:var(--ink-2); --forest2:#DCD9D3;
+    /* Shadows are gone. These two are kept because rules below reference them; both are now inert. */
+    --glow:transparent; --card-shadow:none; --card-glow:none; --hover-glow:none;
+
+    /* Stage hues, desaturated so they sit UNDER the marble instead of vibrating against it.
+       They are also the chart series palette. If a media buyer cannot tell conversion from
+       retargeting at a glance, push the saturation back up - the stage system beats the aesthetic. */
+    --a-blue:#4E6E9E; --a-sky:#6E9BB5; --a-cyan:#6E9BB5; --a-azure:#6E9BB5;
+    --a-purple:#7A6FA8; --a-teal:#4F7A5C; --a-pink:#A87389;
+
+    /* metric colours (mapped onto the stage hues so a KPI dot == its chart series) */
+    --qualified:#4F7A5C; --leads:#4E6E9E; --spend:#0F0E0D; --cost:#7A6FA8;
+    --ctr:#4E6E9E; --reach:#6E9BB5; --lpv:#7A6FA8;
+    --good:#1F4715; --warn:#7A5A16; --bad:#7A241F;
+
+    /* faces */
+    --f-display:"Fraunces",Georgia,"Times New Roman",serif;
+    --f-ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
   }
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;color:var(--ink);
-       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  html,body{margin:0;padding:0;color:var(--ink);font-family:var(--f-ui);
        font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  h1,h2,h3,.kpi .value,.value,.num{font-family:"Inter",sans-serif}
-  .kpi .value,.num,td.num,th.num{font-variant-numeric:tabular-nums}
+  /* Titles + campaign names carry the serif; every MEASURED figure carries the mono. The two are
+     doing all the work in this skin, so the selectors are deliberately broad. */
+  h1,h2,h3{font-family:var(--f-display);font-style:italic;font-weight:500;letter-spacing:-.02em}
+  .kpi .value,.value,.num,td.num,th.num,.funnel-value,.goal .gh b,.pacing-val,
+  .insight .value,.flow-meta,.pace-meta,.funnel-rate{font-family:var(--f-mono);font-weight:500;
+       font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  /* Nothing heavier than 500 anywhere - see :root rule 1. This backstop catches any bold that
+     survives in an inline style or a nested rule. */
+  b,strong,th{font-weight:500}
   /* The page itself is a FLAT wash - all of the movement lives in the three fixed aurora layers
      below, so no scrolling gradient can drift out of sync with them. */
-  body{min-height:100vh;background:var(--bg-0);overflow-x:hidden}
+  body{min-height:100vh;background:var(--shell);overflow-x:hidden}
   a{color:var(--accent2);text-decoration:none}
   a:hover{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:3px}
 
@@ -87,16 +105,41 @@
   #aurora-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;
              filter:blur(12px)}          /* the blur is what turns hard polygons into curtains */
 
+  /* ==========================================================================
+     MARBLE. Two INDEPENDENT levers, worth knowing before you tune anything:
+       - the ASSET controls how much vein exists (three exports of the same slab, each with its
+         veining amplified for the size it renders at - band least, tile most; do not use one file
+         for all three jobs or the small crops go flat);
+       - the WASH below controls how much of it you let through. It is the volume knob: RAISE the
+         percentage to make the marble quieter. Do not go past ~55% - beyond that it stops reading
+         as stone and just looks like dirty white, which is worse than no texture at all.
+     Mechanic: the surface paints the JPEG, and a `::after` lays a white wash over it. Content must
+     sit at z-index 1 or the wash covers it. Darkest pixel in the assets is luminance 220+, so
+     near-black text on any of them clears WCAG AAA - the washes are purely aesthetic.
+     URLs are RELATIVE so they resolve direct (/marble-cell.jpg) and behind the platform proxy
+     (/d/sophiie/marble-cell.jpg) alike; main.py serves them from a name whitelist.
+     ========================================================================== */
+  .mrb{position:relative;background-repeat:no-repeat}
+  .mrb>*{position:relative;z-index:1}
+  .mrb::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:rgba(255,255,255,var(--wash,.42))}
+
   .aurora-ambient,.aurora-diagonals{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .aurora-ambient__orb{position:absolute;border-radius:50%;filter:blur(120px)}
+  /* TONED DOWN (client: "too overpowering"), and re-hued for the Chronicle shell.
+     THE TRAP, learned the hard way: "desaturating" the aurora by darkening its hues MUDDIES the page.
+     The old palette was bright cyan on a near-white page, so it read as a pale tint; the same alphas in
+     a dark navy accumulate across ~27 overlapping curtains and five bands into a grey-brown wash over
+     the warm #EFEEEB shell. The aurora must therefore stay LIGHT-mid and COOL - close to the shell's
+     own luminance - and get its subtlety from alpha and from FEWER strips, never from darkness.
+     To make it louder again: raise these alphas and the .aurora-diag stops together. Do not darken. */
   .aurora-ambient__orb--1{width:60vw;height:50vh;top:-8%;left:-10%;animation:amb1 18s ease-in-out infinite;
-       background:radial-gradient(circle,rgba(43,132,180,.20) 0%,transparent 70%)}
+       background:radial-gradient(circle,rgba(150,178,200,.30) 0%,transparent 70%)}
   .aurora-ambient__orb--2{width:50vw;height:45vh;top:5%;right:-8%;animation:amb2 22s ease-in-out infinite;
-       background:radial-gradient(circle,rgba(80,160,220,.16) 0%,transparent 70%)}
+       background:radial-gradient(circle,rgba(163,186,203,.24) 0%,transparent 70%)}
   .aurora-ambient__orb--3{width:55vw;height:50vh;bottom:-10%;left:15%;animation:amb3 25s ease-in-out infinite;
-       background:radial-gradient(circle,rgba(34,211,238,.12) 0%,transparent 70%)}
+       background:radial-gradient(circle,rgba(174,180,205,.18) 0%,transparent 70%)}
   .aurora-ambient__orb--4{width:45vw;height:40vh;top:30%;right:10%;animation:amb4 20s ease-in-out infinite;
-       background:radial-gradient(circle,rgba(100,140,200,.12) 0%,transparent 70%)}
+       background:radial-gradient(circle,rgba(155,180,200,.16) 0%,transparent 70%)}
   @keyframes amb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(80px,60px) scale(1.10)}}
   @keyframes amb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,50px) scale(1.08)}}
   @keyframes amb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,-80px) scale(1.05)}}
@@ -107,15 +150,15 @@
      band flat mid-animation. Each has 3-4 stops (not 2) so the drift path reads organic. */
   .aurora-diag{position:absolute;transform-origin:center center}
   .aurora-diag--1{width:160%;height:320px;top:-8%;left:-30%;transform:rotate(-18deg);animation:diag-sweep1 12s ease-in-out infinite;
-       background:linear-gradient(180deg,transparent 0%,rgba(43,132,180,.10) 20%,rgba(80,170,230,.20) 45%,rgba(100,190,245,.22) 55%,rgba(43,132,180,.10) 80%,transparent 100%)}
+       background:linear-gradient(180deg,transparent 0%,rgba(150,178,200,.16) 20%,rgba(163,186,203,.30) 45%,rgba(174,196,212,.32) 55%,rgba(150,178,200,.16) 80%,transparent 100%)}
   .aurora-diag--2{width:150%;height:260px;top:12%;left:-25%;transform:rotate(-22deg);animation:diag-sweep2 15s ease-in-out infinite;
-       background:linear-gradient(180deg,transparent 0%,rgba(34,211,238,.08) 20%,rgba(100,210,250,.18) 45%,rgba(130,220,255,.20) 55%,rgba(34,211,238,.08) 80%,transparent 100%)}
+       background:linear-gradient(180deg,transparent 0%,rgba(163,186,203,.13) 20%,rgba(174,180,205,.26) 45%,rgba(174,196,212,.28) 55%,rgba(163,186,203,.13) 80%,transparent 100%)}
   .aurora-diag--3{width:160%;height:350px;top:28%;left:-30%;transform:rotate(-15deg);animation:diag-sweep3 10s ease-in-out infinite;
-       background:linear-gradient(180deg,transparent 0%,rgba(43,132,180,.08) 15%,rgba(120,190,240,.18) 40%,rgba(80,170,230,.22) 55%,rgba(43,132,180,.08) 85%,transparent 100%)}
+       background:linear-gradient(180deg,transparent 0%,rgba(150,178,200,.12) 15%,rgba(163,186,203,.26) 40%,rgba(150,178,200,.30) 55%,rgba(150,178,200,.12) 85%,transparent 100%)}
   .aurora-diag--4{width:150%;height:240px;top:50%;left:-25%;transform:rotate(-20deg);animation:diag-sweep4 14s ease-in-out infinite;
-       background:linear-gradient(180deg,transparent 0%,rgba(34,211,238,.06) 20%,rgba(43,132,180,.16) 45%,rgba(80,160,220,.18) 55%,rgba(34,211,238,.06) 80%,transparent 100%)}
+       background:linear-gradient(180deg,transparent 0%,rgba(163,186,203,.10) 20%,rgba(150,178,200,.22) 45%,rgba(163,186,203,.25) 55%,rgba(163,186,203,.10) 80%,transparent 100%)}
   .aurora-diag--5{width:160%;height:280px;top:68%;left:-30%;transform:rotate(-17deg);animation:diag-sweep5 11s ease-in-out infinite;
-       background:linear-gradient(180deg,transparent 0%,rgba(80,170,230,.08) 20%,rgba(43,132,180,.16) 45%,rgba(100,190,245,.18) 55%,rgba(80,170,230,.08) 80%,transparent 100%)}
+       background:linear-gradient(180deg,transparent 0%,rgba(163,186,203,.12) 20%,rgba(150,178,200,.22) 45%,rgba(163,186,203,.25) 55%,rgba(163,186,203,.12) 80%,transparent 100%)}
   @keyframes diag-sweep1{0%{transform:rotate(-18deg) translate(0,0);opacity:.8}25%{transform:rotate(-18deg) translate(40px,30px);opacity:1}50%{transform:rotate(-18deg) translate(-20px,60px);opacity:.7}75%{transform:rotate(-18deg) translate(30px,15px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.8}}
   @keyframes diag-sweep2{0%{transform:rotate(-22deg) translate(0,0);opacity:.7}30%{transform:rotate(-22deg) translate(-50px,40px);opacity:1}60%{transform:rotate(-22deg) translate(30px,-20px);opacity:.8}100%{transform:rotate(-22deg) translate(0,0);opacity:.7}}
   @keyframes diag-sweep3{0%{transform:rotate(-15deg) translate(0,0);opacity:.9}33%{transform:rotate(-15deg) translate(35px,-35px);opacity:.7}66%{transform:rotate(-15deg) translate(-25px,45px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.9}}
@@ -124,8 +167,12 @@
 
   /* topbar - deliberately has NO bar: the aurora runs straight through it and only the chips,
      pills and the mark are solid, so the page opens on the animation rather than on chrome. */
-  .topbar{padding:16px 0;position:relative;z-index:1}
-  .topbar .inner{max-width:1240px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px}
+  /* SURFACE 1/5 - the masthead. The single heavy bottom rule is what makes the page read as a
+     masthead rather than a page header; without it the marble band just floats. */
+  .topbar{padding:18px 0 16px;position:relative;z-index:1;--wash:.36;
+          background-image:url("marble-band.jpg");background-size:cover;background-position:center 40%;
+          border-bottom:1.5px solid var(--ink)}
+  .topbar .inner{max-width:1240px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;position:relative;z-index:1}
   .topbar-left{display:flex;align-items:center;gap:14px}
   .brand-logo{display:flex;align-items:center}
   /* The two supplied marks. NEITHER has an alpha channel (Sophiie's is an indexed PNG on a white
@@ -133,273 +180,378 @@
      white rectangle. Both therefore sit on a WHITE CHIP at the panel radius, which makes the white
      deliberate and matches every other surface in the skin. Both are inlined as base64 - a file path
      does not resolve behind the platform proxy at /d/sophiie/ (the cloudflare lesson). */
-  .smark{flex:none;display:block;background:#fff;border-radius:12px;padding:4px;
-         box-shadow:0 0 0 1px rgba(17,24,39,.07),0 6px 18px -8px rgba(43,132,180,.45)}
+  .smark{flex:none;display:block;background:#fff;border-radius:2px;padding:4px;
+         box-shadow:none;border:.5px solid var(--rule-strong)}
   .smark img{height:36px;width:36px;display:block;border-radius:9px}
-  .agency-chip{flex:none;display:flex;align-items:center;background:#fff;border-radius:10px;padding:4px 9px;
-         box-shadow:0 0 0 1px rgba(17,24,39,.07),0 6px 18px -10px rgba(17,24,39,.30)}
+  .agency-chip{flex:none;display:flex;align-items:center;background:#fff;border-radius:2px;padding:4px 9px;
+         box-shadow:none;border:.5px solid var(--rule-strong)}
   /* 36px, not the icon's 36: the 100% Digital artwork is 420x293 with wide internal margins, so it
      needs more box to reach the same OPTICAL size as Sophiie's tight icon. Both chips end at 44px. */
   .agency-chip img{height:36px;width:auto;display:block}
   .brand{display:flex;flex-direction:column;line-height:1.1}
-  .brand .b1{font-size:19px;font-weight:700;letter-spacing:-.4px;color:var(--ink)}
+  .brand .b1{font-size:19px;font-weight:500;letter-spacing:-.4px;color:var(--ink)}
   .brand .b1 span{font-weight:400;color:var(--muted)}
-  .brand .b2{font-size:10px;font-weight:700;letter-spacing:2.2px;color:var(--accent2);text-transform:uppercase;margin-top:3px}
+  .brand .b2{font-size:10px;font-weight:500;letter-spacing:2.2px;color:var(--accent2);text-transform:uppercase;margin-top:3px}
   .topbar-divider{width:1px;height:30px;background:rgba(17,24,39,.12)}
   .topbar-right{font-size:11.5px;color:var(--muted);text-align:right;line-height:1.6}
-  .live{display:inline-block;width:8px;height:8px;background:var(--good);border-radius:50%;margin-right:6px;
-        box-shadow:0 0 8px rgba(14,156,123,.55);animation:breathe 2.5s ease-in-out infinite}
-  @keyframes breathe{0%,100%{opacity:1;box-shadow:0 0 8px rgba(14,156,123,.55)}50%{opacity:.55;box-shadow:0 0 16px rgba(14,156,123,.85)}}
+  /* The dot still breathes, but on OPACITY alone - the old halo was a glow, and Chronicle has none. */
+  .live{display:inline-block;width:6px;height:6px;background:var(--good);border-radius:50%;margin-right:7px;
+        box-shadow:none;animation:breathe 2.5s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
 
-  .container{max-width:1240px;margin:0 auto;padding:6px 28px 60px;position:relative;z-index:1}
+  .container{max-width:1240px;margin:0 auto;padding:0 28px 72px;position:relative;z-index:1}
 
   /* control bar (sticky). SOLID white on purpose: it scrolls over the moving aurora, and a
      translucent bar would let the curtains slide visibly underneath the tab labels. */
-  .control-bar{background:#fff;border:1px solid var(--line);border-radius:16px;
-               box-shadow:var(--card-shadow);padding:6px 14px 0;margin-bottom:20px;position:sticky;top:0;z-index:30}
+  /* Sticky and SOLID: it travels over the aurora, and a translucent bar would let the curtains slide
+     under the tab labels. No marble here on purpose - texture behind controls reads as noise. */
+  .control-bar{background:var(--paper);border:0;border-bottom:.5px solid var(--rule-strong);border-radius:0;
+               box-shadow:none;padding:0 2px;margin:0 0 26px;position:sticky;top:0;z-index:30}
   .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--hair)}
-  /* Pill tab group (the prototype's shape): a recessed track, with the active tab lifted out of it
-     in white. Reads as a control rather than as navigation, which suits a 3-tab dashboard. */
-  .tabs{display:flex;gap:3px;flex-wrap:wrap;background:rgba(17,24,39,.04);border-radius:11px;padding:4px;margin:7px 0 9px}
-  .tab{padding:8px 18px;font-size:13px;font-weight:500;cursor:pointer;border:none;background:none;color:var(--muted);
-       border-radius:8px;transition:background .18s,color .18s,box-shadow .18s;font-family:inherit}
+  /* Tabs lose the pill entirely: uppercase letterspaced labels on a rule, the active one underlined.
+     Reads as an editorial index rather than as a segmented control. */
+  .tabs{display:flex;gap:26px;flex-wrap:wrap;background:none;border-radius:0;padding:0;margin:0}
+  .tab{padding:16px 0 13px;font-family:var(--f-ui);font-size:11px;font-weight:500;letter-spacing:.22em;
+       text-transform:uppercase;cursor:pointer;border:none;background:none;color:var(--ink-3);
+       border-bottom:1.5px solid transparent;margin-bottom:-1px;transition:color .18s}
   .tab:hover{color:var(--ink)}
-  .tab.on{background:#fff;color:var(--ink);font-weight:600;box-shadow:0 1px 4px rgba(17,24,39,.10)}
+  .tab.on{background:none;color:var(--ink);font-weight:500;box-shadow:none;border-bottom-color:var(--ink)}
   .tabs-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0}
   .ctrl-note{font-size:11.5px;color:var(--muted2)}
-  .btn{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;cursor:pointer;
-       padding:7px 13px;border-radius:9px;border:1.5px solid var(--line2);background:#fff;color:var(--ink);
-       transition:border-color .18s,color .18s;font-family:inherit}
-  .btn:hover{border-color:var(--accent);color:var(--accent)}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-ui);font-size:10px;font-weight:500;
+       letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
+       padding:8px 13px;border-radius:2px;border:.5px solid var(--rule-strong);background:var(--paper);color:var(--ink-2);
+       transition:border-color .18s,color .18s}
+  .btn:hover{border-color:var(--ink);color:var(--ink)}
   .btn svg{width:14px;height:14px;flex:none}
 
   /* filter row */
   .control-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--hair)}
   .filter-grp{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
   .fdiv{width:1px;height:20px;background:var(--line2)}
-  .lbl{font-size:10.5px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;color:var(--muted2)}
+  .lbl{font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
   .chips{display:flex;gap:6px;flex-wrap:wrap}
-  .chip{background:#fff;border:1.5px solid var(--line2);border-radius:999px;padding:6px 13px;font-size:12.5px;cursor:pointer;
-        display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,background .15s,color .15s;color:var(--muted)}
-  .chip:hover{border-color:var(--accent)}
-  /* Active chip = the brand deep navy, matching the prototype's "All stages" pill. WHITE text on it. */
-  .chip.on{background:var(--deep);color:#fff;border-color:var(--deep);font-weight:600}
-  .chip .dot{width:8px;height:8px;border-radius:50%}
-  .search{background:#fff;border:1.5px solid var(--line2);border-radius:9px;color:var(--ink);outline:none;
-          padding:7px 12px;font-size:12.5px;font-family:inherit;min-width:200px}
+  /* Chips KEEP the pill - they are controls, and a pill is the right affordance for a toggle. Only
+     the weight comes down: 0.5px rules, 11px Inter, and a solid ink fill when active. */
+  .chip{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:999px;padding:6px 13px;
+        font-family:var(--f-ui);font-size:11px;cursor:pointer;
+        display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,background .15s,color .15s;color:var(--ink-2)}
+  .chip:hover{border-color:var(--ink)}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:500}
+  .chip .dot{width:6px;height:6px;border-radius:50%}
+  .search{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:2px;color:var(--ink);outline:none;
+          padding:8px 12px;font-size:12px;font-family:var(--f-ui);min-width:200px}
   .search::placeholder{color:var(--muted2)}
-  .search:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(43,132,180,.14)}
+  .search:focus{border-color:var(--ink);box-shadow:none}
 
   /* ===== Shared date-range picker (Looker-style) ===== */
   .dp{position:relative;display:inline-block;font-size:13px;
       --dp-accent:var(--accent);--dp-bg:var(--panel);--dp-panel:var(--panel2);
       --dp-line:var(--line2);--dp-ink:var(--ink);--dp-muted:var(--muted)}
   .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);border:1px solid var(--dp-line);color:var(--dp-ink);
-      border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:inherit;line-height:1.2}
+      border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;line-height:1.2}
   .dp-btn:hover{border-color:var(--dp-accent)} .dp-btn svg{opacity:.75} .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
   .dp-pop{position:absolute;z-index:60;margin-top:6px;right:0;display:flex;background:var(--dp-bg);border:1px solid var(--dp-line);
-      border-radius:12px;box-shadow:0 18px 44px -14px rgba(17,24,39,.28);overflow:hidden}
+      border-radius:2px;box-shadow:0 18px 40px -18px rgba(15,14,13,.30);overflow:hidden}
   .dp-pop.dp-hide{display:none}
   .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
-  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);font-weight:600;font-size:12.5px;white-space:nowrap}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);font-weight:500;font-size:12.5px;white-space:nowrap}
   .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)} .dp-presets a.dp-on{background:var(--dp-accent);color:var(--on-accent)}
   .dp-cal{padding:12px;width:264px}
   .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .dp-cal-head span{font-weight:700;color:var(--dp-ink);font-size:13px}
+  .dp-cal-head span{font-weight:500;color:var(--dp-ink);font-size:13px}
   .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
   .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)} .dp-nav:disabled{opacity:.3;cursor:default}
   .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
-  .dp-dow{font-size:10px;font-weight:700;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-dow{font-size:10px;font-weight:500;color:var(--dp-muted);text-align:center;padding:4px 0}
   .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;color:var(--dp-ink);border:1px solid transparent;user-select:none}
   .dp-day:hover{border-color:var(--dp-accent)}
   .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
   .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
   .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 22%,transparent)}
-  .dp-day.dp-sel{background:var(--dp-accent);color:var(--on-accent);font-weight:700;border-color:transparent}
+  .dp-day.dp-sel{background:var(--dp-accent);color:var(--on-accent);font-weight:500;border-color:transparent}
   .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center} .dp-range b{color:var(--dp-ink)}
   .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
-  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--dp-line);font-family:inherit}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--dp-line);font-family:inherit}
   .dp-cancel{background:transparent;color:var(--dp-muted)} .dp-cancel:hover{color:var(--dp-ink)}
   .dp-apply{background:var(--dp-accent);color:var(--on-accent);border-color:transparent}
   @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
 
-  .date-scope{background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);
-              border-left:4px solid var(--accent);border-radius:12px;padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:var(--muted)}
-  .date-scope b{color:var(--ink)}
+  .date-scope{background:none;border:0;border-left:1.5px solid var(--ink);border-radius:0;
+              padding:2px 0 2px 14px;margin-bottom:22px;font-family:var(--f-ui);font-size:11.5px;color:var(--ink-2)}
+  .date-scope b{color:var(--ink);font-weight:500;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 
-  /* Preview banner - shown only when meta.placeholder is true (sample data, no live feed yet). */
-  .pholder{display:flex;align-items:center;gap:14px;margin:0 0 18px;padding:13px 16px;border-radius:14px;
-           background:linear-gradient(120deg,rgba(43,132,180,.11),#fff 62%);
-           border:1px solid rgba(43,132,180,.26);border-left:4px solid var(--accent);
-           box-shadow:var(--card-shadow)}
-  .pholder .ph-tag{flex:none;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;
-           color:var(--on-accent);background:var(--accent);border-radius:999px;padding:5px 11px;
-           box-shadow:0 4px 14px -6px rgba(43,132,180,.8)}
-  .pholder .ph-copy{font-size:12.5px;color:var(--muted);line-height:1.45} .pholder .ph-copy b{color:var(--ink)}
+  /* SURFACE 2/5 - the sample-data notice. Shown only when meta.placeholder is true. */
+  .pholder{display:flex;align-items:center;gap:14px;margin:0 0 20px;padding:15px 18px;border-radius:2px;
+           --wash:.46;background-image:url("marble-cell.jpg");background-size:230%;background-position:38% 30%;
+           border:.5px solid var(--rule-strong);border-left:1.5px solid var(--ink)}
+  .pholder .ph-tag{flex:none;font-size:9px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;
+           color:var(--ink);background:none;border:none;border-bottom:1px solid var(--ink);padding:0 0 3px;border-radius:0}
+  .pholder .ph-copy{font-family:var(--f-display);font-style:italic;font-size:14px;color:var(--ink-2);line-height:1.5;
+           max-width:78ch;hyphens:none;text-wrap:pretty}
+  .pholder .ph-copy b{color:var(--ink);font-weight:500}
 
   /* Panes carry NO background of their own - the aurora is what shows between the cards. */
   .tabpane{display:none}
 
-  .section{margin-top:26px} .section.first{margin-top:4px}
-  .section h2{margin:0;font-size:20px;font-weight:800;letter-spacing:-.2px;color:var(--ink)}
-  .section .sub{display:block;margin-top:3px;color:var(--muted);font-size:12.5px;max-width:920px}
-  .section .sub b{color:var(--ink)}
+  .section{margin-top:38px} .section.first{margin-top:10px}
+  /* An eyebrow above every section title, driven by data-eyebrow so the copy stays in the markup.
+     It must encode something TRUE - the goal, the date basis, the data source - never decoration. */
+  .section[data-eyebrow]::before{content:attr(data-eyebrow);display:block;margin-bottom:9px;
+       font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
+  .section h2{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;
+       font-size:clamp(26px,3.1vw,34px);letter-spacing:-.025em;line-height:1.12;color:var(--ink)}
+  .section.first h2{font-size:clamp(32px,4.4vw,46px)}
+  /* the qualifying half of the title drops to the supporting ink - the contrast is worth having */
+  .section h2 .t2{color:var(--ink-2)}
+  /* hyphens:none + text-wrap:pretty stop the dek hyphenating mid-word across lines */
+  .section .sub{display:block;margin-top:9px;color:var(--ink-2);font-size:13px;line-height:1.65;
+       max-width:66ch;hyphens:none;text-wrap:pretty}
+  .section .sub b{color:var(--ink);font-weight:500}
 
   /* grids + cards (ONE recipe): solid white, hairline, soft shadow, and an aurora-blue glow on
      hover. No gradients and no backdrop-filter - see design rule 1 in :root. */
-  .grid{display:grid;gap:16px;margin-top:14px}
+  /* Panels sit FLUSH, divided by a 1px hairline of the grid's own background - the same carved-slab
+     mechanic as the KPI grid. NOTE the gap must be set on THIS rule, not in an earlier override: the
+     stylesheet is one cascade and a later `.grid` would win. */
+  .grid{display:grid;gap:1px;margin-top:18px;background:var(--rule-strong);
+        border:.5px solid var(--rule-strong);border-radius:2px}
+  .grid>.card{border-radius:0;border:0}
   .cols-2{grid-template-columns:1fr 1fr} .cols-2-1{grid-template-columns:1.9fr 1fr} .cols-1-2{grid-template-columns:1fr 1.9fr}
   @media(max-width:900px){.cols-2,.cols-2-1,.cols-1-2{grid-template-columns:1fr}}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:20px;
-        box-shadow:var(--card-shadow);display:flex;flex-direction:column;min-width:0;transition:box-shadow .25s}
-  .card:hover{box-shadow:var(--hover-glow)}
-  .card h3{margin:0;font-size:14.5px;font-weight:700;color:var(--ink);letter-spacing:-.1px}
-  .card .hint{font-size:11.5px;color:var(--muted2);margin:5px 0 14px 0;line-height:1.5} .card .hint b{color:var(--muted)}
+  .card{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:2px;padding:24px;
+        box-shadow:none;display:flex;flex-direction:column;min-width:0;position:relative}
+  .card:hover{box-shadow:none}
+  .card h3{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;font-size:19px;
+        color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+  .card .hint{font-family:var(--f-ui);font-size:11.5px;color:var(--ink-3);margin:7px 0 16px 0;line-height:1.6;
+        max-width:70ch;hyphens:none;text-wrap:pretty} .card .hint b{color:var(--ink-2);font-weight:500}
+  /* SURFACES 4/5 + 5/5 - the pacing panel and the goal panel. `.card.marble` is the ONLY way marble
+     reaches a card; it is deliberately opt-in so texture can never creep behind a table or a chart. */
+  .card.marble{--wash:.44;background-image:url("marble-cell.jpg");background-size:200%;background-repeat:no-repeat;background-position:24% 62%}
+  .card.marble::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:rgba(255,255,255,var(--wash))}
+  .card.marble>*{position:relative;z-index:1}
+  .card.marble.goal{background-position:72% 22%;--wash:.50}
   .chartbox{position:relative;height:300px} .chartbox.tall{height:340px} .chartbox.sm{height:260px}
-  /* A faint blue bloom behind each plot so a chart never sits on flat white while the page behind it
-     is alive. Kept under the canvas (z-index) and blurred, so it can't tint the data marks. */
-  .chartbox::before{content:"";position:absolute;inset:8% 10%;z-index:0;pointer-events:none;
-       background:radial-gradient(58% 62% at 50% 46%,var(--glow),transparent 72%);filter:blur(10px);opacity:.7}
+  /* The blue bloom that used to sit behind each plot is GONE - Chronicle has no glows and no
+     shadows, and a tinted haze under a chart fights the desaturated series colours. */
   .chartbox>canvas{position:relative;z-index:1}
   .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .card-head .titles{min-width:0;flex:1}
   .card-ctrls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
-  .seg{display:inline-flex;align-items:center;border:1px solid var(--line2);border-radius:9px;overflow:hidden;background:#fff}
-  .seg .cap{padding:0 8px;font-size:9px;font-weight:800;letter-spacing:.7px;color:var(--muted2);align-self:center}
-  .seg button{background:none;border:none;color:var(--muted);font-family:inherit;font-size:11px;font-weight:600;padding:6px 11px;cursor:pointer;letter-spacing:.3px}
-  .seg button.on{background:var(--deep);color:#fff;font-weight:700} .seg button:not(.on):hover{color:var(--ink)}
+  .seg{display:inline-flex;align-items:center;border:.5px solid var(--rule-strong);border-radius:2px;overflow:hidden;background:var(--paper)}
+  .seg .cap{padding:0 9px;font-family:var(--f-ui);font-size:8.5px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-3);align-self:center}
+  .seg button{background:none;border:none;color:var(--ink-3);font-family:var(--f-ui);font-size:10px;font-weight:500;
+       letter-spacing:.12em;text-transform:uppercase;padding:7px 11px;cursor:pointer}
+  .seg button.on{background:var(--ink);color:#fff;font-weight:500} .seg button:not(.on):hover{color:var(--ink)}
 
-  /* KPIs - white tile, one coloured signal dot, big number. Clickable cards toggle their hero series. */
-  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(172px,1fr));gap:14px;margin:14px 0 8px}
-  /* the goal caption above the north-star row, with the prototype's gradient tick */
-  .nsband{margin:20px 0 12px;font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;
-          color:var(--muted);display:flex;align-items:center;gap:8px}
-  .nsband::before{content:"";width:3px;height:13px;border-radius:2px;flex:none;
-          background:linear-gradient(180deg,var(--a-teal),var(--a-blue))}
-  #ovNorth .nsrow{margin-top:0}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;position:relative;
-       overflow:hidden;box-shadow:var(--card-shadow);transition:transform .25s,box-shadow .25s}
-  .kpi:hover{transform:translateY(-2px);box-shadow:var(--hover-glow)}
-  .kpi .label{display:flex;align-items:flex-start;gap:7px;font-size:11.5px;line-height:1.3;font-weight:500;color:var(--muted);min-height:29px}
-  .kpi .label::before{content:"";width:7px;height:7px;border-radius:50%;flex:none;margin-top:4px;background:var(--kc,var(--accent))}
-  .kpi .value{font-size:27px;font-weight:800;margin-top:9px;letter-spacing:-.9px;color:var(--ink)}
-  #ovNorth .kpi.north .value{font-size:34px;line-height:1.08}
-  .kpi .sub{font-size:11px;color:var(--muted2);margin-top:5px;line-height:1.35}
-  .kpi .badge{display:inline-block;font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:3px 8px;border-radius:5px;margin-top:7px;
-        background:rgba(43,132,180,.10);color:var(--accent)}
-  /* HERO tile - the campaign's north-star metric (modelled qualified leads) wears the aurora
-     gradient BORDER. A gradient cannot be a border-color, so this is the double-background trick:
-     two stacked background-images, the first clipped to the padding box (the white face), the second
-     to the border box (the gradient edge). It targets the card by its data-series, so it follows the
-     metric if the KPI order ever changes. */
-  #ovNorth .nsrow .kpi[data-series="qualified"]{border:2px solid transparent;
-        background-image:linear-gradient(#fff,#fff),linear-gradient(135deg,var(--a-teal),var(--a-blue),var(--a-purple));
-        background-origin:border-box;background-clip:padding-box,border-box}
+  /* ==========================================================================
+     THE KPI SLAB (surface 3/5). Eight cells, 4x2. They used to be eight rounded cards floating on
+     gaps + shadows; now the grid's own background shows through a 1px gap as a HAIRLINE, so the
+     eight read as one carved slab divided into panels. That is most of the premium effect and it
+     costs nothing. The two grids (#kpiGridN north row, #kpiGrid context row) are separate DOM
+     nodes, so #kpiGrid carries the seam rule between them.
+     ========================================================================== */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin:0;
+        background:var(--rule-strong);border:.5px solid var(--rule-strong);border-radius:2px}
+  #ovNorth .nsrow{margin:0;border-radius:2px 2px 0 0;border-bottom:0}
+  #ovNorth #kpiGrid{border-radius:0 0 2px 2px;border-top:0}
+  #ovNorth #kpiGrid::before{content:"";display:block;grid-column:1/-1;height:1px;background:var(--rule-strong)}
+  /* the goal caption doubles as the slab's eyebrow */
+  .nsband{margin:34px 0 12px;font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;
+          text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:9px}
+  .nsband::before{content:"";width:16px;height:1px;border-radius:0;flex:none;background:var(--ink)}
+
+  .kpi{background:var(--paper);border:0;border-radius:0;padding:28px 24px 26px;position:relative;overflow:hidden;
+       box-shadow:none;--wash:.40;background-image:url("marble-cell.jpg");background-size:260%;background-repeat:no-repeat}
+  .kpi::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:rgba(255,255,255,var(--wash))}
+  .kpi>*{position:relative;z-index:1}
+  .kpi:hover{transform:none;box-shadow:none}
+  /* A DIFFERENT crop per cell. Repeating veins across a grid is the tell that it is a texture file
+     rather than a material, so no two cells may share a background-position. */
+  #kpiGridN .kpi:nth-child(1){background-position:20% 28%}
+  #kpiGridN .kpi:nth-child(2){background-position:56% 10%}
+  #kpiGridN .kpi:nth-child(3){background-position:36% 68%}
+  #kpiGridN .kpi:nth-child(4){background-position:80% 46%}
+  #kpiGrid  .kpi:nth-child(1){background-position:12% 52%}
+  #kpiGrid  .kpi:nth-child(2){background-position:68% 34%}
+  #kpiGrid  .kpi:nth-child(3){background-position:44% 84%}
+  #kpiGrid  .kpi:nth-child(4){background-position:88% 18%}
+
+  /* 1. eyebrow label */
+  .kpi .label{display:flex;align-items:center;gap:7px;font-family:var(--f-ui);font-size:9px;line-height:1.4;
+       font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3);min-height:0;margin-bottom:15px}
+  .kpi .label::before{content:"";width:6px;height:6px;border-radius:50%;flex:none;margin:0;background:var(--kc,var(--ink))}
+  /* 2. the value - mono, tight, tabular */
+  .kpi .value{font-family:var(--f-mono);font-size:29px;font-weight:500;margin:0;letter-spacing:-.035em;
+       line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+  #ovNorth .kpi.north .value{font-size:29px;line-height:1}
+  /* the currency prefix is never the same size as the number it precedes */
+  .kpi .value .cur{font-size:15px;color:var(--ink-4);letter-spacing:0;vertical-align:7px;margin-right:1px}
+  /* 3. the foot line */
+  .kpi .sub{font-family:var(--f-ui);font-size:11px;color:var(--ink-2);margin-top:15px;line-height:1.45}
+  .kpi .badge{display:block;font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.2em;
+       text-transform:uppercase;padding:0 0 6px;border-radius:0;margin-top:14px;
+       background:none;color:var(--ink-3);border-bottom:.5px solid var(--rule-strong)}
+
+  /* ---- THE ONE HIGHLIGHTED CELL -------------------------------------------------------------
+     "Qualified leads (modelled)" is the only MODELLED figure on the page, so it is the only one set
+     in the serif - a serif figure sitting among seven monospace figures is the signature moment of
+     the whole layout. It reads differently because it IS different. Do NOT extend this to another
+     cell: if every cell is special, none are. Targeted by data-series so it follows the metric if
+     the KPI order ever changes. --------------------------------------------------------------- */
+  #ovNorth .nsrow .kpi[data-series="qualified"]{--wash:.30;
+       border:0;border-left:2px solid var(--ink);border-radius:0;background-image:url("marble-cell.jpg")}
+  #ovNorth .nsrow .kpi[data-series="qualified"] .value{font-family:var(--f-display);font-style:italic;
+       font-weight:500;font-size:34px;letter-spacing:-.02em}
+  /* clickable cells: no lift, no grayscale - just the ink dot going hollow */
   .kpi.clk{cursor:pointer;user-select:none}
-  .kpi.clk:active{transform:translateY(1px)}
-  .kpi.clk:focus-visible{outline:2px solid var(--kc,var(--accent));outline-offset:2px}
-  .kpi.clk .label::after{content:"";width:7px;height:7px;margin-left:auto;border-radius:50%;flex:none;
-        border:1.5px solid var(--kc,var(--accent));background:var(--kc,var(--accent))}
-  .kpi.clk.off{opacity:.55;filter:grayscale(.65)}
+  .kpi.clk:active{transform:none}
+  .kpi.clk:focus-visible{outline:1.5px solid var(--ink);outline-offset:-4px}
+  .kpi.clk .label::after{content:"";width:6px;height:6px;margin-left:auto;border-radius:50%;flex:none;
+       border:1px solid var(--kc,var(--ink));background:var(--kc,var(--ink))}
+  .kpi.clk.off{opacity:1;filter:none}
+  .kpi.clk.off .value,.kpi.clk.off .label{color:var(--ink-4)}
   .kpi.clk.off .label::after{background:transparent}
-  .up{color:var(--good);font-weight:700} .down{color:var(--bad);font-weight:700}
+  /* Arrows plus colour is enough signal - the old pill chips added noise at this density. */
+  .up,.down{font-family:var(--f-mono);font-weight:500;font-variant-numeric:tabular-nums}
+  .up{color:var(--good)} .down{color:var(--bad)}
+  .up::before{content:"\2191 "} .down::before{content:"\2193 "}
 
   /* funnel */
   .funnel-row{display:grid;grid-template-columns:118px 1fr auto auto;gap:10px;align-items:center;padding:6px 0}
-  .funnel-name{font-size:11.5px;font-weight:600;color:var(--muted);line-height:1.2}
-  .funnel-bar{height:16px;background:rgba(0,0,0,.06);border-radius:6px;overflow:hidden}
-  .funnel-fill{height:100%;border-radius:6px}
-  .funnel-value{font-size:13px;font-weight:800;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+  .funnel-name{font-size:11.5px;font-weight:500;color:var(--muted);line-height:1.2}
+  .funnel-bar{height:10px;background:rgba(15,14,13,.09);border-radius:0;overflow:hidden}
+  .funnel-fill{height:100%;border-radius:0}
+  .funnel-value{font-size:13px;font-weight:500;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
   .funnel-rate{font-size:10.5px;color:var(--muted2);text-align:right;white-space:nowrap}
 
   /* pacing */
-  .pace-track{position:relative;height:26px;background:rgba(0,0,0,.06);border-radius:8px;overflow:hidden;margin:14px 0 6px}
-  .pace-actual{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--accent),var(--accent-soft));display:flex;align-items:center;padding-left:9px;font-size:11px;font-weight:800;color:var(--on-accent);border-radius:8px 0 0 8px}
-  .pace-expected{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink)}
-  .pace-meta{display:flex;gap:8px;flex-wrap:wrap;font-size:11px;color:var(--muted2);margin-top:8px}
-  .status{display:inline-flex;align-items:center;font-size:10.5px;font-weight:800;letter-spacing:.3px;padding:3px 9px;border-radius:999px;text-transform:uppercase}
-  .status.good{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
-  .status.warn{background:color-mix(in srgb,var(--warn) 18%,transparent);color:var(--warn)}
-  .status.bad{background:color-mix(in srgb,var(--bad) 18%,transparent);color:var(--bad)}
-  .status.neutral{background:rgba(17,24,39,.05);color:var(--muted)}
+  /* 9px ink fill on a pale track, square corners; the "expected today" marker is a 1.5px rule that
+     OVERHANGS the track by 4px top and bottom, so it reads as a measurement mark, not a bar segment. */
+  .pace-track{position:relative;height:9px;background:rgba(15,14,13,.09);border-radius:0;overflow:visible;margin:20px 0 6px}
+  .pace-actual{position:absolute;left:0;top:0;bottom:0;background:var(--ink);border-radius:0;
+       display:flex;align-items:center;font-size:0}
+  .pace-expected{position:absolute;top:-4px;bottom:-4px;width:1.5px;background:var(--ink)}
+  .pace-meta{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:10.5px;
+       color:var(--ink-3);margin-top:14px;font-variant-numeric:tabular-nums}
+  .status{display:inline-flex;align-items:center;font-family:var(--f-ui);font-size:9px;font-weight:500;
+       letter-spacing:.22em;padding:4px 9px;border-radius:0;text-transform:uppercase}
+  .status.good{background:#EDF2E7;color:var(--good)}
+  .status.warn{background:#F4EFE4;color:var(--warn)}
+  .status.bad{background:#F5EAE9;color:var(--bad)}
+  .status.neutral{background:rgba(15,14,13,.05);color:var(--ink-3)}
   .flow-row{display:grid;grid-template-columns:1fr 90px auto;gap:10px;align-items:center;padding:5px 0;font-size:12px}
   .flow-name{color:var(--ink);display:flex;align-items:center;gap:7px;min-width:0} .flow-name .dot{width:9px;height:9px;border-radius:50%;flex:none} .flow-name .fn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .flow-bar{height:8px;background:rgba(0,0,0,.06);border-radius:5px;overflow:hidden} .flow-fill{height:100%;border-radius:5px}
+  .flow-bar{height:8px;background:rgba(15,14,13,.09);border-radius:0;overflow:hidden} .flow-fill{height:100%;border-radius:0}
   .flow-meta{font-size:11px;color:var(--muted2);text-align:right;white-space:nowrap}
   /* goal-progress mini bars (Overview pacing card) */
-  .goal-title{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:2px 0 8px}
+  .goal-title{font-size:11px;font-weight:500;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:2px 0 8px}
   .goal{margin:9px 0}
   .goal .gh{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--muted);margin-bottom:4px}
-  .goal .gh b{color:var(--ink);font-weight:800}
-  .goal .gtrack{height:10px;background:rgba(0,0,0,.06);border-radius:6px;overflow:hidden}
-  .goal .gfill{height:100%;border-radius:6px}
+  .goal .gh b{color:var(--ink);font-weight:500}
+  .goal .gtrack{height:9px;background:rgba(15,14,13,.09);border-radius:0;overflow:hidden}
+  .goal .gfill{height:100%;border-radius:0}
   .goal .gcap{font-size:10px;color:var(--muted2);margin-top:3px}
 
   /* insights */
-  .insight{background:linear-gradient(180deg,var(--card-1),var(--card-2));border:1px solid var(--hair);border-radius:14px;padding:14px 15px;box-shadow:var(--card-glow)}
-  .insight .label{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted2);font-weight:700}
-  .insight .value{font-size:17px;font-weight:800;color:var(--ink);margin-top:4px}
-  .insight .copy{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.45}
+  .insight{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:2px;padding:20px;box-shadow:none}
+  .insight .label{font-family:var(--f-ui);font-size:9px;text-transform:uppercase;letter-spacing:.24em;color:var(--ink-3);font-weight:500}
+  .insight .value{font-family:var(--f-display);font-style:italic;font-size:22px;font-weight:500;color:var(--ink);margin-top:10px;letter-spacing:-.02em;line-height:1.15}
+  .insight .copy{font-family:var(--f-ui);font-size:11.5px;color:var(--ink-2);margin-top:9px;line-height:1.6;hyphens:none;text-wrap:pretty}
   .grid-insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:14px}
 
   .action{border-left:3px solid var(--accent);background:rgba(0,0,0,.025);border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:10px}
-  .action .t{font-size:13px;font-weight:800;color:var(--ink)} .action .b{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45} .action .m{font-size:10.5px;color:var(--muted2);margin-top:4px}
+  .action .t{font-size:13px;font-weight:500;color:var(--ink)} .action .b{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45} .action .m{font-size:10.5px;color:var(--muted2);margin-top:4px}
 
   /* info note */
-  .info-note{background:color-mix(in srgb,var(--forest) 12%,transparent);border:1px solid color-mix(in srgb,var(--forest) 30%,transparent);
-             border-left:4px solid var(--forest);border-radius:12px;padding:13px 16px;margin-top:16px;font-size:13px;color:var(--muted)}
-  .info-note b{color:var(--ink)}
+  .info-note{background:none;border:0;border-top:.5px solid var(--rule-strong);
+             border-radius:0;padding:16px 0 0;margin-top:26px;font-family:var(--f-ui);font-size:12px;color:var(--ink-2);
+             line-height:1.7;max-width:78ch;hyphens:none;text-wrap:pretty}
+  .info-note b{color:var(--ink);font-weight:500}
 
   /* tables */
   .tablewrap{overflow:auto;scrollbar-width:thin;scrollbar-color:#C3CBD8 transparent}
   .tablewrap::-webkit-scrollbar{width:10px;height:10px}
   .tablewrap::-webkit-scrollbar-thumb{background:#C3CBD8;border:2px solid transparent;background-clip:padding-box;border-radius:999px}
   table{width:100%;border-collapse:collapse;font-size:12.5px}
-  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--hair);color:var(--muted);white-space:nowrap}
-  th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted2);font-weight:700}
-  td:first-child,th:first-child{color:var(--ink)} td.name-cell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
-  th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
-  tr:hover td{background:rgba(0,0,0,.035)} tr.total td{font-weight:800;background:rgba(0,0,0,.06);color:var(--ink)}
-  .pillc{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:var(--panel2);color:var(--ink)}
+  th,td{padding:11px 10px;text-align:left;border-bottom:.5px solid var(--rule);color:var(--ink-2);white-space:nowrap}
+  th{font-family:var(--f-ui);font-size:9px;text-transform:uppercase;letter-spacing:.22em;color:var(--ink-3);font-weight:500;
+     padding-bottom:9px;border-bottom:.5px solid var(--rule-strong)}
+  /* first column = the name column: serif, so a campaign or stage reads as a proper noun */
+  td:first-child{font-family:var(--f-display);font-style:italic;font-weight:500;font-size:15px;color:var(--ink)}
+  th:first-child{color:var(--ink-3)}
+  td.name-cell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  th.num,td.num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  th.num{font-family:var(--f-ui)}
+  tr:hover td{background:rgba(15,14,13,.025)}
+  /* the Total row is separated by a rule, not by a grey fill block */
+  tr.total td{font-weight:500;background:none;color:var(--ink);border-top:1.5px solid var(--ink);border-bottom:0}
+  .pillc{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:var(--panel2);color:var(--ink)}
   .pillc .dot{width:8px;height:8px;border-radius:50%}
   .vs{font-size:9.5px;color:var(--muted2)} .tiny{font-size:10px;color:var(--muted2);margin-top:2px}
-  .good-text{color:var(--good);font-weight:700} .warn-text{color:var(--warn);font-weight:700} .bad-text{color:var(--bad);font-weight:700} .muted-text{color:var(--muted2)}
-  .warn-chip{font-size:9px;font-weight:800;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:4px;padding:0 4px}
+  .good-text{color:var(--good);font-weight:500} .warn-text{color:var(--warn);font-weight:500} .bad-text{color:var(--bad);font-weight:500} .muted-text{color:var(--muted2)}
+  .warn-chip{font-size:9px;font-weight:500;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:4px;padding:0 4px}
 
   /* creative gallery */
   .creative-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:10px}
   .ccard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;overflow:hidden;display:flex;flex-direction:column}
   .ccard .cc-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;background:#EEF5FB;display:block}
-  .cc-fallback{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;padding:16px;
-       background:linear-gradient(160deg,color-mix(in srgb,var(--accent) 46%,#EEF5FB),#EEF5FB 72%)}
+  /* Creative fallback tile - shown when Meta's thumbnail CDN link has expired. Uses marble-tile.jpg,
+     the third export (veining amplified hardest, because this is the smallest crop on the page).
+     NOTE this is a Creative-tab surface, so it is NOT one of the Overview's five marble surfaces. */
+  .cc-fallback{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+       gap:12px;text-align:center;padding:18px;position:relative;
+       background:#F6F5F2 url("marble-tile.jpg") center/125% no-repeat}
+  .cc-fallback::after{content:"";position:absolute;inset:0;background:rgba(255,255,255,.42);pointer-events:none}
+  .cc-fallback>*{position:relative;z-index:1}
   /* The real Sophiie mark, one copy of the base64 in the stylesheet rather than one per card. */
   .cc-fb-mark{width:34px;height:34px;border-radius:9px;background:#fff center/contain no-repeat;
-        background-image:url("data:image/png;base64,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");box-shadow:0 0 0 1px rgba(17,24,39,.07)}
-  .cc-fb-h{font-size:14px;font-weight:700;color:var(--ink);line-height:1.3;display:-webkit-box;-webkit-line-clamp:4;line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+        background-image:url("data:image/png;base64,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");border:.5px solid var(--rule-strong)}
+  .cc-fb-h{font-size:14px;font-weight:500;color:var(--ink);line-height:1.3;display:-webkit-box;-webkit-line-clamp:4;line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
   .ccard .cc-b{padding:11px;display:flex;flex-direction:column;gap:6px;flex:1}
-  .ccard .cc-title{font-weight:700;font-size:12px;line-height:1.3;color:var(--ink)}
+  .ccard .cc-title{font-weight:500;font-size:12px;line-height:1.3;color:var(--ink)}
   .ccard .cc-copy{color:var(--muted);font-size:11px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
   .ccard .cc-m{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
   .ccard .cc-m b{color:var(--ink)}
   .ccard.clickable{cursor:pointer;transition:border-color .15s,transform .06s,box-shadow .15s}
-  .ccard.clickable:hover{border-color:var(--accent-edge);transform:translateY(-2px);box-shadow:0 12px 28px -14px rgba(19,27,70,.35),0 0 22px -10px var(--glow)}
+  .ccard.clickable:hover{border-color:var(--ink);transform:none;box-shadow:none}
   .cc-modal{position:fixed;inset:0;background:rgba(20,9,52,.72);display:none;align-items:center;justify-content:center;z-index:200;padding:24px}
   .cc-modal.on{display:flex}
-  .cc-modal-card{position:relative;width:100%;max-width:820px;max-height:90vh;overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:18px;box-shadow:0 30px 80px -20px rgba(20,9,52,.55)}
+  /* The date-picker popover above and this modal are the ONLY two shadows left on the page, and that
+     is deliberate: both are OVERLAYS floating over arbitrary content, and with no elevation at all a
+     white panel on a white page has no readable edge. Everything that sits IN the page flow is flat. */
+  .cc-modal-card{position:relative;width:100%;max-width:820px;max-height:90vh;overflow:auto;background:var(--paper);border:.5px solid var(--rule-strong);border-radius:2px;box-shadow:0 30px 70px -24px rgba(15,14,13,.35)}
   .cc-modal-x{position:absolute;top:10px;right:12px;z-index:2;border:1px solid var(--line);background:#fff;color:var(--muted);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px}
   .cc-modal-x:hover{background:var(--accent);border-color:transparent;color:var(--on-accent)}
   .cc-modal-body{display:flex;gap:20px;padding:24px;flex-wrap:wrap}
   .ccm-media{flex:0 0 320px;max-width:100%} .ccm-img{width:100%;border-radius:12px;display:block;background:#EEF5FB}
   .ccm-info{flex:1;min-width:240px;display:flex;flex-direction:column;gap:12px}
-  .ccm-info h3{margin:0;font-size:18px;font-weight:800;color:var(--ink)} .ccm-body{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--muted)}
+  .ccm-info h3{margin:0;font-size:18px;font-weight:500;color:var(--ink)} .ccm-body{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--muted)}
   .ccm-metrics{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--muted2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0} .ccm-metrics b{color:var(--ink)}
-  .ccm-link{display:inline-block;padding:9px 14px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-weight:800;font-size:13px}
+  .ccm-link{display:inline-block;padding:9px 14px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-weight:500;font-size:13px}
 
   .loading{padding:80px 20px;text-align:center;color:var(--muted)}
   .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--line2);border-top-color:var(--accent-edge);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .error-box{background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid color-mix(in srgb,var(--bad) 38%,transparent);color:#8E2C1D;border-radius:12px;padding:18px;margin:30px auto;max-width:560px;text-align:center;font-size:13px}
-  footer{color:var(--muted2);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--hair)} footer b{color:var(--muted)}
+  footer{color:var(--ink-3);font-family:var(--f-ui);font-size:10px;letter-spacing:.06em;margin-top:44px;
+       text-align:left;padding-top:16px;border-top:1.5px solid var(--ink)} footer b{color:var(--ink-2);font-weight:500}
+
+  /* ===== BREAKPOINTS - deliberately LAST in the stylesheet =====
+     Every rule above is a plain class selector, so a breakpoint declared earlier would simply lose to
+     the base rule it means to override (that is exactly what happened on the first pass: the KPI slab
+     stayed 4-up at 680px). Keep new breakpoints in this block. */
+  @media(max-width:900px){
+    .kpis{grid-template-columns:repeat(2,1fr)}      /* the slab drops to 2-up, never squashes to 8 */
+    .section.first h2{font-size:clamp(28px,7vw,36px)}
+  }
+  @media(max-width:560px){
+    .kpis{grid-template-columns:1fr}
+    .kpi{padding:22px 18px 20px}
+    .container{padding:0 18px 56px}
+    .tabs{gap:18px}
+  }
 
   /* Reduced motion: kill the WHOLE aurora, not just the canvas. The orbs and diagonal bands are
      large-area moving light - the exact thing this media query exists to suppress - so they are
@@ -408,7 +560,6 @@
   @media (prefers-reduced-motion: reduce){
     #aurora-bg{display:none}
     .aurora-ambient__orb,.aurora-diag,.live,.card,.kpi{animation:none !important;transition:none !important}
-    .kpi:hover{transform:none}
   }
 </style>
 </head>
@@ -513,8 +664,8 @@
 
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tabpane">
-      <div class="section first">
-        <h2>Sophiie AI - demand &amp; qualified leads</h2>
+      <div class="section first" data-eyebrow="Meta paid social &middot; all figures AUD">
+        <h2>Sophiie AI <span class="t2">- demand &amp; qualified leads</span></h2>
         <span class="sub" id="introCopy"></span>
       </div>
 
@@ -535,7 +686,7 @@
           </div>
           <div class="chartbox tall"><canvas id="trendChart"></canvas></div>
         </div>
-        <div class="card">
+        <div class="card marble">
           <h3>Budget pacing</h3>
           <div class="hint">Spend to date vs the planned flight pace. The marker is where pace expects you to be today.</div>
           <div class="pace-track"><div class="pace-actual" id="paceActual"></div><div class="pace-expected" id="paceExpected"></div></div>
@@ -545,7 +696,7 @@
         </div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
+      <div class="card marble goal" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
         <div class="card"><h3>Enquiry funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
@@ -554,13 +705,13 @@
 
       <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Enquiries</th><th class="num">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
-      <div class="section"><h2>Who &amp; where we reached</h2><span class="sub">Meta audience &amp; placement breakdowns for the Sophiie AI campaigns - honours the date filter.</span></div>
+      <div class="section" data-eyebrow="Meta breakdowns &middot; honours the date filter"><h2>Who &amp; where we reached</h2><span class="sub">Meta audience &amp; placement breakdowns for the Sophiie AI campaigns - honours the date filter.</span></div>
       <div class="grid cols-2">
         <div class="card"><h3>Audience - age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
-        <div class="card"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="background:var(--accent);color:var(--on-accent);font-weight:700;padding:1px 6px;border-radius:5px">Facebook</span> vs <span style="color:var(--leads);font-weight:600">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+        <div class="card"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="background:var(--leads);color:#fff;font-weight:500;padding:1px 6px;border-radius:2px">Facebook</span> vs <span style="color:var(--leads);font-weight:500">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
       </div>
 
-      <div class="section"><h2>What stands out</h2></div>
+      <div class="section" data-eyebrow="Automated read &middot; selected range"><h2>What stands out</h2></div>
       <div class="grid-insights" id="insightGrid"></div>
 
       <div class="info-note" id="ovNote"></div>
@@ -789,7 +940,7 @@ function trendRows(){const days=dailyOf(scoped());
   return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,days:o.days}));}
 
 // ---------- chart defaults / helpers ----------
-const GRID='rgba(17,24,39,.07)';
+const GRID='rgba(15,14,13,.07)';
 // Chart font family, referenced by canvas-draw plugins (ctx.font) that can't read Chart.defaults cleanly.
 // Kept in sync with initChartDefaults() below; without this, cplTrend/effScatter target-line plugins threw
 // "FONT is not defined" mid-draw and those charts rendered blank.
@@ -804,20 +955,28 @@ function indexToPeak(arr){const mx=Math.max(0,...arr.map(v=>Math.abs(+v||0)));re
 // in options.plugins.* - that shape is treated as a scriptable option, auto-invoked, and silently
 // blanks the entire chart (md/AGENTS.md, repo-wide gotcha).
 function initChartDefaults(){
+  // Legends and titles are UI text, so they stay Inter; the mono is applied per-axis in axis() and to
+  // the tooltip body, which is all measurement.
   Chart.defaults.font.family='"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+  Chart.defaults.font.weight=400;
+  Chart.defaults.plugins.tooltip.bodyFont={family:MONO,size:11.5};
+  Chart.defaults.plugins.tooltip.titleFont={family:'"Inter",sans-serif',size:11,weight:'500'};
   // Tooltip = the brand deep navy with a blue rim, so it reads against BOTH a white card and the
   // aurora behind it. Its text is explicitly WHITE: Chart.js does not derive tooltip text from the
   // background, so setting a dark panel and leaving titleColor/bodyColor on the page ink paints
   // dark-on-dark and the tooltip silently disappears (that is exactly the state the template this
   // was cloned from is in - do not copy its two colour lines back in).
-  Chart.defaults.color=MC.muted;Chart.defaults.plugins.tooltip.backgroundColor=MC.deep;Chart.defaults.plugins.tooltip.borderColor='rgba(43,132,180,.55)';Chart.defaults.plugins.tooltip.borderWidth=1;
+  Chart.defaults.color=MC.muted2;Chart.defaults.plugins.tooltip.backgroundColor=MC.ink;Chart.defaults.plugins.tooltip.borderColor='rgba(255,255,255,.22)';Chart.defaults.plugins.tooltip.borderWidth=.5;
   Chart.defaults.plugins.tooltip.titleColor='#FFFFFF';Chart.defaults.plugins.tooltip.bodyColor='rgba(255,255,255,.92)';Chart.defaults.plugins.tooltip.padding=11;
   // clickable legends → discoverability note above the labels
   const HINT='Click a label to show or hide it';
   const wrap=obj=>{if(!obj||obj.__aff)return;obj.__aff=true;obj.title=Object.assign(obj.title||{},{display:true,text:HINT,color:MC.muted2});obj.title.font=Object.assign({size:11,weight:'normal'},obj.title.font);obj.title.padding=Object.assign({top:0,bottom:6},obj.title.padding);};
   try{wrap(Chart.defaults.plugins.legend);if(Chart.overrides)['doughnut','pie'].forEach(t=>{const o=Chart.overrides[t];if(o&&o.plugins&&o.plugins.legend)wrap(o.plugins.legend);});}catch(e){}
 }
-function axis(extra={}){return Object.assign({grid:{color:GRID},ticks:{color:MC.muted,font:{size:11}},border:{display:false}},extra);}
+// Every axis tick is mono with tabular figures - one helper, so no chart can opt out and no column
+// of numbers jitters as the date filter moves.
+const MONO='"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace';
+function axis(extra={}){return Object.assign({grid:{color:GRID},ticks:{color:MC.muted2,font:{size:10,family:MONO}},border:{display:false}},extra);}
 function legendTop(){return {position:'top',align:'end',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}};}
 
 // ================================= RENDER =================================
@@ -860,7 +1019,11 @@ function renderDateScope(){
 function kpiCard(o){
   const clk=o.series?' clk':'';const attr=o.series?` data-series="${o.series}" tabindex="0" role="button"`:'';const north=o.north?' north':'';
   const badge=o.badge?`<div class="badge">${o.badge}</div>`:'';
-  return `<article class="kpi${clk}${north}"${attr} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${o.value}</div>${badge}<div class="sub">${o.sub||'&nbsp;'}</div></article>`;
+  // The currency symbol is set one size down in a muted grey: 'A$' must never be the same size as
+  // the number it precedes. Done here, on the rendered string, so money() stays plain text for the
+  // CSV exports and the AI-deck payload.
+  const val=String(o.value).replace(/^A\$/,'<span class="cur">A$</span>');
+  return `<article class="kpi${clk}${north}"${attr} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${val}</div>${badge}<div class="sub">${o.sub||'&nbsp;'}</div></article>`;
 }
 function renderKpis(){
   const a=agg(scoped());
@@ -908,7 +1071,7 @@ function renderTrend(){
   const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
   const cpl=rows.map(r=>n(r.leads)?r.spend/r.leads:null);   // cost-per-enquiry per period - the media-buyer efficiency line
   const ds=[
-    {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(17,24,39,.15)',borderColor:'rgba(17,24,39,.34)',borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
+    {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'#DDD9D1',borderColor:MC.ink,borderWidth:{top:1.5,right:0,bottom:0,left:0},borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
     {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
     {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
     {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}
@@ -1053,7 +1216,7 @@ function renderDow(){
 function renderLeadType(){
   if(!$('leadTypeChart'))return;
   const a=agg(scoped());const w=n(a.leads_website),f=n(a.leads_onfacebook);const tot=w+f;
-  makeChart('leadTypeChart',{type:'doughnut',data:{labels:['Website form','Instant form'],datasets:[{data:[w,f],backgroundColor:[MC.accent,MC.leads],borderColor:'#FFFFFF',borderWidth:2}]},
+  makeChart('leadTypeChart',{type:'doughnut',data:{labels:['Website form','Instant form'],datasets:[{data:[w,f],backgroundColor:[MC.leads,MC.reach],borderColor:'#FFFFFF',borderWidth:2}]},
     options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
   const note=$('leadTypeNote');if(note)note.innerHTML=tot?`<b>${int(w)}</b> website-form · <b>${int(f)}</b> instant-form enquiries in range.`:'No lead-type split reported for this range yet - Meta returns it once instant-form or website leads are recorded.';
 }
@@ -1078,7 +1241,7 @@ function renderPlacement(){
   const NICE={feed:'Feed',facebook_reels:'FB Reels',facebook_reels_overlay:'FB Reels overlay',instagram_reels:'IG Reels',instagram_stories:'IG Stories',facebook_stories:'FB Stories',instream_video:'In-stream video',an_classic:'Audience Network',marketplace:'Marketplace',right_hand_column:'Right column',search:'Search',facebook_profile_feed:'FB profile feed',facebook_notification:'Notifications',threads_feed:'Threads',instagram_search:'IG Search'};
   const isIG=s=>String(s).startsWith('instagram')||s==='threads_feed';
   const arr=[...m.values()].filter(o=>o.imps>0).sort((a,b)=>b.imps-a.imps).slice(0,10);
-  makeChart('placementChart',{type:'bar',data:{labels:arr.map(o=>NICE[o.seg]||o.seg),datasets:[{label:'Impressions',data:arr.map(o=>o.imps),backgroundColor:arr.map(o=>isIG(o.seg)?MC.leads+'CC':MC.accent+'CC'),borderColor:arr.map(o=>isIG(o.seg)?MC.leads:MC.accent),borderWidth:1,borderRadius:5}]},
+  makeChart('placementChart',{type:'bar',data:{labels:arr.map(o=>NICE[o.seg]||o.seg),datasets:[{label:'Impressions',data:arr.map(o=>o.imps),backgroundColor:arr.map(o=>isIG(o.seg)?MC.reach+'CC':MC.leads+'CC'),borderColor:arr.map(o=>isIG(o.seg)?MC.leads:MC.accent),borderWidth:1,borderRadius:5}]},
     options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
       plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=arr[c.dataIndex];return [`${compact(o.imps)} impressions`,`${int(o.leads)} enquiries · ${money(o.spend)}`];}}}},
       scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}}}}}});
@@ -1296,9 +1459,11 @@ if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(t
 
   // Aurora spectrum, ~90% blue/cyan with ONE teal-green and ONE soft-pink entry as hints
   // (:root design rule 2). Sampled by linear interpolation across the viewport.
-  const PALETTE=[[43,132,180],[80,170,230],[34,211,238],[43,132,180],[100,180,240],[34,211,238],
-                 [32,99,135],[56,190,169],[80,160,220],[43,132,180],[120,180,230],[200,140,180],
-                 [34,211,238],[43,132,180]];
+  // LIGHT-mid cool blue-greys, close to the shell's luminance (see the CSS note above): the aurora is
+  // atmosphere behind an editorial page now, not the subject. Darker entries here grey the whole page.
+  const PALETTE=[[150,178,200],[163,186,203],[174,196,212],[150,178,200],[178,198,214],[174,196,212],
+                 [140,168,192],[168,190,196],[155,180,200],[163,186,203],[174,180,205],[196,186,196],
+                 [174,196,212],[150,178,200]];
   function pickColor(t){
     const idx=t*(PALETTE.length-1),i=Math.floor(idx),f=idx-i;
     const a=PALETTE[Math.min(i,PALETTE.length-1)],b=PALETTE[Math.min(i+1,PALETTE.length-1)];
@@ -1307,7 +1472,9 @@ if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(t
 
   function buildCurtains(){
     curtains=[];
-    const count=Math.max(20,Math.floor(W/55));
+    // Fewer, wider strips than the original W/55: overlap is what accumulates into a wash, so the
+    // count is the cheapest way to keep the aurora quiet without darkening it.
+    const count=Math.max(11,Math.floor(W/105));
     for(let i=0;i<count;i++){
       curtains.push({
         baseX:(i/count)*W+(Math.random()-0.5)*(W/count)*0.7,
@@ -1316,7 +1483,7 @@ if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(t
         phase:Math.random()*Math.PI*2,         // ... from its own start, so none of them sync
         amplitude:20+Math.random()*50,
         color:pickColor(i/count),
-        opacity:0.08+Math.random()*0.14,
+        opacity:0.10+Math.random()*0.13,         // light hues need more alpha to register at all
         heightFactor:0.55+Math.random()*0.45,
         topOffset:Math.random()*0.08
       });

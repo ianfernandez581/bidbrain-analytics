@@ -21,6 +21,7 @@ and the sample banner clears itself. See [`../README.md`](../README.md) → FLIP
 | [`main.py`](main.py) | The Flask app: login, session, the gated routes, and `POST /report`. Its `LOGIN_HTML` carries a **CSS-only** aurora (orbs + diagonal bands, no canvas) so the login renders instantly. |
 | [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — the three-layer aurora background, all three tabs, charts, filters, the date picker, CSV export and the headless slide-deck path. Baked into the container; fetches `/data.json` on load. |
 | [`placeholder.json`](placeholder.json) | The SAMPLE payload (`meta.placeholder=true`). **Generated** by `../gen_placeholder.py` — never hand-edit. |
+| `marble-band.jpg` / `marble-cell.jpg` / `marble-tile.jpg` | The Chronicle texture. Baked into the image, served from a name whitelist by `main.py`, referenced RELATIVELY in CSS so they resolve behind the proxy. |
 | [`logo.png`](logo.png) | Sophiie's **supplied mark** (the headset), a copy of `../creatives/sophiie_logo.png`. Served at `/logo.png` for the login page, the favicon and the AI deck. |
 | [`report.py`](report.py) | AI deck generator (two-stage: research then structure), prompts written for Sophiie's AI-receptionist business. **Dormant** until `/report` is enabled. |
 | [`platform_sso.py`](platform_sso.py) | Cross-subdomain SSO verifier (trusts the platform's `bb_sso` cookie in addition to the local password). Vendored, unchanged. |
@@ -40,6 +41,7 @@ and the sample banner clears itself. See [`../README.md`](../README.md) → FLIP
 | `POST /login` | Constant-time (`hmac.compare_digest`) check against `DASH_PASSWORD`. Success → session cookie; wrong → 401. |
 | `GET /logout` | Clears the session. |
 | `GET /data.json` | **The only data path.** 401 unless authenticated; then streams `sophiie.json` from the private bucket, falling back to the baked-in `placeholder.json` while the bucket is empty. The bucket stays private — the browser never touches it. |
+| `GET /<name>.jpg` | The three marble textures, by exact-name whitelist (never an arbitrary file read). **Public** - decorative, no client data. Cached a week. |
 | `GET /logo.png` | The mark. **Public** — the login page is itself unauthenticated and renders it. |
 | `GET /creative-img/<id>` | A Meta creative image cached in our bucket by the export job (a permanent copy that outlives Meta's signed CDN URL). Same auth as `/data.json`. Unused until the pipeline exists. |
 | `POST /report` | **AI deck.** 401 unless authenticated; serves a cached report keyed by data version or calls `report.py`. Dormant until `enable_report_sophiie.ps1` has run. |
@@ -54,10 +56,12 @@ injected by Cloud Run.
 
 ## What the dashboard shows (`dashboard.html`)
 
-Sophiie AI's brand blues on **the aurora skin** — three fixed animated background layers with solid
-white cards floating over them. Read the aurora section of [`../README.md`](../README.md) before
-touching the styling: there are four rules that break the design if ignored, and one tuned animation
-constant. One external chart library: Chart.js 4.5.0.
+**"Chronicle - marble"** over a toned-down aurora: an editorial-print skin - Fraunces italic titles,
+IBM Plex Mono for every measured figure, hairlines instead of cards, and a very pale marble texture on
+five surfaces. Read the skin section of [`../README.md`](../README.md) **before touching the styling**:
+it records where the marble may and may not go, why the legacy colour tokens must not be renamed, the
+two cascade traps that bit this restyle, and the rule that toning the aurora down is done with alpha
+and strip count, never by darkening. One external chart library: Chart.js 4.5.0.
 
 **Sticky control bar:** the tab rail, a Looker-style date-range picker, funnel-stage chips, a search
 box, and CSV export ("this tab" / "all data"). Three tabs:

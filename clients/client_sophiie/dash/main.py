@@ -208,6 +208,27 @@ def logo():
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
+# The Chronicle skin's marble textures. PUBLIC like /logo.png: they are decorative, they carry no
+# client data, and the login page's own styling may want them later. Whitelisted by exact name so
+# this can never become an arbitrary file read.
+_MARBLE = {"marble-band.jpg", "marble-cell.jpg", "marble-tile.jpg"}
+_MARBLE_CACHE = {}
+
+
+@app.get("/<name>.jpg")
+def marble(name):
+    fn = f"{name}.jpg"
+    if fn not in _MARBLE:
+        abort(404)
+    if fn not in _MARBLE_CACHE:
+        try:
+            _MARBLE_CACHE[fn] = (_dash_dir / fn).read_bytes()
+        except FileNotFoundError:
+            abort(404)
+    return Response(_MARBLE_CACHE[fn], mimetype="image/jpeg",
+                    headers={"Cache-Control": "public, max-age=604800"})   # immutable art, cache a week
+
+
 @app.get("/logout")
 def logout():
     session.clear()
