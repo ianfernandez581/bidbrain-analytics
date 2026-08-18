@@ -25,11 +25,11 @@ skin is unique in the estate.
 | `dash/dashboard.html` | The whole UI, one file. Overview · Paid Media · Creative tabs, plus **the three-layer aurora background**. |
 | `dash/main.py` | Flask password gate + static server. Serves `/data.json`, `/logo.png`, `/bb_deck.js`, `/report`. Its `LOGIN_HTML` carries a CSS-only aurora (no canvas). |
 | `dash/placeholder.json` | The SAMPLE payload (`meta.placeholder=true`). Generated — never hand-edit. |
-| `dash/logo.png` | **Generated placeholder mark** (aurora curtains on the brand navy). Sophiie have supplied no artwork yet. |
+| `dash/logo.png` | Sophiie's **supplied mark** (the headset) - a copy of `creatives/sophiie_logo.png`, baked into the image. |
 | `dash/report.py` | AI deck generator, prompts re-templated for Sophiie's business. **Dormant** until `/report` is enabled. |
 | `dash/platform_sso.py`, `dash/bb_deck.js` | Vendored, unchanged from the template. |
 | `gen_placeholder.py` | Builds `dash/placeholder.json` from `targets/*.csv`. Deterministic (`random.seed(42)`). |
-| `gen_logo.py` | Builds `dash/logo.png` — dependency-free PNG writer (the venv has no Pillow). |
+| `creatives/` | The **supplied artwork**, version-controlled: `sophiie_logo.png` (the client's mark) and `100digital_light.jpg` (the agency mark, mirrored from `bidbrain-platform/Creatives/`). Both are inlined as base64 into `dash/dashboard.html`. |
 | `targets/targets.csv`, `targets/budget.csv` | Committed targets. **All `PENDING`** — no signed media plan yet. |
 | `deploy_sophiie.ps1` | One-shot preview standup (service only — no dataset/job/scheduler). |
 | `dash/deploy_dash_sophiie.ps1` | Redeploy just the service after a UI edit. |
@@ -113,18 +113,31 @@ ancestor. All four are fixed in this file; if you diff against `client_geyervalm
 4. **`Be BELL-specific`** in `report.py`'s Stage A prompt — a Bell Shakespeare leftover that survived
    two clones.
 
-### The mark ships twice, on purpose
+### The marks ship twice, on purpose
 
-- **Inlined as SVG** in `dashboard.html`'s topbar (and as literals in the login page) — because the
-  dashboard is also served through the platform reverse proxy at `/d/sophiie/`, where a root-relative
-  asset path does not resolve (the cloudflare lesson).
-- **As `dash/logo.png`**, COPY'd by the Dockerfile and served at `/logo.png` for the login page, the
-  favicon (`href="logo.png"` — **relative**, so it resolves proxied too) and the AI deck builder.
+Two supplied marks are in play: **Sophiie's own** (the headset - navy band, two cyan discs) and
+**100% Digital's** (the green boxed wordmark, mirrored from `bidbrain-platform/Creatives/`). Each
+appears in two places:
 
-Both are **placeholders**: Sophiie have not supplied artwork, and `deploy_dash_sophiie.ps1` hard-fails
-without a `logo.png`, so `gen_logo.py` renders the aurora-curtain motif into one. When real artwork
-arrives: drop it in as `dash/logo.png`, and replace the inline `<svg>` in `dashboard.html`'s topbar
-plus the `<img>` in `main.py`'s `LOGIN_HTML` (base64 it if the file is small).
+- **Inlined as base64** in `dashboard.html`'s topbar - because the dashboard is also served through
+  the platform reverse proxy at `/d/sophiie/`, where a root-relative asset path does not resolve (the
+  cloudflare lesson). Sophiie's mark is inlined a second time, in the stylesheet, as the
+  `.cc-fb-mark` background for creative-gallery fallback tiles - once in CSS rather than once per
+  card.
+- **As `dash/logo.png`** (Sophiie's mark only), COPY'd by the Dockerfile and served at `/logo.png` for
+  the login page, the favicon (`href="logo.png"` - **relative**, so it resolves proxied too) and the
+  AI deck builder.
+
+**Neither file has an alpha channel** - Sophiie's is an indexed PNG on a white field and 100%
+Digital's is a JPEG - so a bare `<img>` laid over the moving aurora reads as a stray white rectangle.
+Both therefore sit on a **white chip** at the panel radius (`.smark`, `.agency-chip`), which makes the
+white deliberate and matches every other surface in the skin. On the login page, whose card is already
+white, Sophiie's mark needs no chip and no glow - just size.
+
+If the artwork changes, update all three copies: `creatives/sophiie_logo.png` (the committed source),
+`dash/logo.png`, and the base64 in `dashboard.html`. There is no generator script - an earlier
+`gen_logo.py` fabricated a placeholder mark and was deleted once the real artwork arrived, because its
+only remaining effect would have been to overwrite it.
 
 ## Gotcha: the platform proxy needs to read this client's password
 

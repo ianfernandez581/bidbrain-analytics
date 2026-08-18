@@ -14,13 +14,13 @@ function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
 
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 if (-not (Test-Path (Join-Path $DASH_DIR 'dashboard.html'))) { Die "no dashboard.html in $DASH_DIR" }
-# The Sophiie mark ships TWICE on purpose: hand-written as inline SVG inside dashboard.html (a
+# Sophiie's mark ships TWICE on purpose: inlined as a base64 data URI inside dashboard.html (a
 # root-relative asset path does not resolve behind the platform proxy at /d/sophiie/) AND as
 # dash/logo.png, which the Dockerfile COPYs and main.py serves at /logo.png for the login page, the
-# favicon and the AI deck builder. logo.png is GENERATED - run gen_logo.py, not this script, if the
-# mark changes; run gen_placeholder.py after editing targets/*.csv. placeholder.json ships from this
-# folder (baked into the image).
-if (-not (Test-Path (Join-Path $DASH_DIR 'logo.png'))) { Die "no logo.png in $DASH_DIR (login page + favicon + deck need it) - run gen_logo.py" }
+# favicon and the AI deck builder. Both come from the SAME committed file, creatives/sophiie_logo.png -
+# if the artwork changes, update all three. Run gen_placeholder.py after editing targets/*.csv;
+# placeholder.json ships from this folder (baked into the image).
+if (-not (Test-Path (Join-Path $DASH_DIR 'logo.png'))) { Die "no logo.png in $DASH_DIR (login page + favicon + deck need it) - copy ..\creatives\sophiie_logo.png" }
 
 $SHA = $null
 try { $SHA = (& git rev-parse --short HEAD 2>$null) } catch { $SHA = $null }

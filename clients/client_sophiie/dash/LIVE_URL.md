@@ -25,7 +25,7 @@ $env:GCS_BUCKET="bidbrain-analytics-platform-dash"
 
 After an edit to `dash/dashboard.html` or `dash/main.py`, redeploy just the service with
 `dash\deploy_dash_sophiie.ps1` (image swap only; env/secrets preserved). After an edit to
-`targets/*.csv` re-run `gen_placeholder.py` first; after a change to the mark re-run `gen_logo.py`.
+`targets/*.csv` re-run `gen_placeholder.py` first.
 
 ## Going live
 

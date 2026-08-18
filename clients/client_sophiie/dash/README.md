@@ -21,7 +21,7 @@ and the sample banner clears itself. See [`../README.md`](../README.md) → FLIP
 | [`main.py`](main.py) | The Flask app: login, session, the gated routes, and `POST /report`. Its `LOGIN_HTML` carries a **CSS-only** aurora (orbs + diagonal bands, no canvas) so the login renders instantly. |
 | [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — the three-layer aurora background, all three tabs, charts, filters, the date picker, CSV export and the headless slide-deck path. Baked into the container; fetches `/data.json` on load. |
 | [`placeholder.json`](placeholder.json) | The SAMPLE payload (`meta.placeholder=true`). **Generated** by `../gen_placeholder.py` — never hand-edit. |
-| [`logo.png`](logo.png) | The **generated placeholder mark** (aurora curtains on the brand navy). Built by `../gen_logo.py`. Served at `/logo.png` for the login page, the favicon and the AI deck. |
+| [`logo.png`](logo.png) | Sophiie's **supplied mark** (the headset), a copy of `../creatives/sophiie_logo.png`. Served at `/logo.png` for the login page, the favicon and the AI deck. |
 | [`report.py`](report.py) | AI deck generator (two-stage: research then structure), prompts written for Sophiie's AI-receptionist business. **Dormant** until `/report` is enabled. |
 | [`platform_sso.py`](platform_sso.py) | Cross-subdomain SSO verifier (trusts the platform's `bb_sso` cookie in addition to the local password). Vendored, unchanged. |
 | [`bb_deck.js`](bb_deck.js) | Shared, theme-driven `.pptx` builder. Vendored, unchanged — canonical copy in `clients/client_mongodb/dash/`. |

@@ -2,8 +2,8 @@
 
 Thin password gate + static server. It renders a login screen, and once a
 session is authenticated it serves `dashboard.html` and proxies the private
-`sophiie.json` from GCS at `/data.json`. All presentation logic — the aurora skin, the
-Overview / Paid Media / Creative tabs — lives in `dashboard.html`; this file only
+`sophiie.json` from GCS at `/data.json`. All presentation logic - the aurora skin, the
+Overview / Paid Media / Creative tabs - lives in `dashboard.html`; this file only
 decides *who* may see it, not *what* it shows. It also exposes `/report`, the
 AI "Download report" endpoint (Claude Opus 4.8 + web research -> a 3-slide deck;
 see report.py), gated and cached the same way as the dashboard data.
@@ -48,7 +48,7 @@ try:
 except FileNotFoundError:
     DASHBOARD_HTML = None
 
-# PLACEHOLDER data baked into the container — a Sophiie AI-shaped SAMPLE payload (flagged
+# PLACEHOLDER data baked into the container - a Sophiie AI-shaped SAMPLE payload (flagged
 # meta.placeholder=true, which dashboard.html renders behind a loud "sample data" banner). It lets
 # the scaffold render end-to-end BEFORE any real data is connected. The moment the export job writes
 # the real sophiie.json to the bucket, /data.json serves THAT instead and the banner disappears.
@@ -57,16 +57,16 @@ try:
 except FileNotFoundError:
     PLACEHOLDER_JSON = None
 
-# Logo PNG baked into the container (COPY'd in the Dockerfile). Served publicly so the login page and
+# Logo PNG baked into the container (COPY'd in the Dockerfile) - Sophiie's supplied mark. Served publicly so the login page and
 # the AI deck builder (bbDeckLogos() fetches 'logo.png') can brand themselves. NOTE: the DASHBOARD
-# itself does NOT use this route — it inlines the same artwork as a base64 data URI, because through
+# itself does NOT use this route - it inlines the same artwork as a base64 data URI, because through
 # the platform reverse proxy at /d/sophiie/ a root-relative asset path does not resolve.
 try:
     LOGO_PNG = (_dash_dir / "logo.png").read_bytes()
 except FileNotFoundError:
     LOGO_PNG = None
 
-# Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
+# Shared, theme-driven slide-deck builder (vendored - the canonical copy is re-copied into each dash
 # folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it (relative →
 # /bb_deck.js direct, or /d/sophiie/bb_deck.js through the platform proxy).
 try:
@@ -124,8 +124,9 @@ LOGIN_HTML = """<!doctype html>
         border:1px solid rgba(17,24,39,.07);border-radius:20px;
         box-shadow:0 1px 3px rgba(17,24,39,.04),0 24px 60px -24px rgba(20,9,52,.28),0 0 44px -18px rgba(43,132,180,.35)}
   .logo-wrap{text-align:center;margin-bottom:22px}
-  .logo-wrap img{height:74px;width:74px;display:inline-block;border-radius:19px;
-        box-shadow:0 0 0 1px rgba(17,24,39,.08),0 12px 28px -10px rgba(43,132,180,.65)}
+  /* Sophiie's supplied mark is a white-field icon, so on a white card it needs no chip and no glow -
+     just size. (The placeholder it replaced was a dark tile, which did want both.) */
+  .logo-wrap img{height:96px;width:96px;display:inline-block}
   .brand{font-size:10px;font-weight:700;letter-spacing:2.2px;color:#206387;margin-bottom:9px;text-transform:uppercase;text-align:center}
   h1{font-size:22px;font-weight:700;margin:0 0 5px;letter-spacing:-.4px;text-align:center}
   p{font-size:13px;color:#6B7689;margin:0 0 22px;text-align:center}
@@ -239,7 +240,7 @@ def data():
 
 @app.get("/creative-img/<cid>")
 def creative_img(cid):
-    # Serve a Meta creative image cached in our bucket (creatives/<id>) by the export job — a permanent
+    # Serve a Meta creative image cached in our bucket (creatives/<id>) by the export job - a permanent
     # copy that survives after Meta's signed CDN URL expires. Same auth as /data.json.
     if not authed():
         abort(401)
@@ -271,7 +272,7 @@ def report_route():
     # private bucket keyed by DATA VERSION, so re-downloading the same data costs no model calls and
     # regenerates only when the underlying data advances. The report always describes the FULL
     # account (every funnel stage / campaign), independent of the on-screen stage/search filters, so
-    # the cache key is just client + data_through — the deck regenerates at most once per data refresh.
+    # the cache key is just client + data_through - the deck regenerates at most once per data refresh.
     if not authed():
         abort(401)
     if request.content_length and request.content_length > 256 * 1024:
