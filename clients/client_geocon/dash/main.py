@@ -54,6 +54,14 @@ try:
 except FileNotFoundError:
     LOGO_PNG = None
 
+# The GEOCON CORPORATE wordmark, used by the login page only (the dashboard header carries the
+# Gateway Braddon property logo above). Copied into dash/ on purpose: `creatives/` is NOT in this
+# folder's Docker build context, so a path into it 404s once deployed.
+try:
+    GEOCON_MARK_PNG = (_dash_dir / "geocon-mark.png").read_bytes()
+except FileNotFoundError:
+    GEOCON_MARK_PNG = None
+
 # Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
 # folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it (relative →
 # /bb_deck.js direct, or /d/geocon/bb_deck.js through the platform proxy).
@@ -72,71 +80,123 @@ LOGIN_HTML = """<!doctype html>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  /* GEOCON CORPORATE LOGIN (2026-08-18) - built from geocon.com.au's own footer/CTA treatment:
-     warm light-grey canvas, near-black heavy CONDENSED uppercase display type, hairline outlined
-     rounded CTA carrying the site's diagonal arrow, and the dotted rule the site uses as a divider.
+  /* GEOCON CORPORATE LOGIN - built from the geocon.com.au footer/CTA treatment: warm light-grey
+     canvas, near-black heavy CONDENSED uppercase display type, hairline outlined rounded CTA with
+     the diagonal arrow the site uses, and the dotted rule it uses as a divider.
+     LAYOUT (2026-08-19): ONE CENTRED CELL, so this page matches every other dashboard login in the
+     estate (they are all a single centred card). The background carries the brand work instead.
      NOTE the deliberate split: this LOGIN wears GEOCON CORPORATE, while the dashboard behind it
-     stays on the dark Gateway Braddon PROPERTY palette (that is the campaign's own brand board,
-     clients/client_geocon/creatives/Gateway-Braddon-Brand-Board.png). Do not "unify" them without
-     asking - they are two different brands doing two different jobs. */
+     stays on the dark Gateway Braddon PROPERTY palette (that campaign brand board lives at
+     clients/client_geocon/creatives/Gateway-Braddon-Brand-Board.png). Two brands, two jobs - do not
+     "unify" them without asking. */
   :root{
     --bg:#EDEDEB;          /* warm light grey sampled from the site footer */
+    --card:#F7F7F5;        /* a half-step lighter so the cell reads as paper on concrete */
     --ink:#0A0A0A;
     --muted:#6B6B68;
     --line:rgba(10,10,10,.26);
+    --hair:rgba(10,10,10,.09);
     --err:#B3261E;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{min-height:100%}
-  body{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
-       background:var(--bg);color:var(--ink);
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 20px;
+       background:var(--bg);color:var(--ink);position:relative;overflow:hidden;
        font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       -webkit-font-smoothing:antialiased;padding:40px 6vw}
-  .wrap{width:100%;max-width:1040px;margin:0 auto}
-  .eyebrow{font-size:11px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;
-           color:var(--muted);margin-bottom:18px}
+       -webkit-font-smoothing:antialiased}
+
+  /* ---------- background: a DRAFTING SHEET, the honest metaphor for a property developer ----------
+     Four stacked layers, all pure CSS (nothing to load, nothing to 404):
+       .sheet - a hairline drafting grid with a heavier module every 5th line, masked so it fades
+                toward the edges and never reads as a wireframe screenshot.
+       .plan  - oversized architectural plan geometry (thin rings + a long diagonal) at very low
+                alpha: enough to feel drawn, never enough to compete with the type.
+       .band  - the dotted divider from the site, repeated as two long horizons.
+       .glow  - a soft centre vignette that lifts the cell off the canvas.
+     Keep the alphas LOW: on a light canvas anything past ~.09 stops reading as texture and starts
+     reading as clutter. */
+  .sheet,.plan,.band,.glow{position:fixed;inset:0;pointer-events:none;z-index:0}
+  .sheet{
+    background-image:
+      linear-gradient(to right, var(--hair) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hair) 1px, transparent 1px),
+      linear-gradient(to right, rgba(10,10,10,.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(10,10,10,.05) 1px, transparent 1px);
+    background-size:26px 26px, 26px 26px, 130px 130px, 130px 130px;
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 45%, #000 35%, rgba(0,0,0,.35) 70%, transparent 100%);
+            mask-image:radial-gradient(120% 90% at 50% 45%, #000 35%, rgba(0,0,0,.35) 70%, transparent 100%)}
+  .plan{opacity:.55}
+  .plan i{position:absolute;border:1px solid rgba(10,10,10,.075);border-radius:50%}
+  .plan i:nth-child(1){width:78vmin;height:78vmin;left:-16vmin;bottom:-26vmin}
+  .plan i:nth-child(2){width:52vmin;height:52vmin;left:-3vmin;bottom:-13vmin}
+  .plan i:nth-child(3){width:96vmin;height:96vmin;right:-30vmin;top:-34vmin;border-radius:0;
+                       transform:rotate(45deg)}
+  .plan b{position:absolute;left:-10%;right:-10%;top:50%;height:1px;background:rgba(10,10,10,.07);
+          transform:rotate(-11deg)}
+  .band{background-image:radial-gradient(circle, rgba(10,10,10,.5) 1.3px, transparent 1.4px);
+        background-size:11px 3px;background-repeat:repeat-x;
+        background-position:0 22vh, 0 78vh;opacity:.5}
+  /* One slow, almost-imperceptible breath. The page is otherwise dead still: a property developer
+     brand should not bounce. Off entirely for reduced-motion users. */
+  .glow{background:radial-gradient(46vmax 34vmax at 50% 42%, rgba(255,255,255,.85), transparent 70%);
+        animation:breathe 22s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+  @media (prefers-reduced-motion:reduce){.glow{animation:none}}
+
+  /* ---------- the one centred cell ---------- */
+  .cell{position:relative;z-index:1;width:100%;max-width:452px;background:var(--card);
+        border:1px solid var(--hair);border-radius:16px;padding:38px 34px 26px;
+        box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 26px 60px -28px rgba(10,10,10,.28),
+                   0 3px 10px -6px rgba(10,10,10,.18)}
+  /* The supplied wordmark is WHITE type baked onto an OPAQUE BLACK square (no alpha), so it would
+     read as a black tile. invert() flips it to black-on-white, then multiply drops the white to the
+     surface colour, leaving the wordmark alone the way the site sets it. Keep BOTH properties:
+     either one on its own looks broken. The asset is CROPPED to its ink bounds, so this height is
+     the height of the LETTERS (as the original 447x447 square it rendered microscopic). */
+  .mark img{height:22px;width:auto;display:block;filter:invert(1);mix-blend-mode:multiply}
+  .eyebrow{margin-top:22px;font-size:10.5px;font-weight:600;letter-spacing:2.2px;
+           text-transform:uppercase;color:var(--muted)}
   h1{font-family:"Anton","Inter",sans-serif;font-weight:400;text-transform:uppercase;
-     font-size:clamp(44px,8.6vw,104px);line-height:.9;letter-spacing:-.5px;margin:0 0 26px}
-  .lede{font-size:15px;color:var(--muted);max-width:46ch;margin:0 0 34px;line-height:1.55}
-  form{display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;max-width:640px}
-  input{flex:1 1 260px;min-width:0;padding:18px 20px;font:inherit;font-size:14px;
-        letter-spacing:1.4px;text-transform:uppercase;color:var(--ink);background:transparent;
-        border:1px solid var(--line);border-radius:10px;outline:none;transition:border-color .16s}
-  input::placeholder{color:var(--muted);letter-spacing:1.4px}
+     font-size:clamp(34px,7vw,44px);line-height:.92;letter-spacing:-.3px;margin:8px 0 14px}
+  .lede{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 22px}
+  form{display:flex;flex-direction:column;gap:10px}
+  input{width:100%;padding:16px 18px;font:inherit;font-size:13.5px;letter-spacing:1.3px;
+         text-transform:uppercase;color:var(--ink);background:#FFF;
+         border:1px solid var(--line);border-radius:10px;outline:none;transition:border-color .16s}
+  input::placeholder{color:var(--muted);letter-spacing:1.3px}
   input:focus{border-color:var(--ink)}
-  /* the site's CTA: transparent, hairline border, uppercase label + diagonal arrow, fills on hover */
-  button{flex:0 0 auto;display:inline-flex;align-items:center;gap:14px;cursor:pointer;
-         padding:18px 30px;font:inherit;font-size:14px;font-weight:600;letter-spacing:1.6px;
+  /* the CTA from the site: transparent, hairline border, uppercase label + diagonal arrow, fills on hover */
+  button{display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+         padding:16px 22px;font:inherit;font-size:13.5px;font-weight:600;letter-spacing:1.5px;
          text-transform:uppercase;color:var(--ink);background:transparent;
          border:1px solid var(--ink);border-radius:10px;
          transition:background-color .18s ease,color .18s ease}
-  button .arw{font-size:17px;line-height:1;transition:transform .18s ease}
-  button:hover{background:var(--ink);color:var(--bg)}
+  button .arw{font-size:16px;line-height:1;transition:transform .18s ease}
+  button:hover{background:var(--ink);color:var(--card)}
   button:hover .arw{transform:translate(3px,-3px)}
   button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
-  .err{margin-top:18px;font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;
-       color:var(--err);min-height:15px}
-  /* the site's dotted divider */
-  .rule{height:3px;margin:54px 0 26px;
-        background-image:radial-gradient(circle,var(--ink) 1.1px,transparent 1.2px);
-        background-size:12px 3px;background-repeat:repeat-x;opacity:.55}
-  footer{display:flex;align-items:flex-end;justify-content:space-between;gap:26px;flex-wrap:wrap}
-  /* The supplied wordmark is WHITE type baked onto an OPAQUE BLACK square (no alpha), so it would
-     read as a black tile on this light canvas. invert() flips it to black-on-white, then multiply
-     drops the white to the page colour - leaving the wordmark alone, the way the site sets it.
-     Keep BOTH properties together; either one on its own looks broken. */
-  .mark img{height:26px;width:auto;display:block;filter:invert(1);mix-blend-mode:multiply}
-  .meta{text-align:right;font-size:10.5px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
-        color:var(--muted);line-height:1.9}
-  @media (max-width:560px){
-    footer{flex-direction:column;align-items:flex-start}
-    .meta{text-align:left}
-    button{width:100%;justify-content:space-between}
+  .err{font-size:11.5px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase;
+       color:var(--err);min-height:14px}
+  .rule{height:3px;margin:22px 0 14px;
+        background-image:radial-gradient(circle,var(--ink) 1.3px,transparent 1.4px);
+        background-size:11px 3px;background-repeat:repeat-x;opacity:.6}
+  /* stacked on purpose: side-by-side half-wraps at this cell width, which looks accidental */
+  .meta{display:flex;flex-direction:column;gap:3px;
+        font-size:9.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted)}
+  @media (max-width:420px){
+    .cell{padding:30px 22px 22px}
   }
 </style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="sheet"></div>
+  <div class="plan"><i></i><i></i><i></i><b></b></div>
+  <div class="band"></div>
+  <div class="glow"></div>
+
+  <main class="cell">
+    <div class="mark"><img src="/geocon-mark.png" alt="Geocon"
+         onerror="this.style.display='none'"></div>
     <div class="eyebrow">Geocon x 100% Digital</div>
     <h1>Performance<br>dashboard</h1>
     <p class="lede">Live paid-media reporting for the Geocon developments. Enter your password to continue.</p>
@@ -144,17 +204,14 @@ LOGIN_HTML = """<!doctype html>
       <input type="password" name="password" placeholder="Password" autofocus
              autocomplete="current-password" aria-label="Password">
       <button type="submit">Enter <span class="arw" aria-hidden="true">&#8599;</span></button>
+      <div class="err">{{ error or "" }}</div>
     </form>
-    <div class="err">{{ error or "" }}</div>
     <div class="rule"></div>
-    <footer>
-      <div class="mark"><img src="/geocon-mark.png" alt="Geocon"
-           onerror="this.style.display='none'"></div>
-      <div class="meta">Gateway Braddon &middot; Northbourne Gateway<br>Reporting by 100% Digital</div>
-    </footer>
-  </div>
+    <div class="meta"><span>Gateway Braddon &middot; Northbourne Gateway</span><span>Reporting by 100% Digital</span></div>
+  </main>
 </body>
-</html>"""
+</html>
+"""
 
 
 def authed():
@@ -301,6 +358,16 @@ def logo():
     if LOGO_PNG is None:
         abort(404)
     return Response(LOGO_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/geocon-mark.png")
+def geocon_mark():
+    """Serve the Geocon corporate wordmark. Public - the LOGIN page renders it, so requiring auth
+    here would leave a broken image on the one page nobody is authenticated for yet."""
+    if GEOCON_MARK_PNG is None:
+        abort(404)
+    return Response(GEOCON_MARK_PNG, mimetype="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
