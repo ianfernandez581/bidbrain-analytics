@@ -67,6 +67,20 @@ Exactly **five surfaces** on Overview: the **masthead** (`marble-band.jpg`), the
 notice**, the **eight-cell KPI slab**, the **budget-pacing panel** and the **"on track to goal?"
 panel** (all `marble-cell.jpg`). `marble-tile.jpg` is used only for the Creative tab's fallback tiles.
 
+Two later additions, both deliberate extensions of the five:
+
+- **Paid Media panel title bands.** `#tab-paid .card::before` paints a marble band across the
+  TITLE area only, MASKED with a `linear-gradient` so it fades out completely before the table or
+  the plot begins - the rule that texture must never sit behind dense data still holds, and the
+  data still sits on clean paper. The white wash is baked in as a first background layer rather
+  than a second pseudo-element, so it needs no extra DOM and cannot fight `.card.marble`'s
+  `::after`. Different crop per panel, same reason the eight KPI tiles differ.
+- **The login card** (`dash/main.py` `LOGIN_HTML`) uses `marble-cell.jpg` at a .42 wash, so the
+  login reads as the dashboard's front door rather than a different product. It carries the full
+  Chronicle type stack too - Fraunces italic title, Inter eyebrow, and IBM Plex Mono on the
+  password field, the one value a user types. The aurora there is CSS-only (orbs + bands, no
+  canvas): a login page should render instantly and has no business running a rAF loop.
+
 **It must NOT go behind** the funnel-stage table, the delivery-over-time chart, the funnel bar list,
 the donut, the tab bar or the filter row. Texture behind dense data is where this design gets cheap -
 that is the one failure mode to avoid, and `.card.marble` is opt-in precisely so it cannot creep.
@@ -101,6 +115,12 @@ the only MODELLED figure on the page - it reads differently because it *is* diff
 carry a 2px ink left border as well; that went when the corners were rounded, since a one-sided
 border on a rounded corner always looks like a mistake. The serif figure plus a slightly deeper rest
 shadow now carry it alone. **Do not extend this to another tile**; if every tile is special, none are.
+
+**The modelled tile has no foot line.** It carried both a badge and a "pending target 120 - 30% of
+enquiries" line, which made it taller than every other tile and forced row 1 to out-size row 2.
+`kpiCard` now omits an empty `.sub` entirely rather than rendering `&nbsp;` (a blank foot line
+still takes a line box, which was the actual cause). Nothing is lost: the same target and rate are
+stated on the pacing panel's goal bars and again in the "How to read this" note.
 
 **Label heights are reserved on purpose.** `.kpi .label` has `min-height:27px` (two lines) and
 `letter-spacing:.18em` rather than .24em: at 4-up, a label like "QUALIFIED LEADS (MODELLED)" wraps,
@@ -148,9 +168,12 @@ cheapest way to cut accumulation). Saturation is safe; darkness is not.
 
 The aurora has now been through three settings: the original (saturated cyan, "too overpowering"),
 a very quiet pass, and the current one - colour and motion back up, still short of the original.
-Current dials: orb/band alphas ~.28-.48, curtain count `W/75`, curtain opacity `0.13+0.17`, and the
-canvas time step `time += 0.019` (0.004 reads as static; past ~0.03 it distracts from the data).
-Durations were shortened ~35% so the movement is actually noticeable.
+Current dials: orb/band alphas ~.28-.48, curtain count `W/75`, curtain opacity `0.13+0.17`, sway
+amplitude `30+66`, and the canvas time step `time += 0.027` - deliberately near the top of the
+usable range, because the client asked twice for more visible movement (0.004 reads as static;
+past ~0.035 it competes with the data). Durations are ~55% shorter than the quiet pass and the
+orb/band travel distances were roughly doubled, which is what actually makes the motion legible -
+a slow keyframe over a short distance reads as still no matter how high the alpha.
 
 **Four rules that will break this design if ignored** (they are also written into the `:root` block):
 

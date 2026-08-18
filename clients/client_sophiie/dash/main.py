@@ -83,65 +83,83 @@ LOGIN_HTML = """<!doctype html>
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
 <style>
-  /* Sophiie AI - the same AURORA skin as the dashboard, so the login is the front door to it rather
-     than a different product: a white card on a pale-blue canvas lit by drifting blue light.
-     CSS ONLY here (no canvas, no JS) - a login page should render instantly and needs no rAF loop.
-     Keep the two in step: these literals mirror the :root tokens in dashboard.html. */
+  /* Sophiie AI - the same skin as the dashboard, so the login reads as its front door rather than a
+     different product: "Chronicle - marble" (Fraunces italic display, Inter UI, IBM Plex Mono for the
+     one value the user types) on a marble card lifted on shadow, over the drifting aurora.
+     CSS ONLY here - no canvas and no JS, because a login page should render instantly and has no
+     business running a requestAnimationFrame loop. So the aurora here is the two CSS layers only
+     (orbs + diagonal bands); the canvas curtain layer is dashboard-side.
+     Keep the two in step: every literal below mirrors a :root token in dashboard.html. */
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
        font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:#F8FAFF;color:#111827;position:relative;overflow:hidden}
+       background:#EFEEEB;color:#0F0E0D;position:relative;overflow:hidden}
 
   /* layer 1 - ambient orbs */
   .orb{position:fixed;border-radius:50%;filter:blur(120px);pointer-events:none;z-index:0}
-  .orb1{width:60vw;height:50vh;top:-8%;left:-10%;animation:amb1 18s ease-in-out infinite;
-        background:radial-gradient(circle,rgba(43,132,180,.22) 0%,transparent 70%)}
-  .orb2{width:50vw;height:45vh;top:4%;right:-8%;animation:amb2 22s ease-in-out infinite;
-        background:radial-gradient(circle,rgba(80,160,220,.18) 0%,transparent 70%)}
-  .orb3{width:55vw;height:50vh;bottom:-12%;left:14%;animation:amb3 25s ease-in-out infinite;
-        background:radial-gradient(circle,rgba(34,211,238,.14) 0%,transparent 70%)}
-  @keyframes amb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(80px,60px) scale(1.10)}}
-  @keyframes amb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,50px) scale(1.08)}}
-  @keyframes amb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(50px,-80px) scale(1.05)}}
+  .orb1{width:60vw;height:50vh;top:-8%;left:-10%;animation:amb1 9s ease-in-out infinite;
+        background:radial-gradient(circle,rgba(116,170,212,.46) 0%,transparent 70%)}
+  .orb2{width:50vw;height:45vh;top:4%;right:-8%;animation:amb2 11s ease-in-out infinite;
+        background:radial-gradient(circle,rgba(126,198,220,.38) 0%,transparent 70%)}
+  .orb3{width:55vw;height:50vh;bottom:-12%;left:14%;animation:amb3 12s ease-in-out infinite;
+        background:radial-gradient(circle,rgba(124,176,216,.30) 0%,transparent 70%)}
+  @keyframes amb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(180px,130px) scale(1.22)}}
+  @keyframes amb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-165px,120px) scale(1.20)}}
+  @keyframes amb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(130px,-175px) scale(1.18)}}
 
   /* layer 2 - the diagonal signature bands. Each keeps its own rotate() in EVERY keyframe: a
      transform is one property, so a frame that omits the rotation snaps the band flat. */
   .diag{position:fixed;pointer-events:none;z-index:0;transform-origin:center center}
-  .d1{width:160%;height:300px;top:-6%;left:-30%;transform:rotate(-18deg);animation:sw1 12s ease-in-out infinite;
-      background:linear-gradient(180deg,transparent 0%,rgba(43,132,180,.10) 20%,rgba(80,170,230,.20) 45%,rgba(100,190,245,.22) 55%,rgba(43,132,180,.10) 80%,transparent 100%)}
-  .d2{width:150%;height:250px;top:26%;left:-25%;transform:rotate(-22deg);animation:sw2 15s ease-in-out infinite;
-      background:linear-gradient(180deg,transparent 0%,rgba(34,211,238,.08) 20%,rgba(100,210,250,.18) 45%,rgba(130,220,255,.20) 55%,rgba(34,211,238,.08) 80%,transparent 100%)}
-  .d3{width:160%;height:290px;top:62%;left:-30%;transform:rotate(-15deg);animation:sw3 11s ease-in-out infinite;
-      background:linear-gradient(180deg,transparent 0%,rgba(80,170,230,.08) 20%,rgba(43,132,180,.16) 45%,rgba(100,190,245,.18) 55%,rgba(80,170,230,.08) 80%,transparent 100%)}
-  @keyframes sw1{0%{transform:rotate(-18deg) translate(0,0);opacity:.8}25%{transform:rotate(-18deg) translate(40px,30px);opacity:1}50%{transform:rotate(-18deg) translate(-20px,60px);opacity:.7}75%{transform:rotate(-18deg) translate(30px,15px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.8}}
-  @keyframes sw2{0%{transform:rotate(-22deg) translate(0,0);opacity:.7}30%{transform:rotate(-22deg) translate(-50px,40px);opacity:1}60%{transform:rotate(-22deg) translate(30px,-20px);opacity:.8}100%{transform:rotate(-22deg) translate(0,0);opacity:.7}}
-  @keyframes sw3{0%{transform:rotate(-15deg) translate(0,0);opacity:.9}33%{transform:rotate(-15deg) translate(35px,-35px);opacity:.7}66%{transform:rotate(-15deg) translate(-25px,45px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.9}}
+  .d1{width:160%;height:300px;top:-6%;left:-30%;transform:rotate(-18deg);animation:sw1 5.5s ease-in-out infinite;
+      background:linear-gradient(180deg,transparent 0%,rgba(116,170,212,.24) 20%,rgba(126,198,220,.44) 45%,rgba(140,206,228,.48) 55%,rgba(116,170,212,.24) 80%,transparent 100%)}
+  .d2{width:150%;height:250px;top:26%;left:-25%;transform:rotate(-22deg);animation:sw2 7s ease-in-out infinite;
+      background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.20) 20%,rgba(132,180,222,.38) 45%,rgba(140,206,228,.42) 55%,rgba(126,198,220,.20) 80%,transparent 100%)}
+  .d3{width:160%;height:290px;top:62%;left:-30%;transform:rotate(-15deg);animation:sw3 5s ease-in-out infinite;
+      background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.18) 20%,rgba(116,170,212,.34) 45%,rgba(126,198,220,.38) 55%,rgba(126,198,220,.18) 80%,transparent 100%)}
+  @keyframes sw1{0%{transform:rotate(-18deg) translate(0,0);opacity:.8}25%{transform:rotate(-18deg) translate(70px,52px);opacity:1}50%{transform:rotate(-18deg) translate(-38px,100px);opacity:.7}75%{transform:rotate(-18deg) translate(54px,26px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.8}}
+  @keyframes sw2{0%{transform:rotate(-22deg) translate(0,0);opacity:.7}30%{transform:rotate(-22deg) translate(-88px,70px);opacity:1}60%{transform:rotate(-22deg) translate(54px,-36px);opacity:.8}100%{transform:rotate(-22deg) translate(0,0);opacity:.7}}
+  @keyframes sw3{0%{transform:rotate(-15deg) translate(0,0);opacity:.9}33%{transform:rotate(-15deg) translate(62px,-62px);opacity:.7}66%{transform:rotate(-15deg) translate(-45px,80px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.9}}
 
-  /* the card - SOLID white over the moving light (never translucent: see dashboard.html :root) */
-  .card{position:relative;z-index:1;width:100%;max-width:392px;padding:38px 34px;background:#fff;
-        border:1px solid rgba(17,24,39,.07);border-radius:20px;
-        box-shadow:0 1px 3px rgba(17,24,39,.04),0 24px 60px -24px rgba(20,9,52,.28),0 0 44px -18px rgba(43,132,180,.35)}
+  /* The card - SOLID over the moving light (never translucent: see dashboard.html :root), on the same
+     marble as the dashboard's KPI tiles with the same white wash, and lifted on shadow with NO border.
+     `overflow:hidden` plus `border-radius:inherit` on the wash, or the overlay paints square corners
+     over the rounded card. */
+  .card{position:relative;z-index:1;width:100%;max-width:392px;padding:40px 36px 36px;border:0;border-radius:14px;
+        background:#fff url("marble-cell.jpg") 34% 42%/230% no-repeat;overflow:hidden;
+        box-shadow:0 2px 6px rgba(15,14,13,.06),0 26px 56px -20px rgba(15,14,13,.30)}
+  .card::after{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+        background:rgba(255,255,255,.42)}
+  .card>*{position:relative;z-index:1}
   .logo-wrap{text-align:center;margin-bottom:22px}
   /* Sophiie's supplied mark is a white-field icon, so on a white card it needs no chip and no glow -
      just size. (The placeholder it replaced was a dark tile, which did want both.) */
-  .logo-wrap img{height:96px;width:96px;display:inline-block}
-  .brand{font-size:10px;font-weight:700;letter-spacing:2.2px;color:#206387;margin-bottom:9px;text-transform:uppercase;text-align:center}
-  h1{font-size:22px;font-weight:700;margin:0 0 5px;letter-spacing:-.4px;text-align:center}
-  p{font-size:13px;color:#6B7689;margin:0 0 22px;text-align:center}
-  input{width:100%;padding:13px 15px;font-size:15px;font-family:inherit;color:#111827;background:#fff;
-        border:1.5px solid rgba(17,24,39,.13);border-radius:10px;outline:none;transition:border-color .15s,box-shadow .15s}
-  input:focus{border-color:#2b84b4;box-shadow:0 0 0 3px rgba(43,132,180,.16)}
-  input::placeholder{color:#98A2B3}
+  /* The mark has NO alpha channel (indexed PNG on a white field), so over marble its white field
+     would read as a stray rectangle. A rounded chip makes the white deliberate - the same fix the
+     dashboard topbar uses. */
+  .logo-wrap img{height:74px;width:74px;display:inline-block;background:#fff;border-radius:16px;padding:5px;
+        box-shadow:0 1px 2px rgba(15,14,13,.04),0 8px 20px -10px rgba(15,14,13,.22)}
+  /* eyebrow / display title / dek - the dashboard's three-tier heading pattern */
+  .brand{font-size:9px;font-weight:500;letter-spacing:.24em;color:#6A6660;margin-bottom:11px;text-transform:uppercase;text-align:center}
+  h1{font-family:"Fraunces",Georgia,serif;font-style:italic;font-size:29px;font-weight:500;margin:0 0 7px;
+     letter-spacing:-.025em;text-align:center;color:#0F0E0D;line-height:1.15}
+  p{font-size:12.5px;color:#3A3733;margin:0 0 24px;text-align:center;line-height:1.6}
+  /* the one value the user types is set in the mono, like every measured figure on the dashboard */
+  input{width:100%;padding:13px 15px;font-size:14px;font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+        letter-spacing:.02em;color:#0F0E0D;background:#fff;
+        border:.5px solid rgba(15,14,13,.20);border-radius:9px;outline:none;transition:border-color .15s,box-shadow .15s}
+  input:focus{border-color:#0F0E0D;box-shadow:none}
+  input::placeholder{color:#A8A29A;letter-spacing:.14em;text-transform:uppercase;font-size:11px}
   /* WHITE on the Sophiie blue - the brand's accent is dark enough to carry it (the opposite of the
      lime-brand dashboards, whose accent must carry ink). */
-  button{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;
-         background:linear-gradient(135deg,#2b84b4,#206387);color:#fff;border:none;border-radius:10px;
-         transition:transform .1s ease,box-shadow .2s ease;letter-spacing:.2px}
-  button:hover{transform:translateY(-1px);box-shadow:0 10px 24px -8px rgba(43,132,180,.75)}
+  button{width:100%;margin-top:12px;padding:14px;font-size:10px;font-weight:500;cursor:pointer;font-family:inherit;
+         letter-spacing:.24em;text-transform:uppercase;
+         background:#0F0E0D;color:#fff;border:none;border-radius:9px;
+         transition:transform .22s cubic-bezier(.2,.7,.3,1),box-shadow .22s cubic-bezier(.2,.7,.3,1)}
+  button:hover{transform:translateY(-2px);box-shadow:0 2px 6px rgba(15,14,13,.06),0 18px 34px -14px rgba(15,14,13,.40)}
   button:active{transform:translateY(0)}
-  .err{margin-top:14px;font-size:13px;color:#C0392B;min-height:16px;text-align:center}
+  .err{margin-top:14px;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;color:#7A241F;min-height:16px;text-align:center}
   @media (prefers-reduced-motion: reduce){.orb,.diag{animation:none !important}button:hover{transform:none}}
 </style>
 </head>
@@ -153,7 +171,7 @@ LOGIN_HTML = """<!doctype html>
       <img src="/logo.png" alt="Sophiie AI">
     </div>
     <div class="brand">BidBrain · Sophiie AI</div>
-    <h1>Dashboard Access</h1>
+    <h1>Dashboard access</h1>
     <p>Enter the password to continue.</p>
     <input type="password" name="password" placeholder="Password" autofocus
            autocomplete="current-password">

@@ -140,38 +140,38 @@
      #EFEEEB shell and the whole page looked dirty. Hues must stay LIGHT - near the shell's own
      luminance - and the two dials are ALPHA and STRIP COUNT. Saturation is safe; darkness is not.
      Louder: raise the alphas here and in .aurora-diag together, and shorten the durations. */
-  .aurora-ambient__orb--1{width:60vw;height:50vh;top:-8%;left:-10%;animation:amb1 13s ease-in-out infinite;
+  .aurora-ambient__orb--1{width:60vw;height:50vh;top:-8%;left:-10%;animation:amb1 9s ease-in-out infinite;
        background:radial-gradient(circle,rgba(116,170,212,.46) 0%,transparent 70%)}
-  .aurora-ambient__orb--2{width:50vw;height:45vh;top:5%;right:-8%;animation:amb2 16s ease-in-out infinite;
+  .aurora-ambient__orb--2{width:50vw;height:45vh;top:5%;right:-8%;animation:amb2 11s ease-in-out infinite;
        background:radial-gradient(circle,rgba(126,198,220,.38) 0%,transparent 70%)}
-  .aurora-ambient__orb--3{width:55vw;height:50vh;bottom:-10%;left:15%;animation:amb3 18s ease-in-out infinite;
+  .aurora-ambient__orb--3{width:55vw;height:50vh;bottom:-10%;left:15%;animation:amb3 12s ease-in-out infinite;
        background:radial-gradient(circle,rgba(124,176,216,.30) 0%,transparent 70%)}
-  .aurora-ambient__orb--4{width:45vw;height:40vh;top:30%;right:10%;animation:amb4 15s ease-in-out infinite;
+  .aurora-ambient__orb--4{width:45vw;height:40vh;top:30%;right:10%;animation:amb4 10s ease-in-out infinite;
        background:radial-gradient(circle,rgba(112,180,206,.28) 0%,transparent 70%)}
-  @keyframes amb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(120px,90px) scale(1.16)}}
-  @keyframes amb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-110px,80px) scale(1.14)}}
-  @keyframes amb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(85px,-120px) scale(1.12)}}
-  @keyframes amb4{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-95px,-70px) scale(1.18)}}
+  @keyframes amb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(180px,130px) scale(1.22)}}
+  @keyframes amb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-165px,120px) scale(1.20)}}
+  @keyframes amb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(130px,-175px) scale(1.18)}}
+  @keyframes amb4{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-145px,-105px) scale(1.24)}}
 
   /* Diagonal bands: wide, shallow-angled sweeps of blue light. Each keeps its OWN rotate() inside
      every keyframe - a transform is one property, so omitting the rotation in a frame would snap the
      band flat mid-animation. Each has 3-4 stops (not 2) so the drift path reads organic. */
   .aurora-diag{position:absolute;transform-origin:center center}
-  .aurora-diag--1{width:160%;height:320px;top:-8%;left:-30%;transform:rotate(-18deg);animation:diag-sweep1 8s ease-in-out infinite;
+  .aurora-diag--1{width:160%;height:320px;top:-8%;left:-30%;transform:rotate(-18deg);animation:diag-sweep1 5.5s ease-in-out infinite;
        background:linear-gradient(180deg,transparent 0%,rgba(116,170,212,.24) 20%,rgba(126,198,220,.44) 45%,rgba(140,206,228,.48) 55%,rgba(116,170,212,.24) 80%,transparent 100%)}
-  .aurora-diag--2{width:150%;height:260px;top:12%;left:-25%;transform:rotate(-22deg);animation:diag-sweep2 10s ease-in-out infinite;
+  .aurora-diag--2{width:150%;height:260px;top:12%;left:-25%;transform:rotate(-22deg);animation:diag-sweep2 7s ease-in-out infinite;
        background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.20) 20%,rgba(132,180,222,.38) 45%,rgba(140,206,228,.42) 55%,rgba(126,198,220,.20) 80%,transparent 100%)}
-  .aurora-diag--3{width:160%;height:350px;top:28%;left:-30%;transform:rotate(-15deg);animation:diag-sweep3 7s ease-in-out infinite;
+  .aurora-diag--3{width:160%;height:350px;top:28%;left:-30%;transform:rotate(-15deg);animation:diag-sweep3 5s ease-in-out infinite;
        background:linear-gradient(180deg,transparent 0%,rgba(116,170,212,.18) 15%,rgba(126,198,220,.38) 40%,rgba(116,170,212,.44) 55%,rgba(116,170,212,.18) 85%,transparent 100%)}
-  .aurora-diag--4{width:150%;height:240px;top:50%;left:-25%;transform:rotate(-20deg);animation:diag-sweep4 9.5s ease-in-out infinite;
+  .aurora-diag--4{width:150%;height:240px;top:50%;left:-25%;transform:rotate(-20deg);animation:diag-sweep4 6.5s ease-in-out infinite;
        background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.16) 20%,rgba(116,170,212,.34) 45%,rgba(126,198,220,.38) 55%,rgba(126,198,220,.16) 80%,transparent 100%)}
-  .aurora-diag--5{width:160%;height:280px;top:68%;left:-30%;transform:rotate(-17deg);animation:diag-sweep5 7.5s ease-in-out infinite;
+  .aurora-diag--5{width:160%;height:280px;top:68%;left:-30%;transform:rotate(-17deg);animation:diag-sweep5 5.5s ease-in-out infinite;
        background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.18) 20%,rgba(116,170,212,.34) 45%,rgba(126,198,220,.38) 55%,rgba(126,198,220,.18) 80%,transparent 100%)}
-  @keyframes diag-sweep1{0%{transform:rotate(-18deg) translate(0,0);opacity:.8}25%{transform:rotate(-18deg) translate(40px,30px);opacity:1}50%{transform:rotate(-18deg) translate(-20px,60px);opacity:.7}75%{transform:rotate(-18deg) translate(30px,15px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.8}}
-  @keyframes diag-sweep2{0%{transform:rotate(-22deg) translate(0,0);opacity:.7}30%{transform:rotate(-22deg) translate(-50px,40px);opacity:1}60%{transform:rotate(-22deg) translate(30px,-20px);opacity:.8}100%{transform:rotate(-22deg) translate(0,0);opacity:.7}}
-  @keyframes diag-sweep3{0%{transform:rotate(-15deg) translate(0,0);opacity:.9}33%{transform:rotate(-15deg) translate(35px,-35px);opacity:.7}66%{transform:rotate(-15deg) translate(-25px,45px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.9}}
-  @keyframes diag-sweep4{0%{transform:rotate(-20deg) translate(0,0);opacity:.8}40%{transform:rotate(-20deg) translate(-40px,50px);opacity:1}70%{transform:rotate(-20deg) translate(20px,-10px);opacity:.7}100%{transform:rotate(-20deg) translate(0,0);opacity:.8}}
-  @keyframes diag-sweep5{0%{transform:rotate(-17deg) translate(0,0);opacity:.7}35%{transform:rotate(-17deg) translate(45px,25px);opacity:1}65%{transform:rotate(-17deg) translate(-30px,50px);opacity:.8}100%{transform:rotate(-17deg) translate(0,0);opacity:.7}}
+  @keyframes diag-sweep1{0%{transform:rotate(-18deg) translate(0,0);opacity:.8}25%{transform:rotate(-18deg) translate(70px,52px);opacity:1}50%{transform:rotate(-18deg) translate(-38px,100px);opacity:.7}75%{transform:rotate(-18deg) translate(54px,26px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.8}}
+  @keyframes diag-sweep2{0%{transform:rotate(-22deg) translate(0,0);opacity:.7}30%{transform:rotate(-22deg) translate(-88px,70px);opacity:1}60%{transform:rotate(-22deg) translate(54px,-36px);opacity:.8}100%{transform:rotate(-22deg) translate(0,0);opacity:.7}}
+  @keyframes diag-sweep3{0%{transform:rotate(-15deg) translate(0,0);opacity:.9}33%{transform:rotate(-15deg) translate(62px,-62px);opacity:.7}66%{transform:rotate(-15deg) translate(-45px,80px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.9}}
+  @keyframes diag-sweep4{0%{transform:rotate(-20deg) translate(0,0);opacity:.8}40%{transform:rotate(-20deg) translate(-70px,88px);opacity:1}70%{transform:rotate(-20deg) translate(36px,-18px);opacity:.7}100%{transform:rotate(-20deg) translate(0,0);opacity:.8}}
+  @keyframes diag-sweep5{0%{transform:rotate(-17deg) translate(0,0);opacity:.7}35%{transform:rotate(-17deg) translate(80px,44px);opacity:1}65%{transform:rotate(-17deg) translate(-54px,88px);opacity:.8}100%{transform:rotate(-17deg) translate(0,0);opacity:.7}}
 
   /* topbar - deliberately has NO bar: the aurora runs straight through it and only the chips,
      pills and the mark are solid, so the page opens on the animation rather than on chrome. */
@@ -218,8 +218,12 @@
   /* Sticky and SOLID: it travels over the aurora, and a translucent bar would let the curtains slide
      under the tab labels. Rounded + lifted like every other surface; no marble, because texture behind
      controls reads as noise. */
+  /* margin-top matches .pholder's, so the first surface sits the same distance below the masthead
+     whether or not the sample-data notice is showing. */
   .control-bar{background:var(--paper);border:0;border-radius:var(--radius);
-               box-shadow:var(--elev-1);padding:0 20px;margin:14px 0 26px;position:sticky;top:12px;z-index:30}
+               box-shadow:var(--elev-1);padding:0 20px;margin:26px 0 26px;position:sticky;top:12px;z-index:30}
+  /* ...but once the notice IS showing it has already provided that air, so don't double it. */
+  .pholder + .control-bar{margin-top:0}
   .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--hair)}
   /* Tabs lose the pill entirely: uppercase letterspaced labels on a rule, the active one underlined.
      Reads as an editorial index rather than as a segmented control. */
@@ -295,7 +299,7 @@
   .date-scope b{color:var(--ink);font-weight:500;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 
   /* SURFACE 2/5 - the sample-data notice. Shown only when meta.placeholder is true. */
-  .pholder{display:flex;align-items:center;gap:16px;margin:0 0 20px;padding:18px 22px;border-radius:var(--radius);
+  .pholder{display:flex;align-items:center;gap:16px;margin:26px 0 20px;padding:18px 22px;border-radius:var(--radius);
            --wash:.46;background-image:url("marble-cell.jpg");background-size:230%;background-position:38% 30%;
            border:0;box-shadow:var(--elev-1);overflow:hidden;position:relative}
   .pholder::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;
@@ -348,6 +352,25 @@
   .card.marble::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;background:rgba(255,255,255,var(--wash))}
   .card.marble>*{position:relative;z-index:1}
   .card.marble.goal{background-position:72% 22%;--wash:.50}
+
+  /* ---- MARBLE TITLE BANDS (Paid Media) ------------------------------------------------------
+     The client asked for more marble on this tab's panel titles. The rule that texture must never
+     sit behind dense data still holds, so the stone is confined to a band across the TITLE area and
+     MASKED so it fades out completely before the table or the plot begins - the data still sits on
+     clean paper. The white wash is baked in as a first background layer rather than a second
+     pseudo-element, so this needs no extra DOM and cannot fight the `.card.marble` ::after.
+     Height is tuned to the two-line title+hint these cards actually have; the mask does the rest. */
+  #tab-paid .card::before{content:"";position:absolute;top:0;left:0;right:0;height:112px;z-index:0;
+       pointer-events:none;border-radius:var(--radius) var(--radius) 0 0;
+       background:linear-gradient(rgba(255,255,255,.43),rgba(255,255,255,.43)),
+                  url("marble-cell.jpg") 30% 38%/190% no-repeat;
+       -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 44%,transparent 100%);
+               mask-image:linear-gradient(180deg,#000 0%,#000 44%,transparent 100%)}
+  #tab-paid .card>*{position:relative;z-index:1}
+  /* a different crop per panel, for the same reason the eight KPI tiles get different crops */
+  #tab-paid .card:nth-of-type(even)::before{background-position:0 0,68% 22%}
+  #tab-paid .grid .card:nth-child(2)::before{background-position:0 0,52% 70%}
+  #tab-paid .grid:nth-of-type(odd) .card:nth-child(1)::before{background-position:0 0,18% 56%}
   .chartbox{position:relative;height:300px} .chartbox.tall{height:340px} .chartbox.sm{height:260px}
   /* The blue bloom that used to sit behind each plot is GONE - Chronicle has no glows and no
      shadows, and a tinted haze under a chart fights the desaturated series colours. */
@@ -414,8 +437,11 @@
   /* 3. the foot line */
   .kpi .sub{font-family:var(--f-ui);font-size:11px;color:var(--ink-2);margin-top:14px;line-height:1.5}
   .kpi .badge{display:block;font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.2em;
-       text-transform:uppercase;padding:0 0 6px;border-radius:0;margin-top:14px;
+       text-transform:uppercase;padding:0 0 8px;border-radius:0;margin-top:14px;
        background:none;color:var(--ink-3);border-bottom:.5px solid var(--rule-strong)}
+  /* when the badge is the last child (the modelled tile) it owns the tile's bottom rhythm, so the
+     rule under it must not sit hard against the padding edge */
+  .kpi .badge:last-child{padding-bottom:2px;border-bottom:0}
 
   /* ---- THE ONE HIGHLIGHTED CELL -------------------------------------------------------------
      "Qualified leads (modelled)" is the only MODELLED figure on the page, so it is the only one set
@@ -1054,7 +1080,10 @@ function kpiCard(o){
   // the number it precedes. Done here, on the rendered string, so money() stays plain text for the
   // CSV exports and the AI-deck payload.
   const val=String(o.value).replace(/^A\$/,'<span class="cur">A$</span>');
-  return `<article class="kpi${clk}${north}"${attr} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${val}</div>${badge}<div class="sub">${o.sub||'&nbsp;'}</div></article>`;
+  // An EMPTY sub is omitted entirely rather than rendered as &nbsp; - a blank foot line still takes a
+  // line box, which is exactly what made the modelled tile taller than its neighbours.
+  const foot=o.sub?`<div class="sub">${o.sub}</div>`:'';
+  return `<article class="kpi${clk}${north}"${attr} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${val}</div>${badge}${foot}</article>`;
 }
 function renderKpis(){
   const a=agg(scoped());
@@ -1068,8 +1097,11 @@ function renderKpis(){
       sub:leadT!=null?`${targetPending('flight_lead_target')?'pending ':''}target ${int(leadT)}`:'Meta-reported'},
     {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
       sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
+    // No foot line on purpose: the badge already qualifies the figure, and a second line here made
+    // this tile taller than every other one in the row. The target and the assumed rate are still on
+    // the page - see the pacing panel's goal bars and the "How to read this" note.
     {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
-      sub:`${qT!=null?`${targetPending('qualified_lead_target')?'pending ':''}target ${int(qT)}`:'goal not set'} · ${pctWhole(qualRate())} of enquiries`,badge:'modelled · no CRM feed'},
+      sub:'',badge:'modelled · no CRM feed'},
     {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight`:'budget not set'}
   ];
@@ -1513,7 +1545,7 @@ if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(t
         width:50+Math.random()*150,
         speed:0.25+Math.random()*0.5,          // each strip sways at its own rate ...
         phase:Math.random()*Math.PI*2,         // ... from its own start, so none of them sync
-        amplitude:20+Math.random()*50,
+        amplitude:30+Math.random()*66,        // wider sway - the movement has to be legible
         color:pickColor(i/count),
         opacity:0.13+Math.random()*0.17,         // light hues need real alpha to register at all
         heightFactor:0.55+Math.random()*0.45,
@@ -1550,8 +1582,9 @@ if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(t
 
   function draw(){
     // Per-frame time step - the single "how alive is it" dial. 0.004 reads as static and loses the
-    // whole idea; past ~0.03 it distracts from the data. 0.019 is deliberately on the lively side.
-    time+=0.019;
+    // whole idea; past ~0.035 it starts competing with the data for attention. 0.027 is deliberately
+    // near the top of the usable range: the client asked twice for more visible movement.
+    time+=0.027;
     ctx.clearRect(0,0,W,H);
     for(const c of curtains)drawCurtain(c);
     requestAnimationFrame(draw);
