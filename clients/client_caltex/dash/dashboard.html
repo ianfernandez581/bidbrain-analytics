@@ -419,11 +419,11 @@
       <div class="card" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative impressions across the flight vs the straight-line pace needed to reach the impression target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
 
       <div class="grid cols-2">
-        <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks → ad-attributed <b>site visits</b> (post-view + post-click) on the Star Card landing page. Display is upper-funnel, so post-view rightly dominates. These are page visits, <b>not</b> applications - see the note at the foot of this tab.</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card"><h3>Attention funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible; the number is the count. Impressions → clicks: how much of the attention bought went on to a click. Display is upper-funnel, so the click step is naturally small - judge it against the CTR target, not against 100%.</div><div id="funnelList" style="margin-top:6px"></div></div>
         <div class="card"><h3>Spend by tactic</h3><div class="hint">Where the budget is going across the three buying tactics. Click a legend item to hide or show a tactic.</div><div class="chartbox" style="height:280px"><canvas id="tacticDonut"></canvas></div></div>
       </div>
 
-      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery and engagement per funnel stage, as set in The Trade Desk. <b>All three ad groups are currently set to Awareness</b>, so this shows a single row - it splits out automatically when a consideration phase is added. For the three-way tactic split, see <b>Spend by tactic</b> above.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Site visits</th></tr></thead><tbody></tbody></table></div></div>
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, delivery and engagement per funnel stage, as set in The Trade Desk. <b>All three ad groups are currently set to Awareness</b>, so this shows a single row - it splits out automatically when a consideration phase is added. For the three-way tactic split, see <b>Spend by tactic</b> above.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
 
       <div class="section"><h2>Where it ran</h2><span class="sub">Delivery by market and by creative format for the Caltex campaign - honours the date filter.</span></div>
       <div class="grid cols-2">
@@ -443,11 +443,11 @@
 
       <div class="card" style="margin-top:14px">
         <h3>Performance vs targets - by ad group</h3>
-        <div class="hint">CPM / CTR / CPC per ad group. Once the signed media plan is seeded each metric gains a <b>vs-target</b> delta here (green = beating target); until then the &Delta; columns read "-" rather than compare against an assumed number.</div>
+        <div class="hint">CPM / CTR / CPC per ad group, each against its target (green = beating target). <b>CPM, CTR and the impression target come from the signed media plan; the CPC target is marked "est." because it is our own inference, not a plan commitment</b> - read its &Delta; as a sanity check, not as a missed KPI.</div>
         <div class="tablewrap"><table id="benchTable"><thead><tr>
           <th>Ad group</th><th>Stage</th><th class="num">Spend</th><th class="num">Impressions</th>
           <th class="num">CPM</th><th class="num">Δ</th><th class="num">CTR</th><th class="num">Δ</th>
-          <th class="num">CPC</th><th class="num">Δ</th><th class="num">Site visits</th></tr></thead><tbody></tbody></table></div>
+          <th class="num">CPC</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="grid cols-2">
@@ -464,10 +464,10 @@
         <div class="card" id="videoCard"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>Starts</b> = the hook; <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
       </div>
 
-      <div class="grid cols-2">
-        <div class="card"><h3>Delivery by day of week</h3><div class="hint">Impressions (bars) and CTR (line) by weekday across the selected range - when Caltex is seen, and when the ads get clicked.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
-        <div class="card"><h3>Site visits - post-view vs post-click</h3><div class="hint">Ad-attributed visits to the <b>Star Card landing page</b>, measured by the Trade Desk "Landing Page Visit" tracker: <b>post-view</b> = saw an ad, later landed on the page; <b>post-click</b> = clicked the ad through. Post-view dominating is normal for upper-funnel display. These are <b>page visits, not applications</b>.</div><div class="chartbox" style="height:250px"><canvas id="actionSplitChart"></canvas></div><div class="hint" id="actionNote" style="margin-top:8px"></div></div>
-      </div>
+      <!-- The "Site visits - post-view vs post-click" card that sat beside this one was REMOVED
+           2026-08-18 (client request) along with every other site-visit surface; the day-of-week
+           card now runs full width. The pv/pc data path is untouched - see renderKpis(). -->
+      <div class="card" style="margin-top:16px"><h3>Delivery by day of week</h3><div class="hint">Impressions (bars) and CTR (line) by weekday across the selected range - when Caltex is seen, and when the ads get clicked.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
 
       <div class="grid cols-2-1">
         <div class="card"><h3>Spend by ad group</h3><div class="hint">The three buying tactics by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
@@ -476,7 +476,7 @@
 
       <div class="card" style="margin-top:16px">
         <h3>Creative performance</h3><div class="hint">Per-creative delivery + a thin-volume guard (⚠ thin = under 5k impressions - treat its ratios as a weak signal).</div>
-        <div class="tablewrap"><table id="adTable"><thead><tr><th>Creative</th><th>Ad group</th><th>Stage</th><th>Format</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th class="num">Site visits</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+        <div class="tablewrap"><table id="adTable"><thead><tr><th>Creative</th><th>Ad group</th><th>Stage</th><th>Format</th><th class="num">Spend</th><th class="num">Impressions</th><th class="num">CPM</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPC</th><th>Read</th></tr></thead><tbody></tbody></table></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -506,8 +506,9 @@ const charts = {};
 const $ = id => document.getElementById(id);
 
 // standard metric colours (read from CSS vars so the KPI dot == the chart-series colour).
-// TTD semantics: --reach = impressions, --leads = clicks, --qualified = ad-attributed site visits (green = goal),
-// --cost = CPM/CPC, --ctr = CTR, --lpv = video.
+// TTD semantics: --reach = impressions, --leads = clicks, --cost = CPM/CPC, --ctr = CTR, --lpv = video.
+// MC.actions (--qualified) no longer maps to a metric - the site-visit surfaces were removed
+// 2026-08-18 - and survives only as the target-pace line colour on the "On track to goal?" chart.
 const cv = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 const MC = {actions:cv('--qualified'),clicks:cv('--leads'),spend:cv('--spend'),cost:cv('--cost'),ctr:cv('--ctr'),imps:cv('--reach'),video:cv('--lpv'),
   accent:cv('--accent'),accent2:cv('--accent2'),forest:cv('--forest'),ink:cv('--ink'),muted:cv('--muted'),muted2:cv('--muted2'),good:cv('--good')};
@@ -555,6 +556,13 @@ function bench(k){const v=Number((DATA.benchmarks||{})[k]);return Number.isFinit
 function targetItem(k){return (DATA.targets||{})[k]||{};}
 function targetVal(k){const v=Number(targetItem(k).value);return Number.isFinite(v)?v:null;}
 function targetPending(k){return targetItem(k).status==='PENDING';}
+// A DERIVED target is OURS (inferred from the budget/flight), not a number the client signed off in
+// the media plan - `cpc_target_aud` is the live case (A$10, inferred; the plan commits CPM, CTR,
+// impressions and budget, never CPC). Rendering it like a plan commitment invites the client to read
+// a red delta against a benchmark nobody agreed to, so every surface that shows a DERIVED target
+// labels it. HARD = signed plan, SOFT = a plan RANGE, UNMEASURED = committed but not measurable here.
+function targetDerived(k){return targetItem(k).status==='DERIVED';}
+const DERIVED_NOTE=' (our estimate, not a plan target)';
 
 // ===================== shared date-range picker (Looker-style) =====================
 window.DateRange = (function(){
@@ -790,7 +798,7 @@ function render(){
   // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
   [renderPlaceholderBanner,renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderTacticDonut,
    renderFunnel,renderStageTable,renderMarkets,renderFormats,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCpmTrend,
-   renderClicksCtr,renderVideo,renderDow,renderActionSplit,
+   renderClicksCtr,renderVideo,renderDow,
    renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
 }
@@ -838,22 +846,19 @@ function renderKpis(){
   // viewability_target is still read in renderGoals() for the plan-commitment caveat row.
   const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
   const fImps=n(flight().impressions_to_date);const impPct=(impT&&fImps)?Math.round(fImps/impT*100):null;
-  // North-star band: the campaign goals - efficient attention (awareness) + engagement and site
-  // actions (consideration). The tiles that map to a hero line are clickable.
+  // North-star band: the campaign goals - efficient attention (awareness) + engagement
+  // (consideration). The tiles that map to a hero line are clickable.
   const north=[
     {color:MC.imps,north:true,series:'imps',label:'Impressions',value:compact(a.impressions),
       sub:impT!=null?`${targetPending('impressions_target')?'pending ':''}flight target ${compact(impT)}${impPct!=null?` · ${impPct}% there`:''}`:'people reached (gross)'},
     {color:MC.clicks,north:true,series:'clicks',label:'Clicks',value:int(a.clicks),
       sub:`CTR ${pct(a.ctr)}${ctrT!=null?` vs ${pct(ctrT)} target`:''}`},
-    // Until the Trade Desk tracker reports, this tile shows a PENDING state rather than a "-" or a
-    // 0: both read as "broken" or "nobody visited" to a client, when the truth is "instrumented,
-    // not yet flowing". It flips to the real number automatically the moment data lands - no code
-    // change, no redeploy. Keep the copy free of any promised date; we do not control the timing.
-    {color:MC.actions,north:true,series:'actions',label:'Site visits (ad-attributed)',
-      value:a.actions?int(a.actions):'<span class="v-pending">Coming soon</span>',
-      sub:a.actions?`post-view ${int(a.pv)} · post-click ${int(a.pc)}`
-                   :'Tracking is being finalised with The Trade Desk. Visits appear here automatically once data starts flowing.',
-      badge:a.actions?(meta().action_source_label||'TTD pixel-attributed'):'Awaiting Trade Desk data'},
+    // The "Site visits (ad-attributed)" tile was REMOVED 2026-08-18 at the CLIENT'S REQUEST, along
+    // with every other site-visit surface on this dashboard (list in dash/README.md). It is not a
+    // measurement judgement: do not re-add it because the numbers look fine now.
+    // The data path is UNTOUCHED (`a.actions`/`a.pv`/`a.pc` are still summed from rows[], and
+    // sql/job still ship the conversion slots), so reinstating it is a UI-only edit here plus the
+    // surfaces listed in the client README. Do not re-add it until TTD actually returns visits.
     {color:MC.accent,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
       sub:budget?`${spendPct}% of ${money(budget)} flight${targetPending('flight_budget_aud')?' (pending)':''}`:'budget not set'}
   ];
@@ -862,7 +867,7 @@ function renderKpis(){
   const markets=[...new Set(scoped().map(r=>r.market).filter(Boolean))];
   const ctx=[
     {color:MC.cost,label:'CPM',value:a.cpm!=null?money(a.cpm,2):'-',sub:cpmT!=null?`target ${money(cpmT,2)}`:'cost per 1,000 impressions'},
-    {color:MC.cost,label:'CPC',value:a.cpc!=null?money(a.cpc,2):'-',sub:cpcT!=null?`target ${money(cpcT,2)}`:'cost per click'},
+    {color:MC.cost,label:'CPC',value:a.cpc!=null?money(a.cpc,2):'-',sub:cpcT!=null?`target ${money(cpcT,2)}${targetDerived('cpc_target_aud')?DERIVED_NOTE:''}`:'cost per click'},
     // Video completion + Viewability (sampled) were REMOVED from this row 2026-08-05 (client
     // request): neither is measurable on this campaign - there are no video creatives, and
     // viewability verification is not enabled on these ad groups in TTD - so both only ever
@@ -884,30 +889,30 @@ function wireKpiToggles(){
   });
 }
 
-// ---- hero trend (spend bars + impressions / clicks / site visits; grain + axis toggles) ----
+// ---- hero trend (spend bars + impressions / clicks; grain + axis toggles) ----
+// The dashed "Site visits" line was removed 2026-08-18 with the rest of the site-visit surfaces.
 function renderTrend(){
   const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
   const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
-  const spend=rows.map(r=>r.spend),imps=rows.map(r=>r.impressions),clicks=rows.map(r=>r.clicks),actions=rows.map(r=>r.actions);
+  const spend=rows.map(r=>r.spend),imps=rows.map(r=>r.impressions),clicks=rows.map(r=>r.clicks);
   const ds=[
     {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'rgba(228,0,43,.55)',borderColor:MC.accent,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
     {label:'Impressions',_group:'imps',type:'line',_raw:imps,_kind:'int',data:rel?indexToPeak(imps):imps,borderColor:MC.imps,backgroundColor:MC.imps,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
-    {label:'Clicks',_group:'clicks',type:'line',_raw:clicks,_kind:'int',data:rel?indexToPeak(clicks):clicks,borderColor:MC.clicks,backgroundColor:MC.clicks,borderWidth:2.4,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y3',order:1},
-    {label:'Site visits',_group:'actions',type:'line',_raw:actions,_kind:'int',data:rel?indexToPeak(actions):actions,borderColor:MC.actions,backgroundColor:MC.actions,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y3',order:0}
+    {label:'Clicks',_group:'clicks',type:'line',_raw:clicks,_kind:'int',data:rel?indexToPeak(clicks):clicks,borderColor:MC.clicks,backgroundColor:MC.clicks,borderWidth:2.4,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y3',order:1}
   ];
-  $('trendHint').textContent=`${gw} spend (bars) vs impressions, clicks & ad-attributed site visits - the spend-to-attention view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  $('trendHint').textContent=`${gw} spend (bars) vs impressions & clicks - the spend-to-attention view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
   const fmtKind={money:v=>money(v),int:v=>int(v)};
   const scales=rel
     ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
     : {x:axis({grid:{display:false}}),
        y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
        y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions',color:MC.muted2,font:{size:11}}},
-       y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Clicks / actions',color:MC.muted2,font:{size:11}}}};
+       y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Clicks',color:MC.muted2,font:{size:11}}}};
   makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
     plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'-':f(v)}`;}}}},
     scales}});
   // re-apply KPI toggles to the freshly-built chart
-  ['spend','imps','clicks','actions'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
+  ['spend','imps','clicks'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
   if(charts.trendChart)charts.trendChart.update();
 }
 
@@ -956,7 +961,6 @@ function renderGoalProgress(){
       +`<div class="gtrack"></div><div class="gcap">${note}</div></div>`;};
   $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
     +bar('Impressions',a.impressions,impT,MC.imps,impHi!=null?`plan range to ${compact(impHi)}`:'',compact)
-    +bar('Site visits',a.actions,null,MC.actions,'ad-attributed, not applications')
     +(signT!=null?caveat('Star Card sign-ups',signT,'not measured yet - needs the application tag on the form container'):'')
     +(a.viewability!=null
         ?bar('Viewability',a.viewability,bench('viewability_target'),MC.imps,'sampled by The Trade Desk',v=>pctWhole(v))
@@ -984,7 +988,7 @@ function renderTacticDonut(){
 }
 function renderFunnel(){
   const a=agg(scoped());
-  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.imps},{name:'Clicks',value:n(a.clicks),color:MC.clicks},{name:'Site visits',value:n(a.actions),color:MC.actions}];
+  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.imps},{name:'Clicks',value:n(a.clicks),color:MC.clicks}];
   // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so
   // the huge impressions→click drop doesn't flatten the later bars. Impressions is the 100%
   // baseline; each later bar shows how well that step converted (a 4% floor keeps tiny rates
@@ -995,14 +999,14 @@ function renderFunnel(){
     const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
     const rate=prev?`${pct(conv,2)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
     return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
-  }).join('')+(n(a.actions)?'':'<div class="tiny" style="margin-top:8px"><b>Site visits: coming soon.</b> Tracking for the Star Card landing page is being finalised with The Trade Desk. This step fills in automatically once visits start reporting.</div>');
+  }).join('');
 }
 function renderStageTable(){
   const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
-  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td><td class="num">${int(r.clicks)}</td><td class="num">${pct(r.ctr)}</td><td class="num">${n(r.actions)?int(r.actions):'<span class="muted-text">-</span>'}</td></tr>`).join('');
+  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td><td class="num">${int(r.clicks)}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
   const t=agg(scoped());
-  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${compact(t.impressions)}</td><td class="num">${t.cpm!=null?money(t.cpm,2):'-'}</td><td class="num">${int(t.clicks)}</td><td class="num">${pct(t.ctr)}</td><td class="num">${n(t.actions)?int(t.actions):'-'}</td></tr>`;
-  $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="8" style="text-align:center;color:var(--muted2);padding:20px">No delivery yet.</td></tr>`)+(body?foot:'');
+  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${compact(t.impressions)}</td><td class="num">${t.cpm!=null?money(t.cpm,2):'-'}</td><td class="num">${int(t.clicks)}</td><td class="num">${pct(t.ctr)}</td></tr>`;
+  $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="7" style="text-align:center;color:var(--muted2);padding:20px">No delivery yet.</td></tr>`)+(body?foot:'');
 }
 // ---- Where it ran: STATES (real TTD region data) + creative formats ----
 // This replaced a "Markets" chart that read the ad-group NAME, so it drew ONE bar reading 'QLD+WA'
@@ -1034,8 +1038,22 @@ function renderMarkets(){
         label:c=>{const o=rows[c.dataIndex];return [`${compact(o.impressions)} impressions (${(o.impressions/tot*100).toFixed(1)}%)`,
           `${money(o.spend)} · ${int(o.clicks)} clicks`];}}}},
       scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:12}}}}}});
+  // COVERAGE LABEL (2026-08-18). The geo pull is MANUAL, so this card can legitimately trail the
+  // rest of the dashboard - and an unlabelled trailing chart silently contradicts the KPIs above it
+  // (on 2026-08-18 geo ran to 08-11 while delivery ran to 08-16, a 4.9% impression gap with no way
+  // for the reader to tell). So: state this card's OWN last day, and say so out loud whenever it is
+  // behind the campaign's last delivery day. Compare against the payload's date_max, never today's
+  // date - a 1-day TTD lag is normal and must not read as a fault.
+  const gmax=(DATA.geo||[]).reduce((mx,r)=>{const d=String(r.date||'').slice(0,10);return d>mx?d:mx;},'');
+  const dmax=String(meta().date_max||'').slice(0,10);
+  const behind=gmax&&dmax&&gmax<dmax;
+  const geoTot=(DATA.geo||[]).reduce((a,r)=>a+n(r.impressions),0);
+  const allTot=n(flight().impressions_to_date)||ROWS().reduce((a,r)=>a+n(r.impressions),0);
+  const gap=(behind&&allTot)?Math.max(0,allTot-geoTot):0;
   if(note)note.innerHTML=rows.map(r=>`<b>${safeName(r.code)}</b> ${(r.impressions/tot*100).toFixed(1)}%`).join(' · ')
-    +' &nbsp;·&nbsp; from The Trade Desk region data';
+    +' &nbsp;·&nbsp; from The Trade Desk region data'
+    +(gmax?` &nbsp;·&nbsp; state split covers delivery to <b>${fmtDate(gmax)}</b>`:'')
+    +(behind?`<div class="tiny" style="margin-top:6px">The state breakdown is refreshed separately from the rest of the dashboard and currently runs to <b>${fmtDate(gmax)}</b>, while delivery above runs to <b>${fmtDate(dmax)}</b>${gap?` - about ${compact(gap)} impressions are not yet split by state`:''}. Shares stay representative; the totals here will be lower than the headline until it catches up.</div>`:'');
 }
 function renderFormats(){
   const rows=byFormat(scoped()).filter(r=>n(r.impressions)>0).slice(0,10);
@@ -1052,19 +1070,19 @@ function renderInsights(){
   const items=[
     {label:'Cheapest attention',value:cheapest?safeName(cheapest.tactic):'-',copy:cheapest?`${money(cheapest.cpm,2)} CPM · ${pct(cheapest.imp_share!=null?cheapest.imp_share:(n(cheapest.impressions)/(n(a.impressions)||1)),0)} of impressions. The volume engine of the awareness lane.`:'Waiting for delivery.'},
     {label:'Most engaging tactic',value:engaging?safeName(engaging.tactic):'-',copy:engaging?`CTR ${pct(engaging.ctr)} vs ${pct(a.ctr)} campaign average - the consideration lane earning the clicks.`:'Waiting for engagement signal.'},
-    {label:'Consideration signal',value:a.actions?int(a.actions):int(a.clicks),copy:a.actions?`${int(a.pv)} post-view + ${int(a.pc)} post-click site visits (ad-attributed).`:`${int(a.clicks)} clicks so far. Ad-attributed site visits are coming soon - that tracking is being finalised with The Trade Desk.`},
+    {label:'Consideration signal',value:int(a.clicks),copy:`${int(a.clicks)} clicks at ${pct(a.ctr)} CTR${a.cpc!=null?` · ${money(a.cpc,2)} per click`:''} - the engagement this display buy has earned so far.`},
     {label:'Creative to protect',value:bestCr?safeName(bestCr.creative):'-',copy:bestCr?`CTR ${pct(bestCr.ctr)} at ${money(bestCr.cpm,2)} CPM (${compact(bestCr.impressions)} impressions).`:'Waiting for a creative signal (5k+ impressions).'}
   ];
   $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
 }
 function renderNote(){
-  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR, CPC) plus <b>ad-attributed site visits</b> (post-view + post-click) from the Trade Desk <b>Landing Page Visit</b> tracker. <b>What is measured:</b> that tracker is scoped to the <b>Star Card landing page</b>, so the figure counts people who saw or clicked an ad and then reached that page - ad-driven <b>page visits</b>. It does <b>not</b> measure Star Card applications: the application step sits on a separate domain the pixel is not installed on, so applications are <b>not</b> reported here; once that install lands we can split applications out as their own metric. Visit counts are the ad platform's attribution, and display rightly earns most of its credit post-view, not last-click. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. Targets now come from the <b>signed media plan</b> (A$5,000/month), which was written for <b>QLD+WA</b>; <b>South Australia was added afterwards at the client's request</b>, so the plan figures still describe the original two-state buy while the <b>States reached</b> card shows where delivery actually went. Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the pixel installed on the application domain) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
+  $('ovNote').innerHTML=`<b>How to read this.</b> This is <b>upper-funnel programmatic display</b>: judge the awareness lane on cost-efficient attention (impressions and CPM vs target) and the consideration lane on engagement quality (CTR and CPC vs target). <b>What is measured:</b> ad delivery and engagement, as reported by The Trade Desk - impressions, clicks, spend and the ratios derived from them. <b>What is not:</b> on-site outcomes. Neither Star Card <b>applications</b> nor site visits are reported here - the application step sits on a separate domain the tracking pixel is not installed on, so any outcome after the click has to be read from Caltex's own analytics, not from this dashboard. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter. The impression, CPM, CTR and budget targets come from the <b>signed media plan</b> (A$5,000/month); the <b>CPC target is our own estimate</b>, not a plan commitment, and is labelled as such wherever it appears. The plan was written for <b>QLD+WA</b>; <b>South Australia was added afterwards at the client's request</b>, so the plan figures still describe the original two-state buy while the <b>States reached</b> card shows where delivery actually went. Two of its KPIs are <b>not measurable from this feed</b> and are shown as plan-only: <b>Star Card sign-ups</b> (needs the pixel installed on the application domain) and <b>viewability</b> (IAS / DoubleVerify verification is not in the Trade Desk feed; report it from those tools).`;
 }
 
 // ---- Delivery ----
 // "vs <target>" sub-line, rendered ONLY when a target is actually seeded - with no media plan
 // yet a column of "vs -" is noise, and inventing a benchmark to compare against is worse.
-function vsLine(target,fmt){return target!=null?`<div class="vs">vs ${fmt(target)}</div>`:'';}
+function vsLine(target,fmt,note){return target!=null?`<div class="vs">vs ${fmt(target)}${note||''}</div>`:'';}
 function deltaCell(actual,target,lowerIsBetter){if(actual==null||target==null||!target)return '<span class="muted-text">-</span>';const d=actual/target-1;const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;}
 function renderBenchTable(){
   const rows=byAdGroup(searched(scoped()));const mT=bench('cpm'),cT=bench('ctr'),cpcT=bench('cpc');
@@ -1074,11 +1092,10 @@ function renderBenchTable(){
     <td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td>
     <td class="num">${r.cpm!=null?money(r.cpm,2):'-'}${vsLine(mT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
     <td class="num">${pct(r.ctr)}${vsLine(cT,v=>pct(v))}</td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
-    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}${vsLine(cpcT,v=>money(v,2))}</td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
-    <td class="num">${n(r.actions)?int(r.actions):'<span class="muted-text">-</span>'}</td></tr>`).join('');
+    <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}${vsLine(cpcT,v=>money(v,2),targetDerived('cpc_target_aud')?' est.':'')}</td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td></tr>`).join('');
   const tot=agg(searched(scoped()));
-  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${compact(tot.impressions)}</td><td class="num">${tot.cpm!=null?money(tot.cpm,2):'-'}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${tot.cpc!=null?money(tot.cpc,2):'-'}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${n(tot.actions)?int(tot.actions):'-'}</td></tr>`;
-  $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
+  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${compact(tot.impressions)}</td><td class="num">${tot.cpm!=null?money(tot.cpm,2):'-'}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${tot.cpc!=null?money(tot.cpc,2):'-'}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td></tr>`;
+  $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="10" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
 }
 // Efficiency map: each creative plotted CPM (y, lower better) vs CTR% (x, higher better); bubble
 // size = spend, colour = funnel stage. Dashed lines mark the CPM + CTR targets → lower-right wins.
@@ -1152,13 +1169,8 @@ function renderDow(){
       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions',color:MC.muted2,font:{size:11}}},
       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>v+'%'},title:{display:true,text:'CTR %',color:MC.muted2,font:{size:11}}}}}});
 }
-function renderActionSplit(){
-  if(!$('actionSplitChart'))return;
-  const a=agg(scoped());const pv=n(a.pv),pc=n(a.pc);const tot=pv+pc;
-  makeChart('actionSplitChart',{type:'doughnut',data:{labels:['Post-view','Post-click'],datasets:[{data:[pv,pc],backgroundColor:[MC.actions,MC.clicks],borderColor:'#0A1F27',borderWidth:2}]},
-    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{bbCenter:{label:'Site visits'},legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
-  const note=$('actionNote');if(note)note.innerHTML=tot?`<b>${int(pv)}</b> post-view · <b>${int(pc)}</b> post-click visits to the Star Card page in range.`:'<b>Coming soon.</b> Site-visit tracking is being finalised with The Trade Desk. This chart populates automatically once visits start reporting.';
-}
+// renderActionSplit() (the post-view vs post-click site-visit donut) was DELETED 2026-08-18 with the
+// rest of the site-visit surfaces; its canvas and card are gone from the Delivery tab too.
 function renderSegment(){
   const groups=byAdGroup(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,12);
   makeChart('segChart',{type:'bar',data:{labels:groups.map(a=>a.ad_group),datasets:[{label:'Spend',data:groups.map(a=>n(a.spend)),backgroundColor:groups.map(a=>stageColor(a.stage)),borderRadius:5}]},
@@ -1174,8 +1186,8 @@ function readFor(r){const cpmT=bench('cpm'),ctrT=bench('ctr');
 function renderTables(){
   const rows=byCreative(searched(scoped()));
   $('adTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const[clsv,read]=readFor(r);const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why}">⚠ thin</span>`:'';
-    return `<tr><td class="name-cell">${safeName(r.creative)}${warn}</td><td class="name-cell">${safeName(r.ad_group)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td>${safeName(r.ad_format)}</td><td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td><td class="num">${int(r.clicks)}</td><td class="num">${pct(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'<span class="muted-text">-</span>'}</td><td class="num">${n(r.actions)?int(r.actions):'<span class="muted-text">-</span>'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
-    :`<tr><td colspan="12" style="text-align:center;color:var(--muted2);padding:28px">No creatives match the current filters.</td></tr>`;
+    return `<tr><td class="name-cell">${safeName(r.creative)}${warn}</td><td class="name-cell">${safeName(r.ad_group)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td>${safeName(r.ad_format)}</td><td class="num">${money(r.spend)}</td><td class="num">${compact(r.impressions)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td><td class="num">${int(r.clicks)}</td><td class="num">${pct(r.ctr)}</td><td class="num">${r.cpc!=null?money(r.cpc,2):'<span class="muted-text">-</span>'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
+    :`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:28px">No creatives match the current filters.</td></tr>`;
 }
 function renderFatigue(){
   const rows=fatigueOf(scoped()).sort((a,b)=>{const af=a.flag==='FADING'?0:1,bf=b.flag==='FADING'?0:1;return af-bf||n(a.ctr_wow)-n(b.ctr_wow);}).slice(0,12);
@@ -1202,7 +1214,7 @@ function renderCreative(){
 function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.creative);
   $('ccModalBody').innerHTML=`<div class="ccm-media"><div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark">CALTEX</div><div class="cc-fb-h">${head}</div></div></div>
     <div class="ccm-info"><h3>${head}</h3><p class="ccm-body">${safeName(r.ad_group)} · <span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span>${r.ad_format?` · ${safeName(r.ad_format)}`:''}${r.market?` · ${safeName(r.market)}`:''}</p>
-    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Impressions <b>${compact(r.impressions)}</b></span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>Clicks <b>${int(r.clicks)}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span><span>Actions <b>${n(r.actions)?int(r.actions):'-'}</b></span>${n(r.video_starts)?`<span>Video completion <b>${r.vcr!=null?pctWhole(r.vcr):'-'}</b></span>`:''}</div></div>`;
+    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Impressions <b>${compact(r.impressions)}</b></span><span>CPM <b>${r.cpm!=null?money(r.cpm,2):'-'}</b></span><span>Clicks <b>${int(r.clicks)}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>CPC <b>${r.cpc!=null?money(r.cpc,2):'-'}</b></span>${n(r.video_starts)?`<span>Video completion <b>${r.vcr!=null?pctWhole(r.vcr):'-'}</b></span>`:''}</div></div>`;
   $('ccModal').classList.add('on');
 }
 function closeCreative(){$('ccModal').classList.remove('on');}
@@ -1222,7 +1234,7 @@ function renderViewCharts(){
   // blank the rest of the tab. (A chart CREATED while its pane is display:none renders into a 0x0
   // canvas, so every chart on the newly-shown tab is recreated here.)
   const R={overview:[renderTrend,renderPaceToGoal,renderTacticDonut,renderMarkets,renderFormats],
-           paid:[renderEffScatter,renderCpmTrend,renderClicksCtr,renderVideo,renderDow,renderActionSplit,renderSegment],
+           paid:[renderEffScatter,renderCpmTrend,renderClicksCtr,renderVideo,renderDow,renderSegment],
            creative:[]};
   (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
 }
@@ -1257,12 +1269,14 @@ async function load(){
 // ---------- CSV export ----------
 function toCSV(rows,cols){const esc=v=>{const s=v==null?'':String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.map(c=>esc(c.label)).join(',')].concat(rows.map(r=>cols.map(c=>esc(typeof c.get==='function'?c.get(r):r[c.key])).join(','))).join('\n');}
 function downloadCSV(name,csv){const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
-function exportAllData(){const cols=['date','campaign','ad_group','tactic','market','creative','ad_format','stage','spend','impressions','clicks','video_starts','video_completes','pv_conv','pc_conv'].map(k=>({label:k,key:k}));downloadCSV(`caltex_ttd_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
+// The conversion-slot columns (pv_conv/pc_conv) were dropped from every export 2026-08-18 with the
+// site-visit surfaces - they are still on rows[], just not offered to the client as a metric.
+function exportAllData(){const cols=['date','campaign','ad_group','tactic','market','creative','ad_format','stage','spend','impressions','clicks','video_starts','video_completes'].map(k=>({label:k,key:k}));downloadCSV(`caltex_ttd_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
 function exportThisTab(){
   const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
-  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'site_visits',key:'actions'},{label:'cum_impressions',key:'cum_imps'}];downloadCSV(`caltex_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
-  else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'site_visits',key:'actions'}];downloadCSV(`caltex_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
-  else{const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'tactic',key:'tactic'},{label:'stage',key:'stage'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'},{label:'site_visits',key:'actions'}];downloadCSV(`caltex_by_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
+  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'clicks',key:'clicks'},{label:'cum_impressions',key:'cum_imps'}];downloadCSV(`caltex_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
+  else if(STATE.view==='creative'){const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'}];downloadCSV(`caltex_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
+  else{const cols=[{label:'creative',key:'creative'},{label:'ad_group',key:'ad_group'},{label:'tactic',key:'tactic'},{label:'stage',key:'stage'},{label:'ad_format',key:'ad_format'},{label:'spend',key:'spend'},{label:'impressions',key:'impressions'},{label:'cpm',key:'cpm'},{label:'clicks',key:'clicks'},{label:'ctr',key:'ctr'},{label:'cpc',key:'cpc'}];downloadCSV(`caltex_by_creative_${stamp}.csv`,toCSV(byCreative(searched(scoped())),cols));}
 }
 
 // ================= AI REPORT PAYLOAD (headless portal deck path) =================
@@ -1272,13 +1286,16 @@ function buildReportPayload(){
   const all=ROWS();const a=agg(all);const f=flight();const byS=byStage(all),byT=byTactic(all),byG=byAdGroup(all),crs=byCreative(all).filter(x=>n(x.spend)>0).slice(0,10);const fad=fatigueOf(all).filter(x=>x.flag==='FADING').slice(0,8);
   const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
   return {client:'caltex',generated_for:'Caltex',currency:meta().currency||'AUD',
-    context:{campaign:campaignLabel(),channel:meta().channel||'The Trade Desk (programmatic display)',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),action_source_label:meta().action_source_label||'TTD pixel-attributed'},
-    overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),impressions:a.impressions,clicks:a.clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),site_actions:a.actions,post_view_actions:a.pv,post_click_actions:a.pc,cost_per_action:r2(a.cpa),video_starts:a.video_starts,video_completes:a.video_completes,video_completion_rate:r6(a.vcr)},
+    // Site-visit / conversion-slot metrics were dropped from this payload 2026-08-18 (client removed
+    // them from the dashboard), so the deck cannot cite an outcome the dashboard no longer shows.
+    // report.py's brief builder and prompts were stripped to match - keep the two in step.
+    context:{campaign:campaignLabel(),channel:meta().channel||'The Trade Desk (programmatic display)',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString()},
+    overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),impressions:a.impressions,clicks:a.clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),video_starts:a.video_starts,video_completes:a.video_completes,video_completion_rate:r6(a.vcr)},
     targets:{cpm_target:bench('cpm'),ctr_target:bench('ctr'),cpc_target:bench('cpc'),impressions_target:bench('impressions_target'),daily_pace:bench('daily_pace')},
-    by_stage:byS.map(r=>({stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),actions:r.actions,spend_share:r6(r.spend_share),imp_share:r6(r.imp_share)})),
-    by_tactic:byT.map(r=>({tactic:r.tactic,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc),actions:r.actions})),
-    by_ad_group:byG.map(r=>({ad_group:r.ad_group,tactic:r.tactic,market:r.market,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),ctr:r6(r.ctr),actions:r.actions})),
-    top_creatives:crs.map(r=>({creative:r.creative,ad_group:r.ad_group,ad_format:r.ad_format,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),actions:r.actions})),
+    by_stage:byS.map(r=>({stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),spend_share:r6(r.spend_share),imp_share:r6(r.imp_share)})),
+    by_tactic:byT.map(r=>({tactic:r.tactic,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr),cpc:r2(r.cpc)})),
+    by_ad_group:byG.map(r=>({ad_group:r.ad_group,tactic:r.tactic,market:r.market,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),ctr:r6(r.ctr)})),
+    top_creatives:crs.map(r=>({creative:r.creative,ad_group:r.ad_group,ad_format:r.ad_format,stage:r.stage,spend:r2(r.spend),impressions:r.impressions,cpm:r2(r.cpm),clicks:r.clicks,ctr:r6(r.ctr)})),
     fatigue:fad.map(r=>({creative:r.creative,ad_group:r.ad_group,impressions:r.impressions,ctr:r6(r.ctr),ctr_wow:r6(r.ctr_wow),flag:r.flag}))};
 }
 const BB_THEME = {

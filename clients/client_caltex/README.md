@@ -14,6 +14,24 @@
 > `job/main.py` also REFUSES to upload an empty fact, so a premature run can never blank the
 > dashboard. Runbook: [`dash/LIVE_URL.md`](dash/LIVE_URL.md).
 
+## SITE VISITS ARE OFF THE DASHBOARD (client request, 2026-08-18) — read this first
+
+The client asked for **site visits removed from the dashboard**, so every client-facing site-visit
+surface is gone: the north-star KPI tile, the hero-trend line, the attention funnel's third step,
+the "post-view vs post-click" donut **and its whole card**, the `Site visits` column on the funnel-
+stage / ad-group / creative tables, the goal-panel bar, the creative-modal `Actions` figure, the
+`site_visits` and `pv_conv`/`pc_conv` CSV columns, and the AI-deck payload + `report.py` prompts
+(so the deck can no longer cite an outcome the dashboard does not show). `renderActionSplit()` is
+deleted. The "how to read this" note now says plainly that **no on-site outcome is reported here**.
+
+**This is an instruction, not a measurement judgement.** Everything below about what the pixel does
+and does not measure still stands and is still the reference for the applications question — but do
+NOT re-add the metric to the UI just because the conversion slots are populated. Re-adding it is a
+UI-only change (`dash/dashboard.html` + `dash/report.py`) because **the data path is deliberately
+untouched**: `sql/01_stg_ttd.sql` still sums the slots, `sql/02_fact.sql` still carries them,
+`job/main.py` still emits `pv_conv`/`pc_conv` on `rows[]` plus `actions_to_date` and
+`action_source_label` in `meta`, and the status-dash accuracy checks are unaffected.
+
 ## What the conversion pixel can and cannot measure (read before promising numbers)
 
 **Site visits became measurable on 2026-08-10**, when the client attached the URL-scoped
@@ -117,21 +135,31 @@ The client asked to see **South Australia**. It turned out SA was **already deli
 just invisible, because every "market" on this dashboard was parsed out of the ad-group NAME
 (`"Tactic | Market"`), which reads `QLD+WA` on all three ad groups and can never show a third state.
 
-**Whole flight (2026-07-28 -> 08-11), from The Trade Desk's own region data:**
+**Whole flight (2026-07-28 -> 08-16), from The Trade Desk's own region data (re-pulled 2026-08-18):**
 
-| State | Impressions | Share | Clicks | Spend |
-|---|---|---|---|---|
-| QLD | 100,463 | 60.1% | 68 | A$1,407.33 |
-| WA | 63,508 | 38.0% | 51 | A$846.18 |
-| **SA** | **3,067** | **1.8%** | 0 | A$49.39 |
+| State | Impressions | Share | Clicks | CTR | Spend |
+|---|---|---|---|---|---|
+| QLD | 120,718 | 58.7% | 88 | 0.073% | A$1,843.16 |
+| WA | 76,286 | 37.1% | 67 | 0.088% | A$1,100.50 |
+| **SA** | **8,721** | **4.2%** | **6** | 0.069% | A$162.60 |
 
-167,038 impressions / 119 clicks - **reconciles exactly** to `stg_ttd` and to `rows[]`. Re-check
-that after any re-pull: a geo split that does not sum to the headline is worse than no split.
+205,725 impressions / 161 clicks - **reconciles exactly** to `stg_ttd`, to `rows[]` and to
+`flight.impressions_to_date`. Re-check that after any re-pull: a geo split that does not sum to the
+headline is worse than no split. (Earlier snapshot, to 08-11: QLD 100,463 / WA 63,508 / SA 3,067 =
+167,038 imps / 119 clicks.)
 
 > **Worth raising with the client:** the campaign is *bought* as QLD+WA (campaign name, media plan
-> and ad-group labels all say so), yet 1.8% of impressions served into SA and earned **0 clicks**.
-> Either SA was added to targeting deliberately (which the ask implies) or it is a small targeting
-> leak. The dashboard now shows it either way; the buying label was hiding it.
+> and ad-group labels all say so), yet SA is now **4.2% of impressions and growing** (1.8% on
+> 08-11 -> 4.2% on 08-16). It is no longer a zero-value slice - SA has earned 6 clicks at a CTR
+> comparable to WA and QLD, so the earlier "SA earns 0 clicks" note is DEAD; do not repeat it.
+> Either SA was added to targeting deliberately (which the ask implies) or it is a growing
+> targeting leak. The dashboard shows it either way; the buying label was hiding it.
+
+**The card now labels its own coverage** (2026-08-18): because this pull is manual it can trail the
+main feed, and an unlabelled trailing chart silently contradicts the KPIs above it (on 2026-08-18 it
+ran to 08-11 while delivery ran to 08-16). `renderMarkets()` prints the geo feed's last day and, when
+that is behind `meta.date_max`, an explicit note naming both dates plus the unsplit impressions. It
+compares against `date_max`, NOT today, so the normal 1-day TTD lag never reads as a fault.
 
 ### How it works, and why it is a separate lane
 
@@ -148,7 +176,7 @@ clients. So this uses an isolated caltex-only table - the same reasoning as
 
 ```powershell
 $env:WINDSOR_API_KEY = (gcloud secrets versions access latest --secret=windsor-api-key).Trim()
-.\.venv\Scripts\python.exe clients\client_caltex\ingest	td_geo_pull.py 2026-07-28 <today-1> out.ndjson
+.\.venv\Scripts\python.exe clients\client_caltex\ingest\ttd_geo_pull.py 2026-07-28 <today-1> out.ndjson
 bq load --replace --source_format=NEWLINE_DELIMITED_JSON raw_windsor.caltex_ttd_geo out.ndjson `
   "date:DATE,campaign:STRING,ad_group_name:STRING,region:STRING,state:STRING,impressions:INTEGER,clicks:INTEGER,spend:FLOAT"
 gcloud run jobs execute caltex-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
@@ -282,18 +310,24 @@ are never stored, always recomputed from summed components, so any sub-range is 
 
 ## Honesty rules baked in
 
-- **Site visits = TTD-attributed visits to the Star Card LANDING PAGE** (post-view + post-click),
-  summed from Windsor's anonymous conversion slots and fed by the URL-scoped `Landing Page Visit`
-  tracker. NOT all site traffic, and NOT applications. `conversion_touch_*` (total pixel fires,
-  mostly not ad-attributed) is never used. Post-view dominating is *normal* for display and the UI
-  says so.
+- **No on-site outcome is reported to the client at all** (since 2026-08-18 — see the top of this
+  file). The dashboard's measured story is delivery + engagement: impressions, CPM, clicks, CTR,
+  CPC, spend vs pace. Applications were never measurable; site visits are no longer shown.
+  `conversion_touch_*` (total pixel fires, mostly not ad-attributed) is never used, then or now.
 - **Conversion-slot caveat:** once Caltex pixels actually fire, verify the slot layout — TTD can
   export one tracker as a duplicate column pair (VMCH's did; see `sql/01_stg_ttd.sql` header).
 - **No reach/frequency** exists in the Windsor TTD feed → creative wear-out is read from weekly
   **CTR decay** (≥5k impressions/week), not frequency.
-- **Targets marked `PENDING`** (all of them today, incl. the flight window 2026-07-14→09-30 and
-  the A$30k budget — placeholders) render with a "pending" marker so nobody mistakes an
-  assumption for an agreed KPI. Update `targets/*.csv` when the signed media plan arrives.
+- **A `DERIVED` target is OURS, and the UI now says so** (2026-08-18). `targets/targets.csv` carries
+  a `status` per target: `HARD` = the signed media plan (budget, flight, impressions 475k, CPM
+  A$25.86, CTR 0.30%), `SOFT` = a plan RANGE (`impressions_target_high`), `UNMEASURED` = committed
+  but not measurable here (viewability, sign-ups), and **`DERIVED` = inferred by us**
+  (`cpc_target_aud` A$10, `daily_pace_aud`). The plan never commits a CPC, so the dashboard used to
+  show a red Δ against a benchmark the client never agreed to - exactly the kind of false alarm that
+  starts a bad conversation. `targetDerived()` + `DERIVED_NOTE` in `dash/dashboard.html` now label it
+  ("our estimate, not a plan target" on the KPI tile, "est." in the ad-group table, and a line in the
+  "how to read this" note). **Any new DERIVED target must be labelled the same way.**
+  (`PENDING` is still handled by `targetPending()`; nothing carries that status today.)
 
 ## The dashboard (`dash/dashboard.html`)
 
@@ -331,6 +365,18 @@ gcloud run jobs execute caltex-export --region australia-southeast1 --update-env
 `raw_windsor.perf_the_trade_desk` (`__TABLES__.last_modified` vs the `_freshness.json`
 watermark) and rebuilds only when it advanced. Seed changes (targets/budget) and view-only edits
 need `FORCE_REBUILD=1`.
+
+**Before reporting a "stuck" dashboard, work out what day it CAN show** (this was mis-read as a
+stall on 2026-08-18, when the pipeline was healthy). The cap is **yesterday UTC**, and Sydney runs
+10-11 hours ahead, so between Sydney midnight and ~11:35 AEST the freshest possible day is
+**Sydney-yesterday-minus-one**. Worked example, 2026-08-18 07:50 AEST = 2026-08-17 21:50 UTC: the
+newest publishable day was **08-16**, and the dashboard reading 08-15 was ONE export tick behind, not
+broken. Two things make that last tick lag: the 21:35 UTC loader stamps `ingested_at` at the start of
+its run but the MERGE only commits at the end (measured 21:35:09 stamped vs `__TABLES__.last_modified`
+21:47:55), so the export tick that fires in between correctly sees nothing new and the next one
+rebuilds. Diagnose with `MAX(metric_date)` on `raw_windsor.perf_the_trade_desk` for advertiser
+`0lw3hp6` + `_freshness.json` before touching anything; force with `FORCE_REBUILD=1` if you cannot
+wait 10 minutes.
 
 **Expected lag is 1 day, never 0** — TTD refuses same-day dates, and the shared loader caps every
 pull at yesterday UTC. Since 2026-08-07 `windsor-tradedesk-ingest` runs **twice daily**
