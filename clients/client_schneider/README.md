@@ -271,7 +271,8 @@ delivering platform. The same rule is applied on `client_cloudflare`, `client_sc
   - **A non-AU/NZ program needs a multi-region arm added to `sql/20` FIRST** — the AU/NZ fold is an
     `ELSE`, so without it 100% of that program's foreign delivery reports as Australia, silently. The
     arm and the worked example (`ent_it`) are in the `sql/20` market comment.
-  - The GLOBAL tabs (Executive Scorecard, Website) use the portfolio union `all_markets`.
+  - The **Website** tab (the one genuinely scope-free tab, and now the only one that hides the Campaign
+    dropdown) and the **"All campaigns"** scope use the portfolio union `all_markets`.
 - **Target** (per campaign) = Σ MQL+HQL `lead_target` from `seed_media_plan`; **Plan CPL tiers** = each
   lead line's spend ÷ lead_target; **committed spend** = Σ lead-line spend; **flight** from
   `seed_plan_budget` (program-level) — **per-CHANNEL flights** live on `channels[].flight_start/_end`
@@ -305,24 +306,67 @@ delivering platform. The same rule is applied on `client_cloudflare`, `client_sc
   match_patterns) live in [`data/`](data/), version-controlled via `.gitignore` `!` exceptions; the
   remaining dimension seeds also read from `data/` (gitignored / BQ-only — see *Updating targets*).
 
-## The dashboard tabs (`dash/dashboard.html`) — a global **Executive Scorecard** + **per-campaign** tabs
-**Executive Scorecard** (default tab, added 2026-07-06) is **global / portfolio-wide** — it spans all 5
-programs (region-filterable; the Campaign dropdown is hidden here) and reframes the dashboard from lead
-*volume* to lead *quality*, per the deep-research finding that senior B2B marketers value quality/pacing
-over raw counts. It shows: portfolio KPIs (leads vs target, pace vs plan, **accounts reached**, blended
-plan CPL); **program × Schneider-strategy-pillar** pace cards (each program tagged with the corporate
-pillar it advances — Advancing Energy Technology / EcoStruxure Buildings / AirSeT SF6-free / Water &
-Environment / Heavy Industries); a **job-function** doughnut + **seniority** bar; and a **top-accounts**
-(ABM) list. All from `21_cs_audience` (account / function / seniority from the Salesforce feed's
-`COMPANY_NAME`/`JOB_FUNCTION`/`JOB_LEVEL` — verified 100%/100%/~40% populated; industry/asset/state/revenue
-are empty for SE so are intentionally not shown). `renderScorecard()` in `dashboard.html`.
+## The dashboard tabs (`dash/dashboard.html`) — **"All campaigns"** + **per-campaign** scopes
+### The Executive Scorecard tab was REMOVED and "All campaigns" restored (2026-08-18, client request)
+> *"Can you add another drop down which has the all up view of paid media / content synd / other
+> channels across all campaigns. So get rid of the exec scorecard and just have an 'all campaigns'
+> option on the drop down."*
 
-The remaining tabs are **per-campaign**. Filters: **Campaign** (the 8 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
+The Executive Scorecard existed to BE the cross-program view. The client would rather reach that view
+through the **Campaign dropdown**, so one set of tabs now answers both scopes. What changed:
+
+- **`ALL_ID` ("All campaigns") is the FIRST dropdown option and the DEFAULT on boot again.** The
+  synthesized portfolio pseudo-campaign was never deleted when the option was retired — only made
+  unreachable — so `campaign()` / `inCamp()` still did the aggregation and this was largely a re-wiring.
+  To land on a single program instead, set `activeCampaign` to `cs[0].id` in `boot()`.
+- **Its tab set is `['paid','cs','compare','other']`** — Paid Media + Content Syndication + Other
+  Channels is exactly what the client asked the all-up view to cover, and CS Comparison is kept because
+  it compares two REGIONS, which is as meaningful portfolio-wide as for one program. (`other` used to be
+  excluded as "per-campaign"; including it is what made the Other-Channels work below necessary.)
+- **Every tab decomposes BY PROGRAM under this scope** — `renderCsByProgram()` (leads / target / % of
+  target / pace to date / plan CPL / impressions) and `renderPaidByProgram()` (spend / imps / clicks /
+  CTR / CPM / CPC / lead-form leads). Both are **hidden for a single program**, where they would restate
+  the headline in one row. **An all-up total nobody can break down is a dead end** — this is the part of
+  the request that is not simply "sum everything".
+- **The by-program tables are built from the SAME filtered rows as the tab headline** (`pmRows()` for
+  paid, `progPacing()` for CS), so the total row ties to the KPIs above it exactly. Verified 2026-08-18:
+  paid A$80,832 / 8,340,723 imps / 10,387 clicks / 38 lead-form leads, and CS 980 leads / 1,117 target
+  — both matching the headline to the digit.
+- **Lead-gen and awareness programs are not comparable on one metric**, so the CS by-program pace cell
+  branches on `target>0` (`paceVerdict` vs `reachVerdict`) and prints `-`, never `0 / 0`, in the lead
+  columns of a reach play. Same rule the scorecard's cards used — see the 2026-08-06 fixes below.
+- **`Pace to date` is vs the EVEN FLIGHT PACE, not the full target.** A program can read 73% of target
+  and still be "ahead of plan" if its flight has time left. The header carries a `title=` explaining
+  that, because the two adjacent columns otherwise look contradictory.
+- **The audience intelligence was NOT discarded with the tab.** Job function / seniority / top accounts
+  are attributes of the Salesforce CS leads, so they moved onto the **Content Syndication** tab
+  (`renderAudience()`), and `audAgg()` now honours `inCamp()` as well as the region chips — on the
+  scorecard it was always portfolio-wide, but sitting under the CS lead totals it must answer for
+  whatever the dropdown says, or it would describe a different population than the numbers above it.
+- **`progPaid(cid, allPlatforms)` gained a flag.** The CS tab HIDES the Platform chips, so its
+  impressions column passes `true` — a figure that moves with a control the reader cannot see is worse
+  than no figure.
+- **The flight gantt colours every bar per program** under this scope (no single bar is "the selection"),
+  and its caption stops promising a highlight.
+- **The AI deck gets a scope guardrail.** `context.scope` / `programs_in_scope` / `scope_note` tell the
+  model when it is looking at a portfolio roll-up whose targets are SUMS and whose flight is the earliest
+  start to the latest end across programs — **not an agreed flight for any campaign**. Without it the
+  deck would narrate a synthetic window as one bought plan. `schneider` is in `SLIDES_CLIENTS`, so this
+  matters.
+- **What went with the tab:** the `PILLAR` strategy-pillar map, the portfolio KPI strip and
+  `renderScorecard()`. The pacing engine it used (`progPacing` / `progPaid` / `reachVerdict`) survives,
+  driving the by-program tables. `sql/21_cs_audience` and the job's `cs_audience` payload are unchanged
+  — the data moved tab, it was not dropped.
+- Client-facing copy on Paid Media / Content Syndication / Other Channels / the gantt / the "no paid
+  delivery" note is now **scope-aware**: it must never claim a scope it is not showing.
+
+The tabs themselves are otherwise unchanged and **per-campaign**. Filters: **Campaign** (the 8 programs) is a **dropdown in the top nav bar** (Cloudflare pattern); the
 **Platform** chips (DV360 / TradeDesk / LinkedIn — added 2026-08-06), **Region** chips (Australia /
 New Zealand) + **Date range** stay on the control bar under the tabs. **Platform scopes paid delivery
-only** — it drives `pmRows()` (the whole Paid Media tab) and `progPaid()` (the scorecard's reach KPIs +
-awareness cards), and is **hidden on Content Syndication / CS Comparison / Other / Website**, where the
-numbers are Salesforce leads with no delivering platform. A chip **dims** when that engine has no
+only** — it drives `pmRows()` (the whole Paid Media tab, including its by-program table) and
+`progPaid()`, and is **hidden on Content Syndication / CS Comparison / Other / Website**, where the
+numbers are Salesforce leads with no delivering platform. Because it is hidden there, the CS
+by-program table calls `progPaid(cid, true)` to ignore it (see above). A chip **dims** when that engine has no
 delivery for the selected program. `Date range` likewise only scopes Paid Media.
 **The tab bar adapts to the selected campaign** — each campaign shows only the channels it actually
 uses. The job derives `campaigns[].tabs` from that campaign's media-plan channels
@@ -332,10 +376,16 @@ lead-gen line, or real leads), and **CS Comparison** (only when the campaign has
 Channels** tab for plan-only lines — Search, publisher sponsorships, trade press, email — was
 removed from the UI 2026-07-06 at the client's request, then **restored 2026-07-20** when the client
 wanted the Heavy Industries trade-publication article-delivery table back; `campaignTabs()` no longer
-filters `other` out, so the `tab-other` pane + `renderOther`/`ARTICLE_DELIVERY` code is live again.) Live result: `eba`/`water_env` → Paid·CS·Compare; `airset` → Paid·CS; `heavy` →
-Paid·CS·Compare; `global_rebrand` → Paid only. Default campaign = the one with most leads (EBA today);
-default tab = its first per-campaign tab; the global **Executive Scorecard** is shown **last**.
-The tab bar is built in `renderControls()`; switching campaign resets to a valid tab (`setCampaign`).
+filters `other` out, so the `tab-other` pane + `renderOther`/`ARTICLE_DELIVERY` code is live again.)
+**Theme gotcha (fixed 2026-08-18):** `table td` is `var(--se-ink)` (near-black) but the page canvas
+is dark green, so **every table MUST sit inside a `.card`** (the white surface it was styled for).
+`#otherTable` was the one table in the file without that wrapper, so the whole Other Channels table read
+as invisible dark-on-dark; same class of bug hit `#articleNote`, which now uses `--on-canvas-mute`.
+Anything rendered directly onto the canvas takes `--on-canvas` / `--on-canvas-mute`, never `--se-ink`/`--se-mute`. Live result: `eba`/`water_env` → Paid·CS·Compare; `airset` → Paid·CS; `heavy` →
+Paid·CS·Compare; `global_rebrand` → Paid only. **Default scope = "All campaigns"** (2026-08-18), whose
+tab set is Paid·CS·Compare·Other; default tab = that scope's first tab.
+The tab bar is built in `renderControls()`; switching campaign resets to a valid tab (`setCampaign`) —
+except `website`, which is scope-independent and survives the switch.
 
 1. **Paid Media** — for the selected program: KPI snapshot (spend / imps / clicks / blended CPC), a
    **platform comparison** table (DV360 / TTD / LinkedIn), a daily delivery chart (Month/Week/Day +

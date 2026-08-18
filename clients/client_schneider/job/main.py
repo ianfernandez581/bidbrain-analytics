@@ -48,7 +48,7 @@ DATA_OBJECT = f"{CLIENT}.json"
 # The programs the dashboard surfaces: the 5 Content-Syndication programs (== the distinct internal
 # ids in seed_salesforce_map) + NEL, Microgrid and EcoConsult, paid-only programs that have delivery
 # but no Salesforce CS leads (render Paid Media only, like global_rebrand). Drives the Campaign
-# dropdown + scorecard. (EcoConsult's LinkedIn lead-gen-form leads stay out of the CS lane until SE
+# dropdown, including its "All campaigns" all-up scope. (EcoConsult's LinkedIn lead-gen-form leads stay out of the CS lane until SE
 # provision a Salesforce campaign for it — that lane is Salesforce-only, same as heavy — but they DO
 # surface as paid `pm_delivery.leads`, LinkedIn's own on-platform lead-form count.)
 #
@@ -107,7 +107,7 @@ def main():
     cs = rows(bq, "cs_by_programme")
     csw = rows(bq, "cs_weekly")
     pm = rows(bq, "pm_delivery")
-    aud = rows(bq, "cs_audience")   # Executive Scorecard: account / function / seniority mix
+    aud = rows(bq, "cs_audience")   # Content Syndication tab: account / function / seniority mix
     media = rows(bq, "seed_media_plan")
     budget = {b["internal_campaign_id"]: b for b in rows(bq, "seed_plan_budget")}
     display = {m["internal_campaign_id"]: m["display_name"]

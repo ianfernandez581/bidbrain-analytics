@@ -45,7 +45,8 @@ SELECT
     WHEN 'DO NOT CONTACT'  THEN 'Disqualified'
     ELSE 'Other'
   END                                          AS status_bucket,
-  -- AUDIENCE INTELLIGENCE fields (the Executive Scorecard tab). Verified populated for SE:
+  -- AUDIENCE INTELLIGENCE fields (the Content Syndication tab; the Executive Scorecard tab they were
+  -- built for was removed 2026-08-18). Verified populated for SE:
   -- COMPANY_NAME 300/300, JOB_FUNCTION 300/300, JOB_LEVEL 120/300; INDUSTRY/ASSET/STATE/REVENUE
   -- are empty for SE so are NOT surfaced. '' and '-' are normalised to NULL. No PII beyond the
   -- account (COMPANY_NAME) is carried forward — name/email/phone are intentionally dropped here.

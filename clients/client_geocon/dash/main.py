@@ -54,6 +54,14 @@ try:
 except FileNotFoundError:
     LOGO_PNG = None
 
+# The GEOCON CORPORATE wordmark, used by the login page only (the dashboard header carries the
+# Gateway Braddon property logo above). Copied into dash/ on purpose: `creatives/` is NOT in this
+# folder's Docker build context, so a path into it 404s once deployed.
+try:
+    GEOCON_MARK_PNG = (_dash_dir / "geocon-mark.png").read_bytes()
+except FileNotFoundError:
+    GEOCON_MARK_PNG = None
+
 # Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
 # folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it (relative →
 # /bb_deck.js direct, or /d/geocon/bb_deck.js through the platform proxy).
@@ -70,49 +78,140 @@ LOGIN_HTML = """<!doctype html>
 <title>Geocon Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  /* GEOCON CORPORATE LOGIN - built from the geocon.com.au footer/CTA treatment: warm light-grey
+     canvas, near-black heavy CONDENSED uppercase display type, hairline outlined rounded CTA with
+     the diagonal arrow the site uses, and the dotted rule it uses as a divider.
+     LAYOUT (2026-08-19): ONE CENTRED CELL, so this page matches every other dashboard login in the
+     estate (they are all a single centred card). The background carries the brand work instead.
+     NOTE the deliberate split: this LOGIN wears GEOCON CORPORATE, while the dashboard behind it
+     stays on the dark Gateway Braddon PROPERTY palette (that campaign brand board lives at
+     clients/client_geocon/creatives/Gateway-Braddon-Brand-Board.png). Two brands, two jobs - do not
+     "unify" them without asking. */
+  :root{
+    --bg:#EDEDEB;          /* warm light grey sampled from the site footer */
+    --card:#F7F7F5;        /* a half-step lighter so the cell reads as paper on concrete */
+    --ink:#0A0A0A;
+    --muted:#6B6B68;
+    --line:rgba(10,10,10,.26);
+    --hair:rgba(10,10,10,.09);
+    --err:#B3261E;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{min-height:100vh;display:flex;align-items:center;justify-content:center;
-       font-family:"Montserrat","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:#231A17;color:#FFFEEC;position:relative;overflow:hidden}
-  body::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
-              background:#6C291B}
-  .card{width:100%;max-width:390px;padding:40px 34px;background:#6C291B;
-        border:1px solid rgba(255,254,236,.16);border-radius:8px;
-        box-shadow:0 22px 70px rgba(0,0,0,.42)}
-  .logo-wrap{text-align:center;margin-bottom:24px}
-  .logo-wrap img{max-height:60px;max-width:250px;opacity:.96}
-  .brand{font-size:10px;font-weight:800;letter-spacing:2.2px;color:#BD9A8E;margin-bottom:8px;text-transform:uppercase}
-  h1{font-size:22px;font-weight:900;margin:0 0 5px;letter-spacing:0}
-  p{font-size:13px;color:rgba(255,254,236,.68);margin:0 0 24px}
-  input{width:100%;padding:13px 15px;font-size:15px;color:#FFFEEC;background:rgba(35,26,23,.5);
-        border:1px solid rgba(255,254,236,.18);border-radius:8px;outline:none;transition:border-color .15s}
-  input:focus{border-color:#FFFEEC}
-  input::placeholder{color:rgba(255,254,236,.38)}
-  button{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
-         background:#FFFEEC;color:#231A17;border:none;border-radius:8px;
-         transition:transform .1s ease,box-shadow .2s ease;letter-spacing:.3px}
-  button:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(35,26,23,.28)}
-  button:active{transform:translateY(0)}
-  .err{margin-top:14px;font-size:13px;color:#FFDED5;min-height:16px;text-align:center}
+  html,body{min-height:100%}
+  body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 20px;
+       background:var(--bg);color:var(--ink);position:relative;overflow:hidden;
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased}
+
+  /* ---------- background: a DRAFTING SHEET, the honest metaphor for a property developer ----------
+     Four stacked layers, all pure CSS (nothing to load, nothing to 404):
+       .sheet - a hairline drafting grid with a heavier module every 5th line, masked so it fades
+                toward the edges and never reads as a wireframe screenshot.
+       .plan  - oversized architectural plan geometry (thin rings + a long diagonal) at very low
+                alpha: enough to feel drawn, never enough to compete with the type.
+       .band  - the dotted divider from the site, repeated as two long horizons.
+       .glow  - a soft centre vignette that lifts the cell off the canvas.
+     Keep the alphas LOW: on a light canvas anything past ~.09 stops reading as texture and starts
+     reading as clutter. */
+  .sheet,.plan,.band,.glow{position:fixed;inset:0;pointer-events:none;z-index:0}
+  .sheet{
+    background-image:
+      linear-gradient(to right, var(--hair) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--hair) 1px, transparent 1px),
+      linear-gradient(to right, rgba(10,10,10,.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(10,10,10,.05) 1px, transparent 1px);
+    background-size:26px 26px, 26px 26px, 130px 130px, 130px 130px;
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 45%, #000 35%, rgba(0,0,0,.35) 70%, transparent 100%);
+            mask-image:radial-gradient(120% 90% at 50% 45%, #000 35%, rgba(0,0,0,.35) 70%, transparent 100%)}
+  .plan{opacity:.55}
+  .plan i{position:absolute;border:1px solid rgba(10,10,10,.075);border-radius:50%}
+  .plan i:nth-child(1){width:78vmin;height:78vmin;left:-16vmin;bottom:-26vmin}
+  .plan i:nth-child(2){width:52vmin;height:52vmin;left:-3vmin;bottom:-13vmin}
+  .plan i:nth-child(3){width:96vmin;height:96vmin;right:-30vmin;top:-34vmin;border-radius:0;
+                       transform:rotate(45deg)}
+  .plan b{position:absolute;left:-10%;right:-10%;top:50%;height:1px;background:rgba(10,10,10,.07);
+          transform:rotate(-11deg)}
+  .band{background-image:radial-gradient(circle, rgba(10,10,10,.5) 1.3px, transparent 1.4px);
+        background-size:11px 3px;background-repeat:repeat-x;
+        background-position:0 22vh, 0 78vh;opacity:.5}
+  /* One slow, almost-imperceptible breath. The page is otherwise dead still: a property developer
+     brand should not bounce. Off entirely for reduced-motion users. */
+  .glow{background:radial-gradient(46vmax 34vmax at 50% 42%, rgba(255,255,255,.85), transparent 70%);
+        animation:breathe 22s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
+  @media (prefers-reduced-motion:reduce){.glow{animation:none}}
+
+  /* ---------- the one centred cell ---------- */
+  .cell{position:relative;z-index:1;width:100%;max-width:452px;background:var(--card);
+        border:1px solid var(--hair);border-radius:16px;padding:38px 34px 26px;
+        box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 26px 60px -28px rgba(10,10,10,.28),
+                   0 3px 10px -6px rgba(10,10,10,.18)}
+  /* The supplied wordmark is WHITE type baked onto an OPAQUE BLACK square (no alpha), so it would
+     read as a black tile. invert() flips it to black-on-white, then multiply drops the white to the
+     surface colour, leaving the wordmark alone the way the site sets it. Keep BOTH properties:
+     either one on its own looks broken. The asset is CROPPED to its ink bounds, so this height is
+     the height of the LETTERS (as the original 447x447 square it rendered microscopic). */
+  .mark img{height:22px;width:auto;display:block;filter:invert(1);mix-blend-mode:multiply}
+  .eyebrow{margin-top:22px;font-size:10.5px;font-weight:600;letter-spacing:2.2px;
+           text-transform:uppercase;color:var(--muted)}
+  h1{font-family:"Anton","Inter",sans-serif;font-weight:400;text-transform:uppercase;
+     font-size:clamp(34px,7vw,44px);line-height:.92;letter-spacing:-.3px;margin:8px 0 14px}
+  .lede{font-size:13.5px;color:var(--muted);line-height:1.55;margin:0 0 22px}
+  form{display:flex;flex-direction:column;gap:10px}
+  input{width:100%;padding:16px 18px;font:inherit;font-size:13.5px;letter-spacing:1.3px;
+         text-transform:uppercase;color:var(--ink);background:#FFF;
+         border:1px solid var(--line);border-radius:10px;outline:none;transition:border-color .16s}
+  input::placeholder{color:var(--muted);letter-spacing:1.3px}
+  input:focus{border-color:var(--ink)}
+  /* the CTA from the site: transparent, hairline border, uppercase label + diagonal arrow, fills on hover */
+  button{display:flex;align-items:center;justify-content:space-between;cursor:pointer;
+         padding:16px 22px;font:inherit;font-size:13.5px;font-weight:600;letter-spacing:1.5px;
+         text-transform:uppercase;color:var(--ink);background:transparent;
+         border:1px solid var(--ink);border-radius:10px;
+         transition:background-color .18s ease,color .18s ease}
+  button .arw{font-size:16px;line-height:1;transition:transform .18s ease}
+  button:hover{background:var(--ink);color:var(--card)}
+  button:hover .arw{transform:translate(3px,-3px)}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .err{font-size:11.5px;font-weight:600;letter-spacing:1.3px;text-transform:uppercase;
+       color:var(--err);min-height:14px}
+  .rule{height:3px;margin:22px 0 14px;
+        background-image:radial-gradient(circle,var(--ink) 1.3px,transparent 1.4px);
+        background-size:11px 3px;background-repeat:repeat-x;opacity:.6}
+  /* stacked on purpose: side-by-side half-wraps at this cell width, which looks accidental */
+  .meta{display:flex;flex-direction:column;gap:3px;
+        font-size:9.5px;font-weight:600;letter-spacing:1.8px;text-transform:uppercase;color:var(--muted)}
+  @media (max-width:420px){
+    .cell{padding:30px 22px 22px}
+  }
 </style>
 </head>
 <body>
-  <form class="card" method="POST" action="/login">
-    <div class="logo-wrap">
-      <img src="/logo.png" alt="Gateway Braddon" onerror="this.style.display='none'">
-    </div>
-    <div class="brand">BidBrain · Geocon</div>
-    <h1>Dashboard Access</h1>
-    <p>Enter the password to continue.</p>
-    <input type="password" name="password" placeholder="Password" autofocus
-           autocomplete="current-password">
-    <button type="submit">Unlock Dashboard</button>
-    <div class="err">{{ error or "" }}</div>
-  </form>
+  <div class="sheet"></div>
+  <div class="plan"><i></i><i></i><i></i><b></b></div>
+  <div class="band"></div>
+  <div class="glow"></div>
+
+  <main class="cell">
+    <div class="mark"><img src="/geocon-mark.png" alt="Geocon"
+         onerror="this.style.display='none'"></div>
+    <div class="eyebrow">Geocon x 100% Digital</div>
+    <h1>Performance<br>dashboard</h1>
+    <p class="lede">Live paid-media reporting for the Geocon developments. Enter your password to continue.</p>
+    <form method="POST" action="/login">
+      <input type="password" name="password" placeholder="Password" autofocus
+             autocomplete="current-password" aria-label="Password">
+      <button type="submit">Enter <span class="arw" aria-hidden="true">&#8599;</span></button>
+      <div class="err">{{ error or "" }}</div>
+    </form>
+    <div class="rule"></div>
+    <div class="meta"><span>Gateway Braddon &middot; Northbourne Gateway</span><span>Reporting by 100% Digital</span></div>
+  </main>
 </body>
-</html>"""
+</html>
+"""
 
 
 def authed():
@@ -259,6 +358,16 @@ def logo():
     if LOGO_PNG is None:
         abort(404)
     return Response(LOGO_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/geocon-mark.png")
+def geocon_mark():
+    """Serve the Geocon corporate wordmark. Public - the LOGIN page renders it, so requiring auth
+    here would leave a broken image on the one page nobody is authenticated for yet."""
+    if GEOCON_MARK_PNG is None:
+        abort(404)
+    return Response(GEOCON_MARK_PNG, mimetype="image/png",
                     headers={"Cache-Control": "public, max-age=86400"})
 
 

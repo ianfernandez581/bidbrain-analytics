@@ -253,6 +253,14 @@ list, save — or extend `enable_extrablack.py`). They then use the "Sign in wit
 the MAIN login page (`/`); `resolve_email` maps the verified email to the extrablack portal. No
 new OAuth setup — it reuses the existing `GOOGLE_OAUTH_CLIENT_ID`.
 
+**Sophiie AI** (2026-08-18) is the newest 100% Digital client and follows the identical preview
+pattern: `client_sophiie/` is a built, deployed-on-demand placeholder dashboard on SAMPLE data, tile
+`coming_soon` + `show_pending_row`, added to the live registry with
+`bidbrain-platform\dash\set_sophiie_tile.py --yes` (a surgical upsert, not a re-seed). Its flip-to-live
+path is the same as Geyer Valmont's below, with one extra step: add `"sophiie-export"` to
+`_SYNC_EXPORT_JOBS` in `dash/main.py` so **"Sync all dashboards now"** covers it — but **only once the
+job exists**, since the Run Admin API 404s an unknown job and that failure sticks.
+
 **Flipping Geyer Valmont live** once its dashboard exists: build/deploy `geyervalmont-dash` the
 normal way, then set `status: "active"` + the run.app `url` on the client record (admin UI or a
 `set_caltex_tile.py`-style upsert) — the tile becomes openable and the proxy serves it at

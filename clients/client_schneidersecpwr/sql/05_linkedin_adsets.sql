@@ -17,24 +17,27 @@
 -- instead would split one ad set into two report rows. Repo rule: "campaign names are NOT stable
 -- keys" (md/AGENTS.md).
 --
--- PHASE tokens are matched most-specific-first. Retargeting before Conversion before Consideration
--- before Awareness, because 'CONVERSION' CONTAINS 'CON' - a Consideration-first test mislabels every
--- conversion ad set. Short tokens are delimiter-anchored so 'CON' cannot match inside a word. The
--- same ladder is mirrored in load_targeting.py's phase_of() (it only pre-fills the CSV's reference
--- column; THIS view is what reaches the screen). Enterprise IT's ad sets carry a vertical
+-- PHASE is the ad set's media-plan LINE ITEM and is NOT re-derived here: it is `stg_linkedin.tactic`
+-- taken from the ad set's latest name, so the Reports tab and the delivery tables can never disagree
+-- about which funnel stage an ad set sits in. That single definition (and why Retargeting must be
+-- tested before Conversion before Consideration before Awareness) lives in 01_stg_linkedin's header.
+-- The ladder is loosely mirrored in load_targeting.py's phase_of(), which only pre-fills the CSV's
+-- reference column; THIS view is what reaches the screen. Enterprise IT's ad sets carry a vertical
 -- (Hero / Generic / Manufacturing / ...) rather than a funnel phase, so they land on 'Unspecified'
 -- by design - that is true, not a parse failure.
 --
 -- GEO comes from the same market parser the delivery views use (stg_linkedin), taken from the latest
--- name. An ad set renamed from `..._AU` to `..._ANZ_image` therefore reads ANZ, which is what the
--- platform says today; the AU-era name stays visible in `aliases`.
+-- name. Since 2026-08-18 stg_linkedin also reconciles a coarse market token against the ad set's
+-- CURRENT name, so an ad set that spent six days named `..._ANZ_image` and is named `..._AU_image`
+-- today reads Australia here, matching the delivery tables; every name it delivered under stays
+-- visible in `aliases`.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_schneidersecpwr.linkedin_adsets` AS
 WITH per_adset AS (
   SELECT
     adset_id,
     ANY_VALUE(campaign)                                         AS campaign,
     -- Current identity = the name/market carried by the most recent delivering row.
-    ARRAY_AGG(STRUCT(adset_name, market, group_name)
+    ARRAY_AGG(STRUCT(adset_name, market, group_name, tactic)
               ORDER BY metric_date DESC, imps DESC LIMIT 1)[OFFSET(0)] AS cur,
     ARRAY_AGG(DISTINCT adset_name IGNORE NULLS)                 AS all_names,
     MIN(metric_date)                                            AS first_delivery,
@@ -53,17 +56,7 @@ SELECT
   a.cur.adset_name                                              AS adset_name,
   a.cur.group_name                                              AS group_name,
   a.cur.market                                                  AS geo,
-  CASE
-    WHEN REGEXP_CONTAINS(UPPER(a.cur.adset_name), r'(^|[ _-])(RTG|RT1|RT2)([ _-]|$)')
-      OR CONTAINS_SUBSTR(UPPER(a.cur.adset_name), 'RETARGET')            THEN 'Retargeting'
-    WHEN REGEXP_CONTAINS(UPPER(a.cur.adset_name), r'(^|[ _-])CNV([ _-]|$)')
-      OR CONTAINS_SUBSTR(UPPER(a.cur.adset_name), 'CONVERSION')          THEN 'Conversion'
-    WHEN REGEXP_CONTAINS(UPPER(a.cur.adset_name), r'(^|[ _-])(CNS|CON)([ _-]|$)')
-      OR CONTAINS_SUBSTR(UPPER(a.cur.adset_name), 'CONSIDERATION')       THEN 'Consideration'
-    WHEN REGEXP_CONTAINS(UPPER(a.cur.adset_name), r'(^|[ _-])AWR([ _-]|$)')
-      OR CONTAINS_SUBSTR(UPPER(a.cur.adset_name), 'AWARENESS')           THEN 'Awareness'
-    ELSE 'Unspecified'
-  END                                                           AS phase,
+  a.cur.tactic                                                  AS phase,
   -- Prior names this ad set delivered under, current name excluded. Empty for an ad set never renamed.
   ARRAY(SELECT n FROM UNNEST(a.all_names) n WHERE n <> a.cur.adset_name ORDER BY n) AS aliases,
   a.first_delivery,

@@ -305,6 +305,9 @@
       <div class="control-filters">
         <div class="filter-grp" id="channelGrp"><span class="lbl">Channel</span><div class="chips" id="channelChips"></div>
           <button class="chip-action" onclick="allChannels()">All</button></div>
+        <div class="filter-grp" id="tacticGrp" title="Media-plan line items - the funnel stage each ad set was bought against"><span class="lbl">Line item</span><div class="chips" id="tacticChips"></div>
+          <button class="chip-action" onclick="allTactics()">All</button>
+          <button class="chip-action" onclick="clearTactics()">Clear</button></div>
         <div class="filter-grp" id="marketGrp"><span class="lbl">Market</span><div class="chips" id="marketChips"></div>
           <button class="chip-action" onclick="allMarkets()">All</button>
           <button class="chip-action" onclick="clearMarkets()">Clear</button></div>
@@ -364,6 +367,11 @@
         <table id="pmPlatTable"><thead><tr><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
 
+      <div class="section" id="pmTacticSec"><h2 style="font-size:15px">Line item performance</h2><span class="sub">Every <b>media-plan line item</b> on the engine that carried it - the funnel stage each ad set was bought against. Awareness runs on both engines, so it appears once per engine, exactly as the plan books it.</span></div>
+      <div class="card" id="pmTacticCard" style="margin-top:14px"><div style="overflow:auto">
+        <table id="pmTacticTable"><thead><tr><th>Line item</th><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
+      </div></div>
+
       <div class="section"><h2 style="font-size:15px">Spend &amp; geography</h2><span class="sub">Where the media budget went - by channel and by market (AUD).</span></div>
       <div class="grid">
         <div class="card card-tall"><h3>Spend by channel</h3><div class="hint">Share of media spend (AUD).</div><div class="chart-wrap"><canvas id="pmSpendPlat"></canvas></div></div>
@@ -390,7 +398,7 @@
       </div>
       <div class="section"><h2 style="font-size:15px">Creative detail</h2><span class="sub">Every creative for the selected markets. Click a header to sort; search to filter.</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
-        <table id="crTable"><thead><tr><th>Channel</th><th>Concept</th><th>Format</th><th>Market</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Spend</th></tr></thead><tbody></tbody></table>
+        <table id="crTable"><thead><tr><th>Channel</th><th>Line item</th><th>Concept</th><th>Format</th><th>Market</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Spend</th></tr></thead><tbody></tbody></table>
       </div></div>
     </div>
 
@@ -406,6 +414,12 @@
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="campPlatTable"><thead><tr><th>Campaign</th><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
       </div></div>
+
+      <div class="section" id="campTacticSec"><h2 style="font-size:15px">Campaign x line item</h2><span class="sub">Each brief split by <b>media-plan line item</b> and the engine that carried it.<span id="campTacticNote"></span></span></div>
+      <div class="card" id="campTacticCard" style="margin-top:14px"><div style="overflow:auto">
+        <table id="campTacticTable"><thead></thead><tbody></tbody></table>
+      </div></div>
+      <div class="card card-tall" id="campTacticChartCard" style="margin-top:16px"><h3>Impressions by campaign &amp; line item</h3><div class="hint">Stacked by funnel stage (AUD spend in the tooltip).</div><div class="chart-wrap"><canvas id="campTactic"></canvas></div></div>
 
       <div class="section"><h2 style="font-size:15px">Campaign x market</h2><span class="sub">Where each brief ran. Enterprise IT is a multi-region brief (India / MEA / South America / Pacific); Industrial Edge and Software First are Australia / New Zealand.</span></div>
       <div class="grid">
@@ -453,6 +467,22 @@ const PLATFORMS = [
 ];
 const PLAT_LABEL = Object.fromEntries(PLATFORMS.map(p=>[p.key,p.label]));
 const PROG_PALETTE = ['#007E2A','#2867B2','#F2A900','#8E44AD','#0E7C86','#B97400','#5A6B78','#12B5C9','#9AD4B5'];
+// Media-plan LINE ITEMS (funnel stages), in funnel order with a fixed colour each. Fixed, not
+// index-assigned, so Awareness is the same green on every chart no matter which stages a brief ran -
+// a palette taken by position would recolour Conversion the moment a campaign without a
+// Consideration line was selected. Order and vocabulary mirror TACTIC_ORDER in job/main.py.
+const TACTICS = [
+  {key:'Awareness',     color:'#007E2A'},
+  {key:'Consideration', color:'#2867B2'},
+  {key:'Retargeting',   color:'#0E7C86'},
+  {key:'Conversion',    color:'#B97400'},
+  {key:'Unspecified',   color:'#8A95A0'},
+];
+const TACTIC_COLOR = Object.fromEntries(TACTICS.map(t=>[t.key,t.color]));
+const tacticColor = k => TACTIC_COLOR[k] || '#8A95A0';
+// Rank an arbitrary line item for sorting; anything unknown sits just before 'Unspecified'.
+const TACTIC_RANK = Object.fromEntries(TACTICS.map((t,i)=>[t.key,i]));
+const tacticRank = k => TACTIC_RANK[k]===undefined ? TACTICS.length-1.5 : TACTIC_RANK[k];
 
 //==============================================================================
 // SHARED DATE-RANGE PICKER (Looker-style)
@@ -528,6 +558,9 @@ window.DateRange = (function(){
 // dropdown - one control, one answer to "whose results am I looking at".
 const ALL_CAMPAIGNS='__all__';
 let DATA=null, charts={}, activeTab='overview', activeMarkets=new Set(), activeCampaign=ALL_CAMPAIGNS;
+// Line-item (funnel stage) filter. Same shape as the market filter - an explicit set of what is ON,
+// rebuilt from the campaign's own roster whenever the campaign changes.
+let activeTactics=new Set();
 let pmGrain='week', pmScale='rel';
 let rangeStart=null, rangeEnd=null, dateMin=null, dateMax=null;
 const el=id=>document.getElementById(id);
@@ -576,6 +609,9 @@ function toggleChannel(k){
   if(activeChannels.size===PLATFORMS.length) activeChannels=new Set();
   renderControls(); renderActive();
 }
+// Line-item filter. A row with no tactic (older JSON, before the 2026-08-18 line-item work) is
+// always kept: an older payload must degrade to "no line-item breakdown", never to an empty page.
+const tacticOk=t=> t==null || activeTactics.size===0 || activeTactics.has(t);
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.markets||[]).filter(c=>activeMarkets.has(c)); }
 function campaignList(){ return (DATA.campaigns||[]); }
@@ -584,8 +620,17 @@ function campLabel(k){ const c=campaignList().find(x=>x.key===k); return c?c.lab
 // filtered delivery / creative rows (campaign chips + market chips + date range).
 // NOTE: creative rows carry NO date (whole-flight view), so the date picker deliberately does not
 // narrow them - the Creative tab says so.
-function pmRows(){ return (DATA.delivery||[]).filter(r=>campOk(r.campaign) && platOk(r.platform) && marketOk(r.market) && inRangeDate(r.date)); }
-function crRows(){ return (DATA.creative||[]).filter(r=>campOk(r.campaign) && platOk(r.platform) && marketOk(r.market)); }
+function pmRows(){ return (DATA.delivery||[]).filter(r=>campOk(r.campaign) && platOk(r.platform) && marketOk(r.market) && tacticOk(r.tactic) && inRangeDate(r.date)); }
+function crRows(){ return (DATA.creative||[]).filter(r=>campOk(r.campaign) && platOk(r.platform) && marketOk(r.market) && tacticOk(r.tactic)); }
+// The line items worth showing for the current selection: the campaign's own when one is picked,
+// otherwise every line item present in the data (in funnel order).
+function tacticRoster(){
+  const all=(DATA.tactics||[]).slice().sort((a,b)=>tacticRank(a)-tacticRank(b));
+  if(allCampaignsView()) return all;
+  const c=campaignList().find(x=>x.key===activeCampaign);
+  return (c && c.tactics && c.tactics.length) ? c.tactics.slice().sort((a,b)=>tacticRank(a)-tacticRank(b)) : all;
+}
+function activeTacticList(){ return tacticRoster().filter(t=>activeTactics.has(t)); }
 function elapsedFrac(start,end){ if(!start||!end) return null; const s=+new Date(start), e=+new Date(end), now=Date.now(); if(now<=s) return 0; if(e<=s||now>=e) return 1; return (now-s)/(e-s); }
 
 //==============================================================================
@@ -732,6 +777,7 @@ async function boot(){
     bbApplySpendMult();
     activeCampaign=ALL_CAMPAIGNS;                            // default: the combined 3-brief view
     activeMarkets=new Set(marketRoster());                   // AFTER activeCampaign - roster depends on it
+    activeTactics=new Set(tacticRoster());                   // ditto - line items follow the campaign
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
@@ -778,12 +824,17 @@ function setPmScale(s){ pmScale=s; renderActive(); }
 function allMarkets(){ activeMarkets=new Set(DATA.markets||[]); renderControls(); renderActive(); }
 function clearMarkets(){ activeMarkets=new Set(); renderControls(); renderActive(); }
 function toggleMarket(c){ activeMarkets.has(c)?activeMarkets.delete(c):activeMarkets.add(c); renderControls(); renderActive(); }
-// Top-nav Campaign dropdown. Switching campaign also re-opens every market chip: the three briefs
-// run in DIFFERENT markets (ent_it is India/MEA/South America/Pacific, the other two are AU/NZ), so
-// carrying a selection across would silently zero the new campaign's numbers.
+function allTactics(){ activeTactics=new Set(tacticRoster()); renderControls(); renderActive(); }
+function clearTactics(){ activeTactics=new Set(); renderControls(); renderActive(); }
+function toggleTactic(t){ activeTactics.has(t)?activeTactics.delete(t):activeTactics.add(t); renderControls(); renderActive(); }
+// Top-nav Campaign dropdown. Switching campaign also re-opens every market and line-item chip: the
+// three briefs run in DIFFERENT markets (ent_it is India/MEA/South America/Pacific, the other two are
+// AU/NZ) and buy DIFFERENT line items (ent_it names its ad sets by vertical, so it has none), so
+// carrying either selection across would silently zero the new campaign's numbers.
 function setCampaign(v){
   activeCampaign = v || ALL_CAMPAIGNS;
   activeMarkets = new Set(marketRoster());
+  activeTactics = new Set(tacticRoster());
   renderControls(); renderActive();
 }
 // The markets worth showing for the current selection: the campaign's own when one is picked,
@@ -801,7 +852,9 @@ function renderControls(){
   const mkts=activeMarkets.size===roster.length?'all markets':(activeMarkets.size?activeMarketList().join(' · '):'no markets');
   const camps=allCampaignsView()?'all 3 campaigns':(campaignList().find(c=>c.key===activeCampaign)||{}).label||'-';
   const chans=activeChannels.size===0?'all channels':PLATFORMS.filter(p=>activeChannels.has(p.key)).map(p=>p.label).join(' · ');
-  el('ctrlNote').textContent=`Showing ${camps} · ${chans} · ${mkts}`;
+  const troster=tacticRoster();
+  const lines=activeTactics.size===troster.length?'all line items':(activeTactics.size?activeTacticList().join(' · '):'no line items');
+  el('ctrlNote').textContent=`Showing ${camps} · ${chans} · ${lines} · ${mkts}`;
   // The date picker scopes delivery only; creative rows carry no date (whole-flight), so it is
   // hidden on that tab rather than sitting inert next to numbers it cannot move. On Reports NONE of
   // the three filters applies (see that tab's comment), so the whole filter row and the CSV button
@@ -842,6 +895,21 @@ function renderControls(){
   // Market chips follow the selected campaign's own markets.
   const rw=el('marketChips'); rw.innerHTML='';
   roster.forEach(c=>{ const b=document.createElement('button'); b.className='chip'+(activeMarkets.has(c)?' on':''); b.innerHTML=`<span class="check">✓</span>${c}`; b.onclick=()=>toggleMarket(c); rw.appendChild(b); });
+
+  // Line-item chips, coloured with each stage's own colour when ON so they read against the charts -
+  // the channel-chip pattern. Only line items the SELECTED campaign actually bought are offered, and
+  // the group hides itself when there is nothing to choose between: Enterprise IT names its ad sets
+  // by vertical rather than funnel stage, so it has a single 'Unspecified' line and a lone chip there
+  // would suggest a filter that cannot change anything.
+  const tw=el('tacticChips'); tw.innerHTML='';
+  troster.forEach(t=>{ const on=activeTactics.has(t); const col=tacticColor(t);
+    const b=document.createElement('button');
+    b.className='chip'+(on?' on':'');
+    b.style.cssText = on ? `background:${col};border-color:${col};color:#fff` : '';
+    b.title=`Show / hide the ${t} line`;
+    b.innerHTML=`<span class="check">✓</span>${t}`;
+    b.onclick=()=>toggleTactic(t); tw.appendChild(b); });
+  el('tacticGrp').style.display = troster.length>1 ? 'flex' : 'none';
 }
 
 function renderActive(){
@@ -873,11 +941,23 @@ function pmTotals(rows){ const o={imps:0,clk:0,spend:0}; rows.forEach(r=>{o.imps
 function aggBy(rows, keyFn){
   const o={};
   rows.forEach(r=>{ const k=keyFn(r); if(k==null) return;
-    const e=o[k]||(o[k]={imps:0,clk:0,spend:0,leads:0,hasLeads:false});
+    const e=o[k]||(o[k]={imps:0,clk:0,spend:0,leads:0,opens:0,hasLeads:false});
     e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0;
-    if(r.leads!=null){ e.leads+=r.leads; e.hasLeads=true; } });
+    if(r.leads!=null){ e.leads+=r.leads; e.hasLeads=true; }
+    e.opens+=r.lead_form_opens||0; });
   return o;
 }
+// A coloured line-item pill, so a stage reads the same in a table as it does on its chip and chart.
+function tacticPill(t){ return `<span class="pill"><span class="dot" style="background:${tacticColor(t)}"></span>${t}</span>`; }
+function platPill(p){ return `<span class="pill"><span class="dot" style="background:${p==='linkedin'?C.li:C.td}"></span>${PLAT_LABEL[p]||p}</span>`; }
+// Sort a set of "<tactic>||<platform>" keys down the funnel, then by channel - never by volume, so
+// the reader can compare the same table between two campaigns or two date ranges without re-reading
+// the row labels.
+function tacticKeysInFunnelOrder(keys){
+  return keys.slice().sort((a,b)=>{ const [ta,pa]=a.split('||'), [tb,pb]=b.split('||');
+    return tacticRank(ta)-tacticRank(tb) || (ta<tb?-1:ta>tb?1:0) || (pa<pb?-1:pa>pb?1:0); });
+}
+
 // Efficiency cells shared by every campaign/channel/market table.
 function effCells(x){
   return `<td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td>`
@@ -912,6 +992,22 @@ function renderOverview(){
   tb.innerHTML=PLATFORMS.filter(p=>byPlat[p.key].imps||byPlat[p.key].spend).map(p=>{ const x=byPlat[p.key]; return `<tr><td><span class="pill"><span class="dot" style="background:${p.color}"></span>${p.label}</span></td><td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td><td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td><td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td></tr>`; }).join('')
     + `<tr class="total"><td>Combined</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`;
   if(!rows.length) tb.innerHTML=`<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+
+  // line-item (media-plan funnel stage) x channel table. The client's plan is bought as line items
+  // but this dashboard could only break delivery down by channel, so this table is the plan's own
+  // view of itself. Sorted down the funnel, not by spend - see tacticKeysInFunnelOrder().
+  const ct=aggBy(rows, r=>(r.tactic||'Unspecified')+'||'+r.platform);
+  const ctk=tacticKeysInFunnelOrder(Object.keys(ct));
+  // Hide the whole section when there is only one line item to show: a single-row "breakdown" that
+  // just restates the totals above it is noise (Enterprise IT on its own is exactly that).
+  const oneLine = new Set(ctk.map(k=>k.split('||')[0])).size<2;
+  el('pmTacticSec').style.display = oneLine ? 'none' : '';
+  el('pmTacticCard').style.display = oneLine ? 'none' : '';
+  const ltb=el('pmTacticTable').querySelector('tbody');
+  ltb.innerHTML = ctk.length ? ctk.map(k=>{ const [tk,pk]=k.split('||');
+      return `<tr><td>${tacticPill(tk)}</td><td>${platPill(pk)}</td>${effCells(ct[k])}</tr>`; }).join('')
+      + `<tr class="total"><td>Combined</td><td></td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td><td class="num">${fmtPct(ctr,2)}</td><td class="num">${money(cpm,2)}</td><td class="num">${money(cpc,2)}</td></tr>`
+    : `<tr><td colspan="8" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
 
   // delivery over time chart
   const m={};
@@ -1003,8 +1099,8 @@ function renderCreative(){
   // creative detail table
   const rows=crRows().slice().sort((a,b)=>(b.imps||0)-(a.imps||0));
   el('crTable').querySelector('tbody').innerHTML = rows.length
-    ? rows.map(r=>`<tr><td><span class="pill"><span class="dot" style="background:${r.platform==='linkedin'?C.li:C.td}"></span>${PLAT_LABEL[r.platform]||r.platform}</span></td><td>${r.concept}</td><td>${r.format}</td><td>${r.market}</td><td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(pct(r.clicks,r.imps),2)}</td><td class="num">${money(r.spend_aud)}</td></tr>`).join('')
-    : `<tr><td colspan="8" style="text-align:center;color:var(--se-mute);padding:14px">No creatives in the selected markets.</td></tr>`;
+    ? rows.map(r=>`<tr><td>${platPill(r.platform)}</td><td>${r.tactic?tacticPill(r.tactic):'-'}</td><td>${r.concept}</td><td>${r.format}</td><td>${r.market}</td><td class="num">${fmtN(r.imps)}</td><td class="num">${fmtN(r.clicks)}</td><td class="num">${fmtPct(pct(r.clicks,r.imps),2)}</td><td class="num">${money(r.spend_aud)}</td></tr>`).join('')
+    : `<tr><td colspan="9" style="text-align:center;color:var(--se-mute);padding:14px">No creatives in the selected markets.</td></tr>`;
 }
 
 //==============================================================================
@@ -1045,6 +1141,58 @@ function renderCampaigns(){
   ptb.innerHTML = pkeys.length ? pkeys.map(k=>{ const [ck,pk]=k.split('||'); const x=cp[k];
       return `<tr><td>${campLabel(ck)}</td><td><span class="pill"><span class="dot" style="background:${pk==='linkedin'?C.li:C.td}"></span>${PLAT_LABEL[pk]||pk}</span></td>${effCells(x)}</tr>`; }).join('')
     : `<tr><td colspan="8" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+
+  // --- campaign x line item (the media-plan line-item view, per brief) ---
+  // Built head-and-body in JS because the Leads column must only exist when a line actually reports
+  // LinkedIn lead-form leads: a permanent column of dashes reads as "this line failed", and a
+  // permanent column of zeros would be a false zero on Trade Desk, which has no lead-form concept.
+  const ctc=aggBy(rows, r=>r.campaign+'||'+(r.tactic||'Unspecified')+'||'+r.platform);
+  const ctckeys=Object.keys(ctc).sort((a,b)=>{ const A=a.split('||'), B=b.split('||');
+    return (A[0]<B[0]?-1:A[0]>B[0]?1:0) || tacticRank(A[1])-tacticRank(B[1]) || (A[2]<B[2]?-1:A[2]>B[2]?1:0); });
+  // A line "has a lead form" if it shows lead-form ACTIVITY, not merely a non-null count: LinkedIn
+  // reports leads=0 on every ad set, including awareness ones that carry no form at all, and a 0 in
+  // that column reads as "this line was asked for leads and got none". Form OPENS separate the two -
+  // so a Conversion line that genuinely converted nobody still prints a real 0, while an Awareness
+  // line prints '-'. Trade Desk has no lead-form concept and always prints '-'.
+  const hasForm=x=>x.hasLeads && ((x.leads||0)>0 || (x.opens||0)>0);
+  const anyLeads=ctckeys.some(k=>hasForm(ctc[k]));
+  el('campTacticTable').querySelector('thead').innerHTML =
+    `<tr><th>Campaign</th><th>Line item</th><th>Channel</th><th class="num">Spend</th><th class="num">Imps</th>`
+    + `<th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>`
+    + (anyLeads?`<th class="num" title="LinkedIn on-platform lead-form leads - a paid metric, not Salesforce leads">Lead-form leads</th>`:'')
+    + `</tr>`;
+  const cttb=el('campTacticTable').querySelector('tbody');
+  cttb.innerHTML = ctckeys.length ? ctckeys.map(k=>{ const [ck,tk,pk]=k.split('||'); const x=ctc[k];
+      return `<tr><td>${campLabel(ck)}</td><td>${tacticPill(tk)}</td><td>${platPill(pk)}</td>${effCells(x)}`
+           + (anyLeads?`<td class="num">${hasForm(x)?fmtN(x.leads):'-'}</td>`:'') + `</tr>`; }).join('')
+    : `<tr><td colspan="${anyLeads?10:9}" style="text-align:center;color:var(--se-mute);padding:14px">No delivery in the current filter.</td></tr>`;
+
+  // --- impressions by campaign, stacked by line item ---
+  // Only worth drawing when more than one stage is in play; otherwise it is a bar chart of the
+  // campaign totals already shown above, relabelled.
+  const tacticsShown=[...new Set(ctckeys.map(k=>k.split('||')[1]))].sort((a,b)=>tacticRank(a)-tacticRank(b));
+  // Explain the Unspecified bucket only while one is on screen - left standing under a single brief
+  // that has none, it reads as a caveat about numbers the reader cannot see.
+  el('campTacticNote').innerHTML = tacticsShown.includes('Unspecified')
+    ? ' Enterprise IT names its ad sets by vertical rather than funnel stage, so its delivery sits under <i>Unspecified</i> - that is how the brief is built, not a gap in the data.'
+    : '';
+  const showTacticChart = tacticsShown.length>1;
+  el('campTacticSec').style.display = showTacticChart ? '' : 'none';
+  el('campTacticCard').style.display = showTacticChart ? '' : 'none';
+  el('campTacticChartCard').style.display = showTacticChart ? '' : 'none';
+  if(showTacticChart){
+    const ctAgg=aggBy(rows, r=>r.campaign+'||'+(r.tactic||'Unspecified'));
+    const scT=shown.filter(c=>byCamp[c.key]);
+    charts.campTactic=new Chart(el('campTactic'),{type:'bar',
+      data:{labels:scT.map(c=>c.label),
+        datasets:tacticsShown.map(tk=>({label:tk,
+          data:scT.map(c=>(ctAgg[c.key+'||'+tk]||{imps:0}).imps),
+          _spend:scT.map(c=>(ctAgg[c.key+'||'+tk]||{spend:0}).spend),
+          backgroundColor:tacticColor(tk),borderRadius:3,maxBarThickness:120}))},
+      options:{responsive:true,maintainAspectRatio:false,
+        scales:{x:Object.assign(axisX(),{stacked:true}),y:Object.assign(gridY(),{stacked:true,ticks:{color:C.mute,font:{size:11,...FONT},callback:v=>fmtM(v)}})},
+        plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${fmtN(c.parsed.y)} imps · ${money((c.dataset._spend||[])[c.dataIndex])}`}}}}});
+  }
 
   // --- spend by campaign (doughnut) ---
   const sc=shown.filter(c=>byCamp[c.key]);
@@ -1423,16 +1571,16 @@ function exportThisTab(){
   // NOTE: `_`-prefixed stash keys (bbApplySpendMult parks pre-markup spend on _rawSpend) are never
   // written here - the columns are listed explicitly, so raw spend cannot leak to the client.
   if(activeTab==='overview'){
-    const rows=[['campaign','platform','date','market','region','imps','clicks','spend_aud']];
-    pmRows().forEach(r=>rows.push([campLabel(r.campaign),r.platform,r.date,r.market,r.region,r.imps,r.clicks,r.spend_aud]));
+    const rows=[['campaign','line_item','platform','date','market','region','imps','clicks','spend_aud']];
+    pmRows().forEach(r=>rows.push([campLabel(r.campaign),r.tactic||'',r.platform,r.date,r.market,r.region,r.imps,r.clicks,r.spend_aud]));
     dl('secpwr_delivery.csv',rows);
   } else if(activeTab==='creative'){
-    const rows=[['campaign','platform','concept','format','market','imps','clicks','ctr','spend_aud']];
-    crRows().forEach(r=>rows.push([campLabel(r.campaign),r.platform,r.concept,r.format,r.market,r.imps,r.clicks,pct(r.clicks,r.imps),r.spend_aud]));
+    const rows=[['campaign','line_item','platform','concept','format','market','imps','clicks','ctr','spend_aud']];
+    crRows().forEach(r=>rows.push([campLabel(r.campaign),r.tactic||'',r.platform,r.concept,r.format,r.market,r.imps,r.clicks,pct(r.clicks,r.imps),r.spend_aud]));
     dl('secpwr_creative.csv',rows);
   } else {
-    const rows=[['campaign','brief','channels','markets','first_delivery','last_delivery','imps','clicks','spend_aud']];
-    campaignList().filter(c=>campOk(c.key)).forEach(c=>rows.push([c.label,c.brief,(c.platforms||[]).join(' + '),(c.markets||[]).join(' · '),c.first_delivery,c.last_delivery,c.imps,c.clicks,c.spend_aud]));
+    const rows=[['campaign','brief','channels','line_items','markets','first_delivery','last_delivery','imps','clicks','spend_aud']];
+    campaignList().filter(c=>campOk(c.key)).forEach(c=>rows.push([c.label,c.brief,(c.platforms||[]).join(' + '),(c.tactics||[]).join(' · '),(c.markets||[]).join(' · '),c.first_delivery,c.last_delivery,c.imps,c.clicks,c.spend_aud]));
     dl('secpwr_campaigns.csv',rows);
   }
 }
@@ -1454,11 +1602,25 @@ function buildReportPayload(){
   const by_channel=Object.entries(byCh).sort((a,b)=>b[1].spend-a[1].spend).map(([k,v])=>({channel:PLAT_LABEL[k]||k, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks, cpm:_r2(v.imps?v.spend/v.imps*1000:0), cpc:_r2(v.clicks?v.spend/v.clicks:0), ctr:_r6(v.imps?v.clicks/v.imps:0)}));
   const byC={}; rows.forEach(r=>{ const e=byC[r.market]||(byC[r.market]={spend:0,imps:0,clicks:0,region:r.region}); e.spend+=r.spend_aud||0; e.imps+=r.imps||0; e.clicks+=r.clicks||0; });
   const by_market=Object.entries(byC).sort((a,b)=>b[1].spend-a[1].spend).map(([market,v])=>({market, region:v.region, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks, ctr:_r6(v.imps?v.clicks/v.imps:0)}));
+  // Media-plan LINE ITEM x channel - the plan's own view. Emitted down the funnel, not by spend, so
+  // the deck narrates Awareness -> Consideration -> Conversion in the order the plan buys it.
+  const byT={}; rows.forEach(r=>{ const k=(r.tactic||'Unspecified')+'||'+r.platform;
+    const e=byT[k]||(byT[k]={spend:0,imps:0,clicks:0,leads:0,opens:0,hasLeads:false});
+    e.spend+=r.spend_aud||0; e.imps+=r.imps||0; e.clicks+=r.clicks||0;
+    if(r.leads!=null){ e.leads+=r.leads; e.hasLeads=true; }
+    e.opens+=r.lead_form_opens||0; });
+  const by_line_item=tacticKeysInFunnelOrder(Object.keys(byT)).map(k=>{ const [line,ch]=k.split('||'), v=byT[k];
+    return {line_item:line, channel:PLAT_LABEL[ch]||ch, spend:_r2(v.spend), imps:v.imps, clicks:v.clicks,
+      cpm:_r2(v.imps?v.spend/v.imps*1000:0), cpc:_r2(v.clicks?v.spend/v.clicks:0), ctr:_r6(v.imps?v.clicks/v.imps:0),
+      // Null unless the line actually carries a lead form (see hasForm() in renderCampaigns) - a 0
+      // on an awareness line would invite the deck to report a lead target that was never bought.
+      lead_form_leads:((v.hasLeads && (v.leads>0 || v.opens>0))?v.leads:null)}; });
   const byCamp=aggBy(rows, r=>r.campaign);
   const by_campaign=campaignList().filter(c=>campOk(c.key) && byCamp[c.key]).map(c=>{
     const v=byCamp[c.key];
     return {campaign:c.label, brief:c.brief, channels:(c.platforms||[]).map(p=>PLAT_LABEL[p]||p),
       markets:c.markets||[], live_since:c.first_delivery,
+      line_items:c.tactics||[],
       spend:_r2(v.spend), imps:v.imps, clicks:v.clk,
       cpm:_r2(v.imps?v.spend/v.imps*1000:0), cpc:_r2(v.clk?v.spend/v.clk:0),
       ctr:_r6(v.imps?v.clk/v.imps:0)};
@@ -1468,12 +1630,14 @@ function buildReportPayload(){
     context:{ campaign:'Secure Power', campaign_key:'secpwr',
       campaigns:campaignList().map(c=>`${c.label} (brief ${c.brief})`),
       markets:activeMarketList(), all_markets:DATA.markets||[],
+      line_items:activeTacticList(), all_line_items:DATA.tactics||[],
       date_filtered:false, date_filter:{start:null,end:null},
       window:DATA.window||{}, data_through:DATA.data_through||null, last_updated:DATA.last_updated||null,
       generated_at:new Date().toISOString() },
     paid:{ totals:{ spend:_r2(pt.spend), imps:pt.imps, clicks:pt.clk, cpm:_r2(pt.imps?pt.spend/pt.imps*1000:0), cpc:_r2(pt.clk?pt.spend/pt.clk:0), ctr:_r6(pt.imps?pt.clk/pt.imps:0) },
-      by_channel, by_market, by_campaign,
-      note:'LinkedIn + The Trade Desk delivery for three SEPARATE Schneider Secure Power briefs: Enterprise IT Expansion (1958, multi-region India/MEA/South America/Pacific), Industrial Edge / Prefab (2463, AU/NZ) and Software First EcoStruxure (2305, AU/NZ). Reach + clicks + CTR + cost efficiency only.' },
+      by_channel, by_market, by_campaign, by_line_item,
+      note:'LinkedIn + The Trade Desk delivery for three SEPARATE Schneider Secure Power briefs: Enterprise IT Expansion (1958, multi-region India/MEA/South America/Pacific), Industrial Edge / Prefab (2463, AU/NZ) and Software First EcoStruxure (2305, AU/NZ). Reach + clicks + CTR + cost efficiency only.',
+      line_item_note:"`by_line_item` is the MEDIA-PLAN LINE ITEM (funnel stage) each ad set was bought against, split by the engine that carried it - the same Awareness / Consideration / Retargeting / Conversion lines the plan books. Enterprise IT names its ad sets by VERTICAL rather than funnel stage, so all of its delivery sits under 'Unspecified': that is how that brief is built and must NOT be described as missing, untagged or unclassified data. `lead_form_leads` is the LinkedIn on-platform lead-form count on the Conversion line - a PAID platform metric, never a qualified or Salesforce lead - and is null on any line whose channel has no lead-form concept." },
     // DELIVERY-ONLY: no signed media plan exists for any of the three briefs, so there are no
     // targets, no budget and no pacing. Do not synthesise them in the deck narrative.
     plan:{ has_targets:false,

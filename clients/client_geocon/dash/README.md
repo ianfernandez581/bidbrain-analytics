@@ -1,6 +1,6 @@
-# clients/client_mongodb/dash/ — the Web App (stage 3: password gate + dashboard)
+# clients/client_geocon/dash/ — the Web App (stage 3: password gate + dashboard)
 
-> A **Cloud Run Service** (`mongodb-dash`) that's always on. It shows a login screen, and once
+> A **Cloud Run Service** (`geocon-dash`) that's always on. It shows a login screen, and once
 > you're authenticated it serves the dashboard and the data — and nothing otherwise.
 
 **Plain English:** this is the *waiter behind a locked door*. A visitor sees a password box;
@@ -9,7 +9,7 @@ locked storage on your behalf. No password → you get nothing, and the data fil
 reached directly. All the charts and tabs you see live in one HTML file; this Python file only
 decides **who** may see it, not **what** it shows.
 
-**Where this sits:** [`../job/`](../job/README.md) writes `mongodb.json` to the private bucket →
+**Where this sits:** [`../job/`](../job/README.md) writes `geocon.json` to the private bucket →
 **[this app]** authenticates the user and serves it at `/data.json` → `dashboard.html` draws
 the charts.
 
@@ -22,12 +22,15 @@ the charts.
 | [`main.py`](main.py) | The Flask app: login, session, the gated routes, and the `POST /report` endpoint (auth + GCS cache, delegates generation to `report.py`). |
 | [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — all tabs, charts, filters, the CSV export, and the **AI report** (button + on-screen preview + a client-side **4-slide Google Slides** `.pptx` download via PptxGenJS). Baked into the container; fetches `/data.json` on load. |
 | [`report.py`](report.py) | **AI report generator** (vendored, like `platform_sso.py`). Two Claude Opus 4.8 calls — Stage A researches the "why" with **live web search**, Stage B structures it into the strict slide JSON. See [§ AI report](#ai-report-download-slides--google-slides). |
+| [`geocon-mark.png`](geocon-mark.png) | The **GEOCON corporate wordmark** used by the login page. A copy of `../creatives/geoconlogo.png` **cropped to the wordmark's ink bounds** and living in `dash/` on purpose: `creatives/` is NOT in this folder's Docker build context, so a path into it 404s once deployed. Served publicly at `/geocon-mark.png` (the login page needs it before anyone is authenticated). |
+| [`bb_deck.js`](bb_deck.js) | The vendored theme-driven deck builder (canonical copy in `client_mongodb/dash/`). |
+| [`deploy_dash_geocon.ps1`](deploy_dash_geocon.ps1) | Per-stage deploy: rebuild + update the SERVICE (use after editing anything in this folder). |
 | [`platform_sso.py`](platform_sso.py) | Cross-subdomain SSO verifier (trusts the platform's `bb_sso` cookie in addition to the local password). |
 | [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py` + `platform_sso.py` + `report.py` + `dashboard.html`. |
-| [`enable_report_mongodb.ps1`](enable_report_mongodb.ps1) | **One-time** setup for the AI report: creates the `anthropic-api-key` secret, grants the runtime SA secret-read + bucket-write, mounts the key, and bumps the service `--timeout`. |
-| [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run deploy mongodb-dash` → re-apply `--no-invoker-iam-check` (so a redeploy never silently drops public reachability). |
+| [`enable_report_geocon.ps1`](enable_report_geocon.ps1) | **One-time** setup for the AI report: creates the `anthropic-api-key` secret, grants the runtime SA secret-read + bucket-write, mounts the key, and bumps the service `--timeout`. |
+| [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run deploy geocon-dash` → re-apply `--no-invoker-iam-check` (so a redeploy never silently drops public reachability). |
 | [`requirements.txt`](requirements.txt) | `Flask`, `gunicorn`, `google-cloud-storage`, `anthropic` (the report generator). Kept out of the dev venv on purpose. |
-| [`LIVE_URL.md`](LIVE_URL.md) | The live `…run.app` URL, the intended `mongodb.bidbrain.ai`, and how to re-fetch the URL. |
+| [`LIVE_URL.md`](LIVE_URL.md) | The live `…run.app` URL, the intended `geocon.bidbrain.ai`, and how to re-fetch the URL. |
 | `.dockerignore` | Keeps the build context lean. |
 
 ---
@@ -39,7 +42,7 @@ the charts.
 | `GET /` | Not logged in → the login page. Logged in → `dashboard.html` (sent `Cache-Control: no-store` so a redeploy is picked up immediately). |
 | `POST /login` | Constant-time (`hmac.compare_digest`) password check against `DASH_PASSWORD`. Success → session cookie; wrong → 401. |
 | `GET /logout` | Clears the session. |
-| `GET /data.json` | **The only data path.** 401 unless authenticated; then streams `mongodb.json` from the private bucket (also `no-store`). The bucket itself stays private — the browser never touches it. |
+| `GET /data.json` | **The only data path.** 401 unless authenticated; then streams `geocon.json` from the private bucket (also `no-store`). The bucket itself stays private — the browser never touches it. |
 | `POST /report` | **AI report.** 401 unless authenticated. The browser POSTs the current view's numbers; the route serves a cached report (keyed by view + data version) or calls `report.py` to generate one, caches it in `gs://…/reports/`, and returns the slide JSON. See [§ AI report](#ai-report-download-slides--google-slides). |
 | `GET /healthz` | Liveness check. |
 
@@ -125,7 +128,7 @@ tokens/min) is too low for a single web-grounded Opus report — raise the tier 
 `REPORT_SCHEMA` (report.py) → `renderReportDeck()` (on-screen preview) **and** `buildSlidesDeck()`
 (the downloaded Google Slides `.pptx`) (dashboard.html). Rename a key in one place → fix all the rest.
 
-**Caching & cost.** The route caches each generated report in `gs://bidbrain-analytics-mongodb-dash/reports/`,
+**Caching & cost.** The route caches each generated report in `gs://bidbrain-analytics-geocon-dash/reports/`,
 keyed by **view identity + `data_through`** — so re-downloading the same view is instant and free,
 and it only regenerates when the underlying data advances. Cost is ~a few Opus calls + web-search
 units per *distinct* (view × data-version). Bump `REPORT_CACHE_VERSION` in `main.py` to invalidate
@@ -135,9 +138,9 @@ all cached reports after a prompt/schema change.
 Manager / `bidbrain-vault/`):
 ```powershell
 # provide the key via -Key, $env:ANTHROPIC_API_KEY, or bidbrain-vault\anthropic-api-key.txt
-.\clients\client_mongodb\dash\enable_report_mongodb.ps1 -Key "sk-ant-..."
+.\clients\client_geocon\dash\enable_report_geocon.ps1 -Key "sk-ant-..."
 ```
-That creates the `anthropic-api-key` secret, grants the runtime SA `mongodb-dash-web@`
+That creates the `anthropic-api-key` secret, grants the runtime SA `geocon-dash-web@`
 secret-read **and** bucket object-write (for the cache), mounts `ANTHROPIC_API_KEY`, and sets the
 Cloud Run `--timeout` to 900s (the two-stage call can take 20-60s). Then redeploy the image
 (below) so `report.py` + the new `dashboard.html` ship. The mount + timeout persist across image
@@ -146,16 +149,51 @@ swaps.
 ## Deploy (manual today)
 
 ```powershell
-$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/mongodb-dash:$(git rev-parse --short HEAD)"
-gcloud builds submit clients/client_mongodb/dash --tag $IMG --region australia-southeast1
-gcloud run services update mongodb-dash --image $IMG --region australia-southeast1
+$IMG = "australia-southeast1-docker.pkg.dev/bidbrain-analytics/bidbrain/geocon-dash:$(git rev-parse --short HEAD)"
+gcloud builds submit clients/client_geocon/dash --tag $IMG --region australia-southeast1
+gcloud run services update geocon-dash --image $IMG --region australia-southeast1
 ```
 The service goes live as soon as the new revision is ready (no "run" step) and serves whatever
 JSON is currently in the bucket. To change the password, add a new version of the
-`mongodb-dash-password` secret and redeploy (it picks up `:latest` on next start).
+`geocon-dash-password` secret and redeploy (it picks up `:latest` on next start).
 
 ## See also
 
 - [`../README.md`](../README.md) — the client overview and the 3-stage pipeline.
 - [`../job/README.md`](../job/README.md) — stage 2 (produces the JSON this app serves).
 - [Root README §7](../../../README.md#7-security-model-read-before-changing-hosting) — why the gate is the whole security model.
+
+---
+
+## The login page wears GEOCON CORPORATE, the dashboard wears GATEWAY BRADDON
+
+Re-skinned 2026-08-18 from geocon.com.au's own footer/CTA treatment: warm light-grey canvas
+(`#EDEDEB`), near-black heavy condensed uppercase display type (**Anton**, Google Fonts, loaded the
+same way the previous Montserrat was), a hairline outlined rounded CTA carrying the site's diagonal
+arrow, and the dotted rule the site uses as a divider.
+
+**Layout: ONE CENTRED CELL (2026-08-19, client request for estate uniformity).** Every other
+dashboard login in the estate is a single centred card, so this one is too; the brand work moved into
+the background instead of a left-aligned full-bleed headline. The background is four fixed pure-CSS
+layers behind the cell, no assets to load: `.sheet` (hairline drafting grid, heavier module every 5th
+line, radial-masked so it fades at the edges and never reads as a wireframe screenshot), `.plan`
+(oversized architectural plan geometry - thin rings plus a long diagonal - at ~0.075 alpha), `.band`
+(the site's dotted divider repeated as two horizons) and `.glow` (a soft centre vignette that lifts
+the cell, with one 22s breath that `prefers-reduced-motion` switches off). **Keep those alphas low** -
+past roughly 0.09 on a light canvas the texture stops reading as texture and starts reading as
+clutter.
+
+**The split is deliberate.** This LOGIN is Geocon corporate; the DASHBOARD behind it stays on the
+dark **Gateway Braddon property** palette, which is the campaign's own brand board
+(`../creatives/Gateway-Braddon-Brand-Board.png`). Two brands doing two different jobs - do not
+"unify" them without asking.
+
+**The wordmark trick, and why both halves are required.** The supplied artwork is WHITE type baked
+onto an OPAQUE BLACK square with no alpha, so dropping it on a light canvas reads as a black tile.
+The CSS applies `filter:invert(1)` (black type on white) **plus** `mix-blend-mode:multiply` (white
+multiplies away to the page colour), leaving the wordmark alone exactly as the site sets it. Remove
+either property and it looks broken. The asset is also **cropped to its ink bbox** - as the original
+447x447 square, a 27px-tall `<img>` rendered a microscopic wordmark inside a mostly-empty box.
+
+Verified in a headless browser at 1440x900 and 420x860: mark loads, no horizontal overflow, no
+console errors, and `geocon2026` still signs in to the unchanged dashboard.

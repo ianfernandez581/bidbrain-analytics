@@ -91,6 +91,7 @@ frequency = impressions ÷ summed-reach).
 | Flight / pacing math | `job/main.py` (`flight = {...}`, from the budget seed + today) |
 | Charts, views, Δ table, segment breakdown, CSV export, the AI report deck | `dash/dashboard.html` |
 | Login / how the JSON + `/report` are served | `dash/main.py` (rarely needed) |
+| The **login page** look (Geocon corporate skin) | `dash/main.py` `LOGIN_HTML` + `dash/geocon-mark.png` |
 
 ## The dashboard (`dash/dashboard.html`)
 
@@ -130,6 +131,21 @@ AXIS Relative/Absolute** toggles (default Relative + Month).
   `gcloud storage cp` into `creatives/`) can seed those.
 
 Login password lives in Secret Manager `geocon-dash-password` (mounted `DASH_PASSWORD`); agency = **100% Digital**.
+
+**The login page is GEOCON CORPORATE, not Gateway Braddon (re-skinned 2026-08-18 from the client's
+own website).** Warm light-grey canvas `#EDEDEB`, near-black heavy condensed uppercase display type
+(**Anton** via Google Fonts), a hairline outlined rounded CTA with the site's diagonal arrow, and the
+site's dotted divider rule. **One CENTRED cell since 2026-08-19** (estate uniformity - every other
+dashboard login is a single centred card), over a four-layer pure-CSS "drafting sheet" background:
+masked hairline grid, faint oversized plan geometry, two dotted horizons and a breathing vignette
+(disabled under `prefers-reduced-motion`). The **dashboard behind it deliberately stays dark Gateway Braddon** - two
+brands, two jobs; do not unify them without asking. The corporate wordmark is served from
+`dash/geocon-mark.png` at the public route `/geocon-mark.png` (public because the login page renders
+it before anyone is authenticated), and it is a **cropped** copy of `creatives/geoconlogo.png` that
+must live in `dash/`: `creatives/` is not in that folder's Docker build context, and the Dockerfile's
+COPY list is explicit, so a new asset must be added there too. The artwork is white type on an opaque
+black square, so the CSS pairs `filter:invert(1)` with `mix-blend-mode:multiply` to set it as black
+type straight onto the grey - **both properties are required**. Full detail: `dash/README.md`.
 
 Two MongoDB/STT-grade capabilities every dashboard carries:
 - **Performance-over-time chart** with **View by Month/Week/Day** grain + **Relative/Absolute axis**

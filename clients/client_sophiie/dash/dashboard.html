@@ -1,0 +1,1716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sophiie AI · Live Dashboard</title>
+<!-- Favicon: a RELATIVE path, so it resolves both direct (/logo.png) and behind the platform
+     reverse proxy (/d/sophiie/logo.png). A root-relative "/logo.png" would 404 when proxied. -->
+<link rel="icon" type="image/png" href="logo.png">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- PptxGenJS + shared bb_deck.js power the portal-driven "Download slides" export (headless via ?bbslides=1). -->
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
+<script src="bb_deck.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- Chronicle: THREE faces, one request. Fraunces italic = display (titles, campaign names, the one
+     modelled figure); Inter = UI (labels, eyebrows, body); IBM Plex Mono = every measured number.
+     Weights 400/500 ONLY - the hierarchy comes from size, face and colour, never from bold. Inter is
+     still Sophiie's brand face (sophiie.ai/brand-kit); the serif and the mono are the editorial layer. -->
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    color-scheme: light;
+    /* ===== Sophiie AI - "Chronicle - marble" on the aurora. An EDITORIAL PRINT skin: a display serif
+       for titles, a monospace for every measured figure, hairlines and whitespace instead of floating
+       cards - laid over the (now much quieter) animated aurora, which stays because it is the client's
+       signature. =====
+
+       WHY THE LEGACY NAMES SURVIVE: --accent / --panel / --muted / --leads / --qualified etc. are read
+       by ~600 rules below AND by the JS `MC` map that colours every chart. They are REMAPPED onto the
+       Chronicle palette rather than renamed, so this restyle stayed a CSS change. Do not "clean them
+       up" into new names without also editing the JS.
+
+       FOUR RULES (this is a restyle with a narrow point; breaking any of them loses it):
+         1. NO font weight above 500. The old build ran to 800 and that heaviness is most of why it read
+            generic. Hierarchy = size + face + colour.
+         2. Every measured number is IBM Plex Mono with `font-variant-numeric: tabular-nums`, so no
+            column jitters when the date filter moves.
+         3. MARBLE LIVES ON FIVE SURFACES ONLY (masthead, sample-data notice, the KPI slab, the pacing
+            panel, the goal panel). Behind the tables, the charts or the tab bar it stops being a
+            material and becomes wallpaper - that is the one failure mode to avoid.
+         4. NO shadows anywhere. Structure comes from 0.5px rules. */
+
+    /* ink ramp */
+    --ink:#0F0E0D; --ink-2:#3A3733; --ink-3:#6A6660; --ink-4:#A8A29A;
+    --rule:rgba(15,14,13,.10); --rule-strong:rgba(15,14,13,.20);
+    --paper:#FFFFFF;
+    --shell:#EFEEEB;                 /* warm-neutral page, under the aurora (was a pale blue gradient) */
+
+    /* legacy names -> the ramp above */
+    --bg-0:var(--shell);
+    --panel:var(--paper); --panel2:var(--paper);
+    --line:var(--rule); --line2:var(--rule-strong); --hair:var(--rule);
+    --card-1:var(--paper); --card-2:var(--paper);
+    --muted:var(--ink-2); --muted2:var(--ink-3);
+    --accent:var(--ink); --accent2:var(--ink-2); --accent-soft:var(--ink-2); --accent-edge:var(--ink);
+    --on-accent:#FFFFFF;             /* white on an ink fill */
+    --deep:var(--ink); --forest:var(--ink-2); --forest2:#DCD9D3;
+    /* ELEVATION. Tiles are separated by whitespace and lifted on shadow - no outline, because a
+       solid rule around every panel reads as a wireframe rather than as a surface. Two steps only:
+       resting and hover. Everything keeps the same ink hue so the shadows never look blue or muddy. */
+    --radius:14px;
+    --elev-1:0 1px 2px rgba(15,14,13,.04),0 8px 20px -10px rgba(15,14,13,.16);
+    --elev-2:0 2px 6px rgba(15,14,13,.06),0 20px 40px -16px rgba(15,14,13,.26);
+    --lift:cubic-bezier(.2,.7,.3,1);
+    /* legacy names, remapped onto the two steps above */
+    --glow:transparent; --card-shadow:var(--elev-1); --card-glow:var(--elev-1); --hover-glow:var(--elev-2);
+
+    /* Stage hues, desaturated so they sit UNDER the marble instead of vibrating against it.
+       They are also the chart series palette. If a media buyer cannot tell conversion from
+       retargeting at a glance, push the saturation back up - the stage system beats the aesthetic. */
+    --a-blue:#4E6E9E; --a-sky:#6E9BB5; --a-cyan:#6E9BB5; --a-azure:#6E9BB5;
+    --a-purple:#7A6FA8; --a-teal:#4F7A5C; --a-pink:#A87389;
+
+    /* metric colours (mapped onto the stage hues so a KPI dot == its chart series) */
+    --qualified:#4F7A5C; --leads:#4E6E9E; --spend:#0F0E0D; --cost:#7A6FA8;
+    --ctr:#4E6E9E; --reach:#6E9BB5; --lpv:#7A6FA8;
+    --good:#1F4715; --warn:#7A5A16; --bad:#7A241F;
+
+    /* faces */
+    --f-display:"Fraunces",Georgia,"Times New Roman",serif;
+    --f-ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0;color:var(--ink);font-family:var(--f-ui);
+       font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+  /* Titles + campaign names carry the serif; every MEASURED figure carries the mono. The two are
+     doing all the work in this skin, so the selectors are deliberately broad. */
+  h1,h2,h3{font-family:var(--f-display);font-style:italic;font-weight:500;letter-spacing:-.02em}
+  .kpi .value,.value,.num,td.num,th.num,.funnel-value,.goal .gh b,.pacing-val,
+  .insight .value,.flow-meta,.pace-meta,.funnel-rate{font-family:var(--f-mono);font-weight:500;
+       font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  /* Nothing heavier than 500 anywhere - see :root rule 1. This backstop catches any bold that
+     survives in an inline style or a nested rule. */
+  b,strong,th{font-weight:500}
+  /* The page itself is a FLAT wash - all of the movement lives in the three fixed aurora layers
+     below, so no scrolling gradient can drift out of sync with them. */
+  body{min-height:100vh;background:var(--shell);overflow-x:hidden}
+  a{color:var(--accent2);text-decoration:none}
+  a:hover{text-decoration:underline;text-decoration-color:var(--accent);text-underline-offset:3px}
+
+  /* ==========================================================================
+     THE AURORA BACKGROUND - three fixed, non-interactive layers, bottom to top:
+       1. .aurora-ambient    4 huge blurred colour orbs        - the wash
+       2. .aurora-diagonals  5 slanted light bands             - the signature (matches sophiie.ai)
+       3. #aurora-bg         a <canvas> of ~24 swaying curtains - the life
+     All three are position:fixed, pointer-events:none, z-index:0; every piece of page chrome sits
+     at z-index:1 (.topbar/.container below). Total cost is one requestAnimationFrame loop plus CSS
+     keyframes on nine fixed divs - it does not touch layout, so it never reflows the dashboard.
+     ========================================================================== */
+  #aurora-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;
+             filter:blur(12px)}          /* the blur is what turns hard polygons into curtains */
+
+  /* ==========================================================================
+     MARBLE. Two INDEPENDENT levers, worth knowing before you tune anything:
+       - the ASSET controls how much vein exists (three exports of the same slab, each with its
+         veining amplified for the size it renders at - band least, tile most; do not use one file
+         for all three jobs or the small crops go flat);
+       - the WASH below controls how much of it you let through. It is the volume knob: RAISE the
+         percentage to make the marble quieter. Do not go past ~55% - beyond that it stops reading
+         as stone and just looks like dirty white, which is worse than no texture at all.
+     Mechanic: the surface paints the JPEG, and a `::after` lays a white wash over it. Content must
+     sit at z-index 1 or the wash covers it. Darkest pixel in the assets is luminance 220+, so
+     near-black text on any of them clears WCAG AAA - the washes are purely aesthetic.
+     URLs are RELATIVE so they resolve direct (/marble-cell.jpg) and behind the platform proxy
+     (/d/sophiie/marble-cell.jpg) alike; main.py serves them from a name whitelist.
+     ========================================================================== */
+  .mrb{position:relative;background-repeat:no-repeat}
+  .mrb>*{position:relative;z-index:1}
+  .mrb::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;background:rgba(255,255,255,var(--wash,.42))}
+
+  .aurora-ambient,.aurora-diagonals{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .aurora-ambient__orb{position:absolute;border-radius:50%;filter:blur(120px)}
+  /* THE AURORA - settled at its third setting: colour and motion are back up from the very quiet
+     pass, but still well short of the original saturated-cyan version.
+     THE TRAP, learned the hard way: never make this quieter by DARKENING the hues. The original was
+     bright cyan on a near-white page, so it read as a pale tint; darkened to navy, the same alphas
+     accumulated across ~27 overlapping curtains and five bands into a grey-brown wash over the warm
+     #EFEEEB shell and the whole page looked dirty. Hues must stay LIGHT - near the shell's own
+     luminance - and the two dials are ALPHA and STRIP COUNT. Saturation is safe; darkness is not.
+     Louder: raise the alphas here and in .aurora-diag together, and shorten the durations. */
+  .aurora-ambient__orb--1{width:60vw;height:50vh;top:-8%;left:-10%;animation:amb1 9s ease-in-out infinite;
+       background:radial-gradient(circle,rgba(116,170,212,.46) 0%,transparent 70%)}
+  .aurora-ambient__orb--2{width:50vw;height:45vh;top:5%;right:-8%;animation:amb2 11s ease-in-out infinite;
+       background:radial-gradient(circle,rgba(126,198,220,.38) 0%,transparent 70%)}
+  .aurora-ambient__orb--3{width:55vw;height:50vh;bottom:-10%;left:15%;animation:amb3 12s ease-in-out infinite;
+       background:radial-gradient(circle,rgba(124,176,216,.30) 0%,transparent 70%)}
+  .aurora-ambient__orb--4{width:45vw;height:40vh;top:30%;right:10%;animation:amb4 10s ease-in-out infinite;
+       background:radial-gradient(circle,rgba(112,180,206,.28) 0%,transparent 70%)}
+  @keyframes amb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(180px,130px) scale(1.22)}}
+  @keyframes amb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-165px,120px) scale(1.20)}}
+  @keyframes amb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(130px,-175px) scale(1.18)}}
+  @keyframes amb4{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-145px,-105px) scale(1.24)}}
+
+  /* Diagonal bands: wide, shallow-angled sweeps of blue light. Each keeps its OWN rotate() inside
+     every keyframe - a transform is one property, so omitting the rotation in a frame would snap the
+     band flat mid-animation. Each has 3-4 stops (not 2) so the drift path reads organic. */
+  .aurora-diag{position:absolute;transform-origin:center center}
+  .aurora-diag--1{width:160%;height:320px;top:-8%;left:-30%;transform:rotate(-18deg);animation:diag-sweep1 5.5s ease-in-out infinite;
+       background:linear-gradient(180deg,transparent 0%,rgba(116,170,212,.24) 20%,rgba(126,198,220,.44) 45%,rgba(140,206,228,.48) 55%,rgba(116,170,212,.24) 80%,transparent 100%)}
+  .aurora-diag--2{width:150%;height:260px;top:12%;left:-25%;transform:rotate(-22deg);animation:diag-sweep2 7s ease-in-out infinite;
+       background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.20) 20%,rgba(132,180,222,.38) 45%,rgba(140,206,228,.42) 55%,rgba(126,198,220,.20) 80%,transparent 100%)}
+  .aurora-diag--3{width:160%;height:350px;top:28%;left:-30%;transform:rotate(-15deg);animation:diag-sweep3 5s ease-in-out infinite;
+       background:linear-gradient(180deg,transparent 0%,rgba(116,170,212,.18) 15%,rgba(126,198,220,.38) 40%,rgba(116,170,212,.44) 55%,rgba(116,170,212,.18) 85%,transparent 100%)}
+  .aurora-diag--4{width:150%;height:240px;top:50%;left:-25%;transform:rotate(-20deg);animation:diag-sweep4 6.5s ease-in-out infinite;
+       background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.16) 20%,rgba(116,170,212,.34) 45%,rgba(126,198,220,.38) 55%,rgba(126,198,220,.16) 80%,transparent 100%)}
+  .aurora-diag--5{width:160%;height:280px;top:68%;left:-30%;transform:rotate(-17deg);animation:diag-sweep5 5.5s ease-in-out infinite;
+       background:linear-gradient(180deg,transparent 0%,rgba(126,198,220,.18) 20%,rgba(116,170,212,.34) 45%,rgba(126,198,220,.38) 55%,rgba(126,198,220,.18) 80%,transparent 100%)}
+  @keyframes diag-sweep1{0%{transform:rotate(-18deg) translate(0,0);opacity:.8}25%{transform:rotate(-18deg) translate(70px,52px);opacity:1}50%{transform:rotate(-18deg) translate(-38px,100px);opacity:.7}75%{transform:rotate(-18deg) translate(54px,26px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.8}}
+  @keyframes diag-sweep2{0%{transform:rotate(-22deg) translate(0,0);opacity:.7}30%{transform:rotate(-22deg) translate(-88px,70px);opacity:1}60%{transform:rotate(-22deg) translate(54px,-36px);opacity:.8}100%{transform:rotate(-22deg) translate(0,0);opacity:.7}}
+  @keyframes diag-sweep3{0%{transform:rotate(-15deg) translate(0,0);opacity:.9}33%{transform:rotate(-15deg) translate(62px,-62px);opacity:.7}66%{transform:rotate(-15deg) translate(-45px,80px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.9}}
+  @keyframes diag-sweep4{0%{transform:rotate(-20deg) translate(0,0);opacity:.8}40%{transform:rotate(-20deg) translate(-70px,88px);opacity:1}70%{transform:rotate(-20deg) translate(36px,-18px);opacity:.7}100%{transform:rotate(-20deg) translate(0,0);opacity:.8}}
+  @keyframes diag-sweep5{0%{transform:rotate(-17deg) translate(0,0);opacity:.7}35%{transform:rotate(-17deg) translate(80px,44px);opacity:1}65%{transform:rotate(-17deg) translate(-54px,88px);opacity:.8}100%{transform:rotate(-17deg) translate(0,0);opacity:.7}}
+
+  /* topbar - deliberately has NO bar: the aurora runs straight through it and only the chips,
+     pills and the mark are solid, so the page opens on the animation rather than on chrome. */
+  /* SURFACE 1/5 - the masthead. The single heavy bottom rule is what makes the page read as a
+     masthead rather than a page header; without it the marble band just floats. */
+  .topbar{padding:18px 0 16px;position:relative;z-index:1;--wash:.36;
+          background-image:url("marble-band.jpg");background-size:cover;background-position:center 40%;
+          border-bottom:1.5px solid var(--ink)}
+  .topbar .inner{max-width:1240px;margin:0 auto;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:24px;position:relative;z-index:1}
+  .topbar-left{display:flex;align-items:center;gap:14px}
+  .brand-logo{display:flex;align-items:center}
+  /* The two supplied marks. NEITHER has an alpha channel (Sophiie's is an indexed PNG on a white
+     field, 100% Digital's is a JPEG), so a bare <img> laid over the aurora would read as a stray
+     white rectangle. Both therefore sit on a WHITE CHIP at the panel radius, which makes the white
+     deliberate and matches every other surface in the skin. Both are inlined as base64 - a file path
+     does not resolve behind the platform proxy at /d/sophiie/ (the cloudflare lesson). */
+  .smark{flex:none;display:block;background:#fff;border-radius:11px;padding:4px;
+         box-shadow:var(--elev-1);border:0}
+  .smark img{height:36px;width:36px;display:block;border-radius:9px}
+  .agency-chip{flex:none;display:flex;align-items:center;background:#fff;border-radius:9px;padding:4px 9px;
+         box-shadow:var(--elev-1);border:0}
+  /* 36px, not the icon's 36: the 100% Digital artwork is 420x293 with wide internal margins, so it
+     needs more box to reach the same OPTICAL size as Sophiie's tight icon. Both chips end at 44px. */
+  .agency-chip img{height:36px;width:auto;display:block}
+  .brand{display:flex;flex-direction:column;line-height:1.1}
+  .brand .b1{font-size:19px;font-weight:500;letter-spacing:-.4px;color:var(--ink)}
+  .brand .b1 span{font-weight:400;color:var(--muted)}
+  .brand .b2{font-size:10px;font-weight:500;letter-spacing:2.2px;color:var(--accent2);text-transform:uppercase;margin-top:3px}
+  .topbar-divider{width:1px;height:30px;background:rgba(17,24,39,.12)}
+  .topbar-right{font-size:11.5px;color:var(--muted);text-align:right;line-height:1.6}
+  /* The dot still breathes, but on OPACITY alone - the old halo was a glow, and Chronicle has none. */
+  .live{display:inline-block;width:6px;height:6px;background:var(--good);border-radius:50%;margin-right:7px;
+        box-shadow:none;animation:breathe 2.5s ease-in-out infinite}
+  @keyframes breathe{0%,100%{opacity:1}50%{opacity:.45}}
+
+  .container{max-width:1240px;margin:0 auto;padding:0 28px 72px;position:relative;z-index:1}
+  /* Tiles float on the aurora, so give the tab panes a little air above them. */
+  .tabpane>.section.first{margin-top:6px}
+
+  /* control bar (sticky). SOLID white on purpose: it scrolls over the moving aurora, and a
+     translucent bar would let the curtains slide visibly underneath the tab labels. */
+  /* Sticky and SOLID: it travels over the aurora, and a translucent bar would let the curtains slide
+     under the tab labels. No marble here on purpose - texture behind controls reads as noise. */
+  /* Sticky and SOLID: it travels over the aurora, and a translucent bar would let the curtains slide
+     under the tab labels. Rounded + lifted like every other surface.
+     TEXTURE: a marble band sits behind the TAB RAIL only and is masked so it is gone before the filter
+     row begins - the same discipline as the Paid Media title bands. Controls need a calm field to read
+     against, so the row carrying the date picker, the chips and the search box stays clean paper.
+     margin-top matches .pholder's, so the first surface sits the same distance below the masthead
+     whether or not the sample-data notice is showing. */
+  .control-bar{background:var(--paper);border:0;border-radius:var(--radius);
+               box-shadow:var(--elev-1);padding:0 20px;margin:26px 0 26px;position:sticky;top:12px;z-index:30;
+               overflow:hidden}
+  .control-bar::before{content:"";position:absolute;top:0;left:0;right:0;height:74px;z-index:0;pointer-events:none;
+               background:linear-gradient(rgba(255,255,255,.46),rgba(255,255,255,.46)),
+                          url("marble-band.jpg") 42% 34%/150% no-repeat;
+               -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 52%,transparent 100%);
+                       mask-image:linear-gradient(180deg,#000 0%,#000 52%,transparent 100%)}
+  .control-bar>*{position:relative;z-index:1}
+  /* ...but once the notice IS showing it has already provided that air, so don't double it. */
+  .pholder + .control-bar{margin-top:0}
+  .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--hair)}
+  /* Tabs lose the pill entirely: uppercase letterspaced labels on a rule, the active one underlined.
+     Reads as an editorial index rather than as a segmented control. */
+  .tabs{display:flex;gap:26px;flex-wrap:wrap;background:none;border-radius:0;padding:0;margin:0}
+  .tab{padding:16px 0 13px;font-family:var(--f-ui);font-size:11px;font-weight:500;letter-spacing:.22em;
+       text-transform:uppercase;cursor:pointer;border:none;background:none;color:var(--ink-3);
+       border-bottom:1.5px solid transparent;margin-bottom:-1px;
+       transition:color .18s,border-bottom-color .18s}
+  .tab:hover{color:var(--ink)}
+  .tab.on{background:none;color:var(--ink);font-weight:500;box-shadow:none;border-bottom-color:var(--ink)}
+  .tabs-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0}
+  .ctrl-note{font-size:11.5px;color:var(--muted2)}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-family:var(--f-ui);font-size:10px;font-weight:500;
+       letter-spacing:.14em;text-transform:uppercase;cursor:pointer;
+       padding:8px 13px;border-radius:9px;border:.5px solid var(--rule-strong);background:var(--paper);color:var(--ink-2);
+       transition:border-color .18s,color .18s}
+  .btn:hover{border-color:var(--ink);color:var(--ink)}
+  .btn svg{width:14px;height:14px;flex:none}
+
+  /* filter row */
+  .control-filters{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:11px 2px 13px;border-top:1px solid var(--hair)}
+  .filter-grp{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .fdiv{width:1px;height:20px;background:var(--line2)}
+  .lbl{font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  /* Chips KEEP the pill - they are controls, and a pill is the right affordance for a toggle. Only
+     the weight comes down: 0.5px rules, 11px Inter, and a solid ink fill when active. */
+  .chip{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:999px;padding:6px 13px;
+        font-family:var(--f-ui);font-size:11px;cursor:pointer;
+        display:inline-flex;align-items:center;gap:6px;transition:border-color .15s,background .15s,color .15s;color:var(--ink-2)}
+  .chip:hover{border-color:var(--ink)}
+  .chip.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:500}
+  .chip .dot{width:6px;height:6px;border-radius:50%}
+  .search-wrap{position:relative;display:inline-flex;align-items:center}
+  .search{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:9px;color:var(--ink);outline:none;
+          padding:8px 28px 8px 12px;font-size:12px;font-family:var(--f-ui);min-width:214px}
+  /* clear affordance - only rendered once there is something to clear */
+  .search-x{position:absolute;right:6px;width:18px;height:18px;border:0;border-radius:50%;cursor:pointer;
+          background:rgba(15,14,13,.07);color:var(--ink-2);font-size:11px;line-height:1;padding:0;display:none;
+          font-family:var(--f-ui)}
+  .search-x:hover{background:rgba(15,14,13,.14);color:var(--ink)}
+  .search-wrap.has-q .search-x{display:block}
+  /* the keyboard hint disappears the moment the field is used */
+  .search-hint{position:absolute;right:9px;font-family:var(--f-mono);font-size:9.5px;color:var(--ink-4);
+          border:.5px solid var(--rule);border-radius:4px;padding:1px 5px;pointer-events:none}
+  .search-wrap.has-q .search-hint,.search-wrap:focus-within .search-hint{display:none}
+
+  /* RESET - appears only when something is actually filtered, and says how many things. */
+  .reset-btn{display:none;align-items:center;gap:7px;font-family:var(--f-ui);font-size:10px;font-weight:500;
+          letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:8px 12px;border-radius:9px;
+          border:.5px solid var(--ink);background:var(--ink);color:#fff;
+          transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
+  .reset-btn.on{display:inline-flex}
+  .reset-btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px -8px rgba(15,14,13,.5)}
+  .reset-btn .cnt{font-family:var(--f-mono);font-size:10px;letter-spacing:0;background:rgba(255,255,255,.22);
+          border-radius:20px;padding:1px 6px}
+
+  /* SCOPE READOUT - what the filters currently resolve to, in the mono like every other figure. */
+  .scope-note{margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--ink-3);
+          font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+  .scope-note b{color:var(--ink-2);font-weight:500}
+  @media(max-width:900px){.scope-note{margin-left:0;width:100%}}
+  .search::placeholder{color:var(--muted2)}
+  .search:focus{border-color:var(--ink);box-shadow:none}
+
+  /* ===== Shared date-range picker (Looker-style) ===== */
+  .dp{position:relative;display:inline-block;font-size:13px;
+      --dp-accent:var(--accent);--dp-bg:var(--panel);--dp-panel:var(--panel2);
+      --dp-line:var(--line2);--dp-ink:var(--ink);--dp-muted:var(--muted)}
+  .dp-btn{display:inline-flex;align-items:center;gap:7px;background:var(--dp-panel);border:1px solid var(--dp-line);color:var(--dp-ink);
+      border-radius:8px;padding:7px 12px;font-size:12.5px;font-weight:500;cursor:pointer;font-family:inherit;line-height:1.2}
+  .dp-btn:hover{border-color:var(--dp-accent)} .dp-btn svg{opacity:.75} .dp-btn .dp-cap{opacity:.55;font-size:11px;margin-left:1px}
+  .dp-pop{position:absolute;z-index:60;margin-top:6px;right:0;display:flex;background:var(--dp-bg);border:1px solid var(--dp-line);
+      border-radius:var(--radius);box-shadow:0 18px 40px -18px rgba(15,14,13,.30);overflow:hidden}
+  .dp-pop.dp-hide{display:none}
+  .dp-presets{display:flex;flex-direction:column;min-width:144px;border-right:1px solid var(--dp-line);padding:8px;gap:1px}
+  .dp-presets a{padding:8px 12px;border-radius:7px;cursor:pointer;color:var(--dp-muted);font-weight:500;font-size:12.5px;white-space:nowrap}
+  .dp-presets a:hover{background:var(--dp-panel);color:var(--dp-ink)} .dp-presets a.dp-on{background:var(--dp-accent);color:var(--on-accent)}
+  .dp-cal{padding:12px;width:264px}
+  .dp-cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+  .dp-cal-head span{font-weight:500;color:var(--dp-ink);font-size:13px}
+  .dp-nav{background:none;border:1px solid var(--dp-line);color:var(--dp-ink);border-radius:6px;width:26px;height:26px;cursor:pointer;font-size:14px;line-height:1;padding:0}
+  .dp-nav:hover:not(:disabled){border-color:var(--dp-accent)} .dp-nav:disabled{opacity:.3;cursor:default}
+  .dp-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+  .dp-dow{font-size:10px;font-weight:500;color:var(--dp-muted);text-align:center;padding:4px 0}
+  .dp-day{text-align:center;padding:6px 0;font-size:12px;border-radius:6px;cursor:pointer;color:var(--dp-ink);border:1px solid transparent;user-select:none}
+  .dp-day:hover{border-color:var(--dp-accent)}
+  .dp-day.dp-blank,.dp-day.dp-blank:hover{cursor:default;border-color:transparent}
+  .dp-day.dp-disabled,.dp-day.dp-disabled:hover{color:var(--dp-muted);opacity:.3;cursor:default;border-color:transparent}
+  .dp-day.dp-inrange{background:color-mix(in srgb,var(--dp-accent) 22%,transparent)}
+  .dp-day.dp-sel{background:var(--dp-accent);color:var(--on-accent);font-weight:500;border-color:transparent}
+  .dp-range{margin-top:10px;font-size:12px;color:var(--dp-muted);text-align:center} .dp-range b{color:var(--dp-ink)}
+  .dp-actions{display:flex;gap:8px;margin-top:10px;justify-content:flex-end}
+  .dp-actions button{border-radius:7px;padding:6px 14px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--dp-line);font-family:inherit}
+  .dp-cancel{background:transparent;color:var(--dp-muted)} .dp-cancel:hover{color:var(--dp-ink)}
+  .dp-apply{background:var(--dp-accent);color:var(--on-accent);border-color:transparent}
+  @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
+
+  .date-scope{background:none;border:0;border-left:1.5px solid var(--ink);border-radius:0;
+              padding:2px 0 2px 14px;margin-bottom:22px;font-family:var(--f-ui);font-size:11.5px;color:var(--ink-2)}
+  .date-scope b{color:var(--ink);font-weight:500;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+  /* SURFACE 2/5 - the sample-data notice. Shown only when meta.placeholder is true. */
+  .pholder{display:flex;align-items:center;gap:16px;margin:26px 0 20px;padding:18px 22px;border-radius:var(--radius);
+           --wash:.46;background-image:url("marble-cell.jpg");background-size:230%;background-position:38% 30%;
+           border:0;box-shadow:var(--elev-1);overflow:hidden;position:relative}
+  .pholder::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;
+           background:rgba(255,255,255,var(--wash))}
+  .pholder>*{position:relative;z-index:1}
+  .pholder .ph-tag{flex:none;font-size:9px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;
+           color:var(--ink);background:none;border:none;border-bottom:1px solid var(--ink);padding:0 0 3px;border-radius:0}
+  .pholder .ph-copy{font-family:var(--f-display);font-style:italic;font-size:14px;color:var(--ink-2);line-height:1.5;
+           max-width:78ch;hyphens:none;text-wrap:pretty}
+  .pholder .ph-copy b{color:var(--ink);font-weight:500}
+
+  /* Panes carry NO background of their own - the aurora is what shows between the cards. */
+  .tabpane{display:none}
+
+  .section{margin-top:38px} .section.first{margin-top:10px}
+  /* An eyebrow above every section title, driven by data-eyebrow so the copy stays in the markup.
+     It must encode something TRUE - the goal, the date basis, the data source - never decoration. */
+  .section[data-eyebrow]::before{content:attr(data-eyebrow);display:block;margin-bottom:10px;
+       font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
+  .section h2{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;
+       font-size:clamp(26px,3.1vw,34px);letter-spacing:-.025em;line-height:1.12;color:var(--ink)}
+  .section.first h2{font-size:clamp(32px,4.4vw,46px)}
+  /* the qualifying half of the title drops to the supporting ink - the contrast is worth having */
+  .section h2 .t2{color:var(--ink-2)}
+  /* hyphens:none + text-wrap:pretty stop the dek hyphenating mid-word across lines */
+  .section .sub{display:block;margin-top:10px;color:var(--ink-2);font-size:13px;line-height:1.65;
+       max-width:66ch;hyphens:none;text-wrap:pretty}
+
+  /* The OPENING block of every tab is CENTRED - eyebrow, display title and dek on one axis, like a
+     masthead. Everything after it stays left-aligned, which is the standard editorial structure: a
+     centred masthead over left-aligned body. The dek needs the auto margins as well as the
+     text-align, because it carries a max-width and would otherwise centre its text inside a
+     left-hugging box. */
+  .section.first{text-align:center;margin-top:34px}
+  .section.first .sub{margin-left:auto;margin-right:auto}
+  .section.first h2{margin-left:auto;margin-right:auto}
+  /* the goal caption sits directly under the centred masthead, so it shares the axis; its little rule
+     becomes a pair, one either side, or a single leading rule reads as an accident when centred */
+  #ovNorth .nsband{justify-content:center;margin-top:30px}
+  #ovNorth .nsband::after{content:"";width:16px;height:1px;flex:none;background:var(--ink)}
+  .section .sub b{color:var(--ink);font-weight:500}
+
+  /* grids + cards (ONE recipe): solid white, hairline, soft shadow, and an aurora-blue glow on
+     hover. No gradients and no backdrop-filter - see design rule 1 in :root. */
+  /* Panels are separated by whitespace, not by a shared hairline. NOTE the gap must be set on THIS
+     rule, not in an earlier override: the stylesheet is one cascade and a later `.grid` would win. */
+  .grid{display:grid;gap:16px;margin-top:18px;background:none;border:0;border-radius:0}
+  .cols-2{grid-template-columns:1fr 1fr} .cols-2-1{grid-template-columns:1.9fr 1fr} .cols-1-2{grid-template-columns:1fr 1.9fr}
+  @media(max-width:900px){.cols-2,.cols-2-1,.cols-1-2{grid-template-columns:1fr}}
+  .card{background:var(--paper);border:0;border-radius:var(--radius);padding:26px;
+        box-shadow:var(--elev-1);display:flex;flex-direction:column;min-width:0;position:relative;
+        transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
+  /* a gentler lift than the KPI tiles: these are large panels, and 3px on a full-width chart card
+     reads as the page twitching rather than as a response */
+  .card:hover{transform:translateY(-2px);box-shadow:var(--elev-2)}
+  .card h3{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;font-size:19px;
+        color:var(--ink);letter-spacing:-.02em;line-height:1.2}
+  .card .hint{font-family:var(--f-ui);font-size:11.5px;color:var(--ink-3);margin:7px 0 16px 0;line-height:1.6;
+        max-width:70ch;hyphens:none;text-wrap:pretty} .card .hint b{color:var(--ink-2);font-weight:500}
+  /* SURFACES 4/5 + 5/5 - the pacing panel and the goal panel. `.card.marble` is the ONLY way marble
+     reaches a card; it is deliberately opt-in so texture can never creep behind a table or a chart. */
+  .card.marble{--wash:.44;background-image:url("marble-cell.jpg");background-size:200%;background-repeat:no-repeat;background-position:24% 62%;overflow:hidden}
+  .card.marble::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;background:rgba(255,255,255,var(--wash))}
+  .card.marble>*{position:relative;z-index:1}
+  .card.marble.goal{background-position:72% 22%;--wash:.50}
+
+  /* ---- MARBLE TITLE BANDS (Paid Media) ------------------------------------------------------
+     The client asked for more marble on this tab's panel titles. The rule that texture must never
+     sit behind dense data still holds, so the stone is confined to a band across the TITLE area and
+     MASKED so it fades out completely before the table or the plot begins - the data still sits on
+     clean paper. The white wash is baked in as a first background layer rather than a second
+     pseudo-element, so this needs no extra DOM and cannot fight the `.card.marble` ::after.
+     Height is tuned to the two-line title+hint these cards actually have; the mask does the rest. */
+  #tab-paid .card::before{content:"";position:absolute;top:0;left:0;right:0;height:112px;z-index:0;
+       pointer-events:none;border-radius:var(--radius) var(--radius) 0 0;
+       background:linear-gradient(rgba(255,255,255,.43),rgba(255,255,255,.43)),
+                  url("marble-cell.jpg") 30% 38%/190% no-repeat;
+       -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 44%,transparent 100%);
+               mask-image:linear-gradient(180deg,#000 0%,#000 44%,transparent 100%)}
+  #tab-paid .card>*{position:relative;z-index:1}
+  /* a different crop per panel, for the same reason the eight KPI tiles get different crops */
+  #tab-paid .card:nth-of-type(even)::before{background-position:0 0,68% 22%}
+  #tab-paid .grid .card:nth-child(2)::before{background-position:0 0,52% 70%}
+  #tab-paid .grid:nth-of-type(odd) .card:nth-child(1)::before{background-position:0 0,18% 56%}
+  .chartbox{position:relative;height:300px} .chartbox.tall{height:340px} .chartbox.sm{height:260px}
+  /* The blue bloom that used to sit behind each plot is GONE - Chronicle has no glows and no
+     shadows, and a tinted haze under a chart fights the desaturated series colours. */
+  .chartbox>canvas{position:relative;z-index:1}
+  .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .card-head .titles{min-width:0;flex:1}
+  .card-ctrls{display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .seg{display:inline-flex;align-items:center;border:.5px solid var(--rule-strong);border-radius:9px;overflow:hidden;background:var(--paper)}
+  .seg .cap{padding:0 9px;font-family:var(--f-ui);font-size:8.5px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;color:var(--ink-3);align-self:center}
+  .seg button{background:none;border:none;color:var(--ink-3);font-family:var(--f-ui);font-size:10px;font-weight:500;
+       letter-spacing:.12em;text-transform:uppercase;padding:7px 11px;cursor:pointer}
+  .seg button.on{background:var(--ink);color:#fff;font-weight:500} .seg button:not(.on):hover{color:var(--ink)}
+
+  /* ==========================================================================
+     THE KPI TILES (marble surface 3/5). These were briefly one hairline-divided slab; the client
+     asked for separated, rounded tiles instead, so they are eight surfaces floating on whitespace and
+     lifted on shadow. NO outline: a rule around every tile reads as a wireframe. The two grids
+     (#kpiGridN north row, #kpiGrid context row) are separate DOM nodes and simply sit one above the
+     other with the same gap.
+     ========================================================================== */
+  .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin:0;
+        background:none;border:0;border-radius:0}
+  #ovNorth .nsrow{margin:0 0 16px}
+  /* the goal caption doubles as the tiles' eyebrow */
+  .nsband{margin:34px 0 14px;font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;
+          text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center;gap:9px}
+  .nsband::before{content:"";width:16px;height:1px;border-radius:0;flex:none;background:var(--ink)}
+
+  .kpi{background:var(--paper);border:0;border-radius:var(--radius);padding:26px 24px 24px;position:relative;
+       overflow:hidden;box-shadow:var(--elev-1);--wash:.40;
+       background-image:url("marble-cell.jpg");background-size:260%;background-repeat:no-repeat;
+       transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
+  /* the wash must inherit the radius or it paints square corners over a rounded tile */
+  .kpi::after{content:"";position:absolute;inset:0;z-index:0;pointer-events:none;border-radius:inherit;
+       background:rgba(255,255,255,var(--wash))}
+  .kpi>*{position:relative;z-index:1}
+  .kpi:hover{transform:translateY(-3px);box-shadow:var(--elev-2)}
+  /* A DIFFERENT crop per tile. Repeating veins across a grid is the tell that it is a texture file
+     rather than a material, so no two tiles may share a background-position. */
+  #kpiGridN .kpi:nth-child(1){background-position:20% 28%}
+  #kpiGridN .kpi:nth-child(2){background-position:56% 10%}
+  #kpiGridN .kpi:nth-child(3){background-position:36% 68%}
+  #kpiGridN .kpi:nth-child(4){background-position:80% 46%}
+  #kpiGrid  .kpi:nth-child(1){background-position:12% 52%}
+  #kpiGrid  .kpi:nth-child(2){background-position:68% 34%}
+  #kpiGrid  .kpi:nth-child(3){background-position:44% 84%}
+  #kpiGrid  .kpi:nth-child(4){background-position:88% 18%}
+
+  /* 1. eyebrow label */
+  /* .18em rather than .24em, and a min-height of two lines: at 4-up a label like
+     "QUALIFIED LEADS (MODELLED)" wraps, and without the reserved height the tiles in a row went
+     ragged. Reserving it keeps every value on the same baseline. */
+  .kpi .label{display:flex;align-items:flex-start;gap:7px;font-family:var(--f-ui);font-size:9px;line-height:1.5;
+       font-weight:500;letter-spacing:.18em;text-transform:uppercase;color:var(--ink-3);
+       min-height:27px;margin-bottom:14px}
+  .kpi .label::before{margin-top:5px}
+  .kpi .label::before{content:"";width:6px;height:6px;border-radius:50%;flex:none;margin:0;background:var(--kc,var(--ink))}
+  /* 2. the value - mono, tight, tabular */
+  .kpi .value{font-family:var(--f-mono);font-size:29px;font-weight:500;margin:0;letter-spacing:-.035em;
+       line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+  #ovNorth .kpi.north .value{font-size:29px;line-height:1}
+  /* the currency prefix is never the same size as the number it precedes */
+  .kpi .value .cur{font-size:15px;color:var(--ink-4);letter-spacing:0;vertical-align:7px;margin-right:1px}
+  /* 3. the foot line */
+  .kpi .sub{font-family:var(--f-ui);font-size:11px;color:var(--ink-2);margin-top:14px;line-height:1.5}
+  .kpi .badge{display:block;font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.2em;
+       text-transform:uppercase;padding:0 0 8px;border-radius:0;margin-top:14px;
+       background:none;color:var(--ink-3);border-bottom:.5px solid var(--rule-strong)}
+  /* when the badge is the last child (the modelled tile) it owns the tile's bottom rhythm, so the
+     rule under it must not sit hard against the padding edge */
+  .kpi .badge:last-child{padding-bottom:2px;border-bottom:0}
+
+  /* ---- THE ONE HIGHLIGHTED CELL -------------------------------------------------------------
+     "Qualified leads (modelled)" is the only MODELLED figure on the page, so it is the only one set
+     in the serif - a serif figure sitting among seven monospace figures is the signature moment of
+     the whole layout. It reads differently because it IS different. Do NOT extend this to another
+     cell: if every cell is special, none are. Targeted by data-series so it follows the metric if
+     the KPI order ever changes. --------------------------------------------------------------- */
+  /* The left rule this tile used to carry is GONE: a one-sided border on a rounded corner always
+     looks like a mistake. The serif figure now does the distinguishing on its own - which was always
+     the point - helped by a fractionally deeper rest shadow and more stone showing through. */
+  #ovNorth .nsrow .kpi[data-series="qualified"]{--wash:.30;border:0;border-radius:var(--radius);
+       background-image:url("marble-cell.jpg");box-shadow:var(--elev-2)}
+  #ovNorth .nsrow .kpi[data-series="qualified"]:hover{box-shadow:0 3px 8px rgba(15,14,13,.07),0 26px 50px -18px rgba(15,14,13,.30)}
+  #ovNorth .nsrow .kpi[data-series="qualified"] .value{font-family:var(--f-display);font-style:italic;
+       font-weight:500;font-size:34px;letter-spacing:-.02em}
+  /* clickable cells: no lift, no grayscale - just the ink dot going hollow */
+  .kpi.clk{cursor:pointer;user-select:none}
+  .kpi.clk:active{transform:none}
+  .kpi.clk:focus-visible{outline:1.5px solid var(--ink);outline-offset:-4px}
+  .kpi.clk .label::after{content:"";width:6px;height:6px;margin-left:auto;border-radius:50%;flex:none;
+       border:1px solid var(--kc,var(--ink));background:var(--kc,var(--ink))}
+  .kpi.clk.off{opacity:1;filter:none}
+  .kpi.clk.off .value,.kpi.clk.off .label{color:var(--ink-4)}
+  .kpi.clk.off .label::after{background:transparent}
+  /* Arrows plus colour is enough signal - the old pill chips added noise at this density. */
+  .up,.down{font-family:var(--f-mono);font-weight:500;font-variant-numeric:tabular-nums}
+  .up{color:var(--good)} .down{color:var(--bad)}
+  .up::before{content:"\2191 "} .down::before{content:"\2193 "}
+
+  /* funnel */
+  .funnel-row{display:grid;grid-template-columns:118px 1fr auto auto;gap:10px;align-items:center;padding:6px 0}
+  .funnel-name{font-size:11.5px;font-weight:500;color:var(--muted);line-height:1.2}
+  .funnel-bar{height:10px;background:rgba(15,14,13,.09);border-radius:0;overflow:hidden}
+  .funnel-fill{height:100%;border-radius:0}
+  .funnel-value{font-size:13px;font-weight:500;color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+  .funnel-rate{font-size:10.5px;color:var(--muted2);text-align:right;white-space:nowrap}
+
+  /* pacing */
+  /* 9px ink fill on a pale track, square corners; the "expected today" marker is a 1.5px rule that
+     OVERHANGS the track by 4px top and bottom, so it reads as a measurement mark, not a bar segment. */
+  .pace-track{position:relative;height:9px;background:rgba(15,14,13,.09);border-radius:0;overflow:visible;margin:20px 0 6px}
+  .pace-actual{position:absolute;left:0;top:0;bottom:0;background:var(--ink);border-radius:0;
+       display:flex;align-items:center;font-size:0}
+  .pace-expected{position:absolute;top:-4px;bottom:-4px;width:1.5px;background:var(--ink)}
+  .pace-meta{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--f-mono);font-size:10.5px;
+       color:var(--ink-3);margin-top:14px;font-variant-numeric:tabular-nums}
+  .status{display:inline-flex;align-items:center;font-family:var(--f-ui);font-size:9px;font-weight:500;
+       letter-spacing:.22em;padding:4px 9px;border-radius:0;text-transform:uppercase}
+  .status.good{background:#EDF2E7;color:var(--good)}
+  .status.warn{background:#F4EFE4;color:var(--warn)}
+  .status.bad{background:#F5EAE9;color:var(--bad)}
+  .status.neutral{background:rgba(15,14,13,.05);color:var(--ink-3)}
+  .flow-row{display:grid;grid-template-columns:1fr 90px auto;gap:10px;align-items:center;padding:5px 0;font-size:12px}
+  .flow-name{color:var(--ink);display:flex;align-items:center;gap:7px;min-width:0} .flow-name .dot{width:9px;height:9px;border-radius:50%;flex:none} .flow-name .fn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .flow-bar{height:8px;background:rgba(15,14,13,.09);border-radius:0;overflow:hidden} .flow-fill{height:100%;border-radius:0}
+  .flow-meta{font-size:11px;color:var(--muted2);text-align:right;white-space:nowrap}
+  /* goal-progress mini bars (Overview pacing card) */
+  .goal-title{font-size:11px;font-weight:500;letter-spacing:.4px;text-transform:uppercase;color:var(--muted2);margin:2px 0 8px}
+  .goal{margin:9px 0}
+  .goal .gh{display:flex;justify-content:space-between;gap:8px;font-size:11.5px;color:var(--muted);margin-bottom:4px}
+  .goal .gh b{color:var(--ink);font-weight:500}
+  .goal .gtrack{height:9px;background:rgba(15,14,13,.09);border-radius:0;overflow:hidden}
+  .goal .gfill{height:100%;border-radius:0}
+  .goal .gcap{font-size:10px;color:var(--muted2);margin-top:3px}
+
+  /* insights */
+  .insight{background:var(--paper);border:0;border-radius:var(--radius);padding:22px;box-shadow:var(--elev-1);
+       transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
+  .insight:hover{transform:translateY(-3px);box-shadow:var(--elev-2)}
+  .insight .label{font-family:var(--f-ui);font-size:9px;text-transform:uppercase;letter-spacing:.24em;color:var(--ink-3);font-weight:500}
+  .insight .value{font-family:var(--f-display);font-style:italic;font-size:22px;font-weight:500;color:var(--ink);margin-top:10px;letter-spacing:-.02em;line-height:1.15}
+  .insight .copy{font-family:var(--f-ui);font-size:11.5px;color:var(--ink-2);margin-top:9px;line-height:1.6;hyphens:none;text-wrap:pretty}
+  .grid-insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:14px}
+
+  .action{border-left:3px solid var(--accent);background:rgba(0,0,0,.025);border-radius:0 10px 10px 0;padding:10px 14px;margin-bottom:10px}
+  .action .t{font-size:13px;font-weight:500;color:var(--ink)} .action .b{font-size:12px;color:var(--muted);margin-top:3px;line-height:1.45} .action .m{font-size:10.5px;color:var(--muted2);margin-top:4px}
+
+  /* info note */
+  .info-note{background:none;border:0;border-top:.5px solid var(--rule-strong);
+             border-radius:0;padding:16px 0 0;margin-top:26px;font-family:var(--f-ui);font-size:12px;color:var(--ink-2);
+             line-height:1.7;max-width:78ch;hyphens:none;text-wrap:pretty}
+  .info-note b{color:var(--ink);font-weight:500}
+
+  /* tables */
+  .tablewrap{overflow:auto;scrollbar-width:thin;scrollbar-color:#C3CBD8 transparent}
+  .tablewrap::-webkit-scrollbar{width:10px;height:10px}
+  .tablewrap::-webkit-scrollbar-thumb{background:#C3CBD8;border:2px solid transparent;background-clip:padding-box;border-radius:999px}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{padding:11px 10px;text-align:left;border-bottom:.5px solid var(--rule);color:var(--ink-2);white-space:nowrap}
+  th{font-family:var(--f-ui);font-size:9px;text-transform:uppercase;letter-spacing:.22em;color:var(--ink-3);font-weight:500;
+     padding-bottom:9px;border-bottom:.5px solid var(--rule-strong)}
+  /* first column = the name column: serif, so a campaign or stage reads as a proper noun */
+  td:first-child{font-family:var(--f-display);font-style:italic;font-weight:500;font-size:15px;color:var(--ink)}
+  th:first-child{color:var(--ink-3)}
+  td.name-cell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
+  th.num,td.num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  th.num{font-family:var(--f-ui)}
+  tr:hover td{background:rgba(15,14,13,.025)}
+  /* the Total row is separated by a rule, not by a grey fill block */
+  tr.total td{font-weight:500;background:none;color:var(--ink);border-top:1.5px solid var(--ink);border-bottom:0}
+  .pillc{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:500;background:var(--panel2);color:var(--ink)}
+  .pillc .dot{width:8px;height:8px;border-radius:50%}
+  .vs{font-size:9.5px;color:var(--muted2)} .tiny{font-size:10px;color:var(--muted2);margin-top:2px}
+  .good-text{color:var(--good);font-weight:500} .warn-text{color:var(--warn);font-weight:500} .bad-text{color:var(--bad);font-weight:500} .muted-text{color:var(--muted2)}
+  .warn-chip{font-size:9px;font-weight:500;color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent);border-radius:4px;padding:0 4px}
+
+  /* creative gallery */
+  .creative-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px;margin-top:10px}
+  .ccard{background:var(--paper);border:0;border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;
+       box-shadow:var(--elev-1);transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
+  .ccard .cc-thumb{width:100%;aspect-ratio:1/1;object-fit:cover;background:#EEF5FB;display:block}
+  /* Creative fallback tile - shown when Meta's thumbnail CDN link has expired. Uses marble-tile.jpg,
+     the third export (veining amplified hardest, because this is the smallest crop on the page).
+     NOTE this is a Creative-tab surface, so it is NOT one of the Overview's five marble surfaces. */
+  .cc-fallback{width:100%;aspect-ratio:1/1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+       gap:12px;text-align:center;padding:18px;position:relative;
+       background:#F6F5F2 url("marble-tile.jpg") center/125% no-repeat}
+  .cc-fallback::after{content:"";position:absolute;inset:0;border-radius:inherit;background:rgba(255,255,255,.42);pointer-events:none}
+  .cc-fallback>*{position:relative;z-index:1}
+  /* The real Sophiie mark, one copy of the base64 in the stylesheet rather than one per card. */
+  .cc-fb-mark{width:34px;height:34px;border-radius:9px;background:#fff center/contain no-repeat;
+        background-image:url("data:image/png;base64,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");border:.5px solid var(--rule-strong)}
+  .cc-fb-h{font-size:14px;font-weight:500;color:var(--ink);line-height:1.3;display:-webkit-box;-webkit-line-clamp:4;line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .ccard .cc-b{padding:11px;display:flex;flex-direction:column;gap:6px;flex:1}
+  .ccard .cc-title{font-weight:500;font-size:12px;line-height:1.3;color:var(--ink)}
+  .ccard .cc-copy{color:var(--muted);font-size:11px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:3;line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .ccard .cc-m{display:flex;flex-wrap:wrap;gap:4px 10px;font-size:10.5px;color:var(--muted2);border-top:1px solid var(--line);padding-top:8px;margin-top:auto}
+  .ccard .cc-m b{color:var(--ink)}
+  .ccard.clickable{cursor:pointer;transition:border-color .15s,transform .06s,box-shadow .15s}
+  .ccard.clickable:hover{transform:translateY(-3px);box-shadow:var(--elev-2)}
+  .cc-modal{position:fixed;inset:0;background:rgba(20,9,52,.72);display:none;align-items:center;justify-content:center;z-index:200;padding:24px}
+  .cc-modal.on{display:flex}
+  /* The date-picker popover above and this modal are the ONLY two shadows left on the page, and that
+     is deliberate: both are OVERLAYS floating over arbitrary content, and with no elevation at all a
+     white panel on a white page has no readable edge. Everything that sits IN the page flow is flat. */
+  .cc-modal-card{position:relative;width:100%;max-width:820px;max-height:90vh;overflow:auto;background:var(--paper);border:0;border-radius:var(--radius);box-shadow:0 30px 70px -24px rgba(15,14,13,.35)}
+  .cc-modal-x{position:absolute;top:10px;right:12px;z-index:2;border:1px solid var(--line);background:#fff;color:var(--muted);width:30px;height:30px;border-radius:8px;cursor:pointer;font-size:14px}
+  .cc-modal-x:hover{background:var(--accent);border-color:transparent;color:var(--on-accent)}
+  .cc-modal-body{display:flex;gap:20px;padding:24px;flex-wrap:wrap}
+  .ccm-media{flex:0 0 320px;max-width:100%} .ccm-img{width:100%;border-radius:12px;display:block;background:#EEF5FB}
+  .ccm-info{flex:1;min-width:240px;display:flex;flex-direction:column;gap:12px}
+  .ccm-info h3{margin:0;font-size:18px;font-weight:500;color:var(--ink)} .ccm-body{margin:0;white-space:pre-wrap;font-size:13px;line-height:1.55;color:var(--muted)}
+  .ccm-metrics{display:flex;flex-wrap:wrap;gap:8px 18px;font-size:12.5px;color:var(--muted2);border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0} .ccm-metrics b{color:var(--ink)}
+  .ccm-link{display:inline-block;padding:9px 14px;border-radius:9px;background:var(--accent);color:var(--on-accent);font-weight:500;font-size:13px}
+
+  .loading{padding:80px 20px;text-align:center;color:var(--muted)}
+  .spinner{display:inline-block;width:34px;height:34px;border:3px solid var(--line2);border-top-color:var(--accent-edge);border-radius:50%;animation:spin .8s linear infinite;margin-bottom:14px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .error-box{background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid color-mix(in srgb,var(--bad) 38%,transparent);color:#8E2C1D;border-radius:12px;padding:18px;margin:30px auto;max-width:560px;text-align:center;font-size:13px}
+  footer{color:var(--ink-3);font-family:var(--f-ui);font-size:10px;letter-spacing:.06em;margin-top:44px;
+       text-align:left;padding-top:16px;border-top:1.5px solid var(--ink)} footer b{color:var(--ink-2);font-weight:500}
+
+  /* ===== BREAKPOINTS - deliberately LAST in the stylesheet =====
+     Every rule above is a plain class selector, so a breakpoint declared earlier would simply lose to
+     the base rule it means to override (that is exactly what happened on the first pass: the KPI slab
+     stayed 4-up at 680px). Keep new breakpoints in this block. */
+  @media(max-width:900px){
+    .kpis{grid-template-columns:repeat(2,1fr)}      /* the slab drops to 2-up, never squashes to 8 */
+    .section.first h2{font-size:clamp(28px,7vw,36px)}
+  }
+  @media(max-width:560px){
+    .kpis{grid-template-columns:1fr}
+    .kpi{padding:22px 18px 20px}
+    .container{padding:0 18px 56px}
+    .tabs{gap:18px}
+  }
+
+  /* Reduced motion: kill the WHOLE aurora, not just the canvas. The orbs and diagonal bands are
+     large-area moving light - the exact thing this media query exists to suppress - so they are
+     frozen (not hidden: the static wash is still the brand). The canvas removes itself in JS too,
+     so no requestAnimationFrame loop runs at all. */
+  @media (prefers-reduced-motion: reduce){
+    #aurora-bg{display:none}
+    .aurora-ambient__orb,.aurora-diag,.live,.card,.kpi,.insight,.ccard{animation:none !important;transition:none !important}
+    .kpi:hover,.card:hover,.insight:hover,.ccard.clickable:hover{transform:none}
+  }
+</style>
+</head>
+<body>
+
+<!-- ========================= THE AURORA (three layers) =========================
+     Layer 1 - ambient wash. Layer 2 - the diagonal signature bands. Layer 3 - the canvas curtains
+     (built at the bottom of this file). Purely decorative: aria-hidden, pointer-events:none, and
+     all three sit at z-index 0 beneath every interactive element. -->
+<div class="aurora-ambient" aria-hidden="true">
+  <div class="aurora-ambient__orb aurora-ambient__orb--1"></div>
+  <div class="aurora-ambient__orb aurora-ambient__orb--2"></div>
+  <div class="aurora-ambient__orb aurora-ambient__orb--3"></div>
+  <div class="aurora-ambient__orb aurora-ambient__orb--4"></div>
+</div>
+<div class="aurora-diagonals" aria-hidden="true">
+  <div class="aurora-diag aurora-diag--1"></div>
+  <div class="aurora-diag aurora-diag--2"></div>
+  <div class="aurora-diag aurora-diag--3"></div>
+  <div class="aurora-diag aurora-diag--4"></div>
+  <div class="aurora-diag aurora-diag--5"></div>
+</div>
+<canvas id="aurora-bg" aria-hidden="true"></canvas>
+
+<div class="topbar"><div class="inner">
+  <div class="topbar-left">
+    <!-- 100% Digital, the supplied artwork inlined (source: bidbrain-platform/Creatives/100digital_light.jpg,
+         mirrored into this client's creatives/ so the dash folder is self-contained). -->
+    <div class="agency-chip"><img src="data:image/jpeg;base64,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" alt="100% Digital"></div>
+    <div class="topbar-divider"></div>
+    <!-- Sophiie AI's own mark (the headset), inlined. The SAME file ships as dash/logo.png, which
+         main.py serves for the login page, the favicon and the AI deck - see README -> "The mark
+         ships twice". -->
+    <span class="brand-logo smark" title="Sophiie AI"><img src="data:image/png;base64,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" alt="Sophiie AI"></span>
+    <div class="brand">
+      <div class="b1">Sophiie AI <span>&middot; Paid Media</span></div>
+      <div class="b2">Bidbrain &middot; 100% Digital</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div id="liveLine"><span class="live"></span><b style="color:var(--ink)">Live</b> &middot; Meta paid social</div>
+    <div id="topPeriod">&nbsp;</div>
+  </div>
+</div></div>
+
+<div class="container">
+  <div id="loading" class="loading"><div class="spinner"></div><div>Fetching dashboard data from BigQuery…</div></div>
+  <div id="error" class="error-box" style="display:none">
+    <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
+    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:rgba(19,27,70,.06);color:#8E2C1D;padding:8px;border-radius:6px;margin-top:8px"></div>
+  </div>
+
+  <div id="app" style="display:none">
+    <div id="placeholderBanner" class="pholder" style="display:none">
+      <span class="ph-tag">Data coming soon</span>
+      <div class="ph-copy"><b>This is sample data - not Sophiie AI's real numbers yet.</b> The campaigns are
+        still being built, so every figure, chart and table below is placeholder data that shows exactly how the
+        finished dashboard reads. Sophiie AI's live numbers will replace it automatically, with no rebuild, the
+        moment the Meta feed is connected.</div>
+    </div>
+    <div class="control-bar">
+      <div class="control-tabs">
+        <div class="tabs">
+          <button class="tab" data-view="overview">Overview</button>
+          <button class="tab" data-view="paid">Paid Media</button>
+          <button class="tab" data-view="creative">Creative</button>
+        </div>
+        <div class="tabs-right">
+          <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
+          <button class="btn" onclick="exportThisTab()" title="Export the current view as CSV">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <span>Export</span></button>
+          <button class="btn" onclick="exportAllData()" title="Export the full per-day, per-ad fact table">Export all</button>
+        </div>
+      </div>
+      <div class="control-filters">
+        <div class="filter-grp">
+          <span class="lbl">Date range</span>
+          <div class="dp" id="dateRange">
+            <button class="dp-btn" id="dpBtn" type="button" onclick="DateRange.toggle(event)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              <span id="dpLabel">All time</span><span class="dp-cap">▾</span></button>
+            <div class="dp-pop dp-hide" id="dpPop">
+              <div class="dp-presets" id="dpPresets"></div>
+              <div class="dp-cal">
+                <div class="dp-cal-head"><button class="dp-nav" id="dpPrev" type="button">‹</button><span id="dpMonthLbl"></span><button class="dp-nav" id="dpNext" type="button">›</button></div>
+                <div class="dp-grid" id="dpGrid"></div>
+                <div class="dp-range" id="dpRangeLbl"></div>
+                <div class="dp-actions"><button class="dp-cancel" id="dpCancel" type="button">Cancel</button><button class="dp-apply" id="dpApply" type="button">Apply</button></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="fdiv"></div>
+        <div class="filter-grp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
+        <div class="fdiv"></div>
+        <div class="filter-grp">
+          <span class="search-wrap" id="searchWrap">
+            <input class="search" id="searchBox" type="text" placeholder="Search campaign / adset / ad…" autocomplete="off">
+            <span class="search-hint">/</span>
+            <button class="search-x" id="searchClear" type="button" title="Clear search" aria-label="Clear search">&times;</button>
+          </span>
+        </div>
+        <button class="reset-btn" id="resetBtn" type="button" title="Clear the date range, stage filter and search">
+          Reset<span class="cnt" id="resetCnt">0</span></button>
+        <span class="scope-note" id="scopeNote">&nbsp;</span>
+      </div>
+    </div>
+
+    <div id="dateScopeNote" class="date-scope" style="display:none"></div>
+
+    <!-- ============ OVERVIEW ============ -->
+    <section id="tab-overview" class="tabpane">
+      <div class="section first" data-eyebrow="Meta paid social &middot; all figures AUD">
+        <h2>Sophiie AI <span class="t2">- demand &amp; qualified leads</span></h2>
+        <span class="sub" id="introCopy"></span>
+      </div>
+
+      <div id="ovNorth">
+        <div class="nsband">Campaign goal &middot; qualified enquiries at an efficient cost</div>
+        <div class="kpis nsrow" id="kpiGridN"></div>
+        <div class="kpis" id="kpiGrid"></div>
+      </div>
+
+      <div class="grid cols-2-1">
+        <div class="card">
+          <div class="card-head">
+            <div class="titles"><h3>Delivery over time</h3><div class="hint" id="trendHint"></div></div>
+            <div class="card-ctrls">
+              <span class="seg" id="axisSeg"><span class="cap">AXIS</span><button type="button" data-axis="rel" class="on">Relative</button><button type="button" data-axis="abs">Absolute</button></span>
+              <span class="seg" id="grainSeg"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
+            </div>
+          </div>
+          <div class="chartbox tall"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="card marble">
+          <h3>Budget pacing</h3>
+          <div class="hint">Spend to date vs the planned flight pace. The marker is where pace expects you to be today.</div>
+          <div class="pace-track"><div class="pace-actual" id="paceActual"></div><div class="pace-expected" id="paceExpected"></div></div>
+          <div class="pace-meta"><span id="paceExpectedLabel"></span><span id="paceBudgetLabel"></span></div>
+          <div id="paceSummary" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
+          <div id="goalProgress" style="margin-top:18px"></div>
+        </div>
+      </div>
+
+      <div class="card marble goal" style="margin-top:16px"><h3>On track to goal?</h3><div class="hint">Cumulative enquiries across the flight vs the straight-line pace needed to reach the target by the end date - <b>above the dashed line = ahead of pace</b>. Full-flight (independent of the date filter).</div><div class="chartbox tall"><canvas id="paceGoal"></canvas></div></div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Enquiry funnel</h3><div class="hint">Each bar = the <b>step conversion</b> (share carried from the previous stage), so drop-off is visible instead of impressions flattening everything; the number is the count. Impressions → link clicks → LP views → Meta enquiries → qualified (modelled).</div><div id="funnelList" style="margin-top:6px"></div></div>
+        <div class="card"><h3>Spend by funnel stage</h3><div class="hint">Where the budget is going. Click a legend item to hide or show a stage.</div><div class="chartbox" style="height:280px"><canvas id="stageDonut"></canvas></div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px"><h3>Performance by funnel stage</h3><div class="hint">Spend, share, enquiries, cost-per-enquiry and CTR for each funnel stage - where the budget works hardest.</div><div class="tablewrap" style="margin-top:6px"><table id="stageTable"><thead><tr><th>Stage</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Enquiries</th><th class="num">CPL</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div></div>
+
+      <div class="section" data-eyebrow="Meta breakdowns &middot; honours the date filter"><h2>Who &amp; where we reached</h2><span class="sub">Meta audience &amp; placement breakdowns for the Sophiie AI campaigns - honours the date filter.</span></div>
+      <div class="grid cols-2">
+        <div class="card"><h3>Audience - age &amp; gender</h3><div class="hint">Impressions by age band, split by gender (Meta-inferred). Tooltip shows enquiries per age band - where demand actually converts.</div><div class="chartbox tall"><canvas id="audienceChart"></canvas></div></div>
+        <div class="card"><h3>Placement - where ads ran</h3><div class="hint">Impressions by Meta placement - <span style="background:var(--leads);color:#fff;font-weight:500;padding:1px 6px;border-radius:2px">Facebook</span> vs <span style="color:var(--leads);font-weight:500">Instagram</span>. Feed usually drives enquiries; Reels drive cheap reach.</div><div class="chartbox tall"><canvas id="placementChart"></canvas></div></div>
+      </div>
+
+      <div class="section" data-eyebrow="Automated read &middot; selected range"><h2>What stands out</h2></div>
+      <div class="grid-insights" id="insightGrid"></div>
+
+      <div class="info-note" id="ovNote"></div>
+    </section>
+
+    <!-- ============ PAID MEDIA ============ -->
+    <section id="tab-paid" class="tabpane">
+      <div class="section first"><h2>Paid media performance</h2><span class="sub">Every figure honours the date range, stage filter and search. Ratios are recomputed from summed components, so any sub-range is exact.</span></div>
+
+      <div class="card" style="margin-top:14px">
+        <h3>Performance vs targets - by campaign</h3>
+        <div class="hint">CTR / CPM / CPC / CPL against the media-plan benchmarks. Green = beating target.</div>
+        <div class="tablewrap"><table id="benchTable"><thead><tr>
+          <th>Campaign</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th>
+          <th class="num">CTR</th><th class="num">Δ</th><th class="num">CPM</th><th class="num">Δ</th>
+          <th class="num">CPC</th><th class="num">Δ</th><th class="num">CPL</th><th class="num">Δ</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Efficiency map - cost per enquiry vs CTR</h3>
+          <div class="hint">Each bubble is an ad; size = spend, colour = funnel stage. <b>Lower</b> (cheaper enquiries) and <b>further right</b> (higher CTR) is better. Dashed lines mark the CPL &amp; CTR targets - the lower-right quadrant is the winners' zone.</div>
+          <div class="chartbox tall"><canvas id="effScatter"></canvas></div></div>
+        <div class="card"><h3>Cost per enquiry over time</h3>
+          <div class="hint">Weekly cost per enquiry vs the CPL target - is efficiency improving as the flight matures? Reflects the date &amp; stage filters.</div>
+          <div class="chartbox tall"><canvas id="cplTrend"></canvas></div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Reach &amp; frequency over time</h3><div class="hint">Unique people reached (bars) and how often each sees an ad (line). <b>Rising frequency with flat reach = saturation</b> - a cue to refresh creative or widen the audience.</div><div class="chartbox tall"><canvas id="reachFreqChart"></canvas></div></div>
+        <div class="card"><h3>Video engagement</h3><div class="hint">Video creatives only. <b>3-sec views</b> = the hook (thumb-stop); <b>completes</b> = held to the end; the line is completion rate.</div><div class="chartbox tall"><canvas id="videoChart"></canvas></div></div>
+      </div>
+
+      <div class="grid cols-2">
+        <div class="card"><h3>Performance by day of week</h3><div class="hint">Enquiries (bars) and cost-per-enquiry (line) by weekday across the selected range - where the cheapest enquiries land, for budget weighting &amp; scheduling.</div><div class="chartbox tall"><canvas id="dowChart"></canvas></div></div>
+        <div class="card"><h3>Enquiry type - website vs instant form</h3><div class="hint">Where each enquiry was captured: your <b>website</b> form vs Meta's on-platform <b>instant form</b>. Instant forms are higher-volume/lighter-intent; website forms show stronger intent.</div><div class="chartbox" style="height:250px"><canvas id="leadTypeChart"></canvas></div><div class="hint" id="leadTypeNote" style="margin-top:8px"></div></div>
+      </div>
+
+      <div class="grid cols-2-1">
+        <div class="card"><h3>Spend by ad set</h3><div class="hint">Top ad sets by spend, coloured by funnel stage.</div><div class="chartbox tall"><canvas id="segChart"></canvas></div></div>
+        <div class="card"><h3>Budget burn</h3><div class="hint">Spend share vs lead share, per campaign.</div><div id="burnList" style="margin-top:6px"></div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Ad performance</h3><div class="hint">Per-ad delivery + a thin-volume guard (⚠ thin = under 15k impressions or &lt;8 leads - treat its CPL as a weak signal).</div>
+        <div class="tablewrap"><table id="adTable"><thead><tr><th>Ad</th><th>Ad set</th><th>Stage</th><th class="num">Spend</th><th class="num">Leads</th><th class="num">CPL</th><th class="num">CTR</th><th class="num">LPV</th><th class="num">Cost/LPV</th><th class="num">Freq.</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Creative fatigue watch</h3><div class="hint">Weekly per-ad (≥1,000 impressions): frequency ↑ with CTR ↓ = fatigued.</div>
+        <div class="tablewrap"><table id="fatigueTable"><thead><tr><th>Ad</th><th class="num">Frequency</th><th class="num">Freq WoW</th><th class="num">CTR</th><th class="num">CTR WoW</th><th>Flag</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ============ CREATIVE ============ -->
+    <section id="tab-creative" class="tabpane">
+      <div class="section first"><h2>Creative - top 10</h2><span class="sub">The 10 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; Meta expires those links after a short window, so some cards show a branded tile (the copy + metrics are always live).</span></div>
+      <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
+    </section>
+
+    <footer id="footerNote"></footer>
+  </div>
+</div>
+
+<div class="cc-modal" id="ccModal"><div class="cc-modal-card"><button class="cc-modal-x" onclick="closeCreative()">✕</button><div class="cc-modal-body" id="ccModalBody"></div></div></div>
+
+<script>
+const JSON_URL = '/data.json';
+let DATA = {};
+let STATE = {view:'overview', dateStart:null, dateEnd:null, stage:'all', search:'', grain:'week', axis:'rel'};
+const HERO_HIDDEN = new Set();          // clickable-KPI series toggles for the hero (persist across re-render)
+const charts = {};
+const $ = id => document.getElementById(id);
+
+// standard metric colours (read from CSS vars so the KPI dot == the chart-series colour)
+const cv = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const MC = {qualified:cv('--qualified'),leads:cv('--leads'),spend:cv('--spend'),cost:cv('--cost'),ctr:cv('--ctr'),reach:cv('--reach'),lpv:cv('--lpv'),
+  accent:cv('--accent'),accent2:cv('--accent2'),forest:cv('--forest'),ink:cv('--ink'),muted:cv('--muted'),muted2:cv('--muted2'),good:cv('--good'),
+  deep:cv('--deep'),cyan:cv('--a-cyan'),sky:cv('--a-sky'),purple:cv('--a-purple'),pink:cv('--a-pink'),teal:cv('--a-teal')};
+// Funnel-stage colours, matched to the filter chips: cyan (upper funnel) -> blue -> purple -> pink.
+// The pink and the teal are the palette's only non-blues and they earn their place by separating the
+// two lead-generating stages; do not spend them on anything else (:root design rule 2).
+const STAGE_COLORS = {Awareness:MC.cyan,Traffic:MC.leads,Consideration:MC.reach,Conversion:MC.purple,Retargeting:MC.pink,Prospecting:MC.accent2,Other:MC.muted2};
+// Chart series order: Sophiie blue hero, then purple, cyan, teal, and the neutral metric colours.
+const CHART_SERIES = [MC.leads,MC.purple,MC.cyan,MC.qualified,MC.accent2,MC.cost,MC.pink];
+
+// ---------- formatters ----------
+function n(v){const x=Number(v);return Number.isFinite(x)?x:0;}
+function nullable(v){const x=Number(v);return Number.isFinite(x)?x:null;}
+function compact(v){return Intl.NumberFormat('en-AU',{notation:'compact',maximumFractionDigits:1}).format(n(v));}
+function int(v){return Intl.NumberFormat('en-AU',{maximumFractionDigits:0}).format(n(v));}
+function money(v,d=0){return 'A$'+Intl.NumberFormat('en-AU',{minimumFractionDigits:d,maximumFractionDigits:d}).format(n(v));}
+function pct(v,d=1){return Number.isFinite(Number(v))?(Number(v)*100).toFixed(d)+'%':'-';}
+function pctWhole(v){return Number.isFinite(Number(v))?Math.round(Number(v)*100)+'%':'-';}
+function fmtDate(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleDateString('en-AU',{day:'numeric',month:'short'});}
+function fmtDateTime(v){if(!v)return '-';const d=new Date(v);return Number.isNaN(d.getTime())?String(v):d.toLocaleString('en-AU',{timeZone:'Australia/Brisbane',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})+' AEST';}
+function safeName(v){return String(v==null?'-':v).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+// Strips the client prefix off a campaign name for display, matching both the spelled-out brand and
+// the short SOPHIIE_ token the naming convention uses (SOPHIIE_Conversion_Trial -> "Conversion Trial").
+// Display only - never key data off a campaign name (md/AGENTS.md: names are not stable keys).
+function prettyCampaign(v){const s=String(v==null?'':v).replace(/^(Sophiie AI|Sophiie|SOPHIIE)[_ ]?/i,'').replace(/_/g,' ').trim();return safeName(s||v);}
+function stageColor(s){return STAGE_COLORS[s]||CHART_SERIES[Math.abs(hash(String(s)))%CHART_SERIES.length];}
+function hash(s){let h=0;for(let i=0;i<s.length;i++)h=((h<<5)-h)+s.charCodeAt(i)|0;return h;}
+function destroyChart(id){if(charts[id]){charts[id].destroy();charts[id]=null;}}
+function makeChart(id,cfg){destroyChart(id);if(!$(id))return null;charts[id]=new Chart($(id).getContext('2d'),cfg);return charts[id];}
+
+// ---------- client-billed spend multiplier (BB_SPEND_MULT) ----------
+// The platform front-door injects window.BB_SPEND_MULT = {channel: factor} (super-admin "Multiplier"
+// panel) so the CLIENT sees what they were billed ("spent to date") rather than the raw media cost.
+// We gross the RAW spend once at load; every cost metric (CPM/CPC/CPL/cost-per-LPV), chart, CSV and
+// the AI deck derive from it, so they all follow. Counts/CTR (not money) are untouched; there's no
+// revenue/ROAS on this lead-gen dashboard. Idempotent (stashes _rawSpend); no-op when unset (=direct/
+// internal access shows real cost). Sophiie AI is Meta-only, so a single 'meta' factor covers every row.
+function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}
+function bbApplySpendMult(){
+  const M=bbMultFor('meta');
+  (DATA.rows||[]).forEach(r=>{if(r._rawSpend==null)r._rawSpend=n(r.spend);r.spend=r._rawSpend*M;});
+  const f=DATA.flight;                      // gross the precomputed pacing dollars by the same factor
+  if(f){['spend_to_date','projected_spend','pace_expected','budget'].forEach(k=>{if(f['_raw_'+k]==null)f['_raw_'+k]=n(f[k]);f[k]=f['_raw_'+k]*M;});}
+}
+
+// ---------- targets / benchmarks ----------
+function meta(){return DATA.meta||{};}
+function flight(){return DATA.flight||{};}
+function bench(k){const v=Number((DATA.benchmarks||{})[k]);return Number.isFinite(v)?v:null;}
+function targetItem(k){return (DATA.targets||{})[k]||{};}
+function targetVal(k){const v=Number(targetItem(k).value);return Number.isFinite(v)?v:null;}
+function targetPending(k){return targetItem(k).status==='PENDING';}
+// qualified-lead model: Meta only measures RAW enquiries, so qualified is MODELED = leads × assumed rate.
+function qualRate(){return targetVal('qualification_rate_target')||0.20;}
+function qualified(leads){return Math.round(n(leads)*qualRate());}
+
+// ===================== shared date-range picker (Looker-style) =====================
+window.DateRange = (function(){
+  const PRESETS=[{k:'7',label:'Last 7 days'},{k:'14',label:'Last 14 days'},{k:'28',label:'Last 28 days'},{k:'30',label:'Last 30 days'},{k:'90',label:'Last 90 days'},{k:'month',label:'This month'},{k:'lastmonth',label:'Last month'},{k:'quarter',label:'This quarter'},{k:'all',label:'All time'}];
+  let MIN=null,MAX=null,onApply=null,selStart=null,selEnd=null,draftStart=null,draftEnd=null,viewYear=0,viewMonth=0,open=false;
+  const pad=x=>String(x).padStart(2,'0');
+  const iso=d=>d?d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()):null;
+  const parse=s=>{if(!s)return null;const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(s));return m?new Date(+m[1],+m[2]-1,+m[3]):null;};
+  const addDays=(d,x)=>{const y=new Date(d);y.setDate(y.getDate()+x);return y;};
+  const clamp=d=>d<MIN?new Date(MIN):(d>MAX?new Date(MAX):new Date(d));
+  const sameDay=(a,b)=>!!a&&!!b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate();
+  const fmt=d=>d?d.toLocaleDateString('en-AU',{day:'numeric',month:'short',year:'numeric'}):'-';
+  const G=id=>document.getElementById(id);
+  function presetRange(k){let s,e=new Date(MAX);
+    if(/^\d+$/.test(k))s=addDays(MAX,-(parseInt(k,10)-1));
+    else if(k==='month')s=new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    else if(k==='lastmonth'){s=new Date(MAX.getFullYear(),MAX.getMonth()-1,1);e=new Date(MAX.getFullYear(),MAX.getMonth(),0);}
+    else if(k==='quarter'){const q=Math.floor(MAX.getMonth()/3);s=new Date(MAX.getFullYear(),q*3,1);}
+    else{s=new Date(MIN);e=new Date(MAX);}
+    return [clamp(s),clamp(e)];}
+  function detectPreset(s,e){for(const p of PRESETS){const[ps,pe]=presetRange(p.k);if(iso(ps)===iso(s)&&iso(pe)===iso(e))return p.k;}return 'custom';}
+  function init(opts){opts=opts||{};MIN=parse(opts.min);MAX=parse(opts.max);if(!MAX)MAX=new Date();if(!MIN)MIN=addDays(MAX,-364);if(MIN>MAX){const t=MIN;MIN=MAX;MAX=t;}
+    onApply=opts.onApply||null;selStart=new Date(MIN);selEnd=new Date(MAX);draftStart=new Date(selStart);draftEnd=new Date(selEnd);viewYear=draftEnd.getFullYear();viewMonth=draftEnd.getMonth();
+    G('dpPrev').onclick=()=>nav(-1);G('dpNext').onclick=()=>nav(1);G('dpCancel').onclick=()=>close();G('dpApply').onclick=()=>apply();
+    G('dpPresets').onclick=e=>{const a=e.target.closest('a[data-k]');if(a)choosePreset(a.dataset.k);};
+    G('dpGrid').onclick=e=>{const c=e.target.closest('.dp-day[data-iso]');if(c)pickDay(parse(c.dataset.iso));};
+    document.addEventListener('click',e=>{if(open&&!e.target.closest('#dateRange'))close();},true);updateButton();}
+  function toggle(ev){if(ev)ev.stopPropagation();open?close():openPop();}
+  function openPop(){open=true;draftStart=new Date(selStart);draftEnd=new Date(selEnd);viewYear=draftEnd.getFullYear();viewMonth=draftEnd.getMonth();G('dpPop').classList.remove('dp-hide');renderPresets();renderCal();renderRangeLbl();}
+  function close(){open=false;G('dpPop').classList.add('dp-hide');}
+  function nav(delta){let y=viewYear,m=viewMonth+delta;if(m<0){m=11;y--;}if(m>11){m=0;y++;}const first=new Date(y,m,1);if(first<new Date(MIN.getFullYear(),MIN.getMonth(),1))return;if(first>new Date(MAX.getFullYear(),MAX.getMonth(),1))return;viewYear=y;viewMonth=m;renderCal();}
+  function choosePreset(k){const[s,e]=presetRange(k);draftStart=s;draftEnd=e;viewYear=e.getFullYear();viewMonth=e.getMonth();renderPresets();renderCal();renderRangeLbl();}
+  function pickDay(d){if(!draftStart||(draftStart&&draftEnd)){draftStart=d;draftEnd=null;}else if(d<draftStart){draftEnd=draftStart;draftStart=d;}else{draftEnd=d;}renderPresets();renderCal();renderRangeLbl();}
+  function apply(){if(!draftStart)return;selStart=new Date(draftStart);selEnd=new Date(draftEnd||draftStart);close();updateButton();if(onApply)onApply(iso(selStart),iso(selEnd));}
+  function renderPresets(){const cur=detectPreset(draftStart,draftEnd||draftStart);G('dpPresets').innerHTML=PRESETS.map(p=>`<a data-k="${p.k}" class="${p.k===cur?'dp-on':''}">${p.label}</a>`).join('');}
+  function renderCal(){G('dpMonthLbl').textContent=new Date(viewYear,viewMonth,1).toLocaleDateString('en-AU',{month:'long',year:'numeric'});
+    G('dpPrev').disabled=new Date(viewYear,viewMonth,1)<=new Date(MIN.getFullYear(),MIN.getMonth(),1);G('dpNext').disabled=new Date(viewYear,viewMonth,1)>=new Date(MAX.getFullYear(),MAX.getMonth(),1);
+    const dow=['S','M','T','W','T','F','S'];let html=dow.map(d=>`<div class="dp-dow">${d}</div>`).join('');
+    const first=new Date(viewYear,viewMonth,1),lead=first.getDay(),days=new Date(viewYear,viewMonth+1,0).getDate();
+    for(let i=0;i<lead;i++)html+=`<div class="dp-day dp-blank"></div>`;const lo=draftStart,hi=draftEnd||draftStart;
+    for(let d=1;d<=days;d++){const c=new Date(viewYear,viewMonth,d);const dis=c<MIN||c>MAX;let cls='dp-day';if(dis)cls+=' dp-disabled';else{if(lo&&hi&&c>=lo&&c<=hi)cls+=' dp-inrange';if(sameDay(c,lo)||sameDay(c,hi))cls+=' dp-sel';}html+=`<div class="${cls}" ${dis?'':`data-iso="${iso(c)}"`}>${d}</div>`;}
+    G('dpGrid').innerHTML=html;}
+  function renderRangeLbl(){G('dpRangeLbl').innerHTML=draftStart?`<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`:'Pick a start date';}
+  function updateButton(){const k=detectPreset(selStart,selEnd);G('dpLabel').textContent=(k!=='custom')?PRESETS.find(p=>p.k===k).label:(sameDay(selStart,selEnd)?fmt(selStart):fmt(selStart)+' - '+fmt(selEnd));}
+  // reset() restores the full data window - the same state init() leaves the picker in. Exposed so the
+  // control bar's Reset can clear the range without re-running init(), which would re-bind every handler.
+  function reset(){selStart=new Date(MIN);selEnd=new Date(MAX);draftStart=new Date(selStart);draftEnd=new Date(selEnd);
+    viewYear=draftEnd.getFullYear();viewMonth=draftEnd.getMonth();updateButton();}
+  return {init,toggle,reset,getRange:()=>({start:iso(selStart),end:iso(selEnd)})};
+})();
+
+// ---------- date range ----------
+function rangeBounds(){const dmin=meta().date_min,dmax=meta().date_max;if(!dmin||!dmax)return[null,null];return [STATE.dateStart||dmin,STATE.dateEnd||dmax];}
+function inRange(d){const[a,b]=rangeBounds();if(!a||!b)return true;const s=String(d).slice(0,10);return s>=a&&s<=b;}
+function narrowed(){const[a,b]=rangeBounds();return !!(a&&b&&(a!==meta().date_min||b!==meta().date_max));}
+function rangeLabel(){const[a,b]=rangeBounds();return a&&b?`${fmtDate(a)} - ${fmtDate(b)}`:'all data';}
+function addDaysStr(iso,delta){const d=new Date(iso+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+delta);return d.toISOString().slice(0,10);}
+function daysBetween(a,b){return Math.round((new Date(b+'T00:00:00Z')-new Date(a+'T00:00:00Z'))/86400000);}
+
+// ---------- the row engine: everything rolls up from DATA.rows ----------
+const ROWS=()=>DATA.rows||[];
+function rowsInRange(){return ROWS().filter(r=>inRange(r.date));}
+function scoped(){const st=STATE.stage;return rowsInRange().filter(r=>st==='all'||(r.stage||'Other')===st);}
+function searched(rows){const q=STATE.search.toLowerCase();if(!q)return rows;return rows.filter(r=>[r.campaign,r.ad,r.adset].join(' ').toLowerCase().includes(q));}
+function rowsBetween(a,b){const st=STATE.stage;return ROWS().filter(r=>{const d=String(r.date).slice(0,10);return d>=a&&d<=b&&(st==='all'||(r.stage||'Other')===st);});}
+function deltaWindows(){const[a,b]=rangeBounds();if(!a||!b)return null;const len=daysBetween(a,b)+1;const prev=rowsBetween(addDaysStr(a,-len),addDaysStr(a,-1));
+  if(prev.length)return{cur:scoped(),prev,label:`vs prev ${len}d`};if(len>=4){const mid=addDaysStr(a,Math.floor(len/2));return{cur:rowsBetween(mid,b),prev:rowsBetween(a,addDaysStr(mid,-1)),label:'2nd half vs 1st'};}return null;}
+function lowConfidence(r){if(n(r.impressions)<15000)return{low:true,why:'under 15k impressions'};if(r.cpl!=null&&n(r.leads)<8)return{low:true,why:'fewer than 8 leads'};return{low:false,why:''};}
+function agg(rows){const s=k=>rows.reduce((a,r)=>a+n(r[k]),0);
+  const spend=s('spend'),imp=s('impressions'),reach=s('reach'),clicks=s('clicks'),lc=s('link_clicks'),lpv=s('lpv'),leads=s('leads'),v3=s('video_3s_views'),vc=s('video_completes');
+  const tp=s('thruplays'),lw=s('leads_website'),lof=s('leads_onfacebook');
+  return {spend,impressions:imp,reach,clicks,link_clicks:lc,lpv,leads,video_3s_views:v3,video_completes:vc,thruplays:tp,leads_website:lw,leads_onfacebook:lof,
+    ctr:imp?lc/imp:null,cpm:imp?spend/imp*1000:null,cpc:lc?spend/lc:null,cpl:leads?spend/leads:null,cost_per_lpv:lpv?spend/lpv:null,frequency:reach?imp/reach:null,count:rows.length};}
+function groupRollup(rows,keyFn,metaFn){const m=new Map();rows.forEach(r=>{const k=keyFn(r);if(!m.has(k))m.set(k,[]);m.get(k).push(r);});const out=[];m.forEach(rs=>out.push(Object.assign({},metaFn(rs[0],rs),agg(rs))));return out;}
+function byStage(rows){const g=groupRollup(rows,r=>r.stage||'Other',r0=>({stage:r0.stage||'Other'}));const ts=g.reduce((a,x)=>a+n(x.spend),0)||1,tl=g.reduce((a,x)=>a+n(x.leads),0)||1;g.forEach(x=>{x.spend_share=n(x.spend)/ts;x.lead_share=n(x.leads)/tl;});return g.sort((a,b)=>n(b.spend)-n(a.spend));}
+function byCampaign(rows){return groupRollup(rows,r=>r.campaign,r0=>({campaign:r0.campaign,stage:r0.stage||'Other'})).sort((a,b)=>n(b.spend)-n(a.spend));}
+function byAdset(rows){return groupRollup(rows,r=>r.adset_id||r.adset,r0=>({adset:r0.adset,campaign:r0.campaign,stage:r0.stage||'Other'})).sort((a,b)=>n(b.spend)-n(a.spend));}
+function latest(rs,key){for(let i=rs.length-1;i>=0;i--){if(rs[i][key])return rs[i][key];}return null;}
+function byAd(rows){return groupRollup(rows,r=>r.ad_id||r.ad,(r0,rs)=>({ad:r0.ad,adset:r0.adset,campaign:r0.campaign,stage:r0.stage||'Other',creative_id:latest(rs,'creative_id'),creative_title:latest(rs,'creative_title'),creative_body:latest(rs,'creative_body'),creative_thumbnail_url:latest(rs,'creative_thumbnail_url'),destination_url:latest(rs,'destination_url')})).sort((a,b)=>n(b.spend)-n(a.spend));}
+function dailyOf(rows){const m=new Map();rows.forEach(r=>{const d=String(r.date).slice(0,10);if(!m.has(d))m.set(d,[]);m.get(d).push(r);});const days=[...m.keys()].sort().map(d=>Object.assign({date:d},agg(m.get(d))));
+  let cs=0,cl=0;days.forEach((d,i)=>{cs+=n(d.spend);cl+=n(d.leads);d.cum_spend=cs;d.cum_leads=cl;let ws=0,wl=0;for(let j=Math.max(0,i-6);j<=i;j++){ws+=n(days[j].spend);wl+=n(days[j].leads);}d.cpl_7d=wl?ws/wl:null;});return days;}
+function isoWeek(d){const dt=new Date(d+'T00:00:00Z');dt.setUTCDate(dt.getUTCDate()-((dt.getUTCDay()+6)%7));return dt.toISOString().slice(0,10);}
+function fatigueOf(rows){const m=new Map();rows.forEach(r=>{const k=(r.ad_id||r.ad)+'|'+isoWeek(r.date);if(!m.has(k))m.set(k,{ad:r.ad,adset:r.adset,key:(r.ad_id||r.ad),week:isoWeek(r.date),rows:[]});m.get(k).rows.push(r);});
+  const weekly=[...m.values()].map(w=>{const a=agg(w.rows);return{ad:w.ad,adset:w.adset,key:w.key,week:w.week,impressions:a.impressions,frequency:a.frequency,ctr:a.ctr};}).filter(w=>n(w.impressions)>=1000).sort((a,b)=>a.week.localeCompare(b.week));
+  const byAdKey=new Map();weekly.forEach(w=>{if(!byAdKey.has(w.key))byAdKey.set(w.key,[]);byAdKey.get(w.key).push(w);});const out=[];
+  byAdKey.forEach(list=>{for(let i=1;i<list.length;i++){const cur=list[i],prev=list[i-1];const fw=nullable(cur.frequency)!=null&&nullable(prev.frequency)!=null?cur.frequency-prev.frequency:null;const cw=nullable(cur.ctr)!=null&&nullable(prev.ctr)!=null?cur.ctr-prev.ctr:null;const flag=(fw>0&&cw<0)?'FATIGUED':'OK';out.push({ad:cur.ad,adset:cur.adset,week_start:cur.week,frequency:cur.frequency,ctr:cur.ctr,freq_wow:fw,ctr_wow:cw,flag});}});
+  return out.sort((a,b)=>n(b.freq_wow)-n(a.freq_wow));}
+function stages(){const s=new Set();ROWS().forEach(r=>s.add(r.stage||'Other'));return [...s].filter(Boolean);}
+function statusClass(value,benchmark,lowerIsBetter=true){if(value==null||benchmark==null)return 'neutral';if(lowerIsBetter)return value<=benchmark?'good':value<=benchmark*1.15?'warn':'bad';return value>=benchmark?'good':value>=benchmark*.85?'warn':'bad';}
+function statusLabel(c){return c==='good'?'On track':c==='warn'?'Watch':c==='bad'?'Needs work':'No target';}
+
+// ---------- trend ----------
+function trendBucketLabel(dateStr,grain){const d=new Date(dateStr+'T00:00:00Z');if(Number.isNaN(d.getTime()))return{key:dateStr,label:dateStr};const y=d.getUTCFullYear(),m=d.getUTCMonth(),day=d.getUTCDate();
+  if(grain==='month')return{key:`${y}-${String(m+1).padStart(2,'0')}`,label:d.toLocaleDateString('en-AU',{month:'short',year:'2-digit'})};
+  if(grain==='week'){const dt=new Date(Date.UTC(y,m,day));dt.setUTCDate(dt.getUTCDate()-((dt.getUTCDay()+6)%7));return{key:dt.toISOString().slice(0,10),label:dt.toLocaleDateString('en-AU',{day:'numeric',month:'short'})};}
+  return{key:d.toISOString().slice(0,10),label:d.toLocaleDateString('en-AU',{day:'numeric',month:'short'})};}
+function trendRows(){const days=dailyOf(scoped());
+  if(STATE.grain==='day')return days.map(d=>({label:fmtDate(d.date),spend:d.spend,leads:d.leads,cum_leads:d.cum_leads,days:1}));
+  const m=new Map();days.forEach(d=>{const bk=trendBucketLabel(d.date,STATE.grain);let o=m.get(bk.key);if(!o){o={key:bk.key,label:bk.label,spend:0,leads:0,cum_leads:0,days:0};m.set(bk.key,o);}o.spend+=n(d.spend);o.leads+=n(d.leads);o.cum_leads=Math.max(o.cum_leads,n(d.cum_leads));o.days++;});
+  return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).map(o=>({label:o.label,spend:o.spend,leads:o.leads,cum_leads:o.cum_leads,days:o.days}));}
+
+// ---------- chart defaults / helpers ----------
+const GRID='rgba(15,14,13,.07)';
+// Chart font family, referenced by canvas-draw plugins (ctx.font) that can't read Chart.defaults cleanly.
+// Kept in sync with initChartDefaults() below; without this, cplTrend/effScatter target-line plugins threw
+// "FONT is not defined" mid-draw and those charts rendered blank.
+const FONT={family:'"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif'};
+function indexToPeak(arr){const mx=Math.max(0,...arr.map(v=>Math.abs(+v||0)));return mx>0?arr.map(v=>v==null?null:v/mx*100):arr.map(v=>v==null?null:0);}
+// NOTE for anyone porting a chart in from another client: this dashboard has NO accent-stroke plugin
+// and does not need one. Sophiie's accent (#2b84b4) is dark enough to read as a bare fill on a white
+// plot, unlike the lime/citron brands (geyervalmont, resetdata) whose fills vanish and which
+// therefore register a hairline plugin. If you copy a chart from one of those files, drop its
+// borderColor override rather than importing the plugin.
+// And whatever you add: a Chart.js v4 plugin is REGISTERED (Chart.register), never a function parked
+// in options.plugins.* - that shape is treated as a scriptable option, auto-invoked, and silently
+// blanks the entire chart (md/AGENTS.md, repo-wide gotcha).
+function initChartDefaults(){
+  // Legends and titles are UI text, so they stay Inter; the mono is applied per-axis in axis() and to
+  // the tooltip body, which is all measurement.
+  Chart.defaults.font.family='"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+  Chart.defaults.font.weight=400;
+  Chart.defaults.plugins.tooltip.bodyFont={family:MONO,size:11.5};
+  Chart.defaults.plugins.tooltip.titleFont={family:'"Inter",sans-serif',size:11,weight:'500'};
+  // Tooltip = the brand deep navy with a blue rim, so it reads against BOTH a white card and the
+  // aurora behind it. Its text is explicitly WHITE: Chart.js does not derive tooltip text from the
+  // background, so setting a dark panel and leaving titleColor/bodyColor on the page ink paints
+  // dark-on-dark and the tooltip silently disappears (that is exactly the state the template this
+  // was cloned from is in - do not copy its two colour lines back in).
+  Chart.defaults.color=MC.muted2;Chart.defaults.plugins.tooltip.backgroundColor=MC.ink;Chart.defaults.plugins.tooltip.borderColor='rgba(255,255,255,.22)';Chart.defaults.plugins.tooltip.borderWidth=.5;
+  Chart.defaults.plugins.tooltip.titleColor='#FFFFFF';Chart.defaults.plugins.tooltip.bodyColor='rgba(255,255,255,.92)';Chart.defaults.plugins.tooltip.padding=11;
+  // clickable legends → discoverability note above the labels
+  const HINT='Click a label to show or hide it';
+  const wrap=obj=>{if(!obj||obj.__aff)return;obj.__aff=true;obj.title=Object.assign(obj.title||{},{display:true,text:HINT,color:MC.muted2});obj.title.font=Object.assign({size:11,weight:'normal'},obj.title.font);obj.title.padding=Object.assign({top:0,bottom:6},obj.title.padding);};
+  try{wrap(Chart.defaults.plugins.legend);if(Chart.overrides)['doughnut','pie'].forEach(t=>{const o=Chart.overrides[t];if(o&&o.plugins&&o.plugins.legend)wrap(o.plugins.legend);});}catch(e){}
+}
+// Every axis tick is mono with tabular figures - one helper, so no chart can opt out and no column
+// of numbers jitters as the date filter moves.
+const MONO='"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace';
+function axis(extra={}){return Object.assign({grid:{color:GRID},ticks:{color:MC.muted2,font:{size:10,family:MONO}},border:{display:false}},extra);}
+function legendTop(){return {position:'top',align:'end',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}};}
+
+// ================================= RENDER =================================
+function render(){
+  // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
+  // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
+  // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
+  [renderPlaceholderBanner,renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderStageDonut,
+   renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
+   renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope,renderControlState]
+    .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
+}
+function renderHeader(){
+  const f=flight(),m=meta();
+  $('topPeriod').textContent=`${fmtDate(f.start)} - ${fmtDate(f.end)}`;
+  const notes={overview:'Demand & qualified leads',paid:'Paid-media performance',creative:'Creative library'};
+  $('ctrlNote').textContent=notes[STATE.view]||'';
+  const a=agg(scoped());
+  $('introCopy').innerHTML=`${m.lead_source_label||'Meta-reported'} enquiries and modelled <b>qualified leads</b> for Sophiie AI's paid-social campaigns, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`;
+}
+function renderPlaceholderBanner(){
+  // Show the "sample data" banner + flip the topbar pill to "Preview" whenever the payload is the
+  // baked-in placeholder (meta.placeholder). Real data has no such flag, so this auto-clears once the
+  // pipeline is connected.
+  const on=!!meta().placeholder;
+  const b=$('placeholderBanner');if(b)b.style.display=on?'flex':'none';
+  const ll=$('liveLine');
+  if(ll)ll.innerHTML=on
+    ? '<span class="live" style="background:var(--warn);box-shadow:none;animation:none"></span><b style="color:var(--ink)">Building</b> · sample data'
+    : '<span class="live"></span><b style="color:var(--ink)">Live</b> · Meta paid social';
+}
+function renderDateScope(){
+  const note=$('dateScopeNote');if(!note)return;if(!narrowed()){note.style.display='none';return;}
+  const[a,b]=rangeBounds();note.style.display='block';
+  note.innerHTML=`📅 Filtered to <b>${a}</b> - <b>${b}</b>. Every KPI, chart and table on all tabs reflects this range; <b>pacing</b> is always full-flight (independent of the filter).`;
+}
+
+// ---- KPIs (house dot pattern; clickable spend/leads/qualified toggle the hero series) ----
+function kpiCard(o){
+  const clk=o.series?' clk':'';const attr=o.series?` data-series="${o.series}" tabindex="0" role="button"`:'';const north=o.north?' north':'';
+  const badge=o.badge?`<div class="badge">${o.badge}</div>`:'';
+  // The currency symbol is set one size down in a muted grey: 'A$' must never be the same size as
+  // the number it precedes. Done here, on the rendered string, so money() stays plain text for the
+  // CSV exports and the AI-deck payload.
+  const val=String(o.value).replace(/^A\$/,'<span class="cur">A$</span>');
+  // An EMPTY sub is omitted entirely rather than rendered as &nbsp; - a blank foot line still takes a
+  // line box, which is exactly what made the modelled tile taller than its neighbours.
+  const foot=o.sub?`<div class="sub">${o.sub}</div>`:'';
+  return `<article class="kpi${clk}${north}"${attr} style="--kc:${o.color}"><div class="label">${o.label}</div><div class="value">${val}</div>${badge}${foot}</article>`;
+}
+function renderKpis(){
+  const a=agg(scoped());
+  const cplT=bench('cpl'),ctrT=bench('ctr'),leadT=bench('lead_target'),qT=bench('qualified_lead_target');
+  const q=qualified(a.leads);const cpqlT=(cplT!=null)?cplT/qualRate():null;const cpql=q?a.spend/q:null;
+  const budget=n(flight().budget);const spendPct=budget?Math.round(a.spend/budget*100):null;
+  // North-star (resetdata pattern): the campaign goal - enquiries at an efficient cost, plus the
+  // qualified downstream. These are the big tiles; the ones that map to a hero line are clickable.
+  const north=[
+    {color:MC.leads,north:true,series:'leads',label:'Meta enquiries',value:int(a.leads),
+      sub:leadT!=null?`${targetPending('flight_lead_target')?'pending ':''}target ${int(leadT)}`:'Meta-reported'},
+    {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
+      sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
+    // No foot line on purpose: the badge already qualifies the figure, and a second line here made
+    // this tile taller than every other one in the row. The target and the assumed rate are still on
+    // the page - see the pacing panel's goal bars and the "How to read this" note.
+    {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
+      sub:'',badge:'modelled · no CRM feed'},
+    {color:MC.spend,north:true,series:'spend',label:'Ad spend',value:money(a.spend),
+      sub:budget?`${spendPct}% of ${money(budget)} flight`:'budget not set'}
+  ];
+  // Context - the funnel inputs / delivery quality (static tiles).
+  const ctx=[
+    {color:MC.reach,label:'Impressions',value:compact(a.impressions),sub:`CPM ${a.cpm!=null?money(a.cpm,2):'-'}`},
+    {color:MC.ctr,label:'CTR (link)',value:pct(a.ctr),sub:ctrT!=null?`target ${pct(ctrT)}`:'link CTR'},
+    {color:MC.lpv,label:'Landing-page views',value:int(a.lpv),sub:`cost / LPV ${a.cost_per_lpv!=null?money(a.cost_per_lpv,2):'-'}`},
+    {color:MC.reach,label:'Reach',value:compact(a.reach),sub:`frequency ${a.frequency!=null?a.frequency.toFixed(1):'-'}`}
+  ];
+  $('kpiGridN').innerHTML=north.map(kpiCard).join('');
+  $('kpiGrid').innerHTML=ctx.map(kpiCard).join('');
+  wireKpiToggles();
+}
+function heroSeriesIdx(chart,group){return chart.data.datasets.reduce((acc,d,i)=>{if(d._group===group)acc.push(i);return acc;},[]);}
+function wireKpiToggles(){
+  const chart=charts.trendChart;
+  document.querySelectorAll('#ovNorth .kpi.clk').forEach(card=>{
+    const group=card.getAttribute('data-series');const off=HERO_HIDDEN.has(group);card.classList.toggle('off',off);
+    card.onclick=()=>{HERO_HIDDEN.has(group)?HERO_HIDDEN.delete(group):HERO_HIDDEN.add(group);card.classList.toggle('off',HERO_HIDDEN.has(group));
+      const ch=charts.trendChart;if(ch){heroSeriesIdx(ch,group).forEach(i=>{ch.getDatasetMeta(i).hidden=HERO_HIDDEN.has(group)?true:null;});ch.update();}};
+    card.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();card.onclick();}};
+  });
+}
+
+// ---- hero trend (spend bars + enquiries + modelled qualified; grain + axis toggles) ----
+function renderTrend(){
+  const rows=trendRows();const labels=rows.map(r=>r.label);const rel=STATE.axis==='rel';
+  const gw=STATE.grain==='month'?'Monthly':STATE.grain==='week'?'Weekly':'Daily';
+  const spend=rows.map(r=>r.spend),leads=rows.map(r=>r.leads),qual=rows.map(r=>qualified(r.leads));
+  const cpl=rows.map(r=>n(r.leads)?r.spend/r.leads:null);   // cost-per-enquiry per period - the media-buyer efficiency line
+  const ds=[
+    {label:'Spend',_group:'spend',type:'bar',_raw:spend,_kind:'money',data:spend,backgroundColor:'#DDD9D1',borderColor:MC.ink,borderWidth:{top:1.5,right:0,bottom:0,left:0},borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:4},
+    {label:'Meta enquiries',_group:'leads',type:'line',_raw:leads,_kind:'int',data:rel?indexToPeak(leads):leads,borderColor:MC.leads,backgroundColor:MC.leads,borderWidth:2.6,tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:2},
+    {label:'Cost / enquiry',_group:'cost',type:'line',_raw:cpl,_kind:'money',data:rel?indexToPeak(cpl):cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.2,tension:.35,pointRadius:2,fill:false,spanGaps:true,yAxisID:rel?'y':'y3',order:1},
+    {label:'Qualified (modelled)',_group:'qualified',type:'line',_raw:qual,_kind:'int',data:rel?indexToPeak(qual):qual,borderColor:MC.qualified,backgroundColor:MC.qualified,borderWidth:2.6,borderDash:[5,3],tension:.35,pointRadius:2,fill:false,yAxisID:rel?'y':'y2',order:0}
+  ];
+  $('trendHint').textContent=`${gw} spend (bars) vs enquiries, cost-per-enquiry & modelled qualified leads - the spend-to-outcome view.`+(rel?' Lines indexed to peak=100; tooltips show true values.':'');
+  const fmtKind={money:v=>money(v),int:v=>int(v)};
+  const scales=rel
+    ? {x:axis({grid:{display:false}}),y:{position:'left',min:0,suggestedMax:110,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Index (peak=100)',color:MC.muted2,font:{size:11}}},y1:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}}}
+    : {x:axis({grid:{display:false}}),
+       y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Spend',color:MC.muted2,font:{size:11}}},
+       y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries / qualified',color:MC.muted2,font:{size:11}}},
+       y3:{position:'right',beginAtZero:true,offset:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}};
+  makeChart('trendChart',{data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const d=c.dataset;const v=d._raw?d._raw[c.dataIndex]:c.parsed.y;const f=fmtKind[d._kind]||(x=>String(x));return `${d.label}: ${v==null?'-':f(v)}`;}}}},
+    scales}});
+  // re-apply KPI toggles to the freshly-built chart
+  ['spend','leads','cost','qualified'].forEach(g=>{if(HERO_HIDDEN.has(g))heroSeriesIdx(charts.trendChart,g).forEach(i=>{charts.trendChart.getDatasetMeta(i).hidden=true;});});
+  if(charts.trendChart)charts.trendChart.update();
+}
+
+function renderPacing(){
+  const f=flight();const budget=n(f.budget),spend=n(f.spend_to_date),expected=n(f.pace_expected);
+  const actualPct=budget?Math.min(100,spend/budget*100):0,expectedPct=budget?Math.min(100,expected/budget*100):0;
+  $('paceActual').style.width=actualPct+'%';$('paceActual').textContent=money(spend);
+  $('paceExpected').style.left=expectedPct+'%';
+  $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;$('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
+  const ratio=expected?spend/expected:null,projected=n(f.projected_spend);
+  const clsv=ratio==null?'neutral':ratio>1.08?'bad':ratio<.9?'warn':'good';
+  $('paceSummary').innerHTML=[`<span class="status ${clsv}">${ratio==null?'No pace':ratio>1.08?'Over pace':ratio<.9?'Under pace':'On pace'}</span>`,`<span class="pillc">Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
+}
+function renderStageDonut(){
+  const rows=byStage(scoped()).filter(r=>n(r.spend)>0);const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
+  makeChart('stageDonut',{type:'doughnut',data:{labels:rows.map(r=>r.stage),datasets:[{data:rows.map(r=>n(r.spend)),backgroundColor:rows.map(r=>stageColor(r.stage)),borderColor:'#FFFFFF',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',title:{display:false},labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:9,padding:10,font:{size:11}}},tooltip:{callbacks:{label:c=>`${c.label}: ${money(c.parsed)} (${pct(c.parsed/total,0)})`}}}}});
+}
+function renderFunnel(){
+  const a=agg(scoped());
+  const rows=[{name:'Impressions',value:n(a.impressions),color:MC.reach},{name:'Link clicks',value:n(a.link_clicks),color:MC.ctr},{name:'LP views',value:n(a.lpv),color:MC.lpv},{name:'Meta enquiries',value:n(a.leads),color:MC.leads},{name:'Qualified (modelled)',value:qualified(a.leads),color:MC.qualified}];
+  // Bar width = STEP CONVERSION (share carried from the previous stage), not absolute volume - so the
+  // 65:1 impressions→click drop no longer flattens every later bar. Impressions is the 100% baseline;
+  // each later bar shows how well that step converted (a 4% floor keeps tiny rates visible). Count shown.
+  $('funnelList').innerHTML=rows.map((r,i)=>{
+    const prev=i?rows[i-1].value:null;
+    const conv=prev?(r.value/prev):1;
+    const barPct=i?Math.max(4,Math.min(100,conv*100)):100;
+    const rate=prev?`${pct(conv,1)} of ${rows[i-1].name.toLowerCase()}`:`${compact(r.value)} delivered`;
+    return `<div class="funnel-row"><div class="funnel-name">${r.name}</div><div class="funnel-bar"><div class="funnel-fill" style="width:${barPct}%;background:${r.color}"></div></div><div class="funnel-value">${compact(r.value)}</div><div class="funnel-rate">${rate}</div></div>`;
+  }).join('');
+}
+function renderStageTable(){
+  const rows=byStage(scoped());const total=rows.reduce((a,r)=>a+n(r.spend),0)||1;
+  const body=rows.map(r=>`<tr><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${pct(n(r.spend)/total,0)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td></tr>`).join('');
+  const t=agg(scoped());
+  const foot=`<tr class="total"><td>Total</td><td class="num">${money(t.spend)}</td><td class="num">100%</td><td class="num">${int(t.leads)}</td><td class="num">${t.cpl!=null?money(t.cpl):'-'}</td><td class="num">${pct(t.ctr)}</td></tr>`;
+  $('stageTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:20px">No stage spend yet.</td></tr>`)+(body?foot:'');
+}
+// Goal progress is FULL-FLIGHT (independent of the date/stage filter, like pacing) - flight enquiries
+// + modelled qualified vs their targets.
+function renderGoalProgress(){
+  const a=agg(ROWS());const leadT=bench('lead_target'),qT=bench('qualified_lead_target');const q=qualified(a.leads);
+  const bar=(label,val,target,color,note)=>{
+    const pctv=target?Math.min(100,val/target*100):0;const hit=target&&val>=target;
+    return `<div class="goal"><div class="gh"><span>${label}</span><span><b>${int(val)}</b>${target!=null?` / ${int(target)}`:''}</span></div>`
+      +`<div class="gtrack"><div class="gfill" style="width:${Math.max(2,pctv)}%;background:${color}"></div></div>`
+      +`<div class="gcap">${target!=null?`${Math.round(pctv)}% of goal${hit?' · reached ✓':''}`:'no target set'}${note?' · '+note:''}</div></div>`;
+  };
+  $('goalProgress').innerHTML=`<div class="goal-title">Progress to goal · full flight</div>`
+    +bar('Enquiries',a.leads,leadT,MC.leads,'')
+    +bar('Qualified (modelled)',q,qT,MC.qualified,`×${pctWhole(qualRate())} of enquiries`);
+}
+// Cumulative enquiries across the flight vs the straight-line pace needed to hit the lead target by
+// the end date (full-flight; the client's "are we on track?" read). Above the dashed line = ahead.
+function renderPaceToGoal(){
+  const f=flight();const leadT=bench('lead_target');const fstart=f.start,ftot=n(f.days_total)||null;
+  const days=dailyOf(ROWS());
+  if(!days.length){makeChart('paceGoal',{type:'line',data:{labels:[],datasets:[]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}}}});return;}
+  const labels=days.map(d=>fmtDate(d.date));
+  const cum=days.map(d=>d.cum_leads);
+  const pace=(leadT&&fstart&&ftot)?days.map(d=>{const dn=daysBetween(fstart,String(d.date).slice(0,10))+1;return Math.round(Math.max(0,Math.min(ftot,dn))/ftot*leadT);}):null;
+  const ds=[{label:'Enquiries (cumulative)',data:cum,borderColor:MC.leads,backgroundColor:'rgba(43,132,180,.13)',fill:true,tension:.25,pointRadius:0,borderWidth:2.8}];
+  if(pace)ds.push({label:`Target pace → ${int(leadT)}`,data:pace,borderColor:MC.qualified,borderDash:[6,4],pointRadius:0,borderWidth:2,fill:false,tension:0});
+  makeChart('paceGoal',{type:'line',data:{labels,datasets:ds},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10},maxTicksLimit:10}}),y:axis({beginAtZero:true,title:{display:true,text:'Cumulative enquiries',color:MC.muted2,font:{size:11}}})}}});
+}
+// Weekly cost per enquiry vs the CPL target - the media-buyer's efficiency trajectory. Reflects the
+// date + stage filters; weekly buckets keep a short flight readable.
+function renderCplTrend(){
+  const days=dailyOf(scoped());const m=new Map();
+  days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,spend:0,leads:0};m.set(w,o);}o.spend+=n(d.spend);o.leads+=n(d.leads);});
+  const wk=[...m.values()].sort((a,b)=>a.w.localeCompare(b.w));
+  const labels=wk.map(o=>fmtDate(o.w));const cpl=wk.map(o=>o.leads?o.spend/o.leads:null);
+  const cplT=bench('cpl'),cplS=bench('cpl_stretch');
+  const drawTgt=(ctx,ca,y,label,color)=>{if(y<=ca.top||y>=ca.bottom)return;ctx.save();ctx.setLineDash([6,4]);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(ca.left,y);ctx.lineTo(ca.right,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=color;ctx.font='700 10px '+FONT.family;ctx.fillText(label,ca.left+6,y-4);ctx.restore();};
+  const tline=(cplT!=null||cplS!=null)?{id:'cplTgt',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.y)return;
+    if(cplT!=null)drawTgt(ctx,chartArea,scales.y.getPixelForValue(cplT),'CPL target '+money(cplT),'rgba(17,24,39,.38)');
+    if(cplS!=null)drawTgt(ctx,chartArea,scales.y.getPixelForValue(cplS),'stretch '+money(cplS),MC.good+'AA');}}:null;
+  makeChart('cplTrend',{type:'line',data:{labels,datasets:[{label:'Cost per enquiry',data:cpl,borderColor:MC.cost,backgroundColor:'rgba(124,77,219,.12)',fill:true,spanGaps:true,tension:.3,pointRadius:2,borderWidth:2.8}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y==null?'-':`Cost per enquiry: ${money(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false},ticks:{color:MC.muted,font:{size:10}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)}})}},plugins:tline?[tline]:[]});
+}
+// ---- Tier 1: delivery-quality & timing charts (existing data, no new ingest) ----
+function weeklyOf(){const days=dailyOf(scoped());const m=new Map();
+  days.forEach(d=>{const w=isoWeek(d.date);let o=m.get(w);if(!o){o={w,imp:0,reach:0,v3:0,vc:0};m.set(w,o);}o.imp+=n(d.impressions);o.reach+=n(d.reach);o.v3+=n(d.video_3s_views);o.vc+=n(d.video_completes);});
+  return [...m.values()].sort((a,b)=>a.w.localeCompare(b.w));}
+function renderReachFreq(){
+  const wk=weeklyOf();const labels=wk.map(o=>fmtDate(o.w));const reach=wk.map(o=>o.reach);const freq=wk.map(o=>o.reach?o.imp/o.reach:null);
+  makeChart('reachFreqChart',{data:{labels,datasets:[
+    {type:'bar',label:'Reach',data:reach,backgroundColor:MC.reach+'88',borderColor:MC.reach,borderRadius:4,maxBarThickness:34,yAxisID:'y1',order:2},
+    {type:'line',label:'Frequency',data:freq,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.4,tension:.35,pointRadius:2,spanGaps:true,yAxisID:'y2',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Frequency'?`Frequency: ${c.parsed.y==null?'-':c.parsed.y.toFixed(2)}`:`Reach: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false}}),
+      y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Reach',color:MC.muted2,font:{size:11}}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Frequency',color:MC.muted2,font:{size:11}}}}}});
+}
+function renderVideo(){
+  const wk=weeklyOf();const labels=wk.map(o=>fmtDate(o.w));const v3=wk.map(o=>o.v3);const vc=wk.map(o=>o.vc);const rate=wk.map(o=>o.v3?o.vc/o.v3*100:null);
+  makeChart('videoChart',{data:{labels,datasets:[
+    {type:'bar',label:'3-sec views',data:v3,backgroundColor:MC.lpv+'88',borderColor:MC.lpv,borderRadius:4,maxBarThickness:30,yAxisID:'y1',order:3},
+    {type:'bar',label:'Completes',data:vc,backgroundColor:MC.forest+'AA',borderColor:MC.forest,borderRadius:4,maxBarThickness:30,yAxisID:'y1',order:2},
+    {type:'line',label:'Completion %',data:rate,borderColor:MC.ctr,backgroundColor:MC.ctr,borderWidth:2.4,tension:.35,pointRadius:2,spanGaps:true,yAxisID:'y2',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Completion %'?`Completion: ${c.parsed.y==null?'-':c.parsed.y.toFixed(0)+'%'}`:`${c.dataset.label}: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false}}),
+      y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Video views',color:MC.muted2,font:{size:11}}},
+      y2:{position:'right',beginAtZero:true,suggestedMax:100,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>v+'%'},title:{display:true,text:'Completion %',color:MC.muted2,font:{size:11}}}}}});
+}
+function renderDow(){
+  const names=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];const b=names.map(()=>({spend:0,leads:0}));
+  scoped().forEach(r=>{const d=new Date(String(r.date).slice(0,10)+'T00:00:00Z');if(Number.isNaN(d.getTime()))return;const i=(d.getUTCDay()+6)%7;b[i].spend+=n(r.spend);b[i].leads+=n(r.leads);});
+  const leads=b.map(x=>x.leads);const cpl=b.map(x=>x.leads?x.spend/x.leads:null);
+  makeChart('dowChart',{data:{labels:names,datasets:[
+    {type:'bar',label:'Enquiries',data:leads,backgroundColor:MC.leads+'99',borderColor:MC.leads,borderRadius:4,maxBarThickness:46,yAxisID:'y1',order:2},
+    {type:'line',label:'Cost / enquiry',data:cpl,borderColor:MC.cost,backgroundColor:MC.cost,borderWidth:2.4,tension:.35,pointRadius:3,spanGaps:true,yAxisID:'y2',order:1}
+  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>c.dataset.label==='Cost / enquiry'?`Cost / enquiry: ${c.parsed.y==null?'-':money(c.parsed.y)}`:`Enquiries: ${int(c.parsed.y)}`}}},
+    scales:{x:axis({grid:{display:false}}),
+      y1:{position:'left',beginAtZero:true,grid:{color:GRID},border:{display:false},ticks:{color:MC.muted,font:{size:11}},title:{display:true,text:'Enquiries',color:MC.muted2,font:{size:11}}},
+      y2:{position:'right',beginAtZero:true,grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)},title:{display:true,text:'Cost / enquiry',color:MC.muted2,font:{size:11}}}}}});
+}
+function renderLeadType(){
+  if(!$('leadTypeChart'))return;
+  const a=agg(scoped());const w=n(a.leads_website),f=n(a.leads_onfacebook);const tot=w+f;
+  makeChart('leadTypeChart',{type:'doughnut',data:{labels:['Website form','Instant form'],datasets:[{data:[w,f],backgroundColor:[MC.leads,MC.reach],borderColor:'#FFFFFF',borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'62%',plugins:{legend:{position:'bottom',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}},tooltip:{callbacks:{label:c=>`${c.label}: ${int(c.parsed)} (${tot?Math.round(c.parsed/tot*100):0}%)`}}}}});
+  const note=$('leadTypeNote');if(note)note.innerHTML=tot?`<b>${int(w)}</b> website-form · <b>${int(f)}</b> instant-form enquiries in range.`:'No lead-type split reported for this range yet - Meta returns it once instant-form or website leads are recorded.';
+}
+// ---- Tier 3: audience (age x gender) + placement - from the isolated Meta breakdown table ----
+function bdWithin(type){return (DATA.breakdowns||[]).filter(r=>r.breakdown===type&&inRange(r.date));}
+function renderAudience(){
+  if(!$('audienceChart'))return;
+  const AGES=['18-24','25-34','35-44','45-54','55-64','65+'];const rows=bdWithin('age_gender');
+  const sum=(age,gen)=>rows.reduce((a,r)=>a+(r.seg1===age&&String(r.seg2).toLowerCase()===gen?n(r.impressions):0),0);
+  const leadsByAge=age=>rows.reduce((a,r)=>a+(r.seg1===age?n(r.leads):0),0);
+  makeChart('audienceChart',{type:'bar',data:{labels:AGES,datasets:[
+    {label:'Women',data:AGES.map(a=>sum(a,'female')),backgroundColor:MC.leads+'CC',borderColor:MC.leads,borderRadius:4,maxBarThickness:26},
+    {label:'Men',data:AGES.map(a=>sum(a,'male')),backgroundColor:MC.reach+'CC',borderColor:MC.reach,borderRadius:4,maxBarThickness:26}
+  ]},options:{responsive:true,maintainAspectRatio:false,
+    plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${int(c.parsed.y)} impressions`,afterBody:items=>`Enquiries (all genders): ${int(leadsByAge(AGES[items[0].dataIndex]))}`}}},
+    scales:{x:axis({grid:{display:false},title:{display:true,text:'Age',color:MC.muted2,font:{size:11}}}),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)},title:{display:true,text:'Impressions',color:MC.muted2,font:{size:11}}})}}});
+}
+function renderPlacement(){
+  if(!$('placementChart'))return;
+  const rows=bdWithin('placement');const m=new Map();
+  rows.forEach(r=>{const k=r.seg1||'unknown';let o=m.get(k);if(!o){o={seg:k,imps:0,leads:0,spend:0};m.set(k,o);}o.imps+=n(r.impressions);o.leads+=n(r.leads);o.spend+=n(r.spend);});
+  const NICE={feed:'Feed',facebook_reels:'FB Reels',facebook_reels_overlay:'FB Reels overlay',instagram_reels:'IG Reels',instagram_stories:'IG Stories',facebook_stories:'FB Stories',instream_video:'In-stream video',an_classic:'Audience Network',marketplace:'Marketplace',right_hand_column:'Right column',search:'Search',facebook_profile_feed:'FB profile feed',facebook_notification:'Notifications',threads_feed:'Threads',instagram_search:'IG Search'};
+  const isIG=s=>String(s).startsWith('instagram')||s==='threads_feed';
+  const arr=[...m.values()].filter(o=>o.imps>0).sort((a,b)=>b.imps-a.imps).slice(0,10);
+  makeChart('placementChart',{type:'bar',data:{labels:arr.map(o=>NICE[o.seg]||o.seg),datasets:[{label:'Impressions',data:arr.map(o=>o.imps),backgroundColor:arr.map(o=>isIG(o.seg)?MC.reach+'CC':MC.leads+'CC'),borderColor:arr.map(o=>isIG(o.seg)?MC.leads:MC.accent),borderWidth:1,borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const o=arr[c.dataIndex];return [`${compact(o.imps)} impressions`,`${int(o.leads)} enquiries · ${money(o.spend)}`];}}}},
+      scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:11}}}}}});
+}
+function renderInsights(){
+  const a=agg(scoped());const st=byStage(scoped());const ads=byAd(scoped()).filter(x=>n(x.spend)>0);
+  const bestLead=ads.filter(x=>n(x.leads)>0&&x.cpl!=null).sort((x,y)=>x.cpl-y.cpl)[0];
+  const topSpend=st[0];const leadStage=st.filter(s=>n(s.leads)>0).sort((x,y)=>(x.cpl||1e9)-(y.cpl||1e9))[0];
+  const pool=Math.max(0,n(a.lpv)-n(a.leads));
+  const items=[
+    {label:'Modelled qualified leads',value:int(qualified(a.leads)),copy:`${int(a.leads)} enquiries × ${pctWhole(qualRate())} assumed qualification. Wire a CRM feed to measure this for real.`},
+    {label:'Best enquiry path',value:leadStage?safeName(leadStage.stage):'-',copy:leadStage?`${int(leadStage.leads)} enquiries at ${money(leadStage.cpl)} CPL.`:'No stage has produced enquiries yet.'},
+    {label:'Creative to protect',value:bestLead?safeName(bestLead.ad):'-',copy:bestLead?`${int(bestLead.leads)} enquiries at ${money(bestLead.cpl)} CPL.`:'Waiting for a creative signal.'},
+    {label:'Retargeting pool',value:int(pool),copy:'Landing-page visitors who have not yet enquired - the warmest near-term audience.'}
+  ];
+  $('insightGrid').innerHTML=items.map(i=>`<article class="insight"><div class="label">${i.label}</div><div class="value">${i.value}</div><div class="copy">${i.copy}</div></article>`).join('');
+}
+function renderNote(){
+  $('ovNote').innerHTML=`<b>How to read this.</b> Meta reports <b>raw enquiries</b> only - a "qualified lead" is not measured by the ad platform, so <b>Qualified leads (modelled)</b> = Meta enquiries × a <b>${pctWhole(qualRate())} assumed qualification rate</b> (target ${bench('qualified_lead_target')!=null?int(bench('qualified_lead_target')):'-'}). It is a planning estimate, not an actual - wire a CRM feed to report true qualified leads. All figures are ${meta().currency||'AUD'}; pacing is full-flight and independent of the date filter.`;
+}
+
+// ---- Paid Media ----
+function deltaCell(actual,target,lowerIsBetter){if(actual==null||target==null||!target)return '<span class="muted-text">-</span>';const d=actual/target-1;const good=lowerIsBetter?d<=0:d>=0;const cls=good?'good-text':(Math.abs(d)<=0.15?'warn-text':'bad-text');return `<span class="${cls}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;}
+function renderBenchTable(){
+  const rows=byCampaign(searched(scoped()));const cT=bench('ctr'),mT=bench('cpm'),cpcT=bench('cpc'),cplT=bench('cpl');
+  const body=rows.map(r=>`<tr>
+    <td class="name-cell">${prettyCampaign(r.campaign)}</td>
+    <td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td>
+    <td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td>
+    <td class="num">${pct(r.ctr)}<div class="vs">vs ${cT?pct(cT):'-'}</div></td><td class="num">${deltaCell(r.ctr,cT,false)}</td>
+    <td class="num">${money(r.cpm,2)}<div class="vs">vs ${mT?money(mT,2):'-'}</div></td><td class="num">${deltaCell(r.cpm,mT,true)}</td>
+    <td class="num">${money(r.cpc,2)}<div class="vs">vs ${cpcT?money(cpcT,2):'-'}</div></td><td class="num">${deltaCell(r.cpc,cpcT,true)}</td>
+    <td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}<div class="vs">vs ${cplT?money(cplT):'-'}</div></td><td class="num">${deltaCell(r.cpl,cplT,true)}</td></tr>`).join('');
+  const tot=agg(searched(scoped()));
+  const foot=`<tr class="total"><td>Total</td><td></td><td class="num">${money(tot.spend)}</td><td class="num">${int(tot.leads)}</td><td class="num">${pct(tot.ctr)}</td><td class="num">${deltaCell(tot.ctr,cT,false)}</td><td class="num">${money(tot.cpm,2)}</td><td class="num">${deltaCell(tot.cpm,mT,true)}</td><td class="num">${money(tot.cpc,2)}</td><td class="num">${deltaCell(tot.cpc,cpcT,true)}</td><td class="num">${tot.cpl!=null?money(tot.cpl):'-'}</td><td class="num">${deltaCell(tot.cpl,cplT,true)}</td></tr>`;
+  $('benchTable').querySelector('tbody').innerHTML=(body||`<tr><td colspan="12" style="text-align:center;color:var(--muted2);padding:24px">No rows for the current filters.</td></tr>`)+(body?foot:'');
+}
+function renderSegment(){
+  const adsets=byAdset(scoped()).filter(a=>n(a.spend)>0).slice(0,12);
+  makeChart('segChart',{type:'bar',data:{labels:adsets.map(a=>a.adset),datasets:[{label:'Spend',data:adsets.map(a=>n(a.spend)),backgroundColor:adsets.map(a=>stageColor(a.stage)),borderRadius:5}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{const a=adsets[c.dataIndex];return [`${safeName(a.adset)} (${a.stage})`,`Spend ${money(a.spend)} · ${int(a.leads)} enquiries · CTR ${pct(a.ctr)}`];}}}},
+      scales:{x:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>'A$'+compact(v)}}),y:{grid:{display:false},border:{display:false},ticks:{color:MC.muted,font:{size:10},autoSkip:false,callback:function(v){const l=this.getLabelForValue(v);return l.length>22?l.slice(0,21)+'…':l;}}}}}});
+}
+function readFor(r){const cplT=bench('cpl'),ctrT=bench('ctr');if(n(r.leads)>0&&r.cpl!=null&&cplT&&r.cpl<=cplT)return['good-text','Scale carefully'];if(n(r.spend)>120&&n(r.leads)===0&&n(r.lpv)>0)return['warn-text','Fix conversion'];if(ctrT&&r.ctr!=null&&r.ctr<ctrT&&n(r.spend)>80)return['bad-text','Refresh attention'];if(n(r.frequency)>3.5)return['warn-text','Watch fatigue'];return['muted-text','Monitor'];}
+function renderTables(){
+  const rows=byAd(searched(scoped()));
+  $('adTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const[clsv,read]=readFor(r);const lc=lowConfidence(r);const warn=lc.low?` <span class="warn-chip" title="Low confidence: ${lc.why}">⚠ thin</span>`:'';
+    return `<tr><td class="name-cell">${safeName(r.ad)}${warn}${r.creative_title?`<div class="tiny">${safeName(r.creative_title)}</div>`:''}</td><td>${safeName(r.adset)}</td><td><span class="pillc"><span class="dot" style="background:${stageColor(r.stage)}"></span>${safeName(r.stage)}</span></td><td class="num">${money(r.spend)}</td><td class="num">${n(r.leads)?int(r.leads):'<span class="muted-text">-</span>'}</td><td class="num">${r.cpl!=null?money(r.cpl):'<span class="muted-text">-</span>'}</td><td class="num">${pct(r.ctr)}</td><td class="num">${int(r.lpv)}</td><td class="num">${r.cost_per_lpv!=null?money(r.cost_per_lpv,2):'<span class="muted-text">-</span>'}</td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="${clsv}">${read}</td></tr>`;}).join('')
+    :`<tr><td colspan="11" style="text-align:center;color:var(--muted2);padding:28px">No ads match the current filters.</td></tr>`;
+}
+function renderFatigue(){
+  const rows=fatigueOf(scoped()).sort((a,b)=>{const af=a.flag==='FATIGUED'?0:1,bf=b.flag==='FATIGUED'?0:1;return af-bf||n(b.frequency)-n(a.frequency);}).slice(0,12);
+  $('fatigueTable').querySelector('tbody').innerHTML=rows.length?rows.map(r=>{const clsv=r.flag==='FATIGUED'?'bad-text':'good-text';const fw=nullable(r.freq_wow),cw=nullable(r.ctr_wow);
+    return `<tr><td class="name-cell">${safeName(r.ad)}<div class="tiny">${safeName(r.adset)}</div></td><td class="num">${r.frequency!=null?r.frequency.toFixed(1):'-'}</td><td class="num ${fw>0?'bad-text':'good-text'}">${fw==null?'-':(fw>0?'+':'')+fw.toFixed(2)}</td><td class="num">${pct(r.ctr)}</td><td class="num ${cw<0?'bad-text':'good-text'}">${cw==null?'-':(cw>0?'+':'')+(cw*100).toFixed(2)+'pp'}</td><td class="${clsv}">${safeName(r.flag)}</td></tr>`;}).join('')
+    :'<tr><td colspan="6" style="text-align:center;color:var(--muted2);padding:28px">No weekly fatigue signal yet (need 2+ weeks ≥1,000 impressions).</td></tr>';
+}
+function renderBurn(){
+  const rows=byCampaign(searched(scoped())).slice(0,12);const all=byCampaign(scoped());const ts=all.reduce((a,r)=>a+n(r.spend),0)||1,tl=all.reduce((a,r)=>a+n(r.leads),0)||1;
+  $('burnList').innerHTML=rows.map(r=>{const ss=n(r.spend)/ts,ls=n(r.leads)/tl;return `<div class="flow-row"><div class="flow-name"><span class="dot" style="background:${stageColor(r.stage)}"></span><span class="fn">${prettyCampaign(r.campaign)}</span></div><div class="flow-bar"><div class="flow-fill" style="width:${Math.max(2,ss*100)}%;background:${stageColor(r.stage)}"></div></div><div class="flow-meta">${pct(ss,0)} spend · ${pct(ls,0)} leads</div></div>`;}).join('')||'<div class="muted-text">No campaign spend yet.</div>';
+}
+// Efficiency map (Paid Media): each ad plotted CPL (y, lower better) vs CTR% (x, higher better); bubble
+// size = spend, colour = funnel stage. Dashed lines mark the CPL + CTR targets → lower-right = winners.
+function renderEffScatter(){
+  const ads=byAd(searched(scoped())).filter(x=>n(x.spend)>0&&x.cpl!=null&&x.ctr!=null);
+  const grouped={};ads.forEach(x=>{const s=x.stage||'Other';(grouped[s]=grouped[s]||[]).push({x:n(x.ctr)*100,y:x.cpl,r:Math.max(5,Math.min(24,Math.sqrt(n(x.spend))/3)),raw:x});});
+  const cplT=bench('cpl'),ctrT=bench('ctr'),cplS=bench('cpl_stretch');
+  const targetLines={id:'effTargets',afterDraw(chart){const{ctx,chartArea,scales}=chart;if(!scales.x||!scales.y)return;ctx.save();ctx.setLineDash([5,4]);ctx.lineWidth=1;ctx.strokeStyle='rgba(17,24,39,.34)';ctx.fillStyle=MC.muted2;ctx.font='700 10px '+FONT.family;
+    if(cplT!=null){const y=scales.y.getPixelForValue(cplT);if(y>chartArea.top&&y<chartArea.bottom){ctx.beginPath();ctx.moveTo(chartArea.left,y);ctx.lineTo(chartArea.right,y);ctx.stroke();ctx.fillText('CPL target '+money(cplT),chartArea.left+6,y-4);}}
+    if(cplS!=null){const ys=scales.y.getPixelForValue(cplS);if(ys>chartArea.top&&ys<chartArea.bottom){ctx.strokeStyle=MC.good+'AA';ctx.fillStyle=MC.good;ctx.beginPath();ctx.moveTo(chartArea.left,ys);ctx.lineTo(chartArea.right,ys);ctx.stroke();ctx.fillText('CPL stretch '+money(cplS),chartArea.left+6,ys-4);ctx.strokeStyle='rgba(17,24,39,.34)';ctx.fillStyle=MC.muted2;}}
+    if(ctrT!=null){const x=scales.x.getPixelForValue(ctrT*100);if(x>chartArea.left&&x<chartArea.right){ctx.beginPath();ctx.moveTo(x,chartArea.top);ctx.lineTo(x,chartArea.bottom);ctx.stroke();ctx.fillText('CTR '+pct(ctrT),Math.min(x+5,chartArea.right-60),chartArea.top+12);}}
+    ctx.restore();}};
+  makeChart('effScatter',{type:'bubble',data:{datasets:Object.keys(grouped).map(s=>({label:s,data:grouped[s],backgroundColor:stageColor(s)+'B0',borderColor:stageColor(s)}))},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:legendTop(),tooltip:{callbacks:{label:c=>{const a=c.raw.raw;return [safeName(a.ad),`CPL ${a.cpl!=null?money(a.cpl):'-'} · CTR ${pct(a.ctr)} · ${money(a.spend)} · ${int(a.leads)} enq.`];}}}},
+      scales:{x:axis({title:{display:true,text:'CTR %',color:MC.muted2,font:{size:11}},beginAtZero:true}),y:axis({title:{display:true,text:'Cost per enquiry (A$)',color:MC.muted2,font:{size:11}},beginAtZero:true})}},plugins:[targetLines]});
+}
+
+// ---- Creative gallery ----
+let CC_LIST=[];
+function renderCreative(){
+  // Top 10 creatives by spend. Meta's CDN thumbnail links expire, so the <img> may 403 → we swap in
+  // a branded tile (still headed by the REAL headline); the real copy + metrics render regardless.
+  CC_LIST=byAd(searched(scoped())).filter(a=>n(a.spend)>0).slice(0,10);
+  $('creativeGrid').innerHTML=CC_LIST.length?CC_LIST.map((r,i)=>{
+    const head=safeName(r.creative_title||r.ad);
+    const body=r.creative_body?safeName(r.creative_body):'';
+    const media=r.creative_thumbnail_url
+      ? `<img class="cc-thumb" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" loading="lazy" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`
+      : `<div class="cc-fallback"><div class="cc-fb-mark" role="img" aria-label="Sophiie AI"></div><div class="cc-fb-h">${head}</div></div>`;
+    return `<div class="ccard clickable" onclick="openCreative(${i})">${media}
+      <div class="cc-b"><div class="cc-title">${head}</div>${body?`<div class="cc-copy">${body}</div>`:''}
+      <div class="cc-m"><span><b>${money(r.spend)}</b> spend</span><span><b>${int(r.leads)}</b> enq.</span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span></div></div></div>`;
+  }).join(''):'<div class="muted-text" style="padding:24px">No creatives with spend in this range.</div>';
+}
+function ccFallback(img){const head=img.getAttribute('data-head')||'Sophiie AI';const d=document.createElement('div');d.className='cc-fallback';d.innerHTML='<div class="cc-fb-mark" role="img" aria-label="Sophiie AI"></div><div class="cc-fb-h">'+head+'</div>';img.replaceWith(d);}
+// Creative image fallback chain: our cached copy (/creative-img/<id>, permanent) → the live Meta CDN
+// URL (if the signed link hasn't expired yet) → a branded tile. So the real ad shows whenever ANY
+// source is still available, and never breaks once Meta expires the CDN link.
+function ccImgErr(img){const cdn=img.getAttribute('data-cdn');if(cdn&&img.src.indexOf('/creative-img/')>-1){img.src=cdn;return;}ccFallback(img);}
+function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.creative_title||r.ad);
+  const link=r.destination_url?`<a class="ccm-link" href="${r.destination_url}" target="_blank" rel="noopener">Open landing page ↗</a>`:'';
+  $('ccModalBody').innerHTML=`<div class="ccm-media">${r.creative_thumbnail_url?`<img class="ccm-img" src="${r.creative_id?('/creative-img/'+encodeURIComponent(r.creative_id)):r.creative_thumbnail_url}" alt="" data-head="${head}" data-cdn="${r.creative_thumbnail_url}" onerror="ccImgErr(this)">`:`<div class="cc-fallback" style="border-radius:12px;min-height:240px"><div class="cc-fb-mark" role="img" aria-label="Sophiie AI"></div><div class="cc-fb-h">${head}</div></div>`}</div>
+    <div class="ccm-info"><h3>${safeName(r.creative_title||r.ad)}</h3>${r.creative_body?`<p class="ccm-body">${safeName(r.creative_body)}</p>`:''}
+    <div class="ccm-metrics"><span>Spend <b>${money(r.spend)}</b></span><span>Enquiries <b>${int(r.leads)}</b></span><span>CPL <b>${r.cpl!=null?money(r.cpl):'-'}</b></span><span>CTR <b>${pct(r.ctr)}</b></span><span>LPV <b>${int(r.lpv)}</b></span><span>Freq <b>${r.frequency!=null?r.frequency.toFixed(1):'-'}</b></span></div>${link}</div>`;
+  $('ccModal').classList.add('on');
+}
+function closeCreative(){$('ccModal').classList.remove('on');}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCreative();});
+
+function renderFooter(){const f=flight();$('footerNote').innerHTML=`Sophiie AI · 100% Digital · Meta paid social · all figures ${meta().currency||'AUD'} · flight ${fmtDate(f.start)} - ${fmtDate(f.end)} · updated <b>${fmtDateTime(meta().last_updated)}</b>`;}
+
+// ---------- controls ----------
+// ---------- control-bar state: what is filtered, what that leaves, and how to undo it ----------
+// activeFilters() is the single source of truth for BOTH the Reset button's visibility and its count,
+// so the two can never disagree about whether anything is filtered.
+function activeFilters(){
+  const out=[];
+  if(narrowed())out.push('date');
+  if(STATE.stage!=='all')out.push('stage');
+  if(STATE.search)out.push('search');
+  return out;
+}
+function resetFilters(){
+  STATE.dateStart=null;STATE.dateEnd=null;STATE.stage='all';STATE.search='';
+  const box=$('searchBox');if(box)box.value='';
+  try{DateRange.reset();}catch(e){}
+  renderStageChips();
+  render();
+}
+// The readout answers "what am I actually looking at?" - the honest row count after ALL three filters,
+// plus the span and the campaigns still in play. It is the cheapest guard against a filter being left
+// on and a number being misread as the whole account.
+function renderControlState(){
+  const act=activeFilters(),btn=$('resetBtn'),cnt=$('resetCnt'),note=$('scopeNote'),wrap=$('searchWrap');
+  if(btn){btn.classList.toggle('on',act.length>0);}
+  if(cnt)cnt.textContent=act.length;
+  if(wrap)wrap.classList.toggle('has-q',!!STATE.search);
+  if(!note)return;
+  const rows=searched(scoped());
+  const days=new Set(rows.map(r=>String(r.date).slice(0,10))).size;
+  const camps=new Set(rows.map(r=>r.campaign)).size;
+  const all=(DATA.rows||[]).length;
+  const pl=(v,w)=>`<b>${int(v)}</b> ${w}${v===1?'':'s'}`;
+  note.innerHTML=act.length
+    ? `<b>${int(rows.length)}</b> of ${int(all)} rows &middot; ${pl(days,'day')} &middot; ${pl(camps,'campaign')}`
+    : `${pl(all,'row')} &middot; ${pl(days,'day')} &middot; ${pl(camps,'campaign')} &middot; all filters off`;
+}
+
+function bindControls(){
+  document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
+  document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
+  document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
+  $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderControlState();});
+  const clr=$('searchClear');
+  if(clr)clr.addEventListener('click',()=>{$('searchBox').value='';STATE.search='';$('searchBox').focus();
+    renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderControlState();});
+  const rst=$('resetBtn');
+  if(rst)rst.addEventListener('click',resetFilters);
+  // "/" focuses the search from anywhere, Escape clears and blurs it - the two shortcuts people try
+  // first. Guarded so they never fire while the user is typing into another field.
+  document.addEventListener('keydown',e=>{
+    const tag=(e.target&&e.target.tagName||'').toLowerCase(),typing=(tag==='input'||tag==='textarea');
+    if(e.key==='/'&&!typing){e.preventDefault();$('searchBox').focus();}
+    else if(e.key==='Escape'&&e.target===$('searchBox')){
+      $('searchBox').value='';STATE.search='';$('searchBox').blur();
+      renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderControlState();}
+  });
+}
+function renderViewCharts(){
+  // Re-render only the now-visible tab's Chart.js charts. Per-chart try/catch so one bad draw can't
+  // blank the rest of the tab.
+  const R={overview:[renderTrend,renderPaceToGoal,renderStageDonut],
+           paid:[renderEffScatter,renderCplTrend,renderSegment],
+           creative:[]};
+  (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
+}
+function renderViewState(){
+  document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===STATE.view));
+  document.querySelectorAll('.tabpane').forEach(v=>v.style.display=(v.id==='tab-'+STATE.view)?'block':'none');
+  renderHeader();
+  // A Chart.js chart drawn into a display:none pane renders into a 0x0 canvas and stays BLANK when the
+  // pane is later shown - and chart.resize() across the none->block flip is unreliable (fires before the
+  // pane has real dimensions). So RE-RENDER the now-visible tab's charts after the browser has laid out
+  // the display change (double rAF = one frame to apply display, one to lay it out), which recreates each
+  // chart at its true size. This is why flipping Overview -> Paid Media -> Overview no longer blanks them.
+  requestAnimationFrame(()=>requestAnimationFrame(renderViewCharts));
+}
+function renderStageChips(){
+  const chips=['all'].concat(stages());
+  $('stageChips').innerHTML=chips.map(s=>`<button class="chip${STATE.stage===s?' on':''}" data-stage="${safeName(s)}">${s==='all'?'All stages':`<span class="dot" style="background:${stageColor(s)}"></span>${safeName(s)}`}</button>`).join('');
+  document.querySelectorAll('#stageChips .chip').forEach(b=>b.addEventListener('click',()=>{STATE.stage=b.dataset.stage;renderStageChips();render();}));
+}
+
+async function load(){
+  $('error').style.display='none';$('loading').style.display='block';
+  try{
+    const r=await fetch(JSON_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' from '+JSON_URL);
+    DATA=await r.json();bbApplySpendMult();initChartDefaults();
+    DateRange.init({min:meta().date_min,max:meta().date_max,onApply:(s,e)=>{STATE.dateStart=s;STATE.dateEnd=e;render();}});
+    renderStageChips();render();renderViewState();
+    $('loading').style.display='none';$('app').style.display='block';
+  }catch(e){$('loading').style.display='none';$('app').style.display='none';$('error').style.display='block';$('errDetail').textContent=e.stack||e.message||String(e);}
+}
+
+// ---------- CSV export ----------
+function toCSV(rows,cols){const esc=v=>{const s=v==null?'':String(v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;};return [cols.map(c=>esc(c.label)).join(',')].concat(rows.map(r=>cols.map(c=>esc(typeof c.get==='function'?c.get(r):r[c.key])).join(','))).join('\n');}
+function downloadCSV(name,csv){const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),1500);}
+function exportAllData(){const cols=['date','campaign','adset','ad','stage','creative_title','spend','impressions','reach','clicks','link_clicks','lpv','leads','video_3s_views','video_completes'].map(k=>({label:k,key:k}));downloadCSV(`sophiie_all_${meta().date_max||'data'}.csv`,toCSV(ROWS(),cols));}
+function exportThisTab(){
+  const[a,b]=rangeBounds();const stamp=(a&&b?a+'_'+b:'all');
+  if(STATE.view==='overview'){const cols=[{label:'date',key:'date'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'qualified_modelled',get:r=>qualified(r.leads)},{label:'cum_leads',key:'cum_leads'}];downloadCSV(`sophiie_daily_${stamp}.csv`,toCSV(dailyOf(scoped()),cols));}
+  else if(STATE.view==='creative'){const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'creative_title',key:'creative_title'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'cpl',key:'cpl'},{label:'ctr',key:'ctr'},{label:'lpv',key:'lpv'}];downloadCSV(`sophiie_creative_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
+  else{const cols=[{label:'ad',key:'ad'},{label:'adset',key:'adset'},{label:'campaign',key:'campaign'},{label:'stage',key:'stage'},{label:'spend',key:'spend'},{label:'leads',key:'leads'},{label:'cpl',key:'cpl'},{label:'ctr',key:'ctr'},{label:'cpm',key:'cpm'},{label:'cpc',key:'cpc'},{label:'lpv',key:'lpv'},{label:'cost_per_lpv',key:'cost_per_lpv'},{label:'frequency',key:'frequency'}];downloadCSV(`sophiie_by_ad_${stamp}.csv`,toCSV(byAd(searched(scoped())),cols));}
+}
+
+// ================= AI REPORT PAYLOAD (headless portal deck path) =================
+const r2=v=>v==null||isNaN(v)?null:Math.round(v*100)/100;
+const r6=v=>v==null||isNaN(v)?null:Math.round(v*1e6)/1e6;
+function buildReportPayload(){
+  const all=ROWS();const a=agg(all);const f=flight();const byS=byStage(all),byC=byCampaign(all).slice(0,12),ads=byAd(all).filter(x=>n(x.spend)>0).slice(0,10);const fat=fatigueOf(all).filter(x=>x.flag==='FATIGUED').slice(0,8);
+  const paceRatio=n(f.pace_expected)?n(f.spend_to_date)/n(f.pace_expected):null;
+  return {client:'sophiie',generated_for:'Sophiie AI',currency:meta().currency||'AUD',
+    context:{campaign:'Sophiie AI',window:{start:f.start,end:f.end,days:f.days_total},days_elapsed:f.days_elapsed,days_total:f.days_total,data_through:meta().data_through,last_updated:meta().last_updated,generated_at:new Date().toISOString(),lead_source_label:meta().lead_source_label||'Meta-reported'},
+    overview:{spend:r2(a.spend),budget:r2(n(f.budget)),pace_expected:r2(n(f.pace_expected)),projected_spend:r2(n(f.projected_spend)),pace_ratio:r2(paceRatio),leads:a.leads,qualified_modelled:qualified(a.leads),qualification_rate:qualRate(),cpl:r2(a.cpl),reach:a.reach,impressions:a.impressions,link_clicks:a.link_clicks,ctr:r6(a.ctr),cpm:r2(a.cpm),cpc:r2(a.cpc),landing_page_views:a.lpv,cost_per_lpv:r2(a.cost_per_lpv),frequency:r2(a.frequency)},
+    targets:{cpl_target:bench('cpl'),ctr_target:bench('ctr'),lead_target:bench('lead_target'),qualified_lead_target:bench('qualified_lead_target'),cost_per_lpv_target:bench('cost_per_lpv'),daily_pace:bench('daily_pace')},
+    by_stage:byS.map(r=>({stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),cpm:r2(r.cpm),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency),spend_share:r6(r.spend_share),lead_share:r6(r.lead_share)})),
+    by_campaign:byC.map(r=>({campaign:r.campaign,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),lpv:r.lpv,frequency:r2(r.frequency)})),
+    top_ads:ads.map(r=>({ad:r.ad,adset:r.adset,stage:r.stage,spend:r2(r.spend),leads:r.leads,cpl:r2(r.cpl),ctr:r6(r.ctr),lpv:r.lpv,cost_per_lpv:r2(r.cost_per_lpv),frequency:r2(r.frequency)})),
+    fatigue:fat.map(r=>({ad:r.ad,adset:r.adset,frequency:r2(r.frequency),freq_wow:r2(r.freq_wow),ctr:r6(r.ctr),ctr_wow:r6(r.ctr_wow),flag:r.flag}))};
+}
+// Slide-deck palette (bb_deck.js). Deep-navy cover + white content slides, Sophiie blue accent -
+// the aurora skin translated to PowerPoint. Hex WITHOUT the leading '#': PptxGenJS wants it bare.
+const BB_THEME = {
+  bg:'140934', panel:'1E1147', accent:'2b84b4', accentInk:'FFFFFF', softBg:'EEF5FB',
+  lightBg:'FFFFFF', ink:'111827', mute:'6B7689', line:'DCE6F2', onDark:'F2F7FC', onDarkMute:'AEBFD4',
+  serif:'Georgia', sans:'Arial', mono:'Courier New',
+  agency:'100% Digital', client:'Sophiie AI', brand:'100% DIGITAL × SOPHIIE AI', filePrefix:'Sophiie AI'
+};
+async function bbDeckLogos(){try{const res=await fetch('logo.png',{cache:'force-cache'});if(!res.ok)return{white:null,dark:null};const blob=await res.blob();const uri=await new Promise(function(r){const fr=new FileReader();fr.onload=function(){r(fr.result);};fr.onerror=function(){r(null);};fr.readAsDataURL(blob);});return{white:uri,dark:uri};}catch(e){return{white:null,dark:null};}}
+async function bbHeadlessSlides(){
+  try{const payload=buildReportPayload();const res=await fetch('/report',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+    if(!res.ok){let d='';try{d=(await res.json()).error||'';}catch(_){}throw new Error('HTTP '+res.status+(d?' - '+d:''));}
+    const report=await res.json();const logos=await bbDeckLogos();const out=await bbBuildDeck(report,payload,BB_THEME,logos,{download:false});
+    try{parent.postMessage({__bbslides:true,status:'done',blob:out&&out.blob,fileName:out&&out.fileName},location.origin);}catch(_){}
+  }catch(e){try{parent.postMessage({__bbslides:true,status:'error',error:(e&&e.message)||String(e)},location.origin);}catch(_){}}
+}
+if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(typeof DATA!=='undefined'&&DATA&&DATA.meta&&DATA.meta.last_updated)bbHeadlessSlides();else setTimeout(bbWait,120);})();}
+
+// ===================== AURORA CURTAINS (canvas, layer 3) =====================
+// ~24 vertical light strips swaying on layered sine waves, drawn as filled polygons and softened by
+// the CSS blur(12px) on the canvas itself (cheaper and smoother than shadowBlur per shape).
+// Self-contained IIFE: it owns the canvas and nothing else on the page reads from it.
+(function auroraCurtains(){
+  const canvas=document.getElementById('aurora-bg');
+  if(!canvas)return;
+  // prefers-reduced-motion: remove the canvas outright so no animation frame is ever scheduled.
+  // (The CSS media query hides it; this makes sure we are not burning a rAF loop behind a
+  // display:none element on a machine that asked us not to animate.)
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches){canvas.remove();return;}
+  const ctx=canvas.getContext('2d');
+  let W=0,H=0,time=0,curtains=[];
+
+  // Sine-based pseudo-noise: enough irregularity that no two strips trace the same path, with no
+  // library and no per-frame allocation.
+  function noise(x,y){return Math.sin(x*1.1+y*0.7)*0.5+Math.sin(x*0.7-y*1.3)*0.3+Math.sin(x*2.1+y*0.3)*0.2;}
+
+  // Aurora spectrum, ~90% blue/cyan with ONE teal-green and ONE soft-pink entry as hints
+  // (:root design rule 2). Sampled by linear interpolation across the viewport.
+  // Light but SATURATED cool blues/cyans. Saturation is what makes the aurora read as colour rather
+  // than haze; luminance is what keeps it off the page's throat. Keep every entry bright (see the CSS
+  // note above) - a dark entry here greys the whole page no matter how low its alpha.
+  const PALETTE=[[116,170,212],[126,198,220],[140,206,228],[116,170,212],[132,190,224],[140,206,228],
+                 [96,152,196],[120,196,200],[112,180,206],[126,198,220],[150,158,214],[196,160,190],
+                 [140,206,228],[116,170,212]];
+  function pickColor(t){
+    const idx=t*(PALETTE.length-1),i=Math.floor(idx),f=idx-i;
+    const a=PALETTE[Math.min(i,PALETTE.length-1)],b=PALETTE[Math.min(i+1,PALETTE.length-1)];
+    return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f];
+  }
+
+  function buildCurtains(){
+    curtains=[];
+    // Strip count is the second dial (alpha is the first). W/75 sits between the original W/55, which
+    // accumulated too much, and the very quiet W/105 pass.
+    const count=Math.max(14,Math.floor(W/75));
+    for(let i=0;i<count;i++){
+      curtains.push({
+        baseX:(i/count)*W+(Math.random()-0.5)*(W/count)*0.7,
+        width:50+Math.random()*150,
+        speed:0.25+Math.random()*0.5,          // each strip sways at its own rate ...
+        phase:Math.random()*Math.PI*2,         // ... from its own start, so none of them sync
+        amplitude:30+Math.random()*66,        // wider sway - the movement has to be legible
+        color:pickColor(i/count),
+        opacity:0.13+Math.random()*0.17,         // light hues need real alpha to register at all
+        heightFactor:0.55+Math.random()*0.45,
+        topOffset:Math.random()*0.08
+      });
+    }
+  }
+
+  function drawCurtain(c){
+    const segments=60,topY=H*c.topOffset,bottomY=H*c.heightFactor;
+    const pts=[];
+    for(let i=0;i<=segments;i++){
+      const t=i/segments, y=topY+t*(bottomY-topY);
+      const sway=Math.sin(t*3+time*c.speed+c.phase)*c.amplitude*0.6
+                +Math.sin(t*5-time*c.speed*1.3+c.phase*2)*c.amplitude*0.3
+                +noise(t*2+time*0.3,c.phase)*c.amplitude*0.4;
+      pts.push({x:c.baseX+sway,y:y});
+    }
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x-c.width/2,pts[0].y);
+    for(let i=1;i<pts.length;i++)ctx.lineTo(pts[i].x-c.width/2,pts[i].y);      // left edge, down
+    for(let i=pts.length-1;i>=0;i--)ctx.lineTo(pts[i].x+c.width/2,pts[i].y);   // right edge, back up
+    ctx.closePath();
+    const g=ctx.createLinearGradient(0,topY,0,bottomY),[r,gr,b]=c.color;
+    const op=c.opacity*(0.6+0.4*Math.sin(time*c.speed*2.5+c.phase));           // shimmer
+    g.addColorStop(0,   `rgba(${r},${gr},${b},${op*0.5})`);
+    g.addColorStop(0.1, `rgba(${r},${gr},${b},${op*1.2})`);
+    g.addColorStop(0.3, `rgba(${r},${gr},${b},${op*1.0})`);
+    g.addColorStop(0.55,`rgba(${r},${gr},${b},${op*0.7})`);
+    g.addColorStop(0.8, `rgba(${r},${gr},${b},${op*0.3})`);
+    g.addColorStop(1.0, `rgba(${r},${gr},${b},0)`);
+    ctx.fillStyle=g;ctx.fill();
+  }
+
+  function draw(){
+    // Per-frame time step - the single "how alive is it" dial. 0.004 reads as static and loses the
+    // whole idea; past ~0.035 it starts competing with the data for attention. 0.027 is deliberately
+    // near the top of the usable range: the client asked twice for more visible movement.
+    time+=0.027;
+    ctx.clearRect(0,0,W,H);
+    for(const c of curtains)drawCurtain(c);
+    requestAnimationFrame(draw);
+  }
+
+  function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;buildCurtains();}
+  window.addEventListener('resize',resize);
+  resize();
+  draw();
+})();
+
+bindControls();
+load();
+</script>
+</body>
+</html>

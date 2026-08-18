@@ -157,6 +157,7 @@
   .section h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.2px;color:var(--on-canvas);text-shadow:0 1px 3px rgba(0,0,0,.35)}
   .section .sub{display:block;margin-top:3px;color:var(--on-canvas-mute);font-size:12.5px;max-width:940px;text-shadow:0 1px 2px rgba(0,0,0,.3)}
   .section .sub b{color:var(--on-canvas)}
+  #articleNote b{color:var(--on-canvas)}
 
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px}
   .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
@@ -338,7 +339,7 @@
         </div>
       </div>
       <div class="control-filters">
-        <div class="filter-grp" id="platformGrp" title="Platform applies to paid delivery (Paid Media + the Executive Scorecard reach figures)"><span class="lbl">Platform</span><div class="chips" id="platformChips"></div>
+        <div class="filter-grp" id="platformGrp" title="Platform applies to paid delivery (the Paid Media tab)"><span class="lbl">Platform</span><div class="chips" id="platformChips"></div>
           <button class="chip-action" onclick="allPlatforms()">All</button>
           <button class="chip-action" onclick="clearPlatforms()">Clear</button></div>
         <div class="filter-grp" id="regionGrp"><span class="lbl">Region</span><div class="chips" id="regionChips"></div>
@@ -364,37 +365,11 @@
       </div>
     </div>
 
-    <!-- ============ EXECUTIVE SCORECARD ============ -->
-    <div id="tab-scorecard" class="tabpane">
-      <div class="section first">
-        <h2>Executive Scorecard</h2>
-        <span class="sub">Portfolio view across the full program portfolio - pace to target, efficiency, and the <b>quality of the audience reached</b> (accounts, functions, seniority). Reflects the selected region(s); paid reach also reflects the selected <b>platform(s)</b>. Each program is framed against the Schneider strategic pillar it advances. All figures are true Salesforce &amp; media-plan source data.</span>
-      </div>
-
-      <div class="kpis" id="scKpis"></div>
-
-      <div class="section"><h2 style="font-size:15px">Programs vs strategy &amp; target</h2><span class="sub">Each program mapped to the Schneider corporate pillar it supports, with pace-to-target (leads vs the even flight pace) and plan CPL. Awareness-only programs (no lead target) show as reach plays.</span></div>
-      <div id="scPrograms" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:14px;margin-top:14px"></div>
-
-      <div class="section"><h2 style="font-size:15px">Who we reached - audience intelligence</h2><span class="sub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens senior marketers value beyond raw volume.</span></div>
-      <div class="grid">
-        <div class="card card-tall"><h3>Leads by job function</h3><div class="hint">Which functions engaged with the content across the portfolio.</div><div class="chart-wrap"><canvas id="scFunc"></canvas></div></div>
-        <div class="card card-tall"><h3>Seniority of leads</h3><div class="hint">Job level where disclosed (~40% of leads state a level); the rest are shown honestly as "Not disclosed".</div><div class="chart-wrap"><canvas id="scSen"></canvas></div></div>
-      </div>
-
-      <div class="card" style="margin-top:16px"><h3>Top accounts reached <span id="scAcctCount" style="font-weight:400;font-size:11.5px;color:var(--se-mute)"></span></h3>
-        <div class="hint">Named companies generating the most content-syndication leads - the account-level view behind the totals.</div>
-        <div id="scAccounts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 24px;margin-top:14px"></div>
-      </div>
-
-      <div class="info-note" id="scFootNote" style="margin-top:14px"></div>
-    </div>
-
     <!-- ============ PAID MEDIA ============ -->
     <div id="tab-paid" class="tabpane">
       <div class="section first">
         <h2>Paid Media - Delivery</h2>
-        <span class="sub">Live DV360 · The Trade Desk · LinkedIn delivery for the selected program: spend, impressions, clicks, CTR. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.</span>
+        <span class="sub" id="pmIntro">Live DV360 · The Trade Desk · LinkedIn delivery for the selected program: spend, impressions, clicks, CTR. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.</span>
       </div>
       <div id="pmNote" class="info-note warn" style="display:none"></div>
       <div class="kpis">
@@ -441,7 +416,12 @@
         <div style="overflow:auto"><table id="pmMarketTable"><thead><tr><th>Market</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th></tr></thead><tbody></tbody></table></div>
       </div>
 
-      <div class="section"><h2 style="font-size:15px">Flight windows across the portfolio</h2><span class="sub">Each bar is a program's plan flight; the selected program is highlighted. Overlapping flights (cannibalisation risk) are visible here.</span></div>
+      <div class="section" id="pmByProgSec" style="display:none"><h2 style="font-size:15px">Paid delivery by program</h2><span class="sub">Which programs the all-up paid figures above are made of. Honours the selected <b>platform(s)</b>, region(s) and date range, so this table always sums to the headline.</span></div>
+      <div class="card" id="pmByProgCard" style="margin-top:14px;display:none"><div style="overflow:auto">
+        <table id="pmByProgTable"><thead><tr><th>Program</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th><th class="num" id="pmByProgLeadsHead" style="display:none" title="LinkedIn on-platform lead-form submissions - a paid metric, not Salesforce leads">Lead-form leads</th></tr></thead><tbody></tbody><tfoot></tfoot></table>
+      </div></div>
+
+      <div class="section"><h2 style="font-size:15px">Flight windows across the portfolio</h2><span class="sub" id="ganttSub">Each bar is a program's plan flight; the selected program is highlighted. Overlapping flights (cannibalisation risk) are visible here.</span></div>
       <div class="card" style="margin-top:14px"><div class="chart-wrap" id="ganttWrap" style="height:300px"><canvas id="pmGantt"></canvas></div></div>
     </div>
 
@@ -449,7 +429,7 @@
     <div id="tab-cs" class="tabpane">
       <div class="section first">
         <h2>Content Syndication - Lead Pacing</h2>
-        <span class="sub">Live Salesforce leads vs the media-plan MQL+HQL target for the selected program. Reflects the selected region(s). Leads are <b>CRM-raw</b> (every lead is status <b>New</b> today, the CRM hasn't graded them to MQL/SQL/HQL yet), so this is total leads vs target, not "MQLs achieved".</span>
+        <span class="sub" id="csIntro">Live Salesforce leads vs the media-plan MQL+HQL target for the selected program. Reflects the selected region(s). Leads are <b>CRM-raw</b> (every lead is status <b>New</b> today, the CRM hasn't graded them to MQL/SQL/HQL yet), so this is total leads vs target, not "MQLs achieved".</span>
       </div>
       <div id="csNote" class="info-note" style="display:none"></div>
 
@@ -481,17 +461,39 @@
       </div>
 
       <div class="grid">
-        <div class="card card-tall"><h3>Leads by market</h3><div class="hint">Delivered leads per region for the selected program.</div><div class="chart-wrap"><canvas id="csMarket"></canvas></div></div>
+        <div class="card card-tall"><h3>Leads by market</h3><div class="hint">Delivered leads per region for the current scope.</div><div class="chart-wrap"><canvas id="csMarket"></canvas></div></div>
         <div class="card card-tall"><h3 id="csProgTitle">Leads by programme</h3><div class="hint" id="csProgHint">Share of leads across the program's Salesforce programmes.</div><div class="chart-wrap"><canvas id="csProgramme"></canvas></div></div>
       </div>
 
       <div class="card" style="margin-top:16px"><h3>By-market summary</h3><div class="hint">Delivered leads per region, scaled to the largest region.</div>
         <div id="csRegionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;margin-top:14px"></div></div>
 
-      <div class="section"><h2 style="font-size:15px">Programme × market breakdown</h2><span class="sub">Underlying Salesforce programmes for the selected program &amp; region(s).</span></div>
+      <div class="section"><h2 style="font-size:15px">Programme × market breakdown</h2><span class="sub">Underlying Salesforce programmes for the current scope &amp; region(s).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
         <table id="csTable"><thead><tr><th>Programme</th><th>Market</th><th class="num">Leads</th><th>Status</th><th class="num">Share</th><th>Last lead</th></tr></thead><tbody></tbody></table>
       </div></div>
+      <div class="section" id="csByProgSec" style="display:none"><h2 style="font-size:15px">Lead pacing by program</h2><span class="sub">Which programs the all-up lead figures above are made of. <b>Awareness programs carry no lead target</b> - they are paced on reach instead, so their lead cells read "-" rather than a misleading zero. Honours the selected region(s).</span></div>
+      <div class="card" id="csByProgCard" style="margin-top:14px;display:none"><div style="overflow:auto">
+        <table id="csByProgTable"><thead><tr><th>Program</th><th class="num">Leads</th><th class="num">Target</th><th class="num">% of target</th><th title="Delivered leads vs the EVEN FLIGHT PACE for today, not vs the full-flight target - a program can sit at 73% of target and still be ahead of pace if its flight still has time to run. Awareness programs are paced on impressions instead.">Pace to date</th><th class="num">Plan CPL</th><th class="num" title="Whole-flight paid impressions, all platforms (the Platform chips do not apply on this tab)">Impressions</th></tr></thead><tbody></tbody><tfoot></tfoot></table>
+      </div></div>
+
+      <!-- AUDIENCE INTELLIGENCE. Moved here from the retired Executive Scorecard tab (2026-08-18):
+           these are attributes of the Salesforce content-syndication leads, so the Content Syndication
+           tab is where they belong, and unlike on the scorecard they now follow the Campaign dropdown -
+           portfolio-wide under "All campaigns", one program's audience when a program is picked. -->
+      <div class="section"><h2 style="font-size:15px">Who we reached - audience intelligence</h2><span class="sub" id="audSub">From the Salesforce lead records: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens beyond raw volume.</span></div>
+      <div class="grid">
+        <div class="card card-tall"><h3>Leads by job function</h3><div class="hint">Which functions engaged with the content.</div><div class="chart-wrap"><canvas id="scFunc"></canvas></div></div>
+        <div class="card card-tall"><h3>Seniority of leads</h3><div class="hint">Job level where disclosed (~40% of leads state a level); the rest are shown honestly as "Not disclosed".</div><div class="chart-wrap"><canvas id="scSen"></canvas></div></div>
+      </div>
+
+      <div class="card" style="margin-top:16px"><h3>Top accounts reached <span id="scAcctCount" style="font-weight:400;font-size:11.5px;color:var(--se-mute)"></span></h3>
+        <div class="hint">Named companies generating the most content-syndication leads - the account-level view behind the totals.</div>
+        <div id="scAccounts" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:10px 24px;margin-top:14px"></div>
+      </div>
+
+      <div class="info-note" id="scFootNote" style="margin-top:14px"></div>
+
       <div class="info-note warn" id="csFootNote"></div>
     </div>
 
@@ -535,17 +537,19 @@
     <div id="tab-other" class="tabpane">
       <div class="section first">
         <h2>Other Channels</h2>
-        <span class="sub" id="otherSub">Media-plan channels for this campaign that don't have a measured data feed. Reporting currency AUD.</span>
+        <span class="sub" id="otherSub">Media-plan channels that don't have a measured data feed. Reporting currency AUD.</span>
       </div>
       <div class="info-note warn">These channels are in the media plan but have <b>no warehouse data source</b> connected (e.g. Search, publisher sponsorships, trade press, email), so only the <b>plan targets</b> are shown, not measured delivery. Connect a feed (or upload actuals) to report on them.</div>
-      <div class="section">
+      <!-- Card wrapper is REQUIRED, not decoration: table text is var(--se-ink) (dark), which is
+           unreadable on the dark-green canvas. Every table in this dash sits on a white card. -->
+      <div class="card" style="margin-top:16px">
         <div style="overflow:auto"><table id="otherTable"><thead><tr><th>Channel</th><th>Type</th><th class="num">Plan impressions</th><th class="num">Plan clicks</th><th class="num">Plan leads</th><th class="num">Plan spend</th><th>Status</th></tr></thead><tbody></tbody></table></div>
       </div>
       <div class="section" id="articleWrap" style="display:none">
         <h2 style="font-size:15px">Article delivery <span class="plan-badge" id="articleFlightBadge" style="vertical-align:middle"></span></h2>
         <span class="sub" id="articleSub"></span>
         <div id="articleTables"></div>
-        <div id="articleNote" style="font-size:12px;color:var(--se-mute);margin-top:12px;line-height:1.55"></div>
+        <div id="articleNote" style="font-size:12px;color:var(--on-canvas-mute);text-shadow:0 1px 2px rgba(0,0,0,.3);margin-top:12px;line-height:1.55"></div>
       </div>
     </div>
 
@@ -729,9 +733,16 @@ function bbApplySpendMult(){
 }
 // ----------------------------------------------------------------------------------------------
 
-// "All campaigns" = a synthesized portfolio pseudo-campaign (totals across the 5 programs) so
-// every per-campaign render path (csPacing, renderCS, renderPaid, compare) works unchanged.
+// "All campaigns" = a synthesized portfolio pseudo-campaign (totals across every program) so that
+// every per-campaign render path (csPacing, renderCS, renderPaid, renderOther, compare) works
+// unchanged. RESTORED as the FIRST dropdown option and the DEFAULT view on 2026-08-18 at the client's
+// request - "an all-up view of paid media / content synd / other channels across all campaigns" -
+// replacing the Executive Scorecard tab, which existed only to be that cross-program view. The
+// all-up numbers are the same aggregation the tabs already do; what the dropdown adds is that each
+// tab also decomposes BY PROGRAM when this option is active (see byProgramRows / renderCsByProgram /
+// renderPaidByProgram), so a portfolio total can always be traced back to the programs inside it.
 const ALL_ID='__all__';
+const isAllCampaigns=()=> activeCampaign===ALL_ID;
 const inCamp=id=> activeCampaign===ALL_ID || id===activeCampaign;
 function campaign(){
   if(activeCampaign===ALL_ID){
@@ -743,22 +754,33 @@ function campaign(){
       committed_spend:sum('committed_spend'), leads:sum('leads'),
       flight_start:fs[0]||null, flight_end:fe[fe.length-1]||null,
       cpl_tiers:cs.flatMap(c=>c.cpl_tiers||[]), channels:cs.flatMap(c=>c.channels||[]),
-      tabs:['paid','cs','compare'] };   // portfolio view = the aggregatable tabs (Other is per-campaign)
+      // Paid Media + Content Syndication + Other Channels is exactly what the client asked the
+      // all-up view to cover; CS Comparison is kept because it compares two REGIONS, which is as
+      // meaningful portfolio-wide as it is for one program. Every one of the four aggregates safely.
+      tabs:['paid','cs','compare','other'] };
   }
   return (DATA.campaigns||[]).find(c=>c.id===activeCampaign) || {};
 }
 function campColor(id){ const i=(DATA.campaigns||[]).findIndex(c=>c.id===id); return CAMP_PALETTE[(i<0?0:i)%CAMP_PALETTE.length]; }
+// A program's display label from its id. Needed by the by-program tables, which key on the raw
+// program id in the delivery rows rather than on the selected campaign object.
+function campLabel(id){ const c=(DATA.campaigns||[]).find(x=>x.id===id); return c?c.label:id; }
 // The reporting tabs each campaign exposes (set by the job from its media-plan channels); the tab
 // BAR is built from this per selected campaign, so a campaign only shows the channels it actually uses.
-const TAB_LABEL={scorecard:'Executive Scorecard', paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels', website:'Website'};
+const TAB_LABEL={paid:'Paid Media', cs:'Content Syndication', compare:'CS Comparison', other:'Other Channels', website:'Website'};
 // "Other Channels" (plan-only lines: Search / publisher / trade / email). Removed from the UI
 // 2026-07-06, then restored 2026-07-20 (client wanted the Trade Publication line back).
 function campaignTabs(){ const t=(campaign().tabs||[]); return t.length?t:['cs']; }
-// The Executive Scorecard is a GLOBAL, portfolio-wide tab (shown LAST) - it spans every program,
-// so it sits outside the per-campaign tab set.
-// Website (GA4) is a GLOBAL, whole-site tab (like the scorecard). It only appears once real GA4
-// sessions have landed (ga4_enabled), so nothing half-built shows to the client before then.
-function allTabs(){ const g=(DATA&&DATA.ga4_enabled)?['website']:[]; return campaignTabs().concat(['scorecard'],g); }
+// The Executive Scorecard tab was REMOVED 2026-08-18 (client): it was a separate portfolio-wide tab,
+// and the client would rather reach the cross-program view through the Campaign dropdown's "All
+// campaigns" option, so that one set of tabs answers both scopes. Its audience-intelligence block
+// (job function / seniority / top accounts) was NOT discarded with it - that is Salesforce
+// content-syndication lead data, so it moved onto the Content Syndication tab, where it now follows
+// the dropdown instead of being locked to the portfolio. Its per-program pacing engine (progPacing /
+// progPaid / reachVerdict) also survives, driving the by-program decompositions.
+// Website (GA4) is a GLOBAL, whole-site tab - the one tab that is genuinely not per-campaign. It only
+// appears once real GA4 sessions have landed (ga4_enabled), so nothing half-built shows to the client.
+function allTabs(){ const g=(DATA&&DATA.ga4_enabled)?['website']:[]; return campaignTabs().concat(g); }
 function marketOk(m){ return activeMarkets.has(m); }
 const inRangeDate=d=> (!rangeStart || String(d).slice(0,10)>=rangeStart.slice(0,10)) && (!rangeEnd || String(d).slice(0,10)<=rangeEnd.slice(0,10));
 function activeMarketList(){ return (DATA.all_markets||[]).filter(m=>activeMarkets.has(m)); }
@@ -982,14 +1004,17 @@ async function boot(){
     DATA=await res.json();
     bbApplySpendMult();   // gross RAW spend to client-billed BEFORE any aggregation/rendering
     const cs=(DATA.campaigns||[]);
-    activeCampaign=cs.length?cs[0].id:null;   // default = first program (the "All campaigns" view was retired)
+    // Default = the all-up view. It is what replaced the Executive Scorecard as the landing screen,
+    // and it is the answer to "how is the whole portfolio doing?" that a stakeholder opens this for.
+    // To land on a single program instead, set this to cs[0].id.
+    activeCampaign=cs.length?ALL_ID:null;
     activeMarkets=new Set(DATA.all_markets||[]);
     activePlatforms=new Set(platformsInData().map(p=>p.key));   // default = every engine with delivery
     dateMin=(DATA.window&&DATA.window.start)||null; dateMax=(DATA.window&&DATA.window.end)||null;
     rangeStart=dateMin; rangeEnd=dateMax;
     DateRange.init({min:dateMin,max:dateMax,onApply:(s,e)=>{ if(s&&e&&s>e){const t=s;s=e;e=t;} rangeStart=s; rangeEnd=e; renderActive(); }});
     const h=(location.hash||'').replace('#','');
-    const validTabs=allTabs();              // the default campaign's tabs + scorecard (last)
+    const validTabs=allTabs();              // the tabs the default (all-up) scope exposes
     activeTab=validTabs.includes(h)?h:campaignTabs()[0];   // default to the campaign's first tab
     el('loading').style.display='none'; el('content').style.display='block';
     renderMeta(); renderControls(); renderActive();
@@ -1008,7 +1033,11 @@ function renderMeta(){
 // CONTROLS
 //==============================================================================
 function setTab(t){ if(!allTabs().includes(t)) return; activeTab=t; location.hash=t; renderControls(); renderActive(); }
-function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs(); if(activeTab!=='scorecard' && !t.includes(activeTab)) activeTab=t[0]; renderControls(); renderActive(); }
+// Switching scope can invalidate the open tab (a program with no Other Channels lines, say), so fall
+// back to that scope's first tab. `website` is scope-independent, so it survives the switch.
+function setCampaign(id){ activeCampaign=id; compareReady=false; const t=campaignTabs();
+  if(activeTab!=='website' && !t.includes(activeTab)) activeTab=t[0];
+  renderControls(); renderActive(); }
 function setPmGrain(g){ pmGrain=g; renderActive(); }
 function setPmScale(s){ pmScale=s; renderActive(); }
 function setGaGrain(g){ gaGrain=g; renderActive(); }
@@ -1024,20 +1053,26 @@ function renderControls(){
   // tab bar - only the tabs (channels) this campaign actually uses
   const bar=el('tabBar'); bar.innerHTML='';
   allTabs().forEach(t=>{ const b=document.createElement('button'); b.className='tab'+(activeTab===t?' on':''); b.textContent=TAB_LABEL[t]||t; b.onclick=()=>setTab(t); bar.appendChild(b); });
-  const c=campaign(); const isSc=activeTab==='scorecard'; const isWeb=activeTab==='website'; const isGlobal=isSc||isWeb;
+  const c=campaign(); const isWeb=activeTab==='website'; const isAll=isAllCampaigns();
   const mkts=activeMarkets.size===(DATA.all_markets||[]).length?'all regions':(activeMarkets.size?activeMarketList().join(' · '):'no regions');
   // the platform filter only means something where the numbers come from paid delivery
-  const platScoped=(activeTab==='paid'||isSc);
+  const platScoped=(activeTab==='paid');
   const plats=platScoped?` · ${platformNote()}`:'';
-  el('ctrlNote').textContent = isWeb ? 'Website analytics · whole property (AU/NZ)' : (isSc ? `Showing all programs · ${mkts}${plats}` : `Showing ${c.label||'-'} · ${mkts}${plats}`);
+  const scopeLbl=isAll?`all ${(DATA.campaigns||[]).length} programs`:(c.label||'-');
+  el('ctrlNote').textContent = isWeb ? 'Website analytics · whole property (AU/NZ)' : `Showing ${scopeLbl} · ${mkts}${plats}`;
   // the date range only scopes Paid Media (CS leads are shown for the flight) - hide it elsewhere
   el('dateGrp').style.display = activeTab==='paid' ? 'flex' : 'none';
   // Website (GA4) is whole-site with no market split, so its region chips do nothing - hide them there
   if(el('regionGrp')) el('regionGrp').style.display = isWeb ? 'none' : 'flex';
-  // the Executive Scorecard + Website are portfolio / whole-site, so the per-program dropdown is irrelevant
-  const campWrap=document.querySelector('.topbar-camp'); if(campWrap) campWrap.style.display = isGlobal ? 'none' : '';
-  // campaign selector (top-nav dropdown, Cloudflare pattern) - one option per program (no "All campaigns")
+  // Website (GA4) is whole-property with no program dimension, so the dropdown is irrelevant there -
+  // and it is now the ONLY tab that hides it, every other tab honouring the selected scope.
+  const campWrap=document.querySelector('.topbar-camp'); if(campWrap) campWrap.style.display = isWeb ? 'none' : '';
+  // Campaign selector (top-nav dropdown, Cloudflare pattern). "All campaigns" leads the list and is
+  // the default (client, 2026-08-18) - the all-up view is what the retired Executive Scorecard tab
+  // used to provide, so it must be reachable in one click, not assembled by the reader.
   const sel=el('campSelect'); sel.innerHTML='';
+  const optAll=document.createElement('option'); optAll.value=ALL_ID;
+  optAll.textContent=`All campaigns (${(DATA.campaigns||[]).length} programs)`; sel.appendChild(optAll);
   (DATA.campaigns||[]).forEach(cp=>{ const o=document.createElement('option'); o.value=cp.id; o.textContent=cp.label; sel.appendChild(o); });
   sel.value=activeCampaign;
   // region chips
@@ -1067,10 +1102,9 @@ function renderControls(){
 }
 
 function renderActive(){
-  ['scorecard','paid','cs','compare','other','website'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
+  ['paid','cs','compare','other','website'].forEach(t=>{ const p=el('tab-'+t); if(p) p.style.display=(t===activeTab?'block':'none'); });
   destroyCharts();
-  if(activeTab==='scorecard') renderScorecard();
-  else if(activeTab==='paid') renderPaid();
+  if(activeTab==='paid') renderPaid();
   else if(activeTab==='cs') renderCS();
   else if(activeTab==='other') renderOther();
   else if(activeTab==='website') renderWebsite();
@@ -1183,9 +1217,16 @@ function renderPmBudget(){
     <div class="prog-note">Spent <b>${money(spent)}</b> of the <b>${money(budget)}</b> planned paid-media budget (<b>${fmtPct(usedPct,0)}</b> used)${paceTxt?`, ${paceTxt}`:''}. Budget is the media plan (ex-fees); spend is measured DV360 / Trade Desk / LinkedIn delivery. Content-syndication budget is on the Content Syndication tab (it bills per lead).</div>`;
 }
 function renderPaid(){
+  renderPaidByProgram();   // all-up decomposition (no-op unless "All campaigns" is selected)
+  // Client-facing copy must not claim a scope it is not showing.
+  if(el('pmIntro')) el('pmIntro').innerHTML = isAllCampaigns()
+    ? `Live DV360 · The Trade Desk · LinkedIn delivery <b>summed across all ${(DATA.campaigns||[]).length} programs</b>: spend, impressions, clicks, CTR. The per-program split is in <b>Paid delivery by program</b> below. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`
+    : `Live DV360 · The Trade Desk · LinkedIn delivery for the selected program: spend, impressions, clicks, CTR. Reflects the selected <b>platform(s)</b>, region(s) &amp; date range. Reporting currency AUD.`;
   const rows=pmRows(), t=pmTotals(rows);
   const note=el('pmNote');
-  if(!rows.length){ note.style.display='block'; note.innerHTML=`<b>No paid delivery</b> for ${campaign().label} in the current filter - this program is leads-only / pre-launch on the ad platforms. Its Salesforce leads are on the <b>Content Syndication</b> tab.`; }
+  if(!rows.length){ note.style.display='block'; note.innerHTML=isAllCampaigns()
+      ? `<b>No paid delivery</b> across any program in the current filter - widen the region, platform or date filters. Salesforce leads are on the <b>Content Syndication</b> tab.`
+      : `<b>No paid delivery</b> for ${campaign().label} in the current filter - this program is leads-only / pre-launch on the ad platforms. Its Salesforce leads are on the <b>Content Syndication</b> tab.`; }
   else note.style.display='none';
   const cpm=t.imps?t.spend/t.imps*1000:0, cpc=t.clk?t.spend/t.clk:0, ctr=pct(t.clk,t.imps);
   el('pm_spend').textContent=money(t.spend); el('pm_spend_sub').textContent=`${campaign().label}`;
@@ -1273,6 +1314,11 @@ function wireKpiToggles(){
 }
 
 function renderGantt(){
+  // Under "All campaigns" no single bar is "the selection", so each flight takes its own program
+  // colour - matching the pills in the by-program tables - and the caption stops promising a highlight.
+  if(el('ganttSub')) el('ganttSub').textContent = isAllCampaigns()
+    ? "Each bar is a program's plan flight, coloured per program. Overlapping flights (cannibalisation risk) are visible here - and they are why portfolio pacing is indicative rather than one plan."
+    : "Each bar is a program's plan flight; the selected program is highlighted. Overlapping flights (cannibalisation risk) are visible here.";
   const winEnd=(DATA.window&&DATA.window.end)||new Date(Date.now()).toISOString().slice(0,10);
   const gr=(DATA.campaigns||[]).filter(c=>c.flight_start).map(c=>({id:c.id,name:c.label,start:c.flight_start,end:c.flight_end||winEnd}))
     .filter(g=>!isNaN(+new Date(g.start)) && !isNaN(+new Date(g.end))).sort((a,b)=>new Date(a.start)-new Date(b.start));
@@ -1280,7 +1326,7 @@ function renderGantt(){
   const DAY=864e5, starts=gr.map(g=>+new Date(g.start)), ends=gr.map(g=>+new Date(g.end));
   const minT=Math.min(...starts), maxT=Math.max(...ends), pad=Math.max((maxT-minT)*0.04,7*DAY);
   charts.pmGantt=new Chart(el('pmGantt'),{ type:'bar',
-    data:{ labels:gr.map(g=>g.name), datasets:[{ data:gr.map(g=>[+new Date(g.start),+new Date(g.end)]), backgroundColor:gr.map(g=>g.id===activeCampaign?C.green:C.grey), borderRadius:4, barThickness:16 }]},
+    data:{ labels:gr.map(g=>g.name), datasets:[{ data:gr.map(g=>[+new Date(g.start),+new Date(g.end)]), backgroundColor:gr.map(g=>isAllCampaigns()?campColor(g.id):(g.id===activeCampaign?C.green:C.grey)), borderRadius:4, barThickness:16 }]},
     options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>{ const g=gr[c.dataIndex]; return ` ${dateLabel(g.start)} → ${dateLabel(g.end)}`; }}}},
       scales:{ x:gridY({type:'linear',min:minT-pad,max:maxT+pad,ticks:{color:C.mute,font:{size:10},callback:v=>new Date(v).toLocaleDateString('en-US',{month:'short',year:'2-digit'})}}), y:axisX({ticks:{color:C.ink,font:{size:11}}}) } } });
 }
@@ -1289,6 +1335,13 @@ function renderGantt(){
 // CONTENT SYNDICATION
 //==============================================================================
 function renderCS(){
+  renderCsByProgram();   // all-up decomposition (no-op unless "All campaigns" is selected)
+  // Under the all-up scope the target is a SUM of per-program targets and the flight is a blend of
+  // their windows, so the copy says so rather than implying one agreed plan.
+  if(el('csIntro')) el('csIntro').innerHTML = isAllCampaigns()
+    ? `Live Salesforce leads vs the media-plan MQL+HQL target, <b>summed across every lead-gen program</b> - the target and committed spend are totals, and the flight spans the earliest program start to the latest end, so treat portfolio pacing as indicative and read <b>Lead pacing by program</b> below for the real picture. Awareness-only programs carry no lead target and are excluded from it. Reflects the selected region(s). Leads are <b>CRM-raw</b> (status <b>New</b>), so this is total leads vs target, not "MQLs achieved".`
+    : `Live Salesforce leads vs the media-plan MQL+HQL target for the selected program. Reflects the selected region(s). Leads are <b>CRM-raw</b> (every lead is status <b>New</b> today, the CRM hasn't graded them to MQL/SQL/HQL yet), so this is total leads vs target, not "MQLs achieved".`;
+  renderAudience();      // audience intelligence, scoped by the dropdown (ex-Executive Scorecard)
   const p=csPacing();
   const note=el('csNote');
   if(!(p.leads>0 || p.hasTarget)){ note.style.display='block'; note.textContent=`No content-syndication leads or target for ${campaign().label} in the selected region(s).`; }
@@ -1390,7 +1443,7 @@ function renderCSProgramme(){
   let labels,data;
   if(pairs.length<=1){ el('csProgTitle').textContent='Leads by market - share'; el('csProgHint').textContent='Share of delivered leads across the selected regions.';
     const byMkt={}; csRows().forEach(r=>{ byMkt[r.market]=(byMkt[r.market]||0)+(r.total||0); }); const mp=Object.entries(byMkt).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]); labels=mp.map(x=>x[0]); data=mp.map(x=>x[1]); }
-  else { el('csProgTitle').textContent='Leads by programme'; el('csProgHint').textContent="Share of leads across the program's Salesforce programmes."; labels=pairs.map(x=>x[0]); data=pairs.map(x=>x[1]); }
+  else { el('csProgTitle').textContent='Leads by programme'; el('csProgHint').textContent=isAllCampaigns()?"Share of leads across every program's Salesforce programmes.":"Share of leads across the program's Salesforce programmes."; labels=pairs.map(x=>x[0]); data=pairs.map(x=>x[1]); }
   const tot=data.reduce((s,x)=>s+x,0);
   charts.csProgramme=new Chart(el('csProgramme'),{ type:'doughnut',
     data:{ labels, datasets:[{ data, backgroundColor:labels.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
@@ -1414,43 +1467,43 @@ function renderCSTable(){
 }
 
 //==============================================================================
-// EXECUTIVE SCORECARD (portfolio-wide; respects the Region chips)
+// PER-PROGRAM PACING + AUDIENCE INTELLIGENCE
 //==============================================================================
-// Static mapping of each program to the Schneider corporate pillar it advances (from Schneider's
-// public 2025-26 positioning - CEO Olivier Blum's "electrification, automation and digital" /
-// EcoStruxure "digitize, electrify, decarbonize" / AirSeT SF6-free). Copy only - no data feed.
-const PILLAR={
-  global_rebrand:{pillar:'Advancing Energy Technology', note:'Electrification · Automation · Digital - Schneider’s core corporate narrative'},
-  eba:           {pillar:'EcoStruxure Buildings',       note:'Digitize, electrify &amp; decarbonize the built environment'},
-  airset:        {pillar:'Sustainability · SF6-free',   note:'AirSeT switchgear - eliminating SF6 greenhouse gas'},
-  water_env:     {pillar:'Water &amp; Environment',      note:'Resilient, efficient water &amp; utilities infrastructure'},
-  heavy:         {pillar:'Heavy Industries',            note:'Energy &amp; process efficiency for industry'},
-  nel:           {pillar:'New Energy Landscape',        note:'Awareness for the shift to a decarbonized, electrified energy system'},
-  microgrid:     {pillar:'Energy Resilience',           note:'Microgrids - distributed, resilient power for a decarbonized grid'},
-  ecoconsult:    {pillar:'Services &amp; Consulting',    note:'EcoConsult expert advisory - electrical distribution safety, reliability &amp; modernisation'},
-};
-// audience rows for the whole portfolio, filtered to the active regions, for one dimension
-function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
+// What survives of the retired Executive Scorecard tab (2026-08-18). Its exec chrome - the strategy
+// -pillar cards and the portfolio KPI strip - went with the tab; its two genuinely useful engines did
+// not, because both are now reachable from the normal tabs under either scope:
+//   * progPacing / progPaid / reachVerdict -> the BY-PROGRAM decomposition each tab renders when the
+//     Campaign dropdown is on "All campaigns" (an all-up total nobody can break down is a dead end);
+//   * audAgg -> the audience-intelligence block on the Content Syndication tab.
+//
+// audAgg now honours the CAMPAIGN scope as well as the region chips. On the scorecard it was always
+// portfolio-wide; on the CS tab it must answer for whatever the dropdown says, or the charts would
+// silently describe a different population than the lead totals directly above them.
+function audAgg(dim){ const o={}; (DATA.cs_audience||[]).forEach(r=>{ if(r.dim===dim && inCamp(r.campaign) && marketOk(r.market)) o[r.value]=(o[r.value]||0)+(r.leads||0); }); return o; }
 // Planned paid impressions for a program = the media plan's paid channel lines. This is the target an
 // AWARENESS program is actually judged on; it is 0 while a plan is unsigned (Microgrid / EcoConsult).
 function progImpTarget(c){ return (c.channels||[]).filter(x=>x.group==='paid').reduce((a,x)=>a+(+x.imp_target||0),0); }
-// Whole-flight paid delivery for a program, honoring the PLATFORM + region chips (not the date range -
-// the scorecard is a portfolio-to-date view, same as the CS side of progPacing).
-function progPaid(cid){
+// Whole-flight paid delivery for a program, honoring the region chips (never the date range - this is
+// a flight-to-date view, same as the CS side of progPacing).
+// `allPlatforms` = ignore the Platform chips. Set it wherever the figure is shown on a tab that HIDES
+// those chips: a number that moves with a control the reader cannot see is worse than no number.
+function progPaid(cid, allPlatforms){
   const o={imps:0,clicks:0,spend:0,liLeads:0};
-  (DATA.pm_delivery||[]).forEach(r=>{ if(r.program!==cid || !platOk(r.platform) || !marketOk(r.market)) return;
+  (DATA.pm_delivery||[]).forEach(r=>{ if(r.program!==cid || !marketOk(r.market)) return;
+    if(!allPlatforms && !platOk(r.platform)) return;
     o.imps+=r.imps||0; o.clicks+=r.clicks||0; o.spend+=r.spend_aud||0; o.liLeads+=r.leads||0; });
   return o;
 }
-// per-program pacing across the active regions (scorecard needs every program, not just the selected one)
-function progPacing(cid){
+// Per-program pacing across the active regions - every program, not just the selected one.
+// `allPlatforms` is passed straight through to progPaid (see above).
+function progPacing(cid, allPlatforms){
   let leads=0; (DATA.cs_by_programme||[]).forEach(r=>{ if(r.campaign===cid && marketOk(r.market)) leads+=r.total||0; });
   const c=(DATA.campaigns||[]).find(x=>x.id===cid)||{};
   const target=c.target||0, committed=c.committed_spend||0;
   const tp=elapsedFrac(c.flight_start, c.flight_end||new Date(Date.now()).toISOString());
   const ttd=(target && tp!=null)?target*tp:0;
   // reach lane - what an awareness program is measured on
-  const paid=progPaid(cid), impTarget=progImpTarget(c);
+  const paid=progPaid(cid, allPlatforms), impTarget=progImpTarget(c);
   const impTtd=(impTarget && tp!=null)?impTarget*tp:0;
   return {leads, target, committed, cpl:target?committed/target:null, ttd,
           vsTtd:ttd?leads/ttd:null, leadsPct:target?leads/target:0, label:c.label||cid,
@@ -1468,95 +1521,32 @@ function reachVerdict(p){
   if(p.vsImpTtd>=0.7) return {cls:'neut',txt:'Slightly behind reach plan'};
   return {cls:'down',txt:'Behind reach plan'};
 }
-function scKpi(label,value,delta,cls){ return `<div class="kpi ${cls||''}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||''}</div></div>`; }
+// ---- AUDIENCE INTELLIGENCE (Content Syndication tab) -----------------------------------------
+// Rendered from renderCS(), so it follows the Campaign dropdown and the Region chips exactly as the
+// lead totals above it do.
+function renderAudience(){
+  if(!el('scFunc')) return;
+  const scopeTxt = isAllCampaigns() ? 'across all programs' : `for ${campaign().label}`;
+  el('audSub').innerHTML=`From the Salesforce lead records ${scopeTxt}: the job functions and seniority of the people who engaged, and the named accounts behind the numbers. This is the lead-quality lens beyond raw volume. Reflects the selected region(s).`;
 
-function renderScorecard(){
-  const progs=(DATA.campaigns||[]).map(c=>c.id);
-  // one pass: the CS lane (leads/target/committed) AND the reach lane (impressions/spend/lead-form
-  // leads, which honor the platform chips), plus the lead-gen vs awareness split of the portfolio
-  let leads=0,target=0,committed=0,portTtd=0;
-  let pImps=0, pSpend=0, pLiLeads=0, nLead=0, nAware=0;
-  progs.forEach(id=>{ const p=progPacing(id);
-    leads+=p.leads; target+=p.target; committed+=p.committed; portTtd+=p.ttd||0;
-    pImps+=p.imps; pSpend+=p.spend; pLiLeads+=p.liLeads;
-    if(p.target>0) nLead++; else nAware++; });
-  const accounts=audAgg('account'); const nAcct=Object.keys(accounts).length;
-  const blendedCpl=target?committed/target:null;
-  const vsTtd=portTtd?leads/portTtd:null; const pv=paceVerdict(vsTtd);
-
-  // --- portfolio KPI strip ---
-  el('scKpis').innerHTML=[
-    scKpi('Leads delivered', fmtN(leads), `of ${fmtN(target)} target`, 'm-spend'),
-    scKpi('Pace vs plan', vsTtd!=null?fmtPct(vsTtd,0):'-', pv.txt, 'm-imp'),
-    scKpi('Impressions delivered', fmtM(pImps), `${money(pSpend)} paid spend${platformNote()&&platformNote()!=='all platforms'?' · '+platformNote():''}`, 'm-clk'),
-    scKpi('Accounts reached', fmtN(nAcct), 'distinct companies', 'm-clk'),
-    scKpi('Blended plan CPL', blendedCpl!=null?money(blendedCpl):'-', 'committed ÷ target', 'm-spend'),
-    scKpi('Programs live', fmtN(progs.length), `${nLead} lead-gen · ${nAware} awareness`, 'm-imp'),
-  ].join('');
-
-  // --- program × strategy cards ---
-  // TWO shapes, because the portfolio holds two kinds of program:
-  //   lead-gen  (has an MQL+HQL target) -> leads delivered vs target, plan CPL, lead pace.
-  //   awareness (no lead target: NEL / Microgrid / EcoConsult / global_rebrand) -> a REACH play:
-  //             impressions vs the plan's paid impression target, spend, CPM. Rendering these on the
-  //             lead bar drew "0 / 0 leads" at 0%, which read as total failure for a program that was
-  //             never bought on leads.
-  el('scPrograms').innerHTML=progs.map(id=>{
-    const p=progPacing(id), pillar=PILLAR[id]||{pillar:p.label,note:''}, col=campColor(id);
-    const isLeadGen=p.target>0;
-    const pvv=isLeadGen?paceVerdict(p.vsTtd):reachVerdict(p);
-    const vcol=pvv.cls==='up'?'#007E2A':pvv.cls==='down'?'#C0392B':'#B97400';
-    // bar: lead-gen fills on leads-vs-target; awareness on impressions-vs-imp-target (empty when the
-    // plan is unsigned - an empty bar with no % is honest, a 0% bar next to a target of 0 is not)
-    const pctW=Math.min(100,Math.round(((isLeadGen?p.leadsPct:p.impPct)||0)*100));
-    const cpm=p.imps?p.spend/p.imps*1000:null;
-    const rightPct=isLeadGen?(p.target?fmtPct(p.leadsPct,0):'-'):(p.impTarget?fmtPct(p.impPct,0):'');
-    // main row
-    const main=isLeadGen
-      ? `<span><b>${fmtN(p.leads)}</b> / ${fmtN(p.target)} leads</span>`
-      : `<span><b>${fmtM(p.imps)}</b>${p.impTarget?` / ${fmtM(p.impTarget)}`:''} impressions</span>`;
-    // sub row right: plan CPL for lead-gen, delivered CPM for a reach play
-    const subRight=isLeadGen
-      ? (p.cpl!=null?money(p.cpl)+' plan CPL':'plan CPL -')
-      : (cpm!=null?money(cpm,2)+' CPM':(p.planBudget?money(p.planBudget)+' planned':'budget -'));
-    // awareness footer: spend to date + the flight anchor (observed when no plan dates are seeded) +
-    // LinkedIn lead-form leads where the ad sets actually run a form (EcoConsult)
-    let foot='';
-    if(!isLeadGen){
-      const bits=[];
-      if(p.spend>0) bits.push(`${money(p.spend)} spent`);
-      if(p.liLeads>0) bits.push(`<b>${fmtN(p.liLeads)}</b> lead-form lead${p.liLeads===1?'':'s'}`);
-      const anchor=p.flightSource==='observed'?p.firstDelivery:p.flightStart;
-      if(anchor) bits.push(`${p.flightSource==='observed'?'live since':'from'} ${dateLabel(anchor)}`);
-      if(bits.length) foot=`<div style="margin-top:6px;font-size:11px;color:var(--se-mute)">${bits.join(' · ')}</div>`;
-    }
-    return `<div style="background:#fff;border:1px solid var(--se-line);border-top:3px solid ${col};border-radius:10px;padding:14px 16px">
-      <div style="font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:${col}">${pillar.pillar}</div>
-      <div style="font-weight:700;font-size:15px;margin-top:3px">${p.label}</div>
-      <div style="font-size:11px;color:var(--se-mute);margin:4px 0 11px;min-height:29px;line-height:1.35">${pillar.note}</div>
-      <div style="height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden"><div style="height:100%;width:${pctW}%;background:${col}"></div></div>
-      <div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px">${main}<span style="font-weight:700;color:${vcol}">${rightPct}</span></div>
-      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--se-mute)"><span>${pvv.txt}</span><span>${subRight}</span></div>
-      ${foot}
-    </div>`;
-  }).join('');
-
-  // --- audience: job function (doughnut) ---
+  // --- job function (doughnut) ---
   const fp=Object.entries(audAgg('function')).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
   const ftot=fp.reduce((s,x)=>s+x[1],0);
   if(fp.length) charts.scFunc=new Chart(el('scFunc'),{ type:'doughnut',
     data:{ labels:fp.map(x=>x[0]), datasets:[{ data:fp.map(x=>x[1]), backgroundColor:fp.map((_,i)=>PROG_PALETTE[i%PROG_PALETTE.length]), borderColor:'#fff', borderWidth:2 }]},
     options:{ maintainAspectRatio:false, cutout:'58%', plugins:{ legend:{position:'bottom',title:{...LEGEND_HINT,padding:{top:16,bottom:6}},labels:{boxWidth:8,boxHeight:8,font:{size:10,...FONT},color:C.ink,padding:6}}, bbCenter:{label:'Total leads',color:C.dark,labelColor:C.mute}, tooltip:{callbacks:{label:c=>` ${c.label}: ${fmtN(c.parsed)} (${fmtPct(pct(c.parsed,ftot),0)})`}} } } });
+  else el('scFunc').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No leads in the selected scope / region(s).</div>';
 
-  // --- audience: seniority (horizontal bar) ---
+  // --- seniority (horizontal bar) ---
   const sn=audAgg('seniority'), order=['Executive','Director','Manager','Other','Not disclosed'];
   const sl=order.filter(k=>sn[k]), scol={Executive:'#005F20',Director:'#007E2A',Manager:'#2867B2',Other:'#C9CED4','Not disclosed':'#E6E9ED'};
   if(sl.length) charts.scSen=new Chart(el('scSen'),{ type:'bar',
     data:{ labels:sl, datasets:[{ label:'Leads', data:sl.map(k=>sn[k]), backgroundColor:sl.map(k=>scol[k]||C.slate), borderRadius:4, maxBarThickness:48 }]},
     options:{ indexAxis:'y', maintainAspectRatio:false, plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${fmtN(c.parsed.x)} leads`}}}, scales:{ x:gridY({beginAtZero:true}), y:axisX() } } });
+  else el('scSen').parentElement.innerHTML='<div style="padding:40px 10px;text-align:center;color:var(--se-mute);font-size:12.5px">No disclosed seniority in the selected scope.</div>';
 
   // --- top accounts reached (ABM hook) ---
-  const ap=Object.entries(accounts).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+  const ap=Object.entries(audAgg('account')).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
   el('scAcctCount').textContent = ap.length?`· ${fmtN(ap.length)} companies, top ${Math.min(18,ap.length)} shown`:'';
   const amax=Math.max(1,...ap.slice(0,18).map(x=>x[1]));
   el('scAccounts').innerHTML = ap.slice(0,18).map(([name,n])=>`
@@ -1564,11 +1554,79 @@ function renderScorecard(){
       <div style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px" title="${String(name).replace(/"/g,'&quot;')}">${name}</div>
       <div style="width:88px;height:8px;background:#EEF1F0;border-radius:999px;overflow:hidden;flex:none"><div style="height:100%;width:${(n/amax*100).toFixed(1)}%;background:${C.green}"></div></div>
       <div style="width:24px;text-align:right;font-weight:700;font-size:12px;flex:none">${fmtN(n)}</div>
-    </div>`).join('') || `<div style="color:var(--se-mute);font-style:italic;font-size:12px">No leads for the selected region(s).</div>`;
+    </div>`).join('') || `<div style="color:var(--se-mute);font-style:italic;font-size:12px">No leads for the selected scope / region(s).</div>`;
 
-  el('scFootNote').innerHTML=`Audience fields come from the Salesforce lead records: <b>company 100%</b>, <b>job function 100%</b>, <b>job level ~40%</b> populated. Industry, company-size and downloaded-asset fields are empty in the current feed, so they are intentionally not shown. Pace vs plan compares delivered leads to the even flight-to-date target; <b>awareness programs</b> are paced on impressions against the media plan's paid reach target instead, and read "targets pending" until that plan is signed. Impressions and spend follow the <b>Platform</b> chips; Salesforce lead figures have no delivering platform, so they do not.`
-    +(pLiLeads>0?` <b>${fmtN(pLiLeads)}</b> LinkedIn on-platform lead-form lead${pLiLeads===1?'':'s'} sit on the Paid Media tab - they are a paid metric and are NOT counted in the Salesforce lead totals here.`:'')
-    +` All figures are true source data.`;
+  el('scFootNote').innerHTML=`Audience fields come from the Salesforce lead records: <b>company 100%</b>, <b>job function 100%</b>, <b>job level ~40%</b> populated. Industry, company-size and downloaded-asset fields are empty in the current feed, so they are intentionally not shown. These figures follow the <b>Campaign</b> dropdown and the <b>Region</b> chips; they carry no delivering platform, so the Platform chips do not apply. All figures are true source data.`;
+}
+
+// ---- BY-PROGRAM DECOMPOSITION (only under "All campaigns") -----------------------------------
+// An all-up total nobody can break down is a dead end, so each aggregatable tab shows WHICH programs
+// the portfolio figure is made of. Hidden for a single program, where it would restate the headline.
+function renderCsByProgram(){
+  const sec=el('csByProgSec'), card=el('csByProgCard');
+  if(!sec||!card) return;
+  const on=isAllCampaigns();
+  sec.style.display=on?'':'none'; card.style.display=on?'':'none';
+  // Clear the rows when hiding: a hidden container full of the PREVIOUS scope's rows is stale
+  // state that the shared table engine keeps re-wiring, and it would resurface on any reflow.
+  if(!on){ const t=el('csByProgTable'); if(t){ t.querySelector('tbody').innerHTML=''; t.querySelector('tfoot').innerHTML=''; } return; }
+  // allPlatforms=true: the CS tab hides the Platform chips, so its reach column must not follow them.
+  const rows=(DATA.campaigns||[]).map(c=>Object.assign({id:c.id}, progPacing(c.id, true)))
+    .sort((a,b)=>(b.leads-a.leads)||(b.imps-a.imps));
+  // Lead-gen and awareness programs are NOT comparable on one metric: a reach play has no lead target,
+  // and printing "0 / 0 leads - 0%" for it reads as total failure for something never bought on leads.
+  // So the pace cell branches, exactly as the retired scorecard's cards did.
+  el('csByProgTable').querySelector('tbody').innerHTML = rows.map(p=>{
+    const isLeadGen=p.target>0, col=campColor(p.id);
+    const v=isLeadGen?paceVerdict(p.vsTtd):reachVerdict(p);
+    const vcol=v.cls==='up'?'var(--se-green2)':v.cls==='down'?'var(--bad-red)':'var(--warn-amber)';
+    return `<tr>
+      <td><span class="pill"><span class="dot" style="background:${col}"></span>${p.label}</span></td>
+      <td class="num">${isLeadGen?fmtN(p.leads):'-'}</td>
+      <td class="num">${isLeadGen?fmtN(p.target):'-'}</td>
+      <td class="num">${isLeadGen&&p.target?fmtPct(p.leadsPct,0):'-'}</td>
+      <td style="color:${vcol};font-weight:600">${v.txt}</td>
+      <td class="num">${isLeadGen&&p.cpl!=null?money(p.cpl):'-'}</td>
+      <td class="num">${p.imps?fmtM(p.imps):'-'}</td>
+    </tr>`; }).join('');
+  const lead=rows.filter(p=>p.target>0), aware=rows.length-lead.length;
+  const tl=lead.reduce((a,p)=>a+p.leads,0), tt=lead.reduce((a,p)=>a+p.target,0);
+  const tc=lead.reduce((a,p)=>a+p.committed,0), ti=rows.reduce((a,p)=>a+p.imps,0);
+  el('csByProgTable').querySelector('tfoot').innerHTML=
+    `<tr class="total"><td>All programs</td><td class="num">${fmtN(tl)}</td><td class="num">${fmtN(tt)}</td>`
+    +`<td class="num">${tt?fmtPct(tl/tt,0):'-'}</td><td>${lead.length} lead-gen · ${aware} awareness</td>`
+    +`<td class="num">${tt?money(tc/tt):'-'}</td><td class="num">${fmtM(ti)}</td></tr>`;
+}
+function renderPaidByProgram(){
+  const sec=el('pmByProgSec'), card=el('pmByProgCard');
+  if(!sec||!card) return;
+  const on=isAllCampaigns();
+  sec.style.display=on?'':'none'; card.style.display=on?'':'none';
+  // Clear the rows when hiding: a hidden container full of the PREVIOUS scope's rows is stale
+  // state that the shared table engine keeps re-wiring, and it would resurface on any reflow.
+  if(!on){ const t=el('pmByProgTable'); if(t){ t.querySelector('tbody').innerHTML=''; t.querySelector('tfoot').innerHTML=''; } return; }
+  // Built from pmRows() - the SAME filtered rows the tab's KPIs use - so this column sums to the
+  // headline exactly, honouring the platform chips, the region chips and the date range.
+  const agg={}; pmRows().forEach(r=>{ const e=agg[r.program]||(agg[r.program]={imps:0,clk:0,spend:0,leads:0,hasLeads:false});
+    e.imps+=r.imps||0; e.clk+=r.clicks||0; e.spend+=r.spend_aud||0;
+    if(r.leads!=null){ e.leads+=r.leads; e.hasLeads=true; } });
+  const keys=Object.keys(agg).sort((a,b)=>agg[b].spend-agg[a].spend);
+  const anyLeads=keys.some(k=>agg[k].hasLeads && agg[k].leads>0);
+  el('pmByProgLeadsHead').style.display=anyLeads?'':'none';
+  const t={imps:0,clk:0,spend:0,leads:0};
+  el('pmByProgTable').querySelector('tbody').innerHTML = keys.length ? keys.map(k=>{ const x=agg[k];
+    t.imps+=x.imps; t.clk+=x.clk; t.spend+=x.spend; t.leads+=x.leads;
+    return `<tr><td><span class="pill"><span class="dot" style="background:${campColor(k)}"></span>${campLabel(k)}</span></td>`
+      +`<td class="num">${money(x.spend)}</td><td class="num">${fmtN(x.imps)}</td><td class="num">${fmtN(x.clk)}</td>`
+      +`<td class="num">${fmtPct(pct(x.clk,x.imps),2)}</td><td class="num">${money(x.imps?x.spend/x.imps*1000:0,2)}</td>`
+      +`<td class="num">${money(x.clk?x.spend/x.clk:0,2)}</td>`
+      +(anyLeads?`<td class="num">${x.hasLeads&&x.leads>0?fmtN(x.leads):'-'}</td>`:'')+`</tr>`; }).join('')
+    : `<tr><td colspan="${anyLeads?8:7}" style="text-align:center;color:var(--se-mute);padding:14px">No paid delivery in the current filter.</td></tr>`;
+  el('pmByProgTable').querySelector('tfoot').innerHTML = keys.length
+    ? `<tr class="total"><td>All programs</td><td class="num">${money(t.spend)}</td><td class="num">${fmtN(t.imps)}</td><td class="num">${fmtN(t.clk)}</td>`
+      +`<td class="num">${fmtPct(pct(t.clk,t.imps),2)}</td><td class="num">${money(t.imps?t.spend/t.imps*1000:0,2)}</td>`
+      +`<td class="num">${money(t.clk?t.spend/t.clk:0,2)}</td>`+(anyLeads?`<td class="num">${fmtN(t.leads)}</td>`:'')+`</tr>`
+    : '';
 }
 
 //==============================================================================
@@ -1641,11 +1699,21 @@ const ARTICLE_DELIVERY = {
     ],
   },
 };
+// Which programs' article delivery to render: the selected one, or EVERY program that has any under
+// "All campaigns" - the all-up Other Channels view would otherwise hide real delivered actuals purely
+// because the scope widened, which is the opposite of what an all-up view is for.
+function articlePrograms(){
+  return Object.keys(ARTICLE_DELIVERY).filter(id=>inCamp(id)
+    && ARTICLE_DELIVERY[id].flights.some(f=>f.live && f.publications.length));
+}
 function renderArticles(){
   const wrap=el('articleWrap'); if(!wrap) return;
-  const A=ARTICLE_DELIVERY[activeCampaign];
-  const live=A?A.flights.filter(f=>f.live && f.publications.length):[];
-  if(!A || !live.length){ wrap.style.display='none'; return; }
+  const ids=articlePrograms();
+  if(!ids.length){ wrap.style.display='none'; return; }
+  // One program today (Heavy Industries). Rendering the first is correct for a single selection and
+  // for the portfolio; if a second program ever gets a trade-press line, loop here instead.
+  const pid=ids[0], A=ARTICLE_DELIVERY[pid];
+  const live=A.flights.filter(f=>f.live && f.publications.length);
   wrap.style.display='';
   // One sub-table PER flight month, kept separate (each flight reports independently - e.g. May and July).
   const hdr='<thead><tr><th>Publication</th><th class="num">Page views</th><th class="num">Sessions</th><th class="num">Engaged sessions</th><th class="num">Outbound clicks</th><th class="num">Outbound CTR</th></tr></thead>';
@@ -1658,24 +1726,44 @@ function renderArticles(){
     return `<div class="card" style="margin-top:12px"><h3 style="font-size:13px;margin:0 0 8px">${f.month}${tag}</h3><div style="overflow:auto"><table>${hdr}<tbody>${rows}</tbody></table></div></div>`;
   }).join('');
   el('articleFlightBadge').textContent=live.map(f=>f.month).join(', ')+' delivered';
-  el('articleSub').textContent='Heavy Industries thought-leadership articles placed in trade publications (via Ben Robinson). Manual publisher reports - no live data feed.';
+  el('articleSub').textContent=`${campLabel(pid)} thought-leadership articles placed in trade publications (via Ben Robinson). Manual publisher reports - no live data feed.`;
   const upcoming=A.flights.filter(f=>!f.live).map(f=>f.month);
   el('articleNote').innerHTML=`<b>Plan for this line:</b> ${A.plan.note} (media-plan click target <b>${fmtN(A.plan.click_target)}</b>, spend <b>${money(A.plan.spend)}</b>).`
     + (upcoming.length?` <b>${upcoming.join(' &amp; ')}</b> flight${upcoming.length>1?'s':''} still to run.`:'')
     + ` Publishers report an <b>overall total per flight only</b>, so these are <b>flight totals</b>, not a true weekly series; CTR is publisher-reported (total is page-view-weighted).`;
 }
-function otherChannels(){ return (campaign().channels||[]).filter(c=>c.group==='other' && c.has_target); }
+// Plan-only channel lines, TAGGED WITH THEIR PROGRAM. Built by walking DATA.campaigns rather than
+// campaign().channels, because the portfolio pseudo-campaign flat-maps every program's channels and
+// loses which program each line came from - an all-up table listing "Trade Publication" twice with no
+// way to tell them apart is worse than no table.
+function otherChannels(){
+  const out=[];
+  (DATA.campaigns||[]).forEach(cp=>{ if(!inCamp(cp.id)) return;
+    (cp.channels||[]).forEach(c=>{ if(c.group==='other' && c.has_target) out.push({...c, _prog:cp.id}); }); });
+  return out;
+}
 function renderOther(){
-  el('otherSub').textContent=`Plan-only channels for ${campaign().label} - tracked in the media plan, no measured delivery feed connected.`;
+  const isAll=isAllCampaigns();
+  el('otherSub').textContent=isAll
+    ? `Plan-only channels across all ${(DATA.campaigns||[]).length} programs - tracked in the media plan, no measured delivery feed connected.`
+    : `Plan-only channels for ${campaign().label} - tracked in the media plan, no measured delivery feed connected.`;
   renderArticles();
+  // The Program column only exists in the all-up view; on a single program every row would repeat the
+  // dropdown's own value, so it is added and removed with the scope rather than sitting there empty.
+  const head=el('otherTable').querySelector('thead tr');
+  const hasProgCol=!!head.querySelector('.progcol');
+  if(isAll && !hasProgCol){ const th=document.createElement('th'); th.className='progcol'; th.textContent='Program'; head.insertBefore(th, head.firstChild); }
+  if(!isAll && hasProgCol) head.querySelector('.progcol').remove();
+  const ncol=isAll?8:7;
   const tb=el('otherTable').querySelector('tbody'); tb.innerHTML='';
   const chans=otherChannels();
-  if(!chans.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for this campaign.</td></tr>'; return; }
-  const hasArt=!!ARTICLE_DELIVERY[activeCampaign];
+  if(!chans.length){ tb.innerHTML=`<tr><td colspan="${ncol}" style="text-align:center;color:var(--se-mute);padding:24px">No other channels for ${isAll?'any program':'this campaign'}.</td></tr>`; return; }
+  const artProgs=new Set(articlePrograms());
   chans.forEach(c=>{
-    const isArt=hasArt && /trade publication/i.test(c.name||'');
+    const isArt=artProgs.has(c._prog) && /trade publication/i.test(c.name||'');
     const tr=document.createElement('tr');
-    tr.innerHTML=`<td>${c.name}</td><td>${c.line_type||'-'}</td>`
+    tr.innerHTML=(isAll?`<td><span class="pill"><span class="dot" style="background:${campColor(c._prog)}"></span>${campLabel(c._prog)}</span></td>`:'')
+      +`<td>${c.name}</td><td>${c.line_type||'-'}</td>`
       +`<td class="num">${fmtN(c.imp_target)}</td><td class="num">${fmtN(c.click_target)}</td>`
       +`<td class="num">${fmtN(c.lead_target)}</td><td class="num">${c.spend?money(c.spend):'-'}</td>`
       +`<td>${isArt?'<span class="plan-badge" style="color:var(--se-green2);border-color:var(--se-green2)">Actuals below ↓</span>':'<span class="plan-badge">Plan only · no feed</span>'}</td>`;
@@ -1685,12 +1773,15 @@ function renderOther(){
 
 function exportThisTab(){
   let lines=[`# Schneider CS - ${activeTab} - ${campaign().label} - ${activeMarketList().join('/')}`
-    +((activeTab==='paid'||activeTab==='scorecard')?` - ${platformNote()}`:'')];
-  if(activeTab==='scorecard') lines=lines.concat(tableCSV('cs_audience (portfolio, filtered)', (DATA.cs_audience||[]).filter(r=>marketOk(r.market))));
-  else if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
+    +((activeTab==='paid')?` - ${platformNote()}`:'')];
+  if(activeTab==='paid') lines=lines.concat(tableCSV('pm_delivery (filtered)', pmRows()));
   else if(activeTab==='other') lines=lines.concat(tableCSV('other_channels (plan only)', otherChannels()));
   else if(activeTab==='website') lines=lines.concat(tableCSV('ga4_sources (whole property)', (DATA.ga4&&DATA.ga4.sources)||[]));
-  else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows())).concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()));
+  else lines=lines.concat(tableCSV('cs_by_programme (filtered)', csRows()))
+    .concat(tableCSV('cs_weekly (filtered)', csWeeklyRows()))
+    // audience intelligence moved here with the Executive Scorecard's retirement; it is scoped by the
+    // Campaign dropdown now, so the export must be too or the CSV would disagree with the screen.
+    .concat(tableCSV('cs_audience (filtered)', (DATA.cs_audience||[]).filter(r=>inCamp(r.campaign) && marketOk(r.market))));
   dl(`schneider_${activeTab}.csv`, lines);
 }
 function exportAllData(){
@@ -1740,6 +1831,17 @@ function buildReportPayload(){
     client:'schneider', agency:'Transmission', generated_for:'Schneider Electric Pacific', currency:'AUD',
     context:{
       campaign:c.label||activeCampaign, campaign_key:activeCampaign,
+      // SCOPE GUARDRAIL. The Campaign dropdown can now select the all-up portfolio ("All campaigns",
+      // 2026-08-18), whose plan.* fields are SUMS and whose flight is the earliest start to the latest
+      // end across programs - a blend, not an agreed flight. Without this the deck would narrate a
+      // synthetic window as though one campaign had been bought on it.
+      scope: isAllCampaigns() ? 'all_campaigns' : 'single_program',
+      programs_in_scope: isAllCampaigns()
+        ? (DATA.campaigns||[]).map(x=>x.label)
+        : [c.label||activeCampaign],
+      scope_note: isAllCampaigns()
+        ? `PORTFOLIO ROLL-UP of ${(DATA.campaigns||[]).length} SEPARATE programs, each with its own media plan, flight window and objective (some are lead-gen, some awareness-only). Targets, committed spend and budgets are SUMS; flight_start/flight_end are the earliest start and latest end across programs and are NOT an agreed flight for any single campaign - never describe them as one, and never compute a single blended pace as though one plan had been bought. Compare programs against each other and call out which are pulling the portfolio up or down.`
+        : 'A single program with its own media plan and flight window.',
       markets:activeMarketList(), all_markets:DATA.all_markets||[],
       platforms:activePlatformList().map(x=>x.label), all_platforms:platformsInData().map(x=>x.label),
       date_filtered:false, date_filter:{start:null,end:null},
