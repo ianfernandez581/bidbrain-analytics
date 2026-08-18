@@ -32,6 +32,25 @@ function Die($m)  { Write-Host "!! Failed: $m. Fix the cause and re-run (idempot
 function Must($m) { if ($LASTEXITCODE -ne 0) { Die $m } }
 function Exists($sb) { & $sb *> $null; return ($LASTEXITCODE -eq 0) }
 
+# A BRAND-NEW service account is not immediately visible to the IAM policy APIs. On the first run of
+# this script the create succeeds and the very next add-iam-policy-binding fails with
+#   HTTPError 400: Service account sophiie-dash-web@... does not exist
+# even though it was just created. That is propagation lag, not a real error - it bit the 2026-08-18
+# Sophiie standup and would bite every future new-client standup identically. So every SA-member
+# binding goes through this retry instead of a bare Must. Existing-SA re-runs hit it on the first try
+# and cost nothing.
+function MustRetry($m, $sb, $tries = 6, $delay = 10) {
+  for ($i = 1; $i -le $tries; $i++) {
+    & $sb *> $null
+    if ($LASTEXITCODE -eq 0) { return }
+    if ($i -lt $tries) {
+      Write-Host "   .. $m failed (attempt $i/$tries) - waiting ${delay}s for IAM to propagate" -ForegroundColor Yellow
+      Start-Sleep -Seconds $delay
+    }
+  }
+  Die "$m (still failing after $tries attempts)"
+}
+
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 
 # Build context is the repo root. If we're inside client_sophiie\, step up.
@@ -65,7 +84,7 @@ Write-Host "[3/4] Service account, IAM + secrets ..."
 if (-not (Exists { gcloud iam service-accounts describe $WEB_SA --project $PROJECT })) {
   gcloud iam service-accounts create ($WEB_SA.Split('@')[0]) --display-name "Sophiie AI dashboard web service" --project $PROJECT; Must "create web SA"
 }
-gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" --member="serviceAccount:${WEB_SA}" --role="roles/storage.objectViewer" | Out-Null; Must "grant objectViewer to web SA"
+MustRetry "grant objectViewer to web SA" { gcloud storage buckets add-iam-policy-binding "gs://${BUCKET}" --member="serviceAccount:${WEB_SA}" --role="roles/storage.objectViewer" }
 
 function New-SecretFromValue($name, $value) {
   $tmp = New-TemporaryFile
@@ -87,8 +106,8 @@ if (-not (Exists { gcloud secrets describe $SESSION_SECRET --project $PROJECT })
   [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
   New-SecretFromValue $SESSION_SECRET ([Convert]::ToBase64String($bytes))
 }
-gcloud secrets add-iam-policy-binding $PW_SECRET      --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT | Out-Null; Must "bind $PW_SECRET to web SA"
-gcloud secrets add-iam-policy-binding $SESSION_SECRET --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT | Out-Null; Must "bind $SESSION_SECRET to web SA"
+MustRetry "bind $PW_SECRET to web SA" { gcloud secrets add-iam-policy-binding $PW_SECRET --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT }
+MustRetry "bind $SESSION_SECRET to web SA" { gcloud secrets add-iam-policy-binding $SESSION_SECRET --member="serviceAccount:${WEB_SA}" --role="roles/secretmanager.secretAccessor" --project $PROJECT }
 
 # The PLATFORM also needs to read this dashboard's password. dashboards.bidbrain.ai proxies the
 # dashboard at /d/sophiie/ and logs into the upstream ON THE USER'S BEHALF (main.py
@@ -104,7 +123,7 @@ gcloud secrets add-iam-policy-binding $SESSION_SECRET --member="serviceAccount:$
 $PLATFORM_SA = "platform-dash-web@${PROJECT}.iam.gserviceaccount.com"
 gcloud secrets add-iam-policy-binding $PW_SECRET --member="serviceAccount:${PLATFORM_SA}" --role="roles/secretmanager.secretAccessor"    --project $PROJECT | Out-Null; Must "bind $PW_SECRET to the platform SA (proxy login)"
 gcloud secrets add-iam-policy-binding $PW_SECRET --member="serviceAccount:${PLATFORM_SA}" --role="roles/secretmanager.secretVersionAdder" --project $PROJECT | Out-Null; Must "bind $PW_SECRET rotate to the platform SA"
-gcloud iam service-accounts add-iam-policy-binding $WEB_SA --member="serviceAccount:${PLATFORM_SA}" --role="roles/iam.serviceAccountUser" --project $PROJECT | Out-Null; Must "grant the platform SA actAs on the web SA"
+MustRetry "grant the platform SA actAs on the web SA" { gcloud iam service-accounts add-iam-policy-binding $WEB_SA --member="serviceAccount:${PLATFORM_SA}" --role="roles/iam.serviceAccountUser" --project $PROJECT }
 
 $SHA = $null
 try { $SHA = (& git rev-parse --short HEAD 2>$null) } catch { $SHA = $null }

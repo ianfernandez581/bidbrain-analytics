@@ -179,6 +179,13 @@ Build as yourself via the per-stage scripts (each self-contained, idempotent, in
   `enable_google_login.ps1`, `enable_microsoft_login.ps1`, `clients/client_<c>/dash/enable_report_<c>.ps1`
   (AI decks need `roles/aiplatform.user` + `--timeout 900`; `bb_deck.js` is vendored - canonical copy
   in `clients/client_mongodb/dash/`, re-copy everywhere after editing).
+- **A brand-new service account is NOT immediately visible to the IAM policy APIs.** On the FIRST run
+  of a new client's `deploy_<c>.ps1` the `service-accounts create` succeeds and the very next
+  `add-iam-policy-binding` dies with `HTTPError 400: Service account <c>-dash-web@... does not exist`.
+  That is propagation lag, not a real error - just re-run (every standup script is idempotent), or
+  copy the `MustRetry` helper from `clients/client_sophiie/deploy_sophiie.ps1`, which wraps each
+  SA-member binding in a 6x10s retry so the first run cannot fail this way. Hit on the 2026-08-18
+  Sophiie standup.
 - **`/ship` (or `/go`) auto-deploys every changed service** after landing on main - the path ->
   deploy-script map is `Resolve-DeployPlan` in `scripts/merge-branches.ps1`. Doc-only changes deploy nothing.
 - **Any view-only or seed/static change requires a forced job run** (the gate does not watch views
