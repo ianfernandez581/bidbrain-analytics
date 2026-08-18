@@ -95,6 +95,38 @@ reading as stone and just looks like dirty white. Current washes: masthead .36, 
 Each of the eight KPI cells gets a **different `background-position`** - repeating veins across a grid
 is the tell that it is a texture file rather than a material.
 
+### The control bar
+
+Sticky, solid, rounded and lifted like every other surface, with a **marble band behind the TAB RAIL
+only**, masked so it is gone before the filter row - the same discipline as the Paid Media title
+bands. Controls need a calm field to read against, so the row carrying the date picker, the chips and
+the search box stays clean paper.
+
+It carries four pieces of state beyond the filters themselves:
+
+- **`activeFilters()`** is the single source of truth for whether anything is filtered. Both the Reset
+  button's visibility AND its count read from it, so the two can never disagree.
+- **Reset** appears only when at least one filter is on, and shows how many. It clears the date range,
+  the stage and the search in one go. It needs `DateRange.reset()` - the picker had no public setter,
+  and re-running `init()` would re-bind every handler.
+- **The scope readout** answers "what am I actually looking at?": the honest row count after all three
+  filters, plus the span and the campaigns still in play. It is the cheapest guard against a filter
+  being left on and a partial number being read as the whole account.
+- **Keyboard**: `/` focuses the search from anywhere, `Escape` clears and blurs it. Both are guarded so
+  they never fire while the user is typing into another field.
+
+`renderControlState()` is in the `render()` list, so the readout and the Reset state can never drift
+from the data on screen.
+
+### The centred masthead
+
+The OPENING block of every tab - eyebrow, display title, dek - is centred, and so is the goal caption
+directly beneath it (with a rule either side; a single leading rule reads as an accident once
+centred). Everything after that stays left-aligned: a centred masthead over left-aligned body is the
+standard editorial structure, and it keeps the tiles and tables scanning normally. The dek needs
+`margin-left/right:auto` as well as `text-align:center`, because it carries a `max-width` and would
+otherwise centre its text inside a left-hugging box.
+
 ### The KPI tiles
 
 Eight tiles in a 4x2 grid, **separated by whitespace, rounded (`--radius` 14px) and lifted on shadow

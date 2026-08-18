@@ -70,47 +70,89 @@ LOGIN_HTML = """<!doctype html>
 <title>Geocon Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  /* GEOCON CORPORATE LOGIN (2026-08-18) - built from geocon.com.au's own footer/CTA treatment:
+     warm light-grey canvas, near-black heavy CONDENSED uppercase display type, hairline outlined
+     rounded CTA carrying the site's diagonal arrow, and the dotted rule the site uses as a divider.
+     NOTE the deliberate split: this LOGIN wears GEOCON CORPORATE, while the dashboard behind it
+     stays on the dark Gateway Braddon PROPERTY palette (that is the campaign's own brand board,
+     clients/client_geocon/creatives/Gateway-Braddon-Brand-Board.png). Do not "unify" them without
+     asking - they are two different brands doing two different jobs. */
+  :root{
+    --bg:#EDEDEB;          /* warm light grey sampled from the site footer */
+    --ink:#0A0A0A;
+    --muted:#6B6B68;
+    --line:rgba(10,10,10,.26);
+    --err:#B3261E;
+  }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{min-height:100vh;display:flex;align-items:center;justify-content:center;
-       font-family:"Montserrat","Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-       background:#231A17;color:#FFFEEC;position:relative;overflow:hidden}
-  body::after{content:'';position:absolute;bottom:0;left:0;right:0;height:3px;
-              background:#6C291B}
-  .card{width:100%;max-width:390px;padding:40px 34px;background:#6C291B;
-        border:1px solid rgba(255,254,236,.16);border-radius:8px;
-        box-shadow:0 22px 70px rgba(0,0,0,.42)}
-  .logo-wrap{text-align:center;margin-bottom:24px}
-  .logo-wrap img{max-height:60px;max-width:250px;opacity:.96}
-  .brand{font-size:10px;font-weight:800;letter-spacing:2.2px;color:#BD9A8E;margin-bottom:8px;text-transform:uppercase}
-  h1{font-size:22px;font-weight:900;margin:0 0 5px;letter-spacing:0}
-  p{font-size:13px;color:rgba(255,254,236,.68);margin:0 0 24px}
-  input{width:100%;padding:13px 15px;font-size:15px;color:#FFFEEC;background:rgba(35,26,23,.5);
-        border:1px solid rgba(255,254,236,.18);border-radius:8px;outline:none;transition:border-color .15s}
-  input:focus{border-color:#FFFEEC}
-  input::placeholder{color:rgba(255,254,236,.38)}
-  button{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;
-         background:#FFFEEC;color:#231A17;border:none;border-radius:8px;
-         transition:transform .1s ease,box-shadow .2s ease;letter-spacing:.3px}
-  button:hover{transform:translateY(-1px);box-shadow:0 8px 22px rgba(35,26,23,.28)}
-  button:active{transform:translateY(0)}
-  .err{margin-top:14px;font-size:13px;color:#FFDED5;min-height:16px;text-align:center}
+  html,body{min-height:100%}
+  body{min-height:100vh;display:flex;flex-direction:column;justify-content:center;
+       background:var(--bg);color:var(--ink);
+       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       -webkit-font-smoothing:antialiased;padding:40px 6vw}
+  .wrap{width:100%;max-width:1040px;margin:0 auto}
+  .eyebrow{font-size:11px;font-weight:600;letter-spacing:2.4px;text-transform:uppercase;
+           color:var(--muted);margin-bottom:18px}
+  h1{font-family:"Anton","Inter",sans-serif;font-weight:400;text-transform:uppercase;
+     font-size:clamp(44px,8.6vw,104px);line-height:.9;letter-spacing:-.5px;margin:0 0 26px}
+  .lede{font-size:15px;color:var(--muted);max-width:46ch;margin:0 0 34px;line-height:1.55}
+  form{display:flex;flex-wrap:wrap;gap:12px;align-items:stretch;max-width:640px}
+  input{flex:1 1 260px;min-width:0;padding:18px 20px;font:inherit;font-size:14px;
+        letter-spacing:1.4px;text-transform:uppercase;color:var(--ink);background:transparent;
+        border:1px solid var(--line);border-radius:10px;outline:none;transition:border-color .16s}
+  input::placeholder{color:var(--muted);letter-spacing:1.4px}
+  input:focus{border-color:var(--ink)}
+  /* the site's CTA: transparent, hairline border, uppercase label + diagonal arrow, fills on hover */
+  button{flex:0 0 auto;display:inline-flex;align-items:center;gap:14px;cursor:pointer;
+         padding:18px 30px;font:inherit;font-size:14px;font-weight:600;letter-spacing:1.6px;
+         text-transform:uppercase;color:var(--ink);background:transparent;
+         border:1px solid var(--ink);border-radius:10px;
+         transition:background-color .18s ease,color .18s ease}
+  button .arw{font-size:17px;line-height:1;transition:transform .18s ease}
+  button:hover{background:var(--ink);color:var(--bg)}
+  button:hover .arw{transform:translate(3px,-3px)}
+  button:focus-visible{outline:2px solid var(--ink);outline-offset:3px}
+  .err{margin-top:18px;font-size:12px;font-weight:600;letter-spacing:1.4px;text-transform:uppercase;
+       color:var(--err);min-height:15px}
+  /* the site's dotted divider */
+  .rule{height:3px;margin:54px 0 26px;
+        background-image:radial-gradient(circle,var(--ink) 1.1px,transparent 1.2px);
+        background-size:12px 3px;background-repeat:repeat-x;opacity:.55}
+  footer{display:flex;align-items:flex-end;justify-content:space-between;gap:26px;flex-wrap:wrap}
+  /* The supplied wordmark is WHITE type baked onto an OPAQUE BLACK square (no alpha), so it would
+     read as a black tile on this light canvas. invert() flips it to black-on-white, then multiply
+     drops the white to the page colour - leaving the wordmark alone, the way the site sets it.
+     Keep BOTH properties together; either one on its own looks broken. */
+  .mark img{height:26px;width:auto;display:block;filter:invert(1);mix-blend-mode:multiply}
+  .meta{text-align:right;font-size:10.5px;font-weight:600;letter-spacing:2px;text-transform:uppercase;
+        color:var(--muted);line-height:1.9}
+  @media (max-width:560px){
+    footer{flex-direction:column;align-items:flex-start}
+    .meta{text-align:left}
+    button{width:100%;justify-content:space-between}
+  }
 </style>
 </head>
 <body>
-  <form class="card" method="POST" action="/login">
-    <div class="logo-wrap">
-      <img src="/logo.png" alt="Gateway Braddon" onerror="this.style.display='none'">
-    </div>
-    <div class="brand">BidBrain · Geocon</div>
-    <h1>Dashboard Access</h1>
-    <p>Enter the password to continue.</p>
-    <input type="password" name="password" placeholder="Password" autofocus
-           autocomplete="current-password">
-    <button type="submit">Unlock Dashboard</button>
+  <div class="wrap">
+    <div class="eyebrow">Geocon x 100% Digital</div>
+    <h1>Performance<br>dashboard</h1>
+    <p class="lede">Live paid-media reporting for the Geocon developments. Enter your password to continue.</p>
+    <form method="POST" action="/login">
+      <input type="password" name="password" placeholder="Password" autofocus
+             autocomplete="current-password" aria-label="Password">
+      <button type="submit">Enter <span class="arw" aria-hidden="true">&#8599;</span></button>
+    </form>
     <div class="err">{{ error or "" }}</div>
-  </form>
+    <div class="rule"></div>
+    <footer>
+      <div class="mark"><img src="/geocon-mark.png" alt="Geocon"
+           onerror="this.style.display='none'"></div>
+      <div class="meta">Gateway Braddon &middot; Northbourne Gateway<br>Reporting by 100% Digital</div>
+    </footer>
+  </div>
 </body>
 </html>"""
 

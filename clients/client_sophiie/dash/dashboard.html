@@ -216,12 +216,21 @@
   /* Sticky and SOLID: it travels over the aurora, and a translucent bar would let the curtains slide
      under the tab labels. No marble here on purpose - texture behind controls reads as noise. */
   /* Sticky and SOLID: it travels over the aurora, and a translucent bar would let the curtains slide
-     under the tab labels. Rounded + lifted like every other surface; no marble, because texture behind
-     controls reads as noise. */
-  /* margin-top matches .pholder's, so the first surface sits the same distance below the masthead
+     under the tab labels. Rounded + lifted like every other surface.
+     TEXTURE: a marble band sits behind the TAB RAIL only and is masked so it is gone before the filter
+     row begins - the same discipline as the Paid Media title bands. Controls need a calm field to read
+     against, so the row carrying the date picker, the chips and the search box stays clean paper.
+     margin-top matches .pholder's, so the first surface sits the same distance below the masthead
      whether or not the sample-data notice is showing. */
   .control-bar{background:var(--paper);border:0;border-radius:var(--radius);
-               box-shadow:var(--elev-1);padding:0 20px;margin:26px 0 26px;position:sticky;top:12px;z-index:30}
+               box-shadow:var(--elev-1);padding:0 20px;margin:26px 0 26px;position:sticky;top:12px;z-index:30;
+               overflow:hidden}
+  .control-bar::before{content:"";position:absolute;top:0;left:0;right:0;height:74px;z-index:0;pointer-events:none;
+               background:linear-gradient(rgba(255,255,255,.46),rgba(255,255,255,.46)),
+                          url("marble-band.jpg") 42% 34%/150% no-repeat;
+               -webkit-mask-image:linear-gradient(180deg,#000 0%,#000 52%,transparent 100%);
+                       mask-image:linear-gradient(180deg,#000 0%,#000 52%,transparent 100%)}
+  .control-bar>*{position:relative;z-index:1}
   /* ...but once the notice IS showing it has already provided that air, so don't double it. */
   .pholder + .control-bar{margin-top:0}
   .control-tabs{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;border-bottom:1px solid var(--hair)}
@@ -230,7 +239,8 @@
   .tabs{display:flex;gap:26px;flex-wrap:wrap;background:none;border-radius:0;padding:0;margin:0}
   .tab{padding:16px 0 13px;font-family:var(--f-ui);font-size:11px;font-weight:500;letter-spacing:.22em;
        text-transform:uppercase;cursor:pointer;border:none;background:none;color:var(--ink-3);
-       border-bottom:1.5px solid transparent;margin-bottom:-1px;transition:color .18s}
+       border-bottom:1.5px solid transparent;margin-bottom:-1px;
+       transition:color .18s,border-bottom-color .18s}
   .tab:hover{color:var(--ink)}
   .tab.on{background:none;color:var(--ink);font-weight:500;box-shadow:none;border-bottom-color:var(--ink)}
   .tabs-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:7px 0}
@@ -256,8 +266,35 @@
   .chip:hover{border-color:var(--ink)}
   .chip.on{background:var(--ink);color:#fff;border-color:var(--ink);font-weight:500}
   .chip .dot{width:6px;height:6px;border-radius:50%}
+  .search-wrap{position:relative;display:inline-flex;align-items:center}
   .search{background:var(--paper);border:.5px solid var(--rule-strong);border-radius:9px;color:var(--ink);outline:none;
-          padding:8px 12px;font-size:12px;font-family:var(--f-ui);min-width:200px}
+          padding:8px 28px 8px 12px;font-size:12px;font-family:var(--f-ui);min-width:214px}
+  /* clear affordance - only rendered once there is something to clear */
+  .search-x{position:absolute;right:6px;width:18px;height:18px;border:0;border-radius:50%;cursor:pointer;
+          background:rgba(15,14,13,.07);color:var(--ink-2);font-size:11px;line-height:1;padding:0;display:none;
+          font-family:var(--f-ui)}
+  .search-x:hover{background:rgba(15,14,13,.14);color:var(--ink)}
+  .search-wrap.has-q .search-x{display:block}
+  /* the keyboard hint disappears the moment the field is used */
+  .search-hint{position:absolute;right:9px;font-family:var(--f-mono);font-size:9.5px;color:var(--ink-4);
+          border:.5px solid var(--rule);border-radius:4px;padding:1px 5px;pointer-events:none}
+  .search-wrap.has-q .search-hint,.search-wrap:focus-within .search-hint{display:none}
+
+  /* RESET - appears only when something is actually filtered, and says how many things. */
+  .reset-btn{display:none;align-items:center;gap:7px;font-family:var(--f-ui);font-size:10px;font-weight:500;
+          letter-spacing:.14em;text-transform:uppercase;cursor:pointer;padding:8px 12px;border-radius:9px;
+          border:.5px solid var(--ink);background:var(--ink);color:#fff;
+          transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
+  .reset-btn.on{display:inline-flex}
+  .reset-btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px -8px rgba(15,14,13,.5)}
+  .reset-btn .cnt{font-family:var(--f-mono);font-size:10px;letter-spacing:0;background:rgba(255,255,255,.22);
+          border-radius:20px;padding:1px 6px}
+
+  /* SCOPE READOUT - what the filters currently resolve to, in the mono like every other figure. */
+  .scope-note{margin-left:auto;font-family:var(--f-mono);font-size:10px;color:var(--ink-3);
+          font-variant-numeric:tabular-nums;letter-spacing:-.01em;white-space:nowrap}
+  .scope-note b{color:var(--ink-2);font-weight:500}
+  @media(max-width:900px){.scope-note{margin-left:0;width:100%}}
   .search::placeholder{color:var(--muted2)}
   .search:focus{border-color:var(--ink);box-shadow:none}
 
@@ -317,7 +354,7 @@
   .section{margin-top:38px} .section.first{margin-top:10px}
   /* An eyebrow above every section title, driven by data-eyebrow so the copy stays in the markup.
      It must encode something TRUE - the goal, the date basis, the data source - never decoration. */
-  .section[data-eyebrow]::before{content:attr(data-eyebrow);display:block;margin-bottom:9px;
+  .section[data-eyebrow]::before{content:attr(data-eyebrow);display:block;margin-bottom:10px;
        font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
   .section h2{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;
        font-size:clamp(26px,3.1vw,34px);letter-spacing:-.025em;line-height:1.12;color:var(--ink)}
@@ -325,8 +362,21 @@
   /* the qualifying half of the title drops to the supporting ink - the contrast is worth having */
   .section h2 .t2{color:var(--ink-2)}
   /* hyphens:none + text-wrap:pretty stop the dek hyphenating mid-word across lines */
-  .section .sub{display:block;margin-top:9px;color:var(--ink-2);font-size:13px;line-height:1.65;
+  .section .sub{display:block;margin-top:10px;color:var(--ink-2);font-size:13px;line-height:1.65;
        max-width:66ch;hyphens:none;text-wrap:pretty}
+
+  /* The OPENING block of every tab is CENTRED - eyebrow, display title and dek on one axis, like a
+     masthead. Everything after it stays left-aligned, which is the standard editorial structure: a
+     centred masthead over left-aligned body. The dek needs the auto margins as well as the
+     text-align, because it carries a max-width and would otherwise centre its text inside a
+     left-hugging box. */
+  .section.first{text-align:center;margin-top:34px}
+  .section.first .sub{margin-left:auto;margin-right:auto}
+  .section.first h2{margin-left:auto;margin-right:auto}
+  /* the goal caption sits directly under the centred masthead, so it shares the axis; its little rule
+     becomes a pair, one either side, or a single leading rule reads as an accident when centred */
+  #ovNorth .nsband{justify-content:center;margin-top:30px}
+  #ovNorth .nsband::after{content:"";width:16px;height:1px;flex:none;background:var(--ink)}
   .section .sub b{color:var(--ink);font-weight:500}
 
   /* grids + cards (ONE recipe): solid white, hairline, soft shadow, and an aurora-blue glow on
@@ -713,7 +763,16 @@
         <div class="fdiv"></div>
         <div class="filter-grp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
         <div class="fdiv"></div>
-        <div class="filter-grp"><input class="search" id="searchBox" type="text" placeholder="Search campaign / adset / ad…" autocomplete="off"></div>
+        <div class="filter-grp">
+          <span class="search-wrap" id="searchWrap">
+            <input class="search" id="searchBox" type="text" placeholder="Search campaign / adset / ad…" autocomplete="off">
+            <span class="search-hint">/</span>
+            <button class="search-x" id="searchClear" type="button" title="Clear search" aria-label="Clear search">&times;</button>
+          </span>
+        </div>
+        <button class="reset-btn" id="resetBtn" type="button" title="Clear the date range, stage filter and search">
+          Reset<span class="cnt" id="resetCnt">0</span></button>
+        <span class="scope-note" id="scopeNote">&nbsp;</span>
       </div>
     </div>
 
@@ -943,7 +1002,11 @@ window.DateRange = (function(){
     G('dpGrid').innerHTML=html;}
   function renderRangeLbl(){G('dpRangeLbl').innerHTML=draftStart?`<b>${fmt(draftStart)}</b> → ${draftEnd?`<b>${fmt(draftEnd)}</b>`:'<i>select end…</i>'}`:'Pick a start date';}
   function updateButton(){const k=detectPreset(selStart,selEnd);G('dpLabel').textContent=(k!=='custom')?PRESETS.find(p=>p.k===k).label:(sameDay(selStart,selEnd)?fmt(selStart):fmt(selStart)+' - '+fmt(selEnd));}
-  return {init,toggle,getRange:()=>({start:iso(selStart),end:iso(selEnd)})};
+  // reset() restores the full data window - the same state init() leaves the picker in. Exposed so the
+  // control bar's Reset can clear the range without re-running init(), which would re-bind every handler.
+  function reset(){selStart=new Date(MIN);selEnd=new Date(MAX);draftStart=new Date(selStart);draftEnd=new Date(selEnd);
+    viewYear=draftEnd.getFullYear();viewMonth=draftEnd.getMonth();updateButton();}
+  return {init,toggle,reset,getRange:()=>({start:iso(selStart),end:iso(selEnd)})};
 })();
 
 // ---------- date range ----------
@@ -1044,7 +1107,7 @@ function render(){
   [renderPlaceholderBanner,renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderStageDonut,
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
-   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope]
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderFooter,renderDateScope,renderControlState]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
 }
 function renderHeader(){
@@ -1416,11 +1479,61 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCreative();});
 function renderFooter(){const f=flight();$('footerNote').innerHTML=`Sophiie AI · 100% Digital · Meta paid social · all figures ${meta().currency||'AUD'} · flight ${fmtDate(f.start)} - ${fmtDate(f.end)} · updated <b>${fmtDateTime(meta().last_updated)}</b>`;}
 
 // ---------- controls ----------
+// ---------- control-bar state: what is filtered, what that leaves, and how to undo it ----------
+// activeFilters() is the single source of truth for BOTH the Reset button's visibility and its count,
+// so the two can never disagree about whether anything is filtered.
+function activeFilters(){
+  const out=[];
+  if(narrowed())out.push('date');
+  if(STATE.stage!=='all')out.push('stage');
+  if(STATE.search)out.push('search');
+  return out;
+}
+function resetFilters(){
+  STATE.dateStart=null;STATE.dateEnd=null;STATE.stage='all';STATE.search='';
+  const box=$('searchBox');if(box)box.value='';
+  try{DateRange.reset();}catch(e){}
+  renderStageChips();
+  render();
+}
+// The readout answers "what am I actually looking at?" - the honest row count after ALL three filters,
+// plus the span and the campaigns still in play. It is the cheapest guard against a filter being left
+// on and a number being misread as the whole account.
+function renderControlState(){
+  const act=activeFilters(),btn=$('resetBtn'),cnt=$('resetCnt'),note=$('scopeNote'),wrap=$('searchWrap');
+  if(btn){btn.classList.toggle('on',act.length>0);}
+  if(cnt)cnt.textContent=act.length;
+  if(wrap)wrap.classList.toggle('has-q',!!STATE.search);
+  if(!note)return;
+  const rows=searched(scoped());
+  const days=new Set(rows.map(r=>String(r.date).slice(0,10))).size;
+  const camps=new Set(rows.map(r=>r.campaign)).size;
+  const all=(DATA.rows||[]).length;
+  const pl=(v,w)=>`<b>${int(v)}</b> ${w}${v===1?'':'s'}`;
+  note.innerHTML=act.length
+    ? `<b>${int(rows.length)}</b> of ${int(all)} rows &middot; ${pl(days,'day')} &middot; ${pl(camps,'campaign')}`
+    : `${pl(all,'row')} &middot; ${pl(days,'day')} &middot; ${pl(camps,'campaign')} &middot; all filters off`;
+}
+
 function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
   document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
   document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
-  $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();});
+  $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderControlState();});
+  const clr=$('searchClear');
+  if(clr)clr.addEventListener('click',()=>{$('searchBox').value='';STATE.search='';$('searchBox').focus();
+    renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderControlState();});
+  const rst=$('resetBtn');
+  if(rst)rst.addEventListener('click',resetFilters);
+  // "/" focuses the search from anywhere, Escape clears and blurs it - the two shortcuts people try
+  // first. Guarded so they never fire while the user is typing into another field.
+  document.addEventListener('keydown',e=>{
+    const tag=(e.target&&e.target.tagName||'').toLowerCase(),typing=(tag==='input'||tag==='textarea');
+    if(e.key==='/'&&!typing){e.preventDefault();$('searchBox').focus();}
+    else if(e.key==='Escape'&&e.target===$('searchBox')){
+      $('searchBox').value='';STATE.search='';$('searchBox').blur();
+      renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderControlState();}
+  });
 }
 function renderViewCharts(){
   // Re-render only the now-visible tab's Chart.js charts. Per-chart try/catch so one bad draw can't
