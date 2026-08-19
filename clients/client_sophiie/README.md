@@ -51,11 +51,27 @@ client's request ("too overpowering"). It is still the client's signature and st
 
 ### Type
 
-| Role | Face | Where |
+**ONE face: Inter Variable (2026-08-19, client request).** The previous three-face Chronicle stack
+(Fraunces italic display + Inter UI + IBM Plex Mono figures) was rejected, so the whole dashboard and
+the login page are now set in a single family:
+
+```css
+font-family: 'Inter Variable', Inter, system-ui, sans-serif;
+```
+
+Loaded as one variable request carrying every weight and both italics:
+`fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900`.
+
+| Role | Where | Note |
 |---|---|---|
-| Display | **Fraunces** italic 500 | Page + section + card titles, campaign and stage names, the ONE modelled KPI figure |
-| UI | **Inter** 400/500 | Labels, eyebrows, body copy, tabs, chips, table headers |
-| Figures | **IBM Plex Mono** 400/500 | Every number that represents a measurement, always `tabular-nums` |
+| Display (`--f-display`) | Page + section + card titles, campaign and stage names, the ONE modelled KPI figure | `font-style:italic` was REMOVED with Fraunces - italic Inter on a heading reads as a mistake, not a choice |
+| UI (`--f-ui`) | Labels, eyebrows, body copy, tabs, chips, table headers | unchanged |
+| Figures (`--f-mono`) | Every number that represents a measurement | **`font-variant-numeric:tabular-nums` is now load-bearing** - alignment used to come free from a mono face, and Inter is proportional |
+
+The three tokens are **REMAPPED onto the one stack, not renamed** (the house pattern - see the colour
+tokens below), so all ~40 consumers changed with no per-rule edit and the roles stay legible if a
+second face is ever reintroduced. Verified in a browser: 262 rendered elements, exactly ONE computed
+family, 14 Inter faces loaded, no console errors.
 
 **No weight above 500 anywhere** - hierarchy is size, face and colour. The old build ran to 800 and
 that heaviness was most of why it read generic. A sweep pulled 24 stray `600/700/800` rules down to
@@ -77,8 +93,8 @@ Two later additions, both deliberate extensions of the five:
   `::after`. Different crop per panel, same reason the eight KPI tiles differ.
 - **The login card** (`dash/main.py` `LOGIN_HTML`) uses `marble-cell.jpg` at a .42 wash, so the
   login reads as the dashboard's front door rather than a different product. It carries the full
-  Chronicle type stack too - Fraunces italic title, Inter eyebrow, and IBM Plex Mono on the
-  password field, the one value a user types. The aurora there is CSS-only (orbs + bands, no
+  type stack too - since 2026-08-19 that means Inter Variable throughout, title and
+  password field alike. The aurora there is CSS-only (orbs + bands, no
   canvas): a login page should render instantly and has no business running a rAF loop.
 
 **It must NOT go behind** the funnel-stage table, the delivery-over-time chart, the funnel bar list,
@@ -142,8 +158,9 @@ on hover (`translateY(-3px)`, or -2px for the large panels, where 3px reads as t
 its `::after`**, or the overlay paints square corners over the rounded tile. `.kpi`, `.card.marble`,
 `.pholder` and `.cc-fallback` all do this.
 
-**One tile is set in the serif**: "Qualified leads (modelled)", 34px Fraunces italic, because it is
-the only MODELLED figure on the page - it reads differently because it *is* different. It used to
+**One tile still reads differently**: "Qualified leads (modelled)", because it is the only MODELLED
+figure on the page. It used to carry that distinction with 34px Fraunces italic; with the single-face
+stack (2026-08-19) only its SIZE now sets it apart, so do not also strip the size. It used to
 carry a 2px ink left border as well; that went when the corners were rounded, since a one-sided
 border on a rounded corner always looks like a mistake. The serif figure plus a slightly deeper rest
 shadow now carry it alone. **Do not extend this to another tile**; if every tile is special, none are.
