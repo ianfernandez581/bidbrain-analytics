@@ -56,8 +56,9 @@ injected by Cloud Run.
 
 ## What the dashboard shows (`dashboard.html`)
 
-**"Chronicle - marble"** over a toned-down aurora: an editorial-print skin - Fraunces italic titles,
-IBM Plex Mono for every measured figure, rounded tiles lifted on shadow (no borders anywhere), and a very
+**"Chronicle - marble"** over a toned-down aurora: rounded tiles lifted on shadow (no borders
+anywhere), figures on `tabular-nums`, everything set in **Inter Variable** (2026-08-19 - the original
+editorial Fraunces + IBM Plex Mono pairing was rejected by the client), and a very
 pale marble texture on five surfaces. Read the skin section of [`../README.md`](../README.md) **before touching the styling**:
 it records where the marble may and may not go, why the legacy colour tokens must not be renamed, the
 two cascade traps that bit this restyle, and the rule that toning the aurora down is done with alpha

@@ -13,11 +13,14 @@
 <script src="bb_deck.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<!-- Chronicle: THREE faces, one request. Fraunces italic = display (titles, campaign names, the one
-     modelled figure); Inter = UI (labels, eyebrows, body); IBM Plex Mono = every measured number.
+<!-- ONE face, one request: Inter Variable (2026-08-19, client request - the previous three-face
+     Chronicle stack was rejected). The variable axes give every weight and both italics from a single
+     file, so nothing else is needed. The --f-display / --f-ui / --f-mono tokens below are REMAPPED
+     onto it rather than renamed, so all ~45 consumers change with no per-rule edit and the roles stay
+     legible if a second face is ever reintroduced.
      Weights 400/500 ONLY - the hierarchy comes from size, face and colour, never from bold. Inter is
      still Sophiie's brand face (sophiie.ai/brand-kit); the serif and the mono are the editorial layer. -->
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
 <style>
   :root{
     color-scheme: light;
@@ -34,8 +37,10 @@
        FOUR RULES (this is a restyle with a narrow point; breaking any of them loses it):
          1. NO font weight above 500. The old build ran to 800 and that heaviness is most of why it read
             generic. Hierarchy = size + face + colour.
-         2. Every measured number is IBM Plex Mono with `font-variant-numeric: tabular-nums`, so no
-            column jitters when the date filter moves.
+         2. Every measured number keeps `font-variant-numeric: tabular-nums`, so no column jitters
+            when the date filter moves. This USED to come free from a mono face; the single Inter
+            Variable stack (2026-08-19) is proportional, so the property is now load-bearing - do
+            not strip it from the figure selectors.
          3. MARBLE LIVES ON FIVE SURFACES ONLY (masthead, sample-data notice, the KPI slab, the pacing
             panel, the goal panel). Behind the tables, the charts or the tab bar it stops being a
             material and becomes wallpaper - that is the one failure mode to avoid.
@@ -78,16 +83,16 @@
     --good:#1F4715; --warn:#7A5A16; --bad:#7A241F;
 
     /* faces */
-    --f-display:"Fraunces",Georgia,"Times New Roman",serif;
-    --f-ui:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-    --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+    --f-display:'Inter Variable', Inter, system-ui, sans-serif;
+    --f-ui:'Inter Variable', Inter, system-ui, sans-serif;
+    --f-mono:'Inter Variable', Inter, system-ui, sans-serif;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;color:var(--ink);font-family:var(--f-ui);
        font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
-  /* Titles + campaign names carry the serif; every MEASURED figure carries the mono. The two are
-     doing all the work in this skin, so the selectors are deliberately broad. */
-  h1,h2,h3{font-family:var(--f-display);font-style:italic;font-weight:500;letter-spacing:-.02em}
+  /* One face now carries titles, UI and figures alike. The figure selectors stay broad because
+     they still do real work: they hold the tabular-nums that keep columns of numbers aligned. */
+  h1,h2,h3{font-family:var(--f-display);font-weight:500;letter-spacing:-.02em}
   .kpi .value,.value,.num,td.num,th.num,.funnel-value,.goal .gh b,.pacing-val,
   .insight .value,.flow-meta,.pace-meta,.funnel-rate{font-family:var(--f-mono);font-weight:500;
        font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -276,7 +281,7 @@
   .search-x:hover{background:rgba(15,14,13,.14);color:var(--ink)}
   .search-wrap.has-q .search-x{display:block}
   /* the keyboard hint disappears the moment the field is used */
-  .search-hint{position:absolute;right:9px;font-family:var(--f-mono);font-size:9.5px;color:var(--ink-4);
+  .search-hint{position:absolute;right:9px;font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:9.5px;color:var(--ink-4);
           border:.5px solid var(--rule);border-radius:4px;padding:1px 5px;pointer-events:none}
   .search-wrap.has-q .search-hint,.search-wrap:focus-within .search-hint{display:none}
 
@@ -287,7 +292,7 @@
           transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
   .reset-btn.on{display:inline-flex}
   .reset-btn:hover{transform:translateY(-1px);box-shadow:0 8px 18px -8px rgba(15,14,13,.5)}
-  .reset-btn .cnt{font-family:var(--f-mono);font-size:10px;letter-spacing:0;background:rgba(255,255,255,.22);
+  .reset-btn .cnt{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-size:10px;letter-spacing:0;background:rgba(255,255,255,.22);
           border-radius:20px;padding:1px 6px}
 
   /* SCOPE READOUT - what the filters currently resolve to, in the mono like every other figure. */
@@ -344,7 +349,7 @@
   .pholder>*{position:relative;z-index:1}
   .pholder .ph-tag{flex:none;font-size:9px;font-weight:500;letter-spacing:.22em;text-transform:uppercase;
            color:var(--ink);background:none;border:none;border-bottom:1px solid var(--ink);padding:0 0 3px;border-radius:0}
-  .pholder .ph-copy{font-family:var(--f-display);font-style:italic;font-size:14px;color:var(--ink-2);line-height:1.5;
+  .pholder .ph-copy{font-family:var(--f-display);font-size:14px;color:var(--ink-2);line-height:1.5;
            max-width:78ch;hyphens:none;text-wrap:pretty}
   .pholder .ph-copy b{color:var(--ink);font-weight:500}
 
@@ -356,7 +361,7 @@
      It must encode something TRUE - the goal, the date basis, the data source - never decoration. */
   .section[data-eyebrow]::before{content:attr(data-eyebrow);display:block;margin-bottom:10px;
        font-family:var(--f-ui);font-size:9px;font-weight:500;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-3)}
-  .section h2{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;
+  .section h2{margin:0;font-family:var(--f-display);font-weight:500;
        font-size:clamp(26px,3.1vw,34px);letter-spacing:-.025em;line-height:1.12;color:var(--ink)}
   .section.first h2{font-size:clamp(32px,4.4vw,46px)}
   /* the qualifying half of the title drops to the supporting ink - the contrast is worth having */
@@ -392,7 +397,7 @@
   /* a gentler lift than the KPI tiles: these are large panels, and 3px on a full-width chart card
      reads as the page twitching rather than as a response */
   .card:hover{transform:translateY(-2px);box-shadow:var(--elev-2)}
-  .card h3{margin:0;font-family:var(--f-display);font-style:italic;font-weight:500;font-size:19px;
+  .card h3{margin:0;font-family:var(--f-display);font-weight:500;font-size:19px;
         color:var(--ink);letter-spacing:-.02em;line-height:1.2}
   .card .hint{font-family:var(--f-ui);font-size:11.5px;color:var(--ink-3);margin:7px 0 16px 0;line-height:1.6;
         max-width:70ch;hyphens:none;text-wrap:pretty} .card .hint b{color:var(--ink-2);font-weight:500}
@@ -505,7 +510,7 @@
   #ovNorth .nsrow .kpi[data-series="qualified"]{--wash:.30;border:0;border-radius:var(--radius);
        background-image:url("marble-cell.jpg");box-shadow:var(--elev-2)}
   #ovNorth .nsrow .kpi[data-series="qualified"]:hover{box-shadow:0 3px 8px rgba(15,14,13,.07),0 26px 50px -18px rgba(15,14,13,.30)}
-  #ovNorth .nsrow .kpi[data-series="qualified"] .value{font-family:var(--f-display);font-style:italic;
+  #ovNorth .nsrow .kpi[data-series="qualified"] .value{font-family:var(--f-display);
        font-weight:500;font-size:34px;letter-spacing:-.02em}
   /* clickable cells: no lift, no grayscale - just the ink dot going hollow */
   .kpi.clk{cursor:pointer;user-select:none}
@@ -562,7 +567,7 @@
        transition:transform .22s var(--lift),box-shadow .22s var(--lift)}
   .insight:hover{transform:translateY(-3px);box-shadow:var(--elev-2)}
   .insight .label{font-family:var(--f-ui);font-size:9px;text-transform:uppercase;letter-spacing:.24em;color:var(--ink-3);font-weight:500}
-  .insight .value{font-family:var(--f-display);font-style:italic;font-size:22px;font-weight:500;color:var(--ink);margin-top:10px;letter-spacing:-.02em;line-height:1.15}
+  .insight .value{font-family:var(--f-display);font-size:22px;font-weight:500;color:var(--ink);margin-top:10px;letter-spacing:-.02em;line-height:1.15}
   .insight .copy{font-family:var(--f-ui);font-size:11.5px;color:var(--ink-2);margin-top:9px;line-height:1.6;hyphens:none;text-wrap:pretty}
   .grid-insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-top:14px}
 
@@ -584,7 +589,7 @@
   th{font-family:var(--f-ui);font-size:9px;text-transform:uppercase;letter-spacing:.22em;color:var(--ink-3);font-weight:500;
      padding-bottom:9px;border-bottom:.5px solid var(--rule-strong)}
   /* first column = the name column: serif, so a campaign or stage reads as a proper noun */
-  td:first-child{font-family:var(--f-display);font-style:italic;font-weight:500;font-size:15px;color:var(--ink)}
+  td:first-child{font-family:var(--f-display);font-weight:500;font-size:15px;color:var(--ink)}
   th:first-child{color:var(--ink-3)}
   td.name-cell{max-width:280px;overflow:hidden;text-overflow:ellipsis}
   th.num,td.num{text-align:right;font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
@@ -716,7 +721,7 @@
   <div id="loading" class="loading"><div class="spinner"></div><div>Fetching dashboard data from BigQuery…</div></div>
   <div id="error" class="error-box" style="display:none">
     <h3 style="margin:0 0 6px 0">Couldn't load dashboard data</h3>
-    <div id="errDetail" style="font-family:Menlo,Monaco,Consolas,monospace;font-size:12px;background:rgba(19,27,70,.06);color:#8E2C1D;padding:8px;border-radius:6px;margin-top:8px"></div>
+    <div id="errDetail" style="font-family:'Inter Variable', Inter, system-ui, sans-serif;font-size:12px;background:rgba(19,27,70,.06);color:#8E2C1D;padding:8px;border-radius:6px;margin-top:8px"></div>
   </div>
 
   <div id="app" style="display:none">
@@ -1095,7 +1100,7 @@ function initChartDefaults(){
 }
 // Every axis tick is mono with tabular figures - one helper, so no chart can opt out and no column
 // of numbers jitters as the date filter moves.
-const MONO='"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace';
+const MONO="'Inter Variable', Inter, system-ui, sans-serif";   // one face everywhere; name kept so chart call sites are untouched
 function axis(extra={}){return Object.assign({grid:{color:GRID},ticks:{color:MC.muted2,font:{size:10,family:MONO}},border:{display:false}},extra);}
 function legendTop(){return {position:'top',align:'end',labels:{color:MC.ink,usePointStyle:true,pointStyle:'circle',boxWidth:10,font:{size:11.5}}};}
 

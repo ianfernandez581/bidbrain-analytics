@@ -83,10 +83,10 @@ LOGIN_HTML = """<!doctype html>
 <link rel="icon" type="image/png" href="/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
 <style>
   /* Sophiie AI - the same skin as the dashboard, so the login reads as its front door rather than a
-     different product: "Chronicle - marble" (Fraunces italic display, Inter UI, IBM Plex Mono for the
+     different product: "Chronicle - marble", now set entirely in Inter Variable (the three-face
      one value the user types) on a marble card lifted on shadow, over the drifting aurora.
      CSS ONLY here - no canvas and no JS, because a login page should render instantly and has no
      business running a requestAnimationFrame loop. So the aurora here is the two CSS layers only
@@ -94,7 +94,7 @@ LOGIN_HTML = """<!doctype html>
      Keep the two in step: every literal below mirrors a :root token in dashboard.html. */
   *{box-sizing:border-box;margin:0;padding:0}
   body{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
-       font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+       font-family:'Inter Variable', Inter, system-ui, sans-serif;
        background:#EFEEEB;color:#0F0E0D;position:relative;overflow:hidden}
 
   /* layer 1 - ambient orbs */
@@ -142,11 +142,11 @@ LOGIN_HTML = """<!doctype html>
         box-shadow:0 1px 2px rgba(15,14,13,.04),0 8px 20px -10px rgba(15,14,13,.22)}
   /* eyebrow / display title / dek - the dashboard's three-tier heading pattern */
   .brand{font-size:9px;font-weight:500;letter-spacing:.24em;color:#6A6660;margin-bottom:11px;text-transform:uppercase;text-align:center}
-  h1{font-family:"Fraunces",Georgia,serif;font-style:italic;font-size:29px;font-weight:500;margin:0 0 7px;
+  h1{font-family:'Inter Variable', Inter, system-ui, sans-serif;font-size:29px;font-weight:500;margin:0 0 7px;
      letter-spacing:-.025em;text-align:center;color:#0F0E0D;line-height:1.15}
   p{font-size:12.5px;color:#3A3733;margin:0 0 24px;text-align:center;line-height:1.6}
   /* the one value the user types is set in the mono, like every measured figure on the dashboard */
-  input{width:100%;padding:13px 15px;font-size:14px;font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  input{width:100%;padding:13px 15px;font-size:14px;font-family:'Inter Variable', Inter, system-ui, sans-serif;
         letter-spacing:.02em;color:#0F0E0D;background:#fff;
         border:.5px solid rgba(15,14,13,.20);border-radius:9px;outline:none;transition:border-color .15s,box-shadow .15s}
   input:focus{border-color:#0F0E0D;box-shadow:none}
@@ -159,7 +159,7 @@ LOGIN_HTML = """<!doctype html>
          transition:transform .22s cubic-bezier(.2,.7,.3,1),box-shadow .22s cubic-bezier(.2,.7,.3,1)}
   button:hover{transform:translateY(-2px);box-shadow:0 2px 6px rgba(15,14,13,.06),0 18px 34px -14px rgba(15,14,13,.40)}
   button:active{transform:translateY(0)}
-  .err{margin-top:14px;font-family:"IBM Plex Mono",ui-monospace,monospace;font-size:11.5px;color:#7A241F;min-height:16px;text-align:center}
+  .err{margin-top:14px;font-family:'Inter Variable', Inter, system-ui, sans-serif;font-size:11.5px;color:#7A241F;min-height:16px;text-align:center}
   @media (prefers-reduced-motion: reduce){.orb,.diag{animation:none !important}button:hover{transform:none}}
 </style>
 </head>
