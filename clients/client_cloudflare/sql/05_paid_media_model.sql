@@ -53,6 +53,11 @@ WITH linkedin AS (
         SUM(ACTION_CLICKS)               AS ACTION_CLICKS,
         SUM(VIDEO_STARTS)                AS VIDEO_STARTS,
         SUM(VIDEO_COMPLETIONS)           AS VIDEO_COMPLETIONS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_IMPS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_VIEWS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q50,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q75,
+        CAST(NULL AS FLOAT64)            AS CONVERSIONS,
         CAST(NULL AS FLOAT64)            AS SPEND_JPY,
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_linkedin`
@@ -75,6 +80,11 @@ tradedesk AS (
         CAST(NULL AS FLOAT64)            AS ACTION_CLICKS,
         CAST(NULL AS FLOAT64)            AS VIDEO_STARTS,
         CAST(NULL AS FLOAT64)            AS VIDEO_COMPLETIONS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_IMPS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_VIEWS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q50,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q75,
+        CAST(NULL AS FLOAT64)            AS CONVERSIONS,
         CAST(NULL AS FLOAT64)            AS SPEND_JPY,
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_tradedesk`
@@ -111,6 +121,11 @@ reddit AS (
         CAST(NULL AS FLOAT64)            AS ACTION_CLICKS,
         CAST(NULL AS FLOAT64)            AS VIDEO_STARTS,
         CAST(NULL AS FLOAT64)            AS VIDEO_COMPLETIONS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_IMPS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_VIEWS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q50,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q75,
+        CAST(NULL AS FLOAT64)            AS CONVERSIONS,
         CAST(NULL AS FLOAT64)            AS SPEND_JPY,
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_reddit`
@@ -159,6 +174,23 @@ google_ads AS (
         CAST(NULL AS FLOAT64)            AS ACTION_CLICKS,
         CAST(NULL AS FLOAT64)            AS VIDEO_STARTS,
         CAST(NULL AS FLOAT64)            AS VIDEO_COMPLETIONS,
+        -- Video COUNTS, already converted from Google's rate columns in stg_google_ads
+        -- (see that view's header: the source ships RATES, which must never be SUM()ed).
+        -- NULL for every non-video row, so a false zero is never drawn.
+        -- The DENOMINATOR for view rate. Only impressions on a video-capable placement
+        -- can produce a video view, and this campaign mix spans YOUTUBE, CONTENT,
+        -- DISCOVER, SEARCH and SEARCH_PARTNERS. Dividing views by TOTAL impressions
+        -- charged the ~69k Discover and search impressions against the view rate and
+        -- understated it by ~10 points. The network dimension is collapsed by this
+        -- GROUP BY, so the split has to be carried as its own measure.
+        SUM(IF(VIDEO_VIEWS IS NOT NULL, IMPRESSIONS, NULL)) AS VIDEO_IMPS,
+        SUM(VIDEO_VIEWS)                 AS VIDEO_VIEWS,
+        SUM(VIDEO_Q50)                   AS VIDEO_Q50,
+        SUM(VIDEO_Q75)                   AS VIDEO_Q75,
+        -- Google-attributed conversions. Deliberately NOT folded into LEADS: the
+        -- dashboard's lead figures are LinkedIn lead-gen + Salesforce CS, and mixing a
+        -- PMax platform conversion into them would move a client-facing lead total.
+        SUM(CONVERSIONS)                 AS CONVERSIONS,
         CAST(NULL AS FLOAT64)            AS SPEND_JPY,
         CAST(NULL AS FLOAT64)            AS FX_USD_JPY
     FROM `client_cloudflare.stg_google_ads`
@@ -180,6 +212,11 @@ line_jp AS (
         CAST(NULL AS FLOAT64)            AS ACTION_CLICKS,
         SUM(VIDEO_STARTS)                AS VIDEO_STARTS,
         SUM(VIDEO_100_WATCHED)           AS VIDEO_COMPLETIONS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_IMPS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_VIEWS,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q50,
+        CAST(NULL AS FLOAT64)            AS VIDEO_Q75,
+        CAST(NULL AS FLOAT64)            AS CONVERSIONS,
         CAST(SUM(COST) AS FLOAT64)       AS SPEND_JPY,
         155.0                            AS FX_USD_JPY
     FROM `client_cloudflare.stg_line`

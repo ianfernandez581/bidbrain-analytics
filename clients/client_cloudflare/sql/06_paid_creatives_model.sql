@@ -75,9 +75,19 @@ reddit AS (
     GROUP BY 2, 3, 4
 ),
 google_ads AS (
-    -- Added 2026-08-11. Google Ads has no creative-name column in this mirror, so the AD GROUP is
-    -- the finest grain we can show (the live buy splits `TOFU | Persona` vs `TOFU | Custom Intent`,
-    -- which is genuinely the useful cut). Market rules mirror paid_media_model's Google Ads arm.
+    -- Added 2026-08-11. Google Ads has no creative-name column in this mirror, so we show the
+    -- finest grain the feed carries. That WAS the ad group (`TOFU | Persona` vs `TOFU | Custom
+    -- Intent`) until 2026-08-20, when Transmission moved the shared export to CAMPAIGN level for
+    -- the Performance Max lead-gen buy and AD_GROUP_NAME disappeared (see stg_google_ads' header).
+    -- NETWORK is what replaced it, and for a PMax campaign it is the more useful cut anyway -
+    -- every conversion so far came from DISCOVER while CONTENT produced none.
+    -- THERE IS NO REAL CREATIVE DATA FOR THIS CHANNEL ANYWHERE (checked 2026-08-20): the Snowflake
+    -- mirror is campaign-grain with no ad columns, the native DTS MCC 3451896252 does not carry
+    -- account 3034487647, and raw_windsor.perf_google_ads has no creative field at all and no
+    -- Cloudflare rows. Getting real creatives needs Transmission to add ad / asset-level columns
+    -- (ad name + asset for PMax, video asset for the YouTube buy). Until then this is the floor,
+    -- not a design choice - do not swap in something that merely looks like a creative name.
+    -- Market rules mirror paid_media_model's Google Ads arm.
     SELECT
         'Google Ads' AS CHANNEL,
         PROGRAM AS PROGRAM,
@@ -100,7 +110,11 @@ google_ads AS (
             WHEN REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])rig([ _-]|$)') THEN 'RIG'
             ELSE 'UNMAPPED'
         END AS MARKET,
-        COALESCE(NULLIF(TRIM(AD_GROUP_NAME), ''), '(unnamed)') AS CREATIVE,
+        -- CAMPAIGN x NETWORK. Network alone merged BOTH campaigns' YouTube delivery into one
+        -- row (the TOFU VideoViews buy and PMax's YouTube placements are not the same thing),
+        -- so the campaign has to be on the label for the row to mean anything.
+        CONCAT(CAMPAIGN_NAME_NORM, ' - ',
+               INITCAP(REPLACE(COALESCE(NETWORK, 'UNKNOWN'), '_', ' '))) AS CREATIVE,
         SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
     FROM `client_cloudflare.stg_google_ads`
     GROUP BY 2, 3, 4

@@ -607,6 +607,16 @@ ride along as plain form fields; both stored on the record, blank when not given
   `gs://bidbrain-analytics-platform-dash/feedback/<client>/<ts>-<id>.json` plus the recording
   (`.webm`/`.m4a`) and the screenshot (`.jpg`) when present. Same private-bucket trust boundary as
   the registry; `storage.objectAdmin` on `platform-dash-web@` already covers it — no new storage IAM.
+- **The proxy is no longer the only writer into `feedback/` (2026-08-20).** `cloudflare-dash` carries
+  its OWN copy of the pill for people who open that service **directly** on its `…run.app` URL
+  (Cloudflare's office network does not resolve `dashboards.bidbrain.ai`, so a direct hit — which
+  never passes through this proxy — was the one path with no feedback button). It writes the SAME
+  record shape into this bucket, so those notes show up in the tracker and get enriched here with no
+  platform change; they are tagged `user_kind` **`client-direct`**. Its SA holds create-only
+  (`roles/storage.objectCreator`) on this bucket, so it can add objects but overwrite nothing.
+  `bidbrain-platform/dash/feedback.py` stays the source of truth for the record shape — change it and
+  `clients/client_cloudflare/dash/feedback_widget.py` has to follow. Details + how to copy it to
+  another client: `clients/client_cloudflare/dash/README.md`.
 - **AI transcription + interpretation:** `feedback_ai.py` makes ONE Gemini call
   (`gemini-2.5-flash`) that transcribes the voice note (Gemini accepts the browser's `audio/webm`
   inline — no Cloud Speech-to-Text, no transcoding) AND interprets the feedback into a short summary

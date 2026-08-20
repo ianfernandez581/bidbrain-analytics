@@ -30,7 +30,7 @@ same Flask password gate MongoDB uses.
 | Path | What it is |
 |---|---|
 | [`job/`](job/README.md) | **Export Job** (`cloudflare-export`): reads the BigQuery views → writes `cloudflare.json`. **No Snowflake** (BQ-only, like MongoDB). [Guide →](job/README.md) |
-| [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. [Guide →](dash/README.md) |
+| [`dash/`](dash/README.md) | **Web App** (`cloudflare-dash`): password gate + serves `dashboard.html` + proxies `/data.json`. Also carries its **own Feedback pill for DIRECT logins** (the front-door injects one only for sessions that come through it, and Cloudflare's people mostly hit the `…run.app` URL) — needs the one-time `dash/enable_feedback_cloudflare.ps1`. [Guide →](dash/README.md) |
 | [`sql/`](sql/README.md) | The BigQuery **model** views — staging (`stg_*`) → `paid_media_model`/`pacing_model`/etc. — over `raw_snowflake.*` + the `seed_*` static tables. [Guide →](sql/README.md) |
 | [`create_views.py`](create_views.py) | Applies every `sql/*.sql` view (runner; `NN_` prefix = dependency order). |
 | `data/` | Local CSV snapshots of the three STATIC Snowflake tables (pacing targets, account tiers, LINE JP). **Gitignored** (`clients/*/data/`) — `TIERS` is sensitive client ABM data — so it's NOT in the repo; regenerate with `pull_static.py`. The live seeds persist in BigQuery (`seed_*`). |
@@ -48,15 +48,17 @@ same Flask password gate MongoDB uses.
 Transmission connected the **`Cloudflare APAC`** Google Ads account (`ACCOUNT_ID 3034487647`) into
 `raw_snowflake.google_ads_apac` around **2026-07-22**. It feeds **Q3 Core DG (brief 2479)**.
 
-**Live today — one campaign:**
+**Live today — two campaigns** (figures at 2026-08-20):
 
-| | |
-|---|---|
-| Campaign | `CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting` (id `24037386856`) |
-| Ad groups | `TOFU \| Persona` · `TOFU \| Custom Intent` |
-| Market / lane | **JP** · `CORE_DG` |
-| Delivery | 172,396 imps · 90 clicks · **US$765.16** (07-22 → 08-08) |
-| Currency | **USD** — already the reporting currency, so there is **no FX step** |
+| Campaign | Type | Market / lane | Delivery |
+|---|---|---|---|
+| `CF_JP_Q3_TOFU_YouTube_VideoViews_Prospecting` (`24037386856`) | YouTube VideoViews, awareness | **JP** · `CORE_DG` | 275,598 imps · 145 clicks · **US$1,220.40** · 176,429 video views (07-22 →) |
+| `CF_JP_Q3_Leadgen_PMax_Mythos_RMKT_LP` | **Performance Max**, lead-gen remarketing | **JP** · `CORE_DG` | 118,136 imps · 3,818 clicks · **US$635.14** · **24 conversions** (08-06 →) |
+
+Currency is **USD** — already the reporting currency, so there is **no FX step**.
+The account-scoped filter is what let the second campaign appear with no code change to the
+`WHERE` clause, exactly as designed. Its name carries a `_JP_` token, so it resolved to JP
+rather than falling into the `UNMAPPED` bucket that no market chip shows.
 
 **Files:** `sql/04b_stg_google_ads.sql` (new staging view) → a `google_ads` arm in
 [`sql/05_paid_media_model.sql`](sql/05_paid_media_model.sql) and
@@ -73,13 +75,77 @@ code change here**. It also avoids the repo-wide "campaign names are NOT stable 
 names do **not** follow the `CLOUD_ACQ_` convention every other channel uses, so a name filter would
 be both fragile and wrong.
 
-### Two known gaps (Transmission's side — do not paper over)
-1. **The Lead Generation campaign is not connected yet.** Our side is already scoped to catch it.
-2. **No video columns in the mirror.** `google_ads_apac` carries impressions / clicks / cost /
-   conversions only — and this is a **YouTube VideoViews** buy, so its actual KPI (video views,
-   quartiles) is absent. 90 clicks on 172k impressions is a **0.05% CTR that is normal for video,
-   not underperformance**. `PM_CHANS[].note` says exactly that on screen so nobody reads it as a
-   failing search campaign. Ask Transmission to add the video columns.
+### Both original gaps closed 2026-08-20 — and what it cost (read before touching this channel)
+Transmission (Ankit) shipped both asks in one change to the shared `Google Ads - APAC` export.
+Neither arrived in the shape we expected.
+
+**1. The Lead Generation campaign is connected — by flattening the whole table's grain.**
+It is a **Performance Max** campaign, which reports nothing at ad-group level, so the export moved
+from AD GROUP to **CAMPAIGN** level and **`AD_GROUP_NAME` was dropped**. Because the mirror is a
+`SELECT *` WRITE_TRUNCATE copy, the new schema landed unannounced on the next `*/10` tick and
+`stg_google_ads` — and through it `paid_media_model`, `paid_creatives_model` and **every
+`cloudflare-export` run** — failed for ~19 hours (08-19 13:10 UTC → 08-20 08:46 UTC). The dashboard
+did not error; it silently served its last good JSON, which is the failure mode to watch for.
+STT reads the same mirror but not the ad group, so it was unaffected.
+- The grain is now `DAY × CAMPAIGN × NETWORK` and **`NETWORK` is carried as a real dimension** —
+  it is the only sub-campaign cut left, and for PMax it is the useful one (all 24 conversions are
+  **DISCOVER**; CONTENT has produced none on US$110).
+- **The `TOFU | Persona` vs `TOFU | Custom Intent` split is gone for good**, including from
+  history — the truncate rewrote the past too. `paid_creatives_model` now labels Google Ads rows
+  `<Network> (network)` so a placement is never read as a creative name.
+- Delivery reconciled across the change with **no loss**: the Awareness campaign's 07-22 → 08-08
+  window reads 172,332 imps / 90 clicks / $764.83 against the 172,396 / 90 / $765.16 recorded at
+  build time — a 0.04% Google restatement.
+
+**2. The video columns arrived as RATES, and two of the five are dead.**
+`VIDEO_PLAYED_TO_50` / `_75` and `VIEW_RATE_IN_STREAM` / `TRUEVIEW_VIEW_RATE` are FLOAT rates in
+0..1, all denominated in impressions. **A rate must never reach a fact table that gets `SUM()`ed**,
+so `stg_google_ads` multiplies each back out to a COUNT at source-row grain. Downstream rollups are
+then exact and the rate is re-derived from the totals.
+- `VIDEO_PLAYED_TO_25_` is **100% NULL** — and note the **stray trailing underscore** in the column
+  name, itself a source-side bug.
+- `VIDEO_PLAYED_TO_100` is **literally 0.0 on every row**. It cannot be real when 67% of
+  impressions reach the 75% quartile. **Neither is referenced**, and the UI says so — carrying
+  them would draw a 0% completion rate that reads as a failed campaign.
+- **Still no native view COUNT and no working completion metric.** Worth asking for both.
+
+**What the dashboard now shows** (`renderGaVideoNote()` → `#gaVideoBlock`, Paid Media tab, under
+the benchmark table, auto-hidden when the lane has no video in range): a **4-tile KPI strip**
+(video views · view rate · cost per view · watched-to-75%) over a **horizontal completion funnel**
+(video impressions → watched 50% → watched 75%). It was shipped as a paragraph first and rejected
+on sight - the client reads this tab in tiles and charts, and a wall of prose under a table of
+numbers does not get read. Current figures: **193,625 video views at a 62.6% view rate and $0.0096
+CPV**. The funnel deliberately renders **only the stages the feed reports** (`.filter(v => v > 0)`)
+- a zero bar for the two dead quartiles would read as a failed campaign rather than missing data.
+The view rate is measured against `VIDEO_IMPS` — impressions on video-capable placements only. This
+matters: dividing by total Google Ads impressions charges the ~69k Discover and search impressions
+against the rate and understates it by ~13 points (49.2% vs 62.6%). The network dimension is
+collapsed by `paid_media_model`'s `GROUP BY`, so that denominator has to travel as its own measure.
+**This is the number that retires the "0.05% CTR" problem** — CTR was never the lens for a video
+buy, and `PM_CHANS[].note` now says to judge it on view rate and CPV.
+
+**There is NO creative-level Google Ads data - anywhere (checked 2026-08-20).** All three
+possible sources were queried, so do not re-investigate this without new access:
+| Source | Verdict |
+|---|---|
+| `raw_snowflake.google_ads_apac` | Campaign grain since 08-20. No ad / asset / creative column. |
+| `raw_google_ads.*` (native DTS, MCC `3451896252`) | Carries only customers `2617916504`, `1054407474`, `1869745895`. Account `3034487647` is **not linked**. |
+| `raw_windsor.perf_google_ads` | Schema has **no creative field at all**, and holds only City Perfume + Reset Data. |
+
+So `paid_creatives_model` shows **campaign × network** - the finest grain that exists - labelled
+`<campaign> - <Network>`. Network *alone* was wrong: it merged the TOFU VideoViews buy and PMax's
+YouTube placements into a single "Youtube" row, which are not the same thing. The 1,000-impression
+floor (`CREATIVE_MIN_IMPS`) already drops the 1-11 impression Search / Search Partners / Mixed rows,
+so the finer grain cannot pollute the top-by-CTR ranking. **To get real creatives, Transmission must
+add ad / asset-level columns** (ad name + asset for PMax, video asset for the YouTube buy). Until
+then this is the floor, not a design choice - do not substitute anything that merely looks like a
+creative name.
+
+**Conversions are NOT leads.** The PMax campaign's 24 platform conversions are carried as their own
+`conversions` field and rendered in the benchmark table's Leads cell as `24 platform conv.`, the
+same labelled treatment TTD's "no pixel" gets. They are deliberately **not** folded into `LEADS`:
+that column holds LinkedIn lead-gen and Salesforce CS leads, and mixing a platform conversion in
+would move a client-facing lead total and the Total row with it.
 
 ### The market bug this shipped with, and the rule that came out of it
 The first deploy put this campaign in **SAARC**, not JP. Cause: **`_` is a single-character WILDCARD
@@ -108,6 +174,62 @@ click removes a channel from the KPIs, charts, tables, creatives and footer at o
 - "Everything ticked" is stored as the **empty set**, so a channel added later can never be silently
   excluded, and the reset compares against the DELIVERED roster (not all of `PM_CHANS`) or you could
   never return to the all-selected state under a range where some channels never ran.
+
+## The motion layer (2026-08-20) - aesthetics only, and how to tune it
+
+Everything in this section is presentation. It changes how the dashboard ARRIVES, never what it
+says: the whole layer can be deleted and every number, chart, filter and CSV is identical. Two
+mechanisms touch rendered output and both restore it exactly - the bar reveal stashes the inline
+`width` and puts the same string back, and the KPI count-up writes the ORIGINAL text on its final
+frame. Verified by rendering the dashboard with and without the layer and diffing every tab's
+text plus every bar width: identical across all four tabs.
+
+**Where it lives** - three insertions in `dash/dashboard.html`, all marked:
+- CSS: the `PREMIUM MOTION LAYER` block, deliberately the LAST thing in `<style>` so it wins the
+  cascade over the rules it re-times.
+- DOM: the `ANIMATED AURORA` layers right after `<body>`, plus `.topbar .rail`.
+- JS: the `PREMIUM MOTION ENGINE` IIFE (`window.bbMotion`) just before `boot()`, plus a short
+  `MOTION` block in the `Chart.defaults` section.
+
+**The aurora** is one `<canvas>` (`#bbAurora`) carrying the swaying curtains AND the slanted sweep
+bands, over four CSS orbs, under one static scrim (vignette + film grain). Dials, in the order you
+should reach for them: `time +=` in `frame()` (how alive), the strip `opacity` in `build()` (how
+present), `SCALE` (backing-store resolution), the orb alphas in the CSS.
+
+**Performance is the whole design constraint here, and it is counter-intuitive.** Measured in a
+software-rendered browser (no GPU - which is what a locked-down corporate laptop gives you):
+- `filter: blur(18px)` on the full-viewport canvas: **61fps -> 3fps on its own.** A full-screen
+  blur is re-applied every frame the canvas paints. It is gone; the softening now comes free from
+  drawing the canvas at 28% scale and letting the compositor upscale it.
+- three 170%-wide diagonal bands as DOM layers, animating opacity + transform: **half the frame
+  rate** (25 -> 51fps when frozen). They are now drawn INSIDE the canvas - same shapes, one
+  moving layer instead of four.
+- `mix-blend-mode` on the full-screen grain forces the whole stack underneath, canvas included,
+  to re-composite every frame. Dropped; 3% plain opacity looks the same.
+- `blur(130px)` on the orbs was redundant - a radial gradient that fades to transparent is
+  already soft.
+The rule that falls out: **the cost is the NUMBER and SIZE of animated full-screen layers, not the
+drawing inside them.** One low-res canvas is nearly free; four window-sized CSS layers are not.
+
+**The reveal system** tags surfaces with `[data-bb-reveal]` and adds `.bb-in` on first
+intersection. Two things there are load-bearing:
+- `threshold: 0`, never a fraction. Threshold is the share of the ELEMENT that is visible, so a
+  card taller than the viewport (the 1,000-row lead table) can never reach 6% and would sit at
+  opacity 0 forever.
+- the **watchdog** (`sweepStuck`): a second after any scan, anything still unrevealed but inside
+  the viewport is shown unconditionally. Hiding content until an observer says so means a missed
+  callback hides DATA - the animation is worth losing, the number is not. If it ever fires it is
+  papering over a bug, and the dashboard still reads.
+Re-scanning is driven by a `MutationObserver` on `<body>` (childList, rAF-coalesced) rather than by
+editing 40 render functions, so anything a filter change re-renders animates in the same way.
+
+**Type**: Inter is now actually LOADED (Google Fonts). The stack always named it but nothing
+shipped it, so Windows rendered Segoe UI and macOS SF - the same dashboard in two typefaces.
+
+**The login page** (`dash/main.py` `LOGIN_HTML`) was re-skinned to match: same dark base, same
+warm aurora, same button/press/focus vocabulary. Its aurora is CSS-only - no canvas, no
+requestAnimationFrame - because a login screen should not run an animation loop.
+
 
 ## BigQuery owns the model (was the Snowflake-modelled exception)
 
@@ -700,9 +822,22 @@ computes the target over the full selected-quarter span via `pacingWindow()`/`qu
 backs `renderWeekly` so Q3 shows every one of its 13 plan weeks like Q2 shows 12. Actuals still appear
 only where leads exist (future weeks carry target + 0 actual; a small pre-plan-week bucket holds any
 leads that arrived before the plan's first Monday). The daily accepted-leads line (`renderDaily`) and
-the CS Comparison panels still read the in-range `dailyFull`/`weekly`. **The pacing chart deviates from
-the repo-wide chart-toggle defaults** (CLAUDE.md): it defaults to **Absolute** (not Relative) and has
+the CS Comparison panels still read the in-range `dailyFull`/`weekly`. **The pacing chart has
 **Month/Week only** (no Day grain) - client request 2026-07-09.
+
+**ABSOLUTE ONLY, DASHBOARD-WIDE (2026-08-20, client request).** The Relative/Absolute **AXIS** toggle
+is gone from every chart group here - the client reads these as real values and the indexed view was
+generating more questions than it answered. This is a documented **exception to the repo-wide toggle
+rule** in `md/AGENTS.md`. What was removed: the six `<span class="seg" id="*_scale">` controls
+(`csWeekly`, `csDaily`, `ttdImpCtr`, `dailyStack`, `effTrio`, `cmp`), their `wireToggles` bindings
+(each call now passes `null` for the scale seg) and the copy that offered the option. The five scale
+vars are now **`const pmScale/effScale/cmpScale/csDailyScale/csWeeklyScale = 'abs'`**, so every
+builder's `isRel`/`cmpRel` is permanently false. **The relative branches are deliberately KEPT** -
+they are what a restore would use, so absolute is enforced in ONE place rather than by deleting ~200
+lines of chart logic. The **Month/Week/Day grain toggles are untouched.** Verified in a browser after
+deploy: across all four tabs and all five dropdown lanes, zero `*_scale` elements, zero
+Relative/Absolute buttons, and **no chart renders an "Index (peak=100)" axis** - every axis reads a
+real unit (Leads, Impressions, Clicks, CTR (%), CPC ($), Spend (USD), Cumulative).
 
 ### Budget pacing by channel (2026-07-20)
 
@@ -823,7 +958,8 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
     "all_markets": ["ANZ","ASEAN","SAARC","RIG","KR","JP","GCR"],
     "rows": [ { "channel","program","date","week_start","market","imps","clicks","spend_usd",
                 "leads","form_opens","link_clicks","action_clicks","video_starts",
-                "video_completions","spend_jpy","fx_usd_jpy" } ],
+                "video_completions","video_imps","video_views","video_q50","video_q75",
+                "conversions","spend_jpy","fx_usd_jpy" } ],
     // `channel` is one of TTD / LinkedIn / Reddit / LINE / Google Ads. The job does NOT enumerate
     // channels - it copies whatever paid_media_model emits - so adding a channel is a SQL + frontend
     // change only (that is how Google Ads landed 2026-08-11 with no job edit).
