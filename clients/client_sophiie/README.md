@@ -196,6 +196,13 @@ light/dark blue pair). Check any new chart fill against that.
 
 ## The aurora skin — the layer underneath
 
+> **Excluded from the shared BB MOTION KIT (2026-08-20), by instruction and on merit.** Every other
+> dashboard now carries the kit (`scripts/motion_kit/`) for its hover/press/reveal vocabulary and a
+> CSS wash; `apply_motion_kit.py` and `apply_login_kit.py` both skip `sophiie`. Applying it here
+> would stack a second wash under the aurora and re-time the interaction rules the Chronicle skin
+> already defines. If a genuinely useful piece of the kit is wanted later, port that piece by hand
+> into this stylesheet — do not run the injector.
+
 This is **the only dashboard in the estate with an animated background**, and it is the point of the
 design rather than decoration. Three fixed, `pointer-events:none`, `z-index:0` layers, bottom to top:
 
