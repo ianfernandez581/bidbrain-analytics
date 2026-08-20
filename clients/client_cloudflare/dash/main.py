@@ -101,42 +101,62 @@ LOGIN_HTML = """<!doctype html>
        -webkit-font-smoothing:antialiased;
        font-family:"Inter","Inter Variable",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
        background:
-         radial-gradient(1100px 620px at 50% -180px, rgba(243,128,32,.42), transparent 62%),
-         radial-gradient(800px 460px at 88% -40px, rgba(243,128,32,.16), transparent 62%),
-         linear-gradient(180deg,var(--bg-2) 0%,var(--bg) 58%,#0F0602 100%)}
+         radial-gradient(1100px 620px at 50% -180px, rgba(243,128,32,.36), transparent 64%),
+         radial-gradient(800px 460px at 88% -40px, rgba(243,128,32,.20), transparent 64%),
+         linear-gradient(180deg,#2A160B 0%,#1E1007 56%,#170B04 100%)}
 
   /* aurora: three blurred brand orbs + one slow diagonal band, all fixed and inert */
   .aur{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
   .orb{position:absolute;border-radius:50%;filter:blur(120px)}
   .orb1{width:64vw;height:54vh;top:-16%;left:-10%;animation:o1 18s ease-in-out infinite;
-        background:radial-gradient(circle,rgba(243,128,32,.34) 0%,transparent 68%)}
+        background:radial-gradient(circle,rgba(243,128,32,.26) 0%,transparent 68%)}
   .orb2{width:52vw;height:46vh;bottom:-14%;right:-8%;animation:o2 22s ease-in-out infinite;
-        background:radial-gradient(circle,rgba(251,173,65,.20) 0%,transparent 68%)}
+        background:radial-gradient(circle,rgba(251,173,65,.16) 0%,transparent 68%)}
   .orb3{width:46vw;height:42vh;top:38%;left:22%;animation:o3 26s ease-in-out infinite;
-        background:radial-gradient(circle,rgba(230,11,127,.09) 0%,transparent 70%)}
+        background:radial-gradient(circle,rgba(230,11,127,.06) 0%,transparent 70%)}
   @keyframes o1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(150px,110px) scale(1.16)}}
   @keyframes o2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-130px,-96px) scale(1.18)}}
   @keyframes o3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(110px,-120px) scale(1.12)}}
   .band{position:absolute;width:180%;height:300px;top:8%;left:-40%;transform:rotate(-18deg);
         animation:bd 24s ease-in-out infinite;
-        background:linear-gradient(180deg,transparent,rgba(243,128,32,.09) 48%,transparent)}
+        background:linear-gradient(180deg,transparent,rgba(243,128,32,.07) 48%,transparent)}
   @keyframes bd{0%{transform:rotate(-18deg) translate(0,0);opacity:.6}45%{transform:rotate(-18deg) translate(80px,90px);opacity:1}100%{transform:rotate(-18deg) translate(0,0);opacity:.6}}
+  /* VIGNETTE - without it the orbs bloom edge to edge and the whole screen reads as brown fog
+     with a card floating in it. Deepening everything outside the middle is what makes the glow
+     read as light and gives the card a ground. */
+  .scrim{position:absolute;inset:0;
+    background:radial-gradient(860px 600px at 50% 48%,transparent 0%,rgba(8,3,1,.30) 68%,rgba(5,2,0,.58) 100%)}
   /* film grain over the gradients - they band visibly on a dark screen without it */
   .grain{position:absolute;inset:0;opacity:.04;mix-blend-mode:overlay;
     background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>")}
 
-  /* the card: solid (not glass - it sits over moving light), with the accent hairline on top */
+  /* the card: solid (not glass - it sits over moving light), inside a rotating accent ring */
   .card{position:relative;z-index:1;width:100%;max-width:372px;padding:32px 30px 28px;
-        background:linear-gradient(180deg,var(--surface) 0%,#1E1008 100%);
-        border:1px solid var(--line);border-radius:16px;overflow:hidden;
+        background:linear-gradient(180deg,#35210F 0%,#211208 100%);
+        border:1px solid rgba(255,255,255,.13);border-radius:16px;overflow:hidden;
         box-shadow:0 30px 80px -30px rgba(0,0,0,.9),0 0 60px -30px var(--glow),
                    inset 0 1px 0 rgba(255,255,255,.06);
         animation:in .7s var(--ease) both}
   @keyframes in{from{opacity:0;transform:translateY(14px) scale(.985)}to{opacity:1;transform:none}}
-  .card::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;
-        background:linear-gradient(90deg,transparent,var(--accent),#FFC489,var(--accent),transparent);
-        background-size:45% 100%;background-repeat:no-repeat;animation:rail 7s cubic-bezier(.4,0,.2,1) infinite}
-  @keyframes rail{0%{background-position:-50% 0}55%,100%{background-position:150% 0}}
+  /* The travelling highlight goes all the way AROUND the card, not just across the top edge.
+     Mechanic: ::before is an oversized square painted with a conic gradient (one bright arc, the
+     rest transparent) and spun by `transform:rotate` - a transform, so it stays on the
+     compositor. ::after then covers the middle with the card's own surface, leaving only a
+     1.5px ring of the spinning gradient visible as the border. The square is 200% x 200% so
+     that at every angle it still covers the card's diagonal; a non-square pseudo would leave
+     bald corners as it turned. Deliberately NOT done with an animated @property angle - that
+     needs a registered custom property and silently does nothing where it is unsupported. */
+  .card::before{content:"";position:absolute;top:-50%;left:-50%;width:200%;height:200%;z-index:0;
+        background:conic-gradient(from 0turn,
+            rgba(243,128,32,0) 0%, rgba(243,128,32,0) 58%,
+            rgba(243,128,32,.55) 72%, rgba(255,196,137,1) 82%, rgba(243,128,32,.55) 90%,
+            rgba(243,128,32,0) 100%);
+        animation:ring 6.5s linear infinite;will-change:transform}
+  @keyframes ring{to{transform:rotate(1turn)}}
+  .card::after{content:"";position:absolute;inset:1.5px;z-index:1;border-radius:14.5px;
+        background:linear-gradient(180deg,#35210F 0%,#211208 100%)}
+  /* content above both pseudo-elements */
+  .card > *{position:relative;z-index:2}
   .card.shake{animation:in .7s var(--ease) both, shake .45s cubic-bezier(.36,.07,.19,.97) .1s}
   @keyframes shake{10%,90%{transform:translateX(-2px)}20%,80%{transform:translateX(4px)}30%,50%,70%{transform:translateX(-7px)}40%,60%{transform:translateX(7px)}}
 
@@ -154,8 +174,10 @@ LOGIN_HTML = """<!doctype html>
         transition:border-color .2s var(--ease),box-shadow .28s var(--ease),background-color .2s}
   input::placeholder{color:#8B7263}
   input:hover{border-color:rgba(255,255,255,.2)}
-  input:focus{border-color:var(--accent);background:rgba(0,0,0,.42);
-              box-shadow:0 0 0 4px rgba(243,128,32,.14)}
+  /* Focus is a BORDER TINT and nothing else. The field is autofocused, so a bright ring plus a
+     4px glow was the loudest thing on the page from the moment it loaded - and it stacked with
+     the :focus-visible outline below for a double ring. */
+  input:focus{border-color:rgba(243,128,32,.55);background:rgba(0,0,0,.42)}
   button{position:relative;overflow:hidden;width:100%;margin-top:16px;padding:13px;font-size:14.5px;
          font-weight:700;font-family:inherit;letter-spacing:.2px;cursor:pointer;color:#25120A;
          background:linear-gradient(180deg,#FBAD41,var(--accent));border:none;border-radius:10px;
@@ -164,18 +186,16 @@ LOGIN_HTML = """<!doctype html>
   button:hover{transform:translateY(-1px);filter:brightness(1.06);
                box-shadow:0 16px 34px -14px var(--glow)}
   button:active{transform:translateY(0) scale(.985);transition-duration:.06s}
-  button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   /* the sheen sweeps once on hover - same gesture as the dashboard's KPI tiles */
   button::after{content:"";position:absolute;inset:-40% -60%;
         background:linear-gradient(105deg,transparent 40%,rgba(255,255,255,.42) 50%,transparent 60%);
         transform:translateX(-115%);transition:transform 0s}
   button:hover::after{transform:translateX(115%);transition:transform .95s cubic-bezier(.4,0,.2,1)}
   .err{margin-top:14px;font-size:12.5px;color:#FB8E80;min-height:16px;font-weight:600}
-  .foot{margin-top:22px;padding-top:16px;border-top:1px solid var(--line);
-        font-size:11px;color:#8B7263;letter-spacing:.2px}
 
   @media (prefers-reduced-motion: reduce){
-    .orb,.band,.card,.card::before,.brand .dot,button::after{animation:none !important}
+    .orb,.band,.card,.card::before,.card::after,.brand .dot,button::after{animation:none !important}
     .card.shake{animation:none !important}
     input,button{transition:none !important}
     button:hover{transform:none}
@@ -188,6 +208,7 @@ LOGIN_HTML = """<!doctype html>
     <div class="orb orb2"></div>
     <div class="orb orb3"></div>
     <div class="band"></div>
+    <div class="scrim"></div>
     <div class="grain"></div>
   </div>
   <form class="card {{ 'shake' if error else '' }}" method="POST" action="/login">
@@ -199,7 +220,6 @@ LOGIN_HTML = """<!doctype html>
            autocomplete="current-password">
     <button type="submit">Unlock dashboard</button>
     <div class="err">{{ error or "" }}</div>
-    <div class="foot">Reporting by 100% Digital &middot; data refreshed continuously</div>
   </form>
 </body>
 </html>"""

@@ -109,14 +109,37 @@ then exact and the rate is re-derived from the totals.
   them would draw a 0% completion rate that reads as a failed campaign.
 - **Still no native view COUNT and no working completion metric.** Worth asking for both.
 
-**What the dashboard now shows** (`renderGaVideoNote()`, under the benchmark table, auto-hidden
-when the lane has no video in range): **193,625 video views at a 62.6% view rate and $0.0096 CPV**.
+**What the dashboard now shows** (`renderGaVideoNote()` → `#gaVideoBlock`, Paid Media tab, under
+the benchmark table, auto-hidden when the lane has no video in range): a **4-tile KPI strip**
+(video views · view rate · cost per view · watched-to-75%) over a **horizontal completion funnel**
+(video impressions → watched 50% → watched 75%). It was shipped as a paragraph first and rejected
+on sight - the client reads this tab in tiles and charts, and a wall of prose under a table of
+numbers does not get read. Current figures: **193,625 video views at a 62.6% view rate and $0.0096
+CPV**. The funnel deliberately renders **only the stages the feed reports** (`.filter(v => v > 0)`)
+- a zero bar for the two dead quartiles would read as a failed campaign rather than missing data.
 The view rate is measured against `VIDEO_IMPS` — impressions on video-capable placements only. This
 matters: dividing by total Google Ads impressions charges the ~69k Discover and search impressions
 against the rate and understates it by ~13 points (49.2% vs 62.6%). The network dimension is
 collapsed by `paid_media_model`'s `GROUP BY`, so that denominator has to travel as its own measure.
 **This is the number that retires the "0.05% CTR" problem** — CTR was never the lens for a video
 buy, and `PM_CHANS[].note` now says to judge it on view rate and CPV.
+
+**There is NO creative-level Google Ads data - anywhere (checked 2026-08-20).** All three
+possible sources were queried, so do not re-investigate this without new access:
+| Source | Verdict |
+|---|---|
+| `raw_snowflake.google_ads_apac` | Campaign grain since 08-20. No ad / asset / creative column. |
+| `raw_google_ads.*` (native DTS, MCC `3451896252`) | Carries only customers `2617916504`, `1054407474`, `1869745895`. Account `3034487647` is **not linked**. |
+| `raw_windsor.perf_google_ads` | Schema has **no creative field at all**, and holds only City Perfume + Reset Data. |
+
+So `paid_creatives_model` shows **campaign × network** - the finest grain that exists - labelled
+`<campaign> - <Network>`. Network *alone* was wrong: it merged the TOFU VideoViews buy and PMax's
+YouTube placements into a single "Youtube" row, which are not the same thing. The 1,000-impression
+floor (`CREATIVE_MIN_IMPS`) already drops the 1-11 impression Search / Search Partners / Mixed rows,
+so the finer grain cannot pollute the top-by-CTR ranking. **To get real creatives, Transmission must
+add ad / asset-level columns** (ad name + asset for PMax, video asset for the YouTube buy). Until
+then this is the floor, not a design choice - do not substitute anything that merely looks like a
+creative name.
 
 **Conversions are NOT leads.** The PMax campaign's 24 platform conversions are carried as their own
 `conversions` field and rendered in the benchmark table's Leads cell as `24 platform conv.`, the
@@ -151,6 +174,62 @@ click removes a channel from the KPIs, charts, tables, creatives and footer at o
 - "Everything ticked" is stored as the **empty set**, so a channel added later can never be silently
   excluded, and the reset compares against the DELIVERED roster (not all of `PM_CHANS`) or you could
   never return to the all-selected state under a range where some channels never ran.
+
+## The motion layer (2026-08-20) - aesthetics only, and how to tune it
+
+Everything in this section is presentation. It changes how the dashboard ARRIVES, never what it
+says: the whole layer can be deleted and every number, chart, filter and CSV is identical. Two
+mechanisms touch rendered output and both restore it exactly - the bar reveal stashes the inline
+`width` and puts the same string back, and the KPI count-up writes the ORIGINAL text on its final
+frame. Verified by rendering the dashboard with and without the layer and diffing every tab's
+text plus every bar width: identical across all four tabs.
+
+**Where it lives** - three insertions in `dash/dashboard.html`, all marked:
+- CSS: the `PREMIUM MOTION LAYER` block, deliberately the LAST thing in `<style>` so it wins the
+  cascade over the rules it re-times.
+- DOM: the `ANIMATED AURORA` layers right after `<body>`, plus `.topbar .rail`.
+- JS: the `PREMIUM MOTION ENGINE` IIFE (`window.bbMotion`) just before `boot()`, plus a short
+  `MOTION` block in the `Chart.defaults` section.
+
+**The aurora** is one `<canvas>` (`#bbAurora`) carrying the swaying curtains AND the slanted sweep
+bands, over four CSS orbs, under one static scrim (vignette + film grain). Dials, in the order you
+should reach for them: `time +=` in `frame()` (how alive), the strip `opacity` in `build()` (how
+present), `SCALE` (backing-store resolution), the orb alphas in the CSS.
+
+**Performance is the whole design constraint here, and it is counter-intuitive.** Measured in a
+software-rendered browser (no GPU - which is what a locked-down corporate laptop gives you):
+- `filter: blur(18px)` on the full-viewport canvas: **61fps -> 3fps on its own.** A full-screen
+  blur is re-applied every frame the canvas paints. It is gone; the softening now comes free from
+  drawing the canvas at 28% scale and letting the compositor upscale it.
+- three 170%-wide diagonal bands as DOM layers, animating opacity + transform: **half the frame
+  rate** (25 -> 51fps when frozen). They are now drawn INSIDE the canvas - same shapes, one
+  moving layer instead of four.
+- `mix-blend-mode` on the full-screen grain forces the whole stack underneath, canvas included,
+  to re-composite every frame. Dropped; 3% plain opacity looks the same.
+- `blur(130px)` on the orbs was redundant - a radial gradient that fades to transparent is
+  already soft.
+The rule that falls out: **the cost is the NUMBER and SIZE of animated full-screen layers, not the
+drawing inside them.** One low-res canvas is nearly free; four window-sized CSS layers are not.
+
+**The reveal system** tags surfaces with `[data-bb-reveal]` and adds `.bb-in` on first
+intersection. Two things there are load-bearing:
+- `threshold: 0`, never a fraction. Threshold is the share of the ELEMENT that is visible, so a
+  card taller than the viewport (the 1,000-row lead table) can never reach 6% and would sit at
+  opacity 0 forever.
+- the **watchdog** (`sweepStuck`): a second after any scan, anything still unrevealed but inside
+  the viewport is shown unconditionally. Hiding content until an observer says so means a missed
+  callback hides DATA - the animation is worth losing, the number is not. If it ever fires it is
+  papering over a bug, and the dashboard still reads.
+Re-scanning is driven by a `MutationObserver` on `<body>` (childList, rAF-coalesced) rather than by
+editing 40 render functions, so anything a filter change re-renders animates in the same way.
+
+**Type**: Inter is now actually LOADED (Google Fonts). The stack always named it but nothing
+shipped it, so Windows rendered Segoe UI and macOS SF - the same dashboard in two typefaces.
+
+**The login page** (`dash/main.py` `LOGIN_HTML`) was re-skinned to match: same dark base, same
+warm aurora, same button/press/focus vocabulary. Its aurora is CSS-only - no canvas, no
+requestAnimationFrame - because a login screen should not run an animation loop.
+
 
 ## BigQuery owns the model (was the Snowflake-modelled exception)
 
