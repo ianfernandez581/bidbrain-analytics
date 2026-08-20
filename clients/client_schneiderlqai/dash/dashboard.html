@@ -83,12 +83,29 @@
     font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.5;
     background-color:#08361F;
     background-image:
-      url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1440' height='900'><g fill='none' stroke='white' stroke-opacity='0.05' stroke-width='1.4'><path d='M-160 980 A 1180 1180 0 0 1 1620 240'/><path d='M-80 1020 A 1360 1360 0 0 1 1680 360'/><path d='M40 1060 A 1180 1180 0 0 1 1720 520'/></g></svg>"),
       radial-gradient(1300px 780px at 82% -8%, rgba(0,149,48,.44), transparent 60%),
       radial-gradient(1100px 760px at 8% 108%, rgba(0,120,42,.60), transparent 62%),
       linear-gradient(150deg,#05301A 0%,#0A3D23 48%,#0E4A2B 100%);
     background-repeat:no-repeat; background-position:center top; background-size:cover;
     background-attachment:fixed;}
+
+  /* ---- the brand arcs, lifted out of the body background so they can MOVE ----------------
+     They used to be the first background-image layer on `body`. A background layer can only be
+     animated by moving background-position, which repaints the whole painted area every frame;
+     a transform on its own layer is composited and costs almost nothing. So the arcs now live
+     here, oversized to 128% and inset -14%, which is what lets them drift without ever exposing
+     an edge. Transform-only: no blur, no blend mode - the two things that actually cost frames
+     (see AGENTS.md "Animated backgrounds / motion"). Sits at z-index:-1, i.e. above the green
+     canvas and below every pixel of content. */
+  body::before{content:"";position:fixed;top:-14%;left:-14%;width:128%;height:128%;
+    z-index:-1;pointer-events:none;
+    background-image:url("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' width='1440' height='900'><g fill='none' stroke='white' stroke-opacity='0.05' stroke-width='1.4'><path d='M-160 980 A 1180 1180 0 0 1 1620 240'/><path d='M-80 1020 A 1360 1360 0 0 1 1680 360'/><path d='M40 1060 A 1180 1180 0 0 1 1720 520'/></g></svg>");
+    background-repeat:no-repeat;background-position:center top;background-size:cover;
+    animation:seArcDrift 54s ease-in-out infinite;will-change:transform}
+  @keyframes seArcDrift{
+    0%,100%{transform:translate3d(0,0,0) scale(1)}
+    50%    {transform:translate3d(-2.2%,1.4%,0) scale(1.05)}}
+  @media (prefers-reduced-motion: reduce){ body::before{animation:none} }
   a{color:var(--se-green);text-decoration:none}
 
   .topbar{background:linear-gradient(100deg,#04200F,#0A3620);color:#fff;padding:14px 0;border-bottom:1px solid rgba(0,149,48,.35)}
