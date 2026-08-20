@@ -115,16 +115,21 @@ LOGIN_HTML = """<!doctype html>
 
   /* the password field carries its own reveal control */
   .bb-pw{position:relative;display:block}
-  .bb-pw input{padding-right:74px}
+  .bb-pw input{padding-right:58px}
   /* Centred with `translate`, NOT `transform`: four of these logins carry a
      `button:hover{transform:translateY(-1px)}` on the bare element selector, which is MORE
      specific than this class rule and would replace a `transform` here outright - dropping the
      -50% and making the control jump half its height down the field the moment you hover it.
      `translate` is a separate property, so their lift composes with the centring instead. */
-  .bb-pw-t{position:absolute;right:7px;top:50%;translate:0 -50%;
-    height:30px;padding:0 11px;margin:0;width:auto;cursor:pointer;
-    font:600 10.5px/1 inherit;letter-spacing:.09em;text-transform:uppercase;
-    color:rgba(0,0,0,.45);background:transparent;border:1px solid rgba(0,0,0,.14);border-radius:8px;
+  .bb-pw-t{position:absolute;right:6px;top:50%;translate:0 -50%;
+    height:21px;padding:0 7px;margin:0;width:auto;cursor:pointer;
+    /* LONGHANDS, never the `font` shorthand: `font:600 10.5px/1 inherit` is INVALID - `inherit`
+       is not a legal component of the shorthand - so the whole declaration was dropped and the
+       control inherited the client's own `button{font-size:15px}`. That is why it rendered at
+       15px in a 76x30 slab instead of the small pill it was meant to be. */
+    font-family:inherit;font-size:9px;font-weight:600;line-height:1;
+    letter-spacing:.06em;text-transform:uppercase;
+    color:rgba(0,0,0,.45);background:transparent;border:1px solid rgba(0,0,0,.14);border-radius:6px;
     transition:color .18s var(--bl-ease),border-color .18s var(--bl-ease),
                background-color .18s var(--bl-ease),scale .12s var(--bl-ease)}
   .bb-pw-t:hover{color:var(--bl-accent);border-color:var(--bl-accent);background:rgba(214,40,40,0.1)}
