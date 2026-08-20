@@ -75,9 +75,14 @@ reddit AS (
     GROUP BY 2, 3, 4
 ),
 google_ads AS (
-    -- Added 2026-08-11. Google Ads has no creative-name column in this mirror, so the AD GROUP is
-    -- the finest grain we can show (the live buy splits `TOFU | Persona` vs `TOFU | Custom Intent`,
-    -- which is genuinely the useful cut). Market rules mirror paid_media_model's Google Ads arm.
+    -- Added 2026-08-11. Google Ads has no creative-name column in this mirror, so we show the
+    -- finest grain the feed carries. That WAS the ad group (`TOFU | Persona` vs `TOFU | Custom
+    -- Intent`) until 2026-08-20, when Transmission moved the shared export to CAMPAIGN level for
+    -- the Performance Max lead-gen buy and AD_GROUP_NAME disappeared (see stg_google_ads' header).
+    -- NETWORK is what replaced it, and for a PMax campaign it is the more useful cut anyway -
+    -- every conversion so far came from DISCOVER while CONTENT produced none.
+    -- It is labelled `<Network> (network)` so nobody reads a placement as a creative name.
+    -- Market rules mirror paid_media_model's Google Ads arm.
     SELECT
         'Google Ads' AS CHANNEL,
         PROGRAM AS PROGRAM,
@@ -100,7 +105,7 @@ google_ads AS (
             WHEN REGEXP_CONTAINS(LOWER(CAMPAIGN_NAME_NORM), r'(^|[ _-])rig([ _-]|$)') THEN 'RIG'
             ELSE 'UNMAPPED'
         END AS MARKET,
-        COALESCE(NULLIF(TRIM(AD_GROUP_NAME), ''), '(unnamed)') AS CREATIVE,
+        CONCAT(INITCAP(COALESCE(NETWORK, 'UNKNOWN')), ' (network)') AS CREATIVE,
         SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
     FROM `client_cloudflare.stg_google_ads`
     GROUP BY 2, 3, 4

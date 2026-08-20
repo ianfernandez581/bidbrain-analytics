@@ -24,6 +24,7 @@ from flask import (
 from google.cloud import storage
 
 from report import generate_report
+import feedback_widget
 
 app = Flask(__name__)
 app.secret_key = os.environ["SESSION_SECRET"]
@@ -32,7 +33,10 @@ app.config.update(
     SESSION_COOKIE_SECURE=True,
     SESSION_COOKIE_SAMESITE="None",  # cross-site iframe on dashboards.bidbrain.ai (None requires Secure)
     PERMANENT_SESSION_LIFETIME=60 * 60 * 12,  # stay logged in 12h
-    MAX_CONTENT_LENGTH=256 * 1024,   # the /report POST is the only sizeable body; everything else is tiny
+    # Bodies are tiny except two: the /report POST, and a feedback submission (a voice note capped
+    # at 2 min plus a JPEG screenshot). Same allowance the platform makes for the same widget.
+    MAX_CONTENT_LENGTH=(feedback_widget.MAX_AUDIO_BYTES + feedback_widget.MAX_IMAGE_BYTES
+                        + 256 * 1024),
 )
 
 # --- config (injected by Cloud Run) ------------------------------------------
@@ -48,6 +52,15 @@ try:
     DASHBOARD_HTML = (Path(__file__).resolve().parent / "dashboard.html").read_text(encoding="utf-8")
 except FileNotFoundError:
     DASHBOARD_HTML = None
+
+# Splice the Feedback pill in once, at import (see feedback_widget.py for why this service carries
+# its own copy at all: a DIRECT visitor never passes through the platform proxy that normally
+# injects one). No PLATFORM_BUCKET on the service => no pill, so it can never be shown without
+# somewhere to store what it collects. The pill itself also stands down when it finds itself
+# running behind the proxy, so the two can never both draw.
+if DASHBOARD_HTML and feedback_widget.enabled() and "</body>" in DASHBOARD_HTML:
+    DASHBOARD_HTML = DASHBOARD_HTML.replace(
+        "</body>", feedback_widget.widget("cloudflare") + "</body>", 1)
 
 # Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
 # folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it.
@@ -220,6 +233,44 @@ def report_route():
     except Exception:
         app.logger.exception("report cache write failed")
     return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
+
+
+@app.post("/feedback")
+def feedback_route():
+    """Store one note from the injected Feedback pill. Auth-gated exactly like the dashboard itself,
+    so only someone who may READ this dashboard may file feedback against it. The `client` form field
+    the widget sends is IGNORED: this service serves one client, so the key is pinned here and a
+    caller cannot file a note into another client's folder. Records land in the platform's bucket and
+    surface in the existing tracker at dashboards.bidbrain.ai/feedback/admin."""
+    if not authed():
+        abort(401)
+    if not feedback_widget.enabled():
+        return _json_err("feedback is not configured on this service", 503)
+    text = request.form.get("text") or ""
+    audio_bytes, audio_ctype = None, ""
+    f = request.files.get("audio")
+    if f is not None:
+        audio_bytes = f.read()
+        audio_ctype = f.mimetype or "audio/webm"
+        if len(audio_bytes) > feedback_widget.MAX_AUDIO_BYTES:
+            return _json_err("recording too large", 413)
+    shot_bytes = None
+    sf = request.files.get("screenshot")
+    if sf is not None:
+        shot_bytes = sf.read()
+        if len(shot_bytes) > feedback_widget.MAX_IMAGE_BYTES:
+            shot_bytes = None            # drop an oversized screenshot; never fail the note over it
+    if not text.strip() and not audio_bytes:
+        return _json_err("empty feedback", 400)
+    try:
+        feedback_widget.save("cloudflare", text, audio_bytes, audio_ctype,
+                             request.form.get("page", ""), "client-direct", shot_bytes,
+                             reporter=request.form.get("reporter", ""),
+                             deadline=request.form.get("deadline", ""))
+    except Exception:
+        app.logger.exception("feedback save failed")
+        return _json_err("could not store feedback", 500)
+    return Response(json.dumps({"ok": True}), mimetype="application/json")
 
 
 @app.get("/healthz")

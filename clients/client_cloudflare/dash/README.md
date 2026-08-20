@@ -17,11 +17,13 @@ authenticates and serves it at `/data.json` → `dashboard.html` draws the chart
 
 | File | What it does |
 |---|---|
-| [`main.py`](main.py) | The Flask app. **Byte-for-byte the same auth/serve/proxy logic as MongoDB** — only the login-page branding and the default `DATA_OBJECT` (`cloudflare.json`) differ. |
+| [`main.py`](main.py) | The Flask app. Same auth/serve/proxy logic as MongoDB (login-page branding and the default `DATA_OBJECT` = `cloudflare.json` differ), **plus the `POST /feedback` route + the Feedback pill this service injects for DIRECT logins** (see below). |
+| [`feedback_widget.py`](feedback_widget.py) | The **Feedback pill for direct logins** — the injected HTML/JS plus the `save()` that writes the note into the **platform's** bucket, so it lands in the existing tracker. Vendored from `bidbrain-platform/dash/feedback.py` (**that file is the source of truth for the record shape** — keep the two in step). |
+| [`enable_feedback_cloudflare.ps1`](enable_feedback_cloudflare.ps1) | **One-time** standup for the above: grants the runtime SA create-only write on the platform bucket and sets `PLATFORM_BUCKET` on the service (the switch that makes the pill appear). Idempotent. |
 | [`dashboard.html`](dashboard.html) | **The entire dashboard UI** — two program lanes, **"Core DG APJ"** (`core`; renamed from "Core Demand Generation" 2026-08-05) and **"Surround ABM"** (`surround_abm`, brief 2193, split out 2026-08-14), plus three single-campaign LinkedIn dashboards, and a **disabled "Core DG EMEA - coming soon"** placeholder in the lane dropdown. ~3,900 lines (HTML + CSS + inline JS). Fetches `/data.json` once and renders everything client-side. |
 | [`DASHBOARD.md`](DASHBOARD.md) | **How `dashboard.html` was built** from Cloudflare's original `index.html`: three small `<script>` edits to read one private `/data.json` instead of two public R2 files. Read this if you re-derive the page from a new design. |
 | [`LIVE_URL.md`](LIVE_URL.md) | The upstream `…run.app` URL, the front-door access path (`dashboards.bidbrain.ai/d/cloudflare/`), and how to re-fetch the URL. |
-| [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py` + `dashboard.html`. |
+| [`Dockerfile`](Dockerfile) | `python:3.12-slim` + gunicorn, non-root, copies `main.py`, `platform_sso.py`, `report.py`, `feedback_widget.py`, `dashboard.html`, `bb_deck.js`. **A new module has to be added to that `COPY` line or the import fails at boot.** |
 | [`cloudbuild.yaml`](cloudbuild.yaml) | Build → push → `gcloud run deploy cloudflare-dash` → re-apply `--no-invoker-iam-check`. |
 | [`requirements.txt`](requirements.txt) | `Flask`, `gunicorn`, `google-cloud-storage`. |
 | `.dockerignore` | Keeps the build context lean. |
@@ -38,6 +40,43 @@ lifetime, not domain-pinned. `SameSite=None` (requires `Secure`) is needed becau
 is embedded as a cross-origin iframe under `dashboards.bidbrain.ai` — `Lax` would drop the session
 cookie there. The bucket stays private; the public `…run.app` URL only ever shows the password
 screen.
+
+### Feedback pill on DIRECT logins (2026-08-20, Transmission request)
+
+The front-door injects a Feedback pill into every dashboard it proxies, so anyone arriving via
+`dashboards.bidbrain.ai/d/cloudflare/` has always had one. **Cloudflare's own people mostly open
+this service directly on its `…run.app` URL** — their office network does not resolve
+`dashboards.bidbrain.ai` (see the platform README) — and a direct hit never passes through that
+proxy, so the client company had no way to send feedback at all. This service now carries its own
+pill: `POST /feedback` in `main.py` plus [`feedback_widget.py`](feedback_widget.py).
+
+- **Where notes go:** the **platform's** private bucket, `feedback/cloudflare/<ts>-<id>.{json,webm,jpg}`,
+  in the platform's own record shape — so they appear in the existing tracker at
+  `dashboards.bidbrain.ai/feedback/admin` and get the same lazy AI transcript/summary pass, with
+  **no platform-side change**. Tagged `user_kind` **`client-direct`**, which is how you tell a
+  direct submission from a front-door one.
+- **Only one pill ever draws.** The widget stands down when it finds itself under `/d/` (the proxy
+  appends its own copy *after* this script, so mounting there would give two), and its ids are
+  scoped `#bbfbn-*` against the platform's `#bbfb-*` so the two can never collide. Behind the
+  front-door, nothing here changes.
+- **`PLATFORM_BUCKET` is the switch.** Unset => no pill is injected **and** the route 503s, so the
+  button can never appear without somewhere to store what it collects. Set it once with
+  [`enable_feedback_cloudflare.ps1`](enable_feedback_cloudflare.ps1); it survives image swaps.
+- **The IAM grant is create-only** (`roles/storage.objectCreator`), not `objectAdmin`. Without
+  `storage.objects.delete` this SA cannot overwrite anything already in the platform bucket — not
+  the registry, not another client's notes — and every object it writes has a fresh unique name,
+  so it never needs to. **Don't widen it.**
+- The form field the widget posts as `client` is **ignored**: the key is pinned to `cloudflare`
+  server-side, so a caller cannot file a note into another client's folder.
+- `MAX_CONTENT_LENGTH` was raised from 256 KB to audio+image+256 KB (a 2-minute voice note plus a
+  JPEG screenshot), matching the allowance the platform makes for the same widget.
+- `cloudbuild.yaml` uses `--set-env-vars`, which **replaces** the whole env, so `PLATFORM_BUCKET` is
+  listed there too. Anything a future `enable_*.ps1` sets out-of-band needs the same treatment.
+
+**Copying this to another client** (mongodb, schneider, …): copy `feedback_widget.py`, the
+`POST /feedback` route, the import + `MAX_CONTENT_LENGTH` bump + the `</body>` splice in `main.py`,
+add the module to the `Dockerfile` `COPY` line, and run the enable script with `$SERVICE`/`$SA` and
+the pinned client key changed. Nothing on the platform side needs to know.
 
 ---
 

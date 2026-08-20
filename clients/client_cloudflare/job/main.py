@@ -203,6 +203,18 @@ def main():
             "action_clicks":     jval(r.get("ACTION_CLICKS")),
             "video_starts":      jval(r.get("VIDEO_STARTS")),
             "video_completions": jval(r.get("VIDEO_COMPLETIONS")),
+            # Google Ads video, added 2026-08-20 when Transmission finally shipped the
+            # video columns. These are COUNTS - stg_google_ads converts Google's RATE
+            # columns back to counts at source-row grain, because a rate must never be
+            # SUM()ed. NULL (not 0) on every non-video channel, so the dashboard hides
+            # the metric instead of drawing a false zero.
+            "video_imps":        jval(r.get("VIDEO_IMPS")),
+            "video_views":       jval(r.get("VIDEO_VIEWS")),
+            "video_q50":         jval(r.get("VIDEO_Q50")),
+            "video_q75":         jval(r.get("VIDEO_Q75")),
+            # Google-attributed platform conversions (PMax lead-gen). NOT leads - see
+            # the comment in sql/05_paid_media_model.sql's google_ads arm.
+            "conversions":       jval(r.get("CONVERSIONS")),
             "spend_jpy":         jval(r.get("SPEND_JPY")),
             "fx_usd_jpy":        jval(r.get("FX_USD_JPY")),
         } for r in pm],

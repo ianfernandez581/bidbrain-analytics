@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Cloudflare - Performance Dashboard</title>
+<!-- Inter, loaded for real. The font stack has always NAMED Inter but nothing shipped it, so
+     Windows fell through to Segoe UI and macOS to SF - the same dashboard rendered in two
+     different typefaces. One variable request covers every weight used here. The stack below
+     still degrades to the system faces if the request fails. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..800&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
 <!-- PptxGenJS + the shared bb_deck.js builder - power the portal-driven "Download slides" export
      (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
@@ -240,7 +247,8 @@
   .chart-wrap{position:relative;height:240px}
   .chart-wrap.tall{height:300px}
 
-  /* Per-chart Grain (Month/Week/Day) + Scale (Relative/Absolute) toggles */
+  /* Per-chart Grain (Month/Week/Day) toggles. The Scale (Relative/Absolute) segs were
+     removed 2026-08-20 (client wants absolute only); .seg styling still serves the Grain segs. */
   .card-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .card-head .ctrls{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .seg{display:inline-flex;border:1px solid var(--cf-line);border-radius:8px;overflow:hidden;background:var(--cf-bg)}
@@ -480,9 +488,290 @@
 
   @media (max-width:1100px){.reasons{grid-template-columns:1fr 1fr}.pixel-compare{grid-template-columns:1fr}.grid-3,.grid-4{grid-template-columns:repeat(2,1fr)}}
   @media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.panel-paid-scope .grid{grid-template-columns:1fr}}
+
+  /* ==========================================================================
+     PREMIUM MOTION LAYER (2026-08-20) - PURE PRESENTATION, NO DATA PATH.
+     Three things live here and nothing else: (1) the animated warm AURORA that
+     replaces the static background bloom, (2) one hover/press/focus vocabulary
+     shared by every button, chip, tab and card, (3) the scroll-reveal system
+     (cards fade up, CSS bars extend from zero, Chart.js replays its entry
+     animation, KPI figures count up) driven by `bbMotion` at the end of the
+     script. It is deliberately the LAST block in the stylesheet so it wins the
+     cascade over the rules it re-times - the sophiie lesson: a rule declared
+     before the one it means to beat simply loses.
+     Every animation is switched off wholesale under prefers-reduced-motion at
+     the bottom of this block, and `bbMotion` removes the canvas outright there
+     so no requestAnimationFrame loop runs at all.
+     ========================================================================== */
+  :root{
+    /* one easing vocabulary - premium motion is mostly ONE curve used everywhere */
+    --bb-ease:cubic-bezier(.22,1,.36,1);        /* out-quint: fast out, long settle */
+    --bb-ease-soft:cubic-bezier(.4,0,.2,1);
+    --bb-lift:0 18px 40px -22px rgba(0,0,0,.85), 0 0 0 1px color-mix(in srgb,var(--brand-accent) 26%,transparent), 0 12px 36px -18px var(--glow-strong);
+    /* The .cchip rules were written against token names this theme never defined
+       (--text/--text-mute/--hairline), so those declarations were dropping out and the
+       OFF chips fell back to currentColor. Map them onto the real dark-theme tokens. */
+    --text:var(--ink); --text-mute:var(--muted); --hairline:var(--line);
+  }
+  html{scroll-behavior:smooth}
+
+  /* ---------- 1. THE AURORA: three fixed, non-interactive layers ----------
+     Warm-side twin of the sophiie aurora, retuned for a DARK base: there the trap
+     was DARKENING the hues (they muddied a near-white page); here light is additive
+     over near-black, so the dial is ALPHA and it has to stay LOW - the canvas draws
+     with globalCompositeOperation 'lighter', which accumulates fast. Hues are the
+     brand family only: Cloudflare orange, its soft amber, a deep ember, and one
+     Transmission-pink hint. Nothing sits above z-index 0 here; .topbar/.container
+     are lifted to 1-2 below. */
+  .bb-aurora,.bb-diagonals{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  #bbAurora{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;
+    filter:blur(18px);opacity:.9}      /* the blur is what turns polygons into curtains */
+  .bb-orb{position:absolute;border-radius:50%;filter:blur(130px);will-change:transform}
+  .bb-orb--1{width:62vw;height:52vh;top:-14%;left:-8%;animation:bbOrb1 17s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(243,128,32,.20) 0%,transparent 68%)}
+  .bb-orb--2{width:52vw;height:46vh;top:2%;right:-10%;animation:bbOrb2 21s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(251,173,65,.13) 0%,transparent 68%)}
+  .bb-orb--3{width:58vw;height:54vh;bottom:-16%;left:10%;animation:bbOrb3 24s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(194,87,26,.16) 0%,transparent 66%)}
+  .bb-orb--4{width:44vw;height:40vh;top:34%;right:6%;animation:bbOrb4 19s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(230,11,127,.07) 0%,transparent 70%)}
+  @keyframes bbOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(160px,120px) scale(1.18)}}
+  @keyframes bbOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-150px,110px) scale(1.16)}}
+  @keyframes bbOrb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(120px,-160px) scale(1.14)}}
+  @keyframes bbOrb4{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-130px,-95px) scale(1.20)}}
+
+  /* Diagonal bands - the slow structural sweep under everything. Each keeps its OWN
+     rotate() inside every keyframe: a transform is one property, so a frame that omits
+     the rotation snaps the band flat mid-animation. */
+  .bb-diag{position:absolute;transform-origin:center center;will-change:transform,opacity}
+  .bb-diag--1{width:170%;height:300px;top:-6%;left:-32%;transform:rotate(-17deg);animation:bbDiag1 23s ease-in-out infinite;
+    background:linear-gradient(180deg,transparent 0%,rgba(243,128,32,.05) 30%,rgba(251,173,65,.10) 52%,rgba(243,128,32,.05) 72%,transparent 100%)}
+  .bb-diag--2{width:160%;height:250px;top:26%;left:-28%;transform:rotate(-21deg);animation:bbDiag2 29s ease-in-out infinite;
+    background:linear-gradient(180deg,transparent 0%,rgba(251,173,65,.04) 26%,rgba(243,128,32,.09) 52%,rgba(251,173,65,.04) 76%,transparent 100%)}
+  .bb-diag--3{width:170%;height:330px;top:56%;left:-32%;transform:rotate(-15deg);animation:bbDiag3 26s ease-in-out infinite;
+    background:linear-gradient(180deg,transparent 0%,rgba(194,87,26,.05) 24%,rgba(243,128,32,.09) 54%,rgba(194,87,26,.04) 78%,transparent 100%)}
+  @keyframes bbDiag1{0%{transform:rotate(-17deg) translate(0,0);opacity:.7}30%{transform:rotate(-17deg) translate(90px,58px);opacity:1}62%{transform:rotate(-17deg) translate(-52px,104px);opacity:.6}100%{transform:rotate(-17deg) translate(0,0);opacity:.7}}
+  @keyframes bbDiag2{0%{transform:rotate(-21deg) translate(0,0);opacity:.6}35%{transform:rotate(-21deg) translate(-104px,74px);opacity:1}68%{transform:rotate(-21deg) translate(62px,-40px);opacity:.7}100%{transform:rotate(-21deg) translate(0,0);opacity:.6}}
+  @keyframes bbDiag3{0%{transform:rotate(-15deg) translate(0,0);opacity:.8}33%{transform:rotate(-15deg) translate(74px,-66px);opacity:.6}70%{transform:rotate(-15deg) translate(-56px,92px);opacity:1}100%{transform:rotate(-15deg) translate(0,0);opacity:.8}}
+
+  /* SCRIM - the layer that keeps this from going muddy. Additive warm light over a warm
+     near-black base drifts towards brown, which flattens the cards sitting on top of it (the
+     dark-theme mirror of the sophiie mud trap). A vignette re-deepens the edges and the
+     lower page, so the glow stays a glow and the surfaces keep their contrast. Sits ABOVE the
+     orbs/bands/canvas and below all content - so it is part of the background, not a veil
+     over the data. */
+  .bb-scrim{position:fixed;inset:0;z-index:0;pointer-events:none;
+    background:radial-gradient(1200px 760px at 50% -6%,transparent 0%,rgba(12,5,1,.30) 52%,rgba(8,3,1,.62) 100%)}
+  /* GRAIN - a 3% film grain over the whole background. Big smooth gradients on a dark screen
+     band visibly; a little noise hides the steps and is most of why this reads as printed
+     rather than rendered. One inline SVG turbulence, no asset, no request. */
+  .bb-grain{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.038;mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/></filter><rect width='160' height='160' filter='url(%23n)'/></svg>");
+    background-size:160px 160px}
+
+  /* Content sits above the aurora. The topbar goes to 2 so its glow shadow lands on
+     the page rather than on the moving light. */
+  .topbar{position:relative;z-index:2}
+  .container{position:relative;z-index:1}
+
+  /* ---------- 2. ONE INTERACTION VOCABULARY ----------
+     Everything clickable: a 1px rise + accent border + brand glow on hover, a real
+     press on :active (nothing feels cheaper than a button that does not depress),
+     and a visible focus ring for keyboards. */
+  .tab,.chip,.cchip,.seg button,.dp-btn,.dp-nav,.dp-presets a,.dp-actions button,.qtr-chip,
+  .compare-clear,.compare-select,.chip-action,.dash-select,.dp-day{
+    transition:background-color .22s var(--bb-ease-soft),color .22s var(--bb-ease-soft),
+               border-color .22s var(--bb-ease-soft),box-shadow .28s var(--bb-ease),
+               transform .18s var(--bb-ease),filter .22s var(--bb-ease-soft)}
+  .chip:hover,.cchip:hover,.seg button:not(.on):hover,.dp-btn:hover,.qtr-chip:not(.on):hover,
+  .compare-clear:hover,.dash-select:hover,.dp-nav:hover:not(:disabled){transform:translateY(-1px)}
+  .chip:active,.cchip:active,.seg button:active,.dp-btn:active,.qtr-chip:active,
+  .compare-clear:active,.dp-actions button:active,.dp-presets a:active,.dp-day:active,.tab:active{
+    transform:translateY(0) scale(.97);transition-duration:.07s}
+  .chip:not(.on):hover{box-shadow:0 6px 18px -10px var(--glow-strong);background:color-mix(in srgb,var(--brand-accent) 12%,var(--surface-2))}
+  .chip.on:hover{filter:brightness(1.09);box-shadow:0 8px 22px -8px var(--glow-strong)}
+  .cchip:hover{box-shadow:0 6px 18px -10px var(--glow-strong)}
+  .cchip.on:hover{filter:brightness(1.1);box-shadow:0 8px 22px -8px var(--glow-strong)}
+  .cchip[disabled]:hover{transform:none;box-shadow:none;filter:none}
+  .seg button:not(.on):hover{background:color-mix(in srgb,var(--brand-accent) 10%,transparent)}
+  .seg button.on{box-shadow:0 4px 14px -6px var(--glow-strong)}
+  .dp-btn:hover,.dash-select:hover{box-shadow:0 8px 22px -12px var(--glow-strong)}
+  .compare-clear:hover{box-shadow:0 8px 22px -12px var(--glow-strong)}
+  .dp-presets a{transition:background-color .18s var(--bb-ease-soft),color .18s,padding-left .18s var(--bb-ease)}
+  .dp-presets a:hover{padding-left:15px}
+  .dp-day:hover{background:color-mix(in srgb,var(--dp-accent) 24%,transparent)}
+  .dp-apply:hover{filter:brightness(1.08);box-shadow:0 8px 22px -10px var(--glow-strong)}
+  .chip-action:hover{filter:brightness(1.15)}
+  /* keyboard focus is a first-class state, not an afterthought */
+  .tab:focus-visible,.chip:focus-visible,.cchip:focus-visible,.seg button:focus-visible,
+  .dp-btn:focus-visible,.dp-nav:focus-visible,.dp-presets a:focus-visible,.dp-actions button:focus-visible,
+  .qtr-chip:focus-visible,.compare-clear:focus-visible,.dash-select:focus-visible,.compare-select:focus-visible{
+    outline:2px solid var(--brand-accent);outline-offset:2px;border-radius:8px}
+
+  /* Tabs: the active underline GROWS from the centre instead of snapping on, and a
+     hover shows a short ghost of it. The border-bottom colour is retired to
+     transparent so the ::after bar is the only underline (two would double up). */
+  .tab{position:relative;border-bottom-color:transparent !important}
+  .tab.active{filter:drop-shadow(0 6px 9px var(--glow))}
+  .tab::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:2.5px;border-radius:2px;
+    background:var(--brand-accent);transform:scaleX(0);transform-origin:center;
+    transition:transform .34s var(--bb-ease),background-color .2s}
+  .tab.active::after{transform:scaleX(1)}
+  .tab:not(.active):hover::after{transform:scaleX(.5);background:var(--muted)}
+  #cmpTabs .tab::after{background:var(--cf-orange)}
+
+  /* ---------- Surfaces: lift, brighten, glow ---------- */
+  .card,.kpi,.cs-snap .group,.qoq-stats .stat,.compare-panel,.why,.qoq-note,.alert,.info,
+  .reason,.gap-tile,.pix{
+    transition:transform .38s var(--bb-ease),box-shadow .38s var(--bb-ease),border-color .38s var(--bb-ease-soft)}
+  .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
+  .why:hover,.qoq-note:hover{
+    transform:translateY(-3px);box-shadow:var(--bb-lift);
+    border-color:color-mix(in srgb,var(--brand-accent) 34%,var(--line))}
+  .reason:hover,.gap-tile:hover,.pix:hover{transform:translateY(-2px);
+    border-color:color-mix(in srgb,var(--brand-accent) 40%,var(--line));
+    box-shadow:0 10px 26px -16px rgba(0,0,0,.9),0 0 22px -14px var(--glow-strong)}
+  /* KPI tiles get a slow diagonal sheen on hover - the one piece of pure gloss in the
+     skin. .kpi is already overflow:hidden, so the sweep is clipped to the tile. */
+  .kpi::after{content:"";position:absolute;inset:-40% -60%;pointer-events:none;z-index:0;
+    background:linear-gradient(105deg,transparent 38%,rgba(255,255,255,.09) 48%,rgba(255,255,255,.015) 56%,transparent 66%);
+    transform:translateX(-115%);transition:transform 0s}
+  .kpi:hover::after{transform:translateX(115%);transition:transform 1.05s var(--bb-ease-soft)}
+  .kpi>*{position:relative;z-index:1}
+  .kpi .stripe{z-index:2;overflow:hidden}
+  /* a light travelling along the accent stripe: the tile reads "live" without moving */
+  .kpi .stripe::after{content:"";position:absolute;top:0;bottom:0;width:34%;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.85),transparent);
+    animation:bbStripe 4.6s var(--bb-ease-soft) infinite}
+  .kpi.li .stripe::after{animation-delay:.5s} .kpi.rd .stripe::after{animation-delay:1s}
+  .kpi.warn .stripe::after{animation-delay:1.5s}
+  @keyframes bbStripe{0%{transform:translateX(-140%)}55%,100%{transform:translateX(400%)}}
+
+  /* Surfaces get a 1px top highlight - the light source is above, so the top edge of every
+     card catches it. Cheapest possible way to stop a dark card reading as a flat rectangle.
+     Cards stay SOLID (no backdrop-filter): translucency over the moving aurora shimmers and
+     reads as a rendering fault - the sophiie rule, and it holds harder on a dark base. */
+  .card,.kpi,.cs-snap .group,.qoq-stats .stat,.compare-panel,.why,.qoq-note,.filter-row,.control-bar{
+    box-shadow:var(--shadow-card),inset 0 1px 0 rgba(255,255,255,.055)}
+  /* Every figure that counts up is tabular, or the digits change width mid-animation and the
+     whole row twitches. Applies to the resting state too, so columns of numbers line up. */
+  .kpi .value,.cs-snap .stat .v,.qoq-stats .stat .v,.compare-kpi .v,.gap-tile .val,
+  .pace-risk .amt,.reg-num{font-variant-numeric:tabular-nums}
+
+  /* The masthead hairline carries a slow travelling highlight - one detail, at the top of the
+     page, that says the thing is live. */
+  .topbar{overflow:hidden}
+  .topbar::after{content:"";position:absolute;left:0;right:0;bottom:0;height:1px;
+    background:linear-gradient(90deg,transparent,var(--brand-accent),rgba(255,196,137,.9),var(--brand-accent),transparent);
+    background-size:42% 100%;background-repeat:no-repeat;animation:bbRail 9s var(--bb-ease-soft) infinite;opacity:.75}
+  @keyframes bbRail{0%{background-position:-45% 0}55%,100%{background-position:145% 0}}
+
+  /* Once stuck, the bar hides the sliver of content that scrolls through the gap above it. */
+  .control-bar.bb-stuck::before{content:"";position:absolute;left:-1px;right:-1px;bottom:100%;height:14px;
+    background:linear-gradient(180deg,transparent,rgba(21,10,4,.92));pointer-events:none}
+
+  /* Tables: the hovered row gets an accent edge on its label cell. */
+  .panel-paid-scope tbody tr,.qoq-table tbody tr,.dev-table tbody tr{transition:background-color .18s var(--bb-ease-soft)}
+  .panel-paid-scope tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--brand-accent)}
+  .qoq-table tbody tr:hover td{background:rgba(255,255,255,.035)}
+  .qoq-cell{transition:transform .25s var(--bb-ease),filter .25s var(--bb-ease-soft)}
+  .qoq-cell:hover{transform:scale(1.05);filter:brightness(1.12)}
+
+  /* The sticky control bar sinks its shadow in once the page has scrolled under it. */
+  .control-bar{transition:box-shadow .32s var(--bb-ease),background-color .32s var(--bb-ease-soft),
+    border-color .32s var(--bb-ease-soft)}
+  .control-bar.bb-stuck{background:color-mix(in srgb,var(--surface) 94%,transparent);
+    border-color:color-mix(in srgb,var(--brand-accent) 22%,var(--line));
+    box-shadow:0 26px 60px -30px rgba(0,0,0,.95),0 0 34px -18px var(--glow-strong)}
+
+  /* Tab panes fade+rise in, so switching tabs is a move rather than a cut. */
+  .panel:not(.hidden){animation:bbPane .46s var(--bb-ease) both}
+  @keyframes bbPane{from{opacity:0;transform:translateY(9px)}to{opacity:1;transform:none}}
+
+  /* Warm, thin scrollbars - the default grey ones are the last light-theme artefact. */
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-track{background:rgba(255,255,255,.03)}
+  *::-webkit-scrollbar-thumb{background:color-mix(in srgb,var(--brand-accent) 34%,var(--surface-2));
+    border-radius:8px;border:2px solid transparent;background-clip:padding-box}
+  *::-webkit-scrollbar-thumb:hover{background:color-mix(in srgb,var(--brand-accent) 62%,var(--surface-2));background-clip:padding-box}
+
+  /* ---------- 3. SCROLL REVEAL ----------
+     bbMotion tags the surfaces below with [data-bb-reveal] and adds .bb-in when they
+     first enter the viewport. The transform is a rise + a hair of scale; the stagger
+     is an inline transition-delay so a row of KPIs deals itself out left to right. */
+  [data-bb-reveal]{opacity:0;transform:translateY(16px) scale(.994);
+    transition:opacity .72s var(--bb-ease),transform .72s var(--bb-ease)}
+  [data-bb-reveal].bb-in{opacity:1;transform:none}
+
+  /* Every CSS bar in the dashboard extends to its width instead of appearing at it.
+     bbMotion zeroes the inline width on reveal and puts the EXACT original string back
+     one frame later, so the geometry the render function computed is never altered. */
+  .pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.demo-row .bar>span,.cmp-asset .bar>span{
+    transition:width 1.15s var(--bb-ease)}
+  /* a slow sheen inside the filled part of the big pacing bars */
+  .pace-bar .pfill,.pbar .fill{position:relative;overflow:hidden}
+  .pace-bar .pfill::after,.pbar .fill::after{content:"";position:absolute;inset:0;
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.22),transparent);
+    transform:translateX(-100%);animation:bbSheen 5.5s var(--bb-ease-soft) infinite}
+  @keyframes bbSheen{0%{transform:translateX(-100%)}60%,100%{transform:translateX(100%)}}
+
+  /* Inter first now that it actually loads, so every platform renders the same face.
+     -0.011em is Inter's optical fix at UI sizes; it also tightens the big KPI figures. */
+  body{font-family:"Inter","Inter Variable",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    letter-spacing:-.011em;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+
+  /* Scroll rail: a 2px brand line across the very top that fills as you read. Long dashboards
+     hide how much is left; this is the cheapest possible answer and it never covers content. */
+  #bbProgress{position:fixed;top:0;left:0;height:2px;width:100%;z-index:80;transform-origin:0 50%;
+    transform:scaleX(0);pointer-events:none;
+    background:linear-gradient(90deg,var(--brand-accent),#FFC489 55%,var(--brand-accent))}
+
+  /* The loading state, brought into the theme: an orange ring on the warm base. */
+  #loading .spinner{border-color:rgba(243,128,32,.22) !important;border-top-color:var(--brand-accent) !important;
+    animation:spin .7s cubic-bezier(.5,.1,.4,.9) infinite !important}
+  #loading .msg{animation:bbBreathe 2.2s ease-in-out infinite}
+  @keyframes bbBreathe{0%,100%{opacity:.55}50%{opacity:1}}
+
+  /* ---------- Reduced motion: stop ALL of it ----------
+     The aurora divs freeze (the static warm wash is still the brand), the canvas is
+     removed in JS, and every reveal is forced to its finished state so no content can
+     be left invisible on a machine that asked us not to animate. */
+  @media (prefers-reduced-motion: reduce){
+    #bbAurora{display:none}
+    .bb-orb,.bb-diag,.kpi .stripe::after,.pace-bar .pfill::after,.pbar .fill::after,.topbar::after,
+    .panel:not(.hidden),#loading .msg{animation:none !important}
+    [data-bb-reveal]{opacity:1 !important;transform:none !important;transition:none !important}
+    .card,.kpi,.chip,.cchip,.tab,.seg button,.dp-btn,.qoq-cell,.control-bar{transition:none !important}
+    .card:hover,.kpi:hover,.cs-snap .group:hover,.qoq-stats .stat:hover,.compare-panel:hover,
+    .why:hover,.qoq-note:hover,.reason:hover,.gap-tile:hover,.pix:hover,.qoq-cell:hover{transform:none !important}
+    .pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.demo-row .bar>span,.cmp-asset .bar>span{transition:none !important}
+  }
 </style>
 </head>
 <body>
+
+<!-- ===== ANIMATED AURORA (presentation only - three fixed, non-interactive layers) =====
+     1. .bb-aurora     4 huge blurred brand-colour orbs      - the wash
+     2. .bb-diagonals  3 slanted light bands                 - the slow structural sweep
+     3. #bbAurora      a <canvas> of ~20 swaying curtains    - the life (bbMotion, end of script)
+     All three are position:fixed / pointer-events:none / z-index:0, and every piece of page
+     chrome sits above them (.topbar z-index 2, .container 1). They do not touch layout, so
+     nothing here can reflow the dashboard. Frozen wholesale under prefers-reduced-motion. -->
+<div class="bb-aurora" aria-hidden="true">
+  <div class="bb-orb bb-orb--1"></div>
+  <div class="bb-orb bb-orb--2"></div>
+  <div class="bb-orb bb-orb--3"></div>
+  <div class="bb-orb bb-orb--4"></div>
+</div>
+<div class="bb-diagonals" aria-hidden="true">
+  <div class="bb-diag bb-diag--1"></div>
+  <div class="bb-diag bb-diag--2"></div>
+  <div class="bb-diag bb-diag--3"></div>
+</div>
+<canvas id="bbAurora" aria-hidden="true"></canvas>
+<div class="bb-scrim" aria-hidden="true"></div>
+<div class="bb-grain" aria-hidden="true"></div>
+<div id="bbProgress" aria-hidden="true"></div>
 
 <div class="topbar"><div class="inner">
   <div class="topbar-left">
@@ -679,9 +968,8 @@
 
       <div class="card" style="margin-bottom:14px">
         <div class="card-head"><div><h3>Pacing - target vs actual</h3>
-        <div class="hint">Accepted leads vs target per period, across the full quarter. Toggle <b>Relative</b> for accepted as % of target.</div></div>
+        <div class="hint">Accepted leads vs target per period, across the full quarter.</div></div>
         <div class="ctrls">
-          <span class="seg" id="csWeekly_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel">Relative</button><button type="button" data-scale="abs" class="on">Absolute</button></span>
           <span class="seg" id="csWeekly_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button></span>
         </div></div>
         <div class="chart-wrap"><canvas id="weeklyChart"></canvas></div>
@@ -702,7 +990,6 @@
         <div class="card"><h3>Best performing assets (top 12)</h3><div class="chart-wrap tall"><canvas id="assetsChart"></canvas></div></div>
         <div class="card"><div class="card-head"><div><h3>Accepted leads trend</h3></div>
           <div class="ctrls">
-            <span class="seg" id="csDaily_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
             <span class="seg" id="csDaily_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
           </div></div>
           <div class="chart-wrap tall"><canvas id="dailyChart"></canvas></div></div>
@@ -926,6 +1213,14 @@
           </div>
         </div>
 
+        <!-- Google Ads video KPIs. Hidden unless the Google Ads lane actually delivered video in
+             the selected range, so every other client view is untouched. The CTR column above is
+             the wrong lens for a YouTube buy - this is the right one. -->
+        <div class="card" id="gaVideoCard" style="display:none;margin-top:12px">
+          <div style="font-weight:600;margin-bottom:6px">Google Ads - video delivery</div>
+          <div id="gaVideoBody" class="sub"></div>
+        </div>
+
         <!-- Budget pacing is Core DG's media plan (PACING_PLANS). A lane with no committed
              budget of its own hides the whole block - grading Surround ABM's spend against
              Core DG's budget would be worse than showing nothing. See PROGRAMS[].plans. -->
@@ -951,7 +1246,6 @@
             <div class="card-head"><div><h3>TTD daily - impressions, clicks, CTR</h3>
             <div class="hint">Impressions (orange bars), clicks (purple line), CTR (navy dashed) on three axes.</div></div>
             <div class="ctrls">
-              <span class="seg" id="ttdImpCtr_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
               <span class="seg" id="ttdImpCtr_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
             </div></div>
             <div class="chart-wrap"><canvas id="ttdImpCtr"></canvas></div>
@@ -966,9 +1260,8 @@
         <div class="grid">
           <div class="card card-tall">
             <div class="card-head"><div><h3>Daily spend - all channels stacked</h3>
-            <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window. <b>Relative</b> = 100%-stacked share.</div></div>
+            <div class="hint">LinkedIn delivers steadily; TTD ramps mid-window.</div></div>
             <div class="ctrls">
-              <span class="seg" id="dailyStack_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
               <span class="seg" id="dailyStack_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week" class="on">Week</button><button type="button" data-grain="day">Day</button></span>
             </div></div>
             <div class="chart-wrap"><canvas id="dailyStack"></canvas></div>
@@ -984,7 +1277,6 @@
           <div><h2>Daily efficiency - CTR · Clicks · CPC by channel</h2>
           <span class="sub">Same date axis. Hover for true daily values.</span></div>
           <div class="ctrls">
-            <span class="seg" id="effTrio_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
             <span class="seg" id="effTrio_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
           </div>
         </div>
@@ -1151,7 +1443,6 @@
       </div>
       <div class="card-head" style="margin-bottom:8px"><div></div>
         <div class="ctrls">
-          <span class="seg" id="cmp_scale"><span class="cap">AXIS</span><button type="button" data-scale="rel" class="on">Relative</button><button type="button" data-scale="abs">Absolute</button></span>
           <span class="seg" id="cmp_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
         </div>
       </div>
@@ -1606,11 +1897,18 @@ const CAMPAIGN_LABELS = {
 // ---- Per-chart Grain (month/week/day) + Scale (rel/abs) toggle state ----
 // Default scale = 'rel' everywhere (relative). Defaults preserve each chart's
 // pre-existing native grain (paid trends + CS daily = day; CS pacing = week).
-let pmGrain='week',    pmScale='rel';      // shared by ttdImpCtr + dailyStack (default Week)
-let effGrain='day',    effScale='rel';     // shared by ctrTrend / clkTrend / cpcTrend
-let cmpGrain='day',    cmpScale='rel';     // shared by cmpDaily + cmpSpend
-let csDailyGrain='day',  csDailyScale='rel';  // dailyChart (accepted leads)
-let csWeeklyGrain='week',csWeeklyScale='abs'; // weeklyChart (pacing target vs actual; default Absolute, Month/Week only)
+// ABSOLUTE ONLY (2026-08-20, client request): the Relative/Absolute AXIS toggle was removed from
+// all six chart groups - the client reads these as real values and the indexed view was causing
+// more questions than it answered. These stay as named constants because every chart builder still
+// branches on them (`isRel`/`cmpRel`), so absolute is enforced in ONE place and restoring the
+// option means putting the six <span class="seg" id="*_scale"> controls back and making these `let`
+// again. Do NOT delete the relative branches: they are what a restore would use.
+const pmScale='abs', effScale='abs', cmpScale='abs', csDailyScale='abs', csWeeklyScale='abs';
+let pmGrain='week';      // shared by ttdImpCtr + dailyStack (default Week)
+let effGrain='day';      // shared by ctrTrend / clkTrend / cpcTrend
+let cmpGrain='day';      // shared by cmpDaily + cmpSpend
+let csDailyGrain='day';  // dailyChart (accepted leads)
+let csWeeklyGrain='week';// weeklyChart (pacing target vs actual; Month/Week only)
 let currentCampaignKey=null;                  // active single-campaign view key
 let cmpTab='li';                              // CF1-view tab: 'li' (LinkedIn) | 'cs' (content syndication)
 
@@ -1652,24 +1950,24 @@ function wireToggles(grainId, scaleId, setG, setS, rerender){
 // Bind every WIRE chart's toggle pair to its render fn. Elements are static in
 // the DOM (incl. the single-campaign view), so this binds once at boot.
 function initChartToggles(){
-  // Paid-media: TTD daily (overlay lines indexed) + Daily-stack (100%-stacked in rel).
-  // ttdImpCtr + dailyStack share pmGrain/pmScale, so changing one re-renders both.
-  wireToggles('ttdImpCtr_grain','ttdImpCtr_scale',
-    v=>pmGrain=v, v=>pmScale=v, ()=>{renderTtdImpCtr();renderDailyStack();});
-  wireToggles('dailyStack_grain','dailyStack_scale',
-    v=>pmGrain=v, v=>pmScale=v, ()=>{renderTtdImpCtr();renderDailyStack();});
+  // Paid-media: TTD daily + Daily-stack. They share pmGrain, so changing one re-renders both.
+  // Scale is pinned absolute (see pmScale), so only the Grain seg is bound now.
+  wireToggles('ttdImpCtr_grain', null,
+    v=>pmGrain=v, null, ()=>{renderTtdImpCtr();renderDailyStack();});
+  wireToggles('dailyStack_grain', null,
+    v=>pmGrain=v, null, ()=>{renderTtdImpCtr();renderDailyStack();});
   // Efficiency trio (CTR/Clicks/CPC) - one shared control.
-  wireToggles('effTrio_grain','effTrio_scale',
-    v=>effGrain=v, v=>effScale=v, renderEffTrio);
+  wireToggles('effTrio_grain', null,
+    v=>effGrain=v, null, renderEffTrio);
   // Single-campaign cmpDaily + cmpSpend - one shared control.
-  wireToggles('cmp_grain','cmp_scale',
-    v=>cmpGrain=v, v=>cmpScale=v, ()=>{ if(currentCampaignKey) renderCampaign(currentCampaignKey); });
-  // CS pacing daily (single line, indexed in rel).
-  wireToggles('csDaily_grain','csDaily_scale',
-    v=>csDailyGrain=v, v=>csDailyScale=v, ()=>renderDaily(aggregate()));
-  // CS pacing weekly (pure stacked composition -> 100%-stacked in rel).
-  wireToggles('csWeekly_grain','csWeekly_scale',
-    v=>csWeeklyGrain=v, v=>csWeeklyScale=v, ()=>renderWeekly(aggregate()));
+  wireToggles('cmp_grain', null,
+    v=>cmpGrain=v, null, ()=>{ if(currentCampaignKey) renderCampaign(currentCampaignKey); });
+  // CS pacing daily (single line, absolute counts).
+  wireToggles('csDaily_grain', null,
+    v=>csDailyGrain=v, null, ()=>renderDaily(aggregate()));
+  // CS pacing weekly (target vs accepted bars, absolute counts).
+  wireToggles('csWeekly_grain', null,
+    v=>csWeeklyGrain=v, null, ()=>renderWeekly(aggregate()));
 }
 
 // Date range (Looker-style picker). ONE shared control over the union of both
@@ -1714,6 +2012,27 @@ if (window.Chart) {
   Chart.defaults.plugins.tooltip.borderWidth = 1;
   Chart.defaults.plugins.tooltip.titleColor = '#FBF1E7';
   Chart.defaults.plugins.tooltip.bodyColor = '#FBF1E7';
+  // ---- MOTION (presentation only) ----------------------------------------------------
+  // One easing + duration for every chart, matching the CSS --bb-ease so a card that rises
+  // and the chart inside it settle together. Hover / legend-toggle transitions stay quick so
+  // interaction still feels immediate, and bbMotion replays this entry animation the first
+  // time a chart is scrolled into view.
+  // The per-property `animations.y` override is deliberately NOT set: two charts here are
+  // horizontal bars (indexAxis:'y'), where y is the CATEGORY axis, so a global y-from rule
+  // would slide their bars in from the wrong edge.
+  Chart.defaults.animation.duration = 950;
+  Chart.defaults.animation.easing = 'easeOutQuart';
+  Chart.defaults.transitions.active.animation.duration = 180;
+  Chart.defaults.font.family = '"Inter","Inter Variable",-apple-system,"Segoe UI",Roboto,sans-serif';
+  Chart.defaults.elements.bar.borderRadius = 4;       // rounded bar caps - cosmetic only
+  Chart.defaults.elements.point.hoverRadius = 6;      // a point that grows under the cursor
+  Chart.defaults.elements.point.hitRadius = 8;        // ... and is easier to actually hit
+  Chart.defaults.plugins.tooltip.cornerRadius = 9;
+  Chart.defaults.plugins.tooltip.padding = 10;
+  Chart.defaults.plugins.tooltip.caretPadding = 6;
+  // Line TENSION is deliberately left alone: curving between points implies values that were
+  // never measured, and this is a reporting dashboard.
+  Chart.defaults.hover.animationDuration = 180;
 }
 
 // ===================== legend affordance (legends are click-to-toggle) =====================
@@ -3038,12 +3357,13 @@ const PM_CHANS = [
   {key:'LinkedIn', label:'LinkedIn', long:'LinkedIn',   abbr:'LI',     pill:'li', color:PM_LI, pre:'li',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.li_market_day)   || []},
   {key:'Reddit',   label:'Reddit',   long:'Reddit',     abbr:'Reddit', pill:'rd', color:PM_RD, pre:'rd',  mkey:'m',      rows:()=>(PAYLOAD && PAYLOAD.rd_market_day)   || []},
   {key:'LINE',     label:'LINE',     long:'LINE',       abbr:'LINE',   pill:'ln', color:PM_LN, pre:'ln',  mkey:'market', rows:()=>(PAYLOAD && PAYLOAD.line_market_day)|| []},
-  // Google Ads joined 2026-08-11 (Q3 Core DG, brief 2479). Its live buy is a JP YouTube
-  // VideoViews campaign, and this mirror carries NO video columns - so impressions and clicks are
-  // all we can report and the resulting ~0.05% CTR is normal for video, not underperformance.
-  // `note` is surfaced next to the channel so nobody reads it as a failing search campaign.
+  // Google Ads joined 2026-08-11 (Q3 Core DG, brief 2479). Two campaigns now: a JP YouTube
+  // VideoViews awareness buy and, since 2026-08-06, a Performance Max lead-gen campaign.
+  // The video columns we were missing landed 2026-08-20, so CTR is no longer the only lens -
+  // the real KPI (views / view rate / CPV) is rendered under the benchmark table by
+  // renderGaVideoNote(). CTR still reads low by nature on a video buy; the note says so.
   {key:'GoogleAds', label:'Google Ads', long:'Google Ads', abbr:'GAds', pill:'ga', color:PM_GA, pre:'ga', mkey:'m', rows:()=>(PAYLOAD && PAYLOAD.ga_market_day) || [],
-   note:'YouTube video buy - impressions are the reach metric; video views are not in the feed yet, so CTR reads low by nature'},
+   note:'YouTube video + Performance Max - judge the video buy on view rate and CPV, not CTR'},
 ];
 // A channel is LIVE when it delivered (spend / impressions / clicks) inside the applied DATE
 // RANGE. EVERY channel-shaped thing on this tab (KPI captions, the mix donut, the stacked
@@ -3197,7 +3517,14 @@ function adaptPayload(data) {
     } else if (ch === 'Reddit') {
       rd.push({date, m: market, prog, imps, clk, spend});
     } else if (ch === 'Google Ads' || ch === 'GoogleAds') {
-      ga.push({date, m: market, prog, imps, clk, spend});
+      // Video COUNTS + platform conversions, added 2026-08-20. NULL-safe: a payload written
+      // before that date simply has none, and every consumer treats 0 as "no video".
+      ga.push({date, m: market, prog, imps, clk, spend,
+        vimps: Number(r.video_imps)  || 0,
+        views: Number(r.video_views) || 0,
+        q50:   Number(r.video_q50)   || 0,
+        q75:   Number(r.video_q75)   || 0,
+        conv:  Number(r.conversions) || 0});
     } else if (ch === 'LINE') {
       line.push({ch:'LINE', date, market, prog, imps, clk, spend, leads,
         spend_jpy: Number(r.spend_jpy) || 0,
@@ -3359,11 +3686,15 @@ function passesAll(r) {
   return paidMediaActiveMarkets.has(m) && dateOk(r.date);
 }
 function aggregateChannel(rows) {
-  let imp=0, clk=0, sp=0, leads=0;
+  // views/q50/q75/conv are Google-Ads-only today and simply stay 0 elsewhere, so every other
+  // channel's aggregate is byte-identical to before. They are COUNTS (stg_google_ads converts
+  // Google's rate columns back to counts), which is what makes them safe to sum here at all.
+  let imp=0, clk=0, sp=0, leads=0, vimps=0, views=0, q50=0, q75=0, conv=0;
   for (const r of rows) if (passesAll(r)) {
     imp += r.imps || 0; clk += r.clk || 0; sp += r.spend || 0; leads += r.leads || 0;
+    vimps += r.vimps || 0; views += r.views || 0; q50 += r.q50 || 0; q75 += r.q75 || 0; conv += r.conv || 0;
   }
-  return {imp, clk, sp, leads};
+  return {imp, clk, sp, leads, vimps, views, q50, q75, conv};
 }
 function dailyByChannel() {
   const out = {};
@@ -3637,6 +3968,42 @@ function renderMarketTable() {
   });
 }
 
+function renderGaVideoNote() {
+  // The metric Transmission shipped on 2026-08-20, and the reason the CTR column above should
+  // never be read as this campaign's verdict. Source columns are RATES; stg_google_ads converts
+  // them to counts, so these sum correctly across days and markets and the rate is re-derived
+  // here from the totals rather than averaged (averaging a rate across days weights a 200-imp
+  // day the same as a 20,000-imp one).
+  const card = document.getElementById('gaVideoCard');
+  const body = document.getElementById('gaVideoBody');
+  if (!card || !body) return;
+  const chan = activeChans().find(c => c.key === 'GoogleAds');
+  const a = chan ? aggregateChannel(chan.rows()) : null;
+  if (!a || !a.views) { card.style.display = 'none'; return; }
+  // Views over VIDEO-CAPABLE impressions, not all impressions - see VIDEO_IMPS in
+  // sql/05_paid_media_model.sql. Falls back to total impressions only for a pre-2026-08-20
+  // payload that has no vimps, which is the old (understated) behaviour rather than a crash.
+  const vtr = (a.vimps || a.imp) ? a.views / (a.vimps || a.imp) : 0;
+  const cpv = a.views ? a.sp / a.views : 0;
+  // q50/q75 only exist for the pure VideoViews campaign - the PMax buy reports no quartiles -
+  // so the funnel half is rendered only when it is actually there.
+  const quart = a.q75
+    ? ` Of those impressions, ${fmtNum(Math.round(a.q50))} reached the 50% mark and `
+      + `${fmtNum(Math.round(a.q75))} reached 75%.`
+    : '';
+  // Deliberately NOT claiming completions: the source VIDEO_PLAYED_TO_100 column is 0.0 on every
+  // row and VIDEO_PLAYED_TO_25_ is entirely NULL, so neither is reported. Do not "fix" this by
+  // charting them - they are broken upstream, and a 0% completion rate reads as a failed campaign.
+  body.innerHTML = `<b>${fmtNum(Math.round(a.views))}</b> video views at a `
+    + `<b>${fmtPct2(vtr, 1)}</b> view rate and <b>${fmt$(cpv, 4)}</b> CPV.${quart} `
+    + `View rate is measured against the ${fmtNum(Math.round(a.vimps || a.imp))} impressions `
+    + `that ran on video placements, not the whole Google Ads book. `
+    + `View rate and CPV are the KPIs for a video buy - the CTR in the table above is low by `
+    + `nature on YouTube and is not a measure of this campaign. `
+    + `<span class="bench">Completion and 25% quartile are not reported: those two source `
+    + `columns arrive empty from the feed.</span>`;
+  card.style.display = '';
+}
 function renderBenchmarkTable() {
   // One row per LIVE channel. TTD has no lead pixel, so its Leads cell stays a note.
   // The right-hand Leads/CPL "vs plan" columns grade LinkedIn against the Q3 lead-gen commit
@@ -3648,7 +4015,13 @@ function renderBenchmarkTable() {
   const rows = activeChans().map(c => {
     const data = aggregateChannel(c.rows());
     return {key:c.key, ch:c.label, pill:c.pill, data, bm:PAYLOAD.benchmarks[c.key] || {ctr:0, cpm:0, cpc:0},
-            leads: c.key === 'TTD' ? '<span class="bench">no pixel</span>' : (data.leads || 0)};
+            // TTD has no lead pixel. Google Ads has no LEADS either - what it has is
+            // PLATFORM conversions (PMax lead-gen), which are a different thing from the
+            // LinkedIn lead-gen leads and Salesforce CS leads this column otherwise holds.
+            // Labelled rather than folded in, so the Total row cannot quietly gain them.
+            leads: c.key === 'TTD'       ? '<span class="bench">no pixel</span>'
+                 : c.key === 'GoogleAds' ? `${fmtNum(data.conv || 0)} <span class="bench">platform conv.</span>`
+                 : (data.leads || 0)};
   });
   let totSp=0, totImp=0, totClk=0, totLeads=0;
   const tbody = document.querySelector('#benchmarkTable tbody');
@@ -4185,7 +4558,8 @@ function renderPaidMediaAll() {
     ['KPIs', renderPaidKPIs], ['TTD imp/CTR', renderTtdImpCtr], ['Channel mix', renderChannelMix],
     ['Daily stack', renderDailyStack], ['Market bar', renderMarketBar], ['Efficiency trio', renderEffTrio],
     ['Market stack', renderMarketStack], ['Market table', renderMarketTable],
-    ['Benchmark table', renderBenchmarkTable], ['Budget pacing', renderPacing], ['Creative tables', renderCreativeTables],
+    ['Benchmark table', renderBenchmarkTable], ['Google Ads video', renderGaVideoNote],
+    ['Budget pacing', renderPacing], ['Creative tables', renderCreativeTables],
     ['Weekly target', renderWeeklyTarget], ['LinkedIn funnel', renderLiFunnel],
   ];
   let failed = 0;
@@ -4552,6 +4926,257 @@ async function bbHeadlessSlides(){
 if (new URLSearchParams(location.search).has('bbslides')){
   (function bbWait(){ if (typeof COMBINED!=='undefined' && COMBINED && COMBINED.last_updated) bbHeadlessSlides(); else setTimeout(bbWait,120); })();
 }
+
+
+// ===================== PREMIUM MOTION ENGINE (presentation only) =====================
+// Everything below is aesthetics. It reads the DOM the render functions produced and
+// re-times how it ARRIVES; it never computes, formats or alters a value. The two places
+// it touches rendered output both restore the exact original string/inline style:
+//   - bar reveal  : stashes the inline width, sets 0%, puts the SAME string back next frame
+//   - count-up    : animates a parsed copy, and the final frame writes back the ORIGINAL text
+// If either mechanism is disabled the dashboard is unchanged, which is the test to apply to
+// anything added here. Self-contained: one IIFE exposing window.bbMotion.
+(function(){
+  const REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---- 1. the aurora canvas (layer 3) --------------------------------------------------
+  // ~20 vertical light curtains swaying on layered sines, drawn as filled polygons and
+  // softened by the CSS blur on the canvas itself (cheaper and smoother than per-shape
+  // shadowBlur). Composited with 'lighter': light ADDS on a near-black base, which is what
+  // makes it read as aurora rather than as painted shapes - and is exactly why the alphas
+  // here are a third of what a light-theme version would use.
+  function auroraCurtains(){
+    const canvas = document.getElementById('bbAurora');
+    if (!canvas) return;
+    if (REDUCED) { canvas.remove(); return; }   // never schedule a frame we were asked not to draw
+    const ctx = canvas.getContext('2d');
+    let W = 0, H = 0, time = 0, strips = [];
+    // sine pseudo-noise: enough irregularity that no two strips trace the same path, with
+    // no library and no per-frame allocation
+    const noise = (x,y) => Math.sin(x*1.1+y*0.7)*0.5 + Math.sin(x*0.7-y*1.3)*0.3 + Math.sin(x*2.1+y*0.3)*0.2;
+    // brand family ONLY - orange, soft amber, gold, deep ember, with two Transmission-pink
+    // entries as hints. A cool hue anywhere in here reads as a bug on this warm base.
+    const PALETTE = [[243,128,32],[251,173,65],[247,199,126],[243,128,32],[224,104,32],
+                     [251,173,65],[194,87,26],[255,196,137],[230,11,127],[243,128,32],
+                     [251,173,65],[210,90,40],[230,11,127],[243,128,32]];
+    function pick(t){
+      const idx=t*(PALETTE.length-1), i=Math.floor(idx), f=idx-i;
+      const a=PALETTE[Math.min(i,PALETTE.length-1)], b=PALETTE[Math.min(i+1,PALETTE.length-1)];
+      return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f];
+    }
+    function build(){
+      strips = [];
+      const count = Math.max(11, Math.floor(W/95));   // strip count is the second dial after alpha
+      for (let i=0;i<count;i++){
+        strips.push({
+          baseX:(i/count)*W + (Math.random()-0.5)*(W/count)*0.7,
+          width:70+Math.random()*180,
+          speed:0.22+Math.random()*0.45,       // each sways at its own rate ...
+          phase:Math.random()*Math.PI*2,       // ... from its own start, so none of them sync
+          amplitude:34+Math.random()*70,
+          color:pick(i/count),
+          opacity:0.030+Math.random()*0.045,   // LOW: 'lighter' accumulates across overlaps
+          heightFactor:0.55+Math.random()*0.45,
+          topOffset:Math.random()*0.10
+        });
+      }
+    }
+    function drawStrip(c){
+      const segments=44, topY=H*c.topOffset, bottomY=H*c.heightFactor, pts=[];
+      for (let i=0;i<=segments;i++){
+        const t=i/segments, y=topY+t*(bottomY-topY);
+        const sway = Math.sin(t*3+time*c.speed+c.phase)*c.amplitude*0.6
+                   + Math.sin(t*5-time*c.speed*1.3+c.phase*2)*c.amplitude*0.3
+                   + noise(t*2+time*0.3,c.phase)*c.amplitude*0.4;
+        pts.push({x:c.baseX+sway, y:y});
+      }
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x-c.width/2, pts[0].y);
+      for (let i=1;i<pts.length;i++) ctx.lineTo(pts[i].x-c.width/2, pts[i].y);     // left edge, down
+      for (let i=pts.length-1;i>=0;i--) ctx.lineTo(pts[i].x+c.width/2, pts[i].y);  // right edge, back up
+      ctx.closePath();
+      const g=ctx.createLinearGradient(0,topY,0,bottomY), [r,gr,b]=c.color;
+      const op=c.opacity*(0.6+0.4*Math.sin(time*c.speed*2.5+c.phase));             // shimmer
+      g.addColorStop(0,   'rgba('+r+','+gr+','+b+','+(op*0.45)+')');
+      g.addColorStop(0.14,'rgba('+r+','+gr+','+b+','+(op*1.25)+')');
+      g.addColorStop(0.38,'rgba('+r+','+gr+','+b+','+(op*0.95)+')');
+      g.addColorStop(0.66,'rgba('+r+','+gr+','+b+','+(op*0.55)+')');
+      g.addColorStop(1,   'rgba('+r+','+gr+','+b+',0)');
+      ctx.fillStyle=g; ctx.fill();
+    }
+    // The frame step is the "how alive is it" dial. Slower than sophiie's 0.027 on purpose:
+    // this dashboard is read for minutes at a time and the light is behind DATA, not behind a
+    // preview. Below ~0.004 it reads as static; past ~0.02 it competes with the numbers.
+    function frame(){
+      time += 0.011;
+      ctx.clearRect(0,0,W,H);
+      ctx.globalCompositeOperation='lighter';
+      for (const s of strips) drawStrip(s);
+      requestAnimationFrame(frame);
+    }
+    function resize(){
+      W=canvas.width=window.innerWidth; H=canvas.height=window.innerHeight; build();
+    }
+    window.addEventListener('resize', resize);
+    resize(); frame();
+  }
+
+  // ---- 2. count-up on figures ----------------------------------------------------------
+  // STRICTLY conservative: only a leaf element whose whole text is one number with optional
+  // affixes ("$12,480", "1.8%", "-4.2pp") is animated, and the LAST frame writes the original
+  // string back verbatim - so whatever the render function produced is what ends up on screen,
+  // character for character. Anything it cannot parse is left completely alone.
+  const NUM_RE = /^([^0-9-]*)(-?[0-9][0-9,]*(?:\.[0-9]+)?)([^0-9]*)$/;
+  function countUp(el){
+    if (el.dataset.bbCount || el.children.length) return;
+    const raw = el.textContent;
+    if (!raw || raw.length > 26) return;
+    const m = raw.trim().match(NUM_RE);
+    if (!m) return;
+    const target = parseFloat(m[2].replace(/,/g,''));
+    if (!isFinite(target) || Math.abs(target) > 1e12) return;
+    el.dataset.bbCount = '1';
+    const dec = (m[2].split('.')[1] || '').length;
+    const grouped = m[2].indexOf(',') >= 0;
+    const fmt = v => {
+      let s = Math.abs(v).toFixed(dec);
+      if (grouped){ const p=s.split('.'); p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,','); s=p.join('.'); }
+      return m[1] + (v<0?'-':'') + s + m[3];
+    };
+    const dur = 780, t0 = performance.now();
+    (function step(now){
+      const p = Math.min(1, (now-t0)/dur);
+      const e = 1 - Math.pow(1-p, 4);                    // out-quart, matches the CSS easing
+      if (p < 1){ el.textContent = fmt(target*e); requestAnimationFrame(step); }
+      else { el.textContent = raw; }                     // exact original string, always
+    })(t0);
+  }
+  const COUNT_SEL = '.kpi .value,.cs-snap .stat .v,.qoq-stats .stat .v,.compare-kpi .v,' +
+                    '.gap-tile .val,.pace-risk .amt,.reg-num,.cmp-asset .ct';
+
+  // ---- 3. bars extend from zero --------------------------------------------------------
+  // The render functions set an inline width. We stash it, paint 0%, and restore the SAME
+  // string on the next frame so the CSS width transition does the travelling. The stash is
+  // the guarantee: no arithmetic happens here, so a bar can never land anywhere but where it
+  // was rendered.
+  const BAR_SEL = '.pbar .fill,.reg-bar .reg-fill,.pace-bar .pfill,.demo-row .bar>span,.cmp-asset .bar>span';
+  function growBars(root){
+    if (REDUCED) return;
+    root.querySelectorAll(BAR_SEL).forEach((el,i) => {
+      if (el.dataset.bbBar) return;
+      const w = el.style.width;
+      if (!w) return;                       // nothing inline to restore -> leave it alone
+      el.dataset.bbBar = '1';
+      el.style.transitionDelay = Math.min(i*40, 320) + 'ms';
+      el.style.width = '0%';
+      requestAnimationFrame(() => requestAnimationFrame(() => { el.style.width = w; }));
+    });
+  }
+
+  // ---- 4. Chart.js replays its entry animation when scrolled to ------------------------
+  // Charts are built when their tab renders, which for anything below the fold means the
+  // animation has finished before it was ever seen. reset()+update() replays it once, the
+  // first time that canvas is actually on screen.
+  function replayChart(canvas){
+    if (canvas.dataset.bbPlayed) return;
+    if (typeof Chart === 'undefined' || !Chart.getChart) return;
+    const c = Chart.getChart(canvas);
+    if (!c) return;                         // not built yet - a later scan will catch it
+    canvas.dataset.bbPlayed = '1';
+    if (REDUCED) return;
+    try { c.reset(); c.update(); } catch(_){}
+  }
+
+  // ---- 5. the observer that drives all of it -------------------------------------------
+  const REVEAL_SEL = '.card,.kpi,.cs-snap .group,.qoq-stats .stat,.compare-panel,.why,' +
+                     '.qoq-note,.alert,.info,.reason,.gap-tile,.pix,.panel-paid-scope .section,' +
+                     '.filter-row,.pace-row,.progress-row,.compare-header';
+  let io = null;
+  function onIntersect(entries){
+    entries.forEach(en => {
+      if (!en.isIntersecting) return;
+      const el = en.target;
+      el.classList.add('bb-in');
+      io.unobserve(el);
+      growBars(el);
+      el.querySelectorAll(COUNT_SEL).forEach(countUp);
+      el.querySelectorAll('canvas').forEach(replayChart);
+    });
+  }
+  function tag(el, i){
+    if (el.dataset.bbReveal) return;
+    el.dataset.bbReveal = '1';
+    // stagger within the parent row, capped so a long list never crawls in
+    el.style.transitionDelay = Math.min(i*45, 260) + 'ms';
+    if (!io){ el.classList.add('bb-in'); growBars(el); return; }
+    io.observe(el);
+  }
+  let queued = false;
+  function scan(){
+    queued = false;
+    const seen = new Map();
+    document.querySelectorAll(REVEAL_SEL).forEach(el => {
+      // index within the parent so siblings stagger, not the whole page
+      const k = el.parentNode;
+      const i = (seen.get(k) || 0); seen.set(k, i+1);
+      tag(el, i);
+    });
+    // Charts and figures that live OUTSIDE a tagged surface still get their moment.
+    document.querySelectorAll('canvas').forEach(cv => {
+      if (!cv.closest('[data-bb-reveal]') && isNearViewport(cv)) replayChart(cv);
+    });
+  }
+  function isNearViewport(el){
+    const r = el.getBoundingClientRect();
+    return r.bottom > -80 && r.top < (window.innerHeight + 80) && r.width > 0;
+  }
+  function schedule(){ if (!queued){ queued = true; requestAnimationFrame(scan); } }
+
+  // ---- 6. one scroll handler: sticky-bar state + the top progress rail -----------------
+  // ONE listener, rAF-coalesced, and it only writes a class and a transform - no layout reads
+  // beyond scrollY/scrollHeight, so it cannot make scrolling janky on the long tabs.
+  function scrollFx(){
+    let raf = false;
+    const bar  = () => document.querySelector('.control-bar');
+    const rail = document.getElementById('bbProgress');
+    const onScroll = () => {
+      if (raf) return; raf = true;
+      requestAnimationFrame(() => {
+        raf = false;
+        const y = window.scrollY || 0;
+        const b = bar();
+        if (b) b.classList.toggle('bb-stuck', y > 26);
+        if (rail){
+          const max = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+          rail.style.transform = 'scaleX(' + Math.min(1, y/max) + ')';
+        }
+      });
+    };
+    window.addEventListener('scroll', onScroll, {passive:true});
+    window.addEventListener('resize', onScroll, {passive:true});
+    onScroll();
+  }
+
+  function init(){
+    auroraCurtains();
+    scrollFx();
+    if ('IntersectionObserver' in window){
+      io = new IntersectionObserver(onIntersect, {rootMargin:'0px 0px -6% 0px', threshold:0.06});
+    }
+    scan();
+    // The dashboard re-renders whole sections on every filter change, so re-scan on DOM
+    // change rather than editing 40 render functions. childList-only + one rAF coalesce:
+    // the tables are large and this must never turn into per-row work.
+    if ('MutationObserver' in window){
+      new MutationObserver(schedule).observe(document.body, {childList:true, subtree:true});
+    }
+    // A tab switch flips display, which the observer sees; this covers the first paint.
+    window.addEventListener('load', schedule);
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+  window.bbMotion = { scan: schedule };
+})();
 
 boot();
 </script>
