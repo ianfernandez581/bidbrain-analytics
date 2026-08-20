@@ -54,9 +54,6 @@
 </script>
 <!-- /BB-MOTION-KIT:head -->
 
-
-
-
 <!-- PptxGenJS + the shared bb_deck.js builder - power the portal-driven "Download slides" export
      (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
@@ -213,9 +210,15 @@
   @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
 
   .tabpane{display:none}
-  .section{border-top:1px solid rgba(255,255,255,.12);padding-top:18px;margin-top:24px;position:relative;padding-left:15px}
-  .section::before{content:"";position:absolute;left:0;top:20px;width:4px;height:19px;border-radius:3px;
-    background:linear-gradient(180deg,#5FE39B,#00A83A);box-shadow:0 0 12px rgba(0,168,58,.55)}
+  /* Section marker: an accent UNDERLINE beneath the heading block, not a bar down its left side.
+     The left rail is the single most recognisable "generated dashboard" tell, and it also forced
+     a 15px left indent on every section. As an ::after the rule closes the heading and leads the
+     eye into the cards, and the section reclaims its full width. */
+  .section{border-top:1px solid rgba(255,255,255,.12);padding-top:18px;margin-top:24px;position:relative;
+    padding-bottom:11px}
+  .section::after{content:"";position:absolute;left:0;bottom:0;width:44px;height:3px;border-radius:2px;
+    background:linear-gradient(90deg,#5FE39B,#00A83A)}
+
   .section.first{border-top:none;padding-top:0;margin-top:4px}
   .section.first::before{top:2px}
   .section h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.2px;color:var(--on-canvas);text-shadow:0 1px 3px rgba(0,0,0,.35)}
@@ -329,9 +332,6 @@
   footer b{color:var(--on-canvas)}
 
   @media (max-width:1100px){.grid-3,.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
-
-
-
 
 /* BB-MOTION-KIT:css v1 */
 
@@ -612,11 +612,6 @@
       </div>
       <div class="kpihint">Tap Spend, Impressions or Clicks to show or hide it on the chart below. CTR is a read-only efficiency figure.</div>
 
-      <div class="section"><h2 style="font-size:15px">Campaign comparison</h2><span class="sub">The three Secure Power briefs side by side across the selected markets &amp; date range. <b>No media plan has been supplied for any of them</b>, so these are delivered figures - there is no target to pace against.</span></div>
-      <div class="card" style="margin-top:14px"><div style="overflow:auto">
-        <table id="pmCampTable"><thead><tr><th>Campaign</th><th>Brief</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
-      </div></div>
-
       <div class="section"><h2 style="font-size:15px">Delivery over time</h2><span class="sub">How <b>spend, impressions and clicks</b> track over time. <b>Relative</b> lines up the trends; <b>Absolute</b> shows true values. CTR is dashed.</span></div>
       <div class="chartctrls">
         <span class="seg seg-sm" id="pmGrainSeg"><span class="cap">VIEW BY</span>
@@ -628,6 +623,11 @@
           <button type="button" class="seg-btn" data-scale="abs" onclick="setPmScale('abs')">Absolute</button></span>
       </div>
       <div class="card card-hero"><div class="chart-wrap"><canvas id="pmDaily"></canvas></div></div>
+
+      <div class="section"><h2 style="font-size:15px">Campaign comparison</h2><span class="sub">The three Secure Power briefs side by side across the selected markets &amp; date range. <b>No media plan has been supplied for any of them</b>, so these are delivered figures - there is no target to pace against.</span></div>
+      <div class="card" style="margin-top:14px"><div style="overflow:auto">
+        <table id="pmCampTable"><thead><tr><th>Campaign</th><th>Brief</th><th class="num">Spend</th><th class="num">Imps</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th></tr></thead><tbody></tbody></table>
+      </div></div>
 
       <div class="section"><h2 style="font-size:15px">Channel comparison</h2><span class="sub">LinkedIn vs The Trade Desk - efficiency side by side (CTR / CPM / CPC in AUD).</span></div>
       <div class="card" style="margin-top:14px"><div style="overflow:auto">
@@ -1946,9 +1946,6 @@ if (new URLSearchParams(location.search).has('bbslides')){
 
 boot();
 </script>
-
-
-
 
 <!-- BB-MOTION-KIT:js v1 -->
 <script>

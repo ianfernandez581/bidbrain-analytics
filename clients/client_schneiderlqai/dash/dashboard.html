@@ -54,9 +54,6 @@
 </script>
 <!-- /BB-MOTION-KIT:head -->
 
-
-
-
 <!-- PptxGenJS + the shared bb_deck.js builder - power the portal-driven "Download slides" export
      (headless via ?bbslides=1; the deck is built by bb_deck.js and downloaded from the agency portal). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
@@ -202,9 +199,15 @@
   @media(max-width:560px){.dp-pop{flex-direction:column}.dp-presets{flex-direction:row;flex-wrap:wrap;min-width:0;border-right:none;border-bottom:1px solid var(--dp-line)}}
 
   .tabpane{display:none}
-  .section{border-top:1px solid rgba(255,255,255,.12);padding-top:18px;margin-top:24px;position:relative;padding-left:15px}
-  .section::before{content:"";position:absolute;left:0;top:20px;width:4px;height:19px;border-radius:3px;
-    background:linear-gradient(180deg,#5FE39B,#00A83A);box-shadow:0 0 12px rgba(0,168,58,.55)}
+  /* Section marker: an accent UNDERLINE beneath the heading block, not a bar down its left side.
+     The left rail is the single most recognisable "generated dashboard" tell, and it also forced
+     a 15px left indent on every section. As an ::after the rule closes the heading and leads the
+     eye into the cards, and the section reclaims its full width. */
+  .section{border-top:1px solid rgba(255,255,255,.12);padding-top:18px;margin-top:24px;position:relative;
+    padding-bottom:11px}
+  .section::after{content:"";position:absolute;left:0;bottom:0;width:44px;height:3px;border-radius:2px;
+    background:linear-gradient(90deg,#5FE39B,#00A83A)}
+
   .section.first{border-top:none;padding-top:0;margin-top:4px}
   .section.first::before{top:2px}
   .section h2{margin:0;font-size:18px;font-weight:800;letter-spacing:-.2px;color:var(--on-canvas);text-shadow:0 1px 3px rgba(0,0,0,.35)}
@@ -289,9 +292,6 @@
   footer b{color:var(--on-canvas)}
 
   @media (max-width:1100px){.grid-3,.grid{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}}
-
-
-
 
 /* BB-MOTION-KIT:css v1 */
 
@@ -1310,9 +1310,6 @@ if (new URLSearchParams(location.search).has('bbslides')){
 
 boot();
 </script>
-
-
-
 
 <!-- BB-MOTION-KIT:js v1 -->
 <script>
