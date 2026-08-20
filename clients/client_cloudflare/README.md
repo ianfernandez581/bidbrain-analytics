@@ -177,6 +177,14 @@ click removes a channel from the KPIs, charts, tables, creatives and footer at o
 
 ## The motion layer (2026-08-20) - aesthetics only, and how to tune it
 
+> **This dashboard is NOT on the shared BB MOTION KIT, on purpose.** The kit
+> (`scripts/motion_kit/`, applied to every other dashboard on 2026-08-20) is the portable, subtler
+> subset of what is described below - one interaction vocabulary, a CSS-only wash, the same reveal
+> engine, no canvas. This layer is richer and signed off as-is, so `apply_motion_kit.py` skips
+> `cloudflare` and there is no marker block here. **Do not "unify" the two**: a kit run would
+> replace the retuned aurora, the sweep bands, the KPI sheen and the travelling masthead rail with
+> three drifting orbs. Fixes that belong to BOTH have to be made twice, deliberately.
+
 Everything in this section is presentation. It changes how the dashboard ARRIVES, never what it
 says: the whole layer can be deleted and every number, chart, filter and CSV is identical. Two
 mechanisms touch rendered output and both restore it exactly - the bar reveal stashes the inline

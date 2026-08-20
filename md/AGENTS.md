@@ -227,6 +227,53 @@ Each client's UI is ONE big file: `clients/client_<c>/dash/dashboard.html` (~1,3
   have hidden. The old "no numeric separators (`1_000_000`)" rule is retired with it. esprima stays
   as a fallback when Node is absent, and says so in its output.
 
+## The motion kit - the shared look-and-feel layer (2026-08-20, repo-wide)
+Every dashboard except `cloudflare` and `sophiie` carries the **BB MOTION KIT**: one body of CSS +
+JS giving the whole estate the same hover/press/keyboard-focus vocabulary, a slow brand-tinted
+ambient wash, and a scroll-reveal (surfaces fade up, CSS bars extend from zero, KPI figures count
+up, Chart.js replays its entry animation when scrolled to). Its login twin, the **BB LOGIN KIT**,
+does the same for every client's `LOGIN_HTML` plus the platform front door and the Extrablack tenant
+portal - and adds three real behaviours a password gate should always have had: show/hide, a Caps
+Lock warning, and submit-once. **Both are presentation only: no sql, job, payload or export path is
+touched, and the rendered TEXT of every dashboard is byte-identical with and without them.**
+- **Canonical source is `scripts/motion_kit/`; it is INJECTED, not hand-written.** Apply or re-apply
+  with `scripts\apply_motion_kit.py` / `apply_login_kit.py` (`--check`, `--revert`, or one client
+  key). Each insertion sits between markers and is replaced in place, so re-running is safe.
+  **Editing the block inside a dashboard is wasted work - the next run overwrites it.** Anything
+  genuinely client-specific belongs in that client's own stylesheet, above the kit block.
+- **The only per-client input is the palette** (`CLIENTS` in each script): the accent, the three
+  wash hues, and whether the CANVAS and the SURFACES are dark or light. Those two differ on the
+  Schneider dashboards - white cards on a dark green canvas - which is why they are separate knobs.
+- **Geometry uses `translate` / `scale`, never the `transform` shorthand.** Several dashboards
+  already set a transform on a chip, a close button or a caret, and the shorthand REPLACES it. This
+  bit for real: four logins carry `button:hover{transform:translateY(-1px)}` on the bare element
+  selector, which outranks a class rule and would have dropped the `translateY(-50%)` centring the
+  password toggle relies on - the control jumped half its height down the field on hover.
+- **Two effects sharing one property must compose through variables, and those variables must NOT
+  inherit.** The reveal offset and the hover lift both want `translate`, and the reveal rule is
+  necessarily more specific (it is scoped to `html.bb-motion`), so written as two rules the hover
+  lift simply lost and never fired. They are now `translate:0 calc(var(--bb-rev) + var(--bb-hov))`
+  with `@property ... inherits:false` on both - without that, hovering a card dragged every nested
+  tile up with it and the inner surface visibly detached.
+- **The reveal can never hide data.** Its opacity-0 state is scoped to `html.bb-motion`, a class the
+  head bootstrap adds and REMOVES again if the engine never reports in within 3.5s or if the page
+  throws at all - plus the in-engine watchdog that force-reveals anything left hidden inside the
+  viewport. Losing the animation is always cheaper than losing a number.
+- **`@media print` un-hides everything, and that is NOT optional.** Printing uses the styles
+  computed at that moment and does not re-run the observer, so without it every card the reader had
+  not scrolled to prints as a blank box. Measured on mongodb: 40 dimmed surfaces on screen, 0 in
+  print. Anything that hides content until an event fires needs the same escape hatch.
+- **`cloudflare` keeps its own richer, client-approved layer** (see its README -> "The motion
+  layer"); the kit is the portable subset of it. `sophiie`'s aurora IS its design. Do not unify
+  either onto the kit.
+- Nothing injected may contain `</body>`, `</head>`, `</style>`, `<body`, `/data.json`, `'/report'`
+  or `/creative-img/` - the platform proxy string-replaces those across the whole page, so a stray
+  one even inside a comment moves where it injects its own widgets. The login kit additionally
+  bans `{{` / `{%` / `{#`, because `LOGIN_HTML` is rendered through Jinja. Both are asserted, not
+  assumed (`FORBIDDEN` in each script).
+- Deploying is unchanged: the kit only touches `dash/dashboard.html` and `dash/main.py`, so
+  `dash/deploy_dash_<c>.ps1` (or `/ship`) covers it. No job, view or JSON changes.
+
 ## Animated backgrounds / motion: the cost is LAYERS, not drawing (2026-08-20, repo-wide)
 Two dashboards now carry an animated aurora - `client_sophiie` (light) and `client_cloudflare`
 (dark, plus the full hover/scroll-reveal package). Measured on a software-rendered browser (what a

@@ -5,6 +5,58 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gateway Braddon · Live Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.0/dist/chart.umd.js"></script>
+<!-- BB-MOTION-KIT:head v1 -->
+<script>
+/* BB MOTION KIT v1 - bootstrap. Presentation only; canonical source scripts/motion_kit/.
+   Runs before anything else on the page and does exactly two things.
+
+   1. Marks <html> so the scroll-reveal CSS (which starts surfaces at opacity 0) can only ever
+      apply on a page where JS is alive - and REMOVES that mark again if the engine at the end of
+      the body never reports in, or if the page throws at all. Hiding content until an observer
+      says so means a missed callback hides DATA, so the failsafes here are the whole reason the
+      reveal is safe to ship on 17 dashboards at once: losing the animation is always cheaper
+      than losing a number.
+   2. One motion vocabulary for Chart.js, set BEFORE any chart is built. Deliberately only the
+      timing and geometry keys - every colour, font and per-chart option the dashboard sets later
+      still wins, because this runs first. */
+(function(){
+  var d = document.documentElement;
+  function drop(){ d.className = (' ' + d.className + ' ').replace(' bb-motion ', ' ').trim(); }
+  try{
+    if (!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      d.className = (d.className ? d.className + ' ' : '') + 'bb-motion';
+    }
+  }catch(e){}
+  /* failsafe 1: the engine never ran - a page error above it, a blocked script, an old cached
+     shell. Un-hide everything unconditionally. */
+  setTimeout(function(){ if (!window.bbMotion) drop(); }, 3500);
+  /* failsafe 2: ANY uncaught error on the page stops us hiding content, immediately. */
+  window.addEventListener('error', drop);
+  try{
+    if (window.Chart && Chart.defaults){
+      var C = Chart.defaults;
+      C.animation.duration = 760;                    /* matches the CSS reveal, so a card and the
+                                                        chart inside it settle together */
+      C.animation.easing = 'easeOutQuart';
+      C.transitions.active.animation.duration = 170; /* hover / legend toggle stays immediate */
+      C.hover.animationDuration = 170;
+      C.elements.point.hoverRadius = 6;              /* a point that grows under the cursor ... */
+      C.elements.point.hitRadius = 8;                /* ... and is easier to actually hit */
+      C.plugins.tooltip.cornerRadius = 9;
+      C.plugins.tooltip.padding = 10;
+      C.plugins.tooltip.caretPadding = 6;
+      /* Line TENSION is deliberately left alone: curving between points implies values that were
+         never measured, and these are reporting dashboards. Bar borderRadius too - it rounds
+         every segment of a stacked bar, which reads as a gap that is not in the data. */
+    }
+  }catch(e){}
+})();
+</script>
+<!-- /BB-MOTION-KIT:head -->
+
+
+
+
 <!-- PptxGenJS + shared bb_deck.js power the portal-driven "Download slides" export (headless via ?bbslides=1). -->
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@4.0.1/dist/pptxgen.bundle.js"></script>
 <script src="bb_deck.js"></script>
@@ -289,9 +341,207 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   .error-box{background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid color-mix(in srgb,var(--bad) 38%,transparent);color:#F3B7A6;border-radius:12px;padding:18px;margin:30px auto;max-width:560px;text-align:center;font-size:13px}
   footer{color:var(--muted2);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--hair)} footer b{color:var(--muted)}
+
+
+
+
+/* BB-MOTION-KIT:css v1 */
+
+  /* ==========================================================================
+     BB MOTION KIT v1 - PURE PRESENTATION, NO DATA PATH.
+     Canonical source: scripts/motion_kit/ (re-apply with scripts/apply_motion_kit.py).
+     Do NOT hand-edit this block in a dashboard - edit the template and re-run, or the
+     next run overwrites you.
+
+     Four things live here and nothing else:
+       1. the ambient wash  - slow brand-tinted light drifting behind the page
+       2. one interaction vocabulary - hover / press / keyboard-focus for everything clickable
+       3. surfaces - cards lift and pick up the brand glow under the cursor
+       4. the scroll-reveal system - surfaces fade up, CSS bars extend from zero, KPI figures
+          count up, charts replay their entry animation (driven by the engine at the end of the page)
+
+     It is deliberately the LAST block in the stylesheet so it wins the cascade over the rules
+     it re-times. Every animation is switched off wholesale under prefers-reduced-motion at the
+     bottom, and the reveal state is scoped to `html.bb-motion` - a class the head bootstrap adds
+     and REMOVES again if the engine never boots, so a JS failure can never leave data invisible.
+
+     GEOMETRY USES `translate` / `scale`, NEVER the `transform` shorthand. Several dashboards
+     already set a transform on a chip, a close button or a caret, and the shorthand would
+     replace it and make the element jump. The individual properties compose with an existing
+     transform instead, which is what makes this block safe to drop on any theme unseen.
+     ========================================================================== */
+  /* The reveal offset and the hover lift are composed inside ONE `translate` (see part 3), which
+     means both have to be NON-INHERITING or a hovered card drags every nested surface up with it -
+     the cursor sits on the card's own padding and the inner tile visibly detaches. `@property`
+     with inherits:false is exactly the tool for that; where it is unsupported the properties
+     inherit again and the only consequence is that cosmetic drift, never a broken layout. */
+  @property --bb-rev{syntax:"<length>";inherits:false;initial-value:0px}
+  @property --bb-hov{syntax:"<length>";inherits:false;initial-value:0px}
+  :root{
+    /* one easing vocabulary - premium motion is mostly ONE curve used everywhere */
+    --bb-ease:cubic-bezier(.22,1,.36,1);          /* out-quint: fast out, long settle */
+    --bb-ease-soft:cubic-bezier(.4,0,.2,1);
+    --bb-accent:rgb(237,237,235);
+    --bb-glow:rgba(237,237,235,0.28);
+    --bb-lift:0 18px 40px -22px rgba(0,0,0,.82),0 0 28px -16px var(--bb-glow);
+  }
+  html{scroll-behavior:smooth}
+
+  /* ---------- 1. THE AMBIENT WASH ----------
+     Three big soft brand-coloured orbs drifting on their own slow cycles. CSS only: no canvas,
+     no requestAnimationFrame, transform-only keyframes, and NO filter:blur() - a radial gradient
+     that fades to transparent is already soft, and a full-viewport blur is re-applied every frame
+     the layer paints (measured at -58fps on a machine without GPU acceleration).
+     It sits at z-index:-1 so not one line of the page's own stacking has to be touched. That
+     needs `html` to stop painting: with html transparent the BODY background propagates to the
+     canvas (CSS backgrounds spec) and is painted first, leaving this layer between the page
+     colour and the content. Every dashboard in the estate carries its background on body. */
+  html{background:transparent}
+  .bb-fx{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .bb-fx span{position:absolute;display:block;border-radius:50%;will-change:transform}
+  .bb-fx .o1{width:58vw;height:50vh;top:-12%;left:-8%;animation:bbOrb1 26s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(237,237,235,0.17) 0%,transparent 68%)}
+  .bb-fx .o2{width:50vw;height:44vh;top:4%;right:-10%;animation:bbOrb2 31s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(255,255,255,0.12) 0%,transparent 68%)}
+  .bb-fx .o3{width:54vw;height:50vh;bottom:-16%;left:12%;animation:bbOrb3 35s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(140,156,145,0.1) 0%,transparent 66%)}
+  @keyframes bbOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(76px,58px) scale(1.09)}}
+  @keyframes bbOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-70px,52px) scale(1.08)}}
+  @keyframes bbOrb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(62px,-72px) scale(1.07)}}
+
+  /* ---------- 2. ONE INTERACTION VOCABULARY ----------
+     Everything clickable: a 1px rise on hover, a real press on :active (nothing feels cheaper
+     than a button that does not depress), and a visible ring for keyboards. The blanket
+     `button`/`select` entries carry the TRANSITION only - never geometry - because a button can
+     be anything, including something already positioned with a transform. */
+  .tab,.chip,.chips button,.seg button,.pill,.btn,.tag,.qtr-chip,.dp-btn,.dp-nav,.dp-day,
+  .dp-presets a,.dp-actions button,.dp-apply,.dp-cancel,.export-btn,.chip-action,.campaign-btn,
+  .cl-item,.cl-group-toggle,.drillback,.cdrop,.basis-toggle,.dash-select,.compare-select,
+  button,select,summary{
+    transition:background-color .2s var(--bb-ease-soft),color .2s var(--bb-ease-soft),
+               border-color .2s var(--bb-ease-soft),box-shadow .26s var(--bb-ease),
+               opacity .2s var(--bb-ease-soft),filter .2s var(--bb-ease-soft),
+               translate .16s var(--bb-ease),scale .12s var(--bb-ease)}
+  .tab:hover,.chip:hover,.chips button:hover,.pill:hover,.btn:hover,.tag:hover,.qtr-chip:hover,
+  .seg button:not(.on):hover,.dp-btn:hover,.export-btn:hover,.campaign-btn:hover,
+  .chip-action:hover,.drillback:hover,.cdrop:hover,.basis-toggle:hover,.dash-select:hover,
+  .dp-nav:hover:not(:disabled){translate:0 -1px}
+  .tab:active,.chip:active,.chips button:active,.pill:active,.btn:active,.tag:active,
+  .qtr-chip:active,.seg button:active,.dp-btn:active,.dp-day:active,.dp-presets a:active,
+  .dp-actions button:active,.export-btn:active,.campaign-btn:active,.chip-action:active,
+  .drillback:active,.cdrop:active,.basis-toggle:active{translate:0 0;scale:.97}
+  .btn:hover,.dp-apply:hover,.export-btn:hover,.chip.on:hover,.seg button.on:hover{
+    box-shadow:0 8px 20px -12px var(--bb-glow);filter:brightness(1.05)}
+  .chip:not(.on):hover,.tag:hover{box-shadow:0 6px 16px -12px var(--bb-glow)}
+  .dp-presets a{transition:background-color .18s var(--bb-ease-soft),color .18s,padding-left .18s var(--bb-ease)}
+  .dp-presets a:hover{padding-left:15px}
+  /* disabled things must not pretend to be pressable */
+  [disabled]:hover,[aria-disabled="true"]:hover,.disabled:hover{translate:none;filter:none;box-shadow:none}
+  /* keyboard focus is a first-class state, not an afterthought. No border-radius here on
+     purpose - `outline` already follows the element's own corners. */
+  a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,
+  summary:focus-visible,[tabindex]:focus-visible,.tab:focus-visible,.chip:focus-visible,
+  .pill:focus-visible,.dp-day:focus-visible,.dp-presets a:focus-visible{
+    outline:2px solid var(--bb-accent);outline-offset:2px}
+
+  /* ---------- 3. SURFACES ----------
+     The reveal offset and the hover lift are composed through TWO VARIABLES inside one `translate`,
+     never by two rules fighting over the same declaration. They would always be an unfair fight:
+     the reveal rule has to be scoped to `html.bb-motion` (see part 4), which outranks a plain
+     `.card:hover`, so a hover lift written as `translate:0 -2px` silently lost to
+     `translate:none` on every revealed card and the lift simply never happened. */
+  .card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,.tablewrap{
+    translate:0 calc(var(--bb-rev,0px) + var(--bb-hov,0px));
+    transition:translate .32s var(--bb-ease),box-shadow .32s var(--bb-ease),
+               border-color .32s var(--bb-ease-soft)}
+  .card:hover,.kpi:hover,.panel-box:hover,.stat-card:hover,.ccard:hover,.icon-tile:hover{
+    --bb-hov:-2px;box-shadow:var(--bb-lift);
+    border-color:color-mix(in srgb,var(--bb-accent) 30%,rgba(255,255,255,.12))}
+  /* Figures that count up are tabular, or the digits change width mid-animation and the whole
+     row twitches. Applies to the resting state too, so columns of numbers line up. */
+  .kpi .value,.stat .v,.stat-card .v,.stat-card .sv,.stat .cnt{font-variant-numeric:tabular-nums}
+
+  /* Tables: the hovered row tints and its label cell picks up an accent edge. The tint is on the
+     ROW, never on the cells - a cell that paints its own background (a heat table, a coloured
+     delta) has to keep it. */
+  tbody tr{transition:background-color .16s var(--bb-ease-soft)}
+  tbody tr:hover{background:rgba(255,255,255,.035)}
+  tbody tr:hover td:first-child{box-shadow:inset 3px 0 0 var(--bb-accent)}
+
+  /* The masthead sinks a shadow in once the page has scrolled under it (class from the engine). */
+  .topbar{transition:box-shadow .3s var(--bb-ease)}
+  body.bb-scrolled .topbar{box-shadow:0 20px 44px -32px rgba(0,0,0,.85),0 0 26px -18px var(--bb-glow)}
+
+  /* ---------- 4. SCROLL REVEAL ----------
+     The engine tags surfaces with [data-bb-reveal] and adds .bb-in on first intersection. The
+     hidden half is scoped to html.bb-motion: drop that class and every surface is visible again,
+     which is exactly what the head bootstrap does if the engine never reports in. */
+  html.bb-motion [data-bb-reveal]{--bb-rev:14px;opacity:0;
+    translate:0 calc(var(--bb-rev,0px) + var(--bb-hov,0px));
+    transition:opacity .55s var(--bb-ease),translate .42s var(--bb-ease),
+               box-shadow .32s var(--bb-ease),border-color .32s var(--bb-ease-soft)}
+  html.bb-motion [data-bb-reveal].bb-in{--bb-rev:0px;opacity:1}
+  /* Bars extend to their width instead of appearing at it. The engine stashes the inline width,
+     paints 0%, and restores the SAME string one frame later - no arithmetic, so a bar can never
+     land anywhere but where the render function put it. */
+  .bb-bar{transition:width .95s var(--bb-ease)}
+
+  /* Scroll rail: a 2px brand line across the very top that fills as you read. Long dashboards
+     hide how much is left; this is the cheapest possible answer and it never covers content. */
+  #bbProgress{position:fixed;top:0;left:0;height:2px;width:100%;z-index:80;transform-origin:0 50%;
+    transform:scaleX(0);pointer-events:none;background:linear-gradient(90deg,var(--bb-accent),rgba(255,255,255,0.95) 55%,var(--bb-accent))}
+
+  /* Thin themed scrollbars - the default chrome ones are the last un-themed surface. */
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-track{background:rgba(255,255,255,.04)}
+  *::-webkit-scrollbar-thumb{background:rgba(237,237,235,0.4);border-radius:8px;
+    border:2px solid transparent;background-clip:padding-box}
+  *::-webkit-scrollbar-thumb:hover{background:rgba(237,237,235,0.7);background-clip:padding-box}
+
+  /* ---------- PRINT: nothing may be invisible on paper ----------
+     Printing uses the styles computed RIGHT NOW - it does not re-run the observer - so without
+     this a card that had not been scrolled to would print as a blank box. These dashboards do get
+     printed and PDF'd, which makes this the one place the reveal could destroy a deliverable.
+     The wash and the rail come off the page too: ink on white, not a brand glow. */
+  @media print{
+    .bb-fx,#bbProgress{display:none !important}
+    [data-bb-reveal],[data-bb-reveal].bb-in{--bb-rev:0px !important;--bb-hov:0px !important;
+      opacity:1 !important;transition:none !important}
+    .bb-bar,.card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,.tablewrap{
+      transition:none !important}
+  }
+
+  /* ---------- Reduced motion: stop ALL of it ----------
+     The head bootstrap never adds `bb-motion` here, so nothing is hidden in the first place;
+     these rules kill the drifting light and the hover geometry as well. */
+  @media (prefers-reduced-motion: reduce){
+    .bb-fx span{animation:none !important}
+    /* zero the two offset variables rather than the `translate` property: that keeps any
+       transform a client rule already put on the element, and un-hides every surface */
+    :root,[data-bb-reveal],[data-bb-reveal].bb-in,.card:hover,.kpi:hover,.panel-box:hover,
+    .stat-card:hover,.ccard:hover,.icon-tile:hover{--bb-rev:0px !important;--bb-hov:0px !important}
+    [data-bb-reveal]{opacity:1 !important;transition:none !important}
+    .bb-bar{transition:none !important}
+    .card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,.tablewrap,
+    .tab,.chip,.pill,.btn,.seg button,.dp-btn,button,select{transition:none !important}
+    .tab:hover,.chip:hover,.pill:hover,.btn:hover,.dp-btn:hover,.export-btn:hover,
+    .campaign-btn:hover,.chip-action:hover,.drillback:hover,.cdrop:hover,.basis-toggle:hover,
+    .dash-select:hover,.tag:hover,.qtr-chip:hover,.chips button:hover,
+    .seg button:not(.on):hover,.dp-nav:hover:not(:disabled){translate:none !important}
+    .tab:active,.chip:active,.pill:active,.btn:active,.seg button:active,.dp-btn:active,
+    .dp-day:active,.export-btn:active,.campaign-btn:active{scale:none !important}
+  }
+  /* BB MOTION KIT v1 ends */
+/* /BB-MOTION-KIT:css */
 </style>
 </head>
-<body>
+<body><!-- BB-MOTION-KIT:dom v1 -->
+<!-- BB MOTION KIT v1 - the ambient wash + the scroll rail. Presentation only: both layers are
+     position:fixed / pointer-events:none / z-index -1 and 80, so they touch no layout and
+     nothing here can reflow the dashboard. Canonical source scripts/motion_kit/. -->
+<div class="bb-fx" aria-hidden="true"><span class="o1"></span><span class="o2"></span><span class="o3"></span></div>
+<div id="bbProgress" aria-hidden="true"></div>
+<!-- /BB-MOTION-KIT:dom -->
 
 <div class="topbar"><div class="inner">
   <div class="topbar-left">
@@ -1274,5 +1524,226 @@ if(new URLSearchParams(location.search).has('bbslides')){(function bbWait(){if(t
 bindControls();
 load();
 </script>
+
+
+
+
+<!-- BB-MOTION-KIT:js v1 -->
+<script>
+/* ===================== BB MOTION KIT v1 - engine (presentation only) =====================
+   Canonical source: scripts/motion_kit/ (re-apply with scripts/apply_motion_kit.py).
+   Everything below is aesthetics. It reads the DOM the render functions produced and re-times how
+   it ARRIVES; it never computes, formats or alters a value. The two places it touches rendered
+   output both restore the exact original string / inline style:
+     - bar reveal : stashes the inline width, sets 0%, puts the SAME string back next frame
+     - count-up   : animates a parsed copy, and the final frame writes the ORIGINAL text back
+   If either mechanism is switched off the dashboard is unchanged, which is the test to apply to
+   anything added here. Self-contained: one IIFE, one global (window.bbMotion).                */
+(function(){
+  var doc = document, root = doc.documentElement;
+  /* Claim the flag FIRST. The head bootstrap gives the page 3.5s to reach this line and un-hides
+     every surface if it never does, so this assignment is what proves the engine is alive. */
+  var api = {};
+  window.bbMotion = api;
+
+  var REDUCED = false;
+  try { REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+
+  /* ---- 1. count-up on figures ----------------------------------------------------------
+     STRICTLY conservative: only a leaf element whose WHOLE text is one number with optional
+     affixes ("$12,480", "1.8%", "-4.2pp") is animated, and the last frame writes the original
+     string back verbatim - so whatever the render function produced is what ends up on screen,
+     character for character. Anything it cannot parse is left completely alone. */
+  var NUM_RE = /^([^0-9-]*)(-?[0-9][0-9,]*(?:\.[0-9]+)?)([^0-9]*)$/;
+  function countUp(el){
+    if (REDUCED || el.dataset.bbCount || el.children.length) return;
+    var raw = el.textContent;
+    if (!raw || raw.length > 26) return;
+    var m = raw.trim().match(NUM_RE);
+    if (!m) return;
+    var target = parseFloat(m[2].replace(/,/g, ''));
+    if (!isFinite(target) || Math.abs(target) > 1e12) return;
+    el.dataset.bbCount = '1';
+    var dec = (m[2].split('.')[1] || '').length;
+    var grouped = m[2].indexOf(',') >= 0;
+    function fmt(v){
+      var s = Math.abs(v).toFixed(dec);
+      if (grouped){ var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); s = p.join('.'); }
+      return m[1] + (v < 0 ? '-' : '') + s + m[3];
+    }
+    var dur = 700, t0 = performance.now();
+    (function step(now){
+      var p = Math.min(1, (now - t0) / dur);
+      var e = 1 - Math.pow(1 - p, 4);                 /* out-quart, matches the CSS easing */
+      if (p < 1){ el.textContent = fmt(target * e); requestAnimationFrame(step); }
+      else { el.textContent = raw; }                  /* the exact original string, always */
+    })(t0);
+  }
+  var COUNT_SEL = '.kpi .value,.stat .v,.stat-card .v,.stat-card .sv,.stat .cnt';
+
+  /* ---- 2. bars extend from zero -------------------------------------------------------
+     No per-client selector list: a bar is recognised STRUCTURALLY - an inline percentage width,
+     on a span/div, whose own class says "fill" or whose parent is a bar/track/meter/gauge. The
+     page chrome (topbar, control-bar, toolbar) is excluded by name because those also contain
+     "bar". Worst case for a false positive is a 1s animation to the identical value. */
+  function isBar(el){
+    var t = el.tagName;
+    if (t !== 'SPAN' && t !== 'DIV' && t !== 'I' && t !== 'B') return false;
+    var w = el.style && el.style.width;
+    if (!w || w.indexOf('%') < 0) return false;
+    var cls = '' + (el.className || '');
+    var p = el.parentNode;
+    var pc = '' + ((p && p.className) || '');
+    if (/topbar|toolbar|navbar|control-bar|sidebar|tabbar/i.test(pc)) return false;
+    return /fill/i.test(cls) || /bar|track|meter|gauge/i.test(pc);
+  }
+  function growBars(scope, pending){
+    if (REDUCED) return;
+    var n = 0;
+    var all = scope.querySelectorAll('span[style*="width"],div[style*="width"],i[style*="width"],b[style*="width"]');
+    for (var i = 0; i < all.length; i++){
+      var el = all[i];
+      if (el.dataset.bbBar || !isBar(el)) continue;
+      /* a document-wide sweep must not touch a bar whose surface has not been revealed yet -
+         that one belongs to reveal(), so it grows when the card is actually seen */
+      if (pending && el.closest('[data-bb-reveal]:not(.bb-in)')) continue;
+      var w = el.style.width;
+      el.dataset.bbBar = '1';
+      el.classList.add('bb-bar');
+      el.style.transitionDelay = Math.min(n * 35, 260) + 'ms';
+      el.style.width = '0%';
+      n++;
+      (function(node, width){
+        requestAnimationFrame(function(){ requestAnimationFrame(function(){ node.style.width = width; }); });
+      })(el, w);
+    }
+  }
+
+  /* ---- 3. Chart.js replays its entry animation when scrolled to -----------------------
+     Charts are built when their tab renders, which for anything below the fold means the
+     animation finished before it was ever seen. reset()+update() replays it once, the first time
+     that canvas is actually on screen. A canvas that is not a Chart.js chart is left alone. */
+  function replayChart(cv){
+    if (cv.dataset.bbPlayed || REDUCED) return;
+    if (typeof Chart === 'undefined' || !Chart.getChart) return;
+    var c;
+    try { c = Chart.getChart(cv); } catch(e){ return; }
+    if (!c) return;                                   /* not built yet - a later scan gets it */
+    cv.dataset.bbPlayed = '1';
+    try { c.reset(); c.update(); } catch(e){}
+  }
+
+  /* ---- 4. the observer that drives all of it ------------------------------------------ */
+  var REVEAL_SEL = '.card,.kpi,.panel-box,.chartbox,.stat-card,.stat,.ccard,.icon-tile,' +
+                   '.tablewrap,.crm-callout,.ai-note,.info-note,.compare-strip';
+  var io = null;
+  function reveal(el){
+    el.classList.add('bb-in');
+    if (io) io.unobserve(el);
+    growBars(el);
+    var f = el.querySelectorAll(COUNT_SEL); for (var i = 0; i < f.length; i++) countUp(f[i]);
+    var cs = el.querySelectorAll('canvas');  for (var j = 0; j < cs.length; j++) replayChart(cs[j]);
+  }
+  function onIntersect(entries){
+    for (var i = 0; i < entries.length; i++) if (entries[i].isIntersecting) reveal(entries[i].target);
+  }
+  function tag(el, i){
+    if (el.dataset.bbReveal) return;
+    el.dataset.bbReveal = '1';
+    /* stagger within the parent row, capped so a long list never crawls in */
+    el.style.transitionDelay = Math.min(i * 40, 200) + 'ms';
+    if (!io){ reveal(el); return; }
+    io.observe(el);
+  }
+  function isNear(el){
+    var r = el.getBoundingClientRect();
+    return r.bottom > -80 && r.top < (window.innerHeight + 80) && r.width > 0;
+  }
+  var sweepT = null, queued = false;
+  function scan(){
+    queued = false;
+    var seen = new Map(), els = doc.querySelectorAll(REVEAL_SEL);
+    for (var i = 0; i < els.length; i++){
+      var el = els[i], k = el.parentNode, n = seen.get(k) || 0;
+      seen.set(k, n + 1);
+      tag(el, n);
+    }
+    /* charts and figures that live OUTSIDE a tagged surface still get their moment */
+    var cs = doc.querySelectorAll('canvas');
+    for (var j = 0; j < cs.length; j++) if (!cs[j].closest('[data-bb-reveal]') && isNear(cs[j])) replayChart(cs[j]);
+    /* Bars a filter change just re-rendered INSIDE an already-revealed surface: that surface will
+       never intersect again, so pick them up here. ONE document-wide query, not one per surface -
+       on a 1,000-row table the per-surface version walked the same subtree dozens of times.
+       `dataset.bbBar` makes it a no-op for everything already handled. */
+    growBars(doc, true);
+    clearTimeout(sweepT); sweepT = setTimeout(sweep, 1000);
+  }
+  function schedule(){ if (!queued){ queued = true; requestAnimationFrame(scan); } }
+
+  /* WATCHDOG - the safety net for the reveal idea. A second after any scan, anything still
+     unrevealed but sitting in the viewport is shown unconditionally. If this ever fires it is
+     papering over a bug, and the dashboard still reads. */
+  function sweep(){
+    var st = doc.querySelectorAll('[data-bb-reveal]:not(.bb-in)');
+    for (var i = 0; i < st.length; i++){
+      var el = st[i];
+      if (el.offsetParent === null) continue;          /* in a hidden tab - genuinely off screen */
+      if (!isNear(el)) continue;
+      reveal(el);
+    }
+  }
+
+  /* ---- 5. one scroll handler: masthead state + the top rail ---------------------------
+     rAF-coalesced, and it only writes a class and a transform - no layout reads beyond
+     scrollY/scrollHeight, so it cannot make scrolling janky on the long tabs. */
+  function scrollFx(){
+    var raf = false, rail = doc.getElementById('bbProgress'), sweepQ = false;
+    function onScroll(){
+      if (raf) return; raf = true;
+      requestAnimationFrame(function(){
+        raf = false;
+        var y = window.scrollY || 0;
+        if (doc.body) doc.body.classList.toggle('bb-scrolled', y > 24);
+        if (rail){
+          var max = Math.max(1, root.scrollHeight - window.innerHeight);
+          rail.style.transform = 'scaleX(' + Math.min(1, y / max) + ')';
+        }
+        /* scrolling is also when a straggler becomes visible, so re-arm the watchdog */
+        if (!sweepQ){ sweepQ = true; setTimeout(function(){ sweepQ = false; sweep(); }, 120); }
+      });
+    }
+    window.addEventListener('scroll', onScroll, {passive:true});
+    window.addEventListener('resize', onScroll, {passive:true});
+    onScroll();
+  }
+
+  function init(){
+    scrollFx();
+    if ('IntersectionObserver' in window){
+      /* threshold 0, NOT a fraction: threshold is the share of the ELEMENT that is visible, so a
+         card taller than the viewport (a 1,000-row table) can never reach 6% and would sit at
+         opacity 0 forever. Any intersecting pixel is the correct trigger. */
+      io = new IntersectionObserver(onIntersect, {rootMargin:'0px 0px -3% 0px', threshold:0});
+    }
+    scan();
+    /* These dashboards re-render whole sections on every filter change, so re-scan on DOM change
+       rather than editing dozens of render functions. childList only + one rAF coalesce: the
+       tables are large and this must never turn into per-row work. */
+    if ('MutationObserver' in window && doc.body){
+      new MutationObserver(schedule).observe(doc.body, {childList:true, subtree:true});
+    }
+    window.addEventListener('load', schedule);
+  }
+  api.scan = schedule;
+  api.sweep = sweep;
+  try{
+    if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
+  }catch(e){
+    /* if the engine itself cannot start, make sure nothing stays hidden */
+    root.className = (' ' + root.className + ' ').replace(' bb-motion ', ' ').trim();
+  }
+})();
+</script>
+<!-- /BB-MOTION-KIT:js -->
 </body>
 </html>

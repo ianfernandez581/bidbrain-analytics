@@ -90,9 +90,106 @@ LOGIN_HTML = """<!doctype html>
   .agency-credit{display:flex;align-items:center;gap:9px;color:rgba(255,255,255,.62);
                  font-size:10.5px;font-weight:700;letter-spacing:1px}
   .agency-credit svg{height:15px;width:auto;display:block;opacity:.85}
+
+
+/* BB-LOGIN-KIT:css v1 */
+
+  /* ==========================================================================
+     BB LOGIN KIT v1 - the client-facing front door.
+     Canonical source: scripts/motion_kit/ (re-apply with scripts/apply_login_kit.py).
+     Do NOT hand-edit this block in a main.py - edit the template and re-run.
+
+     Mostly presentation - a slow brand-tinted wash, a card that arrives rather than appears, and
+     one press/hover/focus vocabulary - plus three small pieces of REAL behaviour that a password
+     gate should have had all along: a show/hide toggle, a Caps Lock warning (the most common
+     reason a correct password is typed wrong), and a submit state so nobody double-posts and
+     wonders whether the click registered. Those three live in the script at the end of the page.
+
+     Geometry uses `translate`/`scale`, never the `transform` shorthand, so it composes with an
+     existing transform instead of replacing it. Everything stops under prefers-reduced-motion.
+     ========================================================================== */
+  :root{--bl-accent:rgb(31,111,235);--bl-glow:rgba(31,111,235,0.42);--bl-ease:cubic-bezier(.22,1,.36,1)}
+
+  /* the wash: three big soft orbs on their own slow cycles, behind everything, transform-only.
+     position:fixed keeps them out of the flex flow of the centred body. */
+  .bb-lgfx{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+  .bb-lgfx span{position:absolute;display:block;border-radius:50%;will-change:transform}
+  .bb-lgfx .o1{width:62vw;height:56vh;top:-16%;left:-10%;animation:blOrb1 24s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(31,111,235,0.2) 0%,transparent 68%)}
+  .bb-lgfx .o2{width:54vw;height:48vh;bottom:-18%;right:-12%;animation:blOrb2 29s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(76,141,255,0.14) 0%,transparent 68%)}
+  .bb-lgfx .o3{width:46vw;height:42vh;top:28%;right:4%;animation:blOrb3 33s ease-in-out infinite;
+    background:radial-gradient(circle,rgba(34,211,238,0.11) 0%,transparent 70%)}
+  @keyframes blOrb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(70px,54px) scale(1.10)}}
+  @keyframes blOrb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-64px,-48px) scale(1.09)}}
+  @keyframes blOrb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-52px,44px) scale(1.08)}}
+
+  /* the card arrives */
+  form.card,main.cell{position:relative;z-index:1;animation:blIn .66s var(--bl-ease) both}
+  @keyframes blIn{from{opacity:0;translate:0 12px;scale:.99}to{opacity:1;translate:none;scale:none}}
+
+  /* Inputs: a brand caret, a legible placeholder, and the field's own focus treatment eased in
+     rather than snapped on. Deliberately NO focus ring added here - every one of these logins
+     already styles input:focus, and a second offset outline on top of it reads as an error
+     state. The ring below is for the two controls that had no focus style at all. */
+  input{transition:border-color .18s var(--bl-ease),box-shadow .22s var(--bl-ease),
+                   background-color .18s var(--bl-ease);caret-color:var(--bl-accent)}
+  input::placeholder{color:rgba(0,0,0,.45);opacity:1}
+
+  /* the password field carries its own reveal control */
+  .bb-pw{position:relative;display:block}
+  .bb-pw input{padding-right:74px}
+  /* Centred with `translate`, NOT `transform`: four of these logins carry a
+     `button:hover{transform:translateY(-1px)}` on the bare element selector, which is MORE
+     specific than this class rule and would replace a `transform` here outright - dropping the
+     -50% and making the control jump half its height down the field the moment you hover it.
+     `translate` is a separate property, so their lift composes with the centring instead. */
+  .bb-pw-t{position:absolute;right:7px;top:50%;translate:0 -50%;
+    height:30px;padding:0 11px;margin:0;width:auto;cursor:pointer;
+    font:600 10.5px/1 inherit;letter-spacing:.09em;text-transform:uppercase;
+    color:rgba(0,0,0,.45);background:transparent;border:1px solid rgba(0,0,0,.14);border-radius:8px;
+    transition:color .18s var(--bl-ease),border-color .18s var(--bl-ease),
+               background-color .18s var(--bl-ease),scale .12s var(--bl-ease)}
+  .bb-pw-t:hover{color:var(--bl-accent);border-color:var(--bl-accent);background:rgba(31,111,235,0.1)}
+  .bb-pw-t:active{scale:.94}
+  .bb-pw-t:focus-visible{outline:2px solid var(--bl-accent);outline-offset:2px}
+
+  /* Caps Lock: silent until it matters, and it never moves the layout when it appears */
+  .bb-caps{overflow:hidden;max-height:0;opacity:0;margin:0;text-align:center;
+    font-size:11.5px;font-weight:600;letter-spacing:.02em;color:#9A6400;
+    transition:max-height .24s var(--bl-ease),opacity .24s var(--bl-ease),margin .24s var(--bl-ease)}
+  .bb-caps.on{max-height:24px;opacity:1;margin:9px 0 0}
+
+  /* the button depresses, lifts and glows - and says something while the round trip happens */
+  button[type="submit"]{transition:background-color .18s var(--bl-ease),box-shadow .24s var(--bl-ease),
+    filter .18s var(--bl-ease),translate .16s var(--bl-ease),scale .1s var(--bl-ease),opacity .18s}
+  button[type="submit"]:hover{translate:0 -1px;box-shadow:0 12px 28px -14px var(--bl-glow);filter:brightness(1.05)}
+  button[type="submit"]:active{translate:0 0;scale:.985}
+  button[type="submit"]:focus-visible{outline:2px solid var(--bl-accent);outline-offset:3px}
+  button[type="submit"][disabled]{opacity:.72;cursor:progress;translate:none;scale:none;
+    box-shadow:none;filter:none}
+
+  /* A server-rendered error shakes ONCE, on load, flagged by the script. It is deliberately not
+     `.err:not(:empty)` - the Google sign-in flow writes progress text into the same element, and
+     shaking an informational message is wrong. */
+  .err.bb-shake{animation:blShake .42s var(--bl-ease) both}
+  @keyframes blShake{0%,100%{translate:0}18%{translate:-5px}38%{translate:4px}58%{translate:-3px}78%{translate:2px}}
+
+  @media (prefers-reduced-motion: reduce){
+    .bb-lgfx span{animation:none !important}
+    form.card,main.cell{animation:none !important}
+    .err.bb-shake{animation:none !important}
+    input,button[type="submit"],.bb-pw-t,.bb-caps{transition:none !important}
+    button[type="submit"]:hover,button[type="submit"]:active{translate:none !important;scale:none !important}
+    /* NOT `translate:none` on the toggle - that IS its vertical centring, not an animation */
+    .bb-pw-t:active{scale:none !important}
+  }
+  /* BB LOGIN KIT v1 ends */
+/* /BB-LOGIN-KIT:css */
 </style>
 </head>
-<body>
+<body><!-- BB-LOGIN-KIT:fx v1 -->
+<div class="bb-lgfx" aria-hidden="true"><span class="o1"></span><span class="o2"></span><span class="o3"></span></div><!-- /BB-LOGIN-KIT:fx -->
   <form class="card" method="POST" action="/login">
     <div class="logo">
       <svg viewBox="0 0 165 44" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="PropTrack">
@@ -112,8 +209,13 @@ LOGIN_HTML = """<!doctype html>
     <div class="brand">PROPTRACK · PAID MEDIA</div>
     <h1>Dashboard access</h1>
     <p>Enter the password to continue.</p>
+    <!-- BB-LOGIN-KIT:pw v1 --><div class="bb-pw">
     <input type="password" name="password" placeholder="Password" autofocus
            autocomplete="current-password">
+    <button class="bb-pw-t" type="button" aria-label="Show password">Show</button>
+  </div>
+  <div class="bb-caps" role="status" aria-live="polite"></div>
+  <!-- /BB-LOGIN-KIT:pw -->
     <button type="submit">Unlock</button>
     <div class="err">{{ error or "" }}</div>
   </form>
@@ -121,7 +223,83 @@ LOGIN_HTML = """<!doctype html>
     <span>BY</span>
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 255.629 39.901" role="img" aria-label="Transmission"><g fill-rule="evenodd"><path d="M226.901 11.201h-.116v28.253h-5.672V.444h7.908l6.359 23.35h.114V.444h5.616v39.01h-6.473zm-18.28 28.7c-6.186 0-9.568-3.567-9.568-9.808V9.807c-.004-6.242 3.381-9.806 9.568-9.806s9.57 3.566 9.57 9.808v20.283c0 6.241-3.38 9.809-9.57 9.809zm3.267-30.484c0-2.786-1.262-3.845-3.267-3.845s-3.266 1.059-3.266 3.845v21.065c0 2.786 1.263 3.845 3.266 3.845s3.267-1.059 3.267-3.845zM189.771.444h6.3v39.01h-6.3zm-2.522 29.648c0 6.241-3.208 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.266 3.789s3.265-1 3.265-3.789c0-2.842-1.261-4.96-5.385-8.471-5.271-4.514-6.933-7.746-6.933-12.2 0-6.242 3.15-9.808 9.282-9.808s9.281 3.566 9.281 9.808v1.226h-5.959V9.417c0-2.787-1.145-3.846-3.15-3.846s-3.151 1.059-3.151 3.846c0 2.842 1.261 4.959 5.385 8.47 5.279 4.514 6.94 7.746 6.94 12.205zm-20.283 0c0 6.241-3.209 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.265 3.789s3.266-1 3.266-3.789c0-2.842-1.261-4.96-5.386-8.471-5.271-4.514-6.933-7.746-6.933-12.2.012-6.243 3.158-9.807 9.289-9.807s9.282 3.566 9.282 9.808v1.226h-5.959V9.417c0-2.787-1.145-3.846-3.15-3.846s-3.15 1.059-3.15 3.846c0 2.842 1.261 4.959 5.387 8.47 5.269 4.514 6.93 7.746 6.93 12.205zM139.349.444h6.3v39.01h-6.3zm-9.455 11.035h-.114l-4.241 27.975h-5.958l-4.584-27.585h-.115v27.585h-5.5V.444h8.767l4.584 27.7h.114l4.24-27.7h8.762v39.01h-5.958zm-22.92 18.613c0 6.241-3.209 9.808-9.4 9.808s-9.4-3.567-9.4-9.808v-2.4h5.959v2.787c0 2.786 1.261 3.789 3.266 3.789s3.265-1 3.265-3.789c0-2.842-1.261-4.96-5.385-8.471-5.271-4.514-6.933-7.746-6.933-12.2.003-6.243 3.16-9.807 9.291-9.807s9.282 3.566 9.282 9.808v1.226h-5.959V9.417c0-2.787-1.146-3.846-3.151-3.846s-3.151 1.059-3.151 3.846c0 2.842 1.261 4.959 5.385 8.47 5.271 4.514 6.932 7.746 6.932 12.2zM71.508 11.201h-.114v28.253h-5.672V.444h7.907l6.36 23.35h.115V.444h5.615v39.01h-6.475zM56.549 32.376h-7.731l-1.089 7.078h-5.786L48.359.444h9.226l6.417 39.01h-6.36zM52.714 7.355h-.115l-2.98 19.728h6.073zM33.749 34.662v-6.131c0-3.622-1.261-4.959-4.125-4.959h-2.175v15.882h-6.3V.444h9.511C37.192.444 40 3.398 40 9.416v3.066c0 4.012-1.318 6.576-4.126 7.857v.112c3.145 1.281 4.175 4.179 4.175 8.25v6.018a11.2 11.2 0 0 0 .688 4.737h-6.415c-.345-1.005-.573-1.618-.573-4.794zm-.057-24.633c0-2.786-.975-4.012-3.209-4.012h-3.034v11.984h2.46c2.349 0 3.783-1 3.783-4.124zm-20.8 29.425H6.589V6.017H0V.444h19.481v5.573h-6.589z" fill="#fff"></path><path d="M244.628 39.454v-10.7h11v10.7z" fill="#e60b7f"></path></g></svg>
   </div>
-</body>
+<!-- BB-LOGIN-KIT:js v1 -->
+<script>
+/* BB LOGIN KIT v1 - the three behavioural bits. Canonical source scripts/motion_kit/.
+   Everything here degrades to the plain form if any of it is missing: the input, the button and
+   the POST are untouched, so a login can never fail because of this script. */
+(function(){
+  var form = document.querySelector('form[action="/login"]') || document.querySelector('form');
+  var pw   = document.querySelector('.bb-pw input') ||
+             document.querySelector('input[name="password"]');
+  var togg = document.querySelector('.bb-pw-t');
+  var caps = document.querySelector('.bb-caps');
+  var btn  = form && (form.querySelector('button[type="submit"]') || form.querySelector('button'));
+
+  /* 1. show / hide. Type is flipped in place, so the field keeps its value, its name and its
+        position in the tab order; the caret is put back where the user was. */
+  if (togg && pw){
+    togg.addEventListener('click', function(){
+      var hidden = pw.type === 'password';
+      var at = pw.value.length;
+      pw.type = hidden ? 'text' : 'password';
+      togg.textContent = hidden ? 'Hide' : 'Show';
+      togg.setAttribute('aria-label', (hidden ? 'Hide' : 'Show') + ' password');
+      pw.focus();
+      try { pw.setSelectionRange(at, at); } catch(e){}
+    });
+  }
+
+  /* 2. Caps Lock. getModifierState is only meaningful on a real key event, so it is read on the
+        field's own keys - no global listener, nothing polled.
+        The TEXT is written here rather than sitting in the markup: the element is a live region,
+        and a permanent "Caps Lock is on" string would be read out by a screen reader whenever the
+        form is traversed, whether it is on or not. Empty when off, filled when on - which is also
+        what makes role=status announce it at the right moment. */
+  if (caps && pw){
+    var CAPS_MSG = 'Caps Lock is on';
+    var set = function(on){
+      if (caps.classList.contains('on') === on) return;
+      caps.classList.toggle('on', on);
+      caps.textContent = on ? CAPS_MSG : '';
+    };
+    var check = function(e){
+      if (typeof e.getModifierState !== 'function') return;
+      set(e.getModifierState('CapsLock'));
+    };
+    pw.addEventListener('keydown', check);
+    pw.addEventListener('keyup', check);
+    pw.addEventListener('blur', function(){ set(false); });
+  }
+
+  /* 3. Submit state. The disable happens on the NEXT tick, after the browser has already started
+        the POST, so it stops a second submission without ever blocking the first. Only the label
+        of a plain text button is swapped - a button with markup inside (an arrow, an icon) keeps
+        its contents.
+        The `pageshow` reset is NOT optional: log in, then press Back, and the browser restores
+        this page from its cache exactly as it was - disabled button, "Checking..." still on it -
+        which would strand someone on a login form they cannot submit. pageshow fires on every
+        restore, so the control is always live again. */
+  if (form && btn){
+    var label0 = btn.textContent;
+    form.addEventListener('submit', function(){
+      setTimeout(function(){
+        btn.disabled = true;
+        if (!btn.children.length) btn.textContent = 'Checking...';
+      }, 0);
+    });
+    window.addEventListener('pageshow', function(){
+      btn.disabled = false;
+      if (!btn.children.length) btn.textContent = label0;
+    });
+  }
+
+  /* 4. A server-rendered error announces itself once. */
+  var err = document.querySelector('.err');
+  if (err && err.textContent.trim()) err.classList.add('bb-shake');
+})();
+</script>
+<!-- /BB-LOGIN-KIT:js --></body>
 </html>"""
 
 
