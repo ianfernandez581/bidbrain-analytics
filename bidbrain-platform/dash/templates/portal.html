@@ -479,6 +479,116 @@
     font-family:ui-monospace,'SF Mono',Consolas,monospace}
 </style>
 {% endif %}
+{# ===== PORTAL PREMIUM PASS - additive. Placed after the themed block so it wins the cascade,
+   and every colour comes from a token so a themed agency inherits its own palette. Geometry uses
+   `translate`/`scale`, never the `transform` shorthand: themed portals put a `bbTileIn` keyframe
+   on .tile with fill-mode both, and an animation's final transform beats a hover rule - the lift
+   would silently never fire. ===== #}
+<style>
+  /* ---- the control bar: counts + find + sync, one row instead of a lone green slab ---- */
+  .bbsyncbar.bbtoolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:10px 8px 10px 4px;margin:0 0 22px;border:1px solid var(--border);border-radius:13px;
+    background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012))}
+  .bbstats{display:flex;align-items:center}
+  .bbstat{display:flex;align-items:baseline;gap:7px;padding:2px 15px;position:relative}
+  .bbstat+.bbstat::before{content:"";position:absolute;left:0;top:50%;translate:0 -50%;
+    width:1px;height:17px;background:var(--border)}
+  .bbstat b{font-size:16.5px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .bbstat i{font-size:10.5px;font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .bbstat.is-live b{color:var(--active)}
+
+  /* ---- find a client: real functionality once an agency has ten of them ---- */
+  .bbfind{position:relative;flex:1 1 200px;min-width:158px;max-width:300px}
+  .bbfind input{width:100%;padding:8px 34px 8px 30px;font-family:inherit;font-size:13px;
+    color:var(--text);background:var(--panel-2);border:1px solid var(--border);border-radius:9px;
+    outline:none;transition:border-color .16s,box-shadow .16s}
+  .bbfind input::placeholder{color:var(--muted);opacity:1}
+  .bbfind input:focus{border-color:var(--accent)}
+  .bbfind .ic,.bbfind .kb{position:absolute;top:50%;translate:0 -50%;pointer-events:none;color:var(--muted)}
+  .bbfind .ic{left:10px;display:flex;align-items:center;line-height:0;opacity:.75}
+  .bbfind .kb{right:8px;font:600 10px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
+    border:1px solid var(--border);border-radius:4px;padding:3px 5px;transition:opacity .15s}
+  .bbfind.has-q .kb,.bbfind input:focus~.kb{opacity:0}
+  .bbfind .clr{position:absolute;right:6px;top:50%;translate:0 -50%;display:none;cursor:pointer;
+    border:0;background:none;color:var(--muted);font-size:15px;line-height:1;padding:4px 6px;border-radius:6px}
+  .bbfind.has-q .clr{display:block}
+  .bbfind .clr:hover{color:var(--text)}
+
+  .bbsyncbar.bbtoolbar #bbsyncall{margin-left:auto}
+  /* the sync trigger stops shouting: a ghost control that only lights up on hover */
+  .bbtoolbar #bbsyncall.bbbtn{background:transparent;color:var(--text);
+    border:1px solid var(--border);box-shadow:none}
+  .bbtoolbar #bbsyncall.bbbtn:hover{border-color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 12%,transparent)}
+  .bbtoolbar #bbsyncall.bbbtn:disabled{opacity:.6}
+
+  /* nothing matched the filter */
+  .bbnores{display:none;margin:6px 0 0;padding:30px 18px;text-align:center;color:var(--muted);
+    border:1px dashed var(--border);border-radius:13px;font-size:13.5px}
+  .bbnores b{color:var(--text)}
+  .bbhint{display:none;margin:9px 0 0;font-size:11.5px;color:var(--muted);letter-spacing:.01em}
+  .bbhint.on{display:block}
+  .bbhint kbd{font:600 10px/1 ui-monospace,SFMono-Regular,Consolas,monospace;border:1px solid var(--border);
+    border-radius:4px;padding:3px 5px;color:var(--text)}
+  .bbnores.on{display:block}
+  .tile.bbhide{display:none}
+
+  /* ---- tiles: a real press/hover/focus vocabulary and a top light ---- */
+  .tile{position:relative}
+  .tile.live::before{content:"";position:absolute;left:16px;right:16px;top:0;height:1px;
+    background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 55%,transparent),transparent);
+    opacity:0;transition:opacity .28s}
+  .tile.live:hover::before{opacity:1}
+  .tile.live{transition:border-color .2s,box-shadow .28s,translate .22s,background-color .2s}
+  .tile.live:hover{translate:0 -3px;
+    box-shadow:0 1px 2px rgba(0,0,0,.28),0 20px 40px -26px rgba(0,0,0,.85),
+               0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent)}
+  .tile.live:active{translate:0 -1px;transition-duration:.08s}
+  .tile:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+  .tile .open{transition:translate .2s}
+  .tile.live:hover .open{translate:3px 0}
+  .tile.soon{opacity:.62}
+  /* the campaign paths are data, so let them line up */
+  .tile .camps .path{font-variant-numeric:tabular-nums}
+
+  /* PRE-EXISTING FIX: the decorative cursor-glow is a 520px position:fixed box, and in Chrome a
+     fixed box hanging past the viewport STILL contributes to scrollable overflow - it gave the
+     scrollable width. It was NOT the 11px of horizontal scroll on a phone - that was the tab rail
+     (below) - but a decorative layer should not be able to extend the page either way, so it gets
+     a clipping stage (the pattern .bbh-stage already uses for the word-machine tokens); the JS
+     below moves it in. */
+  .bbfx-clip{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:-1}
+  .bbfx-clip>.bb-cursor-glow{z-index:auto}
+
+  /* the hero + tabs breathe a little more on a wide screen */
+  @media (min-width:900px){ .wrap{padding-top:34px} }
+  .bbtabs{margin-bottom:20px}
+  /* THE actual cause of horizontal scroll on a phone: five tabs need 441px and a 430px screen has
+     430, so the rail pushed the page 11px wide and the last tab sat off-screen. Wrapping rather
+     than scrolling, so no tab is ever hidden behind a swipe nobody knows to make. */
+  @media (max-width:620px){
+    .bbtabs{flex-wrap:wrap;row-gap:0}
+    .bbtab{flex:0 0 auto}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .tile.live,.tile .open{transition:none !important}
+    .tile.live:hover,.tile.live:active{translate:none !important}
+  }
+</style>
+{% if theme %}
+<style>
+  /* themed agency: the new chrome takes the agency's own accent, not the house blue */
+  .bbfind input:focus{border-color:{{ theme.accent }}}
+  .bbstat.is-live b{color:{{ theme.accent }}}
+  .bbtoolbar #bbsyncall.bbbtn:hover{border-color:{{ theme.accent }};
+    background:{{ theme.accent }}1f}
+  .tile.live::before{background:linear-gradient(90deg,transparent,{{ theme.accent }}8c,transparent)}
+  .tile.live:hover{box-shadow:0 1px 2px rgba(0,0,0,.3),0 20px 40px -26px rgba(0,0,0,.9),
+                              0 0 0 1px {{ theme.accent }}3d}
+  .tile:focus-visible{outline-color:{{ theme.accent }}}
+</style>
+{% endif %}
 </head>
 <body>
   <!-- cursor glow: subtle green+blue light that follows the cursor (decorative, non-interactive) -->
@@ -1108,8 +1218,12 @@
       var r = hero.getBoundingClientRect();
       return { left:r.left, right:r.right, cx:r.left + r.width/2, cy:r.top + r.height/2, W:window.innerWidth };
     }
+    var IN_LANE = 0;            /* each token gets its own lane, else all three converge on the
+                                   hero's left edge at the same y and pile into garbled text */
     function spawnInput(text){
-      var b = bounds(), startX = -110, y = b.cy - 10;
+      var b = bounds(), startX = -110;
+      var lane = (IN_LANE++ % 3) - 1;                 /* -1, 0, +1 */
+      var y = b.cy - 10 + lane * 26;
       var el = document.createElement('div');
       el.className = 'bbh-token in'; el.textContent = text; stage.appendChild(el);
       // stop just before the hero's LEFT edge (token width included) so a word never travels behind the logo
@@ -1160,5 +1274,100 @@
     run();
   })();
   </script>
+<script>
+/* ===== PORTAL PREMIUM PASS - chrome only ==========================================
+   Builds the control bar by ADDING to the existing .bbsyncbar rather than replacing it, so every
+   node the sync/status scripts already reference (#bbsyncall, #bbsyncall-time, #bbsyncall-msg)
+   stays exactly where it was - including on an external tenant, where the sync button is absent
+   and only the freshness stamp exists. Pure progressive enhancement: if this never runs, the
+   portal is the portal. */
+(function(){
+  /* clip the decorative glow so it cannot give a phone 11px of horizontal scroll */
+  var glow = document.getElementById('bbGlow');
+  if (glow && glow.parentNode === document.body){
+    var clip = document.createElement('div');
+    clip.className = 'bbfx-clip';
+    clip.setAttribute('aria-hidden', 'true');
+    document.body.insertBefore(clip, glow);
+    clip.appendChild(glow);
+  }
+
+  var bar = document.querySelector('.bbpane#pane-overview .bbsyncbar') || document.querySelector('.bbsyncbar');
+  var grid = document.querySelector('.bbpane#pane-overview .grid') || document.querySelector('.grid');
+  if (!bar || !grid) return;
+  var tiles = [].slice.call(grid.querySelectorAll('.tile'));
+  if (!tiles.length) return;
+  bar.classList.add('bbtoolbar');
+
+  /* --- counts, straight off the rendered tiles (never a second source of truth) --- */
+  var live = tiles.filter(function(t){ return t.classList.contains('live'); }).length;
+  var soon = tiles.length - live;
+  var stats = document.createElement('div');
+  stats.className = 'bbstats';
+  stats.innerHTML = '<span class="bbstat is-live"><b>' + live + '</b><i>live</i></span>' +
+                    (soon ? '<span class="bbstat"><b>' + soon + '</b><i>in build</i></span>' : '');
+  bar.insertBefore(stats, bar.firstChild);
+
+  /* --- find a client --- */
+  var find = document.createElement('div');
+  find.className = 'bbfind';
+  /* a real magnifier, not the U+26B2 glyph - that character renders as a tiny hollow mark on
+     Windows and reads as a rendering fault rather than an icon */
+  find.innerHTML = '<span class="ic" aria-hidden="true"><svg width="13" height="13" viewBox="0 0 16 16"' +
+    ' fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">' +
+    '<circle cx="6.8" cy="6.8" r="4.4"/><path d="M10.2 10.2 L14 14"/></svg></span>' +
+    '<input type="search" id="bbFind" autocomplete="off" spellcheck="false" aria-label="Filter clients"' +
+    ' placeholder="Filter clients">' +
+    '<span class="kb" aria-hidden="true">/</span>' +
+    '<button class="clr" type="button" aria-label="Clear filter">&times;</button>';
+  stats.insertAdjacentElement('afterend', find);
+
+  var none = document.createElement('div');
+  none.className = 'bbnores';
+  grid.insertAdjacentElement('afterend', none);
+  var hint = document.createElement('div');
+  hint.className = 'bbhint';
+  hint.innerHTML = 'Press <kbd>Enter</kbd> to open the only match.';
+  bar.insertAdjacentElement('afterend', hint);
+
+  var input = find.querySelector('input'), clr = find.querySelector('.clr');
+  /* match on the client name AND its campaign lines - searching "abm" should find PropTrack */
+  var hay = tiles.map(function(t){ return (t.textContent || '').toLowerCase().replace(/\s+/g, ' '); });
+
+  function apply(){
+    var q = input.value.trim().toLowerCase();
+    find.classList.toggle('has-q', !!q);
+    var shown = 0;
+    tiles.forEach(function(t, i){
+      var hit = !q || hay[i].indexOf(q) >= 0;
+      t.classList.toggle('bbhide', !hit);
+      if (hit) shown++;
+    });
+    if (q && !shown){ none.innerHTML = 'No client matches <b>' + q.replace(/[<&]/g, '') + '</b>'; none.classList.add('on'); }
+    else none.classList.remove('on');
+    var one = tiles.filter(function(t){ return !t.classList.contains('bbhide') && t.classList.contains('live') && t.href; });
+    hint.classList.toggle('on', !!q && one.length === 1);
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ input.value = ''; apply(); input.blur(); return; }
+    /* Enter opens the client when the filter has narrowed to exactly one LIVE tile - type three
+       letters, press Enter, you are in the dashboard. Deliberately only at one match: firing on
+       the first of several would open the wrong client. */
+    if (e.key === 'Enter'){
+      var hit = tiles.filter(function(t){ return !t.classList.contains('bbhide') && t.classList.contains('live') && t.href; });
+      if (hit.length === 1){ e.preventDefault(); window.location.href = hit[0].href; }
+    }
+  });
+  clr.addEventListener('click', function(){ input.value = ''; apply(); input.focus(); });
+  /* "/" focuses the filter, the way every tool with a list does - but never while typing */
+  document.addEventListener('keydown', function(e){
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target, tag = (t && t.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || (t && t.isContentEditable)) return;
+    e.preventDefault(); input.focus(); input.select();
+  });
+})();
+</script>
 </body>
 </html>
