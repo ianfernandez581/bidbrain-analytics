@@ -246,6 +246,25 @@
   .hint{font-size:11.5px;color:var(--cf-mute);margin-bottom:10px}
   .chart-wrap{position:relative;height:240px}
   .chart-wrap.tall{height:300px}
+  /* >>> BB:CSPD (pacing detail) >>> */
+  /* ===== CS "Pacing detail" (2026-08-24) ====================================
+     Config-driven per THEATRE - see CSPD and cspdCfg(). Structurally this is a
+     FLAT continuation of the Content Syndication tab (section rule, .cs-snap
+     band, .filter-row chip strip, .grid of two cards), NOT a card-in-card: the
+     tab's own rhythm, so the shared motion layer picks it all up for free
+     (.cs-snap .stat .v is already in COUNT_SEL; .card / .cs-snap .group /
+     .filter-row already in REVEAL_SEL). No new colour, font or spacing value -
+     the two chart colours are READ FROM the :root tokens (cssTok) rather than
+     re-declared, so a reskin moves them with everything else.
+     Only rules with no existing equivalent live here. */
+  .cspd-sep{width:1px;align-self:stretch;min-height:22px;background:var(--cf-line);margin:0 3px}
+  .cspd-note{font-size:11.5px;color:var(--cf-mute);margin-top:10px;border-top:1px solid var(--cf-line);padding-top:8px}
+  .cspd-note.warn{color:var(--warn-amber)}
+  .cspd-reasons{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
+  .cspd-reason{background:var(--surface-2);border:1px solid var(--cf-line);border-radius:8px;padding:11px 12px}
+  .cspd-reason .rk{font-size:10.5px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:5px}
+  .cspd-reason .rv{font-size:12px;color:var(--cf-ink);word-break:break-word}
+  /* <<< BB:CSPD <<< */
 
   /* Per-chart Grain (Month/Week/Day) toggles. The Scale (Relative/Absolute) segs were
      removed 2026-08-20 (client wants absolute only); .seg styling still serves the Grain segs. */
@@ -340,9 +359,9 @@
     --li-blue:#3B93E8; --li-blue-soft:rgba(59,147,232,.18);
     --rd-red:#FF4500; --purple:#6B3FA0;
   }
-  .panel-paid-scope .section{margin:24px 0 12px 0;display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--on-canvas-line);padding-top:18px}
-  .panel-paid-scope .section h2{font-size:16px;margin:0;letter-spacing:-.2px;color:var(--on-canvas)}
-  .panel-paid-scope .section .sub{font-size:12px;color:var(--on-canvas-mute);margin:0}
+  .panel-paid-scope .section,#panel-main .section{margin:24px 0 12px 0;display:flex;align-items:baseline;gap:14px;border-top:1px solid var(--on-canvas-line);padding-top:18px}
+  .panel-paid-scope .section h2,#panel-main .section h2{font-size:16px;margin:0;letter-spacing:-.2px;color:var(--on-canvas)}
+  .panel-paid-scope .section .sub,#panel-main .section .sub{font-size:12px;color:var(--on-canvas-mute);margin:0}
   .panel-paid-scope .section.first{border-top:none;padding-top:0;margin-top:0}
   .panel-paid-scope .section.creatives-head h2{white-space:nowrap;flex-shrink:0}
   .panel-paid-scope .section.creatives-head .seg{align-self:center;margin-left:auto}
@@ -799,12 +818,14 @@
     <!-- Lane selector. `core` is the APJ Core DG lane - renamed "Core Demand Generation" ->
          "Core DG APJ" 2026-08-05 (client request) ahead of Core DG EMEA launching. The VALUE
          stays `core`, so switchDashboard + every core-tab path is untouched by the rename.
-         Core DG EMEA has NO data lane yet, so it sits here DISABLED as a visible placeholder:
-         selecting it would land on renderCampaign's empty "No data" view, which reads as broken
-         rather than pending. To light it up see the client README -> "Adding Core DG EMEA". -->
+         `core_emea` WENT LIVE 2026-08-24 (it was a disabled "- coming soon" placeholder): it is
+         a real PROGRAM lane in PROGRAMS, Content-Syndication only, and selecting it switches the
+         CS THEATRE to EMEA. This dropdown is the ONLY region control - an APAC/EMEA toggle was
+         built alongside it and removed the same day, because two controls for one concept can
+         disagree. See PROGRAMS.core_emea + laneTheatre(). -->
     <select id="dashSelect" class="dash-select" onchange="switchDashboard(this.value)">
       <option value="core" selected>Core DG APJ</option>
-      <option value="core_emea" disabled>Core DG EMEA - coming soon</option>
+      <option value="core_emea">Core DG EMEA</option>
       <!-- Surround ABM (brief 2193) - split out of Core DG 2026-08-14 at the client's
            request. A PROGRAM lane, not a single-campaign view: it reuses the whole Paid
            Media tab, scoped by the paid rows' `program` field. See PROGRAMS below. -->
@@ -986,6 +1007,124 @@
         </div></div>
         <div class="chart-wrap"><canvas id="weeklyChart"></canvas></div>
       </div>
+      <!-- >>> BB:CSPD (pacing detail) >>> -->
+      <!-- ============================================================ -->
+      <!-- PACING DETAIL (2026-08-24, client-approved layout)           -->
+      <!-- Sits directly under "Pacing - target vs actual". Reads the   -->
+      <!-- cs_pacing payload block (week x market x vendor, aggregated  -->
+      <!-- and PII-free) - NOT the lead-grain `pacing` rows above it,   -->
+      <!-- so nothing on this tab changes when this section is absent.  -->
+      <!-- The whole block hides itself when the payload has no         -->
+      <!-- cs_pacing branch, so an older JSON renders exactly as today. -->
+      <!-- ============================================================ -->
+      <div id="cspdSection" style="display:none">
+
+        <div class="section" style="margin-top:22px">
+          <h2>Pacing detail</h2>
+          <p class="sub">Campaign totals stay fixed - select a week to drive the panels below.</p>
+          <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+            <!-- Theatre comes from the selected LANE in the topbar dropdown ("Core DG EMEA");
+                 every panel here reads it through the single cspdTheatre() getter. -->
+            <select id="cspdVendor" class="dash-select" style="font-size:12px;padding:6px 26px 6px 10px"
+                    onchange="cspdSetVendor(this.value)"></select>
+          </span>
+        </div>
+
+        <!-- Admin View only: the targets seed is the one non-live input, so say so out loud
+             when it stops being refreshed (last quarter this failed silently for 7 weeks). -->
+        <div class="card dev-only" id="cspdStale" style="display:none;margin-bottom:14px;border-color:var(--warn-amber)">
+          <div class="hint" id="cspdStaleMsg" style="margin:0;color:var(--warn-amber)"></div>
+        </div>
+
+        <!-- 3.1 campaign-to-date band - fixed, follows the vendor selector only -->
+        <div class="hint" style="margin:0 0 8px 2px">Campaign to date, whole <span class="cspd-qlbl">Q3</span>
+          - follows the vendor selector, and does <b>not</b> change with the week selected below.</div>
+        <div class="cs-snap" id="cspdTotals">
+          <div class="group">
+            <div class="lbl">Delivery</div>
+            <div class="pair">
+              <div class="stat"><div class="k">Delivered</div><div class="v" id="cspd_t_del">-</div></div>
+              <div class="stat"><div class="k">Accepted</div><div class="v" id="cspd_t_acc">-</div></div>
+            </div>
+          </div>
+          <div class="group">
+            <div class="lbl">Rejections</div>
+            <div class="pair">
+              <div class="stat"><div class="k">Rejected</div><div class="v" id="cspd_t_rej">-</div></div>
+              <div class="stat"><div class="k">Rejection rate</div><div class="v" id="cspd_t_rrate">-</div></div>
+            </div>
+          </div>
+          <div class="group">
+            <div class="lbl">Quality and pacing</div>
+            <div class="pair">
+              <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cspd_t_arate">-</div></div>
+              <div class="stat"><div class="k">Overall pacing</div><div class="v" id="cspd_t_pace">-</div>
+                <div class="cnt" id="cspd_t_pace_cnt">-</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.2 week selector - drives every panel below it -->
+        <div class="filter-row">
+          <span class="lbl">Week commencing</span>
+          <div class="chips" id="cspdWeeks"></div>
+        </div>
+
+        <!-- 3.3 weekly figures - selected week (or quarter-to-date) only -->
+        <div class="cs-snap" id="cspdWeekly">
+          <div class="group">
+            <div class="lbl" id="cspdWkLbl">Selected week</div>
+            <div class="pair">
+              <div class="stat"><div class="k">Delivered</div><div class="v" id="cspd_w_del">-</div></div>
+              <div class="stat"><div class="k" id="cspd_w_pace_k">Weekly pacing</div><div class="v" id="cspd_w_pace">-</div>
+                <div class="cnt" id="cspd_w_pace_cnt">-</div></div>
+            </div>
+          </div>
+          <div class="group">
+            <div class="lbl">Rejections</div>
+            <div class="pair">
+              <div class="stat"><div class="k">Rejected</div><div class="v" id="cspd_w_rej">-</div></div>
+              <div class="stat"><div class="k">Rejection rate</div><div class="v" id="cspd_w_rrate">-</div></div>
+            </div>
+          </div>
+          <div class="group">
+            <div class="lbl">Outcome</div>
+            <div class="pair">
+              <div class="stat"><div class="k">Acceptance rate</div><div class="v" id="cspd_w_arate">-</div></div>
+              <div class="stat"><div class="k">Lead deficit</div><div class="v" id="cspd_w_def">-</div>
+                <div class="cnt" id="cspd_w_def_cnt">-</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3.4 two charts, side by side -->
+        <div class="grid">
+          <div class="card">
+            <h3>Delivered vs target by market</h3>
+            <div class="hint" id="cspdMktLbl">-</div>
+            <div class="chart-wrap tall"><canvas id="cspdMarketChart"></canvas></div>
+            <!-- Client requirement: unmatched leads must be visible, never silently bucketed. -->
+            <div class="cspd-note" id="cspdUnmapped"></div>
+          </div>
+          <div class="card">
+            <h3>Rejected and rejection rate</h3>
+            <div class="hint">Bars: rejected leads. Line: rejection rate. Click a bar to select that week.</div>
+            <div class="chart-wrap tall"><canvas id="cspdRejChart"></canvas></div>
+            <div class="cspd-note" id="cspdRejNote"></div>
+          </div>
+        </div>
+
+        <!-- 3.5 rejection reasons - NO live source yet. Renders only when the payload
+             carries reasons; hides cleanly otherwise. Never fabricate values here. -->
+        <div class="card" id="cspdReasonsCard" style="display:none">
+          <h3>Rejection reasons</h3>
+          <div class="hint" id="cspdReasonsLbl">-</div>
+          <div class="cspd-reasons" id="cspdReasons"></div>
+          <div class="cspd-note">Manually maintained pending the Integrate export - not yet a live Snowflake feed.</div>
+        </div>
+
+      </div>
+      <!-- <<< BB:CSPD <<< -->
 
       <div class="grid">
         <div class="card"><h3>Solutions</h3><div class="chart-wrap"><canvas id="solChart"></canvas></div></div>
@@ -2249,6 +2388,10 @@ async function boot() {
     COMBINED = await res.json();
     bbApplySpendMult();   // gross RAW spend -> client-billed BEFORE any render/aggregation
     rawRows = (COMBINED.pacing && COMBINED.pacing.rows) || [];
+    // "Pacing detail": a SEPARATE aggregated (PII-free) branch, week x market x vendor.
+    // Absent on an older JSON, in which case the whole section hides itself.
+    CSPD_ROWS = (COMBINED.cs_pacing && COMBINED.cs_pacing.rows) || [];
+    CSPD_META = COMBINED.cs_pacing || {};
 
     // Date-range picker bounds = the UNION of both core windows:
     // CS lead dates (rawRows non-dummy DAY) ∪ paid-delivery window (paid_media.window).
@@ -2405,6 +2548,13 @@ function applyDateRange(){
 function renderDateScope(){
   const note = document.getElementById('dateScopeNote');
   if (!note) return;
+  // Under a theatre the legacy CS model does not cover, every range-driven block on
+  // this tab is hidden (see applyRegionPanelScope), so this banner would be describing
+  // KPIs, donuts and charts that are not on screen. The Pacing detail section that IS
+  // on screen has its own week selector and ignores the range.
+  if (activeTab === 'main' && laneTheatre() !== CSPD_LEGACY_THEATRE){
+    note.style.display = 'none'; return;
+  }
   if (!narrowed()) { note.style.display = 'none'; return; }
   let scope;
   if (activeTab === 'paid') {
@@ -2415,7 +2565,8 @@ function renderDateScope(){
       + 'The <b>' + qtrLabel() + ' Target</b> figure is the full-quarter plan and is not pro-rated.';
   } else {
     scope = 'KPIs, donuts, weekly/daily charts and the by-region summary reflect this range. '
-      + 'The <b>' + qtrLabel() + ' Target</b> and the <b>Time %</b> bar are quarter-anchored (full ' + qtrLabel() + ') and are not pro-rated to the selected range.';
+      + 'The <b>' + qtrLabel() + ' Target</b> and the <b>Time %</b> bar are quarter-anchored (full ' + qtrLabel() + ') and are not pro-rated to the selected range. '
+      + 'The <b>Pacing detail</b> section is driven by its own week selector and is not affected by this range.';
   }
   note.style.display = 'block';
   note.innerHTML = '📅 Filtered to <b>' + rangeStart + '</b> – <b>' + rangeEnd + '</b>. ' + scope;
@@ -3070,8 +3221,351 @@ function renderAll() {
   renderDaily(agg);
   renderRegionGrid(agg);
   renderLeadDetail(agg);   // dev mode only: full per-lead table at the bottom
+  renderCsPacingDetail();  // "Pacing detail": own week selector, not range-scoped
   setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);  // keep footer's range note in sync
 }
+
+// >>> BB:CSPD (pacing detail) >>>
+// ==========================================================================
+// PACING DETAIL  (Content Syndication tab, under "Pacing - target vs actual")
+// ==========================================================================
+// ONE component, driven entirely by a config DERIVED FROM THE PAYLOAD - there is
+// no APAC version and no EMEA version. Adding ANZ DnB later is a third theatre in
+// the seed CSV and no new component code.
+//
+// Nothing here is hardcoded to a market list, a vendor list, a week count or a
+// target total: each is read off the cs_pacing rows. Vendors in particular are
+// DISCOVERED - Pipeline360 and Inbox Insight will appear on their own, with
+// delivery and no target, which is correct and must not be suppressed.
+//
+// Reads COMBINED.cs_pacing (week x market x vendor, aggregated, PII-free). It is
+// a SEPARATE payload branch from the lead-grain `pacing` rows the rest of this tab
+// uses, so this section cannot move a single existing number - and if the branch
+// is missing (older JSON) the whole section hides and the tab renders as it does
+// today.
+// --------------------------------------------------------------------------
+let CSPD_ROWS = [];                                   // cs_pacing.rows
+let CSPD_META = {};                                   // cs_pacing meta (period label, reasons)
+const CSPD = { vendor: 'all', week: null };                  // week: ISO date, or 'qtd'
+
+// Chart colours are READ FROM the :root tokens, never re-declared - a reskin moves
+// them with everything else. CF / TARGET (line 2013) already cover orange + target grey.
+function cssTok(n){ return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+
+// The ONE place the rest of the section asks "which theatre". It reads the selected LANE
+// (see laneTheatre), so the section, the tab rail and the dropdown label can never
+// disagree about which theatre is on screen.
+function cspdTheatre(){ return laneTheatre(); }
+
+// Config for one theatre, entirely derived. `weeks` comes from the targets grid UNION
+// any week that carries delivery, so a lead dated outside the planned grid can still
+// never disappear. `markets` honours the seed's own display order (market_seq) rather
+// than alphabetical - display order is data, not code.
+function cspdCfg(th){
+  const rows = CSPD_ROWS.filter(r => r.theatre === th);
+  const weeks = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
+  const seq = new Map();
+  for (const r of rows){
+    if (r.market === 'UNMAPPED') continue;             // not a market - surfaced as a warning instead
+    const s = (r.market_seq === null || r.market_seq === undefined) ? 999 : r.market_seq;
+    if (!seq.has(r.market) || s < seq.get(r.market)) seq.set(r.market, s);
+  }
+  const markets = [...seq.keys()].sort((a,b) => (seq.get(a) - seq.get(b)) || a.localeCompare(b));
+  const vendors = [...new Set(rows.map(r => r.vendor).filter(Boolean))].sort();
+  return { theatre: th, weeks, markets, vendors,
+           period_label: CSPD_META.period_label || 'Q3' };
+}
+
+function cspdRows(){
+  const th = cspdTheatre(), v = CSPD.vendor;
+  return CSPD_ROWS.filter(r => r.theatre === th && (v === 'all' || r.vendor === v));
+}
+
+const cspdPct = (n, d) => d > 0 ? (100 * n / d).toFixed(1) + '%' : '-';
+const cspdWkLabel = w => w.slice(5).replace('-', '/');          // 2026-07-06 -> 07/06
+
+// The week the dashboard opens on: the latest week that actually carries delivery
+// (matching the approved layout). The fixed band above already answers "whole quarter".
+function cspdDefaultWeek(cfg){
+  const d = cspdRows().filter(r => r.delivered > 0 && r.week_start).map(r => r.week_start).sort();
+  if (d.length) return d[d.length - 1];
+  return cfg.weeks.length ? cfg.weeks[0] : null;
+}
+
+// Sum the metric set over an arbitrary row slice.
+function cspdSum(rows){
+  const o = { target:0, delivered:0, accepted:0, rejected:0, unprocessed:0, needs_review:0 };
+  for (const r of rows) for (const k in o) o[k] += (r[k] || 0);
+  return o;
+}
+
+// ---- main render ---------------------------------------------------------
+function renderCsPacingDetail(){
+  const sec = document.getElementById('cspdSection');
+  if (!sec) return;
+  if (!CSPD_ROWS.length){ sec.style.display = 'none'; return; }   // no branch -> section absent
+  sec.style.display = '';
+
+  const th  = cspdTheatre();
+  const cfg = cspdCfg(th);
+  if (!CSPD.week || (CSPD.week !== 'qtd' && cfg.weeks.indexOf(CSPD.week) < 0)) CSPD.week = cspdDefaultWeek(cfg);
+
+  // The period label follows the TARGETS SEED, not the date picker: this section is
+  // anchored to the quarter the targets were loaded for.
+  document.querySelectorAll('.cspd-qlbl').forEach(e => { e.textContent = cfg.period_label; });
+
+  cspdRenderVendorSel(cfg);
+  cspdRenderWeekChips(cfg);
+
+  const rows = cspdRows();
+  const tot  = cspdSum(rows);
+
+  // ---- 3.1 campaign-to-date band: vendor-scoped, NEVER week-scoped -------
+  const S = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+  S('cspd_t_del',   tot.delivered.toLocaleString());
+  S('cspd_t_acc',   tot.accepted.toLocaleString());
+  S('cspd_t_rej',   tot.rejected.toLocaleString());
+  S('cspd_t_rrate', cspdPct(tot.rejected, tot.delivered));
+  S('cspd_t_arate', cspdPct(tot.accepted, tot.delivered));
+  S('cspd_t_pace',  cspdPct(tot.accepted, tot.target));           // accepted / whole-quarter target
+  S('cspd_t_pace_cnt', tot.target
+      ? tot.accepted.toLocaleString() + ' of ' + tot.target.toLocaleString() + ' ' + cfg.period_label + ' target'
+      : 'no target set');
+
+  // ---- 3.3 weekly figures: selected week, or period-to-date --------------
+  const qtd = CSPD.week === 'qtd';
+  // "to date" = every week up to and including the last one carrying delivery, so the
+  // pacing read is against the target that has actually come due, not the full quarter.
+  const dw = rows.filter(r => r.delivered > 0 && r.week_start).map(r => r.week_start).sort();
+  const lastDelivering = dw.length ? dw[dw.length - 1] : null;
+  const slice = qtd
+    ? rows.filter(r => r.week_start && lastDelivering && r.week_start <= lastDelivering)
+    : rows.filter(r => r.week_start === CSPD.week);
+  const w = cspdSum(slice);
+  const wkName = qtd ? cfg.period_label + ' to date' : 'Week of ' + cspdWkLabel(CSPD.week);
+  S('cspdWkLbl', qtd ? cfg.period_label + ' to date' : 'Selected week');
+  // Under the cumulative chip this figure is no longer a WEEKLY pacing number - it is
+  // delivered against the target that has come due so far. Say which one it is.
+  S('cspd_w_pace_k', qtd ? 'Pacing to date' : 'Weekly pacing');
+  S('cspd_w_del',   w.delivered.toLocaleString());
+  S('cspd_w_rej',   w.rejected.toLocaleString());
+  S('cspd_w_rrate', cspdPct(w.rejected, w.delivered));
+  S('cspd_w_arate', cspdPct(w.accepted, w.delivered));
+  S('cspd_w_pace',  cspdPct(w.delivered, w.target));
+  S('cspd_w_pace_cnt', w.target
+      ? w.delivered.toLocaleString() + ' vs ' + w.target.toLocaleString() + ' target'
+      : 'no target for this week');
+  const deficit = w.target - w.accepted;
+  S('cspd_w_def', w.target ? (deficit > 0 ? deficit.toLocaleString() : '0') : '-');
+  S('cspd_w_def_cnt', !w.target ? 'no target to measure against'
+                    : deficit > 0 ? 'accepted leads behind target' : 'target met');
+
+  cspdRenderMarketChart(cfg, slice, wkName);
+  cspdRenderRejChart(cfg, rows);
+  cspdRenderReasons(cfg, wkName);
+  cspdRenderStale(cfg);
+
+  // LAST, and it has to be last. This is the tail of renderAll(), and several blocks on
+  // this tab set their own display during that pass - renderLeadDetail() in particular
+  // re-shows the dev-only per-lead PII table every time. Scoping before the repaint let
+  // that table sit visible under EMEA showing APAC leads. Running here also covers the
+  // date-picker path (applyDateRange -> renderAll), which would otherwise un-hide it too.
+  applyRegionPanelScope();
+}
+
+// ==========================================================================
+// THEATRE - derived from the selected LANE, not from its own control
+// ==========================================================================
+// EMEA is NOT a separate dashboard, it is a scope on this one, and it is reached through
+// the existing lane dropdown ("Core DG EMEA") rather than a second toggle beside it.
+// `currentLane` is therefore the single source of truth: the lane picks the theatre AND
+// the tabs (PROGRAMS[...].theatre / .tabs, applied by applyLaneTabs), so the two can never
+// disagree the way a separate region switch could.
+//
+// The theatre the LEGACY CS model covers. sql/10_salesforce_leads_live is scoped by a
+// campaign-ID allowlist, which makes it APAC-ONLY (verified 2026-08-24: 5,873 rows, ZERO
+// EMEA), and every block on the Content Syndication tab EXCEPT the Pacing detail section
+// reads it. So under any other theatre those blocks would render APAC numbers under an
+// EMEA heading - worse than showing nothing. They are hidden instead, and the lane's own
+// note says why. If that view is ever widened past APAC, this constant is what to revisit.
+const CSPD_LEGACY_THEATRE = 'APAC';
+
+// A lane with no explicit theatre is APAC - so an older lane definition, or a new one added
+// without thinking about theatre, degrades to exactly today's behaviour.
+function laneTheatre(){ return laneCfg().theatre || CSPD_LEGACY_THEATRE; }
+
+// Hide the CS-tab blocks that read the APAC-only legacy model, leaving the Pacing detail
+// section. Each element's ORIGINAL inline display is stashed before hiding, so restoring
+// cannot un-hide something that was hidden for a different reason - the dev-only lead
+// detail card being the one that would actually leak PII if this got it wrong.
+function applyRegionPanelScope(){
+  const panel = document.getElementById('panel-main');
+  if (!panel) return;
+  const legacyOk = laneTheatre() === CSPD_LEGACY_THEATRE;
+  for (const el of panel.children){
+    if (el.id === 'cspdSection') continue;     // the one block that is theatre-aware
+    if (!legacyOk){
+      if (el.dataset.bbRegionHid === undefined) el.dataset.bbRegionHid = el.style.display;
+      el.style.display = 'none';
+    } else if (el.dataset.bbRegionHid !== undefined){
+      el.style.display = el.dataset.bbRegionHid;
+      delete el.dataset.bbRegionHid;
+    }
+  }
+}
+
+// ---- controls ------------------------------------------------------------
+function cspdRenderVendorSel(cfg){
+  const sel = document.getElementById('cspdVendor');
+  if (!sel) return;
+  if (CSPD.vendor !== 'all' && cfg.vendors.indexOf(CSPD.vendor) < 0) CSPD.vendor = 'all';
+  sel.innerHTML = '<option value="all">All vendors</option>' + cfg.vendors.map(v =>
+    '<option value="' + v + '">' + v + '</option>').join('');
+  sel.value = CSPD.vendor;
+}
+function cspdSetVendor(v){ CSPD.vendor = v; renderCsPacingDetail(); }
+
+function cspdRenderWeekChips(cfg){
+  const box = document.getElementById('cspdWeeks');
+  if (!box) return;
+  const chips = cfg.weeks.map(wk =>
+    '<button type="button" class="chip' + (CSPD.week === wk ? ' on' : '') + '" ' +
+    'onclick="cspdSetWeek(&quot;' + wk + '&quot;)">' + cspdWkLabel(wk) + '</button>').join('');
+  // "<period> to date" closes the row: the cumulative read the client asked for.
+  box.innerHTML = chips + '<span class="cspd-sep"></span>' +
+    '<button type="button" class="chip' + (CSPD.week === 'qtd' ? ' on' : '') + '" ' +
+    'onclick="cspdSetWeek(&quot;qtd&quot;)">' + cfg.period_label + ' to date</button>';
+}
+function cspdSetWeek(w){ CSPD.week = w; renderCsPacingDetail(); }
+
+// ---- charts --------------------------------------------------------------
+// Horizontal grouped bars, one pair per market, in the seed's display order.
+function cspdRenderMarketChart(cfg, slice, wkName){
+  destroy('cspdMarketChart');
+  const el = document.getElementById('cspdMarketChart');
+  if (!el) return;
+  const byMkt = {};
+  for (const r of slice){
+    const o = byMkt[r.market] = byMkt[r.market] || { target:0, delivered:0 };
+    o.target += (r.target || 0); o.delivered += (r.delivered || 0);
+  }
+  const labels = cfg.markets;
+  charts['cspdMarketChart'] = new Chart(el, {
+    type: 'bar',
+    data: { labels: labels, datasets: [
+      { label: 'Target',    data: labels.map(m => (byMkt[m] || {}).target    || 0), backgroundColor: TARGET, maxBarThickness: 9 },
+      { label: 'Delivered', data: labels.map(m => (byMkt[m] || {}).delivered || 0), backgroundColor: CF,     maxBarThickness: 9 },
+    ]},
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, padding: 12 } } },
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } },
+  });
+  const lbl = document.getElementById('cspdMktLbl');
+  if (lbl) lbl.textContent = wkName + (CSPD.vendor === 'all' ? ' - all vendors' : ' - ' + CSPD.vendor);
+
+  // Unmatched leads are a CLIENT REQUIREMENT to surface, so this line always says
+  // something - "all matched" is information too.
+  const um = cspdSum(slice).needs_review;
+  const note = document.getElementById('cspdUnmapped');
+  if (note){
+    note.className = 'cspd-note' + (um > 0 ? ' warn' : '');
+    note.textContent = um > 0
+      ? um.toLocaleString() + ' lead' + (um === 1 ? '' : 's') + ' matched no market rule - flagged for manual review'
+      : 'All leads in this selection matched a market.';
+  }
+}
+
+// Rejected count per week with the rejection rate overlaid. Bars are clickable and
+// stay in sync with the chips above.
+function cspdRenderRejChart(cfg, rows){
+  destroy('cspdRejChart');
+  const el = document.getElementById('cspdRejChart');
+  if (!el) return;
+  const byWk = {};
+  for (const r of rows){
+    if (!r.week_start) continue;
+    const o = byWk[r.week_start] = byWk[r.week_start] || { rejected:0, delivered:0 };
+    o.rejected += (r.rejected || 0); o.delivered += (r.delivered || 0);
+  }
+  const wks = cfg.weeks;
+  // NULL, not 0, for a week with no delivery at all. The quarter's week grid runs to the end
+  // of the flight, so most of it is still in the future: a 0 draws the rate line flat along
+  // the axis and reads as "rejections collapsed", and puts a "Rejected 0" tooltip on a week
+  // that has not happened. null leaves a gap, which is what "no data yet" looks like.
+  // A week WITH delivery and zero rejections is a true 0 and shows as one - good news is
+  // still news. A week with NO delivery is null in BOTH series (byWk has an entry for every
+  // planned week because the target rows create one, so the test is on delivery, not existence).
+  const rej  = wks.map(k => { const o = byWk[k]; return o && o.delivered ? (o.rejected || 0) : null; });
+  const rate = wks.map(k => { const o = byWk[k]; return o && o.delivered ? +(100 * o.rejected / o.delivered).toFixed(1) : null; });
+  const RED = cssTok('--bad-red');
+  charts['cspdRejChart'] = new Chart(el, {
+    data: { labels: wks.map(cspdWkLabel), datasets: [
+      // the selected week is full-strength; the rest step back so the selection reads
+      { type: 'bar', label: 'Rejected', yAxisID: 'y', data: rej, maxBarThickness: 22,
+        backgroundColor: wks.map(k => k === CSPD.week ? RED : 'color-mix(in srgb,' + RED + ' 34%,transparent)') },
+      { type: 'line', label: 'Rejection rate', yAxisID: 'y1', data: rate,
+        borderColor: CF, backgroundColor: CF, borderWidth: 2, pointRadius: 3, tension: .3 },
+    ]},
+    options: { responsive: true, maintainAspectRatio: false,
+      onClick: (e, act) => { if (act.length) cspdSetWeek(wks[act[0].index]); },
+      // NO legend here (the approved layout has none either): the bar colour varies by row to
+      // mark the selected week, and Chart.js draws the legend swatch from backgroundColor[0],
+      // so a legend would show the DIMMED red and misdescribe the series. The card title plus
+      // the hint below it carry the meaning instead.
+      plugins: { legend: { display: false },
+        tooltip: { callbacks: { label: c => c.datasetIndex
+          ? 'Rejection rate ' + c.parsed.y + '%'
+          : 'Rejected ' + c.parsed.y } } },
+      scales: { x: { grid: { display: false } },
+        y:  { beginAtZero: true, ticks: { precision: 0 } },
+        y1: { position: 'right', beginAtZero: true, grid: { display: false },
+              ticks: { callback: v => v + '%' } } } },
+  });
+  const n = document.getElementById('cspdRejNote');
+  if (n) n.textContent = CSPD.week === 'qtd'
+    ? 'Showing every week. Click a bar to scope the figures above to that week.'
+    : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
+}
+
+// ---- rejection reasons: renders ONLY with real data ----------------------
+function cspdRenderReasons(cfg, wkName){
+  const card = document.getElementById('cspdReasonsCard');
+  if (!card) return;
+  const all = CSPD_META.reasons || [];
+  const th = cspdTheatre();
+  const mine = all.filter(r => r.theatre === th
+    && (CSPD.week === 'qtd' || r.week_start === CSPD.week)
+    && (CSPD.vendor === 'all' || r.vendor === CSPD.vendor));
+  if (!mine.length){ card.style.display = 'none'; return; }   // hide cleanly, never fabricate
+  card.style.display = '';
+  document.getElementById('cspdReasonsLbl').textContent = wkName;
+  document.getElementById('cspdReasons').innerHTML = mine.map(r =>
+    '<div class="cspd-reason"><div class="rk">' + (r.vendor || '-') + '</div>' +
+    '<div class="rv">' + (r.reason || '-') + '</div></div>').join('');
+}
+
+// ---- targets freshness: the one non-live input, so say so out loud -------
+// Admin View only. Last quarter the target load failed silently and the pacing model
+// returned zero targets for seven weeks without anyone noticing.
+function cspdRenderStale(cfg){
+  const card = document.getElementById('cspdStale');
+  if (!card) return;
+  const withTgt = cfg.weeks.filter(wk =>
+    CSPD_ROWS.some(r => r.theatre === cfg.theatre && r.week_start === wk && r.target > 0)).sort();
+  const last = withTgt.length ? withTgt[withTgt.length - 1] : null;
+  const now = new Date();
+  const monday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(),
+                                   now.getUTCDate() - ((now.getUTCDay() + 6) % 7)));
+  const thisWeek = monday.toISOString().slice(0, 10);
+  const stale = !last || last < thisWeek;
+  if (!devMode || !stale){ card.style.display = 'none'; return; }
+  card.style.display = '';
+  document.getElementById('cspdStaleMsg').innerHTML = last
+    ? 'Targets for <b>' + cfg.theatre + '</b> only run to the week of <b>' + last + '</b>, which is behind the current week. '
+      + 'The ' + cfg.period_label + ' targets seed is loaded once per quarter from the client sheet - reload it, or pacing reads against a short target.'
+    : 'No targets are loaded for <b>' + cfg.theatre + '</b> at all - every pacing figure below reads against zero.';
+}
+// <<< BB:CSPD <<<
 
 // ==========================================================================
 // DEV MODE: full lead detail table (all fields) + "Internal Notes" tab
@@ -3346,13 +3840,39 @@ const PM_CF='#F38020', PM_CFs='#FBAD41', PM_LI='#3B93E8', PM_RD='#FF6A3D',
 //   plans - does this lane have the Core DG media-plan budgets + LinkedIn lead commit?
 //           (PACING_PLANS / LI_LEADGEN_PLANS are Core DG's numbers; showing them under
 //           another brief would grade its spend against a budget that isn't its own)
+// `theatre` is the CS theatre a lane reports (see laneTheatre / cspdTheatre). It is a lane
+// property rather than its own control on purpose: EMEA is a SCOPE on this dashboard, and a
+// separate region toggle beside the lane dropdown meant two controls for one concept, able
+// to disagree. `currentLane` is now the single source of truth for both.
 const PROGRAMS = {
   core: {
-    prog: 'CORE_DG', label: 'Core DG APJ',
+    prog: 'CORE_DG', label: 'Core DG APJ', theatre: 'APAC',
     tabs: ['paid','main','compare','qoq','txdata'], plans: true, note: ''
   },
+  // Core DG EMEA - the same brief, the other theatre. Content Syndication ONLY: no EMEA ad
+  // accounts are connected, and it launched 2026-08-07 so there is no prior quarter, hence
+  // no `paid` / `compare` / `qoq` tab. `plans:false` because the budget + LinkedIn lead-commit
+  // pacing blocks are Core DG APJ's plans. `prog` is still CORE_DG (it IS the same brief) and
+  // is simply unused here, since the Paid Media tab never renders on this lane.
+  core_emea: {
+    prog: 'CORE_DG', label: 'Core DG EMEA', theatre: 'EMEA',
+    tabs: ['main','txdata'], plans: false,
+    // NO shared date control on this lane: everything range-driven on the CS tab is APAC-scoped
+    // and therefore hidden here (see applyRegionPanelScope), and the one section that DOES
+    // render is driven by its own week selector. A visible picker that changes nothing on
+    // screen is worse than no picker. Flip this to true the day EMEA gains range-driven
+    // content (paid media, or a widened salesforce_leads_live).
+    dateControl: false,
+    note: '<b>Core DG EMEA</b> - Content Syndication only, live since <b>7 Aug 2026</b>. '
+        + 'Paid Media, CS Comparison and Quarter on Quarter are not shown: no EMEA ad accounts '
+        + 'are connected, and EMEA launched part-way through the quarter so there is no prior '
+        + 'quarter to compare. The Content-Syndication KPIs, donuts and trends that normally '
+        + 'sit above <b>Pacing detail</b> are scoped to APAC and are hidden here too, rather '
+        + 'than shown under an EMEA heading - so this lane is the Pacing detail section, which '
+        + 'is driven by its own week selector.'
+  },
   surround_abm: {
-    prog: 'SURROUND_ABM', label: 'Surround ABM',
+    prog: 'SURROUND_ABM', label: 'Surround ABM', theatre: 'APAC',
     tabs: ['paid'], plans: false,
     // NOTE the flight: the campaign NAMES read "2026-Q2" but delivery started 2026-06-12 and is
     // still running - roughly a third of it is Q2 and two thirds Q3. Do not describe this lane as
@@ -4614,8 +5134,14 @@ function renderPaidMediaAll() {
 }
 
 function switchDashboard(val){
-  // A PROGRAM lane (core / surround_abm) renders the full core shell scoped to one brief;
-  // anything else is a single-campaign LinkedIn view. See PROGRAMS.
+  // Keep the <select> showing the truth. It is normally the thing that CALLED this (so it is
+  // already right), but this dropdown is now the region control too - a programmatic call
+  // that left it reading "Core DG APJ" while the page rendered EMEA would be actively
+  // misleading about which theatre the numbers belong to.
+  const sel = document.getElementById('dashSelect');
+  if (sel && sel.value !== val) sel.value = val;
+  // A PROGRAM lane (core / core_emea / surround_abm) renders the full core shell scoped to one
+  // brief; anything else is a single-campaign LinkedIn view. See PROGRAMS.
   const lane = PROGRAMS[val];
   const isProgram = !!lane;
   // The tab rail AND the shared date control both live in the sticky control bar now, so a
@@ -4626,14 +5152,17 @@ function switchDashboard(val){
   document.getElementById('panel-main').classList.add('hidden');
   document.getElementById('panel-compare').classList.add('hidden');
   document.getElementById('panel-paid').classList.add('hidden');
-  // The shared date control only governs the core tabs; the single-campaign view
-  // uses precomputed whole-window totals, so hide the control there.
+  // The shared date control only governs the core tabs; the single-campaign view uses
+  // precomputed whole-window totals, so hide the control there. A PROGRAM lane can also opt
+  // out (`dateControl:false` - Core DG EMEA), for the same reason: nothing it renders responds
+  // to the range, and a control that changes nothing on screen is worse than no control.
   const dpEl = document.getElementById('dateRange');
-  if (dpEl) dpEl.style.display = isProgram ? '' : 'none';
+  if (dpEl) dpEl.style.display = (isProgram && lane.dateControl !== false) ? '' : 'none';
   const note = document.getElementById('dateScopeNote');
   if (note && !isProgram) note.style.display = 'none';
   if (!isProgram) { renderLaneNote(false); renderCampaign(val); return; }
 
+  const prevTheatre = laneTheatre();
   currentLane = val;
   paidProgram = lane.prog;
   applyLaneTabs();
@@ -4642,6 +5171,16 @@ function switchDashboard(val){
   if (lane.tabs.indexOf(activeTab) < 0) activeTab = lane.tabs[0];
   renderLaneNote(true);
   switchTab(activeTab);
+  // A theatre change has to repaint the Content Syndication tab, and switchTab() does NOT
+  // re-render 'main' (it only toggles panels - the CS tab is otherwise built once at boot and
+  // on a date change). Called unconditionally rather than only when 'main' is active: the
+  // repaint is what runs applyRegionPanelScope, and skipping it while sitting on another tab
+  // would leave panel-main stashed in the WRONG theatre's hide/show state for later.
+  if (laneTheatre() !== prevTheatre){
+    CSPD.vendor = 'all';     // a vendor / week valid in one theatre need not exist in the other
+    CSPD.week   = null;
+    renderAll();
+  }
 }
 
 // Show only the tabs this lane is allowed to render. Layered ON TOP of the Admin-View gate:
@@ -5171,6 +5710,7 @@ if (new URLSearchParams(location.search).has('bbslides')){
   // ---- 5. the observer that drives all of it -------------------------------------------
   const REVEAL_SEL = '.card,.kpi,.cs-snap .group,.qoq-stats .stat,.compare-panel,.why,' +
                      '.qoq-note,.alert,.info,.reason,.gap-tile,.pix,.panel-paid-scope .section,' +
+                     '#panel-main .section,' +
                      '.filter-row,.pace-row,.progress-row,.compare-header';
   let io = null;
   function onIntersect(entries){
