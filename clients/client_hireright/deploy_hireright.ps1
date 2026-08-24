@@ -119,6 +119,11 @@ Write-Host "[5/7] Applying views + building/deploying the export job ..."
 # *.sql as UTF-8 and applies it through the BigQuery client (the documented apply path).
 $venvPy = Join-Path $PWD '.venv\Scripts\python.exe'
 if (-not (Test-Path $venvPy)) { $venvPy = 'python' }
+# Seeds BEFORE views: sql/18_targets.sql is a view over the seed table `seed_media_plan`
+# and BigQuery validates a view's query at CREATE time, so create_views.py fails with
+# "Not found: Table ... seed_media_plan" on a fresh dataset if the seed is not loaded first.
+Write-Host "     loading committed target CSVs via $venvPy clients/client_hireright/seed_static.py"
+& $venvPy 'clients/client_hireright/seed_static.py'; Must "load seeds (seed_static.py)"
 Write-Host "     applying views via $venvPy clients/client_hireright/create_views.py"
 & $venvPy 'clients/client_hireright/create_views.py'; Must "apply views (create_views.py)"
 $JOB_IMG = "${REGION}-docker.pkg.dev/${PROJECT}/${REPO}/${JOB}:${SHA}"
