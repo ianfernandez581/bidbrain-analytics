@@ -6,7 +6,7 @@ via the top-nav selector. Two developments today:
 | Development | Channels | Budget | Flight | State |
 |---|---|---|---|---|
 | **Gateway Braddon** | Meta only | A$7,500 | 2026-06-21 -> 07-20 | live, delivering |
-| **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **plan seeded, NOT yet delivering** |
+| **Northbourne Gateway** (558 apartments) | Meta / LinkedIn / Trade Desk / Google Ads (+ SEO) | **A$205,600** | 2026-08-13 -> 10-31 | **COMING SOON** - held by `status` in the seed, not by lack of data |
 
 **Gateway Braddon is unchanged** by the 2026-08-24 multi-channel rebuild - verified as a strict
 no-op, see "The multi-channel rebuild" below. No Snowflake / Salesforce / Content-Syndication lane
@@ -15,8 +15,8 @@ here.
 ## Multiple developments — the `property` selector (added 2026-08-12)
 
 This dashboard covers a CLIENT (Geocon), not a single development. **Gateway Braddon** is
-delivering; **Northbourne Gateway** has a signed plan and shows in the top-nav selector as
-*"- media plan"* until its first row lands (see "the state of play" below).
+delivering; **Northbourne Gateway** shows in the top-nav selector as *"- coming soon"* and renders a
+placeholder until it is deliberately switched live (see "the state of play" below).
 
 **Why this exists is a safety rail, not a feature.** `sql/01_stg_meta.sql` scopes on
 `STARTS_WITH(campaign_name,'Geocon_')` so any new Geocon campaign flows in AUTOMATICALLY. Without a
@@ -47,42 +47,77 @@ breakdowns). Every rollup derives from those, so the whole page scopes together.
 
 ### Northbourne Gateway - the state of play (2026-08-24)
 
-**The signed media plan is seeded and on screen.** `targets/media_plan.csv` -> `seed_media_plan` ->
-`sql/06_media_plan.sql` -> the job's `properties[].plan` -> the dashboard's **Media Plan** tab.
-Nine bought lines across five channels, A$205,600 committed, flight 2026-08-13 -> 10-31.
+**It is deliberately COMING SOON, and it stays that way until someone says otherwise.** The
+development is 558 apartments on a A$205,600 plan, flight 2026-08-13 -> 10-31, buying Meta,
+LinkedIn, Trade Desk and Google Ads (plus an SEO retainer, which has no ad server and is therefore
+never a dashboard platform). Trade Desk and Google can be in market and spending while the campaign
+as a whole is still waiting on creative and client approval for the rest - and publishing a
+one-platform view of a four-platform launch would misrepresent it. So the dashboard shows a
+**coming-soon placeholder** and reports no performance at all.
 
-| # | Phase | Line | Channel | Budget | Imps | Clicks | Measurable |
-|---|---|---|---|---|---|---|---|
-| 1 | Awareness | High Impact (rich media) | Trade Desk | A$40,000 | 2,666,667 | 1,333 | yes |
-| 2 | Awareness | YouTube Video | Google Ads | A$12,000 | 266,667 | 133 | yes |
-| 3 | Awareness | SEO | - | A$9,600 | - | - | **no** |
-| 4 | Demand Gen | LinkedIn | LinkedIn | A$6,000 | 75,000 | 68 | yes |
-| 5 | Conversion | Canberra Investors (search) | Google Ads | A$16,500 | 14,000 | 350 | yes |
-| 6 | Conversion | Search Management Fee | - | A$7,500 | - | - | **no** |
-| 7 | Conversion | Retargeting | Trade Desk | A$12,000 | 800,000 | 720 | yes |
-| 8 | Conversion | Lookalike | Trade Desk | A$12,000 | 800,000 | 720 | yes |
-| 9 | Conversion | Leads | Meta | A$90,000 | 4,500,000 | 4,050 | yes |
+**Going live is a one-word CSV edit.** `status` in `targets/property_map.csv`:
 
-Totals tie to the plan sheet exactly: **A$205,600, 9,122,334 imps, 7,374 clicks, 824,000 video
-views**. The one figure NOT carried verbatim is the YouTube line's **reach estimate**: the sheet's
-cell reads `11.11`, which is a broken formula (266,667 imps / a freq cap of 10 would be ~26,667),
-so it is seeded NULL rather than shown to anyone as a target of eleven people.
+| `status` | What the dashboard does |
+|---|---|
+| `coming_soon` | The placeholder owns the page - tabs, filters and footer hidden - **however much delivery has landed** |
+| `live` | The real dashboard |
 
-**Measurable A$188,500 of A$205,600.** SEO is an organic-search retainer with no ad server and the
-Google management fee is an agency fee. Pacing against the committed figure would report a
-permanent 8.3% shortfall that no delivery could ever close, so the dashboard paces on the
-measurable budget and shows the committed total beside it.
+```powershell
+# flip Northbourne live when every platform is approved and in market
+#   targets/property_map.csv:  ...,coming_soon   ->   ...,live
+.\.venv\Scripts\python.exe clients\client_geocon\seed_static.py
+gcloud run jobs execute geocon-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+```
+
+No code change, no deploy. **This is deliberately NOT automatic** - it used to be (a development
+switched itself on the moment its first row landed), and that is exactly the behaviour that would
+have published Northbourne off the back of its Trade Desk line alone.
+
+### The platform toggle - the resetdata pattern
+
+The point of the rebuild. A **PLATFORM** chip row sits in the control bar beside the date range, and
+ticking a platform off re-renders **the whole page** without it - KPIs, the delivery trend, the
+stage donut, the funnel, the campaign and ad tables, the creative gallery, the CSV export and the
+AI deck payload. It works because every rollup derives from `ROWS()`, which applies `chanOk`, so
+there is exactly one place the filter is enforced and nothing can be accidentally left unfiltered.
+
+Copied from `client_resetdata`'s PLATFORM chips, with the same rules - all on by default, the last
+chip cannot be unticked (an empty selection is an empty dashboard, which is never what the click
+meant) - and one difference this client forces: resetdata's roster is a fixed four, whereas a
+Geocon development runs whatever its plan bought, so **the roster is built from delivery**. A
+platform appears as a chip only once it has actually spent or served inside the current date range.
+A planned-but-dark platform is not a chip, because a permanent zero row reads as a platform that
+failed rather than one that has not started.
+
+**It hides itself at one platform**, which is why Gateway Braddon's control bar is untouched. Same
+for the **Performance by platform** table on Paid Media (the side-by-side the toggle needs to be
+worth using) - a one-row comparison table is not a comparison.
+
+Verified against a synthetic four-platform payload: with all four on, A$15,873 / 176 enquiries /
+344 rows in scope; ticking each platform off moved spend, enquiries, the donut total, the campaign
+table, the ad table and the row scope by exactly that platform's contribution, and the last chip
+refused to untick. That test also caught a real defect - see below.
+
+#### `Number(null)` is `0`, so an absent target was rendering as a target of zero
+
+Northbourne's plan commits impressions, clicks and budget but **no lead number**, so
+`monthly_lead_target` / `qualified_lead_target` / `cpl_target_aud` are seeded PENDING with an empty
+value. `bench()` coerced those with `Number(...)`, and in JavaScript both `Number(null)` and
+`Number('')` are `0` - not `NaN` - so `Number.isFinite` accepted them and the page printed
+**"pending target 0"**, **"target A$0"** and **"0% of goal"**. Both accessors now reject
+null/undefined/empty *before* coercing (`numOrNull`), so an unset target reads "no target set".
+Worth remembering repo-wide: `Number.isFinite(Number(x))` is not a null guard.
 
 #### Go-live blockers - three, and none of them are code
 
-| Blocker | Detail | Who |
-|---|---|---|
-| **No Geocon LinkedIn account in Windsor** | The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else. `sql/07_stg_linkedin.sql` is written and returns zero rows. | needs the account granted + a Windsor connector |
-| **No Geocon Trade Desk advertiser on the shared seat** | The seat carries VMCH / ResetData / WEHI / TLM / Altech / ACRS / City Perfume / Qtopia / Caltex / Peaches & Cream / BigAds. `sql/08_stg_ttd.sql` is written and returns zero rows. **This is the largest single block of the plan - A$64,000 across three lines.** | needs the advertiser granted to the Windsor seat |
-| **Meta is frozen at 2026-08-10** | The Windsor Meta grant lapsed 2026-08-11, estate-wide. Northbourne's A$90,000 Meta line cannot report until it is re-authed. | needs a human re-auth |
+| Blocker | Detail |
+|---|---|
+| **No Geocon LinkedIn account in Windsor** | The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else. `sql/07_stg_linkedin.sql` is written and returns zero rows. |
+| **No Geocon Trade Desk advertiser on the shared seat** | The seat carries VMCH / ResetData / WEHI / TLM / Altech / ACRS / City Perfume / Qtopia / Caltex / Peaches & Cream / BigAds. `sql/08_stg_ttd.sql` is written and returns zero rows. **A$64,000 across three lines - the largest block of the plan.** |
+| **Meta frozen at 2026-08-10** | The Windsor Meta grant lapsed 2026-08-11, estate-wide. Northbourne's A$90,000 Meta line cannot report until it is re-authed. |
 
-**Google Ads is the one channel already wired end to end.** Geocon Group (customer `5457742070`)
-is linked under the DTS MCC `3451896252`, and the three Northbourne campaigns already exist:
+**Google Ads is the one channel already wired end to end.** Geocon Group (customer `5457742070`) is
+linked under the DTS MCC `3451896252`, and the three campaigns already exist:
 
 ```
 0201_Geocon_NGW558_ANZ_YouTube_AWR              VIDEO   PAUSED
@@ -90,21 +125,20 @@ is linked under the DTS MCC `3451896252`, and the three Northbourne campaigns al
 0201_Geocon_NGW558_National_SearchNonBrand_CNV  SEARCH  PAUSED
 ```
 
-They flow in the moment they are un-paused, with no change here. That naming is also **what the
-property tokens were written against** - `NGW558` / `NGW` / `0201_` in `targets/property_map.csv`.
-The original placeholder tokens (`Northbourne|North Bourne|NBG`) would have matched **none** of
-them, so every Northbourne row would have fallen through to Gateway Braddon.
+They flow the moment they are un-paused. That naming is also **what the property tokens were written
+against** - `NGW558` / `NGW` / `0201_` in `targets/property_map.csv`. The original placeholder
+tokens (`Northbourne|North Bourne|NBG`) matched **none** of them, so every Northbourne row would
+have fallen through to Gateway Braddon.
 
 #### One measurement gap worth raising now
 
 **Google Ads reports no video metric at all.** Neither `p_ads_CampaignBasicStats`,
 `p_ads_CampaignStats` nor the (empty) `p_ads_VideoStats` carries views, view rate or quartiles, and
-`raw_windsor.perf_google_ads` has no video columns either. So the YouTube line's **24,000-view
-target and A$0.50 CPV cannot be measured** - the dashboard says so on the Media Plan tab rather
-than reporting zero. Fixing it means extending the DTS export (or adding a video-capable feed)
-before the line goes live; afterwards the history is not recoverable.
+`raw_windsor.perf_google_ads` has no video columns either. The YouTube line's 24,000-view target and
+A$0.50 CPV therefore **cannot be measured**. Fixing it means extending the DTS export before that
+line goes live - afterwards the history is not recoverable.
 
-#### Day one of each channel - the one thing to check
+#### Day one of each platform - the one thing to check
 
 Campaign names must match. Everything else is automatic.
 
@@ -113,53 +147,37 @@ SELECT DISTINCT channel, campaign_name, property, plan_line
 FROM `bidbrain-analytics.client_geocon.fact_all` ORDER BY 1,2;
 ```
 
-- `property = 'Unmapped'` -> the name missed the property tokens. **The export job already prints a
-  WARNING naming the offenders**; widen `targets/property_map.csv`, re-seed, `FORCE_REBUILD=1`.
-- `plan_line` NULL on a non-Meta row -> the name missed its media-plan token. Delivery is still
-  counted, but it paces against nothing; widen that line's `match_pattern` in
-  `targets/media_plan.csv`. The job prints a WARNING for this too.
+`property = 'Unmapped'` means the name missed the property tokens - **the export job already prints
+a WARNING naming the offenders**. Widen `targets/property_map.csv`, re-seed, `FORCE_REBUILD=1`. An
+unmatched non-Meta row is excluded from every KPI rather than absorbed into a live development, so
+this can never silently corrupt Gateway Braddon.
 
-Neither failure can silently corrupt a live development: an unmatched non-Meta row is excluded from
-every KPI rather than absorbed into Gateway Braddon.
+### There is no Media Plan tab
 
-### Still to decide
-
-Northbourne's **lead targets are PENDING with no value** - the signed plan commits impressions,
-clicks and budget but no lead number, so `monthly_lead_target` / `qualified_lead_target` /
-`cpl_target_aud` are seeded empty and render as `-` rather than as a target of zero. Get a lead
-commitment from the client and seed it in `targets/targets.csv`.
+One was built on 2026-08-24 and **removed the same day on request** - the ask was a platform toggle,
+not a plan view. The plan itself is still seeded (`targets/media_plan.csv` -> `seed_media_plan` ->
+`sql/06_media_plan` -> `properties[].plan`) and still flows into the payload, because it is where
+the per-platform impression / click / CPM / CTR targets live and that is what the platform lanes get
+measured against once they go live. **Nothing renders it today** except `plan_channels`, which the
+coming-soon placeholder uses to list the platforms the campaign bought.
 
 ## The multi-channel rebuild (2026-08-24) - and why Gateway Braddon did not move
 
-Northbourne needed four channels where the dashboard had one. Rather than fork the page per
+Northbourne needed four platforms where the dashboard had one. Rather than fork the page per
 development, the Meta path was left **exactly** as it was and everything new was added beside it:
 
 - `sql/02_fact.sql` is untouched and **deliberately kept**. `sql/10_fact_all.sql`'s Meta arm is
   `fact` verbatim with a `channel` label bolted on, so the identity is a one-view diff.
 - The job still emits the **legacy top-level** `flight` / `benchmarks` / `targets` (the default
   development's), so a job deploy landing ahead of a dashboard deploy changes nothing on screen.
-- Every new dashboard control hides itself at one channel / one development: the channel chips
-  need >=2 delivering channels, the Media Plan tab needs a seeded plan.
+- Every new control hides itself at one platform / one development: the platform chips and the
+  platform table need >=2 delivering platforms.
 
-**Verified, not assumed.** `fact` and `fact_all` reconcile exactly (273 rows, A$14,456.60,
-1,053,133 imps, 166 leads), and the old dashboard on the live payload was rendered head-to-head
+**Verified, not assumed.** `fact` and `fact_all` reconcile exactly (273 rows / A$14,456.60 /
+1,053,133 imps / 166 leads), and the old dashboard on the live payload was rendered head-to-head
 against the new dashboard on the new payload: **0 differences across all 15 rendered sections** -
 both KPI strips, the stage / bench / ad / fatigue tables, the funnel, burn, goal, pacing bars,
 insights, creative grid, chart set and stage chips.
-
-### What a development with a plan and no delivery shows
-
-The old rule was "a development is selectable once it has rows". That was right while "not
-delivering" and "nothing to show" were the same thing; the signed plan makes them different. A
-development now opens if it has **delivery or a plan**, and the two states look different:
-
-- **Selector** reads `Northbourne Gateway - media plan` (vs `- coming soon` for one with neither).
-- **Boots onto the Media Plan tab**, and the topbar reads **Planned**, not Live.
-- **Every delivery figure reads `-`, never `0`.** A zeroed KPI strip beside "target 0.080%" states
-  that a campaign delivered nothing; the truth is that it has not started. Same reason the per-line
-  pace column reads **not started** rather than `-100%`, and the pacing card drops its
-  "behind pace" pill when nothing has run.
-- The delivery tabs stay reachable but **dimmed**, under a banner pointing at the plan.
 
 ### The three-stage contract, extended
 
@@ -168,11 +186,12 @@ The 2026-08-24 additions:
 
 | sql | job | dashboard |
 |---|---|---|
-| `fact_all.channel` | `rows[].channel` | `chanOf()` / channel chips / `deliveredChans()` |
-| `fact_all.plan_line` / `.plan_seq` | `rows[].plan_line` / `.plan_seq` | `planActual()` -> the plan-vs-delivered table |
-| `media_plan.*` | `properties[].plan[]` | `planLines()` -> the whole Media Plan tab |
+| `fact_all.channel` | `rows[].channel` | `chanOf()` / the PLATFORM chips / `deliveredChans()` / `renderPlatformTable()` |
+| `fact_all.plan_line` / `.plan_seq` | `rows[].plan_line` / `.plan_seq` | carried, not rendered (see "There is no Media Plan tab") |
+| `media_plan.*` | `properties[].plan[]` / `.plan_channels` | `planChannels()` -> the coming-soon placeholder only |
+| `seed_property_map.status` | `properties[].status` | `comingSoonProp()` -> the placeholder gate |
 | `targets.property_key` | `properties[].targets` / `.benchmarks` | `propDef()` -> `bench()` / `targetItem()` |
-| `budget.measurable_budget_aud` | `flight.budget_measurable` / `.budget_committed` | the plan pacing card |
+| `budget.measurable_budget_aud` | `flight.budget_measurable` / `.budget_committed` | the Ad-spend KPI's "% of flight" |
 | `stg_google_ads.conversions` | `rows[].conversions` | carried and labelled, **never** summed into leads |
 
 ## Architecture — one fact table, rolled up in the browser (rebuilt 2026-06)

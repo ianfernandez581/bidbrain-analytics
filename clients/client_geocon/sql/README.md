@@ -31,7 +31,7 @@ BigQuery console (or the two drift). The `NN_` filename prefix sets apply order:
 | [`03_targets.sql`](03_targets.sql) | `targets` | Flat key/value targets **per development**, from `seed_targets`. A `PENDING` row may carry an empty value (Northbourne's lead targets do — the plan commits no lead number), which reads through as NULL and renders as `-`. |
 | [`04_budget.sql`](04_budget.sql) | `budget` | Budget + flight window **per development**, from `seed_budget`. Carries `measurable_budget_aud` — see the note below. |
 | [`05_breakdowns.sql`](05_breakdowns.sql) | `breakdowns` | Meta-only audience (age × gender) + placement facts from the geocon-only `raw_windsor.geocon_meta_breakdown`. Property-resolved from the **same seed** `01_stg_meta` uses, so the charts can never disagree with the KPIs above them. |
-| [`06_media_plan.sql`](06_media_plan.sql) | `media_plan` | **The signed media plan, one row per bought LINE**, from `seed_media_plan`. Carries each line's own impression / click / CPM / CTR target, its `measurable` flag and its `match_pattern`. |
+| [`06_media_plan.sql`](06_media_plan.sql) | `media_plan` | The signed media plan, one row per bought LINE, from `seed_media_plan`. Carries each line's own impression / click / CPM / CTR target, its `measurable` flag and its `match_pattern`. **Nothing on the dashboard renders it today** (the Media Plan tab was removed on request); it is kept because it holds the per-platform targets the platform lanes will be measured against, and its `channel` list feeds the coming-soon placeholder. |
 | [`07_stg_linkedin.sql`](07_stg_linkedin.sql) | `stg_linkedin` | LinkedIn slice of the shared `raw_windsor.perf_linkedin`. **Returns zero rows today** — there is no Geocon LinkedIn account in Windsor yet. |
 | [`08_stg_ttd.sql`](08_stg_ttd.sql) | `stg_ttd` | Trade Desk slice of the shared `raw_windsor.perf_the_trade_desk`. **Returns zero rows today** — no Geocon advertiser on the shared seat yet. |
 | [`09_stg_google_ads.sql`](09_stg_google_ads.sql) | `stg_google_ads` | Google Ads slice of the **native DTS export**, customer `5457742070` (Geocon Group) under MCC `3451896252`. The three Northbourne campaigns exist and are PAUSED, so it returns zero rows until they are switched on. |
@@ -39,7 +39,7 @@ BigQuery console (or the two drift). The `NN_` filename prefix sets apply order:
 
 ---
 
-## Four rules this folder encodes
+## Five rules this folder encodes
 
 **1. Only the Meta arm may fall back to a development.** `01_stg_meta`'s scope (ad account +
 `Geocon_` prefix) is exact, so its catch-all `ELSE Gateway Braddon` is safe. The other three
@@ -59,7 +59,12 @@ fee). That is A$17,100 of A$205,600. Pacing against the committed figure would r
 8.3% shortfall no amount of delivery could close, so `measurable_budget_aud` is what the dashboard
 paces on and the committed total is shown beside it.
 
-**4. Rates never enter a fact.** No view here stores a ratio — CTR/CPM/CPC/CPL are recomputed
+**4. `seed_property_map.status` is the coming-soon switch.** `coming_soon` makes the dashboard show
+a placeholder for that development **however much delivery has landed** - Northbourne's Trade Desk
+line can be live while the campaign waits on creative and approvals elsewhere. It is deliberately
+not inferred from row counts. Flipping to `live` is a one-word CSV edit + re-seed + a forced export.
+
+**5. Rates never enter a fact.** No view here stores a ratio — CTR/CPM/CPC/CPL are recomputed
 client-side from summed components, so any date sub-range is exact (the repo-wide rule).
 
 ---

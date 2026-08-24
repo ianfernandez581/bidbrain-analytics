@@ -193,16 +193,29 @@
   .date-scope{background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);
               border-left:4px solid var(--accent);border-radius:12px;padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:#DBD9D4}
   .date-scope b{color:#F7F6F3}
-  /* "Planned, not yet delivering" banner + the dimming it applies to the delivery tabs. Warm/amber
-     rather than the accent, so it reads as a STATE notice and not as another filter chip. The dim
-     is deliberately partial (.5, not display:none): the tab structure stays visible so nobody
-     thinks the dashboard is broken, but nothing on it invites being read as a real figure. */
-  .await-banner{background:color-mix(in srgb,var(--ctr) 12%,transparent);border:1px solid color-mix(in srgb,var(--ctr) 34%,transparent);
-              border-left:4px solid var(--ctr);border-radius:12px;padding:12px 16px;margin-bottom:16px;font-size:12.5px;color:#DBD9D4}
-  .await-banner b{color:#F7F6F3}
-  .await-banner a{color:var(--ctr)}
-  .await-dim{opacity:.5;filter:saturate(.4)}
-  @media print{.await-dim{opacity:1;filter:none}}
+  /* COMING SOON placeholder. Owns the page for a development seeded `coming_soon` - the tabs,
+     filters and footer are hidden OUTRIGHT rather than dimmed, because a dimmed-but-present
+     dashboard still invites someone to read a number off it. Centred single card, house dark. */
+  .cs-card{max-width:720px;margin:56px auto 96px;padding:44px 40px 32px;text-align:center;
+           background:linear-gradient(180deg,var(--card-1),var(--card-2));
+           border:1px solid var(--hair);border-radius:18px;box-shadow:var(--card-glow)}
+  .cs-eyebrow{font-size:11px;letter-spacing:.16em;text-transform:uppercase;font-weight:700;
+              color:var(--ctr);margin-bottom:14px}
+  .cs-title{font-size:30px;line-height:1.15;margin:0 0 14px;color:var(--ink);letter-spacing:-.01em}
+  .cs-dek{max-width:520px;margin:0 auto 26px;font-size:13.5px;line-height:1.65;color:var(--muted)}
+  .cs-facts{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin-bottom:22px}
+  .cs-facts>div{min-width:150px;padding:12px 16px;border:1px solid var(--hair);border-radius:12px;
+                background:rgba(255,255,255,.02)}
+  .cs-facts span{display:block;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+                 color:var(--muted2);margin-bottom:5px}
+  .cs-facts b{font-size:14px;color:var(--ink);font-weight:600}
+  .cs-note{font-size:12.5px;color:var(--muted);margin-bottom:24px;line-height:1.6}
+  .cs-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;
+           background:rgba(255,255,255,.06);color:var(--muted)}
+  .cs-pill.ok{background:color-mix(in srgb,var(--good) 18%,transparent);color:var(--good)}
+  .cs-foot{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted2)}
+  /* the platform-comparison table's total row */
+  #platformTable tr.totrow td{border-top:1px solid rgba(255,255,255,.14)}
 
   .tabpane{display:none}
   section[id^="tab-"]{background:
@@ -584,14 +597,12 @@
   </div>
 
   <div id="app" style="display:none">
-    <div class="control-bar">
+    <div class="control-bar" id="controlBar">
       <div class="control-tabs">
-        <div class="tabs">
+        <div class="tabs" id="tabRow">
           <button class="tab" data-view="overview">Overview</button>
           <button class="tab" data-view="paid">Paid Media</button>
-          <!-- Media Plan. Shown only for a development with a seeded plan (renderTabs), so
-               Gateway Braddon's two-tab bar is unchanged. -->
-          <button class="tab" data-view="plan" id="tabPlan" style="display:none">Media Plan</button>
+
         </div>
         <div class="tabs-right">
           <span class="ctrl-note" id="ctrlNote">&nbsp;</span>
@@ -623,7 +634,7 @@
              platform in the current range - Gateway Braddon is Meta-only, so the group and its
              divider stay hidden there and the control bar is unchanged. -->
         <div class="fdiv" id="chanDiv" style="display:none"></div>
-        <div class="filter-grp" id="chanGrp" style="display:none"><span class="lbl">Channel</span><div class="chips" id="chanChips"></div></div>
+        <div class="filter-grp" id="chanGrp" style="display:none"><span class="lbl">Platform</span><div class="chips" id="chanChips"></div></div>
         <div class="fdiv"></div>
         <div class="filter-grp"><span class="lbl">Stage</span><div class="chips" id="stageChips"></div></div>
         <div class="fdiv"></div>
@@ -633,10 +644,9 @@
 
     <div id="dateScopeNote" class="date-scope" style="display:none"></div>
 
-    <!-- "Planned but not delivering" banner. Shown ONLY for a development that has a signed plan
-         and zero delivery rows; it replaces the silent zeros the delivery tabs would otherwise
-         show with one sentence and a link to the plan. Hidden entirely for Gateway Braddon. -->
-    <div id="awaitBanner" class="await-banner" style="display:none"></div>
+    <!-- COMING SOON placeholder. Owns the whole page for a development seeded `coming_soon`
+         in targets/property_map.csv, however much delivery has landed. Hidden for a live one. -->
+    <div id="comingSoon" style="display:none"></div>
 
     <!-- ============ OVERVIEW ============ -->
     <section id="tab-overview" class="tabpane">
@@ -695,7 +705,18 @@
 
     <!-- ============ PAID MEDIA ============ -->
     <section id="tab-paid" class="tabpane">
-      <div class="section first"><h2>Paid media performance</h2><span class="sub">Every figure honours the date range, stage filter and search. Ratios are recomputed from summed components, so any sub-range is exact.</span></div>
+      <div class="section first"><h2>Paid media performance</h2><span class="sub">Every figure honours the date range, platform chips, stage filter and search. Ratios are recomputed from summed components, so any sub-range is exact.</span></div>
+
+      <!-- Platform comparison. Auto-hides on a single-platform development (renderPlatformTable),
+           so Gateway Braddon never sees it. -->
+      <div class="card" id="platformCard" style="display:none;margin-bottom:14px">
+        <h3>Performance by platform</h3>
+        <div class="hint">Side by side across the platforms delivering in range. Ticking a platform off in the <b>Platform</b> chips above removes it from here and from every other figure on the dashboard.</div>
+        <div class="tablewrap"><table id="platformTable"><thead><tr>
+          <th>Platform</th><th class="num">Spend</th><th class="num">Share</th><th class="num">Impressions</th>
+          <th class="num">Clicks</th><th class="num">CTR</th><th class="num">CPM</th><th class="num">CPC</th>
+          <th class="num">Leads</th><th class="num">CPL</th></tr></thead><tbody></tbody></table></div>
+      </div>
 
       <div class="section" style="margin-top:18px"><h2>Top creatives</h2><span class="sub">The 5 highest-spend creatives in the selected range - real ad <b>headline, copy and performance</b>. The ad image shows when Meta's thumbnail link is still valid; some cards fall back to a branded tile (the copy + metrics are always live).</span></div>
       <div class="creative-grid" id="creativeGrid" style="margin-top:16px"></div>
@@ -742,55 +763,6 @@
         <h3>Creative fatigue watch</h3><div class="hint">Weekly per-ad (≥1,000 impressions): frequency ↑ with CTR ↓ = fatigued.</div>
         <div class="tablewrap"><table id="fatigueTable"><thead><tr><th>Ad</th><th class="num">Frequency</th><th class="num">Freq WoW</th><th class="num">CTR</th><th class="num">CTR WoW</th><th>Flag</th></tr></thead><tbody></tbody></table></div>
       </div>
-    </section>
-
-    <!-- ============ MEDIA PLAN ============ -->
-    <!-- The signed plan, and delivery measured against it line by line. This tab is the whole
-         deliverable for a development that has not launched yet, and stays useful afterwards as
-         the only place plan-vs-actual is answered at the grain the media was actually bought. -->
-    <section id="tab-plan" class="tabpane">
-      <div class="section first"><h2 id="planTitle">Media plan</h2><span class="sub" id="planSub"></span></div>
-
-      <div class="kpis" id="planKpis"></div>
-
-      <div class="info-note" id="planStatusNote" style="display:none"></div>
-
-      <div class="grid cols-2-1">
-        <div class="card">
-          <h3>Budget by channel</h3>
-          <div class="hint">What the plan commits per platform, and what has been spent against it. Unmeasurable lines (no ad server) are shown but never paced.</div>
-          <div class="chartbox tall"><canvas id="planChanChart"></canvas></div>
-        </div>
-        <div class="card">
-          <h3>Flight</h3>
-          <div class="hint" id="planFlightHint"></div>
-          <div class="pace-track"><div class="pace-actual" id="planPaceActual"></div><div class="pace-expected" id="planPaceExpected"></div></div>
-          <div class="pace-meta"><span id="planPaceExpLbl"></span><span id="planPaceBudgetLbl"></span></div>
-          <div id="planPaceSummary" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"></div>
-          <div id="planFlightFacts" style="margin-top:16px"></div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>Plan vs delivered - by line</h3>
-        <div class="hint">Every line the plan buys, with delivery attributed to it by campaign / ad-group naming. <b>Pace</b> compares delivered spend against where an even flight would be today, not against the whole-flight budget. A line with no ad server (SEO, management fee) shows <b>n/a</b> rather than a zero it can never move off.</div>
-        <div class="tablewrap"><table id="planTable"><thead><tr>
-          <th>#</th><th>Phase</th><th>Line</th><th>Channel</th>
-          <th class="num">Budget</th><th class="num">Spent</th><th class="num">Pace</th>
-          <th class="num">Imp. target</th><th class="num">Delivered</th>
-          <th class="num">Clicks target</th><th class="num">Delivered</th>
-          <th class="num">Plan CPM</th><th class="num">Actual</th>
-          <th class="num">Plan CTR</th><th class="num">Actual</th></tr></thead><tbody></tbody></table></div>
-      </div>
-
-      <div class="card" style="margin-top:16px">
-        <h3>Line detail</h3>
-        <div class="hint">The plan as written - what each line buys, who it targets and where it runs.</div>
-        <div class="tablewrap"><table id="planDetailTable"><thead><tr>
-          <th>#</th><th>Line</th><th>Media</th><th>Description</th><th>Targeting</th><th>Geo</th><th class="num">Freq. cap</th><th>Cost type</th></tr></thead><tbody></tbody></table></div>
-      </div>
-
-      <div class="info-note" id="planNote"></div>
     </section>
 
     <footer id="footerNote"></footer>
@@ -868,13 +840,22 @@ function meta(){return DATA.meta||{};}
 // still emits for the default development, so this file keeps rendering an older payload.
 function propDef(){return PROPERTY_DEFS().find(p=>p.key===STATE.property)||{};}
 function flight(){return propDef().flight||DATA.flight||{};}
-function bench(k){const b=propDef().benchmarks||DATA.benchmarks||{};const v=Number(b[k]);return Number.isFinite(v)?v:null;}
+// NO TARGET AGREED != A TARGET OF ZERO. `Number(null)` and `Number('')` are both 0 in JS, not NaN,
+// so the old `Number.isFinite` guard turned an absent benchmark into a hard zero - which rendered
+// as "pending target 0", "target A$0" and "0% of goal" on a development whose plan simply does not
+// commit a lead number (Northbourne's lead targets are seeded PENDING with an empty value on
+// purpose). Reject null/undefined/'' BEFORE coercing, so an absent target reads as "-".
+function bench(k){const b=propDef().benchmarks||DATA.benchmarks||{};return numOrNull(b[k]);}
+// Shared by bench() and targetVal(): the only safe number coercion for a possibly-absent target.
+function numOrNull(raw){if(raw==null||raw==='')return null;const v=Number(raw);return Number.isFinite(v)?v:null;}
 function targetItem(k){return ((propDef().targets||DATA.targets||{})[k])||{};}
-// The signed media plan for the selected development, one entry per BOUGHT LINE. Empty for a
-// development with no plan seeded (Gateway Braddon), which is what hides the Media Plan tab.
-function planLines(){return propDef().plan||[];}
-function planMeasurable(){return planLines().filter(l=>l.measurable);}
-function targetVal(k){const v=Number(targetItem(k).value);return Number.isFinite(v)?v:null;}
+// The seeded media plan for the selected development, one entry per bought line. NOTHING RENDERS
+// IT - the Media Plan tab was removed on request. It is kept in the payload because it is where the
+// per-platform impression / click / CPM / CTR targets live, which is what the platform lanes will
+// be measured against once they go live. `plan_channels` is the only part read today (the
+// coming-soon placeholder lists the platforms the campaign bought).
+function planChannels(){return propDef().plan_channels||[];}
+function targetVal(k){return numOrNull(targetItem(k).value);}   // see numOrNull - '' is NOT zero
 function targetPending(k){return targetItem(k).status==='PENDING';}
 // qualified-lead model: Meta only measures RAW enquiries, so qualified is MODELED = leads × assumed rate.
 function qualRate(){return targetVal('qualification_rate_target')||0.20;}
@@ -963,15 +944,30 @@ const labelOfProp=k=>((PROPERTY_DEFS().find(p=>p.key===k)||{}).label)||k;
 // and that plan is itself the thing the client and the agency need on screen before launch. So a
 // development opens if it has DELIVERY or a PLAN, and the two states are labelled differently:
 //   delivery      -> normal dashboard
-//   plan, no rows -> opens on the Media Plan tab, every delivery surface says "awaiting delivery"
 //   neither       -> disabled, "- coming soon" (unchanged)
 // Nothing here fabricates a number. A planned-but-not-delivering development reports zeros as
 // "nothing yet", never as performance.
-const propHasPlan=p=>((PROPERTY_DEFS().find(x=>x.key===p)||{}).plan||[]).length>0;
-const propOpenable=p=>propHasData(p)||propHasPlan(p);
-// True when the SELECTED development has a plan but has not delivered a single row yet. Every
-// delivery-shaped renderer checks this and shows an honest empty state instead of a zeroed chart.
-const awaitingDelivery=()=>!!STATE.property&&!propHasData(STATE.property)&&propHasPlan(STATE.property);
+// ===================== COMING SOON is a SEEDED decision, not a data one =====================
+// It used to be inferred: no rows meant "coming soon", and a development switched itself live the
+// moment its first row landed. That is wrong for how these launches actually run. Northbourne
+// Gateway's Trade Desk line can be in market and spending while the campaign as a whole is still
+// waiting on creative and client approval for LinkedIn, Meta and Google - and auto-publishing a
+// one-platform view of a four-platform launch would misrepresent it to the client.
+//
+// So the switch is `status` in targets/property_map.csv:
+//     coming_soon  -> the placeholder, ALWAYS, however much delivery has landed
+//     live         -> the real dashboard
+// Going live is a one-word CSV edit + re-seed + a forced export. No code change, no deploy.
+const statusOf=p=>((PROPERTY_DEFS().find(x=>x.key===p)||{}).status)||'live';
+const comingSoonProp=p=>statusOf(p)==='coming_soon';
+const comingSoon=()=>!!STATE.property&&comingSoonProp(STATE.property);
+// Selectable = has delivery, or is a seeded development we want reachable so the placeholder can
+// be seen. Every seeded development is therefore openable; the placeholder is what a coming-soon
+// one shows.
+const propOpenable=p=>propHasData(p)||comingSoonProp(p);
+// Kept as one name so the delivery-shaped renderers have a single thing to check: either the
+// development is seeded coming-soon, or it is live but has not delivered yet. Both mean "no numbers".
+const awaitingDelivery=()=>!!STATE.property&&(comingSoon()||!propHasData(STATE.property));
 // Local HTML escape: the only `esc` in this file is scoped INSIDE toCSV, so it is not callable
 // here. Property names come from a committed CSV, but they are still interpolated into markup.
 const escProp=v=>String(v==null?'':v).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -983,15 +979,16 @@ function initProperty(){
   // Default to the first development that actually HAS delivery, so today's view is unchanged and
   // a mis-seeded status can never land the user on an empty dashboard. Only if NOTHING is
   // delivering does a plan-only development become the landing view.
-  STATE.property=(defs.find(p=>propHasData(p.key))||defs.find(p=>propOpenable(p.key))||defs[0]||{}).key||null;
+  // Default to a development that is BOTH live and delivering, so the landing view is always a
+  // real dashboard and a coming-soon one is only ever reached deliberately.
+  STATE.property=(defs.find(p=>!comingSoonProp(p.key)&&propHasData(p.key))
+                ||defs.find(p=>propOpenable(p.key))||defs[0]||{}).key||null;
   const sel=document.getElementById('propSelect'),div=document.getElementById('propDivider');
   if(!sel)return;
   if(defs.length<2){sel.style.display='none';return;}   // single development => no selector at all
   sel.innerHTML=defs.map(p=>{const on=propOpenable(p.key);
-    // ENABLED is driven by REAL ROWS or a SEEDED PLAN, never by the seeded status - the status only
-    // supplies the wording. So a development flips itself on the moment its first row lands (or the
-    // moment its plan is seeded), with no edit here.
-    const tag=propHasData(p.key)?'':(propHasPlan(p.key)?' - media plan':' - coming soon');
+    // The seeded status supplies the wording AND the gate - see comingSoonProp above.
+    const tag=comingSoonProp(p.key)?' - coming soon':'';
     return `<option value="${escProp(p.key)}"${on?'':' disabled'}${p.key===STATE.property?' selected':''}>`
       +`${escProp(p.label||p.key)}${tag}</option>`;}).join('');
   sel.style.display='';if(div)div.style.display='';
@@ -1004,9 +1001,6 @@ function setProperty(v){
   STATE.channels=null;
   // A development with a plan but no delivery has nothing to show on a delivery tab, so land on the
   // one tab that IS the deliverable. Conversely, coming back to a delivering development must not
-  // strand the user on a Media Plan tab that development does not have.
-  if(awaitingDelivery())STATE.view='plan';
-  else if(STATE.view==='plan'&&!planLines().length)STATE.view='overview';
   // Keep the <select> in step. It is already correct when a human changed it, but setProperty is
   // also called programmatically (boot, and the banner's link), and a topbar reading one
   // development while the page shows another is the worst possible failure on this control.
@@ -1015,7 +1009,7 @@ function setProperty(v){
   // chips must not survive onto a development that has none of those stages.
   // A FULL render is required, not just the tab: the footer, header, KPIs and every table belong
   // to the old development until they are redrawn.
-  renderTabs();renderChanChips();renderStageChips();render();renderViewState();
+  renderChanChips();renderStageChips();render();renderViewState();
 }
 
 // ---------- channel (platform) filter ----------
@@ -1026,8 +1020,7 @@ function setProperty(v){
 // THE ROSTER IS DELIVERY, NEVER THE PLAN. A channel appears as a chip only once it has actually
 // spent or served inside the current date range (the client_cloudflare pattern). Rendering a chip
 // for a planned-but-dark channel would put a permanent 0 row in every table and read as a channel
-// that failed rather than one that has not started - the Media Plan tab is where planned-and-dark
-// belongs, and it says so in those words.
+// that failed rather than one that has not started.
 const PM_CHANS=['Meta','LinkedIn','Trade Desk','Google Ads'];
 const chanOf=r=>r.channel||'Meta';
 function deliveredChans(){
@@ -1219,12 +1212,15 @@ function render(){
   // Each step is isolated: a single renderer throwing must NOT blank every chart after it (Chart.js
   // draws share one animation loop, so one uncaught throw in a draw callback can take down the whole
   // page). Wrapping per-step keeps the rest of the dashboard alive and logs the offender.
-  [renderTabs,renderChanChips,renderAwaiting,
+  [renderChanChips,renderComingSoon,
    renderHeader,renderKpis,renderTrend,renderPacing,renderGoalProgress,renderPaceToGoal,renderStageDonut,
    renderFunnel,renderStageTable,renderInsights,renderNote,renderBenchTable,renderEffScatter,renderCplTrend,
    renderReachFreq,renderVideo,renderDow,renderLeadType,renderAudience,renderPlacement,
-   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlan,renderFooter,renderDateScope]
+   renderSegment,renderTables,renderFatigue,renderBurn,renderCreative,renderPlatformTable,renderFooter,renderDateScope]
     .forEach(fn=>{try{fn();}catch(e){console.error('render step failed:',fn.name,e);}});
+  // LAST, deliberately: the renderers above unhide panes and repopulate tables, so the placeholder
+  // has to take the page back afterwards or a coming-soon development would flash its real tabs.
+  try{renderComingSoon();}catch(e){console.error('render step failed: renderComingSoon',e);}
 }
 function renderHeader(){
   const f=flight(),m=meta();
@@ -1235,8 +1231,8 @@ function renderHeader(){
   if(tc){const c=deliveredChans();tc.textContent=c.length?c.join(' · '):'no delivery yet';}
   // "Live · no delivery yet" contradicts itself. A development that has not started is PLANNED.
   const ts=$('topState'),td=$('topDot');
-  if(ts)ts.textContent=awaitingDelivery()?'Planned':'Live';
-  if(td)td.style.background=awaitingDelivery()?'var(--ctr)':'';
+  if(ts)ts.textContent=comingSoon()?'Coming soon':(awaitingDelivery()?'Planned':'Live');
+  if(td)td.style.background=(comingSoon()||awaitingDelivery())?'var(--ctr)':'';
   const notes={overview:'Demand & qualified leads',paid:'Paid-media performance',plan:'Signed media plan vs delivery',creative:'Creative library'};
   $('ctrlNote').textContent=notes[STATE.view]||'';
   const a=agg(scoped());
@@ -1247,7 +1243,7 @@ function renderHeader(){
   const bs=$('bdSub');if(bs)bs.textContent=`Meta audience & placement breakdowns for the ${prop} campaigns - honours the date filter.`;
   if(awaitingDelivery()){
     // No delivery: state that, rather than narrating zeros as a result.
-    $('introCopy').innerHTML=`<b>${safeName(prop)}</b> is planned and not yet delivering - no impressions or spend have reached this dashboard. See the <b>Media Plan</b> tab for the signed plan.`;
+    $('introCopy').innerHTML=`<b>${safeName(prop)}</b> is not yet reporting delivery.`;
   }else{
     const chans=deliveredChans();
     $('introCopy').innerHTML=`${m.lead_source_label||'Platform-reported'} enquiries and modelled <b>qualified leads</b> for the ${safeName(prop)} launch, plus spend pacing and creative efficiency. Showing <b>${rangeLabel()}</b> across <b>${chans.length?chans.map(safeName).join(', '):'no channels'}</b> - ${int(a.leads)} enquiries · ${money(a.spend)} spend.`;
@@ -1269,7 +1265,7 @@ function renderKpis(){
   // NO DELIVERY = NO NUMBERS. agg() of an empty set legitimately returns 0, but printing "0
   // enquiries · 0.0% CTR" beside "target 0.080%" states that a campaign delivered nothing, when the
   // truth is that it has not started. Every tile reads "-" until the first row lands; the banner
-  // above and the Media Plan tab carry the actual story.
+  // above carries the actual story.
   if(awaitingDelivery()){
     const dash=(label,color)=>({color,label,value:'-',sub:'awaiting first delivery'});
     $('kpiGridN').innerHTML=[dash('Enquiries',MC.leads),dash('Cost / enquiry (CPL)',MC.cost),
@@ -1290,8 +1286,10 @@ function renderKpis(){
     // Label follows the channels actually delivering: "Meta enquiries" is exact for Gateway
     // Braddon and would be a false attribution the moment LinkedIn lead forms start reporting too.
     {color:MC.leads,north:true,series:'leads',label:(deliveredChans().length>1?'Enquiries':'Meta enquiries'),value:int(a.leads),
+      // "Meta + LinkedIn + Trade Desk + Google Ads-reported" is a mouthful that also reads as if
+      // only the last platform reported; on a multi-platform development say it once.
       sub:leadT!=null?`${targetPending('monthly_lead_target')?'pending ':''}target ${int(leadT)}`
-        :`${deliveredChans().length>1?deliveredChans().join(' + '):'Meta'}-reported`},
+        :(deliveredChans().length>1?'platform-reported':'Meta-reported')},
     {color:MC.cost,north:true,series:'cost',label:'Cost / enquiry (CPL)',value:a.cpl!=null?money(a.cpl):'-',
       sub:cplT!=null?`target ${money(cplT)}`:'no CPL target'},
     {color:MC.qualified,north:true,series:'qualified',label:'Qualified leads (modelled)',value:int(q),
@@ -1363,7 +1361,7 @@ function renderPacing(){
   const ratio=(spend==null||!expected)?null:spend/expected,projected=held(f.projected_spend);
   // A campaign that has not started is NOT "under pace" - it has no pace. Labelling an unlaunched
   // development 8% behind (and projecting A$0 for the full flight) reads as a failing campaign
-  // rather than one waiting to go live; same rule as the Media Plan tab's per-line pace column.
+  // rather than one waiting to go live.
   if(awaitingDelivery()||!spend){
     $('paceSummary').innerHTML=[`<span class="status neutral">Not started</span>`,
       `<span class="pillc">Flight opens ${fmtDate(f.start)}</span>`,
@@ -1632,190 +1630,17 @@ function openCreative(i){const r=CC_LIST[i];if(!r)return;const head=safeName(r.c
 function closeCreative(){$('ccModal').classList.remove('on');}
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeCreative();});
 
-// ============================ MEDIA PLAN TAB ============================
-// The signed plan and delivery measured against it, line by line. Everything below reads the
-// SELECTED development's plan (job -> properties[].plan) and its own flight; nothing is blended
-// across developments and nothing here is invented.
-//
-// TWO RULES THIS TAB EXISTS TO KEEP:
-//  1. A line with no ad server (SEO retainer, management fee) is `measurable:false`. It shows its
-//     budget and prints "n/a" for every delivery cell - never a zero, which would read as a line
-//     that failed rather than one nothing can ever report on.
-//  2. Pace is against the EVEN-FLIGHT position today, not the whole-flight budget. 40% of budget
-//     spent at the 40% mark is on pace; comparing it to 100% would call every mid-flight line late.
-
-// Delivery attributed to one plan line, honouring the date filter but NOT the channel chips: a
-// per-line plan-vs-actual figure that silently moves when an unrelated channel chip is unticked is
-// worse than none. Attribution is the `plan_line` resolved server-side in sql/10_fact_all.
-function planActual(line){
-  const rows=(DATA.rows||[]).filter(r=>propOk(r)&&inRange(r.date)&&r.plan_line===line.line);
-  return agg(rows);
-}
-function planChanActual(channel){
-  const rows=(DATA.rows||[]).filter(r=>propOk(r)&&inRange(r.date)&&chanOf(r)===channel);
-  return agg(rows);
-}
-// Even-flight expectation at today's date, as a share of the flight. Clamped to [0,1] so a
-// pre-flight or post-flight read cannot produce a negative or >100% expectation.
-function flightElapsedShare(){
-  const f=flight();
-  if(!f.days_total||!f.days_elapsed)return null;
-  return Math.max(0,Math.min(1,n(f.days_elapsed)/n(f.days_total)));
-}
-function planPaceCell(line,spent,actual){
-  if(!line.measurable)return '<span class="muted-text" title="No ad server reports this line">n/a</span>';
-  const sh=flightElapsedShare();
-  if(sh==null||!line.budget)return '<span class="muted-text">-</span>';
-  // A line with NO delivery at all has not launched; it is not 100% behind pace. Printing "-100%"
-  // in red against nine unstarted lines makes a plan that is simply waiting to go live look like a
-  // campaign in freefall - the single most misleading thing this tab could say before launch.
-  if(!n(spent)&&!(actual&&n(actual.impressions)))return '<span class="muted-text">not started</span>';
-  const expected=n(line.budget)*sh;
-  if(!expected)return '<span class="muted-text">not started</span>';
-  const d=n(spent)/expected-1;
-  const cls=Math.abs(d)<=0.15?'good-text':(d<0?'warn-text':'bad-text');
-  return `<span class="${cls}" title="Even-flight expectation today: ${money(expected)}">${d>=0?'+':''}${(d*100).toFixed(0)}%</span>`;
-}
-function renderPlan(){
-  const lines=planLines();
-  if(!lines.length)return;
-  const f=flight(),m=meta();
-  const committed=n(f.budget_committed!=null?f.budget_committed:f.budget);
-  const measurable=n(f.budget_measurable!=null?f.budget_measurable:f.budget);
-  const unmeasurable=Math.max(0,committed-measurable);
-  const spent=n(f.spend_to_date);
-  const sh=flightElapsedShare();
-  const delivering=deliveredChans();
-  const planned=(propDef().plan_channels)||[];
-  // Planned channels with no delivery in range. This is the honest "what is still dark" list and
-  // it is the single most useful sentence on a pre-launch page.
-  const dark=planned.filter(c=>c!=='SEO'&&!delivering.includes(c));
-
-  $('planTitle').textContent=`${labelOfProp(STATE.property)} - media plan`;
-  $('planSub').innerHTML=`${lines.length} bought lines across ${planned.length} channels · `
-    +`committed <b>${money(committed)}</b> · flight <b>${fmtDate(f.start)} – ${fmtDate(f.end)}</b>`
-    +(f.days_total?` (${int(f.days_total)} days)`:'');
-
-  // ---- KPI strip. Reports the PLAN, and delivery only where delivery exists. ----
-  const impT=lines.reduce((a,l)=>a+n(l.imp_target),0),clkT=lines.reduce((a,l)=>a+n(l.click_target),0);
-  const all=agg((DATA.rows||[]).filter(r=>propOk(r)&&inRange(r.date)));
-  const cards=[
-    {color:MC.spend,label:'Committed budget',value:money(committed),
-      sub:unmeasurable>0?`${money(measurable)} measurable · ${money(unmeasurable)} SEO + fees`:'fully measurable'},
-    {color:MC.spend,label:'Spent to date',value:money(spent),
-      sub:measurable?`${Math.round(spent/measurable*100)}% of the measurable budget`:'-'},
-    {color:MC.reach,label:'Impressions',value:`${compact(all.impressions)} / ${compact(impT)}`,
-      sub:impT?`${Math.round(n(all.impressions)/impT*100)}% of the plan target`:'no impression target'},
-    {color:MC.ctr,label:'Clicks',value:`${int(all.clicks)} / ${int(clkT)}`,
-      sub:clkT?`${Math.round(n(all.clicks)/clkT*100)}% of the plan target`:'no click target'},
-    {color:MC.lpv,label:'Flight elapsed',value:sh==null?'-':`${Math.round(sh*100)}%`,
-      sub:f.days_total?`day ${int(f.days_elapsed)} of ${int(f.days_total)}`:'no flight dates'}
-  ];
-  $('planKpis').innerHTML=cards.map(kpiCard).join('');
-
-  // ---- status note: what is live, what is dark, and anything the feed cannot report ----
-  const note=$('planStatusNote');
-  const bits=[];
-  if(delivering.length)bits.push(`<b>Delivering:</b> ${delivering.map(safeName).join(' · ')}.`);
-  if(dark.length)bits.push(`<b>Not yet delivering:</b> ${dark.map(safeName).join(' · ')} - planned but no impressions or spend have reached this dashboard.`);
-  if(planned.includes('SEO'))bits.push(`<b>SEO</b> is an organic-search retainer with no ad server, so it is shown as committed budget only and is never paced.`);
-  // A gap that is real, cheap to state and expensive to discover late.
-  if(planned.includes('Google Ads'))bits.push(`<b>Video views are not reported by the Google Ads feed</b> - the export carries no view, view-rate or quartile metric, so the YouTube line's ${int((lines.find(l=>l.channel==='Google Ads'&&n(l.video_view_target))||{}).video_view_target||0)}-view target and CPV cannot be measured until that is added at source.`);
-  note.innerHTML=bits.join(' ');
-  note.style.display=bits.length?'block':'none';
-
-  // ---- budget by channel: planned vs spent ----
-  const chans=[...new Set(lines.map(l=>l.channel))];
-  const planBy=chans.map(c=>lines.filter(l=>l.channel===c).reduce((a,l)=>a+n(l.budget),0));
-  const spentBy=chans.map(c=>n(planChanActual(c).spend));
-  makeChart('planChanChart',{type:'bar',data:{labels:chans,datasets:[
-      {label:'Planned',data:planBy,backgroundColor:MC.muted2,borderRadius:5,maxBarThickness:34},
-      {label:'Spent',data:spentBy,backgroundColor:MC.spend,borderRadius:5,maxBarThickness:34}]},
-    options:{maintainAspectRatio:false,plugins:{legend:legendTop(),
-      tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${money(c.parsed.y)}`}}},
-      scales:{x:axis(),y:axis({beginAtZero:true,ticks:{color:MC.muted,font:{size:11},callback:v=>money(v)}})}}});
-
-  // ---- flight pacing (measurable budget, per the rule above) ----
-  const expected=measurable&&sh!=null?measurable*sh:null;
-  const pctOf=v=>measurable?Math.max(0,Math.min(100,v/measurable*100)):0;
-  $('planFlightHint').innerHTML=`Spend against the <b>measurable</b> budget ${money(measurable)}`
-    +(unmeasurable>0?` (of ${money(committed)} committed - ${money(unmeasurable)} is SEO + management fee, which no ad server reports)`:'')
-    +`. The marker is where an even flight expects you to be today.`;
-  $('planPaceActual').style.width=pctOf(spent)+'%';
-  $('planPaceExpected').style.left=(expected!=null?pctOf(expected):0)+'%';
-  $('planPaceExpLbl').textContent=expected!=null?`Expected today ${money(expected)}`:'No flight dates';
-  $('planPaceBudgetLbl').textContent=`Measurable budget ${money(measurable)}`;
-  const pill=(txt,cls)=>`<span class="pill ${cls||''}">${txt}</span>`;
-  const ps=[];
-  // "A$28,275 behind even pace" is true arithmetic and a false story before a campaign launches -
-  // the same trap as the -100% pace cell. With no delivery at all, say only that.
-  if(!spent){
-    ps.push(pill('No delivery recorded yet','warn'));
-    if(f.start)ps.push(pill(`Flight opened ${fmtDate(f.start)}`));
-  }else{
-    if(expected!=null){
-      const d=spent-expected;
-      ps.push(pill(`${money(Math.abs(d))} ${d<0?'behind':'ahead of'} even pace`,Math.abs(d)<=measurable*0.05?'good':'warn'));
-    }
-    if(f.projected_spend!=null&&n(f.projected_spend)>0)ps.push(pill(`Projected full flight ${money(f.projected_spend)}`));
-  }
-  $('planPaceSummary').innerHTML=ps.join('');
-  // Flight facts, so the card carries something when pacing has nothing to say yet.
-  $('planFlightFacts').innerHTML=[
-    ['Flight',`${fmtDate(f.start)} – ${fmtDate(f.end)}`],
-    ['Duration',f.days_total?`${int(f.days_total)} days`:'-'],
-    ['Elapsed',sh==null?'-':`day ${int(f.days_elapsed)} (${Math.round(sh*100)}%)`],
-    ['Committed',money(committed)],
-    ['Measurable',money(measurable)],
-    ['Not measurable',unmeasurable>0?`${money(unmeasurable)} (SEO + fee)`:'-'],
-    ['Daily pace',f.daily_pace!=null?money(f.daily_pace):'-'],
-  ].map(([k,v])=>`<div class="pf-row"><span>${k}</span><b>${v}</b></div>`).join('');
-
-  // ---- plan vs delivered, by line ----
-  const na='<span class="muted-text">n/a</span>';
-  $('planTable').querySelector('tbody').innerHTML=lines.map(l=>{
-    const a=l.measurable?planActual(l):null;
-    const cell=(v)=>l.measurable?v:na;
-    return `<tr>
-      <td class="num">${l.seq}</td><td>${safeName(l.phase)}</td>
-      <td><b>${safeName(l.line)}</b></td><td>${safeName(l.channel)}</td>
-      <td class="num">${money(l.budget)}</td>
-      <td class="num">${cell(a?money(a.spend):'-')}</td>
-      <td class="num">${planPaceCell(l,a?a.spend:0,a)}</td>
-      <td class="num">${l.imp_target?int(l.imp_target):na}</td>
-      <td class="num">${cell(a?int(a.impressions):'-')}</td>
-      <td class="num">${l.click_target?int(l.click_target):na}</td>
-      <td class="num">${cell(a?int(a.clicks):'-')}</td>
-      <td class="num">${l.cpm_target?money(l.cpm_target,2):na}</td>
-      <td class="num">${cell(a&&a.cpm!=null?money(a.cpm,2):'-')}</td>
-      <td class="num">${l.ctr_target?pct(l.ctr_target,3):na}</td>
-      <td class="num">${cell(a&&a.ctr!=null?pct(a.ctr,3):'-')}</td>
-    </tr>`;}).join('');
-
-  // ---- the plan as written ----
-  $('planDetailTable').querySelector('tbody').innerHTML=lines.map(l=>`<tr>
-      <td class="num">${l.seq}</td><td><b>${safeName(l.line)}</b></td><td>${safeName(l.media)}</td>
-      <td>${safeName(l.description||'-')}</td><td>${safeName(l.targeting||'-')}</td>
-      <td>${safeName(l.geo||'-')}</td>
-      <td class="num">${l.freq_cap?int(l.freq_cap):'-'}</td><td>${safeName(l.cost_type||'-')}</td>
-    </tr>`).join('');
-
-  $('planNote').innerHTML=`Source: the signed media plan for ${safeName(labelOfProp(STATE.property))}, `
-    +`seeded from <code>targets/media_plan.csv</code>. Delivery is attributed to a line by campaign / `
-    +`ad-group naming; a line showing no delivery has either not started or is not yet named to match. `
-    +`All figures ${safeName(m.currency||'AUD')}.`;
-}
-// ---------- tab bar + channel chips (both are per-development) ----------
-function renderTabs(){
-  const hasPlan=planLines().length>0;
-  const tp=$('tabPlan');if(tp)tp.style.display=hasPlan?'':'none';
-  if(STATE.view==='plan'&&!hasPlan)STATE.view='overview';
-}
+// ---------- platform chips (the resetdata pattern) ----------
+// THE control on a multi-platform development: tick a platform off and the WHOLE page re-renders
+// without it, because every rollup derives from ROWS(), which applies `chanOk`. Modelled on
+// client_resetdata's PLATFORM chip row - same behaviour (all on by default, the last one cannot be
+// unticked), with one difference forced by this client: resetdata's roster is a fixed four, whereas
+// a Geocon development runs whatever its plan bought, so the roster is built from delivery.
 function renderChanChips(){
   const roster=deliveredChans(),grp=$('chanGrp'),div=$('chanDiv');
   if(!grp)return;
-  // One channel (or none) => the filter cannot express anything, so it stays hidden. This is what
-  // keeps Gateway Braddon's control bar byte-identical to what it was.
+  // One platform (or none) => the filter cannot express anything, so it stays hidden. This is what
+  // keeps Gateway Braddon's control bar byte-identical to what it has always been.
   if(roster.length<2){grp.style.display='none';if(div)div.style.display='none';return;}
   grp.style.display='';if(div)div.style.display='';
   const on=activeChans();
@@ -1823,37 +1648,84 @@ function renderChanChips(){
     `<button class="chip${on.includes(c)?' on':''}" data-chan="${safeName(c)}"><span class="dot" style="background:${chanColor(c)}"></span>${safeName(c)}</button>`).join('');
   document.querySelectorAll('#chanChips .chip').forEach(b=>b.addEventListener('click',()=>toggleChan(b.dataset.chan)));
 }
+// One colour per platform, used by the chip dot AND every chart series, so a platform reads the
+// same everywhere it appears (the resetdata MC rule).
 function chanColor(c){return ({Meta:MC.accent,LinkedIn:MC.reach,'Trade Desk':MC.leads,'Google Ads':MC.ctr})[c]||MC.muted2;}
 function toggleChan(c){
   const roster=deliveredChans();
   const cur=new Set(STATE.channels?[...STATE.channels].filter(x=>roster.includes(x)):roster);
   if(cur.has(c))cur.delete(c);else cur.add(c);
-  // The last channel cannot be unticked - an empty selection is an empty dashboard, which is never
-  // what the click meant (the client_cloudflare rule).
+  // The last platform cannot be unticked - an empty selection is an empty dashboard, which is never
+  // what the click meant (the resetdata / cloudflare rule).
   if(!cur.size)return;
   STATE.channels=cur.size===roster.length?null:cur;
   renderChanChips();render();
 }
-// ---------- "planned, not yet delivering" empty state ----------
-// A development with a signed plan and no delivery must not render zeroed charts and a 0% CTR: that
-// reads as a campaign performing terribly rather than one that has not started. Every delivery tab
-// is replaced by one plain sentence pointing at the Media Plan tab.
-function renderAwaiting(){
-  const on=awaitingDelivery();
-  const banner=$('awaitBanner');
-  if(!on){if(banner)banner.style.display='none';
-    ['tab-overview','tab-paid'].forEach(id=>{const s=$(id);if(s)s.classList.remove('await-dim');});
-    return;}
-  if(banner){
-    const f=flight();
-    banner.style.display='block';
-    banner.innerHTML=`<b>${safeName(labelOfProp(STATE.property))} has not delivered yet.</b> `
-      +`Its flight runs ${fmtDate(f.start)} – ${fmtDate(f.end)} and no impressions or spend have `
-      +`reached this dashboard, so every figure on the delivery tabs would be zero. `
-      +`The signed plan - ${planLines().length} lines, ${money(f.budget_committed!=null?f.budget_committed:f.budget)} committed - `
-      +`is on the <a href="#" onclick="STATE.view='plan';renderViewState();return false;"><b>Media Plan</b></a> tab.`;
-  }
-  ['tab-overview','tab-paid'].forEach(id=>{const s=$(id);if(s)s.classList.add('await-dim');});
+// ---------- performance by platform ----------
+// Without this a platform toggle has nothing to compare against - you can hide a platform but never
+// see the platforms side by side. Honours the date range and search, and reflects the chips (a
+// platform ticked off leaves the table, which is the point of ticking it off).
+function renderPlatformTable(){
+  const wrap=$('platformCard');if(!wrap)return;
+  const roster=deliveredChans();
+  // Meaningless on a single-platform development - hide the card rather than draw a one-row table.
+  if(roster.length<2){wrap.style.display='none';return;}
+  wrap.style.display='';
+  const rows=searched(scoped());
+  const g=groupRollup(rows,r=>chanOf(r),r0=>({channel:chanOf(r0)})).sort((a,b)=>n(b.spend)-n(a.spend));
+  const tot=agg(rows);
+  const share=v=>n(tot.spend)?pct(n(v)/n(tot.spend),0):'-';
+  const body=g.map(r=>`<tr>
+      <td><span class="dot" style="background:${chanColor(r.channel)}"></span> <b>${safeName(r.channel)}</b></td>
+      <td class="num">${money(r.spend)}</td><td class="num">${share(r.spend)}</td>
+      <td class="num">${int(r.impressions)}</td><td class="num">${int(r.clicks)}</td>
+      <td class="num">${pct(r.ctr)}</td><td class="num">${r.cpm!=null?money(r.cpm,2):'-'}</td>
+      <td class="num">${r.cpc!=null?money(r.cpc,2):'-'}</td>
+      <td class="num">${int(r.leads)}</td><td class="num">${r.cpl!=null?money(r.cpl):'-'}</td>
+    </tr>`).join('');
+  $('platformTable').querySelector('tbody').innerHTML=body+`<tr class="totrow">
+      <td><b>Total</b></td><td class="num"><b>${money(tot.spend)}</b></td><td class="num">-</td>
+      <td class="num"><b>${int(tot.impressions)}</b></td><td class="num"><b>${int(tot.clicks)}</b></td>
+      <td class="num"><b>${pct(tot.ctr)}</b></td><td class="num"><b>${tot.cpm!=null?money(tot.cpm,2):'-'}</b></td>
+      <td class="num"><b>${tot.cpc!=null?money(tot.cpc,2):'-'}</b></td>
+      <td class="num"><b>${int(tot.leads)}</b></td><td class="num"><b>${tot.cpl!=null?money(tot.cpl):'-'}</b></td></tr>`;
+}
+// ---------- the COMING SOON placeholder ----------
+// A development is coming soon because the SEED says so (`status` in targets/property_map.csv), NOT
+// because it has no rows. That distinction is the whole point: Northbourne's Trade Desk line can be
+// live and spending while the campaign as a whole is still waiting on creative and client approval
+// for the other platforms, and publishing a part-built page in that window would misrepresent it.
+// Flipping it live is a one-word CSV edit + re-seed - no code change, no deploy.
+function renderComingSoon(){
+  const on=comingSoon();
+  const el=$('comingSoon');if(!el)return;
+  el.style.display=on?'block':'none';
+  // Hide the real page wholesale rather than dimming it. There is nothing on it worth reading yet,
+  // and a dimmed-but-present dashboard invites someone to read a number off it anyway.
+  ['controlBar','tabRow'].forEach(id=>{const e=$(id);if(e)e.style.display=on?'none':'';});
+  document.querySelectorAll('.tabpane').forEach(v=>{if(on)v.style.display='none';});
+  const fn=$('footerNote');if(fn)fn.style.display=on?'none':'';
+  if(!on)return;
+  const f=flight(),p=propDef();
+  const live=deliveredChans();
+  // SEO is a retainer with no ad server, so it is never one of the dashboard's platforms.
+  const planned=planChannels().filter(c=>c!=='SEO');
+  const pill=(t,cls)=>`<span class="cs-pill ${cls||''}">${t}</span>`;
+  el.innerHTML=`
+    <div class="cs-card">
+      <div class="cs-eyebrow">Coming soon</div>
+      <h2 class="cs-title">${safeName(labelOfProp(STATE.property))}</h2>
+      <p class="cs-dek">This dashboard is being set up. Campaign delivery is staged while creative and
+        approvals are finalised across the remaining platforms, so no performance is reported here yet -
+        rather than showing part of the picture as if it were all of it.</p>
+      <div class="cs-facts">
+        <div><span>Flight</span><b>${fmtDate(f.start)} – ${fmtDate(f.end)}</b></div>
+        <div><span>Budget</span><b>${money(f.budget_committed!=null?f.budget_committed:f.budget)}</b></div>
+        <div><span>Platforms</span><b>${planned.length?planned.map(safeName).join(' · '):'-'}</b></div>
+      </div>
+      ${live.length?`<div class="cs-note">${pill('In market','ok')} ${live.map(safeName).join(' · ')} ${live.length>1?'have':'has'} started delivering. Reporting opens once every platform is live.</div>`:''}
+      <div class="cs-foot">Geocon · 100% Digital</div>
+    </div>`;
 }
 function renderFooter(){const f=flight();const chans=deliveredChans();
   $('footerNote').innerHTML=`${safeName(labelOfProp(STATE.property)||'Geocon')} · Geocon · 100% Digital · `
@@ -1865,23 +1737,24 @@ function bindControls(){
   document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{STATE.view=b.dataset.view;renderViewState();}));
   document.querySelectorAll('#grainSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.grain=b.dataset.grain;document.querySelectorAll('#grainSeg button').forEach(x=>x.classList.toggle('on',x.dataset.grain===STATE.grain));renderTrend();wireKpiToggles();}));
   document.querySelectorAll('#axisSeg button').forEach(b=>b.addEventListener('click',()=>{STATE.axis=b.dataset.axis;document.querySelectorAll('#axisSeg button').forEach(x=>x.classList.toggle('on',x.dataset.axis===STATE.axis));renderTrend();wireKpiToggles();}));
-  $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();});
+  $('searchBox').addEventListener('input',()=>{STATE.search=$('searchBox').value.trim();renderBenchTable();renderSegment();renderTables();renderBurn();renderCreative();renderPlatformTable();});
 }
 function renderViewCharts(){
   // Re-render only the now-visible tab's Chart.js charts. Per-chart try/catch so one bad draw can't
   // blank the rest of the tab.
   const R={overview:[renderTrend,renderPaceToGoal,renderStageDonut],
            paid:[renderEffScatter,renderCplTrend,renderSegment],
-           // renderPlan draws planChanChart, so it must re-run when the Media Plan tab becomes
-           // visible - a Chart.js canvas built inside a display:none pane stays 0x0 and blank.
-           plan:[renderPlan],
            creative:[]};
   (R[STATE.view]||[]).forEach(fn=>{try{fn();}catch(e){console.error('view chart render failed:',fn.name,e);}});
 }
 function renderViewState(){
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===STATE.view));
-  document.querySelectorAll('.tabpane').forEach(v=>v.style.display=(v.id==='tab-'+STATE.view)?'block':'none');
+  // On a coming-soon development the placeholder owns the page - showing the selected pane here
+  // would put an empty dashboard back on screen underneath it.
+  const cs=comingSoon();
+  document.querySelectorAll('.tabpane').forEach(v=>v.style.display=(!cs&&v.id==='tab-'+STATE.view)?'block':'none');
   renderHeader();
+  renderComingSoon();
   // A Chart.js chart drawn into a display:none pane renders into a 0x0 canvas and stays BLANK when the
   // pane is later shown - and chart.resize() across the none->block flip is unreliable (fires before the
   // pane has real dimensions). So RE-RENDER the now-visible tab's charts after the browser has laid out
@@ -1901,11 +1774,8 @@ async function load(){
     const r=await fetch(JSON_URL,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status+' from '+JSON_URL);
     DATA=await r.json();bbApplySpendMult();initChartDefaults();
     initProperty();   // pick the default development + build the selector BEFORE anything renders
-    // A development with a plan and no delivery opens on the Media Plan tab: it is the only tab
-    // that has anything to say, and landing on a dimmed Overview would look like a broken page.
-    if(awaitingDelivery())STATE.view='plan';
     DateRange.init({min:meta().date_min,max:meta().date_max,onApply:(s,e)=>{STATE.dateStart=s;STATE.dateEnd=e;renderChanChips();render();}});
-    renderStageChips();renderTabs();renderChanChips();render();renderViewState();
+    renderStageChips();renderChanChips();render();renderViewState();
     $('loading').style.display='none';$('app').style.display='block';
   }catch(e){$('loading').style.display='none';$('app').style.display='none';$('error').style.display='block';$('errDetail').textContent=e.stack||e.message||String(e);}
 }
