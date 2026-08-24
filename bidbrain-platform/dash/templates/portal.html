@@ -489,13 +489,15 @@
   .bbsyncbar.bbtoolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
     padding:10px 8px 10px 4px;margin:0 0 22px;border:1px solid var(--border);border-radius:13px;
     background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.012))}
-  .bbstats{display:flex;align-items:center}
-  .bbstat{display:flex;align-items:baseline;gap:7px;padding:2px 15px;position:relative}
-  .bbstat+.bbstat::before{content:"";position:absolute;left:0;top:50%;translate:0 -50%;
+  /* bbpstat, NOT bbstat: _status_merge.html already owns `.bbstat` for the per-tile health
+     chips and the admin console shares that partial - my rules were restyling them. */
+  .bbpstats{display:flex;align-items:center}
+  .bbpstat{display:flex;align-items:baseline;gap:7px;padding:2px 15px;position:relative}
+  .bbpstat+.bbpstat::before{content:"";position:absolute;left:0;top:50%;translate:0 -50%;
     width:1px;height:17px;background:var(--border)}
-  .bbstat b{font-size:16.5px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
-  .bbstat i{font-size:10.5px;font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
-  .bbstat.is-live b{color:var(--active)}
+  .bbpstat b{font-size:16.5px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .bbpstat i{font-size:10.5px;font-style:normal;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .bbpstat.is-live b{color:var(--active)}
 
   /* ---- find a client: real functionality once an agency has ten of them ---- */
   .bbfind{position:relative;flex:1 1 200px;min-width:158px;max-width:300px}
@@ -580,7 +582,7 @@
 <style>
   /* themed agency: the new chrome takes the agency's own accent, not the house blue */
   .bbfind input:focus{border-color:{{ theme.accent }}}
-  .bbstat.is-live b{color:{{ theme.accent }}}
+  .bbpstat.is-live b{color:{{ theme.accent }}}
   .bbtoolbar #bbsyncall.bbbtn:hover{border-color:{{ theme.accent }};
     background:{{ theme.accent }}1f}
   .tile.live::before{background:linear-gradient(90deg,transparent,{{ theme.accent }}8c,transparent)}
@@ -1303,9 +1305,9 @@
   var live = tiles.filter(function(t){ return t.classList.contains('live'); }).length;
   var soon = tiles.length - live;
   var stats = document.createElement('div');
-  stats.className = 'bbstats';
-  stats.innerHTML = '<span class="bbstat is-live"><b>' + live + '</b><i>live</i></span>' +
-                    (soon ? '<span class="bbstat"><b>' + soon + '</b><i>in build</i></span>' : '');
+  stats.className = 'bbpstats';
+  stats.innerHTML = '<span class="bbpstat is-live"><b>' + live + '</b><i>live</i></span>' +
+                    (soon ? '<span class="bbpstat"><b>' + soon + '</b><i>in build</i></span>' : '');
   bar.insertBefore(stats, bar.firstChild);
 
   /* --- find a client --- */
