@@ -468,8 +468,11 @@ class Store:
 
     def active_client_keys(self):
         """Every live (status=='active') client key — across agencies AND unassigned. The admin
-        SSO grant uses this so it covers live-but-unassigned dashboards (hireright) and excludes
-        coming_soon ones (bellshakespeare/geocon)."""
+        SSO grant uses this so it covers a dashboard that is live but sits in no agency, and
+        excludes coming_soon ones (bellshakespeare / nextsmile / geyervalmont / sophiie).
+        No client is unassigned today — HireRight was the last one and moved to Transmission on
+        2026-08-24 — but the union is kept deliberately, so a future unassigned dashboard is
+        reachable by admin SSO instead of silently invisible."""
         return [k for k, c in self._all_clients().items() if c.get("status") == "active"]
 
     # ---- writes (admin CRUD): load → mutate → save the one blob ----
@@ -645,7 +648,9 @@ class Store:
         } for k, c in sorted(clients.items(), key=lambda kv: kv[1].get("order", 0))]
         # Which agency owns each dashboard, so the console can group them per agency (100% Digital,
         # Transmission, …) instead of one flat list. Agencies keep their registry `order`; a client
-        # in no agency (stt/hireright) falls into a trailing "Unassigned" group.
+        # in no agency falls into a trailing "Unassigned" group, which is omitted entirely when it
+        # is empty. As of 2026-08-24 every live dashboard IS assigned (HireRight was the last one
+        # out, and moved to Transmission), so that group normally does not render at all.
         ordered_agencies = sorted(doc.get("agencies", []), key=lambda a: a.get("order", 0))
         key_to_agency = {}
         for a in ordered_agencies:
