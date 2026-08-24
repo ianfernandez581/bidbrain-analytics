@@ -266,7 +266,11 @@ def build_env(bq, observed):
             "client": CLIENT,
             "title": "Geocon",
             "currency": (fact[0].get("currency") if fact else None) or "AUD",
-            "lead_source_label": "platform-reported",
+            # Stays "Meta-reported": this legacy top-level field describes the DEFAULT development
+            # (Gateway Braddon), which is Meta-only, and an older dashboard build prints it
+            # verbatim. The current dashboard derives its own label from the channels actually
+            # delivering, so it is correct for a multi-channel development without this changing.
+            "lead_source_label": "Meta-reported",
             "channel": "Meta · LinkedIn · Trade Desk · Google Ads",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
