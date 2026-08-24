@@ -1,20 +1,24 @@
-# clients/client_mongodb/sql/ — the BigQuery view definitions (the stage-2 transform)
+# clients/client_geocon/sql/ — the BigQuery view definitions (the stage-2 transform)
 
-> The version-controlled `CREATE OR REPLACE VIEW` files that turn the shared raw data into
-> MongoDB's dashboard-ready numbers. The export job ([`../job/main.py`](../job/README.md)) reads
-> these views to build `mongodb.json`.
+> The version-controlled `CREATE OR REPLACE VIEW` files that turn shared raw platform data into
+> Geocon's dashboard-ready numbers. The export job ([`../job/main.py`](../job/README.md)) reads
+> these views to build `geocon.json`.
 
-**Plain English:** the raw warehouse data is generic and messy. These saved queries are where
-we pick out *only MongoDB's* rows and shape them into the exact figures the dashboard shows —
-leads by market, spend by strategy, targets, benchmarks, budgets. **This is where the business
-logic lives.** If a number on the dashboard looks wrong, it's almost always one of these files.
+**Plain English:** the raw warehouse tables are shared across every client and every platform.
+These saved queries pick out *only Geocon's* rows, split them by **development** (Gateway Braddon
+vs Northbourne Gateway), and shape them into the exact figures the dashboard shows. **This is where
+the business logic lives.** If a number on the dashboard looks wrong, it is almost always here.
 
-These files are the **source of truth** — edit them and re-apply, rather than editing views in
-the BigQuery console (or the two drift). The `NN_` filename prefix sets apply order: staging
-views (`stg_*`) must exist before the models and rollups that read them.
+These files are the **source of truth** — edit them and re-apply, rather than editing views in the
+BigQuery console (or the two drift). The `NN_` filename prefix sets apply order: staging views
+(`stg_*`) must exist before the models that read them.
 
-**Where this sits:** `raw_snowflake.*` → **[these views]** → [`../job/`](../job/README.md) →
-`mongodb.json`.
+**Where this sits:** `raw_windsor.*` + `raw_google_ads.*` → **[these views]** →
+[`../job/`](../job/README.md) → `geocon.json`.
+
+> **This README was a stale copy of `client_mongodb/sql/README.md`** until 2026-08-24 — it described
+> Trade Desk advertisers, Salesforce campaign IDs and pixel views that have never existed in this
+> client. If you are following a geocon doc that mentions MongoDB, it is wrong.
 
 ---
 
@@ -22,81 +26,87 @@ views (`stg_*`) must exist before the models and rollups that read them.
 
 | File | View | What it does |
 |---|---|---|
-| [`01_stg_tradedesk.sql`](01_stg_tradedesk.sql) | `stg_tradedesk` | Filters `raw_snowflake.tradedesk_apac_all` to **`ADVERTISER_NAME = "MongoDB"`** and parses the campaign/ad-group naming convention into `PROGRAMME`, `MARKET`, `STRATEGY`, `OBJECTIVE` (via `SPLIT(... , "_")[SAFE_OFFSET(n)]`). |
-| [`02_stg_salesforce.sql`](02_stg_salesforce.sql) | `stg_salesforce` | Filters `raw_snowflake.salesforce_cs_apac_all` to MongoDB's **4 campaign IDs** (3 DNB + KGA/IDC) (no status filter). Maps the 3 DNB IDs → `PROGRAMME_LABEL` (KGA/IDC stays `NULL`) and `UPPER(TRIM(COUNTRY_NAME))` → the 4-market bucket (`ANZ` / `INDIA` / `ASEAN` / `KR-HK-TW`, else `OTHER`). **Case-normalised** so variants (`Republic of Korea`, `INDIA`/`india`) land correctly instead of leaking to `OTHER`; genuinely off-plan countries (China, Japan) stay `OTHER`, which the dash surfaces as its own region (in `all_markets`) so every lead is counted. |
-| [`03_paid_media_model.sql`](03_paid_media_model.sql) | `paid_media_model` | The unified paid-media delivery model: labels channel `"TradeDesk"`, derives `WEEK_START` (Monday), and `SUM`s impressions/clicks/cost/conversions grouped by all dimensions. `LEADS = 0` (TTD has no lead pixel here). |
-| [`04_cs_leads.sql`](04_cs_leads.sql) | `cs_leads` | Lead counts **by market** with three status buckets — `ACCEPTED` (`LEAD_STATUS = "Accepted"`), `REJECTED` (`= "Rejected"`), `NEW_LEADS` (`IN ("Unresponsive","Do Not Contact","New")`, i.e. unprocessed; `Do Not Contact` is IDC-only) — plus `LAST_LEAD_DAY`. **`TOTAL_LEADS` counts only the delivered statuses** `New` / `Unresponsive` / `Accepted` / `Do Not Contact` (the union of the DNB + KGA/IDC definitions below) — it **excludes** `Unqualified` / `Rejected`, so it is **not** `COUNT(*)`. |
-| [`05_cs_leads_by_programme.sql`](05_cs_leads_by_programme.sql) | `cs_leads_by_programme` | Same rollup **by programme × market**. **`TOTAL_LEADS` is the "delivered" count, NOT `COUNT(*)`:** for the 3 **DNB** programmes it's `New + Unresponsive + Accepted` (excludes `Unqualified` / `Rejected` — e.g. 399, not the 402 a raw `COUNT(*)` gives); for **KGA/IDC** (the `NULL`-label programme) it's `Unresponsive + Do Not Contact + New` (IDC has no Accepted/Rejected lifecycle). `ACCEPTED` / `REJECTED` / `NEW_LEADS` (=`Unresponsive+New`) keep the full lifecycle breakdown. |
-| [`06_targets.sql`](06_targets.sql) | `targets` | Lead targets + delivered snapshot **as a hardcoded table** (plan numbers, per programme × market). |
-| [`07_targets_by_programme.sql`](07_targets_by_programme.sql) | `targets_by_programme` | Rolls up `targets` and computes achievement %. |
-| [`08_benchmarks_strategy.sql`](08_benchmarks_strategy.sql) | `benchmarks_strategy` | **Hardcoded** CPM / CTR / frequency-cap / budget-weight plan benchmarks per strategy. |
-| [`09_benchmarks_market.sql`](09_benchmarks_market.sql) | `benchmarks_market` | **Hardcoded** budget-weight per market. |
-| [`10_budget.sql`](10_budget.sql) | `budget` | **Hardcoded** programme budget envelopes (gross/net USD, start/end). |
-| [`11_stg_tradedesk_pixel.sql`](11_stg_tradedesk_pixel.sql) | `stg_tradedesk_pixel` | Content-engagement **live staging**: per-fire TTD Universal Pixel conversions from `raw_snowflake.tradedesk_apac_conversion` (`ADVERTISER_ID='9c1w83i'`), rolled up to **`CAMPAIGN_KEY` × `ASSET_KEY`**. Maps the 7 tracking tags → `ASSET_KEY`/`ASSET`, derives click-vs-view (`DISPLAY_CLICK_COUNT>0`) and per-fire DNB vs KGA(IDC) (`COALESCE(click,impression)` campaign → `SPLIT("_")[2]` → `campaignOf`). **Replaced the retired CSV seed.** |
-| [`12_pixel_assets.sql`](12_pixel_assets.sql) | `pixel_assets` | Content-engagement: Universal Pixel landing-page views per **content asset × campaign** (the 6 named `MDB_UPM_LPView_*` pixels; the catch-all `default` is excluded here). Reads `stg_tradedesk_pixel`. |
-| [`13_pixel_summary.sql`](13_pixel_summary.sql) | `pixel_summary` | **One row per `CAMPAIGN_KEY`** (DNB / KGA(IDC)): window + the `CONTENT_*` (named pixels) vs `DEFAULT_*` (catch-all, view-through-dominated) conversion split (from `stg_tradedesk_pixel`), plus `IMPS`/`COST_USD`/`CLICKS` from the live `paid_media_model` for the same campaign. |
+| [`01_stg_meta.sql`](01_stg_meta.sql) | `stg_meta` | Meta slice: `raw_windsor.perf_meta` filtered to **account `3754165911553001`** (100% Digital - Clients) **AND** campaign prefix `Geocon_` — both are required, because the table carries six ad accounts and that account hosts three of our clients. Classifies `funnel_stage` from the campaign name and resolves `property` (the development) against `seed_property_map`. |
+| [`02_fact.sql`](02_fact.sql) | `fact` | The Meta fact, one row per (date × campaign × adset × ad). **Unchanged by the 2026-08 multi-channel work and deliberately kept**, so `fact_all`'s Meta arm can be diffed against it. |
+| [`03_targets.sql`](03_targets.sql) | `targets` | Flat key/value targets **per development**, from `seed_targets`. A `PENDING` row may carry an empty value (Northbourne's lead targets do — the plan commits no lead number), which reads through as NULL and renders as `-`. |
+| [`04_budget.sql`](04_budget.sql) | `budget` | Budget + flight window **per development**, from `seed_budget`. Carries `measurable_budget_aud` — see the note below. |
+| [`05_breakdowns.sql`](05_breakdowns.sql) | `breakdowns` | Meta-only audience (age × gender) + placement facts from the geocon-only `raw_windsor.geocon_meta_breakdown`. Property-resolved from the **same seed** `01_stg_meta` uses, so the charts can never disagree with the KPIs above them. |
+| [`06_media_plan.sql`](06_media_plan.sql) | `media_plan` | **The signed media plan, one row per bought LINE**, from `seed_media_plan`. Carries each line's own impression / click / CPM / CTR target, its `measurable` flag and its `match_pattern`. |
+| [`07_stg_linkedin.sql`](07_stg_linkedin.sql) | `stg_linkedin` | LinkedIn slice of the shared `raw_windsor.perf_linkedin`. **Returns zero rows today** — there is no Geocon LinkedIn account in Windsor yet. |
+| [`08_stg_ttd.sql`](08_stg_ttd.sql) | `stg_ttd` | Trade Desk slice of the shared `raw_windsor.perf_the_trade_desk`. **Returns zero rows today** — no Geocon advertiser on the shared seat yet. |
+| [`09_stg_google_ads.sql`](09_stg_google_ads.sql) | `stg_google_ads` | Google Ads slice of the **native DTS export**, customer `5457742070` (Geocon Group) under MCC `3451896252`. The three Northbourne campaigns exist and are PAUSED, so it returns zero rows until they are switched on. |
+| [`10_fact_all.sql`](10_fact_all.sql) | `fact_all` | **The fact the job ships.** Meta (verbatim from `fact`) + LinkedIn + Trade Desk + Google Ads, with each row's media-plan LINE resolved. |
 
-> **The pixel views are now LIVE from `raw_snowflake`** (the manual CSV seed was retired).
-> `stg_tradedesk_pixel` reads `raw_snowflake.tradedesk_apac_conversion` (per-fire TTD Universal
-> Pixel; mirrored by [`snowflake_data_pull`](../../../ingest/snowflake_data_pull/README.md)) and
-> `pixel_assets`/`pixel_summary` read it — so the section refreshes on the normal `*/10` cadence
-> with **no manual step**. Each fire carries a derived **`CAMPAIGN_KEY`** (`DNB` / `IDC`) so the
-> dashboard's campaign toggle filters the section (still independent of region/date). The old
-> device / ad-environment / creative-size dimension cuts are **gone** — those columns aren't in the
-> conversion feed (`pixel_dims`, `seed_pixel.py`, and the seed tables were removed).
+---
 
-> **The per-client filter is the main thing you change** when copying this folder for a new
-> client: the advertiser in `01_*` and the campaign IDs + market mapping in `02_*`.
+## Four rules this folder encodes
 
-> **Plan tables are hardcoded snapshots.** `targets`, `benchmarks_*`, and `budget` are `UNNEST`
-> literals transcribed from the media plan — they are **not** live data. Update them here when
-> the plan changes.
+**1. Only the Meta arm may fall back to a development.** `01_stg_meta`'s scope (ad account +
+`Geocon_` prefix) is exact, so its catch-all `ELSE Gateway Braddon` is safe. The other three
+channels read tables shared with six-to-eleven other clients, so they must match a development
+**by name** or land in `'Unmapped'` — which the export job **alarms on** rather than absorbs. A
+Geocon Trade Desk campaign nobody told us about therefore appears as a loud warning in the job log,
+not as an invisible A$40k added to a live client's spend.
 
-> **CS scope = 4 campaigns (3 DNB + KGA/IDC).** `02_stg_salesforce.sql` pulls the three **DNB**
-> campaign IDs (each mapped to a `PROGRAMME_LABEL`) plus the **KGA/IDC** campaign
-> (`701RG00001NKKwQYAX`). The IDC campaign has a `NULL` `PROGRAMME_LABEL` by design — the dashboard
-> normalises it to the single KGA (IDC) programme (`progLabel`/`campaignOf`). IDC was briefly
-> removed from the pull (2026-06-12) and restored 2026-06-15, so the dashboard's **KGA (IDC)**
-> campaign toggle shows delivered leads again; its media-plan rows live in `targets`/`budget`.
+**2. `p_ads_CampaignBasicStats`, never `p_ads_CampaignStats`.** CampaignStats is additionally
+segmented by `click_type`, which **duplicates impressions**: over one week of a live account it
+reported 22,892 impressions where BasicStats reported the true 21,008. Clicks happen to agree, so
+the error is silent on the metric people spot-check first.
+
+**3. Measurable vs committed budget.** Two of Northbourne's nine lines can never be reported on —
+the SEO retainer (A$9,600, no ad server) and the Google Search management fee (A$7,500, an agency
+fee). That is A$17,100 of A$205,600. Pacing against the committed figure would report a permanent
+8.3% shortfall no amount of delivery could close, so `measurable_budget_aud` is what the dashboard
+paces on and the committed total is shown beside it.
+
+**4. Rates never enter a fact.** No view here stores a ratio — CTR/CPM/CPC/CPL are recomputed
+client-side from summed components, so any date sub-range is exact (the repo-wide rule).
+
+---
+
+## Known gaps at 2026-08-24
+
+- **No Geocon LinkedIn account in Windsor** and **no Geocon Trade Desk advertiser on the shared
+  seat.** Both views are written and return nothing; each lights up on its own the first day a row
+  lands. Getting these granted is a Northbourne go-live blocker.
+- **Google Ads carries no video metric.** Neither `CampaignBasicStats`, `CampaignStats` nor the
+  (empty) `VideoStats` table has views, view rate or quartiles, and `raw_windsor.perf_google_ads`
+  has no video columns either. The YouTube line's 24,000-view target and A$0.50 CPV therefore
+  **cannot be measured** until the DTS export is extended. The dashboard says so on screen rather
+  than reporting zero.
+- **Meta is frozen at 2026-08-10** — the Windsor Meta grant lapsed on 2026-08-11 (estate-wide, not
+  a geocon problem). Northbourne's Meta line cannot report until it is re-authed.
 
 ---
 
 ## Apply them
 
 ```powershell
-.\.venv\Scripts\python.exe client_mongodb\create_views.py
-```
-The runner ([`../create_views.py`](../create_views.py)) applies every `*.sql` here in filename
-order. Then re-run the export job so `mongodb.json` reflects the change.
-
-## Re-sync from the live views (if someone edited a view in the console)
-
-These files are the source of truth, so prefer editing them. But if a view was changed directly
-in BigQuery, re-export to bring git back in sync:
-
-```powershell
-$views = @("stg_tradedesk","stg_salesforce","paid_media_model","cs_leads",
-           "cs_leads_by_programme","targets","targets_by_programme",
-           "benchmarks_strategy","benchmarks_market","budget",
-           "stg_tradedesk_pixel","pixel_assets","pixel_summary")
-$i = 0
-foreach ($v in $views) {
-  $i++
-  $j = bq show --view --format=prettyjson "client_mongodb.$v" | ConvertFrom-Json
-  $name = "{0:D2}_{1}.sql" -f $i, $v
-  "CREATE OR REPLACE VIEW ``client_mongodb.$v`` AS`n" + $j.view.query |
-    Set-Content "clients/client_mongodb/sql/$name" -Encoding utf8
-}
+# seeds FIRST - 06/07/08/09/10 all read seed_property_map or seed_media_plan
+.\.venv\Scripts\python.exe clients\client_geocon\seed_static.py
+.\.venv\Scripts\python.exe clients\client_geocon\create_views.py
+# a seed/view change is invisible to the freshness gate, so force the export:
+gcloud run jobs execute geocon-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
 ```
 
-## From-scratch rebuild order
+## Verifying a change
 
-`ingest/windsor_data_pull/create_dataset.py` → `ingest/windsor_data_pull/*/create_*table*.py` →
-`ingest/snowflake_data_pull/create_dataset.py` → `ingest/snowflake_data_pull/loader.py` (lands
-`raw_snowflake.*`) → `clients/client_mongodb/create_views.py` → run the export job.
+```sql
+-- fact_all must equal fact on Gateway Braddon (the Meta arm is fact verbatim)
+SELECT (SELECT ROUND(SUM(spend),4) FROM `bidbrain-analytics.client_geocon.fact`)      AS fact_spend,
+       (SELECT ROUND(SUM(spend),4) FROM `bidbrain-analytics.client_geocon.fact_all`)  AS all_spend;
+
+-- nothing may sit in 'Unmapped', and every non-Meta row should claim a plan line
+SELECT property, channel, plan_line, COUNT(*) n, ROUND(SUM(spend),2) spend
+FROM `bidbrain-analytics.client_geocon.fact_all` GROUP BY 1,2,3 ORDER BY 1,2,3;
+
+-- day one of any new channel: confirm the campaign names match the property tokens
+SELECT DISTINCT channel, campaign_name, property, plan_line
+FROM `bidbrain-analytics.client_geocon.fact_all` ORDER BY 1,2;
+```
 
 ## See also
 
 - [`../README.md`](../README.md) — the client overview and the 3-stage pipeline.
 - [`../job/README.md`](../job/README.md) — reads these views; documents the JSON contract.
-- [`../../snowflake_data_pull/`](../../../ingest/snowflake_data_pull/README.md) — fills the `raw_snowflake.*` tables these views read.
+- [`../targets/`](../targets/) — the committed CSVs behind every `seed_*` table.
