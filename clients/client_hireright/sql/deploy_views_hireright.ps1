@@ -26,6 +26,16 @@ if (-not (Test-Path $PYTHON))   { Die "repo venv python not found at $PYTHON" }
 if (-not (Test-Path $VIEWS_PY)) { Die "create_views.py not found at $VIEWS_PY" }
 if (-not (Get-Command gcloud -ErrorAction SilentlyContinue)) { Write-Error "gcloud not found."; exit 1 }
 
+# Seeds FIRST. sql/18_targets.sql is a view over the seed table `seed_media_plan`, and
+# BigQuery validates a view's query at CREATE time - so create_views.py fails with
+# "Not found: Table ... seed_media_plan" if the seed has never been loaded. Loading is
+# idempotent (WRITE_TRUNCATE from the committed CSV), so running it every time is free.
+$SEED_PY = Join-Path (Split-Path $PSScriptRoot -Parent) "seed_static.py"
+if (Test-Path $SEED_PY) {
+  Write-Host "Loading committed target CSVs via seed_static.py ..."
+  & $PYTHON $SEED_PY; Must "load seeds"
+}
+
 Write-Host "Reapplying SQL views via create_views.py ..."
 & $PYTHON $VIEWS_PY; Must "apply views"
 Write-Host "Re-running $JOB so hireright.json reflects the new views ..."

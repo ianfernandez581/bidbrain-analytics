@@ -637,11 +637,11 @@ CLIENTS = [
                     "WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%';",
              "note": "vs kpi.dv_clicks."},
             {"label": "DV360 · Conversions", "kind": "sum", "group": "DV360",
-             "dash": _kpi("dv_conv"),
+             "dash": _kpi("dv_attr_conv"),
              "sql": "SELECT SUM(CONVERSIONS_TOTAL) AS dv_conv\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%';",
-             "note": "DV360's conversion column is CONVERSIONS_TOTAL. vs kpi.dv_conv."},
+             "note": "DV360 Floodlight, post-click + post-view. vs kpi.dv_attr_conv (renamed from dv_conv 2026-08-24, when the blended outcome figure was split)."},
             # --- Trade Desk (ADVERTISER_NAME = 'HireRight') -----------------------
             {"label": "Trade Desk · Impressions", "kind": "sum", "group": "Trade Desk",
              "dash": _kpi("td_imps"),
@@ -656,11 +656,11 @@ CLIENTS = [
                     "WHERE ADVERTISER_NAME = 'HireRight';",
              "note": "vs kpi.td_clicks."},
             {"label": "Trade Desk · Conversions (click+view)", "kind": "sum", "group": "Trade Desk",
-             "dash": _kpi("td_conv"),
+             "dash": _kpi("td_attr_conv"),
              "sql": "SELECT SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS) AS td_conv\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\"\n"
                     "WHERE ADVERTISER_NAME = 'HireRight';",
-             "note": "vs kpi.td_conv."},
+             "note": "TradeDesk pixel, post-click + post-view. vs kpi.td_attr_conv (renamed from td_conv 2026-08-24)."},
             # --- LinkedIn (LOWER(ACCOUNT_NAME) LIKE 'hireright%') -----------------
             {"label": "LinkedIn · Impressions", "kind": "sum", "group": "LinkedIn",
              "dash": _kpi("li_imps"),
@@ -675,11 +675,11 @@ CLIENTS = [
                     "WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%';",
              "note": "vs kpi.li_clicks."},
             {"label": "LinkedIn · Leads", "kind": "sum", "group": "LinkedIn",
-             "dash": _kpi("li_conv"),
+             "dash": _kpi("li_leads"),
              "sql": "SELECT SUM(LEADS) AS li_leads\n"
                     "FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%';",
-             "note": "LinkedIn's 'conversion' metric here = SUM(LEADS). vs kpi.li_conv."},
+             "note": "Lead-gen FORM submissions - a real outcome, kept strictly apart from the programmatic post-view counts. vs kpi.li_leads (renamed from li_conv 2026-08-24)."},
             # --- Blended rollup (the Overview headline tiles) ---------------------
             {"label": "All paid channels · Impressions", "kind": "sum", "group": "All paid channels",
              "dash": _kpi("ad_imps"),
@@ -701,16 +701,24 @@ CLIENTS = [
                     "+ (SELECT COALESCE(SUM(CLICKS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
                     "     WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%') AS ad_clicks;",
              "note": "Same three filters as impressions. vs kpi.ad_clicks."},
-            {"label": "All paid channels · Conversions", "kind": "sum", "group": "All paid channels",
-             "dash": _kpi("ad_conv"),
+            # The old "All paid channels - Conversions" check summed DV360 Floodlight +
+            # TradeDesk click+view + LinkedIn LEADS into one number - its own note said
+            # "Heterogeneous". The dashboard stopped publishing that blend on 2026-08-24
+            # (a post-view display conversion is not a submitted lead form; see
+            # clients/client_hireright/sql/04_stg_ad_delivery.sql), so `kpi.ad_conv` no
+            # longer exists and this now verifies the ATTRIBUTED half only. LinkedIn
+            # leads are verified on their own, in the LinkedIn group above.
+            {"label": "Programmatic · Attributed conversions (DV360 + TTD)", "kind": "sum",
+             "group": "All paid channels",
+             "dash": _kpi("ad_attr_conv"),
              "sql": "SELECT\n"
                     "  (SELECT COALESCE(SUM(CONVERSIONS_TOTAL),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"DV360 - APAC\"\n"
                     "     WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%')\n"
                     "+ (SELECT COALESCE(SUM(TOTAL_CLICK_PLUS_VIEW_CONVERSIONS),0)\n"
                     "     FROM APAC_ALL_PLATFORM.PUBLIC.\"TradeDesk_APAC ALL\" WHERE ADVERTISER_NAME = 'HireRight')\n"
-                    "+ (SELECT COALESCE(SUM(LEADS),0) FROM APAC_ALL_PLATFORM.PUBLIC.\"LinkedIn Ads - APAC\"\n"
-                    "     WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%') AS ad_conv;",
-             "note": "Heterogeneous: DV360 CONVERSIONS_TOTAL + TradeDesk click+view + LinkedIn LEADS. vs kpi.ad_conv."},
+                    "  AS ad_attr_conv;",
+             "note": "DV360 Floodlight + TradeDesk pixel, both post-click + post-view. NOT de-duplicated "
+                     "between the two platforms, and deliberately excludes LinkedIn leads. vs kpi.ad_attr_conv."},
         ],
     },
     {
