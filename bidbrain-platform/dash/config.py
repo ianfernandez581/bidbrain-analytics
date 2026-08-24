@@ -246,6 +246,13 @@ CLIENTS = {
             {"name": "Paid Media + CS", "path": "/paid-media", "status": "active"},
         ],
     },
+    "hireright": {
+        "name": "HireRight", "slug": "hireright", "status": "active",
+        "url": _runapp("hireright"),
+        "campaigns": [
+            {"name": "Paid Media", "path": "/paid-media", "status": "active"},
+        ],
+    },
     # NOTE: the meta Pipeline-Status dashboard is no longer a tile here. Its data-sync health and
     # data-accuracy are now shown NATIVELY in the platform's Overview + Data Accuracy tabs (reading
     # the status pipeline's status.json directly). The standalone status-dash web service + the
@@ -267,7 +274,8 @@ AGENCIES = [
     },
     {
         "name": "Transmission", "slug": "transmission", "password": AGENCY_TRANSMISSION_PW,
-        "clients": ["schneider", "schneiderlqai", "schneidersecpwr", "cloudflare", "proptrack", "mongodb", "stt"],
+        "clients": ["schneider", "schneiderlqai", "schneidersecpwr", "cloudflare", "proptrack", "mongodb", "stt",
+                    "hireright"],
     },
     # Extrablack — the first EXTERNAL tenant (an outside company, not part of 100% Digital).
     #
@@ -292,9 +300,13 @@ AGENCIES = [
     },
 ]
 
-# Clients deliberately NOT in any agency (still reachable directly with their own password,
-# but never surfaced in an agency portal). HireRight has no assigned agency.
-UNASSIGNED_CLIENTS = ["hireright"]
+# Clients deliberately NOT in any agency (still reachable directly with their own password, but
+# never surfaced in an agency portal). Empty since 2026-08-24, when HireRight moved to Transmission
+# (its three feeds - DV360, TradeDesk, LinkedIn - were always Transmission's Snowflake share, so it
+# was only ever unassigned in the portal, not in reality).
+# NOTE: this list is a SEED. Emptying it does not detach anything from the live registry; the
+# UNASSIGNED group in the super-admin console is computed from agencies' client_keys at read time.
+UNASSIGNED_CLIENTS = []
 
 # --- internal tools (NOT client dashboards) -----------------------------------------------
 # Shown in a "Tools" group visible ONLY to superadmin + admin (internal 100% Digital staff),

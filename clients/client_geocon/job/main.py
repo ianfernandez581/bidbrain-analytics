@@ -1,25 +1,46 @@
-"""Geocon export job (stage 2) — Gateway Braddon Meta paid media.
+"""Geocon export job (stage 2) — Gateway Braddon + Northbourne Gateway paid media.
 
 REBUILT 2026-06 around a single fact table. Instead of many server-side rollup views, this job
-ships ONE compact per-(date x campaign x adset x ad) fact array (`rows`) plus the flight/pacing
-context, the numeric benchmarks, and the raw targets. The dashboard rolls EVERYTHING up
-client-side (KPIs, by-campaign / by-stage / by-creative, the daily trend, the vs-benchmark delta
+ships ONE compact per-(date x channel x campaign x adset x ad) fact array (`rows`) plus the
+flight/pacing context, the numeric benchmarks, and the raw targets. The dashboard rolls EVERYTHING
+up client-side (KPIs, by-campaign / by-stage / by-creative, the daily trend, the vs-benchmark delta
 table, the segment breakdown) filtered by the chosen date range — which is what makes the
 date-range filter and the CSV "export all data" exact and free.
 
-Reads BigQuery views client_geocon.{fact, targets, budget}. The raw layer is raw_windsor.perf_meta
-(Windsor-sourced, self-refreshing) — NOT Snowflake; there is no stage-1 loader to run here.
+MULTI-DEVELOPMENT + MULTI-CHANNEL since 2026-08-24. The fact is now `fact_all` (Meta + LinkedIn +
+Trade Desk + Google Ads), and flight / benchmarks / targets are emitted PER DEVELOPMENT under
+`properties[]` — Gateway Braddon (Meta only, A$7,500) and Northbourne Gateway (five channels,
+A$205,600) cannot share one plan. The top-level `flight` / `benchmarks` / `targets` keys are KEPT,
+holding the DEFAULT development's values, so a job deploy that lands ahead of a dashboard deploy
+leaves the live Gateway Braddon dashboard reading exactly what it read before.
+
+Reads BigQuery views client_geocon.{fact_all, targets, budget, media_plan, breakdowns}. The raw
+layer is raw_windsor.{perf_meta, perf_linkedin, perf_the_trade_desk} plus the native Google Ads
+DTS export in raw_google_ads — NOT Snowflake; there is no stage-1 loader to run here.
 """
 import os, json, datetime
 from google.cloud import bigquery, storage
 
 from freshness import probe_bq_last_modified, read_watermark, write_watermark, is_stale
 
-# Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when the upstream raw
-# table this job reads has advanced. The raw layer IS raw_windsor.perf_meta. GATING_TABLES is the
-# "dataset.table" id probed via BQ __TABLES__.last_modified; watermark = GCS sidecar.
-WINDSOR_TABLES = ["raw_windsor.perf_meta"]
-GATING_TABLES = WINDSOR_TABLES
+# Freshness gate (see repo CLAUDE.md "Freshness contract"): rebuild only when an upstream raw table
+# this job reads has advanced. GATING_TABLES is the "dataset.table" id probed via BQ __TABLES__
+# .last_modified; watermark = GCS sidecar.
+#
+# ALL FOUR CHANNELS ARE GATED, not just Meta. The contract is "gate on whatever the job READS", and
+# the three added in 2026-08 are what a Northbourne Trade Desk or Google launch will arrive on. The
+# cost of that breadth is real but small: perf_linkedin / perf_the_trade_desk are shared with other
+# clients, so THEIR delivery also trips this gate and geocon rebuilds more often than its own data
+# strictly changes. The alternative — gating on Meta alone — would leave a new channel's first day
+# invisible for up to 24h, which is the failure the contract exists to prevent.
+#
+# raw_google_ads is the native DTS export and the probe points at the BASE p_ads_ TABLE, never at
+# the raw_google_ads.perf_google_ads BRIDGE VIEW, whose last_modified is frozen forever (the
+# repo-wide DTS fact in CLAUDE.md).
+WINDSOR_TABLES = ["raw_windsor.perf_meta", "raw_windsor.perf_linkedin",
+                  "raw_windsor.perf_the_trade_desk"]
+GOOGLE_TABLES  = ["raw_google_ads.p_ads_CampaignBasicStats_3451896252"]
+GATING_TABLES = WINDSOR_TABLES + GOOGLE_TABLES
 WATERMARK_OBJECT = "_freshness.json"
 
 PROJECT = "bidbrain-analytics"
@@ -29,8 +50,12 @@ DATASET     = f"client_{CLIENT}"                    # client_geocon
 BUCKET      = f"bidbrain-analytics-{CLIENT}-dash"   # bidbrain-analytics-geocon-dash
 DATA_OBJECT = f"{CLIENT}.json"                      # geocon.json
 
-# Flight identity (the budget seed has the dates; this is the campaign_key to read).
-FLIGHT_KEY = "GATEWAY"
+# The development the top-level (legacy-shape) flight/benchmarks/targets describe, and the one an
+# older dashboard build will render. Keep it on the development that is actually delivering.
+DEFAULT_PROPERTY = "Gateway Braddon"
+
+# Channels whose absence is normal rather than an error: a development simply may not buy them.
+CHANNELS = ["Meta", "LinkedIn", "Trade Desk", "Google Ads"]
 
 
 def iso(v):
@@ -51,38 +76,24 @@ def rows(bq, sql):
     return [dict(r) for r in bq.query(sql, location=LOC).result()]
 
 
-def build_env(bq, observed):
-    """Read the views and assemble the JSON the dashboard consumes. Pure (no upload), so a dev
-    harness can dump it to disk without touching the live bucket. `observed` is the freshness
-    probe result (used for meta.data_through)."""
-    t = lambda n: f"`{PROJECT}.{DATASET}.{n}`"
-    fact = rows(bq, f"SELECT * FROM {t('fact')} ORDER BY date, campaign_name, adset_name, ad_name")
-    tgt  = rows(bq, f"SELECT * FROM {t('targets')}")
-    bud  = rows(bq, f"SELECT * FROM {t('budget')} WHERE campaign_key = '{FLIGHT_KEY}' LIMIT 1")
-    # The development (property) map, shipped so the dashboard's selector is fully data-driven:
-    # adding a development is then a targets/property_map.csv edit + re-seed, with NO SQL and NO
-    # dashboard change. `status` ('live' | 'coming_soon') is the seeded intent; the dashboard still
-    # requires REAL ROWS before it enables an option, so a mis-seeded status cannot open an empty view.
-    props = rows(bq, f"SELECT seq, property_key, display_name, status "
-                     f"FROM `{PROJECT}.{DATASET}.seed_property_map` ORDER BY seq")
-    # Isolated Meta breakdown facts (audience age/gender + placement) — geocon-only table.
-    # Tolerate absence so the export never breaks if the breakdown pull hasn't run.
-    try:
-        bd = rows(bq, f"SELECT * FROM {t('breakdowns')} ORDER BY date")
-    except Exception:
-        bd = []
-
-    # --- targets: flat {key: {value, status}}; value parsed to float where possible (dates stay str)
+def _targets_for(tgt_rows, prop):
+    """Flat {key: {value, status}} for one development; value parsed to float where possible
+    (dates stay strings, and an EMPTY value — a PENDING target with no agreed number — stays the
+    empty string, which reads through as null and renders as '-', never as zero)."""
     def tgt_value(raw):
         f = num(raw)
         return f if f is not None else raw
-    targets = {r["key"]: {"value": tgt_value(r["value"]), "status": r["status"]} for r in tgt}
+    return {r["key"]: {"value": tgt_value(r["value"]), "status": r["status"]}
+            for r in tgt_rows if r.get("property_key") == prop}
 
+
+def _benchmarks(targets):
+    """The numeric benchmarks the UI compares actuals against (the vs-benchmark delta table reads
+    these). A key the development has no agreed number for comes back None, and every consumer
+    already renders None as 'no target' rather than as a zero to miss."""
     def bnum(k):
         return num((targets.get(k) or {}).get("value"))
-
-    # numeric benchmarks the UI compares actuals against (the vs-benchmark delta table reads these)
-    benchmarks = {
+    return {
         "cpl":          bnum("cpl_target_aud"),
         "cpl_stretch":  bnum("cpl_stretch_aud"),
         "ctr":          bnum("ctr_target"),
@@ -93,26 +104,43 @@ def build_env(bq, observed):
         "qualified_lead_target": bnum("qualified_lead_target"),
         "daily_pace":   bnum("daily_pace_aud"),
         "flight_budget": bnum("flight_budget_aud"),
+        "measurable_budget": bnum("measurable_budget_aud"),
+        "imp_target":   bnum("imp_target"),
+        "click_target": bnum("click_target"),
+        "video_view_target": bnum("video_view_target"),
+        "reach_target": bnum("reach_target"),
     }
 
-    # --- flight / pacing (flight-window based; independent of the dashboard's date filter) -------
-    b = bud[0] if bud else {}
+
+def _flight(bud_row, benchmarks, fact, prop, today):
+    """Flight / pacing for one development — flight-window based, independent of the dashboard's
+    date filter.
+
+    PACING IS AGAINST THE MEASURABLE BUDGET, not the committed one. Northbourne commits A$205,600
+    but A$17,100 of that (the SEO retainer and the Google Search management fee) reaches no ad
+    server, so pacing spend-to-date against the full figure would report a permanent 8.3% shortfall
+    that no amount of delivery could ever close. `budget_committed` carries the signed number so
+    the dashboard can show both and the gap is stated rather than hidden.
+    """
+    b = bud_row or {}
     fstart = b.get("flight_start")
     fend   = b.get("flight_end")
-    budget = num(b.get("budget_aud")) or benchmarks["flight_budget"]
-    today  = datetime.datetime.now(datetime.timezone.utc).date()
-    spend_total = sum(num(r["spend"]) or 0 for r in fact)
-    leads_total = sum(int(r["leads"] or 0) for r in fact)
-    # Pacing must compare like-with-like: fact rows start 2026-05-05 (pre-flight activity) but the
-    # budget/pace anchors come from the seeded GATEWAY flight window, so the pacing inputs are
-    # CLAMPED to flight_start..flight_end (fact.date and the seed dates are both DATE -> date).
-    # All-time rollups (rows[], breakdowns, meta.date_min/max, the log summary) stay unclamped.
+    committed  = num(b.get("budget_aud")) or benchmarks["flight_budget"]
+    measurable = num(b.get("measurable_budget_aud")) or benchmarks["measurable_budget"] or committed
+
+    prows = [r for r in fact if (r.get("property") == prop)]
+    # Pacing must compare like-with-like: Gateway Braddon's fact rows start 2026-05-05 (pre-flight
+    # activity) but its budget/pace anchors come from the seeded flight window, so the pacing inputs
+    # are CLAMPED to flight_start..flight_end. All-time rollups (rows[], breakdowns, meta.date_min/
+    # max, the log summary) stay unclamped.
     in_flight = lambda d: d is not None and (fstart is None or d >= fstart) and (fend is None or d <= fend)
-    if fstart is None and fend is None:   # no seeded window -> all-time (old behaviour)
-        flight_spend, flight_leads = spend_total, leads_total
+    if fstart is None and fend is None:      # no seeded window -> all-time (old behaviour)
+        sel = prows
     else:
-        flight_spend = sum(num(r["spend"]) or 0 for r in fact if in_flight(r.get("date")))
-        flight_leads = sum(int(r["leads"] or 0) for r in fact if in_flight(r.get("date")))
+        sel = [r for r in prows if in_flight(r.get("date"))]
+    flight_spend = sum(num(r["spend"]) or 0 for r in sel)
+    flight_leads = sum(int(r["leads"] or 0) for r in sel)
+    flight_imps  = sum(int(r["impressions"] or 0) for r in sel)
 
     days_total = (fend - fstart).days + 1 if (fstart and fend) else None
     days_elapsed = None
@@ -122,40 +150,150 @@ def build_env(bq, observed):
             days_elapsed = max(0, min(days_elapsed, days_total))
         else:
             days_elapsed = max(0, days_elapsed)
-    daily_pace = benchmarks["daily_pace"] or (budget / days_total if (budget and days_total) else None)
+    daily_pace = benchmarks["daily_pace"] or (measurable / days_total if (measurable and days_total) else None)
     pace_expected = (daily_pace * days_elapsed) if (daily_pace and days_elapsed) else None
     projected_spend = (flight_spend / days_elapsed * days_total) if (days_elapsed and days_total) else None
-
-    dates = [r["date"] for r in fact if r.get("date")]
-    flight = {
+    return {
         "start": iso(fstart), "end": iso(fend),
-        "budget": budget, "days_total": days_total, "days_elapsed": days_elapsed,
+        # `budget` stays the PACING budget so every existing consumer keeps its meaning; the
+        # committed total is additive information beside it.
+        "budget": measurable, "budget_committed": committed, "budget_measurable": measurable,
+        "budget_unmeasurable": (round(committed - measurable, 2)
+                                if (committed is not None and measurable is not None) else None),
+        "days_total": days_total, "days_elapsed": days_elapsed,
         "daily_pace": daily_pace, "pace_expected": pace_expected,
         "projected_spend": projected_spend, "spend_to_date": round(flight_spend, 2),
-        "leads_to_date": flight_leads,
+        "leads_to_date": flight_leads, "impressions_to_date": flight_imps,
+        # "planned" = the flight window came from a signed plan; "observed" would mean we inferred
+        # it from first delivery. Both developments here have signed dates.
+        "source": "planned" if fstart else "observed",
     }
+
+
+def build_env(bq, observed):
+    """Read the views and assemble the JSON the dashboard consumes. Pure (no upload), so a dev
+    harness can dump it to disk without touching the live bucket. `observed` is the freshness
+    probe result (used for meta.data_through)."""
+    t = lambda n: f"`{PROJECT}.{DATASET}.{n}`"
+    fact = rows(bq, f"SELECT * FROM {t('fact_all')} "
+                    f"ORDER BY date, channel, campaign_name, adset_name, ad_name")
+    tgt  = rows(bq, f"SELECT * FROM {t('targets')}")
+    bud  = rows(bq, f"SELECT * FROM {t('budget')}")
+    plan = rows(bq, f"SELECT * FROM {t('media_plan')} ORDER BY property_key, seq")
+    # The development (property) map, shipped so the dashboard's selector is fully data-driven:
+    # adding a development is then a targets/property_map.csv edit + re-seed, with NO SQL and NO
+    # dashboard change. `status` ('live' | 'coming_soon') is the seeded intent.
+    props = rows(bq, f"SELECT seq, property_key, display_name, status "
+                     f"FROM `{PROJECT}.{DATASET}.seed_property_map` ORDER BY seq")
+    # Isolated Meta breakdown facts (audience age/gender + placement) — geocon-only table.
+    # Tolerate absence so the export never breaks if the breakdown pull hasn't run.
+    try:
+        bd = rows(bq, f"SELECT * FROM {t('breakdowns')} ORDER BY date")
+    except Exception:
+        bd = []
+
+    today = datetime.datetime.now(datetime.timezone.utc).date()
+    bud_by_prop = {r.get("property_key"): r for r in bud}
+
+    # ---- per-development plan + pacing context ------------------------------------------------
+    # Every development gets its OWN flight, benchmarks and targets. The dashboard picks the set
+    # matching the selected development; nothing is shared and nothing is blended.
+    plan_lines = {}
+    for r in plan:
+        plan_lines.setdefault(r["property_key"], []).append({
+            "seq": r.get("seq"), "phase": r.get("phase"), "line": r.get("line_name"),
+            "media": r.get("media"), "channel": r.get("channel"),
+            "description": r.get("description"), "targeting": r.get("targeting"),
+            "geo": r.get("geo"),
+            "imp_target": num(r.get("imp_target")), "video_view_target": num(r.get("video_view_target")),
+            "reach_target": num(r.get("reach_target")), "freq_cap": num(r.get("freq_cap")),
+            "cpm_target": num(r.get("cpm_target")), "cpv_target": num(r.get("cpv_target")),
+            "ctr_target": num(r.get("ctr_target")), "click_target": num(r.get("click_target")),
+            "budget": num(r.get("budget_aud")), "cost_type": r.get("cost_type"),
+            "measurable": bool(r.get("measurable")),
+        })
+
+    properties = []
+    for p in props:
+        key = p["property_key"]
+        ptargets = _targets_for(tgt, key)
+        pbench   = _benchmarks(ptargets)
+        properties.append({
+            "key": key,
+            "label": p.get("display_name") or key,
+            "status": p.get("status") or "live",
+            "flight": _flight(bud_by_prop.get(key), pbench, fact, key, today),
+            "benchmarks": pbench,
+            "targets": ptargets,
+            "plan": plan_lines.get(key, []),
+            # Channels the PLAN buys, in plan order — the roster the dashboard renders a lane for
+            # even before a channel has delivered. Distinct from the channels actually DELIVERING,
+            # which the dashboard derives from rows[] so it can never claim delivery we don't have.
+            "plan_channels": list(dict.fromkeys(
+                l["channel"] for l in plan_lines.get(key, []) if l.get("channel"))),
+        })
+
+    # ---- SCOPE AUDIT -------------------------------------------------------------------------
+    # 'Unmapped' means a Geocon row on a SHARED platform table matched no development by name (see
+    # sql/10_fact_all). It is excluded from every KPI by construction, so it must be LOUD here or a
+    # whole channel could go missing in silence. Same for delivery that matched no media-plan line.
+    unmapped = [r for r in fact if r.get("property") == "Unmapped"]
+    off_plan = [r for r in fact if r.get("property") != "Unmapped" and r.get("channel") != "Meta"
+                and not r.get("plan_line")]
+    if unmapped:
+        names = sorted({f"{r.get('channel')}: {r.get('campaign_name')}" for r in unmapped})
+        print(f"  WARNING scope audit: {len(unmapped)} row(s), "
+              f"${round(sum(num(r['spend']) or 0 for r in unmapped), 2)} spend matched NO "
+              f"development and are excluded from every KPI -> {names[:10]}")
+        print("           fix: add the token to targets/property_map.csv, re-seed, FORCE_REBUILD=1")
+    if off_plan:
+        names = sorted({f"{r.get('channel')}: {r.get('campaign_name')}" for r in off_plan})
+        print(f"  WARNING plan audit: {len(off_plan)} row(s), "
+              f"${round(sum(num(r['spend']) or 0 for r in off_plan), 2)} spend matched no media-plan "
+              f"line (delivery is counted, but it paces against nothing) -> {names[:10]}")
+
+    dates = [r["date"] for r in fact if r.get("date")]
+    spend_total = sum(num(r["spend"]) or 0 for r in fact)
+    leads_total = sum(int(r["leads"] or 0) for r in fact)
+
+    # Legacy top-level shape: the DEFAULT development's plan. Kept so a job deploy landing ahead of
+    # a dashboard deploy leaves the live Gateway Braddon dashboard reading exactly what it read
+    # before. The new dashboard reads properties[] and ignores these.
+    dflt = next((p for p in properties if p["key"] == DEFAULT_PROPERTY), None) or (properties[0] if properties else None)
 
     env = {
         "meta": {
             "client": CLIENT,
-            "title": "Gateway Braddon",
+            "title": "Geocon",
             "currency": (fact[0].get("currency") if fact else None) or "AUD",
+            # Stays "Meta-reported": this legacy top-level field describes the DEFAULT development
+            # (Gateway Braddon), which is Meta-only, and an older dashboard build prints it
+            # verbatim. The current dashboard derives its own label from the channels actually
+            # delivering, so it is correct for a multi-channel development without this changing.
             "lead_source_label": "Meta-reported",
-            "channel": "Meta (Facebook + Instagram)",
+            "channel": "Meta · LinkedIn · Trade Desk · Google Ads",
             "last_updated": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "data_through": (lambda sf: max(sf).strftime("%Y-%m-%dT%H:%M:%SZ") if sf else None)(
-                [observed[k] for k in WINDSOR_TABLES if observed.get(k)]),
+                [observed[k] for k in GATING_TABLES if observed.get(k)]),
             "date_min": iso(min(dates)) if dates else None,
             "date_max": iso(max(dates)) if dates else None,
             "row_count": len(fact),
+            "default_property": DEFAULT_PROPERTY,
         },
-        "flight": flight,
-        "benchmarks": benchmarks,
-        "targets": targets,
-        # The single fact table — one row per (date x campaign x adset x ad). The dashboard rolls
-        # up everything from this, filtered by the date range. Ratios are recomputed client-side.
+        # Per-development plan + pacing + targets. THE dashboard's source of truth.
+        "properties": properties,
+        # --- legacy flat keys (default development) — see the note above -------------------------
+        "flight": (dflt or {}).get("flight", {}),
+        "benchmarks": (dflt or {}).get("benchmarks", {}),
+        "targets": (dflt or {}).get("targets", {}),
+        # The single fact table — one row per (date x channel x campaign x adset x ad). The
+        # dashboard rolls up everything from this, filtered by the date range. Ratios are
+        # recomputed client-side, never stored.
         "rows": [{
             "date": iso(r["date"]),
+            # The delivering platform. Gateway Braddon is Meta-only, so its rows all read 'Meta'
+            # and every existing rollup is unchanged.
+            "channel": r.get("channel") or "Meta",
             "campaign_id": r.get("campaign_id"), "campaign": r.get("campaign_name"),
             "adset_id": r.get("adset_id"), "adset": r.get("adset_name"),
             "ad_id": r.get("ad_id"), "ad": r.get("ad_name"),
@@ -163,6 +301,8 @@ def build_env(bq, observed):
             # The development this campaign sells. Falls back to Gateway Braddon so a row from
             # before the column existed can never land in the wrong property (see sql/01_stg_meta).
             "property": r.get("property") or "Gateway Braddon",
+            # The media-plan line that bought this delivery (null = outside the signed plan).
+            "plan_line": r.get("plan_line"), "plan_seq": r.get("plan_seq"),
             "creative_id": r.get("creative_id"), "creative_title": r.get("creative_title"),
             "creative_body": r.get("creative_body"), "creative_thumbnail_url": r.get("creative_thumbnail_url"),
             "destination_url": r.get("destination_url"),
@@ -172,12 +312,16 @@ def build_env(bq, observed):
             "video_3s_views": num(r.get("video_3s_views")), "video_completes": num(r.get("video_completes")),
             "thruplays": num(r.get("thruplays")),
             "leads_website": num(r.get("leads_website")), "leads_onfacebook": num(r.get("leads_onfacebook")),
+            # Google-reported conversions. Carried and LABELLED, never folded into `leads` — a
+            # search conversion and a Meta lead form can be the same human enquiring twice.
+            "conversions": num(r.get("conversions")),
+            "view_through_conversions": num(r.get("view_through_conversions")),
             "objective": r.get("objective"), "effective_status": r.get("effective_status"),
         } for r in fact],
         # Audience (age x gender) + placement breakdowns — per (date x campaign x seg); the
         # dashboard date-filters + rolls up. seg2 is gender for age_gender, null otherwise.
-        "properties": [{"key": r["property_key"], "label": r.get("display_name") or r["property_key"],
-                        "status": r.get("status") or "live"} for r in props],
+        # META ONLY: these come from the geocon-only Meta breakdown pull, so a development with no
+        # Meta delivery yet simply has none and the dashboard hides the charts.
         "breakdowns": [{
             "date": iso(r["date"]), "breakdown": r.get("breakdown"),
             "seg1": r.get("seg1"), "seg2": r.get("seg2"),
@@ -188,8 +332,15 @@ def build_env(bq, observed):
             "spend": num(r["spend"]), "leads": num(r["leads"]),
         } for r in bd],
     }
-    summary = (f"{len(fact)} fact rows, {leads_total} Meta-reported leads, "
-               f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']})")
+    by_prop = {}
+    for r in fact:
+        k = (r.get("property"), r.get("channel"))
+        o = by_prop.setdefault(k, [0, 0.0])
+        o[0] += 1
+        o[1] += num(r["spend"]) or 0
+    per = "; ".join(f"{p}/{c}: {v[0]} rows ${round(v[1], 2)}" for (p, c), v in sorted(by_prop.items(), key=lambda x: str(x[0])))
+    summary = (f"{len(fact)} fact rows, {leads_total} platform-reported leads, "
+               f"${round(spend_total,2)} spend ({env['meta']['date_min']}..{env['meta']['date_max']}) | {per}")
     return env, summary
 
 
@@ -245,6 +396,11 @@ def main():
         print(f"upstream advanced -> rebuilding | {times}")
 
     env, summary = build_env(bq, observed)
+    # Refuse to publish an empty fact (the caltex/schneidersecpwr pattern): a transient upstream
+    # failure must not blank a live dashboard by overwriting good JSON with nothing.
+    if not env["rows"]:
+        raise SystemExit("REFUSING to publish: fact_all returned zero rows — the previous "
+                         "geocon.json is left in place. Check the four upstream tables.")
     bkt = storage.Client(project=PROJECT).bucket(BUCKET)
     # Cache the top creatives' Meta thumbnails into our bucket (served at /creative-img/<id>) while the
     # signed CDN URLs are still live, so the Creative gallery keeps showing the real ad after Meta expires

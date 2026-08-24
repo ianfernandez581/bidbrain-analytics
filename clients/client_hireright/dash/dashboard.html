@@ -214,7 +214,7 @@
   }
 
   /* ===== Date-scope note (shown only when the Period range is narrowed) ===== */
-  .scope-note{background:#FFF8E6;border:1px solid #F2DCA0;border-left:4px solid var(--amber);border-radius:10px;
+  .scope-note{background:#FFF8E6;border:1px solid #F2DCA0;border-radius:10px;
               padding:11px 15px;margin-bottom:16px;font-size:12.5px;color:#6A4B00}
   .scope-note b{color:#4A3400}
 
@@ -242,20 +242,43 @@
   /* ---- KPIs ---- */
   .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-top:16px}
   .kpis.seven{grid-template-columns:repeat(7,1fr)}
+  /* The Overview outcome tiles auto-hide when their platform isn't selected, so the
+     tile count varies (6-8) and the column count is set from it at render time. */
+  .kpis.eight{grid-template-columns:repeat(8,1fr)}
   .kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;position:relative;overflow:hidden;box-shadow:var(--shadow-card)}
   .kpi .label{font-size:10.5px;color:var(--mute);letter-spacing:.5px;text-transform:uppercase;font-weight:600}
   .kpi .value{font-size:22px;font-weight:700;letter-spacing:-.5px;margin-top:6px;color:var(--ink)}
   .kpi .delta{font-size:11px;margin-top:4px;color:var(--mute);line-height:1.35}
-  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--grey)}
   .kpi.accent{background:linear-gradient(135deg,rgba(237,28,36,.16),transparent 66%),var(--card);border-color:rgba(237,28,36,.4)}
-  .kpi.accent .stripe{background:var(--hr-red)}
   .up{color:var(--good-green);font-weight:600}
   .down{color:var(--bad-red);font-weight:600}
 
   /* ---- info note ---- */
-  .info-note{background:var(--hr-red-soft);border:1px solid rgba(237,28,36,.28);border-left:4px solid var(--hr-red);border-radius:10px;
+  .info-note{background:var(--hr-red-soft);border:1px solid rgba(237,28,36,.28);border-radius:10px;
              padding:13px 16px;margin-top:16px;font-size:13px;color:#F3B7B0}
   .info-note b{color:var(--ink)}
+  /* A stalled upstream feed is a data-quality warning, not an aside - it gets its own
+     amber block inside the note so it reads as a caveat on the numbers above it. */
+  .stall-warn{display:block;margin-top:2px;padding:11px 13px;border-radius:8px;
+              background:rgba(240,175,50,.10);border:1px solid rgba(240,175,50,.34);color:#F0CE90}
+  .stall-warn b{color:#FFDFA6}
+  /* A concluded campaign is a statement of fact, not a warning - neutral, not amber. */
+  .concluded-note{display:block;margin-top:2px;padding:11px 13px;border-radius:8px;
+                  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);color:var(--ink)}
+
+  /* --- media-plan pacing (hidden entirely until a plan is seeded) --------------- */
+  .pace-bar{position:relative;height:8px;border-radius:5px;background:rgba(255,255,255,.09);overflow:hidden;min-width:110px}
+  .pace-bar > i{display:block;height:100%;border-radius:5px;background:var(--hr-red)}
+  .pace-bar.ok  > i{background:#3FB27F}
+  .pace-bar.warn> i{background:#F0AF32}
+  /* The even-flight-pace marker: where delivery SHOULD be today. Without it a bar at
+     40% looks like a miss even when the flight is only 40% elapsed. */
+  .pace-bar > u{position:absolute;top:-2px;width:2px;height:12px;background:var(--ink);opacity:.55}
+  .pace-tag{font-size:11px;padding:2px 7px;border-radius:999px;white-space:nowrap}
+  .pace-tag.ok  {background:rgba(63,178,127,.16);color:#8FD9B8}
+  .pace-tag.warn{background:rgba(240,175,50,.16);color:#F0CE90}
+  .pace-tag.bad {background:rgba(237,28,36,.16);color:#F3B7B0}
+  .pace-tag.na  {background:rgba(255,255,255,.07);color:var(--mute)}
 
   /* ---- tables ---- */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
@@ -283,8 +306,8 @@
   footer{color:var(--mute);font-size:11px;margin-top:30px;text-align:right;padding-top:14px;border-top:1px solid var(--line)}
   footer b{color:var(--ink)}
 
-  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.kpis.seven{grid-template-columns:repeat(4,1fr)}}
-  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.kpis,.kpis.seven{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:1100px){.grid-3{grid-template-columns:1fr 1fr}.grid-2-1{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}.kpis.seven,.kpis.eight{grid-template-columns:repeat(4,1fr)}}
+  @media (max-width:760px){.grid,.grid-3{grid-template-columns:1fr}.kpis,.kpis.seven,.kpis.eight{grid-template-columns:repeat(2,1fr)}}
 
 
 
@@ -489,7 +512,10 @@
 
 <div class="topbar"><div class="inner">
   <div class="topbar-left">
-    <div class="agency">100 DIGITAL<span class="dot"></span></div>
+    <!-- Owning agency. HireRight is a TRANSMISSION account - all three of its feeds come
+         off Transmission's Snowflake share - and it moved onto their portal on 2026-08-24.
+         Matches client_schneider / client_STT, the other Transmission dashboards. -->
+    <div class="agency">TRANSMISSION<span class="dot"></span></div>
     <div class="topbar-divider"></div>
     <div class="logo-chip">
       <!-- HireRight wordmark - HIRE (black) · RIGHT (red) with the corner-bracket motif + ®. -->
@@ -612,6 +638,11 @@
 
       <div class="kpis seven" id="ovKpis"></div>
 
+      <!-- Media-plan pacing. Rendered ONLY when a signed plan has been seeded
+           (targets/media_plan.csv -> has_targets). Stays completely absent otherwise -
+           an empty pacing card reading 0 / 0 is worse than no pacing card. -->
+      <div class="card" id="ovPacing" style="display:none;margin-top:16px"></div>
+
       <div class="grid-2-1">
         <div class="card card-tall">
           <div class="card-head">
@@ -633,10 +664,35 @@
         </div>
       </div>
 
+      <!-- Efficiency over time. The delivery charts answer "how much"; this answers
+           "how well", which is the question a paid-media review actually turns on. -->
       <div class="card card-tall" style="margin-top:14px">
-        <h3>Spend by market</h3>
-        <div class="hint">Spend (USD) by country - DV360 programmatic display. TradeDesk &amp; LinkedIn run as <b>Global</b> air-cover and aren't broken out by country. Reflects the Market &amp; Campaign filters.</div>
-        <div class="chart-wrap"><canvas id="ovMarket"></canvas></div>
+        <div class="card-head">
+          <div>
+            <h3>Efficiency over time</h3>
+            <div class="hint">CTR, CPM and CPC per platform across the period. Each platform is a separate line - a blended average hides the fact that display and paid social sit on completely different cost bases.</div>
+          </div>
+          <div class="segs">
+            <span class="seg" id="ovEffMetricSeg"><span class="cap">METRIC</span><button type="button" data-m="ctr" class="on" onclick="setOvEffMetric('ctr',this)">CTR</button><button type="button" data-m="cpm" onclick="setOvEffMetric('cpm',this)">CPM</button><button type="button" data-m="cpc" onclick="setOvEffMetric('cpc',this)">CPC</button></span>
+            <span class="seg" id="ovEffGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setOvEffGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setOvEffGrain('week',this)">Week</button></span>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="ovEfficiency"></canvas></div>
+      </div>
+
+      <div class="grid-2-1" style="margin-top:14px">
+        <div class="card card-tall">
+          <h3>Spend by market</h3>
+          <div class="hint">Spend (USD) by country - DV360 programmatic display. TradeDesk &amp; LinkedIn run as <b>Global</b> air-cover and aren't broken out by country. Reflects the Market &amp; Campaign filters.</div>
+          <div class="chart-wrap"><canvas id="ovMarket"></canvas></div>
+        </div>
+        <!-- Region rollup. Auto-hides when the data resolves to a single region -
+             a one-bar chart is noise, not a breakdown. -->
+        <div class="card card-tall" id="ovRegionCard">
+          <h3>Spend by region</h3>
+          <div class="hint">The country rollup - useful when no single market is big enough to read on its own.</div>
+          <div class="chart-wrap"><canvas id="ovRegion"></canvas></div>
+        </div>
       </div>
 
       <div class="info-note" id="ovNote"></div>
@@ -672,6 +728,30 @@
         </div>
       </div>
 
+      <div class="grid-2-1" style="margin-top:16px">
+        <!-- Cumulative burn. The per-period bars answer "what did we spend in July";
+             this answers "how much of the campaign have we spent so far", which is the
+             question when there is no budget line to pace against. -->
+        <div class="card card-tall">
+          <div class="card-head">
+            <div>
+              <h3>Cumulative spend</h3>
+              <div class="hint">Running total by platform across the period - the burn curve. A flat stretch is a platform that stopped delivering.</div>
+            </div>
+            <div class="segs">
+              <span class="seg" id="pmCumGrainSeg"><span class="cap">VIEW&nbsp;BY</span><button type="button" data-grain="month" class="on" onclick="setPmCumGrain('month',this)">Month</button><button type="button" data-grain="week" onclick="setPmCumGrain('week',this)">Week</button></span>
+            </div>
+          </div>
+          <div class="chart-wrap"><canvas id="pmCumulative"></canvas></div>
+        </div>
+        <!-- Mix shift over time. Auto-hides when only one platform delivered. -->
+        <div class="card card-tall" id="pmMixCard">
+          <h3>Platform mix over time</h3>
+          <div class="hint">Share of spend by platform each period. Shows where budget moved, independent of how much total spend went up or down.</div>
+          <div class="chart-wrap"><canvas id="pmMixTrend"></canvas></div>
+        </div>
+      </div>
+
       <div class="card" style="margin-top:16px">
         <h3>Platform comparison</h3>
         <div class="hint">Whole-flight totals over the selected campaigns. All spend in USD (TradeDesk converted from AUD at the reporting FX rate).</div>
@@ -687,6 +767,18 @@
         <h3>DV360 - spend &amp; impressions by country</h3>
         <div class="hint">DV360 is the only source with real geo. Impressions (bars) and spend (USD, line) by country. Reflects the Market &amp; Campaign filters.</div>
         <div class="chart-wrap" style="height:320px"><canvas id="pmCountry"></canvas></div>
+      </div>
+
+      <!-- Spend vs efficiency. The top-campaigns table below ranks by spend, which only
+           ever says which campaign is biggest. This says which campaigns are earning
+           their budget: far right = expensive, high up = efficient. The quadrant to
+           watch is bottom-right - heavy spend, weak CTR. -->
+      <div class="card" style="margin-top:16px">
+        <h3>Campaign efficiency - spend vs CTR</h3>
+        <div class="hint">Each bubble is a campaign: <b>x</b> = spend (USD), <b>y</b> = CTR, <b>bubble size</b> = impressions,
+        colour = platform. The dashed line is the blended CTR across everything selected. Campaigns low and to the
+        right are absorbing budget without earning clicks. Hover for the detail.</div>
+        <div class="chart-wrap" style="height:340px"><canvas id="pmScatter"></canvas></div>
       </div>
 
       <div class="card" style="margin-top:16px">
@@ -753,14 +845,21 @@ const narrowed     = () => !!(rangeStart && rangeEnd && (rangeStart !== dateMin 
 // grain = month (preserves each chart's original view); default scale = relative
 // (the secondary clicks line is indexed to its own peak=100 on a shared 0-100 right
 // axis, while spend bars stay absolute on the left axis). Mirrors resetdata/tlm.
-const grain = { ovHero:'month', pmMonthly:'month' };   // month | week | day
+const grain = { ovHero:'month', pmMonthly:'month', ovEff:'month', pmCum:'month' };  // month | week | day
 const scale = { ovHero:'rel',   pmMonthly:'rel'   };   // rel | abs
+// Efficiency chart metric: ctr | cpm | cpc. Each is a RATIO, so it is always re-derived
+// from the summed numerator and denominator of the period - never averaged across
+// periods or platforms, which would weight a quiet week the same as a heavy one.
+let ovEffMetric = 'ctr';
 const segPick = btn => { if(btn&&btn.parentNode)[...btn.parentNode.children].forEach(b=>b.classList.toggle('on',b===btn)); };
 const indexed = arr => { const mx=Math.max(0,...arr); return arr.map(v=>mx?v/mx*100:0); };
 function setOvHeroGrain(g,btn){ grain.ovHero=g; segPick(btn); renderOverview(); }
 function setOvHeroScale(s,btn){ scale.ovHero=s; segPick(btn); renderOverview(); }
 function setPmMonthlyGrain(g,btn){ grain.pmMonthly=g; segPick(btn); renderPaid(); }
 function setPmMonthlyScale(s,btn){ scale.pmMonthly=s; segPick(btn); renderPaid(); }
+function setOvEffMetric(m,btn){ ovEffMetric=m; segPick(btn); renderOverview(); }
+function setOvEffGrain(g,btn){ grain.ovEff=g; segPick(btn); renderOverview(); }
+function setPmCumGrain(g,btn){ grain.pmCum=g; segPick(btn); renderPaid(); }
 // Period-key label for whichever grain is showing. month 'YYYY-MM' -> "Apr 25";
 // week/day 'YYYY-MM-DD' -> "7 Apr".
 function bucketLabel(k,g){
@@ -876,21 +975,33 @@ function campLabel(raw){ return CAMPAIGN_LABELS[raw] || (raw||'').replace(/_/g,'
 
 function rowOk(r, applyPlatform){ return campOn(r.campaign) && (!applyPlatform || platOk(r.platform)); }
 
-// Per-platform totals {imps,clk,spend,conv} over the selected campaigns.
+// Per-platform totals over the selected campaigns.
+// OUTCOMES ARE TWO SEPARATE MEASURES AND MUST STAY THAT WAY:
+//   attr - DV360 + TradeDesk programmatic ATTRIBUTED conversions (post-click +
+//          post-view against an ad tag; NOT deduplicated between the two platforms)
+//   leads - LinkedIn lead-gen FORM submissions (someone actually filled a form in)
+// These used to be summed into one `conv` and shown as a headline "Conversions" tile.
+// A view-through display conversion is not a lead; adding them produced a number that
+// read as an outcome count but was mostly unclicked impressions. See
+// sql/04_stg_ad_delivery.sql. Do not re-merge them without a client-agreed definition.
 function adByPlatform(applyPlatform){
-  const o = {dv360:{imps:0,clk:0,spend:0,conv:0}, tradedesk:{imps:0,clk:0,spend:0,conv:0}, linkedin:{imps:0,clk:0,spend:0,conv:0}};
+  const z = () => ({imps:0,clk:0,spend:0,attr:0,leads:0});
+  const o = {dv360:z(), tradedesk:z(), linkedin:z()};
   for(const c of (DATA.ad_campaigns||[])){
     if(!rowOk(c, applyPlatform)) continue;
     const e = o[c.platform]; if(!e) continue;
-    e.imps+=c.imps||0; e.clk+=c.clicks||0; e.spend+=c.spend_usd||0; e.conv+=c.conversions||0;
+    e.imps+=c.imps||0; e.clk+=c.clicks||0; e.spend+=c.spend_usd||0;
+    e.attr+=c.attr_conv||0; e.leads+=c.leads||0;
   }
   return o;
 }
 // Blended ad totals over the selected campaigns (and platforms when applyPlatform).
+// `attr` and `leads` are accumulated separately - there is deliberately no combined
+// outcome total here for anything to reach for.
 function adTotals(applyPlatform){
-  const p = adByPlatform(applyPlatform); let imps=0, clk=0, spend=0, conv=0;
-  for(const k in p){ imps+=p[k].imps; clk+=p[k].clk; spend+=p[k].spend; conv+=p[k].conv; }
-  return {imps, clk, spend, conv};
+  const p = adByPlatform(applyPlatform); let imps=0, clk=0, spend=0, attr=0, leads=0;
+  for(const k in p){ imps+=p[k].imps; clk+=p[k].clk; spend+=p[k].spend; attr+=p[k].attr; leads+=p[k].leads; }
+  return {imps, clk, spend, attr, leads};
 }
 const adKpi = () => adTotals(true);   // Overview: campaign + platform scoped
 // month -> {imps,clk,spend, <platform>:{imps,clk,spend}} over selected campaigns.
@@ -984,6 +1095,117 @@ function adWindow(platformKey){
     if(c.end   && (!end   || c.end>end))     end=c.end;
   }
   return {start, end};
+}
+
+// --- Stalled-feed detection ---------------------------------------------------
+// The three feeds do NOT run concurrently and one of them can stop arriving while
+// the other two keep updating. When that happens every whole-flight total on this
+// page still INCLUDES the stalled platform's historical delivery, so the page looks
+// healthy and the client reads stale numbers as current. This is not hypothetical:
+// Transmission's DV360 feed has delivered nothing since 2026-07-01.
+//
+// Rather than hardcode that one outage, compare each platform's last delivery day
+// against the most recent delivery day seen anywhere in the payload. A platform more
+// than STALL_DAYS behind is called out by name, with the date and the gap.
+// A campaign whose LAST delivery anywhere is this far in the past is treated as
+// CONCLUDED rather than stalled. Verified against the raw layer on 2026-08-24: the
+// Trade Desk and LinkedIn feeds are both current for other clients (2026-08-22 /
+// 2026-08-23) while HireRight's own last rows are 2026-06-22 and 2026-04-17 - so the
+// campaign ended, the pipeline is fine. Without this branch the warning below would
+// tell the client to chase their agency about a working feed.
+const CONCLUDED_DAYS = 30;
+// --- outcome-metric helpers ---------------------------------------------------
+// Did a lead-gen objective ACTUALLY run? LinkedIn reports `lead_form_opens` NULL on
+// this account, which means no lead form was ever served - not that forms were served
+// and nobody filled one in. Those are completely different facts and only the second
+// one is worth a "0" on screen. Without this guard the dashboard prints "LinkedIn
+// leads: 0" beside the platform that drove 73% of the campaign's clicks.
+function leadGenRan(){
+  const k = DATA.kpi || {};
+  return (k.li_lead_form_opens || 0) > 0 || (k.li_leads || 0) > 0;
+}
+// Which platforms actually MEASURED a conversion, for the tile's sub-label. The
+// conversion count belongs to the campaign; the pixel that recorded it belongs to one
+// platform, and saying which is the difference between a figure a client can trust and
+// one they can't interrogate.
+function measuredByLabel(){
+  const P = adByPlatform(true);
+  const src = PLATFORMS.filter(p => platOk(p.key) && (P[p.key].attr || 0) > 0).map(p => p.label);
+  if(!src.length) return 'no conversion tag reported on the selected platforms';
+  return `post-click &amp; post-view, measured by ${src.join(' + ')}`;
+}
+// How to read the conversion figure. This is the paragraph that stops a reasonable
+// person drawing the wrong conclusion twice over: that the conversions are "leads",
+// and that the platforms showing no conversions contributed nothing.
+function conversionNote(){
+  const P = adByPlatform(false);
+  const T = adTotals(false);
+  const measured = PLATFORMS.filter(p => (P[p.key].attr || 0) > 0);
+  const silent   = PLATFORMS.filter(p => (P[p.key].attr || 0) === 0 && P[p.key].imps > 0);
+  if(!measured.length) return '';
+  const mNames = measured.map(p => p.label).join(' + ');
+  let s = `<br><br><b>How to read the conversion figure.</b> These are <b>post-click and post-view</b> `
+    + `conversions recorded by the <b>${mNames}</b> tag - a large share are counted because an ad was `
+    + `served, not clicked. They are <b>not</b> lead-form submissions and should not be read as that many `
+    + `enquiries.`;
+  if(silent.length){
+    // The point that matters most on a multi-channel buy: a platform with no
+    // conversions of its own is not a platform that contributed nothing.
+    const top = silent.slice().sort((a,b)=>(P[b.key].clk||0)-(P[a.key].clk||0))[0];
+    const share = T.clk ? Math.round((P[top.key].clk||0)/T.clk*100) : 0;
+    s += ` <b>${silent.map(p=>p.label).join(' and ')}</b> carried no conversion tag of their own, so none of `
+      + `this total is credited to them - but they ran as upper-funnel support and reached the same audience. `
+      + (share >= 20 ? `${top.label} alone drove <b>${share}% of all clicks</b> on the campaign. ` : '')
+      + `No cross-channel attribution exists here, so treat this as the <b>measured floor</b> of what the `
+      + `campaign produced, not as the full contribution of any one platform.`;
+  }
+  return s;
+}
+const STALL_DAYS = 14;
+function daysAgo(iso){ return Math.round((Date.now() - Date.parse(iso)) / 86400000); }
+function lastDeliveryAnywhere(){
+  const ends = [DATA.dv_window, DATA.td_window, DATA.li_window].map(x => x && x.end).filter(Boolean);
+  return ends.length ? ends.reduce((a,b)=> a>b ? a : b) : null;
+}
+function campaignConcluded(){
+  const last = lastDeliveryAnywhere();
+  return last ? daysAgo(last) > CONCLUDED_DAYS : false;
+}
+function stalledFeeds(){
+  const w = {dv360:DATA.dv_window, tradedesk:DATA.td_window, linkedin:DATA.li_window};
+  const ends = Object.values(w).map(x => x && x.end).filter(Boolean);
+  if(!ends.length) return [];
+  const newest = ends.reduce((a,b)=> a>b ? a : b);
+  const out = [];
+  for(const p of PLATFORMS){
+    const end = w[p.key] && w[p.key].end;
+    if(!end) continue;
+    const gap = Math.round((Date.parse(newest) - Date.parse(end)) / 86400000);
+    if(gap > STALL_DAYS) out.push({label:p.label, end, gap});
+  }
+  return out;
+}
+function feedStallNote(){
+  // CONCLUDED beats STALLED. If nothing has delivered on ANY platform for a month, the
+  // campaign finished - saying "a feed has stopped updating" would be both wrong and
+  // alarming. State it plainly as a completed record instead.
+  if(campaignConcluded()){
+    const last = lastDeliveryAnywhere();
+    const per = PLATFORMS.map(p => {
+      const w = {dv360:DATA.dv_window, tradedesk:DATA.td_window, linkedin:DATA.li_window}[p.key];
+      return (w && w.end) ? `<b>${p.label}</b> ${w.start} to ${w.end}` : null;
+    }).filter(Boolean);
+    return `<br><br><span class="concluded-note"><b>This campaign has concluded - these are final figures.</b> `
+      + `The most recent delivery on any platform was <b>${last}</b> (${daysAgo(last)} days ago). `
+      + per.join('; ') + `. Every number on this page is a whole-of-campaign total and will not change.</span>`;
+  }
+  const s = stalledFeeds();
+  if(!s.length) return '';
+  const parts = s.map(x => `<b>${x.label}</b> has reported nothing since <b>${x.end}</b> (${x.gap} days)`);
+  return `<br><br><span class="stall-warn"><b>Heads up - a feed has stopped updating.</b> `
+    + parts.join('; ') + `. Its historical delivery is still included in the totals above, so those `
+    + `figures cover the whole flight, not the current period. Other platforms are still reporting, so `
+    + `this looks like a data-feed issue rather than the campaign ending - worth checking with your agency contact.</span>`;
 }
 
 //==============================================================================
@@ -1165,7 +1387,7 @@ function renderMeta(){
 function renderControls(){
   el('tabOverview').className = 'tab'+(activeTab==='overview'?' on':'');
   el('tabPaid').className     = 'tab'+(activeTab==='paid'?' on':'');
-  const notes = { overview:'Spend, impressions, clicks & conversions', paid:'DV360 · TradeDesk · LinkedIn delivery' };
+  const notes = { overview:'Spend, impressions, clicks, leads & attributed conversions', paid:'DV360 · TradeDesk · LinkedIn delivery' };
   el('ctrlNote').textContent = notes[activeTab]||'';
 
   // Platform chips scope the Overview only (Paid Media always shows all three for comparison).
@@ -1312,7 +1534,7 @@ function renderDateScope(){
     note.innerHTML = '📅 Period filtered to <b>'+rangeStart+'</b> – <b>'+rangeEnd+'</b>. '
       + 'The <b>delivery trend charts</b> (Month / Week / Day) honor this range; KPI cards, spend mix/share, by-market &amp; by-country, '
       + 'the platform-comparison &amp; top-campaign tables and the LinkedIn creative/funnel show the <b>full period</b> '
-      + '(those breakdowns, and conversions, aren\'t available at a time grain in the feed).';
+      + '(those breakdowns, and the leads / attributed-conversion counts, aren\'t available at a time grain in the feed).';
   } else {
     note.style.display = 'none';
   }
@@ -1328,7 +1550,7 @@ function gridY(opts={}){ return Object.assign({grid:{color:'rgba(255,255,255,.08
 function axisX(opts={}){ return Object.assign({grid:{display:false},ticks:{color:C.mute,font:{size:11,...FONT}},border:{display:false}}, opts); }
 function legendTop(){ return {position:'top',align:'end',labels:{boxWidth:11,boxHeight:11,usePointStyle:true,pointStyle:'circle',font:{size:11.5,...FONT},color:C.ink,padding:14}}; }
 function kpiCard(cls,label,value,delta){
-  return `<div class="kpi ${cls}"><span class="stripe"></span><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
+  return `<div class="kpi ${cls}"><div class="label">${label}</div><div class="value">${value}</div><div class="delta">${delta||'&nbsp;'}</div></div>`;
 }
 // shade a base colour for chart slices so adjacent segments differ
 function adjust(hex,amt){
@@ -1486,19 +1708,288 @@ if (window.Chart) Chart.register({
 //==============================================================================
 // OVERVIEW
 //==============================================================================
+//==============================================================================
+// MEDIA-PLAN PACING
+//==============================================================================
+// Renders ONLY when a signed media plan has been seeded (targets/media_plan.csv ->
+// seed_media_plan -> sql/19_pacing -> DATA.has_targets). Until then the whole section
+// stays display:none. That is deliberate: HireRight has no plan in this repo, and a
+// pacing card full of "0 / 0 - 0%" reads as a failing campaign rather than as a
+// missing input. Same auto-hide idiom as mongodb's LinkedIn tab and geocon's
+// second development.
+//
+// Two numbers per metric, and they are NOT the same:
+//   attainment (pct)  - delivered / the whole commitment
+//   pace              - attainment / share of flight elapsed; 1.0 = exactly on the
+//                       even flight pace. A campaign 40% through its flight with 38%
+//                       of its impressions is ON PACE, not 62% short.
+// Only ever showing attainment makes every mid-flight campaign look like it is losing,
+// which is how a client ends up in a meeting about a problem that does not exist.
+function paceVerdict(pace){
+  if(pace==null || !isFinite(pace)) return {cls:'na',   txt:'no flight dates'};
+  if(pace >= 1.10)                  return {cls:'warn', txt:'ahead of pace'};
+  if(pace >= 0.90)                  return {cls:'ok',   txt:'on pace'};
+  if(pace >= 0.75)                  return {cls:'warn', txt:'slightly behind'};
+  return {cls:'bad', txt:'behind pace'};
+}
+function paceRow(label, delivered, target, pct, pace, fmt){
+  // NULL target means the plan committed nothing here - print a dash, never 0%.
+  if(target==null) return `<tr><td>${label}</td><td colspan="4" class="mute">not committed in the plan</td></tr>`;
+  const v = paceVerdict(pace);
+  const w = Math.max(0, Math.min(100, (pct||0)*100));
+  const barCls = v.cls==='ok' ? 'ok' : (v.cls==='warn' ? 'warn' : '');
+  return `<tr>
+    <td>${label}</td>
+    <td>${fmt(delivered)} <span class="mute">of ${fmt(target)}</span></td>
+    <td>${fmtPct(pct||0,0)}</td>
+    <td style="min-width:130px"><div class="pace-bar ${barCls}"><i style="width:${w}%"></i></div></td>
+    <td><span class="pace-tag ${v.cls}">${v.txt}</span></td>
+  </tr>`;
+}
+function renderPacing(){
+  const box = el('ovPacing'); if(!box) return;
+  const rowsP = (DATA.pacing||[]).filter(p => p.plan_lines > 0);
+  if(!DATA.has_targets || !rowsP.length){ box.style.display='none'; box.innerHTML=''; return; }
+  box.style.display = '';
+  const blocks = rowsP.map(p => {
+    const plat = (PLATFORMS.find(x=>x.key===p.platform)||{}).label || p.platform;
+    // An unsigned plan line has no dates - say "live since", never claim a booked flight.
+    const flight = p.flight_source==='planned'
+      ? `flight ${p.flight_start} → ${p.flight_end}` + (p.elapsed_frac!=null ? ` · ${fmtPct(p.elapsed_frac,0)} elapsed` : '')
+      : `live since ${p.flight_start} <span class="mute">(observed - no flight dates in the plan)</span>`;
+    return `<div style="margin-top:14px">
+      <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap">
+        <b>${plat}</b><span class="mute" style="font-size:12px">${flight}</span>
+      </div>
+      <table style="margin-top:6px">
+        <thead><tr><th>Metric</th><th>Delivered</th><th>of target</th>
+          <th title="Bar = share of the whole commitment delivered. Compare it to the flight-elapsed figure above, not to 100%.">Progress</th>
+          <th title="Measured against the EVEN FLIGHT PACE to date, not against the full target.">Pace to date</th></tr></thead>
+        <tbody>
+          ${paceRow('Spend (USD)',  p.spend_usd, p.budget_usd,  p.spend_pct, p.spend_pace, v=>money(v))}
+          ${paceRow('Impressions',  p.imps,      p.imp_target,  p.imp_pct,   p.imp_pace,   v=>fmtM(v))}
+          ${paceRow('Clicks',       p.clicks,    p.click_target,p.click_pct, p.click_pace, v=>fmtN(v))}
+          ${paceRow('Leads',        p.leads,     p.lead_target, p.lead_pct,  p.lead_pace,  v=>fmtN(v))}
+        </tbody>
+      </table>
+    </div>`;
+  }).join('');
+  box.innerHTML = `<h3>Pacing against the media plan</h3>
+    <div class="hint">Delivered vs committed, per platform. <b>Pace to date</b> compares delivery to the
+    even flight pace so far - not to the full target - so a campaign part-way through its flight is judged
+    fairly. A metric the plan does not commit to is shown as "not committed", never as a 0% miss.</div>
+    ${blocks}`;
+}
+
+//==============================================================================
+// ADDED VISUALISATIONS
+//==============================================================================
+// All five read the SAME filtered arrays as the KPI cards above them (rowOk / the
+// Period range), so a number in a chart always ties to the tiles. None of them
+// introduce a new data key - they are new READINGS of the existing payload.
+
+// --- Overview: efficiency over time ------------------------------------------
+// CTR / CPM / CPC per platform. Every value is re-derived from that period's summed
+// numerator and denominator (clicks/imps, spend/imps, spend/clicks). Averaging a
+// ratio across periods is the classic way to make a quiet week count as much as a
+// heavy one, so it is never done here.
+const EFF = {
+  ctr: {label:'CTR',  calc:(e)=> e.imps ? e.clk/e.imps : null,          fmt:v=>fmtPct(v,2),      tick:v=>(v*100).toFixed(2)+'%' },
+  cpm: {label:'CPM',  calc:(e)=> e.imps ? e.spend/e.imps*1000 : null,   fmt:v=>money(v,'$',2),   tick:v=>'$'+v.toFixed(0) },
+  cpc: {label:'CPC',  calc:(e)=> e.clk  ? e.spend/e.clk : null,         fmt:v=>money(v,'$',2),   tick:v=>'$'+v.toFixed(2) },
+};
+function renderEfficiency(){
+  const cv = el('ovEfficiency'); if(!cv) return;
+  const g = grain.ovEff, m = EFF[ovEffMetric] || EFF.ctr;
+  const keys = grainSpine(g);
+  const map = adGrainMap(true, g);
+  const ds = selPlatforms().map(p => ({
+    label: p.label,
+    // null (not 0) for a period the platform did not deliver in - a zero point would
+    // draw a line crashing to the axis and read as a collapse in performance.
+    data: keys.map(k => { const e = map[k] && map[k][p.key]; return e ? m.calc(e) : null; }),
+    borderColor: p.color, backgroundColor: p.color,
+    borderWidth: 2, pointRadius: 2.5, pointHoverRadius: 5, tension: .3, spanGaps: true,
+  }));
+  charts.ovEfficiency = new Chart(cv, {
+    type:'line',
+    data:{ labels: keys.map(k=>bucketLabel(k,g)), datasets: ds },
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(),
+        tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.parsed.y==null?'no delivery':m.fmt(c.parsed.y)}`}} },
+      scales:{ x:axisX(), y:gridY({beginAtZero:true, ticks:{color:C.mute,font:{size:11},callback:m.tick}}) } }
+  });
+}
+
+// --- Overview: spend by region -----------------------------------------------
+// The country rollup added alongside `region` in sql/01. Hides itself when the data
+// resolves to one region - a single-bar "breakdown" is noise dressed as insight.
+function renderRegionChart(){
+  const card = el('ovRegionCard'), cv = el('ovRegion'); if(!card || !cv) return;
+  const agg = {};
+  for(const r of (DATA.ad_campaign_market||[])){
+    if(!campOn(r.campaign) || !marketOk(r.market)) continue;
+    const k = r.region || 'Unknown';
+    const e = agg[k] || (agg[k] = {spend:0, imps:0});
+    e.spend += r.spend_usd||0; e.imps += r.imps||0;
+  }
+  const rows = Object.entries(agg).filter(([,v])=>v.spend>0||v.imps>0)
+                     .sort((a,b)=>b[1].spend-a[1].spend);
+  if(rows.length < 2){ card.style.display='none'; return; }
+  card.style.display = '';
+  charts.ovRegion = new Chart(cv, {
+    type:'bar',
+    data:{ labels: rows.map(r=>r[0]),
+      datasets:[{ label:'Spend (USD)', data: rows.map(r=>r[1].spend),
+        backgroundColor: rows.map((_,i)=>shade(C.red,i)), borderRadius:5, maxBarThickness:46 }] },
+    options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      plugins:{ legend:{display:false},
+        tooltip:{callbacks:{label:c=> ` ${money(c.parsed.x)} · ${fmtM(rows[c.dataIndex][1].imps)} impressions`}} },
+      scales:{ x:gridY({beginAtZero:true, ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}), y:axisX() } }
+  });
+}
+
+// --- Paid: cumulative spend (the burn curve) ---------------------------------
+// A running total answers "how far through the money are we", which the per-period
+// bars cannot. A FLAT stretch on one line is a platform that stopped delivering -
+// the same signal the stalled-feed warning gives, drawn.
+function renderCumulative(){
+  const cv = el('pmCumulative'); if(!cv) return;
+  const g = grain.pmCum;
+  const keys = grainSpine(g);
+  const map = adGrainMap(false, g);   // false = show every platform, like the rest of this tab
+  const ds = PLATFORMS.map(p => {
+    let run = 0;
+    return { label:p.label,
+      data: keys.map(k => { const e = map[k] && map[k][p.key]; run += (e ? e.spend : 0); return run; }),
+      borderColor:p.color, backgroundColor:p.color+'22',
+      borderWidth:2, pointRadius:0, pointHoverRadius:4, tension:.25, fill:true };
+  }).filter(d => d.data.length && d.data[d.data.length-1] > 0);   // drop platforms that never spent
+  charts.pmCumulative = new Chart(cv, {
+    type:'line',
+    data:{ labels: keys.map(k=>bucketLabel(k,g)), datasets: ds },
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(),
+        tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${money(c.parsed.y)} to date`}} },
+      scales:{ x:axisX(), y:gridY({beginAtZero:true, ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}) } }
+  });
+}
+
+// --- Paid: platform mix over time (100% stacked) -----------------------------
+// Share, not volume: shows where budget MOVED even in periods when total spend fell.
+// Hides itself when only one platform ever delivered (a flat 100% band says nothing).
+function renderMixTrend(){
+  const card = el('pmMixCard'), cv = el('pmMixTrend'); if(!card || !cv) return;
+  const g = grain.pmCum;                       // shares the burn chart's grain toggle
+  const keys = grainSpine(g);
+  const map = adGrainMap(false, g);
+  const live = PLATFORMS.filter(p => keys.some(k => map[k] && map[k][p.key] && map[k][p.key].spend > 0));
+  if(live.length < 2){ card.style.display='none'; return; }
+  card.style.display = '';
+  const ds = live.map(p => ({
+    label:p.label,
+    data: keys.map(k => { const e = map[k]; if(!e || !e.spend) return 0;
+                          return (e[p.key] ? e[p.key].spend : 0) / e.spend * 100; }),
+    backgroundColor:p.color, borderWidth:0,
+  }));
+  charts.pmMixTrend = new Chart(cv, {
+    type:'bar',
+    data:{ labels: keys.map(k=>bucketLabel(k,g)), datasets: ds },
+    options:{ responsive:true, maintainAspectRatio:false, interaction:{mode:'index',intersect:false},
+      plugins:{ legend:legendTop(),
+        tooltip:{callbacks:{label:c=> ` ${c.dataset.label}: ${c.parsed.y.toFixed(1)}% of spend`}} },
+      scales:{ x:axisX({stacked:true}),
+               y:gridY({stacked:true, min:0, max:100, ticks:{color:C.mute,font:{size:11},callback:v=>v+'%'}}) } }
+  });
+}
+
+// --- Paid: campaign efficiency bubble ----------------------------------------
+// Spend (x) vs CTR (y), sized by impressions. The table below ranks by spend, which
+// only identifies the biggest campaign; this identifies the ones not earning it.
+// Tiny campaigns are excluded - a campaign with 40 impressions can post a 5% CTR and
+// would otherwise sit at the top of the chart as the apparent star performer.
+const SCATTER_MIN_IMPS = 1000;
+function renderScatter(){
+  const cv = el('pmScatter'); if(!cv) return;
+  const camps = (DATA.ad_campaigns||[]).filter(c => campOn(c.campaign) && (c.imps||0) >= SCATTER_MIN_IMPS);
+  if(!camps.length){ return; }
+  const maxI = Math.max(...camps.map(c=>c.imps||0)) || 1;
+  const ds = PLATFORMS.map(p => ({
+    label: p.label,
+    data: camps.filter(c=>c.platform===p.key).map(c => ({
+      x: c.spend_usd||0,
+      y: (c.imps ? (c.clicks||0)/c.imps : 0) * 100,
+      // Area-proportional radius: r = sqrt(share) so a bubble 4x the impressions looks
+      // 4x the AREA, not 4x the width (which would read as ~16x).
+      r: 4 + Math.sqrt((c.imps||0)/maxI) * 20,
+      _n: c.campaign, _i: c.imps||0, _c: c.clicks||0,
+    })),
+    backgroundColor: p.color+'99', borderColor: p.color, borderWidth:1,
+  })).filter(d => d.data.length);
+  // Blended CTR reference line across everything currently selected.
+  const tot = camps.reduce((a,c)=>({i:a.i+(c.imps||0), c:a.c+(c.clicks||0)}), {i:0,c:0});
+  const blended = tot.i ? tot.c/tot.i*100 : 0;
+  charts.pmScatter = new Chart(cv, {
+    type:'bubble',
+    data:{ datasets: ds.concat([{
+      type:'line', label:`Blended CTR (${blended.toFixed(2)}%)`,
+      data:[{x:0,y:blended},{x:Math.max(...camps.map(c=>c.spend_usd||0))*1.05||1,y:blended}],
+      borderColor:C.mute, borderWidth:1.5, borderDash:[6,4], pointRadius:0, fill:false,
+    }]) },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:legendTop(),
+        tooltip:{callbacks:{label:c=>{ const d=c.raw; if(d._n==null) return ` Blended CTR ${blended.toFixed(2)}%`;
+          return [` ${d._n}`, ` ${money(d.x)} spend · ${fmtM(d._i)} impr · ${fmtN(d._c)} clicks`, ` CTR ${d.y.toFixed(2)}%`]; }}} },
+      scales:{
+        x:gridY({title:{display:true,text:'Spend (USD)',color:C.mute,font:{size:11}}, beginAtZero:true,
+                 ticks:{color:C.mute,font:{size:11},callback:v=>money(v)}}),
+        y:gridY({title:{display:true,text:'CTR',color:C.mute,font:{size:11}}, beginAtZero:true,
+                 ticks:{color:C.mute,font:{size:11},callback:v=>v.toFixed(2)+'%'}}) } }
+  });
+}
+
 function renderOverview(){
   const P = adByPlatform(true);  // per-platform totals over selected campaigns + platforms
   const a = adKpi();             // blended totals (same scope)
   const ctr = pct(a.clk, a.imps), cpm = a.imps? a.spend/a.imps*1000:0, cpc = a.clk? a.spend/a.clk:0;
   const spendSub = selPlatforms().map(p=>`${money(P[p.key].spend)} ${p.label}`).join(' · ') || 'no platform selected';
-  el('ovKpis').innerHTML =
+  // OUTCOME TILES - the rule is about the LABEL, not the arithmetic.
+  //
+  // The original build showed one tile: "Conversions 62", sub-labelled "DV360 +
+  // TradeDesk + LinkedIn leads". The number was defensible; the word "leads" was
+  // not - all 62 are post-click/post-view display conversions recorded by the Trade
+  // Desk pixel, and a client reading "62 leads" expects 62 people in a CRM.
+  //
+  // A first pass split it into "LinkedIn leads" + "Attributed conversions". That was
+  // WORSE: LinkedIn never ran a lead-gen objective on this account (lead_form_opens
+  // is NULL, not zero), so the tile manufactured a 0 against a goal nobody set - next
+  // to the platform that drove 73% of all clicks. A metric that was never in play must
+  // not render at all; see leadGenRan().
+  //
+  // So: ONE campaign-level conversion figure, labelled by where it was MEASURED, with
+  // the multi-touch caveat in the note below. The leads tile appears only if lead-gen
+  // actually ran.
+  const anyPlat = selPlatforms().length > 0;
+  let tiles =
     kpiCard('accent','Media spend (USD)', money(a.spend), spendSub)
   + kpiCard('accent','Impressions', fmtM(a.imps), selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ')||'-')
   + kpiCard('accent','Clicks', fmtN(a.clk), 'to site')
   + kpiCard('','Blended CTR', fmtPct(ctr,2), 'clicks ÷ impressions')
   + kpiCard('','CPM', money(cpm,'$',2), 'cost per 1,000 impressions')
-  + kpiCard('','CPC', money(cpc,'$',2), 'cost per click')
-  + kpiCard('accent','Conversions', fmtN(a.conv), 'DV360 + TradeDesk + LinkedIn leads');
+  + kpiCard('','CPC', money(cpc,'$',2), 'cost per click');
+  let n = 6;
+  if(leadGenRan() && platOk('linkedin')){
+    tiles += kpiCard('accent','LinkedIn leads', fmtN(a.leads), 'lead-gen form submissions'); n++;
+  }
+  if(anyPlat){
+    tiles += kpiCard('accent','Conversions', fmtN(a.attr), measuredByLabel()); n++;
+  }
+  el('ovKpis').className = 'kpis' + (n>=8 ? ' eight' : n===7 ? ' seven' : '');
+  el('ovKpis').innerHTML = tiles;
+
+  renderPacing();
+  renderEfficiency();
+  renderRegionChart();
 
   // Hero: spend by platform (stacked bars, USD) + clicks (line) - honors the Period
   // filter. VIEW BY grain (month/week/day) re-aggregates from the matching campaign-
@@ -1557,11 +2048,13 @@ function renderOverview(){
   });
 
   const plats = selPlatforms().map(p=>p.label).join(', ') || 'none';
-  el('ovNote').innerHTML = `<b>How to read this.</b> Spend, impressions, clicks &amp; conversions reflect the <b>Platform</b> filter (${plats}) `
+  el('ovNote').innerHTML = `<b>How to read this.</b> Spend, impressions and clicks reflect the <b>Platform</b> filter (${plats}) `
     + `and the <b>Campaign</b> filter (${campaignScopeText()}). The <b>Market</b> filter (${marketScopeText()}) scopes the by-market chart only - `
     + `DV360 carries real countries, while TradeDesk &amp; LinkedIn are <b>Global</b> air-cover. `
-    + `DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}; TradeDesk ${DATA.td_window.start} → ${DATA.td_window.end}; LinkedIn ${DATA.li_window.start} → ${DATA.li_window.end}. `
-    + `Spend is reported in USD - TradeDesk's AUD is converted at A$1 = US$${DATA.fx_aud_usd}.`;
+    + conversionNote()
+    + `<br><br>DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}; TradeDesk ${DATA.td_window.start} → ${DATA.td_window.end}; LinkedIn ${DATA.li_window.start} → ${DATA.li_window.end}. `
+    + `Spend is reported in USD - TradeDesk's AUD is converted at A$1 = US$${DATA.fx_aud_usd}.`
+    + feedStallNote();
 }
 
 //==============================================================================
@@ -1580,6 +2073,10 @@ function renderPaid(){
   + kpiCard('','LinkedIn spend', money(P.linkedin.spend), 'paid social')
   + kpiCard('accent','Impressions', fmtM(T.imps), `${money(cpm,'$',2)} blended CPM`)
   + kpiCard('accent','Clicks', fmtN(T.clk), `DV360 ${fmtN(P.dv360.clk)} · TTD ${fmtN(P.tradedesk.clk)} · LI ${fmtN(P.linkedin.clk)}`);
+
+  renderCumulative();
+  renderMixTrend();
+  renderScatter();
 
   // Spend by platform over the selected campaigns (periods with delivery only). VIEW
   // BY grain (month/week/day) re-aggregates from the matching campaign-grained array;
@@ -1703,6 +2200,10 @@ function exportAllData(){
   push('ad_campaign_weekly', DATA.ad_campaign_weekly); push('ad_campaign_daily', DATA.ad_campaign_daily);
   push('ad_campaign_market', DATA.ad_campaign_market);
   push('li_campaign_creative', DATA.li_campaign_creative);
+  // Provenance: exactly which advertiser / account each source filter matched when this
+  // JSON was built. Ships with the export so a downloaded number can be traced back to
+  // the scope it came from (older JSON has no scope_audit - push() no-ops on empty).
+  if((DATA.scope_audit||[]).length) push('scope_audit (what the source filters matched)', DATA.scope_audit);
   const blob = new Blob([lines.join('\n')], {type:'text/csv'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='hireright_dashboard.csv'; a.click();
 }

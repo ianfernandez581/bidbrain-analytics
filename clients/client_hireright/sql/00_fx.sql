@@ -1,0 +1,24 @@
+-- HireRight - the ONE FX constant, in ONE place.
+--
+-- Reporting currency is USD. Two of the three feeds bill in AUD (TradeDesk always;
+-- LinkedIn only on an `*_AUD` account), so both need the same rate applied.
+--
+-- WHY THIS VIEW EXISTS: the rate used to be the literal 0.65 written out FOUR times -
+-- in 01_stg_dv360, 02_stg_linkedin, 03_stg_tradedesk and again in 05_kpi (where it is
+-- surfaced to the dashboard as `fx_aud_usd`). Nothing tied those four together, so
+-- editing three of them and missing the fourth would leave the dashboard PRINTING one
+-- rate while the spend column was converted at another - a wrong number that looks
+-- entirely self-consistent. Every consumer now CROSS JOINs this single row instead.
+--
+-- Changing the rate = editing the literal below, re-applying views, then a forced job
+-- run (the freshness gate does not watch views):
+--     gcloud run jobs execute hireright-export --region australia-southeast1 \
+--       --update-env-vars FORCE_REBUILD=1 --wait
+--
+-- PROVENANCE: 0.65 is a PLACEHOLDER carried over from the original build brief - it is
+-- not a booked rate and nobody has confirmed it against what HireRight is actually
+-- invoiced at. It is surfaced in the UI so the client can see what was used. Confirm
+-- the correct basis with Transmission (spot vs booked vs month-average) before this
+-- dashboard is treated as a billing reference.
+CREATE OR REPLACE VIEW `bidbrain-analytics.client_hireright.fx` AS
+SELECT 0.65 AS aud_usd;

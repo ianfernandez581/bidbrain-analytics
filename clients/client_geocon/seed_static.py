@@ -24,12 +24,35 @@ TARGETS_DIR = os.path.join(os.path.dirname(__file__), "targets")
 SF = bigquery.SchemaField
 # CSV file (in targets/) -> (BigQuery table, explicit schema in CSV COLUMN ORDER).
 SEEDS = {
+    # Both target seeds are keyed by DEVELOPMENT (property_key, the same key seed_property_map
+    # uses) since 2026-08-24. Gateway Braddon and Northbourne Gateway carry different budgets,
+    # flights and benchmarks; one flat set would have paced each against the other's plan.
     "targets.csv": ("seed_targets", [
+        SF("property_key", "STRING"),
         SF("key", "STRING"), SF("value", "STRING"), SF("status", "STRING"),
     ]),
     "budget.csv": ("seed_budget", [
-        SF("campaign_key", "STRING"), SF("budget_aud", "FLOAT64"),
+        SF("property_key", "STRING"), SF("budget_aud", "FLOAT64"),
+        SF("measurable_budget_aud", "FLOAT64"),
         SF("flight_start", "DATE"), SF("flight_end", "DATE"),
+    ]),
+    # The signed media plan, one row per BOUGHT LINE. Northbourne Gateway buys nine lines across
+    # five channels, each with its own impression / click / CPM / CTR target, so a single blended
+    # benchmark would be meaningless (a search line's plan CPM is ~A$1,178, a Trade Desk line's is
+    # A$15). `measurable` = FALSE marks a line no ad server will ever report -- the SEO retainer
+    # and the Google management fee -- which is why the dashboard paces on the measurable budget.
+    # `match_pattern` attributes delivery back to the line that bought it (three Trade Desk lines
+    # share one advertiser); see sql/06_media_plan.sql and sql/10_fact_all.sql.
+    "media_plan.csv": ("seed_media_plan", [
+        SF("property_key", "STRING"), SF("seq", "INT64"), SF("phase", "STRING"),
+        SF("line_name", "STRING"), SF("media", "STRING"), SF("channel", "STRING"),
+        SF("description", "STRING"), SF("targeting", "STRING"), SF("geo", "STRING"),
+        SF("imp_target", "INT64"), SF("video_view_target", "INT64"),
+        SF("reach_target", "INT64"), SF("freq_cap", "FLOAT64"),
+        SF("cpm_target", "FLOAT64"), SF("cpv_target", "FLOAT64"),
+        SF("ctr_target", "FLOAT64"), SF("click_target", "INT64"),
+        SF("budget_aud", "FLOAT64"), SF("cost_type", "STRING"),
+        SF("measurable", "BOOL"), SF("match_pattern", "STRING"),
     ]),
     # PROPERTY (development) map - the client_schneider seed_campaign_map pattern, scaled down.
     # `seq` is MATCH PRECEDENCE (lowest wins, exactly like schneider's first-match-wins idOf join);

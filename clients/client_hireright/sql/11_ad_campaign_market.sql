@@ -1,14 +1,23 @@
 -- HireRight - ad delivery by campaign x market, for the Market filter + the
 -- by-market charts (Overview spend-by-market bar across all platforms, and the Paid
--- Media spend & impressions by country for DV360). market is DV360's real country
--- for DV360 rows and 'Global' for TradeDesk + LinkedIn air-cover. The dashboard sums
--- the selected campaigns (and markets) per platform/market. Delivering rows only.
+-- Media spend & impressions by country for DV360). market is DV360's real country for
+-- DV360 rows and 'Global' for TradeDesk + LinkedIn air-cover; `region` is the rollup
+-- (DV360 real region, 'Global' elsewhere) so the dashboard can group either way.
+-- The dashboard sums the selected campaigns (and markets) per platform/market.
+-- Delivering rows only.
+--
+-- READ THE MARKET FILTER HONESTLY: only DV360 carries real geo. Two of the three
+-- platforms are a single 'Global' bucket, so narrowing to a country silently reduces
+-- the view to DV360 alone. With the DV360 feed stalled upstream (frozen 2026-07-01 at
+-- Transmission), a country selection currently resolves to NO CURRENT DELIVERY at all.
+-- The dashboard says so next to the filter rather than drawing a confident empty chart.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_hireright.ad_campaign_market` AS
 WITH agg AS (
   SELECT
     platform,
     campaign,
     market,
+    ANY_VALUE(region) AS region,
     SUM(imps)      AS imps,
     SUM(clicks)    AS clicks,
     SUM(spend_usd) AS spend_usd
