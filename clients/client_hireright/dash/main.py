@@ -185,7 +185,7 @@ LOGIN_HTML = """<!doctype html>
         <text x="294" y="20" font-family="Arial,sans-serif" font-size="12" fill="#1A1A1A">®</text>
       </svg>
     </div>
-    <div class="brand">100 DIGITAL · HIRERIGHT PAID MEDIA</div>
+    <div class="brand">TRANSMISSION · HIRERIGHT PAID MEDIA</div>
     <h1>Dashboard access</h1>
     <p>Enter the password to continue.</p>
     <!-- BB-LOGIN-KIT:pw v1 --><div class="bb-pw">

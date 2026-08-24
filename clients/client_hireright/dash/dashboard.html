@@ -512,7 +512,10 @@
 
 <div class="topbar"><div class="inner">
   <div class="topbar-left">
-    <div class="agency">100 DIGITAL<span class="dot"></span></div>
+    <!-- Owning agency. HireRight is a TRANSMISSION account - all three of its feeds come
+         off Transmission's Snowflake share - and it moved onto their portal on 2026-08-24.
+         Matches client_schneider / client_STT, the other Transmission dashboards. -->
+    <div class="agency">TRANSMISSION<span class="dot"></span></div>
     <div class="topbar-divider"></div>
     <div class="logo-chip">
       <!-- HireRight wordmark - HIRE (black) · RIGHT (red) with the corner-bracket motif + ®. -->
@@ -1111,6 +1114,53 @@ function adWindow(platformKey){
 // campaign ended, the pipeline is fine. Without this branch the warning below would
 // tell the client to chase their agency about a working feed.
 const CONCLUDED_DAYS = 30;
+// --- outcome-metric helpers ---------------------------------------------------
+// Did a lead-gen objective ACTUALLY run? LinkedIn reports `lead_form_opens` NULL on
+// this account, which means no lead form was ever served - not that forms were served
+// and nobody filled one in. Those are completely different facts and only the second
+// one is worth a "0" on screen. Without this guard the dashboard prints "LinkedIn
+// leads: 0" beside the platform that drove 73% of the campaign's clicks.
+function leadGenRan(){
+  const k = DATA.kpi || {};
+  return (k.li_lead_form_opens || 0) > 0 || (k.li_leads || 0) > 0;
+}
+// Which platforms actually MEASURED a conversion, for the tile's sub-label. The
+// conversion count belongs to the campaign; the pixel that recorded it belongs to one
+// platform, and saying which is the difference between a figure a client can trust and
+// one they can't interrogate.
+function measuredByLabel(){
+  const P = adByPlatform(true);
+  const src = PLATFORMS.filter(p => platOk(p.key) && (P[p.key].attr || 0) > 0).map(p => p.label);
+  if(!src.length) return 'no conversion tag reported on the selected platforms';
+  return `post-click &amp; post-view, measured by ${src.join(' + ')}`;
+}
+// How to read the conversion figure. This is the paragraph that stops a reasonable
+// person drawing the wrong conclusion twice over: that the conversions are "leads",
+// and that the platforms showing no conversions contributed nothing.
+function conversionNote(){
+  const P = adByPlatform(false);
+  const T = adTotals(false);
+  const measured = PLATFORMS.filter(p => (P[p.key].attr || 0) > 0);
+  const silent   = PLATFORMS.filter(p => (P[p.key].attr || 0) === 0 && P[p.key].imps > 0);
+  if(!measured.length) return '';
+  const mNames = measured.map(p => p.label).join(' + ');
+  let s = `<br><br><b>How to read the conversion figure.</b> These are <b>post-click and post-view</b> `
+    + `conversions recorded by the <b>${mNames}</b> tag - a large share are counted because an ad was `
+    + `served, not clicked. They are <b>not</b> lead-form submissions and should not be read as that many `
+    + `enquiries.`;
+  if(silent.length){
+    // The point that matters most on a multi-channel buy: a platform with no
+    // conversions of its own is not a platform that contributed nothing.
+    const top = silent.slice().sort((a,b)=>(P[b.key].clk||0)-(P[a.key].clk||0))[0];
+    const share = T.clk ? Math.round((P[top.key].clk||0)/T.clk*100) : 0;
+    s += ` <b>${silent.map(p=>p.label).join(' and ')}</b> carried no conversion tag of their own, so none of `
+      + `this total is credited to them - but they ran as upper-funnel support and reached the same audience. `
+      + (share >= 20 ? `${top.label} alone drove <b>${share}% of all clicks</b> on the campaign. ` : '')
+      + `No cross-channel attribution exists here, so treat this as the <b>measured floor</b> of what the `
+      + `campaign produced, not as the full contribution of any one platform.`;
+  }
+  return s;
+}
 const STALL_DAYS = 14;
 function daysAgo(iso){ return Math.round((Date.now() - Date.parse(iso)) / 86400000); }
 function lastDeliveryAnywhere(){
@@ -1903,12 +1953,23 @@ function renderOverview(){
   const a = adKpi();             // blended totals (same scope)
   const ctr = pct(a.clk, a.imps), cpm = a.imps? a.spend/a.imps*1000:0, cpc = a.clk? a.spend/a.clk:0;
   const spendSub = selPlatforms().map(p=>`${money(P[p.key].spend)} ${p.label}`).join(' · ') || 'no platform selected';
-  // Outcome tiles are SEPARATE and each only appears when a platform that can
-  // produce it is selected - a LinkedIn-only view must not show an empty
-  // "attributed conversions" tile, and a display-only view must not imply leads.
-  // They are never added together: see adByPlatform's header and sql/04.
-  const progOn = platOk('dv360') || platOk('tradedesk');
-  const liOn   = platOk('linkedin');
+  // OUTCOME TILES - the rule is about the LABEL, not the arithmetic.
+  //
+  // The original build showed one tile: "Conversions 62", sub-labelled "DV360 +
+  // TradeDesk + LinkedIn leads". The number was defensible; the word "leads" was
+  // not - all 62 are post-click/post-view display conversions recorded by the Trade
+  // Desk pixel, and a client reading "62 leads" expects 62 people in a CRM.
+  //
+  // A first pass split it into "LinkedIn leads" + "Attributed conversions". That was
+  // WORSE: LinkedIn never ran a lead-gen objective on this account (lead_form_opens
+  // is NULL, not zero), so the tile manufactured a 0 against a goal nobody set - next
+  // to the platform that drove 73% of all clicks. A metric that was never in play must
+  // not render at all; see leadGenRan().
+  //
+  // So: ONE campaign-level conversion figure, labelled by where it was MEASURED, with
+  // the multi-touch caveat in the note below. The leads tile appears only if lead-gen
+  // actually ran.
+  const anyPlat = selPlatforms().length > 0;
   let tiles =
     kpiCard('accent','Media spend (USD)', money(a.spend), spendSub)
   + kpiCard('accent','Impressions', fmtM(a.imps), selPlatforms().map(p=>`${p.label} ${fmtM(P[p.key].imps)}`).join(' · ')||'-')
@@ -1917,8 +1978,12 @@ function renderOverview(){
   + kpiCard('','CPM', money(cpm,'$',2), 'cost per 1,000 impressions')
   + kpiCard('','CPC', money(cpc,'$',2), 'cost per click');
   let n = 6;
-  if(liOn){   tiles += kpiCard('accent','LinkedIn leads', fmtN(a.leads), 'lead-gen form submissions'); n++; }
-  if(progOn){ tiles += kpiCard('','Attributed conv.', fmtN(a.attr), 'DV360 + TradeDesk, post-click &amp; post-view'); n++; }
+  if(leadGenRan() && platOk('linkedin')){
+    tiles += kpiCard('accent','LinkedIn leads', fmtN(a.leads), 'lead-gen form submissions'); n++;
+  }
+  if(anyPlat){
+    tiles += kpiCard('accent','Conversions', fmtN(a.attr), measuredByLabel()); n++;
+  }
   el('ovKpis').className = 'kpis' + (n>=8 ? ' eight' : n===7 ? ' seven' : '');
   el('ovKpis').innerHTML = tiles;
 
@@ -1986,11 +2051,7 @@ function renderOverview(){
   el('ovNote').innerHTML = `<b>How to read this.</b> Spend, impressions and clicks reflect the <b>Platform</b> filter (${plats}) `
     + `and the <b>Campaign</b> filter (${campaignScopeText()}). The <b>Market</b> filter (${marketScopeText()}) scopes the by-market chart only - `
     + `DV360 carries real countries, while TradeDesk &amp; LinkedIn are <b>Global</b> air-cover. `
-    + `<br><br><b>The two outcome measures are not the same thing and are never added together.</b> `
-    + `<b>LinkedIn leads</b> are lead-gen form submissions - a person filled in a form. `
-    + `<b>Attributed conversions</b> are DV360 and TradeDesk post-click <i>and post-view</i> counts: `
-    + `most are recorded because an ad was served, not clicked, and the two platforms' tags are not `
-    + `de-duplicated against each other, so treat them as a directional signal of programmatic influence rather than as actions the campaign caused. `
+    + conversionNote()
     + `<br><br>DV360 ran ${DATA.dv_window.start} → ${DATA.dv_window.end}; TradeDesk ${DATA.td_window.start} → ${DATA.td_window.end}; LinkedIn ${DATA.li_window.start} → ${DATA.li_window.end}. `
     + `Spend is reported in USD - TradeDesk's AUD is converted at A$1 = US$${DATA.fx_aud_usd}.`
     + feedStallNote();
