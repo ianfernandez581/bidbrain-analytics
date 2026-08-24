@@ -239,6 +239,124 @@ warm aurora, same button/press/focus vocabulary. Its aurora is CSS-only - no can
 requestAnimationFrame - because a login screen should not run an animation loop.
 
 
+## Pacing detail + Core DG EMEA (2026-08-24)
+
+A **Pacing detail** section on the Content Syndication tab, directly under "Pacing - target vs
+actual", and **`core_emea` promoted from a disabled placeholder to a live lane** - which brings
+**EMEA** onto this dashboard for the first time. Client-approved layout; built from
+`cloudflare_cs_build.sql` (Transmission's Snowflake DDL) as the logic reference.
+
+**EMEA is reached through the topbar lane dropdown ("Core DG EMEA"), not its own control.** An
+APAC/EMEA toggle was built beside the date picker first and **removed the same day** (client
+request): the lane dropdown already existed, already gated tabs per lane (`PROGRAMS[...].tabs`
+-> `applyLaneTabs`) and already had a `core_emea` entry, so a second control meant two ways to
+say the same thing - and two things that could disagree. `currentLane` is now the single source
+of truth; `laneTheatre()` derives the theatre from it and `cspdTheatre()` is the only reader.
+Adding a third theatre is a `PROGRAMS` entry + an `<option>` + CSV rows.
+
+**Where each piece lives**
+
+| piece | file |
+|---|---|
+| Targets (committed CSV -> BQ) | `targets/cs_targets_q3.csv` -> `seed_cs_targets_q3` (`seed_static.py`) |
+| Lead grain, name-scoped | `sql/16_stg_cs_leads_v2.sql` -> `stg_cs_leads_v2` |
+| Week x market x vendor | `sql/17_cs_pacing_v2.sql` -> `cs_pacing_v2` |
+| Payload branch | `job/main.py` -> `cs_pacing` (+ a per-theatre audit line every run) |
+| UI | `dash/dashboard.html` -> `#cspdSection`, `renderCsPacingDetail()`, `PROGRAMS.core_emea`, `laneTheatre()` |
+
+**It runs in BigQuery, not Snowflake, on purpose.** The build script creates views in
+`CLOUDFLARE_SANDBOX.CS_REPORTING`, but our pipeline role there is **read-only** (same reason
+the KR campaign-scope fix still isn't applied), and the base table is *already* in the shared
+mirror and *already* in this client's freshness gate. So the logic is ported 1:1 into
+`client_cloudflare` views and the targets became a committed CSV, per the repo's
+committed-CSV->BQ standard. No ingest change, no gate change, and the targets are
+version-controlled instead of living in DDL nobody here can re-run.
+
+**It cannot move an existing number.** `sql/10_salesforce_leads_live` is untouched. `16`/`17`
+are a parallel read of the same mirror, `cs_pacing` is a separate payload branch, and the whole
+section hides itself when that branch is absent - so an older `cloudflare.json` renders exactly
+as it did before. Verified: 600 inserted lines, 0 removed.
+
+**Reconciliation** (2026-08-24, matches the client's pacing sheet exactly):
+
+| | Target | Delivered | Accepted | Rejected | Needs review |
+|---|---|---|---|---|---|
+| EMEA | 830 | 234 | 208 | 26 | 0 |
+| APAC | 2,290 | 1,591 | 1,365 | 226 | 0 |
+
+APAC delivery runs **ahead** of the sheet because this is live off Salesforce and the sheet is
+a snapshot. That is expected.
+
+### Gotchas - read before editing
+
+- **Weekly buckets will NOT match the client's sheet, and that is understood and accepted.**
+  The sheet is dated when Nabeel delivers leads to Integrate; Salesforce dates them on lead
+  creation. Quarter totals reconcile exactly, weekly splits do not (EMEA returns 114 / 120 for
+  weeks 1-2 where the sheet shows 79 / 155 - our 120 is confirmed correct for our definition).
+  **Do not try to reconcile this in code.** It resolves only when delivery dates arrive via the
+  Integrate export.
+- **The week math deviates from the Snowflake original deliberately** (negative `MOD` + a
+  pre-anchor clamp). Full reasoning in `sql/README.md` -> "16 + 17". Removing the clamp makes
+  the weekly figures silently stop summing to the campaign-to-date total.
+- **`applyRegionPanelScope()` must stay the LAST thing `renderCsPacingDetail()` does.** It is
+  the tail of `renderAll()`, and several blocks on that tab set their own `display` during that
+  pass - `renderLeadDetail()` re-shows the dev-only **per-lead PII table** every time. Scoping
+  before the repaint left that table visible under EMEA showing APAC leads. Running it last
+  also covers the date-picker path (`applyDateRange` -> `renderAll`).
+- **Under EMEA the rest of the CS tab is HIDDEN, not empty-stated**, because
+  `salesforce_leads_live` is APAC-only (5,873 rows, zero EMEA) and every KPI/donut/chart above
+  the section reads it. `CSPD_LEGACY_THEATRE` is the one constant to revisit if that view is
+  ever widened. The date-range banner is suppressed there too - nothing visible responds to it -
+  and `PROGRAMS.core_emea.note` is what tells the reader why the tab is short.
+- **A theatre change must call `renderAll()`, and `switchDashboard` does.** `switchTab()` does
+  NOT re-render `main` (it only toggles panels - the CS tab is otherwise built once at boot and
+  on a date change), so without that call the section would keep the previous theatre's numbers.
+  It fires unconditionally on a theatre change, not just when `main` is the active tab, or
+  `panel-main` would be left stashed in the wrong hide/show state for later.
+- **Vendors are DISCOVERED from the data, never listed in code.** Pipeline360 already showed up
+  on its own (1 EMEA lead, 2026-08-20) and Inbox Insight will. They have no targets yet, so they
+  appear with delivery and no pacing. **That is correct - do not suppress them**, and do not
+  make `17_*`'s FULL OUTER JOIN an inner join.
+- **Market display order is data** (`MARKET_SEQ` in the targets CSV), not code. Same for the
+  week grid and the quarter total. Nothing in the component is hardcoded to 8 markets or a
+  Jul-Sep window - that is what lets EMEA (6 markets, 13 Friday-anchored weeks from 2026-08-07)
+  and APAC (8 markets, Monday-anchored from 2026-07-06) share one component. **A third theatre
+  is a third set of CSV rows and no new component code.**
+- **The targets seed is the only non-live input.** Admin View shows a warning when the latest
+  `WEEK_START` with a target falls behind the current week - last quarter this failed silently
+  and the pacing model returned zero targets for seven weeks before anyone noticed. Re-seed
+  each quarter: edit the CSV -> `seed_static.py` -> forced job run.
+- **Absolute values only.** The relative view was removed at the client's request (2026-08-20,
+  dashboard-wide) and must not come back here.
+- **Rejection reasons have no live source.** The panel renders only when `cs_pacing.reasons` is
+  non-empty and hides cleanly otherwise. Do not populate it with anything that isn't real.
+- **`switchDashboard` re-syncs the `<select>`.** It is normally the thing that called it, but
+  this dropdown is the region control now: a programmatic call that left it reading "Core DG
+  APJ" while the page rendered EMEA would misstate which theatre the numbers belong to.
+- **The shared date picker is HIDDEN on this lane** (`PROGRAMS.core_emea.dateControl:false`).
+  Everything range-driven on the CS tab is APAC-scoped and therefore hidden under EMEA, and the
+  one section that does render has its own week selector - so the picker changed nothing on
+  screen. A visible control that does nothing is worse than no control. Flip the flag the day
+  EMEA gains range-driven content.
+- **`seed_static.py` now SKIPS a gitignored CSV that is absent** (`data/tiers.csv`,
+  `data/line_cf.csv` on a fresh checkout) with a warning, instead of aborting the whole run -
+  and it leaves that seed's existing BigQuery table alone rather than truncating it to empty.
+  A missing file under the version-controlled `targets/` dir is still a hard error, because
+  that one IS a real problem. Before this, seeding the committed CS targets on a clean checkout
+  was impossible without first running `pull_static.py` (which needs the Snowflake key).
+
+### Redeploy
+
+Seeds load BEFORE views (`sql/17` reads the seed), and a seed/view change is invisible to the
+freshness gate:
+
+```powershell
+.\.venv\Scripts\python.exe clients\client_cloudflare\seed_static.py
+.\.venv\Scripts\python.exe clients\client_cloudflare\create_views.py
+gcloud run jobs execute cloudflare-export --region australia-southeast1 --update-env-vars FORCE_REBUILD=1 --wait
+.\clients\client_cloudflare\dash\deploy_dash_cloudflare.ps1
+```
+
 ## BigQuery owns the model (was the Snowflake-modelled exception)
 
 Until 2026-06-17 Cloudflare was the **only** client that didn't follow the repo
@@ -642,11 +760,12 @@ of entry, and this is the distinction to hold on to:
 
 | kind | entries | renders |
 |---|---|---|
-| **PROGRAM lane** | `core` (Core DG APJ) · `surround_abm` (Surround ABM) | the FULL core shell - tab rail, shared date range, market chips - scoped to one brief |
+| **PROGRAM lane** | `core` (Core DG APJ) · `core_emea` (Core DG EMEA) · `surround_abm` (Surround ABM) | the FULL core shell - tab rail, shared date range, market chips - scoped to one brief |
 | **CAMPAIGN lane** | `peyc` · `cf1_india` · `coles_hyper` | the single-campaign LinkedIn view (`renderCampaign`, whole-window totals, no date control) |
 
-`core_emea` remains a disabled placeholder (see below) - it is a THIRD regional lane of the same
-programme and still needs its own payload branch, which the program split does NOT give it.
+`core_emea` went LIVE 2026-08-24 (it had been a disabled placeholder). It is a program lane that
+differs from `core` in **theatre** rather than in brief - see "Pacing detail + Core DG EMEA".
+A lane now carries a `theatre`, and `laneTheatre()` is what the CS Pacing detail section reads.
 
 **The split is a data-layer dimension, not a front-end filter over campaign names.** A `PROGRAM`
 column flows the whole contract: `sql/03_stg_tradedesk` (+ `01_stg_linkedin`) → `05_paid_media_model`
@@ -735,29 +854,34 @@ path and the whole payload are untouched by the rename. Two display strings foll
 `campaign_key` stays `core_demand_gen` (the stable identifier `/report` summaries carry, so cached
 decks don't orphan).
 
-**Core DG EMEA sits in the dropdown DISABLED** — `<option value="core_emea" disabled>Core DG EMEA -
-coming soon</option>`. It is a deliberate placeholder, not a wired lane: `switchDashboard()` sends any
-non-`core` value to `renderCampaign()`, which would find no `COMBINED.campaigns.core_emea` and render
-its empty *"No data / No delivery rows for this campaign group yet"* state — that reads as **broken**
-rather than **pending**, so the option is greyed until there is real data behind it.
+#### Core DG EMEA — LIVE since 2026-08-24 (was a disabled placeholder)
 
-#### Adding Core DG EMEA
+`<option value="core_emea">Core DG EMEA</option>` is now a **real PROGRAM lane** in `PROGRAMS`,
+which is what stopped it falling through to `renderCampaign()`'s empty *"No data"* state (the old
+reason it was greyed out). It ships **Content Syndication only**:
 
-EMEA is a **second regional lane of the same programme**, not a single-campaign view, so it needs its
-own model + payload branch rather than a `campaigns[]` entry:
+- `PROGRAMS.core_emea` = `{ prog:'CORE_DG', theatre:'EMEA', tabs:['main','txdata'], plans:false }`.
+  `tabs` is what hides Paid Media / CS Comparison / QoQ - no EMEA ad accounts are connected, and
+  EMEA launched 2026-08-07 so there is no prior quarter. `plans:false` because the budget and
+  LinkedIn lead-commit pacing blocks are Core DG APJ's plans.
+- The **CS data** comes from `sql/16_stg_cs_leads_v2` + `17_cs_pacing_v2` (campaign-NAME scope, so
+  EMEA is included) -> the `cs_pacing` payload branch -> the **Pacing detail** section.
+- **Everything else on the CS tab stays APAC** and is hidden under this lane, because
+  `salesforce_leads_live` is scoped by the campaign-ID allowlist and holds zero EMEA rows.
 
-1. **Data layer** — EMEA rows have to arrive in `raw_snowflake.*` (paid) and the Salesforce CS feed.
-   Confirm the campaign-name/market tokens EMEA uses before writing any parse (APJ's markets are the
-   7 APAC groups; EMEA will carry its own set) and add its CS campaign IDs to `definitions.json`.
-2. **Model** — either add a `REGION` column through `paid_media_model` / `pacing_model` and split in
-   the job, or clone the `sql/` chain per region. Prefer the column: one set of views, one gate.
-3. **Payload** — emit an EMEA branch (e.g. `paid_media_emea` / `pacing_emea`, or a `region` key on
-   the existing rows) from `job/main.py`, and extend the data-contract table below.
-4. **Frontend** — drop `disabled`, then give `switchDashboard()` a branch that repoints the core
-   panels at the EMEA payload (its `ALL_MARKETS`, targets and `PACING_PLANS` all differ from APJ's).
-   `QUARTERS`/`activeChans()` need no change - both are region-agnostic.
-5. Rebuild with `FORCE_REBUILD=1` (view/seed changes are invisible to the freshness gate) and
-   redeploy the dash service.
+**What EMEA still does NOT have, and what each would take:**
+
+1. **Paid media.** Needs EMEA rows in `raw_snowflake.*`, then either a `REGION` column through
+   `paid_media_model` / `paid_creatives_model` (preferred - one set of views, one gate) or a cloned
+   `sql/` chain. Then add `paid` to `PROGRAMS.core_emea.tabs` and give the paid panels an EMEA
+   `ALL_MARKETS` / targets / `PACING_PLANS` (all three differ from APJ's).
+2. **The APAC-shaped CS blocks** (KPI strip, donuts, trends, by-region summary, QoQ). These need
+   `10_salesforce_leads_live` widened past its 13-ID allowlist - which would move live APAC numbers
+   and desync the status-dash accuracy checks, so it is a deliberate piece of work, not a tweak.
+   `CSPD_LEGACY_THEATRE` is the constant that encodes the current APAC-only assumption.
+3. **A prior quarter** for QoQ - simply time.
+
+`QUARTERS` / `activeChans()` need no change either way; both are region-agnostic.
 
 ### Quarter selection — opens on the CURRENT quarter, picked in the calendar (2026-08-05)
 
@@ -979,6 +1103,19 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
   "pacing": {
     "row_count": 0,
     "rows": [ /* every column of V_PACING_FINAL_MODEL, dates as ISO strings */ ]
+  },
+  "cs_pacing": {
+    "row_count": 0,
+    "period_label": "Q3",     // the quarter the TARGETS SEED covers; drives the section's own
+                              // captions + its "<period> to date" chip, NOT the date picker
+    "reasons": [],            // rejection reasons: NO live source yet (manual at the Integrate
+                              // push). Panel renders only when non-empty; never fabricate.
+    "rows": [ { "theatre","vendor","market","market_seq","week_start","week_number",
+                "target","delivered","accepted","rejected","unprocessed","needs_review" } ]
+    // AGGREGATED + PII-free (counts by week x market x vendor), ~100 KB - NOT the lead grain.
+    // The view's convenience REJECTION_RATE / ACCEPTANCE_RATE / WEEKLY_PACING / LEAD_DEFICIT
+    // columns are deliberately NOT carried: they are correct only at that exact grain, and
+    // the dashboard re-derives every rate from the counts after aggregating.
   },
   "campaigns": {
     "peyc":        { "label","campaign_group","window","totals","daily":[…],"by_campaign":[…] },

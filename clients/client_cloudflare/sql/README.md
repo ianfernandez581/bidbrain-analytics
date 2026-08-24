@@ -32,6 +32,42 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
 | `12_targets_v2_norm.sql`     | `targets_v2_norm`     | `seed_real_targets` (static) | `V_TARGETS_V2_NORM` |
 | `13_pacing_model.sql`        | `pacing_model`        | `salesforce_leads_live` + `tier_mapping_cleaned` + `targets_v2_norm` | `V_PACING_FINAL_MODEL` |
 | `14_cf1_cs.sql`              | `cf1_cs`              | `raw_snowflake.salesforce_cs_apac_all` (the 2 CF1 content-syndication campaign IDs; publisher/region/topic + status bucket per `DAY`) | new (2026-06-22; client query) |
+| `15_cs_qoq.sql`              | `cs_qoq`              | `salesforce_leads_live` (Q3-to-date vs the same opening window of Q2, accepted leads by market/status) | new (2026-07-14) |
+| `16_stg_cs_leads_v2.sql`     | `stg_cs_leads_v2`     | `raw_snowflake.salesforce_cs_apac_all` scoped by **campaign NAME** (`STARTS_WITH('2026_Q3')`), not the 13-ID allowlist — which is what brings **EMEA** in. theatre / market / vendor / theatre-anchored `WEEK_START`. **Parallel to `10_*`, which is untouched.** | `CS_REPORTING.V_CS_LEADS_V2` |
+| `17_cs_pacing_v2.sql`        | `cs_pacing_v2`        | `stg_cs_leads_v2` + `seed_cs_targets_q3` (FULL OUTER JOIN, week × market × vendor, aggregated / PII-free) | `CS_REPORTING.V_CS_PACING_V2` |
+
+### 16 + 17 — the "Pacing detail" pair (2026-08-24)
+
+Feed the **Pacing detail** section on the Content Syndication tab (APAC + EMEA). They are a
+**second, parallel read** of the same raw mirror as `10_salesforce_leads_live`, which is
+deliberately left alone: `10_*` is scoped by the campaign-ID allowlist, which makes it
+**APAC-only** (verified 2026-08-24: 5,873 rows, **zero** EMEA), and every headline CS figure,
+donut, QoQ number and status-dashboard accuracy check hangs off it. Nothing downstream of
+`10_*` reads `16`/`17`, so they cannot move a live number.
+
+Three things to know before editing them:
+
+- **The week math is not the Snowflake original.** `MOD(x,7)` returns a *negative* for a day
+  before the anchor, which lands `WEEK_START` **after** the lead date. Live cases: 26 EMEA
+  leads dated `2026-08-06` (one day before the Friday anchor — 8.5% of EMEA delivery) and 5
+  APAC leads back to March. `16_*` uses `MOD(MOD(x,7)+7,7)` plus a `GREATEST(..., anchor)`
+  clamp, so pre-anchor leads fold into week 1 instead of inventing a week outside the 13-week
+  grid the dashboard renders. That clamp is what keeps **sum-of-weeks == campaign-to-date
+  total** (EMEA 234, APAC 1,591). Remove it and the two silently stop reconciling.
+- **The scope predicate is `STARTS_WITH`, never `LIKE '2026_Q3%'`** — `_` is a LIKE wildcard
+  (repo-wide rule). A no-op today at 1,974 rows either way; forward protection.
+- **The fixed `SPLIT` offsets are anchored to the `2026_Q3` token.** If those Salesforce
+  campaign names ever gain a brief-number prefix, `STARTS_WITH` stops matching and the view
+  returns **zero** rows — a total, loud failure rather than the silent one-field shift that
+  bit mongodb. `job/main.py` warns when the raw mirror has `2026_Q3` rows but the view has
+  none, so it surfaces in the job log.
+
+Targets come from the **version-controlled** `targets/cs_targets_q3.csv` →
+`seed_cs_targets_q3` (`seed_static.py`), totals **APAC 2,290 / EMEA 830**. Its `MARKET_SEQ`
+column is the chart's market **display order** — re-order the CSV, re-seed, and the chart
+follows with no code change. That is what keeps the dashboard component free of a hardcoded
+market list. Reconciles exactly to the client's pacing sheet: EMEA delivered 234 / accepted
+208 / rejected 26, `NEEDS_REVIEW` 0 in both theatres.
 
 ## Porting notes (Snowflake → BigQuery)
 

@@ -169,6 +169,7 @@ def main():
     bm  = rows(bq, f"SELECT * FROM {t('benchmarks_market')}")
     lw  = rows(bq, f"SELECT * FROM {t('li_weekly_targets')} ORDER BY WEEK_START")
     cre = rows(bq, f"SELECT * FROM {t('paid_creatives_model')}")
+    csp = rows(bq, f"SELECT * FROM {t('cs_pacing_v2')} ORDER BY THEATRE, VENDOR, MARKET_SEQ, WEEK_START")
     tx = build_transmission(bq, t)   # "Internal Notes" tab: committed Source IDs + pacing plan
 
     # Window over the paid rows (min/max date + inclusive day count).
@@ -243,6 +244,75 @@ def main():
     pacing_payload = {
         "row_count": len(pac),
         "rows": [{k: jval(v) for k, v in r.items()} for r in pac],
+    }
+
+    # --- "Pacing detail" (Content Syndication tab): week x market x vendor, APAC + EMEA.
+    # A SEPARATE branch from `pacing` above on purpose. `pacing` is the lead grain (PII, and
+    # APAC-only - its view is scoped by the campaign-ID allowlist); this is aggregated counts
+    # only, so it is small and safe, and no existing figure depends on it. The dashboard hides
+    # the whole section when this key is missing, so an older JSON renders exactly as before.
+    #
+    # SCOPE ALARM (the caltex "refuse to publish an empty fact" pattern, narrowed to this
+    # section so it can never block the rest of the export): the view's market/vendor parse
+    # reads FIXED SPLIT offsets anchored to the `2026_Q3` campaign-name token. If Transmission
+    # prefixes those Salesforce campaign names with a brief number, STARTS_WITH stops matching
+    # and the view empties out. That is a loud failure by design - but only if somebody sees
+    # it, so say so in the log rather than shipping a quietly emptier dashboard.
+    if not csp:
+        q3 = rows(bq, "SELECT COUNT(*) AS n FROM "
+                      "`bidbrain-analytics.raw_snowflake.salesforce_cs_apac_all` "
+                      "WHERE STARTS_WITH(CAMPAIGN, '2026_Q3')")
+        n_raw = int(jval(q3[0]["n"]) or 0) if q3 else 0
+        print(f"WARNING cs_pacing_v2 returned NO rows while the raw mirror holds {n_raw} "
+              f"'2026_Q3%' lead(s). If that count is >0 the campaign-name scope has broken "
+              f"(a brief-number prefix?) - check sql/16_stg_cs_leads_v2.sql before trusting "
+              f"the Pacing detail section.")
+    else:
+        # Per-theatre audit line every run: the figures to eyeball against the client sheet.
+        by_th = {}
+        for r in csp:
+            a = by_th.setdefault(r.get("THEATRE"), {"tgt": 0, "del": 0, "acc": 0, "rej": 0, "rev": 0})
+            a["tgt"] += int(jval(r.get("TARGET")) or 0)
+            a["del"] += int(jval(r.get("DELIVERED")) or 0)
+            a["acc"] += int(jval(r.get("ACCEPTED")) or 0)
+            a["rej"] += int(jval(r.get("REJECTED")) or 0)
+            a["rev"] += int(jval(r.get("NEEDS_REVIEW")) or 0)
+        for th in sorted(by_th):
+            a = by_th[th]
+            print(f"cs_pacing {th}: target={a['tgt']} delivered={a['del']} accepted={a['acc']} "
+                  f"rejected={a['rej']} needs_review={a['rev']}")
+            if a["rev"]:
+                print(f"WARNING cs_pacing {th}: {a['rev']} lead(s) matched no market rule "
+                      f"(MARKET='UNMAPPED'). The dashboard surfaces this, but it means a "
+                      f"campaign-name region token is new or misspelt.")
+
+    cs_pacing_payload = {
+        "row_count": len(csp),
+        # The quarter these targets were loaded for. Drives the section's own captions and
+        # its "<period> to date" chip, INDEPENDENTLY of the date picker - the section is
+        # anchored to the targets seed, not to the selected range.
+        "period_label": "Q3",
+        # Rejection reasons have NO live source yet (manual at the Integrate push). The
+        # dashboard renders the panel only when this is non-empty and hides it cleanly
+        # otherwise - never populate it with anything that is not real.
+        "reasons": [],
+        "rows": [{
+            "theatre":      r.get("THEATRE"),
+            "vendor":       r.get("VENDOR"),
+            "market":       r.get("MARKET"),
+            "market_seq":   jval(r.get("MARKET_SEQ")),
+            "week_start":   ymd(r.get("WEEK_START")),
+            "week_number":  jval(r.get("WEEK_NUMBER")),
+            "target":       int(jval(r.get("TARGET")) or 0),
+            "delivered":    int(jval(r.get("DELIVERED")) or 0),
+            "accepted":     int(jval(r.get("ACCEPTED")) or 0),
+            "rejected":     int(jval(r.get("REJECTED")) or 0),
+            "unprocessed":  int(jval(r.get("UNPROCESSED")) or 0),
+            "needs_review": int(jval(r.get("NEEDS_REVIEW")) or 0),
+            # The view's convenience rate columns are deliberately NOT carried: they are
+            # correct only at this exact grain, and the dashboard re-derives every rate
+            # from the counts after aggregating (md/AGENTS.md - never sum a rate).
+        } for r in csp],
     }
 
     # --- Extra single-campaign LinkedIn dashboards from the SHARED raw layer.
@@ -403,6 +473,7 @@ def main():
         "data_through": (max(_dt_vals).strftime("%Y-%m-%dT%H:%M:%SZ") if _dt_vals else None),
         "paid_media": paid_media,
         "pacing": pacing_payload,
+        "cs_pacing": cs_pacing_payload,   # "Pacing detail" section: week x market x vendor, APAC + EMEA
         "campaigns": campaigns,
         "qoq": qoq_block,   # Q3-vs-Q2 CS accepted leads, quarter-to-date aligned (actuals; targets pending)
         "transmission": tx,   # "Internal Notes" tab: committed Source IDs + the pacing plan
