@@ -14,8 +14,9 @@ here.
 
 ## Multiple developments — the `property` selector (added 2026-08-12)
 
-This dashboard covers a CLIENT (Geocon), not a single development. **Gateway Braddon** is live;
-**Northbourne Gateway** is being set up and shows in the top-nav selector as *"- coming soon"*.
+This dashboard covers a CLIENT (Geocon), not a single development. **Gateway Braddon** is
+delivering; **Northbourne Gateway** has a signed plan and shows in the top-nav selector as
+*"- media plan"* until its first row lands (see "the state of play" below).
 
 **Why this exists is a safety rail, not a feature.** `sql/01_stg_meta.sql` scopes on
 `STARTS_WITH(campaign_name,'Geocon_')` so any new Geocon campaign flows in AUTOMATICALLY. Without a
@@ -23,15 +24,23 @@ property split, Northbourne's delivery would have merged straight into Gateway B
 day it started spending — inflating spend, leads and CPL on a live client dashboard, with no error
 anywhere to catch it.
 
-**How the split works.** One regex, duplicated in exactly two places that MUST stay identical:
+**How the split works.** ONE seed table, `seed_property_map` (from `targets/property_map.csv`),
+read by every staging view - so adding or widening a development is a CSV edit, never a SQL edit,
+and the views cannot drift apart:
 
-| Where | Why |
-|---|---|
-| `sql/01_stg_meta.sql` → `property` | drives `fact` → `rows[]` → every KPI, chart, table, CSV |
-| `sql/05_breakdowns.sql` → `property` | drives the audience / placement charts |
+| Where | Why | Unmatched row falls to |
+|---|---|---|
+| `sql/01_stg_meta.sql` | drives `fact` -> `rows[]` -> every Meta KPI, chart, table, CSV | `'Gateway Braddon'` (safe - the account + `Geocon_` scope is exact) |
+| `sql/05_breakdowns.sql` | drives the audience / placement charts | `'Gateway Braddon'`, same seed as `01`, so the charts can never disagree with the KPIs above them |
+| `sql/07_stg_linkedin.sql` | LinkedIn delivery | **`'Unmapped'`** - the job ALARMS |
+| `sql/08_stg_ttd.sql` | Trade Desk delivery | **`'Unmapped'`** - the job ALARMS |
+| `sql/09_stg_google_ads.sql` | Google Ads delivery | **`'Unmapped'`** - the job ALARMS |
 
-If they drift, the breakdown charts will disagree with the KPIs above them. Everything not matching
-Northbourne falls to `'Gateway Braddon'` via the `ELSE`, so no existing number can move.
+**Only Meta may fall back to a development.** Its scope is an exact ad account plus a campaign
+prefix, so a catch-all is safe. The other three read tables shared with six-to-eleven other
+clients, so they must match a development by NAME or be reported as Unmapped and excluded - a
+Geocon campaign nobody told us about becomes a loud warning, not an invisible A$40k on a live
+client's spend.
 
 **The dashboard filters in ONE place** — `ROWS()` in `dash/dashboard.html` (plus `bdWithin` for the
 breakdowns). Every rollup derives from those, so the whole page scopes together.
@@ -177,6 +186,7 @@ daily / by_stage / fatigue) were removed — the browser computes them now.
 
 ```
  raw_windsor.perf_meta        sql: 01_stg_meta -> 02_fact      job/main.py           dash/dashboard.html
+ raw_windsor.perf_linkedin      + 07/08/09 stg_* -> 10_fact_all
  (Windsor Meta connector,  →  client slice + funnel_stage,  →  reads fact+targets,→  fetches /data.json, rolls
   self-refreshing; shared)     one row per date x ad (fact);    writes fact + flight    up rows[] per the date
                                + 03_targets / 04_budget         + benchmarks            filter; draws everything
@@ -193,7 +203,10 @@ frequency = impressions ÷ summed-reach).
 
 | I want to change… | Edit |
 |---|---|
-| Campaign filter / funnel-stage mapping | `sql/01_stg_meta.sql` |
+| Campaign filter / funnel-stage mapping (Meta) | `sql/01_stg_meta.sql` |
+| Which development a campaign belongs to | `targets/property_map.csv` -> `seed_static.py` |
+| The **media plan** (lines, budgets, imp/click/CPM/CTR targets, line matching) | `targets/media_plan.csv` -> `seed_static.py` -> export `FORCE_REBUILD=1` |
+| A new channel's scope / column mapping | `sql/07_stg_linkedin.sql` · `08_stg_ttd.sql` · `09_stg_google_ads.sql` |
 | The fact grain / fields shipped to the browser | `sql/02_fact.sql` + `job/main.py` `rows[]` |
 | Lead / CPL / CTR / CPM / CPC / budget **targets + benchmarks** | `targets/targets.csv` · `targets/budget.csv` → `seed_static.py` → export `FORCE_REBUILD=1` |
 | Flight / pacing math | `job/main.py` (`flight = {...}`, from the budget seed + today) |
@@ -324,8 +337,13 @@ it always reads whatever `geocon.json` is currently in the bucket.
 ## Freshness
 
 `geocon-export` is **self-gating** on a Cloud Scheduler `*/10` UTC tick (`scheduler.ps1`): each tick
-cheaply probes whether `raw_windsor.perf_meta` advanced (`__TABLES__.last_modified` vs the
-`_freshness.json` watermark) and rebuilds only when it did. Static re-seeds (targets/budget) don't move
+cheaply probes whether any of its **four** upstream tables advanced (`__TABLES__.last_modified`
+vs the `_freshness.json` watermark) and rebuilds only when one did: `raw_windsor.perf_meta`,
+`raw_windsor.perf_linkedin`, `raw_windsor.perf_the_trade_desk` and the Google Ads DTS base table
+`raw_google_ads.p_ads_CampaignBasicStats_3451896252` (the BASE table, never the frozen bridge
+view). The three added in 2026-08 are shared with other clients, so their delivery also trips this
+gate and geocon rebuilds more often than its own data strictly changes - the alternative, gating on
+Meta alone, would leave a new channel's first day invisible for up to 24h. Static re-seeds (targets/budget) don't move
 the gate, so force them with `FORCE_REBUILD=1`. (Pacing is time-relative — `pace_expected` / projection
 are computed from the wall clock at build time, so a no-data day leaves them a day stale until the next
 rebuild; this is inherent to the gate and matches the other clients.)
@@ -335,8 +353,8 @@ rebuild; this is inherent to the gate and matches the other clients.)
 | | |
 |---|---|
 | GCP project / region | `bidbrain-analytics` / `australia-southeast1` |
-| Raw source | `raw_windsor.perf_meta` (shared Windsor connector — no stage-1 loader here) |
-| Views | `client_geocon.{stg_meta, fact, targets, budget}` (+ `seed_targets` / `seed_budget` tables) |
+| Raw source | `raw_windsor.{perf_meta, perf_linkedin, perf_the_trade_desk}` (shared Windsor connectors) + `raw_google_ads.p_ads_*_3451896252` (native DTS, customer `5457742070`) — no stage-1 loader here |
+| Views | `client_geocon.{stg_meta, fact, targets, budget, breakdowns, media_plan, stg_linkedin, stg_ttd, stg_google_ads, fact_all}` (+ `seed_targets` / `seed_budget` / `seed_media_plan` / `seed_property_map` tables) |
 | Job / Service | `geocon-export` / `geocon-dash` |
 | Data bucket / file | `bidbrain-analytics-geocon-dash` / `geocon.json` (report cache in `reports/`) |
 | Dash runtime SA | `geocon-dash-web@bidbrain-analytics.iam.gserviceaccount.com` |
