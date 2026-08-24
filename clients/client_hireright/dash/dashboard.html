@@ -262,6 +262,9 @@
   .stall-warn{display:block;margin-top:2px;padding:11px 13px;border-radius:8px;
               background:rgba(240,175,50,.10);border:1px solid rgba(240,175,50,.34);color:#F0CE90}
   .stall-warn b{color:#FFDFA6}
+  /* A concluded campaign is a statement of fact, not a warning - neutral, not amber. */
+  .concluded-note{display:block;margin-top:2px;padding:11px 13px;border-radius:8px;
+                  background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.16);color:var(--ink)}
 
   /* --- media-plan pacing (hidden entirely until a plan is seeded) --------------- */
   .pace-bar{position:relative;height:8px;border-radius:5px;background:rgba(255,255,255,.09);overflow:hidden;min-width:110px}
@@ -1101,7 +1104,23 @@ function adWindow(platformKey){
 // Rather than hardcode that one outage, compare each platform's last delivery day
 // against the most recent delivery day seen anywhere in the payload. A platform more
 // than STALL_DAYS behind is called out by name, with the date and the gap.
+// A campaign whose LAST delivery anywhere is this far in the past is treated as
+// CONCLUDED rather than stalled. Verified against the raw layer on 2026-08-24: the
+// Trade Desk and LinkedIn feeds are both current for other clients (2026-08-22 /
+// 2026-08-23) while HireRight's own last rows are 2026-06-22 and 2026-04-17 - so the
+// campaign ended, the pipeline is fine. Without this branch the warning below would
+// tell the client to chase their agency about a working feed.
+const CONCLUDED_DAYS = 30;
 const STALL_DAYS = 14;
+function daysAgo(iso){ return Math.round((Date.now() - Date.parse(iso)) / 86400000); }
+function lastDeliveryAnywhere(){
+  const ends = [DATA.dv_window, DATA.td_window, DATA.li_window].map(x => x && x.end).filter(Boolean);
+  return ends.length ? ends.reduce((a,b)=> a>b ? a : b) : null;
+}
+function campaignConcluded(){
+  const last = lastDeliveryAnywhere();
+  return last ? daysAgo(last) > CONCLUDED_DAYS : false;
+}
 function stalledFeeds(){
   const w = {dv360:DATA.dv_window, tradedesk:DATA.td_window, linkedin:DATA.li_window};
   const ends = Object.values(w).map(x => x && x.end).filter(Boolean);
@@ -1117,13 +1136,26 @@ function stalledFeeds(){
   return out;
 }
 function feedStallNote(){
+  // CONCLUDED beats STALLED. If nothing has delivered on ANY platform for a month, the
+  // campaign finished - saying "a feed has stopped updating" would be both wrong and
+  // alarming. State it plainly as a completed record instead.
+  if(campaignConcluded()){
+    const last = lastDeliveryAnywhere();
+    const per = PLATFORMS.map(p => {
+      const w = {dv360:DATA.dv_window, tradedesk:DATA.td_window, linkedin:DATA.li_window}[p.key];
+      return (w && w.end) ? `<b>${p.label}</b> ${w.start} to ${w.end}` : null;
+    }).filter(Boolean);
+    return `<br><br><span class="concluded-note"><b>This campaign has concluded - these are final figures.</b> `
+      + `The most recent delivery on any platform was <b>${last}</b> (${daysAgo(last)} days ago). `
+      + per.join('; ') + `. Every number on this page is a whole-of-campaign total and will not change.</span>`;
+  }
   const s = stalledFeeds();
   if(!s.length) return '';
   const parts = s.map(x => `<b>${x.label}</b> has reported nothing since <b>${x.end}</b> (${x.gap} days)`);
   return `<br><br><span class="stall-warn"><b>Heads up - a feed has stopped updating.</b> `
     + parts.join('; ') + `. Its historical delivery is still included in the totals above, so those `
-    + `figures cover the whole flight, not the current period. This is an upstream data-feed issue `
-    + `with the platform connector, not necessarily a paused campaign - check with your agency contact.</span>`;
+    + `figures cover the whole flight, not the current period. Other platforms are still reporting, so `
+    + `this looks like a data-feed issue rather than the campaign ending - worth checking with your agency contact.</span>`;
 }
 
 //==============================================================================

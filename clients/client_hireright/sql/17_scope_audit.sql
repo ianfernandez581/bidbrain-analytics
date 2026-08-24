@@ -30,7 +30,7 @@ SELECT
   STRING_AGG(DISTINCT CURRENCY ORDER BY CURRENCY) AS currency_forms
 FROM `bidbrain-analytics.raw_snowflake.dv360_apac`
 WHERE LOWER(ADVERTISER_NAME) LIKE '%hireright%'
-GROUP BY entity
+GROUP BY ADVERTISER_NAME
 UNION ALL
 SELECT
   'tradedesk',
@@ -43,7 +43,7 @@ SELECT
   STRING_AGG(DISTINCT CURRENCY ORDER BY CURRENCY)
 FROM `bidbrain-analytics.raw_snowflake.tradedesk_apac_all`
 WHERE ADVERTISER_NAME = 'HireRight'
-GROUP BY entity
+GROUP BY ADVERTISER_NAME
 UNION ALL
 SELECT
   'linkedin',
@@ -54,9 +54,9 @@ SELECT
   MAX(DATE(DAY)),
   COUNT(DISTINCT CAMPAIGN_NAME),
   -- LinkedIn has no CURRENCY column; the account-name suffix is the only signal.
-  CASE WHEN ENDS_WITH(ACCOUNT_NAME, '_AUD') THEN 'AUD (from account name)'
-       ELSE 'USD (assumed)' END
+  ANY_VALUE(CASE WHEN ENDS_WITH(ACCOUNT_NAME, '_AUD') THEN 'AUD (from account name)'
+                 ELSE 'USD (assumed)' END)
 FROM `bidbrain-analytics.raw_snowflake.linkedin_ads_apac`
 WHERE LOWER(ACCOUNT_NAME) LIKE 'hireright%'
-GROUP BY entity, currency_forms
+GROUP BY ACCOUNT_NAME
 ORDER BY source, rows_matched DESC;

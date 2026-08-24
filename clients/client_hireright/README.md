@@ -205,6 +205,26 @@ JSON blob in GCS:
 
 ---
 
+## Campaign status: CONCLUDED (verified 2026-08-24)
+
+**All HireRight campaigns have finished.** Verified directly against the raw layer, and the
+distinction that matters is between *our pipeline being broken* and *the campaign being over*:
+
+| Platform | HireRight's last delivery | The feed's last row (any client) | Verdict |
+|---|---|---|---|
+| DV360 | 2026-01-30 | 2026-07-01 | Campaign ended **206 days ago** |
+| Trade Desk | 2026-06-22 | 2026-08-22 | **Feed is live** - campaign ended 63 days ago |
+| LinkedIn | 2026-04-17 | 2026-08-23 | **Feed is live** - campaign ended 129 days ago |
+
+Trade Desk and LinkedIn are both delivering current data for other clients, so nothing is broken -
+HireRight simply stopped running. **The separate `DV360 - APAC` outage (frozen 2026-07-01) is
+irrelevant to this client**: HireRight's DV360 line ended five months before that freeze. It still
+affects `stt` and `schneider`; it does not affect anything on this dashboard.
+
+Final figures: **US$41,994** across 28 campaigns, 2,329,328 impressions, 2,941 clicks, 62 Trade Desk
+attributed conversions, 0 LinkedIn leads. Reconciles to Snowflake with **zero delta** on all 12
+status-pipeline accuracy checks.
+
 ## Stalled-feed detection
 
 The three feeds do not run concurrently and one can stop arriving while the others keep updating. When
@@ -212,8 +232,15 @@ that happens every whole-flight total still **includes** the stalled platform's 
 the page looks healthy and stale numbers read as current. `stalledFeeds()` in `dash/dashboard.html`
 compares each platform's last delivery day against the most recent day seen anywhere in the payload and
 names any platform more than **14 days** behind, with the date and the gap, in an amber block on the
-Overview note. It is computed from the payload rather than hardcoding the current DV360 outage, so it
+Overview note. It is computed from the payload rather than hardcoding any particular outage, so it
 will catch the next one too. The export job prints the same three windows in its log every run.
+
+**CONCLUDED beats STALLED.** If nothing has delivered on *any* platform for over 30 days
+(`CONCLUDED_DAYS`), the campaign is finished and the dashboard says so plainly - "This campaign has
+concluded, these are final figures" - in a neutral panel. It does **not** show the amber
+"a feed has stopped updating / check with your agency" warning, which would be both wrong and
+alarming on a completed campaign. That is HireRight's current state. The stall warning is reserved
+for the genuine case: one platform falling behind while the others are still reporting.
 
 ---
 
