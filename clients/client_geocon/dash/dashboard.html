@@ -1361,6 +1361,15 @@ function renderPacing(){
   $('paceExpected').style.left=expectedPct+'%';
   $('paceExpectedLabel').textContent=`Expected today: ${money(expected)}`;$('paceBudgetLabel').textContent=`Budget: ${money(budget)}`;
   const ratio=(spend==null||!expected)?null:spend/expected,projected=held(f.projected_spend);
+  // A campaign that has not started is NOT "under pace" - it has no pace. Labelling an unlaunched
+  // development 8% behind (and projecting A$0 for the full flight) reads as a failing campaign
+  // rather than one waiting to go live; same rule as the Media Plan tab's per-line pace column.
+  if(awaitingDelivery()||!spend){
+    $('paceSummary').innerHTML=[`<span class="status neutral">Not started</span>`,
+      `<span class="pillc">Flight opens ${fmtDate(f.start)}</span>`,
+      `<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
+    return;
+  }
   const clsv=ratio==null?'neutral':ratio>1.08?'bad':ratio<.9?'warn':'good';
   $('paceSummary').innerHTML=[`<span class="status ${clsv}">${ratio==null?'No pace':ratio>1.08?'Over pace':ratio<.9?'Under pace':'On pace'}</span>`,`<span class="pillc">Projected ${money(projected)}</span>`,`<span class="pillc">Day ${int(f.days_elapsed)} of ${int(f.days_total)}</span>`].join('');
 }
