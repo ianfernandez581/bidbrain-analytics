@@ -68,11 +68,18 @@ WINDSOR_URL = "https://connectors.windsor.ai/tradedesk"
 # every OTHER account still updates, instead of one revoked account aborting the whole
 # table (which froze perf_the_trade_desk at 2026-05-31 for everyone).
 #
-# Windsor currently reports exactly one configured account: 484 (the City Perfume TTD
-# seat). The former Altech / WEHI accounts are no longer granted by Windsor and were
-# removed here on 2026-06-11. To (re)add one: grant it at
-# https://onboard.windsor.ai?datasource=tradedesk then append its id below.
-SELECT_ACCOUNTS = ["484"]
+# Windsor reports exactly one configured account: 569 -- the agency seat re-granted on
+# 2026-08-25 after the previous grant (seat 484) lapsed 2026-08-21 and froze this table
+# at 2026-08-19 for every TTD client. THE SEAT ID CHANGED WITH THE RE-GRANT; 484 now
+# 400s as "not available". Verified before switching: 569 carries every advertiser we
+# report on -- Caltex 0lw3hp6, City Perfume l4dj1fw, ResetData lxp46o9, The Little
+# Marionette mor6pp1, VMCH sif8zx0 -- PLUS Geocon Group tg1ubik, which the Northbourne
+# TTD lane was blocked on. It also exposes advertisers we do NOT report on (State of
+# Social, Qtopia Sydney, WEHI); harmless, because every consumer filters to its own
+# advertiser in its stg view (advertiser_id, except cityperfume on advertiser_name) --
+# re-check that before assuming a new advertiser here is inert. To (re)add an account:
+# grant it at https://onboard.windsor.ai?datasource=tradedesk then append its id below.
+SELECT_ACCOUNTS = ["569"]
 
 # Conversion slots we pull (all in the Ad Group Performance report). These are
 # stored compactly in the `conversions` JSON column (only populated slots kept).
