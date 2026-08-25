@@ -45,7 +45,8 @@ or the `MIN_DATE` floor — auto-discovering how far back data exists.
 .\.venv\Scripts\python.exe windsor_data_pull\tradedesk\tradedesk_loader.py 2026-05-01 2026-05-31 --force
 ```
 
-**Accounts loaded:** `484` (single TTD account). An ungranted/revoked account is logged and
+**Accounts loaded:** `569` (single TTD account; was `484` until the 2026-08-25 re-grant issued a
+new seat id - see the loader comment). An ungranted/revoked account is logged and
 skipped (`AccountUnavailableError`) rather than aborting the run.
 
 > **Status (2026-07-16):** healthy and flowing — `windsor-tradedesk-ingest` ran to success and

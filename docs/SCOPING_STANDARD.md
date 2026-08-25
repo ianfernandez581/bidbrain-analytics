@@ -156,7 +156,7 @@ All 100% Digital pipelines ride Windsor feeds, which DO carry ID columns
 Transmission pipelines, every filter here is ID-first. Verification:
 [md/SCOPING_VERIFICATION_100DIGITAL_2026-08-06.md](../md/SCOPING_VERIFICATION_100DIGITAL_2026-08-06.md).
 
-### TTD advertisers (100% Digital seat, Windsor account `484`)
+### TTD advertisers (100% Digital seat, Windsor account `569`)
 
 | Client | Advertiser ID | Filter status |
 |---|---|---|

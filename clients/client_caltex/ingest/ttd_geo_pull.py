@@ -39,7 +39,8 @@ import os, sys, json, time, requests
 from datetime import date, timedelta
 
 ADVERTISER = "0lw3hp6"                       # Caltex Star Card
-ACCOUNT = "484"                              # the agency TTD seat Windsor exposes
+ACCOUNT = "569"                              # the agency TTD seat Windsor exposes
+                                             # (was 484; the 2026-08-25 re-grant issued a new seat id)
 URL = "https://connectors.windsor.ai/tradedesk"
 FIELDS = ("advertiser_id,advertiser,date,campaign,ad_group_name,region,"
           "impressions,clicks,advertiser_cost_adv_currency")
