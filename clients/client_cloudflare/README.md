@@ -606,6 +606,55 @@ View, default = `DEV_ALLOWED`) drives the Source-ID controls, the admin-only tab
 unprocessed/lead-table rendering (`applyViewMode()` reflects the mode; `aggregate()` is the single
 choke point). `setAdminView()` flips it.
 
+### "Best performing assets" - one bar per asset, labelled by NAME (2026-08-26, client request)
+
+Jade flagged the chart's labels as "gone wonky". Two separate defects, both visible on the same
+screenshot, and the second was distorting the ranking rather than just the axis:
+
+**1. Salesforce carries TWO asset-naming conventions at once.** Every asset has a short code
+(`A-MAT-2`). Since **2026-07-07** the feed ALSO carries the file-slug form of the SAME asset
+(`26Q2_REPORT_2026-app-innovation-report_v1`) - **308 leads across 14 slugs, 13 of which duplicate a
+code already in the feed**. So one asset drew two bars, split its own lead count between them, and
+put a 45-character filename on the x-axis at 45 degrees.
+
+**2. The chart keyed on `asset || service`, so an asset that ran on two solution campaigns drew a
+second bar under the IDENTICAL label** (that is the repeated `A-MAT-2` on Jade's screenshot).
+`SERVICE` is parsed from `CAMPAIGN` in `sql/13_pacing_model.sql`, not from the asset, so it is a
+property of the campaign the asset ran on - and the chart was ALREADY built to stack by solution
+(`stack:'one'`), so that split belonged inside one bar.
+
+**What the client was actually looking at (Q3 to 2026-08-25, accepted, all visible markets):** the
+true top asset - *2026 Cloudflare APAC App Innovation Report* - has **299 leads** but was scattered
+across four bars (146 + 89 + 8 under `A-MAT-2`, 55 + 1 under the slug) and so never appeared as
+number one. *Coffee shop networking* is **128**, shown as 51. The chart's headline bar read 165.
+
+**The fix (all in `dash/dashboard.html`, frontend only - no view, job or payload change):**
+- `ASSET_ALIASES` folds each slug onto its short code. **Add a row here when a new slug appears.** An
+  unmapped slug is NOT lost - it keeps its own bar, and `prettyAssetName()` renders it as prose
+  (`[Ebook] Accelerating AI adoption with SASE`) instead of as a filename, so this can never look
+  broken again while we wait to map it.
+- `aggregate()` keys the asset map on `assetId(ASSET_1)` alone and carries a `services[]` breakdown
+  per asset, so there is **one row per asset** and the solution split stacks inside its bar.
+- The chart is **horizontal** (`indexAxis:'y'`). That is what buys the real fix: a 12-item x-axis has
+  no room for a title, which is why the label was the cryptic CODE in the first place. Reading down a
+  left-hand axis, the label can be the asset NAME, at a fixed width, with the code kept in the
+  tooltip. Tick length FOLLOWS THE CARD WIDTH (`w/16`, capped 16-38 chars) so at the 900px breakpoint,
+  where the 2-up grid collapses, the label clips itself instead of squeezing the plot.
+- Tooltip is `interaction:{mode:'index', axis:'y'}` - **`axis:'y'` is required on a horizontal bar**
+  or hovering picks one segment instead of the whole asset - and titles off `rows[dataIndex].id`,
+  never `items[0].label`, because two long names can truncate to the same string.
+- The comparison panels (`renderCompareAssets`) now print the NAME too, plus the leading solution.
+- Both charts on that grid row share `.chart-wrap.xtall` (364px); giving only the assets card the
+  taller wrap left ~90px of dead space under its sibling, since grid items stretch.
+
+**Verified** against BigQuery for the default (Q3) window: all 12 bars reconcile exactly -
+299 / 174 / 134 / 128 / 108 / 103 / 75 / 73 / 46 / 42 / 36 / 30.
+
+**Open:** `A-MSM-11` (73 leads) and `A-CCT-5` (30) are not in the Q2 asset list, so they still render
+as their bare code. Two slugs have no short-code twin and are shown prettified:
+`26Q2_EBOOK_accelerating-ai-adoption-with-sase_v1` and `25Q2_SOL-BR_GartnerMQSV-SASE_M_v1_en-US`.
+Ask Transmission for the titles and add them to `ASSET_NAMES`.
+
 ### Spreadsheet-style tables (sort + search, 2026-07-10)
 
 Every data table is **sortable** (the vendored `bb-sortable` engine - click a header) **and searchable**:
@@ -1078,6 +1127,70 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
   split), so it reads conservative vs the lead-gen-line plan CPL - noted in the cell tooltip;
   splitting lead-gen campaigns out would need a `sql/` change.
 
+### LinkedIn creative lead efficiency - top 10 by CPL / by CVR (2026-08-26, client request)
+
+Two ranked tables on the Paid Media tab, sitting **directly under the LinkedIn funnel card**:
+**Top 10 creatives by cost per lead** and **Top 10 creatives by conversion rate**. Placement is the
+point - the funnel prints LinkedIn's blended CPL and click-to-lead rate, and these tables are that
+same pair of numbers broken down to the creative that earned them.
+
+**Definitions, deliberately identical to the funnel above** so no two figures on the tab disagree:
+`CPL = spend / submitted leads`, `CVR = submitted leads / clicks`. Spend is the GROSSED figure
+(`bbApplySpendMult` has already run over `PAYLOAD.creatives`), the same billed basis as every other
+dollar on the tab.
+
+**The data change was one column.** `sql/06_paid_creatives_model.sql` now carries `FORM_OPENS` on the
+LinkedIn arm (`NULL` on the other four - they have no lead form at all, which is not the same as zero
+starts) -> `job/main.py` `form_opens` -> `adaptPayload` `formOpens`. `LEADS` was already there, so CPL
+and CVR were derivable before; the form-start stage is what makes a low CVR *diagnosable* - nobody
+opening the form is a targeting problem, opening and abandoning is a form problem. Verified against
+`paid_media_model`: LinkedIn ties EXACTLY on leads / form opens / clicks / spend
+(590 / 6,779 / 21,149 / $153,281.15), so each table's totals row equals the funnel above it.
+
+**Gotchas, all of them learned from the live data:**
+
+- **The floor is on LEADS (3), not impressions.** The CTR tables floor at 1,000 impressions because
+  CTR is a rate over impressions; CPL and CVR are rates over LEADS. A one-lead creative has a CPL that
+  is simply its whole spend and a CVR that swings by whole points on one form submit - 8 clicks and
+  1 lead is a 12.5% CVR and means nothing. At 3 leads, 22 of the 40 lead-bearing LinkedIn creatives
+  qualify. It **relaxes to 1 automatically** when the selection is too narrow to fill a table (GCR
+  alone has 5), and the note says which floor is in force - a caveated table beats a blank one.
+- **NO green/red verdict colour, and do not add one.** It was built, then removed the same day:
+  a top 10 ranked ascending by CPL, measured against a blend that includes the zero-lead awareness
+  creatives, is green in EVERY row of EVERY market selection (verified at all-markets, ANZ-only and
+  GCR-only). A colour that cannot go red looks like a judgement while making none. The ranked column
+  carries the LinkedIn blue instead, and the reference lives where it can be read - the blend
+  sentence and the table's own pinned totals row.
+- **The blend deliberately includes awareness creatives.** It is the whole-channel CPL, which is why
+  it ties to the funnel - but it therefore sits well above any individual lead-gen creative. The
+  caption says so ("lead-gen and awareness together") rather than dressing every row up as beating
+  a benchmark. Scoping it to lead-bearing creatives only would put two different LinkedIn CPLs on
+  one tab; do not.
+- **Volume is a percentage, not a bar.** A bar was built first and removed: the distribution is far
+  too skewed (top creative 134 leads, most 3-22), so nine rows in ten drew an empty track, which
+  reads as failure rather than as small.
+- **`prettyLiCreative()` is a SECOND decoder, not a replacement.** `prettyCreative()` was written for
+  the TTD/LINE display names and recognises none of the LinkedIn tokens, so it renders these
+  14-token ad-set names as a wall of raw string. The LinkedIn one keeps only what changes a media
+  decision (message, asset format, funnel stage, audience, concept). It matches **by token, never by
+  offset** (the repo-wide rule) - and position is already unreliable here: one live ANZ ad set is
+  named `Create CLOUD_ACQ_...`, which shifts its whole name by one.
+- **The country token is dropped ONLY when it equals the market pill.** Blanket-skipping it collapsed
+  `APAC-TCN_HK` against `APAC-TCN_HKTW` and merged the three ASEAN sub-markets (SGMYID / SGMYTH /
+  VNPHID) into one label - three of the seven markets are multi-country. `prettyLiCreative(raw, market)`
+  compares against the row's own market, so it needs no list and stays right if a market is added.
+- **`lceTable()` de-duplicates labels.** The `Create CLOUD_ACQ_...` ad set decodes identically to its
+  twin, and two identical-looking rows carrying different numbers is the one failure a ranked table
+  must not have. Both currently have 0 leads so neither can surface, but the guard is not conditional
+  on that. The raw name is on the `title` of every row regardless.
+- Scope is the market chips + the lane + the RIG quarter gate, and **NOT the Channel seg** - that
+  control belongs to the CTR section's header. Whole flight, because these rows carry no date.
+- The block hides entirely when LinkedIn did not deliver in the selection, so the **Surround ABM lane
+  (Trade Desk only) never shows it**. Verified.
+
+**Redeploy order:** `sql/deploy_views_cloudflare.ps1` -> `job/deploy_job_cloudflare.ps1` ->
+`dash/deploy_dash_cloudflare.ps1` (the view feeds the job, the job feeds the JSON the dash reads).
+
 ## The data contract (`cloudflare.json` -> `/data.json`)
 
 ```json
@@ -1095,7 +1208,10 @@ GCR(HK) $2,858 / $260 / 11 = **$37,773 / 210 committed leads**. Frontend-only, a
     // `channel` is one of TTD / LinkedIn / Reddit / LINE / Google Ads. The job does NOT enumerate
     // channels - it copies whatever paid_media_model emits - so adding a channel is a SQL + frontend
     // change only (that is how Google Ads landed 2026-08-11 with no job edit).
-    "creatives": [ { "channel","program","market","creative","imps","clicks","spend_usd","leads" } ],
+    "creatives": [ { "channel","program","market","creative","imps","clicks","spend_usd","leads",
+                     "form_opens" } ],
+    // `form_opens` (2026-08-26) is LinkedIn-only - NULL on the other four channels, which have no
+    // lead form at all (not zero starts). It feeds the "LinkedIn creative lead efficiency" tables.
     "benchmarks":        { "<channel>": { "ctr","cpm","cpc" } },
     "benchmarks_market": { "<market>":  { "ctr","cpm","cpc" } },
     "li_weekly": [ { "week","period","week_start","target","cum_target" } ]
@@ -1141,7 +1257,8 @@ the committed `real_targets.csv`), per market x tier with a Q2/Q3 split. Built b
 `dashboard.html` reads `paid_media` exactly like the old `paid_media.json`
 (`adaptPayload` is unchanged) and `pacing.rows` exactly like the old
 `pacing.json` (`rawRows`). The `paid_media.creatives[]` array (creative-grain
-delivery) powers the "Top & bottom performing creatives" tables — **these rows
+delivery) powers the "Top & bottom performing creatives" tables **and the "LinkedIn
+creative lead efficiency" tables** (see that section below) — **these rows
 carry NO `date`, so the dashboard filters them by the market chips ONLY, never the
 date range** (`renderCreativeTables` uses `paidMediaActiveMarkets.has(r.market)`, NOT
 `passesAll()`, whose `dateOk(undefined)` would silently blank the tables). Their

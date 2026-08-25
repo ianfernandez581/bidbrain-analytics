@@ -9,6 +9,21 @@
 -- paid_media_model, so the creative tables follow the lane selector. Without it the Surround
 -- ABM lane would list Core DG's creatives (these rows have no date, so the quarter/date
 -- filters can't separate them either).
+--
+-- 2026-08-26 - carries FORM_OPENS on the LinkedIn arm, for the "LinkedIn creative lead
+-- efficiency" tables (top 10 by CPL / by click->lead CVR; client request). LEADS was already
+-- here, so CPL and CVR were derivable - but not DIAGNOSABLE: a low CVR because nobody opens
+-- the form is a targeting/creative problem, one where they open and abandon is a form problem,
+-- and without the middle stage the two are indistinguishable. Same stage the channel-level
+-- LinkedIn funnel already shows (LEAD_FORM_OPENS / oneClickLeadFormOpens on datastream 924),
+-- now at creative grain so the funnel's CPL and click->lead rate break down to the row that
+-- earned them. Verified against paid_media_model: LinkedIn ties EXACTLY on all four measures
+-- (590 leads / 6,779 form opens / 21,149 clicks / $153,281.15), so a creative table total can
+-- never disagree with the funnel above it.
+-- NULL, not 0, on the four channels that have no lead form at all - a false zero would read as
+-- "nobody opened the form" rather than "this channel has no form" if the column is ever
+-- surfaced beyond the LinkedIn-only tables (the repo-wide rule; cf. the Google Ads video
+-- columns in paid_media_model).
 CREATE OR REPLACE VIEW `client_cloudflare.paid_creatives_model` AS
 WITH linkedin AS (
     SELECT
@@ -34,7 +49,11 @@ WITH linkedin AS (
             ELSE 'UNMAPPED'
         END AS MARKET,
         COALESCE(NULLIF(TRIM(CREATIVE_NAME), ''), NULLIF(TRIM(AD_TITLE), ''), '(unnamed)') AS CREATIVE,
-        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, SUM(LEADS) AS LEADS
+        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, SUM(LEADS) AS LEADS,
+        -- Lead-form starts. IFNULL around the SUM (not inside): SUM ignores NULL rows and only
+        -- returns NULL when EVERY row is NULL, which is a creative that genuinely has no form
+        -- data rather than one with zero starts - report that as 0 for a lead-gen ad set.
+        IFNULL(SUM(LEAD_FORM_OPENS), 0) AS FORM_OPENS
     FROM `client_cloudflare.stg_linkedin`
     WHERE STARTS_WITH(CAMPAIGN_NAME_NORM, 'CLOUD_ACQ_')
     GROUP BY 2, 3, 4
@@ -45,7 +64,8 @@ tradedesk AS (
         PROGRAM AS PROGRAM,
         MARKET_L3 AS MARKET,
         COALESCE(NULLIF(TRIM(CREATIVE_NAME), ''), '(unnamed)') AS CREATIVE,
-        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
+        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS,
+        CAST(NULL AS FLOAT64) AS FORM_OPENS
     FROM `client_cloudflare.stg_tradedesk`
     WHERE MARKET_L3 IS NOT NULL AND MARKET_L3 <> ''
     GROUP BY 2, 3, 4
@@ -70,7 +90,8 @@ reddit AS (
             ELSE 'ANZ'
         END AS MARKET,
         COALESCE(NULLIF(TRIM(AD_NAME), ''), '(unnamed)') AS CREATIVE,
-        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
+        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS,
+        CAST(NULL AS FLOAT64) AS FORM_OPENS
     FROM `client_cloudflare.stg_reddit`
     GROUP BY 2, 3, 4
 ),
@@ -115,7 +136,8 @@ google_ads AS (
         -- so the campaign has to be on the label for the row to mean anything.
         CONCAT(CAMPAIGN_NAME_NORM, ' - ',
                INITCAP(REPLACE(COALESCE(NETWORK, 'UNKNOWN'), '_', ' '))) AS CREATIVE,
-        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS
+        SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS, SUM(COSTS) AS SPEND_USD, 0 AS LEADS,
+        CAST(NULL AS FLOAT64) AS FORM_OPENS
     FROM `client_cloudflare.stg_google_ads`
     GROUP BY 2, 3, 4
 ),
@@ -126,11 +148,12 @@ line_jp AS (
         'JP' AS MARKET,
         COALESCE(NULLIF(TRIM(AD_NAME), ''), '(unnamed)') AS CREATIVE,
         SUM(IMPRESSIONS) AS IMPS, SUM(CLICKS) AS CLICKS,
-        ROUND(SUM(COST) / 155.0, 2) AS SPEND_USD, 0 AS LEADS
+        ROUND(SUM(COST) / 155.0, 2) AS SPEND_USD, 0 AS LEADS,
+        CAST(NULL AS FLOAT64) AS FORM_OPENS
     FROM `client_cloudflare.stg_line`
     GROUP BY 4
 )
-SELECT CHANNEL, PROGRAM, MARKET, CREATIVE, IMPS, CLICKS, SPEND_USD, LEADS
+SELECT CHANNEL, PROGRAM, MARKET, CREATIVE, IMPS, CLICKS, SPEND_USD, LEADS, FORM_OPENS
 FROM (
     SELECT * FROM linkedin
     UNION ALL SELECT * FROM tradedesk

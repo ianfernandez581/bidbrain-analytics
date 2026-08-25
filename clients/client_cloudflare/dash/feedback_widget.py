@@ -169,11 +169,48 @@ _WIDGET = """
         nameEl=el('bbfbn-name'),dlEl=el('bbfbn-deadline');
     var rec=null,chunks=[],blob=null,ctype='',timer=null,secs=0,shot=null;
 
+    // A typed note is NEVER lost. This service's session is a HARD 12h cap (see PERMANENT_SESSION_
+    // LIFETIME in main.py), and recovering from an expired one means signing in again - so the draft
+    // has to survive a reload of this tab, not just a failed fetch. Every access guarded: a browser
+    // with site data blocked throws on the accessor itself.
+    var DKEY='bbfbn.draft.'+CLIENT;
+    function draftSave(){try{localStorage.setItem(DKEY,JSON.stringify(
+      {t:ta.value||'',n:nameEl.value||'',d:dlEl.value||''}));}catch(e){}}
+    function draftClear(){try{localStorage.removeItem(DKEY);}catch(e){}}
+    function draftLoad(){try{var d=JSON.parse(localStorage.getItem(DKEY)||'null');if(!d)return;
+      if(d.t)ta.value=d.t;if(d.n)nameEl.value=d.n;if(d.d)dlEl.value=d.d;}catch(e){}}
+    draftLoad();
+    ta.addEventListener('input',draftSave);nameEl.addEventListener('input',draftSave);
+    dlEl.addEventListener('change',draftSave);
+
+    // Signed-out state: flagged on the PILL (visible without opening the panel) with the way out -
+    // a link to the sign-in page - right in the panel. A generic "could not send, try again" is what
+    // made a client conclude the whole feature was broken: retrying cannot fix an auth failure.
+    function signedOut(on){
+      if(on){btn.style.borderColor='#f59e0b';btn.title='Sign-in expired';
+        status.innerHTML="You are signed out - this tab's sign-in expired. "+
+          "<a href='/' target='_blank' rel='noopener' style='color:#F38020'>Sign in again</a>"+
+          ", then press Send. Your note is saved here.";}
+      else{btn.style.borderColor='';btn.title='';}
+    }
+
+    // Probe on OPEN, not on Send: being told you are signed out before writing a paragraph is the
+    // whole point. Best-effort - a failed probe never blocks the panel or the post.
+    function probe(){fetch('/feedback/ping',{credentials:'same-origin',cache:'no-store'})
+      .then(function(r){signedOut(r.status===401);}).catch(function(){});}
+
     btn.onclick=function(){
       var opening=!panel.classList.contains('open');
       panel.classList.toggle('open');
-      if(opening){ta.focus();grabShot();}
+      if(opening){ta.focus();grabShot();probe();}
     };
+
+    // Also probe PASSIVELY, so a tab that died overnight flags itself instead of looking healthy:
+    // the dashboard's own 5-min data.json poll swallows its failure in a bare catch, so the pill is
+    // the only place a stale tab can show it. On re-focus ("back from lunch") and every 10 min.
+    document.addEventListener('visibilitychange',function(){if(!document.hidden)probe();});
+    setInterval(probe,10*60*1000);
+    probe();
 
     // Lazily pull html2canvas the first time the panel opens and snapshot the visible viewport as a
     // compact JPEG, with the widget hidden so it is not in the shot. Best-effort: any failure (no
@@ -227,15 +264,24 @@ _WIDGET = """
       fd.append('reporter',(nameEl.value||'').trim());fd.append('deadline',dlEl.value||'');
       if(blob)fd.append('audio',blob,'voice.'+((ctype.indexOf('mp4')>-1)?'m4a':(ctype.indexOf('ogg')>-1)?'ogg':'webm'));
       if(shot)fd.append('screenshot',shot,'shot.jpg');
+      // Report what actually went wrong. 401 => the recoverable signed-out path (draft kept, link to
+      // sign in, then Send works); anything else => the server's own message, so a real fault is
+      // never disguised as "try again".
       fetch('/feedback',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){
-        if(!r.ok)throw 0;
+        if(r.status===401){signedOut(true);send.disabled=false;return;}
+        if(!r.ok){return r.json().catch(function(){return null;}).then(function(j){
+          status.textContent=(j&&j.error)?j.error
+            :('Could not send (error '+r.status+') - please try again.');
+          send.disabled=false;});}
+        signedOut(false);draftClear();
         status.textContent='Thanks - your feedback was sent!';
         ta.value='';nameEl.value='';dlEl.value='';blob=null;chunks=[];shot=null;
         audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';
         setTimeout(function(){panel.classList.remove('open');status.textContent='';
           send.disabled=false;},1600);
       }).catch(function(){
-        status.textContent='Could not send - please try again.';send.disabled=false;});
+        status.textContent='Could not send - check your connection and try again. '+
+          'Your note is saved here.';send.disabled=false;});
     };
   }
 

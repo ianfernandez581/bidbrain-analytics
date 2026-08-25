@@ -367,7 +367,14 @@ def feedback_route():
     caller cannot file a note into another client's folder. Records land in the platform's bucket and
     surface in the existing tracker at dashboards.bidbrain.ai/feedback/admin."""
     if not authed():
-        abort(401)
+        # A JSON 401, not Flask's HTML abort page: the session here is a HARD 12h cap, so an
+        # expired one is BY FAR the likeliest reason a Send fails - and the widget branches on this
+        # status to say "sign in again", keep the typed note, and resend it. A generic
+        # "could not send, please try again" is what made a client give up on the feature entirely
+        # (Transmission, 2026-08-25) because retrying can never fix an auth failure.
+        app.logger.warning("feedback denied - no valid session (expired?)")
+        return _json_err("Your sign-in has expired. Open the login page, sign in, then press Send "
+                         "again - your note is kept here.", 401)
     if not feedback_widget.enabled():
         return _json_err("feedback is not configured on this service", 503)
     text = request.form.get("text") or ""
@@ -394,6 +401,18 @@ def feedback_route():
     except Exception:
         app.logger.exception("feedback save failed")
         return _json_err("could not store feedback", 500)
+    return Response(json.dumps({"ok": True}), mimetype="application/json")
+
+
+@app.get("/feedback/ping")
+def feedback_ping():
+    """"Can this session still file feedback?" - the widget calls it when the panel OPENS, so a
+    signed-out visitor is told BEFORE typing a paragraph rather than after pressing Send. Same two
+    checks as /feedback above, in the same order, so the probe and the real post cannot disagree."""
+    if not authed():
+        return _json_err("signed out", 401)
+    if not feedback_widget.enabled():
+        return _json_err("feedback is not configured on this service", 503)
     return Response(json.dumps({"ok": True}), mimetype="application/json")
 
 

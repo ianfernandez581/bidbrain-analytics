@@ -78,6 +78,34 @@ pill: `POST /feedback` in `main.py` plus [`feedback_widget.py`](feedback_widget.
 add the module to the `Dockerfile` `COPY` line, and run the enable script with `$SERVICE`/`$SA` and
 the pinned client key changed. Nothing on the platform side needs to know.
 
+#### "Could not send" is almost always an EXPIRED SESSION, not a broken widget (2026-08-26)
+
+Transmission reported the pill failing with *"could not send, try again"* and moved the feedback to
+Teams. It was not the widget: `POST /feedback` was returning **401/403 because the session was gone**.
+This tab's session is a **hard 12h cap** (`PERMANENT_SESSION_LIFETIME` in `main.py`) - Flask re-sends
+the cookie on each request but never re-signs it, so activity does **not** slide it - and an
+already-rendered dashboard keeps looking perfectly healthy, because its 5-min `/data.json` poll
+swallows the failure in a bare `catch(_){}`. So the failing Feedback button was the only symptom the
+client ever saw, and "please try again" is advice that can never work for an auth failure.
+
+What the pill now does about it, in both this widget and the platform's (keep the two in step):
+
+- **`GET /feedback/ping`** - the same two checks as `POST /feedback`, in the same order, so the probe
+  and the real post can never disagree. Called when the panel **opens**, on tab **re-focus**, and
+  every 10 min, so a tab that died overnight **flags itself**: amber ring on the pill + a tooltip.
+- **A 401 is handled as its own case:** the panel says you are signed out and links to the login page.
+  Sign in there, come back, press Send - the note goes. Any other failure prints **the server's own
+  message**, never a blanket retry.
+- **The typed note is kept** in `localStorage` (`bbfbn.draft.<client>`, `bbfb.draft.<client>` on the
+  platform's copy) on every keystroke, and only cleared on a confirmed 200 - so it survives the page
+  reload that signing in again requires. Every access is `try`-wrapped: a browser with site data
+  blocked throws on the accessor itself.
+- **Diagnosing the next report:** check the status code before touching the widget -
+  `gcloud logging read 'resource.labels.service_name="cloudflare-dash" AND httpRequest.requestUrl:"/feedback"'`
+  (or `platform-dash` for a front-door session). The tell for a dead tab is a **302 on
+  `/d/<c>/data.json` on a fixed 5-minute cadence, for days, from a browser that never posts
+  `/login`**.
+
 ---
 
 ## What the dashboard shows (`dashboard.html`)

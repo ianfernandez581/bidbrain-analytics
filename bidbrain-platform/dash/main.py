@@ -765,9 +765,24 @@ def feedback_submit():
     the platform's private bucket via feedback.save() — no email (yet), no DB."""
     client = (request.form.get("client") or "").strip()
     if not client or not _may_open(client):
-        return jsonify(ok=False, error="not allowed"), 403
+        # 401 WITH A REASON, not a bare 403. The overwhelmingly common cause is an EXPIRED platform
+        # session: PERMANENT_SESSION_LIFETIME is a HARD 12h cap (Flask re-sends the cookie on each
+        # request but never re-signs it, so activity does not slide it), and a dashboard already
+        # rendered in the tab keeps working - its 5-min data.json poll swallows the redirect in a
+        # bare catch. So the person has no idea they are signed out and the failing Feedback button
+        # is the ONLY symptom they ever see. A generic "could not send - please try again" then
+        # makes them retry forever, which can never succeed. Cost us a real client report
+        # (Transmission, 2026-08-25) who gave up and moved to Teams. The widget branches on this
+        # status to say "sign in again", keep the typed note, and resend it.
+        # kind=<none> in this line means an expired/absent session (the common case); a kind that IS
+        # present means the session is fine but may not open that client - two very different faults.
+        app.logger.warning("feedback denied client=%s kind=%s - no session, or client not permitted",
+                           client or "<empty>", session.get("kind") or "<none>")
+        return jsonify(ok=False, reason="auth",
+                       error=("Your sign-in has expired. Open the login page, sign in, "
+                              "then press Send again - your note is kept here.")), 401
     if not _ext_setting("allow_feedback"):     # external tenants: widget suppressed + route closed
-        return jsonify(ok=False, error="not allowed"), 403
+        return jsonify(ok=False, reason="disabled", error="not allowed"), 403
     blocked = _prod_mutation_blocked("save feedback")
     if blocked:
         return blocked
@@ -794,7 +809,21 @@ def feedback_submit():
                       deadline=request.form.get("deadline", ""))
     except Exception:
         app.logger.exception("feedback save failed")
-        return jsonify(ok=False, error="could not store feedback"), 500
+        return jsonify(ok=False, reason="store", error="could not store feedback"), 500
+    return jsonify(ok=True)
+
+
+@app.get("/feedback/ping")
+def feedback_ping():
+    """"Can this session still file feedback?" - the widget calls it when the panel OPENS, so a
+    signed-out visitor is told BEFORE typing a paragraph rather than after pressing Send. Deliberately
+    the SAME predicate as feedback_submit above (in the same order), so the probe and the real post can
+    never disagree. Cheap: one registry read, no body."""
+    client = (request.args.get("client") or "").strip()
+    if not client or not _may_open(client):
+        return jsonify(ok=False, reason="auth"), 401
+    if not _ext_setting("allow_feedback"):
+        return jsonify(ok=False, reason="disabled"), 403
     return jsonify(ok=True)
 
 
@@ -1951,8 +1980,37 @@ _FEEDBACK_WIDGET = (
     "audioEl=document.getElementById('bbfb-audio'),"
     "nameEl=document.getElementById('bbfb-name'),dlEl=document.getElementById('bbfb-deadline');"
     "var rec=null,chunks=[],blob=null,ctype='',timer=null,secs=0,shot=null;"
+    # A typed note is NEVER lost. The commonest failure here is a dead session (see feedback_submit),
+    # and recovering from it means opening the login page - so the draft has to survive a reload of
+    # this tab, not just a failed fetch. Per-client key, per-origin storage, every access guarded:
+    # a browser with site data blocked throws on the accessor itself.
+    "var DKEY='bbfb.draft.'+CLIENT;"
+    "function draftSave(){try{localStorage.setItem(DKEY,JSON.stringify("
+    "{t:ta.value||'',n:nameEl.value||'',d:dlEl.value||''}));}catch(e){}}"
+    "function draftClear(){try{localStorage.removeItem(DKEY);}catch(e){}}"
+    "function draftLoad(){try{var d=JSON.parse(localStorage.getItem(DKEY)||'null');if(!d)return;"
+    "if(d.t)ta.value=d.t;if(d.n)nameEl.value=d.n;if(d.d)dlEl.value=d.d;}catch(e){}}"
+    "draftLoad();ta.addEventListener('input',draftSave);nameEl.addEventListener('input',draftSave);"
+    "dlEl.addEventListener('change',draftSave);"
+    # Signed-out state: flag it on the pill (so it is visible without opening the panel) and put the
+    # way out - a link to the login page - directly in the panel.
+    "function signedOut(on){if(on){btn.style.borderColor='#f59e0b';btn.title='Sign-in expired';"
+    "status.innerHTML=\"You are signed out - this tab\\u2019s sign-in expired. \""
+    "+\"<a href='/' target='_blank' rel='noopener' style='color:#fbbf24'>Sign in again</a>\""
+    "+\", then press Send. Your note is saved here.\";}"
+    "else{btn.style.borderColor='';btn.title='';}}"
+    # Probe on OPEN, not on Send: being told you are signed out before writing a paragraph is the
+    # whole point. Best-effort - a failed probe never blocks the panel or the post.
+    "function probe(){fetch('/feedback/ping?client='+encodeURIComponent(CLIENT),"
+    "{credentials:'same-origin',cache:'no-store'}).then(function(r){signedOut(r.status===401);})"
+    ".catch(function(){});}"
     "btn.onclick=function(){var opening=!panel.classList.contains('open');panel.classList.toggle('open');"
-    "if(opening){ta.focus();grabShot();}};"
+    "if(opening){ta.focus();grabShot();probe();}};"
+    # Also probe PASSIVELY, so a tab that died overnight flags itself instead of looking healthy: the
+    # dashboard's own 5-min data.json poll swallows its redirect in a bare catch, so the pill is the
+    # only place a stale tab can show. On re-focus (the "back from lunch" moment) and every 10 min.
+    "document.addEventListener('visibilitychange',function(){if(!document.hidden)probe();});"
+    "setInterval(probe,10*60*1000);probe();"
     # Lazily pull html2canvas (only when the panel first opens) and snapshot the visible viewport as
     # a compact JPEG, with the widget itself hidden so it's not in the shot. Best-effort: any failure
     # (no network, a CORS-tainted canvas) just leaves shot=null and the note sends without an image.
@@ -1989,11 +2047,19 @@ _FEEDBACK_WIDGET = (
     "fd.append('reporter',(nameEl.value||'').trim());fd.append('deadline',dlEl.value||'');"
     "if(blob)fd.append('audio',blob,'voice.'+((ctype.indexOf('mp4')>-1)?'m4a':(ctype.indexOf('ogg')>-1)?'ogg':'webm'));"
     "if(shot)fd.append('screenshot',shot,'shot.jpg');"
+    # Report what actually went wrong. A single "could not send - please try again" for every failure
+    # is what turned one expired session into a client believing the feature was broken: retrying is
+    # the one thing that can never fix an auth failure. 401 => the recoverable signed-out path
+    # (draft kept, link to sign in, then Send works); anything else => the server's own message.
     "fetch('/feedback',{method:'POST',body:fd,credentials:'same-origin'}).then(function(r){"
-    "if(!r.ok)throw 0;status.textContent='Thanks \\u2014 your feedback was sent! \\u2713';"
+    "if(r.status===401){signedOut(true);send.disabled=false;return;}"
+    "if(!r.ok){return r.json().catch(function(){return null;}).then(function(j){"
+    "status.textContent=(j&&j.error)?j.error:('Could not send (error '+r.status+') - please try again.');"
+    "send.disabled=false;});}"
+    "signedOut(false);draftClear();status.textContent='Thanks - your feedback was sent! \\u2713';"
     "ta.value='';nameEl.value='';dlEl.value='';blob=null;chunks=[];shot=null;audioEl.style.display='none';mic.textContent='\\ud83c\\udfa4 Record';"
     "setTimeout(function(){panel.classList.remove('open');status.textContent='';send.disabled=false;},1600);"
-    "}).catch(function(){status.textContent='Could not send \\u2014 please try again.';send.disabled=false;});"
+    "}).catch(function(){status.textContent='Could not send - check your connection and try again. Your note is saved here.';send.disabled=false;});"
     "};"
     "})();</script>"
 ).encode()
