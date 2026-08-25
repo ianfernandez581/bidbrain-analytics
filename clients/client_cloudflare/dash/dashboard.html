@@ -246,6 +246,9 @@
   .hint{font-size:11.5px;color:var(--cf-mute);margin-bottom:10px}
   .chart-wrap{position:relative;height:240px}
   .chart-wrap.tall{height:300px}
+  /* The assets/trend row: 12 horizontal bars + the solution legend need more room than
+     .tall, and BOTH charts on the row carry it so neither card stretches to dead space. */
+  .chart-wrap.xtall{height:364px}
   /* >>> BB:CSPD (pacing detail) >>> */
   /* ===== CS "Pacing detail" (2026-08-24) ====================================
      Config-driven per THEATRE - see CSPD and cspdCfg(). Structurally this is a
@@ -457,6 +460,38 @@
   .panel-paid-scope .creative-table td:first-child{max-width:280px}
   .cr-name{font-size:12px;color:var(--cf-ink);word-break:break-word}
   @media (max-width:900px){.creatives-grid{grid-template-columns:1fr}}
+
+  /* >>> BB:LCE (LinkedIn creative lead efficiency, 2026-08-26) >>>
+     Deliberately introduces NO new colour, font, radius or spacing value. The two verdict
+     colours are the SAME --good-green / --bad-red the benchmark and pacing tables already use
+     for "beats plan / misses plan", so a green CPL here means what green means everywhere else
+     on this tab; the volume bar reuses .demo-row's geometry and the LinkedIn blue that the
+     LinkedIn KPI stripe and funnel already own. A reskin moves all of it with the tokens. */
+  .lce-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media (max-width:900px){.lce-grid{grid-template-columns:1fr}}
+  .panel-paid-scope .lce-table td:first-child{max-width:250px}
+  /* Market sits on the row because these ad-set names are market-specific - the same concept
+     runs in SAARC and ASEAN as two separate creatives and they rank very differently. */
+  .lce-mk{display:inline-block;font-size:10px;color:var(--cf-mute);text-transform:uppercase;
+    letter-spacing:.4px;font-weight:700;margin-left:6px;white-space:nowrap}
+  /* The RANKED column only - carries the LinkedIn blue the funnel card directly above and the
+     market pills already use, so the eye lands on the column the table is sorted by.
+     DELIBERATELY NOT the --good-green / --bad-red verdict pair this tab uses for "vs plan":
+     a top 10 ranked ascending by CPL, measured against a blend that includes the zero-lead
+     awareness creatives, is green in EVERY row of EVERY market selection - verified against
+     the live payload at all-markets, ANZ-only and GCR-only. A colour that cannot go red looks
+     like a judgement while making none, which is worse than no colour at all. The reference
+     lives where it can be read instead: the blend sentence and the table's own totals row. */
+  .lce-key{font-weight:700;font-variant-numeric:tabular-nums;color:var(--li-blue)}
+  /* Share of the in-scope LinkedIn leads, under the lead count. This was a bar until the live
+     data showed the distribution is far too skewed for one - the top creative holds 134 leads
+     and most hold 3 to 22, so nine rows in ten drew an empty track, which reads as failure
+     rather than as small. A percentage is exact at every magnitude. */
+  .lce-sub{display:block;font-size:10px;color:var(--cf-mute);font-variant-numeric:tabular-nums;margin-top:2px}
+  .lce-bench{font-size:11.5px;color:var(--cf-mute);margin-bottom:10px;line-height:1.5}
+  .lce-bench b{color:var(--cf-ink);font-weight:700;font-variant-numeric:tabular-nums}
+  .lce-empty{text-align:center;color:var(--cf-mute);font-size:12px;padding:18px 8px}
+  /* <<< BB:LCE <<< */
 
   /* Commentary blocks */
   .alert{background:color-mix(in srgb,var(--brand-accent) 13%,var(--surface));border:1px solid color-mix(in srgb,var(--brand-accent) 30%,var(--line));border-left:5px solid var(--cf-orange);border-radius:10px;padding:14px 16px;margin-bottom:14px;display:flex;gap:14px;align-items:flex-start}
@@ -1138,12 +1173,12 @@
       </div>
 
       <div class="grid">
-        <div class="card"><h3>Best performing assets (top 12)</h3><div class="chart-wrap tall"><canvas id="assetsChart"></canvas></div></div>
+        <div class="card"><h3>Best performing assets (top 12)</h3><div class="chart-wrap xtall"><canvas id="assetsChart"></canvas></div></div>
         <div class="card"><div class="card-head"><div><h3>Accepted leads trend</h3></div>
           <div class="ctrls">
             <span class="seg" id="csDaily_grain"><span class="cap">VIEW BY</span><button type="button" data-grain="month">Month</button><button type="button" data-grain="week">Week</button><button type="button" data-grain="day" class="on">Day</button></span>
           </div></div>
-          <div class="chart-wrap tall"><canvas id="dailyChart"></canvas></div></div>
+          <div class="chart-wrap xtall"><canvas id="dailyChart"></canvas></div></div>
       </div>
 
       <div class="card">
@@ -1527,6 +1562,49 @@
           <div class="hint">Lead-form-start metric (oneClickLeadFormOpens) on datastream 924; numbers populate after each fetch.</div>
           <div id="liFunnel"></div>
         </div>
+
+        <!-- >>> BB:LCE (LinkedIn creative lead efficiency, client request 2026-08-26) >>>
+             Sits DIRECTLY under the funnel on purpose: the funnel prints LinkedIn's blended CPL
+             and click->lead rate, and these two tables are that same pair of numbers broken down
+             to the creative that earned them. Whole-flight (creatives carry no date), so the
+             totals row of each table ties exactly to the funnel when the date range is All time.
+             Hidden entirely when LinkedIn did not deliver in the current selection. -->
+        <div id="lceBlock">
+          <div class="section">
+            <h2>LinkedIn creative lead efficiency</h2>
+            <span class="sub" id="lceNote">Ranked on cost per lead and click-to-lead conversion.</span>
+          </div>
+
+          <div class="lce-grid">
+            <div class="card">
+              <h3>Top 10 creatives by cost per lead</h3>
+              <div class="hint">Cheapest submitted leads first - the creatives to keep funding.</div>
+              <div class="lce-bench" id="lceBenchCpl"></div>
+              <div style="overflow:auto">
+                <table class="creative-table lce-table">
+                  <thead><tr>
+                    <th>Creative</th><th>Clicks</th><th>Leads</th><th>CVR</th><th>Spend</th><th>CPL</th>
+                  </tr></thead>
+                  <tbody id="lceCplBody"></tbody>
+                </table>
+              </div>
+            </div>
+            <div class="card">
+              <h3>Top 10 creatives by conversion rate</h3>
+              <div class="hint">Highest click → lead conversion. Form starts show where the drop-off sits.</div>
+              <div class="lce-bench" id="lceBenchCvr"></div>
+              <div style="overflow:auto">
+                <table class="creative-table lce-table">
+                  <thead><tr>
+                    <th>Creative</th><th>Clicks</th><th>Form starts</th><th>Leads</th><th>CVR</th><th>CPL</th>
+                  </tr></thead>
+                  <tbody id="lceCvrBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- <<< BB:LCE <<< -->
 
         <div style="font-size:12px;color:rgba(255,255,255,0.85);text-align:center;padding:8px 0;margin-top:14px" id="paidFooter">-</div>
 
@@ -2716,17 +2794,27 @@ function aggregate(filterFn) {
   const jobLevel  = groupCount(breakdownLeads, r => r.JOB_LEVEL);
   const jobTitle  = groupCount(breakdownLeads, r => r.JOB_TITLE);
 
-  const assetMap = new Map();
+  // ONE ROW PER ASSET (2026-08-26). This used to key on `asset||service`, which drew a
+  // SECOND bar under the SAME label whenever an asset ran on two solution campaigns
+  // (SERVICE is parsed from CAMPAIGN in sql/13, not from the asset), splitting that
+  // asset's own lead count across two bars. The chart already stacks by solution, so the
+  // per-solution split belongs INSIDE the bar. assetId() also folds the file-slug asset
+  // names onto their short code - see ASSET_ALIASES.
+  const assetAgg = new Map();
   for (const r of breakdownLeads) {
-    const asset = r.ASSET_1;
-    if (!asset) continue;
-    const key = asset + '||' + (r.SERVICE || 'Other');
-    assetMap.set(key, (assetMap.get(key) || 0) + 1);
+    const id = assetId(r.ASSET_1);
+    if (!id) continue;
+    let a = assetAgg.get(id);
+    if (!a) { a = {id, total: 0, svc: new Map()}; assetAgg.set(id, a); }
+    a.total++;
+    const svc = r.SERVICE || 'Other';
+    a.svc.set(svc, (a.svc.get(svc) || 0) + 1);
   }
-  const assets = [...assetMap.entries()]
-    .map(([k, v]) => { const [a, s] = k.split('||'); return [a, s, v]; })
-    .sort((a,b) => b[2] - a[2])
-    .slice(0, 12);
+  const assets = [...assetAgg.values()]
+    .sort((a,b) => b.total - a.total)
+    .slice(0, 12)
+    .map(a => ({ id: a.id, name: assetName(a.id), total: a.total,
+                 services: [...a.svc.entries()].sort((x,y) => y[1] - x[1]) }));
 
   // Per-market targets are quarter-anchored too (full-quarter plan per region), matching
   // the headline q2Target; mAccepted stays the in-range actual (QTD accepted per region).
@@ -3099,12 +3187,106 @@ const ASSET_NAMES = {
   'MSM12':'Guangzhou Lianya Network Technology Co., Ltd. [Ueeshop] Case Study (CN)',
   'MAT3':'3 paths to modernize applications and build AI services'
 };
-// Tooltip title for the assets chart: "<ID> - <full name>", word-wrapped to readable
-// lines (Chart.js renders each array element as its own title line).
-function assetTooltipTitle(id) {
-  const name = ASSET_NAMES[id];
-  if (!name) return id;
-  const words = (id + ' - ' + name).split(' ');
+// ---------------------------------------------------------------------------
+// TWO ASSET-NAMING CONVENTIONS ARE LIVE AT ONCE (2026-08-26).
+// Every asset had a short code ("A-MAT-2"). From 2026-07-07 Salesforce also started
+// carrying the FILE-SLUG form of the SAME asset ("26Q2_REPORT_2026-app-innovation-
+// report_v1"): 308 leads across 14 slugs, 13 of which duplicate a code already in the
+// feed. Left alone that both SPLITS an asset's lead count across two bars and puts a
+// 45-character filename on the x-axis - which is what "the labels have gone wonky" was.
+// ASSET_ALIASES folds each slug onto its code so the counts merge. Add a row here when a
+// new slug appears; an unmapped one is NOT lost - it keeps its own bar and is rendered as
+// readable prose by prettyAssetName() instead of as a raw filename.
+const ASSET_ALIASES = {
+  '26Q2_REPORT_2026-app-innovation-report_v1':'A-MAT-2',
+  '26Q2_EBOOK_the-enterprise-guide-to-securing-and-scaling-ai_v1':'CCT10',
+  '26Q2_EBK_ent-guide-secure-scale-ai_B_v1_en-US-CCT10':'CCT10',
+  '26Q2_SOLUTION-BRIEF_coffee-shop-networking-with-cloudflare_v1':'G-MNM-1',
+  '26Q2_EBOOK_four-steps-to-help-you-address-compliance-requirements_v1':'CCT7',
+  '26Q2_EBOOK_modernize-security-for-the-ai-era_v1':'G-MST-1',
+  '26Q2_REPORT_2026-cloudflare-threat-report-how-adversaries-are-weaponizing-the-internet_v1':'G-MSM-4',
+  '26Q2_POSITION-PAPER_ai-security-your-competitive-advantage-in-the-ai-race_v1':'G-MST-0',
+  '26Q2_BUYERS-GUIDE_the-buyers-guide-for-application-services_v1':'MAM4',
+  '26Q2_REPORT_2026-cloudflare-security-signals-report_v1':'G-MST-5',
+  '26Q2_POSITION-PAPER_four-reasons-refactoring-applications_v1':'G-MAT-1',
+  '26Q2_ANALYST-REPORT_the-total-economic-impact-of-cloudflare_v1':'G-CCB-0'
+  // '26Q2_EBOOK_accelerating-ai-adoption-with-sase_v1'  - no short code in the Q2 list,
+  // '25Q2_SOL-BR_GartnerMQSV-SASE_M_v1_en-US'           - ditto. Both render prettified.
+};
+const _ASSET_ALIAS_LC = (() => { const m = {};
+  for (const k in ASSET_ALIASES) m[k.toLowerCase()] = ASSET_ALIASES[k]; return m; })();
+
+// Leading token of a slug -> the bracketed asset-type prefix ASSET_NAMES already uses.
+const ASSET_KINDS = {
+  'REPORT':'[Report]', 'EBOOK':'[Ebook]', 'EBK':'[Ebook]', 'WHITEPAPER':'[Whitepaper]',
+  'WP':'[Whitepaper]', 'SOLUTION-BRIEF':'[Solution brief]', 'SOL-BR':'[Solution brief]',
+  'POSITION-PAPER':'[Position paper]', 'BUYERS-GUIDE':'[Buyers guide]',
+  'ANALYST-REPORT':'[Analyst report]', 'CASE-STUDY':'[Case study]', 'GUIDE':'[Guide]',
+  'INFOGRAPHIC':'[Infographic]', 'DATASHEET':'[Datasheet]', 'CHECKLIST':'[Checklist]',
+  'SURVEY':'[Survey]', 'WEBINAR':'[Webinar]', 'VIDEO':'[Video]'
+};
+// Words a slug lower-cases that must not be printed lower-case.
+const ASSET_ACRONYMS = {
+  'ai':'AI', 'api':'API', 'apis':'APIs', 'sase':'SASE', 'sse':'SSE', 'vpn':'VPN',
+  'dns':'DNS', 'ddos':'DDoS', 'waf':'WAF', 'cnap':'CNAP', 'mq':'MQ', 'tei':'TEI',
+  'pci':'PCI', 'roi':'ROI', 'ux':'UX', 'it':'IT', 'b2b':'B2B', 'saas':'SaaS',
+  'cxo':'CxO', 'cio':'CIO', 'ciso':'CISO', 'apac':'APAC', 'emea':'EMEA',
+  'cloudflare':'Cloudflare', 'gartner':'Gartner', 'forrester':'Forrester'
+};
+
+// A file-slug asset name rendered as prose. Legacy short codes carry no underscore and
+// are returned untouched, so this can never mangle one.
+function prettyAssetName(raw) {
+  let s = String(raw || '').trim();
+  if (!s || s.indexOf('_') < 0) return s;
+  s = s.replace(/^\d{2}Q\d[_-]/i, '');                       // 26Q2_ / 25Q2_
+  let kind = '';
+  const m = s.match(/^([A-Z][A-Z-]{1,18})_/);
+  if (m && ASSET_KINDS[m[1].toUpperCase()]) { kind = ASSET_KINDS[m[1].toUpperCase()]; s = s.slice(m[0].length); }
+  for (let i = 0; i < 6; i++) {                              // trailing build tokens, in any order
+    const before = s;
+    s = s.replace(/_en-[A-Za-z]{2}$/i, '')                   // locale
+         .replace(/_v\d+$/i, '')                             // version
+         .replace(/_[A-Z]$/, '')                             // A/B variant
+         .replace(/-[A-Z]{2,6}\d{1,3}$/, '');                // appended short code (-CCT10)
+    if (s === before) break;
+  }
+  s = s.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return String(raw);
+  s = s.split(' ').map((w, i) => ASSET_ACRONYMS[w.toLowerCase()]
+        || (i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(' ');
+  return kind ? kind + ' ' + s : s;
+}
+
+// Canonical merge key for an asset (the short code wherever one exists).
+function assetId(raw) {
+  const s = String(raw || '').trim();
+  return _ASSET_ALIAS_LC[s.toLowerCase()] || s;
+}
+// Display name for an asset - never the raw slug.
+function assetName(raw) {
+  const id = assetId(raw);
+  return ASSET_NAMES[id] || prettyAssetName(id) || id;
+}
+// Tick label: the name, cut at a word boundary so a long title cannot blow out the axis.
+// A cut that lands after a dangling connective ("... use of", "... four steps to") reads
+// as a truncation bug rather than an abbreviation, so the trailing word goes with it.
+const LABEL_STOPWORDS = new Set(['a','an','and','or','the','of','to','for','with','in',
+  'on','at','by','from','is','are','your','our','their','that','this','how','why']);
+function assetShort(raw, max) {
+  const n = assetName(raw);
+  if (n.length <= max) return n;
+  const cut = n.slice(0, max);
+  const sp = cut.lastIndexOf(' ');
+  const words = (sp > max * 0.55 ? cut.slice(0, sp) : cut).split(' ');
+  while (words.length > 2 && LABEL_STOPWORDS.has(words[words.length - 1].toLowerCase())) words.pop();
+  return words.join(' ').replace(/[\s,:;.-]+$/, '') + '…';
+}
+// Tooltip title: the full name (plus the code, when it differs), word-wrapped to readable
+// lines - Chart.js renders each array element as its own title line.
+function assetTooltipTitle(raw) {
+  const id = assetId(raw), name = assetName(raw);
+  const words = (name === id ? id : name + ' (' + id + ')').split(' ');
   const lines = []; let line = '';
   for (const w of words) {
     if (line && (line.length + 1 + w.length) > 46) { lines.push(line); line = w; }
@@ -3114,6 +3296,11 @@ function assetTooltipTitle(id) {
   return lines;
 }
 
+// HORIZONTAL bars (2026-08-26). Vertical bars forced the label to be the short asset CODE
+// (a 12-item x-axis has no room for a title), so the axis read as jargon and any long
+// value - a file-slug asset name - rotated 45 degrees and ran off the card. Reading down a
+// left-hand axis instead means the label can be the asset NAME, at a fixed width, with the
+// code kept in the tooltip. One bar per asset; the solution split stacks INSIDE the bar.
 function renderAssets(agg) {
   destroy('assetsChart');
   const solColors = {
@@ -3121,23 +3308,46 @@ function renderAssets(agg) {
     'Modernized Applications':'#1F9D55','Modernized Networks':'#6B3FA0',
     'Unknown':'#5A6B78','Other':'#5A6B78'
   };
-  const solList = [...new Set(agg.assets.map(a => a[1]))];
-  const labels = agg.assets.map(a => a[0]);
-  const vals = agg.assets.map(a => a[2]);
-  const sols = agg.assets.map(a => a[1]);
+  const rows = agg.assets;
+  // Legend order = biggest solution first across the whole top 12, so the busiest colour
+  // leads the key rather than whichever asset happened to sort to the top.
+  const solTot = new Map();
+  for (const r of rows) for (const [sol, n] of r.services) solTot.set(sol, (solTot.get(sol) || 0) + n);
+  const solList = [...solTot.entries()].sort((a,b) => b[1] - a[1]).map(e => e[0]);
+  const countOf = (r, sol) => { const hit = r.services.find(e => e[0] === sol); return hit ? hit[1] : null; };
+  const labels = rows.map(r => r.name);   // ticks clip these to fit; tooltips use rows[i]
   charts.assetsChart = new Chart(document.getElementById('assetsChart'), {
     type:'bar',
     data:{ labels, datasets: solList.map(sol => ({
       label: sol,
-      data: sols.map((s,i) => s === sol ? vals[i] : null),
-      backgroundColor: solColors[sol] || '#5A6B78', borderRadius:3, stack:'one'
+      data: rows.map(r => countOf(r, sol)),
+      backgroundColor: solColors[sol] || '#5A6B78',
+      borderRadius:3, stack:'one', maxBarThickness:18
     })) },
-    options:{ responsive:true, maintainAspectRatio:false,
+    options:{ responsive:true, maintainAspectRatio:false, indexAxis:'y',
+      layout:{padding:{right:6}},
+      // axis:'y' is required for index mode on a horizontal bar - without it hovering a
+      // bar picks one segment instead of the whole asset.
+      interaction:{mode:'index', intersect:false, axis:'y'},
       plugins:{ legend:{position:'bottom', labels:{boxWidth:12, boxHeight:8, font:{size:11}, padding:8}},
-        tooltip:{ filter: i => i.parsed.y !== null && i.parsed.y > 0,
-          callbacks:{ title: items => items.length ? assetTooltipTitle(items[0].label) : '' } } },
-      scales:{ x:{stacked:true, grid:{display:false}, ticks:{font:{size:11}}},
-               y:{stacked:true, beginAtZero:true, grid:{color:LINE}} } }
+        tooltip:{ filter: i => i.raw !== null && i.raw > 0,
+          callbacks:{
+            // Label off the ROW, never items[0].label - two names can truncate alike.
+            title: items => items.length ? assetTooltipTitle(rows[items[0].dataIndex].id) : '',
+            label: c => ` ${c.dataset.label}: ${fmtN(c.raw)}`,
+            footer: items => items.length ? 'Total leads: ' + fmtN(rows[items[0].dataIndex].total) : ''
+          } } },
+      scales:{ x:{stacked:true, beginAtZero:true, grid:{color:LINE}, ticks:{precision:0, font:{size:11}}},
+               y:{stacked:true, grid:{display:false},
+                  // The label length FOLLOWS THE CARD: the axis is free to take whatever
+                  // room a 34-character title wants on a wide screen, but at the 900px
+                  // breakpoint (where the 2-up grid collapses) that would swallow the
+                  // plot, so the tick clips itself instead of squeezing the bars.
+                  ticks:{font:{size:11}, autoSkip:false, crossAlign:'far',
+                    callback(v, i){ const r = rows[i]; if (!r) return '';
+                      const w = this.chart.width || 480;
+                      return assetShort(r.id, Math.max(16, Math.min(38, Math.round(w / 16)))); }
+                  }} } }
   });
 }
 
@@ -3726,7 +3936,9 @@ function clearComparePanel(side) {
 }
 
 // Top assets for a comparison panel - full asset names (never truncated), with a
-// proportional bar. agg.assets is [name, service, count][] (top 12, desc).
+// proportional bar. agg.assets is {id, name, total, services:[[service,count]]}[] (top 12,
+// desc). The panel prints the NAME, not the code, and names the leading solution when an
+// asset ran on more than one.
 function renderCompareAssets(side, agg) {
   const el = document.getElementById(side + '_assets');
   if (!el) return;
@@ -3734,13 +3946,19 @@ function renderCompareAssets(side, agg) {
     el.innerHTML = '<div class="cmp-empty-note">No asset data for this selection.</div>';
     return;
   }
-  const max = agg.assets[0][2] || 1;
-  el.innerHTML = agg.assets.map(([name, service, count]) => {
-    const svc = service && service !== 'Other' ? ` <span class="svc">· ${esc(service)}</span>` : '';
+  const max = agg.assets[0].total || 1;
+  el.innerHTML = agg.assets.map(a => {
+    const lead = a.services.length ? a.services[0][0] : '';
+    const more = a.services.length > 1 ? ` +${a.services.length - 1}` : '';
+    // "+2" alone is a riddle - spell the split out on hover rather than in the line, which
+    // has to stay one row.
+    const full = a.services.map(([sv, n]) => sv + ': ' + n).join(' \u00b7 ');
+    const svc = lead && lead !== 'Other'
+      ? ` <span class="svc" title="${esc(full)}">· ${esc(lead)}${more}</span>` : '';
     return `<div class="cmp-asset">
-      <div class="nm">${esc(name)}${svc}</div>
-      <div class="ct">${fmtN(count)}</div>
-      <div class="bar"><span style="width:${(count / max * 100).toFixed(1)}%"></span></div>
+      <div class="nm">${esc(a.name)}${svc}</div>
+      <div class="ct">${fmtN(a.total)}</div>
+      <div class="bar"><span style="width:${(a.total / max * 100).toFixed(1)}%"></span></div>
     </div>`;
   }).join('');
 }
@@ -4081,7 +4299,11 @@ function adaptPayload(data) {
     imps: Number(r.imps) || 0,
     clk: Number(r.clicks) || 0,
     spend: Number(r.spend_usd) || 0,
-    leads: Number(r.leads) || 0
+    leads: Number(r.leads) || 0,
+    // Lead-form starts (2026-08-26). NULL on every non-LinkedIn channel by design - see
+    // sql/06_paid_creatives_model.sql - and only ever read by renderLiCreativeEfficiency(),
+    // which is LinkedIn-only, so coercing the absent case to 0 here can't draw a false zero.
+    formOpens: Number(r.form_opens) || 0
   }));
   return {
     li_market_day: li,
@@ -4858,6 +5080,273 @@ function renderCreativeTable(bodyId, rows) {
   </tr>`).join('');
 }
 
+
+// >>> BB:LCE (LinkedIn creative lead efficiency, client request 2026-08-26) >>>
+// "Top 10 creatives by CPL / CVR for LinkedIn."
+//
+// This is NOT another sort of the CTR tables above. CTR measures ATTENTION - did the audience
+// click - and CPL/CVR measure OUTCOME - did they hand over their details, and at what price.
+// A creative can win one and lose the other, and on a lead-gen buy the second is the one being
+// paid for, so the two rankings are kept as separate sections rather than one table with a
+// sort control: they answer different questions and need different framing and different floors.
+//
+// DEFINITIONS - both are exactly what the funnel card directly above already prints, so no two
+// numbers on this tab can disagree:
+//     CPL = spend / submitted leads       (funnel step 4: "CPL $x")
+//     CVR = submitted leads / clicks      (funnel step 4: "click->lead y%")
+// Spend is the GROSSED figure: bbApplySpendMult() has already run over PAYLOAD.creatives, so
+// CPL here is on the same billed basis as every other dollar on this tab.
+//
+// SCOPE: whole flight. These rows carry NO date (see sql/06_paid_creatives_model.sql), which is
+// why the market chips filter them and the date range does not - passesAll() would reject every
+// row via dateOk(undefined) and empty both tables. Verified against paid_media_model: LinkedIn
+// ties exactly on leads, form opens, clicks and spend, so each table's totals row equals the
+// funnel above it whenever the date range is All time. The note under the heading says so.
+const LCE_MIN_LEADS = 3;
+
+// The in-scope LinkedIn creative pool, aggregated by creative name.
+// Scope rules are renderCreativeTables()' rules minus the channel seg: market chips, the lane,
+// and the RIG quarter gate. NOT the Channel seg - that control lives in the CTR section's own
+// header, and this section is LinkedIn by definition; hiding it because someone filtered the
+// table above to Trade Desk would be a control acting outside the section it is drawn in.
+//
+// Aggregating by NAME is safe here and does not merge markets: these ad-set names embed their
+// own market token (APAC-IN vs APAC-ASEAN), so the same concept in two markets is two distinct
+// names - and it has to stay that way, because the two cheapest creatives by CPL are exactly
+// that pair and they are not one line item. markets is still collected as a Set so a name that
+// ever does span markets renders honestly instead of silently showing one of them.
+function lceRows(){
+  const map = new Map();
+  for (const r of (PAYLOAD.creatives || [])) {
+    if (r.channel !== 'LinkedIn') continue;
+    if (!progOk(r)) continue;
+    if (!paidMediaActiveMarkets.has(r.market)) continue;
+    if (r.market === 'RIG' && paidRigHidden()) continue;
+    let o = map.get(r.creative);
+    if (!o) { o = {creative:r.creative, markets:new Set(), imp:0, clk:0, fo:0, sp:0, leads:0}; map.set(r.creative, o); }
+    if (r.market) o.markets.add(r.market);
+    o.imp += r.imps || 0; o.clk += r.clk || 0; o.fo += r.formOpens || 0;
+    o.sp  += r.spend || 0; o.leads += r.leads || 0;
+  }
+  return [...map.values()];
+}
+
+// LinkedIn ad-set names on this account follow a strict convention:
+//   CLOUD_ACQ_<quarter>_<message>_LINKEDIN_GENERAL_<asset>_<APAC-xx>_<country>_<funnel>_
+//   <audience>_X_<objective>_<tactic>[_<concept>][_<variant>]
+// prettyCreative() above was written for the TTD / LINE display names and recognises none of
+// those tokens, so it renders one of these as a fourteen-token wall of raw name. This is the
+// LinkedIn reading of the same string, keeping only what changes a media decision: what was
+// said, in what format, to whom, and which creative concept.
+//
+// TOKEN MATCHING, NEVER FIXED OFFSETS - the repo-wide rule (md/AGENTS.md, "Campaign names are
+// NOT stable keys"): a brief-number prefix shifts every offset by one and the CASE arms then
+// fail SILENTLY. Position is ALREADY unreliable here - one live ad set is named
+// "Create CLOUD_ACQ_..." rather than "CLOUD_ACQ_...", which shifts its whole name by a token.
+// Anything unrecognised is appended VERBATIM rather than dropped, so no two creatives can
+// collapse into one label, and the raw name is always on the title attribute.
+const LI_ASSET = {DOC:'Document', CRSL:'Carousel', VID:'Video', SI:'Single image'};
+const LI_STAGE = {TOFU:'TOFU', MOFU:'MOFU', BOFU:'BOFU'};
+const LI_AUD   = {RETARGETING:'retargeting', PROSPECTING:'prospecting', ABM:'ABM',
+                  'TIER-1':'Tier 1', 'TIER-2':'Tier 2'};
+// Message codes. Only the two with a label this repo already documents are expanded - CNC is
+// the Connectivity Cloud message (prettyCreative() above carries the same expansion) and
+// VER-PUBSEC is the public-sector vertical. DNB and MDS have NO documented expansion anywhere
+// in this repo, so they stay verbatim: a guessed product name on a client-facing screen is
+// worse than an unexpanded code the client's own team chose.
+const LI_MSG   = {CNC:'Connectivity Cloud', 'VER-PUBSEC':'Public sector'};
+// Fixed constants of the convention, carrying no information.
+// GENERAL appears at TWO positions here - as a constant and as an audience - and says nothing
+// at either, so it is skipped rather than mapped.
+// 'CREATE' is a data-entry artefact: one ANZ ad set is literally named "Create CLOUD_ACQ_...".
+// Skipping it makes that row decode identically to its twin, which is why lceTable() carries a
+// duplicate-label guard rather than trusting the decoder to always produce unique strings.
+//
+// The COUNTRY token is deliberately NOT in this list. It looks redundant against the market
+// pill, and for ANZ and ASEAN it is - but three of the seven markets are multi-country, so
+// blanket-skipping it collapsed APAC-TCN_HK against APAC-TCN_HKTW and merged the three ASEAN
+// sub-markets (SGMYID / SGMYTH / VNPHID) into one label. Those are different audiences with
+// different numbers. prettyLiCreative() drops the token only when it is character-for-character
+// the market already on the row, which needs no list and stays right if a market is ever added.
+const LI_SKIP  = new Set(['CLOUD','CREATE','ACQ','LINKEDIN','GENERAL','X','LEAD-GEN']);
+// Tail segments of the tactic token (CONSID-RTG / AWR-TAL / BOFU-SIA / CONSID-TAL-PUBSEC).
+// null = already on the label via the stage/audience/asset tokens, so drop it as noise;
+// a string = genuinely extra; unknown = kept verbatim.
+// SIA maps to the bare code, NOT 'SIA workshop': the ad sets that carry it are named
+// `..._BOFU-SIA_workshop_a`, so expanding it printed "SIA workshop - workshop".
+const LI_TACTIC = {RTG:null, PERSONA:null, DOC:null, CRSL:null, VID:null, SI:null,
+                   TAL:'TAL', PUBSEC:'public sector', SIA:'SIA', AI:'AI'};
+function prettyLiCreative(raw, market){
+  if (!raw) return '(unnamed)';
+  const MK = market ? String(market).toUpperCase() : '';
+  let msg='', asset='', stage='', aud='', concept='', ver='', qtr='';
+  const extra=[];
+  for (const t of String(raw).replace(/\s+/g,'_').split('_').filter(Boolean)) {
+    const T = t.toUpperCase();
+    if (LI_SKIP.has(T)) continue;
+    if (MK && T === MK) continue;                     // same fact as the market pill on the row
+    if (LI_MSG[T])   { msg   = LI_MSG[T]; continue; }
+    if (LI_ASSET[T]) { asset = LI_ASSET[T]; continue; }
+    if (LI_STAGE[T]) { stage = LI_STAGE[T]; continue; }
+    if (LI_AUD[T])   { aud   = LI_AUD[T]; continue; }
+    if (/^\d{4}-Q\d$/.test(T)) { qtr = T.slice(5); continue; }                  // 2026-Q3 -> Q3
+    if (/^APAC-/.test(T)) continue;                                             // market: on the pill
+    // Concept code, both spellings the feed uses: G-MNM-1 / A-MSM-11 and the bare MST8 / CCT10.
+    let m = T.match(/^([GA])-([A-Z]{2,4})-(\d+)$/);
+    if (m) { concept = m[2] + '-' + m[3]; continue; }
+    m = T.match(/^([A-Z]{3})(\d{1,2})$/);
+    if (m) { concept = m[1] + '-' + m[2]; continue; }
+    if (/^V\d+$/.test(T))    { ver = 'v' + T.slice(1); continue; }
+    if (/^[A-D]$/.test(T))   { ver = 'variant ' + T.toLowerCase(); continue; }
+    if (/^\d{1,2}$/.test(T)) { ver = 'variant ' + T; continue; }
+    // Tactic token - keep only the segments the label does not already carry.
+    if (/^(AWR|CONSID|BOFU|MOFU|TOFU)-/.test(T)) {
+      T.split('-').slice(1).forEach(seg => {
+        if (!(seg in LI_TACTIC)) { extra.push(seg); return; }
+        if (LI_TACTIC[seg]) extra.push(LI_TACTIC[seg]);
+      });
+      continue;
+    }
+    extra.push(t);                                   // unknown -> verbatim, never dropped
+  }
+  const audience = [stage, aud].filter(Boolean).join(' ');
+  const parts = [msg, asset, audience, ...extra, concept ? 'concept ' + concept : '', ver, qtr]
+    .filter(Boolean);
+  return parts.length ? parts.join(' · ') : String(raw);
+}
+
+function renderLiCreativeEfficiency(){
+  // LinkedIn-only section - gone entirely when LinkedIn did not deliver in this selection.
+  // LinkedIn is the only channel on this account that carries leads at all, and the Surround
+  // ABM lane is Trade Desk only, so this whole block is correctly absent there.
+  const liLive = chanIsActive('LinkedIn');
+  pmShow('lceBlock', liLive);
+  if (!liLive) return;
+
+  const pool = lceRows();
+  // The benchmark is the BLENDED figure over EVERY in-scope LinkedIn creative, floor or no
+  // floor - it is the line each row's colour is judged against, so it has to include the rows
+  // the floor excluded. Computed from THIS pool and NOT from li_market_day: that array is
+  // date-filtered and these rows are not, so using it would colour rows green or red against a
+  // number computed over a different set of days.
+  const tot = pool.reduce((a,o) => { a.clk+=o.clk; a.fo+=o.fo; a.sp+=o.sp; a.leads+=o.leads; return a; },
+                          {clk:0, fo:0, sp:0, leads:0});
+  const avgCpl = tot.leads ? tot.sp / tot.leads : 0;
+  const avgCvr = tot.clk   ? tot.leads / tot.clk : 0;
+
+  // THE FLOOR IS ON LEADS, NOT IMPRESSIONS. The CTR tables floor at 1,000 impressions because
+  // CTR is a rate over impressions; CPL and CVR are rates over LEADS. A one-lead creative has a
+  // CPL that is simply its entire spend, and a CVR that swings by whole percentage points on a
+  // single form submit - 8 clicks and 1 lead is a 12.5% conversion rate and means nothing. At 3
+  // leads, 22 of the 40 lead-bearing LinkedIn creatives qualify, which is a pool of 22 to rank a
+  // top 10 from. It RELAXES to 1 when the selection is too narrow to fill a table (one small
+  // market), and the note states which floor is in force - under a legitimate filter a caveated
+  // table is far better than a blank one.
+  let floor = LCE_MIN_LEADS;
+  let eligible = pool.filter(o => o.leads >= floor);
+  if (eligible.length < 5) { floor = 1; eligible = pool.filter(o => o.leads >= 1); }
+  eligible = eligible.map(o => ({...o,
+    cpl: o.leads ? o.sp / o.leads : 0,
+    cvr: o.clk   ? o.leads / o.clk : 0 }));
+
+  const byCpl = [...eligible].sort((a,b) => a.cpl - b.cpl).slice(0, 10);   // cheapest first
+  const byCvr = [...eligible].sort((a,b) => b.cvr - a.cvr).slice(0, 10);   // highest first
+
+  const benchTxt = (id, txt) => { const el = document.getElementById(id); if (el) el.innerHTML = txt; };
+  const scope = 'the ' + (eligible.length === 1 ? '1 creative' : eligible.length + ' creatives')
+              + ' clearing ' + floor + '+ lead' + (floor === 1 ? '' : 's');
+  // The blend is the WHOLE LinkedIn channel - every creative in scope, including the awareness
+  // and video units that were never bought to generate a lead. That is deliberate (it is the
+  // same figure the funnel above prints, so the two can never disagree) but it does mean the
+  // blend sits well above any individual lead-gen creative, which the wording has to own
+  // rather than dress up as each row "beating the benchmark".
+  if (tot.leads) {
+    benchTxt('lceBenchCpl', 'Whole channel: <b>' + fmt$(avgCpl, 0) + '</b> CPL across <b>'
+      + fmtNum(tot.leads) + '</b> leads and all ' + fmtNum(pool.length) + ' LinkedIn creatives, '
+      + 'lead-gen and awareness together. Ranking ' + scope + '.');
+    benchTxt('lceBenchCvr', 'Whole channel: <b>' + fmtPct2(avgCvr, 2) + '</b> click → lead across <b>'
+      + fmtNum(tot.clk) + '</b> clicks. Ranking ' + scope + '.');
+  } else {
+    benchTxt('lceBenchCpl', '');
+    benchTxt('lceBenchCvr', '');
+  }
+
+  lceTable('lceCplBody', byCpl, 'cpl', tot);
+  lceTable('lceCvrBody', byCvr, 'cvr', tot);
+
+  const note = document.getElementById('lceNote');
+  if (note) note.innerHTML =
+    'The CPL and click-to-lead rate from the funnel above, broken down to the creative that '
+    + 'earned them. Minimum <b>' + floor + ' lead' + (floor === 1 ? '' : 's')
+    + '</b> to rank, so one form submit cannot top the table. Follows the market filter; '
+    + '<b>full period</b>, since creatives carry no date dimension.';
+}
+
+// One ranked table. `key` names the column being ranked ('cpl' or 'cvr'); it drives which
+// column carries the verdict colour and which columns are shown, so the reader can always see
+// WHAT the table is sorted on without going back to the heading.
+function lceTable(bodyId, rows, key, tot){
+  const tbody = document.getElementById(bodyId);
+  if (!tbody) return;
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="6" class="lce-empty">No LinkedIn creative has recorded a '
+      + 'submitted lead in the selected markets.</td></tr>';
+    return;
+  }
+  const key$ = txt => '<td><span class="lce-key">' + txt + '</span></td>';
+  // Leads, plus that creative's share of the in-scope LinkedIn leads. A ranked efficiency table
+  // always begs "cheap, but did it actually deliver?", and the share answers it inside the row
+  // - the cheapest creative here holds 23% of all LinkedIn leads, the fourth holds 2%, and
+  // those are very different recommendations at a nearly identical CPL.
+  const leadsCell = o => '<td>' + fmtNum(o.leads)
+    + (tot.leads ? '<span class="lce-sub">' + fmtPct2(o.leads / tot.leads, 1) + ' of leads</span>' : '')
+    + '</td>';
+  // Two DIFFERENT ad sets can decode to the same label - one live ANZ ad set is named
+  // "Create CLOUD_ACQ_..." and is otherwise identical to its twin, and the decoder drops that
+  // prefix as the data-entry artefact it is. Two identical-looking rows carrying different
+  // numbers is the one failure mode a ranked table must not have, so labels are made unique
+  // here. The raw name is on the title attribute of every row either way.
+  const labels = new Map();
+  rows.forEach(o => {
+    let lbl = prettyLiCreative(o.creative, [...o.markets].join(' / '));
+    const n = (labels.seen = labels.seen || new Map());
+    const c = (n.get(lbl) || 0) + 1;
+    n.set(lbl, c);
+    labels.set(o.creative, c > 1 ? lbl + ' · (' + c + ')' : lbl);
+  });
+  const nameCell = o => {
+    const mks = [...o.markets];
+    return '<td><span class="pill li">' + esc(mks.length ? mks.join(' / ') : '-') + '</span>'
+      + '<div class="cr-name" title="' + esc(o.creative) + '" style="margin-top:5px">'
+      + esc(labels.get(o.creative)) + '</div></td>';
+  };
+  const body = rows.map(o => key === 'cpl'
+    ? '<tr>' + nameCell(o) + '<td>' + fmtNum(o.clk) + '</td>' + leadsCell(o)
+      + '<td>' + fmtPct2(o.cvr, 2) + '</td>'
+      + '<td>' + fmt$(o.sp) + '</td>'
+      + key$(fmt$(o.cpl, 0)) + '</tr>'
+    : '<tr>' + nameCell(o) + '<td>' + fmtNum(o.clk) + '</td>'
+      + '<td>' + (o.fo ? fmtNum(o.fo) : '-') + '</td>'
+      + leadsCell(o)
+      + key$(fmtPct2(o.cvr, 2))
+      + '<td>' + fmt$(o.cpl, 0) + '</td></tr>'
+  ).join('');
+  // Reference row: the LinkedIn blend the colours above are judged against, stated IN the table
+  // and not only in prose - a colour with no visible reference is a colour the reader has to
+  // take on trust. Same .total styling the market and benchmark tables already use.
+  const blendCpl = tot.leads ? tot.sp / tot.leads : 0;
+  const blendCvr = tot.clk   ? tot.leads / tot.clk : 0;
+  const totalRow = key === 'cpl'
+    ? '<tr class="total"><td>LinkedIn - all creatives in scope</td><td>' + fmtNum(tot.clk) + '</td>'
+      + '<td>' + fmtNum(tot.leads) + '</td><td>' + fmtPct2(blendCvr, 2) + '</td><td>'
+      + fmt$(tot.sp) + '</td><td>' + fmt$(blendCpl, 0) + '</td></tr>'
+    : '<tr class="total"><td>LinkedIn - all creatives in scope</td><td>' + fmtNum(tot.clk) + '</td>'
+      + '<td>' + (tot.fo ? fmtNum(tot.fo) : '-') + '</td><td>' + fmtNum(tot.leads) + '</td><td>'
+      + fmtPct2(blendCvr, 2) + '</td><td>' + fmt$(blendCpl, 0) + '</td></tr>';
+  tbody.innerHTML = body + totalRow;
+}
+// <<< BB:LCE <<<
+
 // -- Q3 LinkedIn lead-gen plan helpers (LI_LEADGEN_PLANS) -------------------------------------
 // Monday-aligned week buckets covering [start, end], clamped to the flight. frac = the week's
 // share of the flight's days, so a FLAT plan gives the partial first/last weeks proportionally
@@ -5118,6 +5607,7 @@ function renderPaidMediaAll() {
     ['Benchmark table', renderBenchmarkTable], ['Google Ads video', renderGaVideoNote],
     ['Budget pacing', renderPacing], ['Creative tables', renderCreativeTables],
     ['Weekly target', renderWeeklyTarget], ['LinkedIn funnel', renderLiFunnel],
+    ['LinkedIn creative efficiency', renderLiCreativeEfficiency],
   ];
   let failed = 0;
   for (const [label, fn] of steps) {

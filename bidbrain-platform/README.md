@@ -603,6 +603,26 @@ ride along as plain form fields; both stored on the record, blank when not given
 - **Auth:** `/feedback` uses the same `_may_open(client)` check as the proxy — you can only file
   feedback against a dashboard you're allowed to open. The client key is baked into the widget per
   dashboard at injection time.
+- **A failed Send is almost always an EXPIRED SESSION, and it used to be unreadable (fixed
+  2026-08-26).** `PERMANENT_SESSION_LIFETIME` is a **hard 12h cap**, not a sliding window — Flask
+  re-sends the cookie on each request but never re-signs it — and a dashboard already rendered in the
+  tab keeps looking healthy, because its own 5-min `/data.json` poll swallows the redirect in a bare
+  `catch`. So the failing Feedback button was the ONLY symptom, and the widget's blanket
+  *"could not send — please try again"* was advice that can never work for an auth failure. It cost a
+  real client report (Transmission, 2026-08-25: three 403s, then the feedback went to Teams instead).
+  Now: the route answers **401 with `reason:"auth"`** and an actionable message (403 is kept for the
+  genuine policy refusal, an external tenant with `allow_feedback` off) and logs the denial;
+  **`GET /feedback/ping`** runs the same two checks in the same order so probe and post can never
+  disagree; the widget probes it **on panel open, on tab re-focus and every 10 min**, so a tab that
+  died overnight flags ITSELF (amber ring + tooltip on the pill); a 401 shows a sign-in link instead
+  of a dead end; any other failure prints the server's own message; and the typed note is kept in
+  `localStorage` (`bbfb.draft.<client>`, cleared only on a confirmed 200) so it survives the reload
+  that signing in again requires. `cloudflare-dash`'s vendored copy carries the same behaviour —
+  **keep the two in step.**
+  **Diagnosing the next report:** read the status code before touching the widget —
+  `gcloud logging read 'resource.labels.service_name="platform-dash" AND httpRequest.requestUrl:"/feedback"'`.
+  The tell for a dead tab is a **302 on `/d/<c>/data.json` on a fixed 5-minute cadence, for days,
+  from a browser that never posts `/login`**.
 - **Storage (no email yet):** `feedback.save()` writes to the platform's OWN private bucket —
   `gs://bidbrain-analytics-platform-dash/feedback/<client>/<ts>-<id>.json` plus the recording
   (`.webm`/`.m4a`) and the screenshot (`.jpg`) when present. Same private-bucket trust boundary as

@@ -228,6 +228,11 @@ def main():
             "clicks":    jval(r.get("CLICKS")),
             "spend_usd": jval(r.get("SPEND_USD")),
             "leads":     jval(r.get("LEADS")),
+            # Lead-form starts at creative grain (2026-08-26) - the middle stage of the
+            # LinkedIn funnel, so the "creative lead efficiency" tables can say WHY a CVR is
+            # low (nobody opened the form vs opened and abandoned). NULL on every non-LinkedIn
+            # channel because they have no lead form at all - not zero starts. See sql/06.
+            "form_opens": jval(r.get("FORM_OPENS")),
         } for r in cre],
         "benchmarks":        {r["CHANNEL"]: {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bc},
         "benchmarks_market": {r["MARKET"]:  {"ctr": jval(r["CTR"]), "cpm": jval(r["CPM"]), "cpc": jval(r["CPC"])} for r in bm},
