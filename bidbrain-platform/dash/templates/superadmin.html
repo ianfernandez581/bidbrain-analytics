@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
 <style>
   :root{
     --bg:#0a0c12; --panel:#12151f; --panel-2:#0e111a; --row:#10131d; --border:rgba(255,255,255,.08);
@@ -14,6 +15,9 @@
     --gold:#f3c969; --gold-2:#e0a818; --gold-dim:rgba(243,201,105,.14);
     --accent:#3b82f6; --active:#22c55e; --danger:#f87171;
     --chip-bg:#1c1a12; --chip-text:#cdb878;
+    /* The one token _premium.html derives every colour from. This console is GOLD, so it must be
+       set explicitly - the shared default falls back to --accent, which here is a stray blue. */
+    --bb-accent:#f3c969;
   }
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;color:var(--text);
@@ -26,8 +30,9 @@
        font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
   .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
   /* top bar */
+  /* translucent on purpose: _premium.html blurs whatever passes under this bar */
   .topbar{display:flex;align-items:center;gap:12px;padding:14px 28px;
-          border-bottom:1px solid var(--border);background:#0b0d14;position:sticky;top:0;z-index:20}
+          border-bottom:1px solid var(--border);background:rgba(11,13,20,.74);position:sticky;top:0;z-index:20}
   .topbar .logo svg{height:24px;width:auto;display:block}
   .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
   .super-pill{font-size:10.5px;font-weight:900;letter-spacing:.8px;color:#1a1405;
@@ -48,28 +53,34 @@
   .hero{position:relative;overflow:hidden;border-bottom:1px solid var(--border);
         background:radial-gradient(900px 380px at 18% -40%,rgba(243,201,105,.18) 0%,rgba(243,201,105,0) 60%),
                    linear-gradient(180deg,#14110a 0%,#0a0c12 100%)}
-  .hero .inner{max-width:1120px;margin:0 auto;padding:52px 28px 46px}
+  .hero .inner{max-width:1320px;margin:0 auto;padding:40px 32px 36px}
   .hero .crown{font-size:13px;font-weight:800;letter-spacing:3px;color:var(--gold-2);margin:0 0 10px}
-  .hero h1{margin:0;font-size:clamp(34px,6vw,60px);font-weight:900;letter-spacing:-1px;line-height:1.02;
+  /* was clamp(34px,6vw,60px) - pinned at 60px on any screen over 1000px wide */
+  .hero h1{margin:0;font-size:clamp(30px,3.4vw,44px);font-weight:900;letter-spacing:-.6px;line-height:1.04;
            background:linear-gradient(120deg,#fff 0%,var(--gold) 55%,var(--gold-2) 100%);
            -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  .hero p{margin:14px 0 0;font-size:15px;color:#bdb6a6;max-width:680px;line-height:1.55}
+  .hero p{margin:12px 0 0;font-size:14px;color:#bdb6a6;max-width:660px;line-height:1.55}
   .hero .badges{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
   .hero .badge{font-size:12px;color:var(--chip-text);background:var(--chip-bg);
                border:1px solid rgba(243,201,105,.18);padding:7px 12px;border-radius:999px;font-weight:600}
   /* layout */
-  .wrap{max-width:1120px;margin:0 auto;padding:36px 28px 90px}
+  /* SHELL SCALE (2026-08-26). The shell was capped at 1120px, which on a 1536px viewport left
+     ~200px of dead margin either side and made everything read oversized at 100% browser zoom -
+     the size a client or agency actually gets, since Chrome stores zoom per host and they have
+     none saved. Widened here and the display type brought down to match; body copy is deliberately
+     UNCHANGED, because "less zoomed" must not become "harder to read". */
+  .wrap{max-width:1320px;margin:0 auto;padding:32px 32px 90px}
   .sec{margin:0 0 30px}
   .sec>.shead{display:flex;align-items:baseline;gap:12px;margin:0 0 14px}
-  .sec>.shead h2{font-size:15px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;margin:0;color:#d9d2c2}
+  .sec>.shead h2{font-size:14px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;margin:0;color:#d9d2c2}
   .sec>.shead .c{font-size:12.5px;color:var(--muted)}
-  .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:14px}
   .card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px 18px 16px;
         box-shadow:0 0 26px rgba(243,201,105,.05),0 8px 26px rgba(0,0,0,.35);transition:box-shadow .15s,border-color .15s}
   .card:hover{border-color:rgba(243,201,105,.26);box-shadow:0 0 34px rgba(243,201,105,.12),0 10px 30px rgba(0,0,0,.4)}
   .card.key{border-color:rgba(243,201,105,.22);background:linear-gradient(180deg,#16130b 0%,var(--panel) 60%);
             box-shadow:0 0 32px rgba(243,201,105,.10),0 8px 26px rgba(0,0,0,.35)}
-  .card .knm{font-size:14.5px;font-weight:700;margin:0 0 2px;display:flex;align-items:center;gap:9px}
+  .card .knm{font-size:14px;font-weight:700;margin:0 0 2px;display:flex;align-items:center;gap:9px}
   .card .ksub{font-size:12px;color:var(--muted);margin:0 0 14px}
   .slug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;
         color:var(--chip-text);background:var(--chip-bg);padding:2px 8px;border-radius:6px;font-weight:600}
@@ -92,7 +103,7 @@
         box-shadow:0 0 22px rgba(243,201,105,.05),0 6px 20px rgba(0,0,0,.28);transition:box-shadow .15s,border-color .15s}
   .drow:hover{border-color:rgba(243,201,105,.28);box-shadow:0 0 32px rgba(243,201,105,.12),0 8px 24px rgba(0,0,0,.34)}
   .drow .who{min-width:210px}
-  .drow .who .dn{font-size:14.5px;font-weight:700}
+  .drow .who .dn{font-size:14px;font-weight:700}
   .drow .who .dk{margin-top:3px}
   .drow .pwbox{max-width:none}
   .drow .open{margin-left:auto}
@@ -195,8 +206,10 @@
          and open any dashboard with no further login. Handle with care: these are the live keys to
          the whole platform.</p>
       <div class="badges">
-        <span class="badge">{{ agencies|length }} agenc{{ 'y' if agencies|length == 1 else 'ies' }}</span>
-        <span class="badge">{{ dashboards|length }} dashboard{{ '' if dashboards|length == 1 else 's' }}</span>
+        {# the figures are wrapped so _premium.html's count-up can find them - it only animates an
+           element whose WHOLE text is one number, and writes the original string back verbatim #}
+        <span class="badge"><b class="bbp-num">{{ agencies|length }}</b> agenc{{ 'y' if agencies|length == 1 else 'ies' }}</span>
+        <span class="badge"><b class="bbp-num">{{ dashboards|length }}</b> dashboard{{ '' if dashboards|length == 1 else 's' }}</span>
         <span class="badge">All passwords revealable</span>
         <span class="badge">One-click dashboard access</span>
       </div>
@@ -204,6 +217,21 @@
   </div>
 
   <div class="wrap">
+
+    {# ===== CONSOLE FILTER - real functionality, not chrome. Sixteen dashboards, a dozen agency
+       cards and every Google account on one page is a lot of scrolling to reach one password.
+       Filters the rows that carry data-bbf and nothing else, so nothing can be hidden by accident;
+       "/" focuses it, Escape clears it, and the count is always on screen. ===== #}
+    <div class="confilter" role="search">
+      <span class="ic" aria-hidden="true"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+        stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="6.8" cy="6.8" r="4.4"/><path d="M10.2 10.2 L14 14"/></svg></span>
+      <input id="conFind" type="search" autocomplete="off" spellcheck="false"
+             aria-label="Filter agencies, dashboards and accounts"
+             placeholder="Filter agencies, dashboards and accounts">
+      <span class="kb" aria-hidden="true">/</span>
+      <button class="clr" type="button" aria-label="Clear filter">&times;</button>
+      <span class="cfcount" role="status" aria-live="polite"></span>
+    </div>
 
     {% if tools %}
     <!-- TOOLS -->
@@ -217,13 +245,13 @@
     <div class="sec">
       <div class="shead"><h2>Access keys</h2><span class="c">the platform's own master passwords</span></div>
       <div class="grid2">
-        <div class="card key">
+        <div class="card key" data-bbf="super admin password god-mode console master key">
           <div class="knm">Super-admin password <span class="super-pill">SUPER</span></div>
           <div class="ksub">Opens this god-mode console.</div>
           {{ pwfield("super", "", super_password, super_has or super_password) }}
           {% if super_bootstrap %}<div class="note">Using the bootstrap password from env - set one here to store it in the registry.</div>{% endif %}
         </div>
-        <div class="card key">
+        <div class="card key" data-bbf="admin password agencies clients campaigns tree master key">
           <div class="knm">Admin password</div>
           <div class="ksub">Opens the editable agencies → clients → campaigns tree.</div>
           {{ pwfield("admin", "", admin_password, admin_has or admin_password) }}
@@ -236,7 +264,7 @@
       <div class="shead"><h2>Agency passwords</h2><span class="c">each opens a portal of that agency's dashboards</span></div>
       <div class="grid2">
         {% for a in agencies %}
-        <div class="card">
+        <div class="card" data-bbf="{{ a.name }} {{ a.slug }}">
           <div class="knm">{{ a.name }} <span class="slug">{{ a.slug }}</span></div>
           <div class="ksub">{{ a.client_count }} dashboard{{ '' if a.client_count == 1 else 's' }} in this portal</div>
           {{ pwfield("agency", a.slug, a.password, a.has_pw or a.password) }}
@@ -258,7 +286,7 @@
         </div>
         {% for d in g.dashboards %}
           {% if d.status == 'active' and d.url %}
-          <div class="drow">
+          <div class="drow" data-bbf="{{ d.name }} {{ d.key }} {{ g.name }}">
             <div class="who">
               <div class="dn">{{ d.name }}</div>
               <div class="dk"><span class="slug">{{ d.key }}</span></div>
@@ -272,7 +300,7 @@
           </div>
           {% elif d.url %}
           {# structure preview: deployed but not live for clients yet - super admin can open it #}
-          <div class="drow preview">
+          <div class="drow preview" data-bbf="{{ d.name }} {{ d.key }} {{ g.name }}">
             <div class="who">
               <div class="dn">{{ d.name }}</div>
               <div class="dk"><span class="slug">{{ d.key }}</span></div>
@@ -281,7 +309,7 @@
             <a class="btn gold sm open" href="/d/{{ d.key }}/" target="_blank" rel="noopener">Open preview →</a>
           </div>
           {% else %}
-          <div class="drow soon">
+          <div class="drow soon" data-bbf="{{ d.name }} {{ d.key }} {{ g.name }}">
             <div class="who">
               <div class="dn">{{ d.name }}</div>
               <div class="dk"><span class="slug">{{ d.key }}</span></div>
@@ -319,7 +347,7 @@
         <button type="button" class="btn gold sm" id="addUser">+ Add account</button>
       </div>
       {% for u in users %}
-      <div class="drow">
+      <div class="drow" data-bbf="{{ u.email }} {{ u.role }} {{ u.scope or '' }}">
         <div class="who" style="min-width:280px">
           <div class="dn mono" style="font-size:13.5px">{{ u.email }}</div>
           <div class="dk" style="margin-top:5px">
@@ -590,6 +618,153 @@
     }
     return false;
   }
+</script>
+{% include "_premium.html" %}
+{# ===== SUPER-ADMIN PREMIUM PASS - after the shared layer so these win. The console holds every
+   live key on the platform, so the brief here is "obviously the serious room": more depth, more
+   light, and one piece of real functionality (the filter) rather than more decoration. ===== #}
+<style>
+  /* The crown line and the wordmark carry the room. The gradient SLIDES rather than sitting
+     still - and the two background-clip declarations have to be repeated, because re-declaring
+     `background` resets background-clip to border-box and the text would fill solid. */
+  .hero h1{
+    background:linear-gradient(115deg,#fff 0%,var(--gold) 34%,var(--gold-2) 52%,#fff 78%,var(--gold) 100%);
+    background-size:260% 100%;
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    animation:bbHeroSheen 13s var(--bb-ease-soft) infinite}
+  @keyframes bbHeroSheen{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+  .hero .crown{animation:bbCrown 4.5s ease-in-out infinite}
+  @keyframes bbCrown{0%,100%{opacity:.72}50%{opacity:1}}
+
+  /* A second, slowly drifting light inside the hero. One extra painted layer, no JS, and it is
+     what stops the masthead reading as a flat panel with a gradient on it. */
+  /* z-index on BOTH: an absolutely-positioned ::after paints above non-positioned content, so
+     without this the drift washes over the headline instead of behind it. */
+  .hero .inner{position:relative;z-index:1}
+  .hero::after{content:"";position:absolute;inset:-40% -20% auto -20%;height:150%;z-index:0;
+    pointer-events:none;
+    background:radial-gradient(closest-side,rgba(243,201,105,.12),transparent 70%);
+    animation:bbHeroDrift 24s ease-in-out infinite}
+  @keyframes bbHeroDrift{0%,100%{transform:translate(-14%,-6%) scale(1)}
+                         50%{transform:translate(16%,4%) scale(1.12)}}
+
+  .hero .badge{transition:border-color .2s var(--bb-ease-soft),background-color .2s var(--bb-ease-soft),
+                          translate .18s var(--bb-ease)}
+  .hero .badge:hover{translate:0 -1px;border-color:rgba(243,201,105,.4);background:#241f11}
+  /* `font-weight:inherit`, NOT bold: <b> defaults to bold, which widened the badge by 3px and
+     was the one thing on any of these pages that changed a surface's size. Colour alone is
+     enough to make the figure read as a figure, and costs no pixels. */
+  .hero .badge b{font-weight:inherit;color:var(--gold)}
+
+  /* ---- the console filter ---- */
+  .confilter{position:relative;display:flex;align-items:center;gap:10px;margin:0 0 26px}
+  .confilter .ic{position:absolute;left:13px;color:var(--muted);display:flex;line-height:0;
+    pointer-events:none}
+  .confilter input{flex:1 1 auto;min-width:0;font-family:inherit;font-size:13.5px;color:var(--text);
+    background:var(--panel-2);border:1px solid var(--border);border-radius:11px;outline:none;
+    padding:11px 40px 11px 36px;
+    transition:border-color .18s var(--bb-ease-soft),box-shadow .22s var(--bb-ease)}
+  .confilter input::placeholder{color:var(--muted-2)}
+  .confilter input:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(243,201,105,.14)}
+  /* type=search brings Chrome's OWN cancel button, which sat next to ours and drew two crosses
+     in one field. Ours stays, because it is the one that is styled and keyboard-reachable. */
+  .confilter input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;display:none}
+  .confilter .kb{position:absolute;right:112px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+    font-size:10px;font-weight:600;color:var(--muted);border:1px solid var(--border);border-radius:4px;
+    padding:3px 6px;pointer-events:none;transition:opacity .15s}
+  .confilter.has-q .kb,.confilter input:focus~.kb{opacity:0}
+  .confilter .clr{position:absolute;right:110px;display:none;cursor:pointer;border:0;background:none;
+    color:var(--muted);font-size:17px;line-height:1;padding:4px 7px;border-radius:6px}
+  .confilter.has-q .clr{display:block}
+  .confilter .clr:hover{color:var(--text)}
+  .confilter .cfcount{flex:0 0 auto;width:96px;text-align:right;font-size:11.5px;color:var(--muted);
+    font-variant-numeric:tabular-nums}
+  .bbf-hide{display:none !important}
+  .confilter.no-hit input{border-color:rgba(248,113,113,.5)}
+  @media (max-width:620px){
+    .confilter .kb,.confilter .clr{right:14px}
+    .confilter .cfcount{display:none}
+  }
+
+  /* ---- depth on the rooms that hold the keys ---- */
+  .card.key{box-shadow:inset 0 1px 0 rgba(243,201,105,.10),
+                       0 0 34px rgba(243,201,105,.10),0 10px 30px rgba(0,0,0,.4)}
+  .dghead .dgdot{animation:bbDot 3.4s ease-in-out infinite}
+  @keyframes bbDot{0%,100%{box-shadow:0 0 8px rgba(243,201,105,.35)}
+                   50%{box-shadow:0 0 16px rgba(243,201,105,.75)}}
+  /* a revealed password should look revealed */
+  .pwbox{transition:border-color .2s var(--bb-ease-soft),background-color .2s var(--bb-ease-soft)}
+  .drow:hover .pwbox,.card:hover .pwbox{border-color:rgba(243,201,105,.24)}
+  .icbtn.copied{background:rgba(34,197,94,.14)}
+
+  @media (prefers-reduced-motion: reduce){
+    .hero h1,.hero .crown,.hero::after,.dghead .dgdot{animation:none !important}
+    .hero .badge:hover{translate:none !important}
+  }
+</style>
+<script>
+/* ===== SUPER-ADMIN CONSOLE FILTER - presentation-adjacent, but real functionality.
+   It only ever toggles a class on rows that opted in with data-bbf, and it hides a dashboard
+   group once every row inside it is filtered out (an empty gold header reads as a broken page).
+   Nothing is removed from the DOM, so every existing handler - reveal, copy, change password -
+   keeps working on a hidden row the moment the filter clears. ===== */
+(function(){
+  var box = document.querySelector('.confilter');
+  if (!box) return;
+  var input = box.querySelector('input'), clr = box.querySelector('.clr'),
+      count = box.querySelector('.cfcount');
+  var rows = [].slice.call(document.querySelectorAll('[data-bbf]'));
+  if (!rows.length){ box.style.display = 'none'; return; }
+  var hay = rows.map(function(r){ return (r.getAttribute('data-bbf') || '').toLowerCase().replace(/\s+/g,' '); });
+  var groups = [].slice.call(document.querySelectorAll('.dgroup'));
+  var secs = [].slice.call(document.querySelectorAll('.sec'));
+
+  function apply(){
+    var q = input.value.trim().toLowerCase();
+    box.classList.toggle('has-q', !!q);
+    var shown = 0;
+    rows.forEach(function(r, i){
+      var hit = !q || hay[i].indexOf(q) >= 0;
+      r.classList.toggle('bbf-hide', !hit);
+      if (hit) shown++;
+    });
+    /* A group header with nothing under it is worse than no header - and so is a whole SECTION
+       heading left standing over an empty space. Tools has no filterable row at all, so it
+       stands down for any query; the access keys carry their own data-bbf and stay for the
+       obvious ones ("admin", "master", "password"). */
+    groups.forEach(function(g){
+      var any = g.querySelector('[data-bbf]:not(.bbf-hide)');
+      g.classList.toggle('bbf-hide', !!q && !any);
+      /* A group headed "9 dashboards" with three rows under it is a page contradicting itself.
+         The original string is stashed and restored verbatim, never recomputed. */
+      var c = g.querySelector('.dgcount');
+      if (!c) return;
+      if (c.dataset.bbFull === undefined) c.dataset.bbFull = c.textContent;
+      var vis = g.querySelectorAll('[data-bbf]:not(.bbf-hide)').length;
+      c.textContent = q ? (vis + ' of ' + c.dataset.bbFull) : c.dataset.bbFull;
+    });
+    secs.forEach(function(sec){
+      var any = sec.querySelector('[data-bbf]:not(.bbf-hide)');
+      sec.classList.toggle('bbf-hide', !!q && !any);
+    });
+    box.classList.toggle('no-hit', !!q && !shown);
+    count.textContent = q ? (shown + ' of ' + rows.length) : '';
+  }
+  input.addEventListener('input', apply);
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Escape'){ input.value = ''; apply(); input.blur(); }
+  });
+  clr.addEventListener('click', function(){ input.value = ''; apply(); input.focus(); });
+  /* "/" focuses the filter the way every tool with a list does - but never while typing, and
+     never while a password modal is open, where "/" is a legitimate character. */
+  document.addEventListener('keydown', function(e){
+    if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+    var t = e.target, tag = (t && t.tagName || '').toLowerCase();
+    if (tag === 'input' || tag === 'textarea' || (t && t.isContentEditable)) return;
+    if (document.querySelector('.scrim.on')) return;
+    e.preventDefault(); input.focus(); input.select();
+  });
+})();
 </script>
 </body>
 </html>

@@ -10,12 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
 <style>
   :root{
     --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
     /* single accent — bright cornflower blue */
     --text:#e8ebf2; --muted:#8a93a6; --accent:#4C8DFF; --accent-2:#6EA8FF; --accent-bg:rgba(76,141,255,.12);
     --green:#3DDC84; --green-bg:rgba(61,220,132,.12); --err:#f87171;
+    /* the one token _premium.html derives every colour from */
+    --bb-accent:#4C8DFF;
   }
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;
@@ -599,5 +602,59 @@
   if (err && err.textContent.trim()) err.classList.add('bb-shake');
 })();
 </script>
-<!-- /BB-LOGIN-KIT:js --></body>
+<!-- /BB-LOGIN-KIT:js -->
+{% include "_premium.html" %}
+{# ===== LOGIN PREMIUM PASS - after the shared layer so these win. Front door only: everything
+   here is material and light, no new control and no new copy. ===== #}
+<style>
+  /* The shared layer re-times `.card`, and this card's transition list is load-bearing: the
+     explanation toggle animates max-width. Put it back, with the shared easing. */
+  form.card{transition:max-width .38s var(--bb-ease),box-shadow .28s var(--bb-ease),
+                       translate .32s var(--bb-ease)}
+
+  /* The hairline along the card's top edge stops being a static line and becomes a slow
+     travelling light. Animating background-position on a 1px-tall element is a paint on a
+     handful of pixels - the cheapest possible way to make a page look awake. */
+  .card::before{background:linear-gradient(90deg,transparent 0%,rgba(110,168,255,.15) 22%,
+      rgba(160,200,255,.9) 50%,rgba(110,168,255,.15) 78%,transparent 100%);
+    background-size:220% 100%;opacity:.85;animation:bbEdge 7.5s var(--bb-ease-soft) infinite}
+  @keyframes bbEdge{0%{background-position:120% 0}55%,100%{background-position:-120% 0}}
+
+  /* Real depth: a lit top edge inside the card, a contact shadow and a long ambient one. */
+  .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.055),
+                   0 1px 2px rgba(0,0,0,.5),
+                   0 34px 90px -30px rgba(0,0,0,.85),
+                   0 0 90px rgba(76,141,255,.10)}
+
+  /* The two engine layers respond to the cursor as well as to the demo loop that lights them. */
+  .layer{transition:box-shadow .35s var(--bb-ease),border-color .35s var(--bb-ease),
+                    transform .35s var(--bb-ease),translate .3s var(--bb-ease)}
+  .layer:hover{translate:0 -2px}
+  .layer.l1:hover{border-color:rgba(76,141,255,.42)}
+  .layer.l2:hover{border-color:rgba(61,220,132,.42)}
+  .eng,.act{transition:background .35s var(--bb-ease-soft),border-color .35s var(--bb-ease-soft),
+                       translate .2s var(--bb-ease)}
+  .eng:hover{translate:2px 0;border-color:rgba(76,141,255,.32)}
+  .act:hover{translate:2px 0;border-color:rgba(61,220,132,.42)}
+  /* the layer labels sit on the border, so they get the light too */
+  .layer.l1 .llab{box-shadow:0 0 16px rgba(76,141,255,.18)}
+  .layer.l2 .llab{box-shadow:0 0 16px rgba(61,220,132,.18)}
+
+  /* The arrow between the layers leans across once layer 2 lights up. */
+  .midarrow svg{transition:translate .45s var(--bb-ease),opacity .35s var(--bb-ease-soft)}
+  .layers.l2on .midarrow svg{translate:3px 0}
+
+  /* The explanation toggle reads as a control, not as body text. */
+  .exlink{border-radius:8px;transition:color .18s var(--bb-ease-soft),
+                                       background-color .18s var(--bb-ease-soft)}
+  .exlink:hover{background:rgba(76,141,255,.09);text-decoration:none}
+  .exlink .chev{transition:transform .3s var(--bb-ease)}
+
+  @media (prefers-reduced-motion: reduce){
+    .card::before{animation:none}
+    .layer:hover,.eng:hover,.act:hover{translate:none !important}
+    .layers.l2on .midarrow svg{translate:none !important}
+  }
+</style>
+</body>
 </html>

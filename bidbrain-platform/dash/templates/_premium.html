@@ -1,0 +1,459 @@
+{# ===========================================================================================
+   BB PLATFORM PREMIUM v1 - the platform's shared look-and-feel layer.
+   Partner file: _premium_head.html (the <head> bootstrap).  Include this LAST in <body>, after
+   _status_merge.html, so it wins the cascade over the partials that inject their own <style>
+   at the end of the document.
+
+   Scope: the login, the agency portal, the admin tree and the super-admin console.  It is the
+   same vocabulary the client dashboards carry (scripts/motion_kit/) re-pointed at the platform's
+   own class names, so the estate hovers, presses and reveals the same way everywhere.
+
+   PRESENTATION ONLY.  No route, no permission, no password and no registry field is touched, and
+   the rendered TEXT of every page is identical with and without it.
+
+   Colour comes from ONE token, `--bb-accent`, which defaults to whatever the page already calls
+   `--accent`.  That is what lets a themed agency portal (main.AGENCY_THEMES) pull this whole
+   layer into its own palette without a single extra rule.
+
+   GEOMETRY USES `translate` / `scale`, NEVER the `transform` shorthand.  The themed portal puts a
+   `bbTileIn` keyframe on .tile with fill-mode both and the login page transforms its own layer
+   boxes; the shorthand would REPLACE those outright.  The individual properties compose instead.
+   =========================================================================================== #}
+
+<div class="bb-amb" aria-hidden="true"><i class="o1"></i><i class="o2"></i><i class="o3"></i></div>
+<div class="bb-grain" aria-hidden="true"></div>
+
+<style>
+  /* The reveal offset and the hover lift are composed inside ONE `translate`, which means both
+     have to be NON-INHERITING or a hovered card drags every nested surface up with it. Where
+     @property is unsupported the properties inherit again and the only consequence is that
+     cosmetic drift, never a broken layout. */
+  @property --bb-rev{syntax:"<length>";inherits:false;initial-value:0px}
+  @property --bb-hov{syntax:"<length>";inherits:false;initial-value:0px}
+
+  /* Defaults live on `html`, NOT `:root`: a type selector loses to the page's own `:root` block
+     no matter which one the browser reads last, so a page can override a token from its first
+     stylesheet and never think about source order. */
+  html{
+    --bb-accent:var(--accent,#4C8DFF);      /* every colour below derives from this one token */
+    --bb-ease:cubic-bezier(.22,1,.36,1);    /* out-quint: fast out, long settle */
+    --bb-ease-soft:cubic-bezier(.4,0,.2,1);
+    --bb-tab-ink:#34D399;                   /* replaced at runtime with the active tab's own colour */
+    scroll-behavior:smooth;
+  }
+
+  /* ---------- 1. THE AMBIENT WASH ----------------------------------------------------------
+     Three big soft brand-coloured orbs on their own slow cycles. CSS only: no canvas, no rAF,
+     transform-only keyframes and NO filter:blur() - a radial gradient that fades to transparent
+     is already soft, and a full-viewport blur is re-applied every frame the layer paints.
+     z-index:-1 keeps it between the page colour (body's background propagates to the canvas) and
+     the content, so not one line of the page's own stacking has to change.
+
+     The login pages already ship the login kit's own three orbs, so theirs win and these stand
+     down - two washes on one screen is just noise. */
+  .bb-amb{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+  .bb-amb i{position:absolute;display:block;border-radius:50%;will-change:transform}
+  .bb-amb .o1{width:58vw;height:52vh;top:-14%;left:-8%;animation:bbAmb1 26s ease-in-out infinite;
+    background:radial-gradient(circle,color-mix(in srgb,var(--bb-accent) 15%,transparent) 0%,transparent 68%)}
+  .bb-amb .o2{width:50vw;height:46vh;top:6%;right:-10%;animation:bbAmb2 31s ease-in-out infinite;
+    background:radial-gradient(circle,color-mix(in srgb,var(--bb-accent) 9%,transparent) 0%,transparent 68%)}
+  .bb-amb .o3{width:54vw;height:50vh;bottom:-18%;left:14%;animation:bbAmb3 37s ease-in-out infinite;
+    background:radial-gradient(circle,color-mix(in srgb,var(--bb-accent) 7%,transparent) 0%,transparent 66%)}
+  @keyframes bbAmb1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(72px,56px) scale(1.09)}}
+  @keyframes bbAmb2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-68px,50px) scale(1.08)}}
+  @keyframes bbAmb3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(60px,-70px) scale(1.07)}}
+  body:has(.bb-lgfx) .bb-amb{display:none}
+
+  /* Film grain. A single STATIC tiled layer at 3% - the cheapest thing on the page, and the one
+     that stops a flat dark panel reading as flat dark paint. The hash inside the SVG's url() is
+     percent-encoded (%23) because a raw hash immediately after a brace is how a Jinja comment
+     opens, and these are all Jinja templates. */
+  .bb-grain{position:fixed;inset:0;z-index:-1;pointer-events:none;opacity:.032;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='150' height='150'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='150' height='150' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size:150px 150px}
+
+  /* ---------- 2. ONE INTERACTION VOCABULARY ------------------------------------------------
+     Everything clickable: a 1px rise on hover, a real press on :active (nothing feels cheaper
+     than a button that does not depress) and a visible ring for keyboards. The blanket
+     button/select entries carry the TRANSITION only, never geometry, because a button can be
+     anything - including something already positioned with a transform. */
+  .btn,.bbbtn,.sbtn,.slidesbtn,.msbtn,.icbtn,.icon-btn,.chgbtn,.multbtn,.exlink,.bbtab,
+  button,select,summary{
+    transition:background-color .2s var(--bb-ease-soft),color .2s var(--bb-ease-soft),
+               border-color .2s var(--bb-ease-soft),box-shadow .26s var(--bb-ease),
+               opacity .2s var(--bb-ease-soft),filter .2s var(--bb-ease-soft),
+               translate .16s var(--bb-ease),scale .12s var(--bb-ease)}
+  .btn:hover,.bbbtn:hover,.sbtn:hover,.slidesbtn:hover,.msbtn:hover,.chgbtn:hover{translate:0 -1px}
+  .btn:active,.bbbtn:active,.sbtn:active,.slidesbtn:active,.msbtn:active,.chgbtn:active,
+  .icbtn:active,.icon-btn:active,.bbtab:active{translate:0 0;scale:.97}
+  .btn:hover,.sbtn:hover,.bbbtn:hover{
+    box-shadow:0 8px 20px -12px color-mix(in srgb,var(--bb-accent) 70%,transparent)}
+  /* disabled things must not pretend to be pressable */
+  [disabled]:hover,[aria-disabled="true"]:hover,.slidesbtn.busy:hover{
+    translate:none !important;filter:none !important;box-shadow:none !important}
+  /* Keyboard focus is a first-class state. `:where()` has ZERO specificity, so every page that
+     already styles its own focus ring (the themed portal does) still wins - this only fills the
+     gaps. No border-radius: `outline` already follows the element's own corners. */
+  :where(a,button,select,summary,[tabindex],[role="button"]):focus-visible{
+    outline:2px solid var(--bb-accent);outline-offset:2px}
+
+  /* The sheen. One slow highlight crossing a PRIMARY action on hover - the single most reliable
+     "this is expensive software" tell, and restricted to primary actions on purpose: on every
+     button it reads as a screensaver. */
+  .btn.gold,.btn.primary,button.primary,.sbtn.primary,#bbsyncall{position:relative;overflow:hidden}
+  .btn.gold::after,.btn.primary::after,button.primary::after,.sbtn.primary::after,
+  #bbsyncall::after{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+    background:linear-gradient(115deg,transparent 34%,rgba(255,255,255,.22) 48%,transparent 62%);
+    translate:-140% 0;transition:translate .62s var(--bb-ease)}
+  .btn.gold:hover::after,.btn.primary:hover::after,button.primary:hover::after,
+  .sbtn.primary:hover::after,#bbsyncall:hover::after{translate:140% 0}
+
+  /* ---------- 3. SURFACES ------------------------------------------------------------------
+     The reveal offset and the hover lift are composed through TWO VARIABLES inside one
+     `translate`, never by two rules fighting over the same declaration. They would always be an
+     unfair fight: the reveal rule has to be scoped to `html.bb-motion` (part 4), which outranks a
+     plain `.card:hover`, so a hover lift written as `translate:0 -2px` silently loses on every
+     revealed card and the lift simply never happens. */
+  .card,.tile,.drow,.agency-card,.unassigned-card,.braincard,.bbcard{
+    position:relative;
+    translate:0 calc(var(--bb-rev,0px) + var(--bb-hov,0px));
+    transition:translate .32s var(--bb-ease),box-shadow .32s var(--bb-ease),
+               border-color .32s var(--bb-ease-soft),background-color .2s var(--bb-ease-soft)}
+  .card:not(form):hover,.drow:hover,.agency-card:hover,.braincard:hover,.unassigned-card:hover{
+    --bb-hov:-2px;
+    box-shadow:0 1px 2px rgba(0,0,0,.3),0 22px 44px -30px rgba(0,0,0,.95),
+               0 0 0 1px color-mix(in srgb,var(--bb-accent) 24%,transparent)}
+
+  /* The cursor spotlight. A soft accent light inside the hovered surface that tracks the pointer
+     (the engine writes --bb-mx/--bb-my on the hovered element only, so exactly one gradient is
+     ever being repainted). This is the layer that makes a static grid of tiles feel handled. */
+  .tile.live::after,.card:not(form)::after,.drow::after,.agency-card::after{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:0;
+    opacity:0;transition:opacity .3s var(--bb-ease);
+    background:radial-gradient(300px circle at var(--bb-mx,50%) var(--bb-my,0%),
+      color-mix(in srgb,var(--bb-accent) 11%,transparent),transparent 60%)}
+  .tile.live:hover::after,.card:not(form):hover::after,.drow:hover::after,
+  .agency-card:hover::after{opacity:1}
+  /* a surface's own content has to stay above its spotlight - and ONLY where a spotlight is
+     actually painted, so the login form (a `.card` that is a <form>) keeps its children untouched */
+  .tile>*,.card:not(form)>*,.drow>*,.agency-card>*{position:relative;z-index:1}
+
+  /* Figures are data: tabular so a column of them lines up and a counting figure cannot twitch. */
+  .bbpstat b,.bbp-num,.count,.dgcount,.pwval,.slug,.path{font-variant-numeric:tabular-nums}
+
+  /* The masthead: glass, and it sinks a shadow plus an accent hairline once the page has
+     scrolled under it. The translucent background each bar needs is set by the page itself (it
+     has to match that page's own bar colour); everything reactive is here. */
+  .topbar{backdrop-filter:blur(12px) saturate(150%);
+    -webkit-backdrop-filter:blur(12px) saturate(150%);
+    transition:box-shadow .3s var(--bb-ease),background-color .3s var(--bb-ease)}
+  .topbar::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+    pointer-events:none;opacity:0;transition:opacity .35s var(--bb-ease);
+    background:linear-gradient(90deg,transparent,
+      color-mix(in srgb,var(--bb-accent) 65%,transparent),transparent)}
+  body.bb-scrolled .topbar{box-shadow:0 16px 36px -24px rgba(0,0,0,.95)}
+  body.bb-scrolled .topbar::after{opacity:1}
+
+  /* The tab rail gets a sliding indicator instead of a border that blinks from one tab to the
+     next. `bb-ink-on` is added by the engine only once it has measured the active tab, so a
+     browser that never runs it keeps the original border underline. */
+  .bbtabs{position:relative}
+  .bbtabs .bb-ink{position:absolute;bottom:-1px;left:0;height:2.5px;width:0;border-radius:3px;
+    pointer-events:none;background:var(--bb-tab-ink);
+    box-shadow:0 0 12px color-mix(in srgb,var(--bb-tab-ink) 55%,transparent);
+    transition:translate .34s var(--bb-ease),width .34s var(--bb-ease)}
+  .bbtabs.bb-ink-on .bbtab.on{border-bottom-color:transparent}
+
+  /* ---------- 4. SCROLL REVEAL -------------------------------------------------------------
+     The engine tags surfaces with [data-bb-reveal] and adds .bb-in on first intersection. The
+     hidden half is scoped to html.bb-motion: drop that class and every surface is visible again,
+     which is exactly what the head bootstrap does if the engine never reports in. */
+  html.bb-motion [data-bb-reveal]{--bb-rev:16px;opacity:0;
+    translate:0 calc(var(--bb-rev,0px) + var(--bb-hov,0px));
+    transition:opacity .55s var(--bb-ease),translate .45s var(--bb-ease),
+               box-shadow .32s var(--bb-ease),border-color .32s var(--bb-ease-soft)}
+  html.bb-motion [data-bb-reveal].bb-in{--bb-rev:0px;opacity:1}
+
+  /* Every portal tile arrives, not just a themed one. Same keyframe name and same shape as the
+     themed block's own rule so the two can never disagree; this one simply also covers the
+     agencies that have no theme. */
+  @keyframes bbTileIn{from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none}}
+  html.bb-motion .tile{animation:bbTileIn .42s var(--bb-ease) both;
+    animation-delay:calc(var(--i,0) * 55ms)}
+
+  /* Scroll rail: a 2px accent line across the very top that fills as you read. The engine only
+     creates it on a page that actually scrolls. */
+  #bbProgress{position:fixed;top:0;left:0;height:2px;width:100%;z-index:90;transform-origin:0 50%;
+    transform:scaleX(0);pointer-events:none;
+    background:linear-gradient(90deg,color-mix(in srgb,var(--bb-accent) 30%,transparent),
+                                     var(--bb-accent))}
+
+  /* ---------- 5. THE LAST UN-THEMED SURFACES ----------------------------------------------- */
+  ::selection{background:color-mix(in srgb,var(--bb-accent) 32%,transparent);color:#fff}
+  *{scrollbar-width:thin;
+    scrollbar-color:color-mix(in srgb,var(--bb-accent) 34%,transparent) transparent}
+  *::-webkit-scrollbar{width:10px;height:10px}
+  *::-webkit-scrollbar-track{background:transparent}
+  *::-webkit-scrollbar-thumb{border-radius:8px;border:2px solid transparent;
+    background-clip:padding-box;
+    background-color:color-mix(in srgb,var(--bb-accent) 26%,transparent)}
+  *::-webkit-scrollbar-thumb:hover{background-clip:padding-box;
+    background-color:color-mix(in srgb,var(--bb-accent) 48%,transparent)}
+
+  /* ---------- PRINT: nothing may be invisible on paper -------------------------------------
+     Printing uses the styles computed RIGHT NOW - it does not re-run the observer - so without
+     this a card that had not been scrolled to prints as a blank box. Somebody WILL print the
+     password console. */
+  @media print{
+    .bb-amb,.bb-grain,.bbtabs .bb-ink,#bbProgress{display:none !important}
+    [data-bb-reveal],[data-bb-reveal].bb-in{--bb-rev:0px !important;--bb-hov:0px !important;
+      opacity:1 !important;transition:none !important}
+    html.bb-motion .tile{animation:none !important;opacity:1 !important}
+    .card,.tile,.drow,.agency-card,.unassigned-card,.braincard,.bbcard{transition:none !important}
+    .tile.live::after,.card::after,.drow::after,.agency-card::after{display:none !important}
+  }
+
+  /* ---------- Reduced motion: stop ALL of it -----------------------------------------------
+     The head bootstrap never adds `bb-motion` here, so nothing is hidden in the first place and
+     the tiles never animate in; these rules kill the drifting light and the hover geometry too. */
+  @media (prefers-reduced-motion: reduce){
+    .bb-amb i{animation:none !important}
+    .bbtabs .bb-ink{transition:none !important}
+    .card,.tile,.drow,.agency-card,.unassigned-card,.braincard,.bbcard,
+    .btn,.bbbtn,.sbtn,.slidesbtn,.msbtn,.icbtn,.icon-btn,.chgbtn,button,select{
+      transition:none !important}
+    .card:not(form):hover,.drow:hover,.agency-card:hover,.braincard:hover,
+    .unassigned-card:hover{--bb-hov:0px !important}
+    .btn:hover,.bbbtn:hover,.sbtn:hover,.slidesbtn:hover,.msbtn:hover,.chgbtn:hover{
+      translate:none !important}
+    .btn:active,.bbbtn:active,.sbtn:active,.slidesbtn:active,.msbtn:active,.chgbtn:active,
+    .icbtn:active,.icon-btn:active,.bbtab:active{scale:none !important}
+    .btn.gold::after,.btn.primary::after,button.primary::after,.sbtn.primary::after,
+    #bbsyncall::after{display:none !important}
+  }
+</style>
+
+<script>
+/* ===================== BB PLATFORM PREMIUM v1 - engine (presentation only) =====================
+   It reads the DOM the templates produced and re-times how it ARRIVES; it never computes,
+   formats or alters a value. The one place it touches rendered output - the count-up - animates a
+   parsed copy and writes the ORIGINAL string back on the final frame, character for character.
+   Self-contained: one IIFE, one global (window.bbPremium), which is also what proves to the head
+   bootstrap that the engine is alive.                                                          */
+(function(){
+  var doc = document, root = doc.documentElement;
+  var api = {};
+  window.bbPremium = api;                    /* claim the flag FIRST - see _premium_head.html */
+
+  var REDUCED = false;
+  try { REDUCED = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch(e){}
+
+  /* ---- 1. count-up ---------------------------------------------------------------------
+     STRICTLY conservative: only a leaf element whose WHOLE text is one number with optional
+     affixes is animated, and the last frame writes the original string back verbatim. Anything
+     it cannot parse is left completely alone. */
+  var NUM_RE = /^([^0-9-]*)(-?[0-9][0-9,]*(?:\.[0-9]+)?)([^0-9]*)$/;
+  var COUNT_SEL = '.bbpstat b,.bbp-num';
+  function countUp(el){
+    if (REDUCED || el.dataset.bbCount || el.children.length) return;
+    var raw = el.textContent;
+    if (!raw || raw.length > 26) return;
+    var m = raw.trim().match(NUM_RE);
+    if (!m) return;
+    var target = parseFloat(m[2].replace(/,/g, ''));
+    if (!isFinite(target) || Math.abs(target) > 1e9) return;
+    el.dataset.bbCount = '1';
+    var dec = (m[2].split('.')[1] || '').length;
+    var grouped = m[2].indexOf(',') >= 0;
+    function fmt(v){
+      var s = Math.abs(v).toFixed(dec);
+      if (grouped){ var p = s.split('.'); p[0] = p[0].replace(/\B(?=(\d{3})+(?!\d))/g, ','); s = p.join('.'); }
+      return m[1] + (v < 0 ? '-' : '') + s + m[3];
+    }
+    var dur = 720, t0 = performance.now();
+    (function step(now){
+      var p = Math.min(1, (now - t0) / dur);
+      var e = 1 - Math.pow(1 - p, 4);
+      if (p < 1){ el.textContent = fmt(target * e); requestAnimationFrame(step); }
+      else { el.textContent = raw; }                 /* the exact original string, always */
+    })(t0);
+  }
+
+  /* ---- 2. the reveal observer ----------------------------------------------------------
+     .tile is deliberately NOT in this list: the portal already gives tiles a load-in stagger
+     (bbTileIn), and an element carrying both an entry animation and the reveal would be fighting
+     itself over opacity. */
+  var REVEAL_SEL = '.shead,.card:not(form),.drow,.agency-card,.unassigned-card,.braincard,' +
+                   '.bbcard,.dghead,.badges,.bbsyncbar';
+  var io = null;
+  function reveal(el){
+    el.classList.add('bb-in');
+    if (io) io.unobserve(el);
+    var f = el.querySelectorAll(COUNT_SEL);
+    for (var i = 0; i < f.length; i++) countUp(f[i]);
+  }
+  function onIntersect(entries){
+    for (var i = 0; i < entries.length; i++) if (entries[i].isIntersecting) reveal(entries[i].target);
+  }
+  function tag(el, i){
+    if (el.dataset.bbReveal) return;
+    el.dataset.bbReveal = '1';
+    el.style.transitionDelay = Math.min(i * 45, 220) + 'ms';   /* stagger within the parent row */
+    if (!io){ reveal(el); return; }
+    io.observe(el);
+  }
+  function isNear(el){
+    var r = el.getBoundingClientRect();
+    return r.bottom > -80 && r.top < (window.innerHeight + 80) && r.width > 0;
+  }
+  var sweepT = null, queued = false;
+  function scan(){
+    queued = false;
+    var seen = new Map(), els = doc.querySelectorAll(REVEAL_SEL);
+    for (var i = 0; i < els.length; i++){
+      var el = els[i], k = el.parentNode, n = seen.get(k) || 0;
+      seen.set(k, n + 1);
+      tag(el, n);
+    }
+    /* every tile gets its stagger index, whether or not the template inlined one */
+    var tiles = doc.querySelectorAll('.tile');
+    for (var t = 0; t < tiles.length; t++){
+      if (!tiles[t].style.getPropertyValue('--i')) tiles[t].style.setProperty('--i', t);
+    }
+    clearTimeout(sweepT); sweepT = setTimeout(sweep, 1000);
+  }
+  function schedule(){ if (!queued){ queued = true; requestAnimationFrame(scan); } }
+
+  /* WATCHDOG - the safety net for the whole reveal idea. A second after any scan, anything still
+     unrevealed but sitting in the viewport is shown unconditionally. If this ever fires it is
+     papering over a bug, and the page still reads. */
+  function sweep(){
+    var st = doc.querySelectorAll('[data-bb-reveal]:not(.bb-in)');
+    for (var i = 0; i < st.length; i++){
+      var el = st[i];
+      if (el.offsetParent === null) continue;        /* in a hidden pane - genuinely off screen */
+      if (!isNear(el)) continue;
+      reveal(el);
+    }
+  }
+
+  /* ---- 3. the cursor spotlight ---------------------------------------------------------
+     One delegated pointermove, rAF-coalesced, writing two custom properties on the surface under
+     the cursor and nothing else. No layout is read except the hovered element's own rect. */
+  var SPOT_SEL = '.tile.live,.card,.drow,.agency-card';
+  function spotlight(){
+    if (REDUCED) return;
+    var pending = null, spotQ = false;
+    function queueSpot(){
+      if (spotQ) return;
+      spotQ = true;
+      requestAnimationFrame(function(){
+        spotQ = false;
+        if (!pending) return;
+        var r = pending.el.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        pending.el.style.setProperty('--bb-mx', ((pending.x - r.left) / r.width * 100).toFixed(1) + '%');
+        pending.el.style.setProperty('--bb-my', ((pending.y - r.top) / r.height * 100).toFixed(1) + '%');
+      });
+    }
+    doc.addEventListener('pointermove', function(e){
+      if (e.pointerType === 'touch') return;
+      var el = e.target && e.target.closest ? e.target.closest(SPOT_SEL) : null;
+      if (!el) return;
+      pending = {el: el, x: e.clientX, y: e.clientY};
+      queueSpot();
+    }, {passive:true});
+  }
+
+  /* ---- 4. the sliding tab indicator ----------------------------------------------------
+     The ink takes the ACTIVE TAB'S OWN computed underline colour rather than a hardcoded one, so
+     a themed portal (amber) and the house palette (green) both come out right with no per-theme
+     rule. Measured before the border is hidden, obviously. */
+  function tabInk(){
+    var rail = doc.querySelector('.bbtabs');
+    if (!rail || !rail.querySelector('.bbtab')) return;
+    var ink = doc.createElement('span');
+    ink.className = 'bb-ink';
+    ink.setAttribute('aria-hidden', 'true');
+    rail.appendChild(ink);
+    function move(){
+      var on = rail.querySelector('.bbtab.on');
+      if (!on){ ink.style.width = '0px'; return; }
+      if (!rail.classList.contains('bb-ink-on')){
+        var c = getComputedStyle(on).borderBottomColor;
+        if (c && c !== 'rgba(0, 0, 0, 0)' && c !== 'transparent') rail.style.setProperty('--bb-tab-ink', c);
+        rail.classList.add('bb-ink-on');
+      }
+      ink.style.width = on.offsetWidth + 'px';
+      ink.style.translate = on.offsetLeft + 'px 0';
+    }
+    /* the tab handler in _status_merge.html runs on the same click; a rAF puts us after it */
+    rail.addEventListener('click', function(){ requestAnimationFrame(move); });
+    window.addEventListener('resize', move, {passive:true});
+    move();
+    /* webfonts land after first paint and re-measure every tab */
+    if (doc.fonts && doc.fonts.ready) doc.fonts.ready.then(move).catch(function(){});
+  }
+
+  /* ---- 5. one scroll handler: masthead state + the top rail ----------------------------
+     rAF-coalesced, and it only writes a class and a transform - no layout reads beyond
+     scrollY/scrollHeight. The rail is only built on a page that actually scrolls, so the login
+     card never gets a progress bar that can only ever read 0%. */
+  function scrollFx(){
+    var rail = null;
+    /* 240px, not "does it scroll at all": a login card that overruns a short window by a hundred
+       pixels is not a document, and a progress rail on it would only ever read nearly-full. */
+    if (root.scrollHeight > window.innerHeight + 240){
+      rail = doc.createElement('div');
+      rail.id = 'bbProgress';
+      rail.setAttribute('aria-hidden', 'true');
+      doc.body.appendChild(rail);
+    }
+    var raf = false, sweepQ = false;
+    function onScroll(){
+      if (raf) return;
+      raf = true;
+      requestAnimationFrame(function(){
+        raf = false;
+        var y = window.scrollY || 0;
+        if (doc.body) doc.body.classList.toggle('bb-scrolled', y > 20);
+        if (rail){
+          var max = Math.max(1, root.scrollHeight - window.innerHeight);
+          rail.style.transform = 'scaleX(' + Math.min(1, y / max) + ')';
+        }
+        if (!sweepQ){ sweepQ = true; setTimeout(function(){ sweepQ = false; sweep(); }, 120); }
+      });
+    }
+    window.addEventListener('scroll', onScroll, {passive:true});
+    window.addEventListener('resize', onScroll, {passive:true});
+    onScroll();
+  }
+
+  function init(){
+    scrollFx();
+    spotlight();
+    tabInk();
+    if ('IntersectionObserver' in window){
+      /* threshold 0, NOT a fraction: threshold is the share of the ELEMENT that is visible, so a
+         surface taller than the viewport can never reach 6% and would sit at opacity 0 forever. */
+      io = new IntersectionObserver(onIntersect, {rootMargin:'0px 0px -3% 0px', threshold:0});
+    }
+    scan();
+    /* the accuracy pane and the grid pane render their cards after a fetch, so re-scan on DOM
+       change rather than editing those render functions. childList only + one rAF coalesce. */
+    if ('MutationObserver' in window && doc.body){
+      new MutationObserver(schedule).observe(doc.body, {childList:true, subtree:true});
+    }
+    window.addEventListener('load', schedule);
+  }
+  api.scan = schedule;
+  api.sweep = sweep;
+  try{
+    if (doc.readyState === 'loading') doc.addEventListener('DOMContentLoaded', init); else init();
+  }catch(e){
+    /* if the engine itself cannot start, make sure nothing stays hidden */
+    root.className = (' ' + root.className + ' ').replace(' bb-motion ', ' ').trim();
+  }
+})();
+</script>

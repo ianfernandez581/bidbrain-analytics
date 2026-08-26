@@ -297,6 +297,41 @@ Two MongoDB/STT-grade capabilities every dashboard carries:
 **CSV exports:** *Export tab* (the current view's table, honouring the date/stage/search filters) and
 *Export all* (the full per-day, per-ad fact table).
 
+## The motion layer (2026-08-26)
+
+Presentation only. No sql, job, payload or export path is touched, and the rendered TEXT of the
+dashboard is unchanged - it is `dash/dashboard.html` + `dash/main.py` and nothing else, so
+`deploy_dash_geocon.ps1` covers it.
+
+**Client-specific motion sits ABOVE the `BB-MOTION-KIT` / `BB-LOGIN-KIT` blocks, never inside
+them.** `scripts/apply_motion_kit.py` rewrites those blocks in place, so an edit made inside one
+is silently lost on its next run. Because the client block sits EARLIER in the file, its selectors
+carry one extra level of specificity (`body .bb-lgfx .o1`, not `.bb-lgfx .o1`) or the kit wins the
+cascade at equal weight.
+
+**The kit already owns `translate` and `scale`** (its hover lift, its press state, and the
+`--bb-rev`/`--bb-hov` composition behind the scroll reveal). Nothing added here touches either
+property - the polish is pseudo-elements, `box-shadow`, colour and `filter` only. Two rules over
+one geometry property is a fight the more specific one wins silently, which is exactly how a hover
+lift can stop firing with no error.
+
+**Charts** were running on bare Chart.js defaults (everything arrived at once, hover snapped).
+`initChartDefaults()` now sets three separate things: a staggered ENTRY (`animation.delay` as a
+function of `dataIndex`, capped at 260ms - past about a third of a second the last bar reads as lag,
+and these charts can hold 100+ points), eased HOVER (`animations.colors`/`numbers`), and a SHORT
+`transitions.active` (180ms; any longer and the tooltip visibly trails the cursor) plus
+`transitions.resize` at 0 so a window drag does not replay the entry. Donuts get `hoverOffset`.
+**`animation.delay` is scriptable and safe; a function under `options.plugins.*` is NOT** - it is
+treated as a scriptable option, auto-invoked, throws, and silently blanks the whole chart.
+
+**The login's drafting sheet drifts on a seamless loop.** Its grid periods are 26px and 130px, and
+130 is exactly 5x26, so translating the layer by 130px in each axis lands the pattern back on
+itself and the loop point is invisible - change that number and a seam appears. The layer is
+inflated (`inset:-150px`) so the drift can never expose an uncovered edge, and it is transform-only
+rather than `background-position`, which would repaint. The original design note stands - a
+property developer brand should not bounce - so this is a 96s drift and a 300s rotation, not
+animation. Everything stops under `prefers-reduced-motion`.
+
 ## AI report (`dash/report.py` + `/report` in `dash/main.py`)
 
 Two-stage Claude Opus 4.8 call (Stage A web-grounded analyst notes, Stage B strict-schema slide JSON),

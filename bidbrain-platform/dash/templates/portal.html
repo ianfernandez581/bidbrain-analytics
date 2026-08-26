@@ -10,11 +10,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
 <style>
   :root{
     --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --border:rgba(255,255,255,.08);
     --text:#e8ebf2; --muted:#8a93a6; --accent:#3b82f6; --active:#22c55e;
     --chip-bg:#1a2334; --chip-text:#9aa6bd;
+    /* The one token _premium.html derives every colour from. Deliberately the cornflower the
+       page already washes its background with, not --accent's slightly deeper #3b82f6. */
+    --bb-accent:#4C8DFF;
   }
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;color:var(--text);
@@ -25,8 +29,9 @@
          var(--bg);
        background-repeat:no-repeat;background-attachment:fixed;
        font-family:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  /* translucent on purpose: _premium.html blurs whatever passes under this bar */
   .topbar{display:flex;align-items:center;gap:14px;padding:14px 28px;
-          border-bottom:1px solid var(--border);background:#0c121e;position:sticky;top:0;z-index:10}
+          border-bottom:1px solid var(--border);background:rgba(12,18,30,.74);position:sticky;top:0;z-index:10}
   .topbar .logo svg{height:24px;width:auto;display:block}
   .topbar .label{font-size:13px;color:var(--muted);font-weight:500}
   .spacer{flex:1}
@@ -38,18 +43,23 @@
   .viewpill{font-size:11px;font-weight:700;letter-spacing:.4px;color:#fbbf24;
             background:rgba(251,191,36,.14);border:1px solid rgba(251,191,36,.32);
             padding:4px 10px;border-radius:999px}
-  .wrap{max-width:1080px;margin:0 auto;padding:40px 28px 64px}
+  /* SHELL SCALE (2026-08-26). The shell was capped at 1080px, which on a 1536px viewport left
+     ~200px of dead margin either side and made everything read oversized at 100% browser zoom -
+     the size a client or agency actually gets, since Chrome stores zoom per host and they have
+     none saved. Widened here and the display type brought down to match; body copy is deliberately
+     UNCHANGED, because "less zoomed" must not become "harder to read". */
+  .wrap{max-width:1280px;margin:0 auto;padding:36px 32px 64px}
   /* logo centered; the agency name is dropped when a logo is present (logo carries the identity) */
   .agencylogo{margin:0 auto 24px;width:fit-content;max-width:100%}
   .agencylogo svg{height:52px;width:auto;display:block}
   .agencylogo img{height:88px;width:auto;display:block}
   .agencylogo.light{background:#fff;padding:12px 16px;border-radius:14px;
                     box-shadow:0 8px 28px rgba(0,0,0,.35)}
-  h1{font-size:26px;font-weight:800;margin:0 0 4px}
+  h1{font-size:23px;font-weight:800;margin:0 0 4px}
   .agencyslug{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
               color:var(--chip-text);background:var(--chip-bg);padding:3px 8px;border-radius:6px;margin-left:10px}
   .lead{color:var(--muted);font-size:14px;margin:0 0 32px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:16px}
   .tile{display:block;text-decoration:none;color:inherit;background:var(--panel);
         border:1px solid var(--border);border-radius:14px;padding:20px 20px 18px;
         transition:border-color .15s,transform .15s,background .15s}
@@ -506,6 +516,9 @@
     outline:none;transition:border-color .16s,box-shadow .16s}
   .bbfind input::placeholder{color:var(--muted);opacity:1}
   .bbfind input:focus{border-color:var(--accent)}
+  /* type=search brings Chrome's OWN cancel button, which sat next to .clr and drew two crosses
+     in one field. Ours stays, because it is the one that is styled and keyboard-reachable. */
+  .bbfind input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none;display:none}
   .bbfind .ic,.bbfind .kb{position:absolute;top:50%;translate:0 -50%;pointer-events:none;color:var(--muted)}
   .bbfind .ic{left:10px;display:flex;align-items:center;line-height:0;opacity:.75}
   .bbfind .kb{right:8px;font:600 10px/1 ui-monospace,SFMono-Regular,Consolas,monospace;
@@ -542,10 +555,12 @@
     opacity:0;transition:opacity .28s}
   .tile.live:hover::before{opacity:1}
   .tile.live{transition:border-color .2s,box-shadow .28s,translate .22s,background-color .2s}
-  .tile.live:hover{translate:0 -3px;
+  /* the LIFT is expressed as --bb-hov, the variable _premium.html composes with the reveal
+     offset inside one `translate` - two rules writing `translate` directly would fight */
+  .tile.live:hover{--bb-hov:-3px;
     box-shadow:0 1px 2px rgba(0,0,0,.28),0 20px 40px -26px rgba(0,0,0,.85),
                0 0 0 1px color-mix(in srgb,var(--accent) 22%,transparent)}
-  .tile.live:active{translate:0 -1px;transition-duration:.08s}
+  .tile.live:active{--bb-hov:-1px;transition-duration:.08s}
   .tile:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
   .tile .open{transition:translate .2s}
   .tile.live:hover .open{translate:3px 0}
@@ -575,12 +590,15 @@
 
   @media (prefers-reduced-motion: reduce){
     .tile.live,.tile .open{transition:none !important}
-    .tile.live:hover,.tile.live:active{translate:none !important}
+    .tile.live:hover,.tile.live:active{--bb-hov:0px !important}
   }
 </style>
 {% if theme %}
 <style>
   /* themed agency: the new chrome takes the agency's own accent, not the house blue */
+  :root{--bb-accent:{{ theme.accent }}}
+  /* the shared layer blurs whatever passes under the bar, so it has to be translucent here too */
+  .topbar{background:{{ theme.topbar }}c4}
   .bbfind input:focus{border-color:{{ theme.accent }}}
   .bbpstat.is-live b{color:{{ theme.accent }}}
   .bbtoolbar #bbsyncall.bbbtn:hover{border-color:{{ theme.accent }};
@@ -1371,5 +1389,51 @@
   });
 })();
 </script>
+{% include "_premium.html" %}
+{# ===== PORTAL PREMIUM PASS v2 - after the shared layer so these win. Chrome only: no tile is
+   added, removed, re-ordered or re-labelled, and every colour still comes from a token so a
+   themed agency inherits its own palette. ===== #}
+<style>
+  /* ACTIVE stops being a static word and breathes. It is the only thing on the page claiming
+     something is happening RIGHT NOW, so it is the one thing that should move.
+
+     It is a PSEUDO-ELEMENT HALO, not a dot inside the pill, and that is deliberate: a 6px dot
+     plus its gap widened the pill by ~11px, which was enough to wrap "Schneider Secure Power"
+     onto two lines and change every tile's height on the themed portal. Nothing here occupies a
+     single pixel of layout. Semantic green is untouched - the halo takes the pill's own colour. */
+  .pill.active{position:relative}
+  .pill.active::after{content:"";position:absolute;inset:0;border-radius:inherit;
+    pointer-events:none;animation:bbLive 2.8s ease-out infinite}
+  @keyframes bbLive{
+    0%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 40%,transparent)}
+    70%{box-shadow:0 0 0 6px color-mix(in srgb,currentColor 0%,transparent)}
+    100%{box-shadow:0 0 0 0 color-mix(in srgb,currentColor 0%,transparent)}}
+
+  /* The tile's arrow gets a real destination cue, and the health chip settles with everything
+     else instead of snapping in when its fetch lands. */
+  .tile .open{transition:translate .22s var(--bb-ease),color .2s var(--bb-ease-soft)}
+  .bbhealth{transition:opacity .35s var(--bb-ease)}
+
+  /* The masthead mark lifts a fraction on hover - the portal's one piece of identity, so it is
+     worth making it feel like an object rather than an image. */
+  .agencylogo{transition:translate .35s var(--bb-ease),filter .35s var(--bb-ease)}
+  .agencylogo:hover{translate:0 -2px;filter:brightness(1.04)}
+
+  /* The control bar reads as one instrument: the counts and the filter share a lit top edge. */
+  .bbsyncbar.bbtoolbar{position:relative;overflow:hidden}
+  .bbsyncbar.bbtoolbar::before{content:"";position:absolute;left:14%;right:14%;top:0;height:1px;
+    pointer-events:none;
+    background:linear-gradient(90deg,transparent,
+      color-mix(in srgb,var(--bb-accent) 45%,transparent),transparent)}
+
+  /* "Open slides" is a real action that costs a paid model run, so it presses like one. */
+  .slidesbtn{transition:background-color .18s var(--bb-ease-soft),translate .16s var(--bb-ease),
+                        box-shadow .24s var(--bb-ease)}
+
+  @media (prefers-reduced-motion: reduce){
+    .pill.active::before{animation:none}
+    .agencylogo:hover{translate:none !important}
+  }
+</style>
 </body>
 </html>
