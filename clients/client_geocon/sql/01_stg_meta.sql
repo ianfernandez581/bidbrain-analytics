@@ -5,8 +5,16 @@
 -- table carrying six Meta ad accounts incl. other agencies', so the account_id pins the slice
 -- to the 100% Digital - Clients account (act 3754165911553001); and that account hosts SEVERAL
 -- 100-digital clients (geocon, bellshakespeare, nextsmile), so the prefix is still needed to
--- split them. STARTS_WITH('Geocon_') lets future Geocon campaigns (e.g. The Irving) flow in
--- automatically and is immune to the trailing-space quirk in 'Geocon_Traffic_MayJune 2026'.
+-- split them. The prefix test runs on the name with any leading BRIEF NUMBER stripped
+-- ('0201_Geocon_NGW558_...' -> 'Geocon_NGW558_...'), which still pins the slice to Geocon while
+-- surviving the numbering Geocon's agency now puts on every Northbourne campaign (confirmed on
+-- its live Trade Desk and Google Ads lines, 2026-08-27). A bare STARTS_WITH(campaign_name,
+-- 'Geocon_') would drop 100% of Northbourne's Meta delivery SILENTLY: the rows never reach the
+-- property map below, so the export job's Unmapped WARNING cannot fire for them either. This is
+-- the repo-wide rule in md/AGENTS.md -- campaign names are NOT stable keys, and STARTS_WITH is
+-- the shape that breaks outright on a prefix. Normalising also lets future Geocon developments
+-- (e.g. The Irving) flow in automatically and is immune to the trailing-space quirk in
+-- 'Geocon_Traffic_MayJune 2026'.
 CREATE OR REPLACE VIEW `bidbrain-analytics.client_geocon.stg_meta` AS
 -- PROPERTY MAP JOIN (client_schneider seed_campaign_map pattern, de-correlated). BigQuery cannot
 -- run the map as a correlated scalar subquery, so it is resolved exactly as schneider's idOf()
@@ -20,7 +28,7 @@ WITH map AS (
 base AS (
   SELECT * FROM `bidbrain-analytics.raw_windsor.perf_meta`
   WHERE account_id = '3754165911553001'   -- 100% Digital - Clients
-    AND STARTS_WITH(campaign_name, 'Geocon_')
+    AND STARTS_WITH(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), 'Geocon_')
 ),
 camps AS (SELECT DISTINCT TRIM(campaign_name) AS cname FROM base),
 camp_rank AS (
