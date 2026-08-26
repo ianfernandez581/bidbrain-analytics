@@ -293,6 +293,14 @@ touched, and the rendered TEXT of every dashboard is byte-identical with and wit
 - **`cloudflare` keeps its own richer, client-approved layer** (see its README -> "The motion
   layer"); the kit is the portable subset of it. `sophiie`'s aurora IS its design. Do not unify
   either onto the kit.
+- **The PLATFORM's own pages carry a sibling, not the kit** (2026-08-26): login, agency portal,
+  admin tree and super-admin console include `bidbrain-platform/dash/templates/_premium_head.html`
+  (in `<head>`) + `_premium.html` (LAST in `<body>`, after `_status_merge.html` or that partial's
+  end-of-document `<style>` wins). Same mechanisms and same names - `html.bb-motion`,
+  `[data-bb-reveal]`, the `--bb-rev`/`--bb-hov` `@property` pair, `body.bb-scrolled`,
+  `#bbProgress` - re-pointed at platform class names, and every colour derives from ONE token,
+  `--bb-accent`. `apply_motion_kit.py` does NOT touch those templates; edit them directly.
+  Detail: `bidbrain-platform/README.md` -> "The premium layer".
 - Nothing injected may contain `</body>`, `</head>`, `</style>`, `<body`, `/data.json`, `'/report'`
   or `/creative-img/` - the platform proxy string-replaces those across the whole page, so a stray
   one even inside a comment moves where it injects its own widgets. The login kit additionally

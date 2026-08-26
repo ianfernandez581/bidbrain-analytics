@@ -373,6 +373,59 @@
 
 
 
+  /* ==== Geocon: interaction polish (client-specific, NOT part of the motion kit) ==========
+     Sits ABOVE the kit block on purpose. apply_motion_kit.py rewrites that block, so anything
+     written inside it is lost on the next run.
+
+     The kit already owns `translate` and `scale` (hover lift, press). NOTHING here touches
+     either - these use pseudo-elements, box-shadow, colour and filter only, so the two layers
+     compose instead of fighting. That was a real failure mode on this estate: two rules over
+     one geometry property, and the more specific one silently wins.
+     ==================================================================================== */
+
+  /* Tabs: the underline grows from the centre on hover instead of appearing. On the ACTIVE
+     tab it is already full width, so it must not animate - a live tab that re-draws its own
+     underline when the pointer passes reads as a glitch. */
+  .tab{position:relative}
+  .tab::after{content:"";position:absolute;left:50%;right:50%;bottom:-2px;height:2px;
+    background:var(--accent);opacity:.55;border-radius:2px;
+    transition:left .26s var(--bb-ease),right .26s var(--bb-ease),opacity .2s var(--bb-ease-soft)}
+  .tab:hover::after{left:14%;right:14%}
+  .tab.on::after{display:none}
+
+  /* KPI tiles: the status dot breathes its ring outward. Colour comes from --kc, which each
+     tile already sets, so this works for every metric without per-tile rules. */
+  .kpi .label::before{transition:box-shadow .3s var(--bb-ease),scale .22s var(--bb-ease)}
+  .kpi:hover .label::before{
+    box-shadow:0 0 0 5px color-mix(in srgb,var(--kc,var(--accent)) 26%,transparent),
+               0 0 14px 0 color-mix(in srgb,var(--kc,var(--accent)) 55%,transparent);
+    scale:1.14}
+
+  /* Buttons: the icon leads the label by a hair. Movement is on the SVG, never the button,
+     so the kit's 1px lift on the button itself is untouched. */
+  .btn svg,.export-btn svg{transition:translate .22s var(--bb-ease)}
+  .btn:hover svg,.export-btn:hover svg{translate:2px 0}
+
+  /* Segmented controls: the active state fades rather than flicking between two fills. */
+  .seg button{transition:background-color .22s var(--bb-ease-soft),color .22s var(--bb-ease-soft)}
+
+  /* Chart panels: a chart is worth reading, so the panel says so when the pointer is over it.
+     border-color + shadow only - the kit is already moving the card 2px. */
+  .card:has(.chartbox){transition:border-color .3s var(--bb-ease-soft),box-shadow .3s var(--bb-ease)}
+  .card:has(.chartbox):hover{
+    border-color:color-mix(in srgb,var(--accent) 34%,rgba(255,255,255,.12))}
+
+  /* Select controls get the same focus affordance as everything else. */
+  .dash-select,select{transition:border-color .2s var(--bb-ease-soft),box-shadow .24s var(--bb-ease)}
+  .dash-select:hover,select:hover{box-shadow:0 6px 16px -12px var(--bb-glow)}
+
+  /* Everything above is decoration. Under reduced-motion it all resolves instantly. */
+  @media (prefers-reduced-motion:reduce){
+    .tab::after,.kpi .label::before,.btn svg,.export-btn svg,.seg button,
+    .card:has(.chartbox),.dash-select,select{transition:none !important}
+    .tab:hover::after{left:50%;right:50%}
+  }
+
 /* BB-MOTION-KIT:css v1 */
 
   /* ==========================================================================
@@ -1098,6 +1151,61 @@ const FONT={family:'"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-ser
 function indexToPeak(arr){const mx=Math.max(0,...arr.map(v=>Math.abs(+v||0)));return mx>0?arr.map(v=>v==null?null:v/mx*100):arr.map(v=>v==null?null:0);}
 function initChartDefaults(){
   Chart.defaults.font.family='"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif';
+  // ---------- motion ----------
+  // Chart.js was running on bare defaults here: everything arrived at once, and hover
+  // state snapped. Three separate settings, because they are three different moments.
+  //
+  // NOTE the Chart.js v4 trap: a FUNCTION under options.plugins.* is treated as a
+  // scriptable option, auto-invoked, throws, and silently BLANKS the chart. `delay`
+  // under `animation` IS legitimately scriptable, which is why the stagger lives here
+  // and nowhere near plugins.
+  //
+  // 1. ENTRY - a cascade, not a curtain. Stagger by data index so bars and points
+  //    arrive left-to-right; datasets are offset so overlaid lines follow their bars.
+  //    Capped at 260ms total stagger: past roughly a third of a second the last bar
+  //    reads as lag rather than choreography, and these charts can hold 100+ points.
+  Chart.defaults.animation = {
+    duration: 820,
+    easing: 'easeOutQuart',
+    delay: function(ctx){
+      if(!ctx || ctx.mode !== 'default' || ctx.type !== 'data') return 0;
+      var i = ctx.dataIndex || 0, ds = ctx.datasetIndex || 0;
+      return Math.min(i * 14, 260) + ds * 70;
+    }
+  };
+  // 2. HOVER - colour and geometry ease instead of snapping.
+  Chart.defaults.animations = Object.assign({}, Chart.defaults.animations, {
+    colors:  {type:'color',  duration:220, easing:'easeOutQuad'},
+    numbers: {type:'number', duration:260, easing:'easeOutQuart'}
+  });
+  // 3. ACTIVE/RESIZE - the active transition must be SHORT or the tooltip lags the
+  //    cursor; resize must be 0 or every window drag replays the whole entry.
+  Chart.defaults.transitions = Object.assign({}, Chart.defaults.transitions, {
+    active: {animation:{duration:180, easing:'easeOutQuad'}},
+    resize: {animation:{duration:0}}
+  });
+  // Hovering anywhere in the plot should respond, not only exactly on the mark.
+  Chart.defaults.hover = Object.assign({}, Chart.defaults.hover, {mode:'nearest', intersect:false});
+  // Arc segments lift out of the ring on hover - the clearest "this is interactive"
+  // cue a donut has, and it costs nothing.
+  try{
+    if(Chart.overrides && Chart.overrides.doughnut){
+      Chart.overrides.doughnut.hoverOffset = 10;
+      Chart.overrides.doughnut.hoverBorderColor = 'rgba(255,255,255,.55)';
+    }
+  }catch(e){}
+  // Bars brighten slightly under the cursor rather than changing colour, so the
+  // series identity never shifts mid-hover.
+  try{
+    if(Chart.defaults.elements && Chart.defaults.elements.bar){
+      Chart.defaults.elements.bar.hoverBorderWidth = 2;
+    }
+    if(Chart.defaults.elements && Chart.defaults.elements.point){
+      Chart.defaults.elements.point.hoverRadius = 6;
+      Chart.defaults.elements.point.hitRadius = 10;
+    }
+  }catch(e){}
+  Chart.defaults.plugins.tooltip.animation = {duration:180, easing:'easeOutQuart'};
   Chart.defaults.color=MC.muted;Chart.defaults.plugins.tooltip.backgroundColor='#0B0B0A';Chart.defaults.plugins.tooltip.borderColor='rgba(255,255,255,.12)';Chart.defaults.plugins.tooltip.borderWidth=1;
   Chart.defaults.plugins.tooltip.titleColor=MC.ink;Chart.defaults.plugins.tooltip.bodyColor=MC.ink;Chart.defaults.plugins.tooltip.padding=11;
   // clickable legends → discoverability note above the labels

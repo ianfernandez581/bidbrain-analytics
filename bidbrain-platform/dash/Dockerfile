@@ -11,6 +11,11 @@ COPY lineage ./lineage
 # happened to Extrablack. Adding an agency logo is now just dropping the file in this folder.
 COPY agency_* ./
 COPY admlogo_* ./
+# Per-CLIENT marks for the themed portals' tiles, discovered the same way (main._load_client_logos
+# globs `clientlogo_*`). They were committed on 2026-08-15 but never listed here, so CLIENT_LOGOS
+# was empty in the image and every themed tile silently fell back to its plain text heading - the
+# identical failure the comment above describes, one glob down. Found in QA on 2026-08-26.
+COPY clientlogo_* ./
 COPY favicon.ico favicon-32.png apple-touch-icon.png ./
 COPY templates ./templates
 # Drop root: Cloud Run does not need it (least privilege).

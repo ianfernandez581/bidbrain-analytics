@@ -362,6 +362,77 @@ A **"Hide explanation"** toggle collapses it to the compact login (link flips to
 works"**); the choice is remembered in `localStorage` (`bb_login_explain`) and **defaults to shown**. Pure
 front-end / decorative — no server contract changed, auth JS untouched, disabled under `prefers-reduced-motion`.
 
+## The premium layer (`_premium.html` + `_premium_head.html`, 2026-08-26)
+
+One shared look-and-feel layer across **login, agency portal, admin tree and super-admin console**.
+It is the estate's own vocabulary (`scripts/motion_kit/`, which every client dashboard carries)
+re-pointed at the platform's class names, so hovering, pressing and scrolling feels the same
+everywhere. **Presentation only: no route, permission, password or registry field is touched.**
+
+Two includes per page, and nothing else:
+- `{% include "_premium_head.html" %}` in `<head>` - marks `<html class="bb-motion">` so the
+  reveal CSS can only apply where JS is alive, and **removes that mark again** if the engine never
+  reports in (3.5s) or the page throws. Hiding content until an observer fires means a missed
+  callback could hide a PASSWORD; losing the animation is always the cheaper failure.
+- `{% include "_premium.html" %}` as the LAST thing in `<body>` - it must sit after
+  `_status_merge.html`, which injects its own `<style>` at the end of the document and would
+  otherwise win on source order.
+
+**Colour comes from ONE token.** `_premium.html` derives every colour from `--bb-accent`, declared
+on `html` (a type selector, so a page's own `:root` beats it regardless of order) and defaulting
+to that page's `--accent`. Each page sets it explicitly: login/admin/portal `#4C8DFF`,
+superadmin `#f3c969` (the console is gold; its `--accent` is a stray blue), and the themed portal
+block sets `--bb-accent: {{ theme.accent }}` so an agency skin pulls the whole layer into its own
+palette with one line. There is no second place to edit.
+
+What it adds: a slow drifting ambient wash (three transform-only orbs, no `filter:blur`), static
+film grain at 3%, glass mastheads that sink a shadow and an accent hairline once scrolled, hover /
+press / keyboard-focus on everything clickable, a cursor-tracking spotlight inside cards and tiles,
+a sliding tab indicator that takes the **active tab's own computed colour** (so themed and house
+palettes both come out right), scroll-reveal with a watchdog, count-up figures, a top scroll rail
+on pages that actually scroll, themed scrollbars, and a sheen on primary actions only.
+
+**Geometry uses `translate`/`scale`, never the `transform` shorthand** - the themed portal puts a
+`bbTileIn` keyframe on `.tile` and the login transforms its own layer boxes; the shorthand would
+replace those outright. The reveal offset and the hover lift compose through **two non-inheriting
+`@property` variables inside one `translate`** (`--bb-rev` + `--bb-hov`): written as two rules the
+reveal (scoped to `html.bb-motion`) outranks a plain `:hover` and the lift silently never fires,
+which is why `portal.html`'s tile hover is expressed as `--bb-hov:-3px` and not as a translate.
+
+**`@media print` un-hides everything and is not optional** - printing uses the styles computed at
+that moment and does not re-run the observer, so without it an unscrolled card prints blank.
+Somebody will print the password console.
+
+Two things are deliberately NOT here. `templates/extrablack_login.html` keeps its own signed-off
+tenant skin (the login kit only). And nothing in this layer may change a surface's SIZE: the
+first build added a 6px dot inside `.pill.active`, which widened the chip enough to wrap
+"Schneider Secure Power" onto two lines and change every tile height on the themed portal - it is
+now a pseudo-element halo that occupies no layout at all. The one accepted exception is the two
+super-admin hero badges, 3px wider because a counting figure must be tabular or the badge
+re-widths every frame.
+
+### Super-admin console filter
+The one piece of real functionality in the pass, and the reason the console is usable at 17
+dashboards: a search under the hero that filters **only rows carrying `data-bbf`** (agency cards,
+dashboard rows, Google accounts, the two access keys), hides a `.dgroup` or a `.sec` once nothing
+in it matches, rewrites a group's "9 dashboards" caption to "3 of 9 dashboards" from a stashed
+original, and prints "3 of 26" beside the field. `/` focuses it (never while typing, never while a
+password modal is open), Escape clears it. Nothing is removed from the DOM, so reveal, copy and
+change-password keep working on a hidden row the moment the filter clears.
+
+### Changing it
+Edit `templates/_premium.html` (shared) or the per-page `PREMIUM PASS` block at the end of each
+template (page-specific, placed after the include so it wins). Redeploy is the normal
+`dash/deploy_dash_platform.ps1` - templates only, no job, view or JSON change.
+
+### Fixed alongside it: the client marks never reached the image (2026-08-26)
+`dash/Dockerfile` copies `agency_*` and `admlogo_*` by wildcard but never listed `clientlogo_*`,
+so `main._load_client_logos()` found nothing in the container, `CLIENT_LOGOS` was empty and every
+themed portal tile fell back to its plain text heading - the exact failure the Dockerfile's own
+comment already warned about for agency logos, one glob down. The files have been committed since
+2026-08-15 and had never shipped. **Adding a per-client mark is now just dropping
+`clientlogo_<key>.png|.svg` in `dash/` and redeploying**, same as an agency logo.
+
 ## Sign in with Google (native, alongside the password)
 Users can log in **either** with a password **or** with their Google account — Google sign-in is an
 **additive** second path that never replaces the password box. It's off until you switch it on
@@ -820,6 +891,8 @@ bidbrain-platform/
     lineage/                     committed per-client lineage digests, shipped in the image (COPY lineage)
     seed_registry.py             push config.py → the registry JSON in GCS (idempotent; --force to overwrite)
     templates/                   login.html · portal.html · admin.html · superadmin.html (dark theme, Bidbrain logo)
+      _premium_head.html         premium layer bootstrap - include in <head> (see "The premium layer")
+      _premium.html              premium layer CSS + engine - include LAST in <body>, after _status_merge.html
     logo.svg  Dockerfile  requirements.txt  deploy_dash_platform.ps1
   Creatives/                     the design screenshot + source logo.svg
 scripts/enable_super_admin.ps1   one-time: bootstrap super-admin secret + god-mode IAM (see "Super admin")

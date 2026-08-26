@@ -2,8 +2,8 @@
 
 Thin password gate + static server. It renders a login screen, and once a
 session is authenticated it serves `dashboard.html` and proxies the private
-`geocon.json` from GCS at `/data.json`. All presentation logic — the Executive /
-Media Buyer / Client Story views — lives in `dashboard.html`; this file only
+`geocon.json` from GCS at `/data.json`. All presentation logic - the Executive /
+Media Buyer / Client Story views - lives in `dashboard.html`; this file only
 decides *who* may see it, not *what* it shows. It also exposes `/report`, the
 AI "Download report" endpoint (Claude Opus 4.8 + web research -> a 3-slide deck;
 see report.py), gated and cached the same way as the dashboard data.
@@ -57,12 +57,25 @@ except FileNotFoundError:
 # The GEOCON CORPORATE wordmark, used by the login page only (the dashboard header carries the
 # Gateway Braddon property logo above). Copied into dash/ on purpose: `creatives/` is NOT in this
 # folder's Docker build context, so a path into it 404s once deployed.
+# The supplied wordmark is WHITE-on-BLACK; the login card is light, so the login is served the
+# INK variant (dark glyphs on transparency, derived from the same artwork). Falls back to the
+# original if the ink file is missing, which at least renders something.
 try:
-    GEOCON_MARK_PNG = (_dash_dir / "geocon-mark.png").read_bytes()
+    GEOCON_MARK_PNG = (_dash_dir / "geocon-mark-ink.png").read_bytes()
 except FileNotFoundError:
-    GEOCON_MARK_PNG = None
+    try:
+        GEOCON_MARK_PNG = (_dash_dir / "geocon-mark.png").read_bytes()
+    except FileNotFoundError:
+        GEOCON_MARK_PNG = None
 
-# Shared, theme-driven slide-deck builder (vendored — the canonical copy is re-copied into each dash
+# The Gateway Braddon elevation sketch behind the login card (graph-paper grid stays in CSS, so
+# it is crisp at any viewport and the artwork carries no grid of its own to moire against).
+try:
+    SKETCH_PNG = (_dash_dir / "sketch.png").read_bytes()
+except FileNotFoundError:
+    SKETCH_PNG = None
+
+# Shared, theme-driven slide-deck builder (vendored - the canonical copy is re-copied into each dash
 # folder). Served as a static asset so the dashboard's <script src="bb_deck.js"> loads it (relative →
 # /bb_deck.js direct, or /d/geocon/bb_deck.js through the platform proxy).
 try:
@@ -143,7 +156,58 @@ LOGIN_HTML = """<!doctype html>
   @keyframes breathe{0%,100%{opacity:.75;transform:scale(1)}50%{opacity:1;transform:scale(1.04)}}
   @media (prefers-reduced-motion:reduce){.glow{animation:none}}
 
+  /* ---------- the sheet comes alive (2026-08-26) ----------
+     Requested: make it feel less static. Honouring the note above - a property developer brand
+     should not bounce - so this is DRIFT, not animation: a drafting sheet being aligned under
+     the hand, not a screensaver.
+
+     THE SEAMLESS-LOOP TRICK: the grid periods are 26px and 130px, and 130 is exactly 5 x 26, so
+     translating the whole layer by 130px in each axis lands the pattern back on itself. The loop
+     point is therefore invisible and needs no cross-fade. Change the 130 and the seam appears.
+
+     Transform-only (never background-position, which repaints), and the layer is inflated past
+     the viewport so the drift can never expose an uncovered edge. */
+  /* The grid drift added on 2026-08-26 was REMOVED when the real elevation landed: a drawn
+     building that slides behind a still card reads as a rendering fault, not as motion. The
+     page's movement is now the elevation's one-time placement plus the slow centre breath. */
+
+
+
+  /* Interaction feedback is always appropriate, even on a still page: the arrow leads out of
+     the button on hover. Movement is on the arrow, not the button, so the invert stays clean. */
+  button .arrow,button span:last-child{transition:translate .24s cubic-bezier(.22,1,.36,1)}
+  button:hover .arrow,button:hover span:last-child{translate:3px -3px}
+
+  @media (prefers-reduced-motion:reduce){
+    button .arrow,button span:last-child{transition:none !important}
+  }
+
+  /* ---------- the Gateway Braddon elevation ----------
+     A hand-drawn pencil elevation, anchored to the BOTTOM so the buildings always stand on the
+     foot of the page whatever the viewport height.
+
+     WIDTH IS CAPPED at the artwork's native 1428px rather than stretched to the viewport. That is
+     load-bearing: the drawing has a gap where the login card sits (the card in the source art
+     occluded the facade behind it, and that region is reconstructed from tiled facade, not
+     invented). Capping the width keeps that gap at most 438px while the card is 452px, so the
+     card always covers it. Stretch this to 100vw on a wide screen and the seam walks out from
+     behind the card.
+
+     The grid stays in CSS, not in this asset: the artwork was keyed to transparency with its own
+     graph paper masked out, so there is exactly one grid and no moire between the two. */
+  .elev{position:fixed;left:0;right:0;bottom:0;z-index:0;pointer-events:none;
+        display:flex;justify-content:center;align-items:flex-end;
+        opacity:0;animation:elevIn 1.5s cubic-bezier(.22,1,.36,1) .18s forwards}
+  .elev img{width:min(1486px,100%);height:auto;max-height:100vh;object-fit:contain;
+            object-position:bottom center;display:block}
+  /* The drawing is placed once, then holds still - it is architecture, it should not drift. */
+  @keyframes elevIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){
+    .elev{animation:none;opacity:1}
+  }
+
   /* ---------- the one centred cell ---------- */
+  .mark{margin:0 0 20px}
   .cell{position:relative;z-index:1;width:100%;max-width:452px;background:var(--card);
         border:1px solid var(--hair);border-radius:16px;padding:38px 34px 26px;
         box-shadow:0 1px 0 rgba(255,255,255,.9) inset, 0 26px 60px -28px rgba(10,10,10,.28),
@@ -153,7 +217,11 @@ LOGIN_HTML = """<!doctype html>
      surface colour, leaving the wordmark alone the way the site sets it. Keep BOTH properties:
      either one on its own looks broken. The asset is CROPPED to its ink bounds, so this height is
      the height of the LETTERS (as the original 447x447 square it rendered microscopic). */
-  .mark img{height:22px;width:auto;display:block;filter:invert(1);mix-blend-mode:multiply}
+  /* Served asset is now geocon-mark-ink.png: dark glyphs on real transparency. The old
+     filter:invert(1) + mix-blend-mode:multiply pair existed to key the WHITE-ON-BLACK original,
+     and on the ink asset it inverts the glyphs back to white and washes them out. Removed on
+     purpose - if you ever repoint this at the black-field original, put both back together. */
+  .mark img{height:26px;width:auto;display:block}
   .eyebrow{margin-top:22px;font-size:10.5px;font-weight:600;letter-spacing:2.2px;
            text-transform:uppercase;color:var(--muted)}
   h1{font-family:"Anton","Inter",sans-serif;font-weight:400;text-transform:uppercase;
@@ -289,8 +357,8 @@ LOGIN_HTML = """<!doctype html>
 </head>
 <body>
   <div class="sheet"></div>
-  <div class="plan"><i></i><i></i><i></i><b></b></div>
-  <div class="band"></div>
+  <div class="elev"><img src="/sketch.png" alt="" aria-hidden="true"
+       onerror="this.parentNode.style.display='none'"></div>
   <div class="glow"></div>
 
   <main class="cell">
@@ -452,7 +520,7 @@ def data():
 
 @app.get("/creative-img/<cid>")
 def creative_img(cid):
-    # Serve a Meta creative image cached in our bucket (creatives/<id>) by the export job — a permanent
+    # Serve a Meta creative image cached in our bucket (creatives/<id>) by the export job - a permanent
     # copy that survives after Meta's signed CDN URL expires. Same auth as /data.json.
     if not authed():
         abort(401)
@@ -484,7 +552,7 @@ def report_route():
     # private bucket keyed by DATA VERSION, so re-downloading the same data costs no model calls and
     # regenerates only when the underlying data advances. The report always describes the FULL
     # account (every funnel stage / campaign), independent of the on-screen stage/search filters, so
-    # the cache key is just client + data_through — the deck regenerates at most once per data refresh.
+    # the cache key is just client + data_through - the deck regenerates at most once per data refresh.
     if not authed():
         abort(401)
     if request.content_length and request.content_length > 256 * 1024:
@@ -532,9 +600,27 @@ def report_route():
     return Response(json.dumps(rpt), mimetype="application/json", headers={"Cache-Control": "no-store"})
 
 
+@app.get("/geocon-mark.png")
+def geocon_mark():
+    """The GEOCON wordmark on the login card. Public - the login page is pre-auth."""
+    if not GEOCON_MARK_PNG:
+        abort(404)
+    return Response(GEOCON_MARK_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/sketch.png")
+def sketch():
+    """The architectural elevation behind the login card. Public - pre-auth, like the logo."""
+    if not SKETCH_PNG:
+        abort(404)
+    return Response(SKETCH_PNG, mimetype="image/png",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/logo.png")
 def logo():
-    """Serve the client logo (baked into the container). Public — no auth needed."""
+    """Serve the client logo (baked into the container). Public - no auth needed."""
     if LOGO_PNG is None:
         abort(404)
     return Response(LOGO_PNG, mimetype="image/png",

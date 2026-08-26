@@ -1,0 +1,29 @@
+{# ===========================================================================================
+   BB PLATFORM PREMIUM v1 - head bootstrap.  Include INSIDE <head>, before the page stylesheet.
+   Partner file: _premium.html (the CSS + engine, included last in <body>).
+
+   It does exactly one thing: mark <html> so the scroll-reveal CSS - which starts surfaces at
+   opacity 0 - can only ever apply on a page where JS is alive, and REMOVE that mark again if the
+   engine at the end of the body never reports in, or if the page throws at all.
+
+   Hiding content until an observer says so means a missed callback hides a PASSWORD, a client
+   tile or an agency row. Losing the animation is always cheaper than losing the page, so the two
+   failsafes below are the whole reason the reveal is safe to ship on the login, the portal, the
+   admin tree and the god-mode console at once.
+   =========================================================================================== #}
+<script>
+(function(){
+  var d = document.documentElement;
+  function drop(){ d.className = (' ' + d.className + ' ').replace(' bb-motion ', ' ').trim(); }
+  try{
+    if (!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)){
+      d.className = (d.className ? d.className + ' ' : '') + 'bb-motion';
+    }
+  }catch(e){}
+  /* failsafe 1: the engine never ran - a page error above it, a blocked script, an old cached
+     shell. Un-hide everything unconditionally. */
+  setTimeout(function(){ if (!window.bbPremium) drop(); }, 3500);
+  /* failsafe 2: ANY uncaught error on the page stops us hiding content, immediately. */
+  window.addEventListener('error', drop);
+})();
+</script>

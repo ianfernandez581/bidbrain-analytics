@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+{% include "_premium_head.html" %}
 <style>
   :root{
     --bg:#0a0e16; --panel:#101726; --panel-2:#0d1420; --row:#0e1521;
@@ -20,6 +21,8 @@
     --danger:#f87171; --danger-bg:rgba(248,113,113,.12); --warning:#f59e0b;
     --radius-sm:6px; --radius-md:10px; --radius-lg:14px;
     --chip-bg:#1a2334; --chip-text:#9aa6bd;
+    /* the one token _premium.html derives every colour from */
+    --bb-accent:#4C8DFF;
     --font-sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
     --font-mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   }
@@ -458,5 +461,37 @@ applyOpen();
   });
 })();
 </script>
+{% include "_premium.html" %}
+{# ===== ADMIN TREE PREMIUM PASS - after the shared layer so these win. The tree is a working
+   surface, so the brief is legibility and feedback, not spectacle. ===== #}
+<style>
+  /* An agency card already carries its brand colour on its left edge; light it on hover instead
+     of adding a second signal. */
+  .agency-card{transition:translate .3s var(--bb-ease),box-shadow .3s var(--bb-ease),
+                          border-color .25s var(--bb-ease-soft)}
+  .agency-card:hover{box-shadow:0 1px 2px rgba(0,0,0,.3),0 20px 42px -30px rgba(0,0,0,.95),
+                                inset 3px 0 0 var(--agency-color,var(--accent))}
+  .agency-card.open{box-shadow:0 1px 2px rgba(0,0,0,.3),0 18px 40px -30px rgba(0,0,0,.9)}
+  .agency-header{transition:background-color .18s var(--bb-ease-soft)}
+  .chevron{transition:transform .28s var(--bb-ease),color .18s var(--bb-ease-soft)}
+  .agency-header:hover .chevron{color:var(--accent-strong)}
+
+  /* The row actions currently pop from nothing to solid. Let them arrive. */
+  .client-acts,.camp-acts{transition:opacity .2s var(--bb-ease-soft),translate .2s var(--bb-ease)}
+  .client-acts,.camp-acts{translate:4px 0}
+  .client:hover .client-acts,.client:focus-within .client-acts,
+  .camp:hover .camp-acts,.camp:focus-within .camp-acts{translate:0 0}
+  .client,.camp{transition:background-color .16s var(--bb-ease-soft)}
+  .client:hover,.camp:hover{background-color:rgba(255,255,255,.022)}
+  .camp:hover .cnm{color:#fff}
+
+  /* The eyebrow is the page's one flash of brand: give it the light. */
+  .head .eyebrow{text-shadow:0 0 22px color-mix(in srgb,var(--accent) 35%,transparent)}
+
+  @media (prefers-reduced-motion: reduce){
+    .agency-card,.client-acts,.camp-acts,.client,.camp{transition:none !important}
+    .client-acts,.camp-acts{translate:none !important}
+  }
+</style>
 </body>
 </html>
