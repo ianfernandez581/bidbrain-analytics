@@ -108,13 +108,48 @@ value. `bench()` coerced those with `Number(...)`, and in JavaScript both `Numbe
 null/undefined/empty *before* coercing (`numOrNull`), so an unset target reads "no target set".
 Worth remembering repo-wide: `Number.isFinite(Number(x))` is not a null guard.
 
-#### Go-live blockers - three, and none of them are code
+#### Go-live blockers - ONE grant left as of 2026-08-27 (was three)
 
-| Blocker | Detail |
+| Channel | State (verified 2026-08-27) |
 |---|---|
-| **No Geocon LinkedIn account in Windsor** | The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else. `sql/07_stg_linkedin.sql` is written and returns zero rows. |
-| **No Geocon Trade Desk advertiser on the shared seat** | The seat carries VMCH / ResetData / WEHI / TLM / Altech / ACRS / City Perfume / Qtopia / Caltex / Peaches & Cream / BigAds. `sql/08_stg_ttd.sql` is written and returns zero rows. **A$64,000 across three lines - the largest block of the plan.** |
-| **Meta frozen at 2026-08-10** | The Windsor Meta grant lapsed 2026-08-11, estate-wide. Northbourne's A$90,000 Meta line cannot report until it is re-authed. |
+| **Trade Desk** | **RESOLVED and LIVE.** Advertiser `Geocon Group` is granted on the shared Windsor seat. The **High Impact** line (plan seq 1) has delivered since **2026-08-20**: 55 rows, **A$3,298.67 / 638,709 imps / 525 clicks**, resolving to `property = Northbourne Gateway` and `plan_line = High Impact` with zero Unmapped. **Retargeting (seq 7) and Lookalike (seq 8), A$12,000 each, have not started.** |
+| **Meta** | **Feed RESOLVED, campaigns not built.** The Windsor Meta grant was re-authed 2026-08-25 and Gateway Braddon is current to 08-25, so the pipe is healthy - but the ad account holds **no Northbourne campaign at all** yet. The A$90,000 `Leads` line (seq 9) is waiting on campaign build, not on a grant. Its plan row has a NULL `match_pattern` **by design** - it is the Meta channel catch-all, and Meta has exactly one line. |
+| **Google Ads** | **Wired, PAUSED.** All three campaigns exist and are correctly named; they flow the moment they are un-paused. Nothing is needed from us. |
+| **LinkedIn** | **STILL BLOCKED - the only outstanding grant.** The connector carries APJC / STT / Cloudflare / Schneider / PropTrack / HireRight / ResetData and nothing else; there is no Geocon account on it. `sql/07_stg_linkedin.sql` is written and returns zero rows. A$6,000 (seq 4). |
+
+**Do not re-read the old "A$64,000 Trade Desk blocker" line anywhere - it is dead.** That grant landed
+with the estate-wide Trade Desk re-auth on 2026-08-25, which also issued a NEW seat id (484 -> 569).
+
+#### The Meta scope did NOT survive Northbourne's brief prefix (FIXED 2026-08-27)
+
+`01_stg_meta` scoped the client slice with `STARTS_WITH(campaign_name, 'Geocon_')`. Northbourne names
+every campaign **`0201_Geocon_NGW558_*`** - confirmed on its live Trade Desk line and all three Google
+Ads campaigns - so that test returns FALSE and **100% of its Meta delivery would have been dropped**.
+It is the worst kind of silent: the rows never reach the property map, so the export job's `Unmapped`
+WARNING cannot fire for them either, and the A$90,000 line - the plan's largest - would simply have
+read zero on a dashboard that looked healthy.
+
+Both gates now strip a leading brief number before the prefix test, and they **must stay in step**:
+
+| File | Fix |
+|---|---|
+| `sql/01_stg_meta.sql` | `STARTS_WITH(REGEXP_REPLACE(TRIM(campaign_name), r'^[0-9]+_', ''), 'Geocon_')` |
+| `ingest/meta_breakdown_pull.py` | `_GEOCON_CAMPAIGN = re.compile(r"^\s*(?:[0-9]+_)?Geocon_")` - the audience / placement table has its own copy of this filter, and left alone it would have rendered those charts EMPTY underneath populated KPIs |
+
+Still exact enough to split geocon from bellshakespeare / nextsmile on the shared ad account, so the
+catch-all `ELSE` in the property map stays safe. **Verified a strict no-op** on today's data: 285 rows
+under both predicates, 0 newly admitted campaigns. This is the repo-wide rule in `md/AGENTS.md` -
+campaign names are NOT stable keys, and `STARTS_WITH` is the shape that breaks outright on a prefix.
+
+#### The bare `RT` plan token was a live mis-tagging trap (narrowed 2026-08-27)
+
+Plan line 7 (Retargeting) matched on `Retargeting|RTG|RT`, and plan-line attribution is **first-match-wins
+by `seq`** over a plain `STRPOS` substring test. `RT` is two characters: **"Property" contains "rt"**, and
+this is a property developer. Any Lookalike campaign (seq 8) whose name happened to contain those letters
+would have been tagged **Retargeting** and booked against the wrong A$12,000 line. Narrowed to
+`Retargeting|RTG|_RT_`, delimiter-anchored to Geocon's underscore convention. No current name matched it
+either way, so this too is a no-op today and pure forward protection - but both those lines are unstarted,
+which is exactly when it would have bitten.
 
 **Google Ads is the one channel already wired end to end.** Geocon Group (customer `5457742070`) is
 linked under the DTS MCC `3451896252`, and the three campaigns already exist:
