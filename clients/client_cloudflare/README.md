@@ -423,6 +423,49 @@ until the next render. Each frame now bails if anything else has written to the 
 render function always wins. **The same bug is in `scripts/motion_kit/kit_js.tpl` line ~48** and
 therefore in every kit-injected dashboard; fixing it there is a separate estate-wide re-inject.
 
+### Weekly pacing + what the publisher targets actually are (2026-08-27)
+
+**`cspd_w_pace` paces on ACCEPTED, not delivered.** It used to divide DELIVERED by target while
+the Lead deficit tile *in the same card* measured ACCEPTED against the same target, so the two
+openly contradicted each other - EMEA w/c 08-21 read "112.5% - 72 vs 64 target" (ahead) beside
+"Lead deficit 7 - accepted leads behind target" (behind). Accepted is what the plan is bought in
+and what every other pacing figure on the tab already used (the campaign-to-date band, the
+publisher table, the deficit tile). The caption now names the metric - "57 accepted vs 64 target" -
+so nobody re-derives it from the Delivered tile above it.
+
+Two weeks change verdict, and **both flips move INTO agreement with their own deficit tile**:
+EMEA 08-21 112.5% -> 89.1% (deficit 7) and APJ 07-27 105.6% -> 90.0% (deficit 18). Every other
+week keeps its verdict and just drops by that week's rejection rate. **Nothing that reconciles to
+the client's sheet moves**: the campaign-to-date band (APJ 1,450 of 2,290 / 63.3%), the top KPI
+strip and every delivered/accepted/rejected count are untouched. Only this one tile.
+
+**The per-publisher targets are an INTERNAL ALLOCATION, in BOTH theatres.** Cloudflare's Core DG
+plan sets targets per MARKET per WEEK and has no publisher dimension at all - the supplied sheet
+(`raw files/CF_FY26 Q3_Core DG Lead Pacing...csv`) is Week / Date / Region / Country and never
+names a vendor. The split in `targets/cs_targets_q3.csv` was applied when the seed was built:
+
+| theatre | split | evidence |
+|---|---|---|
+| EMEA | flat **1:1** | all 78 market x week cells IDENTICAL for Roverpath and Final Funnel; 830 -> 415 / 415 |
+| APAC | flat **2:1:1** | every market (ANZ 470/238/235, ASEAN 209/106/104, Japan 122/62/60 ...), rolling up to the client's market totals EXACTLY - 943/419/220/309/244/155 = 2,290 |
+
+So the MARKET, WEEK and THEATRE totals are client-set and reconcile to their sheet; the
+per-publisher slice is ours. **APJ's 2:1:1 has exactly the same status as EMEA's 1:1** - APJ's
+64.9% / 63.1% / 60.5% are no more client-set than EMEA's 39.8% / 24.1%.
+
+**The decision (client, 2026-08-27) was to KEEP the percentages and label them**, not blank them:
+the allocation is how the book is actually run, so the figure is useful as long as nobody reads it
+as a commitment. The footnote under *Delivery by publisher* leads with "Publisher targets are an
+internal allocation of the market plan, not a client-set target. Publisher pacing is indicative."
+on **both** theatres, then keeps the existing "no lead target is loaded for X, Y" sentence.
+
+**`CSPD_PUBLISHER_TARGETS_ARE_REAL` is deliberately `true`.** It means "the UI may pace against the
+seeded publisher target". Setting it `false` makes every target-shaped figure fall back to its
+existing no-target copy wherever a single publisher is selected - the band, the weekly tile, the
+market chart and the table together, so they cannot disagree. That path is wired and tested; it is
+one line if the labelling ever proves not to be enough. **The suppression must stay all-or-nothing:
+fixing only the table would leave it reading "no target" under a band still showing 63.1%.**
+
 ### Gotchas - read before editing
 
 - **The Transmission test-lead filter must stay identical in `sql/10` and `sql/16` (fixed
