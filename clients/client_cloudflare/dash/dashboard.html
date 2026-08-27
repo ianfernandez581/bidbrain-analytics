@@ -3640,6 +3640,13 @@ function cspdRows(){
 }
 
 const cspdPct = (n, d) => d > 0 ? (100 * n / d).toFixed(1) + '%' : '-';
+// Which day of the selected week today is (1-7), or 0 if that week is not the current one.
+// Used only to caption an in-progress week; it never changes a figure.
+function cspdDayInWeek(weekStart){
+  const s = new Date(weekStart + 'T00:00:00Z');
+  const d = Math.floor((new Date() - s) / 864e5) + 1;
+  return (d >= 1 && d <= 7) ? d : 0;
+}
 const cspdWkLabel = w => w.slice(5).replace('-', '/');          // 2026-07-06 -> 07/06
 
 // The week the dashboard opens on: the latest week that actually carries delivery
@@ -3713,8 +3720,14 @@ function renderCsPacingDetail(){
   S('cspd_w_rrate', cspdPct(w.rejected, w.delivered));
   S('cspd_w_arate', cspdPct(w.accepted, w.delivered));
   S('cspd_w_pace',  cspdPct(w.delivered, w.target));
+  // A week still running is measured against its FULL target, so it always reads behind -
+  // APAC's w/c 24 Aug showed 67.6% on day 4 of 7. The band is deliberately whole-week (it is
+  // a weekly delivery report, not a pace curve; the prorated pace lives in the KPI strip
+  // above), so the fix is to SAY the week is incomplete rather than to prorate this figure.
+  const wkDay = (!qtd && CSPD.week) ? cspdDayInWeek(CSPD.week) : 0;
   S('cspd_w_pace_cnt', w.target
       ? w.delivered.toLocaleString() + ' vs ' + w.target.toLocaleString() + ' target'
+        + (wkDay && wkDay < 7 ? ' - week in progress, day ' + wkDay + ' of 7' : '')
       : 'no target for this week');
   const deficit = w.target - w.accepted;
   S('cspd_w_def', w.target ? (deficit > 0 ? deficit.toLocaleString() : '0') : '-');
