@@ -260,9 +260,10 @@ Adding a third theatre is a `PROGRAMS` entry + an `<option>` + CSV rows.
 |---|---|
 | Targets (committed CSV -> BQ) | `targets/cs_targets_q3.csv` -> `seed_cs_targets_q3` (`seed_static.py`) |
 | Lead grain, name-scoped | `sql/16_stg_cs_leads_v2.sql` -> `stg_cs_leads_v2` |
-| Week x market x vendor | `sql/17_cs_pacing_v2.sql` -> `cs_pacing_v2` |
-| Payload branch | `job/main.py` -> `cs_pacing` (+ a per-theatre audit line every run) |
+| Book x week x market x vendor | `sql/17_cs_pacing_v2.sql` -> `cs_pacing_v2` |
+| Payload branch | `job/main.py` -> `cs_pacing` (+ a per-theatre-x-book audit line every run) |
 | UI | `dash/dashboard.html` -> `#cspdSection`, `renderCsPacingDetail()`, `PROGRAMS.core_emea`, `laneTheatre()` |
+| Campaign (book) picker + publisher table | `dash/dashboard.html` -> `cspdRenderBookSel()`, `cspdRenderVendorTable()`, `#cspdVendorCard` |
 
 **It runs in BigQuery, not Snowflake, on purpose.** The build script creates views in
 `CLOUDFLARE_SANDBOX.CS_REPORTING`, but our pipeline role there is **read-only** (same reason
@@ -287,8 +288,87 @@ as it did before. Verified: 600 inserted lines, 0 removed.
 APAC delivery runs **ahead** of the sheet because this is live off Salesforce and the sheet is
 a snapshot. That is expected.
 
+### Regional campaigns + publishers (2026-08-27, Lydia's request)
+
+> *"For Content Syndication, please add regional campaigns/publishers to the pacing dashboard
+> i.e. DemandAI, Interlink and SitPub."*
+
+**DemandAI and Interlink were being DROPPED, not just hidden.** `16_stg_cs_leads_v2` excluded
+`SEG_PROGRAM = 'ANZ DnB'` outright, and their Salesforce campaign IDs
+(`701RG00001aeA3kYAE` / `701RG00001aetXiYAI`) are not in the 13-ID allowlist behind
+`10_salesforce_leads_live` either - so they appeared **nowhere on the dashboard at all**.
+They are now in scope as their own **BOOK**, and the section gained a **Campaign picker** and a
+**Delivery by publisher** table.
+
+**`BOOK` is a plan, not a region - keep the two apart.** ANZ DnB runs in ANZ, i.e. inside APAC,
+on the same Monday week anchor, so modelling it as a third *theatre* (which the old code comment
+suggested) would have been a lie about the region and would have forced it into the topbar lane
+dropdown. It is a second dimension: `BOOK` in `sql/16` -> `sql/17`'s join key -> the seed CSV ->
+`cs_pacing.rows[].book` -> the picker.
+
+**Books are never summed, and there is deliberately NO "all campaigns" option.** Only Core DG has
+a seeded target sheet (APAC 2,290 / EMEA 830); an all-books selection would divide combined
+delivery by one book's target and report a pacing figure that is wrong in the *flattering*
+direction. The **Delivery by publisher** table is the cross-book view instead - it spans every
+book in the theatre, nothing is paced across books, and `Target` prints "no target" rather than 0
+(a 0 reads as a target of zero and would make Pacing look infinitely ahead).
+
+**The Core DG numbers did not move, and that was the acceptance test.** APAC Core DG
+2,290 / 1,708 / 1,460 / 248 and EMEA 830 / 306 / 265 / 41 are identical before and after,
+verified in BigQuery and in a headless render of the built page. Regional adds 72 delivered /
+63 accepted / 9 rejected alongside them.
+
+**`SitPub` does not exist in the Salesforce feed under any spelling** (checked every campaign
+name in `salesforce_cs_apac_all`, all quarters, for `PUB|SIT|SITU|REGISTER`; the only hits are
+the `ACQUISITION` token, which contains "sit"). Nothing was invented for it. Vendors are
+discovered from the data, so it appears on its own the day its first lead lands - exactly as
+Pipeline360 and Inbox Insight did.
+
+**Publisher display names are now aliased in `sql/16`** (`DEMANDAI` -> `DemandAI`,
+`INTERLINK` -> `Interlink`, `PIPELINE360` -> `Pipeline360`, `INBOXINSIGHT` -> `Inbox Insight`).
+Salesforce carries recent publishers in SHOUTY caps and older ones in title case. **`Roverpath`,
+`Final Funnel` and the `VSRM` -> `VRSM Lead Magnet` alias are load-bearing**, not cosmetic: they
+are the join keys for the seeded targets. Unmapped spellings fall through unchanged.
+
+**The `Unclassified` book is the safe residual, not dead code.** The programme list in `sql/16`'s
+`BOOK` CASE is explicit, because this feed churns fast - `GENERAL`, `VER-RETAIL` and `EXP` all
+appeared inside one week in Aug 2026. A ninth programme lands in `Unclassified`, is counted, is
+selectable, and is WARNed about by name in the job log; it is never folded into Core DG, where it
+would inflate delivery against a fixed target. Mapping it is one line in that CASE.
+
+**Still deliberately out of scope:** `SEG_PROGRAM = 'EXP'` (expansion motion, not a CS buy) and
+`VENDOR = 'ACQUISITION'` - the latter is **not a publisher**: those campaign names carry an extra
+segment (`2026_Q3_EMEA-DACH_ACQUISITION_EXP_CF1_...`), so the vendor-position token is a motion
+label and every offset after it is shifted by one. 482 rows at 2026-08-27, all still `New`
+(zero delivered), so no pacing figure is missing them.
+
+**A count-up race in the motion layer was fixed here too** (`countUp` in `dash/dashboard.html`).
+The last frame of the 780ms animation wrote back the string captured when it STARTED, so a figure
+re-rendered inside that window - scroll the section into view, then immediately change the
+campaign, publisher or week - was overwritten with the *previous scope's* number and stayed there
+until the next render. Each frame now bails if anything else has written to the element, so the
+render function always wins. **The same bug is in `scripts/motion_kit/kit_js.tpl` line ~48** and
+therefore in every kit-injected dashboard; fixing it there is a separate estate-wide re-inject.
+
 ### Gotchas - read before editing
 
+- **The Transmission test-lead filter must stay identical in `sql/10` and `sql/16` (fixed
+  2026-08-27).** `sql/16` shipped without it, so the Pacing detail band counted 12 test leads as
+  APAC delivery (10 accepted / 2 rejected) and 1 more sat unprocessed on EMEA - which is why the
+  APJ KPI strip (reads `10_*`) and the Pacing detail band (reads `16_*`) printed different totals
+  on the same screen. Both now use `LOWER(SPLIT(EMAIL,'@')[SAFE_OFFSET(1)]) NOT LIKE
+  '%transmission%'`. **Filter on the email DOMAIN, never on the string `test`**: a genuine
+  rejected lead from **Advantest Corporation** (`advantest.com`) carries `test` in its company
+  name and its domain. Nothing in `status_dashboard` verifies `16_*`, so a future divergence here
+  is invisible to the accuracy monitor - keep the two predicates in sync by hand.
+- **The two models still classify ~15 Korean leads differently, and that is the legacy model's
+  doing.** After the test-lead fix both hold the SAME lead universe (1,450 accepted / 246 rejected
+  at 2026-08-27, all markets). But `pacing_model`'s KR arm is campaign-scoped to the 6 `El*`
+  campaigns, so Korean leads outside those 6 fall to its `OTHER` ELSE arm - and `OTHER` is not a
+  market chip, so the KPI strip drops them (9 accepted / 6 rejected). `16_*` reads the market off
+  the campaign region segment and books them under Korea. The strip therefore reads ~15 leads
+  light against the band. Fixing it means widening the legacy KR scope, which moves live APAC
+  numbers and the status-dash checks - a deliberate piece of work, not a tweak.
 - **Weekly buckets will NOT match the client's sheet, and that is understood and accepted.**
   The sheet is dated when Nabeel delivers leads to Integrate; Salesforce dates them on lead
   creation. Quarter totals reconcile exactly, weekly splits do not (EMEA returns 114 / 120 for
@@ -313,10 +393,12 @@ a snapshot. That is expected.
   on a date change), so without that call the section would keep the previous theatre's numbers.
   It fires unconditionally on a theatre change, not just when `main` is the active tab, or
   `panel-main` would be left stashed in the wrong hide/show state for later.
-- **Vendors are DISCOVERED from the data, never listed in code.** Pipeline360 already showed up
-  on its own (1 EMEA lead, 2026-08-20) and Inbox Insight will. They have no targets yet, so they
-  appear with delivery and no pacing. **That is correct - do not suppress them**, and do not
-  make `17_*`'s FULL OUTER JOIN an inner join.
+- **Vendors are DISCOVERED from the data, never listed in code.** Pipeline360 and Inbox Insight
+  showed up on their own and now have rows in the publisher table with no delivery yet. They have
+  no targets either, so they appear with delivery and no pacing. **That is correct - do not
+  suppress them**, and do not make `17_*`'s FULL OUTER JOIN an inner join. The same is true of
+  BOOKS: the campaign picker is built from the payload, and it HIDES ITSELF when a theatre has
+  only one book (which is why EMEA gains no control it cannot use).
 - **Market display order is data** (`MARKET_SEQ` in the targets CSV), not code. Same for the
   week grid and the quarter total. Nothing in the component is hardcoded to 8 markets or a
   Jul-Sep window - that is what lets EMEA (6 markets, 13 Friday-anchored weeks from 2026-08-07)
@@ -1226,9 +1308,14 @@ opening the form is a targeting problem, opening and abandoning is a form proble
                               // captions + its "<period> to date" chip, NOT the date picker
     "reasons": [],            // rejection reasons: NO live source yet (manual at the Integrate
                               // push). Panel renders only when non-empty; never fabricate.
-    "rows": [ { "theatre","vendor","market","market_seq","week_start","week_number",
+    "rows": [ { "theatre","book","vendor","market","market_seq","week_start","week_number",
                 "target","delivered","accepted","rejected","unprocessed","needs_review" } ]
-    // AGGREGATED + PII-free (counts by week x market x vendor), ~100 KB - NOT the lead grain.
+    // AGGREGATED + PII-free (counts by book x week x market x vendor), ~100 KB - NOT the lead
+    // grain. `book` (2026-08-27) is which PLAN the campaign is bought under - "Core DG",
+    // "Regional" (the ANZ DnB book: DemandAI / Interlink / SitPub) or "Unclassified" - and is a
+    // SEPARATE dimension from `theatre`. The dashboard's campaign picker never sums two books
+    // together, because only Core DG has a seeded target. A payload written before `book`
+    // existed renders as it did: the dashboard reads a missing key as "Core DG".
     // The view's convenience REJECTION_RATE / ACCEPTANCE_RATE / WEEKLY_PACING / LEAD_DEFICIT
     // columns are deliberately NOT carried: they are correct only at that exact grain, and
     // the dashboard re-derives every rate from the counts after aggregating.

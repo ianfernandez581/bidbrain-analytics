@@ -33,8 +33,8 @@ of a Snowflake-modelled `src_*` copy — that exception is gone; see
 | `13_pacing_model.sql`        | `pacing_model`        | `salesforce_leads_live` + `tier_mapping_cleaned` + `targets_v2_norm` | `V_PACING_FINAL_MODEL` |
 | `14_cf1_cs.sql`              | `cf1_cs`              | `raw_snowflake.salesforce_cs_apac_all` (the 2 CF1 content-syndication campaign IDs; publisher/region/topic + status bucket per `DAY`) | new (2026-06-22; client query) |
 | `15_cs_qoq.sql`              | `cs_qoq`              | `salesforce_leads_live` (Q3-to-date vs the same opening window of Q2, accepted leads by market/status) | new (2026-07-14) |
-| `16_stg_cs_leads_v2.sql`     | `stg_cs_leads_v2`     | `raw_snowflake.salesforce_cs_apac_all` scoped by **campaign NAME** (`STARTS_WITH('2026_Q3')`), not the 13-ID allowlist — which is what brings **EMEA** in. theatre / market / vendor / theatre-anchored `WEEK_START`. **Parallel to `10_*`, which is untouched.** | `CS_REPORTING.V_CS_LEADS_V2` |
-| `17_cs_pacing_v2.sql`        | `cs_pacing_v2`        | `stg_cs_leads_v2` + `seed_cs_targets_q3` (FULL OUTER JOIN, week × market × vendor, aggregated / PII-free) | `CS_REPORTING.V_CS_PACING_V2` |
+| `16_stg_cs_leads_v2.sql`     | `stg_cs_leads_v2`     | `raw_snowflake.salesforce_cs_apac_all` scoped by **campaign NAME** (`STARTS_WITH('2026_Q3')`), not the 13-ID allowlist — which is what brings **EMEA** in. theatre / **book** / market / vendor / theatre-anchored `WEEK_START`. **Parallel to `10_*`, which is untouched.** | `CS_REPORTING.V_CS_LEADS_V2` |
+| `17_cs_pacing_v2.sql`        | `cs_pacing_v2`        | `stg_cs_leads_v2` + `seed_cs_targets_q3` (FULL OUTER JOIN, **book** × week × market × vendor, aggregated / PII-free) | `CS_REPORTING.V_CS_PACING_V2` |
 
 ### 16 + 17 — the "Pacing detail" pair (2026-08-24)
 
@@ -45,7 +45,17 @@ deliberately left alone: `10_*` is scoped by the campaign-ID allowlist, which ma
 donut, QoQ number and status-dashboard accuracy check hangs off it. Nothing downstream of
 `10_*` reads `16`/`17`, so they cannot move a live number.
 
-Three things to know before editing them:
+Four things to know before editing them:
+
+- **`BOOK` is a dimension, and it is not the same thing as `THEATRE`** (added 2026-08-27 with the
+  regional campaigns). `Core DG` is the bought plan the seeded targets cover; `Regional` is the
+  ANZ DnB book (DemandAI / Interlink, and SitPub when it starts delivering), which runs in ANZ —
+  i.e. inside APAC, on the same Monday anchor — so it is a second *plan*, not a second *region*.
+  It is on the JOIN key in `17_*` and in the seed CSV, which is what stops Regional delivery from
+  being paced against a Core DG target. Its `CASE` in `16_*` lists the Core DG programmes
+  **explicitly** and sends anything else to `Unclassified` rather than defaulting to Core DG: the
+  Core DG target is fixed at 2,290 / 830, so a new programme folded in would inflate delivery
+  against a target that never grew. The job log names anything that lands in `Unclassified`.
 
 - **The week math is not the Snowflake original.** `MOD(x,7)` returns a *negative* for a day
   before the anchor, which lands `WEEK_START` **after** the lead date. Live cases: 26 EMEA
@@ -63,7 +73,9 @@ Three things to know before editing them:
   none, so it surfaces in the job log.
 
 Targets come from the **version-controlled** `targets/cs_targets_q3.csv` →
-`seed_cs_targets_q3` (`seed_static.py`), totals **APAC 2,290 / EMEA 830**. Its `MARKET_SEQ`
+`seed_cs_targets_q3` (`seed_static.py`), totals **APAC 2,290 / EMEA 830** — every row `BOOK`
+`Core DG`, because that is the only book the client has ever issued a pacing sheet for. A
+regional sheet is CSV rows and no code change. Its `MARKET_SEQ`
 column is the chart's market **display order** — re-order the CSV, re-seed, and the chart
 follows with no code change. That is what keeps the dashboard component free of a hardcoded
 market list. Reconciles exactly to the client's pacing sheet: EMEA delivered 234 / accepted

@@ -261,12 +261,43 @@
      re-declared, so a reskin moves them with everything else.
      Only rules with no existing equivalent live here. */
   .cspd-sep{width:1px;align-self:stretch;min-height:22px;background:var(--cf-line);margin:0 3px}
+  /* Labelled pickers. Two bare dropdowns reading "Core DG" and "Final Funnel" say nothing
+     about WHICH dimension each one drives - and the caption under the band already refers to
+     "the campaign and publisher selectors", so the copy was naming controls that carried no
+     name. Caption style is .filter-row .lbl verbatim (the "WEEK COMMENCING" strip right
+     below), not a new one. The label and its select move as ONE unit, because the whole pair
+     hides when a theatre has a single value to pick. */
+  .cspd-picks{margin-left:auto;display:flex;align-items:center;gap:16px;flex-wrap:wrap;justify-content:flex-end}
+  .cspd-pick{display:flex;align-items:center;gap:7px}
+  .cspd-pick .cspd-pick-lbl{font-size:11px;color:var(--cf-mute);text-transform:uppercase;
+                            letter-spacing:.4px;font-weight:600;white-space:nowrap}
   .cspd-note{font-size:11.5px;color:var(--cf-mute);margin-top:10px;border-top:1px solid var(--cf-line);padding-top:8px}
   .cspd-note.warn{color:var(--warn-amber)}
   .cspd-reasons{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px}
   .cspd-reason{background:var(--surface-2);border:1px solid var(--cf-line);border-radius:8px;padding:11px 12px}
   .cspd-reason .rk{font-size:10.5px;color:var(--cf-mute);text-transform:uppercase;letter-spacing:.4px;font-weight:600;margin-bottom:5px}
   .cspd-reason .rv{font-size:12px;color:var(--cf-ink);word-break:break-word}
+  /* Publisher table (2026-08-27). Geometry is .qoq-table's, not re-invented - that is the
+     established table look on THIS tab, and the two now sit a screen apart. Numeric columns
+     carry .num (right-aligned + tabular figures) so the digits line up down the column;
+     without tabular-nums the proportional face makes a column of counts look ragged.
+     Rows are the ONE place both books are visible at once, so a row is clickable - it sets
+     the campaign + publisher pickers above. The selected row gets a left accent rather than
+     a fill, so it reads as "you are here" without competing with the numbers. */
+  .cspd-vtbl{width:100%;border-collapse:collapse;font-size:13px}
+  .cspd-vtbl th,.cspd-vtbl td{padding:8px 10px;border-bottom:1px solid var(--cf-line);text-align:left}
+  .cspd-vtbl th.num,.cspd-vtbl td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .cspd-vtbl th{font-size:10.5px;text-transform:uppercase;letter-spacing:.5px;color:var(--cf-mute);font-weight:600}
+  .cspd-vtbl tbody tr:last-child td{border-bottom:none}
+  .cspd-vtbl tbody tr{cursor:pointer}
+  .cspd-vtbl tbody tr:hover td{background:var(--surface-2)}
+  .cspd-vtbl tbody tr.on td{background:var(--surface-2);font-weight:600}
+  .cspd-vtbl tbody tr.on td:first-child{box-shadow:inset 3px 0 0 var(--brand-accent)}
+  .cspd-book{display:inline-block;font-size:10.5px;letter-spacing:.4px;text-transform:uppercase;
+             font-weight:600;color:var(--cf-mute);border:1px solid var(--cf-line);
+             border-radius:999px;padding:2px 8px;white-space:nowrap}
+  .cspd-book.regional{color:var(--brand-accent);border-color:color-mix(in srgb,var(--brand-accent) 45%,transparent)}
+  .cspd-book.unclassified{color:var(--warn-amber);border-color:color-mix(in srgb,var(--warn-amber) 45%,transparent)}
   /* <<< BB:CSPD <<< */
 
   /* Per-chart Grain (Month/Week/Day) toggles. The Scale (Relative/Absolute) segs were
@@ -1057,11 +1088,25 @@
         <div class="section" style="margin-top:22px">
           <h2>Pacing detail</h2>
           <p class="sub">Campaign totals stay fixed - select a week to drive the panels below.</p>
-          <span style="margin-left:auto;display:flex;align-items:center;gap:8px">
+          <span class="cspd-picks">
             <!-- Theatre comes from the selected LANE in the topbar dropdown ("Core DG EMEA");
-                 every panel here reads it through the single cspdTheatre() getter. -->
-            <select id="cspdVendor" class="dash-select" style="font-size:12px;padding:6px 26px 6px 10px"
-                    onchange="cspdSetVendor(this.value)"></select>
+                 every panel here reads it through the single cspdTheatre() getter.
+                 CAMPAIGN (= book) and PUBLISHER (= vendor) are this section's own two
+                 pickers. There is deliberately NO "all campaigns" option on the first -
+                 see cspdRenderBookSel(). Each pair hides itself (label included) when there
+                 is only one value to pick, so nothing new appears on a single-book theatre. -->
+            <span class="cspd-pick" id="cspdBookPick">
+              <span class="cspd-pick-lbl">Campaign</span>
+              <select id="cspdBook" class="dash-select" aria-label="Campaign"
+                      style="font-size:12px;padding:6px 26px 6px 10px"
+                      onchange="cspdSetBook(this.value)"></select>
+            </span>
+            <span class="cspd-pick" id="cspdVendorPick">
+              <span class="cspd-pick-lbl">Publisher</span>
+              <select id="cspdVendor" class="dash-select" aria-label="Publisher"
+                      style="font-size:12px;padding:6px 26px 6px 10px"
+                      onchange="cspdSetVendor(this.value)"></select>
+            </span>
           </span>
         </div>
 
@@ -1071,9 +1116,13 @@
           <div class="hint" id="cspdStaleMsg" style="margin:0;color:var(--warn-amber)"></div>
         </div>
 
-        <!-- 3.1 campaign-to-date band - fixed, follows the vendor selector only -->
-        <div class="hint" style="margin:0 0 8px 2px">Campaign to date, whole <span class="cspd-qlbl">Q3</span>
-          - follows the vendor selector, and does <b>not</b> change with the week selected below.</div>
+        <!-- 3.1 campaign-to-date band - fixed, follows the campaign + publisher selectors only -->
+        <!-- Built in JS (cspdRenderScopeHint): it names the selectors that are ACTUALLY on
+             screen. Under EMEA the campaign picker hides itself, and a caption promising a
+             control the reader cannot see is worse than no caption. -->
+        <div class="hint" id="cspdScopeHint" style="margin:0 0 8px 2px">Campaign to date, whole
+          <span class="cspd-qlbl">Q3</span> - follows the campaign and publisher selectors, and
+          does <b>not</b> change with the week selected below.</div>
         <div class="cs-snap" id="cspdTotals">
           <div class="group">
             <div class="lbl">Delivery</div>
@@ -1098,6 +1147,11 @@
             </div>
           </div>
         </div>
+
+        <!-- Says WHY pacing reads "-" on a book with no seeded target sheet, so an empty
+             pacing tile reads as "not bought to a target" rather than as a broken feed.
+             Empty and hidden on Core DG. -->
+        <div class="cspd-note" id="cspdBookNote" style="display:none"></div>
 
         <!-- 3.2 week selector - drives every panel below it -->
         <div class="filter-row">
@@ -1135,7 +1189,7 @@
         <!-- 3.4 two charts, side by side -->
         <div class="grid">
           <div class="card">
-            <h3>Delivered vs target by market</h3>
+            <h3 id="cspdMktTitle">Delivered vs target by market</h3>
             <div class="hint" id="cspdMktLbl">-</div>
             <div class="chart-wrap tall"><canvas id="cspdMarketChart"></canvas></div>
             <!-- Client requirement: unmatched leads must be visible, never silently bucketed. -->
@@ -1149,7 +1203,30 @@
           </div>
         </div>
 
-        <!-- 3.5 rejection reasons - NO live source yet. Renders only when the payload
+        <!-- 3.5 delivery by publisher (2026-08-27, Lydia's request to get the regional
+             campaigns/publishers onto this section). This is the ONE panel that spans EVERY
+             campaign book in the theatre, not just the selected one - the pickers above scope
+             the pacing panels, and mixing books there would pace delivery against a target
+             that only covers one of them. Here nothing is paced across books: each row is its
+             own publisher, and the Target column is blank where no target sheet exists.
+             Campaign to date, so it ties to the band at the top of the section. -->
+        <div class="card" id="cspdVendorCard">
+          <h3>Delivery by publisher</h3>
+          <div class="hint" id="cspdVendorLbl">-</div>
+          <div style="overflow:auto">
+            <table class="cspd-vtbl" id="cspdVendorTbl">
+              <thead><tr>
+                <th>Campaign</th><th>Publisher</th><th class="num">Target</th><th class="num">Delivered</th>
+                <th class="num">Accepted</th><th class="num">Rejected</th><th class="num">Rejection rate</th>
+                <th class="num">Acceptance rate</th><th class="num">Pacing</th>
+              </tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <div class="cspd-note" id="cspdVendorNote"></div>
+        </div>
+
+        <!-- 3.6 rejection reasons - NO live source yet. Renders only when the payload
              carries reasons; hides cleanly otherwise. Never fabricate values here. -->
         <div class="card" id="cspdReasonsCard" style="display:none">
           <h3>Rejection reasons</h3>
@@ -3456,7 +3533,25 @@ function renderAll() {
 // --------------------------------------------------------------------------
 let CSPD_ROWS = [];                                   // cs_pacing.rows
 let CSPD_META = {};                                   // cs_pacing meta (period label, reasons)
-const CSPD = { vendor: 'all', week: null };                  // week: ISO date, or 'qtd'
+// book: which PLAN is on screen ('Core DG' | 'Regional' | 'Unclassified'), resolved on the
+// first render so an older payload with no `book` key still works. week: ISO date, or 'qtd'.
+const CSPD = { book: null, vendor: 'all', week: null };
+
+// The books, in the order the client thinks about them: the bought plan first, the regional
+// book next, and the safe residual last. Anything else sorts alphabetically in between, so a
+// book nobody has named here still appears - it just does not jump the queue.
+const CSPD_BOOK_RANK = { 'Core DG': 0, 'Regional': 1, 'Unclassified': 9 };
+// Display labels. The VALUE stays the raw book string from the payload (it is the join key
+// all the way back to the seed CSV); only the wording on screen changes.
+const CSPD_BOOK_LABEL = { 'Regional': 'Regional campaigns', 'Unclassified': 'Unclassified campaigns' };
+const cspdBookLabel = b => CSPD_BOOK_LABEL[b] || b;
+// A payload written before books existed carries no `book` key at all. Treat that as the one
+// book there was, so an older cloudflare.json renders exactly as it did before.
+const cspdBookOf = r => r.book || 'Core DG';
+function cspdBookSort(a, b){
+  const ra = CSPD_BOOK_RANK[a], rb = CSPD_BOOK_RANK[b];
+  return (ra === undefined ? 5 : ra) - (rb === undefined ? 5 : rb) || a.localeCompare(b);
+}
 
 // Chart colours are READ FROM the :root tokens, never re-declared - a reskin moves
 // them with everything else. CF / TARGET (line 2013) already cover orange + target grey.
@@ -3467,13 +3562,31 @@ function cssTok(n){ return getComputedStyle(document.documentElement).getPropert
 // disagree about which theatre is on screen.
 function cspdTheatre(){ return laneTheatre(); }
 
-// Config for one theatre, entirely derived. `weeks` comes from the targets grid UNION
-// any week that carries delivery, so a lead dated outside the planned grid can still
-// never disappear. `markets` honours the seed's own display order (market_seq) rather
-// than alphabetical - display order is data, not code.
+// Config for one theatre, entirely derived - and now scoped to the SELECTED BOOK for
+// everything the pacing panels read. `weeks` comes from the targets grid UNION any week that
+// carries delivery, so a lead dated outside the planned grid can still never disappear.
+// `markets` honours the seed's own display order (market_seq) rather than alphabetical -
+// display order is data, not code.
+//
+// THREE fields are deliberately theatre-wide, NOT book-scoped:
+//   * `books`     - the picker has to offer books other than the one selected.
+//   * `weeksAll`  - the targets-seed staleness check is a fact about the SEED (which is per
+//                   theatre), not about whichever book you happen to be looking at. Scoping
+//                   it would have made the Regional book - which has no targets at all by
+//                   design - raise the amber "targets have gone stale" alarm every time.
+//   * `allRows`   - the publisher table spans every book on purpose.
+// The book scoping is what keeps a target that covers only Core DG from ever being paced
+// against delivery from another book.
 function cspdCfg(th){
-  const rows = CSPD_ROWS.filter(r => r.theatre === th);
-  const weeks = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
+  const all   = CSPD_ROWS.filter(r => r.theatre === th);
+  const books = [...new Set(all.map(cspdBookOf))].sort(cspdBookSort);
+  // Resolve the selection here rather than at boot: the payload is what decides which books
+  // exist. Falling back to the first book keeps a theatre that has no Core DG at all working.
+  if (!CSPD.book || books.indexOf(CSPD.book) < 0) CSPD.book = books.indexOf('Core DG') >= 0 ? 'Core DG' : (books[0] || null);
+  const rows  = all.filter(r => cspdBookOf(r) === CSPD.book);
+
+  const weeks    = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
+  const weeksAll = [...new Set(all.filter(r => r.week_start).map(r => r.week_start))].sort();
   const seq = new Map();
   for (const r of rows){
     if (r.market === 'UNMAPPED') continue;             // not a market - surfaced as a warning instead
@@ -3482,13 +3595,21 @@ function cspdCfg(th){
   }
   const markets = [...seq.keys()].sort((a,b) => (seq.get(a) - seq.get(b)) || a.localeCompare(b));
   const vendors = [...new Set(rows.map(r => r.vendor).filter(Boolean))].sort();
-  return { theatre: th, weeks, markets, vendors,
-           period_label: CSPD_META.period_label || 'Q3' };
+  // A publisher that does not exist in the selected book/theatre falls back to "all". Done
+  // HERE, not in the picker, because cspdDefaultWeek() reads the selection before the pickers
+  // are rendered - leaving it to the picker meant a lane change could open on the wrong week.
+  if (CSPD.vendor !== 'all' && vendors.indexOf(CSPD.vendor) < 0) CSPD.vendor = 'all';
+  // Does the SELECTED book have a target sheet at all? Drives the caption under the band, so
+  // a blank pacing tile reads as "not bought to a target" instead of as a broken feed.
+  const hasTargets = rows.some(r => (r.target || 0) > 0);
+  return { theatre: th, book: CSPD.book, books, weeks, weeksAll, markets, vendors, hasTargets,
+           allRows: all, period_label: CSPD_META.period_label || 'Q3' };
 }
 
 function cspdRows(){
   const th = cspdTheatre(), v = CSPD.vendor;
-  return CSPD_ROWS.filter(r => r.theatre === th && (v === 'all' || r.vendor === v));
+  return CSPD_ROWS.filter(r => r.theatre === th && cspdBookOf(r) === CSPD.book
+                            && (v === 'all' || r.vendor === v));
 }
 
 const cspdPct = (n, d) => d > 0 ? (100 * n / d).toFixed(1) + '%' : '-';
@@ -3524,7 +3645,9 @@ function renderCsPacingDetail(){
   // anchored to the quarter the targets were loaded for.
   document.querySelectorAll('.cspd-qlbl').forEach(e => { e.textContent = cfg.period_label; });
 
+  cspdRenderBookSel(cfg);
   cspdRenderVendorSel(cfg);
+  cspdRenderScopeHint(cfg);
   cspdRenderWeekChips(cfg);
 
   const rows = cspdRows();
@@ -3541,6 +3664,7 @@ function renderCsPacingDetail(){
   S('cspd_t_pace_cnt', tot.target
       ? tot.accepted.toLocaleString() + ' of ' + tot.target.toLocaleString() + ' ' + cfg.period_label + ' target'
       : 'no target set');
+  cspdRenderBookNote(cfg);
 
   // ---- 3.3 weekly figures: selected week, or period-to-date --------------
   const qtd = CSPD.week === 'qtd';
@@ -3572,6 +3696,7 @@ function renderCsPacingDetail(){
 
   cspdRenderMarketChart(cfg, slice, wkName);
   cspdRenderRejChart(cfg, rows);
+  cspdRenderVendorTable(cfg);
   cspdRenderReasons(cfg, wkName);
   cspdRenderStale(cfg);
 
@@ -3625,15 +3750,75 @@ function applyRegionPanelScope(){
 }
 
 // ---- controls ------------------------------------------------------------
+// CAMPAIGN (book) picker. There is deliberately NO "all campaigns" option: only Core DG has a
+// seeded target sheet, so an all-books selection would divide the combined delivery by one
+// book's target and report a pacing figure that is simply wrong - and it would be wrong in
+// the flattering direction, which is the worst kind. The publisher table below spans every
+// book instead, where nothing is paced across them.
+//
+// The picker HIDES ITSELF when the theatre has one book, so EMEA (Core DG only) gains no
+// control it cannot use, and this whole feature is invisible until a second book delivers.
+function cspdRenderBookSel(cfg){
+  const sel = document.getElementById('cspdBook');
+  const box = document.getElementById('cspdBookPick') || sel;
+  if (!sel) return;
+  if (cfg.books.length < 2){ box.style.display = 'none'; return; }
+  box.style.display = '';
+  sel.innerHTML = cfg.books.map(b =>
+    '<option value="' + esc(b) + '">' + esc(cspdBookLabel(b)) + '</option>').join('');
+  sel.value = cfg.book;
+}
+// Changing book RESETS the publisher: publishers do not span books here (DemandAI and
+// Interlink deliver only under Regional, Roverpath and Final Funnel only under Core DG), so
+// carrying a selection over would land on an empty section and look like missing data.
+function cspdSetBook(b){ CSPD.book = b; CSPD.vendor = 'all'; CSPD.week = null; renderCsPacingDetail(); }
+
 function cspdRenderVendorSel(cfg){
   const sel = document.getElementById('cspdVendor');
   if (!sel) return;
   if (CSPD.vendor !== 'all' && cfg.vendors.indexOf(CSPD.vendor) < 0) CSPD.vendor = 'all';
-  sel.innerHTML = '<option value="all">All vendors</option>' + cfg.vendors.map(v =>
-    '<option value="' + v + '">' + v + '</option>').join('');
+  // Same rule as the book picker: one publisher means nothing to choose between.
+  const box = document.getElementById('cspdVendorPick') || sel;
+  if (cfg.vendors.length < 2){ box.style.display = 'none'; CSPD.vendor = 'all'; return; }
+  box.style.display = '';
+  sel.innerHTML = '<option value="all">All publishers</option>' + cfg.vendors.map(v =>
+    '<option value="' + esc(v) + '">' + esc(v) + '</option>').join('');
   sel.value = CSPD.vendor;
 }
 function cspdSetVendor(v){ CSPD.vendor = v; renderCsPacingDetail(); }
+
+// The band's caption names the selectors that drive it - so it has to name the ones actually
+// rendered. Both pickers hide themselves when a theatre has a single value to pick (EMEA has
+// one campaign book), and a caption pointing at a control that is not there reads as a bug.
+function cspdRenderScopeHint(cfg){
+  const el = document.getElementById('cspdScopeHint');
+  if (!el) return;
+  const parts = [];
+  if (cfg.books.length   > 1) parts.push('campaign');
+  if (cfg.vendors.length > 1) parts.push('publisher');
+  const follows = parts.length
+    ? ' - follows the ' + parts.join(' and ') + ' selector' + (parts.length > 1 ? 's' : '') + ', and does'
+    : ' - does';
+  el.innerHTML = 'Campaign to date, whole <span class="cspd-qlbl">' + esc(cfg.period_label) + '</span>'
+    + follows + ' <b>not</b> change with the week selected below.';
+}
+
+// Says out loud when the selected book has no target sheet. Without this the pacing tile
+// reads "-" / "no target set" and the market chart draws delivered bars against nothing,
+// which looks like a data fault rather than a book that was never bought to a lead target.
+function cspdRenderBookNote(cfg){
+  const el = document.getElementById('cspdBookNote');
+  if (!el) return;
+  if (cfg.hasTargets){ el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = '';
+  el.className = 'cspd-note' + (cfg.book === 'Unclassified' ? ' warn' : '');
+  el.textContent = cfg.book === 'Unclassified'
+    ? 'These campaigns are not yet mapped to a plan, so they sit outside both pacing books. '
+      + 'Delivery is counted and shown; pacing is not, because there is no target to pace against.'
+    : cspdBookLabel(cfg.book) + ' carry no lead targets in the ' + cfg.period_label
+      + ' pacing sheet, so delivery is shown without pacing. Pacing appears here as soon as a '
+      + 'target sheet for them is loaded.';
+}
 
 function cspdRenderWeekChips(cfg){
   const box = document.getElementById('cspdWeeks');
@@ -3660,18 +3845,29 @@ function cspdRenderMarketChart(cfg, slice, wkName){
     o.target += (r.target || 0); o.delivered += (r.delivered || 0);
   }
   const labels = cfg.markets;
+  // A book with NO target sheet gets ONE series, and the card is retitled to match. Drawing an
+  // all-zero Target series there put a grey swatch in the legend for a series with nothing in
+  // it, under a heading promising a comparison that the data cannot make - the chart claimed
+  // "vs target" while showing no target. One series and an honest title, instead.
+  const ds = [
+    { label: 'Delivered', data: labels.map(m => (byMkt[m] || {}).delivered || 0), backgroundColor: CF, maxBarThickness: 9 },
+  ];
+  if (cfg.hasTargets) ds.unshift(
+    { label: 'Target', data: labels.map(m => (byMkt[m] || {}).target || 0), backgroundColor: TARGET, maxBarThickness: 9 });
+  const title = document.getElementById('cspdMktTitle');
+  if (title) title.textContent = cfg.hasTargets ? 'Delivered vs target by market' : 'Delivered by market';
   charts['cspdMarketChart'] = new Chart(el, {
     type: 'bar',
-    data: { labels: labels, datasets: [
-      { label: 'Target',    data: labels.map(m => (byMkt[m] || {}).target    || 0), backgroundColor: TARGET, maxBarThickness: 9 },
-      { label: 'Delivered', data: labels.map(m => (byMkt[m] || {}).delivered || 0), backgroundColor: CF,     maxBarThickness: 9 },
-    ]},
+    data: { labels: labels, datasets: ds },
     options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, padding: 12 } } },
+      // The legend only earns its space when there are two series to tell apart.
+      plugins: { legend: { display: ds.length > 1, position: 'bottom', labels: { boxWidth: 9, boxHeight: 9, padding: 12 } } },
       scales: { x: { beginAtZero: true, ticks: { precision: 0 } }, y: { grid: { display: false } } } },
   });
   const lbl = document.getElementById('cspdMktLbl');
-  if (lbl) lbl.textContent = wkName + (CSPD.vendor === 'all' ? ' - all vendors' : ' - ' + CSPD.vendor);
+  if (lbl) lbl.textContent = wkName + ' - ' + cspdBookLabel(cfg.book)
+    + (CSPD.vendor === 'all' ? ', all publishers' : ', ' + CSPD.vendor)
+    + (cfg.hasTargets ? '' : ' (no target set - delivered only)');
 
   // Unmatched leads are a CLIENT REQUIREMENT to surface, so this line always says
   // something - "all matched" is information too.
@@ -3737,6 +3933,87 @@ function cspdRenderRejChart(cfg, rows){
     : 'Selected: week of ' + cspdWkLabel(CSPD.week) + '.';
 }
 
+// ---- delivery by publisher: EVERY book in the theatre, campaign to date --
+// The one panel that is deliberately NOT scoped by the campaign picker. Lydia's ask was to
+// get the regional publishers onto this section; a picker alone would still mean you can only
+// ever see one book at a time, and comparing publishers is the whole point of the ask.
+//
+// Nothing here is paced ACROSS books: every row is one publisher, and Target is blank (not 0)
+// where no target sheet covers it - a "0" would read as a target of zero rather than as no
+// target, and would then make Pacing look infinitely ahead. There is no Total row for the
+// same reason: summing a book that has targets with one that does not would produce a pacing
+// figure with no meaning. The band at the top of the section is the total, per book.
+function cspdRenderVendorTable(cfg){
+  const card = document.getElementById('cspdVendorCard');
+  const body = document.querySelector('#cspdVendorTbl tbody');
+  if (!card || !body) return;
+
+  // book x publisher, campaign to date (every week), so these tie to the band above.
+  const agg = new Map();
+  for (const r of cfg.allRows){
+    if (!r.vendor) continue;
+    const book = cspdBookOf(r), key = book + ' ' + r.vendor;
+    const o = agg.get(key) || { book, vendor: r.vendor, target:0, delivered:0, accepted:0, rejected:0 };
+    o.target += (r.target || 0); o.delivered += (r.delivered || 0);
+    o.accepted += (r.accepted || 0); o.rejected += (r.rejected || 0);
+    agg.set(key, o);
+  }
+  // A publisher that is seeded with a target but has not started still belongs on this
+  // table - that IS the pacing story - so rows are not filtered on delivery.
+  const list = [...agg.values()].sort((a, b) =>
+    cspdBookSort(a.book, b.book) || (b.delivered - a.delivered) || a.vendor.localeCompare(b.vendor));
+  if (!list.length){ card.style.display = 'none'; return; }
+  card.style.display = '';
+
+  // The badge prints the RAW book value, not cspdBookLabel(): the column is narrow and
+  // "REGIONAL CAMPAIGNS" wraps, while the picker and the caption above already carry the
+  // long wording. Colour separates the books; the word only has to name them.
+  const bookCls = b => 'cspd-book' + (b === 'Regional' ? ' regional' : b === 'Unclassified' ? ' unclassified' : '');
+  body.innerHTML = list.map(o => {
+    // Highlighted ONLY when a specific publisher is filtered. With the picker on "all
+    // publishers" there is no selection to mark, and marking every row of the book instead
+    // just says "this book", which the picker above already says.
+    const sel = o.book === cfg.book && CSPD.vendor === o.vendor;
+    // Blank, not '-', reads as "nothing bought here"; the bb-sortable engine sinks
+    // non-numeric cells to the bottom in both directions either way.
+    const tgt  = o.target ? o.target.toLocaleString() : '<span style="opacity:.45">no target</span>';
+    const pace = o.target ? cspdPct(o.accepted, o.target) : '<span style="opacity:.45">-</span>';
+    return '<tr class="' + (sel ? 'on' : '') + '" onclick="cspdPickVendor(' + JSON.stringify(o.book).replace(/"/g, '&quot;')
+      + ',' + JSON.stringify(o.vendor).replace(/"/g, '&quot;') + ')">'
+      + '<td><span class="' + bookCls(o.book) + '">' + esc(o.book) + '</span></td>'
+      + '<td><b>' + esc(o.vendor) + '</b></td>'
+      + '<td class="num">' + tgt + '</td>'
+      + '<td class="num">' + o.delivered.toLocaleString() + '</td>'
+      + '<td class="num">' + o.accepted.toLocaleString() + '</td>'
+      + '<td class="num">' + o.rejected.toLocaleString() + '</td>'
+      + '<td class="num">' + cspdPct(o.rejected, o.delivered) + '</td>'
+      + '<td class="num">' + cspdPct(o.accepted, o.delivered) + '</td>'
+      + '<td class="num">' + pace + '</td>'
+      + '</tr>';
+  }).join('');
+
+  const lbl = document.getElementById('cspdVendorLbl');
+  if (lbl) lbl.textContent = 'Campaign to date, whole ' + cfg.period_label
+    + ' - every campaign in ' + cfg.theatre + ', not just the one selected above. '
+    + 'Pacing is accepted leads against target. Click a row to scope the panels above to it.';
+  const note = document.getElementById('cspdVendorNote');
+  if (note){
+    const noTgt = list.filter(o => !o.target).map(o => o.vendor);
+    note.className = 'cspd-note';
+    note.textContent = noTgt.length
+      ? 'No lead target is loaded for ' + noTgt.join(', ') + ', so those rows show delivery only.'
+      : 'Every publisher here is paced against a loaded ' + cfg.period_label + ' lead target.';
+  }
+}
+// Row click -> set both pickers. Clicking the row that is already selected clears the
+// publisher filter, so a row is a toggle rather than a one-way trip into a filtered view.
+function cspdPickVendor(book, vendor){
+  const same = CSPD.book === book && CSPD.vendor === vendor;
+  if (CSPD.book !== book){ CSPD.book = book; CSPD.week = null; }
+  CSPD.vendor = same ? 'all' : vendor;
+  renderCsPacingDetail();
+}
+
 // ---- rejection reasons: renders ONLY with real data ----------------------
 function cspdRenderReasons(cfg, wkName){
   const card = document.getElementById('cspdReasonsCard');
@@ -3744,6 +4021,7 @@ function cspdRenderReasons(cfg, wkName){
   const all = CSPD_META.reasons || [];
   const th = cspdTheatre();
   const mine = all.filter(r => r.theatre === th
+    && (!r.book || r.book === CSPD.book)
     && (CSPD.week === 'qtd' || r.week_start === CSPD.week)
     && (CSPD.vendor === 'all' || r.vendor === CSPD.vendor));
   if (!mine.length){ card.style.display = 'none'; return; }   // hide cleanly, never fabricate
@@ -3760,7 +4038,10 @@ function cspdRenderReasons(cfg, wkName){
 function cspdRenderStale(cfg){
   const card = document.getElementById('cspdStale');
   if (!card) return;
-  const withTgt = cfg.weeks.filter(wk =>
+  // weeksAll, NOT cfg.weeks: this is a fact about the TARGETS SEED, which is loaded per
+  // theatre. Reading the book-scoped week list made the Regional book - which has no targets
+  // by design - raise this alarm on every render.
+  const withTgt = cfg.weeksAll.filter(wk =>
     CSPD_ROWS.some(r => r.theatre === cfg.theatre && r.week_start === wk && r.target > 0)).sort();
   const last = withTgt.length ? withTgt[withTgt.length - 1] : null;
   const now = new Date();
@@ -6153,12 +6434,21 @@ if (new URLSearchParams(location.search).has('bbslides')){
       if (grouped){ const p=s.split('.'); p[0]=p[0].replace(/\B(?=(\d{3})+(?!\d))/g,','); s=p.join('.'); }
       return m[1] + (v<0?'-':'') + s + m[3];
     };
+    // A figure can be RE-RENDERED while its count-up is still running - scroll the Pacing
+    // detail section into view and immediately change the campaign, publisher or week, and
+    // the render fires inside this 780ms window. Because the last frame writes the string
+    // captured when the animation STARTED, that used to overwrite the new value with the old
+    // one and leave it there until the next render: the section sat showing another scope's
+    // numbers. So each frame checks that the text is still the one WE last wrote, and bails
+    // the moment anything else has written to the element - the render function always wins.
     const dur = 780, t0 = performance.now();
+    let mine = null;
     (function step(now){
+      if (mine !== null && el.textContent !== mine) return;   // re-rendered underneath us
       const p = Math.min(1, (now-t0)/dur);
       const e = 1 - Math.pow(1-p, 4);                    // out-quart, matches the CSS easing
-      if (p < 1){ el.textContent = fmt(target*e); requestAnimationFrame(step); }
-      else { el.textContent = raw; }                     // exact original string, always
+      if (p < 1){ mine = fmt(target*e); el.textContent = mine; requestAnimationFrame(step); }
+      else { el.textContent = raw; mine = raw; }         // exact original string, always
     })(t0);
   }
   const COUNT_SEL = '.kpi .value,.cs-snap .stat .v,.qoq-stats .stat .v,.compare-kpi .v,' +
