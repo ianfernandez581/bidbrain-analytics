@@ -239,6 +239,61 @@ warm aurora, same button/press/focus vocabulary. Its aurora is CSS-only - no can
 requestAnimationFrame - because a login screen should not run an animation loop.
 
 
+## EMEA top-of-tab summary sections (2026-08-27)
+
+The **KPI strip**, **Leads vs target / Progress** and the **By-region summary** now render on
+Core DG EMEA. They were APJ-only because they read the legacy `pacing.rows` model
+(`salesforce_leads_live`), which holds **zero EMEA rows**. They are now fed from `cs_pacing`
+instead - the same payload branch the Pacing detail section below them already used. **The legacy
+model was NOT backfilled**: widening it would move live APAC numbers and desync the status-dash
+checks. Code lives in the `BB:EMEATOP` block in `dash/dashboard.html`.
+
+**They call the SAME four render functions as APJ** (`renderKPIs` / `renderLeadsTarget` /
+`renderProgress` / `renderRegionGrid`), fed an agg-shaped object by `cspdTopAgg()`. That is the
+whole design: a basis cannot drift between theatres if there is one implementation. All four pace
+on **accepted / target**, which is what the client's sheet does (deficit = Planned - Accepted).
+**The delivered/target basis in the Pacing detail weekly band is a different component** and stays
+as it is - do not "harmonise" one into the other without asking, they answer different questions.
+
+Verified 2026-08-27: accepted 265, delivered 306, rejected 41, unprocessed 253, flight target 830,
+target due to date 192 -> **31.9% of plan against 23.1% time elapsed, 138.0% leads pacing**. The
+pacing-versus-time comparison is the point of the section: a bare 31.9% reads as underperformance.
+
+### Three things to keep right
+
+- **The in-progress week is DAY-PRORATED, and it has to be.** Targets are seeded weekly, elapsed
+  time is continuous, so counting a whole week's target the moment that week opens makes pacing
+  lurch with no change on the ground - EMEA would fall from 138% to 103.5% between Thu 27 and Fri
+  28 Aug. Each week contributes `target x (its days elapsed / 7)`, giving 131.8% on the 28th.
+  **The legacy APAC model never had this bug** because its targets are seeded PER DAY
+  (`ALLOCATED_TARGET`, ~4,400 rows a quarter); `cspdTopAgg()` reproduces that from weekly rows.
+  **Testing trap:** on the last day of a week, days-elapsed and completed-weeks agree by
+  coincidence (21 of 91 days = exactly 3 weeks on 27 Aug 2026), so a proration bug is invisible
+  that day. Test a mid-week date - `scripts`-free harness in the git history, or simulate `Date`.
+- **The flight is DERIVED FROM THE TARGET WEEKS, never from a stated end date.** Three sources
+  disagree: 13 Friday-anchored weeks from 07 Aug -> **5 Nov**; the EMEA sheet's overall tab ->
+  31 Oct; its Roverpath tab -> 30 Sep. Week 13 *starts* 30 Oct, so a 31 Oct end would make it a
+  two-day week. `cspdFlight()` takes first week start -> last week start + 6 days = 91 days.
+  **Confirm the real end date with Jade**; a correction arrives as CSV rows and needs no code.
+- **EMEA is labelled "Flight", never "Q3".** 310 of its 830 (37%) falls in October, which is Q4,
+  and drawing a time-elapsed bar against a calendar quarter it is not being bought in would be a
+  straight misstatement. `periodLabel()`/`toDateWord()` are lane-aware and return
+  `qtrLabel()`/`'QTD'` unchanged on APAC, so **every APJ caption is byte-identical**.
+
+**Still hidden on EMEA** (donuts, Job function/level/demographic, Best performing assets, the
+leads-trend and the lead-detail table): they need lead-GRAIN columns - `ASSET_1`, `JOB_FUNCTION`,
+`JOB_LEVEL`, `JOB_TITLE`, `COMPANY_NAME` - that `stg_cs_leads_v2` does not carry. All six are
+present and 100% populated for EMEA in `raw_snowflake.salesforce_cs_apac_all` (1,043 rows), so
+this is a view widening plus a payload branch, not a data chase. `CSPD_ANY_THEATRE_BLOCKS` is the
+list that decides what renders off-theatre - **adding an id there without repointing its data
+source at `cs_pacing` renders an EMPTY panel under an EMEA heading**, which is what it prevents.
+
+**Scope = theatre + book + publisher (`cspdRows()`), the same as the band below**, so the two can
+never disagree - that disagreement is what this work existed to fix. Because the book/publisher
+pickers sit further down the page, the strip carries a caption (`#csTopScope`) naming the scope,
+the flight window and the days elapsed. A figure that moves with an off-screen control is worse
+than no figure.
+
 ## Pacing detail + Core DG EMEA (2026-08-24)
 
 A **Pacing detail** section on the Content Syndication tab, directly under "Pacing - target vs
