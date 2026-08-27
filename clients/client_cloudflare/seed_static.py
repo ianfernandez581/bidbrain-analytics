@@ -49,7 +49,7 @@ SEEDS = {
         SF("L2", "STRING"), SF("BILLING_COUNTRY", "STRING"), SF("INDUSTRY", "STRING"),
         SF("COHORT", "STRING"), SF("PRIORITY", "STRING"), SF("TIER", "STRING"),
     ]),
-    # Core DG Content-Syndication Q3 lead targets, long format (theatre x vendor x market
+    # Content-Syndication Q3 lead targets, long format (book x theatre x vendor x market
     # x week), APAC + EMEA. Source of truth for the "Pacing detail" section's pacing;
     # loaded once per quarter from the client's pacing sheet, and the ONLY non-live input
     # on that section - which is why the dashboard warns in Admin View when the latest
@@ -57,7 +57,14 @@ SEEDS = {
     # model returned zero targets for seven weeks).
     # MARKET_SEQ is the chart's market DISPLAY ORDER: re-order the CSV, re-seed, and the
     # chart follows - no code change, no deploy. Totals: APAC 2,290 / EMEA 830.
+    # BOOK (added 2026-08-27) is which PLAN the target belongs to and must match the BOOK
+    # values sql/16_stg_cs_leads_v2.sql derives, or 17_*'s join silently drops to zero for
+    # that slice. Every row here is 'Core DG' because that is the only book the client has
+    # ever issued a pacing sheet for; the REGIONAL book (ANZ DnB - DemandAI / Interlink /
+    # SitPub) shows delivery with no pacing until a regional sheet arrives, at which point
+    # it is CSV rows here and no code change anywhere.
     "cs_targets_q3.csv": ("seed_cs_targets_q3", [
+        SF("BOOK", "STRING"),
         SF("THEATRE", "STRING"), SF("VENDOR", "STRING"), SF("MARKET", "STRING"),
         SF("MARKET_SEQ", "INT64"), SF("WEEK_NUMBER", "INT64"),
         SF("WEEK_START", "DATE"), SF("TARGET", "INT64"),

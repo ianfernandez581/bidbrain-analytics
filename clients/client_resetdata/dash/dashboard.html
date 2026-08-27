@@ -1304,7 +1304,8 @@ window.DateRange = (function(){
 // (idempotent) and only touch SPEND - counts (imps/clicks/leads/conversions) and ratios (CTR/conv-rate)
 // are untouched, and cost-per-X metrics (CPL/CPM/CPC) follow automatically since they're re-derived
 // from summed spend downstream. resetdata is B2B leads (no revenue/ROAS), so nothing else to protect.
-// NOTE: resetdata's Reddit spend already carries a ×2 billed-rate markup baked in upstream (SQL); this
+// NOTE: resetdata's Reddit spend USED to carry a ×2 billed-rate markup hardcoded in SQL (removed 2026-08-27 -
+// all four channels are now raw media cost); a billed rate belongs here in the registry, not in a view. This
 // shim is generic and just applies whatever factor `BB_SPEND_MULT.reddit` carries (super admin sets it).
 // Empty/unset BB_SPEND_MULT ⇒ every factor defaults to 1 ⇒ total no-op.
 function bbMultFor(channel){const m=window.BB_SPEND_MULT||{};const v=Number(m[channel]);return (Number.isFinite(v)&&v>0)?v:1;}

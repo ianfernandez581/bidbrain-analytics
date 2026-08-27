@@ -57,7 +57,7 @@ sessions, engagement, and the demand-gen key events (lead form, sign-up, $50-cre
 > was re-granted in Windsor and came back under its **original id** (`a2_igd0szmw7roq` — no new mint,
 > contrary to the 07-16 assumption); a fixed-range `--force` re-pull (2026-02-01..2026-08-04) retagged
 > the Cloudflare rows `→ cloudflare/transmission` and re-backfilled ResetData's real Feb–Jul history
-> (1,827 rows, raw A$4,571.56 → A$9,143 at the ×2 billed rate, 30 conversions, data through
+> (1,827 rows, raw A$4,571.56 — shown as A$9,143 at the then-current ×2 billed rate, removed 2026-08-27; 30 conversions, data through
 > 2026-07-31); `windsor-reddit-ingest` was redeployed with both accounts mapped and `resetdata-export`
 > force-rebuilt. `data/resetdata_reddit_febmar26.csv` corroborates the recovered Feb–Mar delivery.
 > NB: the status-dash Reddit accuracy checks mirror the same `client_slug='resetdata'` filter, so they
