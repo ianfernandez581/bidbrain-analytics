@@ -179,6 +179,21 @@ dashboard sat frozen for ~19 hours (STT read the same mirror but not that column
 - **`gcloud run jobs executions list` is the tell** - a job with `FAILED_COUNT=1` every tick while
   the dashboard still renders is exactly this class of bug.
 
+## A WEEKLY TARGET AGAINST CONTINUOUS TIME MUST BE PRORATED (2026-08-27)
+Pacing compares actuals-to-date against target-to-date. Targets are almost always bought WEEKLY
+(or monthly); elapsed time is continuous. If target-to-date steps up by a whole week the moment
+that week opens, **the pacing figure lurches with no change in performance** - cloudflare EMEA
+would have fallen from 138% to 103.5% overnight between a Thursday and a Friday.
+**Rule: each period contributes `target x (its days elapsed / period length)`.** Reference impl:
+`cspdTopAgg()` / `weekDueFraction()` in `clients/client_cloudflare/dash/dashboard.html`. Where the
+seed is already DAILY (cloudflare's legacy `ALLOCATED_TARGET`) this is free - summing days to today
+IS the proration; the trap is only for weekly/monthly seeds.
+**Testing trap that hides it:** on the LAST DAY of a period, days-elapsed and completed-periods give
+the same answer by coincidence. A proration bug is invisible that day. Always test a mid-period date.
+**And derive a flight from the seeded period starts, not from a stated end date** - cloudflare EMEA
+had three conflicting end dates (5 Nov / 31 Oct / 30 Sep) while its 13 week-start rows were
+unambiguous. First period start -> last period start + (period length - 1).
+
 ## RATES MUST NEVER ENTER A FACT TABLE (2026-08-20)
 Ad platforms ship plenty of metrics as RATES (Google's `video_quartile_pXX_rate`, `video_view_rate`,
 `conversion_rate`, `TRUEVIEW_VIEW_RATE`). Every fact table in this repo gets `SUM()`ed by day,

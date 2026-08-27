@@ -1027,7 +1027,7 @@
         </span>
       </div>
 
-      <div class="cs-snap">
+      <div class="cs-snap" id="csKpiStrip">
         <div class="group">
           <div class="lbl">Overall</div>
           <div class="pair" id="overallPair">
@@ -1052,15 +1052,16 @@
         </div>
       </div>
 
-      <div class="grid">
+      <div class="grid" id="csTargetGrid">
         <div class="card">
           <h3>Leads vs target</h3>
-          <div class="hint"><span class="qlbl">Q3</span> target, time-to-date target, and accepted leads QTD.</div>
+          <div class="hint"><span class="qlbl">Q3</span> target, time-to-date target, and accepted leads <span class="ptdlbl">QTD</span>.</div>
           <div id="leadsTarget"></div>
         </div>
         <div class="card">
           <h3>Progress</h3>
           <div class="hint">Leads vs target / Time vs <span class="qlbl">Q3</span> days elapsed.</div>
+          <div class="hint" id="csTopScope" style="display:none;margin-top:2px"></div>
           <div id="progress"></div>
         </div>
       </div>
@@ -1258,7 +1259,7 @@
           <div class="chart-wrap xtall"><canvas id="dailyChart"></canvas></div></div>
       </div>
 
-      <div class="card">
+      <div class="card" id="csRegionCard">
         <h3>By-region summary</h3>
         <div class="hint">Three bars per region, scaled to the region's <span class="qlbl">Q3</span> target.</div>
         <div id="regionGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:16px;margin-top:14px"></div>
@@ -2168,8 +2169,12 @@ function qtrLabel(){
   return 'Quarter';
 }
 function updateQuarterLabels(){
-  const t = qtrLabel();
+  // periodLabel()/toDateWord() follow the LANE: they return qtrLabel()/'QTD' unchanged on
+  // the legacy theatre, so every APJ caption is byte-identical to before.
+  const t = periodLabel();
   document.querySelectorAll('.qlbl').forEach(el => el.textContent = t);
+  const p = toDateWord();
+  document.querySelectorAll('.ptdlbl').forEach(el => el.textContent = p);
 }
 
 // ==========================================================================
@@ -3079,21 +3084,23 @@ const NO_TARGET_MSG = '<div style="font-size:12.5px;color:var(--cf-mute);padding
 
 function renderLeadsTarget(agg) {
   if (!agg.q2Target) { document.getElementById('leadsTarget').innerHTML = NO_TARGET_MSG; return; }
-  const QL = qtrLabel();
+  const QL = periodLabel();
   const maxV = Math.max(agg.q2Target, agg.ttdTarget, agg.accepted, 1);
   const w = v => (v/maxV*100).toFixed(1);
   document.getElementById('leadsTarget').innerHTML = `
     <div class="progress-row"><div>${QL} Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.q2Target)}%"></div></div><div style="text-align:right">${fmtN(agg.q2Target)}</div></div>
     <div class="progress-row"><div>TTD Target</div><div class="pbar gray"><div class="fill" style="width:${w(agg.ttdTarget)}%"></div></div><div style="text-align:right">${fmtN(agg.ttdTarget)}</div></div>
-    <div class="progress-row"><div>QTD Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
+    <div class="progress-row"><div>${toDateWord()} Accepted</div><div class="pbar"><div class="fill" style="width:${w(agg.accepted)}%"></div></div><div style="text-align:right">${fmtN(agg.accepted)}</div></div>
     <div style="font-size:12px;color:var(--cf-mute);margin-top:14px">
-      QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.
+      ${topFromPacing()
+        ? `Accepted to date is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of the flight plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of the target due so far.`
+        : `QTD accepted is <b>${agg.q2Target ? (agg.accepted/agg.q2Target*100).toFixed(1) : '0'}%</b> of ${QL} plan, <b>${agg.ttdTarget ? (agg.accepted/agg.ttdTarget*100).toFixed(1) : '0'}%</b> of TTD target.`}
     </div>`;
 }
 
 function renderProgress(agg) {
   if (!agg.q2Target) { document.getElementById('progress').innerHTML = NO_TARGET_MSG; return; }
-  const QL = qtrLabel();
+  const QL = periodLabel();
   const lp = agg.q2Target ? agg.accepted/agg.q2Target : 0;   // accepted leads ÷ target
   const tp = agg.timePct;                                    // quarter time elapsed
   const ratio = tp > 0 ? lp/tp : 0;
@@ -3485,17 +3492,37 @@ function renderRegionGrid(agg) {
           <div style="font-weight:700;font-size:14px">${mktLabel(market)}</div>
           <div style="font-size:11.5px;color:${paceColor};font-weight:600">${ttd ? pace.toFixed(0)+'% pace' : '-'}</div>
         </div>
-        <div class="reg-row"><div class="reg-lbl">${qtrLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
+        <div class="reg-row"><div class="reg-lbl">${periodLabel()} Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wQ2}%"></div></div><div class="reg-num">${fmtN(q2)}</div></div>
         <div class="reg-row"><div class="reg-lbl">TTD Target</div><div class="reg-bar"><div class="reg-fill" style="width:${wTd}%"></div></div><div class="reg-num">${fmtN(ttd)}</div></div>
-        <div class="reg-row"><div class="reg-lbl">QTD Accepted</div><div class="reg-bar"><div class="reg-fill orange" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(accepted)}</div></div>
+        <div class="reg-row"><div class="reg-lbl">${toDateWord()} Accepted</div><div class="reg-bar"><div class="reg-fill orange" style="width:${wA}%"></div></div><div class="reg-num">${fmtN(accepted)}</div></div>
         ${unpRow}
       </div>`);
   });
 }
 
 function renderAll() {
+  // Period wording follows the LANE (flight vs quarter), so it has to refresh on a lane
+  // change, not only when the quarter/date range moves.
+  updateQuarterLabels();
+  // A theatre the legacy model does not cover drives its three enabled summary sections
+  // from cs_pacing (BB:EMEATOP) and renders nothing else on this tab. renderCsPacingDetail
+  // stays LAST because its tail (applyRegionPanelScope) is what hides the rest.
+  if (topFromPacing()){
+    const t = cspdTopAgg();
+    renderKPIs(t);
+    renderLeadsTarget(t);
+    renderProgress(t);
+    renderRegionGrid(t);
+    renderTopScopeNote(t);
+    renderCsPacingDetail();
+    setLiveBanner(COMBINED && COMBINED.last_updated, rawRows.length);
+    return;
+  }
   const agg = aggregate();
   renderKPIs(agg);
+  // Hides itself on the legacy theatre. Called here too so switching EMEA -> APJ cannot
+  // leave an EMEA scope caption sitting under APJ's Progress card.
+  renderTopScopeNote(agg);
   renderLeadsTarget(agg);
   renderProgress(agg);
   renderWeekly(agg);
@@ -3724,6 +3751,11 @@ function renderCsPacingDetail(){
 // EMEA heading - worse than showing nothing. They are hidden instead, and the lane's own
 // note says why. If that view is ever widened past APAC, this constant is what to revisit.
 const CSPD_LEGACY_THEATRE = 'APAC';
+// Ids of the #panel-main blocks that render for ANY theatre. Everything else on the CS
+// tab still reads the APAC-only legacy model and is hidden off-theatre. Adding a block
+// here without repointing its data source at cs_pacing would render an EMPTY panel under
+// an EMEA heading, which is exactly what this list exists to prevent.
+const CSPD_ANY_THEATRE_BLOCKS = new Set(['cspdSection','csKpiStrip','csTargetGrid','csRegionCard']);
 
 // A lane with no explicit theatre is APAC - so an older lane definition, or a new one added
 // without thinking about theatre, degrades to exactly today's behaviour.
@@ -3738,7 +3770,12 @@ function applyRegionPanelScope(){
   if (!panel) return;
   const legacyOk = laneTheatre() === CSPD_LEGACY_THEATRE;
   for (const el of panel.children){
-    if (el.id === 'cspdSection') continue;     // the one block that is theatre-aware
+    // Blocks that work for ANY theatre. cspdSection always did; the three summary
+    // sections joined it 2026-08-27 when they were repointed at cs_pacing (see
+    // BB:EMEATOP). Everything else still reads the APAC-only legacy model and stays
+    // hidden - the donuts, assets and lead table need lead-grain columns that
+    // stg_cs_leads_v2 does not carry yet.
+    if (CSPD_ANY_THEATRE_BLOCKS.has(el.id)) continue;
     if (!legacyOk){
       if (el.dataset.bbRegionHid === undefined) el.dataset.bbRegionHid = el.style.display;
       el.style.display = 'none';
@@ -4057,6 +4094,147 @@ function cspdRenderStale(cfg){
     : 'No targets are loaded for <b>' + cfg.theatre + '</b> at all - every pacing figure below reads against zero.';
 }
 // <<< BB:CSPD <<<
+
+// >>> BB:EMEATOP (top-of-tab summary for a theatre the legacy model does not cover) >>>
+// ==========================================================================
+// TOP-OF-TAB SUMMARY FOR A NON-LEGACY THEATRE  (Core DG EMEA, 2026-08-27)
+// ==========================================================================
+// The KPI strip, "Leads vs target" / "Progress" and the By-region summary were built on
+// the legacy `pacing.rows` model (salesforce_leads_live), which is APAC-ONLY: its
+// MARKET_REGION carries no EMEA token and its campaign-ID allowlist holds no EMEA
+// campaign. Backfilling that model would move live APAC numbers and desync the
+// status-dash accuracy checks, so instead these three sections read `cs_pacing` - the
+// same payload branch the Pacing detail section below already uses.
+//
+// They call the SAME render functions as APJ (renderKPIs / renderLeadsTarget /
+// renderProgress / renderRegionGrid), fed an agg-shaped object. That is the point: a
+// basis cannot drift between theatres if there is only one implementation. All four
+// already pace on ACCEPTED / target, which is what the client's own sheet does
+// (deficit = Planned - Accepted). DO NOT add a delivered-based variant here - the
+// delivered basis lives only in the Pacing detail weekly band, which says so.
+//
+// SCOPE = theatre + book + publisher, i.e. exactly cspdRows(). This whole section
+// exists because two panels on one screen disagreed; scoping the top tiles differently
+// from the band below would recreate that. The strip carries a caption naming the
+// scope, because the publisher picker that can change it sits further down the page.
+// try/catch is TDZ insurance only: this is called from updateQuarterLabels(), which the
+// boot path reaches early. Any failure falls back to today's behaviour (legacy theatre).
+function topFromPacing(){
+  try { return laneTheatre() !== CSPD_LEGACY_THEATRE; } catch(_){ return false; }
+}
+
+// ---- flight window -------------------------------------------------------
+// DERIVED FROM THE TARGET WEEKS, never from a stated end date. Three sources disagree
+// on when EMEA ends (13 Friday weeks from 07 Aug -> 05 Nov; the sheet's overall tab ->
+// 31 Oct; its Roverpath tab -> 30 Sep), and week 13 starts 30 Oct, so a 31 Oct end
+// would make it a two-day week. The 13 week starts in cs_targets_q3.csv are the one
+// unambiguous structure, so the flight is first week start -> last week start + 6 days.
+// A corrected end date arrives as CSV rows and needs no code change.
+function cspdFlight(rows){
+  const wks = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
+  if (!wks.length) return null;
+  const start = new Date(wks[0] + 'T00:00:00Z');
+  const end   = new Date(wks[wks.length - 1] + 'T00:00:00Z');
+  end.setUTCDate(end.getUTCDate() + 6);
+  return { start, end, weeks: wks, totalDays: Math.round((end - start) / 864e5) + 1 };
+}
+
+// Days of the flight that have STARTED, 1-based and clamped: the first day counts as 1
+// (a flight is not 0% elapsed on its opening day) and it stops at the flight length.
+function flightDaysElapsed(f, now){
+  if (!f) return 0;
+  return Math.max(0, Math.min(f.totalDays, Math.floor((now - f.start) / 864e5) + 1));
+}
+
+// ---- the load-bearing bit: prorate the in-progress week -------------------
+// Targets are seeded WEEKLY; elapsed time is continuous. Counting a whole week's target
+// the moment that week opens makes pacing lurch with no change on the ground - EMEA
+// would drop from 138% to 104% overnight between Thu 27 and Fri 28 Aug. So each week
+// contributes its target x (its days elapsed / 7), which draws a smooth curve.
+//
+// The legacy APAC model never had this bug because its targets are seeded PER DAY
+// (ALLOCATED_TARGET, ~4,400 rows a quarter) and it simply sums the days up to today.
+// This reproduces that behaviour from weekly rows; the two bases stay comparable.
+//
+// NOTE FOR ANYONE TESTING: on the last day of a week, days-elapsed and completed-weeks
+// give the SAME answer by coincidence (21 of 91 days = exactly 3 whole weeks on
+// 27 Aug 2026). A proration bug is invisible that day. Test a mid-week date.
+function weekDueFraction(f, elapsedDays, weekStart){
+  if (!f) return 0;
+  const i = f.weeks.indexOf(weekStart);
+  if (i < 0) return 0;
+  return Math.max(0, Math.min(7, elapsedDays - i * 7)) / 7;
+}
+
+// ---- agg builder ---------------------------------------------------------
+// Returns the subset of aggregate()'s shape that the three enabled sections read.
+// Anything they do not touch is left off deliberately: the donuts, assets and lead
+// table need lead-GRAIN columns (ASSET_1 / JOB_* / COMPANY_NAME) that stg_cs_leads_v2
+// does not carry yet, and they stay hidden for this theatre until it does.
+function cspdTopAgg(){
+  const rows = cspdRows();
+  const f    = cspdFlight(rows);
+  const now  = new Date();
+  const elapsed = flightDaysElapsed(f, now);
+  const sum = k => rows.reduce((s, r) => s + (r[k] || 0), 0);
+
+  const mk = new Map();       // market -> full target, due-to-date target, actuals
+  let q2Target = 0, ttdTarget = 0;
+  for (const r of rows){
+    const t = r.target || 0;
+    const due = t * weekDueFraction(f, elapsed, r.week_start);
+    q2Target  += t;
+    ttdTarget += due;
+    if (r.market === 'UNMAPPED') continue;   // surfaced as needs_review, never as a market
+    const o = mk.get(r.market) || { market: r.market, seq: 999, q2: 0, ttd: 0, accepted: 0, unprocessed: 0 };
+    if (r.market_seq !== null && r.market_seq !== undefined && r.market_seq < o.seq) o.seq = r.market_seq;
+    o.q2 += t; o.ttd += due;
+    o.accepted += (r.accepted || 0); o.unprocessed += (r.unprocessed || 0);
+    mk.set(r.market, o);
+  }
+  const regionRows = [...mk.values()]
+    .sort((a, b) => (a.seq - b.seq) || a.market.localeCompare(b.market))
+    .map(o => ({ market: o.market, q2: o.q2, ttd: Math.round(o.ttd), accepted: o.accepted, unprocessed: o.unprocessed }));
+
+  return {
+    accepted: sum('accepted'), rejected: sum('rejected'), unprocessed: sum('unprocessed'),
+    delivered: sum('delivered'), needsReview: sum('needs_review'),
+    q2Target, ttdTarget: Math.round(ttdTarget),
+    timePct: f && f.totalDays ? elapsed / f.totalDays : 0,
+    flight: f, daysElapsed: elapsed,
+    regionRows
+  };
+}
+
+// ---- labelling -----------------------------------------------------------
+// EMEA's 830 is NOT a Q3 number: 310 of it (37%) falls in October, and its flight runs
+// 07 Aug -> 05 Nov, not 01 Jul -> 30 Sep. Calling it "Q3" while drawing a time-elapsed
+// bar would state a progress figure through a period that is not the one being bought.
+// APAC keeps the quarter wording exactly as it was - periodLabel() returns qtrLabel()
+// there, so every APJ string is byte-identical.
+function periodLabel(){ return topFromPacing() ? 'Flight' : qtrLabel(); }
+function toDateWord(){ return topFromPacing() ? 'To date' : 'QTD'; }
+
+// Scope caption under the EMEA KPI strip. The book/publisher pickers that change these
+// figures live further down the page, so the number says out loud what it covers - a
+// figure that moves with an off-screen control is worse than no figure.
+function renderTopScopeNote(agg){
+  const el = document.getElementById('csTopScope');
+  if (!el) return;
+  if (!topFromPacing()){ el.style.display = 'none'; return; }
+  const f = agg.flight;
+  const fmtD = d => d ? d.toISOString().slice(0, 10) : '?';
+  el.style.display = '';
+  el.innerHTML = '<b>' + esc(cspdBookLabel(CSPD.book || '')) + '</b> · '
+    + (CSPD.vendor && CSPD.vendor !== 'all' ? esc(CSPD.vendor) : 'all publishers')
+    + ' · flight <b>' + fmtD(f && f.start) + '</b> to <b>' + fmtD(f && f.end) + '</b> ('
+    + (f ? f.weeks.length : 0) + ' weeks), <b>' + agg.daysElapsed + '</b> of '
+    + (f ? f.totalDays : 0) + ' days elapsed. Target due to date prorates the week in progress.'
+    + (agg.needsReview ? ' <span style="color:var(--warn-amber)">' + fmtN(agg.needsReview)
+        + ' lead(s) matched no market and are excluded from the regions below.</span>' : '');
+}
+// <<< BB:EMEATOP <<<
+
 
 // ==========================================================================
 // DEV MODE: full lead detail table (all fields) + "Internal Notes" tab
