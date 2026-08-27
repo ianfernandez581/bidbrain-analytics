@@ -3568,6 +3568,31 @@ const CSPD = { book: null, vendor: 'all', week: null };
 // book next, and the safe residual last. Anything else sorts alphabetically in between, so a
 // book nobody has named here still appears - it just does not jump the queue.
 const CSPD_BOOK_RANK = { 'Core DG': 0, 'Regional': 1, 'Unclassified': 9 };
+
+// PUBLISHER-GRAIN TARGETS: shown, and labelled INDICATIVE. Decision 2026-08-27.
+//
+// The evidence first, because it is not obvious from the seed: Cloudflare's Core DG plan sets
+// lead targets per MARKET per WEEK and carries no publisher dimension at all - the supplied
+// sheet (`raw files/CF_FY26 Q3_Core DG Lead Pacing...csv`) has Week / Date / Region / Country
+// columns and never names a vendor. The publisher split in targets/cs_targets_q3.csv is an
+// INTERNAL ALLOCATION applied when the seed was built:
+//   * EMEA - a flat 1:1. All 78 market x week cells are IDENTICAL for Roverpath and Final
+//            Funnel, which is how 830 became 415 / 415.
+//   * APAC - a flat 2:1:1 in every market (ANZ 470/238/235, ASEAN 209/106/104, Japan
+//            122/62/60, ...), rolling up to the client's own market totals EXACTLY
+//            (943 / 419 / 220 / 309 / 244 / 155 = 2,290).
+// So the MARKET, WEEK and THEATRE totals are client-set and reconcile to their sheet; the
+// per-publisher slice is ours. Both theatres have the same status - APJ's 2:1:1 is no more
+// client-set than EMEA's 1:1.
+//
+// The call was to KEEP the per-publisher percentages on screen and say what they are, in the
+// footnote under the table, rather than blank them: the allocation is how the team actually
+// runs the book, so the figure is useful as long as nobody mistakes it for a commitment.
+// TRUE therefore means "the UI may pace against the seeded publisher target". Setting it false
+// makes every target-shaped figure fall back to its existing no-target copy wherever a single
+// publisher is selected - the band, the weekly tile, the market chart and the table together.
+// That path is wired and tested; it is one line if the labelling ever proves not to be enough.
+const CSPD_PUBLISHER_TARGETS_ARE_REAL = true;
 // Display labels. The VALUE stays the raw book string from the payload (it is the join key
 // all the way back to the seed CSV); only the wording on screen changes.
 const CSPD_BOOK_LABEL = { 'Regional': 'Regional campaigns', 'Unclassified': 'Unclassified campaigns' };
@@ -3627,11 +3652,18 @@ function cspdResolveScope(th){
   // HERE, not in the picker, because cspdDefaultWeek() reads the selection before the pickers
   // are rendered - leaving it to the picker meant a lane change could open on the wrong week.
   if (CSPD.vendor !== 'all' && vendors.indexOf(CSPD.vendor) < 0) CSPD.vendor = 'all';
-  return { all, books, rows, vendors };
+  // Do the seeded targets MEAN anything at the grain now on screen? At "all publishers" yes -
+  // the market/week/theatre totals reconcile to the client's plan exactly. Filtered to ONE
+  // publisher, no: the plan has no publisher dimension and the split is an allocation (see
+  // CSPD_PUBLISHER_TARGETS_ARE_REAL). It is resolved HERE, beside the selection it depends on,
+  // so the top band, the pacing band, the weekly tile, the market chart and the publisher
+  // table all read the same answer and cannot disagree.
+  const targetsApply = CSPD.vendor === 'all' || CSPD_PUBLISHER_TARGETS_ARE_REAL;
+  return { all, books, rows, vendors, targetsApply };
 }
 
 function cspdCfg(th){
-  const { all, books, rows, vendors } = cspdResolveScope(th);
+  const { all, books, rows, vendors, targetsApply } = cspdResolveScope(th);
 
   const weeks    = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
   const weeksAll = [...new Set(all.filter(r => r.week_start).map(r => r.week_start))].sort();
@@ -3642,10 +3674,11 @@ function cspdCfg(th){
     if (!seq.has(r.market) || s < seq.get(r.market)) seq.set(r.market, s);
   }
   const markets = [...seq.keys()].sort((a,b) => (seq.get(a) - seq.get(b)) || a.localeCompare(b));
-  // Does the SELECTED book have a target sheet at all? Drives the caption under the band, so
-  // a blank pacing tile reads as "not bought to a target" instead of as a broken feed.
-  const hasTargets = rows.some(r => (r.target || 0) > 0);
-  return { theatre: th, book: CSPD.book, books, weeks, weeksAll, markets, vendors, hasTargets,
+  // Does the CURRENT SELECTION have a target sheet at all? Drives the caption under the band,
+  // so a blank pacing tile reads as "not bought to a target" instead of as a broken feed.
+  const hasTargets = targetsApply && rows.some(r => (r.target || 0) > 0);
+  return { theatre: th, book: CSPD.book, books, weeks, weeksAll, markets, vendors,
+           hasTargets, targetsApply,
            allRows: all,
            // The seed is NAMED for a quarter, but a flight is not a quarter: EMEA's 830 runs
            // 07 Aug -> 05 Nov and 310 of it (37%) lands in Q4. Every caption in this section
@@ -3708,6 +3741,10 @@ function renderCsPacingDetail(){
 
   const rows = cspdRows();
   const tot  = cspdSum(rows);
+  // Filtered to one publisher, the seeded target is an allocation, not a commitment - so the
+  // band, the weekly tile and the deficit all fall back to their existing "no target" copy
+  // rather than pacing against it. See CSPD_PUBLISHER_TARGETS_ARE_REAL.
+  if (!cfg.targetsApply) tot.target = 0;
 
   // ---- 3.1 campaign-to-date band: vendor-scoped, NEVER week-scoped -------
   const S = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
@@ -3732,6 +3769,7 @@ function renderCsPacingDetail(){
     ? rows.filter(r => r.week_start && lastDelivering && r.week_start <= lastDelivering)
     : rows.filter(r => r.week_start === CSPD.week);
   const w = cspdSum(slice);
+  if (!cfg.targetsApply) w.target = 0;
   const wkName = qtd ? cfg.period_label + ' to date' : 'Week of ' + cspdWkLabel(CSPD.week);
   S('cspdWkLbl', qtd ? cfg.period_label + ' to date' : 'Selected week');
   // Under the cumulative chip this figure is no longer a WEEKLY pacing number - it is
@@ -3741,14 +3779,21 @@ function renderCsPacingDetail(){
   S('cspd_w_rej',   w.rejected.toLocaleString());
   S('cspd_w_rrate', cspdPct(w.rejected, w.delivered));
   S('cspd_w_arate', cspdPct(w.accepted, w.delivered));
-  S('cspd_w_pace',  cspdPct(w.delivered, w.target));
+  // ACCEPTED, not delivered (2026-08-27). This tile used to divide DELIVERED by target while
+  // the Lead deficit tile beside it in the SAME card measured ACCEPTED against the same target,
+  // so the two openly contradicted each other: EMEA w/c 08-21 read "112.5% - 72 vs 64 target"
+  // (ahead) next to "Lead deficit 7 - accepted leads behind target" (behind). Accepted is what
+  // the plan is bought in and what every other pacing figure on this tab already uses - the
+  // campaign-to-date band, the publisher table, and the deficit tile itself. The caption names
+  // the metric explicitly so nobody re-derives it from the Delivered tile above.
+  S('cspd_w_pace',  cspdPct(w.accepted, w.target));
   // A week still running is measured against its FULL target, so it always reads behind -
   // APAC's w/c 24 Aug showed 67.6% on day 4 of 7. The band is deliberately whole-week (it is
   // a weekly delivery report, not a pace curve; the prorated pace lives in the KPI strip
   // above), so the fix is to SAY the week is incomplete rather than to prorate this figure.
   const wkDay = (!qtd && CSPD.week) ? cspdDayInWeek(CSPD.week) : 0;
   S('cspd_w_pace_cnt', w.target
-      ? w.delivered.toLocaleString() + ' vs ' + w.target.toLocaleString() + ' target'
+      ? w.accepted.toLocaleString() + ' accepted vs ' + w.target.toLocaleString() + ' target'
         + (wkDay && wkDay < 7 ? ' - week in progress, day ' + wkDay + ' of 7' : '')
       : 'no target for this week');
   const deficit = w.target - w.accepted;
@@ -4048,8 +4093,13 @@ function cspdRenderVendorTable(cfg){
     const sel = o.book === cfg.book && CSPD.vendor === o.vendor;
     // Blank, not '-', reads as "nothing bought here"; the bb-sortable engine sinks
     // non-numeric cells to the bottom in both directions either way.
-    const tgt  = o.target ? o.target.toLocaleString() : '<span style="opacity:.45">no target</span>';
-    const pace = o.target ? cspdPct(o.accepted, o.target) : '<span style="opacity:.45">-</span>';
+    // Blank, not '-', reads as "nothing bought here"; the bb-sortable engine sinks
+    // non-numeric cells to the bottom in both directions either way. The seeded publisher
+    // target is an internal allocation (see CSPD_PUBLISHER_TARGETS_ARE_REAL) - the footnote
+    // under the table is what says so; the number itself stays.
+    const real = CSPD_PUBLISHER_TARGETS_ARE_REAL && o.target;
+    const tgt  = real ? o.target.toLocaleString() : '<span style="opacity:.45">no target</span>';
+    const pace = real ? cspdPct(o.accepted, o.target) : '<span style="opacity:.45">-</span>';
     return '<tr class="' + (sel ? 'on' : '') + '" onclick="cspdPickVendor(' + JSON.stringify(o.book).replace(/"/g, '&quot;')
       + ',' + JSON.stringify(o.vendor).replace(/"/g, '&quot;') + ')">'
       + '<td><span class="' + bookCls(o.book) + '">' + esc(o.book) + '</span></td>'
@@ -4070,11 +4120,18 @@ function cspdRenderVendorTable(cfg){
     + 'Pacing is accepted leads against target. Click a row to scope the panels above to it.';
   const note = document.getElementById('cspdVendorNote');
   if (note){
+    // The client's plan sets targets per market per week and has no publisher dimension, so the
+    // per-publisher column is OUR split of it - a flat 1:1 on EMEA, 2:1:1 on APJ. Both theatres
+    // get this line for that reason: APJ's allocation is no more client-set than EMEA's. The
+    // numbers stay on screen (they are how the book is actually run); this is what stops them
+    // being read as a commitment Cloudflare made. See CSPD_PUBLISHER_TARGETS_ARE_REAL.
+    const allocated = 'Publisher targets are an internal allocation of the market plan, not a '
+      + 'client-set target. Publisher pacing is indicative.';
     const noTgt = list.filter(o => !o.target).map(o => o.vendor);
     note.className = 'cspd-note';
-    note.textContent = noTgt.length
+    note.textContent = allocated + ' ' + (noTgt.length
       ? 'No lead target is loaded for ' + noTgt.join(', ') + ', so those rows show delivery only.'
-      : 'Every publisher here is paced against a loaded ' + cfg.period_label + ' lead target.';
+      : 'Every publisher here is paced against a loaded ' + cfg.period_label + ' lead target.');
   }
 }
 // Row click -> set both pickers. Clicking the row that is already selected clears the
@@ -4209,7 +4266,7 @@ function weekDueFraction(f, elapsedDays, weekStart){
 function cspdTopAgg(){
   // MUST come before cspdRows(): see cspdResolveScope(). Without it this function runs on the
   // first paint with CSPD.book still null and every row is filtered away.
-  cspdResolveScope(cspdTheatre());
+  const { targetsApply } = cspdResolveScope(cspdTheatre());
   const rows = cspdRows();
   const f    = cspdFlight(rows);
   const now  = new Date();
@@ -4219,7 +4276,10 @@ function cspdTopAgg(){
   const mk = new Map();       // market -> full target, due-to-date target, actuals
   let q2Target = 0, ttdTarget = 0;
   for (const r of rows){
-    const t = r.target || 0;
+    // Same rule as the pacing band below: a publisher-filtered target is an allocation, so it
+    // is not paced against. Zeroing it here makes every downstream figure (q2Target/ttdTarget,
+    // the per-market rows, the progress bar) fall back to the no-target path together.
+    const t = targetsApply ? (r.target || 0) : 0;
     const due = t * weekDueFraction(f, elapsed, r.week_start);
     q2Target  += t;
     ttdTarget += due;
