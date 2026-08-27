@@ -3604,13 +3604,34 @@ function cspdTheatre(){ return laneTheatre(); }
 //   * `allRows`   - the publisher table spans every book on purpose.
 // The book scoping is what keeps a target that covers only Core DG from ever being paced
 // against delivery from another book.
-function cspdCfg(th){
+// Resolve the book + publisher SELECTION for a theatre, and return the row sets that follow
+// from it. CSPD starts { book: null } and the payload is what decides which books exist, so
+// the selection cannot be set at boot - it has to be resolved on first read.
+//
+// THIS LIVES IN ITS OWN FUNCTION BECAUSE TWO CALLERS NEED IT (fixed 2026-08-28). It used to
+// be a side effect of cspdCfg(), which only runs inside renderCsPacingDetail(). cspdTopAgg()
+// runs BEFORE that in renderAll() - deliberately, because renderCsPacingDetail()'s tail is
+// what hides the rest of the tab and must go last - so on the first paint CSPD.book was still
+// null, `cspdBookOf(r) === null` matched nothing, and the whole EMEA top band rendered zeros
+// off 0 of 169 rows. Reordering the calls would have traded this bug for that one; resolving
+// the scope in one place both callers hit removes the ordering dependency instead.
+// Any THIRD reader of cspdRows() must call this first too.
+function cspdResolveScope(th){
   const all   = CSPD_ROWS.filter(r => r.theatre === th);
   const books = [...new Set(all.map(cspdBookOf))].sort(cspdBookSort);
-  // Resolve the selection here rather than at boot: the payload is what decides which books
-  // exist. Falling back to the first book keeps a theatre that has no Core DG at all working.
+  // Falling back to the first book keeps a theatre that has no Core DG at all working.
   if (!CSPD.book || books.indexOf(CSPD.book) < 0) CSPD.book = books.indexOf('Core DG') >= 0 ? 'Core DG' : (books[0] || null);
   const rows  = all.filter(r => cspdBookOf(r) === CSPD.book);
+  const vendors = [...new Set(rows.map(r => r.vendor).filter(Boolean))].sort();
+  // A publisher that does not exist in the selected book/theatre falls back to "all". Done
+  // HERE, not in the picker, because cspdDefaultWeek() reads the selection before the pickers
+  // are rendered - leaving it to the picker meant a lane change could open on the wrong week.
+  if (CSPD.vendor !== 'all' && vendors.indexOf(CSPD.vendor) < 0) CSPD.vendor = 'all';
+  return { all, books, rows, vendors };
+}
+
+function cspdCfg(th){
+  const { all, books, rows, vendors } = cspdResolveScope(th);
 
   const weeks    = [...new Set(rows.filter(r => r.week_start).map(r => r.week_start))].sort();
   const weeksAll = [...new Set(all.filter(r => r.week_start).map(r => r.week_start))].sort();
@@ -3621,16 +3642,17 @@ function cspdCfg(th){
     if (!seq.has(r.market) || s < seq.get(r.market)) seq.set(r.market, s);
   }
   const markets = [...seq.keys()].sort((a,b) => (seq.get(a) - seq.get(b)) || a.localeCompare(b));
-  const vendors = [...new Set(rows.map(r => r.vendor).filter(Boolean))].sort();
-  // A publisher that does not exist in the selected book/theatre falls back to "all". Done
-  // HERE, not in the picker, because cspdDefaultWeek() reads the selection before the pickers
-  // are rendered - leaving it to the picker meant a lane change could open on the wrong week.
-  if (CSPD.vendor !== 'all' && vendors.indexOf(CSPD.vendor) < 0) CSPD.vendor = 'all';
   // Does the SELECTED book have a target sheet at all? Drives the caption under the band, so
   // a blank pacing tile reads as "not bought to a target" instead of as a broken feed.
   const hasTargets = rows.some(r => (r.target || 0) > 0);
   return { theatre: th, book: CSPD.book, books, weeks, weeksAll, markets, vendors, hasTargets,
-           allRows: all, period_label: CSPD_META.period_label || 'Q3' };
+           allRows: all,
+           // The seed is NAMED for a quarter, but a flight is not a quarter: EMEA's 830 runs
+           // 07 Aug -> 05 Nov and 310 of it (37%) lands in Q4. Every caption in this section
+           // reads period_label, so making it lane-aware here fixes them all at once ("whole
+           // Flight", "265 of 830 Flight target", the "Flight to date" chip). APAC is
+           // untouched - it still reads the payload's own label.
+           period_label: topFromPacing() ? 'Flight' : (CSPD_META.period_label || 'Q3') };
 }
 
 function cspdRows(){
@@ -4185,6 +4207,9 @@ function weekDueFraction(f, elapsedDays, weekStart){
 // table need lead-GRAIN columns (ASSET_1 / JOB_* / COMPANY_NAME) that stg_cs_leads_v2
 // does not carry yet, and they stay hidden for this theatre until it does.
 function cspdTopAgg(){
+  // MUST come before cspdRows(): see cspdResolveScope(). Without it this function runs on the
+  // first paint with CSPD.book still null and every row is filtered away.
+  cspdResolveScope(cspdTheatre());
   const rows = cspdRows();
   const f    = cspdFlight(rows);
   const now  = new Date();

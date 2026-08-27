@@ -280,6 +280,24 @@ pacing-versus-time comparison is the point of the section: a bare 31.9% reads as
   straight misstatement. `periodLabel()`/`toDateWord()` are lane-aware and return
   `qtrLabel()`/`'QTD'` unchanged on APAC, so **every APJ caption is byte-identical**.
 
+- **`cspdResolveScope()` must run before ANY read of `cspdRows()` (fixed 2026-08-28).** `CSPD`
+  starts `{ book: null }` - the payload decides which books exist, so the selection is resolved on
+  first read, not at boot. That resolution used to be a SIDE EFFECT of `cspdCfg()`, which only
+  runs inside `renderCsPacingDetail()`. `cspdTopAgg()` runs *before* that in `renderAll()`
+  (deliberately - `renderCsPacingDetail()`'s tail is `applyRegionPanelScope()` and must go last),
+  so on the first paint `cspdBookOf(r) === null` matched nothing and **the entire EMEA top band
+  rendered zeros off 0 of 169 rows** while the Pacing detail below it rendered correctly, because
+  that section resolves the book itself. The theatre filter was never the problem: step 1 returned
+  169 rows, the book step dropped all 169. It is now resolved in one function both callers hit -
+  reordering the calls would only have traded this bug for the panel-scope one. **A third reader
+  of `cspdRows()` must call `cspdResolveScope()` first too.**
+  **The test that missed it** stubbed `CSPD = { book: 'Core DG' }` - it pre-set the exact state
+  that breaks. When a bug depends on initialisation order, the harness has to start from the
+  declaration in the file, not from a convenient value.
+- **`cfg.period_label` is lane-aware, so the whole Pacing detail section follows.** It resolves to
+  `Flight` off-theatre and to the payload's own label on APAC, which is what stops EMEA captions
+  reading "whole Q3" / "265 of 830 Q3 target" for a flight that is 37% Q4.
+
 **Still hidden on EMEA** (donuts, Job function/level/demographic, Best performing assets, the
 leads-trend and the lead-detail table): they need lead-GRAIN columns - `ASSET_1`, `JOB_FUNCTION`,
 `JOB_LEVEL`, `JOB_TITLE`, `COMPANY_NAME` - that `stg_cs_leads_v2` does not carry. All six are
